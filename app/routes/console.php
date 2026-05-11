@@ -24,8 +24,30 @@ Schedule::command('horizon:snapshot')->everyFiveMinutes()->onOneServer();
 // Roll monthly partitions forward before any writer hits a missing partition.
 Schedule::command('db:partitions:ensure')->dailyAt('00:30')->onOneServer()->withoutOverlapping();
 
+// --- Phase 1: marketplace order sync (see docs/03-domain/order-sync-pipeline.md) ---
+// Polling backup: every ~10' dispatch SyncOrdersForShop for each active channel account
+// (ShouldBeUnique guards against overlap). Heavy work happens in the jobs, not here.
+Schedule::call(function () {
+    \CMBcoreSeller\Modules\Channels\Models\ChannelAccount::withoutGlobalScope(\CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class)
+        ->where('status', \CMBcoreSeller\Modules\Channels\Models\ChannelAccount::STATUS_ACTIVE)
+        ->orderBy('id')
+        ->each(fn ($a) => \CMBcoreSeller\Modules\Channels\Jobs\SyncOrdersForShop::dispatch((int) $a->getKey()));
+})->everyTenMinutes()->name('dispatch-order-sync')->onOneServer()->withoutOverlapping();
+
+// Refresh tokens that expire soon (a stalled token kills sync).
+Schedule::command('channels:refresh-expiring-tokens')->everyThirtyMinutes()->onOneServer();
+
+// Daily safety-net backfill: re-sync the last few days for every active shop.
+Schedule::call(function () {
+    \CMBcoreSeller\Modules\Channels\Models\ChannelAccount::withoutGlobalScope(\CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class)
+        ->where('status', \CMBcoreSeller\Modules\Channels\Models\ChannelAccount::STATUS_ACTIVE)
+        ->orderBy('id')
+        ->each(fn ($a) => \CMBcoreSeller\Modules\Channels\Jobs\SyncOrdersForShop::dispatch((int) $a->getKey(), now()->subDays(3)->toIso8601String(), 'poll'));
+})->dailyAt('02:00')->name('backfill-recent-orders')->onOneServer();
+
 // Prune old framework rows so the DB stays lean.
 Schedule::command('queue:prune-failed --hours=336')->daily()->onOneServer();      // keep 14d of failed jobs
 Schedule::command('queue:prune-batches --hours=72 --unfinished=72')->daily()->onOneServer();
+Schedule::command('model:prune')->hourly()->onOneServer();                        // expired oauth_states (OAuthState is Prunable)
 Schedule::command('sanctum:prune-expired --hours=24')->daily()->onOneServer();
 Schedule::command('auth:clear-resets')->daily()->onOneServer();

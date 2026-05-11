@@ -1,3 +1,17 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* App-level CSS overlay on top of Ant Design 5 (resources/js/app.tsx imports this).
+   Tailwind directives were never actually loaded (the entry didn't import this file)
+   and conflict with AntD's reset, so this is plain CSS. See docs/06-frontend/overview.md. */
+
+html, body, #app { height: 100%; }
+body { margin: 0; }
+
+/* Orders table: highlight rows flagged with has_issue. */
+.row-has-issue > td { background: #fff7f6; }
+.row-has-issue:hover > td { background: #ffece9 !important; }
+
+/* Slightly tighter, "data-dense" tables (BigSeller-style). */
+.ant-table-wrapper .ant-table-thead > tr > th { background: #fafbfc; font-weight: 600; }
+.ant-card-head { min-height: 44px; }
+
+/* Sidebar group labels a touch quieter. */
+.ant-menu-inline .ant-menu-item-group-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #8c8c8c; padding-top: 10px; }
