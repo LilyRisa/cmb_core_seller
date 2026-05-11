@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('oauth/{provider}/callback', function (Request $request, string $provider) {
     logger()->info('oauth.callback.unimplemented', ['provider' => $provider, 'has_code' => $request->filled('code')]);
 
-    return response('OAuth callback for [' . e($provider) . '] is not implemented yet (Phase 1).', 501);
+    return response('OAuth callback for ['.e($provider).'] is not implemented yet (Phase 1).', 501);
 })->whereIn('provider', ['tiktok', 'shopee', 'lazada'])->name('oauth.callback');
 
 // --- SPA catch-all: serve the React app for everything that isn't an API,

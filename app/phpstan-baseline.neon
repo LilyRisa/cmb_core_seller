@@ -1,0 +1,49 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Trait CMBcoreSeller\\Modules\\Tenancy\\Concerns\\BelongsToTenant is used zero times and is not analysed\.$#'
+			identifier: trait.unused
+			count: 1
+			path: app/Modules/Tenancy/Concerns/BelongsToTenant.php
+
+		-
+			message: '#^Access to an undefined property CMBcoreSeller\\Modules\\Tenancy\\Models\\Tenant\:\:\$pivot\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Modules/Tenancy/Http/Controllers/AuthController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{id\: mixed, name\: string, slug\: string, role\: mixed\}, Closure\(CMBcoreSeller\\Modules\\Tenancy\\Models\\Tenant\)\: array\{id\: mixed, name\: string, slug\: string, role\: mixed\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Modules/Tenancy/Http/Controllers/AuthController.php
+
+		-
+			message: '#^Access to an undefined property CMBcoreSeller\\Models\\User\:\:\$pivot\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Modules/Tenancy/Http/Controllers/TenantController.php
+
+		-
+			message: '#^Access to an undefined property CMBcoreSeller\\Modules\\Tenancy\\Models\\Tenant\:\:\$pivot\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Modules/Tenancy/Http/Controllers/TenantController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{id\: mixed, name\: string, email\: string, role\: mixed\}, Closure\(CMBcoreSeller\\Models\\User\)\: array\{id\: mixed, name\: string, email\: string, role\: mixed\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Modules/Tenancy/Http/Controllers/TenantController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{id\: mixed, name\: string, slug\: string, status\: string, role\: mixed\}, Closure\(CMBcoreSeller\\Modules\\Tenancy\\Models\\Tenant\)\: array\{id\: mixed, name\: string, slug\: string, status\: string, role\: mixed\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Modules/Tenancy/Http/Controllers/TenantController.php
+
+		-
+			message: '#^Parameter \#1 \$scope of method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:withoutGlobalScope\(\) expects Illuminate\\Database\\Eloquent\\Scope\|string, Illuminate\\Database\\Eloquent\\Builder given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Modules/Tenancy/Scopes/TenantScope.php

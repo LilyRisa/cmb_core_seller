@@ -43,7 +43,7 @@ class IntegrationsServiceProvider extends ServiceProvider
 
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__ . '/../../config/integrations.php', 'integrations');
+        $this->mergeConfigFrom(__DIR__.'/../../config/integrations.php', 'integrations');
 
         $this->app->singleton(ChannelRegistry::class, function ($app) {
             $registry = new ChannelRegistry($app);
@@ -71,7 +71,7 @@ class IntegrationsServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->publishes([
-            __DIR__ . '/../../config/integrations.php' => config_path('integrations.php'),
+            __DIR__.'/../../config/integrations.php' => config_path('integrations.php'),
         ], 'config');
     }
 }

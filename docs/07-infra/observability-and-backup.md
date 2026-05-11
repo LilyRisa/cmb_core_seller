@@ -39,8 +39,8 @@
 5. Mọi sự cố lớn ⇒ viết post-mortem (không đổ lỗi cá nhân), bổ sung phòng ngừa.
 
 ## 7. Việc Phase 0
-- [ ] Tích hợp Sentry (web + queue).
-- [ ] Log JSON + `trace_id` middleware.
-- [ ] `GET /api/v1/health`.
-- [ ] Script backup Postgres + MinIO trong Docker Compose + cron; tài liệu khôi phục tối thiểu.
-- [ ] Cấu hình cảnh báo cơ bản (Sentry + queue depth).
+- [x] Tích hợp Sentry (web + queue) — `sentry/sentry-laravel` đã cài; `config/sentry.php` published; `\Sentry\Laravel\Integration::handles($exceptions)` trong `bootstrap/app.php`. Bật bằng cách đặt `SENTRY_LARAVEL_DSN` (không có DSN ⇒ no-op).
+- [x] Log JSON + `trace_id` middleware — channel `json` (stdout, `Monolog\Formatter\JsonFormatter`) ở `config/logging.php`; middleware `AssignRequestId` (chạy đầu pipeline) gắn `request_id` vào log context (`Log::shareContext`), Sentry scope tag, header `X-Request-Id`, và trường `error.trace_id` trong envelope lỗi. Docker đặt `LOG_CHANNEL=stack`, `LOG_STACK=json`.
+- [x] `GET /api/v1/health` — `HealthController`: kiểm DB (critical), cache, Redis, queue (Horizon master supervisor nếu queue chạy trên Redis); trả `200` khi mọi check *critical* "ok", `503` nếu không; không bao giờ ném exception.
+- [x] Script backup Postgres + MinIO + cron — `scripts/backup.sh` (`pg_dump` qua `docker compose exec postgres` + `mc mirror` bucket `omnisell`; prune bản local > 14 ngày; có ví dụ crontab); khôi phục: `scripts/restore.sh <pg-dump.sql.gz> [<minio-dir>]` (theo thứ tự ở §6). *Còn lại ở môi trường thật:* bật WAL/PITR cho Postgres, versioning/replicate MinIO sang bucket khác vùng, đẩy backup off-site, test khôi phục định kỳ.
+- [ ] Cấu hình cảnh báo cơ bản (Sentry + queue depth) — *cấu hình ở môi trường thật (Sentry alert rules + giám sát độ sâu queue qua Horizon), không phải trong repo*.

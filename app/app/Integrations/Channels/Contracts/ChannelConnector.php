@@ -2,12 +2,14 @@
 
 namespace CMBcoreSeller\Integrations\Channels\Contracts;
 
+use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
 use CMBcoreSeller\Integrations\Channels\DTO\OrderDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\Page;
 use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
+use CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -21,7 +23,7 @@ use Symfony\Component\HttpFoundation\Request;
  * anywhere in the domain modules.
  *
  * A connector that does not support an operation must throw
- * {@see \CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation};
+ * {@see UnsupportedOperation};
  * callers should consult capabilities()/supports() first.
  */
 interface ChannelConnector
@@ -65,7 +67,7 @@ interface ChannelConnector
     // --- Orders -----------------------------------------------------------
 
     /**
-     * @param  array{updatedFrom?:\Carbon\CarbonImmutable,updatedTo?:\Carbon\CarbonImmutable,statuses?:list<string>,cursor?:string,pageSize?:int}  $query
+     * @param  array{updatedFrom?:CarbonImmutable,updatedTo?:CarbonImmutable,statuses?:list<string>,cursor?:string,pageSize?:int}  $query
      * @return Page<OrderDTO>
      */
     public function fetchOrders(AuthContext $auth, array $query = []): Page;

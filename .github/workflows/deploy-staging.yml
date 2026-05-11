@@ -1,0 +1,56 @@
+name: Deploy · staging
+
+# Minimal CD: pull the repo on the staging host and roll the Docker stack.
+# Manual trigger only for now (no auto-deploy until a real staging host exists).
+# See docs/07-infra/ci-cd-pipeline.md §3 and docs/07-infra/environments-and-docker.md §3.
+#
+# Required repository secrets:
+#   STAGING_SSH_HOST   STAGING_SSH_USER   STAGING_SSH_KEY (private key)
+#   STAGING_PATH       (path to the checked-out repo on the host)
+#   STAGING_HEALTH_URL (e.g. https://staging.example.com/api/v1/health)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to deploy
+        default: main
+        required: true
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: SSH → git pull → docker compose up
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.STAGING_SSH_HOST }}
+          username: ${{ secrets.STAGING_SSH_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.STAGING_PATH }}"
+            git fetch --all --prune
+            git checkout "${{ github.event.inputs.ref }}"
+            git pull --ff-only
+            docker compose pull
+            docker compose up -d --build
+            # migrations are a controlled step in non-local envs (RUN_MIGRATIONS is off there)
+            docker compose run --rm -e RUN_MIGRATIONS=false app php artisan migrate --force
+            docker compose exec -T app php artisan config:cache
+            docker compose exec -T app php artisan route:cache
+            docker compose ps
+
+      - name: Health check
+        run: |
+          for i in $(seq 1 12); do
+            if curl -fsS "${{ secrets.STAGING_HEALTH_URL }}" >/dev/null; then echo "healthy"; exit 0; fi
+            echo "waiting for staging to come up ($i)..."; sleep 5
+          done
+          echo "staging did not become healthy"; exit 1

@@ -8,6 +8,7 @@ import {
     InboxOutlined,
     AppstoreOutlined,
     CarOutlined,
+    SettingOutlined,
     LogoutOutlined,
     UserOutlined,
 } from '@ant-design/icons';
@@ -22,6 +23,7 @@ const NAV = [
     { key: '/products', icon: <AppstoreOutlined />, label: <Link to="/products">Sản phẩm & SKU</Link> },
     { key: '/inventory', icon: <InboxOutlined />, label: <Link to="/inventory">Tồn kho</Link> },
     { key: '/fulfillment', icon: <CarOutlined />, label: <Link to="/fulfillment">Giao hàng & in</Link> },
+    { key: '/settings', icon: <SettingOutlined />, label: <Link to="/settings/members">Cài đặt</Link> },
 ];
 
 export function AppLayout() {

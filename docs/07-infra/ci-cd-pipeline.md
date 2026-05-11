@@ -46,7 +46,10 @@ jobs:
 - Secrets ở GitHub Actions Secrets / secret manager; không in ra log; không commit. Token sàn dùng cho CI là token sandbox/test, không phải prod.
 
 ## 5. Việc Phase 0
-- [ ] Tạo workflow CI ở trên (backend + frontend + contract-tests).
-- [ ] Branch protection cho `main` (require CI + 1 review).
-- [ ] Script deploy staging (SSH + docker compose) hoặc workflow CD tối thiểu.
-- [ ] Đặt ngưỡng coverage khởi điểm + level PHPStan khởi điểm (ghi vào đây).
+- [x] Tạo workflow CI — `.github/workflows/ci.yml`: job **backend** (`composer install` → `pint --test` → `phpstan analyse` → `php artisan migrate --force` (sqlite) → `php artisan test --coverage --min=60`) + job **frontend** (`npm ci` → `npm run lint` (ESLint) → `npm run typecheck` → `npm run build`). Cache composer + npm. `contract-tests` job sẽ thêm khi có connector sàn đầu tiên (Phase 1) — hiện chưa có connector nào ngoài `ManualConnector`.
+- [ ] Branch protection cho `main` (require CI + 1 review) — *làm trên GitHub, không phải trong repo*.
+- [x] Workflow CD staging tối thiểu — `.github/workflows/deploy-staging.yml` (manual `workflow_dispatch`: SSH vào host → `git pull` → `docker compose pull/build` → `php artisan migrate --force` → `up -d` → kiểm `/api/v1/health`). Cần secrets `STAGING_SSH_*`; chưa bật vì chưa có host staging.
+- [x] **Level PHPStan khởi điểm = 5** (Larastan), cấu hình ở `app/phpstan.neon`; các phát hiện sẵn có trên skeleton nằm trong `app/phpstan-baseline.neon` (14 mục, burn-down dần — code mới **không** được thêm vào baseline). Tăng level có chủ đích về sau.
+- [x] **Ngưỡng coverage khởi điểm = 60%** (`php artisan test --coverage --min=60`; coverage hiện ~72%, driver `pcov` trong CI). Tăng dần; **không hạ ngưỡng để cho qua** — viết test.
+- [x] **ESLint** (flat config `app/eslint.config.js`: `@eslint/js` + `typescript-eslint` + `eslint-plugin-react-hooks` + `eslint-plugin-react-refresh`); `npm run lint` trong CI (`react-refresh/only-export-components` để mức `warn`). Prettier chưa cấu hình — để sau (tránh churn lớn); hiện format thủ công theo style hiện có.
+- [x] **Test runner = PHPUnit** (`php artisan test`) — không phải Pest. Doc cũ nói "Pest"; thực tế skeleton dùng `phpunit/phpunit`. Nếu muốn đổi sang Pest, mở ADR/issue riêng; cú pháp test hiện viết theo PHPUnit class-based.

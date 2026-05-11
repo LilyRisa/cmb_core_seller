@@ -25,21 +25,21 @@ interface CarrierConnector
 
     /**
      * @param  array<string, mixed>  $account
-     * @return list<array<string, mixed>>  Available services + coverage.
+     * @return list<array<string, mixed>> Available services + coverage.
      */
     public function services(array $account): array;
 
     /**
      * @param  array<string, mixed>  $account
      * @param  array<string, mixed>  $request
-     * @return list<array<string, mixed>>  Quotes: fee + estimated delivery time.
+     * @return list<array<string, mixed>> Quotes: fee + estimated delivery time.
      */
     public function quote(array $account, array $request): array;
 
     /**
      * @param  array<string, mixed>  $account
      * @param  array<string, mixed>  $shipment
-     * @return array<string, mixed>  At least: tracking_no, carrier, status.
+     * @return array<string, mixed> At least: tracking_no, carrier, status.
      */
     public function createShipment(array $account, array $shipment): array;
 
@@ -51,7 +51,7 @@ interface CarrierConnector
 
     /**
      * @param  array<string, mixed>  $account
-     * @return array<string, mixed>  Tracking status + events.
+     * @return array<string, mixed> Tracking status + events.
      */
     public function getTracking(array $account, string $trackingNo): array;
 

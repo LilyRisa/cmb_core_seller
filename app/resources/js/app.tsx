@@ -14,6 +14,7 @@ import { LoginPage } from '@/pages/LoginPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { ChannelsPage } from '@/pages/ChannelsPage';
+import { SettingsMembersPage } from '@/pages/SettingsMembersPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
 dayjs.locale('vi');
@@ -52,7 +53,9 @@ function Root() {
                 <Route path="products" element={<ComingSoon title="Sản phẩm & SKU" />} />
                 <Route path="inventory" element={<ComingSoon title="Tồn kho" />} />
                 <Route path="fulfillment" element={<ComingSoon title="Giao hàng & in" />} />
-                <Route path="settings" element={<ComingSoon title="Cài đặt" />} />
+                <Route path="settings" element={<Navigate to="/settings/members" replace />} />
+                <Route path="settings/members" element={<SettingsMembersPage />} />
+                <Route path="settings/*" element={<ComingSoon title="Cài đặt" />} />
             </Route>
             <Route path="404" element={<NotFoundPage />} />
             <Route path="*" element={<Navigate to="/404" replace />} />

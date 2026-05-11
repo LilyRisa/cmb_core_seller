@@ -26,7 +26,7 @@ class Tenant extends Model
                 $slug = $base;
                 $i = 1;
                 while (static::where('slug', $slug)->exists()) {
-                    $slug = $base . '-' . (++$i);
+                    $slug = $base.'-'.(++$i);
                 }
                 $tenant->slug = $slug;
             }

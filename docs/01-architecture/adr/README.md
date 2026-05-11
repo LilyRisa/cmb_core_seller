@@ -35,5 +35,7 @@
 | 0006 | UI kit React = Ant Design 5 | Accepted | 2026-05-11 |
 | 0007 | Đồng bộ đơn = webhook + polling backup; mọi job idempotent | Accepted | 2026-05-11 |
 | 0008 | Tồn kho: master SKU là một nguồn sự thật; ghép SKU hỗ trợ combo (1→N) | Accepted | 2026-05-11 |
+| 0009 | Khoá chính `bigint identity`; ID lộ ra ngoài không dùng số tự tăng (hashid / `public_id`) | Accepted | 2026-05-11 |
+| 0010 | RBAC bằng Role enum + permission map tự viết (chưa dùng spatie/laravel-permission) | Accepted | 2026-05-11 |
 
-> Khi bạn thực sự tạo các file `0001-*.md` ... `0008-*.md`, dùng mẫu trên và chép bối cảnh/lý do tương ứng từ `tech-stack.md`, `extensibility-rules.md`, `vision-and-scope.md`. Hiện liệt kê ở đây để không mất dấu quyết định nào.
+> Tất cả 0001–0010 đã có file `NNNN-*.md` trong thư mục này. Khi thêm quyết định mới: tạo file theo mẫu trên, thêm dòng vào bảng, và (nếu cần) cập nhật `tech-stack.md`/`extensibility-rules.md`/doc liên quan.

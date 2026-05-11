@@ -21,7 +21,7 @@ class TenantScope implements Scope
         // No current tenant (e.g. console, webhook before resolution): do not
         // leak data — constrain to an impossible id. Callers that legitimately
         // need cross-tenant access use withoutTenantScope() / runAs().
-        $builder->where($model->getTable() . '.tenant_id', $tenantId ?? 0);
+        $builder->where($model->getTable().'.tenant_id', $tenantId ?? 0);
     }
 
     public function extend(Builder $builder): void

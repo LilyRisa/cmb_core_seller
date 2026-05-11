@@ -136,7 +136,7 @@ class AuthTenantTest extends TestCase
     protected function userWithTenant(Role $role = Role::Owner): array
     {
         $user = User::factory()->create();
-        $tenant = Tenant::create(['name' => 'Shop ' . uniqid()]);
+        $tenant = Tenant::create(['name' => 'Shop '.uniqid()]);
         $tenant->users()->attach($user->getKey(), ['role' => $role->value]);
 
         return [$user, $tenant];

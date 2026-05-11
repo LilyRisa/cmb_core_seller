@@ -1,0 +1,87 @@
+name: CI
+
+# Pipeline must be green before merge (branch protection on `main`).
+# See docs/07-infra/ci-cd-pipeline.md.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: app
+
+jobs:
+  backend:
+    name: Backend (Pint · PHPStan · migrate · tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_sqlite, pdo_pgsql, redis, intl, bcmath, pcntl
+          coverage: pcov
+          tools: composer:v2
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: app/vendor
+          key: composer-${{ runner.os }}-${{ hashFiles('app/composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          mkdir -p database && touch database/database.sqlite
+
+      - name: Lint (Pint)
+        run: vendor/bin/pint --test
+
+      - name: Static analysis (PHPStan / Larastan)
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=512M
+
+      - name: Migrate (sqlite)
+        run: php artisan migrate --force
+        env:
+          DB_CONNECTION: sqlite
+
+      - name: Tests (PHPUnit — unit + feature, with coverage)
+        run: php artisan test --coverage --min=60
+
+  frontend:
+    name: Frontend (typecheck · build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (ESLint)
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build

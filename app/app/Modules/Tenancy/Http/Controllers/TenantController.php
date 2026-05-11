@@ -3,11 +3,11 @@
 namespace CMBcoreSeller\Modules\Tenancy\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
+use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
-use CMBcoreSeller\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -80,7 +80,7 @@ class TenantController extends Controller
 
         $data = $request->validate([
             'email' => ['required', 'email'],
-            'role' => ['required', 'string', 'in:' . implode(',', array_map(fn (Role $r) => $r->value, Role::cases()))],
+            'role' => ['required', 'string', 'in:'.implode(',', array_map(fn (Role $r) => $r->value, Role::cases()))],
         ]);
 
         $user = User::where('email', $data['email'])->first();

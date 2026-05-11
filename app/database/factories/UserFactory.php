@@ -2,12 +2,13 @@
 
 namespace Database\Factories;
 
+use CMBcoreSeller\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\CMBcoreSeller\Models\User>
+ * @extends Factory<User>
  */
 class UserFactory extends Factory
 {

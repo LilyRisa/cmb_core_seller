@@ -1,21 +1,37 @@
 <?php
 
+use CMBcoreSeller\Integrations\IntegrationsServiceProvider;
+use CMBcoreSeller\Modules\Billing\BillingServiceProvider;
+use CMBcoreSeller\Modules\Channels\ChannelsServiceProvider;
+use CMBcoreSeller\Modules\Finance\FinanceServiceProvider;
+use CMBcoreSeller\Modules\Fulfillment\FulfillmentServiceProvider;
+use CMBcoreSeller\Modules\Inventory\InventoryServiceProvider;
+use CMBcoreSeller\Modules\Orders\OrdersServiceProvider;
+use CMBcoreSeller\Modules\Procurement\ProcurementServiceProvider;
+use CMBcoreSeller\Modules\Products\ProductsServiceProvider;
+use CMBcoreSeller\Modules\Reports\ReportsServiceProvider;
+use CMBcoreSeller\Modules\Settings\SettingsServiceProvider;
+use CMBcoreSeller\Modules\Tenancy\TenancyServiceProvider;
+use CMBcoreSeller\Providers\AppServiceProvider;
+use CMBcoreSeller\Providers\HorizonServiceProvider;
+
 return [
-    CMBcoreSeller\Providers\AppServiceProvider::class,
+    AppServiceProvider::class,
+    HorizonServiceProvider::class,
 
     // Integration layer (channel & carrier registries + connectors).
-    CMBcoreSeller\Integrations\IntegrationsServiceProvider::class,
+    IntegrationsServiceProvider::class,
 
     // Domain modules — see docs/01-architecture/modules.md.
-    CMBcoreSeller\Modules\Tenancy\TenancyServiceProvider::class,
-    CMBcoreSeller\Modules\Channels\ChannelsServiceProvider::class,
-    CMBcoreSeller\Modules\Orders\OrdersServiceProvider::class,
-    CMBcoreSeller\Modules\Inventory\InventoryServiceProvider::class,
-    CMBcoreSeller\Modules\Products\ProductsServiceProvider::class,
-    CMBcoreSeller\Modules\Fulfillment\FulfillmentServiceProvider::class,
-    CMBcoreSeller\Modules\Procurement\ProcurementServiceProvider::class,
-    CMBcoreSeller\Modules\Finance\FinanceServiceProvider::class,
-    CMBcoreSeller\Modules\Reports\ReportsServiceProvider::class,
-    CMBcoreSeller\Modules\Billing\BillingServiceProvider::class,
-    CMBcoreSeller\Modules\Settings\SettingsServiceProvider::class,
+    TenancyServiceProvider::class,
+    ChannelsServiceProvider::class,
+    OrdersServiceProvider::class,
+    InventoryServiceProvider::class,
+    ProductsServiceProvider::class,
+    FulfillmentServiceProvider::class,
+    ProcurementServiceProvider::class,
+    FinanceServiceProvider::class,
+    ReportsServiceProvider::class,
+    BillingServiceProvider::class,
+    SettingsServiceProvider::class,
 ];

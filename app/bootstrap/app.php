@@ -1,5 +1,6 @@
 <?php
 
+use CMBcoreSeller\Http\Middleware\AssignRequestId;
 use CMBcoreSeller\Modules\Tenancy\Http\Middleware\EnsureTenant;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
@@ -10,6 +11,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
+use Sentry\Laravel\Integration;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -27,7 +29,14 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->group(base_path('routes/webhook.php'));
         },
     )
+    ->withCommands([
+        __DIR__.'/../app/Console/Commands',
+    ])
     ->withMiddleware(function (Middleware $middleware) {
+        // Every request gets a request_id / trace_id (log context + Sentry tag +
+        // X-Request-Id header). Runs first so it covers the whole pipeline.
+        $middleware->prepend(AssignRequestId::class);
+
         // Sanctum SPA: cookie-based auth for same-domain frontend on the `api` group.
         $middleware->statefulApi();
 
@@ -41,6 +50,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
+        // Report unhandled exceptions to Sentry (web + queue). No-op without a DSN.
+        Integration::handles($exceptions);
+
         // /api/* and /webhook/* always speak JSON — never redirect to a login page.
         $exceptions->shouldRenderJsonWhen(
             fn ($request) => $request->is('api/*', 'webhook/*') || $request->expectsJson()
@@ -71,6 +83,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 'message' => $e instanceof ValidationException
                     ? 'Dữ liệu không hợp lệ.'
                     : ($status < 500 ? $e->getMessage() : 'Đã có lỗi xảy ra phía máy chủ.'),
+                'trace_id' => $request->attributes->get('request_id'),
             ]];
 
             if ($e instanceof ValidationException) {

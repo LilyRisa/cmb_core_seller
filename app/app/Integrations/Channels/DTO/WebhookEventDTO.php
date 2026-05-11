@@ -12,13 +12,21 @@ use Carbon\CarbonImmutable;
 final readonly class WebhookEventDTO
 {
     public const TYPE_ORDER_CREATED = 'order_created';
+
     public const TYPE_ORDER_STATUS_UPDATE = 'order_status_update';
+
     public const TYPE_ORDER_CANCEL = 'order_cancel';
+
     public const TYPE_RETURN_UPDATE = 'return_update';
+
     public const TYPE_SETTLEMENT_AVAILABLE = 'settlement_available';
+
     public const TYPE_PRODUCT_UPDATE = 'product_update';
+
     public const TYPE_SHOP_DEAUTHORIZED = 'shop_deauthorized';
+
     public const TYPE_DATA_DELETION = 'data_deletion';
+
     public const TYPE_UNKNOWN = 'unknown';
 
     public function __construct(

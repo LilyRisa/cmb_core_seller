@@ -35,7 +35,7 @@ class AuthController extends Controller
                 'password' => Hash::make($data['password']),
             ]);
 
-            $tenant = Tenant::create(['name' => $data['tenant_name'] ?? ($data['name'] . ' Shop')]);
+            $tenant = Tenant::create(['name' => $data['tenant_name'] ?? ($data['name'].' Shop')]);
             $tenant->users()->attach($user->getKey(), ['role' => Role::Owner->value]);
 
             return $user;

@@ -21,9 +21,21 @@
 
 ---
 
-## Phase 0 — Nền tảng  ☐
+## Phase 0 — Nền tảng  ◑ (code gần xong; còn việc ngoài-code)
 **Việc:** mono repo Laravel 11 + React (Vite) embedded · routing `/api/v1/*` + `/webhook/*` + `/oauth/{provider}/callback` + catch-all → SPA · Docker Compose (app, worker, postgres, redis, minio, gotenberg, horizon, mailhog) · Sanctum SPA auth · multi-tenant + RBAC + sub-account khung · khung module + `ChannelRegistry`/`CarrierRegistry` + interface `ChannelConnector`/`CarrierConnector` + DTO chuẩn · migration nền + cơ chế partition theo tháng · Horizon supervisors · Sentry + logging · SPA shell (layout AntD, router, auth flow, trang Dashboard/Gian hàng rỗng) · CI lint+test · **(song song, không code) nộp hồ sơ Shopee + Lazada Open Platform, đăng ký app TikTok Shop Partner**.
 **Exit criteria:** đăng ký/đăng nhập được, tạo tenant + mời thành viên, SPA chạy, queue chạy, CI xanh, Docker `up` là chạy được toàn bộ. Hồ sơ 2 sàn đã nộp.
+
+**Trạng thái (2026-05-11):**
+- ✅ Mono repo + routing 4 nhóm (`/api/v1`, `/webhook`, `/oauth/{provider}/callback`, catch-all → SPA).
+- ✅ Sanctum SPA auth · multi-tenant + global scope + `BelongsToTenant` · RBAC (Role enum + permission map + `Gate::before`) · sub-account scope cột sẵn · audit log.
+- ✅ Khung 11 module (service provider mỗi module) · `ChannelRegistry`/`CarrierRegistry` + interface `ChannelConnector`/`CarrierConnector` + DTO chuẩn + `ManualConnector`.
+- ✅ Horizon supervisors (config theo `07-infra/queues-and-scheduler.md`) · scheduler skeleton (`routes/console.php`) · `db:partitions:ensure` + helper `MonthlyPartition`/`PartitionRegistry`.
+- ✅ Sentry (web + queue) · log JSON ra stdout + middleware `request_id`/`trace_id` (vào log context, Sentry tag, header `X-Request-Id`, error envelope) · `GET /api/v1/health` (DB/cache/Redis/queue).
+- ✅ SPA shell (layout AntD, router, auth flow, Dashboard, Gian hàng, **Cài đặt → Thành viên & phân quyền** với mời/đổi vai trò).
+- ✅ CI GitHub Actions: backend (Pint · PHPStan/Larastan level 5 + baseline · migrate · PHPUnit `--coverage --min=60`, hiện ~72%) + frontend (ESLint · typecheck · build); workflow CD staging tối thiểu (`deploy-staging.yml`, manual). Docker Compose stack (`docker compose up`). Script backup/restore Postgres + MinIO (`scripts/backup.sh`, `scripts/restore.sh`) + runbook trong `07-infra/observability-and-backup.md`.
+- ✅ ADR-0001…0010 (đã có file đầy đủ trong `01-architecture/adr/`): SPA-in-Laravel, Postgres+partition, modular monolith, connector/registry, VN-only, AntD 5, webhook+polling, master SKU, PK strategy, RBAC tự viết.
+- ⏳ **Việc ngoài-code (không thuộc repo):** nộp hồ sơ Shopee + Lazada Open Platform, đăng ký app TikTok Shop Partner · bật branch protection cho `main` (require CI + 1 review) · cấu hình `SENTRY_LARAVEL_DSN` + alert rules + giám sát queue-depth ở môi trường thật · dựng host staging + secrets cho `deploy-staging.yml` · bật WAL/PITR Postgres + versioning/replicate MinIO + đẩy backup off-site + test khôi phục định kỳ.
+- ⏳ **Còn lại trong code (nhỏ, không chặn Exit criteria):** contract-test job (thêm khi có connector sàn đầu tiên — Phase 1) · Prettier config FE · trang `/forgot-password` + `/onboarding` (sitemap FE) · backfill seeder/factory cho các bảng module khi schema ra đời.
 
 ## Phase 1 — TikTok Shop: Đồng bộ đơn  ☐
 **Việc:** OAuth connect/disconnect gian hàng TikTok · HTTP client PHP cho TikTok (auth + ký HMAC, refresh token, orders, order detail) versioned · webhook receiver `/webhook/tiktok` + verify chữ ký + `ProcessWebhookEvent` job · polling `SyncOrdersForShop` (5–15') + backfill 90 ngày · trạng thái chuẩn + mapping TikTok + `order_status_history` · màn Đơn hàng (list/filter/detail/đổi trạng thái/tag/note) + Dashboard cơ bản · auto refresh token + cảnh báo re-connect.

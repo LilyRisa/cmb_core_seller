@@ -60,7 +60,7 @@ enum Role: string
     {
         $perms = $this->permissions();
 
-        if (in_array('!' . $permission, $perms, true)) {
+        if (in_array('!'.$permission, $perms, true)) {
             return false;
         }
 

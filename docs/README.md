@@ -41,6 +41,7 @@ docs/
 │   └── lazada.md                    (chờ cấp API)
 ├── 05-api/
 │   ├── conventions.md               Quy ước /api/v1, response envelope, lỗi, phân trang
+│   ├── endpoints.md                 Danh mục endpoint hiện có (auth, tenant, health) — cập nhật khi thêm API
 │   └── webhooks-and-oauth.md        /webhook/{provider}, verify chữ ký, /oauth/callback
 ├── 06-frontend/
 │   └── overview.md                  React-in-Laravel, Vite, AntD, React Query, cấu trúc
@@ -75,8 +76,9 @@ docs/
 
 | | |
 |---|---|
-| Phase hiện tại | **Phase 0 — Nền tảng** (chưa bắt đầu code) |
+| Phase hiện tại | **Phase 0 — Nền tảng** (code gần xong — xem trạng thái chi tiết trong [`roadmap.md`](00-overview/roadmap.md#phase-0--nền-tảng--code-gần-xong-còn-việc-ngoài-code); còn việc ngoài-code: hồ sơ sàn, branch protection, Sentry DSN, backup script) |
 | Sàn đang làm | TikTok Shop (đã có SDK Partner API) |
 | Sàn chờ cấp API | Shopee Open Platform, Lazada Open Platform — *đăng ký ngay tuần đầu* |
 | Thị trường | Chỉ Việt Nam |
+| Chạy thử | `cp app/.env.example app/.env && docker compose up -d --build` (xem README ở gốc repo) |
 | Cập nhật gần nhất | 2026-05-11 |

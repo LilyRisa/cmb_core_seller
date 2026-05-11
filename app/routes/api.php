@@ -1,5 +1,6 @@
 <?php
 
+use CMBcoreSeller\Http\Controllers\HealthController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\AuthController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\TenantController;
 use Illuminate\Support\Facades\Route;
@@ -15,12 +16,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->name('api.v1.')->group(function () {
 
-    // --- Health (expanded in the observability slice) ---
-    Route::get('health', fn () => response()->json(['data' => [
-        'status' => 'ok',
-        'app' => config('app.name'),
-        'time' => now()->toIso8601String(),
-    ]]))->name('health');
+    // --- Health (DB / cache / Redis / queue worker probe; see docs/07-infra/observability-and-backup.md §4) ---
+    Route::get('health', HealthController::class)->name('health');
 
     // --- Auth (public) ---
     Route::post('auth/register', [AuthController::class, 'register'])->name('auth.register');
