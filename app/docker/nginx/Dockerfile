@@ -1,14 +1,21 @@
-# Production `web` image: nginx serving public/ (built Vite assets included), proxying
-# *.php to the `app` (php-fpm) container. Build context = ./app (see docker-compose.prod.yml).
-#
-# Assets are built ONCE — in app/docker/Dockerfile's `node` stage, which the runtime app
-# image already exposes at /var/www/html/public/build (php-fpm needs manifest.json for @vite).
-# We just copy that image's public/ here so the static files and the manifest stay in lock-step.
+# Production `web` image: nginx serving public/ (Vite assets built here), proxying *.php
+# to the `app` (php-fpm) container. Build context = ./app (see docker-compose.prod.yml).
+# Self-contained (no dependency on the app image) so it builds cleanly anywhere — incl.
+# Portainer git stacks. Vite content-hashes its output, so the manifest baked into the app
+# image (app/docker/Dockerfile's node stage) and the static files here always line up.
 # (Dev uses plain nginx:1.27-alpine + bind mount + the `vite` HMR service — see docker-compose.override.yml.)
 
-ARG APP_IMAGE=cmbcoreseller-app:latest
-FROM ${APP_IMAGE} AS app
+# --- Stage 1: build the React/Vite assets -> public/build ---
+FROM node:20-alpine AS assets
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY vite.config.ts tsconfig.json postcss.config.js tailwind.config.js ./
+COPY resources ./resources
+COPY public ./public
+RUN npm run build
 
+# --- Stage 2: nginx + public/ (static + built assets) ---
 FROM nginx:1.27-alpine
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=app /var/www/html/public /var/www/html/public
+COPY --from=assets /app/public /var/www/html/public

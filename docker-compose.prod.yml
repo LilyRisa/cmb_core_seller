@@ -71,18 +71,22 @@ services:
     logging: *prod-logging
 
   postgres:
+    image: postgres:15-alpine
     restart: unless-stopped
     logging: *prod-logging
 
   redis:
+    image: redis:7-alpine
     restart: unless-stopped
     logging: *prod-logging
 
   minio:
+    image: minio/minio:latest
     restart: unless-stopped
     logging: *prod-logging
 
   gotenberg:
+    image: gotenberg/gotenberg:8
     restart: unless-stopped
     logging: *prod-logging
 
