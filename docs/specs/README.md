@@ -13,6 +13,7 @@
 | # | Tên | Phase | Trạng thái | PR |
 |---|---|---|---|---|
 | [0001](0001-tiktok-order-sync.md) | TikTok Shop — kết nối gian hàng & đồng bộ đơn | 1 | Implemented (code xong; chờ kiểm thử sandbox thật) | — |
+| [0002](0002-customer-registry-and-buyer-reputation.md) | Sổ khách hàng & cờ rủi ro (cross-order matching theo SĐT) | 2 | Draft | — |
 
 ## Khi nào KHÔNG cần spec
 - Sửa lỗi nhỏ, refactor không đổi hành vi, thay đổi tài liệu, bump dependency, chỉnh CI — chỉ cần PR mô tả rõ. Nhưng nếu "việc nhỏ" hoá ra động chạm kiến trúc/hành vi nghiệp vụ ⇒ dừng, viết spec/ADR.

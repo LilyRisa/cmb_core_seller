@@ -11,6 +11,7 @@
 | **Tenancy** | Tenant, User, Member, Role/permission, global scope theo tenant, mời/quản lý thành viên, audit log | `Tenant`, `User`, `TenantUser`, `Role`, `AuditLog` |
 | **Channels** | Gian hàng đã kết nối, OAuth connect/disconnect/refresh token, `ChannelRegistry`, nhận & điều phối webhook, job đồng bộ đơn/listing từ sàn, `sync_runs` | `ChannelAccount`, `OAuthState`, `WebhookEvent`, `SyncRun` |
 | **Orders** | Đơn hàng (mọi nguồn), `OrderUpsertService`, **state machine trạng thái chuẩn**, lịch sử trạng thái, tạo đơn thủ công, gộp/tách đơn, tag/note, lọc/tìm | `Order`, `OrderItem`, `OrderStatusHistory` |
+| **Customers** *(Phase 2)* | Sổ khách hàng nội bộ tenant — match đơn theo **SĐT chuẩn hoá** (`phone_hash = sha256(normalized)`), lifetime stats, ghi chú khách (manual + auto khi vượt ngưỡng), reputation score (heuristic), block/merge khách, ẩn danh hoá theo `data_deletion`/disconnect. Listen `OrderUpserted` → khớp/tạo `customers` + set `orders.customer_id`. Xem SPEC-0002 + `03-domain/customers-and-buyer-reputation.md`. | `Customer`, `CustomerNote` |
 | **Inventory** | SKU master, kho, tồn theo (SKU,kho), **sổ cái biến động tồn**, đặt giữ/nhả tồn, ghép SKU (mapping), **đẩy tồn lên sàn**, nhập/xuất/điều chuyển/kiểm kê, giá vốn | `Sku`, `Warehouse`, `InventoryLevel`, `InventoryMovement`, `SkuMapping`, `StockTransfer`, `StockTake`, `CostLayer` |
 | **Products** | Sản phẩm gốc, `ChannelListing`, đăng bán đa sàn (mass listing), sao chép listing, sửa hàng loạt, đồng bộ category/attribute của sàn | `Product`, `ChannelListing`, `ListingDraft`, `ChannelCategory` |
 | **Fulfillment** | Vận đơn/kiện, lô lấy hàng, `CarrierRegistry`, gọi sàn/ĐVVC tạo vận chuyển + lấy label, **in hàng loạt** (PrintJob), template in, **quét đóng gói** (scan-to-pack/ship), đối soát phí ship | `Shipment`, `PickupBatch`, `PrintJob`, `PrintTemplate`, `CarrierAccount` |
@@ -31,10 +32,13 @@
    │ Channels│   │ Inventory│    │ Products │    │ Billing  │   │ Settings│
    └────┬────┘   └────▲──┬──┘    └────▲─────┘    └──────────┘   └─────────┘
         │             │  │            │
-   ┌────▼─────────────┴──▼────────────┴───┐
-   │            Orders                     │  ← phụ thuộc Channels, Inventory, Products
-   └────┬──────────────────────────────────┘
-        │
+   ┌────▼─────────────┴──▼────────────┴───┐         ┌──────────────┐
+   │            Orders                     │ ─event─▶│  Customers   │
+   └────┬──────────────────────────────────┘◀─read──│ (Phase 2)    │
+        │            phụ thuộc thêm Customers       └──────────────┘
+        │            qua CustomerProfileContract     (listen OrderUpserted,
+        │                                             ShopDeauthorized; phát
+        │                                             CustomerLinked, …)
    ┌────▼────────┐        ┌──────────────┐        ┌──────────────┐
    │ Fulfillment │        │  Procurement  │        │   Finance    │
    └─────────────┘        └──────┬───────┘        └──────┬───────┘
@@ -44,6 +48,8 @@
                             │Inventory │           │ Reports  │ ← chỉ ĐỌC mọi module qua interface
                             └──────────┘           └──────────┘
 ```
+
+> **Customers** chỉ phụ thuộc `Tenancy`. Nó **nhận** dữ liệu qua event (`OrderUpserted` từ Orders, `ShopDeauthorized`/`DataDeletionRequest` từ Channels) và **xuất** dữ liệu qua `Contracts/CustomerProfileContract` (Orders đọc để render card "Khách hàng"; Settings Phase 6 đọc để evaluate rule). Quan hệ Orders ↔ Customers là **một chiều khép kín**: Orders phát event ⇒ Customers cập nhật `orders.customer_id` ngược; KHÔNG vòng kín import lớp Service.
 
 ## 3. Luật phụ thuộc (RULES — bắt buộc)
 
@@ -57,6 +63,6 @@
 8. **Migration & model thuộc module sở hữu nó** — module khác không tạo migration đụng bảng của module khác; muốn thêm cột → đổi ở module sở hữu.
 
 ## 4. Khi thêm tính năng mới — quyết định module
-- Nó về **đơn**? → `Orders`. Về **tồn/kho/SKU**? → `Inventory`. Về **vận đơn/in/ĐVVC**? → `Fulfillment`. Về **đăng bán/listing**? → `Products`. Về **kết nối sàn/webhook/đồng bộ**? → `Channels`. Về **tiền sàn trả/lợi nhuận**? → `Finance`. Về **gói/thanh toán SaaS**? → `Billing`.
+- Nó về **đơn**? → `Orders`. Về **người mua / lịch sử khách / ghi chú khách / reputation**? → `Customers`. Về **tồn/kho/SKU**? → `Inventory`. Về **vận đơn/in/ĐVVC**? → `Fulfillment`. Về **đăng bán/listing**? → `Products`. Về **kết nối sàn/webhook/đồng bộ**? → `Channels`. Về **tiền sàn trả/lợi nhuận**? → `Finance`. Về **gói/thanh toán SaaS**? → `Billing`.
 - Nếu rơi vào nhiều module → đặt phần lõi ở module "sở hữu dữ liệu chính", phần còn lại gọi qua interface/event.
 - Tính năng lớn → viết spec trong `docs/specs/` trước (xem `docs/specs/README.md`).

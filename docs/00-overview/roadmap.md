@@ -50,9 +50,9 @@
 - ✅ Test: contract TikTok (fixtures, `Http::fake`), feature webhook→upsert (idempotent) + polling→upsert + refresh token + orders API + tenant isolation + connect flow; unit `TikTokSigner`/`OrderStateMachine`/`StandardOrderStatus`. (73 test xanh.)
 - ⏳ **Còn lại cho Exit criteria đầy đủ:** kết nối shop TikTok **sandbox thật** (cần `APP_URL` HTTPS công khai để TikTok redirect callback — dùng ngrok cho dev; app key/secret đã có trong `.env`) và xác nhận đơn mới tự về; rà soát mapping webhook event-type + order status với tài liệu Partner API thật; trang **Nhật ký đồng bộ** (xem `webhook_events`/`sync_runs` + re-drive); hoàn thiện rate-limit Redis throttle per shop; chuyển `orders`/`order_items`/`order_status_history` sang partition theo tháng khi volume cần.
 
-## Phase 2 — Đơn thủ công + SKU + Tồn kho lõi  ☐
-**Việc:** sản phẩm/SKU master · kho (warehouses) + `inventory_levels` + `inventory_movements` (sổ cái) · tạo đơn thủ công (reserve tồn) · màn Liên kết SKU (manual + auto-match `seller_sku == sku_code`, hỗ trợ combo 1→N) cho listing TikTok · `PushStockToChannel` (debounce + distributed lock + safety stock) đẩy tồn lên TikTok · cảnh báo hết hàng/âm kho.
-**Exit criteria:** bán TikTok + tạo đơn tay đều trừ chung 1 kho; thay đổi tồn → tự đẩy lên listing TikTok liên kết; mọi thay đổi tồn có dòng trong sổ cái.
+## Phase 2 — Đơn thủ công + SKU + Tồn kho lõi + Sổ khách hàng  ☐
+**Việc:** sản phẩm/SKU master · kho (warehouses) + `inventory_levels` + `inventory_movements` (sổ cái) · tạo đơn thủ công (reserve tồn) · màn Liên kết SKU (manual + auto-match `seller_sku == sku_code`, hỗ trợ combo 1→N) cho listing TikTok · `PushStockToChannel` (debounce + distributed lock + safety stock) đẩy tồn lên TikTok · cảnh báo hết hàng/âm kho · **Sổ khách hàng & cờ rủi ro** (module `Customers` mới — SPEC [0002](../specs/0002-customer-registry-and-buyer-reputation.md)): match đơn theo SĐT chuẩn hoá → hồ sơ khách + lifetime stats + reputation badge + manual notes; card "Khách hàng" ở Order detail giúp NV soi lịch sử (huỷ/hoàn/giao thất bại) **trước khi xác nhận đơn**; auto-note khi vượt ngưỡng; block khách (rules engine Phase 6 sẽ tự xử lý).
+**Exit criteria:** bán TikTok + tạo đơn tay đều trừ chung 1 kho; thay đổi tồn → tự đẩy lên listing TikTok liên kết; mọi thay đổi tồn có dòng trong sổ cái; **đơn mới về tự khớp vào hồ sơ khách (nếu có SĐT) và hiển thị lịch sử + reputation ở chi tiết đơn**.
 
 ## Phase 3 — Giao hàng & in ấn (TikTok)  ☐
 **Việc:** luồng "sắp xếp vận chuyển" TikTok → lấy tracking + label PDF → lưu MinIO · **in vận đơn hàng loạt** (ghép PDF, sắp theo ĐVVC) · **picking/packing list** render bằng Gotenberg + **template tùy biến** · **quét mã đóng gói** → xác nhận đóng/bàn giao → trừ tồn → trạng thái shipped · kết nối ĐVVC riêng đợt 1: **GHN + GHTK + J&T** (quote/createShipment/getLabel/track/cancel) cho đơn manual & đơn tự xử lý · lô lấy hàng (pickup batch).
@@ -76,4 +76,4 @@ Trả hàng/hoàn tiền; chat hợp nhất đa sàn; HĐĐT; tối ưu hiệu n
 ---
 
 ## Backlog (chưa xếp phase — đừng làm cho tới khi được xếp)
-- Tích hợp nguồn hàng 1688/Taobao · POS bán tại quầy · CRM/marketing · đa quốc gia · API public cho bên thứ ba · marketplace plugin.
+- Tích hợp nguồn hàng 1688/Taobao · POS bán tại quầy · **CRM marketing đầy đủ** (campaign, gửi tin Zalo/SMS — *không* nhầm với "Sổ khách hàng" ở Phase 2, vốn chỉ là CRM nội bộ cho vận hành đơn) · đa quốc gia · API public cho bên thứ ba · marketplace plugin · gửi tin xác nhận đơn qua Zalo OA/SMS.

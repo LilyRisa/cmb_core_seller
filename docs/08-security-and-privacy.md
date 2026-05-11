@@ -34,17 +34,18 @@
 > Các sàn (TikTok/Shopee/Lazada) yêu cầu app đối tác **không lưu trữ quá mức** và **xoá theo yêu cầu** thông tin cá nhân buyer. Vi phạm có thể bị thu hồi quyền API.
 
 RULES:
-1. **Chỉ lưu PII cần cho nghiệp vụ** (tên người nhận, SĐT, địa chỉ giao hàng). Không lưu thừa (vd thông tin thanh toán của buyer).
-2. **Mask khi hiển thị** theo quyền: SĐT hiển thị dạng `09xx xxx 123` cho role thấp; full chỉ cho role được phép (vd để gọi xác nhận đơn). Log không chứa SĐT/địa chỉ đầy đủ.
-3. **Xoá / ẩn danh hoá khi**:
-   - Nhận webhook `data_deletion` từ sàn ⇒ enqueue job ẩn danh hoá thông tin buyer của (các) đơn liên quan (giữ lại dữ liệu thống kê không định danh: số tiền, SKU, thời gian) **và purge ngay các phiếu in PDF của đơn đó** (xem điểm về phiếu in bên dưới).
-   - Nhà bán **ngắt kết nối** gian hàng ⇒ theo chính sách: ẩn danh hoá PII buyer của shop đó sau khoảng thời gian quy định (giữ đơn ở dạng vô danh để báo cáo) + purge phiếu in liên quan.
+1. **Chỉ lưu PII cần cho nghiệp vụ** (tên người nhận, SĐT, địa chỉ giao hàng). Không lưu thừa (vd thông tin thanh toán của buyer). **Sổ khách hàng** (`customers`, Phase 2 — xem SPEC-0002) **không** tạo PII mới — chỉ centralize SĐT/tên/địa chỉ đã có ở `orders` thành bảng tra cứu được; cùng các ràng buộc lưu/xoá. SĐT đầy đủ ở đơn TikTok mới (`AWAITING_SHIPMENT`, COD) là **chính đáng** — TikTok cung cấp để seller xác nhận đơn — và là input duy nhất cho cross-order matching.
+2. **Mask khi hiển thị** theo quyền: SĐT hiển thị dạng `09xx xxx 123` cho role thấp; full chỉ cho role được phép (vd để gọi xác nhận đơn). Log không chứa SĐT/địa chỉ đầy đủ. Permission `customers.view_phone` (mặc định owner/admin/staff_order) gate việc trả `phone` đầy đủ ở response `CustomerResource`/`OrderResource.customer`.
+3. **Cross-order matching theo SĐT (Customers module):** khoá khớp là `phone_hash = sha256(normalize(phone))`, **không** plaintext. Hash deterministic ⇒ index được; không reverse được ⇒ DB dump leak vẫn cần brute-force 10 chữ số (10^10). Unique `(tenant_id, phone_hash)` ⇒ **tuyệt đối không cross-tenant match** (mỗi tenant nhìn lịch sử của riêng mình; không có "blacklist toàn cầu"). Search box "tìm khách theo SĐT": SPA gửi raw → backend normalize + hash → query — log filter phải redact `q=` nếu match regex SĐT (xem `config/logging.php` Phase 2).
+4. **Xoá / ẩn danh hoá khi**:
+   - Nhận webhook `data_deletion` từ sàn ⇒ enqueue job ẩn danh hoá thông tin buyer của (các) đơn liên quan (giữ lại dữ liệu thống kê không định danh: số tiền, SKU, thời gian) **và purge ngay các phiếu in PDF của đơn đó** (xem điểm về phiếu in bên dưới). **Bổ sung (Phase 2):** với `customers` record liên quan — nếu khách chỉ có đơn ở shop bị `data_deletion` ⇒ clear `phone`/`name`/`email`/`addresses_meta`/`manual_note`, set `pii_anonymized_at`; giữ `phone_hash`/`lifetime_stats` (số tổng không định danh). Nếu khách còn đơn ở shop khác trong tenant ⇒ giữ hồ sơ, chỉ xoá địa chỉ chỉ thuộc shop kia. Chi tiết: `03-domain/customers-and-buyer-reputation.md` §7.
+   - Nhà bán **ngắt kết nối** gian hàng ⇒ theo chính sách: ẩn danh hoá PII buyer của shop đó **sau 90 ngày** (cấu hình `customers.anonymize_after_days`, buffer cho khiếu nại/đối soát) — áp dụng cho cả `orders` và `customers` cùng cơ chế; purge phiếu in liên quan.
    - Hết thời hạn lưu trữ nội bộ (cấu hình; mặc định một khoảng đủ cho khiếu nại/đối soát) ⇒ job định kỳ ẩn danh hoá đơn cũ.
-4. **Quyền truy cập PII** chỉ cấp cho role cần; mọi truy cập "xem đầy đủ SĐT" có thể bật ghi audit.
-5. **Không chia sẻ PII** ra ngoài hệ thống (không gửi sang dịch vụ thứ ba không cần thiết). Khi tải label PDF từ ĐVVC/sàn (chứa PII) ⇒ lưu MinIO theo tenant, chỉ tải qua signed URL hết hạn ngắn.
-6. **Phiếu in của đơn (vận đơn / packing list / picking list PDF) — giữ tối đa 90 ngày** rồi job `PrunePrintDocuments` xoá file, chỉ giữ metadata không định danh (loại phiếu, thời điểm in, ai in, số đơn). "In lại" trong 90 ngày = trả lại đúng file đã sinh qua signed URL. Đây vừa là tiện ích vận hành vừa là biện pháp tối thiểu hoá PII. Chi tiết logic: `docs/03-domain/fulfillment-and-printing.md` §8.
-6. **Mã hoá at-rest**: bật mã hoá đĩa cho DB & object storage ở prod; cột nhạy cảm (SĐT) cân nhắc mã hoá ứng dụng (đánh đổi: khó tìm kiếm — có thể lưu thêm cột hash để lookup).
-7. **Tài liệu hoá** chính sách lưu trữ & xoá ở đây và công bố trong privacy policy của sản phẩm.
+5. **Quyền truy cập PII** chỉ cấp cho role cần; mọi truy cập "xem đầy đủ SĐT" có thể bật ghi audit. `customer_notes` mà NV gõ vào có thể vô tình chứa SĐT/email — khi anonymize, regex redact các pattern PII trong `note` text.
+6. **Không chia sẻ PII** ra ngoài hệ thống (không gửi sang dịch vụ thứ ba không cần thiết). Khi tải label PDF từ ĐVVC/sàn (chứa PII) ⇒ lưu MinIO theo tenant, chỉ tải qua signed URL hết hạn ngắn. **Cấm** export `customers` CSV với `phone` đầy đủ trừ khi role có `customers.view_phone` + xác nhận lần 2 (audit logged).
+7. **Phiếu in của đơn (vận đơn / packing list / picking list PDF) — giữ tối đa 90 ngày** rồi job `PrunePrintDocuments` xoá file, chỉ giữ metadata không định danh (loại phiếu, thời điểm in, ai in, số đơn). "In lại" trong 90 ngày = trả lại đúng file đã sinh qua signed URL. Đây vừa là tiện ích vận hành vừa là biện pháp tối thiểu hoá PII. Chi tiết logic: `docs/03-domain/fulfillment-and-printing.md` §8.
+8. **Mã hoá at-rest**: bật mã hoá đĩa cho DB & object storage ở prod; cột nhạy cảm (SĐT) cân nhắc mã hoá ứng dụng (đánh đổi: khó tìm kiếm — có thể lưu thêm cột hash để lookup).
+9. **Tài liệu hoá** chính sách lưu trữ & xoá ở đây và công bố trong privacy policy của sản phẩm.
 
 ## 7. An toàn vận hành
 - HTTPS bắt buộc; HSTS. Cập nhật bản vá hệ điều hành/dependency định kỳ; `composer audit` / `npm audit` trong CI.

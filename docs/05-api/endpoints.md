@@ -58,6 +58,24 @@
 
 Xem [`webhooks-and-oauth.md`](webhooks-and-oauth.md). `POST /webhook/tiktok` → `WebhookController@handle` (verify chữ ký → ghi `webhook_events` → 200 → `ProcessWebhookEvent`); sai chữ ký ⇒ `401`. `GET /oauth/tiktok/callback?app_key=&code=&state=` → `OAuthCallbackController` (đổi token, tạo `channel_account`, redirect `/channels?connected=tiktok` hoặc `?error=…`). `shopee`/`lazada`: route + handler tồn tại nhưng connector chưa có ⇒ `404 UNKNOWN_PROVIDER` (Phase 4).
 
+## Sổ khách hàng (Customers — Phase 2, SPEC-0002 Draft)
+
+> Spec đang Draft — khi Implemented, dời các dòng dưới đây thành bảng đầy đủ (như bảng Orders / Channels phía trên), kèm exact request/response. Tóm tắt hợp đồng:
+
+| Method | Path | Auth | Mô tả |
+|---|---|---|---|
+| GET | `/api/v1/customers` | sanctum + tenant (`customers.view`) | Query: `q` (tên hoặc SĐT — nếu match `/^\+?\d{8,15}$/` ⇒ normalize + hash + lookup `phone_hash`; ngược lại LIKE `name`), `reputation` csv (`ok|watch|risk|blocked`), `tag`, `min_orders`, `has_note`, `sort` (`-last_seen_at|-lifetime_revenue|-cancellation_rate`), `page`, `per_page≤100`. Trả `CustomerResource[]`. |
+| GET | `/api/v1/customers/{id}` | sanctum + tenant (`customers.view`) | Kèm `notes[]` 50 gần nhất. |
+| GET | `/api/v1/customers/{id}/orders` | sanctum + tenant (`customers.view` + `orders.view`) | Cùng filter/format `/orders`, scoped theo customer. |
+| POST | `/api/v1/customers/{id}/notes` | sanctum + tenant (`customers.note`) | `{ note, severity?, order_id? }` ⇒ `201 CustomerNoteResource`. |
+| DELETE | `/api/v1/customers/{id}/notes/{noteId}` | sanctum + tenant (`customers.note` + là author hoặc owner/admin) | Auto-note không xoá được. |
+| POST | `/api/v1/customers/{id}/block` | sanctum + tenant (`customers.block`) | `{ reason? }`. |
+| POST | `/api/v1/customers/{id}/unblock` | sanctum + tenant (`customers.block`) | — |
+| POST | `/api/v1/customers/{id}/tags` | sanctum + tenant (`customers.note`) | `{ add?:[], remove?:[] }`. |
+| POST | `/api/v1/customers/merge` | sanctum + tenant (`customers.merge`) | `{ keep_id, remove_id }` — chuyển `orders.customer_id`, gộp notes, soft-delete `remove`. |
+
+**Sửa endpoint hiện có:** `GET /api/v1/orders/{id}` (và `GET /orders`) trả thêm field `customer` (object con) nếu `customer_id != null` và role có `customers.view`: `{ id, name, phone_masked, reputation:{score,label}, is_blocked, tags, lifetime_stats:{orders_total,orders_completed,orders_cancelled,orders_returned}, latest_warning_note? }`. Phone đầy đủ chỉ trả khi role có `customers.view_phone` (mặc định owner/admin/staff_order).
+
 ## Sắp có (theo roadmap)
 
 `/api/v1/products`, `/api/v1/skus`, `/api/v1/sku-mappings` (Phase 2) · `/api/v1/orders` tạo đơn tay + `/{id}/status` + `/bulk` (Phase 2) · `/api/v1/print-jobs`, `/api/v1/shipments` (Phase 3) · `/api/v1/sync-runs`, `/api/v1/webhook-events` (Nhật ký đồng bộ + re-drive) · `/api/v1/jobs/{id}` … — thêm vào đây khi xây.

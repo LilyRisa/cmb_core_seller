@@ -15,6 +15,7 @@
 | `tokens` | `RefreshChannelToken`, `RefreshExpiringTokens` | Cao (token hỏng = sync dừng) |
 | `finance` | `FetchSettlements`, tính lợi nhuận, tổng hợp `profit_snapshots` | Thấp, chạy theo kỳ |
 | `notifications` | gửi email/in-app/Zalo/Telegram | Trung bình |
+| `customers` | *(Phase 2 — SPEC-0002)* `LinkOrderToCustomer`, `RecomputeCustomerStats`, `AnonymizeCustomersForShop`, `AnonymizeCustomersForDataDeletionRequest`, `BackfillCustomersFromOrders` (one-shot) | Thấp — không chặn order pipeline; `ShouldBeUnique` per `(tenant,customer_id_or_phone_hash)` để chống race |
 | `default` | còn lại | Trung bình |
 
 - Mỗi queue có số worker riêng (cấu hình theo tải; ~17k đơn/ngày ⇒ vài chục worker process tổng cộng là dư). Worker chạy ở container `worker` tách biệt, scale replica độc lập.
@@ -36,6 +37,8 @@
 | hằng ngày | `FetchSettlements` (Phase 6) | Kéo đối soát |
 | hằng ngày | `RebuildProfitSnapshots` (Phase 6) | Tổng hợp báo cáo |
 | hằng ngày | `PruneOldWebhookEvents` / archive partition cũ | Giữ DB gọn |
+| mỗi giờ | *(Phase 2)* `customers:recompute-stale` | Recompute stats cho khách có đơn updated trong giờ qua — phòng `LinkOrderToCustomer` miss event (lưới an toàn idempotent) |
+| hằng ngày | *(Phase 2)* `AnonymizeCustomersForShop` cho các shop disconnect quá 90 ngày | Ẩn danh hoá theo SPEC-0002 §7.2 |
 | hằng ngày | `PrunePrintDocuments` | Xoá file phiếu in (vận đơn/picking/packing PDF) quá 90 ngày, giữ metadata — xem `docs/03-domain/fulfillment-and-printing.md` §8 |
 | hằng ngày | `CreateNextMonthPartitions` | Tạo trước partition tháng kế cho bảng lớn |
 | hằng ngày | `SendDigestNotifications` (tuỳ cấu hình tenant) | Tóm tắt đơn/cảnh báo |

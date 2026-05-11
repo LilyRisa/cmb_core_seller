@@ -33,7 +33,8 @@ docs/
 │   ├── order-sync-pipeline.md       Pipeline đồng bộ đơn (webhook + polling)
 │   ├── inventory-and-sku-mapping.md Master SKU, ghép SKU, đẩy tồn, chống oversell
 │   ├── fulfillment-and-printing.md  Vận đơn, in hàng loạt, picking/packing, quét đóng gói
-│   └── manual-orders-and-finance.md Tạo đơn thủ công + đối soát/lợi nhuận
+│   ├── manual-orders-and-finance.md Tạo đơn thủ công + đối soát/lợi nhuận
+│   └── customers-and-buyer-reputation.md  (Phase 2) Sổ khách hàng — match đơn theo SĐT chuẩn hoá, reputation, ẩn danh hoá
 ├── 04-channels/
 │   ├── README.md                    Hợp đồng ChannelConnector + DTO chuẩn
 │   ├── tiktok-shop.md               Đặc tả tích hợp TikTok Shop (làm trước)

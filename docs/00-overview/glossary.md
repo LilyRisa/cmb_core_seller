@@ -22,6 +22,11 @@
 | Trạng thái gốc | **raw_status** | Chuỗi trạng thái nguyên bản từ sàn (lưu kèm để debug & hiển thị chi tiết). |
 | Lịch sử trạng thái | **Order status history** | Mỗi lần đổi trạng thái → 1 dòng (from/to/raw/source/time). |
 | Vận đơn / kiện | **Shipment / Package** | Một kiện hàng của một đơn (đơn có thể tách nhiều kiện); có `tracking_no`, `carrier`, `label_url`, `status`. |
+| Khách hàng (sổ khách) | **Customer** *(Phase 2)* | Hồ sơ người mua **nội bộ tenant**, khớp đơn qua **SĐT chuẩn hoá**. Một customer có nhiều `orders` (cross-channel + đơn manual). Lưu lifetime stats, ghi chú, reputation. Không bao giờ chia sẻ chéo tenant. |
+| Số điện thoại chuẩn hoá | **Normalized phone / Canonical phone** | SĐT sau khi strip ký tự, đưa về dạng `0xxxxxxxxx` (VN) hoặc `+xxxxxx` (E.164 khác). Quy tắc ở `03-domain/customers-and-buyer-reputation.md` §2. SĐT bị mask (`****`) ⇒ không chuẩn hoá được ⇒ không khớp khách được. |
+| Phone hash | **`phone_hash`** | `sha256(normalized_phone)` hex 64 ký tự. Khoá khớp duy nhất giữa các đơn cùng khách. Deterministic + không reverse được ⇒ index an toàn. Unique `(tenant_id, phone_hash)`. |
+| Điểm tin cậy khách | **Reputation score / label** | 0–100 (heuristic rule-based, KHÔNG ML), map sang label `ok` / `watch` / `risk` / `blocked`. Tính từ lifetime stats: trừ điểm huỷ/giao thất bại/trả hàng, cộng điểm hoàn thành. Là **gợi ý cho NV** — không tự động hành động (việc đó của rules engine Phase 6). |
+| Cờ tự động | **Auto-note** | Ghi chú hệ thống tự thêm vào `customer_notes` khi khách vượt ngưỡng (vd 2 đơn huỷ, 3 đơn trả). Dedupe theo ngưỡng — không lặp. Phân biệt với **manual note** (NV gõ). |
 | Lô lấy hàng | **Pickup Batch** | Nhóm shipment cùng gian hàng/ĐVVC để bàn giao một lần. |
 | In hàng loạt | **Bulk print / Print Job** | Job ghép nhiều label/picking/packing thành một file PDF để in. |
 | Phiếu soạn hàng | **Picking List** | Danh sách SKU cần lấy ra để soạn cho một nhóm đơn (gom theo SKU). |
