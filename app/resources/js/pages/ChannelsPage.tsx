@@ -15,6 +15,13 @@ const CALLBACK_ERRORS: Record<string, string> = {
     shop_already_connected: 'Gian hàng này đã được kết nối ở một workspace khác.',
     oauth_failed: 'Kết nối thất bại. Vui lòng thử lại.',
     oauth_missing_params: 'Thiếu tham số từ sàn. Vui lòng thử lại.',
+    tiktok_scope_denied:
+        'TikTok từ chối: app chưa được cấp scope cần thiết (cần "Authorization/Shop" để đọc danh sách gian hàng). ' +
+        'Vào TikTok Shop Partner Center → app của bạn → "Scopes" → bật các scope: Authorization, Shop, Order, Webhook → ' +
+        'lưu, rồi ngắt kết nối và ủy quyền lại từ tài khoản người bán.',
+    tiktok_auth_failed:
+        'TikTok không nhận access_token (có thể hết hạn hoặc đã bị thu hồi). Vui lòng ủy quyền lại.',
+    tiktok_api_error: 'TikTok trả lỗi khi lấy thông tin gian hàng. Xem chi tiết trong log server.',
 };
 
 function ShopCard({ account, canManage, onResync, onDisconnect }: { account: ChannelAccount; canManage: boolean; onResync: () => void; onDisconnect: () => void }) {
@@ -61,12 +68,14 @@ export function ChannelsPage() {
     useEffect(() => {
         const connected = params.get('connected');
         const err = params.get('error');
+        const ttCode = params.get('tt_code');
         if (connected) {
             message.success(`Đã kết nối gian hàng ${CHANNEL_META[connected]?.name ?? connected}! Đơn 90 ngày gần đây đang được tải về.`);
             params.delete('connected'); setParams(params, { replace: true });
         } else if (err) {
-            message.error(CALLBACK_ERRORS[err] ?? 'Có lỗi khi kết nối gian hàng.');
-            params.delete('error'); setParams(params, { replace: true });
+            const base = CALLBACK_ERRORS[err] ?? 'Có lỗi khi kết nối gian hàng.';
+            message.error({ content: ttCode ? `${base} (TikTok code ${ttCode})` : base, duration: 12 });
+            params.delete('error'); params.delete('tt_code'); setParams(params, { replace: true });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);

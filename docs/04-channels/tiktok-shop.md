@@ -7,9 +7,17 @@
 > ⚠️ Một số chi tiết — **danh sách `type` của webhook** và toàn bộ chuỗi `order status` — được implement theo schema trong `sdk_tiktok_seller/` + hiểu biết hiện có; **đối chiếu lại với tài liệu Partner Center thật** (`partner.tiktokshop.com/docv2`) khi chạy sandbox thật. Bảng map ở `config/integrations.tiktok.status_map` / `webhook_event_types` để tinh chỉnh không cần đổi code; mọi event đơn vẫn `fetchOrderDetail` lại + polling backup nên sai event-type không gây mất đơn.
 
 ## 1. Đăng ký & môi trường
-- Tạo app trên **TikTok Shop Partner Center**, lấy `app_key`, `app_secret`. Tạo test seller + test access token để dev (xem `sdk_tiktok_seller/README.md`).
+- Tạo app trên **TikTok Shop Partner Center**, lấy `app_key`, `app_secret`, `service_id`. Tạo test seller + test access token để dev (xem `sdk_tiktok_seller/README.md`).
 - Region: **VN**. Lưu ý TikTok có nhiều region; ta chỉ làm VN nhưng `AuthContext.region` vẫn mang giá trị để chừa đường.
-- Cấu hình app: scopes cần (orders, products/listings, fulfillment/logistics, finance, webhooks), webhook URL = `https://<domain>/webhook/tiktok`.
+- **Cấu hình Partner Center cho app prod:**
+  - **Redirect URL** (Authorization Settings): `https://app.cmbcore.com/oauth/tiktok/callback` (chính xác — TikTok luồng "service" redirect về URL đăng ký, **không** dùng `redirect_uri` query param).
+  - **Webhook URL**: `https://app.cmbcore.com/webhook/tiktok`.
+  - **Scopes** (BẮT BUỘC bật, nếu không seller authorize xong sẽ lỗi `105005 Access denied`):
+    - **`Authorization`** / **`Shop`** — để gọi `/authorization/202309/shops` lấy danh sách gian hàng + `shop_cipher` ngay sau khi ủy quyền. Thiếu cái này = không hoàn tất kết nối.
+    - **`Order`** — cho `/order/202309/orders/search` & `/orders` (poll + chi tiết đơn).
+    - **`Webhook`** / **`Event`** — cho `/event/202309/webhooks` (đăng ký webhook).
+    - **`Product`** / **`Fulfillment`** / **`Finance`** — khi sang Phase 2/3/6.
+  - Sau khi thay đổi scopes, người bán phải **ủy quyền lại** (disconnect ở app, rồi connect lại) để token mới có scope mới.
 
 ## 2. Xác thực & ký request (đã implement)
 - **OAuth (seller authorization):** SPA gọi `POST /api/v1/channel-accounts/tiktok/connect` → backend tạo `oauth_states(state,…)` → trả `auth_url` = `https://services.tiktokshop.com/open/authorize?service_id=…&state=…&redirect_uri=…` (config `integrations.tiktok.authorize_url` / `service_id`) → user đồng ý → TikTok redirect `GET /oauth/tiktok/callback?app_key=…&code=…&state=…` → đổi `code` lấy token tại **`GET https://auth.tiktok-shops.com/api/v2/token/get?app_key=&app_secret=&auth_code=&grant_type=authorized_code`** (host auth, **không ký** — app_key+app_secret là query). Trả `{code,message,data:{access_token, access_token_expire_in (Unix ts hết hạn), refresh_token, refresh_token_expire_in, open_id, seller_name, seller_base_region, user_type}}`. Sau đó `GET /authorization/202309/shops` (Open API, **có ký**, không cần `shop_cipher`) lấy `data.shops[].cipher` → lưu vào `channel_account.meta.shop_cipher`.

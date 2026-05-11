@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Channels\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
+use CMBcoreSeller\Integrations\Channels\TikTok\TikTokApiException;
 use CMBcoreSeller\Modules\Channels\Services\ChannelConnectionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -43,14 +44,22 @@ class OAuthCallbackController extends Controller
         try {
             $result = $service->completeConnect($provider, $code, $state);
         } catch (\Throwable $e) {
-            $errorCode = match ($e->getMessage()) {
-                'OAUTH_STATE_INVALID', 'OAUTH_STATE_EXPIRED' => 'oauth_state',
-                'SHOP_ALREADY_CONNECTED_ELSEWHERE' => 'shop_already_connected',
+            $errorCode = match (true) {
+                $e->getMessage() === 'OAUTH_STATE_INVALID', $e->getMessage() === 'OAUTH_STATE_EXPIRED' => 'oauth_state',
+                $e->getMessage() === 'SHOP_ALREADY_CONNECTED_ELSEWHERE' => 'shop_already_connected',
+                $e instanceof TikTokApiException && $e->isScopeDenied() => 'tiktok_scope_denied',
+                $e instanceof TikTokApiException && $e->isAuthError() => 'tiktok_auth_failed',
+                $e instanceof TikTokApiException => 'tiktok_api_error',
                 default => 'oauth_failed',
             };
             Log::warning('oauth.callback_failed', ['provider' => $provider, 'reason' => $e->getMessage(), 'error' => class_basename($e)]);
 
-            return redirect("/channels?error={$errorCode}");
+            $params = ['error' => $errorCode];
+            if ($e instanceof TikTokApiException) {
+                $params['tt_code'] = $e->getCode();
+            }
+
+            return redirect('/channels?'.http_build_query($params));
         }
 
         Log::info('oauth.callback_ok', ['provider' => $provider, 'channel_account_id' => $result['account']->getKey()]);

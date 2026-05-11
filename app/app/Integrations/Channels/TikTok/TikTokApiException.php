@@ -24,6 +24,13 @@ class TikTokApiException extends RuntimeException
             || str_contains(strtolower($this->getMessage()), 'access_token');
     }
 
+    /** TikTok 105005: "Access denied — the app's granted scopes don't include the required scope for this endpoint." */
+    public function isScopeDenied(): bool
+    {
+        return $this->getCode() === 105005
+            || str_contains(strtolower($this->getMessage()), 'access scope');
+    }
+
     public function isRateLimited(): bool
     {
         return $this->httpStatus === 429;
