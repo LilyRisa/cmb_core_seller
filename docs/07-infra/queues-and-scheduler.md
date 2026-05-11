@@ -36,6 +36,7 @@
 | hằng ngày | `FetchSettlements` (Phase 6) | Kéo đối soát |
 | hằng ngày | `RebuildProfitSnapshots` (Phase 6) | Tổng hợp báo cáo |
 | hằng ngày | `PruneOldWebhookEvents` / archive partition cũ | Giữ DB gọn |
+| hằng ngày | `PrunePrintDocuments` | Xoá file phiếu in (vận đơn/picking/packing PDF) quá 90 ngày, giữ metadata — xem `docs/03-domain/fulfillment-and-printing.md` §8 |
 | hằng ngày | `CreateNextMonthPartitions` | Tạo trước partition tháng kế cho bảng lớn |
 | hằng ngày | `SendDigestNotifications` (tuỳ cấu hình tenant) | Tóm tắt đơn/cảnh báo |
 | hằng tuần | `ReconcileShippingFees` (Phase 6) | Đối soát phí ship ước tính vs thực tế |

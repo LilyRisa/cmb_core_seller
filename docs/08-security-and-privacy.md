@@ -37,11 +37,12 @@ RULES:
 1. **Chỉ lưu PII cần cho nghiệp vụ** (tên người nhận, SĐT, địa chỉ giao hàng). Không lưu thừa (vd thông tin thanh toán của buyer).
 2. **Mask khi hiển thị** theo quyền: SĐT hiển thị dạng `09xx xxx 123` cho role thấp; full chỉ cho role được phép (vd để gọi xác nhận đơn). Log không chứa SĐT/địa chỉ đầy đủ.
 3. **Xoá / ẩn danh hoá khi**:
-   - Nhận webhook `data_deletion` từ sàn ⇒ enqueue job ẩn danh hoá thông tin buyer của (các) đơn liên quan (giữ lại dữ liệu thống kê không định danh: số tiền, SKU, thời gian).
-   - Nhà bán **ngắt kết nối** gian hàng ⇒ theo chính sách: ẩn danh hoá PII buyer của shop đó sau khoảng thời gian quy định (giữ đơn ở dạng vô danh để báo cáo).
+   - Nhận webhook `data_deletion` từ sàn ⇒ enqueue job ẩn danh hoá thông tin buyer của (các) đơn liên quan (giữ lại dữ liệu thống kê không định danh: số tiền, SKU, thời gian) **và purge ngay các phiếu in PDF của đơn đó** (xem điểm về phiếu in bên dưới).
+   - Nhà bán **ngắt kết nối** gian hàng ⇒ theo chính sách: ẩn danh hoá PII buyer của shop đó sau khoảng thời gian quy định (giữ đơn ở dạng vô danh để báo cáo) + purge phiếu in liên quan.
    - Hết thời hạn lưu trữ nội bộ (cấu hình; mặc định một khoảng đủ cho khiếu nại/đối soát) ⇒ job định kỳ ẩn danh hoá đơn cũ.
 4. **Quyền truy cập PII** chỉ cấp cho role cần; mọi truy cập "xem đầy đủ SĐT" có thể bật ghi audit.
-5. **Không chia sẻ PII** ra ngoài hệ thống (không gửi sang dịch vụ thứ ba không cần thiết). Khi tải label PDF từ ĐVVC (chứa PII) ⇒ lưu MinIO theo tenant, signed URL hết hạn ngắn.
+5. **Không chia sẻ PII** ra ngoài hệ thống (không gửi sang dịch vụ thứ ba không cần thiết). Khi tải label PDF từ ĐVVC/sàn (chứa PII) ⇒ lưu MinIO theo tenant, chỉ tải qua signed URL hết hạn ngắn.
+6. **Phiếu in của đơn (vận đơn / packing list / picking list PDF) — giữ tối đa 90 ngày** rồi job `PrunePrintDocuments` xoá file, chỉ giữ metadata không định danh (loại phiếu, thời điểm in, ai in, số đơn). "In lại" trong 90 ngày = trả lại đúng file đã sinh qua signed URL. Đây vừa là tiện ích vận hành vừa là biện pháp tối thiểu hoá PII. Chi tiết logic: `docs/03-domain/fulfillment-and-printing.md` §8.
 6. **Mã hoá at-rest**: bật mã hoá đĩa cho DB & object storage ở prod; cột nhạy cảm (SĐT) cân nhắc mã hoá ứng dụng (đánh đổi: khó tìm kiếm — có thể lưu thêm cột hash để lookup).
 7. **Tài liệu hoá** chính sách lưu trữ & xoá ở đây và công bố trong privacy policy của sản phẩm.
 
