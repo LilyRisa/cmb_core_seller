@@ -81,24 +81,25 @@ class ChannelConnectionService
 
         [$account, $created] = DB::transaction(function () use ($provider, $tenantId, $shop, $token, $shopCipher, $state) {
             /** @var ChannelAccount $account */
-            $account = ChannelAccount::withoutGlobalScope(TenantScope::class)->firstOrNew([
+            $account = ChannelAccount::withoutGlobalScope(TenantScope::class)->withTrashed()->firstOrNew([
                 'tenant_id' => $tenantId, 'provider' => $provider, 'external_shop_id' => $shop->externalShopId,
             ]);
             $created = ! $account->exists;
             $meta = $account->meta ?? [];
             if ($shopCipher) {
-                $meta['shop_cipher'] = $shopCipher;
+                $meta['shop_cipher'] = (string) $shopCipher;
             }
-            if (isset($token->raw['open_id'])) {
-                $meta['open_id'] = $token->raw['open_id'];
+            if (! empty($token->raw['open_id'])) {
+                $meta['open_id'] = (string) $token->raw['open_id'];
             }
-            if ($token->scope) {
+            if ($token->scope) {                       // ?string after TikTokMappers normalises granted_scopes
                 $meta['scope'] = $token->scope;
             }
+            $sellerType = $shop->sellerType ?: ($token->raw['user_type'] ?? null) ?: $account->seller_type;
             $account->forceFill([
                 'shop_name' => $shop->name ?: $account->shop_name,
                 'shop_region' => $shop->region ?: ($account->shop_region ?: 'VN'),
-                'seller_type' => $shop->sellerType ?: ($token->raw['user_type'] ?? null) ?: $account->seller_type,
+                'seller_type' => ($sellerType !== null && $sellerType !== '') ? (string) $sellerType : null,
                 'status' => ChannelAccount::STATUS_ACTIVE,
                 'access_token' => $token->accessToken,
                 'refresh_token' => $token->refreshToken,

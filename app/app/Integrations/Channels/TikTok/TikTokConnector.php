@@ -66,9 +66,9 @@ class TikTokConnector implements ChannelConnector
 
     public function buildAuthorizationUrl(string $state, array $opts = []): string
     {
-        $redirectUri = (string) ($opts['redirect_uri'] ?? route('oauth.callback', ['provider' => 'tiktok']));
-
-        return $this->client->authorizeUrl($state, $redirectUri);
+        // TikTok's service-auth flow ignores any redirect_uri here — the callback URL is
+        // configured in the Partner Center app. $opts is accepted to satisfy the interface.
+        return $this->client->authorizeUrl($state);
     }
 
     public function exchangeCodeForToken(string $code): TokenDTO

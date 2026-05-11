@@ -49,14 +49,22 @@ class TikTokClient
         return (string) ($this->cfg['version'][$group] ?? '202309');
     }
 
-    public function authorizeUrl(string $state, string $redirectUri): string
+    /**
+     * Seller-authorization URL for the TikTok Shop Partner "service" flow:
+     *   https://services.tiktokshop.com/open/authorize?service_id={service_id}&state={state}
+     * The seller logs in, picks shop(s), authorizes; TikTok then redirects to the
+     * **callback/redirect URL configured in the Partner Center app** (NOT a `redirect_uri`
+     * query param — the service flow doesn't take one) with ?app_key=&code=&state=&shop_region=…
+     * So the Partner Center "Authorization Settings → Redirect URL" must be exactly
+     *   https://<APP_URL host>/oauth/tiktok/callback   (e.g. https://app.cmbcore.com/oauth/tiktok/callback).
+     */
+    public function authorizeUrl(string $state): string
     {
         $base = (string) ($this->cfg['authorize_url'] ?? 'https://services.tiktokshop.com/open/authorize');
         $params = array_filter([
             'service_id' => $this->cfg['service_id'] ?? null,
             'app_key' => $this->cfg['app_key'] ?? null,
             'state' => $state,
-            'redirect_uri' => $redirectUri,
         ], fn ($v) => $v !== null && $v !== '');
 
         return $base.'?'.http_build_query($params);

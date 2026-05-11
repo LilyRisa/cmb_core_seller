@@ -22,13 +22,37 @@ final class TikTokMappers
     {
         return new TokenDTO(
             accessToken: (string) ($data['access_token'] ?? ''),
-            refreshToken: $data['refresh_token'] ?? null,
+            refreshToken: ($rt = $data['refresh_token'] ?? null) !== null && $rt !== '' ? (string) $rt : null,
             // *_expire_in here is a Unix timestamp (the expiry instant), not seconds-until.
-            expiresAt: isset($data['access_token_expire_in']) ? CarbonImmutable::createFromTimestamp((int) $data['access_token_expire_in']) : null,
-            refreshExpiresAt: isset($data['refresh_token_expire_in']) ? CarbonImmutable::createFromTimestamp((int) $data['refresh_token_expire_in']) : null,
-            scope: $data['granted_scopes'] ?? null,
+            expiresAt: self::tsOrNull($data['access_token_expire_in'] ?? null),
+            refreshExpiresAt: self::tsOrNull($data['refresh_token_expire_in'] ?? null),
+            // TikTok returns granted_scopes as a list (e.g. ["seller.shop","seller.order"]); the
+            // standard DTO's scope is a ?string — join it. (Some responses send a comma-string.)
+            scope: self::scopeString($data['granted_scopes'] ?? $data['scope'] ?? null),
             raw: $data,
         );
+    }
+
+    private static function tsOrNull(mixed $value): ?CarbonImmutable
+    {
+        return $value !== null && $value !== '' && (int) $value > 0
+            ? CarbonImmutable::createFromTimestamp((int) $value)
+            : null;
+    }
+
+    /** @return non-empty-string|null */
+    private static function scopeString(mixed $scopes): ?string
+    {
+        if (is_array($scopes)) {
+            $joined = implode(',', array_filter(array_map(
+                fn ($s) => is_array($s) ? (string) ($s['scope'] ?? $s['name'] ?? '') : (string) $s,
+                $scopes,
+            ), fn ($s) => $s !== ''));
+
+            return $joined !== '' ? $joined : null;
+        }
+
+        return $scopes !== null && $scopes !== '' ? (string) $scopes : null;
     }
 
     /** @param array<string,mixed> $shop one element of /authorization/202309/shops -> data.shops[] */

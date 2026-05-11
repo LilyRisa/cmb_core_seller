@@ -42,6 +42,8 @@ class TikTokConnectorContractTest extends TestCase
         $this->assertNotNull($token->expiresAt);
         $this->assertTrue($token->expiresAt->isFuture());
         $this->assertSame('open_id_abc', $token->raw['open_id']);
+        // granted_scopes (a list from TikTok) is joined into the standard DTO's ?string scope
+        $this->assertSame('seller.shop,seller.order,seller.product', $token->scope);
     }
 
     public function test_fetch_shop_info_returns_shop_dto_with_cipher(): void

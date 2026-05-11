@@ -37,7 +37,9 @@ final class TikTokFixtures
             'seller_name' => 'Cửa hàng test',
             'seller_base_region' => 'VN',
             'user_type' => 0,
-            'granted_scopes' => 'order.info,product.info',
+            // TikTok returns this as a LIST of scope strings (regression test for the
+            // "scope: array given, ?string expected" bug — TikTokMappers joins it).
+            'granted_scopes' => ['seller.shop', 'seller.order', 'seller.product'],
         ]);
     }
 

@@ -36,11 +36,11 @@ class TokenRefresher
         }
 
         $meta = $account->meta ?? [];
-        if ($token->scope) {
+        if ($token->scope) {                       // ?string (TikTokMappers joins TikTok's granted_scopes list)
             $meta['scope'] = $token->scope;
         }
-        if (isset($token->raw['open_id'])) {
-            $meta['open_id'] = $token->raw['open_id'];
+        if (! empty($token->raw['open_id'])) {
+            $meta['open_id'] = (string) $token->raw['open_id'];
         }
 
         $account->forceFill([
