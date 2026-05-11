@@ -1,16 +1,18 @@
 # Môi trường & Docker
 
-**Status:** Stable · **Cập nhật:** 2026-05-11
+**Status:** Stable · **Cập nhật:** 2026-05-12
 
 ## 1. Môi trường
 | Env | Mục đích | Ghi chú |
 |---|---|---|
-| `local` | Dev máy cá nhân | Docker Compose; test seller/token sandbox của các sàn |
+| `local` | Dev máy cá nhân | Docker Compose (base + override); cấu hình ở `app/.env` (đã commit — xem dưới); test seller/token sandbox của các sàn |
 | `staging` | Kiểm thử trước release | Cấu hình giống prod thu nhỏ; dùng app sandbox của sàn nếu có |
-| `production` | Thật | Dữ liệu thật người dùng; backup + monitoring đầy đủ |
+| `production` | Thật | Dữ liệu thật người dùng; cấu hình ở `./.env` cạnh compose (**không** commit); backup + monitoring đầy đủ |
 
-- Cấu hình qua biến môi trường (`.env`); **không commit `.env`**, có `.env.example` đầy đủ key. Bí mật prod ở secret manager / file ngoài repo.
-- `APP_KEY` (mã hoá token), `APP_URL`, DB, Redis, MinIO, Gotenberg, Sentry DSN, mail, và per-sàn: `TIKTOK_APP_KEY/SECRET`, (sau) `SHOPEE_PARTNER_ID/KEY`, `LAZADA_APP_KEY/SECRET`, per-ĐVVC tokens (hoặc lưu trong `carrier_accounts` theo tenant).
+- **Cấu hình `.env`:**
+  - `app/.env` — cấu hình **dev/chung**, được **commit vào repo** (repo private, không bao giờ public). Clone về là chạy được luôn (không cần `cp .env.example` / `key:generate`). Chứa `APP_KEY` dev, `DB_CONNECTION=sqlite` (dev nhanh), `INTEGRATIONS_CHANNELS=manual,tiktok`, `TIKTOK_APP_KEY/SECRET` sandbox, … Sửa cấu hình dev = sửa file này rồi commit. `app/.env.example` giữ làm **bản mẫu có chú thích** + làm khung cho `./.env` của prod.
+  - `./.env` (gốc repo, cạnh `docker-compose.yml`) — **chỉ dùng cho prod** (`docker-compose.prod.yml` đọc qua `env_file:`). Chứa bí mật prod: `APP_KEY` **riêng** (đừng tái dùng key dev), `APP_URL`, `MAIL_PASSWORD`, `SENTRY_LARAVEL_DSN`, `TIKTOK_*` prod, … `chmod 600`, **KHÔNG commit** (root `.gitignore` chặn `/.env`). Tốt hơn nữa: dùng secret manager.
+- Biến chính: `APP_KEY` (mã hoá token), `APP_URL`, DB, Redis, MinIO, Gotenberg, `SENTRY_LARAVEL_DSN`, `TRUSTED_PROXIES`, mail, `INTEGRATIONS_CHANNELS`, và per-sàn: `TIKTOK_APP_KEY/SECRET/SERVICE_ID/SANDBOX`, (sau) `SHOPEE_PARTNER_ID/KEY`, `LAZADA_APP_KEY/SECRET`, per-ĐVVC tokens (hoặc lưu trong `carrier_accounts` theo tenant).
 
 ## 2. Docker Compose — base + override + prod
 > Hiện thực: 3 file ở gốc repo — `docker-compose.yml` (base, dùng chung), `docker-compose.override.yml` (dev, **tự load** khi `docker compose up`), `docker-compose.prod.yml` (prod, phải nêu tường minh `-f`). Dockerfile/nginx/entrypoint của app ở `app/docker/`; image nginx prod ở `app/docker/nginx/Dockerfile`.

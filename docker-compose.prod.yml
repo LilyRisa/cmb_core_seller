@@ -36,7 +36,12 @@ services:
   web:
     build:
       context: ./app
-      dockerfile: docker/nginx/Dockerfile   # multi-stage: build vite assets + nginx + public/
+      dockerfile: docker/nginx/Dockerfile
+      args:
+        # nginx image = nginx + the public/ (incl. built assets) copied from the app image,
+        # so the manifest php-fpm reads and the static files nginx serves never drift apart.
+        # `web` depends_on `app`, so compose builds the app image first.
+        APP_IMAGE: cmbcoreseller-app:${APP_TAG:-latest}
     image: cmbcoreseller-web:${APP_TAG:-latest}
     networks:
       - default

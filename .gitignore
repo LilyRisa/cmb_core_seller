@@ -18,5 +18,14 @@ desktop.ini
 # Logs / misc
 *.log
 
-# Note: Laravel app/ has its own .gitignore (vendor, node_modules, .env, public/build, ...).
+# Prod env file (lives at repo root next to docker-compose.prod.yml) — never commit.
+# (app/.env IS committed on purpose — repo is private; it holds dev/shared config.)
+/.env
+/.env.*
+!/.env.example
+
+# Local backups dumped by scripts/backup.sh
+/backups/
+
+# Note: Laravel app/ has its own .gitignore (vendor, node_modules, public/build, ...).
 # sdk_tiktok_seller/ has its own .gitignore (node_modules, dist, ...).

@@ -50,7 +50,9 @@ services:
       - "9000"
 
   web:                              # nginx -> app:9000
-    # Build context + image được khai trong prod.yml; dev override dùng nginx:alpine + bind mount.
+    # Mặc định = nginx thuần (dev override bind-mount conf + public/). Prod thay bằng
+    # build từ app/docker/nginx/Dockerfile (nginx + public/ copy từ image app).
+    image: nginx:1.27-alpine
     container_name: cmb-web
     depends_on:
       - app

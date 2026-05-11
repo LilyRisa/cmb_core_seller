@@ -14,8 +14,7 @@ services:
       - ./app:/var/www/html
       - /var/www/html/vendor
 
-  web:                              # dev: nginx alpine + bind mount, không build image
-    image: nginx:1.27-alpine
+  web:                              # dev: nginx thuần (image lấy từ base) + bind mount conf & public/
     ports:
       - "8000:80"
     volumes:

@@ -21,10 +21,11 @@ SaaS quản lý bán hàng đa sàn cho thị trường Việt Nam — đồng b
 ## Chạy nhanh bằng Docker — dev (khuyên dùng)
 
 ```bash
-cp app/.env.example app/.env           # đã chứa INTEGRATIONS_CHANNELS=manual,tiktok; điền TIKTOK_APP_KEY/SECRET sandbox nếu muốn test connect
 docker compose up -d --build           # base + override (dev) tự merge
 docker compose exec app php artisan migrate --seed   # migrate cũng chạy tự động (RUN_MIGRATIONS) — --seed cho dữ liệu mẫu (owner@demo.local / password)
 ```
+
+> `app/.env` được **commit thẳng vào repo** (repo private) — clone về là dùng được luôn, không cần `cp .env.example .env` hay `key:generate`. `app/.env.example` giữ làm bản mẫu tài liệu (và làm khung cho `./.env` của prod). Sửa cấu hình dev = sửa `app/.env` rồi commit; bí mật chỉ-dành-cho-prod (APP_KEY prod, MAIL_PASSWORD, …) thì để trong `./.env` của prod, **không** commit.
 
 - App: <http://localhost:8000>  ·  Horizon: <http://localhost:8000/horizon>  ·  Mailpit: <http://localhost:8025>  ·  MinIO console: <http://localhost:9001> (`omnisell` / `omnisell-secret`)
 - Code trong `./app` được bind-mount (sửa là thấy ngay); Vite HMR ở service `vite`. Sau khi đổi `composer.lock`: `docker compose run --rm app composer install`. Build asset production tại chỗ: `docker compose exec vite npm run build`.
