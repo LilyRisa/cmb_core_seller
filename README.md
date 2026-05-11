@@ -11,9 +11,10 @@ SaaS quản lý bán hàng đa sàn cho thị trường Việt Nam — đồng b
 ├── app/                          # Laravel 11 + React (Vite) SPA — toàn bộ ứng dụng
 ├── docs/                         # tài liệu dự án (kim chỉ nam) — đọc trước khi code
 ├── sdk_tiktok_seller/            # SDK TikTok Shop (TypeScript, sinh từ OpenAPI) — chỉ tham khảo schema
-├── docker-compose.yml            # base: app(php-fpm), web(nginx), worker(horizon), scheduler, postgres, redis, minio(+init), gotenberg
-├── docker-compose.override.yml   # dev: bind-mount ./app, publish ports, vite(HMR), mailpit, RUN_MIGRATIONS — tự load khi `docker compose up`
-├── docker-compose.prod.yml       # prod: env_file ./.env, build web image, network `proxy` (NPM), restart + log rotation
+├── docker-compose.yml            # DEV base: app(php-fpm), web(nginx), worker(horizon), scheduler, postgres, redis, minio(+init), gotenberg
+├── docker-compose.override.yml   # DEV extras: bind-mount ./app, publish ports, vite(HMR), mailpit, RUN_MIGRATIONS — tự load khi `docker compose up`
+├── docker-compose.prod.yml       # PROD — file độc lập (Portainer-friendly): ${VAR} substitution, network `proxy`, restart + log rotation, data volumes
+├── .env.example                  # mẫu biến cho docker-compose.prod.yml (CLI: `cp .env.example .env`; Portainer: nhập ở UI). app/.env.example = mẫu cho app/.env (dev)
 ├── scripts/                      # backup.sh / restore.sh (Postgres + MinIO)
 └── .github/workflows/            # CI (Pint · PHPStan · migrate · PHPUnit `--coverage` · FE lint+typecheck+build) + deploy-staging
 ```
@@ -32,17 +33,20 @@ docker compose exec app php artisan migrate --seed   # migrate cũng chạy tự
 
 ## Triển khai prod — domain `app.cmbcore.com`
 
-Reverse proxy ngoài cluster (NPM/Caddy trên network `proxy`) map `app.cmbcore.com` → `http://cmb-web:80` + TLS.
+Reverse proxy ngoài cluster (NPM/Caddy trên network `proxy`) map `app.cmbcore.com` → `http://cmb-web:80` + TLS. **Prod = một file độc lập `docker-compose.prod.yml`** (không kèm `docker-compose.yml`).
 
+**CLI:**
 ```bash
-docker network create proxy                       # 1 lần — proxy ngoài share network này
-cp .env.example .env && chmod 600 .env            # ./.env (gốc repo, KHÔNG commit) — đã có APP_URL=https://app.cmbcore.com, SANCTUM_STATEFUL_DOMAINS/SESSION_DOMAIN=app.cmbcore.com; điền APP_KEY (mới), DB_PASSWORD, AWS_*, MAIL_*, SENTRY_LARAVEL_DSN, TIKTOK_* prod
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.yml -f docker-compose.prod.yml exec app php artisan migrate --force   # migrate là bước có kiểm soát
+docker network create proxy                              # 1 lần — proxy ngoài share network này
+cp .env.example .env && chmod 600 .env                   # rồi điền: APP_KEY (mới — xem dưới), DB_PASSWORD, AWS_ACCESS_KEY_ID/SECRET, MAIL_*, SENTRY_LARAVEL_DSN, TIKTOK_* prod
+docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml exec app php artisan migrate --force    # migrate là bước có kiểm soát
 # kiểm: curl https://app.cmbcore.com/api/v1/health
 ```
 
-> Tạo `APP_KEY` mới cho prod (đừng tái dùng key trong `app/.env`): `docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm app php artisan key:generate --show`. Cấu hình app **prod** ở `./.env` (gốc repo) — `./.env*` bị `.gitignore` chặn; `app/.env` là cấu hình **dev/chung** và được commit (repo private). Chi tiết: [`docs/07-infra/environments-and-docker.md`](docs/07-infra/environments-and-docker.md).
+**Portainer (Git stack):** Add stack → Repository = repo này → **Compose path = `docker-compose.prod.yml`** (KHÔNG phải `docker-compose.yml` — file đó là dev base, tự kéo theo override) → điền các biến trên ở mục **Environment variables** → Deploy. Sau lần đầu, mở "Console" của container `cmb-app` chạy `php artisan migrate --force` (hoặc redeploy stack với webhook).
+
+> Tạo `APP_KEY` mới cho prod (đừng tái dùng key trong `app/.env`): `docker compose -f docker-compose.prod.yml run --rm app php artisan key:generate --show`. `./.env` (gốc repo) bị `.gitignore` chặn — chỉ `app/.env` (dev/chung) được commit (repo private). Chi tiết & Portainer: [`docs/07-infra/environments-and-docker.md`](docs/07-infra/environments-and-docker.md) §3.
 
 ## Chạy không cần Docker (dev nhanh, zero-setup)
 

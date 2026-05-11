@@ -1,10 +1,14 @@
-# Base stack for OmniSell / CMBcoreSeller.
+# DEV base stack for OmniSell / CMBcoreSeller.
 #
-# Local dev:  docker compose up -d --build           (docker-compose.override.yml tự load)
-# Production: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#   docker compose up -d --build        # dev — docker-compose.override.yml tự merge (bind mount ./app, publish port, vite HMR, mailpit)
 #
-# Base này KHÔNG publish port DB/Redis/MinIO, KHÔNG bind-mount source, KHÔNG có vite/mailpit.
-# Mọi tiện ích dev nằm ở override; mọi đặc thù prod nằm ở prod.yml.
+# ⚠️ Đây là base cho DEV — KHÔNG dùng cho prod / Portainer. PROD = một file độc lập:
+#       docker compose -f docker-compose.prod.yml up -d --build
+#   (Portainer: trỏ "Compose path" tới docker-compose.prod.yml, KHÔNG phải file này — file này
+#    tự kéo theo docker-compose.override.yml ⇒ bind mount/port/vite/mailpit, sai cho prod.)
+#
+# Base này: build từ app/docker/Dockerfile; KHÔNG publish port DB/Redis/MinIO, KHÔNG bind-mount
+# source, KHÔNG có vite/mailpit (override thêm các thứ đó cho dev).
 
 x-app-env: &app-env
   DB_CONNECTION: pgsql

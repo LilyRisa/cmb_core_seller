@@ -1,95 +1,234 @@
-# Production overrides — domain: https://app.cmbcore.com. Chạy kèm base:
-#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# =============================================================================
+# PRODUCTION stack — SELF-CONTAINED, single file. Domain: https://app.cmbcore.com
+# =============================================================================
+# Deploy:
+#   docker compose -f docker-compose.prod.yml up -d --build
+#   docker compose -f docker-compose.prod.yml exec app php artisan migrate --force   # controlled step
+#   curl https://app.cmbcore.com/api/v1/health
 #
-# Bắt buộc trước:
-#   - docker network create proxy            (NPM/Caddy đứng ngoài share network này; map app.cmbcore.com → cmb-web:80 + cấp TLS)
-#   - cp .env.example .env && chmod 600 .env  (file ./.env cạnh compose, KHÔNG commit — đã có sẵn APP_URL=https://app.cmbcore.com,
-#     SANCTUM_STATEFUL_DOMAINS/SESSION_DOMAIN=app.cmbcore.com; điền APP_KEY (key MỚI cho prod), DB_PASSWORD, AWS_*, MAIL_*, SENTRY_LARAVEL_DSN, TIKTOK_* prod)
-#   - migrate là bước deploy có kiểm soát: docker compose -f docker-compose.yml -f docker-compose.prod.yml exec app php artisan migrate --force
+# Portainer (Git stack): set "Compose path" = docker-compose.prod.yml, fill the env
+# vars below in Portainer's "Environment variables" section (APP_KEY, DB_PASSWORD,
+# AWS_*, MAIL_*, SENTRY_LARAVEL_DSN, TIKTOK_*). Do NOT point Portainer at
+# docker-compose.yml — that one is the dev base (auto-merges docker-compose.override.yml,
+# which bind-mounts ./app, publishes ports, starts vite/mailpit — wrong for prod).
 #
-# Lưu ý: docker compose tự đọc ./.env cạnh file compose để (a) thay ${VAR}, (b) qua `env_file:` đẩy vào container.
-# Các biến hạ tầng (DB_HOST=postgres, REDIS_HOST=redis, AWS_ENDPOINT=http://minio:9000, ...) ở base `environment:`
-# có precedence cao hơn env_file nên ghi đè giá trị tương ứng trong ./.env — đúng ý.
+# Prereqs:
+#   - docker network create proxy   (external reverse proxy — NPM/Caddy — on this network,
+#     mapping host app.cmbcore.com -> http://cmb-web:80 and terminating TLS)
+#   - env vars set: see .env.example at the repo root (for CLI: `cp .env.example .env`;
+#     compose auto-reads ./.env for ${VAR} substitution. For Portainer: enter them in the UI).
+#
+# RUN_MIGRATIONS=false here -> the app container does NOT auto-migrate on boot (avoids races
+# with multiple replicas); migrations are the controlled `migrate --force` step above.
 
-x-prod-logging: &prod-logging
+x-logging: &logging
   driver: json-file
   options:
     max-size: "10m"
     max-file: "5"
 
-# App config cho prod: phần lớn lấy từ ./.env (env_file); chỉ ép vài thứ chắc-chắn-phải-vậy.
-x-prod-app-env: &prod-app-env
+x-app-build: &app-build
+  context: ./app
+  dockerfile: docker/Dockerfile
+
+# Container env for app / worker / scheduler. In-cluster hostnames are fixed; everything
+# else comes from ${VAR} (set in ./.env for CLI, or in Portainer's env-vars UI).
+x-app-env: &app-env
+  APP_NAME: ${APP_NAME:-OmniSell}
   APP_ENV: production
   APP_DEBUG: "false"
-  TRUSTED_PROXIES: "*"            # đứng sau NPM — bootstrap/app.php đọc biến này
+  APP_KEY: ${APP_KEY}                         # required — `... run --rm app php artisan key:generate --show`
+  APP_URL: ${APP_URL:-https://app.cmbcore.com}
+  APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
+  APP_LOCALE: vi
+  TRUSTED_PROXIES: "*"                        # behind NPM — bootstrap/app.php reads this
+  LOG_CHANNEL: stack
+  LOG_STACK: json
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  # Sanctum SPA + session cookie (SPA & API share the host app.cmbcore.com)
+  SANCTUM_STATEFUL_DOMAINS: ${SANCTUM_STATEFUL_DOMAINS:-app.cmbcore.com}
+  SESSION_DRIVER: redis
+  SESSION_DOMAIN: ${SESSION_DOMAIN:-app.cmbcore.com}
+  SESSION_SECURE_COOKIE: "${SESSION_SECURE_COOKIE:-true}"
+  SESSION_SAME_SITE: ${SESSION_SAME_SITE:-lax}
+  SESSION_LIFETIME: ${SESSION_LIFETIME:-120}
+  # Database (postgres service)
+  DB_CONNECTION: pgsql
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_DATABASE: ${DB_DATABASE:-cmbcoreseller}
+  DB_USERNAME: ${DB_USERNAME:-cmbcoreseller}
+  DB_PASSWORD: ${DB_PASSWORD}                 # required
+  # Cache / queue (redis service)
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_PASSWORD: "null"
+  CACHE_STORE: redis
+  QUEUE_CONNECTION: redis
+  # Object storage (minio service)
+  FILESYSTEM_DISK: s3
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}     # required (also the MinIO root user)
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+  AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-ap-southeast-1}
+  AWS_BUCKET: ${AWS_BUCKET:-omnisell}
+  AWS_ENDPOINT: http://minio:9000
+  AWS_USE_PATH_STYLE_ENDPOINT: "true"
+  # PDF rendering (gotenberg service)
+  GOTENBERG_URL: http://gotenberg:3000
+  # Mail
+  MAIL_MAILER: ${MAIL_MAILER:-smtp}
+  MAIL_HOST: ${MAIL_HOST}
+  MAIL_PORT: ${MAIL_PORT:-587}
+  MAIL_USERNAME: ${MAIL_USERNAME}
+  MAIL_PASSWORD: ${MAIL_PASSWORD}
+  MAIL_SCHEME: ${MAIL_SCHEME:-tls}
+  MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-no-reply@cmbcore.com}
+  MAIL_FROM_NAME: ${MAIL_FROM_NAME:-OmniSell}
+  # Error monitoring
+  SENTRY_LARAVEL_DSN: ${SENTRY_LARAVEL_DSN}
+  # Marketplace integrations
+  INTEGRATIONS_CHANNELS: ${INTEGRATIONS_CHANNELS:-manual,tiktok}
+  INTEGRATIONS_CARRIERS: ${INTEGRATIONS_CARRIERS:-}
+  TIKTOK_APP_KEY: ${TIKTOK_APP_KEY}
+  TIKTOK_APP_SECRET: ${TIKTOK_APP_SECRET}
+  TIKTOK_SERVICE_ID: ${TIKTOK_SERVICE_ID}
+  TIKTOK_SANDBOX: "${TIKTOK_SANDBOX:-false}"
 
 services:
-  app:
+  app:                                # php-fpm
+    build: *app-build
     image: cmbcoreseller-app:${APP_TAG:-latest}
-    env_file: ./app/.env
     environment:
-      <<: *prod-app-env
-      RUN_MIGRATIONS: "false"     # migrate thủ công trong bước deploy
+      <<: *app-env
+      RUN_MIGRATIONS: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "9000"
     restart: unless-stopped
-    logging: *prod-logging
+    logging: *logging
 
-  web:
+  web:                                # nginx -> app:9000 (serves SPA + static; behind external proxy)
     build:
       context: ./app
       dockerfile: docker/nginx/Dockerfile
-      args:
-        # nginx image = nginx + the public/ (incl. built assets) copied from the app image,
-        # so the manifest php-fpm reads and the static files nginx serves never drift apart.
-        # `web` depends_on `app`, so compose builds the app image first.
-        APP_IMAGE: cmbcoreseller-app:${APP_TAG:-latest}
     image: cmbcoreseller-web:${APP_TAG:-latest}
+    depends_on:
+      - app
     networks:
       - default
-      - proxy                     # để NPM (cmb-web:80) tới được
+      - proxy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost/api/v1/health"]
       interval: 30s
       timeout: 5s
       retries: 3
     restart: unless-stopped
-    logging: *prod-logging
+    logging: *logging
 
-  worker:
+  worker:                             # Laravel Horizon (queues)
+    build: *app-build
     image: cmbcoreseller-app:${APP_TAG:-latest}
-    env_file: ./.env
-    environment: *prod-app-env
+    command: ["php", "artisan", "horizon"]
+    environment: *app-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "php", "artisan", "horizon:status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    stop_grace_period: 30s
     restart: unless-stopped
-    logging: *prod-logging
+    logging: *logging
 
-  scheduler:
+  scheduler:                          # cron (schedule:work) — single instance (onOneServer()/withoutOverlapping() in routes/console.php)
+    build: *app-build
     image: cmbcoreseller-app:${APP_TAG:-latest}
-    env_file: ./.env
-    environment: *prod-app-env
-    deploy:
-      replicas: 1                 # cron đúng 1 instance (kết hợp onOneServer()/withoutOverlapping() trong routes/console.php)
+    command: ["php", "artisan", "schedule:work"]
+    environment: *app-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
-    logging: *prod-logging
+    logging: *logging
 
   postgres:
     image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-cmbcoreseller}
+      POSTGRES_USER: ${DB_USERNAME:-cmbcoreseller}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}       # required
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-cmbcoreseller} -d ${DB_DATABASE:-cmbcoreseller}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     restart: unless-stopped
-    logging: *prod-logging
+    logging: *logging
 
   redis:
     image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     restart: unless-stopped
-    logging: *prod-logging
+    logging: *logging
 
-  minio:
+  minio:                              # S3-compatible object storage
     image: minio/minio:latest
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID}
+      MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY}
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
-    logging: *prod-logging
+    logging: *logging
 
-  gotenberg:
+  minio-init:                         # one-shot: ensure the bucket exists, then exit
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MC_KEY: ${AWS_ACCESS_KEY_ID}
+      MC_SECRET: ${AWS_SECRET_ACCESS_KEY}
+      MC_BUCKET: ${AWS_BUCKET:-omnisell}
+    entrypoint: ["/bin/sh", "-c", "mc alias set local http://minio:9000 \"$$MC_KEY\" \"$$MC_SECRET\" && mc mb --ignore-existing \"local/$$MC_BUCKET\" && mc anonymous set download \"local/$$MC_BUCKET/public\" || true"]
+    restart: "no"
+
+  gotenberg:                          # HTML -> PDF (picking/packing/label printing — Phase 3)
     image: gotenberg/gotenberg:8
+    command: ["gotenberg", "--api-timeout=60s"]
     restart: unless-stopped
-    logging: *prod-logging
+    logging: *logging
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
 
 networks:
   proxy:
-    external: true                # docker network create proxy
+    external: true                    # docker network create proxy
