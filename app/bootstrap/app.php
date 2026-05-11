@@ -16,9 +16,9 @@ use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
-        web: __DIR__ . '/../routes/web.php',
-        api: __DIR__ . '/../routes/api.php',
-        commands: __DIR__ . '/../routes/console.php',
+        web: __DIR__.'/../routes/web.php',
+        api: __DIR__.'/../routes/api.php',
+        commands: __DIR__.'/../routes/console.php',
         health: '/up',
         apiPrefix: 'api',
         then: function () {
@@ -30,11 +30,27 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withCommands([
-        __DIR__ . '/../app/Console/Commands',
+        __DIR__.'/../app/Console/Commands',
     ])
+    // NOTE: call withMiddleware() exactly ONCE — each call overwrites the kernel's
+    // global middleware / groups / aliases (it doesn't merge). All middleware
+    // wiring belongs in this single closure.
     ->withMiddleware(function (Middleware $middleware) {
+        // Behind a reverse proxy (nginx + Nginx Proxy Manager in prod): trust the
+        // X-Forwarded-* headers so HTTPS detection, generated URLs and the Sanctum
+        // cookie are correct. TRUSTED_PROXIES = '*' (trust all — fine when only your
+        // own proxy fronts the app) | CSV of IPs/CIDRs | empty (dev: trust nothing).
+        $proxies = (string) env('TRUSTED_PROXIES', '');
+        $middleware->trustProxies(
+            at: $proxies === '*' ? '*' : ($proxies !== '' ? explode(',', $proxies) : null),
+            headers: Request::HEADER_X_FORWARDED_FOR |
+                Request::HEADER_X_FORWARDED_HOST |
+                Request::HEADER_X_FORWARDED_PORT |
+                Request::HEADER_X_FORWARDED_PROTO
+        );
+
         // Every request gets a request_id / trace_id (log context + Sentry tag +
-        // X-Request-Id header). Runs first so it covers the whole pipeline.
+        // X-Request-Id header). Prepended so it wraps the whole pipeline.
         $middleware->prepend(AssignRequestId::class);
 
         // Sanctum SPA: cookie-based auth for same-domain frontend on the `api` group.
@@ -49,22 +65,13 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant' => EnsureTenant::class,
         ]);
     })
-    ->withMiddleware(function (Middleware $middleware) {
-        $middleware->trustProxies(
-            at: '*',
-            headers: Request::HEADER_X_FORWARDED_FOR |
-                Request::HEADER_X_FORWARDED_HOST |
-                Request::HEADER_X_FORWARDED_PORT |
-                Request::HEADER_X_FORWARDED_PROTO
-        );
-    })
     ->withExceptions(function (Exceptions $exceptions) {
         // Report unhandled exceptions to Sentry (web + queue). No-op without a DSN.
         Integration::handles($exceptions);
 
         // /api/* and /webhook/* always speak JSON — never redirect to a login page.
         $exceptions->shouldRenderJsonWhen(
-            fn($request) => $request->is('api/*', 'webhook/*') || $request->expectsJson()
+            fn ($request) => $request->is('api/*', 'webhook/*') || $request->expectsJson()
         );
 
         // Normalize JSON error responses to the {error:{code,message,...}} envelope
@@ -111,5 +118,5 @@ return Application::configure(basePath: dirname(__DIR__))
             return response()->json($body, $status);
         };
 
-        $exceptions->render(fn(Throwable $e, Request $request) => $envelope($e, $request));
+        $exceptions->render(fn (Throwable $e, Request $request) => $envelope($e, $request));
     })->create();

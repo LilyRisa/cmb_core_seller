@@ -12,27 +12,29 @@
 - Cấu hình qua biến môi trường (`.env`); **không commit `.env`**, có `.env.example` đầy đủ key. Bí mật prod ở secret manager / file ngoài repo.
 - `APP_KEY` (mã hoá token), `APP_URL`, DB, Redis, MinIO, Gotenberg, Sentry DSN, mail, và per-sàn: `TIKTOK_APP_KEY/SECRET`, (sau) `SHOPEE_PARTNER_ID/KEY`, `LAZADA_APP_KEY/SECRET`, per-ĐVVC tokens (hoặc lưu trong `carrier_accounts` theo tenant).
 
-## 2. Dịch vụ trong Docker Compose (local & cơ sở cho staging/prod)
-> Hiện thực: `docker-compose.yml` ở gốc repo; Dockerfile + nginx + entrypoint ở `app/docker/`.
+## 2. Docker Compose — base + override + prod
+> Hiện thực: 3 file ở gốc repo — `docker-compose.yml` (base, dùng chung), `docker-compose.override.yml` (dev, **tự load** khi `docker compose up`), `docker-compose.prod.yml` (prod, phải nêu tường minh `-f`). Dockerfile/nginx/entrypoint của app ở `app/docker/`; image nginx prod ở `app/docker/nginx/Dockerfile`.
+>
+> - **Dev:** `cp app/.env.example app/.env` → `docker compose up -d --build`. Override bật: bind-mount `./app` (sửa là thấy ngay), publish port host (5432/6379/9000/9001/8000), service `vite` (HMR, ghi `public/hot`), service `mailpit` (`:8025`), `RUN_MIGRATIONS=true`. App đọc cấu hình từ `app/.env` (bind-mounted) — gồm `INTEGRATIONS_CHANNELS`, `TIKTOK_*`, …
+> - **Prod:** `docker network create proxy` (NPM/Caddy đứng ngoài) → tạo `./.env` (cạnh file compose, `chmod 600`, **không commit** — chứa `APP_KEY`, `APP_URL`, `INTEGRATIONS_CHANNELS`, `TIKTOK_*`, `MAIL_*`, `SENTRY_LARAVEL_DSN`, …) → `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`. App/worker/scheduler nhận cấu hình qua `env_file: ./.env` (+ ép `APP_ENV=production`, `APP_DEBUG=false`, `TRUSTED_PROXIES=*`); `RUN_MIGRATIONS=false` ⇒ **migrate là bước deploy có kiểm soát**: `docker compose ... exec app php artisan migrate --force`. `web` build từ `app/docker/nginx/Dockerfile` (đa stage: build asset Vite → nginx + `public/`), join network `proxy`, healthcheck `/api/v1/health`. Tất cả service `restart: unless-stopped` + log json-file xoay vòng 10m×5.
 
-| Service | Vai trò |
-|---|---|
-| `app` | PHP-FPM (image `app/docker/Dockerfile` — đa stage: build asset Vite + composer deps + runtime). `RUN_MIGRATIONS=true` ⇒ container này tự `migrate` + warm cache lúc boot. |
-| `web` | Nginx 1.27, proxy `/` & `*.php` → `app:9000`. Tách container thay vì gộp "PHP-FPM + Nginx" — phục vụ web/API/webhook/SPA catch-all. |
-| `worker` | `php artisan horizon` — chạy queue (container riêng, scale replica độc lập); healthcheck `horizon:status`. |
-| `scheduler` | `php artisan schedule:work` (một instance). |
-| `vite` | (local) `npm run dev` — Vite HMR cho React, ghi `public/hot`. Bỏ khi build asset baked vào image (staging/prod). |
-| `postgres` | PostgreSQL 15 (volume `pgdata`, healthcheck `pg_isready`). |
-| `redis` | Redis 7 (cache/queue/lock; volume `redisdata`, healthcheck `redis-cli ping`). |
-| `minio` + `minio-init` | Object storage S3-compatible (volume `miniodata`); `minio-init` là job một-lần tạo bucket `omnisell`. |
-| `gotenberg` | Render HTML→PDF cho phiếu in (image `gotenberg/gotenberg:8`). |
-| `mailpit` | (local) bắt email để xem (`:8025`). Thay cho MailHog (đã ngừng phát triển). |
-| `meilisearch` | (bật khi cần, Phase sau) tìm kiếm. |
-| `reverb` | (Phase sau) WebSocket realtime. |
+| Service | Base | Dev (override) | Prod (prod.yml) |
+|---|---|---|---|
+| `app` | PHP-FPM (image `app/docker/Dockerfile`), `expose 9000` | + bind-mount `./app`, vendor anon volume, `APP_ENV=local`, `RUN_MIGRATIONS=true`, mail→mailpit | + `env_file ./.env`, `APP_ENV=production`, `RUN_MIGRATIONS=false`, `TRUSTED_PROXIES=*`, restart, logging |
+| `web` | tên container; image/build khai ở dev/prod | nginx:1.27-alpine + bind-mount `app/docker/nginx.conf` & `app/public`, port `8000:80` | build `app/docker/nginx/Dockerfile`, network `proxy`, healthcheck `/api/v1/health` |
+| `worker` | `php artisan horizon`, healthcheck `horizon:status` | + bind-mount, `APP_ENV=local`, mail→mailpit | + `env_file ./.env`, `APP_ENV=production` |
+| `scheduler` | `php artisan schedule:work` (1 instance) | + bind-mount | + `env_file ./.env`, `deploy.replicas=1` |
+| `vite` | — | `node:20-alpine`: `npm ci && npm run dev -- --host 0.0.0.0`, port `5173`, bind-mount `./app`, node_modules anon | — (asset baked vào image `web`) |
+| `mailpit` | — | `axllent/mailpit` (`:1025` SMTP, `:8025` UI) | — (dùng SMTP thật) |
+| `postgres` | PG 15, volume `pgdata`, healthcheck `pg_isready` | + port `5432:5432` | + restart, logging |
+| `redis` | Redis 7 (appendonly), volume `redisdata`, healthcheck `redis-cli ping` | + port `6379:6379` | + restart, logging |
+| `minio` + `minio-init` | MinIO + job một-lần tạo bucket | + port `9000`/`9001` | + restart, logging |
+| `gotenberg` | `gotenberg/gotenberg:8` (HTML→PDF) | — | + restart, logging |
+| `meilisearch` / `reverb` | (Phase sau) | | |
 
-- `cp app/.env.example app/.env` rồi `docker compose up -d --build` ⇒ chạy được toàn bộ; migrate chạy tự động qua `RUN_MIGRATIONS`, hoặc `docker compose exec app php artisan migrate --seed` để có dữ liệu mẫu. README ở gốc repo hướng dẫn từng bước.
-- Healthcheck cho `postgres`/`redis`/`minio`/`worker`; `app`/`worker`/`scheduler` chờ `postgres`/`redis` healthy mới khởi động.
-- Volume: `pgdata`, `redisdata`, `miniodata` (dữ liệu) + volume ẩn danh cho `vendor`/`node_modules` (giữ lại deps đã baked trong image, không bị bind-mount của `./app` che mất). Sau khi đổi `composer.lock`: `docker compose run --rm app composer install`. Backup script dump Postgres + sync MinIO ra nơi an toàn (xem `observability-and-backup.md`).
+- Healthcheck cho `postgres`/`redis`/`minio`/`worker` (+ `web` ở prod); `app`/`worker`/`scheduler` chờ `postgres`/`redis` healthy mới khởi động. Mọi service log JSON ra stdout (`LOG_CHANNEL=stack`, `LOG_STACK=json`).
+- Volume: `pgdata`, `redisdata`, `miniodata` (dữ liệu) + (dev) volume ẩn danh cho `vendor`/`node_modules` (giữ deps đã baked trong image, không bị bind-mount `./app` che mất). Sau khi đổi `composer.lock`: `docker compose run --rm app composer install`. Backup: `scripts/backup.sh`/`scripts/restore.sh` (xem `observability-and-backup.md`).
+- **Lưu ý**: gọi `withMiddleware()` trong `bootstrap/app.php` **đúng 1 lần** (mỗi lần ghi đè global middleware/group/alias của kernel, không merge) — `trustProxies` (đọc `TRUSTED_PROXIES`) nằm cùng closure với `AssignRequestId`/`statefulApi`/alias `tenant`.
 - Trong dev, code `./app` được bind-mount vào các container PHP (sửa là thấy ngay); muốn build asset production tại chỗ: `docker compose exec vite npm run build`.
 
 ## 3. Triển khai (giai đoạn đầu)

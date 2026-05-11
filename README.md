@@ -8,27 +8,37 @@ SaaS quản lý bán hàng đa sàn cho thị trường Việt Nam — đồng b
 
 ```
 .
-├── app/                  # Laravel 11 + React (Vite) SPA — toàn bộ ứng dụng
-├── docs/                 # tài liệu dự án (kim chỉ nam) — đọc trước khi code
-├── sdk_tiktok_seller/    # SDK TikTok Shop (TypeScript, sinh từ OpenAPI) — chỉ tham khảo schema
-├── docker-compose.yml    # stack local: app, web(nginx), worker(horizon), scheduler, vite, postgres, redis, minio, gotenberg, mailpit
-└── .github/workflows/    # CI (Pint · PHPStan · migrate · PHPUnit · FE typecheck + build)
+├── app/                          # Laravel 11 + React (Vite) SPA — toàn bộ ứng dụng
+├── docs/                         # tài liệu dự án (kim chỉ nam) — đọc trước khi code
+├── sdk_tiktok_seller/            # SDK TikTok Shop (TypeScript, sinh từ OpenAPI) — chỉ tham khảo schema
+├── docker-compose.yml            # base: app(php-fpm), web(nginx), worker(horizon), scheduler, postgres, redis, minio(+init), gotenberg
+├── docker-compose.override.yml   # dev: bind-mount ./app, publish ports, vite(HMR), mailpit, RUN_MIGRATIONS — tự load khi `docker compose up`
+├── docker-compose.prod.yml       # prod: env_file ./.env, build web image, network `proxy` (NPM), restart + log rotation
+├── scripts/                      # backup.sh / restore.sh (Postgres + MinIO)
+└── .github/workflows/            # CI (Pint · PHPStan · migrate · PHPUnit `--coverage` · FE lint+typecheck+build) + deploy-staging
 ```
 
-## Chạy nhanh bằng Docker (khuyên dùng)
+## Chạy nhanh bằng Docker — dev (khuyên dùng)
 
 ```bash
-cp app/.env.example app/.env
-docker compose up -d --build           # build image + khởi động toàn bộ
-docker compose exec app php artisan migrate --seed   # (migrate cũng chạy tự động khi boot)
+cp app/.env.example app/.env           # đã chứa INTEGRATIONS_CHANNELS=manual,tiktok; điền TIKTOK_APP_KEY/SECRET sandbox nếu muốn test connect
+docker compose up -d --build           # base + override (dev) tự merge
+docker compose exec app php artisan migrate --seed   # migrate cũng chạy tự động (RUN_MIGRATIONS) — --seed cho dữ liệu mẫu (owner@demo.local / password)
 ```
 
-- App: <http://localhost:8000>
-- Horizon (queue dashboard): <http://localhost:8000/horizon>
-- Mailpit (email bắt được): <http://localhost:8025>
-- MinIO console: <http://localhost:9001> (user `omnisell` / pass `omnisell-secret`)
+- App: <http://localhost:8000>  ·  Horizon: <http://localhost:8000/horizon>  ·  Mailpit: <http://localhost:8025>  ·  MinIO console: <http://localhost:9001> (`omnisell` / `omnisell-secret`)
+- Code trong `./app` được bind-mount (sửa là thấy ngay); Vite HMR ở service `vite`. Sau khi đổi `composer.lock`: `docker compose run --rm app composer install`. Build asset production tại chỗ: `docker compose exec vite npm run build`.
 
-Trong dev, code trong `./app` được bind-mount nên sửa là thấy ngay; Vite HMR chạy ở service `vite`. Sau khi đổi `composer.lock`: `docker compose run --rm app composer install`. Build asset production tại chỗ: `docker compose exec vite npm run build`. Chi tiết: [`docs/07-infra/environments-and-docker.md`](docs/07-infra/environments-and-docker.md).
+## Triển khai prod (tóm tắt)
+
+```bash
+docker network create proxy            # NPM/Caddy đứng ngoài, share network này
+# tạo ./.env (cạnh file compose, chmod 600, KHÔNG commit): APP_KEY, APP_URL, INTEGRATIONS_CHANNELS, TIKTOK_*, MAIL_*, SENTRY_LARAVEL_DSN, ...
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec app php artisan migrate --force   # migrate là bước có kiểm soát
+```
+
+Chi tiết: [`docs/07-infra/environments-and-docker.md`](docs/07-infra/environments-and-docker.md).
 
 ## Chạy không cần Docker (dev nhanh, zero-setup)
 

@@ -1,8 +1,15 @@
 # Production overrides. Phải chạy kèm base:
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 #
-# Bắt buộc trước: docker network create proxy  (NPM đứng ngoài, share network này).
-# .env ở cùng thư mục với compose, chmod 600, KHÔNG commit.
+# Bắt buộc trước:
+#   - docker network create proxy            (NPM đứng ngoài, share network này)
+#   - tạo .env ở cùng thư mục compose này (chmod 600, KHÔNG commit) — chứa APP_KEY,
+#     APP_URL, INTEGRATIONS_CHANNELS, TIKTOK_APP_KEY/SECRET/SERVICE_ID, MAIL_*, SENTRY_LARAVEL_DSN, ...
+#   - migrate là bước deploy có kiểm soát: docker compose ... exec app php artisan migrate --force
+#
+# Lưu ý: docker compose tự đọc .env cạnh file compose để (a) thay ${VAR}, (b) qua `env_file:` đẩy
+# vào container. Các biến hạ tầng (DB_HOST=postgres, REDIS_HOST=redis, ...) ở base `environment:`
+# có precedence cao hơn env_file nên ghi đè giá trị tương ứng trong .env — đúng ý.
 
 x-prod-logging: &prod-logging
   driver: json-file
@@ -10,24 +17,19 @@ x-prod-logging: &prod-logging
     max-size: "10m"
     max-file: "5"
 
+# App config cho prod: phần lớn lấy từ ./.env (env_file); chỉ ép vài thứ chắc-chắn-phải-vậy.
+x-prod-app-env: &prod-app-env
+  APP_ENV: production
+  APP_DEBUG: "false"
+  TRUSTED_PROXIES: "*"            # đứng sau NPM — bootstrap/app.php đọc biến này
+
 services:
   app:
     image: cmbcoreseller-app:${APP_TAG:-latest}
+    env_file: ./app/.env
     environment:
-      APP_ENV: production
-      APP_DEBUG: "false"
-      APP_URL: ${APP_URL}
-      APP_KEY: ${APP_KEY}
-      RUN_MIGRATIONS: "false"       # migrate thủ công trong bước deploy
-      TRUSTED_PROXIES: "*"          # đọc trong bootstrap/app.php
-      MAIL_MAILER: ${MAIL_MAILER:-smtp}
-      MAIL_HOST: ${MAIL_HOST}
-      MAIL_PORT: ${MAIL_PORT:-587}
-      MAIL_USERNAME: ${MAIL_USERNAME}
-      MAIL_PASSWORD: ${MAIL_PASSWORD}
-      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS}
-      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-OmniSell}
-      SENTRY_LARAVEL_DSN: ${SENTRY_LARAVEL_DSN}
+      <<: *prod-app-env
+      RUN_MIGRATIONS: "false"     # migrate thủ công trong bước deploy
     restart: unless-stopped
     logging: *prod-logging
 
@@ -38,7 +40,7 @@ services:
     image: cmbcoreseller-web:${APP_TAG:-latest}
     networks:
       - default
-      - proxy                       # để NPM (cmb-web:80) tới được
+      - proxy                     # để NPM (cmb-web:80) tới được
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost/api/v1/health"]
       interval: 30s
@@ -49,33 +51,17 @@ services:
 
   worker:
     image: cmbcoreseller-app:${APP_TAG:-latest}
-    environment:
-      APP_ENV: production
-      APP_DEBUG: "false"
-      APP_URL: ${APP_URL}
-      APP_KEY: ${APP_KEY}
-      TRUSTED_PROXIES: "*"
-      MAIL_MAILER: ${MAIL_MAILER:-smtp}
-      MAIL_HOST: ${MAIL_HOST}
-      MAIL_PORT: ${MAIL_PORT:-587}
-      MAIL_USERNAME: ${MAIL_USERNAME}
-      MAIL_PASSWORD: ${MAIL_PASSWORD}
-      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS}
-      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-OmniSell}
-      SENTRY_LARAVEL_DSN: ${SENTRY_LARAVEL_DSN}
+    env_file: ./.env
+    environment: *prod-app-env
     restart: unless-stopped
     logging: *prod-logging
 
   scheduler:
     image: cmbcoreseller-app:${APP_TAG:-latest}
-    environment:
-      APP_ENV: production
-      APP_DEBUG: "false"
-      APP_URL: ${APP_URL}
-      APP_KEY: ${APP_KEY}
-      TRUSTED_PROXIES: "*"
+    env_file: ./.env
+    environment: *prod-app-env
     deploy:
-      replicas: 1                   # cron đúng 1 instance
+      replicas: 1                 # cron đúng 1 instance (kết hợp onOneServer()/withoutOverlapping() trong routes/console.php)
     restart: unless-stopped
     logging: *prod-logging
 
@@ -97,4 +83,4 @@ services:
 
 networks:
   proxy:
-    external: true                  # docker network create proxy
+    external: true                # docker network create proxy

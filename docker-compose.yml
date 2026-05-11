@@ -12,7 +12,7 @@ x-app-env: &app-env
   DB_PORT: "5432"
   DB_DATABASE: cmbcoreseller
   DB_USERNAME: cmbcoreseller
-  DB_PASSWORD: ${DB_PASSWORD:-secret}
+  DB_PASSWORD: 1995oklangtu
   REDIS_HOST: redis
   REDIS_PORT: "6379"
   REDIS_PASSWORD: "null"
