@@ -1,15 +1,15 @@
-# Production overrides. Phải chạy kèm base:
+# Production overrides — domain: https://app.cmbcore.com. Chạy kèm base:
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 #
 # Bắt buộc trước:
-#   - docker network create proxy            (NPM đứng ngoài, share network này)
-#   - tạo .env ở cùng thư mục compose này (chmod 600, KHÔNG commit) — chứa APP_KEY,
-#     APP_URL, INTEGRATIONS_CHANNELS, TIKTOK_APP_KEY/SECRET/SERVICE_ID, MAIL_*, SENTRY_LARAVEL_DSN, ...
-#   - migrate là bước deploy có kiểm soát: docker compose ... exec app php artisan migrate --force
+#   - docker network create proxy            (NPM/Caddy đứng ngoài share network này; map app.cmbcore.com → cmb-web:80 + cấp TLS)
+#   - cp .env.example .env && chmod 600 .env  (file ./.env cạnh compose, KHÔNG commit — đã có sẵn APP_URL=https://app.cmbcore.com,
+#     SANCTUM_STATEFUL_DOMAINS/SESSION_DOMAIN=app.cmbcore.com; điền APP_KEY (key MỚI cho prod), DB_PASSWORD, AWS_*, MAIL_*, SENTRY_LARAVEL_DSN, TIKTOK_* prod)
+#   - migrate là bước deploy có kiểm soát: docker compose -f docker-compose.yml -f docker-compose.prod.yml exec app php artisan migrate --force
 #
-# Lưu ý: docker compose tự đọc .env cạnh file compose để (a) thay ${VAR}, (b) qua `env_file:` đẩy
-# vào container. Các biến hạ tầng (DB_HOST=postgres, REDIS_HOST=redis, ...) ở base `environment:`
-# có precedence cao hơn env_file nên ghi đè giá trị tương ứng trong .env — đúng ý.
+# Lưu ý: docker compose tự đọc ./.env cạnh file compose để (a) thay ${VAR}, (b) qua `env_file:` đẩy vào container.
+# Các biến hạ tầng (DB_HOST=postgres, REDIS_HOST=redis, AWS_ENDPOINT=http://minio:9000, ...) ở base `environment:`
+# có precedence cao hơn env_file nên ghi đè giá trị tương ứng trong ./.env — đúng ý.
 
 x-prod-logging: &prod-logging
   driver: json-file

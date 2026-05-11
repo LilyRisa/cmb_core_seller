@@ -30,16 +30,19 @@ docker compose exec app php artisan migrate --seed   # migrate cũng chạy tự
 - App: <http://localhost:8000>  ·  Horizon: <http://localhost:8000/horizon>  ·  Mailpit: <http://localhost:8025>  ·  MinIO console: <http://localhost:9001> (`omnisell` / `omnisell-secret`)
 - Code trong `./app` được bind-mount (sửa là thấy ngay); Vite HMR ở service `vite`. Sau khi đổi `composer.lock`: `docker compose run --rm app composer install`. Build asset production tại chỗ: `docker compose exec vite npm run build`.
 
-## Triển khai prod (tóm tắt)
+## Triển khai prod — domain `app.cmbcore.com`
+
+Reverse proxy ngoài cluster (NPM/Caddy trên network `proxy`) map `app.cmbcore.com` → `http://cmb-web:80` + TLS.
 
 ```bash
-docker network create proxy            # NPM/Caddy đứng ngoài, share network này
-# tạo ./.env (cạnh file compose, chmod 600, KHÔNG commit): APP_KEY, APP_URL, INTEGRATIONS_CHANNELS, TIKTOK_*, MAIL_*, SENTRY_LARAVEL_DSN, ...
+docker network create proxy                       # 1 lần — proxy ngoài share network này
+cp .env.example .env && chmod 600 .env            # ./.env (gốc repo, KHÔNG commit) — đã có APP_URL=https://app.cmbcore.com, SANCTUM_STATEFUL_DOMAINS/SESSION_DOMAIN=app.cmbcore.com; điền APP_KEY (mới), DB_PASSWORD, AWS_*, MAIL_*, SENTRY_LARAVEL_DSN, TIKTOK_* prod
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 docker compose -f docker-compose.yml -f docker-compose.prod.yml exec app php artisan migrate --force   # migrate là bước có kiểm soát
+# kiểm: curl https://app.cmbcore.com/api/v1/health
 ```
 
-Chi tiết: [`docs/07-infra/environments-and-docker.md`](docs/07-infra/environments-and-docker.md).
+> Tạo `APP_KEY` mới cho prod (đừng tái dùng key trong `app/.env`): `docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm app php artisan key:generate --show`. Cấu hình app **prod** ở `./.env` (gốc repo) — `./.env*` bị `.gitignore` chặn; `app/.env` là cấu hình **dev/chung** và được commit (repo private). Chi tiết: [`docs/07-infra/environments-and-docker.md`](docs/07-infra/environments-and-docker.md).
 
 ## Chạy không cần Docker (dev nhanh, zero-setup)
 
