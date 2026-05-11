@@ -1,0 +1,100 @@
+# Production overrides. Phải chạy kèm base:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Bắt buộc trước: docker network create proxy  (NPM đứng ngoài, share network này).
+# .env ở cùng thư mục với compose, chmod 600, KHÔNG commit.
+
+x-prod-logging: &prod-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  app:
+    image: cmbcoreseller-app:${APP_TAG:-latest}
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_URL: ${APP_URL}
+      APP_KEY: ${APP_KEY}
+      RUN_MIGRATIONS: "false"       # migrate thủ công trong bước deploy
+      TRUSTED_PROXIES: "*"          # đọc trong bootstrap/app.php
+      MAIL_MAILER: ${MAIL_MAILER:-smtp}
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-OmniSell}
+      SENTRY_LARAVEL_DSN: ${SENTRY_LARAVEL_DSN}
+    restart: unless-stopped
+    logging: *prod-logging
+
+  web:
+    build:
+      context: ./app
+      dockerfile: docker/nginx/Dockerfile   # multi-stage: build vite assets + nginx + public/
+    image: cmbcoreseller-web:${APP_TAG:-latest}
+    networks:
+      - default
+      - proxy                       # để NPM (cmb-web:80) tới được
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    logging: *prod-logging
+
+  worker:
+    image: cmbcoreseller-app:${APP_TAG:-latest}
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_URL: ${APP_URL}
+      APP_KEY: ${APP_KEY}
+      TRUSTED_PROXIES: "*"
+      MAIL_MAILER: ${MAIL_MAILER:-smtp}
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-OmniSell}
+      SENTRY_LARAVEL_DSN: ${SENTRY_LARAVEL_DSN}
+    restart: unless-stopped
+    logging: *prod-logging
+
+  scheduler:
+    image: cmbcoreseller-app:${APP_TAG:-latest}
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_URL: ${APP_URL}
+      APP_KEY: ${APP_KEY}
+      TRUSTED_PROXIES: "*"
+    deploy:
+      replicas: 1                   # cron đúng 1 instance
+    restart: unless-stopped
+    logging: *prod-logging
+
+  postgres:
+    restart: unless-stopped
+    logging: *prod-logging
+
+  redis:
+    restart: unless-stopped
+    logging: *prod-logging
+
+  minio:
+    restart: unless-stopped
+    logging: *prod-logging
+
+  gotenberg:
+    restart: unless-stopped
+    logging: *prod-logging
+
+networks:
+  proxy:
+    external: true                  # docker network create proxy

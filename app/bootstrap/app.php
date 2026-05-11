@@ -16,9 +16,9 @@ use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
-        web: __DIR__.'/../routes/web.php',
-        api: __DIR__.'/../routes/api.php',
-        commands: __DIR__.'/../routes/console.php',
+        web: __DIR__ . '/../routes/web.php',
+        api: __DIR__ . '/../routes/api.php',
+        commands: __DIR__ . '/../routes/console.php',
         health: '/up',
         apiPrefix: 'api',
         then: function () {
@@ -30,7 +30,7 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withCommands([
-        __DIR__.'/../app/Console/Commands',
+        __DIR__ . '/../app/Console/Commands',
     ])
     ->withMiddleware(function (Middleware $middleware) {
         // Every request gets a request_id / trace_id (log context + Sentry tag +
@@ -49,13 +49,22 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant' => EnsureTenant::class,
         ]);
     })
+    ->withMiddleware(function (Middleware $middleware) {
+        $middleware->trustProxies(
+            at: '*',
+            headers: Request::HEADER_X_FORWARDED_FOR |
+                Request::HEADER_X_FORWARDED_HOST |
+                Request::HEADER_X_FORWARDED_PORT |
+                Request::HEADER_X_FORWARDED_PROTO
+        );
+    })
     ->withExceptions(function (Exceptions $exceptions) {
         // Report unhandled exceptions to Sentry (web + queue). No-op without a DSN.
         Integration::handles($exceptions);
 
         // /api/* and /webhook/* always speak JSON — never redirect to a login page.
         $exceptions->shouldRenderJsonWhen(
-            fn ($request) => $request->is('api/*', 'webhook/*') || $request->expectsJson()
+            fn($request) => $request->is('api/*', 'webhook/*') || $request->expectsJson()
         );
 
         // Normalize JSON error responses to the {error:{code,message,...}} envelope
@@ -72,8 +81,14 @@ return Application::configure(basePath: dirname(__DIR__))
                 $e instanceof AuthorizationException => [403, 'FORBIDDEN'],
                 $e instanceof ModelNotFoundException => [404, 'NOT_FOUND'],
                 $e instanceof HttpExceptionInterface => [$e->getStatusCode(), match ($e->getStatusCode()) {
-                    400 => 'BAD_REQUEST', 403 => 'FORBIDDEN', 404 => 'NOT_FOUND', 405 => 'METHOD_NOT_ALLOWED',
-                    409 => 'CONFLICT', 419 => 'PAGE_EXPIRED', 429 => 'TOO_MANY_REQUESTS', default => 'HTTP_ERROR',
+                    400 => 'BAD_REQUEST',
+                    403 => 'FORBIDDEN',
+                    404 => 'NOT_FOUND',
+                    405 => 'METHOD_NOT_ALLOWED',
+                    409 => 'CONFLICT',
+                    419 => 'PAGE_EXPIRED',
+                    429 => 'TOO_MANY_REQUESTS',
+                    default => 'HTTP_ERROR',
                 }],
                 default => [500, 'SERVER_ERROR'],
             };
@@ -96,5 +111,5 @@ return Application::configure(basePath: dirname(__DIR__))
             return response()->json($body, $status);
         };
 
-        $exceptions->render(fn (Throwable $e, Request $request) => $envelope($e, $request));
+        $exceptions->render(fn(Throwable $e, Request $request) => $envelope($e, $request));
     })->create();

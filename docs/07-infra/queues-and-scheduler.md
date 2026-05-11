@@ -50,6 +50,13 @@
 - Cảnh báo: queue tồn đọng quá ngưỡng, tỉ lệ fail tăng, `tokens` queue có job (token sắp/đã hỏng), `labels` queue chậm.
 - Metric nghiệp vụ (xem `order-sync-pipeline.md` §5).
 
+## 3b. Đã implement (Phase 1 — TikTok, xem `docs/specs/0001-tiktok-order-sync.md`)
+- Queue `webhooks`: `Channels\Jobs\ProcessWebhookEvent` (tries 5, backoff 10/30/60/300/900s) — resolve shop, re-fetch order detail, upsert idempotent.
+- Queue `orders-sync`: `Channels\Jobs\SyncOrdersForShop` (tries 3, `ShouldBeUnique` theo `(shop,type)`; dùng chung cho `poll` & `backfill`) — phân trang `connector.fetchOrders`, upsert, ghi `sync_runs`, advance `last_synced_at`. *(Không cần job `FetchOrderDetail` riêng cho polling — `orders/search` của TikTok trả đủ detail; chỉ webhook mới `fetchOrderDetail`.)*
+- Queue `tokens`: `Channels\Jobs\RefreshChannelToken` (tries 3, `ShouldBeUnique` theo account).
+- Scheduler (`routes/console.php`): mỗi 10' dispatch `SyncOrdersForShop` cho từng `channel_account` active (`Schedule::call`, `withoutOverlapping`); mỗi 30' `channels:refresh-expiring-tokens`; hằng ngày `SyncOrdersForShop(since=now-3d)` cho từng shop active (backfill an toàn) + `model:prune` (dọn `oauth_states` hết hạn); `horizon:snapshot` mỗi 5' & `db:partitions:ensure` hằng ngày (Phase 0).
+- *Còn lại:* rate-limit Redis throttle per `(provider,shop)` đang best-effort trong `TikTokClient::throttle()` — hoàn thiện + xử lý 429/`Retry-After` kỹ hơn; UI re-drive cho `webhook_events`/`sync_runs`.
+
 ## 4. RULES
 1. Không gọi API ngoài / sinh PDF trong request HTTP — luôn dispatch job.
 2. Mọi job idempotent + có retry/backoff hợp lý.
