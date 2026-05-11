@@ -1,0 +1,22 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors / IDE
+/.idea
+/.vscode
+/.fleet
+/.nova
+/.zed
+*.swp
+
+# Claude Code (local-only state; commit .claude/settings.json & CLAUDE.md if added)
+.claude/settings.local.json
+.claude/projects/
+
+# Logs / misc
+*.log
+
+# Note: Laravel app/ has its own .gitignore (vendor, node_modules, .env, public/build, ...).
+# sdk_tiktok_seller/ has its own .gitignore (node_modules, dist, ...).
