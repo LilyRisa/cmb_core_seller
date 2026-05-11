@@ -2,6 +2,8 @@
 
 namespace CMBcoreSeller\Modules\Orders;
 
+use CMBcoreSeller\Modules\Orders\Contracts\OrderUpsertContract;
+use CMBcoreSeller\Modules\Orders\Services\OrderUpsertService;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -14,7 +16,8 @@ class OrdersServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        // The Channels sync jobs push orders in via this contract (never via the Service directly).
+        $this->app->bind(OrderUpsertContract::class, OrderUpsertService::class);
     }
 
     public function boot(): void

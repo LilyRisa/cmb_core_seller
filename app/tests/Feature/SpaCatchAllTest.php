@@ -2,10 +2,13 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class SpaCatchAllTest extends TestCase
 {
+    use RefreshDatabase; // the oauth-callback test touches oauth_states
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -37,15 +40,18 @@ class SpaCatchAllTest extends TestCase
             ->assertJsonPath('error.code', 'NOT_FOUND');
     }
 
-    public function test_unimplemented_oauth_callback_is_not_swallowed_by_the_spa(): void
+    public function test_oauth_callback_with_a_bad_state_redirects_into_the_spa(): void
     {
-        $this->get('/oauth/tiktok/callback?code=abc&state=xyz')->assertStatus(501);
+        // No valid oauth_states row -> friendly redirect to /channels?error=oauth_state (not a 5xx, not the SPA shell).
+        $this->get('/oauth/tiktok/callback?code=abc&state=does-not-exist')
+            ->assertRedirect('/channels?error=oauth_state');
     }
 
-    public function test_webhook_stub_acknowledges_receipt(): void
+    public function test_webhook_rejects_an_unsigned_request(): void
     {
-        $this->postJson('/webhook/tiktok', ['ping' => true])
-            ->assertOk()
-            ->assertJson(['ok' => true]);
+        // No valid Authorization signature -> 401, nothing stored. (Happy-path webhook ingest is covered in TikTokWebhookTest.)
+        $this->postJson('/webhook/tiktok', ['type' => 1, 'data' => []])
+            ->assertStatus(401)
+            ->assertJsonPath('error.code', 'INVALID_SIGNATURE');
     }
 }

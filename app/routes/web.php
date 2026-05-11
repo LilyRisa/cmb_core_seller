@@ -1,6 +1,6 @@
 <?php
 
-use Illuminate\Http\Request;
+use CMBcoreSeller\Modules\Channels\Http\Controllers\OAuthCallbackController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -12,15 +12,11 @@ use Illuminate\Support\Facades\Route;
 | their own route groups (see bootstrap/app.php). See docs/06-frontend/overview.md.
 */
 
-// --- OAuth callback for marketplace connections ---
-// Real exchange (verify state -> exchange code -> create channel_account ->
-// register webhooks -> kick off backfill -> redirect to SPA) lands with the
-// Channels module / TikTok connector (Phase 1).
-Route::get('oauth/{provider}/callback', function (Request $request, string $provider) {
-    logger()->info('oauth.callback.unimplemented', ['provider' => $provider, 'has_code' => $request->filled('code')]);
-
-    return response('OAuth callback for ['.e($provider).'] is not implemented yet (Phase 1).', 501);
-})->whereIn('provider', ['tiktok', 'shopee', 'lazada'])->name('oauth.callback');
+// --- OAuth callback for marketplace connections (Channels module) ---
+// Verify state -> exchange code -> create/update channel_account -> register
+// webhooks -> kick off a 90-day backfill -> redirect into the SPA.
+Route::get('oauth/{provider}/callback', OAuthCallbackController::class)
+    ->whereIn('provider', ['tiktok', 'shopee', 'lazada'])->name('oauth.callback');
 
 // --- SPA catch-all: serve the React app for everything that isn't an API,
 //     webhook, OAuth, health, or build/storage asset. React Router handles

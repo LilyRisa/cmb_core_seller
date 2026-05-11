@@ -28,12 +28,18 @@ class IntegrationsRegistryTest extends TestCase
         app(ChannelRegistry::class)->for('does-not-exist');
     }
 
-    public function test_disabled_channels_are_not_registered(): void
+    public function test_enabled_and_disabled_channels(): void
     {
         $registry = app(ChannelRegistry::class);
 
-        // tiktok/shopee/lazada connectors land in later phases and are config-gated.
-        $this->assertFalse($registry->has('tiktok'));
+        // Phase 1: TikTok is wired & enabled (config('integrations.channels') includes 'tiktok').
+        $this->assertTrue($registry->has('tiktok'));
+        $this->assertSame('TikTok Shop', $registry->for('tiktok')->displayName());
+        $this->assertTrue($registry->for('tiktok')->supports('orders.fetch'));
+        $this->assertTrue($registry->for('tiktok')->supports('orders.webhook'));
+        $this->assertFalse($registry->for('tiktok')->supports('listings.updateStock')); // Phase 2
+
+        // Shopee/Lazada land in Phase 4 — not registered yet.
         $this->assertFalse($registry->has('shopee'));
         $this->assertFalse($registry->has('lazada'));
     }

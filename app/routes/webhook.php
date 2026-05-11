@@ -1,26 +1,22 @@
 <?php
 
-use Illuminate\Http\Request;
+use CMBcoreSeller\Modules\Channels\Http\Controllers\WebhookController;
 use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
 | Webhook routes — prefix /webhook, mounted from bootstrap/app.php.
 |--------------------------------------------------------------------------
-| No CSRF, no auth. Each marketplace/carrier endpoint must verify its
-| signature first (XWebhookVerifier in the connector), record the event in
-| `webhook_events`, return 200 fast, and process asynchronously.
-| See docs/05-api/webhooks-and-oauth.md.
+| No CSRF, no auth. The connector's verifier checks the signature first
+| (sai chữ ký ⇒ 401, không ghi gì), then the event is stored verbatim and
+| processed asynchronously. See docs/05-api/webhooks-and-oauth.md.
 |
-| Real handlers land with the Channels module / TikTok connector (Phase 1).
-| For now these stubs acknowledge receipt so endpoints exist for app review.
+| Providers without a connector yet (shopee/lazada) get a 404 from
+| WebhookIngestService — the route + handler exist; the connector is pending.
 */
 
 foreach (['tiktok', 'shopee', 'lazada'] as $provider) {
-    Route::post($provider, function (Request $request) use ($provider) {
-        // TODO(Phase 1): verify signature -> store webhook_events -> dispatch ProcessWebhookEvent.
-        logger()->info('webhook.received.unimplemented', ['provider' => $provider]);
-
-        return response()->json(['ok' => true]);
-    })->name($provider);
+    Route::post($provider, [WebhookController::class, 'handle'])
+        ->defaults('provider', $provider)
+        ->name($provider);
 }

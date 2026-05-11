@@ -1,87 +1,103 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Layout, Menu, Select, Space, Typography, Button, Dropdown } from 'antd';
+import { Avatar, Badge, Button, Dropdown, Layout, Menu, Select, Space, Tooltip, Typography } from 'antd';
 import {
+    AppstoreOutlined,
+    BellOutlined,
+    CarOutlined,
     DashboardOutlined,
+    InboxOutlined,
+    LogoutOutlined,
+    MenuFoldOutlined,
+    MenuUnfoldOutlined,
+    SettingOutlined,
     ShopOutlined,
     ShoppingOutlined,
-    InboxOutlined,
-    AppstoreOutlined,
-    CarOutlined,
-    SettingOutlined,
-    LogoutOutlined,
+    SwapOutlined,
     UserOutlined,
 } from '@ant-design/icons';
-import { useAuth, useLogout, getCurrentTenantId, setCurrentTenantId } from '@/lib/auth';
+import type { MenuProps } from 'antd';
+import { getCurrentTenantId, setCurrentTenantId, useAuth, useLogout } from '@/lib/auth';
 
 const { Header, Sider, Content } = Layout;
 
-const NAV = [
-    { key: '/', icon: <DashboardOutlined />, label: <Link to="/">Tổng quan</Link> },
-    { key: '/orders', icon: <ShoppingOutlined />, label: <Link to="/orders">Đơn hàng</Link> },
-    { key: '/channels', icon: <ShopOutlined />, label: <Link to="/channels">Gian hàng</Link> },
-    { key: '/products', icon: <AppstoreOutlined />, label: <Link to="/products">Sản phẩm & SKU</Link> },
-    { key: '/inventory', icon: <InboxOutlined />, label: <Link to="/inventory">Tồn kho</Link> },
-    { key: '/fulfillment', icon: <CarOutlined />, label: <Link to="/fulfillment">Giao hàng & in</Link> },
-    { key: '/settings', icon: <SettingOutlined />, label: <Link to="/settings/members">Cài đặt</Link> },
+const NAV: MenuProps['items'] = [
+    { type: 'group', label: 'Tổng quan', children: [
+        { key: '/', icon: <DashboardOutlined />, label: <Link to="/">Bảng điều khiển</Link> },
+    ] },
+    { type: 'group', label: 'Bán hàng', children: [
+        { key: '/orders', icon: <ShoppingOutlined />, label: <Link to="/orders">Đơn hàng</Link> },
+        { key: '/channels', icon: <ShopOutlined />, label: <Link to="/channels">Gian hàng</Link> },
+        { key: '/products', icon: <AppstoreOutlined />, label: <Link to="/products">Sản phẩm & SKU</Link> },
+    ] },
+    { type: 'group', label: 'Kho & Giao hàng', children: [
+        { key: '/inventory', icon: <InboxOutlined />, label: <Link to="/inventory">Tồn kho</Link> },
+        { key: '/fulfillment', icon: <CarOutlined />, label: <Link to="/fulfillment">Giao hàng & in</Link> },
+    ] },
+    { type: 'group', label: 'Hệ thống', children: [
+        { key: '/sync-logs', icon: <SwapOutlined />, label: <Link to="/sync-logs">Nhật ký đồng bộ</Link> },
+        { key: '/settings', icon: <SettingOutlined />, label: <Link to="/settings/members">Cài đặt</Link> },
+    ] },
 ];
+
+// Flat key list for selected-key matching.
+const KEYS = ['/', '/orders', '/channels', '/products', '/inventory', '/fulfillment', '/sync-logs', '/settings'];
 
 export function AppLayout() {
     const { data: user } = useAuth();
     const logout = useLogout();
     const navigate = useNavigate();
     const location = useLocation();
+    const [collapsed, setCollapsed] = useState(false);
 
     const currentTenantId = getCurrentTenantId() ?? user?.tenants[0]?.id ?? null;
+    const currentTenant = user?.tenants.find((t) => t.id === currentTenantId) ?? user?.tenants[0];
+
     const selectedKey = useMemo(() => {
-        const match = NAV.map((n) => n.key)
-            .filter((k) => k === '/' ? location.pathname === '/' : location.pathname.startsWith(k))
+        const match = KEYS.filter((k) => (k === '/' ? location.pathname === '/' : location.pathname.startsWith(k)))
             .sort((a, b) => b.length - a.length)[0];
         return match ?? '/';
     }, [location.pathname]);
 
     return (
         <Layout style={{ minHeight: '100vh' }}>
-            <Sider breakpoint="lg" collapsedWidth="0" theme="dark">
-                <div style={{ color: '#fff', fontWeight: 700, fontSize: 16, padding: '16px 20px', whiteSpace: 'nowrap' }}>
-                    CMBcoreSeller
+            <Sider theme="light" width={236} collapsedWidth={64} collapsible collapsed={collapsed} trigger={null} style={{ borderRight: '1px solid #f0f0f0' }}>
+                <div style={{ height: 56, display: 'flex', alignItems: 'center', gap: 10, padding: '0 18px', fontWeight: 700, fontSize: 16, color: '#1668dc', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                    <span style={{ fontSize: 20 }}>🛒</span> {!collapsed && 'CMBcoreSeller'}
                 </div>
-                <Menu theme="dark" mode="inline" selectedKeys={[selectedKey]} items={NAV} />
+                <Menu mode="inline" selectedKeys={[selectedKey]} items={NAV} style={{ borderInlineEnd: 'none' }} />
             </Sider>
             <Layout>
-                <Header style={{ background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px' }}>
+                <Header style={{ background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px 0 8px', borderBottom: '1px solid #f0f0f0', height: 56, lineHeight: 'normal' }}>
                     <Space>
-                        <Typography.Text type="secondary">Gian hàng / workspace:</Typography.Text>
+                        <Button type="text" icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />} onClick={() => setCollapsed((c) => !c)} />
+                        <ShopOutlined style={{ color: '#8c8c8c' }} />
                         <Select
-                            size="small"
-                            style={{ minWidth: 200 }}
+                            size="middle" variant="borderless" style={{ minWidth: 200, fontWeight: 500 }}
                             value={currentTenantId ?? undefined}
-                            options={(user?.tenants ?? []).map((t) => ({ value: t.id, label: `${t.name} (${t.role})` }))}
-                            onChange={(v) => {
-                                setCurrentTenantId(v);
-                                navigate(0);
-                            }}
+                            options={(user?.tenants ?? []).map((t) => ({ value: t.id, label: `${t.name} · ${t.role}` }))}
+                            onChange={(v) => { setCurrentTenantId(v); navigate(0); }}
                         />
                     </Space>
-                    <Dropdown
-                        menu={{
-                            items: [
-                                { key: 'who', disabled: true, label: `${user?.name} — ${user?.email}` },
+                    <Space size="middle">
+                        <Tooltip title="Thông báo (sắp có)"><Badge dot><Button type="text" icon={<BellOutlined />} /></Badge></Tooltip>
+                        <Dropdown
+                            menu={{ items: [
+                                { key: 'who', disabled: true, label: <span>{user?.name}<br /><Typography.Text type="secondary" style={{ fontSize: 12 }}>{user?.email}</Typography.Text></span> },
                                 { type: 'divider' },
-                                {
-                                    key: 'logout',
-                                    icon: <LogoutOutlined />,
-                                    label: 'Đăng xuất',
-                                    onClick: () => logout.mutate(undefined, { onSuccess: () => navigate('/login') }),
-                                },
-                            ],
-                        }}
-                    >
-                        <Button type="text" icon={<UserOutlined />}>{user?.name}</Button>
-                    </Dropdown>
+                                { key: 'settings', icon: <SettingOutlined />, label: <Link to="/settings/members">Cài đặt</Link> },
+                                { key: 'logout', icon: <LogoutOutlined />, label: 'Đăng xuất', onClick: () => logout.mutate(undefined, { onSuccess: () => navigate('/login') }) },
+                            ] }}
+                        >
+                            <Space style={{ cursor: 'pointer' }}>
+                                <Avatar size="small" style={{ background: '#1668dc' }} icon={<UserOutlined />} />
+                                <span style={{ fontWeight: 500 }}>{user?.name}</span>
+                            </Space>
+                        </Dropdown>
+                    </Space>
                 </Header>
-                <Content style={{ margin: 16 }}>
-                    <Outlet />
+                <Content style={{ margin: 16, minHeight: 0 }}>
+                    <Outlet context={{ tenantName: currentTenant?.name }} />
                 </Content>
             </Layout>
         </Layout>

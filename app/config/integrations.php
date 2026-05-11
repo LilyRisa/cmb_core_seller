@@ -86,7 +86,7 @@ return [
         'app_secret' => env('TIKTOK_APP_SECRET'),
         // Partner "service" id used to build the seller authorization URL.
         'service_id' => env('TIKTOK_SERVICE_ID'),
-        'sandbox' => (bool) env('TIKTOK_SANDBOX', true),
+        'sandbox' => (bool) env('TIKTOK_SANDBOX', env('TIKTOK_APP_SANDBOX', true)),
 
         // Hosts. Open API (signed, shop-scoped) vs auth host (token get/refresh)
         // vs the seller authorization page.

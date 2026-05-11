@@ -16,10 +16,15 @@ class OrderStatusHistory extends Model
     public const UPDATED_AT = null;
 
     public const SOURCE_CHANNEL = 'channel';
+
     public const SOURCE_POLLING = 'polling';
+
     public const SOURCE_WEBHOOK = 'webhook';
+
     public const SOURCE_USER = 'user';
+
     public const SOURCE_SYSTEM = 'system';
+
     public const SOURCE_CARRIER = 'carrier';
 
     protected $table = 'order_status_history';

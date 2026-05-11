@@ -22,8 +22,11 @@ class ChannelAccount extends Model
     use BelongsToTenant, SoftDeletes;
 
     public const STATUS_ACTIVE = 'active';
+
     public const STATUS_EXPIRED = 'expired';     // token refresh failed — needs reconnect
+
     public const STATUS_REVOKED = 'revoked';     // seller deauthorized / disconnected (history kept)
+
     public const STATUS_DISABLED = 'disabled';   // paused by the user
 
     protected $fillable = [

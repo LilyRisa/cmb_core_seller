@@ -94,9 +94,9 @@ class TikTokClient
     // --- Signed Open API calls ----------------------------------------------
 
     /**
-     * @param  array<string, scalar|null>  $query   extra query params (beyond app_key/timestamp/sign[/shop_cipher])
-     * @param  array<string, mixed>|null   $body    JSON body for POST/PUT
-     * @return array<string, mixed>                 the `data` object from the envelope
+     * @param  array<string, scalar|null>  $query  extra query params (beyond app_key/timestamp/sign[/shop_cipher])
+     * @param  array<string, mixed>|null  $body  JSON body for POST/PUT
+     * @return array<string, mixed> the `data` object from the envelope
      */
     public function request(string $method, string $path, AuthContext $auth, array $query = [], ?array $body = null, bool $shopScoped = true): array
     {

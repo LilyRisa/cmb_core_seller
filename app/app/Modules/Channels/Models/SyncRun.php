@@ -14,11 +14,15 @@ class SyncRun extends Model
     use BelongsToTenant;
 
     public const TYPE_POLL = 'poll';
+
     public const TYPE_BACKFILL = 'backfill';
+
     public const TYPE_WEBHOOK = 'webhook';
 
     public const STATUS_RUNNING = 'running';
+
     public const STATUS_DONE = 'done';
+
     public const STATUS_FAILED = 'failed';
 
     protected $fillable = [

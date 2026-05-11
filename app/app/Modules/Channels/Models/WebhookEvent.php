@@ -12,8 +12,11 @@ use Illuminate\Database\Eloquent\Model;
 class WebhookEvent extends Model
 {
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_PROCESSED = 'processed';
+
     public const STATUS_IGNORED = 'ignored';     // recognised but nothing to do (unknown event type)
+
     public const STATUS_FAILED = 'failed';       // gave up after retries
 
     protected $fillable = [

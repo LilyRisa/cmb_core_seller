@@ -38,6 +38,7 @@ final readonly class OrderDTO
         public int $codAmount = 0,
         public int $grandTotal = 0,
         public bool $isCod = false,
+        public ?string $fulfillmentType = null,   // marketplace fulfillment program, e.g. TikTok 'FULFILLMENT_BY_SELLER' / 'FULFILLMENT_BY_TIKTOK'
         /** @var list<OrderItemDTO> */
         public array $items = [],
         /** @var list<array{externalPackageId:?string,trackingNo:?string,carrier:?string,status:?string}> */
