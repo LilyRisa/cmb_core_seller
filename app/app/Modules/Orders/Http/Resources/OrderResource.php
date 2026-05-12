@@ -27,6 +27,10 @@ class OrderResource extends JsonResource
             'id' => $this->id,
             'source' => $this->source,
             'channel_account_id' => $this->channel_account_id,
+            'channel_account' => $this->whenLoaded('channelAccount', fn () => $this->channelAccount ? [
+                'id' => $this->channelAccount->id, 'name' => $this->channelAccount->effectiveName(), 'provider' => $this->channelAccount->provider,
+            ] : null),
+            'carrier' => $this->carrier,
             'external_order_id' => $this->external_order_id,
             'order_number' => $this->order_number,
             'status' => $this->status->value,

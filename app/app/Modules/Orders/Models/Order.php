@@ -40,6 +40,7 @@ use Illuminate\Support\Carbon;
  * @property int $grand_total
  * @property bool $is_cod
  * @property string|null $fulfillment_type
+ * @property string|null $carrier
  * @property Carbon|null $placed_at
  * @property Carbon|null $paid_at
  * @property Carbon|null $shipped_at
@@ -59,6 +60,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
  * @property int|null $items_count
+ * @property-read ChannelAccount|null $channelAccount
  */
 class Order extends Model
 {
@@ -68,7 +70,7 @@ class Order extends Model
         'tenant_id', 'source', 'channel_account_id', 'customer_id', 'external_order_id', 'order_number',
         'status', 'raw_status', 'payment_status', 'buyer_name', 'buyer_phone', 'shipping_address',
         'currency', 'item_total', 'shipping_fee', 'platform_discount', 'seller_discount', 'tax',
-        'cod_amount', 'grand_total', 'is_cod', 'fulfillment_type',
+        'cod_amount', 'grand_total', 'is_cod', 'fulfillment_type', 'carrier',
         'placed_at', 'paid_at', 'shipped_at', 'delivered_at', 'completed_at', 'cancelled_at', 'cancel_reason',
         'note', 'tags', 'has_issue', 'issue_reason', 'packages', 'raw_payload', 'source_updated_at', 'last_synced_at',
     ];

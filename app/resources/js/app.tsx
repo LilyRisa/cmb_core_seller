@@ -21,6 +21,8 @@ import { ChannelsPage } from '@/pages/ChannelsPage';
 import { SyncLogsPage } from '@/pages/SyncLogsPage';
 import { CustomersPage } from '@/pages/CustomersPage';
 import { CustomerDetailPage } from '@/pages/CustomerDetailPage';
+import { InventoryPage } from '@/pages/InventoryPage';
+import { CreateOrderPage } from '@/pages/CreateOrderPage';
 import { SettingsMembersPage } from '@/pages/SettingsMembersPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
@@ -49,12 +51,13 @@ function Root() {
             <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
                 <Route index element={<DashboardPage />} />
                 <Route path="orders" element={<OrdersPage />} />
+                <Route path="orders/new" element={<CreateOrderPage />} />
                 <Route path="orders/:id" element={<OrderDetailPage />} />
                 <Route path="channels" element={<ChannelsPage />} />
                 <Route path="customers" element={<CustomersPage />} />
                 <Route path="customers/:id" element={<CustomerDetailPage />} />
-                <Route path="products" element={<ComingSoon title="Sản phẩm & SKU" phase="Phase 2/5" />} />
-                <Route path="inventory" element={<ComingSoon title="Tồn kho" phase="Phase 2" />} />
+                <Route path="products" element={<Navigate to="/inventory?tab=skus" replace />} />
+                <Route path="inventory" element={<InventoryPage />} />
                 <Route path="fulfillment" element={<ComingSoon title="Giao hàng & in" phase="Phase 3" />} />
                 <Route path="sync-logs" element={<SyncLogsPage />} />
                 <Route path="settings" element={<Navigate to="/settings/members" replace />} />

@@ -1,13 +1,13 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Alert, Avatar, Button, Card, Col, Empty, Popconfirm, Result, Row, Space, Tag, Tooltip, Typography } from 'antd';
+import { Alert, Avatar, Button, Card, Col, Empty, Input, Modal, Popconfirm, Result, Row, Space, Tag, Tooltip, Typography } from 'antd';
 import { App as AntApp } from 'antd';
-import { CheckCircleOutlined, ClockCircleOutlined, PlusOutlined, ReloadOutlined, ShopOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, ClockCircleOutlined, EditOutlined, PlusOutlined, ReloadOutlined, ShopOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { DateText } from '@/components/MoneyText';
 import { CHANNEL_META, CHANNEL_STATUS_COLOR, CHANNEL_STATUS_LABEL } from '@/lib/format';
 import { errorMessage } from '@/lib/api';
-import { ChannelAccount, useChannelAccounts, useConnectChannel, useDisconnectChannel, useResyncChannel } from '@/lib/channels';
+import { ChannelAccount, useChannelAccounts, useConnectChannel, useDisconnectChannel, useRenameChannel, useResyncChannel } from '@/lib/channels';
 import { useCan } from '@/lib/tenant';
 
 const CALLBACK_ERRORS: Record<string, string> = {
@@ -24,7 +24,7 @@ const CALLBACK_ERRORS: Record<string, string> = {
     tiktok_api_error: 'TikTok trả lỗi khi lấy thông tin gian hàng. Xem chi tiết trong log server.',
 };
 
-function ShopCard({ account, canManage, onResync, onDisconnect }: { account: ChannelAccount; canManage: boolean; onResync: () => void; onDisconnect: () => void }) {
+function ShopCard({ account, canManage, onResync, onDisconnect, onRename }: { account: ChannelAccount; canManage: boolean; onResync: () => void; onDisconnect: () => void; onRename: () => void }) {
     const meta = CHANNEL_META[account.provider] ?? { name: account.provider, color: '#8c8c8c' };
     return (
         <Card styles={{ body: { padding: 16 } }}>
@@ -32,8 +32,11 @@ function ShopCard({ account, canManage, onResync, onDisconnect }: { account: Cha
                 <Space align="start">
                     <Avatar shape="square" size={40} style={{ background: meta.color, color: '#fff', fontWeight: 700 }}>{meta.name.slice(0, 2)}</Avatar>
                     <Space direction="vertical" size={2}>
-                        <Typography.Text strong>{account.shop_name ?? account.external_shop_id}</Typography.Text>
-                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>{meta.name} · ID: {account.external_shop_id}</Typography.Text>
+                        <Space size={6}>
+                            <Typography.Text strong>{account.name}</Typography.Text>
+                            {canManage && <Button type="text" size="small" icon={<EditOutlined />} onClick={onRename} title="Đặt tên hiển thị (alias)" />}
+                        </Space>
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>{meta.name} · {account.shop_name ?? account.external_shop_id} · ID: {account.external_shop_id}</Typography.Text>
                         <Tag color={CHANNEL_STATUS_COLOR[account.status] ?? 'default'}>{CHANNEL_STATUS_LABEL[account.status] ?? account.status}</Tag>
                     </Space>
                 </Space>
@@ -64,6 +67,9 @@ export function ChannelsPage() {
     const connect = useConnectChannel();
     const disconnect = useDisconnectChannel();
     const resync = useResyncChannel();
+    const rename = useRenameChannel();
+    const [renaming, setRenaming] = useState<ChannelAccount | null>(null);
+    const [aliasDraft, setAliasDraft] = useState('');
 
     useEffect(() => {
         const connected = params.get('connected');
@@ -123,12 +129,24 @@ export function ChannelsPage() {
                                     account={a} canManage={canManage}
                                     onResync={() => resync.mutate(a.id, { onSuccess: () => message.success('Đã xếp lịch đồng bộ lại đơn của gian hàng này.') })}
                                     onDisconnect={() => disconnect.mutate(a.id, { onSuccess: () => message.success('Đã ngắt kết nối gian hàng.') })}
+                                    onRename={() => { setRenaming(a); setAliasDraft(a.display_name ?? ''); }}
                                 />
                             </Col>
                         ))}
                     </Row>
                 )}
             </Card>
+
+            <Modal
+                title="Đặt tên hiển thị cho gian hàng" open={!!renaming} onCancel={() => setRenaming(null)} okText="Lưu" confirmLoading={rename.isPending}
+                onOk={() => rename.mutate({ id: renaming!.id, display_name: aliasDraft.trim() || null }, {
+                    onSuccess: () => { message.success('Đã cập nhật tên gian hàng.'); setRenaming(null); },
+                    onError: (e) => message.error(errorMessage(e)),
+                })}
+            >
+                <Typography.Paragraph type="secondary">Tên sàn: <b>{renaming?.shop_name ?? renaming?.external_shop_id}</b>. Đặt một alias riêng để phân biệt khi có nhiều shop trùng tên. Để trống = dùng tên sàn.</Typography.Paragraph>
+                <Input value={aliasDraft} onChange={(e) => setAliasDraft(e.target.value)} placeholder="VD: TikTok – kho HN" maxLength={120} onPressEnter={() => rename.mutate({ id: renaming!.id, display_name: aliasDraft.trim() || null }, { onSuccess: () => { message.success('Đã cập nhật.'); setRenaming(null); } })} />
+            </Modal>
         </div>
     );
 }

@@ -90,7 +90,12 @@ interface ChannelConnector
 
     // --- Inventory --------------------------------------------------------
 
-    public function updateStock(AuthContext $auth, string $externalSkuId, int $available): void;
+    /**
+     * Set the available stock of a listing on the marketplace.
+     *
+     * @param  array{external_product_id?:string|null,warehouse_id?:string|int|null}  $context  extra ids some APIs need (e.g. TikTok needs the product id)
+     */
+    public function updateStock(AuthContext $auth, string $externalSkuId, int $available, array $context = []): void;
 
     // --- Fulfillment ------------------------------------------------------
 
