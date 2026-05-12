@@ -106,6 +106,10 @@ x-app-env: &app-env
   TIKTOK_APP_SECRET: ${TIKTOK_APP_SECRET}
   TIKTOK_SERVICE_ID: ${TIKTOK_SERVICE_ID}
   TIKTOK_SANDBOX: "${TIKTOK_SANDBOX:-false}"
+  # lazada
+  LAZADA_APP_KEY: ${LAZADA_APP_KEY}
+  LAZADA_APP_SECRET: ${LAZADA_APP_SECRET}
+  LAZADA_SANDBOX: "${LAZADA_SANDBOX:-false}"
 
 services:
   app:                                # php-fpm
