@@ -26,6 +26,8 @@ class OrderResource extends JsonResource
         // first item image for the list thumbnail (set by OrderController::index, or from loaded items)
         $thumbnail = $this->getAttribute('thumbnail')
             ?: ($this->relationLoaded('items') ? $this->items->first(fn (OrderItem $i) => filled($i->image))?->image : null);
+        // estimated profit after platform fee (set by OrderController via OrderProfitService) — SPEC 0012
+        $profit = $this->getAttribute('_profit');
 
         return [
             'customer' => $this->customerCard($request),
@@ -56,6 +58,7 @@ class OrderResource extends JsonResource
             'tax' => $this->tax,
             'cod_amount' => $this->cod_amount,
             'grand_total' => $this->grand_total,
+            'profit' => is_array($profit) ? $profit : null,   // {cogs, platform_fee, shipping_fee, estimated_profit, platform_fee_pct, cost_complete} — SPEC 0012
             'is_cod' => $this->is_cod,
             'fulfillment_type' => $this->fulfillment_type,
             'items_count' => $itemsCount,

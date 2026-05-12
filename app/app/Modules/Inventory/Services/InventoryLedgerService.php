@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Inventory\Services;
 use CMBcoreSeller\Modules\Inventory\Events\InventoryChanged;
 use CMBcoreSeller\Modules\Inventory\Models\InventoryLevel;
 use CMBcoreSeller\Modules\Inventory\Models\InventoryMovement;
+use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Inventory\Models\Warehouse;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Support\Facades\DB;
@@ -110,6 +111,27 @@ class InventoryLedgerService
         $prevCost = (int) $level->cost_price;
         $newCost = (int) round(($prevQty * $prevCost + $recvQty * $recvUnitCost) / ($prevQty + $recvQty));
         $level->forceFill(['cost_price' => $newCost])->save();
+    }
+
+    /**
+     * After a goods receipt of `recvQty` @ `recvUnitCost`: update the per-warehouse weighted-average
+     * cost, remember it as the SKU's `last_receipt_cost`, and refresh the SKU's company-wide
+     * weighted-average `cost_price`. See SPEC 0012 (giá vốn cho lợi nhuận ước tính).
+     */
+    public function recordReceiptCost(int $tenantId, int $skuId, int $warehouseId, int $recvQty, int $recvUnitCost): void
+    {
+        $this->updateAverageCost($tenantId, $skuId, $warehouseId, $recvQty, $recvUnitCost);
+
+        // company-wide weighted avg = Σ(level.cost_price × on_hand) / Σ(on_hand) over all warehouses
+        $levels = InventoryLevel::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenantId)->where('sku_id', $skuId)->get(['cost_price', 'on_hand']);
+        $totalQty = (int) $levels->sum('on_hand');
+        $avg = $totalQty > 0
+            ? (int) round($levels->sum(fn ($l) => (int) $l->cost_price * max(0, (int) $l->on_hand)) / $totalQty)
+            : $recvUnitCost;
+
+        Sku::withoutGlobalScope(TenantScope::class)->where('tenant_id', $tenantId)->where('id', $skuId)
+            ->update(['last_receipt_cost' => $recvUnitCost, 'cost_price' => $avg]);
     }
 
     public function availableTotalForSku(int $tenantId, int $skuId): int

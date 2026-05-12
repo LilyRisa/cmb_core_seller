@@ -29,6 +29,7 @@ import { SettingsLayout } from '@/components/SettingsLayout';
 import { SettingsMembersPage } from '@/pages/SettingsMembersPage';
 import { SettingsProfilePage } from '@/pages/SettingsProfilePage';
 import { SettingsWorkspacePage } from '@/pages/SettingsWorkspacePage';
+import { SettingsOrdersPage } from '@/pages/SettingsOrdersPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
 dayjs.locale('vi');
@@ -73,6 +74,7 @@ function Root() {
                     <Route path="workspace" element={<SettingsWorkspacePage />} />
                     <Route path="members" element={<SettingsMembersPage />} />
                     <Route path="carriers" element={<CarrierAccountsPage />} />
+                    <Route path="orders" element={<SettingsOrdersPage />} />
                     <Route path="*" element={<ComingSoon title="Phần này đang được xây dựng" phase="SPEC 0007 / 0011" />} />
                 </Route>
             </Route>

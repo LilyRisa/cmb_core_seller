@@ -7,9 +7,9 @@ use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Inventory\Http\Resources\SkuMappingResource;
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Inventory\Models\SkuMapping;
+use CMBcoreSeller\Modules\Inventory\Services\OrderInventoryService;
 use CMBcoreSeller\Modules\Inventory\Services\SkuMappingService;
 use CMBcoreSeller\Modules\Inventory\Support\SkuCodeNormalizer;
-use CMBcoreSeller\Modules\Orders\Events\OrderUpserted;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Orders\Models\OrderItem;
 use CMBcoreSeller\Modules\Products\Models\ChannelListing;
@@ -129,9 +129,9 @@ class SkuMappingController extends Controller
 
     /**
      * POST /api/v1/orders/link-skus  { links:[{ channel_account_id, external_sku_id?, seller_sku?, sku_id }] }
-     * — for each link: ensure a channel_listing, set a single×1 mapping, then re-fire OrderUpserted for
-     * every still-unmapped order so the listener re-resolves sku_id / reserves stock / clears has_issue.
-     * Idempotent. See SPEC 0004 §3.3.
+     * — for each link: ensure a channel_listing, set a single×1 mapping, then synchronously re-resolve
+     * every still-unmapped order (resolve sku_id / reserve stock / clear has_issue) so the response is
+     * fully consistent. Idempotent. See SPEC 0004 §3.3.
      */
     public function linkFromOrders(Request $request, SkuMappingService $service, CurrentTenant $tenant): JsonResponse
     {
@@ -167,16 +167,18 @@ class SkuMappingController extends Controller
             $service->setMapping($tenantId, $listing, 'single', [['sku_id' => $skuId, 'quantity' => 1]], $userId);
         }
 
-        // Re-resolve every channel order that still has an unmapped line (idempotent; the
-        // OrderUpserted listener re-runs OrderInventoryService::apply → resolves sku_id / reserves / clears has_issue).
+        // Re-resolve every channel order that still has an unmapped line — SYNCHRONOUSLY, so the API
+        // response reflects the fully-resolved state. (An async re-fire would leave "Chưa liên kết SKU"
+        // tags on similar orders until the queue catches up — the bug this fixes.) OrderInventoryService::apply()
+        // resolves order_items.sku_id, reserves stock, clears has_issue, fires InventoryChanged (→ debounced
+        // PushStockForSku) — idempotent (the ledger dedupes per (order_item, sku, type)).
         $resolved = 0;
+        $inventory = app(OrderInventoryService::class);
         Order::query()->where('source', '!=', 'manual')->whereNull('deleted_at')
-            ->whereHas('items', fn ($i) => $i->whereNull('sku_id'))->orderBy('id')
-            ->chunkById(200, function ($orders) use (&$resolved) {
-                foreach ($orders as $order) {
-                    OrderUpserted::dispatch($order, false);
-                    $resolved++;
-                }
+            ->whereHas('items', fn ($i) => $i->whereNull('sku_id'))->orderBy('id')->get()
+            ->each(function (Order $order) use ($inventory, &$resolved) {
+                $inventory->apply($order);
+                $resolved++;
             });
 
         return response()->json(['data' => ['linked' => count($data['links']), 'listings_created' => $listingsCreated, 'orders_resolved' => $resolved]]);

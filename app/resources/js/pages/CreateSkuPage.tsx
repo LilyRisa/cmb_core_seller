@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
     Alert, Anchor, App as AntApp, Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber,
-    Row, Select, Skeleton, Space, Table, Tag, Typography, Upload,
+    Radio, Row, Select, Skeleton, Space, Table, Tag, Typography, Upload,
 } from 'antd';
 import type { RcFile } from 'antd/es/upload';
 import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
@@ -29,6 +29,7 @@ interface BasicForm {
     gtins?: string[];
     base_unit?: string;
     cost_price?: number;
+    cost_method?: 'average' | 'latest';
     ref_sale_price?: number;
     sale_start_date?: Dayjs;
     note?: string;
@@ -91,7 +92,7 @@ export function CreateSkuPage() {
         if (!editing) return;
         form.setFieldsValue({
             sku_code: editing.sku_code, name: editing.name, spu_code: editing.spu_code ?? undefined, category: editing.category ?? undefined,
-            gtins: editing.gtins ?? [], base_unit: editing.base_unit, cost_price: editing.cost_price ?? 0, ref_sale_price: editing.ref_sale_price ?? undefined,
+            gtins: editing.gtins ?? [], base_unit: editing.base_unit, cost_price: editing.cost_price ?? 0, cost_method: editing.cost_method ?? 'average', ref_sale_price: editing.ref_sale_price ?? undefined,
             sale_start_date: editing.sale_start_date ? dayjs(editing.sale_start_date) : undefined, note: editing.note ?? undefined,
             weight_grams: editing.weight_grams ?? undefined,
             length_cm: editing.length_cm != null ? Number(editing.length_cm) : undefined,
@@ -116,6 +117,7 @@ export function CreateSkuPage() {
             gtins: (v.gtins ?? []).map((g) => g.trim()).filter(Boolean),
             base_unit: v.base_unit || 'PCS',
             cost_price: v.cost_price ?? 0,
+            cost_method: v.cost_method ?? 'average',
             ref_sale_price: v.ref_sale_price ?? null,
             sale_start_date: v.sale_start_date ? v.sale_start_date.format('YYYY-MM-DD') : null,
             note: v.note?.trim() || null,
@@ -141,6 +143,7 @@ export function CreateSkuPage() {
             gtins: (v.gtins ?? []).map((g) => g.trim()).filter(Boolean),
             base_unit: v.base_unit || 'PCS',
             cost_price: v.cost_price ?? 0,
+            cost_method: v.cost_method ?? 'average',
             ref_sale_price: v.ref_sale_price ?? null,
             sale_start_date: v.sale_start_date ? v.sale_start_date.format('YYYY-MM-DD') : null,
             note: v.note?.trim() || null,
@@ -210,7 +213,7 @@ export function CreateSkuPage() {
             />
             <Row gutter={16}>
                 <Col xs={24} lg={19}>
-                    <Form form={form} layout="horizontal" labelCol={{ flex: '170px' }} wrapperCol={{ flex: 1 }} labelAlign="left" requiredMark initialValues={{ base_unit: 'PCS', is_active: true }}>
+                    <Form form={form} layout="horizontal" labelCol={{ flex: '170px' }} wrapperCol={{ flex: 1 }} labelAlign="left" requiredMark initialValues={{ base_unit: 'PCS', cost_method: 'average', is_active: true }}>
                         <Card id="basic" title="Thông tin cơ bản" style={{ marginBottom: 16 }}>
                             <Row gutter={16}>
                                 <Col flex="120px">
@@ -240,7 +243,10 @@ export function CreateSkuPage() {
                                     <Form.Item name="base_unit" label="Đơn vị cơ bản" rules={[{ required: true }]}>
                                         <Select options={BASE_UNITS.map((u) => ({ value: u, label: u }))} style={{ maxWidth: 200 }} />
                                     </Form.Item>
-                                    <Form.Item name="cost_price" label="Giá vốn tham khảo"><InputNumber<number> min={0} addonBefore="₫" style={{ maxWidth: 280, width: '100%' }} /></Form.Item>
+                                    <Form.Item name="cost_price" label="Giá vốn"><InputNumber<number> min={0} addonBefore="₫" style={{ maxWidth: 280, width: '100%' }} /></Form.Item>
+                                    <Form.Item name="cost_method" label="Cách tính giá vốn" extra="Dùng để ước tính lợi nhuận sau phí sàn của đơn. Bình quân: giá vốn trung bình gia quyền (cập nhật khi nhập kho). Lô gần nhất: đơn giá của lô nhập kho mới nhất.">
+                                        <Radio.Group optionType="button" buttonStyle="solid" options={[{ value: 'average', label: 'Bình quân' }, { value: 'latest', label: 'Lô nhập gần nhất' }]} />
+                                    </Form.Item>
                                     <Form.Item name="ref_sale_price" label="Giá bán tham khảo"><InputNumber<number> min={0} addonBefore="₫" style={{ maxWidth: 280, width: '100%' }} /></Form.Item>
                                     <Form.Item shouldUpdate={(p, c) => p.cost_price !== c.cost_price || p.ref_sale_price !== c.ref_sale_price} label=" " colon={false}>
                                         {() => {

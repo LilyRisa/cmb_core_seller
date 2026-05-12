@@ -37,7 +37,8 @@ class WarehouseDocumentService
                 }
                 $this->ledger->receipt($tenantId, (int) $it->sku_id, $whId, (int) $it->qty, 'Nhập kho '.$doc->code, 'goods_receipt', (int) $doc->getKey(), $userId);
                 if ((int) $it->unit_cost > 0) {
-                    $this->ledger->updateAverageCost($tenantId, (int) $it->sku_id, $whId, (int) $it->qty, (int) $it->unit_cost);
+                    // per-warehouse weighted-avg cost + SKU.last_receipt_cost + SKU.cost_price (company-wide avg)
+                    $this->ledger->recordReceiptCost($tenantId, (int) $it->sku_id, $whId, (int) $it->qty, (int) $it->unit_cost);
                 }
             }
             $doc->forceFill(['status' => GoodsReceipt::STATUS_CONFIRMED, 'confirmed_at' => now(), 'confirmed_by' => $userId,

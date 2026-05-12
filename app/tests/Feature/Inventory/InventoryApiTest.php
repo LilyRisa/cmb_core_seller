@@ -48,10 +48,13 @@ class InventoryApiTest extends TestCase
         $pid = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/products', ['name' => 'Áo thun'])
             ->assertCreated()->json('data.id');
 
-        $res = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/skus', ['sku_code' => 'AO-M', 'name' => 'Áo M', 'product_id' => $pid, 'cost_price' => 45000])
+        $res = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/skus', ['sku_code' => 'AO-M', 'name' => 'Áo M', 'product_id' => $pid, 'cost_price' => 45000, 'cost_method' => 'latest'])
             ->assertCreated();
         $skuId = $res->json('data.id');
         $this->assertSame('AO-M', $res->json('data.sku_code'));
+        // cost_method (bình quân | lô gần nhất) — chưa có lần nhập kho nào ⇒ effective_cost rơi về cost_price (SPEC 0012)
+        $this->assertSame('latest', $res->json('data.cost_method'));
+        $this->assertSame(45000, $res->json('data.effective_cost'));
 
         // duplicate code rejected
         $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/skus', ['sku_code' => 'AO-M', 'name' => 'dup'])->assertStatus(422);

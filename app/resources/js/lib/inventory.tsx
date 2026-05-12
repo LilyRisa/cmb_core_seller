@@ -41,7 +41,10 @@ export interface Sku {
     gtins: string[];
     name: string;
     base_unit: string;
-    cost_price: number;                 // giá vốn tham khảo (VND)
+    cost_price: number;                 // giá vốn tham khảo / bình quân hiện tại (VND)
+    cost_method: 'average' | 'latest';  // cách tính giá vốn cho lợi nhuận đơn: bình quân | lô nhập kho gần nhất (SPEC 0012)
+    last_receipt_cost: number | null;   // đơn giá vốn của lô nhập kho gần nhất (VND)
+    effective_cost: number;             // giá vốn hiệu lực theo cost_method
     ref_sale_price: number | null;      // giá bán tham khảo (VND)
     ref_profit_per_unit: number | null; // ref_sale_price − cost_price
     ref_margin_percent: number | null;  // profit ÷ sale price × 100
@@ -74,6 +77,7 @@ export interface CreateSkuPayload {
     gtins?: string[];
     base_unit?: string;
     cost_price?: number;
+    cost_method?: 'average' | 'latest';
     ref_sale_price?: number | null;
     sale_start_date?: string | null;
     note?: string | null;
@@ -98,6 +102,7 @@ export type UpdateSkuPayload = Partial<{
     gtins: string[];
     base_unit: string;
     cost_price: number;
+    cost_method: 'average' | 'latest';
     ref_sale_price: number | null;
     sale_start_date: string | null;
     note: string | null;

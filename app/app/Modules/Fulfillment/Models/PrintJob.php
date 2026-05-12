@@ -35,6 +35,9 @@ class PrintJob extends Model
 
     public const TYPE_PACKING = 'packing';
 
+    /** Sales invoice / order slip — one printable page per order (mã đơn, người mua/nhận, hàng + tiền). */
+    public const TYPE_INVOICE = 'invoice';
+
     public const STATUS_PENDING = 'pending';
 
     public const STATUS_PROCESSING = 'processing';

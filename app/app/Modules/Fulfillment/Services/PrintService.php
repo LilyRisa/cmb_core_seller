@@ -8,6 +8,7 @@ use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Orders\Models\OrderItem;
+use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use CMBcoreSeller\Support\GotenbergClient;
 use CMBcoreSeller\Support\MediaUploader;
@@ -83,6 +84,7 @@ class PrintService
                 PrintJob::TYPE_LABEL => $this->renderLabelBundle($job),
                 PrintJob::TYPE_PICKING => $this->renderPickingList($job),
                 PrintJob::TYPE_PACKING => $this->renderPackingList($job),
+                PrintJob::TYPE_INVOICE => $this->renderInvoice($job),
                 default => throw new \InvalidArgumentException("Loại phiếu in [{$job->type}] không hợp lệ."),
             };
             $stored = $this->media->storeBytes($bytes, (int) $job->tenant_id, 'print', $job->type.'-'.Str::ulid(), 'pdf');
@@ -173,5 +175,22 @@ class PrintService
         }
 
         return [$this->gotenberg->htmlToPdf(PrintTemplates::packingList($orders)), ['orders' => $orders->count()]];
+    }
+
+    /** Sales invoice / order slip — one printable page per order. @return array{0:string,1:array<string,mixed>} */
+    private function renderInvoice(PrintJob $job): array
+    {
+        $tenantId = (int) $job->tenant_id;
+        $orderIds = $job->orderIds();
+        if ($orderIds === [] && ($sids = $job->shipmentIds())) {
+            $orderIds = Shipment::query()->where('tenant_id', $tenantId)->whereIn('id', $sids)->pluck('order_id')->all();
+        }
+        $orders = Order::query()->where('tenant_id', $tenantId)->whereIn('id', $orderIds)->whereNull('deleted_at')->with('items')->get();
+        if ($orders->isEmpty()) {
+            throw new \RuntimeException('Không có đơn nào để in.');
+        }
+        $shopName = (string) (Tenant::query()->whereKey($tenantId)->value('name') ?? 'Cửa hàng');
+
+        return [$this->gotenberg->htmlToPdf(PrintTemplates::invoice($orders, $shopName)), ['orders' => $orders->count()]];
     }
 }

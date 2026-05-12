@@ -29,6 +29,15 @@ export interface OrderStatusHistory {
     changed_at: string | null;
 }
 
+export interface OrderProfit {
+    cogs: number;
+    platform_fee: number;
+    shipping_fee: number;
+    estimated_profit: number;
+    platform_fee_pct: number;
+    cost_complete: boolean;
+}
+
 export interface Order {
     id: number;
     source: string;
@@ -53,6 +62,8 @@ export interface Order {
     tax: number;
     cod_amount: number;
     grand_total: number;
+    /** lợi nhuận ước tính sau phí sàn (SPEC 0012) — null nếu chưa cấu hình phí sàn. cost_complete=false ⇒ giá vốn chưa đủ. */
+    profit?: OrderProfit | null;
     is_cod: boolean;
     fulfillment_type: string | null;
     items_count: number | null;

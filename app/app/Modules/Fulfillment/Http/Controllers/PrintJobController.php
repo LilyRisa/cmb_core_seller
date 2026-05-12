@@ -41,7 +41,7 @@ class PrintJobController extends Controller
     {
         abort_unless($request->user()?->can('fulfillment.print'), 403, 'Bạn không có quyền in.');
         $data = $request->validate([
-            'type' => ['required', 'in:label,picking,packing'],
+            'type' => ['required', 'in:label,picking,packing,invoice'],
             'order_ids' => ['sometimes', 'array', 'max:500'],
             'order_ids.*' => ['integer'],
             'shipment_ids' => ['sometimes', 'array', 'max:500'],

@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Alert, App as AntApp, Avatar, Button, Card, Col, Descriptions, Divider, Empty, Input, Row, Space, Table, Tag, Timeline, Typography } from 'antd';
-import { LinkOutlined, WarningOutlined } from '@ant-design/icons';
+import { LinkOutlined, PrinterOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { MoneyText, DateText } from '@/components/MoneyText';
 import { CustomerSummaryCard } from '@/components/CustomerSummaryCard';
 import { LinkSkusModal } from '@/components/LinkSkusModal';
+import { PrintJobBar } from '@/components/OrderProcessing';
 import { Order, OrderItem, useOrderNote, useOrderTags } from '@/lib/orders';
 import { useCan } from '@/lib/tenant';
+import { useCreatePrintJob } from '@/lib/fulfillment';
 
 function AmountRow({ label, value, currency, strong, negative }: { label: string; value: number; currency: string; strong?: boolean; negative?: boolean }) {
     if (!value && !strong) return null;
@@ -28,11 +30,14 @@ export function OrderDetailBody({ order }: { order: Order }) {
     const { message } = AntApp.useApp();
     const canUpdate = useCan('orders.update');
     const canMap = useCan('inventory.map');
+    const canPrint = useCan('fulfillment.print');
     const tags = useOrderTags(order.id);
     const note = useOrderNote(order.id);
+    const createPrintJob = useCreatePrintJob();
     const [newTag, setNewTag] = useState('');
     const [noteDraft, setNoteDraft] = useState<string | undefined>(undefined);
     const [linkOpen, setLinkOpen] = useState(false);
+    const [printJobId, setPrintJobId] = useState<number | null>(null);
 
     const addr: Record<string, string | undefined> = order.shipping_address ?? {};
     const itemColumns: ColumnsType<OrderItem> = [
@@ -58,10 +63,15 @@ export function OrderDetailBody({ order }: { order: Order }) {
                     action={canMap ? <Button danger icon={<LinkOutlined />} onClick={() => setLinkOpen(true)}>Liên kết SKU</Button> : undefined} />
                 : order.has_issue && <Alert type="warning" showIcon icon={<WarningOutlined />} style={{ marginBottom: 16 }} message="Đơn hàng có vấn đề" description={order.issue_reason ?? 'Vui lòng kiểm tra.'} />}
             <LinkSkusModal open={linkOpen} orderIds={[order.id]} onClose={() => setLinkOpen(false)} />
+            {printJobId != null && <PrintJobBar jobId={printJobId} onClose={() => setPrintJobId(null)} />}
 
             <Row gutter={16}>
                 <Col xs={24} lg={16}>
-                    <Card title="Sản phẩm" style={{ marginBottom: 16 }}>
+                    <Card title="Sản phẩm" style={{ marginBottom: 16 }}
+                        extra={canPrint && <Button icon={<PrinterOutlined />} loading={createPrintJob.isPending}
+                            onClick={() => createPrintJob.mutate({ type: 'invoice', order_ids: [order.id] }, {
+                                onSuccess: (j) => setPrintJobId(j.id), onError: () => message.error('Không tạo được phiếu in'),
+                            })}>In hoá đơn</Button>}>
                         <Table<OrderItem> rowKey="id" size="small" pagination={false} dataSource={order.items ?? []} columns={itemColumns} locale={{ emptyText: <Empty /> }} />
                         <Divider />
                         <div style={{ maxWidth: 360, marginLeft: 'auto' }}>
@@ -73,6 +83,18 @@ export function OrderDetailBody({ order }: { order: Order }) {
                             <Divider style={{ margin: '8px 0' }} />
                             <AmountRow label="Tổng cộng" value={order.grand_total} currency={order.currency} strong />
                             {order.is_cod && <AmountRow label="Thu hộ (COD)" value={order.cod_amount} currency={order.currency} />}
+                            {order.profit && (
+                                <>
+                                    <Divider style={{ margin: '8px 0' }} />
+                                    <AmountRow label={`Phí sàn (${order.profit.platform_fee_pct}%)`} value={order.profit.platform_fee} currency={order.currency} negative />
+                                    <AmountRow label="Giá vốn hàng" value={order.profit.cogs} currency={order.currency} negative />
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 15, fontWeight: 700, color: order.profit.estimated_profit >= 0 ? '#389e0d' : '#cf1322' }}>
+                                        <span>Lợi nhuận ước tính{!order.profit.cost_complete && <WarningOutlined style={{ color: '#faad14', marginLeft: 6 }} />}</span>
+                                        <MoneyText value={order.profit.estimated_profit} currency={order.currency} />
+                                    </div>
+                                    {!order.profit.cost_complete && <Typography.Text type="secondary" style={{ fontSize: 12 }}>* Một số mặt hàng chưa có giá vốn SKU — lợi nhuận chỉ là ước tính.</Typography.Text>}
+                                </>
+                            )}
                         </div>
                     </Card>
 

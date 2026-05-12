@@ -168,6 +168,25 @@ export function OrdersPage() {
         { title: 'Người mua', dataIndex: 'buyer_name', key: 'buyer', width: 180, render: (v, o) => <Space direction="vertical" size={0}><span>{v ?? '—'}</span><Typography.Text type="secondary" style={{ fontSize: 12 }}>{o.buyer_phone_masked ?? ''}</Typography.Text></Space> },
         { title: 'ĐVVC', dataIndex: 'carrier', key: 'carrier', width: 110, render: (v) => (v ? <Tag>{v}</Tag> : '—') },
         { title: 'Tổng tiền', dataIndex: 'grand_total', key: 'total', width: 130, align: 'right', render: (v, o) => <MoneyText value={v} currency={o.currency} strong /> },
+        {
+            title: 'Lợi nhuận ƯT', key: 'profit', width: 140, align: 'right',
+            render: (_, o) => {
+                const p = o.profit;
+                if (!p) return <Typography.Text type="secondary">—</Typography.Text>;
+                return (
+                    <Tooltip title={<div style={{ lineHeight: 1.7 }}>
+                        Phí sàn ({p.platform_fee_pct}%): −{p.platform_fee.toLocaleString('vi-VN')} ₫<br />
+                        Phí vận chuyển: −{p.shipping_fee.toLocaleString('vi-VN')} ₫<br />
+                        Giá vốn hàng: −{p.cogs.toLocaleString('vi-VN')} ₫{!p.cost_complete && ' (chưa đủ — thiếu giá vốn SKU)'}
+                    </div>}>
+                        <span style={{ color: p.estimated_profit >= 0 ? '#389e0d' : '#cf1322', fontWeight: 600 }}>
+                            {!p.cost_complete && <WarningOutlined style={{ color: '#faad14', marginRight: 4 }} />}
+                            {p.estimated_profit.toLocaleString('vi-VN')} ₫
+                        </span>
+                    </Tooltip>
+                );
+            },
+        },
         { title: 'Trạng thái', dataIndex: 'status', key: 'status', width: 140, render: (v, o) => <StatusTag status={v} label={o.status_label} rawStatus={o.raw_status} /> },
         { title: 'Đặt lúc', dataIndex: 'placed_at', key: 'placed_at', width: 150, render: (v) => <DateText value={v} /> },
         { title: '', key: 'action', width: 56, render: (_, o) => <Typography.Link onClick={() => setViewOrderId(o.id)}>Xem</Typography.Link> },

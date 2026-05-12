@@ -11,6 +11,8 @@ use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class OrderApiTest extends TestCase
@@ -155,6 +157,40 @@ class OrderApiTest extends TestCase
 
         $this->actingAs($viewer)->withHeaders($this->header())->getJson('/api/v1/orders')->assertOk(); // can view
         $this->actingAs($viewer)->withHeaders($this->header())->postJson("/api/v1/orders/{$order->getKey()}/tags", ['add' => ['x']])->assertForbidden();
+    }
+
+    public function test_orders_carry_estimated_profit_after_platform_fee(): void
+    {
+        // configure the TikTok platform fee % (stored in tenant.settings.platform_fee_pct — SPEC 0012)
+        $this->actingAs($this->user)->withHeaders($this->header())
+            ->patchJson('/api/v1/tenant', ['settings' => ['platform_fee_pct' => ['tiktok' => 5]]])->assertOk();
+
+        $res = $this->actingAs($this->user)->withHeaders($this->header())->getJson('/api/v1/orders')->assertOk();
+        $o = collect($res->json('data'))->firstWhere('order_number', 'TT-1001');
+        $this->assertNotNull($o['profit']);
+        $this->assertEquals(5, $o['profit']['platform_fee_pct']);
+        $this->assertSame((int) round(250000 * 0.05), $o['profit']['platform_fee']);   // 12 500
+        $this->assertFalse($o['profit']['cost_complete']);                              // no master SKU linked yet ⇒ COGS unknown
+        $this->assertSame(250000 - 12500 - 0 - 0, $o['profit']['estimated_profit']);
+
+        // and on the detail endpoint
+        $id = $o['id'];
+        $this->actingAs($this->user)->withHeaders($this->header())->getJson("/api/v1/orders/{$id}?include=items")
+            ->assertOk()->assertJsonPath('data.profit.platform_fee', 12500);
+    }
+
+    public function test_can_create_an_invoice_print_job_for_orders(): void
+    {
+        Storage::fake('public');
+        Http::fake(['*/forms/chromium/convert/html' => Http::response('%PDF-1.4 fake-invoice', 200, ['Content-Type' => 'application/pdf'])]);
+        $order = Order::withoutGlobalScope(TenantScope::class)->where('order_number', 'TT-1001')->first();
+
+        $jobId = $this->actingAs($this->user)->withHeaders($this->header())
+            ->postJson('/api/v1/print-jobs', ['type' => 'invoice', 'order_ids' => [$order->getKey()]])
+            ->assertCreated()->assertJsonPath('data.type', 'invoice')->json('data.id');
+        // sync queue → RenderPrintJob already produced the PDF
+        $this->actingAs($this->user)->withHeaders($this->header())->getJson("/api/v1/print-jobs/{$jobId}")
+            ->assertOk()->assertJsonPath('data.status', 'done')->assertJsonPath('data.meta.orders', 1);
     }
 
     public function test_dashboard_summary(): void

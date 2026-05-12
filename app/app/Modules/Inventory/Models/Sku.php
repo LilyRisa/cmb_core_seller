@@ -25,6 +25,8 @@ use Illuminate\Support\Carbon;
  * @property string $name
  * @property string $base_unit
  * @property int $cost_price
+ * @property string $cost_method
+ * @property int|null $last_receipt_cost
  * @property int|null $ref_sale_price
  * @property Carbon|null $sale_start_date
  * @property string|null $note
@@ -46,18 +48,28 @@ class Sku extends Model
 {
     use BelongsToTenant, SoftDeletes;
 
+    public const COST_AVERAGE = 'average';
+
+    public const COST_LATEST = 'latest';
+
     protected $fillable = [
         'tenant_id', 'product_id', 'spu_code', 'category', 'sku_code', 'barcode', 'gtins', 'name', 'base_unit',
-        'cost_price', 'ref_sale_price', 'sale_start_date', 'note', 'weight_grams', 'length_cm', 'width_cm', 'height_cm',
+        'cost_price', 'cost_method', 'last_receipt_cost', 'ref_sale_price', 'sale_start_date', 'note', 'weight_grams', 'length_cm', 'width_cm', 'height_cm',
         'image_url', 'image_path', 'attributes', 'is_active',
     ];
 
     protected function casts(): array
     {
         return [
-            'cost_price' => 'integer', 'ref_sale_price' => 'integer', 'weight_grams' => 'integer',
+            'cost_price' => 'integer', 'last_receipt_cost' => 'integer', 'ref_sale_price' => 'integer', 'weight_grams' => 'integer',
             'gtins' => 'array', 'attributes' => 'array', 'is_active' => 'boolean', 'sale_start_date' => 'date',
         ];
+    }
+
+    /** "Giá vốn hiệu lực" để tính COGS: theo `cost_method` — bình quân (`cost_price`) hoặc lô nhập gần nhất. */
+    public function effectiveCost(): int
+    {
+        return $this->cost_method === self::COST_LATEST && $this->last_receipt_cost ? (int) $this->last_receipt_cost : (int) $this->cost_price;
     }
 
     /**

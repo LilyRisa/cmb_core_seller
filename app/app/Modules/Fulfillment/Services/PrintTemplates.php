@@ -71,4 +71,54 @@ final class PrintTemplates
 
         return self::shell('Packing list', implode('', $pages));
     }
+
+    private static function vnd(int $v): string
+    {
+        return number_format($v, 0, ',', '.').' ₫';
+    }
+
+    /**
+     * Hoá đơn bán hàng / phiếu đơn — mỗi đơn một trang: tên cửa hàng + mã đơn/ngày + người mua/nhận +
+     * bảng hàng (tên · SKU · SL · đơn giá · thành tiền) + tạm tính/ship/giảm giá/thuế/tổng/COD + ghi chú.
+     *
+     * @param  Collection<int, Order>  $orders  với `items` đã nạp
+     */
+    public static function invoice(Collection $orders, string $shopName): string
+    {
+        $pages = [];
+        $last = $orders->count() - 1;
+        foreach ($orders->values() as $idx => $order) {
+            /** @var Order $order */
+            $addr = (array) ($order->shipping_address ?? []);
+            $name = $addr['fullName'] ?? $addr['name'] ?? $order->buyer_name ?? '—';
+            $phone = $addr['phone'] ?? '—';
+            $full = trim(implode(', ', array_filter([$addr['line1'] ?? null, $addr['address'] ?? null, $addr['ward'] ?? null, $addr['district'] ?? null, $addr['province'] ?? null]))) ?: '—';
+            $rows = '';
+            foreach ($order->items as $i => $it) {
+                $qty = (int) $it->quantity;
+                $unit = (int) $it->unit_price;
+                $sub = (int) ($it->subtotal ?: ($unit * $qty - (int) $it->discount));
+                $rows .= '<tr><td class="r">'.($i + 1).'</td><td>'.self::e($it->name).self::e($it->variation ? ' — '.$it->variation : '')
+                    .($it->seller_sku ? '<br><span class="muted">SKU: '.self::e($it->seller_sku).'</span>' : '').'</td>'
+                    .'<td class="r">'.$qty.'</td><td class="r">'.self::vnd($unit).'</td><td class="r">'.self::vnd($sub).'</td></tr>';
+            }
+            $code = $order->order_number ?? $order->external_order_id ?? ('#'.$order->getKey());
+            $totalRows = '<div style="display:flex;justify-content:space-between;padding:2px 0"><span class="muted">Tạm tính</span><span>'.self::vnd((int) $order->item_total).'</span></div>'
+                .((int) $order->shipping_fee ? '<div style="display:flex;justify-content:space-between;padding:2px 0"><span class="muted">Phí vận chuyển</span><span>'.self::vnd((int) $order->shipping_fee).'</span></div>' : '')
+                .((int) $order->seller_discount ? '<div style="display:flex;justify-content:space-between;padding:2px 0"><span class="muted">Giảm giá người bán</span><span>−'.self::vnd((int) $order->seller_discount).'</span></div>' : '')
+                .((int) $order->platform_discount ? '<div style="display:flex;justify-content:space-between;padding:2px 0"><span class="muted">Giảm giá sàn</span><span>−'.self::vnd((int) $order->platform_discount).'</span></div>' : '')
+                .((int) $order->tax ? '<div style="display:flex;justify-content:space-between;padding:2px 0"><span class="muted">Thuế</span><span>'.self::vnd((int) $order->tax).'</span></div>' : '')
+                .'<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:15px;font-weight:700;border-top:1px solid #ccc;margin-top:4px"><span>Tổng cộng</span><span>'.self::vnd((int) $order->grand_total).'</span></div>'
+                .($order->is_cod ? '<div style="display:flex;justify-content:space-between;padding:2px 0;color:#cf1322"><span>Thu hộ (COD)</span><span>'.self::vnd((int) ($order->cod_amount ?: $order->grand_total)).'</span></div>' : '');
+            $page = '<div class="box"><div style="display:flex;justify-content:space-between;align-items:flex-end"><h1>'.self::e($shopName).'</h1><div class="muted" style="text-align:right">HOÁ ĐƠN BÁN HÀNG<br>'.self::e($code).' · '.now()->format('d/m/Y H:i').'</div></div>'
+                .'<p><b>Khách hàng:</b> '.self::e($name).' · '.self::e($phone).'<br><b>Địa chỉ giao:</b> '.self::e($full).'<br><span class="muted">Nguồn đơn: '.self::e($order->source).'</span></p>'
+                .'<table><thead><tr><th class="r">#</th><th>Sản phẩm</th><th class="r">SL</th><th class="r">Đơn giá</th><th class="r">Thành tiền</th></tr></thead><tbody>'.$rows.'</tbody></table>'
+                .'<div style="max-width:320px;margin-left:auto;margin-top:8px">'.$totalRows.'</div>'
+                .($order->note ? '<p class="muted" style="margin-top:8px"><b>Ghi chú:</b> '.self::e($order->note).'</p>' : '')
+                .'<p class="muted" style="margin-top:12px;text-align:center">Cảm ơn Quý khách đã mua hàng!</p></div>';
+            $pages[] = $idx < $last ? $page.'<div class="page-break"></div>' : $page;
+        }
+
+        return self::shell('Hoá đơn', implode('', $pages));
+    }
 }

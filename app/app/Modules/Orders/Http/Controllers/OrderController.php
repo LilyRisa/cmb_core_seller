@@ -11,6 +11,7 @@ use CMBcoreSeller\Modules\Orders\Http\Resources\OrderResource;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Orders\Models\OrderItem;
 use CMBcoreSeller\Modules\Orders\Services\ManualOrderService;
+use CMBcoreSeller\Modules\Orders\Services\OrderProfitService;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use Illuminate\Database\Eloquent\Builder;
@@ -27,7 +28,7 @@ class OrderController extends Controller
     private const SORTABLE = ['placed_at', 'grand_total', 'created_at', 'source_updated_at'];
 
     /** GET /api/v1/orders */
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, CurrentTenant $tenant, OrderProfitService $profit): JsonResponse
     {
         $this->authorizeView($request);
 
@@ -61,6 +62,9 @@ class OrderController extends Controller
                 ->get(['order_id', 'image'])->groupBy('order_id')->map(fn ($g) => $g->first()?->image);
             $page->getCollection()->each(fn ($o) => $o->setAttribute('thumbnail', $thumbs->get($o->getKey())));
         }
+
+        // estimated profit (after platform fee) — one batched query (SPEC 0012)
+        $profit->annotateFromBatch($page->getCollection(), $tenant->get()?->settings);
 
         return response()->json([
             'data' => OrderResource::collection($page->getCollection()),
@@ -140,11 +144,12 @@ class OrderController extends Controller
     }
 
     /** GET /api/v1/orders/{id} */
-    public function show(Request $request, int $id): JsonResponse
+    public function show(Request $request, int $id, CurrentTenant $tenant, OrderProfitService $profit): JsonResponse
     {
         $this->authorizeView($request);
 
         $order = Order::query()->with(['items', 'statusHistory', 'shipments'])->findOrFail($id);
+        $profit->annotateLoaded($order, $tenant->get()?->settings);
 
         return response()->json(['data' => new OrderResource($order)]);
     }
@@ -233,8 +238,10 @@ class OrderController extends Controller
     // --- helpers -------------------------------------------------------------
 
     /**
+     * @param  Builder<Order>  $query
      * @param  list<string>  $skip  filter keys to NOT apply (used by stats() for faceted counts):
      *                              status | source | channel_account_id | carrier | has_issue | q | sku | product | placed
+     * @return Builder<Order>
      */
     private function applyFilters(Request $request, Builder $query, array $skip = []): Builder
     {
