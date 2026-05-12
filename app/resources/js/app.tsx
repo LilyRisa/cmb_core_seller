@@ -24,7 +24,6 @@ import { CustomerDetailPage } from '@/pages/CustomerDetailPage';
 import { InventoryPage } from '@/pages/InventoryPage';
 import { CreateSkuPage } from '@/pages/CreateSkuPage';
 import { CreateOrderPage } from '@/pages/CreateOrderPage';
-import { FulfillmentPage } from '@/pages/FulfillmentPage';
 import { CarrierAccountsPage } from '@/pages/CarrierAccountsPage';
 import { SettingsMembersPage } from '@/pages/SettingsMembersPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
@@ -63,7 +62,7 @@ function Root() {
                 <Route path="inventory" element={<InventoryPage />} />
                 <Route path="inventory/skus/new" element={<CreateSkuPage />} />
                 <Route path="inventory/skus/:id/edit" element={<CreateSkuPage />} />
-                <Route path="fulfillment" element={<FulfillmentPage />} />
+                <Route path="fulfillment" element={<Navigate to="/orders?tab=processing" replace />} />   {/* xử lý đơn nay nằm trong /orders */}
                 <Route path="sync-logs" element={<SyncLogsPage />} />
                 <Route path="settings" element={<Navigate to="/settings/members" replace />} />
                 <Route path="settings/members" element={<SettingsMembersPage />} />

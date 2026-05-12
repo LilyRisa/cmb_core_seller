@@ -4,7 +4,6 @@ import { Alert, App as AntApp, Badge, Button, Card, Empty, Form, Input, Modal, S
 import type { InputRef } from 'antd';
 import { CarOutlined, InboxOutlined, PrinterOutlined, ReloadOutlined, ScanOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { PageHeader } from '@/components/PageHeader';
 import { ChannelBadge } from '@/components/ChannelBadge';
 import { MoneyText, DateText } from '@/components/MoneyText';
 import { CHANNEL_META } from '@/lib/format';
@@ -45,7 +44,13 @@ function PrintJobBar({ jobId, onClose }: { jobId: number; onClose: () => void })
     return <Alert type="info" showIcon style={{ marginBottom: 12 }} message={`Đang tạo phiếu in (${job.type})…`} />;
 }
 
-export function FulfillmentPage() {
+/**
+ * The order-processing board (SPEC 0009) — embedded inside the Orders page as the "Xử lý đơn" tab
+ * (BigSeller-style: order actions live in the Orders section, not a separate page). Self-contained:
+ * platform filter chips + 2 inputs (khách hàng / sản phẩm) + stage tabs (Cần xử lý / Chờ đóng gói /
+ * Chờ bàn giao) + "Quét" + "Vận đơn", with the print-job progress bar.
+ */
+export function OrderProcessingBoard() {
     const [tab, setTab] = useState<string>('prepare');
     const [printJobId, setPrintJobId] = useState<number | null>(null);
     // shared filters across the processing tabs (platform chips + 2 inputs)
@@ -65,7 +70,6 @@ export function FulfillmentPage() {
 
     return (
         <div>
-            <PageHeader title="Xử lý đơn hàng" subtitle="Một màn hình, một luồng: chuẩn bị → in tem → đóng gói → bàn giao ĐVVC. Tránh in thiếu / gói thiếu." />
             {printJobId && <PrintJobBar jobId={printJobId} onClose={() => setPrintJobId(null)} />}
             <Card>
                 {isStage && (

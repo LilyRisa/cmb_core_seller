@@ -11,6 +11,7 @@ import { MoneyText, DateText } from '@/components/MoneyText';
 import { FilterChipRow, type ChipItem } from '@/components/FilterChipRow';
 import { LinkSkusModal } from '@/components/LinkSkusModal';
 import { OrderDetailModal } from '@/components/OrderDetailModal';
+import { OrderProcessingBoard } from '@/components/OrderProcessing';
 import { errorMessage } from '@/lib/api';
 import { CHANNEL_META, ORDER_STATUS_TABS } from '@/lib/format';
 import { Order, useOrders, useOrderStats, useSyncOrders } from '@/lib/orders';
@@ -179,9 +180,12 @@ export function OrdersPage() {
                             label: <span>{t.label}{t.key !== '' && stats ? <Badge count={countFor(t.statuses)} overflowCount={9999} showZero={false} style={{ marginInlineStart: 6, background: '#f0f0f0', color: '#595959' }} /> : null}</span>,
                         })),
                         { key: 'issue', label: <span>Có vấn đề{stats?.has_issue ? <Badge count={stats.has_issue} style={{ marginInlineStart: 6 }} /> : null}</span> },
+                        { key: 'processing', label: <span>🚚 Xử lý đơn</span> },
                     ]}
                 />
             </Card>
+
+            {tabKey === 'processing' ? <div style={{ marginTop: 12 }}><OrderProcessingBoard /></div> : (<>
 
             {/* "Lọc" panel — one inline group: a search box + chip rows (xem docs/06-frontend/orders-filter-panel.md) */}
             <Card style={{ marginTop: 12 }} title="Lọc" size="small" styles={{ body: { padding: '8px 16px 12px' } }}>
@@ -256,6 +260,7 @@ export function OrdersPage() {
                     }}
                 />
             </Card>
+            </>)}
 
             <LinkSkusModal open={linkModal.open} orderIds={linkModal.orderIds} onClose={() => { setLinkModal({ open: false }); setSelectedKeys([]); }} />
             <OrderDetailModal orderId={viewOrderId} open={viewOrderId != null} onClose={() => setViewOrderId(null)} />

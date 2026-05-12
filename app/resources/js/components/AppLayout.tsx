@@ -4,7 +4,6 @@ import { Avatar, Badge, Button, Dropdown, Layout, Menu, Select, Space, Tooltip, 
 import {
     AppstoreOutlined,
     BellOutlined,
-    CarOutlined,
     DashboardOutlined,
     InboxOutlined,
     LogoutOutlined,
@@ -32,9 +31,8 @@ const NAV: MenuProps['items'] = [
         { key: '/channels', icon: <ShopOutlined />, label: <Link to="/channels">Gian hàng</Link> },
         { key: '/products', icon: <AppstoreOutlined />, label: <Link to="/products">Sản phẩm & SKU</Link> },
     ] },
-    { type: 'group', label: 'Kho & Giao hàng', children: [
+    { type: 'group', label: 'Kho', children: [
         { key: '/inventory', icon: <InboxOutlined />, label: <Link to="/inventory">Tồn kho</Link> },
-        { key: '/fulfillment', icon: <CarOutlined />, label: <Link to="/fulfillment">Giao hàng & in</Link> },
     ] },
     { type: 'group', label: 'Hệ thống', children: [
         { key: '/sync-logs', icon: <SwapOutlined />, label: <Link to="/sync-logs">Nhật ký đồng bộ</Link> },
@@ -43,7 +41,7 @@ const NAV: MenuProps['items'] = [
 ];
 
 // Flat key list for selected-key matching.
-const KEYS = ['/', '/orders', '/customers', '/channels', '/products', '/inventory', '/fulfillment', '/sync-logs', '/settings'];
+const KEYS = ['/', '/orders', '/customers', '/channels', '/products', '/inventory', '/sync-logs', '/settings'];
 
 export function AppLayout() {
     const { data: user } = useAuth();
