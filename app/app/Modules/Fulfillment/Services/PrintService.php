@@ -75,6 +75,15 @@ class PrintService
         }
     }
 
+    /** Khổ phiếu in của tenant (tenant.settings.print.label_size → fallback config) — mỗi phiếu 1 trang. SPEC 0013. */
+    private function paperSize(int $tenantId): string
+    {
+        $tenant = Tenant::query()->find($tenantId);
+        $size = $tenant ? data_get($tenant->settings, 'print.label_size') : null;
+
+        return (string) ($size ?: config('fulfillment.print.label_paper_size', 'A6'));
+    }
+
     /** Runs inside RenderPrintJob — fills in file_url/status or error. */
     public function render(PrintJob $job): void
     {
@@ -90,6 +99,11 @@ class PrintService
             };
             $stored = $this->media->storeBytes($bytes, (int) $job->tenant_id, 'print', $job->type.'-'.Str::ulid(), 'pdf');
             $job->forceFill(['status' => PrintJob::STATUS_DONE, 'file_url' => $stored['url'], 'file_path' => $stored['path'], 'file_size' => strlen($bytes), 'meta' => $meta, 'error' => null])->save();
+            // Lưu trữ phiếu giao hàng tự tạo cho đơn: gắn vào vận đơn nếu vận đơn chưa có tem của sàn/ĐVVC. SPEC 0013.
+            if ($job->type === PrintJob::TYPE_DELIVERY && $job->orderIds()) {
+                Shipment::query()->where('tenant_id', $job->tenant_id)->whereIn('order_id', $job->orderIds())->open()
+                    ->whereNull('label_path')->update(['label_url' => $stored['url'], 'label_path' => $stored['path']]);
+            }
         } catch (\Throwable $e) {
             $job->forceFill(['status' => PrintJob::STATUS_ERROR, 'error' => $e->getMessage()])->save();
             throw $e;
@@ -175,7 +189,7 @@ class PrintService
             throw new \RuntimeException('Không có đơn nào để in.');
         }
 
-        return [$this->gotenberg->htmlToPdf(PrintTemplates::packingList($orders)), ['orders' => $orders->count()]];
+        return [$this->gotenberg->htmlToPdf(PrintTemplates::packingList($orders, $this->paperSize($tenantId))), ['orders' => $orders->count()]];
     }
 
     /** Sales invoice / order slip — one printable page per order. @return array{0:string,1:array<string,mixed>} */
@@ -192,7 +206,7 @@ class PrintService
         }
         $shopName = (string) (Tenant::query()->whereKey($tenantId)->value('name') ?? 'Cửa hàng');
 
-        return [$this->gotenberg->htmlToPdf(PrintTemplates::invoice($orders, $shopName)), ['orders' => $orders->count()]];
+        return [$this->gotenberg->htmlToPdf(PrintTemplates::invoice($orders, $shopName, $this->paperSize($tenantId))), ['orders' => $orders->count()]];
     }
 
     /**
@@ -214,6 +228,6 @@ class PrintService
         }
         $shopName = (string) (Tenant::query()->whereKey($tenantId)->value('name') ?? 'Cửa hàng');
 
-        return [$this->gotenberg->htmlToPdf(PrintTemplates::deliverySlip($orders, $shopName)), ['orders' => $orders->count()]];
+        return [$this->gotenberg->htmlToPdf(PrintTemplates::deliverySlip($orders, $shopName, $this->paperSize($tenantId))), ['orders' => $orders->count()]];
     }
 }

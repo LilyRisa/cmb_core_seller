@@ -59,9 +59,14 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
     if (busy) return <Spin size="small" />;
 
     const err = (e: unknown) => message.error(errorMessage(e));
-    const printDelivery = () => createPrint.mutate({ type: 'delivery', order_ids: [order.id] }, { onSuccess: (j) => onPrint(j.id), onError: err });
-    // "Chuẩn bị hàng" = tạo vận đơn (server validate âm tồn) → lấy phiếu giao hàng → đơn pending → processing.
-    const prepare = () => ship.mutate({ orderId: order.id }, { onSuccess: () => { message.success('Đã chuẩn bị hàng — đang lấy phiếu giao hàng'); printDelivery(); }, onError: err });
+    const printDelivery = () => createPrint.mutate(sh ? { type: 'label', shipment_ids: [sh.id] } : { type: 'delivery', order_ids: [order.id] }, { onSuccess: (j) => onPrint(j.id), onError: err });
+    // "Chuẩn bị hàng" = đẩy trạng thái "sắp xếp vận chuyển" lên sàn + lấy AWB/phiếu của sàn → đơn pending → processing.
+    const runPrepare = () => ship.mutate({ orderId: order.id }, { onSuccess: () => { message.success('Đã chuẩn bị hàng — đang đẩy trạng thái lên sàn & lấy phiếu giao hàng'); printDelivery(); }, onError: err });
+    const prepare = () => {
+        if (order.profit && order.profit.estimated_profit < 0) {
+            Modal.confirm({ title: 'Đơn này lợi nhuận ước tính ÂM', content: `Lợi nhuận ước tính: ${order.profit.estimated_profit.toLocaleString('vi-VN')} ₫ (tổng tiền không bù được phí sàn + giá vốn). Vẫn chuẩn bị hàng?`, okText: 'Vẫn chuẩn bị', okButtonProps: { danger: true }, cancelText: 'Để xem lại', onOk: runPrepare });
+        } else { runPrepare(); }
+    };
     // "Đã gói & sẵn sàng bàn giao" — bảo đảm có vận đơn rồi markPacked (processing → ready_to_ship).
     const markReady = () => (sh
         ? pack.mutate([sh.id], { onSuccess: () => message.success('Đã đánh dấu gói xong — chờ bàn giao ĐVVC'), onError: err })

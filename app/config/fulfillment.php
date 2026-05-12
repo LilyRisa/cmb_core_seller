@@ -28,4 +28,12 @@ return [
     */
     'ghn_base_url' => env('GHN_BASE_URL', 'https://online-gateway.ghn.vn'),
 
+    /*
+    | In ấn — khổ phiếu mặc định (mỗi đơn 1 trang). Tenant có thể đặt riêng ở tenant.settings.print.label_size.
+    | Giá trị: A4 | A5 | A6 | 100x150mm | 80mm  (xem PrintTemplates::paperRule). SPEC 0006 §4.4 / 0013.
+    */
+    'print' => [
+        'label_paper_size' => env('PRINT_LABEL_SIZE', 'A6'),
+    ],
+
 ];

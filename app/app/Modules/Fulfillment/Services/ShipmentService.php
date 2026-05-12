@@ -21,6 +21,7 @@ use CMBcoreSeller\Support\MediaUploader;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
@@ -39,11 +40,11 @@ class ShipmentService
     ) {}
 
     /**
-     * Đơn sàn — gọi sàn "arrange shipment" ("luồng A"): cập nhật trạng thái "đã in đơn" lên sàn & lấy AWB.
-     * Trả `['tracking_no'=>?,'carrier'=>?,'raw_status'=>?]` nếu connector hỗ trợ `shipping.arrange`; trả `null`
-     * nếu connector chưa hỗ trợ (chưa bật "luồng A"). Gọi sàn lỗi ⇒ ném {@see RuntimeException}. SPEC 0013/0014.
+     * Đơn sàn — gọi sàn "arrange shipment" ("luồng A"): tự đẩy trạng thái "sắp xếp vận chuyển / đã in đơn"
+     * lên sàn & lấy AWB. Trả `['tracking_no'=>?,'carrier'=>?,'raw_status'=>?,'package_id'=>?]` nếu connector
+     * hỗ trợ `shipping.arrange`; trả `null` nếu chưa hỗ trợ; gọi sàn lỗi ⇒ ném {@see RuntimeException}. SPEC 0014.
      *
-     * @return array{tracking_no:?string,carrier:?string,raw_status:?string}|null
+     * @return array{tracking_no:?string,carrier:?string,raw_status:?string,package_id:?string}|null
      */
     private function arrangeOnChannel(Order $order): ?array
     {
@@ -55,7 +56,7 @@ class ShipmentService
             return null;
         }
         try {
-            $r = $this->channels->for($account->provider)->arrangeShipment($account->authContext(), (string) $order->external_order_id, ['raw' => []]);
+            $r = $this->channels->for($account->provider)->arrangeShipment($account->authContext(), (string) $order->external_order_id, ['packages' => (array) ($order->packages ?? [])]);
         } catch (\Throwable $e) {
             Log::warning('shipment.arrange_on_channel_failed', ['order' => $order->getKey(), 'provider' => $account->provider, 'error' => $e->getMessage()]);
             throw new RuntimeException('Không cập nhật được trạng thái "đã in đơn" lên sàn: '.$e->getMessage());
@@ -68,13 +69,37 @@ class ShipmentService
             'tracking_no' => ! empty($r['tracking_no']) ? (string) $r['tracking_no'] : null,
             'carrier' => ! empty($r['carrier']) ? (string) $r['carrier'] : null,
             'raw_status' => ! empty($r['raw_status']) ? (string) $r['raw_status'] : null,
+            'package_id' => ! empty($r['package_id']) ? (string) $r['package_id'] : null,
         ];
     }
 
+    /** Best-effort: kéo tem/AWB **thật của sàn** (PDF) về kho media & gắn vào vận đơn — KHÔNG tự vẽ tem. SPEC 0006 §9.1 / 0014. */
+    private function fetchAndStoreChannelLabel(Order $order, Shipment $shipment): void
+    {
+        $account = $order->channel_account_id ? ChannelAccount::query()->find($order->channel_account_id) : null;
+        if (! $account || ! $this->channels->has($account->provider) || ! $this->channels->for($account->provider)->supports('shipping.document') || blank($shipment->package_no)) {
+            return;
+        }
+        try {
+            $doc = $this->channels->for($account->provider)->getShippingDocument($account->authContext(), (string) $order->external_order_id, [
+                'type' => 'SHIPPING_LABEL', 'externalPackageId' => (string) $shipment->package_no,
+            ]);
+            $bytes = (string) $doc['bytes'];
+            if ($bytes === '') {
+                return;
+            }
+            $stored = $this->media->storeBytes($bytes, (int) $order->tenant_id, 'labels', 'sh'.$shipment->getKey().'-'.Str::ulid(), 'pdf');
+            $shipment->forceFill(['label_url' => $stored['url'], 'label_path' => $stored['path']])->save();
+        } catch (\Throwable $e) {
+            Log::info('shipment.fetch_channel_label_failed', ['shipment' => $shipment->getKey(), 'provider' => $account->provider, 'error' => $e->getMessage()]);
+        }
+    }
+
     /**
-     * "Chuẩn bị hàng" cho **đơn sàn**: dùng mã vận đơn / AWB do sàn cấp (đã đồng bộ trong `order.packages`,
-     * hoặc gọi `arrangeShipment` "luồng A") — KHÔNG tự sinh mã giả như đơn manual. Chưa lấy được AWB nào ⇒
-     * báo lỗi rõ (yêu cầu sắp xếp vận chuyển trên app sàn rồi đồng bộ, hoặc bật "luồng A"). Đơn → `processing`.
+     * "Chuẩn bị hàng" cho **đơn sàn**: tự gọi sàn arrange-shipment (đẩy trạng thái "đã in đơn" lên sàn) + lấy
+     * AWB & tem thật của sàn (`getShippingDocument`) — KHÔNG tự sinh mã/tem giả. Gọi sàn lỗi / connector chưa
+     * hỗ trợ "luồng A" ⇒ vẫn tạo vận đơn cục bộ (mã có thể trống, gắn cờ `has_issue` nhắc nhở), không chặn.
+     * Đơn → `processing`. SPEC 0013/0014.
      */
     private function prepareChannelOrder(Order $order, ?int $userId): Shipment
     {
@@ -82,27 +107,41 @@ class ShipmentService
         $pkg = (array) (($order->packages ?? [])[0] ?? []);
         $tracking = ! empty($pkg['trackingNo']) ? (string) $pkg['trackingNo'] : null;
         $carrier = ! empty($pkg['carrier']) ? (string) $pkg['carrier'] : null;
+        $packageId = ! empty($pkg['externalPackageId']) ? (string) $pkg['externalPackageId'] : null;
+        $issue = null;
 
         if ($tracking === null) {
-            $arr = $this->arrangeOnChannel($order);   // null = connector chưa hỗ trợ; ném lỗi nếu gọi sàn lỗi
-            if ($arr === null) {
-                throw new RuntimeException('Đơn sàn chưa có mã vận đơn — hãy "Sắp xếp vận chuyển" trên app sàn rồi bấm "Đồng bộ đơn", hoặc bật đồng bộ fulfillment ("luồng A") để hệ thống tự lấy mã vận đơn & cập nhật trạng thái lên sàn.');
+            try {
+                $arr = $this->arrangeOnChannel($order);   // null = connector chưa hỗ trợ; ném lỗi nếu gọi sàn lỗi
+                if ($arr === null) {
+                    $issue = 'Chưa lấy được mã vận đơn từ sàn — bật đồng bộ fulfillment ("luồng A") hoặc "Sắp xếp vận chuyển" trên app sàn rồi "Đồng bộ đơn".';
+                } else {
+                    $tracking = $arr['tracking_no'];
+                    $carrier = $arr['carrier'] ?: $carrier;
+                    $packageId = $arr['package_id'] ?: $packageId;
+                    if ($tracking === null) {
+                        $issue = 'Đã yêu cầu sàn sắp xếp vận chuyển; chờ sàn cấp mã vận đơn (sẽ đồng bộ về sau).';
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::warning('shipment.prepare_channel_arrange_failed', ['order' => $order->getKey(), 'error' => $e->getMessage()]);
+                $issue = $e->getMessage();
             }
-            $tracking = $arr['tracking_no'];
-            $carrier = $arr['carrier'] ?: $carrier;
         }
         $carrier = $carrier ?: ($order->carrier ?: $order->source);
 
-        $shipment = DB::transaction(function () use ($tenantId, $order, $carrier, $tracking, $userId) {
+        $shipment = DB::transaction(function () use ($tenantId, $order, $carrier, $tracking, $packageId, $issue, $userId) {
             $sh = Shipment::query()->create([
                 'tenant_id' => $tenantId, 'order_id' => $order->getKey(), 'carrier' => $carrier,
-                'carrier_account_id' => null, 'tracking_no' => $tracking, 'status' => Shipment::STATUS_CREATED,
+                'carrier_account_id' => null, 'package_no' => $packageId, 'tracking_no' => $tracking, 'status' => Shipment::STATUS_CREATED,
                 'weight_grams' => $this->estimateWeight($order, $tenantId),
                 'cod_amount' => $order->is_cod ? (int) ($order->cod_amount ?: $order->grand_total) : 0, 'raw' => [],
             ]);
             $this->recordEvent($sh, 'created', $tracking ? 'Đã chuẩn bị hàng — mã vận đơn của sàn: '.$tracking : 'Đã chuẩn bị hàng — chờ mã vận đơn từ sàn', Shipment::STATUS_CREATED, ShipmentEvent::SOURCE_SYSTEM, null, $userId);
             $patch = $order->carrier ? [] : ['carrier' => $carrier];
-            if ($order->has_issue && str_contains((string) $order->issue_reason, 'mã vận đơn')) {
+            if ($issue) {
+                $patch += ['has_issue' => true, 'issue_reason' => $issue];
+            } elseif ($order->has_issue && str_contains((string) $order->issue_reason, 'mã vận đơn')) {
                 $patch += ['has_issue' => false, 'issue_reason' => null];
             }
             if ($patch !== []) {
@@ -111,6 +150,9 @@ class ShipmentService
 
             return $sh;
         });
+        if ($shipment->tracking_no) {
+            $this->fetchAndStoreChannelLabel($order, $shipment);   // kéo tem thật của sàn về (best-effort)
+        }
         $this->orderStatus->apply($order, S::Processing, 'system', [S::Pending], $userId);
         $shipment->refresh();
         ShipmentCreated::dispatch($shipment);

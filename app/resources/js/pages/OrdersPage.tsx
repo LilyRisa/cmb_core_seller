@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Alert, App as AntApp, Avatar, Badge, Button, Card, DatePicker, Empty, Input, Modal, Select, Space, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
-import { BarcodeOutlined, LinkOutlined, ReloadOutlined, ScanOutlined, SearchOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons';
+import { BarcodeOutlined, LinkOutlined, PrinterOutlined, ReloadOutlined, ScanOutlined, SearchOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
@@ -15,7 +15,7 @@ import { OrderActions, PrintJobBar, ScanTab, ShipmentsTab } from '@/components/O
 import { errorMessage } from '@/lib/api';
 import { CHANNEL_META, ORDER_STATUS_TABS } from '@/lib/format';
 import { Order, useOrders, useOrderStats, useSyncOrders } from '@/lib/orders';
-import { useBulkCreateShipments } from '@/lib/fulfillment';
+import { useBulkCreateShipments, useCreatePrintJob } from '@/lib/fulfillment';
 import { useChannelAccounts } from '@/lib/channels';
 import { useCan } from '@/lib/tenant';
 
@@ -46,9 +46,11 @@ export function OrdersPage() {
     const accounts = channelsData?.data ?? [];
     const syncOrders = useSyncOrders();
     const bulkPrepare = useBulkCreateShipments();
+    const createPrintJob = useCreatePrintJob();
     const canCreate = useCan('orders.create');
     const canMap = useCan('inventory.map');
     const canShip = useCan('fulfillment.ship');
+    const canPrint = useCan('fulfillment.print');
     const [selectedKeys, setSelectedKeys] = useState<number[]>([]);
     const [linkModal, setLinkModal] = useState<{ open: boolean; orderIds?: number[] }>({ open: false });
     const [viewOrderId, setViewOrderId] = useState<number | null>(null);
@@ -102,7 +104,9 @@ export function OrdersPage() {
     }), [q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo]);
 
     const isShipmentsTab = tabKey === 'shipments';
-    const isPrepareTab = tabKey === 'pending';   // tab "Chờ xử lý" — cho chọn nhiều đơn + "Chuẩn bị hàng" hàng loạt
+    // tab "Chờ xử lý" / "Đang xử lý" — cho chọn nhiều đơn + "Chuẩn bị hàng" / "In phiếu giao hàng" hàng loạt
+    const isWorkTab = tabKey === 'pending' || tabKey === 'processing';
+    const canBulkWork = isWorkTab && (canShip || canPrint);
 
     // skip the (unused) orders list when on the shipments tab
     const { data, isFetching, refetch } = useOrders(isShipmentsTab ? { ...filters, page: 1, per_page: 1 } : filters);
@@ -110,6 +114,33 @@ export function OrdersPage() {
 
     const countForTab = (t: { statuses?: string[] }) => (t.statuses ?? []).reduce((s, st) => s + (stats?.by_status?.[st] ?? 0), 0);
     const shopName = (id: number) => accounts.find((a) => a.id === id)?.name ?? `#${id}`;
+
+    // bulk actions: "Chuẩn bị hàng" + "In phiếu giao hàng" (tem của sàn) trên các đơn đã chọn
+    const selectedOrders = (data?.data ?? []).filter((o) => selectedKeys.includes(o.id));
+    const selWithShipment = selectedOrders.filter((o) => o.shipment);
+    const negProfit = selectedOrders.filter((o) => o.profit && o.profit.estimated_profit < 0);
+    const runBulkPrepare = () => bulkPrepare.mutate({ order_ids: selectedKeys }, {
+        onSuccess: (r) => {
+            message.success(r.created.length > 0 ? `Đã chuẩn bị hàng ${r.created.length} đơn — đang đẩy trạng thái lên sàn & lấy phiếu` : 'Không có đơn nào được chuẩn bị');
+            if (r.errors.length) Modal.warning({ title: `${r.errors.length} đơn không chuẩn bị được`, content: <ul style={{ margin: 0, paddingInlineStart: 18 }}>{r.errors.map((e) => <li key={e.order_id}>Đơn #{e.order_id}: {e.message}</li>)}</ul> });
+            setSelectedKeys([]);
+        },
+        onError: (e) => message.error(errorMessage(e)),
+    });
+    const doBulkPrepare = () => {
+        if (negProfit.length > 0) {
+            Modal.confirm({
+                title: `${negProfit.length} đơn có lợi nhuận ước tính ÂM`,
+                content: 'Tổng tiền các đơn này không bù được phí sàn + giá vốn hàng. Vẫn tiếp tục chuẩn bị hàng (tạo vận đơn / lấy phiếu)?',
+                okText: 'Vẫn chuẩn bị', okButtonProps: { danger: true }, cancelText: 'Để xem lại',
+                onOk: runBulkPrepare,
+            });
+        } else { runBulkPrepare(); }
+    };
+    const doBulkPrintSlip = () => createPrintJob.mutate({ type: 'label', shipment_ids: selWithShipment.map((o) => o.shipment!.id) }, {
+        onSuccess: (j) => { setPrintJobId(j.id); setSelectedKeys([]); },
+        onError: (e) => message.error(errorMessage(e)),
+    });
 
     // chip-row items
     const sourceChips: ChipItem[] = (stats?.by_source ?? []).map((s) => ({ value: s.source, label: CHANNEL_META[s.source]?.name ?? s.source, count: s.count }));
@@ -237,8 +268,6 @@ export function OrdersPage() {
                 </div>
             ) : (<>
 
-            {printJobId != null && <div style={{ marginTop: 12 }}><PrintJobBar jobId={printJobId} onClose={() => setPrintJobId(null)} /></div>}
-
             {/* "Lọc" panel — one inline group: a search box + chip rows (xem docs/06-frontend/orders-filter-panel.md) */}
             <Card style={{ marginTop: 12 }} title="Lọc" size="small" styles={{ body: { padding: '8px 16px 12px' } }}>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
@@ -290,16 +319,12 @@ export function OrdersPage() {
             )}
 
             <Card style={{ marginTop: 12 }} styles={{ body: { padding: 16 } }}>
-                {selectedKeys.length > 0 && (isPrepareTab && canShip ? (
-                    <Space style={{ marginBottom: 12 }}>
-                        <Button type="primary" loading={bulkPrepare.isPending} onClick={() => bulkPrepare.mutate({ order_ids: selectedKeys }, {
-                            onSuccess: (r) => {
-                                message.success(r.created.length > 0 ? `Đã chuẩn bị hàng ${r.created.length} đơn — đang xử lý nội bộ` : 'Không có đơn nào được chuẩn bị');
-                                if (r.errors.length) Modal.warning({ title: `${r.errors.length} đơn không chuẩn bị được`, content: <ul style={{ margin: 0, paddingInlineStart: 18 }}>{r.errors.map((e) => <li key={e.order_id}>Đơn #{e.order_id}: {e.message}</li>)}</ul> });
-                                setSelectedKeys([]);
-                            },
-                            onError: (e) => message.error(errorMessage(e)),
-                        })}>Chuẩn bị hàng ({selectedKeys.length})</Button>
+                {selectedKeys.length > 0 && (canBulkWork ? (
+                    <Space style={{ marginBottom: 12 }} wrap>
+                        {canShip && <Button type="primary" loading={bulkPrepare.isPending} onClick={doBulkPrepare}>
+                            Chuẩn bị hàng ({selectedKeys.length}){negProfit.length > 0 && <WarningOutlined style={{ marginInlineStart: 4 }} />}
+                        </Button>}
+                        {canPrint && selWithShipment.length > 0 && <Button icon={<PrinterOutlined />} loading={createPrintJob.isPending} onClick={doBulkPrintSlip}>In phiếu giao hàng ({selWithShipment.length})</Button>}
                         <Button onClick={() => setSelectedKeys([])}>Bỏ chọn</Button>
                     </Space>
                 ) : canMap ? (
@@ -308,15 +333,16 @@ export function OrdersPage() {
                         <Button onClick={() => setSelectedKeys([])}>Bỏ chọn</Button>
                     </Space>
                 ) : null)}
+                {printJobId != null && <div style={{ marginBottom: 12 }}><PrintJobBar jobId={printJobId} onClose={() => setPrintJobId(null)} /></div>}
                 <Table<Order>
                     rowKey="id" size="middle" loading={isFetching}
                     dataSource={data?.data ?? []} columns={columns}
-                    rowSelection={(isPrepareTab && canShip) || canMap ? {
+                    rowSelection={canBulkWork || canMap ? {
                         selectedRowKeys: selectedKeys,
                         onChange: (keys) => setSelectedKeys(keys as number[]),
-                        getCheckboxProps: (o) => ({ disabled: isPrepareTab && canShip ? (o.out_of_stock || o.has_issue) : o.issue_reason !== UNMAPPED_REASON }),
+                        getCheckboxProps: (o) => ({ disabled: canBulkWork ? o.out_of_stock : o.issue_reason !== UNMAPPED_REASON }),
                     } : undefined}
-                    locale={{ emptyText: <Empty description={isPrepareTab ? 'Không có đơn nào cần chuẩn bị hàng.' : 'Chưa có đơn hàng. Kết nối gian hàng để đơn tự về, hoặc bấm “Đồng bộ đơn”.'} /> }}
+                    locale={{ emptyText: <Empty description={isWorkTab ? 'Không có đơn nào.' : 'Chưa có đơn hàng. Kết nối gian hàng để đơn tự về, hoặc bấm “Đồng bộ đơn”.'} /> }}
                     rowClassName={(o) => (o.has_issue ? 'row-has-issue' : '')}
                     pagination={{
                         current: data?.meta.pagination.page ?? page,

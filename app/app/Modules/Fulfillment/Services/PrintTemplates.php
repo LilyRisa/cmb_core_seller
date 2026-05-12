@@ -16,10 +16,23 @@ final class PrintTemplates
         return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
     }
 
-    private static function shell(string $title, string $body): string
+    /** Khổ giấy `@page` (size + margin) theo tên cài đặt — mỗi phiếu/đơn 1 trang. SPEC 0006 §4.4 / 0013. */
+    public static function paperRule(string $name): string
+    {
+        return match (strtoupper(str_replace(' ', '', trim($name)) ?: 'A4')) {
+            'A4' => 'size:A4;margin:12mm',
+            'A5' => 'size:A5;margin:10mm',
+            'A6' => 'size:A6;margin:5mm',
+            '100X150MM', '100X150' => 'size:100mm 150mm;margin:5mm',
+            '80MM' => 'size:80mm auto;margin:3mm',
+            default => 'size:A4;margin:12mm',
+        };
+    }
+
+    private static function shell(string $title, string $body, string $pageCss = 'size:A4;margin:12mm'): string
     {
         return '<!doctype html><html><head><meta charset="utf-8"><title>'.self::e($title).'</title><style>'
-            .'@page{size:A4;margin:14mm}*{font-family:DejaVu Sans,Arial,sans-serif}body{font-size:12px;color:#222}'
+            .'@page{'.$pageCss.'}*{font-family:DejaVu Sans,Arial,sans-serif}body{font-size:12px;color:#222}'
             .'h1{font-size:18px;margin:0 0 4px}.muted{color:#888;font-size:11px}table{width:100%;border-collapse:collapse;margin-top:8px}'
             .'th,td{border:1px solid #ccc;padding:6px 8px;text-align:left;vertical-align:top}th{background:#f5f5f5}'
             .'.r{text-align:right}.page-break{page-break-after:always}.box{border:1px solid #ddd;border-radius:6px;padding:10px;margin-bottom:10px}'
@@ -41,11 +54,11 @@ final class PrintTemplates
             .'<div class="muted">'.$orderCount.' đơn · '.count($rows).' SKU · in lúc '.now()->format('d/m/Y H:i').'</div>'
             .'<table><thead><tr><th class="r">#</th><th>Mã SKU</th><th>Tên</th><th class="r">Tổng SL</th><th>Từ các đơn</th></tr></thead><tbody>'.$tr.'</tbody></table>';
 
-        return self::shell('Picking list', $body);
+        return self::shell('Picking list', $body);   // picking = danh sách gom theo SKU ⇒ luôn A4
     }
 
     /** @param Collection<int, Order> $orders */
-    public static function packingList(Collection $orders): string
+    public static function packingList(Collection $orders, string $paper = 'A4'): string
     {
         $pages = [];
         $last = $orders->count() - 1;
@@ -69,7 +82,7 @@ final class PrintTemplates
             $pages[] = $idx < $last ? $page.'<div class="page-break"></div>' : $page;
         }
 
-        return self::shell('Packing list', implode('', $pages));
+        return self::shell('Packing list', implode('', $pages), self::paperRule($paper));
     }
 
     private static function vnd(int $v): string
@@ -83,7 +96,7 @@ final class PrintTemplates
      *
      * @param  Collection<int, Order>  $orders  với `items` đã nạp
      */
-    public static function invoice(Collection $orders, string $shopName): string
+    public static function invoice(Collection $orders, string $shopName, string $paper = 'A4'): string
     {
         $pages = [];
         $last = $orders->count() - 1;
@@ -119,7 +132,7 @@ final class PrintTemplates
             $pages[] = $idx < $last ? $page.'<div class="page-break"></div>' : $page;
         }
 
-        return self::shell('Hoá đơn', implode('', $pages));
+        return self::shell('Hoá đơn', implode('', $pages), self::paperRule($paper));
     }
 
     /**
@@ -129,7 +142,7 @@ final class PrintTemplates
      *
      * @param  Collection<int, Order>  $orders  với `items` và `shipments` (mới nhất trước) đã nạp
      */
-    public static function deliverySlip(Collection $orders, string $shopName): string
+    public static function deliverySlip(Collection $orders, string $shopName, string $paper = 'A6'): string
     {
         $pages = [];
         $last = $orders->count() - 1;
@@ -158,6 +171,6 @@ final class PrintTemplates
             $pages[] = $idx < $last ? $page.'<div class="page-break"></div>' : $page;
         }
 
-        return self::shell('Phiếu giao hàng', implode('', $pages));
+        return self::shell('Phiếu giao hàng', implode('', $pages), self::paperRule($paper));
     }
 }
