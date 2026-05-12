@@ -104,9 +104,12 @@ x-app-env: &app-env
   # Marketplace integrations
   INTEGRATIONS_CHANNELS: ${INTEGRATIONS_CHANNELS:-manual,tiktok}
   INTEGRATIONS_CARRIERS: ${INTEGRATIONS_CARRIERS:-}
-  # "Luồng A": "Chuẩn bị hàng" gọi API sàn arrange-shipment + lấy tem thật. Đặt false nếu shape API TikTok
-  # chưa khớp sandbox (lỗi gọi sàn vẫn được bắt & gắn cờ has_issue trên đơn, không chặn).
-  INTEGRATIONS_TIKTOK_FULFILLMENT: "${INTEGRATIONS_TIKTOK_FULFILLMENT:-true}"
+  # "Luồng A": "Chuẩn bị hàng" gọi API sàn arrange-shipment + lấy tem thật. TẮT mặc định — bật =true sau khi
+  # đã đối chiếu đường dẫn fulfillment "202309" với Partner docs (TIKTOK_SHIP_PACKAGE_PATH nếu khác). Lỗi gọi
+  # sàn khi bật vẫn được bắt & gắn cờ has_issue trên đơn, không chặn (vẫn tạo vận đơn cục bộ).
+  INTEGRATIONS_TIKTOK_FULFILLMENT: "${INTEGRATIONS_TIKTOK_FULFILLMENT:-false}"
+  TIKTOK_SHIP_PACKAGE_PATH: ${TIKTOK_SHIP_PACKAGE_PATH:-}
+  TIKTOK_SHIPPING_DOCS_PATH: ${TIKTOK_SHIPPING_DOCS_PATH:-}
   TIKTOK_APP_KEY: ${TIKTOK_APP_KEY}
   TIKTOK_APP_SECRET: ${TIKTOK_APP_SECRET}
   TIKTOK_SERVICE_ID: ${TIKTOK_SERVICE_ID}

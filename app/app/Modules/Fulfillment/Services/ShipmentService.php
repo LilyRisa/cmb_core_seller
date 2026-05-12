@@ -59,7 +59,7 @@ class ShipmentService
             $r = $this->channels->for($account->provider)->arrangeShipment($account->authContext(), (string) $order->external_order_id, ['packages' => (array) ($order->packages ?? [])]);
         } catch (\Throwable $e) {
             Log::warning('shipment.arrange_on_channel_failed', ['order' => $order->getKey(), 'provider' => $account->provider, 'error' => $e->getMessage()]);
-            throw new RuntimeException('Không cập nhật được trạng thái "đã in đơn" lên sàn: '.$e->getMessage());
+            throw new RuntimeException('Không cập nhật được trạng thái "đã in đơn" lên sàn ('.Str::limit(class_basename($e).': '.$e->getMessage(), 150).')');
         }
         if (! empty($r['raw_status'])) {
             $order->forceFill(['raw_status' => (string) $r['raw_status']])->save();
@@ -140,7 +140,7 @@ class ShipmentService
             $this->recordEvent($sh, 'created', $tracking ? 'Đã chuẩn bị hàng — mã vận đơn của sàn: '.$tracking : 'Đã chuẩn bị hàng — chờ mã vận đơn từ sàn', Shipment::STATUS_CREATED, ShipmentEvent::SOURCE_SYSTEM, null, $userId);
             $patch = $order->carrier ? [] : ['carrier' => $carrier];
             if ($issue) {
-                $patch += ['has_issue' => true, 'issue_reason' => $issue];
+                $patch += ['has_issue' => true, 'issue_reason' => Str::limit((string) $issue, 240)];
             } elseif ($order->has_issue && str_contains((string) $order->issue_reason, 'mã vận đơn')) {
                 $patch += ['has_issue' => false, 'issue_reason' => null];
             }

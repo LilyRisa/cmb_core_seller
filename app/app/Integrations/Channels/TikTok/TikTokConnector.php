@@ -47,10 +47,11 @@ class TikTokConnector implements ChannelConnector
             'orders.fetch' => true,
             'orders.webhook' => true,
             'orders.confirm' => false,        // Phase 3 (arrange shipment flow)
-            // "luồng A" (arrange ship + lấy tem) — bật mặc định; tắt bằng INTEGRATIONS_TIKTOK_FULFILLMENT=false
-            // nếu shape API chưa khớp sandbox (lỗi gọi sàn vẫn được bắt & gắn cờ has_issue, không chặn). SPEC 0013/0014.
-            'shipping.arrange' => (bool) config('integrations.tiktok.fulfillment_enabled', true),
-            'shipping.document' => (bool) config('integrations.tiktok.fulfillment_enabled', true),
+            // "luồng A" (arrange ship + lấy tem) — TẮT mặc định; bật INTEGRATIONS_TIKTOK_FULFILLMENT=true sau
+            // khi đã chỉnh `endpoints.ship_package` cho khớp Partner docs (lỗi gọi sàn khi bật vẫn được bắt &
+            // gắn cờ has_issue trên đơn, không chặn — vẫn tạo vận đơn cục bộ). SPEC 0013/0014.
+            'shipping.arrange' => (bool) config('integrations.tiktok.fulfillment_enabled', false),
+            'shipping.document' => (bool) config('integrations.tiktok.fulfillment_enabled', false),
             'shipping.tracking' => false,     // Phase 3
             'listings.fetch' => true,         // Phase 2 — SPEC 0003 (fetchListings → channel_listings)
             'listings.publish' => false,      // Phase 5
@@ -243,11 +244,20 @@ class TikTokConnector implements ChannelConnector
 
     // --- Fulfillment (Phase 3) -----------------------------------------------
 
+    /** Thay {version}/{package_id}/{order_id} trong đường dẫn endpoint fulfillment (cấu hình ở config). */
+    private function fulfillmentPath(string $configKey, string $default, string $packageId = '', string $orderId = ''): string
+    {
+        $ver = $this->client->versionFor('fulfillment');
+        $path = (string) (config("integrations.tiktok.endpoints.$configKey") ?: $default);
+
+        return str_replace(['{version}', '{package_id}', '{order_id}', '{orderId}'], [$ver, $packageId, $orderId, $orderId], $path);
+    }
+
     /**
-     * "Luồng A" — TikTok "sắp xếp vận chuyển": gọi `POST /fulfillment/{ver}/orders/{order_id}/packages/ship`
-     * ⇒ đơn chuyển `AWAITING_COLLECTION`, sàn gán ĐVVC + `tracking_number`. ⚠️ Đối chiếu shape API với sandbox
-     * (tắt bằng `INTEGRATIONS_TIKTOK_FULFILLMENT=false`); lỗi được {@see ShipmentService} bắt & gắn cờ has_issue.
-     * Trả `['raw_status','tracking_no','carrier','package_id']`. SPEC 0013/0014.
+     * "Luồng A" — TikTok "sắp xếp vận chuyển" cho gói: `POST {endpoints.ship_package}` (mặc định
+     * `/fulfillment/{ver}/packages/{package_id}/ship`). ⚠️ Đường dẫn cần đối chiếu Partner docs/sandbox —
+     * tắt mặc định (`INTEGRATIONS_TIKTOK_FULFILLMENT=false`); lỗi được {@see ShipmentService} bắt & gắn cờ
+     * has_issue (không chặn). Trả `['raw_status','tracking_no','carrier','package_id']`. SPEC 0013/0014.
      *
      * @return array<string,mixed>
      */
@@ -256,27 +266,30 @@ class TikTokConnector implements ChannelConnector
         if (! config('integrations.tiktok.fulfillment_enabled')) {
             throw UnsupportedOperation::for($this->code(), 'arrangeShipment (đặt INTEGRATIONS_TIKTOK_FULFILLMENT=true để bật "luồng A")');
         }
-        $ver = $this->client->versionFor('fulfillment');
         $pkgIds = array_values(array_filter(array_map(
             fn ($p) => is_array($p) ? data_get($p, 'externalPackageId', data_get($p, 'id', data_get($p, 'package_id'))) : null,
             (array) ($params['packages'] ?? []),
         )));
-        $path = (string) (config('integrations.tiktok.endpoints.ship_package') ?? "/fulfillment/{$ver}/orders/{order_id}/packages/ship");
-        $path = str_replace(['{version}', '{order_id}', '{orderId}'], [$ver, $externalOrderId, $externalOrderId], $path);
-        $data = $this->client->post($path, $auth, $pkgIds ? ['package_ids' => $pkgIds] : []);
-        $pkg = (array) data_get($data, 'packages.0', data_get($data, 'package', []));
+        $packageId = (string) ($pkgIds[0] ?? '');
+        if ($packageId === '') {
+            throw new \RuntimeException('Đơn TikTok chưa có package_id (đồng bộ đơn lại / kiểm tra trên app sàn). Không thể gọi arrange shipment.');
+        }
+        $path = $this->fulfillmentPath('ship_package', '/fulfillment/{version}/packages/{package_id}/ship', $packageId, $externalOrderId);
+        $data = $this->client->post($path, $auth, []);
+        $pkg = (array) data_get($data, 'packages.0', data_get($data, 'package', $data));
 
         return [
             'raw_status' => 'AWAITING_COLLECTION',
             'tracking_no' => data_get($pkg, 'tracking_number', data_get($data, 'tracking_number')),
             'carrier' => data_get($pkg, 'shipping_provider_name', data_get($data, 'shipping_provider_name')),
-            'package_id' => data_get($pkg, 'id', data_get($pkg, 'package_id', $pkgIds[0] ?? data_get($data, 'package_id'))),
+            'package_id' => $packageId,
         ];
     }
 
     /**
-     * Lấy tem/AWB **thật** của TikTok (PDF bytes): `GET /fulfillment/{ver}/packages/{package_id}/shipping_documents`.
-     * Trả về bytes (tải URL nếu API trả `doc_url`, hoặc decode base64 nếu trả inline). Cần `externalPackageId`. SPEC 0006 §9.1.
+     * Lấy tem/AWB **thật** của TikTok (PDF bytes): `GET {endpoints.shipping_documents}` (mặc định
+     * `/fulfillment/{ver}/packages/{package_id}/shipping_documents`). Trả bytes (tải `doc_url` nếu có, hoặc
+     * decode base64 inline). Cần `externalPackageId`. SPEC 0006 §9.1.
      *
      * @param  array{type?:string,format?:string,externalPackageId?:string}  $query
      * @return array{filename:string,mime:string,bytes:string}
@@ -290,9 +303,9 @@ class TikTokConnector implements ChannelConnector
         if ($packageId === '') {
             throw UnsupportedOperation::for($this->code(), 'getShippingDocument requires externalPackageId');
         }
-        $ver = $this->client->versionFor('fulfillment');
         $docType = strtoupper((string) ($query['type'] ?? 'SHIPPING_LABEL'));
-        $data = $this->client->get("/fulfillment/{$ver}/packages/{$packageId}/shipping_documents", $auth, ['document_type' => $docType]);
+        $path = $this->fulfillmentPath('shipping_documents', '/fulfillment/{version}/packages/{package_id}/shipping_documents', $packageId, $externalOrderId);
+        $data = $this->client->get($path, $auth, ['document_type' => $docType]);
         $url = (string) (data_get($data, 'documents.0.doc_url') ?? data_get($data, 'doc_url') ?? '');
         $inline = (string) (data_get($data, 'documents.0.data') ?? data_get($data, 'data') ?? data_get($data, 'documents.0.file') ?? '');
         $bytes = '';

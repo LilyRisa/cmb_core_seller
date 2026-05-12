@@ -104,9 +104,16 @@ return [
         ],
 
         // "Luồng A" — khi "Chuẩn bị hàng": gọi API sàn arrange shipment (đẩy trạng thái "đã in đơn" lên sàn)
-        // + lấy tem/AWB thật của sàn. Bật mặc định; đặt false nếu shape API chưa khớp sandbox (lỗi gọi sàn
-        // được bắt & gắn cờ has_issue trên đơn, không chặn). SPEC 0013/0014.
-        'fulfillment_enabled' => env('INTEGRATIONS_TIKTOK_FULFILLMENT', true),
+        // + lấy tem/AWB thật của sàn. ⚠️ MẶC ĐỊNH OFF — đường dẫn fulfillment "202309" cần đối chiếu lại với
+        // Partner docs/sandbox thật (đường dẫn đoán hiện tại có thể chưa đúng → TikTok trả "Invalid path").
+        // Bật `INTEGRATIONS_TIKTOK_FULFILLMENT=true` sau khi đã chỉnh `endpoints.ship_package` cho khớp.
+        // Lỗi gọi sàn khi bật ⇒ được bắt & gắn cờ has_issue trên đơn, không chặn (vẫn tạo vận đơn cục bộ).
+        'fulfillment_enabled' => env('INTEGRATIONS_TIKTOK_FULFILLMENT', false),
+        'endpoints' => [
+            // Đối chiếu với Partner docs (Fulfillment / Ship Package): {version}, {package_id}, {order_id}.
+            'ship_package' => env('TIKTOK_SHIP_PACKAGE_PATH', '/fulfillment/{version}/packages/{package_id}/ship'),
+            'shipping_documents' => env('TIKTOK_SHIPPING_DOCS_PATH', '/fulfillment/{version}/packages/{package_id}/shipping_documents'),
+        ],
 
         'http' => [
             'timeout' => (int) env('TIKTOK_HTTP_TIMEOUT', 20),
