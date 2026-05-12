@@ -15,7 +15,7 @@
 | `tokens` | `RefreshChannelToken`, `RefreshExpiringTokens` | Cao (token hỏng = sync dừng) |
 | `finance` | `FetchSettlements`, tính lợi nhuận, tổng hợp `profit_snapshots` | Thấp, chạy theo kỳ |
 | `notifications` | gửi email/in-app/Zalo/Telegram | Trung bình |
-| `customers` | *(Phase 2 — SPEC-0002)* `LinkOrderToCustomer`, `RecomputeCustomerStats`, `AnonymizeCustomersForShop`, `AnonymizeCustomersForDataDeletionRequest`, `BackfillCustomersFromOrders` (one-shot) | Thấp — không chặn order pipeline; `ShouldBeUnique` per `(tenant,customer_id_or_phone_hash)` để chống race |
+| `customers` | *(Phase 2 — SPEC-0002, đã implement)* `LinkOrderToCustomer` (listener), `AnonymizeCustomersForShop` (cả data_deletion & disconnect); commands `customers:recompute-stale` (hằng giờ), `customers:backfill` (one-shot) | Thấp — không chặn order pipeline; race xử lý bằng `lockForUpdate` + unique `(tenant_id,phone_hash)` trong service |
 | `default` | còn lại | Trung bình |
 
 - Mỗi queue có số worker riêng (cấu hình theo tải; ~17k đơn/ngày ⇒ vài chục worker process tổng cộng là dư). Worker chạy ở container `worker` tách biệt, scale replica độc lập.
@@ -58,7 +58,19 @@
 - Queue `orders-sync`: `Channels\Jobs\SyncOrdersForShop` (tries 3, `ShouldBeUnique` theo `(shop,type)`; dùng chung cho `poll` & `backfill`) — phân trang `connector.fetchOrders`, upsert, ghi `sync_runs`, advance `last_synced_at`. *(Không cần job `FetchOrderDetail` riêng cho polling — `orders/search` của TikTok trả đủ detail; chỉ webhook mới `fetchOrderDetail`.)*
 - Queue `tokens`: `Channels\Jobs\RefreshChannelToken` (tries 3, `ShouldBeUnique` theo account).
 - Scheduler (`routes/console.php`): mỗi 10' dispatch `SyncOrdersForShop` cho từng `channel_account` active (`Schedule::call`, `withoutOverlapping`); mỗi 30' `channels:refresh-expiring-tokens`; hằng ngày `SyncOrdersForShop(since=now-3d)` cho từng shop active (backfill an toàn) + `model:prune` (dọn `oauth_states` hết hạn); `horizon:snapshot` mỗi 5' & `db:partitions:ensure` hằng ngày (Phase 0).
-- *Còn lại:* rate-limit Redis throttle per `(provider,shop)` đang best-effort trong `TikTokClient::throttle()` — hoàn thiện + xử lý 429/`Retry-After` kỹ hơn; UI re-drive cho `webhook_events`/`sync_runs`.
+- UI **Nhật ký đồng bộ** (`/sync-runs`, `/webhook-events` + re-drive) đã có (xem `docs/05-api/endpoints.md`).
+- *Còn lại:* rate-limit Redis throttle per `(provider,shop)` đang best-effort trong `TikTokClient::throttle()` — hoàn thiện + xử lý 429/`Retry-After` kỹ hơn.
+
+## 3c. Đã implement (Phase 2 — Customers, xem `docs/specs/0002-customer-registry-and-buyer-reputation.md`)
+- Queue `customers` (thêm vào `supervisor-default` của Horizon, `waits` 300s):
+  - `Customers\Listeners\LinkOrderToCustomer` (listen `OrderUpserted`, tries 3) — khớp/tạo khách theo `phone_hash`, set `orders.customer_id`, recompute `lifetime_stats` + reputation + auto-notes (idempotent: đọc thẳng từ `orders`; race xử lý bằng `lockForUpdate` + unique `(tenant_id, phone_hash)`).
+  - `Customers\Jobs\AnonymizeCustomersForShop` (tries 3) — clear PII của khách "single-shop" thuộc shop bị data_deletion / disconnect; giữ `phone_hash` + `lifetime_stats`. Trigger: listener `OnDataDeletionRequested` (event `Channels\Events\DataDeletionRequested`, ngay) và `OnChannelAccountRevoked` (event `ChannelAccountRevoked`, `->delay(now()->addDays(config('customers.anonymize_after_days')))`).
+- Scheduler (`routes/console.php`): mỗi giờ `customers:recompute-stale --hours=2` (lưới an toàn). One-shot: `customers:backfill`.
+
+## 3d. Đã implement (Phase 2 — Tồn kho & đẩy tồn, xem `docs/specs/0003-products-skus-inventory-manual-orders.md`)
+- Queue mặc định (listener): `Inventory\Listeners\ApplyOrderInventoryEffects` (listen `OrderUpserted`, tries 3) — resolve `order_items.sku_id` (mapping/auto-match) + áp tồn theo vòng đời (reserve/ship/release/return) qua `InventoryLedgerService` (idempotent per `(order_item,sku,type)`); set/clear `order.has_issue='SKU chưa ghép'`. Manual order create/cancel/edit cũng fire `OrderUpserted` ⇒ cùng listener (+ `LinkOrderToCustomer`).
+- Queue `inventory-push` (đã có trong supervisor-sync): `Inventory\Jobs\PushStockForSku` (`ShouldBeUnique` per `(tenant,sku)` 30s — debounce; tính `available` tổng → mỗi `channel_listing` ghép: `desired = single⇒floor(avail/qty)`, `bundle⇒min(floor(avail_i/qty_i))`; khác `channel_stock` ⇒ dispatch tiếp) → `Inventory\Jobs\PushStockToListing` (tries 4, backoff 30/120/600s — gọi `connector.updateStock`; `UnsupportedOperation`/listing `is_stock_locked` ⇒ `sync_status=error`/skip, không retry; lỗi khác ⇒ retry, quá hạn ⇒ `sync_status=error` giữ desired). Trigger: listener `PushStockOnInventoryChange` (listen `InventoryChanged`) → `PushStockForSku::dispatch(...)->delay(10s)`.
+- *Chưa làm:* `Inventory\Jobs\FetchChannelListings` (queue `listings`, per channel_account, scheduled hằng ngày — lấy product/SKU sàn về `channel_listings`); đồng bộ ngược tồn (đối chiếu) — Phase 5.
 
 ## 4. RULES
 1. Không gọi API ngoài / sinh PDF trong request HTTP — luôn dispatch job.

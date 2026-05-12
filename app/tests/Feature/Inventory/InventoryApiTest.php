@@ -1,0 +1,123 @@
+<?php
+
+namespace Tests\Feature\Inventory;
+
+use CMBcoreSeller\Models\User;
+use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Inventory\Models\Sku;
+use CMBcoreSeller\Modules\Inventory\Models\SkuMapping;
+use CMBcoreSeller\Modules\Inventory\Services\InventoryLedgerService;
+use CMBcoreSeller\Modules\Products\Models\ChannelListing;
+use CMBcoreSeller\Modules\Tenancy\Enums\Role;
+use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
+use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class InventoryApiTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private User $owner;
+
+    private Tenant $tenant;
+
+    private Tenant $other;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->owner = User::factory()->create();
+        $this->tenant = Tenant::create(['name' => 'Shop A']);
+        $this->tenant->users()->attach($this->owner->getKey(), ['role' => Role::Owner->value]);
+        $this->other = Tenant::create(['name' => 'Shop B']);
+    }
+
+    private function h(): array
+    {
+        return ['X-Tenant-Id' => (string) $this->tenant->getKey()];
+    }
+
+    public function test_product_and_sku_crud(): void
+    {
+        $pid = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/products', ['name' => 'Áo thun'])
+            ->assertCreated()->json('data.id');
+
+        $res = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/skus', ['sku_code' => 'AO-M', 'name' => 'Áo M', 'product_id' => $pid, 'cost_price' => 45000])
+            ->assertCreated();
+        $skuId = $res->json('data.id');
+        $this->assertSame('AO-M', $res->json('data.sku_code'));
+
+        // duplicate code rejected
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/skus', ['sku_code' => 'AO-M', 'name' => 'dup'])->assertStatus(422);
+
+        // adjust stock, then it shows in show + levels
+        app(InventoryLedgerService::class)->adjust((int) $this->tenant->getKey(), (int) $skuId, null, 30);
+        $show = $this->actingAs($this->owner)->withHeaders($this->h())->getJson("/api/v1/skus/{$skuId}")->assertOk();
+        $this->assertSame(30, $show->json('data.available_total'));
+        $this->assertNotEmpty($show->json('data.movements'));
+
+        $this->actingAs($this->owner)->withHeaders($this->h())->getJson("/api/v1/inventory/levels?sku_id={$skuId}")
+            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.on_hand', 30);
+
+        // can't delete a SKU with stock
+        $this->actingAs($this->owner)->withHeaders($this->h())->deleteJson("/api/v1/skus/{$skuId}")->assertStatus(409);
+    }
+
+    public function test_adjust_endpoint_records_movement(): void
+    {
+        $sku = Sku::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $this->tenant->getKey(), 'sku_code' => 'X1', 'name' => 'X1']);
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/inventory/adjust', ['sku_id' => $sku->getKey(), 'qty_change' => 12, 'note' => 'Nhập'])
+            ->assertCreated()->assertJsonPath('data.qty_change', 12)->assertJsonPath('data.balance_after', 12);
+        $this->actingAs($this->owner)->withHeaders($this->h())->getJson("/api/v1/inventory/movements?sku_id={$sku->getKey()}")->assertOk()->assertJsonCount(1, 'data');
+        // zero change rejected
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/inventory/adjust', ['sku_id' => $sku->getKey(), 'qty_change' => 0])->assertStatus(422);
+    }
+
+    public function test_sku_mapping_single_and_bundle_and_auto_match(): void
+    {
+        $shop = ChannelAccount::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $this->tenant->getKey(), 'provider' => 'tiktok', 'external_shop_id' => 's', 'shop_name' => 'S', 'status' => 'active']);
+        $a = Sku::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $this->tenant->getKey(), 'sku_code' => 'A', 'name' => 'A']);
+        $b = Sku::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $this->tenant->getKey(), 'sku_code' => 'B', 'name' => 'B']);
+        $l1 = ChannelListing::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $this->tenant->getKey(), 'channel_account_id' => $shop->getKey(), 'external_sku_id' => 'e1', 'seller_sku' => 'A', 'title' => 'L1', 'currency' => 'VND']);
+        $l2 = ChannelListing::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $this->tenant->getKey(), 'channel_account_id' => $shop->getKey(), 'external_sku_id' => 'e2', 'seller_sku' => 'COMBO', 'title' => 'L2', 'currency' => 'VND']);
+
+        // single mapping with >1 line → 422
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/sku-mappings', ['channel_listing_id' => $l2->getKey(), 'type' => 'single', 'lines' => [['sku_id' => $a->getKey()], ['sku_id' => $b->getKey()]]])->assertStatus(422);
+        // bundle ok
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/sku-mappings', ['channel_listing_id' => $l2->getKey(), 'type' => 'bundle', 'lines' => [['sku_id' => $a->getKey(), 'quantity' => 1], ['sku_id' => $b->getKey(), 'quantity' => 2]]])->assertCreated()->assertJsonCount(2, 'data');
+        $this->assertSame(2, SkuMapping::withoutGlobalScope(TenantScope::class)->where('channel_listing_id', $l2->getKey())->count());
+
+        // auto-match: l1.seller_sku 'A' == sku 'A'
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/sku-mappings/auto-match')->assertOk()->assertJsonPath('data.matched', 1);
+        $this->assertTrue(SkuMapping::withoutGlobalScope(TenantScope::class)->where('channel_listing_id', $l1->getKey())->where('sku_id', $a->getKey())->exists());
+
+        // listing list shows mapped flag
+        $this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/channel-listings?mapped=1')->assertOk()->assertJsonCount(2, 'data');
+        $this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/channel-listings?mapped=0')->assertOk()->assertJsonCount(0, 'data');
+    }
+
+    public function test_tenant_isolation_on_skus(): void
+    {
+        $otherSku = Sku::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $this->other->getKey(), 'sku_code' => 'OTH', 'name' => 'oth']);
+        $this->actingAs($this->owner)->withHeaders($this->h())->getJson("/api/v1/skus/{$otherSku->getKey()}")->assertNotFound();
+        $this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/skus')->assertOk()->assertJsonCount(0, 'data');
+    }
+
+    public function test_warehouse_default_is_auto_created(): void
+    {
+        $res = $this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/warehouses')->assertOk();
+        $this->assertGreaterThanOrEqual(1, count($res->json('data')));
+        $this->assertTrue(collect($res->json('data'))->contains('is_default', true));
+    }
+
+    public function test_viewer_cannot_adjust_or_create_sku(): void
+    {
+        $viewer = User::factory()->create();
+        $this->tenant->users()->attach($viewer->getKey(), ['role' => Role::Viewer->value]);
+        $sku = Sku::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $this->tenant->getKey(), 'sku_code' => 'V1', 'name' => 'v']);
+        $this->actingAs($viewer)->withHeaders($this->h())->getJson('/api/v1/skus')->assertOk();    // can view
+        $this->actingAs($viewer)->withHeaders($this->h())->postJson('/api/v1/inventory/adjust', ['sku_id' => $sku->getKey(), 'qty_change' => 1])->assertForbidden();
+        $this->actingAs($viewer)->withHeaders($this->h())->postJson('/api/v1/skus', ['sku_code' => 'Z', 'name' => 'z'])->assertForbidden();
+    }
+}

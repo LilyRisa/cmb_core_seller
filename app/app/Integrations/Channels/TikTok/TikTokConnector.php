@@ -48,9 +48,9 @@ class TikTokConnector implements ChannelConnector
             'shipping.arrange' => false,      // Phase 3
             'shipping.document' => false,     // Phase 3
             'shipping.tracking' => false,     // Phase 3
-            'listings.fetch' => false,        // Phase 2/5
+            'listings.fetch' => false,        // Phase 2/5 (fetchListings — pending)
             'listings.publish' => false,      // Phase 5
-            'listings.updateStock' => false,  // Phase 2
+            'listings.updateStock' => true,   // Phase 2 — SPEC 0003
             'listings.updatePrice' => false,  // Phase 5
             'finance.settlements' => false,   // Phase 6
             'returns.fetch' => false,         // Phase 7
@@ -183,9 +183,27 @@ class TikTokConnector implements ChannelConnector
 
     // --- Inventory (Phase 2) -------------------------------------------------
 
-    public function updateStock(AuthContext $auth, string $externalSkuId, int $available): void
+    /**
+     * Push the available stock of one SKU to TikTok. TikTok's inventory-update
+     * endpoint is keyed by product id (must come in $context). Exact request shape
+     * to be confirmed against the Partner API docs / sandbox — kept config-able via
+     * `integrations.tiktok.endpoints.update_inventory`.
+     *
+     * @param  array{external_product_id?:string|null,warehouse_id?:string|int|null}  $context
+     */
+    public function updateStock(AuthContext $auth, string $externalSkuId, int $available, array $context = []): void
     {
-        throw UnsupportedOperation::for($this->code(), 'updateStock');
+        $productId = $context['external_product_id'] ?? null;
+        if (! $productId) {
+            throw UnsupportedOperation::for($this->code(), 'updateStock requires external_product_id');
+        }
+        $version = $this->client->versionFor('product');
+        $path = (string) (config('integrations.tiktok.endpoints.update_inventory')
+            ?? "/product/{$version}/products/{productId}/inventory/update");
+        $path = str_replace(['{version}', '{productId}', '{product_id}'], [$version, (string) $productId, (string) $productId], $path);
+
+        $inventory = array_filter(['warehouse_id' => $context['warehouse_id'] ?? null, 'quantity' => $available], fn ($v) => $v !== null);
+        $this->client->post($path, $auth, ['skus' => [['id' => $externalSkuId, 'inventory' => [$inventory]]]]);
     }
 
     // --- Fulfillment (Phase 3) -----------------------------------------------

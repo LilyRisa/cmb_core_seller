@@ -1,0 +1,182 @@
+import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { App as AntApp, Button, Card, Empty, Form, Input, InputNumber, Modal, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
+import { PlusOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import type { ColumnsType } from 'antd/es/table';
+import { PageHeader } from '@/components/PageHeader';
+import { MoneyText } from '@/components/MoneyText';
+import { errorMessage } from '@/lib/api';
+import { useCan } from '@/lib/tenant';
+import {
+    ChannelListing, InventoryLevel, Sku,
+    useAdjustStock, useAutoMatchSkus, useChannelListings, useCreateSku, useInventoryLevels, useRemoveSkuMapping, useSetSkuMapping, useSkus,
+} from '@/lib/inventory';
+
+function StockBadge({ available }: { available: number }) {
+    const color = available <= 0 ? 'red' : available <= 5 ? 'gold' : 'green';
+    return <Tag color={color} style={{ marginInlineEnd: 0 }}>{available}</Tag>;
+}
+
+export function InventoryPage() {
+    const [params, setParams] = useSearchParams();
+    const tab = params.get('tab') ?? 'levels';
+    const setTab = (k: string) => { const m = new URLSearchParams(); m.set('tab', k); setParams(m, { replace: true }); };
+    return (
+        <div>
+            <PageHeader title="Tồn kho" subtitle="Master SKU là nguồn sự thật về tồn — bán sàn + đơn tay trừ chung một kho; mọi thay đổi có dòng trong sổ cái" />
+            <Card styles={{ body: { padding: '8px 16px 0' } }}>
+                <Tabs activeKey={tab} onChange={setTab} items={[
+                    { key: 'levels', label: 'Tồn theo SKU' },
+                    { key: 'skus', label: 'Danh mục SKU' },
+                    { key: 'listings', label: 'Liên kết SKU (sàn)' },
+                ]} />
+            </Card>
+            <Card style={{ marginTop: 12 }} styles={{ body: { padding: 16 } }}>
+                {tab === 'levels' && <LevelsTab />}
+                {tab === 'skus' && <SkusTab />}
+                {tab === 'listings' && <ListingsTab />}
+            </Card>
+        </div>
+    );
+}
+
+function LevelsTab() {
+    const { message } = AntApp.useApp();
+    const [page, setPage] = useState(1);
+    const [lowOnly, setLowOnly] = useState(false);
+    const { data, isFetching, refetch } = useInventoryLevels({ page, per_page: 20, low_stock: lowOnly ? 5 : undefined });
+    const adjust = useAdjustStock();
+    const canAdjust = useCan('inventory.adjust');
+    const [adjustFor, setAdjustFor] = useState<InventoryLevel | null>(null);
+    const [form] = Form.useForm();
+
+    const columns: ColumnsType<InventoryLevel> = [
+        { title: 'SKU', key: 'sku', render: (_, r) => <Space direction="vertical" size={0}><Typography.Text strong>{r.sku?.sku_code ?? `#${r.sku_id}`}</Typography.Text><Typography.Text type="secondary" style={{ fontSize: 12 }}>{r.sku?.name}</Typography.Text></Space> },
+        { title: 'Kho', key: 'wh', width: 160, render: (_, r) => <>{r.warehouse?.name ?? `#${r.warehouse_id}`}{r.warehouse?.is_default && <Tag style={{ marginLeft: 6 }}>mặc định</Tag>}</> },
+        { title: 'Thực có', dataIndex: 'on_hand', key: 'on_hand', width: 90, align: 'right' },
+        { title: 'Đang giữ', dataIndex: 'reserved', key: 'reserved', width: 90, align: 'right' },
+        { title: 'An toàn', dataIndex: 'safety_stock', key: 'safety', width: 80, align: 'right' },
+        { title: 'Khả dụng', key: 'available', width: 100, align: 'right', render: (_, r) => <Space>{r.is_negative && <Tag color="error">âm</Tag>}<StockBadge available={r.available} /></Space> },
+        ...(canAdjust ? [{ title: '', key: 'a', width: 100, render: (_: unknown, r: InventoryLevel) => <Button size="small" onClick={() => { setAdjustFor(r); form.resetFields(); }}>Điều chỉnh</Button> }] : []),
+    ];
+
+    return (
+        <>
+            <Space style={{ marginBottom: 12 }}>
+                <Button size="small" type={lowOnly ? 'primary' : 'default'} onClick={() => { setLowOnly((v) => !v); setPage(1); }}>Sắp hết (≤5)</Button>
+                <Button size="small" icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching}>Làm mới</Button>
+            </Space>
+            <Table<InventoryLevel> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns}
+                locale={{ emptyText: <Empty description="Chưa có tồn kho. Thêm SKU rồi điều chỉnh tồn, hoặc đơn về sẽ tạo dòng tồn." /> }}
+                rowClassName={(r) => (r.is_negative ? 'row-has-issue' : '')}
+                pagination={{ current: data?.meta.pagination.page ?? page, pageSize: 20, total: data?.meta.pagination.total ?? 0, onChange: setPage, showTotal: (t) => `${t} dòng` }} />
+
+            <Modal title={`Điều chỉnh tồn — ${adjustFor?.sku?.sku_code}`} open={!!adjustFor} onCancel={() => setAdjustFor(null)} okText="Lưu"
+                confirmLoading={adjust.isPending}
+                onOk={() => form.validateFields().then((v) => adjust.mutate({ sku_id: adjustFor!.sku_id, warehouse_id: adjustFor!.warehouse_id, qty_change: v.qty_change, note: v.note },
+                    { onSuccess: () => { message.success('Đã điều chỉnh tồn'); setAdjustFor(null); }, onError: (e) => message.error(errorMessage(e)) }))}>
+                <Form form={form} layout="vertical">
+                    <Form.Item name="qty_change" label="Thay đổi (+ nhập / − xuất)" rules={[{ required: true }, { validator: (_, v) => (v === 0 ? Promise.reject('Khác 0') : Promise.resolve()) }]}>
+                        <InputNumber style={{ width: '100%' }} />
+                    </Form.Item>
+                    <Form.Item name="note" label="Ghi chú"><Input maxLength={255} /></Form.Item>
+                </Form>
+            </Modal>
+        </>
+    );
+}
+
+function SkusTab() {
+    const { message } = AntApp.useApp();
+    const [q, setQ] = useState('');
+    const [page, setPage] = useState(1);
+    const { data, isFetching } = useSkus({ q: q || undefined, page, per_page: 20 });
+    const create = useCreateSku();
+    const canManage = useCan('products.manage');
+    const [open, setOpen] = useState(false);
+    const [form] = Form.useForm();
+
+    const columns: ColumnsType<Sku> = [
+        { title: 'Mã SKU', dataIndex: 'sku_code', key: 'code', render: (v) => <Typography.Text strong>{v}</Typography.Text> },
+        { title: 'Tên', dataIndex: 'name', key: 'name' },
+        { title: 'Barcode', dataIndex: 'barcode', key: 'barcode', width: 140, render: (v) => v ?? '—' },
+        { title: 'Giá vốn', dataIndex: 'cost_price', key: 'cost', width: 110, align: 'right', render: (v) => <MoneyText value={v} /> },
+        { title: 'Thực có', dataIndex: 'on_hand_total', key: 'oh', width: 90, align: 'right', render: (v) => v ?? 0 },
+        { title: 'Khả dụng', dataIndex: 'available_total', key: 'av', width: 100, align: 'right', render: (v) => <StockBadge available={v ?? 0} /> },
+    ];
+
+    return (
+        <>
+            <Space style={{ marginBottom: 12 }}>
+                <Input.Search allowClear placeholder="Mã / tên / barcode" prefix={<SearchOutlined />} style={{ width: 280 }} onSearch={(v) => { setQ(v); setPage(1); }} />
+                {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setOpen(true); }}>Thêm SKU</Button>}
+            </Space>
+            <Table<Sku> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns}
+                locale={{ emptyText: <Empty description="Chưa có SKU." /> }}
+                pagination={{ current: data?.meta.pagination.page ?? page, pageSize: 20, total: data?.meta.pagination.total ?? 0, onChange: setPage, showTotal: (t) => `${t} SKU` }} />
+
+            <Modal title="Thêm SKU" open={open} onCancel={() => setOpen(false)} okText="Tạo" confirmLoading={create.isPending}
+                onOk={() => form.validateFields().then((v) => create.mutate(v, { onSuccess: () => { message.success('Đã tạo SKU'); setOpen(false); }, onError: (e) => message.error(errorMessage(e)) }))}>
+                <Form form={form} layout="vertical">
+                    <Form.Item name="sku_code" label="Mã SKU" rules={[{ required: true, max: 100 }]}><Input /></Form.Item>
+                    <Form.Item name="name" label="Tên" rules={[{ required: true, max: 255 }]}><Input /></Form.Item>
+                    <Form.Item name="barcode" label="Barcode"><Input maxLength={100} /></Form.Item>
+                    <Form.Item name="cost_price" label="Giá vốn (₫)"><InputNumber style={{ width: '100%' }} min={0} /></Form.Item>
+                </Form>
+            </Modal>
+        </>
+    );
+}
+
+function ListingsTab() {
+    const { message } = AntApp.useApp();
+    const [page, setPage] = useState(1);
+    const [mappedFilter, setMappedFilter] = useState<'' | '0' | '1'>('');
+    const { data, isFetching, refetch } = useChannelListings({ page, per_page: 20, mapped: mappedFilter === '' ? undefined : (Number(mappedFilter) as 0 | 1) });
+    const autoMatch = useAutoMatchSkus();
+    const setMapping = useSetSkuMapping();
+    const removeMapping = useRemoveSkuMapping();
+    const canMap = useCan('inventory.map');
+    const [mapFor, setMapFor] = useState<ChannelListing | null>(null);
+    const skuQuery = useSkus({ q: undefined, per_page: 50 });
+    const [form] = Form.useForm();
+
+    const columns: ColumnsType<ChannelListing> = [
+        { title: 'Listing', key: 'listing', render: (_, r) => <Space direction="vertical" size={0}><Typography.Text strong>{r.title ?? r.external_sku_id}</Typography.Text><Typography.Text type="secondary" style={{ fontSize: 12 }}>seller_sku: {r.seller_sku ?? '—'} {r.variation ? `· ${r.variation}` : ''}</Typography.Text></Space> },
+        { title: 'Tồn sàn', dataIndex: 'channel_stock', key: 'cs', width: 90, align: 'right', render: (v) => v ?? '—' },
+        { title: 'Đẩy tồn', dataIndex: 'sync_status', key: 'ss', width: 110, render: (v, r) => <Space size={4}><Tag color={v === 'ok' ? 'green' : v === 'error' ? 'red' : 'default'}>{v}</Tag>{r.is_stock_locked && <Tag>ghim</Tag>}</Space> },
+        { title: 'Ghép SKU', key: 'mapped', render: (_, r) => r.is_mapped ? <Space size={4} wrap>{(r.mappings ?? []).map((m) => <Tag key={m.id} color="blue">{m.sku?.sku_code ?? `#${m.sku_id}`}{m.quantity > 1 ? ` ×${m.quantity}` : ''}</Tag>)}</Space> : <Tag color="warning">Chưa ghép</Tag> },
+        ...(canMap ? [{ title: '', key: 'a', width: 90, render: (_: unknown, r: ChannelListing) => <Button size="small" onClick={() => { setMapFor(r); form.setFieldsValue({ sku_id: r.mappings?.[0]?.sku_id, quantity: r.mappings?.[0]?.quantity ?? 1 }); }}>Ghép</Button> }] : []),
+    ];
+
+    return (
+        <>
+            <Space style={{ marginBottom: 12 }} wrap>
+                <Select value={mappedFilter} style={{ width: 170 }} onChange={(v) => { setMappedFilter(v); setPage(1); }} options={[{ value: '', label: 'Tất cả listing' }, { value: '0', label: 'Chưa ghép' }, { value: '1', label: 'Đã ghép' }]} />
+                {canMap && <Button icon={<ThunderboltOutlined />} loading={autoMatch.isPending} onClick={() => autoMatch.mutate(undefined, { onSuccess: (r) => message.success(`Đã tự ghép ${r.matched} listing`), onError: (e) => message.error(errorMessage(e)) })}>Tự ghép theo mã</Button>}
+                <Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching}>Làm mới</Button>
+            </Space>
+            <Table<ChannelListing> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns}
+                locale={{ emptyText: <Empty description="Chưa có listing nào. (Đồng bộ listing từ sàn — sắp có.)" /> }}
+                pagination={{ current: data?.meta.pagination.page ?? page, pageSize: 20, total: data?.meta.pagination.total ?? 0, onChange: setPage, showTotal: (t) => `${t} listing` }} />
+
+            <Modal title={`Ghép SKU — ${mapFor?.title ?? mapFor?.external_sku_id ?? ''}`} open={!!mapFor} onCancel={() => setMapFor(null)} okText="Lưu" confirmLoading={setMapping.isPending}
+                onOk={() => form.validateFields().then((v) => setMapping.mutate({ channel_listing_id: mapFor!.id, type: 'single', lines: [{ sku_id: v.sku_id, quantity: v.quantity ?? 1 }] },
+                    { onSuccess: () => { message.success('Đã ghép SKU'); setMapFor(null); }, onError: (e) => message.error(errorMessage(e)) }))}>
+                <Typography.Paragraph type="secondary">Ghép listing với một master SKU (combo nhiều thành phần — sắp có ở UI; hiện dùng API).</Typography.Paragraph>
+                <Form form={form} layout="vertical">
+                    <Form.Item name="sku_id" label="Master SKU" rules={[{ required: true }]}>
+                        <Select showSearch optionFilterProp="label" placeholder="Chọn SKU"
+                            options={(skuQuery.data?.data ?? []).map((s) => ({ value: s.id, label: `${s.sku_code} · ${s.name}` }))} />
+                    </Form.Item>
+                    <Form.Item name="quantity" label="Số lượng / 1 listing"><InputNumber min={1} style={{ width: '100%' }} /></Form.Item>
+                </Form>
+                {(mapFor?.mappings ?? []).length > 0 && (
+                    <Space wrap style={{ marginTop: 8 }}>
+                        {(mapFor?.mappings ?? []).map((m) => <Tag key={m.id} closable color="blue" onClose={(e) => { e.preventDefault(); removeMapping.mutate(m.id, { onSuccess: () => message.success('Đã bỏ ghép') }); }}>{m.sku?.sku_code ?? `#${m.sku_id}`}</Tag>)}
+                    </Space>
+                )}
+            </Modal>
+        </>
+    );
+}

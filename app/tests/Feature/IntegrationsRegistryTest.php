@@ -37,7 +37,8 @@ class IntegrationsRegistryTest extends TestCase
         $this->assertSame('TikTok Shop', $registry->for('tiktok')->displayName());
         $this->assertTrue($registry->for('tiktok')->supports('orders.fetch'));
         $this->assertTrue($registry->for('tiktok')->supports('orders.webhook'));
-        $this->assertFalse($registry->for('tiktok')->supports('listings.updateStock')); // Phase 2
+        $this->assertTrue($registry->for('tiktok')->supports('listings.updateStock'));   // Phase 2 (SPEC 0003)
+        $this->assertFalse($registry->for('tiktok')->supports('listings.publish'));       // Phase 5
 
         // Shopee/Lazada land in Phase 4 — not registered yet.
         $this->assertFalse($registry->has('shopee'));

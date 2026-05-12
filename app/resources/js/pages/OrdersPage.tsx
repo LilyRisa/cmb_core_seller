@@ -96,7 +96,7 @@ export function OrdersPage() {
             <PageHeader
                 title="Đơn hàng"
                 subtitle="Đơn từ mọi sàn — đồng bộ tự động qua webhook + polling"
-                extra={<Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching}>Làm mới</Button>}
+                extra={<Space><Link to="/orders/new"><Button type="primary">Tạo đơn</Button></Link><Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching}>Làm mới</Button></Space>}
             />
 
             <Card styles={{ body: { padding: '8px 16px 0' } }}>

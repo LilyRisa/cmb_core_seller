@@ -98,7 +98,7 @@ class ManualConnector implements ChannelConnector
         return StandardOrderStatus::from($rawStatus);
     }
 
-    public function updateStock(AuthContext $auth, string $externalSkuId, int $available): void
+    public function updateStock(AuthContext $auth, string $externalSkuId, int $available, array $context = []): void
     {
         // no-op: there is no external listing for manual orders.
     }

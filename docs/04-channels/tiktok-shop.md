@@ -41,7 +41,7 @@
 | Lấy thông tin shop | `authorization` / `seller` (authorizationVxxxx / sellerVxxxx) | `ShopInfoDTO` |
 | Listing/sản phẩm | `product/search`, `product/detail` (productVxxxxApi) | `Page<ListingDTO>` |
 | Danh mục & thuộc tính | `product/categories`, `product/attributes` | (mass listing — Phase 5) |
-| Cập nhật tồn | `product/stock/update` (productVxxxxApi) | — |
+| Cập nhật tồn | `product/{version}/products/{product_id}/inventory/update` (productVxxxxApi) — **đã implement Phase 2** trong `TikTokConnector::updateStock` (signed POST, body `{skus:[{id,inventory:[{warehouse_id?,quantity}]}]}`; path config-able qua `integrations.tiktok.endpoints.update_inventory`). ⚠️ **Shape/endpoint cần xác nhận với Partner API/sandbox thật.** Capability `listings.updateStock=true`. | — |
 | Cập nhật giá | `product/price/update` | — |
 | Sắp xếp vận chuyển / package | `fulfillment` (fulfillmentVxxxxApi) — get package, ship package, get shipping document | `ShipmentDTO`, `BinaryFile` (label) |
 | Logistics (ĐVVC sàn gán, tracking) | `logistics` (logisticsVxxxxApi) | `TrackingDTO` |

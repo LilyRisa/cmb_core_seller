@@ -54,8 +54,32 @@
 | GET | `/api/v1/orders` | sanctum + tenant (`orders.view`) | query: `status` (csv mã chuẩn), `source` (csv), `channel_account_id`, `q` (mã đơn / tên người mua), `placed_from` / `placed_to` (YYYY-MM-DD), `has_issue` (1), `tag`, `sort` (`-placed_at`\|`placed_at`\|`-grand_total`\|`grand_total`), `page`, `per_page` (≤100), `include=items` | `{ data:[OrderResource], meta:{ pagination:{page,per_page,total,total_pages} } }`. `OrderResource`: `status` (mã chuẩn) + `status_label` + `raw_status`, tiền là số nguyên VND đồng + `currency`, `items_count`, `has_issue`/`issue_reason`, `tags`, `note`, `packages`, các mốc thời gian ISO-8601. |
 | GET | `/api/v1/orders/{id}` | sanctum + tenant (`orders.view`) | — | `{ data: OrderResource kèm `items[]` & `status_history[]` }`. `404` nếu không thuộc tenant. |
 | GET | `/api/v1/orders/stats` | sanctum + tenant (`orders.view`) | cùng filter như `/orders` (trừ `status`/`page`) | `{ data:{ total, has_issue, by_status:{ <mã>: số lượng } } }` — dùng cho badge ở status tabs. |
+| POST | `/api/v1/orders` | sanctum + tenant (`orders.create`) | `{ sub_source?, status?: pending\|processing, buyer:{name?,phone?,address?,ward?,district?,province?}, items:[{sku_id, name?, variation?, quantity?, unit_price?, discount?}], shipping_fee?, tax?, is_cod?, cod_amount?, note?, tags? }` | `201 { data: OrderResource }` — tạo đơn `source=manual`, `order_number` tự sinh, reserve tồn ngay (qua `OrderUpserted`), khớp sổ khách hàng nếu có SĐT. (Phase 2 / SPEC 0003.) |
+| PATCH | `/api/v1/orders/{id}` | sanctum + tenant (`orders.update`) | `{ buyer?, shipping_fee?, tax?, is_cod?, cod_amount?, note?, tags? }` | `{ data: OrderResource }` — chỉ đơn `manual` chưa `shipped` (sửa line-item: backlog). `422` nếu đã bàn giao. |
+| POST | `/api/v1/orders/{id}/cancel` | sanctum + tenant (`orders.update`) | `{ reason? }` | `{ data: OrderResource (cancelled) }` — chỉ đơn `manual` chưa `shipped`; release tồn. `422` nếu đã bàn giao. |
 | POST | `/api/v1/orders/{id}/tags` | sanctum + tenant (`orders.update`) | `{ add?:string[], remove?:string[] }` | `{ data: OrderResource }`. |
-| PATCH | `/api/v1/orders/{id}/note` | sanctum + tenant (`orders.update`) | `{ note: string\|null }` | `{ data: OrderResource }`. *(Đổi trạng thái "lõi" của đơn sàn: chặn ở Phase 1 — chỉ tag/note.)* |
+| PATCH | `/api/v1/orders/{id}/note` | sanctum + tenant (`orders.update`) | `{ note: string\|null }` | `{ data: OrderResource }`. *(Đổi trạng thái "lõi" của đơn sàn: chặn — chỉ tag/note; đơn manual đi state machine qua các action riêng — Phase 3.)* |
+
+## Sản phẩm / SKU / Tồn kho / Ghép SKU (Phase 2 — SPEC 0003)
+
+| Method | Path | Auth | Request | Response |
+|---|---|---|---|---|
+| GET/POST | `/api/v1/products` | `products.view` / `products.manage` | `q?` / `{name, image?, brand?, category?, meta?}` | `ProductResource[]` (+`skus_count`) / `201`. |
+| GET/PATCH/DELETE | `/api/v1/products/{id}` | `products.view` / `products.manage` | — / partial | `ProductResource` / soft delete. |
+| GET | `/api/v1/skus` | `inventory.view` | `q?` (code/name/barcode), `product_id?`, `is_active?`, `low_stock?` (≤N), `page`, `per_page≤100` | `{ data:[SkuResource{...,on_hand_total,reserved_total,available_total}], meta:{pagination} }`. |
+| POST | `/api/v1/skus` | `products.manage` | `{ sku_code, name, product_id?, barcode?, cost_price?, attributes? }` | `201` (mã trùng/tenant ⇒ `422 SKU_CODE_TAKEN`). |
+| GET | `/api/v1/skus/{id}` | `inventory.view` | — | `SkuResource` + `levels[]` (theo kho) + `mappings[]` + `movements[]` (50 gần nhất). |
+| PATCH/DELETE | `/api/v1/skus/{id}` | `products.manage` | partial / — | `SkuResource` / soft delete (`409` nếu còn `on_hand`/`reserved`). |
+| GET/POST | `/api/v1/warehouses` | `inventory.view` / `inventory.adjust` | — / `{name, code?, address?, is_default?}` | `WarehouseResource[]` (tự đảm bảo có 1 kho mặc định) / `201`. |
+| PATCH | `/api/v1/warehouses/{id}` | `inventory.adjust` | partial | `WarehouseResource`. |
+| GET | `/api/v1/inventory/levels` | `inventory.view` | `sku_id?`, `warehouse_id?`, `negative?` (1), `low_stock?` (≤N), `page` | `{ data:[InventoryLevelResource{on_hand,reserved,safety_stock,available,is_negative,sku,warehouse}], meta }`. |
+| POST | `/api/v1/inventory/adjust` | `inventory.adjust` | `{ sku_id, warehouse_id?, qty_change (≠0), note? }` | `201 { data: InventoryMovementResource{qty_change,type,balance_after,...} }` — `on_hand += qty_change`, ghi sổ cái, phát `InventoryChanged` ⇒ đẩy tồn. |
+| GET | `/api/v1/inventory/movements` | `inventory.view` | `sku_id?`, `warehouse_id?`, `type?` (csv), `ref_type?`+`ref_id?`, `page` | `{ data:[InventoryMovementResource], meta }`. |
+| GET | `/api/v1/channel-listings` | `products.view` | `channel_account_id?`, `sync_status?`, `mapped?` (0\|1), `q?`, `page` | `{ data:[ChannelListingResource{...,channel_stock,sync_status,is_stock_locked,is_mapped,mappings[]}], meta }`. |
+| PATCH | `/api/v1/channel-listings/{id}` | `inventory.map` | `{ is_stock_locked? }` | `ChannelListingResource` — ghim/bỏ ghim tự-đẩy tồn. |
+| POST | `/api/v1/sku-mappings` | `inventory.map` | `{ channel_listing_id, type?: single\|bundle, lines:[{sku_id, quantity?}] }` | `201 { data: SkuMappingResource[] }` — thay thế mapping của listing; `single` ⇒ đúng 1 line (ngược lại `422`); SKU không thuộc tenant ⇒ `422`. Phát `InventoryChanged` ⇒ tính lại & đẩy tồn. |
+| POST | `/api/v1/sku-mappings/auto-match` | `inventory.map` | — | `{ data:{ matched: N } }` — tạo `single×1` cho mọi listing chưa ghép có `seller_sku` (chuẩn hoá) trùng `sku_code`. |
+| DELETE | `/api/v1/sku-mappings/{id}` | `inventory.map` | — | `{ data:{ deleted:true } }` + đẩy tồn lại. |
 
 ## Dashboard
 
@@ -85,4 +109,4 @@ Xem [`webhooks-and-oauth.md`](webhooks-and-oauth.md). `POST /webhook/tiktok` →
 
 ## Sắp có (theo roadmap)
 
-`/api/v1/products`, `/api/v1/skus`, `/api/v1/sku-mappings` (Phase 2) · `/api/v1/orders` tạo đơn tay + `/{id}/status` + `/bulk` (Phase 2) · `/api/v1/print-jobs`, `/api/v1/shipments` (Phase 3) · `/api/v1/jobs/{id}` … — thêm vào đây khi xây.
+`/api/v1/orders/{id}/status` + `/bulk` (Phase 3 — đơn manual đi state machine) · `/api/v1/channel-accounts/{id}/resync-listings` + TikTok `fetchListings` (Phase 2 cuối) · `/api/v1/print-jobs`, `/api/v1/shipments` (Phase 3) · `/api/v1/stock-transfers`, `/api/v1/stock-takes`, `/api/v1/goods-receipts` (Phase 5 — WMS) · `/api/v1/jobs/{id}` … — thêm vào đây khi xây.
