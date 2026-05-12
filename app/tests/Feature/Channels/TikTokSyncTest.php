@@ -122,6 +122,37 @@ class TikTokSyncTest extends TestCase
         $this->assertSame(1, $order->fresh()->items()->count());
     }
 
+    public function test_webhook_applies_status_from_payload_when_refetch_fails(): void
+    {
+        // Existing order, last synced a while ago.
+        $order = Order::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $this->tenant->getKey(), 'source' => 'tiktok', 'channel_account_id' => $this->account->getKey(),
+            'external_order_id' => F::ORDER_ID, 'order_number' => F::ORDER_ID, 'status' => StandardOrderStatus::Processing, 'raw_status' => 'AWAITING_SHIPMENT',
+            'shipping_address' => [], 'currency' => 'VND', 'grand_total' => 100000, 'item_total' => 100000, 'placed_at' => now()->subDay(),
+            'has_issue' => false, 'tags' => [], 'source_updated_at' => now()->subHour(),
+        ]);
+        // Re-fetch fails (TikTok returns a non-zero code), but the push carried the new status.
+        Http::fake(['*/order/202309/orders?*' => Http::response(['code' => 5000, 'message' => 'temporary error', 'data' => [], 'request_id' => 'r'], 200)]);
+
+        $event = WebhookEvent::create([
+            'provider' => 'tiktok', 'event_type' => 'order_status_update', 'external_id' => F::ORDER_ID, 'external_shop_id' => F::SHOP_ID,
+            'order_raw_status' => 'AWAITING_COLLECTION', 'signature_ok' => true,
+            'payload' => ['type' => 1, 'shop_id' => F::SHOP_ID, 'data' => ['order_id' => F::ORDER_ID, 'order_status' => 'AWAITING_COLLECTION', 'update_time' => now()->timestamp]],
+            'received_at' => now(),
+        ]);
+
+        $this->processWebhook($event);
+
+        $order->refresh();
+        $this->assertSame(StandardOrderStatus::ReadyToShip, $order->status);   // applied from the webhook payload
+        $this->assertSame('AWAITING_COLLECTION', $order->raw_status);
+        $this->assertSame(1, $order->statusHistory()->count());
+        $this->assertSame('webhook', $order->statusHistory()->first()->source);
+        // source_updated_at NOT bumped, so a later full re-fetch can still enrich it.
+        $this->assertTrue($order->source_updated_at->lt(now()->subMinutes(30)));
+        $this->assertSame('processed', $event->fresh()->status);
+    }
+
     public function test_status_change_records_a_new_history_row(): void
     {
         Http::fake(['*/order/202309/orders?*' => Http::sequence()

@@ -18,6 +18,8 @@ class ChannelAccountResource extends JsonResource
             'provider' => $this->provider,
             'external_shop_id' => $this->external_shop_id,
             'shop_name' => $this->shop_name,
+            'display_name' => $this->display_name,
+            'name' => $this->effectiveName(),
             'shop_region' => $this->shop_region,
             'seller_type' => $this->seller_type,
             'status' => $this->status,

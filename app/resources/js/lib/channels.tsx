@@ -8,6 +8,8 @@ export interface ChannelAccount {
     provider: string;
     external_shop_id: string;
     shop_name: string | null;
+    display_name: string | null;
+    name: string;            // display_name || shop_name || external_shop_id
     shop_region: string | null;
     seller_type: string | null;
     status: string;
@@ -67,5 +69,15 @@ export function useResyncChannel() {
     const api = useScopedApi();
     return useMutation({
         mutationFn: async (id: number) => { await api!.post(`/channel-accounts/${id}/resync`); },
+    });
+}
+
+export function useRenameChannel() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    const tenantId = useCurrentTenantId();
+    return useMutation({
+        mutationFn: async (vars: { id: number; display_name: string | null }) => { await api!.patch(`/channel-accounts/${vars.id}`, { display_name: vars.display_name }); },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['channel-accounts', tenantId] }),
     });
 }

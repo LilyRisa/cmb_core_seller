@@ -44,6 +44,69 @@ class OrderUpsertService implements OrderUpsertContract
         return $this->doUpsert($dto, $tenantId, $channelAccountId, $historySource, $status);
     }
 
+    /**
+     * Apply *only* a status change to an order that already exists — used when a
+     * webhook carries the new order status but re-fetching the full detail is
+     * unavailable (sandbox / transient API error). Does NOT bump `source_updated_at`,
+     * so a later full re-fetch can still enrich the order. Returns null if the
+     * order isn't in our DB yet (caller must re-fetch the detail to create it).
+     * See docs/03-domain/order-sync-pipeline.md §2, docs/03-domain/order-status-state-machine.md.
+     */
+    public function applyStatusFromWebhook(int $tenantId, ?int $channelAccountId, string $source, string $externalOrderId, StandardOrderStatus $status, string $rawStatus, string $historySource = 'webhook'): ?Order
+    {
+        [$order, $changed, $from] = DB::transaction(function () use ($tenantId, $channelAccountId, $source, $externalOrderId, $status, $rawStatus, $historySource) {
+            /** @var Order|null $order */
+            $order = Order::withoutGlobalScope(TenantScope::class)
+                ->where('source', $source)->where('channel_account_id', $channelAccountId)->where('external_order_id', $externalOrderId)
+                ->lockForUpdate()->first();
+            if ($order === null) {
+                return [null, false, null];
+            }
+            $previous = $order->status;
+            if ($previous === $status) {
+                $order->forceFill(['raw_status' => $rawStatus, 'last_synced_at' => now()])->save();
+
+                return [$order, false, $previous];
+            }
+
+            $fill = ['status' => $status, 'raw_status' => $rawStatus, 'last_synced_at' => now()];
+            // Stamp the lifecycle timestamp the first time we see this status (the full re-fetch refines it).
+            $stamp = match ($status) {
+                StandardOrderStatus::Shipped => 'shipped_at',
+                StandardOrderStatus::Delivered => 'delivered_at',
+                StandardOrderStatus::Completed => 'completed_at',
+                StandardOrderStatus::Cancelled => 'cancelled_at',
+                default => null,
+            };
+            if ($stamp !== null && $order->getAttribute($stamp) === null) {
+                $fill[$stamp] = now();
+            }
+            if ($this->stateMachine->isAbnormalBackwardJump($previous, $status)) {
+                $fill['has_issue'] = true;
+                $fill['issue_reason'] = "Sàn báo lùi trạng thái bất thường: {$previous->value} → {$status->value}";
+            }
+            $order->forceFill($fill)->save();
+
+            OrderStatusHistory::withoutGlobalScope(TenantScope::class)->create([
+                'tenant_id' => $tenantId, 'order_id' => $order->getKey(),
+                'from_status' => $previous->value, 'to_status' => $status->value, 'raw_status' => $rawStatus,
+                'source' => $historySource, 'changed_at' => now(), 'payload' => ['raw_status' => $rawStatus, 'via' => 'webhook_payload'], 'created_at' => now(),
+            ]);
+
+            return [$order, true, $previous];
+        });
+
+        if ($order === null) {
+            return null;
+        }
+        OrderUpserted::dispatch($order, false);
+        if ($changed) {
+            OrderStatusChanged::dispatch($order, $from, $status, $historySource);
+        }
+
+        return $order;
+    }
+
     private function doUpsert(OrderDTO $dto, int $tenantId, ?int $channelAccountId, string $historySource, StandardOrderStatus $status): Order
     {
         [$order, $created, $statusChanged, $from] = DB::transaction(function () use ($dto, $tenantId, $channelAccountId, $historySource, $status) {
@@ -92,6 +155,7 @@ class OrderUpsertService implements OrderUpsertContract
                 'grand_total' => $dto->grandTotal,
                 'is_cod' => $dto->isCod,
                 'fulfillment_type' => $dto->fulfillmentType ?? null,
+                'carrier' => $this->primaryCarrier($dto->packages),
                 'placed_at' => $dto->placedAt,
                 'paid_at' => $dto->paidAt,
                 'shipped_at' => $dto->shippedAt,
@@ -180,5 +244,22 @@ class OrderUpsertService implements OrderUpsertContract
         }
 
         return StandardOrderStatus::tryFrom($dto->rawStatus) ?? StandardOrderStatus::Pending;
+    }
+
+    /**
+     * Denormalized "primary carrier" for the orders list filter — the first package's carrier.
+     *
+     * @param  array<int,mixed>|null  $packages
+     */
+    private function primaryCarrier(?array $packages): ?string
+    {
+        foreach ($packages ?? [] as $p) {
+            $c = is_array($p) ? trim((string) ($p['carrier'] ?? '')) : '';
+            if ($c !== '') {
+                return $c;
+            }
+        }
+
+        return null;
     }
 }

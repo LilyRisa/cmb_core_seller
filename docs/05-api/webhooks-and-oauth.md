@@ -15,8 +15,8 @@
   4. `dispatch(ProcessWebhookEvent::class)` lên queue `webhooks`.
   5. Trả `200 OK` (body trống hoặc `{"ok":true}`).
 - **Không** gọi API sàn / DB ghi nặng trong request webhook. Mọi việc thật ⇒ trong job.
-- `ProcessWebhookEvent`: resolve tenant (qua shop id → `channel_account`) → `connector.parseWebhook()` → theo `type`:
-  - `order_*` ⇒ `fetchOrderDetail` → `OrderUpsertService.upsert` (xem `03-domain/order-sync-pipeline.md`).
+- `ProcessWebhookEvent`: resolve tenant (qua shop id → `channel_account`) → theo `type`:
+  - `order_*` ⇒ (1) **fast-path** — nếu push mang theo trạng thái đơn (`webhook_events.order_raw_status`, do `parseWebhook` trích từ `data.order_status`) và đơn đã có trong DB ⇒ `OrderUpsertService.applyStatusFromWebhook` cập nhật ngay trạng thái (không bump `source_updated_at`); (2) `fetchOrderDetail` → `OrderUpsertService.upsert` để làm giàu (tạo đơn nếu chưa có) — nếu re-fetch lỗi mà fast-path đã áp ⇒ log & dừng (polling sẽ bù phần còn lại). Xem `03-domain/order-sync-pipeline.md`.
   - `return_update` ⇒ cập nhật `return_requests` + trạng thái đơn.
   - `settlement_available` ⇒ enqueue `FetchSettlements` (Phase 6).
   - `product_update` ⇒ enqueue refresh listing.
@@ -44,4 +44,4 @@
 2. OAuth: dùng `state` chống CSRF; resolve tenant từ `oauth_states` chứ không từ session ở callback.
 3. Một controller chung cho mọi sàn — khác biệt nằm trong connector (verifier, buildAuthorizationUrl, exchangeCodeForToken, parseWebhook).
 4. Mọi token lưu mã hoá; không log token/secret.
-5. Không bao giờ tin payload webhook làm dữ liệu cuối — luôn `fetchOrderDetail` để lấy bản chuẩn.
+5. Payload webhook không phải dữ liệu cuối — `fetchOrderDetail` để lấy bản chuẩn (items/địa chỉ/phí…). Ngoại lệ được phép: trạng thái đơn trong push có thể áp ngay vào đơn **đã tồn tại** (`applyStatusFromWebhook`, không bump `source_updated_at`) để webhook vẫn "chạy" khi API tạm lỗi; lần re-fetch sau vẫn ghi đè/làm giàu.

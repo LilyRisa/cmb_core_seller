@@ -67,6 +67,17 @@ class ChannelAccountController extends Controller
         return response()->json(['data' => new ChannelAccountResource($account->refresh())]);
     }
 
+    /** PATCH /api/v1/channel-accounts/{id} — set a display alias (two shops can share the same shop_name). */
+    public function update(Request $request, int $id): JsonResponse
+    {
+        $this->authorizeManage($request);
+        $account = ChannelAccount::query()->findOrFail($id);
+        $data = $request->validate(['display_name' => ['present', 'nullable', 'string', 'max:120']]);
+        $account->forceFill(['display_name' => ($data['display_name'] ?? null) ?: null])->save();
+
+        return response()->json(['data' => new ChannelAccountResource($account)]);
+    }
+
     /** POST /api/v1/channel-accounts/{id}/resync */
     public function resync(Request $request, int $id): JsonResponse
     {

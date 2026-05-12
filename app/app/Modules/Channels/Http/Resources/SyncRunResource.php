@@ -21,7 +21,7 @@ class SyncRunResource extends JsonResource
         return [
             'id' => $this->id,
             'channel_account_id' => $this->channel_account_id,
-            'shop_name' => $account ? ($account->shop_name ?? $account->external_shop_id) : null,
+            'shop_name' => $account?->effectiveName(),
             'provider' => $account?->provider,
             'type' => $this->type,
             'status' => $this->status,

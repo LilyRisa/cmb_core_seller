@@ -4,6 +4,9 @@ namespace CMBcoreSeller\Modules\Orders\Http\Controllers;
 
 use Carbon\CarbonImmutable;
 use CMBcoreSeller\Http\Controllers\Controller;
+use CMBcoreSeller\Modules\Channels\Jobs\SyncOrdersForShop;
+use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Channels\Models\SyncRun;
 use CMBcoreSeller\Modules\Orders\Http\Resources\OrderResource;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Orders\Services\ManualOrderService;
@@ -40,9 +43,9 @@ class OrderController extends Controller
         $query->orderBy($field, $dir)->orderByDesc('id');
 
         if (in_array('items', explode(',', (string) $request->query('include', '')), true)) {
-            $query->with('items');
+            $query->with(['items', 'channelAccount']);
         } else {
-            $query->withCount('items');
+            $query->withCount('items')->with('channelAccount');
         }
 
         $perPage = min(100, max(1, (int) $request->query('per_page', 20)));
@@ -145,11 +148,28 @@ class OrderController extends Controller
             $byStatus[$s->value] = (int) ($counts[$s->value] ?? 0);
         }
 
+        $byCarrier = (clone $base)->whereNotNull('carrier')->selectRaw('carrier, count(*) as c')->groupBy('carrier')->orderByDesc('c')
+            ->pluck('c', 'carrier')->map(fn ($count, $carrier) => ['carrier' => (string) $carrier, 'count' => (int) $count])->values()->all();
+
         return response()->json(['data' => [
             'total' => (clone $base)->count(),
             'has_issue' => (clone $base)->where('has_issue', true)->count(),
             'by_status' => $byStatus,
+            'by_carrier' => $byCarrier,
         ]]);
+    }
+
+    /** POST /api/v1/orders/sync — dispatch an order sync for every active connected shop of the tenant. */
+    public function sync(Request $request): JsonResponse
+    {
+        $this->authorizeView($request);
+        $n = 0;
+        ChannelAccount::query()->active()->orderBy('id')->each(function (ChannelAccount $a) use (&$n) {
+            SyncOrdersForShop::dispatch((int) $a->getKey(), null, SyncRun::TYPE_POLL);
+            $n++;
+        });
+
+        return response()->json(['data' => ['queued' => $n]]);
     }
 
     /** POST /api/v1/orders/{id}/tags  { add?: string[], remove?: string[] } */
@@ -199,11 +219,20 @@ class OrderController extends Controller
         if ($cid = $request->query('channel_account_id')) {
             $query->where('channel_account_id', (int) $cid);
         }
+        if ($carrier = $request->query('carrier')) {
+            $query->whereIn('carrier', array_map('trim', explode(',', (string) $carrier)));
+        }
         if ($request->boolean('has_issue', false)) {
             $query->where('has_issue', true);
         }
         if ($q = trim((string) $request->query('q', ''))) {
             $query->search($q);
+        }
+        if ($sku = trim((string) $request->query('sku', ''))) {
+            $query->whereHas('items', fn (Builder $i) => $i->where('seller_sku', 'like', "%{$sku}%"));
+        }
+        if ($product = trim((string) $request->query('product', ''))) {
+            $query->whereHas('items', fn (Builder $i) => $i->where('name', 'like', "%{$product}%"));
         }
         if ($from = $request->query('placed_from')) {
             $query->where('placed_at', '>=', CarbonImmutable::parse($from)->startOfDay());

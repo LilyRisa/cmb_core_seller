@@ -18,6 +18,7 @@ use Illuminate\Support\Carbon;
  * @property string $provider
  * @property string $external_shop_id
  * @property string|null $shop_name
+ * @property string|null $display_name
  * @property string|null $shop_region
  * @property string|null $seller_type
  * @property string $status
@@ -46,12 +47,18 @@ class ChannelAccount extends Model
     public const STATUS_DISABLED = 'disabled';   // paused by the user
 
     protected $fillable = [
-        'tenant_id', 'provider', 'external_shop_id', 'shop_name', 'shop_region', 'seller_type',
+        'tenant_id', 'provider', 'external_shop_id', 'shop_name', 'display_name', 'shop_region', 'seller_type',
         'status', 'access_token', 'refresh_token', 'token_expires_at', 'refresh_token_expires_at',
         'last_synced_at', 'last_webhook_at', 'meta', 'created_by',
     ];
 
     protected $hidden = ['access_token', 'refresh_token'];
+
+    /** What the UI should show — the seller's alias if set, else the marketplace shop name. */
+    public function effectiveName(): string
+    {
+        return $this->display_name ?: ($this->shop_name ?: $this->external_shop_id);
+    }
 
     protected function casts(): array
     {

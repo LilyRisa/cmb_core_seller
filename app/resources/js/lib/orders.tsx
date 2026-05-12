@@ -33,6 +33,8 @@ export interface Order {
     id: number;
     source: string;
     channel_account_id: number | null;
+    channel_account?: { id: number; name: string; provider: string } | null;
+    carrier?: string | null;
     external_order_id: string | null;
     order_number: string | null;
     status: string;
@@ -75,6 +77,9 @@ export interface OrderFilters {
     status?: string;
     source?: string;
     channel_account_id?: number;
+    carrier?: string;
+    sku?: string;
+    product?: string;
     q?: string;
     placed_from?: string;
     placed_to?: string;
@@ -83,6 +88,8 @@ export interface OrderFilters {
     page?: number;
     per_page?: number;
 }
+
+export interface CarrierCount { carrier: string; count: number }
 
 export interface Paginated<T> {
     data: T[];
@@ -117,9 +124,21 @@ export function useOrderStats(filters: Omit<OrderFilters, 'status' | 'page' | 'p
         queryKey: ['orders', tenantId, 'stats', filters],
         enabled: api != null,
         queryFn: async () => {
-            const { data } = await api!.get<{ data: { total: number; has_issue: number; by_status: Record<string, number> } }>('/orders/stats', { params: filters });
+            const params: Record<string, string | number | boolean> = {};
+            Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== '' && v !== false) params[k] = v as never; });
+            const { data } = await api!.get<{ data: { total: number; has_issue: number; by_status: Record<string, number>; by_carrier: CarrierCount[] } }>('/orders/stats', { params });
             return data.data;
         },
+    });
+}
+
+export function useSyncOrders() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    const tenantId = useCurrentTenantId();
+    return useMutation({
+        mutationFn: async () => { const { data } = await api!.post<{ data: { queued: number } }>('/orders/sync'); return data.data; },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['orders', tenantId] }),
     });
 }
 

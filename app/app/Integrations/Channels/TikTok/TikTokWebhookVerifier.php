@@ -57,6 +57,7 @@ class TikTokWebhookVerifier
         $data = (array) ($body['data'] ?? []);
         $orderId = $data['order_id'] ?? $data['order_no'] ?? null;
         $occurredAt = isset($body['timestamp']) ? CarbonImmutable::createFromTimestamp((int) $body['timestamp']) : null;
+        $orderRawStatus = $data['order_status'] ?? $data['status'] ?? null;
 
         return new WebhookEventDTO(
             provider: 'tiktok',
@@ -70,6 +71,7 @@ class TikTokWebhookVerifier
                 'product_id' => $data['product_id'] ?? null,
             ], fn ($v) => $v !== null),
             occurredAt: $occurredAt,
+            orderRawStatus: $orderRawStatus !== null ? (string) $orderRawStatus : null,
             raw: $body + ['_raw_type' => $rawType],
         );
     }

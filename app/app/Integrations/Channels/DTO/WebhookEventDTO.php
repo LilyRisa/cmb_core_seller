@@ -37,6 +37,8 @@ final readonly class WebhookEventDTO
         /** @var array<string, string> Extra ids carried by the event. */
         public array $externalIds = [],
         public ?CarbonImmutable $occurredAt = null,
+        /** Raw order status string carried by the push (if any) — lets us update an existing order even when re-fetch fails. */
+        public ?string $orderRawStatus = null,
         /** @var array<string, mixed> */
         public array $raw = [],
     ) {}

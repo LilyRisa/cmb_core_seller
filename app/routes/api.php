@@ -52,6 +52,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::get('channel-accounts', [ChannelAccountController::class, 'index'])->name('channel-accounts.index');
             Route::post('channel-accounts/{provider}/connect', [ChannelAccountController::class, 'connect'])
                 ->whereIn('provider', ['tiktok', 'shopee', 'lazada'])->name('channel-accounts.connect');
+            Route::patch('channel-accounts/{id}', [ChannelAccountController::class, 'update'])->whereNumber('id')->name('channel-accounts.update');   // set display alias
             Route::delete('channel-accounts/{id}', [ChannelAccountController::class, 'destroy'])->whereNumber('id')->name('channel-accounts.destroy');
             Route::post('channel-accounts/{id}/resync', [ChannelAccountController::class, 'resync'])->whereNumber('id')->name('channel-accounts.resync');
 
@@ -63,6 +64,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
             // --- Orders (Phase 1 + manual orders Phase 2) ---
             Route::get('orders/stats', [OrderController::class, 'stats'])->name('orders.stats');
+            Route::post('orders/sync', [OrderController::class, 'sync'])->name('orders.sync');             // resync all active shops
             Route::get('orders', [OrderController::class, 'index'])->name('orders.index');
             Route::post('orders', [OrderController::class, 'store'])->name('orders.store');               // manual order
             Route::get('orders/{id}', [OrderController::class, 'show'])->whereNumber('id')->name('orders.show');

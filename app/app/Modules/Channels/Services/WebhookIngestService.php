@@ -52,6 +52,7 @@ class WebhookIngestService
             'event_type' => $event->type,
             'external_id' => $dedupeKey,
             'external_shop_id' => $event->externalShopId,
+            'order_raw_status' => $event->orderRawStatus,
             'raw_type' => $event->raw['_raw_type'] ?? ($event->raw['type'] ?? null),
             'signature_ok' => true,
             'headers' => $this->safeHeaders($request),

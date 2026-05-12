@@ -111,13 +111,29 @@ class ProcessWebhookEvent implements ShouldQueue
 
             return;
         }
+        $orderId = (string) $orderId;
 
+        // Fast path: the push carried the new status — apply it straight away to an
+        // existing order so the webhook "works" even if the API re-fetch is flaky.
+        $appliedFromPayload = false;
+        if ($event->order_raw_status) {
+            $status = $connector->mapStatus($event->order_raw_status, []);
+            if ($upsert->applyStatusFromWebhook((int) $account->tenant_id, (int) $account->getKey(), $event->provider, $orderId, $status, $event->order_raw_status) !== null) {
+                $appliedFromPayload = true;
+            }
+        }
+
+        // Enrich (and create the order if we didn't have it) by re-fetching the full detail.
         try {
-            $dto = $connector->fetchOrderDetail($account->authContext(), (string) $orderId);
+            $dto = $connector->fetchOrderDetail($account->authContext(), $orderId);
         } catch (Throwable $e) {
             $authErr = method_exists($e, 'isAuthError') ? $e->isAuthError() : str_contains(strtolower($e->getMessage()), 'access_token');
             if ($authErr && $tokens->refresh($account)) {
-                $dto = $connector->fetchOrderDetail($account->fresh()->authContext(), (string) $orderId);
+                $dto = $connector->fetchOrderDetail($account->fresh()->authContext(), $orderId);
+            } elseif ($appliedFromPayload) {
+                Log::warning('webhook.detail_fetch_failed_status_applied', ['provider' => $event->provider, 'order' => $orderId, 'status' => $event->order_raw_status, 'error' => $e->getMessage()]);
+
+                return; // status is already updated; polling will fill in the rest
             } else {
                 throw $e;
             }
