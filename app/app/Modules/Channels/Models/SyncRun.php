@@ -5,9 +5,24 @@ namespace CMBcoreSeller\Modules\Channels\Models;
 use CMBcoreSeller\Modules\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * One order-sync run (poll / backfill / webhook). See docs/03-domain/order-sync-pipeline.md §3.
+ *
+ * @property int $id
+ * @property int $tenant_id
+ * @property int $channel_account_id
+ * @property string $type
+ * @property string $status
+ * @property Carbon|null $started_at
+ * @property Carbon|null $finished_at
+ * @property string|null $cursor
+ * @property array<string,int>|null $stats
+ * @property string|null $error
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read ChannelAccount|null $channelAccount
  */
 class SyncRun extends Model
 {

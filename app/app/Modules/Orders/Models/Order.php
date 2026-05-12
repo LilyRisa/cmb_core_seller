@@ -10,21 +10,62 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
  * An order from any source. Money fields are bigint VND đồng. `status` is the
  * canonical code; `raw_status` is what the channel reported.
  * See docs/03-domain/order-status-state-machine.md.
  *
- * @property StandardOrderStatus $status
+ * @property int $id
+ * @property int $tenant_id
  * @property string $source
+ * @property int|null $channel_account_id
+ * @property int|null $customer_id
+ * @property string|null $external_order_id
+ * @property string|null $order_number
+ * @property StandardOrderStatus $status
+ * @property string|null $raw_status
+ * @property string|null $payment_status
+ * @property string|null $buyer_name
+ * @property string|null $buyer_phone
+ * @property array|null $shipping_address
+ * @property string $currency
+ * @property int $item_total
+ * @property int $shipping_fee
+ * @property int $platform_discount
+ * @property int $seller_discount
+ * @property int $tax
+ * @property int $cod_amount
+ * @property int $grand_total
+ * @property bool $is_cod
+ * @property string|null $fulfillment_type
+ * @property Carbon|null $placed_at
+ * @property Carbon|null $paid_at
+ * @property Carbon|null $shipped_at
+ * @property Carbon|null $delivered_at
+ * @property Carbon|null $completed_at
+ * @property Carbon|null $cancelled_at
+ * @property string|null $cancel_reason
+ * @property string|null $note
+ * @property array|null $tags
+ * @property bool $has_issue
+ * @property string|null $issue_reason
+ * @property array|null $packages
+ * @property array|null $raw_payload
+ * @property Carbon|null $source_updated_at
+ * @property Carbon|null $last_synced_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
+ * @property int|null $items_count
  */
 class Order extends Model
 {
     use BelongsToTenant, SoftDeletes;
 
     protected $fillable = [
-        'tenant_id', 'source', 'channel_account_id', 'external_order_id', 'order_number',
+        'tenant_id', 'source', 'channel_account_id', 'customer_id', 'external_order_id', 'order_number',
         'status', 'raw_status', 'payment_status', 'buyer_name', 'buyer_phone', 'shipping_address',
         'currency', 'item_total', 'shipping_fee', 'platform_discount', 'seller_discount', 'tax',
         'cod_amount', 'grand_total', 'is_cod', 'fulfillment_type',
@@ -38,6 +79,7 @@ class Order extends Model
     {
         return [
             'status' => StandardOrderStatus::class,
+            'customer_id' => 'integer',
             'buyer_phone' => 'encrypted',
             'shipping_address' => 'array',
             'is_cod' => 'boolean',

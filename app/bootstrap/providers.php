@@ -3,6 +3,7 @@
 use CMBcoreSeller\Integrations\IntegrationsServiceProvider;
 use CMBcoreSeller\Modules\Billing\BillingServiceProvider;
 use CMBcoreSeller\Modules\Channels\ChannelsServiceProvider;
+use CMBcoreSeller\Modules\Customers\CustomersServiceProvider;
 use CMBcoreSeller\Modules\Finance\FinanceServiceProvider;
 use CMBcoreSeller\Modules\Fulfillment\FulfillmentServiceProvider;
 use CMBcoreSeller\Modules\Inventory\InventoryServiceProvider;
@@ -26,6 +27,7 @@ return [
     TenancyServiceProvider::class,
     ChannelsServiceProvider::class,
     OrdersServiceProvider::class,
+    CustomersServiceProvider::class,
     InventoryServiceProvider::class,
     ProductsServiceProvider::class,
     FulfillmentServiceProvider::class,

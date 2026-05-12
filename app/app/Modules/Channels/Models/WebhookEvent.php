@@ -3,11 +3,33 @@
 namespace CMBcoreSeller\Modules\Channels\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Raw inbound marketplace webhook. An infra/log table — `tenant_id` is a plain
  * column resolved during processing, not a global scope. Payload kept verbatim
  * for re-drive. See docs/03-domain/order-sync-pipeline.md §2.
+ *
+ * @property int $id
+ * @property string $provider
+ * @property string $event_type
+ * @property string|null $external_id
+ * @property string|null $external_shop_id
+ * @property string|null $raw_type
+ * @property int|null $tenant_id
+ * @property int|null $channel_account_id
+ * @property bool $signature_ok
+ * @property array|null $headers
+ * @property array|null $payload
+ * @property string $status
+ * @property int $attempts
+ * @property string|null $error
+ * @property Carbon|null $received_at
+ * @property Carbon|null $processed_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read ChannelAccount|null $channelAccount
  */
 class WebhookEvent extends Model
 {
@@ -34,6 +56,11 @@ class WebhookEvent extends Model
             'received_at' => 'datetime',
             'processed_at' => 'datetime',
         ];
+    }
+
+    public function channelAccount(): BelongsTo
+    {
+        return $this->belongsTo(ChannelAccount::class);
     }
 
     public function markProcessed(?string $status = self::STATUS_PROCESSED): void

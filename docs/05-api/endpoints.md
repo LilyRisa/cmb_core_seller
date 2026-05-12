@@ -38,6 +38,15 @@
 | DELETE | `/api/v1/channel-accounts/{id}` | sanctum + tenant (`channels.manage`) | — | `{ data:{…account, status:'revoked'} }` — `connector.revoke()` best-effort; lịch sử đơn giữ lại; dừng sync. `404` nếu không thuộc tenant. |
 | POST | `/api/v1/channel-accounts/{id}/resync` | sanctum + tenant (`channels.manage`) | — | `{ data:{ queued:true, channel_account_id } }`. Account không `active` ⇒ `409`. |
 
+## Nhật ký đồng bộ (Sync log — Phase 1)
+
+| Method | Path | Auth | Request | Response |
+|---|---|---|---|---|
+| GET | `/api/v1/sync-runs` | sanctum + tenant (`channels.view`) | query: `channel_account_id`, `type` (csv `poll\|backfill\|webhook`), `status` (csv `running\|done\|failed`), `page`, `per_page` (≤100) | `{ data:[{id,channel_account_id,shop_name,provider,type,status,started_at,finished_at,duration_seconds,cursor,stats:{fetched,created,updated,skipped,errors},error}], meta:{ pagination } }`. Scoped theo tenant (`BelongsToTenant`). |
+| POST | `/api/v1/sync-runs/{id}/redrive` | sanctum + tenant (`channels.manage`) | — | `{ data:{ queued:true, channel_account_id, type } }` — dispatch lại `SyncOrdersForShop` (kiểu `backfill` nếu run gốc là backfill, ngược lại `poll`). Account không `active` ⇒ `409`. `404` nếu không thuộc tenant. |
+| GET | `/api/v1/webhook-events` | sanctum + tenant (`channels.view`) | query: `channel_account_id`, `provider`, `event_type` (csv), `status` (csv `pending\|processed\|ignored\|failed`), `signature_ok` (bool), `page`, `per_page` (≤100) | `{ data:[{id,provider,event_type,raw_type,external_id,external_shop_id,channel_account_id,shop_name,signature_ok,status,attempts,error,received_at,processed_at}], meta:{ pagination } }`. Lọc theo cột `tenant_id` (bảng log — không có global scope); **payload thô không lộ ra** (có thể chứa PII buyer — SPEC 0001 §8). |
+| POST | `/api/v1/webhook-events/{id}/redrive` | sanctum + tenant (`channels.manage`) | — | `{ data:{ queued:true, webhook_event_id } }` — reset `status=pending`, xoá `error`, dispatch lại `ProcessWebhookEvent`. `404` nếu không thuộc tenant. |
+
 ## Đơn hàng (Orders — Phase 1)
 
 | Method | Path | Auth | Request | Response |
@@ -58,24 +67,22 @@
 
 Xem [`webhooks-and-oauth.md`](webhooks-and-oauth.md). `POST /webhook/tiktok` → `WebhookController@handle` (verify chữ ký → ghi `webhook_events` → 200 → `ProcessWebhookEvent`); sai chữ ký ⇒ `401`. `GET /oauth/tiktok/callback?app_key=&code=&state=` → `OAuthCallbackController` (đổi token, tạo `channel_account`, redirect `/channels?connected=tiktok` hoặc `?error=…`). `shopee`/`lazada`: route + handler tồn tại nhưng connector chưa có ⇒ `404 UNKNOWN_PROVIDER` (Phase 4).
 
-## Sổ khách hàng (Customers — Phase 2, SPEC-0002 Draft)
+## Sổ khách hàng (Customers — Phase 2, SPEC-0002 · Implemented)
 
-> Spec đang Draft — khi Implemented, dời các dòng dưới đây thành bảng đầy đủ (như bảng Orders / Channels phía trên), kèm exact request/response. Tóm tắt hợp đồng:
+| Method | Path | Auth | Request | Response |
+|---|---|---|---|---|
+| GET | `/api/v1/customers` | sanctum + tenant (`customers.view`) | query: `q` (chuẩn hoá được thành SĐT ⇒ hash + lookup `phone_hash`; ngược lại LIKE `name`), `reputation` csv (`ok\|watch\|risk\|blocked`), `tag`, `min_orders`, `has_note` (1), `blocked` (1), `sort` (`-last_seen_at`\|`-lifetime_revenue`\|`-orders_total`\|`-cancellation_rate`\|`±reputation_score`), `page`, `per_page≤100` | `{ data: CustomerResource[], meta:{ pagination } }`. `CustomerResource`: `name`, `phone_masked` (luôn) + `phone` (chỉ khi role có `customers.view_phone`), `reputation:{score,label}`, `is_blocked`/`block_reason`, `tags`, `lifetime_stats`, `addresses_meta`, `manual_note`, `is_anonymized`, `first_seen_at`/`last_seen_at`, `latest_warning_note?`. Hồ sơ đã ẩn danh ⇒ name/phone/addresses = null/[]. |
+| GET | `/api/v1/customers/{id}` | sanctum + tenant (`customers.view`) | — | `{ data: CustomerResource kèm `notes[]` (id-desc, ≤50) }`. `404` nếu không thuộc tenant / đã merge. |
+| GET | `/api/v1/customers/{id}/orders` | sanctum + tenant (`customers.view` + `orders.view`) | query: `source` (csv), `status` (csv), `page`, `per_page≤100` | `{ data: OrderResource[], meta:{ pagination } }` — scoped theo `customer_id`, sort `-placed_at`. |
+| POST | `/api/v1/customers/{id}/notes` | sanctum + tenant (`customers.note`) | `{ note: string, severity?: info\|warning\|danger, order_id?: int }` | `201 { data: CustomerNoteResource }` (`kind=manual`). |
+| DELETE | `/api/v1/customers/{id}/notes/{noteId}` | sanctum + tenant (`customers.note` + là `author_user_id` hoặc owner/admin) | — | `{ data:{ deleted:true } }`. Auto-note ⇒ `422`. |
+| POST | `/api/v1/customers/{id}/block` | sanctum + tenant (`customers.block`) | `{ reason?: string }` | `{ data: CustomerResource }` — `is_blocked=true`, `reputation.label='blocked'`, event `CustomerBlocked`. |
+| POST | `/api/v1/customers/{id}/unblock` | sanctum + tenant (`customers.block`) | — | `{ data: CustomerResource }` — label tính lại từ stats, event `CustomerUnblocked`. |
+| POST | `/api/v1/customers/{id}/tags` | sanctum + tenant (`customers.note`) | `{ add?:string[], remove?:string[] }` | `{ data: CustomerResource }`. |
+| POST | `/api/v1/customers/merge` | sanctum + tenant (`customers.merge`) | `{ keep_id, remove_id }` (`different`) | `{ data: CustomerResource (kept) }` — chuyển `orders.customer_id` + `customer_notes` từ `remove` sang `keep`, recompute stats, soft-delete `remove` (`merged_into_customer_id=keep`), event `CustomersMerged`. Reject khác tenant. |
 
-| Method | Path | Auth | Mô tả |
-|---|---|---|---|
-| GET | `/api/v1/customers` | sanctum + tenant (`customers.view`) | Query: `q` (tên hoặc SĐT — nếu match `/^\+?\d{8,15}$/` ⇒ normalize + hash + lookup `phone_hash`; ngược lại LIKE `name`), `reputation` csv (`ok|watch|risk|blocked`), `tag`, `min_orders`, `has_note`, `sort` (`-last_seen_at|-lifetime_revenue|-cancellation_rate`), `page`, `per_page≤100`. Trả `CustomerResource[]`. |
-| GET | `/api/v1/customers/{id}` | sanctum + tenant (`customers.view`) | Kèm `notes[]` 50 gần nhất. |
-| GET | `/api/v1/customers/{id}/orders` | sanctum + tenant (`customers.view` + `orders.view`) | Cùng filter/format `/orders`, scoped theo customer. |
-| POST | `/api/v1/customers/{id}/notes` | sanctum + tenant (`customers.note`) | `{ note, severity?, order_id? }` ⇒ `201 CustomerNoteResource`. |
-| DELETE | `/api/v1/customers/{id}/notes/{noteId}` | sanctum + tenant (`customers.note` + là author hoặc owner/admin) | Auto-note không xoá được. |
-| POST | `/api/v1/customers/{id}/block` | sanctum + tenant (`customers.block`) | `{ reason? }`. |
-| POST | `/api/v1/customers/{id}/unblock` | sanctum + tenant (`customers.block`) | — |
-| POST | `/api/v1/customers/{id}/tags` | sanctum + tenant (`customers.note`) | `{ add?:[], remove?:[] }`. |
-| POST | `/api/v1/customers/merge` | sanctum + tenant (`customers.merge`) | `{ keep_id, remove_id }` — chuyển `orders.customer_id`, gộp notes, soft-delete `remove`. |
-
-**Sửa endpoint hiện có:** `GET /api/v1/orders/{id}` (và `GET /orders`) trả thêm field `customer` (object con) nếu `customer_id != null` và role có `customers.view`: `{ id, name, phone_masked, reputation:{score,label}, is_blocked, tags, lifetime_stats:{orders_total,orders_completed,orders_cancelled,orders_returned}, latest_warning_note? }`. Phone đầy đủ chỉ trả khi role có `customers.view_phone` (mặc định owner/admin/staff_order).
+**Sửa endpoint hiện có:** `GET /api/v1/orders/{id}` (và `GET /orders`) trả thêm field `customer` (object con hoặc `null`) — `null` nếu `customer_id IS NULL` hoặc role không có `customers.view`: `{ id, name, phone_masked, reputation:{score,label}, is_blocked, tags, is_anonymized, lifetime_stats:{orders_total,orders_completed,orders_cancelled,orders_returned,orders_delivery_failed}, manual_note, latest_warning_note? }`. Đọc qua `CustomerProfileContract` (Orders không phụ thuộc model `Customer`).
 
 ## Sắp có (theo roadmap)
 
-`/api/v1/products`, `/api/v1/skus`, `/api/v1/sku-mappings` (Phase 2) · `/api/v1/orders` tạo đơn tay + `/{id}/status` + `/bulk` (Phase 2) · `/api/v1/print-jobs`, `/api/v1/shipments` (Phase 3) · `/api/v1/sync-runs`, `/api/v1/webhook-events` (Nhật ký đồng bộ + re-drive) · `/api/v1/jobs/{id}` … — thêm vào đây khi xây.
+`/api/v1/products`, `/api/v1/skus`, `/api/v1/sku-mappings` (Phase 2) · `/api/v1/orders` tạo đơn tay + `/{id}/status` + `/bulk` (Phase 2) · `/api/v1/print-jobs`, `/api/v1/shipments` (Phase 3) · `/api/v1/jobs/{id}` … — thêm vào đây khi xây.

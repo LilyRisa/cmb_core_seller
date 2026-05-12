@@ -58,14 +58,14 @@ Nhà bán cần: kết nối **một gian hàng TikTok Shop thật (sandbox)** v
 
 **Job mới** (cập nhật `07-infra/queues-and-scheduler.md`): `ProcessWebhookEvent` (queue `webhooks`), `SyncOrdersForShop` (queue `orders-sync`, unique/shop, scheduled ~10'), `BackfillOrders` (queue `orders-sync`), `RefreshChannelToken` (queue `tokens`), lệnh scheduled `RefreshExpiringTokens` (mỗi 30'), `BackfillRecentOrders` (hằng ngày — gọi `SyncOrdersForShop` với cửa sổ rộng hơn).
 
-**FE** (`06-frontend/overview.md`): `features/channels` (list gian hàng, connect/resync/disconnect, trang callback success), `features/orders` (list + filter + status tabs + detail + tag/note + bulk select), `features/dashboard` (stat cards + to-do). Component chung: `<StatusTag>`, `<MoneyText>`, `<DateText>`, `<ChannelBadge>`, `<PageHeader>`, `<DataTable>` (bọc AntD Table). Filter phản ánh trong URL. Phân quyền UI bằng `useCan`. Giao diện theo phong cách BigSeller (sidebar tối có nhóm, header có workspace switcher + chuông + user menu, bảng dày, status tabs có badge số lượng).
+**FE** (`06-frontend/overview.md`): `features/channels` (list gian hàng, connect/resync/disconnect, trang callback success), `features/orders` (list + filter + status tabs + detail + tag/note + bulk select), `features/dashboard` (stat cards + to-do), `features/sync-logs` (trang Nhật ký đồng bộ: 2 tab `sync_runs` / `webhook_events` + lọc + nút chạy lại). Component chung: `<StatusTag>`, `<MoneyText>`, `<DateText>`, `<ChannelBadge>`, `<PageHeader>`, `<DataTable>` (bọc AntD Table). Filter phản ánh trong URL. Phân quyền UI bằng `useCan`. Giao diện theo phong cách BigSeller (sidebar tối có nhóm, header có workspace switcher + chuông + user menu, bảng dày, status tabs có badge số lượng).
 
 ## 7. Edge case & lỗi
 - Shop đã kết nối ở tenant khác ⇒ callback báo lỗi rõ ràng, không tạo `channel_account` nửa vời.
 - `state` hết hạn / không có ⇒ trang lỗi thân thiện, redirect SPA `/channels?error=oauth_state`.
 - Token hết hạn giữa chừng ⇒ `TikTokClient` thử `refreshToken` 1 lần; vẫn lỗi ⇒ `channel_account.status=expired`, dừng sync, cảnh báo.
 - Rate limit 429 ⇒ tôn trọng `Retry-After`, retry job với backoff.
-- TikTok API lỗi `code != 0` ⇒ ném exception có `code`/`message`; job retry; quá hạn ⇒ `sync_runs.status=failed` / `webhook_events.status=failed` + cảnh báo, UI re-drive (re-drive UI để Phase sau, hiện chỉ trạng thái).
+- TikTok API lỗi `code != 0` ⇒ ném exception có `code`/`message`; job retry; quá hạn ⇒ `sync_runs.status=failed` / `webhook_events.status=failed` + cảnh báo; màn **Nhật ký đồng bộ** cho xem và **chạy lại** (`POST /sync-runs/{id}/redrive`, `POST /webhook-events/{id}/redrive`).
 - Webhook trùng / đến trễ / out-of-order ⇒ dedupe + so `source_updated_at`; webhook event không nhận diện được loại ⇒ `webhook_events.status=ignored` + log.
 - SKU chưa ghép (`order_items.sku_id = null`) ⇒ Phase 1 chấp nhận (ghép SKU là Phase 2); không reserve tồn.
 - Số tiền TikTok dạng chuỗi có đơn vị ⇒ `TikTokMappers` parse cẩn thận về `bigint` đồng (VND không thập phân).
@@ -86,10 +86,11 @@ Nhà bán cần: kết nối **một gian hàng TikTok Shop thật (sandbox)** v
 - [x] Migrations + models Channels & Orders; OAuth connect/disconnect; webhook receiver + verify + `ProcessWebhookEvent`; polling `SyncOrdersForShop` + `BackfillOrders`; `OrderUpsertService` idempotent; `TikTokStatusMap` + `order_status_history`; auto refresh token + cảnh báo re-connect.
 - [x] `TikTokConnector` + `TikTokClient` (ký HMAC, version 202309) + `TikTokWebhookVerifier` + `TikTokMappers`; đăng ký `ChannelRegistry::register('tiktok', ...)` + bật trong `config/integrations.php`; route `/webhook/tiktok` + `/oauth/tiktok/callback` qua controller chung.
 - [x] API `GET/POST/DELETE /channel-accounts*`, `GET /orders*`, `POST /orders/{id}/tags`, `PATCH /orders/{id}/note`, `GET /orders/stats`, `GET /dashboard/summary`.
-- [x] FE: màn Đơn hàng (list/filter/status tabs/detail/tag/note), màn Gian hàng (connect/resync/disconnect + callback success), Dashboard cơ bản — phong cách BigSeller.
-- [x] Test: contract TikTok (fixtures), feature webhook→upsert (idempotent) + polling→upsert + refresh token + orders API + tenant isolation + connect flow.
+- [x] FE: màn Đơn hàng (list/filter/status tabs/detail/tag/note), màn Gian hàng (connect/resync/disconnect + callback success), màn **Nhật ký đồng bộ** (2 tab `sync_runs` / `webhook_events`, lọc theo gian hàng, nút chạy lại), Dashboard cơ bản — phong cách BigSeller.
+- [x] API + UI **Nhật ký đồng bộ**: `GET /sync-runs`, `GET /webhook-events` (payload thô không lộ ra — §8), `POST /sync-runs/{id}/redrive` (re-dispatch `SyncOrdersForShop`), `POST /webhook-events/{id}/redrive` (reset `pending` + re-dispatch `ProcessWebhookEvent`); xem = `channels.view`, re-drive = `channels.manage`.
+- [x] Test: contract TikTok (fixtures), feature webhook→upsert (idempotent) + polling→upsert + refresh token + orders API + tenant isolation + connect flow + nhật ký đồng bộ (list scoped + re-drive + phân quyền).
 - [x] Tài liệu cập nhật: `04-channels/tiktok-shop.md` (version `202309` đang dùng + thuật toán ký đã implement), `05-api/endpoints.md`, `07-infra/queues-and-scheduler.md`, `roadmap.md` (tiến độ Phase 1), spec này (Implemented).
-- [ ] **Còn lại để "Exit criteria Phase 1" đầy đủ:** kết nối shop TikTok sandbox **thật** và xác nhận đơn mới tự về (cần app key/secret sandbox thật trong `.env`); UI "Nhật ký đồng bộ" (xem `webhook_events`/`sync_runs` + re-drive); rà soát mapping webhook event-type + status với tài liệu Partner API thật; rate-limit Redis throttle hoàn chỉnh per shop.
+- [ ] **Còn lại để "Exit criteria Phase 1" đầy đủ:** kết nối shop TikTok sandbox **thật** và xác nhận đơn mới tự về (cần app key/secret sandbox thật trong `.env`); rà soát mapping webhook event-type + status với tài liệu Partner API thật; rate-limit Redis throttle hoàn chỉnh per shop.
 
 ## 11. Câu hỏi mở
 - Phiên bản API TikTok khoá ở `202309` — khi nào nâng? (theo dõi changelog Partner Center; nâng có test).

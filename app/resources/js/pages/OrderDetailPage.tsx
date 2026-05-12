@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { StatusTag } from '@/components/StatusTag';
 import { ChannelBadge } from '@/components/ChannelBadge';
 import { MoneyText, DateText } from '@/components/MoneyText';
+import { CustomerSummaryCard } from '@/components/CustomerSummaryCard';
 import { errorMessage } from '@/lib/api';
 import { OrderItem, useOrder, useOrderNote, useOrderTags } from '@/lib/orders';
 import { useCan } from '@/lib/tenant';
@@ -99,6 +100,8 @@ export function OrderDetailPage() {
                 </Col>
 
                 <Col xs={24} lg={8}>
+                    <CustomerSummaryCard customer={order.customer} />
+
                     <Card title="Người nhận" size="small" style={{ marginBottom: 16 }}>
                         <Descriptions column={1} size="small" colon={false}>
                             <Descriptions.Item label="Tên">{addr.fullName ?? order.buyer_name ?? '—'}</Descriptions.Item>

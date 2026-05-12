@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { tenantApi } from './api';
 import { useCurrentTenantId } from './tenant';
+import type { CustomerCard } from './customers';
 
 export interface OrderItem {
     id: number;
@@ -65,6 +66,7 @@ export interface Order {
     cancelled_at: string | null;
     cancel_reason: string | null;
     created_at: string | null;
+    customer?: CustomerCard | null;
     items?: OrderItem[];
     status_history?: OrderStatusHistory[];
 }

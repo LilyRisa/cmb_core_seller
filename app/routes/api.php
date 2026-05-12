@@ -2,6 +2,8 @@
 
 use CMBcoreSeller\Http\Controllers\HealthController;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\ChannelAccountController;
+use CMBcoreSeller\Modules\Channels\Http\Controllers\SyncLogController;
+use CMBcoreSeller\Modules\Customers\Http\Controllers\CustomerController;
 use CMBcoreSeller\Modules\Orders\Http\Controllers\DashboardController;
 use CMBcoreSeller\Modules\Orders\Http\Controllers\OrderController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\AuthController;
@@ -47,12 +49,29 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::delete('channel-accounts/{id}', [ChannelAccountController::class, 'destroy'])->whereNumber('id')->name('channel-accounts.destroy');
             Route::post('channel-accounts/{id}/resync', [ChannelAccountController::class, 'resync'])->whereNumber('id')->name('channel-accounts.resync');
 
+            // --- Sync log (Phase 1) — webhook_events / sync_runs + re-drive ---
+            Route::get('sync-runs', [SyncLogController::class, 'runs'])->name('sync-runs.index');
+            Route::post('sync-runs/{id}/redrive', [SyncLogController::class, 'redriveRun'])->whereNumber('id')->name('sync-runs.redrive');
+            Route::get('webhook-events', [SyncLogController::class, 'webhookEvents'])->name('webhook-events.index');
+            Route::post('webhook-events/{id}/redrive', [SyncLogController::class, 'redriveWebhook'])->whereNumber('id')->name('webhook-events.redrive');
+
             // --- Orders (Phase 1) ---
             Route::get('orders/stats', [OrderController::class, 'stats'])->name('orders.stats');
             Route::get('orders', [OrderController::class, 'index'])->name('orders.index');
             Route::get('orders/{id}', [OrderController::class, 'show'])->whereNumber('id')->name('orders.show');
             Route::post('orders/{id}/tags', [OrderController::class, 'updateTags'])->whereNumber('id')->name('orders.tags');
             Route::patch('orders/{id}/note', [OrderController::class, 'updateNote'])->whereNumber('id')->name('orders.note');
+
+            // --- Customers (Phase 2 / SPEC 0002) — internal buyer registry & reputation ---
+            Route::post('customers/merge', [CustomerController::class, 'merge'])->name('customers.merge');
+            Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');
+            Route::get('customers/{id}', [CustomerController::class, 'show'])->whereNumber('id')->name('customers.show');
+            Route::get('customers/{id}/orders', [CustomerController::class, 'orders'])->whereNumber('id')->name('customers.orders');
+            Route::post('customers/{id}/notes', [CustomerController::class, 'storeNote'])->whereNumber('id')->name('customers.notes.store');
+            Route::delete('customers/{id}/notes/{noteId}', [CustomerController::class, 'destroyNote'])->whereNumber('id')->whereNumber('noteId')->name('customers.notes.destroy');
+            Route::post('customers/{id}/block', [CustomerController::class, 'block'])->whereNumber('id')->name('customers.block');
+            Route::post('customers/{id}/unblock', [CustomerController::class, 'unblock'])->whereNumber('id')->name('customers.unblock');
+            Route::post('customers/{id}/tags', [CustomerController::class, 'tags'])->whereNumber('id')->name('customers.tags');
 
             // --- Dashboard ---
             Route::get('dashboard/summary', [DashboardController::class, 'summary'])->name('dashboard.summary');

@@ -18,6 +18,9 @@ import { DashboardPage } from '@/pages/DashboardPage';
 import { OrdersPage } from '@/pages/OrdersPage';
 import { OrderDetailPage } from '@/pages/OrderDetailPage';
 import { ChannelsPage } from '@/pages/ChannelsPage';
+import { SyncLogsPage } from '@/pages/SyncLogsPage';
+import { CustomersPage } from '@/pages/CustomersPage';
+import { CustomerDetailPage } from '@/pages/CustomerDetailPage';
 import { SettingsMembersPage } from '@/pages/SettingsMembersPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
@@ -48,10 +51,12 @@ function Root() {
                 <Route path="orders" element={<OrdersPage />} />
                 <Route path="orders/:id" element={<OrderDetailPage />} />
                 <Route path="channels" element={<ChannelsPage />} />
+                <Route path="customers" element={<CustomersPage />} />
+                <Route path="customers/:id" element={<CustomerDetailPage />} />
                 <Route path="products" element={<ComingSoon title="Sản phẩm & SKU" phase="Phase 2/5" />} />
                 <Route path="inventory" element={<ComingSoon title="Tồn kho" phase="Phase 2" />} />
                 <Route path="fulfillment" element={<ComingSoon title="Giao hàng & in" phase="Phase 3" />} />
-                <Route path="sync-logs" element={<ComingSoon title="Nhật ký đồng bộ" phase="Phase 1+ — sẽ hiển thị webhook_events / sync_runs + re-drive" />} />
+                <Route path="sync-logs" element={<SyncLogsPage />} />
                 <Route path="settings" element={<Navigate to="/settings/members" replace />} />
                 <Route path="settings/members" element={<SettingsMembersPage />} />
                 <Route path="settings/*" element={<ComingSoon title="Cài đặt" />} />

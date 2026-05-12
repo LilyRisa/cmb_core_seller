@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Orders\Http\Resources;
 
+use CMBcoreSeller\Modules\Customers\Contracts\CustomerProfileContract;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -22,6 +23,7 @@ class OrderResource extends JsonResource
             : ($this->items_count ?? null);
 
         return [
+            'customer' => $this->customerCard($request),
             'id' => $this->id,
             'source' => $this->source,
             'channel_account_id' => $this->channel_account_id,
@@ -64,5 +66,21 @@ class OrderResource extends JsonResource
             'items' => OrderItemResource::collection($this->whenLoaded('items')),
             'status_history' => OrderStatusHistoryResource::collection($this->whenLoaded('statusHistory')),
         ];
+    }
+
+    /**
+     * The "Khách hàng" card (SPEC 0002 §6.1) — null when the order isn't linked to
+     * a customer or the caller can't see customers. Read via the contract so Orders
+     * doesn't depend on the Customer model.
+     */
+    private function customerCard(Request $request): ?array
+    {
+        if (! $this->customer_id || ! $request->user()?->can('customers.view')) {
+            return null;
+        }
+        $withPhone = (bool) $request->user()->can('customers.view_phone');
+        $profile = app(CustomerProfileContract::class)->findById((int) $this->tenant_id, (int) $this->customer_id, $withPhone);
+
+        return $profile?->toOrderCard();
     }
 }

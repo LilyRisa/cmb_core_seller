@@ -7,15 +7,31 @@ use CMBcoreSeller\Modules\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
  * A connected shop of a tenant on a marketplace. Tokens are encrypted at rest.
  * See docs/00-overview/glossary.md ("Channel Account").
  *
+ * @property int $id
+ * @property int $tenant_id
  * @property string $provider
  * @property string $external_shop_id
+ * @property string|null $shop_name
+ * @property string|null $shop_region
+ * @property string|null $seller_type
  * @property string $status
+ * @property string|null $access_token
+ * @property string|null $refresh_token
+ * @property Carbon|null $token_expires_at
+ * @property Carbon|null $refresh_token_expires_at
+ * @property Carbon|null $last_synced_at
+ * @property Carbon|null $last_webhook_at
  * @property array|null $meta
+ * @property int|null $created_by
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
  */
 class ChannelAccount extends Model
 {

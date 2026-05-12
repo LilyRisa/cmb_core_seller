@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Channels\Jobs;
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
 use CMBcoreSeller\Modules\Channels\Events\ChannelAccountRevoked;
+use CMBcoreSeller\Modules\Channels\Events\DataDeletionRequested;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\WebhookEvent;
 use CMBcoreSeller\Modules\Channels\Support\TokenRefresher;
@@ -81,7 +82,7 @@ class ProcessWebhookEvent implements ShouldQueue
 
                 WebhookEventDTO::TYPE_SHOP_DEAUTHORIZED => $this->handleDeauthorized($account),
 
-                WebhookEventDTO::TYPE_DATA_DELETION => Log::info('webhook.data_deletion', ['shop' => $account->external_shop_id]), // Phase 7: enqueue anonymization
+                WebhookEventDTO::TYPE_DATA_DELETION => DataDeletionRequested::dispatch($account), // Customers listens → anonymize buyer PII (SPEC 0002 §8)
 
                 WebhookEventDTO::TYPE_RETURN_UPDATE,
                 WebhookEventDTO::TYPE_SETTLEMENT_AVAILABLE,

@@ -42,17 +42,18 @@ enum Role: string
                 'orders.view', 'orders.update', 'orders.create', 'orders.status',
                 'fulfillment.view', 'fulfillment.print', 'fulfillment.ship',
                 'products.view', 'inventory.view', 'channels.view', 'dashboard.view',
+                'customers.view', 'customers.note', 'customers.view_phone',
             ],
             self::StaffWarehouse => [
                 'inventory.view', 'inventory.adjust', 'inventory.transfer', 'inventory.stocktake',
                 'fulfillment.view', 'fulfillment.scan', 'fulfillment.print',
-                'orders.view', 'products.view', 'dashboard.view',
+                'orders.view', 'products.view', 'dashboard.view', 'customers.view',
             ],
             self::Accountant => [
                 'finance.view', 'finance.reconcile', 'reports.view', 'reports.export',
-                'orders.view', 'inventory.view', 'dashboard.view',
+                'orders.view', 'inventory.view', 'dashboard.view', 'customers.view',
             ],
-            self::Viewer => ['orders.view', 'inventory.view', 'products.view', 'channels.view', 'dashboard.view'],
+            self::Viewer => ['orders.view', 'inventory.view', 'products.view', 'channels.view', 'dashboard.view', 'customers.view'],
         };
     }
 

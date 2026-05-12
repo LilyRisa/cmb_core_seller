@@ -40,6 +40,11 @@ Schedule::call(function () {
 // Refresh tokens that expire soon (a stalled token kills sync).
 Schedule::command('channels:refresh-expiring-tokens')->everyThirtyMinutes()->onOneServer();
 
+// --- Phase 2: customer registry (SPEC 0002) ---
+// Eventual-consistency safety net: recompute customers whose orders changed in the
+// last couple of hours, in case the OrderUpserted listener failed.
+Schedule::command('customers:recompute-stale --hours=2')->hourly()->onOneServer()->withoutOverlapping();
+
 // Daily safety-net backfill: re-sync the last few days for every active shop.
 Schedule::call(function () {
     ChannelAccount::withoutGlobalScope(TenantScope::class)

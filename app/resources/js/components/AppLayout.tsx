@@ -14,6 +14,7 @@ import {
     ShopOutlined,
     ShoppingOutlined,
     SwapOutlined,
+    TeamOutlined,
     UserOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
@@ -27,6 +28,7 @@ const NAV: MenuProps['items'] = [
     ] },
     { type: 'group', label: 'Bán hàng', children: [
         { key: '/orders', icon: <ShoppingOutlined />, label: <Link to="/orders">Đơn hàng</Link> },
+        { key: '/customers', icon: <TeamOutlined />, label: <Link to="/customers">Khách hàng</Link> },
         { key: '/channels', icon: <ShopOutlined />, label: <Link to="/channels">Gian hàng</Link> },
         { key: '/products', icon: <AppstoreOutlined />, label: <Link to="/products">Sản phẩm & SKU</Link> },
     ] },
@@ -41,7 +43,7 @@ const NAV: MenuProps['items'] = [
 ];
 
 // Flat key list for selected-key matching.
-const KEYS = ['/', '/orders', '/channels', '/products', '/inventory', '/fulfillment', '/sync-logs', '/settings'];
+const KEYS = ['/', '/orders', '/customers', '/channels', '/products', '/inventory', '/fulfillment', '/sync-logs', '/settings'];
 
 export function AppLayout() {
     const { data: user } = useAuth();
