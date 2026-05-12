@@ -1,6 +1,6 @@
 # SPEC 0009: Màn "Xử lý đơn hàng" — chuẩn bị → in tem → đóng gói → bàn giao ĐVVC (cùng màn hình, cùng luồng)
 
-- **Trạng thái:** Implemented (2026-05-18 — mở rộng SPEC-0006; luồng A "logistics của sàn" + tách nhiều kiện = follow-up)
+- **Trạng thái:** Implemented (2026-05-18 — mở rộng SPEC-0006; luồng A "logistics của sàn" + tách nhiều kiện = follow-up). **Cập nhật 2026-05-12 (SPEC-0012):** bỏ 3 tab-bước riêng `📦 Cần chuẩn bị / 🖨 Chờ đóng gói / 🚚 Chờ bàn giao ĐVVC` — thao tác (Tạo vận đơn · In tem · Đóng gói · Bàn giao ĐVVC · In hoá đơn) giờ là **các nút trong cột "Thao tác"** ngay trên các tab trạng thái đơn có sẵn (`Chờ xử lý` / `Đang xử lý` / `Chờ bàn giao`); trạng thái đơn vẫn đồng bộ theo trạng thái gốc (canonical), không sinh trạng thái phụ. Tab `🏷 Vận đơn` giữ nguyên; nút "Quét đơn" mở modal đóng gói/bàn giao. Endpoint `/fulfillment/processing` + `/processing/counts` còn giữ cho app/API nhưng FE web không còn dùng. Luồng nghiệp vụ (create→pack→handover, trừ tồn ở bước bàn giao) **không đổi**.
 - **Phase:** 3 *(mở rộng SPEC-0006; áp cho mọi nền tảng — TikTok/Shopee/Lazada/đơn tay)*
 - **Module backend liên quan:** Fulfillment (chính), Orders, Inventory, Channels
 - **Tác giả / Ngày:** Team · 2026-05-18
