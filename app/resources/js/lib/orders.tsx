@@ -35,6 +35,7 @@ export interface Order {
     channel_account_id: number | null;
     channel_account?: { id: number; name: string; provider: string } | null;
     carrier?: string | null;
+    thumbnail?: string | null;          // first order-item image (list view)
     external_order_id: string | null;
     order_number: string | null;
     status: string;

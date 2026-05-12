@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Modules\Orders\Http\Resources;
 
 use CMBcoreSeller\Modules\Customers\Contracts\CustomerProfileContract;
 use CMBcoreSeller\Modules\Orders\Models\Order;
+use CMBcoreSeller\Modules\Orders\Models\OrderItem;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -18,15 +19,20 @@ class OrderResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $itemsCount = $this->relationLoaded('items')
-            ? $this->items->sum('quantity')
-            : ($this->items_count ?? null);
+        // line-item count: prefer the withCount aggregate (list); else count loaded items.
+        $itemsCount = $this->items_count !== null
+            ? (int) $this->items_count
+            : ($this->relationLoaded('items') ? $this->items->count() : null);
+        // first item image for the list thumbnail (set by OrderController::index, or from loaded items)
+        $thumbnail = $this->getAttribute('thumbnail')
+            ?: ($this->relationLoaded('items') ? $this->items->first(fn (OrderItem $i) => filled($i->image))?->image : null);
 
         return [
             'customer' => $this->customerCard($request),
             'id' => $this->id,
             'source' => $this->source,
             'channel_account_id' => $this->channel_account_id,
+            'thumbnail' => $thumbnail,
             'channel_account' => $this->whenLoaded('channelAccount', fn () => $this->channelAccount ? [
                 'id' => $this->channelAccount->id, 'name' => $this->channelAccount->effectiveName(), 'provider' => $this->channelAccount->provider,
             ] : null),

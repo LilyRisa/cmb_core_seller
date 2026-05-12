@@ -9,6 +9,7 @@ use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\SyncRun;
 use CMBcoreSeller\Modules\Orders\Http\Resources\OrderResource;
 use CMBcoreSeller\Modules\Orders\Models\Order;
+use CMBcoreSeller\Modules\Orders\Models\OrderItem;
 use CMBcoreSeller\Modules\Orders\Services\ManualOrderService;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
@@ -50,6 +51,16 @@ class OrderController extends Controller
 
         $perPage = min(100, max(1, (int) $request->query('per_page', 20)));
         $page = $query->paginate($perPage)->appends($request->query());
+
+        // Thumbnail = first order-item image (one extra batched query — keeps the list response lean).
+        $first = $page->getCollection()->first();
+        if ($first instanceof Order && ! $first->relationLoaded('items')) {
+            $orderIds = $page->getCollection()->pluck('id')->all();
+            $thumbs = OrderItem::query()
+                ->whereIn('order_id', $orderIds)->whereNotNull('image')->orderBy('id')
+                ->get(['order_id', 'image'])->groupBy('order_id')->map(fn ($g) => $g->first()?->image);
+            $page->getCollection()->each(fn ($o) => $o->setAttribute('thumbnail', $thumbs->get($o->getKey())));
+        }
 
         return response()->json([
             'data' => OrderResource::collection($page->getCollection()),

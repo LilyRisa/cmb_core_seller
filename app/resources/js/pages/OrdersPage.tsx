@@ -10,6 +10,7 @@ import { ChannelBadge } from '@/components/ChannelBadge';
 import { MoneyText, DateText } from '@/components/MoneyText';
 import { FilterChipRow, type ChipItem } from '@/components/FilterChipRow';
 import { LinkSkusModal } from '@/components/LinkSkusModal';
+import { OrderDetailModal } from '@/components/OrderDetailModal';
 import { errorMessage } from '@/lib/api';
 import { CHANNEL_META, ORDER_STATUS_TABS } from '@/lib/format';
 import { Order, useOrders, useOrderStats, useSyncOrders } from '@/lib/orders';
@@ -46,6 +47,7 @@ export function OrdersPage() {
     const canMap = useCan('inventory.map');
     const [selectedKeys, setSelectedKeys] = useState<number[]>([]);
     const [linkModal, setLinkModal] = useState<{ open: boolean; orderIds?: number[] }>({ open: false });
+    const [viewOrderId, setViewOrderId] = useState<number | null>(null);
 
     const tabKey = params.get('tab') ?? (params.get('has_issue') ? 'issue' : '');
     const statusParam = params.get('status') ?? '';
@@ -136,7 +138,7 @@ export function OrdersPage() {
             title: 'Sản phẩm', key: 'items',
             render: (_, o) => (
                 <Space>
-                    <Avatar shape="square" size={40} style={{ background: '#f0f0f0' }}>{(o.items_count ?? 0)}</Avatar>
+                    <Avatar shape="square" size={40} src={o.thumbnail ?? undefined} style={{ background: '#f0f0f0' }}>{o.thumbnail ? null : (o.items_count ?? 0)}</Avatar>
                     <Typography.Text type="secondary">{o.items_count ?? 0} mặt hàng</Typography.Text>
                 </Space>
             ),
@@ -146,7 +148,7 @@ export function OrdersPage() {
         { title: 'Tổng tiền', dataIndex: 'grand_total', key: 'total', width: 130, align: 'right', render: (v, o) => <MoneyText value={v} currency={o.currency} strong /> },
         { title: 'Trạng thái', dataIndex: 'status', key: 'status', width: 140, render: (v, o) => <StatusTag status={v} label={o.status_label} rawStatus={o.raw_status} /> },
         { title: 'Đặt lúc', dataIndex: 'placed_at', key: 'placed_at', width: 150, render: (v) => <DateText value={v} /> },
-        { title: '', key: 'action', width: 56, render: (_, o) => <Link to={`/orders/${o.id}`}>Xem</Link> },
+        { title: '', key: 'action', width: 56, render: (_, o) => <Typography.Link onClick={() => setViewOrderId(o.id)}>Xem</Typography.Link> },
     ];
 
     return (
@@ -256,6 +258,7 @@ export function OrdersPage() {
             </Card>
 
             <LinkSkusModal open={linkModal.open} orderIds={linkModal.orderIds} onClose={() => { setLinkModal({ open: false }); setSelectedKeys([]); }} />
+            <OrderDetailModal orderId={viewOrderId} open={viewOrderId != null} onClose={() => setViewOrderId(null)} />
         </div>
     );
 }

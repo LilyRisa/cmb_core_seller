@@ -6,6 +6,7 @@ use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Tenancy\Concerns\BelongsToTenant;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -61,6 +62,8 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $deleted_at
  * @property int|null $items_count
  * @property-read ChannelAccount|null $channelAccount
+ * @property-read Collection<int, OrderItem> $items
+ * @property-read Collection<int, OrderStatusHistory> $statusHistory
  */
 class Order extends Model
 {
