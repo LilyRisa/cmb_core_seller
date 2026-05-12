@@ -6,6 +6,10 @@ use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Channels\Jobs\SyncOrdersForShop;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\OAuthState;
+use CMBcoreSeller\Modules\Inventory\Models\Sku;
+use CMBcoreSeller\Modules\Inventory\Models\SkuMapping;
+use CMBcoreSeller\Modules\Orders\Models\Order;
+use CMBcoreSeller\Modules\Products\Models\ChannelListing;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
@@ -89,20 +93,39 @@ class ChannelConnectFlowTest extends TestCase
         $this->get("/oauth/tiktok/callback?code=abc&state={$state->state}")->assertRedirect('/channels?error=oauth_state');
     }
 
-    public function test_disconnect_marks_revoked_and_keeps_order_history(): void
+    public function test_delete_connection_removes_its_orders_and_sku_links_after_confirm(): void
     {
         $account = ChannelAccount::withoutGlobalScope(TenantScope::class)->create([
-            'tenant_id' => $this->tenant->getKey(), 'provider' => 'tiktok', 'external_shop_id' => F::SHOP_ID,
+            'tenant_id' => $this->tenant->getKey(), 'provider' => 'tiktok', 'external_shop_id' => F::SHOP_ID, 'shop_name' => 'Shop ABC',
             'status' => ChannelAccount::STATUS_ACTIVE, 'access_token' => 'tk', 'refresh_token' => 'rt',
         ]);
+        $order = Order::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $this->tenant->getKey(), 'source' => 'tiktok', 'channel_account_id' => $account->getKey(),
+            'external_order_id' => 'O-1', 'order_number' => 'O-1', 'status' => 'pending', 'raw_status' => 'AWAITING_SHIPMENT',
+            'currency' => 'VND', 'grand_total' => 50000, 'item_total' => 50000, 'placed_at' => now(), 'has_issue' => false, 'tags' => [], 'source_updated_at' => now(),
+        ]);
+        $listing = ChannelListing::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $this->tenant->getKey(), 'channel_account_id' => $account->getKey(), 'external_sku_id' => 'ext-1', 'seller_sku' => 'S-1', 'currency' => 'VND', 'is_active' => true,
+        ]);
+        $sku = Sku::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $this->tenant->getKey(), 'sku_code' => 'SKU-1', 'name' => 'X']);
+        SkuMapping::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $this->tenant->getKey(), 'channel_listing_id' => $listing->getKey(), 'sku_id' => $sku->getKey(), 'quantity' => 1, 'type' => 'single']);
 
+        // missing / wrong confirm -> 422
+        $this->actingAs($this->owner)->withHeaders($this->header())->deleteJson("/api/v1/channel-accounts/{$account->getKey()}")->assertStatus(422);
+        $this->actingAs($this->owner)->withHeaders($this->header())->deleteJson("/api/v1/channel-accounts/{$account->getKey()}", ['confirm' => 'nope'])->assertStatus(422);
+        $this->assertNotNull(ChannelAccount::query()->find($account->getKey()));   // still there
+
+        // correct confirm (= shop name) -> deletes orders + unlinks SKU + soft-deletes the account
         $this->actingAs($this->owner)->withHeaders($this->header())
-            ->deleteJson("/api/v1/channel-accounts/{$account->getKey()}")
-            ->assertOk()->assertJsonPath('data.status', 'revoked');
+            ->deleteJson("/api/v1/channel-accounts/{$account->getKey()}", ['confirm' => 'shop abc'])   // case-insensitive
+            ->assertOk()->assertJsonPath('data.deleted_orders', 1)->assertJsonPath('data.unlinked_skus', 1);
 
-        $this->assertSame(ChannelAccount::STATUS_REVOKED, $account->fresh()->status);
-        // resync on a revoked account -> 409
-        $this->actingAs($this->owner)->withHeaders($this->header())->postJson("/api/v1/channel-accounts/{$account->getKey()}/resync")->assertStatus(409);
+        $this->assertNull(ChannelAccount::query()->find($account->getKey()));                                // soft-deleted
+        $this->assertNull(Order::query()->find($order->getKey()));      // soft-deleted
+        $this->assertSame(0, SkuMapping::withoutGlobalScope(TenantScope::class)->where('channel_listing_id', $listing->getKey())->count());
+        $this->assertSame(0, ChannelListing::withoutGlobalScope(TenantScope::class)->where('channel_account_id', $account->getKey())->count());
+        // the gone account -> 404 on resync
+        $this->actingAs($this->owner)->withHeaders($this->header())->postJson("/api/v1/channel-accounts/{$account->getKey()}/resync")->assertNotFound();
     }
 
     public function test_index_lists_accounts_and_connectable_providers(): void

@@ -55,13 +55,26 @@ export function useConnectChannel() {
     });
 }
 
-export function useDisconnectChannel() {
+/**
+ * Xóa kết nối gian hàng — xóa TẤT CẢ đơn của gian hàng + hủy mọi liên kết SKU của nó. Cần `confirm` =
+ * tên gian hàng (server kiểm). Trả `{ deleted_orders, unlinked_skus }`. (Đây là DELETE, không phải "tạm ngắt".)
+ */
+export function useDeleteChannelAccount() {
     const api = useScopedApi();
     const qc = useQueryClient();
     const tenantId = useCurrentTenantId();
     return useMutation({
-        mutationFn: async (id: number) => { await api!.delete(`/channel-accounts/${id}`); },
-        onSuccess: () => qc.invalidateQueries({ queryKey: ['channel-accounts', tenantId] }),
+        mutationFn: async (vars: { id: number; confirm: string }) => {
+            const { data } = await api!.delete<{ data: { deleted_orders: number; unlinked_skus: number } }>(`/channel-accounts/${vars.id}`, { data: { confirm: vars.confirm } });
+            return data.data;
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['channel-accounts', tenantId] });
+            qc.invalidateQueries({ queryKey: ['orders', tenantId] });
+            qc.invalidateQueries({ queryKey: ['skus', tenantId] });
+            qc.invalidateQueries({ queryKey: ['channel-listings', tenantId] });
+            qc.invalidateQueries({ queryKey: ['inventory-levels', tenantId] });
+        },
     });
 }
 

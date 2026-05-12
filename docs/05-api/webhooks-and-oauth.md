@@ -37,7 +37,7 @@
   5. Enqueue `BackfillOrders(channel_account, 90 days)`.
   6. Xóa `oauth_states`. Redirect về SPA: `/{...}/channels?connected={provider}` (trang "Kết nối thành công").
 - Lỗi giữa chừng ⇒ trang lỗi thân thiện + log + không tạo `channel_account` nửa vời.
-- **Disconnect**: `DELETE /api/v1/channel-accounts/{id}` → `connector.revoke()` (best-effort) → `status=revoked` (giữ lịch sử đơn) hoặc xoá mềm tuỳ chọn → dừng mọi job của shop đó → (tuỳ chính sách) ẩn danh hoá dữ liệu buyer.
+- **Xóa kết nối**: `DELETE /api/v1/channel-accounts/{id}` body `{ confirm: "<tên gian hàng>" }` (phải khớp `effectiveName()` — chống xóa nhầm) → `connector.revoke()` (best-effort) → **xóa (soft) TẤT CẢ đơn hàng của gian hàng + nhả tồn đã giữ chỗ cho các đơn đó** → **hủy mọi liên kết SKU** (`sku_mappings` + `channel_listings` của gian hàng) → soft-delete gian hàng → dừng mọi job của shop. (Webhook đến cho shop đã xóa ⇒ bỏ qua vì không còn account.) Sự kiện sàn `shop_deauthorized` chỉ đặt `status=revoked` (KHÔNG xóa đơn — có thể chỉ là token hết hạn tạm thời).
 
 ## 3. RULES
 1. Webhook: verify trước, trả 200 nhanh, xử lý async, idempotent, lưu payload thô để re-drive.

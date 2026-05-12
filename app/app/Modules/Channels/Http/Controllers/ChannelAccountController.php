@@ -13,6 +13,7 @@ use CMBcoreSeller\Modules\Channels\Services\ChannelConnectionService;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 /**
  * /api/v1/channel-accounts — list connected shops, start an OAuth connect,
@@ -57,15 +58,23 @@ class ChannelAccountController extends Controller
         return response()->json(['data' => ['auth_url' => $authUrl, 'provider' => $provider]]);
     }
 
-    /** DELETE /api/v1/channel-accounts/{id} */
+    /**
+     * DELETE /api/v1/channel-accounts/{id}  body: { confirm: "<tên gian hàng>" }
+     * Xóa kết nối + TẤT CẢ đơn hàng của gian hàng + hủy mọi liên kết SKU của nó. Yêu cầu gõ đúng tên
+     * gian hàng để xác nhận (chống xóa nhầm). Trả số đơn đã xóa & số liên kết SKU đã hủy.
+     */
     public function destroy(Request $request, int $id, ChannelConnectionService $service): JsonResponse
     {
         $this->authorizeManage($request);
         $account = ChannelAccount::query()->findOrFail($id);
+        $data = $request->validate(['confirm' => ['required', 'string', 'max:255']]);
+        if (mb_strtolower(trim($data['confirm'])) !== mb_strtolower(trim($account->effectiveName()))) {
+            throw ValidationException::withMessages(['confirm' => 'Mã xác nhận không khớp — gõ đúng tên gian hàng «'.$account->effectiveName().'» để xóa.']);
+        }
 
-        $service->disconnect($account);
+        $result = $service->deleteWithOrders($account, $request->user()?->getKey());
 
-        return response()->json(['data' => new ChannelAccountResource($account->refresh())]);
+        return response()->json(['data' => ['deleted_orders' => $result['deleted_orders'], 'unlinked_skus' => $result['unlinked_skus']]]);
     }
 
     /** PATCH /api/v1/channel-accounts/{id} — set a display alias (two shops can share the same shop_name). */

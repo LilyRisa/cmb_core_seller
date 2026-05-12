@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Alert, Avatar, Button, Card, Col, Empty, Input, Modal, Popconfirm, Result, Row, Space, Tag, Tooltip, Typography } from 'antd';
+import { Alert, Avatar, Button, Card, Col, Empty, Input, Modal, Result, Row, Space, Tag, Tooltip, Typography } from 'antd';
 import { App as AntApp } from 'antd';
-import { CheckCircleOutlined, ClockCircleOutlined, EditOutlined, PlusOutlined, ReloadOutlined, ShopOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, ClockCircleOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, ShopOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { DateText } from '@/components/MoneyText';
 import { CHANNEL_META, CHANNEL_STATUS_COLOR, CHANNEL_STATUS_LABEL } from '@/lib/format';
 import { errorMessage } from '@/lib/api';
-import { ChannelAccount, useChannelAccounts, useConnectChannel, useDisconnectChannel, useRenameChannel, useResyncChannel } from '@/lib/channels';
+import { ChannelAccount, useChannelAccounts, useConnectChannel, useDeleteChannelAccount, useRenameChannel, useResyncChannel } from '@/lib/channels';
 import { useCan } from '@/lib/tenant';
 
 const CALLBACK_ERRORS: Record<string, string> = {
@@ -24,7 +24,7 @@ const CALLBACK_ERRORS: Record<string, string> = {
     tiktok_api_error: 'TikTok trả lỗi khi lấy thông tin gian hàng. Xem chi tiết trong log server.',
 };
 
-function ShopCard({ account, canManage, onResync, onDisconnect, onRename }: { account: ChannelAccount; canManage: boolean; onResync: () => void; onDisconnect: () => void; onRename: () => void }) {
+function ShopCard({ account, canManage, onResync, onDelete, onRename }: { account: ChannelAccount; canManage: boolean; onResync: () => void; onDelete: () => void; onRename: () => void }) {
     const meta = CHANNEL_META[account.provider] ?? { name: account.provider, color: '#8c8c8c' };
     return (
         <Card styles={{ body: { padding: 16 } }}>
@@ -43,9 +43,7 @@ function ShopCard({ account, canManage, onResync, onDisconnect, onRename }: { ac
                 {canManage && (
                     <Space>
                         <Tooltip title="Đồng bộ lại đơn ngay"><Button size="small" icon={<ReloadOutlined />} onClick={onResync} disabled={account.status !== 'active'}>Đồng bộ</Button></Tooltip>
-                        <Popconfirm title="Ngắt kết nối gian hàng này?" description="Lịch sử đơn vẫn được giữ lại; đồng bộ sẽ dừng." okText="Ngắt" cancelText="Huỷ" onConfirm={onDisconnect}>
-                            <Button size="small" danger>Ngắt</Button>
-                        </Popconfirm>
+                        <Tooltip title="Xóa kết nối — xóa cả đơn hàng & liên kết SKU của gian hàng này"><Button size="small" danger icon={<DeleteOutlined />} onClick={onDelete}>Xóa kết nối</Button></Tooltip>
                     </Space>
                 )}
             </div>
@@ -65,11 +63,14 @@ export function ChannelsPage() {
     const canManage = useCan('channels.manage');
     const { data, isLoading, isError, error, refetch } = useChannelAccounts();
     const connect = useConnectChannel();
-    const disconnect = useDisconnectChannel();
+    const deleteAccount = useDeleteChannelAccount();
     const resync = useResyncChannel();
     const rename = useRenameChannel();
     const [renaming, setRenaming] = useState<ChannelAccount | null>(null);
     const [aliasDraft, setAliasDraft] = useState('');
+    const [deleteTarget, setDeleteTarget] = useState<ChannelAccount | null>(null);
+    const [confirmDraft, setConfirmDraft] = useState('');
+    const confirmOk = !!deleteTarget && confirmDraft.trim().toLowerCase() === deleteTarget.name.trim().toLowerCase();
 
     useEffect(() => {
         const connected = params.get('connected');
@@ -128,7 +129,7 @@ export function ChannelsPage() {
                                 <ShopCard
                                     account={a} canManage={canManage}
                                     onResync={() => resync.mutate(a.id, { onSuccess: () => message.success('Đã xếp lịch đồng bộ lại đơn của gian hàng này.') })}
-                                    onDisconnect={() => disconnect.mutate(a.id, { onSuccess: () => message.success('Đã ngắt kết nối gian hàng.') })}
+                                    onDelete={() => { setDeleteTarget(a); setConfirmDraft(''); }}
                                     onRename={() => { setRenaming(a); setAliasDraft(a.display_name ?? ''); }}
                                 />
                             </Col>
@@ -146,6 +147,29 @@ export function ChannelsPage() {
             >
                 <Typography.Paragraph type="secondary">Tên sàn: <b>{renaming?.shop_name ?? renaming?.external_shop_id}</b>. Đặt một alias riêng để phân biệt khi có nhiều shop trùng tên. Để trống = dùng tên sàn.</Typography.Paragraph>
                 <Input value={aliasDraft} onChange={(e) => setAliasDraft(e.target.value)} placeholder="VD: TikTok – kho HN" maxLength={120} onPressEnter={() => rename.mutate({ id: renaming!.id, display_name: aliasDraft.trim() || null }, { onSuccess: () => { message.success('Đã cập nhật.'); setRenaming(null); } })} />
+            </Modal>
+
+            <Modal
+                title={<span><DeleteOutlined style={{ color: '#cf1322', marginRight: 6 }} />Xóa kết nối gian hàng?</span>}
+                open={!!deleteTarget} onCancel={() => setDeleteTarget(null)} destroyOnClose
+                okText="Xóa vĩnh viễn" okButtonProps={{ danger: true, disabled: !confirmOk, loading: deleteAccount.isPending }}
+                onOk={() => deleteAccount.mutate({ id: deleteTarget!.id, confirm: confirmDraft.trim() }, {
+                    onSuccess: (r) => { message.success(`Đã xóa kết nối — xóa ${r.deleted_orders} đơn hàng, hủy ${r.unlinked_skus} liên kết SKU.`); setDeleteTarget(null); },
+                    onError: (e) => message.error(errorMessage(e)),
+                })}
+            >
+                <Alert type="error" showIcon style={{ marginBottom: 12 }}
+                    message="Hành động không thể hoàn tác từ giao diện"
+                    description={<>Xóa kết nối gian hàng <b>«{deleteTarget?.name}»</b> sẽ:<ul style={{ margin: '6px 0 0', paddingInlineStart: 18 }}>
+                        <li><b>Xóa toàn bộ đơn hàng</b> đã đồng bộ từ gian hàng này.</li>
+                        <li><b>Hủy mọi liên kết SKU</b> (sku_mappings) của gian hàng này.</li>
+                        <li>Ngắt token & gỡ gian hàng khỏi danh sách kết nối.</li>
+                    </ul></>}
+                />
+                <Typography.Paragraph style={{ marginBottom: 4 }}>Để xác nhận, gõ chính xác tên gian hàng: <b>{deleteTarget?.name}</b></Typography.Paragraph>
+                <Input autoFocus value={confirmDraft} onChange={(e) => setConfirmDraft(e.target.value)} placeholder={deleteTarget?.name}
+                    status={confirmDraft && !confirmOk ? 'error' : undefined}
+                    onPressEnter={() => { if (confirmOk) { deleteAccount.mutate({ id: deleteTarget!.id, confirm: confirmDraft.trim() }, { onSuccess: (r) => { message.success(`Đã xóa kết nối — xóa ${r.deleted_orders} đơn, hủy ${r.unlinked_skus} liên kết SKU.`); setDeleteTarget(null); }, onError: (e) => message.error(errorMessage(e)) }); } }} />
             </Modal>
         </div>
     );

@@ -10,6 +10,11 @@ use CMBcoreSeller\Modules\Channels\Jobs\SyncOrdersForShop;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\OAuthState;
 use CMBcoreSeller\Modules\Channels\Models\SyncRun;
+use CMBcoreSeller\Modules\Inventory\Models\SkuMapping;
+use CMBcoreSeller\Modules\Inventory\Services\InventoryLedgerService;
+use CMBcoreSeller\Modules\Orders\Models\Order;
+use CMBcoreSeller\Modules\Orders\Models\OrderItem;
+use CMBcoreSeller\Modules\Products\Models\ChannelListing;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -22,7 +27,7 @@ use RuntimeException;
  */
 class ChannelConnectionService
 {
-    public function __construct(private ChannelRegistry $registry) {}
+    public function __construct(private ChannelRegistry $registry, private InventoryLedgerService $ledger) {}
 
     public function assertProviderConnectable(string $provider): void
     {
@@ -143,5 +148,56 @@ class ChannelConnectionService
         $account->forceFill(['status' => ChannelAccount::STATUS_REVOKED])->save();
         ChannelAccountRevoked::dispatch($account, 'disconnected by user');
         // Order history is intentionally kept. (Buyer-data anonymization on disconnect: Phase 7.)
+    }
+
+    /**
+     * Xóa kết nối gian hàng + **xóa toàn bộ đơn hàng của gian hàng đó** + **hủy mọi liên kết SKU** của nó.
+     * Nhả tồn đã giữ chỗ cho các đơn này (để tồn không bị kẹt). Đơn được soft-delete; sku_mappings & listing
+     * của gian hàng bị xóa; gian hàng được soft-delete + revoke trên sàn (best-effort). Yêu cầu mã xác nhận
+     * (kiểm ở controller). Trả `['deleted_orders'=>N,'unlinked_skus'=>M]`.
+     *
+     * @return array{deleted_orders:int,unlinked_skus:int}
+     */
+    public function deleteWithOrders(ChannelAccount $account, ?int $userId = null): array
+    {
+        if ($this->registry->has($account->provider)) {
+            try {
+                $this->registry->for($account->provider)->revoke($account->authContext());
+            } catch (\Throwable $e) {
+                Log::info('channel.revoke_failed', ['provider' => $account->provider, 'error' => class_basename($e)]);
+            }
+        }
+        $accountId = (int) $account->getKey();
+        $tenantId = (int) $account->tenant_id;
+        $orderIds = Order::query()->where('channel_account_id', $accountId)->pluck('id')->map(fn ($v) => (int) $v)->all();
+        $listingIds = ChannelListing::query()->where('channel_account_id', $accountId)->pluck('id')->map(fn ($v) => (int) $v)->all();
+        $unlinked = $listingIds ? SkuMapping::query()->whereIn('channel_listing_id', $listingIds)->count() : 0;
+
+        DB::transaction(function () use ($account, $tenantId, $orderIds, $listingIds, $userId) {
+            // 1) nhả tồn đã giữ chỗ cho các đơn sắp xóa (reservation theo từng order_item)
+            if ($orderIds) {
+                $items = OrderItem::query()->whereIn('order_id', $orderIds)->whereNotNull('sku_id')->get(['id', 'sku_id', 'quantity']);
+                foreach ($items as $it) {
+                    $skuId = (int) $it->sku_id;
+                    $itemId = (int) $it->id;
+                    if ($this->ledger->hasOpenReservation($tenantId, $skuId, 'order_item', $itemId)) {
+                        $this->ledger->release($tenantId, $skuId, max(1, (int) $it->quantity), 'order_item', $itemId, null, $userId);
+                    }
+                }
+                Order::query()->whereIn('id', $orderIds)->delete();   // soft-delete (Order dùng SoftDeletes)
+            }
+            // 2) hủy liên kết SKU: xóa sku_mappings + channel_listings của gian hàng
+            if ($listingIds) {
+                SkuMapping::query()->whereIn('channel_listing_id', $listingIds)->delete();
+                ChannelListing::query()->whereIn('id', $listingIds)->delete();
+            }
+            // 3) xóa (soft) gian hàng
+            $account->forceFill(['status' => ChannelAccount::STATUS_REVOKED])->save();
+            $account->delete();
+        });
+
+        ChannelAccountRevoked::dispatch($account, 'deleted by user (orders + SKU links removed)');
+
+        return ['deleted_orders' => count($orderIds), 'unlinked_skus' => $unlinked];
     }
 }
