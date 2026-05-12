@@ -86,8 +86,10 @@ x-app-env: &app-env
   R2_URL: ${R2_URL}
   R2_DEFAULT_REGION: ${R2_DEFAULT_REGION:-auto}
   R2_USE_PATH_STYLE_ENDPOINT: "${R2_USE_PATH_STYLE_ENDPOINT:-true}"
-  # PDF rendering (gotenberg service)
+  # PDF rendering (gotenberg service) + khổ phiếu in mặc định (tenant đè được trong UI: Cài đặt → Mẫu in)
   GOTENBERG_URL: http://gotenberg:3000
+  PRINT_LABEL_SIZE: ${PRINT_LABEL_SIZE:-A6}
+  FULFILLMENT_DEDUCT_ON: ${FULFILLMENT_DEDUCT_ON:-shipped}
   # Mail
   MAIL_MAILER: ${MAIL_MAILER:-smtp}
   MAIL_HOST: ${MAIL_HOST}
@@ -102,6 +104,9 @@ x-app-env: &app-env
   # Marketplace integrations
   INTEGRATIONS_CHANNELS: ${INTEGRATIONS_CHANNELS:-manual,tiktok}
   INTEGRATIONS_CARRIERS: ${INTEGRATIONS_CARRIERS:-}
+  # "Luồng A": "Chuẩn bị hàng" gọi API sàn arrange-shipment + lấy tem thật. Đặt false nếu shape API TikTok
+  # chưa khớp sandbox (lỗi gọi sàn vẫn được bắt & gắn cờ has_issue trên đơn, không chặn).
+  INTEGRATIONS_TIKTOK_FULFILLMENT: "${INTEGRATIONS_TIKTOK_FULFILLMENT:-true}"
   TIKTOK_APP_KEY: ${TIKTOK_APP_KEY}
   TIKTOK_APP_SECRET: ${TIKTOK_APP_SECRET}
   TIKTOK_SERVICE_ID: ${TIKTOK_SERVICE_ID}
