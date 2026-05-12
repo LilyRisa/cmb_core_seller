@@ -21,7 +21,10 @@
 6. **CORS**: vì app **upload qua backend** (server-to-R2), **không cần** cấu hình CORS. Chỉ khi nào chuyển sang **presigned PUT trực tiếp từ trình duyệt** mới phải thêm CORS policy cho bucket (cho `PUT` từ origin của SPA).
 
 ## 3. Biến môi trường (prod)
-Đặt trong Portainer → Stack → **Environment variables** (xem `.env.example` để biết tên đầy đủ):
+Đặt trong Portainer → Stack → **Environment variables** (xem `.env.example` để biết tên đầy đủ).
+
+> ⚠ **Vì sao "đã đặt env trong Portainer mà app vẫn không nhận":** Portainer's "Environment variables" chỉ dùng để **thay thế `${VAR}`** trong file compose — chúng **không** tự được tiêm vào container. Một biến chỉ tới được app/worker/scheduler nếu nó được **liệt kê trong `x-app-env`** của `docker-compose.prod.yml`. Các biến `MEDIA_DISK` / `R2_*` nay đã có trong `x-app-env` (block "User-uploaded media — Cloudflare R2"); sau khi cập nhật file compose này phải **Update / Redeploy the stack** (recreate container) vì container còn dùng config cache cũ. (Nếu bạn fork/sửa compose riêng — nhớ thêm khối đó.)
+
 
 | Biến | Bắt buộc | Giá trị |
 |---|---|---|
