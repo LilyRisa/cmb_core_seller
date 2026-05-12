@@ -19,6 +19,7 @@ use Illuminate\Support\Carbon;
  * @property int $reserved
  * @property int $safety_stock
  * @property int $available_cached
+ * @property int $cost_price
  * @property bool $is_negative
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -29,13 +30,13 @@ class InventoryLevel extends Model
 {
     use BelongsToTenant;
 
-    protected $fillable = ['tenant_id', 'sku_id', 'warehouse_id', 'on_hand', 'reserved', 'safety_stock', 'available_cached', 'is_negative'];
+    protected $fillable = ['tenant_id', 'sku_id', 'warehouse_id', 'on_hand', 'reserved', 'safety_stock', 'available_cached', 'cost_price', 'is_negative'];
 
     protected function casts(): array
     {
         return [
             'on_hand' => 'integer', 'reserved' => 'integer', 'safety_stock' => 'integer',
-            'available_cached' => 'integer', 'is_negative' => 'boolean',
+            'available_cached' => 'integer', 'cost_price' => 'integer', 'is_negative' => 'boolean',
         ];
     }
 

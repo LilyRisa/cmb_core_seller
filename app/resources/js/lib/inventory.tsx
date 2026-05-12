@@ -12,6 +12,7 @@ export interface InventoryLevel {
     reserved: number;
     safety_stock: number;
     available: number;
+    cost_price: number;
     is_negative: boolean;
     sku?: { id: number; sku_code: string; name: string };
     warehouse?: { id: number; name: string; is_default: boolean };
@@ -33,19 +34,55 @@ export interface InventoryMovement {
 export interface Sku {
     id: number;
     product_id: number | null;
+    spu_code: string | null;
+    category: string | null;
     sku_code: string;
     barcode: string | null;
+    gtins: string[];
     name: string;
-    cost_price: number;
+    base_unit: string;
+    cost_price: number;                 // giá vốn tham khảo (VND)
+    ref_sale_price: number | null;      // giá bán tham khảo (VND)
+    ref_profit_per_unit: number | null; // ref_sale_price − cost_price
+    ref_margin_percent: number | null;  // profit ÷ sale price × 100
+    sale_start_date: string | null;     // YYYY-MM-DD
+    note: string | null;
+    weight_grams: number | null;
+    length_cm: string | null;
+    width_cm: string | null;
+    height_cm: string | null;
+    image_url: string | null;           // reserved — image upload is a TODO (SPEC 0005 §7)
     attributes: Record<string, unknown>;
     is_active: boolean;
     on_hand_total?: number;
     reserved_total?: number;
     available_total?: number;
     levels?: InventoryLevel[];
-    mappings?: Array<{ id: number; channel_listing_id: number; sku_id: number; quantity: number; type: string }>;
+    mappings?: Array<{ id: number; channel_listing_id: number; sku_id: number; quantity: number; type: string; channel_listing?: { id: number; channel_account_id: number; external_sku_id: string; seller_sku: string | null; title: string | null } | null }>;
     movements?: InventoryMovement[];
     created_at: string | null;
+}
+
+/** Payload for POST /skus — the "Thêm SKU đơn độc" form. See SPEC 0005. */
+export interface CreateSkuPayload {
+    sku_code: string;
+    name: string;
+    product_id?: number | null;
+    spu_code?: string | null;
+    category?: string | null;
+    barcode?: string | null;
+    gtins?: string[];
+    base_unit?: string;
+    cost_price?: number;
+    ref_sale_price?: number | null;
+    sale_start_date?: string | null;
+    note?: string | null;
+    weight_grams?: number | null;
+    length_cm?: number | null;
+    width_cm?: number | null;
+    height_cm?: number | null;
+    mappings?: Array<{ channel_account_id: number; external_sku_id: string; seller_sku?: string | null; quantity?: number }>;
+    levels?: Array<{ warehouse_id: number; on_hand?: number; cost_price?: number }>;
 }
 
 export interface Product {
@@ -229,9 +266,9 @@ export function useCreateProduct() {
 export function useCreateSku() {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();
-    const invalidate = useInvalidate([['skus', tenantId]]);
+    const invalidate = useInvalidate([['skus', tenantId], ['inventory-levels', tenantId], ['channel-listings', tenantId]]);
     return useMutation({
-        mutationFn: async (vars: { sku_code: string; name: string; product_id?: number; barcode?: string; cost_price?: number }) => {
+        mutationFn: async (vars: CreateSkuPayload) => {
             const { data } = await api!.post<{ data: Sku }>('/skus', vars);
             return data.data;
         },

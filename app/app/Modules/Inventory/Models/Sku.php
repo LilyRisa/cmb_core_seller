@@ -17,10 +17,22 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $tenant_id
  * @property int|null $product_id
+ * @property string|null $spu_code
+ * @property string|null $category
  * @property string $sku_code
  * @property string|null $barcode
+ * @property array|null $gtins
  * @property string $name
+ * @property string $base_unit
  * @property int $cost_price
+ * @property int|null $ref_sale_price
+ * @property Carbon|null $sale_start_date
+ * @property string|null $note
+ * @property int|null $weight_grams
+ * @property string|null $length_cm
+ * @property string|null $width_cm
+ * @property string|null $height_cm
+ * @property string|null $image_url
  * @property array|null $attributes
  * @property bool $is_active
  * @property Carbon|null $created_at
@@ -33,11 +45,38 @@ class Sku extends Model
 {
     use BelongsToTenant, SoftDeletes;
 
-    protected $fillable = ['tenant_id', 'product_id', 'sku_code', 'barcode', 'name', 'cost_price', 'attributes', 'is_active'];
+    protected $fillable = [
+        'tenant_id', 'product_id', 'spu_code', 'category', 'sku_code', 'barcode', 'gtins', 'name', 'base_unit',
+        'cost_price', 'ref_sale_price', 'sale_start_date', 'note', 'weight_grams', 'length_cm', 'width_cm', 'height_cm',
+        'image_url', 'attributes', 'is_active',
+    ];
 
     protected function casts(): array
     {
-        return ['cost_price' => 'integer', 'attributes' => 'array', 'is_active' => 'boolean'];
+        return [
+            'cost_price' => 'integer', 'ref_sale_price' => 'integer', 'weight_grams' => 'integer',
+            'gtins' => 'array', 'attributes' => 'array', 'is_active' => 'boolean', 'sale_start_date' => 'date',
+        ];
+    }
+
+    /**
+     * Reference gross profit per unit = reference sale price − reference cost.
+     * Null when no reference sale price is set. Profit reporting (Phase 6) uses
+     * the warehouse-level cost when known and falls back to this. See SPEC 0005 §6.
+     */
+    public function refProfitPerUnit(): ?int
+    {
+        return $this->ref_sale_price === null ? null : $this->ref_sale_price - $this->cost_price;
+    }
+
+    /** Reference margin % = profit ÷ sale price × 100. Null when sale price is 0/null. */
+    public function refMarginPercent(): ?float
+    {
+        if (! $this->ref_sale_price) {
+            return null;
+        }
+
+        return round(($this->ref_sale_price - $this->cost_price) / $this->ref_sale_price * 100, 1);
     }
 
     public function levels(): HasMany

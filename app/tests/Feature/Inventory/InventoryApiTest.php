@@ -4,14 +4,17 @@ namespace Tests\Feature\Inventory;
 
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Inventory\Jobs\PushStockForSku;
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Inventory\Models\SkuMapping;
+use CMBcoreSeller\Modules\Inventory\Models\Warehouse;
 use CMBcoreSeller\Modules\Inventory\Services\InventoryLedgerService;
 use CMBcoreSeller\Modules\Products\Models\ChannelListing;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Bus;
 use Tests\TestCase;
 
 class InventoryApiTest extends TestCase
@@ -95,6 +98,41 @@ class InventoryApiTest extends TestCase
         // listing list shows mapped flag
         $this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/channel-listings?mapped=1')->assertOk()->assertJsonCount(2, 'data');
         $this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/channel-listings?mapped=0')->assertOk()->assertJsonCount(0, 'data');
+    }
+
+    public function test_create_sku_with_catalogue_fields_mappings_and_opening_stock(): void
+    {
+        Bus::fake([PushStockForSku::class]);
+        $shop = ChannelAccount::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $this->tenant->getKey(), 'provider' => 'tiktok', 'external_shop_id' => 's1', 'shop_name' => 'Shop 1', 'status' => 'active']);
+        $wh = Warehouse::defaultFor((int) $this->tenant->getKey());
+
+        $res = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/skus', [
+            'sku_code' => 'AOM-001', 'name' => 'Áo thun M',
+            'spu_code' => 'AOM', 'category' => 'Áo', 'gtins' => ['8930001112223'], 'base_unit' => 'PCS',
+            'cost_price' => 40000, 'ref_sale_price' => 99000, 'sale_start_date' => '2026-05-20',
+            'note' => 'Hàng mới', 'weight_grams' => 250, 'length_cm' => 30, 'width_cm' => 20, 'height_cm' => 2,
+            'mappings' => [['channel_account_id' => $shop->getKey(), 'external_sku_id' => 'EXT-1', 'seller_sku' => 'SHOP-AOM', 'quantity' => 1]],
+            'levels' => [['warehouse_id' => $wh->getKey(), 'on_hand' => 15, 'cost_price' => 41000]],
+        ])->assertCreated();
+
+        $skuId = (int) $res->json('data.id');
+        $this->assertSame('AOM', $res->json('data.spu_code'));
+        $this->assertSame(99000, $res->json('data.ref_sale_price'));
+        $this->assertSame(59000, $res->json('data.ref_profit_per_unit'));
+        $this->assertSame(['8930001112223'], $res->json('data.gtins'));
+
+        // opening stock landed in the warehouse with the per-warehouse cost
+        $this->actingAs($this->owner)->withHeaders($this->h())->getJson("/api/v1/skus/{$skuId}")
+            ->assertOk()->assertJsonPath('data.available_total', 15)
+            ->assertJsonPath('data.levels.0.cost_price', 41000)
+            ->assertJsonPath('data.mappings.0.channel_listing.external_sku_id', 'EXT-1');
+
+        // listing was created and linked
+        $this->assertTrue(ChannelListing::withoutGlobalScope(TenantScope::class)->where('channel_account_id', $shop->getKey())->where('external_sku_id', 'EXT-1')->exists());
+
+        // bad warehouse / bad shop → 422
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/skus', ['sku_code' => 'X', 'name' => 'x', 'levels' => [['warehouse_id' => 999999, 'on_hand' => 1]]])->assertStatus(422);
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/skus', ['sku_code' => 'Y', 'name' => 'y', 'mappings' => [['channel_account_id' => 999999, 'external_sku_id' => 'Z']]])->assertStatus(422);
     }
 
     public function test_tenant_isolation_on_skus(): void

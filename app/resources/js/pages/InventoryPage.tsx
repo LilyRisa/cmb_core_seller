@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { App as AntApp, Button, Card, Empty, Form, Input, InputNumber, Modal, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
 import { CloudDownloadOutlined, CloudUploadOutlined, DeleteOutlined, ImportOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -9,7 +9,7 @@ import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
 import {
     ChannelListing, InventoryLevel, Sku,
-    useAdjustStock, useAutoMatchSkus, useBulkAdjustStock, useBulkPushStock, useChannelListings, useCreateSku, useInventoryLevels, useRemoveSkuMapping, useSetSkuMapping, useSkus, useSyncChannelListings, useWarehouses,
+    useAdjustStock, useAutoMatchSkus, useBulkAdjustStock, useBulkPushStock, useChannelListings, useInventoryLevels, useRemoveSkuMapping, useSetSkuMapping, useSkus, useSyncChannelListings, useWarehouses,
 } from '@/lib/inventory';
 
 function StockBadge({ available }: { available: number }) {
@@ -88,28 +88,27 @@ function LevelsTab() {
 
 function SkusTab() {
     const { message } = AntApp.useApp();
+    const navigate = useNavigate();
     const [q, setQ] = useState('');
     const [page, setPage] = useState(1);
     const { data, isFetching } = useSkus({ q: q || undefined, page, per_page: 20 });
-    const create = useCreateSku();
     const bulkAdjust = useBulkAdjustStock();
     const bulkPush = useBulkPushStock();
     const { data: warehouses } = useWarehouses();
     const canManage = useCan('products.manage');
     const canAdjust = useCan('inventory.adjust');
     const canMap = useCan('inventory.map');
-    const [open, setOpen] = useState(false);
     const [bulkOpen, setBulkOpen] = useState(false);
     const [selectedKeys, setSelectedKeys] = useState<number[]>([]);
-    const [form] = Form.useForm();
     const [bulkForm] = Form.useForm();
     const skuOptions = (data?.data ?? []).map((s) => ({ value: s.id, label: `${s.sku_code} · ${s.name}` }));
 
     const columns: ColumnsType<Sku> = [
-        { title: 'Mã SKU', dataIndex: 'sku_code', key: 'code', render: (v) => <Typography.Text strong>{v}</Typography.Text> },
+        { title: 'Mã SKU', dataIndex: 'sku_code', key: 'code', render: (v, r) => <Space direction="vertical" size={0}><Typography.Text strong>{v}</Typography.Text>{r.spu_code && <Typography.Text type="secondary" style={{ fontSize: 12 }}>SPU: {r.spu_code}</Typography.Text>}</Space> },
         { title: 'Tên', dataIndex: 'name', key: 'name' },
-        { title: 'Barcode', dataIndex: 'barcode', key: 'barcode', width: 140, render: (v) => v ?? '—' },
-        { title: 'Giá vốn', dataIndex: 'cost_price', key: 'cost', width: 110, align: 'right', render: (v) => <MoneyText value={v} /> },
+        { title: 'Giá vốn TK', dataIndex: 'cost_price', key: 'cost', width: 110, align: 'right', render: (v) => <MoneyText value={v} /> },
+        { title: 'Giá bán TK', dataIndex: 'ref_sale_price', key: 'sale', width: 110, align: 'right', render: (v) => (v != null ? <MoneyText value={v} /> : '—') },
+        { title: 'LN/đv', key: 'profit', width: 130, align: 'right', render: (_, r) => (r.ref_profit_per_unit == null ? '—' : <Typography.Text style={{ color: r.ref_profit_per_unit >= 0 ? '#389e0d' : '#cf1322' }}><MoneyText value={r.ref_profit_per_unit} />{r.ref_margin_percent != null ? ` · ${r.ref_margin_percent}%` : ''}</Typography.Text>) },
         { title: 'Thực có', dataIndex: 'on_hand_total', key: 'oh', width: 90, align: 'right', render: (v) => v ?? 0 },
         { title: 'Khả dụng', dataIndex: 'available_total', key: 'av', width: 100, align: 'right', render: (v) => <StockBadge available={v ?? 0} /> },
     ];
@@ -118,7 +117,7 @@ function SkusTab() {
         <>
             <Space style={{ marginBottom: 12 }} wrap>
                 <Input.Search allowClear placeholder="Mã / tên / barcode" prefix={<SearchOutlined />} style={{ width: 260 }} onSearch={(v) => { setQ(v); setPage(1); }} />
-                {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setOpen(true); }}>Thêm SKU</Button>}
+                {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/inventory/skus/new')}>Thêm SKU</Button>}
                 {canAdjust && <Button icon={<ImportOutlined />} onClick={() => { bulkForm.resetFields(); bulkForm.setFieldsValue({ kind: 'goods_receipt', lines: [{}] }); setBulkOpen(true); }}>Phiếu nhập/xuất hàng loạt</Button>}
                 {canMap && selectedKeys.length > 0 && (
                     <Button icon={<CloudUploadOutlined />} loading={bulkPush.isPending} onClick={() => bulkPush.mutate(selectedKeys, { onSuccess: (r) => { message.success(`Đã yêu cầu đẩy tồn ${r.queued} SKU`); setSelectedKeys([]); }, onError: (e) => message.error(errorMessage(e)) })}>Đẩy tồn lên sàn ({selectedKeys.length})</Button>
@@ -128,16 +127,6 @@ function SkusTab() {
                 rowSelection={canMap ? { selectedRowKeys: selectedKeys, onChange: (k) => setSelectedKeys(k as number[]) } : undefined}
                 locale={{ emptyText: <Empty description="Chưa có SKU." /> }}
                 pagination={{ current: data?.meta.pagination.page ?? page, pageSize: 20, total: data?.meta.pagination.total ?? 0, onChange: setPage, showTotal: (t) => `${t} SKU` }} />
-
-            <Modal title="Thêm SKU" open={open} onCancel={() => setOpen(false)} okText="Tạo" confirmLoading={create.isPending}
-                onOk={() => form.validateFields().then((v) => create.mutate(v, { onSuccess: () => { message.success('Đã tạo SKU'); setOpen(false); }, onError: (e) => message.error(errorMessage(e)) }))}>
-                <Form form={form} layout="vertical">
-                    <Form.Item name="sku_code" label="Mã SKU" rules={[{ required: true, max: 100 }]}><Input /></Form.Item>
-                    <Form.Item name="name" label="Tên" rules={[{ required: true, max: 255 }]}><Input /></Form.Item>
-                    <Form.Item name="barcode" label="Barcode"><Input maxLength={100} /></Form.Item>
-                    <Form.Item name="cost_price" label="Giá vốn (₫)"><InputNumber style={{ width: '100%' }} min={0} /></Form.Item>
-                </Form>
-            </Modal>
 
             <Modal title="Phiếu nhập / xuất kho hàng loạt" open={bulkOpen} onCancel={() => setBulkOpen(false)} okText="Áp phiếu" width={680} confirmLoading={bulkAdjust.isPending}
                 onOk={() => bulkForm.validateFields().then((v) => {

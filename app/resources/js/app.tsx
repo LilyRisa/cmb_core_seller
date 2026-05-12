@@ -22,6 +22,7 @@ import { SyncLogsPage } from '@/pages/SyncLogsPage';
 import { CustomersPage } from '@/pages/CustomersPage';
 import { CustomerDetailPage } from '@/pages/CustomerDetailPage';
 import { InventoryPage } from '@/pages/InventoryPage';
+import { CreateSkuPage } from '@/pages/CreateSkuPage';
 import { CreateOrderPage } from '@/pages/CreateOrderPage';
 import { SettingsMembersPage } from '@/pages/SettingsMembersPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
@@ -58,6 +59,7 @@ function Root() {
                 <Route path="customers/:id" element={<CustomerDetailPage />} />
                 <Route path="products" element={<Navigate to="/inventory?tab=skus" replace />} />
                 <Route path="inventory" element={<InventoryPage />} />
+                <Route path="inventory/skus/new" element={<CreateSkuPage />} />
                 <Route path="fulfillment" element={<ComingSoon title="Giao hàng & in" phase="Phase 3" />} />
                 <Route path="sync-logs" element={<SyncLogsPage />} />
                 <Route path="settings" element={<Navigate to="/settings/members" replace />} />

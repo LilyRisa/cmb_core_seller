@@ -13,7 +13,10 @@
 | # | Tên | Phase | Trạng thái | PR |
 |---|---|---|---|---|
 | [0001](0001-tiktok-order-sync.md) | TikTok Shop — kết nối gian hàng & đồng bộ đơn | 1 | Implemented (code xong; chờ kiểm thử sandbox thật) | — |
-| [0002](0002-customer-registry-and-buyer-reputation.md) | Sổ khách hàng & cờ rủi ro (cross-order matching theo SĐT) | 2 | Draft | — |
+| [0002](0002-customer-registry-and-buyer-reputation.md) | Sổ khách hàng & cờ rủi ro (cross-order matching theo SĐT) | 2 | Implemented | — |
+| [0003](0003-products-skus-inventory-manual-orders.md) | Sản phẩm / SKU / Tồn kho lõi / Đơn thủ công / Ghép SKU / Đẩy tồn | 2 | Implemented | — |
+| [0004](0004-bulk-stock-and-sku-linking.md) | Tồn kho thủ công hàng loạt + Liên kết SKU nhanh từ đơn | 2 | Implemented | — |
+| [0005](0005-sku-pim-and-create-form.md) | SKU PIM (thông tin hàng hoá) & form "Thêm SKU đơn độc" | 2 | Implemented | — |
 
 ## Khi nào KHÔNG cần spec
 - Sửa lỗi nhỏ, refactor không đổi hành vi, thay đổi tài liệu, bump dependency, chỉnh CI — chỉ cần PR mô tả rõ. Nhưng nếu "việc nhỏ" hoá ra động chạm kiến trúc/hành vi nghiệp vụ ⇒ dừng, viết spec/ADR.
