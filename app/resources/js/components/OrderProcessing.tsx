@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Alert, App as AntApp, Badge, Button, Card, Empty, Form, Input, Modal, Segmented, Select, Space, Table, Tabs, Tag, Timeline, Tooltip, Typography } from 'antd';
+import { Alert, App as AntApp, Button, Empty, Form, Input, Modal, Segmented, Select, Space, Table, Tag, Timeline, Tooltip, Typography } from 'antd';
 import type { InputRef } from 'antd';
 import { CarOutlined, InboxOutlined, PrinterOutlined, ReloadOutlined, ScanOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -13,7 +13,7 @@ import type { Order } from '@/lib/orders';
 import {
     type ProcessingFilters, type ProcessingStage, type Shipment, SHIPMENT_STATUS_LABEL, STAGE_LABEL,
     useBulkCreateShipments, useCancelShipment, useCarrierAccounts, useCreatePrintJob, useHandoverShipments,
-    usePackShipments, usePrintJob, useProcessingBoard, useProcessingCounts, useScanProcess, useShipment, useShipments, useTrackShipment,
+    usePackShipments, usePrintJob, useProcessingBoard, useScanProcess, useShipment, useShipments, useTrackShipment,
 } from '@/lib/fulfillment';
 
 const PLATFORMS = ['tiktok', 'shopee', 'lazada', 'manual'] as const;
@@ -29,7 +29,7 @@ function PrintCountBadge({ n }: { n: number }) {
 }
 
 /** Running print-job bar (poll → "Tải / In" when ready). */
-function PrintJobBar({ jobId, onClose }: { jobId: number; onClose: () => void }) {
+export function PrintJobBar({ jobId, onClose }: { jobId: number; onClose: () => void }) {
     const { data: job } = usePrintJob(jobId);
     const opened = useRef(false);
     useEffect(() => { if (job?.status === 'done' && job.file_url && !opened.current) { opened.current = true; window.open(job.file_url, '_blank'); } }, [job]);
@@ -45,71 +45,43 @@ function PrintJobBar({ jobId, onClose }: { jobId: number; onClose: () => void })
 }
 
 /**
- * The order-processing board (SPEC 0009) — embedded inside the Orders page as the "Xử lý đơn" tab
- * (BigSeller-style: order actions live in the Orders section, not a separate page). Self-contained:
- * platform filter chips + 2 inputs (khách hàng / sản phẩm) + stage tabs (Cần xử lý / Chờ đóng gói /
- * Chờ bàn giao) + "Quét" + "Vận đơn", with the print-job progress bar.
+ * Platform filter chips + the two filter inputs (khách hàng / sản phẩm) shown above the
+ * processing-stage boards. Controlled by the parent (OrdersPage). See SPEC 0009 §6.
  */
-export function OrderProcessingBoard() {
-    const [tab, setTab] = useState<string>('prepare');
-    const [printJobId, setPrintJobId] = useState<number | null>(null);
-    // shared filters across the processing tabs (platform chips + 2 inputs)
-    const [sources, setSources] = useState<string[]>([]);
-    const [customer, setCustomer] = useState('');
-    const [product, setProduct] = useState('');
-    const filters: ProcessingFilters = useMemo(() => ({
-        source: sources.length ? sources.join(',') : undefined,
-        customer: customer || undefined,
-        product: product || undefined,
-        per_page: 100,
-    }), [sources, customer, product]);
-    const counts = useProcessingCounts({ source: filters.source, customer: filters.customer, product: filters.product });
-    const isStage = (['prepare', 'pack', 'handover'] as string[]).includes(tab);
-
-    const openPrint = (id: number) => setPrintJobId(id);
-
+export function PlatformChips({ sources, onSources, onCustomer, onProduct }: {
+    sources: string[];
+    onSources: (next: string[]) => void;
+    onCustomer: (v: string) => void;
+    onProduct: (v: string) => void;
+}) {
     return (
         <div>
-            {printJobId && <PrintJobBar jobId={printJobId} onClose={() => setPrintJobId(null)} />}
-            <Card>
-                {isStage && (
-                    <div style={{ marginBottom: 12 }}>
-                        <Space wrap style={{ marginBottom: 8 }}>
-                            <span style={{ color: '#8c8c8c', fontSize: 13 }}>Nền tảng:</span>
-                            <Tag.CheckableTag checked={sources.length === 0} onChange={() => setSources([])}>Tất cả</Tag.CheckableTag>
-                            {PLATFORMS.map((p) => {
-                                const meta = CHANNEL_META[p] ?? { name: p, color: '#8c8c8c' };
-                                const on = sources.includes(p);
-                                return (
-                                    <Tag.CheckableTag key={p} checked={on}
-                                        onChange={(c) => setSources((prev) => (c ? [...prev, p] : prev.filter((x) => x !== p)))}
-                                        style={on ? { background: meta.color, borderColor: meta.color } : { borderColor: meta.color, color: meta.color }}>
-                                        {p === 'manual' ? 'Đơn tay' : meta.name}
-                                    </Tag.CheckableTag>
-                                );
-                            })}
-                        </Space>
-                        <Space wrap>
-                            <Input.Search allowClear placeholder="Lọc theo khách hàng (tên / mã đơn)" style={{ width: 280 }} onSearch={setCustomer} />
-                            <Input.Search allowClear placeholder="Lọc theo sản phẩm (tên SP / SKU sàn)" style={{ width: 280 }} onSearch={setProduct} />
-                        </Space>
-                    </div>
-                )}
-                <Tabs activeKey={tab} onChange={setTab} items={[
-                    { key: 'prepare', label: <Badge count={counts.data?.prepare ?? 0} size="small" offset={[10, -2]}><span><InboxOutlined /> {STAGE_LABEL.prepare}</span></Badge>, children: tab === 'prepare' && <StageBoard stage="prepare" filters={filters} onPrint={openPrint} onGotoScan={(m) => setTab(m === 'handover' ? 'scan-handover' : 'scan-pack')} /> },
-                    { key: 'pack', label: <Badge count={counts.data?.pack ?? 0} size="small" offset={[10, -2]}><span>{STAGE_LABEL.pack}</span></Badge>, children: tab === 'pack' && <StageBoard stage="pack" filters={filters} onPrint={openPrint} onGotoScan={(m) => setTab(m === 'handover' ? 'scan-handover' : 'scan-pack')} /> },
-                    { key: 'handover', label: <Badge count={counts.data?.handover ?? 0} size="small" offset={[10, -2]}><span><CarOutlined /> {STAGE_LABEL.handover}</span></Badge>, children: tab === 'handover' && <StageBoard stage="handover" filters={filters} onPrint={openPrint} onGotoScan={(m) => setTab(m === 'handover' ? 'scan-handover' : 'scan-pack')} /> },
-                    { key: 'scan-pack', label: <span><ScanOutlined /> Quét</span>, children: (tab === 'scan-pack' || tab === 'scan-handover') && <ScanTab initialMode={tab === 'scan-handover' ? 'handover' : 'pack'} /> },
-                    { key: 'shipments', label: 'Vận đơn', children: tab === 'shipments' && <ShipmentsTab onPrint={openPrint} /> },
-                ]} />
-            </Card>
+            <Space wrap style={{ marginBottom: 8 }}>
+                <span style={{ color: '#8c8c8c', fontSize: 13 }}>Nền tảng:</span>
+                <Tag.CheckableTag checked={sources.length === 0} onChange={() => onSources([])}>Tất cả</Tag.CheckableTag>
+                {PLATFORMS.map((p) => {
+                    const meta = CHANNEL_META[p] ?? { name: p, color: '#8c8c8c' };
+                    const on = sources.includes(p);
+                    return (
+                        <Tag.CheckableTag key={p} checked={on}
+                            onChange={(c) => onSources(c ? [...sources, p] : sources.filter((x) => x !== p))}
+                            style={on ? { background: meta.color, borderColor: meta.color } : { borderColor: meta.color, color: meta.color }}>
+                            {p === 'manual' ? 'Đơn tay' : meta.name}
+                        </Tag.CheckableTag>
+                    );
+                })}
+            </Space>
+            <Space wrap>
+                <Input.Search allowClear placeholder="Lọc theo khách hàng (tên / mã đơn)" style={{ width: 280 }} onSearch={onCustomer} />
+                <Input.Search allowClear placeholder="Lọc theo sản phẩm (tên SP / SKU sàn)" style={{ width: 280 }} onSearch={onProduct} />
+            </Space>
         </div>
     );
 }
 
 // ---- one processing stage ---------------------------------------------------
 
-function StageBoard({ stage, filters, onPrint, onGotoScan }: { stage: ProcessingStage; filters: ProcessingFilters; onPrint: (id: number) => void; onGotoScan: (mode: 'pack' | 'handover') => void }) {
+export function StageBoard({ stage, filters, onPrint, onGotoScan }: { stage: ProcessingStage; filters: ProcessingFilters; onPrint: (id: number) => void; onGotoScan: (mode: 'pack' | 'handover') => void }) {
     const { message } = AntApp.useApp();
     const [page, setPage] = useState(1);
     const { data, isFetching } = useProcessingBoard(stage, { ...filters, page });
@@ -206,7 +178,7 @@ function StageBoard({ stage, filters, onPrint, onGotoScan }: { stage: Processing
 
 // ---- "Quét" tab (pack / handover modes) -------------------------------------
 
-function ScanTab({ initialMode }: { initialMode: 'pack' | 'handover' }) {
+export function ScanTab({ initialMode }: { initialMode: 'pack' | 'handover' }) {
     const [mode, setMode] = useState<'pack' | 'handover'>(initialMode);
     const scan = useScanProcess(mode);
     const [code, setCode] = useState('');
@@ -249,7 +221,7 @@ function ScanTab({ initialMode }: { initialMode: 'pack' | 'handover' }) {
 
 // ---- "Vận đơn" tab ----------------------------------------------------------
 
-function ShipmentsTab({ onPrint }: { onPrint: (id: number) => void }) {
+export function ShipmentsTab({ onPrint }: { onPrint: (id: number) => void }) {
     const { message } = AntApp.useApp();
     const [status, setStatus] = useState<string | undefined>();
     const [q, setQ] = useState('');

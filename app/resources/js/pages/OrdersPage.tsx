@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Alert, App as AntApp, Avatar, Badge, Button, Card, DatePicker, Empty, Input, Select, Space, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
+import { Alert, App as AntApp, Avatar, Badge, Button, Card, DatePicker, Empty, Input, Modal, Select, Space, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
 import { LinkOutlined, ReloadOutlined, SearchOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -11,12 +11,16 @@ import { MoneyText, DateText } from '@/components/MoneyText';
 import { FilterChipRow, type ChipItem } from '@/components/FilterChipRow';
 import { LinkSkusModal } from '@/components/LinkSkusModal';
 import { OrderDetailModal } from '@/components/OrderDetailModal';
-import { OrderProcessingBoard } from '@/components/OrderProcessing';
+import { PlatformChips, PrintJobBar, ScanTab, ShipmentsTab, StageBoard } from '@/components/OrderProcessing';
 import { errorMessage } from '@/lib/api';
 import { CHANNEL_META, ORDER_STATUS_TABS } from '@/lib/format';
 import { Order, useOrders, useOrderStats, useSyncOrders } from '@/lib/orders';
+import { type ProcessingFilters, type ProcessingStage, useProcessingCounts } from '@/lib/fulfillment';
 import { useChannelAccounts } from '@/lib/channels';
 import { useCan } from '@/lib/tenant';
+
+/** Order-processing stage tabs that sit in the same tab strip as the order-status tabs (SPEC 0009 — no nested sub-tabs). */
+const PROCESSING_STAGES: ProcessingStage[] = ['prepare', 'pack', 'handover'];
 
 const UNMAPPED_REASON = 'SKU chưa ghép';
 
@@ -49,6 +53,12 @@ export function OrdersPage() {
     const [selectedKeys, setSelectedKeys] = useState<number[]>([]);
     const [linkModal, setLinkModal] = useState<{ open: boolean; orderIds?: number[] }>({ open: false });
     const [viewOrderId, setViewOrderId] = useState<number | null>(null);
+    // order-processing tabs (SPEC 0009): platform chips + 2 inputs + print-job bar + scan modal
+    const [procSources, setProcSources] = useState<string[]>([]);
+    const [procCustomer, setProcCustomer] = useState('');
+    const [procProduct, setProcProduct] = useState('');
+    const [printJobId, setPrintJobId] = useState<number | null>(null);
+    const [scan, setScan] = useState<{ open: boolean; mode: 'pack' | 'handover' }>({ open: false, mode: 'pack' });
 
     const tabKey = params.get('tab') ?? (params.get('has_issue') ? 'issue' : '');
     const statusParam = params.get('status') ?? '';
@@ -96,8 +106,19 @@ export function OrdersPage() {
         has_issue: tabKey === 'issue' || params.get('has_issue') === '1' ? true : undefined,
     }), [effectiveStatus, q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo, tabKey, params]);
 
-    const { data, isFetching, refetch } = useOrders(filters);
+    const isProcStage = PROCESSING_STAGES.includes(tabKey as ProcessingStage);
+    const isProcTab = isProcStage || tabKey === 'shipments';
+    const procFilters: ProcessingFilters = useMemo(() => ({
+        source: procSources.length ? procSources.join(',') : undefined,
+        customer: procCustomer || undefined,
+        product: procProduct || undefined,
+        per_page: 100,
+    }), [procSources, procCustomer, procProduct]);
+
+    // skip the (unused) orders list when on a processing/shipments tab
+    const { data, isFetching, refetch } = useOrders(isProcTab ? { ...filters, page: 1, per_page: 1 } : filters);
     const { data: stats } = useOrderStats(statsFilters);
+    const { data: procCounts } = useProcessingCounts({ source: procFilters.source, customer: procFilters.customer, product: procFilters.product });
 
     const countFor = (statuses: string[]) => statuses.reduce((s, st) => s + (stats?.by_status?.[st] ?? 0), 0);
     const shopName = (id: number) => accounts.find((a) => a.id === id)?.name ?? `#${id}`;
@@ -180,12 +201,31 @@ export function OrdersPage() {
                             label: <span>{t.label}{t.key !== '' && stats ? <Badge count={countFor(t.statuses)} overflowCount={9999} showZero={false} style={{ marginInlineStart: 6, background: '#f0f0f0', color: '#595959' }} /> : null}</span>,
                         })),
                         { key: 'issue', label: <span>Có vấn đề{stats?.has_issue ? <Badge count={stats.has_issue} style={{ marginInlineStart: 6 }} /> : null}</span> },
-                        { key: 'processing', label: <span>🚚 Xử lý đơn</span> },
+                        // --- order-processing stages (BigSeller-style: in the same strip, not nested sub-tabs) ---
+                        ...PROCESSING_STAGES.map((s) => ({
+                            key: s,
+                            label: <span>{({ prepare: '📦 Cần chuẩn bị', pack: '🖨 Chờ đóng gói', handover: '🚚 Chờ bàn giao ĐVVC' } as const)[s]}{procCounts?.[s] ? <Badge count={procCounts[s]} style={{ marginInlineStart: 6 }} /> : null}</span>,
+                        })),
+                        { key: 'shipments', label: <span>🏷 Vận đơn</span> },
                     ]}
                 />
             </Card>
 
-            {tabKey === 'processing' ? <div style={{ marginTop: 12 }}><OrderProcessingBoard /></div> : (<>
+            {isProcTab ? (
+                <div style={{ marginTop: 12 }}>
+                    {printJobId != null && <PrintJobBar jobId={printJobId} onClose={() => setPrintJobId(null)} />}
+                    {isProcStage && (
+                        <Card size="small" style={{ marginBottom: 12 }} styles={{ body: { padding: '10px 16px' } }}>
+                            <PlatformChips sources={procSources} onSources={setProcSources} onCustomer={setProcCustomer} onProduct={setProcProduct} />
+                        </Card>
+                    )}
+                    <Card styles={{ body: { padding: 16 } }}>
+                        {isProcStage
+                            ? <StageBoard stage={tabKey as ProcessingStage} filters={procFilters} onPrint={setPrintJobId} onGotoScan={(m) => setScan({ open: true, mode: m })} />
+                            : <ShipmentsTab onPrint={setPrintJobId} />}
+                    </Card>
+                </div>
+            ) : (<>
 
             {/* "Lọc" panel — one inline group: a search box + chip rows (xem docs/06-frontend/orders-filter-panel.md) */}
             <Card style={{ marginTop: 12 }} title="Lọc" size="small" styles={{ body: { padding: '8px 16px 12px' } }}>
@@ -264,6 +304,9 @@ export function OrdersPage() {
 
             <LinkSkusModal open={linkModal.open} orderIds={linkModal.orderIds} onClose={() => { setLinkModal({ open: false }); setSelectedKeys([]); }} />
             <OrderDetailModal orderId={viewOrderId} open={viewOrderId != null} onClose={() => setViewOrderId(null)} />
+            <Modal title="Quét đơn" open={scan.open} onCancel={() => setScan((s) => ({ ...s, open: false }))} footer={null} width={760} destroyOnClose>
+                <ScanTab initialMode={scan.mode} />
+            </Modal>
         </div>
     );
 }

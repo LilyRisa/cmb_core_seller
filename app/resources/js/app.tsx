@@ -62,7 +62,7 @@ function Root() {
                 <Route path="inventory" element={<InventoryPage />} />
                 <Route path="inventory/skus/new" element={<CreateSkuPage />} />
                 <Route path="inventory/skus/:id/edit" element={<CreateSkuPage />} />
-                <Route path="fulfillment" element={<Navigate to="/orders?tab=processing" replace />} />   {/* xử lý đơn nay nằm trong /orders */}
+                <Route path="fulfillment" element={<Navigate to="/orders?tab=prepare" replace />} />   {/* xử lý đơn nay là các tab trong /orders */}
                 <Route path="sync-logs" element={<SyncLogsPage />} />
                 <Route path="settings" element={<Navigate to="/settings/members" replace />} />
                 <Route path="settings/members" element={<SettingsMembersPage />} />
