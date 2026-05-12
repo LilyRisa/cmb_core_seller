@@ -18,6 +18,7 @@
 | POST | `/api/v1/auth/login` | — | `email`, `password`, `remember?` | `200` `{ data: {…user…} }`. Sai thông tin: `422 INVALID_CREDENTIALS`. |
 | POST | `/api/v1/auth/logout` | sanctum | — | `204`. |
 | GET | `/api/v1/auth/me` | sanctum | — | `200` `{ data: {…user… với tenants[]} }`. Chưa đăng nhập: `401`. |
+| PATCH | `/api/v1/auth/profile` | sanctum | `name?`, `email?`, `current_password?`, `password?`, `password_confirmation?` | `200` `{ data: AuthUser }` — sửa hồ sơ. Đổi email/password cần `current_password` đúng (sai ⇒ `422 INVALID_PASSWORD`); email trùng / mật khẩu <8 ⇒ `422`. (SPEC 0011) |
 
 ## Tenant (workspace)
 
@@ -26,6 +27,7 @@
 | GET | `/api/v1/tenants` | sanctum | — | `200` `{ data:[{id,name,slug,status,role}] }` — các tenant user thuộc về. |
 | POST | `/api/v1/tenants` | sanctum | `name` | `201` `{ data:{id,name,slug,role:'owner'} }` — tạo tenant mới, caller = owner. |
 | GET | `/api/v1/tenant` | sanctum + tenant | — | `200` `{ data:{id,name,slug,status,settings,current_role} }`. Thiếu header tenant: `400 TENANT_REQUIRED`. Không thuộc tenant: `403 TENANT_FORBIDDEN`. |
+| PATCH | `/api/v1/tenant` | sanctum + tenant (`tenant.settings` ⇒ owner/admin) | `name?`, `slug?` (`[a-z0-9-]`, ≤60, unique), `settings?` (merge) | `200` `{ data:{…tenant…} }` — sửa thông tin gian hàng; ghi `audit_logs`. Vai trò khác ⇒ `403`; slug sai/trùng ⇒ `422`. (SPEC 0011) |
 | GET | `/api/v1/tenant/members` | sanctum + tenant (owner/admin) | — | `200` `{ data:[{id,name,email,role}] }`. Vai trò khác: `403`. |
 | POST | `/api/v1/tenant/members` | sanctum + tenant (owner/admin) | `email`, `role` (một trong `owner\|admin\|staff_order\|staff_warehouse\|accountant\|viewer`) | `201` `{ data:{id,name,email,role} }`. User chưa có tài khoản: `422 USER_NOT_FOUND` (luồng mời qua email bổ sung sau). Đã là thành viên: `409 ALREADY_MEMBER`. Ghi `audit_logs`. |
 
@@ -83,6 +85,10 @@
 | POST | `/api/v1/inventory/bulk-adjust` | `inventory.adjust` | `{ kind: goods_receipt\|manual_adjust, warehouse_id?, note?, lines:[{ sku_id, qty_change }] }` (≤500 dòng) | `201 { data:{ applied:N, movements:[InventoryMovementResource] } }` — "phiếu" nhập/xuất hàng loạt: mỗi dòng → 1 movement (`ref_type='manual_bulk'`, cùng `note`). `goods_receipt` ⇒ mọi qty > 0; SKU trùng trong phiếu ⇒ `422 DUPLICATE_SKU`; SKU không thuộc tenant ⇒ `422`. (SPEC 0004) |
 | POST | `/api/v1/inventory/push-stock` | `inventory.map` | `{ sku_ids:[int] }` (≤500) | `{ data:{ queued:N } }` — đẩy tồn hàng loạt theo bộ chọn: dispatch `PushStockForSku` ngay cho mỗi SKU (không delay). SKU tenant khác bị bỏ. (SPEC 0004) |
 | GET | `/api/v1/inventory/movements` | `inventory.view` | `sku_id?`, `warehouse_id?`, `type?` (csv), `ref_type?`+`ref_id?`, `page` | `{ data:[InventoryMovementResource], meta }`. |
+| GET/POST | `/api/v1/warehouse-docs/{type}` (`{type}` ∈ `goods-receipts`\|`stock-transfers`\|`stocktakes`) | view: `inventory.view` · ghi: `inventory.adjust`/`transfer`/`stocktake` theo type | list: `status?,warehouse_id?,q?(code),page` · create: `{ note?, warehouse_id \| from_warehouse_id+to_warehouse_id, supplier?(goods-receipts), items:[{sku_id, qty[, unit_cost] \| counted_qty}] (≤500) }` | list `{ data:[{id,code,status,type,note,item_count,warehouse_id\|from/to,supplier?,total_cost?,confirmed_at,created_at}], meta }` / `201` phiếu `draft` (+items; kiểm kê snapshot `system_qty`). Kho/SKU lạ, `from==to` ⇒ `422`. (SPEC 0010 — WMS phiếu kho) |
+| GET | `/api/v1/warehouse-docs/{type}/{id}` | `inventory.view` | — | phiếu + `items[]` (`{id,sku_id,sku{id,sku_code,name}, qty\|unit_cost \| system_qty\|counted_qty\|diff}`). |
+| POST | `/api/v1/warehouse-docs/{type}/{id}/confirm` | `inventory.adjust`/`transfer`/`stocktake` | — | áp vào sổ cái: nhập kho ⇒ `+on_hand`+giá vốn bình quân, chuyển kho ⇒ `transfer_out`/`transfer_in`, kiểm kê ⇒ re-snapshot+`stocktake_adjust(diff)`; phát `InventoryChanged`. Phiếu đã `confirmed`/`cancelled` ⇒ `422`. |
+| POST | `/api/v1/warehouse-docs/{type}/{id}/cancel` | `inventory.adjust`/`transfer`/`stocktake` | — | huỷ phiếu `draft`; đã `confirmed` ⇒ `422`. |
 | GET | `/api/v1/channel-listings` | `products.view` | `channel_account_id?`, `sync_status?`, `mapped?` (0\|1), `q?`, `page` | `{ data:[ChannelListingResource{...,channel_stock,sync_status,is_stock_locked,is_mapped,mappings[]}], meta }`. |
 | POST | `/api/v1/channel-listings/sync` | `inventory.map` | — | `{ data:{ queued: N } }` — dispatch `FetchChannelListings` cho mọi shop `active` hỗ trợ `listings.fetch` (nút "Đồng bộ listing từ sàn" ở tab Liên kết SKU). |
 | PATCH | `/api/v1/channel-listings/{id}` | `inventory.map` | `{ is_stock_locked? }` | `ChannelListingResource` — ghim/bỏ ghim tự-đẩy tồn. |

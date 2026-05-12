@@ -21,6 +21,8 @@
 | [0007](0007-settings-center.md) | Trung tâm Cài đặt — tài khoản/gói, trung tâm kết nối, nhân viên username-only & vai trò chi tiết, cài đặt đơn hàng, mẫu in *(umbrella plan; tách thành các spec con với số kế tiếp khi triển khai)* | 3–6 | Draft | — |
 | [0008](0008-lazada-channel.md) | Lazada — connector (auth + đồng bộ đơn + listings + đẩy tồn + webhook) | 4 | Implemented (lõi; RTS/AWB của Lazada + đối soát = follow-up) | — |
 | [0009](0009-order-processing-screen.md) | Màn "Xử lý đơn hàng" — chuẩn bị → in tem → đóng gói → bàn giao ĐVVC (1 màn, đếm số lần in, lọc nền tảng/khách/SP, API quét cho app) | 3 | Implemented (mở rộng SPEC-0006; luồng-logistics-của-sàn + tách nhiều kiện = follow-up) | — |
+| [0010](0010-wms-documents.md) | WMS — phiếu nhập kho / chuyển kho / kiểm kê (header + duyệt + giá vốn bình quân) | 5 | Implemented (lõi WMS; FIFO cost_layers / mass-listing đa sàn / ĐVVC đợt 2 = follow-up) | — |
+| [0011](0011-settings-shell.md) | Trung tâm Cài đặt — vỏ + Hồ sơ cá nhân + Thông tin gian hàng *(slice đầu của SPEC-0007)* | 3+ | Implemented | — |
 
 ## Khi nào KHÔNG cần spec
 - Sửa lỗi nhỏ, refactor không đổi hành vi, thay đổi tài liệu, bump dependency, chỉnh CI — chỉ cần PR mô tả rõ. Nhưng nếu "việc nhỏ" hoá ra động chạm kiến trúc/hành vi nghiệp vụ ⇒ dừng, viết spec/ADR.

@@ -6,6 +6,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { MoneyText } from '@/components/MoneyText';
 import { SkuPickerField } from '@/components/SkuPicker';
+import { WarehouseDocsTab } from '@/components/WarehouseDocsTab';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
 import {
@@ -30,12 +31,14 @@ export function InventoryPage() {
                     { key: 'levels', label: 'Tồn theo SKU' },
                     { key: 'skus', label: 'Danh mục SKU' },
                     { key: 'listings', label: 'Liên kết SKU (sàn)' },
+                    { key: 'docs', label: 'Phiếu kho' },
                 ]} />
             </Card>
             <Card style={{ marginTop: 12 }} styles={{ body: { padding: 16 } }}>
                 {tab === 'levels' && <LevelsTab />}
                 {tab === 'skus' && <SkusTab />}
                 {tab === 'listings' && <ListingsTab />}
+                {tab === 'docs' && <WarehouseDocsTab />}
             </Card>
         </div>
     );

@@ -45,14 +45,40 @@ class TenantController extends Controller
     {
         $tenant = $current->getOrFail();
 
-        return response()->json(['data' => [
+        return response()->json(['data' => $this->tenantPayload($tenant, $current)]);
+    }
+
+    /** PATCH /api/v1/tenant — update workspace info (name / slug / settings). owner/admin only. See SPEC 0011. */
+    public function update(Request $request, CurrentTenant $current): JsonResponse
+    {
+        abort_unless($current->can('tenant.settings'), 403, 'Bạn không có quyền sửa thông tin gian hàng.');
+        $tenant = $current->getOrFail();
+        $data = $request->validate([
+            'name' => ['sometimes', 'string', 'max:255'],
+            'slug' => ['sometimes', 'string', 'max:60', 'regex:/^[a-z0-9-]+$/', 'unique:tenants,slug,'.$tenant->getKey()],
+            'settings' => ['sometimes', 'array'],
+        ]);
+        if (array_key_exists('settings', $data)) {
+            // merge so a partial settings patch doesn't wipe other keys
+            $data['settings'] = array_replace((array) ($tenant->settings ?? []), $data['settings']);
+        }
+        $tenant->forceFill($data)->save();
+        AuditLog::record('tenant.updated', $tenant, ['fields' => array_keys($data)]);
+
+        return response()->json(['data' => $this->tenantPayload($tenant->fresh(), $current)]);
+    }
+
+    /** @return array<string,mixed> */
+    private function tenantPayload(Tenant $tenant, CurrentTenant $current): array
+    {
+        return [
             'id' => $tenant->getKey(),
             'name' => $tenant->name,
             'slug' => $tenant->slug,
             'status' => $tenant->status,
             'settings' => $tenant->settings,
             'current_role' => $current->role()?->value,
-        ]]);
+        ];
     }
 
     /** GET /api/v1/tenant/members */

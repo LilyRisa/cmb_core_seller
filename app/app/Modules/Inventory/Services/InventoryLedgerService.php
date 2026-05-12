@@ -64,6 +64,54 @@ class InventoryLedgerService
             type: InventoryMovement::RETURN_IN, qtyChange: $qty, refType: $refType, refId: $refId, note: null, userId: $userId, reason: 'return_in', idempotent: true);
     }
 
+    /** Stock transfer leg out of a warehouse: on_hand -= qty (type=transfer_out). Phase 5 WMS. */
+    public function transferOut(int $tenantId, int $skuId, int $fromWarehouseId, int $qty, ?string $note = null, ?string $refType = null, ?int $refId = null, ?int $userId = null): InventoryMovement
+    {
+        return $this->apply($tenantId, $skuId, $fromWarehouseId, onHandDelta: -$qty, reservedDelta: 0,
+            type: InventoryMovement::TRANSFER_OUT, qtyChange: -$qty, refType: $refType, refId: $refId, note: $note, userId: $userId, reason: 'transfer_out');
+    }
+
+    /** Stock transfer leg into a warehouse: on_hand += qty (type=transfer_in). Phase 5 WMS. */
+    public function transferIn(int $tenantId, int $skuId, int $toWarehouseId, int $qty, ?string $note = null, ?string $refType = null, ?int $refId = null, ?int $userId = null): InventoryMovement
+    {
+        return $this->apply($tenantId, $skuId, $toWarehouseId, onHandDelta: $qty, reservedDelta: 0,
+            type: InventoryMovement::TRANSFER_IN, qtyChange: $qty, refType: $refType, refId: $refId, note: $note, userId: $userId, reason: 'transfer_in');
+    }
+
+    /** Stocktake correction: on_hand += diff (type=stocktake_adjust). Phase 5 WMS. */
+    public function stocktakeAdjust(int $tenantId, int $skuId, ?int $warehouseId, int $diff, ?string $note = null, ?string $refType = null, ?int $refId = null, ?int $userId = null): InventoryMovement
+    {
+        return $this->apply($tenantId, $skuId, $warehouseId, onHandDelta: $diff, reservedDelta: 0,
+            type: InventoryMovement::STOCKTAKE_ADJUST, qtyChange: $diff, refType: $refType, refId: $refId, note: $note, userId: $userId, reason: 'stocktake_adjust');
+    }
+
+    /** Read the current on_hand of (sku, warehouse). Used by stocktake to snapshot system_qty. */
+    public function onHand(int $tenantId, int $skuId, int $warehouseId): int
+    {
+        return (int) (InventoryLevel::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenantId)->where('sku_id', $skuId)->where('warehouse_id', $warehouseId)->value('on_hand') ?? 0);
+    }
+
+    /**
+     * Update the per-warehouse weighted-average cost after a goods receipt of `recvQty` units
+     * at `recvUnitCost`. Called by GoodsReceipt confirm. (Phase 5 — "giá vốn bình quân"; FIFO `cost_layers` later.)
+     */
+    public function updateAverageCost(int $tenantId, int $skuId, int $warehouseId, int $recvQty, int $recvUnitCost): void
+    {
+        if ($recvQty <= 0) {
+            return;
+        }
+        $level = InventoryLevel::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenantId)->where('sku_id', $skuId)->where('warehouse_id', $warehouseId)->first();
+        if (! $level) {
+            return;
+        }
+        $prevQty = max(0, (int) $level->on_hand - $recvQty);   // on_hand already includes the receipt
+        $prevCost = (int) $level->cost_price;
+        $newCost = (int) round(($prevQty * $prevCost + $recvQty * $recvUnitCost) / ($prevQty + $recvQty));
+        $level->forceFill(['cost_price' => $newCost])->save();
+    }
+
     public function availableTotalForSku(int $tenantId, int $skuId): int
     {
         return (int) InventoryLevel::withoutGlobalScope(TenantScope::class)

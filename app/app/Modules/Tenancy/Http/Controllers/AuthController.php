@@ -96,6 +96,30 @@ class AuthController extends Controller
         return response()->json(['data' => $this->userPayload($request->user())]);
     }
 
+    /** PATCH /api/v1/auth/profile — update own name / email / password. See SPEC 0011. */
+    public function updateProfile(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $data = $request->validate([
+            'name' => ['sometimes', 'string', 'max:255'],
+            'email' => ['sometimes', 'email', 'max:255', 'unique:users,email,'.$user->getKey()],
+            'current_password' => ['required_with:password,email', 'nullable', 'string'],
+            'password' => ['sometimes', 'confirmed', Password::min(8)],
+        ]);
+        if ((isset($data['password']) || isset($data['email'])) && ! Hash::check((string) ($data['current_password'] ?? ''), (string) $user->password)) {
+            return response()->json(['error' => ['code' => 'INVALID_PASSWORD', 'message' => 'Mật khẩu hiện tại không đúng.']], 422);
+        }
+        $update = array_filter([
+            'name' => $data['name'] ?? null,
+            'email' => $data['email'] ?? null,
+            'password' => isset($data['password']) ? Hash::make($data['password']) : null,
+        ], fn ($v) => $v !== null);
+        $user->forceFill($update)->save();
+
+        return response()->json(['data' => $this->userPayload($user->fresh())]);
+    }
+
     /**
      * @return array<string, mixed>
      */

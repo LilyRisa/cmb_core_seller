@@ -12,6 +12,7 @@ use CMBcoreSeller\Modules\Inventory\Http\Controllers\InventoryController;
 use CMBcoreSeller\Modules\Inventory\Http\Controllers\SkuController;
 use CMBcoreSeller\Modules\Inventory\Http\Controllers\SkuMappingController;
 use CMBcoreSeller\Modules\Inventory\Http\Controllers\WarehouseController;
+use CMBcoreSeller\Modules\Inventory\Http\Controllers\WarehouseDocumentController;
 use CMBcoreSeller\Modules\Orders\Http\Controllers\DashboardController;
 use CMBcoreSeller\Modules\Orders\Http\Controllers\OrderController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ChannelListingController;
@@ -42,6 +43,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
         Route::get('auth/me', [AuthController::class, 'me'])->name('auth.me');
+        Route::patch('auth/profile', [AuthController::class, 'updateProfile'])->name('auth.profile.update');   // SPEC 0011
 
         Route::get('tenants', [TenantController::class, 'index'])->name('tenants.index');
         Route::post('tenants', [TenantController::class, 'store'])->name('tenants.store');
@@ -51,6 +53,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::post('media/image', [MediaController::class, 'upload'])->name('media.image.upload');   // generic image upload (e.g. quick-add order item)
 
             Route::get('tenant', [TenantController::class, 'show'])->name('tenant.show');
+            Route::patch('tenant', [TenantController::class, 'update'])->name('tenant.update');   // SPEC 0011 — workspace info
             Route::get('tenant/members', [TenantController::class, 'members'])->name('tenant.members');
             Route::post('tenant/members', [TenantController::class, 'addMember'])->name('tenant.members.add');
 
@@ -100,6 +103,15 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::get('warehouses', [WarehouseController::class, 'index'])->name('warehouses.index');
             Route::post('warehouses', [WarehouseController::class, 'store'])->name('warehouses.store');
             Route::patch('warehouses/{id}', [WarehouseController::class, 'update'])->whereNumber('id')->name('warehouses.update');
+
+            // --- WMS phiếu kho (Phase 5 / SPEC 0010): nhập kho / chuyển kho / kiểm kê ---
+            Route::prefix('warehouse-docs/{type}')->whereIn('type', ['goods-receipts', 'stock-transfers', 'stocktakes'])->group(function () {
+                Route::get('/', [WarehouseDocumentController::class, 'index'])->name('warehouse-docs.index');
+                Route::post('/', [WarehouseDocumentController::class, 'store'])->name('warehouse-docs.store');
+                Route::get('{id}', [WarehouseDocumentController::class, 'show'])->whereNumber('id')->name('warehouse-docs.show');
+                Route::post('{id}/confirm', [WarehouseDocumentController::class, 'confirm'])->whereNumber('id')->name('warehouse-docs.confirm');
+                Route::post('{id}/cancel', [WarehouseDocumentController::class, 'cancel'])->whereNumber('id')->name('warehouse-docs.cancel');
+            });
 
             Route::get('inventory/levels', [InventoryController::class, 'levels'])->name('inventory.levels');
             Route::post('inventory/adjust', [InventoryController::class, 'adjust'])->name('inventory.adjust');

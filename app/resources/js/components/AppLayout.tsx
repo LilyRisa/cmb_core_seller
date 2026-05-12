@@ -36,7 +36,7 @@ const NAV: MenuProps['items'] = [
     ] },
     { type: 'group', label: 'Hệ thống', children: [
         { key: '/sync-logs', icon: <SwapOutlined />, label: <Link to="/sync-logs">Nhật ký đồng bộ</Link> },
-        { key: '/settings', icon: <SettingOutlined />, label: <Link to="/settings/members">Cài đặt</Link> },
+        { key: '/settings', icon: <SettingOutlined />, label: <Link to="/settings">Cài đặt</Link> },
     ] },
 ];
 

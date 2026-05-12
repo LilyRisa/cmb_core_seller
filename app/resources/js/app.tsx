@@ -25,7 +25,10 @@ import { InventoryPage } from '@/pages/InventoryPage';
 import { CreateSkuPage } from '@/pages/CreateSkuPage';
 import { CreateOrderPage } from '@/pages/CreateOrderPage';
 import { CarrierAccountsPage } from '@/pages/CarrierAccountsPage';
+import { SettingsLayout } from '@/components/SettingsLayout';
 import { SettingsMembersPage } from '@/pages/SettingsMembersPage';
+import { SettingsProfilePage } from '@/pages/SettingsProfilePage';
+import { SettingsWorkspacePage } from '@/pages/SettingsWorkspacePage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
 dayjs.locale('vi');
@@ -64,10 +67,14 @@ function Root() {
                 <Route path="inventory/skus/:id/edit" element={<CreateSkuPage />} />
                 <Route path="fulfillment" element={<Navigate to="/orders?tab=prepare" replace />} />   {/* xử lý đơn nay là các tab trong /orders */}
                 <Route path="sync-logs" element={<SyncLogsPage />} />
-                <Route path="settings" element={<Navigate to="/settings/members" replace />} />
-                <Route path="settings/members" element={<SettingsMembersPage />} />
-                <Route path="settings/carriers" element={<CarrierAccountsPage />} />
-                <Route path="settings/*" element={<ComingSoon title="Cài đặt" />} />
+                <Route path="settings" element={<SettingsLayout />}>
+                    <Route index element={<Navigate to="/settings/profile" replace />} />
+                    <Route path="profile" element={<SettingsProfilePage />} />
+                    <Route path="workspace" element={<SettingsWorkspacePage />} />
+                    <Route path="members" element={<SettingsMembersPage />} />
+                    <Route path="carriers" element={<CarrierAccountsPage />} />
+                    <Route path="*" element={<ComingSoon title="Phần này đang được xây dựng" phase="SPEC 0007 / 0011" />} />
+                </Route>
             </Route>
             <Route path="404" element={<NotFoundPage />} />
             <Route path="*" element={<Navigate to="/404" replace />} />

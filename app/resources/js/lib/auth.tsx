@@ -66,6 +66,19 @@ export function useRegister() {
     });
 }
 
+/** Update own profile (name / email / password). Requires `current_password` when changing email/password. */
+export function useUpdateProfile() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (vars: { name?: string; email?: string; current_password?: string; password?: string; password_confirmation?: string }) => {
+            await ensureCsrf();
+            const { data } = await api.patch<{ data: AuthUser }>('/auth/profile', vars);
+            return data.data;
+        },
+        onSuccess: (user) => qc.setQueryData(['me'], user),
+    });
+}
+
 export function useLogout() {
     const qc = useQueryClient();
     return useMutation({

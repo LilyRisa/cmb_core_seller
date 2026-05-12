@@ -58,6 +58,20 @@ export function useTenant() {
     });
 }
 
+/** Update workspace info (name / slug / settings). owner/admin only. */
+export function useUpdateTenant() {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (vars: { name?: string; slug?: string; settings?: Record<string, unknown> }) => {
+            const { data } = await api!.patch<{ data: TenantDetail }>('/tenant', vars);
+            return data.data;
+        },
+        onSuccess: () => { qc.invalidateQueries({ queryKey: ['tenant', tenantId] }); qc.invalidateQueries({ queryKey: ['me'] }); },
+    });
+}
+
 export function useTenantMembers() {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();

@@ -402,3 +402,81 @@ export function useCreateManualOrder() {
         onSuccess: () => { qc.invalidateQueries({ queryKey: ['orders', tenantId] }); qc.invalidateQueries({ queryKey: ['inventory-levels', tenantId] }); },
     });
 }
+
+// ---- WMS phiếu kho (Phase 5 / SPEC 0010) ------------------------------------
+
+export type WarehouseDocType = 'goods-receipts' | 'stock-transfers' | 'stocktakes';
+
+export interface WarehouseDocItem { id: number; sku_id: number; sku: { id: number; sku_code: string; name: string } | null; qty?: number; unit_cost?: number; system_qty?: number; counted_qty?: number; diff?: number }
+
+export interface WarehouseDoc {
+    id: number;
+    type: WarehouseDocType;
+    code: string;
+    status: 'draft' | 'confirmed' | 'cancelled';
+    note: string | null;
+    item_count: number;
+    warehouse_id?: number;
+    from_warehouse_id?: number;
+    to_warehouse_id?: number;
+    supplier?: string | null;
+    total_cost?: number;
+    confirmed_at: string | null;
+    created_at: string | null;
+    items?: WarehouseDocItem[];
+}
+
+export const WAREHOUSE_DOC_LABEL: Record<WarehouseDocType, string> = { 'goods-receipts': 'Phiếu nhập kho', 'stock-transfers': 'Phiếu chuyển kho', 'stocktakes': 'Phiếu kiểm kê' };
+export const WAREHOUSE_DOC_STATUS_LABEL: Record<string, string> = { draft: 'Nháp', confirmed: 'Đã xác nhận', cancelled: 'Đã huỷ' };
+
+export function useWarehouseDocs(type: WarehouseDocType, filters: { status?: string; warehouse_id?: number; q?: string; page?: number; per_page?: number }) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['warehouse-docs', tenantId, type, filters],
+        enabled: api != null,
+        placeholderData: (p) => p,
+        queryFn: async () => {
+            const params: Record<string, string | number> = {};
+            Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== '') params[k] = v as never; });
+            const { data } = await api!.get<Paginated<WarehouseDoc>>(`/warehouse-docs/${type}`, { params });
+            return data;
+        },
+    });
+}
+
+export function useWarehouseDoc(type: WarehouseDocType, id: number | null) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['warehouse-doc', tenantId, type, id],
+        enabled: api != null && id != null,
+        queryFn: async () => { const { data } = await api!.get<{ data: WarehouseDoc }>(`/warehouse-docs/${type}/${id}`); return data.data; },
+    });
+}
+
+function useWarehouseDocsInvalidate() {
+    const tenantId = useCurrentTenantId();
+    return useInvalidate([['warehouse-docs', tenantId], ['warehouse-doc', tenantId], ['inventory-levels', tenantId], ['skus', tenantId]]);
+}
+
+export function useCreateWarehouseDoc() {
+    const api = useScopedApi();
+    const invalidate = useWarehouseDocsInvalidate();
+    return useMutation({
+        mutationFn: async ({ type, ...body }: { type: WarehouseDocType } & Record<string, unknown>) => { const { data } = await api!.post<{ data: WarehouseDoc }>(`/warehouse-docs/${type}`, body); return data.data; },
+        onSuccess: invalidate,
+    });
+}
+
+export function useConfirmWarehouseDoc() {
+    const api = useScopedApi();
+    const invalidate = useWarehouseDocsInvalidate();
+    return useMutation({ mutationFn: async ({ type, id }: { type: WarehouseDocType; id: number }) => { const { data } = await api!.post<{ data: WarehouseDoc }>(`/warehouse-docs/${type}/${id}/confirm`); return data.data; }, onSuccess: invalidate });
+}
+
+export function useCancelWarehouseDoc() {
+    const api = useScopedApi();
+    const invalidate = useWarehouseDocsInvalidate();
+    return useMutation({ mutationFn: async ({ type, id }: { type: WarehouseDocType; id: number }) => { const { data } = await api!.post<{ data: WarehouseDoc }>(`/warehouse-docs/${type}/${id}/cancel`); return data.data; }, onSuccess: invalidate });
+}
