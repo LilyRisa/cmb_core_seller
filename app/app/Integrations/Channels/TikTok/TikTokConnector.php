@@ -267,11 +267,42 @@ class TikTokConnector implements ChannelConnector
     }
 
     /**
+     * Chọn `handover_method` + `pickup_slot` cho package: gọi `GET .../packages/{package_id}/handover_time_slots`
+     * (SDK 202309 — `can_drop_off`/`can_pickup` + `pickup_slots[{start_time,end_time,avaliable}]`). Ưu tiên
+     * DROP_OFF; nếu chỉ PICKUP ⇒ chọn slot khả dụng đầu tiên. Lỗi ⇒ mặc định DROP_OFF (best-effort).
+     *
+     * @return array<string,mixed> body cho POST .../ship
+     */
+    private function chooseHandover(AuthContext $auth, string $packageId, string $externalOrderId, array $override): array
+    {
+        if (! empty($override['handover_method'])) {
+            return array_filter(['handover_method' => $override['handover_method'], 'pickup_slot' => $override['pickup_slot'] ?? null, 'self_shipment' => $override['self_shipment'] ?? null], fn ($v) => $v !== null && $v !== []);
+        }
+        try {
+            $slots = $this->client->get($this->fulfillmentPath('handover_time_slots', '/fulfillment/{version}/packages/{package_id}/handover_time_slots', $packageId, $externalOrderId), $auth);
+        } catch (\Throwable $e) {
+            Log::info('tiktok.handover_time_slots_failed', ['package' => $packageId, 'error' => class_basename($e)]);
+
+            return ['handover_method' => 'DROP_OFF'];
+        }
+        if (data_get($slots, 'can_drop_off')) {
+            return ['handover_method' => 'DROP_OFF'];
+        }
+        $slot = collect((array) data_get($slots, 'pickup_slots', []))->first(fn ($s) => data_get($s, 'avaliable', data_get($s, 'available', true)));
+        if (data_get($slots, 'can_pickup') && is_array($slot)) {
+            return ['handover_method' => 'PICKUP', 'pickup_slot' => ['start_time' => (int) data_get($slot, 'start_time'), 'end_time' => (int) data_get($slot, 'end_time')]];
+        }
+
+        return ['handover_method' => 'DROP_OFF'];   // fallback
+    }
+
+    /**
      * "Luồng A" — TikTok "sắp xếp vận chuyển" cho gói (theo SDK fulfillment 202309):
-     * 1) `POST /fulfillment/{ver}/packages/{package_id}/ship` (`handover_method` tuỳ chọn — TikTok dùng mặc
-     *    định của package nếu để trống) ⇒ TikTok gán ĐVVC + tracking, đơn chuyển `AWAITING_COLLECTION`.
-     * 2) `GET /fulfillment/{ver}/packages/{package_id}` ⇒ lấy `tracking_number` + `shipping_provider_name`.
-     * Trả `['raw_status','tracking_no','carrier','package_id']`. Lỗi gọi sàn ⇒ {@see ShipmentService} bắt & gắn cờ has_issue (không chặn).
+     * 1) chọn handover (DROP_OFF / PICKUP+slot) qua `.../handover_time_slots`;
+     * 2) `POST /fulfillment/{ver}/packages/{package_id}/ship` với body `{handover_method[, pickup_slot, self_shipment]}`
+     *    ⇒ TikTok gán ĐVVC + tracking, đơn chuyển `AWAITING_COLLECTION`;
+     * 3) `GET /fulfillment/{ver}/packages/{package_id}` ⇒ `tracking_number` + `shipping_provider_name`.
+     * `$params` có thể chứa `handover_method`/`pickup_slot`/`self_shipment` để ép. Trả `['raw_status','tracking_no','carrier','package_id']`.
      *
      * @return array<string,mixed>
      */
@@ -284,8 +315,9 @@ class TikTokConnector implements ChannelConnector
         if ($packageId === '') {
             throw new \RuntimeException('Đơn TikTok chưa có package_id (TikTok tạo package sau khi đơn được thanh toán — thử "Đồng bộ đơn" lại).');
         }
+        $body = $this->chooseHandover($auth, $packageId, $externalOrderId, $params);
         $shipPath = $this->fulfillmentPath('ship_package', '/fulfillment/{version}/packages/{package_id}/ship', $packageId, $externalOrderId);
-        $this->client->post($shipPath, $auth, array_filter(['handover_method' => $params['handover_method'] ?? null], fn ($v) => $v !== null && $v !== ''));
+        $this->client->post($shipPath, $auth, $body);
 
         $tracking = null;
         $carrier = null;

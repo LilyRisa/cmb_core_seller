@@ -112,6 +112,7 @@ return [
             'ship_package' => env('TIKTOK_SHIP_PACKAGE_PATH', '/fulfillment/{version}/packages/{package_id}/ship'),
             'package_detail' => env('TIKTOK_PACKAGE_DETAIL_PATH', '/fulfillment/{version}/packages/{package_id}'),
             'shipping_documents' => env('TIKTOK_SHIPPING_DOCS_PATH', '/fulfillment/{version}/packages/{package_id}/shipping_documents'),
+            'handover_time_slots' => env('TIKTOK_HANDOVER_SLOTS_PATH', '/fulfillment/{version}/packages/{package_id}/handover_time_slots'),
         ],
 
         'http' => [
