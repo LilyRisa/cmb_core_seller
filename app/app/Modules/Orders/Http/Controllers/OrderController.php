@@ -44,9 +44,9 @@ class OrderController extends Controller
         $query->orderBy($field, $dir)->orderByDesc('id');
 
         if (in_array('items', explode(',', (string) $request->query('include', '')), true)) {
-            $query->with(['items', 'channelAccount']);
+            $query->with(['items', 'channelAccount', 'shipments']);
         } else {
-            $query->withCount('items')->with('channelAccount');
+            $query->withCount('items')->with(['channelAccount', 'shipments']);
         }
 
         $perPage = min(100, max(1, (int) $request->query('per_page', 20)));
@@ -141,7 +141,7 @@ class OrderController extends Controller
     {
         $this->authorizeView($request);
 
-        $order = Order::query()->with(['items', 'statusHistory'])->findOrFail($id);
+        $order = Order::query()->with(['items', 'statusHistory', 'shipments'])->findOrFail($id);
 
         return response()->json(['data' => new OrderResource($order)]);
     }

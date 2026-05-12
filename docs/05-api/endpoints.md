@@ -91,6 +91,29 @@
 | GET | `/api/v1/orders/unmapped-skus` | `orders.view` + `inventory.map` | `order_ids?` (csv — bỏ trống = mọi đơn còn dòng chưa ghép) | `{ data:[{ channel_account_id, channel_account_name, external_sku_id, seller_sku, sample_name, order_count, item_count, existing_listing_id, suggested_sku_id }] }` — các SKU sàn distinct **đã gộp** (cùng `(channel_account_id, external_sku_id\|seller_sku)`); `suggested_sku_id` = master SKU có `sku_code` chuẩn-hoá trùng `seller_sku`. (SPEC 0004) |
 | POST | `/api/v1/orders/link-skus` | `inventory.map` | `{ links:[{ channel_account_id, external_sku_id?, seller_sku?, sku_id }] }` (≤200) | `{ data:{ linked:N, listings_created:N, orders_resolved:N } }` — mỗi link: `channel_listing` firstOrCreate `(channel_account_id, external_sku_id)` (tạo từ dữ liệu đơn nếu chưa có) → `sku_mappings` single×1 → sau cùng re-fire `OrderUpserted` cho mọi đơn còn dòng chưa ghép ⇒ listener re-resolve `order_items.sku_id`, reserve tồn, clear `has_issue`, phát `InventoryChanged`. Idempotent. SKU/shop khác tenant ⇒ `422`. (SPEC 0004) |
 
+## Giao hàng & in ấn (Fulfillment — Phase 3, SPEC-0006)
+
+| Method | Path | Auth | Request | Response |
+|---|---|---|---|---|
+| GET | `/api/v1/carriers` | `fulfillment.view` | — | `{ data:[{ code, name, capabilities:[], needs_credentials }] }` — các ĐVVC khả dụng (`manual` luôn có; thêm theo `INTEGRATIONS_CARRIERS`). |
+| GET/POST | `/api/v1/carrier-accounts` | `fulfillment.view` / `fulfillment.carriers` | — / `{ carrier, name, credentials?, default_service?, is_default?, meta? }` | `CarrierAccountResource[]` / `201`. `credentials` được mã hoá, response chỉ trả `credential_keys`. Carrier không hỗ trợ ⇒ `422`. |
+| PATCH/DELETE | `/api/v1/carrier-accounts/{id}` | `fulfillment.carriers` | partial / — | `CarrierAccountResource` / `{ deleted:true }`. |
+| GET | `/api/v1/fulfillment/ready` | `fulfillment.view` | `q?, channel_account_id?, source?, page, per_page` | `{ data:[OrderResource], meta:{pagination} }` — đơn cần giao (`processing\|ready_to_ship`, chưa có shipment chưa huỷ). |
+| POST | `/api/v1/orders/{id}/ship` | `fulfillment.ship` | `{ carrier_account_id?, service?, tracking_no?, cod_amount?, weight_grams?, note? }` | `201 { data: ShipmentResource }` — tạo vận đơn (đã có shipment chưa huỷ ⇒ trả lại nó). `carrier_account_id` để trống = tài khoản mặc định, hoặc `manual` nếu chưa cấu hình. Đơn `processing→ready_to_ship`. Trạng thái đơn không hợp lệ ⇒ `422`. |
+| POST | `/api/v1/shipments/bulk-create` | `fulfillment.ship` | `{ order_ids:[≤200], carrier_account_id?, service? }` | `{ data:{ created:[ShipmentResource], errors:[{order_id, message}] } }` — lỗi từng đơn không chặn batch. |
+| GET | `/api/v1/shipments` | `fulfillment.view` | `status?, carrier?, order_id?, q?(tracking/mã đơn), page, per_page` | `{ data:[ShipmentResource], meta:{pagination} }`. |
+| GET | `/api/v1/shipments/{id}` | `fulfillment.view` | — | `ShipmentResource` + `events[]`. |
+| POST | `/api/v1/shipments/{id}/track` | `fulfillment.ship` | — | `ShipmentResource` (+events) — gọi `connector.getTracking`, ghi `shipment_events` mới, đồng bộ trạng thái shipment & đơn. |
+| POST | `/api/v1/shipments/{id}/cancel` | `fulfillment.ship` | — | `ShipmentResource` — `connector.cancel`, shipment `cancelled`, đơn về `processing` nếu chưa shipped. |
+| GET | `/api/v1/shipments/{id}/label` | `fulfillment.print` | — | `302` redirect tới `label_url` (`404` nếu chưa có tem; ĐVVC `manual` không có tem). |
+| POST | `/api/v1/shipments/handover` | `fulfillment.ship` | `{ shipment_ids:[≤500] }` | `{ data:{ handed_over:N } }` — bàn giao hàng loạt (shipment `created→picked_up`, đơn `→shipped`, trừ tồn). |
+| POST | `/api/v1/scan-pack` | `fulfillment.scan` | `{ code }` | `{ data:{ shipment: ShipmentResource, order:{id, order_number, status} } }` — quét mã vận đơn / mã đơn → shipment `picked_up`, đơn `shipped`, trừ tồn. Không thấy ⇒ `404`; đã quét/không hợp lệ ⇒ `409`. |
+| GET/POST | `/api/v1/print-jobs` | `fulfillment.print` | `type?` / `{ type:'label'\|'picking'\|'packing', order_ids?:[≤500], shipment_ids?:[≤500] }` | `{ data:[PrintJobResource], meta:{pagination} }` / `201 { data: PrintJobResource }` (`status=pending` → job ở queue `labels` render PDF; FE poll). Thiếu cả order_ids & shipment_ids ⇒ `422`. |
+| GET | `/api/v1/print-jobs/{id}` | `fulfillment.print` | — | `PrintJobResource` (`status`, `file_url` khi `done`). |
+| GET | `/api/v1/print-jobs/{id}/download` | `fulfillment.print` | — | `302` redirect tới `file_url` (`409` nếu chưa `done`). |
+
+`OrderResource` thêm field `shipment` = vận đơn mới nhất chưa huỷ `{ id, carrier, tracking_no, status, label_url }` hoặc null.
+
 ## Dashboard
 
 | Method | Path | Auth | Response |

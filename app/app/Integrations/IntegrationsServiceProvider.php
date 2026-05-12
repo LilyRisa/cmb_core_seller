@@ -3,6 +3,8 @@
 namespace CMBcoreSeller\Integrations;
 
 use CMBcoreSeller\Integrations\Carriers\CarrierRegistry;
+use CMBcoreSeller\Integrations\Carriers\Ghn\GhnConnector;
+use CMBcoreSeller\Integrations\Carriers\Manual\ManualCarrierConnector;
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Integrations\Channels\Manual\ManualConnector;
 use CMBcoreSeller\Integrations\Channels\TikTok\TikTokConnector;
@@ -32,12 +34,14 @@ class IntegrationsServiceProvider extends ServiceProvider
     ];
 
     /**
-     * Known carrier connectors. Loaded per config('integrations.carriers').
+     * Known carrier connectors. `manual` is always loaded; the rest are loaded per
+     * config('integrations.carriers'). Add a carrier = a class here + the code in env.
      *
      * @var array<string, class-string>
      */
     protected array $carrierConnectors = [
-        // 'ghn'  => \CMBcoreSeller\Integrations\Carriers\Ghn\GhnConnector::class,
+        'manual' => ManualCarrierConnector::class,
+        'ghn' => GhnConnector::class,
         // 'ghtk' => \CMBcoreSeller\Integrations\Carriers\Ghtk\GhtkConnector::class,
         // 'jt'   => \CMBcoreSeller\Integrations\Carriers\JtExpress\JtExpressConnector::class,
     ];
@@ -59,7 +63,8 @@ class IntegrationsServiceProvider extends ServiceProvider
 
         $this->app->singleton(CarrierRegistry::class, function ($app) {
             $registry = new CarrierRegistry($app);
-            foreach ((array) config('integrations.carriers', []) as $code) {
+            $codes = array_unique(array_merge(['manual'], (array) config('integrations.carriers', [])));
+            foreach ($codes as $code) {
                 if (isset($this->carrierConnectors[$code])) {
                     $registry->register($code, $this->carrierConnectors[$code]);
                 }

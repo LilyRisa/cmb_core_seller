@@ -54,9 +54,13 @@ class IntegrationsRegistryTest extends TestCase
         $this->assertSame('pending', $manual->mapStatus('pending')->value);
     }
 
-    public function test_carrier_registry_starts_empty(): void
+    public function test_carrier_registry_has_manual_and_loads_others_per_config(): void
     {
-        $this->assertSame([], app(CarrierRegistry::class)->carriers());
-        $this->assertFalse(app(CarrierRegistry::class)->has('ghn'));
+        $registry = app(CarrierRegistry::class);
+        // 'manual' is always available (built-in self-managed carrier). 'ghn' only when enabled in env.
+        $this->assertContains('manual', $registry->carriers());
+        $this->assertTrue($registry->has('manual'));
+        $this->assertSame('manual', $registry->for('manual')->code());
+        $this->assertFalse($registry->has('ghn'));   // INTEGRATIONS_CARRIERS is empty in tests
     }
 }

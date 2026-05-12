@@ -4,6 +4,7 @@ use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Modules\Channels\Jobs\FetchChannelListings;
 use CMBcoreSeller\Modules\Channels\Jobs\SyncOrdersForShop;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Fulfillment\Jobs\SyncShipmentTracking;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -66,6 +67,9 @@ Schedule::call(function () {
             }
         });
 })->dailyAt('03:30')->name('fetch-channel-listings')->onOneServer();
+
+// Every 30': poll carriers for tracking updates on in-flight shipments — Phase 3 (SPEC 0006).
+Schedule::job(new SyncShipmentTracking)->everyThirtyMinutes()->name('sync-shipment-tracking')->onOneServer()->withoutOverlapping();
 
 // Prune old framework rows so the DB stays lean.
 Schedule::command('queue:prune-failed --hours=336')->daily()->onOneServer();      // keep 14d of failed jobs

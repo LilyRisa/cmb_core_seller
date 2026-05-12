@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Orders\Models;
 
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
 use CMBcoreSeller\Modules\Tenancy\Concerns\BelongsToTenant;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use Illuminate\Database\Eloquent\Builder;
@@ -64,6 +65,7 @@ use Illuminate\Support\Carbon;
  * @property-read ChannelAccount|null $channelAccount
  * @property-read Collection<int, OrderItem> $items
  * @property-read Collection<int, OrderStatusHistory> $statusHistory
+ * @property-read Collection<int, Shipment> $shipments
  */
 class Order extends Model
 {
@@ -114,6 +116,12 @@ class Order extends Model
     {
         // Soft cross-module reference (read-only relationship for eager loading).
         return $this->belongsTo(ChannelAccount::class);
+    }
+
+    public function shipments(): HasMany
+    {
+        // Soft cross-module reference to the Fulfillment module (Phase 3).
+        return $this->hasMany(Shipment::class)->orderByDesc('id');
     }
 
     // --- Query scopes used by GET /api/v1/orders -----------------------------

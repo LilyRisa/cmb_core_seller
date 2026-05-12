@@ -1,15 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { App as AntApp, Avatar, Button, Card, Empty, Form, Input, InputNumber, Modal, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
-import { CloudDownloadOutlined, CloudUploadOutlined, DeleteOutlined, ImportOutlined, PictureOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { App as AntApp, Avatar, Button, Card, DatePicker, Empty, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Table, Tabs, Tag, Typography } from 'antd';
+import { CloudDownloadOutlined, CloudUploadOutlined, DeleteOutlined, EditOutlined, ImportOutlined, PictureOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { MoneyText } from '@/components/MoneyText';
+import { SkuPickerField } from '@/components/SkuPicker';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
 import {
     ChannelListing, InventoryLevel, Sku,
-    useAdjustStock, useAutoMatchSkus, useBulkAdjustStock, useBulkPushStock, useChannelListings, useInventoryLevels, useRemoveSkuMapping, useSetSkuMapping, useSkus, useSyncChannelListings, useWarehouses,
+    useAdjustStock, useAutoMatchSkus, useBulkAdjustStock, useBulkPushStock, useChannelListings, useDeleteSku, useInventoryLevels, useRemoveSkuMapping, useSetSkuMapping, useSkus, useSyncChannelListings, useUpdateSku, useWarehouses, type UpdateSkuPayload,
 } from '@/lib/inventory';
 
 function StockBadge({ available }: { available: number }) {
@@ -51,7 +53,7 @@ function LevelsTab() {
     const [form] = Form.useForm();
 
     const columns: ColumnsType<InventoryLevel> = [
-        { title: 'SKU', key: 'sku', render: (_, r) => <Space direction="vertical" size={0}><Typography.Text strong>{r.sku?.sku_code ?? `#${r.sku_id}`}</Typography.Text><Typography.Text type="secondary" style={{ fontSize: 12 }}>{r.sku?.name}</Typography.Text></Space> },
+        { title: 'SKU', key: 'sku', render: (_, r) => <Space direction="vertical" size={0} style={{ minWidth: 0, maxWidth: 320 }}><Typography.Text strong ellipsis={{ tooltip: r.sku?.sku_code }}>{r.sku?.sku_code ?? `#${r.sku_id}`}</Typography.Text><Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis={{ tooltip: r.sku?.name }}>{r.sku?.name}</Typography.Text></Space> },
         { title: 'Kho', key: 'wh', width: 160, render: (_, r) => <>{r.warehouse?.name ?? `#${r.warehouse_id}`}{r.warehouse?.is_default && <Tag style={{ marginLeft: 6 }}>mặc định</Tag>}</> },
         { title: 'Thực có', dataIndex: 'on_hand', key: 'on_hand', width: 90, align: 'right' },
         { title: 'Đang giữ', dataIndex: 'reserved', key: 'reserved', width: 90, align: 'right' },
@@ -94,6 +96,8 @@ function SkusTab() {
     const { data, isFetching } = useSkus({ q: q || undefined, page, per_page: 20 });
     const bulkAdjust = useBulkAdjustStock();
     const bulkPush = useBulkPushStock();
+    const updateSku = useUpdateSku();
+    const deleteSku = useDeleteSku();
     const { data: warehouses } = useWarehouses();
     const canManage = useCan('products.manage');
     const canAdjust = useCan('inventory.adjust');
@@ -101,17 +105,56 @@ function SkusTab() {
     const [bulkOpen, setBulkOpen] = useState(false);
     const [selectedKeys, setSelectedKeys] = useState<number[]>([]);
     const [bulkForm] = Form.useForm();
-    const skuOptions = (data?.data ?? []).map((s) => ({ value: s.id, label: `${s.sku_code} · ${s.name}` }));
+    const [editSku, setEditSku] = useState<Sku | null>(null);
+    const [editForm] = Form.useForm();
+
+    useEffect(() => {
+        if (editSku) {
+            editForm.setFieldsValue({
+                sku_code: editSku.sku_code, name: editSku.name, spu_code: editSku.spu_code ?? undefined, category: editSku.category ?? undefined,
+                barcode: editSku.barcode ?? undefined, gtins: editSku.gtins ?? [], base_unit: editSku.base_unit,
+                cost_price: editSku.cost_price ?? 0, ref_sale_price: editSku.ref_sale_price ?? undefined,
+                sale_start_date: editSku.sale_start_date ? dayjs(editSku.sale_start_date) : undefined, note: editSku.note ?? undefined,
+                weight_grams: editSku.weight_grams ?? undefined,
+                length_cm: editSku.length_cm != null ? Number(editSku.length_cm) : undefined,
+                width_cm: editSku.width_cm != null ? Number(editSku.width_cm) : undefined,
+                height_cm: editSku.height_cm != null ? Number(editSku.height_cm) : undefined,
+                is_active: editSku.is_active,
+            });
+        }
+    }, [editSku, editForm]);
+
+    const submitEdit = () => editForm.validateFields().then((v) => {
+        const patch: UpdateSkuPayload = {
+            sku_code: v.sku_code.trim(), name: v.name.trim(), spu_code: v.spu_code?.trim() || null, category: v.category?.trim() || null,
+            barcode: v.barcode?.trim() || null, gtins: (v.gtins ?? []).map((g: string) => g.trim()).filter(Boolean), base_unit: v.base_unit || 'PCS',
+            cost_price: v.cost_price ?? 0, ref_sale_price: v.ref_sale_price ?? null,
+            sale_start_date: v.sale_start_date ? v.sale_start_date.format('YYYY-MM-DD') : null, note: v.note?.trim() || null,
+            weight_grams: v.weight_grams ?? null, length_cm: v.length_cm ?? null, width_cm: v.width_cm ?? null, height_cm: v.height_cm ?? null,
+            is_active: !!v.is_active,
+        };
+        updateSku.mutate({ id: editSku!.id, patch }, { onSuccess: () => { message.success('Đã lưu SKU'); setEditSku(null); }, onError: (e) => message.error(errorMessage(e)) });
+    });
 
     const columns: ColumnsType<Sku> = [
         { title: '', key: 'img', width: 52, render: (_, r) => <Avatar shape="square" size={40} src={r.image_url ?? undefined} style={{ background: '#f5f5f5', color: '#bfbfbf' }} icon={<PictureOutlined />} /> },
-        { title: 'Mã SKU', dataIndex: 'sku_code', key: 'code', render: (v, r) => <Space direction="vertical" size={0}><Typography.Text strong>{v}</Typography.Text>{r.spu_code && <Typography.Text type="secondary" style={{ fontSize: 12 }}>SPU: {r.spu_code}</Typography.Text>}</Space> },
-        { title: 'Tên', dataIndex: 'name', key: 'name' },
+        { title: 'Mã SKU', dataIndex: 'sku_code', key: 'code', width: 200, ellipsis: { showTitle: false }, render: (v, r) => <Space direction="vertical" size={0} style={{ minWidth: 0, maxWidth: 188 }}><Typography.Text strong ellipsis={{ tooltip: v }}>{v}</Typography.Text>{r.spu_code && <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis={{ tooltip: r.spu_code }}>SPU: {r.spu_code}</Typography.Text>}</Space> },
+        { title: 'Tên', dataIndex: 'name', key: 'name', ellipsis: { showTitle: false }, render: (v: string) => <Typography.Text ellipsis={{ tooltip: v }} style={{ display: 'block', maxWidth: 320 }}>{v}</Typography.Text> },
         { title: 'Giá vốn TK', dataIndex: 'cost_price', key: 'cost', width: 110, align: 'right', render: (v) => <MoneyText value={v} /> },
         { title: 'Giá bán TK', dataIndex: 'ref_sale_price', key: 'sale', width: 110, align: 'right', render: (v) => (v != null ? <MoneyText value={v} /> : '—') },
         { title: 'LN/đv', key: 'profit', width: 130, align: 'right', render: (_, r) => (r.ref_profit_per_unit == null ? '—' : <Typography.Text style={{ color: r.ref_profit_per_unit >= 0 ? '#389e0d' : '#cf1322' }}><MoneyText value={r.ref_profit_per_unit} />{r.ref_margin_percent != null ? ` · ${r.ref_margin_percent}%` : ''}</Typography.Text>) },
         { title: 'Thực có', dataIndex: 'on_hand_total', key: 'oh', width: 90, align: 'right', render: (v) => v ?? 0 },
         { title: 'Khả dụng', dataIndex: 'available_total', key: 'av', width: 100, align: 'right', render: (v) => <StockBadge available={v ?? 0} /> },
+        ...(canManage ? [{ title: '', key: 'act', width: 90, render: (_: unknown, r: Sku) => (
+            <Space size={2}>
+                <Button size="small" type="text" icon={<EditOutlined />} onClick={() => setEditSku(r)} title="Sửa SKU" />
+                <Popconfirm title="Xoá SKU này?" description={(r.on_hand_total ?? 0) !== 0 || (r.reserved_total ?? 0) !== 0 ? 'SKU còn tồn / đang được giữ — không thể xoá.' : 'Liên kết SKU sàn của nó cũng bị gỡ.'}
+                    okButtonProps={{ danger: true, disabled: (r.on_hand_total ?? 0) !== 0 || (r.reserved_total ?? 0) !== 0 }} okText="Xoá" cancelText="Huỷ"
+                    onConfirm={() => deleteSku.mutate(r.id, { onSuccess: () => message.success('Đã xoá SKU'), onError: (e) => message.error(errorMessage(e)) })}>
+                    <Button size="small" type="text" danger icon={<DeleteOutlined />} title="Xoá SKU" />
+                </Popconfirm>
+            </Space>
+        ) }] : []),
     ];
 
     return (
@@ -129,7 +172,39 @@ function SkusTab() {
                 locale={{ emptyText: <Empty description="Chưa có SKU." /> }}
                 pagination={{ current: data?.meta.pagination.page ?? page, pageSize: 20, total: data?.meta.pagination.total ?? 0, onChange: setPage, showTotal: (t) => `${t} SKU` }} />
 
-            <Modal title="Phiếu nhập / xuất kho hàng loạt" open={bulkOpen} onCancel={() => setBulkOpen(false)} okText="Áp phiếu" width={680} confirmLoading={bulkAdjust.isPending}
+            <Modal title={`Sửa SKU — ${editSku?.sku_code ?? ''}`} open={!!editSku} onCancel={() => setEditSku(null)} okText="Lưu" width={620} confirmLoading={updateSku.isPending} onOk={submitEdit} destroyOnClose>
+                <Form form={editForm} layout="vertical" preserve={false}>
+                    <Space style={{ display: 'flex' }} align="start" wrap>
+                        <Form.Item name="sku_code" label="Mã SKU" rules={[{ required: true, message: 'Nhập mã SKU' }, { max: 100 }]} style={{ flex: 1, minWidth: 200 }}><Input maxLength={100} /></Form.Item>
+                        <Form.Item name="base_unit" label="Đơn vị cơ bản" rules={[{ required: true }, { max: 16 }]} style={{ width: 140 }}><Input maxLength={16} /></Form.Item>
+                    </Space>
+                    <Form.Item name="name" label="Tên" rules={[{ required: true, message: 'Nhập tên SKU' }, { max: 255 }]}><Input maxLength={255} showCount /></Form.Item>
+                    <Space style={{ display: 'flex' }} align="start" wrap>
+                        <Form.Item name="spu_code" label="Liên kết SPU" rules={[{ max: 100 }]} style={{ flex: 1, minWidth: 180 }}><Input maxLength={100} allowClear /></Form.Item>
+                        <Form.Item name="category" label="Danh mục" rules={[{ max: 120 }]} style={{ flex: 1, minWidth: 180 }}><Input maxLength={120} allowClear /></Form.Item>
+                    </Space>
+                    <Space style={{ display: 'flex' }} align="start" wrap>
+                        <Form.Item name="barcode" label="Barcode" rules={[{ max: 100 }]} style={{ flex: 1, minWidth: 180 }}><Input maxLength={100} allowClear /></Form.Item>
+                        <Form.Item name="gtins" label="GTIN (≤10)" style={{ flex: 1, minWidth: 180 }}><Select mode="tags" tokenSeparators={[',', ' ']} placeholder="Nhập rồi Enter…" maxCount={10} /></Form.Item>
+                    </Space>
+                    <Space style={{ display: 'flex' }} align="start" wrap>
+                        <Form.Item name="cost_price" label="Giá vốn TK" style={{ width: 180 }}><InputNumber<number> min={0} addonBefore="₫" style={{ width: '100%' }} /></Form.Item>
+                        <Form.Item name="ref_sale_price" label="Giá bán TK" style={{ width: 180 }}><InputNumber<number> min={0} addonBefore="₫" style={{ width: '100%' }} /></Form.Item>
+                        <Form.Item name="sale_start_date" label="Ngày bắt đầu bán" style={{ width: 180 }}><DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" /></Form.Item>
+                    </Space>
+                    <Space style={{ display: 'flex' }} align="start" wrap>
+                        <Form.Item name="weight_grams" label="Cân nặng" style={{ width: 130 }}><InputNumber min={0} addonAfter="g" style={{ width: '100%' }} /></Form.Item>
+                        <Form.Item name="length_cm" label="Dài" style={{ width: 110 }}><InputNumber min={0} addonAfter="cm" style={{ width: '100%' }} /></Form.Item>
+                        <Form.Item name="width_cm" label="Rộng" style={{ width: 110 }}><InputNumber min={0} addonAfter="cm" style={{ width: '100%' }} /></Form.Item>
+                        <Form.Item name="height_cm" label="Cao" style={{ width: 110 }}><InputNumber min={0} addonAfter="cm" style={{ width: '100%' }} /></Form.Item>
+                    </Space>
+                    <Form.Item name="note" label="Ghi chú SKU hàng hoá"><Input.TextArea rows={2} maxLength={500} showCount /></Form.Item>
+                    <Form.Item name="is_active" label="Đang hoạt động" valuePropName="checked"><Switch /></Form.Item>
+                    <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 0 }}>Ghép nối SKU sàn &amp; tồn đầu kỳ chỉnh ở các tab “Liên kết SKU (sàn)” và “Tồn theo SKU”.</Typography.Paragraph>
+                </Form>
+            </Modal>
+
+            <Modal title="Phiếu nhập / xuất kho hàng loạt" open={bulkOpen} onCancel={() => setBulkOpen(false)} okText="Áp phiếu" width={700} confirmLoading={bulkAdjust.isPending}
                 onOk={() => bulkForm.validateFields().then((v) => {
                     const lines = (v.lines ?? []).filter((l: { sku_id?: number }) => l?.sku_id).map((l: { sku_id: number; qty_change: number }) => ({ sku_id: l.sku_id, qty_change: l.qty_change }));
                     if (lines.length === 0) { message.error('Thêm ít nhất một dòng.'); return; }
@@ -146,8 +221,8 @@ function SkusTab() {
                             <>
                                 {fields.map((f) => (
                                     <Space key={f.key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
-                                        <Form.Item {...f} name={[f.name, 'sku_id']} rules={[{ required: true, message: 'Chọn SKU' }]} style={{ minWidth: 360, marginBottom: 0 }}>
-                                            <Select showSearch optionFilterProp="label" placeholder="Chọn SKU" options={skuOptions} />
+                                        <Form.Item {...f} name={[f.name, 'sku_id']} rules={[{ required: true, message: 'Chọn SKU' }]} style={{ width: 360, marginBottom: 0 }}>
+                                            <SkuPickerField placeholder="Chọn SKU…" />
                                         </Form.Item>
                                         <Form.Item {...f} name={[f.name, 'qty_change']} rules={[{ required: true }, { validator: (_, n) => (n === 0 ? Promise.reject('≠ 0') : Promise.resolve()) }]} style={{ marginBottom: 0 }}>
                                             <InputNumber placeholder="Số lượng" style={{ width: 140 }} />
@@ -176,11 +251,10 @@ function ListingsTab() {
     const removeMapping = useRemoveSkuMapping();
     const canMap = useCan('inventory.map');
     const [mapFor, setMapFor] = useState<ChannelListing | null>(null);
-    const skuQuery = useSkus({ q: undefined, per_page: 50 });
     const [form] = Form.useForm();
 
     const columns: ColumnsType<ChannelListing> = [
-        { title: 'Listing', key: 'listing', render: (_, r) => <Space direction="vertical" size={0}><Typography.Text strong>{r.title ?? r.external_sku_id}</Typography.Text><Typography.Text type="secondary" style={{ fontSize: 12 }}>seller_sku: {r.seller_sku ?? '—'} {r.variation ? `· ${r.variation}` : ''}</Typography.Text></Space> },
+        { title: 'Listing', key: 'listing', ellipsis: { showTitle: false }, render: (_, r) => <Space direction="vertical" size={0} style={{ minWidth: 0, maxWidth: 360 }}><Typography.Text strong ellipsis={{ tooltip: r.title ?? r.external_sku_id }}>{r.title ?? r.external_sku_id}</Typography.Text><Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis={{ tooltip: `seller_sku: ${r.seller_sku ?? '—'}${r.variation ? ` · ${r.variation}` : ''}` }}>seller_sku: {r.seller_sku ?? '—'} {r.variation ? `· ${r.variation}` : ''}</Typography.Text></Space> },
         { title: 'Tồn sàn', dataIndex: 'channel_stock', key: 'cs', width: 90, align: 'right', render: (v) => v ?? '—' },
         { title: 'Đẩy tồn', dataIndex: 'sync_status', key: 'ss', width: 110, render: (v, r) => <Space size={4}><Tag color={v === 'ok' ? 'green' : v === 'error' ? 'red' : 'default'}>{v}</Tag>{r.is_stock_locked && <Tag>ghim</Tag>}</Space> },
         { title: 'Ghép SKU', key: 'mapped', render: (_, r) => r.is_mapped ? <Space size={4} wrap>{(r.mappings ?? []).map((m) => <Tag key={m.id} color="blue">{m.sku?.sku_code ?? `#${m.sku_id}`}{m.quantity > 1 ? ` ×${m.quantity}` : ''}</Tag>)}</Space> : <Tag color="warning">Chưa ghép</Tag> },
@@ -202,11 +276,10 @@ function ListingsTab() {
             <Modal title={`Ghép SKU — ${mapFor?.title ?? mapFor?.external_sku_id ?? ''}`} open={!!mapFor} onCancel={() => setMapFor(null)} okText="Lưu" confirmLoading={setMapping.isPending}
                 onOk={() => form.validateFields().then((v) => setMapping.mutate({ channel_listing_id: mapFor!.id, type: 'single', lines: [{ sku_id: v.sku_id, quantity: v.quantity ?? 1 }] },
                     { onSuccess: () => { message.success('Đã ghép SKU'); setMapFor(null); }, onError: (e) => message.error(errorMessage(e)) }))}>
-                <Typography.Paragraph type="secondary">Ghép listing với một master SKU (combo nhiều thành phần — sắp có ở UI; hiện dùng API).</Typography.Paragraph>
+                <Typography.Paragraph type="secondary">Ghép listing này với một master SKU. Một master SKU có thể được ghép với nhiều listing/SKU sàn khác nhau (combo nhiều thành phần — sắp có ở UI; hiện dùng API).</Typography.Paragraph>
                 <Form form={form} layout="vertical">
-                    <Form.Item name="sku_id" label="Master SKU" rules={[{ required: true }]}>
-                        <Select showSearch optionFilterProp="label" placeholder="Chọn SKU"
-                            options={(skuQuery.data?.data ?? []).map((s) => ({ value: s.id, label: `${s.sku_code} · ${s.name}` }))} />
+                    <Form.Item name="sku_id" label="Master SKU" rules={[{ required: true, message: 'Chọn master SKU' }]}>
+                        <SkuPickerField placeholder="Chọn master SKU…" />
                     </Form.Item>
                     <Form.Item name="quantity" label="Số lượng / 1 listing"><InputNumber min={1} style={{ width: '100%' }} /></Form.Item>
                 </Form>

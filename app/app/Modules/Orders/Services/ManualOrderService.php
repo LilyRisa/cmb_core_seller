@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Orders\Services;
 
+use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Orders\Events\OrderUpserted;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Orders\Models\OrderItem;
@@ -201,21 +202,34 @@ class ManualOrderService
         if (! is_array($raw) || $raw === []) {
             throw ValidationException::withMessages(['items' => 'Đơn phải có ít nhất một dòng hàng.']);
         }
-        $out = [];
-        foreach ($raw as $row) {
-            if (! is_array($row) || empty($row['sku_id'])) {
+        $rows = array_values(array_filter($raw, 'is_array'));
+        foreach ($rows as $row) {
+            if (empty($row['sku_id'])) {
                 throw ValidationException::withMessages(['items' => 'Mỗi dòng hàng phải chọn một SKU.']);
             }
+        }
+        // Fill missing name / sku_code from the SKU record so the FE only needs to send sku_id.
+        $skuIds = array_values(array_unique(array_map(fn ($r) => (int) $r['sku_id'], $rows)));
+        $skus = Sku::query()->whereIn('id', $skuIds)->get()->keyBy('id');
+
+        $out = [];
+        foreach ($rows as $row) {
+            $skuId = (int) $row['sku_id'];
+            $sku = $skus->get($skuId);
+            $name = trim((string) ($row['name'] ?? ''));
             $qty = (int) ($row['quantity'] ?? 1);
             $out[] = [
-                'sku_id' => (int) $row['sku_id'],
-                'name' => (string) ($row['name'] ?? 'Hàng'),
+                'sku_id' => $skuId,
+                'name' => $name !== '' ? $name : ((string) ($sku->name ?? '') ?: 'Hàng'),
                 'variation' => isset($row['variation']) ? (string) $row['variation'] : null,
                 'quantity' => max(1, $qty),
                 'unit_price' => max(0, (int) ($row['unit_price'] ?? 0)),
                 'discount' => max(0, (int) ($row['discount'] ?? 0)),
-                'sku_code' => isset($row['sku_code']) ? (string) $row['sku_code'] : null,
+                'sku_code' => isset($row['sku_code']) ? (string) $row['sku_code'] : ($sku->sku_code ?? null),
             ];
+        }
+        if ($out === []) {
+            throw ValidationException::withMessages(['items' => 'Đơn phải có ít nhất một dòng hàng.']);
         }
 
         return $out;

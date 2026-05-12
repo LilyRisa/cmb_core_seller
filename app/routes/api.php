@@ -4,6 +4,9 @@ use CMBcoreSeller\Http\Controllers\HealthController;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\ChannelAccountController;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\SyncLogController;
 use CMBcoreSeller\Modules\Customers\Http\Controllers\CustomerController;
+use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\CarrierAccountController;
+use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\PrintJobController;
+use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\ShipmentController;
 use CMBcoreSeller\Modules\Inventory\Http\Controllers\InventoryController;
 use CMBcoreSeller\Modules\Inventory\Http\Controllers\SkuController;
 use CMBcoreSeller\Modules\Inventory\Http\Controllers\SkuMappingController;
@@ -118,6 +121,29 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::post('customers/{id}/block', [CustomerController::class, 'block'])->whereNumber('id')->name('customers.block');
             Route::post('customers/{id}/unblock', [CustomerController::class, 'unblock'])->whereNumber('id')->name('customers.unblock');
             Route::post('customers/{id}/tags', [CustomerController::class, 'tags'])->whereNumber('id')->name('customers.tags');
+
+            // --- Fulfillment (Phase 3 / SPEC 0006) — vận đơn, ĐVVC, in tem, picking/packing, scan-to-pack ---
+            Route::get('carriers', [CarrierAccountController::class, 'carriers'])->name('carriers.index');
+            Route::get('carrier-accounts', [CarrierAccountController::class, 'index'])->name('carrier-accounts.index');
+            Route::post('carrier-accounts', [CarrierAccountController::class, 'store'])->name('carrier-accounts.store');
+            Route::patch('carrier-accounts/{id}', [CarrierAccountController::class, 'update'])->whereNumber('id')->name('carrier-accounts.update');
+            Route::delete('carrier-accounts/{id}', [CarrierAccountController::class, 'destroy'])->whereNumber('id')->name('carrier-accounts.destroy');
+
+            Route::get('fulfillment/ready', [ShipmentController::class, 'ready'])->name('fulfillment.ready');
+            Route::post('orders/{id}/ship', [ShipmentController::class, 'createForOrder'])->whereNumber('id')->name('orders.ship');
+            Route::get('shipments', [ShipmentController::class, 'index'])->name('shipments.index');
+            Route::post('shipments/bulk-create', [ShipmentController::class, 'bulkCreate'])->name('shipments.bulk-create');
+            Route::post('shipments/handover', [ShipmentController::class, 'handover'])->name('shipments.handover');
+            Route::get('shipments/{id}', [ShipmentController::class, 'show'])->whereNumber('id')->name('shipments.show');
+            Route::post('shipments/{id}/track', [ShipmentController::class, 'track'])->whereNumber('id')->name('shipments.track');
+            Route::post('shipments/{id}/cancel', [ShipmentController::class, 'cancel'])->whereNumber('id')->name('shipments.cancel');
+            Route::get('shipments/{id}/label', [ShipmentController::class, 'label'])->whereNumber('id')->name('shipments.label');
+            Route::post('scan-pack', [ShipmentController::class, 'scanPack'])->name('scan-pack');
+
+            Route::get('print-jobs', [PrintJobController::class, 'index'])->name('print-jobs.index');
+            Route::post('print-jobs', [PrintJobController::class, 'store'])->name('print-jobs.store');
+            Route::get('print-jobs/{id}', [PrintJobController::class, 'show'])->whereNumber('id')->name('print-jobs.show');
+            Route::get('print-jobs/{id}/download', [PrintJobController::class, 'download'])->whereNumber('id')->name('print-jobs.download');
 
             // --- Dashboard ---
             Route::get('dashboard/summary', [DashboardController::class, 'summary'])->name('dashboard.summary');

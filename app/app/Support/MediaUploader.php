@@ -33,6 +33,30 @@ class MediaUploader
         return ['path' => $path, 'url' => $this->url($path)];
     }
 
+    /**
+     * Store raw bytes (e.g. a generated PDF) under tenants/<id>/<folder>/<name>.<ext>.
+     *
+     * @return array{path: string, url: string}
+     */
+    public function storeBytes(string $contents, int $tenantId, string $folder, string $name, string $ext): array
+    {
+        $disk = (string) config('media.disk');
+        $path = "tenants/{$tenantId}/{$folder}/{$name}.{$ext}";
+        if (Storage::disk($disk)->put($path, $contents, 'public') === false) {
+            throw new \RuntimeException('Không lưu được tệp lên kho lưu trữ.');
+        }
+
+        return ['path' => $path, 'url' => $this->url($path)];
+    }
+
+    /** Read raw bytes back from a stored object key (used to merge label PDFs). */
+    public function get(string $path): ?string
+    {
+        $disk = Storage::disk((string) config('media.disk'));
+
+        return $disk->exists($path) ? $disk->get($path) : null;
+    }
+
     /** Public URL for a stored object key (uses the disk's configured `url`). */
     public function url(string $path): string
     {

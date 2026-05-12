@@ -2,21 +2,20 @@ import { Link, useNavigate } from 'react-router-dom';
 import { App as AntApp, Button, Card, Col, Form, Input, InputNumber, Row, Select, Space, Switch, Typography } from 'antd';
 import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
+import { SkuPickerField } from '@/components/SkuPicker';
 import { errorMessage } from '@/lib/api';
-import { useCreateManualOrder, useSkus } from '@/lib/inventory';
+import { useCreateManualOrder } from '@/lib/inventory';
 
 export function CreateOrderPage() {
     const { message } = AntApp.useApp();
     const navigate = useNavigate();
     const [form] = Form.useForm();
     const create = useCreateManualOrder();
-    const skuQuery = useSkus({ per_page: 50 });
-    const skuOptions = (skuQuery.data?.data ?? []).map((s) => ({ value: s.id, label: `${s.sku_code} · ${s.name}`, name: s.name }));
 
     const submit = () => form.validateFields().then((v) => {
+        // `name` is filled server-side from the SKU when omitted (ManualOrderService::normalizeItems).
         const items = (v.items ?? []).filter((i: { sku_id?: number }) => i?.sku_id).map((i: { sku_id: number; quantity?: number; unit_price?: number; discount?: number }) => ({
             sku_id: i.sku_id,
-            name: skuOptions.find((o) => o.value === i.sku_id)?.name ?? 'Hàng',
             quantity: i.quantity ?? 1, unit_price: i.unit_price ?? 0, discount: i.discount ?? 0,
         }));
         if (items.length === 0) { message.error('Cần ít nhất một dòng hàng'); return; }
@@ -42,8 +41,8 @@ export function CreateOrderPage() {
                                     <>
                                         {fields.map((field) => (
                                             <Space key={field.key} align="baseline" style={{ display: 'flex', marginBottom: 8 }} wrap>
-                                                <Form.Item {...field} name={[field.name, 'sku_id']} rules={[{ required: true, message: 'Chọn SKU' }]} style={{ minWidth: 280, marginBottom: 0 }}>
-                                                    <Select showSearch optionFilterProp="label" placeholder="Chọn SKU" options={skuOptions} loading={skuQuery.isLoading} />
+                                                <Form.Item {...field} name={[field.name, 'sku_id']} rules={[{ required: true, message: 'Chọn SKU' }]} style={{ width: 320, marginBottom: 0 }}>
+                                                    <SkuPickerField placeholder="Chọn SKU…" />
                                                 </Form.Item>
                                                 <Form.Item {...field} name={[field.name, 'quantity']} style={{ marginBottom: 0 }}><InputNumber min={1} placeholder="SL" /></Form.Item>
                                                 <Form.Item {...field} name={[field.name, 'unit_price']} style={{ marginBottom: 0 }}><InputNumber min={0} placeholder="Đơn giá ₫" style={{ width: 130 }} /></Form.Item>

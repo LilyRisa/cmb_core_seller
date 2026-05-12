@@ -85,6 +85,26 @@ export interface CreateSkuPayload {
     levels?: Array<{ warehouse_id: number; on_hand?: number; cost_price?: number }>;
 }
 
+/** Partial payload for PATCH /skus/{id} — basic catalogue fields only (mappings/levels are not editable here). */
+export type UpdateSkuPayload = Partial<{
+    sku_code: string;
+    name: string;
+    spu_code: string | null;
+    category: string | null;
+    barcode: string | null;
+    gtins: string[];
+    base_unit: string;
+    cost_price: number;
+    ref_sale_price: number | null;
+    sale_start_date: string | null;
+    note: string | null;
+    weight_grams: number | null;
+    length_cm: number | null;
+    width_cm: number | null;
+    height_cm: number | null;
+    is_active: boolean;
+}>;
+
 export interface Product {
     id: number;
     name: string;
@@ -272,6 +292,29 @@ export function useCreateSku() {
             const { data } = await api!.post<{ data: Sku }>('/skus', vars);
             return data.data;
         },
+        onSuccess: invalidate,
+    });
+}
+
+export function useUpdateSku() {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    const invalidate = useInvalidate([['skus', tenantId], ['sku', tenantId], ['inventory-levels', tenantId]]);
+    return useMutation({
+        mutationFn: async ({ id, patch }: { id: number; patch: UpdateSkuPayload }) => {
+            const { data } = await api!.patch<{ data: Sku }>(`/skus/${id}`, patch);
+            return data.data;
+        },
+        onSuccess: invalidate,
+    });
+}
+
+export function useDeleteSku() {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    const invalidate = useInvalidate([['skus', tenantId], ['sku', tenantId], ['inventory-levels', tenantId], ['channel-listings', tenantId]]);
+    return useMutation({
+        mutationFn: async (id: number) => { await api!.delete(`/skus/${id}`); },
         onSuccess: invalidate,
     });
 }

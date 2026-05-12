@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Alert, App as AntApp, Avatar, Button, Card, Col, Descriptions, Divider, Empty, Input, Row, Space, Table, Tag, Timeline, Typography } from 'antd';
 import { LinkOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -91,6 +92,18 @@ export function OrderDetailBody({ order }: { order: Order }) {
 
                 <Col xs={24} lg={8}>
                     <CustomerSummaryCard customer={order.customer} />
+
+                    <Card title="Vận đơn" size="small" style={{ marginBottom: 16 }}>
+                        {order.shipment ? (
+                            <Space direction="vertical" size={2}>
+                                <span><b>{order.shipment.carrier.toUpperCase()}</b> · <Tag>{order.shipment.status}</Tag></span>
+                                <Typography.Text copyable={!!order.shipment.tracking_no}>{order.shipment.tracking_no ?? '(chưa có mã vận đơn)'}</Typography.Text>
+                                {order.shipment.label_url && <a href={order.shipment.label_url} target="_blank" rel="noreferrer">In tem vận đơn</a>}
+                            </Space>
+                        ) : (
+                            <Typography.Text type="secondary">Chưa có vận đơn. Tạo & in tem ở <Link to="/fulfillment">Giao hàng &amp; in</Link>.</Typography.Text>
+                        )}
+                    </Card>
 
                     <Card title="Người nhận" size="small" style={{ marginBottom: 16 }}>
                         <Descriptions column={1} size="small" colon={false}>

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { App as AntApp, Alert, Empty, Modal, Select, Skeleton, Space, Table, Tag, Typography } from 'antd';
+import { App as AntApp, Alert, Empty, Modal, Skeleton, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { errorMessage } from '@/lib/api';
+import { SkuPickerField } from '@/components/SkuPicker';
 import { useLinkOrderSkus, useUnmappedSkus, type UnmappedSkuGroup } from '@/lib/orders';
-import { useSkus } from '@/lib/inventory';
 
 /**
  * Quick "link SKU" modal (SPEC 0004 §3.3): merges identical channel SKUs across the
@@ -14,7 +14,6 @@ import { useSkus } from '@/lib/inventory';
 export function LinkSkusModal({ open, orderIds, onClose }: { open: boolean; orderIds?: number[]; onClose: () => void }) {
     const { message } = AntApp.useApp();
     const groupsQ = useUnmappedSkus(orderIds, open);
-    const skusQ = useSkus({ per_page: 100 });
     const link = useLinkOrderSkus();
     const [picked, setPicked] = useState<Record<string, number | undefined>>({});  // keyed by `${cid}|${extSku}`
 
@@ -33,8 +32,6 @@ export function LinkSkusModal({ open, orderIds, onClose }: { open: boolean; orde
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, groupsQ.data]);
 
-    const skuOptions = (skusQ.data?.data ?? []).map((s) => ({ value: s.id, label: `${s.sku_code} · ${s.name}` }));
-
     const submit = () => {
         const links = groups
             .filter((g) => picked[keyOf(g)])
@@ -47,19 +44,15 @@ export function LinkSkusModal({ open, orderIds, onClose }: { open: boolean; orde
     };
 
     const columns: ColumnsType<UnmappedSkuGroup> = [
-        { title: 'SKU sàn', key: 'sku', render: (_, g) => (
-            <Space direction="vertical" size={0}>
-                <Typography.Text strong>{g.seller_sku ?? g.external_sku_id ?? '—'}</Typography.Text>
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>{g.sample_name} · {g.channel_account_name}</Typography.Text>
+        { title: 'SKU sàn', key: 'sku', ellipsis: { showTitle: false }, render: (_, g) => (
+            <Space direction="vertical" size={0} style={{ minWidth: 0, maxWidth: 280 }}>
+                <Typography.Text strong ellipsis={{ tooltip: g.seller_sku ?? g.external_sku_id ?? '—' }}>{g.seller_sku ?? g.external_sku_id ?? '—'}</Typography.Text>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis={{ tooltip: `${g.sample_name} · ${g.channel_account_name}` }}>{g.sample_name} · {g.channel_account_name}</Typography.Text>
             </Space>
         ) },
-        { title: 'Đơn', key: 'orders', width: 90, align: 'center', render: (_, g) => <Tag>{g.order_count} đơn</Tag> },
-        { title: 'Liên kết master SKU', key: 'pick', width: 320, render: (_, g) => (
-            <Select
-                showSearch optionFilterProp="label" allowClear style={{ width: '100%' }} placeholder="Chọn master SKU"
-                loading={skusQ.isLoading} options={skuOptions}
-                value={picked[keyOf(g)]} onChange={(v) => setPicked((p) => ({ ...p, [keyOf(g)]: v ?? undefined }))}
-            />
+        { title: 'Đơn', key: 'orders', width: 80, align: 'center', render: (_, g) => <Tag>{g.order_count} đơn</Tag> },
+        { title: 'Liên kết master SKU', key: 'pick', width: 340, render: (_, g) => (
+            <SkuPickerField value={picked[keyOf(g)]} onChange={(v) => setPicked((p) => ({ ...p, [keyOf(g)]: v ?? undefined }))} />
         ) },
     ];
 

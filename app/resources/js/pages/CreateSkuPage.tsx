@@ -144,11 +144,11 @@ export function CreateSkuPage() {
                                 <Col flex="auto">
                                     <Form.Item name="sku_code" label="Mã SKU" rules={[{ required: true, message: 'Nhập mã SKU' }, { max: 100 }]}
                                         extra="Nếu sau này dùng kho của bên thứ ba (3PL/WMS), mã SKU phải tuân theo quy tắc đặt tên của họ.">
-                                        <Input placeholder="VD: AOTHUN-DEN-M" />
+                                        <Input placeholder="VD: AOTHUN-DEN-M" maxLength={100} />
                                     </Form.Item>
-                                    <Form.Item name="name" label="Tên" rules={[{ required: true, message: 'Nhập tên SKU' }, { max: 255 }]}><Input placeholder="Tên hàng hoá" /></Form.Item>
-                                    <Form.Item name="spu_code" label="Liên kết SPU" extra="Mã nhóm sản phẩm (SPU) — các SKU cùng một sản phẩm dùng chung mã này. Để trống nếu chưa dùng."><Input placeholder="VD: AOTHUN" allowClear /></Form.Item>
-                                    <Form.Item name="category" label="Danh mục"><Input placeholder="VD: Thời trang nam" allowClear /></Form.Item>
+                                    <Form.Item name="name" label="Tên" rules={[{ required: true, message: 'Nhập tên SKU' }, { max: 255 }]}><Input placeholder="Tên hàng hoá" maxLength={255} showCount /></Form.Item>
+                                    <Form.Item name="spu_code" label="Liên kết SPU" rules={[{ max: 100 }]} extra="Mã nhóm sản phẩm (SPU) — các SKU cùng một sản phẩm dùng chung mã này. Để trống nếu chưa dùng."><Input placeholder="VD: AOTHUN" maxLength={100} allowClear /></Form.Item>
+                                    <Form.Item name="category" label="Danh mục" rules={[{ max: 120 }]}><Input placeholder="VD: Thời trang nam" maxLength={120} allowClear /></Form.Item>
                                     <Form.Item name="gtins" label="GTIN" extra="Mã GTIN/EAN/UPC — tối đa 10 mã, nhấn Enter để thêm từng mã.">
                                         <Select mode="tags" tokenSeparators={[',', ' ']} placeholder="Nhập rồi Enter…" maxTagCount={10} maxCount={10} />
                                     </Form.Item>

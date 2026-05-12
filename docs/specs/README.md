@@ -17,6 +17,7 @@
 | [0003](0003-products-skus-inventory-manual-orders.md) | Sản phẩm / SKU / Tồn kho lõi / Đơn thủ công / Ghép SKU / Đẩy tồn | 2 | Implemented | — |
 | [0004](0004-bulk-stock-and-sku-linking.md) | Tồn kho thủ công hàng loạt + Liên kết SKU nhanh từ đơn | 2 | Implemented | — |
 | [0005](0005-sku-pim-and-create-form.md) | SKU PIM (thông tin hàng hoá) & form "Thêm SKU đơn độc" | 2 | Implemented | — |
+| [0006](0006-fulfillment-shipments-and-printing.md) | Giao hàng & in: vận đơn, ĐVVC (Manual + GHN), in tem hàng loạt, picking/packing, quét đóng gói | 3 | Implemented (lõi; logistics-của-sàn / GHTK+JT / template tuỳ biến / lưu-in-lại-90-ngày để follow-up) | — |
 
 ## Khi nào KHÔNG cần spec
 - Sửa lỗi nhỏ, refactor không đổi hành vi, thay đổi tài liệu, bump dependency, chỉnh CI — chỉ cần PR mô tả rõ. Nhưng nếu "việc nhỏ" hoá ra động chạm kiến trúc/hành vi nghiệp vụ ⇒ dừng, viết spec/ADR.

@@ -75,6 +75,11 @@ class OrderResource extends JsonResource
             'created_at' => $this->created_at?->toIso8601String(),
             'items' => OrderItemResource::collection($this->whenLoaded('items')),
             'status_history' => OrderStatusHistoryResource::collection($this->whenLoaded('statusHistory')),
+            'shipment' => $this->whenLoaded('shipments', function () {
+                $s = $this->shipments->first(fn ($x) => $x->status !== 'cancelled') ?? $this->shipments->first();
+
+                return $s ? ['id' => $s->id, 'carrier' => $s->carrier, 'tracking_no' => $s->tracking_no, 'status' => $s->status, 'label_url' => $s->label_url] : null;
+            }),
         ];
     }
 
