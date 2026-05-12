@@ -50,9 +50,10 @@ Stack prod chạy `RUN_MIGRATIONS=false` và **cache config mỗi lần containe
    Bản này có 2 migration: `..._extend_skus_for_pim` (đã có ở đợt trước — kiểm `php artisan migrate:status`) và `..._add_image_path_to_skus`. Quên bước này ⇒ lỗi `column skus.image_path not found` khi upload.
 4. **Kiểm nhanh**:
    ```sh
-   php artisan tinker --execute="dump(config('media.disk')); Storage::disk('r2')->put('healthcheck.txt', now()); dump(Storage::disk('r2')->url('healthcheck.txt')); Storage::disk('r2')->delete('healthcheck.txt');"
+   php artisan media:healthcheck
    ```
-   - `config('media.disk')` phải in `"r2"` (nếu in `"public"` ⇒ env chưa nạp / chưa redeploy).
+   Lệnh in `media.disk` + `bucket/endpoint/url/region/path_style`, ghi `healthcheck.txt` lên disk, đọc lại, in URL công khai, rồi xoá (`--keep` để giữ tệp lại). (Tương đương: `php artisan tinker --execute="dump(config('media.disk')); Storage::disk('r2')->put('healthcheck.txt', now()); dump(Storage::disk('r2')->url('healthcheck.txt')); Storage::disk('r2')->delete('healthcheck.txt');"`.)
+   - `media.disk` phải in `"r2"` (nếu in `"public"` ⇒ env chưa nạp / chưa redeploy — xem §3 cảnh báo `x-app-env`).
    - URL in ra phải mở được trên trình duyệt (nếu 401/404 ⇒ chưa bật public access ở bước 2.5, hoặc `R2_URL` sai).
    - Lỗi `The provided token... / SignatureDoesNotMatch` ⇒ sai `R2_ACCESS_KEY_ID/SECRET` hoặc token không có quyền ghi / sai bucket scope. Lỗi `endpoint... region` ⇒ `R2_ENDPOINT` sai hoặc đặt `R2_DEFAULT_REGION` khác `auto`.
 5. **Reverse proxy / CSP**: ảnh phục vụ từ `R2_URL` (domain Cloudflare hoặc custom domain), không qua nginx của app — không cần chỉnh `cmb-web`. Nếu có `Content-Security-Policy` chặn `img-src` ⇒ thêm domain `R2_URL` vào `img-src`.

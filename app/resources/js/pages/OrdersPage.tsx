@@ -15,6 +15,7 @@ import { OrderActions, PrintJobBar, ScanTab, ShipmentsTab } from '@/components/O
 import { errorMessage } from '@/lib/api';
 import { CHANNEL_META, ORDER_STATUS_TABS } from '@/lib/format';
 import { Order, useOrders, useOrderStats, useSyncOrders } from '@/lib/orders';
+import { useBulkCreateShipments } from '@/lib/fulfillment';
 import { useChannelAccounts } from '@/lib/channels';
 import { useCan } from '@/lib/tenant';
 
@@ -44,8 +45,10 @@ export function OrdersPage() {
     const { data: channelsData } = useChannelAccounts();
     const accounts = channelsData?.data ?? [];
     const syncOrders = useSyncOrders();
+    const bulkPrepare = useBulkCreateShipments();
     const canCreate = useCan('orders.create');
     const canMap = useCan('inventory.map');
+    const canShip = useCan('fulfillment.ship');
     const [selectedKeys, setSelectedKeys] = useState<number[]>([]);
     const [linkModal, setLinkModal] = useState<{ open: boolean; orderIds?: number[] }>({ open: false });
     const [viewOrderId, setViewOrderId] = useState<number | null>(null);
@@ -75,10 +78,12 @@ export function OrdersPage() {
     };
 
     const activeTab = ORDER_STATUS_TABS.find((t) => t.key === tabKey) ?? ORDER_STATUS_TABS[0];
-    const effectiveStatus = tabKey === 'issue' || tabKey === 'out_of_stock' ? '' : (statusParam || activeTab.statuses.join(','));
+    const activeStage = activeTab.stage;   // 'prepare' | 'pack' | 'handover' | undefined — 3 tab công việc đầu (SPEC 0013)
+    const effectiveStatus = activeStage || tabKey === 'issue' || tabKey === 'out_of_stock' ? '' : (statusParam || (activeTab.statuses ?? []).join(','));
 
     const filters = useMemo(() => ({
         status: effectiveStatus || undefined,
+        stage: activeStage,
         q: q || undefined, sku: skuQ || undefined, product: productQ || undefined,
         source: source || undefined,
         channel_account_id: channelAccountId ? Number(channelAccountId) : undefined,
@@ -87,26 +92,26 @@ export function OrdersPage() {
         has_issue: tabKey === 'issue' || params.get('has_issue') === '1' ? true : undefined,
         out_of_stock: tabKey === 'out_of_stock' ? true : undefined,
         sort, page, per_page: perPage,
-    }), [effectiveStatus, q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo, tabKey, params, sort, page, perPage]);
+    }), [effectiveStatus, activeStage, q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo, tabKey, params, sort, page, perPage]);
 
-    // stats: facet chip counts (source/shop/carrier) ignore the chip facets themselves; status counts ignore status.
+    // stats: facet chip counts (source/shop/carrier) ignore the chip facets themselves; status & stage counts ignore status/stage.
     const statsFilters = useMemo(() => ({
-        status: effectiveStatus || undefined,
         q: q || undefined, sku: skuQ || undefined, product: productQ || undefined,
         source: source || undefined,
         channel_account_id: channelAccountId ? Number(channelAccountId) : undefined,
         carrier: carrier || undefined,
         placed_from: placedFrom || undefined, placed_to: placedTo || undefined,
-        has_issue: tabKey === 'issue' || params.get('has_issue') === '1' ? true : undefined,
-    }), [effectiveStatus, q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo, tabKey, params]);
+    }), [q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo]);
 
     const isShipmentsTab = tabKey === 'shipments';
+    const isPrepareTab = activeStage === 'prepare';
 
     // skip the (unused) orders list when on the shipments tab
     const { data, isFetching, refetch } = useOrders(isShipmentsTab ? { ...filters, page: 1, per_page: 1 } : filters);
     const { data: stats } = useOrderStats(statsFilters);
 
-    const countFor = (statuses: string[]) => statuses.reduce((s, st) => s + (stats?.by_status?.[st] ?? 0), 0);
+    const countForTab = (t: { statuses?: string[]; stage?: string }) =>
+        t.stage ? (stats?.by_stage?.[t.stage] ?? 0) : (t.statuses ?? []).reduce((s, st) => s + (stats?.by_status?.[st] ?? 0), 0);
     const shopName = (id: number) => accounts.find((a) => a.id === id)?.name ?? `#${id}`;
 
     // chip-row items
@@ -204,21 +209,19 @@ export function OrdersPage() {
                 )}
             />
 
-            {/* Status tabs (curated subset, BigSeller-style) */}
+            {/* Tabs: 3 tab "công việc" đầu lọc theo bước xử lý/vận đơn (SPEC 0013), còn lại theo trạng thái đơn. */}
             <Card styles={{ body: { padding: '8px 16px 0' } }}>
                 <Tabs
                     activeKey={tabKey}
-                    onChange={(k) => set({ tab: k || undefined, status: undefined, has_issue: k === 'issue' ? '1' : undefined })}
+                    onChange={(k) => { setSelectedKeys([]); set({ tab: k || undefined, status: undefined, has_issue: k === 'issue' ? '1' : undefined }); }}
                     items={[
                         ...ORDER_STATUS_TABS.map((t) => ({
                             key: t.key,
-                            label: <span>{t.label}{t.key !== '' && stats ? <Badge count={countFor(t.statuses)} overflowCount={9999} showZero={false} style={{ marginInlineStart: 6, background: '#f0f0f0', color: '#595959' }} /> : null}</span>,
+                            label: <span>{t.label}{t.key !== '' && stats ? <Badge count={countForTab(t)} overflowCount={9999} showZero={false} style={{ marginInlineStart: 6, background: '#f0f0f0', color: '#595959' }} /> : null}</span>,
                         })),
                         { key: 'issue', label: <span>Có vấn đề{stats?.has_issue ? <Badge count={stats.has_issue} style={{ marginInlineStart: 6 }} /> : null}</span> },
                         // Đơn có SKU âm tồn — chặn "Chuẩn bị hàng / lấy phiếu giao hàng" cho đến khi nhập thêm hàng (SPEC 0013).
                         { key: 'out_of_stock', label: <span><WarningOutlined style={{ marginInlineEnd: 4 }} />Hết hàng{stats?.out_of_stock ? <Badge count={stats.out_of_stock} style={{ marginInlineStart: 6 }} /> : null}</span> },
-                        // Thao tác xử lý đơn (chuẩn bị hàng / in phiếu / đóng gói / bàn giao ĐVVC) làm ngay trên các tab
-                        // trạng thái Chờ xử lý · Đang xử lý · Chờ bàn giao — không tách stage riêng (xem cột "Thao tác").
                         { key: 'shipments', label: <span><BarcodeOutlined style={{ marginInlineEnd: 4 }} />Vận đơn</span> },
                     ]}
                 />
@@ -286,17 +289,33 @@ export function OrdersPage() {
             )}
 
             <Card style={{ marginTop: 12 }} styles={{ body: { padding: 16 } }}>
-                {canMap && selectedKeys.length > 0 && (
+                {selectedKeys.length > 0 && (isPrepareTab && canShip ? (
+                    <Space style={{ marginBottom: 12 }}>
+                        <Button type="primary" loading={bulkPrepare.isPending} onClick={() => bulkPrepare.mutate({ order_ids: selectedKeys }, {
+                            onSuccess: (r) => {
+                                message.success(r.created.length > 0 ? `Đã chuẩn bị hàng ${r.created.length} đơn — đang xử lý nội bộ` : 'Không có đơn nào được chuẩn bị');
+                                if (r.errors.length) Modal.warning({ title: `${r.errors.length} đơn không chuẩn bị được`, content: <ul style={{ margin: 0, paddingInlineStart: 18 }}>{r.errors.map((e) => <li key={e.order_id}>Đơn #{e.order_id}: {e.message}</li>)}</ul> });
+                                setSelectedKeys([]);
+                            },
+                            onError: (e) => message.error(errorMessage(e)),
+                        })}>Chuẩn bị hàng ({selectedKeys.length})</Button>
+                        <Button onClick={() => setSelectedKeys([])}>Bỏ chọn</Button>
+                    </Space>
+                ) : canMap ? (
                     <Space style={{ marginBottom: 12 }}>
                         <Button type="primary" icon={<LinkOutlined />} onClick={() => setLinkModal({ open: true, orderIds: selectedKeys })}>Liên kết SKU ({selectedKeys.length})</Button>
                         <Button onClick={() => setSelectedKeys([])}>Bỏ chọn</Button>
                     </Space>
-                )}
+                ) : null)}
                 <Table<Order>
                     rowKey="id" size="middle" loading={isFetching}
                     dataSource={data?.data ?? []} columns={columns}
-                    rowSelection={canMap ? { selectedRowKeys: selectedKeys, onChange: (keys) => setSelectedKeys(keys as number[]), getCheckboxProps: (o) => ({ disabled: o.issue_reason !== UNMAPPED_REASON }) } : undefined}
-                    locale={{ emptyText: <Empty description="Chưa có đơn hàng. Kết nối gian hàng để đơn tự về, hoặc bấm “Đồng bộ đơn”." /> }}
+                    rowSelection={(isPrepareTab && canShip) || canMap ? {
+                        selectedRowKeys: selectedKeys,
+                        onChange: (keys) => setSelectedKeys(keys as number[]),
+                        getCheckboxProps: (o) => ({ disabled: isPrepareTab && canShip ? (o.out_of_stock || o.has_issue) : o.issue_reason !== UNMAPPED_REASON }),
+                    } : undefined}
+                    locale={{ emptyText: <Empty description={isPrepareTab ? 'Không có đơn nào cần chuẩn bị hàng.' : 'Chưa có đơn hàng. Kết nối gian hàng để đơn tự về, hoặc bấm “Đồng bộ đơn”.'} /> }}
                     rowClassName={(o) => (o.has_issue ? 'row-has-issue' : '')}
                     pagination={{
                         current: data?.meta.pagination.page ?? page,

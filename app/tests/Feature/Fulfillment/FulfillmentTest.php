@@ -191,6 +191,34 @@ class FulfillmentTest extends TestCase
         $this->assertFalse(collect($this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/orders')->json('data'))->firstWhere('id', $a)['out_of_stock']);
     }
 
+    public function test_orders_stage_filter_follows_the_shipment(): void
+    {
+        $orderId = $this->createOrder();
+        $stage = fn (string $st) => collect($this->actingAs($this->owner)->withHeaders($this->h())->getJson("/api/v1/orders?stage={$st}")->json('data'))->contains('id', $orderId);
+        $byStage = fn () => $this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/orders/stats')->json('data.by_stage');
+
+        // chưa có vận đơn ⇒ "Chờ xử lý" (prepare) — đơn manual cũng vậy (áp dụng mọi nguồn)
+        $this->assertTrue($stage('prepare'));
+        $this->assertFalse($stage('pack'));
+        $this->assertSame(1, $byStage()['prepare']);
+
+        // "Chuẩn bị hàng" ⇒ có vận đơn ⇒ rời prepare, vào pack
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/orders/{$orderId}/ship", ['tracking_no' => 'TN-ST'])->assertCreated();
+        $this->assertFalse($stage('prepare'));
+        $this->assertTrue($stage('pack'));
+        $this->assertSame(['prepare' => 0, 'pack' => 1, 'handover' => 0], $byStage());
+
+        // đóng gói & quét ⇒ pack → handover
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/scan-pack', ['code' => 'TN-ST'])->assertOk();
+        $this->assertTrue($stage('handover'));
+        $this->assertFalse($stage('pack'));
+        $this->assertSame(1, $byStage()['handover']);
+
+        // bàn giao ⇒ rời cả 3 stage (đơn shipped)
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/scan-handover', ['code' => 'TN-ST'])->assertOk();
+        $this->assertSame(['prepare' => 0, 'pack' => 0, 'handover' => 0], $byStage());
+    }
+
     public function test_can_create_a_delivery_slip_print_job(): void
     {
         Storage::fake('public');

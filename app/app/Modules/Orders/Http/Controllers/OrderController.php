@@ -7,6 +7,7 @@ use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Modules\Channels\Jobs\SyncOrdersForShop;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\SyncRun;
+use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
 use CMBcoreSeller\Modules\Inventory\Models\InventoryLevel;
 use CMBcoreSeller\Modules\Orders\Http\Resources\OrderResource;
 use CMBcoreSeller\Modules\Orders\Models\Order;
@@ -169,16 +170,23 @@ class OrderController extends Controller
     {
         $this->authorizeView($request);
 
-        // Base for the status tabs (everything except status/has_issue/out_of_stock — those have their own tab counts).
-        $statusBase = $this->applyFilters($request, Order::query(), skip: ['status', 'has_issue', 'out_of_stock']);
+        // Base for the status tabs (everything except status/stage/has_issue/out_of_stock — those have their own tab counts).
+        $statusBase = $this->applyFilters($request, Order::query(), skip: ['status', 'stage', 'has_issue', 'out_of_stock']);
         $counts = (clone $statusBase)->selectRaw('status, count(*) as c')->groupBy('status')->pluck('c', 'status');
         $byStatus = [];
         foreach (StandardOrderStatus::cases() as $s) {
             $byStatus[$s->value] = (int) ($counts[$s->value] ?? 0);
         }
+        // Fulfillment-stage tab counts (prepare = chưa có vận đơn / chuẩn bị hàng, pack = đã có vận đơn chờ đóng gói, handover = đã đóng gói chờ bàn giao) — SPEC 0013.
+        $byStage = collect(['prepare', 'pack', 'handover'])->mapWithKeys(function (string $st) use ($statusBase) {
+            $q = clone $statusBase;
+            $this->applyStageFilter($q, $st);
+
+            return [$st => $q->count()];
+        })->all();
 
         // Base for the chip rows (everything except the chip facets themselves).
-        $facetBase = $this->applyFilters($request, Order::query(), skip: ['source', 'channel_account_id', 'carrier', 'out_of_stock']);
+        $facetBase = $this->applyFilters($request, Order::query(), skip: ['source', 'channel_account_id', 'carrier', 'stage', 'out_of_stock']);
         $bySource = (clone $facetBase)->selectRaw('source, count(*) as c')->groupBy('source')->orderByDesc('c')
             ->pluck('c', 'source')->map(fn ($n, $src) => ['source' => (string) $src, 'count' => (int) $n])->values()->all();
         $byShop = (clone $facetBase)->whereNotNull('channel_account_id')->selectRaw('channel_account_id, count(*) as c')->groupBy('channel_account_id')->orderByDesc('c')
@@ -192,6 +200,7 @@ class OrderController extends Controller
             'unmapped' => (clone $statusBase)->where('has_issue', true)->where('issue_reason', 'SKU chưa ghép')->count(),
             'out_of_stock' => (clone $statusBase)->whereHas('items', fn (Builder $i) => $i->whereNotNull('sku_id')->whereIn('sku_id', $this->oversoldSkuSubquery()))->count(),
             'by_status' => $byStatus,
+            'by_stage' => $byStage,
             'by_source' => $bySource,
             'by_shop' => $byShop,
             'by_carrier' => $byCarrier,
@@ -246,7 +255,7 @@ class OrderController extends Controller
     /**
      * @param  Builder<Order>  $query
      * @param  list<string>  $skip  filter keys to NOT apply (used by stats() for faceted counts):
-     *                              status | source | channel_account_id | carrier | has_issue | out_of_stock | q | sku | product | placed
+     *                              status | stage | source | channel_account_id | carrier | has_issue | out_of_stock | q | sku | product | placed
      * @return Builder<Order>
      */
     private function applyFilters(Request $request, Builder $query, array $skip = []): Builder
@@ -275,6 +284,9 @@ class OrderController extends Controller
         if ($use('out_of_stock') && $request->boolean('out_of_stock', false)) {
             $query->whereHas('items', fn (Builder $i) => $i->whereNotNull('sku_id')->whereIn('sku_id', $this->oversoldSkuSubquery()));
         }
+        if ($use('stage') && in_array($stage = (string) $request->query('stage', ''), ['prepare', 'pack', 'handover'], true)) {
+            $this->applyStageFilter($query, $stage);
+        }
         if ($use('q') && $q = trim((string) $request->query('q', ''))) {
             $query->search($q);
         }
@@ -301,6 +313,25 @@ class OrderController extends Controller
     private function oversoldSkuSubquery(): Builder
     {
         return InventoryLevel::query()->select('sku_id')->groupBy('sku_id')->havingRaw('SUM(on_hand) - SUM(reserved) < 0');
+    }
+
+    /**
+     * Lọc theo "bước xử lý đơn" dựa trên vận đơn (không chỉ trạng thái đơn) — SPEC 0013:
+     *  - prepare  : đơn trước-giao-hàng & CHƯA có vận đơn (chưa chuẩn bị hàng) — áp cho mọi nguồn (sàn & manual)
+     *  - pack     : đã có vận đơn (pending/created) — đã chuẩn bị/in phiếu, chờ đóng gói + quét nội bộ
+     *  - handover : có vận đơn đã đóng gói (packed) — chờ bàn giao ĐVVC
+     *
+     * @param  Builder<Order>  $q
+     */
+    private function applyStageFilter(Builder $q, string $stage): void
+    {
+        match ($stage) {
+            'prepare' => $q->statusIn(['unpaid', 'pending', 'processing', 'ready_to_ship'])
+                ->whereDoesntHave('shipments', fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES)),
+            'pack' => $q->whereHas('shipments', fn (Builder $s) => $s->whereIn('status', [Shipment::STATUS_PENDING, Shipment::STATUS_CREATED])),
+            'handover' => $q->whereHas('shipments', fn (Builder $s) => $s->where('status', Shipment::STATUS_PACKED)),
+            default => null,
+        };
     }
 
     /**

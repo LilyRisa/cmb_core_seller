@@ -100,6 +100,7 @@ export interface OrderFilters {
     placed_to?: string;
     has_issue?: boolean;
     out_of_stock?: boolean;
+    stage?: 'prepare' | 'pack' | 'handover';   // bước xử lý dựa trên vận đơn (SPEC 0013)
     sort?: string;
     page?: number;
     per_page?: number;
@@ -127,6 +128,7 @@ export interface OrderStats {
     unmapped: number;
     out_of_stock: number;
     by_status: Record<string, number>;
+    by_stage: Record<string, number>;   // { prepare, pack, handover }
     by_source: SourceCount[];
     by_shop: ShopCount[];
     by_carrier: CarrierCount[];

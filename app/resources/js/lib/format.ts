@@ -54,12 +54,18 @@ export const ORDER_STATUS_LABEL: Record<string, string> = {
     cancelled: 'Đã huỷ',
 };
 
-/** Ordered status "tabs" for the orders list (a curated subset, BigSeller-style). */
-export const ORDER_STATUS_TABS: Array<{ key: string; label: string; statuses: string[] }> = [
+export type FulfillmentStage = 'prepare' | 'pack' | 'handover';
+
+/**
+ * Ordered "tabs" for the orders list (BigSeller-style). 3 tab "công việc" đầu (Chờ xử lý / Đang xử lý /
+ * Chờ bàn giao) lọc theo **bước xử lý dựa trên vận đơn** (`stage`, SPEC 0013) — đơn chưa có vận đơn = "chưa
+ * chuẩn bị hàng" ⇒ Chờ xử lý, áp cho mọi nguồn (sàn & manual); các tab còn lại lọc theo trạng thái đơn.
+ */
+export const ORDER_STATUS_TABS: Array<{ key: string; label: string; statuses?: string[]; stage?: FulfillmentStage }> = [
     { key: '', label: 'Tất cả', statuses: [] },
-    { key: 'pending', label: 'Chờ xử lý', statuses: ['pending', 'unpaid'] },
-    { key: 'processing', label: 'Đang xử lý', statuses: ['processing'] },
-    { key: 'ready_to_ship', label: 'Chờ bàn giao', statuses: ['ready_to_ship'] },
+    { key: 'prepare', label: 'Chờ xử lý', stage: 'prepare' },
+    { key: 'pack', label: 'Đang xử lý', stage: 'pack' },
+    { key: 'handover', label: 'Chờ bàn giao', stage: 'handover' },
     { key: 'shipped', label: 'Đang giao', statuses: ['shipped', 'delivery_failed'] },
     { key: 'delivered', label: 'Đã giao', statuses: ['delivered'] },
     { key: 'completed', label: 'Hoàn tất', statuses: ['completed'] },

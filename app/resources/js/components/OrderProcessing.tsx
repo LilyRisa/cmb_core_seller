@@ -70,21 +70,25 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
         ? handover.mutate([sh.id], { onSuccess: () => message.success('Đã bàn giao ĐVVC'), onError: err })
         : ship.mutate({ orderId: order.id }, { onSuccess: (s) => handover.mutate([s.id], { onSuccess: () => message.success('Đã bàn giao ĐVVC'), onError: err }), onError: err }));
 
+    // Trạng thái "công việc" theo vận đơn (SPEC 0013): chưa có vận đơn = "chưa chuẩn bị hàng" (mọi nguồn).
+    const preShipment = !['shipped', 'delivery_failed', 'delivered', 'completed', 'returning', 'returned_refunded', 'cancelled'].includes(order.status);
+    const shOpen = sh && !['cancelled', 'returned', 'failed'].includes(sh.status);
     const actions: ReactNode[] = [];
-    if (order.status === 'pending' && canShip && !order.has_issue) {
+    if (preShipment && ! sh && canShip && !order.has_issue) {
+        // "Chuẩn bị hàng" — đơn chưa có mã vận đơn (chưa in/arrange phiếu). Đơn âm tồn ⇒ chặn.
         actions.push(order.out_of_stock
-            ? <Tooltip key="prep" title="Đơn có SKU âm tồn — không thể lấy phiếu giao hàng. Hãy nhập thêm hàng."><Typography.Text type="secondary"><WarningOutlined /> Hết hàng</Typography.Text></Tooltip>
+            ? <Tooltip key="prep" title="Đơn có SKU âm tồn — không thể chuẩn bị hàng / lấy phiếu giao hàng. Hãy nhập thêm hàng."><Typography.Text type="secondary"><WarningOutlined /> Hết hàng</Typography.Text></Tooltip>
             : <a key="prep" onClick={prepare}>Chuẩn bị hàng (lấy phiếu)</a>);
-    }
-    if (order.status === 'processing') {
+    } else if (shOpen && ['pending', 'created'].includes(sh!.status)) {
+        // Đã chuẩn bị / có vận đơn, chờ đóng gói + quét nội bộ.
         if (canPrint) actions.push(<a key="ds1" onClick={printDelivery}>In phiếu giao hàng</a>);
-        if (canPrint && sh?.label_url) actions.push(<a key="lbl1" onClick={() => createPrint.mutate({ type: 'label', shipment_ids: [sh.id] }, { onSuccess: (j) => onPrint(j.id), onError: err })}>In tem sàn</a>);
+        if (canPrint && sh!.label_url) actions.push(<a key="lbl1" onClick={() => createPrint.mutate({ type: 'label', shipment_ids: [sh!.id] }, { onSuccess: (j) => onPrint(j.id), onError: err })}>In tem sàn</a>);
         if (canShip) actions.push(<a key="ready" onClick={markReady}>Đã gói & sẵn sàng bàn giao</a>);
-    }
-    if (order.status === 'ready_to_ship') {
+    } else if (shOpen && sh!.status === 'packed') {
+        // Đã đóng gói, chờ bàn giao ĐVVC.
         if (canShip) actions.push(<a key="ho" onClick={doHandover}>Bàn giao ĐVVC</a>);
         if (canPrint) actions.push(<a key="ds2" onClick={printDelivery}>In lại phiếu</a>);
-        if (canPrint && sh?.label_url) actions.push(<a key="lbl2" onClick={() => createPrint.mutate({ type: 'label', shipment_ids: [sh.id] }, { onSuccess: (j) => onPrint(j.id), onError: err })}>In tem sàn</a>);
+        if (canPrint && sh!.label_url) actions.push(<a key="lbl2" onClick={() => createPrint.mutate({ type: 'label', shipment_ids: [sh!.id] }, { onSuccess: (j) => onPrint(j.id), onError: err })}>In tem sàn</a>);
     }
     if (canPrint) actions.push(<a key="inv" onClick={() => createPrint.mutate({ type: 'invoice', order_ids: [order.id] }, { onSuccess: (j) => onPrint(j.id), onError: err })}>In hoá đơn</a>);
     return <Space size={8} wrap>{actions}</Space>;
