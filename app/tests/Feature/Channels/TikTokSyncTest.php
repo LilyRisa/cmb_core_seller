@@ -109,7 +109,7 @@ class TikTokSyncTest extends TestCase
         $order = $this->order();
         $this->assertNotNull($order);
         $this->assertSame('tiktok', $order->source);
-        $this->assertSame(StandardOrderStatus::ReadyToShip, $order->status); // AWAITING_COLLECTION -> ready_to_ship
+        $this->assertSame(StandardOrderStatus::Processing, $order->status); // SPEC 0013: AWAITING_COLLECTION (đã in phiếu) -> processing
         $this->assertSame((int) $this->account->getKey(), (int) $order->channel_account_id);
         $this->assertSame(205000, $order->grand_total);
         $this->assertSame(2, $order->items()->sum('quantity'));
@@ -127,7 +127,7 @@ class TikTokSyncTest extends TestCase
         // Existing order, last synced a while ago.
         $order = Order::withoutGlobalScope(TenantScope::class)->create([
             'tenant_id' => $this->tenant->getKey(), 'source' => 'tiktok', 'channel_account_id' => $this->account->getKey(),
-            'external_order_id' => F::ORDER_ID, 'order_number' => F::ORDER_ID, 'status' => StandardOrderStatus::Processing, 'raw_status' => 'AWAITING_SHIPMENT',
+            'external_order_id' => F::ORDER_ID, 'order_number' => F::ORDER_ID, 'status' => StandardOrderStatus::Pending, 'raw_status' => 'AWAITING_SHIPMENT',
             'shipping_address' => [], 'currency' => 'VND', 'grand_total' => 100000, 'item_total' => 100000, 'placed_at' => now()->subDay(),
             'has_issue' => false, 'tags' => [], 'source_updated_at' => now()->subHour(),
         ]);
@@ -144,7 +144,7 @@ class TikTokSyncTest extends TestCase
         $this->processWebhook($event);
 
         $order->refresh();
-        $this->assertSame(StandardOrderStatus::ReadyToShip, $order->status);   // applied from the webhook payload
+        $this->assertSame(StandardOrderStatus::Processing, $order->status);   // applied from the webhook payload (AWAITING_COLLECTION -> processing, SPEC 0013)
         $this->assertSame('AWAITING_COLLECTION', $order->raw_status);
         $this->assertSame(1, $order->statusHistory()->count());
         $this->assertSame('webhook', $order->statusHistory()->first()->source);
@@ -161,8 +161,8 @@ class TikTokSyncTest extends TestCase
 
         $e1 = WebhookEvent::create(['provider' => 'tiktok', 'event_type' => 'order_status_update', 'external_id' => F::ORDER_ID, 'external_shop_id' => F::SHOP_ID, 'signature_ok' => true, 'payload' => [], 'received_at' => now()]);
         $this->processWebhook($e1);
-        // AWAITING_SHIPMENT + already has a package -> processing (see TikTokStatusMap / order-status-state-machine §4)
-        $this->assertSame(StandardOrderStatus::Processing, $this->order()->status);
+        // SPEC 0013: AWAITING_SHIPMENT (chưa in/arrange phiếu) -> pending (kể cả khi đã có package)
+        $this->assertSame(StandardOrderStatus::Pending, $this->order()->status);
 
         $e2 = WebhookEvent::create(['provider' => 'tiktok', 'event_type' => 'order_status_update', 'external_id' => F::ORDER_ID.':2', 'external_shop_id' => F::SHOP_ID, 'signature_ok' => true, 'payload' => ['data' => ['order_id' => F::ORDER_ID]], 'received_at' => now()]);
         $this->processWebhook($e2);

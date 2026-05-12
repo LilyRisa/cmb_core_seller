@@ -38,6 +38,9 @@ class PrintJob extends Model
     /** Sales invoice / order slip — one printable page per order (mã đơn, người mua/nhận, hàng + tiền). */
     public const TYPE_INVOICE = 'invoice';
 
+    /** "Phiếu giao hàng" tự tạo — tạo ở bước "Chuẩn bị hàng" (kéo tem/AWB thật của sàn = follow-up). SPEC 0013. */
+    public const TYPE_DELIVERY = 'delivery';
+
     public const STATUS_PENDING = 'pending';
 
     public const STATUS_PROCESSING = 'processing';

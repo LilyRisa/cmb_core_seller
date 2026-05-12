@@ -140,6 +140,19 @@ class InventoryLedgerService
             ->where('tenant_id', $tenantId)->where('sku_id', $skuId)->sum('available_cached');
     }
 
+    /**
+     * Tồn vật lý còn lại sau khi trừ phần đã giữ chỗ trên mọi kho (∑ on_hand − ∑ reserved).
+     * < 0 ⇒ SKU đã đặt vượt tồn ("âm tồn / hết hàng") — chặn "chuẩn bị hàng / in phiếu giao hàng". SPEC 0013.
+     */
+    public function netStockForSku(int $tenantId, int $skuId): int
+    {
+        $level = InventoryLevel::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenantId)->where('sku_id', $skuId)
+            ->selectRaw('COALESCE(SUM(on_hand), 0) - COALESCE(SUM(reserved), 0) AS net')->first();
+
+        return (int) ($level->net ?? 0);
+    }
+
     /** True if there's a still-open reservation for this (order_item, sku) — used by ship(). */
     public function hasOpenReservation(int $tenantId, int $skuId, string $refType, int $refId): bool
     {

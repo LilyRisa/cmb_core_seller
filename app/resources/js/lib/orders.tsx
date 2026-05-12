@@ -64,6 +64,8 @@ export interface Order {
     grand_total: number;
     /** lợi nhuận ước tính sau phí sàn (SPEC 0012) — null nếu chưa cấu hình phí sàn. cost_complete=false ⇒ giá vốn chưa đủ. */
     profit?: OrderProfit | null;
+    /** đơn có ≥1 SKU âm tồn (đã đặt vượt tồn) ⇒ chặn "Chuẩn bị hàng / lấy phiếu giao hàng" (SPEC 0013) */
+    out_of_stock?: boolean;
     is_cod: boolean;
     fulfillment_type: string | null;
     items_count: number | null;
@@ -97,6 +99,7 @@ export interface OrderFilters {
     placed_from?: string;
     placed_to?: string;
     has_issue?: boolean;
+    out_of_stock?: boolean;
     sort?: string;
     page?: number;
     per_page?: number;
@@ -122,6 +125,7 @@ export interface OrderStats {
     total: number;
     has_issue: number;
     unmapped: number;
+    out_of_stock: number;
     by_status: Record<string, number>;
     by_source: SourceCount[];
     by_shop: ShopCount[];

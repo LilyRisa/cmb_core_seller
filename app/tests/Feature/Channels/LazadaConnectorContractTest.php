@@ -182,7 +182,10 @@ class LazadaConnectorContractTest extends TestCase
         $c = $this->connector();
         $this->assertSame(StandardOrderStatus::Unpaid, $c->mapStatus('unpaid'));
         $this->assertSame(StandardOrderStatus::Pending, $c->mapStatus('pending'));
-        $this->assertSame(StandardOrderStatus::ReadyToShip, $c->mapStatus('packed'));
+        $this->assertSame(StandardOrderStatus::Pending, $c->mapStatus('topack'));
+        // SPEC 0013: packed / ready_to_ship = đã RTS/in phiếu ⇒ processing (xử lý nội bộ)
+        $this->assertSame(StandardOrderStatus::Processing, $c->mapStatus('packed'));
+        $this->assertSame(StandardOrderStatus::Processing, $c->mapStatus('ready_to_ship'));
         $this->assertSame(StandardOrderStatus::Shipped, $c->mapStatus('shipped'));
         $this->assertSame(StandardOrderStatus::Delivered, $c->mapStatus('delivered'));
         $this->assertSame(StandardOrderStatus::DeliveryFailed, $c->mapStatus('failed'));

@@ -7,6 +7,7 @@ use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Modules\Channels\Jobs\SyncOrdersForShop;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\SyncRun;
+use CMBcoreSeller\Modules\Inventory\Models\InventoryLevel;
 use CMBcoreSeller\Modules\Orders\Http\Resources\OrderResource;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Orders\Models\OrderItem;
@@ -17,6 +18,7 @@ use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 /**
  * /api/v1/orders — list/filter/sort orders, view one, edit tags/note, status
@@ -65,6 +67,8 @@ class OrderController extends Controller
 
         // estimated profit (after platform fee) — one batched query (SPEC 0012)
         $profit->annotateFromBatch($page->getCollection(), $tenant->get()?->settings);
+        // "hết hàng" flag (đơn có ≥1 SKU âm tồn) — one batched query (SPEC 0013)
+        $this->annotateOutOfStock($page->getCollection());
 
         return response()->json([
             'data' => OrderResource::collection($page->getCollection()),
@@ -150,6 +154,7 @@ class OrderController extends Controller
 
         $order = Order::query()->with(['items', 'statusHistory', 'shipments'])->findOrFail($id);
         $profit->annotateLoaded($order, $tenant->get()?->settings);
+        $this->annotateOutOfStock(collect([$order]));
 
         return response()->json(['data' => new OrderResource($order)]);
     }
@@ -164,8 +169,8 @@ class OrderController extends Controller
     {
         $this->authorizeView($request);
 
-        // Base for the status tabs (everything except status/has_issue).
-        $statusBase = $this->applyFilters($request, Order::query(), skip: ['status', 'has_issue']);
+        // Base for the status tabs (everything except status/has_issue/out_of_stock — those have their own tab counts).
+        $statusBase = $this->applyFilters($request, Order::query(), skip: ['status', 'has_issue', 'out_of_stock']);
         $counts = (clone $statusBase)->selectRaw('status, count(*) as c')->groupBy('status')->pluck('c', 'status');
         $byStatus = [];
         foreach (StandardOrderStatus::cases() as $s) {
@@ -173,7 +178,7 @@ class OrderController extends Controller
         }
 
         // Base for the chip rows (everything except the chip facets themselves).
-        $facetBase = $this->applyFilters($request, Order::query(), skip: ['source', 'channel_account_id', 'carrier']);
+        $facetBase = $this->applyFilters($request, Order::query(), skip: ['source', 'channel_account_id', 'carrier', 'out_of_stock']);
         $bySource = (clone $facetBase)->selectRaw('source, count(*) as c')->groupBy('source')->orderByDesc('c')
             ->pluck('c', 'source')->map(fn ($n, $src) => ['source' => (string) $src, 'count' => (int) $n])->values()->all();
         $byShop = (clone $facetBase)->whereNotNull('channel_account_id')->selectRaw('channel_account_id, count(*) as c')->groupBy('channel_account_id')->orderByDesc('c')
@@ -185,6 +190,7 @@ class OrderController extends Controller
             'total' => (clone $statusBase)->count(),
             'has_issue' => (clone $statusBase)->where('has_issue', true)->count(),
             'unmapped' => (clone $statusBase)->where('has_issue', true)->where('issue_reason', 'SKU chưa ghép')->count(),
+            'out_of_stock' => (clone $statusBase)->whereHas('items', fn (Builder $i) => $i->whereNotNull('sku_id')->whereIn('sku_id', $this->oversoldSkuSubquery()))->count(),
             'by_status' => $byStatus,
             'by_source' => $bySource,
             'by_shop' => $byShop,
@@ -240,7 +246,7 @@ class OrderController extends Controller
     /**
      * @param  Builder<Order>  $query
      * @param  list<string>  $skip  filter keys to NOT apply (used by stats() for faceted counts):
-     *                              status | source | channel_account_id | carrier | has_issue | q | sku | product | placed
+     *                              status | source | channel_account_id | carrier | has_issue | out_of_stock | q | sku | product | placed
      * @return Builder<Order>
      */
     private function applyFilters(Request $request, Builder $query, array $skip = []): Builder
@@ -266,6 +272,9 @@ class OrderController extends Controller
         if ($use('has_issue') && $request->boolean('has_issue', false)) {
             $query->where('has_issue', true);
         }
+        if ($use('out_of_stock') && $request->boolean('out_of_stock', false)) {
+            $query->whereHas('items', fn (Builder $i) => $i->whereNotNull('sku_id')->whereIn('sku_id', $this->oversoldSkuSubquery()));
+        }
         if ($use('q') && $q = trim((string) $request->query('q', ''))) {
             $query->search($q);
         }
@@ -286,6 +295,37 @@ class OrderController extends Controller
         }
 
         return $query;
+    }
+
+    /** Subquery: sku_id của các SKU đang âm tồn (∑ on_hand − ∑ reserved < 0) — auto-scoped theo tenant. SPEC 0013. */
+    private function oversoldSkuSubquery(): Builder
+    {
+        return InventoryLevel::query()->select('sku_id')->groupBy('sku_id')->havingRaw('SUM(on_hand) - SUM(reserved) < 0');
+    }
+
+    /**
+     * Đánh dấu `out_of_stock` cho từng đơn (đọc bởi OrderResource) — một query batched: lấy sku_id của các
+     * dòng trong các đơn này, lọc ra SKU âm tồn, rồi cờ những đơn chứa SKU đó. SPEC 0013.
+     *
+     * @param  Collection<int, Order>  $orders
+     */
+    private function annotateOutOfStock(Collection $orders): void
+    {
+        if ($orders->isEmpty()) {
+            return;
+        }
+        $itemsByOrder = OrderItem::query()->whereIn('order_id', $orders->pluck('id')->all())->whereNotNull('sku_id')
+            ->get(['order_id', 'sku_id'])->groupBy('order_id');
+        $allSkuIds = $itemsByOrder->flatten(1)->pluck('sku_id')->filter()->unique()->values();
+        $oversold = $allSkuIds->isEmpty()
+            ? collect()
+            : InventoryLevel::query()->whereIn('sku_id', $allSkuIds->all())->select('sku_id')
+                ->groupBy('sku_id')->havingRaw('SUM(on_hand) - SUM(reserved) < 0')->pluck('sku_id')->map(fn ($v) => (int) $v)->all();
+        $oversoldSet = collect($oversold)->flip();
+        $orders->each(fn (Order $o) => $o->setAttribute(
+            'out_of_stock',
+            ($itemsByOrder->get($o->getKey(), collect()))->contains(fn ($it) => $oversoldSet->has((int) $it->sku_id)),
+        ));
     }
 
     private function authorizeView(Request $request): void

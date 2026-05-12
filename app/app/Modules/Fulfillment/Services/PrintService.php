@@ -85,6 +85,7 @@ class PrintService
                 PrintJob::TYPE_PICKING => $this->renderPickingList($job),
                 PrintJob::TYPE_PACKING => $this->renderPackingList($job),
                 PrintJob::TYPE_INVOICE => $this->renderInvoice($job),
+                PrintJob::TYPE_DELIVERY => $this->renderDeliverySlip($job),
                 default => throw new \InvalidArgumentException("Loại phiếu in [{$job->type}] không hợp lệ."),
             };
             $stored = $this->media->storeBytes($bytes, (int) $job->tenant_id, 'print', $job->type.'-'.Str::ulid(), 'pdf');
@@ -192,5 +193,27 @@ class PrintService
         $shopName = (string) (Tenant::query()->whereKey($tenantId)->value('name') ?? 'Cửa hàng');
 
         return [$this->gotenberg->htmlToPdf(PrintTemplates::invoice($orders, $shopName)), ['orders' => $orders->count()]];
+    }
+
+    /**
+     * "Phiếu giao hàng" tự tạo — một trang/đơn: tên cửa hàng + mã đơn/ngày + người nhận + địa chỉ giao +
+     * mã vận đơn / ĐVVC (nếu có) + bảng hàng + COD + ghi chú. Dùng cho bước "Chuẩn bị hàng" khi chưa kéo
+     * được tem/AWB thật của sàn ("luồng A" = follow-up). SPEC 0013. @return array{0:string,1:array<string,mixed>}
+     */
+    private function renderDeliverySlip(PrintJob $job): array
+    {
+        $tenantId = (int) $job->tenant_id;
+        $orderIds = $job->orderIds();
+        if ($orderIds === [] && ($sids = $job->shipmentIds())) {
+            $orderIds = Shipment::query()->where('tenant_id', $tenantId)->whereIn('id', $sids)->pluck('order_id')->all();
+        }
+        $orders = Order::query()->where('tenant_id', $tenantId)->whereIn('id', $orderIds)->whereNull('deleted_at')
+            ->with(['items', 'shipments' => fn ($q) => $q->orderByDesc('id')])->get();
+        if ($orders->isEmpty()) {
+            throw new \RuntimeException('Không có đơn nào để in.');
+        }
+        $shopName = (string) (Tenant::query()->whereKey($tenantId)->value('name') ?? 'Cửa hàng');
+
+        return [$this->gotenberg->htmlToPdf(PrintTemplates::deliverySlip($orders, $shopName)), ['orders' => $orders->count()]];
     }
 }

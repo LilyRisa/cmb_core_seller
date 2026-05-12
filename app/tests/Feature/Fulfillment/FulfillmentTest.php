@@ -122,7 +122,8 @@ class FulfillmentTest extends TestCase
         $ship = $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/orders/{$orderId}/ship", ['tracking_no' => 'TN-001'])->assertCreated();
         $shipmentId = $ship->json('data.id');
         $ship->assertJsonPath('data.carrier', 'manual')->assertJsonPath('data.status', 'created')->assertJsonPath('data.print_count', 0);
-        $this->assertSame('ready_to_ship', Order::withoutGlobalScope(TenantScope::class)->find($orderId)->status->value);
+        // SPEC 0013: "chuẩn bị hàng" (tạo vận đơn / lấy phiếu) ⇒ đơn pending → processing (xử lý nội bộ).
+        $this->assertSame('processing', Order::withoutGlobalScope(TenantScope::class)->find($orderId)->status->value);
         // out of prepare, into pack (manual = no print step)
         $this->assertFalse(collect($this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/fulfillment/processing?stage=prepare')->json('data'))->contains('id', $orderId));
         $this->assertTrue(collect($this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/fulfillment/processing?stage=pack')->json('data'))->contains('id', $orderId));
@@ -131,7 +132,7 @@ class FulfillmentTest extends TestCase
         $this->assertSame($shipmentId, $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/orders/{$orderId}/ship", [])->assertCreated()->json('data.id'));
         $this->assertSame(1, Shipment::withoutGlobalScope(TenantScope::class)->where('order_id', $orderId)->count());
 
-        // scan-pack → đóng gói (created → packed). Order STAYS ready_to_ship, NO stock movement yet.
+        // scan-pack → đã gói + quét đơn nội bộ (shipment created → packed; đơn processing → ready_to_ship). NO stock movement yet.
         $scan = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/scan-pack', ['code' => 'TN-001'])->assertOk();
         $scan->assertJsonPath('data.action', 'pack')->assertJsonPath('data.shipment.status', 'packed')->assertJsonPath('data.order.status', 'ready_to_ship');
         $this->assertFalse(InventoryMovement::withoutGlobalScope(TenantScope::class)->where('sku_id', $this->sku->getKey())->where('type', 'order_ship')->exists());
@@ -165,6 +166,42 @@ class FulfillmentTest extends TestCase
         $s3 = $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/orders/{$o3}/ship", [])->assertCreated()->json('data.id');
         $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/shipments/{$s3}/cancel")->assertOk()->assertJsonPath('data.status', 'cancelled');
         $this->assertSame('processing', Order::withoutGlobalScope(TenantScope::class)->find($o3)->status->value);
+    }
+
+    public function test_out_of_stock_blocks_prepare_and_is_flagged(): void
+    {
+        $a = $this->createOrder();                                                   // reserves 2 (on_hand 20 ⇒ available 18)
+        $b = $this->createOrder(['items' => [['sku_id' => $this->sku->getKey(), 'name' => 'Áo M', 'quantity' => 25, 'unit_price' => 150000]]]); // reserves 25 ⇒ available -7 (âm tồn)
+
+        // "Chuẩn bị hàng" (POST /orders/{id}/ship) bị chặn cho cả 2 đơn (cùng SKU âm tồn) — SPEC 0013
+        $resp = $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/orders/{$a}/ship", [])->assertStatus(422);
+        $this->assertStringContainsString('hết hàng', (string) $resp->json('error.details.order.0'));
+        $this->assertSame(0, Shipment::withoutGlobalScope(TenantScope::class)->count());
+
+        // list + stats cờ "hết hàng"
+        $list = $this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/orders')->assertOk();
+        $this->assertTrue(collect($list->json('data'))->firstWhere('id', $a)['out_of_stock']);
+        $this->assertSame(2, $this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/orders?out_of_stock=1')->assertOk()->json('meta.pagination.total'));
+        $this->assertSame(2, $this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/orders/stats')->assertOk()->json('data.out_of_stock'));
+
+        // nhập thêm hàng ⇒ hết âm tồn ⇒ chuẩn bị hàng được, đơn pending → processing
+        app(InventoryLedgerService::class)->adjust((int) $this->tenant->getKey(), (int) $this->sku->getKey(), null, 50);
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/orders/{$a}/ship", ['tracking_no' => 'TN-OK'])->assertCreated();
+        $this->assertSame('processing', Order::withoutGlobalScope(TenantScope::class)->find($a)->status->value);
+        $this->assertFalse(collect($this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/orders')->json('data'))->firstWhere('id', $a)['out_of_stock']);
+    }
+
+    public function test_can_create_a_delivery_slip_print_job(): void
+    {
+        Storage::fake('public');
+        Http::fake(['*/forms/chromium/convert/html' => Http::response('%PDF-1.4 fake-delivery', 200, ['Content-Type' => 'application/pdf'])]);
+        $orderId = $this->createOrder();
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/orders/{$orderId}/ship", ['tracking_no' => 'TN-DS'])->assertCreated();
+
+        $jobId = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/print-jobs', ['type' => 'delivery', 'order_ids' => [$orderId]])
+            ->assertCreated()->assertJsonPath('data.type', 'delivery')->json('data.id');
+        $this->actingAs($this->owner)->withHeaders($this->h())->getJson("/api/v1/print-jobs/{$jobId}")
+            ->assertOk()->assertJsonPath('data.status', 'done')->assertJsonPath('data.meta.orders', 1);
     }
 
     public function test_bulk_create_reports_per_order_errors(): void

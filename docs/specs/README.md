@@ -24,6 +24,7 @@
 | [0010](0010-wms-documents.md) | WMS — phiếu nhập kho / chuyển kho / kiểm kê (header + duyệt + giá vốn bình quân) | 5 | Implemented (lõi WMS; FIFO cost_layers / mass-listing đa sàn / ĐVVC đợt 2 = follow-up) | — |
 | [0011](0011-settings-shell.md) | Trung tâm Cài đặt — vỏ + Hồ sơ cá nhân + Thông tin gian hàng *(slice đầu của SPEC-0007)* | 3+ | Implemented | — |
 | [0012](0012-order-profit-and-invoice-print.md) | Lợi nhuận ước tính sau phí sàn + cài đặt % phí sàn + cách tính giá vốn SKU (bình quân/lô gần nhất) + in hoá đơn đơn hàng + sửa lỗi liên kết SKU nhanh | 2–6 | Implemented | — |
+| [0013](0013-order-fulfillment-flow-and-out-of-stock.md) | Sửa luồng xử lý đơn (chờ xử lý→đang xử lý→chờ bàn giao theo "đã in phiếu/đã gói"), chặn in phiếu giao hàng khi SKU âm tồn (tab "Hết hàng"), phiếu giao hàng tự tạo | 3+ | Implemented | — |
 
 ## Khi nào KHÔNG cần spec
 - Sửa lỗi nhỏ, refactor không đổi hành vi, thay đổi tài liệu, bump dependency, chỉnh CI — chỉ cần PR mô tả rõ. Nhưng nếu "việc nhỏ" hoá ra động chạm kiến trúc/hành vi nghiệp vụ ⇒ dừng, viết spec/ADR.

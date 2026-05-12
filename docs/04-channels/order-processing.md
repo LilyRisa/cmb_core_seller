@@ -1,6 +1,10 @@
 # Xử lý đơn hàng các sàn — TikTok Shop / Lazada / Shopee
 
-**Status:** Living document · **Cập nhật:** 2026-05-18
+**Status:** Living document · **Cập nhật:** 2026-05-12 (SPEC 0013)
+
+> **Rà soát SPEC 0013:** ánh xạ trạng thái đã đổi — "đơn sàn đã arrange/in phiếu" (TikTok `AWAITING_COLLECTION`, Shopee `PROCESSED`, Lazada `packed`/`ready_to_ship`) nay → `processing` (không phải `ready_to_ship`); `ready_to_ship` (chuẩn) **chỉ đạt được bằng thao tác nội bộ** ("đã gói & quét đơn" / `markPacked`). Bước "Chuẩn bị hàng" (`createForOrder`) đẩy đơn `pending → processing`, **chặn nếu đơn có SKU âm tồn** (`∑on_hand−∑reserved<0` ⇒ `422`), và sinh **phiếu giao hàng tự tạo** (`print_jobs.type=delivery`) — kéo tem/AWB **thật** của sàn vẫn là "luồng A" (follow-up). 3 "stage" `prepare/pack/handover` trong tài liệu này nay tương ứng các tab trạng thái `pending`/`processing`/`ready_to_ship` (không còn tab-bước riêng trên web; endpoint `/fulfillment/processing*` giữ cho app/API). Xem [`../specs/0013-order-fulfillment-flow-and-out-of-stock.md`](../specs/0013-order-fulfillment-flow-and-out-of-stock.md) và [`../03-domain/order-status-state-machine.md`](../03-domain/order-status-state-machine.md).
+
+
 
 > Tài liệu nền cho **màn "Xử lý đơn hàng"** (SPEC [0009](../specs/0009-order-processing-screen.md)) và phần fulfillment của các connector. Mục tiêu: hiểu **vòng đời fulfillment của từng sàn** rồi **gộp vào một luồng chung** (`prepare → pack → handover`) ánh xạ qua bảng `shipments` + `StandardOrderStatus`, để xử lý đơn cùng màn hình — tránh in thiếu đơn, gói thiếu hàng. Đọc kèm: [`../03-domain/order-status-state-machine.md`](../03-domain/order-status-state-machine.md), [`../03-domain/fulfillment-and-printing.md`](../03-domain/fulfillment-and-printing.md), SPEC-0001 (TikTok), SPEC-0006 (vận đơn/in), SPEC-0008 (Lazada).
 >

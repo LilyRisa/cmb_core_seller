@@ -10,6 +10,7 @@ use CMBcoreSeller\Modules\Fulfillment\Models\CarrierAccount;
 use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
 use CMBcoreSeller\Modules\Fulfillment\Models\ShipmentEvent;
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
+use CMBcoreSeller\Modules\Inventory\Services\InventoryLedgerService;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Orders\Models\OrderItem;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
@@ -31,7 +32,26 @@ class ShipmentService
         private readonly CarrierRegistry $carriers,
         private readonly OrderStatusSync $orderStatus,
         private readonly MediaUploader $media,
+        private readonly InventoryLedgerService $ledger,
     ) {}
+
+    /**
+     * Đơn "hết hàng / âm tồn": có ≥1 dòng mà SKU đã đặt vượt tồn vật lý (tổng `available_cached` < 0).
+     * In phiếu giao hàng cho đơn như vậy ⇒ ĐVVC tới lấy mà không có hàng ⇒ shop bị phạt. SPEC 0013.
+     */
+    public function isOutOfStock(Order $order): bool
+    {
+        $tenantId = (int) $order->tenant_id;
+        $skuIds = OrderItem::withoutGlobalScope(TenantScope::class)
+            ->where('order_id', $order->getKey())->whereNotNull('sku_id')->pluck('sku_id')->unique();
+        foreach ($skuIds as $skuId) {
+            if ($this->ledger->netStockForSku($tenantId, (int) $skuId) < 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /** Resolve the carrier account to use (explicit id → default → fall back to built-in `manual`). */
     private function resolveAccount(int $tenantId, ?int $carrierAccountId): ?CarrierAccount
@@ -58,7 +78,11 @@ class ShipmentService
             return $existing;
         }
         if ($order->status->isTerminal() || in_array($order->status, [S::Returning, S::ReturnedRefunded], true)) {
-            throw new RuntimeException('Đơn ở trạng thái không thể tạo vận đơn.');
+            throw new RuntimeException('Đơn ở trạng thái không thể chuẩn bị hàng / tạo vận đơn.');
+        }
+        // Chặn "chuẩn bị hàng / in phiếu giao hàng" khi đơn hết hàng (âm tồn) — SPEC 0013.
+        if ($this->isOutOfStock($order)) {
+            throw new RuntimeException('Đơn có SKU hết hàng (âm tồn) — không thể chuẩn bị hàng / lấy phiếu giao hàng. Hãy nhập thêm hàng rồi thử lại.');
         }
 
         $account = $this->resolveAccount($tenantId, $carrierAccountId);
@@ -104,8 +128,9 @@ class ShipmentService
         // Fetch & store the carrier label (best effort — a missing label must not fail the shipment).
         $this->fetchLabel($shipment, $connector, $accountArr);
 
-        // processing → ready_to_ship (only if we're earlier in the chain).
-        $this->orderStatus->apply($order, S::ReadyToShip, 'system', [S::Pending, S::Processing], $userId);
+        // "Chuẩn bị hàng" = đã tạo vận đơn / lấy phiếu giao hàng ⇒ đơn pending → processing (xử lý nội bộ:
+        // gói + quét). Chỉ chuyển sang ready_to_ship khi NV xác nhận đã gói (markPacked). SPEC 0013.
+        $this->orderStatus->apply($order, S::Processing, 'system', [S::Pending], $userId);
 
         $shipment->refresh();
         ShipmentCreated::dispatch($shipment);
@@ -140,9 +165,9 @@ class ShipmentService
     }
 
     /**
-     * Mark a parcel packed (label printed → goods boxed): created/pending → packed. Does NOT
-     * change the order status (stays ready_to_ship) or stock — that happens at handover. Idempotent.
-     * Returns true if a transition happened. See SPEC 0009.
+     * Đã gói hàng & quét đơn nội bộ xong: vận đơn created/pending → packed; **đơn processing → ready_to_ship**
+     * (sẵn sàng bàn giao ĐVVC). Chưa trừ tồn — trừ tồn ở bước bàn giao (handover / sàn báo shipped).
+     * Idempotent. Trả true nếu có chuyển trạng thái. SPEC 0013 (mở rộng SPEC 0009).
      */
     public function markPacked(Shipment $shipment, string $source = 'user', ?int $userId = null): bool
     {
@@ -153,7 +178,10 @@ class ShipmentService
             return false; // already packed/handed over — no-op (anti double-scan, rule 5)
         }
         $shipment->forceFill(['status' => Shipment::STATUS_PACKED, 'packed_at' => now()])->save();
-        $this->recordEvent($shipment, 'packed', 'Đã đóng gói', Shipment::STATUS_PACKED, $source, null, $userId);
+        $this->recordEvent($shipment, 'packed', 'Đã đóng gói & quét đơn', Shipment::STATUS_PACKED, $source, null, $userId);
+        if ($order = $this->orderFor($shipment)) {
+            $this->orderStatus->apply($order, S::ReadyToShip, $source, [S::Pending, S::Processing], $userId);
+        }
 
         return true;
     }

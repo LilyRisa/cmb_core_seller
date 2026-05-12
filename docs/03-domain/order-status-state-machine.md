@@ -9,9 +9,9 @@
 | Mã (`status`) | Tên hiển thị | Ý nghĩa |
 |---|---|---|
 | `unpaid` | Chờ thanh toán | Đơn tạo nhưng chưa thanh toán (đơn online chưa trả tiền) |
-| `pending` | Chờ xử lý | Đã thanh toán / COD đã xác nhận, chưa bắt đầu chuẩn bị hàng |
-| `processing` | Đang xử lý | Đang soạn/đóng hàng |
-| `ready_to_ship` | Chờ bàn giao | Đã tạo vận đơn (có tracking), chờ giao cho ĐVVC |
+| `pending` | Chờ xử lý | Đã thanh toán / COD đã xác nhận — **chưa in/arrange phiếu giao hàng** (TikTok `AWAITING_SHIPMENT`, Shopee `READY_TO_SHIP`, Lazada `pending`/`topack`). Bấm "Chuẩn bị hàng" để lấy phiếu. (SPEC 0013) |
+| `processing` | Đang xử lý | **Đã in/arrange phiếu giao hàng** (TikTok `AWAITING_COLLECTION`, Shopee `PROCESSED`, Lazada `packed`/`ready_to_ship`) — đang **gói hàng + quét đơn nội bộ**. (SPEC 0013) |
+| `ready_to_ship` | Chờ bàn giao | **Đã gói + đã quét đơn xong** (hoặc bấm "giao hàng thủ công") — sẵn sàng đưa ĐVVC. **Chỉ đạt được bằng thao tác nội bộ** (`ShipmentService::markPacked`), không từ một raw status nào của sàn. (SPEC 0013) |
 | `shipped` | Đang vận chuyển | Đã bàn giao ĐVVC / đang trên đường |
 | `delivered` | Đã giao | Giao thành công cho người nhận |
 | `completed` | Hoàn tất | Qua thời gian khiếu nại / đã đối soát xong |
@@ -25,15 +25,15 @@ Phụ trợ (cờ riêng, không nằm trong chuỗi chính): `payment_status` (
 ## 2. Sơ đồ chuyển trạng thái (đường "hạnh phúc" + nhánh)
 
 ```
- unpaid ──pay──▶ pending ──start prep──▶ processing ──create AWB──▶ ready_to_ship
-                                                                        │ handover
-                                                                        ▼
-                                                                     shipped ──┬──▶ delivered ──▶ completed
-                                                                               │
-                                                                               └──fail──▶ delivery_failed ──retry──▶ shipped
- (bất kỳ trạng thái trước shipped) ──cancel──▶ cancelled
+ unpaid ──pay──▶ pending ──"chuẩn bị hàng" (in/arrange phiếu, validate âm tồn)──▶ processing
+                                                                ──"đã gói & quét đơn" (markPacked)──▶ ready_to_ship
+                                                                ──handover / sàn báo ĐVVC lấy──▶ shipped ──┬──▶ delivered ──▶ completed
+                                                                                                           │
+                                                                                                           └──fail──▶ delivery_failed ──retry──▶ shipped
+ (bất kỳ trạng thái trước shipped) ──cancel (kể cả đã in phiếu)──▶ cancelled  (không quét / không bàn giao thủ công được)
  (delivered/shipped) ──buyer request──▶ returning ──▶ returned_refunded
 ```
+> Lưu ý (SPEC 0013): `pending → processing` xảy ra khi **ta** "Chuẩn bị hàng" (tạo vận đơn / lấy phiếu giao hàng — bị **chặn nếu đơn có SKU âm tồn** `∑on_hand−∑reserved<0`). `processing → ready_to_ship` chỉ qua thao tác nội bộ "đã gói & quét đơn". `→ shipped` (trừ tồn) khi bàn giao thật / ĐVVC lấy hàng (sàn báo). Đơn sàn về hệ thống ở `AWAITING_COLLECTION`/`PROCESSED`/`packed` ⇒ vào thẳng `processing`.
 
 ## 3. Quy tắc chuyển trạng thái (RULES)
 
@@ -53,18 +53,18 @@ Mỗi connector có `XStatusMap` ánh xạ `raw_status` (+ một số trường 
 |---|---|
 | `UNPAID` | `unpaid` |
 | `ON_HOLD` / `PARTIALLY_SHIPPING` (tuỳ ngữ cảnh) | `processing` |
-| `AWAITING_SHIPMENT` | `pending` → `processing` (tùy đã có gói chưa) |
-| `AWAITING_COLLECTION` | `ready_to_ship` |
+| `AWAITING_SHIPMENT` | `pending` *(chưa in/arrange phiếu — kể cả đã có package; SPEC 0013)* |
+| `AWAITING_COLLECTION` | `processing` *(đã in/arrange phiếu — TikTok "đang chờ lấy hàng"; SPEC 0013)* |
 | `IN_TRANSIT` | `shipped` |
 | `DELIVERED` | `delivered` |
 | `COMPLETED` | `completed` |
 | `CANCELLED` | `cancelled` |
 
 ### Shopee  *(điền khi có API)*
-`UNPAID`→unpaid · `READY_TO_SHIP`/`PROCESSED`→processing/ready_to_ship · `SHIPPED`→shipped · `TO_CONFIRM_RECEIVE`→delivered · `COMPLETED`→completed · `CANCELLED`/`IN_CANCEL`→cancelled · `TO_RETURN`→returning · ...
+`UNPAID`→unpaid · `READY_TO_SHIP`→`pending` (chưa in phiếu) · `PROCESSED`→`processing` (đã in/arrange phiếu) · `SHIPPED`→shipped · `TO_CONFIRM_RECEIVE`→delivered · `COMPLETED`→completed · `CANCELLED`/`IN_CANCEL`→cancelled · `TO_RETURN`→returning · ...
 
-### Lazada  *(điền khi có API)*
-`pending`→pending · `packed`→processing · `ready_to_ship`→ready_to_ship · `shipped`→shipped · `delivered`→delivered · `failed`→delivery_failed · `canceled`→cancelled · `returned`→returned_refunded · ...
+### Lazada
+`unpaid`→unpaid · `pending`/`topack`→`pending` (chưa RTS/in phiếu) · `packed`/`ready_to_ship`→`processing` (đã RTS/in phiếu) · `shipped`→shipped · `delivered`→delivered · `failed`/`lost`/`damaged`→delivery_failed · `shipped_back*`→returning · `returned`→returned_refunded · `canceled`→cancelled · ... *(`ready_to_ship` chuẩn chỉ đạt được bằng thao tác nội bộ — SPEC 0013)*
 
 ### Manual
 Do người dùng đẩy theo state machine; mặc định tạo ở `pending` (hoặc `processing` nếu chọn).

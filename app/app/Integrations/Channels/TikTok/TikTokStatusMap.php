@@ -17,16 +17,14 @@ final class TikTokStatusMap
         return (array) config('integrations.tiktok.status_map', []);
     }
 
-    /** @param array<string,mixed> $rawOrder used to disambiguate (e.g. AWAITING_SHIPMENT with packages -> processing) */
+    /**
+     * @param  array<string,mixed>  $rawOrder  (kept for future disambiguation hooks; AWAITING_SHIPMENT
+     *                                         luôn → pending = "chưa in phiếu giao hàng", SPEC 0013)
+     */
     public static function toStandard(string $rawStatus, array $rawOrder = []): StandardOrderStatus
     {
         $key = strtoupper(trim($rawStatus));
         $mapped = self::table()[$key] ?? null;
-
-        // AWAITING_SHIPMENT: pending before any package, processing once a package exists.
-        if ($key === 'AWAITING_SHIPMENT' && ! empty($rawOrder['packages'])) {
-            return StandardOrderStatus::Processing;
-        }
 
         if ($mapped !== null) {
             return StandardOrderStatus::tryFrom($mapped) ?? StandardOrderStatus::Pending;

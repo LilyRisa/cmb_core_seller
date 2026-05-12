@@ -75,7 +75,7 @@ export function OrdersPage() {
     };
 
     const activeTab = ORDER_STATUS_TABS.find((t) => t.key === tabKey) ?? ORDER_STATUS_TABS[0];
-    const effectiveStatus = tabKey === 'issue' ? '' : (statusParam || activeTab.statuses.join(','));
+    const effectiveStatus = tabKey === 'issue' || tabKey === 'out_of_stock' ? '' : (statusParam || activeTab.statuses.join(','));
 
     const filters = useMemo(() => ({
         status: effectiveStatus || undefined,
@@ -85,6 +85,7 @@ export function OrdersPage() {
         carrier: carrier || undefined,
         placed_from: placedFrom || undefined, placed_to: placedTo || undefined,
         has_issue: tabKey === 'issue' || params.get('has_issue') === '1' ? true : undefined,
+        out_of_stock: tabKey === 'out_of_stock' ? true : undefined,
         sort, page, per_page: perPage,
     }), [effectiveStatus, q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo, tabKey, params, sort, page, perPage]);
 
@@ -214,7 +215,9 @@ export function OrdersPage() {
                             label: <span>{t.label}{t.key !== '' && stats ? <Badge count={countFor(t.statuses)} overflowCount={9999} showZero={false} style={{ marginInlineStart: 6, background: '#f0f0f0', color: '#595959' }} /> : null}</span>,
                         })),
                         { key: 'issue', label: <span>Có vấn đề{stats?.has_issue ? <Badge count={stats.has_issue} style={{ marginInlineStart: 6 }} /> : null}</span> },
-                        // Thao tác xử lý đơn (tạo vận đơn / in tem / đóng gói / bàn giao ĐVVC) làm ngay trên các tab
+                        // Đơn có SKU âm tồn — chặn "Chuẩn bị hàng / lấy phiếu giao hàng" cho đến khi nhập thêm hàng (SPEC 0013).
+                        { key: 'out_of_stock', label: <span>⚠️ Hết hàng{stats?.out_of_stock ? <Badge count={stats.out_of_stock} style={{ marginInlineStart: 6 }} /> : null}</span> },
+                        // Thao tác xử lý đơn (chuẩn bị hàng / in phiếu / đóng gói / bàn giao ĐVVC) làm ngay trên các tab
                         // trạng thái Chờ xử lý · Đang xử lý · Chờ bàn giao — không tách stage riêng (xem cột "Thao tác").
                         { key: 'shipments', label: <span>🏷 Vận đơn</span> },
                     ]}

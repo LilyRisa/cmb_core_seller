@@ -112,9 +112,11 @@ class TikTokConnectorContractTest extends TestCase
     {
         $c = $this->connector();
         $this->assertSame(StandardOrderStatus::Unpaid, $c->mapStatus('UNPAID'));
+        // SPEC 0013: AWAITING_SHIPMENT = chưa in/arrange phiếu ⇒ pending (kể cả khi đã có package).
+        // AWAITING_COLLECTION = đã in/arrange phiếu (TikTok "đang chờ lấy hàng") ⇒ processing.
         $this->assertSame(StandardOrderStatus::Pending, $c->mapStatus('AWAITING_SHIPMENT'));
-        $this->assertSame(StandardOrderStatus::Processing, $c->mapStatus('AWAITING_SHIPMENT', ['packages' => [['id' => '1']]]));
-        $this->assertSame(StandardOrderStatus::ReadyToShip, $c->mapStatus('AWAITING_COLLECTION'));
+        $this->assertSame(StandardOrderStatus::Pending, $c->mapStatus('AWAITING_SHIPMENT', ['packages' => [['id' => '1']]]));
+        $this->assertSame(StandardOrderStatus::Processing, $c->mapStatus('AWAITING_COLLECTION'));
         $this->assertSame(StandardOrderStatus::Shipped, $c->mapStatus('IN_TRANSIT'));
         $this->assertSame(StandardOrderStatus::Delivered, $c->mapStatus('DELIVERED'));
         $this->assertSame(StandardOrderStatus::Completed, $c->mapStatus('COMPLETED'));

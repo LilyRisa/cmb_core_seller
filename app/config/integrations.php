@@ -115,9 +115,12 @@ return [
         'status_map' => [
             'UNPAID' => 'unpaid',
             'ON_HOLD' => 'processing',
+            // AWAITING_SHIPMENT = đã xác nhận, CHƯA in/arrange phiếu giao hàng ⇒ tab "Chờ xử lý".
             'AWAITING_SHIPMENT' => 'pending',
             'PARTIALLY_SHIPPING' => 'processing',
-            'AWAITING_COLLECTION' => 'ready_to_ship',
+            // AWAITING_COLLECTION = đã in/arrange phiếu (TikTok "đang chờ lấy hàng") ⇒ tab "Đang xử lý"
+            // (xử lý nội bộ: gói + quét). Chỉ chuyển sang "Chờ bàn giao" bằng thao tác nội bộ của ta. SPEC 0013.
+            'AWAITING_COLLECTION' => 'processing',
             'IN_TRANSIT' => 'shipped',
             'DELIVERED' => 'delivered',
             'COMPLETED' => 'completed',
@@ -188,11 +191,14 @@ return [
         // see docs/03-domain/order-status-state-machine.md §4. Keys normalized (lowercase, '_').
         'status_map' => [
             'unpaid' => 'unpaid',
+            // pending = đã xác nhận, chưa RTS/in phiếu ⇒ "Chờ xử lý"
             'pending' => 'pending',
-            'topack' => 'processing',
-            'ready_to_ship' => 'ready_to_ship',
+            'topack' => 'pending',
+            // packed / ready_to_ship = đã RTS/in phiếu (Lazada chờ ĐVVC lấy) ⇒ "Đang xử lý" (gói + quét nội bộ).
+            // Chỉ chuyển sang "Chờ bàn giao" bằng thao tác nội bộ. SPEC 0013.
+            'ready_to_ship' => 'processing',
             'ready_to_ship_pending' => 'processing',
-            'packed' => 'ready_to_ship',
+            'packed' => 'processing',
             'shipped' => 'shipped',
             'shipped_back' => 'returning',
             'shipped_back_failed' => 'returning',

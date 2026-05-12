@@ -121,4 +121,43 @@ final class PrintTemplates
 
         return self::shell('Hoá đơn', implode('', $pages));
     }
+
+    /**
+     * "Phiếu giao hàng" tự tạo (SPEC 0013) — mỗi đơn một trang: tên cửa hàng + mã đơn/ngày + người nhận +
+     * địa chỉ giao + mã vận đơn / ĐVVC (nếu đã tạo vận đơn) + bảng hàng + COD + ghi chú. Dùng khi chưa kéo
+     * được tem/AWB thật của sàn ("luồng A" = follow-up).
+     *
+     * @param  Collection<int, Order>  $orders  với `items` và `shipments` (mới nhất trước) đã nạp
+     */
+    public static function deliverySlip(Collection $orders, string $shopName): string
+    {
+        $pages = [];
+        $last = $orders->count() - 1;
+        foreach ($orders->values() as $idx => $order) {
+            /** @var Order $order */
+            $addr = (array) ($order->shipping_address ?? []);
+            $name = $addr['fullName'] ?? $addr['name'] ?? $order->buyer_name ?? '—';
+            $phone = $addr['phone'] ?? '—';
+            $full = trim(implode(', ', array_filter([$addr['line1'] ?? null, $addr['address'] ?? null, $addr['ward'] ?? null, $addr['district'] ?? null, $addr['province'] ?? null]))) ?: '—';
+            $sh = $order->relationLoaded('shipments') ? $order->shipments->first(fn ($x) => $x->status !== 'cancelled') : null;
+            $rows = '';
+            foreach ($order->items as $i => $it) {
+                $rows .= '<tr><td class="r">'.($i + 1).'</td><td>'.self::e($it->name).self::e($it->variation ? ' — '.$it->variation : '')
+                    .($it->seller_sku ? '<br><span class="muted">SKU: '.self::e($it->seller_sku).'</span>' : '').'</td><td class="r">'.(int) $it->quantity.'</td></tr>';
+            }
+            $code = $order->order_number ?? $order->external_order_id ?? ('#'.$order->getKey());
+            $shipLine = $sh
+                ? '<b>ĐVVC:</b> '.self::e((string) $sh->carrier).' · <b>Mã vận đơn:</b> '.self::e((string) ($sh->tracking_no ?: '(chưa có)'))
+                : '<span class="muted">Chưa tạo vận đơn</span>';
+            $page = '<div class="box"><div style="display:flex;justify-content:space-between;align-items:flex-end"><h1>'.self::e($shopName).'</h1><div class="muted" style="text-align:right">PHIẾU GIAO HÀNG<br>'.self::e($code).' · '.now()->format('d/m/Y H:i').'</div></div>'
+                .'<p><b>Người nhận:</b> '.self::e($name).' · '.self::e($phone).'<br><b>Địa chỉ giao:</b> '.self::e($full).'<br>'.$shipLine.'<br><span class="muted">Nguồn đơn: '.self::e($order->source).'</span></p>'
+                .'<table><thead><tr><th class="r">#</th><th>Sản phẩm</th><th class="r">SL</th></tr></thead><tbody>'.$rows.'</tbody></table>'
+                .($order->is_cod ? '<p style="margin-top:8px;font-size:15px;font-weight:700;color:#cf1322">Thu hộ (COD): '.self::vnd((int) ($order->cod_amount ?: $order->grand_total)).'</p>' : '')
+                .($order->note ? '<p class="muted" style="margin-top:8px"><b>Ghi chú:</b> '.self::e($order->note).'</p>' : '')
+                .'<p class="muted" style="margin-top:10px">Lưu ý: kiểm đủ hàng theo phiếu trước khi bàn giao cho ĐVVC.</p></div>';
+            $pages[] = $idx < $last ? $page.'<div class="page-break"></div>' : $page;
+        }
+
+        return self::shell('Phiếu giao hàng', implode('', $pages));
+    }
 }
