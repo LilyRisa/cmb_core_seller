@@ -48,6 +48,7 @@ docs/
 │   └── overview.md                  React-in-Laravel, Vite, AntD, React Query, cấu trúc
 ├── 07-infra/
 │   ├── environments-and-docker.md   Môi trường dev/staging/prod, Docker Compose
+│   ├── portainer-deploy.md          ★ Runbook deploy prod qua Portainer (checklist, migrate, kiểm webhook/worker)
 │   ├── ci-cd-pipeline.md            Pipeline CI/CD, quy trình release
 │   ├── queues-and-scheduler.md      Horizon supervisor, job định kỳ
 │   └── observability-and-backup.md  Sentry, log, metric, backup/DR
