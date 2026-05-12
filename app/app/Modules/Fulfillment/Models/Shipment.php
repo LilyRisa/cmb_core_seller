@@ -30,7 +30,10 @@ use Illuminate\Support\Carbon;
  * @property int $fee
  * @property string|null $label_url
  * @property string|null $label_path
+ * @property int $print_count
+ * @property Carbon|null $last_printed_at
  * @property Carbon|null $picked_up_at
+ * @property Carbon|null $packed_at
  * @property Carbon|null $delivered_at
  * @property array|null $raw
  * @property Carbon|null $created_at
@@ -47,6 +50,9 @@ class Shipment extends Model
 
     public const STATUS_CREATED = 'created';
 
+    /** Parcel packed (label printed, goods boxed) — waiting to be handed over to the carrier. SPEC 0009. */
+    public const STATUS_PACKED = 'packed';
+
     public const STATUS_PICKED_UP = 'picked_up';
 
     public const STATUS_IN_TRANSIT = 'in_transit';
@@ -60,18 +66,22 @@ class Shipment extends Model
     public const STATUS_CANCELLED = 'cancelled';
 
     /** Statuses meaning "still actionable" — used to enforce 1 active shipment per order. */
-    public const OPEN_STATUSES = [self::STATUS_PENDING, self::STATUS_CREATED, self::STATUS_PICKED_UP, self::STATUS_IN_TRANSIT, self::STATUS_DELIVERED, self::STATUS_FAILED, self::STATUS_RETURNED];
+    public const OPEN_STATUSES = [self::STATUS_PENDING, self::STATUS_CREATED, self::STATUS_PACKED, self::STATUS_PICKED_UP, self::STATUS_IN_TRANSIT, self::STATUS_DELIVERED, self::STATUS_FAILED, self::STATUS_RETURNED];
+
+    /** "Already handed over to / collected by the carrier" — packing/handover is done. */
+    public const HANDED_OVER_STATUSES = [self::STATUS_PICKED_UP, self::STATUS_IN_TRANSIT, self::STATUS_DELIVERED];
 
     protected $fillable = [
         'tenant_id', 'order_id', 'carrier', 'carrier_account_id', 'package_no', 'tracking_no', 'status', 'service',
-        'weight_grams', 'dims', 'cod_amount', 'fee', 'label_url', 'label_path', 'picked_up_at', 'delivered_at', 'raw',
+        'weight_grams', 'dims', 'cod_amount', 'fee', 'label_url', 'label_path', 'print_count', 'last_printed_at',
+        'picked_up_at', 'packed_at', 'delivered_at', 'raw',
     ];
 
     protected function casts(): array
     {
         return [
             'dims' => 'array', 'raw' => 'array', 'cod_amount' => 'integer', 'fee' => 'integer', 'weight_grams' => 'integer',
-            'picked_up_at' => 'datetime', 'delivered_at' => 'datetime',
+            'print_count' => 'integer', 'last_printed_at' => 'datetime', 'picked_up_at' => 'datetime', 'packed_at' => 'datetime', 'delivered_at' => 'datetime',
         ];
     }
 

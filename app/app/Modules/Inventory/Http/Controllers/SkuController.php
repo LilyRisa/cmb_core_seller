@@ -9,6 +9,7 @@ use CMBcoreSeller\Modules\Inventory\Http\Resources\SkuResource;
 use CMBcoreSeller\Modules\Inventory\Models\InventoryLevel;
 use CMBcoreSeller\Modules\Inventory\Models\InventoryMovement;
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
+use CMBcoreSeller\Modules\Inventory\Models\SkuMapping;
 use CMBcoreSeller\Modules\Inventory\Models\Warehouse;
 use CMBcoreSeller\Modules\Inventory\Services\InventoryLedgerService;
 use CMBcoreSeller\Modules\Inventory\Services\SkuMappingService;
@@ -168,7 +169,14 @@ class SkuController extends Controller
         return response()->json(['data' => array_merge((new SkuResource($sku))->toArray($request), ['movements' => InventoryMovementResource::collection($movements)])]);
     }
 
-    public function update(Request $request, int $id): JsonResponse
+    /**
+     * Update a master SKU. Accepts the same catalogue fields as `store` (everything except `sku_code`
+     * is freely editable from the full-page edit form — `sku_code` *is* editable here too if sent, but
+     * the FE locks it) plus an optional `mappings[]` array which, when present, REPLACES the SKU's
+     * channel-SKU links (firstOrCreate the listing, setMapping single×qty; drop links to listings not
+     * in the list). Opening stock (`levels`) is not editable here — that's the inventory ledger. SPEC 0005.
+     */
+    public function update(Request $request, int $id, SkuMappingService $mappingService): JsonResponse
     {
         abort_unless($request->user()?->can('products.manage'), 403, 'Bạn không có quyền sửa SKU.');
         $sku = Sku::query()->findOrFail($id);
@@ -192,10 +200,49 @@ class SkuController extends Controller
             'height_cm' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'attributes' => ['sometimes', 'array'],
             'is_active' => ['sometimes', 'boolean'],
+            'mappings' => ['sometimes', 'array'],
+            'mappings.*.channel_account_id' => ['required_with:mappings', 'integer'],
+            'mappings.*.external_sku_id' => ['required_with:mappings', 'string', 'max:191'],
+            'mappings.*.seller_sku' => ['sometimes', 'nullable', 'string', 'max:191'],
+            'mappings.*.quantity' => ['sometimes', 'integer', 'min:1'],
         ]);
-        $sku->forceFill($data)->save();
 
-        return response()->json(['data' => new SkuResource($sku->load('levels'))]);
+        $hasMappings = array_key_exists('mappings', $data);
+        $mappings = $data['mappings'] ?? [];
+        unset($data['mappings']);
+
+        if ($hasMappings) {
+            $accountIds = collect($mappings)->pluck('channel_account_id')->filter()->unique()->values();
+            if ($accountIds->isNotEmpty() && ChannelAccount::query()->whereIn('id', $accountIds->all())->count() !== $accountIds->count()) {
+                throw ValidationException::withMessages(['mappings' => 'Gian hàng không hợp lệ.']);
+            }
+        }
+
+        DB::transaction(function () use ($sku, $data, $hasMappings, $mappings, $mappingService, $request) {
+            if ($data !== []) {
+                $sku->forceFill($data)->save();
+            }
+            if ($hasMappings) {
+                $tenantId = (int) $sku->tenant_id;
+                $userId = $request->user()->getKey();
+                $keptListingIds = [];
+                foreach ($mappings as $m) {
+                    /** @var array<string,mixed> $m */
+                    $listing = ChannelListing::query()->firstOrCreate(
+                        ['channel_account_id' => (int) $m['channel_account_id'], 'external_sku_id' => (string) $m['external_sku_id']],
+                        ['tenant_id' => $tenantId, 'seller_sku' => $m['seller_sku'] ?? null, 'title' => null, 'currency' => 'VND', 'is_active' => true],
+                    );
+                    $mappingService->setMapping($tenantId, $listing, 'single', [['sku_id' => $sku->getKey(), 'quantity' => (int) ($m['quantity'] ?? 1)]], $userId);
+                    $keptListingIds[] = (int) $listing->getKey();
+                }
+                // Drop links to listings no longer in the list.
+                SkuMapping::query()->where('sku_id', $sku->getKey())
+                    ->when($keptListingIds !== [], fn ($q) => $q->whereNotIn('channel_listing_id', $keptListingIds))
+                    ->get()->each(fn (SkuMapping $sm) => $mappingService->removeMapping($sm));
+            }
+        });
+
+        return response()->json(['data' => new SkuResource($sku->fresh()?->load('levels.warehouse', 'mappings.sku', 'mappings.channelListing'))]);
     }
 
     /** POST /api/v1/skus/{id}/image — upload (replace) the SKU image to the media disk (R2). SPEC 0005 §7. */

@@ -110,47 +110,61 @@ class FulfillmentTest extends TestCase
         $this->assertFalse($manual['needs_credentials']);
     }
 
-    public function test_ship_with_manual_carrier_then_scan_pack_then_cancel(): void
+    public function test_processing_flow_scan_pack_then_handover_then_cancel(): void
     {
         $orderId = $this->createOrder();
         $this->assertSame(2, $this->level()->reserved);
 
-        // appears in the "ready" list
-        $ready = $this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/fulfillment/ready')->assertOk();
-        $this->assertTrue(collect($ready->json('data'))->contains('id', $orderId));
+        // appears in the "ready"/prepare stage (no shipment yet)
+        $this->assertTrue(collect($this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/fulfillment/ready')->json('data'))->contains('id', $orderId));
 
-        // create shipment (manual carrier, no setup needed) — tracking provided by user
-        $ship = $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/orders/{$orderId}/ship", ['tracking_no' => 'TN-001'])
-            ->assertCreated();
+        // create shipment (manual carrier — no label, so it goes straight to the "pack" stage)
+        $ship = $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/orders/{$orderId}/ship", ['tracking_no' => 'TN-001'])->assertCreated();
         $shipmentId = $ship->json('data.id');
-        $ship->assertJsonPath('data.carrier', 'manual')->assertJsonPath('data.status', 'created')->assertJsonPath('data.tracking_no', 'TN-001');
+        $ship->assertJsonPath('data.carrier', 'manual')->assertJsonPath('data.status', 'created')->assertJsonPath('data.print_count', 0);
         $this->assertSame('ready_to_ship', Order::withoutGlobalScope(TenantScope::class)->find($orderId)->status->value);
-        // not in "ready" anymore
-        $this->assertFalse(collect($this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/fulfillment/ready')->json('data'))->contains('id', $orderId));
+        // out of prepare, into pack (manual = no print step)
+        $this->assertFalse(collect($this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/fulfillment/processing?stage=prepare')->json('data'))->contains('id', $orderId));
+        $this->assertTrue(collect($this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/fulfillment/processing?stage=pack')->json('data'))->contains('id', $orderId));
 
-        // calling ship again returns the same shipment (1 order = 1 active shipment)
-        $again = $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/orders/{$orderId}/ship", [])->assertCreated();
-        $this->assertSame($shipmentId, $again->json('data.id'));
+        // ship again returns the same shipment (1 order = 1 active shipment)
+        $this->assertSame($shipmentId, $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/orders/{$orderId}/ship", [])->assertCreated()->json('data.id'));
         $this->assertSame(1, Shipment::withoutGlobalScope(TenantScope::class)->where('order_id', $orderId)->count());
 
-        // scan-to-pack by tracking no → shipment picked_up, order shipped, stock leaves the warehouse
+        // scan-pack → đóng gói (created → packed). Order STAYS ready_to_ship, NO stock movement yet.
         $scan = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/scan-pack', ['code' => 'TN-001'])->assertOk();
-        $scan->assertJsonPath('data.shipment.status', 'picked_up')->assertJsonPath('data.order.status', 'shipped');
+        $scan->assertJsonPath('data.action', 'pack')->assertJsonPath('data.shipment.status', 'packed')->assertJsonPath('data.order.status', 'ready_to_ship');
+        $this->assertFalse(InventoryMovement::withoutGlobalScope(TenantScope::class)->where('sku_id', $this->sku->getKey())->where('type', 'order_ship')->exists());
+        $this->assertSame(20, $this->level()->on_hand);
+        // moved from pack → handover
+        $this->assertTrue(collect($this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/fulfillment/processing?stage=handover')->json('data'))->contains('id', $orderId));
+        // scan-pack again → 409 (đã đóng gói)
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/scan-pack', ['code' => 'TN-001'])->assertStatus(409);
+
+        // scan-handover (the app endpoint) → bàn giao ĐVVC: shipment picked_up, order shipped, stock leaves
+        $hand = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/scan-handover', ['code' => 'TN-001'])->assertOk();
+        $hand->assertJsonPath('data.action', 'handover')->assertJsonPath('data.shipment.status', 'picked_up')->assertJsonPath('data.order.status', 'shipped');
         $this->assertTrue(InventoryMovement::withoutGlobalScope(TenantScope::class)->where('sku_id', $this->sku->getKey())->where('type', 'order_ship')->exists());
         $this->assertSame(18, $this->level()->on_hand);
         $this->assertSame(0, $this->level()->reserved);
-
-        // scanning again → 409 (anti double-scan)
-        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/scan-pack', ['code' => 'TN-001'])->assertStatus(409);
+        // scan-handover again → 409
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/scan-handover', ['code' => 'TN-001'])->assertStatus(409);
         // unknown code → 404
         $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/scan-pack', ['code' => 'NOPE-XYZ'])->assertStatus(404);
 
-        // cancel a shipment that was created but not yet picked up
+        // bulk pack + bulk handover on a fresh order
         $o2 = $this->createOrder();
         $s2 = $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/orders/{$o2}/ship", [])->assertCreated()->json('data.id');
-        $this->assertSame('ready_to_ship', Order::withoutGlobalScope(TenantScope::class)->find($o2)->status->value);
-        $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/shipments/{$s2}/cancel")->assertOk()->assertJsonPath('data.status', 'cancelled');
-        $this->assertSame('processing', Order::withoutGlobalScope(TenantScope::class)->find($o2)->status->value);
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/shipments/pack', ['shipment_ids' => [$s2]])->assertOk()->assertJsonPath('data.packed', 1);
+        $this->assertSame('packed', Shipment::withoutGlobalScope(TenantScope::class)->find($s2)->status);
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/shipments/handover', ['shipment_ids' => [$s2]])->assertOk()->assertJsonPath('data.handed_over', 1);
+        $this->assertSame('shipped', Order::withoutGlobalScope(TenantScope::class)->find($o2)->status->value);
+
+        // cancel a created shipment → order back to processing
+        $o3 = $this->createOrder();
+        $s3 = $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/orders/{$o3}/ship", [])->assertCreated()->json('data.id');
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/shipments/{$s3}/cancel")->assertOk()->assertJsonPath('data.status', 'cancelled');
+        $this->assertSame('processing', Order::withoutGlobalScope(TenantScope::class)->find($o3)->status->value);
     }
 
     public function test_bulk_create_reports_per_order_errors(): void
@@ -214,6 +228,15 @@ class FulfillmentTest extends TestCase
         $done->assertJsonPath('data.status', 'done');
         $this->assertNotNull($done->json('data.file_url'));
         $this->actingAs($this->owner)->withHeaders($this->h())->get("/api/v1/print-jobs/{$jobId}/download")->assertRedirect();
+        // the print run is counted on the shipment ("đã in N lần")
+        $this->assertSame(1, Shipment::withoutGlobalScope(TenantScope::class)->find($shipment->getKey())->print_count);
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/print-jobs', ['type' => 'label', 'shipment_ids' => [$shipment->getKey()]])->assertCreated();   // re-print allowed
+        $this->assertSame(2, Shipment::withoutGlobalScope(TenantScope::class)->find($shipment->getKey())->print_count);
+
+        // a label bundle across two carriers is rejected (different formats / pickup batches)
+        $o2 = $this->createOrder();
+        $s2 = Shipment::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $this->tenant->getKey(), 'order_id' => $o2, 'carrier' => 'ghn', 'tracking_no' => 'GHN-1', 'status' => Shipment::STATUS_CREATED, 'label_path' => "tenants/{$this->tenant->getKey()}/labels/y.pdf", 'label_url' => 'http://x/y.pdf']);
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/print-jobs', ['type' => 'label', 'shipment_ids' => [$shipment->getKey(), $s2->getKey()]])->assertStatus(422);
 
         // picking list for the order — grouped by SKU with the right qty
         $pj = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/print-jobs', ['type' => 'picking', 'order_ids' => [$orderId]])->assertCreated()->json('data.id');

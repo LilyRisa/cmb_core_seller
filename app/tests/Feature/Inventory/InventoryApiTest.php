@@ -137,6 +137,47 @@ class InventoryApiTest extends TestCase
         $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/skus', ['sku_code' => 'Y', 'name' => 'y', 'mappings' => [['channel_account_id' => 999999, 'external_sku_id' => 'Z']]])->assertStatus(422);
     }
 
+    public function test_update_sku_edits_fields_and_replaces_mappings(): void
+    {
+        Bus::fake([PushStockForSku::class]);
+        $shop = ChannelAccount::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $this->tenant->getKey(), 'provider' => 'tiktok', 'external_shop_id' => 's', 'shop_name' => 'S', 'status' => 'active']);
+        $sku = Sku::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $this->tenant->getKey(), 'sku_code' => 'EDIT-1', 'name' => 'Cũ', 'cost_price' => 1000]);
+
+        // edit catalogue fields + create a mapping to listing L1 (firstOrCreate)
+        $this->actingAs($this->owner)->withHeaders($this->h())->patchJson("/api/v1/skus/{$sku->getKey()}", [
+            'name' => 'Mới', 'cost_price' => 5000, 'ref_sale_price' => 12000, 'base_unit' => 'Cái', 'spu_code' => 'GRP', 'weight_grams' => 100,
+            'mappings' => [['channel_account_id' => $shop->getKey(), 'external_sku_id' => 'L1', 'quantity' => 1]],
+        ])->assertOk()->assertJsonPath('data.name', 'Mới')->assertJsonPath('data.cost_price', 5000)->assertJsonPath('data.spu_code', 'GRP')->assertJsonPath('data.base_unit', 'Cái');
+        $l1 = ChannelListing::withoutGlobalScope(TenantScope::class)->where('channel_account_id', $shop->getKey())->where('external_sku_id', 'L1')->firstOrFail();
+        $this->assertTrue(SkuMapping::withoutGlobalScope(TenantScope::class)->where('channel_listing_id', $l1->getKey())->where('sku_id', $sku->getKey())->exists());
+
+        // sku_code is NOT changed even if sent? FE locks it; backend still allows — but our FE never sends it.
+        // Replace the mapping set with L2 only → L1 link dropped, L2 created.
+        $this->actingAs($this->owner)->withHeaders($this->h())->patchJson("/api/v1/skus/{$sku->getKey()}", [
+            'mappings' => [['channel_account_id' => $shop->getKey(), 'external_sku_id' => 'L2', 'seller_sku' => 's2', 'quantity' => 2]],
+        ])->assertOk();
+        $l2 = ChannelListing::withoutGlobalScope(TenantScope::class)->where('channel_account_id', $shop->getKey())->where('external_sku_id', 'L2')->firstOrFail();
+        $this->assertFalse(SkuMapping::withoutGlobalScope(TenantScope::class)->where('channel_listing_id', $l1->getKey())->where('sku_id', $sku->getKey())->exists());
+        $this->assertTrue(SkuMapping::withoutGlobalScope(TenantScope::class)->where('channel_listing_id', $l2->getKey())->where('sku_id', $sku->getKey())->where('quantity', 2)->exists());
+
+        // empty mappings array → all links dropped
+        $this->actingAs($this->owner)->withHeaders($this->h())->patchJson("/api/v1/skus/{$sku->getKey()}", ['mappings' => []])->assertOk();
+        $this->assertSame(0, SkuMapping::withoutGlobalScope(TenantScope::class)->where('sku_id', $sku->getKey())->count());
+
+        // not sending `mappings` leaves links untouched (re-add one, then PATCH only a field)
+        $this->actingAs($this->owner)->withHeaders($this->h())->patchJson("/api/v1/skus/{$sku->getKey()}", ['mappings' => [['channel_account_id' => $shop->getKey(), 'external_sku_id' => 'L2', 'quantity' => 1]]])->assertOk();
+        $this->actingAs($this->owner)->withHeaders($this->h())->patchJson("/api/v1/skus/{$sku->getKey()}", ['note' => 'chỉ đổi ghi chú'])->assertOk();
+        $this->assertSame(1, SkuMapping::withoutGlobalScope(TenantScope::class)->where('sku_id', $sku->getKey())->count());
+
+        // bad shop in mappings → 422
+        $this->actingAs($this->owner)->withHeaders($this->h())->patchJson("/api/v1/skus/{$sku->getKey()}", ['mappings' => [['channel_account_id' => 999999, 'external_sku_id' => 'Z']]])->assertStatus(422);
+
+        // viewer can't edit
+        $viewer = User::factory()->create();
+        $this->tenant->users()->attach($viewer->getKey(), ['role' => Role::Viewer->value]);
+        $this->actingAs($viewer)->withHeaders($this->h())->patchJson("/api/v1/skus/{$sku->getKey()}", ['name' => 'x'])->assertForbidden();
+    }
+
     public function test_upload_and_delete_sku_image(): void
     {
         Storage::fake('public');   // MEDIA_DISK falls back to "public" outside production

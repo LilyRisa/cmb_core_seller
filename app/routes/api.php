@@ -133,15 +133,19 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::delete('carrier-accounts/{id}', [CarrierAccountController::class, 'destroy'])->whereNumber('id')->name('carrier-accounts.destroy');
 
             Route::get('fulfillment/ready', [ShipmentController::class, 'ready'])->name('fulfillment.ready');
+            Route::get('fulfillment/processing', [ShipmentController::class, 'processing'])->name('fulfillment.processing');           // SPEC 0009 — màn xử lý đơn
+            Route::get('fulfillment/processing/counts', [ShipmentController::class, 'processingCounts'])->name('fulfillment.processing.counts');
             Route::post('orders/{id}/ship', [ShipmentController::class, 'createForOrder'])->whereNumber('id')->name('orders.ship');
             Route::get('shipments', [ShipmentController::class, 'index'])->name('shipments.index');
             Route::post('shipments/bulk-create', [ShipmentController::class, 'bulkCreate'])->name('shipments.bulk-create');
-            Route::post('shipments/handover', [ShipmentController::class, 'handover'])->name('shipments.handover');
+            Route::post('shipments/pack', [ShipmentController::class, 'pack'])->name('shipments.pack');                                  // bulk đóng gói
+            Route::post('shipments/handover', [ShipmentController::class, 'handover'])->name('shipments.handover');                      // bulk bàn giao
             Route::get('shipments/{id}', [ShipmentController::class, 'show'])->whereNumber('id')->name('shipments.show');
             Route::post('shipments/{id}/track', [ShipmentController::class, 'track'])->whereNumber('id')->name('shipments.track');
             Route::post('shipments/{id}/cancel', [ShipmentController::class, 'cancel'])->whereNumber('id')->name('shipments.cancel');
             Route::get('shipments/{id}/label', [ShipmentController::class, 'label'])->whereNumber('id')->name('shipments.label');
-            Route::post('scan-pack', [ShipmentController::class, 'scanPack'])->name('scan-pack');
+            Route::post('scan-pack', [ShipmentController::class, 'scanPack'])->name('scan-pack');                                        // quét → đóng gói
+            Route::post('scan-handover', [ShipmentController::class, 'scanHandover'])->name('scan-handover');                            // (app) quét → bàn giao ĐVVC
 
             Route::get('print-jobs', [PrintJobController::class, 'index'])->name('print-jobs.index');
             Route::post('print-jobs', [PrintJobController::class, 'store'])->name('print-jobs.store');

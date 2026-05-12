@@ -85,7 +85,10 @@ export interface CreateSkuPayload {
     levels?: Array<{ warehouse_id: number; on_hand?: number; cost_price?: number }>;
 }
 
-/** Partial payload for PATCH /skus/{id} — basic catalogue fields only (mappings/levels are not editable here). */
+/**
+ * Partial payload for PATCH /skus/{id} — same catalogue fields as create (the edit form locks `sku_code`).
+ * When `mappings` is sent it REPLACES the SKU's channel-SKU links. Opening stock isn't editable here.
+ */
 export type UpdateSkuPayload = Partial<{
     sku_code: string;
     name: string;
@@ -103,6 +106,7 @@ export type UpdateSkuPayload = Partial<{
     width_cm: number | null;
     height_cm: number | null;
     is_active: boolean;
+    mappings: Array<{ channel_account_id: number; external_sku_id: string; seller_sku?: string | null; quantity?: number }>;
 }>;
 
 export interface Product {

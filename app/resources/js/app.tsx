@@ -62,6 +62,7 @@ function Root() {
                 <Route path="products" element={<Navigate to="/inventory?tab=skus" replace />} />
                 <Route path="inventory" element={<InventoryPage />} />
                 <Route path="inventory/skus/new" element={<CreateSkuPage />} />
+                <Route path="inventory/skus/:id/edit" element={<CreateSkuPage />} />
                 <Route path="fulfillment" element={<FulfillmentPage />} />
                 <Route path="sync-logs" element={<SyncLogsPage />} />
                 <Route path="settings" element={<Navigate to="/settings/members" replace />} />

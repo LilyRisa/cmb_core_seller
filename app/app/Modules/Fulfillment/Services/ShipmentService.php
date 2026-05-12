@@ -139,22 +139,47 @@ class ShipmentService
         return ['created' => $created, 'errors' => $errors];
     }
 
-    /** Mark a shipment handed over to the carrier (created → picked_up) and the order shipped. */
-    public function handover(Shipment $shipment, string $source = 'system', ?int $userId = null, string $eventCode = 'handover'): void
+    /**
+     * Mark a parcel packed (label printed → goods boxed): created/pending → packed. Does NOT
+     * change the order status (stays ready_to_ship) or stock — that happens at handover. Idempotent.
+     * Returns true if a transition happened. See SPEC 0009.
+     */
+    public function markPacked(Shipment $shipment, string $source = 'user', ?int $userId = null): bool
     {
         if ($shipment->isCancelled()) {
             throw new RuntimeException('Vận đơn đã huỷ.');
         }
-        if (in_array($shipment->status, [Shipment::STATUS_PICKED_UP, Shipment::STATUS_IN_TRANSIT, Shipment::STATUS_DELIVERED], true)) {
-            return; // already handed over — no-op (anti double-scan, rule 5)
+        if (in_array($shipment->status, [Shipment::STATUS_PACKED, ...Shipment::HANDED_OVER_STATUSES], true)) {
+            return false; // already packed/handed over — no-op (anti double-scan, rule 5)
+        }
+        $shipment->forceFill(['status' => Shipment::STATUS_PACKED, 'packed_at' => now()])->save();
+        $this->recordEvent($shipment, 'packed', 'Đã đóng gói', Shipment::STATUS_PACKED, $source, null, $userId);
+
+        return true;
+    }
+
+    /** Hand a parcel over to the carrier: created/packed → picked_up, order → shipped, stock leaves. Idempotent. */
+    public function handover(Shipment $shipment, string $source = 'system', ?int $userId = null, string $eventCode = 'handover'): bool
+    {
+        if ($shipment->isCancelled()) {
+            throw new RuntimeException('Vận đơn đã huỷ.');
+        }
+        if (in_array($shipment->status, Shipment::HANDED_OVER_STATUSES, true)) {
+            return false; // already handed over — no-op (anti double-scan, rule 5)
         }
         DB::transaction(function () use ($shipment, $source, $userId, $eventCode) {
-            $shipment->forceFill(['status' => Shipment::STATUS_PICKED_UP, 'picked_up_at' => now()])->save();
-            $this->recordEvent($shipment, $eventCode, $eventCode === 'packed_scanned' ? 'Đã quét đóng gói' : 'Đã bàn giao ĐVVC', Shipment::STATUS_PICKED_UP, $source, null, $userId);
+            $patch = ['status' => Shipment::STATUS_PICKED_UP, 'picked_up_at' => now()];
+            if ($shipment->packed_at === null) {
+                $patch['packed_at'] = now();   // handing over without an explicit "pack" step
+            }
+            $shipment->forceFill($patch)->save();
+            $this->recordEvent($shipment, $eventCode, $eventCode === 'packed_scanned' ? 'Đã quét bàn giao' : 'Đã bàn giao ĐVVC', Shipment::STATUS_PICKED_UP, $source, null, $userId);
         });
         if ($order = $this->orderFor($shipment)) {
             $this->orderStatus->apply($order, S::Shipped, $source, [S::Pending, S::Processing, S::ReadyToShip], $userId);
         }
+
+        return true;
     }
 
     public function cancel(Shipment $shipment, ?int $userId = null): void

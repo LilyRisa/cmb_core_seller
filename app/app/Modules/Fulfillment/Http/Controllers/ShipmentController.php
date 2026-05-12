@@ -10,6 +10,7 @@ use CMBcoreSeller\Modules\Orders\Http\Resources\OrderResource;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus as S;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,28 +24,99 @@ class ShipmentController extends Controller
     /** GET /api/v1/fulfillment/ready — orders that need a parcel (processing/ready_to_ship, no open shipment). */
     public function ready(Request $request): JsonResponse
     {
+        return $this->processing($request->merge(['stage' => 'prepare']));
+    }
+
+    /**
+     * GET /api/v1/fulfillment/processing — the unified order-processing board (SPEC 0009).
+     * One screen, one flow over the channel-order fulfillment lifecycle:
+     *   stage=prepare  → đơn cần xử lý: status processing/ready_to_ship, chưa có vận đơn (hoặc đã có nhưng chưa in tem)
+     *   stage=pack     → đã in tem, chờ đóng gói: vận đơn `created` & print_count>=1
+     *   stage=handover → đã đóng gói, chờ bàn giao ĐVVC: vận đơn `packed`
+     * Filters (mọi stage): `source` (csv nền tảng), `carrier` (csv ĐVVC), `customer` (LIKE tên/mã đơn),
+     * `product` (LIKE tên SP / SKU sàn). Trả `OrderResource[]` (đã nạp `shipment`) — đồng nhất mọi stage.
+     */
+    public function processing(Request $request): JsonResponse
+    {
         abort_unless($request->user()?->can('fulfillment.view'), 403, 'Bạn không có quyền.');
-        $q = Order::query()->whereNull('deleted_at')
-            ->whereIn('status', [S::Processing->value, S::ReadyToShip->value])
-            ->whereDoesntHave('shipments', fn ($s) => $s->whereIn('status', Shipment::OPEN_STATUSES))
-            ->with(['channelAccount'])->withCount('items');
-        if ($cid = $request->query('channel_account_id')) {
-            $q->where('channel_account_id', (int) $cid);
-        }
-        if ($src = $request->query('source')) {
-            $q->where('source', $src);
-        }
-        if ($term = trim((string) $request->query('q', ''))) {
-            $q->where(fn ($w) => $w->where('order_number', 'like', "%{$term}%")->orWhere('external_order_id', 'like', "%{$term}%")->orWhere('buyer_name', 'like', "%{$term}%"));
-        }
+        $stage = (string) $request->query('stage', 'prepare');
+
+        $q = Order::query()->whereNull('deleted_at')->with(['channelAccount', 'shipments'])->withCount('items');
+        $this->applyStageScope($q, $stage);
+        $this->applyProcessingFilters($request, $q);
         $q->orderBy('placed_at')->orderBy('id');
-        $perPage = min(100, max(1, (int) $request->query('per_page', 20)));
+
+        $perPage = min(200, max(1, (int) $request->query('per_page', 50)));
         $page = $q->paginate($perPage)->appends($request->query());
 
         return response()->json([
             'data' => OrderResource::collection($page->getCollection()),
-            'meta' => ['pagination' => ['page' => $page->currentPage(), 'per_page' => $page->perPage(), 'total' => $page->total(), 'total_pages' => $page->lastPage()]],
+            'meta' => ['pagination' => ['page' => $page->currentPage(), 'per_page' => $page->perPage(), 'total' => $page->total(), 'total_pages' => $page->lastPage()], 'stage' => $stage],
         ]);
+    }
+
+    /** GET /api/v1/fulfillment/processing/counts — badge counts per stage (same filters as processing). */
+    public function processingCounts(Request $request): JsonResponse
+    {
+        abort_unless($request->user()?->can('fulfillment.view'), 403, 'Bạn không có quyền.');
+
+        return response()->json(['data' => [
+            'prepare' => $this->countForStage($request, 'prepare'),
+            'pack' => $this->countForStage($request, 'pack'),
+            'handover' => $this->countForStage($request, 'handover'),
+        ]]);
+    }
+
+    private function countForStage(Request $request, string $stage): int
+    {
+        $q = Order::query()->whereNull('deleted_at');
+        $this->applyStageScope($q, $stage);
+        $this->applyProcessingFilters($request, $q);
+
+        return $q->count();
+    }
+
+    /**
+     * Stage scope for the processing board:
+     *  - prepare: chưa có vận đơn open, HOẶC có vận đơn `created` chưa in tem (`print_count=0`) và có tem để in
+     *    (`label_path` ≠ null — ĐVVC `manual` không có tem nên bỏ qua bước in, vào thẳng `pack`).
+     *  - pack:    vận đơn `created` đã sẵn sàng đóng gói (đã in `print_count≥1`, hoặc không có tem để in / `manual`).
+     *  - handover: vận đơn `packed`.
+     *
+     * @param  Builder<Order>  $q
+     */
+    private function applyStageScope($q, string $stage): void
+    {
+        $needsPrint = fn ($s) => $s->where('status', Shipment::STATUS_CREATED)->where('print_count', 0)->whereNotNull('label_path');
+        match ($stage) {
+            'pack' => $q->whereHas('shipments', fn ($s) => $s->where('status', Shipment::STATUS_CREATED)
+                ->where(fn ($w) => $w->where('print_count', '>=', 1)->orWhereNull('label_path'))),
+            'handover' => $q->whereHas('shipments', fn ($s) => $s->where('status', Shipment::STATUS_PACKED)),
+            default => $q->whereIn('status', [S::Processing->value, S::ReadyToShip->value])
+                ->where(fn ($w) => $w->whereDoesntHave('shipments', fn ($s) => $s->whereIn('status', Shipment::OPEN_STATUSES))
+                    ->orWhereHas('shipments', $needsPrint)),
+        };
+    }
+
+    /** @param Builder<Order> $q */
+    private function applyProcessingFilters(Request $request, $q): void
+    {
+        $csv = fn (string $key) => array_values(array_filter(array_map('trim', explode(',', (string) $request->query($key, '')))));
+        if ($sources = $csv('source')) {
+            $q->whereIn('source', $sources);
+        }
+        if ($carriers = $csv('carrier')) {
+            $q->whereHas('shipments', fn ($s) => $s->whereIn('carrier', $carriers)->whereIn('status', Shipment::OPEN_STATUSES));
+        }
+        if ($cid = $request->query('channel_account_id')) {
+            $q->where('channel_account_id', (int) $cid);
+        }
+        if ($customer = trim((string) $request->query('customer', ''))) {
+            $q->where(fn ($w) => $w->where('buyer_name', 'like', "%{$customer}%")->orWhere('order_number', 'like', "%{$customer}%")->orWhere('external_order_id', 'like', "%{$customer}%"));
+        }
+        if ($product = trim((string) $request->query('product', ''))) {
+            $q->whereHas('items', fn ($i) => $i->where('name', 'like', "%{$product}%")->orWhere('seller_sku', 'like', "%{$product}%"));
+        }
     }
 
     public function index(Request $request): JsonResponse
@@ -150,7 +222,25 @@ class ShipmentController extends Controller
         return redirect()->away($shipment->label_url);
     }
 
-    /** POST /api/v1/shipments/handover { shipment_ids } */
+    /** POST /api/v1/shipments/pack { shipment_ids } — bulk "đóng gói" (created → packed). */
+    public function pack(Request $request): JsonResponse
+    {
+        abort_unless($request->user()?->can('fulfillment.scan') || $request->user()?->can('fulfillment.ship'), 403, 'Bạn không có quyền đóng gói.');
+        $data = $request->validate(['shipment_ids' => ['required', 'array', 'min:1', 'max:500'], 'shipment_ids.*' => ['integer']]);
+        $n = 0;
+        foreach (Shipment::query()->whereIn('id', array_map('intval', $data['shipment_ids']))->get() as $shipment) {
+            try {
+                if ($this->service->markPacked($shipment, 'user', $request->user()->getKey())) {
+                    $n++;
+                }
+            } catch (\Throwable) {
+            }
+        }
+
+        return response()->json(['data' => ['packed' => $n]]);
+    }
+
+    /** POST /api/v1/shipments/handover { shipment_ids } — bulk "bàn giao ĐVVC" (created/packed → picked_up, đơn shipped). */
     public function handover(Request $request): JsonResponse
     {
         abort_unless($request->user()?->can('fulfillment.ship'), 403, 'Bạn không có quyền bàn giao.');
@@ -158,33 +248,60 @@ class ShipmentController extends Controller
         $n = 0;
         foreach (Shipment::query()->whereIn('id', array_map('intval', $data['shipment_ids']))->get() as $shipment) {
             try {
-                $this->service->handover($shipment, 'system', $request->user()->getKey());
-                $n++;
+                if ($this->service->handover($shipment, 'system', $request->user()->getKey())) {
+                    $n++;
+                }
             } catch (\Throwable) {
-                // skip individual failures
             }
         }
 
         return response()->json(['data' => ['handed_over' => $n]]);
     }
 
-    /** POST /api/v1/scan-pack { code } */
+    /** POST /api/v1/scan-pack { code } — quét mã vận đơn/mã đơn để đánh dấu ĐÃ ĐÓNG GÓI (created → packed). */
     public function scanPack(Request $request, CurrentTenant $tenant): JsonResponse
     {
         abort_unless($request->user()?->can('fulfillment.scan'), 403, 'Bạn không có quyền quét đóng gói.');
+
+        return $this->scan($request, (int) $tenant->id(), action: 'pack');
+    }
+
+    /** POST /api/v1/scan-handover { code } — (app gọi) quét mã để BÀN GIAO ĐVVC (created/packed → picked_up, đơn shipped). */
+    public function scanHandover(Request $request, CurrentTenant $tenant): JsonResponse
+    {
+        abort_unless($request->user()?->can('fulfillment.ship') || $request->user()?->can('fulfillment.scan'), 403, 'Bạn không có quyền bàn giao.');
+
+        return $this->scan($request, (int) $tenant->id(), action: 'handover');
+    }
+
+    /** Shared scan handler for /scan-pack & /scan-handover. */
+    private function scan(Request $request, int $tenantId, string $action): JsonResponse
+    {
         $data = $request->validate(['code' => ['required', 'string', 'max:120']]);
-        $shipment = $this->service->findByScanCode((int) $tenant->id(), $data['code']);
+        $shipment = $this->service->findByScanCode($tenantId, $data['code']);
         abort_if($shipment === null, 404, 'Không tìm thấy vận đơn hoặc đơn ứng với mã đã quét.');
-        if (in_array($shipment->status, [Shipment::STATUS_PICKED_UP, Shipment::STATUS_IN_TRANSIT, Shipment::STATUS_DELIVERED], true)) {
-            abort(409, 'Vận đơn này đã được quét/đóng gói trước đó.');
-        }
         if ($shipment->isCancelled()) {
             abort(409, 'Vận đơn đã huỷ.');
         }
-        $this->service->handover($shipment, 'user', $request->user()->getKey(), 'packed_scanned');
+        $userId = $request->user()->getKey();
+        if ($action === 'handover') {
+            if (in_array($shipment->status, Shipment::HANDED_OVER_STATUSES, true)) {
+                abort(409, 'Vận đơn này đã được bàn giao trước đó.');
+            }
+            $this->service->handover($shipment, 'user', $userId, 'packed_scanned');
+            $msg = 'Đã bàn giao đơn';
+        } else {
+            if (in_array($shipment->status, [Shipment::STATUS_PACKED, ...Shipment::HANDED_OVER_STATUSES], true)) {
+                abort(409, $shipment->status === Shipment::STATUS_PACKED ? 'Đơn này đã được đóng gói trước đó.' : 'Đơn này đã được bàn giao trước đó.');
+            }
+            $this->service->markPacked($shipment, 'user', $userId);
+            $msg = 'Đã đóng gói đơn';
+        }
         $shipment->refresh()->load(['order', 'events']);
 
         return response()->json(['data' => [
+            'action' => $action,
+            'message' => $msg,
             'shipment' => new ShipmentResource($shipment),
             'order' => $shipment->order ? ['id' => $shipment->order->id, 'order_number' => $shipment->order->order_number ?? $shipment->order->external_order_id, 'status' => $shipment->order->status->value] : null,
         ]]);

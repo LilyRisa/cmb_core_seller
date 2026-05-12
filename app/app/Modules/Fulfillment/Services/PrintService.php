@@ -11,7 +11,9 @@ use CMBcoreSeller\Modules\Orders\Models\OrderItem;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use CMBcoreSeller\Support\GotenbergClient;
 use CMBcoreSeller\Support\MediaUploader;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Creates print_jobs and produces the PDFs (queue `labels`, rule 3 of the domain doc):
@@ -29,6 +31,9 @@ class PrintService
      */
     public function createJob(int $tenantId, string $type, array $orderIds, array $shipmentIds, ?int $userId): PrintJob
     {
+        if ($type === PrintJob::TYPE_LABEL) {
+            $this->assertSinglePlatformAndCarrier($tenantId, $orderIds, $shipmentIds);
+        }
         $job = PrintJob::query()->create([
             'tenant_id' => $tenantId, 'type' => $type,
             'scope' => array_filter(['order_ids' => array_values(array_unique(array_map('intval', $orderIds))), 'shipment_ids' => array_values(array_unique(array_map('intval', $shipmentIds)))]),
@@ -37,6 +42,36 @@ class PrintService
         RenderPrintJob::dispatch($job->getKey())->onQueue('labels');
 
         return $job;
+    }
+
+    /**
+     * A label bundle MUST be one platform + one carrier — different marketplaces / carriers
+     * use different label formats and pickup batches (SPEC 0009). Mixed selection ⇒ 422.
+     *
+     * @param  list<int>  $orderIds
+     * @param  list<int>  $shipmentIds
+     */
+    private function assertSinglePlatformAndCarrier(int $tenantId, array $orderIds, array $shipmentIds): void
+    {
+        $q = Shipment::query()->where('tenant_id', $tenantId)->with('order:id,source');
+        if ($shipmentIds !== []) {
+            $q->whereIn('id', $shipmentIds);
+        } elseif ($orderIds !== []) {
+            $q->whereIn('order_id', $orderIds)->open();
+        } else {
+            return;
+        }
+        $shipments = $q->get(['id', 'order_id', 'carrier']);
+        if ($shipments->isEmpty()) {
+            return; // nothing to validate yet; render will report "no labels"
+        }
+        $carriers = $shipments->pluck('carrier')->filter()->unique();
+        $platforms = $shipments->map(fn ($s) => $s->order?->source)->filter()->unique();
+        if ($carriers->count() > 1 || $platforms->count() > 1) {
+            throw ValidationException::withMessages([
+                'shipment_ids' => 'Không thể in tem cho nhiều nền tảng hoặc nhiều đơn vị vận chuyển cùng lúc. Hãy lọc theo từng nền tảng / ĐVVC rồi in.',
+            ]);
+        }
     }
 
     /** Runs inside RenderPrintJob — fills in file_url/status or error. */
@@ -71,12 +106,14 @@ class PrintService
         $shipments = $query->whereNotNull('label_path')->orderBy('carrier')->orderBy('order_id')->get();
         $pdfs = [];
         $skipped = [];
+        $includedIds = [];
         foreach ($shipments as $s) {
             $bytes = $s->label_path ? $this->media->get($s->label_path) : null;
             if ($bytes) {
                 $pdfs[] = $bytes;
+                $includedIds[] = (int) $s->getKey();
             } else {
-                $skipped[] = $s->getKey();
+                $skipped[] = (int) $s->getKey();
             }
         }
         // shipments in scope that had no label at all
@@ -87,8 +124,11 @@ class PrintService
         if ($pdfs === []) {
             throw new \RuntimeException('Không có vận đơn nào có tem để in.');
         }
+        $merged = $this->gotenberg->mergePdfs($pdfs);
+        // count this print run on each included shipment (UI shows "đã in N lần" + warns from the 2nd time)
+        Shipment::query()->whereIn('id', $includedIds)->update(['print_count' => DB::raw('print_count + 1'), 'last_printed_at' => now()]);
 
-        return [$this->gotenberg->mergePdfs($pdfs), ['count' => count($pdfs), 'skipped' => $skipped]];
+        return [$merged, ['count' => count($pdfs), 'skipped' => $skipped, 'shipment_ids' => $includedIds]];
     }
 
     /** @return array{0:string,1:array<string,mixed>} */

@@ -5,7 +5,7 @@
 > Hai con đường giao hàng: **(A) Logistics của sàn** (đa số đơn TikTok/Shopee/Lazada — sàn chỉ định ĐVVC, ta gọi API sàn để "sắp xếp vận chuyển" rồi lấy label PDF) và **(B) ĐVVC riêng** (đơn manual, hoặc đơn sàn mà sàn cho tự xử lý — ta gọi thẳng API GHN/GHTK/J&T... qua `CarrierConnector`). In ấn = lấy/ghép PDF (vận đơn) + tự render (picking/packing list).
 
 ## 1. Trạng thái vận đơn (`shipments.status`)
-`pending` (chưa tạo) → `created` (đã có tracking + label) → `picked_up` (đã bàn giao ĐVVC) → `in_transit` → `delivered` | `failed` (giao hỏng) | `returned` | `cancelled`. Đồng bộ ngược về trạng thái đơn (xem state machine): `created`⇒đơn `ready_to_ship`; `picked_up`/`in_transit`⇒`shipped`; `delivered`⇒`delivered`; `failed`⇒`delivery_failed`.
+`pending` (chưa tạo) → `created` (đã có tracking + label) → `packed` (đã in tem & đóng gói — *bước riêng, thêm ở SPEC-0009*) → `picked_up` (đã bàn giao ĐVVC) → `in_transit` → `delivered` | `failed` (giao hỏng) | `returned` | `cancelled`. Đồng bộ ngược về trạng thái đơn (xem state machine): `created`/`packed`⇒đơn `ready_to_ship`; `picked_up`/`in_transit`⇒`shipped`; `delivered`⇒`delivered`; `failed`⇒`delivery_failed`. **`packed` không trừ tồn** (hàng còn trong kho, chỉ đã đóng thùng); trừ tồn ở bước bàn giao (`picked_up`, đơn `shipped`). `shipments.print_count`/`last_printed_at` đếm số lần in tem (UI hiện "đã in N lần", từ lần 2 có popup xác nhận). Màn xử lý đơn ánh xạ 3 bước này: `prepare` (chưa có vận đơn / chưa in) → `pack` (vận đơn `created` đã in) → `handover` (vận đơn `packed`) — xem [SPEC-0009](../specs/0009-order-processing-screen.md), [`../04-channels/order-processing.md`](../04-channels/order-processing.md).
 
 ## 2. Luồng A — Logistics của sàn
 

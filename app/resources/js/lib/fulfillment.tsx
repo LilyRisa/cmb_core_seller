@@ -20,12 +20,17 @@ export interface Shipment {
     fee: number;
     label_url: string | null;
     has_label: boolean;
+    print_count: number;
+    last_printed_at: string | null;
+    packed_at: string | null;
     picked_up_at: string | null;
     delivered_at: string | null;
     created_at: string | null;
     order?: { id: number; order_number: string | null; external_order_id: string | null; status: string; source: string; buyer_name: string | null; grand_total: number } | null;
     events?: ShipmentEvent[];
 }
+
+export type ProcessingStage = 'prepare' | 'pack' | 'handover';
 
 export interface CarrierAccount {
     id: number;
@@ -54,9 +59,11 @@ export interface PrintJob {
 }
 
 export const SHIPMENT_STATUS_LABEL: Record<string, string> = {
-    pending: 'Chờ tạo', created: 'Đã tạo vận đơn', picked_up: 'Đã lấy hàng', in_transit: 'Đang vận chuyển',
+    pending: 'Chờ tạo', created: 'Đã tạo vận đơn', packed: 'Đã đóng gói', picked_up: 'Đã bàn giao ĐVVC', in_transit: 'Đang vận chuyển',
     delivered: 'Đã giao', failed: 'Giao thất bại', returned: 'Hoàn về', cancelled: 'Đã huỷ',
 };
+
+export const STAGE_LABEL: Record<ProcessingStage, string> = { prepare: 'Cần xử lý', pack: 'Chờ đóng gói', handover: 'Chờ bàn giao' };
 
 function useScopedApi() {
     const tenantId = useCurrentTenantId();
@@ -69,6 +76,40 @@ function useInvalidate(keys: unknown[][]) {
 }
 
 // ---- queries -----------------------------------------------------------------
+
+export interface ProcessingFilters { source?: string; carrier?: string; customer?: string; product?: string; channel_account_id?: number; page?: number; per_page?: number }
+
+/** The order-processing board (SPEC 0009) — one stage at a time, with the shared filters. */
+export function useProcessingBoard(stage: ProcessingStage, filters: ProcessingFilters) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['fulfillment-board', tenantId, stage, filters],
+        enabled: api != null,
+        placeholderData: (p) => p,
+        queryFn: async () => {
+            const params: Record<string, string | number> = { stage };
+            Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== '') params[k] = v as never; });
+            const { data } = await api!.get<Paginated<Order> & { meta: { stage: string } }>('/fulfillment/processing', { params });
+            return data;
+        },
+    });
+}
+
+export function useProcessingCounts(filters: Omit<ProcessingFilters, 'page' | 'per_page'>) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['fulfillment-board-counts', tenantId, filters],
+        enabled: api != null,
+        queryFn: async () => {
+            const params: Record<string, string | number> = {};
+            Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== '') params[k] = v as never; });
+            const { data } = await api!.get<{ data: Record<ProcessingStage, number> }>('/fulfillment/processing/counts', { params });
+            return data.data;
+        },
+    });
+}
 
 export function useReadyOrders(filters: { q?: string; channel_account_id?: number; source?: string; page?: number; per_page?: number }) {
     const api = useScopedApi();
@@ -214,17 +255,26 @@ export function useCancelShipment() {
     return useMutation({ mutationFn: async (id: number) => { const { data } = await api!.post<{ data: Shipment }>(`/shipments/${id}/cancel`); return data.data; }, onSuccess: invalidate });
 }
 
+export function usePackShipments() {
+    const api = useScopedApi();
+    const invalidate = useFulfillmentInvalidate();
+    return useMutation({ mutationFn: async (shipment_ids: number[]) => { const { data } = await api!.post<{ data: { packed: number } }>('/shipments/pack', { shipment_ids }); return data.data; }, onSuccess: invalidate });
+}
+
 export function useHandoverShipments() {
     const api = useScopedApi();
     const invalidate = useFulfillmentInvalidate();
     return useMutation({ mutationFn: async (shipment_ids: number[]) => { const { data } = await api!.post<{ data: { handed_over: number } }>('/shipments/handover', { shipment_ids }); return data.data; }, onSuccess: invalidate });
 }
 
-export function useScanPack() {
+interface ScanResult { action: 'pack' | 'handover'; message: string; shipment: Shipment; order: { id: number; order_number: string | null; status: string } | null }
+
+/** Scan a tracking/order code to mark a parcel "đã đóng gói" (`mode='pack'`) or to "bàn giao ĐVVC" (`mode='handover'`). */
+export function useScanProcess(mode: 'pack' | 'handover') {
     const api = useScopedApi();
     const invalidate = useFulfillmentInvalidate();
     return useMutation({
-        mutationFn: async (code: string) => { const { data } = await api!.post<{ data: { shipment: Shipment; order: { id: number; order_number: string | null; status: string } | null } }>('/scan-pack', { code }); return data.data; },
+        mutationFn: async (code: string) => { const { data } = await api!.post<{ data: ScanResult }>(mode === 'handover' ? '/scan-handover' : '/scan-pack', { code }); return data.data; },
         onSuccess: invalidate,
     });
 }

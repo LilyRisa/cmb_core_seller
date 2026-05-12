@@ -22,7 +22,7 @@ Mục tiêu cụ thể:
 - **SPU như thực thể riêng** (bảng `product_spus`, biến thể, thuộc tính chuẩn hoá) — hiện `spu_code` chỉ là chuỗi nhóm tự do (giống `product_id` nhưng nhẹ hơn).
 - **Giá vốn bình quân / FIFO / `cost_layers`, sổ giá vốn, báo cáo lãi/lỗ theo đơn** — Phase 5/6. `inventory_levels.cost_price` & `skus.cost_price`/`ref_sale_price` là **dữ liệu nền** cho việc đó (xem §6).
 - **Đồng bộ thông tin sản phẩm (cân nặng, kích thước, mô tả) ngược lên sàn** — Phase sau; cân nặng/kích thước hiện chỉ lưu để in tem & tham khảo.
-- **Sửa SKU đầy đủ trên trang riêng** (mappings/levels) — hiện trang chỉ dùng để *tạo*; sửa các trường cơ bản vẫn qua `PATCH /skus/{id}` (modal/tab cũ).
+- **Sửa SKU trên trang riêng** — *(2026-05-17 đã làm)* `CreateSkuPage` dùng cho cả `/inventory/skus/new` và `/inventory/skus/:id/edit`: sửa được mọi trường catalogue/PIM **trừ `sku_code`** (khoá), sửa cả **ghép nối SKU sàn** (`PATCH /skus/{id}` nhận `mappings[]` — thay thế toàn bộ liên kết); mục **Kho** ở chế độ sửa là **chỉ-xem** (đổi tồn vẫn qua sổ cái — `PATCH` không nhận `levels`). Xem `docs/06-frontend/create-sku-form.md`.
 
 ## 3. Luồng chính
 SPA → Tồn kho → tab "Danh mục SKU" → "Thêm SKU" ⇒ điều hướng `/inventory/skus/new` (trang đầy đủ, không modal). Trang gồm 4 mục, mỏ neo bên phải:

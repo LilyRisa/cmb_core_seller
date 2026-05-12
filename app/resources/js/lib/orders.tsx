@@ -70,7 +70,7 @@ export interface Order {
     cancel_reason: string | null;
     created_at: string | null;
     customer?: CustomerCard | null;
-    shipment?: { id: number; carrier: string; tracking_no: string | null; status: string; label_url: string | null } | null;
+    shipment?: { id: number; carrier: string; tracking_no: string | null; status: string; label_url: string | null; print_count: number; packed_at: string | null } | null;
     items?: OrderItem[];
     status_history?: OrderStatusHistory[];
 }

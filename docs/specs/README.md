@@ -20,6 +20,7 @@
 | [0006](0006-fulfillment-shipments-and-printing.md) | Giao hàng & in: vận đơn, ĐVVC (Manual + GHN), in tem hàng loạt, picking/packing, quét đóng gói | 3 | Implemented (lõi; logistics-của-sàn / GHTK+JT / template tuỳ biến / lưu-in-lại-90-ngày để follow-up) | — |
 | [0007](0007-settings-center.md) | Trung tâm Cài đặt — tài khoản/gói, trung tâm kết nối, nhân viên username-only & vai trò chi tiết, cài đặt đơn hàng, mẫu in *(umbrella plan; tách thành các spec con với số kế tiếp khi triển khai)* | 3–6 | Draft | — |
 | [0008](0008-lazada-channel.md) | Lazada — connector (auth + đồng bộ đơn + listings + đẩy tồn + webhook) | 4 | Implemented (lõi; RTS/AWB của Lazada + đối soát = follow-up) | — |
+| [0009](0009-order-processing-screen.md) | Màn "Xử lý đơn hàng" — chuẩn bị → in tem → đóng gói → bàn giao ĐVVC (1 màn, đếm số lần in, lọc nền tảng/khách/SP, API quét cho app) | 3 | Implemented (mở rộng SPEC-0006; luồng-logistics-của-sàn + tách nhiều kiện = follow-up) | — |
 
 ## Khi nào KHÔNG cần spec
 - Sửa lỗi nhỏ, refactor không đổi hành vi, thay đổi tài liệu, bump dependency, chỉnh CI — chỉ cần PR mô tả rõ. Nhưng nếu "việc nhỏ" hoá ra động chạm kiến trúc/hành vi nghiệp vụ ⇒ dừng, viết spec/ADR.
