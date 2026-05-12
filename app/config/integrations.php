@@ -103,6 +103,10 @@ return [
             'fulfillment' => '202309',
         ],
 
+        // "Luồng A" — gọi API sàn để arrange shipment khi "Chuẩn bị hàng" (cập nhật trạng thái "đã in đơn"
+        // lên sàn). Bật khi đã đối chiếu shape API với sandbox thật (SPEC 0013). Mặc định off.
+        'fulfillment_enabled' => env('INTEGRATIONS_TIKTOK_FULFILLMENT', false),
+
         'http' => [
             'timeout' => (int) env('TIKTOK_HTTP_TIMEOUT', 20),
             'retries' => (int) env('TIKTOK_HTTP_RETRIES', 2),

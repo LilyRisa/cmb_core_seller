@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Alert, App as AntApp, Button, Empty, Input, Modal, Segmented, Select, Space, Spin, Table, Tag, Timeline, Tooltip, Typography } from 'antd';
 import type { InputRef } from 'antd';
-import { CarOutlined, InboxOutlined, PrinterOutlined, ReloadOutlined, ScanOutlined, WarningOutlined } from '@ant-design/icons';
+import { CarOutlined, CheckCircleOutlined, CloseCircleOutlined, InboxOutlined, PrinterOutlined, ReloadOutlined, ScanOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { ChannelBadge } from '@/components/ChannelBadge';
 import { MoneyText, DateText } from '@/components/MoneyText';
@@ -105,8 +105,8 @@ export function ScanTab({ initialMode }: { initialMode: 'pack' | 'handover' }) {
         if (!c) return;
         setCode('');
         scan.mutate(c, {
-            onSuccess: (r) => setLog((l) => [{ ok: true, text: `✔ ${r.message}: ${r.order?.order_number ?? '#' + (r.order?.id ?? '')} · ${r.shipment.tracking_no ?? '#' + r.shipment.id} → ${SHIPMENT_STATUS_LABEL[r.shipment.status] ?? r.shipment.status}`, at: new Date().toLocaleTimeString() }, ...l].slice(0, 60)),
-            onError: (e) => setLog((l) => [{ ok: false, text: `✗ ${c}: ${errorMessage(e)}`, at: new Date().toLocaleTimeString() }, ...l].slice(0, 60)),
+            onSuccess: (r) => setLog((l) => [{ ok: true, text: `${r.message}: ${r.order?.order_number ?? '#' + (r.order?.id ?? '')} · ${r.shipment.tracking_no ?? '#' + r.shipment.id} → ${SHIPMENT_STATUS_LABEL[r.shipment.status] ?? r.shipment.status}`, at: new Date().toLocaleTimeString() }, ...l].slice(0, 60)),
+            onError: (e) => setLog((l) => [{ ok: false, text: `${c}: ${errorMessage(e)}`, at: new Date().toLocaleTimeString() }, ...l].slice(0, 60)),
             onSettled: () => inputRef.current?.focus(),
         });
     };
@@ -125,6 +125,7 @@ export function ScanTab({ initialMode }: { initialMode: 'pack' | 'handover' }) {
             <div style={{ marginTop: 16 }}>
                 {log.length === 0 ? <Empty description="Chưa quét gì trong phiên này." /> : log.map((r, i) => (
                     <div key={i} style={{ padding: '6px 10px', borderRadius: 6, marginBottom: 6, background: r.ok ? '#f6ffed' : '#fff1f0', border: `1px solid ${r.ok ? '#b7eb8f' : '#ffa39e'}` }}>
+                        {r.ok ? <CheckCircleOutlined style={{ color: '#52c41a', marginInlineEnd: 6 }} /> : <CloseCircleOutlined style={{ color: '#cf1322', marginInlineEnd: 6 }} />}
                         <Typography.Text style={{ fontSize: 13 }}>{r.text}</Typography.Text> <Typography.Text type="secondary" style={{ fontSize: 11 }}>· {r.at}</Typography.Text>
                     </div>
                 ))}

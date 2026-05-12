@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Card, Empty, Input, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
-import { SearchOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, CloseCircleOutlined, SearchOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { ReputationBadge } from '@/components/ReputationBadge';
@@ -42,7 +42,7 @@ export function CustomersPage() {
         { title: 'Nhãn', dataIndex: 'tags', key: 'tags', width: 160, render: (tags: string[]) => <Space size={4} wrap>{(tags ?? []).map((t) => <Tag key={t} color={t === 'vip' ? 'purple' : 'blue'}>{t}</Tag>)}</Space> },
         { title: 'Đơn', key: 'orders', width: 200, render: (_, c) => {
             const s = c.lifetime_stats;
-            return <Typography.Text type="secondary" style={{ fontSize: 13 }}>{s.orders_total} đơn · {s.orders_completed} ✓ · {s.orders_cancelled} ✗</Typography.Text>;
+            return <Typography.Text type="secondary" style={{ fontSize: 13 }}>{s.orders_total} đơn · {s.orders_completed} <CheckCircleOutlined style={{ color: '#52c41a' }} /> · {s.orders_cancelled} <CloseCircleOutlined style={{ color: '#cf1322' }} /></Typography.Text>;
         } },
         { title: 'Doanh thu', key: 'revenue', width: 130, align: 'right', render: (_, c) => <MoneyText value={c.lifetime_stats.revenue_completed ?? 0} /> },
         { title: 'Gần nhất', dataIndex: 'last_seen_at', key: 'last_seen_at', width: 150, render: (v) => <DateText value={v} /> },

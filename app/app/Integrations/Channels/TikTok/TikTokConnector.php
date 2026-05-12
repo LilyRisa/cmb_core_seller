@@ -46,7 +46,8 @@ class TikTokConnector implements ChannelConnector
             'orders.fetch' => true,
             'orders.webhook' => true,
             'orders.confirm' => false,        // Phase 3 (arrange shipment flow)
-            'shipping.arrange' => false,      // Phase 3
+            // "luồng A" — bật bằng INTEGRATIONS_TIKTOK_FULFILLMENT=true sau khi đối chiếu sandbox (SPEC 0013).
+            'shipping.arrange' => (bool) config('integrations.tiktok.fulfillment_enabled', false),
             'shipping.document' => false,     // Phase 3
             'shipping.tracking' => false,     // Phase 3
             'listings.fetch' => true,         // Phase 2 — SPEC 0003 (fetchListings → channel_listings)
@@ -240,9 +241,31 @@ class TikTokConnector implements ChannelConnector
 
     // --- Fulfillment (Phase 3) -----------------------------------------------
 
+    /**
+     * "Luồng A" — đánh dấu đơn "đã sắp xếp vận chuyển / đã in đơn" trên TikTok (đơn chuyển `AWAITING_COLLECTION`).
+     * Gọi `POST /fulfillment/{ver}/orders/{order_id}/packages/ship`. ⚠️ Đối chiếu shape API với sandbox thật
+     * trước khi bật `INTEGRATIONS_TIKTOK_FULFILLMENT`; lỗi sẽ được {@see ShipmentService::arrangeOnChannel} bắt
+     * và gắn cờ `has_issue` lên đơn. Trả `['raw_status','tracking_no','carrier','package_id']`. SPEC 0013.
+     *
+     * @return array<string,mixed>
+     */
     public function arrangeShipment(AuthContext $auth, string $externalOrderId, array $params = []): array
     {
-        throw UnsupportedOperation::for($this->code(), 'arrangeShipment');
+        if (! config('integrations.tiktok.fulfillment_enabled')) {
+            throw UnsupportedOperation::for($this->code(), 'arrangeShipment (đặt INTEGRATIONS_TIKTOK_FULFILLMENT=true để bật "luồng A")');
+        }
+        $ver = $this->client->versionFor('fulfillment');
+        $path = (string) (config('integrations.tiktok.endpoints.ship_package') ?? "/fulfillment/{$ver}/orders/{order_id}/packages/ship");
+        $path = str_replace(['{version}', '{order_id}', '{orderId}'], [$ver, $externalOrderId, $externalOrderId], $path);
+        $data = $this->client->post($path, $auth, []);
+        $pkg = (array) ($data['packages'][0] ?? $data['package'] ?? []);
+
+        return [
+            'raw_status' => 'AWAITING_COLLECTION',
+            'tracking_no' => $pkg['tracking_number'] ?? $data['tracking_number'] ?? null,
+            'carrier' => $pkg['shipping_provider_name'] ?? $data['shipping_provider_name'] ?? null,
+            'package_id' => $pkg['id'] ?? $pkg['package_id'] ?? $data['package_id'] ?? null,
+        ];
     }
 
     public function getShippingDocument(AuthContext $auth, string $externalOrderId, array $query = []): array

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Alert, App as AntApp, Avatar, Badge, Button, Card, DatePicker, Empty, Input, Modal, Select, Space, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
-import { LinkOutlined, ReloadOutlined, ScanOutlined, SearchOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons';
+import { BarcodeOutlined, LinkOutlined, ReloadOutlined, ScanOutlined, SearchOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
@@ -216,10 +216,10 @@ export function OrdersPage() {
                         })),
                         { key: 'issue', label: <span>Có vấn đề{stats?.has_issue ? <Badge count={stats.has_issue} style={{ marginInlineStart: 6 }} /> : null}</span> },
                         // Đơn có SKU âm tồn — chặn "Chuẩn bị hàng / lấy phiếu giao hàng" cho đến khi nhập thêm hàng (SPEC 0013).
-                        { key: 'out_of_stock', label: <span>⚠️ Hết hàng{stats?.out_of_stock ? <Badge count={stats.out_of_stock} style={{ marginInlineStart: 6 }} /> : null}</span> },
+                        { key: 'out_of_stock', label: <span><WarningOutlined style={{ marginInlineEnd: 4 }} />Hết hàng{stats?.out_of_stock ? <Badge count={stats.out_of_stock} style={{ marginInlineStart: 6 }} /> : null}</span> },
                         // Thao tác xử lý đơn (chuẩn bị hàng / in phiếu / đóng gói / bàn giao ĐVVC) làm ngay trên các tab
                         // trạng thái Chờ xử lý · Đang xử lý · Chờ bàn giao — không tách stage riêng (xem cột "Thao tác").
-                        { key: 'shipments', label: <span>🏷 Vận đơn</span> },
+                        { key: 'shipments', label: <span><BarcodeOutlined style={{ marginInlineEnd: 4 }} />Vận đơn</span> },
                     ]}
                 />
             </Card>

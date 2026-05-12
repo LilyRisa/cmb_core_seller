@@ -5,6 +5,8 @@ namespace CMBcoreSeller\Modules\Fulfillment\Services;
 use CMBcoreSeller\Integrations\Carriers\CarrierRegistry;
 use CMBcoreSeller\Integrations\Carriers\Support\AbstractCarrierConnector;
 use CMBcoreSeller\Integrations\Carriers\Support\CarrierUnsupportedException;
+use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
+use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Fulfillment\Events\ShipmentCreated;
 use CMBcoreSeller\Modules\Fulfillment\Models\CarrierAccount;
 use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
@@ -33,7 +35,37 @@ class ShipmentService
         private readonly OrderStatusSync $orderStatus,
         private readonly MediaUploader $media,
         private readonly InventoryLedgerService $ledger,
+        private readonly ChannelRegistry $channels,
     ) {}
+
+    /**
+     * "Chuẩn bị hàng" cho đơn sàn: cập nhật trạng thái "đã in đơn" lên sàn (arrange shipment) — dù phiếu in
+     * lấy từ sàn hay tự tạo. Trả `tracking_no` (nếu sàn cấp) để gắn vào vận đơn của ta. Lỗi ⇒ cờ `has_issue`,
+     * vẫn xử lý cục bộ. Connector chưa hỗ trợ `shipping.arrange` ("luồng A" follow-up) ⇒ no-op. SPEC 0013.
+     */
+    private function arrangeOnChannel(Order $order, ?int $userId): ?string
+    {
+        if (! $order->channel_account_id) {
+            return null;
+        }
+        $account = ChannelAccount::query()->find($order->channel_account_id);
+        if (! $account || ! $this->channels->has($account->provider) || ! $this->channels->for($account->provider)->supports('shipping.arrange')) {
+            return null;
+        }
+        try {
+            $r = $this->channels->for($account->provider)->arrangeShipment($account->authContext(), (string) $order->external_order_id, ['raw' => []]);
+            if (! empty($r['raw_status'])) {
+                $order->forceFill(['raw_status' => (string) $r['raw_status'], 'has_issue' => false, 'issue_reason' => null])->save();
+            }
+
+            return ! empty($r['tracking_no']) ? (string) $r['tracking_no'] : null;
+        } catch (\Throwable $e) {
+            Log::warning('shipment.arrange_on_channel_failed', ['order' => $order->getKey(), 'provider' => $account->provider, 'error' => $e->getMessage()]);
+            $order->forceFill(['has_issue' => true, 'issue_reason' => 'Chưa cập nhật trạng thái "đã in đơn" lên sàn: '.$e->getMessage()])->save();
+
+            return null;
+        }
+    }
 
     /**
      * Đơn "hết hàng / âm tồn": có ≥1 dòng mà SKU đã đặt vượt tồn vật lý (tổng `available_cached` < 0).
@@ -83,6 +115,10 @@ class ShipmentService
         // Chặn "chuẩn bị hàng / in phiếu giao hàng" khi đơn hết hàng (âm tồn) — SPEC 0013.
         if ($this->isOutOfStock($order)) {
             throw new RuntimeException('Đơn có SKU hết hàng (âm tồn) — không thể chuẩn bị hàng / lấy phiếu giao hàng. Hãy nhập thêm hàng rồi thử lại.');
+        }
+        // Đơn sàn: cập nhật trạng thái "đã in đơn" lên sàn (arrange shipment). Trả về tracking nếu sàn cấp.
+        if ($channelTracking = $this->arrangeOnChannel($order, $userId)) {
+            $opts['tracking_no'] = $opts['tracking_no'] ?? $channelTracking;
         }
 
         $account = $this->resolveAccount($tenantId, $carrierAccountId);
