@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { App as AntApp, Button, Card, Empty, Form, Input, InputNumber, Modal, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
-import { PlusOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { CloudDownloadOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { MoneyText } from '@/components/MoneyText';
@@ -9,7 +9,7 @@ import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
 import {
     ChannelListing, InventoryLevel, Sku,
-    useAdjustStock, useAutoMatchSkus, useChannelListings, useCreateSku, useInventoryLevels, useRemoveSkuMapping, useSetSkuMapping, useSkus,
+    useAdjustStock, useAutoMatchSkus, useChannelListings, useCreateSku, useInventoryLevels, useRemoveSkuMapping, useSetSkuMapping, useSkus, useSyncChannelListings,
 } from '@/lib/inventory';
 
 function StockBadge({ available }: { available: number }) {
@@ -134,6 +134,7 @@ function ListingsTab() {
     const [mappedFilter, setMappedFilter] = useState<'' | '0' | '1'>('');
     const { data, isFetching, refetch } = useChannelListings({ page, per_page: 20, mapped: mappedFilter === '' ? undefined : (Number(mappedFilter) as 0 | 1) });
     const autoMatch = useAutoMatchSkus();
+    const syncListings = useSyncChannelListings();
     const setMapping = useSetSkuMapping();
     const removeMapping = useRemoveSkuMapping();
     const canMap = useCan('inventory.map');
@@ -153,11 +154,12 @@ function ListingsTab() {
         <>
             <Space style={{ marginBottom: 12 }} wrap>
                 <Select value={mappedFilter} style={{ width: 170 }} onChange={(v) => { setMappedFilter(v); setPage(1); }} options={[{ value: '', label: 'Tất cả listing' }, { value: '0', label: 'Chưa ghép' }, { value: '1', label: 'Đã ghép' }]} />
+                {canMap && <Button icon={<CloudDownloadOutlined />} loading={syncListings.isPending} onClick={() => syncListings.mutate(undefined, { onSuccess: (r) => message.success(r.queued > 0 ? `Đang đồng bộ listing từ ${r.queued} gian hàng…` : 'Chưa có gian hàng nào hỗ trợ đồng bộ listing'), onError: (e) => message.error(errorMessage(e)) })}>Đồng bộ listing từ sàn</Button>}
                 {canMap && <Button icon={<ThunderboltOutlined />} loading={autoMatch.isPending} onClick={() => autoMatch.mutate(undefined, { onSuccess: (r) => message.success(`Đã tự ghép ${r.matched} listing`), onError: (e) => message.error(errorMessage(e)) })}>Tự ghép theo mã</Button>}
                 <Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching}>Làm mới</Button>
             </Space>
             <Table<ChannelListing> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns}
-                locale={{ emptyText: <Empty description="Chưa có listing nào. (Đồng bộ listing từ sàn — sắp có.)" /> }}
+                locale={{ emptyText: <Empty description="Chưa có listing nào. Bấm “Đồng bộ listing từ sàn” để kéo sản phẩm/SKU của gian hàng về." /> }}
                 pagination={{ current: data?.meta.pagination.page ?? page, pageSize: 20, total: data?.meta.pagination.total ?? 0, onChange: setPage, showTotal: (t) => `${t} listing` }} />
 
             <Modal title={`Ghép SKU — ${mapFor?.title ?? mapFor?.external_sku_id ?? ''}`} open={!!mapFor} onCancel={() => setMapFor(null)} okText="Lưu" confirmLoading={setMapping.isPending}

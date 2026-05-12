@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Integrations\Channels\TikTok;
 
 use Carbon\CarbonImmutable;
+use CMBcoreSeller\Integrations\Channels\DTO\ChannelListingDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\OrderDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\OrderItemDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
@@ -65,6 +66,63 @@ final class TikTokMappers
             sellerType: $shop['seller_type'] ?? null,
             raw: $shop,
         );
+    }
+
+    /**
+     * Flatten one TikTok product (which holds nested `skus`) into one
+     * {@see ChannelListingDTO} per SKU.
+     *
+     * @param  array<string,mixed>  $product  one element of products[] from /product/202309/products/search
+     * @return list<ChannelListingDTO>
+     */
+    public static function listings(array $product): array
+    {
+        $productId = (string) ($product['id'] ?? '');
+        $title = isset($product['title']) ? (string) $product['title'] : null;
+        $status = strtoupper((string) ($product['status'] ?? ''));
+        $isActive = ! in_array($status, ['DEACTIVATED', 'DELETED', 'SUSPENDED'], true);
+        $image = null;
+        foreach ((array) ($product['main_images'] ?? $product['images'] ?? []) as $img) {
+            $urls = (array) ($img['thumb_urls'] ?? $img['urls'] ?? []);
+            if ($urls !== []) {
+                $image = (string) reset($urls);
+                break;
+            }
+        }
+
+        $out = [];
+        foreach ((array) ($product['skus'] ?? []) as $sku) {
+            $skuId = (string) ($sku['id'] ?? '');
+            if ($skuId === '') {
+                continue;
+            }
+            $price = $sku['price'] ?? [];
+            $currency = (string) ($price['currency'] ?? 'VND');
+            $priceVal = $price['sale_price'] ?? $price['tax_exclusive_price'] ?? $price['original_price'] ?? null;
+            $stock = null;
+            foreach ((array) ($sku['inventory'] ?? []) as $inv) {
+                $stock = (int) ($stock ?? 0) + (int) ($inv['quantity'] ?? 0);
+            }
+            $variation = collect((array) ($sku['sales_attributes'] ?? []))
+                ->map(fn ($a) => trim((string) ($a['name'] ?? '')).': '.trim((string) ($a['value_name'] ?? $a['value'] ?? '')))
+                ->filter(fn ($s) => $s !== ': ' && trim($s) !== ':')->implode(', ') ?: null;
+
+            $out[] = new ChannelListingDTO(
+                externalSkuId: $skuId,
+                externalProductId: $productId ?: null,
+                sellerSku: isset($sku['seller_sku']) ? (string) $sku['seller_sku'] : null,
+                title: $title,
+                variation: $variation,
+                price: $priceVal !== null ? self::money($priceVal) : null,
+                channelStock: $stock,
+                currency: $currency ?: 'VND',
+                image: $image,
+                isActive: $isActive,
+                raw: ['product' => array_diff_key($product, ['skus' => true]), 'sku' => $sku],
+            );
+        }
+
+        return $out;
     }
 
     /** @param array<string,mixed> $o one element of orders[] from /order/202309/orders or /orders/search */

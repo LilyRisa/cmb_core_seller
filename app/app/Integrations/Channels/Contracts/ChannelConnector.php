@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Integrations\Channels\Contracts;
 
 use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
+use CMBcoreSeller\Integrations\Channels\DTO\ChannelListingDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\OrderDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\Page;
 use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
@@ -88,7 +89,15 @@ interface ChannelConnector
      */
     public function mapStatus(string $rawStatus, array $rawOrder = []): StandardOrderStatus;
 
-    // --- Inventory --------------------------------------------------------
+    // --- Listings / Inventory ---------------------------------------------
+
+    /**
+     * Page through the shop's listings (one entry per product variant/SKU).
+     *
+     * @param  array{cursor?:string,pageSize?:int}  $query
+     * @return Page<ChannelListingDTO>
+     */
+    public function fetchListings(AuthContext $auth, array $query = []): Page;
 
     /**
      * Set the available stock of a listing on the marketplace.

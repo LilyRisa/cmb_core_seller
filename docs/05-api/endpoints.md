@@ -37,7 +37,8 @@
 | POST | `/api/v1/channel-accounts/{provider}/connect` | sanctum + tenant (`channels.manage`) | `redirect_after?` | `{ data:{ auth_url, provider } }` — SPA redirect tới `auth_url`. `provider ∈ {tiktok}` (Phase 1). Provider không kết nối được ⇒ `422 PROVIDER_NOT_CONNECTABLE`. |
 | PATCH | `/api/v1/channel-accounts/{id}` | sanctum + tenant (`channels.manage`) | `{ display_name: string\|null }` | `{ data: ChannelAccountResource }` — đặt alias hiển thị (hai shop có thể trùng `shop_name`). `null`/rỗng = bỏ alias. |
 | DELETE | `/api/v1/channel-accounts/{id}` | sanctum + tenant (`channels.manage`) | — | `{ data:{…account, status:'revoked'} }` — `connector.revoke()` best-effort; lịch sử đơn giữ lại; dừng sync. `404` nếu không thuộc tenant. |
-| POST | `/api/v1/channel-accounts/{id}/resync` | sanctum + tenant (`channels.manage`) | — | `{ data:{ queued:true, channel_account_id } }`. Account không `active` ⇒ `409`. |
+| POST | `/api/v1/channel-accounts/{id}/resync` | sanctum + tenant (`channels.manage`) | — | `{ data:{ queued:true, channel_account_id } }` — dispatch `SyncOrdersForShop`. Account không `active` ⇒ `409`. |
+| POST | `/api/v1/channel-accounts/{id}/resync-listings` | sanctum + tenant (`channels.manage`) | — | `{ data:{ queued:true, channel_account_id } }` — dispatch `FetchChannelListings` (kéo listing của shop về `channel_listings` + auto-match SKU). Account không `active` ⇒ `409`; connector không hỗ trợ `listings.fetch` ⇒ `422`. |
 
 ## Nhật ký đồng bộ (Sync log — Phase 1)
 
@@ -78,6 +79,7 @@
 | POST | `/api/v1/inventory/adjust` | `inventory.adjust` | `{ sku_id, warehouse_id?, qty_change (≠0), note? }` | `201 { data: InventoryMovementResource{qty_change,type,balance_after,...} }` — `on_hand += qty_change`, ghi sổ cái, phát `InventoryChanged` ⇒ đẩy tồn. |
 | GET | `/api/v1/inventory/movements` | `inventory.view` | `sku_id?`, `warehouse_id?`, `type?` (csv), `ref_type?`+`ref_id?`, `page` | `{ data:[InventoryMovementResource], meta }`. |
 | GET | `/api/v1/channel-listings` | `products.view` | `channel_account_id?`, `sync_status?`, `mapped?` (0\|1), `q?`, `page` | `{ data:[ChannelListingResource{...,channel_stock,sync_status,is_stock_locked,is_mapped,mappings[]}], meta }`. |
+| POST | `/api/v1/channel-listings/sync` | `inventory.map` | — | `{ data:{ queued: N } }` — dispatch `FetchChannelListings` cho mọi shop `active` hỗ trợ `listings.fetch` (nút "Đồng bộ listing từ sàn" ở tab Liên kết SKU). |
 | PATCH | `/api/v1/channel-listings/{id}` | `inventory.map` | `{ is_stock_locked? }` | `ChannelListingResource` — ghim/bỏ ghim tự-đẩy tồn. |
 | POST | `/api/v1/sku-mappings` | `inventory.map` | `{ channel_listing_id, type?: single\|bundle, lines:[{sku_id, quantity?}] }` | `201 { data: SkuMappingResource[] }` — thay thế mapping của listing; `single` ⇒ đúng 1 line (ngược lại `422`); SKU không thuộc tenant ⇒ `422`. Phát `InventoryChanged` ⇒ tính lại & đẩy tồn. |
 | POST | `/api/v1/sku-mappings/auto-match` | `inventory.map` | — | `{ data:{ matched: N } }` — tạo `single×1` cho mọi listing chưa ghép có `seller_sku` (chuẩn hoá) trùng `sku_code`. |
@@ -111,4 +113,4 @@ Xem [`webhooks-and-oauth.md`](webhooks-and-oauth.md). `POST /webhook/tiktok` →
 
 ## Sắp có (theo roadmap)
 
-`/api/v1/orders/{id}/status` + `/bulk` (Phase 3 — đơn manual đi state machine) · `/api/v1/channel-accounts/{id}/resync-listings` + TikTok `fetchListings` (Phase 2 cuối) · `/api/v1/print-jobs`, `/api/v1/shipments` (Phase 3) · `/api/v1/stock-transfers`, `/api/v1/stock-takes`, `/api/v1/goods-receipts` (Phase 5 — WMS) · `/api/v1/jobs/{id}` … — thêm vào đây khi xây.
+`/api/v1/orders/{id}/status` + `/bulk` (Phase 3 — đơn manual đi state machine) · `/api/v1/print-jobs`, `/api/v1/shipments` (Phase 3) · `/api/v1/stock-transfers`, `/api/v1/stock-takes`, `/api/v1/goods-receipts` (Phase 5 — WMS) · `/api/v1/jobs/{id}` … — thêm vào đây khi xây.

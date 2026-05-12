@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Inventory;
 
+use CMBcoreSeller\Modules\Inventory\Console\ResyncOrderSkus;
 use CMBcoreSeller\Modules\Inventory\Events\InventoryChanged;
 use CMBcoreSeller\Modules\Inventory\Listeners\ApplyOrderInventoryEffects;
 use CMBcoreSeller\Modules\Inventory\Listeners\PushStockOnInventoryChange;
@@ -30,6 +31,10 @@ class InventoryServiceProvider extends ServiceProvider
         Event::listen(OrderUpserted::class, ApplyOrderInventoryEffects::class);
         // Stock change → debounced push to linked channel listings.
         Event::listen(InventoryChanged::class, PushStockOnInventoryChange::class);
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([ResyncOrderSkus::class]);
+        }
 
         if (is_file(__DIR__.'/Http/routes.php')) {
             $this->loadRoutesFrom(__DIR__.'/Http/routes.php');

@@ -35,9 +35,9 @@ OrderDTO {
 }
 OrderItemDTO { externalItemId, externalProductId?, externalSkuId?, sellerSku?, name, variation?, quantity, unitPrice, discount?, image? }
 
-ListingQuery    { updatedFrom?, status?, cursor?, pageSize }
-ListingDTO      { externalProductId, externalSkuId, sellerSku?, title, price, channelStock, status, attributes{}, raw }
-ListingDraftDTO { ... đăng bán đa sàn — chốt ở Phase 5 ... }
+ListingQuery       { cursor?, pageSize }                                                          # connector::fetchListings(auth, query): Page<ChannelListingDTO>  (Phase 2)
+ChannelListingDTO  { externalSkuId, externalProductId?, sellerSku?, title?, variation?, price?, channelStock?, currency, image?, isActive, raw }   # 1 entry / product variant (SKU)
+ListingDraftDTO    { ... đăng bán đa sàn — chốt ở Phase 5 ... }
 
 ArrangeShipmentDTO  { externalOrderId, packageIds?[], pickupOrDropoff, pickupAddress?, dimensions?, weight?, serviceCode? }
 ShipmentDTO         { externalOrderId, externalPackageId?, trackingNo, carrier, status, labelReady, raw }

@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Channels\Http\Controllers;
 use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Modules\Channels\Http\Resources\ChannelAccountResource;
+use CMBcoreSeller\Modules\Channels\Jobs\FetchChannelListings;
 use CMBcoreSeller\Modules\Channels\Jobs\SyncOrdersForShop;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\SyncRun;
@@ -86,6 +87,19 @@ class ChannelAccountController extends Controller
         abort_unless($account->isActive(), 409, 'Gian hàng không ở trạng thái hoạt động.');
 
         SyncOrdersForShop::dispatch((int) $account->getKey(), null, SyncRun::TYPE_POLL);
+
+        return response()->json(['data' => ['queued' => true, 'channel_account_id' => $account->getKey()]]);
+    }
+
+    /** POST /api/v1/channel-accounts/{id}/resync-listings — pull this shop's listings into channel_listings + auto-match. */
+    public function resyncListings(Request $request, int $id, ChannelRegistry $registry): JsonResponse
+    {
+        $this->authorizeManage($request);
+        $account = ChannelAccount::query()->findOrFail($id);
+        abort_unless($account->isActive(), 409, 'Gian hàng không ở trạng thái hoạt động.');
+        abort_unless($registry->has($account->provider) && $registry->for($account->provider)->supports('listings.fetch'), 422, 'Gian hàng này chưa hỗ trợ đồng bộ listing.');
+
+        FetchChannelListings::dispatch((int) $account->getKey());
 
         return response()->json(['data' => ['queued' => true, 'channel_account_id' => $account->getKey()]]);
     }

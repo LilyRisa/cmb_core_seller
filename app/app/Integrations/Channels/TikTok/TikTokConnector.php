@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Integrations\Channels\TikTok;
 
 use CMBcoreSeller\Integrations\Channels\Contracts\ChannelConnector;
 use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
+use CMBcoreSeller\Integrations\Channels\DTO\ChannelListingDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\OrderDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\Page;
 use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
@@ -48,7 +49,7 @@ class TikTokConnector implements ChannelConnector
             'shipping.arrange' => false,      // Phase 3
             'shipping.document' => false,     // Phase 3
             'shipping.tracking' => false,     // Phase 3
-            'listings.fetch' => false,        // Phase 2/5 (fetchListings — pending)
+            'listings.fetch' => true,         // Phase 2 — SPEC 0003 (fetchListings → channel_listings)
             'listings.publish' => false,      // Phase 5
             'listings.updateStock' => true,   // Phase 2 — SPEC 0003
             'listings.updatePrice' => false,  // Phase 5
@@ -181,7 +182,38 @@ class TikTokConnector implements ChannelConnector
         return TikTokStatusMap::toStandard($rawStatus, $rawOrder);
     }
 
-    // --- Inventory (Phase 2) -------------------------------------------------
+    // --- Listings / Inventory (Phase 2) --------------------------------------
+
+    /**
+     * Page through the shop's products and flatten each product's SKUs into one
+     * ChannelListingDTO per SKU. Endpoint shape to be confirmed against the Partner
+     * API / sandbox; kept config-able via `integrations.tiktok.endpoints.product_search`.
+     *
+     * @param  array{cursor?:string,pageSize?:int}  $query
+     * @return Page<ChannelListingDTO>
+     */
+    public function fetchListings(AuthContext $auth, array $query = []): Page
+    {
+        $version = $this->client->versionFor('product');
+        $path = (string) (config('integrations.tiktok.endpoints.product_search') ?? "/product/{$version}/products/search");
+        $path = str_replace(['{version}'], [$version], $path);
+
+        $q = ['page_size' => (string) min(100, max(1, (int) ($query['pageSize'] ?? 50)))];
+        if (! empty($query['cursor'])) {
+            $q['page_token'] = (string) $query['cursor'];
+        }
+        $data = $this->client->post($path, $auth, ['status' => 'ALL'], $q);
+
+        $items = [];
+        foreach ((array) ($data['products'] ?? []) as $product) {
+            foreach (TikTokMappers::listings((array) $product) as $listing) {
+                $items[] = $listing;
+            }
+        }
+        $next = $data['next_page_token'] ?? null;
+
+        return new Page(items: $items, nextCursor: $next ?: null, hasMore: ! empty($next));
+    }
 
     /**
      * Push the available stock of one SKU to TikTok. TikTok's inventory-update

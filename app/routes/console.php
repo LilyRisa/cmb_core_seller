@@ -1,5 +1,7 @@
 <?php
 
+use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
+use CMBcoreSeller\Modules\Channels\Jobs\FetchChannelListings;
 use CMBcoreSeller\Modules\Channels\Jobs\SyncOrdersForShop;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
@@ -52,6 +54,18 @@ Schedule::call(function () {
         ->orderBy('id')
         ->each(fn ($a) => SyncOrdersForShop::dispatch((int) $a->getKey(), now()->subDays(3)->toIso8601String(), 'poll'));
 })->dailyAt('02:00')->name('backfill-recent-orders')->onOneServer();
+
+// Daily: refresh channel listings for shops that support it (then auto-match SKUs) — Phase 2 (SPEC 0003).
+Schedule::call(function () {
+    $registry = app(ChannelRegistry::class);
+    ChannelAccount::withoutGlobalScope(TenantScope::class)
+        ->where('status', ChannelAccount::STATUS_ACTIVE)->orderBy('id')
+        ->each(function ($a) use ($registry) {
+            if ($registry->has($a->provider) && $registry->for($a->provider)->supports('listings.fetch')) {
+                FetchChannelListings::dispatch((int) $a->getKey());
+            }
+        });
+})->dailyAt('03:30')->name('fetch-channel-listings')->onOneServer();
 
 // Prune old framework rows so the DB stays lean.
 Schedule::command('queue:prune-failed --hours=336')->daily()->onOneServer();      // keep 14d of failed jobs

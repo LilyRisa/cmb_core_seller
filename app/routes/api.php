@@ -55,6 +55,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::patch('channel-accounts/{id}', [ChannelAccountController::class, 'update'])->whereNumber('id')->name('channel-accounts.update');   // set display alias
             Route::delete('channel-accounts/{id}', [ChannelAccountController::class, 'destroy'])->whereNumber('id')->name('channel-accounts.destroy');
             Route::post('channel-accounts/{id}/resync', [ChannelAccountController::class, 'resync'])->whereNumber('id')->name('channel-accounts.resync');
+            Route::post('channel-accounts/{id}/resync-listings', [ChannelAccountController::class, 'resyncListings'])->whereNumber('id')->name('channel-accounts.resync-listings');
 
             // --- Sync log (Phase 1) — webhook_events / sync_runs + re-drive ---
             Route::get('sync-runs', [SyncLogController::class, 'runs'])->name('sync-runs.index');
@@ -95,6 +96,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::get('inventory/movements', [InventoryController::class, 'movements'])->name('inventory.movements');
 
             Route::get('channel-listings', [ChannelListingController::class, 'index'])->name('channel-listings.index');
+            Route::post('channel-listings/sync', [ChannelListingController::class, 'sync'])->name('channel-listings.sync');
             Route::patch('channel-listings/{id}', [ChannelListingController::class, 'update'])->whereNumber('id')->name('channel-listings.update');
             Route::post('sku-mappings', [SkuMappingController::class, 'store'])->name('sku-mappings.store');
             Route::post('sku-mappings/auto-match', [SkuMappingController::class, 'autoMatch'])->name('sku-mappings.auto-match');

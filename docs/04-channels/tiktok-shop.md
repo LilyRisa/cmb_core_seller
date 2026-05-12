@@ -39,7 +39,7 @@
 | Lấy danh sách đơn (theo update_time, phân trang) | `order/search` (orderVxxxxApi) | `Page<OrderDTO>` (rút gọn) |
 | Lấy chi tiết đơn | `order/detail` / `orders` (orderVxxxxApi) | `OrderDTO` |
 | Lấy thông tin shop | `authorization` / `seller` (authorizationVxxxx / sellerVxxxx) | `ShopInfoDTO` |
-| Listing/sản phẩm | `product/search`, `product/detail` (productVxxxxApi) | `Page<ListingDTO>` |
+| Listing/sản phẩm | `/product/{version}/products/search` (productVxxxxApi) — **đã implement Phase 2** trong `TikTokConnector::fetchListings` (POST `{status:'ALL'}`, query `page_size`/`page_token`; flatten mỗi `product` × `skus[]` → `ChannelListingDTO` qua `TikTokMappers::listings`; variation = nối `sales_attributes`; path config-able qua `integrations.tiktok.endpoints.product_search`). ⚠️ **Shape/endpoint cần xác nhận với Partner API/sandbox thật.** Capability `listings.fetch=true`. | `Page<ChannelListingDTO>` |
 | Danh mục & thuộc tính | `product/categories`, `product/attributes` | (mass listing — Phase 5) |
 | Cập nhật tồn | `product/{version}/products/{product_id}/inventory/update` (productVxxxxApi) — **đã implement Phase 2** trong `TikTokConnector::updateStock` (signed POST, body `{skus:[{id,inventory:[{warehouse_id?,quantity}]}]}`; path config-able qua `integrations.tiktok.endpoints.update_inventory`). ⚠️ **Shape/endpoint cần xác nhận với Partner API/sandbox thật.** Capability `listings.updateStock=true`. | — |
 | Cập nhật giá | `product/price/update` | — |

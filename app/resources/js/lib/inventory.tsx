@@ -242,6 +242,13 @@ export function useAutoMatchSkus() {
     return useMutation({ mutationFn: async () => { const { data } = await api!.post<{ data: { matched: number } }>('/sku-mappings/auto-match'); return data.data; }, onSuccess: invalidate });
 }
 
+export function useSyncChannelListings() {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    const invalidate = useInvalidate([['channel-listings', tenantId]]);
+    return useMutation({ mutationFn: async () => { const { data } = await api!.post<{ data: { queued: number } }>('/channel-listings/sync'); return data.data; }, onSuccess: invalidate });
+}
+
 export function useCreateManualOrder() {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();

@@ -3,6 +3,9 @@
 namespace CMBcoreSeller\Modules\Products\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
+use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
+use CMBcoreSeller\Modules\Channels\Jobs\FetchChannelListings;
+use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Products\Http\Resources\ChannelListingResource;
 use CMBcoreSeller\Modules\Products\Models\ChannelListing;
 use Illuminate\Http\JsonResponse;
@@ -35,6 +38,21 @@ class ChannelListingController extends Controller
             'data' => ChannelListingResource::collection($page->getCollection()),
             'meta' => ['pagination' => ['page' => $page->currentPage(), 'per_page' => $page->perPage(), 'total' => $page->total(), 'total_pages' => $page->lastPage()]],
         ]);
+    }
+
+    /** POST /api/v1/channel-listings/sync — pull listings from every active shop that supports it, then auto-match. */
+    public function sync(Request $request, ChannelRegistry $registry): JsonResponse
+    {
+        abort_unless($request->user()?->can('inventory.map'), 403, 'Bạn không có quyền đồng bộ listing.');
+        $n = 0;
+        ChannelAccount::query()->active()->orderBy('id')->each(function (ChannelAccount $a) use ($registry, &$n) {
+            if ($registry->has($a->provider) && $registry->for($a->provider)->supports('listings.fetch')) {
+                FetchChannelListings::dispatch((int) $a->getKey());
+                $n++;
+            }
+        });
+
+        return response()->json(['data' => ['queued' => $n]]);
     }
 
     /** PATCH /api/v1/channel-listings/{id}  { is_stock_locked? } — pin/unpin auto-push. */

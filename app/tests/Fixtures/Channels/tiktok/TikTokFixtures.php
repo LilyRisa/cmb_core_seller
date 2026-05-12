@@ -20,6 +20,10 @@ final class TikTokFixtures
 
     public const ORDER_ID = '576123456789012345';
 
+    public const PRODUCT_ID = '1729000000000000001';
+
+    public const SKU_ID = '1729000000000000777';
+
     /** Envelope: { code, message, data, request_id } */
     public static function envelope(array $data): array
     {
@@ -145,6 +149,36 @@ final class TikTokFixtures
             'orders' => $orders,
             'next_page_token' => $nextToken,
             'total_count' => count($orders),
+        ]);
+    }
+
+    /** One product in the v202309 shape (snake_case), with one SKU. */
+    public static function product(string $id = self::PRODUCT_ID, string $skuId = self::SKU_ID, string $sellerSku = 'AO-THUN-M', string $status = 'ACTIVATE', int $stock = 12): array
+    {
+        return [
+            'id' => $id,
+            'title' => 'Áo thun cotton',
+            'status' => $status,
+            'main_images' => [['thumb_urls' => ['https://example.test/img/'.$id.'.jpg']]],
+            'skus' => [[
+                'id' => $skuId,
+                'seller_sku' => $sellerSku,
+                'price' => ['sale_price' => '199000', 'tax_exclusive_price' => '199000', 'currency' => 'VND'],
+                'inventory' => [['warehouse_id' => 'WH1', 'quantity' => $stock]],
+                'sales_attributes' => [['name' => 'Màu', 'value_name' => 'Trắng'], ['name' => 'Size', 'value_name' => 'M']],
+            ]],
+        ];
+    }
+
+    /** POST /product/202309/products/search -> { data: { products, next_page_token, total_count } } */
+    public static function productsSearch(?array $products = null, ?string $nextToken = null): array
+    {
+        $products ??= [self::product()];
+
+        return self::envelope([
+            'products' => $products,
+            'next_page_token' => $nextToken,
+            'total_count' => count($products),
         ]);
     }
 
