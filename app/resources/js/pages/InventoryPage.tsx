@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { App as AntApp, Button, Card, Empty, Form, Input, InputNumber, Modal, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
-import { CloudDownloadOutlined, CloudUploadOutlined, DeleteOutlined, ImportOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { App as AntApp, Avatar, Button, Card, Empty, Form, Input, InputNumber, Modal, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
+import { CloudDownloadOutlined, CloudUploadOutlined, DeleteOutlined, ImportOutlined, PictureOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { MoneyText } from '@/components/MoneyText';
@@ -104,6 +104,7 @@ function SkusTab() {
     const skuOptions = (data?.data ?? []).map((s) => ({ value: s.id, label: `${s.sku_code} · ${s.name}` }));
 
     const columns: ColumnsType<Sku> = [
+        { title: '', key: 'img', width: 52, render: (_, r) => <Avatar shape="square" size={40} src={r.image_url ?? undefined} style={{ background: '#f5f5f5', color: '#bfbfbf' }} icon={<PictureOutlined />} /> },
         { title: 'Mã SKU', dataIndex: 'sku_code', key: 'code', render: (v, r) => <Space direction="vertical" size={0}><Typography.Text strong>{v}</Typography.Text>{r.spu_code && <Typography.Text type="secondary" style={{ fontSize: 12 }}>SPU: {r.spu_code}</Typography.Text>}</Space> },
         { title: 'Tên', dataIndex: 'name', key: 'name' },
         { title: 'Giá vốn TK', dataIndex: 'cost_price', key: 'cost', width: 110, align: 'right', render: (v) => <MoneyText value={v} /> },

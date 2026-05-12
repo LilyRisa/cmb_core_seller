@@ -2,14 +2,18 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
     Alert, Anchor, App as AntApp, Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber,
-    Row, Select, Space, Table, Tooltip, Typography,
+    Row, Select, Space, Table, Typography, Upload,
 } from 'antd';
-import { ArrowLeftOutlined, DeleteOutlined, PictureOutlined, PlusOutlined } from '@ant-design/icons';
+import type { RcFile } from 'antd/es/upload';
+import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import type { Dayjs } from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { errorMessage } from '@/lib/api';
-import { useCreateSku, useWarehouses, type CreateSkuPayload } from '@/lib/inventory';
+import { useCreateSku, useUploadSkuImage, useWarehouses, type CreateSkuPayload } from '@/lib/inventory';
 import { useChannelAccounts } from '@/lib/channels';
+
+const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+const IMAGE_MAX_MB = 5;
 
 // Base units shown in "Đơn vị cơ bản". Free-text is allowed too (mode not used; keep it a simple Select).
 const BASE_UNITS = ['PCS', 'Cái', 'Bộ', 'Hộp', 'Thùng', 'Đôi', 'Kg', 'Gói', 'Cuộn', 'Mét'];
@@ -44,6 +48,7 @@ export function CreateSkuPage() {
     const navigate = useNavigate();
     const [form] = Form.useForm<BasicForm>();
     const create = useCreateSku();
+    const uploadImage = useUploadSkuImage();
     const { data: warehouses } = useWarehouses();
     const { data: channelData } = useChannelAccounts();
     const shopOptions = useMemo(() => (channelData?.data ?? []).map((s) => ({ value: s.id, label: s.name })), [channelData]);
@@ -52,6 +57,17 @@ export function CreateSkuPage() {
     const [whRows, setWhRows] = useState<Record<number, WhRow>>({});
     const whRow = (id: number): WhRow => whRows[id] ?? { included: true, on_hand: 0, cost_price: 0 };
     const patchWh = (id: number, patch: Partial<WhRow>) => setWhRows((m) => ({ ...m, [id]: { ...whRow(id), ...patch } }));
+
+    // Image is held client-side until the SKU exists, then uploaded to R2 via POST /skus/{id}/image.
+    const [imageFile, setImageFile] = useState<File | null>(null);
+    const [imagePreview, setImagePreview] = useState<string | undefined>(undefined);
+    const pickImage = (file: RcFile) => {
+        if (!IMAGE_TYPES.includes(file.type)) { message.error('Chỉ chấp nhận ảnh PNG / JPG / WEBP.'); return Upload.LIST_IGNORE; }
+        if (file.size / 1024 / 1024 >= IMAGE_MAX_MB) { message.error(`Ảnh tối đa ${IMAGE_MAX_MB}MB.`); return Upload.LIST_IGNORE; }
+        setImageFile(file);
+        setImagePreview(URL.createObjectURL(file));
+        return false; // don't auto-upload — we POST it after the SKU is created
+    };
 
     const submit = () => form.validateFields().then((v) => {
         const payload: CreateSkuPayload = {
@@ -77,7 +93,14 @@ export function CreateSkuPage() {
                 .map((w) => ({ warehouse_id: w.id, on_hand: whRow(w.id).on_hand || 0, cost_price: whRow(w.id).cost_price || 0 })),
         };
         create.mutate(payload, {
-            onSuccess: () => { message.success('Đã tạo SKU'); navigate('/inventory?tab=skus'); },
+            onSuccess: async (sku) => {
+                if (imageFile) {
+                    try { await uploadImage.mutateAsync({ skuId: sku.id, file: imageFile }); }
+                    catch (e) { message.warning(`Đã tạo SKU nhưng tải ảnh thất bại: ${errorMessage(e)}`); }
+                }
+                message.success('Đã tạo SKU');
+                navigate('/inventory?tab=skus');
+            },
             onError: (e) => message.error(errorMessage(e)),
         });
     }).catch(() => message.error('Vui lòng kiểm tra các trường bắt buộc.'));
@@ -106,11 +129,17 @@ export function CreateSkuPage() {
                         <Card id="basic" title="Thông tin cơ bản" style={{ marginBottom: 16 }}>
                             <Row gutter={16}>
                                 <Col flex="120px">
-                                    <Tooltip title="Tải ảnh sản phẩm — tính năng sắp có">
-                                        <div style={{ width: 96, height: 96, border: '1px dashed #d9d9d9', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bfbfbf', cursor: 'not-allowed' }}>
-                                            <PictureOutlined style={{ fontSize: 24 }} />
-                                        </div>
-                                    </Tooltip>
+                                    <Upload
+                                        listType="picture-card"
+                                        accept={IMAGE_TYPES.join(',')}
+                                        maxCount={1}
+                                        beforeUpload={pickImage}
+                                        fileList={imageFile ? [{ uid: 'sku-image', name: imageFile.name, status: 'done' as const, url: imagePreview }] : []}
+                                        onRemove={() => { setImageFile(null); setImagePreview(undefined); return true; }}
+                                    >
+                                        {!imageFile && <div><PlusOutlined /><div style={{ marginTop: 6, fontSize: 12 }}>Tải ảnh</div></div>}
+                                    </Upload>
+                                    <Typography.Text type="secondary" style={{ fontSize: 11 }}>PNG/JPG/WEBP ≤ {IMAGE_MAX_MB}MB</Typography.Text>
                                 </Col>
                                 <Col flex="auto">
                                     <Form.Item name="sku_code" label="Mã SKU" rules={[{ required: true, message: 'Nhập mã SKU' }, { max: 100 }]}

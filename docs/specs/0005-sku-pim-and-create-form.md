@@ -54,11 +54,13 @@ Không bảng mới. `inventory_movements` thêm giá trị `ref_type='sku_creat
 - **SPU/biến thể:** `spu_code` là chỗ bám tạm; khi có bảng `product_spus` thì migrate `spu_code` → khoá ngoại.
 - **In tem & chọn ĐVVC theo kích thước/cân nặng:** Phase 3 (fulfillment) đọc `weight_grams` + kích thước.
 
-## 7. TODO — Upload ảnh SKU (chưa làm)
-Form hiện hiển thị **ô ảnh placeholder bị vô hiệu hoá** (icon + tooltip "Tải ảnh — sắp có") và cột `skus.image_url` luôn để trống. Khi làm:
-- Backend: endpoint `POST /api/v1/skus/{id}/image` (hoặc nhận `image` trong `POST /skus` dạng multipart) → lưu vào disk `public`/S3 → ghi `image_url`. Cần giới hạn kích thước/định dạng (jpg/png/webp ≤2–5MB), có thể tạo thumbnail.
-- FE: thay `<div placeholder>` bằng AntD `<Upload listType="picture-card">`; hiển thị `image_url` ở bảng SKU & các nơi liệt kê hàng (đơn hàng, ghép SKU…).
-- Cân nhắc: cho phép nhiều ảnh (gallery) ⇒ bảng `sku_images` thay vì một cột; đồng bộ ảnh ngược lên sàn.
+## 7. Upload ảnh SKU — Cloudflare R2 (đã làm 2026-05-16)
+- **Lưu trữ:** disk `r2` (driver `s3`, endpoint R2) trong `config/filesystems.php`; `config/media.php` → `media.disk` = `r2` ở production, `public` ngoài prod (local/test không cần credential cloud). `app/Support/MediaUploader` đặt object key `tenants/<tenantId>/skus/<ULID>.<ext>`, trả URL công khai (`R2_URL`).
+- **Cột:** `skus.image_url` (URL công khai để FE render) + `skus.image_path` (object key, để xoá/thay) — migration `..._add_image_path_to_skus`.
+- **API:** `POST /api/v1/skus/{id}/image` (multipart `image`, quyền `products.manage`) — validate PNG/JPG/WEBP, ≤ `MEDIA_IMAGE_MAX_KB` (~5MB) → lưu, ghi 2 cột, xoá ảnh cũ → trả `SkuResource`. `DELETE /api/v1/skus/{id}/image` — xoá object + clear 2 cột.
+- **FE:** trang "Thêm SKU đơn độc" thay ô placeholder bằng AntD `<Upload listType="picture-card">` — giữ file ở client (validate type/size), sau khi `POST /skus` thành công thì `POST /skus/{id}/image` rồi điều hướng; lỗi tải ảnh ⇒ cảnh báo (SKU vẫn đã tạo). Danh sách SKU hiển thị `image_url` (cột ảnh nhỏ).
+- **Triển khai:** cần `composer require league/flysystem-aws-s3-v3` (đã thêm), đặt các biến `R2_*`/`MEDIA_DISK`, chạy migration mới — **chi tiết & cách kiểm tra: `docs/07-infra/cloudflare-r2-uploads.md`**.
+- **Còn lại / mở rộng:** xoá SKU chưa xoá object ảnh (chờ job dọn rác xoá cứng); chưa tạo thumbnail nhiều kích thước; chưa hỗ trợ nhiều ảnh/gallery (sẽ là bảng `sku_images`); chưa đồng bộ ảnh ngược lên sàn; chưa cho sửa ảnh của SKU đã tạo từ danh sách (cần modal — đã có sẵn hook `useUploadSkuImage`/`useDeleteSkuImage`).
 
 ## 8. API & UI
 **Endpoint** (cập nhật `docs/05-api/endpoints.md`):

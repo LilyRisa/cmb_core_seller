@@ -88,6 +88,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::get('skus/{id}', [SkuController::class, 'show'])->whereNumber('id')->name('skus.show');
             Route::patch('skus/{id}', [SkuController::class, 'update'])->whereNumber('id')->name('skus.update');
             Route::delete('skus/{id}', [SkuController::class, 'destroy'])->whereNumber('id')->name('skus.destroy');
+            Route::post('skus/{id}/image', [SkuController::class, 'uploadImage'])->whereNumber('id')->name('skus.image.upload');
+            Route::delete('skus/{id}/image', [SkuController::class, 'deleteImage'])->whereNumber('id')->name('skus.image.delete');
 
             Route::get('warehouses', [WarehouseController::class, 'index'])->name('warehouses.index');
             Route::post('warehouses', [WarehouseController::class, 'store'])->name('warehouses.store');

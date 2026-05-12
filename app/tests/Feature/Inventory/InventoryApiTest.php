@@ -14,7 +14,9 @@ use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class InventoryApiTest extends TestCase
@@ -133,6 +135,35 @@ class InventoryApiTest extends TestCase
         // bad warehouse / bad shop → 422
         $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/skus', ['sku_code' => 'X', 'name' => 'x', 'levels' => [['warehouse_id' => 999999, 'on_hand' => 1]]])->assertStatus(422);
         $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/skus', ['sku_code' => 'Y', 'name' => 'y', 'mappings' => [['channel_account_id' => 999999, 'external_sku_id' => 'Z']]])->assertStatus(422);
+    }
+
+    public function test_upload_and_delete_sku_image(): void
+    {
+        Storage::fake('public');   // MEDIA_DISK falls back to "public" outside production
+        $sku = Sku::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $this->tenant->getKey(), 'sku_code' => 'IMG1', 'name' => 'img']);
+
+        $res = $this->actingAs($this->owner)->withHeaders($this->h())
+            ->postJson("/api/v1/skus/{$sku->getKey()}/image", ['image' => UploadedFile::fake()->image('a.jpg', 200, 200)])
+            ->assertOk();
+        $this->assertNotNull($res->json('data.image_url'));
+        $sku->refresh();
+        $this->assertNotNull($sku->image_path);
+        Storage::disk('public')->assertExists($sku->image_path);
+
+        // non-image rejected
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->postJson("/api/v1/skus/{$sku->getKey()}/image", ['image' => UploadedFile::fake()->create('x.pdf', 10, 'application/pdf')])->assertStatus(422);
+
+        $path = (string) $sku->image_path;
+        $this->actingAs($this->owner)->withHeaders($this->h())->deleteJson("/api/v1/skus/{$sku->getKey()}/image")->assertOk();
+        $sku->refresh();
+        $this->assertNull($sku->image_url);
+        Storage::disk('public')->assertMissing($path);
+
+        // viewer can't upload
+        $viewer = User::factory()->create();
+        $this->tenant->users()->attach($viewer->getKey(), ['role' => Role::Viewer->value]);
+        $this->actingAs($viewer)->withHeaders($this->h())->postJson("/api/v1/skus/{$sku->getKey()}/image", ['image' => UploadedFile::fake()->image('b.png')])->assertForbidden();
     }
 
     public function test_tenant_isolation_on_skus(): void

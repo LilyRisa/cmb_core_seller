@@ -276,6 +276,29 @@ export function useCreateSku() {
     });
 }
 
+/** Upload (replace) a SKU image — multipart. Returns the updated SKU (with `image_url`). */
+export function useUploadSkuImage() {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    const invalidate = useInvalidate([['skus', tenantId]]);
+    return useMutation({
+        mutationFn: async ({ skuId, file }: { skuId: number; file: File }) => {
+            const fd = new FormData();
+            fd.append('image', file);
+            const { data } = await api!.post<{ data: Sku }>(`/skus/${skuId}/image`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+            return data.data;
+        },
+        onSuccess: invalidate,
+    });
+}
+
+export function useDeleteSkuImage() {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    const invalidate = useInvalidate([['skus', tenantId]]);
+    return useMutation({ mutationFn: async (skuId: number) => { await api!.delete(`/skus/${skuId}/image`); }, onSuccess: invalidate });
+}
+
 export function useSetSkuMapping() {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();

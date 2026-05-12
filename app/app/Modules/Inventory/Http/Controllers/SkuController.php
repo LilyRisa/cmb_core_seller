@@ -15,6 +15,7 @@ use CMBcoreSeller\Modules\Inventory\Services\SkuMappingService;
 use CMBcoreSeller\Modules\Products\Models\ChannelListing;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use CMBcoreSeller\Support\MediaUploader;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -195,6 +196,37 @@ class SkuController extends Controller
         $sku->forceFill($data)->save();
 
         return response()->json(['data' => new SkuResource($sku->load('levels'))]);
+    }
+
+    /** POST /api/v1/skus/{id}/image — upload (replace) the SKU image to the media disk (R2). SPEC 0005 §7. */
+    public function uploadImage(Request $request, int $id, MediaUploader $uploader): JsonResponse
+    {
+        abort_unless($request->user()?->can('products.manage'), 403, 'Bạn không có quyền sửa SKU.');
+        $mimes = implode(',', (array) config('media.images.mimes', ['jpg', 'jpeg', 'png', 'webp']));
+        $request->validate([
+            'image' => ['required', 'file', 'image', 'mimes:'.$mimes, 'max:'.(int) config('media.images.max_kb', 5120)],
+        ]);
+        $sku = Sku::query()->findOrFail($id);
+        $old = $sku->image_path;
+        $stored = $uploader->storeImage($request->file('image'), (int) $sku->tenant_id, 'skus');
+        $sku->forceFill(['image_url' => $stored['url'], 'image_path' => $stored['path']])->save();
+        if ($old && $old !== $stored['path']) {
+            $uploader->delete($old);
+        }
+
+        return response()->json(['data' => new SkuResource($sku->load('levels'))]);
+    }
+
+    /** DELETE /api/v1/skus/{id}/image — remove the SKU image. */
+    public function deleteImage(Request $request, int $id, MediaUploader $uploader): JsonResponse
+    {
+        abort_unless($request->user()?->can('products.manage'), 403, 'Bạn không có quyền sửa SKU.');
+        $sku = Sku::query()->findOrFail($id);
+        $path = $sku->image_path;
+        $sku->forceFill(['image_url' => null, 'image_path' => null])->save();
+        $uploader->delete($path);
+
+        return response()->json(['data' => ['deleted' => true]]);
     }
 
     public function destroy(Request $request, int $id): JsonResponse

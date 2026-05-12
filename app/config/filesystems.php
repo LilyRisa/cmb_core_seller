@@ -60,6 +60,26 @@ return [
             'report' => false,
         ],
 
+        /*
+         * Cloudflare R2 — S3-compatible object storage. Used for user-uploaded media
+         * (SKU/product images, …). R2 has no real regions: region must be "auto" and
+         * the endpoint is https://<ACCOUNT_ID>.r2.cloudflarestorage.com. `R2_URL` is
+         * the PUBLIC base URL of the bucket — the bucket's r2.dev URL or (recommended)
+         * a custom domain bound to the bucket. See docs/07-ops/cloudflare-r2-uploads.md.
+         */
+        'r2' => [
+            'driver' => 's3',
+            'key' => env('R2_ACCESS_KEY_ID'),
+            'secret' => env('R2_SECRET_ACCESS_KEY'),
+            'region' => env('R2_DEFAULT_REGION', 'auto'),
+            'bucket' => env('R2_BUCKET'),
+            'url' => env('R2_URL'),
+            'endpoint' => env('R2_ENDPOINT'),
+            'use_path_style_endpoint' => env('R2_USE_PATH_STYLE_ENDPOINT', true),
+            'throw' => false,
+            'report' => false,
+        ],
+
     ],
 
     /*

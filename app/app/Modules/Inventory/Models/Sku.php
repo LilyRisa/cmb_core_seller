@@ -33,6 +33,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $width_cm
  * @property string|null $height_cm
  * @property string|null $image_url
+ * @property string|null $image_path
  * @property array|null $attributes
  * @property bool $is_active
  * @property Carbon|null $created_at
@@ -48,7 +49,7 @@ class Sku extends Model
     protected $fillable = [
         'tenant_id', 'product_id', 'spu_code', 'category', 'sku_code', 'barcode', 'gtins', 'name', 'base_unit',
         'cost_price', 'ref_sale_price', 'sale_start_date', 'note', 'weight_grams', 'length_cm', 'width_cm', 'height_cm',
-        'image_url', 'attributes', 'is_active',
+        'image_url', 'image_path', 'attributes', 'is_active',
     ];
 
     protected function casts(): array
