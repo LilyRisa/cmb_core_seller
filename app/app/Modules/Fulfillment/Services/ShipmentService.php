@@ -39,11 +39,13 @@ class ShipmentService
     ) {}
 
     /**
-     * "Chuẩn bị hàng" cho đơn sàn: cập nhật trạng thái "đã in đơn" lên sàn (arrange shipment) — dù phiếu in
-     * lấy từ sàn hay tự tạo. Trả `tracking_no` (nếu sàn cấp) để gắn vào vận đơn của ta. Lỗi ⇒ cờ `has_issue`,
-     * vẫn xử lý cục bộ. Connector chưa hỗ trợ `shipping.arrange` ("luồng A" follow-up) ⇒ no-op. SPEC 0013.
+     * Đơn sàn — gọi sàn "arrange shipment" ("luồng A"): cập nhật trạng thái "đã in đơn" lên sàn & lấy AWB.
+     * Trả `['tracking_no'=>?,'carrier'=>?,'raw_status'=>?]` nếu connector hỗ trợ `shipping.arrange`; trả `null`
+     * nếu connector chưa hỗ trợ (chưa bật "luồng A"). Gọi sàn lỗi ⇒ ném {@see RuntimeException}. SPEC 0013/0014.
+     *
+     * @return array{tracking_no:?string,carrier:?string,raw_status:?string}|null
      */
-    private function arrangeOnChannel(Order $order, ?int $userId): ?string
+    private function arrangeOnChannel(Order $order): ?array
     {
         if (! $order->channel_account_id) {
             return null;
@@ -54,17 +56,66 @@ class ShipmentService
         }
         try {
             $r = $this->channels->for($account->provider)->arrangeShipment($account->authContext(), (string) $order->external_order_id, ['raw' => []]);
-            if (! empty($r['raw_status'])) {
-                $order->forceFill(['raw_status' => (string) $r['raw_status'], 'has_issue' => false, 'issue_reason' => null])->save();
-            }
-
-            return ! empty($r['tracking_no']) ? (string) $r['tracking_no'] : null;
         } catch (\Throwable $e) {
             Log::warning('shipment.arrange_on_channel_failed', ['order' => $order->getKey(), 'provider' => $account->provider, 'error' => $e->getMessage()]);
-            $order->forceFill(['has_issue' => true, 'issue_reason' => 'Chưa cập nhật trạng thái "đã in đơn" lên sàn: '.$e->getMessage()])->save();
-
-            return null;
+            throw new RuntimeException('Không cập nhật được trạng thái "đã in đơn" lên sàn: '.$e->getMessage());
         }
+        if (! empty($r['raw_status'])) {
+            $order->forceFill(['raw_status' => (string) $r['raw_status']])->save();
+        }
+
+        return [
+            'tracking_no' => ! empty($r['tracking_no']) ? (string) $r['tracking_no'] : null,
+            'carrier' => ! empty($r['carrier']) ? (string) $r['carrier'] : null,
+            'raw_status' => ! empty($r['raw_status']) ? (string) $r['raw_status'] : null,
+        ];
+    }
+
+    /**
+     * "Chuẩn bị hàng" cho **đơn sàn**: dùng mã vận đơn / AWB do sàn cấp (đã đồng bộ trong `order.packages`,
+     * hoặc gọi `arrangeShipment` "luồng A") — KHÔNG tự sinh mã giả như đơn manual. Chưa lấy được AWB nào ⇒
+     * báo lỗi rõ (yêu cầu sắp xếp vận chuyển trên app sàn rồi đồng bộ, hoặc bật "luồng A"). Đơn → `processing`.
+     */
+    private function prepareChannelOrder(Order $order, ?int $userId): Shipment
+    {
+        $tenantId = (int) $order->tenant_id;
+        $pkg = (array) (($order->packages ?? [])[0] ?? []);
+        $tracking = ! empty($pkg['trackingNo']) ? (string) $pkg['trackingNo'] : null;
+        $carrier = ! empty($pkg['carrier']) ? (string) $pkg['carrier'] : null;
+
+        if ($tracking === null) {
+            $arr = $this->arrangeOnChannel($order);   // null = connector chưa hỗ trợ; ném lỗi nếu gọi sàn lỗi
+            if ($arr === null) {
+                throw new RuntimeException('Đơn sàn chưa có mã vận đơn — hãy "Sắp xếp vận chuyển" trên app sàn rồi bấm "Đồng bộ đơn", hoặc bật đồng bộ fulfillment ("luồng A") để hệ thống tự lấy mã vận đơn & cập nhật trạng thái lên sàn.');
+            }
+            $tracking = $arr['tracking_no'];
+            $carrier = $arr['carrier'] ?: $carrier;
+        }
+        $carrier = $carrier ?: ($order->carrier ?: $order->source);
+
+        $shipment = DB::transaction(function () use ($tenantId, $order, $carrier, $tracking, $userId) {
+            $sh = Shipment::query()->create([
+                'tenant_id' => $tenantId, 'order_id' => $order->getKey(), 'carrier' => $carrier,
+                'carrier_account_id' => null, 'tracking_no' => $tracking, 'status' => Shipment::STATUS_CREATED,
+                'weight_grams' => $this->estimateWeight($order, $tenantId),
+                'cod_amount' => $order->is_cod ? (int) ($order->cod_amount ?: $order->grand_total) : 0, 'raw' => [],
+            ]);
+            $this->recordEvent($sh, 'created', $tracking ? 'Đã chuẩn bị hàng — mã vận đơn của sàn: '.$tracking : 'Đã chuẩn bị hàng — chờ mã vận đơn từ sàn', Shipment::STATUS_CREATED, ShipmentEvent::SOURCE_SYSTEM, null, $userId);
+            $patch = $order->carrier ? [] : ['carrier' => $carrier];
+            if ($order->has_issue && str_contains((string) $order->issue_reason, 'mã vận đơn')) {
+                $patch += ['has_issue' => false, 'issue_reason' => null];
+            }
+            if ($patch !== []) {
+                $order->forceFill($patch)->save();
+            }
+
+            return $sh;
+        });
+        $this->orderStatus->apply($order, S::Processing, 'system', [S::Pending], $userId);
+        $shipment->refresh();
+        ShipmentCreated::dispatch($shipment);
+
+        return $shipment;
     }
 
     /**
@@ -116,9 +167,10 @@ class ShipmentService
         if ($this->isOutOfStock($order)) {
             throw new RuntimeException('Đơn có SKU hết hàng (âm tồn) — không thể chuẩn bị hàng / lấy phiếu giao hàng. Hãy nhập thêm hàng rồi thử lại.');
         }
-        // Đơn sàn: cập nhật trạng thái "đã in đơn" lên sàn (arrange shipment). Trả về tracking nếu sàn cấp.
-        if ($channelTracking = $this->arrangeOnChannel($order, $userId)) {
-            $opts['tracking_no'] = $opts['tracking_no'] ?? $channelTracking;
+        // Đơn sàn: dùng mã vận đơn / AWB của sàn (đồng bộ về hoặc "luồng A"), cập nhật trạng thái "đã in đơn"
+        // lên sàn — không tự sinh mã vận đơn giả như đơn manual. SPEC 0013/0014.
+        if ($order->channel_account_id) {
+            return $this->prepareChannelOrder($order, $userId);
         }
 
         $account = $this->resolveAccount($tenantId, $carrierAccountId);

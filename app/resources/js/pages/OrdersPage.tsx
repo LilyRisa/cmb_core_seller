@@ -78,12 +78,10 @@ export function OrdersPage() {
     };
 
     const activeTab = ORDER_STATUS_TABS.find((t) => t.key === tabKey) ?? ORDER_STATUS_TABS[0];
-    const activeStage = activeTab.stage;   // 'prepare' | 'pack' | 'handover' | undefined — 3 tab công việc đầu (SPEC 0013)
-    const effectiveStatus = activeStage || tabKey === 'issue' || tabKey === 'out_of_stock' ? '' : (statusParam || (activeTab.statuses ?? []).join(','));
+    const effectiveStatus = tabKey === 'issue' || tabKey === 'out_of_stock' ? '' : (statusParam || (activeTab.statuses ?? []).join(','));
 
     const filters = useMemo(() => ({
         status: effectiveStatus || undefined,
-        stage: activeStage,
         q: q || undefined, sku: skuQ || undefined, product: productQ || undefined,
         source: source || undefined,
         channel_account_id: channelAccountId ? Number(channelAccountId) : undefined,
@@ -92,9 +90,9 @@ export function OrdersPage() {
         has_issue: tabKey === 'issue' || params.get('has_issue') === '1' ? true : undefined,
         out_of_stock: tabKey === 'out_of_stock' ? true : undefined,
         sort, page, per_page: perPage,
-    }), [effectiveStatus, activeStage, q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo, tabKey, params, sort, page, perPage]);
+    }), [effectiveStatus, q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo, tabKey, params, sort, page, perPage]);
 
-    // stats: facet chip counts (source/shop/carrier) ignore the chip facets themselves; status & stage counts ignore status/stage.
+    // stats: status/stage counts ignore status/stage; chip facets ignore the chip facets themselves.
     const statsFilters = useMemo(() => ({
         q: q || undefined, sku: skuQ || undefined, product: productQ || undefined,
         source: source || undefined,
@@ -104,14 +102,13 @@ export function OrdersPage() {
     }), [q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo]);
 
     const isShipmentsTab = tabKey === 'shipments';
-    const isPrepareTab = activeStage === 'prepare';
+    const isPrepareTab = tabKey === 'pending';   // tab "Chờ xử lý" — cho chọn nhiều đơn + "Chuẩn bị hàng" hàng loạt
 
     // skip the (unused) orders list when on the shipments tab
     const { data, isFetching, refetch } = useOrders(isShipmentsTab ? { ...filters, page: 1, per_page: 1 } : filters);
     const { data: stats } = useOrderStats(statsFilters);
 
-    const countForTab = (t: { statuses?: string[]; stage?: string }) =>
-        t.stage ? (stats?.by_stage?.[t.stage] ?? 0) : (t.statuses ?? []).reduce((s, st) => s + (stats?.by_status?.[st] ?? 0), 0);
+    const countForTab = (t: { statuses?: string[] }) => (t.statuses ?? []).reduce((s, st) => s + (stats?.by_status?.[st] ?? 0), 0);
     const shopName = (id: number) => accounts.find((a) => a.id === id)?.name ?? `#${id}`;
 
     // chip-row items
@@ -158,23 +155,27 @@ export function OrdersPage() {
         },
         { title: 'Người mua', dataIndex: 'buyer_name', key: 'buyer', width: 180, render: (v, o) => <Space direction="vertical" size={0}><span>{v ?? '—'}</span><Typography.Text type="secondary" style={{ fontSize: 12 }}>{o.buyer_phone_masked ?? ''}</Typography.Text></Space> },
         { title: 'ĐVVC', dataIndex: 'carrier', key: 'carrier', width: 110, render: (v) => (v ? <Tag>{v}</Tag> : '—') },
-        { title: 'Tổng tiền', dataIndex: 'grand_total', key: 'total', width: 130, align: 'right', render: (v, o) => <MoneyText value={v} currency={o.currency} strong /> },
         {
-            title: 'Lợi nhuận ƯT', key: 'profit', width: 140, align: 'right',
-            render: (_, o) => {
+            title: 'Tổng tiền', dataIndex: 'grand_total', key: 'total', width: 160, align: 'right',
+            render: (v, o) => {
                 const p = o.profit;
-                if (!p) return <Typography.Text type="secondary">—</Typography.Text>;
                 return (
-                    <Tooltip title={<div style={{ lineHeight: 1.7 }}>
-                        Phí sàn ({p.platform_fee_pct}%): −{p.platform_fee.toLocaleString('vi-VN')} ₫<br />
-                        Phí vận chuyển: −{p.shipping_fee.toLocaleString('vi-VN')} ₫<br />
-                        Giá vốn hàng: −{p.cogs.toLocaleString('vi-VN')} ₫{!p.cost_complete && ' (chưa đủ — thiếu giá vốn SKU)'}
-                    </div>}>
-                        <span style={{ color: p.estimated_profit >= 0 ? '#389e0d' : '#cf1322', fontWeight: 600 }}>
-                            {!p.cost_complete && <WarningOutlined style={{ color: '#faad14', marginRight: 4 }} />}
-                            {p.estimated_profit.toLocaleString('vi-VN')} ₫
-                        </span>
-                    </Tooltip>
+                    <Space direction="vertical" size={0} style={{ width: '100%' }} align="end">
+                        <MoneyText value={v} currency={o.currency} strong />
+                        {p && (
+                            <Tooltip title={<div style={{ lineHeight: 1.7 }}>
+                                Lợi nhuận ước tính sau phí sàn:<br />
+                                Phí sàn ({p.platform_fee_pct}%): −{p.platform_fee.toLocaleString('vi-VN')} ₫<br />
+                                Phí vận chuyển: −{p.shipping_fee.toLocaleString('vi-VN')} ₫<br />
+                                Giá vốn hàng: −{p.cogs.toLocaleString('vi-VN')} ₫{!p.cost_complete && ' (chưa đủ — thiếu giá vốn SKU)'}
+                            </div>}>
+                                <span style={{ fontSize: 12, color: p.estimated_profit >= 0 ? '#389e0d' : '#cf1322' }}>
+                                    {!p.cost_complete && <WarningOutlined style={{ color: '#faad14', marginRight: 3 }} />}
+                                    LN: {p.estimated_profit.toLocaleString('vi-VN')} ₫
+                                </span>
+                            </Tooltip>
+                        )}
+                    </Space>
                 );
             },
         },
