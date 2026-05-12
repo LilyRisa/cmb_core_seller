@@ -2,30 +2,47 @@
 
 namespace CMBcoreSeller\Support;
 
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
  * Stores user-uploaded media on the configured media disk (Cloudflare R2 in
- * production — see config/media.php & docs/07-ops/cloudflare-r2-uploads.md) and
+ * production — see config/media.php & docs/07-infra/cloudflare-r2-uploads.md) and
  * returns the public URL. Tenant-scoped paths keep one tenant's files together.
  */
 class MediaUploader
 {
+    /** Configured media disk name — normalised (lowercase/trim) in config/media.php; validated here. */
+    public function diskName(): string
+    {
+        $name = (string) config('media.disk', 'public');
+        if (! is_array(config("filesystems.disks.$name"))) {
+            $known = implode(', ', array_keys((array) config('filesystems.disks', [])));
+            throw new \RuntimeException("Disk lưu media [{$name}] chưa được khai trong config/filesystems.php (có: {$known}). Kiểm tra MEDIA_DISK / xem docs/07-infra/cloudflare-r2-uploads.md.");
+        }
+
+        return $name;
+    }
+
+    private function disk(): FilesystemAdapter
+    {
+        return Storage::disk($this->diskName());
+    }
+
     /**
      * @return array{path: string, url: string} the stored object key and its public URL
      */
     public function storeImage(UploadedFile $file, int $tenantId, string $folder): array
     {
-        $disk = (string) config('media.disk');
         $ext = strtolower($file->getClientOriginalExtension() ?: $file->guessExtension() ?: 'jpg');
         $name = Str::ulid().'.'.$ext;
         $dir = "tenants/{$tenantId}/{$folder}";
 
-        // putFileAs() with 'public' visibility — on R2 the ACL is ignored (bucket-level),
-        // on the local "public" disk it makes the file world-readable via /storage.
-        $path = Storage::disk($disk)->putFileAs($dir, $file, $name, 'public');
+        // No explicit visibility/ACL: R2 serves public at the bucket level (per-object ACL is ignored
+        // and can error on R2), and the local "public" disk already has visibility=public.
+        $path = $this->disk()->putFileAs($dir, $file, $name);
         if ($path === false) {
             throw new \RuntimeException('Không lưu được tệp lên kho lưu trữ.');
         }
@@ -40,9 +57,8 @@ class MediaUploader
      */
     public function storeBytes(string $contents, int $tenantId, string $folder, string $name, string $ext): array
     {
-        $disk = (string) config('media.disk');
         $path = "tenants/{$tenantId}/{$folder}/{$name}.{$ext}";
-        if (Storage::disk($disk)->put($path, $contents, 'public') === false) {
+        if ($this->disk()->put($path, $contents) === false) {
             throw new \RuntimeException('Không lưu được tệp lên kho lưu trữ.');
         }
 
@@ -52,7 +68,7 @@ class MediaUploader
     /** Read raw bytes back from a stored object key (used to merge label PDFs). */
     public function get(string $path): ?string
     {
-        $disk = Storage::disk((string) config('media.disk'));
+        $disk = $this->disk();
 
         return $disk->exists($path) ? $disk->get($path) : null;
     }
@@ -60,7 +76,7 @@ class MediaUploader
     /** Public URL for a stored object key (uses the disk's configured `url`). */
     public function url(string $path): string
     {
-        return Storage::disk((string) config('media.disk'))->url($path);
+        return $this->disk()->url($path);
     }
 
     /** Best-effort delete; ignores "not found". Pass the stored object key (not the URL). */
@@ -69,7 +85,7 @@ class MediaUploader
         if (! $path) {
             return;
         }
-        $disk = Storage::disk((string) config('media.disk'));
+        $disk = $this->disk();
         if ($disk->exists($path)) {
             $disk->delete($path);
         }

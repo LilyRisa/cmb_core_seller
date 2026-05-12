@@ -28,7 +28,7 @@
 
 | Biến | Bắt buộc | Giá trị |
 |---|---|---|
-| `MEDIA_DISK` | ✅ | `r2` |
+| `MEDIA_DISK` | ✅ | `r2` (không phân biệt hoa/thường — `R2` cũng được; `config/media.php` tự lowercase+trim) |
 | `MEDIA_IMAGE_MAX_KB` | — | `5120` (mặc định) — giới hạn dung lượng mỗi ảnh |
 | `R2_ACCESS_KEY_ID` | ✅ | Access Key ID của token R2 (bước 2.4) |
 | `R2_SECRET_ACCESS_KEY` | ✅ | Secret Access Key của token R2 |
@@ -56,6 +56,7 @@ Stack prod chạy `RUN_MIGRATIONS=false` và **cache config mỗi lần containe
    - `media.disk` phải in `"r2"` (nếu in `"public"` ⇒ env chưa nạp / chưa redeploy — xem §3 cảnh báo `x-app-env`).
    - URL in ra phải mở được trên trình duyệt (nếu 401/404 ⇒ chưa bật public access ở bước 2.5, hoặc `R2_URL` sai).
    - Lỗi `The provided token... / SignatureDoesNotMatch` ⇒ sai `R2_ACCESS_KEY_ID/SECRET` hoặc token không có quyền ghi / sai bucket scope. Lỗi `endpoint... region` ⇒ `R2_ENDPOINT` sai hoặc đặt `R2_DEFAULT_REGION` khác `auto`.
+   - Lỗi khi **upload ảnh**: `Disk [R2] does not have a configured driver.` ⇒ `MEDIA_DISK` viết hoa/khác `r2` (đã fix: `config/media.php` tự chuẩn hoá; nếu vẫn lỗi ⇒ container chưa nạp lại config — **redeploy/recreate** stack). `Disk lưu media [...] chưa được khai trong config/filesystems.php` ⇒ đặt `MEDIA_DISK` về `r2`.
 5. **Reverse proxy / CSP**: ảnh phục vụ từ `R2_URL` (domain Cloudflare hoặc custom domain), không qua nginx của app — không cần chỉnh `cmb-web`. Nếu có `Content-Security-Policy` chặn `img-src` ⇒ thêm domain `R2_URL` vào `img-src`.
 
 ## 5. Vận hành & lưu ý
