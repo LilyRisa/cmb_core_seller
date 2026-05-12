@@ -45,7 +45,8 @@ docs/
 │   ├── endpoints.md                 Danh mục endpoint hiện có (auth, tenant, health) — cập nhật khi thêm API
 │   └── webhooks-and-oauth.md        /webhook/{provider}, verify chữ ký, /oauth/callback
 ├── 06-frontend/
-│   └── overview.md                  React-in-Laravel, Vite, AntD, React Query, cấu trúc
+│   ├── overview.md                  React-in-Laravel, Vite, AntD, React Query, cấu trúc
+│   └── orders-filter-panel.md       Panel "Lọc" trang Đơn hàng — chip rows kiểu BigSeller + hợp đồng /orders/stats
 ├── 07-infra/
 │   ├── environments-and-docker.md   Môi trường dev/staging/prod, Docker Compose
 │   ├── portainer-deploy.md          ★ Runbook deploy prod qua Portainer (checklist, migrate, kiểm webhook/worker)

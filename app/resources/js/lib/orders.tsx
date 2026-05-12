@@ -90,6 +90,17 @@ export interface OrderFilters {
 }
 
 export interface CarrierCount { carrier: string; count: number }
+export interface SourceCount { source: string; count: number }
+export interface ShopCount { channel_account_id: number; count: number }
+
+export interface OrderStats {
+    total: number;
+    has_issue: number;
+    by_status: Record<string, number>;
+    by_source: SourceCount[];
+    by_shop: ShopCount[];
+    by_carrier: CarrierCount[];
+}
 
 export interface Paginated<T> {
     data: T[];
@@ -126,7 +137,7 @@ export function useOrderStats(filters: Omit<OrderFilters, 'status' | 'page' | 'p
         queryFn: async () => {
             const params: Record<string, string | number | boolean> = {};
             Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== '' && v !== false) params[k] = v as never; });
-            const { data } = await api!.get<{ data: { total: number; has_issue: number; by_status: Record<string, number>; by_carrier: CarrierCount[] } }>('/orders/stats', { params });
+            const { data } = await api!.get<{ data: OrderStats }>('/orders/stats', { params });
             return data.data;
         },
     });

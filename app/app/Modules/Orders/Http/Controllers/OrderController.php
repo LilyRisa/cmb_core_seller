@@ -135,26 +135,39 @@ class OrderController extends Controller
         return response()->json(['data' => new OrderResource($order)]);
     }
 
-    /** GET /api/v1/orders/stats — counts per canonical status (for the list tabs). */
+    /**
+     * GET /api/v1/orders/stats — faceted counts for the "Lọc" panel + status tabs.
+     * - status counts use every filter EXCEPT status/has_issue (so the tabs show their own counts);
+     * - source/shop/carrier counts use every filter EXCEPT source/channel_account_id/carrier
+     *   (so each chip row shows full counts regardless of the current chip selection in the others).
+     */
     public function stats(Request $request): JsonResponse
     {
         $this->authorizeView($request);
 
-        $base = $this->applyFilters($request, Order::query(), excludeStatus: true);
-        $counts = (clone $base)->selectRaw('status, count(*) as c')->groupBy('status')->pluck('c', 'status');
-
+        // Base for the status tabs (everything except status/has_issue).
+        $statusBase = $this->applyFilters($request, Order::query(), skip: ['status', 'has_issue']);
+        $counts = (clone $statusBase)->selectRaw('status, count(*) as c')->groupBy('status')->pluck('c', 'status');
         $byStatus = [];
         foreach (StandardOrderStatus::cases() as $s) {
             $byStatus[$s->value] = (int) ($counts[$s->value] ?? 0);
         }
 
-        $byCarrier = (clone $base)->whereNotNull('carrier')->selectRaw('carrier, count(*) as c')->groupBy('carrier')->orderByDesc('c')
-            ->pluck('c', 'carrier')->map(fn ($count, $carrier) => ['carrier' => (string) $carrier, 'count' => (int) $count])->values()->all();
+        // Base for the chip rows (everything except the chip facets themselves).
+        $facetBase = $this->applyFilters($request, Order::query(), skip: ['source', 'channel_account_id', 'carrier']);
+        $bySource = (clone $facetBase)->selectRaw('source, count(*) as c')->groupBy('source')->orderByDesc('c')
+            ->pluck('c', 'source')->map(fn ($n, $src) => ['source' => (string) $src, 'count' => (int) $n])->values()->all();
+        $byShop = (clone $facetBase)->whereNotNull('channel_account_id')->selectRaw('channel_account_id, count(*) as c')->groupBy('channel_account_id')->orderByDesc('c')
+            ->pluck('c', 'channel_account_id')->map(fn ($n, $cid) => ['channel_account_id' => (int) $cid, 'count' => (int) $n])->values()->all();
+        $byCarrier = (clone $facetBase)->whereNotNull('carrier')->selectRaw('carrier, count(*) as c')->groupBy('carrier')->orderByDesc('c')
+            ->pluck('c', 'carrier')->map(fn ($n, $carrier) => ['carrier' => (string) $carrier, 'count' => (int) $n])->values()->all();
 
         return response()->json(['data' => [
-            'total' => (clone $base)->count(),
-            'has_issue' => (clone $base)->where('has_issue', true)->count(),
+            'total' => (clone $statusBase)->count(),
+            'has_issue' => (clone $statusBase)->where('has_issue', true)->count(),
             'by_status' => $byStatus,
+            'by_source' => $bySource,
+            'by_shop' => $byShop,
             'by_carrier' => $byCarrier,
         ]]);
     }
@@ -204,40 +217,46 @@ class OrderController extends Controller
 
     // --- helpers -------------------------------------------------------------
 
-    private function applyFilters(Request $request, Builder $query, bool $excludeStatus = false): Builder
+    /**
+     * @param  list<string>  $skip  filter keys to NOT apply (used by stats() for faceted counts):
+     *                              status | source | channel_account_id | carrier | has_issue | q | sku | product | placed
+     */
+    private function applyFilters(Request $request, Builder $query, array $skip = []): Builder
     {
-        if (! $excludeStatus && $status = $request->query('status')) {
+        $use = fn (string $key) => ! in_array($key, $skip, true);
+
+        if ($use('status') && $status = $request->query('status')) {
             $values = array_values(array_filter(array_map('trim', explode(',', (string) $status))));
             $valid = array_intersect($values, array_map(fn ($s) => $s->value, StandardOrderStatus::cases()));
             if ($valid) {
                 $query->statusIn($valid);
             }
         }
-        if ($source = $request->query('source')) {
+        if ($use('source') && $source = $request->query('source')) {
             $query->whereIn('source', array_map('trim', explode(',', (string) $source)));
         }
-        if ($cid = $request->query('channel_account_id')) {
+        if ($use('channel_account_id') && $cid = $request->query('channel_account_id')) {
             $query->where('channel_account_id', (int) $cid);
         }
-        if ($carrier = $request->query('carrier')) {
+        if ($use('carrier') && $carrier = $request->query('carrier')) {
             $query->whereIn('carrier', array_map('trim', explode(',', (string) $carrier)));
         }
-        if ($request->boolean('has_issue', false)) {
+        if ($use('has_issue') && $request->boolean('has_issue', false)) {
             $query->where('has_issue', true);
         }
-        if ($q = trim((string) $request->query('q', ''))) {
+        if ($use('q') && $q = trim((string) $request->query('q', ''))) {
             $query->search($q);
         }
-        if ($sku = trim((string) $request->query('sku', ''))) {
+        if ($use('sku') && $sku = trim((string) $request->query('sku', ''))) {
             $query->whereHas('items', fn (Builder $i) => $i->where('seller_sku', 'like', "%{$sku}%"));
         }
-        if ($product = trim((string) $request->query('product', ''))) {
+        if ($use('product') && $product = trim((string) $request->query('product', ''))) {
             $query->whereHas('items', fn (Builder $i) => $i->where('name', 'like', "%{$product}%"));
         }
-        if ($from = $request->query('placed_from')) {
+        if ($use('placed') && $from = $request->query('placed_from')) {
             $query->where('placed_at', '>=', CarbonImmutable::parse($from)->startOfDay());
         }
-        if ($to = $request->query('placed_to')) {
+        if ($use('placed') && $to = $request->query('placed_to')) {
             $query->where('placed_at', '<=', CarbonImmutable::parse($to)->endOfDay());
         }
         if ($tag = $request->query('tag')) {
