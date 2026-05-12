@@ -20,17 +20,17 @@ use Illuminate\Support\Facades\DB;
 class InventoryLedgerService
 {
     /** Manual stock correction: on_hand += qtyChange. */
-    public function adjust(int $tenantId, int $skuId, ?int $warehouseId, int $qtyChange, ?string $note = null, ?int $userId = null): InventoryMovement
+    public function adjust(int $tenantId, int $skuId, ?int $warehouseId, int $qtyChange, ?string $note = null, ?int $userId = null, ?string $refType = null, ?int $refId = null): InventoryMovement
     {
         return $this->apply($tenantId, $skuId, $warehouseId, onHandDelta: $qtyChange, reservedDelta: 0,
-            type: InventoryMovement::MANUAL_ADJUST, qtyChange: $qtyChange, refType: null, refId: null, note: $note, userId: $userId, reason: 'manual_adjust');
+            type: InventoryMovement::MANUAL_ADJUST, qtyChange: $qtyChange, refType: $refType, refId: $refId, note: $note, userId: $userId, reason: 'manual_adjust');
     }
 
     /** Goods receipt (PO / initial stock): on_hand += qty. */
-    public function receipt(int $tenantId, int $skuId, ?int $warehouseId, int $qty, ?string $refType = null, ?int $refId = null, ?int $userId = null): InventoryMovement
+    public function receipt(int $tenantId, int $skuId, ?int $warehouseId, int $qty, ?string $note = null, ?string $refType = null, ?int $refId = null, ?int $userId = null): InventoryMovement
     {
         return $this->apply($tenantId, $skuId, $warehouseId, onHandDelta: $qty, reservedDelta: 0,
-            type: InventoryMovement::GOODS_RECEIPT, qtyChange: $qty, refType: $refType, refId: $refId, note: null, userId: $userId, reason: 'goods_receipt');
+            type: InventoryMovement::GOODS_RECEIPT, qtyChange: $qty, refType: $refType, refId: $refId, note: $note, userId: $userId, reason: 'goods_receipt');
     }
 
     /** Hold stock for an order line: reserved += qty. Idempotent per (order_item, sku). */

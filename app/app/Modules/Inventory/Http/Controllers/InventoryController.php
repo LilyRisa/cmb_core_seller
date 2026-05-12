@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Inventory\Http\Controllers;
 use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Modules\Inventory\Http\Resources\InventoryLevelResource;
 use CMBcoreSeller\Modules\Inventory\Http\Resources\InventoryMovementResource;
+use CMBcoreSeller\Modules\Inventory\Jobs\PushStockForSku;
 use CMBcoreSeller\Modules\Inventory\Models\InventoryLevel;
 use CMBcoreSeller\Modules\Inventory\Models\InventoryMovement;
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
@@ -60,6 +61,66 @@ class InventoryController extends Controller
         );
 
         return response()->json(['data' => new InventoryMovementResource($movement)], 201);
+    }
+
+    /**
+     * POST /api/v1/inventory/bulk-adjust — apply many (SKU, qty) lines at once
+     * ("phiếu nhập/xuất kho thủ công hàng loạt"). Each line → one inventory_movements
+     * row sharing the same `note` (no header table — Phase 5 adds that). See SPEC 0004 §3.1.
+     */
+    public function bulkAdjust(Request $request, InventoryLedgerService $ledger, CurrentTenant $tenant): JsonResponse
+    {
+        abort_unless($request->user()?->can('inventory.adjust'), 403, 'Bạn không có quyền điều chỉnh tồn kho.');
+        $data = $request->validate([
+            'kind' => ['required', 'in:goods_receipt,manual_adjust'],
+            'warehouse_id' => ['sometimes', 'nullable', 'integer'],
+            'note' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'lines' => ['required', 'array', 'min:1', 'max:500'],
+            'lines.*.sku_id' => ['required', 'integer'],
+            'lines.*.qty_change' => ['required', 'integer', 'not_in:0'],
+        ]);
+        $skuIds = array_map(fn ($l) => (int) $l['sku_id'], $data['lines']);
+        if (count($skuIds) !== count(array_unique($skuIds))) {
+            return response()->json(['error' => ['code' => 'DUPLICATE_SKU', 'message' => 'Một SKU chỉ được xuất hiện một lần trong phiếu — vui lòng gộp lại.']], 422);
+        }
+        $valid = Sku::query()->whereIn('id', $skuIds)->pluck('id')->all();
+        $missing = array_diff($skuIds, array_map('intval', $valid));
+        if ($missing !== []) {
+            return response()->json(['error' => ['code' => 'SKU_NOT_FOUND', 'message' => 'SKU không tồn tại: '.implode(', ', $missing)]], 422);
+        }
+        if ($data['kind'] === 'goods_receipt') {
+            foreach ($data['lines'] as $l) {
+                if ((int) $l['qty_change'] <= 0) {
+                    return response()->json(['error' => ['code' => 'INVALID_QTY', 'message' => 'Phiếu nhập kho chỉ nhận số lượng dương.']], 422);
+                }
+            }
+        }
+
+        $tenantId = (int) $tenant->id();
+        $userId = $request->user()->getKey();
+        $note = $data['note'] ?? null;
+        $whId = $data['warehouse_id'] ?? null;
+        $movements = [];
+        foreach ($data['lines'] as $l) {
+            $movements[] = $data['kind'] === 'goods_receipt'
+                ? $ledger->receipt($tenantId, (int) $l['sku_id'], $whId, (int) $l['qty_change'], $note, 'manual_bulk', null, $userId)
+                : $ledger->adjust($tenantId, (int) $l['sku_id'], $whId, (int) $l['qty_change'], $note, $userId, 'manual_bulk', null);
+        }
+
+        return response()->json(['data' => ['applied' => count($movements), 'movements' => InventoryMovementResource::collection($movements)]], 201);
+    }
+
+    /** POST /api/v1/inventory/push-stock { sku_ids } — manually re-push stock for the selected SKUs now (no debounce). */
+    public function pushStock(Request $request, CurrentTenant $tenant): JsonResponse
+    {
+        abort_unless($request->user()?->can('inventory.map'), 403, 'Bạn không có quyền đẩy tồn.');
+        $data = $request->validate(['sku_ids' => ['required', 'array', 'min:1', 'max:500'], 'sku_ids.*' => ['integer']]);
+        $ids = Sku::query()->whereIn('id', array_map('intval', $data['sku_ids']))->pluck('id');
+        foreach ($ids as $skuId) {
+            PushStockForSku::dispatch((int) $tenant->id(), (int) $skuId);
+        }
+
+        return response()->json(['data' => ['queued' => $ids->count()]]);
     }
 
     /** GET /api/v1/inventory/movements */

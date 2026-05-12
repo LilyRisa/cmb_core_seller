@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { App as AntApp, Avatar, Badge, Button, Card, DatePicker, Empty, Input, Select, Space, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
-import { ReloadOutlined, SearchOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons';
+import { Alert, App as AntApp, Avatar, Badge, Button, Card, DatePicker, Empty, Input, Select, Space, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
+import { LinkOutlined, ReloadOutlined, SearchOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
@@ -9,11 +9,14 @@ import { StatusTag } from '@/components/StatusTag';
 import { ChannelBadge } from '@/components/ChannelBadge';
 import { MoneyText, DateText } from '@/components/MoneyText';
 import { FilterChipRow, type ChipItem } from '@/components/FilterChipRow';
+import { LinkSkusModal } from '@/components/LinkSkusModal';
 import { errorMessage } from '@/lib/api';
 import { CHANNEL_META, ORDER_STATUS_TABS } from '@/lib/format';
 import { Order, useOrders, useOrderStats, useSyncOrders } from '@/lib/orders';
 import { useChannelAccounts } from '@/lib/channels';
 import { useCan } from '@/lib/tenant';
+
+const UNMAPPED_REASON = 'SKU chưa ghép';
 
 const { RangePicker } = DatePicker;
 
@@ -40,6 +43,9 @@ export function OrdersPage() {
     const accounts = channelsData?.data ?? [];
     const syncOrders = useSyncOrders();
     const canCreate = useCan('orders.create');
+    const canMap = useCan('inventory.map');
+    const [selectedKeys, setSelectedKeys] = useState<number[]>([]);
+    const [linkModal, setLinkModal] = useState<{ open: boolean; orderIds?: number[] }>({ open: false });
 
     const tabKey = params.get('tab') ?? (params.get('has_issue') ? 'issue' : '');
     const statusParam = params.get('status') ?? '';
@@ -119,7 +125,9 @@ export function OrdersPage() {
                         <ChannelBadge provider={o.source} />
                         {(o.channel_account?.name ?? (o.channel_account_id ? shopName(o.channel_account_id) : null)) && <Tag>{o.channel_account?.name ?? shopName(o.channel_account_id!)}</Tag>}
                         {o.is_cod && <Tag color="gold">COD</Tag>}
-                        {o.has_issue && <Tooltip title={o.issue_reason ?? 'Đơn có vấn đề'}><Tag color="error" icon={<WarningOutlined />}>Lỗi</Tag></Tooltip>}
+                        {o.issue_reason === UNMAPPED_REASON
+                            ? <Tag color="error" icon={<LinkOutlined />} style={{ cursor: 'pointer' }} onClick={() => setLinkModal({ open: true, orderIds: [o.id] })}>Chưa liên kết SKU — Liên kết</Tag>
+                            : o.has_issue && <Tooltip title={o.issue_reason ?? 'Đơn có vấn đề'}><Tag color="error" icon={<WarningOutlined />}>Lỗi</Tag></Tooltip>}
                     </Space>
                 </Space>
             ),
@@ -215,10 +223,25 @@ export function OrdersPage() {
                 </div>
             </Card>
 
+            {canMap && (stats?.unmapped ?? 0) > 0 && (
+                <Alert
+                    type="error" showIcon style={{ marginTop: 12 }}
+                    message={<>Có <b>{stats!.unmapped}</b> đơn chưa liên kết SKU — chưa thể trừ tồn cho các đơn này.</>}
+                    action={<Button danger size="small" icon={<LinkOutlined />} onClick={() => setLinkModal({ open: true, orderIds: undefined })}>Liên kết hàng loạt</Button>}
+                />
+            )}
+
             <Card style={{ marginTop: 12 }} styles={{ body: { padding: 16 } }}>
+                {canMap && selectedKeys.length > 0 && (
+                    <Space style={{ marginBottom: 12 }}>
+                        <Button type="primary" icon={<LinkOutlined />} onClick={() => setLinkModal({ open: true, orderIds: selectedKeys })}>Liên kết SKU ({selectedKeys.length})</Button>
+                        <Button onClick={() => setSelectedKeys([])}>Bỏ chọn</Button>
+                    </Space>
+                )}
                 <Table<Order>
                     rowKey="id" size="middle" loading={isFetching}
                     dataSource={data?.data ?? []} columns={columns}
+                    rowSelection={canMap ? { selectedRowKeys: selectedKeys, onChange: (keys) => setSelectedKeys(keys as number[]), getCheckboxProps: (o) => ({ disabled: o.issue_reason !== UNMAPPED_REASON }) } : undefined}
                     locale={{ emptyText: <Empty description="Chưa có đơn hàng. Kết nối gian hàng để đơn tự về, hoặc bấm “Đồng bộ đơn”." /> }}
                     rowClassName={(o) => (o.has_issue ? 'row-has-issue' : '')}
                     pagination={{
@@ -231,6 +254,8 @@ export function OrdersPage() {
                     }}
                 />
             </Card>
+
+            <LinkSkusModal open={linkModal.open} orderIds={linkModal.orderIds} onClose={() => { setLinkModal({ open: false }); setSelectedKeys([]); }} />
         </div>
     );
 }

@@ -165,6 +165,7 @@ class OrderController extends Controller
         return response()->json(['data' => [
             'total' => (clone $statusBase)->count(),
             'has_issue' => (clone $statusBase)->where('has_issue', true)->count(),
+            'unmapped' => (clone $statusBase)->where('has_issue', true)->where('issue_reason', 'SKU chưa ghép')->count(),
             'by_status' => $byStatus,
             'by_source' => $bySource,
             'by_shop' => $byShop,

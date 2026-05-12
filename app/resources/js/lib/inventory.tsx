@@ -193,6 +193,29 @@ export function useAdjustStock() {
     });
 }
 
+export function useBulkAdjustStock() {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    const invalidate = useInvalidate([['inventory-levels', tenantId], ['skus', tenantId], ['sku', tenantId]]);
+    return useMutation({
+        mutationFn: async (vars: { kind: 'goods_receipt' | 'manual_adjust'; warehouse_id?: number; note?: string; lines: Array<{ sku_id: number; qty_change: number }> }) => {
+            const { data } = await api!.post<{ data: { applied: number } }>('/inventory/bulk-adjust', vars);
+            return data.data;
+        },
+        onSuccess: invalidate,
+    });
+}
+
+export function useBulkPushStock() {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    const invalidate = useInvalidate([['channel-listings', tenantId]]);
+    return useMutation({
+        mutationFn: async (skuIds: number[]) => { const { data } = await api!.post<{ data: { queued: number } }>('/inventory/push-stock', { sku_ids: skuIds }); return data.data; },
+        onSuccess: invalidate,
+    });
+}
+
 export function useCreateProduct() {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();

@@ -26,6 +26,7 @@ use Illuminate\Support\Carbon;
  * @property array|null $raw
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property-read Order|null $order
  */
 class OrderItem extends Model
 {

@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Alert, Avatar, Button, Card, Col, Descriptions, Divider, Empty, Input, Result, Row, Skeleton, Space, Table, Tag, Timeline, Typography } from 'antd';
 import { App as AntApp } from 'antd';
-import { ArrowLeftOutlined, WarningOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, LinkOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusTag } from '@/components/StatusTag';
 import { ChannelBadge } from '@/components/ChannelBadge';
 import { MoneyText, DateText } from '@/components/MoneyText';
 import { CustomerSummaryCard } from '@/components/CustomerSummaryCard';
+import { LinkSkusModal } from '@/components/LinkSkusModal';
 import { errorMessage } from '@/lib/api';
 import { OrderItem, useOrder, useOrderNote, useOrderTags } from '@/lib/orders';
 import { useCan } from '@/lib/tenant';
@@ -32,6 +33,8 @@ export function OrderDetailPage() {
     const note = useOrderNote(Number(id));
     const [newTag, setNewTag] = useState('');
     const [noteDraft, setNoteDraft] = useState<string | undefined>(undefined);
+    const [linkOpen, setLinkOpen] = useState(false);
+    const canMap = useCan('inventory.map');
 
     if (isError) return <Result status="error" title="Không tải được đơn hàng" subTitle={errorMessage(error)} extra={<Link to="/orders"><Button>Về danh sách đơn</Button></Link>} />;
     if (isLoading || !order) return <Card><Skeleton active paragraph={{ rows: 8 }} /></Card>;
@@ -66,7 +69,11 @@ export function OrderDetailPage() {
                 subtitle={<>Đặt lúc <DateText value={order.placed_at} /> · cập nhật <DateText value={order.created_at} /></>}
             />
 
-            {order.has_issue && <Alert type="warning" showIcon icon={<WarningOutlined />} style={{ marginBottom: 16 }} message="Đơn hàng có vấn đề" description={order.issue_reason ?? 'Vui lòng kiểm tra.'} />}
+            {order.issue_reason === 'SKU chưa ghép'
+                ? <Alert type="error" showIcon icon={<LinkOutlined />} style={{ marginBottom: 16 }} message="Đơn này chưa liên kết SKU" description="Chưa thể trừ tồn — hãy liên kết SKU sàn với master SKU."
+                    action={canMap ? <Button danger icon={<LinkOutlined />} onClick={() => setLinkOpen(true)}>Liên kết SKU</Button> : undefined} />
+                : order.has_issue && <Alert type="warning" showIcon icon={<WarningOutlined />} style={{ marginBottom: 16 }} message="Đơn hàng có vấn đề" description={order.issue_reason ?? 'Vui lòng kiểm tra.'} />}
+            <LinkSkusModal open={linkOpen} orderIds={order.id ? [order.id] : undefined} onClose={() => setLinkOpen(false)} />
 
             <Row gutter={16}>
                 <Col xs={24} lg={16}>

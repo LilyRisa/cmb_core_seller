@@ -73,8 +73,10 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::post('orders/{id}/cancel', [OrderController::class, 'cancel'])->whereNumber('id')->name('orders.cancel');
             Route::post('orders/{id}/tags', [OrderController::class, 'updateTags'])->whereNumber('id')->name('orders.tags');
             Route::patch('orders/{id}/note', [OrderController::class, 'updateNote'])->whereNumber('id')->name('orders.note');
+            Route::get('orders/unmapped-skus', [SkuMappingController::class, 'unmappedFromOrders'])->name('orders.unmapped-skus');   // SPEC 0004
+            Route::post('orders/link-skus', [SkuMappingController::class, 'linkFromOrders'])->name('orders.link-skus');
 
-            // --- Products / SKUs / Inventory / Listings & SKU mapping (Phase 2 / SPEC 0003) ---
+            // --- Products / SKUs / Inventory / Listings & SKU mapping (Phase 2 / SPEC 0003 + 0004) ---
             Route::get('products', [ProductController::class, 'index'])->name('products.index');
             Route::post('products', [ProductController::class, 'store'])->name('products.store');
             Route::get('products/{id}', [ProductController::class, 'show'])->whereNumber('id')->name('products.show');
@@ -93,6 +95,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
             Route::get('inventory/levels', [InventoryController::class, 'levels'])->name('inventory.levels');
             Route::post('inventory/adjust', [InventoryController::class, 'adjust'])->name('inventory.adjust');
+            Route::post('inventory/bulk-adjust', [InventoryController::class, 'bulkAdjust'])->name('inventory.bulk-adjust');     // SPEC 0004
+            Route::post('inventory/push-stock', [InventoryController::class, 'pushStock'])->name('inventory.push-stock');       // SPEC 0004
             Route::get('inventory/movements', [InventoryController::class, 'movements'])->name('inventory.movements');
 
             Route::get('channel-listings', [ChannelListingController::class, 'index'])->name('channel-listings.index');

@@ -93,9 +93,22 @@ export interface CarrierCount { carrier: string; count: number }
 export interface SourceCount { source: string; count: number }
 export interface ShopCount { channel_account_id: number; count: number }
 
+export interface UnmappedSkuGroup {
+    channel_account_id: number;
+    channel_account_name: string;
+    external_sku_id: string | null;
+    seller_sku: string | null;
+    sample_name: string;
+    order_count: number;
+    item_count: number;
+    existing_listing_id: number | null;
+    suggested_sku_id: number | null;
+}
+
 export interface OrderStats {
     total: number;
     has_issue: number;
+    unmapped: number;
     by_status: Record<string, number>;
     by_source: SourceCount[];
     by_shop: ShopCount[];
@@ -150,6 +163,41 @@ export function useSyncOrders() {
     return useMutation({
         mutationFn: async () => { const { data } = await api!.post<{ data: { queued: number } }>('/orders/sync'); return data.data; },
         onSuccess: () => qc.invalidateQueries({ queryKey: ['orders', tenantId] }),
+    });
+}
+
+/** Distinct channel SKUs (merged) across orders whose lines are still unmapped. orderIds empty/undefined = all unmapped orders. */
+export function useUnmappedSkus(orderIds: number[] | undefined, enabled = true) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    const key = (orderIds && orderIds.length ? orderIds.slice().sort((a, b) => a - b).join(',') : 'all');
+    return useQuery({
+        queryKey: ['orders-unmapped-skus', tenantId, key],
+        enabled: api != null && enabled,
+        queryFn: async () => {
+            const params = orderIds && orderIds.length ? { order_ids: orderIds.join(',') } : {};
+            const { data } = await api!.get<{ data: UnmappedSkuGroup[] }>('/orders/unmapped-skus', { params });
+            return data.data;
+        },
+    });
+}
+
+export function useLinkOrderSkus() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    const tenantId = useCurrentTenantId();
+    return useMutation({
+        mutationFn: async (links: Array<{ channel_account_id: number; external_sku_id?: string | null; seller_sku?: string | null; sku_id: number }>) => {
+            const { data } = await api!.post<{ data: { linked: number; listings_created: number; orders_resolved: number } }>('/orders/link-skus', { links });
+            return data.data;
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['orders', tenantId] });
+            qc.invalidateQueries({ queryKey: ['orders-unmapped-skus', tenantId] });
+            qc.invalidateQueries({ queryKey: ['inventory-levels', tenantId] });
+            qc.invalidateQueries({ queryKey: ['skus', tenantId] });
+            qc.invalidateQueries({ queryKey: ['channel-listings', tenantId] });
+        },
     });
 }
 

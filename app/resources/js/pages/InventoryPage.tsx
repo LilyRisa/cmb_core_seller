@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { App as AntApp, Button, Card, Empty, Form, Input, InputNumber, Modal, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
-import { CloudDownloadOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { CloudDownloadOutlined, CloudUploadOutlined, DeleteOutlined, ImportOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { MoneyText } from '@/components/MoneyText';
@@ -9,7 +9,7 @@ import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
 import {
     ChannelListing, InventoryLevel, Sku,
-    useAdjustStock, useAutoMatchSkus, useChannelListings, useCreateSku, useInventoryLevels, useRemoveSkuMapping, useSetSkuMapping, useSkus, useSyncChannelListings,
+    useAdjustStock, useAutoMatchSkus, useBulkAdjustStock, useBulkPushStock, useChannelListings, useCreateSku, useInventoryLevels, useRemoveSkuMapping, useSetSkuMapping, useSkus, useSyncChannelListings, useWarehouses,
 } from '@/lib/inventory';
 
 function StockBadge({ available }: { available: number }) {
@@ -92,9 +92,18 @@ function SkusTab() {
     const [page, setPage] = useState(1);
     const { data, isFetching } = useSkus({ q: q || undefined, page, per_page: 20 });
     const create = useCreateSku();
+    const bulkAdjust = useBulkAdjustStock();
+    const bulkPush = useBulkPushStock();
+    const { data: warehouses } = useWarehouses();
     const canManage = useCan('products.manage');
+    const canAdjust = useCan('inventory.adjust');
+    const canMap = useCan('inventory.map');
     const [open, setOpen] = useState(false);
+    const [bulkOpen, setBulkOpen] = useState(false);
+    const [selectedKeys, setSelectedKeys] = useState<number[]>([]);
     const [form] = Form.useForm();
+    const [bulkForm] = Form.useForm();
+    const skuOptions = (data?.data ?? []).map((s) => ({ value: s.id, label: `${s.sku_code} · ${s.name}` }));
 
     const columns: ColumnsType<Sku> = [
         { title: 'Mã SKU', dataIndex: 'sku_code', key: 'code', render: (v) => <Typography.Text strong>{v}</Typography.Text> },
@@ -107,11 +116,16 @@ function SkusTab() {
 
     return (
         <>
-            <Space style={{ marginBottom: 12 }}>
-                <Input.Search allowClear placeholder="Mã / tên / barcode" prefix={<SearchOutlined />} style={{ width: 280 }} onSearch={(v) => { setQ(v); setPage(1); }} />
+            <Space style={{ marginBottom: 12 }} wrap>
+                <Input.Search allowClear placeholder="Mã / tên / barcode" prefix={<SearchOutlined />} style={{ width: 260 }} onSearch={(v) => { setQ(v); setPage(1); }} />
                 {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setOpen(true); }}>Thêm SKU</Button>}
+                {canAdjust && <Button icon={<ImportOutlined />} onClick={() => { bulkForm.resetFields(); bulkForm.setFieldsValue({ kind: 'goods_receipt', lines: [{}] }); setBulkOpen(true); }}>Phiếu nhập/xuất hàng loạt</Button>}
+                {canMap && selectedKeys.length > 0 && (
+                    <Button icon={<CloudUploadOutlined />} loading={bulkPush.isPending} onClick={() => bulkPush.mutate(selectedKeys, { onSuccess: (r) => { message.success(`Đã yêu cầu đẩy tồn ${r.queued} SKU`); setSelectedKeys([]); }, onError: (e) => message.error(errorMessage(e)) })}>Đẩy tồn lên sàn ({selectedKeys.length})</Button>
+                )}
             </Space>
             <Table<Sku> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns}
+                rowSelection={canMap ? { selectedRowKeys: selectedKeys, onChange: (k) => setSelectedKeys(k as number[]) } : undefined}
                 locale={{ emptyText: <Empty description="Chưa có SKU." /> }}
                 pagination={{ current: data?.meta.pagination.page ?? page, pageSize: 20, total: data?.meta.pagination.total ?? 0, onChange: setPage, showTotal: (t) => `${t} SKU` }} />
 
@@ -122,6 +136,39 @@ function SkusTab() {
                     <Form.Item name="name" label="Tên" rules={[{ required: true, max: 255 }]}><Input /></Form.Item>
                     <Form.Item name="barcode" label="Barcode"><Input maxLength={100} /></Form.Item>
                     <Form.Item name="cost_price" label="Giá vốn (₫)"><InputNumber style={{ width: '100%' }} min={0} /></Form.Item>
+                </Form>
+            </Modal>
+
+            <Modal title="Phiếu nhập / xuất kho hàng loạt" open={bulkOpen} onCancel={() => setBulkOpen(false)} okText="Áp phiếu" width={680} confirmLoading={bulkAdjust.isPending}
+                onOk={() => bulkForm.validateFields().then((v) => {
+                    const lines = (v.lines ?? []).filter((l: { sku_id?: number }) => l?.sku_id).map((l: { sku_id: number; qty_change: number }) => ({ sku_id: l.sku_id, qty_change: l.qty_change }));
+                    if (lines.length === 0) { message.error('Thêm ít nhất một dòng.'); return; }
+                    bulkAdjust.mutate({ kind: v.kind, warehouse_id: v.warehouse_id, note: v.note || undefined, lines }, { onSuccess: (r) => { message.success(`Đã áp ${r.applied} dòng tồn`); setBulkOpen(false); }, onError: (e) => message.error(errorMessage(e)) });
+                })}>
+                <Form form={bulkForm} layout="vertical">
+                    <Space wrap>
+                        <Form.Item name="kind" label="Loại phiếu"><Select style={{ width: 220 }} options={[{ value: 'goods_receipt', label: 'Nhập kho (số lượng dương)' }, { value: 'manual_adjust', label: 'Điều chỉnh tay (±)' }]} /></Form.Item>
+                        <Form.Item name="warehouse_id" label="Kho"><Select allowClear style={{ width: 200 }} placeholder="Kho mặc định" options={(warehouses ?? []).map((w) => ({ value: w.id, label: w.name }))} /></Form.Item>
+                    </Space>
+                    <Form.Item name="note" label="Ghi chú phiếu"><Input maxLength={255} placeholder="VD: Nhập đầu kỳ tháng 5" /></Form.Item>
+                    <Form.List name="lines">
+                        {(fields, { add, remove }) => (
+                            <>
+                                {fields.map((f) => (
+                                    <Space key={f.key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}>
+                                        <Form.Item {...f} name={[f.name, 'sku_id']} rules={[{ required: true, message: 'Chọn SKU' }]} style={{ minWidth: 360, marginBottom: 0 }}>
+                                            <Select showSearch optionFilterProp="label" placeholder="Chọn SKU" options={skuOptions} />
+                                        </Form.Item>
+                                        <Form.Item {...f} name={[f.name, 'qty_change']} rules={[{ required: true }, { validator: (_, n) => (n === 0 ? Promise.reject('≠ 0') : Promise.resolve()) }]} style={{ marginBottom: 0 }}>
+                                            <InputNumber placeholder="Số lượng" style={{ width: 140 }} />
+                                        </Form.Item>
+                                        <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(f.name)} disabled={fields.length === 1} />
+                                    </Space>
+                                ))}
+                                <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({})} block>Thêm dòng</Button>
+                            </>
+                        )}
+                    </Form.List>
                 </Form>
             </Modal>
         </>
