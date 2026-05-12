@@ -18,7 +18,8 @@
 | [0004](0004-bulk-stock-and-sku-linking.md) | Tồn kho thủ công hàng loạt + Liên kết SKU nhanh từ đơn | 2 | Implemented | — |
 | [0005](0005-sku-pim-and-create-form.md) | SKU PIM (thông tin hàng hoá) & form "Thêm SKU đơn độc" | 2 | Implemented | — |
 | [0006](0006-fulfillment-shipments-and-printing.md) | Giao hàng & in: vận đơn, ĐVVC (Manual + GHN), in tem hàng loạt, picking/packing, quét đóng gói | 3 | Implemented (lõi; logistics-của-sàn / GHTK+JT / template tuỳ biến / lưu-in-lại-90-ngày để follow-up) | — |
-| [0007](0007-settings-center.md) | Trung tâm Cài đặt — tài khoản/gói, trung tâm kết nối, nhân viên username-only & vai trò chi tiết, cài đặt đơn hàng, mẫu in *(umbrella plan; tách 0008–0012 khi triển khai)* | 3–6 | Draft | — |
+| [0007](0007-settings-center.md) | Trung tâm Cài đặt — tài khoản/gói, trung tâm kết nối, nhân viên username-only & vai trò chi tiết, cài đặt đơn hàng, mẫu in *(umbrella plan; tách thành các spec con với số kế tiếp khi triển khai)* | 3–6 | Draft | — |
+| [0008](0008-lazada-channel.md) | Lazada — connector (auth + đồng bộ đơn + listings + đẩy tồn + webhook) | 4 | Implemented (lõi; RTS/AWB của Lazada + đối soát = follow-up) | — |
 
 ## Khi nào KHÔNG cần spec
 - Sửa lỗi nhỏ, refactor không đổi hành vi, thay đổi tài liệu, bump dependency, chỉnh CI — chỉ cần PR mô tả rõ. Nhưng nếu "việc nhỏ" hoá ra động chạm kiến trúc/hành vi nghiệp vụ ⇒ dừng, viết spec/ADR.

@@ -1,0 +1,182 @@
+<?php
+
+namespace CMBcoreSeller\Integrations\Channels\Lazada;
+
+use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
+use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
+use RuntimeException;
+
+/**
+ * Thin HTTP client for the Lazada Open Platform.
+ *
+ * - REST gateway (Vietnam: https://api.lazada.vn/rest): every call is signed with
+ *   HMAC-SHA256 ({@see LazadaSigner}); common params `app_key` + `timestamp` (ms) +
+ *   `sign_method=sha256` + `sign` (+ `access_token` for shop-scoped calls). Business
+ *   params go in the query string (GET) or form body (POST). Envelope
+ *   `{ code, type, message, request_id, data }` — `code != "0"` throws {@see LazadaApiException}.
+ * - Token endpoints (auth.lazada.com/rest/auth/token/create|refresh): same signing,
+ *   no access_token.
+ * - The seller authorization page (auth.lazada.com/oauth/authorize) DOES take a
+ *   `redirect_uri` — must equal https://<APP_URL host>/oauth/lazada/callback.
+ *
+ * Sandbox vs production = config only (`integrations.lazada.api_base_url` / `auth_base_url`).
+ * Never logs tokens/secrets. See docs/04-channels/lazada.md, SPEC 0008.
+ */
+class LazadaClient
+{
+    /** @var array<string, mixed> */
+    protected array $cfg;
+
+    public function __construct()
+    {
+        $this->cfg = (array) config('integrations.lazada', []);
+    }
+
+    public function appKey(): string
+    {
+        return (string) ($this->cfg['app_key'] ?? throw new RuntimeException('Lazada app_key is not configured (LAZADA_APP_KEY).'));
+    }
+
+    protected function appSecret(): string
+    {
+        return (string) ($this->cfg['app_secret'] ?? throw new RuntimeException('Lazada app_secret is not configured (LAZADA_APP_SECRET).'));
+    }
+
+    /** redirect_uri registered in the Lazada app console — used in the authorize URL and token exchange. */
+    public function redirectUri(): string
+    {
+        return (string) ($this->cfg['redirect_uri'] ?? url('/oauth/lazada/callback'));
+    }
+
+    /** Seller authorization URL: auth.lazada.com/oauth/authorize?response_type=code&client_id=&redirect_uri=&state= */
+    public function authorizeUrl(string $state): string
+    {
+        $base = (string) ($this->cfg['authorize_url'] ?? 'https://auth.lazada.com/oauth/authorize');
+
+        return $base.'?'.http_build_query([
+            'response_type' => 'code',
+            'force_auth' => 'true',
+            'client_id' => $this->appKey(),
+            'redirect_uri' => $this->redirectUri(),
+            'state' => $state,
+        ]);
+    }
+
+    // --- Token endpoints (auth host) -----------------------------------------
+
+    /** @return array<string,mixed> token data */
+    public function getAccessToken(string $code): array
+    {
+        return $this->call('POST', '/auth/token/create', null, ['code' => $code], authHost: true);
+    }
+
+    /** @return array<string,mixed> token data */
+    public function refreshAccessToken(string $refreshToken): array
+    {
+        return $this->call('POST', '/auth/token/refresh', null, ['refresh_token' => $refreshToken], authHost: true);
+    }
+
+    // --- Signed REST calls ---------------------------------------------------
+
+    /**
+     * @param  array<string, mixed>  $params  business params (arrays are JSON-encoded; merged with system params + signed)
+     * @return array<string, mixed> the `data` object from the envelope
+     */
+    public function call(string $method, string $apiPath, ?AuthContext $auth, array $params = [], bool $authHost = false): array
+    {
+        if ($auth) {
+            $this->throttle($auth);
+        }
+
+        $sysParams = [
+            'app_key' => $this->appKey(),
+            'timestamp' => (string) (now()->getTimestampMs()),
+            'sign_method' => 'sha256',
+        ];
+        if ($auth && $auth->accessToken !== '') {
+            $sysParams['access_token'] = $auth->accessToken;
+        }
+        // string-ify business params; drop nulls
+        $biz = [];
+        foreach ($params as $k => $v) {
+            if ($v === null) {
+                continue;
+            }
+            $biz[$k] = is_array($v) ? (string) json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : (string) $v;
+        }
+        $all = array_merge($sysParams, $biz);
+        $all['sign'] = LazadaSigner::sign($this->appSecret(), $apiPath, $all);
+
+        $base = $authHost
+            ? rtrim((string) ($this->cfg['auth_base_url'] ?? 'https://auth.lazada.com/rest'), '/')
+            : rtrim((string) ($this->cfg['api_base_url'] ?? 'https://api.lazada.vn/rest'), '/');
+        $url = $base.$apiPath;
+
+        $req = $this->http();
+        $resp = strtoupper($method) === 'GET'
+            ? $req->get($url, $all)
+            : $req->asForm()->post($url, $all);
+
+        $json = $resp->json() ?? [];
+        $code = (string) ($json['code'] ?? '');
+        if (! $resp->successful() || ($code !== '' && $code !== '0')) {
+            $this->fail($apiPath, $json, $resp->status());
+        }
+
+        return (array) ($json['data'] ?? $json);
+    }
+
+    /** @param array<string,scalar|null> $params @return array<string,mixed> */
+    public function get(string $apiPath, AuthContext $auth, array $params = []): array
+    {
+        return $this->call('GET', $apiPath, $auth, $params);
+    }
+
+    /** @param array<string,scalar|null> $params @return array<string,mixed> */
+    public function post(string $apiPath, AuthContext $auth, array $params = []): array
+    {
+        return $this->call('POST', $apiPath, $auth, $params);
+    }
+
+    // --- internals -----------------------------------------------------------
+
+    protected function http(): PendingRequest
+    {
+        $http = (array) ($this->cfg['http'] ?? []);
+
+        return Http::timeout((int) ($http['timeout'] ?? 20))
+            ->connectTimeout(10)
+            ->retry((int) ($http['retries'] ?? 2), (int) ($http['retry_sleep_ms'] ?? 500), throw: false)
+            ->acceptJson();
+    }
+
+    protected function throttle(AuthContext $auth): void
+    {
+        $perMin = (int) config('integrations.throttle.lazada', 600);
+        if ($perMin <= 0) {
+            return;
+        }
+        $key = "lazada:rate:{$auth->channelAccountId}";
+        for ($i = 0; $i < 50; $i++) {
+            if (! RateLimiter::tooManyAttempts($key, $perMin)) {
+                RateLimiter::hit($key, 60);
+
+                return;
+            }
+            usleep(200_000);
+        }
+    }
+
+    /** @param array<string,mixed> $json */
+    protected function fail(string $apiPath, array $json, int $httpStatus): never
+    {
+        $code = (string) ($json['code'] ?? '');
+        $message = (string) ($json['message'] ?? 'unknown error');
+        Log::warning('lazada.api.error', ['path' => $apiPath, 'http' => $httpStatus, 'code' => $code]);
+
+        throw new LazadaApiException("Lazada API error on {$apiPath}: [{$code}] {$message}", $code, $httpStatus);
+    }
+}

@@ -335,6 +335,20 @@ export function useUploadSkuImage() {
     });
 }
 
+/** Generic image upload (POST /media/image) — returns `{ path, url }`. Used for ad-hoc order-item images. */
+export function useUploadImage() {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async ({ file, folder }: { file: File; folder?: string }) => {
+            const fd = new FormData();
+            fd.append('image', file);
+            if (folder) fd.append('folder', folder);
+            const { data } = await api!.post<{ data: { path: string; url: string } }>('/media/image', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+            return data.data;
+        },
+    });
+}
+
 export function useDeleteSkuImage() {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();

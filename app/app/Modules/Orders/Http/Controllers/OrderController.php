@@ -88,8 +88,11 @@ class OrderController extends Controller
             'buyer.district' => ['sometimes', 'nullable', 'string', 'max:120'],
             'buyer.province' => ['sometimes', 'nullable', 'string', 'max:120'],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.sku_id' => ['required', 'integer'],
-            'items.*.name' => ['sometimes', 'string', 'max:255'],
+            // A line is either a master SKU (`sku_id`) or an ad-hoc "quick product" (just `name` + price + qty,
+            // optional `image` URL — see ManualOrderService / docs/03-domain/manual-orders-and-finance.md §1).
+            'items.*.sku_id' => ['sometimes', 'nullable', 'integer'],
+            'items.*.name' => ['required_without:items.*.sku_id', 'nullable', 'string', 'max:255'],
+            'items.*.image' => ['sometimes', 'nullable', 'string', 'max:2048'],
             'items.*.variation' => ['sometimes', 'nullable', 'string', 'max:255'],
             'items.*.quantity' => ['sometimes', 'integer', 'min:1'],
             'items.*.unit_price' => ['sometimes', 'integer', 'min:0'],

@@ -84,6 +84,39 @@ class ManualOrderTest extends TestCase
         $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/orders', ['buyer' => ['name' => 'X'], 'items' => []])->assertStatus(422);
     }
 
+    public function test_create_manual_order_with_ad_hoc_quick_product(): void
+    {
+        $res = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/orders', [
+            'items' => [['name' => 'Quà tặng kèm', 'image' => 'https://cdn.example.com/x.jpg', 'quantity' => 2, 'unit_price' => 50000]],
+        ])->assertCreated();
+
+        $res->assertJsonPath('data.items.0.sku_id', null)
+            ->assertJsonPath('data.items.0.name', 'Quà tặng kèm')
+            ->assertJsonPath('data.items.0.image', 'https://cdn.example.com/x.jpg')
+            ->assertJsonPath('data.items.0.quantity', 2)
+            ->assertJsonPath('data.has_issue', false);
+        // ad-hoc lines are not tracked in inventory
+        $this->assertSame(0, $this->level()->reserved);
+        $this->assertSame(20, $this->level()->on_hand);
+    }
+
+    public function test_sku_line_name_and_image_are_filled_from_the_sku(): void
+    {
+        Sku::withoutGlobalScope(TenantScope::class)->whereKey($this->sku->getKey())->update(['image_url' => 'https://cdn.example.com/sku.jpg']);
+        $res = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/orders', [
+            'items' => [['sku_id' => $this->sku->getKey(), 'quantity' => 1, 'unit_price' => 99000]],
+        ])->assertCreated();
+
+        $res->assertJsonPath('data.items.0.name', 'Áo')->assertJsonPath('data.items.0.image', 'https://cdn.example.com/sku.jpg');
+    }
+
+    public function test_cannot_create_ad_hoc_item_without_name(): void
+    {
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/orders', [
+            'items' => [['unit_price' => 1000, 'quantity' => 1]],
+        ])->assertStatus(422);
+    }
+
     public function test_viewer_cannot_create_order(): void
     {
         $viewer = User::factory()->create();

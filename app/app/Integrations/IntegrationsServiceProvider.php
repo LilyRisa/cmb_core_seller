@@ -6,6 +6,7 @@ use CMBcoreSeller\Integrations\Carriers\CarrierRegistry;
 use CMBcoreSeller\Integrations\Carriers\Ghn\GhnConnector;
 use CMBcoreSeller\Integrations\Carriers\Manual\ManualCarrierConnector;
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
+use CMBcoreSeller\Integrations\Channels\Lazada\LazadaConnector;
 use CMBcoreSeller\Integrations\Channels\Manual\ManualConnector;
 use CMBcoreSeller\Integrations\Channels\TikTok\TikTokConnector;
 use Illuminate\Support\ServiceProvider;
@@ -29,8 +30,8 @@ class IntegrationsServiceProvider extends ServiceProvider
     protected array $channelConnectors = [
         'manual' => ManualConnector::class,
         'tiktok' => TikTokConnector::class,
+        'lazada' => LazadaConnector::class,
         // 'shopee' => \CMBcoreSeller\Integrations\Channels\Shopee\ShopeeConnector::class,
-        // 'lazada' => \CMBcoreSeller\Integrations\Channels\Lazada\LazadaConnector::class,
     ];
 
     /**

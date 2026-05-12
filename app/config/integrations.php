@@ -149,4 +149,73 @@ return [
         ))),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Lazada Open Platform (Vietnam) — see docs/04-channels/lazada.md, SPEC 0008
+    |--------------------------------------------------------------------------
+    |
+    | Sandbox vs production = config: keep the same hosts (Lazada's sandbox is a
+    | separate app in the same console) and set LAZADA_APP_KEY / LAZADA_APP_SECRET
+    | to the sandbox credentials. The `redirect_uri` MUST equal the callback URL
+    | registered in the Lazada app console: https://<APP_URL host>/oauth/lazada/callback.
+    | This is the ONLY place Lazada-specific config / status & message maps live.
+    |
+    */
+    'lazada' => [
+        'app_key' => env('LAZADA_APP_KEY'),
+        'app_secret' => env('LAZADA_APP_SECRET'),
+        'sandbox' => (bool) env('LAZADA_SANDBOX', true),
+
+        // Vietnam REST gateway + auth host + seller authorization page.
+        'api_base_url' => env('LAZADA_API_BASE_URL', 'https://api.lazada.vn/rest'),
+        'auth_base_url' => env('LAZADA_AUTH_BASE_URL', 'https://auth.lazada.com/rest'),
+        'authorize_url' => env('LAZADA_AUTHORIZE_URL', 'https://auth.lazada.com/oauth/authorize'),
+        'redirect_uri' => env('LAZADA_REDIRECT_URI'),   // defaults to url('/oauth/lazada/callback')
+
+        'http' => [
+            'timeout' => (int) env('LAZADA_HTTP_TIMEOUT', 20),
+            'retries' => (int) env('LAZADA_HTTP_RETRIES', 2),
+            'retry_sleep_ms' => (int) env('LAZADA_HTTP_RETRY_SLEEP_MS', 500),
+        ],
+
+        // Some Lazada endpoints differ slightly across API versions / sandbox.
+        'endpoints' => [
+            'update_stock' => env('LAZADA_UPDATE_STOCK_PATH', '/product/price_quantity/update'),
+            'update_stock_format' => env('LAZADA_UPDATE_STOCK_FORMAT', 'json'),   // 'json' | 'xml'
+        ],
+
+        // Lazada raw (item-level) order status -> StandardOrderStatus. The single source of truth;
+        // see docs/03-domain/order-status-state-machine.md §4. Keys normalized (lowercase, '_').
+        'status_map' => [
+            'unpaid' => 'unpaid',
+            'pending' => 'pending',
+            'topack' => 'processing',
+            'ready_to_ship' => 'ready_to_ship',
+            'ready_to_ship_pending' => 'processing',
+            'packed' => 'ready_to_ship',
+            'shipped' => 'shipped',
+            'shipped_back' => 'returning',
+            'shipped_back_failed' => 'returning',
+            'delivered' => 'delivered',
+            'failed' => 'delivery_failed',
+            'lost' => 'delivery_failed',
+            'damaged' => 'delivery_failed',
+            'returned' => 'returned_refunded',
+            'canceled' => 'cancelled',
+            'cancelled' => 'cancelled',
+        ],
+
+        // Lazada push "message_type" (int) -> normalized WebhookEventDTO type. Unknown but
+        // carrying an order id -> treated as order_status_update. VERIFY against the Open
+        // Platform "App Push" docs; order pushes always trigger a fetchOrderDetail re-fetch.
+        'webhook_message_types' => [
+            0 => 'order_status_update',   // Trade order status change
+            1 => 'order_status_update',
+            2 => 'order_status_update',
+            4 => 'shop_deauthorized',     // App authorization revoked / token expiring
+            5 => 'product_update',
+            6 => 'data_deletion',         // (best-effort) personal-data removal request
+        ],
+    ],
+
 ];

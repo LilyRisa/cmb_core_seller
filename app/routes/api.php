@@ -1,6 +1,7 @@
 <?php
 
 use CMBcoreSeller\Http\Controllers\HealthController;
+use CMBcoreSeller\Http\Controllers\MediaController;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\ChannelAccountController;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\SyncLogController;
 use CMBcoreSeller\Modules\Customers\Http\Controllers\CustomerController;
@@ -47,6 +48,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
         // --- Authenticated + a chosen tenant (header X-Tenant-Id) ---
         Route::middleware('tenant')->group(function () {
+            Route::post('media/image', [MediaController::class, 'upload'])->name('media.image.upload');   // generic image upload (e.g. quick-add order item)
+
             Route::get('tenant', [TenantController::class, 'show'])->name('tenant.show');
             Route::get('tenant/members', [TenantController::class, 'members'])->name('tenant.members');
             Route::post('tenant/members', [TenantController::class, 'addMember'])->name('tenant.members.add');

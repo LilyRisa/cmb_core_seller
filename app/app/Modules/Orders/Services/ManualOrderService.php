@@ -89,6 +89,7 @@ class ManualOrderService
                     'unit_price' => $item['unit_price'],
                     'discount' => $item['discount'],
                     'subtotal' => $item['unit_price'] * $item['quantity'] - $item['discount'],
+                    'image' => $item['image'] ?? null,
                 ]);
             }
 
@@ -195,7 +196,12 @@ class ManualOrderService
     }
 
     /**
-     * @return list<array{sku_id:int,name:string,variation:?string,quantity:int,unit_price:int,discount:int,sku_code:?string}>
+     * Each row is either a master SKU line (`sku_id` set — name / sku_code / image filled from the SKU
+     * when omitted, so the FE only needs to send sku_id + qty + price) or an ad-hoc "quick product" line
+     * (no `sku_id`; `name` is required, plus optional `image`/`unit_price`/`quantity`). Ad-hoc lines stay
+     * unlinked to inventory — see OrderInventoryService and docs/03-domain/manual-orders-and-finance.md §1.
+     *
+     * @return list<array{sku_id:?int,name:string,variation:?string,quantity:int,unit_price:int,discount:int,sku_code:?string,image:?string}>
      */
     private function normalizeItems(mixed $raw): array
     {
@@ -204,19 +210,20 @@ class ManualOrderService
         }
         $rows = array_values(array_filter($raw, 'is_array'));
         foreach ($rows as $row) {
-            if (empty($row['sku_id'])) {
-                throw ValidationException::withMessages(['items' => 'Mỗi dòng hàng phải chọn một SKU.']);
+            if (empty($row['sku_id']) && trim((string) ($row['name'] ?? '')) === '') {
+                throw ValidationException::withMessages(['items' => 'Mỗi dòng hàng phải chọn một SKU hoặc nhập tên sản phẩm.']);
             }
         }
-        // Fill missing name / sku_code from the SKU record so the FE only needs to send sku_id.
-        $skuIds = array_values(array_unique(array_map(fn ($r) => (int) $r['sku_id'], $rows)));
-        $skus = Sku::query()->whereIn('id', $skuIds)->get()->keyBy('id');
+        // Fill name / sku_code / image from the SKU record for lines that reference one.
+        $skuIds = array_values(array_filter(array_map(fn ($r) => (int) ($r['sku_id'] ?? 0), $rows)));
+        $skus = $skuIds === [] ? collect() : Sku::query()->whereIn('id', $skuIds)->get()->keyBy('id');
 
         $out = [];
         foreach ($rows as $row) {
-            $skuId = (int) $row['sku_id'];
-            $sku = $skus->get($skuId);
+            $skuId = (int) ($row['sku_id'] ?? 0) ?: null;
+            $sku = $skuId !== null ? $skus->get($skuId) : null;
             $name = trim((string) ($row['name'] ?? ''));
+            $image = trim((string) ($row['image'] ?? ''));
             $qty = (int) ($row['quantity'] ?? 1);
             $out[] = [
                 'sku_id' => $skuId,
@@ -226,6 +233,7 @@ class ManualOrderService
                 'unit_price' => max(0, (int) ($row['unit_price'] ?? 0)),
                 'discount' => max(0, (int) ($row['discount'] ?? 0)),
                 'sku_code' => isset($row['sku_code']) ? (string) $row['sku_code'] : ($sku->sku_code ?? null),
+                'image' => $image !== '' ? $image : ($sku?->image_url ?: null),
             ];
         }
         if ($out === []) {

@@ -35,7 +35,13 @@ class OrderInventoryService
         foreach ($items as $item) {
             $components = $this->resolveComponents($order, $item, $tenantId);
             if ($components === []) {
-                $anyUnmapped = true;
+                // A manual-order line with no SKU reference at all is an intentional ad-hoc / "quick product"
+                // line (see ManualOrderService) — it just isn't tracked in inventory, it's NOT an unmapped-SKU
+                // issue. Channel lines (or manual lines that *should* resolve) still flag has_issue.
+                $isAdHocManualLine = $order->source === 'manual' && ! $item->sku_id && ! $item->seller_sku && ! $item->external_sku_id;
+                if (! $isAdHocManualLine) {
+                    $anyUnmapped = true;
+                }
 
                 continue;
             }
