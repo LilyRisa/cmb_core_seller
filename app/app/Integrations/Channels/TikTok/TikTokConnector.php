@@ -189,6 +189,21 @@ class TikTokConnector implements ChannelConnector
         return TikTokStatusMap::toStandard($rawStatus, $rawOrder);
     }
 
+    /**
+     * TikTok raw statuses coi là "đơn chưa bàn giao ĐVVC": `AWAITING_SHIPMENT` (chưa arrange),
+     * `AWAITING_COLLECTION` (đã arrange, chờ ĐVVC tới lấy), `PARTIALLY_SHIPPING`. Loại `UNPAID`
+     * (chưa thanh toán), `IN_TRANSIT`/`DELIVERED`/`COMPLETED` (đã ship). Config-able qua
+     * `integrations.tiktok.unprocessed_raw_statuses`. Xem docs/03-domain/order-sync-pipeline.md §3.3.
+     */
+    public function unprocessedRawStatuses(): array
+    {
+        $cfg = (array) config('integrations.tiktok.unprocessed_raw_statuses', []);
+
+        return $cfg !== []
+            ? array_values(array_filter(array_map('strval', $cfg), fn ($s) => $s !== ''))
+            : ['AWAITING_SHIPMENT', 'AWAITING_COLLECTION', 'PARTIALLY_SHIPPING'];
+    }
+
     // --- Listings / Inventory (Phase 2) --------------------------------------
 
     /**

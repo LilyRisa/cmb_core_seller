@@ -222,6 +222,21 @@ class LazadaConnector implements ChannelConnector
         return LazadaStatusMap::toStandard($rawStatus);
     }
 
+    /**
+     * Lazada raw statuses coi là "đơn chưa bàn giao ĐVVC": item-level `pending`/`topack`/`ready_to_ship`/
+     * `packed`. KHÔNG bao gồm `unpaid` (chưa thanh toán — sàn không cho ship) và `shipped+` (đã bàn giao
+     * hoặc đã giao). Config-able qua `integrations.lazada.unprocessed_raw_statuses` để tinh chỉnh theo
+     * sandbox khi cần. Xem docs/03-domain/order-sync-pipeline.md §3.3.
+     */
+    public function unprocessedRawStatuses(): array
+    {
+        $cfg = (array) config('integrations.lazada.unprocessed_raw_statuses', []);
+
+        return $cfg !== []
+            ? array_values(array_filter(array_map('strval', $cfg), fn ($s) => $s !== ''))
+            : ['pending', 'topack', 'ready_to_ship', 'packed'];
+    }
+
     // --- Listings / Inventory ------------------------------------------------
 
     public function fetchListings(AuthContext $auth, array $query = []): Page

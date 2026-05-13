@@ -4,6 +4,7 @@ use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Modules\Channels\Jobs\FetchChannelListings;
 use CMBcoreSeller\Modules\Channels\Jobs\SyncOrdersForShop;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Channels\Models\SyncRun;
 use CMBcoreSeller\Modules\Fulfillment\Jobs\SyncShipmentTracking;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Inspiring;
@@ -55,6 +56,16 @@ Schedule::call(function () {
         ->orderBy('id')
         ->each(fn ($a) => SyncOrdersForShop::dispatch((int) $a->getKey(), now()->subDays(3)->toIso8601String(), 'poll'));
 })->dailyAt('02:00')->name('backfill-recent-orders')->onOneServer();
+
+// Every 30': pull unprocessed orders (carrier-not-yet-handed: pending / ready_to_ship / packed) by
+// STATUS, ignoring time window. Catches old open orders that fall outside the 10-min time-poll
+// window. See docs/03-domain/order-sync-pipeline.md §3.3.
+Schedule::call(function () {
+    ChannelAccount::withoutGlobalScope(TenantScope::class)
+        ->where('status', ChannelAccount::STATUS_ACTIVE)
+        ->orderBy('id')
+        ->each(fn ($a) => SyncOrdersForShop::dispatch((int) $a->getKey(), null, SyncRun::TYPE_UNPROCESSED));
+})->everyThirtyMinutes()->name('sync-unprocessed-orders')->onOneServer()->withoutOverlapping();
 
 // Daily: refresh channel listings for shops that support it (then auto-match SKUs) — Phase 2 (SPEC 0003).
 Schedule::call(function () {

@@ -34,6 +34,9 @@ class SyncRun extends Model
 
     public const TYPE_WEBHOOK = 'webhook';
 
+    /** Status-based sync — kéo mọi đơn ở trạng thái "chưa bàn giao ĐVVC" bất kể thời gian. SPEC §3.3. */
+    public const TYPE_UNPROCESSED = 'unprocessed';
+
     public const STATUS_RUNNING = 'running';
 
     public const STATUS_DONE = 'done';

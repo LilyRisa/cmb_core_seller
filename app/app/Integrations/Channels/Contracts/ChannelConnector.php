@@ -90,6 +90,17 @@ interface ChannelConnector
      */
     public function mapStatus(string $rawStatus, array $rawOrder = []): StandardOrderStatus;
 
+    /**
+     * Trả các raw status của sàn coi là "chưa xử lý" — đơn đã đặt nhưng CHƯA bàn giao ĐVVC
+     * (`pending`/`ready_to_ship`/`packed`/... — tuỳ sàn). Dùng cho `SyncOrdersForShop` mode
+     * `unprocessed` (status-based sync, không time window) để kéo MỌI đơn còn dang dở về app —
+     * tránh case đơn cũ ngoài cửa sổ time-poll không được sync. Connector chưa hỗ trợ ⇒ trả `[]`,
+     * sync mode đó sẽ bỏ qua shop. Xem docs/03-domain/order-sync-pipeline.md §3.3.
+     *
+     * @return list<string>
+     */
+    public function unprocessedRawStatuses(): array;
+
     // --- Listings / Inventory ---------------------------------------------
 
     /**

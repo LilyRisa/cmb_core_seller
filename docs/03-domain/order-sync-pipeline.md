@@ -46,11 +46,28 @@ Cả hai đổ về cùng một chỗ:
 
 ## 3. Polling — yêu cầu
 
-- `SyncOrdersForShop(channel_account)`: gọi `connector.fetchOrders(OrderQuery{ updatedFrom: last_synced_at − overlap(vài phút), cursor })`, lặp phân trang tới hết; với mỗi đơn → `fetchOrderDetail` → `OrderUpsertService.upsert`.
+Ba mode `sync_runs.type` (đều dùng cùng job `SyncOrdersForShop`):
+
+### 3.1 `poll` (thời gian) — mặc định mỗi 10'
+- Gọi `connector.fetchOrders(OrderQuery{ updatedFrom: last_synced_at − overlap(vài phút), cursor })`, lặp phân trang tới hết; với mỗi đơn → `fetchOrderDetail` → `OrderUpsertService.upsert`.
 - Lưu tiến độ vào `sync_runs` (cursor, stats: fetched/created/updated/errors). Lỗi giữa chừng → lần sau tiếp tục từ cursor.
 - Cập nhật `channel_account.last_synced_at` = thời điểm bắt đầu run (không phải kết thúc) trừ overlap → không bỏ sót đơn cập nhật trong lúc chạy.
-- Tần suất: mặc định **mỗi 10'**; có thể giãn cho shop ít hoạt động, dày hơn cho shop nhiều đơn (cấu hình). Rải job theo shop để không dồn cùng lúc.
-- **Backfill khi mới kết nối:** job riêng `BackfillOrders(channel_account, days=90)` chạy theo batch, throttle, ghi `sync_runs(type=backfill)`. Có thể yêu cầu backfill lại bằng tay.
+- Rải job theo shop để không dồn cùng lúc.
+
+### 3.2 `backfill` (khi mới kết nối) — 1 lần
+- Job riêng `BackfillOrders(channel_account, days=90)` chạy theo batch, throttle, ghi `sync_runs(type=backfill)`. Có thể yêu cầu backfill lại bằng tay.
+- Watermark thời gian dùng `now − backfill_days` (mặc định 90). Lazada cap `update_after` thực tế khá ngắn ⇒ backfill có thể không lấy đủ đơn cũ.
+
+### 3.3 `unprocessed` (status-based) — mỗi 30' + manual trigger
+- **Lý do tồn tại**: Đơn đặt từ lâu nhưng chưa rời kho (sàn nhận, ĐVVC chưa cầm hàng) — `pending`/`ready_to_ship`/`packed` — không nằm trong cửa sổ thời gian gần đây ⇒ poll thời gian KHÔNG kéo về. User vẫn cần xử lý các đơn này.
+- **Cách hoạt động**: Không dùng `updatedFrom` (không giới hạn thời gian). Iterate qua từng raw status trong `connector.unprocessedRawStatuses()` — với mỗi status, gọi `fetchOrders(statuses=[status], cursor)` page hết → upsert.
+- Connector khai báo các "trạng thái chưa xử lý" qua method `unprocessedRawStatuses(): list<string>`:
+  - **Lazada**: `['pending', 'topack', 'ready_to_ship', 'packed']` — item-level status, đơn chưa rời kho.
+  - **TikTok Shop**: `['AWAITING_SHIPMENT', 'AWAITING_COLLECTION', 'PARTIALLY_SHIPPING']`.
+  - **Manual**: `[]` (đơn tự tạo, không có sàn để pull).
+- Trigger: scheduler mỗi 30' + endpoint `POST /channel-accounts/{id}/resync-unprocessed` cho user manual.
+- **Không** cập nhật `last_synced_at` (vì không phải time-window sync) — không nhiễu vào polling thường.
+- Unique guard theo `(account, type=unprocessed)` — không conflict với poll/backfill.
 
 ## 4. Idempotency & nhất quán (RULES)
 

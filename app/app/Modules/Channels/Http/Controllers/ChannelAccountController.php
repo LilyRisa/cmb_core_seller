@@ -132,6 +132,27 @@ class ChannelAccountController extends Controller
         return response()->json(['data' => ['queued' => true, 'channel_account_id' => $account->getKey()]]);
     }
 
+    /**
+     * POST /api/v1/channel-accounts/{id}/resync-unprocessed
+     *
+     * Status-based sync: kéo MỌI đơn còn ở trạng thái "chưa bàn giao ĐVVC" (pending /
+     * ready_to_ship / packed trên Lazada, AWAITING_SHIPMENT/COLLECTION trên TikTok) bất kể
+     * thời gian đặt. Bù cho time-window poll khi shop có đơn cũ ngoài cửa sổ thời gian.
+     * Xem docs/03-domain/order-sync-pipeline.md §3.3.
+     */
+    public function resyncUnprocessed(Request $request, int $id, ChannelRegistry $registry): JsonResponse
+    {
+        $this->authorizeManage($request);
+        $account = ChannelAccount::query()->findOrFail($id);
+        abort_unless($account->isActive(), 409, 'Gian hàng không ở trạng thái hoạt động.');
+        abort_unless($registry->has($account->provider), 422, 'Kênh bán này chưa được kích hoạt.');
+        abort_unless($registry->for($account->provider)->unprocessedRawStatuses() !== [], 422, 'Kênh bán này chưa hỗ trợ đồng bộ đơn chưa xử lý.');
+
+        SyncOrdersForShop::dispatch((int) $account->getKey(), null, SyncRun::TYPE_UNPROCESSED);
+
+        return response()->json(['data' => ['queued' => true, 'channel_account_id' => $account->getKey()]]);
+    }
+
     /** POST /api/v1/channel-accounts/{id}/resync-listings — pull this shop's listings into channel_listings + auto-match. */
     public function resyncListings(Request $request, int $id, ChannelRegistry $registry): JsonResponse
     {

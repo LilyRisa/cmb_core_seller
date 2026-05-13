@@ -98,6 +98,12 @@ class ManualConnector implements ChannelConnector
         return StandardOrderStatus::from($rawStatus);
     }
 
+    /** Manual không có sàn để pull — `unprocessed` sync sẽ bỏ qua. */
+    public function unprocessedRawStatuses(): array
+    {
+        return [];
+    }
+
     public function fetchListings(AuthContext $auth, array $query = []): Page
     {
         return new Page(items: [], nextCursor: null, hasMore: false);

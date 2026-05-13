@@ -68,6 +68,39 @@ class LazadaConnectorContractTest extends TestCase
         $this->assertTrue($c->supports('shipping.document'));
     }
 
+    public function test_unprocessed_raw_statuses_default(): void
+    {
+        // Lazada item-level: đơn chưa rời kho ⇒ pending/topack/ready_to_ship/packed.
+        $statuses = $this->connector()->unprocessedRawStatuses();
+        $this->assertSame(['pending', 'topack', 'ready_to_ship', 'packed'], $statuses);
+    }
+
+    public function test_unprocessed_raw_statuses_overridable_via_config(): void
+    {
+        config(['integrations.lazada.unprocessed_raw_statuses' => ['pending', 'ready_to_ship']]);
+        $statuses = $this->connector()->unprocessedRawStatuses();
+        $this->assertSame(['pending', 'ready_to_ship'], $statuses);
+    }
+
+    public function test_fetch_orders_filters_by_single_status(): void
+    {
+        // Khi caller truyền statuses=[X], connector pass `status=X` lên /orders/get.
+        Http::fake([
+            '*/orders/items/get*' => Http::response($this->ok([])),
+            '*/orders/get*' => Http::response($this->ok(['count' => 0, 'orders' => []])),
+        ]);
+
+        $this->connector()->fetchOrders($this->auth(), ['statuses' => ['ready_to_ship']]);
+
+        Http::assertSent(function ($req) {
+            if (! str_contains($req->url(), '/orders/get')) {
+                return false;
+            }
+
+            return str_contains($req->url(), 'status=ready_to_ship');
+        });
+    }
+
     public function test_signer_is_deterministic_and_order_independent(): void
     {
         $a = LazadaSigner::sign(self::APP_SECRET, '/orders/get', ['app_key' => 'k', 'timestamp' => '123', 'b' => '2', 'a' => '1']);

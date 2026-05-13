@@ -65,6 +65,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::patch('channel-accounts/{id}', [ChannelAccountController::class, 'update'])->whereNumber('id')->name('channel-accounts.update');   // set display alias
             Route::delete('channel-accounts/{id}', [ChannelAccountController::class, 'destroy'])->whereNumber('id')->name('channel-accounts.destroy');
             Route::post('channel-accounts/{id}/resync', [ChannelAccountController::class, 'resync'])->whereNumber('id')->name('channel-accounts.resync');
+            Route::post('channel-accounts/{id}/resync-unprocessed', [ChannelAccountController::class, 'resyncUnprocessed'])->whereNumber('id')->name('channel-accounts.resync-unprocessed');
             Route::post('channel-accounts/{id}/resync-listings', [ChannelAccountController::class, 'resyncListings'])->whereNumber('id')->name('channel-accounts.resync-listings');
 
             // --- Sync log (Phase 1) — webhook_events / sync_runs + re-drive ---
