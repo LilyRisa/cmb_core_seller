@@ -192,7 +192,9 @@ services:
     environment:
       POSTGRES_DB: ${DB_DATABASE:-cmbcoreseller}
       POSTGRES_USER: ${DB_USERNAME:-cmbcoreseller}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-1995oklangtu}       # required
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-1995oklangtu}  
+    ports:
+    - "5432:5432"     # required
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
