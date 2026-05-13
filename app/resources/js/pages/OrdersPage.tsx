@@ -18,6 +18,7 @@ import { Order, useOrders, useOrderStats, useSyncOrders } from '@/lib/orders';
 import { useBulkCreateShipments, useBulkRefetchSlip, useCreatePrintJob } from '@/lib/fulfillment';
 import { useChannelAccounts } from '@/lib/channels';
 import { useSyncPolling } from '@/lib/syncPolling';
+import { useSyncRuns } from '@/lib/syncLogs';
 import { useCan } from '@/lib/tenant';
 
 const UNMAPPED_REASON = 'SKU chưa ghép';
@@ -127,8 +128,9 @@ export function OrdersPage() {
     }), [effectiveStatus, q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo, tabKey, slipFilter, printedFilter, params]);
 
     const isShipmentsTab = tabKey === 'shipments';
-    // tab "Chờ xử lý" / "Đang xử lý" — cho chọn nhiều đơn + "Chuẩn bị hàng" / "In phiếu giao hàng" hàng loạt
-    const isWorkTab = tabKey === 'pending' || tabKey === 'processing';
+    // tab làm việc: "Chờ xử lý" / "Đang xử lý" / "Chờ bàn giao" — cho chọn nhiều đơn + bulk actions
+    const isWorkTab = tabKey === 'pending' || tabKey === 'processing' || tabKey === 'ready_to_ship';
+    const isShipTab = tabKey === 'ready_to_ship';
     const canBulkWork = isWorkTab && (canShip || canPrint);
 
     // skip the (unused) orders list when on the shipments tab
@@ -136,6 +138,10 @@ export function OrdersPage() {
     const { data: stats, refetch: refetchStats } = useOrderStats(statsFilters);
     // Sync orders dispatch job chạy nền — poll list + stats để đơn mới về tự render, không cần reload trang.
     const syncPoll = useSyncPolling(() => { refetch(); refetchStats(); }, { durationMs: 90_000 });
+    // Theo dõi sync runs đang chạy để hiện thanh tiến trình (refetch 15s/lần qua hook).
+    const runningSyncs = useSyncRuns({ status: 'running', per_page: 10 });
+    const runningSyncsList = runningSyncs.data?.data ?? [];
+    const showSyncBanner = syncPoll.isPolling || runningSyncsList.length > 0;
     // sub-tab "tình trạng phiếu giao hàng" chỉ hiện khi có ≥1 đơn "Chuẩn bị hàng" lỗi (SPEC 0013 — như ui_example)
     const showSlipTabs = isProcessingTab && (stats?.by_slip?.failed ?? 0) > 0;
     // Xử lý xong các đơn lỗi ⇒ sub-tab "Nhận phiếu giao hàng" biến mất; tự bỏ filter `slip=failed` còn sót lại
@@ -157,6 +163,7 @@ export function OrdersPage() {
     // bulk actions: "Chuẩn bị hàng" + "In phiếu giao hàng" (tem của sàn) trên các đơn đã chọn
     const selectedOrders = (data?.data ?? []).filter((o) => selectedKeys.includes(o.id));
     const selWithShipment = selectedOrders.filter((o) => o.shipment);
+    const selWithoutShipment = selectedOrders.filter((o) => !o.shipment);
     const negProfit = selectedOrders.filter((o) => o.profit && o.profit.estimated_profit < 0);
     const runBulkPrepare = () => bulkPrepare.mutate({ order_ids: selectedKeys }, {
         onSuccess: (r) => {
@@ -175,6 +182,27 @@ export function OrdersPage() {
                 onOk: runBulkPrepare,
             });
         } else { runBulkPrepare(); }
+    };
+    // Tab "Chờ bàn giao" (ready_to_ship): đơn đã RTS trên sàn trước khi sync về — gọi prepareChannelOrder để
+    // tạo shipment record + lấy label; order KHÔNG chuyển sang "Đang xử lý" (stay in ready_to_ship).
+    const runBulkPrepareShipTab = () => bulkPrepare.mutate({ order_ids: selWithoutShipment.map((o) => o.id) }, {
+        onSuccess: (r) => {
+            message.success(r.created.length > 0 ? `Đã lấy phiếu giao hàng cho ${r.created.length} đơn — sẵn sàng để in.` : 'Không có đơn nào cần lấy phiếu');
+            if (r.errors.length) Modal.warning({ title: `${r.errors.length} đơn không lấy được phiếu`, content: <ul style={{ margin: 0, paddingInlineStart: 18 }}>{r.errors.map((e) => <li key={e.order_id}>Đơn #{e.order_id}: {e.message}</li>)}</ul> });
+            setSelectedKeys([]);
+        },
+        onError: (e) => message.error(errorMessage(e)),
+    });
+    const doBulkPrepareShipTab = () => {
+        const neg = selWithoutShipment.filter((o) => o.profit && o.profit.estimated_profit < 0);
+        if (neg.length > 0) {
+            Modal.confirm({
+                title: `${neg.length} đơn có lợi nhuận ước tính ÂM`,
+                content: 'Tổng tiền các đơn này không bù được phí sàn + giá vốn hàng. Vẫn tiếp tục lấy phiếu giao hàng?',
+                okText: 'Vẫn tiếp tục', okButtonProps: { danger: true }, cancelText: 'Để tôi xem lại',
+                onOk: runBulkPrepareShipTab,
+            });
+        } else { runBulkPrepareShipTab(); }
     };
     // "Nhận phiếu giao hàng" — kéo/tạo phiếu cho các đơn; có print_job_id ⇒ mở thanh tiến trình + nút "Mở để in".
     const runRefetchSlip = (ids: number[]) => refetchSlip.mutate(ids, {
@@ -356,6 +384,27 @@ export function OrdersPage() {
                 )}
             />
 
+            {showSyncBanner && (
+                <Alert
+                    type={runningSyncsList.some((r) => (r.stats?.errors ?? 0) > 0) ? 'warning' : 'info'}
+                    showIcon icon={<SyncOutlined spin />}
+                    style={{ marginTop: 8 }}
+                    message={runningSyncsList.length === 0
+                        ? 'Đã gửi yêu cầu đồng bộ, đang chờ tiến hành...'
+                        : `Đang đồng bộ đơn từ ${runningSyncsList.length} gian hàng`}
+                    description={runningSyncsList.length > 0 ? (
+                        <Space size={16} wrap>
+                            <span>{runningSyncsList.map((r) => r.shop_name ?? `#${r.channel_account_id}`).join(' · ')}</span>
+                            <span>Đã nhận: <b>{runningSyncsList.reduce((s, r) => s + (r.stats?.fetched ?? 0), 0)}</b> đơn</span>
+                            <span>Mới: <b>{runningSyncsList.reduce((s, r) => s + (r.stats?.created ?? 0), 0)}</b></span>
+                            {runningSyncsList.reduce((s, r) => s + (r.stats?.errors ?? 0), 0) > 0 && (
+                                <span style={{ color: '#cf1322' }}>Lỗi: <b>{runningSyncsList.reduce((s, r) => s + (r.stats?.errors ?? 0), 0)}</b></span>
+                            )}
+                        </Space>
+                    ) : undefined}
+                />
+            )}
+
             {/* Tabs: 3 tab "công việc" đầu lọc theo bước xử lý/vận đơn (SPEC 0013), còn lại theo trạng thái đơn. */}
             <Card styles={{ body: { padding: '8px 16px 0' } }}>
                 <Tabs
@@ -460,7 +509,10 @@ export function OrdersPage() {
                         {canShip && tabKey === 'pending' && <Button type="primary" loading={bulkPrepare.isPending} onClick={doBulkPrepare}>
                             Chuẩn bị hàng ({selectedKeys.length}){negProfit.length > 0 && <WarningOutlined style={{ marginInlineStart: 4 }} />}
                         </Button>}
-                        {canShip && isProcessingTab && selWithShipment.length > 0 && <Button icon={<FileTextOutlined />} loading={refetchSlip.isPending} onClick={doRefetchSlip}>Nhận phiếu giao hàng ({selWithShipment.length})</Button>}
+                        {canShip && isShipTab && selWithoutShipment.length > 0 && <Button type="primary" icon={<FileTextOutlined />} loading={bulkPrepare.isPending} onClick={doBulkPrepareShipTab}>
+                            Lấy phiếu giao hàng ({selWithoutShipment.length})
+                        </Button>}
+                        {canShip && (isProcessingTab || isShipTab) && selWithShipment.length > 0 && <Button icon={<FileTextOutlined />} loading={refetchSlip.isPending} onClick={doRefetchSlip}>Nhận lại phiếu ({selWithShipment.length})</Button>}
                         {canPrint && selWithShipment.length > 0 && <Button icon={<PrinterOutlined />} loading={createPrintJob.isPending} onClick={doBulkPrintSlip}>In phiếu giao hàng ({selWithShipment.length})</Button>}
                         <Button onClick={() => setSelectedKeys([])}>Bỏ chọn</Button>
                     </Space>

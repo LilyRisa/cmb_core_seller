@@ -223,10 +223,17 @@ class LazadaConnector implements ChannelConnector
     }
 
     /**
-     * Lazada raw statuses coi là "đơn chưa bàn giao ĐVVC": item-level `pending`/`topack`/`ready_to_ship`/
-     * `packed`. KHÔNG bao gồm `unpaid` (chưa thanh toán — sàn không cho ship) và `shipped+` (đã bàn giao
-     * hoặc đã giao). Config-able qua `integrations.lazada.unprocessed_raw_statuses` để tinh chỉnh theo
-     * sandbox khi cần. Xem docs/03-domain/order-sync-pipeline.md §3.3.
+     * Lazada "đơn chưa bàn giao ĐVVC" — DÙNG ĐÚNG status filter values mà Lazada `/orders/get` chấp
+     * nhận (tài liệu chính thức GetOrders: `pending | canceled | ready_to_ship | delivered | returned |
+     * shipped | failed`). **`topack` và `packed` KHÔNG được Lazada hỗ trợ làm status filter** — chúng
+     * chỉ là item-level statuses trong response (`order.statuses[]`), không phải order-level filter.
+     * Truyền `?status=topack` ⇒ Lazada reject hoặc return empty.
+     *
+     * Phủ đơn chưa rời kho:
+     *   - `pending`       ⇒ đơn đã đặt, chưa pack/RTS (bao trùm item-level `pending` + `topack`)
+     *   - `ready_to_ship` ⇒ đơn đã RTS, chờ ĐVVC (bao trùm item-level `packed` + `ready_to_ship`)
+     * Loại `unpaid` (chưa thanh toán, sàn không cho ship) và `shipped+` (đã rời kho hoặc đã giao).
+     * Config-able qua `integrations.lazada.unprocessed_raw_statuses`. Xem docs/03-domain/order-sync-pipeline.md §3.3.
      */
     public function unprocessedRawStatuses(): array
     {
@@ -234,7 +241,7 @@ class LazadaConnector implements ChannelConnector
 
         return $cfg !== []
             ? array_values(array_filter(array_map('strval', $cfg), fn ($s) => $s !== ''))
-            : ['pending', 'topack', 'ready_to_ship', 'packed'];
+            : ['pending', 'ready_to_ship'];
     }
 
     // --- Listings / Inventory ------------------------------------------------

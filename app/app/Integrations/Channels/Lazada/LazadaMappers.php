@@ -176,6 +176,24 @@ final class LazadaMappers
                 'status' => self::str($i['status'] ?? null),
             ];
         }
+        // Đơn `pending` chưa có tracking_code/package_id nên packages trống → orders.carrier = NULL →
+        // chip "Vận chuyển" không hiển thị/lọc được. Khi items đã có shipment_provider (DBS luôn có,
+        // carrier 3PL set sớm nếu seller chọn trước), tạo 1 entry chỉ mang carrier để orders.carrier
+        // được điền ngay từ lần sync đầu tiên.
+        if ($packages === []) {
+            foreach ($items as $i) {
+                $sp = self::str($i['shipment_provider'] ?? null);
+                if ($sp !== null) {
+                    $packages[] = [
+                        'externalPackageId' => null,
+                        'trackingNo' => null,
+                        'carrier' => $sp,
+                        'status' => self::str($i['status'] ?? null),
+                    ];
+                    break;
+                }
+            }
+        }
 
         return new OrderDTO(
             externalOrderId: (string) ($order['order_id'] ?? ''),

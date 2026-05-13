@@ -62,7 +62,7 @@ Ba mode `sync_runs.type` (đều dùng cùng job `SyncOrdersForShop`):
 - **Lý do tồn tại**: Đơn đặt từ lâu nhưng chưa rời kho (sàn nhận, ĐVVC chưa cầm hàng) — `pending`/`ready_to_ship`/`packed` — không nằm trong cửa sổ thời gian gần đây ⇒ poll thời gian KHÔNG kéo về. User vẫn cần xử lý các đơn này.
 - **Cách hoạt động**: Không dùng `updatedFrom` (không giới hạn thời gian). Iterate qua từng raw status trong `connector.unprocessedRawStatuses()` — với mỗi status, gọi `fetchOrders(statuses=[status], cursor)` page hết → upsert.
 - Connector khai báo các "trạng thái chưa xử lý" qua method `unprocessedRawStatuses(): list<string>`:
-  - **Lazada**: `['pending', 'topack', 'ready_to_ship', 'packed']` — item-level status, đơn chưa rời kho.
+  - **Lazada**: `['pending', 'ready_to_ship']` — **chỉ dùng status filter values mà Lazada `/orders/get` chấp nhận** (theo tài liệu chính thức: `pending | canceled | ready_to_ship | delivered | returned | shipped | failed`). KHÔNG dùng item-level statuses (`topack`/`packed`) làm filter — Lazada reject. `pending` bao trùm `topack`; `ready_to_ship` bao trùm `packed`.
   - **TikTok Shop**: `['ON_HOLD', 'AWAITING_SHIPMENT', 'PARTIALLY_SHIPPING', 'AWAITING_COLLECTION']`. **`ON_HOLD`** = đã thanh toán, chờ fulfillment (buyer còn cancel được — tài liệu TikTok). Đơn PRE_ORDER có thể stuck ở `ON_HOLD` tới 1 ngày trước release ⇒ phải pull về để seller chuẩn bị.
   - **Manual**: `[]` (đơn tự tạo, không có sàn để pull).
 - Trigger: scheduler mỗi 30' + endpoint `POST /channel-accounts/{id}/resync-unprocessed` cho user manual.
