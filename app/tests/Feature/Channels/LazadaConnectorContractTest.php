@@ -62,7 +62,9 @@ class LazadaConnectorContractTest extends TestCase
         $this->assertSame('Lazada', $c->displayName());
         $this->assertTrue($c->supports('orders.fetch'));
         $this->assertTrue($c->supports('listings.updateStock'));
-        $this->assertFalse($c->supports('shipping.arrange'));
+        // "Luồng A" mặc định bật (re-fetch order detail + lấy shippingLabel qua /order/document/get).
+        $this->assertTrue($c->supports('shipping.arrange'));
+        $this->assertTrue($c->supports('shipping.document'));
     }
 
     public function test_signer_is_deterministic_and_order_independent(): void
@@ -262,9 +264,39 @@ class LazadaConnectorContractTest extends TestCase
         $this->assertSame('shipped', $event->orderRawStatus);
     }
 
-    public function test_unsupported_fulfillment_ops_throw(): void
+    public function test_fulfillment_throws_when_disabled(): void
     {
+        config(['integrations.lazada.fulfillment_enabled' => false]);
         $this->expectException(UnsupportedOperation::class);
         $this->connector()->arrangeShipment($this->auth(), '1001');
+    }
+
+    public function test_arrange_shipment_refetches_order_for_tracking(): void
+    {
+        // Mới sync xong, đơn đã có tracking_code từ Lazada (status ≥ packed). arrangeShipment refetch để chốt.
+        Http::fake([
+            '*/order/get*' => Http::response($this->ok([
+                'order_id' => 1001, 'order_number' => 555111, 'created_at' => '2026-05-17 10:00:00 +0700', 'updated_at' => '2026-05-17 11:00:00 +0700',
+                'price' => '220000.00', 'shipping_fee' => '20000.00', 'payment_method' => 'COD', 'statuses' => ['packed'],
+            ])),
+            '*/order/items/get*' => Http::response($this->ok([
+                ['order_item_id' => 9001, 'sku' => 'AO-DEN-M', 'shop_sku' => 'shopsku-1', 'name' => 'Áo thun đen', 'item_price' => 100000, 'status' => 'packed', 'package_id' => 'PKG1', 'tracking_code' => 'TRK-LZD-001', 'shipment_provider' => 'GHN'],
+            ])),
+        ]);
+        $r = $this->connector()->arrangeShipment($this->auth(), '1001');
+        $this->assertSame('TRK-LZD-001', $r['tracking_no']);
+        $this->assertSame('GHN', $r['carrier']);
+        $this->assertSame('PKG1', $r['package_id']);
+    }
+
+    public function test_get_shipping_document_fetches_base64_pdf(): void
+    {
+        $pdfBytes = "%PDF-1.4\nfake-pdf-bytes";
+        Http::fake([
+            '*/order/document/get*' => Http::response($this->ok(['document' => ['file' => base64_encode($pdfBytes), 'doc_type' => 'shippingLabel']])),
+        ]);
+        $doc = $this->connector()->getShippingDocument($this->auth(), '1001', ['order_item_ids' => [9001]]);
+        $this->assertSame($pdfBytes, $doc['bytes']);
+        $this->assertSame('application/pdf', $doc['mime']);
     }
 }

@@ -6,6 +6,8 @@ use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\DTO\ChannelListingDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\OrderDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\OrderItemDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\SettlementDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 
@@ -63,7 +65,7 @@ final class LazadaMappers
      *    nhưng webhook sẽ không khớp (đã có warning trong log API).
      *
      * @param  array<string,mixed>  $sellerData  envelope `data` của /seller/get
-     * @param  array<string,mixed>  $tokenRaw   payload thô của /auth/token/create|refresh
+     * @param  array<string,mixed>  $tokenRaw  payload thô của /auth/token/create|refresh
      */
     public static function shopInfo(array $sellerData, array $tokenRaw = []): ShopInfoDTO
     {
@@ -348,7 +350,7 @@ final class LazadaMappers
      *
      * @param  list<array<string,mixed>>  $rows
      */
-    public static function settlement(array $rows, CarbonImmutable $from, CarbonImmutable $to): \CMBcoreSeller\Integrations\Channels\DTO\SettlementDTO
+    public static function settlement(array $rows, CarbonImmutable $from, CarbonImmutable $to): SettlementDTO
     {
         $lines = [];
         $totalRev = 0;
@@ -365,7 +367,7 @@ final class LazadaMappers
             $orderId = data_get($r, 'order_no') ?? data_get($r, 'order_id');
             $currency = (string) (data_get($r, 'currency') ?: $currency);
             $statementId = $statementId ?: ((string) (data_get($r, 'statement') ?? '') ?: null);
-            $lines[] = new \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO(
+            $lines[] = new SettlementLineDTO(
                 feeType: $feeType,
                 amount: $amount,
                 externalOrderId: $orderId ? (string) $orderId : null,
@@ -376,17 +378,17 @@ final class LazadaMappers
             );
             $payout += $amount;
             match ($feeType) {
-                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_REVENUE => $totalRev += $amount,
-                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_SHIPPING_FEE,
-                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_SHIPPING_SUBSIDY => $totalShip += $amount,
-                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_COMMISSION,
-                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_PAYMENT_FEE,
-                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_VOUCHER_SELLER => $totalFee += $amount,
+                SettlementLineDTO::TYPE_REVENUE => $totalRev += $amount,
+                SettlementLineDTO::TYPE_SHIPPING_FEE,
+                SettlementLineDTO::TYPE_SHIPPING_SUBSIDY => $totalShip += $amount,
+                SettlementLineDTO::TYPE_COMMISSION,
+                SettlementLineDTO::TYPE_PAYMENT_FEE,
+                SettlementLineDTO::TYPE_VOUCHER_SELLER => $totalFee += $amount,
                 default => null,
             };
         }
 
-        return new \CMBcoreSeller\Integrations\Channels\DTO\SettlementDTO(
+        return new SettlementDTO(
             externalId: $statementId,
             periodStart: $from, periodEnd: $to,
             totalPayout: $payout, totalRevenue: $totalRev,
@@ -404,16 +406,16 @@ final class LazadaMappers
         $t = str_replace([' ', '-'], '_', strtolower($rawType));
 
         return match (true) {
-            str_contains($t, 'commission') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_COMMISSION,
-            str_contains($t, 'payment') && str_contains($t, 'fee') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_PAYMENT_FEE,
-            str_contains($t, 'shipping') && (str_contains($t, 'sponsor') || str_contains($t, 'subsidy')) => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_SHIPPING_SUBSIDY,
-            str_contains($t, 'shipping') || str_contains($t, 'delivery_fee') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_SHIPPING_FEE,
-            str_contains($t, 'voucher') && str_contains($t, 'seller') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_VOUCHER_SELLER,
-            str_contains($t, 'voucher') || str_contains($t, 'sponsor') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_VOUCHER_PLATFORM,
-            str_contains($t, 'refund') || str_contains($t, 'return') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_REFUND,
-            str_contains($t, 'adjust') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_ADJUSTMENT,
-            str_contains($t, 'item_price') || str_contains($t, 'order') || str_contains($t, 'sale') || str_contains($t, 'price') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_REVENUE,
-            default => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_OTHER,
+            str_contains($t, 'commission') => SettlementLineDTO::TYPE_COMMISSION,
+            str_contains($t, 'payment') && str_contains($t, 'fee') => SettlementLineDTO::TYPE_PAYMENT_FEE,
+            str_contains($t, 'shipping') && (str_contains($t, 'sponsor') || str_contains($t, 'subsidy')) => SettlementLineDTO::TYPE_SHIPPING_SUBSIDY,
+            str_contains($t, 'shipping') || str_contains($t, 'delivery_fee') => SettlementLineDTO::TYPE_SHIPPING_FEE,
+            str_contains($t, 'voucher') && str_contains($t, 'seller') => SettlementLineDTO::TYPE_VOUCHER_SELLER,
+            str_contains($t, 'voucher') || str_contains($t, 'sponsor') => SettlementLineDTO::TYPE_VOUCHER_PLATFORM,
+            str_contains($t, 'refund') || str_contains($t, 'return') => SettlementLineDTO::TYPE_REFUND,
+            str_contains($t, 'adjust') => SettlementLineDTO::TYPE_ADJUSTMENT,
+            str_contains($t, 'item_price') || str_contains($t, 'order') || str_contains($t, 'sale') || str_contains($t, 'price') => SettlementLineDTO::TYPE_REVENUE,
+            default => SettlementLineDTO::TYPE_OTHER,
         };
     }
 

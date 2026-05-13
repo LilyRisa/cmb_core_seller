@@ -45,8 +45,11 @@ class LazadaConnector implements ChannelConnector
             'orders.fetch' => true,
             'orders.webhook' => true,
             'orders.confirm' => false,        // Phase 4 fulfillment (RTS / pack)
-            'shipping.arrange' => false,      // Phase 4 fulfillment
-            'shipping.document' => false,     // Phase 4 fulfillment (Lazada AWB)
+            // "Luồng A" — Lazada: re-fetch order detail để lấy tracking sàn đã cấp; lấy phiếu giao hàng qua
+            // `/order/document/get` (doc_type=shippingLabel). Bật mặc định, tắt bằng
+            // INTEGRATIONS_LAZADA_FULFILLMENT=false nếu shop chưa được cấp permission "Fulfillment" trên Open Platform.
+            'shipping.arrange' => (bool) config('integrations.lazada.fulfillment_enabled', true),
+            'shipping.document' => (bool) config('integrations.lazada.fulfillment_enabled', true),
             'shipping.tracking' => false,     // Phase 4 fulfillment
             'listings.fetch' => true,
             'listings.publish' => false,      // Phase 5
@@ -268,14 +271,147 @@ class LazadaConnector implements ChannelConnector
 
     // --- Fulfillment (Phase 4 — RTS / AWB) -----------------------------------
 
+    /**
+     * Lazada: "Chuẩn bị hàng" / "luồng A". Lazada Open Platform công khai không cấp endpoint
+     * `/order/pack` + `/order/rts` cho mọi app (cần permission "Fulfillment Operations" — thường
+     * chỉ ERP-tier mới có). Cách an toàn cho mọi shop: **re-fetch order detail** để lấy `tracking_code`
+     * mà Lazada cấp ngay sau khi seller (hoặc Lazada auto) chuyển trạng thái "packed/ready_to_ship".
+     * Nếu chưa có tracking ⇒ trả null (ShipmentService gắn cờ has_issue, không chặn — đơn vẫn `processing`).
+     *
+     * Note: nếu app của bạn có permission, có thể bật `LAZADA_FULFILLMENT_AUTO_PACK=true` để code tự
+     * gọi `/order/pack` trước; mặc định off để không gây "MissingPermission" / cần `shipment_provider`.
+     *
+     * @return array{tracking_no:?string,carrier:?string,raw_status:?string,package_id:?string}
+     */
     public function arrangeShipment(AuthContext $auth, string $externalOrderId, array $params = []): array
     {
-        throw UnsupportedOperation::for($this->code(), 'arrangeShipment');
+        if (! config('integrations.lazada.fulfillment_enabled')) {
+            throw UnsupportedOperation::for($this->code(), 'arrangeShipment');
+        }
+        // (Tuỳ chọn) Tự gọi /order/pack — Lazada sẽ assign 3PL & cấp tracking. Yêu cầu permission
+        // "Fulfillment" + `delivery_type` + `shipment_provider`. Tắt mặc định, bật khi app đã được cấp.
+        if (config('integrations.lazada.fulfillment_auto_pack', false) && ! empty($params['shipment_provider'])) {
+            try {
+                $this->client->post('/order/pack', $auth, [
+                    'delivery_type' => (string) ($params['delivery_type'] ?? 'dropship'),
+                    'shipment_provider' => (string) $params['shipment_provider'],
+                    'order_items' => json_encode($this->itemIdsFromParams($params), JSON_UNESCAPED_SLASHES),
+                ]);
+            } catch (LazadaApiException $e) {
+                Log::info('lazada.order_pack_failed', ['order' => $externalOrderId, 'code' => $e->lazadaCode]);
+                // Không re-throw — ta fall back về cách re-fetch order detail như đường thường.
+            }
+        }
+        // Re-fetch order detail từ Lazada để lấy tracking mới nhất (sync polling có thể stale).
+        $detail = $this->fetchOrderDetail($auth, $externalOrderId);
+        foreach ($detail->packages as $pkg) {
+            if (! empty($pkg['trackingNo'])) {
+                return [
+                    'tracking_no' => (string) $pkg['trackingNo'],
+                    'carrier' => isset($pkg['carrier']) ? (string) $pkg['carrier'] : null,
+                    'raw_status' => isset($pkg['status']) ? (string) $pkg['status'] : null,
+                    'package_id' => isset($pkg['externalPackageId']) ? (string) $pkg['externalPackageId'] : null,
+                ];
+            }
+        }
+        // Chưa có tracking — ShipmentService sẽ gắn cờ `has_issue` (chuỗi chứa "mã vận đơn") để "Nhận phiếu
+        // giao hàng" sau này tự thử lại.
+        return ['tracking_no' => null, 'carrier' => null, 'raw_status' => null, 'package_id' => null];
     }
 
+    /**
+     * Lazada `/order/document/get` — lấy `shippingLabel` (PDF) cho `order_item_ids`. Theo tài liệu
+     * Open Platform (https://open.lazada.com/apps/doc/api?path=/order/document/get) response trả
+     * `document: { file: <base64 PDF | URL>, doc_type, expire_time }`. Tem PDF chỉ dùng được sau khi
+     * Lazada đã cấp tracking (status ≥ packed). Trước đó endpoint trả error.
+     *
+     * `$query` keys: `type` (SHIPPING_LABEL* | INVOICE | CARRIER_MANIFEST — sẽ map về tên Lazada),
+     * `order_item_ids` (tuỳ chọn — nếu trống, tự fetch từ `/order/items/get`).
+     *
+     * @return array{filename:string,mime:string,bytes:string}
+     */
     public function getShippingDocument(AuthContext $auth, string $externalOrderId, array $query = []): array
     {
-        throw UnsupportedOperation::for($this->code(), 'getShippingDocument');
+        if (! config('integrations.lazada.fulfillment_enabled')) {
+            throw UnsupportedOperation::for($this->code(), 'getShippingDocument');
+        }
+        // Map tên type chung của core về tên Lazada (snake-case / camelCase tuỳ phiên bản — dùng camelCase
+        // theo tài liệu hiện hành; nếu sandbox của shop khác, có thể đè qua config).
+        $typeIn = strtoupper((string) ($query['type'] ?? 'SHIPPING_LABEL'));
+        $docType = (string) (config('integrations.lazada.endpoints.doc_type_map.'.$typeIn)
+            ?? match ($typeIn) {
+                'SHIPPING_LABEL', 'SHIPPING_LABEL_AND_PACKING_SLIP' => 'shippingLabel',
+                'INVOICE' => 'invoice',
+                'CARRIER_MANIFEST' => 'carrierManifest',
+                'PICKLIST' => 'pickList',
+                default => 'shippingLabel',
+            });
+
+        $itemIds = array_values(array_filter(array_map('intval', (array) ($query['order_item_ids'] ?? [])), fn ($v) => $v > 0));
+        if ($itemIds === []) {
+            // Fallback: hỏi Lazada items hiện tại cho đơn. Một lượt gọi thêm; chỉ chạy khi caller không truyền.
+            try {
+                $items = (array) $this->client->get('/order/items/get', $auth, ['order_id' => $externalOrderId]);
+                foreach ($items as $it) {
+                    if (! is_array($it)) {
+                        continue;
+                    }
+                    $id = (int) ($it['order_item_id'] ?? 0);
+                    if ($id > 0) {
+                        $itemIds[] = $id;
+                    }
+                }
+                $itemIds = array_values(array_unique($itemIds));
+            } catch (\Throwable $e) {
+                Log::info('lazada.document_get_items_failed', ['order' => $externalOrderId, 'error' => class_basename($e)]);
+            }
+        }
+        if ($itemIds === []) {
+            throw new \RuntimeException('Không có order_item_id để lấy phiếu giao hàng từ Lazada (đơn '.$externalOrderId.').');
+        }
+
+        $endpoint = (string) (config('integrations.lazada.endpoints.document_get') ?? '/order/document/get');
+        $data = $this->client->get($endpoint, $auth, [
+            'doc_type' => $docType,
+            'order_item_ids' => json_encode($itemIds, JSON_UNESCAPED_SLASHES),
+        ]);
+
+        // Response shape: `document.file` (string — có thể là base64 PDF hoặc URL có TTL ngắn) hoặc
+        // `document.url`. Một số shop trả ngay `data.file` không bọc thêm — defensive đọc cả hai.
+        $document = is_array($data['document'] ?? null) ? (array) $data['document'] : (array) $data;
+        $file = (string) ($document['file'] ?? $document['url'] ?? '');
+        $bytes = '';
+        if ($file !== '') {
+            if (preg_match('#^https?://#i', $file)) {
+                $resp = \Illuminate\Support\Facades\Http::timeout(30)->get($file);
+                $bytes = $resp->successful() ? $resp->body() : '';
+            } else {
+                $decoded = base64_decode($file, true);
+                $bytes = $decoded !== false ? $decoded : '';
+            }
+        }
+        if ($bytes === '') {
+            throw new \RuntimeException('Lazada không trả về tệp '.$docType.' cho đơn '.$externalOrderId.'. Có thể đơn chưa được cấp tracking (Lazada chỉ cấp PDF sau khi đơn ở trạng thái "packed/ready_to_ship").');
+        }
+
+        return ['filename' => "lazada-{$docType}-{$externalOrderId}.pdf", 'mime' => 'application/pdf', 'bytes' => $bytes];
+    }
+
+    /** @return list<int> */
+    private function itemIdsFromParams(array $params): array
+    {
+        $out = [];
+        foreach ((array) ($params['order_item_ids'] ?? $params['items'] ?? []) as $v) {
+            if (is_array($v) && isset($v['order_item_id'])) {
+                $v = $v['order_item_id'];
+            }
+            $id = (int) $v;
+            if ($id > 0) {
+                $out[] = $id;
+            }
+        }
+
+        return array_values(array_unique($out));
     }
 
     // --- Finance / Settlements ----------------------------------------------
@@ -287,7 +423,7 @@ class LazadaConnector implements ChannelConnector
      *
      * @param  array{from?:CarbonImmutable,to?:CarbonImmutable,cursor?:string,pageSize?:int}  $query
      */
-    public function fetchSettlements(AuthContext $auth, array $query = []): \CMBcoreSeller\Integrations\Channels\DTO\Page
+    public function fetchSettlements(AuthContext $auth, array $query = []): Page
     {
         if (! config('integrations.lazada.finance_enabled')) {
             throw UnsupportedOperation::for($this->code(), 'fetchSettlements (đặt INTEGRATIONS_LAZADA_FINANCE=true để bật)');
@@ -322,6 +458,6 @@ class LazadaConnector implements ChannelConnector
 
         $settlement = LazadaMappers::settlement($rows, $from, $to);
 
-        return new \CMBcoreSeller\Integrations\Channels\DTO\Page(items: [$settlement], nextCursor: null, hasMore: false);
+        return new Page(items: [$settlement], nextCursor: null, hasMore: false);
     }
 }

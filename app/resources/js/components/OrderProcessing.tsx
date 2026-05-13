@@ -188,7 +188,10 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
         if (canPrint) actions.push(<a key="ds2" onClick={printDelivery}>In phiếu giao hàng</a>);
         if (canPrint && sh!.label_url) actions.push(<a key="lbl2" onClick={printLabelBundle}>In tem sàn</a>);
     }
-    if (canPrint) actions.push(<a key="inv" onClick={printInvoice}>In hoá đơn</a>);
+    // "In hoá đơn" CHỈ áp dụng cho đơn manual (tự nhập). Đơn sàn (TikTok/Shopee/Lazada) đã có hoá đơn
+    // điện tử / receipt do sàn cấp cho người mua — app tự sinh hoá đơn nội bộ sẽ trùng lặp & gây nhầm
+    // lẫn. Đơn sàn chỉ cần "In phiếu giao hàng" + "In tem sàn".
+    if (canPrint && !order.channel_account_id) actions.push(<a key="inv" onClick={printInvoice}>In hoá đơn</a>);
     return <Space size={8} wrap>{actions}</Space>;
 }
 

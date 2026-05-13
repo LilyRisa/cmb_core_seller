@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Procurement\Models;
 
 use CMBcoreSeller\Modules\Tenancy\Concerns\BelongsToTenant;
+use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -54,7 +55,7 @@ class Supplier extends Model
     /** Sinh mã NCC kế tiếp cho tenant (NCC-0001, NCC-0002, …). */
     public static function nextCode(int $tenantId): string
     {
-        $n = self::withoutGlobalScope(\CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class)
+        $n = self::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenantId)->withTrashed()->count() + 1;
 
         return sprintf('NCC-%04d', $n);

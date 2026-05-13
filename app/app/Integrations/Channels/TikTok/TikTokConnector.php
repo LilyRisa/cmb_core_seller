@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Integrations\Channels\TikTok;
 
+use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\Contracts\ChannelConnector;
 use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
 use CMBcoreSeller\Integrations\Channels\DTO\ChannelListingDTO;
@@ -382,9 +383,9 @@ class TikTokConnector implements ChannelConnector
      *
      * Gated bởi cờ `INTEGRATIONS_TIKTOK_FINANCE` (mặc định off) — cần đối chiếu sandbox thật để chốt shape.
      *
-     * @param  array{from?:\Carbon\CarbonImmutable,to?:\Carbon\CarbonImmutable,cursor?:string,pageSize?:int}  $query
+     * @param  array{from?:CarbonImmutable,to?:CarbonImmutable,cursor?:string,pageSize?:int}  $query
      */
-    public function fetchSettlements(AuthContext $auth, array $query = []): \CMBcoreSeller\Integrations\Channels\DTO\Page
+    public function fetchSettlements(AuthContext $auth, array $query = []): Page
     {
         if (! config('integrations.tiktok.finance_enabled')) {
             throw UnsupportedOperation::for($this->code(), 'fetchSettlements (đặt INTEGRATIONS_TIKTOK_FINANCE=true để bật)');
@@ -412,7 +413,7 @@ class TikTokConnector implements ChannelConnector
         }
         $next = (string) (data_get($resp, 'data.next_page_token') ?? data_get($resp, 'next_page_token') ?? '');
 
-        return new \CMBcoreSeller\Integrations\Channels\DTO\Page(items: $items, nextCursor: $next ?: null, hasMore: $next !== '');
+        return new Page(items: $items, nextCursor: $next ?: null, hasMore: $next !== '');
     }
 
     /** @return list<array<string,mixed>> raw transactions trả về theo statement (page 1 only — đủ cho đa số shop). */

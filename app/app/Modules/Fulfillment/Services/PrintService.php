@@ -252,6 +252,13 @@ class PrintService
         if ($orders->isEmpty()) {
             throw new \RuntimeException('Không có đơn nào để in.');
         }
+        // Đơn sàn (TikTok/Shopee/Lazada) đã có hoá đơn điện tử do sàn cấp cho người mua — sinh hoá đơn nội
+        // bộ sẽ trùng lặp & dễ gây nhầm với hoá đơn pháp lý của sàn. Chặn rõ ràng để người dùng dùng đúng:
+        // đơn sàn → "In phiếu giao hàng / In tem sàn"; đơn manual → "In hoá đơn".
+        $channelOrders = $orders->filter(fn (Order $o) => $o->channel_account_id !== null);
+        if ($channelOrders->isNotEmpty()) {
+            throw new \RuntimeException('Đơn của sàn TMĐT đã có hoá đơn điện tử do sàn cấp cho người mua — không in hoá đơn nội bộ. Dùng "In phiếu giao hàng" / "In tem sàn" cho đơn sàn.');
+        }
         $shopName = (string) (Tenant::query()->whereKey($tenantId)->value('name') ?? 'Cửa hàng');
 
         return [$this->gotenberg->htmlToPdf(PrintTemplates::invoice($orders, $shopName, $this->paperSize($tenantId))), ['orders' => $orders->count()]];

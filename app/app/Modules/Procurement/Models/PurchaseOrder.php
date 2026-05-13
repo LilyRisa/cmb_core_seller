@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Procurement\Models;
 use CMBcoreSeller\Modules\Inventory\Models\GoodsReceipt;
 use CMBcoreSeller\Modules\Inventory\Models\Warehouse;
 use CMBcoreSeller\Modules\Tenancy\Concerns\BelongsToTenant;
+use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -89,7 +90,7 @@ class PurchaseOrder extends Model
     public static function nextCode(int $tenantId): string
     {
         $prefix = 'PO-'.now()->format('Ym').'-';
-        $n = self::withoutGlobalScope(\CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class)
+        $n = self::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenantId)->where('code', 'like', $prefix.'%')->count() + 1;
 
         return sprintf('%s%04d', $prefix, $n);

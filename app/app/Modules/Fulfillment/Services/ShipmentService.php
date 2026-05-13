@@ -150,13 +150,29 @@ class ShipmentService
     private function fetchAndStoreChannelLabel(Order $order, Shipment $shipment): void
     {
         $account = $order->channel_account_id ? ChannelAccount::query()->find($order->channel_account_id) : null;
-        if (! $account || ! $this->channels->has($account->provider) || ! $this->channels->for($account->provider)->supports('shipping.document') || blank($shipment->package_no)) {
+        if (! $account || ! $this->channels->has($account->provider) || ! $this->channels->for($account->provider)->supports('shipping.document')) {
+            return;
+        }
+        // TikTok yêu cầu `externalPackageId`; Lazada yêu cầu `order_item_ids` — pass cả hai để connector tự
+        // chọn. Lazada cũng chấp nhận thiếu `order_item_ids` & sẽ tự fetch qua `/order/items/get` (1 lượt thêm).
+        $itemIds = OrderItem::withoutGlobalScope(TenantScope::class)
+            ->where('order_id', $order->getKey())
+            ->whereNotNull('external_item_id')
+            ->pluck('external_item_id')
+            ->map(fn ($v) => (int) $v)
+            ->filter(fn ($v) => $v > 0)
+            ->values()
+            ->all();
+        if (blank($shipment->package_no) && $account->provider === 'tiktok') {
+            // TikTok bắt buộc package_no; thiếu thì khỏi gọi.
             return;
         }
         try {
             // SHIPPING_LABEL_AND_PACKING_SLIP ⇒ PDF gồm cả tem vận đơn + phiếu đóng gói (có tên SP / SKU / SL) — SPEC 0013 §6.
             $doc = $this->channels->for($account->provider)->getShippingDocument($account->authContext(), (string) $order->external_order_id, [
-                'type' => 'SHIPPING_LABEL_AND_PACKING_SLIP', 'externalPackageId' => (string) $shipment->package_no,
+                'type' => 'SHIPPING_LABEL_AND_PACKING_SLIP',
+                'externalPackageId' => (string) $shipment->package_no,
+                'order_item_ids' => $itemIds,
             ]);
             $bytes = (string) $doc['bytes'];
             if ($bytes === '') {

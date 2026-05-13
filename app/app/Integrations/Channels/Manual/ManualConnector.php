@@ -118,7 +118,7 @@ class ManualConnector implements ChannelConnector
         throw UnsupportedOperation::for($this->code(), 'getShippingDocument');
     }
 
-    public function fetchSettlements(AuthContext $auth, array $query = []): \CMBcoreSeller\Integrations\Channels\DTO\Page
+    public function fetchSettlements(AuthContext $auth, array $query = []): Page
     {
         // Đơn manual không có "đối soát sàn" — phí/doanh thu nhập tay từ sổ kế toán nội bộ.
         throw UnsupportedOperation::for($this->code(), 'fetchSettlements');

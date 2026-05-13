@@ -6,6 +6,7 @@ use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\DTO\ChannelListingDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\OrderDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\OrderItemDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 
@@ -291,7 +292,7 @@ final class TikTokMappers
             $amount = self::money(data_get($tx, 'amount'));
             // Convention: phía seller — phí "âm", doanh thu "dương". TikTok có thể trả sẵn dấu — giữ nguyên.
             $occurred = self::tsOrNull(data_get($tx, 'time') ?? data_get($tx, 'create_time') ?? data_get($tx, 'transaction_time'));
-            $lines[] = new \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO(
+            $lines[] = new SettlementLineDTO(
                 feeType: $feeType,
                 amount: $amount,
                 externalOrderId: ($oid = data_get($tx, 'order_id')) !== null ? (string) $oid : null,
@@ -301,12 +302,12 @@ final class TikTokMappers
                 raw: $tx,
             );
             match ($feeType) {
-                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_REVENUE => $totalRev += $amount,
-                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_SHIPPING_FEE,
-                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_SHIPPING_SUBSIDY => $totalShip += $amount,
-                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_COMMISSION,
-                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_PAYMENT_FEE,
-                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_VOUCHER_SELLER => $totalFee += $amount,
+                SettlementLineDTO::TYPE_REVENUE => $totalRev += $amount,
+                SettlementLineDTO::TYPE_SHIPPING_FEE,
+                SettlementLineDTO::TYPE_SHIPPING_SUBSIDY => $totalShip += $amount,
+                SettlementLineDTO::TYPE_COMMISSION,
+                SettlementLineDTO::TYPE_PAYMENT_FEE,
+                SettlementLineDTO::TYPE_VOUCHER_SELLER => $totalFee += $amount,
                 default => null,
             };
         }
@@ -332,16 +333,16 @@ final class TikTokMappers
         $t = str_replace([' ', '-'], '_', strtolower($rawType));
 
         return match (true) {
-            str_contains($t, 'commission') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_COMMISSION,
-            str_contains($t, 'transaction_fee') || str_contains($t, 'payment_fee') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_PAYMENT_FEE,
-            str_contains($t, 'ship') && str_contains($t, 'subsidy') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_SHIPPING_SUBSIDY,
-            str_contains($t, 'ship') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_SHIPPING_FEE,
-            str_contains($t, 'voucher') && str_contains($t, 'seller') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_VOUCHER_SELLER,
-            str_contains($t, 'voucher') || str_contains($t, 'platform_subsidy') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_VOUCHER_PLATFORM,
-            str_contains($t, 'refund') || str_contains($t, 'return') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_REFUND,
-            str_contains($t, 'adjust') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_ADJUSTMENT,
-            $t === 'order' || str_contains($t, 'sale') || str_contains($t, 'sku_amount') || str_contains($t, 'order_amount') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_REVENUE,
-            default => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_OTHER,
+            str_contains($t, 'commission') => SettlementLineDTO::TYPE_COMMISSION,
+            str_contains($t, 'transaction_fee') || str_contains($t, 'payment_fee') => SettlementLineDTO::TYPE_PAYMENT_FEE,
+            str_contains($t, 'ship') && str_contains($t, 'subsidy') => SettlementLineDTO::TYPE_SHIPPING_SUBSIDY,
+            str_contains($t, 'ship') => SettlementLineDTO::TYPE_SHIPPING_FEE,
+            str_contains($t, 'voucher') && str_contains($t, 'seller') => SettlementLineDTO::TYPE_VOUCHER_SELLER,
+            str_contains($t, 'voucher') || str_contains($t, 'platform_subsidy') => SettlementLineDTO::TYPE_VOUCHER_PLATFORM,
+            str_contains($t, 'refund') || str_contains($t, 'return') => SettlementLineDTO::TYPE_REFUND,
+            str_contains($t, 'adjust') => SettlementLineDTO::TYPE_ADJUSTMENT,
+            $t === 'order' || str_contains($t, 'sale') || str_contains($t, 'sku_amount') || str_contains($t, 'order_amount') => SettlementLineDTO::TYPE_REVENUE,
+            default => SettlementLineDTO::TYPE_OTHER,
         };
     }
 

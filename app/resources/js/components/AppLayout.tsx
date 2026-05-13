@@ -36,6 +36,7 @@ const NAV: MenuProps['items'] = [
     ] },
     { type: 'group', label: 'Kho & Mua hàng', children: [
         { key: '/inventory', icon: <InboxOutlined />, label: <Link to="/inventory">Tồn kho</Link> },
+        { key: '/procurement/demand-planning', icon: <FundOutlined />, label: <Link to="/procurement/demand-planning">Đề xuất nhập hàng</Link> },
         { key: '/procurement/suppliers', icon: <ShopOutlined />, label: <Link to="/procurement/suppliers">Nhà cung cấp</Link> },
         { key: '/procurement/purchase-orders', icon: <ShoppingCartOutlined />, label: <Link to="/procurement/purchase-orders">Đơn mua hàng</Link> },
     ] },
@@ -50,7 +51,7 @@ const NAV: MenuProps['items'] = [
 ];
 
 // Flat key list for selected-key matching.
-const KEYS = ['/', '/orders', '/customers', '/channels', '/products', '/inventory', '/procurement/suppliers', '/procurement/purchase-orders', '/reports', '/finance/settlements', '/sync-logs', '/settings'];
+const KEYS = ['/', '/orders', '/customers', '/channels', '/products', '/inventory', '/procurement/demand-planning', '/procurement/suppliers', '/procurement/purchase-orders', '/reports', '/finance/settlements', '/sync-logs', '/settings'];
 
 export function AppLayout() {
     const { data: user } = useAuth();

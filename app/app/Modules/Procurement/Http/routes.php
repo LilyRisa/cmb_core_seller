@@ -1,5 +1,6 @@
 <?php
 
+use CMBcoreSeller\Modules\Procurement\Http\Controllers\DemandPlanningController;
 use CMBcoreSeller\Modules\Procurement\Http\Controllers\PurchaseOrderController;
 use CMBcoreSeller\Modules\Procurement\Http\Controllers\SupplierController;
 use Illuminate\Support\Facades\Route;
@@ -32,4 +33,8 @@ Route::middleware(['auth:sanctum', 'tenant'])->prefix('api/v1')->group(function 
     Route::post('purchase-orders/{id}/confirm', [PurchaseOrderController::class, 'confirm'])->whereNumber('id')->name('purchase-orders.confirm');
     Route::post('purchase-orders/{id}/cancel', [PurchaseOrderController::class, 'cancel'])->whereNumber('id')->name('purchase-orders.cancel');
     Route::post('purchase-orders/{id}/receive', [PurchaseOrderController::class, 'receive'])->whereNumber('id')->name('purchase-orders.receive');
+
+    // Đề xuất nhập hàng (Phase 6.3)
+    Route::get('procurement/demand-planning', [DemandPlanningController::class, 'index'])->name('procurement.demand-planning');
+    Route::post('procurement/demand-planning/create-po', [DemandPlanningController::class, 'createPo'])->name('procurement.demand-planning.create-po');
 });

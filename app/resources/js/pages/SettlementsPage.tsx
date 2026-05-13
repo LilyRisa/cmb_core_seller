@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { App as AntApp, Avatar, Button, Card, DatePicker, Drawer, Empty, Modal, Radio, Space, Statistic, Switch, Table, Tag, Typography } from 'antd';
+import { App as AntApp, Button, Card, DatePicker, Drawer, Empty, Modal, Radio, Space, Statistic, Switch, Table, Tag, Typography } from 'antd';
 import { CheckCircleOutlined, CloudDownloadOutlined, DollarOutlined, ExclamationCircleOutlined, FundOutlined, ReloadOutlined, SyncOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';

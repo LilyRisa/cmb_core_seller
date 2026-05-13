@@ -218,9 +218,26 @@ return [
         'endpoints' => [
             'update_stock' => env('LAZADA_UPDATE_STOCK_PATH', '/product/price_quantity/update'),
             'update_stock_format' => env('LAZADA_UPDATE_STOCK_FORMAT', 'json'),   // 'json' | 'xml'
+            // Fulfillment (Phase 4 — SPEC 0008/0013). `/order/document/get` (tài liệu chính thức) trả PDF
+            // `shippingLabel`. Map core `type` → Lazada `doc_type` để chỉnh tên nếu sandbox shop khác (vài
+            // region đôi khi nhận `shipping_label` snake-case).
+            'document_get' => env('LAZADA_DOCUMENT_GET_PATH', '/order/document/get'),
+            'doc_type_map' => [
+                'SHIPPING_LABEL' => env('LAZADA_DOC_TYPE_SHIPPING_LABEL', 'shippingLabel'),
+                'SHIPPING_LABEL_AND_PACKING_SLIP' => env('LAZADA_DOC_TYPE_SHIPPING_LABEL', 'shippingLabel'),
+                'INVOICE' => 'invoice',
+                'CARRIER_MANIFEST' => 'carrierManifest',
+                'PICKLIST' => 'pickList',
+            ],
             // Finance (Phase 6.2 — SPEC 0016). Mặc định path tài liệu chính thức; đổi nếu app version khác.
             'transaction_details' => env('LAZADA_FINANCE_TRANSACTIONS_PATH', '/finance/transaction/details/get'),
         ],
+        // "Luồng A" — bật mặc định: re-fetch order detail để lấy tracking sàn đã cấp + lấy PDF tem qua
+        // `/order/document/get`. Tắt bằng `INTEGRATIONS_LAZADA_FULFILLMENT=false` nếu app chưa có permission.
+        'fulfillment_enabled' => (bool) env('INTEGRATIONS_LAZADA_FULFILLMENT', true),
+        // (Tuỳ chọn) Tự gọi `/order/pack` khi caller truyền `shipment_provider` — yêu cầu permission
+        // "Fulfillment Operations" trên Open Platform. Mặc định off để không gây "MissingPermission".
+        'fulfillment_auto_pack' => (bool) env('LAZADA_FULFILLMENT_AUTO_PACK', false),
         // Phase 6.2 — kéo đối soát. Mặc định off, bật bằng INTEGRATIONS_LAZADA_FINANCE=true sau khi đối chiếu sandbox.
         'finance_enabled' => (bool) env('INTEGRATIONS_LAZADA_FINANCE', false),
 
