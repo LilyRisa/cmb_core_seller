@@ -152,6 +152,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::post('shipments/bulk-create', [ShipmentController::class, 'bulkCreate'])->name('shipments.bulk-create');
             Route::post('shipments/pack', [ShipmentController::class, 'pack'])->name('shipments.pack');                                  // bulk đóng gói
             Route::post('shipments/handover', [ShipmentController::class, 'handover'])->name('shipments.handover');                      // bulk bàn giao
+            Route::post('shipments/bulk-refetch-slip', [ShipmentController::class, 'bulkRefetchSlip'])->name('shipments.bulk-refetch-slip'); // "Nhận phiếu giao hàng lại" — SPEC 0013
             Route::get('shipments/{id}', [ShipmentController::class, 'show'])->whereNumber('id')->name('shipments.show');
             Route::post('shipments/{id}/track', [ShipmentController::class, 'track'])->whereNumber('id')->name('shipments.track');
             Route::post('shipments/{id}/cancel', [ShipmentController::class, 'cancel'])->whereNumber('id')->name('shipments.cancel');
@@ -162,6 +163,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::get('print-jobs', [PrintJobController::class, 'index'])->name('print-jobs.index');
             Route::post('print-jobs', [PrintJobController::class, 'store'])->name('print-jobs.store');
             Route::get('print-jobs/{id}', [PrintJobController::class, 'show'])->whereNumber('id')->name('print-jobs.show');
+            Route::post('print-jobs/{id}/mark-printed', [PrintJobController::class, 'markPrinted'])->whereNumber('id')->name('print-jobs.mark-printed'); // "Đánh dấu đã in" — SPEC 0013
             Route::get('print-jobs/{id}/download', [PrintJobController::class, 'download'])->whereNumber('id')->name('print-jobs.download');
 
             // --- Dashboard ---

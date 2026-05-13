@@ -57,8 +57,11 @@ final class PrintTemplates
         return self::shell('Picking list', $body);   // picking = danh sách gom theo SKU ⇒ luôn A4
     }
 
-    /** @param Collection<int, Order> $orders */
-    public static function packingList(Collection $orders, string $paper = 'A4'): string
+    /**
+     * @param  Collection<int, Order>  $orders  với `items` đã nạp
+     * @param  array<int, array{code:?string,name:?string}>  $skuById  map sku_id → {code, name} (để fallback khi `seller_sku`/`name` trống)
+     */
+    public static function packingList(Collection $orders, string $paper = 'A4', array $skuById = []): string
     {
         $pages = [];
         $last = $orders->count() - 1;
@@ -70,15 +73,16 @@ final class PrintTemplates
             $full = trim(implode(', ', array_filter([$addr['line1'] ?? null, $addr['address'] ?? null, $addr['ward'] ?? null, $addr['district'] ?? null, $addr['province'] ?? null]))) ?: '—';
             $rows = '';
             foreach ($order->items as $i => $it) {
-                $rows .= '<tr><td class="r">'.($i + 1).'</td><td>'.self::e($it->name).self::e($it->variation ? ' — '.$it->variation : '').'</td>'
-                    .'<td>'.self::e($it->seller_sku ?: '').'</td><td class="r">'.(int) $it->quantity.'</td></tr>';
+                [$skuCode, $prodName] = self::lineSkuAndName($it, $skuById);
+                $rows .= '<tr><td class="r">'.($i + 1).'</td><td>'.self::e($prodName).self::e($it->variation ? ' — '.$it->variation : '').'</td>'
+                    .'<td>'.self::e($skuCode).'</td><td class="r">'.(int) $it->quantity.'</td></tr>';
             }
             $code = $order->order_number ?? $order->external_order_id ?? ('#'.$order->getKey());
             $page = '<div class="box"><h1>Phiếu đóng gói — '.self::e($code).'</h1>'
                 .'<div class="muted">Nguồn: '.self::e($order->source).' · in lúc '.now()->format('d/m/Y H:i').'</div>'
                 .'<p><b>Người nhận:</b> '.self::e($name).' · '.self::e($phone).'<br><b>Địa chỉ:</b> '.self::e($full).'</p>'
                 .($order->note ? '<p><b>Ghi chú:</b> '.self::e($order->note).'</p>' : '')
-                .'<table><thead><tr><th class="r">#</th><th>Sản phẩm</th><th>SKU sàn</th><th class="r">SL</th></tr></thead><tbody>'.$rows.'</tbody></table></div>';
+                .'<table><thead><tr><th class="r">#</th><th>Sản phẩm</th><th>SKU</th><th class="r">SL</th></tr></thead><tbody>'.$rows.'</tbody></table></div>';
             $pages[] = $idx < $last ? $page.'<div class="page-break"></div>' : $page;
         }
 
@@ -88,6 +92,22 @@ final class PrintTemplates
     private static function vnd(int $v): string
     {
         return number_format($v, 0, ',', '.').' ₫';
+    }
+
+    /**
+     * Mã SKU + tên sản phẩm hiển thị cho 1 dòng đơn: ưu tiên `seller_sku`/`name` của dòng (đúng như sàn gửi),
+     * fallback về SKU master (`sku_code`/`name`) khi dòng đã ghép SKU mà thiếu dữ liệu; mã SKU rỗng ⇒ "(chưa ghép)".
+     *
+     * @param  array<int, array{code:?string,name:?string}>  $skuById
+     * @return array{0:string,1:string} [mã SKU, tên sản phẩm]
+     */
+    private static function lineSkuAndName(object $item, array $skuById): array
+    {
+        $master = ($item->sku_id ?? null) ? ($skuById[(int) $item->sku_id] ?? null) : null;
+        $code = trim((string) ($item->seller_sku ?? '')) ?: trim((string) ($master['code'] ?? '')) ?: '(chưa ghép)';
+        $name = trim((string) ($item->name ?? '')) ?: trim((string) ($master['name'] ?? '')) ?: '(không tên)';
+
+        return [$code, $name];
     }
 
     /**
@@ -141,8 +161,9 @@ final class PrintTemplates
      * được tem/AWB thật của sàn ("luồng A" = follow-up).
      *
      * @param  Collection<int, Order>  $orders  với `items` và `shipments` (mới nhất trước) đã nạp
+     * @param  array<int, array{code:?string,name:?string}>  $skuById  map sku_id → {code, name} (fallback khi `seller_sku`/`name` trống)
      */
-    public static function deliverySlip(Collection $orders, string $shopName, string $paper = 'A6'): string
+    public static function deliverySlip(Collection $orders, string $shopName, string $paper = 'A6', array $skuById = []): string
     {
         $pages = [];
         $last = $orders->count() - 1;
@@ -154,17 +175,21 @@ final class PrintTemplates
             $full = trim(implode(', ', array_filter([$addr['line1'] ?? null, $addr['address'] ?? null, $addr['ward'] ?? null, $addr['district'] ?? null, $addr['province'] ?? null]))) ?: '—';
             $sh = $order->relationLoaded('shipments') ? $order->shipments->first(fn ($x) => $x->status !== 'cancelled') : null;
             $rows = '';
+            $totalQty = 0;
             foreach ($order->items as $i => $it) {
-                $rows .= '<tr><td class="r">'.($i + 1).'</td><td>'.self::e($it->name).self::e($it->variation ? ' — '.$it->variation : '')
-                    .($it->seller_sku ? '<br><span class="muted">SKU: '.self::e($it->seller_sku).'</span>' : '').'</td><td class="r">'.(int) $it->quantity.'</td></tr>';
+                [$skuCode, $prodName] = self::lineSkuAndName($it, $skuById);
+                $totalQty += (int) $it->quantity;
+                $rows .= '<tr><td class="r">'.($i + 1).'</td><td>'.self::e($prodName).self::e($it->variation ? ' — '.$it->variation : '').'</td>'
+                    .'<td>'.self::e($skuCode).'</td><td class="r">'.(int) $it->quantity.'</td></tr>';
             }
+            $rows .= '<tr><td></td><td colspan="2" class="r"><b>Tổng số lượng</b></td><td class="r"><b>'.$totalQty.'</b></td></tr>';
             $code = $order->order_number ?? $order->external_order_id ?? ('#'.$order->getKey());
             $shipLine = $sh
                 ? '<b>ĐVVC:</b> '.self::e((string) $sh->carrier).' · <b>Mã vận đơn:</b> '.self::e((string) ($sh->tracking_no ?: '(chưa có)'))
                 : '<span class="muted">Chưa tạo vận đơn</span>';
             $page = '<div class="box"><div style="display:flex;justify-content:space-between;align-items:flex-end"><h1>'.self::e($shopName).'</h1><div class="muted" style="text-align:right">PHIẾU GIAO HÀNG<br>'.self::e($code).' · '.now()->format('d/m/Y H:i').'</div></div>'
                 .'<p><b>Người nhận:</b> '.self::e($name).' · '.self::e($phone).'<br><b>Địa chỉ giao:</b> '.self::e($full).'<br>'.$shipLine.'<br><span class="muted">Nguồn đơn: '.self::e($order->source).'</span></p>'
-                .'<table><thead><tr><th class="r">#</th><th>Sản phẩm</th><th class="r">SL</th></tr></thead><tbody>'.$rows.'</tbody></table>'
+                .'<table><thead><tr><th class="r">#</th><th>Sản phẩm</th><th>SKU</th><th class="r">SL</th></tr></thead><tbody>'.$rows.'</tbody></table>'
                 .($order->is_cod ? '<p style="margin-top:8px;font-size:15px;font-weight:700;color:#cf1322">Thu hộ (COD): '.self::vnd((int) ($order->cod_amount ?: $order->grand_total)).'</p>' : '')
                 .($order->note ? '<p class="muted" style="margin-top:8px"><b>Ghi chú:</b> '.self::e($order->note).'</p>' : '')
                 .'<p class="muted" style="margin-top:10px">Lưu ý: kiểm đủ hàng theo phiếu trước khi bàn giao cho ĐVVC.</p></div>';

@@ -61,7 +61,7 @@ export interface Sku {
     reserved_total?: number;
     available_total?: number;
     levels?: InventoryLevel[];
-    mappings?: Array<{ id: number; channel_listing_id: number; sku_id: number; quantity: number; type: string; channel_listing?: { id: number; channel_account_id: number; external_sku_id: string; seller_sku: string | null; title: string | null } | null }>;
+    mappings?: Array<{ id: number; channel_listing_id: number; sku_id: number; quantity: number; type: string; channel_listing?: { id: number; channel_account_id: number; external_sku_id: string; seller_sku: string | null; title: string | null; variation: string | null; image: string | null; channel_stock: number | null } | null }>;
     movements?: InventoryMovement[];
     created_at: string | null;
 }

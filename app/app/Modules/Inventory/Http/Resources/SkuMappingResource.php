@@ -24,6 +24,9 @@ class SkuMappingResource extends JsonResource
                 'external_sku_id' => $this->channelListing->external_sku_id,
                 'seller_sku' => $this->channelListing->seller_sku,
                 'title' => $this->channelListing->title,
+                'variation' => $this->channelListing->variation,
+                'image' => $this->channelListing->image,
+                'channel_stock' => $this->channelListing->channel_stock,
             ] : null),
         ];
     }

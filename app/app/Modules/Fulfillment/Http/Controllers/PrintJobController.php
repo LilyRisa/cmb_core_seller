@@ -57,6 +57,19 @@ class PrintJobController extends Controller
         return response()->json(['data' => new PrintJobResource($job)], 201);
     }
 
+    /**
+     * POST /api/v1/print-jobs/{id}/mark-printed { copies? } — "Đánh dấu các đơn đã in" (popup sau khi mở PDF):
+     * cộng `print_count` cho các vận đơn trong phạm vi của print job (mặc định +1). SPEC 0013.
+     */
+    public function markPrinted(Request $request, int $id, PrintService $service): JsonResponse
+    {
+        abort_unless($request->user()?->can('fulfillment.print'), 403, 'Bạn không có quyền.');
+        $data = $request->validate(['copies' => ['sometimes', 'integer', 'min:1', 'max:50']]);
+        $job = PrintJob::query()->findOrFail($id);
+
+        return response()->json(['data' => $service->markPrinted($job, (int) ($data['copies'] ?? 1))]);
+    }
+
     public function download(Request $request, int $id): JsonResponse|RedirectResponse
     {
         abort_unless($request->user()?->can('fulfillment.print'), 403, 'Bạn không có quyền.');

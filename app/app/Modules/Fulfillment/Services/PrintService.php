@@ -12,6 +12,7 @@ use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use CMBcoreSeller\Support\GotenbergClient;
 use CMBcoreSeller\Support\MediaUploader;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -84,6 +85,34 @@ class PrintService
         return (string) ($size ?: config('fulfillment.print.label_paper_size', 'A6'));
     }
 
+    /**
+     * "Đánh dấu đã in" (sau khi người dùng mở file PDF & xác nhận ở popup) — cộng `print_count` cho các vận đơn
+     * trong phạm vi của print job + ghi `last_printed_at`. `copies` = số bản đã in (mặc định 1). SPEC 0013.
+     *
+     * @return array{shipment_ids: list<int>, copies: int}
+     */
+    public function markPrinted(PrintJob $job, int $copies = 1): array
+    {
+        $copies = max(1, $copies);
+        $shipmentIds = collect((array) data_get($job->meta, 'shipment_ids', []))->map(fn ($v) => (int) $v)->filter()->values()->all();
+        if ($shipmentIds === []) {
+            $q = Shipment::query()->where('tenant_id', $job->tenant_id);
+            if ($sids = $job->shipmentIds()) {
+                $q->whereIn('id', $sids);
+            } elseif ($oids = $job->orderIds()) {
+                $q->whereIn('order_id', $oids)->open();
+            } else {
+                return ['shipment_ids' => [], 'copies' => $copies];
+            }
+            $shipmentIds = $q->pluck('id')->map(fn ($v) => (int) $v)->all();
+        }
+        if ($shipmentIds !== []) {
+            Shipment::query()->whereIn('id', $shipmentIds)->update(['print_count' => DB::raw('print_count + '.$copies), 'last_printed_at' => now()]);
+        }
+
+        return ['shipment_ids' => $shipmentIds, 'copies' => $copies];
+    }
+
     /** Runs inside RenderPrintJob — fills in file_url/status or error. */
     public function render(PrintJob $job): void
     {
@@ -142,10 +171,11 @@ class PrintService
             throw new \RuntimeException('Không có vận đơn nào có tem để in.');
         }
         $merged = $this->gotenberg->mergePdfs($pdfs);
-        // count this print run on each included shipment (UI shows "đã in N lần" + warns from the 2nd time)
-        Shipment::query()->whereIn('id', $includedIds)->update(['print_count' => DB::raw('print_count + 1'), 'last_printed_at' => now()]);
+        // KHÔNG tự tăng print_count ở đây — "đã in" do người dùng xác nhận ở popup sau khi mở PDF (POST
+        // /print-jobs/{id}/mark-printed). Render = chuẩn bị file in; ghi meta để popup biết đơn/vận đơn nào. SPEC 0013.
+        $orderIds = Shipment::query()->whereIn('id', $includedIds)->pluck('order_id')->map(fn ($v) => (int) $v)->unique()->values()->all();
 
-        return [$merged, ['count' => count($pdfs), 'skipped' => $skipped, 'shipment_ids' => $includedIds]];
+        return [$merged, ['count' => count($pdfs), 'skipped' => $skipped, 'shipment_ids' => $includedIds, 'order_ids' => $orderIds]];
     }
 
     /** @return array{0:string,1:array<string,mixed>} */
@@ -189,7 +219,25 @@ class PrintService
             throw new \RuntimeException('Không có đơn nào để in.');
         }
 
-        return [$this->gotenberg->htmlToPdf(PrintTemplates::packingList($orders, $this->paperSize($tenantId))), ['orders' => $orders->count()]];
+        return [$this->gotenberg->htmlToPdf(PrintTemplates::packingList($orders, $this->paperSize($tenantId), $this->skuMapFor($orders))), ['orders' => $orders->count()]];
+    }
+
+    /**
+     * Map sku_id → {code, name} cho các dòng đơn đã ghép SKU — phiếu in fallback về SKU master khi `seller_sku`/
+     * `name` của dòng (do sàn gửi) bị trống. SPEC 0013 (yêu cầu phiếu in luôn có tên SP + SKU + SL).
+     *
+     * @param  Collection<int, Order>  $orders  với `items` đã nạp
+     * @return array<int, array{code:?string,name:?string}>
+     */
+    private function skuMapFor(Collection $orders): array
+    {
+        $skuIds = $orders->flatMap(fn (Order $o) => $o->items->pluck('sku_id'))->filter()->unique()->values();
+        if ($skuIds->isEmpty()) {
+            return [];
+        }
+
+        return Sku::withoutGlobalScope(TenantScope::class)->whereIn('id', $skuIds->all())->get(['id', 'sku_code', 'name'])
+            ->keyBy('id')->map(fn (Sku $s) => ['code' => $s->sku_code, 'name' => $s->name])->all();
     }
 
     /** Sales invoice / order slip — one printable page per order. @return array{0:string,1:array<string,mixed>} */
@@ -228,6 +276,6 @@ class PrintService
         }
         $shopName = (string) (Tenant::query()->whereKey($tenantId)->value('name') ?? 'Cửa hàng');
 
-        return [$this->gotenberg->htmlToPdf(PrintTemplates::deliverySlip($orders, $shopName, $this->paperSize($tenantId))), ['orders' => $orders->count()]];
+        return [$this->gotenberg->htmlToPdf(PrintTemplates::deliverySlip($orders, $shopName, $this->paperSize($tenantId), $this->skuMapFor($orders))), ['orders' => $orders->count(), 'order_ids' => $orders->modelKeys()]];
     }
 }

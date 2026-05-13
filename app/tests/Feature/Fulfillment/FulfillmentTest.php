@@ -232,6 +232,27 @@ class FulfillmentTest extends TestCase
             ->assertOk()->assertJsonPath('data.status', 'done')->assertJsonPath('data.meta.orders', 1);
     }
 
+    public function test_prepare_auto_queues_delivery_slip_to_storage_and_refetch_slip_works(): void
+    {
+        Storage::fake('public');
+        Http::fake(['*/forms/chromium/convert/html' => Http::response('%PDF-1.4 fake-delivery', 200, ['Content-Type' => 'application/pdf'])]);
+
+        // "Chuẩn bị hàng" cho đơn manual ⇒ tự queue render phiếu giao hàng → lưu vào storage & gắn vào vận đơn (SPEC 0013).
+        $orderId = $this->createOrder();
+        $shipmentId = $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/orders/{$orderId}/ship", ['tracking_no' => 'TN-AQ'])->assertCreated()->json('data.id');
+        $sh = Shipment::withoutGlobalScope(TenantScope::class)->find($shipmentId);
+        $this->assertNotNull($sh->label_path, 'phiếu giao hàng tự tạo phải được lưu vào storage ngay sau "Chuẩn bị hàng"');
+        $this->assertSame(0, (int) $sh->print_count);
+
+        // GET /orders?slip=printable lọc ra đơn đã có phiếu để in; stats trả by_slip
+        $this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/orders?slip=printable')->assertOk()->assertJsonPath('meta.pagination.total', 1);
+        $this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/orders/stats')->assertOk()->assertJsonPath('data.by_slip.printable', 1);
+
+        // "Nhận phiếu giao hàng lại" — idempotent, không lỗi
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/shipments/bulk-refetch-slip', ['order_ids' => [$orderId]])
+            ->assertOk()->assertJsonPath('data.ok', 1);
+    }
+
     public function test_bulk_create_reports_per_order_errors(): void
     {
         $ok1 = $this->createOrder();
@@ -293,10 +314,14 @@ class FulfillmentTest extends TestCase
         $done->assertJsonPath('data.status', 'done');
         $this->assertNotNull($done->json('data.file_url'));
         $this->actingAs($this->owner)->withHeaders($this->h())->get("/api/v1/print-jobs/{$jobId}/download")->assertRedirect();
-        // the print run is counted on the shipment ("đã in N lần")
+        // render xong CHƯA tính là "đã in" — phải xác nhận qua /mark-printed (popup sau khi mở file) — SPEC 0013
+        $this->assertSame(0, Shipment::withoutGlobalScope(TenantScope::class)->find($shipment->getKey())->print_count);
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/print-jobs/{$jobId}/mark-printed")->assertOk()->assertJsonPath('data.copies', 1);
         $this->assertSame(1, Shipment::withoutGlobalScope(TenantScope::class)->find($shipment->getKey())->print_count);
-        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/print-jobs', ['type' => 'label', 'shipment_ids' => [$shipment->getKey()]])->assertCreated();   // re-print allowed
-        $this->assertSame(2, Shipment::withoutGlobalScope(TenantScope::class)->find($shipment->getKey())->print_count);
+        // re-print allowed + đánh dấu 2 bản ⇒ print_count = 1 + 2
+        $jobId2 = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/print-jobs', ['type' => 'label', 'shipment_ids' => [$shipment->getKey()]])->assertCreated()->json('data.id');
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/print-jobs/{$jobId2}/mark-printed", ['copies' => 2])->assertOk();
+        $this->assertSame(3, Shipment::withoutGlobalScope(TenantScope::class)->find($shipment->getKey())->print_count);
 
         // a label bundle across two carriers is rejected (different formats / pickup batches)
         $o2 = $this->createOrder();

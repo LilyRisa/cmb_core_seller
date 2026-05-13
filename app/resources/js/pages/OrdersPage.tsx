@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Alert, App as AntApp, Avatar, Badge, Button, Card, DatePicker, Empty, Input, Modal, Select, Space, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
-import { BarcodeOutlined, LinkOutlined, PrinterOutlined, ReloadOutlined, ScanOutlined, SearchOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons';
+import { Alert, App as AntApp, Avatar, Badge, Button, Card, DatePicker, Empty, Input, Modal, Radio, Select, Space, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
+import { BarcodeOutlined, FileTextOutlined, LinkOutlined, PrinterOutlined, ReloadOutlined, ScanOutlined, SearchOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
@@ -11,11 +11,11 @@ import { MoneyText, DateText } from '@/components/MoneyText';
 import { FilterChipRow, type ChipItem } from '@/components/FilterChipRow';
 import { LinkSkusModal } from '@/components/LinkSkusModal';
 import { OrderDetailModal } from '@/components/OrderDetailModal';
-import { OrderActions, PrintJobBar, ScanTab, ShipmentsTab } from '@/components/OrderProcessing';
+import { OrderActions, PrintCountBadge, PrintJobBar, ScanTab, ShipmentsTab } from '@/components/OrderProcessing';
 import { errorMessage } from '@/lib/api';
 import { CHANNEL_META, ORDER_STATUS_TABS } from '@/lib/format';
 import { Order, useOrders, useOrderStats, useSyncOrders } from '@/lib/orders';
-import { useBulkCreateShipments, useCreatePrintJob } from '@/lib/fulfillment';
+import { useBulkCreateShipments, useBulkRefetchSlip, useCreatePrintJob } from '@/lib/fulfillment';
 import { useChannelAccounts } from '@/lib/channels';
 import { useCan } from '@/lib/tenant';
 
@@ -32,6 +32,14 @@ const TIME_PRESETS: Array<{ key: string; label: string; range: () => [string, st
     { key: '90d', label: '90 ngày', range: () => [dayjs().subtract(89, 'day').format('YYYY-MM-DD'), dayjs().format('YYYY-MM-DD')] },
 ];
 
+/** Sub-tab "tình trạng phiếu giao hàng" — chỉ hiện ở tab "Đang xử lý" khi có ≥1 đơn "Chuẩn bị hàng" lỗi (SPEC 0013). */
+const SLIP_TABS = [
+    { key: '', label: 'Tất cả' },
+    { key: 'printable', label: 'Có thể in' },
+    { key: 'loading', label: 'Đang tải lại' },
+    { key: 'failed', label: 'Nhận phiếu giao hàng' },
+] as const;
+
 /** Which search-box param the dropdown targets. */
 const SEARCH_FIELDS = [
     { key: 'q', label: 'Mã đơn / người mua' },
@@ -46,6 +54,7 @@ export function OrdersPage() {
     const accounts = channelsData?.data ?? [];
     const syncOrders = useSyncOrders();
     const bulkPrepare = useBulkCreateShipments();
+    const refetchSlip = useBulkRefetchSlip();
     const createPrintJob = useCreatePrintJob();
     const canCreate = useCan('orders.create');
     const canMap = useCan('inventory.map');
@@ -60,6 +69,7 @@ export function OrdersPage() {
 
     const tabKey = params.get('tab') ?? (params.get('has_issue') ? 'issue' : '');
     const statusParam = params.get('status') ?? '';
+    const slipParam = params.get('slip') ?? '';
     const q = params.get('q') ?? '';
     const skuQ = params.get('sku') ?? '';
     const productQ = params.get('product') ?? '';
@@ -81,6 +91,8 @@ export function OrdersPage() {
 
     const activeTab = ORDER_STATUS_TABS.find((t) => t.key === tabKey) ?? ORDER_STATUS_TABS[0];
     const effectiveStatus = tabKey === 'issue' || tabKey === 'out_of_stock' ? '' : (statusParam || (activeTab.statuses ?? []).join(','));
+    const isProcessingTab = tabKey === 'processing';
+    const slipFilter = isProcessingTab && (['printable', 'loading', 'failed'] as string[]).includes(slipParam) ? (slipParam as 'printable' | 'loading' | 'failed') : undefined;
 
     const filters = useMemo(() => ({
         status: effectiveStatus || undefined,
@@ -91,8 +103,9 @@ export function OrdersPage() {
         placed_from: placedFrom || undefined, placed_to: placedTo || undefined,
         has_issue: tabKey === 'issue' || params.get('has_issue') === '1' ? true : undefined,
         out_of_stock: tabKey === 'out_of_stock' ? true : undefined,
+        slip: slipFilter,
         sort, page, per_page: perPage,
-    }), [effectiveStatus, q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo, tabKey, params, sort, page, perPage]);
+    }), [effectiveStatus, q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo, tabKey, slipFilter, params, sort, page, perPage]);
 
     // stats: status/stage counts ignore status/stage; chip facets ignore the chip facets themselves.
     const statsFilters = useMemo(() => ({
@@ -111,6 +124,8 @@ export function OrdersPage() {
     // skip the (unused) orders list when on the shipments tab
     const { data, isFetching, refetch } = useOrders(isShipmentsTab ? { ...filters, page: 1, per_page: 1 } : filters);
     const { data: stats } = useOrderStats(statsFilters);
+    // sub-tab "tình trạng phiếu giao hàng" chỉ hiện khi có ≥1 đơn "Chuẩn bị hàng" lỗi (SPEC 0013 — như ui_example)
+    const showSlipTabs = isProcessingTab && (stats?.by_slip?.failed ?? 0) > 0;
 
     const countForTab = (t: { statuses?: string[] }) => (t.statuses ?? []).reduce((s, st) => s + (stats?.by_status?.[st] ?? 0), 0);
     const shopName = (id: number) => accounts.find((a) => a.id === id)?.name ?? `#${id}`;
@@ -139,6 +154,15 @@ export function OrdersPage() {
     };
     const doBulkPrintSlip = () => createPrintJob.mutate({ type: 'label', shipment_ids: selWithShipment.map((o) => o.shipment!.id) }, {
         onSuccess: (j) => { setPrintJobId(j.id); setSelectedKeys([]); },
+        onError: (e) => message.error(errorMessage(e)),
+    });
+    // "Nhận phiếu giao hàng lại" — cho các đơn đã "Chuẩn bị hàng" nhưng chưa lấy được phiếu (lỗi gọi sàn / render).
+    const doRefetchSlip = () => refetchSlip.mutate(selWithShipment.map((o) => o.id), {
+        onSuccess: (r) => {
+            message.success(r.ok > 0 ? `Đã yêu cầu lấy lại phiếu giao hàng cho ${r.ok} đơn` : 'Không có đơn nào để lấy lại phiếu');
+            if (r.errors.length) Modal.warning({ title: `${r.errors.length} đơn lỗi`, content: <ul style={{ margin: 0, paddingInlineStart: 18 }}>{r.errors.map((e) => <li key={e.order_id}>Đơn #{e.order_id}: {e.message}</li>)}</ul> });
+            setSelectedKeys([]);
+        },
         onError: (e) => message.error(errorMessage(e)),
     });
 
@@ -171,6 +195,7 @@ export function OrdersPage() {
                         {o.issue_reason === UNMAPPED_REASON
                             ? <Tag color="error" icon={<LinkOutlined />} style={{ cursor: 'pointer' }} onClick={() => setLinkModal({ open: true, orderIds: [o.id] })}>Chưa liên kết SKU — Liên kết</Tag>
                             : o.has_issue && <Tooltip title={o.issue_reason ?? 'Đơn có vấn đề'}><Tag color="error" icon={<WarningOutlined />}>Lỗi</Tag></Tooltip>}
+                        {o.shipment && o.shipment.print_count > 0 && <PrintCountBadge n={o.shipment.print_count} at={o.shipment.last_printed_at} />}
                     </Space>
                 </Space>
             ),
@@ -245,7 +270,7 @@ export function OrdersPage() {
             <Card styles={{ body: { padding: '8px 16px 0' } }}>
                 <Tabs
                     activeKey={tabKey}
-                    onChange={(k) => { setSelectedKeys([]); set({ tab: k || undefined, status: undefined, has_issue: k === 'issue' ? '1' : undefined }); }}
+                    onChange={(k) => { setSelectedKeys([]); set({ tab: k || undefined, status: undefined, slip: undefined, has_issue: k === 'issue' ? '1' : undefined }); }}
                     items={[
                         ...ORDER_STATUS_TABS.map((t) => ({
                             key: t.key,
@@ -259,9 +284,24 @@ export function OrdersPage() {
                 />
             </Card>
 
+            {showSlipTabs && (
+                <Card style={{ marginTop: 8 }} size="small" styles={{ body: { padding: '8px 16px' } }}>
+                    <Space wrap>
+                        <FileTextOutlined />
+                        <Typography.Text type="secondary">Tình trạng phiếu giao hàng:</Typography.Text>
+                        <Radio.Group
+                            size="small" optionType="button" buttonStyle="solid"
+                            value={slipParam}
+                            onChange={(e) => { setSelectedKeys([]); set({ slip: e.target.value || undefined }); }}
+                            options={SLIP_TABS.map((t) => ({ value: t.key, label: `${t.label}${t.key && stats?.by_slip ? ' ' + (stats.by_slip[t.key as 'printable' | 'loading' | 'failed'] ?? 0) : ''}` }))}
+                        />
+                        <Tooltip title="Làm mới"><Button size="small" type="text" icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching} /></Tooltip>
+                    </Space>
+                </Card>
+            )}
+
             {isShipmentsTab ? (
                 <div style={{ marginTop: 12 }}>
-                    {printJobId != null && <PrintJobBar jobId={printJobId} onClose={() => setPrintJobId(null)} />}
                     <Card styles={{ body: { padding: 16 } }}>
                         <ShipmentsTab onPrint={setPrintJobId} />
                     </Card>
@@ -324,6 +364,7 @@ export function OrdersPage() {
                         {canShip && <Button type="primary" loading={bulkPrepare.isPending} onClick={doBulkPrepare}>
                             Chuẩn bị hàng ({selectedKeys.length}){negProfit.length > 0 && <WarningOutlined style={{ marginInlineStart: 4 }} />}
                         </Button>}
+                        {canShip && isProcessingTab && selWithShipment.length > 0 && <Button icon={<FileTextOutlined />} loading={refetchSlip.isPending} onClick={doRefetchSlip}>Nhận phiếu giao hàng ({selWithShipment.length})</Button>}
                         {canPrint && selWithShipment.length > 0 && <Button icon={<PrinterOutlined />} loading={createPrintJob.isPending} onClick={doBulkPrintSlip}>In phiếu giao hàng ({selWithShipment.length})</Button>}
                         <Button onClick={() => setSelectedKeys([])}>Bỏ chọn</Button>
                     </Space>
@@ -333,7 +374,6 @@ export function OrdersPage() {
                         <Button onClick={() => setSelectedKeys([])}>Bỏ chọn</Button>
                     </Space>
                 ) : null)}
-                {printJobId != null && <div style={{ marginBottom: 12 }}><PrintJobBar jobId={printJobId} onClose={() => setPrintJobId(null)} /></div>}
                 <Table<Order>
                     rowKey="id" size="middle" loading={isFetching}
                     dataSource={data?.data ?? []} columns={columns}
@@ -356,6 +396,7 @@ export function OrdersPage() {
             </Card>
             </>)}
 
+            {printJobId != null && <PrintJobBar jobId={printJobId} onClose={() => setPrintJobId(null)} />}
             <LinkSkusModal open={linkModal.open} orderIds={linkModal.orderIds} onClose={() => { setLinkModal({ open: false }); setSelectedKeys([]); }} />
             <OrderDetailModal orderId={viewOrderId} open={viewOrderId != null} onClose={() => setViewOrderId(null)} />
             <Modal title="Quét đơn" open={scan.open} onCancel={() => setScan((s) => ({ ...s, open: false }))} footer={null} width={760} destroyOnClose>

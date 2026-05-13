@@ -258,6 +258,32 @@ class ShipmentController extends Controller
         return response()->json(['data' => ['handed_over' => $n]]);
     }
 
+    /**
+     * POST /api/v1/shipments/bulk-refetch-slip { order_ids } — "Nhận phiếu giao hàng lại": với mỗi đơn đã
+     * "Chuẩn bị hàng" nhưng chưa lấy được phiếu (lỗi gọi sàn / Gotenberg), thử kéo tem thật của sàn / arrange
+     * lại / queue render phiếu tự tạo. Lỗi từng đơn ⇒ vào `errors[]`, không chặn cả batch. SPEC 0013.
+     */
+    public function bulkRefetchSlip(Request $request): JsonResponse
+    {
+        abort_unless($request->user()?->can('fulfillment.ship'), 403, 'Bạn không có quyền.');
+        $data = $request->validate(['order_ids' => ['required', 'array', 'min:1', 'max:200'], 'order_ids.*' => ['integer']]);
+        $ok = 0;
+        $errors = [];
+        foreach (Order::query()->whereNull('deleted_at')->whereIn('id', array_map('intval', $data['order_ids']))->get() as $order) {
+            try {
+                if ($this->service->refetchSlip($order, $request->user()->getKey())) {
+                    $ok++;
+                } else {
+                    $errors[] = ['order_id' => (int) $order->getKey(), 'message' => 'Đơn chưa "Chuẩn bị hàng" (chưa có vận đơn).'];
+                }
+            } catch (\Throwable $e) {
+                $errors[] = ['order_id' => (int) $order->getKey(), 'message' => $e->getMessage()];
+            }
+        }
+
+        return response()->json(['data' => ['ok' => $ok, 'errors' => $errors]]);
+    }
+
     /** POST /api/v1/scan-pack { code } — quét mã vận đơn/mã đơn để đánh dấu ĐÃ ĐÓNG GÓI (created → packed). */
     public function scanPack(Request $request, CurrentTenant $tenant): JsonResponse
     {

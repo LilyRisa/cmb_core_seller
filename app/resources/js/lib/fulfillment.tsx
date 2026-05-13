@@ -267,6 +267,26 @@ export function useHandoverShipments() {
     return useMutation({ mutationFn: async (shipment_ids: number[]) => { const { data } = await api!.post<{ data: { handed_over: number } }>('/shipments/handover', { shipment_ids }); return data.data; }, onSuccess: invalidate });
 }
 
+/** "Nhận phiếu giao hàng lại" cho các đơn "Chuẩn bị hàng" bị lỗi — thử kéo tem thật / arrange lại / queue render phiếu. SPEC 0013. */
+export function useBulkRefetchSlip() {
+    const api = useScopedApi();
+    const invalidate = useFulfillmentInvalidate();
+    return useMutation({
+        mutationFn: async (order_ids: number[]) => { const { data } = await api!.post<{ data: { ok: number; errors: Array<{ order_id: number; message: string }> } }>('/shipments/bulk-refetch-slip', { order_ids }); return data.data; },
+        onSuccess: invalidate,
+    });
+}
+
+/** "Đánh dấu các đơn đã in" sau khi mở file PDF (popup) — cộng print_count cho vận đơn trong print job. SPEC 0013. */
+export function useMarkPrinted() {
+    const api = useScopedApi();
+    const invalidate = useFulfillmentInvalidate();
+    return useMutation({
+        mutationFn: async ({ jobId, copies }: { jobId: number; copies?: number }) => { const { data } = await api!.post<{ data: { shipment_ids: number[]; copies: number } }>(`/print-jobs/${jobId}/mark-printed`, copies ? { copies } : {}); return data.data; },
+        onSuccess: invalidate,
+    });
+}
+
 interface ScanResult { action: 'pack' | 'handover'; message: string; shipment: Shipment; order: { id: number; order_number: string | null; status: string } | null }
 
 /** Scan a tracking/order code to mark a parcel "đã đóng gói" (`mode='pack'`) or to "bàn giao ĐVVC" (`mode='handover'`). */

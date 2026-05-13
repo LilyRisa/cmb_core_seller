@@ -170,8 +170,8 @@ class OrderController extends Controller
     {
         $this->authorizeView($request);
 
-        // Base for the status tabs (everything except status/stage/has_issue/out_of_stock — those have their own tab counts).
-        $statusBase = $this->applyFilters($request, Order::query(), skip: ['status', 'stage', 'has_issue', 'out_of_stock']);
+        // Base for the status tabs (everything except status/stage/slip/has_issue/out_of_stock — those have their own tab counts).
+        $statusBase = $this->applyFilters($request, Order::query(), skip: ['status', 'stage', 'slip', 'has_issue', 'out_of_stock']);
         $counts = (clone $statusBase)->selectRaw('status, count(*) as c')->groupBy('status')->pluck('c', 'status');
         $byStatus = [];
         foreach (StandardOrderStatus::cases() as $s) {
@@ -185,8 +185,17 @@ class OrderController extends Controller
             return [$st => $q->count()];
         })->all();
 
+        // "Tình trạng phiếu giao hàng" tab counts (đơn đã "Chuẩn bị hàng" — có vận đơn open) — SPEC 0013.
+        $openLabelled = fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES)->whereNotNull('label_path');
+        $hasOpenShipment = fn (Builder $q) => $q->whereHas('shipments', fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES));
+        $bySlip = [
+            'printable' => (clone $statusBase)->whereHas('shipments', $openLabelled)->count(),
+            'loading' => $hasOpenShipment(clone $statusBase)->where('has_issue', false)->whereDoesntHave('shipments', $openLabelled)->count(),
+            'failed' => $hasOpenShipment(clone $statusBase)->where('has_issue', true)->count(),
+        ];
+
         // Base for the chip rows (everything except the chip facets themselves).
-        $facetBase = $this->applyFilters($request, Order::query(), skip: ['source', 'channel_account_id', 'carrier', 'stage', 'out_of_stock']);
+        $facetBase = $this->applyFilters($request, Order::query(), skip: ['source', 'channel_account_id', 'carrier', 'stage', 'slip', 'out_of_stock']);
         $bySource = (clone $facetBase)->selectRaw('source, count(*) as c')->groupBy('source')->orderByDesc('c')
             ->pluck('c', 'source')->map(fn ($n, $src) => ['source' => (string) $src, 'count' => (int) $n])->values()->all();
         $byShop = (clone $facetBase)->whereNotNull('channel_account_id')->selectRaw('channel_account_id, count(*) as c')->groupBy('channel_account_id')->orderByDesc('c')
@@ -201,6 +210,7 @@ class OrderController extends Controller
             'out_of_stock' => (clone $statusBase)->whereHas('items', fn (Builder $i) => $i->whereNotNull('sku_id')->whereIn('sku_id', $this->oversoldSkuSubquery()))->count(),
             'by_status' => $byStatus,
             'by_stage' => $byStage,
+            'by_slip' => $bySlip,
             'by_source' => $bySource,
             'by_shop' => $byShop,
             'by_carrier' => $byCarrier,
@@ -287,6 +297,9 @@ class OrderController extends Controller
         if ($use('stage') && in_array($stage = (string) $request->query('stage', ''), ['prepare', 'pack', 'handover'], true)) {
             $this->applyStageFilter($query, $stage);
         }
+        if ($use('slip') && in_array($slip = (string) $request->query('slip', ''), ['printable', 'loading', 'failed'], true)) {
+            $this->applySlipFilter($query, $slip);
+        }
         if ($use('q') && $q = trim((string) $request->query('q', ''))) {
             $query->search($q);
         }
@@ -330,6 +343,27 @@ class OrderController extends Controller
                 ->whereDoesntHave('shipments', fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES)),
             'pack' => $q->whereHas('shipments', fn (Builder $s) => $s->whereIn('status', [Shipment::STATUS_PENDING, Shipment::STATUS_CREATED])),
             'handover' => $q->whereHas('shipments', fn (Builder $s) => $s->where('status', Shipment::STATUS_PACKED)),
+            default => null,
+        };
+    }
+
+    /**
+     * Lọc theo "tình trạng phiếu giao hàng" của đơn ĐÃ "Chuẩn bị hàng" (có vận đơn open) — SPEC 0013:
+     *  - printable : vận đơn open đã có tem/phiếu (`label_path` ≠ null) — sẵn sàng in.
+     *  - loading   : có vận đơn open nhưng chưa có tem nào & đơn KHÔNG `has_issue` — đang chờ queue lấy phiếu về.
+     *  - failed    : có vận đơn open & đơn `has_issue` — "Chuẩn bị hàng" lỗi (cần "Nhận phiếu giao hàng lại").
+     *
+     * @param  Builder<Order>  $q
+     */
+    private function applySlipFilter(Builder $q, string $slip): void
+    {
+        $openLabelled = fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES)->whereNotNull('label_path');
+        match ($slip) {
+            'printable' => $q->whereHas('shipments', $openLabelled),
+            'loading' => $q->where('has_issue', false)
+                ->whereHas('shipments', fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES))
+                ->whereDoesntHave('shipments', $openLabelled),
+            'failed' => $q->where('has_issue', true)->whereHas('shipments', fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES)),
             default => null,
         };
     }

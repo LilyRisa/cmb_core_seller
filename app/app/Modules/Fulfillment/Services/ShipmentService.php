@@ -9,6 +9,7 @@ use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Fulfillment\Events\ShipmentCreated;
 use CMBcoreSeller\Modules\Fulfillment\Models\CarrierAccount;
+use CMBcoreSeller\Modules\Fulfillment\Models\PrintJob;
 use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
 use CMBcoreSeller\Modules\Fulfillment\Models\ShipmentEvent;
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
@@ -37,7 +38,75 @@ class ShipmentService
         private readonly MediaUploader $media,
         private readonly InventoryLedgerService $ledger,
         private readonly ChannelRegistry $channels,
+        private readonly PrintService $print,
     ) {}
+
+    /**
+     * Sau "Chuẩn bị hàng": nếu vận đơn CHƯA có tem thật (của sàn/ĐVVC) ⇒ chạy queue render "phiếu giao hàng"
+     * tự tạo, lưu R2 & gắn vào `shipments.label_url/label_path` ⇒ lúc in chỉ ghép PDF, không render lại. SPEC 0013.
+     * (Lỗi render — vd Gotenberg chưa sẵn sàng — không được làm hỏng bước "Chuẩn bị hàng".)
+     */
+    private function queueDeliverySlip(Order $order, ?int $userId): void
+    {
+        try {
+            $this->print->createJob((int) $order->tenant_id, PrintJob::TYPE_DELIVERY, [$order->getKey()], [], $userId);
+        } catch (\Throwable $e) {
+            Log::warning('shipment.queue_delivery_slip_failed', ['order' => $order->getKey(), 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * "Nhận phiếu giao hàng lại" cho đơn đã "Chuẩn bị hàng" nhưng chưa lấy được phiếu (lỗi gọi sàn / Gotenberg).
+     * Idempotent: (a) đơn sàn còn `package_no` ⇒ thử kéo tem thật của sàn; (b) nếu đơn `has_issue` về "đã in đơn"/
+     * "mã vận đơn" ⇒ thử `arrangeShipment` lại (lấy AWB, clear cờ khi thành công); (c) nếu vẫn chưa có tem ⇒
+     * queue render phiếu giao hàng tự tạo. Trả true nếu có vận đơn để xử lý. SPEC 0013.
+     */
+    public function refetchSlip(Order $order, ?int $userId = null): bool
+    {
+        $shipment = Shipment::query()->where('tenant_id', $order->tenant_id)->where('order_id', $order->getKey())->open()->latest('id')->first();
+        if (! $shipment) {
+            return false;
+        }
+        // (b) đơn sàn còn vướng cờ "đã in đơn / mã vận đơn" ⇒ thử arrange lại
+        $issueAboutChannel = $order->has_issue && (str_contains((string) $order->issue_reason, 'in đơn') || str_contains((string) $order->issue_reason, 'mã vận đơn'));
+        if ($order->channel_account_id && $issueAboutChannel) {
+            try {
+                $arr = $this->arrangeOnChannel($order);
+                if (is_array($arr)) {
+                    $patch = [];
+                    if (! empty($arr['tracking_no']) && blank($shipment->tracking_no)) {
+                        $shipment->forceFill(['tracking_no' => $arr['tracking_no']])->save();
+                    }
+                    if (! empty($arr['package_id']) && blank($shipment->package_no)) {
+                        $shipment->forceFill(['package_no' => $arr['package_id']])->save();
+                    }
+                    if (! empty($arr['carrier']) && blank($shipment->carrier)) {
+                        $shipment->forceFill(['carrier' => $arr['carrier']])->save();
+                    }
+                    if (! empty($arr['tracking_no'])) {
+                        $patch = ['has_issue' => false, 'issue_reason' => null];
+                    }
+                    if ($patch !== []) {
+                        $order->forceFill($patch)->save();
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::info('shipment.refetch_slip_arrange_failed', ['order' => $order->getKey(), 'error' => $e->getMessage()]);
+            }
+            $shipment->refresh();
+        }
+        // (a) kéo tem thật của sàn nếu có thể
+        if (blank($shipment->label_path) && $shipment->tracking_no) {
+            $this->fetchAndStoreChannelLabel($order, $shipment);
+            $shipment->refresh();
+        }
+        // (c) chưa có tem ⇒ queue phiếu giao hàng tự tạo
+        if (blank($shipment->label_path)) {
+            $this->queueDeliverySlip($order, $userId);
+        }
+
+        return true;
+    }
 
     /**
      * Đơn sàn — gọi sàn "arrange shipment" ("luồng A"): tự đẩy trạng thái "sắp xếp vận chuyển / đã in đơn"
@@ -81,8 +150,9 @@ class ShipmentService
             return;
         }
         try {
+            // SHIPPING_LABEL_AND_PACKING_SLIP ⇒ PDF gồm cả tem vận đơn + phiếu đóng gói (có tên SP / SKU / SL) — SPEC 0013 §6.
             $doc = $this->channels->for($account->provider)->getShippingDocument($account->authContext(), (string) $order->external_order_id, [
-                'type' => 'SHIPPING_LABEL', 'externalPackageId' => (string) $shipment->package_no,
+                'type' => 'SHIPPING_LABEL_AND_PACKING_SLIP', 'externalPackageId' => (string) $shipment->package_no,
             ]);
             $bytes = (string) $doc['bytes'];
             if ($bytes === '') {
@@ -156,6 +226,9 @@ class ShipmentService
         $this->orderStatus->apply($order, S::Processing, 'system', [S::Pending], $userId);
         $shipment->refresh();
         ShipmentCreated::dispatch($shipment);
+        if (blank($shipment->label_path)) {
+            $this->queueDeliverySlip($order, $userId);   // kéo phiếu giao hàng về R2 ngay (in sau chỉ ghép PDF) — SPEC 0013
+        }
 
         return $shipment;
     }
@@ -264,6 +337,9 @@ class ShipmentService
 
         $shipment->refresh();
         ShipmentCreated::dispatch($shipment);
+        if (blank($shipment->label_path)) {
+            $this->queueDeliverySlip($order, $userId);   // ĐVVC manual không có tem ⇒ kéo phiếu giao hàng tự tạo về R2 — SPEC 0013
+        }
 
         return $shipment;
     }

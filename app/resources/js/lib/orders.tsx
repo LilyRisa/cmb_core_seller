@@ -83,7 +83,7 @@ export interface Order {
     cancel_reason: string | null;
     created_at: string | null;
     customer?: CustomerCard | null;
-    shipment?: { id: number; carrier: string; tracking_no: string | null; status: string; label_url: string | null; print_count: number; packed_at: string | null } | null;
+    shipment?: { id: number; carrier: string; tracking_no: string | null; status: string; label_url: string | null; has_label: boolean; print_count: number; last_printed_at: string | null; packed_at: string | null } | null;
     items?: OrderItem[];
     status_history?: OrderStatusHistory[];
 }
@@ -101,6 +101,7 @@ export interface OrderFilters {
     has_issue?: boolean;
     out_of_stock?: boolean;
     stage?: 'prepare' | 'pack' | 'handover';   // bước xử lý dựa trên vận đơn (SPEC 0013)
+    slip?: 'printable' | 'loading' | 'failed';  // tình trạng phiếu giao hàng của đơn đã "Chuẩn bị hàng" (SPEC 0013)
     sort?: string;
     page?: number;
     per_page?: number;
@@ -129,6 +130,7 @@ export interface OrderStats {
     out_of_stock: number;
     by_status: Record<string, number>;
     by_stage: Record<string, number>;   // { prepare, pack, handover }
+    by_slip: { printable: number; loading: number; failed: number };   // tình trạng phiếu giao hàng — SPEC 0013
     by_source: SourceCount[];
     by_shop: ShopCount[];
     by_carrier: CarrierCount[];

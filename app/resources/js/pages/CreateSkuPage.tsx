@@ -1,19 +1,62 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
-    Alert, Anchor, App as AntApp, Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber,
-    Radio, Row, Select, Skeleton, Space, Table, Tag, Typography, Upload,
+    Alert, Anchor, App as AntApp, Avatar, Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber,
+    Radio, Row, Select, Skeleton, Space, Table, Tag, Tooltip, Typography, Upload,
 } from 'antd';
 import type { RcFile } from 'antd/es/upload';
-import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined, QuestionCircleOutlined, ShopOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { errorMessage } from '@/lib/api';
 import {
-    useCreateSku, useDeleteSkuImage, useSku, useUpdateSku, useUploadSkuImage, useWarehouses,
-    type CreateSkuPayload, type Sku, type UpdateSkuPayload,
+    useChannelListings, useCreateSku, useDeleteSkuImage, useSku, useUpdateSku, useUploadSkuImage, useWarehouses,
+    type ChannelListing, type CreateSkuPayload, type Sku, type UpdateSkuPayload,
 } from '@/lib/inventory';
 import { useChannelAccounts } from '@/lib/channels';
+
+/** Thông tin listing sàn đã chọn cho 1 dòng ghép nối — chỉ để hiển thị (tên/ảnh/biến thể), không gửi lên server. */
+interface PickedListing { external_sku_id: string; seller_sku: string | null; title: string | null; image: string | null; variation: string | null; channel_stock: number | null }
+
+/**
+ * Picker chọn SKU gian hàng để ghép nối — tìm theo tên SP / mã SKU trong các listing đã đồng bộ của gian hàng,
+ * hiện ảnh + tên + biến thể + tồn trên sàn. Cho phép gõ mã thủ công nếu listing chưa đồng bộ. SPEC 0005.
+ * Form-controlled qua `value`/`onChange` (= external_sku_id); `onPick` để side-effect (điền seller_sku + hiện preview).
+ */
+function ChannelListingPicker({ shopId, value, onChange, onPick }: { shopId?: number; value?: string; onChange?: (v?: string) => void; onPick?: (l: PickedListing | null) => void }) {
+    const [term, setTerm] = useState('');
+    const { data, isFetching } = useChannelListings({ channel_account_id: shopId, q: term || undefined, per_page: 20 });
+    const listings: ChannelListing[] = shopId ? (data?.data ?? []) : [];
+    const opts: Array<{ value: string; label: ReactNode; listing?: ChannelListing }> = listings.map((l) => ({
+        value: l.external_sku_id, listing: l,
+        label: (
+            <Space size={6}>
+                <Avatar shape="square" size={22} src={l.image ?? undefined}>{l.image ? null : '?'}</Avatar>
+                <span>{l.title ?? '(không tên)'}{l.variation ? ` — ${l.variation}` : ''}</span>
+                <Typography.Text type="secondary" style={{ fontSize: 11 }}>· {l.external_sku_id}{l.channel_stock != null ? ` · tồn ${l.channel_stock}` : ''}</Typography.Text>
+            </Space>
+        ),
+    }));
+    if (term.trim() && !listings.some((l) => l.external_sku_id === term.trim())) {
+        opts.push({ value: term.trim(), label: <span>Dùng mã sàn thủ công: <b>{term.trim()}</b></span> });
+    }
+    return (
+        <Select
+            showSearch filterOption={false} onSearch={setTerm} loading={isFetching} allowClear
+            disabled={!shopId} style={{ minWidth: 320, width: '100%' }}
+            placeholder={shopId ? 'Tìm sản phẩm trên sàn (tên / mã SKU)…' : 'Chọn gian hàng trước'}
+            value={value || undefined}
+            options={opts}
+            notFoundContent={!shopId ? null : isFetching ? 'Đang tìm…' : 'Không thấy listing — đồng bộ ở trang "Sản phẩm sàn", hoặc gõ mã SKU sàn rồi chọn "Dùng mã thủ công".'}
+            onChange={(v?: string) => {
+                onChange?.(v || undefined);
+                if (!v) { onPick?.(null); return; }
+                const o = opts.find((x) => x.value === v);
+                onPick?.({ external_sku_id: v, seller_sku: o?.listing?.seller_sku ?? null, title: o?.listing?.title ?? null, image: o?.listing?.image ?? null, variation: o?.listing?.variation ?? null, channel_stock: o?.listing?.channel_stock ?? null });
+            }}
+        />
+    );
+}
 
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 const IMAGE_MAX_MB = 5;
@@ -38,7 +81,7 @@ interface BasicForm {
     width_cm?: number;
     height_cm?: number;
     is_active?: boolean;
-    mappings?: Array<{ channel_account_id?: number; external_sku_id?: string; seller_sku?: string; quantity?: number }>;
+    mappings?: Array<{ channel_account_id?: number; external_sku_id?: string; seller_sku?: string; quantity?: number; _listing?: PickedListing }>;
 }
 
 interface WhRow { included: boolean; on_hand: number; cost_price: number }
@@ -101,7 +144,11 @@ export function CreateSkuPage() {
             is_active: editing.is_active,
             mappings: (editing.mappings ?? [])
                 .filter((m) => m.channel_listing)
-                .map((m) => ({ channel_account_id: m.channel_listing!.channel_account_id, external_sku_id: m.channel_listing!.external_sku_id, seller_sku: m.channel_listing!.seller_sku ?? undefined, quantity: m.quantity ?? 1 })),
+                .map((m) => ({
+                    channel_account_id: m.channel_listing!.channel_account_id, external_sku_id: m.channel_listing!.external_sku_id,
+                    seller_sku: m.channel_listing!.seller_sku ?? undefined, quantity: m.quantity ?? 1,
+                    _listing: { external_sku_id: m.channel_listing!.external_sku_id, seller_sku: m.channel_listing!.seller_sku, title: m.channel_listing!.title, image: m.channel_listing!.image, variation: m.channel_listing!.variation, channel_stock: m.channel_listing!.channel_stock },
+                })),
         });
         setImageFile(null); setImageDeleted(false);
         setImagePreview(editing.image_url ?? undefined);

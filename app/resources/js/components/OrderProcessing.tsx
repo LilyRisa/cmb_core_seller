@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Alert, App as AntApp, Button, Empty, Input, Modal, Segmented, Select, Space, Spin, Table, Tag, Timeline, Tooltip, Typography } from 'antd';
+import { App as AntApp, Button, Empty, Input, InputNumber, Modal, Result, Segmented, Select, Space, Spin, Table, Tag, Timeline, Tooltip, Typography } from 'antd';
 import type { InputRef } from 'antd';
-import { CarOutlined, CheckCircleOutlined, CloseCircleOutlined, InboxOutlined, PrinterOutlined, ReloadOutlined, ScanOutlined, WarningOutlined } from '@ant-design/icons';
+import { CarOutlined, CheckCircleOutlined, CloseCircleOutlined, ExportOutlined, InboxOutlined, PrinterOutlined, ReloadOutlined, ScanOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { ChannelBadge } from '@/components/ChannelBadge';
 import { MoneyText, DateText } from '@/components/MoneyText';
@@ -10,8 +10,8 @@ import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
 import type { Order } from '@/lib/orders';
 import {
-    type Shipment, SHIPMENT_STATUS_LABEL,
-    useCancelShipment, useCreatePrintJob, useHandoverShipments,
+    type PrintJob, type Shipment, SHIPMENT_STATUS_LABEL,
+    useBulkRefetchSlip, useCancelShipment, useCreatePrintJob, useHandoverShipments, useMarkPrinted,
     usePackShipments, usePrintJob, useScanProcess, useShipment, useShipments, useShipOrder, useTrackShipment,
 } from '@/lib/fulfillment';
 
@@ -20,25 +20,77 @@ function ShipmentStatusTag({ status }: { status: string }) {
     return <Tag color={color}>{SHIPMENT_STATUS_LABEL[status] ?? status}</Tag>;
 }
 
-function PrintCountBadge({ n }: { n: number }) {
+/** "Đơn đã in" chip — hiện ở danh sách đơn để biết đơn đã in & in bao nhiêu lần (SPEC 0013 — domain doc §1). */
+export function PrintCountBadge({ n, at }: { n: number; at?: string | null }) {
     if (!n) return null;
-    return <Tooltip title={`Đã in ${n} lần`}><Tag icon={<PrinterOutlined />} color={n > 1 ? 'orange' : 'default'} style={{ marginInlineEnd: 0 }}>{n}×</Tag></Tooltip>;
+    return <Tooltip title={`Đã in ${n} lần${at ? ' · gần nhất ' + new Date(at).toLocaleString('vi-VN') : ''}`}><Tag icon={<PrinterOutlined />} color={n > 1 ? 'orange' : 'green'} style={{ marginInlineEnd: 0 }}>{n}×</Tag></Tooltip>;
 }
 
-/** Running print-job bar (poll → "Tải / In" when ready). */
+const PRINT_TYPE_LABEL: Record<PrintJob['type'], string> = { label: 'tem sàn', delivery: 'phiếu giao hàng', packing: 'phiếu đóng gói', picking: 'phiếu soạn hàng', invoice: 'hoá đơn' };
+
+function jobOrderCount(job: PrintJob): number {
+    const m = (job.meta ?? {}) as { order_ids?: number[]; shipment_ids?: number[]; count?: number };
+    return m.order_ids?.length ?? job.scope?.order_ids?.length ?? m.shipment_ids?.length ?? job.scope?.shipment_ids?.length ?? m.count ?? 0;
+}
+
+/**
+ * In phiếu: theo dõi print-job; khi xong ⇒ mở popup → bấm "Mở để in" (mở tab PDF mới) → popup "đánh dấu các đơn
+ * đã in" + số bản in (cộng print_count cho vận đơn). Vẫn theo rule "không in chung nhiều nền tảng/ĐVVC" (BE chặn).
+ * SPEC 0013 (mục 3).
+ */
 export function PrintJobBar({ jobId, onClose }: { jobId: number; onClose: () => void }) {
+    const { message } = AntApp.useApp();
     const { data: job } = usePrintJob(jobId);
-    const opened = useRef(false);
-    useEffect(() => { if (job?.status === 'done' && job.file_url && !opened.current) { opened.current = true; window.open(job.file_url, '_blank'); } }, [job]);
-    if (!job) return null;
-    if (job.status === 'error') return <Alert type="error" showIcon closable onClose={onClose} style={{ marginBottom: 12 }} message={`Tạo phiếu in lỗi: ${job.error ?? ''}`} />;
-    if (job.status === 'done') {
-        const skipped = Array.isArray((job.meta as Record<string, unknown>)?.skipped) ? ((job.meta as Record<string, number[]>).skipped ?? []) : [];
-        return <Alert type="success" showIcon closable onClose={onClose} style={{ marginBottom: 12 }}
-            message={`Phiếu in (${job.type}) đã sẵn sàng${skipped.length ? ` — ${skipped.length} đơn không có tem, bị bỏ qua` : ''}`}
-            action={<a href={job.file_url ?? '#'} target="_blank" rel="noreferrer"><Button size="small" type="primary">Tải / In</Button></a>} />;
-    }
-    return <Alert type="info" showIcon style={{ marginBottom: 12 }} message={`Đang tạo phiếu in (${job.type})…`} />;
+    const markPrinted = useMarkPrinted();
+    const [step, setStep] = useState<'open' | 'mark'>('open');
+    const [copies, setCopies] = useState(1);
+    const shownErr = useRef(false);
+
+    useEffect(() => { setStep('open'); setCopies(1); shownErr.current = false; }, [jobId]);
+    useEffect(() => {
+        if (job?.status === 'error' && !shownErr.current) { shownErr.current = true; message.error(`Tạo phiếu in lỗi: ${job.error ?? ''}`); onClose(); }
+    }, [job, message, onClose]);
+
+    if (!job || job.status === 'error') return null;
+    const typeLabel = PRINT_TYPE_LABEL[job.type] ?? job.type;
+    const skipped = Array.isArray((job.meta as Record<string, unknown>)?.skipped) ? ((job.meta as Record<string, number[]>).skipped ?? []) : [];
+    const canMark = job.type === 'label' || job.type === 'delivery';
+    const n = jobOrderCount(job);
+    const done = job.status === 'done' && !!job.file_url;
+
+    const finish = () => { setStep('open'); onClose(); };
+    const openPdf = () => { window.open(job.file_url ?? '#', '_blank', 'noopener'); if (canMark && n > 0) setStep('mark'); else finish(); };
+    const doMark = () => markPrinted.mutate({ jobId, copies }, {
+        onSuccess: (r) => { message.success(`Đã đánh dấu ${r.shipment_ids.length} đơn đã in${r.copies > 1 ? ` × ${r.copies} bản` : ''}`); finish(); },
+        onError: (e) => message.error(errorMessage(e)),
+    });
+
+    return (
+        <Modal open width={460} onCancel={finish} maskClosable={false}
+            title={done ? (step === 'open' ? 'Phiếu in đã sẵn sàng' : 'Đánh dấu các đơn đã in') : 'Đang tạo phiếu in…'}
+            footer={!done ? null : step === 'open' ? [
+                <Button key="c" onClick={finish}>Đóng</Button>,
+                <Button key="o" type="primary" icon={<ExportOutlined />} onClick={openPdf}>Mở để in</Button>,
+            ] : [
+                <Button key="s" onClick={finish}>Bỏ qua</Button>,
+                <Button key="m" type="primary" loading={markPrinted.isPending} onClick={doMark}>Đánh dấu đã in</Button>,
+            ]}>
+            {!done ? (
+                <Space><Spin /> <span>Đang tạo {typeLabel}…</span></Space>
+            ) : step === 'open' ? (
+                <Result status="success" style={{ padding: '8px 0' }}
+                    title={`${typeLabel} đã sẵn sàng${n ? ` (${n} đơn)` : ''}`}
+                    subTitle={<>Bấm <b>“Mở để in”</b> để mở tệp PDF ở tab mới rồi in.{skipped.length ? <><br />{skipped.length} đơn không có tem/phiếu — đã bỏ qua.</> : null}</>}
+                    extra={<a href={job.file_url ?? '#'} target="_blank" rel="noreferrer"><Button size="small">Tải xuống</Button></a>} />
+            ) : (
+                <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                    <Typography.Text>Đánh dấu <b>{n}</b> đơn trong tệp này là <b>đã in</b>?</Typography.Text>
+                    <Space>Số bản in mỗi đơn: <InputNumber min={1} max={50} value={copies} onChange={(v) => setCopies(Number(v) || 1)} /></Space>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>Đơn đã in sẽ hiện biểu tượng phiếu in <PrinterOutlined /> kèm số lần in trong danh sách.</Typography.Text>
+                </Space>
+            )}
+        </Modal>
+    );
 }
 
 /**
@@ -52,16 +104,19 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
     const pack = usePackShipments();
     const handover = useHandoverShipments();
     const createPrint = useCreatePrintJob();
+    const refetchSlip = useBulkRefetchSlip();
     const canShip = useCan('fulfillment.ship');
     const canPrint = useCan('fulfillment.print');
     const sh = order.shipment;
-    const busy = ship.isPending || pack.isPending || handover.isPending || createPrint.isPending;
+    const busy = ship.isPending || pack.isPending || handover.isPending || createPrint.isPending || refetchSlip.isPending;
     if (busy) return <Spin size="small" />;
 
     const err = (e: unknown) => message.error(errorMessage(e));
     const printDelivery = () => createPrint.mutate(sh ? { type: 'label', shipment_ids: [sh.id] } : { type: 'delivery', order_ids: [order.id] }, { onSuccess: (j) => onPrint(j.id), onError: err });
+    const doRefetchSlip = () => refetchSlip.mutate([order.id], { onSuccess: () => message.success('Đã yêu cầu lấy lại phiếu giao hàng'), onError: err });
     // "Chuẩn bị hàng" = đẩy trạng thái "sắp xếp vận chuyển" lên sàn + lấy AWB/phiếu của sàn → đơn pending → processing.
-    const runPrepare = () => ship.mutate({ orderId: order.id }, { onSuccess: () => { message.success('Đã chuẩn bị hàng — đang đẩy trạng thái lên sàn & lấy phiếu giao hàng'); printDelivery(); }, onError: err });
+    // Phiếu giao hàng tự chạy queue lưu R2 (BE) ⇒ FE chỉ báo, không cần render lại lúc in.
+    const runPrepare = () => ship.mutate({ orderId: order.id }, { onSuccess: () => message.success('Đã chuẩn bị hàng — đang đẩy trạng thái lên sàn & lấy phiếu giao hàng'), onError: err });
     const prepare = () => {
         if (order.profit && order.profit.estimated_profit < 0) {
             Modal.confirm({ title: 'Đơn này lợi nhuận ước tính ÂM', content: `Lợi nhuận ước tính: ${order.profit.estimated_profit.toLocaleString('vi-VN')} ₫ (tổng tiền không bù được phí sàn + giá vốn). Vẫn chuẩn bị hàng?`, okText: 'Vẫn chuẩn bị', okButtonProps: { danger: true }, cancelText: 'Để xem lại', onOk: runPrepare });
@@ -86,7 +141,8 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
             : <a key="prep" onClick={prepare}>Chuẩn bị hàng (lấy phiếu)</a>);
     } else if (shOpen && ['pending', 'created'].includes(sh!.status)) {
         // Đã chuẩn bị / có vận đơn, chờ đóng gói + quét nội bộ.
-        if (canPrint) actions.push(<a key="ds1" onClick={printDelivery}>In phiếu giao hàng</a>);
+        if (canShip && (order.has_issue || !sh!.has_label)) actions.push(<a key="rs" style={{ color: order.has_issue ? '#cf1322' : undefined }} onClick={doRefetchSlip}>Nhận phiếu giao hàng lại</a>);
+        if (canPrint && sh!.has_label) actions.push(<a key="ds1" onClick={printDelivery}>In phiếu giao hàng</a>);
         if (canPrint && sh!.label_url) actions.push(<a key="lbl1" onClick={() => createPrint.mutate({ type: 'label', shipment_ids: [sh!.id] }, { onSuccess: (j) => onPrint(j.id), onError: err })}>In tem sàn</a>);
         if (canShip) actions.push(<a key="ready" onClick={markReady}>Đã gói & sẵn sàng bàn giao</a>);
     } else if (shOpen && sh!.status === 'packed') {
