@@ -281,20 +281,27 @@ class LazadaConnector implements ChannelConnector
     private array $providerCache = [];
 
     /**
+     * Trạng thái item-level Lazada cho phép pack (tài liệu: "if it is cancelled or unpaid status, then
+     * it is not allowed to be packed"). Các trạng thái khác (`packed`/`ready_to_ship`/`shipped`/…) đã
+     * pack rồi ⇒ pack lại sẽ bị Lazada reject code "20 Invalid Order Item ID".
+     */
+    private const PACKABLE_ITEM_STATUSES = ['pending', 'topack', ''];
+
+    /**
      * Lazada "luồng A" — đẩy đơn từ `pending` → `ready_to_ship` trên Lazada & lấy tracking thật:
      *
-     *   1. `fetchOrderDetail` để xem item-level status (idempotent: đã `packed`/`ready_to_ship`/`shipped`
-     *       ⇒ trả tracking ngay, KHÔNG pack/rts lại — chống double-arrange).
-     *   2. Resolve `shipment_provider`: `$params['shipment_provider']` → config
-     *       `default_shipment_provider` → `/shipment/providers/get` (pick `is_default=true`/đầu).
-     *   3. `POST /order/pack` (`delivery_type=dropship`, `shipment_provider`, `order_items=[id,...]`) ⇒
-     *       Lazada cấp `tracking_number` + `package_id`.
-     *   4. `POST /order/rts` (`tracking_number` từ pack, `order_item_ids=[id,...]`) ⇒ Lazada chuyển sang
-     *       `ready_to_ship`. **Bắt buộc** — bỏ qua thì AWB không hợp lệ & seller bị phạt.
-     *   5. Trả `tracking_no` + `carrier` + `package_id` + `raw_status='ready_to_ship'`.
+     *   1. `fetchOrderDetail` (1 lượt — đọc cả packages & items) — idempotent: đã có tracking ⇒ trả ngay.
+     *   2. Lọc items theo trạng thái **packable** (chỉ `pending`/`topack`); bỏ items đã pack/ship/huỷ/unpaid.
+     *      Nếu post-filter rỗng ⇒ ném lỗi rõ ràng (chỉ rõ các trạng thái item đang ở để user hiểu).
+     *   3. Resolve `shipment_provider`: `$params` → config `default_shipment_provider` → `/shipment/providers/get`.
+     *   4. `POST /order/pack` (`delivery_type=dropship`, `shipment_provider`, `order_items=[id,...]`) ⇒
+     *       Lazada cấp `tracking_number` + `package_id`. Code "20 Invalid Order Item ID" ⇒ race condition
+     *       (items vừa được pack ở nguồn khác) ⇒ re-fetch detail; có tracking thì short-circuit.
+     *   5. `POST /order/rts` (`tracking_number` từ pack, `order_item_ids=[id,...]`) ⇒ Lazada `ready_to_ship`.
+     *   6. Trả `tracking_no` + `carrier` + `package_id` + `raw_status='ready_to_ship'`.
      *
-     * Mode `LAZADA_FULFILLMENT_MODE=refetch_only` (legacy): bỏ bước 2–4, chỉ re-fetch — cho shop không
-     * có permission "Fulfillment" pack thủ công ngoài Seller Center.
+     * Mode `LAZADA_FULFILLMENT_MODE=refetch_only` (legacy): bỏ bước 2–5, chỉ re-fetch — cho shop chưa có
+     * permission "Fulfillment" pack thủ công ngoài Seller Center.
      *
      * Lỗi ở bất kỳ bước nào ⇒ ném `LazadaApiException` lên — `ShipmentService::arrangeOnChannel` catch &
      * gắn cờ `has_issue` để user "Nhận phiếu giao hàng" thử lại sau.
@@ -307,8 +314,10 @@ class LazadaConnector implements ChannelConnector
             throw UnsupportedOperation::for($this->code(), 'arrangeShipment');
         }
 
-        // (1) idempotent re-fetch — đã có tracking thì khỏi pack/rts lại
-        $existing = $this->extractExistingShipment($auth, $externalOrderId, $params);
+        // (1) Một lượt re-fetch — đọc cả packages (cho short-circuit) lẫn items (cho filter packable bên dưới).
+        //     fetchOrderDetail gọi cả `/order/get` lẫn `/order/items/get` và lưu raw trong $detail->raw['items'].
+        $detail = $this->fetchOrderDetail($auth, $externalOrderId);
+        $existing = $this->extractExistingShipmentFromDetail($detail);
         if ($existing !== null) {
             return $existing;
         }
@@ -319,14 +328,20 @@ class LazadaConnector implements ChannelConnector
             return ['tracking_no' => null, 'carrier' => null, 'raw_status' => null, 'package_id' => null];
         }
 
-        // (2) resolve order_item_ids + shipment_provider + delivery_type
-        $itemIds = $this->resolveOrderItemIds($auth, $externalOrderId, $params);
-        if ($itemIds === []) {
+        // (2) Lọc items theo trạng thái packable
+        $rawItems = (array) ($detail->raw['items'] ?? []);
+        [$packableIds, $skippedStatuses] = $this->splitPackableItems($rawItems);
+        if ($packableIds === []) {
+            $statusList = $skippedStatuses !== []
+                ? implode(', ', array_unique(array_values($skippedStatuses)))
+                : 'không có item';
             throw new LazadaApiException(
-                "Lazada arrange shipment: không tìm thấy order_item_id nào cho đơn {$externalOrderId}. Hãy đồng bộ lại đơn.",
-                'NoOrderItems', 422,
+                "Lazada arrange shipment: không có item nào ở trạng thái pending để pack (đơn {$externalOrderId}). Trạng thái item hiện tại: {$statusList}. Có thể đơn đã pack/ship/huỷ ở ngoài app — bấm 'Nhận phiếu giao hàng' để đồng bộ lại trạng thái.",
+                'NoPackableItems', 422,
             );
         }
+
+        // (3) Resolve shipment_provider + delivery_type
         $deliveryType = (string) ($params['delivery_type'] ?? config('integrations.lazada.default_delivery_type') ?? 'dropship');
         $shipmentProvider = (string) ($params['shipment_provider']
             ?? config('integrations.lazada.default_shipment_provider')
@@ -338,13 +353,27 @@ class LazadaConnector implements ChannelConnector
             );
         }
 
-        // (3) /order/pack — Lazada gán tracking
+        // (4) /order/pack — Lazada gán tracking
         $packPath = (string) (config('integrations.lazada.endpoints.order_pack') ?? '/order/pack');
-        $packResp = $this->client->post($packPath, $auth, [
-            'delivery_type' => $deliveryType,
-            'shipment_provider' => $shipmentProvider,
-            'order_items' => json_encode($itemIds, JSON_UNESCAPED_SLASHES),
-        ]);
+        try {
+            $packResp = $this->client->post($packPath, $auth, [
+                'delivery_type' => $deliveryType,
+                'shipment_provider' => $shipmentProvider,
+                'order_items' => json_encode($packableIds, JSON_UNESCAPED_SLASHES),
+            ]);
+        } catch (LazadaApiException $e) {
+            // "Invalid Order Item ID" (code 20) thường có 2 nguyên nhân:
+            //   (a) items vừa được pack ở nguồn khác (Seller Center / API call song song) — re-fetch & short-circuit.
+            //   (b) items thật sự không hợp lệ — bubble error ra cho ShipmentService.
+            if ($this->isInvalidItemIdError($e)) {
+                Log::info('lazada.pack_invalid_item_retry_refetch', ['order' => $externalOrderId, 'items' => $packableIds, 'code' => $e->lazadaCode]);
+                $retry = $this->extractExistingShipmentFromDetail($this->fetchOrderDetail($auth, $externalOrderId));
+                if ($retry !== null) {
+                    return $retry;
+                }
+            }
+            throw $e;
+        }
         $pack = LazadaMappers::packResponse($packResp);
         $trackingNo = $pack['tracking_no'];
         $packageId = $pack['package_id'];
@@ -353,30 +382,27 @@ class LazadaConnector implements ChannelConnector
         $finalProvider = $pack['shipment_provider'] !== null && $pack['shipment_provider'] !== ''
             ? $pack['shipment_provider'] : $shipmentProvider;
         if ($trackingNo === null) {
-            // Một số sandbox cấp tracking async — vẫn gọi RTS với chuỗi rỗng sẽ bị reject. Bắt buộc fail
-            // sớm để ShipmentService gắn issue rõ.
             throw new LazadaApiException(
                 "Lazada /order/pack không trả tracking_number cho đơn {$externalOrderId} — provider [{$shipmentProvider}] có thể chưa cấu hình cho shop.",
                 'PackNoTracking', 502,
             );
         }
 
-        // (4) /order/rts — bắt buộc để Lazada chuyển sang ready_to_ship
+        // (5) /order/rts — bắt buộc để Lazada chuyển sang ready_to_ship
         $rtsPath = (string) (config('integrations.lazada.endpoints.order_rts') ?? '/order/rts');
         $this->client->post($rtsPath, $auth, [
             'delivery_type' => $deliveryType,
             'shipment_provider' => $finalProvider,
             'tracking_number' => $trackingNo,
-            'order_item_ids' => json_encode($itemIds, JSON_UNESCAPED_SLASHES),
+            'order_item_ids' => json_encode($packableIds, JSON_UNESCAPED_SLASHES),
         ]);
 
         Log::info('lazada.arrange_shipment_ok', [
-            'order' => $externalOrderId, 'items' => count($itemIds),
+            'order' => $externalOrderId, 'items' => count($packableIds),
             'provider' => $finalProvider, 'has_package_id' => $packageId !== null,
         ]);
 
-        // `$finalProvider` đã được đảm bảo non-empty: `$shipmentProvider === ''` đã throw ở trên, branch
-        // pack-response chỉ ghi đè khi giá trị mới non-empty.
+        // `$finalProvider` đã được đảm bảo non-empty (đã check `$shipmentProvider === ''` throw ở trên).
         return [
             'tracking_no' => $trackingNo,
             'carrier' => $finalProvider,
@@ -386,14 +412,13 @@ class LazadaConnector implements ChannelConnector
     }
 
     /**
-     * Đọc tracking từ order detail (nếu Lazada đã cấp do user/Lazada pack trước đó hoặc do pack vừa
-     * xong từ bước (3) chạy lại). Trả null khi chưa có ⇒ caller tự pack tiếp.
+     * Đọc tracking từ OrderDTO đã fetch — short-circuit cho `arrangeShipment` khi đơn đã được pack
+     * trước đó (Lazada đã cấp `tracking_code`). Trả null khi chưa có ⇒ caller tự pack tiếp.
      *
      * @return array{tracking_no:string,carrier:?string,raw_status:?string,package_id:?string}|null
      */
-    private function extractExistingShipment(AuthContext $auth, string $externalOrderId, array $params): ?array
+    private function extractExistingShipmentFromDetail(OrderDTO $detail): ?array
     {
-        $detail = $this->fetchOrderDetail($auth, $externalOrderId);
         foreach ($detail->packages as $pkg) {
             if (! empty($pkg['trackingNo'])) {
                 return [
@@ -409,45 +434,42 @@ class LazadaConnector implements ChannelConnector
     }
 
     /**
-     * Lấy danh sách order_item_id cho đơn:
-     *  - caller truyền `order_item_ids` hoặc `items` ⇒ ưu tiên (tránh fetch lại);
-     *  - hoặc `packages[].items[].order_item_id` (đã có trong order DTO);
-     *  - fallback: gọi `/order/items/get?order_id=` (1 lượt extra, idempotent).
+     * Lazada chỉ pack được item ở `pending`/`topack`. Items khác (`unpaid`, `canceled`, `returned`,
+     * `packed`, `ready_to_ship`, `shipped`, `failed`, `lost`, `damaged`...) ⇒ `/order/pack` báo
+     * "code 20 Invalid Order Item ID". Bóc tách 2 nhóm để biết nên pack items nào & log lý do skip.
      *
-     * @return list<int>
+     * @param  array<int, mixed>  $rawItems  raw items array from Lazada — defensive type since JSON
+     *                                       parse có thể trả về element non-array trong sandbox lỗi
+     * @return array{0: list<int>, 1: array<int,string>} [packableIds, skippedIdToStatus]
      */
-    private function resolveOrderItemIds(AuthContext $auth, string $externalOrderId, array $params): array
+    private function splitPackableItems(array $rawItems): array
     {
-        $direct = $this->itemIdsFromParams($params);
-        if ($direct !== []) {
-            return $direct;
-        }
-        // packages[] mang theo từ ShipmentService::prepareChannelOrder — đôi khi đã có order_item_id
-        foreach ((array) ($params['packages'] ?? []) as $pkg) {
-            $pkgItems = $this->itemIdsFromParams(['items' => (array) ($pkg['items'] ?? [])]);
-            if ($pkgItems !== []) {
-                return $pkgItems;
+        $packable = [];
+        $skipped = [];
+        foreach ($rawItems as $it) {
+            if (! is_array($it)) {   // defensive — raw từ JSON parse có thể không phải mảng
+                continue;
+            }
+            $id = (int) ($it['order_item_id'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+            $status = strtolower(trim((string) ($it['status'] ?? '')));
+            if (in_array($status, self::PACKABLE_ITEM_STATUSES, true)) {
+                $packable[] = $id;
+            } else {
+                $skipped[$id] = $status !== '' ? $status : 'unknown';
             }
         }
-        try {
-            $items = (array) $this->client->get('/order/items/get', $auth, ['order_id' => $externalOrderId]);
-            $out = [];
-            foreach ($items as $it) {
-                if (! is_array($it)) {
-                    continue;
-                }
-                $id = (int) ($it['order_item_id'] ?? 0);
-                if ($id > 0) {
-                    $out[] = $id;
-                }
-            }
 
-            return array_values(array_unique($out));
-        } catch (\Throwable $e) {
-            Log::info('lazada.resolve_order_items_failed', ['order' => $externalOrderId, 'error' => class_basename($e)]);
+        return [array_values(array_unique($packable)), $skipped];
+    }
 
-            return [];
-        }
+    /** Lazada code "20" / message chứa "Invalid Order Item ID" ⇒ items đã ở trạng thái không packable. */
+    private function isInvalidItemIdError(LazadaApiException $e): bool
+    {
+        return $e->lazadaCode === '20'
+            || str_contains(strtolower($e->getMessage()), 'invalid order item');
     }
 
     /**
@@ -577,23 +599,6 @@ class LazadaConnector implements ChannelConnector
         }
 
         return ['filename' => "lazada-{$docType}-{$externalOrderId}.pdf", 'mime' => 'application/pdf', 'bytes' => $bytes];
-    }
-
-    /** @return list<int> */
-    private function itemIdsFromParams(array $params): array
-    {
-        $out = [];
-        foreach ((array) ($params['order_item_ids'] ?? $params['items'] ?? []) as $v) {
-            if (is_array($v) && isset($v['order_item_id'])) {
-                $v = $v['order_item_id'];
-            }
-            $id = (int) $v;
-            if ($id > 0) {
-                $out[] = $id;
-            }
-        }
-
-        return array_values(array_unique($out));
     }
 
     // --- Finance / Settlements ----------------------------------------------

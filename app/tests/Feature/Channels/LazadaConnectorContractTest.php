@@ -427,6 +427,103 @@ class LazadaConnectorContractTest extends TestCase
         Http::assertNotSent(fn ($req) => str_contains($req->url(), '/order/rts'));
     }
 
+    public function test_arrange_shipment_only_packs_packable_items(): void
+    {
+        // Đơn 1005 có 3 item: 1 pending (pack được) + 1 canceled + 1 unpaid. Chỉ item pending được pack.
+        config(['integrations.lazada.default_shipment_provider' => 'GHN']);
+        Http::fake([
+            '*/order/get*' => Http::response($this->ok([
+                'order_id' => 1005, 'price' => '300000.00', 'shipping_fee' => '0.00', 'payment_method' => 'COD',
+                'statuses' => ['pending', 'canceled', 'unpaid'], 'created_at' => '2026-05-17 10:00:00 +0700', 'updated_at' => '2026-05-17 11:00:00 +0700',
+                'address_shipping' => ['first_name' => 'A', 'last_name' => 'B', 'phone' => '0900000000', 'city' => 'Hà Nội', 'country' => 'Vietnam'],
+            ])),
+            '*/order/items/get*' => Http::response($this->ok([
+                ['order_item_id' => 8001, 'sku' => 'A', 'name' => 'A', 'item_price' => 100000, 'status' => 'pending'],
+                ['order_item_id' => 8002, 'sku' => 'B', 'name' => 'B', 'item_price' => 100000, 'status' => 'canceled'],
+                ['order_item_id' => 8003, 'sku' => 'C', 'name' => 'C', 'item_price' => 100000, 'status' => 'unpaid'],
+            ])),
+            '*/order/pack*' => Http::response($this->ok([
+                'order_items' => [['order_item_id' => 8001, 'tracking_number' => 'TRK-8001', 'package_id' => 'PKG-8001', 'shipment_provider' => 'GHN']],
+            ])),
+            '*/order/rts*' => Http::response($this->ok([])),
+        ]);
+
+        $r = $this->connector()->arrangeShipment($this->auth(), '1005');
+        $this->assertSame('TRK-8001', $r['tracking_no']);
+
+        // Pack chỉ chứa 8001, KHÔNG có 8002/8003.
+        Http::assertSent(function ($req) {
+            if (! str_contains($req->url(), '/order/pack')) {
+                return false;
+            }
+            $body = (string) $req->body();
+
+            return str_contains($body, '8001') && ! str_contains($body, '8002') && ! str_contains($body, '8003');
+        });
+    }
+
+    public function test_arrange_shipment_throws_friendly_error_when_no_packable_items(): void
+    {
+        // Toàn bộ item đã packed/shipped/canceled ⇒ không pack được — báo lỗi rõ ràng cho user.
+        Http::fake([
+            '*/order/get*' => Http::response($this->ok([
+                'order_id' => 1006, 'price' => '100000.00', 'shipping_fee' => '0.00', 'payment_method' => 'COD',
+                'statuses' => ['shipped'], 'created_at' => '2026-05-17 10:00:00 +0700', 'updated_at' => '2026-05-17 11:00:00 +0700',
+                'address_shipping' => ['first_name' => 'A', 'last_name' => 'B', 'phone' => '0900000000', 'city' => 'Hà Nội', 'country' => 'Vietnam'],
+            ])),
+            '*/order/items/get*' => Http::response($this->ok([
+                // item shipped — không có tracking_code ⇒ extractExistingShipmentFromDetail trả null ⇒ chạy filter
+                ['order_item_id' => 9001, 'sku' => 'X', 'name' => 'X', 'item_price' => 100000, 'status' => 'shipped'],
+                ['order_item_id' => 9002, 'sku' => 'Y', 'name' => 'Y', 'item_price' => 100000, 'status' => 'canceled'],
+            ])),
+        ]);
+
+        try {
+            $this->connector()->arrangeShipment($this->auth(), '1006');
+            $this->fail('Mong đợi LazadaApiException NoPackableItems');
+        } catch (LazadaApiException $e) {
+            $this->assertSame('NoPackableItems', $e->lazadaCode);
+            $this->assertStringContainsString('không có item nào ở trạng thái pending', $e->getMessage());
+            // message phải liệt kê các status của item để user hiểu
+            $this->assertMatchesRegularExpression('/shipped|canceled/u', $e->getMessage());
+        }
+
+        Http::assertNotSent(fn ($req) => str_contains($req->url(), '/order/pack'));
+        Http::assertNotSent(fn ($req) => str_contains($req->url(), '/order/rts'));
+    }
+
+    public function test_arrange_shipment_recovers_from_invalid_item_id_via_refetch(): void
+    {
+        // Race condition: lúc /order/items/get đầu thấy item pending → gọi pack → Lazada bảo "code 20
+        // Invalid Order Item ID" (items vừa được pack ở nguồn khác). Code phải re-fetch & short-circuit
+        // với tracking đã có thay vì throw.
+        config(['integrations.lazada.default_shipment_provider' => 'GHN']);
+
+        // Lazada API responses theo thứ tự gọi:
+        //   call 1: /order/get   → đơn pending, packages=[]
+        //   call 2: /order/items/get → 1 item pending
+        //   call 3: /order/pack  → code 20 (đơn vừa được pack song song)
+        //   call 4: /order/get   (retry refetch) → packages có tracking
+        //   call 5: /order/items/get (retry refetch) → item đã có tracking_code
+        Http::fakeSequence()
+            ->push($this->ok(['order_id' => 1007, 'price' => '100000.00', 'shipping_fee' => '0.00', 'payment_method' => 'COD',
+                'statuses' => ['pending'], 'created_at' => '2026-05-17 10:00:00 +0700', 'updated_at' => '2026-05-17 11:00:00 +0700',
+                'address_shipping' => ['first_name' => 'A', 'last_name' => 'B', 'phone' => '0900000000', 'city' => 'Hà Nội', 'country' => 'Vietnam']]))
+            ->push($this->ok([['order_item_id' => 7777, 'sku' => 'X', 'name' => 'X', 'item_price' => 100000, 'status' => 'pending']]))
+            ->push(['code' => '20', 'type' => 'ISP', 'message' => 'Invalid Order Item ID', 'request_id' => 'rq', 'data' => []])
+            ->push($this->ok(['order_id' => 1007, 'price' => '100000.00', 'shipping_fee' => '0.00', 'payment_method' => 'COD',
+                'statuses' => ['packed'], 'created_at' => '2026-05-17 10:00:00 +0700', 'updated_at' => '2026-05-17 11:00:00 +0700',
+                'address_shipping' => ['first_name' => 'A', 'last_name' => 'B', 'phone' => '0900000000', 'city' => 'Hà Nội', 'country' => 'Vietnam']]))
+            ->push($this->ok([['order_item_id' => 7777, 'sku' => 'X', 'name' => 'X', 'item_price' => 100000, 'status' => 'packed', 'package_id' => 'PKG-RACE', 'tracking_code' => 'TRK-RACE-OK', 'shipment_provider' => 'GHN']]));
+
+        $r = $this->connector()->arrangeShipment($this->auth(), '1007');
+        $this->assertSame('TRK-RACE-OK', $r['tracking_no']);
+        $this->assertSame('PKG-RACE', $r['package_id']);
+
+        // Không gọi RTS — items đã được pack ở nguồn khác, sàn tự lo phần còn lại.
+        Http::assertNotSent(fn ($req) => str_contains($req->url(), '/order/rts'));
+    }
+
     public function test_get_shipping_document_fetches_base64_pdf(): void
     {
         $pdfBytes = "%PDF-1.4\nfake-pdf-bytes";
