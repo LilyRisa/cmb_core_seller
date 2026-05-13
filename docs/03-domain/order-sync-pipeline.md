@@ -63,7 +63,7 @@ Ba mode `sync_runs.type` (đều dùng cùng job `SyncOrdersForShop`):
 - **Cách hoạt động**: Không dùng `updatedFrom` (không giới hạn thời gian). Iterate qua từng raw status trong `connector.unprocessedRawStatuses()` — với mỗi status, gọi `fetchOrders(statuses=[status], cursor)` page hết → upsert.
 - Connector khai báo các "trạng thái chưa xử lý" qua method `unprocessedRawStatuses(): list<string>`:
   - **Lazada**: `['pending', 'topack', 'ready_to_ship', 'packed']` — item-level status, đơn chưa rời kho.
-  - **TikTok Shop**: `['AWAITING_SHIPMENT', 'AWAITING_COLLECTION', 'PARTIALLY_SHIPPING']`.
+  - **TikTok Shop**: `['ON_HOLD', 'AWAITING_SHIPMENT', 'PARTIALLY_SHIPPING', 'AWAITING_COLLECTION']`. **`ON_HOLD`** = đã thanh toán, chờ fulfillment (buyer còn cancel được — tài liệu TikTok). Đơn PRE_ORDER có thể stuck ở `ON_HOLD` tới 1 ngày trước release ⇒ phải pull về để seller chuẩn bị.
   - **Manual**: `[]` (đơn tự tạo, không có sàn để pull).
 - Trigger: scheduler mỗi 30' + endpoint `POST /channel-accounts/{id}/resync-unprocessed` cho user manual.
 - **Không** cập nhật `last_synced_at` (vì không phải time-window sync) — không nhiễu vào polling thường.

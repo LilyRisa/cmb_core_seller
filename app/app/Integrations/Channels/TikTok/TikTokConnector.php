@@ -190,10 +190,16 @@ class TikTokConnector implements ChannelConnector
     }
 
     /**
-     * TikTok raw statuses coi là "đơn chưa bàn giao ĐVVC": `AWAITING_SHIPMENT` (chưa arrange),
-     * `AWAITING_COLLECTION` (đã arrange, chờ ĐVVC tới lấy), `PARTIALLY_SHIPPING`. Loại `UNPAID`
-     * (chưa thanh toán), `IN_TRANSIT`/`DELIVERED`/`COMPLETED` (đã ship). Config-able qua
-     * `integrations.tiktok.unprocessed_raw_statuses`. Xem docs/03-domain/order-sync-pipeline.md §3.3.
+     * TikTok raw statuses coi là "đơn chưa bàn giao ĐVVC" — đối chiếu enum trong SDK chính thức
+     * `sdk_tiktok_seller/model/order/V202309/GetOrderListRequestBody.ts`:
+     *   - `ON_HOLD` — đã thanh toán, chờ fulfillment (buyer còn cancel được). PRE_ORDER có thể
+     *     stuck ở đây cho tới 1 ngày trước release ⇒ phải pull về để seller chuẩn bị.
+     *   - `AWAITING_SHIPMENT` — sẵn sàng ship, chưa item nào shipped.
+     *   - `PARTIALLY_SHIPPING` — một số item đã shipped; phần còn lại vẫn cần xử lý.
+     *   - `AWAITING_COLLECTION` — đã arrange, chờ ĐVVC tới lấy.
+     * Loại `UNPAID` (sàn không cho ship), `IN_TRANSIT`/`DELIVERED`/`COMPLETED`/`CANCELLED` (đã rời
+     * kho hoặc terminal). Config-able qua `integrations.tiktok.unprocessed_raw_statuses`. Xem
+     * docs/03-domain/order-sync-pipeline.md §3.3.
      */
     public function unprocessedRawStatuses(): array
     {
@@ -201,7 +207,7 @@ class TikTokConnector implements ChannelConnector
 
         return $cfg !== []
             ? array_values(array_filter(array_map('strval', $cfg), fn ($s) => $s !== ''))
-            : ['AWAITING_SHIPMENT', 'AWAITING_COLLECTION', 'PARTIALLY_SHIPPING'];
+            : ['ON_HOLD', 'AWAITING_SHIPMENT', 'PARTIALLY_SHIPPING', 'AWAITING_COLLECTION'];
     }
 
     // --- Listings / Inventory (Phase 2) --------------------------------------

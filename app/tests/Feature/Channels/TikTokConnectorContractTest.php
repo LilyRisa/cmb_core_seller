@@ -31,6 +31,24 @@ class TikTokConnectorContractTest extends TestCase
         return new AuthContext(channelAccountId: 1, provider: 'tiktok', externalShopId: F::SHOP_ID, accessToken: 'tk', extra: ['shop_cipher' => F::SHOP_CIPHER]);
     }
 
+    public function test_unprocessed_raw_statuses_includes_on_hold(): void
+    {
+        // SDK chính thức (GetOrderListRequestBody.ts) liệt kê 9 status; "chưa bàn giao ĐVVC" =
+        // ON_HOLD + AWAITING_SHIPMENT + PARTIALLY_SHIPPING + AWAITING_COLLECTION. Đơn PRE_ORDER
+        // hay đơn vừa thanh toán có thể ở ON_HOLD lâu ⇒ phải pull về.
+        $statuses = $this->connector()->unprocessedRawStatuses();
+        $this->assertSame(
+            ['ON_HOLD', 'AWAITING_SHIPMENT', 'PARTIALLY_SHIPPING', 'AWAITING_COLLECTION'],
+            $statuses,
+        );
+    }
+
+    public function test_unprocessed_raw_statuses_overridable_via_config(): void
+    {
+        config(['integrations.tiktok.unprocessed_raw_statuses' => ['AWAITING_SHIPMENT']]);
+        $this->assertSame(['AWAITING_SHIPMENT'], $this->connector()->unprocessedRawStatuses());
+    }
+
     public function test_exchange_code_returns_token_dto(): void
     {
         Http::fake(['*/api/v2/token/get*' => Http::response(F::tokenGet())]);
