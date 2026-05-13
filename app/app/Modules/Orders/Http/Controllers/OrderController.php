@@ -302,18 +302,23 @@ class OrderController extends Controller
         if ($use('channel_account_id') && $cid = $request->query('channel_account_id')) {
             $query->where('channel_account_id', (int) $cid);
         }
-        // Lọc theo ĐVVC: khớp `orders.carrier` (denormalized lúc sync — có thể trống/lệch khi connector chưa
-        // điền) HOẶC `shipments.carrier` của vận đơn open hiện tại (luôn chính xác sau "Chuẩn bị hàng").
-        // OR-fallback đảm bảo chip count & list query thống nhất ngay cả khi denormalization bị lệch — ví
-        // dụ đơn Lazada vừa pack: shipment.carrier="LEX VN" nhưng orders.carrier vẫn là "Standard Delivery"
-        // từ lần sync đầu cho tới sync kế tiếp.
+        // Lọc theo ĐVVC theo *effective carrier* — khớp với cách `countByEffectiveCarrier` xây chip count.
+        // Mỗi đơn có ĐÚNG 1 effective carrier:
+        //  - Có vận đơn open có `carrier` ⇒ dùng `shipments.carrier` (Lazada hay remap provider lúc /order/pack)
+        //  - Không có vận đơn open có `carrier` ⇒ fallback `orders.carrier` (denormalized lúc sync)
+        // Đảm bảo chip click 'X' ra ĐÚNG số đơn chip hiển thị — không trùng (đơn có shipment carrier='Giao
+        // Hang Nhanh' không lọt vào chip 'GHN-Express' chỉ vì orders.carrier vẫn là 'GHN-Express') và không sót.
         if ($use('carrier') && $carrier = $request->query('carrier')) {
             $carriers = array_values(array_filter(array_map('trim', explode(',', (string) $carrier))));
             if ($carriers) {
-                $query->where(function (Builder $w) use ($carriers) {
-                    $w->whereIn('carrier', $carriers)
-                        ->orWhereHas('shipments', fn (Builder $s) => $s->whereIn('carrier', $carriers)
-                            ->whereIn('status', Shipment::OPEN_STATUSES));
+                $hasOpenWithCarrier = fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES)->whereNotNull('carrier');
+                $query->where(function (Builder $w) use ($carriers, $hasOpenWithCarrier) {
+                    // (a) Đơn có vận đơn open mang carrier ⇒ effective = shipment.carrier
+                    $w->whereHas('shipments', fn (Builder $s) => $hasOpenWithCarrier($s)->whereIn('carrier', $carriers))
+                        // (b) Đơn KHÔNG có vận đơn open mang carrier ⇒ fallback orders.carrier
+                        ->orWhere(function (Builder $f) use ($carriers, $hasOpenWithCarrier) {
+                            $f->whereIn('carrier', $carriers)->whereDoesntHave('shipments', $hasOpenWithCarrier);
+                        });
                 });
             }
         }
