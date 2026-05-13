@@ -165,20 +165,25 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
     const isWaiting = ['pending', 'unpaid'].includes(order.status);   // tab "Chờ xử lý"
     const preShipment = !['shipped', 'delivery_failed', 'delivered', 'completed', 'returning', 'returned_refunded', 'cancelled'].includes(order.status);
     const shOpen = sh && !['cancelled', 'returned', 'failed'].includes(sh.status);
+    // "SKU chưa ghép" KHÔNG còn chặn fulfillment — OrderInventoryService tự skip items chưa ghép (không
+    // đụng ledger / tồn kho), in phiếu & bàn giao vẫn bình thường. Các issue khác (lỗi sàn / sai địa chỉ) vẫn
+    // gắn cờ has_issue để user xem; nhưng nếu chỉ là "SKU chưa ghép" thì coi như không có vấn đề về luồng.
+    const onlyUnmappedIssue = order.has_issue && order.issue_reason === 'SKU chưa ghép';
+    const blockingIssue = order.has_issue && !onlyUnmappedIssue;
     const actions: ReactNode[] = [];
     if (preShipment && !shOpen && canShip) {
         if (order.out_of_stock) {
             actions.push(<Tooltip key="oos" title="Đơn có SKU âm tồn — không thể chuẩn bị hàng / lấy phiếu giao hàng. Hãy nhập thêm hàng."><Typography.Text type="secondary"><WarningOutlined /> Hết hàng</Typography.Text></Tooltip>);
-        } else if (isWaiting && !order.has_issue) {
+        } else if (isWaiting && !blockingIssue) {
             // "Chờ xử lý" ⇒ "Chuẩn bị hàng" (đẩy trạng thái lên sàn + lấy mã vận đơn / phiếu).
             actions.push(<a key="prep" onClick={prepare}>Chuẩn bị hàng (lấy phiếu)</a>);
         } else if (!isWaiting) {
             // "Đang xử lý" (kể cả khi có vận đơn đã huỷ) ⇒ lấy / thử lại phiếu giao hàng.
-            actions.push(<a key="prep2" style={{ color: order.has_issue ? '#cf1322' : undefined }} onClick={() => runPrepare()}>Lấy phiếu giao hàng</a>);
+            actions.push(<a key="prep2" style={{ color: blockingIssue ? '#cf1322' : undefined }} onClick={() => runPrepare()}>Lấy phiếu giao hàng</a>);
         }
     } else if (shOpen && ['pending', 'created'].includes(sh!.status)) {
         // Đã chuẩn bị / có vận đơn, chờ đóng gói + quét nội bộ.
-        if (canShip && (order.has_issue || !sh!.has_label)) actions.push(<a key="rs" style={{ color: order.has_issue ? '#cf1322' : undefined }} onClick={() => getSlip()}>Nhận phiếu giao hàng</a>);
+        if (canShip && (blockingIssue || !sh!.has_label)) actions.push(<a key="rs" style={{ color: blockingIssue ? '#cf1322' : undefined }} onClick={() => getSlip()}>Nhận phiếu giao hàng</a>);
         if (canPrint) actions.push(<a key="ds1" onClick={printDelivery}>In phiếu giao hàng</a>);
         if (canPrint && sh!.label_url) actions.push(<a key="lbl1" onClick={printLabelBundle}>In tem sàn</a>);
         if (canShip) actions.push(<a key="ready" onClick={markReady}>Đã gói & sẵn sàng bàn giao</a>);

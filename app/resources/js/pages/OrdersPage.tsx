@@ -318,7 +318,9 @@ export function OrdersPage() {
                         {(o.channel_account?.name ?? (o.channel_account_id ? shopName(o.channel_account_id) : null)) && <Tag>{o.channel_account?.name ?? shopName(o.channel_account_id!)}</Tag>}
                         {o.is_cod && <Tag color="gold">COD</Tag>}
                         {o.issue_reason === UNMAPPED_REASON
-                            ? <Tag color="error" icon={<LinkOutlined />} style={{ cursor: 'pointer' }} onClick={() => setLinkModal({ open: true, orderIds: [o.id] })}>Chưa liên kết SKU — Liên kết</Tag>
+                            // "SKU chưa ghép" KHÔNG còn chặn in / fulfillment — đơn vẫn xử lý bình thường, chỉ là
+                            // không có dòng nào động vào tồn kho. Đổi sang warning (vàng) thay vì error (đỏ).
+                            ? <Tooltip title="Đơn vẫn in & bàn giao bình thường, nhưng không trừ tồn cho dòng chưa ghép SKU. Bấm để liên kết."><Tag color="warning" icon={<LinkOutlined />} style={{ cursor: 'pointer' }} onClick={() => setLinkModal({ open: true, orderIds: [o.id] })}>Chưa ghép SKU — Liên kết</Tag></Tooltip>
                             : o.has_issue && <Tooltip title={o.issue_reason ?? 'Đơn có vấn đề'}><Tag color="error" icon={<WarningOutlined />}>Lỗi</Tag></Tooltip>}
                         {o.shipment && o.shipment.print_count > 0 && <PrintCountBadge n={o.shipment.print_count} at={o.shipment.last_printed_at} />}
                     </Space>
@@ -504,9 +506,9 @@ export function OrdersPage() {
 
             {canMap && (stats?.unmapped ?? 0) > 0 && (
                 <Alert
-                    type="error" showIcon style={{ marginTop: 12 }}
-                    message={<>Có <b>{stats!.unmapped}</b> đơn chưa liên kết SKU — chưa thể trừ tồn cho các đơn này.</>}
-                    action={<Button danger size="small" icon={<LinkOutlined />} onClick={() => setLinkModal({ open: true, orderIds: undefined })}>Liên kết hàng loạt</Button>}
+                    type="warning" showIcon style={{ marginTop: 12 }}
+                    message={<>Có <b>{stats!.unmapped}</b> đơn chưa liên kết SKU — vẫn in & bàn giao bình thường, chỉ KHÔNG trừ tồn cho các dòng chưa ghép. Liên kết để theo dõi tồn kho chính xác.</>}
+                    action={<Button size="small" icon={<LinkOutlined />} onClick={() => setLinkModal({ open: true, orderIds: undefined })}>Liên kết hàng loạt</Button>}
                 />
             )}
 

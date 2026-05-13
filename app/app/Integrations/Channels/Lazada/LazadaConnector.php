@@ -556,13 +556,24 @@ class LazadaConnector implements ChannelConnector
     }
 
     /**
-     * Lazada `/order/document/get` — lấy `shippingLabel` (PDF) cho `order_item_ids`. Theo tài liệu
-     * Open Platform (https://open.lazada.com/apps/doc/api?path=/order/document/get) response trả
-     * `document: { file: <base64 PDF | URL>, doc_type, expire_time }`. Tem PDF chỉ dùng được sau khi
-     * Lazada đã cấp tracking (status ≥ packed). Trước đó endpoint trả error.
+     * Lấy phiếu giao hàng (PDF) của Lazada cho đơn đã pack/RTS. Theo tài liệu Open Platform
+     * (https://open.lazada.com/apps/doc/api?path=/order/document/get và `/order/package/document/get` —
+     * PrintAWB), shop VN nên ưu tiên **PrintAWB** với `package_id` vì:
+     *   - `/order/document/get` (legacy, order_item_ids) hay trả `file: ""` cho 3PL VN — 3PL render PDF
+     *     async sau /order/rts, có thể mất 5–30s; legacy endpoint không expose trạng thái "đang render".
+     *   - `/order/package/document/get` (PrintAWB) lấy theo `package_id` (Lazada trả ở /order/pack), đúng
+     *     đơn vị "1 vận đơn / 1 PDF", ổn định hơn cho LEX VN / GHN / J&T.
      *
-     * `$query` keys: `type` (SHIPPING_LABEL* | INVOICE | CARRIER_MANIFEST — sẽ map về tên Lazada),
-     * `order_item_ids` (tuỳ chọn — nếu trống, tự fetch từ `/order/items/get`).
+     * Luồng:
+     *   1. Nếu có `externalPackageId` ⇒ thử PrintAWB (`/order/package/document/get`) với `doc_type=PDF`.
+     *   2. PrintAWB lỗi / file rỗng ⇒ fallback legacy `/order/document/get` với `order_item_ids`.
+     *   3. Cả hai rỗng ⇒ ném RuntimeException (caller retry với backoff — propagation delay).
+     *
+     * Khi lấy được bytes ⇒ caller `ShipmentService::fetchAndStoreChannelLabel` đẩy lên R2 & lưu `label_path`
+     * trên shipment ⇒ render về sau đọc R2, KHÔNG gọi lại sàn (xem MediaUploader::get).
+     *
+     * `$query` keys: `type` (SHIPPING_LABEL* | INVOICE | CARRIER_MANIFEST), `externalPackageId` (ưu tiên,
+     * cho PrintAWB), `order_item_ids` (fallback — tự fetch nếu trống).
      *
      * @return array{filename:string,mime:string,bytes:string}
      */
@@ -571,8 +582,6 @@ class LazadaConnector implements ChannelConnector
         if (! config('integrations.lazada.fulfillment_enabled')) {
             throw UnsupportedOperation::for($this->code(), 'getShippingDocument');
         }
-        // Map tên type chung của core về tên Lazada (snake-case / camelCase tuỳ phiên bản — dùng camelCase
-        // theo tài liệu hiện hành; nếu sandbox của shop khác, có thể đè qua config).
         $typeIn = strtoupper((string) ($query['type'] ?? 'SHIPPING_LABEL'));
         $docType = (string) (config('integrations.lazada.endpoints.doc_type_map.'.$typeIn)
             ?? match ($typeIn) {
@@ -583,54 +592,112 @@ class LazadaConnector implements ChannelConnector
                 default => 'shippingLabel',
             });
 
-        $itemIds = array_values(array_filter(array_map('intval', (array) ($query['order_item_ids'] ?? [])), fn ($v) => $v > 0));
-        if ($itemIds === []) {
-            // Fallback: hỏi Lazada items hiện tại cho đơn. Một lượt gọi thêm; chỉ chạy khi caller không truyền.
-            try {
-                $items = (array) $this->client->get('/order/items/get', $auth, ['order_id' => $externalOrderId]);
-                foreach ($items as $it) {
-                    if (! is_array($it)) {
-                        continue;
-                    }
-                    $id = (int) ($it['order_item_id'] ?? 0);
-                    if ($id > 0) {
-                        $itemIds[] = $id;
-                    }
-                }
-                $itemIds = array_values(array_unique($itemIds));
-            } catch (\Throwable $e) {
-                Log::info('lazada.document_get_items_failed', ['order' => $externalOrderId, 'error' => class_basename($e)]);
-            }
-        }
-        if ($itemIds === []) {
-            throw new \RuntimeException('Không có order_item_id để lấy phiếu giao hàng từ Lazada (đơn '.$externalOrderId.').');
-        }
-
-        $endpoint = (string) (config('integrations.lazada.endpoints.document_get') ?? '/order/document/get');
-        $data = $this->client->get($endpoint, $auth, [
-            'doc_type' => $docType,
-            'order_item_ids' => json_encode($itemIds, JSON_UNESCAPED_SLASHES),
-        ]);
-
-        // Response shape: `document.file` (string — có thể là base64 PDF hoặc URL có TTL ngắn) hoặc
-        // `document.url`. Một số shop trả ngay `data.file` không bọc thêm — defensive đọc cả hai.
-        $document = is_array($data['document'] ?? null) ? (array) $data['document'] : (array) $data;
-        $file = (string) ($document['file'] ?? $document['url'] ?? '');
+        $packageId = trim((string) ($query['externalPackageId'] ?? ''));
         $bytes = '';
-        if ($file !== '') {
-            if (preg_match('#^https?://#i', $file)) {
-                $resp = Http::timeout(30)->get($file);
-                $bytes = $resp->successful() ? $resp->body() : '';
-            } else {
-                $decoded = base64_decode($file, true);
-                $bytes = $decoded !== false ? $decoded : '';
+        $lastErr = null;
+
+        // (1) PrintAWB — preferred path khi có package_id (LEX VN / GHN / J&T VN trả PDF ổn định hơn ở đây).
+        if ($packageId !== '') {
+            try {
+                $printAwbPath = (string) (config('integrations.lazada.endpoints.print_awb') ?? '/order/package/document/get');
+                $data = $this->client->get($printAwbPath, $auth, [
+                    'doc_type' => $docType,
+                    'package_ids' => json_encode([$packageId], JSON_UNESCAPED_SLASHES),
+                    'print_item_list' => 'true',   // gộp packing slip (item list) vào tem để khớp ui_example
+                ]);
+                $bytes = $this->extractDocumentBytes($data);
+            } catch (\Throwable $e) {
+                $lastErr = $e;
+                Log::info('lazada.print_awb_failed', ['order' => $externalOrderId, 'package_id' => $packageId, 'error' => $e->getMessage()]);
             }
         }
+
+        // (2) Legacy `/order/document/get` với order_item_ids — fallback khi PrintAWB không khả dụng /
+        // shop chưa có permission. Một số sandbox & SoC shop chỉ hỗ trợ legacy.
         if ($bytes === '') {
-            throw new \RuntimeException('Lazada không trả về tệp '.$docType.' cho đơn '.$externalOrderId.'. Có thể đơn chưa được cấp tracking (Lazada chỉ cấp PDF sau khi đơn ở trạng thái "packed/ready_to_ship").');
+            $itemIds = array_values(array_filter(array_map('intval', (array) ($query['order_item_ids'] ?? [])), fn ($v) => $v > 0));
+            if ($itemIds === []) {
+                try {
+                    $items = (array) $this->client->get('/order/items/get', $auth, ['order_id' => $externalOrderId]);
+                    foreach ($items as $it) {
+                        if (! is_array($it)) {
+                            continue;
+                        }
+                        $id = (int) ($it['order_item_id'] ?? 0);
+                        if ($id > 0) {
+                            $itemIds[] = $id;
+                        }
+                    }
+                    $itemIds = array_values(array_unique($itemIds));
+                } catch (\Throwable $e) {
+                    Log::info('lazada.document_get_items_failed', ['order' => $externalOrderId, 'error' => class_basename($e)]);
+                }
+            }
+            if ($itemIds !== []) {
+                try {
+                    $endpoint = (string) (config('integrations.lazada.endpoints.document_get') ?? '/order/document/get');
+                    $data = $this->client->get($endpoint, $auth, [
+                        'doc_type' => $docType,
+                        'order_item_ids' => json_encode($itemIds, JSON_UNESCAPED_SLASHES),
+                    ]);
+                    $bytes = $this->extractDocumentBytes($data);
+                } catch (\Throwable $e) {
+                    $lastErr = $e;
+                    Log::info('lazada.document_get_legacy_failed', ['order' => $externalOrderId, 'error' => $e->getMessage()]);
+                }
+            }
+        }
+
+        if ($bytes === '') {
+            $detail = $lastErr ? ' ('.$lastErr->getMessage().')' : '';
+            throw new \RuntimeException('Lazada chưa cấp tệp '.$docType.' cho đơn '.$externalOrderId.$detail.'. 3PL thường render PDF async 5–30s sau /order/rts — retry tự khắc lấy được.');
         }
 
         return ['filename' => "lazada-{$docType}-{$externalOrderId}.pdf", 'mime' => 'application/pdf', 'bytes' => $bytes];
+    }
+
+    /**
+     * Bóc base64-PDF / TTL URL từ response của `/order/document/get` hoặc `/order/package/document/get`.
+     * Response shape thay đổi giữa các phiên bản: `document.file`, `documents[0].file`, `data.file`, hoặc
+     * `data.url`. Trả về bytes (rỗng nếu Lazada chưa render xong — caller retry).
+     *
+     * @param  array<string,mixed>  $data  `data` envelope từ LazadaClient
+     */
+    private function extractDocumentBytes(array $data): string
+    {
+        $candidates = [];
+        if (isset($data['document']) && is_array($data['document'])) {
+            $candidates[] = (array) $data['document'];
+        }
+        if (isset($data['documents']) && is_array($data['documents'])) {
+            foreach ($data['documents'] as $doc) {
+                if (is_array($doc)) {
+                    $candidates[] = $doc;
+                }
+            }
+        }
+        $candidates[] = $data;   // shop nào trả flat (data.file / data.url) — vẫn match
+
+        foreach ($candidates as $doc) {
+            $file = (string) ($doc['file'] ?? $doc['url'] ?? $doc['pdf_url'] ?? '');
+            if ($file === '') {
+                continue;
+            }
+            if (preg_match('#^https?://#i', $file)) {
+                $resp = Http::timeout(30)->get($file);
+                if ($resp->successful() && $resp->body() !== '') {
+                    return (string) $resp->body();
+                }
+
+                continue;
+            }
+            $decoded = base64_decode($file, true);
+            if ($decoded !== false && $decoded !== '') {
+                return $decoded;
+            }
+        }
+
+        return '';
     }
 
     // --- Finance / Settlements ----------------------------------------------

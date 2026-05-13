@@ -172,10 +172,11 @@ class ShipmentService
     /**
      * Best-effort: kéo tem/AWB **thật của sàn** (PDF) về kho media & gắn vào vận đơn — KHÔNG tự vẽ tem. SPEC 0006 §9.1 / 0014.
      * `$justArranged=true` ⇒ vừa gọi `/order/rts` (Lazada) hoặc `/packages/{id}/ship` (TikTok) xong ⇒ tem có
-     * thể chưa kịp publish ⇒ retry với backoff. User retry thủ công ("Nhận phiếu giao hàng") thì $justArranged=false
-     * (tem chắc đã sẵn nếu sàn có cấp; thất bại nghĩa là vấn đề khác — không retry để tránh kéo dài request).
+     * thể chưa kịp publish ⇒ retry với backoff. User retry thủ công ("Nhận phiếu giao hàng") thì $justArranged=false.
+     * `$skipAsyncRetry=true` ⇒ KHÔNG enqueue async job khi exhaust (dùng khi đã chạy từ job — Laravel queue tự
+     * retry backoff). Mặc định false ⇒ sync exhaust thì queue job retry sau 15s/30s/60s/120s/300s.
      */
-    private function fetchAndStoreChannelLabel(Order $order, Shipment $shipment, bool $justArranged = false): void
+    private function fetchAndStoreChannelLabel(Order $order, Shipment $shipment, bool $justArranged = false, bool $skipAsyncRetry = false): void
     {
         $account = $order->channel_account_id ? ChannelAccount::query()->find($order->channel_account_id) : null;
         if (! $account || ! $this->channels->has($account->provider) || ! $this->channels->for($account->provider)->supports('shipping.document')) {
@@ -195,11 +196,14 @@ class ShipmentService
             // TikTok bắt buộc package_no; thiếu thì khỏi gọi.
             return;
         }
-        // Lazada thường mất 1–3s giữa /order/rts và lúc /order/document/get có file ⇒ retry với backoff để
-        // luồng "Chuẩn bị hàng" bulk lấy được tem ngay lượt đầu thay vì buộc user click "Nhận phiếu giao hàng"
-        // lại. TikTok trả tem gần như tức thì ⇒ 1 lần là đủ. SPEC 0013 §6.
-        $attempts = ($justArranged && $account->provider === 'lazada') ? 3 : 1;
-        $delayMs = 800;
+        // Lazada 3PL (LEX VN / GHN / J&T) render AWB PDF *async* 5–30s sau /order/rts. Sync retry chỉ ngắn
+        // (justArranged: 3 attempts ~4s, refetch: 2 attempts ~2s) để không block bulk request quá lâu — đủ
+        // bắt 80% case PDF render trong cùng giây. Nếu vẫn rỗng ⇒ queue {@see FetchChannelLabel} job retry sau
+        // 15s/30s/60s/120s/300s ⇒ tự lấy xong đẩy R2 ⇒ user mở list thấy `has_label=true` không cần click gì.
+        // Khi lấy được bytes ⇒ media->storeBytes đẩy R2 + lưu `label_path`; render sau đọc R2 (`media->get`)
+        // ⇒ KHÔNG bao giờ gọi lại sàn cho cùng vận đơn nữa. SPEC 0013 §6 / 0008b.
+        $attempts = $account->provider === 'lazada' ? ($justArranged ? 3 : 2) : 1;
+        $delayMs = 1_500;
         $lastError = null;
         for ($i = 1; $i <= $attempts; $i++) {
             try {
@@ -220,11 +224,30 @@ class ShipmentService
             } catch (\Throwable $e) {
                 $lastError = $e;
                 if ($i < $attempts) {
-                    usleep($delayMs * 1000 * $i);   // 0.8s, 1.6s — propagation delay window
+                    // Exponential: 1s, 2s, 4s, 8s — propagation window for 3PL async render
+                    $wait = $delayMs * (2 ** ($i - 1));
+                    usleep(min(8_000_000, $wait * 1_000));
                 }
             }
         }
         Log::info('shipment.fetch_channel_label_failed', ['shipment' => $shipment->getKey(), 'provider' => $account->provider, 'attempts' => $attempts, 'error' => $lastError?->getMessage()]);
+        // Sync retry exhausted ⇒ queue async retry (15s/30s/60s/120s/300s) — đặc biệt cho Lazada 3PL render
+        // PDF async 5–30s+ sau /order/rts. Khi job lấy được tem ⇒ đẩy R2 ⇒ list FE tự thấy `has_label=true`.
+        // Skip nếu đang chạy từ job (Laravel queue tự retry theo backoff — tránh enqueue đệ quy).
+        if (! $skipAsyncRetry && $account->provider === 'lazada') {
+            \CMBcoreSeller\Modules\Fulfillment\Jobs\FetchChannelLabel::dispatch((int) $shipment->getKey())
+                ->onQueue('labels')->delay(now()->addSeconds(15));
+        }
+    }
+
+    /**
+     * Public entry cho `FetchChannelLabel` job — chạy lại 1 lượt fetch tem từ background queue. Đặt
+     * `$skipAsyncRetry=true` để KHÔNG enqueue thêm job mới ở đáy (Laravel queue tự retry theo backoff).
+     * Caller (job) check `shipment->label_path` sau khi gọi để biết đã lấy được chưa.
+     */
+    public function retryChannelLabelFetch(Order $order, Shipment $shipment): void
+    {
+        $this->fetchAndStoreChannelLabel($order, $shipment, justArranged: false, skipAsyncRetry: true);
     }
 
     /**

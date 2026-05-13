@@ -59,8 +59,8 @@ export function OrderDetailBody({ order }: { order: Order }) {
     return (
         <>
             {order.issue_reason === 'SKU chưa ghép'
-                ? <Alert type="error" showIcon icon={<LinkOutlined />} style={{ marginBottom: 16 }} message="Đơn này chưa liên kết SKU" description="Chưa thể trừ tồn — hãy liên kết SKU sàn với master SKU."
-                    action={canMap ? <Button danger icon={<LinkOutlined />} onClick={() => setLinkOpen(true)}>Liên kết SKU</Button> : undefined} />
+                ? <Alert type="warning" showIcon icon={<LinkOutlined />} style={{ marginBottom: 16 }} message="Đơn này chưa liên kết SKU" description="Vẫn in phiếu & bàn giao bình thường — KHÔNG trừ tồn cho các dòng chưa ghép. Liên kết SKU sàn ↔ master SKU để theo dõi tồn kho chính xác."
+                    action={canMap ? <Button icon={<LinkOutlined />} onClick={() => setLinkOpen(true)}>Liên kết SKU</Button> : undefined} />
                 : order.has_issue && <Alert type="warning" showIcon icon={<WarningOutlined />} style={{ marginBottom: 16 }} message="Đơn hàng có vấn đề" description={order.issue_reason ?? 'Vui lòng kiểm tra.'} />}
             <LinkSkusModal open={linkOpen} orderIds={[order.id]} onClose={() => setLinkOpen(false)} />
             {printJobId != null && <PrintJobBar jobId={printJobId} onClose={() => setPrintJobId(null)} />}

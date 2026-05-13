@@ -567,4 +567,54 @@ class LazadaConnectorContractTest extends TestCase
         $this->assertSame($pdfBytes, $doc['bytes']);
         $this->assertSame('application/pdf', $doc['mime']);
     }
+
+    public function test_get_shipping_document_prefers_print_awb_when_package_id_known(): void
+    {
+        // VN region: when `externalPackageId` is passed (returned from /order/pack), connector should hit
+        // `/order/package/document/get` (PrintAWB) first instead of legacy `/order/document/get`. PrintAWB
+        // returns a more reliable PDF for 3PL (LEX VN / GHN / J&T) than the legacy endpoint.
+        $pdfBytes = "%PDF-1.4\nprint-awb-bytes";
+        Http::fake([
+            '*/order/package/document/get*' => Http::response($this->ok(['document' => ['file' => base64_encode($pdfBytes), 'doc_type' => 'shippingLabel']])),
+            // Legacy fallback should NOT be hit when PrintAWB succeeds — fail if called.
+            '*/order/document/get*' => Http::response($this->ok([])),
+        ]);
+        $doc = $this->connector()->getShippingDocument($this->auth(), '1001', [
+            'externalPackageId' => 'PKG-99', 'order_item_ids' => [9001],
+        ]);
+        $this->assertSame($pdfBytes, $doc['bytes']);
+        Http::assertSent(fn ($req) => str_contains((string) $req->url(), '/order/package/document/get'));
+    }
+
+    public function test_get_shipping_document_falls_back_to_legacy_when_print_awb_returns_empty(): void
+    {
+        // Legacy endpoint must be tried as fallback when PrintAWB returns empty file (some legacy SoC
+        // shops don't have permission on /order/package/document/get even after /order/pack returns
+        // package_id). Connector should keep trying until it gets bytes.
+        $pdfBytes = "%PDF-1.4\nlegacy-bytes";
+        Http::fake([
+            '*/order/package/document/get*' => Http::response($this->ok(['document' => ['file' => '']])),
+            '*/order/document/get*' => Http::response($this->ok(['document' => ['file' => base64_encode($pdfBytes)]])),
+        ]);
+        $doc = $this->connector()->getShippingDocument($this->auth(), '1001', [
+            'externalPackageId' => 'PKG-99', 'order_item_ids' => [9001],
+        ]);
+        $this->assertSame($pdfBytes, $doc['bytes']);
+    }
+
+    public function test_get_shipping_document_throws_when_both_endpoints_return_empty(): void
+    {
+        // ShipmentService wraps this in a sync-retry loop + async FetchChannelLabel job (Lazada 3PL renders
+        // PDF async 5–30s+ after /order/rts). The connector itself just surfaces the failure so the caller
+        // can decide to retry.
+        Http::fake([
+            '*/order/package/document/get*' => Http::response($this->ok(['document' => ['file' => '']])),
+            '*/order/document/get*' => Http::response($this->ok(['document' => ['file' => '']])),
+        ]);
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/chưa cấp tệp/i');
+        $this->connector()->getShippingDocument($this->auth(), '1001', [
+            'externalPackageId' => 'PKG-99', 'order_item_ids' => [9001],
+        ]);
+    }
 }

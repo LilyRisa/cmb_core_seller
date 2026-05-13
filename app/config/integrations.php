@@ -228,6 +228,10 @@ return [
             'order_pack' => env('LAZADA_ORDER_PACK_PATH', '/order/pack'),
             'order_rts' => env('LAZADA_ORDER_RTS_PATH', '/order/rts'),
             'document_get' => env('LAZADA_DOCUMENT_GET_PATH', '/order/document/get'),
+            // PrintAWB (preferred VN) — lấy AWB PDF theo `package_id` thay vì `order_item_ids`; trả PDF ổn
+            // định hơn cho LEX VN / GHN / J&T (legacy `/order/document/get` thường rỗng vài giây đầu sau /rts).
+            // SPEC 0008b; nếu shop SoC chỉ chấp nhận legacy, đè bằng env (set thành ''/null để tắt).
+            'print_awb' => env('LAZADA_PRINT_AWB_PATH', '/order/package/document/get'),
             'doc_type_map' => [
                 'SHIPPING_LABEL' => env('LAZADA_DOC_TYPE_SHIPPING_LABEL', 'shippingLabel'),
                 'SHIPPING_LABEL_AND_PACKING_SLIP' => env('LAZADA_DOC_TYPE_SHIPPING_LABEL', 'shippingLabel'),
