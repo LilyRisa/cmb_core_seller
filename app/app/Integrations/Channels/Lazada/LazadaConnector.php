@@ -691,7 +691,7 @@ class LazadaConnector implements ChannelConnector
         }
 
         // (1) PRIMARY: `/order/document/get` (chính thức theo `lazada_order.md`) — `order_item_ids` JSON array.
-        $bytes = '';
+        $extracted = ['bytes' => '', 'mime' => ''];
         $lastErr = null;
         try {
             $endpoint = (string) (config('integrations.lazada.endpoints.document_get') ?? '/order/document/get');
@@ -699,8 +699,7 @@ class LazadaConnector implements ChannelConnector
                 'doc_type' => $docType,
                 'order_item_ids' => json_encode($itemIds, JSON_UNESCAPED_SLASHES),
             ]);
-            $bytes = $this->extractDocumentBytes($data);
-            Log::info('lazada.document_data', $data);
+            $extracted = $this->extractDocumentBytes($data);
         } catch (\Throwable $e) {
             $lastErr = $e;
             Log::info('lazada.document_get_failed', ['order' => $externalOrderId, 'item_count' => count($itemIds), 'error' => $e->getMessage()]);
@@ -710,7 +709,7 @@ class LazadaConnector implements ChannelConnector
         // đã pass `externalPackageId`. PrintAWB nhận `getDocumentReq` (JSON envelope) với `packages` HOẶC
         // `order_item_ids`. Một số shop SoC ổn định hơn ở PrintAWB; một số shop legacy chỉ chạy `/order/document/get`.
         $packageId = trim((string) ($query['externalPackageId'] ?? ''));
-        if ($bytes === '' && $packageId !== '' && config('integrations.lazada.endpoints.print_awb')) {
+        if ($extracted['bytes'] === '' && $packageId !== '' && config('integrations.lazada.endpoints.print_awb')) {
             try {
                 $printAwbPath = (string) config('integrations.lazada.endpoints.print_awb');
                 $printDocType = in_array($docType, ['shippingLabel', 'invoice', 'carrierManifest', 'pickList'], true)
@@ -723,16 +722,35 @@ class LazadaConnector implements ChannelConnector
                         'print_item_list' => true,
                     ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                 ]);
-                $bytes = $this->extractDocumentBytes($data);
+                $extracted = $this->extractDocumentBytes($data);
             } catch (\Throwable $e) {
                 $lastErr = $e;
                 Log::info('lazada.print_awb_failed', ['order' => $externalOrderId, 'package_id' => $packageId, 'error' => $e->getMessage()]);
             }
         }
 
-        if ($bytes === '') {
+        if ($extracted['bytes'] === '') {
             $detail = $lastErr ? ' ('.$lastErr->getMessage().')' : '';
             throw new \RuntimeException('Lazada chưa cấp tệp '.$docType.' cho đơn '.$externalOrderId.$detail.'. 3PL thường render PDF async 5–30s sau /order/rts — retry tự khắc lấy được.');
+        }
+
+        // Lazada mặc định trả **HTML** (`mime_type=text/html`). Render qua Gotenberg để chuyển sang PDF
+        // trước khi trả về caller — caller (ShipmentService + PrintService) chỉ làm việc với PDF (ghép tem,
+        // gửi printer, ...) và lưu vào R2 với extension `.pdf`. Nếu mime đã là PDF (PrintAWB trả binary)
+        // thì giữ nguyên.
+        $bytes = $extracted['bytes'];
+        $mime = strtolower($extracted['mime']);
+        if (str_contains($mime, 'html')) {
+            try {
+                // Gotenberg defaults (A4, 0 margin) đủ cho tem AWB Lazada — HTML từ sàn đã có @page CSS riêng,
+                // override paperWidth/Height qua options sẽ require multipart shape khác (Gotenberg API). Giữ
+                // defaults để Gotenberg tự honor `@page` CSS trong HTML của Lazada.
+                $bytes = app(\CMBcoreSeller\Support\GotenbergClient::class)->htmlToPdf($bytes);
+                Log::info('lazada.document_html_rendered_to_pdf', ['order' => $externalOrderId, 'html_size' => strlen($extracted['bytes']), 'pdf_size' => strlen($bytes)]);
+            } catch (\Throwable $e) {
+                Log::warning('lazada.document_html_to_pdf_failed', ['order' => $externalOrderId, 'error' => $e->getMessage()]);
+                throw new \RuntimeException('Lazada trả HTML cho tem '.$docType.' đơn '.$externalOrderId.' nhưng Gotenberg render PDF lỗi: '.$e->getMessage());
+            }
         }
 
         return ['filename' => "lazada-{$docType}-{$externalOrderId}.pdf", 'mime' => 'application/pdf', 'bytes' => $bytes];
@@ -781,13 +799,20 @@ class LazadaConnector implements ChannelConnector
     }
 
     /**
-     * Bóc base64-PDF / TTL URL từ response của `/order/document/get` hoặc `/order/package/document/get`.
-     * Response shape thay đổi giữa các phiên bản: `document.file`, `documents[0].file`, `data.file`, hoặc
-     * `data.url`. Trả về bytes (rỗng nếu Lazada chưa render xong — caller retry).
+     * Bóc bytes + mime_type từ response Lazada `/order/document/get`. Lazada mặc định trả **HTML**
+     * (`mime_type=text/html`) base64-encoded ở `data.document.file` — KHÔNG phải PDF như giả định trước
+     * đây. Response shape thực tế (xác nhận từ user 2026-05-14):
+     *
+     *   { code:"0", data:{ document:{ file:"<base64>", mime_type:"text/html", document_type:"shippingLabel" } } }
+     *
+     * Một số sandbox / region khác có thể trả `documents[0]`, `data.file` flat, hoặc TTL `url`/`pdf_url`
+     * (PDF binary). Function này nhận diện tất cả & trả `['bytes' => ..., 'mime' => ...]`. Caller
+     * (`getShippingDocument`) check mime — nếu là HTML thì convert qua Gotenberg sang PDF trước khi đẩy R2.
      *
      * @param  array<string,mixed>  $data  `data` envelope từ LazadaClient
+     * @return array{bytes:string,mime:string} bytes rỗng = Lazada chưa render xong → caller retry
      */
-    private function extractDocumentBytes(array $data): string
+    private function extractDocumentBytes(array $data): array
     {
         $candidates = [];
         if (isset($data['document']) && is_array($data['document'])) {
@@ -807,21 +832,30 @@ class LazadaConnector implements ChannelConnector
             if ($file === '') {
                 continue;
             }
+            $mime = trim((string) ($doc['mime_type'] ?? $doc['mime'] ?? ''));
             if (preg_match('#^https?://#i', $file)) {
                 $resp = Http::timeout(30)->get($file);
                 if ($resp->successful() && $resp->body() !== '') {
-                    return (string) $resp->body();
+                    return [
+                        'bytes' => (string) $resp->body(),
+                        // URL response — mime suy từ Content-Type của response, fallback PDF.
+                        'mime' => $mime ?: (string) ($resp->header('Content-Type') ?: 'application/pdf'),
+                    ];
                 }
 
                 continue;
             }
             $decoded = base64_decode($file, true);
             if ($decoded !== false && $decoded !== '') {
-                return $decoded;
+                return [
+                    'bytes' => $decoded,
+                    // Lazada thường ghi rõ `mime_type` trong response. Nếu thiếu ⇒ sniff bytes (PDF magic = "%PDF").
+                    'mime' => $mime ?: (str_starts_with($decoded, '%PDF') ? 'application/pdf' : 'text/html'),
+                ];
             }
         }
 
-        return '';
+        return ['bytes' => '', 'mime' => ''];
     }
 
     // --- Finance / Settlements ----------------------------------------------

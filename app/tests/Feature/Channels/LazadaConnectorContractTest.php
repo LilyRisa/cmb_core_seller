@@ -679,6 +679,54 @@ class LazadaConnectorContractTest extends TestCase
         });
     }
 
+    public function test_get_shipping_document_renders_html_response_to_pdf_via_gotenberg(): void
+    {
+        // Lazada thực tế trả HTML (`mime_type: text/html`) base64-encoded — KHÔNG phải PDF như giả định cũ.
+        // Response shape user xác nhận 2026-05-14:
+        //   { code:"0", data:{ document:{ file:"<base64-html>", mime_type:"text/html", document_type:"shippingLabel" } } }
+        // Connector phải nhận diện mime_type=html ⇒ render qua Gotenberg sang PDF trước khi trả caller.
+        $htmlContent = '<html><body><h1>Shipping Label</h1></body></html>';
+        $pdfBytes = "%PDF-1.4\nrendered-from-html";
+        Http::fake([
+            '*/order/document/get*' => Http::response($this->ok([
+                'document' => [
+                    'file' => base64_encode($htmlContent),
+                    'mime_type' => 'text/html',
+                    'document_type' => 'shippingLabel',
+                ],
+            ])),
+            // Gotenberg htmlToPdf endpoint — render HTML thành PDF bytes.
+            '*/forms/chromium/convert/html' => Http::response($pdfBytes, 200),
+        ]);
+
+        $doc = $this->connector()->getShippingDocument($this->auth(), '525106346980318', ['order_item_ids' => [525106347080318]]);
+        $this->assertSame($pdfBytes, $doc['bytes'], 'Bytes phải là PDF từ Gotenberg, KHÔNG phải HTML raw từ Lazada.');
+        $this->assertSame('application/pdf', $doc['mime']);
+
+        // Verify Gotenberg đã được gọi với HTML content gốc (decode từ base64).
+        Http::assertSent(function ($req) use ($htmlContent) {
+            return str_contains((string) $req->url(), '/forms/chromium/convert/html')
+                && str_contains((string) $req->body(), $htmlContent);
+        });
+    }
+
+    public function test_get_shipping_document_keeps_pdf_response_as_is_when_lazada_returns_binary(): void
+    {
+        // Một số region/sandbox trả PDF binary trực tiếp (mime=application/pdf hoặc file đã `%PDF` magic).
+        // Trong trường hợp này KHÔNG render lại qua Gotenberg — giữ nguyên bytes.
+        $pdfBytes = "%PDF-1.4\nbinary-direct";
+        Http::fake([
+            '*/order/document/get*' => Http::response($this->ok([
+                'document' => ['file' => base64_encode($pdfBytes), 'mime_type' => 'application/pdf'],
+            ])),
+            // Nếu Gotenberg bị gọi (BUG), test fail vì bytes sẽ là response của Gotenberg fake này.
+            '*/forms/chromium/convert/html' => Http::response('SHOULD-NOT-BE-CALLED', 200),
+        ]);
+        $doc = $this->connector()->getShippingDocument($this->auth(), '1001', ['order_item_ids' => [9001]]);
+        $this->assertSame($pdfBytes, $doc['bytes']);
+        Http::assertNotSent(fn ($req) => str_contains((string) $req->url(), '/forms/chromium/convert/html'));
+    }
+
     public function test_get_shipping_document_throws_when_both_endpoints_return_empty(): void
     {
         // ShipmentService wraps this in a sync-retry loop + async FetchChannelLabel job (Lazada 3PL renders
