@@ -122,7 +122,21 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
         },
         onError: err,
     });
-    const printLabelBundle = () => createPrint.mutate({ type: 'label', shipment_ids: [sh!.id] }, { onSuccess: (j) => onPrint(j.id), onError: err });
+    const runPrintLabel = () => createPrint.mutate({ type: 'label', shipment_ids: [sh!.id] }, { onSuccess: (j) => onPrint(j.id), onError: err });
+    // Cảnh báo in lại: vận đơn đã in ≥1 lần ⇒ confirm để tránh tạo trùng phiếu vận chuyển.
+    const printLabelBundle = () => {
+        if (sh && (sh.print_count ?? 0) > 0) {
+            const code = order.order_number ?? order.external_order_id ?? `#${order.id}`;
+            Modal.confirm({
+                title: 'Đơn này đã từng in phiếu',
+                content: <span>Đơn <b>{code}</b> đã in <b>{sh.print_count}</b> lần. In lại có thể tạo trùng phiếu vận chuyển — vẫn tiếp tục?</span>,
+                okText: 'Vẫn in', okButtonProps: { danger: true }, cancelText: 'Huỷ',
+                onOk: runPrintLabel,
+            });
+            return;
+        }
+        runPrintLabel();
+    };
     // "In phiếu giao hàng": nếu đã có phiếu ⇒ in luôn; chưa có ⇒ popup hướng dẫn (ngôn ngữ dễ hiểu) gợi bấm "Nhận phiếu giao hàng".
     const printDelivery = () => {
         if (sh && sh.has_label) { printLabelBundle(); return; }
@@ -287,10 +301,30 @@ export function ShipmentsTab({ onPrint }: { onPrint: (id: number) => void }) {
                         });
                         return;
                     }
-                    createPrint.mutate({ type: 'label', shipment_ids: sel }, {
+                    const runPrint = () => createPrint.mutate({ type: 'label', shipment_ids: sel }, {
                         onSuccess: (j) => onPrint(j.id),
                         onError: (e) => Modal.warning({ title: 'Không in được tem', content: errorMessage(e), okText: 'Đã hiểu' }),
                     });
+                    const reprinted = items.filter((s) => (s.print_count ?? 0) > 0);
+                    if (reprinted.length > 0) {
+                        Modal.confirm({
+                            title: `${reprinted.length} vận đơn đã từng in tem — vẫn in tiếp?`,
+                            width: 540,
+                            content: (
+                                <div>
+                                    <p style={{ marginTop: 0 }}>Trong <b>{items.length}</b> vận đơn sắp in, <b>{reprinted.length}</b> vận đơn đã được in trước đó. In lại có thể tạo trùng phiếu vận chuyển — kiểm tra trước khi giao cho đơn vị vận chuyển.</p>
+                                    <p style={{ marginBottom: 4 }}>Danh sách vận đơn đã in:</p>
+                                    <ul style={{ margin: 0, paddingInlineStart: 18, maxHeight: 220, overflowY: 'auto' }}>
+                                        {reprinted.map((s) => <li key={s.id}>{s.order?.order_number ?? s.order?.external_order_id ?? `#${s.order_id}`} — <span style={{ color: '#8c8c8c' }}>{s.tracking_no ?? '(chưa có mã)'}</span> — đã in <b>{s.print_count}</b> lần</li>)}
+                                    </ul>
+                                </div>
+                            ),
+                            okText: 'Vẫn in', okButtonProps: { danger: true }, cancelText: 'Huỷ',
+                            onOk: runPrint,
+                        });
+                        return;
+                    }
+                    runPrint();
                 }}>In tem ({sel.length})</Button>}
             </Space>
             <Table<Shipment> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns}

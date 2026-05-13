@@ -51,18 +51,24 @@ class LazadaClient
         return (string) ($this->cfg['redirect_uri'] ?? url('/oauth/lazada/callback'));
     }
 
-    /** Seller authorization URL: auth.lazada.com/oauth/authorize?response_type=code&client_id=&redirect_uri=&state= */
-    public function authorizeUrl(string $state): string
+    /**
+     * Seller authorization URL: auth.lazada.com/oauth/authorize?response_type=code&client_id=&redirect_uri=&state=.
+     * `redirect_uri` **phải khớp byte-for-byte** với URL Callback đã đăng ký trong app console — nếu lệch
+     * (http↔https, domain, dấu /, encoding) thì Lazada trả "tham số không hợp lệ" ngay ở bước ủy quyền.
+     * Mặc định không gửi `force_auth` (không có trong tài liệu chính thức, một số region từ chối).
+     */
+    public function authorizeUrl(string $state, ?string $redirectUriOverride = null): string
     {
         $base = (string) ($this->cfg['authorize_url'] ?? 'https://auth.lazada.com/oauth/authorize');
+        $forceAuth = (bool) ($this->cfg['authorize_force_auth'] ?? false);
 
-        return $base.'?'.http_build_query([
+        return $base.'?'.http_build_query(array_filter([
             'response_type' => 'code',
-            'force_auth' => 'true',
+            'force_auth' => $forceAuth ? 'true' : null,
             'client_id' => $this->appKey(),
-            'redirect_uri' => $this->redirectUri(),
+            'redirect_uri' => $redirectUriOverride ?: $this->redirectUri(),
             'state' => $state,
-        ]);
+        ], fn ($v) => $v !== null));
     }
 
     // --- Token endpoints (auth host) -----------------------------------------
@@ -91,10 +97,14 @@ class LazadaClient
             $this->throttle($auth);
         }
 
+        // System params — khớp đúng `LazopClient::execute()` (SDK chính thức `sdk_lazada_php`). `partner_id`
+        // BẮT BUỘC nằm trong tập tham số ký để một số endpoint (đặc biệt `/auth/token/create|refresh` ở host
+        // auth.lazada.com) chấp nhận — thiếu nó thường bị trả "tham số không hợp lệ" / sai sign.
         $sysParams = [
             'app_key' => $this->appKey(),
             'timestamp' => (string) (now()->getTimestampMs()),
             'sign_method' => 'sha256',
+            'partner_id' => (string) ($this->cfg['partner_id'] ?? 'cmb-core-seller-php-1.0'),
         ];
         if ($auth && $auth->accessToken !== '') {
             $sysParams['access_token'] = $auth->accessToken;
@@ -175,8 +185,15 @@ class LazadaClient
     {
         $code = (string) ($json['code'] ?? '');
         $message = (string) ($json['message'] ?? 'unknown error');
-        Log::warning('lazada.api.error', ['path' => $apiPath, 'http' => $httpStatus, 'code' => $code]);
+        $requestId = (string) ($json['request_id'] ?? '');
+        // Ghi `request_id` để đối chiếu với Lazada Open Platform console (Support / API log) khi gỡ lỗi
+        // "tham số không hợp lệ" / sai sign — Lazada tra theo request_id, không tra theo path.
+        Log::warning('lazada.api.error', [
+            'path' => $apiPath, 'http' => $httpStatus, 'code' => $code,
+            'message_excerpt' => substr($message, 0, 200),
+            'request_id' => $requestId,
+        ]);
 
-        throw new LazadaApiException("Lazada API error on {$apiPath}: [{$code}] {$message}", $code, $httpStatus);
+        throw new LazadaApiException("Lazada API error on {$apiPath}: [{$code}] {$message}".($requestId ? " (request_id={$requestId})" : ''), $code, $httpStatus);
     }
 }

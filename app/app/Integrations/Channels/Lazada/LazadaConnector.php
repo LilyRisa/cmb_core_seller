@@ -66,7 +66,10 @@ class LazadaConnector implements ChannelConnector
 
     public function buildAuthorizationUrl(string $state, array $opts = []): string
     {
-        return $this->client->authorizeUrl($state);
+        // Truyền `redirect_uri` của route Laravel (`route('oauth.callback', ...)`) — phải khớp đúng URL
+        // Callback đã đăng ký trong app console của Lazada. Nếu lệch (host khác / scheme khác / có thêm
+        // dấu /), Lazada báo "tham số không hợp lệ" ngay ở bước ủy quyền.
+        return $this->client->authorizeUrl($state, isset($opts['redirect_uri']) ? (string) $opts['redirect_uri'] : null);
     }
 
     public function exchangeCodeForToken(string $code): TokenDTO

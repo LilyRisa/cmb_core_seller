@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Alert, App as AntApp, Avatar, Badge, Button, Card, DatePicker, Empty, Input, Modal, Radio, Select, Space, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
 import { BarcodeOutlined, FileTextOutlined, LinkOutlined, PrinterOutlined, ReloadOutlined, ScanOutlined, SearchOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons';
@@ -135,6 +135,18 @@ export function OrdersPage() {
     const { data: stats } = useOrderStats(statsFilters);
     // sub-tab "tình trạng phiếu giao hàng" chỉ hiện khi có ≥1 đơn "Chuẩn bị hàng" lỗi (SPEC 0013 — như ui_example)
     const showSlipTabs = isProcessingTab && (stats?.by_slip?.failed ?? 0) > 0;
+    // Xử lý xong các đơn lỗi ⇒ sub-tab "Nhận phiếu giao hàng" biến mất; tự bỏ filter `slip=failed` còn sót lại
+    // để quay về bộ lọc gốc của "Đang xử lý" (không kẹt ở danh sách rỗng). Cũng dọn slip khi rời tab này.
+    useEffect(() => {
+        if (!slipParam) return;
+        const stuck = !isProcessingTab || (slipParam === 'failed' && (stats?.by_slip?.failed ?? 0) === 0);
+        if (stuck) {
+            const m = new URLSearchParams(params);
+            m.delete('slip');
+            setParams(m, { replace: true });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isProcessingTab, slipParam, stats?.by_slip?.failed]);
 
     const countForTab = (t: { statuses?: string[] }) => (t.statuses ?? []).reduce((s, st) => s + (stats?.by_status?.[st] ?? 0), 0);
     const shopName = (id: number) => accounts.find((a) => a.id === id)?.name ?? `#${id}`;
@@ -210,10 +222,31 @@ export function OrdersPage() {
             });
             return;
         }
-        createPrintJob.mutate({ type: 'label', shipment_ids: ready.map((o) => o.shipment!.id) }, {
+        const runPrint = () => createPrintJob.mutate({ type: 'label', shipment_ids: ready.map((o) => o.shipment!.id) }, {
             onSuccess: (j) => { setPrintJobId(j.id); setSelectedKeys([]); },
             onError: (e) => Modal.warning({ title: 'Không in được tem', content: errorMessage(e), okText: 'Đã hiểu' }),
         });
+        // Cảnh báo in lại: ≥1 đơn đã được in trước đó (`print_count > 0`) ⇒ tránh in trùng phiếu vận chuyển.
+        const reprinted = ready.filter((o) => (o.shipment!.print_count ?? 0) > 0);
+        if (reprinted.length > 0) {
+            Modal.confirm({
+                title: `${reprinted.length} đơn đã từng in phiếu — vẫn in tiếp?`,
+                width: 540,
+                content: (
+                    <div>
+                        <p style={{ marginTop: 0 }}>Trong <b>{ready.length}</b> đơn sắp in, <b>{reprinted.length}</b> đơn đã được in phiếu giao hàng trước đó. In lại có thể tạo trùng phiếu vận chuyển — kiểm tra trước khi giao cho đơn vị vận chuyển.</p>
+                        <p style={{ marginBottom: 4 }}>Danh sách đơn đã in:</p>
+                        <ul style={{ margin: 0, paddingInlineStart: 18, maxHeight: 220, overflowY: 'auto' }}>
+                            {reprinted.map((o) => <li key={o.id}>{o.order_number ?? o.external_order_id ?? `#${o.id}`} — đã in <b>{o.shipment!.print_count}</b> lần</li>)}
+                        </ul>
+                    </div>
+                ),
+                okText: 'Vẫn in', okButtonProps: { danger: true }, cancelText: 'Huỷ',
+                onOk: runPrint,
+            });
+            return;
+        }
+        runPrint();
     };
 
     // chip-row items
