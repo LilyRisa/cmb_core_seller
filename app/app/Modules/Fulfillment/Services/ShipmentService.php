@@ -224,7 +224,8 @@ class ShipmentService
                     return;
                 }
                 $stored = $this->media->storeBytes($bytes, (int) $order->tenant_id, 'labels', 'sh'.$shipment->getKey().'-'.Str::ulid(), 'pdf');
-                $shipment->forceFill(['label_url' => $stored['url'], 'label_path' => $stored['path']])->save();
+                // Lấy tem thành công ⇒ clear `label_fetch_next_retry_at` để vận đơn rời sub-tab "Đang tải lại".
+                $shipment->forceFill(['label_url' => $stored['url'], 'label_path' => $stored['path'], 'label_fetch_next_retry_at' => null])->save();
 
                 return;
             } catch (\Throwable $e) {
@@ -241,8 +242,12 @@ class ShipmentService
         // PDF async 5–30s+ sau /order/rts. Khi job lấy được tem ⇒ đẩy R2 ⇒ list FE tự thấy `has_label=true`.
         // Skip nếu đang chạy từ job (Laravel queue tự retry theo backoff — tránh enqueue đệ quy).
         if (! $skipAsyncRetry && $account->provider === 'lazada') {
+            $delaySec = 15;
             \CMBcoreSeller\Modules\Fulfillment\Jobs\FetchChannelLabel::dispatch((int) $shipment->getKey())
-                ->onQueue('labels')->delay(now()->addSeconds(15));
+                ->onQueue('labels')->delay(now()->addSeconds($delaySec));
+            // Đánh dấu vận đơn vào sub-tab "Đang tải lại" — `label_fetch_next_retry_at > NOW()` ⇒
+            // OrderController::applySlipFilter() phân loại sang `loading` (không gộp vào `failed`/`Nhận phiếu`).
+            $shipment->forceFill(['label_fetch_next_retry_at' => now()->addSeconds($delaySec)])->save();
         }
     }
 

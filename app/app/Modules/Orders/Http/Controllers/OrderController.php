@@ -189,15 +189,32 @@ class OrderController extends Controller
         })->all();
 
         // "Tình trạng phiếu giao hàng" tab counts (đơn đã "Chuẩn bị hàng" — có vận đơn open) — SPEC 0013.
+        // Sub-tab "Tình trạng phiếu giao hàng" — phân loại theo *trạng thái fetch thực* của tem (SPEC 0013
+        // §3 cập nhật 2026-05-14). Nguồn truth = `shipments.label_path` + `shipments.label_fetch_next_retry_at`,
+        // KHÔNG còn dùng cờ `has_issue` của order (vì has_issue có thể là vấn đề khác — sai địa chỉ, SKU chưa
+        // ghép — không liên quan tem). Phân loại 3 mục tách rời, không overlap:
+        //   - `printable` (Có thể in)        : vận đơn open có `label_path` (R2 đã có PDF).
+        //   - `loading`   (Đang tải lại)     : `label_path` rỗng & `label_fetch_next_retry_at > NOW()` —
+        //                                      `FetchChannelLabel` job sẽ retry; user chỉ chờ.
+        //   - `failed`    (Nhận phiếu giao hàng): `label_path` rỗng & retry-job đã exhaust hoặc chưa từng
+        //                                      được queue (chỉ cách lấy tem là user click "Nhận lại phiếu").
         $openLabelled = fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES)->whereNotNull('label_path');
-        $hasOpenShipment = fn (Builder $q) => $q->whereHas('shipments', fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES));
+        $openNoLabelInQueue = fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES)
+            ->whereNull('label_path')->where('label_fetch_next_retry_at', '>', now());
+        $openNoLabelStuck = fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES)
+            ->whereNull('label_path')
+            ->where(fn (Builder $w) => $w->whereNull('label_fetch_next_retry_at')->orWhere('label_fetch_next_retry_at', '<=', now()));
         $bySlip = [
             'printable' => (clone $statusBase)->whereHas('shipments', $openLabelled)->count(),
-            'loading' => $hasOpenShipment(clone $statusBase)->where('has_issue', false)->whereDoesntHave('shipments', $openLabelled)->count(),
-            'failed' => $hasOpenShipment(clone $statusBase)->where('has_issue', true)->count(),
+            'loading' => (clone $statusBase)->whereHas('shipments', $openNoLabelInQueue)
+                ->whereDoesntHave('shipments', $openLabelled)->count(),
+            'failed' => (clone $statusBase)->whereHas('shipments', $openNoLabelStuck)
+                ->whereDoesntHave('shipments', $openLabelled)
+                ->whereDoesntHave('shipments', $openNoLabelInQueue)->count(),
         ];
         // "Đã in phiếu / Chưa in phiếu" — đếm trên đơn có vận đơn open (SPEC 0013).
         $openPrinted = fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES)->where('print_count', '>', 0);
+        $hasOpenShipment = fn (Builder $q) => $q->whereHas('shipments', fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES));
         $byPrinted = [
             'yes' => (clone $statusBase)->whereHas('shipments', $openPrinted)->count(),
             'no' => $hasOpenShipment(clone $statusBase)->whereDoesntHave('shipments', $openPrinted)->count(),
@@ -433,22 +450,32 @@ class OrderController extends Controller
     }
 
     /**
-     * Lọc theo "tình trạng phiếu giao hàng" của đơn ĐÃ "Chuẩn bị hàng" (có vận đơn open) — SPEC 0013:
-     *  - printable : vận đơn open đã có tem/phiếu (`label_path` ≠ null) — sẵn sàng in.
-     *  - loading   : có vận đơn open nhưng chưa có tem nào & đơn KHÔNG `has_issue` — đang chờ queue lấy phiếu về.
-     *  - failed    : có vận đơn open & đơn `has_issue` — "Chuẩn bị hàng" lỗi (cần "Nhận phiếu giao hàng lại").
+     * Lọc theo "tình trạng phiếu giao hàng" của đơn ĐÃ "Chuẩn bị hàng" (có vận đơn open) — SPEC 0013
+     * cập nhật 2026-05-14. Nguồn truth: `shipments.label_path` + `shipments.label_fetch_next_retry_at`
+     * (KHÔNG còn dùng `orders.has_issue` — issue có thể do nguyên nhân khác).
+     *  - printable : vận đơn open có `label_path` (R2 đã có PDF) ⇒ sẵn sàng in.
+     *  - loading   : `label_path` rỗng & `label_fetch_next_retry_at > NOW()` ⇒ `FetchChannelLabel` job sẽ
+     *                tự retry (user không cần thao tác — chỉ chờ).
+     *  - failed    : `label_path` rỗng & retry-job đã exhaust hoặc chưa từng được queue ⇒ user cần bấm
+     *                "Nhận phiếu giao hàng" / "Nhận lại phiếu" để retry thủ công.
      *
      * @param  Builder<Order>  $q
      */
     private function applySlipFilter(Builder $q, string $slip): void
     {
         $openLabelled = fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES)->whereNotNull('label_path');
+        $openInQueue = fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES)
+            ->whereNull('label_path')->where('label_fetch_next_retry_at', '>', now());
+        $openStuck = fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES)
+            ->whereNull('label_path')
+            ->where(fn (Builder $w) => $w->whereNull('label_fetch_next_retry_at')->orWhere('label_fetch_next_retry_at', '<=', now()));
         match ($slip) {
             'printable' => $q->whereHas('shipments', $openLabelled),
-            'loading' => $q->where('has_issue', false)
-                ->whereHas('shipments', fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES))
+            'loading' => $q->whereHas('shipments', $openInQueue)
                 ->whereDoesntHave('shipments', $openLabelled),
-            'failed' => $q->where('has_issue', true)->whereHas('shipments', fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES)),
+            'failed' => $q->whereHas('shipments', $openStuck)
+                ->whereDoesntHave('shipments', $openLabelled)
+                ->whereDoesntHave('shipments', $openInQueue),
             default => null,
         };
     }

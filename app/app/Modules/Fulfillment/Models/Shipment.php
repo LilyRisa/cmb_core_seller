@@ -73,8 +73,8 @@ class Shipment extends Model
 
     protected $fillable = [
         'tenant_id', 'order_id', 'carrier', 'carrier_account_id', 'package_no', 'tracking_no', 'status', 'service',
-        'weight_grams', 'dims', 'cod_amount', 'fee', 'label_url', 'label_path', 'print_count', 'last_printed_at',
-        'picked_up_at', 'packed_at', 'delivered_at', 'raw',
+        'weight_grams', 'dims', 'cod_amount', 'fee', 'label_url', 'label_path', 'label_fetch_next_retry_at',
+        'print_count', 'last_printed_at', 'picked_up_at', 'packed_at', 'delivered_at', 'raw',
     ];
 
     protected function casts(): array
@@ -82,6 +82,7 @@ class Shipment extends Model
         return [
             'dims' => 'array', 'raw' => 'array', 'cod_amount' => 'integer', 'fee' => 'integer', 'weight_grams' => 'integer',
             'print_count' => 'integer', 'last_printed_at' => 'datetime', 'picked_up_at' => 'datetime', 'packed_at' => 'datetime', 'delivered_at' => 'datetime',
+            'label_fetch_next_retry_at' => 'datetime',
         ];
     }
 

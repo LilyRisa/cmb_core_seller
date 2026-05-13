@@ -531,7 +531,10 @@ export function OrdersPage() {
                             Lấy phiếu giao hàng ({selWithoutShipment.length})
                         </Button>}
                         {canShip && isProcessingTab && selPackable.length > 0 && <Button icon={<CheckCircleOutlined />} style={{ background: '#52c41a', borderColor: '#52c41a', color: '#fff' }} loading={bulkPack.isPending} onClick={doBulkPack}>Sẵn sàng bàn giao ({selPackable.length})</Button>}
-                        {canShip && (isProcessingTab || isShipTab) && selWithShipment.length > 0 && <Button icon={<FileTextOutlined />} loading={refetchSlip.isPending} onClick={doRefetchSlip}>Nhận lại phiếu ({selWithShipment.length})</Button>}
+                        {/* "Nhận lại phiếu" chỉ hiện khi user đang ở sub-tab "Nhận phiếu giao hàng" (`slip=failed`)
+                            — nơi vận đơn KHÔNG có tem và queue retry đã exhaust. Ở `printable` (đã có tem) /
+                            `loading` (queue đang retry) thì user không cần (in trực tiếp / chờ tự động). */}
+                        {canShip && (isProcessingTab || isShipTab) && selWithShipment.length > 0 && (!isProcessingTab || slipParam === 'failed' || slipParam === '') && <Button icon={<FileTextOutlined />} loading={refetchSlip.isPending} onClick={doRefetchSlip}>Nhận lại phiếu ({selWithShipment.length})</Button>}
                         {canPrint && selWithShipment.length > 0 && <Button icon={<PrinterOutlined />} loading={createPrintJob.isPending} onClick={doBulkPrintSlip}>In phiếu giao hàng ({selWithShipment.length})</Button>}
                         <Button onClick={() => setSelectedKeys([])}>Bỏ chọn</Button>
                     </Space>
