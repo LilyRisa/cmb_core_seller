@@ -700,6 +700,7 @@ class LazadaConnector implements ChannelConnector
                 'order_item_ids' => json_encode($itemIds, JSON_UNESCAPED_SLASHES),
             ]);
             $bytes = $this->extractDocumentBytes($data);
+            Log::info('lazada.document_data', $data);
         } catch (\Throwable $e) {
             $lastErr = $e;
             Log::info('lazada.document_get_failed', ['order' => $externalOrderId, 'item_count' => count($itemIds), 'error' => $e->getMessage()]);
