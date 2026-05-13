@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
     Alert, Anchor, App as AntApp, Avatar, Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber,
-    Radio, Row, Select, Skeleton, Space, Table, Tag, Tooltip, Typography, Upload,
+    Radio, Row, Select, Skeleton, Space, Table, Tag, Typography, Upload,
 } from 'antd';
 import type { RcFile } from 'antd/es/upload';
 import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined, QuestionCircleOutlined, ShopOutlined } from '@ant-design/icons';
@@ -313,27 +313,56 @@ export function CreateSkuPage() {
                         </Card>
 
                         <Card id="mappings" title="Ghép nối với SKU gian hàng" style={{ marginBottom: 16 }}>
-                            <Alert type="info" showIcon style={{ marginBottom: 12 }} message={isEdit ? 'Danh sách ghép nối ở đây là toàn bộ liên kết của SKU này — lưu lại sẽ thay thế các liên kết cũ. Tồn của SKU được đẩy lên các listing đã ghép.' : 'Để dùng chức năng giám sát & đồng bộ tồn kho, hãy thiết lập mối quan hệ ghép nối giữa SKU gian hàng và SKU hàng hoá. Tồn của SKU này sẽ được đẩy lên các listing đã ghép.'} />
+                            <Alert type="info" showIcon style={{ marginBottom: 12 }}
+                                message={isEdit ? 'Danh sách ghép nối ở đây là toàn bộ liên kết của SKU này — lưu lại sẽ thay thế các liên kết cũ.' : 'Ghép SKU hàng hoá này với (các) SKU/biến thể trên gian hàng để giám sát & đồng bộ tồn kho.'}
+                                description="Tồn của SKU này tự được đẩy lên các listing đã ghép — không cần nhập số tồn ở đây. Ô “× số lượng” chỉ dùng cho listing combo/lốc (xem gợi ý ở ô đó); để 1 nếu sàn bán lẻ từng cái." />
                             <Form.List name="mappings">
                                 {(fields, { add, remove }) => (
                                     <>
                                         {fields.length === 0 && <Typography.Text type="secondary">Chưa có ghép nối.</Typography.Text>}
                                         {fields.map((f) => (
-                                            <Space key={f.key} align="baseline" wrap style={{ display: 'flex', marginBottom: 8 }}>
-                                                <Form.Item {...f} name={[f.name, 'channel_account_id']} rules={[{ required: true, message: 'Chọn gian hàng' }]} style={{ marginBottom: 0, minWidth: 220 }}>
-                                                    <Select showSearch optionFilterProp="label" placeholder="Gian hàng" options={shopOptions} />
-                                                </Form.Item>
-                                                <Form.Item {...f} name={[f.name, 'external_sku_id']} rules={[{ required: true, message: 'Nhập SKU sàn' }, { max: 191 }]} style={{ marginBottom: 0, minWidth: 200 }}>
-                                                    <Input placeholder="Mã SKU trên sàn (Seller SKU ID)" maxLength={191} />
-                                                </Form.Item>
-                                                <Form.Item {...f} name={[f.name, 'seller_sku']} style={{ marginBottom: 0, minWidth: 160 }}>
-                                                    <Input placeholder="Seller SKU (tuỳ chọn)" maxLength={191} />
-                                                </Form.Item>
-                                                <Form.Item {...f} name={[f.name, 'quantity']} initialValue={1} style={{ marginBottom: 0 }}>
-                                                    <InputNumber min={1} addonBefore="×" style={{ width: 110 }} />
-                                                </Form.Item>
-                                                <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(f.name)} />
-                                            </Space>
+                                            <Form.Item noStyle key={f.key} shouldUpdate>
+                                                {() => {
+                                                    const row = (form.getFieldValue(['mappings', f.name]) ?? {}) as NonNullable<BasicForm['mappings']>[number];
+                                                    const shopId = row.channel_account_id;
+                                                    const picked = row._listing;
+                                                    const shopLabel = shopOptions.find((o) => o.value === shopId)?.label;
+                                                    const setRow = (patch: Partial<NonNullable<BasicForm['mappings']>[number]>) =>
+                                                        Object.entries(patch).forEach(([k, v]) => form.setFieldValue(['mappings', f.name, k] as never, v));
+                                                    return (
+                                                        <div style={{ border: '1px solid #f0f0f0', borderRadius: 8, padding: 12, marginBottom: 10 }}>
+                                                            <Space align="start" wrap style={{ width: '100%' }}>
+                                                                <Form.Item {...f} name={[f.name, 'channel_account_id']} rules={[{ required: true, message: 'Chọn gian hàng' }]} style={{ marginBottom: 0, minWidth: 200 }}>
+                                                                    <Select showSearch optionFilterProp="label" placeholder="Gian hàng" suffixIcon={<ShopOutlined />} options={shopOptions}
+                                                                        onChange={() => setRow({ external_sku_id: undefined, seller_sku: undefined, _listing: undefined })} />
+                                                                </Form.Item>
+                                                                <Form.Item {...f} name={[f.name, 'external_sku_id']} rules={[{ required: true, message: 'Chọn SKU gian hàng' }, { max: 191 }]} style={{ marginBottom: 0, flex: 1, minWidth: 320 }}>
+                                                                    <ChannelListingPicker shopId={shopId} onPick={(l) => setRow({ seller_sku: l?.seller_sku ?? row.seller_sku, _listing: l ?? undefined })} />
+                                                                </Form.Item>
+                                                                <Form.Item {...f} name={[f.name, 'quantity']} initialValue={1} style={{ marginBottom: 0 }}
+                                                                    tooltip={{ title: 'Số lượng SKU hàng hoá này trong 1 SKU sàn (combo/lốc). Để 1 nếu sàn bán lẻ từng cái. Đây KHÔNG phải số tồn kho — tồn lấy từ SKU và tự đồng bộ lên sàn.', icon: <QuestionCircleOutlined /> }}>
+                                                                    <InputNumber min={1} addonBefore="×" style={{ width: 92 }} />
+                                                                </Form.Item>
+                                                                <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(f.name)} />
+                                                            </Space>
+                                                            <Form.Item {...f} name={[f.name, 'seller_sku']} hidden><Input /></Form.Item>
+                                                            {picked ? (
+                                                                <Space size={10} style={{ marginTop: 10 }} align="start">
+                                                                    <Avatar shape="square" size={44} src={picked.image ?? undefined}>{picked.image ? null : '?'}</Avatar>
+                                                                    <div>
+                                                                        <div style={{ fontWeight: 500 }}>{picked.title ?? '(không tên)'}{picked.variation ? <Tag style={{ marginInlineStart: 6 }}>{picked.variation}</Tag> : null}</div>
+                                                                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>{shopLabel ? <>Gian hàng: {shopLabel} · </> : null}SKU sàn: {row.external_sku_id}{picked.seller_sku ? ` · Seller SKU: ${picked.seller_sku}` : ''}{picked.channel_stock != null ? ` · Tồn trên sàn: ${picked.channel_stock}` : ''}</Typography.Text>
+                                                                    </div>
+                                                                </Space>
+                                                            ) : row.external_sku_id ? (
+                                                                <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 8 }}>
+                                                                    SKU sàn: <b>{row.external_sku_id}</b>{shopLabel ? <> · Gian hàng: {shopLabel}</> : null} <Typography.Text type="warning">(listing chưa đồng bộ — chưa xem được tên/ảnh; bấm “Đồng bộ listing” ở trang Sản phẩm sàn)</Typography.Text>
+                                                                </Typography.Text>
+                                                            ) : null}
+                                                        </div>
+                                                    );
+                                                }}
+                                            </Form.Item>
                                         ))}
                                         <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ quantity: 1 })} style={{ marginTop: 8 }}>Thêm ghép nối SKU gian hàng</Button>
                                     </>

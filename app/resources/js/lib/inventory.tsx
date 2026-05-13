@@ -135,6 +135,7 @@ export interface ChannelListing {
     price: number | null;
     channel_stock: number | null;
     currency: string;
+    image: string | null;
     is_active: boolean;
     is_stock_locked: boolean;
     sync_status: string;
