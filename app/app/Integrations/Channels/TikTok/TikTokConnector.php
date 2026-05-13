@@ -52,6 +52,9 @@ class TikTokConnector implements ChannelConnector
             // bật mặc định, tắt bằng INTEGRATIONS_TIKTOK_FULFILLMENT=false nếu shop cần handover_method khác /
             // lỗi gọi sàn (lỗi vẫn được bắt & gắn cờ has_issue, không chặn). SPEC 0013/0014.
             'shipping.arrange' => (bool) config('integrations.tiktok.fulfillment_enabled', true),
+            // TikTok không có bước riêng kiểu Lazada /order/rts — sau arrange (POST /packages/{id}/ship) đơn
+            // đã ở `AWAITING_COLLECTION`; "Đã gói & sẵn sàng bàn giao" là thao tác nội bộ. SPEC 0001.
+            'shipping.ready_to_ship' => false,
             'shipping.document' => (bool) config('integrations.tiktok.fulfillment_enabled', true),
             'shipping.tracking' => false,     // Phase 3
             'listings.fetch' => true,         // Phase 2 — SPEC 0003 (fetchListings → channel_listings)
@@ -330,6 +333,15 @@ class TikTokConnector implements ChannelConnector
      *
      * @return array<string,mixed>
      */
+    /**
+     * TikTok không có bước /order/rts riêng — capability `shipping.ready_to_ship`=false ⇒
+     * `ShipmentService::markPacked` không gọi method này. Khai báo để contract thoả mãn + safety guard.
+     */
+    public function pushReadyToShip(AuthContext $auth, string $externalOrderId, array $params = []): array
+    {
+        throw UnsupportedOperation::for($this->code(), 'pushReadyToShip');
+    }
+
     public function arrangeShipment(AuthContext $auth, string $externalOrderId, array $params = []): array
     {
         if (! config('integrations.tiktok.fulfillment_enabled')) {

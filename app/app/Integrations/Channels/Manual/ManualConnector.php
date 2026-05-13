@@ -119,6 +119,11 @@ class ManualConnector implements ChannelConnector
         throw UnsupportedOperation::for($this->code(), 'arrangeShipment');
     }
 
+    public function pushReadyToShip(AuthContext $auth, string $externalOrderId, array $params = []): array
+    {
+        throw UnsupportedOperation::for($this->code(), 'pushReadyToShip');
+    }
+
     public function getShippingDocument(AuthContext $auth, string $externalOrderId, array $query = []): array
     {
         throw UnsupportedOperation::for($this->code(), 'getShippingDocument');

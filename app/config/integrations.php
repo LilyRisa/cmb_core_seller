@@ -263,26 +263,38 @@ return [
         // Phase 6.2 — kéo đối soát. Mặc định off, bật bằng INTEGRATIONS_LAZADA_FINANCE=true sau khi đối chiếu sandbox.
         'finance_enabled' => (bool) env('INTEGRATIONS_LAZADA_FINANCE', false),
 
-        // Lazada raw (item-level) order status -> StandardOrderStatus. The single source of truth;
-        // see docs/03-domain/order-status-state-machine.md §4. Keys normalized (lowercase, '_').
+        // Lazada raw (item-level + order-level) status → StandardOrderStatus. Source of truth duy nhất;
+        // xem docs/03-domain/order-status-state-machine.md §4 + `lazada_order.md` (chuẩn hoá theo Lazada
+        // Support 2026-05-14): 3 tab "công việc" của app khớp với 3 trạng thái Lazada như sau —
+        //   "Chờ xử lý"     ← Lazada **paid** (order-level) / `pending`/`topack` (item-level)
+        //   "Đang xử lý"    ← Lazada **packed**  (sau /order/fulfill/pack — seller đã gói, có tracking_number)
+        //   "Chờ bàn giao"  ← Lazada **ready_to_ship** (sau /order/rts — chờ 3PL tới lấy hàng)
+        // KHÔNG dùng ready_to_ship cho SOF/DBS (Lazada không trả status đó cho 2 type này).
         'status_map' => [
             'unpaid' => 'unpaid',
-            // pending = đã xác nhận, chưa RTS/in phiếu ⇒ "Chờ xử lý"
+            // pending (item) | paid (order) | topack = chưa pack ⇒ "Chờ xử lý"
             'pending' => 'pending',
             'topack' => 'pending',
-            // packed / ready_to_ship = đã RTS/in phiếu (Lazada chờ ĐVVC lấy) ⇒ "Đang xử lý" (gói + quét nội bộ).
-            // Chỉ chuyển sang "Chờ bàn giao" bằng thao tác nội bộ. SPEC 0013.
-            'ready_to_ship' => 'processing',
-            'ready_to_ship_pending' => 'processing',
+            'paid' => 'pending',
+            // packed = đã /order/fulfill/pack, có tracking_number nhưng chưa /order/rts ⇒ "Đang xử lý" (chờ user
+            // bấm "Đã gói & sẵn sàng bàn giao" để app gọi /order/rts đẩy lên Lazada).
             'packed' => 'processing',
+            // ready_to_ship = đã /order/rts, Lazada chờ 3PL pickup ⇒ "Chờ bàn giao". `toship` là alias.
+            'ready_to_ship' => 'ready_to_ship',
+            'ready_to_ship_pending' => 'ready_to_ship',
+            'toship' => 'ready_to_ship',
             'shipped' => 'shipped',
             'shipped_back' => 'returning',
             'shipped_back_failed' => 'returning',
             'delivered' => 'delivered',
+            'confirmed' => 'completed',
             'failed' => 'delivery_failed',
+            'failed_delivered' => 'delivery_failed',
             'lost' => 'delivery_failed',
             'damaged' => 'delivery_failed',
             'returned' => 'returned_refunded',
+            'return_to_seller' => 'returning',
+            'rtm_init' => 'returning',
             'canceled' => 'cancelled',
             'cancelled' => 'cancelled',
         ],

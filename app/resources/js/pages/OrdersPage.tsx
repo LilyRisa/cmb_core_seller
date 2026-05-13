@@ -137,8 +137,12 @@ export function OrdersPage() {
     // skip the (unused) orders list when on the shipments tab
     const { data, isFetching, refetch } = useOrders(isShipmentsTab ? { ...filters, page: 1, per_page: 1 } : filters);
     const { data: stats, refetch: refetchStats } = useOrderStats(statsFilters);
+    // Badge số đơn của TAB trạng thái phải luôn là *tổng đơn theo status* — KHÔNG ăn theo source / carrier
+    // / shop / q / placed_*. Bộ lọc chỉ ảnh hưởng list + chip "Lọc" (`stats` filtered ở trên), không can
+    // thiệp tab. Query thứ 2 không truyền filter ⇒ Laravel cache-friendly + 1 round-trip ngắn (chỉ aggregate).
+    const { data: tabStats, refetch: refetchTabStats } = useOrderStats({});
     // Sync orders dispatch job chạy nền — poll list + stats để đơn mới về tự render, không cần reload trang.
-    const syncPoll = useSyncPolling(() => { refetch(); refetchStats(); }, { durationMs: 90_000 });
+    const syncPoll = useSyncPolling(() => { refetch(); refetchStats(); refetchTabStats(); }, { durationMs: 90_000 });
     // Theo dõi sync runs đang chạy để hiện thanh tiến trình (refetch 15s/lần qua hook).
     const runningSyncs = useSyncRuns({ status: 'running', per_page: 10 });
     const runningSyncsList = runningSyncs.data?.data ?? [];
@@ -158,7 +162,9 @@ export function OrdersPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isProcessingTab, slipParam, stats?.by_slip?.failed]);
 
-    const countForTab = (t: { statuses?: string[] }) => (t.statuses ?? []).reduce((s, st) => s + (stats?.by_status?.[st] ?? 0), 0);
+    // Badge dùng `tabStats` (không filter) ⇒ luôn hiển thị tổng theo status, click sang tab khác luôn thấy
+    // số đơn thật sự ở trạng thái đó dù trước đó user đang lọc source/carrier nào.
+    const countForTab = (t: { statuses?: string[] }) => (t.statuses ?? []).reduce((s, st) => s + (tabStats?.by_status?.[st] ?? 0), 0);
     const shopName = (id: number) => accounts.find((a) => a.id === id)?.name ?? `#${id}`;
 
     // bulk actions: "Chuẩn bị hàng" + "In phiếu giao hàng" (tem của sàn) trên các đơn đã chọn
@@ -418,15 +424,18 @@ export function OrdersPage() {
             <Card styles={{ body: { padding: '8px 16px 0' } }}>
                 <Tabs
                     activeKey={tabKey}
-                    onChange={(k) => { setSelectedKeys([]); set({ tab: k || undefined, status: undefined, slip: undefined, printed: undefined, has_issue: k === 'issue' ? '1' : undefined }); }}
+                    // Đổi tab ⇒ dọn `source` + `carrier` + `channel_account_id` (filter "Lọc" của tab cũ thường
+                    // không hợp lý với tab mới — vd lọc Shopee ở "Đang xử lý" rồi sang "Đã giao" sẽ thấy rỗng
+                    // dù tab badge bảo có đơn). Giữ `q`/`sku`/`product`/`placed_*` để user search xuyên tab.
+                    onChange={(k) => { setSelectedKeys([]); set({ tab: k || undefined, status: undefined, slip: undefined, printed: undefined, source: undefined, channel_account_id: undefined, carrier: undefined, has_issue: k === 'issue' ? '1' : undefined }); }}
                     items={[
                         ...ORDER_STATUS_TABS.map((t) => ({
                             key: t.key,
-                            label: <span>{t.label}{t.key !== '' && stats ? <Badge count={countForTab(t)} overflowCount={9999} showZero={false} style={{ marginInlineStart: 6, background: '#f0f0f0', color: '#595959' }} /> : null}</span>,
+                            label: <span>{t.label}{t.key !== '' && tabStats ? <Badge count={countForTab(t)} overflowCount={9999} showZero={false} style={{ marginInlineStart: 6, background: '#f0f0f0', color: '#595959' }} /> : null}</span>,
                         })),
-                        { key: 'issue', label: <span>Có vấn đề{stats?.has_issue ? <Badge count={stats.has_issue} style={{ marginInlineStart: 6 }} /> : null}</span> },
+                        { key: 'issue', label: <span>Có vấn đề{tabStats?.has_issue ? <Badge count={tabStats.has_issue} style={{ marginInlineStart: 6 }} /> : null}</span> },
                         // Đơn có SKU âm tồn — chặn "Chuẩn bị hàng / lấy phiếu giao hàng" cho đến khi nhập thêm hàng (SPEC 0013).
-                        { key: 'out_of_stock', label: <span><WarningOutlined style={{ marginInlineEnd: 4 }} />Hết hàng{stats?.out_of_stock ? <Badge count={stats.out_of_stock} style={{ marginInlineStart: 6 }} /> : null}</span> },
+                        { key: 'out_of_stock', label: <span><WarningOutlined style={{ marginInlineEnd: 4 }} />Hết hàng{tabStats?.out_of_stock ? <Badge count={tabStats.out_of_stock} style={{ marginInlineStart: 6 }} /> : null}</span> },
                         { key: 'shipments', label: <span><BarcodeOutlined style={{ marginInlineEnd: 4 }} />Vận đơn</span> },
                     ]}
                 />

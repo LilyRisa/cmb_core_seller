@@ -265,6 +265,7 @@ class ShipmentService
         $packageId = ! empty($pkg['externalPackageId']) ? (string) $pkg['externalPackageId'] : null;
         $issue = null;
 
+        $externalItemIds = [];
         if ($tracking === null) {
             try {
                 $arr = $this->arrangeOnChannel($order);   // null = kênh bán chưa hỗ trợ tự lấy phiếu; ném lỗi nếu gọi sàn lỗi
@@ -274,6 +275,9 @@ class ShipmentService
                     $tracking = $arr['tracking_no'];
                     $carrier = $arr['carrier'] ?: $carrier;
                     $packageId = $arr['package_id'] ?: $packageId;
+                    // Lazada trả `external_item_ids` ⇒ lưu vào `shipment.raw` cho bước /order/rts về sau
+                    // (markPacked → pushReadyToShip). order_item_id ≠ order_id — phải lưu để Lazada chấp nhận.
+                    $externalItemIds = array_values(array_filter(array_map('intval', (array) ($arr['external_item_ids'] ?? [])), fn ($v) => $v > 0));
                     if ($tracking === null) {
                         $issue = 'Đã sắp xếp vận chuyển trên sàn — đang chờ sàn cấp mã vận đơn, hệ thống sẽ tự cập nhật khi có.';
                     }
@@ -285,12 +289,14 @@ class ShipmentService
         }
         $carrier = $carrier ?: ($order->carrier ?: $order->source);
 
-        $shipment = DB::transaction(function () use ($tenantId, $order, $carrier, $tracking, $packageId, $issue, $userId) {
+        $shipment = DB::transaction(function () use ($tenantId, $order, $carrier, $tracking, $packageId, $issue, $userId, $externalItemIds) {
             $sh = Shipment::query()->create([
                 'tenant_id' => $tenantId, 'order_id' => $order->getKey(), 'carrier' => $carrier,
                 'carrier_account_id' => null, 'package_no' => $packageId, 'tracking_no' => $tracking, 'status' => Shipment::STATUS_CREATED,
                 'weight_grams' => $this->estimateWeight($order, $tenantId),
-                'cod_amount' => $order->is_cod ? (int) ($order->cod_amount ?: $order->grand_total) : 0, 'raw' => [],
+                'cod_amount' => $order->is_cod ? (int) ($order->cod_amount ?: $order->grand_total) : 0,
+                // `raw.external_item_ids` cần cho Lazada /order/rts ở markPacked — KHÁC `order_id`/`package_no`.
+                'raw' => $externalItemIds ? ['external_item_ids' => $externalItemIds] : [],
             ]);
             $this->recordEvent($sh, 'created', $tracking ? 'Đã chuẩn bị hàng — mã vận đơn của sàn: '.$tracking : 'Đã chuẩn bị hàng — chờ mã vận đơn từ sàn', Shipment::STATUS_CREATED, ShipmentEvent::SOURCE_SYSTEM, null, $userId);
             // Sync `orders.carrier` về ĐÚNG carrier của shipment — Lazada thường map provider lúc /order/pack
@@ -462,6 +468,11 @@ class ShipmentService
     /**
      * Đã gói hàng & quét đơn nội bộ xong: vận đơn created/pending → packed; **đơn processing → ready_to_ship**
      * (sẵn sàng bàn giao ĐVVC). Chưa trừ tồn — trừ tồn ở bước bàn giao (handover / sàn báo shipped).
+     *
+     * Đối với connector có `shipping.ready_to_ship` capability (Lazada): đẩy /order/rts lên sàn để Lazada
+     * cập nhật `packed → ready_to_ship` — đúng spec 3-tab app khớp 3 trạng thái Lazada (xem `lazada_order.md`).
+     * TikTok không có bước này (cap=false) ⇒ skip — TikTok đã ở `AWAITING_COLLECTION` từ arrange.
+     *
      * Idempotent. Trả true nếu có chuyển trạng thái. SPEC 0013 (mở rộng SPEC 0009).
      */
     public function markPacked(Shipment $shipment, string $source = 'user', ?int $userId = null): bool
@@ -472,13 +483,51 @@ class ShipmentService
         if (in_array($shipment->status, [Shipment::STATUS_PACKED, ...Shipment::HANDED_OVER_STATUSES], true)) {
             return false; // already packed/handed over — no-op (anti double-scan, rule 5)
         }
+        $order = $this->orderFor($shipment);
+        // Push lên sàn TRƯỚC khi flip shipment.status — nếu sàn reject (vd Lazada item bị buyer huỷ), giữ
+        // shipment ở `created` để user retry, không bị mất sync giữa app & sàn.
+        if ($order) {
+            $this->pushReadyToShipOnChannel($order, $shipment);
+        }
         $shipment->forceFill(['status' => Shipment::STATUS_PACKED, 'packed_at' => now()])->save();
         $this->recordEvent($shipment, 'packed', 'Đã đóng gói & quét đơn', Shipment::STATUS_PACKED, $source, null, $userId);
-        if ($order = $this->orderFor($shipment)) {
+        if ($order) {
             $this->orderStatus->apply($order, S::ReadyToShip, $source, [S::Pending, S::Processing], $userId);
         }
 
         return true;
+    }
+
+    /**
+     * Đẩy /order/rts (Lazada) — đơn từ `packed` → `ready_to_ship` trên sàn. Capability-gated: chỉ chạy nếu
+     * connector khai báo `shipping.ready_to_ship`=true (Lazada). TikTok / Shopee / Manual: skip.
+     * Lỗi gọi sàn ⇒ gắn `has_issue` lên order để user retry "Nhận phiếu giao hàng"; KHÔNG throw — markPacked
+     * vẫn tiếp tục để app không bị kẹt khi sàn flaky.
+     */
+    private function pushReadyToShipOnChannel(Order $order, Shipment $shipment): void
+    {
+        if (! $order->channel_account_id || ! $shipment->tracking_no) {
+            return;
+        }
+        $account = ChannelAccount::query()->find($order->channel_account_id);
+        if (! $account || ! $this->channels->has($account->provider) || ! $this->channels->for($account->provider)->supports('shipping.ready_to_ship')) {
+            return;
+        }
+        $rawItemIds = array_values(array_filter(array_map('intval', (array) data_get($shipment->raw, 'external_item_ids', [])), fn ($v) => $v > 0));
+        try {
+            $this->channels->for($account->provider)->pushReadyToShip($account->authContext(), (string) $order->external_order_id, [
+                'tracking_no' => (string) $shipment->tracking_no,
+                'shipment_provider' => (string) $shipment->carrier,
+                'external_item_ids' => $rawItemIds,   // KHÁC order_id — Lazada /order/rts yêu cầu order_item_id đúng từng item
+                'packageId' => $shipment->package_no ? (string) $shipment->package_no : null,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('shipment.push_ready_to_ship_failed', ['order' => $order->getKey(), 'provider' => $account->provider, 'error' => $e->getMessage()]);
+            $order->forceFill([
+                'has_issue' => true,
+                'issue_reason' => Str::limit('Sàn chưa nhận lệnh "sẵn sàng bàn giao" (RTS): '.$e->getMessage(), 240),
+            ])->save();
+        }
     }
 
     /** Hand a parcel over to the carrier: created/packed → picked_up, order → shipped, stock leaves. Idempotent. */

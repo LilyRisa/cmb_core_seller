@@ -56,10 +56,22 @@ final class LazadaStatusMap
         if ($statuses === []) {
             return 'pending';
         }
+        // Rank để chọn "least advanced forward" khi 1 đơn có items ở nhiều trạng thái khác nhau. KHỚP với
+        // status_map ở config: paid/pending/topack = "Chờ xử lý" (1) → packed = "Đang xử lý" (2) →
+        // ready_to_ship/toship = "Chờ bàn giao" (3) → shipped (4) → delivered (5) → confirmed (6).
+        // Reverse-flow (canceled/returned/shipped_back) rank cao để chỉ "thắng" khi MỌI item đều reverse.
         $rank = [
-            'unpaid' => 0, 'pending' => 1, 'packed' => 2, 'ready_to_ship' => 2, 'shipped' => 3, 'shipped_back' => 7,
-            'shipped_back_failed' => 7, 'delivered' => 5, 'failed' => 4, 'lost' => 4, 'damaged' => 4,
-            'returned' => 8, 'canceled' => 9, 'topack' => 1, 'toship' => 2,
+            'unpaid' => 0,
+            'paid' => 1, 'pending' => 1, 'topack' => 1,
+            'packed' => 2,
+            'ready_to_ship' => 3, 'ready_to_ship_pending' => 3, 'toship' => 3,
+            'shipped' => 4,
+            'delivered' => 5,
+            'confirmed' => 6,
+            'failed' => 4, 'failed_delivered' => 4, 'lost' => 4, 'damaged' => 4,
+            'shipped_back' => 7, 'shipped_back_failed' => 7,
+            'returned' => 8, 'return_to_seller' => 8, 'rtm_init' => 8,
+            'canceled' => 9, 'cancelled' => 9,
         ];
         $norm = fn ($s) => strtolower(str_replace([' ', '-'], '_', $s));
         $reverse = ['canceled', 'returned', 'shipped_back', 'shipped_back_failed'];

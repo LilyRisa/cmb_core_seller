@@ -129,6 +129,24 @@ interface ChannelConnector
     public function arrangeShipment(AuthContext $auth, string $externalOrderId, array $params = []): array;
 
     /**
+     * Đẩy đơn đã gói lên trạng thái "ready to ship" trên sàn — Lazada gọi `/order/rts`, TikTok / Shopee
+     * KHÔNG có bước này (đơn đã ở `AWAITING_COLLECTION` sau arrange; "đóng gói" là thao tác nội bộ).
+     *
+     * Connector chưa hỗ trợ ⇒ ném {@see \CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation}.
+     * Capability `shipping.ready_to_ship` BẮT BUỘC check trước khi gọi — `ShipmentService::markPacked` chỉ
+     * gọi method này khi capability=true để không phá luồng của connector khác (TikTok / Manual). Lazada
+     * docs: paid → packed (`/order/fulfill/pack`) → ready_to_ship (`/order/rts`). Xem `lazada_order.md`.
+     *
+     * `$params` chứa: `tracking_no`, `shipment_provider`, `external_item_ids` (list<int>), `delivery_type`,
+     * `packageId` (tuỳ chọn). Trả về `['raw_status' => 'ready_to_ship']` khi sàn đã accept; ném exception
+     * nếu sàn reject (vd item bị buyer huỷ giữa chừng).
+     *
+     * @param  array{tracking_no?:string,shipment_provider?:string,external_item_ids?:list<int>,delivery_type?:string,packageId?:string}  $params
+     * @return array<string, mixed>
+     */
+    public function pushReadyToShip(AuthContext $auth, string $externalOrderId, array $params = []): array;
+
+    /**
      * Fetch the shipping document (label PDF, packing slip, ...) bytes.
      *
      * @param  array{type?:string,format?:string,externalPackageId?:string}  $query
