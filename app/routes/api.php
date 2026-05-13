@@ -59,6 +59,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
             // --- Channels (Phase 1) — connected shops & OAuth connect ---
             Route::get('channel-accounts', [ChannelAccountController::class, 'index'])->name('channel-accounts.index');
+            Route::get('channel-accounts/outbound-ip', [ChannelAccountController::class, 'outboundIp'])->name('channel-accounts.outbound-ip');   // IP để copy vào Lazada IP Whitelist
             Route::post('channel-accounts/{provider}/connect', [ChannelAccountController::class, 'connect'])
                 ->whereIn('provider', ['tiktok', 'shopee', 'lazada'])->name('channel-accounts.connect');
             Route::patch('channel-accounts/{id}', [ChannelAccountController::class, 'update'])->whereNumber('id')->name('channel-accounts.update');   // set display alias

@@ -28,13 +28,30 @@ class OAuthCallbackController extends Controller
     {
         $code = (string) $request->query('code', '');
         $state = (string) ($request->query('state', '') ?: $request->query('app_key_state', ''));
+        $err = (string) $request->query('error', '');               // OAuth error response: ?error=...&error_description=...
+        $errDesc = (string) $request->query('error_description', '');
 
         Log::info('oauth.callback_received', [
             'provider' => $provider,
             'has_code' => $code !== '',
             'has_state' => $state !== '',
+            'has_error' => $err !== '',
             'query_keys' => array_keys($request->query()),   // names only — never log the code/state values
         ]);
+
+        // Seller huỷ / chưa subscribe app trên Service Marketplace / app bị suspend / region không hỗ trợ
+        // ⇒ Lazada redirect về callback với `?error=<code>&error_description=<msg>` (KHÔNG có `code`).
+        // Trước đây ta báo "oauth_missing_params" cho mọi trường hợp ⇒ người dùng không biết tại sao —
+        // nay surface mã lỗi & mô tả của sàn ra URL để SPA hiển thị + log vào server.
+        if ($err !== '') {
+            Log::warning('oauth.callback_provider_error', ['provider' => $provider, 'err' => $err, 'desc_excerpt' => substr($errDesc, 0, 200)]);
+            $params = ['error' => $provider.'_'.preg_replace('/[^a-z0-9_]/i', '_', strtolower($err))];
+            if ($errDesc !== '') {
+                $params['error_description'] = mb_substr($errDesc, 0, 200);
+            }
+
+            return redirect('/channels?'.http_build_query($params));
+        }
 
         if ($code === '' || $state === '') {
             Log::warning('oauth.callback_missing_params', ['provider' => $provider, 'query_keys' => array_keys($request->query())]);
@@ -61,10 +78,15 @@ class OAuthCallbackController extends Controller
                 $params['tt_code'] = $e->getCode();
             }
             if ($e instanceof LazadaApiException) {
-                // Hiển thị mã lỗi Lazada (vd "IncompleteSignature", "InvalidApi", "MissingPartner") để
-                // người dùng / hỗ trợ tra ngay trong Lazada Open Platform console — không bị "oauth_failed" mù mịt.
+                // Hiển thị mã lỗi Lazada (vd "IncompleteSignature", "InvalidApi", "MissingPartner",
+                // "AppCallLimit", "IllegalAccessToken", "AppNotSubscribed") + đoạn message ngắn để người dùng
+                // / hỗ trợ tra ngay trong Lazada Open Platform console — không bị "oauth_failed" mù mịt.
                 if ($e->lazadaCode !== '') {
                     $params['lz_code'] = $e->lazadaCode;
+                }
+                // Lấy đoạn message gốc của Lazada (sau dấu `]`) — đã có trong $e->getMessage().
+                if (preg_match('/\] ([^(]+?)(?: \(request_id=|$)/u', $e->getMessage(), $m)) {
+                    $params['lz_msg'] = mb_substr(trim($m[1]), 0, 200);
                 }
             }
 

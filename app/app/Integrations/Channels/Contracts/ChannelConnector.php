@@ -7,6 +7,7 @@ use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
 use CMBcoreSeller\Integrations\Channels\DTO\ChannelListingDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\OrderDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\Page;
+use CMBcoreSeller\Integrations\Channels\DTO\SettlementDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
@@ -123,4 +124,16 @@ interface ChannelConnector
      * @return array{filename:string,mime:string,bytes:string}
      */
     public function getShippingDocument(AuthContext $auth, string $externalOrderId, array $query = []): array;
+
+    // --- Finance ---------------------------------------------------------
+
+    /**
+     * Đối soát/Statement của sàn — kéo các kỳ thanh toán cùng từng dòng phí (commission, payment fee, ship,
+     * voucher, adjustment, ...). Connector chưa hỗ trợ ⇒ ném {@see UnsupportedOperation}; capability
+     * `finance.settlements` BẮT BUỘC kiểm trước khi gọi. SPEC 0016.
+     *
+     * @param  array{from?:CarbonImmutable,to?:CarbonImmutable,cursor?:string,pageSize?:int}  $query
+     * @return Page<SettlementDTO>
+     */
+    public function fetchSettlements(AuthContext $auth, array $query = []): Page;
 }

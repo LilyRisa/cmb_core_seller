@@ -46,9 +46,12 @@ class OrderProfitService
         $itemsByOrder = OrderItem::query()->whereIn('order_id', $orderIds)->get(['order_id', 'sku_id', 'quantity'])->groupBy('order_id');
         $costs = $this->fetchCosts($itemsByOrder->flatten(1)->pluck('sku_id'));
         $actualByOrder = $this->fetchActualCogs($orderIds);   // FIFO COGS thực — đơn đã ship (SPEC 0014)
+        $feesByOrder = $this->fetchActualFees($orderIds);   // Phí thực từ đối soát sàn (SPEC 0016)
+        $tenantId = (int) ($orders->first()?->tenant_id ?? 0);
         $orders->each(fn (Order $o) => $o->setAttribute('_profit', $this->compute(
-            $o, $itemsByOrder->get($o->getKey(), collect()), $pct, $costs, $actualByOrder[$o->getKey()] ?? null,
+            $o, $itemsByOrder->get($o->getKey(), collect()), $pct, $costs, $actualByOrder[$o->getKey()] ?? null, $feesByOrder[$o->getKey()] ?? null,
         )));
+        unset($tenantId);
     }
 
     /** Annotate a single order whose `items` relation is already loaded. */
@@ -56,9 +59,50 @@ class OrderProfitService
     {
         $items = $order->relationLoaded('items') ? $order->items : $order->items()->get();
         $actual = $this->fetchActualCogs([$order->getKey()])[$order->getKey()] ?? null;
+        $fees = $this->fetchActualFees([$order->getKey()])[$order->getKey()] ?? null;
         $order->setAttribute('_profit', $this->compute(
-            $order, $items, $this->platformFeePct($tenantSettings), $this->fetchCosts($items->pluck('sku_id')), $actual,
+            $order, $items, $this->platformFeePct($tenantSettings), $this->fetchCosts($items->pluck('sku_id')), $actual, $fees,
         ));
+    }
+
+    /**
+     * Tổng phí THỰC theo đơn từ đối soát sàn (`settlement_lines`, đã reconcile). SPEC 0016.
+     * Khi có ⇒ `fee_source='settlement'` và `platform_fee`/`shipping_fee` lấy từ đây (số ÂM → đảo dấu thành chi).
+     *
+     * @param  list<int>  $orderIds
+     * @return array<int, array{platform_fee:int, shipping_fee:int}>
+     */
+    private function fetchActualFees(array $orderIds): array
+    {
+        if ($orderIds === []) {
+            return [];
+        }
+        if (! class_exists(\CMBcoreSeller\Modules\Finance\Models\SettlementLine::class)) {
+            return [];   // module Finance chưa enable
+        }
+        $rows = \CMBcoreSeller\Modules\Finance\Models\SettlementLine::withoutGlobalScope(TenantScope::class)
+            ->whereIn('order_id', $orderIds)
+            ->selectRaw('order_id, fee_type, SUM(amount) AS amount')
+            ->groupBy('order_id', 'fee_type')->get();
+        $out = [];
+        foreach ($rows as $r) {
+            $oid = (int) $r->order_id;
+            $out[$oid] ??= ['platform_fee' => 0, 'shipping_fee' => 0];
+            $a = (int) $r->amount;
+            switch ($r->fee_type) {
+                case 'commission':
+                case 'payment_fee':
+                case 'voucher_seller':
+                case 'adjustment':
+                    $out[$oid]['platform_fee'] += abs($a);   // chi → cộng vào fee dương để hiển thị
+                    break;
+                case 'shipping_fee':
+                    $out[$oid]['shipping_fee'] += abs($a);
+                    break;
+            }
+        }
+
+        return $out;
     }
 
     /**
@@ -99,9 +143,10 @@ class OrderProfitService
      * @param  array<string,float>  $platformFeePct
      * @param  Collection<int, Sku>  $skuCosts
      * @param  array{cogs:int,source:string}|null  $actual  COGS thực từ `order_costs` (đã ship); null = chưa ship
-     * @return array{cogs:int,platform_fee:int,shipping_fee:int,estimated_profit:int,platform_fee_pct:float,cost_complete:bool,cost_source:string}
+     * @param  array{platform_fee:int,shipping_fee:int}|null  $actualFees  Phí THỰC từ đối soát (SPEC 0016)
+     * @return array{cogs:int,platform_fee:int,shipping_fee:int,estimated_profit:int,platform_fee_pct:float,cost_complete:bool,cost_source:string,fee_source:string}
      */
-    private function compute(Order $order, Collection $items, array $platformFeePct, Collection $skuCosts, ?array $actual = null): array
+    private function compute(Order $order, Collection $items, array $platformFeePct, Collection $skuCosts, ?array $actual = null, ?array $actualFees = null): array
     {
         $costSource = 'estimate';
         if ($actual !== null && $actual['cogs'] > 0) {
@@ -121,8 +166,15 @@ class OrderProfitService
             }
         }
         $pct = (float) ($platformFeePct[$order->source] ?? 0);
-        $platformFee = (int) round((int) $order->grand_total * $pct / 100);
-        $shipping = (int) $order->shipping_fee;
+        $feeSource = 'estimate';
+        if ($actualFees !== null && ($actualFees['platform_fee'] > 0 || $actualFees['shipping_fee'] > 0)) {
+            $platformFee = (int) $actualFees['platform_fee'];
+            $shipping = (int) $actualFees['shipping_fee'];
+            $feeSource = 'settlement';
+        } else {
+            $platformFee = (int) round((int) $order->grand_total * $pct / 100);
+            $shipping = (int) $order->shipping_fee;
+        }
 
         return [
             'cogs' => $cogs,
@@ -132,6 +184,7 @@ class OrderProfitService
             'platform_fee_pct' => $pct,
             'cost_complete' => $complete,
             'cost_source' => $costSource,
+            'fee_source' => $feeSource,
         ];
     }
 }

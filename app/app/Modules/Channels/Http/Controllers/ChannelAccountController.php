@@ -11,8 +11,11 @@ use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\SyncRun;
 use CMBcoreSeller\Modules\Channels\Services\ChannelConnectionService;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -37,6 +40,35 @@ class ChannelAccountController extends Controller
             'data' => ChannelAccountResource::collection($accounts),
             'meta' => ['connectable_providers' => $connectable],
         ]);
+    }
+
+    /**
+     * GET /api/v1/channel-accounts/outbound-ip -> { ip: "1.2.3.4" }
+     *
+     * Trả IP outbound mà server đang dùng để gọi ra Internet — người dùng cần copy IP này vào
+     * "IP Whitelist" của app Lazada (Lazada Open Platform → App Management → Security → IP Whitelist)
+     * khi gặp mã lỗi `AppWhiteIpLimit`. Cache 30 phút để khỏi spam dịch vụ ngoài.
+     */
+    public function outboundIp(Request $request): JsonResponse
+    {
+        $this->authorizeManage($request);
+        $ip = Cache::remember('channels.outbound_ip', now()->addMinutes(30), function () {
+            foreach (['https://api.ipify.org?format=text', 'https://ifconfig.me/ip', 'https://ipinfo.io/ip'] as $url) {
+                try {
+                    $resp = Http::timeout(5)->get($url);
+                    $ip = trim((string) $resp->body());
+                    if ($resp->successful() && filter_var($ip, FILTER_VALIDATE_IP)) {
+                        return $ip;
+                    }
+                } catch (ConnectionException) {
+                    continue;
+                }
+            }
+
+            return null;
+        });
+
+        return response()->json(['data' => ['ip' => $ip, 'detected' => $ip !== null]]);
     }
 
     /** POST /api/v1/channel-accounts/{provider}/connect -> { auth_url } */

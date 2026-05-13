@@ -6,6 +6,7 @@ import {
     BarChartOutlined,
     BellOutlined,
     DashboardOutlined,
+    FundOutlined,
     InboxOutlined,
     LogoutOutlined,
     MenuFoldOutlined,
@@ -40,6 +41,7 @@ const NAV: MenuProps['items'] = [
     ] },
     { type: 'group', label: 'Báo cáo & Kế toán', children: [
         { key: '/reports', icon: <BarChartOutlined />, label: <Link to="/reports">Báo cáo</Link> },
+        { key: '/finance/settlements', icon: <FundOutlined />, label: <Link to="/finance/settlements">Đối soát sàn</Link> },
     ] },
     { type: 'group', label: 'Hệ thống', children: [
         { key: '/sync-logs', icon: <SwapOutlined />, label: <Link to="/sync-logs">Nhật ký đồng bộ</Link> },
@@ -48,7 +50,7 @@ const NAV: MenuProps['items'] = [
 ];
 
 // Flat key list for selected-key matching.
-const KEYS = ['/', '/orders', '/customers', '/channels', '/products', '/inventory', '/procurement/suppliers', '/procurement/purchase-orders', '/reports', '/sync-logs', '/settings'];
+const KEYS = ['/', '/orders', '/customers', '/channels', '/products', '/inventory', '/procurement/suppliers', '/procurement/purchase-orders', '/reports', '/finance/settlements', '/sync-logs', '/settings'];
 
 export function AppLayout() {
     const { data: user } = useAuth();

@@ -57,7 +57,9 @@ class TikTokConnector implements ChannelConnector
             'listings.publish' => false,      // Phase 5
             'listings.updateStock' => true,   // Phase 2 — SPEC 0003
             'listings.updatePrice' => false,  // Phase 5
-            'finance.settlements' => false,   // Phase 6
+            // Đối soát/Statements — Phase 6.2. Bật bằng INTEGRATIONS_TIKTOK_FINANCE=true sau khi đã đối chiếu
+            // shape `/finance/202309/statements` với sandbox thực; mặc định off (TikTok finance API có thể đổi).
+            'finance.settlements' => (bool) config('integrations.tiktok.finance_enabled', false),
             'returns.fetch' => false,         // Phase 7
         ];
     }
@@ -368,5 +370,69 @@ class TikTokConnector implements ChannelConnector
         }
 
         return ['filename' => "tiktok-label-{$packageId}.pdf", 'mime' => 'application/pdf', 'bytes' => $bytes];
+    }
+
+    // --- Finance / Settlements ----------------------------------------------
+
+    /**
+     * Đối soát/Statements TikTok (Finance 202309) — kéo các statement trong khoảng thời gian, mỗi statement
+     * có nhiều `transactions` (đơn) với từng dòng phí (commission, payment fee, ship, voucher, adjustment).
+     * Path mặc định khớp SDK `sdk_tiktok_seller/api/financeV202309Api.ts` (`GET /finance/{ver}/statements` +
+     * `GET /finance/{ver}/statements/{id}/transactions`). SPEC 0016.
+     *
+     * Gated bởi cờ `INTEGRATIONS_TIKTOK_FINANCE` (mặc định off) — cần đối chiếu sandbox thật để chốt shape.
+     *
+     * @param  array{from?:\Carbon\CarbonImmutable,to?:\Carbon\CarbonImmutable,cursor?:string,pageSize?:int}  $query
+     */
+    public function fetchSettlements(AuthContext $auth, array $query = []): \CMBcoreSeller\Integrations\Channels\DTO\Page
+    {
+        if (! config('integrations.tiktok.finance_enabled')) {
+            throw UnsupportedOperation::for($this->code(), 'fetchSettlements (đặt INTEGRATIONS_TIKTOK_FINANCE=true để bật)');
+        }
+        $ver = $this->client->versionFor('finance') ?: '202309';
+        $statementsPath = (string) (config('integrations.tiktok.endpoints.finance_statements') ?? "/finance/{$ver}/statements");
+        $params = [
+            'page_size' => max(1, min(100, (int) ($query['pageSize'] ?? 50))),
+            'sort_field' => 'statement_time', 'sort_order' => 'ASC',
+        ];
+        if (! empty($query['cursor'])) {
+            $params['page_token'] = (string) $query['cursor'];
+        }
+        if (! empty($query['from'])) {
+            $params['statement_time_ge'] = $query['from']->getTimestamp();
+        }
+        if (! empty($query['to'])) {
+            $params['statement_time_lt'] = $query['to']->getTimestamp();
+        }
+
+        $resp = $this->client->get($statementsPath, $auth, $params);
+        $items = [];
+        foreach ((array) (data_get($resp, 'data.statements') ?? data_get($resp, 'statements') ?? []) as $st) {
+            $items[] = TikTokMappers::settlement((array) $st, $this->fetchStatementTransactions($auth, (string) ($st['id'] ?? '')));
+        }
+        $next = (string) (data_get($resp, 'data.next_page_token') ?? data_get($resp, 'next_page_token') ?? '');
+
+        return new \CMBcoreSeller\Integrations\Channels\DTO\Page(items: $items, nextCursor: $next ?: null, hasMore: $next !== '');
+    }
+
+    /** @return list<array<string,mixed>> raw transactions trả về theo statement (page 1 only — đủ cho đa số shop). */
+    private function fetchStatementTransactions(AuthContext $auth, string $statementId): array
+    {
+        if ($statementId === '') {
+            return [];
+        }
+        $ver = $this->client->versionFor('finance') ?: '202309';
+        $path = (string) (config('integrations.tiktok.endpoints.finance_statement_transactions') ?? "/finance/{$ver}/statements/{$statementId}/statement_transactions");
+        $path = str_replace('{statement_id}', $statementId, $path);
+        try {
+            $resp = $this->client->get($path, $auth, ['page_size' => 100]);
+        } catch (\Throwable $e) {
+            Log::warning('tiktok.finance.statement_transactions_failed', ['statement' => $statementId, 'error' => $e->getMessage()]);
+
+            return [];
+        }
+        $tx = (array) (data_get($resp, 'data.statement_transactions') ?? data_get($resp, 'statement_transactions') ?? data_get($resp, 'data.transactions') ?? data_get($resp, 'transactions') ?? []);
+
+        return array_values(array_filter($tx, 'is_array'));
     }
 }

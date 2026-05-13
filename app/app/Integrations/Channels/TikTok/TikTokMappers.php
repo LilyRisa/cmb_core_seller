@@ -262,6 +262,89 @@ final class TikTokMappers
         ], fn ($v) => $v !== null && $v !== '');
     }
 
+    /**
+     * Build a {@see SettlementDTO} from a TikTok statement row + its transactions.
+     *
+     * SDK ref: `sdk_tiktok_seller/api/financeV202309Api.ts` (`statements`, `statement_transactions`).
+     * Statement fields: `id, statement_time, settlement_amount, payment_status, currency`.
+     * Transaction line fields (đối chiếu sandbox): `order_id, type, sub_type, amount` (string), `time/create_time`.
+     *
+     * @param  array<string,mixed>  $st
+     * @param  list<array<string,mixed>>  $transactions  raw từ `statement_transactions`
+     */
+    public static function settlement(array $st, array $transactions = []): \CMBcoreSeller\Integrations\Channels\DTO\SettlementDTO
+    {
+        $startTs = (int) (data_get($st, 'statement_start_time') ?? data_get($st, 'period_start') ?? data_get($st, 'statement_time') ?? 0);
+        $endTs = (int) (data_get($st, 'statement_end_time') ?? data_get($st, 'period_end') ?? data_get($st, 'statement_time') ?? 0);
+        $periodStart = $startTs > 0 ? CarbonImmutable::createFromTimestamp($startTs) : CarbonImmutable::now();
+        $periodEnd = $endTs > 0 ? CarbonImmutable::createFromTimestamp($endTs) : $periodStart;
+        $paidAt = self::tsOrNull(data_get($st, 'paid_time') ?? data_get($st, 'settlement_time'));
+
+        // map transactions → SettlementLineDTO
+        $lines = [];
+        $totalRev = 0;
+        $totalFee = 0;
+        $totalShip = 0;
+        foreach ($transactions as $tx) {
+            $rawType = strtolower((string) (data_get($tx, 'sub_type') ?? data_get($tx, 'type') ?? 'other'));
+            $feeType = self::mapTikTokFeeType($rawType);
+            $amount = self::money(data_get($tx, 'amount'));
+            // Convention: phía seller — phí "âm", doanh thu "dương". TikTok có thể trả sẵn dấu — giữ nguyên.
+            $occurred = self::tsOrNull(data_get($tx, 'time') ?? data_get($tx, 'create_time') ?? data_get($tx, 'transaction_time'));
+            $lines[] = new \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO(
+                feeType: $feeType,
+                amount: $amount,
+                externalOrderId: ($oid = data_get($tx, 'order_id')) !== null ? (string) $oid : null,
+                externalLineId: ($txid = data_get($tx, 'id') ?? data_get($tx, 'transaction_id')) !== null ? (string) $txid : null,
+                occurredAt: $occurred,
+                description: data_get($tx, 'description') ? (string) data_get($tx, 'description') : null,
+                raw: $tx,
+            );
+            match ($feeType) {
+                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_REVENUE => $totalRev += $amount,
+                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_SHIPPING_FEE,
+                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_SHIPPING_SUBSIDY => $totalShip += $amount,
+                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_COMMISSION,
+                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_PAYMENT_FEE,
+                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_VOUCHER_SELLER => $totalFee += $amount,
+                default => null,
+            };
+        }
+
+        return new \CMBcoreSeller\Integrations\Channels\DTO\SettlementDTO(
+            externalId: ($id = data_get($st, 'id') ?? data_get($st, 'statement_id')) !== null ? (string) $id : null,
+            periodStart: $periodStart,
+            periodEnd: $periodEnd,
+            totalPayout: self::money(data_get($st, 'settlement_amount') ?? data_get($st, 'net_sales_amount') ?? data_get($st, 'payout_amount')),
+            totalRevenue: $totalRev,
+            totalFee: $totalFee,
+            totalShippingFee: $totalShip,
+            currency: (string) (data_get($st, 'currency') ?: 'VND'),
+            lines: $lines,
+            paidAt: $paidAt,
+            raw: $st,
+        );
+    }
+
+    /** Quy đổi sub_type/type của TikTok về `SettlementLineDTO::TYPES`. Mapping mở rộng được khi gặp sample sandbox. */
+    private static function mapTikTokFeeType(string $rawType): string
+    {
+        $t = str_replace([' ', '-'], '_', strtolower($rawType));
+
+        return match (true) {
+            str_contains($t, 'commission') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_COMMISSION,
+            str_contains($t, 'transaction_fee') || str_contains($t, 'payment_fee') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_PAYMENT_FEE,
+            str_contains($t, 'ship') && str_contains($t, 'subsidy') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_SHIPPING_SUBSIDY,
+            str_contains($t, 'ship') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_SHIPPING_FEE,
+            str_contains($t, 'voucher') && str_contains($t, 'seller') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_VOUCHER_SELLER,
+            str_contains($t, 'voucher') || str_contains($t, 'platform_subsidy') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_VOUCHER_PLATFORM,
+            str_contains($t, 'refund') || str_contains($t, 'return') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_REFUND,
+            str_contains($t, 'adjust') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_ADJUSTMENT,
+            $t === 'order' || str_contains($t, 'sale') || str_contains($t, 'sku_amount') || str_contains($t, 'order_amount') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_REVENUE,
+            default => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_OTHER,
+        };
+    }
+
     /** TikTok money strings -> integer VND đồng. Defensive against currency symbols / thousands separators. */
     public static function money(mixed $value): int
     {

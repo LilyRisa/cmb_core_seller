@@ -52,7 +52,9 @@ class LazadaConnector implements ChannelConnector
             'listings.publish' => false,      // Phase 5
             'listings.updateStock' => true,
             'listings.updatePrice' => false,  // Phase 5
-            'finance.settlements' => false,   // Phase 6
+            // Đối soát/Settlement — Phase 6.2. Bật bằng INTEGRATIONS_LAZADA_FINANCE=true sau khi đối chiếu shape
+            // `/finance/transaction/details/get` với sandbox thật. SPEC 0016.
+            'finance.settlements' => (bool) config('integrations.lazada.finance_enabled', false),
             'returns.fetch' => false,         // Phase 7
         ];
     }
@@ -274,5 +276,52 @@ class LazadaConnector implements ChannelConnector
     public function getShippingDocument(AuthContext $auth, string $externalOrderId, array $query = []): array
     {
         throw UnsupportedOperation::for($this->code(), 'getShippingDocument');
+    }
+
+    // --- Finance / Settlements ----------------------------------------------
+
+    /**
+     * Đối soát Lazada — `GET /finance/transaction/details/get` (start_time/end_time, offset/limit). Lazada không
+     * group sẵn thành statement; ta gom toàn bộ transactions trong khoảng `[from, to]` thành **một** SettlementDTO
+     * (1 statement / 1 fetch). Gated bởi cờ `INTEGRATIONS_LAZADA_FINANCE` (mặc định off). SPEC 0016.
+     *
+     * @param  array{from?:CarbonImmutable,to?:CarbonImmutable,cursor?:string,pageSize?:int}  $query
+     */
+    public function fetchSettlements(AuthContext $auth, array $query = []): \CMBcoreSeller\Integrations\Channels\DTO\Page
+    {
+        if (! config('integrations.lazada.finance_enabled')) {
+            throw UnsupportedOperation::for($this->code(), 'fetchSettlements (đặt INTEGRATIONS_LAZADA_FINANCE=true để bật)');
+        }
+        $from = $query['from'] ?? CarbonImmutable::now()->subDays(30);
+        $to = $query['to'] ?? CarbonImmutable::now();
+        $limit = max(1, min(500, (int) ($query['pageSize'] ?? 100)));
+        $offset = (int) ($query['cursor'] ?? 0);
+        $path = (string) (config('integrations.lazada.endpoints.transaction_details') ?? '/finance/transaction/details/get');
+
+        $rows = [];
+        do {
+            $resp = $this->client->get($path, $auth, [
+                'start_time' => $from->format('Y-m-d'), 'end_time' => $to->format('Y-m-d'),
+                'limit' => $limit, 'offset' => $offset,
+            ]);
+            foreach ((array) ($resp['data'] ?? $resp) as $row) {
+                if (! is_array($row)) {
+                    continue;
+                }
+                $rows[] = $row;
+            }
+            $got = count((array) ($resp['data'] ?? $resp));
+            $offset += $got;
+            if ($got < $limit) {
+                break;
+            }
+            if (count($rows) >= 2000) {
+                break;   // safety cap — fetch tiếp ở lần gọi sau qua cursor.
+            }
+        } while (true);
+
+        $settlement = LazadaMappers::settlement($rows, $from, $to);
+
+        return new \CMBcoreSeller\Integrations\Channels\DTO\Page(items: [$settlement], nextCursor: null, hasMore: false);
     }
 }

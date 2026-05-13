@@ -75,9 +75,21 @@ final class LazadaMappers
         }
         $shopId = (string) ($sellerData['seller_id'] ?? $userInfo['seller_id'] ?? $sellerData['short_code'] ?? $userInfo['short_code'] ?? '');
         $name = (string) ($sellerData['name'] ?? $sellerData['name_company'] ?? $sellerData['seller_name'] ?? $sellerData['company'] ?? $tokenRaw['account'] ?? 'Lazada shop');
-        $region = strtoupper((string) ($sellerData['location'] ?? $userInfo['country'] ?? $tokenRaw['country'] ?? 'VN'));
-        $region = match ($region) {
-            'VIETNAM', 'VN', 'VIE' => 'VN', default => $region
+        // `region` = mã quốc gia ISO 2 ký tự. Lazada `/seller/get` field `location` là **tên thành phố/khu
+        // vực FREE-FORM** (vd "Hà Nội (Mới)") — KHÔNG phải country code. Phải ưu tiên `country` từ token
+        // (`"vn"` / `"sg"` / ...) hoặc `country_user_info[].country`. Bug cũ dùng `location` ⇒ tràn cột
+        // `shop_region varchar(8)` với data tiếng Việt (SQLSTATE 22001).
+        $rawRegion = strtolower(trim((string) ($tokenRaw['country'] ?? $userInfo['country'] ?? 'vn')));
+        // `cb` = cross-border seller (Lazada gắn cho tài khoản xuyên biên giới) — vẫn để CB để không nhầm.
+        $region = match ($rawRegion) {
+            'vn', 'vietnam', 'vie' => 'VN',
+            'sg', 'singapore' => 'SG',
+            'my', 'malaysia' => 'MY',
+            'th', 'thailand' => 'TH',
+            'ph', 'philippines' => 'PH',
+            'id', 'indonesia' => 'ID',
+            'cb' => 'CB',
+            default => strtoupper(mb_substr($rawRegion, 0, 4)) ?: 'VN',   // cắt 4 ký tự cho an toàn
         };
 
         return new ShopInfoDTO(
@@ -327,6 +339,82 @@ final class LazadaMappers
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    /**
+     * Gom toàn bộ rows từ `/finance/transaction/details/get` trong khoảng `[from, to]` thành **một** SettlementDTO.
+     * Lazada row sample: `{ transaction_type, fee_name, amount, lazada_id, seller_sku, order_no, transaction_date,
+     * statement, paid_status, currency, ... }`. Mapping `transaction_type|fee_name → SettlementLineDTO::TYPES`.
+     *
+     * @param  list<array<string,mixed>>  $rows
+     */
+    public static function settlement(array $rows, CarbonImmutable $from, CarbonImmutable $to): \CMBcoreSeller\Integrations\Channels\DTO\SettlementDTO
+    {
+        $lines = [];
+        $totalRev = 0;
+        $totalFee = 0;
+        $totalShip = 0;
+        $payout = 0;
+        $currency = 'VND';
+        $statementId = null;
+        foreach ($rows as $r) {
+            $type = strtolower((string) (data_get($r, 'transaction_type') ?? data_get($r, 'fee_name') ?? 'other'));
+            $feeType = self::mapLazadaFeeType($type);
+            $amount = self::money(data_get($r, 'amount'));
+            $occurred = self::time(data_get($r, 'transaction_date') ?? data_get($r, 'payment_time'));
+            $orderId = data_get($r, 'order_no') ?? data_get($r, 'order_id');
+            $currency = (string) (data_get($r, 'currency') ?: $currency);
+            $statementId = $statementId ?: ((string) (data_get($r, 'statement') ?? '') ?: null);
+            $lines[] = new \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO(
+                feeType: $feeType,
+                amount: $amount,
+                externalOrderId: $orderId ? (string) $orderId : null,
+                externalLineId: ($txid = data_get($r, 'lazada_id') ?? data_get($r, 'id')) !== null ? (string) $txid : null,
+                occurredAt: $occurred,
+                description: data_get($r, 'fee_name') ? (string) data_get($r, 'fee_name') : null,
+                raw: $r,
+            );
+            $payout += $amount;
+            match ($feeType) {
+                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_REVENUE => $totalRev += $amount,
+                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_SHIPPING_FEE,
+                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_SHIPPING_SUBSIDY => $totalShip += $amount,
+                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_COMMISSION,
+                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_PAYMENT_FEE,
+                \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_VOUCHER_SELLER => $totalFee += $amount,
+                default => null,
+            };
+        }
+
+        return new \CMBcoreSeller\Integrations\Channels\DTO\SettlementDTO(
+            externalId: $statementId,
+            periodStart: $from, periodEnd: $to,
+            totalPayout: $payout, totalRevenue: $totalRev,
+            totalFee: $totalFee, totalShippingFee: $totalShip,
+            currency: $currency,
+            lines: $lines,
+            paidAt: null,
+            raw: ['rows_count' => count($rows)],
+        );
+    }
+
+    /** Quy đổi Lazada transaction_type/fee_name về `SettlementLineDTO::TYPES`. */
+    private static function mapLazadaFeeType(string $rawType): string
+    {
+        $t = str_replace([' ', '-'], '_', strtolower($rawType));
+
+        return match (true) {
+            str_contains($t, 'commission') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_COMMISSION,
+            str_contains($t, 'payment') && str_contains($t, 'fee') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_PAYMENT_FEE,
+            str_contains($t, 'shipping') && (str_contains($t, 'sponsor') || str_contains($t, 'subsidy')) => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_SHIPPING_SUBSIDY,
+            str_contains($t, 'shipping') || str_contains($t, 'delivery_fee') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_SHIPPING_FEE,
+            str_contains($t, 'voucher') && str_contains($t, 'seller') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_VOUCHER_SELLER,
+            str_contains($t, 'voucher') || str_contains($t, 'sponsor') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_VOUCHER_PLATFORM,
+            str_contains($t, 'refund') || str_contains($t, 'return') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_REFUND,
+            str_contains($t, 'adjust') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_ADJUSTMENT,
+            str_contains($t, 'item_price') || str_contains($t, 'order') || str_contains($t, 'sale') || str_contains($t, 'price') => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_REVENUE,
+            default => \CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO::TYPE_OTHER,
+        };
     }
 
     /** Lazada money (string/float "200000.00") -> integer VND đồng. */

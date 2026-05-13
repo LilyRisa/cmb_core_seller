@@ -113,7 +113,12 @@ return [
             'package_detail' => env('TIKTOK_PACKAGE_DETAIL_PATH', '/fulfillment/{version}/packages/{package_id}'),
             'shipping_documents' => env('TIKTOK_SHIPPING_DOCS_PATH', '/fulfillment/{version}/packages/{package_id}/shipping_documents'),
             'handover_time_slots' => env('TIKTOK_HANDOVER_SLOTS_PATH', '/fulfillment/{version}/packages/{package_id}/handover_time_slots'),
+            // Finance / Settlement (SPEC 0016) — đối chiếu SDK financeV202309Api.
+            'finance_statements' => env('TIKTOK_FINANCE_STATEMENTS_PATH', '/finance/{version}/statements'),
+            'finance_statement_transactions' => env('TIKTOK_FINANCE_STATEMENT_TX_PATH', '/finance/{version}/statements/{statement_id}/statement_transactions'),
         ],
+        // Phase 6.2 — kéo đối soát/statement từ sàn. Off mặc định, bật bằng INTEGRATIONS_TIKTOK_FINANCE=true sau khi đối chiếu sandbox.
+        'finance_enabled' => (bool) env('INTEGRATIONS_TIKTOK_FINANCE', false),
 
         'http' => [
             'timeout' => (int) env('TIKTOK_HTTP_TIMEOUT', 20),
@@ -193,8 +198,10 @@ return [
             'retry_sleep_ms' => (int) env('LAZADA_HTTP_RETRY_SLEEP_MS', 500),
         ],
 
-        // Tag dùng làm `partner_id` trong sysParams khi ký request (giống `LazopClient.sdkVersion` của SDK).
-        'partner_id' => env('LAZADA_PARTNER_ID', 'cmb-core-seller-php-1.0'),
+        // `partner_id` trong sysParams: gateway Lazada một số phiên bản chỉ chấp nhận `partner_id` trùng
+        // với SDK chính thức của Open Platform — đặt mặc định khớp `LazopClient.sdkVersion`
+        // (`sdk_lazada_php/lazop/LazopClient.php`, đảm bảo Lazada không trả "MissingPartner" / sai sign).
+        'partner_id' => env('LAZADA_PARTNER_ID', 'lazop-sdk-php-20180422'),
         // `force_auth=true` ở URL ủy quyền — TÀI LIỆU CHÍNH THỨC khuyên dùng (làm mới session cookie để seller
         // không bị Lazada gắn vào tài khoản đang đăng nhập sẵn). Mặc định BẬT; chỉ tắt khi shop yêu cầu.
         'authorize_force_auth' => (bool) env('LAZADA_AUTHORIZE_FORCE_AUTH', true),
@@ -211,7 +218,11 @@ return [
         'endpoints' => [
             'update_stock' => env('LAZADA_UPDATE_STOCK_PATH', '/product/price_quantity/update'),
             'update_stock_format' => env('LAZADA_UPDATE_STOCK_FORMAT', 'json'),   // 'json' | 'xml'
+            // Finance (Phase 6.2 — SPEC 0016). Mặc định path tài liệu chính thức; đổi nếu app version khác.
+            'transaction_details' => env('LAZADA_FINANCE_TRANSACTIONS_PATH', '/finance/transaction/details/get'),
         ],
+        // Phase 6.2 — kéo đối soát. Mặc định off, bật bằng INTEGRATIONS_LAZADA_FINANCE=true sau khi đối chiếu sandbox.
+        'finance_enabled' => (bool) env('INTEGRATIONS_LAZADA_FINANCE', false),
 
         // Lazada raw (item-level) order status -> StandardOrderStatus. The single source of truth;
         // see docs/03-domain/order-status-state-machine.md §4. Keys normalized (lowercase, '_').

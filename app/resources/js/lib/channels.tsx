@@ -43,6 +43,21 @@ export function useChannelAccounts() {
     });
 }
 
+/** IP outbound của server — copy vào "IP Whitelist" của Lazada Open Platform khi gặp `AppWhiteIpLimit`. */
+export function useOutboundIp(enabled: boolean) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['channel-accounts', 'outbound-ip', tenantId],
+        enabled: enabled && api != null,
+        staleTime: 30 * 60 * 1000,
+        queryFn: async () => {
+            const { data } = await api!.get<{ data: { ip: string | null; detected: boolean } }>('/channel-accounts/outbound-ip');
+            return data.data;
+        },
+    });
+}
+
 /** Begin OAuth: get the marketplace authorization URL, then redirect the browser there. */
 export function useConnectChannel() {
     const api = useScopedApi();

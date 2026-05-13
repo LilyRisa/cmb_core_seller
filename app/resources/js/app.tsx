@@ -34,6 +34,7 @@ import { SettingsPrintPage } from '@/pages/SettingsPrintPage';
 import { SuppliersPage } from '@/pages/SuppliersPage';
 import { PurchaseOrdersPage } from '@/pages/PurchaseOrdersPage';
 import { ReportsPage } from '@/pages/ReportsPage';
+import { SettlementsPage } from '@/pages/SettlementsPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
 dayjs.locale('vi');
@@ -75,6 +76,8 @@ function Root() {
                 <Route path="procurement/suppliers" element={<SuppliersPage />} />
                 <Route path="procurement/purchase-orders" element={<PurchaseOrdersPage />} />
                 <Route path="reports" element={<ReportsPage />} />
+                <Route path="finance" element={<Navigate to="/finance/settlements" replace />} />
+                <Route path="finance/settlements" element={<SettlementsPage />} />
                 <Route path="sync-logs" element={<SyncLogsPage />} />
                 <Route path="settings" element={<SettingsLayout />}>
                     <Route index element={<Navigate to="/settings/profile" replace />} />

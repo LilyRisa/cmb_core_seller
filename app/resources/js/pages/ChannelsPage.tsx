@@ -7,7 +7,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { DateText } from '@/components/MoneyText';
 import { CHANNEL_META, CHANNEL_STATUS_COLOR, CHANNEL_STATUS_LABEL } from '@/lib/format';
 import { errorMessage } from '@/lib/api';
-import { ChannelAccount, useChannelAccounts, useConnectChannel, useDeleteChannelAccount, useRenameChannel, useResyncChannel } from '@/lib/channels';
+import { ChannelAccount, useChannelAccounts, useConnectChannel, useDeleteChannelAccount, useOutboundIp, useRenameChannel, useResyncChannel } from '@/lib/channels';
 import { useCan } from '@/lib/tenant';
 
 const CALLBACK_ERRORS: Record<string, string> = {
@@ -22,6 +22,38 @@ const CALLBACK_ERRORS: Record<string, string> = {
     tiktok_auth_failed:
         'TikTok không nhận access_token (có thể hết hạn hoặc đã bị thu hồi). Vui lòng ủy quyền lại.',
     tiktok_api_error: 'TikTok trả lỗi khi lấy thông tin gian hàng. Xem chi tiết trong log server.',
+    lazada_api_error:
+        'Lazada trả lỗi khi cấp quyền / lấy thông tin gian hàng. ' +
+        'Kiểm tra: (1) app đã được "Published" trong Open Platform; (2) tài khoản người bán đã ' +
+        '"Subscribe" / "Add" app trên Lazada Service Marketplace (với app loại ERP); (3) URL callback ' +
+        'đăng ký trong app console khớp đúng với địa chỉ này (kể cả http/https & dấu /).',
+};
+
+/** Thông điệp cho từng mã lỗi Lazada (lz_code) — đè lên CALLBACK_ERRORS['lazada_api_error'] khi khớp. */
+const LAZADA_CODE_GUIDE: Record<string, string> = {
+    AppWhiteIpLimit:
+        'Lazada chặn vì IP của server KHÔNG nằm trong "IP Whitelist" của app. Cách xử lý: ' +
+        '(1) Đăng nhập https://open.lazada.com → App Management → chọn app của bạn → Security / IP Whitelist; ' +
+        '(2) Thêm IP outbound của server (xem ở thẻ "Kết nối gian hàng mới" bên dưới — nút "IP máy chủ"), ' +
+        'HOẶC xoá toàn bộ IP whitelist để cho phép mọi IP (bảo mật vẫn còn app_secret + sign + OAuth); ' +
+        '(3) Lưu, đợi 1–2 phút Lazada cache, thử kết nối lại.',
+    IncompleteSignature: 'Sai chữ ký request. Thường do `app_secret` sai / lệch giờ máy server. Đồng bộ NTP & kiểm tra LAZADA_APP_SECRET.',
+    InvalidApi: 'Đường dẫn API không hợp lệ — app có thể chưa được cấp quyền dùng endpoint này.',
+    MissingPartner: 'Thiếu / sai `partner_id` trong request. Đặt `LAZADA_PARTNER_ID=lazop-sdk-php-20180422` rồi thử lại.',
+    IllegalAccessToken: 'Access token Lazada không hợp lệ / đã thu hồi. Cần ủy quyền lại từ tài khoản người bán.',
+    AppCallLimit: 'App đã vượt giới hạn gọi API trong phút này. Đợi 1 phút rồi thử lại.',
+    InvalidAppKey: 'Sai `LAZADA_APP_KEY`. Kiểm tra lại trong Lazada Open Platform → App Management.',
+    AppNotSubscribed: 'Tài khoản người bán chưa Subscribe / Add app trên Lazada Service Marketplace. Người bán cần vào https://service.lazada.vn (hoặc service.lazada.com) → tìm app này → Add/Subscribe trước, rồi mới ủy quyền được.',
+};
+
+/** Lazada redirect `?error=<x>` khi seller huỷ / chưa subscribe / app chưa published — surface mã của sàn. */
+const PROVIDER_ERROR_PREFIXES: Record<string, string> = {
+    lazada_access_denied: 'Người bán đã từ chối cấp quyền cho ứng dụng.',
+    lazada_invalid_request: 'Lazada nhận tham số ủy quyền không hợp lệ (thường do redirect_uri / client_id không khớp app console).',
+    lazada_unauthorized_client: 'App của bạn chưa được duyệt / chưa Published trên Lazada Open Platform.',
+    lazada_unsupported_response_type: 'Tham số response_type sai (cần `code`).',
+    lazada_server_error: 'Lazada lỗi tạm thời ở phía server, thử lại sau.',
+    lazada_temporarily_unavailable: 'Lazada bảo trì / quá tải, thử lại sau.',
 };
 
 function ShopCard({ account, canManage, onResync, onDelete, onRename }: { account: ChannelAccount; canManage: boolean; onResync: () => void; onDelete: () => void; onRename: () => void }) {
@@ -71,18 +103,45 @@ export function ChannelsPage() {
     const [deleteTarget, setDeleteTarget] = useState<ChannelAccount | null>(null);
     const [confirmDraft, setConfirmDraft] = useState('');
     const confirmOk = !!deleteTarget && confirmDraft.trim().toLowerCase() === deleteTarget.name.trim().toLowerCase();
+    // Modal "AppWhiteIpLimit" — hiện riêng để chèn IP outbound thật của server (lấy bằng useOutboundIp).
+    const [ipModal, setIpModal] = useState<{ lzCode: string; guide: string; detail: string } | null>(null);
+    const { data: outboundIp } = useOutboundIp(ipModal !== null);
 
     useEffect(() => {
         const connected = params.get('connected');
         const err = params.get('error');
         const ttCode = params.get('tt_code');
+        const lzCode = params.get('lz_code');
+        const lzMsg = params.get('lz_msg');
+        const errDesc = params.get('error_description');
         if (connected) {
             message.success(`Đã kết nối gian hàng ${CHANNEL_META[connected]?.name ?? connected}! Đơn 90 ngày gần đây đang được tải về.`);
             params.delete('connected'); setParams(params, { replace: true });
         } else if (err) {
-            const base = CALLBACK_ERRORS[err] ?? 'Có lỗi khi kết nối gian hàng.';
-            message.error({ content: ttCode ? `${base} (TikTok code ${ttCode})` : base, duration: 12 });
-            params.delete('error'); params.delete('tt_code'); setParams(params, { replace: true });
+            // Ưu tiên thông điệp cho prefix `lazada_*` (Lazada redirect ?error=<x>); với lazada_api_error ưu
+            // tiên LAZADA_CODE_GUIDE[lz_code] (vd "AppWhiteIpLimit" có hướng dẫn cụ thể); fallback bảng chung.
+            const base = (err === 'lazada_api_error' && lzCode && LAZADA_CODE_GUIDE[lzCode])
+                || PROVIDER_ERROR_PREFIXES[err]
+                || CALLBACK_ERRORS[err]
+                || 'Có lỗi khi kết nối gian hàng.';
+            const detail = [
+                ttCode ? `TikTok code ${ttCode}` : null,
+                // Khi đã có hướng dẫn riêng cho lz_code thì không nhắc lại tên mã trong ngoặc cho gọn.
+                lzCode && !LAZADA_CODE_GUIDE[lzCode] ? `Lazada code ${lzCode}` : null,
+                lzMsg ? `chi tiết: ${lzMsg}` : null,
+                errDesc ? `chi tiết: ${errDesc}` : null,
+            ].filter(Boolean).join(' · ');
+            // Lỗi cần hành động cụ thể (AppWhiteIpLimit, AppNotSubscribed, ...) → mở Modal có IP server để
+            // copy-paste; còn lại dùng toast nhanh.
+            if (err === 'lazada_api_error' && lzCode === 'AppWhiteIpLimit') {
+                setIpModal({ lzCode, guide: LAZADA_CODE_GUIDE[lzCode], detail });
+            } else if (err === 'lazada_api_error' && lzCode && LAZADA_CODE_GUIDE[lzCode]) {
+                Modal.error({ title: `Lazada báo lỗi: ${lzCode}`, content: <div style={{ whiteSpace: 'pre-line' }}>{base}{detail ? `\n\n${detail}` : ''}</div>, width: 640 });
+            } else {
+                message.error({ content: detail ? `${base} (${detail})` : base, duration: 15 });
+            }
+            ['error', 'tt_code', 'lz_code', 'lz_msg', 'error_description'].forEach((k) => params.delete(k));
+            setParams(params, { replace: true });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -170,6 +229,31 @@ export function ChannelsPage() {
                 <Input autoFocus value={confirmDraft} onChange={(e) => setConfirmDraft(e.target.value)} placeholder={deleteTarget?.name}
                     status={confirmDraft && !confirmOk ? 'error' : undefined}
                     onPressEnter={() => { if (confirmOk) { deleteAccount.mutate({ id: deleteTarget!.id, confirm: confirmDraft.trim() }, { onSuccess: (r) => { message.success(`Đã xóa kết nối — xóa ${r.deleted_orders} đơn, hủy ${r.unlinked_skus} liên kết SKU.`); setDeleteTarget(null); }, onError: (e) => message.error(errorMessage(e)) }); } }} />
+            </Modal>
+
+            {/* Lazada `AppWhiteIpLimit` — Lazada gateway chặn vì IP server không trong whitelist. */}
+            <Modal open={ipModal !== null} title="Lazada chặn vì IP server chưa được whitelist" width={680}
+                onCancel={() => setIpModal(null)}
+                footer={[<Button key="close" onClick={() => setIpModal(null)}>Đóng</Button>,
+                    <Button key="open" type="primary" onClick={() => window.open('https://open.lazada.com', '_blank', 'noopener')}>Mở Lazada Open Platform</Button>]}>
+                <Alert type="warning" showIcon style={{ marginBottom: 12 }}
+                    message="Lazada chỉ cho phép gọi API từ những IP nằm trong 'IP Whitelist' đã cấu hình ở app console." />
+                <Typography.Paragraph style={{ marginBottom: 8 }}>
+                    <b>IP outbound của server</b> (copy vào "IP Whitelist" của app):
+                </Typography.Paragraph>
+                <Typography.Paragraph style={{ marginBottom: 16 }}>
+                    {outboundIp?.detected
+                        ? <Typography.Text code copyable style={{ fontSize: 16 }}>{outboundIp.ip}</Typography.Text>
+                        : <Typography.Text type="secondary">Đang dò IP… (nếu vẫn không thấy, dùng dịch vụ ngoài như ipify.org / ifconfig.me trên chính server)</Typography.Text>}
+                </Typography.Paragraph>
+                <Typography.Paragraph><b>Các bước fix:</b></Typography.Paragraph>
+                <ol style={{ paddingInlineStart: 20, margin: 0 }}>
+                    <li>Đăng nhập <a href="https://open.lazada.com" target="_blank" rel="noreferrer">open.lazada.com</a> → <b>App Management</b> → chọn app của bạn.</li>
+                    <li>Vào tab <b>Security</b> / <b>IP Whitelist</b>.</li>
+                    <li><b>Thêm IP ở trên</b> vào danh sách (mỗi dòng 1 IP) <b>HOẶC xoá hết IP</b> trong whitelist để cho phép mọi IP (bảo mật còn nguyên app_secret + sign + OAuth).</li>
+                    <li>Bấm <b>Save</b>, đợi 1–2 phút Lazada cache, rồi thử kết nối lại.</li>
+                </ol>
+                {ipModal?.detail && <Alert type="info" showIcon style={{ marginTop: 12, fontSize: 12 }} message={ipModal.detail} />}
             </Modal>
         </div>
     );
