@@ -350,7 +350,14 @@ class TikTokConnector implements ChannelConnector
             $tracking = data_get($detail, 'tracking_number') ?: data_get($detail, 'package.tracking_number');
             $carrier = data_get($detail, 'shipping_provider_name') ?: data_get($detail, 'package.shipping_provider_name');
         } catch (\Throwable $e) {
-            Log::info('tiktok.get_package_detail_failed', ['package' => $packageId, 'error' => class_basename($e)]);
+            Log::warning('tiktok.get_package_detail_failed', ['package' => $packageId, 'error' => class_basename($e)]);
+        }
+
+        if ($tracking === null) {
+            Log::warning('tiktok.arrange_shipment_no_tracking', [
+                'package' => $packageId, 'order' => $externalOrderId,
+                'note' => 'Ship POST thành công nhưng tracking_number chưa có — shipment sẽ thiếu mã vận đơn',
+            ]);
         }
 
         return ['raw_status' => 'AWAITING_COLLECTION', 'tracking_no' => $tracking, 'carrier' => $carrier, 'package_id' => $packageId];
@@ -437,7 +444,7 @@ class TikTokConnector implements ChannelConnector
         return new Page(items: $items, nextCursor: $next ?: null, hasMore: $next !== '');
     }
 
-    /** @return list<array<string,mixed>> raw transactions trả về theo statement (page 1 only — đủ cho đa số shop). */
+    /** @return list<array<string,mixed>> Lấy toàn bộ transactions của statement, paginate đến hết (safety cap 2000). */
     private function fetchStatementTransactions(AuthContext $auth, string $statementId): array
     {
         if ($statementId === '') {
@@ -446,15 +453,25 @@ class TikTokConnector implements ChannelConnector
         $ver = $this->client->versionFor('finance') ?: '202309';
         $path = (string) (config('integrations.tiktok.endpoints.finance_statement_transactions') ?? "/finance/{$ver}/statements/{$statementId}/statement_transactions");
         $path = str_replace('{statement_id}', $statementId, $path);
-        try {
-            $resp = $this->client->get($path, $auth, ['page_size' => 100]);
-        } catch (\Throwable $e) {
-            Log::warning('tiktok.finance.statement_transactions_failed', ['statement' => $statementId, 'error' => $e->getMessage()]);
 
-            return [];
-        }
-        $tx = (array) (data_get($resp, 'data.statement_transactions') ?? data_get($resp, 'statement_transactions') ?? data_get($resp, 'data.transactions') ?? data_get($resp, 'transactions') ?? []);
+        $allTx = [];
+        $cursor = null;
+        do {
+            $params = ['page_size' => 100];
+            if ($cursor !== null) {
+                $params['page_token'] = $cursor;
+            }
+            try {
+                $resp = $this->client->get($path, $auth, $params);
+            } catch (\Throwable $e) {
+                Log::warning('tiktok.finance.statement_transactions_failed', ['statement' => $statementId, 'error' => $e->getMessage()]);
+                break;
+            }
+            $tx = (array) (data_get($resp, 'data.statement_transactions') ?? data_get($resp, 'statement_transactions') ?? data_get($resp, 'data.transactions') ?? data_get($resp, 'transactions') ?? []);
+            $allTx = array_merge($allTx, array_values(array_filter($tx, 'is_array')));
+            $cursor = (string) (data_get($resp, 'data.next_page_token') ?? data_get($resp, 'next_page_token') ?? '');
+        } while ($cursor !== '' && count($allTx) < 2000);
 
-        return array_values(array_filter($tx, 'is_array'));
+        return $allTx;
     }
 }

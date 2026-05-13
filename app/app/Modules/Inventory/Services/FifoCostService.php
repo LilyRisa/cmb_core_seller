@@ -74,12 +74,14 @@ class FifoCostService
         if ($qty <= 0) {
             return null;
         }
-        $existing = OrderCost::withoutGlobalScope(TenantScope::class)->where('order_item_id', $orderItemId)->first();
-        if ($existing) {
-            return $existing;
-        }
 
         return DB::transaction(function () use ($tenantId, $orderId, $orderItemId, $skuId, $qty, $warehouseId, $shippedAt, $costMethod) {
+            $existing = OrderCost::withoutGlobalScope(TenantScope::class)
+                ->where('tenant_id', $tenantId)->where('order_item_id', $orderItemId)->lockForUpdate()->first();
+            if ($existing) {
+                return $existing;
+            }
+
             $remaining = $qty;
             $layersUsed = [];
             $total = 0;
@@ -111,6 +113,12 @@ class FifoCostService
             // Tồn FIFO chưa đủ ⇒ tạo synthetic layer với giá vốn ước tính, đảm bảo có COGS để báo cáo.
             if ($remaining > 0) {
                 $estUnit = $this->estimateUnitCost($tenantId, $skuId);
+                if ($estUnit === 0) {
+                    \Illuminate\Support\Facades\Log::warning('fifo.synthetic_cost_zero', [
+                        'tenant_id' => $tenantId, 'sku_id' => $skuId, 'qty' => $remaining,
+                        'note' => 'SKU chưa có giá nhập → COGS = 0, lợi nhuận báo cáo bị phồng',
+                    ]);
+                }
                 $layersUsed[] = ['layer_id' => null, 'qty' => $remaining, 'unit_cost' => $estUnit, 'synthetic' => true];
                 $total += $remaining * $estUnit;
                 $remaining = 0;
@@ -129,7 +137,8 @@ class FifoCostService
     /** Hoàn các layer khi đơn bị huỷ / trả hàng (đảo `qty_remaining` theo `layers_used`). Idempotent. */
     public function unconsume(int $tenantId, int $orderItemId): void
     {
-        $oc = OrderCost::withoutGlobalScope(TenantScope::class)->where('order_item_id', $orderItemId)->first();
+        $oc = OrderCost::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenantId)->where('order_item_id', $orderItemId)->first();
         if (! $oc) {
             return;
         }

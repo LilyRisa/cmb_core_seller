@@ -241,6 +241,7 @@ class LazadaClient
             }
             usleep(200_000);
         }
+        throw new \RuntimeException("Lazada rate limit: không lấy được slot sau 10s cho shop {$auth->channelAccountId}. Job sẽ được retry.");
     }
 
     /** @param array<string,mixed> $json */

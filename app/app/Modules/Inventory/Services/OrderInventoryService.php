@@ -31,9 +31,12 @@ class OrderInventoryService
         /** @var Collection<int, OrderItem> $items */
         $items = OrderItem::withoutGlobalScope(TenantScope::class)->where('order_id', $order->getKey())->get();
 
+        // Pre-load listings/mappings/skus in 3 queries to avoid N+1 inside resolveComponents.
+        $preloaded = $this->preloadForOrder($order, $items, $tenantId);
+
         $anyUnmapped = false;
         foreach ($items as $item) {
-            $components = $this->resolveComponents($order, $item, $tenantId);
+            $components = $this->resolveComponents($order, $item, $tenantId, $preloaded);
             if ($components === []) {
                 // A manual-order line with no SKU reference at all is an intentional ad-hoc / "quick product"
                 // line (see ManualOrderService) — it just isn't tracked in inventory, it's NOT an unmapped-SKU
@@ -58,9 +61,57 @@ class OrderInventoryService
     }
 
     /**
+     * Pre-load all ChannelListings, SkuMappings and Skus needed by the items in one batch
+     * to avoid N+1 queries inside resolveComponents.
+     *
+     * @param  Collection<int, OrderItem>  $items
+     * @return array{listings:\Illuminate\Support\Collection<int,ChannelListing>, mappings:\Illuminate\Support\Collection, skus:\Illuminate\Support\Collection<int,Sku>}
+     */
+    private function preloadForOrder(Order $order, Collection $items, int $tenantId): array
+    {
+        $empty = ['listings' => collect(), 'mappings' => collect(), 'skus' => collect()];
+        if (! $order->channel_account_id) {
+            return $empty;
+        }
+
+        $externalSkuIds = $items->pluck('external_sku_id')->filter()->unique()->values()->all();
+        $sellerSkus = $items->pluck('seller_sku')->filter()->unique()->values()->all();
+
+        if (! $externalSkuIds && ! $sellerSkus) {
+            return $empty;
+        }
+
+        $listings = ChannelListing::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenantId)
+            ->where('channel_account_id', $order->channel_account_id)
+            ->where(function ($q) use ($externalSkuIds, $sellerSkus) {
+                if ($externalSkuIds) {
+                    $q->whereIn('external_sku_id', $externalSkuIds);
+                }
+                if ($sellerSkus) {
+                    $q->orWhereIn('seller_sku', $sellerSkus);
+                }
+            })
+            ->get()
+            ->keyBy('id');
+
+        $mappings = $listings->isNotEmpty()
+            ? SkuMapping::withoutGlobalScope(TenantScope::class)
+                ->whereIn('channel_listing_id', $listings->keys())->get()->groupBy('channel_listing_id')
+            : collect();
+
+        $skus = $sellerSkus
+            ? Sku::withoutGlobalScope(TenantScope::class)->where('tenant_id', $tenantId)->whereNull('deleted_at')->get(['id', 'sku_code'])
+            : collect();
+
+        return ['listings' => $listings, 'mappings' => $mappings, 'skus' => $skus];
+    }
+
+    /**
+     * @param  array{listings:\Illuminate\Support\Collection,mappings:\Illuminate\Support\Collection,skus:\Illuminate\Support\Collection}  $preloaded
      * @return list<array{0:int,1:int}> list of [skuId, qtyPerUnitOfOrderLine]
      */
-    private function resolveComponents(Order $order, OrderItem $item, int $tenantId): array
+    private function resolveComponents(Order $order, OrderItem $item, int $tenantId, array $preloaded = []): array
     {
         // Manual orders (and channel items already resolved to a single SKU): use it directly.
         if ($item->sku_id) {
@@ -69,18 +120,13 @@ class OrderInventoryService
 
         // Channel order: find the matching listing → its mappings (single or bundle).
         if ($order->channel_account_id && ($item->external_sku_id || $item->seller_sku)) {
-            $listing = ChannelListing::withoutGlobalScope(TenantScope::class)
-                ->where('tenant_id', $tenantId)->where('channel_account_id', $order->channel_account_id)
-                ->where(function ($q) use ($item) {
-                    if ($item->external_sku_id) {
-                        $q->where('external_sku_id', $item->external_sku_id);
-                    }
-                    if ($item->seller_sku) {
-                        $q->orWhere('seller_sku', $item->seller_sku);
-                    }
-                })->first();
+            /** @var ChannelListing|null $listing */
+            $listing = $preloaded['listings']->first(function ($l) use ($item) {
+                return ($item->external_sku_id && $l->external_sku_id === $item->external_sku_id)
+                    || ($item->seller_sku && $l->seller_sku === $item->seller_sku);
+            });
             if ($listing) {
-                $mappings = SkuMapping::withoutGlobalScope(TenantScope::class)->where('channel_listing_id', $listing->getKey())->get();
+                $mappings = $preloaded['mappings']->get($listing->getKey(), collect());
                 if ($mappings->isNotEmpty()) {
                     if ($mappings->count() === 1 && $mappings->first()->type === SkuMapping::TYPE_SINGLE) {
                         // store the single SKU on the order line for convenience
@@ -95,8 +141,7 @@ class OrderInventoryService
         // Auto-match: seller_sku == sku_code (normalized).
         $code = SkuCodeNormalizer::normalize($item->seller_sku);
         if ($code !== '') {
-            $sku = Sku::withoutGlobalScope(TenantScope::class)->where('tenant_id', $tenantId)->whereNull('deleted_at')->get(['id', 'sku_code'])
-                ->first(fn (Sku $s) => SkuCodeNormalizer::normalize($s->sku_code) === $code);
+            $sku = $preloaded['skus']->first(fn (Sku $s) => SkuCodeNormalizer::normalize($s->sku_code) === $code);
             if ($sku) {
                 $this->persistSkuId($item, (int) $sku->getKey());
 
@@ -130,11 +175,24 @@ class OrderInventoryService
                 return;
             }
 
-            if (in_array($status, [StandardOrderStatus::Shipped, StandardOrderStatus::Delivered, StandardOrderStatus::Completed, StandardOrderStatus::DeliveryFailed, StandardOrderStatus::Returning], true)) {
+            if (in_array($status, [StandardOrderStatus::Shipped, StandardOrderStatus::Delivered, StandardOrderStatus::Completed, StandardOrderStatus::DeliveryFailed], true)) {
                 $hadOpen = $this->ledger->hasOpenReservation($tenantId, $skuId, $refType, $orderItemId);
                 $this->ledger->ship($tenantId, $skuId, $qty, $refType, $orderItemId, $hadOpen, null, $userId);
                 // FIFO COGS — bất biến 1 row / order_item; ship lại ⇒ no-op. SPEC 0014.
                 $this->fifo->consumeForShip($tenantId, (int) $order->getKey(), $orderItemId, $skuId, $qty, null, null, $this->costMethodFor($tenantId));
+
+                return;
+            }
+
+            // Returning = khách đang yêu cầu trả hàng nhưng chưa giao thành công.
+            // Nếu chưa ship → release reservation; nếu đã ship → returnIn (hàng về kho).
+            if ($status === StandardOrderStatus::Returning) {
+                if ($shipped) {
+                    $this->ledger->returnIn($tenantId, $skuId, $qty, $refType, $orderItemId, null, $userId);
+                    $this->fifo->unconsume($tenantId, $orderItemId);
+                } elseif ($reserved) {
+                    $this->ledger->release($tenantId, $skuId, $qty, $refType, $orderItemId, null, $userId);
+                }
 
                 return;
             }

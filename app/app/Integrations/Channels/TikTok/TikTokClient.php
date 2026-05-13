@@ -180,7 +180,7 @@ class TikTokClient
             }
             usleep(200_000);
         }
-        // Couldn't get a slot — let the call through; TikTok's 429 + job retry handle it.
+        throw new \RuntimeException("TikTok rate limit: không lấy được slot sau 10s cho shop {$auth->channelAccountId}. Job sẽ được retry.");
     }
 
     /** @param array<string,mixed> $json */

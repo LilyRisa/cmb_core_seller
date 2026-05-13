@@ -43,7 +43,8 @@ class WebhookIngestService
 
         if ($dedupeKey !== null && WebhookEvent::query()
             ->where('provider', $provider)->where('event_type', $event->type)->where('external_id', $dedupeKey)
-            ->where('status', WebhookEvent::STATUS_PROCESSED)->exists()) {
+            ->where('external_shop_id', $event->externalShopId)
+            ->whereIn('status', [WebhookEvent::STATUS_PENDING, WebhookEvent::STATUS_PROCESSED])->exists()) {
             return ['status' => 200, 'body' => ['ok' => true, 'note' => 'duplicate']];
         }
 

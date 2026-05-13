@@ -30,14 +30,16 @@ use Illuminate\Support\Facades\Route;
 | routes/webhook.php; OAuth callbacks in routes/web.php.
 */
 
-Route::prefix('v1')->name('api.v1.')->group(function () {
+Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(function () {
 
     // --- Health (DB / cache / Redis / queue worker probe) ---
     Route::get('health', HealthController::class)->name('health');
 
-    // --- Auth (public) ---
-    Route::post('auth/register', [AuthController::class, 'register'])->name('auth.register');
-    Route::post('auth/login', [AuthController::class, 'login'])->name('auth.login');
+    // --- Auth (public) — rate limit strictest to prevent brute force ---
+    Route::middleware('throttle:15,1')->group(function () {
+        Route::post('auth/register', [AuthController::class, 'register'])->name('auth.register');
+        Route::post('auth/login', [AuthController::class, 'login'])->name('auth.login');
+    });
 
     // --- Authenticated, tenant-agnostic ---
     Route::middleware('auth:sanctum')->group(function () {

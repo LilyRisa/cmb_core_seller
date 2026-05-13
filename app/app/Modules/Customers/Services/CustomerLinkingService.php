@@ -109,26 +109,38 @@ class CustomerLinkingService
     /** @return array<string,int|string> */
     public function computeStats(Customer $customer): array
     {
-        $rows = Order::withoutGlobalScope(TenantScope::class)
+        $cs = implode(',', array_map(fn ($v) => "'{$v}'", [StandardOrderStatus::Completed->value, StandardOrderStatus::Delivered->value]));
+        $agg = Order::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $customer->tenant_id)
             ->where('customer_id', $customer->getKey())
             ->whereNull('deleted_at')
-            ->get(['id', 'status', 'grand_total']);
+            ->selectRaw("
+                COUNT(*) AS total,
+                SUM(CASE WHEN status IN ({$cs}) THEN 1 ELSE 0 END) AS completed,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS cancelled,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS returned,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS deliv_failed,
+                SUM(CASE WHEN status IN ({$cs}) THEN grand_total ELSE 0 END) AS revenue,
+                MAX(id) AS last_id
+            ", [
+                StandardOrderStatus::Cancelled->value,
+                StandardOrderStatus::ReturnedRefunded->value,
+                StandardOrderStatus::DeliveryFailed->value,
+            ])
+            ->first();
 
-        // $o->status is a StandardOrderStatus enum (cast) — compare on ->value.
-        $completedValues = [StandardOrderStatus::Completed->value, StandardOrderStatus::Delivered->value];
-        $isOneOf = fn ($o, array $statuses) => in_array($o->status->value, array_map(fn ($s) => $s->value, $statuses), true);
-
-        $total = $rows->count();
-        $completedRows = $rows->filter(fn ($o) => in_array($o->status->value, $completedValues, true));
-        $completed = $completedRows->count();
-        $cancelled = $rows->filter(fn ($o) => $isOneOf($o, [StandardOrderStatus::Cancelled]))->count();
-        $returned = $rows->filter(fn ($o) => $isOneOf($o, [StandardOrderStatus::ReturnedRefunded]))->count();
-        $delivFailed = $rows->filter(fn ($o) => $isOneOf($o, [StandardOrderStatus::DeliveryFailed]))->count();
+        $total = (int) ($agg->total ?? 0);
+        $completed = (int) ($agg->completed ?? 0);
+        $cancelled = (int) ($agg->cancelled ?? 0);
+        $returned = (int) ($agg->returned ?? 0);
+        $delivFailed = (int) ($agg->deliv_failed ?? 0);
         $inProgress = max(0, $total - $completed - $cancelled - $returned - $delivFailed);
-        $revenue = (int) $completedRows->sum('grand_total');
-        $lastId = (int) ($rows->max('id') ?? 0);
-        $lastStatus = $lastId > 0 ? ($rows->firstWhere('id', $lastId)?->status->value ?? '') : '';
+        $revenue = (int) ($agg->revenue ?? 0);
+        $lastId = (int) ($agg->last_id ?? 0);
+        $lastStatus = $lastId > 0
+            ? (string) (Order::withoutGlobalScope(TenantScope::class)
+                ->where('tenant_id', $customer->tenant_id)->where('id', $lastId)->value('status') ?? '')
+            : '';
 
         return [
             'orders_total' => $total,

@@ -11,28 +11,91 @@
 # source, KHÔNG có vite/mailpit (override thêm các thứ đó cho dev).
 
 x-app-env: &app-env
+  APP_NAME: ${APP_NAME:-OmniSell}
+  APP_ENV: production
+  APP_DEBUG: "false"
+  APP_KEY: ${APP_KEY}                         # required — `... run --rm app php artisan key:generate --show`
+  APP_URL: ${APP_URL:-https://app.cmbcore.com}
+  APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
+  APP_LOCALE: vi
+  TRUSTED_PROXIES: "*"                        # behind NPM — bootstrap/app.php reads this
+  LOG_CHANNEL: stack
+  LOG_STACK: json
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  # Sanctum SPA + session cookie (SPA & API share the host app.cmbcore.com)
+  SANCTUM_STATEFUL_DOMAINS: ${SANCTUM_STATEFUL_DOMAINS:-app.cmbcore.com}
+  SESSION_DRIVER: redis
+  SESSION_DOMAIN: ${SESSION_DOMAIN:-app.cmbcore.com}
+  SESSION_SECURE_COOKIE: "${SESSION_SECURE_COOKIE:-true}"
+  SESSION_SAME_SITE: ${SESSION_SAME_SITE:-lax}
+  SESSION_LIFETIME: ${SESSION_LIFETIME:-120}
+  # Database (remote postgres)
   DB_CONNECTION: pgsql
-  DB_HOST: postgres
+  DB_HOST: 103.77.242.79
   DB_PORT: "5432"
-  DB_DATABASE: cmbcoreseller
-  DB_USERNAME: cmbcoreseller
-  DB_PASSWORD: 1995oklangtu
+  DB_DATABASE: ${DB_DATABASE:-cmbcoreseller}
+  DB_USERNAME: ${DB_USERNAME:-cmbcoreseller}
+  DB_PASSWORD: ${DB_PASSWORD:-1995oklangtu}                 # required
+  # Cache / queue (redis service)
   REDIS_HOST: redis
   REDIS_PORT: "6379"
   REDIS_PASSWORD: "null"
-  QUEUE_CONNECTION: redis
   CACHE_STORE: redis
-  SESSION_DRIVER: redis
+  QUEUE_CONNECTION: redis
+  # Object storage (minio service)
   FILESYSTEM_DISK: s3
-  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-omnisell}
-  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-omnisell-secret}
-  AWS_DEFAULT_REGION: ap-southeast-1
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}     # required (also the MinIO root user)
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+  AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-ap-southeast-1}
   AWS_BUCKET: ${AWS_BUCKET:-omnisell}
   AWS_ENDPOINT: http://minio:9000
   AWS_USE_PATH_STYLE_ENDPOINT: "true"
+  # User-uploaded media (SKU/product images) — Cloudflare R2. See docs/07-infra/cloudflare-r2-uploads.md.
+  # These MUST be listed here: Portainer's "Environment variables" only feed ${VAR} substitution in this
+  # file — they are NOT auto-injected into the container, so a var that isn't referenced below never reaches
+  # the app (this is why "env set in Portainer but app doesn't see it" happens). Add them in Portainer too.
+  MEDIA_DISK: ${MEDIA_DISK:-r2}
+  MEDIA_IMAGE_MAX_KB: ${MEDIA_IMAGE_MAX_KB:-5120}
+  R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+  R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+  R2_BUCKET: ${R2_BUCKET}
+  R2_ENDPOINT: ${R2_ENDPOINT}
+  R2_URL: ${R2_URL}
+  R2_DEFAULT_REGION: ${R2_DEFAULT_REGION:-auto}
+  R2_USE_PATH_STYLE_ENDPOINT: "${R2_USE_PATH_STYLE_ENDPOINT:-true}"
+  # PDF rendering (gotenberg service) + khổ phiếu in mặc định (tenant đè được trong UI: Cài đặt → Mẫu in)
   GOTENBERG_URL: http://gotenberg:3000
-  LOG_CHANNEL: stack
-  LOG_STACK: json
+  PRINT_LABEL_SIZE: ${PRINT_LABEL_SIZE:-A6}
+  FULFILLMENT_DEDUCT_ON: ${FULFILLMENT_DEDUCT_ON:-shipped}
+  # Mail
+  MAIL_MAILER: ${MAIL_MAILER:-smtp}
+  MAIL_HOST: ${MAIL_HOST}
+  MAIL_PORT: ${MAIL_PORT:-587}
+  MAIL_USERNAME: ${MAIL_USERNAME}
+  MAIL_PASSWORD: ${MAIL_PASSWORD}
+  MAIL_SCHEME: ${MAIL_SCHEME:-tls}
+  MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-no-reply@cmbcore.com}
+  MAIL_FROM_NAME: ${MAIL_FROM_NAME:-OmniSell}
+  # Error monitoring
+  SENTRY_LARAVEL_DSN: ${SENTRY_LARAVEL_DSN}
+  # Marketplace integrations
+  INTEGRATIONS_CHANNELS: ${INTEGRATIONS_CHANNELS:-manual,tiktok}
+  INTEGRATIONS_CARRIERS: ${INTEGRATIONS_CARRIERS:-}
+  # "Luồng A": "Chuẩn bị hàng" gọi API sàn arrange-shipment + lấy tem thật (endpoint TikTok theo SDK chính
+  # thức fulfillment 202309). Bật mặc định; đặt =false nếu shop yêu cầu handover_method khác / lỗi gọi sàn
+  # (lỗi vẫn được bắt & gắn cờ has_issue trên đơn, không chặn — vẫn tạo vận đơn cục bộ).
+  INTEGRATIONS_TIKTOK_FULFILLMENT: "${INTEGRATIONS_TIKTOK_FULFILLMENT:-true}"
+  TIKTOK_SHIP_PACKAGE_PATH: ${TIKTOK_SHIP_PACKAGE_PATH:-}
+  TIKTOK_PACKAGE_DETAIL_PATH: ${TIKTOK_PACKAGE_DETAIL_PATH:-}
+  TIKTOK_SHIPPING_DOCS_PATH: ${TIKTOK_SHIPPING_DOCS_PATH:-}
+  TIKTOK_APP_KEY: ${TIKTOK_APP_KEY}
+  TIKTOK_APP_SECRET: ${TIKTOK_APP_SECRET}
+  TIKTOK_SERVICE_ID: ${TIKTOK_SERVICE_ID}
+  TIKTOK_SANDBOX: "${TIKTOK_SANDBOX:-false}"
+  # lazada
+  LAZADA_APP_KEY: ${LAZADA_APP_KEY}
+  LAZADA_APP_SECRET: ${LAZADA_APP_SECRET}
+  LAZADA_SANDBOX: "${LAZADA_SANDBOX:-false}"
 
 x-app-base: &app-base
   build:
@@ -40,8 +103,6 @@ x-app-base: &app-base
     dockerfile: docker/Dockerfile
   image: cmbcoreseller-app:${APP_TAG:-local}
   depends_on:
-    postgres:
-      condition: service_healthy
     redis:
       condition: service_healthy
 
@@ -78,21 +139,6 @@ services:
     container_name: cmb-scheduler
     command: ["php", "artisan", "schedule:work"]
     environment: *app-env
-
-  postgres:
-    image: postgres:15-alpine
-    container_name: cmb-postgres
-    environment:
-      POSTGRES_DB: cmbcoreseller
-      POSTGRES_USER: cmbcoreseller
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cmbcoreseller -d cmbcoreseller"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
 
   redis:
     image: redis:7-alpine
@@ -141,6 +187,5 @@ services:
     command: ["gotenberg", "--api-timeout=60s"]
 
 volumes:
-  pgdata:
   redisdata:
   miniodata:

@@ -186,7 +186,7 @@ class InventoryLedgerService
 
             /** @var InventoryLevel $level */
             $level = InventoryLevel::withoutGlobalScope(TenantScope::class)
-                ->where('sku_id', $skuId)->where('warehouse_id', $warehouseId)->lockForUpdate()->first()
+                ->where('tenant_id', $tenantId)->where('sku_id', $skuId)->where('warehouse_id', $warehouseId)->lockForUpdate()->first()
                 ?? InventoryLevel::withoutGlobalScope(TenantScope::class)->create([
                     'tenant_id' => $tenantId, 'sku_id' => $skuId, 'warehouse_id' => $warehouseId,
                     'on_hand' => 0, 'reserved' => 0, 'safety_stock' => 0, 'available_cached' => 0,
