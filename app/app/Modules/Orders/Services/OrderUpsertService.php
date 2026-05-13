@@ -56,11 +56,16 @@ class OrderUpsertService implements OrderUpsertContract
     {
         [$order, $changed, $from] = DB::transaction(function () use ($tenantId, $channelAccountId, $source, $externalOrderId, $status, $rawStatus, $historySource) {
             /** @var Order|null $order */
+            // `withTrashed()` để webhook status-only cũng restore được row đã soft-delete (xem doUpsert).
             $order = Order::withoutGlobalScope(TenantScope::class)
+                ->withTrashed()
                 ->where('source', $source)->where('channel_account_id', $channelAccountId)->where('external_order_id', $externalOrderId)
                 ->lockForUpdate()->first();
             if ($order === null) {
                 return [null, false, null];
+            }
+            if ($order->trashed()) {
+                $order->restore();
             }
             $previous = $order->status;
             if ($previous === $status) {
@@ -110,13 +115,26 @@ class OrderUpsertService implements OrderUpsertContract
     private function doUpsert(OrderDTO $dto, int $tenantId, ?int $channelAccountId, string $historySource, StandardOrderStatus $status): Order
     {
         [$order, $created, $statusChanged, $from] = DB::transaction(function () use ($dto, $tenantId, $channelAccountId, $historySource, $status) {
+            // CHỐT: phải `withTrashed()` ⇒ bắt cả row đã soft-delete. DB unique index
+            // `orders_source_account_external_unique` (source, channel_account_id, external_order_id) KHÔNG có
+            // partial predicate `WHERE deleted_at IS NULL` ⇒ row đã soft-delete vẫn chiếm key. Nếu chỉ query
+            // active rồi INSERT lại sẽ throw `SQLSTATE[23505]` → sync crash cả page. Sàn re-push đơn (vd sau
+            // khi user xoá kết nối rồi reconnect, hoặc xoá đơn nhầm) ⇒ restore + update lại, không tạo mới.
+            // Xem `bba66d3` (xoá kết nối ⇒ soft-delete đơn) và docs/03-domain/order-sync-pipeline.md §4.1.
             /** @var Order|null $order */
             $order = Order::withoutGlobalScope(TenantScope::class)
+                ->withTrashed()
                 ->where('source', $dto->source)
                 ->where('channel_account_id', $channelAccountId)
                 ->where('external_order_id', $dto->externalOrderId)
                 ->lockForUpdate()
                 ->first();
+
+            $restored = false;
+            if ($order && $order->trashed()) {
+                $order->restore();   // sàn đẩy lại đơn ⇒ đem row cũ trở về, không insert mới (sẽ collision)
+                $restored = true;
+            }
 
             $created = $order === null;
 
