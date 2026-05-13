@@ -584,33 +584,87 @@ class LazadaConnectorContractTest extends TestCase
         Http::assertNotSent(fn ($req) => str_contains($req->url(), '/order/rts'));
     }
 
-    public function test_get_shipping_document_fetches_base64_pdf(): void
+    public function test_get_shipping_document_calls_order_document_get_with_order_item_ids_as_json_array(): void
     {
+        // Per `lazada_order.md` (Lazada Support): `/order/document/get` BẮT BUỘC `order_item_ids` = JSON array
+        // các giá trị `items[].order_item_id` trong raw — KHÁC `order_id`. Vd: order_id=525106346980318,
+        // order_item_id=525106347080318 ⇒ truyền 525106347080318 (id của ITEM, không phải đơn).
         $pdfBytes = "%PDF-1.4\nfake-pdf-bytes";
         Http::fake([
             '*/order/document/get*' => Http::response($this->ok(['document' => ['file' => base64_encode($pdfBytes), 'doc_type' => 'shippingLabel']])),
         ]);
-        $doc = $this->connector()->getShippingDocument($this->auth(), '1001', ['order_item_ids' => [9001]]);
+        // Đơn 1 item — order_id và order_item_id KHÁC nhau (đúng theo ví dụ user).
+        $doc = $this->connector()->getShippingDocument($this->auth(), '525106346980318', ['order_item_ids' => [525106347080318]]);
         $this->assertSame($pdfBytes, $doc['bytes']);
         $this->assertSame('application/pdf', $doc['mime']);
+
+        Http::assertSent(function ($req) {
+            if (! str_contains((string) $req->url(), '/order/document/get')) {
+                return false;
+            }
+            parse_str((string) parse_url((string) $req->url(), PHP_URL_QUERY), $q);
+            // `order_item_ids` PHẢI là JSON array (Lazada parse JSON, không phải CSV).
+            return isset($q['order_item_ids'])
+                && json_decode((string) $q['order_item_ids'], true) === [525106347080318]
+                && ($q['doc_type'] ?? null) === 'shippingLabel';
+        });
     }
 
-    public function test_get_shipping_document_prefers_print_awb_when_package_id_known(): void
+    public function test_get_shipping_document_supports_multiple_order_item_ids(): void
     {
-        // VN region: when `externalPackageId` is passed (returned from /order/pack), connector should hit
-        // `/order/package/document/get` (PrintAWB) first. PrintAWB nhận MỘT business param `getDocumentReq`
-        // = JSON({doc_type:PDF, packages:[{package_id}], print_item_list:true}). Gửi flat sẽ trả
-        // `MissingParameter "getDocumentReq"`.
-        $pdfBytes = "%PDF-1.4\nprint-awb-bytes";
+        // Đơn nhiều item ⇒ pass `[order_item_id1, order_item_id2, ...]` (đúng spec user nhấn mạnh).
+        $pdfBytes = "%PDF-1.4\nmulti-item";
         Http::fake([
-            '*/order/package/document/get*' => Http::response($this->ok(['document' => ['file' => base64_encode($pdfBytes), 'doc_type' => 'shippingLabel']])),
-            '*/order/document/get*' => Http::response($this->ok([])),
+            '*/order/document/get*' => Http::response($this->ok(['document' => ['file' => base64_encode($pdfBytes)]])),
+        ]);
+        $doc = $this->connector()->getShippingDocument($this->auth(), '1001', ['order_item_ids' => [9001, 9002, 9003]]);
+        $this->assertSame($pdfBytes, $doc['bytes']);
+
+        Http::assertSent(function ($req) {
+            parse_str((string) parse_url((string) $req->url(), PHP_URL_QUERY), $q);
+
+            return str_contains((string) $req->url(), '/order/document/get')
+                && json_decode((string) ($q['order_item_ids'] ?? ''), true) === [9001, 9002, 9003];
+        });
+    }
+
+    public function test_get_shipping_document_fetches_order_item_ids_from_items_endpoint_when_caller_omits_them(): void
+    {
+        // Fallback cuối — nếu caller không pass `order_item_ids` (đơn cũ chưa lưu vào shipment.raw), connector
+        // gọi `/order/items/get?order_id=...` để đọc `items[].order_item_id` ⇒ dùng tiếp cho /order/document/get.
+        $pdfBytes = "%PDF-1.4\nresolved";
+        Http::fake([
+            '*/order/items/get*' => Http::response($this->ok([
+                ['order_item_id' => 525106347080318, 'sku' => 'POLO_1', 'status' => 'packed'],
+            ])),
+            '*/order/document/get*' => Http::response($this->ok(['document' => ['file' => base64_encode($pdfBytes)]])),
+        ]);
+        $doc = $this->connector()->getShippingDocument($this->auth(), '525106346980318', []);
+        $this->assertSame($pdfBytes, $doc['bytes']);
+
+        Http::assertSent(function ($req) {
+            parse_str((string) parse_url((string) $req->url(), PHP_URL_QUERY), $q);
+
+            return str_contains((string) $req->url(), '/order/document/get')
+                && json_decode((string) ($q['order_item_ids'] ?? ''), true) === [525106347080318];
+        });
+    }
+
+    public function test_get_shipping_document_falls_back_to_print_awb_when_document_get_returns_empty(): void
+    {
+        // Một số shop SoC `/order/document/get` trả empty (3PL chưa render xong) ⇒ thử PrintAWB
+        // `/order/package/document/get` nếu caller pass `externalPackageId`. PrintAWB nhận envelope
+        // `getDocumentReq` (JSON) gồm cả `packages` và `order_item_ids`.
+        $pdfBytes = "%PDF-1.4\nprint-awb-fallback";
+        Http::fake([
+            '*/order/document/get*' => Http::response($this->ok(['document' => ['file' => '']])),
+            '*/order/package/document/get*' => Http::response($this->ok(['document' => ['file' => base64_encode($pdfBytes)]])),
         ]);
         $doc = $this->connector()->getShippingDocument($this->auth(), '1001', [
             'externalPackageId' => 'PKG-99', 'order_item_ids' => [9001],
         ]);
         $this->assertSame($pdfBytes, $doc['bytes']);
-        // Verify PrintAWB endpoint was hit AND request carries the wrapped `getDocumentReq` JSON envelope.
+
         Http::assertSent(function ($req) {
             if (! str_contains((string) $req->url(), '/order/package/document/get')) {
                 return false;
@@ -621,24 +675,8 @@ class LazadaConnectorContractTest extends TestCase
             return is_array($envelope)
                 && ($envelope['doc_type'] ?? null) === 'PDF'
                 && ($envelope['packages'][0]['package_id'] ?? null) === 'PKG-99'
-                && ($envelope['print_item_list'] ?? null) === true;
+                && ($envelope['order_item_ids'] ?? null) === [9001];
         });
-    }
-
-    public function test_get_shipping_document_falls_back_to_legacy_when_print_awb_returns_empty(): void
-    {
-        // Legacy endpoint must be tried as fallback when PrintAWB returns empty file (some legacy SoC
-        // shops don't have permission on /order/package/document/get even after /order/pack returns
-        // package_id). Connector should keep trying until it gets bytes.
-        $pdfBytes = "%PDF-1.4\nlegacy-bytes";
-        Http::fake([
-            '*/order/package/document/get*' => Http::response($this->ok(['document' => ['file' => '']])),
-            '*/order/document/get*' => Http::response($this->ok(['document' => ['file' => base64_encode($pdfBytes)]])),
-        ]);
-        $doc = $this->connector()->getShippingDocument($this->auth(), '1001', [
-            'externalPackageId' => 'PKG-99', 'order_item_ids' => [9001],
-        ]);
-        $this->assertSame($pdfBytes, $doc['bytes']);
     }
 
     public function test_get_shipping_document_throws_when_both_endpoints_return_empty(): void
@@ -647,8 +685,8 @@ class LazadaConnectorContractTest extends TestCase
         // PDF async 5–30s+ after /order/rts). The connector itself just surfaces the failure so the caller
         // can decide to retry.
         Http::fake([
-            '*/order/package/document/get*' => Http::response($this->ok(['document' => ['file' => '']])),
             '*/order/document/get*' => Http::response($this->ok(['document' => ['file' => '']])),
+            '*/order/package/document/get*' => Http::response($this->ok(['document' => ['file' => '']])),
         ]);
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessageMatches('/chưa cấp tệp/i');

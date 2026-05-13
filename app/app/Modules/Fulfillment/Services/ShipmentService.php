@@ -182,9 +182,15 @@ class ShipmentService
         if (! $account || ! $this->channels->has($account->provider) || ! $this->channels->for($account->provider)->supports('shipping.document')) {
             return;
         }
-        // TikTok yêu cầu `externalPackageId`; Lazada yêu cầu `order_item_ids` — pass cả hai để connector tự
-        // chọn. Lazada cũng chấp nhận thiếu `order_item_ids` & sẽ tự fetch qua `/order/items/get` (1 lượt thêm).
-        $itemIds = OrderItem::withoutGlobalScope(TenantScope::class)
+        // TikTok yêu cầu `externalPackageId`; Lazada `/order/document/get` yêu cầu `order_item_ids` —
+        // **PHẢI** là trường `items[].order_item_id` trong raw Lazada (KHÁC `order_id`). Vd raw có
+        // `order_id=525106346980318` và `items[0].order_item_id=525106347080318` ⇒ truyền 525106347080318.
+        // Thứ tự ưu tiên (cho đúng items của shipment hiện tại — đỡ phải refetch sàn):
+        //   1. shipments.raw.external_item_ids (đã lưu lúc arrangeShipment chạy /order/pack — chính xác nhất)
+        //   2. order_items.external_item_id (toàn bộ items của đơn — fallback cho shipment legacy chưa lưu raw)
+        //   3. Connector tự fetch /order/items/get nếu cả 2 trên rỗng.
+        $shipmentItemIds = array_values(array_filter(array_map('intval', (array) data_get($shipment->raw, 'external_item_ids', [])), fn ($v) => $v > 0));
+        $itemIds = $shipmentItemIds !== [] ? $shipmentItemIds : OrderItem::withoutGlobalScope(TenantScope::class)
             ->where('order_id', $order->getKey())
             ->whereNotNull('external_item_id')
             ->pluck('external_item_id')

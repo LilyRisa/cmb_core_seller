@@ -649,24 +649,23 @@ class LazadaConnector implements ChannelConnector
     }
 
     /**
-     * Lấy phiếu giao hàng (PDF) của Lazada cho đơn đã pack/RTS. Theo tài liệu Open Platform
-     * (https://open.lazada.com/apps/doc/api?path=/order/document/get và `/order/package/document/get` —
-     * PrintAWB), shop VN nên ưu tiên **PrintAWB** với `package_id` vì:
-     *   - `/order/document/get` (legacy, order_item_ids) hay trả `file: ""` cho 3PL VN — 3PL render PDF
-     *     async sau /order/rts, có thể mất 5–30s; legacy endpoint không expose trạng thái "đang render".
-     *   - `/order/package/document/get` (PrintAWB) lấy theo `package_id` (Lazada trả ở /order/pack), đúng
-     *     đơn vị "1 vận đơn / 1 PDF", ổn định hơn cho LEX VN / GHN / J&T.
+     * Lấy phiếu giao hàng (PDF) của Lazada theo `/order/document/get` — endpoint chính thức (xem
+     * `lazada_order.md` mục `api order`: `GetDocument`). Param BẮT BUỘC theo Lazada Support:
      *
-     * Luồng:
-     *   1. Nếu có `externalPackageId` ⇒ thử PrintAWB (`/order/package/document/get`) với `doc_type=PDF`.
-     *   2. PrintAWB lỗi / file rỗng ⇒ fallback legacy `/order/document/get` với `order_item_ids`.
-     *   3. Cả hai rỗng ⇒ ném RuntimeException (caller retry với backoff — propagation delay).
+     *   - `doc_type`        — `shippingLabel` | `invoice` | `carrierManifest` | `pickList`
+     *   - `order_item_ids`  — JSON array của **`order_item_id`** (trường `items[].order_item_id` trong raw,
+     *                         **KHÁC** `order_id`). Vd: order_id=525106346980318 vs order_item_id=525106347080318.
+     *                         Đơn có nhiều item ⇒ `[id1, id2, ...]`.
      *
-     * Khi lấy được bytes ⇒ caller `ShipmentService::fetchAndStoreChannelLabel` đẩy lên R2 & lưu `label_path`
-     * trên shipment ⇒ render về sau đọc R2, KHÔNG gọi lại sàn (xem MediaUploader::get).
+     * Luồng resolve `order_item_ids` (ưu tiên theo độ chính xác):
+     *   1. `$query['order_item_ids']` từ caller (ShipmentService đọc từ `shipments.raw.external_item_ids`
+     *      — đã lưu lúc `arrangeShipment` chạy `/order/pack`).
+     *   2. `$query['external_item_ids']` (alias cho khi caller dùng tên khác).
+     *   3. Pull từ `order_items.external_item_id` qua callback (caller pass) — KHÔNG fetch lại sàn.
+     *   4. Fallback cuối: gọi `/order/items/get?order_id={externalOrderId}` lấy `items[].order_item_id`.
      *
-     * `$query` keys: `type` (SHIPPING_LABEL* | INVOICE | CARRIER_MANIFEST), `externalPackageId` (ưu tiên,
-     * cho PrintAWB), `order_item_ids` (fallback — tự fetch nếu trống).
+     * Khi lấy được bytes ⇒ caller (`ShipmentService::fetchAndStoreChannelLabel`) đẩy lên R2 + lưu `label_path`
+     * trên shipment ⇒ lần render in sau chỉ đọc R2, KHÔNG gọi lại Lazada (xem MediaUploader::get).
      *
      * @return array{filename:string,mime:string,bytes:string}
      */
@@ -685,24 +684,42 @@ class LazadaConnector implements ChannelConnector
                 default => 'shippingLabel',
             });
 
-        $packageId = trim((string) ($query['externalPackageId'] ?? ''));
+        // Resolve order_item_ids — phải KHỚP EXACT với `items[].order_item_id` trong raw Lazada (khác order_id).
+        $itemIds = $this->resolveOrderItemIds($auth, $externalOrderId, $query);
+        if ($itemIds === []) {
+            throw new \RuntimeException("Không có order_item_id để lấy phiếu giao hàng Lazada cho đơn {$externalOrderId}.");
+        }
+
+        // (1) PRIMARY: `/order/document/get` (chính thức theo `lazada_order.md`) — `order_item_ids` JSON array.
         $bytes = '';
         $lastErr = null;
+        try {
+            $endpoint = (string) (config('integrations.lazada.endpoints.document_get') ?? '/order/document/get');
+            $data = $this->client->get($endpoint, $auth, [
+                'doc_type' => $docType,
+                'order_item_ids' => json_encode($itemIds, JSON_UNESCAPED_SLASHES),
+            ]);
+            $bytes = $this->extractDocumentBytes($data);
+        } catch (\Throwable $e) {
+            $lastErr = $e;
+            Log::info('lazada.document_get_failed', ['order' => $externalOrderId, 'item_count' => count($itemIds), 'error' => $e->getMessage()]);
+        }
 
-        // (1) PrintAWB — preferred path khi có package_id (LEX VN / GHN / J&T VN trả PDF ổn định hơn ở đây).
-        // Lazada `/order/package/document/get` nhận MỘT business param duy nhất `getDocumentReq` (JSON string)
-        // — gửi flat params (`doc_type=`, `package_ids=`) sẽ trả `MissingParameter "getDocumentReq"`. Theo SDK
-        // chính thức: `getDocumentReq = { doc_type: PDF, packages: [{package_id}], print_item_list: bool }`.
-        if ($packageId !== '') {
+        // (2) FALLBACK: PrintAWB `/order/package/document/get` — chỉ dùng khi (1) trả empty/lỗi và caller
+        // đã pass `externalPackageId`. PrintAWB nhận `getDocumentReq` (JSON envelope) với `packages` HOẶC
+        // `order_item_ids`. Một số shop SoC ổn định hơn ở PrintAWB; một số shop legacy chỉ chạy `/order/document/get`.
+        $packageId = trim((string) ($query['externalPackageId'] ?? ''));
+        if ($bytes === '' && $packageId !== '' && config('integrations.lazada.endpoints.print_awb')) {
             try {
-                $printAwbPath = (string) (config('integrations.lazada.endpoints.print_awb') ?? '/order/package/document/get');
+                $printAwbPath = (string) config('integrations.lazada.endpoints.print_awb');
                 $printDocType = in_array($docType, ['shippingLabel', 'invoice', 'carrierManifest', 'pickList'], true)
-                    ? 'PDF' : strtoupper($docType);   // PrintAWB doc_type là **format** (PDF/HTML), không phải tên loại tem
+                    ? 'PDF' : strtoupper($docType);
                 $data = $this->client->get($printAwbPath, $auth, [
                     'getDocumentReq' => json_encode([
                         'doc_type' => $printDocType,
                         'packages' => [['package_id' => $packageId]],
-                        'print_item_list' => true,   // gộp packing slip (item list) vào tem
+                        'order_item_ids' => $itemIds,   // pass cả 2 — Lazada chấp nhận hoặc bỏ qua
+                        'print_item_list' => true,
                     ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                 ]);
                 $bytes = $this->extractDocumentBytes($data);
@@ -712,48 +729,54 @@ class LazadaConnector implements ChannelConnector
             }
         }
 
-        // (2) Legacy `/order/document/get` với order_item_ids — fallback khi PrintAWB không khả dụng /
-        // shop chưa có permission. Một số sandbox & SoC shop chỉ hỗ trợ legacy.
-        if ($bytes === '') {
-            $itemIds = array_values(array_filter(array_map('intval', (array) ($query['order_item_ids'] ?? [])), fn ($v) => $v > 0));
-            if ($itemIds === []) {
-                try {
-                    $items = (array) $this->client->get('/order/items/get', $auth, ['order_id' => $externalOrderId]);
-                    foreach ($items as $it) {
-                        if (! is_array($it)) {
-                            continue;
-                        }
-                        $id = (int) ($it['order_item_id'] ?? 0);
-                        if ($id > 0) {
-                            $itemIds[] = $id;
-                        }
-                    }
-                    $itemIds = array_values(array_unique($itemIds));
-                } catch (\Throwable $e) {
-                    Log::info('lazada.document_get_items_failed', ['order' => $externalOrderId, 'error' => class_basename($e)]);
-                }
-            }
-            if ($itemIds !== []) {
-                try {
-                    $endpoint = (string) (config('integrations.lazada.endpoints.document_get') ?? '/order/document/get');
-                    $data = $this->client->get($endpoint, $auth, [
-                        'doc_type' => $docType,
-                        'order_item_ids' => json_encode($itemIds, JSON_UNESCAPED_SLASHES),
-                    ]);
-                    $bytes = $this->extractDocumentBytes($data);
-                } catch (\Throwable $e) {
-                    $lastErr = $e;
-                    Log::info('lazada.document_get_legacy_failed', ['order' => $externalOrderId, 'error' => $e->getMessage()]);
-                }
-            }
-        }
-
         if ($bytes === '') {
             $detail = $lastErr ? ' ('.$lastErr->getMessage().')' : '';
             throw new \RuntimeException('Lazada chưa cấp tệp '.$docType.' cho đơn '.$externalOrderId.$detail.'. 3PL thường render PDF async 5–30s sau /order/rts — retry tự khắc lấy được.');
         }
 
         return ['filename' => "lazada-{$docType}-{$externalOrderId}.pdf", 'mime' => 'application/pdf', 'bytes' => $bytes];
+    }
+
+    /**
+     * Resolve list `order_item_id` theo thứ tự ưu tiên (mỗi nguồn KHÁC `order_id` — đúng spec
+     * `lazada_order.md`). Trả `[]` nếu mọi nguồn đều rỗng (caller throw).
+     *
+     * Thứ tự ưu tiên:
+     *   1. `$query['order_item_ids']`   (caller pass — từ shipments.raw)
+     *   2. `$query['external_item_ids']` (alias — từ arrange response)
+     *   3. `/order/items/get?order_id={...}` (fallback cuối, 1 round-trip thêm)
+     *
+     * @param  array<string,mixed>  $query
+     * @return list<int>
+     */
+    private function resolveOrderItemIds(AuthContext $auth, string $externalOrderId, array $query): array
+    {
+        foreach (['order_item_ids', 'external_item_ids'] as $key) {
+            $ids = array_values(array_filter(array_map('intval', (array) ($query[$key] ?? [])), fn ($v) => $v > 0));
+            if ($ids !== []) {
+                return array_values(array_unique($ids));
+            }
+        }
+        // Fallback: re-fetch từ /order/items/get — đọc đúng trường `order_item_id` của từng item raw.
+        try {
+            $items = (array) $this->client->get('/order/items/get', $auth, ['order_id' => $externalOrderId]);
+            $out = [];
+            foreach ($items as $it) {
+                if (! is_array($it)) {
+                    continue;
+                }
+                $id = (int) ($it['order_item_id'] ?? 0);
+                if ($id > 0) {
+                    $out[] = $id;
+                }
+            }
+
+            return array_values(array_unique($out));
+        } catch (\Throwable $e) {
+            Log::info('lazada.resolve_order_item_ids_failed', ['order' => $externalOrderId, 'error' => $e->getMessage()]);
+
+            return [];
+        }
     }
 
     /**
