@@ -31,6 +31,9 @@ import { SettingsProfilePage } from '@/pages/SettingsProfilePage';
 import { SettingsWorkspacePage } from '@/pages/SettingsWorkspacePage';
 import { SettingsOrdersPage } from '@/pages/SettingsOrdersPage';
 import { SettingsPrintPage } from '@/pages/SettingsPrintPage';
+import { SuppliersPage } from '@/pages/SuppliersPage';
+import { PurchaseOrdersPage } from '@/pages/PurchaseOrdersPage';
+import { ReportsPage } from '@/pages/ReportsPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
 dayjs.locale('vi');
@@ -68,6 +71,10 @@ function Root() {
                 <Route path="inventory/skus/new" element={<CreateSkuPage />} />
                 <Route path="inventory/skus/:id/edit" element={<CreateSkuPage />} />
                 <Route path="fulfillment" element={<Navigate to="/orders?tab=prepare" replace />} />   {/* xử lý đơn nay là các tab trong /orders */}
+                <Route path="procurement" element={<Navigate to="/procurement/suppliers" replace />} />
+                <Route path="procurement/suppliers" element={<SuppliersPage />} />
+                <Route path="procurement/purchase-orders" element={<PurchaseOrdersPage />} />
+                <Route path="reports" element={<ReportsPage />} />
                 <Route path="sync-logs" element={<SyncLogsPage />} />
                 <Route path="settings" element={<SettingsLayout />}>
                     <Route index element={<Navigate to="/settings/profile" replace />} />

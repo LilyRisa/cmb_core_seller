@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Avatar, Badge, Button, Dropdown, Layout, Menu, Select, Space, Tooltip, Typography } from 'antd';
 import {
     AppstoreOutlined,
+    BarChartOutlined,
     BellOutlined,
     DashboardOutlined,
     InboxOutlined,
@@ -11,6 +12,7 @@ import {
     MenuUnfoldOutlined,
     SettingOutlined,
     ShopOutlined,
+    ShoppingCartOutlined,
     ShoppingOutlined,
     SwapOutlined,
     TeamOutlined,
@@ -31,8 +33,13 @@ const NAV: MenuProps['items'] = [
         { key: '/channels', icon: <ShopOutlined />, label: <Link to="/channels">Gian hàng</Link> },
         { key: '/products', icon: <AppstoreOutlined />, label: <Link to="/products">Sản phẩm & SKU</Link> },
     ] },
-    { type: 'group', label: 'Kho', children: [
+    { type: 'group', label: 'Kho & Mua hàng', children: [
         { key: '/inventory', icon: <InboxOutlined />, label: <Link to="/inventory">Tồn kho</Link> },
+        { key: '/procurement/suppliers', icon: <ShopOutlined />, label: <Link to="/procurement/suppliers">Nhà cung cấp</Link> },
+        { key: '/procurement/purchase-orders', icon: <ShoppingCartOutlined />, label: <Link to="/procurement/purchase-orders">Đơn mua hàng</Link> },
+    ] },
+    { type: 'group', label: 'Báo cáo & Kế toán', children: [
+        { key: '/reports', icon: <BarChartOutlined />, label: <Link to="/reports">Báo cáo</Link> },
     ] },
     { type: 'group', label: 'Hệ thống', children: [
         { key: '/sync-logs', icon: <SwapOutlined />, label: <Link to="/sync-logs">Nhật ký đồng bộ</Link> },
@@ -41,7 +48,7 @@ const NAV: MenuProps['items'] = [
 ];
 
 // Flat key list for selected-key matching.
-const KEYS = ['/', '/orders', '/customers', '/channels', '/products', '/inventory', '/sync-logs', '/settings'];
+const KEYS = ['/', '/orders', '/customers', '/channels', '/products', '/inventory', '/procurement/suppliers', '/procurement/purchase-orders', '/reports', '/sync-logs', '/settings'];
 
 export function AppLayout() {
     const { data: user } = useAuth();
