@@ -419,6 +419,59 @@ final class LazadaMappers
         };
     }
 
+    /**
+     * Parse response của `/order/pack` (SetStatusToPackedByMarketplace). Shape thay đổi theo region/version:
+     *
+     *  - Top-level: `{ tracking_number, package_id, shipment_provider }` (một số sandbox)
+     *  - Nested `order_items[]`: `[{ purchase_order_id, purchase_order_number, tracking_number, package_id,
+     *      shipment_provider, order_item_id }]` (production VN/SG; multiple items dùng cùng package)
+     *
+     * Lấy bộ giá trị đầu tiên không null. `tracking_number` rỗng / vắng ⇒ trả null (caller báo lỗi).
+     *
+     * @param  array<string,mixed>  $data
+     * @return array{tracking_no:?string,package_id:?string,shipment_provider:?string,purchase_order_id:?string,purchase_order_number:?string}
+     */
+    public static function packResponse(array $data): array
+    {
+        $candidates = [];
+        // Top-level
+        $candidates[] = $data;
+        // Nested order_items / orderItems
+        foreach ((array) ($data['order_items'] ?? $data['orderItems'] ?? []) as $oi) {
+            if (is_array($oi)) {
+                $candidates[] = $oi;
+            }
+        }
+        $pick = fn (array $row, string ...$keys) => array_reduce(
+            $keys,
+            fn ($carry, $k) => $carry ?? (isset($row[$k]) && $row[$k] !== '' ? (string) $row[$k] : null),
+            null,
+        );
+        $tracking = null;
+        $packageId = null;
+        $provider = null;
+        $poId = null;
+        $poNum = null;
+        foreach ($candidates as $row) {
+            $tracking ??= $pick($row, 'tracking_number', 'trackingNumber', 'TrackingNumber');
+            $packageId ??= $pick($row, 'package_id', 'packageId', 'PackageId');
+            $provider ??= $pick($row, 'shipment_provider', 'shipmentProvider', 'ShipmentProvider');
+            $poId ??= $pick($row, 'purchase_order_id', 'purchaseOrderId', 'PurchaseOrderId');
+            $poNum ??= $pick($row, 'purchase_order_number', 'purchaseOrderNumber', 'PurchaseOrderNumber');
+            if ($tracking !== null && $packageId !== null) {
+                break;
+            }
+        }
+
+        return [
+            'tracking_no' => $tracking,
+            'package_id' => $packageId,
+            'shipment_provider' => $provider,
+            'purchase_order_id' => $poId,
+            'purchase_order_number' => $poNum,
+        ];
+    }
+
     /** Lazada money (string/float "200000.00") -> integer VND đồng. */
     public static function money(mixed $value): int
     {

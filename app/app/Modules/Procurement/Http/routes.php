@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Route;
  | + giá), `procurement.receive` (tạo phiếu nhập từ PO — kho).
  */
 
-Route::middleware(['auth:sanctum', 'tenant'])->prefix('api/v1')->group(function () {
+Route::middleware(['api', 'auth:sanctum', 'tenant'])->prefix('api/v1')->group(function () {
     // Nhà cung cấp
     Route::get('suppliers', [SupplierController::class, 'index'])->name('suppliers.index');
     Route::post('suppliers', [SupplierController::class, 'store'])->name('suppliers.store');

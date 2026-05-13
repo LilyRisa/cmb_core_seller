@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react';
-import { Button, Card, DatePicker, Empty, Progress, Radio, Space, Statistic, Table, Tabs, Tag, Typography } from 'antd';
-import { BarChartOutlined, DollarOutlined, DownloadOutlined, FundOutlined, RiseOutlined, ShoppingOutlined, TrophyOutlined } from '@ant-design/icons';
+import { Alert, Button, Card, DatePicker, Empty, Progress, Radio, Result, Space, Spin, Statistic, Table, Tabs, Tag, Typography } from 'antd';
+import { BarChartOutlined, DollarOutlined, DownloadOutlined, FundOutlined, LockOutlined, RiseOutlined, ShoppingOutlined, TrophyOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { SkuLine } from '@/components/SkuPicker';
 import { MoneyText } from '@/components/MoneyText';
 import { FilterChipRow, type ChipItem } from '@/components/FilterChipRow';
-import { useCan, useCurrentTenantId } from '@/lib/tenant';
+import { useCan, useCurrentTenantId, useTenant } from '@/lib/tenant';
+import { errorMessage, isUnauthenticated } from '@/lib/api';
 import { CHANNEL_META } from '@/lib/format';
 import {
     type Granularity, type ReportFilters, exportReportUrl,
@@ -33,6 +34,8 @@ const PRESETS: Array<{ key: string; label: string; range: () => [string, string]
 const SOURCE_CHIPS: ChipItem[] = Object.keys(CHANNEL_META).map((k) => ({ value: k, label: CHANNEL_META[k].name }));
 
 export function ReportsPage() {
+    const { isLoading: tenantLoading } = useTenant();
+    const canView = useCan('reports.view');
     const canExport = useCan('reports.export');
     const tenantId = useCurrentTenantId();
     const [tab, setTab] = useState<'revenue' | 'profit' | 'top'>('revenue');
@@ -57,6 +60,24 @@ export function ReportsPage() {
             setRange([dayjs(f), dayjs(t)]);
         }
     };
+
+    if (tenantLoading) {
+        return <Card><Spin style={{ display: 'block', margin: '40px auto' }} /></Card>;
+    }
+
+    if (!canView) {
+        return (
+            <>
+                <PageHeader title="Báo cáo" />
+                <Result
+                    icon={<LockOutlined />}
+                    status="403"
+                    title="Không có quyền truy cập"
+                    subTitle="Bạn không có quyền xem báo cáo. Liên hệ chủ sở hữu hoặc quản trị viên để được cấp quyền."
+                />
+            </>
+        );
+    }
 
     return (
         <div>
@@ -96,8 +117,10 @@ export function ReportsPage() {
 }
 
 function RevenueTab({ filters }: { filters: ReportFilters }) {
-    const { data, isFetching } = useRevenueReport(filters);
+    const { data, isFetching, error } = useRevenueReport(filters);
     const t = data?.totals;
+
+    if (error) return <Alert type="error" showIcon message={isUnauthenticated(error) ? 'Phiên đăng nhập đã hết hạn, vui lòng tải lại trang.' : errorMessage(error, 'Không thể tải dữ liệu doanh thu.')} />;
 
     return (
         <Card loading={isFetching}>
@@ -139,8 +162,10 @@ function RevenueTab({ filters }: { filters: ReportFilters }) {
 }
 
 function ProfitTab({ filters }: { filters: ReportFilters }) {
-    const { data, isFetching } = useProfitReport(filters);
+    const { data, isFetching, error } = useProfitReport(filters);
     const t = data?.totals;
+
+    if (error) return <Alert type="error" showIcon message={isUnauthenticated(error) ? 'Phiên đăng nhập đã hết hạn, vui lòng tải lại trang.' : errorMessage(error, 'Không thể tải dữ liệu lợi nhuận.')} />;
 
     return (
         <Card loading={isFetching}>
@@ -186,7 +211,8 @@ function ProfitTab({ filters }: { filters: ReportFilters }) {
 }
 
 function TopProductsTab({ filters, sortBy, setSortBy }: { filters: ReportFilters; sortBy: 'revenue' | 'profit' | 'qty'; setSortBy: (v: 'revenue' | 'profit' | 'qty') => void }) {
-    const { data, isFetching } = useTopProductsReport({ ...filters, sort_by: sortBy, limit: 20 });
+    const { data, isFetching, error } = useTopProductsReport({ ...filters, sort_by: sortBy, limit: 20 });
+    if (error) return <Alert type="error" showIcon message={isUnauthenticated(error) ? 'Phiên đăng nhập đã hết hạn, vui lòng tải lại trang.' : errorMessage(error, 'Không thể tải dữ liệu top sản phẩm.')} />;
     const columns: ColumnsType<NonNullable<typeof data>['items'][number]> = [
         { title: '#', key: 'rank', width: 50, render: (_, __, i) => <Typography.Text strong>{i + 1}</Typography.Text> },
         { title: 'SKU', key: 'sku', render: (_, r) => r.sku ? <SkuLine sku={r.sku} avatarSize={36} maxTextWidth={300} /> : `#${r.sku_id}` },

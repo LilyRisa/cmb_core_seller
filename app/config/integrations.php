@@ -218,9 +218,15 @@ return [
         'endpoints' => [
             'update_stock' => env('LAZADA_UPDATE_STOCK_PATH', '/product/price_quantity/update'),
             'update_stock_format' => env('LAZADA_UPDATE_STOCK_FORMAT', 'json'),   // 'json' | 'xml'
-            // Fulfillment (Phase 4 — SPEC 0008/0013). `/order/document/get` (tài liệu chính thức) trả PDF
-            // `shippingLabel`. Map core `type` → Lazada `doc_type` để chỉnh tên nếu sandbox shop khác (vài
-            // region đôi khi nhận `shipping_label` snake-case).
+            // Fulfillment "luồng A" (SPEC 0008/0013). Cả 3 path khớp tài liệu Lazada Open Platform —
+            // đổi nếu sandbox shop khác (vài region dùng path khác); không cần đổi code.
+            //   - `/shipment/providers/get` (lấy danh sách 3PL hỗ trợ shop)
+            //   - `/order/pack`  → assign 3PL & tracking_number cho list `order_item_id`
+            //   - `/order/rts`   → push item sang ready_to_ship trên Lazada (bắt buộc sau pack)
+            //   - `/order/document/get` → trả `data.document.file` (base64 PDF)
+            'shipment_providers' => env('LAZADA_SHIPMENT_PROVIDERS_PATH', '/shipment/providers/get'),
+            'order_pack' => env('LAZADA_ORDER_PACK_PATH', '/order/pack'),
+            'order_rts' => env('LAZADA_ORDER_RTS_PATH', '/order/rts'),
             'document_get' => env('LAZADA_DOCUMENT_GET_PATH', '/order/document/get'),
             'doc_type_map' => [
                 'SHIPPING_LABEL' => env('LAZADA_DOC_TYPE_SHIPPING_LABEL', 'shippingLabel'),
@@ -232,12 +238,24 @@ return [
             // Finance (Phase 6.2 — SPEC 0016). Mặc định path tài liệu chính thức; đổi nếu app version khác.
             'transaction_details' => env('LAZADA_FINANCE_TRANSACTIONS_PATH', '/finance/transaction/details/get'),
         ],
-        // "Luồng A" — bật mặc định: re-fetch order detail để lấy tracking sàn đã cấp + lấy PDF tem qua
-        // `/order/document/get`. Tắt bằng `INTEGRATIONS_LAZADA_FULFILLMENT=false` nếu app chưa có permission.
+        // "Luồng A" master flag — bật `arrangeShipment` + `getShippingDocument`. Tắt bằng
+        // `INTEGRATIONS_LAZADA_FULFILLMENT=false` nếu app chưa có permission "Fulfillment".
         'fulfillment_enabled' => (bool) env('INTEGRATIONS_LAZADA_FULFILLMENT', true),
-        // (Tuỳ chọn) Tự gọi `/order/pack` khi caller truyền `shipment_provider` — yêu cầu permission
-        // "Fulfillment Operations" trên Open Platform. Mặc định off để không gây "MissingPermission".
-        'fulfillment_auto_pack' => (bool) env('LAZADA_FULFILLMENT_AUTO_PACK', false),
+        // Chế độ luồng A:
+        //   - `auto` (mặc định) — `arrangeShipment` tự gọi `/shipment/providers/get` → `/order/pack` →
+        //     `/order/rts` → re-fetch ⇒ trả tracking. Đây là cách app tự đẩy đơn lên RTS trên Lazada
+        //     (đúng SPEC 0013 §4 — "Chuẩn bị hàng" tự cập nhật trạng thái lên sàn).
+        //   - `refetch_only` — legacy: chỉ re-fetch order detail để lấy tracking nếu shop đã pack ngoài
+        //     Lazada Seller Center. Dùng khi app chưa có permission Fulfillment.
+        'fulfillment_mode' => env('LAZADA_FULFILLMENT_MODE', 'auto'),
+        // Lazada chỉ hỗ trợ `dropship` cho non-FBL (theo tài liệu chính thức). Để config-able phòng khi
+        // sandbox shop có loại khác (`pickup` đã deprecate ở hầu hết region).
+        'default_delivery_type' => env('LAZADA_DEFAULT_DELIVERY_TYPE', 'dropship'),
+        // (Tuỳ chọn) Tên `shipment_provider` mặc định — nếu set, bỏ qua bước resolve qua
+        // `/shipment/providers/get`. Hữu ích khi shop chỉ dùng 1 ĐVVC cố định (ví dụ "Lazada Express VN").
+        'default_shipment_provider' => env('LAZADA_DEFAULT_SHIPMENT_PROVIDER'),
+        // DEPRECATED — giữ làm legacy alias để env cũ không vỡ. Mode mới = `fulfillment_mode='auto'`.
+        'fulfillment_auto_pack' => (bool) env('LAZADA_FULFILLMENT_AUTO_PACK', true),
         // Phase 6.2 — kéo đối soát. Mặc định off, bật bằng INTEGRATIONS_LAZADA_FINANCE=true sau khi đối chiếu sandbox.
         'finance_enabled' => (bool) env('INTEGRATIONS_LAZADA_FINANCE', false),
 

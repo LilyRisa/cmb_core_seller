@@ -7,6 +7,7 @@ use CMBcoreSeller\Integrations\Channels\Contracts\ChannelConnector;
 use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
 use CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation;
+use CMBcoreSeller\Integrations\Channels\Lazada\LazadaApiException;
 use CMBcoreSeller\Integrations\Channels\Lazada\LazadaConnector;
 use CMBcoreSeller\Integrations\Channels\Lazada\LazadaSigner;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
@@ -271,22 +272,159 @@ class LazadaConnectorContractTest extends TestCase
         $this->connector()->arrangeShipment($this->auth(), '1001');
     }
 
-    public function test_arrange_shipment_refetches_order_for_tracking(): void
+    public function test_arrange_shipment_short_circuits_when_already_packed(): void
     {
-        // Mới sync xong, đơn đã có tracking_code từ Lazada (status ≥ packed). arrangeShipment refetch để chốt.
+        // Idempotent: đơn đã có tracking_code (vd seller pack ngoài app, hoặc đã arrange trước đó) ⇒
+        // chỉ re-fetch & trả tracking, KHÔNG gọi /order/pack hay /order/rts.
         Http::fake([
             '*/order/get*' => Http::response($this->ok([
-                'order_id' => 1001, 'order_number' => 555111, 'created_at' => '2026-05-17 10:00:00 +0700', 'updated_at' => '2026-05-17 11:00:00 +0700',
-                'price' => '220000.00', 'shipping_fee' => '20000.00', 'payment_method' => 'COD', 'statuses' => ['packed'],
+                'order_id' => 1001, 'price' => '220000.00', 'shipping_fee' => '20000.00', 'payment_method' => 'COD',
+                'statuses' => ['packed'], 'created_at' => '2026-05-17 10:00:00 +0700', 'updated_at' => '2026-05-17 11:00:00 +0700',
+                'address_shipping' => ['first_name' => 'A', 'last_name' => 'B', 'phone' => '0900000000', 'city' => 'Hà Nội', 'country' => 'Vietnam'],
             ])),
             '*/order/items/get*' => Http::response($this->ok([
-                ['order_item_id' => 9001, 'sku' => 'AO-DEN-M', 'shop_sku' => 'shopsku-1', 'name' => 'Áo thun đen', 'item_price' => 100000, 'status' => 'packed', 'package_id' => 'PKG1', 'tracking_code' => 'TRK-LZD-001', 'shipment_provider' => 'GHN'],
+                ['order_item_id' => 9001, 'sku' => 'AO-DEN-M', 'name' => 'Áo', 'item_price' => 100000, 'status' => 'packed', 'package_id' => 'PKG1', 'tracking_code' => 'TRK-LZD-001', 'shipment_provider' => 'GHN'],
             ])),
         ]);
+
         $r = $this->connector()->arrangeShipment($this->auth(), '1001');
         $this->assertSame('TRK-LZD-001', $r['tracking_no']);
         $this->assertSame('GHN', $r['carrier']);
         $this->assertSame('PKG1', $r['package_id']);
+
+        Http::assertNotSent(fn ($req) => str_contains($req->url(), '/order/pack'));
+        Http::assertNotSent(fn ($req) => str_contains($req->url(), '/order/rts'));
+        Http::assertNotSent(fn ($req) => str_contains($req->url(), '/shipment/providers/get'));
+    }
+
+    public function test_arrange_shipment_auto_packs_and_rts_when_pending(): void
+    {
+        // Đơn pending (chưa pack) ⇒ resolve provider → /order/pack → /order/rts → trả tracking từ pack.
+        Http::fake([
+            // (1) re-fetch — đơn pending, chưa có tracking
+            '*/order/get*' => Http::response($this->ok([
+                'order_id' => 1001, 'price' => '220000.00', 'shipping_fee' => '20000.00', 'payment_method' => 'COD',
+                'statuses' => ['pending'], 'created_at' => '2026-05-17 10:00:00 +0700', 'updated_at' => '2026-05-17 11:00:00 +0700',
+                'address_shipping' => ['first_name' => 'A', 'last_name' => 'B', 'phone' => '0900000000', 'city' => 'Hà Nội', 'country' => 'Vietnam'],
+            ])),
+            '*/order/items/get*' => Http::response($this->ok([
+                ['order_item_id' => 9001, 'sku' => 'AO-DEN-M', 'name' => 'Áo', 'item_price' => 100000, 'status' => 'pending'],
+                ['order_item_id' => 9002, 'sku' => 'AO-DEN-L', 'name' => 'Áo', 'item_price' => 110000, 'status' => 'pending'],
+            ])),
+            // (2) provider list
+            '*/shipment/providers/get*' => Http::response($this->ok([
+                'shipment_providers' => [
+                    ['name' => 'Lazada Express', 'is_default' => false, 'delivery_type' => 'dropship'],
+                    ['name' => 'GHN', 'is_default' => true, 'delivery_type' => 'dropship'],
+                    ['name' => 'GHTK', 'is_default' => false],
+                ],
+            ])),
+            // (3) pack — assign tracking
+            '*/order/pack*' => Http::response($this->ok([
+                'order_items' => [
+                    ['purchase_order_id' => 'PO-9001', 'purchase_order_number' => 'PO-N-9001', 'tracking_number' => 'TRK-LZD-NEW-1', 'package_id' => 'PKG-NEW', 'shipment_provider' => 'GHN', 'order_item_id' => 9001],
+                    ['purchase_order_id' => 'PO-9001', 'purchase_order_number' => 'PO-N-9001', 'tracking_number' => 'TRK-LZD-NEW-1', 'package_id' => 'PKG-NEW', 'shipment_provider' => 'GHN', 'order_item_id' => 9002],
+                ],
+            ])),
+            // (4) rts — ack
+            '*/order/rts*' => Http::response($this->ok([])),
+        ]);
+
+        $r = $this->connector()->arrangeShipment($this->auth(), '1001');
+        $this->assertSame('TRK-LZD-NEW-1', $r['tracking_no']);
+        $this->assertSame('GHN', $r['carrier']);
+        $this->assertSame('PKG-NEW', $r['package_id']);
+        $this->assertSame('ready_to_ship', $r['raw_status']);
+
+        // Verify pack được gọi đúng params: delivery_type=dropship, shipment_provider=GHN (is_default),
+        // order_items chứa cả 2 order_item_id.
+        Http::assertSent(function ($req) {
+            if (! str_contains($req->url(), '/order/pack')) {
+                return false;
+            }
+            $body = (string) $req->body();
+
+            return str_contains($body, 'dropship') && str_contains($body, 'GHN')
+                && str_contains($body, '9001') && str_contains($body, '9002');
+        });
+        // Verify rts dùng tracking từ pack
+        Http::assertSent(function ($req) {
+            if (! str_contains($req->url(), '/order/rts')) {
+                return false;
+            }
+            $body = (string) $req->body();
+
+            return str_contains($body, 'TRK-LZD-NEW-1') && str_contains($body, 'dropship')
+                && str_contains($body, '9001') && str_contains($body, '9002');
+        });
+    }
+
+    public function test_arrange_shipment_uses_default_provider_from_config(): void
+    {
+        // Config `default_shipment_provider` ⇒ bỏ qua /shipment/providers/get.
+        config(['integrations.lazada.default_shipment_provider' => 'Lazada Express VN']);
+        Http::fake([
+            '*/order/get*' => Http::response($this->ok([
+                'order_id' => 1002, 'price' => '100000.00', 'shipping_fee' => '0.00', 'payment_method' => 'COD',
+                'statuses' => ['pending'], 'created_at' => '2026-05-17 10:00:00 +0700', 'updated_at' => '2026-05-17 11:00:00 +0700',
+                'address_shipping' => ['first_name' => 'A', 'last_name' => 'B', 'phone' => '0900000000', 'city' => 'Hà Nội', 'country' => 'Vietnam'],
+            ])),
+            '*/order/items/get*' => Http::response($this->ok([
+                ['order_item_id' => 7001, 'sku' => 'X', 'name' => 'X', 'item_price' => 100000, 'status' => 'pending'],
+            ])),
+            '*/order/pack*' => Http::response($this->ok([
+                'tracking_number' => 'TRK-X', 'package_id' => 'PKG-X', 'shipment_provider' => 'Lazada Express VN',
+            ])),
+            '*/order/rts*' => Http::response($this->ok([])),
+        ]);
+
+        $r = $this->connector()->arrangeShipment($this->auth(), '1002');
+        $this->assertSame('TRK-X', $r['tracking_no']);
+        $this->assertSame('Lazada Express VN', $r['carrier']);
+
+        Http::assertNotSent(fn ($req) => str_contains($req->url(), '/shipment/providers/get'));
+    }
+
+    public function test_arrange_shipment_refetch_only_mode_skips_pack_and_rts(): void
+    {
+        // Legacy mode cho shop không có permission Fulfillment — chỉ re-fetch, không pack/rts.
+        config(['integrations.lazada.fulfillment_mode' => 'refetch_only']);
+        Http::fake([
+            '*/order/get*' => Http::response($this->ok([
+                'order_id' => 1003, 'price' => '100000.00', 'shipping_fee' => '0.00', 'payment_method' => 'COD',
+                'statuses' => ['pending'], 'created_at' => '2026-05-17 10:00:00 +0700', 'updated_at' => '2026-05-17 11:00:00 +0700',
+                'address_shipping' => ['first_name' => 'A', 'last_name' => 'B', 'phone' => '0900000000', 'city' => 'Hà Nội', 'country' => 'Vietnam'],
+            ])),
+            '*/order/items/get*' => Http::response($this->ok([
+                ['order_item_id' => 7001, 'sku' => 'X', 'name' => 'X', 'item_price' => 100000, 'status' => 'pending'],
+            ])),
+        ]);
+
+        $r = $this->connector()->arrangeShipment($this->auth(), '1003');
+        $this->assertNull($r['tracking_no']);
+        Http::assertNotSent(fn ($req) => str_contains($req->url(), '/order/pack'));
+        Http::assertNotSent(fn ($req) => str_contains($req->url(), '/order/rts'));
+    }
+
+    public function test_arrange_shipment_fails_when_pack_returns_no_tracking(): void
+    {
+        config(['integrations.lazada.default_shipment_provider' => 'GHN']);
+        Http::fake([
+            '*/order/get*' => Http::response($this->ok([
+                'order_id' => 1004, 'price' => '100000.00', 'shipping_fee' => '0.00', 'payment_method' => 'COD',
+                'statuses' => ['pending'], 'created_at' => '2026-05-17 10:00:00 +0700', 'updated_at' => '2026-05-17 11:00:00 +0700',
+                'address_shipping' => ['first_name' => 'A', 'last_name' => 'B', 'phone' => '0900000000', 'city' => 'Hà Nội', 'country' => 'Vietnam'],
+            ])),
+            '*/order/items/get*' => Http::response($this->ok([
+                ['order_item_id' => 7001, 'sku' => 'X', 'name' => 'X', 'item_price' => 100000, 'status' => 'pending'],
+            ])),
+            '*/order/pack*' => Http::response($this->ok(['order_items' => [['order_item_id' => 7001]]])),   // không có tracking
+        ]);
+
+        $this->expectException(LazadaApiException::class);
+        $this->expectExceptionMessage('không trả tracking_number');
+        $this->connector()->arrangeShipment($this->auth(), '1004');
+        Http::assertNotSent(fn ($req) => str_contains($req->url(), '/order/rts'));
     }
 
     public function test_get_shipping_document_fetches_base64_pdf(): void

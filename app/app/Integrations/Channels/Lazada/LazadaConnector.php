@@ -12,6 +12,7 @@ use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
 use CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -269,17 +270,34 @@ class LazadaConnector implements ChannelConnector
         $this->client->post($path, $auth, ['payload' => json_encode(['Request' => ['Product' => ['Skus' => ['Sku' => [$sku]]]]], JSON_UNESCAPED_SLASHES)]);
     }
 
-    // --- Fulfillment (Phase 4 — RTS / AWB) -----------------------------------
+    // --- Fulfillment (Phase 4 — pack → RTS → AWB) ----------------------------
 
     /**
-     * Lazada: "Chuẩn bị hàng" / "luồng A". Lazada Open Platform công khai không cấp endpoint
-     * `/order/pack` + `/order/rts` cho mọi app (cần permission "Fulfillment Operations" — thường
-     * chỉ ERP-tier mới có). Cách an toàn cho mọi shop: **re-fetch order detail** để lấy `tracking_code`
-     * mà Lazada cấp ngay sau khi seller (hoặc Lazada auto) chuyển trạng thái "packed/ready_to_ship".
-     * Nếu chưa có tracking ⇒ trả null (ShipmentService gắn cờ has_issue, không chặn — đơn vẫn `processing`).
+     * Cache `/shipment/providers/get` trong cùng request — Lazada throttle khá chặt cho endpoint này
+     * (~1 call/s/shop), và provider list hiếm khi đổi trong vòng 1 thao tác user.
      *
-     * Note: nếu app của bạn có permission, có thể bật `LAZADA_FULFILLMENT_AUTO_PACK=true` để code tự
-     * gọi `/order/pack` trước; mặc định off để không gây "MissingPermission" / cần `shipment_provider`.
+     * @var array<int, list<array<string,mixed>>>
+     */
+    private array $providerCache = [];
+
+    /**
+     * Lazada "luồng A" — đẩy đơn từ `pending` → `ready_to_ship` trên Lazada & lấy tracking thật:
+     *
+     *   1. `fetchOrderDetail` để xem item-level status (idempotent: đã `packed`/`ready_to_ship`/`shipped`
+     *       ⇒ trả tracking ngay, KHÔNG pack/rts lại — chống double-arrange).
+     *   2. Resolve `shipment_provider`: `$params['shipment_provider']` → config
+     *       `default_shipment_provider` → `/shipment/providers/get` (pick `is_default=true`/đầu).
+     *   3. `POST /order/pack` (`delivery_type=dropship`, `shipment_provider`, `order_items=[id,...]`) ⇒
+     *       Lazada cấp `tracking_number` + `package_id`.
+     *   4. `POST /order/rts` (`tracking_number` từ pack, `order_item_ids=[id,...]`) ⇒ Lazada chuyển sang
+     *       `ready_to_ship`. **Bắt buộc** — bỏ qua thì AWB không hợp lệ & seller bị phạt.
+     *   5. Trả `tracking_no` + `carrier` + `package_id` + `raw_status='ready_to_ship'`.
+     *
+     * Mode `LAZADA_FULFILLMENT_MODE=refetch_only` (legacy): bỏ bước 2–4, chỉ re-fetch — cho shop không
+     * có permission "Fulfillment" pack thủ công ngoài Seller Center.
+     *
+     * Lỗi ở bất kỳ bước nào ⇒ ném `LazadaApiException` lên — `ShipmentService::arrangeOnChannel` catch &
+     * gắn cờ `has_issue` để user "Nhận phiếu giao hàng" thử lại sau.
      *
      * @return array{tracking_no:?string,carrier:?string,raw_status:?string,package_id:?string}
      */
@@ -288,21 +306,93 @@ class LazadaConnector implements ChannelConnector
         if (! config('integrations.lazada.fulfillment_enabled')) {
             throw UnsupportedOperation::for($this->code(), 'arrangeShipment');
         }
-        // (Tuỳ chọn) Tự gọi /order/pack — Lazada sẽ assign 3PL & cấp tracking. Yêu cầu permission
-        // "Fulfillment" + `delivery_type` + `shipment_provider`. Tắt mặc định, bật khi app đã được cấp.
-        if (config('integrations.lazada.fulfillment_auto_pack', false) && ! empty($params['shipment_provider'])) {
-            try {
-                $this->client->post('/order/pack', $auth, [
-                    'delivery_type' => (string) ($params['delivery_type'] ?? 'dropship'),
-                    'shipment_provider' => (string) $params['shipment_provider'],
-                    'order_items' => json_encode($this->itemIdsFromParams($params), JSON_UNESCAPED_SLASHES),
-                ]);
-            } catch (LazadaApiException $e) {
-                Log::info('lazada.order_pack_failed', ['order' => $externalOrderId, 'code' => $e->lazadaCode]);
-                // Không re-throw — ta fall back về cách re-fetch order detail như đường thường.
-            }
+
+        // (1) idempotent re-fetch — đã có tracking thì khỏi pack/rts lại
+        $existing = $this->extractExistingShipment($auth, $externalOrderId, $params);
+        if ($existing !== null) {
+            return $existing;
         }
-        // Re-fetch order detail từ Lazada để lấy tracking mới nhất (sync polling có thể stale).
+
+        $mode = strtolower((string) (config('integrations.lazada.fulfillment_mode') ?? 'auto'));
+        if ($mode !== 'auto') {
+            // refetch_only: shop tự pack ngoài app — chờ tracking xuất hiện ở re-fetch sau
+            return ['tracking_no' => null, 'carrier' => null, 'raw_status' => null, 'package_id' => null];
+        }
+
+        // (2) resolve order_item_ids + shipment_provider + delivery_type
+        $itemIds = $this->resolveOrderItemIds($auth, $externalOrderId, $params);
+        if ($itemIds === []) {
+            throw new LazadaApiException(
+                "Lazada arrange shipment: không tìm thấy order_item_id nào cho đơn {$externalOrderId}. Hãy đồng bộ lại đơn.",
+                'NoOrderItems', 422,
+            );
+        }
+        $deliveryType = (string) ($params['delivery_type'] ?? config('integrations.lazada.default_delivery_type') ?? 'dropship');
+        $shipmentProvider = (string) ($params['shipment_provider']
+            ?? config('integrations.lazada.default_shipment_provider')
+            ?? $this->pickDefaultShipmentProvider($auth, $deliveryType));
+        if ($shipmentProvider === '') {
+            throw new LazadaApiException(
+                'Lazada arrange shipment: chưa resolve được shipment_provider. Đặt LAZADA_DEFAULT_SHIPMENT_PROVIDER hoặc gọi /shipment/providers/get.',
+                'NoShipmentProvider', 422,
+            );
+        }
+
+        // (3) /order/pack — Lazada gán tracking
+        $packPath = (string) (config('integrations.lazada.endpoints.order_pack') ?? '/order/pack');
+        $packResp = $this->client->post($packPath, $auth, [
+            'delivery_type' => $deliveryType,
+            'shipment_provider' => $shipmentProvider,
+            'order_items' => json_encode($itemIds, JSON_UNESCAPED_SLASHES),
+        ]);
+        $pack = LazadaMappers::packResponse($packResp);
+        $trackingNo = $pack['tracking_no'];
+        $packageId = $pack['package_id'];
+        // Lazada đôi khi map sang provider khác (vd nhập "GHN" → trả "Giao Hang Nhanh Vietnam"); dùng tên
+        // Lazada trả ra để bước RTS không bị "ShipmentProviderMismatch".
+        $finalProvider = $pack['shipment_provider'] !== null && $pack['shipment_provider'] !== ''
+            ? $pack['shipment_provider'] : $shipmentProvider;
+        if ($trackingNo === null) {
+            // Một số sandbox cấp tracking async — vẫn gọi RTS với chuỗi rỗng sẽ bị reject. Bắt buộc fail
+            // sớm để ShipmentService gắn issue rõ.
+            throw new LazadaApiException(
+                "Lazada /order/pack không trả tracking_number cho đơn {$externalOrderId} — provider [{$shipmentProvider}] có thể chưa cấu hình cho shop.",
+                'PackNoTracking', 502,
+            );
+        }
+
+        // (4) /order/rts — bắt buộc để Lazada chuyển sang ready_to_ship
+        $rtsPath = (string) (config('integrations.lazada.endpoints.order_rts') ?? '/order/rts');
+        $this->client->post($rtsPath, $auth, [
+            'delivery_type' => $deliveryType,
+            'shipment_provider' => $finalProvider,
+            'tracking_number' => $trackingNo,
+            'order_item_ids' => json_encode($itemIds, JSON_UNESCAPED_SLASHES),
+        ]);
+
+        Log::info('lazada.arrange_shipment_ok', [
+            'order' => $externalOrderId, 'items' => count($itemIds),
+            'provider' => $finalProvider, 'has_package_id' => $packageId !== null,
+        ]);
+
+        // `$finalProvider` đã được đảm bảo non-empty: `$shipmentProvider === ''` đã throw ở trên, branch
+        // pack-response chỉ ghi đè khi giá trị mới non-empty.
+        return [
+            'tracking_no' => $trackingNo,
+            'carrier' => $finalProvider,
+            'raw_status' => 'ready_to_ship',
+            'package_id' => $packageId,
+        ];
+    }
+
+    /**
+     * Đọc tracking từ order detail (nếu Lazada đã cấp do user/Lazada pack trước đó hoặc do pack vừa
+     * xong từ bước (3) chạy lại). Trả null khi chưa có ⇒ caller tự pack tiếp.
+     *
+     * @return array{tracking_no:string,carrier:?string,raw_status:?string,package_id:?string}|null
+     */
+    private function extractExistingShipment(AuthContext $auth, string $externalOrderId, array $params): ?array
+    {
         $detail = $this->fetchOrderDetail($auth, $externalOrderId);
         foreach ($detail->packages as $pkg) {
             if (! empty($pkg['trackingNo'])) {
@@ -314,9 +404,101 @@ class LazadaConnector implements ChannelConnector
                 ];
             }
         }
-        // Chưa có tracking — ShipmentService sẽ gắn cờ `has_issue` (chuỗi chứa "mã vận đơn") để "Nhận phiếu
-        // giao hàng" sau này tự thử lại.
-        return ['tracking_no' => null, 'carrier' => null, 'raw_status' => null, 'package_id' => null];
+
+        return null;
+    }
+
+    /**
+     * Lấy danh sách order_item_id cho đơn:
+     *  - caller truyền `order_item_ids` hoặc `items` ⇒ ưu tiên (tránh fetch lại);
+     *  - hoặc `packages[].items[].order_item_id` (đã có trong order DTO);
+     *  - fallback: gọi `/order/items/get?order_id=` (1 lượt extra, idempotent).
+     *
+     * @return list<int>
+     */
+    private function resolveOrderItemIds(AuthContext $auth, string $externalOrderId, array $params): array
+    {
+        $direct = $this->itemIdsFromParams($params);
+        if ($direct !== []) {
+            return $direct;
+        }
+        // packages[] mang theo từ ShipmentService::prepareChannelOrder — đôi khi đã có order_item_id
+        foreach ((array) ($params['packages'] ?? []) as $pkg) {
+            $pkgItems = $this->itemIdsFromParams(['items' => (array) ($pkg['items'] ?? [])]);
+            if ($pkgItems !== []) {
+                return $pkgItems;
+            }
+        }
+        try {
+            $items = (array) $this->client->get('/order/items/get', $auth, ['order_id' => $externalOrderId]);
+            $out = [];
+            foreach ($items as $it) {
+                if (! is_array($it)) {
+                    continue;
+                }
+                $id = (int) ($it['order_item_id'] ?? 0);
+                if ($id > 0) {
+                    $out[] = $id;
+                }
+            }
+
+            return array_values(array_unique($out));
+        } catch (\Throwable $e) {
+            Log::info('lazada.resolve_order_items_failed', ['order' => $externalOrderId, 'error' => class_basename($e)]);
+
+            return [];
+        }
+    }
+
+    /**
+     * Pick `shipment_provider` mặc định cho `delivery_type` (gần như chỉ `dropship`):
+     * gọi `/shipment/providers/get`, ưu tiên element có `is_default=true` (hoặc `default=true`); fallback element đầu.
+     * Cache trong `$this->providerCache[$channelAccountId]`.
+     */
+    private function pickDefaultShipmentProvider(AuthContext $auth, string $deliveryType): string
+    {
+        $providers = $this->providerCache[$auth->channelAccountId] ?? null;
+        if ($providers === null) {
+            $path = (string) (config('integrations.lazada.endpoints.shipment_providers') ?? '/shipment/providers/get');
+            try {
+                $resp = $this->client->get($path, $auth);
+            } catch (\Throwable $e) {
+                Log::warning('lazada.shipment_providers_fetch_failed', ['error' => class_basename($e)]);
+                $this->providerCache[$auth->channelAccountId] = [];
+
+                return '';
+            }
+            // Response shape thay đổi giữa các region:
+            //   data.shipment_providers[] | data.shipping_providers[] | data[]
+            // Mỗi element thường có `name` + `is_default`/`default` + có khi `delivery_type` (filter theo
+            // nếu Lazada cấp).
+            $list = (array) ($resp['shipment_providers'] ?? $resp['shipping_providers'] ?? $resp['providers'] ?? $resp);
+            $providers = array_values(array_filter($list, 'is_array'));
+            $this->providerCache[$auth->channelAccountId] = $providers;
+        }
+        if ($providers === []) {
+            return '';
+        }
+        $matchesDelivery = function (array $p) use ($deliveryType): bool {
+            $dt = strtolower((string) ($p['delivery_type'] ?? $p['deliveryType'] ?? ''));
+
+            return $dt === '' || $dt === strtolower($deliveryType);
+        };
+        // Ưu tiên: default = true & match delivery_type
+        foreach ($providers as $p) {
+            if ((bool) ($p['is_default'] ?? $p['default'] ?? false) && $matchesDelivery($p)) {
+                return (string) ($p['name'] ?? '');
+            }
+        }
+        // Fallback: element đầu match delivery_type
+        foreach ($providers as $p) {
+            if ($matchesDelivery($p) && ! empty($p['name'])) {
+                return (string) $p['name'];
+            }
+        }
+
+        // Ultimate fallback: element đầu (kể cả khi delivery_type không khớp — let Lazada decide)
+        return (string) ($providers[0]['name'] ?? '');
     }
 
     /**
@@ -383,7 +565,7 @@ class LazadaConnector implements ChannelConnector
         $bytes = '';
         if ($file !== '') {
             if (preg_match('#^https?://#i', $file)) {
-                $resp = \Illuminate\Support\Facades\Http::timeout(30)->get($file);
+                $resp = Http::timeout(30)->get($file);
                 $bytes = $resp->successful() ? $resp->body() : '';
             } else {
                 $decoded = base64_decode($file, true);

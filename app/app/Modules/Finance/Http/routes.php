@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Route;
  |   - `finance.reconcile`: manual reconcile + trigger fetch.
  */
 
-Route::middleware(['auth:sanctum', 'tenant'])->prefix('api/v1')->group(function () {
+Route::middleware(['api', 'auth:sanctum', 'tenant'])->prefix('api/v1')->group(function () {
     Route::get('settlements', [SettlementController::class, 'index'])->name('settlements.index');
     Route::get('settlements/{id}', [SettlementController::class, 'show'])->whereNumber('id')->name('settlements.show');
     Route::post('settlements/{id}/reconcile', [SettlementController::class, 'reconcile'])->whereNumber('id')->name('settlements.reconcile');

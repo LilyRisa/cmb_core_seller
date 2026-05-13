@@ -43,10 +43,15 @@ Sau đó tracking (`POST /shipments/{id}/track` / job định kỳ) cập nhật
 ## 3. Lazada — vòng đời đơn & fulfillment
 - **Đơn là item-level**: `order.statuses` là mảng (một status / order-item, đã dedup). `LazadaStatusMap::collapse()` gộp thành 1 status order-level (status đảo chiều `canceled`/`returned`/`shipped_back*` chỉ thắng nếu **toàn bộ** item; còn lại lấy forward ít tiến nhất). Status item (map ở `config.lazada.status_map`): `unpaid → pending → topack/ready_to_ship/packed → shipped → delivered` (nhánh `failed`/`lost`/`damaged` ⇒ `delivery_failed`; `shipped_back*` ⇒ `returning`; `returned` ⇒ `returned_refunded`; `canceled` ⇒ `cancelled`). Ánh xạ: `topack`→`processing`, `packed`/`ready_to_ship`→`ready_to_ship`, `shipped`→`shipped`.
 - **FBL** (Fulfillment by Lazada — kho LGS lo) vs **non-FBL** (người bán tự ship — luồng B của ta). `item.shipping_type` cho biết.
-- **Luồng A của Lazada** (follow-up — `app/Integrations/Channels/Lazada/`, capability `shipping.*`):
-  1. "RTS" (Ready To Ship): `/order/rts` (hoặc `/order/pack` rồi `/order/rts`) cho danh sách `order_item_id` ⇒ Lazada gán/xác nhận ĐVVC + `tracking_number` ⇒ item `→ ready_to_ship` rồi `shipped`.
-  2. Lấy tem/hoá đơn: `/order/document/get` với `doc_type=shippingLabel` (hoặc `carrierManifest`, `invoice`) + `order_item_ids` ⇒ trả **base64 PDF** ⇒ decode lưu kho media ⇒ `shipments.label_url`.
-  3. Theo dõi: `/logistic/order/trace` hoặc push `Trade Order` ⇒ `shipped → delivered`.
+- **Luồng A của Lazada** (Implemented 2026-05-13 — `app/Integrations/Channels/Lazada/`, capability `shipping.arrange`/`shipping.document`=true; cờ `INTEGRATIONS_LAZADA_FULFILLMENT` + mode `LAZADA_FULFILLMENT_MODE=auto|refetch_only`):
+  1. **Re-fetch order detail** (`/order/get` + `/order/items/get`) — idempotent: item đã `packed`/`ready_to_ship`/`shipped` ⇒ trả tracking ngay, không pack lại.
+  2. **Resolve `shipment_provider`** — caller truyền → config `LAZADA_DEFAULT_SHIPMENT_PROVIDER` → `/shipment/providers/get` (mặc định `dropship`, pick `is_default=true` hoặc element đầu). Cache trong-process per AuthContext.
+  3. **`POST /order/pack`** — `delivery_type=dropship` (mặc định, option duy nhất cho non-FBL), `shipment_provider`, `order_items=[...]`. Response trả `tracking_number` + `package_id` + (đôi khi) `shipment_provider` cuối cùng Lazada chọn.
+  4. **`POST /order/rts`** — `delivery_type`, `shipment_provider`, `tracking_number`, `order_item_ids=[...]`. Đẩy đơn sang RTS trên Lazada — **không bỏ qua được**, không gọi thì AWB không hợp lệ & seller bị phạt.
+  5. Lấy tem (`getShippingDocument`): `/order/document/get` với `doc_type=shippingLabel` + `order_item_ids` ⇒ `data.document.file` (base64 PDF) ⇒ decode lưu kho media ⇒ `shipments.label_url`.
+  6. Theo dõi: webhook push `Trade Order` (fast-path `orderRawStatus`) + polling `SyncOrdersForShop` re-fetch ⇒ `shipped → delivered`.
+
+  Mode `refetch_only` (legacy): bỏ bước 2–4, chỉ làm bước 1+5 — cho shop không có permission "Fulfillment" trên Open Platform tự pack ngoài app.
 - **Webhook (push message)**: `message_type` (int, `config.lazada.webhook_message_types`); push mang `data.trade_order_id`, `data.order_item_status` — ta dùng `order_item_status` làm fast-path cập nhật trạng thái rồi vẫn `fetchOrderDetail` (`/order/get` + `/order/items/get`). Lazada **không** có API subscribe per-shop — đăng ký message type ở console.
 - **Tem**: trả base64 PDF — decode lưu MinIO/R2; **một order có thể nhiều package/AWB** (theo item) ⇒ nhiều `shipments` cho một `order` (Phase này v1: 1 đơn = 1 shipment; tách nhiều kiện là follow-up). Ghép tem ⇒ cùng shop + cùng ĐVVC.
 

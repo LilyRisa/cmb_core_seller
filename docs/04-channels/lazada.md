@@ -1,6 +1,6 @@
 # Tích hợp Lazada (Việt Nam)
 
-**Status:** Implemented (Phase 4 — lõi: auth + đồng bộ đơn + listings + đẩy tồn + webhook). Code: `app/Integrations/Channels/Lazada/`; cấu hình: `config/integrations.lazada`; spec: [`docs/specs/0008-lazada-channel.md`](../specs/0008-lazada-channel.md). RTS/AWB (in vận đơn của Lazada) + đối soát = follow-up Phase 4/6. · **Cập nhật:** 2026-05-17
+**Status:** Implemented (Phase 4 — auth + đồng bộ đơn + listings + đẩy tồn + webhook + **arrange shipment "luồng A": pack → RTS → AWB** — 2026-05-13). Code: `app/Integrations/Channels/Lazada/`; cấu hình: `config/integrations.lazada`; spec: [`docs/specs/0008-lazada-channel.md`](../specs/0008-lazada-channel.md). Đối soát = Phase 6.2 (đã có; còn đối chiếu sandbox). · **Cập nhật:** 2026-05-13
 
 > Cùng nếp với `tiktok-shop.md`: connector implement `ChannelConnector`, trả **DTO chuẩn** — core không biết tên "lazada". Mọi thứ Lazada-specific (ký, status/message map, endpoint) nằm dưới `app/Integrations/Channels/Lazada/` + `config('integrations.lazada')`.
 >
@@ -29,7 +29,14 @@
 - **Đơn:** `GET /orders/get` (theo `update_after` ISO-8601, `sort_by=updated_at`, `sort_direction=ASC`, `offset`/`limit` — Lazada phân trang offset, không cursor; nếu caller không cho khoảng thời gian → mặc định 30 ngày gần nhất). Mỗi đơn ở list **không kèm line items** ⇒ sau khi lấy page, gọi 1 lần `GET /orders/items/get?order_ids=[id,...]` (≤50 id/lần) để gộp items vào. `GET /order/get?order_id=` + `GET /order/items/get?order_id=` = chi tiết đơn (`fetchOrderDetail`).
 - **Listing/tồn:** `GET /products/get?filter=all&offset=&limit=` → flatten mỗi product (`item_id` + `attributes.name`) ra một `ChannelListingDTO` mỗi SKU (`ShopSku` = `external_sku_id`, `SellerSku`, `quantity`, `price`/`special_price`, `Status`, `Images`). `POST /product/price_quantity/update` (param `payload` — JSON `{Request:{Product:{Skus:{Sku:[{ItemId,SellerSku,Quantity}]}}}}` mặc định; đặt `LAZADA_UPDATE_STOCK_FORMAT=xml` nếu account cần XML) — `updateStock` nhận `$context.seller_sku` + `$context.external_product_id`.
 - **Shop:** `GET /seller/get` → tên/short_code/location.
-- *(Phase 4 fulfillment — chưa làm)* `/order/document/get` (AWB/invoice/packing list — trả base64 PDF), `/logistic/...` (RTS - ready to ship, package, tracking). *(Phase 6)* `/finance/payout/status/get`, `/finance/transaction/details/get` (đối soát). *(Phase 7)* `/reverse/...` (trả hàng).
+- **Fulfillment "luồng A"** (Phase 4 — Implemented 2026-05-13, gated `INTEGRATIONS_LAZADA_FULFILLMENT=true` mặc định; `LAZADA_FULFILLMENT_MODE=auto|refetch_only`, mặc định `auto`):
+  - `GET /shipment/providers/get` → danh sách 3PL (mặc định cho dropship); cache trong-process per AuthContext.
+  - `POST /order/pack` — params `shipment_provider`, `delivery_type=dropship` (mặc định, là option duy nhất Lazada nhận cho non-FBL), `order_items=[order_item_id,...]` (JSON). Response `data.order_items[]` chứa `tracking_number`, `package_id`, `shipment_provider`, `purchase_order_id/number`. (Một số sandbox trả top-level `data.tracking_number` — đọc cả 2.)
+  - `POST /order/rts` — params `delivery_type`, `shipment_provider`, `tracking_number` (từ `pack`), `order_item_ids=[...]` (JSON). Đẩy đơn sang `ready_to_ship` trên Lazada. **Bắt buộc** — không gọi → đơn vẫn `packed` trên Lazada, AWB không hợp lệ.
+  - `GET /order/document/get?doc_type=shippingLabel&order_item_ids=[...]` — trả `data.document.file` (base64 PDF). Chỉ khả dụng sau pack.
+  - Idempotent: nếu re-fetch trước thấy item đã ở `packed`/`ready_to_ship`/`shipped` ⇒ trả tracking ngay, không pack/rts lại.
+- **Đối soát** (Phase 6.2 — Implemented, gated `INTEGRATIONS_LAZADA_FINANCE`): `GET /finance/transaction/details/get` (start_time/end_time, offset/limit) — gom rows trong `[from,to]` thành 1 SettlementDTO. SPEC 0016.
+- *(Phase 7)* `/reverse/...` (trả hàng).
 
 ## 4. Webhook (push message)
 - URL `/webhook/lazada` (route đã có). `LazadaWebhookVerifier.verify()`: HMAC-SHA256(key=`app_secret`, message=raw body), hex — Lazada gửi chữ ký ở header (tên thay đổi theo app: kiểm `X-Lazop-Sign` / `X-Lzd-Sign` / `X-Signature` / `Authorization`). Sai chữ ký / thiếu header / chưa cấu hình secret ⇒ `verify=false` ⇒ `WebhookController` trả `401`, không ghi gì.
@@ -46,5 +53,5 @@ Lazada là **item-level**: `order.statuses` là mảng (một status / order-ite
 ## 7. Lưu ý / còn lại
 - `external_product_id` của order item: Lazada không có product id riêng ở cấp item — dùng `shop_sku` làm thay (đủ để re-resolve listing); `sku` = `seller_sku`.
 - Đơn nhiều item-status khác nhau ⇒ status order-level là quyết định của `collapse()`; `packages[]` được suy từ item (dedup theo `package_id`/`tracking_code`).
-- **Chưa làm (follow-up Phase 4):** RTS/đóng gói Lazada (`/logistic/...`), in AWB/invoice/packing list của Lazada (`/order/document/get` → base64 PDF → lưu kho media), tracking realtime qua push. **Phase 5:** đăng/sửa listing đa sàn (`/products/category/tree/get`, `/category/attributes/get`, `/product/create|update`). **Phase 6:** đối soát (`/finance/...`). **Phase 7:** trả hàng (`/reverse/...`).
+- **Đã làm (2026-05-13 — SPEC 0008b):** RTS/đóng gói Lazada (`/order/pack` + `/order/rts`), in AWB qua `/order/document/get`, resolve provider qua `/shipment/providers/get`. **Còn lại Phase 4:** tracking realtime qua push (hiện dùng polling + webhook re-fetch — đủ cho v1). **Phase 5:** đăng/sửa listing đa sàn (`/products/category/tree/get`, `/category/attributes/get`, `/product/create|update`). **Phase 7:** trả hàng (`/reverse/...`).
 - Khi làm Shopee: tạo `app/Integrations/Channels/Shopee/` + một dòng trong `IntegrationsServiceProvider` + block `config/integrations.shopee` — không sửa core (golden rule).

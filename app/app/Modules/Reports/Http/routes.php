@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Route;
  | `reports.view`: index endpoints; `reports.export`: CSV stream (UTF-8 BOM cho Excel).
  */
 
-Route::middleware(['auth:sanctum', 'tenant'])->prefix('api/v1/reports')->group(function () {
+Route::middleware(['api', 'auth:sanctum', 'tenant'])->prefix('api/v1/reports')->group(function () {
     Route::get('revenue', [ReportController::class, 'revenue'])->name('reports.revenue');
     Route::get('profit', [ReportController::class, 'profit'])->name('reports.profit');
     Route::get('top-products', [ReportController::class, 'topProducts'])->name('reports.top-products');
