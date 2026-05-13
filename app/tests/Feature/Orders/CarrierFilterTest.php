@@ -137,6 +137,63 @@ class CarrierFilterTest extends TestCase
         }
     }
 
+    public function test_carrier_filter_preserves_commas_in_carrier_names(): void
+    {
+        // Lazada returns carrier names like "Pickup: LEX VN, Delivery: LEX VN" — they contain commas.
+        // The earlier explode(',', $carrier) split this into 2 useless tokens and matched zero orders,
+        // even though the chip groupby kept the comma value intact and showed a count.
+        $carrierName = 'Pickup: LEX VN, Delivery: LEX VN';
+        $this->makeOrder('LZ-C1', $carrierName, $carrierName);
+        $this->makeOrder('LZ-C2', null, $carrierName);
+        $this->makeOrder('LZ-C3', $carrierName, null);
+
+        $stats = $this->actingAs($this->user)->withHeaders($this->header())
+            ->getJson('/api/v1/orders/stats?status=processing&source=lazada')
+            ->assertOk();
+        $byCarrier = collect($stats->json('data.by_carrier'))->keyBy('carrier');
+        $this->assertSame(3, $byCarrier[$carrierName]['count'] ?? null, 'Chip with carrier-name-containing-comma must group all 3 orders');
+
+        $list = $this->actingAs($this->user)->withHeaders($this->header())
+            ->getJson('/api/v1/orders?status=processing&source=lazada&carrier='.urlencode($carrierName))
+            ->assertOk();
+        $this->assertSame(3, $list->json('meta.pagination.total'), 'Clicking the comma-in-name chip must list all 3 orders (must NOT explode the comma)');
+    }
+
+    public function test_carrier_filter_does_not_double_count_orders_with_multiple_open_shipments(): void
+    {
+        // Off-by-one scenario: an order with 2 open shipments under DIFFERENT carriers. The chip
+        // uses MAX(carrier) so the order is counted under ONE chip; the list filter must also
+        // assign the order to ONE effective carrier (not match it under both).
+        $order = $this->makeOrder('LZ-DUAL', null, 'Delivered by Seller');
+        Shipment::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $this->tenant->getKey(), 'order_id' => $order->getKey(),
+            'carrier' => 'LEX VN', 'tracking_no' => 'TRK-EXTRA',
+            'status' => Shipment::STATUS_CREATED, 'cod_amount' => 0,
+        ]);
+
+        $stats = $this->actingAs($this->user)->withHeaders($this->header())
+            ->getJson('/api/v1/orders/stats?status=processing&source=lazada')
+            ->assertOk();
+        $byCarrier = collect($stats->json('data.by_carrier'))->keyBy('carrier');
+        $totalChipCount = $byCarrier->sum('count');
+        $this->assertSame(1, $totalChipCount, 'Order with 2 open shipments must appear in exactly ONE chip (not double-counted)');
+
+        // Whichever chip it's in, click must return exactly 1 (matches chip count).
+        foreach ($byCarrier as $name => $entry) {
+            $list = $this->actingAs($this->user)->withHeaders($this->header())
+                ->getJson('/api/v1/orders?status=processing&source=lazada&carrier='.urlencode($name))
+                ->assertOk();
+            $this->assertSame($entry['count'], $list->json('meta.pagination.total'), "Chip '{$name}' shows count={$entry['count']} but list returns {$list->json('meta.pagination.total')}.");
+        }
+
+        // The OTHER carrier (not the MAX) must NOT match this order.
+        $otherCarrier = $byCarrier->keys()->first() === 'LEX VN' ? 'Delivered by Seller' : 'LEX VN';
+        $list = $this->actingAs($this->user)->withHeaders($this->header())
+            ->getJson('/api/v1/orders?status=processing&source=lazada&carrier='.urlencode($otherCarrier))
+            ->assertOk();
+        $this->assertSame(0, $list->json('meta.pagination.total'), "Chip '{$otherCarrier}' is absent (or 0), list must also be 0.");
+    }
+
     public function test_carrier_filter_matches_orders_carrier_when_no_shipment_exists(): void
     {
         // Orders without shipment yet (pre-"Chuẩn bị hàng") must still appear under orders.carrier.

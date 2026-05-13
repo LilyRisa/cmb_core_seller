@@ -302,24 +302,29 @@ class OrderController extends Controller
         if ($use('channel_account_id') && $cid = $request->query('channel_account_id')) {
             $query->where('channel_account_id', (int) $cid);
         }
-        // Lọc theo ĐVVC theo *effective carrier* — khớp với cách `countByEffectiveCarrier` xây chip count.
-        // Mỗi đơn có ĐÚNG 1 effective carrier:
-        //  - Có vận đơn open có `carrier` ⇒ dùng `shipments.carrier` (Lazada hay remap provider lúc /order/pack)
-        //  - Không có vận đơn open có `carrier` ⇒ fallback `orders.carrier` (denormalized lúc sync)
-        // Đảm bảo chip click 'X' ra ĐÚNG số đơn chip hiển thị — không trùng (đơn có shipment carrier='Giao
-        // Hang Nhanh' không lọt vào chip 'GHN-Express' chỉ vì orders.carrier vẫn là 'GHN-Express') và không sót.
-        if ($use('carrier') && $carrier = $request->query('carrier')) {
-            $carriers = array_values(array_filter(array_map('trim', explode(',', (string) $carrier))));
+        // Lọc theo ĐVVC theo *effective carrier* — KHÔNG explode ',' vì tên ĐVVC của Lazada có thể chứa
+        // dấu phẩy (vd "Pickup: LEX VN, Delivery: LEX VN"). FE chip single-select gửi đúng 1 giá trị; nếu
+        // muốn multi-select thì dùng `?carrier[]=A&carrier[]=B`. Effective carrier = MAX(open shipment
+        // carrier) nếu có vận đơn open mang carrier, fallback orders.carrier — đúng như
+        // `countByEffectiveCarrier` ⇒ chip click 'X' ra ĐÚNG số đơn chip hiển thị (1=1, không lệch).
+        if ($use('carrier') && $request->has('carrier')) {
+            $raw = $request->query('carrier');
+            $carriers = is_array($raw) ? array_values(array_filter(array_map(fn ($v) => trim((string) $v), $raw), fn ($v) => $v !== ''))
+                : (trim((string) $raw) !== '' ? [trim((string) $raw)] : []);
             if ($carriers) {
-                $hasOpenWithCarrier = fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES)->whereNotNull('carrier');
-                $query->where(function (Builder $w) use ($carriers, $hasOpenWithCarrier) {
-                    // (a) Đơn có vận đơn open mang carrier ⇒ effective = shipment.carrier
-                    $w->whereHas('shipments', fn (Builder $s) => $hasOpenWithCarrier($s)->whereIn('carrier', $carriers))
-                        // (b) Đơn KHÔNG có vận đơn open mang carrier ⇒ fallback orders.carrier
-                        ->orWhere(function (Builder $f) use ($carriers, $hasOpenWithCarrier) {
-                            $f->whereIn('carrier', $carriers)->whereDoesntHave('shipments', $hasOpenWithCarrier);
-                        });
-                });
+                $query->leftJoinSub(
+                    $this->openShipmentCarrierSub(),
+                    'sc_filter',
+                    'sc_filter.order_id', '=', 'orders.id'
+                );
+                $placeholders = implode(',', array_fill(0, count($carriers), '?'));
+                $query->whereRaw("COALESCE(sc_filter.ship_carrier, orders.carrier) IN ($placeholders)", $carriers);
+                // Sau leftJoinSub, default `SELECT *` sẽ có cột thừa sc_filter.* — pin về orders.* để
+                // Eloquent hydrate đúng & paginate count(*) không double-count (subquery group_by order_id
+                // ⇒ tối đa 1 row/order, count vẫn đúng).
+                if ($query->getQuery()->columns === null) {
+                    $query->select('orders.*');
+                }
             }
         }
         if ($use('has_issue') && $request->boolean('has_issue', false)) {
@@ -366,26 +371,35 @@ class OrderController extends Controller
     }
 
     /**
+     * Subquery 1-row-per-order trả MAX(carrier) trên vận đơn open có carrier non-null. Dùng chung cho
+     * `applyFilters` (carrier filter) và `countByEffectiveCarrier` (chip count) ⇒ đảm bảo cùng định
+     * nghĩa "effective carrier" ở 2 đầu, click chip 'X' không lệch số với chip count.
+     *
+     * @return \Illuminate\Database\Query\Builder
+     */
+    private function openShipmentCarrierSub()
+    {
+        return Shipment::query()
+            ->whereIn('status', Shipment::OPEN_STATUSES)
+            ->whereNotNull('carrier')
+            ->select(['order_id', DB::raw('MAX(carrier) as ship_carrier')])
+            ->groupBy('order_id')
+            ->toBase();
+    }
+
+    /**
      * Đếm đơn theo *effective carrier* — ĐVVC thực sự gắn với đơn:
-     *   - Có vận đơn open (pending/created/packed/picked_up/...) ⇒ dùng `shipments.carrier`
-     *   - Không có vận đơn open ⇒ fallback `orders.carrier` (denormalized lúc sync từ packages)
-     * Khớp với `applyFilters` carrier OR-clause; đảm bảo chip count = số đơn list trả về sau khi click chip.
+     *   - Có vận đơn open (pending/created/packed/picked_up/...) có carrier ⇒ dùng `shipments.carrier`
+     *   - Không có vận đơn open có carrier ⇒ fallback `orders.carrier` (denormalized lúc sync từ packages)
+     * Khớp với `applyFilters` carrier clause; chip count = số đơn list trả về sau khi click chip.
      *
      * @param  Builder<Order>  $base  query đã apply mọi filter cha (status / source / shop / placed / …) trừ carrier
      * @return list<array{carrier:string,count:int}>
      */
     private function countByEffectiveCarrier(Builder $base): array
     {
-        // Sub: 1 row/order ⇒ carrier của vận đơn open mới nhất (theo id desc). MAX(carrier) đơn giản hoá
-        // (nếu 1 đơn có >1 vận đơn open — hiếm; package_no có thể khác — vẫn group về 1 carrier).
-        $shipmentSub = Shipment::query()
-            ->whereIn('status', Shipment::OPEN_STATUSES)
-            ->whereNotNull('carrier')
-            ->select(['order_id', DB::raw('MAX(carrier) as ship_carrier')])
-            ->groupBy('order_id');
-
         $rows = (clone $base)
-            ->leftJoinSub($shipmentSub, 'sc', 'sc.order_id', '=', 'orders.id')
+            ->leftJoinSub($this->openShipmentCarrierSub(), 'sc', 'sc.order_id', '=', 'orders.id')
             ->selectRaw('COALESCE(sc.ship_carrier, orders.carrier) AS effective_carrier, COUNT(*) AS c')
             ->whereRaw('COALESCE(sc.ship_carrier, orders.carrier) IS NOT NULL')
             ->groupBy('effective_carrier')

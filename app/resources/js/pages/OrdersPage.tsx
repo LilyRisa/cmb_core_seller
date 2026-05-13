@@ -516,7 +516,7 @@ export function OrdersPage() {
                         {canShip && tabKey === 'pending' && <Button type="primary" loading={bulkPrepare.isPending} onClick={doBulkPrepare}>
                             Chuẩn bị hàng ({selectedKeys.length}){negProfit.length > 0 && <WarningOutlined style={{ marginInlineStart: 4 }} />}
                         </Button>}
-                        {canShip && isShipTab && selWithoutShipment.length > 0 && <Button type="primary" icon={<FileTextOutlined />} loading={bulkPrepare.isPending} onClick={doBulkPrepareShipTab}>
+                        {canShip && (isShipTab || isProcessingTab) && selWithoutShipment.length > 0 && <Button type="primary" icon={<FileTextOutlined />} loading={bulkPrepare.isPending} onClick={doBulkPrepareShipTab}>
                             Lấy phiếu giao hàng ({selWithoutShipment.length})
                         </Button>}
                         {canShip && isProcessingTab && selPackable.length > 0 && <Button icon={<CheckCircleOutlined />} style={{ background: '#52c41a', borderColor: '#52c41a', color: '#fff' }} loading={bulkPack.isPending} onClick={doBulkPack}>Sẵn sàng bàn giao ({selPackable.length})</Button>}
