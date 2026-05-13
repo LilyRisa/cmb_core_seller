@@ -68,8 +68,11 @@
 - **Khoá đẩy** (tuỳ chọn per listing): người dùng có thể "ghim" tồn một listing (không tự đẩy) trong trường hợp đặc biệt.
 - **Đồng bộ ngược (đối chiếu, không ghi đè):** job định kỳ đọc `channel_stock` thực trên sàn, so với mong muốn; lệch ⇒ cảnh báo + đẩy lại (không tự sửa master). Bật/tắt theo cấu hình.
 
-## 5. Giá vốn (cho Finance, Phase 6)
-- Mỗi lần nhập kho tạo một `cost_layer` (qty, unit_cost). Khi `order_ship` ⇒ tiêu hao layer theo **FIFO** (hoặc bình quân gia quyền — chọn ở Phase 6, mặc định FIFO), ghi giá vốn vào `order_costs.cost_of_goods`. Đây là đầu vào tính lợi nhuận đơn.
+## 5. Giá vốn (cho Finance, Phase 6) — *Implemented Phase 6.1 (SPEC-0014)*
+- Mỗi lần `goods_receipt` được **confirm** tạo một `cost_layers` mới (`qty_received`, `unit_cost`, `received_at` = thời điểm confirm; idempotent qua `(source_type='goods_receipt', source_id=receipt.id, sku_id)`).
+- Khi `order_ship` ⇒ `FifoCostService::consumeForShip()` rút layer theo **FIFO** (`SELECT … FOR UPDATE ORDER BY received_at ASC`, giảm `qty_remaining`, set `exhausted_at` khi hết); ghi 1 row `order_costs` **bất biến** (1-1 với `order_item`) gồm `cogs_total`, `cogs_unit_avg`, `layers_used` jsonb (chuỗi `[{layer_id, qty, unit_cost, synthetic?}]`). Nếu tồn FIFO không đủ ⇒ tạo synthetic layer dùng `Sku::effectiveCost()` (`average|latest`) + đánh dấu `synthetic=true` trong `layers_used` (không phá thanh tra).
+- `OrderProfitService` đọc COGS từ `order_costs` cho đơn shipped (`cost_source: fifo`); đơn chưa ship dùng ước tính `Sku::effectiveCost()` (`cost_source: estimate`).
+- Bình quân gia quyền (`average`) + `latest_receipt_cost` (theo cột `skus.cost_method`) giữ song song — dùng cho UI hiển thị "giá vốn hiệu lực" + làm fallback synthetic. Tenant chuyển sang FIFO không cần migration data: layer mới sinh từ thời điểm bật cho mỗi receipt mới; order_costs chỉ ghi khi ship.
 
 ## 6. Quan sát & cảnh báo
 - Trang Tồn kho: lọc theo kho/SKU/sản phẩm, xem on_hand/reserved/available, lịch sử movements của từng SKU.

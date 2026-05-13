@@ -1,6 +1,6 @@
 # API endpoints (`/api/v1`)
 
-**Status:** Living document · **Cập nhật:** 2026-05-11
+**Status:** Living document · **Cập nhật:** 2026-05-23
 
 > Nguồn người-đọc-được của API. Mọi endpoint mới ⇒ thêm vào đây (đường dẫn, method, quyền cần, request, response, lỗi đặc thù). Quy ước chung: [`conventions.md`](conventions.md). Auth: Sanctum SPA cookie (gọi `GET /sanctum/csrf-cookie` trước khi gửi request thay đổi dữ liệu). Tenant: header `X-Tenant-Id`.
 
@@ -155,6 +155,45 @@ Xem [`webhooks-and-oauth.md`](webhooks-and-oauth.md). `POST /webhook/tiktok` →
 
 `OrderResource.profit` (SPEC 0012): `{ cogs, platform_fee, shipping_fee, estimated_profit, platform_fee_pct, cost_complete }` hoặc `null` khi chưa cấu hình phí sàn. `platform_fee = round(grand_total × platform_fee_pct/100)` với `platform_fee_pct = tenant.settings.platform_fee_pct[order.source] ?? 0`; `cogs = Σ effective_cost(sku) × max(1, quantity)` trên các dòng đã ghép SKU; `estimated_profit = grand_total − platform_fee − shipping_fee − cogs`; `cost_complete=false` ⇒ còn dòng chưa có giá vốn SKU ⇒ lợi nhuận chỉ là ước tính dưới (UI cảnh báo ⚠). Cấu hình `platform_fee_pct` qua `PATCH /api/v1/tenant` (`settings` merge — SPEC 0011).
 
+## Mua hàng (Procurement — Phase 6.1, SPEC-0014)
+
+| Method | Path | Auth | Request | Response |
+|---|---|---|---|---|
+| GET | `/api/v1/procurement/suppliers` | `procurement.view` | `q?` (code/name/phone), `is_active?` (1), `page`, `per_page≤100` | `{ data:[SupplierResource{id,code,name,phone,email,address,tax_code,payment_terms_days,is_active,note,skus_count}], meta:{pagination} }`. |
+| POST | `/api/v1/procurement/suppliers` | `procurement.manage` | `{ code, name, phone?, email?, address?, tax_code?, payment_terms_days?, note?, is_active? }` | `201 { data: SupplierResource }`. Code trùng/tenant ⇒ `422 SUPPLIER_CODE_TAKEN`. |
+| GET/PATCH/DELETE | `/api/v1/procurement/suppliers/{id}` | view/`procurement.manage` | — / partial / — | `SupplierResource` + `prices[]` / `SupplierResource` / soft delete (`409` nếu còn PO `confirmed|partially_received`). |
+| GET | `/api/v1/procurement/suppliers/{id}/prices` | `procurement.view` | — | `{ data:[SupplierPriceResource{id,sku_id,sku:{sku_code,name},unit_cost,moq,is_default,valid_from?,valid_to?,note}] }`. |
+| POST/PATCH/DELETE | `/api/v1/procurement/suppliers/{id}/prices[/{priceId}]` | `procurement.manage` | `{ sku_id, unit_cost, moq?, is_default?, valid_from?, valid_to?, note? }` | `201`/`200`/`{deleted:true}` — đặt `is_default=true` tự gỡ default cũ của cùng SKU. |
+| GET | `/api/v1/purchase-orders` | `procurement.view` | `q?` (code/supplier name), `status?` (csv `draft|confirmed|partially_received|received|cancelled`), `supplier_id?`, `warehouse_id?`, `placed_from?`/`placed_to?`, `sort` (`-created_at`\|`-expected_at`), `page` | `{ data:[PurchaseOrderResource{id,code,supplier:{id,name},warehouse:{id,name},status,total_qty,total_cost,progress_percent,expected_at,confirmed_at,created_at}], meta:{pagination} }`. |
+| POST | `/api/v1/purchase-orders` | `procurement.manage` | `{ supplier_id, warehouse_id, expected_at?, note?, items:[{sku_id, qty_ordered, unit_cost?}] (≤500) }` | `201 { data: PurchaseOrderResource + items[] }` — PO `draft`, `code` tự sinh `PO-YYYYMM-NNNN`. `unit_cost` mặc định lấy từ `supplier_prices.is_default` cho SKU; nếu trống ⇒ 0 (chốt lại khi `confirm`). Trùng `sku_id` trong dòng ⇒ `422 DUPLICATE_SKU`. |
+| GET | `/api/v1/purchase-orders/{id}` | `procurement.view` | — | `PurchaseOrderResource` + `items[]` (qty_ordered, qty_received, unit_cost, qty_remaining) + `receipts[]` (GoodsReceipts đã link `po_id`). |
+| PATCH | `/api/v1/purchase-orders/{id}` | `procurement.manage` | `{ supplier_id?, warehouse_id?, expected_at?, note?, items? }` — chỉ ở `draft` | `PurchaseOrderResource`. PO không phải `draft` ⇒ `422`. |
+| POST | `/api/v1/purchase-orders/{id}/confirm` | `procurement.manage` | — | `{ data: PurchaseOrderResource (status=confirmed) }` — chốt `unit_cost` per item (lấy từ `supplier_prices.is_default` nếu trống), recalc `total_qty/total_cost`, `confirmed_at=now`. PO không phải `draft` ⇒ `422`. Idempotent (gọi lại không đổi). |
+| POST | `/api/v1/purchase-orders/{id}/cancel` | `procurement.manage` | — | `PurchaseOrderResource (cancelled)` — **chỉ khi `draft`**. Đã confirmed ⇒ `422` (huỷ bằng cách trả hàng + tạo PO mới). |
+| POST | `/api/v1/purchase-orders/{id}/receive` | `procurement.receive` | `{ warehouse_id?, lines:[{sku_id, qty}] }` (≤500; `qty ≤ qty_remaining`) | `201 { data:{ purchase_order: PurchaseOrderResource, goods_receipt:{id, code, status:'draft', items_count} } }` — tạo `GoodsReceipt` mới `status=draft`, link `po_id`+`supplier_id`, items copy `unit_cost` từ PO line. FE redirect `/inventory?tab=docs&doc=GR-…` để confirm phiếu. Khi GoodsReceipt được confirm (qua `WarehouseDocumentService::confirmGoodsReceipt`) ⇒ listener `LinkGoodsReceiptToPO` cộng `qty_received` per item; đủ ⇒ PO `received`, chưa đủ ⇒ `partially_received`. Vượt số còn lại ⇒ `422`. |
+| GET | `/api/v1/procurement/demand-planning` | `procurement.view` | `window_days?=30`, `lead_time?=7`, `cover_days?=14`, `urgency?` (csv `urgent|soon`), `supplier_id?`, `q?` (sku code/name), `page` | `{ data:[DemandRow{sku_id, sku:{sku_code,name}, avg_daily_sold, on_hand, reserved, available, on_order, days_left, suggested_qty, urgency, default_supplier:{id,name,unit_cost,moq}?, total_cost}], meta:{ pagination, params:{window_days,lead_time,cover_days} } }` — sort `urgent` trước, rồi `soon`, rồi `suggested_qty desc`. (SPEC 0017) |
+| POST | `/api/v1/procurement/demand-planning/create-po` | `procurement.manage` | `{ warehouse_id, rows:[{sku_id, qty, supplier_id, unit_cost?}] }` (≤500) | `201 { data:{ purchase_order_ids:[int], count } }` — chia theo `supplier_id` ⇒ **1 PO `draft` per NCC**. SKU không có `supplier_prices.is_default` ⇒ bỏ qua / `422` nếu không cung cấp `supplier_id`. |
+
+## Báo cáo (Reports — Phase 6.1, SPEC-0015)
+
+| Method | Path | Auth | Request | Response |
+|---|---|---|---|---|
+| GET | `/api/v1/reports/revenue` | `reports.view` | `from`, `to` (YYYY-MM-DD; mặc định 30 ngày), `granularity?` (`day|week|month`, mặc định `day`), `source?` (csv), `channel_account_id?`, `warehouse_id?` | `{ data:{ series:[{date, revenue, orders}], totals:{revenue, orders, avg_order_value}, breakdown:{by_source:[{key,name,revenue,share}], by_shop:[…]} } }` — chỉ tính `orders.placed_at ∈ [from,to]`, loại huỷ. SQL portable SQLite↔Postgres qua `truncDateSql` (`DATE_TRUNC` PG / `strftime` SQLite). |
+| GET | `/api/v1/reports/profit` | `reports.view` | cùng filter | `{ data:{ series:[{date, revenue, cogs, fees, profit}], totals:{revenue, cogs, fees, profit, margin_percent}, breakdown:{by_source:[…], by_shop:[…]} } }` — chỉ tính đơn `shipped|completed` (có `order_costs` ⇒ COGS thực FIFO). Phí thực từ `settlement_lines` nếu có, ngược lại ước tính theo `platform_fee_pct`. |
+| GET | `/api/v1/reports/top-products` | `reports.view` | cùng filter + `limit?=20`, `sort?` (`-revenue|-profit|-quantity`) | `{ data:[{sku_id, sku:{sku_code,name}, quantity, revenue, cogs, profit, margin_percent, orders_count}], meta:{limit, sort} }`. |
+| GET | `/api/v1/reports/export` | `reports.export` | `type=revenue|profit|top-products`, `format=csv` (xlsx = follow-up), cùng filter | `200 text/csv; charset=utf-8` — stream CSV **UTF-8 BOM** (`\xEF\xBB\xBF`) để Excel mở tiếng Việt đúng. Filename `Content-Disposition: attachment; filename="<type>-<from>-<to>.csv"`. |
+
+## Tài chính / Đối soát (Finance — Phase 6.2, SPEC-0016)
+
+| Method | Path | Auth | Request | Response |
+|---|---|---|---|---|
+| GET | `/api/v1/finance/settlements` | `finance.view` | `channel_account_id?`, `status?` (csv `pending|reconciled|partial|error`), `period_from?`/`period_to?`, `q?` (external_id), `page` | `{ data:[SettlementResource{id,channel_account:{id,name,provider},external_id,period_start,period_end,settled_at,total_revenue,total_fees,total_payout,status,lines_count,orphan_lines_count}], meta:{pagination} }`. |
+| GET | `/api/v1/finance/settlements/{id}` | `finance.view` | — | `SettlementResource` + `lines[]` (`{id, fee_type, amount, external_order_id, order_id?, order_item_id?, occurred_at}`) — line `order_id=null` = "orphan" (đơn không match local) ⇒ cảnh báo UI. |
+| POST | `/api/v1/finance/settlements/sync` | `finance.reconcile` | `{ channel_account_id?, period_start?, period_end? }` | `{ data:{ queued: N } }` — dispatch `FetchSettlementsForShop` (1 job per shop). Capability `finance.fetch=false` (chưa bật `INTEGRATIONS_TIKTOK_FINANCE` / `INTEGRATIONS_LAZADA_FINANCE`) ⇒ `422 FINANCE_NOT_ENABLED`. |
+| POST | `/api/v1/finance/settlements/{id}/reconcile` | `finance.reconcile` | — | `{ data:{ matched: N, orphan: M } }` — chạy `SettlementService::reconcile` (match `external_order_id` → `order_id`). Idempotent. |
+
+> Khi có settlement: `OrderResource.profit.fee_source` = `settlement` (dùng phí thực từ `settlement_lines`); chưa có ⇒ `estimate` (dùng `platform_fee_pct`). `OrderResource.profit.cost_source` = `fifo` (đơn đã ship + có `order_costs`) hoặc `estimate` (chưa ship). SPEC 0014/0016.
+
 ## Sắp có (theo roadmap)
 
-`/api/v1/orders/{id}/status` + `/bulk` (Phase 3 — đơn manual đi state machine) · `/api/v1/print-jobs`, `/api/v1/shipments` (Phase 3) · `/api/v1/stock-transfers`, `/api/v1/stock-takes`, `/api/v1/goods-receipts` (Phase 5 — WMS) · `/api/v1/jobs/{id}` … — thêm vào đây khi xây.
+`/api/v1/billing/{plans,subscriptions,invoices,payments}` (Phase 6.4 — SaaS billing) · `/api/v1/automation-rules` (Phase 6.5) · `/api/v1/notifications` + channels Zalo/Email (Phase 6.5) … — thêm vào đây khi xây.

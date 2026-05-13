@@ -25,6 +25,10 @@
 | [0011](0011-settings-shell.md) | Trung tâm Cài đặt — vỏ + Hồ sơ cá nhân + Thông tin gian hàng *(slice đầu của SPEC-0007)* | 3+ | Implemented | — |
 | [0012](0012-order-profit-and-invoice-print.md) | Lợi nhuận ước tính sau phí sàn + cài đặt % phí sàn + cách tính giá vốn SKU (bình quân/lô gần nhất) + in hoá đơn đơn hàng + sửa lỗi liên kết SKU nhanh | 2–6 | Implemented | — |
 | [0013](0013-order-fulfillment-flow-and-out-of-stock.md) | Sửa luồng xử lý đơn (chờ xử lý→đang xử lý→chờ bàn giao theo "đã in phiếu/đã gói"), chặn in phiếu giao hàng khi SKU âm tồn (tab "Hết hàng"), phiếu giao hàng tự tạo | 3+ | Implemented | — |
+| [0014](0014-procurement-and-fifo-cogs.md) | Mua hàng (NCC + bảng giá + Đơn mua PO theo đợt nhận) + FIFO Cost Layers (chuẩn kế toán) — `cost_layers` + `order_costs` bất biến, COGS thực gắn từng `order_item` | 6.1 | Implemented | — |
+| [0015](0015-business-reports.md) | Báo cáo bán hàng & lợi nhuận thực (doanh thu / lợi nhuận FIFO / top SP theo ngày/tuần/tháng) + CSV export UTF-8 BOM (Excel VN) | 6.1 | Implemented | — |
+| [0016](0016-finance-settlements-and-reconciliation.md) | Đối soát/Settlement của sàn (TikTok / Lazada) — kéo phí thực + reconcile line → đơn, dùng trong lợi nhuận (`fee_source=settlement`) | 6.2 | Implemented (bật flag sau khi đối chiếu sandbox) | — |
+| [0017](0017-demand-planning.md) | Đề xuất nhập hàng (tốc độ bán × lead time + cover_days + tồn an toàn + đang về) → tạo PO nháp 1-click chia theo NCC | 6.3 | Implemented | — |
 
 ## Khi nào KHÔNG cần spec
 - Sửa lỗi nhỏ, refactor không đổi hành vi, thay đổi tài liệu, bump dependency, chỉnh CI — chỉ cần PR mô tả rõ. Nhưng nếu "việc nhỏ" hoá ra động chạm kiến trúc/hành vi nghiệp vụ ⇒ dừng, viết spec/ADR.

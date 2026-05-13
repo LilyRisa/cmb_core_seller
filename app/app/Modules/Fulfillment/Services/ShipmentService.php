@@ -42,12 +42,20 @@ class ShipmentService
     ) {}
 
     /**
-     * Sau "Chuẩn bị hàng": nếu vận đơn CHƯA có tem thật (của sàn/ĐVVC) ⇒ chạy queue render "phiếu giao hàng"
-     * tự tạo, lưu R2 & gắn vào `shipments.label_url/label_path` ⇒ lúc in chỉ ghép PDF, không render lại. SPEC 0013.
-     * (Lỗi render — vd Gotenberg chưa sẵn sàng — không được làm hỏng bước "Chuẩn bị hàng".)
+     * Phiếu giao hàng tự tạo (chỉ cho **đơn manual**) — render PDF qua Gotenberg, lưu R2, gắn vào
+     * `shipments.label_url/label_path` ⇒ lúc in chỉ ghép PDF, không render lại. SPEC 0013.
+     *
+     * **RULE**: KHÔNG bao giờ tạo phiếu tạm cho đơn sàn (`channel_account_id != null`). Lý do:
+     *  - Phiếu tự tạo không có AWB của sàn ⇒ ĐVVC từ chối nhận hàng / sàn không nhận trách nhiệm.
+     *  - Người bán in ra rồi gửi đi sẽ bị sàn phạt khi tracking không khớp.
+     * Đơn sàn KHÔNG có tem thật ⇒ surface lỗi để người dùng "Nhận phiếu giao hàng" thử lại.
      */
     private function queueDeliverySlip(Order $order, ?int $userId): void
     {
+        if ($order->channel_account_id) {
+            Log::info('shipment.queue_delivery_slip_skipped_channel_order', ['order' => $order->getKey()]);
+            return;
+        }
         try {
             $this->print->createJob((int) $order->tenant_id, PrintJob::TYPE_DELIVERY, [$order->getKey()], [], $userId);
         } catch (\Throwable $e) {
@@ -56,12 +64,17 @@ class ShipmentService
     }
 
     /**
-     * "Nhận phiếu giao hàng lại" cho đơn đã "Chuẩn bị hàng" nhưng chưa lấy được phiếu (lỗi gọi sàn / Gotenberg).
-     * Idempotent: (a) đơn sàn còn `package_no` ⇒ thử kéo tem thật của sàn; (b) nếu đơn `has_issue` về "đã in đơn"/
-     * "mã vận đơn" ⇒ thử `arrangeShipment` lại (lấy AWB, clear cờ khi thành công); (c) nếu vẫn chưa có tem ⇒
-     * KHÔNG tự queue phiếu giao hàng ở đây — controller gom các đơn còn thiếu phiếu để render **một** lượt
-     * (có tiến trình hiển thị cho người dùng). Trả: `no_shipment` (chưa "Chuẩn bị hàng") | `has_label` (đã có
-     * phiếu, sẵn sàng in) | `need_slip` (cần render phiếu giao hàng tự tạo). SPEC 0013.
+     * "Nhận phiếu giao hàng": idempotent retry kéo tem/AWB thật của sàn (đơn sàn) hoặc queue phiếu tự tạo
+     * (đơn manual). KHÔNG bao giờ tạo phiếu tự tạo cho đơn sàn (rule cố định — phiếu tạm không thay được
+     * AWB của sàn).
+     *
+     * Trả:
+     *  - `no_shipment` — đơn chưa "Chuẩn bị hàng" (chưa có vận đơn).
+     *  - `has_label`   — đã có phiếu, sẵn sàng in.
+     *  - `need_slip`   — đơn **manual** thiếu phiếu, controller render phiếu tự tạo (1 lượt cho cả batch).
+     *  - `pending_marketplace` — đơn **sàn** chưa có tem thật từ sàn (vd Lazada chưa cấp tracking, hoặc
+     *    sàn rate-limit `SellerCallLimit`); controller add vào `errors[]` để user retry sau, KHÔNG temp slip.
+     * SPEC 0013.
      */
     public function refetchSlip(Order $order, ?int $userId = null): string
     {
@@ -109,7 +122,12 @@ class ShipmentService
             $shipment->refresh();
         }
 
-        return blank($shipment->label_path) ? 'need_slip' : 'has_label';
+        if (! blank($shipment->label_path)) {
+            return 'has_label';
+        }
+
+        // Đơn sàn KHÔNG có tem ⇒ pending (không tự tạo phiếu tạm). Đơn manual ⇒ controller tự tạo.
+        return $order->channel_account_id ? 'pending_marketplace' : 'need_slip';
     }
 
     /**
@@ -132,7 +150,10 @@ class ShipmentService
             $r = $this->channels->for($account->provider)->arrangeShipment($account->authContext(), (string) $order->external_order_id, ['packages' => (array) ($order->packages ?? [])]);
         } catch (\Throwable $e) {
             Log::warning('shipment.arrange_on_channel_failed', ['order' => $order->getKey(), 'provider' => $account->provider, 'error' => $e->getMessage()]);
-            throw new RuntimeException('Chưa lấy được phiếu giao hàng từ sàn lần này. Hệ thống đã tạo phiếu giao hàng tạm — bấm "Nhận phiếu giao hàng" để thử lại sau, bạn không cần thao tác gì trên app của sàn.');
+            // Đơn sàn: KHÔNG tạo phiếu giao hàng tạm thay tem thật của sàn (rule cố định — phiếu tạm không
+            // dùng được khi bàn giao ĐVVC của sàn). Chỉ surface lỗi để người dùng bấm "Nhận phiếu giao hàng"
+            // thử lại sau (vd Lazada `SellerCallLimit` thường ban 1–10s, retry tự khắc qua).
+            throw new RuntimeException('Chưa lấy được phiếu giao hàng từ sàn lần này — bấm "Nhận phiếu giao hàng" để thử lại. Không cần thao tác gì trên app của sàn.');
         }
         if (! empty($r['raw_status'])) {
             $order->forceFill(['raw_status' => (string) $r['raw_status']])->save();
@@ -187,9 +208,9 @@ class ShipmentService
 
     /**
      * "Chuẩn bị hàng" cho **đơn sàn**: tự gọi sàn arrange-shipment (đẩy trạng thái "đã in đơn" lên sàn) + lấy
-     * AWB & tem thật của sàn (`getShippingDocument`) — KHÔNG tự sinh mã/tem giả. Gọi sàn lỗi / connector chưa
-     * hỗ trợ "luồng A" ⇒ vẫn tạo vận đơn cục bộ (mã có thể trống, gắn cờ `has_issue` nhắc nhở), không chặn.
-     * Đơn → `processing`. SPEC 0013/0014.
+     * AWB & tem thật của sàn (`getShippingDocument`) — KHÔNG tự sinh mã/tem giả, KHÔNG tự tạo phiếu giao hàng
+     * tạm. Gọi sàn lỗi / connector chưa hỗ trợ "luồng A" ⇒ vẫn tạo vận đơn cục bộ (mã có thể trống, gắn cờ
+     * `has_issue` để hướng dẫn "Nhận phiếu giao hàng"). Đơn → `processing`. SPEC 0013/0014.
      */
     private function prepareChannelOrder(Order $order, ?int $userId): Shipment
     {
@@ -204,7 +225,7 @@ class ShipmentService
             try {
                 $arr = $this->arrangeOnChannel($order);   // null = kênh bán chưa hỗ trợ tự lấy phiếu; ném lỗi nếu gọi sàn lỗi
                 if ($arr === null) {
-                    $issue = 'Kênh bán này chưa hỗ trợ tự lấy phiếu giao hàng của sàn. Hệ thống đã tạo phiếu giao hàng tạm — đơn vẫn xử lý bình thường.';
+                    $issue = 'Kênh bán này chưa hỗ trợ tự lấy phiếu giao hàng tự động — bấm "Nhận phiếu giao hàng" để thử lại sau.';
                 } else {
                     $tracking = $arr['tracking_no'];
                     $carrier = $arr['carrier'] ?: $carrier;
@@ -246,9 +267,9 @@ class ShipmentService
         $this->orderStatus->apply($order, S::Processing, 'system', [S::Pending], $userId);
         $shipment->refresh();
         ShipmentCreated::dispatch($shipment);
-        if (blank($shipment->label_path)) {
-            $this->queueDeliverySlip($order, $userId);   // kéo phiếu giao hàng về R2 ngay (in sau chỉ ghép PDF) — SPEC 0013
-        }
+        // KHÔNG queue phiếu giao hàng tự tạo cho đơn sàn (rule cố định — phiếu tạm không thay được AWB của
+        // sàn; ĐVVC sẽ từ chối). Nếu chưa lấy được tem thật, đã có cờ `has_issue` để người dùng "Nhận phiếu
+        // giao hàng" thử lại — và `refetchSlip()` cũng KHÔNG tạo phiếu tạm cho đơn sàn.
 
         return $shipment;
     }

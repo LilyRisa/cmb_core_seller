@@ -266,8 +266,9 @@ class PrintService
 
     /**
      * "Phiếu giao hàng" tự tạo — một trang/đơn: tên cửa hàng + mã đơn/ngày + người nhận + địa chỉ giao +
-     * mã vận đơn / ĐVVC (nếu có) + bảng hàng + COD + ghi chú. Dùng cho bước "Chuẩn bị hàng" khi chưa kéo
-     * được tem/AWB thật của sàn ("luồng A" = follow-up). SPEC 0013. @return array{0:string,1:array<string,mixed>}
+     * mã vận đơn / ĐVVC (nếu có) + bảng hàng + COD + ghi chú. **CHỈ áp dụng cho đơn manual** — đơn sàn
+     * phải dùng AWB thật của sàn (`getShippingDocument`); phiếu tự tạo cho đơn sàn không có giá trị khi
+     * bàn giao ĐVVC. SPEC 0013. @return array{0:string,1:array<string,mixed>}
      */
     private function renderDeliverySlip(PrintJob $job): array
     {
@@ -280,6 +281,12 @@ class PrintService
             ->with(['items', 'shipments' => fn ($q) => $q->orderByDesc('id')])->get();
         if ($orders->isEmpty()) {
             throw new \RuntimeException('Không có đơn nào để in.');
+        }
+        // Defensive: phiếu giao hàng tự tạo KHÔNG dùng cho đơn sàn. Nếu lọt vào (race condition / future caller),
+        // chặn rõ ràng thay vì in ra phiếu tạm vô dụng cho người bán.
+        $channelOrders = $orders->filter(fn (Order $o) => $o->channel_account_id !== null);
+        if ($channelOrders->isNotEmpty()) {
+            throw new \RuntimeException('Đơn của sàn TMĐT chỉ dùng được phiếu/AWB thật của sàn — không in phiếu giao hàng tự tạo. Bấm "Nhận phiếu giao hàng" để hệ thống kéo phiếu thật từ sàn.');
         }
         $shopName = (string) (Tenant::query()->whereKey($tenantId)->value('name') ?? 'Cửa hàng');
 

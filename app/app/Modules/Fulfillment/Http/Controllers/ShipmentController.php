@@ -281,9 +281,19 @@ class ShipmentController extends Controller
 
                     continue;
                 }
+                if ($r === 'pending_marketplace') {
+                    // Đơn sàn chưa có tem thật của sàn — KHÔNG tạo phiếu tạm (rule cố định). User retry sau khi
+                    // sàn cấp tracking / hết rate-limit. Reason trong order.issue_reason đã gắn ở arrangeOnChannel.
+                    $errors[] = [
+                        'order_id' => (int) $order->getKey(),
+                        'message' => $order->issue_reason ?: 'Sàn chưa cấp phiếu giao hàng cho đơn này — thử lại sau ít phút.',
+                    ];
+
+                    continue;
+                }
                 $ok++;
                 if ($r === 'need_slip') {
-                    $needSlip[] = (int) $order->getKey();
+                    $needSlip[] = (int) $order->getKey();   // chỉ đơn manual mới có path này
                 }
             } catch (\Throwable $e) {
                 $errors[] = ['order_id' => (int) $order->getKey(), 'message' => $e->getMessage()];

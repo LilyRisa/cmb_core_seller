@@ -154,28 +154,52 @@ class LazadaClient
             ]);
         }
 
-        $req = $this->http();
-        if (strtoupper($method) === 'GET') {
-            $resp = $req->get($url, array_merge($sysParams, $biz));   // sys + biz + sign cùng query string
-        } else {
-            // POST: system params + sign trong query string; business params trong body **multipart/form-data**
-            // — y hệt `LazopClient::curl_post()` (SDK chính thức). Lazada gateway của `/auth/token/*` đôi khi
-            // trả "IncompleteSignature" khi body là `application/x-www-form-urlencoded`; multipart luôn ổn.
-            $urlWithSys = $url.'?'.http_build_query($sysParams, '', '&', PHP_QUERY_RFC1738);
-            $multipart = [];
-            foreach ($biz as $k => $v) {
-                $multipart[] = ['name' => (string) $k, 'contents' => (string) $v];
+        // Retry tự động khi Lazada trả `SellerCallLimit` / `ApiCallLimit` / `SystemBusy` — message thường
+        // ghi "ban will last N seconds"; ta sleep ~1.2× số đó rồi thử lại tối đa 2 lần. (HTTP 429 hiếm gặp
+        // — Lazada thường trả HTTP 200 với `code != "0"` cho rate-limit.)
+        $maxRetries = 2;
+        $attempt = 0;
+        while (true) {
+            $req = $this->http();
+            if (strtoupper($method) === 'GET') {
+                $resp = $req->get($url, array_merge($sysParams, $biz));   // sys + biz + sign cùng query string
+            } else {
+                // POST: system params + sign trong query string; business params trong body **multipart/form-data**.
+                $urlWithSys = $url.'?'.http_build_query($sysParams, '', '&', PHP_QUERY_RFC1738);
+                $multipart = [];
+                foreach ($biz as $k => $v) {
+                    $multipart[] = ['name' => (string) $k, 'contents' => (string) $v];
+                }
+                $resp = $req->asMultipart()->post($urlWithSys, $multipart);
             }
-            $resp = $req->asMultipart()->post($urlWithSys, $multipart);
-        }
 
-        $json = $resp->json() ?? [];
-        $code = (string) ($json['code'] ?? '');
-        if (! $resp->successful() || ($code !== '' && $code !== '0')) {
+            $json = $resp->json() ?? [];
+            $code = (string) ($json['code'] ?? '');
+            $ok = $resp->successful() && ($code === '' || $code === '0');
+            if ($ok) {
+                return (array) ($json['data'] ?? $json);
+            }
+
+            // Rate-limit retry: bóc số giây từ message ("ban will last 1 seconds") nếu có.
+            $isRateLimit = in_array($code, ['SellerCallLimit', 'ApiCallLimit', 'AppCallLimit', 'SystemBusy'], true)
+                || $resp->status() === 429;
+            if ($isRateLimit && $attempt < $maxRetries) {
+                $message = (string) ($json['message'] ?? '');
+                $waitSec = preg_match('/(\d+)\s*seconds?/i', $message, $m) ? (int) $m[1] : 1;
+                $waitMs = max(800, min(8_000, (int) ($waitSec * 1_200)));   // clamp 0.8s..8s
+                Log::info('lazada.api.rate_limit_retry', ['path' => $apiPath, 'code' => $code, 'wait_ms' => $waitMs, 'attempt' => $attempt + 1]);
+                usleep($waitMs * 1_000);
+                // Rebuild timestamp + sign vì timestamp đã cũ — Lazada reject nếu timestamp lệch >5 phút.
+                $sysParams['timestamp'] = (string) (now()->getTimestampMs());
+                unset($sysParams['sign']);
+                $sign = LazadaSigner::sign($this->appSecret(), $apiPath, array_merge($sysParams, $biz));
+                $sysParams['sign'] = $sign;
+                $attempt++;
+
+                continue;
+            }
             $this->fail($apiPath, $json, $resp->status());
         }
-
-        return (array) ($json['data'] ?? $json);
     }
 
     /** @param array<string,scalar|null> $params @return array<string,mixed> */
