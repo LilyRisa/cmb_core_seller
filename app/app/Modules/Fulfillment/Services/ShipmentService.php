@@ -90,9 +90,11 @@ class ShipmentService
             || str_contains($reason, 'sắp xếp vận chuyển')
             || str_contains($reason, 'in đơn')
         );
+        $justArranged = false;
         if ($order->channel_account_id && $issueAboutChannel) {
             try {
                 $arr = $this->arrangeOnChannel($order);
+                $justArranged = is_array($arr) && ! empty($arr['tracking_no']);
                 if (is_array($arr)) {
                     $patch = [];
                     if (! empty($arr['tracking_no']) && blank($shipment->tracking_no)) {
@@ -116,9 +118,9 @@ class ShipmentService
             }
             $shipment->refresh();
         }
-        // (a) kéo tem thật của sàn nếu có thể
+        // (a) kéo tem thật của sàn nếu có thể — retry chỉ khi vừa arrange xong (propagation Lazada)
         if (blank($shipment->label_path) && $shipment->tracking_no) {
-            $this->fetchAndStoreChannelLabel($order, $shipment);
+            $this->fetchAndStoreChannelLabel($order, $shipment, justArranged: $justArranged);
             $shipment->refresh();
         }
 
@@ -167,8 +169,13 @@ class ShipmentService
         ];
     }
 
-    /** Best-effort: kéo tem/AWB **thật của sàn** (PDF) về kho media & gắn vào vận đơn — KHÔNG tự vẽ tem. SPEC 0006 §9.1 / 0014. */
-    private function fetchAndStoreChannelLabel(Order $order, Shipment $shipment): void
+    /**
+     * Best-effort: kéo tem/AWB **thật của sàn** (PDF) về kho media & gắn vào vận đơn — KHÔNG tự vẽ tem. SPEC 0006 §9.1 / 0014.
+     * `$justArranged=true` ⇒ vừa gọi `/order/rts` (Lazada) hoặc `/packages/{id}/ship` (TikTok) xong ⇒ tem có
+     * thể chưa kịp publish ⇒ retry với backoff. User retry thủ công ("Nhận phiếu giao hàng") thì $justArranged=false
+     * (tem chắc đã sẵn nếu sàn có cấp; thất bại nghĩa là vấn đề khác — không retry để tránh kéo dài request).
+     */
+    private function fetchAndStoreChannelLabel(Order $order, Shipment $shipment, bool $justArranged = false): void
     {
         $account = $order->channel_account_id ? ChannelAccount::query()->find($order->channel_account_id) : null;
         if (! $account || ! $this->channels->has($account->provider) || ! $this->channels->for($account->provider)->supports('shipping.document')) {
@@ -188,22 +195,36 @@ class ShipmentService
             // TikTok bắt buộc package_no; thiếu thì khỏi gọi.
             return;
         }
-        try {
-            // SHIPPING_LABEL_AND_PACKING_SLIP ⇒ PDF gồm cả tem vận đơn + phiếu đóng gói (có tên SP / SKU / SL) — SPEC 0013 §6.
-            $doc = $this->channels->for($account->provider)->getShippingDocument($account->authContext(), (string) $order->external_order_id, [
-                'type' => 'SHIPPING_LABEL_AND_PACKING_SLIP',
-                'externalPackageId' => (string) $shipment->package_no,
-                'order_item_ids' => $itemIds,
-            ]);
-            $bytes = (string) $doc['bytes'];
-            if ($bytes === '') {
+        // Lazada thường mất 1–3s giữa /order/rts và lúc /order/document/get có file ⇒ retry với backoff để
+        // luồng "Chuẩn bị hàng" bulk lấy được tem ngay lượt đầu thay vì buộc user click "Nhận phiếu giao hàng"
+        // lại. TikTok trả tem gần như tức thì ⇒ 1 lần là đủ. SPEC 0013 §6.
+        $attempts = ($justArranged && $account->provider === 'lazada') ? 3 : 1;
+        $delayMs = 800;
+        $lastError = null;
+        for ($i = 1; $i <= $attempts; $i++) {
+            try {
+                // SHIPPING_LABEL_AND_PACKING_SLIP ⇒ PDF gồm cả tem vận đơn + phiếu đóng gói (có tên SP / SKU / SL) — SPEC 0013 §6.
+                $doc = $this->channels->for($account->provider)->getShippingDocument($account->authContext(), (string) $order->external_order_id, [
+                    'type' => 'SHIPPING_LABEL_AND_PACKING_SLIP',
+                    'externalPackageId' => (string) $shipment->package_no,
+                    'order_item_ids' => $itemIds,
+                ]);
+                $bytes = (string) $doc['bytes'];
+                if ($bytes === '') {
+                    return;
+                }
+                $stored = $this->media->storeBytes($bytes, (int) $order->tenant_id, 'labels', 'sh'.$shipment->getKey().'-'.Str::ulid(), 'pdf');
+                $shipment->forceFill(['label_url' => $stored['url'], 'label_path' => $stored['path']])->save();
+
                 return;
+            } catch (\Throwable $e) {
+                $lastError = $e;
+                if ($i < $attempts) {
+                    usleep($delayMs * 1000 * $i);   // 0.8s, 1.6s — propagation delay window
+                }
             }
-            $stored = $this->media->storeBytes($bytes, (int) $order->tenant_id, 'labels', 'sh'.$shipment->getKey().'-'.Str::ulid(), 'pdf');
-            $shipment->forceFill(['label_url' => $stored['url'], 'label_path' => $stored['path']])->save();
-        } catch (\Throwable $e) {
-            Log::info('shipment.fetch_channel_label_failed', ['shipment' => $shipment->getKey(), 'provider' => $account->provider, 'error' => $e->getMessage()]);
         }
+        Log::info('shipment.fetch_channel_label_failed', ['shipment' => $shipment->getKey(), 'provider' => $account->provider, 'attempts' => $attempts, 'error' => $lastError?->getMessage()]);
     }
 
     /**
@@ -249,7 +270,10 @@ class ShipmentService
                 'cod_amount' => $order->is_cod ? (int) ($order->cod_amount ?: $order->grand_total) : 0, 'raw' => [],
             ]);
             $this->recordEvent($sh, 'created', $tracking ? 'Đã chuẩn bị hàng — mã vận đơn của sàn: '.$tracking : 'Đã chuẩn bị hàng — chờ mã vận đơn từ sàn', Shipment::STATUS_CREATED, ShipmentEvent::SOURCE_SYSTEM, null, $userId);
-            $patch = $order->carrier ? [] : ['carrier' => $carrier];
+            // Sync `orders.carrier` về ĐÚNG carrier của shipment — Lazada thường map provider lúc /order/pack
+            // (vd seller chọn "GHN" ⇒ Lazada trả "Giao Hang Nhanh Vietnam"); denormalization lệch sẽ làm
+            // chip "Vận chuyển" hiện carrier cũ trong khi list query đã follow vận đơn ⇒ click chip ra empty.
+            $patch = ($carrier && $order->carrier !== $carrier) ? ['carrier' => $carrier] : [];
             if ($issue) {
                 $patch += ['has_issue' => true, 'issue_reason' => Str::limit((string) $issue, 240)];
             } elseif ($order->has_issue && (str_contains((string) $order->issue_reason, 'mã vận đơn') || str_contains((string) $order->issue_reason, 'phiếu giao hàng') || str_contains((string) $order->issue_reason, 'sắp xếp vận chuyển'))) {
@@ -262,7 +286,8 @@ class ShipmentService
             return $sh;
         });
         if ($shipment->tracking_no) {
-            $this->fetchAndStoreChannelLabel($order, $shipment);   // kéo tem thật của sàn về (best-effort)
+            // justArranged=true ⇒ vừa /order/rts (Lazada) hoặc /packages/.../ship (TikTok) ⇒ retry tem cho Lazada (propagation 1–3s)
+            $this->fetchAndStoreChannelLabel($order, $shipment, justArranged: true);
         }
         $this->orderStatus->apply($order, S::Processing, 'system', [S::Pending], $userId);
         $shipment->refresh();
@@ -362,7 +387,7 @@ class ShipmentService
                 'fee' => (int) ($result['fee'] ?? 0), 'raw' => $result['raw'] ?? $result,
             ]);
             $this->recordEvent($shipment, 'created', 'Đã tạo vận đơn', Shipment::STATUS_CREATED, ShipmentEvent::SOURCE_SYSTEM, null, $userId);
-            if (! $order->carrier) {
+            if ($order->carrier !== $carrierCode) {
                 $order->forceFill(['carrier' => $carrierCode])->save();
             }
 

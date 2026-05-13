@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * /api/v1/orders — list/filter/sort orders, view one, edit tags/note, status
@@ -213,8 +214,10 @@ class OrderController extends Controller
             ->pluck('c', 'source')->map(fn ($n, $src) => ['source' => (string) $src, 'count' => (int) $n])->values()->all();
         $byShop = (clone $shopBase)->whereNotNull('channel_account_id')->selectRaw('channel_account_id, count(*) as c')->groupBy('channel_account_id')->orderByDesc('c')
             ->pluck('c', 'channel_account_id')->map(fn ($n, $cid) => ['channel_account_id' => (int) $cid, 'count' => (int) $n])->values()->all();
-        $byCarrier = (clone $carrierBase)->whereNotNull('carrier')->selectRaw('carrier, count(*) as c')->groupBy('carrier')->orderByDesc('c')
-            ->pluck('c', 'carrier')->map(fn ($n, $carrier) => ['carrier' => (string) $carrier, 'count' => (int) $n])->values()->all();
+        // Chip "Vận chuyển" đếm theo *effective carrier* — ưu tiên `shipments.carrier` của vận đơn open
+        // (sau "Chuẩn bị hàng" là nguồn chính xác nhất), fallback `orders.carrier` (denormalized). Khớp với
+        // logic OR trong applyFilters ở trên ⇒ chip count luôn = số đơn click chip trả về. SPEC 0013.
+        $byCarrier = $this->countByEffectiveCarrier(clone $carrierBase);
 
         return response()->json(['data' => [
             'total' => (clone $statusBase)->count(),
@@ -299,8 +302,20 @@ class OrderController extends Controller
         if ($use('channel_account_id') && $cid = $request->query('channel_account_id')) {
             $query->where('channel_account_id', (int) $cid);
         }
+        // Lọc theo ĐVVC: khớp `orders.carrier` (denormalized lúc sync — có thể trống/lệch khi connector chưa
+        // điền) HOẶC `shipments.carrier` của vận đơn open hiện tại (luôn chính xác sau "Chuẩn bị hàng").
+        // OR-fallback đảm bảo chip count & list query thống nhất ngay cả khi denormalization bị lệch — ví
+        // dụ đơn Lazada vừa pack: shipment.carrier="LEX VN" nhưng orders.carrier vẫn là "Standard Delivery"
+        // từ lần sync đầu cho tới sync kế tiếp.
         if ($use('carrier') && $carrier = $request->query('carrier')) {
-            $query->whereIn('carrier', array_map('trim', explode(',', (string) $carrier)));
+            $carriers = array_values(array_filter(array_map('trim', explode(',', (string) $carrier))));
+            if ($carriers) {
+                $query->where(function (Builder $w) use ($carriers) {
+                    $w->whereIn('carrier', $carriers)
+                        ->orWhereHas('shipments', fn (Builder $s) => $s->whereIn('carrier', $carriers)
+                            ->whereIn('status', Shipment::OPEN_STATUSES));
+                });
+            }
         }
         if ($use('has_issue') && $request->boolean('has_issue', false)) {
             $query->where('has_issue', true);
@@ -343,6 +358,36 @@ class OrderController extends Controller
         }
 
         return $query;
+    }
+
+    /**
+     * Đếm đơn theo *effective carrier* — ĐVVC thực sự gắn với đơn:
+     *   - Có vận đơn open (pending/created/packed/picked_up/...) ⇒ dùng `shipments.carrier`
+     *   - Không có vận đơn open ⇒ fallback `orders.carrier` (denormalized lúc sync từ packages)
+     * Khớp với `applyFilters` carrier OR-clause; đảm bảo chip count = số đơn list trả về sau khi click chip.
+     *
+     * @param  Builder<Order>  $base  query đã apply mọi filter cha (status / source / shop / placed / …) trừ carrier
+     * @return list<array{carrier:string,count:int}>
+     */
+    private function countByEffectiveCarrier(Builder $base): array
+    {
+        // Sub: 1 row/order ⇒ carrier của vận đơn open mới nhất (theo id desc). MAX(carrier) đơn giản hoá
+        // (nếu 1 đơn có >1 vận đơn open — hiếm; package_no có thể khác — vẫn group về 1 carrier).
+        $shipmentSub = Shipment::query()
+            ->whereIn('status', Shipment::OPEN_STATUSES)
+            ->whereNotNull('carrier')
+            ->select(['order_id', DB::raw('MAX(carrier) as ship_carrier')])
+            ->groupBy('order_id');
+
+        $rows = (clone $base)
+            ->leftJoinSub($shipmentSub, 'sc', 'sc.order_id', '=', 'orders.id')
+            ->selectRaw('COALESCE(sc.ship_carrier, orders.carrier) AS effective_carrier, COUNT(*) AS c')
+            ->whereRaw('COALESCE(sc.ship_carrier, orders.carrier) IS NOT NULL')
+            ->groupBy('effective_carrier')
+            ->orderByDesc('c')
+            ->pluck('c', 'effective_carrier');
+
+        return $rows->map(fn ($n, $carrier) => ['carrier' => (string) $carrier, 'count' => (int) $n])->values()->all();
     }
 
     /** Subquery: sku_id của các SKU đang âm tồn (∑ on_hand − ∑ reserved < 0) — auto-scoped theo tenant. SPEC 0013. */
