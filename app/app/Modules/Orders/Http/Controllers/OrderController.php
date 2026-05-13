@@ -319,12 +319,10 @@ class OrderController extends Controller
                 );
                 $placeholders = implode(',', array_fill(0, count($carriers), '?'));
                 $query->whereRaw("COALESCE(sc_filter.ship_carrier, orders.carrier) IN ($placeholders)", $carriers);
-                // Sau leftJoinSub, default `SELECT *` sẽ có cột thừa sc_filter.* — pin về orders.* để
-                // Eloquent hydrate đúng & paginate count(*) không double-count (subquery group_by order_id
-                // ⇒ tối đa 1 row/order, count vẫn đúng).
-                if ($query->getQuery()->columns === null) {
-                    $query->select('orders.*');
-                }
+                // KHÔNG `select('orders.*')` ở đây — sẽ phá `selectRaw('status, count(*)')` của stats endpoint
+                // (selectRaw ADD, không REPLACE ⇒ SQL invalid với GROUP BY). Mặc định `SELECT *` của list endpoint
+                // vẫn hydrate Order model đúng (sc_filter.* dư thừa nhưng vô hại); `withCount('items')` tự `addSelect('orders.*')`
+                // nên cũng OK. Stats endpoint dùng `selectRaw(...)` cho từng count ⇒ tự override columns.
             }
         }
         if ($use('has_issue') && $request->boolean('has_issue', false)) {

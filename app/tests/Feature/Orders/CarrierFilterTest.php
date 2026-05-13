@@ -194,6 +194,24 @@ class CarrierFilterTest extends TestCase
         $this->assertSame(0, $list->json('meta.pagination.total'), "Chip '{$otherCarrier}' is absent (or 0), list must also be 0.");
     }
 
+    public function test_stats_endpoint_does_not_500_when_carrier_filter_is_active(): void
+    {
+        // When `?carrier=X` is in the URL, stats' $statusBase also picks up the carrier filter
+        // (it skips 'status'/'stage'/'slip'/... but NOT 'carrier'). My leftJoinSub injects a join +
+        // select that conflicts with stats' own `selectRaw('status, count(*)')` calls when the two
+        // selects are merged instead of replaced. Reported by user as a 500 on
+        // /orders/stats?status=processing&carrier=Drop-off:+LEX+VN,+Delivery:+LEX+V
+        $carrierName = 'Drop-off: LEX VN, Delivery: LEX VN';
+        $this->makeOrder('LZ-S1', $carrierName, $carrierName);
+        $this->makeOrder('LZ-S2', null, $carrierName);
+
+        $res = $this->actingAs($this->user)->withHeaders($this->header())
+            ->getJson('/api/v1/orders/stats?status=processing&carrier='.urlencode($carrierName))
+            ->assertOk();
+        $this->assertSame(2, $res->json('data.total'));
+        $this->assertSame(2, $res->json('data.by_status.processing'));
+    }
+
     public function test_carrier_filter_matches_orders_carrier_when_no_shipment_exists(): void
     {
         // Orders without shipment yet (pre-"Chuẩn bị hàng") must still appear under orders.carrier.
