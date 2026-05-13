@@ -152,6 +152,18 @@ class TikTokClient
         return $this->request('POST', $path, $auth, $query, $body, $shopScoped);
     }
 
+    /** @param array<string,mixed> $body @param array<string,scalar|null> $query @return array<string,mixed> */
+    public function put(string $path, AuthContext $auth, array $body = [], array $query = [], bool $shopScoped = true): array
+    {
+        return $this->request('PUT', $path, $auth, $query, $body, $shopScoped);
+    }
+
+    /** @param array<string,scalar|null> $query @return array<string,mixed> */
+    public function delete(string $path, AuthContext $auth, array $query = [], bool $shopScoped = true): array
+    {
+        return $this->request('DELETE', $path, $auth, $query, null, $shopScoped);
+    }
+
     // --- internals -----------------------------------------------------------
 
     protected function http(): PendingRequest

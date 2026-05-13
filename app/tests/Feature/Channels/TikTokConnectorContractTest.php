@@ -177,4 +177,27 @@ class TikTokConnectorContractTest extends TestCase
         $this->expectException(UnsupportedOperation::class);
         $this->connector()->updateStock($this->auth(), 'sku-1', 5);
     }
+
+    public function test_register_webhooks_uses_put_per_official_sdk(): void
+    {
+        // TikTok `UpdateShopWebhook` (sdk_tiktok_seller/api/eventV202309Api.ts → WebhooksPut, line 267)
+        // method='PUT', path='/event/202309/webhooks'. POST trả HTTP 405 (code 36009010) "Method Not Allowed"
+        // — đã xảy ra trên prod (log 2026-05-14). Lock test này để không regress về POST.
+        $connector = $this->connector();   // applies F::configure() which clears subscribe_events
+        config(['integrations.tiktok.subscribe_events' => ['ORDER_STATUS_CHANGE', 'PACKAGE_UPDATE']]);
+        Http::fake([
+            '*/event/202309/webhooks*' => Http::response(['code' => 0, 'message' => 'success', 'data' => []]),
+        ]);
+
+        $connector->registerWebhooks($this->auth());
+
+        Http::assertSent(function ($req) {
+            return str_contains((string) $req->url(), '/event/202309/webhooks') && $req->method() === 'PUT';
+        });
+        Http::assertNotSent(function ($req) {
+            return str_contains((string) $req->url(), '/event/202309/webhooks') && $req->method() === 'POST';
+        });
+        // Each subscribed event = 1 PUT call (idempotent create-or-update).
+        Http::assertSentCount(2);
+    }
 }

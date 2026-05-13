@@ -116,12 +116,16 @@ class TikTokConnector implements ChannelConnector
         $ver = $this->client->versionFor('event');
         $address = url('/webhook/tiktok');
 
+        // TikTok `UpdateShopWebhook` API là **PUT** (idempotent create-or-update) — POST trả HTTP 405
+        // "Method Not Allowed" (code 36009010). Đối chiếu SDK chính thức `sdk_tiktok_seller/api/eventV202309Api.ts`
+        // `WebhooksPut()` ở line 267: method='PUT', path='/event/202309/webhooks', body=`{address,event_type}`.
+        // Endpoints khác cùng path: WebhooksGet=GET, WebhooksDelete=DELETE.
         foreach ($events as $event) {
             try {
-                $this->client->post("/event/{$ver}/webhooks", $auth, ['event_type' => $event, 'address' => $address]);
+                $this->client->put("/event/{$ver}/webhooks", $auth, ['event_type' => $event, 'address' => $address]);
             } catch (\Throwable $e) {
                 // Many apps configure webhook subscriptions in Partner Center instead — don't fail the connect flow.
-                Log::info('tiktok.webhook.subscribe_failed', ['event' => $event, 'shop' => $auth->externalShopId, 'error' => class_basename($e)]);
+                Log::info('tiktok.webhook.subscribe_failed', ['event' => $event, 'shop' => $auth->externalShopId, 'error' => $e->getMessage()]);
             }
         }
     }
