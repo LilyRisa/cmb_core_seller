@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Alert, Avatar, Button, Card, Col, Empty, Input, Modal, Result, Row, Space, Tag, Tooltip, Typography } from 'antd';
 import { App as AntApp } from 'antd';
-import { CheckCircleOutlined, ClockCircleOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, ShopOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, ClockCircleOutlined, DeleteOutlined, EditOutlined, KeyOutlined, PlusOutlined, ReloadOutlined, ShopOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { DateText } from '@/components/MoneyText';
 import { CHANNEL_META, CHANNEL_STATUS_COLOR, CHANNEL_STATUS_LABEL } from '@/lib/format';
@@ -57,7 +57,7 @@ const PROVIDER_ERROR_PREFIXES: Record<string, string> = {
     lazada_temporarily_unavailable: 'Lazada bảo trì / quá tải, thử lại sau.',
 };
 
-function ShopCard({ account, canManage, onResync, onDelete, onRename }: { account: ChannelAccount; canManage: boolean; onResync: () => void; onDelete: () => void; onRename: () => void }) {
+function ShopCard({ account, canManage, onResync, onDelete, onRename, onReauthorize, reauthorizing }: { account: ChannelAccount; canManage: boolean; onResync: () => void; onDelete: () => void; onRename: () => void; onReauthorize: () => void; reauthorizing: boolean }) {
     const meta = CHANNEL_META[account.provider] ?? { name: account.provider, color: '#8c8c8c' };
     return (
         <Card styles={{ body: { padding: 16 } }}>
@@ -85,7 +85,12 @@ function ShopCard({ account, canManage, onResync, onDelete, onRename }: { accoun
                 <span>Webhook gần nhất: <DateText value={account.last_webhook_at} /></span>
                 {account.token_expires_at && <span>Token hết hạn: <DateText value={account.token_expires_at} withTime={false} /></span>}
             </div>
-            {account.status === 'expired' && <Alert type="warning" showIcon style={{ marginTop: 12 }} message="Token đã hết hạn — cần kết nối lại để tiếp tục đồng bộ đơn." />}
+            {account.status === 'expired' && (
+                <Alert type="warning" showIcon style={{ marginTop: 12 }}
+                    message="Token đã hết hạn — cần cấp quyền lại để tiếp tục đồng bộ đơn."
+                    action={canManage && <Button size="small" type="primary" icon={<KeyOutlined />} loading={reauthorizing} onClick={onReauthorize}>Cấp quyền lại</Button>}
+                />
+            )}
         </Card>
     );
 }
@@ -195,6 +200,8 @@ export function ChannelsPage() {
                                     onResync={() => resync.mutate(a.id, { onSuccess: () => { message.success('Đã xếp lịch đồng bộ lại đơn của gian hàng này — danh sách sẽ tự cập nhật khi xong.'); resyncPoll.start(); } })}
                                     onDelete={() => { setDeleteTarget(a); setConfirmDraft(''); }}
                                     onRename={() => { setRenaming(a); setAliasDraft(a.display_name ?? ''); }}
+                                    onReauthorize={() => connect.mutate(a.provider)}
+                                    reauthorizing={connect.isPending && connect.variables === a.provider}
                                 />
                             </Col>
                         ))}
