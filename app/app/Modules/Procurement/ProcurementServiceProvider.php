@@ -2,6 +2,9 @@
 
 namespace CMBcoreSeller\Modules\Procurement;
 
+use CMBcoreSeller\Modules\Inventory\Events\GoodsReceiptConfirmed;
+use CMBcoreSeller\Modules\Procurement\Listeners\LinkGoodsReceiptToPO;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -24,5 +27,8 @@ class ProcurementServiceProvider extends ServiceProvider
         if (is_file(__DIR__.'/Http/routes.php')) {
             $this->loadRoutesFrom(__DIR__.'/Http/routes.php');
         }
+
+        // Listen Inventory events — Procurement cộng dồn qty_received khi GoodsReceipt được confirm.
+        Event::listen(GoodsReceiptConfirmed::class, [LinkGoodsReceiptToPO::class, 'handle']);
     }
 }

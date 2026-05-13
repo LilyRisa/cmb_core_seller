@@ -195,9 +195,14 @@ return [
 
         // Tag dùng làm `partner_id` trong sysParams khi ký request (giống `LazopClient.sdkVersion` của SDK).
         'partner_id' => env('LAZADA_PARTNER_ID', 'cmb-core-seller-php-1.0'),
-        // Mặc định KHÔNG gửi `force_auth=true` ở URL ủy quyền (không có trong tài liệu chính thức; vài region
-        // từ chối). Bật bằng env nếu app yêu cầu re-login khi reconnect.
-        'authorize_force_auth' => (bool) env('LAZADA_AUTHORIZE_FORCE_AUTH', false),
+        // `force_auth=true` ở URL ủy quyền — TÀI LIỆU CHÍNH THỨC khuyên dùng (làm mới session cookie để seller
+        // không bị Lazada gắn vào tài khoản đang đăng nhập sẵn). Mặc định BẬT; chỉ tắt khi shop yêu cầu.
+        'authorize_force_auth' => (bool) env('LAZADA_AUTHORIZE_FORCE_AUTH', true),
+        // (Tuỳ chọn) Lọc consent screen theo quốc gia. Csv `sg,my,th,vn,ph,id,cb` — mặc định để trống ⇒ Lazada
+        // hỏi tất cả. Set `vn` cho shop VN chỉ thấy danh sách 1 quốc gia, gọn hơn.
+        'authorize_country' => env('LAZADA_AUTHORIZE_COUNTRY', 'vn'),
+        // Bật log request (path + tên tham số, KHÔNG có giá trị) để soi flow cấp quyền khi cần hỗ trợ.
+        'log_requests' => (bool) env('LAZADA_LOG_REQUESTS', false),
         // Cách verify chữ ký webhook push: `strict` (sai ⇒ 401, Lazada retry) | `lenient` (sai ⇒ vẫn ack 200
         // + log; tránh kẹt khi chưa chốt scheme với sandbox). KHÔNG dùng `lenient` cho production.
         'webhook_verify_mode' => env('LAZADA_WEBHOOK_VERIFY_MODE', 'strict'),

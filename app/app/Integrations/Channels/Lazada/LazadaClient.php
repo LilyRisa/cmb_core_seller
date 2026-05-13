@@ -52,22 +52,30 @@ class LazadaClient
     }
 
     /**
-     * Seller authorization URL: auth.lazada.com/oauth/authorize?response_type=code&client_id=&redirect_uri=&state=.
-     * `redirect_uri` **phải khớp byte-for-byte** với URL Callback đã đăng ký trong app console — nếu lệch
-     * (http↔https, domain, dấu /, encoding) thì Lazada trả "tham số không hợp lệ" ngay ở bước ủy quyền.
-     * Mặc định không gửi `force_auth` (không có trong tài liệu chính thức, một số region từ chối).
+     * Seller authorization URL theo tài liệu chính thức Lazada Open Platform (Seller authorization
+     * introduction — docId=108260): `https://auth.lazada.com/oauth/authorize?response_type=code
+     * &force_auth=true&redirect_uri={callback}&client_id={app_key}` + `state` + (tuỳ chọn) `country`.
+     *
+     * Notes:
+     *  - `force_auth=true` (mặc định) ⇒ Lazada làm mới session cookie & buộc đăng nhập lại; tài liệu
+     *    chính thức khuyên dùng — tránh trường hợp seller đang đăng nhập tài khoản khác.
+     *  - `country=vn` (tuỳ chọn) ⇒ lọc consent về VN cho gọn (Lazada hỗ trợ csv `sg,my,th,vn,ph,id,cb`).
+     *  - `redirect_uri` **phải khớp byte-for-byte** với URL Callback đã đăng ký trong app console — lệch
+     *    (http↔https, domain, dấu /, encoding) ⇒ Lazada trả "tham số không hợp lệ".
      */
     public function authorizeUrl(string $state, ?string $redirectUriOverride = null): string
     {
         $base = (string) ($this->cfg['authorize_url'] ?? 'https://auth.lazada.com/oauth/authorize');
-        $forceAuth = (bool) ($this->cfg['authorize_force_auth'] ?? false);
+        $forceAuth = (bool) ($this->cfg['authorize_force_auth'] ?? true);
+        $country = trim((string) ($this->cfg['authorize_country'] ?? ''));
 
         return $base.'?'.http_build_query(array_filter([
             'response_type' => 'code',
             'force_auth' => $forceAuth ? 'true' : null,
-            'client_id' => $this->appKey(),
             'redirect_uri' => $redirectUriOverride ?: $this->redirectUri(),
+            'client_id' => $this->appKey(),
             'state' => $state,
+            'country' => $country !== '' ? $country : null,
         ], fn ($v) => $v !== null));
     }
 
@@ -137,13 +145,28 @@ class LazadaClient
             : rtrim((string) ($this->cfg['api_base_url'] ?? 'https://api.lazada.vn/rest'), '/');
         $url = $base.$apiPath;
 
+        // Trace nhẹ — chỉ tên path + tên tham số (không log giá trị secret / token / code). Bật bằng
+        // `LAZADA_LOG_REQUESTS=true` khi cần soi luồng cấp quyền không hoạt động.
+        if ((bool) ($this->cfg['log_requests'] ?? false)) {
+            Log::info('lazada.api.request', [
+                'method' => strtoupper($method), 'path' => $apiPath, 'auth_host' => $authHost,
+                'sys_keys' => array_keys($sysParams), 'biz_keys' => array_keys($biz),
+            ]);
+        }
+
         $req = $this->http();
         if (strtoupper($method) === 'GET') {
             $resp = $req->get($url, array_merge($sysParams, $biz));   // sys + biz + sign cùng query string
         } else {
-            // System params + sign trong query string; business params trong body form-urlencoded.
+            // POST: system params + sign trong query string; business params trong body **multipart/form-data**
+            // — y hệt `LazopClient::curl_post()` (SDK chính thức). Lazada gateway của `/auth/token/*` đôi khi
+            // trả "IncompleteSignature" khi body là `application/x-www-form-urlencoded`; multipart luôn ổn.
             $urlWithSys = $url.'?'.http_build_query($sysParams, '', '&', PHP_QUERY_RFC1738);
-            $resp = $req->asForm()->post($urlWithSys, $biz);
+            $multipart = [];
+            foreach ($biz as $k => $v) {
+                $multipart[] = ['name' => (string) $k, 'contents' => (string) $v];
+            }
+            $resp = $req->asMultipart()->post($urlWithSys, $multipart);
         }
 
         $json = $resp->json() ?? [];

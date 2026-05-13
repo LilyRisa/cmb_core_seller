@@ -49,10 +49,14 @@ enum Role: string
                 'products.view', 'products.manage',
                 'fulfillment.view', 'fulfillment.scan', 'fulfillment.print',
                 'orders.view', 'dashboard.view', 'customers.view',
+                // Kho được xem NCC + nhận hàng theo PO (không sửa giá / không huỷ PO) — Phase 6.1.
+                'procurement.view', 'procurement.receive',
             ],
             self::Accountant => [
                 'finance.view', 'finance.reconcile', 'reports.view', 'reports.export',
                 'orders.view', 'inventory.view', 'dashboard.view', 'customers.view',
+                // Kế toán xem được NCC / PO + giá nhập để đối soát giá vốn — Phase 6.1.
+                'procurement.view',
             ],
             self::Viewer => ['orders.view', 'inventory.view', 'products.view', 'channels.view', 'dashboard.view', 'customers.view'],
         };

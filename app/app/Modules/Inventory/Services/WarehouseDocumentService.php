@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Inventory\Services;
 
+use CMBcoreSeller\Modules\Inventory\Events\GoodsReceiptConfirmed;
 use CMBcoreSeller\Modules\Inventory\Models\GoodsReceipt;
 use CMBcoreSeller\Modules\Inventory\Models\Stocktake;
 use CMBcoreSeller\Modules\Inventory\Models\StockTransfer;
@@ -19,7 +20,7 @@ use RuntimeException;
  */
 class WarehouseDocumentService
 {
-    public function __construct(private readonly InventoryLedgerService $ledger) {}
+    public function __construct(private readonly InventoryLedgerService $ledger, private readonly FifoCostService $fifo) {}
 
     public function confirmGoodsReceipt(GoodsReceipt $doc, int $userId): GoodsReceipt
     {
@@ -39,13 +40,18 @@ class WarehouseDocumentService
                 if ((int) $it->unit_cost > 0) {
                     // per-warehouse weighted-avg cost + SKU.last_receipt_cost + SKU.cost_price (company-wide avg)
                     $this->ledger->recordReceiptCost($tenantId, (int) $it->sku_id, $whId, (int) $it->qty, (int) $it->unit_cost);
+                    // FIFO layer (chuẩn kế toán) — idempotent qua (goods_receipt, sku). SPEC 0014.
+                    $this->fifo->recordReceiptLayer($tenantId, (int) $it->sku_id, $whId, (int) $it->qty, (int) $it->unit_cost,
+                        \CMBcoreSeller\Modules\Inventory\Models\CostLayer::SOURCE_GOODS_RECEIPT, (int) $doc->getKey());
                 }
             }
             $doc->forceFill(['status' => GoodsReceipt::STATUS_CONFIRMED, 'confirmed_at' => now(), 'confirmed_by' => $userId,
                 'total_cost' => (int) $items->sum(fn ($i) => (int) $i->qty * (int) $i->unit_cost)])->save();
         });
+        // Phát event cho các module khác bám vào (Procurement → cộng qty_received trên PO; Finance → FIFO layer).
+        GoodsReceiptConfirmed::dispatch($doc->refresh()->load('items'));
 
-        return $doc->refresh();
+        return $doc;
     }
 
     public function confirmTransfer(StockTransfer $doc, int $userId): StockTransfer

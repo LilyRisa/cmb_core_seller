@@ -38,7 +38,7 @@ class GoodsReceipt extends Model
 
     public const STATUS_CANCELLED = 'cancelled';
 
-    protected $fillable = ['tenant_id', 'code', 'warehouse_id', 'supplier', 'note', 'status', 'total_cost', 'confirmed_at', 'confirmed_by', 'created_by'];
+    protected $fillable = ['tenant_id', 'code', 'warehouse_id', 'purchase_order_id', 'supplier_id', 'supplier', 'note', 'status', 'total_cost', 'confirmed_at', 'confirmed_by', 'created_by'];
 
     protected function casts(): array
     {

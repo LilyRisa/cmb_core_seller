@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\Log;
  */
 class OrderInventoryService
 {
-    public function __construct(private InventoryLedgerService $ledger) {}
+    public function __construct(private InventoryLedgerService $ledger, private FifoCostService $fifo) {}
 
     public function apply(Order $order): void
     {
@@ -133,6 +133,8 @@ class OrderInventoryService
             if (in_array($status, [StandardOrderStatus::Shipped, StandardOrderStatus::Delivered, StandardOrderStatus::Completed, StandardOrderStatus::DeliveryFailed, StandardOrderStatus::Returning], true)) {
                 $hadOpen = $this->ledger->hasOpenReservation($tenantId, $skuId, $refType, $orderItemId);
                 $this->ledger->ship($tenantId, $skuId, $qty, $refType, $orderItemId, $hadOpen, null, $userId);
+                // FIFO COGS — bất biến 1 row / order_item; ship lại ⇒ no-op. SPEC 0014.
+                $this->fifo->consumeForShip($tenantId, (int) $order->getKey(), $orderItemId, $skuId, $qty, null, null, $this->costMethodFor($tenantId));
 
                 return;
             }
@@ -140,6 +142,7 @@ class OrderInventoryService
             if ($status === StandardOrderStatus::ReturnedRefunded) {
                 if ($shipped) {
                     $this->ledger->returnIn($tenantId, $skuId, $qty, $refType, $orderItemId, null, $userId);
+                    $this->fifo->unconsume($tenantId, $orderItemId);
                 } elseif ($reserved) {
                     $this->ledger->release($tenantId, $skuId, $qty, $refType, $orderItemId, null, $userId);
                 }
@@ -150,6 +153,7 @@ class OrderInventoryService
             if ($status === StandardOrderStatus::Cancelled) {
                 if ($shipped) {
                     $this->ledger->returnIn($tenantId, $skuId, $qty, $refType, $orderItemId, null, $userId);
+                    $this->fifo->unconsume($tenantId, $orderItemId);
                 } elseif ($reserved) {
                     $this->ledger->release($tenantId, $skuId, $qty, $refType, $orderItemId, null, $userId);
                 }
@@ -157,6 +161,18 @@ class OrderInventoryService
         } catch (\Throwable $e) {
             Log::warning('inventory.apply_failed', ['order' => $order->getKey(), 'item' => $orderItemId, 'sku' => $skuId, 'status' => $status->value, 'error' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * Tenant chọn phương pháp giá vốn ở `tenant.settings.cost_method` (`fifo` mặc định | `average`). Lưu vào
+     * `order_costs.cost_method` để báo cáo biết source — đổi method không ảnh hưởng đơn cũ. SPEC 0014.
+     */
+    private function costMethodFor(int $tenantId): string
+    {
+        $tenant = \CMBcoreSeller\Modules\Tenancy\Models\Tenant::query()->find($tenantId);
+        $m = $tenant ? (string) data_get($tenant->settings, 'cost_method', 'fifo') : 'fifo';
+
+        return in_array($m, ['fifo', 'average'], true) ? $m : 'fifo';
     }
 
     private function reflectUnmappedIssue(Order $order, bool $anyUnmapped): void

@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Orders\Services;
 
+use CMBcoreSeller\Modules\Inventory\Models\OrderCost;
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Orders\Models\OrderItem;
@@ -44,14 +45,44 @@ class OrderProfitService
         $orderIds = $orders->pluck('id')->all();
         $itemsByOrder = OrderItem::query()->whereIn('order_id', $orderIds)->get(['order_id', 'sku_id', 'quantity'])->groupBy('order_id');
         $costs = $this->fetchCosts($itemsByOrder->flatten(1)->pluck('sku_id'));
-        $orders->each(fn (Order $o) => $o->setAttribute('_profit', $this->compute($o, $itemsByOrder->get($o->getKey(), collect()), $pct, $costs)));
+        $actualByOrder = $this->fetchActualCogs($orderIds);   // FIFO COGS thực — đơn đã ship (SPEC 0014)
+        $orders->each(fn (Order $o) => $o->setAttribute('_profit', $this->compute(
+            $o, $itemsByOrder->get($o->getKey(), collect()), $pct, $costs, $actualByOrder[$o->getKey()] ?? null,
+        )));
     }
 
     /** Annotate a single order whose `items` relation is already loaded. */
     public function annotateLoaded(Order $order, ?array $tenantSettings): void
     {
         $items = $order->relationLoaded('items') ? $order->items : $order->items()->get();
-        $order->setAttribute('_profit', $this->compute($order, $items, $this->platformFeePct($tenantSettings), $this->fetchCosts($items->pluck('sku_id'))));
+        $actual = $this->fetchActualCogs([$order->getKey()])[$order->getKey()] ?? null;
+        $order->setAttribute('_profit', $this->compute(
+            $order, $items, $this->platformFeePct($tenantSettings), $this->fetchCosts($items->pluck('sku_id')), $actual,
+        ));
+    }
+
+    /**
+     * Tổng COGS thực từ `order_costs` — bất biến, ghi tại thời điểm ship. Khi có dữ liệu này thì lợi nhuận là
+     * **THỰC** (không phải ước tính), `cost_complete=true` và `cost_source='fifo|average|latest'`.
+     *
+     * @param  list<int>  $orderIds
+     * @return array<int, array{cogs:int, source:string}>
+     */
+    private function fetchActualCogs(array $orderIds): array
+    {
+        if ($orderIds === []) {
+            return [];
+        }
+        $rows = OrderCost::withoutGlobalScope(TenantScope::class)
+            ->whereIn('order_id', $orderIds)
+            ->selectRaw('order_id, SUM(cogs_total) AS cogs, MAX(cost_method) AS method, COUNT(*) AS n')
+            ->groupBy('order_id')->get();
+        $out = [];
+        foreach ($rows as $r) {
+            $out[(int) $r->order_id] = ['cogs' => (int) $r->cogs, 'source' => (string) ($r->method ?: 'fifo')];
+        }
+
+        return $out;
     }
 
     /** @param Collection<int, mixed> $skuIds @return Collection<int, Sku> keyed by id */
@@ -67,19 +98,27 @@ class OrderProfitService
      * @param  Collection<int, OrderItem>  $items  rows with at least sku_id + quantity
      * @param  array<string,float>  $platformFeePct
      * @param  Collection<int, Sku>  $skuCosts
-     * @return array{cogs:int,platform_fee:int,shipping_fee:int,estimated_profit:int,platform_fee_pct:float,cost_complete:bool}
+     * @param  array{cogs:int,source:string}|null  $actual  COGS thực từ `order_costs` (đã ship); null = chưa ship
+     * @return array{cogs:int,platform_fee:int,shipping_fee:int,estimated_profit:int,platform_fee_pct:float,cost_complete:bool,cost_source:string}
      */
-    private function compute(Order $order, Collection $items, array $platformFeePct, Collection $skuCosts): array
+    private function compute(Order $order, Collection $items, array $platformFeePct, Collection $skuCosts, ?array $actual = null): array
     {
-        $cogs = 0;
-        $complete = $items->isNotEmpty();
-        foreach ($items as $it) {
-            $sku = $it->sku_id ? $skuCosts->get($it->sku_id) : null;
-            $unit = $sku instanceof Sku ? $sku->effectiveCost() : 0;
-            if ($unit <= 0) {
-                $complete = false;
+        $costSource = 'estimate';
+        if ($actual !== null && $actual['cogs'] > 0) {
+            $cogs = (int) $actual['cogs'];
+            $complete = true;
+            $costSource = $actual['source'];   // fifo | average | latest
+        } else {
+            $cogs = 0;
+            $complete = $items->isNotEmpty();
+            foreach ($items as $it) {
+                $sku = $it->sku_id ? $skuCosts->get($it->sku_id) : null;
+                $unit = $sku instanceof Sku ? $sku->effectiveCost() : 0;
+                if ($unit <= 0) {
+                    $complete = false;
+                }
+                $cogs += $unit * max(1, (int) $it->quantity);
             }
-            $cogs += $unit * max(1, (int) $it->quantity);
         }
         $pct = (float) ($platformFeePct[$order->source] ?? 0);
         $platformFee = (int) round((int) $order->grand_total * $pct / 100);
@@ -92,6 +131,7 @@ class OrderProfitService
             'estimated_profit' => (int) $order->grand_total - $platformFee - $shipping - $cogs,
             'platform_fee_pct' => $pct,
             'cost_complete' => $complete,
+            'cost_source' => $costSource,
         ];
     }
 }
