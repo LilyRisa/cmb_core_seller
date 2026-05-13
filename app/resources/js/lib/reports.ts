@@ -26,8 +26,28 @@ export interface ProfitReport {
     from: string;
     to: string;
     granularity: Granularity;
-    totals: { orders: number; revenue: number; cogs: number; gross_profit: number; margin_pct: number };
-    series: Array<{ date: string; revenue: number; cogs: number; gross_profit: number; margin_pct: number }>;
+    totals: {
+        orders: number;
+        revenue: number;
+        cogs: number;
+        fees: number;             // phí sàn (commission/payment/voucher/adjustment) — từ settlement_lines
+        shipping: number;         // phí vận chuyển thực — từ settlement_lines
+        gross_profit: number;     // revenue − cogs
+        net_profit: number;       // revenue − cogs − fees − shipping
+        margin_pct: number;       // net_profit / revenue × 100
+        fee_source: 'settlement' | 'none';
+    };
+    series: Array<{
+        date: string;
+        orders: number;
+        revenue: number;
+        cogs: number;
+        fees: number;
+        shipping: number;
+        gross_profit: number;
+        net_profit: number;
+        margin_pct: number;
+    }>;
 }
 
 export interface TopProductsReport {
@@ -91,10 +111,11 @@ export function useTopProductsReport(filters: ReportFilters & { limit?: number; 
     });
 }
 
-/** URL for direct CSV download (server streams) — open in new tab. */
+/** URL for direct CSV download (server streams) — open in new tab. `<a href>` không gửi được header,
+ *  nên truyền `X-Tenant-Id` qua query (BE `EnsureTenant` chấp nhận cả header + query — header ưu tiên). */
 export function exportReportUrl(tenantId: number, type: 'revenue' | 'profit' | 'top-products', filters: ReportFilters & { limit?: number; sort_by?: string }): string {
-    const params = new URLSearchParams({ type });
+    const params = new URLSearchParams({ type, 'X-Tenant-Id': String(tenantId) });
     Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== '' && v !== null) params.set(k, String(v)); });
 
-    return `/api/v1/reports/export?${params.toString()}&X-Tenant-Id=${tenantId}`;
+    return `/api/v1/reports/export?${params.toString()}`;
 }

@@ -178,7 +178,7 @@ export function ChannelsPage() {
                         {!connectable.some((p) => p.code === 'lazada') && <Button disabled icon={<ShopOutlined />}>Lazada <Tag style={{ marginLeft: 6 }}>Phase 4</Tag></Button>}
                     </Space>
                     <Typography.Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0, fontSize: 12 }}>
-                        Bấm "Kết nối" sẽ chuyển bạn tới trang ủy quyền của sàn; sau khi đồng ý, bạn quay lại đây. Yêu cầu: <code>APP_URL</code> phải là địa chỉ HTTPS công khai (dùng ngrok cho dev) để sàn redirect callback về được.
+                        Bấm "Kết nối" sẽ chuyển bạn tới trang ủy quyền của sàn; sau khi đồng ý, bạn quay lại đây.
                     </Typography.Paragraph>
                 </Card>
             )}

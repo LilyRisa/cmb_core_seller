@@ -26,7 +26,10 @@ class EnsureTenant
             return response()->json(['error' => ['code' => 'UNAUTHENTICATED', 'message' => 'Chưa đăng nhập.']], 401);
         }
 
+        // Header là kênh chính; query param `X-Tenant-Id` cho phép `<a href download>` (browser không gửi
+        // header custom khi mở link/blob). Session là fallback cuối (đã thuộc tenant nào ở request trước).
         $tenantId = $request->header('X-Tenant-Id')
+            ?: $request->query('X-Tenant-Id')
             ?: ($request->hasSession() ? $request->session()->get('current_tenant_id') : null);
 
         if (! $tenantId) {

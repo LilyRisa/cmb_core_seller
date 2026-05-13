@@ -148,21 +148,36 @@ function ProfitTab({ filters }: { filters: ReportFilters }) {
                 <>
                     <Space wrap size={32} style={{ marginBottom: 16 }}>
                         <Statistic title="Số đơn (đã ship)" value={t!.orders} prefix={<FundOutlined />} />
-                        <Statistic title="Doanh thu thực" value={t!.revenue} suffix="₫" formatter={(v) => Number(v).toLocaleString('vi-VN')} />
-                        <Statistic title="Giá vốn (COGS)" value={t!.cogs} suffix="₫" formatter={(v) => Number(v).toLocaleString('vi-VN')} />
+                        <Statistic title="Doanh thu" value={t!.revenue} suffix="₫" formatter={(v) => Number(v).toLocaleString('vi-VN')} />
+                        <Statistic title="Giá vốn (COGS — FIFO)" value={t!.cogs} suffix="₫" formatter={(v) => Number(v).toLocaleString('vi-VN')} />
+                        <Statistic title="Phí sàn (đối soát)" value={t!.fees} suffix="₫" formatter={(v) => Number(v).toLocaleString('vi-VN')} valueStyle={{ color: '#cf1322' }} />
+                        <Statistic title="Phí vận chuyển" value={t!.shipping} suffix="₫" formatter={(v) => Number(v).toLocaleString('vi-VN')} valueStyle={{ color: '#cf1322' }} />
                         <Statistic title="Lợi nhuận gộp" value={t!.gross_profit} suffix="₫"
                             formatter={(v) => Number(v).toLocaleString('vi-VN')}
                             valueStyle={{ color: t!.gross_profit >= 0 ? '#389e0d' : '#cf1322' }} />
-                        <Statistic title="Biên LN" value={t!.margin_pct} suffix="%" precision={2} valueStyle={{ color: t!.margin_pct >= 0 ? '#389e0d' : '#cf1322' }} />
+                        <Statistic title="Lợi nhuận ròng" value={t!.net_profit} suffix="₫"
+                            formatter={(v) => Number(v).toLocaleString('vi-VN')}
+                            valueStyle={{ color: t!.net_profit >= 0 ? '#389e0d' : '#cf1322', fontWeight: 700 }} />
+                        <Statistic title="Biên LN ròng" value={t!.margin_pct} suffix="%" precision={2}
+                            valueStyle={{ color: t!.margin_pct >= 0 ? '#389e0d' : '#cf1322' }} />
                     </Space>
+                    {t!.fee_source === 'none' && (
+                        <Typography.Paragraph type="warning" style={{ fontSize: 13, marginBottom: 12 }}>
+                            ⚠ Chưa có dữ liệu đối soát từ sàn (settlement). LN ròng tạm bằng LN gộp — kéo đối soát ở mục <strong>Tài chính → Đối soát</strong> để có số phí thực.
+                        </Typography.Paragraph>
+                    )}
                     <Typography.Title level={5}>Diễn biến theo {data.granularity === 'day' ? 'ngày' : data.granularity === 'week' ? 'tuần' : 'tháng'}</Typography.Title>
-                    <Table size="small" rowKey="date" pagination={false} dataSource={data.series}
+                    <Table size="small" rowKey="date" pagination={false} dataSource={data.series} scroll={{ x: 'max-content' }}
                         columns={[
                             { title: 'Mốc', dataIndex: 'date', key: 'date' },
+                            { title: 'Đơn', dataIndex: 'orders', key: 'o', align: 'right', width: 70 },
                             { title: 'Doanh thu', dataIndex: 'revenue', key: 'r', align: 'right', render: (v) => <MoneyText value={v} /> },
                             { title: 'COGS', dataIndex: 'cogs', key: 'c', align: 'right', render: (v) => <MoneyText value={v} /> },
-                            { title: 'LN gộp', dataIndex: 'gross_profit', key: 'g', align: 'right', render: (v) => <Typography.Text strong style={{ color: v >= 0 ? '#389e0d' : '#cf1322' }}><MoneyText value={v} strong /></Typography.Text> },
-                            { title: 'Biên', dataIndex: 'margin_pct', key: 'm', align: 'right', width: 100, render: (v) => `${v}%` },
+                            { title: 'Phí sàn', dataIndex: 'fees', key: 'f', align: 'right', render: (v) => v > 0 ? <Typography.Text style={{ color: '#cf1322' }}><MoneyText value={v} /></Typography.Text> : <Typography.Text type="secondary">—</Typography.Text> },
+                            { title: 'Phí ship', dataIndex: 'shipping', key: 's', align: 'right', render: (v) => v > 0 ? <Typography.Text style={{ color: '#cf1322' }}><MoneyText value={v} /></Typography.Text> : <Typography.Text type="secondary">—</Typography.Text> },
+                            { title: 'LN gộp', dataIndex: 'gross_profit', key: 'g', align: 'right', render: (v) => <MoneyText value={v} /> },
+                            { title: 'LN ròng', dataIndex: 'net_profit', key: 'n', align: 'right', render: (v) => <Typography.Text strong style={{ color: v >= 0 ? '#389e0d' : '#cf1322' }}><MoneyText value={v} strong /></Typography.Text> },
+                            { title: 'Biên', dataIndex: 'margin_pct', key: 'm', align: 'right', width: 90, render: (v) => `${v}%` },
                         ]} />
                 </>
             )}

@@ -3,12 +3,17 @@
 namespace CMBcoreSeller\Modules\Reports\Services;
 
 use Carbon\CarbonImmutable;
+use CMBcoreSeller\Modules\Finance\Models\SettlementLine;
 use CMBcoreSeller\Modules\Inventory\Models\OrderCost;
+use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Orders\Models\OrderItem;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
-use Illuminate\Support\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+
+// (`Carbon` not used — typehints use `CarbonImmutable`.)
 
 /**
  * Báo cáo bán hàng / lợi nhuận — Phase 6.1 / SPEC 0015.
@@ -24,13 +29,17 @@ class SalesReportService
 {
     public const GRANULARITIES = ['day', 'week', 'month'];
 
+    /** Trạng thái đơn được loại khỏi báo cáo doanh thu / lợi nhuận (không tính).
+     *  Theo `StandardOrderStatus`: `cancelled` (đã huỷ) + `returned_refunded` (đã trả/hoàn). */
+    private const EXCLUDED_STATUSES = ['cancelled', 'returned_refunded'];
+
     /** @param  array{source?:string,channel_account_id?:int,warehouse_id?:int}  $filters @return array{from:string,to:string,granularity:string,totals:array,series:list<array>,by_source:list<array>} */
     public function revenue(int $tenantId, CarbonImmutable $from, CarbonImmutable $to, string $granularity, array $filters = []): array
     {
         $granularity = in_array($granularity, self::GRANULARITIES, true) ? $granularity : 'day';
         $base = Order::withoutGlobalScope(TenantScope::class)->where('tenant_id', $tenantId)
             ->whereNull('deleted_at')->whereBetween('placed_at', [$from, $to])
-            ->whereNotIn('status', ['cancelled']);
+            ->whereNotIn('status', self::EXCLUDED_STATUSES);
         $this->applyFilters($base, $filters);
 
         $trunc = $this->truncDateSql('placed_at', $granularity);
@@ -60,37 +69,91 @@ class SalesReportService
         ];
     }
 
-    /** Báo cáo lợi nhuận THỰC (chỉ đơn đã ship — có `order_costs`). Trả tỉ suất ln% trên doanh thu. */
+    /**
+     * Báo cáo lợi nhuận THỰC — chỉ đơn đã ship (có `order_costs`).
+     *
+     *  - Doanh thu = Σ `order_items.subtotal` (đã trừ discount; **không** dùng `unit_price × qty`).
+     *  - COGS thực = Σ `order_costs.cogs_total` (FIFO khi ship).
+     *  - Phí sàn / phí ship thực từ `settlement_lines` (SPEC 0016) — chỉ áp khi đã reconcile (`order_id IS NOT NULL`).
+     *  - `gross_profit` = revenue − cogs · `net_profit` = revenue − cogs − fees − shipping_paid_to_carrier.
+     *  - `margin_pct` = LN ròng / doanh thu × 100.
+     */
     public function profit(int $tenantId, CarbonImmutable $from, CarbonImmutable $to, string $granularity, array $filters = []): array
     {
         $granularity = in_array($granularity, self::GRANULARITIES, true) ? $granularity : 'day';
-        // Chỉ tính đơn đã ship + có `order_costs` (LN thực). Join để gắn order header attrs.
+        // Chỉ tính đơn đã ship + có `order_costs` (LN thực). Join `order_items` để dùng `subtotal` chuẩn.
         $base = OrderCost::withoutGlobalScope(TenantScope::class)
             ->join('orders', 'orders.id', '=', 'order_costs.order_id')
+            ->join('order_items', 'order_items.id', '=', 'order_costs.order_item_id')
             ->where('order_costs.tenant_id', $tenantId)
             ->whereBetween('order_costs.shipped_at', [$from, $to])
-            ->whereNull('orders.deleted_at');
+            ->whereNull('orders.deleted_at')
+            ->whereNotIn('orders.status', self::EXCLUDED_STATUSES);
         $this->applyFiltersJoined($base, $filters);
 
         $trunc = $this->truncDateSql('order_costs.shipped_at', $granularity);
-        $series = (clone $base)->selectRaw("{$trunc} AS bucket, SUM(order_costs.qty * (SELECT oi.unit_price FROM order_items oi WHERE oi.id = order_costs.order_item_id)) AS revenue_line, SUM(order_costs.cogs_total) AS cogs")
-            ->groupBy(DB::raw($trunc))->orderBy(DB::raw($trunc))->get()
-            ->map(fn ($r) => [
-                'date' => (string) $r->bucket,
-                'revenue' => (int) ($r->revenue_line ?? 0),
-                'cogs' => (int) $r->cogs,
-                'gross_profit' => (int) (($r->revenue_line ?? 0) - $r->cogs),
-                'margin_pct' => $r->revenue_line > 0 ? round(100.0 * ((float) $r->revenue_line - (float) $r->cogs) / (float) $r->revenue_line, 2) : 0,
-            ])->all();
+        $seriesRows = (clone $base)
+            ->selectRaw("{$trunc} AS bucket, SUM(order_items.subtotal) AS revenue_line, SUM(order_costs.cogs_total) AS cogs, COUNT(DISTINCT order_costs.order_id) AS orders")
+            ->groupBy(DB::raw($trunc))->orderBy(DB::raw($trunc))->get();
 
-        $totalsRow = (clone $base)->selectRaw('SUM(order_costs.qty * (SELECT oi.unit_price FROM order_items oi WHERE oi.id = order_costs.order_item_id)) AS revenue, SUM(order_costs.cogs_total) AS cogs, COUNT(DISTINCT order_costs.order_id) AS orders')->first();
+        $totalsRow = (clone $base)
+            ->selectRaw('SUM(order_items.subtotal) AS revenue, SUM(order_costs.cogs_total) AS cogs, COUNT(DISTINCT order_costs.order_id) AS orders')
+            ->first();
+
+        // Phí thực từ đối soát — group theo cùng bucket như series (SPEC 0016).
+        $orderIds = (clone $base)->pluck('order_costs.order_id')->unique()->values()->all();
+        $feesByOrder = $this->fetchActualFeesByOrder($tenantId, $orderIds);   // [order_id => ['fees'=>int,'shipping'=>int]]
+
+        // Để chia phí theo bucket: cần `shipped_at` ⇒ map order_id → bucket (lấy ngày ship sớm nhất của đơn).
+        $bucketByOrder = (clone $base)->selectRaw("order_costs.order_id, MIN({$trunc}) AS bucket")
+            ->groupBy('order_costs.order_id')->pluck('bucket', 'order_costs.order_id')->all();
+
+        $feesByBucket = [];   // bucket => ['fees'=>int,'shipping'=>int]
+        foreach ($feesByOrder as $oid => $f) {
+            $b = (string) ($bucketByOrder[$oid] ?? '');
+            if ($b === '') {
+                continue;
+            }
+            $feesByBucket[$b] ??= ['fees' => 0, 'shipping' => 0];
+            $feesByBucket[$b]['fees'] += (int) $f['fees'];
+            $feesByBucket[$b]['shipping'] += (int) $f['shipping'];
+        }
+
+        $series = $seriesRows->map(function ($r) use ($feesByBucket) {
+            $b = (string) $r->bucket;
+            $revenue = (int) ($r->revenue_line ?? 0);
+            $cogs = (int) $r->cogs;
+            $fees = (int) ($feesByBucket[$b]['fees'] ?? 0);
+            $shipping = (int) ($feesByBucket[$b]['shipping'] ?? 0);
+            $gross = $revenue - $cogs;
+            $net = $gross - $fees - $shipping;
+
+            return [
+                'date' => $b,
+                'orders' => (int) $r->orders,
+                'revenue' => $revenue,
+                'cogs' => $cogs,
+                'fees' => $fees,
+                'shipping' => $shipping,
+                'gross_profit' => $gross,
+                'net_profit' => $net,
+                'margin_pct' => $revenue > 0 ? round(100.0 * $net / $revenue, 2) : 0,
+            ];
+        })->all();
+
         $revenue = (int) ($totalsRow->revenue ?? 0);
         $cogs = (int) ($totalsRow->cogs ?? 0);
+        $feesTotal = array_sum(array_column($feesByOrder, 'fees'));
+        $shippingTotal = array_sum(array_column($feesByOrder, 'shipping'));
+        $gross = $revenue - $cogs;
+        $net = $gross - $feesTotal - $shippingTotal;
         $totals = [
             'orders' => (int) ($totalsRow->orders ?? 0),
             'revenue' => $revenue, 'cogs' => $cogs,
-            'gross_profit' => $revenue - $cogs,
-            'margin_pct' => $revenue > 0 ? round(100.0 * ($revenue - $cogs) / $revenue, 2) : 0,
+            'fees' => $feesTotal, 'shipping' => $shippingTotal,
+            'gross_profit' => $gross, 'net_profit' => $net,
+            'margin_pct' => $revenue > 0 ? round(100.0 * $net / $revenue, 2) : 0,
+            'fee_source' => $feesTotal > 0 || $shippingTotal > 0 ? 'settlement' : 'none',
         ];
 
         return [
@@ -101,12 +164,54 @@ class SalesReportService
         ];
     }
 
-    /** Top SKU theo doanh thu / lợi nhuận thực. */
-    public function topProducts(int $tenantId, CarbonImmutable $from, CarbonImmutable $to, int $limit, string $sortBy = 'revenue'): array
+    /**
+     * Tổng phí thực theo đơn từ `settlement_lines` đã reconcile (cùng convention `OrderProfitService::fetchActualFees`).
+     * `commission|payment_fee|voucher_seller|adjustment` ⇒ `fees`; `shipping_fee` ⇒ `shipping`. Số âm → đảo dấu thành chi dương.
+     *
+     * @param  list<int>  $orderIds
+     * @return array<int, array{fees:int,shipping:int}>
+     */
+    private function fetchActualFeesByOrder(int $tenantId, array $orderIds): array
+    {
+        if ($orderIds === [] || ! class_exists(SettlementLine::class)) {
+            return [];
+        }
+        $rows = SettlementLine::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenantId)->whereIn('order_id', $orderIds)
+            ->selectRaw('order_id, fee_type, SUM(amount) AS amount')
+            ->groupBy('order_id', 'fee_type')->get();
+        $out = [];
+        foreach ($rows as $r) {
+            $oid = (int) $r->order_id;
+            $out[$oid] ??= ['fees' => 0, 'shipping' => 0];
+            $a = (int) $r->amount;
+            switch ($r->fee_type) {
+                case 'commission':
+                case 'payment_fee':
+                case 'voucher_seller':
+                case 'adjustment':
+                    $out[$oid]['fees'] += abs($a);
+                    break;
+                case 'shipping_fee':
+                    $out[$oid]['shipping'] += abs($a);
+                    break;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Top SKU theo doanh thu / lợi nhuận / số lượng. Lọc theo `source`/`channel_account_id` (cùng filter
+     * với revenue/profit) để chip "Sàn TMĐT" trên trang Báo cáo ảnh hưởng đồng nhất 3 tab.
+     *
+     * @param  array{source?:string,channel_account_id?:int,warehouse_id?:int}  $filters
+     */
+    public function topProducts(int $tenantId, CarbonImmutable $from, CarbonImmutable $to, int $limit, string $sortBy = 'revenue', array $filters = []): array
     {
         $limit = max(1, min(100, $limit));
         $sortBy = in_array($sortBy, ['revenue', 'profit', 'qty'], true) ? $sortBy : 'revenue';
-        // SKU bán: dựa trên `order_items` (tất cả đơn không huỷ) + join `order_costs` (đã ship — có cogs).
+        // SKU bán: dựa trên `order_items` (đơn không huỷ/trả) + join `order_costs` (đã ship — có cogs).
         $rows = OrderItem::withoutGlobalScope(TenantScope::class)
             ->select(['order_items.sku_id'])
             ->selectRaw('SUM(order_items.quantity) AS qty')
@@ -116,16 +221,22 @@ class SalesReportService
             ->leftJoin('order_costs AS oc', 'oc.order_item_id', '=', 'order_items.id')
             ->where('orders.tenant_id', $tenantId)
             ->whereNull('orders.deleted_at')
-            ->whereNotIn('orders.status', ['cancelled'])
+            ->whereNotIn('orders.status', self::EXCLUDED_STATUSES)
             ->whereBetween('orders.placed_at', [$from, $to])
-            ->whereNotNull('order_items.sku_id')
-            ->groupBy('order_items.sku_id')
+            ->whereNotNull('order_items.sku_id');
+        if (! empty($filters['source'])) {
+            $rows->where('orders.source', $filters['source']);
+        }
+        if (! empty($filters['channel_account_id'])) {
+            $rows->where('orders.channel_account_id', (int) $filters['channel_account_id']);
+        }
+        $rows = $rows->groupBy('order_items.sku_id')
             ->orderByDesc(DB::raw($sortBy === 'profit' ? '(SUM(order_items.subtotal) - COALESCE(SUM(oc.cogs_total), 0))' : ($sortBy === 'qty' ? 'SUM(order_items.quantity)' : 'SUM(order_items.subtotal)')))
             ->limit($limit)->get();
 
         $skuIds = $rows->pluck('sku_id')->all();
         $skus = $skuIds === [] ? collect()
-            : \CMBcoreSeller\Modules\Inventory\Models\Sku::withoutGlobalScope(TenantScope::class)->whereIn('id', $skuIds)
+            : Sku::withoutGlobalScope(TenantScope::class)->whereIn('id', $skuIds)
                 ->get(['id', 'sku_code', 'name', 'image_url'])->keyBy('id');
 
         return [
@@ -148,7 +259,7 @@ class SalesReportService
         ];
     }
 
-    /** @param  \Illuminate\Database\Eloquent\Builder<Order>  $q */
+    /** @param  Builder<Order>  $q */
     private function applyFilters($q, array $f): void
     {
         if (! empty($f['source'])) {
@@ -186,7 +297,7 @@ class SalesReportService
     }
 
     /** @param  list<array<string,mixed>>  $rows  data rows; first row used to detect headers. */
-    public function toCsv(string $name, array $headers, array $rows): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function toCsv(string $name, array $headers, array $rows): StreamedResponse
     {
         return response()->streamDownload(function () use ($headers, $rows) {
             $fh = fopen('php://output', 'w');

@@ -42,10 +42,10 @@ class ReportController extends Controller
     public function topProducts(Request $request, CurrentTenant $tenant): JsonResponse
     {
         abort_unless($request->user()?->can('reports.view'), 403, 'Bạn không có quyền xem báo cáo.');
-        [$from, $to] = $this->parseFilters($request);
+        [$from, $to, , $filters] = $this->parseFilters($request);
         $limit = (int) $request->query('limit', 20);
         $sortBy = (string) $request->query('sort_by', 'revenue');
-        $data = $this->service->topProducts((int) $tenant->id(), $from, $to, $limit, $sortBy);
+        $data = $this->service->topProducts((int) $tenant->id(), $from, $to, $limit, $sortBy, $filters);
 
         return response()->json(['data' => $data]);
     }
@@ -59,14 +59,16 @@ class ReportController extends Controller
 
         if ($type === 'profit') {
             $r = $this->service->profit($tenantId, $from, $to, $granularity, $filters);
-            $headers = ['Ngày', 'Doanh thu (VND)', 'Giá vốn (VND)', 'Lợi nhuận gộp (VND)', 'Biên LN (%)'];
-            $rows = array_map(fn ($s) => [$s['date'], $s['revenue'], $s['cogs'], $s['gross_profit'], $s['margin_pct']], $r['series']);
+            $headers = ['Ngày', 'Số đơn', 'Doanh thu (VND)', 'Giá vốn (VND)', 'Phí sàn (VND)', 'Phí vận chuyển (VND)', 'Lợi nhuận gộp (VND)', 'Lợi nhuận ròng (VND)', 'Biên LN (%)'];
+            $rows = array_map(fn ($s) => [
+                $s['date'], $s['orders'], $s['revenue'], $s['cogs'], $s['fees'], $s['shipping'], $s['gross_profit'], $s['net_profit'], $s['margin_pct'],
+            ], $r['series']);
 
             return $this->service->toCsv('bao-cao-loi-nhuan-'.$from->format('Ymd').'-'.$to->format('Ymd'), $headers, $rows);
         }
         if ($type === 'top-products') {
             $limit = (int) $request->query('limit', 50);
-            $r = $this->service->topProducts($tenantId, $from, $to, $limit, (string) $request->query('sort_by', 'revenue'));
+            $r = $this->service->topProducts($tenantId, $from, $to, $limit, (string) $request->query('sort_by', 'revenue'), $filters);
             $headers = ['Mã SKU', 'Tên SP', 'SL bán', 'Doanh thu (VND)', 'Giá vốn (VND)', 'Lợi nhuận gộp (VND)', 'Biên LN (%)'];
             $rows = array_map(fn ($i) => [
                 $i['sku']['sku_code'] ?? '', $i['sku']['name'] ?? '', $i['qty'], $i['revenue'], $i['cogs'], $i['gross_profit'], $i['margin_pct'],
