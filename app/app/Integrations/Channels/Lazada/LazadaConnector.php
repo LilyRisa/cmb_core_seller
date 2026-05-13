@@ -597,13 +597,20 @@ class LazadaConnector implements ChannelConnector
         $lastErr = null;
 
         // (1) PrintAWB — preferred path khi có package_id (LEX VN / GHN / J&T VN trả PDF ổn định hơn ở đây).
+        // Lazada `/order/package/document/get` nhận MỘT business param duy nhất `getDocumentReq` (JSON string)
+        // — gửi flat params (`doc_type=`, `package_ids=`) sẽ trả `MissingParameter "getDocumentReq"`. Theo SDK
+        // chính thức: `getDocumentReq = { doc_type: PDF, packages: [{package_id}], print_item_list: bool }`.
         if ($packageId !== '') {
             try {
                 $printAwbPath = (string) (config('integrations.lazada.endpoints.print_awb') ?? '/order/package/document/get');
+                $printDocType = in_array($docType, ['shippingLabel', 'invoice', 'carrierManifest', 'pickList'], true)
+                    ? 'PDF' : strtoupper($docType);   // PrintAWB doc_type là **format** (PDF/HTML), không phải tên loại tem
                 $data = $this->client->get($printAwbPath, $auth, [
-                    'doc_type' => $docType,
-                    'package_ids' => json_encode([$packageId], JSON_UNESCAPED_SLASHES),
-                    'print_item_list' => 'true',   // gộp packing slip (item list) vào tem để khớp ui_example
+                    'getDocumentReq' => json_encode([
+                        'doc_type' => $printDocType,
+                        'packages' => [['package_id' => $packageId]],
+                        'print_item_list' => true,   // gộp packing slip (item list) vào tem
+                    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                 ]);
                 $bytes = $this->extractDocumentBytes($data);
             } catch (\Throwable $e) {

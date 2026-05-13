@@ -571,19 +571,31 @@ class LazadaConnectorContractTest extends TestCase
     public function test_get_shipping_document_prefers_print_awb_when_package_id_known(): void
     {
         // VN region: when `externalPackageId` is passed (returned from /order/pack), connector should hit
-        // `/order/package/document/get` (PrintAWB) first instead of legacy `/order/document/get`. PrintAWB
-        // returns a more reliable PDF for 3PL (LEX VN / GHN / J&T) than the legacy endpoint.
+        // `/order/package/document/get` (PrintAWB) first. PrintAWB nhận MỘT business param `getDocumentReq`
+        // = JSON({doc_type:PDF, packages:[{package_id}], print_item_list:true}). Gửi flat sẽ trả
+        // `MissingParameter "getDocumentReq"`.
         $pdfBytes = "%PDF-1.4\nprint-awb-bytes";
         Http::fake([
             '*/order/package/document/get*' => Http::response($this->ok(['document' => ['file' => base64_encode($pdfBytes), 'doc_type' => 'shippingLabel']])),
-            // Legacy fallback should NOT be hit when PrintAWB succeeds — fail if called.
             '*/order/document/get*' => Http::response($this->ok([])),
         ]);
         $doc = $this->connector()->getShippingDocument($this->auth(), '1001', [
             'externalPackageId' => 'PKG-99', 'order_item_ids' => [9001],
         ]);
         $this->assertSame($pdfBytes, $doc['bytes']);
-        Http::assertSent(fn ($req) => str_contains((string) $req->url(), '/order/package/document/get'));
+        // Verify PrintAWB endpoint was hit AND request carries the wrapped `getDocumentReq` JSON envelope.
+        Http::assertSent(function ($req) {
+            if (! str_contains((string) $req->url(), '/order/package/document/get')) {
+                return false;
+            }
+            parse_str((string) parse_url((string) $req->url(), PHP_URL_QUERY), $q);
+            $envelope = isset($q['getDocumentReq']) ? json_decode((string) $q['getDocumentReq'], true) : null;
+
+            return is_array($envelope)
+                && ($envelope['doc_type'] ?? null) === 'PDF'
+                && ($envelope['packages'][0]['package_id'] ?? null) === 'PKG-99'
+                && ($envelope['print_item_list'] ?? null) === true;
+        });
     }
 
     public function test_get_shipping_document_falls_back_to_legacy_when_print_awb_returns_empty(): void
