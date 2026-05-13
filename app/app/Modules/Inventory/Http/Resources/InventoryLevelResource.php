@@ -21,7 +21,7 @@ class InventoryLevelResource extends JsonResource
             'available' => $this->available_cached,
             'cost_price' => $this->cost_price,
             'is_negative' => $this->is_negative,
-            'sku' => $this->whenLoaded('sku', fn () => ['id' => $this->sku?->id, 'sku_code' => $this->sku?->sku_code, 'name' => $this->sku?->name]),
+            'sku' => $this->whenLoaded('sku', fn () => ['id' => $this->sku?->id, 'sku_code' => $this->sku?->sku_code, 'name' => $this->sku?->name, 'image_url' => $this->sku?->image_url]),
             'warehouse' => $this->whenLoaded('warehouse', fn () => ['id' => $this->warehouse?->id, 'name' => $this->warehouse?->name, 'is_default' => $this->warehouse?->is_default]),
         ];
     }

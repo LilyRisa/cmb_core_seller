@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { App as AntApp, Alert, Empty, Modal, Skeleton, Space, Table, Tag, Typography } from 'antd';
+import { App as AntApp, Alert, Avatar, Empty, Modal, Skeleton, Space, Table, Tag, Typography } from 'antd';
+import { PictureOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { errorMessage } from '@/lib/api';
 import { SkuPickerField } from '@/components/SkuPicker';
@@ -44,10 +45,13 @@ export function LinkSkusModal({ open, orderIds, onClose }: { open: boolean; orde
     };
 
     const columns: ColumnsType<UnmappedSkuGroup> = [
-        { title: 'SKU sàn', key: 'sku', ellipsis: { showTitle: false }, render: (_, g) => (
-            <Space direction="vertical" size={0} style={{ minWidth: 0, maxWidth: 280 }}>
-                <Typography.Text strong ellipsis={{ tooltip: g.seller_sku ?? g.external_sku_id ?? '—' }}>{g.seller_sku ?? g.external_sku_id ?? '—'}</Typography.Text>
-                <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis={{ tooltip: `${g.sample_name} · ${g.channel_account_name}` }}>{g.sample_name} · {g.channel_account_name}</Typography.Text>
+        { title: 'SKU sàn', key: 'sku', render: (_, g) => (
+            <Space size={10} align="center" style={{ minWidth: 0 }}>
+                <Avatar shape="square" size={36} src={g.sample_image ?? undefined} icon={<PictureOutlined />} style={{ background: '#f5f5f5', color: '#bfbfbf', flex: 'none' }} />
+                <Space direction="vertical" size={0} style={{ minWidth: 0, maxWidth: 260 }}>
+                    <Typography.Text strong ellipsis={{ tooltip: g.sample_name }}>{g.sample_name}</Typography.Text>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis={{ tooltip: `SKU sàn: ${g.seller_sku ?? g.external_sku_id ?? '—'} · ${g.channel_account_name}` }}>SKU sàn: {g.seller_sku ?? g.external_sku_id ?? '—'} · {g.channel_account_name}</Typography.Text>
+                </Space>
             </Space>
         ) },
         { title: 'Đơn', key: 'orders', width: 80, align: 'center', render: (_, g) => <Tag>{g.order_count} đơn</Tag> },

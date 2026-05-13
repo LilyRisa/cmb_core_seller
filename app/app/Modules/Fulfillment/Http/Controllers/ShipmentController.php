@@ -4,7 +4,9 @@ namespace CMBcoreSeller\Modules\Fulfillment\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Modules\Fulfillment\Http\Resources\ShipmentResource;
+use CMBcoreSeller\Modules\Fulfillment\Models\PrintJob;
 use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
+use CMBcoreSeller\Modules\Fulfillment\Services\PrintService;
 use CMBcoreSeller\Modules\Fulfillment\Services\ShipmentService;
 use CMBcoreSeller\Modules\Orders\Http\Resources\OrderResource;
 use CMBcoreSeller\Modules\Orders\Models\Order;
@@ -259,29 +261,39 @@ class ShipmentController extends Controller
     }
 
     /**
-     * POST /api/v1/shipments/bulk-refetch-slip { order_ids } — "Nhận phiếu giao hàng lại": với mỗi đơn đã
-     * "Chuẩn bị hàng" nhưng chưa lấy được phiếu (lỗi gọi sàn / Gotenberg), thử kéo tem thật của sàn / arrange
-     * lại / queue render phiếu tự tạo. Lỗi từng đơn ⇒ vào `errors[]`, không chặn cả batch. SPEC 0013.
+     * POST /api/v1/shipments/bulk-refetch-slip { order_ids } — "Nhận phiếu giao hàng": với mỗi đơn đã "Chuẩn bị
+     * hàng", thử kéo tem/AWB thật của sàn về; đơn nào vẫn chưa có phiếu ⇒ gom lại render **một** print job
+     * `delivery` (FE hiện thanh tiến trình + nút "Mở để in" khi xong). Lỗi từng đơn ⇒ `errors[]`, không chặn batch.
+     * Trả `{ ok, errors, print_job_id }` (`print_job_id` = null nếu mọi đơn đã có phiếu sẵn). SPEC 0013.
      */
-    public function bulkRefetchSlip(Request $request): JsonResponse
+    public function bulkRefetchSlip(Request $request, CurrentTenant $tenant, PrintService $print): JsonResponse
     {
         abort_unless($request->user()?->can('fulfillment.ship'), 403, 'Bạn không có quyền.');
         $data = $request->validate(['order_ids' => ['required', 'array', 'min:1', 'max:200'], 'order_ids.*' => ['integer']]);
         $ok = 0;
         $errors = [];
+        $needSlip = [];
         foreach (Order::query()->whereNull('deleted_at')->whereIn('id', array_map('intval', $data['order_ids']))->get() as $order) {
             try {
-                if ($this->service->refetchSlip($order, $request->user()->getKey())) {
-                    $ok++;
-                } else {
-                    $errors[] = ['order_id' => (int) $order->getKey(), 'message' => 'Đơn chưa "Chuẩn bị hàng" (chưa có vận đơn).'];
+                $r = $this->service->refetchSlip($order, $request->user()->getKey());
+                if ($r === 'no_shipment') {
+                    $errors[] = ['order_id' => (int) $order->getKey(), 'message' => 'Đơn chưa được chuẩn bị hàng.'];
+
+                    continue;
+                }
+                $ok++;
+                if ($r === 'need_slip') {
+                    $needSlip[] = (int) $order->getKey();
                 }
             } catch (\Throwable $e) {
                 $errors[] = ['order_id' => (int) $order->getKey(), 'message' => $e->getMessage()];
             }
         }
+        $jobId = $needSlip !== []
+            ? (int) $print->createJob((int) $tenant->id(), PrintJob::TYPE_DELIVERY, $needSlip, [], $request->user()->getKey())->getKey()
+            : null;
 
-        return response()->json(['data' => ['ok' => $ok, 'errors' => $errors]]);
+        return response()->json(['data' => ['ok' => $ok, 'errors' => $errors, 'print_job_id' => $jobId]]);
     }
 
     /** POST /api/v1/scan-pack { code } — quét mã vận đơn/mã đơn để đánh dấu ĐÃ ĐÓNG GÓI (created → packed). */

@@ -112,14 +112,32 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
     if (busy) return <Spin size="small" />;
 
     const err = (e: unknown) => message.error(errorMessage(e));
-    const printDelivery = () => createPrint.mutate(sh ? { type: 'label', shipment_ids: [sh.id] } : { type: 'delivery', order_ids: [order.id] }, { onSuccess: (j) => onPrint(j.id), onError: err });
-    const doRefetchSlip = () => refetchSlip.mutate([order.id], { onSuccess: () => message.success('Đã yêu cầu lấy lại phiếu giao hàng'), onError: err });
-    // "Chuẩn bị hàng" = đẩy trạng thái "sắp xếp vận chuyển" lên sàn + lấy AWB/phiếu của sàn → đơn pending → processing.
-    // Phiếu giao hàng tự chạy queue lưu R2 (BE) ⇒ FE chỉ báo, không cần render lại lúc in.
-    const runPrepare = () => ship.mutate({ orderId: order.id }, { onSuccess: () => message.success('Đã chuẩn bị hàng — đang đẩy trạng thái lên sàn & lấy phiếu giao hàng'), onError: err });
+    // "Nhận phiếu giao hàng" — hệ thống tự kéo/tạo phiếu; trả print_job_id để hiện thanh tiến trình + nút "Mở để in".
+    const getSlip = (then?: () => void) => refetchSlip.mutate([order.id], {
+        onSuccess: (r) => {
+            if (r.print_job_id) onPrint(r.print_job_id);
+            else if (r.ok) message.success('Phiếu giao hàng đã sẵn sàng — bấm "In phiếu giao hàng".');
+            else if (r.errors.length) message.error(r.errors[0].message);
+            then?.();
+        },
+        onError: err,
+    });
+    const printLabelBundle = () => createPrint.mutate({ type: 'label', shipment_ids: [sh!.id] }, { onSuccess: (j) => onPrint(j.id), onError: err });
+    // "In phiếu giao hàng": nếu đã có phiếu ⇒ in luôn; chưa có ⇒ popup hướng dẫn (ngôn ngữ dễ hiểu) gợi bấm "Nhận phiếu giao hàng".
+    const printDelivery = () => {
+        if (sh && sh.has_label) { printLabelBundle(); return; }
+        Modal.confirm({
+            title: 'Đơn này chưa có phiếu giao hàng',
+            content: 'Cần lấy phiếu giao hàng về máy trước khi in. Bấm "Nhận phiếu giao hàng" để hệ thống tự tải về — sẽ có thanh tiến trình; khi xong, bấm "Mở để in".',
+            okText: 'Nhận phiếu giao hàng', cancelText: 'Đóng', onOk: () => getSlip(),
+        });
+    };
+    const printInvoice = () => createPrint.mutate({ type: 'invoice', order_ids: [order.id] }, { onSuccess: (j) => onPrint(j.id), onError: err });
+    // "Chuẩn bị hàng": hệ thống tự lấy mã vận đơn + phiếu giao hàng của sàn → đơn "Chờ xử lý" → "Đang xử lý". Không cần thao tác gì trên app sàn.
+    const runPrepare = () => ship.mutate({ orderId: order.id }, { onSuccess: () => message.success('Đã chuẩn bị hàng — đang lấy phiếu giao hàng của sàn. Đơn chuyển sang "Đang xử lý".'), onError: err });
     const prepare = () => {
         if (order.profit && order.profit.estimated_profit < 0) {
-            Modal.confirm({ title: 'Đơn này lợi nhuận ước tính ÂM', content: `Lợi nhuận ước tính: ${order.profit.estimated_profit.toLocaleString('vi-VN')} ₫ (tổng tiền không bù được phí sàn + giá vốn). Vẫn chuẩn bị hàng?`, okText: 'Vẫn chuẩn bị', okButtonProps: { danger: true }, cancelText: 'Để xem lại', onOk: runPrepare });
+            Modal.confirm({ title: 'Đơn này lợi nhuận ước tính ÂM', content: `Lợi nhuận ước tính: ${order.profit.estimated_profit.toLocaleString('vi-VN')} ₫ (tổng tiền không bù được phí sàn + giá vốn). Vẫn chuẩn bị hàng?`, okText: 'Vẫn chuẩn bị', okButtonProps: { danger: true }, cancelText: 'Để tôi xem lại', onOk: runPrepare });
         } else { runPrepare(); }
     };
     // "Đã gói & sẵn sàng bàn giao" — bảo đảm có vận đơn rồi markPacked (processing → ready_to_ship).
@@ -130,28 +148,33 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
         ? handover.mutate([sh.id], { onSuccess: () => message.success('Đã bàn giao ĐVVC'), onError: err })
         : ship.mutate({ orderId: order.id }, { onSuccess: (s) => handover.mutate([s.id], { onSuccess: () => message.success('Đã bàn giao ĐVVC'), onError: err }), onError: err }));
 
-    // Trạng thái "công việc" theo vận đơn (SPEC 0013): chưa có vận đơn = "chưa chuẩn bị hàng" (mọi nguồn).
+    const isWaiting = ['pending', 'unpaid'].includes(order.status);   // tab "Chờ xử lý"
     const preShipment = !['shipped', 'delivery_failed', 'delivered', 'completed', 'returning', 'returned_refunded', 'cancelled'].includes(order.status);
     const shOpen = sh && !['cancelled', 'returned', 'failed'].includes(sh.status);
     const actions: ReactNode[] = [];
-    if (preShipment && ! sh && canShip && !order.has_issue) {
-        // "Chuẩn bị hàng" — đơn chưa có mã vận đơn (chưa in/arrange phiếu). Đơn âm tồn ⇒ chặn.
-        actions.push(order.out_of_stock
-            ? <Tooltip key="prep" title="Đơn có SKU âm tồn — không thể chuẩn bị hàng / lấy phiếu giao hàng. Hãy nhập thêm hàng."><Typography.Text type="secondary"><WarningOutlined /> Hết hàng</Typography.Text></Tooltip>
-            : <a key="prep" onClick={prepare}>Chuẩn bị hàng (lấy phiếu)</a>);
+    if (preShipment && !sh && canShip && !order.has_issue) {
+        if (order.out_of_stock) {
+            actions.push(<Tooltip key="oos" title="Đơn có SKU âm tồn — không thể chuẩn bị hàng / lấy phiếu giao hàng. Hãy nhập thêm hàng."><Typography.Text type="secondary"><WarningOutlined /> Hết hàng</Typography.Text></Tooltip>);
+        } else if (isWaiting) {
+            // "Chờ xử lý" ⇒ "Chuẩn bị hàng" (đẩy trạng thái lên sàn + lấy mã vận đơn / phiếu).
+            actions.push(<a key="prep" onClick={prepare}>Chuẩn bị hàng (lấy phiếu)</a>);
+        } else {
+            // "Đang xử lý" nhưng chưa có vận đơn (đơn sàn arrange trên app sàn) ⇒ chỉ cần lấy phiếu giao hàng.
+            actions.push(<a key="prep2" onClick={() => runPrepare()}>Lấy phiếu giao hàng</a>);
+        }
     } else if (shOpen && ['pending', 'created'].includes(sh!.status)) {
         // Đã chuẩn bị / có vận đơn, chờ đóng gói + quét nội bộ.
-        if (canShip && (order.has_issue || !sh!.has_label)) actions.push(<a key="rs" style={{ color: order.has_issue ? '#cf1322' : undefined }} onClick={doRefetchSlip}>Nhận phiếu giao hàng lại</a>);
-        if (canPrint && sh!.has_label) actions.push(<a key="ds1" onClick={printDelivery}>In phiếu giao hàng</a>);
-        if (canPrint && sh!.label_url) actions.push(<a key="lbl1" onClick={() => createPrint.mutate({ type: 'label', shipment_ids: [sh!.id] }, { onSuccess: (j) => onPrint(j.id), onError: err })}>In tem sàn</a>);
+        if (canShip && (order.has_issue || !sh!.has_label)) actions.push(<a key="rs" style={{ color: order.has_issue ? '#cf1322' : undefined }} onClick={() => getSlip()}>Nhận phiếu giao hàng</a>);
+        if (canPrint) actions.push(<a key="ds1" onClick={printDelivery}>In phiếu giao hàng</a>);
+        if (canPrint && sh!.label_url) actions.push(<a key="lbl1" onClick={printLabelBundle}>In tem sàn</a>);
         if (canShip) actions.push(<a key="ready" onClick={markReady}>Đã gói & sẵn sàng bàn giao</a>);
     } else if (shOpen && sh!.status === 'packed') {
         // Đã đóng gói, chờ bàn giao ĐVVC.
         if (canShip) actions.push(<a key="ho" onClick={doHandover}>Bàn giao ĐVVC</a>);
-        if (canPrint) actions.push(<a key="ds2" onClick={printDelivery}>In lại phiếu</a>);
-        if (canPrint && sh!.label_url) actions.push(<a key="lbl2" onClick={() => createPrint.mutate({ type: 'label', shipment_ids: [sh!.id] }, { onSuccess: (j) => onPrint(j.id), onError: err })}>In tem sàn</a>);
+        if (canPrint) actions.push(<a key="ds2" onClick={printDelivery}>In phiếu giao hàng</a>);
+        if (canPrint && sh!.label_url) actions.push(<a key="lbl2" onClick={printLabelBundle}>In tem sàn</a>);
     }
-    if (canPrint) actions.push(<a key="inv" onClick={() => createPrint.mutate({ type: 'invoice', order_ids: [order.id] }, { onSuccess: (j) => onPrint(j.id), onError: err })}>In hoá đơn</a>);
+    if (canPrint) actions.push(<a key="inv" onClick={printInvoice}>In hoá đơn</a>);
     return <Space size={8} wrap>{actions}</Space>;
 }
 

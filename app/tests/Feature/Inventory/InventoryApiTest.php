@@ -82,7 +82,7 @@ class InventoryApiTest extends TestCase
         $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/inventory/adjust', ['sku_id' => $sku->getKey(), 'qty_change' => 0])->assertStatus(422);
     }
 
-    public function test_sku_mapping_single_and_bundle_and_auto_match(): void
+    public function test_sku_mapping_link_relink_unlink_and_auto_match(): void
     {
         $shop = ChannelAccount::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $this->tenant->getKey(), 'provider' => 'tiktok', 'external_shop_id' => 's', 'shop_name' => 'S', 'status' => 'active']);
         $a = Sku::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $this->tenant->getKey(), 'sku_code' => 'A', 'name' => 'A']);
@@ -90,11 +90,19 @@ class InventoryApiTest extends TestCase
         $l1 = ChannelListing::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $this->tenant->getKey(), 'channel_account_id' => $shop->getKey(), 'external_sku_id' => 'e1', 'seller_sku' => 'A', 'title' => 'L1', 'currency' => 'VND']);
         $l2 = ChannelListing::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $this->tenant->getKey(), 'channel_account_id' => $shop->getKey(), 'external_sku_id' => 'e2', 'seller_sku' => 'COMBO', 'title' => 'L2', 'currency' => 'VND']);
 
-        // single mapping with >1 line → 422
-        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/sku-mappings', ['channel_listing_id' => $l2->getKey(), 'type' => 'single', 'lines' => [['sku_id' => $a->getKey()], ['sku_id' => $b->getKey()]]])->assertStatus(422);
-        // bundle ok
-        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/sku-mappings', ['channel_listing_id' => $l2->getKey(), 'type' => 'bundle', 'lines' => [['sku_id' => $a->getKey(), 'quantity' => 1], ['sku_id' => $b->getKey(), 'quantity' => 2]]])->assertCreated()->assertJsonCount(2, 'data');
-        $this->assertSame(2, SkuMapping::withoutGlobalScope(TenantScope::class)->where('channel_listing_id', $l2->getKey())->count());
+        // ghép l2 → a (quan hệ 1-1, không có "số lượng")
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/sku-mappings', ['channel_listing_id' => $l2->getKey(), 'sku_id' => $a->getKey()])->assertCreated()->assertJsonCount(1, 'data');
+        $this->assertSame(1, SkuMapping::withoutGlobalScope(TenantScope::class)->where('channel_listing_id', $l2->getKey())->count());
+        // đổi liên kết l2 → b (mỗi SKU sàn chỉ thuộc 1 SKU app — gọi lại = thay)
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/sku-mappings', ['channel_listing_id' => $l2->getKey(), 'sku_id' => $b->getKey()])->assertCreated();
+        $this->assertSame(1, SkuMapping::withoutGlobalScope(TenantScope::class)->where('channel_listing_id', $l2->getKey())->count());
+        $this->assertTrue(SkuMapping::withoutGlobalScope(TenantScope::class)->where('channel_listing_id', $l2->getKey())->where('sku_id', $b->getKey())->exists());
+        // 1 SKU app → nhiều SKU sàn: ghép l1 cũng → b
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/sku-mappings', ['channel_listing_id' => $l1->getKey(), 'sku_id' => $b->getKey()])->assertCreated();
+        $this->assertSame(2, SkuMapping::withoutGlobalScope(TenantScope::class)->where('sku_id', $b->getKey())->count());
+        // bỏ liên kết l1 (sku_id = null)
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/sku-mappings', ['channel_listing_id' => $l1->getKey(), 'sku_id' => null])->assertOk()->assertJsonCount(0, 'data');
+        $this->assertSame(0, SkuMapping::withoutGlobalScope(TenantScope::class)->where('channel_listing_id', $l1->getKey())->count());
 
         // auto-match: l1.seller_sku 'A' == sku 'A'
         $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/sku-mappings/auto-match')->assertOk()->assertJsonPath('data.matched', 1);
@@ -157,11 +165,11 @@ class InventoryApiTest extends TestCase
         // sku_code is NOT changed even if sent? FE locks it; backend still allows — but our FE never sends it.
         // Replace the mapping set with L2 only → L1 link dropped, L2 created.
         $this->actingAs($this->owner)->withHeaders($this->h())->patchJson("/api/v1/skus/{$sku->getKey()}", [
-            'mappings' => [['channel_account_id' => $shop->getKey(), 'external_sku_id' => 'L2', 'seller_sku' => 's2', 'quantity' => 2]],
+            'mappings' => [['channel_account_id' => $shop->getKey(), 'external_sku_id' => 'L2', 'seller_sku' => 's2']],
         ])->assertOk();
         $l2 = ChannelListing::withoutGlobalScope(TenantScope::class)->where('channel_account_id', $shop->getKey())->where('external_sku_id', 'L2')->firstOrFail();
         $this->assertFalse(SkuMapping::withoutGlobalScope(TenantScope::class)->where('channel_listing_id', $l1->getKey())->where('sku_id', $sku->getKey())->exists());
-        $this->assertTrue(SkuMapping::withoutGlobalScope(TenantScope::class)->where('channel_listing_id', $l2->getKey())->where('sku_id', $sku->getKey())->where('quantity', 2)->exists());
+        $this->assertTrue(SkuMapping::withoutGlobalScope(TenantScope::class)->where('channel_listing_id', $l2->getKey())->where('sku_id', $sku->getKey())->where('quantity', 1)->exists());
 
         // empty mappings array → all links dropped
         $this->actingAs($this->owner)->withHeaders($this->h())->patchJson("/api/v1/skus/{$sku->getKey()}", ['mappings' => []])->assertOk();

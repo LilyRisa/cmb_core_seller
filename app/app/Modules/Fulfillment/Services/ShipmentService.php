@@ -59,16 +59,24 @@ class ShipmentService
      * "Nhận phiếu giao hàng lại" cho đơn đã "Chuẩn bị hàng" nhưng chưa lấy được phiếu (lỗi gọi sàn / Gotenberg).
      * Idempotent: (a) đơn sàn còn `package_no` ⇒ thử kéo tem thật của sàn; (b) nếu đơn `has_issue` về "đã in đơn"/
      * "mã vận đơn" ⇒ thử `arrangeShipment` lại (lấy AWB, clear cờ khi thành công); (c) nếu vẫn chưa có tem ⇒
-     * queue render phiếu giao hàng tự tạo. Trả true nếu có vận đơn để xử lý. SPEC 0013.
+     * KHÔNG tự queue phiếu giao hàng ở đây — controller gom các đơn còn thiếu phiếu để render **một** lượt
+     * (có tiến trình hiển thị cho người dùng). Trả: `no_shipment` (chưa "Chuẩn bị hàng") | `has_label` (đã có
+     * phiếu, sẵn sàng in) | `need_slip` (cần render phiếu giao hàng tự tạo). SPEC 0013.
      */
-    public function refetchSlip(Order $order, ?int $userId = null): bool
+    public function refetchSlip(Order $order, ?int $userId = null): string
     {
         $shipment = Shipment::query()->where('tenant_id', $order->tenant_id)->where('order_id', $order->getKey())->open()->latest('id')->first();
         if (! $shipment) {
-            return false;
+            return 'no_shipment';
         }
-        // (b) đơn sàn còn vướng cờ "đã in đơn / mã vận đơn" ⇒ thử arrange lại
-        $issueAboutChannel = $order->has_issue && (str_contains((string) $order->issue_reason, 'in đơn') || str_contains((string) $order->issue_reason, 'mã vận đơn'));
+        // (b) đơn sàn còn vướng cờ liên quan phiếu / mã vận đơn của sàn ⇒ thử lấy lại từ sàn (không cần thao tác app sàn)
+        $reason = (string) $order->issue_reason;
+        $issueAboutChannel = $order->has_issue && (
+            str_contains($reason, 'phiếu giao hàng')
+            || str_contains($reason, 'mã vận đơn')
+            || str_contains($reason, 'sắp xếp vận chuyển')
+            || str_contains($reason, 'in đơn')
+        );
         if ($order->channel_account_id && $issueAboutChannel) {
             try {
                 $arr = $this->arrangeOnChannel($order);
@@ -100,12 +108,8 @@ class ShipmentService
             $this->fetchAndStoreChannelLabel($order, $shipment);
             $shipment->refresh();
         }
-        // (c) chưa có tem ⇒ queue phiếu giao hàng tự tạo
-        if (blank($shipment->label_path)) {
-            $this->queueDeliverySlip($order, $userId);
-        }
 
-        return true;
+        return blank($shipment->label_path) ? 'need_slip' : 'has_label';
     }
 
     /**
@@ -128,7 +132,7 @@ class ShipmentService
             $r = $this->channels->for($account->provider)->arrangeShipment($account->authContext(), (string) $order->external_order_id, ['packages' => (array) ($order->packages ?? [])]);
         } catch (\Throwable $e) {
             Log::warning('shipment.arrange_on_channel_failed', ['order' => $order->getKey(), 'provider' => $account->provider, 'error' => $e->getMessage()]);
-            throw new RuntimeException('Không cập nhật được trạng thái "đã in đơn" lên sàn ('.Str::limit(class_basename($e).': '.$e->getMessage(), 150).')');
+            throw new RuntimeException('Chưa lấy được phiếu giao hàng từ sàn lần này. Hệ thống đã tạo phiếu giao hàng tạm — bấm "Nhận phiếu giao hàng" để thử lại sau, bạn không cần thao tác gì trên app của sàn.');
         }
         if (! empty($r['raw_status'])) {
             $order->forceFill(['raw_status' => (string) $r['raw_status']])->save();
@@ -182,15 +186,15 @@ class ShipmentService
 
         if ($tracking === null) {
             try {
-                $arr = $this->arrangeOnChannel($order);   // null = connector chưa hỗ trợ; ném lỗi nếu gọi sàn lỗi
+                $arr = $this->arrangeOnChannel($order);   // null = kênh bán chưa hỗ trợ tự lấy phiếu; ném lỗi nếu gọi sàn lỗi
                 if ($arr === null) {
-                    $issue = 'Chưa lấy được mã vận đơn từ sàn — bật đồng bộ fulfillment ("luồng A") hoặc "Sắp xếp vận chuyển" trên app sàn rồi "Đồng bộ đơn".';
+                    $issue = 'Kênh bán này chưa hỗ trợ tự lấy phiếu giao hàng của sàn. Hệ thống đã tạo phiếu giao hàng tạm — đơn vẫn xử lý bình thường.';
                 } else {
                     $tracking = $arr['tracking_no'];
                     $carrier = $arr['carrier'] ?: $carrier;
                     $packageId = $arr['package_id'] ?: $packageId;
                     if ($tracking === null) {
-                        $issue = 'Đã yêu cầu sàn sắp xếp vận chuyển; chờ sàn cấp mã vận đơn (sẽ đồng bộ về sau).';
+                        $issue = 'Đã sắp xếp vận chuyển trên sàn — đang chờ sàn cấp mã vận đơn, hệ thống sẽ tự cập nhật khi có.';
                     }
                 }
             } catch (\Throwable $e) {
@@ -211,7 +215,7 @@ class ShipmentService
             $patch = $order->carrier ? [] : ['carrier' => $carrier];
             if ($issue) {
                 $patch += ['has_issue' => true, 'issue_reason' => Str::limit((string) $issue, 240)];
-            } elseif ($order->has_issue && str_contains((string) $order->issue_reason, 'mã vận đơn')) {
+            } elseif ($order->has_issue && (str_contains((string) $order->issue_reason, 'mã vận đơn') || str_contains((string) $order->issue_reason, 'phiếu giao hàng') || str_contains((string) $order->issue_reason, 'sắp xếp vận chuyển'))) {
                 $patch += ['has_issue' => false, 'issue_reason' => null];
             }
             if ($patch !== []) {

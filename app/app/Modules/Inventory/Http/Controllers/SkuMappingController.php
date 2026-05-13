@@ -21,19 +21,25 @@ use Illuminate\Validation\ValidationException;
 /** /api/v1/sku-mappings — link channel listings to master SKUs. See SPEC 0003 §6. */
 class SkuMappingController extends Controller
 {
-    /** POST /api/v1/sku-mappings  { channel_listing_id, type, lines:[{sku_id, quantity}] } */
+    /**
+     * POST /api/v1/sku-mappings  { channel_listing_id, sku_id }  — ghép listing với 1 master SKU.
+     * Quan hệ 1-1: mỗi SKU sàn chỉ liên kết với đúng 1 master SKU (gọi lại = thay liên kết); 1 master SKU có
+     * thể được nhiều SKU sàn trỏ tới. Không còn "số lượng / combo". Truyền `sku_id = null` để bỏ liên kết.
+     */
     public function store(Request $request, SkuMappingService $service, CurrentTenant $tenant): JsonResponse
     {
         abort_unless($request->user()?->can('inventory.map'), 403, 'Bạn không có quyền ghép SKU.');
         $data = $request->validate([
             'channel_listing_id' => ['required', 'integer'],
-            'type' => ['sometimes', 'in:single,bundle'],
-            'lines' => ['required', 'array', 'min:1'],
-            'lines.*.sku_id' => ['required', 'integer'],
-            'lines.*.quantity' => ['sometimes', 'integer', 'min:1'],
+            'sku_id' => ['present', 'nullable', 'integer'],
         ]);
         $listing = ChannelListing::query()->findOrFail($data['channel_listing_id']);   // 404 if not this tenant's
-        $mappings = $service->setMapping((int) $tenant->id(), $listing, $data['type'] ?? 'single', $data['lines'], $request->user()->getKey());
+        if (! $data['sku_id']) {   // bỏ liên kết
+            SkuMapping::query()->where('channel_listing_id', $listing->getKey())->get()->each(fn (SkuMapping $m) => $service->removeMapping($m));
+
+            return response()->json(['data' => []]);
+        }
+        $mappings = $service->setMapping((int) $tenant->id(), $listing, 'single', [['sku_id' => (int) $data['sku_id'], 'quantity' => 1]], $request->user()->getKey());
         foreach ($mappings as $m) {
             $m->load('sku');
         }
@@ -77,7 +83,7 @@ class SkuMappingController extends Controller
                 }
             })
             ->with('order:id,channel_account_id')
-            ->get(['id', 'order_id', 'external_sku_id', 'seller_sku', 'name']);
+            ->get(['id', 'order_id', 'external_sku_id', 'seller_sku', 'name', 'image']);
 
         // group by (channel_account_id, external_sku_id || seller_sku)
         /** @var array<string,array<string,mixed>> $groups */
@@ -92,7 +98,7 @@ class SkuMappingController extends Controller
             if (! isset($groups[$key])) {
                 $groups[$key] = [
                     'channel_account_id' => (int) $cid, 'external_sku_id' => $it->external_sku_id, 'seller_sku' => $it->seller_sku,
-                    'sample_name' => $it->name, 'order_ids' => [], 'item_count' => 0,
+                    'sample_name' => $it->name, 'sample_image' => $it->image, 'order_ids' => [], 'item_count' => 0,
                 ];
             }
             $groups[$key]['order_ids'][] = (int) $it->order_id;
@@ -117,6 +123,7 @@ class SkuMappingController extends Controller
                 'external_sku_id' => $g['external_sku_id'],
                 'seller_sku' => $g['seller_sku'],
                 'sample_name' => $g['sample_name'],
+                'sample_image' => $g['sample_image'] ?? null,
                 'order_count' => count(array_unique($g['order_ids'])),
                 'item_count' => $g['item_count'],
                 'existing_listing_id' => $existingListing?->getKey(),

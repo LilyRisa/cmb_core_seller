@@ -14,7 +14,7 @@ export interface InventoryLevel {
     available: number;
     cost_price: number;
     is_negative: boolean;
-    sku?: { id: number; sku_code: string; name: string };
+    sku?: { id: number; sku_code: string; name: string; image_url: string | null };
     warehouse?: { id: number; name: string; is_default: boolean };
 }
 
@@ -85,7 +85,7 @@ export interface CreateSkuPayload {
     length_cm?: number | null;
     width_cm?: number | null;
     height_cm?: number | null;
-    mappings?: Array<{ channel_account_id: number; external_sku_id: string; seller_sku?: string | null; quantity?: number }>;
+    mappings?: Array<{ channel_account_id: number; external_sku_id: string; seller_sku?: string | null }>;
     levels?: Array<{ warehouse_id: number; on_hand?: number; cost_price?: number }>;
 }
 
@@ -111,7 +111,7 @@ export type UpdateSkuPayload = Partial<{
     width_cm: number | null;
     height_cm: number | null;
     is_active: boolean;
-    mappings: Array<{ channel_account_id: number; external_sku_id: string; seller_sku?: string | null; quantity?: number }>;
+    mappings: Array<{ channel_account_id: number; external_sku_id: string; seller_sku?: string | null }>;
 }>;
 
 export interface Product {
@@ -142,7 +142,7 @@ export interface ChannelListing {
     sync_error: string | null;
     last_pushed_at: string | null;
     is_mapped: boolean | null;
-    mappings?: Array<{ id: number; sku_id: number; quantity: number; type: string; sku: { id: number; sku_code: string; name: string } | null }>;
+    mappings?: Array<{ id: number; sku_id: number; quantity: number; type: string; sku: { id: number; sku_code: string; name: string; image_url: string | null } | null }>;
 }
 
 export interface Warehouse { id: number; name: string; code: string | null; is_default: boolean }
@@ -366,12 +366,13 @@ export function useDeleteSkuImage() {
     return useMutation({ mutationFn: async (skuId: number) => { await api!.delete(`/skus/${skuId}/image`); }, onSuccess: invalidate });
 }
 
+/** Ghép (hoặc đổi) listing với 1 master SKU — quan hệ 1-1; `sku_id: null` để bỏ ghép. SPEC 0003/0005. */
 export function useSetSkuMapping() {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();
-    const invalidate = useInvalidate([['channel-listings', tenantId]]);
+    const invalidate = useInvalidate([['channel-listings', tenantId], ['skus', tenantId], ['inventory-levels', tenantId]]);
     return useMutation({
-        mutationFn: async (vars: { channel_listing_id: number; type: 'single' | 'bundle'; lines: Array<{ sku_id: number; quantity?: number }> }) => {
+        mutationFn: async (vars: { channel_listing_id: number; sku_id: number | null }) => {
             await api!.post('/sku-mappings', vars);
         },
         onSuccess: invalidate,

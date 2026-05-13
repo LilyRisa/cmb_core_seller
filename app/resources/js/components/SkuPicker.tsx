@@ -3,10 +3,10 @@ import { Avatar, Empty, Input, Popover, Space, Spin, Typography } from 'antd';
 import { CloseCircleFilled, PictureOutlined, SearchOutlined } from '@ant-design/icons';
 import { useSku, useSkus, type Sku } from '@/lib/inventory';
 
-type SkuLite = Pick<Sku, 'sku_code' | 'name' | 'image_url' | 'spu_code'>;
+type SkuLite = Pick<Sku, 'sku_code' | 'name' | 'image_url'> & { spu_code?: string | null };
 
-/** One SKU rendered as image · name · code (used both in the list and as the field value). */
-function SkuLine({ sku, avatarSize = 40, maxTextWidth = 240 }: { sku: SkuLite; avatarSize?: number; maxTextWidth?: number }) {
+/** One SKU rendered as image · name · code — reuse this anywhere a SKU is shown/operated on (SPEC 0005). */
+export function SkuLine({ sku, avatarSize = 40, maxTextWidth = 240 }: { sku: SkuLite; avatarSize?: number; maxTextWidth?: number }) {
     return (
         <Space size={10} align="center" style={{ minWidth: 0, width: '100%' }}>
             <Avatar shape="square" size={avatarSize} src={sku.image_url ?? undefined} icon={<PictureOutlined />} style={{ background: '#f5f5f5', color: '#bfbfbf', flex: 'none' }} />
@@ -26,7 +26,7 @@ function SkuLine({ sku, avatarSize = 40, maxTextWidth = 240 }: { sku: SkuLite; a
  * (mirrors the BigSeller "ghép nối SKU hàng hoá" panel, `ui_example/ghep_noi_sku.png`).
  * One system SKU may be linked to many channel SKUs — each linking row uses one picker.
  */
-export function SkuPicker({ value, onChange, height = 260, width = 340 }: { value?: number; onChange?: (id?: number) => void; height?: number; width?: number }) {
+export function SkuPicker({ value, onChange, height = 260, width = 340 }: { value?: number; onChange?: (id?: number) => void; height?: number; width?: number | string }) {
     const [q, setQ] = useState('');
     const { data, isFetching } = useSkus({ q: q || undefined, per_page: 50 });
     const items = data?.data ?? [];

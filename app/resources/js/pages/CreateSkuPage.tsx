@@ -5,7 +5,7 @@ import {
     Radio, Row, Select, Skeleton, Space, Table, Tag, Typography, Upload,
 } from 'antd';
 import type { RcFile } from 'antd/es/upload';
-import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined, QuestionCircleOutlined, ShopOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined, ShopOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { errorMessage } from '@/lib/api';
@@ -81,7 +81,7 @@ interface BasicForm {
     width_cm?: number;
     height_cm?: number;
     is_active?: boolean;
-    mappings?: Array<{ channel_account_id?: number; external_sku_id?: string; seller_sku?: string; quantity?: number; _listing?: PickedListing }>;
+    mappings?: Array<{ channel_account_id?: number; external_sku_id?: string; seller_sku?: string; _listing?: PickedListing }>;
 }
 
 interface WhRow { included: boolean; on_hand: number; cost_price: number }
@@ -146,7 +146,7 @@ export function CreateSkuPage() {
                 .filter((m) => m.channel_listing)
                 .map((m) => ({
                     channel_account_id: m.channel_listing!.channel_account_id, external_sku_id: m.channel_listing!.external_sku_id,
-                    seller_sku: m.channel_listing!.seller_sku ?? undefined, quantity: m.quantity ?? 1,
+                    seller_sku: m.channel_listing!.seller_sku ?? undefined,
                     _listing: { external_sku_id: m.channel_listing!.external_sku_id, seller_sku: m.channel_listing!.seller_sku, title: m.channel_listing!.title, image: m.channel_listing!.image, variation: m.channel_listing!.variation, channel_stock: m.channel_listing!.channel_stock },
                 })),
         });
@@ -209,7 +209,7 @@ export function CreateSkuPage() {
 
     const cleanMappings = (rows?: BasicForm['mappings']) => (rows ?? [])
         .filter((m) => m?.channel_account_id && m?.external_sku_id?.trim())
-        .map((m) => ({ channel_account_id: m.channel_account_id!, external_sku_id: m.external_sku_id!.trim(), seller_sku: m.seller_sku?.trim() || null, quantity: m.quantity ?? 1 }));
+        .map((m) => ({ channel_account_id: m.channel_account_id!, external_sku_id: m.external_sku_id!.trim(), seller_sku: m.seller_sku?.trim() || null }));
 
     const applyImage = async (skuId: number) => {
         try {
@@ -314,8 +314,8 @@ export function CreateSkuPage() {
 
                         <Card id="mappings" title="Ghép nối với SKU gian hàng" style={{ marginBottom: 16 }}>
                             <Alert type="info" showIcon style={{ marginBottom: 12 }}
-                                message={isEdit ? 'Danh sách ghép nối ở đây là toàn bộ liên kết của SKU này — lưu lại sẽ thay thế các liên kết cũ.' : 'Ghép SKU hàng hoá này với (các) SKU/biến thể trên gian hàng để giám sát & đồng bộ tồn kho.'}
-                                description="Tồn của SKU này tự được đẩy lên các listing đã ghép — không cần nhập số tồn ở đây. Ô “× số lượng” chỉ dùng cho listing combo/lốc (xem gợi ý ở ô đó); để 1 nếu sàn bán lẻ từng cái." />
+                                message={isEdit ? 'Danh sách ghép nối ở đây là toàn bộ liên kết của SKU này — lưu lại sẽ thay thế các liên kết cũ.' : 'Ghép SKU hàng hoá này với SKU/biến thể trên gian hàng để giám sát & đồng bộ tồn kho.'}
+                                description="Một SKU hàng hoá có thể ghép với nhiều SKU sàn (từ nhiều gian hàng); mỗi SKU sàn chỉ thuộc đúng 1 SKU hàng hoá. Tồn của SKU này tự được đẩy lên các listing đã ghép — không cần nhập số tồn ở đây." />
                             <Form.List name="mappings">
                                 {(fields, { add, remove }) => (
                                     <>
@@ -339,10 +339,6 @@ export function CreateSkuPage() {
                                                                 <Form.Item {...f} name={[f.name, 'external_sku_id']} rules={[{ required: true, message: 'Chọn SKU gian hàng' }, { max: 191 }]} style={{ marginBottom: 0, flex: 1, minWidth: 320 }}>
                                                                     <ChannelListingPicker shopId={shopId} onPick={(l) => setRow({ seller_sku: l?.seller_sku ?? row.seller_sku, _listing: l ?? undefined })} />
                                                                 </Form.Item>
-                                                                <Form.Item {...f} name={[f.name, 'quantity']} initialValue={1} style={{ marginBottom: 0 }}
-                                                                    tooltip={{ title: 'Số lượng SKU hàng hoá này trong 1 SKU sàn (combo/lốc). Để 1 nếu sàn bán lẻ từng cái. Đây KHÔNG phải số tồn kho — tồn lấy từ SKU và tự đồng bộ lên sàn.', icon: <QuestionCircleOutlined /> }}>
-                                                                    <InputNumber min={1} addonBefore="×" style={{ width: 92 }} />
-                                                                </Form.Item>
                                                                 <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(f.name)} />
                                                             </Space>
                                                             <Form.Item {...f} name={[f.name, 'seller_sku']} hidden><Input /></Form.Item>
@@ -364,7 +360,7 @@ export function CreateSkuPage() {
                                                 }}
                                             </Form.Item>
                                         ))}
-                                        <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ quantity: 1 })} style={{ marginTop: 8 }}>Thêm ghép nối SKU gian hàng</Button>
+                                        <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({})} style={{ marginTop: 8 }}>Thêm ghép nối SKU gian hàng</Button>
                                     </>
                                 )}
                             </Form.List>

@@ -267,12 +267,12 @@ export function useHandoverShipments() {
     return useMutation({ mutationFn: async (shipment_ids: number[]) => { const { data } = await api!.post<{ data: { handed_over: number } }>('/shipments/handover', { shipment_ids }); return data.data; }, onSuccess: invalidate });
 }
 
-/** "Nhận phiếu giao hàng lại" cho các đơn "Chuẩn bị hàng" bị lỗi — thử kéo tem thật / arrange lại / queue render phiếu. SPEC 0013. */
+/** "Nhận phiếu giao hàng" cho các đơn đã "Chuẩn bị hàng" — kéo tem/AWB thật của sàn về; đơn chưa có phiếu ⇒ render 1 print job `delivery` (trả `print_job_id` để FE hiện tiến trình). SPEC 0013. */
 export function useBulkRefetchSlip() {
     const api = useScopedApi();
     const invalidate = useFulfillmentInvalidate();
     return useMutation({
-        mutationFn: async (order_ids: number[]) => { const { data } = await api!.post<{ data: { ok: number; errors: Array<{ order_id: number; message: string }> } }>('/shipments/bulk-refetch-slip', { order_ids }); return data.data; },
+        mutationFn: async (order_ids: number[]) => { const { data } = await api!.post<{ data: { ok: number; errors: Array<{ order_id: number; message: string }>; print_job_id: number | null } }>('/shipments/bulk-refetch-slip', { order_ids }); return data.data; },
         onSuccess: invalidate,
     });
 }

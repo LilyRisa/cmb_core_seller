@@ -86,7 +86,6 @@ class SkuController extends Controller
             'mappings.*.channel_account_id' => ['required_with:mappings', 'integer'],
             'mappings.*.external_sku_id' => ['required_with:mappings', 'string', 'max:191'],
             'mappings.*.seller_sku' => ['sometimes', 'nullable', 'string', 'max:191'],
-            'mappings.*.quantity' => ['sometimes', 'integer', 'min:1'],
             'levels' => ['sometimes', 'array'],
             'levels.*.warehouse_id' => ['required_with:levels', 'integer'],
             'levels.*.on_hand' => ['sometimes', 'integer', 'min:0'],
@@ -138,7 +137,7 @@ class SkuController extends Controller
                     ['channel_account_id' => (int) $m['channel_account_id'], 'external_sku_id' => (string) $m['external_sku_id']],
                     ['tenant_id' => $tenantId, 'seller_sku' => $m['seller_sku'] ?? null, 'title' => null, 'currency' => 'VND', 'is_active' => true],
                 );
-                $mappingService->setMapping($tenantId, $listing, 'single', [['sku_id' => $sku->getKey(), 'quantity' => (int) ($m['quantity'] ?? 1)]], $userId);
+                $mappingService->setMapping($tenantId, $listing, 'single', [['sku_id' => $sku->getKey(), 'quantity' => 1]], $userId);
             }
 
             foreach (($data['levels'] ?? []) as $lvl) {
@@ -207,7 +206,6 @@ class SkuController extends Controller
             'mappings.*.channel_account_id' => ['required_with:mappings', 'integer'],
             'mappings.*.external_sku_id' => ['required_with:mappings', 'string', 'max:191'],
             'mappings.*.seller_sku' => ['sometimes', 'nullable', 'string', 'max:191'],
-            'mappings.*.quantity' => ['sometimes', 'integer', 'min:1'],
         ]);
 
         $hasMappings = array_key_exists('mappings', $data);
@@ -235,7 +233,7 @@ class SkuController extends Controller
                         ['channel_account_id' => (int) $m['channel_account_id'], 'external_sku_id' => (string) $m['external_sku_id']],
                         ['tenant_id' => $tenantId, 'seller_sku' => $m['seller_sku'] ?? null, 'title' => null, 'currency' => 'VND', 'is_active' => true],
                     );
-                    $mappingService->setMapping($tenantId, $listing, 'single', [['sku_id' => $sku->getKey(), 'quantity' => (int) ($m['quantity'] ?? 1)]], $userId);
+                    $mappingService->setMapping($tenantId, $listing, 'single', [['sku_id' => $sku->getKey(), 'quantity' => 1]], $userId);
                     $keptListingIds[] = (int) $listing->getKey();
                 }
                 // Drop links to listings no longer in the list.

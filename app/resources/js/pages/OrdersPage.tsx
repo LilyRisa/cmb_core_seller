@@ -107,14 +107,19 @@ export function OrdersPage() {
         sort, page, per_page: perPage,
     }), [effectiveStatus, q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo, tabKey, slipFilter, params, sort, page, perPage]);
 
-    // stats: status/stage counts ignore status/stage; chip facets ignore the chip facets themselves.
+    // stats: gửi kèm trạng thái/tab hiện tại ⇒ các chip "Lọc" (Sàn / Gian hàng / ĐVVC) đếm theo đúng tab đang xem
+    // (BE: by_status/by_stage/by_slip vẫn bỏ qua status/stage/slip nên badge các tab vẫn đúng tổng riêng).
     const statsFilters = useMemo(() => ({
+        status: effectiveStatus || undefined,
         q: q || undefined, sku: skuQ || undefined, product: productQ || undefined,
         source: source || undefined,
         channel_account_id: channelAccountId ? Number(channelAccountId) : undefined,
         carrier: carrier || undefined,
         placed_from: placedFrom || undefined, placed_to: placedTo || undefined,
-    }), [q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo]);
+        has_issue: tabKey === 'issue' || params.get('has_issue') === '1' ? true : undefined,
+        out_of_stock: tabKey === 'out_of_stock' ? true : undefined,
+        slip: slipFilter,
+    }), [effectiveStatus, q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo, tabKey, slipFilter, params]);
 
     const isShipmentsTab = tabKey === 'shipments';
     // tab "Chờ xử lý" / "Đang xử lý" — cho chọn nhiều đơn + "Chuẩn bị hàng" / "In phiếu giao hàng" hàng loạt
@@ -136,7 +141,7 @@ export function OrdersPage() {
     const negProfit = selectedOrders.filter((o) => o.profit && o.profit.estimated_profit < 0);
     const runBulkPrepare = () => bulkPrepare.mutate({ order_ids: selectedKeys }, {
         onSuccess: (r) => {
-            message.success(r.created.length > 0 ? `Đã chuẩn bị hàng ${r.created.length} đơn — đang đẩy trạng thái lên sàn & lấy phiếu` : 'Không có đơn nào được chuẩn bị');
+            message.success(r.created.length > 0 ? `Đã chuẩn bị hàng ${r.created.length} đơn — đang lấy phiếu giao hàng của sàn. Các đơn chuyển sang "Đang xử lý".` : 'Không có đơn nào được chuẩn bị');
             if (r.errors.length) Modal.warning({ title: `${r.errors.length} đơn không chuẩn bị được`, content: <ul style={{ margin: 0, paddingInlineStart: 18 }}>{r.errors.map((e) => <li key={e.order_id}>Đơn #{e.order_id}: {e.message}</li>)}</ul> });
             setSelectedKeys([]);
         },
@@ -147,24 +152,42 @@ export function OrdersPage() {
             Modal.confirm({
                 title: `${negProfit.length} đơn có lợi nhuận ước tính ÂM`,
                 content: 'Tổng tiền các đơn này không bù được phí sàn + giá vốn hàng. Vẫn tiếp tục chuẩn bị hàng (tạo vận đơn / lấy phiếu)?',
-                okText: 'Vẫn chuẩn bị', okButtonProps: { danger: true }, cancelText: 'Để xem lại',
+                okText: 'Vẫn chuẩn bị', okButtonProps: { danger: true }, cancelText: 'Để tôi xem lại',
                 onOk: runBulkPrepare,
             });
         } else { runBulkPrepare(); }
     };
-    const doBulkPrintSlip = () => createPrintJob.mutate({ type: 'label', shipment_ids: selWithShipment.map((o) => o.shipment!.id) }, {
-        onSuccess: (j) => { setPrintJobId(j.id); setSelectedKeys([]); },
-        onError: (e) => message.error(errorMessage(e)),
-    });
-    // "Nhận phiếu giao hàng lại" — cho các đơn đã "Chuẩn bị hàng" nhưng chưa lấy được phiếu (lỗi gọi sàn / render).
-    const doRefetchSlip = () => refetchSlip.mutate(selWithShipment.map((o) => o.id), {
+    // "Nhận phiếu giao hàng" — kéo/tạo phiếu cho các đơn; có print_job_id ⇒ mở thanh tiến trình + nút "Mở để in".
+    const runRefetchSlip = (ids: number[]) => refetchSlip.mutate(ids, {
         onSuccess: (r) => {
-            message.success(r.ok > 0 ? `Đã yêu cầu lấy lại phiếu giao hàng cho ${r.ok} đơn` : 'Không có đơn nào để lấy lại phiếu');
-            if (r.errors.length) Modal.warning({ title: `${r.errors.length} đơn lỗi`, content: <ul style={{ margin: 0, paddingInlineStart: 18 }}>{r.errors.map((e) => <li key={e.order_id}>Đơn #{e.order_id}: {e.message}</li>)}</ul> });
+            if (r.print_job_id) setPrintJobId(r.print_job_id);
+            else if (r.ok > 0) message.success(`Phiếu giao hàng đã sẵn sàng cho ${r.ok} đơn — bấm "In phiếu giao hàng".`);
+            if (r.errors.length) Modal.warning({ title: `${r.errors.length} đơn không lấy được phiếu giao hàng`, content: <ul style={{ margin: 0, paddingInlineStart: 18 }}>{r.errors.map((e) => <li key={e.order_id}>Đơn #{e.order_id}: {e.message}</li>)}</ul> });
             setSelectedKeys([]);
         },
         onError: (e) => message.error(errorMessage(e)),
     });
+    const doRefetchSlip = () => runRefetchSlip(selWithShipment.map((o) => o.id));
+    // "In phiếu giao hàng": chỉ in được đơn đã có phiếu; đơn nào chưa có ⇒ popup hướng dẫn bấm "Nhận phiếu giao hàng".
+    const doBulkPrintSlip = () => {
+        const ready = selWithShipment.filter((o) => o.shipment!.has_label);
+        const notReady = selWithShipment.filter((o) => !o.shipment!.has_label);
+        if (notReady.length > 0) {
+            Modal.confirm({
+                title: `${notReady.length} đơn chưa có phiếu giao hàng`,
+                content: ready.length > 0
+                    ? `Trong ${selWithShipment.length} đơn đã chọn, ${notReady.length} đơn chưa có phiếu giao hàng để in. Bấm "Nhận phiếu giao hàng" để hệ thống tự tải phiếu về (sẽ có thanh tiến trình); khi xong bấm "Mở để in". Các đơn đã có phiếu vẫn in được sau khi tải xong.`
+                    : `Các đơn này chưa có phiếu giao hàng để in. Bấm "Nhận phiếu giao hàng" để hệ thống tự tải về — sẽ có thanh tiến trình; khi xong bấm "Mở để in".`,
+                okText: 'Nhận phiếu giao hàng', cancelText: 'Để sau',
+                onOk: () => runRefetchSlip(notReady.map((o) => o.id)),
+            });
+            return;
+        }
+        createPrintJob.mutate({ type: 'label', shipment_ids: ready.map((o) => o.shipment!.id) }, {
+            onSuccess: (j) => { setPrintJobId(j.id); setSelectedKeys([]); },
+            onError: (e) => message.error(errorMessage(e)),
+        });
+    };
 
     // chip-row items
     const sourceChips: ChipItem[] = (stats?.by_source ?? []).map((s) => ({ value: s.source, label: CHANNEL_META[s.source]?.name ?? s.source, count: s.count }));
@@ -361,7 +384,7 @@ export function OrdersPage() {
             <Card style={{ marginTop: 12 }} styles={{ body: { padding: 16 } }}>
                 {selectedKeys.length > 0 && (canBulkWork ? (
                     <Space style={{ marginBottom: 12 }} wrap>
-                        {canShip && <Button type="primary" loading={bulkPrepare.isPending} onClick={doBulkPrepare}>
+                        {canShip && tabKey === 'pending' && <Button type="primary" loading={bulkPrepare.isPending} onClick={doBulkPrepare}>
                             Chuẩn bị hàng ({selectedKeys.length}){negProfit.length > 0 && <WarningOutlined style={{ marginInlineStart: 4 }} />}
                         </Button>}
                         {canShip && isProcessingTab && selWithShipment.length > 0 && <Button icon={<FileTextOutlined />} loading={refetchSlip.isPending} onClick={doRefetchSlip}>Nhận phiếu giao hàng ({selWithShipment.length})</Button>}

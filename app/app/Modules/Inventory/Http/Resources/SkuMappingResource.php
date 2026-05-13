@@ -17,7 +17,7 @@ class SkuMappingResource extends JsonResource
             'sku_id' => $this->sku_id,
             'quantity' => $this->quantity,
             'type' => $this->type,
-            'sku' => $this->whenLoaded('sku', fn () => ['id' => $this->sku?->id, 'sku_code' => $this->sku?->sku_code, 'name' => $this->sku?->name]),
+            'sku' => $this->whenLoaded('sku', fn () => ['id' => $this->sku?->id, 'sku_code' => $this->sku?->sku_code, 'name' => $this->sku?->name, 'image_url' => $this->sku?->image_url]),
             'channel_listing' => $this->whenLoaded('channelListing', fn () => $this->channelListing ? [
                 'id' => $this->channelListing->id,
                 'channel_account_id' => $this->channelListing->channel_account_id,

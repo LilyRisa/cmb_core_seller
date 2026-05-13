@@ -1,17 +1,18 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { App as AntApp, Avatar, Button, Card, Empty, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
-import { CloudDownloadOutlined, CloudUploadOutlined, DeleteOutlined, EditOutlined, ImportOutlined, PictureOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { CloudDownloadOutlined, CloudUploadOutlined, DeleteOutlined, EditOutlined, ImportOutlined, PictureOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, ShopOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { MoneyText } from '@/components/MoneyText';
-import { SkuPickerField } from '@/components/SkuPicker';
+import { SkuLine, SkuPicker, SkuPickerField } from '@/components/SkuPicker';
 import { WarehouseDocsTab } from '@/components/WarehouseDocsTab';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
+import { useChannelAccounts } from '@/lib/channels';
 import {
     ChannelListing, InventoryLevel, Sku,
-    useAdjustStock, useAutoMatchSkus, useBulkAdjustStock, useBulkPushStock, useChannelListings, useDeleteSku, useInventoryLevels, useRemoveSkuMapping, useSetSkuMapping, useSkus, useSyncChannelListings, useWarehouses,
+    useAdjustStock, useAutoMatchSkus, useBulkAdjustStock, useBulkPushStock, useChannelListings, useDeleteSku, useInventoryLevels, useSetSkuMapping, useSkus, useSyncChannelListings, useWarehouses,
 } from '@/lib/inventory';
 
 function StockBadge({ available }: { available: number }) {
@@ -55,7 +56,7 @@ function LevelsTab() {
     const [form] = Form.useForm();
 
     const columns: ColumnsType<InventoryLevel> = [
-        { title: 'SKU', key: 'sku', render: (_, r) => <Space direction="vertical" size={0} style={{ minWidth: 0, maxWidth: 320 }}><Typography.Text strong ellipsis={{ tooltip: r.sku?.sku_code }}>{r.sku?.sku_code ?? `#${r.sku_id}`}</Typography.Text><Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis={{ tooltip: r.sku?.name }}>{r.sku?.name}</Typography.Text></Space> },
+        { title: 'SKU', key: 'sku', render: (_, r) => r.sku ? <SkuLine sku={r.sku} avatarSize={36} maxTextWidth={320} /> : <Typography.Text type="secondary">#{r.sku_id}</Typography.Text> },
         { title: 'Kho', key: 'wh', width: 160, render: (_, r) => <>{r.warehouse?.name ?? `#${r.warehouse_id}`}{r.warehouse?.is_default && <Tag style={{ marginLeft: 6 }}>mặc định</Tag>}</> },
         { title: 'Thực có', dataIndex: 'on_hand', key: 'on_hand', width: 90, align: 'right' },
         { title: 'Đang giữ', dataIndex: 'reserved', key: 'reserved', width: 90, align: 'right' },
@@ -179,53 +180,87 @@ function SkusTab() {
     );
 }
 
+/** Một dòng "SKU trên sàn" — ảnh + tên SP + (gian hàng · seller_sku · biến thể). Dùng trong bảng & modal. */
+function ListingLine({ listing, shopName, avatarSize = 40 }: { listing: ChannelListing; shopName?: string; avatarSize?: number }) {
+    const meta = [shopName, listing.seller_sku ? `SKU sàn: ${listing.seller_sku}` : `SKU sàn: ${listing.external_sku_id}`, listing.variation || null].filter(Boolean).join(' · ');
+    return (
+        <Space size={10} align="center" style={{ minWidth: 0 }}>
+            <Avatar shape="square" size={avatarSize} src={listing.image ?? undefined} icon={<PictureOutlined />} style={{ background: '#f5f5f5', color: '#bfbfbf', flex: 'none' }} />
+            <Space direction="vertical" size={0} style={{ minWidth: 0 }}>
+                <Typography.Text strong ellipsis={{ tooltip: listing.title ?? listing.external_sku_id }} style={{ display: 'block', maxWidth: 320 }}>{listing.title ?? listing.external_sku_id}</Typography.Text>
+                <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', maxWidth: 320 }} ellipsis={{ tooltip: meta }}>{meta}</Typography.Text>
+            </Space>
+        </Space>
+    );
+}
+
 function ListingsTab() {
     const { message } = AntApp.useApp();
     const [page, setPage] = useState(1);
     const [mappedFilter, setMappedFilter] = useState<'' | '0' | '1'>('');
-    const { data, isFetching, refetch } = useChannelListings({ page, per_page: 20, mapped: mappedFilter === '' ? undefined : (Number(mappedFilter) as 0 | 1) });
+    const [shopId, setShopId] = useState<number | undefined>();
+    const [q, setQ] = useState('');
+    const { data, isFetching, refetch } = useChannelListings({ page, per_page: 20, q: q || undefined, channel_account_id: shopId, mapped: mappedFilter === '' ? undefined : (Number(mappedFilter) as 0 | 1) });
+    const { data: shopsData } = useChannelAccounts();
+    const shopName = (id: number) => shopsData?.data?.find((s) => s.id === id)?.name ?? `#${id}`;
     const autoMatch = useAutoMatchSkus();
     const syncListings = useSyncChannelListings();
     const setMapping = useSetSkuMapping();
-    const removeMapping = useRemoveSkuMapping();
     const canMap = useCan('inventory.map');
     const [mapFor, setMapFor] = useState<ChannelListing | null>(null);
-    const [form] = Form.useForm();
+    const currentSkuId = (l: ChannelListing | null) => l?.mappings?.[0]?.sku_id;
+    const currentSku = (l: ChannelListing | null) => l?.mappings?.[0]?.sku ?? null;
+
+    const save = (l: ChannelListing, skuId: number | null) => setMapping.mutate({ channel_listing_id: l.id, sku_id: skuId }, {
+        onSuccess: () => { message.success(skuId ? 'Đã ghép SKU' : 'Đã bỏ liên kết'); setMapFor(null); },
+        onError: (e) => message.error(errorMessage(e)),
+    });
 
     const columns: ColumnsType<ChannelListing> = [
-        { title: 'Listing', key: 'listing', ellipsis: { showTitle: false }, render: (_, r) => <Space direction="vertical" size={0} style={{ minWidth: 0, maxWidth: 360 }}><Typography.Text strong ellipsis={{ tooltip: r.title ?? r.external_sku_id }}>{r.title ?? r.external_sku_id}</Typography.Text><Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis={{ tooltip: `seller_sku: ${r.seller_sku ?? '—'}${r.variation ? ` · ${r.variation}` : ''}` }}>seller_sku: {r.seller_sku ?? '—'} {r.variation ? `· ${r.variation}` : ''}</Typography.Text></Space> },
+        { title: 'SKU trên sàn', key: 'listing', render: (_, r) => <ListingLine listing={r} shopName={shopName(r.channel_account_id)} /> },
         { title: 'Tồn sàn', dataIndex: 'channel_stock', key: 'cs', width: 90, align: 'right', render: (v) => v ?? '—' },
-        { title: 'Đẩy tồn', dataIndex: 'sync_status', key: 'ss', width: 110, render: (v, r) => <Space size={4}><Tag color={v === 'ok' ? 'green' : v === 'error' ? 'red' : 'default'}>{v}</Tag>{r.is_stock_locked && <Tag>ghim</Tag>}</Space> },
-        { title: 'Ghép SKU', key: 'mapped', render: (_, r) => r.is_mapped ? <Space size={4} wrap>{(r.mappings ?? []).map((m) => <Tag key={m.id} color="blue">{m.sku?.sku_code ?? `#${m.sku_id}`}{m.quantity > 1 ? ` ×${m.quantity}` : ''}</Tag>)}</Space> : <Tag color="warning">Chưa ghép</Tag> },
-        ...(canMap ? [{ title: '', key: 'a', width: 90, render: (_: unknown, r: ChannelListing) => <Button size="small" onClick={() => { setMapFor(r); form.setFieldsValue({ sku_id: r.mappings?.[0]?.sku_id, quantity: r.mappings?.[0]?.quantity ?? 1 }); }}>Ghép</Button> }] : []),
+        { title: 'Đẩy tồn', dataIndex: 'sync_status', key: 'ss', width: 110, render: (v, r) => <Space size={4}><Tag color={v === 'ok' ? 'green' : v === 'error' ? 'red' : 'default'}>{v === 'ok' ? 'OK' : v === 'error' ? 'Lỗi' : v}</Tag>{r.is_stock_locked && <Tag>ghim</Tag>}</Space> },
+        { title: 'Ghép với SKU hàng hoá', key: 'mapped', render: (_, r) => {
+            const sku = currentSku(r);
+            if (sku) return <Space size={8}><SkuLine sku={sku} avatarSize={28} maxTextWidth={220} />{canMap && <Typography.Link onClick={() => setMapFor(r)}>Đổi</Typography.Link>}</Space>;
+            return canMap ? <Button type="primary" size="small" onClick={() => setMapFor(r)}>Ghép SKU</Button> : <Tag color="warning">Chưa ghép</Tag>;
+        } },
     ];
 
     return (
         <>
             <Space style={{ marginBottom: 12 }} wrap>
-                <Select value={mappedFilter} style={{ width: 170 }} onChange={(v) => { setMappedFilter(v); setPage(1); }} options={[{ value: '', label: 'Tất cả listing' }, { value: '0', label: 'Chưa ghép' }, { value: '1', label: 'Đã ghép' }]} />
+                <Input.Search allowClear placeholder="Tìm tên SP / mã SKU sàn" prefix={<SearchOutlined />} style={{ width: 240 }} onSearch={(v) => { setQ(v); setPage(1); }} />
+                <Select allowClear placeholder="Gian hàng" suffixIcon={<ShopOutlined />} style={{ width: 180 }} value={shopId} onChange={(v) => { setShopId(v); setPage(1); }}
+                    options={(shopsData?.data ?? []).map((s) => ({ value: s.id, label: s.name }))} />
+                <Select value={mappedFilter} style={{ width: 150 }} onChange={(v) => { setMappedFilter(v); setPage(1); }} options={[{ value: '', label: 'Tất cả' }, { value: '0', label: 'Chưa ghép' }, { value: '1', label: 'Đã ghép' }]} />
                 {canMap && <Button icon={<CloudDownloadOutlined />} loading={syncListings.isPending} onClick={() => syncListings.mutate(undefined, { onSuccess: (r) => message.success(r.queued > 0 ? `Đang đồng bộ listing từ ${r.queued} gian hàng…` : 'Chưa có gian hàng nào hỗ trợ đồng bộ listing'), onError: (e) => message.error(errorMessage(e)) })}>Đồng bộ listing từ sàn</Button>}
-                {canMap && <Button icon={<ThunderboltOutlined />} loading={autoMatch.isPending} onClick={() => autoMatch.mutate(undefined, { onSuccess: (r) => message.success(`Đã tự ghép ${r.matched} listing`), onError: (e) => message.error(errorMessage(e)) })}>Tự ghép theo mã</Button>}
+                {canMap && <Button icon={<ThunderboltOutlined />} loading={autoMatch.isPending} onClick={() => autoMatch.mutate(undefined, { onSuccess: (r) => message.success(`Đã tự ghép ${r.matched} listing theo mã`), onError: (e) => message.error(errorMessage(e)) })}>Tự ghép theo mã</Button>}
                 <Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching}>Làm mới</Button>
             </Space>
             <Table<ChannelListing> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns}
-                locale={{ emptyText: <Empty description="Chưa có listing nào. Bấm “Đồng bộ listing từ sàn” để kéo sản phẩm/SKU của gian hàng về." /> }}
-                pagination={{ current: data?.meta.pagination.page ?? page, pageSize: 20, total: data?.meta.pagination.total ?? 0, onChange: setPage, showTotal: (t) => `${t} listing` }} />
+                locale={{ emptyText: <Empty description="Chưa có SKU sàn nào. Bấm “Đồng bộ listing từ sàn” để kéo sản phẩm/SKU của gian hàng về." /> }}
+                pagination={{ current: data?.meta.pagination.page ?? page, pageSize: 20, total: data?.meta.pagination.total ?? 0, onChange: setPage, showTotal: (t) => `${t} SKU sàn` }} />
 
-            <Modal title={`Ghép SKU — ${mapFor?.title ?? mapFor?.external_sku_id ?? ''}`} open={!!mapFor} onCancel={() => setMapFor(null)} okText="Lưu" confirmLoading={setMapping.isPending}
-                onOk={() => form.validateFields().then((v) => setMapping.mutate({ channel_listing_id: mapFor!.id, type: 'single', lines: [{ sku_id: v.sku_id, quantity: v.quantity ?? 1 }] },
-                    { onSuccess: () => { message.success('Đã ghép SKU'); setMapFor(null); }, onError: (e) => message.error(errorMessage(e)) }))}>
-                <Typography.Paragraph type="secondary">Ghép listing này với một master SKU. Một master SKU có thể được ghép với nhiều listing/SKU sàn khác nhau (combo nhiều thành phần — sắp có ở UI; hiện dùng API).</Typography.Paragraph>
-                <Form form={form} layout="vertical">
-                    <Form.Item name="sku_id" label="Master SKU" rules={[{ required: true, message: 'Chọn master SKU' }]}>
-                        <SkuPickerField placeholder="Chọn master SKU…" />
-                    </Form.Item>
-                    <Form.Item name="quantity" label="Số lượng / 1 listing"><InputNumber min={1} style={{ width: '100%' }} /></Form.Item>
-                </Form>
-                {(mapFor?.mappings ?? []).length > 0 && (
-                    <Space wrap style={{ marginTop: 8 }}>
-                        {(mapFor?.mappings ?? []).map((m) => <Tag key={m.id} closable color="blue" onClose={(e) => { e.preventDefault(); removeMapping.mutate(m.id, { onSuccess: () => message.success('Đã bỏ ghép') }); }}>{m.sku?.sku_code ?? `#${m.sku_id}`}</Tag>)}
-                    </Space>
+            <Modal title="Ghép SKU sàn với SKU hàng hoá" open={!!mapFor} onCancel={() => setMapFor(null)} footer={null} width={420} destroyOnClose>
+                {mapFor && (
+                    <>
+                        <div style={{ background: '#fafafa', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}><ListingLine listing={mapFor} shopName={shopName(mapFor.channel_account_id)} avatarSize={36} /></div>
+                        {currentSku(mapFor) && (
+                            <div style={{ marginBottom: 12 }}>
+                                <Typography.Text type="secondary" style={{ fontSize: 12 }}>Đang ghép với:</Typography.Text>
+                                <Space style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                                    <SkuLine sku={currentSku(mapFor)!} avatarSize={30} maxTextWidth={220} />
+                                    <Button danger size="small" loading={setMapping.isPending} onClick={() => save(mapFor, null)}>Bỏ liên kết</Button>
+                                </Space>
+                            </div>
+                        )}
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>{currentSku(mapFor) ? 'Chọn SKU khác để thay liên kết:' : 'Chọn SKU hàng hoá để ghép:'}</Typography.Text>
+                        <div style={{ marginTop: 6 }}>
+                            <SkuPicker width="100%" height={300} value={currentSkuId(mapFor)} onChange={(id) => { if (id && id !== currentSkuId(mapFor)) save(mapFor, id); }} />
+                        </div>
+                        <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>Mỗi SKU sàn chỉ thuộc đúng 1 SKU hàng hoá; 1 SKU hàng hoá có thể nhận nhiều SKU sàn. Tồn của SKU hàng hoá sẽ tự đẩy lên listing này.</Typography.Paragraph>
+                    </>
                 )}
             </Modal>
         </>

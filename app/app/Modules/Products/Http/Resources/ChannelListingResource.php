@@ -31,7 +31,7 @@ class ChannelListingResource extends JsonResource
             'is_mapped' => $this->relationLoaded('mappings') ? $this->mappings->isNotEmpty() : null,
             'mappings' => $this->whenLoaded('mappings', fn () => $this->mappings->map(fn ($m) => [
                 'id' => $m->id, 'sku_id' => $m->sku_id, 'quantity' => $m->quantity, 'type' => $m->type,
-                'sku' => $m->sku ? ['id' => $m->sku->id, 'sku_code' => $m->sku->sku_code, 'name' => $m->sku->name] : null,
+                'sku' => $m->sku ? ['id' => $m->sku->id, 'sku_code' => $m->sku->sku_code, 'name' => $m->sku->name, 'image_url' => $m->sku->image_url] : null,
             ])->values()->all()),
         ];
     }

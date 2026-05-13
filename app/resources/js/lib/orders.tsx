@@ -117,6 +117,7 @@ export interface UnmappedSkuGroup {
     external_sku_id: string | null;
     seller_sku: string | null;
     sample_name: string;
+    sample_image: string | null;
     order_count: number;
     item_count: number;
     existing_listing_id: number | null;
@@ -162,7 +163,7 @@ export function useOrders(filters: OrderFilters) {
     });
 }
 
-export function useOrderStats(filters: Omit<OrderFilters, 'status' | 'page' | 'per_page'> = {}) {
+export function useOrderStats(filters: Omit<OrderFilters, 'page' | 'per_page'> = {}) {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();
     return useQuery({

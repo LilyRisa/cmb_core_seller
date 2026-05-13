@@ -309,7 +309,7 @@ class TikTokConnector implements ChannelConnector
     public function arrangeShipment(AuthContext $auth, string $externalOrderId, array $params = []): array
     {
         if (! config('integrations.tiktok.fulfillment_enabled')) {
-            throw UnsupportedOperation::for($this->code(), 'arrangeShipment (đặt INTEGRATIONS_TIKTOK_FULFILLMENT=true để bật "luồng A")');
+            throw UnsupportedOperation::for($this->code(), 'arrangeShipment');
         }
         $packageId = $this->packageIdFrom($params);
         if ($packageId === '') {
