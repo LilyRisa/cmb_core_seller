@@ -88,6 +88,17 @@ class LazadaClient
     // --- Signed REST calls ---------------------------------------------------
 
     /**
+     * Send a signed request to the Lazada REST gateway.
+     *
+     * Layout giống y hệt SDK chính thức (`sdk_lazada_php/lazop/LazopClient::execute()`):
+     *  - **GET**: tất cả tham số (system + business + sign) trong query string.
+     *  - **POST**: chỉ tham số **system + sign** trong query string; tham số **business** ở body
+     *    `application/x-www-form-urlencoded`. (SDK upstream dùng multipart; gateway Lazada nhận cả hai —
+     *    form-urlencoded gọn hơn và là cách Laravel HTTP client xử lý tự nhiên.)
+     *
+     * Lazada parse tham số system từ URL nên nếu nhét hết vào body (cách cũ), endpoint `/auth/token/create`
+     * và một vài endpoint REST trả "tham số không hợp lệ" / sai sign ⇒ kẹt bước cấp quyền. SPEC 0008.
+     *
      * @param  array<string, mixed>  $params  business params (arrays are JSON-encoded; merged with system params + signed)
      * @return array<string, mixed> the `data` object from the envelope
      */
@@ -118,7 +129,8 @@ class LazadaClient
             $biz[$k] = is_array($v) ? (string) json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : (string) $v;
         }
         $all = array_merge($sysParams, $biz);
-        $all['sign'] = LazadaSigner::sign($this->appSecret(), $apiPath, $all);
+        $sign = LazadaSigner::sign($this->appSecret(), $apiPath, $all);
+        $sysParams['sign'] = $sign;
 
         $base = $authHost
             ? rtrim((string) ($this->cfg['auth_base_url'] ?? 'https://auth.lazada.com/rest'), '/')
@@ -126,9 +138,13 @@ class LazadaClient
         $url = $base.$apiPath;
 
         $req = $this->http();
-        $resp = strtoupper($method) === 'GET'
-            ? $req->get($url, $all)
-            : $req->asForm()->post($url, $all);
+        if (strtoupper($method) === 'GET') {
+            $resp = $req->get($url, array_merge($sysParams, $biz));   // sys + biz + sign cùng query string
+        } else {
+            // System params + sign trong query string; business params trong body form-urlencoded.
+            $urlWithSys = $url.'?'.http_build_query($sysParams, '', '&', PHP_QUERY_RFC1738);
+            $resp = $req->asForm()->post($urlWithSys, $biz);
+        }
 
         $json = $resp->json() ?? [];
         $code = (string) ($json['code'] ?? '');

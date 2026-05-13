@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Channels\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
+use CMBcoreSeller\Integrations\Channels\Lazada\LazadaApiException;
 use CMBcoreSeller\Integrations\Channels\TikTok\TikTokApiException;
 use CMBcoreSeller\Modules\Channels\Services\ChannelConnectionService;
 use Illuminate\Http\RedirectResponse;
@@ -50,6 +51,7 @@ class OAuthCallbackController extends Controller
                 $e instanceof TikTokApiException && $e->isScopeDenied() => 'tiktok_scope_denied',
                 $e instanceof TikTokApiException && $e->isAuthError() => 'tiktok_auth_failed',
                 $e instanceof TikTokApiException => 'tiktok_api_error',
+                $e instanceof LazadaApiException => 'lazada_api_error',
                 default => 'oauth_failed',
             };
             Log::warning('oauth.callback_failed', ['provider' => $provider, 'reason' => $e->getMessage(), 'error' => class_basename($e)]);
@@ -57,6 +59,13 @@ class OAuthCallbackController extends Controller
             $params = ['error' => $errorCode];
             if ($e instanceof TikTokApiException) {
                 $params['tt_code'] = $e->getCode();
+            }
+            if ($e instanceof LazadaApiException) {
+                // Hiển thị mã lỗi Lazada (vd "IncompleteSignature", "InvalidApi", "MissingPartner") để
+                // người dùng / hỗ trợ tra ngay trong Lazada Open Platform console — không bị "oauth_failed" mù mịt.
+                if ($e->lazadaCode !== '') {
+                    $params['lz_code'] = $e->lazadaCode;
+                }
             }
 
             return redirect('/channels?'.http_build_query($params));

@@ -69,8 +69,12 @@ class ChannelConnectionService
         $connector = $this->registry->for($provider);
 
         $token = $connector->exchangeCodeForToken($code);
+        // Một số connector (Lazada) cần `country_user_info` / `country_user_info_list` từ token để chốt
+        // `external_shop_id` khớp với webhook push của sàn — thread raw token qua `AuthContext::extra` để
+        // `fetchShopInfo` không bị mất ngữ cảnh. Connector nào không dùng tới thì cứ bỏ qua.
         $shop = $connector->fetchShopInfo(new AuthContext(
             channelAccountId: 0, provider: $provider, externalShopId: '', accessToken: $token->accessToken,
+            extra: ['token_raw' => $token->raw],
         ));
 
         $shopCipher = $shop->raw['cipher'] ?? ($shop->raw['shop_cipher'] ?? null);

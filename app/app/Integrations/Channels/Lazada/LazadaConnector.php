@@ -84,11 +84,14 @@ class LazadaConnector implements ChannelConnector
 
     public function fetchShopInfo(AuthContext $auth): ShopInfoDTO
     {
+        // /seller/get (api.lazada.vn/rest, signed, có access_token) trả `data.{ seller_id, name, short_code,
+        // location, name_company, ... }` — đây là nguồn chính xác nhất. Trong vài trường hợp (token cấp cho
+        // multi-country / tài khoản nhánh) `/seller/get` thiếu `seller_id` — dùng `country_user_info[_list]`
+        // từ token làm dự phòng (đã được `ChannelConnectionService` thread qua `extra.token_raw`).
         $seller = $this->client->get('/seller/get', $auth);
+        $tokenRaw = (array) ($auth->extra['token_raw'] ?? []);
 
-        // The token response (stored at connect time) carries country_user_info(seller_id/short_code) —
-        // we don't have it here, so derive everything available from /seller/get.
-        return LazadaMappers::shopInfo($seller);
+        return LazadaMappers::shopInfo($seller, $tokenRaw);
     }
 
     public function registerWebhooks(AuthContext $auth): void

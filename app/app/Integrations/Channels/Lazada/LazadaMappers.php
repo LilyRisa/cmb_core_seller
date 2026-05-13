@@ -48,21 +48,33 @@ final class LazadaMappers
     }
 
     /**
-     * @param  array<string,mixed>  $sellerData  /seller/get -> data
-     * @param  array<string,mixed>  $tokenRaw  token response (carries country / country_user_info[seller_id, short_code])
+     * Build a {@see ShopInfoDTO} from Lazada's `/seller/get` payload + the raw token response.
+     *
+     * `/seller/get` (open.lazada.com docs — `path=/seller/get`) returns
+     * `{ name, name_company, seller_id (int64), short_code, logo_url, email, cb, location }`.
+     * The token response from `/auth/token/create|refresh` carries cross-country identity in either
+     * `country_user_info` (legacy field) **or** `country_user_info_list` (current field) — both are
+     * accepted here. Each entry is `{ country, user_id, seller_id, short_code }`.
+     *
+     * Selection rules (in order):
+     * 1. `external_shop_id` = `seller_id` (numeric, từ /seller/get → token fallback). Webhook push của
+     *    Lazada gửi `data.seller_id` — phải khớp 1-1 để không bị "shop_not_found".
+     * 2. Nếu cả 2 nguồn đều không có `seller_id` (rất hiếm) → dùng `short_code` để đỡ chặn flow connect,
+     *    nhưng webhook sẽ không khớp (đã có warning trong log API).
+     *
+     * @param  array<string,mixed>  $sellerData  envelope `data` của /seller/get
+     * @param  array<string,mixed>  $tokenRaw   payload thô của /auth/token/create|refresh
      */
     public static function shopInfo(array $sellerData, array $tokenRaw = []): ShopInfoDTO
     {
         $userInfo = [];
-        foreach ((array) ($tokenRaw['country_user_info'] ?? []) as $u) {
+        $userInfoList = (array) ($tokenRaw['country_user_info_list'] ?? $tokenRaw['country_user_info'] ?? []);
+        foreach ($userInfoList as $u) {
             $userInfo = (array) $u;
-            break;
+            break;   // chỉ lấy shop đầu tiên; cross-border seller chọn shop khác = một channel_account khác
         }
-        // Ưu tiên `seller_id` (numeric dài) — Lazada webhook push gửi `data.seller_id` (numeric); để
-        // `channel_accounts.external_shop_id` khớp 1-1 với webhook (tránh "shop_not_found" khi nhận push),
-        // ta lưu seller_id. `short_code` (alphanum ngắn) giữ trong `raw` để tham khảo.
         $shopId = (string) ($sellerData['seller_id'] ?? $userInfo['seller_id'] ?? $sellerData['short_code'] ?? $userInfo['short_code'] ?? '');
-        $name = (string) ($sellerData['name'] ?? $sellerData['seller_name'] ?? $sellerData['company'] ?? $tokenRaw['account'] ?? 'Lazada shop');
+        $name = (string) ($sellerData['name'] ?? $sellerData['name_company'] ?? $sellerData['seller_name'] ?? $sellerData['company'] ?? $tokenRaw['account'] ?? 'Lazada shop');
         $region = strtoupper((string) ($sellerData['location'] ?? $userInfo['country'] ?? $tokenRaw['country'] ?? 'VN'));
         $region = match ($region) {
             'VIETNAM', 'VN', 'VIE' => 'VN', default => $region
