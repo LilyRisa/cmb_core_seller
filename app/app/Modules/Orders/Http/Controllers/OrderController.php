@@ -205,9 +205,10 @@ class OrderController extends Controller
         // Chip rows cascade theo cây: source (gốc) → channel_account_id → carrier.
         // Mỗi facet "cởi" filter của chính nó + các filter con (để cha chuyển đổi tự do mà không bị kẹt
         // bởi giá trị con đã chọn lúc trước — FE đồng thời clear các con khi đổi cha).
-        $sourceBase = $this->applyFilters($request, Order::query(), skip: ['source', 'channel_account_id', 'carrier', 'stage', 'slip', 'printed', 'out_of_stock']);
-        $shopBase = $this->applyFilters($request, Order::query(), skip: ['channel_account_id', 'carrier', 'stage', 'slip', 'printed', 'out_of_stock']);
-        $carrierBase = $this->applyFilters($request, Order::query(), skip: ['carrier', 'stage', 'slip', 'printed', 'out_of_stock']);
+        // slip/printed/out_of_stock are NOT skipped so chip counts respect those active sub-filters.
+        $sourceBase = $this->applyFilters($request, Order::query(), skip: ['source', 'channel_account_id', 'carrier', 'stage']);
+        $shopBase = $this->applyFilters($request, Order::query(), skip: ['channel_account_id', 'carrier', 'stage']);
+        $carrierBase = $this->applyFilters($request, Order::query(), skip: ['carrier', 'stage']);
         $bySource = (clone $sourceBase)->selectRaw('source, count(*) as c')->groupBy('source')->orderByDesc('c')
             ->pluck('c', 'source')->map(fn ($n, $src) => ['source' => (string) $src, 'count' => (int) $n])->values()->all();
         $byShop = (clone $shopBase)->whereNotNull('channel_account_id')->selectRaw('channel_account_id, count(*) as c')->groupBy('channel_account_id')->orderByDesc('c')
