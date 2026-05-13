@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Alert, App as AntApp, Avatar, Badge, Button, Card, DatePicker, Empty, Input, Modal, Radio, Select, Space, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
-import { BarcodeOutlined, FileTextOutlined, LinkOutlined, PrinterOutlined, ReloadOutlined, ScanOutlined, SearchOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons';
+import { BarcodeOutlined, CheckCircleOutlined, FileTextOutlined, LinkOutlined, PrinterOutlined, ReloadOutlined, ScanOutlined, SearchOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
@@ -15,7 +15,7 @@ import { OrderActions, PrintCountBadge, PrintJobBar, ScanTab, ShipmentsTab } fro
 import { errorMessage } from '@/lib/api';
 import { CHANNEL_META, ORDER_STATUS_TABS } from '@/lib/format';
 import { Order, useOrders, useOrderStats, useSyncOrders } from '@/lib/orders';
-import { useBulkCreateShipments, useBulkRefetchSlip, useCreatePrintJob } from '@/lib/fulfillment';
+import { useBulkCreateShipments, useBulkRefetchSlip, useCreatePrintJob, usePackShipments } from '@/lib/fulfillment';
 import { useChannelAccounts } from '@/lib/channels';
 import { useSyncPolling } from '@/lib/syncPolling';
 import { useSyncRuns } from '@/lib/syncLogs';
@@ -56,6 +56,7 @@ export function OrdersPage() {
     const accounts = channelsData?.data ?? [];
     const syncOrders = useSyncOrders();
     const bulkPrepare = useBulkCreateShipments();
+    const bulkPack = usePackShipments();
     const refetchSlip = useBulkRefetchSlip();
     const createPrintJob = useCreatePrintJob();
     const canCreate = useCan('orders.create');
@@ -164,6 +165,8 @@ export function OrdersPage() {
     const selectedOrders = (data?.data ?? []).filter((o) => selectedKeys.includes(o.id));
     const selWithShipment = selectedOrders.filter((o) => o.shipment);
     const selWithoutShipment = selectedOrders.filter((o) => !o.shipment);
+    // Orders whose open shipment is in created/pending state → can be bulk-packed (→ ready_to_ship).
+    const selPackable = selWithShipment.filter((o) => o.shipment && ['created', 'pending'].includes(o.shipment.status));
     const negProfit = selectedOrders.filter((o) => o.profit && o.profit.estimated_profit < 0);
     const runBulkPrepare = () => bulkPrepare.mutate({ order_ids: selectedKeys }, {
         onSuccess: (r) => {
@@ -215,6 +218,10 @@ export function OrdersPage() {
         onError: (e) => message.error(errorMessage(e)),
     });
     const doRefetchSlip = () => runRefetchSlip(selWithShipment.map((o) => o.id));
+    const doBulkPack = () => bulkPack.mutate(selPackable.map((o) => o.shipment!.id), {
+        onSuccess: (r) => { message.success(`Đã đánh dấu ${r.packed} đơn sẵn sàng bàn giao — chuyển sang "Chờ bàn giao".`); setSelectedKeys([]); },
+        onError: (e) => message.error(errorMessage(e)),
+    });
     // "In phiếu giao hàng": chỉ in được đơn đã có phiếu; đơn nào chưa có ⇒ popup hướng dẫn bấm "Nhận phiếu giao hàng".
     const doBulkPrintSlip = () => {
         const ready = selWithShipment.filter((o) => o.shipment!.has_label);
@@ -512,6 +519,7 @@ export function OrdersPage() {
                         {canShip && isShipTab && selWithoutShipment.length > 0 && <Button type="primary" icon={<FileTextOutlined />} loading={bulkPrepare.isPending} onClick={doBulkPrepareShipTab}>
                             Lấy phiếu giao hàng ({selWithoutShipment.length})
                         </Button>}
+                        {canShip && isProcessingTab && selPackable.length > 0 && <Button icon={<CheckCircleOutlined />} style={{ background: '#52c41a', borderColor: '#52c41a', color: '#fff' }} loading={bulkPack.isPending} onClick={doBulkPack}>Sẵn sàng bàn giao ({selPackable.length})</Button>}
                         {canShip && (isProcessingTab || isShipTab) && selWithShipment.length > 0 && <Button icon={<FileTextOutlined />} loading={refetchSlip.isPending} onClick={doRefetchSlip}>Nhận lại phiếu ({selWithShipment.length})</Button>}
                         {canPrint && selWithShipment.length > 0 && <Button icon={<PrinterOutlined />} loading={createPrintJob.isPending} onClick={doBulkPrintSlip}>In phiếu giao hàng ({selWithShipment.length})</Button>}
                         <Button onClick={() => setSelectedKeys([])}>Bỏ chọn</Button>
