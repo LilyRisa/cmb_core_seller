@@ -8,6 +8,7 @@ import { DateText } from '@/components/MoneyText';
 import { CHANNEL_META, CHANNEL_STATUS_COLOR, CHANNEL_STATUS_LABEL } from '@/lib/format';
 import { errorMessage } from '@/lib/api';
 import { ChannelAccount, useChannelAccounts, useConnectChannel, useDeleteChannelAccount, useOutboundIp, useRenameChannel, useResyncChannel } from '@/lib/channels';
+import { useSyncPolling } from '@/lib/syncPolling';
 import { useCan } from '@/lib/tenant';
 
 const CALLBACK_ERRORS: Record<string, string> = {
@@ -97,6 +98,8 @@ export function ChannelsPage() {
     const connect = useConnectChannel();
     const deleteAccount = useDeleteChannelAccount();
     const resync = useResyncChannel();
+    // Resync là job chạy nền — sau khi enqueue xong, poll để `last_synced_at` tự cập nhật khi job kết thúc.
+    const resyncPoll = useSyncPolling(() => { refetch(); }, { durationMs: 90_000 });
     const rename = useRenameChannel();
     const [renaming, setRenaming] = useState<ChannelAccount | null>(null);
     const [aliasDraft, setAliasDraft] = useState('');
@@ -117,6 +120,8 @@ export function ChannelsPage() {
         if (connected) {
             message.success(`Đã kết nối gian hàng ${CHANNEL_META[connected]?.name ?? connected}! Đơn 90 ngày gần đây đang được tải về.`);
             params.delete('connected'); setParams(params, { replace: true });
+            // Sau OAuth, BE tự xếp lịch tải 90 ngày đơn — poll để `last_synced_at` tự cập nhật trong card.
+            resyncPoll.start(120_000);
         } else if (err) {
             // Ưu tiên thông điệp cho prefix `lazada_*` (Lazada redirect ?error=<x>); với lazada_api_error ưu
             // tiên LAZADA_CODE_GUIDE[lz_code] (vd "AppWhiteIpLimit" có hướng dẫn cụ thể); fallback bảng chung.
@@ -187,7 +192,7 @@ export function ChannelsPage() {
                             <Col xs={24} xl={12} key={a.id}>
                                 <ShopCard
                                     account={a} canManage={canManage}
-                                    onResync={() => resync.mutate(a.id, { onSuccess: () => message.success('Đã xếp lịch đồng bộ lại đơn của gian hàng này.') })}
+                                    onResync={() => resync.mutate(a.id, { onSuccess: () => { message.success('Đã xếp lịch đồng bộ lại đơn của gian hàng này — danh sách sẽ tự cập nhật khi xong.'); resyncPoll.start(); } })}
                                     onDelete={() => { setDeleteTarget(a); setConfirmDraft(''); }}
                                     onRename={() => { setRenaming(a); setAliasDraft(a.display_name ?? ''); }}
                                 />

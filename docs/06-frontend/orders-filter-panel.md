@@ -61,7 +61,12 @@ Trả:
 
 Quy tắc đếm (xem `OrderController::stats()` + `applyFilters($request, $query, skip: [...])`):
 - `by_status` / `total` / `has_issue`: áp **mọi** filter **trừ** `status` & `has_issue` ⇒ tab trạng thái hiển thị số của chính nó.
-- `by_source` / `by_shop` / `by_carrier`: áp **mọi** filter **trừ** `source`, `channel_account_id`, `carrier` ⇒ mỗi hàng chip hiển thị **đủ** số bất kể bạn đang chọn chip nào ở các hàng kia. (Các filter còn lại — `q`/`sku`/`product`/`placed_from`/`placed_to`/`status`/`has_issue` — vẫn áp ⇒ chip phản ánh tab trạng thái + thanh tìm + khoảng ngày hiện tại.)
+- Chip rows lọc theo **cây cha → con**: `source` (nền tảng) là cha của `channel_account_id` (gian hàng); cả hai là cha của `carrier` (vận chuyển). Mỗi facet "cởi" filter của **chính nó + các con** (để cha vẫn liệt kê đủ phương án và đổi cha không bị kẹt bởi giá trị con cũ); các filter cha vẫn áp.
+  - `by_source`: skip `source`, `channel_account_id`, `carrier` ⇒ luôn hiện đủ nền tảng.
+  - `by_shop`: skip `channel_account_id`, `carrier` ⇒ chỉ hiện shop **của nền tảng đang chọn** (nếu có).
+  - `by_carrier`: skip `carrier` ⇒ chỉ hiện ĐVVC **của nền tảng + gian hàng đang chọn** (nếu có).
+  - Các filter còn lại — `q`/`sku`/`product`/`placed_from`/`placed_to`/`status`/`has_issue` — vẫn áp cho cả 3 ⇒ chip phản ánh tab trạng thái + thanh tìm + khoảng ngày hiện tại.
+- FE đồng bộ: `OrdersPage` clear con khi đổi cha (đổi `source` ⇒ clear `channel_account_id` + `carrier`; đổi `channel_account_id` ⇒ clear `carrier`) để URL không còn giá trị con không thuộc nhánh cha mới.
 
 FE: `useOrderStats(statsFilters)` (trong `lib/orders.tsx`) gửi đúng các filter hiện tại lên `/orders/stats`; kiểu trả là `OrderStats`. `by_shop` chỉ trả `channel_account_id` — FE map sang tên qua `useChannelAccounts()` (`account.name` = `display_name ?? shop_name ?? external_shop_id`). `by_source` map sang nhãn qua `CHANNEL_META`.
 

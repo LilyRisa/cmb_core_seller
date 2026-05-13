@@ -95,8 +95,15 @@ export function useDeleteChannelAccount() {
 
 export function useResyncChannel() {
     const api = useScopedApi();
+    const qc = useQueryClient();
+    const tenantId = useCurrentTenantId();
     return useMutation({
         mutationFn: async (id: number) => { await api!.post(`/channel-accounts/${id}/resync`); },
+        // Job chạy nền — invalidate ngay để FE gắn refetch loop kế tiếp; data thực sẽ tới khi job xong (dùng useSyncPolling).
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['channel-accounts', tenantId] });
+            qc.invalidateQueries({ queryKey: ['orders', tenantId] });
+        },
     });
 }
 

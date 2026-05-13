@@ -183,7 +183,13 @@ class OrderApiTest extends TestCase
     {
         Storage::fake('public');
         Http::fake(['*/forms/chromium/convert/html' => Http::response('%PDF-1.4 fake-invoice', 200, ['Content-Type' => 'application/pdf'])]);
-        $order = Order::withoutGlobalScope(TenantScope::class)->where('order_number', 'TT-1001')->first();
+        // Đơn sàn TMĐT có hoá đơn điện tử của sàn ⇒ không in hoá đơn nội bộ; chỉ đơn manual mới in được.
+        $order = Order::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $this->tenant->getKey(), 'source' => 'manual', 'channel_account_id' => null,
+            'external_order_id' => 'MAN-INV-1', 'order_number' => 'MAN-INV-1',
+            'status' => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Pending, 'raw_status' => 'pending', 'source_updated_at' => now(),
+            'grand_total' => 100000, 'item_total' => 100000, 'shipping_fee' => 0, 'currency' => 'VND',
+        ]);
 
         $jobId = $this->actingAs($this->user)->withHeaders($this->header())
             ->postJson('/api/v1/print-jobs', ['type' => 'invoice', 'order_ids' => [$order->getKey()]])

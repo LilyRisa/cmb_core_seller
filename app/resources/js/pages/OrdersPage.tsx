@@ -17,6 +17,7 @@ import { CHANNEL_META, ORDER_STATUS_TABS } from '@/lib/format';
 import { Order, useOrders, useOrderStats, useSyncOrders } from '@/lib/orders';
 import { useBulkCreateShipments, useBulkRefetchSlip, useCreatePrintJob } from '@/lib/fulfillment';
 import { useChannelAccounts } from '@/lib/channels';
+import { useSyncPolling } from '@/lib/syncPolling';
 import { useCan } from '@/lib/tenant';
 
 const UNMAPPED_REASON = 'SKU chưa ghép';
@@ -132,7 +133,9 @@ export function OrdersPage() {
 
     // skip the (unused) orders list when on the shipments tab
     const { data, isFetching, refetch } = useOrders(isShipmentsTab ? { ...filters, page: 1, per_page: 1 } : filters);
-    const { data: stats } = useOrderStats(statsFilters);
+    const { data: stats, refetch: refetchStats } = useOrderStats(statsFilters);
+    // Sync orders dispatch job chạy nền — poll list + stats để đơn mới về tự render, không cần reload trang.
+    const syncPoll = useSyncPolling(() => { refetch(); refetchStats(); }, { durationMs: 90_000 });
     // sub-tab "tình trạng phiếu giao hàng" chỉ hiện khi có ≥1 đơn "Chuẩn bị hàng" lỗi (SPEC 0013 — như ui_example)
     const showSlipTabs = isProcessingTab && (stats?.by_slip?.failed ?? 0) > 0;
     // Xử lý xong các đơn lỗi ⇒ sub-tab "Nhận phiếu giao hàng" biến mất; tự bỏ filter `slip=failed` còn sót lại
@@ -344,8 +347,8 @@ export function OrdersPage() {
                     <Space>
                         {canCreate && <Link to="/orders/new"><Button type="primary">Tạo đơn</Button></Link>}
                         <Button icon={<ScanOutlined />} onClick={() => setScan({ open: true, mode: 'pack' })}>Quét đơn</Button>
-                        <Button icon={<SyncOutlined />} loading={syncOrders.isPending} onClick={() => syncOrders.mutate(undefined, {
-                            onSuccess: (r) => message.success(r.queued > 0 ? `Đã yêu cầu đồng bộ ${r.queued} gian hàng` : 'Chưa có gian hàng nào hoạt động'),
+                        <Button icon={<SyncOutlined />} loading={syncOrders.isPending || syncPoll.isPolling} onClick={() => syncOrders.mutate(undefined, {
+                            onSuccess: (r) => { if (r.queued > 0) { message.success(`Đã yêu cầu đồng bộ ${r.queued} gian hàng — đơn mới sẽ tự xuất hiện khi sàn trả về.`); syncPoll.start(); } else { message.info('Chưa có gian hàng nào hoạt động'); } },
                             onError: (e) => message.error(errorMessage(e)),
                         })}>Đồng bộ đơn</Button>
                         <Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching}>Làm mới</Button>
@@ -411,8 +414,13 @@ export function OrdersPage() {
                     />
                 </div>
 
-                <FilterChipRow label="Sàn TMĐT" items={sourceChips} value={source || undefined} onChange={(v) => set({ source: v })} />
-                <FilterChipRow label="Gian hàng" items={shopChips} value={channelAccountId || undefined} onChange={(v) => set({ channel_account_id: v })} />
+                {/*
+                  * Lọc theo cây cha→con: nền tảng → gian hàng → vận chuyển. Đổi cha thì clear con (để khỏi
+                  * kẹt ở 1 chip con không còn hợp lệ với cha mới); BE stats cũng đã cascade theo các filter cha
+                  * (xem OrderController::stats — `sourceBase` / `shopBase` / `carrierBase`).
+                  */}
+                <FilterChipRow label="Sàn TMĐT" items={sourceChips} value={source || undefined} onChange={(v) => set({ source: v, channel_account_id: undefined, carrier: undefined })} />
+                <FilterChipRow label="Gian hàng" items={shopChips} value={channelAccountId || undefined} onChange={(v) => set({ channel_account_id: v, carrier: undefined })} />
                 <FilterChipRow label="Vận chuyển" items={carrierChips} value={carrier || undefined} onChange={(v) => set({ carrier: v })} />
                 {isProcessingTab && <FilterChipRow label="Phiếu in" items={printedChips} value={printedParam || undefined} onChange={(v) => set({ printed: v })} />}
                 <FilterChipRow

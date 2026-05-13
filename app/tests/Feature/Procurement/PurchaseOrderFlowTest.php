@@ -6,7 +6,6 @@ use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Inventory\Models\GoodsReceipt;
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Inventory\Models\Warehouse;
-use CMBcoreSeller\Modules\Procurement\Models\PurchaseOrder;
 use CMBcoreSeller\Modules\Procurement\Models\Supplier;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;

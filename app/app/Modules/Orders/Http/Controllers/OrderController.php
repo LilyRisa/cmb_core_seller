@@ -163,8 +163,10 @@ class OrderController extends Controller
     /**
      * GET /api/v1/orders/stats — faceted counts for the "Lọc" panel + status tabs.
      * - status counts use every filter EXCEPT status/has_issue (so the tabs show their own counts);
-     * - source/shop/carrier counts use every filter EXCEPT source/channel_account_id/carrier
-     *   (so each chip row shows full counts regardless of the current chip selection in the others).
+     * - chip rows cascade theo cây cha → con: nền tảng (source) là cha của gian hàng (channel_account_id) và
+     *   vận chuyển (carrier); gian hàng cũng là cha của vận chuyển. Mỗi chip-row chỉ "cởi" filter của chính
+     *   nó (để chính nó luôn hiện đầy đủ phương án), còn áp tất cả filter cha. Vd chọn TikTok ⇒ chip Gian hàng
+     *   chỉ còn shop của TikTok, chip Vận chuyển chỉ còn ĐVVC dùng bởi đơn TikTok.
      */
     public function stats(Request $request): JsonResponse
     {
@@ -200,13 +202,17 @@ class OrderController extends Controller
             'no' => $hasOpenShipment(clone $statusBase)->whereDoesntHave('shipments', $openPrinted)->count(),
         ];
 
-        // Base for the chip rows (everything except the chip facets themselves).
-        $facetBase = $this->applyFilters($request, Order::query(), skip: ['source', 'channel_account_id', 'carrier', 'stage', 'slip', 'printed', 'out_of_stock']);
-        $bySource = (clone $facetBase)->selectRaw('source, count(*) as c')->groupBy('source')->orderByDesc('c')
+        // Chip rows cascade theo cây: source (gốc) → channel_account_id → carrier.
+        // Mỗi facet "cởi" filter của chính nó + các filter con (để cha chuyển đổi tự do mà không bị kẹt
+        // bởi giá trị con đã chọn lúc trước — FE đồng thời clear các con khi đổi cha).
+        $sourceBase = $this->applyFilters($request, Order::query(), skip: ['source', 'channel_account_id', 'carrier', 'stage', 'slip', 'printed', 'out_of_stock']);
+        $shopBase = $this->applyFilters($request, Order::query(), skip: ['channel_account_id', 'carrier', 'stage', 'slip', 'printed', 'out_of_stock']);
+        $carrierBase = $this->applyFilters($request, Order::query(), skip: ['carrier', 'stage', 'slip', 'printed', 'out_of_stock']);
+        $bySource = (clone $sourceBase)->selectRaw('source, count(*) as c')->groupBy('source')->orderByDesc('c')
             ->pluck('c', 'source')->map(fn ($n, $src) => ['source' => (string) $src, 'count' => (int) $n])->values()->all();
-        $byShop = (clone $facetBase)->whereNotNull('channel_account_id')->selectRaw('channel_account_id, count(*) as c')->groupBy('channel_account_id')->orderByDesc('c')
+        $byShop = (clone $shopBase)->whereNotNull('channel_account_id')->selectRaw('channel_account_id, count(*) as c')->groupBy('channel_account_id')->orderByDesc('c')
             ->pluck('c', 'channel_account_id')->map(fn ($n, $cid) => ['channel_account_id' => (int) $cid, 'count' => (int) $n])->values()->all();
-        $byCarrier = (clone $facetBase)->whereNotNull('carrier')->selectRaw('carrier, count(*) as c')->groupBy('carrier')->orderByDesc('c')
+        $byCarrier = (clone $carrierBase)->whereNotNull('carrier')->selectRaw('carrier, count(*) as c')->groupBy('carrier')->orderByDesc('c')
             ->pluck('c', 'carrier')->map(fn ($n, $carrier) => ['carrier' => (string) $carrier, 'count' => (int) $n])->values()->all();
 
         return response()->json(['data' => [
