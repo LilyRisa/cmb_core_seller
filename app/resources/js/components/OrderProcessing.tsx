@@ -166,15 +166,15 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
     const preShipment = !['shipped', 'delivery_failed', 'delivered', 'completed', 'returning', 'returned_refunded', 'cancelled'].includes(order.status);
     const shOpen = sh && !['cancelled', 'returned', 'failed'].includes(sh.status);
     const actions: ReactNode[] = [];
-    if (preShipment && !sh && canShip && !order.has_issue) {
+    if (preShipment && !shOpen && canShip) {
         if (order.out_of_stock) {
             actions.push(<Tooltip key="oos" title="Đơn có SKU âm tồn — không thể chuẩn bị hàng / lấy phiếu giao hàng. Hãy nhập thêm hàng."><Typography.Text type="secondary"><WarningOutlined /> Hết hàng</Typography.Text></Tooltip>);
-        } else if (isWaiting) {
+        } else if (isWaiting && !order.has_issue) {
             // "Chờ xử lý" ⇒ "Chuẩn bị hàng" (đẩy trạng thái lên sàn + lấy mã vận đơn / phiếu).
             actions.push(<a key="prep" onClick={prepare}>Chuẩn bị hàng (lấy phiếu)</a>);
-        } else {
-            // "Đang xử lý" nhưng chưa có vận đơn (đơn sàn arrange trên app sàn) ⇒ chỉ cần lấy phiếu giao hàng.
-            actions.push(<a key="prep2" onClick={() => runPrepare()}>Lấy phiếu giao hàng</a>);
+        } else if (!isWaiting) {
+            // "Đang xử lý" (kể cả khi có vận đơn đã huỷ) ⇒ lấy / thử lại phiếu giao hàng.
+            actions.push(<a key="prep2" style={{ color: order.has_issue ? '#cf1322' : undefined }} onClick={() => runPrepare()}>Lấy phiếu giao hàng</a>);
         }
     } else if (shOpen && ['pending', 'created'].includes(sh!.status)) {
         // Đã chuẩn bị / có vận đơn, chờ đóng gói + quét nội bộ.

@@ -354,8 +354,18 @@ class LazadaConnector implements ChannelConnector
         $rawItems = (array) ($detail->raw['items'] ?? []);
         [$packableIds, $skippedStatuses] = $this->splitPackableItems($rawItems);
         if ($packableIds === []) {
-            $statusList = $skippedStatuses !== []
-                ? implode(', ', array_unique(array_values($skippedStatuses)))
+            $statusValues = array_unique(array_values($skippedStatuses));
+            // Items already packed/arranged externally (Seller Center) → short-circuit gracefully instead of throwing.
+            $terminalStatuses = ['cancelled', 'unpaid', 'failed', 'lost', 'damaged', 'returned', 'unknown'];
+            $postPackStatuses = ['packed', 'ready_to_ship', 'toship', 'shipped'];
+            $nonTerminal = array_values(array_filter($statusValues, fn ($s) => ! in_array($s, $terminalStatuses, true)));
+            if ($nonTerminal !== [] && array_diff($nonTerminal, $postPackStatuses) === []) {
+                Log::info('lazada.arrange_items_already_packed_external', ['order' => $externalOrderId, 'statuses' => $statusValues]);
+
+                return ['tracking_no' => null, 'carrier' => null, 'raw_status' => 'ready_to_ship', 'package_id' => null];
+            }
+            $statusList = $statusValues !== []
+                ? implode(', ', $statusValues)
                 : 'không có item';
             throw new LazadaApiException(
                 "Lazada arrange shipment: không có item nào ở trạng thái pending để pack (đơn {$externalOrderId}). Trạng thái item hiện tại: {$statusList}. Có thể đơn đã pack/ship/huỷ ở ngoài app — bấm 'Nhận phiếu giao hàng' để đồng bộ lại trạng thái.",
