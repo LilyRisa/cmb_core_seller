@@ -264,7 +264,34 @@ export function ShipmentsTab({ onPrint }: { onPrint: (id: number) => void }) {
                 <Select allowClear placeholder="Trạng thái" style={{ width: 180 }} value={status} onChange={(v) => { setStatus(v); setPage(1); }} options={Object.entries(SHIPMENT_STATUS_LABEL).map(([v, l]) => ({ value: v, label: l }))} />
                 {canShip && <Button icon={<InboxOutlined />} disabled={!sel.length} loading={pack.isPending} onClick={() => pack.mutate(sel, { onSuccess: (r) => { message.success(`Đã đóng gói ${r.packed} đơn`); setSel([]); } })}>Đóng gói ({sel.length})</Button>}
                 {canShip && <Button icon={<ReloadOutlined />} disabled={!sel.length} loading={handover.isPending} onClick={() => handover.mutate(sel, { onSuccess: (r) => { message.success(`Đã bàn giao ${r.handed_over} đơn`); setSel([]); }, onError: (e) => message.error(errorMessage(e)) })}>Bàn giao ({sel.length})</Button>}
-                {canPrint && <Button icon={<PrinterOutlined />} disabled={!sel.length} loading={createPrint.isPending} onClick={() => createPrint.mutate({ type: 'label', shipment_ids: sel }, { onSuccess: (j) => onPrint(j.id), onError: (e) => message.error(errorMessage(e)) })}>In tem ({sel.length})</Button>}
+                {canPrint && <Button icon={<PrinterOutlined />} disabled={!sel.length} loading={createPrint.isPending} onClick={() => {
+                    const items = (data?.data ?? []).filter((s) => sel.includes(s.id));
+                    const sources = Array.from(new Set(items.map((s) => s.order?.source).filter(Boolean) as string[]));
+                    const carriers = Array.from(new Set(items.map((s) => s.carrier).filter(Boolean)));
+                    if (sources.length > 1 || carriers.length > 1) {
+                        Modal.warning({
+                            title: 'Không thể in chung tem của nhiều nền tảng / đơn vị vận chuyển',
+                            width: 520,
+                            content: (
+                                <div>
+                                    <p style={{ marginTop: 0 }}>Mỗi sàn và mỗi đơn vị vận chuyển dùng định dạng tem riêng — không thể ghép chung 1 tệp PDF để in.</p>
+                                    <p>Bạn đang chọn các vận đơn thuộc{' '}
+                                        {sources.length > 1 && <><b>{sources.length} sàn</b> ({sources.join(', ')})</>}
+                                        {sources.length > 1 && carriers.length > 1 && ' và '}
+                                        {carriers.length > 1 && <><b>{carriers.length} đơn vị vận chuyển</b> ({carriers.join(', ')})</>}.
+                                    </p>
+                                    <p style={{ marginBottom: 0 }}>Hãy lọc bằng ô <b>Trạng thái</b> / cột <b>Nền tảng</b>, <b>ĐVVC</b> rồi chọn lại và in từng đợt.</p>
+                                </div>
+                            ),
+                            okText: 'Đã hiểu',
+                        });
+                        return;
+                    }
+                    createPrint.mutate({ type: 'label', shipment_ids: sel }, {
+                        onSuccess: (j) => onPrint(j.id),
+                        onError: (e) => Modal.warning({ title: 'Không in được tem', content: errorMessage(e), okText: 'Đã hiểu' }),
+                    });
+                }}>In tem ({sel.length})</Button>}
             </Space>
             <Table<Shipment> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns}
                 rowSelection={{ selectedRowKeys: sel, onChange: (k) => setSel(k as number[]), getCheckboxProps: (s) => ({ disabled: ['delivered', 'cancelled'].includes(s.status) }) }}

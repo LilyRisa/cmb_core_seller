@@ -35,7 +35,14 @@ export interface ApiErrorBody {
 
 export function errorMessage(err: unknown, fallback = 'Đã có lỗi xảy ra.'): string {
     const e = err as AxiosError<ApiErrorBody>;
-    return e?.response?.data?.error?.message ?? e?.message ?? fallback;
+    const body = e?.response?.data?.error;
+    // 422 validation: nổi thông điệp ở field đầu tiên thay vì "Dữ liệu không hợp lệ." chung chung.
+    if (body?.code === 'VALIDATION_FAILED' && body.details && typeof body.details === 'object') {
+        const fields = Object.values(body.details as Record<string, string[]>);
+        const firstMsg = fields[0]?.[0];
+        if (firstMsg) return firstMsg;
+    }
+    return body?.message ?? e?.message ?? fallback;
 }
 
 export function isUnauthenticated(err: unknown): boolean {

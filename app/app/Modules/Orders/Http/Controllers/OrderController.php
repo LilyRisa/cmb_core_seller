@@ -170,8 +170,8 @@ class OrderController extends Controller
     {
         $this->authorizeView($request);
 
-        // Base for the status tabs (everything except status/stage/slip/has_issue/out_of_stock — those have their own tab counts).
-        $statusBase = $this->applyFilters($request, Order::query(), skip: ['status', 'stage', 'slip', 'has_issue', 'out_of_stock']);
+        // Base for the status tabs (everything except status/stage/slip/printed/has_issue/out_of_stock — those have their own tab counts).
+        $statusBase = $this->applyFilters($request, Order::query(), skip: ['status', 'stage', 'slip', 'printed', 'has_issue', 'out_of_stock']);
         $counts = (clone $statusBase)->selectRaw('status, count(*) as c')->groupBy('status')->pluck('c', 'status');
         $byStatus = [];
         foreach (StandardOrderStatus::cases() as $s) {
@@ -193,9 +193,15 @@ class OrderController extends Controller
             'loading' => $hasOpenShipment(clone $statusBase)->where('has_issue', false)->whereDoesntHave('shipments', $openLabelled)->count(),
             'failed' => $hasOpenShipment(clone $statusBase)->where('has_issue', true)->count(),
         ];
+        // "Đã in phiếu / Chưa in phiếu" — đếm trên đơn có vận đơn open (SPEC 0013).
+        $openPrinted = fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES)->where('print_count', '>', 0);
+        $byPrinted = [
+            'yes' => (clone $statusBase)->whereHas('shipments', $openPrinted)->count(),
+            'no' => $hasOpenShipment(clone $statusBase)->whereDoesntHave('shipments', $openPrinted)->count(),
+        ];
 
         // Base for the chip rows (everything except the chip facets themselves).
-        $facetBase = $this->applyFilters($request, Order::query(), skip: ['source', 'channel_account_id', 'carrier', 'stage', 'slip', 'out_of_stock']);
+        $facetBase = $this->applyFilters($request, Order::query(), skip: ['source', 'channel_account_id', 'carrier', 'stage', 'slip', 'printed', 'out_of_stock']);
         $bySource = (clone $facetBase)->selectRaw('source, count(*) as c')->groupBy('source')->orderByDesc('c')
             ->pluck('c', 'source')->map(fn ($n, $src) => ['source' => (string) $src, 'count' => (int) $n])->values()->all();
         $byShop = (clone $facetBase)->whereNotNull('channel_account_id')->selectRaw('channel_account_id, count(*) as c')->groupBy('channel_account_id')->orderByDesc('c')
@@ -211,6 +217,7 @@ class OrderController extends Controller
             'by_status' => $byStatus,
             'by_stage' => $byStage,
             'by_slip' => $bySlip,
+            'by_printed' => $byPrinted,
             'by_source' => $bySource,
             'by_shop' => $byShop,
             'by_carrier' => $byCarrier,
@@ -299,6 +306,15 @@ class OrderController extends Controller
         }
         if ($use('slip') && in_array($slip = (string) $request->query('slip', ''), ['printable', 'loading', 'failed'], true)) {
             $this->applySlipFilter($query, $slip);
+        }
+        // "Đã in phiếu / Chưa in phiếu" — đếm trên vận đơn open (print_count > 0 = đã in). SPEC 0013.
+        if ($use('printed') && $request->has('printed')) {
+            if ($request->boolean('printed')) {
+                $query->whereHas('shipments', fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES)->where('print_count', '>', 0));
+            } else {
+                $query->whereHas('shipments', fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES))
+                    ->whereDoesntHave('shipments', fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES)->where('print_count', '>', 0));
+            }
         }
         if ($use('q') && $q = trim((string) $request->query('q', ''))) {
             $query->search($q);

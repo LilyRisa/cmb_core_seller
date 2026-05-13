@@ -70,6 +70,7 @@ export function OrdersPage() {
     const tabKey = params.get('tab') ?? (params.get('has_issue') ? 'issue' : '');
     const statusParam = params.get('status') ?? '';
     const slipParam = params.get('slip') ?? '';
+    const printedParam = params.get('printed') ?? '';
     const q = params.get('q') ?? '';
     const skuQ = params.get('sku') ?? '';
     const productQ = params.get('product') ?? '';
@@ -93,6 +94,7 @@ export function OrdersPage() {
     const effectiveStatus = tabKey === 'issue' || tabKey === 'out_of_stock' ? '' : (statusParam || (activeTab.statuses ?? []).join(','));
     const isProcessingTab = tabKey === 'processing';
     const slipFilter = isProcessingTab && (['printable', 'loading', 'failed'] as string[]).includes(slipParam) ? (slipParam as 'printable' | 'loading' | 'failed') : undefined;
+    const printedFilter = isProcessingTab && (printedParam === '1' || printedParam === '0') ? printedParam === '1' : undefined;
 
     const filters = useMemo(() => ({
         status: effectiveStatus || undefined,
@@ -104,8 +106,9 @@ export function OrdersPage() {
         has_issue: tabKey === 'issue' || params.get('has_issue') === '1' ? true : undefined,
         out_of_stock: tabKey === 'out_of_stock' ? true : undefined,
         slip: slipFilter,
+        printed: printedFilter,
         sort, page, per_page: perPage,
-    }), [effectiveStatus, q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo, tabKey, slipFilter, params, sort, page, perPage]);
+    }), [effectiveStatus, q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo, tabKey, slipFilter, printedFilter, params, sort, page, perPage]);
 
     // stats: gửi kèm trạng thái/tab hiện tại ⇒ các chip "Lọc" (Sàn / Gian hàng / ĐVVC) đếm theo đúng tab đang xem
     // (BE: by_status/by_stage/by_slip vẫn bỏ qua status/stage/slip nên badge các tab vẫn đúng tổng riêng).
@@ -119,7 +122,8 @@ export function OrdersPage() {
         has_issue: tabKey === 'issue' || params.get('has_issue') === '1' ? true : undefined,
         out_of_stock: tabKey === 'out_of_stock' ? true : undefined,
         slip: slipFilter,
-    }), [effectiveStatus, q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo, tabKey, slipFilter, params]);
+        printed: printedFilter,
+    }), [effectiveStatus, q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo, tabKey, slipFilter, printedFilter, params]);
 
     const isShipmentsTab = tabKey === 'shipments';
     // tab "Chờ xử lý" / "Đang xử lý" — cho chọn nhiều đơn + "Chuẩn bị hàng" / "In phiếu giao hàng" hàng loạt
@@ -183,9 +187,32 @@ export function OrdersPage() {
             });
             return;
         }
+        // Quy tắc gom phiếu in: cùng 1 nền tảng + cùng 1 ĐVVC mới ghép chung được (khác nền tảng/ĐVVC ⇒ định
+        // dạng tem khác nhau, không ghép vào 1 PDF được). Khác gian hàng trong CÙNG nền tảng thì vẫn in chung.
+        const sources = Array.from(new Set(ready.map((o) => o.source)));
+        const carriers = Array.from(new Set(ready.map((o) => o.shipment!.carrier)));
+        if (sources.length > 1 || carriers.length > 1) {
+            Modal.warning({
+                title: 'Không thể in chung phiếu của nhiều nền tảng / đơn vị vận chuyển',
+                width: 520,
+                content: (
+                    <div>
+                        <p style={{ marginTop: 0 }}>Mỗi sàn (TikTok / Shopee / Lazada / …) và mỗi đơn vị vận chuyển (GHN / TikTok Logistics / …) dùng định dạng tem riêng — không thể ghép chung vào một tệp PDF để in được.</p>
+                        <p>Bạn đang chọn các đơn thuộc{' '}
+                            {sources.length > 1 && <><b>{sources.length} sàn</b> ({sources.map((s) => CHANNEL_META[s]?.name ?? s).join(', ')})</>}
+                            {sources.length > 1 && carriers.length > 1 && ' và '}
+                            {carriers.length > 1 && <><b>{carriers.length} đơn vị vận chuyển</b> ({carriers.join(', ')})</>}.
+                        </p>
+                        <p style={{ marginBottom: 0 }}>Hãy dùng chip <b>“Sàn TMĐT”</b> / <b>“Vận chuyển”</b> trong phần Lọc để lọc theo từng nhóm, rồi in lần lượt từng đợt.</p>
+                    </div>
+                ),
+                okText: 'Đã hiểu',
+            });
+            return;
+        }
         createPrintJob.mutate({ type: 'label', shipment_ids: ready.map((o) => o.shipment!.id) }, {
             onSuccess: (j) => { setPrintJobId(j.id); setSelectedKeys([]); },
-            onError: (e) => message.error(errorMessage(e)),
+            onError: (e) => Modal.warning({ title: 'Không in được tem', content: errorMessage(e), okText: 'Đã hiểu' }),
         });
     };
 
@@ -193,6 +220,10 @@ export function OrdersPage() {
     const sourceChips: ChipItem[] = (stats?.by_source ?? []).map((s) => ({ value: s.source, label: CHANNEL_META[s.source]?.name ?? s.source, count: s.count }));
     const shopChips: ChipItem[] = (stats?.by_shop ?? []).map((s) => ({ value: String(s.channel_account_id), label: shopName(s.channel_account_id), count: s.count }));
     const carrierChips: ChipItem[] = (stats?.by_carrier ?? []).map((c) => ({ value: c.carrier, label: c.carrier, count: c.count }));
+    const printedChips: ChipItem[] = [
+        { value: '1', label: 'Đã in phiếu', count: stats?.by_printed?.yes ?? 0 },
+        { value: '0', label: 'Chưa in phiếu', count: stats?.by_printed?.no ?? 0 },
+    ];
     const timeChips: ChipItem[] = TIME_PRESETS.map((p) => ({ value: p.key, label: p.label }));
 
     const activeTimePreset = useMemo(() => {
@@ -293,7 +324,7 @@ export function OrdersPage() {
             <Card styles={{ body: { padding: '8px 16px 0' } }}>
                 <Tabs
                     activeKey={tabKey}
-                    onChange={(k) => { setSelectedKeys([]); set({ tab: k || undefined, status: undefined, slip: undefined, has_issue: k === 'issue' ? '1' : undefined }); }}
+                    onChange={(k) => { setSelectedKeys([]); set({ tab: k || undefined, status: undefined, slip: undefined, printed: undefined, has_issue: k === 'issue' ? '1' : undefined }); }}
                     items={[
                         ...ORDER_STATUS_TABS.map((t) => ({
                             key: t.key,
@@ -350,6 +381,7 @@ export function OrdersPage() {
                 <FilterChipRow label="Sàn TMĐT" items={sourceChips} value={source || undefined} onChange={(v) => set({ source: v })} />
                 <FilterChipRow label="Gian hàng" items={shopChips} value={channelAccountId || undefined} onChange={(v) => set({ channel_account_id: v })} />
                 <FilterChipRow label="Vận chuyển" items={carrierChips} value={carrier || undefined} onChange={(v) => set({ carrier: v })} />
+                {isProcessingTab && <FilterChipRow label="Phiếu in" items={printedChips} value={printedParam || undefined} onChange={(v) => set({ printed: v })} />}
                 <FilterChipRow
                     label="Thời gian" items={timeChips}
                     value={activeTimePreset}

@@ -102,6 +102,7 @@ export interface OrderFilters {
     out_of_stock?: boolean;
     stage?: 'prepare' | 'pack' | 'handover';   // bước xử lý dựa trên vận đơn (SPEC 0013)
     slip?: 'printable' | 'loading' | 'failed';  // tình trạng phiếu giao hàng của đơn đã "Chuẩn bị hàng" (SPEC 0013)
+    printed?: boolean;   // đã in phiếu (≥1 vận đơn open có print_count>0) — chỉ áp ở "Đang xử lý"
     sort?: string;
     page?: number;
     per_page?: number;
@@ -132,6 +133,7 @@ export interface OrderStats {
     by_status: Record<string, number>;
     by_stage: Record<string, number>;   // { prepare, pack, handover }
     by_slip: { printable: number; loading: number; failed: number };   // tình trạng phiếu giao hàng — SPEC 0013
+    by_printed: { yes: number; no: number };   // đã in / chưa in phiếu giao hàng — SPEC 0013
     by_source: SourceCount[];
     by_shop: ShopCount[];
     by_carrier: CarrierCount[];
@@ -156,7 +158,7 @@ export function useOrders(filters: OrderFilters) {
         placeholderData: (prev) => prev,
         queryFn: async () => {
             const params: Record<string, string | number | boolean> = {};
-            Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== '' && v !== false) params[k] = v as never; });
+            Object.entries(filters).forEach(([k, v]) => { if (v === undefined || v === null || v === '') return; params[k] = (v === true ? 1 : v === false ? 0 : v) as never; });
             const { data } = await api!.get<Paginated<Order>>('/orders', { params });
             return data;
         },
@@ -171,7 +173,7 @@ export function useOrderStats(filters: Omit<OrderFilters, 'page' | 'per_page'> =
         enabled: api != null,
         queryFn: async () => {
             const params: Record<string, string | number | boolean> = {};
-            Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== '' && v !== false) params[k] = v as never; });
+            Object.entries(filters).forEach(([k, v]) => { if (v === undefined || v === null || v === '') return; params[k] = (v === true ? 1 : v === false ? 0 : v) as never; });
             const { data } = await api!.get<{ data: OrderStats }>('/orders/stats', { params });
             return data.data;
         },
