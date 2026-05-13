@@ -193,6 +193,15 @@ return [
             'retry_sleep_ms' => (int) env('LAZADA_HTTP_RETRY_SLEEP_MS', 500),
         ],
 
+        // Tag dùng làm `partner_id` trong sysParams khi ký request (giống `LazopClient.sdkVersion` của SDK).
+        'partner_id' => env('LAZADA_PARTNER_ID', 'cmb-core-seller-php-1.0'),
+        // Mặc định KHÔNG gửi `force_auth=true` ở URL ủy quyền (không có trong tài liệu chính thức; vài region
+        // từ chối). Bật bằng env nếu app yêu cầu re-login khi reconnect.
+        'authorize_force_auth' => (bool) env('LAZADA_AUTHORIZE_FORCE_AUTH', false),
+        // Cách verify chữ ký webhook push: `strict` (sai ⇒ 401, Lazada retry) | `lenient` (sai ⇒ vẫn ack 200
+        // + log; tránh kẹt khi chưa chốt scheme với sandbox). KHÔNG dùng `lenient` cho production.
+        'webhook_verify_mode' => env('LAZADA_WEBHOOK_VERIFY_MODE', 'strict'),
+
         // Some Lazada endpoints differ slightly across API versions / sandbox.
         'endpoints' => [
             'update_stock' => env('LAZADA_UPDATE_STOCK_PATH', '/product/price_quantity/update'),

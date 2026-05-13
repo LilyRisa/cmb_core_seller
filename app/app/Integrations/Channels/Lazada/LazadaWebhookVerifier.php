@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Integrations\Channels\Lazada;
 
 use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -12,19 +13,30 @@ use Symfony\Component\HttpFoundation\Request;
  * Body shape: { "message_type": <int>, "timestamp": <ms>, "site": "lazada_vn",
  *               "data": { "trade_order_id": "...", "trade_order_line_id": "...",
  *                         "order_item_status": "...", "seller_id": "...", ... } }.
- * Signature: HMAC-SHA256(key=app_secret, message = rawBody), hex — Lazada sends it in a
- *            header (name varies by app; we check a few common ones). The raw body is the
- *            source of truth only as a *signal* — order events trigger a re-fetch.
  *
- * `message_type` -> normalized WebhookEventDTO type via config('integrations.lazada.webhook_message_types')
- * (unknown -> "unknown" -> recorded as ignored). See docs/04-channels/lazada.md §4.
+ * Lazada Open Platform "App Push" mô tả 2 dạng ký tuỳ region/version:
+ *   (A) HMAC-SHA256(key=app_secret, message=rawBody) → hex; đặt ở header
+ *       (`X-Lazop-Sign` / `Lazop-Sign` / `X-Lzd-Sign` / `X-Signature`).
+ *   (B) Body có key `sign` ở top-level; HMAC-SHA256(key=app_secret, message=sorted("{k}{v}"…))
+ *       trên các key còn lại; hex. (Dạng "có sẵn sign trong body" — cùng họ với ký request API.)
+ * Ta thử **cả hai** ⇒ khớp 1 trong 2 là PASS. Order events kích `fetchOrderDetail` re-fetch
+ * nên body chỉ là tín hiệu (rule 1 — re-fetch luôn).
+ *
+ * `webhook_verify_mode` (`integrations.lazada.webhook_verify_mode`):
+ *   - `strict` (mặc định): sai chữ ký ⇒ false ⇒ `WebhookIngestService` trả 401 (Lazada retry).
+ *   - `lenient`: sai chữ ký ⇒ verifier trả true + log; tránh kẹt event lúc scheme chưa khớp
+ *     với sandbox. KHÔNG dùng cho production.
+ *
+ * `message_type` → WebhookEventDTO type qua `config('integrations.lazada.webhook_message_types')`;
+ * unknown nhưng có order id ⇒ coi như `order_status_update`. See docs/04-channels/lazada.md §4.
  */
 class LazadaWebhookVerifier
 {
     /** @var array<string,mixed> */
     protected array $cfg;
 
-    private const SIG_HEADERS = ['X-Lazop-Sign', 'X-Lzd-Sign', 'X-Signature', 'Authorization'];
+    /** Tên header Lazada hay dùng cho chữ ký push (case-insensitive). `Authorization` KHÔNG dùng — bỏ. */
+    private const SIG_HEADERS = ['X-Lazop-Sign', 'Lazop-Sign', 'X-Lzd-Sign', 'X-Signature'];
 
     public function __construct()
     {
@@ -34,21 +46,65 @@ class LazadaWebhookVerifier
     public function verify(Request $request): bool
     {
         $secret = (string) ($this->cfg['app_secret'] ?? '');
+        $mode = strtolower((string) ($this->cfg['webhook_verify_mode'] ?? 'strict'));
         if ($secret === '') {
-            return false;
+            return $mode !== 'strict';   // không có secret thì lenient/disabled vẫn cho qua (record signature_ok=false ở caller)
         }
-        $provided = '';
+        $body = (string) $request->getContent();
+        $ok = $this->matchesHeaderHmac($request, $secret, $body) || $this->matchesBodySign($secret, $body);
+        if (! $ok && $mode !== 'strict') {
+            Log::warning('lazada.webhook.signature_mismatch_but_accepted', [
+                'mode' => $mode, 'body_len' => strlen($body),
+                'sig_header_present' => $this->presentSigHeader($request) !== null,
+                'body_has_sign_field' => is_array($j = json_decode($body, true)) && isset($j['sign']),
+            ]);
+
+            return true;
+        }
+
+        return $ok;
+    }
+
+    /** Header chứa chữ ký (lấy header đầu tiên có giá trị) — hoặc null nếu không có. */
+    private function presentSigHeader(Request $request): ?string
+    {
         foreach (self::SIG_HEADERS as $h) {
-            $v = (string) $request->headers->get($h, '');
-            if ($v !== '') {
-                $provided = strtolower(trim($v));
-                break;
+            if (((string) $request->headers->get($h, '')) !== '') {
+                return $h;
             }
         }
-        if ($provided === '') {
+
+        return null;
+    }
+
+    /** Dạng A: HMAC-SHA256(rawBody, app_secret) == header (so sánh không phân biệt hoa thường). */
+    private function matchesHeaderHmac(Request $request, string $secret, string $body): bool
+    {
+        $h = $this->presentSigHeader($request);
+        if ($h === null) {
             return false;
         }
-        $expected = strtolower(hash_hmac('sha256', $request->getContent(), $secret));
+        $provided = strtolower(trim((string) $request->headers->get($h)));
+        $expected = strtolower(hash_hmac('sha256', $body, $secret));
+
+        return hash_equals($expected, $provided);
+    }
+
+    /** Dạng B: body top-level có key `sign`; ký trên các key còn lại đã sort & concat `{k}{v}`. */
+    private function matchesBodySign(string $secret, string $body): bool
+    {
+        $json = json_decode($body, true);
+        if (! is_array($json) || ! isset($json['sign']) || ! is_string($json['sign'])) {
+            return false;
+        }
+        $provided = strtolower(trim($json['sign']));
+        unset($json['sign']);
+        ksort($json, SORT_STRING);
+        $str = '';
+        foreach ($json as $k => $v) {
+            $str .= $k.(is_scalar($v) ? (string) $v : (string) json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        }
+        $expected = strtolower(hash_hmac('sha256', $str, $secret));
 
         return hash_equals($expected, $provided);
     }

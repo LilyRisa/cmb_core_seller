@@ -58,7 +58,10 @@ final class LazadaMappers
             $userInfo = (array) $u;
             break;
         }
-        $shopId = (string) ($sellerData['short_code'] ?? $userInfo['short_code'] ?? $userInfo['seller_id'] ?? $sellerData['seller_id'] ?? '');
+        // Ưu tiên `seller_id` (numeric dài) — Lazada webhook push gửi `data.seller_id` (numeric); để
+        // `channel_accounts.external_shop_id` khớp 1-1 với webhook (tránh "shop_not_found" khi nhận push),
+        // ta lưu seller_id. `short_code` (alphanum ngắn) giữ trong `raw` để tham khảo.
+        $shopId = (string) ($sellerData['seller_id'] ?? $userInfo['seller_id'] ?? $sellerData['short_code'] ?? $userInfo['short_code'] ?? '');
         $name = (string) ($sellerData['name'] ?? $sellerData['seller_name'] ?? $sellerData['company'] ?? $tokenRaw['account'] ?? 'Lazada shop');
         $region = strtoupper((string) ($sellerData['location'] ?? $userInfo['country'] ?? $tokenRaw['country'] ?? 'VN'));
         $region = match ($region) {

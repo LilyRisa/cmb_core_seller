@@ -98,10 +98,12 @@ class LazadaConnectorContractTest extends TestCase
 
     public function test_fetch_shop_info(): void
     {
-        Http::fake(['*/seller/get*' => Http::response($this->ok(['name' => 'Shop Lazada Test', 'short_code' => self::SHOP_ID, 'seller_id' => '777', 'location' => 'Vietnam']))]);
+        Http::fake(['*/seller/get*' => Http::response($this->ok(['name' => 'Shop Lazada Test', 'short_code' => 'ABC123', 'seller_id' => self::SHOP_ID, 'location' => 'Vietnam']))]);
 
         $shop = $this->connector()->fetchShopInfo($this->auth());
+        // Ưu tiên seller_id (numeric) → khớp với `data.seller_id` mà webhook push gửi sau này.
         $this->assertSame(self::SHOP_ID, $shop->externalShopId);
+        $this->assertSame('ABC123', $shop->raw['seller']['short_code']);
         $this->assertSame('Shop Lazada Test', $shop->name);
         $this->assertSame('VN', $shop->region);
     }
