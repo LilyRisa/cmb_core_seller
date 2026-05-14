@@ -14,7 +14,9 @@ use Illuminate\Support\Facades\Route;
  | + giá), `procurement.receive` (tạo phiếu nhập từ PO — kho).
  */
 
-Route::middleware(['api', 'auth:sanctum', 'tenant'])->prefix('api/v1')->group(function () {
+// SPEC 0018 — gating tính năng `procurement` (Pro/Business) cho mua hàng + PO/NCC; `demand_planning`
+// cho đề xuất nhập hàng. Plan thấp ⇒ `402 PLAN_FEATURE_LOCKED`.
+Route::middleware(['api', 'auth:sanctum', 'tenant', 'plan.feature:procurement'])->prefix('api/v1')->group(function () {
     // Nhà cung cấp
     Route::get('suppliers', [SupplierController::class, 'index'])->name('suppliers.index');
     Route::post('suppliers', [SupplierController::class, 'store'])->name('suppliers.store');
@@ -33,8 +35,10 @@ Route::middleware(['api', 'auth:sanctum', 'tenant'])->prefix('api/v1')->group(fu
     Route::post('purchase-orders/{id}/confirm', [PurchaseOrderController::class, 'confirm'])->whereNumber('id')->name('purchase-orders.confirm');
     Route::post('purchase-orders/{id}/cancel', [PurchaseOrderController::class, 'cancel'])->whereNumber('id')->name('purchase-orders.cancel');
     Route::post('purchase-orders/{id}/receive', [PurchaseOrderController::class, 'receive'])->whereNumber('id')->name('purchase-orders.receive');
+});
 
-    // Đề xuất nhập hàng (Phase 6.3)
+// Demand planning — tách block riêng vì gated bằng feature khác (`demand_planning`).
+Route::middleware(['api', 'auth:sanctum', 'tenant', 'plan.feature:demand_planning'])->prefix('api/v1')->group(function () {
     Route::get('procurement/demand-planning', [DemandPlanningController::class, 'index'])->name('procurement.demand-planning');
     Route::post('procurement/demand-planning/create-po', [DemandPlanningController::class, 'createPo'])->name('procurement.demand-planning.create-po');
 });

@@ -36,8 +36,10 @@ enum Role: string
     public function permissions(): array
     {
         return match ($this) {
+            // Owner: toàn quyền + quản lý billing (`billing.manage`). Phase 6.4 — SPEC 0018.
             self::Owner => ['*'],
-            self::Admin => ['*', '!tenant.delete', '!tenant.transfer'],
+            // Admin: toàn quyền nghiệp vụ nhưng KHÔNG `billing.manage` (chỉ owner đổi gói / thanh toán).
+            self::Admin => ['*', '!tenant.delete', '!tenant.transfer', '!billing.manage'],
             self::StaffOrder => [
                 'orders.view', 'orders.update', 'orders.create', 'orders.status',
                 'fulfillment.view', 'fulfillment.print', 'fulfillment.ship',
@@ -57,6 +59,8 @@ enum Role: string
                 'orders.view', 'inventory.view', 'dashboard.view', 'customers.view',
                 // Kế toán xem được NCC / PO + giá nhập để đối soát giá vốn — Phase 6.1.
                 'procurement.view',
+                // Kế toán xem được gói + hoá đơn (không thanh toán) — Phase 6.4.
+                'billing.view',
             ],
             self::Viewer => ['orders.view', 'inventory.view', 'products.view', 'channels.view', 'dashboard.view', 'customers.view'],
         };

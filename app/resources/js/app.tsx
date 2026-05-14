@@ -30,6 +30,7 @@ import { SettingsMembersPage } from '@/pages/SettingsMembersPage';
 import { SettingsProfilePage } from '@/pages/SettingsProfilePage';
 import { SettingsWorkspacePage } from '@/pages/SettingsWorkspacePage';
 import { SettingsOrdersPage } from '@/pages/SettingsOrdersPage';
+import { SettingsPlanPage } from '@/pages/SettingsPlanPage';
 import { SettingsPrintPage } from '@/pages/SettingsPrintPage';
 import { SuppliersPage } from '@/pages/SuppliersPage';
 import { PurchaseOrdersPage } from '@/pages/PurchaseOrdersPage';
@@ -88,6 +89,7 @@ function Root() {
                     <Route path="members" element={<SettingsMembersPage />} />
                     <Route path="carriers" element={<CarrierAccountsPage />} />
                     <Route path="orders" element={<SettingsOrdersPage />} />
+                    <Route path="plan" element={<SettingsPlanPage />} />
                     <Route path="print" element={<SettingsPrintPage />} />
                     <Route path="*" element={<ComingSoon title="Phần này đang được xây dựng" phase="SPEC 0007 / 0011" />} />
                 </Route>

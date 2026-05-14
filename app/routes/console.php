@@ -82,6 +82,12 @@ Schedule::call(function () {
 // Every 30': poll carriers for tracking updates on in-flight shipments — Phase 3 (SPEC 0006).
 Schedule::job(new SyncShipmentTracking)->everyThirtyMinutes()->name('sync-shipment-tracking')->onOneServer()->withoutOverlapping();
 
+// --- Phase 6.4: Billing SaaS (SPEC 0018) ---
+// Mỗi ngày 04:00: áp luật hết hạn / grace 7 ngày / fallback trial cho subscriptions.
+Schedule::command('subscriptions:check-expiring')->dailyAt('04:00')->onOneServer()->withoutOverlapping();
+// Mỗi giờ: lưới an toàn — recompute usage_counters cho mọi tenant (phòng listener miss).
+Schedule::command('billing:recompute-usage')->hourly()->onOneServer()->withoutOverlapping();
+
 // Prune old framework rows so the DB stays lean.
 Schedule::command('queue:prune-failed --hours=336')->daily()->onOneServer();      // keep 14d of failed jobs
 Schedule::command('queue:prune-batches --hours=72 --unfinished=72')->daily()->onOneServer();

@@ -99,11 +99,13 @@ export function useAddMember() {
 }
 
 const PERMS: Record<RoleValue, string[]> = {
+    // Owner: toàn quyền + `billing.manage` (SPEC 0018).
     owner: ['*'],
-    admin: ['*'],
+    // Admin: `*` nhưng phủ định `billing.manage` (chỉ owner đổi gói / thanh toán).
+    admin: ['*', '!billing.manage'],
     staff_order: ['orders.view', 'orders.update', 'orders.create', 'orders.status', 'fulfillment.view', 'fulfillment.print', 'fulfillment.ship', 'products.view', 'inventory.view', 'channels.view', 'dashboard.view'],
     staff_warehouse: ['inventory.view', 'inventory.adjust', 'inventory.transfer', 'inventory.stocktake', 'fulfillment.view', 'fulfillment.scan', 'fulfillment.print', 'orders.view', 'products.view', 'dashboard.view'],
-    accountant: ['finance.view', 'finance.reconcile', 'reports.view', 'reports.export', 'orders.view', 'inventory.view', 'dashboard.view'],
+    accountant: ['finance.view', 'finance.reconcile', 'reports.view', 'reports.export', 'orders.view', 'inventory.view', 'dashboard.view', 'billing.view'],
     viewer: ['orders.view', 'inventory.view', 'products.view', 'channels.view', 'dashboard.view'],
 };
 
@@ -116,5 +118,7 @@ export function useCan(permission: string): boolean {
     const role = tenant?.current_role;
     if (!role) return false;
     const perms = PERMS[role] ?? [];
+    // Hỗ trợ phủ định `!permission` — khớp Role::can() backend (SPEC 0018: admin có `*` nhưng `!billing.manage`).
+    if (perms.includes('!' + permission)) return false;
     return perms.includes('*') || perms.includes(permission);
 }

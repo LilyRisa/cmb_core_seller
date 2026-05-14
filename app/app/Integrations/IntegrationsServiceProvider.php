@@ -9,6 +9,10 @@ use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Integrations\Channels\Lazada\LazadaConnector;
 use CMBcoreSeller\Integrations\Channels\Manual\ManualConnector;
 use CMBcoreSeller\Integrations\Channels\TikTok\TikTokConnector;
+use CMBcoreSeller\Integrations\Payments\Momo\MomoConnector;
+use CMBcoreSeller\Integrations\Payments\PaymentRegistry;
+use CMBcoreSeller\Integrations\Payments\SePay\SePayConnector;
+use CMBcoreSeller\Integrations\Payments\VnPay\VnPayConnector;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -47,6 +51,18 @@ class IntegrationsServiceProvider extends ServiceProvider
         // 'jt'   => \CMBcoreSeller\Integrations\Carriers\JtExpress\JtExpressConnector::class,
     ];
 
+    /**
+     * Payment gateway connectors (Phase 6.4 / SPEC 0018). PaymentRegistry chỉ nạp những
+     * gateway có trong `config('integrations.payments.enabled')`.
+     *
+     * @var array<string, class-string>
+     */
+    protected array $paymentConnectors = [
+        'sepay' => SePayConnector::class,
+        'vnpay' => VnPayConnector::class,
+        'momo' => MomoConnector::class,                 // skeleton — capability=false
+    ];
+
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../../config/integrations.php', 'integrations');
@@ -73,6 +89,30 @@ class IntegrationsServiceProvider extends ServiceProvider
 
             return $registry;
         });
+
+        // Payment gateways (Phase 6.4 / SPEC 0018).
+        $this->app->singleton(PaymentRegistry::class, function ($app) {
+            $registry = new PaymentRegistry($app);
+            foreach ((array) config('integrations.payments.enabled', []) as $code) {
+                $code = trim((string) $code);
+                if ($code !== '' && isset($this->paymentConnectors[$code])) {
+                    $registry->register($code, $this->paymentConnectors[$code]);
+                }
+            }
+
+            return $registry;
+        });
+
+        // Connectors inject config — bind explicitly để DI biết tham số mảng.
+        $this->app->bind(SePayConnector::class, fn () => new SePayConnector(
+            (array) config('integrations.payments.sepay', [])
+        ));
+        $this->app->bind(VnPayConnector::class, fn () => new VnPayConnector(
+            (array) config('integrations.payments.vnpay', [])
+        ));
+        $this->app->bind(MomoConnector::class, fn () => new MomoConnector(
+            (array) config('integrations.payments.momo', [])
+        ));
     }
 
     public function boot(): void

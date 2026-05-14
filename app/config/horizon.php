@@ -106,6 +106,7 @@ return [
         'redis:finance' => 600,
         'redis:notifications' => 120,
         'redis:customers' => 300,
+        'redis:billing' => 300,
         'redis:default' => 120,
     ],
 
@@ -251,7 +252,7 @@ return [
         ],
         'supervisor-default' => [
             'connection' => 'redis',
-            'queue' => ['notifications', 'finance', 'customers', 'default'],
+            'queue' => ['notifications', 'finance', 'customers', 'billing', 'default'],
             'balance' => 'auto',
             'autoScalingStrategy' => 'time',
             'maxProcesses' => 4,

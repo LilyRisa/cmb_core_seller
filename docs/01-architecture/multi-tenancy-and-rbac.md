@@ -39,6 +39,14 @@
 - Mời thành viên: owner/admin gửi email mời → người được mời tạo/đăng nhập user → gắn vào `tenant_user` với role chỉ định.
 - Đổi mật khẩu, quên mật khẩu, (sau) 2FA cho owner/admin.
 
-## 5. Billing & hạn mức (liên quan)
-- Mỗi tenant gắn một `Subscription` (gói). Gói quy định: số `channel_account` tối đa, số đơn đồng bộ/tháng (`usage_counters`), bật/tắt tính năng (mass listing, finance, automation...).
-- Middleware/feature-gate kiểm gói trước khi cho thực hiện hành động bị giới hạn; vượt hạn mức → cảnh báo + chặn (tuỳ tính năng) + gợi ý nâng cấp. Chi tiết ở module `Billing`.
+## 5. Billing & hạn mức (liên quan — Phase 6.4, SPEC-0018 đã triển khai PR1)
+- Mỗi tenant gắn một `Subscription` (gói). 4 gói chuẩn: `trial · starter · pro · business`. Gói quy định: số `channel_account` tối đa (`plan.limits.max_channel_accounts`) + bật/tắt tính năng (`plan.features` jsonb: `procurement`, `fifo_cogs`, `profit_reports`, `finance_settlements`, `demand_planning`, `mass_listing`, `automation_rules`, `priority_support`). **Không** giới hạn số đơn — kiến trúc đủ chịu (đã chốt với chủ dự án 2026-05-14).
+- Middleware `plan.limit:channel_accounts` áp lên `POST /channel-accounts/{provider}/connect` ⇒ vượt hạn mức trả `402 PLAN_LIMIT_REACHED`.
+- Middleware `plan.feature:<feature>` áp lên route module nâng cao (`/finance/*`, `/suppliers*`, `/purchase-orders*`, `/procurement/demand-planning*`, `/reports/profit`, `/reports/top-products`) ⇒ gói không có feature trả `402 PLAN_FEATURE_LOCKED`.
+- Permission strings:
+  | Permission | Vai trò built-in được cấp |
+  |---|---|
+  | `billing.view` | owner, admin, accountant |
+  | `billing.manage` | owner only (admin có `*` nhưng phủ định `!billing.manage`) |
+- Trial 14 ngày: tự khởi động qua listener `StartTrialSubscription` (listen event `TenantCreated`) khi register. Plan chưa seed ⇒ listener no-op gracefully + middleware "open" (không chặn) để dev/test cũ không vỡ. Production luôn seed `BillingPlanSeeder`.
+- Hết hạn ⇒ grace 7 ngày → rớt về subscription `trial` vĩnh viễn (không khoá data). Logic ở `SubscriptionExpiryService` chạy command `subscriptions:check-expiring` hằng ngày.

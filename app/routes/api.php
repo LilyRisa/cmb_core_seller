@@ -62,7 +62,10 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             // --- Channels (Phase 1) — connected shops & OAuth connect ---
             Route::get('channel-accounts', [ChannelAccountController::class, 'index'])->name('channel-accounts.index');
             Route::get('channel-accounts/outbound-ip', [ChannelAccountController::class, 'outboundIp'])->name('channel-accounts.outbound-ip');   // IP để copy vào Lazada IP Whitelist
+            // SPEC 0018 — gating hạn mức gian hàng theo gói. `402 PLAN_LIMIT_REACHED` khi
+            // vượt `plan.limits.max_channel_accounts`.
             Route::post('channel-accounts/{provider}/connect', [ChannelAccountController::class, 'connect'])
+                ->middleware('plan.limit:channel_accounts')
                 ->whereIn('provider', ['tiktok', 'shopee', 'lazada'])->name('channel-accounts.connect');
             Route::patch('channel-accounts/{id}', [ChannelAccountController::class, 'update'])->whereNumber('id')->name('channel-accounts.update');   // set display alias
             Route::delete('channel-accounts/{id}', [ChannelAccountController::class, 'destroy'])->whereNumber('id')->name('channel-accounts.destroy');

@@ -1,6 +1,8 @@
 <?php
 
 use CMBcoreSeller\Http\Middleware\AssignRequestId;
+use CMBcoreSeller\Modules\Billing\Http\Middleware\EnforcePlanFeature;
+use CMBcoreSeller\Modules\Billing\Http\Middleware\EnforcePlanLimit;
 use CMBcoreSeller\Modules\Tenancy\Http\Middleware\EnsureTenant;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
@@ -63,6 +65,9 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'tenant' => EnsureTenant::class,
+            // SPEC 0018 (Billing) — áp riêng từng route cần gating.
+            'plan.limit' => EnforcePlanLimit::class,
+            'plan.feature' => EnforcePlanFeature::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

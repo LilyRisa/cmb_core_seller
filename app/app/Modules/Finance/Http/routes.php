@@ -12,7 +12,8 @@ use Illuminate\Support\Facades\Route;
  |   - `finance.reconcile`: manual reconcile + trigger fetch.
  */
 
-Route::middleware(['api', 'auth:sanctum', 'tenant'])->prefix('api/v1')->group(function () {
+// SPEC 0018 — gating tính năng `finance_settlements` (chỉ gói Pro/Business). Plan thấp ⇒ `402 PLAN_FEATURE_LOCKED`.
+Route::middleware(['api', 'auth:sanctum', 'tenant', 'plan.feature:finance_settlements'])->prefix('api/v1')->group(function () {
     Route::get('settlements', [SettlementController::class, 'index'])->name('settlements.index');
     Route::get('settlements/{id}', [SettlementController::class, 'show'])->whereNumber('id')->name('settlements.show');
     Route::post('settlements/{id}/reconcile', [SettlementController::class, 'reconcile'])->whereNumber('id')->name('settlements.reconcile');

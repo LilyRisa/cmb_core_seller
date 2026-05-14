@@ -194,6 +194,37 @@ Xem [`webhooks-and-oauth.md`](webhooks-and-oauth.md). `POST /webhook/tiktok` →
 
 > Khi có settlement: `OrderResource.profit.fee_source` = `settlement` (dùng phí thực từ `settlement_lines`); chưa có ⇒ `estimate` (dùng `platform_fee_pct`). `OrderResource.profit.cost_source` = `fifo` (đơn đã ship + có `order_costs`) hoặc `estimate` (chưa ship). SPEC 0014/0016.
 
+## Gói thuê bao (Billing — Phase 6.4, SPEC 0018)
+
+| Method | Path | Auth | Request | Response |
+|---|---|---|---|---|
+| GET | `/api/v1/billing/plans` | sanctum + tenant (`billing.view`) | — | `{ data:[PlanResource{id,code,name,description,price_monthly,price_yearly,currency,trial_days,limits,features}] }` — catalogue 4 gói: `trial · starter · pro · business`. Lưu DB (admin sửa được). |
+| GET | `/api/v1/billing/subscription` | sanctum + tenant (`billing.view`) | — | `{ data: SubscriptionResource{plan,plan_code,status,billing_cycle,trial_ends_at,current_period_start/end,cancel_at,days_left,is_trialing,is_past_due}, meta:{ usage:{ channel_accounts:{used,limit}, features:{…} } } }` — tự fallback trial vĩnh viễn khi tenant không có subscription. Plans chưa seed ⇒ `data=null`. |
+| GET | `/api/v1/billing/usage` | sanctum + tenant (`billing.view`) | — | `{ data:{ channel_accounts:{used,limit}, features:{…bool flags} } }`. |
+| POST | `/api/v1/billing/checkout` | sanctum + tenant (`billing.manage` — owner) | `{plan_code:starter\|pro\|business, cycle:monthly\|yearly, gateway:sepay\|vnpay\|momo}` | `201 { data:{ invoice: InvoiceResource, gateway, checkout: CheckoutSession } }`. Throttle 10/phút/user. `momo` ⇒ `422 GATEWAY_UNAVAILABLE` (v1 chưa wire). PR1 trả `checkout.method='pending'`; PR2/PR3 sẽ thay bằng `CheckoutSession` thật (QR cho SePay / `redirect_url` cho VNPay). Chặn: trial plan ⇒ 422; cùng plan đang active ⇒ 422; downgrade khi đang active ⇒ 422. |
+| GET | `/api/v1/billing/invoices` | sanctum + tenant (`billing.view`) | `status?` csv, `page`, `per_page≤100` | `{ data:[InvoiceResource{code,status,subscription_id,period_start,period_end,subtotal,tax,total,currency,due_at,paid_at}], meta:{ pagination } }`. |
+| GET | `/api/v1/billing/invoices/{id}` | sanctum + tenant (`billing.view`) | — | `InvoiceResource` + `lines[]`. |
+| GET | `/api/v1/billing/invoices/{id}/payment-status` | sanctum + tenant (`billing.view`) | — | `{ data:{ id, status, paid_at? } }` — UX polling cho SePay khi user chờ webhook khớp memo. |
+| POST | `/api/v1/billing/subscription/cancel` | sanctum + tenant (`billing.manage` — owner) | — | `{ data: SubscriptionResource (cancel_at = period_end, cancelled_at = now) }`. Trial ⇒ `422 CANNOT_CANCEL_TRIAL` (trial tự hết hạn). |
+| GET | `/api/v1/billing/billing-profile` | sanctum + tenant (`billing.view`) | — | `{ data:{ id, company_name, tax_code, billing_address, contact_email, contact_phone } }` — auto firstOrCreate. |
+| PATCH | `/api/v1/billing/billing-profile` | sanctum + tenant (`billing.manage` — owner) | partial fields | `{ data: profile }`. |
+
+Webhook payments (ngoài `/api`, làm ở PR2/PR3):
+| Method | Path | Mô tả |
+|---|---|---|
+| POST | `/webhook/payments/sepay` | SePay đẩy về (verify HMAC). Dedupe unique `(gateway='sepay', external_ref)`. — PR2 |
+| POST | `/webhook/payments/vnpay` | VNPay IPN (verify HMAC-SHA512). — PR3 |
+| GET | `/payments/vnpay/return` | User redirect — UX, không tin. — PR3 |
+
+**Codes lỗi đặc thù Billing:** `PLAN_LIMIT_REACHED` (vượt hạn mức gian hàng, `402`, details `{resource,current,limit,plan_code,upgrade_to}`); `PLAN_FEATURE_LOCKED` (gói không có tính năng, `402`, details `{features,plan_code,upgrade_to}`); `GATEWAY_UNAVAILABLE` (`422`); `CANNOT_CANCEL_TRIAL` (`422`); `NO_ACTIVE_SUBSCRIPTION` (`422`).
+
+**Middleware gating đã áp:**
+- `plan.limit:channel_accounts` — `POST /channel-accounts/{provider}/connect`. Hết slot ⇒ `402 PLAN_LIMIT_REACHED`.
+- `plan.feature:finance_settlements` — `/api/v1/settlements*`, `/api/v1/channel-accounts/{id}/fetch-settlements`.
+- `plan.feature:procurement` — `/api/v1/suppliers*`, `/api/v1/purchase-orders*`.
+- `plan.feature:demand_planning` — `/api/v1/procurement/demand-planning*`.
+- `plan.feature:profit_reports` — `/api/v1/reports/profit`, `/api/v1/reports/top-products`, `/api/v1/reports/export`. (`/reports/revenue` mở cho mọi gói.)
+
 ## Sắp có (theo roadmap)
 
-`/api/v1/billing/{plans,subscriptions,invoices,payments}` (Phase 6.4 — SaaS billing) · `/api/v1/automation-rules` (Phase 6.5) · `/api/v1/notifications` + channels Zalo/Email (Phase 6.5) … — thêm vào đây khi xây.
+`/webhook/payments/{sepay,vnpay,momo}` + CheckoutSession thật (Phase 6.4 — PR2 SePay, PR3 VNPay) · `/api/v1/automation-rules` (Phase 6.5) · `/api/v1/notifications` + channels Zalo/Email (Phase 6.5) … — thêm vào đây khi xây.

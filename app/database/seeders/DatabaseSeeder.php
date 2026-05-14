@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use CMBcoreSeller\Models\User;
+use CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use Illuminate\Database\Seeder;
@@ -18,6 +19,9 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        // Phase 6.4 — luôn seed các gói thuê bao (idempotent — chạy lại không trùng).
+        $this->call(BillingPlanSeeder::class);
+
         $owner = User::firstOrCreate(
             ['email' => 'owner@demo.local'],
             ['name' => 'Chủ shop demo', 'password' => Hash::make('password')],

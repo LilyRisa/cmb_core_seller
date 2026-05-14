@@ -10,9 +10,14 @@ use Illuminate\Support\Facades\Route;
  | `reports.view`: index endpoints; `reports.export`: CSV stream (UTF-8 BOM cho Excel).
  */
 
+// SPEC 0018 — `revenue` mở cho mọi gói (báo cáo doanh thu cơ bản); `profit` + `top-products` + `export`
+// cần feature `profit_reports` (Pro/Business).
 Route::middleware(['api', 'auth:sanctum', 'tenant'])->prefix('api/v1/reports')->group(function () {
     Route::get('revenue', [ReportController::class, 'revenue'])->name('reports.revenue');
-    Route::get('profit', [ReportController::class, 'profit'])->name('reports.profit');
-    Route::get('top-products', [ReportController::class, 'topProducts'])->name('reports.top-products');
-    Route::get('export', [ReportController::class, 'export'])->name('reports.export');
+
+    Route::middleware('plan.feature:profit_reports')->group(function () {
+        Route::get('profit', [ReportController::class, 'profit'])->name('reports.profit');
+        Route::get('top-products', [ReportController::class, 'topProducts'])->name('reports.top-products');
+        Route::get('export', [ReportController::class, 'export'])->name('reports.export');
+    });
 });

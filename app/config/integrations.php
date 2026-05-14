@@ -71,6 +71,51 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Payment gateways (SPEC 0018 — Billing SaaS, Phase 6.4)
+    |--------------------------------------------------------------------------
+    |
+    | Mỗi cổng = 1 dòng `class-string` trong IntegrationsServiceProvider + 1 block ở đây.
+    | `enabled` csv quyết định cổng nào được nạp vào PaymentRegistry. SePay là cổng đầu
+    | tiên đi production (PR2); VNPay (PR3); MoMo skeleton (PR3, capability=false).
+    |
+    */
+    'payments' => [
+        'enabled' => array_filter(explode(',', (string) env('INTEGRATIONS_PAYMENTS', 'sepay'))),
+
+        // SePay — chuyển khoản tự động qua webhook sao kê. Cấu hình từ env:
+        //   SEPAY_ACCOUNT_NO, SEPAY_ACCOUNT_NAME, SEPAY_BANK_CODE (vd: 'MB', 'TCB', 'VCB'),
+        //   SEPAY_WEBHOOK_API_KEY (key SePay cấp khi cấu hình webhook URL).
+        'sepay' => [
+            'account_no' => env('SEPAY_ACCOUNT_NO'),
+            'account_name' => env('SEPAY_ACCOUNT_NAME'),
+            'bank_code' => env('SEPAY_BANK_CODE', 'MB'),
+            'webhook_api_key' => env('SEPAY_WEBHOOK_API_KEY'),
+            // Template VietQR (compact, compact2, qr_only, print). compact2 = giao diện đẹp + đủ thông tin.
+            'qr_template' => env('SEPAY_QR_TEMPLATE', 'compact2'),
+        ],
+
+        // VNPay — redirect + IPN (PR3, SPEC 0018). Cấu hình:
+        //   VNPAY_TMN_CODE, VNPAY_HASH_SECRET, VNPAY_RETURN_URL.
+        'vnpay' => [
+            'tmn_code' => env('VNPAY_TMN_CODE'),
+            'hash_secret' => env('VNPAY_HASH_SECRET'),
+            'pay_url' => env('VNPAY_PAY_URL', 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html'),
+            'return_url' => env('VNPAY_RETURN_URL'),   // SPA URL, được sinh nếu để trống
+            'version' => env('VNPAY_VERSION', '2.1.0'),
+            'curr_code' => 'VND',
+            'locale' => 'vn',
+        ],
+
+        // MoMo — chỉ skeleton ở PR3 (capability=false). Cấu hình sẽ thêm khi triển khai thật.
+        'momo' => [
+            'partner_code' => env('MOMO_PARTNER_CODE'),
+            'access_key' => env('MOMO_ACCESS_KEY'),
+            'secret_key' => env('MOMO_SECRET_KEY'),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | TikTok Shop Partner API (see docs/04-channels/tiktok-shop.md, SPEC 0001)
     |--------------------------------------------------------------------------
     |

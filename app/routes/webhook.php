@@ -1,5 +1,6 @@
 <?php
 
+use CMBcoreSeller\Modules\Billing\Http\Controllers\PaymentWebhookController;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\WebhookController;
 use Illuminate\Support\Facades\Route;
 
@@ -20,3 +21,13 @@ foreach (['tiktok', 'shopee', 'lazada'] as $provider) {
         ->defaults('provider', $provider)
         ->name($provider);
 }
+
+/*
+| Payment gateway webhooks (Phase 6.4 / SPEC 0018):
+|   POST /webhook/payments/sepay   — chuyển khoản về (SePay đẩy) — PR2
+|   POST /webhook/payments/vnpay   — IPN VNPay — PR3
+|   POST /webhook/payments/momo    — placeholder skeleton — PR3
+*/
+Route::post('payments/{gateway}', [PaymentWebhookController::class, 'handle'])
+    ->whereIn('gateway', ['sepay', 'vnpay', 'momo'])
+    ->name('payments');

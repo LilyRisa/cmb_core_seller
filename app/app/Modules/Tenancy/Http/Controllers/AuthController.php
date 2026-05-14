@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Tenancy\Http\Controllers;
 use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
+use CMBcoreSeller\Modules\Tenancy\Events\TenantCreated;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,7 +29,7 @@ class AuthController extends Controller
             'tenant_name' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $user = DB::transaction(function () use ($data) {
+        [$user, $tenant] = DB::transaction(function () use ($data) {
             $user = User::create([
                 'name' => $data['name'],
                 'email' => $data['email'],
@@ -38,8 +39,11 @@ class AuthController extends Controller
             $tenant = Tenant::create(['name' => $data['tenant_name'] ?? ($data['name'].' Shop')]);
             $tenant->users()->attach($user->getKey(), ['role' => Role::Owner->value]);
 
-            return $user;
+            return [$user, $tenant];
         });
+
+        // Tenant tạo xong ⇒ phát event để Billing khởi động trial 14 ngày (SPEC 0018 §3.1).
+        TenantCreated::dispatch($tenant);
 
         $this->startSession($request, $user);
 
