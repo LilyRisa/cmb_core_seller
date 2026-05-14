@@ -79,9 +79,10 @@ docs/
 
 | | |
 |---|---|
-| Phase hiện tại | **Phase 0 — Nền tảng** (code gần xong — xem trạng thái chi tiết trong [`roadmap.md`](00-overview/roadmap.md#phase-0--nền-tảng--code-gần-xong-còn-việc-ngoài-code); còn việc ngoài-code: hồ sơ sàn, branch protection, Sentry DSN, backup script) |
-| Sàn đang làm | TikTok Shop (đã có SDK Partner API) |
-| Sàn chờ cấp API | Shopee Open Platform, Lazada Open Platform — *đăng ký ngay tuần đầu* |
+| Phase hiện tại | **Phase 6.4 — Billing SaaS** *(✅ Implemented 2026-05-14 — SPEC-0018; xem [`roadmap.md`](00-overview/roadmap.md))*. Phase 7+ Hậu mãi & nâng cao là backlog kế tiếp; còn Phase 6.5 Automation rules + Notifications. |
+| Sàn đang làm | TikTok Shop, **Lazada** (đã có connector + sandbox tests) |
+| Sàn chờ cấp API | Shopee Open Platform |
+| Cổng thanh toán | **SePay** + **VNPay** (đã implement, cần merchant credentials để bật prod); **MoMo** skeleton |
 | Thị trường | Chỉ Việt Nam |
-| Chạy thử | `cp app/.env.example app/.env && docker compose up -d --build` (xem README ở gốc repo) |
-| Cập nhật gần nhất | 2026-05-11 |
+| Chạy thử | `cp app/.env.example app/.env && docker compose up -d --build` (xem README ở gốc repo); seed gói thuê bao: `php artisan db:seed --class=BillingPlanSeeder` |
+| Cập nhật gần nhất | 2026-05-14 |

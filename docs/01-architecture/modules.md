@@ -18,7 +18,7 @@
 | **Procurement** | Nhà cung cấp, bảng giá nhập, đơn mua (PO), nhận hàng → nhập kho → cập nhật giá vốn, đề xuất nhập hàng | `Supplier`, `SupplierPrice`, `PurchaseOrder`, `GoodsReceipt` |
 | **Finance** | Kéo đối soát/settlement từ sàn, phân bổ phí theo đơn, tính lợi nhuận, đối chiếu tiền sàn trả | `Settlement`, `SettlementLine`, `OrderCost`, `ProfitSnapshot` |
 | **Reports** | Báo cáo bán hàng/lợi nhuận/tồn/hiệu suất, export Excel/CSV (đọc từ read replica/bảng tổng hợp) | (không sở hữu bảng nghiệp vụ; có bảng cache báo cáo nếu cần) |
-| **Billing** | Gói thuê bao, đăng ký/dùng thử/gia hạn, hoá đơn, cổng thanh toán VN, **đếm hạn mức** (usage counter) | `Plan`, `Subscription`, `Invoice`, `Payment`, `UsageCounter` |
+| **Billing** *(Phase 6.4 — SPEC-0018, đã implement)* | Gói thuê bao 4 tier (`trial · starter · pro · business`), đăng ký/dùng thử/gia hạn (state machine `trialing→active→past_due→expired` + grace 7 ngày → fallback trial vĩnh viễn), hoá đơn, cổng thanh toán VN (`PaymentRegistry` → SePay/VNPay/MoMo), **đếm hạn mức** + middleware gating (`plan.limit:channel_accounts` + `plan.feature:<feature>`), 2 listener (`StartTrialSubscription` listen `TenantCreated`, `ActivateSubscription` listen `InvoicePaid`), 2 scheduled command (`subscriptions:check-expiring` hằng ngày, `billing:recompute-usage` hằng giờ) | `Plan`, `Subscription`, `Invoice`(+`InvoiceLine`), `Payment`, `UsageCounter`, `BillingProfile` |
 | **Settings** | Quy tắc tự động hoá (rules engine), thông báo & kênh thông báo, cấu hình chung của tenant | `AutomationRule`, `Notification`, `NotificationChannel`, `TenantSetting` |
 
 ## 2. Sơ đồ phụ thuộc cho phép (mũi tên = "được phép phụ thuộc vào")

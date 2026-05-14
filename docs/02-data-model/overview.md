@@ -51,8 +51,16 @@
 
 > Lưu ý: `order_costs` (COGS FIFO) thuộc **Inventory** (Phase 6.1), không thuộc Finance — vì gắn chặt với layer tồn và bất biến từ thời điểm ship.
 
-### Billing
-`plans` (code, name, limits jsonb, features jsonb, price) · `subscriptions` (tenant_id, plan_id, status, trial_ends_at, current_period_start/end, cancel_at) · `invoices`(+`invoice_lines`) · `payments` (gateway, ref, amount, status) · `usage_counters` (tenant_id, metric, period, value)
+### Billing *(Phase 6.4 — SPEC-0018, đã implement)*
+- `plans` (code🔑uniq `trial|starter|pro|business`, name, description, is_active, sort_order, price_monthly bigint VND, price_yearly bigint VND, currency='VND', trial_days, limits jsonb `{max_channel_accounts:int}` (-1 = không giới hạn), features jsonb `{procurement, fifo_cogs, profit_reports, finance_settlements, demand_planning, mass_listing, automation_rules, priority_support}`) — **KHÔNG tenant-scoped** (catalog dùng chung). Seed qua `BillingPlanSeeder` idempotent.
+- `subscriptions` (tenant_id, plan_id, status [`trialing|active|past_due|cancelled|expired`] index, billing_cycle [`monthly|yearly|trial`], trial_ends_at?, current_period_start, current_period_end index, cancel_at?, cancelled_at?, ended_at?, meta jsonb) — **partial unique index** `(tenant_id) WHERE status IN ('trialing','active','past_due')` ⇒ 1 alive subscription per tenant (Postgres + SQLite hỗ trợ; MySQL fallback app-level).
+- `invoices` (tenant_id, subscription_id, code🔑uniq `INV-YYYYMM-NNNN` per tenant, status [`draft|pending|paid|void|refunded`], period_start/end date, subtotal/tax/total bigint VND, currency='VND', due_at, paid_at?, voided_at?, customer_snapshot jsonb, meta jsonb)
+- `invoice_lines` (invoice_id cascade — **KHÔNG có tenant_id** vì đi qua invoice; kind [`plan|addon|discount`], description, quantity, unit_price/amount bigint) — append-only theo invoice.
+- `payments` (tenant_id, invoice_id, gateway [`sepay|vnpay|momo|manual`] index, external_ref, amount bigint, status [`pending|succeeded|failed|refunded`] index, raw_payload jsonb (PII-redacted), occurred_at) 🔑uniq `(gateway, external_ref)` — idempotency cho webhook retry; `raw_payload` chỉ giữ metadata không nhạy cảm (transaction_id/bank_code/amount/status/time — không PAN/CVV/full bank-account, PCI scope minimization).
+- `usage_counters` (tenant_id, metric [`channel_accounts` — v1 chỉ 1 metric], period char(8) [`current` | `YYYY-MM`], value bigint, last_updated_at) 🔑uniq `(tenant_id, metric, period)` — denormalized counter, real-time count vẫn dùng query trực tiếp `channel_accounts` ở middleware (source of truth).
+- `billing_profiles` (tenant_id🔑uniq, company_name?, tax_code?, billing_address?, contact_email?, contact_phone?) — 1-1 với tenant, snapshot vào `invoices.customer_snapshot` lúc tạo invoice.
+
+> Domain events: `Tenancy::TenantCreated` ⇒ `Billing\StartTrialSubscription` (auto-start trial 14 ngày, queue `billing`). `Billing::InvoicePaid` ⇒ `Billing\ActivateSubscription` (swap subscription cũ → mới khi paid).
 
 ### Settings
 `tenant_settings` (tenant_id, key, value jsonb) · `automation_rules` (tenant_id, name, enabled, trigger jsonb, conditions jsonb, actions jsonb) · `notifications` (tenant_id, user_id?, type, payload jsonb, read_at) · `notification_channels` (tenant_id, type[email|inapp|zalo|telegram], config🔒 jsonb, enabled)

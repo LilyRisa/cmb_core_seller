@@ -1,8 +1,8 @@
 # SPEC 0018: Billing SaaS — Gói thuê bao + Hạn mức + Cổng thanh toán VN (SePay/VNPay/MoMo)
 
-- **Trạng thái:** Reviewed (đã chốt giá + gói + cổng với chủ dự án 2026-05-14; sẵn sàng code)
+- **Trạng thái:** Implemented (2026-05-14 — PR1 nền + PR2 SePay + PR3 VNPay/MoMo skeleton; 46/46 test xanh; bật prod khi có merchant credentials)
 - **Phase:** 6.4
-- **Module backend liên quan:** Billing (mới — hiện chỉ skeleton), Tenancy (RBAC + audit), Channels (gating hạn mức gian hàng), Finance/Reports/Procurement/Inventory/Products/Settings (gating tính năng nâng cao)
+- **Module backend liên quan:** Billing (mới — đã code đầy đủ), Tenancy (RBAC + audit + event `TenantCreated`), Channels (gating hạn mức gian hàng), Finance/Reports/Procurement/Inventory/Products/Settings (gating tính năng nâng cao)
 - **Tác giả / Ngày:** Team · 2026-05-14
 - **Liên quan:** `01-architecture/extensibility-rules.md` §1 (trục mở rộng "Cổng thanh toán"), `01-architecture/multi-tenancy-and-rbac.md` §5, `02-data-model/overview.md` §Billing, `05-api/conventions.md`, `06-frontend/overview.md`, `07-infra/queues-and-scheduler.md`, `08-security-and-privacy.md` §3, SPEC-0007 §3.3 (Gói & nâng cấp), SPEC-0011 (Settings shell).
 

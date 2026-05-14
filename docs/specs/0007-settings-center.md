@@ -46,11 +46,11 @@ Sidebar chính: mục "Cài đặt" mở `/settings/profile`; bên trong có sub
 - Sửa `tenants.name`, `tenants.slug` (chú ý: slug là **định danh shop** dùng cho login nhân viên — đổi slug ảnh hưởng username nhân viên, xem §5; cân nhắc khoá hoặc cảnh báo mạnh khi đổi), `tenants.settings.logo_url`, `tenants.settings.timezone` (mặc định `Asia/Ho_Chi_Minh`), địa chỉ kho mặc định (gửi/nhận hàng — dùng làm `from_address` cho ĐVVC, ghi vào `tenants.settings.from_address` hoặc `warehouses` mặc định).
 - API: `PATCH /api/v1/tenant` `{name?, slug?, settings?}` (chỉ owner/admin). Slug đổi phải unique + chỉ `[a-z0-9-]`.
 
-### 3.3 Gói & nâng cấp (`/settings/plan`) — **Phase 6** (Billing) — UI shell trước, logic sau
-- Hiển thị: gói hiện tại (`subscriptions`), hạn mức & mức dùng (`usage_counters`: số gian hàng, số đơn/tháng, số nhân viên…), ngày hết hạn / gia hạn, lịch sử hoá đơn.
-- Hành động: **nâng cấp / đổi gói** → trang chọn gói (`plans`) → thanh toán (VNPay/MoMo) → webhook xác nhận → cập nhật `subscriptions`.
-- Phase này (3): chỉ làm **UI shell** đọc dữ liệu rỗng / "Mọi gian hàng đang ở gói dùng thử" + nút "Liên hệ nâng cấp". Bảng `plans/subscriptions/usage_counters/invoices` + cổng thanh toán = **SPEC riêng ở Phase 6** (Billing). Không hardcode hạn mức ở Phase 3.
-- RBAC: `billing.view` (owner/admin/accountant), `billing.manage` (owner).
+### 3.3 Gói & nâng cấp (`/settings/plan`) — **Phase 6.4 (✅ Implemented qua SPEC-0018)**
+- Trang đã có đầy đủ: card "Gói hiện tại" + usage progress (gian hàng đã dùng / hạn mức) + so sánh 4 gói (`trial · starter · pro · business`) + nút "Chọn gói này" mở modal upgrade (`Radio.Group` cycle monthly/yearly, `Segmented` gateway SePay/VNPay/MoMo) + nút "Huỷ gói" (owner only) + banner trial/past_due + danh sách hoá đơn gần đây.
+- Hành động: **nâng cấp / đổi gói** → `POST /api/v1/billing/checkout {plan_code, cycle, gateway}` → tạo invoice + `CheckoutSession` (SePay = QR + memo · VNPay = redirect_url) → webhook khớp → `InvoicePaid` event → listener `ActivateSubscription` swap gói + extend kỳ.
+- Hạn mức gating: middleware `plan.limit:channel_accounts` + `plan.feature:<feature>` (`402 PLAN_LIMIT_REACHED` / `PLAN_FEATURE_LOCKED`). FE `lib/billing.tsx` cung cấp hooks `usePlans`/`useSubscription`/`useCheckout`/`useCancelSubscription`/`useInvoices`/`useBillingProfile`.
+- RBAC: `billing.view` (owner/admin/accountant), `billing.manage` (owner only — admin có `*` nhưng `!billing.manage`). Chi tiết đầy đủ ở SPEC-0018.
 
 ## 4. Nhóm 2 — Trung tâm kết nối (`/settings/connections`)
 
@@ -143,7 +143,7 @@ Hiện RBAC là `Role` enum cứng (owner/admin/staff_order/staff_warehouse/acco
 | C | **0010 — Trung tâm kết nối** (§4 — gom Gian hàng + ĐVVC + thẻ "Khác" Coming soon; `connections/summary`) | 3 | A |
 | D | **0011 — Cài đặt đơn hàng** (§6 — order_flags + auto-rule + pickup windows + tham số xử lý đơn) | 3–4 | A, B |
 | E | **0012 — Mẫu in tuỳ biến** (§7 — print_templates + renderer theo layout + preview; thay `PrintTemplates` cứng của SPEC-0006) | 3–4 | A, SPEC-0006 |
-| F | **NNNN — Billing (gói/hạn mức/thanh toán)** (§3.3) | 6 | A |
+| F | **[0018](0018-billing-saas.md) — Billing SaaS** (gói/hạn mức gian hàng/gating tính năng nâng cao/SePay+VNPay+MoMo skeleton) — **✅ Implemented 2026-05-14** (§3.3) | 6.4 | A |
 | G | **NNNN — Module phụ trợ** (Zalo OA / SMS / kế toán …) — mỗi cái 1 spec | 6+ | C |
 Ưu tiên: **A → B** trước (Settings shell + nhân viên/vai trò là nền cho mọi thứ còn lại), rồi C, D, E. F/G để Phase 6+.
 

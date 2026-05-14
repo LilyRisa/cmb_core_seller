@@ -17,18 +17,22 @@
 ## 3. Bí mật & token tích hợp
 - Token sàn (`access_token`, `refresh_token`), credential ĐVVC, cấu hình kênh thông báo ⇒ **mã hoá ở tầng ứng dụng** (Laravel `encrypted`/`encrypted:array` cast), `APP_KEY` quản lý qua secret manager. **Không bao giờ log token/secret.**
 - `app_key/secret` của các sàn ở biến môi trường / secret manager, không trong DB, không trong repo.
+- **Payment gateway credentials** *(Phase 6.4 — SPEC-0018)*: `SEPAY_*` (account_no/bank_code/webhook_api_key), `VNPAY_TMN_CODE`/`VNPAY_HASH_SECRET`, `MOMO_*` chỉ trong `.env` — KHÔNG trong DB, KHÔNG trong repo. Webhook payload lưu vào `payments.raw_payload` đã **redact PII** (SePay bỏ `subAccount`/`accountNumber`; cổng nào không trả PAN/CVV thì không lưu thêm gì) — PCI scope minimization.
 - Xoay khoá (`APP_KEY`) có quy trình re-encrypt.
 
 ## 4. Webhook & API ngoài
-- Verify chữ ký mọi webhook (per sàn/ĐVVC) trước khi xử lý; sai ⇒ `401`, không lưu, không xử lý.
-- Chống replay: dedupe theo `(provider, external_id, event_type[, timestamp])`; bỏ event quá cũ.
+- Verify chữ ký mọi webhook (per sàn/ĐVVC/cổng thanh toán) trước khi xử lý; sai ⇒ `401`, không lưu, không xử lý.
+  - **Sàn TMĐT** (TikTok/Shopee/Lazada): HMAC theo spec từng sàn, ở `Channels\WebhookController`.
+  - **Cổng thanh toán** *(Phase 6.4 — SPEC-0018)*: SePay verify `Authorization: Apikey <key>` (constant-time `hash_equals`); VNPay verify HMAC-SHA512 `vnp_SecureHash` theo chuẩn 2.1.0 (`http_build_query` PHP_QUERY_RFC1738). MoMo skeleton trả false (chưa implement).
+- Chống replay: dedupe theo `(provider, external_id, event_type[, timestamp])` cho webhook sàn; **`payments` unique `(gateway, external_ref)`** cho cổng thanh toán ⇒ webhook chạy 2 lần = 1 payment row (idempotent).
 - Gọi API ngoài: timeout hợp lý, retry có giới hạn, không follow redirect lạ, validate TLS.
 - SSRF: mọi URL "động" (vd label_url, ảnh sản phẩm từ sàn) chỉ tải từ domain whitelist; không cho người dùng nhập URL tuỳ ý để server fetch.
 
 ## 5. Rate limiting & lạm dụng
 - Throttle: login, API chung per user, endpoint nặng (export/bulk) thấp hơn, webhook per IP. Trả `429` + `Retry-After`.
-- Giới hạn theo gói (`Subscription`/`UsageCounter`) cho số gian hàng, số đơn đồng bộ/tháng, số job in...
+- Giới hạn theo gói *(Phase 6.4 — SPEC-0018, đã implement)*: middleware `plan.limit:channel_accounts` chặn vượt số gian hàng theo gói (`402 PLAN_LIMIT_REACHED`); `plan.feature:<feature>` chặn module nâng cao theo gói (`402 PLAN_FEATURE_LOCKED`). **KHÔNG** giới hạn số đơn (đảm bảo "không mất đơn nào của khách"). Hết hạn ⇒ grace 7 ngày → rớt về `trial` (không khoá data).
 - Upload file (ảnh SP, import Excel): giới hạn kích thước/loại MIME; quét cơ bản; lưu ngoài webroot (MinIO).
+- `/api/v1/billing/checkout`: throttle 10/phút/user (chống spam tạo invoice). `/webhook/payments/*`: không giới hạn ở app (gateway tự throttle); verify chữ ký trước khi ghi.
 
 ## 6. Dữ liệu cá nhân của người mua (buyer PII) — TUÂN THỦ
 > Các sàn (TikTok/Shopee/Lazada) yêu cầu app đối tác **không lưu trữ quá mức** và **xoá theo yêu cầu** thông tin cá nhân buyer. Vi phạm có thể bị thu hồi quyền API.

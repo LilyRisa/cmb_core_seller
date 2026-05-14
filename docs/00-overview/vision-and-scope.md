@@ -35,7 +35,7 @@
 - **Chat hợp nhất đa sàn**: để rất sau (Phase 7+), không phải mục tiêu chính.
 - **Hóa đơn điện tử**: tích hợp ở Phase rất sau, không phải MVP.
 - **Mobile app native**: không. Có thể làm PWA cho khâu quét đóng gói ở Phase sau.
-- **Không** tự xây cổng thanh toán, dùng VNPay/MoMo qua tích hợp.
+- **Không** tự xây cổng thanh toán. Đã tích hợp **SePay** (chuyển khoản qua webhook sao kê — không phí cổng) + **VNPay** (redirect + IPN) cho thuê bao SaaS; **MoMo** skeleton sẵn để bật khi có nhu cầu. Phase 6.4 / SPEC-0018.
 
 ## 5. Tiêu chí thành công (mỗi mốc)
 

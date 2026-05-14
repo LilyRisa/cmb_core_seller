@@ -37,6 +37,10 @@
 | Lợi nhuận đơn | **Order profit** | Doanh thu − giá vốn − phí sàn − phí ship − chiết khấu − chi phí khác. |
 | Đơn mua / Nhập hàng | **Purchase Order (PO)** | Đơn đặt hàng từ NCC; nhận hàng → nhập kho → cập nhật giá vốn. |
 | Đối soát phí ship | — | So phí vận chuyển thực tế (ĐVVC/sàn báo) với ước tính. |
-| Hạn mức sử dụng | **Usage Counter** | Bộ đếm (vd số đơn đồng bộ/tháng) để áp giới hạn theo gói thuê bao. |
+| Hạn mức sử dụng | **Usage Counter** | Bộ đếm denormalized (v1 chỉ có `channel_accounts`) để hiển thị "đã dùng N/M" + lưới an toàn. Hạn mức cứng kiểm bằng query trực tiếp ở middleware. |
+| Gói thuê bao | **Plan** *(Phase 6.4 — SPEC-0018)* | Một trong 4 tier: `trial · starter · pro · business`. Lưu DB (admin sửa được), gồm `price_monthly/yearly` bigint VND, `limits {max_channel_accounts}`, `features {procurement, fifo_cogs, profit_reports, finance_settlements, demand_planning, mass_listing, automation_rules, priority_support}`. |
+| Đăng ký gói | **Subscription** *(Phase 6.4)* | Một tenant tại một thời điểm có 1 subscription "alive" (partial unique index `WHERE status IN trialing/active/past_due`). State machine: `trialing → active → past_due → expired` (+ `cancelled` chạy đến hết `cancel_at`). Hết hạn ⇒ grace 7 ngày → fallback `trial` vĩnh viễn (không khoá data). |
+| Hoá đơn | **Invoice** *(Phase 6.4)* | Mã `INV-YYYYMM-NNNN` unique per tenant. Status `draft → pending → paid` (`void`/`refunded` ngoại lệ). Snapshot `billing_profile` vào `customer_snapshot` khi tạo (immutable). |
+| Cổng thanh toán | **Payment Gateway / PaymentGatewayConnector** *(Phase 6.4)* | Adapter chuẩn hoá cho mỗi cổng (SePay/VNPay/MoMo). Resolve qua `PaymentRegistry`. Hai biến thể UX: `method=bank_transfer` (SePay QR + memo) vs `method=redirect` (VNPay/MoMo). |
 | Quy tắc tự động | **Automation Rule** | Điều kiện → hành động (vd "đơn TikTok COD < 200k → tự xác nhận + gán kho A"). |
 | Đường găng | **Critical path** | Việc mà chậm nó là chậm cả dự án — ở đây là duyệt API Shopee/Lazada. |

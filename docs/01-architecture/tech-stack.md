@@ -18,6 +18,7 @@
 | Search (sau) | Postgres trigram trước → **Meilisearch** khi cần | Tìm đơn/SP theo SĐT/mã/tracking trên triệu dòng. |
 | Realtime (sau) | **Laravel Reverb** (WebSocket) | Cập nhật đơn mới / tiến độ in lên UI. |
 | Tĩnh tích hợp ngoài | HTTP client của Laravel (Guzzle) | Viết client PHP riêng cho mỗi sàn/ĐVVC; SDK TikTok TS chỉ tham khảo schema. |
+| Cổng thanh toán (Phase 6.4) | **SePay** (chuyển khoản qua webhook sao kê) + **VNPay** (redirect + IPN HMAC-SHA512) + **MoMo** skeleton | SePay = không phí cổng (chỉ phí ngân hàng), UX QR + memo; VNPay = quẹt thẻ/ATM/QR ngay trong 1 cú click; MoMo để khi shop yêu cầu. Pattern `PaymentGatewayConnector` + `PaymentRegistry` — thêm cổng mới = 1 connector + 1 dòng register. SPEC-0018. |
 | Static analysis | **Larastan/PHPStan** (level cao dần), **Laravel Pint** | Bắt lỗi sớm; format thống nhất. |
 | Test | **Pest** (unit/feature) + contract test cho connector | Xem `09-process/testing-strategy.md`. |
 

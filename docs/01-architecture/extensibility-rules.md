@@ -10,7 +10,7 @@
 |---|---|---|---|
 | **Sàn TMĐT** | `ChannelConnector` | `ChannelRegistry` | 1 thư mục `app/Integrations/Channels/<Tên>/` + 1 dòng `register('<code>', XConnector::class)` |
 | **Đơn vị vận chuyển** | `CarrierConnector` | `CarrierRegistry` | 1 thư mục `app/Integrations/Carriers/<Tên>/` + 1 dòng `register('<code>', XConnector::class)` |
-| *(sau)* Cổng thanh toán | `PaymentGatewayConnector` | `PaymentRegistry` | tương tự |
+| **Cổng thanh toán** *(Phase 6.4 — implemented SPEC-0018)* | `PaymentGatewayConnector` | `PaymentRegistry` | 1 thư mục `app/Integrations/Payments/<Tên>/` + 1 dòng `register('<code>', XConnector::class)` + 1 block trong `config/integrations.php` (`payments.<code>`) + 1 dòng vào `INTEGRATIONS_PAYMENTS` env csv. Đã có: `sepay` (chuyển khoản qua webhook sao kê), `vnpay` (redirect + IPN HMAC-SHA512), `momo` (skeleton — capability=false). |
 | *(sau)* Hoá đơn điện tử | `EInvoiceConnector` | `EInvoiceRegistry` | tương tự |
 
 ## 2. Hợp đồng `ChannelConnector` (định hình — chi tiết DTO ở `04-channels/README.md`)
@@ -113,6 +113,27 @@ $orderDto  = $connector->fetchOrderDetail($channelAccount->authContext(), $exter
 3. `CarrierRegistry::register('<code>', XCarrierConnector::class)` + bật trong config.
 4. Doc `docs/03-domain/carriers.md` cập nhật (hoặc file riêng nếu dài).
 5. UI cấu hình tài khoản ĐVVC render động từ metadata connector.
+
+## 6b. Quy trình "Thêm một cổng thanh toán mới" (Phase 6.4 / SPEC 0018)
+
+Mirror pattern của Channels/Carriers — `app/Integrations/Payments/` đã có:
+- `Contracts/PaymentGatewayConnector.php` — interface chung (capabilities: `checkout`/`webhook`/`refund`/`query`; method: `code`, `displayName`, `method`, `checkout`, `verifyWebhookSignature`, `parseWebhook`, `queryStatus`, `assertConfigured`).
+- `Contracts/DTOs/CheckoutRequest`, `CheckoutSession`, `PaymentNotification` — DTO chuẩn (không tied tới gateway nào).
+- `Exceptions/UnsupportedOperation`, `GatewayNotConfigured`.
+- `PaymentRegistry.php` — singleton, register by code, resolve `for($code)`.
+
+Hai biến thể UX:
+- `method='bank_transfer'` — SePay (FE hiện QR + memo, poll `payment-status`).
+- `method='redirect'` — VNPay/MoMo (FE redirect tới `redirectUrl`).
+
+Checklist thêm cổng mới:
+1. Tạo `app/Integrations/Payments/<Name>/` với `XConnector` + `XSigner`/`XWebhookVerifier` nếu cần.
+2. Contract test (`Tests/Feature/Billing/<Name>Test.php`) — signer deterministic + webhook valid/invalid + parse payload fixture.
+3. Thêm vào `$paymentConnectors` ở `IntegrationsServiceProvider` + `app->bind` để inject config.
+4. Thêm block `payments.<code>` vào `config/integrations.php` + `.env.example` cập nhật.
+5. Bật trong `INTEGRATIONS_PAYMENTS` env csv khi đi production.
+
+**KHÔNG** sửa `BillingController`/`PaymentService`/`ProcessPaymentWebhook` để thêm cổng — chúng đã gateway-agnostic qua `PaymentRegistry`.
 
 ## 7. Những điểm khác đã thiết kế để dễ mở rộng / bảo trì
 - **Trạng thái đơn**: state machine + bảng mapping config (không hard-code) — xem `03-domain/order-status-state-machine.md`.

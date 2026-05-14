@@ -16,6 +16,7 @@ Quy mô mục tiêu (~100 nhà bán, ~500k đơn/tháng) **không cần microser
    (React SPA, AntD)               │   /                 → app.blade.php (React)  │
                                    │   /{any}            → catch-all → React     │
    TikTok / Shopee / Lazada ──────▶│   /webhook/{provider} → verify + enqueue     │
+   SePay / VNPay (payment IPN)  ──▶│   /webhook/payments/{gateway} → verify + enq │
    (webhook đẩy về)                │   /oauth/{provider}/callback → đổi token      │
                                    │   /api/v1/*         → REST JSON (Sanctum SPA) │
                                    └───────┬──────────────────────┬──────────────┘
@@ -36,8 +37,9 @@ Quy mô mục tiêu (~100 nhà bán, ~500k đơn/tháng) **không cần microser
                                            │                      │ HTTP (REST + ký HMAC)
                                   ┌────────┴──────────────────────▼───────────────┐
                                   │  Integration layer (adapter/registry)          │
-                                  │   ChannelRegistry → TikTokConnector / Shopee.. │
+                                  │   ChannelRegistry → TikTokConnector / Lazada.. │
                                   │   CarrierRegistry → GhnConnector / GhtkConnector│
+                                  │   PaymentRegistry → SePay / VnPay / Momo (6.4) │
                                   └────────────────────────────────────────────────┘
                                            ▲ Sentry (errors) · structured logs
 ```
@@ -83,18 +85,23 @@ app/
 │   ├── Procurement/    (Supplier, PurchaseOrder, GoodsReceipt)
 │   ├── Finance/        (Settlement, SettlementLine, OrderCost, ProfitSnapshot)
 │   ├── Reports/        (báo cáo, export)
-│   ├── Billing/        (Plan, Subscription, Invoice, UsageCounter)
+│   ├── Billing/        (Plan, Subscription, Invoice, InvoiceLine, Payment, UsageCounter, BillingProfile + EnforcePlanLimit/EnforcePlanFeature middleware + ProcessPaymentWebhook job + StartTrial/ActivateSubscription listeners)
 │   └── Settings/       (AutomationRule, Notification, NotificationChannel)
 ├── Integrations/
 │   ├── Channels/
 │   │   ├── Contracts/  (ChannelConnector interface, DTO chuẩn)
 │   │   ├── TikTok/     (client versioned: v202309.., signing, ánh xạ DTO, status map)
 │   │   ├── Shopee/     (sau)
-│   │   └── Lazada/     (sau)
-│   └── Carriers/
-│       ├── Contracts/  (CarrierConnector interface)
-│       ├── Ghn/  Ghtk/  JtExpress/  ViettelPost/  ...
-│       └── ...
+│   │   └── Lazada/
+│   ├── Carriers/
+│   │   ├── Contracts/  (CarrierConnector interface)
+│   │   ├── Ghn/  Ghtk/  JtExpress/  ViettelPost/  ...
+│   │   └── ...
+│   └── Payments/       (Phase 6.4 — SPEC-0018)
+│       ├── Contracts/  (PaymentGatewayConnector interface + CheckoutRequest/CheckoutSession/PaymentNotification DTO)
+│       ├── SePay/      (chuyển khoản tự động qua webhook sao kê — VietQR động)
+│       ├── VnPay/      (redirect + IPN HMAC-SHA512, version 2.1.0)
+│       └── Momo/       (skeleton — capability=false)
 ├── Http/               (Controllers mỏng, Requests, Resources, Middleware)
 ├── Support/            (helpers chung: PDF client, money, address VN, signing utils)
 └── Console/            (Kernel scheduler, commands)
