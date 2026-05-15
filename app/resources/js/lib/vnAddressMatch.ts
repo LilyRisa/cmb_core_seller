@@ -4,7 +4,7 @@
  *
  * Quy tắc match thông minh:
  *  - "ha noi" (không dấu) khớp "Hà Nội"
- *  - "Hồ Chí Minh" khớp "Thành phố Hồ Chí Minh" (strip tiền tố cấp)
+ *  - "Hồ Chí Minh" / "HCM" / "TP.HCM" / "Saigon" đều khớp "Thành phố Hồ Chí Minh" (alias + strip prefix)
  *  - "Q.1" / "Q1" / "Quận 1" đều khớp "Quận 1"
  *  - Sort: exact match > startsWith > contains
  */
@@ -20,19 +20,52 @@ export function vnPlain(s: string): string {
         .trim();
 }
 
-/** Bỏ tiền tố cấp hành chính (vd "Tỉnh ", "Quận ", "P. ", "TP "). */
+/**
+ * Bỏ tiền tố cấp hành chính (vd "Tỉnh ", "Quận ", "P. ", "TP ").
+ * Hỗ trợ cả dạng dính số: "Q.1", "Q1", "P.5", "P5" — strip tiền tố để chỉ còn "1", "5".
+ */
 export function stripAdminPrefix(plain: string): string {
     return plain
         .replace(
-            /^(thanh pho |tp\.? |tinh |t\.? |quan |q\.? |huyen |h\.? |thi xa |tx\.? |phuong |p\.? |xa |x\.? |thi tran |tt\.? |dac khu )+/u,
+            /^(thanh pho\s+|tp(?:\.\s*|\s+|(?=\d))|tinh\s+|quan\s+|q(?:\.\s*|\s+|(?=\d))|huyen\s+|h\.\s*|thi xa\s+|tx(?:\.\s*|\s+|(?=\d))|phuong\s+|p(?:\.\s*|\s+|(?=\d))|xa\s+|x\.\s+|thi tran\s+|tt(?:\.\s*|\s+|(?=\d))|dac khu\s+)+/u,
             '',
         )
         .trim();
 }
 
-/** vnPlain + strip prefix — dùng để so sánh "hà nội" với "thành phố hà nội". */
+/**
+ * Alias viết tắt → tên chuẩn (sau khi đã vnPlain + stripAdminPrefix).
+ * User gõ "HCM" / "Saigon" / "Hanoi" vẫn nhận diện được tỉnh.
+ */
+const CITY_ALIASES: Record<string, string> = {
+    'hcm': 'ho chi minh',
+    'tphcm': 'ho chi minh',
+    'hochiminh': 'ho chi minh',
+    'sg': 'ho chi minh',
+    'sgn': 'ho chi minh',
+    'saigon': 'ho chi minh',
+    'sai gon': 'ho chi minh',
+    'hn': 'ha noi',
+    'hanoi': 'ha noi',
+    'dn': 'da nang',
+    'danang': 'da nang',
+    'hp': 'hai phong',
+    'haiphong': 'hai phong',
+    'ct': 'can tho',
+    'cantho': 'can tho',
+    'br vt': 'ba ria vung tau',
+    'brvt': 'ba ria vung tau',
+    'vt': 'ba ria vung tau',
+    'vungtau': 'ba ria vung tau',
+};
+
+function applyCityAlias(key: string): string {
+    return CITY_ALIASES[key] ?? key;
+}
+
+/** vnPlain + strip prefix + expand alias — dùng để so sánh "hà nội" với "thành phố hà nội", "HCM" với "TP Hồ Chí Minh". */
 export function vnKey(s: string): string {
-    return stripAdminPrefix(vnPlain(s));
+    return applyCityAlias(stripAdminPrefix(vnPlain(s)));
 }
 
 /** Score độ khớp giữa query (đã normalize) và item.name. Cao = khớp hơn. -1 = không khớp. */
@@ -42,7 +75,7 @@ export function matchScore(query: string, itemName: string): number {
     const n = vnKey(itemName);
     const np = vnPlain(itemName);   // không strip prefix — để match khi user gõ kèm "Quận"
     if (q === '') return 0;
-    // Exact match (bỏ tiền tố) — score cao nhất
+    // Exact match (bỏ tiền tố + alias) — score cao nhất
     if (n === q) return 1000;
     // Exact với prefix giữ nguyên — vd "quan 1" === "quan 1" (n đã strip còn "1", np còn "quan 1")
     if (np === q) return 950;

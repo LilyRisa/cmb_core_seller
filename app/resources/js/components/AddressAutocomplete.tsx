@@ -127,29 +127,56 @@ function splitSegments(text: string | undefined | null): string[] {
     return String(text).split(/[,;]+/).map((s) => s.trim()).filter(Boolean);
 }
 
-/** Parse TAIL: tìm province trong đoạn cuối, trả tail còn lại + detail address ở đầu. */
+/**
+ * Parse TAIL: tìm province trong đoạn cuối, trả tail còn lại + detail address ở đầu.
+ *
+ * Có 2 chiến lược:
+ *  - **Phẩy**: ưu tiên — segment cuối là tỉnh (chuẩn placeholder gợi ý user nhập).
+ *  - **Word-window fallback**: nếu phẩy không khớp / không có phẩy, thử ghép 1..4 từ cuối thành
+ *    segment tỉnh. Hỗ trợ trường hợp user gõ liền không phẩy ("123 NTrai Q1 TP HCM").
+ */
 function parseTail(text: string, _format: AddressFormat, provinces: Province[]): TailParse | null {
+    if (provinces.length === 0) return null;
     const segs = splitSegments(text);
-    if (segs.length < 2 || provinces.length === 0) return null;
 
-    // Match province từ segment cuối; nếu không khớp, thử lấy 2 segment cuối (có khi user gõ "hcm, vn").
-    let provIdx = segs.length - 1;
-    let prov = uniqueMatch(provinces, segs[provIdx]);
-    if (!prov && segs.length >= 2) {
-        // Có thể last segment là "Việt Nam" — bỏ qua và thử áp cuối.
-        const last = vnKey(segs[provIdx]);
-        if (['viet nam', 'vietnam', 'vn'].includes(last)) {
-            provIdx = segs.length - 2;
-            prov = uniqueMatch(provinces, segs[provIdx]);
+    // ---- Strategy 1: comma-separated ----
+    if (segs.length >= 2) {
+        let provIdx = segs.length - 1;
+        let prov = uniqueMatch(provinces, segs[provIdx]);
+        if (!prov) {
+            // Có thể last segment là "Việt Nam" — bỏ qua và thử áp cuối.
+            const last = vnKey(segs[provIdx]);
+            if (['viet nam', 'vietnam', 'vn'].includes(last)) {
+                provIdx = segs.length - 2;
+                prov = uniqueMatch(provinces, segs[provIdx]);
+            }
+        }
+        if (prov) {
+            const detail = segs.slice(0, Math.max(0, provIdx - 1)).join(', ');
+            const afterProvinceTail = provIdx - 1 >= 0 ? segs[provIdx - 1] : '';
+            return { detail, province: prov, afterProvinceTail };
         }
     }
-    if (!prov) return null;
 
-    // detail = segments[0..provIdx-2] joined; afterProvinceTail = segments[provIdx-1] nếu có.
-    const detail = segs.slice(0, Math.max(0, provIdx - 1)).join(', ');
-    const afterProvinceTail = provIdx - 1 >= 0 ? segs[provIdx - 1] : '';
+    // ---- Strategy 2: word-window từ cuối (cho input không phẩy) ----
+    // Ghép 1..4 từ cuối thành "candidate" và thử match. Khi khớp, các từ còn lại tách thành
+    // detail (đầu) + afterProvinceTail (đuôi, dùng để match district/ward).
+    const words = text.trim().split(/\s+/).filter(Boolean);
+    if (words.length < 2) return null;
+    for (let n = Math.min(4, words.length - 1); n >= 1; n--) {
+        const candidate = words.slice(-n).join(' ');
+        const prov = uniqueMatch(provinces, candidate);
+        if (prov) {
+            const remainWords = words.slice(0, words.length - n);
+            // Heuristic: 2-3 từ cuối của remain = afterProvinceTail (đủ để chứa "Quan 1" / "P Ben Nghe").
+            const apLen = Math.min(3, remainWords.length);
+            const afterProvinceTail = remainWords.slice(-apLen).join(' ');
+            const detail = remainWords.slice(0, remainWords.length - apLen).join(' ');
+            return { detail, province: prov, afterProvinceTail };
+        }
+    }
 
-    return { detail, province: prov, afterProvinceTail };
+    return null;
 }
 
 /**
@@ -184,20 +211,32 @@ function buildSuggestions(tp: TailParse, districts: District[], wards: Ward[], f
             out.push(makeSuggestion(tp.province, undefined, undefined, format, [tp.afterProvinceTail, tp.detail].filter(Boolean).join(', ')));
         }
     } else {
-        // 2-cấp: match ward from afterProvinceTail (hoặc detail tail).
-        const wardSeg = tp.afterProvinceTail || (() => {
-            const ds = splitSegments(tp.detail);
-            return ds.length ? ds[ds.length - 1] : '';
-        })();
-        const candWards = wardSeg ? smartFilter(wards, wardSeg, 5) : [];
+        // 2-cấp: thử match ward ở `afterProvinceTail` TRƯỚC, fallback sang đuôi `detail`.
+        // Lý do: user có thể gõ kiểu cũ "P Ben Nghe, Q.1, TP HCM" trong khi form chế độ 'new' ⇒
+        // afterProvinceTail = "Q.1" không phải ward, ta phải lùi thêm 1 segment.
+        const detailSegs = splitSegments(tp.detail);
+        const candidates = [tp.afterProvinceTail, detailSegs[detailSegs.length - 1]]
+            .map((c) => (c ?? '').trim()).filter(Boolean) as string[];
+        let candWards: Ward[] = [];
+        let matchedFromDetailTail = false;
+        for (let i = 0; i < candidates.length; i++) {
+            const m = smartFilter(wards, candidates[i], 5);
+            if (m.length > 0) {
+                candWards = m;
+                matchedFromDetailTail = i === 1 && candidates[0] !== candidates[1];
+                break;
+            }
+        }
         if (candWards.length > 0) {
+            const seen = new Set<string>();
             for (const w of candWards) {
-                // Loại bỏ ward segment khỏi detail nếu nó nằm ở cuối.
-                let remainDetail = tp.detail;
-                if (!tp.afterProvinceTail) {
-                    const ds = splitSegments(tp.detail);
-                    remainDetail = ds.slice(0, -1).join(', ');
-                }
+                if (seen.has(w.code)) continue;
+                seen.add(w.code);
+                // Nếu match từ đuôi detail → cắt segment cuối khỏi detail.
+                // Nếu match từ afterProvinceTail → detail giữ nguyên (afterProvinceTail không thuộc detail).
+                const remainDetail = matchedFromDetailTail
+                    ? detailSegs.slice(0, -1).join(', ')
+                    : tp.detail;
                 out.push(makeSuggestion(tp.province, undefined, w, format, remainDetail));
             }
         } else {

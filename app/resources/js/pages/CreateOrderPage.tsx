@@ -5,9 +5,9 @@ import {
     Popover, Radio, Row, Segmented, Space, Tag, Tooltip, Typography, Upload,
 } from 'antd';
 import {
-    ArrowLeftOutlined, BarcodeOutlined, CalendarOutlined, CheckCircleFilled, EnvironmentOutlined,
-    FacebookFilled, MoreOutlined, PaperClipOutlined, PrinterOutlined, SaveOutlined, SearchOutlined,
-    UpOutlined,
+    ArrowLeftOutlined, BarcodeOutlined, CalendarOutlined, CheckCircleFilled, CloseCircleFilled,
+    EnvironmentOutlined, FacebookFilled, MoreOutlined, PaperClipOutlined, PrinterOutlined,
+    SaveOutlined, SearchOutlined, UpOutlined,
 } from '@ant-design/icons';
 import type { RcFile } from 'antd/es/upload';
 import dayjs from 'dayjs';
@@ -576,7 +576,32 @@ export function CreateOrderPage() {
                                     readOnly
                                     placeholder={shipAddress.format === 'old' ? 'Tỉnh / Quận / Phường *' : 'Tỉnh / Phường (chuẩn mới) *'}
                                     value={[shipAddress.ward, shipAddress.district, shipAddress.province].filter(Boolean).join(', ')}
-                                    suffix={<EnvironmentOutlined style={{ color: '#bfbfbf' }} />}
+                                    suffix={(() => {
+                                        const hasPick = !!(shipAddress.province || shipAddress.district || shipAddress.ward
+                                            || shipAddress.province_code || shipAddress.district_code || shipAddress.ward_code);
+                                        return (
+                                            <Space size={6}>
+                                                {hasPick && (
+                                                    <CloseCircleFilled
+                                                        aria-label="Xoá chọn tỉnh/quận/phường"
+                                                        style={{ color: 'rgba(0,0,0,.25)', cursor: 'pointer', fontSize: 12 }}
+                                                        onMouseEnter={(e) => { e.currentTarget.style.color = 'rgba(0,0,0,.45)'; }}
+                                                        onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(0,0,0,.25)'; }}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setShipAddress((cur) => ({
+                                                                ...cur,
+                                                                province: undefined, province_code: undefined,
+                                                                district: undefined, district_code: undefined,
+                                                                ward: undefined, ward_code: undefined,
+                                                            }));
+                                                        }}
+                                                    />
+                                                )}
+                                                <EnvironmentOutlined style={{ color: '#bfbfbf' }} />
+                                            </Space>
+                                        );
+                                    })()}
                                     style={{ cursor: 'pointer' }}
                                     onClick={() => setAddrPickerOpen(true)}
                                     status={(() => {
