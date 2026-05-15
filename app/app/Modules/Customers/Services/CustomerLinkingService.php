@@ -26,7 +26,11 @@ class CustomerLinkingService
     public function linkOrder(Order $order): ?Customer
     {
         $tenantId = (int) $order->tenant_id;
-        $phone = CustomerPhoneNormalizer::normalize($order->shipping_address['phone'] ?? null);
+        // B4 fix (Sprint 1 P0) — link theo BUYER_PHONE (người mua), KHÔNG theo shipping_address.phone (có thể
+        // là SĐT người nhận khác trong tạo đơn manual cho đơn quà tặng). Trước đây dùng shipping_address.phone
+        // ⇒ tạo đơn gift cho người khác ⇒ link order vào customer của người nhận thay vì người mua, sai
+        // lifetime_stats + reputation. Fallback shipping_address.phone cho đơn sàn cũ thiếu buyer_phone.
+        $phone = CustomerPhoneNormalizer::normalize($order->buyer_phone ?: ($order->shipping_address['phone'] ?? null));
         if ($phone === null) {
             return null; // masked / missing — leave orders.customer_id as is
         }

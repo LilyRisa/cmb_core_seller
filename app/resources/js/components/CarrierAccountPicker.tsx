@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Empty, Modal, Radio, Space, Spin, Tag, Typography } from 'antd';
 import { CarOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
@@ -14,21 +14,31 @@ import { useCarrierAccounts, type CarrierAccount } from '@/lib/fulfillment';
  *
  * Default account đứng đầu danh sách (is_default=true). Chỉ liệt kê ĐVVC active.
  */
-export function CarrierAccountPicker({ open, count, onConfirm, onCancel, loading }: {
+export function CarrierAccountPicker({ open, count, onConfirm, onCancel, loading, preferredAccountId }: {
     open: boolean;
     /** Số đơn manual sắp chuẩn bị (badge tiêu đề). */
     count: number;
     onConfirm: (carrierAccountId: number | null) => void;
     onCancel: () => void;
     loading?: boolean;
+    /** U11 (Sprint 1 P0) — pre-select theo `meta.preferred_carrier_account_id` user đã chọn lúc tạo đơn. */
+    preferredAccountId?: number | null;
 }) {
     const { data: accounts = [], isFetching } = useCarrierAccounts();
     const active = useMemo(() => accounts.filter((a) => a.is_active), [accounts]);
     const sorted = useMemo(() => [...active].sort((a, b) => Number(b.is_default) - Number(a.is_default) || a.id - b.id), [active]);
     const defaultId = sorted.find((a) => a.is_default)?.id ?? sorted[0]?.id ?? null;
-    const [selected, setSelected] = useState<number | null>(defaultId);
-    // re-sync default khi accounts vừa load xong
-    if (selected == null && defaultId != null) setSelected(defaultId);
+    // Pre-select ưu tiên: preferredAccountId (user đã chọn ở form tạo đơn) → default → first.
+    const initialId = (preferredAccountId && sorted.some((a) => a.id === preferredAccountId)) ? preferredAccountId : defaultId;
+    const [selected, setSelected] = useState<number | null>(initialId);
+
+    // B6 fix (Sprint 1 P0) — re-sync khi accounts load xong / khi modal mở lại. Trước đây gọi setState
+    // trong render body ⇒ React 19 warn "Cannot update component while rendering"; có thể infinite loop.
+    useEffect(() => {
+        if (!open) return;
+        setSelected((s) => (s != null && sorted.some((a) => a.id === s) ? s : initialId));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, initialId, sorted.length]);
 
     const chosen = sorted.find((a) => a.id === selected) ?? null;
 

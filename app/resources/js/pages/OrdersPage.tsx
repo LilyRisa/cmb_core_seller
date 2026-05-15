@@ -178,12 +178,12 @@ export function OrdersPage() {
     // Orders whose open shipment is in created/pending state → can be bulk-packed (→ ready_to_ship).
     const selPackable = selWithShipment.filter((o) => o.shipment && ['created', 'pending'].includes(o.shipment.status));
     const negProfit = selectedOrders.filter((o) => o.profit && o.profit.estimated_profit < 0);
-    // Phân loại đơn theo nguồn để áp đúng luồng:
-    //   - manual (channel_account_id == null) → cần chọn ĐVVC qua CarrierAccountPicker, BE gọi GHN createOrder ngay.
-    //   - sàn (channel_account_id != null)    → BE tự gọi `prepareChannelOrder` lấy AWB/tem, KHÔNG cần chọn ĐVVC.
+    // Phân loại đơn theo nguồn để áp đúng luồng (key truth = `source`):
+    //   - manual (source='manual') → cần chọn ĐVVC qua CarrierAccountPicker, BE gọi GHN createOrder ngay.
+    //   - sàn (source!='manual')    → BE tự gọi `prepareChannelOrder` lấy AWB/tem, KHÔNG cần chọn ĐVVC.
     // SPEC 0021: không cho phép trộn lẫn 2 nhóm trong cùng một lần "Chuẩn bị hàng" vì payload & UX khác nhau.
-    const selManual = selectedOrders.filter((o) => o.source === 'manual' || !o.channel_account_id);
-    const selChannel = selectedOrders.filter((o) => o.source !== 'manual' && o.channel_account_id);
+    const selManual = selectedOrders.filter((o) => o.source === 'manual');
+    const selChannel = selectedOrders.filter((o) => o.source !== 'manual');
     const runBulkPrepare = (orderIds: number[], carrierAccountId: number | null) => bulkPrepare.mutate({ order_ids: orderIds, carrier_account_id: carrierAccountId ?? undefined }, {
         onSuccess: (r) => {
             message.success(r.created.length > 0 ? `Đã chuẩn bị hàng ${r.created.length} đơn — đang lấy phiếu giao hàng. Các đơn chuyển sang "Đang xử lý".` : 'Không có đơn nào được chuẩn bị');
@@ -193,22 +193,29 @@ export function OrdersPage() {
         },
         onError: (e) => message.error(errorMessage(e)),
     });
-    const doBulkPrepare = () => {
-        if (selManual.length > 0 && selChannel.length > 0) {
+    // B7 fix (Sprint 1 P0) — helper chặn trộn manual + sàn cho mọi bulk action liên quan tạo vận đơn.
+    // Đơn sàn (`prepareChannelOrder`) dùng AWB & tem của sàn; đơn manual (`createForOrder` qua connector ĐVVC)
+    // cần user chọn ĐVVC qua picker. Hai luồng nhập đầu vào khác hẳn → không gộp 1 lượt.
+    const assertHomogeneousSource = (manual: Order[], channel: Order[], actionLabel: string): boolean => {
+        if (manual.length > 0 && channel.length > 0) {
             Modal.error({
-                title: 'Không thể "Chuẩn bị hàng" lẫn lộn đơn sàn và đơn thủ công',
+                title: `Không thể "${actionLabel}" lẫn lộn đơn sàn và đơn thủ công`,
                 width: 540,
                 content: (
                     <div>
                         <p style={{ marginTop: 0 }}>Đơn sàn (TikTok / Shopee / Lazada) dùng tem & mã vận đơn của sàn — hệ thống tự kéo về. Đơn thủ công cần bạn chọn đơn vị vận chuyển trước khi đẩy sang ĐVVC (vd GHN). Hai luồng khác nhau, không thể gộp 1 lượt thao tác.</p>
-                        <p>Bạn đang chọn: <b>{selChannel.length}</b> đơn sàn và <b>{selManual.length}</b> đơn thủ công.</p>
-                        <p style={{ marginBottom: 0 }}>Hãy bỏ chọn 1 nhóm, "Chuẩn bị hàng" xong rồi quay lại chọn nhóm còn lại.</p>
+                        <p>Bạn đang chọn: <b>{channel.length}</b> đơn sàn và <b>{manual.length}</b> đơn thủ công.</p>
+                        <p style={{ marginBottom: 0 }}>Hãy bỏ chọn 1 nhóm, thao tác xong rồi quay lại chọn nhóm còn lại.</p>
                     </div>
                 ),
                 okText: 'Đã hiểu',
             });
-            return;
+            return false;
         }
+        return true;
+    };
+    const doBulkPrepare = () => {
+        if (!assertHomogeneousSource(selManual, selChannel, 'Chuẩn bị hàng')) return;
         const proceed = () => {
             if (selManual.length > 0) {
                 setCarrierPicker({ open: true, orderIds: selManual.map((o) => o.id) });
@@ -216,9 +223,12 @@ export function OrdersPage() {
                 runBulkPrepare(selChannel.map((o) => o.id), null);
             }
         };
-        if (negProfit.length > 0) {
+        // U7 (P1 — coi nhẹ cho manual): đơn manual thường chưa có giá vốn → profit luôn âm; chỉ warn cho đơn
+        // sàn vì có dữ liệu profit chuẩn. Skip warning khi negProfit toàn đơn manual.
+        const negChannel = negProfit.filter((o) => o.source !== 'manual');
+        if (negChannel.length > 0) {
             Modal.confirm({
-                title: `${negProfit.length} đơn có lợi nhuận ước tính ÂM`,
+                title: `${negChannel.length} đơn có lợi nhuận ước tính ÂM`,
                 content: 'Tổng tiền các đơn này không bù được phí sàn + giá vốn hàng. Vẫn tiếp tục chuẩn bị hàng (tạo vận đơn / lấy phiếu)?',
                 okText: 'Vẫn chuẩn bị', okButtonProps: { danger: true }, cancelText: 'Để tôi xem lại',
                 onOk: proceed,
@@ -236,15 +246,26 @@ export function OrdersPage() {
         onError: (e) => message.error(errorMessage(e)),
     });
     const doBulkPrepareShipTab = () => {
-        const neg = selWithoutShipment.filter((o) => o.profit && o.profit.estimated_profit < 0);
+        // B7 (Sprint 1 P0) — chặn trộn manual + sàn (tab "Chờ bàn giao" cũng đẩy qua bulk-create).
+        const manualNoShip = selWithoutShipment.filter((o) => o.source === 'manual');
+        const channelNoShip = selWithoutShipment.filter((o) => o.source !== 'manual');
+        if (!assertHomogeneousSource(manualNoShip, channelNoShip, 'Lấy phiếu giao hàng')) return;
+        const neg = selWithoutShipment.filter((o) => o.source !== 'manual' && o.profit && o.profit.estimated_profit < 0);
+        const proceed = () => {
+            if (manualNoShip.length > 0) {
+                setCarrierPicker({ open: true, orderIds: manualNoShip.map((o) => o.id) });
+            } else {
+                runBulkPrepareShipTab();
+            }
+        };
         if (neg.length > 0) {
             Modal.confirm({
                 title: `${neg.length} đơn có lợi nhuận ước tính ÂM`,
                 content: 'Tổng tiền các đơn này không bù được phí sàn + giá vốn hàng. Vẫn tiếp tục lấy phiếu giao hàng?',
                 okText: 'Vẫn tiếp tục', okButtonProps: { danger: true }, cancelText: 'Để tôi xem lại',
-                onOk: runBulkPrepareShipTab,
+                onOk: proceed,
             });
-        } else { runBulkPrepareShipTab(); }
+        } else { proceed(); }
     };
     // "Nhận phiếu giao hàng" — kéo/tạo phiếu cho các đơn; có print_job_id ⇒ mở thanh tiến trình + nút "Mở để in".
     const runRefetchSlip = (ids: number[]) => refetchSlip.mutate(ids, {
@@ -611,6 +632,14 @@ export function OrdersPage() {
                 open={carrierPicker.open}
                 count={carrierPicker.orderIds.length}
                 loading={bulkPrepare.isPending}
+                preferredAccountId={(() => {
+                    // U11 (Sprint 1 P0) — nếu tất cả đơn manual đang chọn cùng preferred carrier ⇒ pre-select đó.
+                    const ids = selManual
+                        .filter((o) => carrierPicker.orderIds.includes(o.id))
+                        .map((o) => o.meta && typeof (o.meta as Record<string, unknown>).preferred_carrier_account_id === 'number' ? (o.meta as Record<string, unknown>).preferred_carrier_account_id as number : null);
+                    const distinct = Array.from(new Set(ids.filter((v) => v != null) as number[]));
+                    return distinct.length === 1 ? distinct[0] : null;
+                })()}
                 onCancel={() => setCarrierPicker({ open: false, orderIds: [] })}
                 onConfirm={(cid) => runBulkPrepare(carrierPicker.orderIds, cid)}
             />

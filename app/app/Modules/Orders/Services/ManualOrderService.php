@@ -43,11 +43,21 @@ class ManualOrderService
         $sellerDiscount = array_sum(array_map(fn ($i) => $i['discount'], $items)) + $orderDiscount;
         // grand_total = (item_total + ship + tax + surcharge) − order_discount.
         $grandTotal = max(0, $itemTotal + $shippingFee + $tax + $surcharge - $orderDiscount);
-        // COD = phần còn lại cần thu (đã trừ prepaid).
-        $codAmount = $isCod ? max(0, ((int) ($data['cod_amount'] ?? $grandTotal)) - $prepaidAmount) : 0;
+        // B1 fix (Sprint 1 P0): COD amount = số tiền cần thu hộ qua ĐVVC = grand_total − prepaid (clamp ≥ 0).
+        // FE chỉ truyền `cod_amount` khi muốn override (hiếm). Trước đây BE trừ prepaid LẦN NỮA sau khi FE
+        // đã trừ ⇒ COD ghi vào DB thiếu = (FE_needCollect − prepaid). Giờ BE TỰ tính chuẩn từ raw inputs.
+        $codAmount = $isCod ? max(0, ((int) ($data['cod_amount'] ?? ($grandTotal - $prepaidAmount)))) : 0;
+        // B5 fix (Sprint 1 P0): chỉ ghi 'paid' khi prepaid đủ phủ toàn bộ grand_total. Nếu trả 1 phần ⇒ 'partial'
+        // (thêm vào enum/notes, tạm dùng 'unpaid' với grand_total > prepaid > 0; chuẩn hoá khi có enum).
+        $paymentStatus = match (true) {
+            $isCod => 'cod',
+            $prepaidAmount >= $grandTotal && $grandTotal > 0 => 'paid',
+            $prepaidAmount > 0 => 'partial',
+            default => 'unpaid',
+        };
         $now = now();
 
-        $order = DB::transaction(function () use ($tenantId, $userId, $items, $status, $buyer, $recipient, $shippingFee, $tax, $isCod, $itemTotal, $sellerDiscount, $grandTotal, $codAmount, $prepaidAmount, $surcharge, $freeShipping, $now, $data) {
+        $order = DB::transaction(function () use ($tenantId, $userId, $items, $status, $buyer, $recipient, $shippingFee, $tax, $isCod, $itemTotal, $sellerDiscount, $grandTotal, $codAmount, $prepaidAmount, $surcharge, $freeShipping, $paymentStatus, $now, $data) {
             $order = Order::withoutGlobalScope(TenantScope::class)->create([
                 'tenant_id' => $tenantId,
                 'source' => 'manual',
@@ -56,7 +66,7 @@ class ManualOrderService
                 'order_number' => $this->generateOrderNumber($tenantId),
                 'status' => $status,
                 'raw_status' => $status->value,
-                'payment_status' => $prepaidAmount > 0 && ! $isCod ? 'paid' : ($isCod ? 'cod' : 'unpaid'),
+                'payment_status' => $paymentStatus,
                 'buyer_name' => $buyer['name'] ?? null,
                 'buyer_phone' => $buyer['phone'] ?? null,
                 // shipping_address ưu tiên `recipient` (FE mới); fallback `buyer` (legacy / shape cũ).
@@ -253,6 +263,10 @@ class ManualOrderService
             'print_note' => isset($raw['print_note']) && $raw['print_note'] !== '' ? (string) $raw['print_note'] : null,
             'free_shipping' => $freeShipping ? true : null,
             'collect_fee_on_return_only' => ! empty($raw['collect_fee_on_return_only']) ? true : null,
+            // B2 fix (Sprint 1 P0): hint ĐVVC user đã chọn ở form tạo đơn — KHÔNG tạo shipment ngay (đợi
+            // user click "Chuẩn bị hàng" để qua CarrierAccountPicker xác nhận). Picker đọc key này để
+            // pre-select. Không gắn FK ⇒ nếu account bị xoá sau đó, picker tự fallback default.
+            'preferred_carrier_account_id' => isset($raw['preferred_carrier_account_id']) ? (int) $raw['preferred_carrier_account_id'] : null,
         ], fn ($v) => $v !== null && $v !== '');
 
         return $out;

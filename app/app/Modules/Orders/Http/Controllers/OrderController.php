@@ -140,6 +140,8 @@ class OrderController extends Controller
             'meta.email' => ['sometimes', 'nullable', 'string', 'email', 'max:255'],
             'meta.print_note' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'meta.collect_fee_on_return_only' => ['sometimes', 'boolean'],
+            // B2 (Sprint 1 P0) — hint ĐVVC user chọn ở form tạo đơn; pre-select khi "Chuẩn bị hàng".
+            'meta.preferred_carrier_account_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
         ]);
         $order = $service->create((int) $tenant->id(), $request->user()->getKey(), $data);
 

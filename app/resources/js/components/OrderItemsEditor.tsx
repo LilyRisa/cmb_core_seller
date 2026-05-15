@@ -71,8 +71,19 @@ function PickerPanel({ onPickSku, onQuickCreate, taken }: { onPickSku: (s: Sku) 
  * search opens a list of SKUs (image / name / stock / ref price) plus a pinned "quick product"
  * entry; picked lines show below in an editable table (qty, unit price, discount apply to both
  * SKU and ad-hoc lines). Acts as an AntD form control (`value` / `onChange` = `OrderLineInput[]`).
+ *
+ * `renderTrigger` (optional) — caller render trigger riêng (vd inline search bar khớp taodon.png).
+ * Khi cung cấp, OrderItemsEditor sẽ KHÔNG render default button, chỉ render trigger được wrap
+ * trong Popover + table.
  */
-export function OrderItemsEditor({ value = [], onChange }: { value?: OrderLineInput[]; onChange?: (v: OrderLineInput[]) => void }) {
+export function OrderItemsEditor({ value = [], onChange, renderTrigger, emptyStateLabel = 'Chưa có dòng hàng — bấm "Tìm & thêm sản phẩm".', tableOnly = false }: {
+    value?: OrderLineInput[];
+    onChange?: (v: OrderLineInput[]) => void;
+    renderTrigger?: (props: { open: boolean; setOpen: (b: boolean) => void }) => React.ReactNode;
+    emptyStateLabel?: React.ReactNode;
+    /** `true` ⇒ chỉ render bảng items, KHÔNG render trigger (caller tự lo). */
+    tableOnly?: boolean;
+}) {
     const { message } = AntApp.useApp();
     const upload = useUploadImage();
     const [open, setOpen] = useState(false);
@@ -137,24 +148,54 @@ export function OrderItemsEditor({ value = [], onChange }: { value?: OrderLineIn
 
     const total = value.reduce((s, r) => s + Math.max(0, r.unit_price * r.quantity - r.discount), 0);
 
+    const picker = <PickerPanel onPickSku={addSku} onQuickCreate={addQuick} taken={new Set(value.map((r) => r.sku_id).filter((x): x is number => x != null))} />;
+    const table = value.length === 0 ? (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyStateLabel} />
+    ) : (
+        <Table<OrderLineInput> rowKey="key" size="small" pagination={false} dataSource={value} columns={columns}
+            summary={() => (
+                <Table.Summary.Row>
+                    <Table.Summary.Cell index={0} colSpan={4}><Typography.Text type="secondary">{value.length} dòng hàng</Typography.Text></Table.Summary.Cell>
+                    <Table.Summary.Cell index={1} align="right"><Typography.Text strong>{vnd(total)}</Typography.Text></Table.Summary.Cell>
+                    <Table.Summary.Cell index={2} />
+                </Table.Summary.Row>
+            )} />
+    );
+
+    if (tableOnly) {
+        return <>{table}</>;
+    }
+
     return (
         <div>
-            <Popover trigger="click" open={open} onOpenChange={setOpen} placement="bottomLeft" destroyTooltipOnHide
-                content={<PickerPanel onPickSku={addSku} onQuickCreate={addQuick} taken={new Set(value.map((r) => r.sku_id).filter((x): x is number => x != null))} />}>
-                <Button icon={<SearchOutlined />} style={{ marginBottom: 12 }}>Tìm &amp; thêm sản phẩm…</Button>
-            </Popover>
-            {value.length === 0 ? (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dòng hàng — bấm “Tìm & thêm sản phẩm”." />
+            {renderTrigger ? (
+                <Popover trigger="click" open={open} onOpenChange={setOpen} placement="bottomLeft" destroyTooltipOnHide content={picker}>
+                    <div>{renderTrigger({ open, setOpen })}</div>
+                </Popover>
             ) : (
-                <Table<OrderLineInput> rowKey="key" size="small" pagination={false} dataSource={value} columns={columns}
-                    summary={() => (
-                        <Table.Summary.Row>
-                            <Table.Summary.Cell index={0} colSpan={4}><Typography.Text type="secondary">{value.length} dòng hàng</Typography.Text></Table.Summary.Cell>
-                            <Table.Summary.Cell index={1} align="right"><Typography.Text strong>{vnd(total)}</Typography.Text></Table.Summary.Cell>
-                            <Table.Summary.Cell index={2} />
-                        </Table.Summary.Row>
-                    )} />
+                <Popover trigger="click" open={open} onOpenChange={setOpen} placement="bottomLeft" destroyTooltipOnHide content={picker}>
+                    <Button icon={<SearchOutlined />} style={{ marginBottom: 12 }}>Tìm &amp; thêm sản phẩm…</Button>
+                </Popover>
             )}
+            {table}
         </div>
+    );
+}
+
+/** Popover trigger để caller chèn search bar riêng (vd CreateOrderPage). Export `PickerTrigger` để
+ *  caller wrap input của họ bằng Popover. */
+export function PickerTrigger({ children, onPickSku, onQuickCreate, taken, open, setOpen }: {
+    children: React.ReactNode;
+    onPickSku: (s: Sku) => void;
+    onQuickCreate: () => void;
+    taken: Set<number>;
+    open: boolean;
+    setOpen: (b: boolean) => void;
+}) {
+    return (
+        <Popover trigger="click" open={open} onOpenChange={setOpen} placement="bottomLeft" destroyTooltipOnHide
+            content={<PickerPanel onPickSku={onPickSku} onQuickCreate={onQuickCreate} taken={taken} />}>
+            <div>{children}</div>
+        </Popover>
     );
 }

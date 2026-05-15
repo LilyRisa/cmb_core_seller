@@ -217,6 +217,7 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
                 open={carrierPicker}
                 count={1}
                 loading={ship.isPending}
+                preferredAccountId={typeof order.meta?.preferred_carrier_account_id === 'number' ? order.meta.preferred_carrier_account_id : null}
                 onCancel={() => setCarrierPicker(false)}
                 onConfirm={(cid) => runPrepare(cid)}
             />

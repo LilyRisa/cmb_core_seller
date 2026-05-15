@@ -106,10 +106,35 @@ class CustomerController extends Controller
             'source' => $o->source,
         ];
 
+        // B3 fix (Sprint 1 P0) — addresses_meta chứa `phone` cleartext của các địa chỉ cũ. Mask theo
+        // permission `customers.view_phone` để không leak SĐT cho user không có quyền (SPEC 0002 §6.1).
+        $canViewPhone = (bool) $request->user()?->can('customers.view_phone');
+        $maskPhone = function (?string $phone): ?string {
+            if ($phone === null || $phone === '') {
+                return $phone;
+            }
+            $digits = preg_replace('/\D/', '', $phone) ?? '';
+            $len = strlen($digits);
+            if ($len <= 4) {
+                return str_repeat('*', $len);
+            }
+
+            // Hiển thị 3 chữ số đầu + *** + 2 chữ số cuối (vd 091*****23).
+            return substr($digits, 0, 3).str_repeat('*', max(0, $len - 5)).substr($digits, -2);
+        };
+        $addresses = collect($customer->addresses_meta ?? [])
+            ->filter('is_array')
+            ->map(function (array $a) use ($canViewPhone, $maskPhone) {
+                if (! $canViewPhone && array_key_exists('phone', $a)) {
+                    $a['phone'] = $maskPhone($a['phone']);
+                }
+
+                return $a;
+            })->values()->all();
+
         return response()->json(['data' => [
             'customer' => new CustomerResource($customer),
-            // `addresses_meta` đã lưu top 5 địa chỉ gần nhất (xem CustomerLinkingService::mergeAddresses).
-            'addresses' => (array) ($customer->addresses_meta ?? []),
+            'addresses' => $addresses,
             'open_orders' => $orders->filter(fn ($o) => in_array($statusValue($o), $openStatuses, true))
                 ->values()->map($mapOrder)->all(),
             'returning_orders' => $orders->filter(fn ($o) => in_array($statusValue($o), $returningStatuses, true))

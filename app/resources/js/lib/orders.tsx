@@ -73,6 +73,8 @@ export interface Order {
     issue_reason: string | null;
     tags: string[];
     note: string | null;
+    /** Meta tự do của đơn — manual order hay dùng `preferred_carrier_account_id` (hint ĐVVC user đã chọn). */
+    meta?: Record<string, unknown> | null;
     packages: Array<{ trackingNo?: string | null; carrier?: string | null; status?: string | null }>;
     placed_at: string | null;
     paid_at: string | null;
