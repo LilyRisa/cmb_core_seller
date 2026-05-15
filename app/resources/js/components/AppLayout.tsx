@@ -113,8 +113,9 @@ export function AppLayout() {
     return (
         <Layout style={{ minHeight: '100vh' }}>
             <Sider theme="light" width={236} collapsedWidth={64} collapsible collapsed={collapsed} trigger={null} style={{ borderRight: '1px solid #f0f0f0' }}>
-                <div style={{ height: 56, display: 'flex', alignItems: 'center', gap: 10, padding: '0 18px', fontWeight: 700, fontSize: 16, color: '#1668dc', whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                    <span style={{ fontSize: 20 }}>🛒</span> {!collapsed && 'CMBcoreSeller'}
+                <div style={{ height: 56, display: 'flex', alignItems: 'center', gap: 10, padding: collapsed ? '0' : '0 18px', justifyContent: collapsed ? 'center' : 'flex-start', fontWeight: 700, fontSize: 16, color: '#fa8c16', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                    <img src="/images/logocmb.png" alt="CMB Core" style={{ width: 32, height: 32, objectFit: 'contain', flex: 'none' }} />
+                    {!collapsed && <span>CMB Core</span>}
                 </div>
                 <Menu mode="inline" selectedKeys={[selectedKey]} items={nav} style={{ borderInlineEnd: 'none' }} />
             </Sider>

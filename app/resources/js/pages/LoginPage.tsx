@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
     MailOutlined,
     LockOutlined,
-    ShopOutlined,
     ThunderboltOutlined,
     SafetyCertificateOutlined,
     ClusterOutlined,
@@ -21,7 +20,7 @@ export function LoginPage() {
             <div className="auth-brand">
                 <div className="auth-scanline" />
                 <div className="auth-brand-content">
-                    <span className="auth-logo-mark"><ShopOutlined /></span>
+                    <span className="auth-logo-mark"><img src="/images/logocmb.png" alt="CMB Core" /></span>
                     <h1>Vận hành gian hàng,<br />tối ưu mỗi đơn hàng.</h1>
                     <p className="tagline">
                         Nền tảng quản lý đơn – tồn kho – vận chuyển hợp nhất cho seller đa kênh.

@@ -4,7 +4,6 @@ import {
     UserOutlined,
     MailOutlined,
     LockOutlined,
-    ShopOutlined,
     ThunderboltOutlined,
     SafetyCertificateOutlined,
     ClusterOutlined,
@@ -23,7 +22,7 @@ export function RegisterPage() {
             <div className="auth-brand">
                 <div className="auth-scanline" />
                 <div className="auth-brand-content">
-                    <span className="auth-logo-mark"><ShopOutlined /></span>
+                    <span className="auth-logo-mark"><img src="/images/logocmb.png" alt="CMB Core" /></span>
                     <h1>Bắt đầu hành trình<br />bán hàng đa kênh.</h1>
                     <p className="tagline">
                         Tạo tài khoản miễn phí để hợp nhất đơn hàng, tồn kho và vận chuyển trên cùng một nền tảng.

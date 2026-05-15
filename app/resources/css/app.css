@@ -57,11 +57,12 @@ body { margin: 0; }
 .auth-brand-footer { position: relative; z-index: 2; font-size: 12px; color: rgba(255,255,255,0.55); }
 .auth-logo-mark {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 44px; height: 44px; border-radius: 12px;
-    background: linear-gradient(135deg, #1668dc 0%, #7c3aed 100%);
-    box-shadow: 0 8px 28px rgba(22, 104, 220, 0.45), inset 0 0 0 1px rgba(255,255,255,0.18);
-    color: #fff; font-size: 22px;
+    width: 56px; height: 56px; border-radius: 14px;
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 8px 28px rgba(250, 140, 22, 0.35), inset 0 0 0 1px rgba(255,255,255,0.22);
+    color: #fa8c16; font-size: 22px; overflow: hidden;
 }
+.auth-logo-mark img { width: 44px; height: 44px; object-fit: contain; display: block; }
 .auth-brand h1 { color: #fff; font-size: 34px; line-height: 1.2; margin: 20px 0 12px; font-weight: 700; letter-spacing: -0.01em; }
 .auth-brand p.tagline { color: rgba(255,255,255,0.72); font-size: 15px; line-height: 1.6; margin: 0; }
 .auth-feature-list { list-style: none; padding: 0; margin: 36px 0 0; display: grid; gap: 14px; }
