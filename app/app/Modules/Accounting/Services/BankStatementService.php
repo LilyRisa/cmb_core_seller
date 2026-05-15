@@ -26,10 +26,10 @@ class BankStatementService
     {
         $cash = CashAccount::query()
             ->withoutGlobalScope(TenantScope::class)
-            ->where('tenant_id', $tenantId)
             ->whereKey($cashAccountId)->first();
-        if (! $cash) {
-            throw AccountingException::invalidLines('Tài khoản quỹ/NH không tồn tại.');
+        // Explicit cross-tenant guard: id pass vào không thuộc tenant ⇒ reject (chống TenantScope bị bypass nhầm).
+        if (! $cash || (int) $cash->tenant_id !== $tenantId) {
+            throw AccountingException::invalidLines('Tài khoản quỹ/NH không tồn tại hoặc không thuộc gian hàng hiện tại.');
         }
 
         return DB::transaction(function () use ($tenantId, $cashAccountId, $periodStart, $periodEnd, $importedFrom, $lines, $userId) {

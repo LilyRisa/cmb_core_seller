@@ -158,6 +158,39 @@ export function useAccountingSetup() {
 }
 
 /* ============================================================================
+ * Dashboard summary (thống kê nhanh — dùng ở DashboardPage)
+ * ========================================================================== */
+
+export interface AccountingDashboardSummary {
+    initialized: boolean;
+    current_period: { code: string; status: PeriodStatus; status_label: string } | null;
+    cash: { total: number; accounts: number };
+    ar: { total: number; overdue: number };
+    ap: { total: number; overdue: number };
+    pl_period: { revenue: number; cogs: number; gross_profit: number; opex: number; net_income: number } | null;
+}
+
+export function useAccountingDashboardSummary() {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['accounting', tenantId, 'dashboard-summary'],
+        enabled: api != null,
+        // 5 phút — không cần realtime, tránh hit DB liên tục (PL cộng dồn cả kỳ).
+        staleTime: 5 * 60_000,
+        retry: (failureCount, err) => {
+            // 402 = plan không bật accounting → không thử lại, để FE biết ẩn block.
+            const status = (err as { response?: { status?: number } })?.response?.status;
+            return status !== 402 && status !== 403 && failureCount < 2;
+        },
+        queryFn: async () => {
+            const { data } = await api!.get<{ data: AccountingDashboardSummary }>('/accounting/dashboard-summary');
+            return data.data;
+        },
+    });
+}
+
+/* ============================================================================
  * Chart of Accounts
  * ========================================================================== */
 

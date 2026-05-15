@@ -11,6 +11,7 @@ use CMBcoreSeller\Modules\Accounting\Models\FiscalPeriod;
 use CMBcoreSeller\Modules\Accounting\Models\JournalEntry;
 use CMBcoreSeller\Modules\Accounting\Models\JournalLine;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -75,6 +76,13 @@ class JournalService
 
             // Resolve kỳ — auto-create tháng nếu chưa có (trong cửa sổ cho phép).
             $period = $this->periods->resolveForDate($tenantId, $dto->postedAt);
+            // Lock period FOR UPDATE để chống race với PeriodService::close() — kiểm trạng thái sau khi lock.
+            $period = FiscalPeriod::query()
+                ->withoutGlobalScope(TenantScope::class)
+                ->whereKey($period->id)->lockForUpdate()->first();
+            if ($period === null) {
+                throw AccountingException::invalidLines('Không resolve được kỳ kế toán.');
+            }
             if ($period->isLocked()) {
                 throw AccountingException::periodLocked($period->code);
             }
@@ -104,28 +112,52 @@ class JournalService
                 }
             }
 
-            // Sinh mã JE-YYYYMM-NNNN (per tenant, per năm-tháng của posted_at).
-            $code = $this->nextEntryCode($tenantId, $dto->postedAt);
-
-            $entry = JournalEntry::query()->create([
-                'tenant_id' => $tenantId,
-                'code' => $code,
-                'posted_at' => $dto->postedAt,
-                'period_id' => $period->id,
-                'narration' => $dto->narration,
-                'source_module' => $dto->sourceModule,
-                'source_type' => $dto->sourceType,
-                'source_id' => $dto->sourceId,
-                'idempotency_key' => $dto->idempotencyKey,
-                'is_adjustment' => $dto->isAdjustment,
-                'is_reversal_of_id' => $dto->isReversalOfId,
-                'adjusted_period_id' => $dto->adjustedPeriodId,
-                'total_debit' => $totalDr,
-                'total_credit' => $totalDr,
-                'currency' => 'VND',
-                'created_by' => $dto->createdBy,
-                'created_at' => now(),
-            ]);
+            // INSERT entry với retry — collision có 2 nguồn:
+            //  (a) unique(tenant, code) — `nextEntryCode` đọc MAX không lock, 2 worker post cùng tháng cùng lúc;
+            //  (b) unique(tenant, idempotency_key) — race window giữa check `$existing` và insert.
+            // (a) retry tối đa 5 lần với nextEntryCode mới. (b) trả entry đã insert (idempotent semantics).
+            $entry = null;
+            $lastError = null;
+            for ($attempt = 1; $attempt <= 5; $attempt++) {
+                $code = $this->nextEntryCode($tenantId, $dto->postedAt);
+                try {
+                    $entry = JournalEntry::query()->create([
+                        'tenant_id' => $tenantId,
+                        'code' => $code,
+                        'posted_at' => $dto->postedAt,
+                        'period_id' => $period->id,
+                        'narration' => $dto->narration,
+                        'source_module' => $dto->sourceModule,
+                        'source_type' => $dto->sourceType,
+                        'source_id' => $dto->sourceId,
+                        'idempotency_key' => $dto->idempotencyKey,
+                        'is_adjustment' => $dto->isAdjustment,
+                        'is_reversal_of_id' => $dto->isReversalOfId,
+                        'adjusted_period_id' => $dto->adjustedPeriodId,
+                        'total_debit' => $totalDr,
+                        'total_credit' => $totalDr, // === $totalCr (đã validate ở trên)
+                        'currency' => 'VND',
+                        'created_by' => $dto->createdBy,
+                        'created_at' => now(),
+                    ]);
+                    break;
+                } catch (UniqueConstraintViolationException $e) {
+                    $lastError = $e;
+                    // Phân biệt 2 loại collision qua check entry với idempotency_key.
+                    $existing = JournalEntry::query()
+                        ->withoutGlobalScope(TenantScope::class)
+                        ->where('tenant_id', $tenantId)
+                        ->where('idempotency_key', $dto->idempotencyKey)
+                        ->first();
+                    if ($existing !== null) {
+                        return $existing; // idempotent — worker khác đã insert cùng entry này
+                    }
+                    // Còn lại là collision code → retry với code mới
+                }
+            }
+            if ($entry === null) {
+                throw new \RuntimeException('Không thể tạo bút toán sau 5 lần thử — '.($lastError?->getMessage() ?? 'unknown'));
+            }
 
             $rows = [];
             $now = $dto->postedAt;

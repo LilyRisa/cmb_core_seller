@@ -22,8 +22,9 @@ class TrialBalanceService
      */
     public function generate(int $tenantId, FiscalPeriod $period): array
     {
-        // Đảm bảo balance đã được recompute cho kỳ này.
-        $this->balances->recomputeForPeriod($tenantId, $period);
+        // Audit-fix: KHÔNG auto-recompute mỗi lần generate (DB load lớn nếu user reload nhiều lần).
+        // Trial balance đọc thẳng từ journal_lines (live, chính xác); recompute chỉ chạy khi user bấm
+        // "Tính lại số dư" hoặc scheduled `accounting:recompute-balances` nightly.
 
         $accounts = ChartAccount::query()
             ->withoutGlobalScope(TenantScope::class)

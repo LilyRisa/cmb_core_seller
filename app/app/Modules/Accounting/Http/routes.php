@@ -5,6 +5,7 @@ use CMBcoreSeller\Modules\Accounting\Http\Controllers\ArController;
 use CMBcoreSeller\Modules\Accounting\Http\Controllers\BalanceController;
 use CMBcoreSeller\Modules\Accounting\Http\Controllers\CashController;
 use CMBcoreSeller\Modules\Accounting\Http\Controllers\ChartAccountController;
+use CMBcoreSeller\Modules\Accounting\Http\Controllers\DashboardController;
 use CMBcoreSeller\Modules\Accounting\Http\Controllers\FiscalPeriodController;
 use CMBcoreSeller\Modules\Accounting\Http\Controllers\JournalController;
 use CMBcoreSeller\Modules\Accounting\Http\Controllers\PostRuleController;
@@ -28,6 +29,10 @@ use Illuminate\Support\Facades\Route;
  */
 Route::middleware(['api', 'auth:sanctum', 'tenant', 'plan.feature:accounting_basic'])
     ->prefix('api/v1/accounting')->group(function () {
+        // Dashboard summary (thống kê nhanh — gộp setup status + cash + AR/AP + P&L kỳ hiện tại).
+        Route::get('dashboard-summary', [DashboardController::class, 'summary'])
+            ->middleware('can:accounting.view')->name('accounting.dashboard-summary');
+
         // Setup (idempotent).
         Route::get('setup/status', [SetupController::class, 'status'])->name('accounting.setup.status');
         Route::post('setup', [SetupController::class, 'run'])

@@ -119,9 +119,10 @@ class PeriodService
         $period->forceFill([
             'status' => FiscalPeriod::STATUS_OPEN,
             'closed_at' => null,
-            'closed_by' => $userId,
+            'closed_by' => null, // audit-fix: rõ ràng kỳ open, không giữ user đã đóng trước đó.
             'close_note' => null,
         ])->save();
+        // `$userId` param giữ lại để audit log (Phase sau) ghi `reopened_by` riêng.
         PeriodReopened::dispatch($period);
 
         return $period;

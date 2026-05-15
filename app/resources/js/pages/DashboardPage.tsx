@@ -2,9 +2,10 @@ import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Alert, Avatar, Badge, Button, Card, Col, Empty, List, Progress, Radio, Row, Skeleton, Space, Tag, Tooltip, Typography } from 'antd';
 import {
-    ArrowDownOutlined, ArrowUpOutlined, CarOutlined, DollarOutlined, ExclamationCircleOutlined, FundOutlined,
-    LinkOutlined, PictureOutlined, PrinterOutlined, ReloadOutlined, RiseOutlined, ShopOutlined, ShoppingCartOutlined,
-    ThunderboltOutlined, TrophyOutlined, WarningOutlined,
+    ArrowDownOutlined, ArrowUpOutlined, AuditOutlined, BankOutlined, CarOutlined, CreditCardOutlined,
+    DollarOutlined, ExclamationCircleOutlined, FallOutlined, FundOutlined, LinkOutlined, PictureOutlined,
+    PrinterOutlined, ReloadOutlined, RiseOutlined, ShopOutlined, ShoppingCartOutlined,
+    ThunderboltOutlined, TrophyOutlined, WalletOutlined, WarningOutlined,
 } from '@ant-design/icons';
 import {
     Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer,
@@ -14,6 +15,7 @@ import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { CHANNEL_META } from '@/lib/format';
 import { deltaPct, useDashboardSummary, type DashboardRange, type DashboardSummary, type KpiPair } from '@/lib/dashboard';
+import { useAccountingDashboardSummary, type AccountingDashboardSummary } from '@/lib/accounting';
 import { useAuth } from '@/lib/auth';
 
 /** AntD palette dùng nhất quán cho cả thẻ KPI lẫn biểu đồ. */
@@ -38,6 +40,7 @@ export function DashboardPage() {
     const { data: user } = useAuth();
     const [range, setRange] = useRange();
     const { data, isLoading, isFetching, refetch } = useDashboardSummary(range);
+    const acct = useAccountingDashboardSummary();
 
     const todoBuckets = useMemo(() => makeTodoBuckets(data), [data]);
     const noChannel = !isLoading && (data?.channel_accounts.total ?? 0) === 0;
@@ -139,7 +142,16 @@ export function DashboardPage() {
                 </Col>
             </Row>
 
-            {/* Hàng 4 — tình trạng hệ thống */}
+            {/* Hàng 4 — thống kê nhanh kế toán (chỉ render nếu API trả về OK; ẩn khi 402/403). */}
+            {!acct.isError && (acct.isLoading || acct.data) && (
+                <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+                    <Col xs={24}>
+                        <AccountingQuickStats data={acct.data} loading={acct.isLoading} />
+                    </Col>
+                </Row>
+            )}
+
+            {/* Hàng 5 — tình trạng hệ thống */}
             <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
                 <Col xs={24}>
                     <Card title={<Space><ThunderboltOutlined /> Trạng thái hệ thống</Space>} loading={isLoading}>
@@ -379,6 +391,99 @@ function SystemStatItem({ label, value, hint, color, icon, to }: { label: string
                     <Typography.Text type="secondary" style={{ fontSize: 13 }}>{label}</Typography.Text>
                     <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.2 }}>{value}</div>
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>{hint}</Typography.Text>
+                </div>
+            </div>
+        </Link>
+    );
+}
+
+// -- Accounting quick stats --------------------------------------------------
+
+function AccountingQuickStats({ data, loading }: { data?: AccountingDashboardSummary; loading: boolean }) {
+    const title = <Space><AuditOutlined /> Thống kê nhanh kế toán</Space>;
+
+    // Chưa khởi tạo module → CTA dẫn user tới /accounting (banner setup ở trang đó sẽ lo).
+    if (data && !data.initialized) {
+        return (
+            <Card title={title}>
+                <Empty
+                    description={<>Module kế toán chưa được khởi tạo cho gian hàng này.</>}
+                >
+                    <Link to="/accounting"><Button type="primary" icon={<ThunderboltOutlined />}>Khởi tạo kế toán</Button></Link>
+                </Empty>
+            </Card>
+        );
+    }
+
+    const fmtVnd = (n: number) => n.toLocaleString('vi-VN') + ' ₫';
+    const period = data?.current_period;
+    const periodLabel = period ? `Kỳ ${dayjs(period.code).format('MM/YYYY')} · ${period.status_label}` : 'Chưa có kỳ tháng hiện tại';
+    const periodColor = period?.status === 'open' ? COLOR.orders : period?.status === 'locked' ? COLOR.danger : COLOR.warning;
+
+    const arOverdue = data?.ar.overdue ?? 0;
+    const apOverdue = data?.ap.overdue ?? 0;
+    const revenue = data?.pl_period?.revenue ?? 0;
+    const gross = data?.pl_period?.gross_profit ?? 0;
+    const net = data?.pl_period?.net_income ?? 0;
+
+    return (
+        <Card
+            title={title}
+            extra={<Space size={8}>
+                <Tag color={periodColor === COLOR.orders ? 'green' : periodColor === COLOR.danger ? 'red' : 'orange'} style={{ marginInlineEnd: 0 }}>{periodLabel}</Tag>
+                <Link to="/accounting/reports" style={{ fontSize: 13 }}>Xem báo cáo →</Link>
+            </Space>}
+            loading={loading}
+        >
+            <Row gutter={[16, 16]}>
+                <Col xs={24} sm={12} xl={8}>
+                    <AcctStatCard label="Tiền & ngân hàng" value={fmtVnd(data?.cash.total ?? 0)}
+                        hint={`${data?.cash.accounts ?? 0} quỹ/tài khoản đang hoạt động`}
+                        color={COLOR.revenue} icon={<WalletOutlined />} to="/accounting/cash" />
+                </Col>
+                <Col xs={24} sm={12} xl={8}>
+                    <AcctStatCard label="Phải thu khách hàng" value={fmtVnd(data?.ar.total ?? 0)}
+                        hint={arOverdue > 0 ? `Quá hạn >60 ngày: ${fmtVnd(arOverdue)}` : 'Không có khoản quá hạn'}
+                        color={arOverdue > 0 ? COLOR.warning : COLOR.orders} icon={<CreditCardOutlined />} to="/accounting/ar" />
+                </Col>
+                <Col xs={24} sm={12} xl={8}>
+                    <AcctStatCard label="Phải trả NCC" value={fmtVnd(data?.ap.total ?? 0)}
+                        hint={apOverdue > 0 ? `Quá hạn >60 ngày: ${fmtVnd(apOverdue)}` : 'Không có khoản quá hạn'}
+                        color={apOverdue > 0 ? COLOR.danger : COLOR.orders} icon={<BankOutlined />} to="/accounting/ap" />
+                </Col>
+                <Col xs={24} sm={12} xl={8}>
+                    <AcctStatCard label="Doanh thu thuần kỳ" value={fmtVnd(revenue)}
+                        hint={period ? `Tháng ${dayjs(period.code).format('MM/YYYY')}` : '—'}
+                        color={COLOR.revenue} icon={<DollarOutlined />} to="/accounting/reports?tab=pnl" />
+                </Col>
+                <Col xs={24} sm={12} xl={8}>
+                    <AcctStatCard label="Lợi nhuận gộp kỳ" value={fmtVnd(gross)}
+                        hint={revenue > 0 ? `Biên gộp ${Math.round((gross / revenue) * 100)}%` : 'Chưa có doanh thu'}
+                        color={gross >= 0 ? COLOR.grossProfit : COLOR.danger}
+                        icon={gross >= 0 ? <RiseOutlined /> : <FallOutlined />} to="/accounting/reports?tab=pnl" />
+                </Col>
+                <Col xs={24} sm={12} xl={8}>
+                    <AcctStatCard label="Lãi/lỗ kỳ (sau thuế)" value={fmtVnd(net)}
+                        hint={`Chi phí QLKD: ${fmtVnd(data?.pl_period?.opex ?? 0)}`}
+                        color={net >= 0 ? COLOR.estProfit : COLOR.danger}
+                        icon={net >= 0 ? <RiseOutlined /> : <FallOutlined />} to="/accounting/reports?tab=pnl" />
+                </Col>
+            </Row>
+        </Card>
+    );
+}
+
+function AcctStatCard({ label, value, hint, color, icon, to }: { label: string; value: React.ReactNode; hint: string; color: string; icon: React.ReactNode; to: string }) {
+    return (
+        <Link to={to} style={{ color: 'inherit', display: 'block' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', border: '1px solid #f0f0f0', borderRadius: 8, transition: 'background 0.2s' }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#fafafa'; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = ''; }}>
+                <div style={{ width: 44, height: 44, borderRadius: 10, display: 'grid', placeItems: 'center', background: `${color}15`, color, fontSize: 18, flex: '0 0 auto' }}>{icon}</div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                    <Typography.Text type="secondary" style={{ fontSize: 13 }}>{label}</Typography.Text>
+                    <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.25 }}>{value}</div>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis>{hint}</Typography.Text>
                 </div>
             </div>
         </Link>

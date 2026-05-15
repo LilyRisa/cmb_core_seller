@@ -26,46 +26,54 @@ class ApService
     ) {}
 
     /**
-     * Aging buckets cho AP per supplier.
+     * Aging buckets cho AP per supplier. TK 331 credit-normal — số phải trả = cr - dr.
+     * Audit-fix: aggregate ở SQL CASE WHEN (giống ArService).
      *
      * @return array<int, array{supplier_id:int, total:int, b0_30:int, b31_60:int, b61_90:int, b90p:int}>
      */
     public function agingBySupplier(int $tenantId, ?Carbon $asOf = null): array
     {
         $asOf ??= Carbon::now();
+        $asOfStr = $asOf->toDateTimeString();
+        $daysExpr = $this->daysDiffExpr();
+
         $rows = JournalLine::query()
             ->withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenantId)
             ->where('party_type', 'supplier')
             ->where('account_code', '331')
             ->where('posted_at', '<=', $asOf)
-            ->selectRaw('party_id as supplier_id, posted_at, SUM(dr_amount) as dr, SUM(cr_amount) as cr')
-            ->groupBy('party_id', 'posted_at')
+            ->whereNotNull('party_id')
+            ->selectRaw("party_id as supplier_id,
+                SUM(CASE WHEN {$daysExpr} <= 30 THEN cr_amount - dr_amount ELSE 0 END) as b0_30,
+                SUM(CASE WHEN {$daysExpr} > 30 AND {$daysExpr} <= 60 THEN cr_amount - dr_amount ELSE 0 END) as b31_60,
+                SUM(CASE WHEN {$daysExpr} > 60 AND {$daysExpr} <= 90 THEN cr_amount - dr_amount ELSE 0 END) as b61_90,
+                SUM(CASE WHEN {$daysExpr} > 90 THEN cr_amount - dr_amount ELSE 0 END) as b90p,
+                SUM(cr_amount - dr_amount) as total",
+                array_fill(0, 6, $asOfStr)) // 6 lần `?` (1+2+2+1)
+            ->groupBy('party_id')
+            ->havingRaw('SUM(cr_amount - dr_amount) > 0')
             ->get();
-        $bucketsBySupplier = [];
-        foreach ($rows as $r) {
-            $sid = (int) ($r->supplier_id ?? 0);
-            if ($sid === 0) {
-                continue;
-            }
-            // TK 331 credit-normal → số phải trả = cr - dr (dương = còn nợ NCC)
-            $amount = (int) $r->cr - (int) $r->dr;
-            if ($amount === 0) {
-                continue;
-            }
-            $daysAgo = Carbon::parse($r->posted_at)->diffInDays($asOf);
-            $bucket = match (true) {
-                $daysAgo <= 30 => 'b0_30',
-                $daysAgo <= 60 => 'b31_60',
-                $daysAgo <= 90 => 'b61_90',
-                default => 'b90p',
-            };
-            $bucketsBySupplier[$sid] ??= ['supplier_id' => $sid, 'total' => 0, 'b0_30' => 0, 'b31_60' => 0, 'b61_90' => 0, 'b90p' => 0];
-            $bucketsBySupplier[$sid][$bucket] += $amount;
-            $bucketsBySupplier[$sid]['total'] += $amount;
-        }
 
-        return array_values(array_filter($bucketsBySupplier, fn ($b) => $b['total'] > 0));
+        return $rows->map(fn ($r) => [
+            'supplier_id' => (int) $r->supplier_id,
+            'total' => (int) $r->total,
+            'b0_30' => (int) $r->b0_30,
+            'b31_60' => (int) $r->b31_60,
+            'b61_90' => (int) $r->b61_90,
+            'b90p' => (int) $r->b90p,
+        ])->all();
+    }
+
+    private function daysDiffExpr(): string
+    {
+        $driver = DB::connection()->getDriverName();
+
+        return match ($driver) {
+            'sqlite' => 'CAST(julianday(?) - julianday(posted_at) AS INTEGER)',
+            'pgsql' => "EXTRACT(DAY FROM (?::timestamp - posted_at))",
+            default => 'TIMESTAMPDIFF(DAY, posted_at, ?)',
+        };
     }
 
     /** Tổng phải trả per supplier. */

@@ -74,9 +74,17 @@ class ReportController extends Controller
         $request->validate([
             'period' => 'required|string',
             'account_code' => 'required|string|max:16',
+            'limit' => 'sometimes|integer|min:1|max:5000',
+            'offset' => 'sometimes|integer|min:0',
         ]);
         $period = $this->period($request->string('period')->toString());
-        $result = $this->ledger->generate((int) $this->tenant->id(), $request->string('account_code')->toString(), $period);
+        $result = $this->ledger->generate(
+            (int) $this->tenant->id(),
+            $request->string('account_code')->toString(),
+            $period,
+            $request->integer('limit', 0),
+            $request->integer('offset', 0),
+        );
 
         return response()->json([
             'data' => $result,

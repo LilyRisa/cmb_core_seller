@@ -31,21 +31,21 @@ class MisaExportService
     {
         $bom = "\xEF\xBB\xBF"; // UTF-8 BOM
 
-        // 1. Chart of accounts.
+        // 1. Chart of accounts — audit-fix: pre-load full list để tránh N+1 query lookup parent code.
         $coa = $bom.$this->csvLine(['MaTK', 'TenTK', 'LoaiTK', 'TKCha', 'SoDuBinhThuong', 'ChoPhepGhi']);
-        ChartAccount::query()
+        $allAccounts = ChartAccount::query()
             ->withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenantId)
             ->orderBy('sort_order')->orderBy('code')
-            ->chunk(500, function ($rows) use (&$coa) {
-                foreach ($rows as $a) {
-                    $parent = $a->parent_id ? (ChartAccount::query()->withoutGlobalScope(TenantScope::class)->whereKey($a->parent_id)->value('code') ?? '') : '';
-                    $coa .= $this->csvLine([
-                        $a->code, $a->name, $a->type, $parent,
-                        $a->normal_balance, $a->is_postable ? '1' : '0',
-                    ]);
-                }
-            });
+            ->get(['id', 'code', 'name', 'type', 'parent_id', 'normal_balance', 'is_postable']);
+        $parentCodeById = $allAccounts->pluck('code', 'id');
+        foreach ($allAccounts as $a) {
+            $parent = $a->parent_id ? (string) ($parentCodeById[$a->parent_id] ?? '') : '';
+            $coa .= $this->csvLine([
+                $a->code, $a->name, $a->type, $parent,
+                $a->normal_balance, $a->is_postable ? '1' : '0',
+            ]);
+        }
 
         // 2. Journal entries (header).
         $je = $bom.$this->csvLine(['MaBT', 'NgayHachToan', 'KyKT', 'DienGiai', 'TongNo', 'TongCo', 'NguonChungTu', 'LoaiChungTu', 'MaChungTu']);
