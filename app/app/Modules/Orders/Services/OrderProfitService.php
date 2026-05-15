@@ -47,9 +47,13 @@ class OrderProfitService
         $costs = $this->fetchCosts($itemsByOrder->flatten(1)->pluck('sku_id'));
         $actualByOrder = $this->fetchActualCogs($orderIds);   // FIFO COGS thực — đơn đã ship (SPEC 0014)
         $feesByOrder = $this->fetchActualFees($orderIds);   // Phí thực từ đối soát sàn (SPEC 0016)
+        $shipFeesByOrder = $this->fetchActualShipmentFees($orderIds);   // R2 (Sprint 4) — phí GHN thực sau khi createOrder
         $tenantId = (int) ($orders->first()?->tenant_id ?? 0);
         $orders->each(fn (Order $o) => $o->setAttribute('_profit', $this->compute(
-            $o, $itemsByOrder->get($o->getKey(), collect()), $pct, $costs, $actualByOrder[$o->getKey()] ?? null, $feesByOrder[$o->getKey()] ?? null,
+            $o, $itemsByOrder->get($o->getKey(), collect()), $pct, $costs,
+            $actualByOrder[$o->getKey()] ?? null,
+            $feesByOrder[$o->getKey()] ?? null,
+            $shipFeesByOrder[$o->getKey()] ?? null,
         )));
         unset($tenantId);
     }
@@ -60,9 +64,40 @@ class OrderProfitService
         $items = $order->relationLoaded('items') ? $order->items : $order->items()->get();
         $actual = $this->fetchActualCogs([$order->getKey()])[$order->getKey()] ?? null;
         $fees = $this->fetchActualFees([$order->getKey()])[$order->getKey()] ?? null;
+        $shipFee = $this->fetchActualShipmentFees([$order->getKey()])[$order->getKey()] ?? null;
         $order->setAttribute('_profit', $this->compute(
-            $order, $items, $this->platformFeePct($tenantSettings), $this->fetchCosts($items->pluck('sku_id')), $actual, $fees,
+            $order, $items, $this->platformFeePct($tenantSettings), $this->fetchCosts($items->pluck('sku_id')), $actual, $fees, $shipFee,
         ));
+    }
+
+    /**
+     * R2 (Sprint 4) — phí ĐVVC thực tế từ shipments.fee. Đơn manual sau khi GHN createOrder ⇒ `shipments.fee`
+     * có giá trị (phí GHN trả về). Khác `orders.shipping_fee` (số user tự nhập khi tạo đơn — có thể chưa
+     * khớp với phí GHN cuối cùng). Dùng cho profit calculation chính xác hơn cho đơn manual.
+     *
+     * @param  list<int>  $orderIds
+     * @return array<int, int> orderId => total fee from open shipments
+     */
+    private function fetchActualShipmentFees(array $orderIds): array
+    {
+        if ($orderIds === []) {
+            return [];
+        }
+        $rows = \CMBcoreSeller\Modules\Fulfillment\Models\Shipment::withoutGlobalScope(TenantScope::class)
+            ->whereIn('order_id', $orderIds)
+            ->whereNotIn('status', ['cancelled'])
+            ->selectRaw('order_id, COALESCE(SUM(fee), 0) AS fee')
+            ->groupBy('order_id')
+            ->get();
+        $out = [];
+        foreach ($rows as $r) {
+            $fee = (int) ($r->fee ?? 0);
+            if ($fee > 0) {
+                $out[(int) $r->order_id] = $fee;
+            }
+        }
+
+        return $out;
     }
 
     /**
@@ -144,9 +179,10 @@ class OrderProfitService
      * @param  Collection<int, Sku>  $skuCosts
      * @param  array{cogs:int,source:string}|null  $actual  COGS thực từ `order_costs` (đã ship); null = chưa ship
      * @param  array{platform_fee:int,shipping_fee:int}|null  $actualFees  Phí THỰC từ đối soát (SPEC 0016)
+     * @param  int|null  $actualShipFee  R2 (Sprint 4) — phí ĐVVC thực từ shipments.fee (manual: GHN trả về)
      * @return array{cogs:int,platform_fee:int,shipping_fee:int,estimated_profit:int,platform_fee_pct:float,cost_complete:bool,cost_source:string,fee_source:string}
      */
-    private function compute(Order $order, Collection $items, array $platformFeePct, Collection $skuCosts, ?array $actual = null, ?array $actualFees = null): array
+    private function compute(Order $order, Collection $items, array $platformFeePct, Collection $skuCosts, ?array $actual = null, ?array $actualFees = null, ?int $actualShipFee = null): array
     {
         $costSource = 'estimate';
         if ($actual !== null && $actual['cogs'] > 0) {
@@ -173,7 +209,14 @@ class OrderProfitService
             $feeSource = 'settlement';
         } else {
             $platformFee = (int) round((int) $order->grand_total * $pct / 100);
-            $shipping = (int) $order->shipping_fee;
+            // R2 (Sprint 4) — đơn manual: ưu tiên shipments.fee thực tế (GHN trả) > orders.shipping_fee (user nhập).
+            // Đơn sàn: dùng orders.shipping_fee (sàn báo về lúc sync). Logic gốc cho đơn sàn KHÔNG thay đổi.
+            if ($order->source === 'manual' && $actualShipFee !== null && $actualShipFee > 0) {
+                $shipping = $actualShipFee;
+                $feeSource = 'carrier';
+            } else {
+                $shipping = (int) $order->shipping_fee;
+            }
         }
 
         return [

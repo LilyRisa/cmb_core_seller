@@ -62,6 +62,23 @@ class GhnClient
         }
     }
 
+    /**
+     * A2 — Endpoint nhẹ dùng để xác thực credentials (master-data global, không cần shop_id, không thay đổi
+     * state). Trả nguyên body để caller check `code`. Lỗi mạng ⇒ ném exception (caller bắt).
+     *
+     * @return array<string,mixed>
+     */
+    public function getProvinces(): array
+    {
+        $res = $this->http(withShop: false)->get('/shiip/public-api/master-data/province');
+        $body = $res->json();
+        if (! is_array($body)) {
+            throw new RuntimeException('GHN response không hợp lệ (status '.$res->status().').');
+        }
+
+        return $body;
+    }
+
     /** Generate a print token for one or more order codes (A5/A6 labels). */
     public function genPrintToken(array $orderCodes): string
     {

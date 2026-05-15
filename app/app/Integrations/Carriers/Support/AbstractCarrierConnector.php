@@ -42,6 +42,15 @@ abstract class AbstractCarrierConnector implements CarrierConnector
         return [];
     }
 
+    /**
+     * A2 default — connector không có cách kiểm thì coi credentials hợp lệ. GhnConnector override để
+     * gọi API thật. ManualCarrierConnector cũng dùng default (manual không có credentials).
+     */
+    public function verifyCredentials(array $account): array
+    {
+        return ['ok' => true, 'message' => 'ĐVVC này không cần kiểm tra credentials.', 'expires_at' => null];
+    }
+
     public function supports(string $capability): bool
     {
         return in_array($capability, $this->capabilities(), true);

@@ -90,6 +90,8 @@ class OrderController extends Controller
         $data = $request->validate([
             'sub_source' => ['sometimes', 'nullable', 'string', 'max:50'],
             'status' => ['sometimes', 'in:pending,processing'],
+            // B (Sprint 2) — Khách hàng OPTIONAL: chỉ tạo customer record khi user điền đủ name + phone
+            // (xem CustomerLinkingService). Field validate vẫn dùng `sometimes|nullable` để FE có thể bỏ trống.
             'buyer' => ['sometimes', 'array'],
             'buyer.name' => ['sometimes', 'nullable', 'string', 'max:255'],
             'buyer.phone' => ['sometimes', 'nullable', 'string', 'max:32'],
@@ -97,11 +99,12 @@ class OrderController extends Controller
             'buyer.ward' => ['sometimes', 'nullable', 'string', 'max:120'],
             'buyer.district' => ['sometimes', 'nullable', 'string', 'max:120'],
             'buyer.province' => ['sometimes', 'nullable', 'string', 'max:120'],
-            // SPEC 0021 — UI mới: tách "Khách hàng" và "Nhận hàng". `recipient` ưu tiên hơn `buyer`
-            // cho shipping_address. Kèm mã GHN district_id/ward_code khi user chọn ở picker.
+            // SPEC 0021 — UI mới: tách "Khách hàng" và "Nhận hàng". FE enforce required (tên + SĐT + địa chỉ
+            // tỉnh/quận/phường). BE giữ schema NHẸ để API caller / test legacy không bị break — chỉ validate
+            // shape khi gửi. Khi `recipient.phone` có giá trị thì check format VN.
             'recipient' => ['sometimes', 'array'],
             'recipient.name' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'recipient.phone' => ['sometimes', 'nullable', 'string', 'max:32'],
+            'recipient.phone' => ['sometimes', 'nullable', 'string', 'max:32', 'regex:/^(0|\+84)\d{9,10}$/'],
             'recipient.address' => ['sometimes', 'nullable', 'string', 'max:500'],
             'recipient.ward' => ['sometimes', 'nullable', 'string', 'max:120'],
             'recipient.ward_code' => ['sometimes', 'nullable', 'string', 'max:32'],
@@ -110,24 +113,26 @@ class OrderController extends Controller
             'recipient.province' => ['sometimes', 'nullable', 'string', 'max:120'],
             'recipient.province_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'recipient.expected_at' => ['sometimes', 'nullable', 'date'],
-            'items' => ['required', 'array', 'min:1'],
+            'items' => ['required', 'array', 'min:1', 'max:200'],
             // A line is either a master SKU (`sku_id`) or an ad-hoc "quick product" (just `name` + price + qty,
             // optional `image` URL — see ManualOrderService / docs/03-domain/manual-orders-and-finance.md §1).
+            // V1-V2 (Sprint 3) — max bounds chống integer overflow khi `unit_price * quantity`.
             'items.*.sku_id' => ['sometimes', 'nullable', 'integer'],
             'items.*.name' => ['required_without:items.*.sku_id', 'nullable', 'string', 'max:255'],
             'items.*.image' => ['sometimes', 'nullable', 'string', 'max:2048'],
             'items.*.variation' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'items.*.quantity' => ['sometimes', 'integer', 'min:1'],
-            'items.*.unit_price' => ['sometimes', 'integer', 'min:0'],
-            'items.*.discount' => ['sometimes', 'integer', 'min:0'],
-            'shipping_fee' => ['sometimes', 'integer', 'min:0'],
+            'items.*.quantity' => ['sometimes', 'integer', 'min:1', 'max:99999'],
+            'items.*.unit_price' => ['sometimes', 'integer', 'min:0', 'max:999999999'],
+            'items.*.discount' => ['sometimes', 'integer', 'min:0', 'max:999999999'],
+            // V6 (Sprint 3) — max bounds cho money fields.
+            'shipping_fee' => ['sometimes', 'integer', 'min:0', 'max:999999999'],
             'free_shipping' => ['sometimes', 'boolean'],
-            'tax' => ['sometimes', 'integer', 'min:0'],
-            'order_discount' => ['sometimes', 'integer', 'min:0'],
-            'prepaid_amount' => ['sometimes', 'integer', 'min:0'],
-            'surcharge' => ['sometimes', 'integer', 'min:0'],
+            'tax' => ['sometimes', 'integer', 'min:0', 'max:999999999'],
+            'order_discount' => ['sometimes', 'integer', 'min:0', 'max:999999999'],
+            'prepaid_amount' => ['sometimes', 'integer', 'min:0', 'max:999999999'],
+            'surcharge' => ['sometimes', 'integer', 'min:0', 'max:999999999'],
             'is_cod' => ['sometimes', 'boolean'],
-            'cod_amount' => ['sometimes', 'integer', 'min:0'],
+            'cod_amount' => ['sometimes', 'integer', 'min:0', 'max:999999999'],
             'note' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'tags' => ['sometimes', 'array'],
             'meta' => ['sometimes', 'array'],
@@ -142,6 +147,10 @@ class OrderController extends Controller
             'meta.collect_fee_on_return_only' => ['sometimes', 'boolean'],
             // B2 (Sprint 1 P0) — hint ĐVVC user chọn ở form tạo đơn; pre-select khi "Chuẩn bị hàng".
             'meta.preferred_carrier_account_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
+            // U8 (Sprint 2) — file đính kèm tách khỏi `note` (in phiếu không lộ URL).
+            'meta.attachments' => ['sometimes', 'nullable', 'array', 'max:20'],
+            'meta.attachments.*.url' => ['required', 'string', 'max:2048'],
+            'meta.attachments.*.name' => ['sometimes', 'nullable', 'string', 'max:255'],
         ]);
         $order = $service->create((int) $tenant->id(), $request->user()->getKey(), $data);
 

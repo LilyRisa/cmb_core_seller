@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { App as AntApp, Button, Card, Empty, Form, Input, Modal, Select, Space, Switch, Table, Tag, Typography } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { App as AntApp, Button, Card, Empty, Form, Input, Modal, Select, Space, Switch, Table, Tag, Tooltip, Typography } from 'antd';
+import { CheckCircleFilled, CloseCircleFilled, PlusOutlined, ReloadOutlined, WarningFilled } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
-import { type CarrierAccount, useCarrierAccounts, useCarriers, useCreateCarrierAccount, useDeleteCarrierAccount, useUpdateCarrierAccount } from '@/lib/fulfillment';
+import { type CarrierAccount, useCarrierAccounts, useCarriers, useCreateCarrierAccount, useDeleteCarrierAccount, useUpdateCarrierAccount, useVerifyCarrierAccount } from '@/lib/fulfillment';
 
 // Known credential fields per carrier (v1: GHN; others = a generic "token").
 const CRED_FIELDS: Record<string, Array<{ key: string; label: string; required?: boolean }>> = {
@@ -34,7 +35,9 @@ export function CarrierAccountsPage() {
     const create = useCreateCarrierAccount();
     const update = useUpdateCarrierAccount();
     const del = useDeleteCarrierAccount();
+    const verify = useVerifyCarrierAccount();
     const canManage = useCan('fulfillment.carriers');
+    const [verifyingId, setVerifyingId] = useState<number | null>(null);
     const [open, setOpen] = useState(false);
     const [form] = Form.useForm();
     const selectedCarrier: string | undefined = Form.useWatch('carrier', form);
@@ -61,11 +64,25 @@ export function CarrierAccountsPage() {
         });
     });
 
+    const runVerify = (a: CarrierAccount) => {
+        setVerifyingId(a.id);
+        verify.mutate(a.id, {
+            onSuccess: (r) => {
+                if (r.ok) message.success(`${a.name}: ${r.message}`);
+                else message.error(`${a.name}: ${r.message}`);
+                setVerifyingId(null);
+            },
+            onError: (e) => { message.error(errorMessage(e)); setVerifyingId(null); },
+        });
+    };
+
     const columns: ColumnsType<CarrierAccount> = [
         { title: 'Tên', dataIndex: 'name', key: 'n', render: (v, a) => <Space direction="vertical" size={0}><Typography.Text strong>{v}</Typography.Text><Tag>{a.carrier}</Tag>{a.is_default && <Tag color="blue">Mặc định</Tag>}</Space> },
         { title: 'Dịch vụ mặc định', dataIndex: 'default_service', key: 's', render: (v) => v ?? '—' },
         { title: 'Thông tin xác thực', dataIndex: 'credential_keys', key: 'c', render: (v: string[]) => (v.length ? v.map((k) => <Tag key={k}>{k}</Tag>) : <Typography.Text type="secondary">Không cần</Typography.Text>) },
-        { title: 'Trạng thái', dataIndex: 'is_active', key: 'a', width: 110, render: (v, a) => canManage
+        // A3 — Status kết nối: ô tổng hợp last_verified_at + ok/lỗi/expired + nút retry.
+        { title: 'Kết nối', key: 'verify', width: 200, render: (_, a) => <VerifyStatus account={a} loading={verifyingId === a.id} onVerify={() => runVerify(a)} canManage={canManage} /> },
+        { title: 'Bật', dataIndex: 'is_active', key: 'a', width: 70, render: (v, a) => canManage
             ? <Switch checked={v} size="small" onChange={(checked) => update.mutate({ id: a.id, is_active: checked })} />
             : (v ? <Tag color="green">Bật</Tag> : <Tag>Tắt</Tag>) },
         ...(canManage ? [{ title: '', key: 'x', width: 140, render: (_: unknown, a: CarrierAccount) => (
@@ -115,5 +132,47 @@ export function CarrierAccountsPage() {
                 </Form>
             </Modal>
         </div>
+    );
+}
+
+/**
+ * A3 — Hiển thị trạng thái kết nối của 1 carrier account: OK (xanh) / Lỗi (đỏ) / Chưa kiểm tra (xám)
+ *  + thời gian last_verified_at + nút "Kiểm tra lại". Nguồn truth = `account.meta.last_verify_*` lưu sau
+ *  mỗi lần `runVerifyAndPersist` ở BE.
+ */
+function VerifyStatus({ account, loading, onVerify, canManage }: { account: CarrierAccount; loading: boolean; onVerify: () => void; canManage: boolean }) {
+    const meta = (account.meta ?? {}) as Record<string, unknown>;
+    const ok = meta.last_verify_ok === true;
+    const checked = !!meta.last_verified_at;
+    const error = (meta.last_verify_error as string | null) ?? null;
+    const expiresAt = (meta.credentials_expires_at as string | null) ?? null;
+    const verifiedAt = meta.last_verified_at as string | undefined;
+    const expired = expiresAt && dayjs(expiresAt).isBefore(dayjs());
+    // 'manual' không cần verify ⇒ ẩn UI, chỉ hiện badge "Không cần".
+    if (account.carrier === 'manual') {
+        return <Typography.Text type="secondary" style={{ fontSize: 12 }}>Không cần kiểm tra</Typography.Text>;
+    }
+    return (
+        <Space size={6} align="start" direction="vertical">
+            <Space size={4}>
+                {!checked ? (
+                    <Tag color="default">Chưa kiểm tra</Tag>
+                ) : expired ? (
+                    <Tag color="orange" icon={<WarningFilled />}>Hết hạn</Tag>
+                ) : ok ? (
+                    <Tag color="green" icon={<CheckCircleFilled />}>OK</Tag>
+                ) : (
+                    <Tooltip title={error ?? ''}><Tag color="red" icon={<CloseCircleFilled />}>Lỗi</Tag></Tooltip>
+                )}
+                {canManage && (
+                    <Tooltip title="Kiểm tra lại"><Button type="text" size="small" icon={<ReloadOutlined spin={loading} />} loading={loading} onClick={onVerify} /></Tooltip>
+                )}
+            </Space>
+            {verifiedAt && (
+                <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                    Kiểm tra {dayjs(verifiedAt).format('HH:mm DD/MM')}
+                </Typography.Text>
+            )}
+        </Space>
     );
 }

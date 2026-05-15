@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-    Alert, App as AntApp, Avatar, Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber,
+    Alert, App as AntApp, Avatar, Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber, Modal,
     Popover, Radio, Row, Segmented, Space, Tag, Tooltip, Typography, Upload,
 } from 'antd';
 import {
-    ArrowLeftOutlined, BarcodeOutlined, CalendarOutlined, CarOutlined, CheckCircleFilled, EnvironmentOutlined,
-    FacebookFilled, MoreOutlined, PaperClipOutlined, PrinterOutlined, SaveOutlined, SearchOutlined, ShopOutlined,
+    ArrowLeftOutlined, BarcodeOutlined, CalendarOutlined, CheckCircleFilled, EnvironmentOutlined,
+    FacebookFilled, MoreOutlined, PaperClipOutlined, PrinterOutlined, SaveOutlined, SearchOutlined,
     UpOutlined,
 } from '@ant-design/icons';
 import type { RcFile } from 'antd/es/upload';
@@ -14,14 +14,11 @@ import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { OrderItemsEditor, PickerTrigger, type OrderLineInput } from '@/components/OrderItemsEditor';
 import { AddressPicker, type PickedAddress } from '@/components/AddressPicker';
-import { CarrierBadge, CARRIER_META } from '@/components/CarrierBadge';
 import { errorMessage } from '@/lib/api';
 import { useCreateManualOrder, useUploadImage, type Sku } from '@/lib/inventory';
-import { useChannelAccounts } from '@/lib/channels';
 import { useTenantMembers } from '@/lib/tenant';
 import { useAuth } from '@/lib/auth';
 import { useCustomerLookup, type CustomerLookupResult } from '@/lib/customers';
-import { useCarrierAccounts } from '@/lib/fulfillment';
 
 // ============================================================================
 //  Tạo đơn thủ công — match taodon.png / taodon2.png (BigSeller-inspired POS)
@@ -57,10 +54,7 @@ export function CreateOrderPage() {
     const navigate = useNavigate();
     const [form] = Form.useForm();
     const create = useCreateManualOrder();
-    const { data: channelsData } = useChannelAccounts();
-    const channels = channelsData?.data ?? [];
     const { data: members = [] } = useTenantMembers();
-    const { data: carrierAccounts = [] } = useCarrierAccounts();
     const upload = useUploadImage();
     const { data: me } = useAuth();
     const meId = me?.id ?? null;
@@ -71,7 +65,6 @@ export function CreateOrderPage() {
     const [recipientPhoneSynced, setRecipientPhoneSynced] = useState(true);
     const [shipAddress, setShipAddress] = useState<PickedAddress>({});
     const [addrPickerOpen, setAddrPickerOpen] = useState(false);
-    const [carrierAccountId, setCarrierAccountId] = useState<number | null>(null);
     const [tags, setTags] = useState<string[]>([]);
     const [tagInput, setTagInput] = useState('');
     const [showTagInput, setShowTagInput] = useState(false);
@@ -81,6 +74,7 @@ export function CreateOrderPage() {
     const [productMode, setProductMode] = useState<'sku' | 'combo'>('sku');
     const [inStockOnly, setInStockOnly] = useState(false);
     const [thongTinCollapsed, setThongTinCollapsed] = useState(false);
+    const [draftRestored, setDraftRestored] = useState(false);
 
     // ---- queries ----
     // Lookup theo KEY = số điện thoại (đã chuẩn hoá hash phía BE — SPEC 0021).
@@ -100,6 +94,52 @@ export function CreateOrderPage() {
     useEffect(() => {
         if (meId != null) form.setFieldsValue({ assignee_user_id: meId });
     }, [meId, form]);
+
+    // U16 (Sprint 2) — Draft autosave / restore. Lưu vào localStorage mỗi 1s sau khi user thay đổi.
+    // Restore khi vào trang nếu có draft (≤24h) — show 1 prompt "Có nháp đơn chưa lưu, khôi phục?".
+    const DRAFT_KEY = 'cmb.createOrder.draft.v1';
+    const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
+    useEffect(() => {
+        if (draftRestored) return;
+        try {
+            const raw = localStorage.getItem(DRAFT_KEY);
+            if (!raw) { setDraftRestored(true); return; }
+            const parsed = JSON.parse(raw) as { savedAt: number; items?: OrderLineInput[]; phone?: string; shipAddress?: PickedAddress; tags?: string[]; attachments?: Array<{ url: string; name: string }>; form?: Record<string, unknown> };
+            if (!parsed.savedAt || Date.now() - parsed.savedAt > DRAFT_TTL_MS) { localStorage.removeItem(DRAFT_KEY); setDraftRestored(true); return; }
+            const has = (parsed.items?.length ?? 0) > 0 || !!parsed.phone || !!parsed.shipAddress?.province;
+            if (!has) { setDraftRestored(true); return; }
+            Modal.confirm({
+                title: 'Có nháp đơn chưa lưu',
+                content: `Tìm thấy nháp đơn từ ${dayjs(parsed.savedAt).fromNow()}. Khôi phục dữ liệu?`,
+                okText: 'Khôi phục', cancelText: 'Bắt đầu mới',
+                onOk: () => {
+                    if (parsed.items) setItems(parsed.items);
+                    if (parsed.phone) setPhone(parsed.phone);
+                    if (parsed.shipAddress) setShipAddress(parsed.shipAddress);
+                    if (parsed.tags) setTags(parsed.tags);
+                    if (parsed.attachments) setAttachments(parsed.attachments);
+                    if (parsed.form) form.setFieldsValue(parsed.form);
+                    setDraftRestored(true);
+                    message.success('Đã khôi phục nháp đơn.');
+                },
+                onCancel: () => { localStorage.removeItem(DRAFT_KEY); setDraftRestored(true); },
+            });
+        } catch { setDraftRestored(true); }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+    // Debounce autosave 1s.
+    useEffect(() => {
+        if (!draftRestored) return;
+        const t = setTimeout(() => {
+            try {
+                const formValues = form.getFieldsValue();
+                const has = items.length > 0 || phone || shipAddress.province;
+                if (!has) { localStorage.removeItem(DRAFT_KEY); return; }
+                localStorage.setItem(DRAFT_KEY, JSON.stringify({ savedAt: Date.now(), items, phone, shipAddress, tags, attachments, form: formValues }));
+            } catch { /* quota exceeded — silent */ }
+        }, 1000);
+        return () => clearTimeout(t);
+    }, [items, phone, shipAddress, tags, attachments, draftRestored, form]);
 
     // ---- live totals ----
     const summary = Form.useWatch([], form) as Record<string, unknown> | undefined;
@@ -122,6 +162,16 @@ export function CreateOrderPage() {
         if (items.length === 0) { message.error('Cần ít nhất một dòng hàng.'); return; }
         if (items.some((l) => l.uploading)) { message.error('Đang tải ảnh — vui lòng đợi.'); return; }
         if (items.some((l) => !l.sku_id && l.name.trim() === '')) { message.error('Dòng "sản phẩm nhanh" phải có tên.'); return; }
+        // B (Sprint 2) — bắt buộc: tên người nhận + SĐT + địa chỉ chi tiết + tỉnh + (quận/phường HOẶC district_id/ward_code).
+        if (!(v.recipient_name ?? '').trim()) { message.error('Cần điền tên người nhận.'); return; }
+        const recipientPhone = (v.recipient_phone ?? phone ?? '').trim();
+        if (!recipientPhone) { message.error('Cần điền số điện thoại người nhận.'); return; }
+        if (!/^(0|\+84)\d{9,10}$/.test(recipientPhone)) { message.error('Số điện thoại người nhận không đúng định dạng Việt Nam (vd 0912xxxxxxx).'); return; }
+        if (!(v.recipient_address ?? '').trim()) { message.error('Cần điền địa chỉ chi tiết.'); return; }
+        const hasProvince = !!(shipAddress.province || shipAddress.province_id);
+        const hasDistrict = !!(shipAddress.district || shipAddress.district_id);
+        const hasWard = !!(shipAddress.ward || shipAddress.ward_code);
+        if (!hasProvince || !hasDistrict || !hasWard) { message.error('Cần chọn đủ Tỉnh / Quận / Phường (địa chỉ mới hoặc cũ).'); return; }
         const lines = items.map((l) => ({
             sku_id: l.sku_id,
             name: l.sku_id ? undefined : l.name.trim(),
@@ -129,9 +179,23 @@ export function CreateOrderPage() {
             quantity: l.quantity, unit_price: l.unit_price, discount: l.discount,
         }));
         const isCod = !!v.is_cod;
+        // U15 (Sprint 2) — Khách bị chặn ⇒ confirm trước khi submit.
+        if (customerData?.customer?.is_blocked) {
+            return new Promise<void>((resolve) => {
+                Modal.confirm({
+                    title: 'Khách này đang BỊ CHẶN',
+                    width: 480,
+                    content: <span>Khách <b>{customerData.customer!.name ?? customerData.customer!.phone_masked}</b> đã bị chặn trong hệ thống. Vẫn tạo đơn?</span>,
+                    okText: 'Vẫn tạo đơn', okButtonProps: { danger: true }, cancelText: 'Huỷ',
+                    onOk: () => { sendOrder(); resolve(); },
+                    onCancel: () => resolve(),
+                });
+            });
+        }
+        sendOrder();
         // B1 đã sửa BE: FE chỉ gửi cod_amount khi user override (hiện không có UI override) ⇒ bỏ qua.
         // BE tự tính: cod_amount = max(0, grand_total - prepaid_amount). Sprint 1 P0.
-        create.mutate({
+        function sendOrder() { create.mutate({
             sub_source: v.sub_source || undefined,
             status: 'processing',
             buyer: { name: v.buyer_name || undefined, phone: phone || undefined },
@@ -154,7 +218,7 @@ export function CreateOrderPage() {
             prepaid_amount: v.prepaid_amount ?? 0,
             surcharge: v.surcharge ?? 0,
             is_cod: isCod,
-            note: [v.note_internal, attachments.length ? `\n— Tệp đính kèm:\n${attachments.map((a) => `${a.name}: ${a.url}`).join('\n')}` : ''].filter(Boolean).join('') || undefined,
+            note: v.note_internal || undefined,
             tags,
             meta: {
                 assignee_user_id: v.assignee_user_id || undefined,
@@ -166,12 +230,19 @@ export function CreateOrderPage() {
                 email: v.email || undefined,
                 print_note: v.note_print || undefined,
                 collect_fee_on_return_only: !!v.collect_fee_on_return_only,
-                preferred_carrier_account_id: carrierAccountId || undefined,   // B2 (Sprint 1 P0): BE giờ accept
+                // U8 (Sprint 2) — attachments tách khỏi note, lưu vào meta.attachments.
+                attachments: attachments.length > 0 ? attachments : undefined,
+                // preferred_carrier_account_id giờ chọn ở bước "Chuẩn bị hàng" (CarrierAccountPicker) —
+                // không thu thập ở form tạo đơn nữa (B - Sprint 2).
             },
         }, {
-            onSuccess: (o) => { message.success(andPrint ? 'Đã tạo đơn — chuyển sang in phiếu giao hàng.' : 'Đã tạo đơn'); navigate(`/orders/${o.id}${andPrint ? '?print=1' : ''}`); },
+            onSuccess: (o) => {
+                try { localStorage.removeItem(DRAFT_KEY); } catch { /* */ }
+                message.success(andPrint ? 'Đã tạo đơn — chuyển sang in phiếu giao hàng.' : 'Đã tạo đơn');
+                navigate(`/orders/${o.id}${andPrint ? '?print=1' : ''}`);
+            },
             onError: (e) => message.error(errorMessage(e)),
-        });
+        }); }
     }).catch(() => message.error('Vui lòng kiểm tra lại thông tin.'));
 
     // F2 / F4 hotkeys — chỉ trigger từ outside input
@@ -203,9 +274,12 @@ export function CreateOrderPage() {
     };
 
     const addTag = () => {
+        // U12 (Sprint 2) — guard double-call: Enter triggers blur ⇒ both onPressEnter và onBlur gọi addTag.
+        // Lần 2 đã có tag → setShowTagInput(false), không tạo duplicate (do `tags.includes(t)` check).
         const t = tagInput.trim();
-        if (!t || tags.includes(t)) { setTagInput(''); setShowTagInput(false); return; }
-        setTags([...tags, t]); setTagInput(''); setShowTagInput(false);
+        if (!t) { setTagInput(''); setShowTagInput(false); return; }
+        if (!tags.includes(t)) setTags([...tags, t]);
+        setTagInput(''); setShowTagInput(false);
     };
     const removeTag = (t: string) => setTags(tags.filter((x) => x !== t));
 
@@ -218,8 +292,6 @@ export function CreateOrderPage() {
         return false;
     };
 
-    const carrier = carrierAccounts.find((c) => c.id === carrierAccountId) ?? null;
-    const carrierMeta = carrier ? (CARRIER_META[carrier.carrier.toLowerCase()] ?? { name: carrier.carrier, color: 'default' }) : null;
     const subSource = (summary?.sub_source as string) || '';
 
     return (
@@ -261,25 +333,8 @@ export function CreateOrderPage() {
                                             <UpOutlined rotate={180} style={{ fontSize: 10, marginInlineStart: 4 }} />
                                         </Button>
                                     </Popover>
-                                    {channels.length > 0 && (
-                                        <Popover trigger="click" placement="bottomRight" content={(
-                                            <div style={{ width: 280, maxHeight: 320, overflowY: 'auto' }}>
-                                                <Radio.Group style={{ width: '100%' }}
-                                                    onChange={(e) => form.setFieldsValue({ channel_account_id: e.target.value })}
-                                                    value={summary?.channel_account_id as number | undefined}>
-                                                    {channels.map((c) => (
-                                                        <Radio key={c.id} value={c.id} style={{ display: 'flex', padding: '6px 8px' }}>
-                                                            <Space><ShopOutlined /><span>{c.name}</span></Space>
-                                                        </Radio>
-                                                    ))}
-                                                </Radio.Group>
-                                            </div>
-                                        )}>
-                                            <Button size="small" className="ord-pill-btn" icon={<ShopOutlined />}>
-                                                {channels.find((c) => c.id === summary?.channel_account_id)?.name ?? 'Công Minh Store'}
-                                            </Button>
-                                        </Popover>
-                                    )}
+                                    {/* B (Sprint 2) — bỏ dropdown gian hàng: đơn manual không gắn channel_account_id; trước đây
+                                        field UI gây hiểu lầm (BE silent drop). User nhập kênh bán qua "Chọn nguồn đơn" (sub_source). */}
                                 </Space>
                             )}
                         >
@@ -460,93 +515,52 @@ export function CreateOrderPage() {
 
                         {/* ---------- Nhận hàng ---------- */}
                         <Card size="small" className="ord-card" style={{ marginBottom: 16 }}
-                            title={<span className="ord-card-title">Nhận hàng</span>}
-                            extra={(
-                                <Popover trigger="click" placement="bottomRight" content={<AddressPicker value={shipAddress} oldAddresses={oldAddresses} onPick={(p) => {
-                                    setShipAddress(p);
-                                    if (p.name) form.setFieldsValue({ recipient_name: p.name });
-                                    if (p.address) form.setFieldsValue({ recipient_address: p.address });
-                                }} />}>
-                                    <Button size="small" className="ord-pill-btn" icon={<EnvironmentOutlined />}>
-                                        Chọn địa chỉ
-                                        <UpOutlined rotate={180} style={{ fontSize: 10, marginInlineStart: 4 }} />
-                                    </Button>
-                                </Popover>
-                            )}
+                            title={<span className="ord-card-title">Nhận hàng <span style={{ color: '#cf1322', marginInlineStart: 4 }}>*</span></span>}
                         >
                             <Form.Item name="expected_delivery_date" style={{ marginBottom: 8 }}>
                                 <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" placeholder="Dự kiến nhận hàng" suffixIcon={<CalendarOutlined />} />
                             </Form.Item>
                             <Row gutter={8}>
-                                <Col span={12}><Form.Item name="recipient_name" style={{ marginBottom: 8 }}><Input placeholder="Tên người nhận" maxLength={255} /></Form.Item></Col>
-                                <Col span={12}><Form.Item name="recipient_phone" style={{ marginBottom: 8 }}>
-                                    <Input placeholder="Số điện thoại" maxLength={32} onChange={(e) => handleRecipientPhoneChange(e.target.value)} />
+                                <Col span={12}><Form.Item name="recipient_name" style={{ marginBottom: 8 }} rules={[{ required: true, message: 'Tên người nhận' }]}>
+                                    <Input placeholder="Tên người nhận *" maxLength={255} />
+                                </Form.Item></Col>
+                                <Col span={12}><Form.Item name="recipient_phone" style={{ marginBottom: 8 }} rules={[
+                                    { required: true, message: 'SĐT người nhận' },
+                                    { pattern: /^(0|\+84)\d{9,10}$/, message: 'SĐT không đúng định dạng VN' },
+                                ]}>
+                                    <Input placeholder="Số điện thoại *" maxLength={32} onChange={(e) => handleRecipientPhoneChange(e.target.value)} />
                                 </Form.Item></Col>
                             </Row>
-                            <Form.Item name="recipient_address" style={{ marginBottom: 8 }}>
-                                <Input placeholder="Địa chỉ chi tiết" maxLength={500} />
+                            <Form.Item name="recipient_address" style={{ marginBottom: 8 }} rules={[{ required: true, message: 'Địa chỉ chi tiết' }]}>
+                                <Input placeholder="Địa chỉ chi tiết (số nhà, đường) *" maxLength={500} />
                             </Form.Item>
+                            {/* U3 (Sprint 2) — single AddressPicker (Tỉnh/Quận/Phường) - gộp 2 popover trùng lặp.
+                                Vẫn hỗ trợ "địa chỉ mới" (cascade GHN) + "địa chỉ cũ" (từ customer.addresses_meta). */}
                             <Popover trigger="click" open={addrPickerOpen} onOpenChange={setAddrPickerOpen} placement="bottomLeft" content={(
                                 <AddressPicker value={shipAddress} oldAddresses={oldAddresses} onPick={(p) => {
                                     setShipAddress(p);
                                     if (p.name) form.setFieldsValue({ recipient_name: p.name });
+                                    if (p.phone && !phone) { setPhone(p.phone); form.setFieldsValue({ recipient_phone: p.phone }); }
                                     if (p.address) form.setFieldsValue({ recipient_address: p.address });
                                     setAddrPickerOpen(false);
                                 }} />
                             )}>
                                 <Input
-                                    readOnly placeholder="Chọn địa chỉ"
+                                    readOnly
+                                    placeholder="Tỉnh / Quận / Phường *"
                                     value={[shipAddress.ward, shipAddress.district, shipAddress.province].filter(Boolean).join(', ')}
-                                    suffix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+                                    suffix={<EnvironmentOutlined style={{ color: '#bfbfbf' }} />}
                                     style={{ cursor: 'pointer' }}
                                     onClick={() => setAddrPickerOpen(true)}
+                                    status={!(shipAddress.province && (shipAddress.district || shipAddress.district_id) && (shipAddress.ward || shipAddress.ward_code)) && form.isFieldTouched('recipient_address') ? 'warning' : undefined}
                                 />
                             </Popover>
                         </Card>
 
-                        {/* ---------- Vận chuyển ---------- */}
-                        <Card size="small" className="ord-card" style={{ marginBottom: 16 }}
-                            title={<span className="ord-card-title">Vận chuyển</span>}
-                            extra={(
-                                <Popover trigger="click" placement="bottomRight" content={(
-                                    <div style={{ width: 280, maxHeight: 320, overflowY: 'auto' }}>
-                                        <Radio.Group style={{ width: '100%' }} value={carrierAccountId} onChange={(e) => setCarrierAccountId(e.target.value)}>
-                                            <Radio value={null} style={{ display: 'flex', padding: '6px 10px' }}>
-                                                <Space><CarOutlined /><span>Tự vận chuyển</span></Space>
-                                            </Radio>
-                                            {carrierAccounts.filter((c) => c.is_active).map((c) => {
-                                                const m = CARRIER_META[c.carrier.toLowerCase()] ?? { name: c.carrier, color: 'default' };
-                                                return (
-                                                    <Radio key={c.id} value={c.id} style={{ display: 'flex', padding: '6px 10px' }}>
-                                                        <Space size={6}><Tag color={m.color} icon={<CarOutlined />} style={{ marginInlineEnd: 0 }}>{m.name}</Tag><span>{c.name}</span>{c.is_default && <Tag color="blue" style={{ marginInlineEnd: 0 }}>Mặc định</Tag>}</Space>
-                                                    </Radio>
-                                                );
-                                            })}
-                                        </Radio.Group>
-                                    </div>
-                                )}>
-                                    <Button size="small" className="ord-pill-btn" icon={<CarOutlined />}>
-                                        {carrier ? (carrierMeta?.name ?? carrier.carrier) : 'Đơn vị VC'}
-                                        <UpOutlined rotate={180} style={{ fontSize: 10, marginInlineStart: 4 }} />
-                                    </Button>
-                                </Popover>
-                            )}
-                        >
-                            <div className="ord-dim-row">
-                                <Typography.Text type="secondary" style={{ minWidth: 64 }}>Kích thước</Typography.Text>
-                                <DimInput name="dim_l" />
-                                <span className="ord-dim-x">×</span>
-                                <DimInput name="dim_w" />
-                                <span className="ord-dim-x">×</span>
-                                <DimInput name="dim_h" />
-                                <span className="ord-dim-unit">(cm)</span>
-                            </div>
-                            <Row gutter={8} style={{ marginTop: 10 }}>
-                                <Col span={14}><Form.Item name="tracking_no" noStyle><Input placeholder="Mã vận đơn" maxLength={120} /></Form.Item></Col>
-                                <Col span={10}><Form.Item name="ship_fee_carrier" noStyle><InputNumber min={0} placeholder="Phí" style={{ width: '100%' }} controls={false} suffix={<Typography.Text type="secondary">₫</Typography.Text>} /></Form.Item></Col>
-                            </Row>
-                            {carrier && <div style={{ marginTop: 8 }}><CarrierBadge code={carrier.carrier} /></div>}
-                        </Card>
+                        {/* B (Sprint 2) — bỏ Card "Vận chuyển" trong form tạo đơn:
+                            - Đơn manual chọn ĐVVC ở bước "Chuẩn bị hàng" qua `CarrierAccountPicker` (đúng luồng GHN createOrder).
+                            - Kích thước / phí thực sẽ do GHN trả về sau khi tạo vận đơn.
+                            - User vẫn có thể chọn "Đơn vị VC ưa thích" gián tiếp qua picker khi prepare. */}
                     </Col>
                 </Row>
             </Form>
@@ -643,14 +657,6 @@ function KvRow({ label, children }: { label: string; children: React.ReactNode }
             <Col span={10}><Typography.Text type="secondary" style={{ fontSize: 13 }}>{label}</Typography.Text></Col>
             <Col span={14} style={{ display: 'flex', justifyContent: 'flex-end' }}>{children}</Col>
         </Row>
-    );
-}
-
-function DimInput({ name }: { name: string }) {
-    return (
-        <Form.Item name={name} noStyle>
-            <InputNumber min={0} placeholder="0" controls={false} />
-        </Form.Item>
     );
 }
 

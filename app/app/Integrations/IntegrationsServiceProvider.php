@@ -80,7 +80,15 @@ class IntegrationsServiceProvider extends ServiceProvider
 
         $this->app->singleton(CarrierRegistry::class, function ($app) {
             $registry = new CarrierRegistry($app);
-            $codes = array_unique(array_merge(['manual'], (array) config('integrations.carriers', [])));
+            // A1 fix — luôn register TẤT CẢ carrier có code class; env `INTEGRATIONS_CARRIERS` chỉ là
+            // override cho test environment (vd test chạy GHN connector mà KHÔNG có thật env GHN). Trước
+            // đây env trống ⇒ chỉ load 'manual' ⇒ user mở Settings/Carriers KHÔNG chọn được GHN.
+            // Đơn vị vận chuyển muốn dùng vẫn phải nhập API token ở Account-level — không có rủi ro nếu
+            // shop chưa cấu hình credentials.
+            $envFilter = array_filter(array_map('trim', (array) config('integrations.carriers', [])));
+            $codes = $envFilter !== []
+                ? array_unique(array_merge(['manual'], $envFilter))
+                : array_keys($this->carrierConnectors);
             foreach ($codes as $code) {
                 if (isset($this->carrierConnectors[$code])) {
                     $registry->register($code, $this->carrierConnectors[$code]);

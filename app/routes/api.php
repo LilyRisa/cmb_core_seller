@@ -85,7 +85,8 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::get('orders/stats', [OrderController::class, 'stats'])->name('orders.stats');
             Route::post('orders/sync', [OrderController::class, 'sync'])->name('orders.sync');             // resync all active shops
             Route::get('orders', [OrderController::class, 'index'])->name('orders.index');
-            Route::post('orders', [OrderController::class, 'store'])->name('orders.store');               // manual order
+            // S4 (Sprint 3) — throttle riêng cho POST /orders chống spam tạo đơn manual (reserve stock).
+            Route::post('orders', [OrderController::class, 'store'])->middleware('throttle:30,1')->name('orders.store');
             Route::get('orders/{id}', [OrderController::class, 'show'])->whereNumber('id')->name('orders.show');
             Route::patch('orders/{id}', [OrderController::class, 'update'])->whereNumber('id')->name('orders.update');   // manual order edit
             Route::post('orders/{id}/cancel', [OrderController::class, 'cancel'])->whereNumber('id')->name('orders.cancel');
@@ -138,7 +139,8 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             // --- Customers (Phase 2 / SPEC 0002) — internal buyer registry & reputation ---
             Route::post('customers/merge', [CustomerController::class, 'merge'])->name('customers.merge');
             // SPEC 0021 — tra cứu nhanh theo SĐT (UI tạo đơn). Phải đặt TRƯỚC route `{id}` để khớp đường.
-            Route::get('customers/lookup', [CustomerController::class, 'lookup'])->name('customers.lookup');
+            // S1 (Sprint 3) — throttle 20/phút chống brute-force enumerate phone hash.
+            Route::get('customers/lookup', [CustomerController::class, 'lookup'])->middleware('throttle:20,1')->name('customers.lookup');
             Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');
             Route::get('customers/{id}', [CustomerController::class, 'show'])->whereNumber('id')->name('customers.show');
             Route::get('customers/{id}/orders', [CustomerController::class, 'orders'])->whereNumber('id')->name('customers.orders');
@@ -158,6 +160,8 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::post('carrier-accounts', [CarrierAccountController::class, 'store'])->name('carrier-accounts.store');
             Route::patch('carrier-accounts/{id}', [CarrierAccountController::class, 'update'])->whereNumber('id')->name('carrier-accounts.update');
             Route::delete('carrier-accounts/{id}', [CarrierAccountController::class, 'destroy'])->whereNumber('id')->name('carrier-accounts.destroy');
+            // A2 (SPEC 0021) — kiểm tra credentials còn hợp lệ. Auto-verify lúc store; user retry qua nút "Kiểm tra".
+            Route::post('carrier-accounts/{id}/verify', [CarrierAccountController::class, 'verify'])->whereNumber('id')->name('carrier-accounts.verify');
 
             Route::get('fulfillment/ready', [ShipmentController::class, 'ready'])->name('fulfillment.ready');
             Route::get('fulfillment/processing', [ShipmentController::class, 'processing'])->name('fulfillment.processing');           // SPEC 0009 — màn xử lý đơn

@@ -219,6 +219,25 @@ export function useDeleteCarrierAccount() {
     return useMutation({ mutationFn: async (id: number) => { await api!.delete(`/carrier-accounts/${id}`); }, onSuccess: invalidate });
 }
 
+/** A2 (SPEC 0021) — kiểm tra credentials còn hợp lệ. Trả ok/lỗi + cập nhật `meta.last_verified_at`. */
+export interface CarrierVerifyResult {
+    ok: boolean;
+    message: string;
+    error_code: string | null;
+    expires_at: string | null;
+    verified_at: string;
+    account: CarrierAccount;
+}
+export function useVerifyCarrierAccount() {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    const invalidate = useInvalidate([['carrier-accounts', tenantId]]);
+    return useMutation({
+        mutationFn: async (id: number) => { const { data } = await api!.post<{ data: CarrierVerifyResult }>(`/carrier-accounts/${id}/verify`); return data.data; },
+        onSuccess: invalidate,
+    });
+}
+
 function useFulfillmentInvalidate() {
     const tenantId = useCurrentTenantId();
     return useInvalidate([['fulfillment-ready', tenantId], ['shipments', tenantId], ['orders', tenantId], ['inventory-levels', tenantId]]);

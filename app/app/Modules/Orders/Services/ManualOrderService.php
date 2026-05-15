@@ -64,6 +64,9 @@ class ManualOrderService
                 'channel_account_id' => null,
                 'external_order_id' => null,
                 'order_number' => $this->generateOrderNumber($tenantId),
+                // R3 (Sprint 4) — denormalize `orders.carrier='manual'` ngay từ lúc tạo. Trước đây null đến
+                // tận khi chuẩn bị hàng ⇒ chip "Vận chuyển" trên trang Đơn hàng bỏ sót đơn manual chưa prepare.
+                'carrier' => 'manual',
                 'status' => $status,
                 'raw_status' => $status->value,
                 'payment_status' => $paymentStatus,
@@ -267,6 +270,19 @@ class ManualOrderService
             // user click "Chuẩn bị hàng" để qua CarrierAccountPicker xác nhận). Picker đọc key này để
             // pre-select. Không gắn FK ⇒ nếu account bị xoá sau đó, picker tự fallback default.
             'preferred_carrier_account_id' => isset($raw['preferred_carrier_account_id']) ? (int) $raw['preferred_carrier_account_id'] : null,
+            // U8 (Sprint 2) — tách file đính kèm khỏi `note` để in phiếu không lộ URL. Mỗi item shape
+            // `{name, url}`. Max 20 file để tránh JSON phình.
+            'attachments' => isset($raw['attachments']) && is_array($raw['attachments'])
+                ? array_slice(array_values(array_filter(array_map(function ($a) {
+                    if (! is_array($a)) {
+                        return null;
+                    }
+                    $url = trim((string) ($a['url'] ?? ''));
+                    $name = trim((string) ($a['name'] ?? ''));
+
+                    return $url !== '' ? ['url' => $url, 'name' => $name !== '' ? $name : 'file'] : null;
+                }, $raw['attachments']))), 0, 20)
+                : null,
         ], fn ($v) => $v !== null && $v !== '');
 
         return $out;

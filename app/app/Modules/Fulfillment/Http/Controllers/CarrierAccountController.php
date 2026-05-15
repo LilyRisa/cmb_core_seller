@@ -63,7 +63,62 @@ class CarrierAccountController extends Controller
             ]);
         });
 
-        return response()->json(['data' => new CarrierAccountResource($account)], 201);
+        // A2 — Auto-verify credentials sau khi tạo. Nếu lỗi ⇒ vẫn lưu nhưng `is_active=false` + cờ meta.
+        $this->runVerifyAndPersist($registry, $account);
+
+        return response()->json(['data' => new CarrierAccountResource($account->refresh())], 201);
+    }
+
+    /**
+     * POST /api/v1/carrier-accounts/{id}/verify — gọi connector kiểm tra credentials sống. Trả trạng thái
+     * verify (ok/lỗi/expired) + cập nhật `meta.last_verified_at` + `meta.last_verify_error`. KHÔNG tự bật
+     * is_active = false để tránh ngắt vận đơn đang xử lý — chỉ surface cho user quyết định.
+     */
+    public function verify(Request $request, int $id, CarrierRegistry $registry): JsonResponse
+    {
+        abort_unless($request->user()?->can('fulfillment.carriers'), 403, 'Bạn không có quyền.');
+        $account = CarrierAccount::query()->findOrFail($id);
+        $result = $this->runVerifyAndPersist($registry, $account, autoToggleActive: false);
+
+        return response()->json(['data' => [
+            'ok' => $result['ok'],
+            'message' => $result['message'],
+            'error_code' => $result['error_code'] ?? null,
+            'expires_at' => $result['expires_at'] ?? null,
+            'verified_at' => now()->toIso8601String(),
+            'account' => new CarrierAccountResource($account->refresh()),
+        ]]);
+    }
+
+    /**
+     * @return array{ok:bool, message:string, expires_at?:?string, error_code?:string}
+     */
+    private function runVerifyAndPersist(CarrierRegistry $registry, CarrierAccount $account, bool $autoToggleActive = true): array
+    {
+        if (! $registry->has($account->carrier)) {
+            return ['ok' => false, 'message' => 'ĐVVC chưa được đăng ký trong hệ thống.', 'error_code' => 'unregistered', 'expires_at' => null];
+        }
+        $connector = $registry->for($account->carrier);
+        try {
+            $result = $connector->verifyCredentials($account->toConnectorArray());
+        } catch (\Throwable $e) {
+            $result = ['ok' => false, 'message' => 'Lỗi kiểm tra: '.$e->getMessage(), 'error_code' => 'network', 'expires_at' => null];
+        }
+        $meta = (array) ($account->meta ?? []);
+        $meta['last_verified_at'] = now()->toIso8601String();
+        $meta['last_verify_ok'] = (bool) $result['ok'];
+        $meta['last_verify_error'] = $result['ok'] ? null : ($result['message'] ?? null);
+        if (! empty($result['expires_at'])) {
+            $meta['credentials_expires_at'] = $result['expires_at'];
+        }
+        $patch = ['meta' => $meta];
+        if ($autoToggleActive && ! $result['ok'] && ($result['error_code'] ?? '') === 'invalid_credentials') {
+            // Credentials sai từ đầu (lúc tạo) ⇒ tự tắt is_active để tránh tạo vận đơn lỗi.
+            $patch['is_active'] = false;
+        }
+        $account->forceFill($patch)->save();
+
+        return $result;
     }
 
     public function update(Request $request, int $id): JsonResponse

@@ -26,11 +26,19 @@ class CustomerLinkingService
     public function linkOrder(Order $order): ?Customer
     {
         $tenantId = (int) $order->tenant_id;
-        // B4 fix (Sprint 1 P0) — link theo BUYER_PHONE (người mua), KHÔNG theo shipping_address.phone (có thể
-        // là SĐT người nhận khác trong tạo đơn manual cho đơn quà tặng). Trước đây dùng shipping_address.phone
-        // ⇒ tạo đơn gift cho người khác ⇒ link order vào customer của người nhận thay vì người mua, sai
-        // lifetime_stats + reputation. Fallback shipping_address.phone cho đơn sàn cũ thiếu buyer_phone.
-        $phone = CustomerPhoneNormalizer::normalize($order->buyer_phone ?: ($order->shipping_address['phone'] ?? null));
+        // B (Sprint 2) — Quy tắc tạo customer record:
+        //   * Đơn MANUAL: chỉ link/create customer khi user CHỦ ĐỘNG điền thông tin Khách hàng — tức có ĐỦ
+        //     buyer_name + buyer_phone. Nếu user chỉ điền Nhận hàng (recipient) → KHÔNG tạo customer
+        //     (vì khách có thể là người không muốn lưu, vd vãng lai mua tại quầy).
+        //   * Đơn SÀN: link bằng buyer_phone (sàn luôn cấp), fallback shipping_address.phone cho đơn cũ.
+        if ($order->source === 'manual') {
+            if (blank($order->buyer_name) || blank($order->buyer_phone)) {
+                return null; // user không điền khách hàng ⇒ skip
+            }
+            $phone = CustomerPhoneNormalizer::normalize($order->buyer_phone);
+        } else {
+            $phone = CustomerPhoneNormalizer::normalize($order->buyer_phone ?: ($order->shipping_address['phone'] ?? null));
+        }
         if ($phone === null) {
             return null; // masked / missing — leave orders.customer_id as is
         }
@@ -110,7 +118,7 @@ class CustomerLinkingService
         $this->maybeAddAutoNotes($customer, $stats);
     }
 
-    /** @return array<string,int|string> */
+    /** @return array<string,mixed> */
     public function computeStats(Customer $customer): array
     {
         $cs = implode(',', array_map(fn ($v) => "'{$v}'", [StandardOrderStatus::Completed->value, StandardOrderStatus::Delivered->value]));
@@ -132,6 +140,17 @@ class CustomerLinkingService
                 StandardOrderStatus::DeliveryFailed->value,
             ])
             ->first();
+        // R5 (Sprint 4) — Breakdown đơn theo nguồn (manual / tiktok / shopee / lazada / …). UI khách hàng
+        // hiện badge "Hay mua qua: TikTok 70%, Manual 30%" giúp staff biết kênh ưu tiên chăm sóc.
+        $bySource = Order::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $customer->tenant_id)
+            ->where('customer_id', $customer->getKey())
+            ->whereNull('deleted_at')
+            ->selectRaw('source, COUNT(*) AS c')
+            ->groupBy('source')
+            ->pluck('c', 'source')
+            ->map(fn ($v) => (int) $v)
+            ->all();
 
         $total = (int) ($agg->total ?? 0);
         $completed = (int) ($agg->completed ?? 0);
@@ -159,17 +178,19 @@ class CustomerLinkingService
             'revenue_completed' => $revenue,
             'last_order_id' => $lastId,
             'last_order_status' => $lastStatus,
+            'orders_by_source' => $bySource,   // R5 (Sprint 4)
             'computed_at' => now()->toIso8601String(),
         ];
     }
 
-    /** @return array<string,int|string> */
+    /** @return array<string,mixed> */
     private function zeroStats(): array
     {
         return [
             'orders_total' => 0, 'orders_completed' => 0, 'orders_cancelled' => 0,
             'orders_returned' => 0, 'orders_delivery_failed' => 0, 'orders_in_progress' => 0,
             'revenue_completed' => 0, 'last_order_id' => 0, 'last_order_status' => '',
+            'orders_by_source' => [],
             'computed_at' => now()->toIso8601String(),
         ];
     }

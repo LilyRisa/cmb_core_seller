@@ -186,6 +186,45 @@ class GhnConnector extends AbstractCarrierConnector
         $this->client($account)->cancel($trackingNo);
     }
 
+    /**
+     * A2 — Kiểm tra credentials GHN còn dùng được không. Gọi `/master-data/province` (endpoint nhẹ, không
+     * thay đổi state, chỉ cần Token header đúng). GHN trả `code=200` ⇒ token hợp lệ; `code=401`/`code=400`
+     * với message cụ thể ⇒ token sai/revoked.
+     *
+     * GHN dùng API key tĩnh (không expiry) — nếu user revoke trong dashboard GHN, mọi call sẽ trả 401.
+     * Không có `expires_at` thật, nên trả null (UI hiện "Không xác định").
+     */
+    public function verifyCredentials(array $account): array
+    {
+        $c = $account['credentials'] ?? [];
+        $token = (string) ($c['token'] ?? '');
+        if ($token === '') {
+            return ['ok' => false, 'message' => 'Chưa nhập API Token cho GHN.', 'error_code' => 'invalid_credentials', 'expires_at' => null];
+        }
+        try {
+            $client = new GhnClient($token, isset($c['shop_id']) ? (int) $c['shop_id'] : null);
+            $body = $client->getProvinces();
+            $code = (int) ($body['code'] ?? 0);
+            if ($code === 200) {
+                return ['ok' => true, 'message' => 'Kết nối GHN OK.', 'expires_at' => null];
+            }
+            $msg = (string) ($body['message'] ?? 'GHN trả lỗi không rõ.');
+            $err = stripos($msg, 'token') !== false || $code === 401 ? 'invalid_credentials' : 'rate_limit';
+
+            return ['ok' => false, 'message' => 'GHN từ chối: '.$msg, 'error_code' => $err, 'expires_at' => null];
+        } catch (\Throwable $e) {
+            $m = $e->getMessage();
+            $isAuth = stripos($m, 'token') !== false || stripos($m, '401') !== false || stripos($m, 'unauth') !== false;
+
+            return [
+                'ok' => false,
+                'message' => $isAuth ? 'Token GHN không hợp lệ hoặc đã bị thu hồi.' : 'Lỗi kết nối GHN: '.$m,
+                'error_code' => $isAuth ? 'invalid_credentials' : 'network',
+                'expires_at' => null,
+            ];
+        }
+    }
+
     private function parseTime(?string $v): string
     {
         try {

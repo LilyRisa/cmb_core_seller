@@ -62,4 +62,19 @@ interface CarrierConnector
 
     /** Parse a carrier webhook (tracking update), if the carrier has one. */
     public function parseWebhook(Request $request): array;
+
+    /**
+     * A2 — Kiểm tra credentials còn hợp lệ chưa. Trả mảng:
+     *  - `ok: bool`            : credentials gọi API thành công.
+     *  - `message: string`      : mô tả Vietnamese cho UI.
+     *  - `expires_at?: ?string` : ISO-8601 nếu connector biết hạn (vd OAuth token), null = không xác định.
+     *  - `error_code?: string`  : 'invalid_credentials' | 'expired' | 'network' | 'rate_limit' khi `ok=false`.
+     *
+     * Mặc định trả ok=true cho connector không có cách verify (vd 'manual'). Carrier có API thật như GHN
+     * override gọi 1 endpoint nhẹ (vd `master-data/province` cần token) để xác thực.
+     *
+     * @param  array<string, mixed>  $account
+     * @return array{ok:bool, message:string, expires_at?:?string, error_code?:string}
+     */
+    public function verifyCredentials(array $account): array;
 }
