@@ -31,6 +31,17 @@ class ManualOrderService
         $status = $this->chosenStatus($data['status'] ?? null);
         $buyer = (array) ($data['buyer'] ?? []);
         $recipient = (array) ($data['recipient'] ?? []);
+        // SPEC 0021 — print_note: nếu user không nhập, fallback `tenant.settings.print.default_note`.
+        // Có thể giữ template biến `{{order_number}}`, `{{customer_name}}`, `{{cod_amount}}` để FE chèn động sau.
+        $meta = (array) ($data['meta'] ?? []);
+        if (empty($meta['print_note'])) {
+            $tenant = \CMBcoreSeller\Modules\Tenancy\Models\Tenant::query()->find($tenantId);
+            $default = (string) (data_get($tenant?->settings, 'print.default_note') ?: '');
+            if ($default !== '') {
+                $meta['print_note'] = $default;
+            }
+        }
+        $data['meta'] = $meta;
         // SPEC 0021 (UI taodon.png): miễn phí giao hàng, giảm giá đơn, tiền chuyển khoản, phụ thu.
         $freeShipping = (bool) ($data['free_shipping'] ?? false);
         $shippingFee = $freeShipping ? 0 : max(0, (int) ($data['shipping_fee'] ?? 0));
@@ -229,15 +240,21 @@ class ManualOrderService
         $province = $src['province'] ?? $src['province_name'] ?? $src['city'] ?? null;
         $district = $src['district'] ?? $src['district_name'] ?? null;
         $ward = $src['ward'] ?? $src['ward_name'] ?? null;
+        // SPEC 0021 — `address_format` ('new' | 'old') ghi vào shipping_address để biết dữ liệu nguồn từ
+        // hệ nào. ĐVVC sau này resolve qua GhnAddressResolver dựa trên name + format. Giữ legacy `*_id`
+        // (int) khi user nhập trực tiếp mã GHN; song song với `*_code` (string) từ admin_* DB.
         $out = [
             'name' => $src['name'] ?? $buyer['name'] ?? null,
             'phone' => $src['phone'] ?? $buyer['phone'] ?? null,
             'address' => $src['address'] ?? null,
+            'address_format' => $src['address_format'] ?? null,
             'ward' => $ward,
             'ward_code' => isset($src['ward_code']) ? (string) $src['ward_code'] : null,
             'district' => $district,
+            'district_code' => isset($src['district_code']) ? (string) $src['district_code'] : null,
             'district_id' => isset($src['district_id']) ? (int) $src['district_id'] : null,
             'province' => $province,
+            'province_code' => isset($src['province_code']) ? (string) $src['province_code'] : null,
             'province_id' => isset($src['province_id']) ? (int) $src['province_id'] : null,
             'expected_at' => $src['expected_at'] ?? null,
         ];

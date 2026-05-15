@@ -3,174 +3,130 @@
 namespace CMBcoreSeller\Modules\Fulfillment\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
-use CMBcoreSeller\Integrations\Carriers\Ghn\GhnClient;
-use CMBcoreSeller\Modules\Fulfillment\Models\CarrierAccount;
-use Illuminate\Http\Client\ConnectionException;
+use CMBcoreSeller\Modules\Fulfillment\Models\AdminDistrict;
+use CMBcoreSeller\Modules\Fulfillment\Models\AdminProvince;
+use CMBcoreSeller\Modules\Fulfillment\Models\AdminWard;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
 
 /**
- * SPEC 0021 — /api/v1/master-data/* : nguồn dữ liệu Tỉnh / Quận / Phường VN dùng cho FE AddressPicker.
+ * SPEC 0021 — Endpoint master-data Tỉnh / Quận / Phường VN dùng cho FE AddressPicker.
  *
- * Tận dụng GHN master-data API (chứa province_id / district_id / ward_code chuẩn của GHN) — khi shop
- * đẩy đơn lên GHN qua `CarrierConnector::createShipment`, các code này map sẵn vào payload, không cần
- * resolve thêm.
+ * Đọc trực tiếp từ DB (bảng admin_provinces / admin_districts / admin_wards) — không gọi
+ * external API mỗi request. DB được nạp qua `php artisan addresses:sync` (xem
+ * {@see \CMBcoreSeller\Console\Commands\SyncVnAdminAddresses}).
  *
- * Cache 24h shared toàn tenant (master-data global, không phải shop-scoped). Khi tenant chưa cấu hình
- * GHN ⇒ controller dùng `GHN_BOOTSTRAP_TOKEN` (env) hoặc bất kỳ token GHN nào tìm được trong DB (best-effort).
+ * Hỗ trợ 2 format song song:
+ *  - `format=new` — chuẩn 2-cấp (AddressKit cas.so, sau 2025): Tỉnh → Phường/Xã.
+ *  - `format=old` — chuẩn 3-cấp (provinces.open-api.vn, pre-2025): Tỉnh → Quận → Phường/Xã.
+ *
+ * Cache 24h cho cả 2 format ⇒ tải đầu trang ~vài chục ms.
  */
 class MasterDataController extends Controller
 {
+    private const TTL_SEC = 24 * 60 * 60;
+
     public function provinces(Request $request): JsonResponse
     {
         abort_unless($request->user()?->can('orders.create'), 403, 'Bạn không có quyền.');
+        $format = $this->resolveFormat($request);
 
-        $data = Cache::remember('ghn.master.provinces', now()->addHours(24), function () {
-            $client = $this->bootstrapClient();
-            if ($client === null) {
-                return $this->staticProvincesFallback();
-            }
-            try {
-                return $this->fetchProvinces($client);
-            } catch (\Throwable) {
-                return $this->staticProvincesFallback();
-            }
+        $data = Cache::remember("master-data.provinces.{$format}", self::TTL_SEC, function () use ($format) {
+            return AdminProvince::query()->where('format', $format)
+                ->orderBy('sort_order')->orderBy('code')
+                ->get(['code', 'name', 'english_name', 'division_type', 'phone_code', 'decree'])
+                ->map(fn ($p) => [
+                    'code' => $p->code, 'name' => $p->name,
+                    'english_name' => $p->english_name,
+                    'division_type' => $p->division_type,
+                    'phone_code' => $p->phone_code,
+                    'decree' => $p->decree,
+                ])->all();
         });
 
-        return response()->json(['data' => $data]);
+        return response()->json(['data' => $data, 'meta' => ['format' => $format, 'count' => count($data)]]);
     }
 
+    /**
+     * Quận / Huyện — CHỈ áp dụng cho format='old' (3-cấp). Format='new' trả mảng rỗng để FE
+     * skip cascade district khi user chọn địa chỉ mới.
+     */
     public function districts(Request $request): JsonResponse
     {
         abort_unless($request->user()?->can('orders.create'), 403, 'Bạn không có quyền.');
-        $request->validate(['province_id' => ['required', 'integer', 'min:1']]);
-        $provinceId = $request->integer('province_id');
-
-        $data = Cache::remember("ghn.master.districts.{$provinceId}", now()->addHours(24), function () use ($provinceId) {
-            $client = $this->bootstrapClient();
-            if ($client === null) {
-                return [];
-            }
-            try {
-                return $this->fetchDistricts($client, $provinceId);
-            } catch (\Throwable) {
-                return [];
-            }
+        $request->validate(['province_code' => ['required', 'string', 'max:16']]);
+        $format = $this->resolveFormat($request);
+        if ($format !== 'old') {
+            return response()->json(['data' => [], 'meta' => ['format' => $format, 'note' => 'Chuẩn mới không có cấp quận/huyện.']]);
+        }
+        $provinceCode = (string) $request->query('province_code', '');
+        $data = Cache::remember("master-data.districts.old.{$provinceCode}", self::TTL_SEC, function () use ($provinceCode) {
+            return AdminDistrict::query()->where('province_code', $provinceCode)
+                ->orderBy('code')
+                ->get(['code', 'name', 'codename', 'division_type', 'province_code'])
+                ->map(fn ($d) => [
+                    'code' => $d->code, 'name' => $d->name,
+                    'codename' => $d->codename,
+                    'division_type' => $d->division_type,
+                    'province_code' => $d->province_code,
+                ])->all();
         });
 
-        return response()->json(['data' => $data]);
+        return response()->json(['data' => $data, 'meta' => ['format' => 'old', 'count' => count($data)]]);
     }
 
+    /**
+     * Phường / Xã / Đặc khu:
+     *  - format='new': filter theo `province_code` (cấp con trực tiếp).
+     *  - format='old': filter theo `district_code` (cấp con trực tiếp).
+     */
     public function wards(Request $request): JsonResponse
     {
         abort_unless($request->user()?->can('orders.create'), 403, 'Bạn không có quyền.');
-        $request->validate(['district_id' => ['required', 'integer', 'min:1']]);
-        $districtId = $request->integer('district_id');
+        $format = $this->resolveFormat($request);
+        if ($format === 'new') {
+            $request->validate(['province_code' => ['required', 'string', 'max:16']]);
+            $provinceCode = (string) $request->query('province_code', '');
+            $data = Cache::remember("master-data.wards.new.{$provinceCode}", self::TTL_SEC, function () use ($provinceCode) {
+                return AdminWard::query()->where('format', 'new')->where('province_code', $provinceCode)
+                    ->orderBy('name')
+                    ->get(['code', 'name', 'english_name', 'division_type', 'province_code', 'decree'])
+                    ->map(fn ($w) => [
+                        'code' => $w->code, 'name' => $w->name,
+                        'english_name' => $w->english_name,
+                        'division_type' => $w->division_type,
+                        'province_code' => $w->province_code,
+                        'district_code' => null,
+                        'decree' => $w->decree,
+                    ])->all();
+            });
 
-        $data = Cache::remember("ghn.master.wards.{$districtId}", now()->addHours(24), function () use ($districtId) {
-            $client = $this->bootstrapClient();
-            if ($client === null) {
-                return [];
-            }
-            try {
-                return $this->fetchWards($client, $districtId);
-            } catch (\Throwable) {
-                return [];
-            }
+            return response()->json(['data' => $data, 'meta' => ['format' => 'new', 'count' => count($data)]]);
+        }
+        // OLD — filter theo district_code.
+        $request->validate(['district_code' => ['required', 'string', 'max:16']]);
+        $districtCode = (string) $request->query('district_code', '');
+        $data = Cache::remember("master-data.wards.old.{$districtCode}", self::TTL_SEC, function () use ($districtCode) {
+            return AdminWard::query()->where('format', 'old')->where('district_code', $districtCode)
+                ->orderBy('name')
+                ->get(['code', 'name', 'codename', 'division_type', 'province_code', 'district_code'])
+                ->map(fn ($w) => [
+                    'code' => $w->code, 'name' => $w->name,
+                    'codename' => $w->codename,
+                    'division_type' => $w->division_type,
+                    'province_code' => $w->province_code,
+                    'district_code' => $w->district_code,
+                ])->all();
         });
 
-        return response()->json(['data' => $data]);
+        return response()->json(['data' => $data, 'meta' => ['format' => 'old', 'count' => count($data)]]);
     }
 
-    /**
-     * Best-effort: tìm 1 token GHN nào đó (bất kỳ tenant nào có) để gọi master-data. Master-data global,
-     * không scope theo shop ⇒ dùng token nào hợp lệ cũng được. Nếu KHÔNG có account nào ⇒ trả null,
-     * controller dùng fallback tĩnh.
-     */
-    private function bootstrapClient(): ?GhnClient
+    private function resolveFormat(Request $request): string
     {
-        $envToken = (string) config('fulfillment.ghn_bootstrap_token', '');
-        if ($envToken !== '') {
-            return new GhnClient($envToken);
-        }
-        $account = CarrierAccount::query()->where('carrier', 'ghn')->where('is_active', true)->first();
-        if (! $account) {
-            return null;
-        }
-        $token = (string) ($account->credentials['token'] ?? '');
+        $f = strtolower((string) $request->query('format', 'new'));
 
-        return $token !== '' ? new GhnClient($token) : null;
-    }
-
-    /** @return list<array{id:int, name:string, code:?string}> */
-    private function fetchProvinces(GhnClient $client): array
-    {
-        $body = $this->httpFromClient($client)->get('/shiip/public-api/master-data/province')->json();
-        if ((int) ($body['code'] ?? 0) !== 200) {
-            return [];
-        }
-
-        return collect($body['data'] ?? [])->map(fn ($p) => [
-            'id' => (int) ($p['ProvinceID'] ?? 0),
-            'name' => (string) ($p['ProvinceName'] ?? ''),
-            'code' => isset($p['Code']) ? (string) $p['Code'] : null,
-        ])->filter(fn ($p) => $p['id'] > 0)->values()->all();
-    }
-
-    /** @return list<array{id:int, name:string, province_id:int}> */
-    private function fetchDistricts(GhnClient $client, int $provinceId): array
-    {
-        $body = $this->httpFromClient($client)
-            ->post('/shiip/public-api/master-data/district', ['province_id' => $provinceId])->json();
-        if ((int) ($body['code'] ?? 0) !== 200) {
-            return [];
-        }
-
-        return collect($body['data'] ?? [])->map(fn ($d) => [
-            'id' => (int) ($d['DistrictID'] ?? 0),
-            'name' => (string) ($d['DistrictName'] ?? ''),
-            'province_id' => (int) ($d['ProvinceID'] ?? 0),
-        ])->filter(fn ($d) => $d['id'] > 0)->values()->all();
-    }
-
-    /** @return list<array{code:string, name:string, district_id:int}> */
-    private function fetchWards(GhnClient $client, int $districtId): array
-    {
-        $body = $this->httpFromClient($client)
-            ->post('/shiip/public-api/master-data/ward', ['district_id' => $districtId])->json();
-        if ((int) ($body['code'] ?? 0) !== 200) {
-            return [];
-        }
-
-        return collect($body['data'] ?? [])->map(fn ($w) => [
-            'code' => (string) ($w['WardCode'] ?? ''),
-            'name' => (string) ($w['WardName'] ?? ''),
-            'district_id' => (int) ($w['DistrictID'] ?? 0),
-        ])->filter(fn ($w) => $w['code'] !== '')->values()->all();
-    }
-
-    /**
-     * Lấy `Http::baseUrl()` + headers từ GhnClient (mở rộng nội bộ qua reflection — GhnClient hiện chưa
-     * expose). Cho phép gọi mọi endpoint GHN với cùng credentials.
-     */
-    private function httpFromClient(GhnClient $client): \Illuminate\Http\Client\PendingRequest
-    {
-        $ref = new \ReflectionClass($client);
-        $token = $ref->getProperty('token')->getValue($client);
-        $baseUrl = (string) (config('fulfillment.ghn_base_url') ?: 'https://online-gateway.ghn.vn');
-
-        return Http::baseUrl(rtrim($baseUrl, '/'))
-            ->withHeaders(['Token' => $token, 'Content-Type' => 'application/json'])
-            ->timeout(15)->acceptJson();
-    }
-
-    /** Fallback tĩnh — 63 tỉnh VN với ProvinceID GHN (snapshot 2026-05; chỉ dùng khi không có GHN account). */
-    private function staticProvincesFallback(): array
-    {
-        // Tối thiểu hoá: trả mảng rỗng + FE chuyển sang chế độ free-text. Embed list 63 sẽ phình code; nếu
-        // shop muốn cascade thật ⇒ thêm 1 GHN account. (Follow-up khi có nhu cầu offline.)
-        return [];
+        return in_array($f, ['new', 'old'], true) ? $f : 'new';
     }
 }

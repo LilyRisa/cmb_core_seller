@@ -102,15 +102,22 @@ class OrderController extends Controller
             // SPEC 0021 — UI mới: tách "Khách hàng" và "Nhận hàng". FE enforce required (tên + SĐT + địa chỉ
             // tỉnh/quận/phường). BE giữ schema NHẸ để API caller / test legacy không bị break — chỉ validate
             // shape khi gửi. Khi `recipient.phone` có giá trị thì check format VN.
+            //
+            // Sau khi nạp admin_* từ command `addresses:sync`, FE gửi code string (vd '01' / '00004') chứ
+            // không gửi integer ID. Giữ `*_id` legacy để tương thích test cũ (đơn vị vận chuyển GHN trước
+            // đây dùng district_id integer); BE sẽ ưu tiên `*_code` khi có.
             'recipient' => ['sometimes', 'array'],
             'recipient.name' => ['sometimes', 'nullable', 'string', 'max:255'],
             'recipient.phone' => ['sometimes', 'nullable', 'string', 'max:32', 'regex:/^(0|\+84)\d{9,10}$/'],
             'recipient.address' => ['sometimes', 'nullable', 'string', 'max:500'],
+            'recipient.address_format' => ['sometimes', 'nullable', 'in:new,old'],
             'recipient.ward' => ['sometimes', 'nullable', 'string', 'max:120'],
             'recipient.ward_code' => ['sometimes', 'nullable', 'string', 'max:32'],
             'recipient.district' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'recipient.district_code' => ['sometimes', 'nullable', 'string', 'max:16'],
             'recipient.district_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'recipient.province' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'recipient.province_code' => ['sometimes', 'nullable', 'string', 'max:16'],
             'recipient.province_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'recipient.expected_at' => ['sometimes', 'nullable', 'date'],
             'items' => ['required', 'array', 'min:1', 'max:200'],

@@ -60,6 +60,48 @@ class GhnConnector extends AbstractCarrierConnector
         return null;
     }
 
+    /**
+     * Resolve admin name (province/district/ward) → GHN ID/code khi recipient chưa có. Idempotent: nếu đã
+     * có đủ district_id + ward_code thì skip. Lỗi resolve KHÔNG throw (vẫn để validateShipmentPayload báo).
+     *
+     * @param  array<string,mixed>  $account
+     * @param  array<string,mixed>  $shipment
+     * @return array<string,mixed>
+     */
+    private function autoResolveAddress(array $account, array $shipment): array
+    {
+        $r = (array) ($shipment['recipient'] ?? []);
+        $hasDistrict = ! empty($r['district_id']) || ! empty($shipment['to_district_id']);
+        $hasWard = ! empty($r['ward_code']) || ! empty($shipment['to_ward_code']);
+        if ($hasDistrict && $hasWard) {
+            return $shipment;
+        }
+        // Cần có ít nhất tên ward + tên province để resolve.
+        if (empty($r['province']) || empty($r['ward'])) {
+            return $shipment;
+        }
+        try {
+            $resolver = new GhnAddressResolver($this->client($account));
+            $res = $resolver->resolve([
+                'province' => (string) ($r['province'] ?? ''),
+                'district' => (string) ($r['district'] ?? ''),
+                'ward' => (string) ($r['ward'] ?? ''),
+            ]);
+            if (! $hasDistrict && $res['district_id'] !== null) {
+                $shipment['recipient']['district_id'] = $res['district_id'];
+                $shipment['to_district_id'] = $res['district_id'];
+            }
+            if (! $hasWard && $res['ward_code'] !== null) {
+                $shipment['recipient']['ward_code'] = $res['ward_code'];
+                $shipment['to_ward_code'] = $res['ward_code'];
+            }
+        } catch (\Throwable) {
+            // Lỗi network khi gọi master-data ⇒ để validateShipmentPayload báo lỗi rõ "Đơn thiếu mã quận…".
+        }
+
+        return $shipment;
+    }
+
     private function client(array $account): GhnClient
     {
         $c = $account['credentials'] ?? [];
@@ -73,6 +115,10 @@ class GhnConnector extends AbstractCarrierConnector
 
     public function createShipment(array $account, array $shipment): array
     {
+        // SPEC 0021 — Nếu recipient có name (province/district/ward) nhưng thiếu code GHN, tự resolve qua
+        // GhnAddressResolver (match theo tên đã chuẩn hoá → GHN ProvinceID/DistrictID/WardCode). Hỗ trợ cả
+        // địa chỉ "mới" (2 cấp: bỏ qua district, suy từ ward) và "cũ" (3 cấp).
+        $shipment = $this->autoResolveAddress($account, $shipment);
         // Fail-fast với message tiếng Việt rõ ràng nếu thiếu dữ liệu bắt buộc của GHN.
         if ($err = $this->validateShipmentPayload($shipment)) {
             throw new RuntimeException($err);

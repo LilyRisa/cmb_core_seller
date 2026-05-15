@@ -162,16 +162,21 @@ export function CreateOrderPage() {
         if (items.length === 0) { message.error('Cần ít nhất một dòng hàng.'); return; }
         if (items.some((l) => l.uploading)) { message.error('Đang tải ảnh — vui lòng đợi.'); return; }
         if (items.some((l) => !l.sku_id && l.name.trim() === '')) { message.error('Dòng "sản phẩm nhanh" phải có tên.'); return; }
-        // B (Sprint 2) — bắt buộc: tên người nhận + SĐT + địa chỉ chi tiết + tỉnh + (quận/phường HOẶC district_id/ward_code).
+        // B (Sprint 2) — bắt buộc: tên người nhận + SĐT + địa chỉ chi tiết + tỉnh + ward (district yêu cầu cho format='old').
         if (!(v.recipient_name ?? '').trim()) { message.error('Cần điền tên người nhận.'); return; }
         const recipientPhone = (v.recipient_phone ?? phone ?? '').trim();
         if (!recipientPhone) { message.error('Cần điền số điện thoại người nhận.'); return; }
         if (!/^(0|\+84)\d{9,10}$/.test(recipientPhone)) { message.error('Số điện thoại người nhận không đúng định dạng Việt Nam (vd 0912xxxxxxx).'); return; }
         if (!(v.recipient_address ?? '').trim()) { message.error('Cần điền địa chỉ chi tiết.'); return; }
-        const hasProvince = !!(shipAddress.province || shipAddress.province_id);
-        const hasDistrict = !!(shipAddress.district || shipAddress.district_id);
+        const hasProvince = !!(shipAddress.province || shipAddress.province_code);
+        // format='new' (2 cấp) không có district ⇒ chỉ kiểm tra cho 'old'.
+        const isOldFormat = shipAddress.format === 'old';
+        const hasDistrict = !isOldFormat || !!(shipAddress.district || shipAddress.district_code);
         const hasWard = !!(shipAddress.ward || shipAddress.ward_code);
-        if (!hasProvince || !hasDistrict || !hasWard) { message.error('Cần chọn đủ Tỉnh / Quận / Phường (địa chỉ mới hoặc cũ).'); return; }
+        if (!hasProvince || !hasDistrict || !hasWard) {
+            message.error(isOldFormat ? 'Cần chọn đủ Tỉnh / Quận / Phường.' : 'Cần chọn đủ Tỉnh / Phường (chuẩn mới 2 cấp).');
+            return;
+        }
         const lines = items.map((l) => ({
             sku_id: l.sku_id,
             name: l.sku_id ? undefined : l.name.trim(),
@@ -203,12 +208,15 @@ export function CreateOrderPage() {
                 name: v.recipient_name || v.buyer_name || undefined,
                 phone: v.recipient_phone || phone || undefined,
                 address: v.recipient_address || undefined,
+                // SPEC 0021 — code admin VN (province_code/district_code/ward_code là string code của
+                // bảng admin_*, không phải mã GHN). BE resolve sang mã ĐVVC lúc createShipment.
+                address_format: shipAddress.format || 'new',
+                province: shipAddress.province || undefined,
+                province_code: shipAddress.province_code || undefined,
+                district: shipAddress.district || undefined,
+                district_code: shipAddress.district_code || undefined,
                 ward: shipAddress.ward || undefined,
                 ward_code: shipAddress.ward_code || undefined,
-                district: shipAddress.district || undefined,
-                district_id: shipAddress.district_id || undefined,
-                province: shipAddress.province || undefined,
-                province_id: shipAddress.province_id || undefined,
                 expected_at: v.expected_delivery_date ? dayjs(v.expected_delivery_date).toISOString() : undefined,
             },
             items: lines,
@@ -547,12 +555,17 @@ export function CreateOrderPage() {
                             )}>
                                 <Input
                                     readOnly
-                                    placeholder="Tỉnh / Quận / Phường *"
+                                    placeholder={shipAddress.format === 'old' ? 'Tỉnh / Quận / Phường *' : 'Tỉnh / Phường (chuẩn mới) *'}
                                     value={[shipAddress.ward, shipAddress.district, shipAddress.province].filter(Boolean).join(', ')}
                                     suffix={<EnvironmentOutlined style={{ color: '#bfbfbf' }} />}
                                     style={{ cursor: 'pointer' }}
                                     onClick={() => setAddrPickerOpen(true)}
-                                    status={!(shipAddress.province && (shipAddress.district || shipAddress.district_id) && (shipAddress.ward || shipAddress.ward_code)) && form.isFieldTouched('recipient_address') ? 'warning' : undefined}
+                                    status={(() => {
+                                        if (!form.isFieldTouched('recipient_address')) return undefined;
+                                        const old = shipAddress.format === 'old';
+                                        const ok = !!shipAddress.province && (!old || !!shipAddress.district || !!shipAddress.district_code) && (!!shipAddress.ward || !!shipAddress.ward_code);
+                                        return ok ? undefined : 'warning';
+                                    })()}
                                 />
                             </Popover>
                         </Card>
