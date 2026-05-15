@@ -87,6 +87,8 @@ Schedule::job(new SyncShipmentTracking)->everyThirtyMinutes()->name('sync-shipme
 Schedule::command('subscriptions:check-expiring')->dailyAt('04:00')->onOneServer()->withoutOverlapping();
 // Mỗi giờ: lưới an toàn — recompute usage_counters cho mọi tenant (phòng listener miss).
 Schedule::command('billing:recompute-usage')->hourly()->onOneServer()->withoutOverlapping();
+// SPEC 0020 — Mỗi giờ: phát hiện tenant vượt hạn mức + set timer ân hạn 2 ngày.
+Schedule::command('subscriptions:check-over-quota')->hourly()->onOneServer()->withoutOverlapping();
 
 // Prune old framework rows so the DB stays lean.
 Schedule::command('queue:prune-failed --hours=336')->daily()->onOneServer();      // keep 14d of failed jobs

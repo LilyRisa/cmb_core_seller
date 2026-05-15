@@ -22,6 +22,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $cancel_at
  * @property Carbon|null $cancelled_at
  * @property Carbon|null $ended_at
+ * @property Carbon|null $over_quota_warned_at  SPEC 0020 — mốc set khi phát hiện vượt hạn mức.
  * @property array|null $meta
  * @property-read Plan|null $plan
  */
@@ -51,7 +52,7 @@ class Subscription extends Model
     protected $fillable = [
         'tenant_id', 'plan_id', 'status', 'billing_cycle',
         'trial_ends_at', 'current_period_start', 'current_period_end',
-        'cancel_at', 'cancelled_at', 'ended_at', 'meta',
+        'cancel_at', 'cancelled_at', 'ended_at', 'over_quota_warned_at', 'meta',
     ];
 
     protected function casts(): array
@@ -63,6 +64,7 @@ class Subscription extends Model
             'cancel_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'ended_at' => 'datetime',
+            'over_quota_warned_at' => 'datetime',
             'meta' => 'array',
         ];
     }

@@ -290,7 +290,7 @@ Scheduler:
   - Paid → Paid thấp hơn: chặn `422 DOWNGRADE_NOT_ALLOWED` v1 — user phải đợi hết kỳ rồi mới downgrade (đơn giản hoá; v2 sẽ làm prorate refund).
 - **Cancel rồi đăng ký lại**: subscription cũ `cancelled` → chạy hết kỳ → `expired` → auto-tạo trial. User mua lại = `checkout` bình thường ⇒ subscription mới.
 - **Tenant không có subscription** (legacy / migration): middleware tự tạo trial vĩnh viễn (fallback an toàn).
-- **Vượt hạn mức tại thời điểm downgrade** (vd shop đang có 5 gian hàng, hết hạn Pro rớt trial 2 gian hàng): không tự disconnect — chỉ chặn connect mới + banner cảnh báo "Bạn đang có 5 gian hàng nhưng gói trial chỉ cho 2 — nâng cấp Pro để tiếp tục đồng bộ tất cả gian hàng". Không mất data.
+- **Vượt hạn mức tại thời điểm downgrade** (vd shop đang có 5 gian hàng, hết hạn Pro rớt trial 2 gian hàng): không tự disconnect — chỉ chặn connect mới + banner cảnh báo "Bạn đang có 5 gian hàng nhưng gói trial chỉ cho 2 — nâng cấp Pro để tiếp tục đồng bộ tất cả gian hàng". Không mất data. **Cập nhật SPEC 0020 (2026-05-15):** sau 2 ngày ân hạn vẫn còn vượt ⇒ middleware `plan.over_quota_lock` chặn mọi POST/PATCH/DELETE (whitelist `/billing`, `/auth`, `DELETE /channel-accounts/{id}` để user thoát khoá). Super-admin có thể gỡ kênh hộ qua `/admin/tenants/{id}/channel-accounts/{caid}`.
 - **Gateway lỗi trong checkout** (SePay/VNPay API 5xx): `POST /billing/checkout` trả `502 GATEWAY_UNAVAILABLE` + giữ invoice `pending` (user có thể thử lại).
 - **SePay merchant chưa cấu hình** (`env` thiếu): `PaymentRegistry::for('sepay')` ném `GatewayNotConfigured` → checkout trả `422`.
 

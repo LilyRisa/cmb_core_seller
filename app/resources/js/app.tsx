@@ -46,6 +46,10 @@ import { ApPage } from '@/pages/accounting/ApPage';
 import { CashPage } from '@/pages/accounting/CashPage';
 import { AccountingReportsPage } from '@/pages/accounting/ReportsPage';
 import { AccountingPostRulesPage } from '@/pages/settings/AccountingPostRulesPage';
+// SPEC 0020 — Admin hệ thống.
+import { AdminTenantsPage } from '@/pages/admin/AdminTenantsPage';
+import { AdminUsersPage } from '@/pages/admin/AdminUsersPage';
+import { RequireSuperAdmin } from '@/components/RequireSuperAdmin';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
 dayjs.locale('vi');
@@ -101,6 +105,10 @@ function Root() {
                 <Route path="accounting/cash" element={<CashPage />} />
                 <Route path="accounting/reports" element={<AccountingReportsPage />} />
                 <Route path="sync-logs" element={<SyncLogsPage />} />
+                {/* SPEC 0020 — Admin hệ thống: chỉ super-admin (kiểm BE qua middleware + FE gate). */}
+                <Route path="admin" element={<RequireSuperAdmin><Navigate to="/admin/tenants" replace /></RequireSuperAdmin>} />
+                <Route path="admin/tenants" element={<RequireSuperAdmin><AdminTenantsPage /></RequireSuperAdmin>} />
+                <Route path="admin/users" element={<RequireSuperAdmin><AdminUsersPage /></RequireSuperAdmin>} />
                 <Route path="settings" element={<SettingsLayout />}>
                     <Route index element={<Navigate to="/settings/profile" replace />} />
                     <Route path="profile" element={<SettingsProfilePage />} />

@@ -16,7 +16,7 @@
 | `finance` | `FetchSettlements`, tính lợi nhuận, tổng hợp `profit_snapshots` | Thấp, chạy theo kỳ |
 | `notifications` | gửi email/in-app/Zalo/Telegram | Trung bình |
 | `customers` | *(Phase 2 — SPEC-0002, đã implement)* `LinkOrderToCustomer` (listener), `AnonymizeCustomersForShop` (cả data_deletion & disconnect); commands `customers:recompute-stale` (hằng giờ), `customers:backfill` (one-shot) | Thấp — không chặn order pipeline; race xử lý bằng `lockForUpdate` + unique `(tenant_id,phone_hash)` trong service |
-| `billing` | *(Phase 6.4 — SPEC-0018, đã implement đầy đủ PR1+PR2+PR3)* `StartTrialSubscription` (listener `TenantCreated` — auto-start trial 14 ngày), `ActivateSubscription` (listener `InvoicePaid` — swap gói khi paid); commands `subscriptions:check-expiring` (hằng ngày — state machine), `billing:recompute-usage` (hằng giờ — lưới an toàn `usage_counters`). | Thấp — đăng ký + checkout không chặn UI; race xử lý bằng partial unique index "1 alive subscription per tenant" |
+| `billing` | *(Phase 6.4 — SPEC-0018, đã implement đầy đủ PR1+PR2+PR3)* `StartTrialSubscription` (listener `TenantCreated` — auto-start trial 14 ngày), `ActivateSubscription` (listener `InvoicePaid` — swap gói khi paid); commands `subscriptions:check-expiring` (hằng ngày — state machine), `billing:recompute-usage` (hằng giờ — lưới an toàn `usage_counters`), **`subscriptions:check-over-quota`** *(SPEC-0020 — hằng giờ — set/clear `over_quota_warned_at` 2-day grace)*. | Thấp — đăng ký + checkout không chặn UI; race xử lý bằng partial unique index "1 alive subscription per tenant" |
 | `webhooks` (shared) | *(Phase 6.4 — SPEC-0018, PR2/PR3)* `ProcessPaymentWebhook` cho payment gateway IPN (SePay/VNPay). Verify chữ ký ở controller → ghi `webhook_events` (provider=`payments.<gateway>`) → dispatch job. Dedupe unique `(gateway, external_ref)` trên `payments`. | Cao — chung supervisor `critical` với webhook sàn TMĐT |
 | `default` | còn lại | Trung bình |
 
@@ -43,6 +43,7 @@
 | hằng ngày | *(Phase 2)* `AnonymizeCustomersForShop` cho các shop disconnect quá 90 ngày | Ẩn danh hoá theo SPEC-0002 §7.2 |
 | hằng ngày 04:00 | *(Phase 6.4 — SPEC-0018)* `subscriptions:check-expiring` | Áp state machine: trial→expired, active→past_due, past_due quá 7d→expired+fallback trial vĩnh viễn, cancelled→expired+fallback. Idempotent. |
 | hằng giờ | *(Phase 6.4 — SPEC-0018)* `billing:recompute-usage` | Lưới an toàn — recount `channel_accounts` cho mọi tenant + ghi `usage_counters` |
+| hằng giờ | *(SPEC-0020)* `subscriptions:check-over-quota` | Phát hiện tenant đang vượt hạn mức (`usage > plan.limits`) ⇒ set `subscriptions.over_quota_warned_at = now()`. Đã có timer + vẫn vượt ⇒ giữ nguyên (không reset). Hết vượt ⇒ clear timer. Sau `config('billing.over_quota_grace_hours', 48)` giờ vẫn vượt ⇒ middleware `plan.over_quota_lock` chặn write. Idempotent. |
 | hằng ngày | `PrunePrintDocuments` | Xoá file phiếu in (vận đơn/picking/packing PDF) quá 90 ngày, giữ metadata — xem `docs/03-domain/fulfillment-and-printing.md` §8 |
 | hằng ngày | `CreateNextMonthPartitions` | Tạo trước partition tháng kế cho bảng lớn |
 | hằng ngày | `SendDigestNotifications` (tuỳ cấu hình tenant) | Tóm tắt đơn/cảnh báo |

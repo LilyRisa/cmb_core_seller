@@ -15,60 +15,78 @@ import {
     MenuFoldOutlined,
     MenuUnfoldOutlined,
     PartitionOutlined,
+    SafetyCertificateOutlined,
     SettingOutlined,
     ShopOutlined,
     ShoppingCartOutlined,
     ShoppingOutlined,
     SwapOutlined,
     TeamOutlined,
+    ToolOutlined,
     UserOutlined,
     WalletOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { getCurrentTenantId, setCurrentTenantId, useAuth, useLogout } from '@/lib/auth';
+import { OverQuotaBanner } from '@/components/OverQuotaBanner';
 
 const { Header, Sider, Content } = Layout;
 
-const NAV: MenuProps['items'] = [
-    { type: 'group', label: 'Tổng quan', children: [
-        { key: '/', icon: <DashboardOutlined />, label: <Link to="/">Bảng điều khiển</Link> },
-    ] },
-    { type: 'group', label: 'Bán hàng', children: [
-        { key: '/orders', icon: <ShoppingOutlined />, label: <Link to="/orders">Đơn hàng</Link> },
-        { key: '/customers', icon: <TeamOutlined />, label: <Link to="/customers">Khách hàng</Link> },
-        { key: '/channels', icon: <ShopOutlined />, label: <Link to="/channels">Gian hàng</Link> },
-        { key: '/products', icon: <AppstoreOutlined />, label: <Link to="/products">Sản phẩm & SKU</Link> },
-    ] },
-    { type: 'group', label: 'Kho & Mua hàng', children: [
-        { key: '/inventory', icon: <InboxOutlined />, label: <Link to="/inventory">Tồn kho</Link> },
-        { key: '/procurement/demand-planning', icon: <FundOutlined />, label: <Link to="/procurement/demand-planning">Đề xuất nhập hàng</Link> },
-        { key: '/procurement/suppliers', icon: <ShopOutlined />, label: <Link to="/procurement/suppliers">Nhà cung cấp</Link> },
-        { key: '/procurement/purchase-orders', icon: <ShoppingCartOutlined />, label: <Link to="/procurement/purchase-orders">Đơn mua hàng</Link> },
-    ] },
-    { type: 'group', label: 'Báo cáo & Kế toán', children: [
-        { key: '/reports', icon: <BarChartOutlined />, label: <Link to="/reports">Báo cáo</Link> },
-        { key: '/finance/settlements', icon: <FundOutlined />, label: <Link to="/finance/settlements">Đối soát sàn</Link> },
-        { key: '/accounting/journals', icon: <BookOutlined />, label: <Link to="/accounting/journals">Sổ nhật ký</Link> },
-        { key: '/accounting/chart-of-accounts', icon: <PartitionOutlined />, label: <Link to="/accounting/chart-of-accounts">Hệ thống TK</Link> },
-        { key: '/accounting/balances', icon: <ContainerOutlined />, label: <Link to="/accounting/balances">Cân đối phát sinh</Link> },
-        { key: '/accounting/ar', icon: <TeamOutlined />, label: <Link to="/accounting/ar">Công nợ phải thu</Link> },
-        { key: '/accounting/ap', icon: <ShopOutlined />, label: <Link to="/accounting/ap">Công nợ phải trả</Link> },
-        { key: '/accounting/cash', icon: <WalletOutlined />, label: <Link to="/accounting/cash">Quỹ & Ngân hàng</Link> },
-        { key: '/accounting/reports', icon: <BarChartOutlined />, label: <Link to="/accounting/reports">Báo cáo tài chính</Link> },
-        { key: '/accounting/periods', icon: <CalendarOutlined />, label: <Link to="/accounting/periods">Kỳ kế toán</Link> },
-    ] },
-    { type: 'group', label: 'Hệ thống', children: [
-        { key: '/sync-logs', icon: <SwapOutlined />, label: <Link to="/sync-logs">Nhật ký đồng bộ</Link> },
-        { key: '/settings', icon: <SettingOutlined />, label: <Link to="/settings">Cài đặt</Link> },
-    ] },
-];
+function buildNav(isSuperAdmin: boolean): MenuProps['items'] {
+    const items: NonNullable<MenuProps['items']> = [
+        { type: 'group', label: 'Tổng quan', children: [
+            { key: '/', icon: <DashboardOutlined />, label: <Link to="/">Bảng điều khiển</Link> },
+        ] },
+        { type: 'group', label: 'Bán hàng', children: [
+            { key: '/orders', icon: <ShoppingOutlined />, label: <Link to="/orders">Đơn hàng</Link> },
+            { key: '/customers', icon: <TeamOutlined />, label: <Link to="/customers">Khách hàng</Link> },
+            { key: '/channels', icon: <ShopOutlined />, label: <Link to="/channels">Gian hàng</Link> },
+            { key: '/products', icon: <AppstoreOutlined />, label: <Link to="/products">Sản phẩm & SKU</Link> },
+        ] },
+        { type: 'group', label: 'Kho & Mua hàng', children: [
+            { key: '/inventory', icon: <InboxOutlined />, label: <Link to="/inventory">Tồn kho</Link> },
+            { key: '/procurement/demand-planning', icon: <FundOutlined />, label: <Link to="/procurement/demand-planning">Đề xuất nhập hàng</Link> },
+            { key: '/procurement/suppliers', icon: <ShopOutlined />, label: <Link to="/procurement/suppliers">Nhà cung cấp</Link> },
+            { key: '/procurement/purchase-orders', icon: <ShoppingCartOutlined />, label: <Link to="/procurement/purchase-orders">Đơn mua hàng</Link> },
+        ] },
+        { type: 'group', label: 'Báo cáo & Kế toán', children: [
+            { key: '/reports', icon: <BarChartOutlined />, label: <Link to="/reports">Báo cáo</Link> },
+            { key: '/finance/settlements', icon: <FundOutlined />, label: <Link to="/finance/settlements">Đối soát sàn</Link> },
+            { key: '/accounting/journals', icon: <BookOutlined />, label: <Link to="/accounting/journals">Sổ nhật ký</Link> },
+            { key: '/accounting/chart-of-accounts', icon: <PartitionOutlined />, label: <Link to="/accounting/chart-of-accounts">Hệ thống TK</Link> },
+            { key: '/accounting/balances', icon: <ContainerOutlined />, label: <Link to="/accounting/balances">Cân đối phát sinh</Link> },
+            { key: '/accounting/ar', icon: <TeamOutlined />, label: <Link to="/accounting/ar">Công nợ phải thu</Link> },
+            { key: '/accounting/ap', icon: <ShopOutlined />, label: <Link to="/accounting/ap">Công nợ phải trả</Link> },
+            { key: '/accounting/cash', icon: <WalletOutlined />, label: <Link to="/accounting/cash">Quỹ & Ngân hàng</Link> },
+            { key: '/accounting/reports', icon: <BarChartOutlined />, label: <Link to="/accounting/reports">Báo cáo tài chính</Link> },
+            { key: '/accounting/periods', icon: <CalendarOutlined />, label: <Link to="/accounting/periods">Kỳ kế toán</Link> },
+        ] },
+        { type: 'group', label: 'Hệ thống', children: [
+            { key: '/sync-logs', icon: <SwapOutlined />, label: <Link to="/sync-logs">Nhật ký đồng bộ</Link> },
+            { key: '/settings', icon: <SettingOutlined />, label: <Link to="/settings">Cài đặt</Link> },
+        ] },
+    ];
+
+    // SPEC 0020 — chỉ super-admin thấy nhóm này.
+    if (isSuperAdmin) {
+        items.push({
+            type: 'group', label: 'Quản trị hệ thống', children: [
+                { key: '/admin/tenants', icon: <ToolOutlined />, label: <Link to="/admin/tenants">Tenant & gian hàng</Link> },
+                { key: '/admin/users', icon: <SafetyCertificateOutlined />, label: <Link to="/admin/users">Người dùng hệ thống</Link> },
+            ],
+        });
+    }
+
+    return items;
+}
 
 // Flat key list for selected-key matching.
-const KEYS = ['/', '/orders', '/customers', '/channels', '/products', '/inventory',
+const BASE_KEYS = ['/', '/orders', '/customers', '/channels', '/products', '/inventory',
     '/procurement/demand-planning', '/procurement/suppliers', '/procurement/purchase-orders',
     '/reports', '/finance/settlements',
     '/accounting/journals', '/accounting/chart-of-accounts', '/accounting/balances', '/accounting/ar', '/accounting/ap', '/accounting/cash', '/accounting/reports', '/accounting/periods',
     '/sync-logs', '/settings'];
+const ADMIN_KEYS = ['/admin/tenants', '/admin/users'];
 
 export function AppLayout() {
     const { data: user } = useAuth();
@@ -79,12 +97,18 @@ export function AppLayout() {
 
     const currentTenantId = getCurrentTenantId() ?? user?.tenants[0]?.id ?? null;
     const currentTenant = user?.tenants.find((t) => t.id === currentTenantId) ?? user?.tenants[0];
+    const isSuperAdmin = user?.is_super_admin === true;
+
+    const nav = useMemo(() => buildNav(isSuperAdmin), [isSuperAdmin]);
+    const keys = useMemo(() => isSuperAdmin ? [...BASE_KEYS, ...ADMIN_KEYS] : BASE_KEYS, [isSuperAdmin]);
 
     const selectedKey = useMemo(() => {
-        const match = KEYS.filter((k) => (k === '/' ? location.pathname === '/' : location.pathname.startsWith(k)))
+        const match = keys.filter((k) => (k === '/' ? location.pathname === '/' : location.pathname.startsWith(k)))
             .sort((a, b) => b.length - a.length)[0];
         return match ?? '/';
-    }, [location.pathname]);
+    }, [location.pathname, keys]);
+
+    const isAdminRoute = location.pathname.startsWith('/admin/');
 
     return (
         <Layout style={{ minHeight: '100vh' }}>
@@ -92,7 +116,7 @@ export function AppLayout() {
                 <div style={{ height: 56, display: 'flex', alignItems: 'center', gap: 10, padding: '0 18px', fontWeight: 700, fontSize: 16, color: '#1668dc', whiteSpace: 'nowrap', overflow: 'hidden' }}>
                     <span style={{ fontSize: 20 }}>🛒</span> {!collapsed && 'CMBcoreSeller'}
                 </div>
-                <Menu mode="inline" selectedKeys={[selectedKey]} items={NAV} style={{ borderInlineEnd: 'none' }} />
+                <Menu mode="inline" selectedKeys={[selectedKey]} items={nav} style={{ borderInlineEnd: 'none' }} />
             </Sider>
             <Layout>
                 <Header style={{ background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px 0 8px', borderBottom: '1px solid #f0f0f0', height: 56, lineHeight: 'normal' }}>
@@ -124,6 +148,8 @@ export function AppLayout() {
                     </Space>
                 </Header>
                 <Content style={{ margin: 16, minHeight: 0 }}>
+                    {/* SPEC 0020 — banner over-quota cho user thường; trang admin không cần (super admin biết qua list). */}
+                    {!isAdminRoute && <OverQuotaBanner />}
                     <Outlet context={{ tenantName: currentTenant?.name }} />
                 </Content>
             </Layout>

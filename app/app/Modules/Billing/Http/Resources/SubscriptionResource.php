@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Billing\Http\Resources;
 
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
+use CMBcoreSeller\Modules\Billing\Services\OverQuotaCheckService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -35,6 +36,10 @@ class SubscriptionResource extends JsonResource
             'days_left' => $daysLeft,
             'is_trialing' => $this->status === Subscription::STATUS_TRIALING,
             'is_past_due' => $this->status === Subscription::STATUS_PAST_DUE,
+            // SPEC 0020 — FE banner: timer 2 ngày + locked flag.
+            'over_quota_warned_at' => $this->over_quota_warned_at?->toIso8601String(),
+            'over_quota_locked' => app(OverQuotaCheckService::class)->isPastGrace($this->resource),
+            'over_quota_grace_hours' => (int) config('billing.over_quota_grace_hours', 48),
         ];
     }
 }

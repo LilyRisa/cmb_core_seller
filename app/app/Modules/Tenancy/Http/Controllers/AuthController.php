@@ -135,6 +135,7 @@ class AuthController extends Controller
             'id' => $user->getKey(),
             'name' => $user->name,
             'email' => $user->email,
+            'is_super_admin' => (bool) ($user->is_super_admin ?? false), // SPEC 0020 — FE hiển thị menu Admin nếu true.
             'tenants' => $user->tenants->map(fn (Tenant $t) => [
                 'id' => $t->getKey(),
                 'name' => $t->name,

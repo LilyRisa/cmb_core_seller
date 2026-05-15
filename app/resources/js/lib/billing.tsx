@@ -52,6 +52,11 @@ export interface Subscription {
     days_left: number;
     is_trialing: boolean;
     is_past_due: boolean;
+    /** SPEC 0020 — mốc phát hiện tenant vượt hạn mức; null = đang ổn. */
+    over_quota_warned_at?: string | null;
+    /** SPEC 0020 — đã quá 48h ân hạn ⇒ middleware đang chặn write. */
+    over_quota_locked?: boolean;
+    over_quota_grace_hours?: number;
 }
 
 export interface BillingUsage {

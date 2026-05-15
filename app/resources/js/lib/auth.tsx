@@ -12,6 +12,8 @@ export interface AuthUser {
     id: number;
     name: string;
     email: string;
+    /** SPEC 0020 — true ⇒ user là super-admin hệ thống, được vào /admin/*. */
+    is_super_admin?: boolean;
     tenants: TenantSummary[];
 }
 

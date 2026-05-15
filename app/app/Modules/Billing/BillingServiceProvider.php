@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Billing;
 
 use CMBcoreSeller\Modules\Billing\Console\CheckExpiringSubscriptionsCommand;
+use CMBcoreSeller\Modules\Billing\Console\CheckOverQuotaCommand;
 use CMBcoreSeller\Modules\Billing\Console\RecomputeUsageCommand;
 use CMBcoreSeller\Modules\Billing\Events\InvoicePaid;
 use CMBcoreSeller\Modules\Billing\Listeners\ActivateSubscription;
@@ -44,6 +45,7 @@ class BillingServiceProvider extends ServiceProvider
             $this->commands([
                 CheckExpiringSubscriptionsCommand::class,
                 RecomputeUsageCommand::class,
+                CheckOverQuotaCommand::class,
             ]);
         }
     }

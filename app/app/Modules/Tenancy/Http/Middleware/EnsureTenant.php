@@ -48,6 +48,15 @@ class EnsureTenant
             return response()->json(['error' => ['code' => 'TENANT_FORBIDDEN', 'message' => 'Bạn không thuộc tenant này.']], 403);
         }
 
+        // SPEC 0020 — tenant bị admin tạm khoá (vi phạm điều khoản, hỗ trợ điều tra…).
+        // Super-admin vẫn vào `/admin/*` được vì routes admin không qua middleware này.
+        if (($tenant->status ?? 'active') === 'suspended') {
+            return response()->json(['error' => [
+                'code' => 'TENANT_SUSPENDED',
+                'message' => 'Gian hàng đang tạm khoá. Vui lòng liên hệ hỗ trợ.',
+            ]], 403);
+        }
+
         $this->currentTenant->set($tenant, $membership);
 
         if ($request->hasSession()) {

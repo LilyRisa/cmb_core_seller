@@ -225,6 +225,32 @@ Webhook payments (ngoài `/api`, làm ở PR2/PR3):
 - `plan.feature:demand_planning` — `/api/v1/procurement/demand-planning*`.
 - `plan.feature:profit_reports` — `/api/v1/reports/profit`, `/api/v1/reports/top-products`, `/api/v1/reports/export`. (`/reports/revenue` mở cho mọi gói.)
 
+## Admin hệ thống (Admin — SPEC 0020 · Phase 6.4 mở rộng)
+
+Super-admin xuyên tenant. Tất cả routes yêu cầu `auth:sanctum` + middleware `super_admin` (KHÔNG cần `X-Tenant-Id`). Rate limit 60/phút/user. Mọi action ghi audit (`action` prefix `admin.*`, `tenant_id` = target tenant).
+
+| Method | Path | Auth | Request | Response |
+|---|---|---|---|---|
+| GET | `/api/v1/admin/tenants` | sanctum + `super_admin` | query: `q`, `over_quota` (1), `suspended` (1), `page`, `per_page≤100` | `{ data:[TenantSummary{id,name,slug,status,created_at,owner:{id,name,email},subscription:{plan_code,status,billing_cycle,current_period_start/end,over_quota_warned_at,over_quota_locked},usage:{channel_accounts:{used,limit,over}}}], meta:{ pagination } }`. |
+| GET | `/api/v1/admin/tenants/{id}` | sanctum + `super_admin` | — | `{ data: TenantSummary kèm `channel_accounts[]`, `members[]`, `recent_admin_actions[]` (20 audit_logs gần nhất prefix `admin.*`) }`. |
+| DELETE | `/api/v1/admin/tenants/{tid}/channel-accounts/{caid}` | sanctum + `super_admin` | `{ reason: string ≥10 }` | `{ data:{ deleted_orders:N, unlinked_skus:M } }` — reuse `ChannelConnectionService::deleteWithOrders` (xoá kết nối + đơn + sku_mappings + nhả tồn). Audit `admin.channel_account.delete`. |
+| POST | `/api/v1/admin/tenants/{tid}/subscription` | sanctum + `super_admin` | `{ plan_code: trial\|starter\|pro\|business, cycle: monthly\|yearly\|trial, reason: string ≥10 }` | `{ data: SubscriptionResource }` — **bypass `DOWNGRADE_NOT_ALLOWED`** của `BillingService` (force-set tay cho khách yêu cầu). Subscription cũ ⇒ cancelled, subscription mới ⇒ active từ `now`. KHÔNG tạo invoice. Audit `admin.subscription.change`. |
+| POST | `/api/v1/admin/tenants/{tid}/suspend` | sanctum + `super_admin` | `{ reason: string ≥10 }` | `{ data: TenantSummary (status=suspended) }` — `EnsureTenant` middleware sẽ trả `403 TENANT_SUSPENDED` cho mọi member. Audit `admin.tenant.suspend`. |
+| POST | `/api/v1/admin/tenants/{tid}/reactivate` | sanctum + `super_admin` | — | `{ data: TenantSummary (status=active) }`. Audit `admin.tenant.reactivate`. |
+| GET | `/api/v1/admin/users` | sanctum + `super_admin` | query: `q` (email/name), `is_super_admin` (1), `page`, `per_page≤100` | `{ data:[{id,name,email,is_super_admin,tenants:[{id,name,slug,role}],created_at}], meta:{ pagination } }`. |
+
+**Codes lỗi đặc thù Admin/Over-quota:**
+- `SUPER_ADMIN_REQUIRED` (`403`) — không phải super-admin.
+- `TENANT_SUSPENDED` (`403`) — `EnsureTenant` chặn khi `tenant.status='suspended'`.
+- `PLAN_QUOTA_EXCEEDED` (`402`) — middleware `plan.over_quota_lock` chặn write sau 48h ân hạn. Details: `{ resources:[{resource,used,limit,over}], plan_code, warned_at, grace_hours }`.
+
+**Sửa endpoint hiện có (SPEC 0020):**
+- `GET /api/v1/auth/me` ⇒ thêm field `is_super_admin: bool`.
+- `GET /api/v1/billing/subscription` ⇒ `data` thêm `over_quota_warned_at: string|null`, `over_quota_locked: bool`, `over_quota_grace_hours: int` (banner FE đọc từ đây).
+
+**Middleware gating mới (SPEC 0020):**
+- `plan.over_quota_lock` — áp lên route group `tenant` ở `routes/api.php`. Chặn POST/PATCH/PUT/DELETE khi `subscription.over_quota_warned_at + grace_hours <= now()` & vẫn vượt mức. Whitelist nội bộ: `/billing/*`, `/auth/*`, `/tenant`, `/tenants`, `/media/image`, `DELETE /channel-accounts/{id}`. KHÔNG áp lên `/api/v1/admin/*` vì admin routes không qua middleware `tenant`.
+
 ## Sắp có (theo roadmap)
 
 `/webhook/payments/{sepay,vnpay,momo}` + CheckoutSession thật (Phase 6.4 — PR2 SePay, PR3 VNPay) · `/api/v1/automation-rules` (Phase 6.5) · `/api/v1/notifications` + channels Zalo/Email (Phase 6.5) … — thêm vào đây khi xây.

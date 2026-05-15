@@ -51,7 +51,9 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
         Route::post('tenants', [TenantController::class, 'store'])->name('tenants.store');
 
         // --- Authenticated + a chosen tenant (header X-Tenant-Id) ---
-        Route::middleware('tenant')->group(function () {
+        // `plan.over_quota_lock` (SPEC 0020) chặn write sau 2 ngày vượt hạn mức; whitelist
+        // /billing, /auth, DELETE /channel-accounts/{id}, /tenant, /media/image bên trong middleware.
+        Route::middleware(['tenant', 'plan.over_quota_lock'])->group(function () {
             Route::post('media/image', [MediaController::class, 'upload'])->name('media.image.upload');   // generic image upload (e.g. quick-add order item)
 
             Route::get('tenant', [TenantController::class, 'show'])->name('tenant.show');

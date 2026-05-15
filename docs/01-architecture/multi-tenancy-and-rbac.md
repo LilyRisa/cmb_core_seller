@@ -31,6 +31,16 @@
 | `viewer` | Chỉ xem | Đọc dashboard, đơn, tồn; không thao tác |
 
 - Phân quyền chi tiết bằng **permission string** (vd `orders.update`, `inventory.adjust`, `fulfillment.print`, `finance.view`, `billing.manage`...) gán cho role; `owner`/`admin` cấu hình lại role hoặc tạo role tuỳ biến (Phase sau).
+
+### 3.1 Super-admin hệ thống (SPEC 0020)
+
+Khác với role-trong-tenant ở §3, **super-admin = nhân viên vận hành SaaS** (nhân viên hỗ trợ của CMBcoreSeller), xuyên suốt mọi tenant. Đặc điểm:
+- Cờ `users.is_super_admin=true` (boolean trên bảng `users`). Promote/demote qua Artisan: `php artisan admin:promote {email}` / `admin:demote {email}` (idempotent).
+- Truy cập `/api/v1/admin/*` qua middleware `super_admin` — **KHÔNG cần `X-Tenant-Id`** (admin global).
+- Có thể: list mọi tenant, xem detail (gian hàng + subscription + member + audit), force-delete `channel_accounts` (reuse `ChannelConnectionService::deleteWithOrders`), đổi gói tenant (bypass `DOWNGRADE_NOT_ALLOWED`), suspend/reactivate tenant.
+- Mỗi action ghi `audit_logs` với `action` prefix `admin.*` (vd `admin.channel_account.delete`), `tenant_id` = target tenant, `user_id` = admin.
+- KHÔNG có "phân quyền nội bộ admin" v1 (mọi super-admin có quyền như nhau). Khi cần phân cấp ⇒ spec mới.
+- 2FA cho super-admin: backlog.
 - Triển khai: dùng `spatie/laravel-permission` với "team/tenant" mode, hoặc bảng tự viết — quyết định ở Phase 0 (ghi ADR nếu chọn lib).
 - Mọi action nhạy cảm ghi `audit_logs` (ai, tenant, action, đối tượng, before/after, ip, time).
 
@@ -50,3 +60,5 @@
   | `billing.manage` | owner only (admin có `*` nhưng phủ định `!billing.manage`) |
 - Trial 14 ngày: tự khởi động qua listener `StartTrialSubscription` (listen event `TenantCreated`) khi register. Plan chưa seed ⇒ listener no-op gracefully + middleware "open" (không chặn) để dev/test cũ không vỡ. Production luôn seed `BillingPlanSeeder`.
 - Hết hạn ⇒ grace 7 ngày → rớt về subscription `trial` vĩnh viễn (không khoá data). Logic ở `SubscriptionExpiryService` chạy command `subscriptions:check-expiring` hằng ngày.
+- **Vượt hạn mức sau downgrade (SPEC 0020)**: scheduler `subscriptions:check-over-quota` (hằng giờ) phát hiện tenant `usage.channel_accounts > plan.limits.max_channel_accounts` ⇒ set `subscriptions.over_quota_warned_at = now()`. Banner FE đếm ngược 48h. Sau grace ⇒ middleware `plan.over_quota_lock` chặn mọi POST/PATCH/DELETE (whitelist: `/billing`, `/auth`, `DELETE /channel-accounts/{id}`, `/tenant`). User thoát khoá bằng cách nâng cấp gói **hoặc** gỡ kênh thừa (scheduler kế tiếp tự clear timer). Super-admin có thể can thiệp gỡ kênh hộ qua `/admin/*`.
+- Suspended tenant: super-admin `POST /admin/tenants/{id}/suspend` ⇒ `tenants.status='suspended'`. `EnsureTenant` middleware chặn `403 TENANT_SUSPENDED` cho mọi member. Reactivate qua endpoint tương ứng.
