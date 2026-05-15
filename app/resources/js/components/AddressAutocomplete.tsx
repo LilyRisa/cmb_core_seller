@@ -14,10 +14,10 @@ import type { PickedAddress } from '@/components/AddressPicker';
  *  - Sau khi khớp Tỉnh, **bỏ đoạn cuối**, đoạn áp cuối match Quận (format='old') hoặc Phường (format='new').
  *  - Cứ thế khớp dần. Đoạn còn lại đầu chuỗi = địa chỉ chi tiết (số nhà, tên đường).
  *
- * UX:
- *  - Hiện popover dưới input với top 5 suggestions.
- *  - Mỗi suggestion: "<detail> · phường/xã, quận, tỉnh".
- *  - Click ⇒ callback `onPick(PickedAddress + detail)` — cha tự fill các field.
+ * AntD Form integration:
+ *  - Component nhận `value` + `onChange` từ Form.Item (chuẩn AntD form-pattern). KHÔNG override.
+ *  - User chọn suggestion ⇒ gọi `onPick(s)` để parent set `shipAddress` + form fields liên quan.
+ *  - Đồng thời `onChange(s.detail)` được gọi để cập nhật value của field qua Form.Item.
  *
  * Match bỏ dấu: "123 nguyen trai, ha noi" khớp "Thành phố Hà Nội". User không cần gõ dấu.
  */
@@ -29,19 +29,24 @@ export interface AddressAutoSuggestion {
 }
 
 export function AddressAutocomplete({ value, onChange, format, onPick, placeholder, maxLength = 500, status }: {
-    value: string;
-    onChange: (v: string) => void;
+    /** Form.Item inject; KHÔNG truyền tay từ ngoài. */
+    value?: string;
+    /** Form.Item inject. */
+    onChange?: (v: string) => void;
     format: AddressFormat;
     onPick: (s: AddressAutoSuggestion) => void;
     placeholder?: string;
     maxLength?: number;
     status?: 'warning' | 'error';
 }) {
+    // B1 fix — value có thể undefined (initial render trước khi Form.Item inject). Default an toàn để
+    // splitSegments không throw TypeError. Component vẫn render input rỗng + không suggest gì.
+    const safeValue = value ?? '';
     const [open, setOpen] = useState(false);
     const { data: provinces = [] } = useProvinces(format);
 
     // Parse province match từ TAIL — chỉ fire khi user đã gõ ít nhất 1 dấu phẩy.
-    const tailParse = useMemo(() => parseTail(value, format, provinces), [value, format, provinces]);
+    const tailParse = useMemo(() => parseTail(safeValue, format, provinces), [safeValue, format, provinces]);
 
     // Khi đã match province ⇒ fetch districts/wards của province đó để parse tiếp.
     const provinceCode = tailParse?.province?.code;
@@ -60,23 +65,36 @@ export function AddressAutocomplete({ value, onChange, format, onPick, placehold
         if (suggestions.length === 0) setOpen(false);
     }, [suggestions.length]);
 
-    const options = suggestions.map((s, i) => ({
-        value: String(i),
-        label: <SuggestionRow s={s} />,
-        sug: s,
-    }));
+    // B2 fix — option.value KHÔNG dùng index (sẽ ghi "0" vào input khi user click). Dùng `s.detail`
+    // (phần địa chỉ chi tiết sau khi parse) làm value ⇒ khi AutoComplete fire onChange với value này,
+    // input của Form.Item nhận đúng phần detail. onSelect fire onPick để set state phụ.
+    // Nếu nhiều option cùng `s.detail`, append tỉnh để unique nhưng vẫn human-readable.
+    const options = useMemo(() => {
+        const seen = new Set<string>();
+        return suggestions.map((s) => {
+            let v = s.detail || s.label;
+            if (seen.has(v)) v = `${v} (${s.address.ward ?? s.address.province})`;
+            seen.add(v);
+
+            return { value: v, label: <SuggestionRow s={s} />, sug: s };
+        });
+    }, [suggestions]);
 
     return (
         <AutoComplete
-            value={value}
+            value={safeValue}
             options={options}
             popupMatchSelectWidth={false}
             open={open && options.length > 0}
             onDropdownVisibleChange={setOpen}
-            onChange={onChange}
+            onChange={(v) => onChange?.(v)}
             onSelect={(_v, opt) => {
                 const sug = (opt as unknown as { sug?: AddressAutoSuggestion }).sug;
-                if (sug) onPick(sug);
+                if (sug) {
+                    onPick(sug);
+                    // Force value to detail (option.value đã set vậy nhưng đảm bảo onChange chạy đúng order).
+                    onChange?.(sug.detail);
+                }
                 setOpen(false);
             }}
             style={{ width: '100%' }}
@@ -103,17 +121,16 @@ interface TailParse {
     afterProvinceTail: string;
 }
 
-/** Tách input theo dấu phẩy / chấm phẩy, trim, bỏ rỗng. */
-function splitSegments(text: string): string[] {
-    return text.split(/[,;]+/).map((s) => s.trim()).filter(Boolean);
+/** Tách input theo dấu phẩy / chấm phẩy, trim, bỏ rỗng. Safe với undefined. */
+function splitSegments(text: string | undefined | null): string[] {
+    if (!text) return [];
+    return String(text).split(/[,;]+/).map((s) => s.trim()).filter(Boolean);
 }
 
 /** Parse TAIL: tìm province trong đoạn cuối, trả tail còn lại + detail address ở đầu. */
 function parseTail(text: string, _format: AddressFormat, provinces: Province[]): TailParse | null {
     const segs = splitSegments(text);
-    if (segs.length < 1 || provinces.length === 0) return null;
-    // Yêu cầu ít nhất 2 segment (vd "123 NTrai, hcm") trước khi suggest.
-    if (segs.length < 2) return null;
+    if (segs.length < 2 || provinces.length === 0) return null;
 
     // Match province từ segment cuối; nếu không khớp, thử lấy 2 segment cuối (có khi user gõ "hcm, vn").
     let provIdx = segs.length - 1;

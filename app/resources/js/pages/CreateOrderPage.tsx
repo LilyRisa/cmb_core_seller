@@ -276,11 +276,14 @@ export function CreateOrderPage() {
             form.setFieldsValue({ recipient_phone: v });
         }
     };
-    const handleRecipientPhoneChange = (v: string) => {
-        // Nếu user gõ tay & khác phone → tắt sync mãi. Nếu user xoá hết → re-enable sync.
-        if (v === '') { setRecipientPhoneSynced(true); return; }
-        if (v !== phone) setRecipientPhoneSynced(false);
-    };
+    // B4 fix — Form.Item override onChange của child Input ⇒ handleRecipientPhoneChange không fire.
+    // Watch recipient_phone qua Form.useWatch + useEffect để detect divergence từ customer phone.
+    const watchedRecipientPhone = Form.useWatch('recipient_phone', form) as string | undefined;
+    useEffect(() => {
+        const rp = (watchedRecipientPhone ?? '').toString();
+        if (rp === '') { setRecipientPhoneSynced(true); return; }
+        if (rp !== phone) setRecipientPhoneSynced(false);
+    }, [watchedRecipientPhone, phone]);
 
     const addTag = () => {
         // U12 (Sprint 2) — guard double-call: Enter triggers blur ⇒ both onPressEnter và onBlur gọi addTag.
@@ -537,21 +540,21 @@ export function CreateOrderPage() {
                                     { required: true, message: 'SĐT người nhận' },
                                     { pattern: /^(0|\+84)\d{9,10}$/, message: 'SĐT không đúng định dạng VN' },
                                 ]}>
-                                    <Input placeholder="Số điện thoại *" maxLength={32} onChange={(e) => handleRecipientPhoneChange(e.target.value)} />
+                                    {/* B4 fix — bỏ custom onChange (Form.Item sẽ override). Sync detect qua Form.useWatch + useEffect ở trên. */}
+                                    <Input placeholder="Số điện thoại *" maxLength={32} />
                                 </Form.Item></Col>
                             </Row>
                             {/* SPEC 0021 — Autocomplete: user gõ "123 NTrai, P. Bến Nghé, Q.1, TP HCM" ⇒ parse tail
-                                khớp Tỉnh→Quận→Phường, gợi ý dropdown. Click ⇒ tự fill cả `recipient_address` + `shipAddress`.
-                                Hỗ trợ không dấu ("ha noi" khớp "Hà Nội"). */}
+                                khớp Tỉnh→Quận→Phường, gợi ý dropdown. Click ⇒ fill `recipient_address` + `shipAddress`.
+                                Hỗ trợ không dấu ("ha noi" khớp "Hà Nội").
+                                B3 fix — KHÔNG truyền `value`/`onChange` ở đây: Form.Item tự inject. Trước đây custom
+                                value qua `form.getFieldValue` ⇒ snapshot, không reactive ⇒ gõ không update. */}
                             <Form.Item name="recipient_address" style={{ marginBottom: 8 }} rules={[{ required: true, message: 'Địa chỉ chi tiết' }]}>
                                 <AddressAutocomplete
-                                    value={(form.getFieldValue('recipient_address') as string | undefined) ?? ''}
-                                    onChange={(v) => form.setFieldsValue({ recipient_address: v })}
                                     format={shipAddress.format ?? 'new'}
                                     placeholder="Địa chỉ chi tiết — gõ cả tỉnh/quận/phường để được gợi ý (vd: 123 NTrai, Q.1, TP HCM)"
                                     onPick={(s) => {
                                         setShipAddress((cur) => ({ ...cur, ...s.address }));
-                                        form.setFieldsValue({ recipient_address: s.detail });
                                     }}
                                 />
                             </Form.Item>
@@ -591,15 +594,20 @@ export function CreateOrderPage() {
                 </Row>
             </Form>
 
-            {/* ---------- Sticky bottom bar ---------- */}
+            {/* ---------- Sticky bottom bar ----------
+                B5 fix — Form.Item render <div> (block element); nested trong <span> là invalid HTML, React warn.
+                Dùng <div style="inline-flex"> thay vì <span> để cho phép Form.Item làm child hợp lệ. */}
             <div className="ord-bottom-bar">
-                <Space size={28}>
-                    <span>Tiền cần thu: <b className="ord-bottom-money">{vnd(totals.needCollect)} đ</b></span>
-                    <span>
-                        COD:&nbsp;
+                <Space size={28} align="center">
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <span>Tiền cần thu:</span>
+                        <b className="ord-bottom-money">{vnd(totals.needCollect)} đ</b>
+                    </div>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <span>COD:</span>
                         <Form.Item name="is_cod" valuePropName="checked" noStyle><Checkbox /></Form.Item>
-                        &nbsp;<b className={summary?.is_cod ? 'ord-bottom-money' : 'ord-bottom-money-muted'}>{vnd(summary?.is_cod ? totals.needCollect : 0)} đ</b>
-                    </span>
+                        <b className={summary?.is_cod ? 'ord-bottom-money' : 'ord-bottom-money-muted'}>{vnd(summary?.is_cod ? totals.needCollect : 0)} đ</b>
+                    </div>
                 </Space>
                 <Space>
                     <Button icon={<PrinterOutlined />} onClick={() => submit(true)} loading={create.isPending}>In <kbd className="ord-kbd">F4</kbd></Button>
