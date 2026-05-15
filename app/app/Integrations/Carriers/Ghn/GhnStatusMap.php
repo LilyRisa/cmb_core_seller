@@ -9,9 +9,11 @@ final class GhnStatusMap
 {
     /** @var array<string, string> */
     private const MAP = [
-        'ready_to_pick' => Shipment::STATUS_CREATED,
-        'picking' => Shipment::STATUS_CREATED,
-        'money_collect_picking' => Shipment::STATUS_CREATED,
+        // GHN system mới tiếp nhận đơn / shipper đã được phân — bên ta hiển thị "Chờ lấy hàng" (SPEC 0021).
+        'ready_to_pick' => Shipment::STATUS_AWAITING_PICKUP,
+        'picking' => Shipment::STATUS_AWAITING_PICKUP,
+        'money_collect_picking' => Shipment::STATUS_AWAITING_PICKUP,
+        // Shipper đã lấy hàng thành công ⇒ chuyển sang "Đã giao ĐVVC" + order → shipped.
         'picked' => Shipment::STATUS_PICKED_UP,
         'storing' => Shipment::STATUS_IN_TRANSIT,
         'transporting' => Shipment::STATUS_IN_TRANSIT,

@@ -137,10 +137,13 @@ class CustomerLinkingService
         $inProgress = max(0, $total - $completed - $cancelled - $returned - $delivFailed);
         $revenue = (int) ($agg->revenue ?? 0);
         $lastId = (int) ($agg->last_id ?? 0);
-        $lastStatus = $lastId > 0
-            ? (string) (Order::withoutGlobalScope(TenantScope::class)
-                ->where('tenant_id', $customer->tenant_id)->where('id', $lastId)->value('status') ?? '')
-            : '';
+        // `value('status')` trả về StandardOrderStatus enum (Order model cast `status` → enum) — không cast
+        // thẳng `(string)` được. Trả thẳng `->value` của enum, fallback string rỗng.
+        $lastStatusVal = $lastId > 0
+            ? Order::withoutGlobalScope(TenantScope::class)
+                ->where('tenant_id', $customer->tenant_id)->where('id', $lastId)->value('status')
+            : null;
+        $lastStatus = $lastStatusVal instanceof \BackedEnum ? $lastStatusVal->value : (string) ($lastStatusVal ?? '');
 
         return [
             'orders_total' => $total,

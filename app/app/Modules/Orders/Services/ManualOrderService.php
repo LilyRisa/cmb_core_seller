@@ -30,15 +30,24 @@ class ManualOrderService
         $items = $this->normalizeItems($data['items'] ?? []);
         $status = $this->chosenStatus($data['status'] ?? null);
         $buyer = (array) ($data['buyer'] ?? []);
-        $shippingFee = (int) ($data['shipping_fee'] ?? 0);
-        $tax = (int) ($data['tax'] ?? 0);
+        $recipient = (array) ($data['recipient'] ?? []);
+        // SPEC 0021 (UI taodon.png): miễn phí giao hàng, giảm giá đơn, tiền chuyển khoản, phụ thu.
+        $freeShipping = (bool) ($data['free_shipping'] ?? false);
+        $shippingFee = $freeShipping ? 0 : max(0, (int) ($data['shipping_fee'] ?? 0));
+        $tax = max(0, (int) ($data['tax'] ?? 0));
+        $orderDiscount = max(0, (int) ($data['order_discount'] ?? 0));     // "Giảm giá đơn hàng"
+        $prepaidAmount = max(0, (int) ($data['prepaid_amount'] ?? 0));     // Đã trả trước (CK)
+        $surcharge = max(0, (int) ($data['surcharge'] ?? 0));              // Phụ thu
         $isCod = (bool) ($data['is_cod'] ?? false);
         $itemTotal = array_sum(array_map(fn ($i) => $i['unit_price'] * $i['quantity'] - $i['discount'], $items));
-        $grandTotal = $itemTotal + $shippingFee + $tax;
-        $codAmount = $isCod ? (int) ($data['cod_amount'] ?? $grandTotal) : 0;
+        $sellerDiscount = array_sum(array_map(fn ($i) => $i['discount'], $items)) + $orderDiscount;
+        // grand_total = (item_total + ship + tax + surcharge) − order_discount.
+        $grandTotal = max(0, $itemTotal + $shippingFee + $tax + $surcharge - $orderDiscount);
+        // COD = phần còn lại cần thu (đã trừ prepaid).
+        $codAmount = $isCod ? max(0, ((int) ($data['cod_amount'] ?? $grandTotal)) - $prepaidAmount) : 0;
         $now = now();
 
-        $order = DB::transaction(function () use ($tenantId, $userId, $items, $status, $buyer, $shippingFee, $tax, $isCod, $itemTotal, $grandTotal, $codAmount, $now, $data) {
+        $order = DB::transaction(function () use ($tenantId, $userId, $items, $status, $buyer, $recipient, $shippingFee, $tax, $isCod, $itemTotal, $sellerDiscount, $grandTotal, $codAmount, $prepaidAmount, $surcharge, $freeShipping, $now, $data) {
             $order = Order::withoutGlobalScope(TenantScope::class)->create([
                 'tenant_id' => $tenantId,
                 'source' => 'manual',
@@ -47,32 +56,30 @@ class ManualOrderService
                 'order_number' => $this->generateOrderNumber($tenantId),
                 'status' => $status,
                 'raw_status' => $status->value,
-                'payment_status' => $isCod ? 'cod' : 'unpaid',
+                'payment_status' => $prepaidAmount > 0 && ! $isCod ? 'paid' : ($isCod ? 'cod' : 'unpaid'),
                 'buyer_name' => $buyer['name'] ?? null,
                 'buyer_phone' => $buyer['phone'] ?? null,
-                'shipping_address' => array_filter([
-                    'name' => $buyer['name'] ?? null,
-                    'phone' => $buyer['phone'] ?? null,
-                    'address' => $buyer['address'] ?? null,
-                    'ward' => $buyer['ward'] ?? null,
-                    'district' => $buyer['district'] ?? null,
-                    'province' => $buyer['province'] ?? ($buyer['city'] ?? null),
-                ], fn ($v) => $v !== null && $v !== ''),
+                // shipping_address ưu tiên `recipient` (FE mới); fallback `buyer` (legacy / shape cũ).
+                'shipping_address' => $this->buildShippingAddress($buyer, $recipient),
                 'currency' => 'VND',
                 'item_total' => $itemTotal,
                 'shipping_fee' => $shippingFee,
                 'platform_discount' => 0,
-                'seller_discount' => array_sum(array_map(fn ($i) => $i['discount'], $items)),
+                'seller_discount' => $sellerDiscount,
                 'tax' => $tax,
                 'cod_amount' => $codAmount,
+                'prepaid_amount' => $prepaidAmount,
+                'surcharge' => $surcharge,
                 'grand_total' => $grandTotal,
                 'is_cod' => $isCod,
                 'fulfillment_type' => 'manual',
                 'placed_at' => $now,
+                'paid_at' => $prepaidAmount > 0 ? $now : null,
                 'note' => $data['note'] ?? null,
                 'tags' => array_values(array_filter((array) ($data['tags'] ?? []))),
                 'has_issue' => false,
                 'packages' => [],
+                'meta' => $this->normalizeMeta((array) ($data['meta'] ?? []), $freeShipping, $userId, (string) ($data['sub_source'] ?? '')),
                 'source_updated_at' => $now,
             ]);
 
@@ -193,6 +200,62 @@ class ManualOrderService
         $s = $value ? StandardOrderStatus::tryFrom($value) : null;
 
         return ($s !== null && in_array($s, self::PRE_SHIPMENT_CHOICES, true)) ? $s : StandardOrderStatus::Processing;
+    }
+
+    /**
+     * Build `shipping_address` array — ưu tiên trường `recipient` từ FE mới (UI taodon.png), fallback
+     * shape cũ ở `buyer`. `district_id`/`ward_code` cần cho GHN — cast int khi có. SPEC 0021.
+     *
+     * @param  array<string,mixed>  $buyer
+     * @param  array<string,mixed>  $recipient
+     * @return array<string,mixed>
+     */
+    private function buildShippingAddress(array $buyer, array $recipient): array
+    {
+        $src = $recipient !== [] ? $recipient : $buyer;
+        $province = $src['province'] ?? $src['province_name'] ?? $src['city'] ?? null;
+        $district = $src['district'] ?? $src['district_name'] ?? null;
+        $ward = $src['ward'] ?? $src['ward_name'] ?? null;
+        $out = [
+            'name' => $src['name'] ?? $buyer['name'] ?? null,
+            'phone' => $src['phone'] ?? $buyer['phone'] ?? null,
+            'address' => $src['address'] ?? null,
+            'ward' => $ward,
+            'ward_code' => isset($src['ward_code']) ? (string) $src['ward_code'] : null,
+            'district' => $district,
+            'district_id' => isset($src['district_id']) ? (int) $src['district_id'] : null,
+            'province' => $province,
+            'province_id' => isset($src['province_id']) ? (int) $src['province_id'] : null,
+            'expected_at' => $src['expected_at'] ?? null,
+        ];
+
+        return array_filter($out, fn ($v) => $v !== null && $v !== '');
+    }
+
+    /**
+     * Normalize `meta` để lưu vào `orders.meta`. Whitelist field cho phép — tránh user nhồi data
+     * tuỳ tiện vào JSON. SPEC 0021 (UI taodon.png).
+     *
+     * @param  array<string,mixed>  $raw
+     * @return array<string,mixed>
+     */
+    private function normalizeMeta(array $raw, bool $freeShipping, ?int $createdBy, string $subSource): array
+    {
+        $out = array_filter([
+            'sub_source' => $subSource !== '' ? $subSource : ($raw['sub_source'] ?? null),
+            'assignee_user_id' => isset($raw['assignee_user_id']) ? (int) $raw['assignee_user_id'] : ($createdBy ?: null),
+            'care_user_id' => isset($raw['care_user_id']) ? (int) $raw['care_user_id'] : null,
+            'marketer_user_id' => isset($raw['marketer_user_id']) ? (int) $raw['marketer_user_id'] : null,
+            'expected_delivery_date' => isset($raw['expected_delivery_date']) && $raw['expected_delivery_date'] !== '' ? (string) $raw['expected_delivery_date'] : null,
+            'gender' => isset($raw['gender']) && in_array($raw['gender'], ['male', 'female', 'other'], true) ? $raw['gender'] : null,
+            'dob' => isset($raw['dob']) && $raw['dob'] !== '' ? (string) $raw['dob'] : null,
+            'email' => isset($raw['email']) && $raw['email'] !== '' ? (string) $raw['email'] : null,
+            'print_note' => isset($raw['print_note']) && $raw['print_note'] !== '' ? (string) $raw['print_note'] : null,
+            'free_shipping' => $freeShipping ? true : null,
+            'collect_fee_on_return_only' => ! empty($raw['collect_fee_on_return_only']) ? true : null,
+        ], fn ($v) => $v !== null && $v !== '');
+
+        return $out;
     }
 
     /**

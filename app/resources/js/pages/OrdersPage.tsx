@@ -7,11 +7,13 @@ import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusTag } from '@/components/StatusTag';
 import { ChannelBadge } from '@/components/ChannelBadge';
+import { CarrierBadge } from '@/components/CarrierBadge';
 import { MoneyText, DateText } from '@/components/MoneyText';
 import { FilterChipRow, type ChipItem } from '@/components/FilterChipRow';
 import { LinkSkusModal } from '@/components/LinkSkusModal';
 import { OrderDetailModal } from '@/components/OrderDetailModal';
 import { OrderActions, PrintCountBadge, PrintJobBar, ScanTab, ShipmentsTab } from '@/components/OrderProcessing';
+import { CarrierAccountPicker } from '@/components/CarrierAccountPicker';
 import { errorMessage } from '@/lib/api';
 import { CHANNEL_META, ORDER_STATUS_TABS } from '@/lib/format';
 import { Order, useOrders, useOrderStats, useSyncOrders } from '@/lib/orders';
@@ -69,6 +71,8 @@ export function OrdersPage() {
     // fulfillment: print-job progress bar + scan-to-pack/handover modal (BigSeller-style — thao tác ngay trên list)
     const [printJobId, setPrintJobId] = useState<number | null>(null);
     const [scan, setScan] = useState<{ open: boolean; mode: 'pack' | 'handover' }>({ open: false, mode: 'pack' });
+    // SPEC 0021 — popup chọn ĐVVC khi "Chuẩn bị hàng" cho đơn manual; lưu các id manual đang chờ confirm.
+    const [carrierPicker, setCarrierPicker] = useState<{ open: boolean; orderIds: number[] }>({ open: false, orderIds: [] });
 
     const tabKey = params.get('tab') ?? (params.get('has_issue') ? 'issue' : '');
     const statusParam = params.get('status') ?? '';
@@ -174,23 +178,52 @@ export function OrdersPage() {
     // Orders whose open shipment is in created/pending state → can be bulk-packed (→ ready_to_ship).
     const selPackable = selWithShipment.filter((o) => o.shipment && ['created', 'pending'].includes(o.shipment.status));
     const negProfit = selectedOrders.filter((o) => o.profit && o.profit.estimated_profit < 0);
-    const runBulkPrepare = () => bulkPrepare.mutate({ order_ids: selectedKeys }, {
+    // Phân loại đơn theo nguồn để áp đúng luồng:
+    //   - manual (channel_account_id == null) → cần chọn ĐVVC qua CarrierAccountPicker, BE gọi GHN createOrder ngay.
+    //   - sàn (channel_account_id != null)    → BE tự gọi `prepareChannelOrder` lấy AWB/tem, KHÔNG cần chọn ĐVVC.
+    // SPEC 0021: không cho phép trộn lẫn 2 nhóm trong cùng một lần "Chuẩn bị hàng" vì payload & UX khác nhau.
+    const selManual = selectedOrders.filter((o) => o.source === 'manual' || !o.channel_account_id);
+    const selChannel = selectedOrders.filter((o) => o.source !== 'manual' && o.channel_account_id);
+    const runBulkPrepare = (orderIds: number[], carrierAccountId: number | null) => bulkPrepare.mutate({ order_ids: orderIds, carrier_account_id: carrierAccountId ?? undefined }, {
         onSuccess: (r) => {
-            message.success(r.created.length > 0 ? `Đã chuẩn bị hàng ${r.created.length} đơn — đang lấy phiếu giao hàng của sàn. Các đơn chuyển sang "Đang xử lý".` : 'Không có đơn nào được chuẩn bị');
+            message.success(r.created.length > 0 ? `Đã chuẩn bị hàng ${r.created.length} đơn — đang lấy phiếu giao hàng. Các đơn chuyển sang "Đang xử lý".` : 'Không có đơn nào được chuẩn bị');
             if (r.errors.length) Modal.warning({ title: `${r.errors.length} đơn không chuẩn bị được`, content: <ul style={{ margin: 0, paddingInlineStart: 18 }}>{r.errors.map((e) => <li key={e.order_id}>Đơn #{e.order_id}: {e.message}</li>)}</ul> });
             setSelectedKeys([]);
+            setCarrierPicker({ open: false, orderIds: [] });
         },
         onError: (e) => message.error(errorMessage(e)),
     });
     const doBulkPrepare = () => {
+        if (selManual.length > 0 && selChannel.length > 0) {
+            Modal.error({
+                title: 'Không thể "Chuẩn bị hàng" lẫn lộn đơn sàn và đơn thủ công',
+                width: 540,
+                content: (
+                    <div>
+                        <p style={{ marginTop: 0 }}>Đơn sàn (TikTok / Shopee / Lazada) dùng tem & mã vận đơn của sàn — hệ thống tự kéo về. Đơn thủ công cần bạn chọn đơn vị vận chuyển trước khi đẩy sang ĐVVC (vd GHN). Hai luồng khác nhau, không thể gộp 1 lượt thao tác.</p>
+                        <p>Bạn đang chọn: <b>{selChannel.length}</b> đơn sàn và <b>{selManual.length}</b> đơn thủ công.</p>
+                        <p style={{ marginBottom: 0 }}>Hãy bỏ chọn 1 nhóm, "Chuẩn bị hàng" xong rồi quay lại chọn nhóm còn lại.</p>
+                    </div>
+                ),
+                okText: 'Đã hiểu',
+            });
+            return;
+        }
+        const proceed = () => {
+            if (selManual.length > 0) {
+                setCarrierPicker({ open: true, orderIds: selManual.map((o) => o.id) });
+            } else {
+                runBulkPrepare(selChannel.map((o) => o.id), null);
+            }
+        };
         if (negProfit.length > 0) {
             Modal.confirm({
                 title: `${negProfit.length} đơn có lợi nhuận ước tính ÂM`,
                 content: 'Tổng tiền các đơn này không bù được phí sàn + giá vốn hàng. Vẫn tiếp tục chuẩn bị hàng (tạo vận đơn / lấy phiếu)?',
                 okText: 'Vẫn chuẩn bị', okButtonProps: { danger: true }, cancelText: 'Để tôi xem lại',
-                onOk: runBulkPrepare,
+                onOk: proceed,
             });
-        } else { runBulkPrepare(); }
+        } else { proceed(); }
     };
     // Tab "Chờ bàn giao" (ready_to_ship): đơn đã RTS trên sàn trước khi sync về — gọi prepareChannelOrder để
     // tạo shipment record + lấy label; order KHÔNG chuyển sang "Đang xử lý" (stay in ready_to_ship).
@@ -343,7 +376,15 @@ export function OrdersPage() {
             ),
         },
         { title: 'Người mua', dataIndex: 'buyer_name', key: 'buyer', width: 180, render: (v, o) => <Space direction="vertical" size={0}><span>{v ?? '—'}</span><Typography.Text type="secondary" style={{ fontSize: 12 }}>{o.buyer_phone_masked ?? ''}</Typography.Text></Space> },
-        { title: 'ĐVVC', dataIndex: 'carrier', key: 'carrier', width: 110, render: (v) => (v ? <Tag>{v}</Tag> : '—') },
+        // SPEC 0021 — Badge ĐVVC + nhãn "Chờ lấy hàng" khi shipment.status='awaiting_pickup'.
+        { title: 'ĐVVC', dataIndex: 'carrier', key: 'carrier', width: 140, render: (v, o) => (
+            <Space direction="vertical" size={2} align="start">
+                <CarrierBadge code={v} />
+                {o.shipment?.status === 'awaiting_pickup' && (
+                    <Tag color="cyan" style={{ marginInlineEnd: 0, fontSize: 11 }}>Chờ lấy hàng</Tag>
+                )}
+            </Space>
+        ) },
         {
             title: 'Tổng tiền', dataIndex: 'grand_total', key: 'total', width: 160, align: 'right',
             render: (v, o) => {
@@ -566,6 +607,13 @@ export function OrdersPage() {
             </Card>
             </>)}
 
+            <CarrierAccountPicker
+                open={carrierPicker.open}
+                count={carrierPicker.orderIds.length}
+                loading={bulkPrepare.isPending}
+                onCancel={() => setCarrierPicker({ open: false, orderIds: [] })}
+                onConfirm={(cid) => runBulkPrepare(carrierPicker.orderIds, cid)}
+            />
             {printJobId != null && <PrintJobBar jobId={printJobId} onClose={() => setPrintJobId(null)} />}
             <LinkSkusModal open={linkModal.open} orderIds={linkModal.orderIds} onClose={() => { setLinkModal({ open: false }); setSelectedKeys([]); }} />
             <OrderDetailModal orderId={viewOrderId} open={viewOrderId != null} onClose={() => setViewOrderId(null)} />

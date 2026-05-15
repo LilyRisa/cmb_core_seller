@@ -64,6 +64,59 @@ class CustomerController extends Controller
         return response()->json(['data' => new CustomerResource($customer)]);
     }
 
+    /**
+     * GET /api/v1/customers/lookup?phone=0912xxxxxx — SPEC 0021 / UI taodon.png.
+     *
+     * Khi user nhập SĐT lúc tạo đơn thủ công, FE gọi endpoint này:
+     *  - Có khớp customer ⇒ trả `customer` (CustomerResource) + `addresses` (địa chỉ cũ — lấy
+     *    từ `addresses_meta`, đã có) + `open_orders` (đơn đang xử lý) + `returning_orders`
+     *    (đơn đang/đã hoàn) để FE hiện cảnh báo + danh sách order_number.
+     *  - Không khớp ⇒ trả `{ customer: null }`.
+     *
+     * Không ném 404 nếu không khớp — đây là endpoint tra cứu nhanh, không phải get-by-id.
+     */
+    public function lookup(Request $request): JsonResponse
+    {
+        $this->authorizeView($request);
+        $phone = (string) $request->query('phone', '');
+        $hash = CustomerPhoneNormalizer::normalizeAndHash($phone);
+        if ($hash === null) {
+            return response()->json(['data' => ['customer' => null, 'addresses' => [], 'open_orders' => [], 'returning_orders' => []]]);
+        }
+        $customer = Customer::query()->where('phone_hash', $hash)->first();
+        if (! $customer) {
+            return response()->json(['data' => ['customer' => null, 'addresses' => [], 'open_orders' => [], 'returning_orders' => []]]);
+        }
+
+        // Lấy đơn của customer này — bỏ TenantScope vì global scope đã filter bởi current tenant.
+        $orders = Order::query()->where('customer_id', $customer->getKey())
+            ->orderByDesc('placed_at')->orderByDesc('id')->limit(100)->get(['id', 'order_number', 'status', 'placed_at', 'grand_total', 'source']);
+
+        // "Đang xử lý" = các status pre-shipment + shipped (chưa giao xong).
+        $openStatuses = ['unpaid', 'pending', 'processing', 'ready_to_ship', 'shipped'];
+        $returningStatuses = ['returning', 'delivery_failed', 'returned_refunded'];
+
+        $statusValue = fn ($o) => $o->status instanceof \BackedEnum ? $o->status->value : (string) $o->status;
+        $mapOrder = fn ($o) => [
+            'id' => $o->id,
+            'order_number' => $o->order_number,
+            'status' => $statusValue($o),
+            'placed_at' => $o->placed_at?->toIso8601String(),
+            'grand_total' => (int) $o->grand_total,
+            'source' => $o->source,
+        ];
+
+        return response()->json(['data' => [
+            'customer' => new CustomerResource($customer),
+            // `addresses_meta` đã lưu top 5 địa chỉ gần nhất (xem CustomerLinkingService::mergeAddresses).
+            'addresses' => (array) ($customer->addresses_meta ?? []),
+            'open_orders' => $orders->filter(fn ($o) => in_array($statusValue($o), $openStatuses, true))
+                ->values()->map($mapOrder)->all(),
+            'returning_orders' => $orders->filter(fn ($o) => in_array($statusValue($o), $returningStatuses, true))
+                ->values()->map($mapOrder)->all(),
+        ]]);
+    }
+
     /** GET /api/v1/customers/{id}/orders */
     public function orders(Request $request, int $id): JsonResponse
     {

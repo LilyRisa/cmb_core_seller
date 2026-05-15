@@ -59,7 +59,10 @@ export interface PrintJob {
 }
 
 export const SHIPMENT_STATUS_LABEL: Record<string, string> = {
-    pending: 'Chờ tạo', created: 'Đã tạo vận đơn', packed: 'Đã đóng gói', picked_up: 'Đã bàn giao ĐVVC', in_transit: 'Đang vận chuyển',
+    pending: 'Chờ tạo', created: 'Đã tạo vận đơn', packed: 'Đã đóng gói',
+    // SPEC 0021 — `awaiting_pickup` = đã tạo đơn với ĐVVC, đang chờ shipper tới lấy hàng.
+    awaiting_pickup: 'Chờ lấy hàng',
+    picked_up: 'Đã bàn giao ĐVVC', in_transit: 'Đang vận chuyển',
     delivered: 'Đã giao', failed: 'Giao thất bại', returned: 'Hoàn về', cancelled: 'Đã huỷ',
 };
 

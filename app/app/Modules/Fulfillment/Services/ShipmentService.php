@@ -477,22 +477,28 @@ class ShipmentService
     }
 
     /**
-     * Đã gói hàng & quét đơn nội bộ xong: vận đơn created/pending → packed; **đơn processing → ready_to_ship**
-     * (sẵn sàng bàn giao ĐVVC). Chưa trừ tồn — trừ tồn ở bước bàn giao (handover / sàn báo shipped).
+     * Đã gói hàng & quét đơn nội bộ xong:
+     *   - Carrier có cap `awaiting_pickup_flow` (GHN, GHTK/J&T sau này): shipment → `awaiting_pickup`
+     *     ("Chờ lấy hàng") — đơn đã trong hệ thống ĐVVC từ bước "Chuẩn bị hàng" (createShipment đã gọi
+     *     trước & nhận tracking), không cần API call mới; chỉ flip local state để FE hiển thị đúng badge.
+     *   - Manual / đơn sàn không có cap: shipment → `packed` (behavior cũ).
+     *
+     * **Đơn processing → ready_to_ship** (sẵn sàng bàn giao ĐVVC). Chưa trừ tồn — trừ tồn ở bước bàn
+     * giao (handover / sàn báo shipped / ĐVVC báo picked).
      *
      * Đối với connector có `shipping.ready_to_ship` capability (Lazada): đẩy /order/rts lên sàn để Lazada
      * cập nhật `packed → ready_to_ship` — đúng spec 3-tab app khớp 3 trạng thái Lazada (xem `lazada_order.md`).
      * TikTok không có bước này (cap=false) ⇒ skip — TikTok đã ở `AWAITING_COLLECTION` từ arrange.
      *
-     * Idempotent. Trả true nếu có chuyển trạng thái. SPEC 0013 (mở rộng SPEC 0009).
+     * Idempotent. Trả true nếu có chuyển trạng thái. SPEC 0013 (mở rộng SPEC 0009) + SPEC 0021 (awaiting_pickup).
      */
     public function markPacked(Shipment $shipment, string $source = 'user', ?int $userId = null): bool
     {
         if ($shipment->isCancelled()) {
             throw new RuntimeException('Vận đơn đã huỷ.');
         }
-        if (in_array($shipment->status, [Shipment::STATUS_PACKED, ...Shipment::HANDED_OVER_STATUSES], true)) {
-            return false; // already packed/handed over — no-op (anti double-scan, rule 5)
+        if (in_array($shipment->status, [Shipment::STATUS_PACKED, Shipment::STATUS_AWAITING_PICKUP, ...Shipment::HANDED_OVER_STATUSES], true)) {
+            return false; // already packed/awaiting_pickup/handed over — no-op (anti double-scan, rule 5)
         }
         $order = $this->orderFor($shipment);
         // Push lên sàn TRƯỚC khi flip shipment.status — nếu sàn reject (vd Lazada item bị buyer huỷ), giữ
@@ -500,8 +506,16 @@ class ShipmentService
         if ($order) {
             $this->pushReadyToShipOnChannel($order, $shipment);
         }
-        $shipment->forceFill(['status' => Shipment::STATUS_PACKED, 'packed_at' => now()])->save();
-        $this->recordEvent($shipment, 'packed', 'Đã đóng gói & quét đơn', Shipment::STATUS_PACKED, $source, null, $userId);
+        // SPEC 0021 — `awaiting_pickup_flow` capability: GHN có (đơn manual sau khi /create-order đã ở
+        // trạng thái `ready_to_pick` của GHN, đợi shipper); GHTK/J&T sẽ thêm khi connector lên. Core
+        // không hard-code 'ghn' — chỉ hỏi capability.
+        $useAwaitingPickup = $this->carriers->has($shipment->carrier)
+            && $this->carriers->for($shipment->carrier) instanceof AbstractCarrierConnector
+            && $this->carriers->for($shipment->carrier)->supports('awaiting_pickup_flow');
+        $newStatus = $useAwaitingPickup ? Shipment::STATUS_AWAITING_PICKUP : Shipment::STATUS_PACKED;
+        $eventDesc = $useAwaitingPickup ? 'Đã sẵn sàng bàn giao — chờ ĐVVC tới lấy hàng' : 'Đã đóng gói & quét đơn';
+        $shipment->forceFill(['status' => $newStatus, 'packed_at' => now()])->save();
+        $this->recordEvent($shipment, 'packed', $eventDesc, $newStatus, $source, null, $userId);
         if ($order) {
             $this->orderStatus->apply($order, S::ReadyToShip, $source, [S::Pending, S::Processing], $userId);
         }
@@ -609,9 +623,12 @@ class ShipmentService
             );
         }
         $newStatus = $data['status'] ?? null;
-        $known = [Shipment::STATUS_CREATED, Shipment::STATUS_PICKED_UP, Shipment::STATUS_IN_TRANSIT, Shipment::STATUS_DELIVERED, Shipment::STATUS_FAILED, Shipment::STATUS_RETURNED];
+        $known = [Shipment::STATUS_CREATED, Shipment::STATUS_AWAITING_PICKUP, Shipment::STATUS_PICKED_UP, Shipment::STATUS_IN_TRANSIT, Shipment::STATUS_DELIVERED, Shipment::STATUS_FAILED, Shipment::STATUS_RETURNED];
         if ($newStatus && in_array($newStatus, $known, true) && $newStatus !== $shipment->status) {
             $attrs = ['status' => $newStatus];
+            if ($newStatus === Shipment::STATUS_PICKED_UP && $shipment->picked_up_at === null) {
+                $attrs['picked_up_at'] = now(); // GHN báo "picked" qua webhook/polling ⇒ ghi mốc thực tế
+            }
             if ($newStatus === Shipment::STATUS_DELIVERED) {
                 $attrs['delivered_at'] = now();
             }
@@ -728,6 +745,9 @@ class ShipmentService
             return;
         }
         $map = [
+            // SPEC 0021 — awaiting_pickup ⇒ order vẫn ở "Chờ bàn giao" (ready_to_ship); chưa shipped vì
+            // shipper chưa thực sự lấy hàng. Chỉ khi GHN báo `picked` ⇒ shipment.picked_up ⇒ order.shipped.
+            Shipment::STATUS_AWAITING_PICKUP => S::ReadyToShip,
             Shipment::STATUS_PICKED_UP => S::Shipped, Shipment::STATUS_IN_TRANSIT => S::Shipped,
             Shipment::STATUS_DELIVERED => S::Delivered, Shipment::STATUS_FAILED => S::DeliveryFailed,
             Shipment::STATUS_RETURNED => S::Returning,

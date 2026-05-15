@@ -25,6 +25,8 @@ class ManualCarrierConnector extends AbstractCarrierConnector
 
     public function capabilities(): array
     {
+        // Manual KHÔNG có cap `awaiting_pickup_flow` — không có hệ thống nào "lấy hàng" cho mình.
+        // markPacked sẽ đặt shipment.status = `packed` (behavior cũ; user tự bàn giao).
         return ['createShipment'];
     }
 

@@ -53,6 +53,13 @@ class Shipment extends Model
     /** Parcel packed (label printed, goods boxed) — waiting to be handed over to the carrier. SPEC 0009. */
     public const STATUS_PACKED = 'packed';
 
+    /**
+     * SPEC 0021 — carrier (GHN/GHTK/...) đã nhận đơn qua API + cấp tracking, đang chờ shipper tới lấy.
+     * State trung gian giữa `packed` (ta đã đóng gói) và `picked_up` (carrier đã thực sự lấy hàng).
+     * FE render "Chờ lấy hàng". Áp dụng cho carrier có capability `defer_dispatch`.
+     */
+    public const STATUS_AWAITING_PICKUP = 'awaiting_pickup';
+
     public const STATUS_PICKED_UP = 'picked_up';
 
     public const STATUS_IN_TRANSIT = 'in_transit';
@@ -66,7 +73,7 @@ class Shipment extends Model
     public const STATUS_CANCELLED = 'cancelled';
 
     /** Statuses meaning "still actionable" — used to enforce 1 active shipment per order. */
-    public const OPEN_STATUSES = [self::STATUS_PENDING, self::STATUS_CREATED, self::STATUS_PACKED, self::STATUS_PICKED_UP, self::STATUS_IN_TRANSIT, self::STATUS_DELIVERED, self::STATUS_FAILED, self::STATUS_RETURNED];
+    public const OPEN_STATUSES = [self::STATUS_PENDING, self::STATUS_CREATED, self::STATUS_PACKED, self::STATUS_AWAITING_PICKUP, self::STATUS_PICKED_UP, self::STATUS_IN_TRANSIT, self::STATUS_DELIVERED, self::STATUS_FAILED, self::STATUS_RETURNED];
 
     /** "Already handed over to / collected by the carrier" — packing/handover is done. */
     public const HANDED_OVER_STATUSES = [self::STATUS_PICKED_UP, self::STATUS_IN_TRANSIT, self::STATUS_DELIVERED];
@@ -109,5 +116,23 @@ class Shipment extends Model
     public function isCancelled(): bool
     {
         return $this->status === self::STATUS_CANCELLED;
+    }
+
+    /** Nhãn tiếng Việt cho trạng thái vận đơn — dùng ở OrderResource.shipment.status_label (FE). */
+    public static function statusLabel(string $status): string
+    {
+        return match ($status) {
+            self::STATUS_PENDING => 'Chờ tạo vận đơn',
+            self::STATUS_CREATED => 'Đã tạo vận đơn',
+            self::STATUS_PACKED => 'Đã đóng gói',
+            self::STATUS_AWAITING_PICKUP => 'Chờ lấy hàng',
+            self::STATUS_PICKED_UP => 'Đã giao ĐVVC',
+            self::STATUS_IN_TRANSIT => 'Đang vận chuyển',
+            self::STATUS_DELIVERED => 'Đã giao',
+            self::STATUS_FAILED => 'Giao thất bại',
+            self::STATUS_RETURNED => 'Đã hoàn',
+            self::STATUS_CANCELLED => 'Đã huỷ',
+            default => $status,
+        };
     }
 }

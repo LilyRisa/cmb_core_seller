@@ -29,6 +29,12 @@ return [
     'ghn_base_url' => env('GHN_BASE_URL', 'https://online-gateway.ghn.vn'),
 
     /*
+    | (SPEC 0021) Optional fallback GHN token cho master-data (provinces/districts/wards) khi
+    | tenant chưa cấu hình GHN account. Master-data global — token nào hợp lệ cũng dùng được.
+    */
+    'ghn_bootstrap_token' => env('GHN_BOOTSTRAP_TOKEN'),
+
+    /*
     | In ấn — khổ phiếu mặc định (mỗi đơn 1 trang). Tenant có thể đặt riêng ở tenant.settings.print.label_size.
     | Giá trị: A4 | A5 | A6 | 100x150mm | 80mm  (xem PrintTemplates::paperRule). SPEC 0006 §4.4 / 0013.
     */

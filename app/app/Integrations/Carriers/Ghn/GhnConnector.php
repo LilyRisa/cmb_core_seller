@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Integrations\Carriers\Ghn;
 use CMBcoreSeller\Integrations\Carriers\Support\AbstractCarrierConnector;
 use Illuminate\Support\Carbon;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\Request;
 
 /**
  * GHN (Giao Hàng Nhanh) carrier connector — real public API. Credentials per tenant
@@ -26,7 +27,37 @@ class GhnConnector extends AbstractCarrierConnector
 
     public function capabilities(): array
     {
-        return ['createShipment', 'getLabel', 'getTracking', 'cancel'];
+        // SPEC 0021 — `awaiting_pickup_flow`: sau khi user "Sẵn sàng bàn giao", shipment vào trạng thái
+        //   `awaiting_pickup` (Chờ lấy hàng) thay vì `packed` — đợi shipper GHN tới lấy. Không phải gọi
+        //   thêm API GHN (createOrder ở "Chuẩn bị hàng" đã đăng ký package vào hệ thống GHN).
+        // `webhook`: GHN có webhook callback trạng thái — bật để CarrierWebhookController nhận & ingest.
+        // Carrier khác (GHTK/J&T/manual) muốn dùng luồng này chỉ cần thêm capability tương ứng — core
+        // không hard-code 'ghn'.
+        return ['createShipment', 'getLabel', 'getTracking', 'cancel', 'awaiting_pickup_flow', 'webhook'];
+    }
+
+    /**
+     * Validate địa chỉ GHN-required fields trước khi gọi createOrder — fail sớm với message tiếng Việt rõ ràng.
+     * Trả null nếu OK, string error nếu thiếu. ShipmentService gọi trước `createShipment`.
+     */
+    public function validateShipmentPayload(array $shipment): ?string
+    {
+        $r = (array) ($shipment['recipient'] ?? []);
+        if (empty($r['district_id']) && empty($shipment['to_district_id'])) {
+            return 'Đơn thiếu mã quận của GHN (district_id) — cập nhật địa chỉ giao hàng theo chuẩn GHN.';
+        }
+        if (empty($r['ward_code']) && empty($shipment['to_ward_code'])) {
+            return 'Đơn thiếu mã phường của GHN (ward_code) — cập nhật địa chỉ giao hàng theo chuẩn GHN.';
+        }
+        $s = (array) ($shipment['sender'] ?? []);
+        if (empty($s['district_id'])) {
+            return 'Cài đặt GHN chưa có "Mã quận kho hàng" (from_district_id). Vào Cài đặt → ĐVVC để bổ sung.';
+        }
+        if (empty($s['name']) || empty($s['phone']) || empty($s['address'])) {
+            return 'Cài đặt GHN thiếu tên/SĐT/địa chỉ kho hàng. Vào Cài đặt → ĐVVC để bổ sung.';
+        }
+
+        return null;
     }
 
     private function client(array $account): GhnClient
@@ -42,12 +73,25 @@ class GhnConnector extends AbstractCarrierConnector
 
     public function createShipment(array $account, array $shipment): array
     {
+        // Fail-fast với message tiếng Việt rõ ràng nếu thiếu dữ liệu bắt buộc của GHN.
+        if ($err = $this->validateShipmentPayload($shipment)) {
+            throw new RuntimeException($err);
+        }
         $r = $shipment['recipient'] ?? [];
+        $s = $shipment['sender'] ?? [];
         $p = $shipment['parcel'] ?? [];
         $cod = (int) ($shipment['cod_amount'] ?? 0);
         $payload = array_filter([
-            'payment_type_id' => $cod > 0 ? 2 : 1,           // 2 = buyer pays (COD), 1 = shop pays
+            'payment_type_id' => $cod > 0 ? 2 : 1,           // 2 = người nhận trả phí (thường COD), 1 = shop trả phí
             'required_note' => $shipment['required_note'] ?? 'KHONGCHOXEMHANG',
+            // Người gửi (kho hàng của shop) — GHN yêu cầu khi shop chưa setup default pickup ở dashboard.
+            'from_name' => $s['name'] ?? null,
+            'from_phone' => $s['phone'] ?? null,
+            'from_address' => $s['address'] ?? null,
+            'from_ward_name' => $s['ward_name'] ?? null,
+            'from_district_name' => $s['district_name'] ?? null,
+            'from_province_name' => $s['province_name'] ?? null,
+            // Người nhận (buyer).
             'to_name' => $r['name'] ?? null,
             'to_phone' => $r['phone'] ?? null,
             'to_address' => $r['address'] ?? null,
@@ -76,6 +120,30 @@ class GhnConnector extends AbstractCarrierConnector
             'status' => 'created',
             'fee' => (int) ($data['total_fee'] ?? 0),
             'raw' => $data,
+        ];
+    }
+
+    /**
+     * Parse GHN webhook push (callback URL cấu hình ở GHN dashboard hoặc qua API setShopWebhook).
+     * GHN gửi JSON body: `{ "CODStatusID":?, "OrderCode":"...", "Status":"picking|picked|delivering|...",
+     *   "Time":"YYYY-MM-DDTHH:MM:SS+07:00", ... }`. Verify token = header `Token` (so với credential.token).
+     * Controller xử lý verify; ở đây chỉ parse + chuẩn hoá.
+     *
+     * @return array{tracking_no:?string, raw_status:?string, status:?string, occurred_at:string, raw:array}
+     */
+    public function parseWebhook(Request $request): array
+    {
+        $body = (array) ($request->toArray() ?: $request->getPayload()->all());
+        $tracking = (string) ($body['OrderCode'] ?? $body['order_code'] ?? '');
+        $rawStatus = (string) ($body['Status'] ?? $body['status'] ?? '');
+        $occurredAt = $this->parseTime($body['Time'] ?? $body['time'] ?? null);
+
+        return [
+            'tracking_no' => $tracking !== '' ? $tracking : null,
+            'raw_status' => $rawStatus !== '' ? $rawStatus : null,
+            'status' => $rawStatus !== '' ? GhnStatusMap::toShipmentStatus($rawStatus) : null,
+            'occurred_at' => $occurredAt,
+            'raw' => $body,
         ];
     }
 

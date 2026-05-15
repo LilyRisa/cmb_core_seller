@@ -75,9 +75,9 @@ class Order extends Model
         'tenant_id', 'source', 'channel_account_id', 'customer_id', 'external_order_id', 'order_number',
         'status', 'raw_status', 'payment_status', 'buyer_name', 'buyer_phone', 'shipping_address',
         'currency', 'item_total', 'shipping_fee', 'platform_discount', 'seller_discount', 'tax',
-        'cod_amount', 'grand_total', 'is_cod', 'fulfillment_type', 'carrier',
+        'cod_amount', 'prepaid_amount', 'surcharge', 'grand_total', 'is_cod', 'fulfillment_type', 'carrier',
         'placed_at', 'paid_at', 'shipped_at', 'delivered_at', 'completed_at', 'cancelled_at', 'cancel_reason',
-        'note', 'tags', 'has_issue', 'issue_reason', 'packages', 'raw_payload', 'source_updated_at', 'last_synced_at',
+        'note', 'tags', 'has_issue', 'issue_reason', 'packages', 'meta', 'raw_payload', 'source_updated_at', 'last_synced_at',
     ];
 
     protected $hidden = ['buyer_phone', 'raw_payload'];
@@ -93,9 +93,11 @@ class Order extends Model
             'has_issue' => 'boolean',
             'tags' => 'array',
             'packages' => 'array',
+            'meta' => 'array',
             'raw_payload' => 'array',
             'item_total' => 'integer', 'shipping_fee' => 'integer', 'platform_discount' => 'integer',
-            'seller_discount' => 'integer', 'tax' => 'integer', 'cod_amount' => 'integer', 'grand_total' => 'integer',
+            'seller_discount' => 'integer', 'tax' => 'integer', 'cod_amount' => 'integer',
+            'prepaid_amount' => 'integer', 'surcharge' => 'integer', 'grand_total' => 'integer',
             'placed_at' => 'datetime', 'paid_at' => 'datetime', 'shipped_at' => 'datetime',
             'delivered_at' => 'datetime', 'completed_at' => 'datetime', 'cancelled_at' => 'datetime',
             'source_updated_at' => 'datetime', 'last_synced_at' => 'datetime',

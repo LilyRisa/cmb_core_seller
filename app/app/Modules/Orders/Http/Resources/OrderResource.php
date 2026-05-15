@@ -57,6 +57,10 @@ class OrderResource extends JsonResource
             'seller_discount' => $this->seller_discount,
             'tax' => $this->tax,
             'cod_amount' => $this->cod_amount,
+            // SPEC 0021 — UI mới (taodon.png): "Tiền chuyển khoản" + "Phụ thu".
+            'prepaid_amount' => (int) ($this->prepaid_amount ?? 0),
+            'surcharge' => (int) ($this->surcharge ?? 0),
+            'meta' => $this->meta ?? null,
             'grand_total' => $this->grand_total,
             'profit' => is_array($profit) ? $profit : null,   // {cogs, platform_fee, shipping_fee, estimated_profit, platform_fee_pct, cost_complete} — SPEC 0012
             'out_of_stock' => (bool) $this->getAttribute('out_of_stock'),   // đơn có ≥1 SKU âm tồn ⇒ chặn "Chuẩn bị hàng" — SPEC 0013
@@ -82,7 +86,15 @@ class OrderResource extends JsonResource
             'shipment' => $this->whenLoaded('shipments', function () {
                 $s = $this->shipments->first(fn ($x) => $x->status !== 'cancelled') ?? $this->shipments->first();
 
-                return $s ? ['id' => $s->id, 'carrier' => $s->carrier, 'tracking_no' => $s->tracking_no, 'status' => $s->status, 'label_url' => $s->label_url, 'has_label' => filled($s->label_path), 'print_count' => (int) $s->print_count, 'last_printed_at' => $s->last_printed_at?->toIso8601String(), 'packed_at' => $s->packed_at?->toIso8601String()] : null;
+                return $s ? [
+                    'id' => $s->id, 'carrier' => $s->carrier, 'tracking_no' => $s->tracking_no,
+                    'status' => $s->status,
+                    // SPEC 0021 — nhãn tiếng Việt theo trạng thái vận đơn (vd `awaiting_pickup` → "Chờ lấy hàng").
+                    'status_label' => \CMBcoreSeller\Modules\Fulfillment\Models\Shipment::statusLabel((string) $s->status),
+                    'label_url' => $s->label_url, 'has_label' => filled($s->label_path),
+                    'print_count' => (int) $s->print_count, 'last_printed_at' => $s->last_printed_at?->toIso8601String(),
+                    'packed_at' => $s->packed_at?->toIso8601String(),
+                ] : null;
             }),
         ];
     }

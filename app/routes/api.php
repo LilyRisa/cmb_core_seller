@@ -137,6 +137,8 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
 
             // --- Customers (Phase 2 / SPEC 0002) — internal buyer registry & reputation ---
             Route::post('customers/merge', [CustomerController::class, 'merge'])->name('customers.merge');
+            // SPEC 0021 — tra cứu nhanh theo SĐT (UI tạo đơn). Phải đặt TRƯỚC route `{id}` để khớp đường.
+            Route::get('customers/lookup', [CustomerController::class, 'lookup'])->name('customers.lookup');
             Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');
             Route::get('customers/{id}', [CustomerController::class, 'show'])->whereNumber('id')->name('customers.show');
             Route::get('customers/{id}/orders', [CustomerController::class, 'orders'])->whereNumber('id')->name('customers.orders');
@@ -148,6 +150,10 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
 
             // --- Fulfillment (Phase 3 / SPEC 0006) — vận đơn, ĐVVC, in tem, picking/packing, scan-to-pack ---
             Route::get('carriers', [CarrierAccountController::class, 'carriers'])->name('carriers.index');
+            // SPEC 0021 — master-data VN cho AddressPicker khi tạo đơn manual. Cache 24h, không tenant-scoped.
+            Route::get('master-data/provinces', [\CMBcoreSeller\Modules\Fulfillment\Http\Controllers\MasterDataController::class, 'provinces'])->name('master-data.provinces');
+            Route::get('master-data/districts', [\CMBcoreSeller\Modules\Fulfillment\Http\Controllers\MasterDataController::class, 'districts'])->name('master-data.districts');
+            Route::get('master-data/wards', [\CMBcoreSeller\Modules\Fulfillment\Http\Controllers\MasterDataController::class, 'wards'])->name('master-data.wards');
             Route::get('carrier-accounts', [CarrierAccountController::class, 'index'])->name('carrier-accounts.index');
             Route::post('carrier-accounts', [CarrierAccountController::class, 'store'])->name('carrier-accounts.store');
             Route::patch('carrier-accounts/{id}', [CarrierAccountController::class, 'update'])->whereNumber('id')->name('carrier-accounts.update');

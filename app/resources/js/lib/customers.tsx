@@ -79,6 +79,27 @@ function useScopedApi() {
     return useMemo(() => (tenantId == null ? null : tenantApi(tenantId)), [tenantId]);
 }
 
+/** SPEC 0021 — tra cứu nhanh khách theo SĐT lúc tạo đơn thủ công (taodon.png). Trả khách + địa chỉ cũ + đơn đang xử lý + đơn đang/đã hoàn (FE hiện cảnh báo). */
+export interface CustomerAddress { name?: string | null; phone?: string | null; address?: string | null; detail?: string | null; ward?: string | null; ward_code?: string | null; district?: string | null; district_id?: number | null; province?: string | null; city?: string | null; province_id?: number | null }
+export interface CustomerLookupOrder { id: number; order_number: string | null; status: string; placed_at: string | null; grand_total: number; source: string }
+export interface CustomerLookupResult { customer: Customer | null; addresses: CustomerAddress[]; open_orders: CustomerLookupOrder[]; returning_orders: CustomerLookupOrder[] }
+
+export function useCustomerLookup(phone: string | undefined | null) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    const normalized = (phone ?? '').replace(/[^\d+]/g, '');
+    const enough = normalized.length >= 9;
+    return useQuery({
+        queryKey: ['customer-lookup', tenantId, normalized],
+        enabled: api != null && enough,
+        staleTime: 30_000,
+        queryFn: async () => {
+            const { data } = await api!.get<{ data: CustomerLookupResult }>('/customers/lookup', { params: { phone: normalized } });
+            return data.data;
+        },
+    });
+}
+
 export function useCustomers(filters: CustomerFilters) {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();

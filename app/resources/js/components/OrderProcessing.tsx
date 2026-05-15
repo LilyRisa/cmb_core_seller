@@ -5,6 +5,7 @@ import type { InputRef } from 'antd';
 import { CarOutlined, CheckCircleOutlined, CloseCircleOutlined, ExportOutlined, InboxOutlined, PrinterOutlined, ReloadOutlined, ScanOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { ChannelBadge } from '@/components/ChannelBadge';
+import { CarrierAccountPicker } from '@/components/CarrierAccountPicker';
 import { MoneyText, DateText } from '@/components/MoneyText';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
@@ -16,7 +17,7 @@ import {
 } from '@/lib/fulfillment';
 
 function ShipmentStatusTag({ status }: { status: string }) {
-    const color = { delivered: 'green', cancelled: 'default', failed: 'red', returned: 'orange', picked_up: 'geekblue', packed: 'blue', in_transit: 'cyan', created: 'gold', pending: 'default' }[status] ?? 'default';
+    const color = { delivered: 'green', cancelled: 'default', failed: 'red', returned: 'orange', picked_up: 'geekblue', packed: 'blue', awaiting_pickup: 'cyan', in_transit: 'cyan', created: 'gold', pending: 'default' }[status] ?? 'default';
     return <Tag color={color}>{SHIPMENT_STATUS_LABEL[status] ?? status}</Tag>;
 }
 
@@ -109,6 +110,9 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
     const canPrint = useCan('fulfillment.print');
     const sh = order.shipment;
     const busy = ship.isPending || pack.isPending || handover.isPending || createPrint.isPending || refetchSlip.isPending;
+    // SPEC 0021 — đơn manual cần chọn ĐVVC trước khi "Chuẩn bị hàng" (đẩy sang GHN/...). Đơn sàn KHÔNG cần.
+    const [carrierPicker, setCarrierPicker] = useState(false);
+    const isManual = order.source === 'manual' || !order.channel_account_id;
     if (busy) return <Spin size="small" />;
 
     const err = (e: unknown) => message.error(errorMessage(e));
@@ -147,12 +151,21 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
         });
     };
     const printInvoice = () => createPrint.mutate({ type: 'invoice', order_ids: [order.id] }, { onSuccess: (j) => onPrint(j.id), onError: err });
-    // "Chuẩn bị hàng": hệ thống tự lấy mã vận đơn + phiếu giao hàng của sàn → đơn "Chờ xử lý" → "Đang xử lý". Không cần thao tác gì trên app sàn.
-    const runPrepare = () => ship.mutate({ orderId: order.id }, { onSuccess: () => message.success('Đã chuẩn bị hàng — đang lấy phiếu giao hàng của sàn. Đơn chuyển sang "Đang xử lý".'), onError: err });
+    // "Chuẩn bị hàng": đơn sàn ⇒ hệ thống tự lấy mã vận đơn + phiếu giao hàng của sàn. Đơn manual ⇒ FE mở
+    // CarrierAccountPicker để user chọn ĐVVC (GHN / GHTK / manual / ...), sau đó BE gọi connector.createShipment
+    // với `carrier_account_id` đã chọn. SPEC 0021.
+    const runPrepare = (carrierAccountId?: number | null) => ship.mutate(
+        { orderId: order.id, ...(carrierAccountId != null ? { carrier_account_id: carrierAccountId } : {}) },
+        { onSuccess: () => { message.success('Đã chuẩn bị hàng — đang lấy phiếu giao hàng. Đơn chuyển sang "Đang xử lý".'); setCarrierPicker(false); }, onError: err },
+    );
     const prepare = () => {
+        const proceed = () => {
+            if (isManual) setCarrierPicker(true);
+            else runPrepare();
+        };
         if (order.profit && order.profit.estimated_profit < 0) {
-            Modal.confirm({ title: 'Đơn này lợi nhuận ước tính ÂM', content: `Lợi nhuận ước tính: ${order.profit.estimated_profit.toLocaleString('vi-VN')} ₫ (tổng tiền không bù được phí sàn + giá vốn). Vẫn chuẩn bị hàng?`, okText: 'Vẫn chuẩn bị', okButtonProps: { danger: true }, cancelText: 'Để tôi xem lại', onOk: runPrepare });
-        } else { runPrepare(); }
+            Modal.confirm({ title: 'Đơn này lợi nhuận ước tính ÂM', content: `Lợi nhuận ước tính: ${order.profit.estimated_profit.toLocaleString('vi-VN')} ₫ (tổng tiền không bù được phí sàn + giá vốn). Vẫn chuẩn bị hàng?`, okText: 'Vẫn chuẩn bị', okButtonProps: { danger: true }, cancelText: 'Để tôi xem lại', onOk: proceed });
+        } else { proceed(); }
     };
     // "Đã gói & sẵn sàng bàn giao" — bảo đảm có vận đơn rồi markPacked (processing → ready_to_ship).
     const markReady = () => (sh
@@ -197,7 +210,18 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
     // điện tử / receipt do sàn cấp cho người mua — app tự sinh hoá đơn nội bộ sẽ trùng lặp & gây nhầm
     // lẫn. Đơn sàn chỉ cần "In phiếu giao hàng" + "In tem sàn".
     if (canPrint && !order.channel_account_id) actions.push(<a key="inv" onClick={printInvoice}>In hoá đơn</a>);
-    return <Space size={8} wrap>{actions}</Space>;
+    return (
+        <>
+            <Space size={8} wrap>{actions}</Space>
+            <CarrierAccountPicker
+                open={carrierPicker}
+                count={1}
+                loading={ship.isPending}
+                onCancel={() => setCarrierPicker(false)}
+                onConfirm={(cid) => runPrepare(cid)}
+            />
+        </>
+    );
 }
 
 // ---- "Quét" tab (pack / handover modes) -------------------------------------

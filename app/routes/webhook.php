@@ -2,6 +2,7 @@
 
 use CMBcoreSeller\Modules\Billing\Http\Controllers\PaymentWebhookController;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\WebhookController;
+use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\CarrierWebhookController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -31,3 +32,13 @@ foreach (['tiktok', 'shopee', 'lazada'] as $provider) {
 Route::post('payments/{gateway}', [PaymentWebhookController::class, 'handle'])
     ->whereIn('gateway', ['sepay', 'vnpay', 'momo'])
     ->name('payments');
+
+/*
+| Carrier webhooks (SPEC 0021): /webhook/carriers/{carrier}
+|   POST /webhook/carriers/ghn   — GHN push trạng thái (Token header verify)
+| Mở rộng: thêm GHTK/J&T chỉ cần connector khai báo cap `webhook` + parseWebhook;
+| controller chung tự xử lý.
+*/
+Route::post('carriers/{carrier}', [CarrierWebhookController::class, 'handle'])
+    ->whereIn('carrier', ['ghn', 'ghtk', 'jt', 'viettelpost'])
+    ->name('carriers');
