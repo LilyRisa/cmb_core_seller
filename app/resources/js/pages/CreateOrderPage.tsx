@@ -159,25 +159,9 @@ export function CreateOrderPage() {
     }, [items, summary]);
 
     // ---- submit ----
-    const submit = (andPrint?: boolean) => form.validateFields().then((v) => {
-        if (items.length === 0) { message.error('Cần ít nhất một dòng hàng.'); return; }
-        if (items.some((l) => l.uploading)) { message.error('Đang tải ảnh — vui lòng đợi.'); return; }
-        if (items.some((l) => !l.sku_id && l.name.trim() === '')) { message.error('Dòng "sản phẩm nhanh" phải có tên.'); return; }
-        // B (Sprint 2) — bắt buộc: tên người nhận + SĐT + địa chỉ chi tiết + tỉnh + ward (district yêu cầu cho format='old').
-        if (!(v.recipient_name ?? '').trim()) { message.error('Cần điền tên người nhận.'); return; }
-        const recipientPhone = (v.recipient_phone ?? phone ?? '').trim();
-        if (!recipientPhone) { message.error('Cần điền số điện thoại người nhận.'); return; }
-        if (!/^(0|\+84)\d{9,10}$/.test(recipientPhone)) { message.error('Số điện thoại người nhận không đúng định dạng Việt Nam (vd 0912xxxxxxx).'); return; }
-        if (!(v.recipient_address ?? '').trim()) { message.error('Cần điền địa chỉ chi tiết.'); return; }
-        const hasProvince = !!(shipAddress.province || shipAddress.province_code);
-        // format='new' (2 cấp) không có district ⇒ chỉ kiểm tra cho 'old'.
-        const isOldFormat = shipAddress.format === 'old';
-        const hasDistrict = !isOldFormat || !!(shipAddress.district || shipAddress.district_code);
-        const hasWard = !!(shipAddress.ward || shipAddress.ward_code);
-        if (!hasProvince || !hasDistrict || !hasWard) {
-            message.error(isOldFormat ? 'Cần chọn đủ Tỉnh / Quận / Phường.' : 'Cần chọn đủ Tỉnh / Phường (chuẩn mới 2 cấp).');
-            return;
-        }
+    // B7 fix — refactor: tách buildPayload + sendOrder thành function declaration top-level closure.
+    // Trước đây `function sendOrder()` declared in block scope; hoisting trong strict mode block fragile.
+    const buildPayload = (v: Record<string, unknown>) => {
         const lines = items.map((l) => ({
             sku_id: l.sku_id,
             name: l.sku_id ? undefined : l.name.trim(),
@@ -185,32 +169,14 @@ export function CreateOrderPage() {
             quantity: l.quantity, unit_price: l.unit_price, discount: l.discount,
         }));
         const isCod = !!v.is_cod;
-        // U15 (Sprint 2) — Khách bị chặn ⇒ confirm trước khi submit.
-        if (customerData?.customer?.is_blocked) {
-            return new Promise<void>((resolve) => {
-                Modal.confirm({
-                    title: 'Khách này đang BỊ CHẶN',
-                    width: 480,
-                    content: <span>Khách <b>{customerData.customer!.name ?? customerData.customer!.phone_masked}</b> đã bị chặn trong hệ thống. Vẫn tạo đơn?</span>,
-                    okText: 'Vẫn tạo đơn', okButtonProps: { danger: true }, cancelText: 'Huỷ',
-                    onOk: () => { sendOrder(); resolve(); },
-                    onCancel: () => resolve(),
-                });
-            });
-        }
-        sendOrder();
-        // B1 đã sửa BE: FE chỉ gửi cod_amount khi user override (hiện không có UI override) ⇒ bỏ qua.
-        // BE tự tính: cod_amount = max(0, grand_total - prepaid_amount). Sprint 1 P0.
-        function sendOrder() { create.mutate({
-            sub_source: v.sub_source || undefined,
-            status: 'processing',
-            buyer: { name: v.buyer_name || undefined, phone: phone || undefined },
+        return {
+            sub_source: (v.sub_source as string) || undefined,
+            status: 'processing' as const,
+            buyer: { name: (v.buyer_name as string) || undefined, phone: phone || undefined },
             recipient: {
-                name: v.recipient_name || v.buyer_name || undefined,
-                phone: v.recipient_phone || phone || undefined,
-                address: v.recipient_address || undefined,
-                // SPEC 0021 — code admin VN (province_code/district_code/ward_code là string code của
-                // bảng admin_*, không phải mã GHN). BE resolve sang mã ĐVVC lúc createShipment.
+                name: (v.recipient_name as string) || (v.buyer_name as string) || undefined,
+                phone: (v.recipient_phone as string) || phone || undefined,
+                address: (v.recipient_address as string) || undefined,
                 address_format: shipAddress.format || 'new',
                 province: shipAddress.province || undefined,
                 province_code: shipAddress.province_code || undefined,
@@ -218,40 +184,77 @@ export function CreateOrderPage() {
                 district_code: shipAddress.district_code || undefined,
                 ward: shipAddress.ward || undefined,
                 ward_code: shipAddress.ward_code || undefined,
-                expected_at: v.expected_delivery_date ? dayjs(v.expected_delivery_date).toISOString() : undefined,
+                expected_at: v.expected_delivery_date ? dayjs(v.expected_delivery_date as string).toISOString() : undefined,
             },
             items: lines,
             free_shipping: !!v.free_shipping,
-            shipping_fee: v.free_shipping ? 0 : (v.shipping_fee ?? 0),
-            order_discount: v.order_discount ?? 0,
-            prepaid_amount: v.prepaid_amount ?? 0,
-            surcharge: v.surcharge ?? 0,
+            shipping_fee: v.free_shipping ? 0 : ((v.shipping_fee as number) ?? 0),
+            order_discount: (v.order_discount as number) ?? 0,
+            prepaid_amount: (v.prepaid_amount as number) ?? 0,
+            surcharge: (v.surcharge as number) ?? 0,
             is_cod: isCod,
-            note: v.note_internal || undefined,
+            note: (v.note_internal as string) || undefined,
             tags,
             meta: {
-                assignee_user_id: v.assignee_user_id || undefined,
-                care_user_id: v.care_user_id || undefined,
-                marketer_user_id: v.marketer_user_id || undefined,
-                expected_delivery_date: v.expected_delivery_date ? dayjs(v.expected_delivery_date).format('YYYY-MM-DD') : undefined,
-                gender: v.gender || undefined,
-                dob: v.dob ? dayjs(v.dob).format('YYYY-MM-DD') : undefined,
-                email: v.email || undefined,
-                print_note: v.note_print || undefined,
+                assignee_user_id: (v.assignee_user_id as number) || undefined,
+                care_user_id: (v.care_user_id as number) || undefined,
+                marketer_user_id: (v.marketer_user_id as number) || undefined,
+                expected_delivery_date: v.expected_delivery_date ? dayjs(v.expected_delivery_date as string).format('YYYY-MM-DD') : undefined,
+                gender: (v.gender as string) || undefined,
+                dob: v.dob ? dayjs(v.dob as string).format('YYYY-MM-DD') : undefined,
+                email: (v.email as string) || undefined,
+                print_note: (v.note_print as string) || undefined,
                 collect_fee_on_return_only: !!v.collect_fee_on_return_only,
-                // U8 (Sprint 2) — attachments tách khỏi note, lưu vào meta.attachments.
                 attachments: attachments.length > 0 ? attachments : undefined,
-                // preferred_carrier_account_id giờ chọn ở bước "Chuẩn bị hàng" (CarrierAccountPicker) —
-                // không thu thập ở form tạo đơn nữa (B - Sprint 2).
             },
-        }, {
+        };
+    };
+
+    const sendOrder = (andPrint: boolean, payload: ReturnType<typeof buildPayload>) => {
+        create.mutate(payload, {
             onSuccess: (o) => {
                 try { localStorage.removeItem(DRAFT_KEY); } catch { /* */ }
                 message.success(andPrint ? 'Đã tạo đơn — chuyển sang in phiếu giao hàng.' : 'Đã tạo đơn');
                 navigate(`/orders/${o.id}${andPrint ? '?print=1' : ''}`);
             },
             onError: (e) => message.error(errorMessage(e)),
-        }); }
+        });
+    };
+
+    const submit = (andPrint?: boolean) => form.validateFields().then((v) => {
+        if (items.length === 0) { message.error('Cần ít nhất một dòng hàng.'); return; }
+        if (items.some((l) => l.uploading)) { message.error('Đang tải ảnh — vui lòng đợi.'); return; }
+        if (items.some((l) => !l.sku_id && l.name.trim() === '')) { message.error('Dòng "sản phẩm nhanh" phải có tên.'); return; }
+        if (!(v.recipient_name ?? '').trim()) { message.error('Cần điền tên người nhận.'); return; }
+        const recipientPhone = (v.recipient_phone ?? phone ?? '').trim();
+        if (!recipientPhone) { message.error('Cần điền số điện thoại người nhận.'); return; }
+        if (!/^(0|\+84)\d{9,10}$/.test(recipientPhone)) { message.error('Số điện thoại người nhận không đúng định dạng Việt Nam (vd 0912xxxxxxx).'); return; }
+        if (!(v.recipient_address ?? '').trim()) { message.error('Cần điền địa chỉ chi tiết.'); return; }
+        const hasProvince = !!(shipAddress.province || shipAddress.province_code);
+        const isOldFormat = shipAddress.format === 'old';
+        const hasDistrict = !isOldFormat || !!(shipAddress.district || shipAddress.district_code);
+        const hasWard = !!(shipAddress.ward || shipAddress.ward_code);
+        if (!hasProvince || !hasDistrict || !hasWard) {
+            message.error(isOldFormat ? 'Cần chọn đủ Tỉnh / Quận / Phường.' : 'Cần chọn đủ Tỉnh / Phường (chuẩn mới 2 cấp).');
+            return;
+        }
+
+        const payload = buildPayload(v);
+
+        // B6 fix — capture snapshot customer trước khi mở modal. Phòng trường hợp `customerData` đổi
+        // giữa lúc user click confirm (vd lookup re-fetch trả null) ⇒ tránh `customerData!.customer!` crash.
+        const blockedCustomer = customerData?.customer?.is_blocked ? customerData.customer : null;
+        if (blockedCustomer) {
+            Modal.confirm({
+                title: 'Khách này đang BỊ CHẶN',
+                width: 480,
+                content: <span>Khách <b>{blockedCustomer.name ?? blockedCustomer.phone_masked ?? 'chưa rõ'}</b> đã bị chặn trong hệ thống. Vẫn tạo đơn?</span>,
+                okText: 'Vẫn tạo đơn', okButtonProps: { danger: true }, cancelText: 'Huỷ',
+                onOk: () => sendOrder(!!andPrint, payload),
+            });
+            return;
+        }
+        sendOrder(!!andPrint, payload);
     }).catch(() => message.error('Vui lòng kiểm tra lại thông tin.'));
 
     // F2 / F4 hotkeys — chỉ trigger từ outside input
