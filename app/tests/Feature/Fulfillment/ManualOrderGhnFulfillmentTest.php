@@ -115,7 +115,8 @@ class ManualOrderGhnFulfillmentTest extends TestCase
             ->postJson("/api/v1/orders/{$orderId}/ship", ['carrier_account_id' => $this->ghnAccount->getKey()])
             ->assertCreated();
 
-        $resp->assertJsonPath('data.carrier', 'ghn')
+        // SPEC 0021 — đơn manual + GHN ⇒ carrier lưu prefix 'manual_ghn' để phân biệt với đơn sàn qua GHN.
+        $resp->assertJsonPath('data.carrier', 'manual_ghn')
             ->assertJsonPath('data.tracking_no', 'GH-ORDER-001')
             ->assertJsonPath('data.status', 'created');
 

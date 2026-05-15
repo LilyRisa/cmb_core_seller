@@ -1,22 +1,24 @@
-import { useMemo, useState } from 'react';
-import { Empty, Input, Radio, Segmented, Spin, Tabs, Typography } from 'antd';
-import { EnvironmentOutlined, SearchOutlined } from '@ant-design/icons';
-import { useDistricts, useProvinces, useWards, type AddressFormat } from '@/lib/masterData';
+import { useEffect, useMemo, useState } from 'react';
+import { Button, Empty, Input, Radio, Segmented, Space, Spin, Tabs, Tag, Typography } from 'antd';
+import { ArrowLeftOutlined, CheckOutlined, EnvironmentOutlined, SearchOutlined } from '@ant-design/icons';
+import { useDistricts, useProvinces, useWards, type AddressFormat, type District, type Province, type Ward } from '@/lib/masterData';
+import { smartFilter } from '@/lib/vnAddressMatch';
 import type { CustomerAddress } from '@/lib/customers';
 
 /**
  * SPEC 0021 — AddressPicker dùng trong tạo/sửa đơn manual.
  *
- * Tab "Địa chỉ mới" / "Địa chỉ cũ" giờ ám chỉ HỆ HÀNH CHÍNH chứ không phải nguồn cache khách:
- *   - "Địa chỉ mới (2 cấp)": Tỉnh → Phường/Xã, dữ liệu từ AddressKit cas.so. Áp dụng sau cải
- *     cách hành chính VN 2025 (sáp nhập tỉnh + bỏ cấp quận/huyện).
- *   - "Địa chỉ cũ (3 cấp)": Tỉnh → Quận/Huyện → Phường/Xã, dữ liệu từ provinces.open-api.vn.
- *     Vẫn cần thiết vì nhiều ĐVVC (GHN, GHTK, J&T...) đang dùng code cũ trong tài liệu API.
+ * Tab "Danh mục hành chính" — Segmented chuyển 2 chuẩn:
+ *   - "Mới (2 cấp)": Tỉnh → Phường/Xã (AddressKit cas.so, sau 2025).
+ *   - "Cũ (3 cấp)": Tỉnh → Quận → Phường/Xã (provinces.open-api.vn, pre-2025).
  *
- * Tab phụ "Từ khách cũ" nằm ngang để tận dụng `customer.addresses_meta` (từ lookup theo SĐT).
+ * Tab "Từ khách cũ" — `customer.addresses_meta` (lookup theo SĐT).
  *
- * Component KHÔNG quản state địa chỉ chính — chỉ phát `onPick(value)`. Cha (CreateOrderPage)
- * giữ object `{format, province, province_code, district?, district_code?, ward, ward_code, address}`.
+ * Cải thiện so với bản cũ:
+ *  1. **Auto-advance**: click Tỉnh ⇒ tự nhảy sang tab Quận/Phường. Click Quận ⇒ sang Phường.
+ *  2. **Breadcrumb** trên đầu: thấy được Tỉnh/Quận đã chọn + nút Back/Reset.
+ *  3. **Smart match**: bỏ dấu + bỏ tiền tố ("ha noi" khớp "Thành phố Hà Nội", "Q1" khớp "Quận 1").
+ *  4. **Sort theo score** — exact match > startsWith > contains.
  */
 export interface PickedAddress {
     format?: AddressFormat;
@@ -37,10 +39,10 @@ export function AddressPicker({ value, onPick, oldAddresses = [] }: {
     oldAddresses?: CustomerAddress[];
 }) {
     const hasOld = oldAddresses.length > 0;
-    const [tab, setTab] = useState<'admin' | 'history'>(hasOld ? 'history' : 'admin');
+    const [tab, setTab] = useState<'admin' | 'history'>(hasOld && !value?.province ? 'history' : 'admin');
 
     return (
-        <div style={{ width: 520, maxWidth: '92vw' }}>
+        <div style={{ width: 540, maxWidth: '94vw' }}>
             <Tabs
                 size="small" activeKey={tab} onChange={(k) => setTab(k as 'admin' | 'history')}
                 items={[
@@ -52,95 +54,177 @@ export function AddressPicker({ value, onPick, oldAddresses = [] }: {
     );
 }
 
-/** Cascade picker với toggle "Mới 2 cấp / Cũ 3 cấp". Lưu format vào kết quả để BE biết hệ nào. */
+type Level = 'province' | 'district' | 'ward';
+
+/** Cascade picker controlled — auto-advance khi pick xong 1 cấp. */
 function AdminPicker({ value, onPick }: { value?: PickedAddress; onPick: (v: PickedAddress) => void }) {
     const [format, setFormat] = useState<AddressFormat>((value?.format as AddressFormat) ?? 'new');
     const [provinceCode, setProvinceCode] = useState<string | undefined>(value?.province_code);
     const [districtCode, setDistrictCode] = useState<string | undefined>(value?.district_code);
-    const [pQ, setPQ] = useState('');
-    const [dQ, setDQ] = useState('');
-    const [wQ, setWQ] = useState('');
-    const { data: provinces, isFetching: lp } = useProvinces(format);
-    const { data: districts, isFetching: ld } = useDistricts(provinceCode, format);
-    const wardParent = format === 'new' ? provinceCode : districtCode;
-    const { data: wards, isFetching: lw } = useWards(wardParent, format);
+    const [level, setLevel] = useState<Level>(value?.province_code ? (format === 'old' && !value?.district_code ? 'district' : 'ward') : 'province');
+    const [q, setQ] = useState('');
 
-    const fp = useMemo(() => (provinces ?? []).filter((p) => p.name.toLowerCase().includes(pQ.toLowerCase())), [provinces, pQ]);
-    const fd = useMemo(() => (districts ?? []).filter((d) => d.name.toLowerCase().includes(dQ.toLowerCase())), [districts, dQ]);
-    const fw = useMemo(() => (wards ?? []).filter((w) => w.name.toLowerCase().includes(wQ.toLowerCase())), [wards, wQ]);
+    const { data: provinces = [], isFetching: lp } = useProvinces(format);
+    const { data: districts = [], isFetching: ld } = useDistricts(provinceCode, format);
+    const wardParent = format === 'new' ? provinceCode : districtCode;
+    const { data: wards = [], isFetching: lw } = useWards(wardParent, format);
+
+    // Smart-filter — bỏ dấu + score-based sort.
+    const fp = useMemo(() => smartFilter<Province>(provinces, q), [provinces, q]);
+    const fd = useMemo(() => smartFilter<District>(districts, q), [districts, q]);
+    const fw = useMemo(() => smartFilter<Ward>(wards, q), [wards, q]);
+
+    // Reset query khi đổi cấp ⇒ user không bị filter cũ làm rỗng list cấp mới.
+    useEffect(() => { setQ(''); }, [level, format]);
 
     const onFormatChange = (v: string | number) => {
         const f = v as AddressFormat;
         setFormat(f);
         setProvinceCode(undefined);
         setDistrictCode(undefined);
+        setLevel('province');
+    };
+
+    const selectedProvince = provinces.find((p) => p.code === provinceCode);
+    const selectedDistrict = districts.find((d) => d.code === districtCode);
+
+    const pickProvince = (p: Province) => {
+        setProvinceCode(p.code);
+        setDistrictCode(undefined);
+        setLevel(format === 'old' ? 'district' : 'ward');
+    };
+    const pickDistrict = (d: District) => {
+        setDistrictCode(d.code);
+        setLevel('ward');
+    };
+    const pickWard = (w: Ward) => {
+        onPick({
+            format,
+            province: selectedProvince?.name, province_code: selectedProvince?.code,
+            district: selectedDistrict?.name, district_code: selectedDistrict?.code,
+            ward: w.name, ward_code: w.code,
+            address: value?.address, name: value?.name, phone: value?.phone,
+        });
+    };
+    const back = () => {
+        if (level === 'ward') {
+            if (format === 'old') { setLevel('district'); setDistrictCode(undefined); }
+            else { setLevel('province'); setProvinceCode(undefined); }
+        } else if (level === 'district') {
+            setLevel('province'); setProvinceCode(undefined);
+        }
     };
 
     return (
-        <>
-            <div style={{ marginBottom: 8 }}>
-                <Segmented
-                    size="small" value={format} onChange={onFormatChange}
-                    options={[
-                        { value: 'new', label: 'Mới (2 cấp)' },
-                        { value: 'old', label: 'Cũ (3 cấp)' },
-                    ]}
-                />
-                <Typography.Text type="secondary" style={{ fontSize: 11, marginInlineStart: 8 }}>
-                    {format === 'new' ? 'Sau cải cách 2025 — Tỉnh + Phường/Xã.' : 'Pre-2025 — Tỉnh, Quận/Huyện, Phường/Xã. ĐVVC thường dùng hệ này.'}
-                </Typography.Text>
-            </div>
-            <Tabs
-                size="small" tabPosition="top"
-                items={[
-                    {
-                        key: 'province', label: 'Tỉnh / Thành phố',
-                        children: <List
-                            loading={lp} items={fp}
-                            renderRow={(p) => (
-                                <div key={p.code} onClick={() => { setProvinceCode(p.code); setDistrictCode(undefined); }}
-                                    style={rowStyle(provinceCode === p.code)}>{p.name}</div>
-                            )}
-                            search={<Input allowClear prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />} placeholder="Tìm tỉnh/thành…" onChange={(e) => setPQ(e.target.value)} />}
-                            empty="Không có tỉnh/thành phù hợp."
-                        />,
-                    },
-                    ...(format === 'old' ? [{
-                        key: 'district', label: 'Quận / Huyện', disabled: !provinceCode,
-                        children: <List
-                            loading={ld} items={fd}
-                            renderRow={(d) => (
-                                <div key={d.code} onClick={() => setDistrictCode(d.code)}
-                                    style={rowStyle(districtCode === d.code)}>{d.name}</div>
-                            )}
-                            search={<Input allowClear prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />} placeholder="Tìm quận/huyện…" onChange={(e) => setDQ(e.target.value)} />}
-                            empty={provinceCode ? 'Không có quận/huyện phù hợp.' : 'Chọn tỉnh/thành trước.'}
-                        />,
-                    }] : []),
-                    {
-                        key: 'ward', label: 'Phường / Xã', disabled: !wardParent,
-                        children: <List
-                            loading={lw} items={fw}
-                            renderRow={(w) => {
-                                const p = provinces?.find((x) => x.code === provinceCode);
-                                const d = districts?.find((x) => x.code === districtCode);
-                                return (
-                                    <div key={w.code} onClick={() => onPick({
-                                        format,
-                                        province: p?.name, province_code: p?.code,
-                                        district: d?.name, district_code: d?.code,
-                                        ward: w.name, ward_code: w.code,
-                                        address: value?.address, name: value?.name, phone: value?.phone,
-                                    })} style={rowStyle(false)}>{w.name}</div>
-                                );
-                            }}
-                            search={<Input allowClear prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />} placeholder="Tìm phường/xã…" onChange={(e) => setWQ(e.target.value)} />}
-                            empty={wardParent ? 'Không có phường/xã phù hợp.' : 'Chọn cấp trên trước.'}
-                        />,
-                    },
-                ]}
+        <div>
+            <Space direction="vertical" size={6} style={{ width: '100%', marginBottom: 8 }}>
+                <Space wrap size={8}>
+                    <Segmented
+                        size="small" value={format} onChange={onFormatChange}
+                        options={[
+                            { value: 'new', label: 'Mới (2 cấp)' },
+                            { value: 'old', label: 'Cũ (3 cấp)' },
+                        ]}
+                    />
+                    <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                        {format === 'new' ? 'Sau cải cách 2025 — Tỉnh + Phường/Xã.' : 'Pre-2025 — có cấp Quận/Huyện.'}
+                    </Typography.Text>
+                </Space>
+                {/* Breadcrumb crumbs */}
+                <Space size={4} wrap>
+                    {level !== 'province' && (
+                        <Button type="text" size="small" icon={<ArrowLeftOutlined />} onClick={back} style={{ padding: '0 4px' }} />
+                    )}
+                    <Tag
+                        color={level === 'province' ? 'blue' : 'default'}
+                        style={{ cursor: 'pointer', margin: 0 }}
+                        onClick={() => setLevel('province')}
+                    >
+                        Tỉnh: {selectedProvince ? selectedProvince.name : <span style={{ color: '#bfbfbf' }}>—</span>}
+                    </Tag>
+                    {format === 'old' && (
+                        <Tag
+                            color={level === 'district' ? 'blue' : 'default'}
+                            style={{ cursor: provinceCode ? 'pointer' : 'not-allowed', margin: 0, opacity: provinceCode ? 1 : 0.5 }}
+                            onClick={() => provinceCode && setLevel('district')}
+                        >
+                            Quận: {selectedDistrict ? selectedDistrict.name : <span style={{ color: '#bfbfbf' }}>—</span>}
+                        </Tag>
+                    )}
+                    <Tag
+                        color={level === 'ward' ? 'blue' : 'default'}
+                        style={{ cursor: wardParent ? 'pointer' : 'not-allowed', margin: 0, opacity: wardParent ? 1 : 0.5 }}
+                        onClick={() => wardParent && setLevel('ward')}
+                    >
+                        Phường/Xã: <span style={{ color: '#bfbfbf' }}>chọn…</span>
+                    </Tag>
+                </Space>
+            </Space>
+
+            {/* Search — apply cho cấp đang hiện */}
+            <Input
+                allowClear autoFocus key={`${format}-${level}`}
+                prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+                placeholder={
+                    level === 'province' ? 'Tìm tỉnh / thành (vd: "ha noi", "tp hcm"…)' :
+                    level === 'district' ? 'Tìm quận / huyện (vd: "binh thanh", "q.1"…)' :
+                    'Tìm phường / xã / đặc khu…'
+                }
+                value={q} onChange={(e) => setQ(e.target.value)}
+                style={{ marginBottom: 8 }}
             />
-        </>
+
+            {/* List of items at current level */}
+            {level === 'province' && (
+                <List loading={lp} items={fp} empty="Không có tỉnh/thành phù hợp."
+                    renderRow={(p) => (
+                        <Row key={p.code} active={provinceCode === p.code} onClick={() => pickProvince(p)} suffix={provinceCode === p.code ? <CheckOutlined style={{ color: '#1677ff' }} /> : null}>
+                            {p.name}
+                            {p.division_type && <span className="muted"> · {p.division_type}</span>}
+                        </Row>
+                    )}
+                />
+            )}
+            {level === 'district' && format === 'old' && (
+                <List loading={ld} items={fd} empty={provinceCode ? 'Không có quận/huyện phù hợp.' : 'Chọn tỉnh/thành trước.'}
+                    renderRow={(d) => (
+                        <Row key={d.code} active={districtCode === d.code} onClick={() => pickDistrict(d)} suffix={districtCode === d.code ? <CheckOutlined style={{ color: '#1677ff' }} /> : null}>
+                            {d.name}
+                            {d.division_type && <span className="muted"> · {d.division_type}</span>}
+                        </Row>
+                    )}
+                />
+            )}
+            {level === 'ward' && (
+                <List loading={lw} items={fw} empty={wardParent ? 'Không có phường/xã phù hợp.' : 'Chọn cấp trên trước.'}
+                    renderRow={(w) => (
+                        <Row key={w.code} onClick={() => pickWard(w)}>
+                            {w.name}
+                            {w.division_type && <span className="muted"> · {w.division_type}</span>}
+                        </Row>
+                    )}
+                />
+            )}
+        </div>
+    );
+}
+
+function Row({ children, active, onClick, suffix }: { children: React.ReactNode; active?: boolean; onClick: () => void; suffix?: React.ReactNode }) {
+    return (
+        <div
+            onClick={onClick}
+            style={{
+                padding: '8px 10px', cursor: 'pointer', borderBottom: '1px solid #fafafa',
+                background: active ? '#e6f4ff' : undefined,
+                color: active ? '#1677ff' : undefined, fontWeight: active ? 600 : undefined,
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+            }}
+            onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = '#fafafa'; }}
+            onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = ''; }}
+        >
+            <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
+            {suffix}
+        </div>
     );
 }
 
@@ -151,7 +235,6 @@ function CustomerAddressTab({ addresses, onPick }: { addresses: CustomerAddress[
             const a = addresses[e.target.value];
             if (!a) return;
             onPick({
-                // Địa chỉ cũ của khách thường lưu theo hệ cũ (province/district/ward); thử map format='old'.
                 format: 'old',
                 province: (a.province ?? a.city) as string | undefined,
                 province_code: a.province_id != null ? String(a.province_id) : undefined,
@@ -182,21 +265,14 @@ function CustomerAddressTab({ addresses, onPick }: { addresses: CustomerAddress[
     );
 }
 
-function List<T>({ items, loading, renderRow, search, empty }: { items: T[]; loading?: boolean; renderRow: (r: T) => React.ReactNode; search?: React.ReactNode; empty: string }) {
+function List<T>({ items, loading, renderRow, empty }: { items: T[]; loading?: boolean; renderRow: (r: T) => React.ReactNode; empty: string }) {
     return (
-        <div>
-            {search ? <div style={{ marginBottom: 8 }}>{search}</div> : null}
-            <div style={{ maxHeight: 280, overflowY: 'auto', borderTop: '1px solid #f0f0f0' }}>
-                {loading && items.length === 0 ? <div style={{ padding: 24, textAlign: 'center' }}><Spin size="small" /></div>
-                    : items.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={empty} style={{ margin: 16 }} />
+        <div style={{ maxHeight: 320, overflowY: 'auto', border: '1px solid #f0f0f0', borderRadius: 6 }}>
+            {loading && items.length === 0
+                ? <div style={{ padding: 24, textAlign: 'center' }}><Spin size="small" /></div>
+                : items.length === 0
+                    ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={empty} style={{ margin: 16 }} />
                     : items.map(renderRow)}
-            </div>
         </div>
     );
 }
-
-const rowStyle = (active: boolean): React.CSSProperties => ({
-    padding: '8px 10px', cursor: 'pointer', borderBottom: '1px solid #fafafa',
-    background: active ? '#e6f4ff' : undefined,
-    color: active ? '#1677ff' : undefined, fontWeight: active ? 600 : undefined,
-});

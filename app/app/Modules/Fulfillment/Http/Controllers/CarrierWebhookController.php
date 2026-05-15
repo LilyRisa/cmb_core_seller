@@ -68,9 +68,11 @@ class CarrierWebhookController extends Controller
             return response()->json(['data' => ['acknowledged' => true]]); // ack để ĐVVC không retry
         }
 
+        // SPEC 0021 — đơn manual có carrier prefix 'manual_<code>' (vd 'manual_ghn'). Webhook URL chỉ có
+        // base code ⇒ match cả 2 dạng để không miss vận đơn của đơn tự tạo.
         $shipment = Shipment::query()->withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $account->tenant_id)
-            ->where('carrier', $carrier)
+            ->whereIn('carrier', [$carrier, 'manual_'.$carrier])
             ->where('tracking_no', $tracking)
             ->open()
             ->first();

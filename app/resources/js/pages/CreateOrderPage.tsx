@@ -14,6 +14,7 @@ import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { OrderItemsEditor, PickerTrigger, type OrderLineInput } from '@/components/OrderItemsEditor';
 import { AddressPicker, type PickedAddress } from '@/components/AddressPicker';
+import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import { errorMessage } from '@/lib/api';
 import { useCreateManualOrder, useUploadImage, type Sku } from '@/lib/inventory';
 import { useTenantMembers } from '@/lib/tenant';
@@ -539,8 +540,20 @@ export function CreateOrderPage() {
                                     <Input placeholder="Số điện thoại *" maxLength={32} onChange={(e) => handleRecipientPhoneChange(e.target.value)} />
                                 </Form.Item></Col>
                             </Row>
+                            {/* SPEC 0021 — Autocomplete: user gõ "123 NTrai, P. Bến Nghé, Q.1, TP HCM" ⇒ parse tail
+                                khớp Tỉnh→Quận→Phường, gợi ý dropdown. Click ⇒ tự fill cả `recipient_address` + `shipAddress`.
+                                Hỗ trợ không dấu ("ha noi" khớp "Hà Nội"). */}
                             <Form.Item name="recipient_address" style={{ marginBottom: 8 }} rules={[{ required: true, message: 'Địa chỉ chi tiết' }]}>
-                                <Input placeholder="Địa chỉ chi tiết (số nhà, đường) *" maxLength={500} />
+                                <AddressAutocomplete
+                                    value={(form.getFieldValue('recipient_address') as string | undefined) ?? ''}
+                                    onChange={(v) => form.setFieldsValue({ recipient_address: v })}
+                                    format={shipAddress.format ?? 'new'}
+                                    placeholder="Địa chỉ chi tiết — gõ cả tỉnh/quận/phường để được gợi ý (vd: 123 NTrai, Q.1, TP HCM)"
+                                    onPick={(s) => {
+                                        setShipAddress((cur) => ({ ...cur, ...s.address }));
+                                        form.setFieldsValue({ recipient_address: s.detail });
+                                    }}
+                                />
                             </Form.Item>
                             {/* U3 (Sprint 2) — single AddressPicker (Tỉnh/Quận/Phường) - gộp 2 popover trùng lặp.
                                 Vẫn hỗ trợ "địa chỉ mới" (cascade GHN) + "địa chỉ cũ" (từ customer.addresses_meta). */}

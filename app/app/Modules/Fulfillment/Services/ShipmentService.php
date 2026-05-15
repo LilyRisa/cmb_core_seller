@@ -357,6 +357,26 @@ class ShipmentService
         return false;
     }
 
+    /**
+     * SPEC 0021 — Trả carrier code RAW (lookup connector / capability) từ `shipments.carrier`. Đơn manual có
+     * thể lưu dạng prefix `manual_<code>` (vd `manual_ghn`) để phân biệt nguồn; connector lookup vẫn dùng
+     * code gốc (`ghn`). Hàm chỉ strip prefix `manual_` khi code SAU prefix là carrier khác. Carrier 'manual'
+     * (self-ship) giữ nguyên.
+     */
+    public static function baseCarrierCode(string $shipmentCarrier): string
+    {
+        if ($shipmentCarrier === 'manual') {
+            return 'manual';
+        }
+        if (str_starts_with($shipmentCarrier, 'manual_')) {
+            $base = substr($shipmentCarrier, 7);
+
+            return $base !== '' ? $base : 'manual';
+        }
+
+        return $shipmentCarrier;
+    }
+
     /** Resolve the carrier account to use (explicit id → default → fall back to built-in `manual`). */
     private function resolveAccount(int $tenantId, ?int $carrierAccountId): ?CarrierAccount
     {
@@ -419,16 +439,24 @@ class ShipmentService
             throw new RuntimeException('Đơn vị vận chuyển không trả về mã vận đơn.');
         }
 
-        $shipment = DB::transaction(function () use ($tenantId, $order, $carrierCode, $account, $tracking, $service, $weight, $cod, $result, $userId) {
+        // SPEC 0021 — Prefix `manual_*` cho đơn tự tạo để PHÂN BIỆT với đơn sàn cùng ĐVVC:
+        //   - Đơn manual + GHN ⇒ `shipments.carrier='manual_ghn'`, `orders.carrier='manual_ghn'`
+        //   - Đơn TikTok có gói qua GHN ⇒ `shipments.carrier='ghn'` (giữ nguyên)
+        // Lý do: stats by_carrier + chip lọc sẽ tách rõ 2 nguồn ⇒ vận hành kho phân biệt được nguồn đơn.
+        // Lookup connector vẫn dùng `$carrierCode` raw (vd 'ghn'); chỉ display + storage prefix.
+        // Edge case: $carrierCode === 'manual' (self-ship) ⇒ giữ nguyên 'manual', không 'manual_manual'.
+        $displayCarrier = $carrierCode === 'manual' ? 'manual' : 'manual_'.$carrierCode;
+
+        $shipment = DB::transaction(function () use ($tenantId, $order, $displayCarrier, $account, $tracking, $service, $weight, $cod, $result, $userId) {
             $shipment = Shipment::query()->create([
-                'tenant_id' => $tenantId, 'order_id' => $order->getKey(), 'carrier' => $carrierCode,
+                'tenant_id' => $tenantId, 'order_id' => $order->getKey(), 'carrier' => $displayCarrier,
                 'carrier_account_id' => $account?->getKey(), 'tracking_no' => $tracking, 'status' => Shipment::STATUS_CREATED,
                 'service' => $service, 'weight_grams' => $weight, 'cod_amount' => $cod,
                 'fee' => (int) ($result['fee'] ?? 0), 'raw' => $result['raw'] ?? $result,
             ]);
             $this->recordEvent($shipment, 'created', 'Đã tạo vận đơn', Shipment::STATUS_CREATED, ShipmentEvent::SOURCE_SYSTEM, null, $userId);
-            if ($order->carrier !== $carrierCode) {
-                $order->forceFill(['carrier' => $carrierCode])->save();
+            if ($order->carrier !== $displayCarrier) {
+                $order->forceFill(['carrier' => $displayCarrier])->save();
             }
 
             return $shipment;
@@ -509,9 +537,10 @@ class ShipmentService
         // SPEC 0021 — `awaiting_pickup_flow` capability: GHN có (đơn manual sau khi /create-order đã ở
         // trạng thái `ready_to_pick` của GHN, đợi shipper); GHTK/J&T sẽ thêm khi connector lên. Core
         // không hard-code 'ghn' — chỉ hỏi capability.
-        $useAwaitingPickup = $this->carriers->has($shipment->carrier)
-            && $this->carriers->for($shipment->carrier) instanceof AbstractCarrierConnector
-            && $this->carriers->for($shipment->carrier)->supports('awaiting_pickup_flow');
+        $baseCarrier = self::baseCarrierCode((string) $shipment->carrier);
+        $useAwaitingPickup = $this->carriers->has($baseCarrier)
+            && $this->carriers->for($baseCarrier) instanceof AbstractCarrierConnector
+            && $this->carriers->for($baseCarrier)->supports('awaiting_pickup_flow');
         $newStatus = $useAwaitingPickup ? Shipment::STATUS_AWAITING_PICKUP : Shipment::STATUS_PACKED;
         $eventDesc = $useAwaitingPickup ? 'Đã sẵn sàng bàn giao — chờ ĐVVC tới lấy hàng' : 'Đã đóng gói & quét đơn';
         $shipment->forceFill(['status' => $newStatus, 'packed_at' => now()])->save();
@@ -585,9 +614,10 @@ class ShipmentService
             return;
         }
         $alreadyShipped = in_array($shipment->status, [Shipment::STATUS_PICKED_UP, Shipment::STATUS_IN_TRANSIT, Shipment::STATUS_DELIVERED], true);
-        if ($this->carriers->has($shipment->carrier)) {
+        $baseCarrier = self::baseCarrierCode((string) $shipment->carrier);
+        if ($this->carriers->has($baseCarrier)) {
             try {
-                $this->carriers->for($shipment->carrier)->cancel($shipment->carrierAccount?->toConnectorArray() ?? [], (string) $shipment->tracking_no);
+                $this->carriers->for($baseCarrier)->cancel($shipment->carrierAccount?->toConnectorArray() ?? [], (string) $shipment->tracking_no);
             } catch (\Throwable $e) {
                 Log::warning('shipment.cancel_carrier_failed', ['shipment' => $shipment->getKey(), 'error' => $e->getMessage()]);
             }
@@ -604,10 +634,11 @@ class ShipmentService
     /** Poll the carrier for tracking, append new events, sync shipment & order status. */
     public function syncTracking(Shipment $shipment): void
     {
-        if (! $this->carriers->has($shipment->carrier) || ! $shipment->tracking_no) {
+        $baseCarrier = self::baseCarrierCode((string) $shipment->carrier);
+        if (! $this->carriers->has($baseCarrier) || ! $shipment->tracking_no) {
             return;
         }
-        $connector = $this->carriers->for($shipment->carrier);
+        $connector = $this->carriers->for($baseCarrier);
         try {
             $data = $connector->getTracking($shipment->carrierAccount?->toConnectorArray() ?? [], $shipment->tracking_no);
         } catch (\Throwable $e) {

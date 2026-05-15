@@ -7,7 +7,7 @@ import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusTag } from '@/components/StatusTag';
 import { ChannelBadge } from '@/components/ChannelBadge';
-import { CarrierBadge } from '@/components/CarrierBadge';
+import { CarrierBadge, carrierDisplayName, parseCarrier } from '@/components/CarrierBadge';
 import { MoneyText, DateText } from '@/components/MoneyText';
 import { FilterChipRow, type ChipItem } from '@/components/FilterChipRow';
 import { LinkSkusModal } from '@/components/LinkSkusModal';
@@ -350,7 +350,14 @@ export function OrdersPage() {
     // chip-row items
     const sourceChips: ChipItem[] = (stats?.by_source ?? []).map((s) => ({ value: s.source, label: CHANNEL_META[s.source]?.name ?? s.source, count: s.count }));
     const shopChips: ChipItem[] = (stats?.by_shop ?? []).map((s) => ({ value: String(s.channel_account_id), label: shopName(s.channel_account_id), count: s.count }));
-    const carrierChips: ChipItem[] = (stats?.by_carrier ?? []).map((c) => ({ value: c.carrier, label: c.carrier, count: c.count }));
+    // SPEC 0021 — chip "Vận chuyển": carrier code có thể là 'ghn' (đơn sàn) hoặc 'manual_ghn' (đơn tự tạo).
+    // Hiển thị label phân biệt rõ để vận hành kho biết đơn nào in tem sàn vs in phiếu giao hàng tự tạo.
+    const carrierChips: ChipItem[] = (stats?.by_carrier ?? []).map((c) => {
+        const parsed = parseCarrier(c.carrier);
+        const name = carrierDisplayName(c.carrier);
+        const label = parsed.isManual && parsed.base !== 'manual' ? `${name} (Tự tạo)` : name;
+        return { value: c.carrier, label, count: c.count };
+    });
     const printedChips: ChipItem[] = [
         { value: '1', label: 'Đã in phiếu', count: stats?.by_printed?.yes ?? 0 },
         { value: '0', label: 'Chưa in phiếu', count: stats?.by_printed?.no ?? 0 },
