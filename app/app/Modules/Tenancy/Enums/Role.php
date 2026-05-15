@@ -61,6 +61,9 @@ enum Role: string
                 'procurement.view',
                 // Kế toán xem được gói + hoá đơn (không thanh toán) — Phase 6.4.
                 'billing.view',
+                // Module Kế toán đầy đủ — Phase 7. KHÔNG có `accounting.config` (cấu hình CoA / mapping rule
+                // thuộc Owner/Admin) — đề phòng sai dữ liệu hệ thống.
+                'accounting.view', 'accounting.post', 'accounting.close_period', 'accounting.export',
             ],
             self::Viewer => ['orders.view', 'inventory.view', 'products.view', 'channels.view', 'dashboard.view', 'customers.view'],
         };

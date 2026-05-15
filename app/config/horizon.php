@@ -252,7 +252,7 @@ return [
         ],
         'supervisor-default' => [
             'connection' => 'redis',
-            'queue' => ['notifications', 'finance', 'customers', 'billing', 'default'],
+            'queue' => ['notifications', 'finance', 'customers', 'billing', 'accounting', 'default'],
             'balance' => 'auto',
             'autoScalingStrategy' => 'time',
             'maxProcesses' => 4,

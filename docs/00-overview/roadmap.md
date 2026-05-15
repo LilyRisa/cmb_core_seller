@@ -1,6 +1,6 @@
 # Roadmap
 
-**Status:** Living document · **Cập nhật:** 2026-05-23
+**Status:** Living document · **Cập nhật:** 2026-05-15
 
 > Quy tắc: mỗi phase chỉ "Done" khi đạt **Exit criteria** của nó. Không nhảy phase. Việc nào không thuộc phase hiện tại → ghi vào backlog của phase sau, **không làm xen**. Ước lượng tính cho team 2–4 dev.
 
@@ -15,9 +15,10 @@
 | 4 | Shopee + Lazada | Slot 2 sàn vào sau khi có API | 6–10 tuần |
 | 5 | WMS đầy đủ + Đăng bán đa sàn | Nhập/xuất/chuyển kho, kiểm kê, giá vốn FIFO, mass listing, ĐVVC đợt 2 | 8–12 tuần |
 | 6 | Tài chính + Mua hàng + Báo cáo + Billing | Settlement, lợi nhuận, PO/NCC, báo cáo, gói thuê bao | 8–12 tuần |
-| 7+ | Hậu mãi & nâng cao | Trả hàng/hoàn, chat hợp nhất, HĐĐT, tối ưu hiệu năng, PWA quét hàng | liên tục |
+| 7 | **Kế toán đầy đủ (VAS TT133)** | Double-entry GL, CoA, kỳ kế toán + lock, AR/AP, quỹ&NH, VAT + BCTC + Export MISA | 14–22 tuần |
+| 8+ | Hậu mãi & nâng cao | Trả hàng/hoàn, chat hợp nhất, **HĐĐT (TT78)**, tối ưu hiệu năng, PWA quét hàng | liên tục |
 
-**Mốc lớn:** dùng được nội bộ ~hết Phase 3 (**~3–4 tháng**) · ra mắt 3 sàn ~hết Phase 5 (**~8–12 tháng**) · tiệm cận full BigSeller ~Phase 7 (**~18–24 tháng**).
+**Mốc lớn:** dùng được nội bộ ~hết Phase 3 (**~3–4 tháng**) · ra mắt 3 sàn ~hết Phase 5 (**~8–12 tháng**) · tiệm cận full BigSeller ~hết Phase 6 (**~12–14 tháng**) · kế toán chuyên nghiệp ~hết Phase 7 (**~18–22 tháng**).
 
 ---
 
@@ -145,8 +146,58 @@
 **Phase 6.5 — Automation Rules + Notifications  ☐ (chưa bắt đầu):**
 - Rules engine (tự ghép SKU theo regex, tự tag đơn theo điều kiện, auto-block khách reputation thấp, auto-create PO định kỳ) · Thông báo Zalo OA / Email / In-app cho hết tồn / đơn lỗi / settlement bất thường.
 
-## Phase 7+ — Hậu mãi & nâng cao  ☐
-Trả hàng/hoàn tiền; chat hợp nhất đa sàn; HĐĐT; tối ưu hiệu năng (read replica, search engine, archive partition); realtime UI (Reverb); PWA quét đóng gói.
+## Phase 7 — Kế toán đầy đủ (VAS TT133)  ✅ (Implemented 2026-05-15 — toàn bộ 5 sub-phase; SPEC-0019; 46/46 Accounting tests xanh)
+
+**Bối cảnh:** sau Phase 6, app đã có **đối soát phí sàn thực** (Finance `settlements`), **FIFO COGS** (`order_costs`), **PO/NCC** (Procurement), **báo cáo lợi nhuận** (Reports). Đó là nguồn dữ liệu **đầu vào** đủ tốt cho một module kế toán chuyên nghiệp ghi sổ kép, lập BCTC, theo dõi công nợ, đối chiếu ngân hàng. Module mới **`Accounting`** (đứng ngang `Finance`, không thay thế) sẽ **lắng nghe domain event** từ các module hiện có và tự ghi sổ — đúng luật phụ thuộc `modules.md` §3.
+
+**Quyết định nền (chốt 2026-05-15 với chủ dự án):**
+1. **CoA = TT133** (DN nhỏ & vừa — seed sẵn 1 template; mở rộng vài TK TT200 khi cần).
+2. **Chỉ VND** — không cột FX, không multi-currency (đúng `vision-and-scope.md` §4).
+3. **Năm tài chính = năm dương lịch** (1/1–31/12), không configurable.
+4. **Hoãn HĐĐT** — đẩy sang Phase 8+ backlog. Phase 7 không có HĐĐT.
+5. **Export ra phần mềm KT ngoài** — CSV/Excel theo schema **MISA AMIS** (file để user tự import), không tích hợp API ngoài.
+6. **Mapping CoA cho auto-post lưu DB**, tenant chỉnh qua UI Settings (`accounting_post_rules`).
+7. **Triển khai cuốn chiếu** 7.1 → 7.2 → 7.3 → 7.4 → 7.5, mỗi sub-phase 1 SPEC độc lập.
+
+**Phase 7.1 — Accounting Foundation  ☐ (spec `docs/specs/0019-accounting-foundation.md`):**
+- Bảng `chart_accounts` (CoA TT133 seeded), `fiscal_periods` (tháng/quý/năm, status `open|closed|locked`), `journal_entries` (immutable, idempotency_key unique, source_module/source_id), `journal_lines` (partition `posted_at` theo tháng, check `Σ Dr = Σ Cr`), `account_balances` (materialized).
+- `JournalService::post(JournalEntryDTO)` — duy nhất nơi ghi sổ; check kỳ chưa locked; idempotent qua `idempotency_key`.
+- `PeriodService::close/reopen/lock`; lock kỳ ⇒ bút toán mới chỉ được post vào kỳ mở kế tiếp với `narration="Điều chỉnh kỳ X"`.
+- `BalanceService::recompute(period)` — idempotent rebuild `account_balances`.
+- Listener nền: `PostOnGoodsReceiptConfirmed` (Dr 156/Cr 331), `PostOnInventoryTransfer` (Dr 156-to/Cr 156-from theo `dim_warehouse`), `PostOnStocktakeAdjust` (Dr 156/Cr 711 hoặc Dr 811/Cr 156).
+- UI shell: `/accounting/chart-of-accounts` (tree), `/accounting/journals` (sổ NK chung, modal tạo bút toán tay), `/accounting/periods`, `/settings/accounting/post-rules` (mapping editor).
+- RBAC: `accounting.view|post|close_period|config|export` (mặc định cấp owner/admin/accountant; staff_* không có gì).
+- Billing gating: feature `accounting_basic` (Pro + Business). Plan thấp ⇒ `402 PLAN_FEATURE_LOCKED`.
+- ADR-0011 (double-entry), ADR-0012 (TT133 seed), ADR-0013 (event-driven posting), ADR-0014 (period lock), ADR-0016 (partition `journal_lines`).
+
+**Phase 7.2 — AR (Công nợ phải thu)  ☐:**
+- Listener `PostOnOrderShipped` ⇒ Dr 131(customer)/Cr 511 + Cr 33311(VAT đầu ra). `PostOnOrderCancelled/Returned` ⇒ entry đảo (`is_reversal_of_id`). `PostOnSettlementReconciled` ⇒ Dr 642/635 (phí sàn) + Dr 112 (payout)/Cr 131 — khép vòng đời đơn.
+- Bảng `customer_receipts` (phiếu thu COD/CK) cho đơn manual không qua sàn payout.
+- Sổ chi tiết 131 group theo `customer_id` (re-use bảng `customers`); báo cáo Aged AR (0–30, 31–60, 61–90, >90).
+- UI: `/accounting/ar` (Aging table + drawer chi tiết khách + nút "Tạo phiếu thu").
+
+**Phase 7.3 — AP (Công nợ phải trả NCC)  ☐:**
+- `vendor_bills` (hoá đơn NCC, link `po_id?`/`goods_receipt_id?`) + `vendor_payments` (phiếu chi).
+- Listener `PostOnGoodsReceiptConfirmed` mở rộng: nếu shop bật auto-bill ⇒ tự tạo `vendor_bill draft` từ GR + post Dr 156/Dr 133/Cr 331.
+- Sổ chi tiết 331 group theo `supplier_id` (re-use `suppliers`); Aged AP.
+- UI: `/accounting/ap` (Aging + drawer NCC + tab "Hoá đơn NCC" + nút "Tạo phiếu chi" + applied_bills jsonb).
+
+**Phase 7.4 — Quỹ & Ngân hàng  ☐:**
+- `cash_accounts` (kind `cash|bank|ewallet|cod_intransit`, 1-1 `gl_account_id` ↔ TK 1111/1121/…), `cash_movements` (sổ quỹ chi tiết, song song journal entry).
+- `bank_statements` + `bank_statement_lines` (import CSV/MT940/**webhook SePay** đã có sẵn từ SPEC-0018 — re-use). Matching wizard: left = bank line, right = candidate movement/settlement payout.
+- UI: `/accounting/cash` (sổ quỹ + sổ ngân hàng + import sao kê + matching screen).
+
+**Phase 7.5 — VAT + Báo cáo tài chính + Export MISA  ☐:**
+- `tax_codes` (VAT0/5/8/10/exempt), `tax_filings` (`01/GTGT-YYYY-MM`, draft → submitted).
+- Báo cáo: **Bảng cân đối số phát sinh**, **Báo cáo KQKD (B02-DN nhỏ)**, **Bảng cân đối kế toán (B01-DN nhỏ)**, **Lưu chuyển tiền tệ (B03-DN nhỏ)**, **Sổ nhật ký chung**, **Sổ cái** + **Sổ chi tiết TK**, **Aged AR/AP**.
+- Export: Excel multi-sheet (Sổ NK + danh mục TK + chi tiết phát sinh) theo **schema MISA AMIS** (file user tự import); PDF qua Gotenberg.
+- UI: `/accounting/reports` (5 tab + filter kỳ/TK/đối tượng + nút Export), `/accounting/tax` (danh sách tờ khai + preview).
+- Billing gating: feature `accounting_advanced` (chỉ Business — VAT + tờ khai + đối soát NH + export MISA).
+
+**Phase 7+ — Backlog kế toán:** phê duyệt nhiều cấp cho bút toán tay; chi phí vận hành & phân bổ (payroll lite, marketing, allocation rule); tích hợp **API** MISA AMIS / Fast / SmartBooks (thay vì chỉ file Excel); audit log trail riêng cho kế toán.
+
+## Phase 8+ — Hậu mãi & nâng cao  ☐
+Trả hàng/hoàn tiền; chat hợp nhất đa sàn; **HĐĐT (TT78 — VNPT/Viettel/MISA + ký số)** (đẩy từ Phase 7+ cũ); tối ưu hiệu năng (read replica, search engine, archive partition); realtime UI (Reverb); PWA quét đóng gói.
 
 ---
 

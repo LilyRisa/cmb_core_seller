@@ -30,6 +30,7 @@
 | [0016](0016-finance-settlements-and-reconciliation.md) | Đối soát/Settlement của sàn (TikTok / Lazada) — kéo phí thực + reconcile line → đơn, dùng trong lợi nhuận (`fee_source=settlement`) | 6.2 | Implemented (bật flag sau khi đối chiếu sandbox) | — |
 | [0017](0017-demand-planning.md) | Đề xuất nhập hàng (tốc độ bán × lead time + cover_days + tồn an toàn + đang về) → tạo PO nháp 1-click chia theo NCC | 6.3 | Implemented | — |
 | [0018](0018-billing-saas.md) | Billing SaaS — gói thuê bao (trial/starter/pro/business) + hạn mức gian hàng + gating tính năng nâng cao + thanh toán SePay/VNPay (MoMo skeleton) | 6.4 | Reviewed (đang triển khai PR1) | — |
+| [0019](0019-accounting-foundation.md) | Module Kế toán đầy đủ — CoA (TT133) + Double-entry GL + Kỳ kế toán + Sổ NK/Sổ cái + AR/AP/Quỹ&NH + Báo cáo TC (Trial Balance/B01/B02) + Export MISA | 7.1–7.5 | Implemented (46/46 tests xanh) | — |
 
 ## Khi nào KHÔNG cần spec
 - Sửa lỗi nhỏ, refactor không đổi hành vi, thay đổi tài liệu, bump dependency, chỉnh CI — chỉ cần PR mô tả rõ. Nhưng nếu "việc nhỏ" hoá ra động chạm kiến trúc/hành vi nghiệp vụ ⇒ dừng, viết spec/ADR.

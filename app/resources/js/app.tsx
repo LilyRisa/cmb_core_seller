@@ -37,6 +37,15 @@ import { PurchaseOrdersPage } from '@/pages/PurchaseOrdersPage';
 import { DemandPlanningPage } from '@/pages/DemandPlanningPage';
 import { ReportsPage } from '@/pages/ReportsPage';
 import { SettlementsPage } from '@/pages/SettlementsPage';
+import { JournalsPage } from '@/pages/accounting/JournalsPage';
+import { ChartOfAccountsPage } from '@/pages/accounting/ChartOfAccountsPage';
+import { PeriodsPage } from '@/pages/accounting/PeriodsPage';
+import { BalancesPage } from '@/pages/accounting/BalancesPage';
+import { ArPage } from '@/pages/accounting/ArPage';
+import { ApPage } from '@/pages/accounting/ApPage';
+import { CashPage } from '@/pages/accounting/CashPage';
+import { AccountingReportsPage } from '@/pages/accounting/ReportsPage';
+import { AccountingPostRulesPage } from '@/pages/settings/AccountingPostRulesPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
 dayjs.locale('vi');
@@ -81,6 +90,16 @@ function Root() {
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="finance" element={<Navigate to="/finance/settlements" replace />} />
                 <Route path="finance/settlements" element={<SettlementsPage />} />
+                {/* Phase 7 — Module Kế toán đầy đủ (gated by plan.feature:accounting_basic ở BE). */}
+                <Route path="accounting" element={<Navigate to="/accounting/journals" replace />} />
+                <Route path="accounting/journals" element={<JournalsPage />} />
+                <Route path="accounting/chart-of-accounts" element={<ChartOfAccountsPage />} />
+                <Route path="accounting/periods" element={<PeriodsPage />} />
+                <Route path="accounting/balances" element={<BalancesPage />} />
+                <Route path="accounting/ar" element={<ArPage />} />
+                <Route path="accounting/ap" element={<ApPage />} />
+                <Route path="accounting/cash" element={<CashPage />} />
+                <Route path="accounting/reports" element={<AccountingReportsPage />} />
                 <Route path="sync-logs" element={<SyncLogsPage />} />
                 <Route path="settings" element={<SettingsLayout />}>
                     <Route index element={<Navigate to="/settings/profile" replace />} />
@@ -91,6 +110,7 @@ function Root() {
                     <Route path="orders" element={<SettingsOrdersPage />} />
                     <Route path="plan" element={<SettingsPlanPage />} />
                     <Route path="print" element={<SettingsPrintPage />} />
+                    <Route path="accounting/post-rules" element={<AccountingPostRulesPage />} />
                     <Route path="*" element={<ComingSoon title="Phần này đang được xây dựng" phase="SPEC 0007 / 0011" />} />
                 </Route>
             </Route>

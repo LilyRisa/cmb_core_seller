@@ -1,6 +1,7 @@
 <?php
 
 use CMBcoreSeller\Http\Middleware\AssignRequestId;
+use CMBcoreSeller\Modules\Accounting\Exceptions\AccountingException;
 use CMBcoreSeller\Modules\Billing\Http\Middleware\EnforcePlanFeature;
 use CMBcoreSeller\Modules\Billing\Http\Middleware\EnforcePlanLimit;
 use CMBcoreSeller\Modules\Tenancy\Http\Middleware\EnsureTenant;
@@ -85,6 +86,18 @@ return Application::configure(basePath: dirname(__DIR__))
         $envelope = function (Throwable $e, Request $request) {
             if (! ($request->is('api/*', 'webhook/*') || $request->expectsJson())) {
                 return null; // let the default (HTML / redirect) handler run for web routes
+            }
+
+            // Phase 7 / SPEC 0019: AccountingException tự mang `errorCode` + `httpStatus` + `details`.
+            if ($e instanceof AccountingException) {
+                $body = ['error' => [
+                    'code' => $e->errorCode,
+                    'message' => $e->getMessage(),
+                    'details' => (object) $e->details,
+                    'trace_id' => $request->attributes->get('request_id'),
+                ]];
+
+                return response()->json($body, $e->httpStatus);
             }
 
             [$status, $code] = match (true) {

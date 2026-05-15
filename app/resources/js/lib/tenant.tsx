@@ -105,7 +105,12 @@ const PERMS: Record<RoleValue, string[]> = {
     admin: ['*', '!billing.manage'],
     staff_order: ['orders.view', 'orders.update', 'orders.create', 'orders.status', 'fulfillment.view', 'fulfillment.print', 'fulfillment.ship', 'products.view', 'inventory.view', 'channels.view', 'dashboard.view'],
     staff_warehouse: ['inventory.view', 'inventory.adjust', 'inventory.transfer', 'inventory.stocktake', 'fulfillment.view', 'fulfillment.scan', 'fulfillment.print', 'orders.view', 'products.view', 'dashboard.view'],
-    accountant: ['finance.view', 'finance.reconcile', 'reports.view', 'reports.export', 'orders.view', 'inventory.view', 'dashboard.view', 'billing.view'],
+    accountant: [
+        'finance.view', 'finance.reconcile', 'reports.view', 'reports.export',
+        'orders.view', 'inventory.view', 'dashboard.view', 'billing.view',
+        // Phase 7 — module Kế toán (xem / post / đóng kỳ / export); accounting.config = chỉ owner/admin.
+        'accounting.view', 'accounting.post', 'accounting.close_period', 'accounting.export',
+    ],
     viewer: ['orders.view', 'inventory.view', 'products.view', 'channels.view', 'dashboard.view'],
 };
 

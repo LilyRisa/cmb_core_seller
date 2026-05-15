@@ -28,6 +28,9 @@ class BillingPlanSeeder extends Seeder
             'mass_listing' => false,
             'automation_rules' => false,
             'priority_support' => false,
+            // Phase 7 — Kế toán đầy đủ (SPEC 0019).
+            'accounting_basic' => false,
+            'accounting_advanced' => false,
         ];
 
         $featuresPro = array_merge($featuresBasic, [
@@ -36,12 +39,16 @@ class BillingPlanSeeder extends Seeder
             'profit_reports' => true,
             'finance_settlements' => true,
             'demand_planning' => true,
+            // Pro: bật Accounting nền (CoA, journal, AR/AP, sổ NK, BS/P&L cơ bản).
+            'accounting_basic' => true,
         ]);
 
         $featuresBusiness = array_merge($featuresPro, [
             'mass_listing' => true,
             'automation_rules' => true,
             'priority_support' => true,
+            // Business: thêm Accounting nâng cao (VAT + tờ khai + bank reconcile + export MISA).
+            'accounting_advanced' => true,
         ]);
 
         $plans = [

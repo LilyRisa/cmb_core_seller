@@ -5,12 +5,16 @@ import {
     AppstoreOutlined,
     BarChartOutlined,
     BellOutlined,
+    BookOutlined,
+    CalendarOutlined,
+    ContainerOutlined,
     DashboardOutlined,
     FundOutlined,
     InboxOutlined,
     LogoutOutlined,
     MenuFoldOutlined,
     MenuUnfoldOutlined,
+    PartitionOutlined,
     SettingOutlined,
     ShopOutlined,
     ShoppingCartOutlined,
@@ -18,6 +22,7 @@ import {
     SwapOutlined,
     TeamOutlined,
     UserOutlined,
+    WalletOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { getCurrentTenantId, setCurrentTenantId, useAuth, useLogout } from '@/lib/auth';
@@ -43,6 +48,14 @@ const NAV: MenuProps['items'] = [
     { type: 'group', label: 'Báo cáo & Kế toán', children: [
         { key: '/reports', icon: <BarChartOutlined />, label: <Link to="/reports">Báo cáo</Link> },
         { key: '/finance/settlements', icon: <FundOutlined />, label: <Link to="/finance/settlements">Đối soát sàn</Link> },
+        { key: '/accounting/journals', icon: <BookOutlined />, label: <Link to="/accounting/journals">Sổ nhật ký</Link> },
+        { key: '/accounting/chart-of-accounts', icon: <PartitionOutlined />, label: <Link to="/accounting/chart-of-accounts">Hệ thống TK</Link> },
+        { key: '/accounting/balances', icon: <ContainerOutlined />, label: <Link to="/accounting/balances">Cân đối phát sinh</Link> },
+        { key: '/accounting/ar', icon: <TeamOutlined />, label: <Link to="/accounting/ar">Công nợ phải thu</Link> },
+        { key: '/accounting/ap', icon: <ShopOutlined />, label: <Link to="/accounting/ap">Công nợ phải trả</Link> },
+        { key: '/accounting/cash', icon: <WalletOutlined />, label: <Link to="/accounting/cash">Quỹ & Ngân hàng</Link> },
+        { key: '/accounting/reports', icon: <BarChartOutlined />, label: <Link to="/accounting/reports">Báo cáo tài chính</Link> },
+        { key: '/accounting/periods', icon: <CalendarOutlined />, label: <Link to="/accounting/periods">Kỳ kế toán</Link> },
     ] },
     { type: 'group', label: 'Hệ thống', children: [
         { key: '/sync-logs', icon: <SwapOutlined />, label: <Link to="/sync-logs">Nhật ký đồng bộ</Link> },
@@ -51,7 +64,11 @@ const NAV: MenuProps['items'] = [
 ];
 
 // Flat key list for selected-key matching.
-const KEYS = ['/', '/orders', '/customers', '/channels', '/products', '/inventory', '/procurement/demand-planning', '/procurement/suppliers', '/procurement/purchase-orders', '/reports', '/finance/settlements', '/sync-logs', '/settings'];
+const KEYS = ['/', '/orders', '/customers', '/channels', '/products', '/inventory',
+    '/procurement/demand-planning', '/procurement/suppliers', '/procurement/purchase-orders',
+    '/reports', '/finance/settlements',
+    '/accounting/journals', '/accounting/chart-of-accounts', '/accounting/balances', '/accounting/ar', '/accounting/ap', '/accounting/cash', '/accounting/reports', '/accounting/periods',
+    '/sync-logs', '/settings'];
 
 export function AppLayout() {
     const { data: user } = useAuth();

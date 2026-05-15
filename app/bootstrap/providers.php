@@ -1,6 +1,7 @@
 <?php
 
 use CMBcoreSeller\Integrations\IntegrationsServiceProvider;
+use CMBcoreSeller\Modules\Accounting\AccountingServiceProvider;
 use CMBcoreSeller\Modules\Billing\BillingServiceProvider;
 use CMBcoreSeller\Modules\Channels\ChannelsServiceProvider;
 use CMBcoreSeller\Modules\Customers\CustomersServiceProvider;
@@ -35,5 +36,6 @@ return [
     FinanceServiceProvider::class,
     ReportsServiceProvider::class,
     BillingServiceProvider::class,
+    AccountingServiceProvider::class,
     SettingsServiceProvider::class,
 ];

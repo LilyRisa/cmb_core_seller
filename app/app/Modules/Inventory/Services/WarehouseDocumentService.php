@@ -3,6 +3,8 @@
 namespace CMBcoreSeller\Modules\Inventory\Services;
 
 use CMBcoreSeller\Modules\Inventory\Events\GoodsReceiptConfirmed;
+use CMBcoreSeller\Modules\Inventory\Events\StocktakeConfirmed;
+use CMBcoreSeller\Modules\Inventory\Events\StockTransferConfirmed;
 use CMBcoreSeller\Modules\Inventory\Models\GoodsReceipt;
 use CMBcoreSeller\Modules\Inventory\Models\Stocktake;
 use CMBcoreSeller\Modules\Inventory\Models\StockTransfer;
@@ -76,8 +78,10 @@ class WarehouseDocumentService
             }
             $doc->forceFill(['status' => StockTransfer::STATUS_CONFIRMED, 'confirmed_at' => now(), 'confirmed_by' => $userId])->save();
         });
+        // Phát event cho module Accounting (Phase 7.1) — hạch toán Dr 156(to)/Cr 156(from).
+        StockTransferConfirmed::dispatch($doc->refresh()->load('items'));
 
-        return $doc->refresh();
+        return $doc;
     }
 
     public function confirmStocktake(Stocktake $doc, int $userId): Stocktake
@@ -101,8 +105,10 @@ class WarehouseDocumentService
             }
             $doc->forceFill(['status' => Stocktake::STATUS_CONFIRMED, 'confirmed_at' => now(), 'confirmed_by' => $userId])->save();
         });
+        // Phát event cho module Accounting (Phase 7.1) — hạch toán Dr 156/Cr 711 (thừa) hoặc Dr 811/Cr 156 (thiếu).
+        StocktakeConfirmed::dispatch($doc->refresh()->load('items'));
 
-        return $doc->refresh();
+        return $doc;
     }
 
     /** Cancel a still-draft phiếu (confirmed phiếu cannot be cancelled — issue a new corrective phiếu instead). */

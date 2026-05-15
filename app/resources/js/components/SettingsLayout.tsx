@@ -1,7 +1,7 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { Card, Menu } from 'antd';
 import {
-    AppstoreOutlined, CarOutlined, CreditCardOutlined, FileTextOutlined, HistoryOutlined,
+    AppstoreOutlined, AuditOutlined, CarOutlined, CreditCardOutlined, FileTextOutlined, HistoryOutlined,
     PrinterOutlined, ShopOutlined, TeamOutlined, UserOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
@@ -27,11 +27,12 @@ const SECTIONS: MenuProps['items'] = [
     { type: 'group', label: 'Vận hành', children: [
         { key: '/settings/orders', icon: <FileTextOutlined />, label: <Link to="/settings/orders">Cài đặt đơn hàng</Link> },
         { key: '/settings/print', icon: <PrinterOutlined />, label: <Link to="/settings/print">Mẫu in</Link> },
+        { key: '/settings/accounting/post-rules', icon: <AuditOutlined />, label: <Link to="/settings/accounting/post-rules">Quy tắc hạch toán</Link> },
         { key: '/settings/audit', icon: <HistoryOutlined />, label: <Link to="/settings/audit">Nhật ký thao tác</Link> },
     ] },
 ];
 
-const KEYS = ['/settings/profile', '/settings/workspace', '/settings/plan', '/settings/members', '/settings/carriers', '/settings/channels', '/settings/orders', '/settings/print', '/settings/audit'];
+const KEYS = ['/settings/profile', '/settings/workspace', '/settings/plan', '/settings/members', '/settings/carriers', '/settings/channels', '/settings/orders', '/settings/print', '/settings/accounting/post-rules', '/settings/audit'];
 
 export function SettingsLayout() {
     const { pathname } = useLocation();
