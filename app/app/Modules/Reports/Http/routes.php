@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Route;
 
 // SPEC 0018 — `revenue` mở cho mọi gói (báo cáo doanh thu cơ bản); `profit` + `top-products` + `export`
 // cần feature `profit_reports` (Pro/Business).
-Route::middleware(['api', 'auth:sanctum', 'tenant'])->prefix('api/v1/reports')->group(function () {
+Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])->prefix('api/v1/reports')->group(function () {
     Route::get('revenue', [ReportController::class, 'revenue'])->name('reports.revenue');
 
     Route::middleware('plan.feature:profit_reports')->group(function () {

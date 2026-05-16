@@ -16,7 +16,10 @@ use Illuminate\Validation\ValidationException;
  */
 class BillingService
 {
-    public function __construct(protected SubscriptionService $subscriptions) {}
+    public function __construct(
+        protected SubscriptionService $subscriptions,
+        protected VoucherService $vouchers,
+    ) {}
 
     /**
      * Tính total theo cycle. Cycle `trial` ⇒ 0; `monthly`/`yearly` ⇒ giá DB.
@@ -66,9 +69,9 @@ class BillingService
      *   - Đang ở cùng plan + cùng cycle, status active, chưa quá hạn ⇒ ALREADY_ON_PLAN.
      *   - Downgrade từ gói cao xuống thấp khi đang active ⇒ DOWNGRADE_NOT_ALLOWED (v1).
      */
-    public function createUpgradeInvoice(int $tenantId, string $planCode, string $cycle): Invoice
+    public function createUpgradeInvoice(int $tenantId, string $planCode, string $cycle, ?string $voucherCode = null, ?int $userId = null): Invoice
     {
-        return DB::transaction(function () use ($tenantId, $planCode, $cycle) {
+        return DB::transaction(function () use ($tenantId, $planCode, $cycle, $voucherCode, $userId) {
             $plan = Plan::query()->where('code', $planCode)->where('is_active', true)->first();
             if ($plan === null) {
                 throw ValidationException::withMessages(['plan_code' => 'Gói không tồn tại hoặc đã ngừng hoạt động.']);
@@ -134,6 +137,13 @@ class BillingService
                 'unit_price' => $totals['subtotal'],
                 'amount' => $totals['subtotal'],
             ]);
+
+            // SPEC 0023 — áp voucher nếu có (trong transaction). Hỏng ⇒ rollback toàn bộ invoice.
+            if ($voucherCode !== null && $voucherCode !== '') {
+                $voucher = $this->vouchers->validate($voucherCode, $plan->code);
+                $this->vouchers->redeemAtCheckout($voucher, $invoice, $userId);
+                $invoice->refresh();
+            }
 
             return $invoice->fresh(['lines']);
         });

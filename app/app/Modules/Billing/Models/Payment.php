@@ -19,6 +19,8 @@ use Illuminate\Support\Carbon;
  * @property string $status
  * @property array|null $raw_payload
  * @property Carbon|null $occurred_at
+ * @property Carbon|null $refunded_at SPEC 0023 — admin refund timestamp.
+ * @property array|null $meta SPEC 0023 — manual/refund metadata.
  */
 class Payment extends Model
 {
@@ -43,6 +45,7 @@ class Payment extends Model
     protected $fillable = [
         'tenant_id', 'invoice_id', 'gateway', 'external_ref',
         'amount', 'status', 'raw_payload', 'occurred_at',
+        'refunded_at', 'meta',
     ];
 
     protected function casts(): array
@@ -51,6 +54,8 @@ class Payment extends Model
             'amount' => 'integer',
             'raw_payload' => 'array',
             'occurred_at' => 'datetime',
+            'refunded_at' => 'datetime',
+            'meta' => 'array',
         ];
     }
 

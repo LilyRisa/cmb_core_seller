@@ -27,7 +27,7 @@ use Illuminate\Support\Facades\Route;
  |
  | Lưu ý: permission check làm ở controller qua `Gate` (đã có `Gate::before` set ở Tenancy).
  */
-Route::middleware(['api', 'auth:sanctum', 'tenant', 'plan.feature:accounting_basic'])
+Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.feature:accounting_basic'])
     ->prefix('api/v1/accounting')->group(function () {
         // Dashboard summary (thống kê nhanh — gộp setup status + cash + AR/AP + P&L kỳ hiện tại).
         Route::get('dashboard-summary', [DashboardController::class, 'summary'])

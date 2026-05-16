@@ -146,6 +146,37 @@ class EmailVerificationTest extends TestCase
             ->assertOk();
     }
 
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function moduleTenantRoutes(): iterable
+    {
+        // Mỗi module có routes.php riêng (loaded qua module service provider, KHÔNG qua
+        // routes/api.php). Cả 5 đều dùng middleware `tenant` ⇒ phải có `verified`.
+        yield 'billing' => ['GET', '/api/v1/billing/plans'];
+        yield 'reports' => ['GET', '/api/v1/reports/revenue'];
+        yield 'finance' => ['GET', '/api/v1/settlements'];
+        yield 'accounting' => ['GET', '/api/v1/accounting/setup/status'];
+        yield 'procurement' => ['GET', '/api/v1/suppliers'];
+        yield 'procurement-demand-planning' => ['GET', '/api/v1/procurement/demand-planning'];
+    }
+
+    /**
+     * @dataProvider moduleTenantRoutes
+     */
+    public function test_verified_middleware_blocks_unverified_from_module_routes(string $method, string $uri): void
+    {
+        $user = User::factory()->unverified()->create();
+        $tenant = Tenant::create(['name' => 'Shop Test']);
+        $tenant->users()->attach($user->getKey(), ['role' => Role::Owner->value]);
+
+        $this->actingAs($user)
+            ->withHeader('X-Tenant-Id', (string) $tenant->getKey())
+            ->json($method, $uri)
+            ->assertForbidden()
+            ->assertJsonPath('error.code', 'EMAIL_NOT_VERIFIED');
+    }
+
     public function test_welcome_notification_fires_on_verified_event(): void
     {
         Notification::fake();

@@ -25,6 +25,10 @@ import {
     ToolOutlined,
     UserOutlined,
     WalletOutlined,
+    GiftOutlined,
+    TagsOutlined,
+    AuditOutlined,
+    SoundOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { getCurrentTenantId, setCurrentTenantId, useAuth, useLogout } from '@/lib/auth';
@@ -67,12 +71,16 @@ function buildNav(isSuperAdmin: boolean): MenuProps['items'] {
         ] },
     ];
 
-    // SPEC 0020 — chỉ super-admin thấy nhóm này.
+    // SPEC 0020 + 0023 — chỉ super-admin thấy nhóm này.
     if (isSuperAdmin) {
         items.push({
             type: 'group', label: 'Quản trị hệ thống', children: [
                 { key: '/admin/tenants', icon: <ToolOutlined />, label: <Link to="/admin/tenants">Tenant & gian hàng</Link> },
                 { key: '/admin/users', icon: <SafetyCertificateOutlined />, label: <Link to="/admin/users">Người dùng hệ thống</Link> },
+                { key: '/admin/vouchers', icon: <GiftOutlined />, label: <Link to="/admin/vouchers">Voucher & quà tặng</Link> },
+                { key: '/admin/plans', icon: <TagsOutlined />, label: <Link to="/admin/plans">Gói thuê bao</Link> },
+                { key: '/admin/broadcasts', icon: <SoundOutlined />, label: <Link to="/admin/broadcasts">Broadcast</Link> },
+                { key: '/admin/audit-logs', icon: <AuditOutlined />, label: <Link to="/admin/audit-logs">Audit log</Link> },
             ],
         });
     }

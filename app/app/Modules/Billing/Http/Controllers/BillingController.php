@@ -17,6 +17,7 @@ use CMBcoreSeller\Modules\Billing\Models\Subscription;
 use CMBcoreSeller\Modules\Billing\Services\BillingService;
 use CMBcoreSeller\Modules\Billing\Services\SubscriptionService;
 use CMBcoreSeller\Modules\Billing\Services\UsageService;
+use CMBcoreSeller\Modules\Billing\Services\VoucherService;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -39,6 +40,7 @@ class BillingController extends Controller
         protected UsageService $usage,
         protected CurrentTenant $tenant,
         protected PaymentRegistry $payments,
+        protected VoucherService $vouchers,
     ) {}
 
     /** GET /billing/plans — catalogue gói (không tenant-scoped). */
@@ -94,6 +96,7 @@ class BillingController extends Controller
             'plan_code' => ['required', 'string', 'in:'.implode(',', Plan::CODES)],
             'cycle' => ['required', 'string', 'in:monthly,yearly'],
             'gateway' => ['required', 'string', 'in:sepay,vnpay,momo'],
+            'voucher_code' => ['nullable', 'string', 'max:64'],   // SPEC 0023
         ]);
 
         // Cổng chưa đăng ký (config `INTEGRATIONS_PAYMENTS` chưa bật) ⇒ 422.
@@ -109,7 +112,14 @@ class BillingController extends Controller
         }
 
         $tenantId = (int) $this->tenant->id();
-        $invoice = $this->billing->createUpgradeInvoice($tenantId, $data['plan_code'], $data['cycle']);
+        $userId = (int) $request->user()->getKey();
+        $invoice = $this->billing->createUpgradeInvoice(
+            $tenantId,
+            $data['plan_code'],
+            $data['cycle'],
+            $data['voucher_code'] ?? null,
+            $userId,
+        );
 
         try {
             $connector = $this->payments->for($data['gateway']);
@@ -139,6 +149,37 @@ class BillingController extends Controller
                 'message' => $e->getMessage(),
             ]], 422);
         }
+    }
+
+    /**
+     * POST /billing/vouchers/validate — preview discount khi user gõ code ở /settings/plan.
+     * Trả `{ valid, discount, total_after, code, name }` hoặc 422 với code envelope.
+     * SPEC 0023.
+     */
+    public function validateVoucher(Request $request): JsonResponse
+    {
+        abort_unless($request->user()?->can('billing.manage'), 403, 'Chỉ chủ shop được áp mã.');
+        $data = $request->validate([
+            'code' => ['required', 'string', 'max:64'],
+            'plan_code' => ['required', 'string', 'in:'.implode(',', Plan::CODES)],
+            'cycle' => ['required', 'string', 'in:monthly,yearly'],
+        ]);
+
+        $voucher = $this->vouchers->validate($data['code'], $data['plan_code']);
+
+        $plan = Plan::query()->where('code', $data['plan_code'])->firstOrFail();
+        $totals = $this->billing->computeInvoice($plan, $data['cycle']);
+        $discount = $this->vouchers->previewDiscount($voucher, (int) $totals['subtotal']);
+
+        return response()->json(['data' => [
+            'valid' => true,
+            'code' => $voucher->code,
+            'name' => $voucher->name,
+            'kind' => $voucher->kind,
+            'discount' => $discount,
+            'subtotal' => (int) $totals['subtotal'],
+            'total_after' => max(0, (int) $totals['total'] - $discount),
+        ]]);
     }
 
     /** GET /billing/invoices — danh sách hoá đơn của tenant. */
@@ -242,7 +283,7 @@ class BillingController extends Controller
                 'used' => $this->usage->channelAccounts($tenantId),
                 'limit' => $plan?->maxChannelAccounts() ?? 0,
             ],
-            'features' => $plan?->features ?? [],
+            'features' => $plan !== null ? ($plan->features ?? []) : [],
         ];
     }
 

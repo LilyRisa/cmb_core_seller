@@ -3,7 +3,11 @@
 namespace CMBcoreSeller\Modules\Admin\Http\Controllers;
 
 use CMBcoreSeller\Modules\Admin\Services\AdminTenantService;
+use CMBcoreSeller\Modules\Billing\Models\Invoice;
+use CMBcoreSeller\Modules\Billing\Models\Payment;
+use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
+use CMBcoreSeller\Modules\Billing\Models\VoucherRedemption;
 use CMBcoreSeller\Modules\Billing\Services\OverQuotaCheckService;
 use CMBcoreSeller\Modules\Billing\Services\SubscriptionService;
 use CMBcoreSeller\Modules\Billing\Services\UsageService;
@@ -15,6 +19,7 @@ use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Validation\Rule;
 
 /**
  * /api/v1/admin/tenants — super-admin xem & can thiệp tenant. SPEC 0020.
@@ -79,6 +84,16 @@ class AdminTenantController extends Controller
             ->where('tenant_id', $tenant->getKey())
             ->where('action', 'like', 'admin.%')
             ->orderByDesc('id')->limit(20)->get();
+        $invoices = Invoice::query()->withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenant->getKey())
+            ->orderByDesc('id')->limit(10)->get();
+        $payments = Payment::query()->withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenant->getKey())
+            ->orderByDesc('id')->limit(10)->get();
+        $vouchersRedeemed = VoucherRedemption::query()
+            ->where('tenant_id', $tenant->getKey())
+            ->with('voucher:id,code,name,kind')
+            ->orderByDesc('id')->limit(10)->get();
 
         return response()->json(['data' => array_merge($this->summary($tenant), [
             'channel_accounts' => $channels->map(fn (ChannelAccount $a) => [
@@ -98,6 +113,23 @@ class AdminTenantController extends Controller
                 'id' => $a->id, 'action' => $a->action, 'user_id' => $a->user_id,
                 'changes' => $a->changes, 'ip' => $a->ip,
                 'created_at' => optional($a->created_at)->toIso8601String(),
+            ])->all(),
+            'invoices' => $invoices->map(fn (Invoice $i) => $this->invoiceResource($i))->all(),
+            'payments' => $payments->map(fn (Payment $p) => [
+                'id' => $p->id, 'invoice_id' => $p->invoice_id,
+                'gateway' => $p->gateway, 'amount' => $p->amount,
+                'status' => $p->status,
+                'occurred_at' => $p->occurred_at?->toIso8601String(),
+                'refunded_at' => $p->refunded_at?->toIso8601String(),
+            ])->all(),
+            'vouchers_redeemed' => $vouchersRedeemed->map(fn (VoucherRedemption $r) => [
+                'id' => $r->id,
+                'voucher_code' => $r->voucher?->code, 'voucher_name' => $r->voucher?->name,
+                'voucher_kind' => $r->voucher?->kind,
+                'discount_amount' => $r->discount_amount,
+                'granted_days' => $r->granted_days,
+                'invoice_id' => $r->invoice_id,
+                'created_at' => $r->created_at?->toIso8601String(),
             ])->all(),
         ])]);
     }
@@ -145,6 +177,90 @@ class AdminTenantController extends Controller
         return response()->json(['data' => $this->summary($tenant->refresh())]);
     }
 
+    /** POST /api/v1/admin/tenants/{tid}/extend-trial — SPEC 0023 §3.3 */
+    public function extendTrial(Request $request, int $tid): JsonResponse
+    {
+        $data = $request->validate([
+            'days' => ['required', 'integer', 'min:1', 'max:365'],
+            'plan_code' => ['nullable', 'string', Rule::in(Plan::CODES)],
+            'reason' => ['required', 'string', 'min:10', 'max:500'],
+        ]);
+        $tenant = Tenant::query()->findOrFail($tid);
+        $sub = $this->service->extendTrial(
+            $tenant, (int) $data['days'], $data['plan_code'] ?? null,
+            $data['reason'], (int) $request->user()->getKey(),
+        );
+
+        return response()->json(['data' => $this->subscriptionResource($sub)]);
+    }
+
+    /** POST /api/v1/admin/tenants/{tid}/feature-overrides — SPEC 0023 §3.5 */
+    public function featureOverrides(Request $request, int $tid): JsonResponse
+    {
+        $data = $request->validate([
+            'features' => ['required', 'array'],
+            'reason' => ['required', 'string', 'min:10', 'max:500'],
+        ]);
+        $tenant = Tenant::query()->findOrFail($tid);
+        $sub = $this->service->setFeatureOverrides(
+            $tenant, $data['features'], $data['reason'], (int) $request->user()->getKey(),
+        );
+
+        return response()->json(['data' => $this->subscriptionResource($sub)]);
+    }
+
+    /** POST /api/v1/admin/tenants/{tid}/invoices — SPEC 0023 §3.6 (manual invoice) */
+    public function createInvoice(Request $request, int $tid): JsonResponse
+    {
+        $data = $request->validate([
+            'plan_code' => ['required', 'string', Rule::in(Plan::CODES)],
+            'cycle' => ['required', 'string', 'in:monthly,yearly,trial'],
+            'amount' => ['nullable', 'integer', 'min:0'],
+            'period_days' => ['nullable', 'integer', 'min:1', 'max:365'],
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
+        $tenant = Tenant::query()->findOrFail($tid);
+        $invoice = $this->service->createManualInvoice($tenant, $data, (int) $request->user()->getKey());
+
+        return response()->json(['data' => $this->invoiceResource($invoice)], 201);
+    }
+
+    /** POST /api/v1/admin/invoices/{id}/mark-paid — SPEC 0023 §3.6 */
+    public function markInvoicePaid(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'payment_method' => ['nullable', 'string', 'max:32'],
+            'reference' => ['nullable', 'string', 'max:128'],
+            'paid_at' => ['nullable', 'date'],
+        ]);
+        $invoice = Invoice::query()->withoutGlobalScope(TenantScope::class)->findOrFail($id);
+        $invoice = $this->service->markInvoicePaid($invoice, $data, (int) $request->user()->getKey());
+
+        return response()->json(['data' => $this->invoiceResource($invoice->fresh())]);
+    }
+
+    /** POST /api/v1/admin/payments/{id}/refund — SPEC 0023 §3.7 */
+    public function refundPayment(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'reason' => ['required', 'string', 'min:10', 'max:500'],
+            'rollback_subscription' => ['nullable', 'boolean'],
+        ]);
+        $payment = Payment::query()->withoutGlobalScope(TenantScope::class)->findOrFail($id);
+        $payment = $this->service->refundPayment(
+            $payment, $data['reason'], (bool) ($data['rollback_subscription'] ?? false),
+            (int) $request->user()->getKey(),
+        );
+
+        return response()->json(['data' => [
+            'id' => $payment->id,
+            'invoice_id' => $payment->invoice_id,
+            'status' => $payment->status,
+            'amount' => $payment->amount,
+            'refunded_at' => $payment->refunded_at?->toIso8601String(),
+        ]]);
+    }
+
     /** @return array<string, mixed> */
     private function summary(Tenant $tenant): array
     {
@@ -189,6 +305,26 @@ class AdminTenantController extends Controller
             'current_period_end' => optional($sub->current_period_end)->toIso8601String(),
             'over_quota_warned_at' => $sub->over_quota_warned_at?->toIso8601String(),
             'over_quota_locked' => $this->overQuota->isPastGrace($sub),
+            'feature_overrides' => (array) ($sub->meta['feature_overrides'] ?? []),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function invoiceResource(Invoice $invoice): array
+    {
+        return [
+            'id' => $invoice->id,
+            'code' => $invoice->code,
+            'status' => $invoice->status,
+            'subtotal' => $invoice->subtotal,
+            'total' => $invoice->total,
+            'currency' => $invoice->currency,
+            'due_at' => $invoice->due_at->toIso8601String(),
+            'paid_at' => $invoice->paid_at?->toIso8601String(),
+            'period_start' => (string) $invoice->period_start,
+            'period_end' => (string) $invoice->period_end,
+            'meta' => $invoice->meta,
+            'created_at' => $invoice->created_at?->toIso8601String(),
         ];
     }
 }

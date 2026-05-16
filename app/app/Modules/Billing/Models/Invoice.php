@@ -29,6 +29,8 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $voided_at
  * @property array|null $customer_snapshot
  * @property array|null $meta
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
  * @property-read Subscription|null $subscription
  * @property-read Collection<int, InvoiceLine> $lines
  * @property-read Collection<int, Payment> $payments

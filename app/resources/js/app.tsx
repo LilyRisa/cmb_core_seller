@@ -47,9 +47,13 @@ import { ApPage } from '@/pages/accounting/ApPage';
 import { CashPage } from '@/pages/accounting/CashPage';
 import { AccountingReportsPage } from '@/pages/accounting/ReportsPage';
 import { AccountingPostRulesPage } from '@/pages/settings/AccountingPostRulesPage';
-// SPEC 0020 — Admin hệ thống.
+// SPEC 0020 + 0023 — Admin hệ thống.
 import { AdminTenantsPage } from '@/pages/admin/AdminTenantsPage';
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage';
+import { AdminVouchersPage } from '@/pages/admin/AdminVouchersPage';
+import { AdminPlansPage } from '@/pages/admin/AdminPlansPage';
+import { AdminAuditLogsPage } from '@/pages/admin/AdminAuditLogsPage';
+import { AdminBroadcastsPage } from '@/pages/admin/AdminBroadcastsPage';
 import { RequireSuperAdmin } from '@/components/RequireSuperAdmin';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
@@ -112,6 +116,11 @@ function Root() {
                 <Route path="admin" element={<RequireSuperAdmin><Navigate to="/admin/tenants" replace /></RequireSuperAdmin>} />
                 <Route path="admin/tenants" element={<RequireSuperAdmin><AdminTenantsPage /></RequireSuperAdmin>} />
                 <Route path="admin/users" element={<RequireSuperAdmin><AdminUsersPage /></RequireSuperAdmin>} />
+                {/* SPEC 0023 — Tier 1+2 admin pages */}
+                <Route path="admin/vouchers" element={<RequireSuperAdmin><AdminVouchersPage /></RequireSuperAdmin>} />
+                <Route path="admin/plans" element={<RequireSuperAdmin><AdminPlansPage /></RequireSuperAdmin>} />
+                <Route path="admin/audit-logs" element={<RequireSuperAdmin><AdminAuditLogsPage /></RequireSuperAdmin>} />
+                <Route path="admin/broadcasts" element={<RequireSuperAdmin><AdminBroadcastsPage /></RequireSuperAdmin>} />
                 <Route path="settings" element={<SettingsLayout />}>
                     <Route index element={<Navigate to="/settings/profile" replace />} />
                     <Route path="profile" element={<SettingsProfilePage />} />
