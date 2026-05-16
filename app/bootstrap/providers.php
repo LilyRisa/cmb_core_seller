@@ -9,6 +9,7 @@ use CMBcoreSeller\Modules\Customers\CustomersServiceProvider;
 use CMBcoreSeller\Modules\Finance\FinanceServiceProvider;
 use CMBcoreSeller\Modules\Fulfillment\FulfillmentServiceProvider;
 use CMBcoreSeller\Modules\Inventory\InventoryServiceProvider;
+use CMBcoreSeller\Modules\Notifications\NotificationsServiceProvider;
 use CMBcoreSeller\Modules\Orders\OrdersServiceProvider;
 use CMBcoreSeller\Modules\Procurement\ProcurementServiceProvider;
 use CMBcoreSeller\Modules\Products\ProductsServiceProvider;
@@ -40,4 +41,5 @@ return [
     AccountingServiceProvider::class,
     SettingsServiceProvider::class,
     AdminServiceProvider::class,
+    NotificationsServiceProvider::class,
 ];

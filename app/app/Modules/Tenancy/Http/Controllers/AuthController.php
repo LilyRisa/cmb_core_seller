@@ -7,6 +7,7 @@ use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Events\TenantCreated;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
+use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -44,6 +45,12 @@ class AuthController extends Controller
 
         // Tenant tạo xong ⇒ phát event để Billing khởi động trial 14 ngày (SPEC 0018 §3.1).
         TenantCreated::dispatch($tenant);
+
+        // SPEC 0022 — fire `Registered` event ⇒ Laravel listener `SendEmailVerificationNotification`
+        // tự gọi `$user->sendEmailVerificationNotification()` (override ở User dùng
+        // `VerifyEmailNotification` branded). Notification implement ShouldQueue ⇒
+        // enqueue vào queue `notifications`.
+        event(new Registered($user));
 
         $this->startSession($request, $user);
 
@@ -135,6 +142,7 @@ class AuthController extends Controller
             'id' => $user->getKey(),
             'name' => $user->name,
             'email' => $user->email,
+            'email_verified_at' => optional($user->email_verified_at)->toIso8601String(), // SPEC 0022 — FE hiện banner nếu null.
             'is_super_admin' => (bool) ($user->is_super_admin ?? false), // SPEC 0020 — FE hiển thị menu Admin nếu true.
             'tenants' => $user->tenants->map(fn (Tenant $t) => [
                 'id' => $t->getKey(),

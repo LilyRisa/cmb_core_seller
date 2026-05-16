@@ -22,14 +22,15 @@ class DatabaseSeeder extends Seeder
         // Phase 6.4 — luôn seed các gói thuê bao (idempotent — chạy lại không trùng).
         $this->call(BillingPlanSeeder::class);
 
+        // SPEC 0022 — demo users pre-verified để vào app ngay (hard gating `verified` ON).
         $owner = User::firstOrCreate(
             ['email' => 'owner@demo.local'],
-            ['name' => 'Chủ shop demo', 'password' => Hash::make('password')],
+            ['name' => 'Chủ shop demo', 'password' => Hash::make('password'), 'email_verified_at' => now()],
         );
 
         $staff = User::firstOrCreate(
             ['email' => 'staff@demo.local'],
-            ['name' => 'NV xử lý đơn demo', 'password' => Hash::make('password')],
+            ['name' => 'NV xử lý đơn demo', 'password' => Hash::make('password'), 'email_verified_at' => now()],
         );
 
         $tenant = Tenant::firstOrCreate(['slug' => 'cua-hang-demo'], ['name' => 'Cửa hàng demo']);

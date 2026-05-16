@@ -2,16 +2,19 @@
 
 namespace CMBcoreSeller\Models;
 
+use CMBcoreSeller\Modules\Notifications\Notifications\ResetPasswordNotification;
+use CMBcoreSeller\Modules\Notifications\Notifications\VerifyEmailNotification;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Auth\CanResetPassword;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-class User extends Authenticatable
+class User extends Authenticatable implements CanResetPassword, MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
@@ -64,5 +67,21 @@ class User extends Authenticatable
         return $this->belongsToMany(Tenant::class, 'tenant_user')
             ->withPivot(['role', 'channel_account_scope'])
             ->withTimestamps();
+    }
+
+    /**
+     * Override Laravel default — dùng notification class branded `CMBcoreSeller`
+     * (SPEC 0022). Notification implement ShouldQueue ⇒ tự enqueue vào queue
+     * `notifications`.
+     */
+    public function sendEmailVerificationNotification(): void
+    {
+        $this->notify(new VerifyEmailNotification);
+    }
+
+    /** Override Laravel default — dùng template Blade branded thay vì plain text. */
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new ResetPasswordNotification($token));
     }
 }

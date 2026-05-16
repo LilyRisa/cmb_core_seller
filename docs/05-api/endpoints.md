@@ -14,11 +14,15 @@
 
 | Method | Path | Auth | Request | Response |
 |---|---|---|---|---|
-| POST | `/api/v1/auth/register` | — | `name`, `email`, `password`, `password_confirmation`, `tenant_name?` | `201` `{ data: { id, name, email, tenants:[{id,name,slug,role}] } }` — tạo user + tenant mới (caller = `owner`) + đăng nhập phiên. Lỗi: `422 VALIDATION_FAILED` (email trùng, mật khẩu < 8…). |
+| POST | `/api/v1/auth/register` | — | `name`, `email`, `password`, `password_confirmation`, `tenant_name?` | `201` `{ data: { id, name, email, email_verified_at:null, tenants:[{id,name,slug,role}] } }` — tạo user + tenant mới (caller = `owner`) + đăng nhập phiên + dispatch `VerifyEmailNotification` qua queue `notifications` (SPEC 0022). Lỗi: `422 VALIDATION_FAILED` (email trùng, mật khẩu < 8…). |
 | POST | `/api/v1/auth/login` | — | `email`, `password`, `remember?` | `200` `{ data: {…user…} }`. Sai thông tin: `422 INVALID_CREDENTIALS`. |
 | POST | `/api/v1/auth/logout` | sanctum | — | `204`. |
-| GET | `/api/v1/auth/me` | sanctum | — | `200` `{ data: {…user… với tenants[]} }`. Chưa đăng nhập: `401`. |
+| GET | `/api/v1/auth/me` | sanctum | — | `200` `{ data: {…user… với `email_verified_at: ISO\|null` & tenants[]} }`. Chưa đăng nhập: `401`. |
 | PATCH | `/api/v1/auth/profile` | sanctum | `name?`, `email?`, `current_password?`, `password?`, `password_confirmation?` | `200` `{ data: AuthUser }` — sửa hồ sơ. Đổi email/password cần `current_password` đúng (sai ⇒ `422 INVALID_PASSWORD`); email trùng / mật khẩu <8 ⇒ `422`. (SPEC 0011) |
+| GET | `/api/v1/auth/email/verify/{id}/{hash}` | signed URL | query `expires`, `signature` | `302` redirect `${FRONTEND_URL}/email-verified?status=success\|already\|invalid`. Hash sai / signature sai / hết hạn ⇒ `status=invalid`. Click 2 lần ⇒ `status=already`. (SPEC 0022) Throttle `6/1`. |
+| POST | `/api/v1/auth/email/verify/resend` | sanctum | — | `200 { data: { sent: true } }` — dispatch lại `VerifyEmailNotification`. Đã verified ⇒ `200 { data: { sent: false, reason: 'already_verified' } }`. Throttle `6/60`. (SPEC 0022) |
+| POST | `/api/v1/auth/password/forgot` | — | `{ email }` | `200 { data: { sent: true } }` (response generic — không xác nhận email có tồn tại không, chống enumerate). Dispatch `ResetPasswordNotification` qua queue `notifications` nếu email khớp. Throttle `5/15`. (SPEC 0022) |
+| POST | `/api/v1/auth/password/reset` | — | `{ email, token, password, password_confirmation }` | `200 { data: { reset: true } }`. Token sai/hết hạn ⇒ `422 INVALID_RESET_TOKEN`; password yếu/không khớp ⇒ `422 VALIDATION_FAILED`. Throttle `30/60`. (SPEC 0022) |
 
 ## Tenant (workspace)
 

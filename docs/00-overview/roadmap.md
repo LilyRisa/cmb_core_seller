@@ -143,8 +143,10 @@
 **Phase 6.4 — Billing SaaS  ◑ (đang triển khai · spec [`docs/specs/0018-billing-saas.md`](../specs/0018-billing-saas.md)):**
 - Subscription plan (4 gói: `trial · starter · pro · business`) + hạn mức **số gian hàng kết nối** (2/5/10, không giới hạn số đơn) + gating tính năng nâng cao (`procurement`/`fifo_cogs`/`profit_reports`/`finance_settlements`/`demand_planning`/`mass_listing`/`automation_rules`) qua middleware `EnforcePlanLimit`/`EnforcePlanFeature` (`402 PLAN_LIMIT_REACHED`/`PLAN_FEATURE_LOCKED`); dùng thử **14 ngày** auto-start khi tạo tenant; thanh toán **SePay** (chuyển khoản tự động qua webhook sao kê) + **VNPay** (redirect + IPN, HMAC-SHA512); **MoMo** skeleton. Hết hạn ⇒ grace 7 ngày → auto rớt về `trial` vĩnh viễn (không khoá data — cam kết "Dữ liệu của bạn là của bạn"). Pattern `PaymentGatewayConnector` + `PaymentRegistry` (mirror `ChannelRegistry`/`CarrierRegistry`). Bảng: `plans · subscriptions · invoices(+invoice_lines) · payments · usage_counters · billing_profiles`.
 
-**Phase 6.5 — Automation Rules + Notifications  ☐ (chưa bắt đầu):**
+**Phase 6.5 — Automation Rules + Notifications  ◑ (đang triển khai):**
 - Rules engine (tự ghép SKU theo regex, tự tag đơn theo điều kiện, auto-block khách reputation thấp, auto-create PO định kỳ) · Thông báo Zalo OA / Email / In-app cho hết tồn / đơn lỗi / settlement bất thường.
+- ✅ **Nền tảng kênh `mail`** (SPEC 0022 · 2026-05-16): module `Notifications` mới + 3 email cốt lõi (`VerifyEmailNotification`, `WelcomeNotification`, `ResetPasswordNotification`) qua queue `notifications`; `User implements MustVerifyEmail`; middleware `verified` JSON-envelope gắn vào group tenant (hard gating `403 EMAIL_NOT_VERIFIED`); template Blade branded `CMBcoreSeller` (1 layout + 3 view, inline CSS email-safe, responsive 600px); 4 endpoint mới `/auth/email/verify/*` + `/auth/password/*` với throttle chống brute & enumerate.
+- ☐ Còn lại: Rules engine; notification cho event nghiệp vụ (hết tồn / đơn lỗi / settlement bất thường); channels Zalo OA / Telegram / In-app / Web push; notification preferences UI.
 
 ## Phase 7 — Kế toán đầy đủ (VAS TT133)  ✅ (Implemented 2026-05-15 — toàn bộ 5 sub-phase; SPEC-0019; 46/46 Accounting tests xanh)
 

@@ -6,6 +6,7 @@ use CMBcoreSeller\Modules\Channels\Http\Controllers\ChannelAccountController;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\SyncLogController;
 use CMBcoreSeller\Modules\Customers\Http\Controllers\CustomerController;
 use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\CarrierAccountController;
+use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\MasterDataController;
 use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\PrintJobController;
 use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\ShipmentController;
 use CMBcoreSeller\Modules\Inventory\Http\Controllers\InventoryController;
@@ -13,6 +14,8 @@ use CMBcoreSeller\Modules\Inventory\Http\Controllers\SkuController;
 use CMBcoreSeller\Modules\Inventory\Http\Controllers\SkuMappingController;
 use CMBcoreSeller\Modules\Inventory\Http\Controllers\WarehouseController;
 use CMBcoreSeller\Modules\Inventory\Http\Controllers\WarehouseDocumentController;
+use CMBcoreSeller\Modules\Notifications\Http\Controllers\EmailVerificationController;
+use CMBcoreSeller\Modules\Notifications\Http\Controllers\PasswordResetController;
 use CMBcoreSeller\Modules\Orders\Http\Controllers\DashboardController;
 use CMBcoreSeller\Modules\Orders\Http\Controllers\OrderController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ChannelListingController;
@@ -41,19 +44,36 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
         Route::post('auth/login', [AuthController::class, 'login'])->name('auth.login');
     });
 
+    // --- Email verification (SPEC 0022) — signed URL public; throttle chống brute hash ---
+    Route::get('auth/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
+        ->middleware('throttle:6,1')
+        ->where(['id' => '[0-9]+'])
+        ->name('auth.email.verify');
+
+    // --- Password reset (SPEC 0022) — public, throttle anti-enumerate + anti-brute ---
+    Route::post('auth/password/forgot', [PasswordResetController::class, 'forgot'])
+        ->middleware('throttle:5,15')->name('auth.password.forgot');
+    Route::post('auth/password/reset', [PasswordResetController::class, 'reset'])
+        ->middleware('throttle:30,60')->name('auth.password.reset');
+
     // --- Authenticated, tenant-agnostic ---
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
         Route::get('auth/me', [AuthController::class, 'me'])->name('auth.me');
         Route::patch('auth/profile', [AuthController::class, 'updateProfile'])->name('auth.profile.update');   // SPEC 0011
 
+        // SPEC 0022 — resend verification email cho user đã login nhưng chưa verify.
+        Route::post('auth/email/verify/resend', [EmailVerificationController::class, 'resend'])
+            ->middleware('throttle:6,60')->name('auth.email.verify.resend');
+
         Route::get('tenants', [TenantController::class, 'index'])->name('tenants.index');
         Route::post('tenants', [TenantController::class, 'store'])->name('tenants.store');
 
         // --- Authenticated + a chosen tenant (header X-Tenant-Id) ---
-        // `plan.over_quota_lock` (SPEC 0020) chặn write sau 2 ngày vượt hạn mức; whitelist
-        // /billing, /auth, DELETE /channel-accounts/{id}, /tenant, /media/image bên trong middleware.
-        Route::middleware(['tenant', 'plan.over_quota_lock'])->group(function () {
+        // `verified` (SPEC 0022) chặn API tới khi user verify email — JSON envelope
+        // `403 EMAIL_NOT_VERIFIED`. `plan.over_quota_lock` (SPEC 0020) chặn write sau
+        // 2 ngày vượt hạn mức.
+        Route::middleware(['verified', 'tenant', 'plan.over_quota_lock'])->group(function () {
             Route::post('media/image', [MediaController::class, 'upload'])->name('media.image.upload');   // generic image upload (e.g. quick-add order item)
 
             Route::get('tenant', [TenantController::class, 'show'])->name('tenant.show');
@@ -153,9 +173,9 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             // --- Fulfillment (Phase 3 / SPEC 0006) — vận đơn, ĐVVC, in tem, picking/packing, scan-to-pack ---
             Route::get('carriers', [CarrierAccountController::class, 'carriers'])->name('carriers.index');
             // SPEC 0021 — master-data VN cho AddressPicker khi tạo đơn manual. Cache 24h, không tenant-scoped.
-            Route::get('master-data/provinces', [\CMBcoreSeller\Modules\Fulfillment\Http\Controllers\MasterDataController::class, 'provinces'])->name('master-data.provinces');
-            Route::get('master-data/districts', [\CMBcoreSeller\Modules\Fulfillment\Http\Controllers\MasterDataController::class, 'districts'])->name('master-data.districts');
-            Route::get('master-data/wards', [\CMBcoreSeller\Modules\Fulfillment\Http\Controllers\MasterDataController::class, 'wards'])->name('master-data.wards');
+            Route::get('master-data/provinces', [MasterDataController::class, 'provinces'])->name('master-data.provinces');
+            Route::get('master-data/districts', [MasterDataController::class, 'districts'])->name('master-data.districts');
+            Route::get('master-data/wards', [MasterDataController::class, 'wards'])->name('master-data.wards');
             Route::get('carrier-accounts', [CarrierAccountController::class, 'index'])->name('carrier-accounts.index');
             Route::post('carrier-accounts', [CarrierAccountController::class, 'store'])->name('carrier-accounts.store');
             Route::patch('carrier-accounts/{id}', [CarrierAccountController::class, 'update'])->whereNumber('id')->name('carrier-accounts.update');
