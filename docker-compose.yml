@@ -73,7 +73,9 @@ x-app-env: &app-env
   MAIL_PORT: ${MAIL_PORT:-587}
   MAIL_USERNAME: ${MAIL_USERNAME}
   MAIL_PASSWORD: ${MAIL_PASSWORD}
-  MAIL_SCHEME: ${MAIL_SCHEME:-tls}
+  # Symfony Mailer (Laravel 11) — scheme phải là `smtp` (port 587 + STARTTLS) hoặc
+  # `smtps` (port 465 + TLS full). KHÔNG phải `tls` (Laravel ≤10 cũ).
+  MAIL_SCHEME: ${MAIL_SCHEME:-smtp}
   MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-no-reply@cmbcore.com}
   MAIL_FROM_NAME: ${MAIL_FROM_NAME:-OmniSell}
   # Error monitoring

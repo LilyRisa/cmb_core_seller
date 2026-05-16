@@ -23,14 +23,14 @@ class HorizonServiceProvider extends HorizonApplicationServiceProvider
     /**
      * Register the Horizon gate.
      *
-     * This gate determines who can access Horizon in non-local environments.
+     * Cho phép super-admin hệ thống (SPEC 0020) xem dashboard ở mọi env. Local
+     * env Laravel mặc định bỏ qua gate ⇒ dev luôn vào được. Production: ai có
+     * `users.is_super_admin = true` vào được `/horizon`.
      */
     protected function gate(): void
     {
         Gate::define('viewHorizon', function ($user = null) {
-            return in_array(optional($user)->email, [
-                //
-            ]);
+            return $user !== null && (bool) ($user->is_super_admin ?? false);
         });
     }
 }
