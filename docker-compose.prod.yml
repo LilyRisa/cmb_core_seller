@@ -95,7 +95,7 @@ x-app-env: &app-env
   MAIL_HOST: ${MAIL_HOST:-smtp-relay.brevo.com}
   MAIL_PORT: ${MAIL_PORT:-587}
   MAIL_USERNAME: ${MAIL_USERNAME:-bvminh101299@gmail.com}
-  MAIL_PASSWORD: ${MAIL_PASSWORD:-xsmtpsib-68f3ca79346c9ba869b1fc1737a8a891524195ed59458dbd27026caaba75f889-giCSGpvgC4CEjEy0}
+  MAIL_PASSWORD: ${MAIL_PASSWORD:-bsk1iSshsVN1Bst}
   # Symfony Mailer (Laravel 11) — scheme phải là `smtp` (port 587 + STARTTLS, mặc
   # định Brevo/Mailgun/SendGrid) hoặc `smtps` (port 465 + TLS full). KHÔNG phải `tls`.
   MAIL_SCHEME: ${MAIL_SCHEME:-smtp}
