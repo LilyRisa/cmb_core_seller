@@ -14,6 +14,7 @@ import { RequireAuth } from '@/components/RequireAuth';
 import { AppLayout } from '@/components/AppLayout';
 import { LoginPage } from '@/pages/LoginPage';
 import { RegisterPage } from '@/pages/RegisterPage';
+import { EmailVerifiedPage } from '@/pages/EmailVerifiedPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { OrdersPage } from '@/pages/OrdersPage';
 import { OrderDetailPage } from '@/pages/OrderDetailPage';
@@ -74,6 +75,8 @@ function Root() {
         <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            {/* SPEC 0022 — callback từ link xác thực trong email (BE redirect tới đây). Public. */}
+            <Route path="/email-verified" element={<EmailVerifiedPage />} />
             <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
                 <Route index element={<DashboardPage />} />
                 <Route path="orders" element={<OrdersPage />} />

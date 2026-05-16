@@ -12,6 +12,8 @@ export interface AuthUser {
     id: number;
     name: string;
     email: string;
+    /** SPEC 0022 — ISO timestamp khi user verify email; `null` ⇒ FE chặn vào app. */
+    email_verified_at: string | null;
     /** SPEC 0020 — true ⇒ user là super-admin hệ thống, được vào /admin/*. */
     is_super_admin?: boolean;
     tenants: TenantSummary[];
@@ -78,6 +80,29 @@ export function useUpdateProfile() {
             return data.data;
         },
         onSuccess: (user) => qc.setQueryData(['me'], user),
+    });
+}
+
+/**
+ * SPEC 0022 — gửi lại email xác thực (`POST /auth/email/verify/resend`).
+ * BE throttle 6/giờ. Trả `{ sent: true }` hoặc `{ sent: false, reason: 'already_verified' }`.
+ */
+export interface ResendResult { sent: boolean; reason?: string }
+
+export function useResendVerification() {
+    const qc = useQueryClient();
+    return useMutation<ResendResult, unknown, void>({
+        mutationFn: async () => {
+            await ensureCsrf();
+            const { data } = await api.post<{ data: ResendResult }>('/auth/email/verify/resend');
+            return data.data;
+        },
+        // Nếu BE bảo đã verified ⇒ refresh `me` để gate FE tự nhả.
+        onSuccess: (r) => {
+            if (r.sent === false && r.reason === 'already_verified') {
+                qc.invalidateQueries({ queryKey: ['me'] });
+            }
+        },
     });
 }
 
