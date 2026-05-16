@@ -115,15 +115,20 @@ export function EmailVerifiedPage() {
 function Shell({ children }: { children: React.ReactNode }) {
     return (
         <div className="verify-email-shell">
-            <div className="verify-email-card" style={{ paddingTop: 12 }}>
-                <div className="verify-email-brand" style={{ justifyContent: 'center', marginBottom: 8 }}>
+            <div className="verify-email-top">
+                <div className="brand">
                     <img src="/images/logocmb.png" alt="CMBcoreSeller" />
                     <span>CMBcoreSeller</span>
                 </div>
-                {children}
+                <div className="tag">Quản lý bán hàng đa sàn</div>
             </div>
+
+            <div className="verify-email-card verify-result-card">{children}</div>
+
             <div className="verify-email-footer">
-                &copy; {new Date().getFullYear()} CMBcoreSeller. All rights reserved.
+                <span>&copy; {new Date().getFullYear()} CMBcoreSeller</span>
+                <span className="dot" />
+                <span>Quản lý bán hàng đa sàn TikTok · Shopee · Lazada</span>
             </div>
         </div>
     );
