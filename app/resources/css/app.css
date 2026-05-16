@@ -668,3 +668,999 @@ body {
 }
 .verify-result-card .ant-result-icon > .anticon { font-size: 64px; }
 .verify-result-card .ant-result-extra { margin-top: 28px; }
+
+/* =============================================================================
+   APP SHELL — Sider, Header, Content, tenant switcher.
+   Editorial postal: paper sider + paper header with hairline divider, warm
+   tinted content area. Inline styles on Layout/Header in AppLayout.tsx force
+   white background; we override with !important to win specificity.
+   ============================================================================= */
+
+/* Whole layout — warm background showing between content cards. */
+body > #app > .ant-app > .ant-layout,
+.ant-layout {
+    background: var(--bg) !important;
+}
+
+/* Sider — cream paper with a subtle warm grain, dashed right edge. */
+.ant-layout-sider.ant-layout-sider-light {
+    background: linear-gradient(180deg, var(--paper) 0%, var(--bg-tinted) 100%) !important;
+    border-right: 1px dashed var(--ink-200) !important;
+    box-shadow: inset -1px 0 0 rgba(11,20,55,0.02);
+}
+.ant-layout-sider.ant-layout-sider-light .ant-layout-sider-children {
+    position: relative;
+}
+.ant-layout-sider.ant-layout-sider-light .ant-layout-sider-children::after {
+    /* Hairline gold ribbon at top of sider for editorial accent. */
+    content: ''; position: absolute; left: 0; right: 0; top: 56px;
+    height: 1px; background: linear-gradient(to right, var(--gold-500), transparent 60%);
+    opacity: 0.5; pointer-events: none;
+}
+
+/* Brand row in sider (logo + "CMB Core" text — inline-styled in TSX). */
+.ant-layout-sider.ant-layout-sider-light > div:first-child {
+    color: var(--ink-900) !important;
+    font-family: var(--font-display);
+    font-weight: 500 !important;
+    font-size: 17px !important;
+    letter-spacing: 0.01em;
+    border-bottom: 1px solid var(--ink-100);
+}
+.ant-layout-sider.ant-layout-sider-light > div:first-child img {
+    box-shadow: 0 4px 10px rgba(250, 140, 22, 0.20);
+    border-radius: 8px;
+}
+
+/* Header — paper not white, hairline bottom border. */
+.ant-layout-header {
+    background: var(--paper) !important;
+    border-bottom: 1px solid var(--ink-100) !important;
+    box-shadow: var(--shadow-xs);
+}
+
+/* Tenant switcher Select in header (borderless variant) — refined. */
+.ant-layout-header .ant-select-borderless .ant-select-selector {
+    background: transparent !important;
+    transition: background 0.15s ease;
+    border-radius: var(--radius-sm) !important;
+    padding: 0 10px !important;
+}
+.ant-layout-header .ant-select-borderless:hover .ant-select-selector {
+    background: var(--ink-100) !important;
+}
+.ant-layout-header .ant-select-borderless .ant-select-selection-item {
+    font-weight: 600;
+    color: var(--ink-900);
+}
+
+/* Header user-avatar drop area — refined hover. */
+.ant-layout-header .ant-dropdown-trigger {
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    transition: background 0.15s ease;
+}
+.ant-layout-header .ant-dropdown-trigger:hover {
+    background: var(--ink-100);
+}
+
+/* Content area — keep some warmth around the cards. */
+.ant-layout-content {
+    margin: 20px !important;
+    padding: 0;
+    min-height: 0;
+}
+@media (max-width: 720px) {
+    .ant-layout-content { margin: 12px !important; }
+}
+
+/* =============================================================================
+   MENU — Editorial sidebar nav.
+   Refined hover (gold underline-like accent), gold pill for active, dashed
+   group dividers.
+   ============================================================================= */
+
+.ant-layout-sider .ant-menu-inline {
+    background: transparent !important;
+    padding: 4px 8px 24px;
+    font-family: var(--font-sans);
+    font-size: 13.5px;
+}
+.ant-layout-sider .ant-menu-inline .ant-menu-item-group {
+    margin-bottom: 4px;
+}
+.ant-layout-sider .ant-menu-inline .ant-menu-item-group-title {
+    padding: 14px 14px 6px !important;
+    position: relative;
+}
+.ant-layout-sider .ant-menu-inline .ant-menu-item-group-list {
+    border-top: 1px dashed var(--ink-200);
+    padding-top: 4px;
+    margin: 0 8px;
+}
+.ant-layout-sider .ant-menu-inline .ant-menu-item-group + .ant-menu-item-group {
+    margin-top: 2px;
+}
+
+/* Items — quieter idle, refined hover. */
+.ant-layout-sider .ant-menu-inline .ant-menu-item {
+    color: var(--ink-700) !important;
+    border-radius: var(--radius-sm) !important;
+    margin: 2px 0 !important;
+    padding-inline: 12px !important;
+    height: 36px !important;
+    line-height: 36px !important;
+    transition: color 0.15s ease, background 0.15s ease, padding-left 0.15s ease;
+}
+.ant-layout-sider .ant-menu-inline .ant-menu-item .ant-menu-title-content > a {
+    color: inherit !important;
+    transition: color 0.15s ease;
+}
+.ant-layout-sider .ant-menu-inline .ant-menu-item .anticon {
+    color: var(--ink-500) !important;
+    transition: color 0.15s ease;
+    font-size: 15px !important;
+}
+
+.ant-layout-sider .ant-menu-inline .ant-menu-item:hover {
+    background: var(--gold-50) !important;
+    color: var(--ink-900) !important;
+}
+.ant-layout-sider .ant-menu-inline .ant-menu-item:hover .anticon {
+    color: var(--gold-600) !important;
+}
+
+/* Active item — refined gold left-rail + paper bg. */
+.ant-layout-sider .ant-menu-inline .ant-menu-item-selected {
+    background: var(--paper-2) !important;
+    color: var(--navy-900) !important;
+    font-weight: 600;
+    box-shadow: inset 3px 0 0 var(--gold-500), inset 0 0 0 1px rgba(11,20,55,0.04);
+    position: relative;
+}
+.ant-layout-sider .ant-menu-inline .ant-menu-item-selected .anticon {
+    color: var(--gold-600) !important;
+}
+.ant-layout-sider .ant-menu-inline .ant-menu-item-selected::after {
+    /* Kill AntD's default right-edge active indicator (we use left rail). */
+    display: none !important;
+}
+
+/* Collapsed sider — tighter alignment. */
+.ant-layout-sider-collapsed .ant-menu-inline-collapsed .ant-menu-item {
+    padding-inline: 0 !important;
+    text-align: center;
+}
+.ant-layout-sider-collapsed .ant-menu-inline-collapsed .ant-menu-item-group-list {
+    margin: 0;
+    border-top: 0;
+    padding-top: 0;
+}
+
+/* Header menu trigger (collapse) button — refined ghost. */
+.ant-layout-header .ant-btn-text {
+    color: var(--ink-700);
+}
+.ant-layout-header .ant-btn-text:hover {
+    background: var(--ink-100) !important;
+    color: var(--ink-900);
+}
+
+/* =============================================================================
+   PAGE HEADER (custom — components/PageHeader.tsx renders Typography.Title h4)
+   ============================================================================= */
+
+/* Targeting the title produced by `<Typography.Title level={4}>` inside the
+   PageHeader. AntD renders this as `.ant-typography` h4 — make it editorial. */
+.ant-layout-content > div:first-child > div:first-child > h4.ant-typography,
+.ant-layout-content > .ant-page-header h4.ant-typography {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 28px !important;
+    line-height: 1.18 !important;
+    letter-spacing: -0.018em;
+    color: var(--ink-900);
+    margin-bottom: 4px !important;
+}
+
+/* "subtitle" passed as <Typography.Text type="secondary"> following the title. */
+.ant-layout-content > div:first-child > div:first-child > .ant-typography {
+    font-size: 13.5px;
+    color: var(--ink-500) !important;
+    line-height: 1.55;
+}
+
+/* =============================================================================
+   CARDS — Paper, refined shadow, dashed accent on hover.
+   ============================================================================= */
+
+.ant-card {
+    background: var(--paper) !important;
+    border: 1px solid var(--ink-100) !important;
+    border-radius: var(--radius-lg) !important;
+    box-shadow: var(--shadow-xs);
+    transition: box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.ant-card:hover {
+    box-shadow: var(--shadow-sm);
+}
+.ant-card-head {
+    background: var(--bg-tinted) !important;
+    border-bottom: 1px solid var(--ink-100) !important;
+    border-top-left-radius: var(--radius-lg) !important;
+    border-top-right-radius: var(--radius-lg) !important;
+}
+.ant-card-head-title {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 15px !important;
+    color: var(--ink-900);
+    letter-spacing: -0.01em;
+}
+.ant-card-extra { font-size: 13px; }
+.ant-card-bordered { border-color: var(--ink-100) !important; }
+
+/* =============================================================================
+   TABLES — Editorial data dense.
+   - Cream tinted headers (Fraunces small caps)
+   - Dashed row dividers (not solid)
+   - Subtle hover (no harsh blue wash)
+   - Selected row uses gold accent
+   ============================================================================= */
+
+.ant-table-wrapper {
+    background: var(--paper);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--ink-100);
+    overflow: hidden;
+}
+.ant-table {
+    background: transparent !important;
+    font-size: 13px !important;
+    color: var(--ink-800);
+}
+.ant-table-thead > tr > th {
+    background: var(--bg-tinted) !important;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500 !important;
+    font-size: 12px !important;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--gold-700) !important;
+    border-bottom: 1px solid var(--ink-200) !important;
+    padding: 10px 14px !important;
+}
+.ant-table-thead > tr > th::before {
+    background: var(--ink-200) !important;
+    height: 14px !important;
+}
+.ant-table-tbody > tr > td {
+    border-bottom: 1px dashed var(--ink-200) !important;
+    padding: 12px 14px !important;
+    color: var(--ink-800);
+    transition: background 0.12s ease;
+}
+.ant-table-tbody > tr:last-child > td {
+    border-bottom: 1px dashed transparent !important;
+}
+.ant-table-tbody > tr:hover > td {
+    background: var(--gold-50) !important;
+}
+.ant-table-tbody > tr.ant-table-row-selected > td {
+    background: var(--brand-50) !important;
+    box-shadow: inset 2px 0 0 var(--brand-700);
+}
+
+/* Compact size (size="small") used in some pages */
+.ant-table-wrapper .ant-table-small .ant-table-thead > tr > th {
+    padding: 8px 12px !important;
+    font-size: 11px !important;
+    letter-spacing: 0.10em;
+}
+.ant-table-wrapper .ant-table-small .ant-table-tbody > tr > td {
+    padding: 9px 12px !important;
+    font-size: 12.5px !important;
+}
+
+/* Numbers / money — tabular nums for alignment. */
+.ant-table-cell {
+    font-variant-numeric: tabular-nums;
+}
+
+/* Empty table */
+.ant-empty-description { color: var(--ink-500); }
+
+/* Pagination — pill buttons, refined active state. */
+.ant-pagination .ant-pagination-item {
+    border-radius: var(--radius-sm);
+    border-color: var(--ink-200);
+    background: var(--paper);
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.ant-pagination .ant-pagination-item a { color: var(--ink-700); }
+.ant-pagination .ant-pagination-item:hover { border-color: var(--gold-500); }
+.ant-pagination .ant-pagination-item:hover a { color: var(--gold-700); }
+.ant-pagination .ant-pagination-item-active {
+    border-color: var(--navy-900);
+    background: var(--navy-900);
+}
+.ant-pagination .ant-pagination-item-active a { color: var(--paper) !important; font-weight: 600; }
+.ant-pagination .ant-pagination-prev .ant-pagination-item-link,
+.ant-pagination .ant-pagination-next .ant-pagination-item-link {
+    border-color: var(--ink-200);
+    background: var(--paper);
+}
+.ant-pagination .ant-pagination-prev:hover .ant-pagination-item-link,
+.ant-pagination .ant-pagination-next:hover .ant-pagination-item-link {
+    border-color: var(--gold-500);
+    color: var(--gold-700);
+}
+
+/* =============================================================================
+   BUTTONS — Refined heights, navy primary with gold underline on hover.
+   Scope: NOT applied inside .auth-shell / .verify-email-shell (those have
+   their own button styles).
+   ============================================================================= */
+
+.ant-layout .ant-btn,
+.ant-modal .ant-btn,
+.ant-drawer .ant-btn {
+    font-family: var(--font-sans);
+    font-weight: 500;
+    border-radius: var(--radius);
+    transition: all 0.16s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* Default button — paper bg, hairline border. */
+.ant-layout .ant-btn-default,
+.ant-modal .ant-btn-default,
+.ant-drawer .ant-btn-default {
+    background: var(--paper);
+    border: 1px solid var(--ink-200);
+    color: var(--ink-800);
+}
+.ant-layout .ant-btn-default:not(:disabled):hover,
+.ant-modal .ant-btn-default:not(:disabled):hover,
+.ant-drawer .ant-btn-default:not(:disabled):hover {
+    border-color: var(--navy-900);
+    color: var(--navy-900);
+    background: var(--paper);
+    box-shadow: var(--shadow-xs);
+}
+
+/* Primary — deep navy gradient, lift-on-hover. */
+.ant-layout .ant-btn-primary,
+.ant-modal .ant-btn-primary,
+.ant-drawer .ant-btn-primary {
+    background: linear-gradient(135deg, var(--brand-700) 0%, var(--navy-800) 100%);
+    border: 0;
+    box-shadow: 0 6px 16px rgba(22,104,220,0.22), inset 0 1px 0 rgba(255,255,255,0.16);
+    color: #fff;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+.ant-layout .ant-btn-primary:not(:disabled):hover,
+.ant-modal .ant-btn-primary:not(:disabled):hover,
+.ant-drawer .ant-btn-primary:not(:disabled):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 22px rgba(22,104,220,0.30), inset 0 1px 0 rgba(255,255,255,0.18);
+    background: linear-gradient(135deg, var(--brand-600) 0%, var(--navy-800) 100%);
+}
+.ant-layout .ant-btn-primary:disabled,
+.ant-modal .ant-btn-primary:disabled,
+.ant-drawer .ant-btn-primary:disabled {
+    background: var(--ink-200);
+    color: var(--ink-500);
+    box-shadow: none;
+}
+
+/* Danger — refined warning red, not the screaming AntD red. */
+.ant-layout .ant-btn-dangerous.ant-btn-default,
+.ant-modal .ant-btn-dangerous.ant-btn-default,
+.ant-drawer .ant-btn-dangerous.ant-btn-default {
+    color: var(--danger-700);
+    border-color: rgba(220,38,38,0.32);
+}
+.ant-layout .ant-btn-dangerous.ant-btn-default:not(:disabled):hover,
+.ant-modal .ant-btn-dangerous.ant-btn-default:not(:disabled):hover,
+.ant-drawer .ant-btn-dangerous.ant-btn-default:not(:disabled):hover {
+    background: var(--danger-100);
+    border-color: var(--danger-500);
+    color: var(--danger-700);
+}
+.ant-layout .ant-btn-dangerous.ant-btn-primary,
+.ant-modal .ant-btn-dangerous.ant-btn-primary,
+.ant-drawer .ant-btn-dangerous.ant-btn-primary {
+    background: linear-gradient(135deg, var(--danger-500) 0%, var(--danger-700) 100%);
+    box-shadow: 0 6px 16px rgba(220,38,38,0.22), inset 0 1px 0 rgba(255,255,255,0.16);
+}
+
+/* Text / link buttons — subtle. */
+.ant-layout .ant-btn-text,
+.ant-modal .ant-btn-text {
+    color: var(--ink-700);
+}
+.ant-layout .ant-btn-text:not(:disabled):hover,
+.ant-modal .ant-btn-text:not(:disabled):hover {
+    background: var(--ink-100);
+    color: var(--ink-900);
+}
+.ant-layout .ant-btn-link,
+.ant-modal .ant-btn-link { color: var(--brand-700); }
+.ant-layout .ant-btn-link:hover { color: var(--gold-700); }
+
+/* Button size large — slightly taller, more presence. */
+.ant-layout .ant-btn-lg { height: 44px; padding-inline: 22px; font-size: 14.5px; }
+
+/* =============================================================================
+   FORMS / INPUTS / SELECT / DATEPICKER
+   Refined heights, hairline focus glow.
+   ============================================================================= */
+
+.ant-form-item-label > label {
+    font-weight: 500 !important;
+    color: var(--ink-800) !important;
+    font-size: 13px !important;
+}
+.ant-form-item-label > label.ant-form-item-required::before {
+    color: var(--danger-500) !important;
+}
+.ant-form-item-extra { font-size: 12px; color: var(--ink-500); }
+.ant-form-item-explain-error { color: var(--danger-500) !important; font-size: 12px; }
+
+/* Inputs — paper bg, hairline border, gold focus. */
+.ant-input,
+.ant-input-password,
+.ant-input-affix-wrapper,
+.ant-input-number,
+.ant-input-number-affix-wrapper,
+.ant-picker,
+.ant-select-selector {
+    border-radius: var(--radius) !important;
+    border-color: var(--ink-200) !important;
+    background: var(--paper) !important;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.ant-input:hover,
+.ant-input-password:hover,
+.ant-input-affix-wrapper:hover,
+.ant-input-number:hover,
+.ant-input-number-affix-wrapper:hover,
+.ant-picker:hover,
+.ant-select:not(.ant-select-disabled):hover .ant-select-selector {
+    border-color: var(--navy-900) !important;
+}
+.ant-input:focus, .ant-input-focused,
+.ant-input-password:focus, .ant-input-password-focused,
+.ant-input-affix-wrapper:focus, .ant-input-affix-wrapper-focused,
+.ant-input-number:focus, .ant-input-number-focused,
+.ant-input-number-affix-wrapper:focus, .ant-input-number-affix-wrapper-focused,
+.ant-picker-focused,
+.ant-select-focused:not(.ant-select-disabled) .ant-select-selector {
+    border-color: var(--brand-700) !important;
+    box-shadow: 0 0 0 3px var(--brand-100) !important;
+}
+.ant-input::placeholder, .ant-input-number-input::placeholder, .ant-picker-input > input::placeholder {
+    color: var(--ink-400) !important;
+}
+
+/* Select dropdown items — gold hover. */
+.ant-select-dropdown {
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--ink-100);
+    padding: 4px;
+}
+.ant-select-item {
+    border-radius: var(--radius-sm) !important;
+    padding: 6px 10px !important;
+    font-size: 13.5px;
+    transition: background 0.12s ease;
+}
+.ant-select-item-option-active:not(.ant-select-item-option-disabled) {
+    background: var(--gold-50) !important;
+    color: var(--ink-900);
+}
+.ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+    background: var(--brand-50) !important;
+    font-weight: 600;
+    color: var(--navy-900);
+}
+
+/* Radio Button group (preferred per memory) — refined, no double-border. */
+.ant-radio-group .ant-radio-button-wrapper {
+    border-color: var(--ink-200);
+    color: var(--ink-700);
+    transition: all 0.15s ease;
+    font-weight: 500;
+}
+.ant-radio-group .ant-radio-button-wrapper:hover {
+    color: var(--gold-700);
+    border-color: var(--gold-500);
+}
+.ant-radio-group .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled) {
+    background: var(--navy-900) !important;
+    border-color: var(--navy-900) !important;
+    color: #fff !important;
+    box-shadow: 0 4px 10px rgba(11,20,55,0.18);
+}
+.ant-radio-group .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled)::before {
+    background: var(--navy-900) !important;
+}
+
+/* Segmented control */
+.ant-segmented {
+    background: var(--bg-tinted);
+    border: 1px solid var(--ink-100);
+    border-radius: var(--radius);
+    padding: 3px;
+}
+.ant-segmented .ant-segmented-item-selected {
+    background: var(--navy-900);
+    color: #fff;
+    box-shadow: var(--shadow-sm);
+    border-radius: var(--radius-sm);
+}
+.ant-segmented .ant-segmented-item-selected .ant-segmented-item-label { color: #fff; }
+
+/* Checkbox / Switch — gold accent for "on" matches the theme. */
+.ant-checkbox-checked .ant-checkbox-inner {
+    background: var(--navy-900) !important;
+    border-color: var(--navy-900) !important;
+}
+.ant-switch.ant-switch-checked {
+    background: var(--success-500) !important;
+}
+
+/* InputSearch — refined join. */
+.ant-input-search .ant-input-search-button {
+    background: var(--paper);
+    color: var(--ink-700);
+}
+
+/* =============================================================================
+   MODAL & DRAWER — Paper cards, refined headers.
+   ============================================================================= */
+
+.ant-modal .ant-modal-content {
+    background: var(--paper);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    padding: 0;
+    overflow: hidden;
+}
+.ant-modal .ant-modal-header {
+    background: var(--bg-tinted);
+    border-bottom: 1px solid var(--ink-100);
+    padding: 18px 24px;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+.ant-modal .ant-modal-title {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 18px;
+    color: var(--ink-900);
+    letter-spacing: -0.01em;
+}
+.ant-modal .ant-modal-body {
+    padding: 20px 24px;
+    color: var(--ink-800);
+    font-size: 14px;
+    line-height: 1.55;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+.ant-modal .ant-modal-footer {
+    padding: 14px 24px;
+    background: var(--bg-tinted);
+    border-top: 1px solid var(--ink-100);
+}
+.ant-modal .ant-modal-close {
+    color: var(--ink-500);
+    border-radius: var(--radius-sm);
+    transition: background 0.15s ease;
+}
+.ant-modal .ant-modal-close:hover {
+    background: var(--ink-100);
+    color: var(--ink-900);
+}
+
+/* Confirm modal — icon refined */
+.ant-modal-confirm .ant-modal-confirm-icon { font-size: 22px; }
+.ant-modal-confirm .ant-modal-confirm-title { font-family: var(--font-display); font-weight: 500; }
+
+/* Drawer */
+.ant-drawer-content { background: var(--paper) !important; }
+.ant-drawer-header {
+    background: var(--bg-tinted);
+    border-bottom: 1px solid var(--ink-100);
+    padding: 16px 22px !important;
+}
+.ant-drawer-title {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 17px;
+    color: var(--ink-900);
+    letter-spacing: -0.01em;
+}
+.ant-drawer-body {
+    padding: 20px 22px !important;
+    color: var(--ink-800);
+}
+.ant-drawer-extra { font-size: 13px; }
+.ant-drawer-close {
+    color: var(--ink-500);
+    border-radius: var(--radius-sm);
+}
+.ant-drawer-close:hover { background: var(--ink-100); color: var(--ink-900); }
+
+/* =============================================================================
+   TAGS — Pill, no harsh borders, refined colors.
+   ============================================================================= */
+
+.ant-tag {
+    border-radius: 999px;
+    border: 1px solid transparent;
+    padding: 1px 10px;
+    font-weight: 500;
+    font-size: 11.5px;
+    letter-spacing: 0.01em;
+    line-height: 18px;
+}
+
+/* Default tag — quiet ink */
+.ant-tag:not([class*="-color"]):not([class*="ant-tag-has-color"]) {
+    background: var(--ink-100);
+    color: var(--ink-700);
+}
+
+/* Color variants — refined washes (not garish AntD defaults) */
+.ant-tag-blue       { background: var(--brand-100); color: var(--brand-700); }
+.ant-tag-green      { background: var(--success-100); color: var(--success-700); }
+.ant-tag-gold,
+.ant-tag-orange,
+.ant-tag-warning    { background: var(--gold-100); color: var(--gold-700); }
+.ant-tag-red,
+.ant-tag-error      { background: var(--danger-100); color: var(--danger-700); }
+.ant-tag-purple     { background: rgba(139,92,246,0.10); color: #6D28D9; }
+.ant-tag-magenta    { background: rgba(217,70,239,0.10); color: #A21CAF; }
+.ant-tag-cyan       { background: var(--info-100); color: #0369A1; }
+.ant-tag-geekblue   { background: rgba(55,48,163,0.10); color: #3730A3; }
+.ant-tag-volcano    { background: rgba(234,88,12,0.10); color: #C2410C; }
+.ant-tag-success    { background: var(--success-100); color: var(--success-700); }
+
+/* CheckableTag — used in plan editor */
+.ant-tag.ant-tag-checkable {
+    border: 1px solid var(--ink-200);
+    background: var(--paper);
+    color: var(--ink-700);
+    padding: 4px 12px;
+    border-radius: var(--radius);
+    cursor: pointer;
+}
+.ant-tag.ant-tag-checkable:not(.ant-tag-checkable-checked):hover {
+    background: var(--gold-50);
+    color: var(--gold-700);
+    border-color: var(--gold-500);
+}
+.ant-tag.ant-tag-checkable-checked {
+    background: var(--navy-900) !important;
+    color: #fff !important;
+    border-color: var(--navy-900) !important;
+}
+
+/* =============================================================================
+   ALERT / RESULT / NOTIFICATION / TOOLTIP
+   Editorial cards: border-left accent (no solid filled boxes).
+   ============================================================================= */
+
+.ant-alert {
+    border-radius: var(--radius);
+    border-width: 1px;
+    border-style: solid;
+    padding: 12px 16px;
+    align-items: flex-start;
+    box-shadow: var(--shadow-xs);
+}
+.ant-alert-message {
+    font-weight: 600;
+    color: var(--ink-900);
+    font-size: 13.5px;
+}
+.ant-alert-description {
+    color: var(--ink-700);
+    font-size: 13px;
+    line-height: 1.55;
+    margin-top: 2px;
+}
+.ant-alert-info {
+    background: var(--info-100);
+    border-color: rgba(14,165,233,0.30);
+    border-left-width: 3px;
+}
+.ant-alert-info .ant-alert-icon { color: var(--info-500); }
+.ant-alert-success {
+    background: var(--success-100);
+    border-color: rgba(16,185,129,0.30);
+    border-left-width: 3px;
+}
+.ant-alert-success .ant-alert-icon { color: var(--success-500); }
+.ant-alert-warning {
+    background: var(--warn-100);
+    border-color: rgba(245,158,11,0.32);
+    border-left-width: 3px;
+}
+.ant-alert-warning .ant-alert-icon { color: var(--warn-500); }
+.ant-alert-error {
+    background: var(--danger-100);
+    border-color: rgba(220,38,38,0.28);
+    border-left-width: 3px;
+}
+.ant-alert-error .ant-alert-icon { color: var(--danger-500); }
+
+/* Result component — keep verify-result overrides from earlier; this is for
+   in-app Result (ComingSoon placeholder, etc.). */
+.ant-layout .ant-result {
+    background: var(--paper);
+    border-radius: var(--radius-lg);
+    padding: 32px 24px;
+}
+.ant-layout .ant-result .ant-result-title {
+    font-family: var(--font-display);
+    font-weight: 500;
+    color: var(--ink-900);
+    letter-spacing: -0.01em;
+}
+.ant-layout .ant-result .ant-result-subtitle {
+    color: var(--ink-500);
+}
+
+/* Notification (toasts) */
+.ant-notification .ant-notification-notice {
+    background: var(--paper);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--ink-100);
+    box-shadow: var(--shadow-lg);
+    padding: 16px 20px;
+}
+.ant-notification .ant-notification-notice-message {
+    font-family: var(--font-display);
+    font-weight: 500;
+    color: var(--ink-900);
+    font-size: 15px;
+}
+.ant-notification .ant-notification-notice-description {
+    color: var(--ink-700);
+    font-size: 13px;
+}
+
+/* Tooltip */
+.ant-tooltip .ant-tooltip-inner {
+    background: var(--navy-900);
+    color: #F5F2EA;
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    font-size: 12.5px;
+    font-weight: 500;
+    box-shadow: 0 6px 14px rgba(11,20,55,0.30);
+}
+.ant-tooltip .ant-tooltip-arrow::before { background: var(--navy-900) !important; }
+
+/* Popover */
+.ant-popover .ant-popover-inner {
+    background: var(--paper);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--ink-100);
+    box-shadow: var(--shadow-lg);
+}
+.ant-popover .ant-popover-title {
+    font-family: var(--font-display);
+    color: var(--ink-900);
+    border-bottom: 1px dashed var(--ink-200);
+}
+
+/* Dropdown menu */
+.ant-dropdown .ant-dropdown-menu {
+    background: var(--paper);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--ink-100);
+    box-shadow: var(--shadow-lg);
+    padding: 4px;
+}
+.ant-dropdown .ant-dropdown-menu-item {
+    border-radius: var(--radius-sm);
+    padding: 6px 10px !important;
+    transition: background 0.12s ease;
+}
+.ant-dropdown .ant-dropdown-menu-item:hover {
+    background: var(--gold-50) !important;
+    color: var(--gold-700);
+}
+.ant-dropdown .ant-dropdown-menu-item-divider {
+    background: var(--ink-100);
+}
+
+/* =============================================================================
+   TABS / BREADCRUMB / BADGE / AVATAR / STATISTIC
+   ============================================================================= */
+
+.ant-tabs .ant-tabs-tab {
+    color: var(--ink-500);
+    font-weight: 500;
+    padding: 10px 14px !important;
+    font-size: 14px;
+}
+.ant-tabs .ant-tabs-tab:hover { color: var(--ink-800); }
+.ant-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+    color: var(--navy-900) !important;
+    font-weight: 600;
+}
+.ant-tabs .ant-tabs-ink-bar {
+    background: var(--gold-500) !important;
+    height: 2px;
+}
+.ant-tabs .ant-tabs-nav::before {
+    border-bottom-color: var(--ink-200) !important;
+}
+
+.ant-breadcrumb a, .ant-breadcrumb-link { color: var(--ink-500) !important; }
+.ant-breadcrumb li:last-child .ant-breadcrumb-link { color: var(--ink-900) !important; font-weight: 500; }
+.ant-breadcrumb-separator { color: var(--ink-300) !important; }
+
+/* Badge dot — gold accent for "attention". */
+.ant-badge .ant-badge-dot {
+    background: var(--gold-500) !important;
+    box-shadow: 0 0 0 1px var(--paper);
+}
+
+/* Avatar (initials) — refined background. */
+.ant-avatar {
+    background: linear-gradient(135deg, var(--brand-700) 0%, var(--navy-800) 100%) !important;
+    color: #fff !important;
+    font-weight: 600;
+    box-shadow: var(--shadow-xs);
+}
+
+/* Statistic numbers — Fraunces for "premium dashboard" feel. */
+.ant-statistic-title {
+    color: var(--ink-500);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+}
+.ant-statistic-content {
+    font-family: var(--font-display);
+    color: var(--ink-900);
+    font-variant-numeric: tabular-nums;
+}
+
+/* =============================================================================
+   STATUS TAGS (custom StatusTag component) — refined common patterns.
+   ============================================================================= */
+
+/* Order status tag colors are managed in TSX (StatusTag.tsx) but tag itself
+   gets our pill treatment above. */
+
+/* =============================================================================
+   OVERFLOW PROTECTION & TYPOGRAPHY HYGIENE
+   Avoid tràn chữ in tables, drawers, modals, long codes/IDs.
+   ============================================================================= */
+
+/* Long URL / token / hash strings in JSON modal dumps. */
+.ant-modal pre, .ant-drawer pre {
+    background: #0F172A;
+    color: #E2E8F0;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.5;
+    padding: 14px 16px;
+    border-radius: var(--radius);
+    overflow-x: auto;
+    max-height: 50vh;
+    word-break: break-all;
+    white-space: pre-wrap;
+}
+
+/* Inline <code> across app — refined treatment. */
+.ant-layout code,
+.ant-modal code,
+.ant-drawer code {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    background: var(--bg-tinted);
+    color: var(--navy-900);
+    padding: 1px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--ink-100);
+}
+
+/* Long emails / refs in table cells — wrap on small screens. */
+.ant-table-cell {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+/* Voucher code mono blocks in admin/vouchers table — keep tight, no wrap. */
+.ant-table-cell strong[style*="ui-monospace"] {
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+}
+
+/* Form items full-width by default in modals (avoid overflow on tiny screens) */
+.ant-modal .ant-form-item .ant-input-number,
+.ant-modal .ant-form-item .ant-picker,
+.ant-modal .ant-form-item .ant-select {
+    width: 100%;
+}
+
+/* Scrollbars — refined cross-browser */
+.ant-modal-body::-webkit-scrollbar,
+.ant-drawer-body::-webkit-scrollbar,
+.ant-table-body::-webkit-scrollbar,
+pre::-webkit-scrollbar { width: 8px; height: 8px; }
+.ant-modal-body::-webkit-scrollbar-thumb,
+.ant-drawer-body::-webkit-scrollbar-thumb,
+.ant-table-body::-webkit-scrollbar-thumb,
+pre::-webkit-scrollbar-thumb {
+    background: var(--ink-300);
+    border-radius: 4px;
+}
+.ant-modal-body::-webkit-scrollbar-track,
+.ant-drawer-body::-webkit-scrollbar-track,
+.ant-table-body::-webkit-scrollbar-track,
+pre::-webkit-scrollbar-track {
+    background: transparent;
+}
+* { scrollbar-color: var(--ink-300) transparent; scrollbar-width: thin; }
+
+/* Selection — gold tint */
+::selection { background: var(--gold-100); color: var(--ink-900); }
+
+/* Focus ring — accessibility hint for keyboard nav. */
+.ant-layout :focus-visible,
+.ant-modal :focus-visible,
+.ant-drawer :focus-visible {
+    outline: 2px solid var(--gold-500);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+/* =============================================================================
+   ADMIN PAGES — Specific refinements.
+   ============================================================================= */
+
+/* Voucher detail drawer — make redemption pre/JSON nicer. */
+.ant-drawer-body .ant-card { margin-bottom: 16px; }
+
+/* Admin audit log — JSON viewer (uses inline <pre> in AdminAuditLogsPage). */
+.ant-drawer-body > pre {
+    background: var(--navy-900) !important;
+    color: #E2E8F0 !important;
+}
+
+/* "Quản trị hệ thống" group label — pull gold even harder. */
+.ant-layout-sider .ant-menu-inline .ant-menu-item-group:nth-last-child(1) .ant-menu-item-group-title {
+    color: var(--gold-600);
+}
+
+/* =============================================================================
+   ANIMATION HYGIENE — Respect user preference for reduced motion.
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+    }
+}
+
+/* =============================================================================
+   END OF EDITORIAL POSTAL THEME.
+   Total override target: AntD 5 components inside the app shell.
+   Auth + verify-email pages keep their bespoke styles above.
+   ============================================================================= */
