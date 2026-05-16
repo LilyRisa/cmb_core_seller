@@ -95,7 +95,7 @@ x-app-env: &app-env
   MAIL_HOST: ${smtp-relay.brevo.com}
   MAIL_PORT: ${MAIL_PORT:-587}
   MAIL_USERNAME: ${bvminh101299@gmail.com}
-  MAIL_PASSWORD: ${key}
+  MAIL_PASSWORD: ${xsmtpsib-68f3ca79346c9ba869b1fc1737a8a891524195ed59458dbd27026caaba75f889-giCSGpvgC4CEjEy0}
   MAIL_SCHEME: ${MAIL_SCHEME:-tls}
   MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-seller@cmbcore.com}
   MAIL_FROM_NAME: ${MAIL_FROM_NAME:-CMBCoreSeller}
