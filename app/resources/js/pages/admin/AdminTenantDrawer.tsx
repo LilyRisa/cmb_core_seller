@@ -8,6 +8,8 @@ import {
     type AdminChannelAccount,
 } from '@/lib/admin';
 import { errorMessage } from '@/lib/api';
+import { ChannelLogo } from '@/components/ChannelLogo';
+import { CHANNEL_META } from '@/lib/format';
 
 /**
  * Drawer chi tiết 1 tenant cho super-admin. SPEC 0020 §3.3–3.5.
@@ -163,9 +165,12 @@ function ChannelsTab({ tenantId, accounts }: { tenantId: number; accounts: Admin
             columns={[
                 { title: 'Tên', dataIndex: 'name', key: 'name',
                     render: (_v, r) => (
-                        <Space direction="vertical" size={0}>
-                            <Typography.Text strong>{r.name}</Typography.Text>
-                            <Typography.Text type="secondary" style={{ fontSize: 12 }}>{r.provider} · #{r.external_shop_id}</Typography.Text>
+                        <Space size={10} align="center">
+                            <ChannelLogo provider={r.provider} size={28} />
+                            <Space direction="vertical" size={0}>
+                                <Typography.Text strong>{r.name}</Typography.Text>
+                                <Typography.Text type="secondary" style={{ fontSize: 12 }}>{CHANNEL_META[r.provider]?.name ?? r.provider} · #{r.external_shop_id}</Typography.Text>
+                            </Space>
                         </Space>
                     ) },
                 { title: 'Trạng thái', dataIndex: 'status', key: 'status', width: 110,

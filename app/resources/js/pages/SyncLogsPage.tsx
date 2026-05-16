@@ -5,6 +5,7 @@ import { ReloadOutlined, RedoOutlined, WarningOutlined } from '@ant-design/icons
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { ChannelBadge } from '@/components/ChannelBadge';
+import { ChannelLogo } from '@/components/ChannelLogo';
 import { DateText } from '@/components/MoneyText';
 import { useChannelAccounts } from '@/lib/channels';
 import { useCan } from '@/lib/tenant';
@@ -45,7 +46,15 @@ export function SyncLogsPage() {
 
 function useShopOptions() {
     const { data } = useChannelAccounts();
-    return (data?.data ?? []).map((a) => ({ value: a.id, label: `${a.shop_name ?? a.external_shop_id} (${a.provider})` }));
+    return (data?.data ?? []).map((a) => ({
+        value: a.id,
+        label: (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <ChannelLogo provider={a.provider} size={14} />
+                {a.shop_name ?? a.external_shop_id}
+            </span>
+        ),
+    }));
 }
 
 // --- Sync runs --------------------------------------------------------------

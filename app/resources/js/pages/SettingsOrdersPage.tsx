@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, App as AntApp, Button, Card, InputNumber, Space, Typography } from 'antd';
 import { errorMessage } from '@/lib/api';
 import { CHANNEL_META } from '@/lib/format';
+import { ChannelLogo } from '@/components/ChannelLogo';
 import { useCan, useTenant, useUpdateTenant } from '@/lib/tenant';
 
 /**
@@ -51,7 +52,7 @@ export function SettingsOrdersPage() {
                     return (
                         <div key={p} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                                <span style={{ width: 10, height: 10, borderRadius: 3, background: meta.color, display: 'inline-block' }} />
+                                <ChannelLogo provider={p} size={20} />
                                 {meta.name}
                             </span>
                             <InputNumber

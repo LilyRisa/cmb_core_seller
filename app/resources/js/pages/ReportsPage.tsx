@@ -9,6 +9,7 @@ import { MoneyText } from '@/components/MoneyText';
 import { FilterChipRow, type ChipItem } from '@/components/FilterChipRow';
 import { useCan, useCurrentTenantId, useTenant } from '@/lib/tenant';
 import { errorMessage, isUnauthenticated } from '@/lib/api';
+import { ChannelLogo } from '@/components/ChannelLogo';
 import { CHANNEL_META } from '@/lib/format';
 import {
     type Granularity, type ReportFilters, exportReportUrl,
@@ -31,7 +32,7 @@ const PRESETS: Array<{ key: string; label: string; range: () => [string, string]
     { key: 'ytd', label: 'Năm nay', range: () => [dayjs().startOf('year').format('YYYY-MM-DD'), dayjs().format('YYYY-MM-DD')] },
 ];
 
-const SOURCE_CHIPS: ChipItem[] = Object.keys(CHANNEL_META).map((k) => ({ value: k, label: CHANNEL_META[k].name }));
+const SOURCE_CHIPS: ChipItem[] = Object.keys(CHANNEL_META).map((k) => ({ value: k, label: CHANNEL_META[k].name, icon: <ChannelLogo provider={k} size={14} /> }));
 
 export function ReportsPage() {
     const { isLoading: tenantLoading } = useTenant();
@@ -145,7 +146,12 @@ function RevenueTab({ filters }: { filters: ReportFilters }) {
                     {data.by_source.length === 0 ? <Empty description="Chưa có dữ liệu" /> : (
                         <Table size="small" rowKey="source" pagination={false} dataSource={data.by_source}
                             columns={[
-                                { title: 'Sàn', dataIndex: 'source', key: 's', render: (v) => <Tag color={CHANNEL_META[v]?.color}>{CHANNEL_META[v]?.name ?? v}</Tag> },
+                                { title: 'Sàn', dataIndex: 'source', key: 's', render: (v) => (
+                                    <Space size={6} align="center">
+                                        <ChannelLogo provider={v} size={18} />
+                                        <Tag color={CHANNEL_META[v]?.color} style={{ marginInlineEnd: 0 }}>{CHANNEL_META[v]?.name ?? v}</Tag>
+                                    </Space>
+                                ) },
                                 { title: 'Số đơn', dataIndex: 'orders', key: 'o', align: 'right' },
                                 { title: 'Doanh thu', dataIndex: 'revenue', key: 'r', align: 'right', render: (v) => <MoneyText value={v} strong /> },
                                 { title: 'Tỉ trọng', key: 'share', align: 'right', render: (_, r) => {

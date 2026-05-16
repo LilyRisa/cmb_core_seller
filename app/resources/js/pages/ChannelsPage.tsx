@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Alert, Avatar, Button, Card, Col, Empty, Input, Modal, Result, Row, Space, Tag, Tooltip, Typography } from 'antd';
+import { Alert, Button, Card, Col, Empty, Input, Modal, Result, Row, Space, Tag, Tooltip, Typography } from 'antd';
 import { App as AntApp } from 'antd';
-import { CheckCircleOutlined, ClockCircleOutlined, DeleteOutlined, EditOutlined, KeyOutlined, PlusOutlined, ReloadOutlined, ShopOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, ClockCircleOutlined, DeleteOutlined, EditOutlined, KeyOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { DateText } from '@/components/MoneyText';
+import { ChannelLogo } from '@/components/ChannelLogo';
 import { CHANNEL_META, CHANNEL_STATUS_COLOR, CHANNEL_STATUS_LABEL } from '@/lib/format';
 import { errorMessage } from '@/lib/api';
 import { ChannelAccount, useChannelAccounts, useConnectChannel, useDeleteChannelAccount, useOutboundIp, useRenameChannel, useResyncChannel } from '@/lib/channels';
@@ -63,7 +64,7 @@ function ShopCard({ account, canManage, onResync, onDelete, onRename, onReauthor
         <Card styles={{ body: { padding: 16 } }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
                 <Space align="start">
-                    <Avatar shape="square" size={40} style={{ background: meta.color, color: '#fff', fontWeight: 700 }}>{meta.name.slice(0, 2)}</Avatar>
+                    <ChannelLogo provider={account.provider} size={44} />
                     <Space direction="vertical" size={2}>
                         <Space size={6}>
                             <Typography.Text strong>{account.name}</Typography.Text>
@@ -173,14 +174,14 @@ export function ChannelsPage() {
                         {connectable.map((p) => {
                             const meta = CHANNEL_META[p.code] ?? { name: p.name, color: '#8c8c8c' };
                             return (
-                                <Button key={p.code} type="primary" icon={<ShopOutlined />} loading={connect.isPending && connect.variables === p.code} onClick={() => connect.mutate(p.code)} style={{ background: meta.color, borderColor: meta.color }}>
+                                <Button key={p.code} type="primary" icon={<ChannelLogo provider={p.code} size={16} />} loading={connect.isPending && connect.variables === p.code} onClick={() => connect.mutate(p.code)} style={{ background: meta.color, borderColor: meta.color }}>
                                     Kết nối {meta.name}
                                 </Button>
                             );
                         })}
                         {/* providers awaiting API approval */}
-                        {!connectable.some((p) => p.code === 'shopee') && <Button disabled icon={<ShopOutlined />}>Shopee <Tag style={{ marginLeft: 6 }}>Phase 4</Tag></Button>}
-                        {!connectable.some((p) => p.code === 'lazada') && <Button disabled icon={<ShopOutlined />}>Lazada <Tag style={{ marginLeft: 6 }}>Phase 4</Tag></Button>}
+                        {!connectable.some((p) => p.code === 'shopee') && <Button disabled icon={<ChannelLogo provider="shopee" size={16} />}>Shopee <Tag style={{ marginLeft: 6 }}>Phase 4</Tag></Button>}
+                        {!connectable.some((p) => p.code === 'lazada') && <Button disabled icon={<ChannelLogo provider="lazada" size={16} />}>Lazada <Tag style={{ marginLeft: 6 }}>Phase 4</Tag></Button>}
                     </Space>
                     <Typography.Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0, fontSize: 12 }}>
                         Bấm "Kết nối" sẽ chuyển bạn tới trang ủy quyền của sàn; sau khi đồng ý, bạn quay lại đây.

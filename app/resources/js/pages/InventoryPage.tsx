@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { MoneyText } from '@/components/MoneyText';
 import { SkuLine, SkuPicker, SkuPickerField } from '@/components/SkuPicker';
 import { WarehouseDocsTab } from '@/components/WarehouseDocsTab';
+import { ChannelLogo } from '@/components/ChannelLogo';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
 import { useChannelAccounts } from '@/lib/channels';
@@ -237,8 +238,12 @@ function ListingsTab() {
         <>
             <Space style={{ marginBottom: 12 }} wrap>
                 <Input.Search allowClear placeholder="Tìm tên SP / mã SKU sàn" prefix={<SearchOutlined />} style={{ width: 240 }} onSearch={(v) => { setQ(v); setPage(1); }} />
-                <Select allowClear placeholder="Gian hàng" suffixIcon={<ShopOutlined />} style={{ width: 180 }} value={shopId} onChange={(v) => { setShopId(v); setPage(1); }}
-                    options={(shopsData?.data ?? []).map((s) => ({ value: s.id, label: s.name }))} />
+                <Select allowClear placeholder="Gian hàng" suffixIcon={<ShopOutlined />} style={{ width: 220 }} value={shopId} onChange={(v) => { setShopId(v); setPage(1); }}
+                    optionLabelProp="label"
+                    options={(shopsData?.data ?? []).map((s) => ({
+                        value: s.id,
+                        label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ChannelLogo provider={s.provider} size={14} />{s.name}</span>,
+                    }))} />
                 <Select value={mappedFilter} style={{ width: 150 }} onChange={(v) => { setMappedFilter(v); setPage(1); }} options={[{ value: '', label: 'Tất cả' }, { value: '0', label: 'Chưa ghép' }, { value: '1', label: 'Đã ghép' }]} />
                 {canMap && <Button icon={<CloudDownloadOutlined />} loading={syncListings.isPending || syncPoll.isPolling} onClick={() => syncListings.mutate(undefined, { onSuccess: (r) => { if (r.queued > 0) { message.success(`Đang đồng bộ listing từ ${r.queued} gian hàng…`); syncPoll.start(); } else { message.info('Chưa có gian hàng nào hỗ trợ đồng bộ listing'); } }, onError: (e) => message.error(errorMessage(e)) })}>Đồng bộ listing từ sàn</Button>}
                 {canMap && <Button icon={<ThunderboltOutlined />} loading={autoMatch.isPending} onClick={() => autoMatch.mutate(undefined, { onSuccess: (r) => message.success(`Đã tự ghép ${r.matched} listing theo mã`), onError: (e) => message.error(errorMessage(e)) })}>Tự ghép theo mã</Button>}

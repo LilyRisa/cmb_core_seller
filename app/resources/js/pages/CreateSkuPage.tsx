@@ -14,6 +14,7 @@ import {
     type ChannelListing, type CreateSkuPayload, type Sku, type UpdateSkuPayload,
 } from '@/lib/inventory';
 import { useChannelAccounts } from '@/lib/channels';
+import { ChannelLogo } from '@/components/ChannelLogo';
 
 /** Thông tin listing sàn đã chọn cho 1 dòng ghép nối — chỉ để hiển thị (tên/ảnh/biến thể), không gửi lên server. */
 interface PickedListing { external_sku_id: string; seller_sku: string | null; title: string | null; image: string | null; variation: string | null; channel_stock: number | null }
@@ -105,7 +106,10 @@ export function CreateSkuPage() {
     const deleteImage = useDeleteSkuImage();
     const { data: warehouses } = useWarehouses();
     const { data: channelData } = useChannelAccounts();
-    const shopOptions = useMemo(() => (channelData?.data ?? []).map((s) => ({ value: s.id, label: s.name })), [channelData]);
+    const shopOptions = useMemo(() => (channelData?.data ?? []).map((s) => ({
+        value: s.id,
+        label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ChannelLogo provider={s.provider} size={14} />{s.name}</span>,
+    })), [channelData]);
 
     const skuQ = useSku(isEdit ? id : undefined);
     const editing: Sku | undefined = isEdit ? skuQ.data : undefined;

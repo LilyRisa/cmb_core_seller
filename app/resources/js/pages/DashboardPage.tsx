@@ -14,6 +14,7 @@ import {
 import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { CHANNEL_META } from '@/lib/format';
+import { ChannelLogo } from '@/components/ChannelLogo';
 import { deltaPct, useDashboardSummary, type DashboardRange, type DashboardSummary, type KpiPair } from '@/lib/dashboard';
 import { useAccountingDashboardSummary, type AccountingDashboardSummary } from '@/lib/accounting';
 import { useAuth } from '@/lib/auth';
@@ -371,7 +372,13 @@ function BySourceChart({ data }: { data: DashboardSummary['by_source'] }) {
             <Space direction="vertical" size={6} style={{ width: '100%', marginTop: 8 }}>
                 {enriched.map((d) => (
                     <Row key={d.source} gutter={8} align="middle">
-                        <Col flex="auto"><Tag color={d.color === '#000000' ? 'default' : undefined} style={d.color !== '#000000' ? { background: `${d.color}15`, borderColor: `${d.color}30`, color: d.color } : undefined}>{d.name}</Tag><Typography.Text type="secondary" style={{ fontSize: 12, marginLeft: 6 }}>{d.orders} đơn</Typography.Text></Col>
+                        <Col flex="auto">
+                            <Space size={6} align="center">
+                                <ChannelLogo provider={d.source} size={16} />
+                                <Tag color={d.color === '#000000' ? 'default' : undefined} style={{ ...(d.color !== '#000000' ? { background: `${d.color}15`, borderColor: `${d.color}30`, color: d.color } : {}), marginInlineEnd: 0 }}>{d.name}</Tag>
+                                <Typography.Text type="secondary" style={{ fontSize: 12 }}>{d.orders} đơn</Typography.Text>
+                            </Space>
+                        </Col>
                         <Col><Typography.Text strong>{d.share}%</Typography.Text></Col>
                     </Row>
                 ))}

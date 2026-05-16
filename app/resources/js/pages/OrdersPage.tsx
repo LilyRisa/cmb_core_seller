@@ -7,6 +7,7 @@ import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusTag } from '@/components/StatusTag';
 import { ChannelBadge } from '@/components/ChannelBadge';
+import { ChannelLogo } from '@/components/ChannelLogo';
 import { CarrierBadge, carrierDisplayName, parseCarrier } from '@/components/CarrierBadge';
 import { MoneyText, DateText } from '@/components/MoneyText';
 import { FilterChipRow, type ChipItem } from '@/components/FilterChipRow';
@@ -347,9 +348,12 @@ export function OrdersPage() {
         runPrint();
     };
 
-    // chip-row items
-    const sourceChips: ChipItem[] = (stats?.by_source ?? []).map((s) => ({ value: s.source, label: CHANNEL_META[s.source]?.name ?? s.source, count: s.count }));
-    const shopChips: ChipItem[] = (stats?.by_shop ?? []).map((s) => ({ value: String(s.channel_account_id), label: shopName(s.channel_account_id), count: s.count }));
+    // chip-row items — kèm logo gian hàng để nhận diện trực quan (logo sàn cho cả "Sàn TMĐT" lẫn "Gian hàng")
+    const sourceChips: ChipItem[] = (stats?.by_source ?? []).map((s) => ({ value: s.source, label: CHANNEL_META[s.source]?.name ?? s.source, count: s.count, icon: <ChannelLogo provider={s.source} size={14} /> }));
+    const shopChips: ChipItem[] = (stats?.by_shop ?? []).map((s) => {
+        const acc = accounts.find((a) => a.id === s.channel_account_id);
+        return { value: String(s.channel_account_id), label: shopName(s.channel_account_id), count: s.count, icon: acc ? <ChannelLogo provider={acc.provider} size={14} /> : undefined };
+    });
     // SPEC 0021 — chip "Vận chuyển": carrier code có thể là 'ghn' (đơn sàn) hoặc 'manual_ghn' (đơn tự tạo).
     // Hiển thị label phân biệt rõ để vận hành kho biết đơn nào in tem sàn vs in phiếu giao hàng tự tạo.
     const carrierChips: ChipItem[] = (stats?.by_carrier ?? []).map((c) => {
@@ -382,7 +386,12 @@ export function OrdersPage() {
                     <Link to={`/orders/${o.id}`} style={{ fontWeight: 600 }}>{o.order_number ?? o.external_order_id ?? `#${o.id}`}</Link>
                     <Space size={4} wrap>
                         <ChannelBadge provider={o.source} />
-                        {(o.channel_account?.name ?? (o.channel_account_id ? shopName(o.channel_account_id) : null)) && <Tag>{o.channel_account?.name ?? shopName(o.channel_account_id!)}</Tag>}
+                        {(o.channel_account?.name ?? (o.channel_account_id ? shopName(o.channel_account_id) : null)) && (
+                            <Tag style={{ display: 'inline-flex', alignItems: 'center', gap: 4, paddingInline: 6 }}>
+                                <ChannelLogo provider={o.channel_account?.provider ?? o.source} size={12} />
+                                <span>{o.channel_account?.name ?? shopName(o.channel_account_id!)}</span>
+                            </Tag>
+                        )}
                         {o.is_cod && <Tag color="gold">COD</Tag>}
                         {o.issue_reason === UNMAPPED_REASON
                             // "SKU chưa ghép" KHÔNG còn chặn in / fulfillment — đơn vẫn xử lý bình thường, chỉ là

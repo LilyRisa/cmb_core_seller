@@ -4,6 +4,7 @@ import { ArrowLeftOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusTag } from '@/components/StatusTag';
 import { ChannelBadge } from '@/components/ChannelBadge';
+import { ChannelLogo } from '@/components/ChannelLogo';
 import { DateText } from '@/components/MoneyText';
 import { OrderDetailBody } from '@/components/OrderDetailBody';
 import { errorMessage } from '@/lib/api';
@@ -23,7 +24,12 @@ export function OrderDetailPage() {
                     <Link to="/orders"><Button type="text" icon={<ArrowLeftOutlined />} /></Link>
                     <span>Đơn {order.order_number ?? order.external_order_id ?? `#${order.id}`}</span>
                     <ChannelBadge provider={order.source} />
-                    {order.channel_account?.name && <Tag>{order.channel_account.name}</Tag>}
+                    {order.channel_account?.name && (
+                        <Tag style={{ display: 'inline-flex', alignItems: 'center', gap: 4, paddingInline: 6 }}>
+                            <ChannelLogo provider={order.channel_account.provider ?? order.source} size={12} />
+                            <span>{order.channel_account.name}</span>
+                        </Tag>
+                    )}
                     <StatusTag status={order.status} label={order.status_label} rawStatus={order.raw_status} />
                     {order.is_cod && <Tag color="gold">COD</Tag>}
                 </Space>}

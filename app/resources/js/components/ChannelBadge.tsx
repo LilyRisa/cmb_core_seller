@@ -1,13 +1,7 @@
 import { Tag } from 'antd';
 import { ShoppingOutlined } from '@ant-design/icons';
 import { CHANNEL_META } from '@/lib/format';
-
-/** Bảng icon nhận diện sàn (file user đã đặt vào /public/images/). Khi thêm sàn mới ⇒ thêm 1 entry ở đây. */
-const CHANNEL_ICON: Record<string, string> = {
-    tiktok: '/images/tiktok-icon.svg',
-    shopee: '/images/shopee-icon.svg',
-    lazada: '/images/laz.png',
-};
+import { CHANNEL_ICON } from '@/components/ChannelLogo';
 
 export function ChannelBadge({ provider }: { provider: string }) {
     const meta = CHANNEL_META[provider] ?? { name: provider, color: '#8c8c8c' };

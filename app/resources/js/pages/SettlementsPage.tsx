@@ -10,6 +10,7 @@ import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
 import { useChannelAccounts } from '@/lib/channels';
 import { CHANNEL_META } from '@/lib/format';
+import { ChannelLogo } from '@/components/ChannelLogo';
 import {
     FEE_TYPE_LABEL, type Settlement, type SettlementLine,
     useFetchSettlementsForShop, useReconcileSettlement, useSettlement, useSettlements,
@@ -45,9 +46,14 @@ export function SettlementsPage() {
 
     const columns: ColumnsType<Settlement> = [
         { title: 'Gian hàng', key: 'shop', render: (_, r) => (
-            <Space>
-                {r.channel_account?.provider && <Tag color={CHANNEL_META[r.channel_account.provider]?.color}>{CHANNEL_META[r.channel_account.provider]?.name ?? r.channel_account.provider}</Tag>}
-                <Typography.Text strong>{r.channel_account?.name ?? `#${r.channel_account_id}`}</Typography.Text>
+            <Space size={8} align="center">
+                {r.channel_account?.provider && <ChannelLogo provider={r.channel_account.provider} size={22} />}
+                <Space direction="vertical" size={0}>
+                    <Typography.Text strong>{r.channel_account?.name ?? `#${r.channel_account_id}`}</Typography.Text>
+                    {r.channel_account?.provider && (
+                        <Typography.Text type="secondary" style={{ fontSize: 11 }}>{CHANNEL_META[r.channel_account.provider]?.name ?? r.channel_account.provider}</Typography.Text>
+                    )}
+                </Space>
             </Space>
         ) },
         { title: 'Kỳ đối soát', key: 'period', render: (_, r) => <Space direction="vertical" size={0}><DateText value={r.period_start} />→ <DateText value={r.period_end} /></Space> },
@@ -73,7 +79,13 @@ export function SettlementsPage() {
             <Card>
                 <Space style={{ marginBottom: 12 }} wrap>
                     <Radio.Group value={shopId ?? 0} onChange={(e) => { setShopId(e.target.value || undefined); setPage(1); }} optionType="button"
-                        options={[{ value: 0, label: 'Tất cả gian hàng' }, ...(shopsData?.data ?? []).map((s) => ({ value: s.id, label: s.name }))]} />
+                        options={[
+                            { value: 0, label: 'Tất cả gian hàng' },
+                            ...(shopsData?.data ?? []).map((s) => ({
+                                value: s.id,
+                                label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ChannelLogo provider={s.provider} size={14} />{s.name}</span>,
+                            })),
+                        ]} />
                     <Radio.Group value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} optionType="button" buttonStyle="solid"
                         options={[{ value: '', label: 'Tất cả' }, { value: 'pending', label: 'Chờ đối chiếu' }, { value: 'reconciled', label: 'Đã đối chiếu' }, { value: 'error', label: 'Lỗi' }]} />
                 </Space>
@@ -108,7 +120,10 @@ function FetchModal({ open, onClose, shops, onSubmit, loading }: { open: boolean
                 <div>
                     <Typography.Text type="secondary" style={{ fontSize: 13, display: 'block', marginBottom: 4 }}>Gian hàng</Typography.Text>
                     <Radio.Group value={shopId} onChange={(e) => setShopId(e.target.value)} optionType="button"
-                        options={shops.filter((s) => s.provider !== 'manual').map((s) => ({ value: s.id, label: <Space><Tag color={CHANNEL_META[s.provider]?.color}>{CHANNEL_META[s.provider]?.name ?? s.provider}</Tag>{s.name}</Space> }))} />
+                        options={shops.filter((s) => s.provider !== 'manual').map((s) => ({
+                            value: s.id,
+                            label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ChannelLogo provider={s.provider} size={14} />{s.name}</span>,
+                        }))} />
                 </div>
                 <div>
                     <Typography.Text type="secondary" style={{ fontSize: 13, display: 'block', marginBottom: 4 }}>Khoảng thời gian</Typography.Text>
