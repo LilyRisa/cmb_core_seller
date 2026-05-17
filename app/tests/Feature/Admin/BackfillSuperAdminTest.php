@@ -34,7 +34,7 @@ class BackfillSuperAdminTest extends TestCase
 
         $userId = DB::table('users')->insertGetId([
             'name' => 'Op Smith',
-            'email' => 'op@cmbcore.vn',
+            'email' => 'opsmith@cmbcore.vn',
             'password' => bcrypt('legacy'),
             'is_super_admin' => true,
             'created_at' => now(),
@@ -43,9 +43,9 @@ class BackfillSuperAdminTest extends TestCase
 
         $this->runBackfillUp();
 
-        $admin = AdminUser::query()->where('email', 'op@cmbcore.vn')->first();
+        $admin = AdminUser::query()->where('email', 'opsmith@cmbcore.vn')->first();
         $this->assertNotNull($admin);
-        $this->assertSame('op', $admin->username);
+        $this->assertSame('opsmith', $admin->username);
         $this->assertTrue($admin->is_active);
         $this->assertSame('Op Smith', $admin->name);
     }
