@@ -1,5 +1,6 @@
 <?php
 
+use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminAdminUserController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminAuditLogController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminAuthController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminBroadcastController;
@@ -92,4 +93,18 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
 
         // --- Users (SPEC 0020) ---
         Route::get('users', [AdminUserController::class, 'index'])->name('admin.users.index');
+
+        // --- Admin Users — quản lý chính các super-admin (Spec 2026-05-17) ---
+        Route::get('admin-users', [AdminAdminUserController::class, 'index'])->name('admin.admin-users.index');
+        Route::post('admin-users', [AdminAdminUserController::class, 'store'])->name('admin.admin-users.store');
+        Route::get('admin-users/{id}', [AdminAdminUserController::class, 'show'])
+            ->whereNumber('id')->name('admin.admin-users.show');
+        Route::patch('admin-users/{id}', [AdminAdminUserController::class, 'update'])
+            ->whereNumber('id')->name('admin.admin-users.update');
+        Route::post('admin-users/{id}/reset-password', [AdminAdminUserController::class, 'resetPassword'])
+            ->whereNumber('id')->name('admin.admin-users.reset-password');
+        Route::post('admin-users/{id}/suspend', [AdminAdminUserController::class, 'suspend'])
+            ->whereNumber('id')->name('admin.admin-users.suspend');
+        Route::post('admin-users/{id}/reactivate', [AdminAdminUserController::class, 'reactivate'])
+            ->whereNumber('id')->name('admin.admin-users.reactivate');
     });
