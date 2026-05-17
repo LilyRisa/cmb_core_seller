@@ -703,6 +703,16 @@ class ShipmentService
             if ($bytes === '') {
                 return;
             }
+            // GHN/GHTK/... print endpoint trả HTML — convert sang PDF qua Gotenberg trước khi lưu R2.
+            $mime = (string) ($label['mime'] ?? 'application/pdf');
+            if (stripos($mime, 'html') !== false) {
+                try {
+                    $bytes = $this->print->htmlToPdf($bytes);
+                } catch (\Throwable $e) {
+                    // Render fail ⇒ vẫn lưu HTML, log warning. Người dùng vẫn xem được khi click label_url.
+                    Log::warning('shipment.label_html_to_pdf_failed', ['shipment' => $shipment->getKey(), 'error' => $e->getMessage()]);
+                }
+            }
             $stored = $this->media->storeBytes($bytes, (int) $shipment->tenant_id, 'labels', (string) $shipment->getKey(), 'pdf');
             $shipment->forceFill(['label_url' => $stored['url'], 'label_path' => $stored['path']])->save();
         } catch (CarrierUnsupportedException) {
@@ -716,6 +726,33 @@ class ShipmentService
     {
         $addr = (array) ($order->shipping_address ?? []);
         $from = (array) ($accountArr['meta']['from_address'] ?? []);
+
+        // Items cho ĐVVC — GHN service_type_id=2 yêu cầu items[]. Lấy từ order_items đã load.
+        // Mỗi item: { name, code, quantity, price, weight }. Weight default 200g/item nếu không có.
+        $itemRows = OrderItem::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenantId)->where('order_id', $order->getKey())->get(['sku_id', 'seller_sku', 'name', 'quantity', 'unit_price']);
+        $skuWeights = $itemRows->pluck('sku_id')->filter()->unique()->isEmpty()
+            ? collect()
+            : Sku::withoutGlobalScope(TenantScope::class)
+                ->whereIn('id', $itemRows->pluck('sku_id')->filter()->unique()->all())
+                ->pluck('weight_grams', 'id');
+        $totalItemsCount = max(1, $itemRows->sum('quantity'));
+        $perItemWeight = (int) max(1, floor($weight / $totalItemsCount));
+        $carrierItems = $itemRows->map(fn ($it) => array_filter([
+            'name' => (string) $it->name,
+            'code' => $it->seller_sku ?: ($it->sku_id ? 'SKU-'.$it->sku_id : null),
+            'quantity' => (int) max(1, $it->quantity),
+            'price' => (int) max(0, $it->unit_price),
+            'weight' => $it->sku_id && $skuWeights->get($it->sku_id) ? (int) $skuWeights->get($it->sku_id) : $perItemWeight,
+        ], fn ($v) => $v !== null && $v !== ''))->values()->all();
+        if ($carrierItems === []) {
+            // Fallback 1 dòng tổng quát nếu order rỗng items (rare race) — GHN cần ít nhất 1 item.
+            $carrierItems = [[
+                'name' => 'Đơn '.($order->order_number ?? '#'.$order->getKey()),
+                'quantity' => 1,
+                'weight' => max(1, $weight),
+            ]];
+        }
 
         // SPEC 0021 — `shipping_address` từ AddressPicker lưu cả NAME (province/district/ward) lẫn admin
         // CODE (province_code/district_code/ward_code) của hệ AddressKit (cas.so) hoặc open-api.vn.
@@ -759,6 +796,8 @@ class ShipmentService
             'fee' => $opts['fee'] ?? 0,
             'to_district_id' => $ghnDistrictId,
             'to_ward_code' => $explicitWardCode,
+            'items' => $carrierItems,
+            'insurance_value' => max(0, (int) ($order->item_total ?? 0)),  // GHN bồi thường (nếu cần): clamp ≥ 0.
         ];
     }
 

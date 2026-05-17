@@ -7,6 +7,11 @@ import { AdminProtected } from './AdminProtected';
 import { AdminLayout } from './AdminLayout';
 import { AdminLoginPage } from './pages/AdminLoginPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
+import { AdminTenantsPage } from './pages/tenants/AdminTenantsPage';
+import { AdminVouchersPage } from './pages/tenants/AdminVouchersPage';
+import { AdminPlansPage } from './pages/tenants/AdminPlansPage';
+import { AdminAuditLogsPage } from './pages/tenants/AdminAuditLogsPage';
+import { AdminBroadcastsPage } from './pages/tenants/AdminBroadcastsPage';
 
 export function AdminApp() {
     return (
@@ -22,7 +27,12 @@ export function AdminApp() {
                     }
                 >
                     <Route index element={<AdminDashboardPage />} />
-                    {/* Sub-routes (tenants, users, settings, …) đăng ký ở Task 20-22. */}
+                    <Route path="tenants" element={<AdminTenantsPage />} />
+                    <Route path="vouchers" element={<AdminVouchersPage />} />
+                    <Route path="plans" element={<AdminPlansPage />} />
+                    <Route path="broadcasts" element={<AdminBroadcastsPage />} />
+                    <Route path="audit-logs" element={<AdminAuditLogsPage />} />
+                    {/* Users + Settings added in Task 21, 22. */}
                     <Route path="*" element={<Navigate to="/admin" replace />} />
                 </Route>
             </Routes>

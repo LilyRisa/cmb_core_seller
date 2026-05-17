@@ -3,7 +3,7 @@ import { Card, Input, Radio, Space, Table, Tag, Tooltip, Typography } from 'antd
 import type { ColumnsType } from 'antd/es/table';
 import { LockOutlined, SearchOutlined, WarningOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
-import { useAdminTenants, type AdminTenantSummary } from '@/lib/admin';
+import { useAdminTenants, type AdminTenantSummary } from '@admin/lib/admin';
 import { AdminTenantDrawer } from './AdminTenantDrawer';
 import dayjs from 'dayjs';
 

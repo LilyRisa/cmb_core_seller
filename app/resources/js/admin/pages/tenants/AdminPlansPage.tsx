@@ -3,7 +3,7 @@ import { App, Button, Card, Form, Input, InputNumber, Modal, Space, Switch, Tabl
 import type { ColumnsType } from 'antd/es/table';
 import { EditOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
-import { useAdminPlans, useAdminUpdatePlan, type AdminPlan } from '@/lib/admin';
+import { useAdminPlans, useAdminUpdatePlan, type AdminPlan } from '@admin/lib/admin';
 import { errorMessage } from '@/lib/api';
 
 const KNOWN_FEATURES = [

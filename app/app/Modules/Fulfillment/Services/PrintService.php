@@ -28,6 +28,15 @@ class PrintService
     public function __construct(private readonly GotenbergClient $gotenberg, private readonly MediaUploader $media) {}
 
     /**
+     * Convert HTML → PDF qua Gotenberg. Public proxy để ShipmentService có thể render tem ĐVVC
+     * (GHN print endpoint trả HTML) sang PDF trước khi lưu R2.
+     */
+    public function htmlToPdf(string $html, array $options = []): string
+    {
+        return $this->gotenberg->htmlToPdf($html, $options);
+    }
+
+    /**
      * @param  list<int>  $orderIds
      * @param  list<int>  $shipmentIds
      */

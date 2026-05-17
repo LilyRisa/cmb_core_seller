@@ -4,7 +4,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { SearchOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
-import { useAdminUsers, type AdminUserRow } from '@/lib/admin';
+import { useAdminUsers, type AdminUserRow } from '@admin/lib/admin';
 
 type RoleFilter = 'all' | 'admin';
 

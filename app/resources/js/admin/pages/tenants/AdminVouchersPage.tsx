@@ -13,7 +13,7 @@ import {
     useAdminVouchers, useAdminCreateVoucher, useAdminDisableVoucher,
     useAdminGrantVoucher, useAdminVoucher,
     type AdminVoucher, type VoucherKind,
-} from '@/lib/admin';
+} from '@admin/lib/admin';
 import { errorMessage } from '@/lib/api';
 import dayjs from 'dayjs';
 

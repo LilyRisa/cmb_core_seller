@@ -6,7 +6,7 @@ import {
     useAdminChangePlan, useAdminDeleteChannel, useAdminReactivateTenant, useAdminSuspendTenant,
     useAdminTenant,
     type AdminChannelAccount,
-} from '@/lib/admin';
+} from '@admin/lib/admin';
 import { errorMessage } from '@/lib/api';
 import { ChannelLogo } from '@/components/ChannelLogo';
 import { CHANNEL_META } from '@/lib/format';

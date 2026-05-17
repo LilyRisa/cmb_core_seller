@@ -3,7 +3,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { SendOutlined, NotificationOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
-import { useAdminBroadcasts, useAdminCreateBroadcast, type AdminBroadcastRow } from '@/lib/admin';
+import { useAdminBroadcasts, useAdminCreateBroadcast, type AdminBroadcastRow } from '@admin/lib/admin';
 import { errorMessage } from '@/lib/api';
 
 export function AdminBroadcastsPage() {

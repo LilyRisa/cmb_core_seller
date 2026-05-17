@@ -3,7 +3,7 @@ import { Card, DatePicker, Drawer, Input, Space, Table, Tag, Typography } from '
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
-import { useAdminAuditLogs, type AdminAuditLogRow } from '@/lib/admin';
+import { useAdminAuditLogs, type AdminAuditLogRow } from '@admin/lib/admin';
 
 const { RangePicker } = DatePicker;
 

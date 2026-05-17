@@ -127,6 +127,36 @@ class GhnConnector extends AbstractCarrierConnector
         $s = $shipment['sender'] ?? [];
         $p = $shipment['parcel'] ?? [];
         $cod = (int) ($shipment['cod_amount'] ?? 0);
+        // GHN items shape: [{ name, code?, quantity, price?, length?, width?, height?, weight, category? }]
+        // Service builder đã chuẩn hoá keys; ép int để khớp schema GHN.
+        $items = array_values(array_map(function ($it) {
+            $row = [
+                'name' => (string) ($it['name'] ?? 'Hàng'),
+                'quantity' => max(1, (int) ($it['quantity'] ?? 1)),
+                'weight' => max(1, (int) ($it['weight'] ?? 200)),
+            ];
+            if (! empty($it['code'])) {
+                $row['code'] = (string) $it['code'];
+            }
+            if (isset($it['price'])) {
+                $row['price'] = max(0, (int) $it['price']);
+            }
+            if (isset($it['length'])) {
+                $row['length'] = max(1, (int) $it['length']);
+            }
+            if (isset($it['width'])) {
+                $row['width'] = max(1, (int) $it['width']);
+            }
+            if (isset($it['height'])) {
+                $row['height'] = max(1, (int) $it['height']);
+            }
+
+            return $row;
+        }, (array) ($shipment['items'] ?? [])));
+        if ($items === []) {
+            // GHN service_type_id=2 yêu cầu ít nhất 1 item — fallback an toàn.
+            $items = [['name' => (string) ($shipment['content'] ?? 'Hàng'), 'quantity' => 1, 'weight' => max(1, (int) ($p['weight_grams'] ?? 500))]];
+        }
         $payload = array_filter([
             'payment_type_id' => $cod > 0 ? 2 : 1,           // 2 = người nhận trả phí (thường COD), 1 = shop trả phí
             'required_note' => $shipment['required_note'] ?? 'KHONGCHOXEMHANG',
@@ -149,9 +179,10 @@ class GhnConnector extends AbstractCarrierConnector
             'height' => (int) ($p['height_cm'] ?? 10),
             'service_type_id' => isset($shipment['service']) ? (int) $shipment['service'] : 2,
             'cod_amount' => $cod,
+            'insurance_value' => isset($shipment['insurance_value']) ? max(0, (int) $shipment['insurance_value']) : null,
             'content' => $shipment['content'] ?? null,
             'client_order_code' => $shipment['client_order_code'] ?? null,
-            'items' => $shipment['items'] ?? null,
+            'items' => $items,
         ], fn ($v) => $v !== null);
 
         $data = $this->client($account)->createOrder($payload);
@@ -199,7 +230,9 @@ class GhnConnector extends AbstractCarrierConnector
         $token = $client->genPrintToken([$trackingNo]);
         $bytes = $client->printLabel($token, in_array(strtoupper($format), ['A5', 'A6'], true) ? strtoupper($format) : 'A6');
 
-        return ['filename' => "ghn-{$trackingNo}.pdf", 'mime' => 'application/pdf', 'bytes' => $bytes];
+        // GHN trả HTML page (in trực tiếp browser) — caller (ShipmentService) sẽ convert sang PDF
+        // qua Gotenberg dựa vào `mime`. Lưu nguyên bytes để truy vết.
+        return ['filename' => "ghn-{$trackingNo}.html", 'mime' => 'text/html', 'bytes' => $bytes];
     }
 
     public function getTracking(array $account, string $trackingNo): array

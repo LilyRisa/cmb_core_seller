@@ -1,5 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from './api';
+// Spec 2026-05-17 — admin SPA dùng cùng cookie session với user, nhưng login bằng
+// guard `admin_web`. Hooks dưới đây gọi `/api/v1/admin/*` qua axios chung (cùng
+// xsrf flow); auth resolve về `admin_web` ở backend.
+import { api } from '@/lib/api';
 
 /**
  * SPEC 0020 — hooks gọi /api/v1/admin/* cho trang super-admin.
