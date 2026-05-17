@@ -91,8 +91,18 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
         Route::post('broadcasts', [AdminBroadcastController::class, 'store'])->name('admin.broadcasts.store');
         Route::get('broadcasts/{id}', [AdminBroadcastController::class, 'show'])->whereNumber('id')->name('admin.broadcasts.show');
 
-        // --- Users (SPEC 0020) ---
+        // --- Tenant Users (SPEC 0020 + Spec 2026-05-17 mở rộng) ---
         Route::get('users', [AdminUserController::class, 'index'])->name('admin.users.index');
+        Route::get('users/{id}', [AdminUserController::class, 'show'])
+            ->whereNumber('id')->name('admin.users.show');
+        Route::patch('users/{id}', [AdminUserController::class, 'update'])
+            ->whereNumber('id')->name('admin.users.update');
+        Route::post('users/{id}/reset-password', [AdminUserController::class, 'resetPassword'])
+            ->whereNumber('id')->name('admin.users.reset-password');
+        Route::post('users/{id}/suspend', [AdminUserController::class, 'suspend'])
+            ->whereNumber('id')->name('admin.users.suspend');
+        Route::post('users/{id}/reactivate', [AdminUserController::class, 'reactivate'])
+            ->whereNumber('id')->name('admin.users.reactivate');
 
         // --- Admin Users — quản lý chính các super-admin (Spec 2026-05-17) ---
         Route::get('admin-users', [AdminAdminUserController::class, 'index'])->name('admin.admin-users.index');
