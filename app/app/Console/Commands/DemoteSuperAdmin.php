@@ -2,36 +2,39 @@
 
 namespace CMBcoreSeller\Console\Commands;
 
-use CMBcoreSeller\Models\User;
+use CMBcoreSeller\Models\AdminUser;
 use Illuminate\Console\Command;
 
 /**
- * SPEC 0020 — demote a super-admin to regular user. Idempotent.
+ * Spec 2026-05-17 — vô hiệu hoá admin (is_active=false).
  *
- *   $ php artisan admin:demote support@cmbcore.vn
+ *   php artisan admin:demote ops_lead
+ *
+ * Không xoá row — toggle cờ. Khôi phục bằng `admin:create` mới (hoặc trực tiếp
+ * trên DB). Idempotent.
  */
 class DemoteSuperAdmin extends Command
 {
-    protected $signature = 'admin:demote {email : email của user cần hạ quyền}';
+    protected $signature = 'admin:demote {username : username admin cần vô hiệu hoá}';
 
-    protected $description = 'Demote a super-admin to a regular user (SPEC 0020)';
+    protected $description = 'Vô hiệu hoá tài khoản super-admin (set is_active=false).';
 
     public function handle(): int
     {
-        $email = (string) $this->argument('email');
-        $user = User::query()->where('email', $email)->first();
-        if (! $user) {
-            $this->error("Không tìm thấy user với email [{$email}].");
+        $username = (string) $this->argument('username');
+        $admin = AdminUser::query()->where('username', $username)->first();
+        if (! $admin) {
+            $this->error("Không tìm thấy admin với username [{$username}].");
 
             return self::FAILURE;
         }
-        if (! $user->is_super_admin) {
-            $this->info("User {$email} không phải super-admin (idempotent — không đổi gì).");
+        if (! $admin->is_active) {
+            $this->info("Admin {$username} đã bị vô hiệu hoá (idempotent — không đổi gì).");
 
             return self::SUCCESS;
         }
-        $user->forceFill(['is_super_admin' => false])->save();
-        $this->info("✔ User {$email} đã bị hạ quyền super-admin.");
+        $admin->forceFill(['is_active' => false])->save();
+        $this->info("✔ Vô hiệu hoá admin {$username}.");
 
         return self::SUCCESS;
     }

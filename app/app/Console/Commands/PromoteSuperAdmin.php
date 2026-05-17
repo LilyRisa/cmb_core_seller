@@ -2,19 +2,24 @@
 
 namespace CMBcoreSeller\Console\Commands;
 
+use CMBcoreSeller\Models\AdminUser;
 use CMBcoreSeller\Models\User;
 use Illuminate\Console\Command;
+use Illuminate\Support\Str;
 
 /**
- * SPEC 0020 — promote a user to super-admin (xuyên tenant). Idempotent.
+ * Spec 2026-05-17 — promote user-by-email lên super-admin.
  *
- *   $ php artisan admin:promote support@cmbcore.vn
+ * Tạo row `admin_users` mirror từ user thường (giữ tên + email + password hash
+ * cũ). Username sinh từ local-part của email (sanitize); collision → suffix.
+ * Idempotent: admin với email tồn tại ⇒ exit 0 không đổi gì. Sau promote, gọi
+ * `admin:reset-password <username>` nếu muốn đặt password riêng.
  */
 class PromoteSuperAdmin extends Command
 {
     protected $signature = 'admin:promote {email : email của user cần nâng quyền super-admin}';
 
-    protected $description = 'Promote a user to system super-admin (SPEC 0020)';
+    protected $description = 'Promote user-by-email lên super-admin (tạo admin_users mirror).';
 
     public function handle(): int
     {
@@ -25,14 +30,41 @@ class PromoteSuperAdmin extends Command
 
             return self::FAILURE;
         }
-        if ($user->is_super_admin) {
-            $this->info("User {$email} đã là super-admin (idempotent — không đổi gì).");
+        if (AdminUser::query()->where('email', $email)->exists()) {
+            $this->info("Admin với email {$email} đã tồn tại (idempotent — không đổi gì).");
 
             return self::SUCCESS;
         }
-        $user->forceFill(['is_super_admin' => true])->save();
-        $this->info("✔ User {$email} đã được nâng quyền super-admin.");
+
+        $base = $this->sanitize(Str::before($email, '@'));
+        if ($base === '') {
+            $base = "admin_{$user->id}";
+        }
+        $username = $base;
+        $i = 1;
+        while (AdminUser::query()->where('username', $username)->exists()) {
+            $username = $base.'_'.$i++;
+        }
+
+        AdminUser::create([
+            'username' => $username,
+            'email' => $email,
+            'name' => $user->name,
+            'password' => $user->password,
+            'is_active' => true,
+        ]);
+
+        $this->info("✔ Promote {$email} → admin (username={$username}). Hãy chạy `admin:reset-password {$username}` để đặt mật khẩu mới.");
 
         return self::SUCCESS;
+    }
+
+    private function sanitize(string $raw): string
+    {
+        $s = strtolower($raw);
+        $s = preg_replace('/[^a-z0-9._-]/', '', $s) ?? '';
+        $s = trim($s, '._-');
+
+        return strlen($s) >= 3 ? substr($s, 0, 32) : '';
     }
 }
