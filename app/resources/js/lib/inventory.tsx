@@ -410,6 +410,27 @@ export function useCreateManualOrder() {
     });
 }
 
+/**
+ * Sửa đơn manual — PATCH /orders/{id}. Service tự recompute totals + replace order_items khi có
+ * `items[]` trong payload. Invalidate cả orders list lẫn detail của đơn đó để FE refresh dữ liệu.
+ */
+export function useUpdateManualOrder() {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ id, payload }: { id: number; payload: Record<string, unknown> }) => {
+            const { data } = await api!.patch<{ data: { id: number } }>(`/orders/${id}`, payload); return data.data;
+        },
+        onSuccess: (_data, vars) => {
+            qc.invalidateQueries({ queryKey: ['orders', tenantId] });
+            qc.invalidateQueries({ queryKey: ['order', tenantId, String(vars.id)] });
+            qc.invalidateQueries({ queryKey: ['order', tenantId, vars.id] });
+            qc.invalidateQueries({ queryKey: ['inventory-levels', tenantId] });
+        },
+    });
+}
+
 // ---- WMS phiếu kho (Phase 5 / SPEC 0010) ------------------------------------
 
 export type WarehouseDocType = 'goods-receipts' | 'stock-transfers' | 'stocktakes';

@@ -50,6 +50,10 @@ export interface Order {
     status: string;
     status_label: string;
     raw_status: string | null;
+    /** Order ở trạng thái kết thúc (delivered / completed / returned-refunded / cancelled). Read-only ⇒ chặn edit. */
+    is_terminal?: boolean;
+    /** Order chưa đẩy vận đơn (Pending / Processing). */
+    is_pre_shipment?: boolean;
     payment_status: string | null;
     buyer_name: string | null;
     buyer_phone_masked: string | null;

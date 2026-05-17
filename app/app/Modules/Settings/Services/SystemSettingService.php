@@ -47,7 +47,18 @@ class SystemSettingService
         }
 
         $this->memo = Cache::rememberForever(self::CACHE_KEY, function (): array {
-            return SystemSetting::query()->get()->mapWithKeys(function (SystemSetting $s): array {
+            // Migration pending / test boot ⇒ trả [] để fallback env, KHÔNG crash app.
+            try {
+                $rows = SystemSetting::query()->get();
+            } catch (Throwable $e) {
+                Log::warning('SystemSetting: read failed (table missing?), falling back to env', [
+                    'error' => $e->getMessage(),
+                ]);
+
+                return [];
+            }
+
+            return $rows->mapWithKeys(function (SystemSetting $s): array {
                 $plain = $s->value;
                 if ($s->is_secret && $plain !== null) {
                     try {

@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
     Alert, App as AntApp, Avatar, Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber, Modal,
     Popover, Radio, Row, Segmented, Space, Tag, Tooltip, Typography, Upload,
 } from 'antd';
 import {
     ArrowLeftOutlined, BarcodeOutlined, CalendarOutlined, CheckCircleFilled, CloseCircleFilled,
-    EnvironmentOutlined, FacebookFilled, MoreOutlined, PaperClipOutlined, PrinterOutlined,
-    SaveOutlined, SearchOutlined, UpOutlined,
+    EnvironmentOutlined, FacebookFilled, LockOutlined, MoreOutlined, PaperClipOutlined,
+    PrinterOutlined, SaveOutlined, SearchOutlined, UpOutlined,
 } from '@ant-design/icons';
 import type { RcFile } from 'antd/es/upload';
 import dayjs from 'dayjs';
@@ -16,7 +16,8 @@ import { OrderItemsEditor, PickerTrigger, type OrderLineInput } from '@/componen
 import { AddressPicker, type PickedAddress } from '@/components/AddressPicker';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import { errorMessage } from '@/lib/api';
-import { useCreateManualOrder, useUploadImage, type Sku } from '@/lib/inventory';
+import { useCreateManualOrder, useUpdateManualOrder, useUploadImage, type Sku } from '@/lib/inventory';
+import { useOrder } from '@/lib/orders';
 import { useTenantMembers } from '@/lib/tenant';
 import { useAuth } from '@/lib/auth';
 import { useCustomerLookup, type CustomerLookupResult } from '@/lib/customers';
@@ -53,8 +54,17 @@ const SUB_SOURCE_ICONS: Record<string, React.ReactNode> = {
 export function CreateOrderPage() {
     const { message } = AntApp.useApp();
     const navigate = useNavigate();
+    const { id: editIdRaw } = useParams();
+    const editId = editIdRaw ? Number(editIdRaw) : null;
+    const isEdit = editId != null && !Number.isNaN(editId);
     const [form] = Form.useForm();
     const create = useCreateManualOrder();
+    const update = useUpdateManualOrder();
+    // Khi sửa đơn — load full order detail (kèm items + shipments) để prefill toàn bộ form.
+    const orderQuery = useOrder(isEdit ? editId : undefined);
+    const editingOrder = isEdit ? orderQuery.data : undefined;
+    const isPushed = !!editingOrder?.is_pushed_to_carrier;
+    const submitting = create.isPending || update.isPending;
     const { data: members = [] } = useTenantMembers();
     const upload = useUploadImage();
     const { data: me } = useAuth();
@@ -98,9 +108,11 @@ export function CreateOrderPage() {
 
     // U16 (Sprint 2) — Draft autosave / restore. Lưu vào localStorage mỗi 1s sau khi user thay đổi.
     // Restore khi vào trang nếu có draft (≤24h) — show 1 prompt "Có nháp đơn chưa lưu, khôi phục?".
+    // Edit mode KHÔNG dùng draft: data đã có sẵn từ server, không cần localStorage.
     const DRAFT_KEY = 'cmb.createOrder.draft.v1';
     const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
     useEffect(() => {
+        if (isEdit) { setDraftRestored(true); return; }
         if (draftRestored) return;
         try {
             const raw = localStorage.getItem(DRAFT_KEY);
@@ -128,8 +140,9 @@ export function CreateOrderPage() {
         } catch { setDraftRestored(true); }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-    // Debounce autosave 1s.
+    // Debounce autosave 1s — chỉ ở chế độ tạo mới, KHÔNG ghi đè state edit.
     useEffect(() => {
+        if (isEdit) return;
         if (!draftRestored) return;
         const t = setTimeout(() => {
             try {
@@ -140,7 +153,77 @@ export function CreateOrderPage() {
             } catch { /* quota exceeded — silent */ }
         }, 1000);
         return () => clearTimeout(t);
-    }, [items, phone, shipAddress, tags, attachments, draftRestored, form]);
+    }, [items, phone, shipAddress, tags, attachments, draftRestored, form, isEdit]);
+
+    // ---- Edit mode prefill — khi load xong order, đổ data vào form/state một lần duy nhất ----
+    const [editPrefilled, setEditPrefilled] = useState(false);
+    useEffect(() => {
+        if (!isEdit || !editingOrder || editPrefilled) return;
+        const o = editingOrder;
+        const addr = (o.shipping_address ?? {}) as Record<string, string | undefined>;
+        const meta = (o.meta ?? {}) as Record<string, unknown>;
+
+        // Items mapping — OrderItem → OrderLineInput
+        setItems((o.items ?? []).map((it, idx) => ({
+            key: `line-${it.id ?? idx}`,
+            sku_id: it.sku_id ?? undefined,
+            name: it.name,
+            image: it.image ?? undefined,
+            sku_code: it.seller_sku ?? undefined,
+            quantity: it.quantity,
+            unit_price: it.unit_price,
+            discount: it.discount ?? 0,
+        })));
+
+        // Phone — ưu tiên buyer_phone, fallback shipping_address.phone
+        const ph = o.buyer_phone_masked && !o.buyer_phone_masked.includes('*') ? o.buyer_phone_masked : (addr.phone ?? '');
+        setPhone(ph ?? '');
+
+        // shipAddress — rebuild từ shipping_address
+        setShipAddress({
+            format: (addr.address_format as 'new' | 'old' | undefined) ?? (addr.district || addr.district_code ? 'old' : 'new'),
+            province: addr.province ?? undefined,
+            province_code: addr.province_code ?? undefined,
+            district: addr.district ?? undefined,
+            district_code: addr.district_code ?? undefined,
+            ward: addr.ward ?? undefined,
+            ward_code: addr.ward_code ?? undefined,
+            address: addr.address ?? undefined,
+            name: addr.name ?? undefined,
+            phone: addr.phone ?? undefined,
+        });
+
+        setTags(o.tags ?? []);
+        setAttachments(Array.isArray(meta.attachments) ? (meta.attachments as Array<{ url: string; name: string }>) : []);
+
+        // Form fields — đổ value cho tất cả trường được render trong form
+        form.setFieldsValue({
+            sub_source: meta.sub_source ?? undefined,
+            channel_mode: 'online',
+            buyer_name: o.buyer_name ?? addr.name ?? undefined,
+            email: meta.email ?? undefined,
+            dob: meta.dob ? dayjs(meta.dob as string) : undefined,
+            gender: meta.gender ?? undefined,
+            expected_delivery_date: meta.expected_delivery_date ? dayjs(meta.expected_delivery_date as string) : undefined,
+            recipient_name: addr.name ?? o.buyer_name ?? undefined,
+            recipient_phone: addr.phone ?? ph ?? undefined,
+            recipient_address: addr.address ?? undefined,
+            assignee_user_id: (meta.assignee_user_id as number) ?? undefined,
+            care_user_id: (meta.care_user_id as number) ?? undefined,
+            marketer_user_id: (meta.marketer_user_id as number) ?? undefined,
+            shipping_fee: o.shipping_fee ?? 0,
+            order_discount: 0,
+            prepaid_amount: (o as unknown as { prepaid_amount?: number }).prepaid_amount ?? 0,
+            surcharge: (o as unknown as { surcharge?: number }).surcharge ?? 0,
+            free_shipping: !!meta.free_shipping,
+            collect_fee_on_return_only: !!meta.collect_fee_on_return_only,
+            is_cod: !!o.is_cod,
+            note_internal: o.note ?? undefined,
+            note_print: (meta.print_note as string) ?? undefined,
+        });
+
+        setEditPrefilled(true);
+    }, [isEdit, editingOrder, editPrefilled, form]);
 
     // ---- live totals ----
     const summary = Form.useWatch([], form) as Record<string, unknown> | undefined;
@@ -211,6 +294,16 @@ export function CreateOrderPage() {
     };
 
     const sendOrder = (andPrint: boolean, payload: ReturnType<typeof buildPayload>) => {
+        if (isEdit && editId) {
+            update.mutate({ id: editId, payload }, {
+                onSuccess: (o) => {
+                    message.success(andPrint ? 'Đã lưu — chuyển sang in phiếu giao hàng.' : 'Đã lưu thay đổi');
+                    navigate(`/orders/${o.id}${andPrint ? '?print=1' : ''}`);
+                },
+                onError: (e) => message.error(errorMessage(e)),
+            });
+            return;
+        }
         create.mutate(payload, {
             onSuccess: (o) => {
                 try { localStorage.removeItem(DRAFT_KEY); } catch { /* */ }
@@ -309,12 +402,35 @@ export function CreateOrderPage() {
 
     const subSource = (summary?.sub_source as string) || '';
 
+    const headerTitle = isEdit
+        ? `Sửa đơn ${editingOrder?.order_number ?? (editId ? `#${editId}` : '')}`
+        : 'Tạo đơn thủ công';
+    const headerSubtitle = isEdit
+        ? 'Có thể sửa mọi mục — sản phẩm, địa chỉ, thanh toán. Lưu sẽ recompute tồn kho và tổng tiền.'
+        : 'Đơn nguồn ngoài sàn (website / Facebook / Zalo / hotline) — trừ chung kho, vào cùng luồng xử lý';
+    const pushedCarrierLabel = (editingOrder?.pushed_carrier ?? '').replace(/^manual_/, '').toUpperCase() || 'ĐVVC';
+
     return (
         <div className="create-order-page" style={{ paddingBottom: 88 }}>
             <PageHeader
-                title={<Space size="middle"><Link to="/orders"><Button type="text" icon={<ArrowLeftOutlined />} /></Link><span>Tạo đơn thủ công</span></Space>}
-                subtitle="Đơn nguồn ngoài sàn (website / Facebook / Zalo / hotline) — trừ chung kho, vào cùng luồng xử lý"
+                title={<Space size="middle"><Link to={isEdit && editId ? `/orders/${editId}` : '/orders'}><Button type="text" icon={<ArrowLeftOutlined />} /></Link><span>{headerTitle}</span></Space>}
+                subtitle={headerSubtitle}
             />
+
+            {isEdit && isPushed && (
+                <Alert
+                    type="warning"
+                    showIcon
+                    icon={<LockOutlined />}
+                    style={{ marginBottom: 16 }}
+                    message={<><b>Đơn đã đẩy lên {pushedCarrierLabel}</b> — mã vận đơn: <code>{editingOrder?.shipment?.tracking_no ?? '—'}</code></>}
+                    description="Mọi thay đổi (sản phẩm, địa chỉ, tiền…) chỉ áp dụng trên hệ thống nội bộ — KHÔNG can thiệp vào vận đơn đã đẩy lên ĐVVC. Nếu cần sửa thực tế giao hàng — hãy huỷ vận đơn này trên hệ ĐVVC trước, rồi đẩy lại đơn mới."
+                />
+            )}
+
+            {isEdit && orderQuery.isLoading && (
+                <Alert type="info" showIcon style={{ marginBottom: 16 }} message="Đang tải dữ liệu đơn để chỉnh sửa…" />
+            )}
 
             <Form form={form} layout="vertical" initialValues={{
                 channel_mode: 'online', sub_source: undefined, is_cod: false, free_shipping: false, collect_fee_on_return_only: false,
@@ -638,8 +754,8 @@ export function CreateOrderPage() {
                     </div>
                 </Space>
                 <Space>
-                    <Button icon={<PrinterOutlined />} onClick={() => submit(true)} loading={create.isPending}>In <kbd className="ord-kbd">F4</kbd></Button>
-                    <Button type="primary" icon={<SaveOutlined />} onClick={() => submit(false)} loading={create.isPending}>Lưu <kbd className="ord-kbd-on-primary">F2</kbd></Button>
+                    <Button icon={<PrinterOutlined />} onClick={() => submit(true)} loading={submitting}>{isEdit ? 'Lưu & in' : 'In'} <kbd className="ord-kbd">F4</kbd></Button>
+                    <Button type="primary" icon={<SaveOutlined />} onClick={() => submit(false)} loading={submitting}>{isEdit ? 'Lưu thay đổi' : 'Lưu'} <kbd className="ord-kbd-on-primary">F2</kbd></Button>
                 </Space>
             </div>
 

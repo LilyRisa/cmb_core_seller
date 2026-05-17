@@ -159,43 +159,50 @@ class ManualOrderService
     }
 
     /**
-     * Edit buyer / shipping fee / cod / note / tags / address / items of a manual order.
+     * Edit buyer / address / items / payment / meta of a manual order.
      *
      * SPEC 2026-05-17 — Đơn manual có thể sửa MỌI LÚC (kể cả sau khi đã đẩy ĐVVC). Nếu shipment đã
      * tạo trên hệ ĐVVC thì FE đã cảnh báo "thay đổi chỉ áp dụng local, không can thiệp vận đơn đã đẩy".
-     * BE vẫn ghi log status history khi sửa post-shipment để truy vết.
+     *
+     * Payload — toàn bộ field giống `create()`:
+     *   - items[]      : nếu có ⇒ thay thế hoàn toàn order_items (delete + insert), rebalance inventory qua OrderUpserted
+     *   - buyer{}      : name/phone
+     *   - recipient{}  : full address (name/phone/address + province/district/ward + codes)
+     *   - sub_source, free_shipping, shipping_fee, order_discount, prepaid_amount, surcharge, tax
+     *   - is_cod, cod_amount (auto-derive nếu thiếu)
+     *   - note, tags, meta{}
      */
     public function update(Order $order, array $data): Order
     {
         $this->assertManualEditable($order);
-        $buyer = (array) ($data['buyer'] ?? []);
+
+        $now = now();
+        $tenantId = (int) $order->tenant_id;
         $fill = [];
-        if (array_key_exists('shipping_fee', $data)) {
-            $fill['shipping_fee'] = (int) $data['shipping_fee'];
+
+        // ---- Items (replace toàn bộ nếu được cung cấp) ----
+        $newItems = null;
+        if (array_key_exists('items', $data)) {
+            $newItems = $this->normalizeItems((array) $data['items']);
         }
-        if (array_key_exists('tax', $data)) {
-            $fill['tax'] = (int) $data['tax'];
-        }
-        if (array_key_exists('is_cod', $data)) {
-            $fill['is_cod'] = (bool) $data['is_cod'];
-        }
-        if (array_key_exists('cod_amount', $data)) {
-            $fill['cod_amount'] = (int) $data['cod_amount'];
-        }
-        if (array_key_exists('note', $data)) {
-            $fill['note'] = $data['note'] ?: null;
-        }
-        if (array_key_exists('tags', $data)) {
-            $fill['tags'] = array_values(array_filter((array) $data['tags']));
-        }
-        if ($buyer !== []) {
-            $addr = $order->shipping_address ?? [];
-            foreach (['name' => 'name', 'phone' => 'phone', 'address' => 'address', 'ward' => 'ward', 'district' => 'district', 'province' => 'province'] as $src => $dst) {
-                if (array_key_exists($src, $buyer)) {
-                    $addr[$dst] = $buyer[$src];
+
+        // ---- Buyer + recipient (shipping_address) ----
+        $buyer = (array) ($data['buyer'] ?? []);
+        $recipient = (array) ($data['recipient'] ?? []);
+        if ($buyer !== [] || $recipient !== []) {
+            // Khi `recipient` có ⇒ rebuild toàn bộ shipping_address bằng helper (giống create).
+            // Khi chỉ có `buyer` ⇒ merge từng field vào address cũ để giữ data đã chọn trước đó.
+            if ($recipient !== []) {
+                $fill['shipping_address'] = $this->buildShippingAddress($buyer, $recipient);
+            } else {
+                $addr = (array) ($order->shipping_address ?? []);
+                foreach (['name' => 'name', 'phone' => 'phone', 'address' => 'address'] as $src => $dst) {
+                    if (array_key_exists($src, $buyer)) {
+                        $addr[$dst] = $buyer[$src];
+                    }
                 }
+                $fill['shipping_address'] = array_filter($addr, fn ($v) => $v !== null && $v !== '');
             }
-            $fill['shipping_address'] = array_filter($addr, fn ($v) => $v !== null && $v !== '');
             if (array_key_exists('name', $buyer)) {
                 $fill['buyer_name'] = $buyer['name'] ?: null;
             }
@@ -203,12 +210,103 @@ class ManualOrderService
                 $fill['buyer_phone'] = $buyer['phone'] ?: null;
             }
         }
-        if (isset($fill['shipping_fee']) || isset($fill['tax'])) {
-            $fill['grand_total'] = (int) $order->item_total + ($fill['shipping_fee'] ?? $order->shipping_fee) + ($fill['tax'] ?? $order->tax);
+
+        // ---- Payment fields (giống create) ----
+        $freeShipping = array_key_exists('free_shipping', $data) ? (bool) $data['free_shipping'] : null;
+        $shippingFeeIn = array_key_exists('shipping_fee', $data) ? max(0, (int) $data['shipping_fee']) : null;
+        $tax = array_key_exists('tax', $data) ? max(0, (int) $data['tax']) : null;
+        $orderDiscount = array_key_exists('order_discount', $data) ? max(0, (int) $data['order_discount']) : null;
+        $prepaidAmount = array_key_exists('prepaid_amount', $data) ? max(0, (int) $data['prepaid_amount']) : null;
+        $surcharge = array_key_exists('surcharge', $data) ? max(0, (int) $data['surcharge']) : null;
+        $isCodIn = array_key_exists('is_cod', $data) ? (bool) $data['is_cod'] : null;
+        $codAmountIn = array_key_exists('cod_amount', $data) ? max(0, (int) $data['cod_amount']) : null;
+
+        // Tính lại totals — dùng giá trị NEW nếu có, fallback giá trị cũ trong DB.
+        $itemTotal = $newItems !== null
+            ? array_sum(array_map(fn ($i) => $i['unit_price'] * $i['quantity'] - $i['discount'], $newItems))
+            : (int) $order->item_total;
+        $sellerDiscount = $newItems !== null
+            ? array_sum(array_map(fn ($i) => $i['discount'], $newItems)) + ($orderDiscount ?? 0)
+            : (int) $order->seller_discount;
+        $shippingFeeEff = ($freeShipping === true) ? 0 : ($shippingFeeIn ?? (int) $order->shipping_fee);
+        $taxEff = $tax ?? (int) $order->tax;
+        $orderDiscountEff = $orderDiscount ?? 0;
+        $surchargeEff = $surcharge ?? (int) ($order->surcharge ?? 0);
+        $prepaidEff = $prepaidAmount ?? (int) ($order->prepaid_amount ?? 0);
+        $isCodEff = $isCodIn ?? (bool) $order->is_cod;
+
+        // Recompute chỉ khi có ít nhất 1 field tiền OR items đổi.
+        $shouldRecompute = $newItems !== null
+            || $freeShipping !== null || $shippingFeeIn !== null || $tax !== null || $orderDiscount !== null
+            || $prepaidAmount !== null || $surcharge !== null || $isCodIn !== null || $codAmountIn !== null;
+        if ($shouldRecompute) {
+            $grandTotal = max(0, $itemTotal + $shippingFeeEff + $taxEff + $surchargeEff - $orderDiscountEff);
+            $codAmount = $isCodEff ? max(0, $codAmountIn ?? ($grandTotal - $prepaidEff)) : 0;
+            $paymentStatus = match (true) {
+                $isCodEff => 'cod',
+                $prepaidEff >= $grandTotal && $grandTotal > 0 => 'paid',
+                $prepaidEff > 0 => 'partial',
+                default => 'unpaid',
+            };
+            $fill['item_total'] = $itemTotal;
+            $fill['seller_discount'] = $sellerDiscount;
+            $fill['shipping_fee'] = $shippingFeeEff;
+            $fill['tax'] = $taxEff;
+            $fill['surcharge'] = $surchargeEff;
+            $fill['prepaid_amount'] = $prepaidEff;
+            $fill['grand_total'] = $grandTotal;
+            $fill['is_cod'] = $isCodEff;
+            $fill['cod_amount'] = $codAmount;
+            $fill['payment_status'] = $paymentStatus;
+            $fill['paid_at'] = $prepaidEff > 0 ? ($order->paid_at ?? $now) : null;
         }
-        $fill['source_updated_at'] = now();
-        $order->forceFill($fill)->save();
-        OrderUpserted::dispatch($order, false);
+
+        // ---- Note / tags / meta ----
+        if (array_key_exists('note', $data)) {
+            $fill['note'] = $data['note'] ?: null;
+        }
+        if (array_key_exists('tags', $data)) {
+            $fill['tags'] = array_values(array_filter((array) $data['tags']));
+        }
+        if (array_key_exists('meta', $data) || array_key_exists('sub_source', $data) || $freeShipping !== null) {
+            $existingMeta = (array) ($order->meta ?? []);
+            $newMetaRaw = (array) ($data['meta'] ?? []);
+            // Trộn meta cũ + meta mới — meta mới ghi đè key trùng.
+            $merged = array_merge($existingMeta, $newMetaRaw);
+            $subSource = (string) ($data['sub_source'] ?? $existingMeta['sub_source'] ?? '');
+            $fill['meta'] = $this->normalizeMeta($merged, $freeShipping ?? (bool) ($existingMeta['free_shipping'] ?? false), null, $subSource);
+        }
+
+        $fill['source_updated_at'] = $now;
+
+        DB::transaction(function () use ($order, $tenantId, $fill, $newItems) {
+            $order->forceFill($fill)->save();
+
+            // Replace order_items khi có items[] trong payload — delete + insert ⇒ OrderUpserted handler
+            // sẽ tự rebalance inventory (release old, reserve new) qua diff item_total/sku_id.
+            if ($newItems !== null) {
+                OrderItem::withoutGlobalScope(TenantScope::class)
+                    ->where('tenant_id', $tenantId)->where('order_id', $order->getKey())->delete();
+                foreach ($newItems as $i => $item) {
+                    OrderItem::withoutGlobalScope(TenantScope::class)->create([
+                        'tenant_id' => $tenantId,
+                        'order_id' => $order->getKey(),
+                        'external_item_id' => 'M'.($i + 1),
+                        'sku_id' => $item['sku_id'],
+                        'seller_sku' => $item['sku_code'] ?? null,
+                        'name' => $item['name'],
+                        'variation' => $item['variation'] ?? null,
+                        'quantity' => $item['quantity'],
+                        'unit_price' => $item['unit_price'],
+                        'discount' => $item['discount'],
+                        'subtotal' => $item['unit_price'] * $item['quantity'] - $item['discount'],
+                        'image' => $item['image'] ?? null,
+                    ]);
+                }
+            }
+        });
+
+        OrderUpserted::dispatch($order->refresh(), false);
 
         return $order;
     }

@@ -164,23 +164,68 @@ class OrderController extends Controller
         return response()->json(['data' => new OrderResource($order->load(['items', 'statusHistory']))], 201);
     }
 
-    /** PATCH /api/v1/orders/{id} — edit a manual order (buyer / fees / note / tags; not line items). */
+    /**
+     * PATCH /api/v1/orders/{id} — edit a manual order.
+     *
+     * SPEC 2026-05-17 — Đơn manual có thể sửa MỌI THỨ (items, address, payment, meta). Service tự
+     * recompute totals + replace order_items + dispatch OrderUpserted để inventory rebalance.
+     */
     public function update(Request $request, int $id, ManualOrderService $service): JsonResponse
     {
         abort_unless($request->user()?->can('orders.update'), 403, 'Bạn không có quyền sửa đơn.');
         $order = Order::query()->findOrFail($id);
         $data = $request->validate([
             'buyer' => ['sometimes', 'array'],
+            'buyer.name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'buyer.phone' => ['sometimes', 'nullable', 'string', 'max:32'],
+            'recipient' => ['sometimes', 'array'],
+            'recipient.name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'recipient.phone' => ['sometimes', 'nullable', 'string', 'max:32'],
+            'recipient.address' => ['sometimes', 'nullable', 'string', 'max:500'],
+            'recipient.address_format' => ['sometimes', 'nullable', 'in:new,old'],
+            'recipient.province' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'recipient.province_code' => ['sometimes', 'nullable', 'string', 'max:32'],
+            'recipient.district' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'recipient.district_code' => ['sometimes', 'nullable', 'string', 'max:32'],
+            'recipient.ward' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'recipient.ward_code' => ['sometimes', 'nullable', 'string', 'max:32'],
+            'recipient.expected_at' => ['sometimes', 'nullable', 'string'],
+            'items' => ['sometimes', 'array'],
+            'items.*.sku_id' => ['sometimes', 'nullable', 'integer'],
+            'items.*.name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'items.*.image' => ['sometimes', 'nullable', 'string', 'max:500'],
+            'items.*.quantity' => ['sometimes', 'integer', 'min:1'],
+            'items.*.unit_price' => ['sometimes', 'integer', 'min:0'],
+            'items.*.discount' => ['sometimes', 'integer', 'min:0'],
+            'sub_source' => ['sometimes', 'nullable', 'string', 'max:64'],
+            'free_shipping' => ['sometimes', 'boolean'],
             'shipping_fee' => ['sometimes', 'integer', 'min:0'],
+            'order_discount' => ['sometimes', 'integer', 'min:0'],
+            'prepaid_amount' => ['sometimes', 'integer', 'min:0'],
+            'surcharge' => ['sometimes', 'integer', 'min:0'],
             'tax' => ['sometimes', 'integer', 'min:0'],
             'is_cod' => ['sometimes', 'boolean'],
             'cod_amount' => ['sometimes', 'integer', 'min:0'],
             'note' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'tags' => ['sometimes', 'array'],
+            'meta' => ['sometimes', 'array'],
+            'meta.assignee_user_id' => ['sometimes', 'nullable', 'integer'],
+            'meta.care_user_id' => ['sometimes', 'nullable', 'integer'],
+            'meta.marketer_user_id' => ['sometimes', 'nullable', 'integer'],
+            'meta.expected_delivery_date' => ['sometimes', 'nullable', 'string'],
+            'meta.gender' => ['sometimes', 'nullable', 'in:male,female,other'],
+            'meta.dob' => ['sometimes', 'nullable', 'string'],
+            'meta.email' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'meta.print_note' => ['sometimes', 'nullable', 'string', 'max:2000'],
+            'meta.collect_fee_on_return_only' => ['sometimes', 'boolean'],
+            'meta.preferred_carrier_account_id' => ['sometimes', 'nullable', 'integer'],
+            'meta.attachments' => ['sometimes', 'array'],
+            'meta.attachments.*.url' => ['sometimes', 'string', 'max:500'],
+            'meta.attachments.*.name' => ['sometimes', 'nullable', 'string', 'max:255'],
         ]);
         $order = $service->update($order, $data);
 
-        return response()->json(['data' => new OrderResource($order->load(['items', 'statusHistory']))]);
+        return response()->json(['data' => new OrderResource($order->load(['items', 'statusHistory', 'shipments']))]);
     }
 
     /** POST /api/v1/orders/{id}/cancel — cancel a manual order (releases stock). */

@@ -86,6 +86,7 @@ function Root() {
                 <Route index element={<DashboardPage />} />
                 <Route path="orders" element={<OrdersPage />} />
                 <Route path="orders/new" element={<CreateOrderPage />} />
+                <Route path="orders/:id/edit" element={<CreateOrderPage />} />
                 <Route path="orders/:id" element={<OrderDetailPage />} />
                 <Route path="channels" element={<ChannelsPage />} />
                 <Route path="customers" element={<CustomersPage />} />
