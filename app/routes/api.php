@@ -185,6 +185,8 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             // Proxy GHN master-data (province/district/ward) bằng token user đang nhập — dùng trong form
             // "Thêm tài khoản GHN" để cascade dropdown thay vì gõ tay mã quận. Cache theo hash token.
             Route::post('carrier-accounts/ghn/master-data', [CarrierAccountController::class, 'ghnMasterData'])->name('carrier-accounts.ghn.master-data');
+            // Proxy GHN shop list — 1 token có thể có nhiều shop. Form pick 1 shop thay vì gõ ShopId.
+            Route::post('carrier-accounts/ghn/shops', [CarrierAccountController::class, 'ghnShops'])->name('carrier-accounts.ghn.shops');
 
             Route::get('fulfillment/ready', [ShipmentController::class, 'ready'])->name('fulfillment.ready');
             Route::get('fulfillment/processing', [ShipmentController::class, 'processing'])->name('fulfillment.processing');           // SPEC 0009 — màn xử lý đơn

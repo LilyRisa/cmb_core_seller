@@ -83,6 +83,33 @@ class GhnClient
     }
 
     /**
+     * Liệt kê tất cả shop (gian hàng) gắn với token API hiện tại. Một token GHN có thể có NHIỀU shop —
+     * mỗi shop = 1 gian hàng có ShopId riêng. Khi tạo vận đơn phải khai báo header `ShopId` của shop muốn
+     * gửi từ. Form thêm tài khoản dùng endpoint này để user chọn shop thay vì gõ ShopId tay.
+     *
+     * GHN docs: POST /shiip/public-api/v2/shop/all
+     *   Headers: Token (KHÔNG cần ShopId — đây là endpoint global theo token)
+     *   Body: { offset?: int, limit?: int (≤50), client_phone?: string }
+     *   Response data: { shops: [{ _id, name, phone, address, district_id, ward_code, version, ... }], total }
+     *
+     * @return array<string,mixed>
+     */
+    public function getShops(int $offset = 0, int $limit = 50, string $clientPhone = ''): array
+    {
+        $payload = ['offset' => max(0, $offset), 'limit' => min(50, max(1, $limit))];
+        if ($clientPhone !== '') {
+            $payload['client_phone'] = $clientPhone;
+        }
+        $res = $this->http(withShop: false)->post('/shiip/public-api/v2/shop/all', $payload);
+        $body = $res->json();
+        if (! is_array($body)) {
+            throw new RuntimeException('GHN response không hợp lệ (status '.$res->status().').');
+        }
+
+        return $body;
+    }
+
+    /**
      * Districts trong 1 tỉnh — dùng để dựng dropdown cascading khi user thiết lập tài khoản GHN.
      *
      * @return array<string,mixed>

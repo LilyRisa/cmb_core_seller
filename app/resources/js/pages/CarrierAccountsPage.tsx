@@ -16,16 +16,16 @@ import { CARRIER_META } from '@/components/CarrierBadge';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
 import {
-    type Carrier, type CarrierAccount, type GhnDistrict, type GhnProvince, type GhnWard,
+    type Carrier, type CarrierAccount, type GhnDistrict, type GhnProvince, type GhnShop, type GhnWard,
     useCarrierAccounts, useCarriers, useCreateCarrierAccount, useDeleteCarrierAccount,
-    useGhnMasterData, useUpdateCarrierAccount, useVerifyCarrierAccount,
+    useGhnMasterData, useGhnShops, useUpdateCarrierAccount, useVerifyCarrierAccount,
 } from '@/lib/fulfillment';
 
 // Trường thông tin xác thực (credentials) theo từng ĐVVC — v1: GHN; carrier khác fallback "token".
+// Lưu ý: với GHN form render shop_id qua component riêng (GhnShopSelector) — Select tự load shop list.
 const CRED_FIELDS: Record<string, Array<{ key: string; label: string; required?: boolean; placeholder?: string }>> = {
     ghn: [
         { key: 'token', label: 'API Token', required: true, placeholder: 'Token Production / Test từ GHN Dashboard' },
-        { key: 'shop_id', label: 'Shop ID', required: true, placeholder: 'ID gian hàng GHN (số)' },
     ],
 };
 
@@ -451,12 +451,14 @@ function AddCarrierAccountModal({
 
                         {credFields.length > 0 && (
                             <>
-                                <Typography.Title level={5} style={{ marginTop: 4, marginBottom: 8, fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: 14 }}>Thông tin xác thực</Typography.Title>
+                                <Typography.Title level={5} style={{ marginTop: 4, marginBottom: 8, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14 }}>Thông tin xác thực</Typography.Title>
                                 {credFields.map((f) => (
                                     <Form.Item key={f.key} name={`cred_${f.key}`} label={f.label} rules={f.required ? [{ required: true, message: `Nhập ${f.label}` }] : []}>
                                         <Input placeholder={f.placeholder} />
                                     </Form.Item>
                                 ))}
+                                {/* GHN: 1 token có thể có nhiều shop — Select tự load danh sách sau khi nhập token. */}
+                                {code === 'ghn' && <GhnShopSelector form={form} />}
                             </>
                         )}
 
@@ -487,6 +489,152 @@ function AddCarrierAccountModal({
         </Modal>
     );
 }
+
+// ---- GHN shop selector (1 token = N shops, must pick one) -----------------
+
+/**
+ * Khi user nhập API Token GHN ⇒ debounced fetch danh sách shop của token đó. Hiển thị Select
+ * cho user chọn shop. Selected shop → ghi `cred_shop_id` + auto-gợi ý from_address (phone, address,
+ * district_id, ward_code) lấy từ shop default warehouse trên GHN.
+ */
+function GhnShopSelector({ form }: { form: FormInstance }) {
+    const { message } = AntApp.useApp();
+    const token = (Form.useWatch('cred_token', form) ?? '') as string;
+    const shopsMutation = useGhnShops();
+    const [shops, setShops] = useState<GhnShop[]>([]);
+    const [loading, setLoading] = useState(false);
+    const fetchedTokenRef = useRef<string>('');
+
+    useEffect(() => {
+        const t = token.trim();
+        if (t.length < 8) {
+            setShops([]); fetchedTokenRef.current = '';
+            form.setFieldsValue({ cred_shop_id: undefined });
+            return;
+        }
+        if (t === fetchedTokenRef.current) return;
+        const timer = setTimeout(() => {
+            setLoading(true);
+            shopsMutation.mutate({ token: t }, {
+                onSuccess: (data) => {
+                    setShops(data);
+                    fetchedTokenRef.current = t;
+                    // Auto-select khi chỉ có 1 shop (tránh user phải click).
+                    if (data.length === 1) {
+                        form.setFieldsValue({ cred_shop_id: String(data[0].id) });
+                        applyShopToAddress(form, data[0]);
+                    } else if (data.length === 0) {
+                        message.warning('Token hợp lệ nhưng chưa có shop nào — tạo shop trên dashboard GHN trước.');
+                    }
+                },
+                onError: (e) => {
+                    setShops([]);
+                    message.error(errorMessage(e, 'Không tải được danh sách shop từ GHN.'));
+                },
+                onSettled: () => setLoading(false),
+            });
+        }, 800);
+
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [token]);
+
+    const shopId = (Form.useWatch('cred_shop_id', form) ?? '') as string;
+    const onPickShop = (val: string) => {
+        form.setFieldsValue({ cred_shop_id: val });
+        const shop = shops.find((s) => String(s.id) === val);
+        if (shop) {
+            applyShopToAddress(form, shop);
+        }
+    };
+
+    const tokenReady = token.trim().length >= 8;
+
+    return (
+        <>
+            <Form.Item
+                label="Gian hàng (Shop)"
+                name="cred_shop_id"
+                rules={[{ required: true, message: 'Chọn 1 gian hàng GHN' }]}
+                extra={shops.length > 1 ? <span style={{ color: 'var(--ink-500)' }}>1 token GHN có thể có nhiều shop — chọn shop muốn dùng để tạo vận đơn.</span> : undefined}
+            >
+                <Select
+                    showSearch
+                    placeholder={tokenReady ? (loading ? 'Đang tải shop từ GHN…' : 'Chọn gian hàng') : 'Nhập API Token để mở danh sách shop'}
+                    disabled={!tokenReady || (shops.length === 0 && !loading)}
+                    loading={loading}
+                    value={shopId || undefined}
+                    onChange={onPickShop}
+                    optionFilterProp="label"
+                    notFoundContent={loading ? <Spin size="small" /> : 'Chưa có shop nào'}
+                    options={shops.map((s) => ({
+                        value: String(s.id),
+                        label: `${s.name} · #${s.id}${s.phone ? ' · ' + s.phone : ''}`,
+                    }))}
+                />
+            </Form.Item>
+            {shops.length > 0 && shopId && (() => {
+                const sel = shops.find((s) => String(s.id) === shopId);
+                if (!sel) return null;
+                return (
+                    <div className="ghn-shop-preview">
+                        <Space size={6}>
+                            <CheckCircleFilled style={{ color: 'var(--success-500)' }} />
+                            <span><b>{sel.name}</b> · ShopId <code>{sel.id}</code></span>
+                        </Space>
+                        {sel.address && <div style={{ marginTop: 4, color: 'var(--ink-600)' }}>{sel.address}</div>}
+                        {sel.phone && <div style={{ color: 'var(--ink-500)', fontSize: 12 }}>SĐT: {sel.phone}</div>}
+                        <div style={{ marginTop: 6, fontSize: 12, color: 'var(--ink-500)' }}>
+                            Đã tự điền tên/SĐT/địa chỉ vào "Địa chỉ kho hàng" bên dưới — bạn có thể chỉnh lại nếu cần.
+                        </div>
+                    </div>
+                );
+            })()}
+            <style>{GHN_SHOP_CSS}</style>
+        </>
+    );
+}
+
+/**
+ * Áp shop GHN vào các form field địa chỉ kho hàng (from_*). Chỉ điền khi field hiện đang RỖNG
+ * — không ghi đè giá trị user đã chỉnh tay.
+ */
+function applyShopToAddress(form: FormInstance, shop: GhnShop): void {
+    const current = form.getFieldsValue([
+        'from_name', 'from_phone', 'from_address',
+        'from_district_id', 'from_ward_code',
+    ]);
+    const patch: Record<string, unknown> = {};
+    if (!current.from_name && shop.name) patch.from_name = shop.name;
+    if (!current.from_phone && shop.phone) patch.from_phone = shop.phone;
+    if (!current.from_address && shop.address) patch.from_address = shop.address;
+    if (!current.from_district_id && shop.district_id) patch.from_district_id = shop.district_id;
+    if (!current.from_ward_code && shop.ward_code) patch.from_ward_code = shop.ward_code;
+    if (Object.keys(patch).length > 0) {
+        form.setFieldsValue(patch);
+    }
+}
+
+const GHN_SHOP_CSS = `
+.ghn-shop-preview{
+    margin: -6px 0 14px;
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    border: 1px solid #A7F3D0;
+    background: var(--success-50, #ECFDF5);
+    color: #047857;
+    font-size: 13px;
+    line-height: 1.5;
+}
+.ghn-shop-preview b{ color: var(--ink-900); font-weight: 600; }
+.ghn-shop-preview code{
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: rgba(15,23,42,.06);
+    padding: 1px 6px;
+    border-radius: 4px;
+}
+`;
 
 // ---- GHN address picker (cascading Select, auto-load from API token) ------
 

@@ -154,6 +154,62 @@ class CarrierAccountController extends Controller
     }
 
     /**
+     * POST /api/v1/carrier-accounts/ghn/shops — liệt kê shop gắn với token GHN. Dùng trong form "Thêm
+     * tài khoản GHN" cho phép user chọn 1 trong nhiều gian hàng thay vì gõ ShopId tay. KHÔNG yêu cầu
+     * CarrierAccount đã lưu. Cache 10 phút theo hash token (giảm hit GHN; shop list ít thay đổi).
+     *
+     * Payload: { token: string }
+     */
+    public function ghnShops(Request $request): JsonResponse
+    {
+        abort_unless($request->user()?->can('fulfillment.carriers'), 403, 'Bạn không có quyền cấu hình ĐVVC.');
+        $data = $request->validate([
+            'token' => ['required', 'string', 'max:200'],
+        ]);
+
+        $tokenHash = substr(hash('sha256', $data['token']), 0, 16);
+        $cacheKey = "ghn.fe.{$tokenHash}.shops";
+
+        try {
+            $body = Cache::remember($cacheKey, 600, function () use ($data) {
+                $client = new GhnClient($data['token']);
+
+                return $client->getShops();
+            });
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Không gọi được GHN: '.$e->getMessage(),
+                'errors' => ['token' => ['Token có thể không hợp lệ hoặc GHN không phản hồi.']],
+            ], 422);
+        }
+
+        $code = (int) ($body['code'] ?? 0);
+        if ($code !== 200) {
+            return response()->json([
+                'message' => $body['message'] ?? 'GHN trả mã lỗi '.$code,
+                'errors' => ['token' => [$body['message'] ?? 'Token GHN không hợp lệ.']],
+            ], 422);
+        }
+
+        // GHN trả `data.shops[]` hoặc `data` là array — chuẩn hoá về list.
+        $shopsRaw = $body['data']['shops'] ?? $body['data'] ?? [];
+        $shops = array_values(array_map(function ($s) {
+            return [
+                'id' => (int) ($s['_id'] ?? $s['id'] ?? 0),
+                'name' => (string) ($s['name'] ?? ('Shop #'.($s['_id'] ?? '?'))),
+                'phone' => (string) ($s['phone'] ?? ''),
+                'address' => (string) ($s['address'] ?? ''),
+                'district_id' => isset($s['district_id']) ? (int) $s['district_id'] : null,
+                'ward_code' => isset($s['ward_code']) ? (string) $s['ward_code'] : null,
+                'version' => isset($s['version']) ? (int) $s['version'] : null,
+                'status' => isset($s['status']) ? (int) $s['status'] : null,
+            ];
+        }, (array) $shopsRaw));
+
+        return response()->json(['data' => $shops]);
+    }
+
+    /**
      * POST /api/v1/carrier-accounts/ghn/master-data — proxy GHN master-data (province/district/ward)
      * lấy bằng token user đang nhập trong form "Thêm tài khoản". KHÔNG yêu cầu CarrierAccount đã lưu —
      * dùng để user xem trước/chọn mã quận trước khi submit. Cache theo hash token để giảm hit GHN.

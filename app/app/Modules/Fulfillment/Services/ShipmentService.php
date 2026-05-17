@@ -428,8 +428,35 @@ class ShipmentService
         }
         $connector = $this->carriers->for($carrierCode);
 
-        $weight = isset($opts['weight_grams']) ? (int) $opts['weight_grams'] : $this->estimateWeight($order, $tenantId);
-        $cod = isset($opts['cod_amount']) ? (int) $opts['cod_amount'] : ($order->is_cod ? (int) ($order->cod_amount ?: $order->grand_total) : 0);
+        $weight = isset($opts['weight_grams']) && (int) $opts['weight_grams'] > 0
+            ? (int) $opts['weight_grams']
+            : $this->estimateWeight($order, $tenantId);
+
+        // COD priority logic (SPEC 2026-05-17):
+        //   1. Nếu FE truyền `cod_amount > 0` ⇒ override (user cố tình điều chỉnh).
+        //   2. Nếu order.is_cod = true ⇒ dùng `order.cod_amount` (fallback `grand_total` nếu cod_amount=0).
+        //   3. Else ⇒ 0 (đơn không COD).
+        //
+        // Trước đây dùng `isset()` ⇒ FE gửi `cod_amount: 0` (vô tình) đè COD của order về 0 ⇒ GHN nhận
+        // COD = 0đ dù order có COD > 0. Fix: bỏ qua giá trị 0 từ opts, ưu tiên order data.
+        $codFromOpts = isset($opts['cod_amount']) ? (int) $opts['cod_amount'] : 0;
+        if ($codFromOpts > 0) {
+            $cod = $codFromOpts;
+        } elseif ($order->is_cod) {
+            $cod = (int) ($order->cod_amount ?: ($order->grand_total - (int) ($order->prepaid_amount ?? 0)));
+            $cod = max(0, $cod);
+            if ($cod === 0) {
+                $cod = (int) $order->grand_total;     // last resort: full order value
+            }
+            if ($cod === 0) {
+                Log::warning('shipment.cod_zero_for_cod_order', [
+                    'order_id' => $order->getKey(), 'order_cod' => $order->cod_amount,
+                    'order_grand' => $order->grand_total, 'opts_cod' => $opts['cod_amount'] ?? 'unset',
+                ]);
+            }
+        } else {
+            $cod = 0;
+        }
 
         $payload = $this->buildCreatePayload($order, $tenantId, $service, $weight, $cod, $opts, $accountArr);
 

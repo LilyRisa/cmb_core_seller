@@ -243,6 +243,32 @@ export interface GhnProvince { ProvinceID: number; ProvinceName: string; Code?: 
 export interface GhnDistrict { DistrictID: number; ProvinceID: number; DistrictName: string; Code?: string; SupportType?: number }
 export interface GhnWard { WardCode: string; DistrictID: number; WardName: string }
 
+/** GHN shop (gian hàng) — 1 token có thể có nhiều shop, mỗi shop 1 ShopId. */
+export interface GhnShop {
+    id: number;
+    name: string;
+    phone: string;
+    address: string;
+    district_id: number | null;
+    ward_code: string | null;
+    version: number | null;
+    status: number | null;
+}
+
+/**
+ * Load shop list theo token GHN — dùng trong form thêm tài khoản để user chọn shop thay vì gõ ShopId.
+ * BE cache 10 phút theo hash token để giảm hit GHN.
+ */
+export function useGhnShops() {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async (vars: { token: string }) => {
+            const { data } = await api!.post<{ data: GhnShop[] }>('/carrier-accounts/ghn/shops', vars);
+            return data.data;
+        },
+    });
+}
+
 /**
  * Proxy gọi GHN master-data bằng token user đang gõ trong form thêm tài khoản. Trả về danh sách
  * tỉnh/quận/phường để FE dựng cascading Select — không cần user gõ tay mã quận. Backend cache 1 giờ
