@@ -1,6 +1,7 @@
 <?php
 
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminAuditLogController;
+use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminAuthController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminBroadcastController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminPlanController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminTenantController;
@@ -10,15 +11,33 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| Admin routes — /api/v1/admin/* (SPEC 0020 + 0023). Super-admin only.
+| Admin routes — /api/v1/admin/* (Spec 2026-05-17).
 |--------------------------------------------------------------------------
-| KHÔNG có middleware `tenant` — admin global xuyên mọi tenant. Mọi
-| controller bỏ TenantScope tường minh.
+| Auth tách lập:
+|   - /api/v1/admin/auth/login           (web + throttle, NO auth) — set session admin
+|   - /api/v1/admin/auth/{logout,me,...} (web + auth:admin)
+|   - /api/v1/admin/*                    (web + auth:admin, throttle 60/min)
 |
-| Rate limit 60/phút/user (chống misuse). Audit log mỗi action ghi.
+| Drop super_admin middleware cũ + Gate::before super-admin. Admin không truy
+| cập route /api/v1/* của user (guard khác).
 */
 
-Route::middleware(['api', 'auth:sanctum', 'super_admin', 'throttle:60,1'])
+// --- Public auth (login) ----------------------------------------------------
+Route::middleware(['web', 'throttle:10,1'])
+    ->prefix('api/v1/admin/auth')->group(function () {
+        Route::post('login', [AdminAuthController::class, 'login'])->name('admin.auth.login');
+    });
+
+// --- Authenticated auth (logout/me/change-password) -------------------------
+Route::middleware(['web', 'auth:admin'])
+    ->prefix('api/v1/admin/auth')->group(function () {
+        Route::post('logout', [AdminAuthController::class, 'logout'])->name('admin.auth.logout');
+        Route::get('me', [AdminAuthController::class, 'me'])->name('admin.auth.me');
+        Route::post('change-password', [AdminAuthController::class, 'changePassword'])->name('admin.auth.change-password');
+    });
+
+// --- Admin business routes --------------------------------------------------
+Route::middleware(['web', 'auth:admin', 'throttle:60,1'])
     ->prefix('api/v1/admin')->group(function () {
 
         // --- Tenants (SPEC 0020) ---
