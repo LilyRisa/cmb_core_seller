@@ -26,6 +26,15 @@ class EnsureTenant
             return response()->json(['error' => ['code' => 'UNAUTHENTICATED', 'message' => 'Chưa đăng nhập.']], 401);
         }
 
+        // Spec 2026-05-17 — super-admin có thể tạm khoá user qua `/admin/users/{id}/suspend`
+        // (set `users.suspended_at`). User bị khoá không vào được tenant routes.
+        if (($user->suspended_at ?? null) !== null) {
+            return response()->json(['error' => [
+                'code' => 'USER_SUSPENDED',
+                'message' => 'Tài khoản đã bị tạm khoá. Vui lòng liên hệ hỗ trợ.',
+            ]], 403);
+        }
+
         // Header là kênh chính; query param `X-Tenant-Id` cho phép `<a href download>` (browser không gửi
         // header custom khi mở link/blob). Session là fallback cuối (đã thuộc tenant nào ở request trước).
         $tenantId = $request->header('X-Tenant-Id')
