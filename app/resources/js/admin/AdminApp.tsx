@@ -13,6 +13,7 @@ import { AdminPlansPage } from './pages/tenants/AdminPlansPage';
 import { AdminAuditLogsPage } from './pages/tenants/AdminAuditLogsPage';
 import { AdminBroadcastsPage } from './pages/tenants/AdminBroadcastsPage';
 import { AdminUsersPage } from './pages/users/AdminUsersPage';
+import { SystemSettingsPage } from './pages/settings/SystemSettingsPage';
 
 export function AdminApp() {
     return (
@@ -34,7 +35,7 @@ export function AdminApp() {
                     <Route path="broadcasts" element={<AdminBroadcastsPage />} />
                     <Route path="audit-logs" element={<AdminAuditLogsPage />} />
                     <Route path="users" element={<AdminUsersPage />} />
-                    {/* Settings added in Task 22. */}
+                    <Route path="settings" element={<SystemSettingsPage />} />
                     <Route path="*" element={<Navigate to="/admin" replace />} />
                 </Route>
             </Routes>
