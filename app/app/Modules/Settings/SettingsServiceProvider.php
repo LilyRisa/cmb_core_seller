@@ -2,19 +2,23 @@
 
 namespace CMBcoreSeller\Modules\Settings;
 
+use CMBcoreSeller\Modules\Settings\Services\SystemSettingService;
 use Illuminate\Support\ServiceProvider;
 
 /**
- * Service provider for the Settings domain module.
+ * Spec 2026-05-17 — module Settings cung cấp lớp đọc/ghi cấu hình động
+ * (`system_setting()` + `/admin/system-settings/*`).
  *
- * See docs/01-architecture/modules.md — this module talks to other modules
- * only through Contracts/ interfaces and domain events, never internals.
+ * - Service `SystemSettingService` register as singleton — request-scope memo.
+ * - Migrations loaded từ `Database/Migrations/`.
+ * - Routes loaded từ `Http/routes.php` (admin-only).
+ * - Listener `LogSystemSettingChanged` đăng ký trong `boot()` để ghi audit.
  */
 class SettingsServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        $this->app->singleton(SystemSettingService::class);
     }
 
     public function boot(): void
@@ -24,5 +28,10 @@ class SettingsServiceProvider extends ServiceProvider
         if (is_file(__DIR__.'/Http/routes.php')) {
             $this->loadRoutesFrom(__DIR__.'/Http/routes.php');
         }
+
+        \Illuminate\Support\Facades\Event::listen(
+            Events\SystemSettingChanged::class,
+            Listeners\LogSystemSettingChanged::class,
+        );
     }
 }
