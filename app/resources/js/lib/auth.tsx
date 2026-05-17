@@ -14,8 +14,6 @@ export interface AuthUser {
     email: string;
     /** SPEC 0022 — ISO timestamp khi user verify email; `null` ⇒ FE chặn vào app. */
     email_verified_at: string | null;
-    /** SPEC 0020 — true ⇒ user là super-admin hệ thống, được vào /admin/*. */
-    is_super_admin?: boolean;
     tenants: TenantSummary[];
 }
 

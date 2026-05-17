@@ -36,7 +36,8 @@ import { OverQuotaBanner } from '@/components/OverQuotaBanner';
 
 const { Header, Sider, Content } = Layout;
 
-function buildNav(isSuperAdmin: boolean): MenuProps['items'] {
+// Spec 2026-05-17 — user SPA không còn menu admin; truy cập tại `/admin` (server-side route).
+function buildNav(): MenuProps['items'] {
     const items: NonNullable<MenuProps['items']> = [
         { type: 'group', label: 'Tổng quan', children: [
             { key: '/', icon: <DashboardOutlined />, label: <Link to="/">Bảng điều khiển</Link> },
@@ -71,20 +72,6 @@ function buildNav(isSuperAdmin: boolean): MenuProps['items'] {
         ] },
     ];
 
-    // SPEC 0020 + 0023 — chỉ super-admin thấy nhóm này.
-    if (isSuperAdmin) {
-        items.push({
-            type: 'group', label: 'Quản trị hệ thống', children: [
-                { key: '/admin/tenants', icon: <ToolOutlined />, label: <Link to="/admin/tenants">Tenant & gian hàng</Link> },
-                { key: '/admin/users', icon: <SafetyCertificateOutlined />, label: <Link to="/admin/users">Người dùng hệ thống</Link> },
-                { key: '/admin/vouchers', icon: <GiftOutlined />, label: <Link to="/admin/vouchers">Voucher & quà tặng</Link> },
-                { key: '/admin/plans', icon: <TagsOutlined />, label: <Link to="/admin/plans">Gói thuê bao</Link> },
-                { key: '/admin/broadcasts', icon: <SoundOutlined />, label: <Link to="/admin/broadcasts">Broadcast</Link> },
-                { key: '/admin/audit-logs', icon: <AuditOutlined />, label: <Link to="/admin/audit-logs">Audit log</Link> },
-            ],
-        });
-    }
-
     return items;
 }
 
@@ -94,7 +81,6 @@ const BASE_KEYS = ['/', '/orders', '/customers', '/channels', '/products', '/inv
     '/reports', '/finance/settlements',
     '/accounting/journals', '/accounting/chart-of-accounts', '/accounting/balances', '/accounting/ar', '/accounting/ap', '/accounting/cash', '/accounting/reports', '/accounting/periods',
     '/sync-logs', '/settings'];
-const ADMIN_KEYS = ['/admin/tenants', '/admin/users'];
 
 export function AppLayout() {
     const { data: user } = useAuth();
@@ -105,18 +91,14 @@ export function AppLayout() {
 
     const currentTenantId = getCurrentTenantId() ?? user?.tenants[0]?.id ?? null;
     const currentTenant = user?.tenants.find((t) => t.id === currentTenantId) ?? user?.tenants[0];
-    const isSuperAdmin = user?.is_super_admin === true;
-
-    const nav = useMemo(() => buildNav(isSuperAdmin), [isSuperAdmin]);
-    const keys = useMemo(() => isSuperAdmin ? [...BASE_KEYS, ...ADMIN_KEYS] : BASE_KEYS, [isSuperAdmin]);
+    const nav = useMemo(() => buildNav(), []);
+    const keys = BASE_KEYS;
 
     const selectedKey = useMemo(() => {
         const match = keys.filter((k) => (k === '/' ? location.pathname === '/' : location.pathname.startsWith(k)))
             .sort((a, b) => b.length - a.length)[0];
         return match ?? '/';
     }, [location.pathname, keys]);
-
-    const isAdminRoute = location.pathname.startsWith('/admin/');
 
     return (
         <Layout style={{ minHeight: '100vh' }}>
@@ -158,7 +140,7 @@ export function AppLayout() {
                 </Header>
                 <Content style={{ margin: 16, minHeight: 0 }}>
                     {/* SPEC 0020 — banner over-quota cho user thường; trang admin không cần (super admin biết qua list). */}
-                    {!isAdminRoute && <OverQuotaBanner />}
+                    <OverQuotaBanner />
                     <Outlet context={{ tenantName: currentTenant?.name }} />
                 </Content>
             </Layout>
