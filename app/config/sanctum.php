@@ -37,7 +37,11 @@ return [
     |
     */
 
-    'guard' => ['web'],
+    // Spec 2026-05-17 — admin SPA cũng dùng Sanctum stateful (guard `admin_web` session).
+    // Sanctum thử lần lượt: nếu request có session user thường → guard `web`;
+    // nếu có session admin → `admin_web`. Route /api/v1/admin/* dùng middleware
+    // `auth:admin` (Sanctum driver) — resolve về `admin_users` provider.
+    'guard' => ['web', 'admin_web'],
 
     /*
     |--------------------------------------------------------------------------
