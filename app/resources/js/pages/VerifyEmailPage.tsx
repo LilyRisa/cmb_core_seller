@@ -320,7 +320,7 @@ function EnvelopeMark() {
             </g>
 
             {/* Envelope front — cover bottom half of letter, with subtle bottom-shade stripe */}
-            <rect x="20" y="80" width="180" height="68" rx="3" fill="#1668dc" />
+            <rect x="20" y="80" width="180" height="68" rx="3" fill="#2563EB" />
             {/* Open-flap V crease behind the letter — visible at the envelope opening */}
             <path d="M20 80 L110 130 L200 80" fill="none" stroke="#0B1437" strokeWidth="1.2" opacity="0.55" />
             {/* Bottom shadow band on envelope */}

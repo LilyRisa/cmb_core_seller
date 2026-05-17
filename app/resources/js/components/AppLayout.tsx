@@ -121,7 +121,7 @@ export function AppLayout() {
     return (
         <Layout style={{ minHeight: '100vh' }}>
             <Sider theme="light" width={236} collapsedWidth={64} collapsible collapsed={collapsed} trigger={null} style={{ borderRight: '1px solid #f0f0f0' }}>
-                <div style={{ height: 56, display: 'flex', alignItems: 'center', gap: 10, padding: collapsed ? '0' : '0 18px', justifyContent: collapsed ? 'center' : 'flex-start', fontWeight: 700, fontSize: 16, color: '#fa8c16', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                <div style={{ height: 56, display: 'flex', alignItems: 'center', gap: 10, padding: collapsed ? '0' : '0 18px', justifyContent: collapsed ? 'center' : 'flex-start', fontWeight: 600, fontSize: 16, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden' }}>
                     <img src="/images/logocmb.png" alt="CMB Core" style={{ width: 32, height: 32, objectFit: 'contain', flex: 'none' }} />
                     {!collapsed && <span>CMB Core</span>}
                 </div>
@@ -150,7 +150,7 @@ export function AppLayout() {
                             ] }}
                         >
                             <Space style={{ cursor: 'pointer' }}>
-                                <Avatar size="small" style={{ background: '#1668dc' }} icon={<UserOutlined />} />
+                                <Avatar size="small" style={{ background: 'linear-gradient(135deg, #2563EB 0%, #1E40AF 100%)' }} icon={<UserOutlined />} />
                                 <span style={{ fontWeight: 500 }}>{user?.name}</span>
                             </Space>
                         </Dropdown>

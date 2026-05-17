@@ -189,7 +189,7 @@ export function SettingsPlanPage() {
                             <Col key={plan.code} xs={24} sm={12} lg={6}>
                                 <Card
                                     type={isCurrent ? 'inner' : undefined}
-                                    style={{ borderColor: isCurrent ? '#1668dc' : undefined, height: '100%' }}
+                                    style={{ borderColor: isCurrent ? '#2563EB' : undefined, height: '100%' }}
                                     title={
                                         <Space>
                                             {plan.code === 'business' && <CrownOutlined style={{ color: '#faad14' }} />}

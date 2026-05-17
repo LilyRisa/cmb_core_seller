@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { App as AntApp, ConfigProvider, theme } from 'antd';
 import { Result, Typography } from 'antd';
+import { ToolOutlined } from '@ant-design/icons';
 import viVN from 'antd/locale/vi_VN';
 import 'antd/dist/reset.css';
 import '../css/app.css';
@@ -67,7 +68,7 @@ const queryClient = new QueryClient({
 function ComingSoon({ title, phase }: { title: string; phase?: string }) {
     return (
         <Result
-            icon={<span style={{ fontSize: 48 }}>🚧</span>}
+            icon={<ToolOutlined style={{ fontSize: 48, color: '#2563EB' }} />}
             title={title}
             subTitle={<Typography.Text type="secondary">Tính năng này sẽ được xây dựng theo roadmap{phase ? ` (${phase})` : ''} — xem <code>docs/00-overview/roadmap.md</code>.</Typography.Text>}
         />
@@ -148,8 +149,22 @@ if (el) {
                 <ConfigProvider
                     locale={viVN}
                     theme={{
-                        token: { colorPrimary: '#1668dc', borderRadius: 6, colorBgLayout: '#f5f6fa' },
-                        components: { Layout: { headerHeight: 56, bodyBg: '#f5f6fa' }, Menu: { itemHeight: 38 } },
+                        token: {
+                            colorPrimary: '#2563EB',
+                            colorInfo: '#2563EB',
+                            colorSuccess: '#10B981',
+                            colorWarning: '#F59E0B',
+                            colorError: '#EF4444',
+                            colorTextBase: '#0F172A',
+                            borderRadius: 8,
+                            colorBgLayout: '#F8FAFC',
+                            fontFamily: "'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                        },
+                        components: {
+                            Layout: { headerHeight: 56, bodyBg: '#F8FAFC', siderBg: '#FFFFFF', headerBg: '#FFFFFF' },
+                            Menu: { itemHeight: 38, itemSelectedBg: '#EFF6FF', itemSelectedColor: '#1D4ED8', itemHoverBg: '#EFF6FF' },
+                            Button: { primaryShadow: '0 8px 22px rgba(37, 99, 235, 0.22)' },
+                        },
                         algorithm: theme.defaultAlgorithm,
                     }}
                 >

@@ -21,14 +21,14 @@ import { useAuth } from '@/lib/auth';
 
 /** AntD palette dùng nhất quán cho cả thẻ KPI lẫn biểu đồ. */
 const COLOR = {
-    revenue: '#1668dc',          // primary blue
-    orders: '#52c41a',
-    estProfit: '#722ed1',
-    grossProfit: '#13c2c2',
-    aov: '#fa8c16',
-    warning: '#faad14',
-    danger: '#ff4d4f',
-    muted: '#8c8c8c',
+    revenue: '#2563EB',          // primary blue
+    orders: '#10B981',
+    estProfit: '#7C3AED',
+    grossProfit: '#06B6D4',
+    aov: '#F59E0B',
+    warning: '#F59E0B',
+    danger: '#EF4444',
+    muted: '#64748B',
 };
 
 const RANGE_OPTIONS: Array<{ value: DashboardRange; label: string }> = [

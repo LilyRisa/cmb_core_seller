@@ -90,7 +90,7 @@ export function CashPage() {
             width: 170,
             align: 'right',
             render: (v: number) => (
-                <Typography.Text strong style={{ color: v < 0 ? '#cf1322' : '#1668dc' }}>
+                <Typography.Text strong style={{ color: v < 0 ? '#cf1322' : '#2563EB' }}>
                     {formatAmount(v)} ₫
                 </Typography.Text>
             ),
@@ -113,7 +113,7 @@ export function CashPage() {
                 )}
             >
                 <div style={{ marginBottom: 16 }}>
-                    <Statistic title="Tổng tiền mặt + ngân hàng" value={totalBalance} suffix="₫" formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#1668dc' }} />
+                    <Statistic title="Tổng tiền mặt + ngân hàng" value={totalBalance} suffix="₫" formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#2563EB' }} />
                 </div>
                 <Table<CashAccount>
                     rowKey="id"

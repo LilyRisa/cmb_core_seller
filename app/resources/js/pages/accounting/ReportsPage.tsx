@@ -204,7 +204,7 @@ function BsTab({ period }: { period: string | undefined }) {
     return (
         <div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 16 }}>
-                <Statistic title="Tổng tài sản" value={r.assets} suffix="₫" formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#1668dc' }} />
+                <Statistic title="Tổng tài sản" value={r.assets} suffix="₫" formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#2563EB' }} />
                 <Statistic title="Tổng nợ phải trả" value={r.liabilities} suffix="₫" formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#fa541c' }} />
                 <Statistic title="Vốn chủ sở hữu" value={r.equity} suffix="₫" formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#722ed1' }} />
                 <Statistic title="Cân đối" value={r.balanced ? 'Cân ✓' : 'Lệch ✗'} valueStyle={{ color: r.balanced ? '#3f8600' : '#cf1322' }} />
@@ -291,7 +291,7 @@ function LedgerTab({ period }: { period: string | undefined }) {
                             { title: 'Diễn giải', dataIndex: 'narration', ellipsis: true, render: (n: string | null) => n ?? '—' },
                             { title: 'Nợ', dataIndex: 'dr', width: 140, align: 'right', render: (v: number) => v > 0 ? <Typography.Text strong>{formatAmount(v)}</Typography.Text> : <Typography.Text type="secondary">—</Typography.Text> },
                             { title: 'Có', dataIndex: 'cr', width: 140, align: 'right', render: (v: number) => v > 0 ? <Typography.Text strong>{formatAmount(v)}</Typography.Text> : <Typography.Text type="secondary">—</Typography.Text> },
-                            { title: 'Số dư sau GD', dataIndex: 'running', width: 160, align: 'right', render: (v: number) => <Typography.Text strong style={{ color: v < 0 ? '#cf1322' : '#1668dc' }}>{formatAmount(v)}</Typography.Text> },
+                            { title: 'Số dư sau GD', dataIndex: 'running', width: 160, align: 'right', render: (v: number) => <Typography.Text strong style={{ color: v < 0 ? '#cf1322' : '#2563EB' }}>{formatAmount(v)}</Typography.Text> },
                         ]}
                     />
                 </>

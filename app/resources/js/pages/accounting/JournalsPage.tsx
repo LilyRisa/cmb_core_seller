@@ -114,7 +114,7 @@ export function JournalsPage() {
                 title={
                     <Space size={10}>
                         <Typography.Title level={5} style={{ margin: 0 }}>Sổ nhật ký chung</Typography.Title>
-                        <Badge count={journals?.meta.total ?? 0} overflowCount={9999} color="#1668dc" />
+                        <Badge count={journals?.meta.total ?? 0} overflowCount={9999} color="#2563EB" />
                     </Space>
                 }
                 extra={

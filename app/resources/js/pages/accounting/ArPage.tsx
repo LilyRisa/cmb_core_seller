@@ -64,7 +64,7 @@ function AgingTab({ onCreateForCustomer }: { onCreateForCustomer: (id: number) =
         },
         { title: '0-30 ngày', dataIndex: 'b0_30', width: 130, align: 'right', render: (v: number) => v > 0 ? <Typography.Text>{formatAmount(v)}</Typography.Text> : <Typography.Text type="secondary">0</Typography.Text> },
         { title: '31-60 ngày', dataIndex: 'b31_60', width: 130, align: 'right', render: (v: number) => v > 0 ? <Typography.Text style={{ color: '#faad14' }}>{formatAmount(v)}</Typography.Text> : <Typography.Text type="secondary">0</Typography.Text> },
-        { title: '61-90 ngày', dataIndex: 'b61_90', width: 130, align: 'right', render: (v: number) => v > 0 ? <Typography.Text style={{ color: '#fa8c16' }}>{formatAmount(v)}</Typography.Text> : <Typography.Text type="secondary">0</Typography.Text> },
+        { title: '61-90 ngày', dataIndex: 'b61_90', width: 130, align: 'right', render: (v: number) => v > 0 ? <Typography.Text style={{ color: '#F59E0B' }}>{formatAmount(v)}</Typography.Text> : <Typography.Text type="secondary">0</Typography.Text> },
         { title: '> 90 ngày', dataIndex: 'b90p', width: 130, align: 'right', render: (v: number) => v > 0 ? <Typography.Text strong style={{ color: '#cf1322' }}>{formatAmount(v)}</Typography.Text> : <Typography.Text type="secondary">0</Typography.Text> },
         { title: 'Tổng nợ', dataIndex: 'total', width: 150, align: 'right', render: (v: number) => <Typography.Text strong>{formatAmount(v)} ₫</Typography.Text> },
         {
@@ -85,10 +85,10 @@ function AgingTab({ onCreateForCustomer }: { onCreateForCustomer: (id: number) =
                 <Tooltip title="Tải lại"><Button icon={<ReloadOutlined />} onClick={() => refetch()} /></Tooltip>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 16 }}>
-                <Statistic title="Tổng phải thu" value={data?.meta.total_balance ?? 0} suffix="₫" formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#1668dc' }} />
+                <Statistic title="Tổng phải thu" value={data?.meta.total_balance ?? 0} suffix="₫" formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#2563EB' }} />
                 <Statistic title="0-30 ngày" value={data?.meta.total_b0_30 ?? 0} suffix="₫" formatter={(v) => formatAmount(Number(v))} />
                 <Statistic title="31-60 ngày" value={data?.meta.total_b31_60 ?? 0} suffix="₫" formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#faad14' }} />
-                <Statistic title="61-90 ngày" value={data?.meta.total_b61_90 ?? 0} suffix="₫" formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#fa8c16' }} />
+                <Statistic title="61-90 ngày" value={data?.meta.total_b61_90 ?? 0} suffix="₫" formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#F59E0B' }} />
                 <Statistic title="> 90 ngày" value={data?.meta.total_b90p ?? 0} suffix="₫" formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#cf1322' }} />
             </div>
             <Table<AgingRow>
