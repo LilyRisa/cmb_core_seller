@@ -127,10 +127,23 @@ class GhnClient
         return (string) $token;
     }
 
-    /** Fetch the label PDF bytes for a print token. $size = 'A5' | 'A6'. */
+    /**
+     * Fetch the label HTML/PDF bytes for a print token. $size = 'A5' | 'A6' | '80x80'.
+     *
+     * GHN print endpoints (docs api.ghn.vn):
+     *   - A5  : GET /a5/public-api/printA5?token=...
+     *   - A6  : GET /a5/public-api/printA6?token=...   ← cùng prefix `/a5/`, KHÔNG phải `/a6/`
+     *   - 80x80: GET /a5/public-api/print80x80?token=...
+     * Endpoint trả HTML page (in trực tiếp từ browser); Gotenberg renders sang PDF nếu cần.
+     */
     public function printLabel(string $printToken, string $size = 'A6'): string
     {
-        $path = strtoupper($size) === 'A5' ? '/a5/public-api/printA5' : '/a6/public-api/printA6';
+        $size = strtoupper($size);
+        $path = match ($size) {
+            'A5' => '/a5/public-api/printA5',
+            '80X80', '80x80' => '/a5/public-api/print80x80',
+            default => '/a5/public-api/printA6',
+        };
         $res = $this->http(withShop: false)->get($path, ['token' => $printToken]);
         if (! $res->successful() || $res->body() === '') {
             throw new RuntimeException('GHN tải tem lỗi: '.$res->status());

@@ -54,4 +54,27 @@ class SpaCatchAllTest extends TestCase
             ->assertStatus(401)
             ->assertJsonPath('error.code', 'INVALID_SIGNATURE');
     }
+
+    // Spec 2026-05-17 — admin SPA tách bundle riêng phục vụ ở `/admin/*`.
+
+    public function test_admin_path_returns_admin_blade(): void
+    {
+        $this->get('/admin')
+            ->assertOk()
+            ->assertSee('id="admin-root"', false);
+    }
+
+    public function test_admin_subpath_also_renders_admin_blade(): void
+    {
+        $this->get('/admin/settings')
+            ->assertOk()
+            ->assertSee('id="admin-root"', false);
+    }
+
+    public function test_user_path_still_returns_app_blade(): void
+    {
+        $this->get('/orders')
+            ->assertOk()
+            ->assertSee('id="app"', false);
+    }
 }
