@@ -143,7 +143,7 @@ class AuthController extends Controller
             'name' => $user->name,
             'email' => $user->email,
             'email_verified_at' => optional($user->email_verified_at)->toIso8601String(), // SPEC 0022 — FE hiện banner nếu null.
-            'is_super_admin' => (bool) ($user->is_super_admin ?? false), // SPEC 0020 — FE hiển thị menu Admin nếu true.
+            // Spec 2026-05-17 — super-admin đã tách bảng `admin_users`; user thường không bao giờ là super-admin.
             'tenants' => $user->tenants->map(fn (Tenant $t) => [
                 'id' => $t->getKey(),
                 'name' => $t->name,

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use CMBcoreSeller\Models\AdminUser;
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder;
 use CMBcoreSeller\Modules\Billing\Models\Invoice;
@@ -29,9 +30,9 @@ class AdminVoucherTest extends TestCase
 
     public function test_super_admin_creates_percent_voucher(): void
     {
-        $admin = User::factory()->create(['is_super_admin' => true]);
+        $admin = AdminUser::factory()->create();
 
-        $this->actingAs($admin)->postJson('/api/v1/admin/vouchers', [
+        $this->actingAs($admin, 'admin_web')->postJson('/api/v1/admin/vouchers', [
             'code' => 'SUMMER20', 'name' => 'Khuyến mãi hè', 'kind' => 'percent', 'value' => 20,
         ])->assertCreated()->assertJsonPath('data.code', 'SUMMER20')->assertJsonPath('data.kind', 'percent');
 
@@ -41,22 +42,22 @@ class AdminVoucherTest extends TestCase
     public function test_regular_user_cannot_create_voucher(): void
     {
         $user = User::factory()->create();
-        $this->actingAs($user)->postJson('/api/v1/admin/vouchers', [
+        $this->actingAs($user, 'web')->postJson('/api/v1/admin/vouchers', [
             'code' => 'X', 'name' => 'X', 'kind' => 'percent', 'value' => 10,
-        ])->assertStatus(403);
+        ])->assertStatus(401);
     }
 
     public function test_voucher_percent_value_validates_range(): void
     {
-        $admin = User::factory()->create(['is_super_admin' => true]);
-        $this->actingAs($admin)->postJson('/api/v1/admin/vouchers', [
+        $admin = AdminUser::factory()->create();
+        $this->actingAs($admin, 'admin_web')->postJson('/api/v1/admin/vouchers', [
             'code' => 'BIG', 'name' => 'Sai', 'kind' => 'percent', 'value' => 200,
         ])->assertStatus(422)->assertJsonPath('error.code', 'INVALID_VALUE');
     }
 
     public function test_grant_free_days_extends_subscription_period(): void
     {
-        $admin = User::factory()->create(['is_super_admin' => true]);
+        $admin = AdminUser::factory()->create();
         $owner = User::factory()->create();
         $tenant = Tenant::create(['name' => 'A']);
         $tenant->users()->attach($owner->getKey(), ['role' => Role::Owner->value]);
@@ -72,7 +73,7 @@ class AdminVoucherTest extends TestCase
             'code' => 'FREE15', 'name' => 'Tặng 15 ngày', 'kind' => 'free_days', 'value' => 15,
         ]);
 
-        $this->actingAs($admin)->postJson("/api/v1/admin/vouchers/{$voucher->id}/grant", [
+        $this->actingAs($admin, 'admin_web')->postJson("/api/v1/admin/vouchers/{$voucher->id}/grant", [
             'tenant_id' => $tenant->getKey(),
             'reason' => 'Khách VIP thân thiết — đặt tay',
         ])->assertOk();
@@ -85,7 +86,7 @@ class AdminVoucherTest extends TestCase
 
     public function test_grant_plan_upgrade_swaps_to_target_plan(): void
     {
-        $admin = User::factory()->create(['is_super_admin' => true]);
+        $admin = AdminUser::factory()->create();
         $tenant = Tenant::create(['name' => 'B']);
         $targetPlan = Plan::query()->where('code', 'pro')->first();
         $voucher = Voucher::query()->create([
@@ -93,7 +94,7 @@ class AdminVoucherTest extends TestCase
             'meta' => ['duration_days' => 30],
         ]);
 
-        $this->actingAs($admin)->postJson("/api/v1/admin/vouchers/{$voucher->id}/grant", [
+        $this->actingAs($admin, 'admin_web')->postJson("/api/v1/admin/vouchers/{$voucher->id}/grant", [
             'tenant_id' => $tenant->getKey(),
             'reason' => 'Đối tác chiến lược — quà tặng',
         ])->assertOk()->assertJsonPath('data.applied.plan_code', 'pro');

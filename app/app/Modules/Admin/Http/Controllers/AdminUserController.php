@@ -18,7 +18,6 @@ class AdminUserController extends Controller
     public function index(Request $request): JsonResponse
     {
         $q = (string) $request->query('q', '');
-        $onlyAdmin = $request->boolean('is_super_admin');
         $perPage = max(1, min(100, (int) $request->query('per_page', 30)));
 
         $query = User::query()->orderByDesc('created_at');
@@ -27,9 +26,6 @@ class AdminUserController extends Controller
                 $w->where('email', 'like', "%{$q}%")
                     ->orWhere('name', 'like', "%{$q}%");
             });
-        }
-        if ($onlyAdmin) {
-            $query->where('is_super_admin', true);
         }
         $page = $query->paginate($perPage);
 
@@ -51,7 +47,6 @@ class AdminUserController extends Controller
 
             return [
                 'id' => $u->id, 'name' => $u->name, 'email' => $u->email,
-                'is_super_admin' => (bool) $u->is_super_admin,
                 'tenants' => $userTenants->all(),
                 'created_at' => $u->created_at?->toIso8601String(),
             ];

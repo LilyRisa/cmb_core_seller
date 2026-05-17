@@ -29,7 +29,7 @@ Route::middleware(['web', 'throttle:10,1'])
     });
 
 // --- Authenticated auth (logout/me/change-password) -------------------------
-Route::middleware(['web', 'auth:admin'])
+Route::middleware(['web', 'auth:admin_web'])
     ->prefix('api/v1/admin/auth')->group(function () {
         Route::post('logout', [AdminAuthController::class, 'logout'])->name('admin.auth.logout');
         Route::get('me', [AdminAuthController::class, 'me'])->name('admin.auth.me');
@@ -37,7 +37,7 @@ Route::middleware(['web', 'auth:admin'])
     });
 
 // --- Admin business routes --------------------------------------------------
-Route::middleware(['web', 'auth:admin', 'throttle:60,1'])
+Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
     ->prefix('api/v1/admin')->group(function () {
 
         // --- Tenants (SPEC 0020) ---

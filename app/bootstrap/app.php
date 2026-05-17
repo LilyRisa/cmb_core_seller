@@ -5,7 +5,6 @@ use CMBcoreSeller\Modules\Accounting\Exceptions\AccountingException;
 use CMBcoreSeller\Modules\Billing\Http\Middleware\EnforcePlanFeature;
 use CMBcoreSeller\Modules\Billing\Http\Middleware\EnforcePlanLimit;
 use CMBcoreSeller\Modules\Billing\Http\Middleware\EnforcePlanQuotaLock;
-use CMBcoreSeller\Modules\Tenancy\Http\Middleware\EnsureSuperAdmin;
 use CMBcoreSeller\Modules\Tenancy\Http\Middleware\EnsureTenant;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
@@ -73,8 +72,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'plan.feature' => EnforcePlanFeature::class,
             // SPEC 0020 — sau 2 ngày vượt hạn mức ⇒ chặn write (whitelist nội bộ middleware).
             'plan.over_quota_lock' => EnforcePlanQuotaLock::class,
-            // SPEC 0020 — `/api/v1/admin/*` chỉ super-admin (KHÔNG cần tenant).
-            'super_admin' => EnsureSuperAdmin::class,
+            // Spec 2026-05-17 — `/api/v1/admin/*` dùng `auth:admin` (Sanctum guard
+            // trỏ vào `admin_users`). Middleware `super_admin` cũ đã bỏ.
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

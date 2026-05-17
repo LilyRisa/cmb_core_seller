@@ -79,7 +79,7 @@ class AdminTenantController extends Controller
             ->where('tenant_id', $tenant->getKey())->orderBy('id')->get();
         $members = TenantUser::query()
             ->where('tenant_id', $tenant->getKey())
-            ->with('user:id,name,email,is_super_admin')->get();
+            ->with('user:id,name,email')->get();
         $audits = AuditLog::query()->withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenant->getKey())
             ->where('action', 'like', 'admin.%')
@@ -107,7 +107,6 @@ class AdminTenantController extends Controller
             'members' => $members->map(fn (TenantUser $m) => [
                 'user_id' => $m->user_id, 'role' => $m->role->value ?? $m->role,
                 'name' => $m->user->name ?? null, 'email' => $m->user->email ?? null,
-                'is_super_admin' => (bool) ($m->user->is_super_admin ?? false),
             ])->all(),
             'recent_admin_actions' => $audits->map(fn (AuditLog $a) => [
                 'id' => $a->id, 'action' => $a->action, 'user_id' => $a->user_id,

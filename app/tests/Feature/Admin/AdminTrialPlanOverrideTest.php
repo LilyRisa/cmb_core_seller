@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use CMBcoreSeller\Models\AdminUser;
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
@@ -27,10 +28,10 @@ class AdminTrialPlanOverrideTest extends TestCase
 
     public function test_extend_trial_sets_subscription_for_custom_days(): void
     {
-        $admin = User::factory()->create(['is_super_admin' => true]);
+        $admin = AdminUser::factory()->create();
         $tenant = Tenant::create(['name' => 'X']);
 
-        $this->actingAs($admin)->postJson("/api/v1/admin/tenants/{$tenant->id}/extend-trial", [
+        $this->actingAs($admin, 'admin_web')->postJson("/api/v1/admin/tenants/{$tenant->id}/extend-trial", [
             'days' => 45, 'plan_code' => 'pro', 'reason' => 'Khách doanh nghiệp xin trial 45 ngày',
         ])->assertOk()
             ->assertJsonPath('data.status', Subscription::STATUS_TRIALING)
@@ -45,34 +46,34 @@ class AdminTrialPlanOverrideTest extends TestCase
 
     public function test_extend_trial_rejects_out_of_range_days(): void
     {
-        $admin = User::factory()->create(['is_super_admin' => true]);
+        $admin = AdminUser::factory()->create();
         $tenant = Tenant::create(['name' => 'Y']);
 
-        $this->actingAs($admin)->postJson("/api/v1/admin/tenants/{$tenant->id}/extend-trial", [
+        $this->actingAs($admin, 'admin_web')->postJson("/api/v1/admin/tenants/{$tenant->id}/extend-trial", [
             'days' => 0, 'reason' => 'Quá ngắn — bị reject',
         ])->assertStatus(422);
 
-        $this->actingAs($admin)->postJson("/api/v1/admin/tenants/{$tenant->id}/extend-trial", [
+        $this->actingAs($admin, 'admin_web')->postJson("/api/v1/admin/tenants/{$tenant->id}/extend-trial", [
             'days' => 999, 'reason' => 'Quá dài — bị reject',
         ])->assertStatus(422);
     }
 
     public function test_extend_trial_rejects_short_reason(): void
     {
-        $admin = User::factory()->create(['is_super_admin' => true]);
+        $admin = AdminUser::factory()->create();
         $tenant = Tenant::create(['name' => 'Z']);
 
-        $this->actingAs($admin)->postJson("/api/v1/admin/tenants/{$tenant->id}/extend-trial", [
+        $this->actingAs($admin, 'admin_web')->postJson("/api/v1/admin/tenants/{$tenant->id}/extend-trial", [
             'days' => 14, 'reason' => 'short',
         ])->assertStatus(422);
     }
 
     public function test_plan_update_changes_limits_and_features(): void
     {
-        $admin = User::factory()->create(['is_super_admin' => true]);
+        $admin = AdminUser::factory()->create();
         $plan = Plan::query()->where('code', 'starter')->first();
 
-        $this->actingAs($admin)->patchJson("/api/v1/admin/plans/{$plan->id}", [
+        $this->actingAs($admin, 'admin_web')->patchJson("/api/v1/admin/plans/{$plan->id}", [
             'limits' => ['max_channel_accounts' => 3],
             'features' => ['mass_listing' => true],
         ])->assertOk()
@@ -84,17 +85,17 @@ class AdminTrialPlanOverrideTest extends TestCase
 
     public function test_plan_update_rejects_code_change(): void
     {
-        $admin = User::factory()->create(['is_super_admin' => true]);
+        $admin = AdminUser::factory()->create();
         $plan = Plan::query()->where('code', 'starter')->first();
 
-        $this->actingAs($admin)->patchJson("/api/v1/admin/plans/{$plan->id}", [
+        $this->actingAs($admin, 'admin_web')->patchJson("/api/v1/admin/plans/{$plan->id}", [
             'code' => 'newcode',
         ])->assertStatus(422)->assertJsonPath('error.code', 'PLAN_IMMUTABLE_FIELD');
     }
 
     public function test_feature_override_grants_feature_to_tenant(): void
     {
-        $admin = User::factory()->create(['is_super_admin' => true]);
+        $admin = AdminUser::factory()->create();
         $owner = User::factory()->create();
         $tenant = Tenant::create(['name' => 'T1']);
         $tenant->users()->attach($owner->getKey(), ['role' => Role::Owner->value]);
@@ -106,7 +107,7 @@ class AdminTrialPlanOverrideTest extends TestCase
             'current_period_start' => now(), 'current_period_end' => now()->addDays(30),
         ]);
 
-        $this->actingAs($admin)->postJson("/api/v1/admin/tenants/{$tenant->id}/feature-overrides", [
+        $this->actingAs($admin, 'admin_web')->postJson("/api/v1/admin/tenants/{$tenant->id}/feature-overrides", [
             'features' => ['mass_listing' => true],
             'reason' => 'Khách VIP — mở mass_listing cho gói Starter',
         ])->assertOk()->assertJsonPath('data.feature_overrides.mass_listing', true);

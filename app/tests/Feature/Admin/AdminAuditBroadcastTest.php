@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Admin;
 
+use CMBcoreSeller\Models\AdminUser;
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Notifications\Notifications\BroadcastNotification;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
@@ -20,7 +21,7 @@ class AdminAuditBroadcastTest extends TestCase
 
     public function test_audit_log_search_filters_by_action_and_tenant(): void
     {
-        $admin = User::factory()->create(['is_super_admin' => true]);
+        $admin = AdminUser::factory()->create();
         $tenantA = Tenant::create(['name' => 'A']);
         $tenantB = Tenant::create(['name' => 'B']);
 
@@ -29,26 +30,26 @@ class AdminAuditBroadcastTest extends TestCase
         AuditLog::query()->create(['tenant_id' => $tenantA->id, 'user_id' => $admin->id, 'action' => 'orders.create', 'changes' => []]);
 
         // Filter action prefix admin.*
-        $this->actingAs($admin)->getJson('/api/v1/admin/audit-logs?action=admin.*')
+        $this->actingAs($admin, 'admin_web')->getJson('/api/v1/admin/audit-logs?action=admin.*')
             ->assertOk()
             ->assertJsonPath('meta.pagination.total', 2);
 
         // Filter by tenant
-        $this->actingAs($admin)->getJson('/api/v1/admin/audit-logs?tenant_id='.$tenantA->id)
+        $this->actingAs($admin, 'admin_web')->getJson('/api/v1/admin/audit-logs?tenant_id='.$tenantA->id)
             ->assertOk()
             ->assertJsonPath('meta.pagination.total', 2);
     }
 
-    public function test_audit_log_requires_super_admin(): void
+    public function test_audit_log_requires_admin_session(): void
     {
         $user = User::factory()->create();
-        $this->actingAs($user)->getJson('/api/v1/admin/audit-logs')->assertStatus(403);
+        $this->actingAs($user, 'web')->getJson('/api/v1/admin/audit-logs')->assertStatus(401);
     }
 
     public function test_broadcast_to_all_owners_dispatches_notifications(): void
     {
         Notification::fake();
-        $admin = User::factory()->create(['is_super_admin' => true]);
+        $admin = AdminUser::factory()->create();
         $owner1 = User::factory()->create();
         $owner2 = User::factory()->create();
         $staff = User::factory()->create();
@@ -58,7 +59,7 @@ class AdminAuditBroadcastTest extends TestCase
         $tenant2->users()->attach($owner2->getKey(), ['role' => Role::Owner->value]);
         $tenant1->users()->attach($staff->getKey(), ['role' => Role::StaffOrder->value]);
 
-        $this->actingAs($admin)->postJson('/api/v1/admin/broadcasts', [
+        $this->actingAs($admin, 'admin_web')->postJson('/api/v1/admin/broadcasts', [
             'subject' => 'Thông báo bảo trì',
             'body_markdown' => '# Thông báo bảo trì\nHệ thống bảo trì lúc 22h.',
             'audience' => ['kind' => 'all_owners'],
@@ -75,7 +76,7 @@ class AdminAuditBroadcastTest extends TestCase
     public function test_broadcast_to_tenant_ids_only_sends_to_listed_tenants(): void
     {
         Notification::fake();
-        $admin = User::factory()->create(['is_super_admin' => true]);
+        $admin = AdminUser::factory()->create();
         $owner1 = User::factory()->create();
         $owner2 = User::factory()->create();
         $tenant1 = Tenant::create(['name' => 'T1']);
@@ -83,7 +84,7 @@ class AdminAuditBroadcastTest extends TestCase
         $tenant1->users()->attach($owner1->getKey(), ['role' => Role::Owner->value]);
         $tenant2->users()->attach($owner2->getKey(), ['role' => Role::Owner->value]);
 
-        $this->actingAs($admin)->postJson('/api/v1/admin/broadcasts', [
+        $this->actingAs($admin, 'admin_web')->postJson('/api/v1/admin/broadcasts', [
             'subject' => 'Riêng cho T1',
             'body_markdown' => 'Thông báo riêng',
             'audience' => ['kind' => 'tenant_ids', 'tenant_ids' => [$tenant1->id]],
@@ -96,12 +97,12 @@ class AdminAuditBroadcastTest extends TestCase
     public function test_broadcast_to_suspended_tenants_skips_recipients(): void
     {
         Notification::fake();
-        $admin = User::factory()->create(['is_super_admin' => true]);
+        $admin = AdminUser::factory()->create();
         $owner = User::factory()->create();
         $tenant = Tenant::create(['name' => 'Suspended', 'status' => 'suspended']);
         $tenant->users()->attach($owner->getKey(), ['role' => Role::Owner->value]);
 
-        $this->actingAs($admin)->postJson('/api/v1/admin/broadcasts', [
+        $this->actingAs($admin, 'admin_web')->postJson('/api/v1/admin/broadcasts', [
             'subject' => 'Sẽ không tới',
             'body_markdown' => 'Body',
             'audience' => ['kind' => 'all_owners'],

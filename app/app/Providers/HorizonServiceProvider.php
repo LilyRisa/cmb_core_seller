@@ -2,8 +2,9 @@
 
 namespace CMBcoreSeller\Providers;
 
+use CMBcoreSeller\Models\AdminUser;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
-use Laravel\Horizon\Horizon;
 use Laravel\Horizon\HorizonApplicationServiceProvider;
 
 class HorizonServiceProvider extends HorizonApplicationServiceProvider
@@ -23,14 +24,17 @@ class HorizonServiceProvider extends HorizonApplicationServiceProvider
     /**
      * Register the Horizon gate.
      *
-     * Cho phép super-admin hệ thống (SPEC 0020) xem dashboard ở mọi env. Local
-     * env Laravel mặc định bỏ qua gate ⇒ dev luôn vào được. Production: ai có
-     * `users.is_super_admin = true` vào được `/horizon`.
+     * Spec 2026-05-17 — chỉ super-admin (bảng `admin_users`, active) xem được
+     * dashboard `/horizon` ở mọi env. Local env Laravel mặc định bỏ qua gate ⇒
+     * dev luôn vào được. Production: phải đăng nhập `/admin/login` trước (cookie
+     * `admin_web` session) rồi mới mở được `/horizon`.
      */
     protected function gate(): void
     {
-        Gate::define('viewHorizon', function ($user = null) {
-            return $user !== null && (bool) ($user->is_super_admin ?? false);
+        Gate::define('viewHorizon', function ($user = null): bool {
+            $admin = Auth::guard('admin_web')->user();
+
+            return $admin instanceof AdminUser && (bool) $admin->is_active;
         });
     }
 }
