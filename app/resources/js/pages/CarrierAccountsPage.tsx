@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     App as AntApp, Alert, Button, Col, Dropdown, Empty, Form, Input, Modal, Result,
-    Row, Space, Switch, Tag, Tooltip, Typography,
+    Row, Select, Space, Spin, Switch, Tag, Tooltip, Typography,
 } from 'antd';
+import type { FormInstance } from 'antd';
 import {
-    CloseCircleFilled, EditOutlined, EllipsisOutlined, KeyOutlined, PlusOutlined,
-    ReloadOutlined, StarFilled, StarOutlined, ThunderboltOutlined, WarningFilled,
+    CheckCircleFilled, CloseCircleFilled, EditOutlined, EllipsisOutlined, KeyOutlined,
+    LoadingOutlined, PlusOutlined, ReloadOutlined, StarFilled, StarOutlined,
+    ThunderboltOutlined, WarningFilled,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
@@ -14,9 +16,9 @@ import { CARRIER_META } from '@/components/CarrierBadge';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
 import {
-    type Carrier, type CarrierAccount,
+    type Carrier, type CarrierAccount, type GhnDistrict, type GhnProvince, type GhnWard,
     useCarrierAccounts, useCarriers, useCreateCarrierAccount, useDeleteCarrierAccount,
-    useUpdateCarrierAccount, useVerifyCarrierAccount,
+    useGhnMasterData, useUpdateCarrierAccount, useVerifyCarrierAccount,
 } from '@/lib/fulfillment';
 
 // Trường thông tin xác thực (credentials) theo từng ĐVVC — v1: GHN; carrier khác fallback "token".
@@ -30,15 +32,13 @@ const CRED_FIELDS: Record<string, Array<{ key: string; label: string; required?:
 // Carrier nào cần "địa chỉ kho hàng" để tạo vận đơn? GHN yêu cầu district_id của kho.
 const FROM_ADDRESS_REQUIRED: Record<string, boolean> = { ghn: true };
 
-const FROM_ADDRESS_FIELDS: Array<{ key: string; label: string; required?: boolean; placeholder?: string }> = [
+// Các field "tên người gửi / SĐT / địa chỉ" vẫn nhập tay — chỉ mã hành chính do GHN cung cấp được
+// load tự động qua cascading Select (xem `GhnFromAddressSection`). Form field names giữ nguyên prefix
+// `from_` để `AddCarrierAccountModal.submit()` đóng gói chung vào `meta.from_address`.
+const FROM_ADDRESS_BASIC_FIELDS: Array<{ key: string; label: string; required?: boolean; placeholder?: string }> = [
     { key: 'name', label: 'Tên người gửi', required: true, placeholder: 'VD: CMBcore Shop' },
     { key: 'phone', label: 'SĐT', required: true, placeholder: 'VD: 0901234567' },
     { key: 'address', label: 'Địa chỉ kho', required: true, placeholder: 'Số nhà, đường…' },
-    { key: 'ward_name', label: 'Phường/Xã', placeholder: 'Phường Bến Nghé' },
-    { key: 'district_name', label: 'Quận/Huyện', placeholder: 'Quận 1' },
-    { key: 'province_name', label: 'Tỉnh/TP', placeholder: 'TP Hồ Chí Minh' },
-    { key: 'district_id', label: 'Mã quận GHN', required: true, placeholder: 'VD: 1442 (lấy từ /master-data/district)' },
-    { key: 'ward_code', label: 'Mã phường GHN', placeholder: 'VD: 20308' },
 ];
 
 // Danh sách ĐVVC "sắp có" — hiển thị dimmed-card để người dùng biết roadmap.
@@ -404,10 +404,18 @@ function AddCarrierAccountModal({
         credFields.forEach((f) => { if (v[`cred_${f.key}`] !== undefined && v[`cred_${f.key}`] !== '') credentials[f.key] = v[`cred_${f.key}`]; });
         const meta: Record<string, unknown> = {};
         if (needsFromAddress) {
+            // Tập hợp tất cả field địa chỉ — text basic + mã GHN do cascading Select tự fill (hidden).
+            const fromKeys: Array<{ key: string; numeric?: boolean }> = [
+                { key: 'name' }, { key: 'phone' }, { key: 'address' },
+                { key: 'ward_name' }, { key: 'district_name' }, { key: 'province_name' },
+                { key: 'district_id', numeric: true }, { key: 'ward_code' },
+            ];
             const fromAddress: Record<string, unknown> = {};
-            FROM_ADDRESS_FIELDS.forEach((f) => {
-                const val = v[`from_${f.key}`];
-                if (val !== undefined && val !== '') fromAddress[f.key] = f.key === 'district_id' ? Number(val) : val;
+            fromKeys.forEach(({ key, numeric }) => {
+                const val = v[`from_${key}`];
+                if (val !== undefined && val !== '' && val !== null) {
+                    fromAddress[key] = numeric ? Number(val) : val;
+                }
             });
             if (Object.keys(fromAddress).length > 0) meta.from_address = fromAddress;
         }
@@ -454,15 +462,16 @@ function AddCarrierAccountModal({
 
                         {needsFromAddress && (
                             <>
-                                <Typography.Title level={5} style={{ marginTop: 8, marginBottom: 4, fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: 14 }}>Địa chỉ kho hàng (người gửi)</Typography.Title>
+                                <Typography.Title level={5} style={{ marginTop: 8, marginBottom: 4, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14 }}>Địa chỉ kho hàng (người gửi)</Typography.Title>
                                 <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 12 }}>
-                                    Bắt buộc với GHN — dùng để tạo vận đơn. Mã quận/phường tra ở GHN API <code>/master-data/district</code>.
+                                    Bắt buộc với GHN — dùng để tạo vận đơn. Mã quận/phường <b>tự động tải</b> từ GHN sau khi bạn nhập API Token.
                                 </Typography.Paragraph>
-                                {FROM_ADDRESS_FIELDS.map((f) => (
+                                {FROM_ADDRESS_BASIC_FIELDS.map((f) => (
                                     <Form.Item key={f.key} name={`from_${f.key}`} label={f.label} rules={f.required ? [{ required: true, message: `Nhập ${f.label}` }] : []}>
                                         <Input placeholder={f.placeholder} />
                                     </Form.Item>
                                 ))}
+                                {code === 'ghn' && <GhnFromAddressSection form={form} />}
                             </>
                         )}
 
@@ -478,6 +487,219 @@ function AddCarrierAccountModal({
         </Modal>
     );
 }
+
+// ---- GHN address picker (cascading Select, auto-load from API token) ------
+
+/**
+ * Khi user nhập API Token GHN, tự gọi BE proxy `/carrier-accounts/ghn/master-data` để cascading
+ * tỉnh → quận → phường thay vì gõ tay mã. Field name vẫn ghi vào form prefix `from_` để hợp với
+ * `AddCarrierAccountModal.submit()` đóng gói `meta.from_address`.
+ */
+function GhnFromAddressSection({ form }: { form: FormInstance }) {
+    const { message } = AntApp.useApp();
+    const token = (Form.useWatch('cred_token', form) ?? '') as string;
+    const masterData = useGhnMasterData();
+
+    const [provinces, setProvinces] = useState<GhnProvince[]>([]);
+    const [districts, setDistricts] = useState<GhnDistrict[]>([]);
+    const [wards, setWards] = useState<GhnWard[]>([]);
+    const [loading, setLoading] = useState<null | 'provinces' | 'districts' | 'wards'>(null);
+    const [provinceId, setProvinceId] = useState<number | undefined>(undefined);
+    const [districtId, setDistrictId] = useState<number | undefined>(undefined);
+    const [wardCode, setWardCode] = useState<string | undefined>(undefined);
+
+    // Debounce token → fetch provinces. Reset cascade khi token đổi.
+    const fetchedTokenRef = useRef<string>('');
+    useEffect(() => {
+        const t = token.trim();
+        if (t.length < 8) {
+            setProvinces([]); setDistricts([]); setWards([]);
+            setProvinceId(undefined); setDistrictId(undefined); setWardCode(undefined);
+            form.setFieldsValue({ from_province_name: undefined, from_district_name: undefined, from_district_id: undefined, from_ward_code: undefined, from_ward_name: undefined });
+            fetchedTokenRef.current = '';
+            return;
+        }
+        if (t === fetchedTokenRef.current) return;
+        const timer = setTimeout(() => {
+            setLoading('provinces');
+            masterData.mutate({ level: 'provinces', token: t }, {
+                onSuccess: (data) => {
+                    setProvinces(data as GhnProvince[]);
+                    fetchedTokenRef.current = t;
+                    // Token đổi ⇒ reset selection cascade.
+                    setDistricts([]); setWards([]);
+                    setProvinceId(undefined); setDistrictId(undefined); setWardCode(undefined);
+                    form.setFieldsValue({ from_province_name: undefined, from_district_name: undefined, from_district_id: undefined, from_ward_code: undefined, from_ward_name: undefined });
+                },
+                onError: (e) => {
+                    setProvinces([]);
+                    message.error(errorMessage(e, 'Không tải được danh sách tỉnh từ GHN. Kiểm tra API Token.'));
+                },
+                onSettled: () => setLoading(null),
+            });
+        }, 800);
+
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [token]);
+
+    const onPickProvince = (id: number) => {
+        const p = provinces.find((x) => x.ProvinceID === id);
+        setProvinceId(id);
+        setDistrictId(undefined); setWardCode(undefined);
+        setDistricts([]); setWards([]);
+        form.setFieldsValue({
+            from_province_name: p?.ProvinceName ?? '',
+            from_district_id: undefined,
+            from_district_name: undefined,
+            from_ward_code: undefined,
+            from_ward_name: undefined,
+        });
+        setLoading('districts');
+        masterData.mutate({ level: 'districts', token: token.trim(), province_id: id }, {
+            onSuccess: (data) => setDistricts(data as GhnDistrict[]),
+            onError: (e) => message.error(errorMessage(e, 'Không tải được danh sách quận từ GHN.')),
+            onSettled: () => setLoading(null),
+        });
+    };
+
+    const onPickDistrict = (id: number) => {
+        const d = districts.find((x) => x.DistrictID === id);
+        setDistrictId(id);
+        setWardCode(undefined);
+        setWards([]);
+        form.setFieldsValue({
+            from_district_id: id,
+            from_district_name: d?.DistrictName ?? '',
+            from_ward_code: undefined,
+            from_ward_name: undefined,
+        });
+        setLoading('wards');
+        masterData.mutate({ level: 'wards', token: token.trim(), district_id: id }, {
+            onSuccess: (data) => setWards(data as GhnWard[]),
+            onError: (e) => message.error(errorMessage(e, 'Không tải được danh sách phường từ GHN.')),
+            onSettled: () => setLoading(null),
+        });
+    };
+
+    const onPickWard = (code: string) => {
+        const w = wards.find((x) => x.WardCode === code);
+        setWardCode(code);
+        form.setFieldsValue({
+            from_ward_code: code,
+            from_ward_name: w?.WardName ?? '',
+        });
+    };
+
+    const tokenReady = token.trim().length >= 8;
+    const provincesReady = provinces.length > 0;
+
+    return (
+        <div className="ghn-addr">
+            <div className={`ghn-addr__banner ${tokenReady ? (provincesReady ? 'is-ok' : 'is-loading') : 'is-idle'}`}>
+                {!tokenReady && (
+                    <Space size={8}>
+                        <KeyOutlined />
+                        <span>Nhập <b>API Token</b> ở trên — danh sách tỉnh/quận/phường GHN sẽ tự tải về.</span>
+                    </Space>
+                )}
+                {tokenReady && loading === 'provinces' && (
+                    <Space size={8}>
+                        <Spin size="small" indicator={<LoadingOutlined spin />} />
+                        <span>Đang gọi GHN để tải danh sách tỉnh…</span>
+                    </Space>
+                )}
+                {tokenReady && loading !== 'provinces' && provincesReady && (
+                    <Space size={8}>
+                        <CheckCircleFilled style={{ color: 'var(--success-500)' }} />
+                        <span>Đã tải <b>{provinces.length}</b> tỉnh/TP từ GHN. Chọn tỉnh → quận → phường để tự điền mã.</span>
+                        <Tooltip title="Tải lại từ GHN">
+                            <Button size="small" type="text" icon={<ReloadOutlined />} onClick={() => { fetchedTokenRef.current = ''; setProvinces([]); /* trigger effect by clearing then re-running */ form.setFieldsValue({ cred_token: token }); }} />
+                        </Tooltip>
+                    </Space>
+                )}
+                {tokenReady && loading !== 'provinces' && !provincesReady && (
+                    <Space size={8}>
+                        <CloseCircleFilled style={{ color: 'var(--danger-500)' }} />
+                        <span>Chưa tải được — kiểm tra lại API Token.</span>
+                        <Button size="small" type="link" onClick={() => { fetchedTokenRef.current = ''; form.setFieldsValue({ cred_token: token + ' ' }); setTimeout(() => form.setFieldsValue({ cred_token: token }), 50); }}>Thử lại</Button>
+                    </Space>
+                )}
+            </div>
+
+            <Form.Item label="Tỉnh / Thành phố" required>
+                <Select
+                    showSearch
+                    placeholder={tokenReady ? 'Chọn tỉnh / thành phố' : 'Nhập API Token để mở danh sách'}
+                    disabled={!provincesReady}
+                    loading={loading === 'provinces'}
+                    value={provinceId}
+                    onChange={onPickProvince}
+                    optionFilterProp="label"
+                    options={provinces.map((p) => ({ value: p.ProvinceID, label: p.ProvinceName }))}
+                    notFoundContent={loading === 'provinces' ? <Spin size="small" /> : 'Chưa có dữ liệu'}
+                />
+            </Form.Item>
+
+            <Form.Item label="Quận / Huyện" required>
+                <Select
+                    showSearch
+                    placeholder={provinceId ? 'Chọn quận / huyện' : 'Chọn tỉnh trước'}
+                    disabled={!provinceId || loading === 'districts'}
+                    loading={loading === 'districts'}
+                    value={districtId}
+                    onChange={onPickDistrict}
+                    optionFilterProp="label"
+                    options={districts.map((d) => ({ value: d.DistrictID, label: `${d.DistrictName}  ·  #${d.DistrictID}` }))}
+                    notFoundContent={loading === 'districts' ? <Spin size="small" /> : 'Chưa có dữ liệu'}
+                />
+            </Form.Item>
+
+            <Form.Item label="Phường / Xã">
+                <Select
+                    showSearch
+                    placeholder={districtId ? 'Chọn phường / xã (tuỳ chọn)' : 'Chọn quận trước'}
+                    disabled={!districtId || loading === 'wards'}
+                    loading={loading === 'wards'}
+                    value={wardCode}
+                    onChange={onPickWard}
+                    optionFilterProp="label"
+                    options={wards.map((w) => ({ value: w.WardCode, label: `${w.WardName}  ·  ${w.WardCode}` }))}
+                    notFoundContent={loading === 'wards' ? <Spin size="small" /> : 'Chưa có dữ liệu'}
+                    allowClear
+                />
+            </Form.Item>
+
+            {/* Hidden fields — populated bởi cascading Select để submit() gói vào meta.from_address. */}
+            <Form.Item name="from_province_name" hidden><Input /></Form.Item>
+            <Form.Item name="from_district_name" hidden><Input /></Form.Item>
+            <Form.Item name="from_ward_name" hidden><Input /></Form.Item>
+            <Form.Item name="from_district_id" hidden rules={[{ required: true, message: 'Hãy chọn quận / huyện để lấy mã GHN.' }]}>
+                <Input />
+            </Form.Item>
+            <Form.Item name="from_ward_code" hidden><Input /></Form.Item>
+
+            <style>{GHN_ADDR_CSS}</style>
+        </div>
+    );
+}
+
+const GHN_ADDR_CSS = `
+.ghn-addr__banner{
+    margin: 4px 0 14px;
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    line-height: 1.5;
+    border: 1px solid var(--ink-100);
+    background: var(--ink-50);
+    color: var(--ink-700);
+}
+.ghn-addr__banner.is-idle{ background: var(--ink-50); border-color: var(--ink-100); color: var(--ink-600); }
+.ghn-addr__banner.is-loading{ background: var(--blue-50); border-color: var(--blue-100); color: var(--blue-700); }
+.ghn-addr__banner.is-ok{ background: var(--success-50, #ECFDF5); border-color: #A7F3D0; color: #047857; }
+.ghn-addr__banner b{ font-weight: 600; }
+`;
 
 // ---- Capability labels & inline CSS ---------------------------------------
 

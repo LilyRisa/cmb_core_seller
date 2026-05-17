@@ -79,6 +79,38 @@ class GhnClient
         return $body;
     }
 
+    /**
+     * Districts trong 1 tỉnh — dùng để dựng dropdown cascading khi user thiết lập tài khoản GHN.
+     *
+     * @return array<string,mixed>
+     */
+    public function getDistricts(int $provinceId): array
+    {
+        $res = $this->http(withShop: false)->post('/shiip/public-api/master-data/district', ['province_id' => $provinceId]);
+        $body = $res->json();
+        if (! is_array($body)) {
+            throw new RuntimeException('GHN response không hợp lệ (status '.$res->status().').');
+        }
+
+        return $body;
+    }
+
+    /**
+     * Wards trong 1 quận — dùng để dựng dropdown cascading.
+     *
+     * @return array<string,mixed>
+     */
+    public function getWards(int $districtId): array
+    {
+        $res = $this->http(withShop: false)->post('/shiip/public-api/master-data/ward', ['district_id' => $districtId]);
+        $body = $res->json();
+        if (! is_array($body)) {
+            throw new RuntimeException('GHN response không hợp lệ (status '.$res->status().').');
+        }
+
+        return $body;
+    }
+
     /** Generate a print token for one or more order codes (A5/A6 labels). */
     public function genPrintToken(array $orderCodes): string
     {

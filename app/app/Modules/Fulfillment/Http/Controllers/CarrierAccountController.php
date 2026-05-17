@@ -4,11 +4,13 @@ namespace CMBcoreSeller\Modules\Fulfillment\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Integrations\Carriers\CarrierRegistry;
+use CMBcoreSeller\Integrations\Carriers\Ghn\GhnClient;
 use CMBcoreSeller\Integrations\Carriers\Support\AbstractCarrierConnector;
 use CMBcoreSeller\Modules\Fulfillment\Http\Resources\CarrierAccountResource;
 use CMBcoreSeller\Modules\Fulfillment\Models\CarrierAccount;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /** /api/v1/carrier-accounts + /api/v1/carriers — tenant ĐVVC credentials. See SPEC 0006 §6. */
@@ -149,5 +151,58 @@ class CarrierAccountController extends Controller
         CarrierAccount::query()->findOrFail($id)->delete();
 
         return response()->json(['data' => ['deleted' => true]]);
+    }
+
+    /**
+     * POST /api/v1/carrier-accounts/ghn/master-data — proxy GHN master-data (province/district/ward)
+     * lấy bằng token user đang nhập trong form "Thêm tài khoản". KHÔNG yêu cầu CarrierAccount đã lưu —
+     * dùng để user xem trước/chọn mã quận trước khi submit. Cache theo hash token để giảm hit GHN.
+     *
+     * Payload: { token: string, level: 'provinces'|'districts'|'wards', province_id?: int, district_id?: int }
+     */
+    public function ghnMasterData(Request $request): JsonResponse
+    {
+        abort_unless($request->user()?->can('fulfillment.carriers'), 403, 'Bạn không có quyền cấu hình ĐVVC.');
+        $data = $request->validate([
+            'token' => ['required', 'string', 'max:200'],
+            'level' => ['required', 'string', 'in:provinces,districts,wards'],
+            'province_id' => ['required_if:level,districts', 'integer'],
+            'district_id' => ['required_if:level,wards', 'integer'],
+        ]);
+
+        // Cache 1 tiếng theo (token-hash + level + parent_id) — name VN ít đổi; sai token sẽ surface ngay.
+        $tokenHash = substr(hash('sha256', $data['token']), 0, 16);
+        $cacheKey = match ($data['level']) {
+            'provinces' => "ghn.fe.{$tokenHash}.provinces",
+            'districts' => "ghn.fe.{$tokenHash}.districts.{$data['province_id']}",
+            'wards' => "ghn.fe.{$tokenHash}.wards.{$data['district_id']}",
+        };
+
+        try {
+            $body = Cache::remember($cacheKey, 3600, function () use ($data) {
+                $client = new GhnClient($data['token']);
+
+                return match ($data['level']) {
+                    'provinces' => $client->getProvinces(),
+                    'districts' => $client->getDistricts((int) $data['province_id']),
+                    'wards' => $client->getWards((int) $data['district_id']),
+                };
+            });
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Không gọi được GHN: '.$e->getMessage(),
+                'errors' => ['token' => ['Token có thể không hợp lệ hoặc GHN không phản hồi.']],
+            ], 422);
+        }
+
+        $code = (int) ($body['code'] ?? 0);
+        if ($code !== 200) {
+            return response()->json([
+                'message' => $body['message'] ?? 'GHN trả mã lỗi '.$code,
+                'errors' => ['token' => [$body['message'] ?? 'Token GHN không hợp lệ.']],
+            ], 422);
+        }
+
+        return response()->json(['data' => array_values((array) ($body['data'] ?? []))]);
     }
 }

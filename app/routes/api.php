@@ -182,6 +182,9 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::delete('carrier-accounts/{id}', [CarrierAccountController::class, 'destroy'])->whereNumber('id')->name('carrier-accounts.destroy');
             // A2 (SPEC 0021) — kiểm tra credentials còn hợp lệ. Auto-verify lúc store; user retry qua nút "Kiểm tra".
             Route::post('carrier-accounts/{id}/verify', [CarrierAccountController::class, 'verify'])->whereNumber('id')->name('carrier-accounts.verify');
+            // Proxy GHN master-data (province/district/ward) bằng token user đang nhập — dùng trong form
+            // "Thêm tài khoản GHN" để cascade dropdown thay vì gõ tay mã quận. Cache theo hash token.
+            Route::post('carrier-accounts/ghn/master-data', [CarrierAccountController::class, 'ghnMasterData'])->name('carrier-accounts.ghn.master-data');
 
             Route::get('fulfillment/ready', [ShipmentController::class, 'ready'])->name('fulfillment.ready');
             Route::get('fulfillment/processing', [ShipmentController::class, 'processing'])->name('fulfillment.processing');           // SPEC 0009 — màn xử lý đơn

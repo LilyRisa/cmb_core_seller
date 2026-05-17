@@ -238,6 +238,30 @@ export function useVerifyCarrierAccount() {
     });
 }
 
+/** GHN master-data record — đúng schema từ /shiip/public-api/master-data/*. */
+export interface GhnProvince { ProvinceID: number; ProvinceName: string; Code?: string }
+export interface GhnDistrict { DistrictID: number; ProvinceID: number; DistrictName: string; Code?: string; SupportType?: number }
+export interface GhnWard { WardCode: string; DistrictID: number; WardName: string }
+
+/**
+ * Proxy gọi GHN master-data bằng token user đang gõ trong form thêm tài khoản. Trả về danh sách
+ * tỉnh/quận/phường để FE dựng cascading Select — không cần user gõ tay mã quận. Backend cache 1 giờ
+ * theo hash token để giảm hit GHN khi user thử lại nhiều lần.
+ */
+export function useGhnMasterData() {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async (vars:
+            | { token: string; level: 'provinces' }
+            | { token: string; level: 'districts'; province_id: number }
+            | { token: string; level: 'wards'; district_id: number }
+        ) => {
+            const { data } = await api!.post<{ data: GhnProvince[] | GhnDistrict[] | GhnWard[] }>('/carrier-accounts/ghn/master-data', vars);
+            return data.data;
+        },
+    });
+}
+
 function useFulfillmentInvalidate() {
     const tenantId = useCurrentTenantId();
     return useInvalidate([['fulfillment-ready', tenantId], ['shipments', tenantId], ['orders', tenantId], ['inventory-levels', tenantId]]);

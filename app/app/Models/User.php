@@ -14,26 +14,29 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
+/**
+ * Tenant user (seller / staff member).
+ *
+ * Spec 2026-05-17 — super-admin đã tách sang `admin_users`; cờ `is_super_admin`
+ * cũ đã bị drop. Cột `suspended_at` cho phép super-admin tạm khoá user (block
+ * truy cập tenant ở EnsureTenant middleware).
+ */
 class User extends Authenticatable implements CanResetPassword, MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
     /**
-     * The attributes that are mass assignable.
-     *
      * @var list<string>
      */
     protected $fillable = [
         'name',
         'email',
         'password',
-        'is_super_admin',
+        'suspended_at',
     ];
 
     /**
-     * The attributes that should be hidden for serialization.
-     *
      * @var list<string>
      */
     protected $hidden = [
@@ -42,8 +45,6 @@ class User extends Authenticatable implements CanResetPassword, MustVerifyEmail
     ];
 
     /**
-     * Get the attributes that should be cast.
-     *
      * @return array<string, string>
      */
     protected function casts(): array
@@ -51,14 +52,8 @@ class User extends Authenticatable implements CanResetPassword, MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'is_super_admin' => 'boolean',
+            'suspended_at' => 'datetime',
         ];
-    }
-
-    /** SPEC 0020 — super-admin hệ thống (xuyên tenant). Promote bằng `php artisan admin:promote`. */
-    public function isSuperAdmin(): bool
-    {
-        return (bool) ($this->is_super_admin ?? false);
     }
 
     /** Tenants this user is a member of. */
