@@ -48,7 +48,7 @@ class BroadcastNotification extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
-        $brand = (string) config('notifications.brand.name', 'CMBcoreSeller');
+        $brand = (string) system_setting('notifications.brand_name', config('notifications.brand.name', 'CMBcoreSeller'));
         $converter = new GithubFlavoredMarkdownConverter([
             'html_input' => 'escape',         // an toàn — escape mọi HTML user nhập
             'allow_unsafe_links' => false,

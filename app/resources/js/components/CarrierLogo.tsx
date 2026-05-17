@@ -42,8 +42,8 @@ export function CarrierLogo({ code, size = 32, rounded = true }: { code: string;
         return (
             <span style={{
                 width: size, height: size, borderRadius: rounded ? size / 4 : 0,
-                background: 'linear-gradient(135deg, #FDFCF8 0%, #F5F2EA 100%)',
-                color: 'var(--ink-700)', boxShadow: 'inset 0 0 0 1px rgba(11,20,55,0.08)',
+                background: 'linear-gradient(135deg, #FFFFFF 0%, #F1F5F9 100%)',
+                color: 'var(--ink-600)', boxShadow: 'inset 0 0 0 1px rgba(15,23,42,0.08)',
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: Math.max(10, size * 0.45), flexShrink: 0,
             }} aria-label={meta.name}>
@@ -57,7 +57,7 @@ export function CarrierLogo({ code, size = 32, rounded = true }: { code: string;
             background: '#fff',
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             padding: Math.max(2, size * 0.08), flexShrink: 0,
-            boxShadow: 'inset 0 0 0 1px rgba(11,20,55,0.08)',
+            boxShadow: 'inset 0 0 0 1px rgba(15,23,42,0.08)',
             overflow: 'hidden',
         }} aria-label={meta.name}>
             <img src={icon} alt={meta.name} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />

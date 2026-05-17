@@ -16,7 +16,10 @@ class GotenbergClient
 
     private function url(string $path): string
     {
-        return rtrim($this->baseUrl ?: (string) config('fulfillment.gotenberg_url'), '/').$path;
+        // Spec 2026-05-17 — super-admin override qua /admin/settings (pdf.gotenberg_url).
+        $configured = (string) system_setting('pdf.gotenberg_url', config('fulfillment.gotenberg_url'));
+
+        return rtrim($this->baseUrl ?: $configured, '/').$path;
     }
 
     /** Render an HTML document to a PDF (Chromium engine). Returns the PDF bytes. */

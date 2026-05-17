@@ -142,6 +142,7 @@ class ManualOrderService
     public function cancel(Order $order, ?int $userId, ?string $reason = null): Order
     {
         $this->assertManualEditable($order);
+        $this->assertCancellable($order);
         $from = $order->status;
         if ($from === StandardOrderStatus::Cancelled) {
             return $order;
@@ -157,7 +158,13 @@ class ManualOrderService
         return $order;
     }
 
-    /** Edit buyer / shipping fee / cod / note / tags of a manual order that hasn't shipped. (Editing line items: Phase 5.) */
+    /**
+     * Edit buyer / shipping fee / cod / note / tags / address / items of a manual order.
+     *
+     * SPEC 2026-05-17 — Đơn manual có thể sửa MỌI LÚC (kể cả sau khi đã đẩy ĐVVC). Nếu shipment đã
+     * tạo trên hệ ĐVVC thì FE đã cảnh báo "thay đổi chỉ áp dụng local, không can thiệp vận đơn đã đẩy".
+     * BE vẫn ghi log status history khi sửa post-shipment để truy vết.
+     */
     public function update(Order $order, array $data): Order
     {
         $this->assertManualEditable($order);
@@ -213,9 +220,28 @@ class ManualOrderService
         if ($order->source !== 'manual') {
             throw ValidationException::withMessages(['order' => 'Chỉ sửa được đơn thủ công.']);
         }
+        // SPEC 2026-05-17 — gỡ block "không sửa được đơn đã bàn giao". User được sửa mọi lúc;
+        // FE hiển thị Alert cảnh báo khi shipment đã đẩy ĐVVC. Chỉ chặn khi đơn đã giao xong /
+        // bị hoàn hoàn toàn (terminal trừ Cancelled) — lúc đó sửa cũng vô nghĩa với kế toán.
         $status = $order->status;
-        if (! $status->isPreShipment() && $status !== StandardOrderStatus::Cancelled) {
-            throw ValidationException::withMessages(['order' => 'Không sửa/huỷ được đơn đã bàn giao vận chuyển.']);
+        if ($status->isTerminal() && $status !== StandardOrderStatus::Cancelled) {
+            throw ValidationException::withMessages(['order' => 'Đơn đã ở trạng thái kết thúc (đã giao / đã hoàn) — không thể sửa.']);
+        }
+    }
+
+    /**
+     * Chặn `cancel()` khi shipment đã đẩy ĐVVC — user phải huỷ vận đơn trên hệ ĐVVC trước,
+     * rồi mới huỷ đơn ở hệ thống (tránh kho ĐVVC vẫn ship trong khi đơn đã huỷ).
+     */
+    private function assertCancellable(Order $order): void
+    {
+        $shipped = $order->shipments()
+            ->where('carrier', '!=', 'manual')
+            ->where('carrier', '!=', '')
+            ->whereNotIn('status', ['pending', 'cancelled'])
+            ->exists();
+        if ($shipped) {
+            throw ValidationException::withMessages(['order' => 'Đơn đã đẩy lên ĐVVC — hãy huỷ vận đơn trên ĐVVC trước rồi mới huỷ đơn.']);
         }
     }
 

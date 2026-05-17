@@ -48,7 +48,7 @@ class VerifyEmailNotification extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         $url = $this->verificationUrl($notifiable);
-        $brand = (string) config('notifications.brand.name', 'CMBcoreSeller');
+        $brand = (string) system_setting('notifications.brand_name', config('notifications.brand.name', 'CMBcoreSeller'));
 
         return (new MailMessage)
             ->subject("[{$brand}] Xác thực địa chỉ email")

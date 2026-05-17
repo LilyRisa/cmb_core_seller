@@ -109,8 +109,8 @@ export function CarrierAccountsPage() {
                 <ManualCarrierCard accountsCount={(grouped.get('manual') ?? []).length} />
             )}
 
-            <Typography.Title level={5} style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontWeight: 500, color: 'var(--gold-700)', textTransform: 'uppercase', letterSpacing: '0.18em', fontSize: 12, marginTop: 18, marginBottom: 10 }}>
-                — ĐVVC tích hợp API
+            <Typography.Title level={5} style={{ fontFamily: 'var(--font-display)', fontWeight: 600, color: 'var(--ink-400)', textTransform: 'uppercase', letterSpacing: '0.14em', fontSize: 11, marginTop: 18, marginBottom: 10 }}>
+                ĐVVC tích hợp API
             </Typography.Title>
 
             <Row gutter={[16, 16]}>
@@ -196,7 +196,7 @@ function CarrierCard({
                         <Typography.Text style={{ fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: 18, letterSpacing: '-0.01em', color: 'var(--ink-900)' }}>
                             {meta.name}
                         </Typography.Text>
-                        {hasDefault && <Tooltip title="Có tài khoản đặt làm mặc định"><StarFilled style={{ color: 'var(--gold-600)', fontSize: 12 }} /></Tooltip>}
+                        {hasDefault && <Tooltip title="Có tài khoản đặt làm mặc định"><StarFilled style={{ color: 'var(--warn-500)', fontSize: 12 }} /></Tooltip>}
                     </Space>
                     <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 2 }}>{tagline}</Typography.Text>
                 </div>
@@ -376,7 +376,7 @@ function ComingSoonCard({ code, name }: { code: string; name: string }) {
                     <Typography.Text style={{ fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: 18, color: 'var(--ink-500)' }}>{name}</Typography.Text>
                     <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 2 }}>{CARRIER_TAGLINE[code] ?? name}</Typography.Text>
                 </div>
-                <Tag style={{ fontStyle: 'italic', fontFamily: 'var(--font-display)' }}>Sắp có</Tag>
+                <Tag style={{ fontFamily: 'var(--font-display)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: 10.5 }}>Sắp có</Tag>
             </div>
             <div className="carrier-card__soon-msg">
                 Roadmap — sẽ mở khi tích hợp connector. Bạn vẫn có thể dùng "Tự vận chuyển" và nhập mã vận đơn thủ công cho ĐVVC này.
@@ -713,11 +713,11 @@ const CAPABILITY_LABEL: Record<string, string> = {
     refund: 'Hoàn hàng',
 };
 
-// CSS scoped trong page — đặt cùng file để dễ tracking (theme editorial postal).
+// CSS scoped trong page — đồng bộ với Minimal Ecommerce theme (white + blue).
 const CARRIER_CARD_CSS = `
 .carrier-card{
     position:relative;
-    background: var(--paper);
+    background: #FFFFFF;
     border: 1px solid var(--ink-100);
     border-radius: var(--radius-lg);
     padding: 18px 18px 12px;
@@ -730,20 +730,19 @@ const CARRIER_CARD_CSS = `
 .carrier-card:hover{ box-shadow: var(--shadow-sm); transform: translateY(-1px); border-color: var(--ink-200); }
 .carrier-card__ribbon{
     position:absolute; left:0; right:0; top:0; height:3px;
-    background: linear-gradient(90deg, var(--gold-500) 0%, var(--gold-100) 60%, transparent 100%);
+    background: linear-gradient(90deg, var(--blue-600) 0%, var(--blue-300) 60%, transparent 100%);
     opacity: .85;
 }
 .carrier-card__ribbon--soon{ background: linear-gradient(90deg, var(--ink-200) 0%, transparent 80%); }
 .carrier-card--manual{
-    background: linear-gradient(135deg, var(--paper) 0%, var(--paper-2) 100%);
-    border-color: var(--gold-100);
+    background: linear-gradient(135deg, #FFFFFF 0%, var(--ink-50) 100%);
+    border-color: var(--blue-100);
     margin-bottom: 0;
 }
 .carrier-card--manual .carrier-card__ribbon{
     background: linear-gradient(90deg, var(--success-500) 0%, rgba(16,185,129,0.15) 70%, transparent 100%);
 }
-.carrier-card--soon{ background: var(--bg-tinted); }
-.carrier-card--soon .carrier-card__title{ }
+.carrier-card--soon{ background: var(--ink-50); }
 .carrier-card__head{
     display: grid;
     grid-template-columns: 56px 1fr auto;
@@ -758,20 +757,20 @@ const CARRIER_CARD_CSS = `
 }
 .carrier-card__count .num{
     font-family: var(--font-display);
-    font-style: italic;
-    font-weight: 500;
+    font-weight: 700;
     font-size: 28px;
-    color: var(--navy-900);
-    letter-spacing: -0.02em;
+    color: var(--ink-900);
+    letter-spacing: -0.025em;
     line-height: 1;
+    font-variant-numeric: tabular-nums;
 }
 .carrier-card__count .lbl{
     font-size: 10.5px;
     text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--ink-500);
-    font-family: var(--font-display);
-    font-style: italic;
+    letter-spacing: 0.10em;
+    color: var(--ink-400);
+    font-family: var(--font-sans);
+    font-weight: 500;
 }
 .carrier-card__caps{
     display:flex; flex-wrap:wrap; gap:4px;
@@ -781,32 +780,33 @@ const CARRIER_CARD_CSS = `
     font-size: 10.5px;
     padding: 2px 8px;
     border-radius: 999px;
-    background: var(--brand-50);
-    color: var(--brand-700);
-    border: 1px solid var(--brand-100);
+    background: var(--blue-50);
+    color: var(--blue-700);
+    border: 1px solid var(--blue-100);
     letter-spacing: .02em;
 }
 .carrier-card__divider{
     display:flex; align-items:center; gap:8px;
     margin: 4px 0 8px;
-    font-size: 11px;
+    font-size: 10.5px;
     font-family: var(--font-display);
-    font-style: italic;
-    color: var(--gold-700);
+    font-weight: 600;
+    color: var(--ink-400);
     text-transform: uppercase;
     letter-spacing: .14em;
 }
 .carrier-card__divider::before, .carrier-card__divider::after{
     content:""; flex:1; height:1px;
-    background: linear-gradient(to right, transparent, rgba(200,146,61,.30), transparent);
+    background: linear-gradient(to right, transparent, var(--ink-200), transparent);
 }
 .carrier-card__divider a{
     flex:none;
     font-family: var(--font-sans);
-    font-style: normal;
+    font-weight: 500;
     font-size: 12px;
-    color: var(--brand-700);
+    color: var(--blue-600);
     letter-spacing: 0;
+    text-transform: none;
 }
 .carrier-card__list{
     display:flex; flex-direction:column; gap: 4px; flex: 1;
@@ -822,22 +822,22 @@ const CARRIER_CARD_CSS = `
     gap: 10px;
     padding: 9px 10px;
     border-radius: var(--radius);
-    background: var(--bg-tinted);
-    border: 1px dashed transparent;
+    background: var(--ink-50);
+    border: 1px solid transparent;
     transition: background .15s ease, border-color .15s ease;
 }
-.acct-row:hover{ background: var(--gold-50); border-color: var(--gold-100); }
-.acct-row.is-off{ opacity: .68; background: var(--paper-3); }
+.acct-row:hover{ background: var(--blue-50); border-color: var(--blue-100); }
+.acct-row.is-off{ opacity: .68; background: var(--ink-100); }
 .acct-row .dot{
     width: 10px; height: 10px; border-radius: 50%;
     display:inline-block; flex-shrink: 0;
-    box-shadow: 0 0 0 2px rgba(255,255,255,.6);
+    box-shadow: 0 0 0 2px rgba(255,255,255,.9);
 }
 .dot--ok{ background: var(--success-500); }
 .dot--warn{ background: var(--warn-500); }
 .dot--err{ background: var(--danger-500); }
 .dot--unchecked{ background: var(--ink-300); }
-.dot--off{ background: var(--ink-300); box-shadow: 0 0 0 2px rgba(255,255,255,.6); opacity: .7; }
+.dot--off{ background: var(--ink-300); opacity: .7; }
 .acct-row__body{ min-width:0; line-height: 1.3; }
 .acct-row__title{
     display:flex; align-items:center; gap:6px; flex-wrap:wrap;
@@ -868,21 +868,21 @@ const CARRIER_CARD_CSS = `
     padding: 9px 12px;
     border: 1px dashed var(--ink-200);
     border-radius: var(--radius);
-    color: var(--brand-700);
+    color: var(--blue-600);
     font-weight: 500;
     font-size: 13px;
     transition: all .15s ease;
     background: transparent;
 }
 .carrier-card__add:hover{
-    border-color: var(--brand-700);
-    background: var(--brand-50);
-    color: var(--brand-700);
+    border-color: var(--blue-600);
+    background: var(--blue-50);
+    color: var(--blue-700);
 }
 .carrier-card__soon-msg{
     margin-top: 6px;
     padding: 10px 12px;
-    background: rgba(11,20,55,0.03);
+    background: var(--ink-50);
     border-left: 3px solid var(--ink-200);
     font-size: 12px;
     color: var(--ink-500);

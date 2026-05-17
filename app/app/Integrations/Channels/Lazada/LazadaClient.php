@@ -33,6 +33,11 @@ class LazadaClient
     public function __construct()
     {
         $this->cfg = (array) config('integrations.lazada', []);
+
+        // Spec 2026-05-17 — super-admin override secrets nóng qua /admin/settings.
+        $this->cfg['app_key'] = system_setting('marketplace.lazada.app_key', $this->cfg['app_key'] ?? null);
+        $this->cfg['app_secret'] = system_setting('marketplace.lazada.app_secret', $this->cfg['app_secret'] ?? null);
+        $this->cfg['sandbox'] = (bool) system_setting('marketplace.lazada.sandbox', $this->cfg['sandbox'] ?? false);
     }
 
     public function appKey(): string

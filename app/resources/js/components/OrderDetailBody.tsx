@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Alert, App as AntApp, Avatar, Button, Card, Col, Descriptions, Divider, Empty, Input, Row, Space, Table, Tag, Timeline, Typography } from 'antd';
-import { LinkOutlined, PrinterOutlined, WarningOutlined } from '@ant-design/icons';
+import { CarOutlined, LinkOutlined, LockOutlined, PrinterOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { MoneyText, DateText } from '@/components/MoneyText';
 import { CustomerSummaryCard } from '@/components/CustomerSummaryCard';
@@ -56,8 +56,32 @@ export function OrderDetailBody({ order }: { order: Order }) {
         { title: 'Thành tiền', dataIndex: 'subtotal', key: 'subtotal', width: 130, align: 'right', render: (v) => <MoneyText value={v} currency={order.currency} strong /> },
     ];
 
+    // SPEC 2026-05-17 — đơn đã đẩy lên ĐVVC: cảnh báo user rằng mọi thay đổi (sản phẩm, địa chỉ,
+    // tiền…) chỉ áp dụng trên hệ thống này, KHÔNG can thiệp vào vận đơn đã tạo ở ĐVVC. User cần
+    // gọi/báo trực tiếp ĐVVC nếu muốn sửa thông tin giao hàng thực tế.
+    const isPushed = order.is_pushed_to_carrier === true;
+    const pushedCarrierLabel = (order.pushed_carrier ?? '').replace(/^manual_/, '').toUpperCase() || 'ĐVVC';
+
     return (
         <>
+            {isPushed && (
+                <Alert
+                    type="warning"
+                    showIcon
+                    icon={<LockOutlined />}
+                    style={{ marginBottom: 16 }}
+                    message={<><b>Đơn đã đẩy lên {pushedCarrierLabel}</b> — mã vận đơn: <code>{order.shipment?.tracking_no ?? '—'}</code></>}
+                    description={(
+                        <Space direction="vertical" size={4}>
+                            <span>Mọi thay đổi (sản phẩm, địa chỉ, tiền, ghi chú…) <b>chỉ áp dụng trên hệ thống nội bộ</b> — KHÔNG can thiệp vào vận đơn đã đẩy lên ĐVVC.</span>
+                            <span style={{ color: 'var(--ink-500)' }}>
+                                <CarOutlined style={{ marginRight: 6 }} />
+                                Nếu cần sửa địa chỉ / khối lượng / COD thực tế giao hàng — hãy huỷ vận đơn này trên hệ ĐVVC trước, rồi đẩy lại đơn mới.
+                            </span>
+                        </Space>
+                    )}
+                />
+            )}
             {order.issue_reason === 'SKU chưa ghép'
                 ? <Alert type="warning" showIcon icon={<LinkOutlined />} style={{ marginBottom: 16 }} message="Đơn này chưa liên kết SKU" description="Vẫn in phiếu & bàn giao bình thường — KHÔNG trừ tồn cho các dòng chưa ghép. Liên kết SKU sàn ↔ master SKU để theo dõi tồn kho chính xác."
                     action={canMap ? <Button icon={<LinkOutlined />} onClick={() => setLinkOpen(true)}>Liên kết SKU</Button> : undefined} />

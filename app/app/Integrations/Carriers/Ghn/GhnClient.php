@@ -25,7 +25,10 @@ class GhnClient
             $headers['ShopId'] = (string) $this->shopId;
         }
 
-        return Http::baseUrl(rtrim($this->baseUrl ?: (string) config('fulfillment.ghn_base_url'), '/'))
+        // Spec 2026-05-17 — base URL có thể override qua /admin/settings (carriers.ghn.base_url).
+        $configuredBase = (string) system_setting('carriers.ghn.base_url', config('fulfillment.ghn_base_url'));
+
+        return Http::baseUrl(rtrim($this->baseUrl ?: $configuredBase, '/'))
             ->withHeaders($headers)->timeout(20)->acceptJson();
     }
 

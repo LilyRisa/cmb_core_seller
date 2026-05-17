@@ -36,6 +36,7 @@
     --blue-500: #3B82F6;
     --blue-400: #60A5FA;
     --blue-300: #93C5FD;
+    --blue-200: #BFDBFE;
     --blue-100: #DBEAFE;
     --blue-50:  #EFF6FF;
     --blue-tint: rgba(37, 99, 235, 0.08);
@@ -537,7 +538,7 @@ body {
     content: "";
     flex: 1;
     height: 1px;
-    background: linear-gradient(to right, var(--blue-200, #BFDBFE), transparent);
+    background: linear-gradient(to right, var(--blue-200), transparent);
 }
 .verify-step-row {
     display: grid;
@@ -1323,27 +1324,35 @@ body > #app > .ant-app > .ant-layout,
    ============================================================================= */
 
 .ant-modal .ant-modal-content {
-    background: #FFFFFF;
-    border-radius: var(--radius-xl);
-    box-shadow: var(--shadow-xl);
-    padding: 0;
+    background: #FFFFFF !important;
+    border-radius: var(--radius-xl) !important;
+    box-shadow: var(--shadow-xl) !important;
+    padding: 0 !important;
     overflow: hidden;
 }
 .ant-modal .ant-modal-header {
-    background: #FFFFFF;
-    border-bottom: 1px solid var(--ink-100);
-    padding: 18px 24px;
+    background: #FFFFFF !important;
+    border-bottom: 1px solid var(--ink-100) !important;
+    padding: 16px 24px !important;
+    margin-bottom: 0 !important;
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
 }
 .ant-modal .ant-modal-title {
     font-family: var(--font-display);
     font-weight: 600;
-    font-size: 17px;
+    font-size: 16.5px;
+    line-height: 1.45;
     color: var(--ink-900);
-    letter-spacing: -0.015em;
+    letter-spacing: -0.012em;
+}
+/* RESET child font-family — Tag/Avatar/Typography inside a complex JSX title should NOT inherit
+   the display font (Sora). They keep their natural Be Vietnam Pro sans. */
+.ant-modal .ant-modal-title :where(.ant-tag, .ant-avatar, .ant-typography, .ant-btn, .ant-badge, code) {
+    font-family: var(--font-sans);
+    letter-spacing: 0;
 }
 .ant-modal .ant-modal-body {
-    padding: 20px 24px;
+    padding: 20px 24px !important;
     color: var(--ink-800);
     font-size: 14px;
     line-height: 1.55;
@@ -1351,47 +1360,91 @@ body > #app > .ant-app > .ant-layout,
     overflow-y: auto;
 }
 .ant-modal .ant-modal-footer {
-    padding: 14px 24px;
+    padding: 12px 24px !important;
+    margin-top: 0 !important;
     background: var(--ink-50);
     border-top: 1px solid var(--ink-100);
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
 }
+.ant-modal .ant-modal-footer .ant-btn + .ant-btn { margin-inline-start: 0 !important; }
 .ant-modal .ant-modal-close {
     color: var(--ink-500);
     border-radius: var(--radius-sm);
-    transition: background 0.15s ease;
+    transition: background 0.15s ease, color 0.15s ease;
+    top: 12px;
+    inset-inline-end: 16px;
 }
 .ant-modal .ant-modal-close:hover {
     background: var(--ink-100);
     color: var(--ink-900);
 }
 
+/* Modal.confirm — render khác (không có header/body/footer riêng). AntD 5 dùng
+   .ant-modal-confirm-body-wrapper với padding của riêng nó. Style để khớp theme. */
+.ant-modal.ant-modal-confirm .ant-modal-content {
+    padding: 24px 28px 16px !important;
+}
 .ant-modal-confirm .ant-modal-confirm-icon { font-size: 22px; }
-.ant-modal-confirm .ant-modal-confirm-title { font-family: var(--font-display); font-weight: 600; }
+.ant-modal-confirm .ant-modal-confirm-title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 16.5px;
+    color: var(--ink-900);
+    letter-spacing: -0.012em;
+}
+.ant-modal-confirm .ant-modal-confirm-content {
+    color: var(--ink-700);
+    font-size: 14px;
+    line-height: 1.55;
+}
+.ant-modal-confirm .ant-modal-confirm-btns {
+    margin-top: 18px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+.ant-modal-confirm .ant-modal-confirm-btns .ant-btn + .ant-btn { margin-inline-start: 0 !important; }
 
 /* Drawer */
 .ant-drawer-content { background: #FFFFFF !important; }
 .ant-drawer-header {
-    background: #FFFFFF;
-    border-bottom: 1px solid var(--ink-100);
-    padding: 16px 22px !important;
+    background: #FFFFFF !important;
+    border-bottom: 1px solid var(--ink-100) !important;
+    padding: 14px 22px !important;
 }
 .ant-drawer-title {
     font-family: var(--font-display);
     font-weight: 600;
     font-size: 16.5px;
+    line-height: 1.45;
     color: var(--ink-900);
-    letter-spacing: -0.015em;
+    letter-spacing: -0.012em;
+}
+/* Same font-family reset for Drawer titles with JSX children */
+.ant-drawer-title :where(.ant-tag, .ant-avatar, .ant-typography, .ant-btn, .ant-badge, code) {
+    font-family: var(--font-sans);
+    letter-spacing: 0;
 }
 .ant-drawer-body {
     padding: 20px 22px !important;
     color: var(--ink-800);
+    font-size: 14px;
+    line-height: 1.55;
 }
 .ant-drawer-extra { font-size: 13px; }
 .ant-drawer-close {
     color: var(--ink-500);
     border-radius: var(--radius-sm);
+    transition: background 0.15s ease, color 0.15s ease;
 }
 .ant-drawer-close:hover { background: var(--ink-100); color: var(--ink-900); }
+.ant-drawer-footer {
+    padding: 12px 22px !important;
+    background: var(--ink-50);
+    border-top: 1px solid var(--ink-100) !important;
+}
 
 /* =============================================================================
    TAGS — Pill, refined low-saturation washes
@@ -1551,12 +1604,38 @@ body > #app > .ant-app > .ant-layout,
     border-radius: var(--radius-lg);
     border: 1px solid var(--ink-100);
     box-shadow: var(--shadow-lg);
+    padding: 0;
+    overflow: hidden;
 }
 .ant-popover .ant-popover-title {
     font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 13.5px;
     color: var(--ink-900);
     border-bottom: 1px solid var(--ink-100);
+    padding: 10px 14px;
+    margin-bottom: 0;
 }
+.ant-popover .ant-popover-inner-content {
+    padding: 12px 14px;
+    color: var(--ink-700);
+    font-size: 13px;
+    line-height: 1.55;
+}
+.ant-popover .ant-popover-arrow::before,
+.ant-popover .ant-popover-arrow::after {
+    background: #FFFFFF;
+}
+/* Confirm popover (Popconfirm) — button row alignment */
+.ant-popconfirm .ant-popconfirm-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 10px;
+}
+.ant-popconfirm .ant-popconfirm-buttons .ant-btn + .ant-btn { margin-inline-start: 0 !important; }
+.ant-popconfirm .ant-popconfirm-message-title { color: var(--ink-900); font-weight: 600; }
+.ant-popconfirm .ant-popconfirm-description { color: var(--ink-600); }
 
 /* Dropdown menu */
 .ant-dropdown .ant-dropdown-menu {

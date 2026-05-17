@@ -96,6 +96,23 @@ class OrderResource extends JsonResource
                     'packed_at' => $s->packed_at?->toIso8601String(),
                 ] : null;
             }),
+            // SPEC 2026-05-17 — đơn đã đẩy lên ĐVVC: có shipment với carrier ≠ 'manual' và status ngoài
+            // pending/cancelled. UI dùng cờ này để cảnh báo "đơn đã đẩy ĐVVC — sửa chỉ áp dụng local".
+            'is_pushed_to_carrier' => $this->whenLoaded('shipments', function () {
+                return (bool) $this->shipments->first(function ($s) {
+                    $carrier = (string) $s->carrier;
+                    // 'manual' = tự vận chuyển; 'manual_ghn' / 'manual_ghtk'... = đơn manual đã đẩy ĐVVC thật.
+                    $isRealCarrier = $carrier !== 'manual' && $carrier !== '';
+
+                    return $isRealCarrier && ! in_array((string) $s->status, ['pending', 'cancelled'], true);
+                });
+            }),
+            // Carrier code của shipment hiện active — dùng cho UI cảnh báo (vd "GHN", "manual_ghn").
+            'pushed_carrier' => $this->whenLoaded('shipments', function () {
+                $s = $this->shipments->first(fn ($x) => $x->status !== 'cancelled' && $x->status !== 'pending' && (string) $x->carrier !== 'manual' && (string) $x->carrier !== '');
+
+                return $s ? (string) $s->carrier : null;
+            }),
         ];
     }
 

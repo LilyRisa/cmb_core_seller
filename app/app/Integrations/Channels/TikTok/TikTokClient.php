@@ -32,6 +32,13 @@ class TikTokClient
     public function __construct()
     {
         $this->cfg = (array) config('integrations.tiktok', []);
+
+        // Spec 2026-05-17 — super-admin có thể đổi secrets nóng qua /admin/settings.
+        // Đọc qua `system_setting()`: nếu DB có → dùng; nếu DB rỗng → fallback config (env).
+        $this->cfg['app_key'] = system_setting('marketplace.tiktok.app_key', $this->cfg['app_key'] ?? null);
+        $this->cfg['app_secret'] = system_setting('marketplace.tiktok.app_secret', $this->cfg['app_secret'] ?? null);
+        $this->cfg['service_id'] = system_setting('marketplace.tiktok.service_id', $this->cfg['service_id'] ?? null);
+        $this->cfg['sandbox'] = (bool) system_setting('marketplace.tiktok.sandbox', $this->cfg['sandbox'] ?? false);
     }
 
     public function appKey(): string

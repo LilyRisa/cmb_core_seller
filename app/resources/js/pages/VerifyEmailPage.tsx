@@ -279,52 +279,52 @@ function Step({
 function EnvelopeMark() {
     return (
         <svg viewBox="0 0 220 160" xmlns="http://www.w3.org/2000/svg">
-            <ellipse cx="110" cy="150" rx="86" ry="3" fill="#0B1437" opacity="0.16" />
+            <ellipse cx="110" cy="150" rx="86" ry="3" fill="#0F172A" opacity="0.16" />
 
             {/* Letter (paper sheet) behind/inside the envelope */}
-            <rect x="38" y="6" width="144" height="104" rx="2" fill="#FFFEF7" stroke="#0B1437" strokeWidth="1.4" />
-            <line x1="52" y1="22" x2="170" y2="22" stroke="#0B1437" strokeWidth="1.6" opacity="0.78" strokeLinecap="round" />
-            <line x1="52" y1="36" x2="152" y2="36" stroke="#0B1437" strokeWidth="0.7" opacity="0.30" strokeLinecap="round" />
-            <line x1="52" y1="46" x2="162" y2="46" stroke="#0B1437" strokeWidth="0.7" opacity="0.30" strokeLinecap="round" />
-            <line x1="52" y1="56" x2="138" y2="56" stroke="#0B1437" strokeWidth="0.7" opacity="0.30" strokeLinecap="round" />
-            <line x1="52" y1="66" x2="160" y2="66" stroke="#0B1437" strokeWidth="0.7" opacity="0.30" strokeLinecap="round" />
-            <line x1="52" y1="76" x2="120" y2="76" stroke="#0B1437" strokeWidth="0.7" opacity="0.30" strokeLinecap="round" />
+            <rect x="38" y="6" width="144" height="104" rx="2" fill="#FFFFFF" stroke="#0F172A" strokeWidth="1.4" />
+            <line x1="52" y1="22" x2="170" y2="22" stroke="#0F172A" strokeWidth="1.6" opacity="0.78" strokeLinecap="round" />
+            <line x1="52" y1="36" x2="152" y2="36" stroke="#0F172A" strokeWidth="0.7" opacity="0.30" strokeLinecap="round" />
+            <line x1="52" y1="46" x2="162" y2="46" stroke="#0F172A" strokeWidth="0.7" opacity="0.30" strokeLinecap="round" />
+            <line x1="52" y1="56" x2="138" y2="56" stroke="#0F172A" strokeWidth="0.7" opacity="0.30" strokeLinecap="round" />
+            <line x1="52" y1="66" x2="160" y2="66" stroke="#0F172A" strokeWidth="0.7" opacity="0.30" strokeLinecap="round" />
+            <line x1="52" y1="76" x2="120" y2="76" stroke="#0F172A" strokeWidth="0.7" opacity="0.30" strokeLinecap="round" />
 
-            {/* Stamp on letter — gold, perforated edges, slight rotation */}
+            {/* Stamp on letter — cyan accent, perforated edges, slight rotation */}
             <g transform="translate(154 24) rotate(7)">
                 <rect
                     x="-14"
                     y="-14"
                     width="28"
                     height="32"
-                    fill="#C8923D"
-                    stroke="#FAF7F0"
+                    fill="#06B6D4"
+                    stroke="#FFFFFF"
                     strokeWidth="2"
                     strokeDasharray="1.6 1.4"
                 />
-                <rect x="-14" y="-14" width="28" height="32" fill="none" stroke="#0B1437" strokeWidth="0.8" />
+                <rect x="-14" y="-14" width="28" height="32" fill="none" stroke="#0F172A" strokeWidth="0.8" />
                 <text
                     x="0"
                     y="-1"
-                    fontFamily="Fraunces, Georgia, serif"
+                    fontFamily="Sora, sans-serif"
                     fontSize="9.5"
                     fontWeight="700"
-                    fill="#0B1437"
+                    fill="#FFFFFF"
                     textAnchor="middle"
                 >
                     CMB
                 </text>
-                <text x="0" y="10" fontFamily="Fraunces, Georgia, serif" fontSize="5.5" fill="#0B1437" textAnchor="middle">
+                <text x="0" y="10" fontFamily="Sora, sans-serif" fontSize="5.5" fontWeight="600" fill="#FFFFFF" textAnchor="middle">
                     VERIFY
                 </text>
             </g>
 
-            {/* Envelope front — cover bottom half of letter, with subtle bottom-shade stripe */}
+            {/* Envelope front — blue brand, slightly darker at bottom */}
             <rect x="20" y="80" width="180" height="68" rx="3" fill="#2563EB" />
-            {/* Open-flap V crease behind the letter — visible at the envelope opening */}
-            <path d="M20 80 L110 130 L200 80" fill="none" stroke="#0B1437" strokeWidth="1.2" opacity="0.55" />
+            {/* Open-flap V crease behind the letter */}
+            <path d="M20 80 L110 130 L200 80" fill="none" stroke="#0F172A" strokeWidth="1.2" opacity="0.55" />
             {/* Bottom shadow band on envelope */}
-            <rect x="20" y="130" width="180" height="18" rx="3" fill="#0B1437" opacity="0.14" />
+            <rect x="20" y="130" width="180" height="18" rx="3" fill="#0F172A" opacity="0.14" />
             {/* Subtle top edge highlight on envelope front */}
             <path d="M20 80 L200 80" stroke="#FFFFFF" strokeWidth="1" opacity="0.20" />
         </svg>

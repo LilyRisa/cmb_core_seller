@@ -716,13 +716,34 @@ class ShipmentService
     {
         $addr = (array) ($order->shipping_address ?? []);
         $from = (array) ($accountArr['meta']['from_address'] ?? []);
+
+        // SPEC 0021 — `shipping_address` từ AddressPicker lưu cả NAME (province/district/ward) lẫn admin
+        // CODE (province_code/district_code/ward_code) của hệ AddressKit (cas.so) hoặc open-api.vn.
+        // **Quan trọng**: admin code KHÁC ID/Code của GHN. GHN ProvinceID/DistrictID là integer riêng;
+        // GHN WardCode là string riêng. Không được truyền admin code làm GHN code → GHN sẽ reject.
+        // Cách dùng đúng:
+        //   - Truyền NAME (province/district/ward) cho GhnConnector::autoResolveAddress map sang ID GHN
+        //   - Chỉ truyền `district_id` (int) khi user đã gắn trực tiếp GHN ID (vd qua AdminPicker tương lai)
+        //   - Chỉ truyền `ward_code` khi nguồn đảm bảo là GHN WardCode (vd từ kênh sàn đã gắn sẵn)
+        $rawDistrictId = $addr['district_id'] ?? null;       // chỉ giữ khi int (GHN ID)
+        $ghnDistrictId = is_int($rawDistrictId) || (is_string($rawDistrictId) && ctype_digit($rawDistrictId))
+            ? (int) $rawDistrictId : null;
+        // Heuristic: GHN WardCode dài 5-6 chữ số. AddressKit ward_code thường khác format. Để an toàn,
+        // ta KHÔNG truyền ward_code từ AddressKit; để autoResolveAddress map lại từ tên.
+        $explicitWardCode = isset($addr['_ghn_ward_code']) ? (string) $addr['_ghn_ward_code'] : null;
+
         $recipient = [
             'name' => $addr['fullName'] ?? $addr['name'] ?? $order->buyer_name,
             'phone' => $addr['phone'] ?? $order->buyer_phone,
-            'address' => trim(implode(', ', array_filter([$addr['line1'] ?? null, $addr['address'] ?? null, $addr['ward'] ?? null, $addr['district'] ?? null, $addr['province'] ?? null]))) ?: ($addr['address'] ?? null),
-            'ward_code' => $addr['ward_code'] ?? null,
-            'district_id' => $addr['district_id'] ?? null,
-            'province' => $addr['province'] ?? null,
+            // Địa chỉ free-text (số nhà + đường) — không include tên ward/district/province (GHN có field riêng).
+            'address' => $addr['line1'] ?? $addr['address'] ?? trim(implode(', ', array_filter([$addr['ward'] ?? null, $addr['district'] ?? null, $addr['province'] ?? null]))),
+            // Tên hành chính — autoResolveAddress dùng để map → GHN ID/Code.
+            'province' => $addr['province'] ?? $addr['province_name'] ?? null,
+            'district' => $addr['district'] ?? $addr['district_name'] ?? null,
+            'ward' => $addr['ward'] ?? $addr['ward_name'] ?? null,
+            // GHN code (nullable) — autoResolveAddress sẽ fill nếu thiếu.
+            'district_id' => $ghnDistrictId,
+            'ward_code' => $explicitWardCode,
         ];
 
         return [
@@ -736,8 +757,8 @@ class ShipmentService
             'client_order_code' => (string) ($order->order_number ?? $order->external_order_id ?? $order->getKey()),
             'tracking_no' => $opts['tracking_no'] ?? null,
             'fee' => $opts['fee'] ?? 0,
-            'to_district_id' => $addr['district_id'] ?? null,
-            'to_ward_code' => $addr['ward_code'] ?? null,
+            'to_district_id' => $ghnDistrictId,
+            'to_ward_code' => $explicitWardCode,
         ];
     }
 

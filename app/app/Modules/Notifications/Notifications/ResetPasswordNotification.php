@@ -44,7 +44,7 @@ class ResetPasswordNotification extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
-        $brand = (string) config('notifications.brand.name', 'CMBcoreSeller');
+        $brand = (string) system_setting('notifications.brand_name', config('notifications.brand.name', 'CMBcoreSeller'));
         $email = (string) ($notifiable->getEmailForPasswordReset() ?? $notifiable->email);
         $base = rtrim((string) config('notifications.frontend_url', config('app.url')), '/');
         $resetUrl = $base.'/password-reset?token='.$this->token.'&email='.urlencode($email);
