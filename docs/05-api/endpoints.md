@@ -229,47 +229,96 @@ Webhook payments (ngoài `/api`, làm ở PR2/PR3):
 - `plan.feature:demand_planning` — `/api/v1/procurement/demand-planning*`.
 - `plan.feature:profit_reports` — `/api/v1/reports/profit`, `/api/v1/reports/top-products`, `/api/v1/reports/export`. (`/reports/revenue` mở cho mọi gói.)
 
-## Admin hệ thống (Admin — SPEC 0020 · Phase 6.4 mở rộng)
+## Admin hệ thống (Admin — SPEC 0020 · Spec 2026-05-17 mở rộng)
 
-Super-admin xuyên tenant. Tất cả routes yêu cầu `auth:sanctum` + middleware `super_admin` (KHÔNG cần `X-Tenant-Id`). Rate limit 60/phút/user. Mọi action ghi audit (`action` prefix `admin.*`, `tenant_id` = target tenant).
+Super-admin xuyên tenant. Spec 2026-05-17 đã tách auth: super-admin ở bảng `admin_users` riêng (KHÔNG ở `users`), login qua `POST /api/v1/admin/auth/login` (username + password), session bảo vệ bởi guard `admin_web`. Tất cả routes `/api/v1/admin/*` yêu cầu `web + auth:admin_web` (KHÔNG cần `X-Tenant-Id`). Rate limit 60/phút/user (auth login: 10/phút/IP). Mọi action ghi audit (`action` prefix `admin.*`, `admin_user_id` = actor, `tenant_id` = target tenant nếu có).
+
+### Admin Auth (Spec 2026-05-17)
+
+| Method | Path | Auth | Mô tả |
+|---|---|---|---|
+| POST | `/api/v1/admin/auth/login` | web + throttle:10,1 | `{ username, password }` — login super-admin. 401 `ADMIN_AUTH_FAILED` nếu sai/disabled. |
+| POST | `/api/v1/admin/auth/logout` | web + `auth:admin_web` | Logout, invalidate session. |
+| GET | `/api/v1/admin/auth/me` | web + `auth:admin_web` | Thông tin admin hiện tại. |
+| POST | `/api/v1/admin/auth/change-password` | web + `auth:admin_web` | `{ current_password, password }` — admin tự đổi mật khẩu. |
+
+### Admin Users management (Spec 2026-05-17)
+
+| Method | Path | Auth | Mô tả |
+|---|---|---|---|
+| GET | `/api/v1/admin/admin-users` | web + `auth:admin_web` | List super-admin. Query: `q`, `is_active`, `page`, `per_page`. |
+| POST | `/api/v1/admin/admin-users` | web + `auth:admin_web` | `{ username:[a-z0-9._-]{3,32}, email?, name, password ≥8, is_active? }`. Audit `admin.admin_user.create`. |
+| GET | `/api/v1/admin/admin-users/{id}` | web + `auth:admin_web` | Chi tiết. |
+| PATCH | `/api/v1/admin/admin-users/{id}` | web + `auth:admin_web` | Sửa name/email. Audit `admin.admin_user.update`. |
+| POST | `/api/v1/admin/admin-users/{id}/reset-password` | web + `auth:admin_web` | `{ password ≥8 }`. 409 `CANNOT_SELF_MUTATE` nếu target = actor. Audit `admin.admin_user.reset_password`. |
+| POST | `/api/v1/admin/admin-users/{id}/suspend` | web + `auth:admin_web` | Vô hiệu hoá (is_active=false). 409 `CANNOT_SELF_MUTATE` / `LAST_ACTIVE_ADMIN`. Audit `admin.admin_user.suspend`. |
+| POST | `/api/v1/admin/admin-users/{id}/reactivate` | web + `auth:admin_web` | Kích hoạt lại. Audit `admin.admin_user.reactivate`. |
+
+### Tenant Users (admin) — Spec 2026-05-17 mở rộng
+
+| Method | Path | Mô tả |
+|---|---|---|
+| GET | `/api/v1/admin/users` | (đã có — bỏ filter `is_super_admin`). List user toàn hệ thống. |
+| GET | `/api/v1/admin/users/{id}` | Chi tiết user + tenants + email_verified_at + suspended_at. |
+| PATCH | `/api/v1/admin/users/{id}` | Sửa name/email. Audit `admin.user.update`. |
+| POST | `/api/v1/admin/users/{id}/reset-password` | `{ password ≥8 }`. Audit `admin.user.reset_password`. |
+| POST | `/api/v1/admin/users/{id}/suspend` | Set `users.suspended_at`. EnsureTenant middleware chặn 403 `USER_SUSPENDED` ở route nghiệp vụ tenant. Audit `admin.user.suspend`. |
+| POST | `/api/v1/admin/users/{id}/reactivate` | Clear `suspended_at`. Audit `admin.user.reactivate`. |
+
+### System Settings (Spec 2026-05-17 — module Settings)
+
+Cấu hình động lưu trong DB (`system_settings`), ghi đè giá trị từ `.env` cho các key thuộc whitelist `SystemSettingsCatalog` (38 key, 8 secret). Helper `system_setting('key', config('xxx'))` đọc qua cache `rememberForever` + clear-on-save; `set()` phát event `SystemSettingChanged` (listener ghi audit `admin.setting.update`).
+
+| Method | Path | Mô tả |
+|---|---|---|
+| GET | `/api/v1/admin/system-settings?group={branding\|marketplace\|fulfillment\|sync}` | List theo catalog (merge env_fallback). Secret value trả `"****"` khi đã set, `null` khi chưa. |
+| GET | `/api/v1/admin/system-settings/{key}/reveal` | Trả plain value (giải mã nếu secret). Audit `admin.setting.reveal {key}`. |
+| PATCH | `/api/v1/admin/system-settings/{key}` | `{ value }` — validate theo type catalog. 422 `SETTING_KEY_NOT_ALLOWED` / `SETTING_VALUE_INVALID`. |
+| DELETE | `/api/v1/admin/system-settings/{key}` | Xoá row → fallback env. |
+| POST | `/api/v1/admin/system-settings/sync-from-env` | Bootstrap: seed các key chưa có row từ env. Idempotent. |
 
 | Method | Path | Auth | Request | Response |
 |---|---|---|---|---|
-| GET | `/api/v1/admin/tenants` | sanctum + `super_admin` | query: `q`, `over_quota` (1), `suspended` (1), `page`, `per_page≤100` | `{ data:[TenantSummary{id,name,slug,status,created_at,owner:{id,name,email},subscription:{plan_code,status,billing_cycle,current_period_start/end,over_quota_warned_at,over_quota_locked},usage:{channel_accounts:{used,limit,over}}}], meta:{ pagination } }`. |
-| GET | `/api/v1/admin/tenants/{id}` | sanctum + `super_admin` | — | `{ data: TenantSummary kèm `channel_accounts[]`, `members[]`, `recent_admin_actions[]` (20 audit_logs gần nhất prefix `admin.*`) }`. |
-| DELETE | `/api/v1/admin/tenants/{tid}/channel-accounts/{caid}` | sanctum + `super_admin` | `{ reason: string ≥10 }` | `{ data:{ deleted_orders:N, unlinked_skus:M } }` — reuse `ChannelConnectionService::deleteWithOrders` (xoá kết nối + đơn + sku_mappings + nhả tồn). Audit `admin.channel_account.delete`. |
-| POST | `/api/v1/admin/tenants/{tid}/subscription` | sanctum + `super_admin` | `{ plan_code: trial\|starter\|pro\|business, cycle: monthly\|yearly\|trial, reason: string ≥10 }` | `{ data: SubscriptionResource }` — **bypass `DOWNGRADE_NOT_ALLOWED`** của `BillingService` (force-set tay cho khách yêu cầu). Subscription cũ ⇒ cancelled, subscription mới ⇒ active từ `now`. KHÔNG tạo invoice. Audit `admin.subscription.change`. |
-| POST | `/api/v1/admin/tenants/{tid}/suspend` | sanctum + `super_admin` | `{ reason: string ≥10 }` | `{ data: TenantSummary (status=suspended) }` — `EnsureTenant` middleware sẽ trả `403 TENANT_SUSPENDED` cho mọi member. Audit `admin.tenant.suspend`. |
-| POST | `/api/v1/admin/tenants/{tid}/reactivate` | sanctum + `super_admin` | — | `{ data: TenantSummary (status=active) }`. Audit `admin.tenant.reactivate`. |
-| GET | `/api/v1/admin/users` | sanctum + `super_admin` | query: `q` (email/name), `is_super_admin` (1), `page`, `per_page≤100` | `{ data:[{id,name,email,is_super_admin,tenants:[{id,name,slug,role}],created_at}], meta:{ pagination } }`. |
+| GET | `/api/v1/admin/tenants` | web + `auth:admin_web` | query: `q`, `over_quota` (1), `suspended` (1), `page`, `per_page≤100` | `{ data:[TenantSummary{id,name,slug,status,created_at,owner:{id,name,email},subscription:{plan_code,status,billing_cycle,current_period_start/end,over_quota_warned_at,over_quota_locked},usage:{channel_accounts:{used,limit,over}}}], meta:{ pagination } }`. |
+| GET | `/api/v1/admin/tenants/{id}` | web + `auth:admin_web` | — | `{ data: TenantSummary kèm `channel_accounts[]`, `members[]`, `recent_admin_actions[]` (20 audit_logs gần nhất prefix `admin.*`) }`. |
+| DELETE | `/api/v1/admin/tenants/{tid}/channel-accounts/{caid}` | web + `auth:admin_web` | `{ reason: string ≥10 }` | `{ data:{ deleted_orders:N, unlinked_skus:M } }` — reuse `ChannelConnectionService::deleteWithOrders` (xoá kết nối + đơn + sku_mappings + nhả tồn). Audit `admin.channel_account.delete`. |
+| POST | `/api/v1/admin/tenants/{tid}/subscription` | web + `auth:admin_web` | `{ plan_code: trial\|starter\|pro\|business, cycle: monthly\|yearly\|trial, reason: string ≥10 }` | `{ data: SubscriptionResource }` — **bypass `DOWNGRADE_NOT_ALLOWED`** của `BillingService` (force-set tay cho khách yêu cầu). Subscription cũ ⇒ cancelled, subscription mới ⇒ active từ `now`. KHÔNG tạo invoice. Audit `admin.subscription.change`. |
+| POST | `/api/v1/admin/tenants/{tid}/suspend` | web + `auth:admin_web` | `{ reason: string ≥10 }` | `{ data: TenantSummary (status=suspended) }` — `EnsureTenant` middleware sẽ trả `403 TENANT_SUSPENDED` cho mọi member. Audit `admin.tenant.suspend`. |
+| POST | `/api/v1/admin/tenants/{tid}/reactivate` | web + `auth:admin_web` | — | `{ data: TenantSummary (status=active) }`. Audit `admin.tenant.reactivate`. |
+| GET | `/api/v1/admin/users` | web + `auth:admin_web` | query: `q` (email/name), `is_super_admin` (1), `page`, `per_page≤100` | `{ data:[{id,name,email,is_super_admin,tenants:[{id,name,slug,role}],created_at}], meta:{ pagination } }`. |
 
 ### Admin Tier 1+2 (SPEC 0023)
 
 | Method | Path | Auth | Mô tả |
 |---|---|---|---|
-| POST | `/api/v1/admin/tenants/{tid}/extend-trial` | sanctum + `super_admin` | `{ days:1..365, plan_code?, reason ≥10 }` ⇒ subscription mới `trialing` period N ngày. Audit `admin.trial.extend`. |
-| POST | `/api/v1/admin/tenants/{tid}/feature-overrides` | sanctum + `super_admin` | `{ features:{key:bool\|null}, reason ≥10 }` ⇒ lưu `subscriptions.meta.feature_overrides`. `EnforcePlanFeature` đọc override trước plan: `true` bypass, `false` chặn dù plan có, `null` rớt xuống plan. Audit `admin.feature_override.set`. |
-| POST | `/api/v1/admin/tenants/{tid}/invoices` | sanctum + `super_admin` | `{ plan_code, cycle, amount?, period_days?, note? }` ⇒ tạo invoice manual `status=pending` (khách chuyển khoản offline). Audit `admin.invoice.create_manual`. |
-| POST | `/api/v1/admin/invoices/{id}/mark-paid` | sanctum + `super_admin` | `{ payment_method?, reference?, paid_at? }` ⇒ tạo Payment `gateway=manual`, invoice `paid`, fire `InvoicePaid` → ActivateSubscription tự swap plan. Idempotent (đã paid ⇒ 200 no-op + audit `admin.invoice.mark_paid.noop`). |
-| POST | `/api/v1/admin/payments/{id}/refund` | sanctum + `super_admin` | `{ reason ≥10, rollback_subscription?:bool }` ⇒ payment.status=refunded + invoice.status=refunded. Rollback ⇒ đóng sub + trial fallback. `422 ALREADY_REFUNDED` nếu đã refund. Audit `admin.payment.refund`. |
-| GET | `/api/v1/admin/vouchers` | sanctum + `super_admin` | query: `q`, `kind`, `active`, `expired`, page. List vouchers. |
-| POST | `/api/v1/admin/vouchers` | sanctum + `super_admin` | `{ code:^[A-Z0-9_-]+$, name, kind, value, valid_plans?, max_redemptions?, starts_at?, expires_at? }`. Audit `admin.voucher.create`. |
-| GET | `/api/v1/admin/vouchers/{id}` | sanctum + `super_admin` | Detail + 50 redemptions gần nhất. |
-| PATCH | `/api/v1/admin/vouchers/{id}` | sanctum + `super_admin` | Sửa name/limits/expires/active (KHÔNG đổi code/kind). |
-| DELETE | `/api/v1/admin/vouchers/{id}` | sanctum + `super_admin` | Soft delete = `is_active=false`. History redemption giữ nguyên. |
-| POST | `/api/v1/admin/vouchers/{id}/grant` | sanctum + `super_admin` | `{ tenant_id, reason ≥10 }` — chỉ áp với `kind=free_days\|plan_upgrade`. Audit `admin.voucher.grant`. |
+| POST | `/api/v1/admin/tenants/{tid}/extend-trial` | web + `auth:admin_web` | `{ days:1..365, plan_code?, reason ≥10 }` ⇒ subscription mới `trialing` period N ngày. Audit `admin.trial.extend`. |
+| POST | `/api/v1/admin/tenants/{tid}/feature-overrides` | web + `auth:admin_web` | `{ features:{key:bool\|null}, reason ≥10 }` ⇒ lưu `subscriptions.meta.feature_overrides`. `EnforcePlanFeature` đọc override trước plan: `true` bypass, `false` chặn dù plan có, `null` rớt xuống plan. Audit `admin.feature_override.set`. |
+| POST | `/api/v1/admin/tenants/{tid}/invoices` | web + `auth:admin_web` | `{ plan_code, cycle, amount?, period_days?, note? }` ⇒ tạo invoice manual `status=pending` (khách chuyển khoản offline). Audit `admin.invoice.create_manual`. |
+| POST | `/api/v1/admin/invoices/{id}/mark-paid` | web + `auth:admin_web` | `{ payment_method?, reference?, paid_at? }` ⇒ tạo Payment `gateway=manual`, invoice `paid`, fire `InvoicePaid` → ActivateSubscription tự swap plan. Idempotent (đã paid ⇒ 200 no-op + audit `admin.invoice.mark_paid.noop`). |
+| POST | `/api/v1/admin/payments/{id}/refund` | web + `auth:admin_web` | `{ reason ≥10, rollback_subscription?:bool }` ⇒ payment.status=refunded + invoice.status=refunded. Rollback ⇒ đóng sub + trial fallback. `422 ALREADY_REFUNDED` nếu đã refund. Audit `admin.payment.refund`. |
+| GET | `/api/v1/admin/vouchers` | web + `auth:admin_web` | query: `q`, `kind`, `active`, `expired`, page. List vouchers. |
+| POST | `/api/v1/admin/vouchers` | web + `auth:admin_web` | `{ code:^[A-Z0-9_-]+$, name, kind, value, valid_plans?, max_redemptions?, starts_at?, expires_at? }`. Audit `admin.voucher.create`. |
+| GET | `/api/v1/admin/vouchers/{id}` | web + `auth:admin_web` | Detail + 50 redemptions gần nhất. |
+| PATCH | `/api/v1/admin/vouchers/{id}` | web + `auth:admin_web` | Sửa name/limits/expires/active (KHÔNG đổi code/kind). |
+| DELETE | `/api/v1/admin/vouchers/{id}` | web + `auth:admin_web` | Soft delete = `is_active=false`. History redemption giữ nguyên. |
+| POST | `/api/v1/admin/vouchers/{id}/grant` | web + `auth:admin_web` | `{ tenant_id, reason ≥10 }` — chỉ áp với `kind=free_days\|plan_upgrade`. Audit `admin.voucher.grant`. |
 | POST | `/api/v1/billing/vouchers/validate` | sanctum + tenant (`billing.manage`) | `{ code, plan_code, cycle }` — user preview discount trước checkout. Throttle `30/1`. Lỗi: `INVALID_VOUCHER`/`VOUCHER_EXPIRED`/`VOUCHER_EXHAUSTED`/`VOUCHER_NOT_FOR_PLAN`. |
 | POST | `/api/v1/billing/checkout` | (sửa) | Field mới `voucher_code?` — voucher percent/fixed sẽ áp `discount` line vào invoice trước khi tạo CheckoutSession. |
-| GET | `/api/v1/admin/plans` | sanctum + `super_admin` | List 4 gói. |
-| GET | `/api/v1/admin/plans/{id}` | sanctum + `super_admin` | Detail. |
-| PATCH | `/api/v1/admin/plans/{id}` | sanctum + `super_admin` | Sửa name/price/trial_days/limits/features/is_active. `code` & `currency` immutable ⇒ `422 PLAN_IMMUTABLE_FIELD`. Audit `admin.plan.update`. |
-| GET | `/api/v1/admin/audit-logs` | sanctum + `super_admin` | Cross-tenant search: `action` (LIKE, `*` wildcard), `user_id`, `tenant_id`, `from`/`to`, `q` (LIKE trên changes JSON). |
-| GET | `/api/v1/admin/broadcasts` | sanctum + `super_admin` | Lịch sử broadcast (sent_count, sent_at). |
-| POST | `/api/v1/admin/broadcasts` | sanctum + `super_admin` | `{ subject, body_markdown, audience:{kind:'all_owners'\|'all_admins_and_owners'\|'tenant_ids', tenant_ids?} }` — dispatch `BroadcastNotification` qua queue `notifications`. Limit 5000 recipients/lần ⇒ `BROADCAST_AUDIENCE_TOO_LARGE`. Tenant suspended bị skip. Audit `admin.broadcast.send`. |
-| GET | `/api/v1/admin/broadcasts/{id}` | sanctum + `super_admin` | Detail. |
+| GET | `/api/v1/admin/plans` | web + `auth:admin_web` | List 4 gói. |
+| GET | `/api/v1/admin/plans/{id}` | web + `auth:admin_web` | Detail. |
+| PATCH | `/api/v1/admin/plans/{id}` | web + `auth:admin_web` | Sửa name/price/trial_days/limits/features/is_active. `code` & `currency` immutable ⇒ `422 PLAN_IMMUTABLE_FIELD`. Audit `admin.plan.update`. |
+| GET | `/api/v1/admin/audit-logs` | web + `auth:admin_web` | Cross-tenant search: `action` (LIKE, `*` wildcard), `user_id`, `tenant_id`, `from`/`to`, `q` (LIKE trên changes JSON). |
+| GET | `/api/v1/admin/broadcasts` | web + `auth:admin_web` | Lịch sử broadcast (sent_count, sent_at). |
+| POST | `/api/v1/admin/broadcasts` | web + `auth:admin_web` | `{ subject, body_markdown, audience:{kind:'all_owners'\|'all_admins_and_owners'\|'tenant_ids', tenant_ids?} }` — dispatch `BroadcastNotification` qua queue `notifications`. Limit 5000 recipients/lần ⇒ `BROADCAST_AUDIENCE_TOO_LARGE`. Tenant suspended bị skip. Audit `admin.broadcast.send`. |
+| GET | `/api/v1/admin/broadcasts/{id}` | web + `auth:admin_web` | Detail. |
 
 **Codes lỗi đặc thù Admin/Over-quota:**
-- `SUPER_ADMIN_REQUIRED` (`403`) — không phải super-admin.
+- `ADMIN_AUTH_FAILED` (`401`) — login admin sai hoặc tài khoản đã bị vô hiệu hoá (Spec 2026-05-17).
+- `CANNOT_SELF_MUTATE` (`409`) — admin thao tác trên chính tài khoản của mình (suspend / reset password) (Spec 2026-05-17).
+- `LAST_ACTIVE_ADMIN` (`409`) — vô hiệu hoá admin active cuối cùng (Spec 2026-05-17).
+- `USER_SUSPENDED` (`403`) — `EnsureTenant` chặn tenant user có `users.suspended_at != null` (Spec 2026-05-17).
+- `SETTING_KEY_NOT_ALLOWED` (`422`) — key cấu hình ngoài whitelist (Spec 2026-05-17).
+- `SETTING_VALUE_INVALID` (`422`) — value không hợp lệ theo type của setting (Spec 2026-05-17).
 - `TENANT_SUSPENDED` (`403`) — `EnsureTenant` chặn khi `tenant.status='suspended'`.
 - `PLAN_QUOTA_EXCEEDED` (`402`) — middleware `plan.over_quota_lock` chặn write sau 48h ân hạn. Details: `{ resources:[{resource,used,limit,over}], plan_code, warned_at, grace_hours }`.
 - `INVALID_VOUCHER` / `VOUCHER_EXPIRED` / `VOUCHER_EXHAUSTED` / `VOUCHER_NOT_FOR_PLAN` / `VOUCHER_NOT_REDEEMABLE` / `VOUCHER_KIND_FOR_CHECKOUT` (`422` SPEC 0023) — voucher checkout / grant lỗi.
@@ -278,8 +327,8 @@ Super-admin xuyên tenant. Tất cả routes yêu cầu `auth:sanctum` + middlew
 - `ALREADY_REFUNDED` (`422` SPEC 0023) — refund payment đã refund trước đó.
 - `BROADCAST_AUDIENCE_TOO_LARGE` (`422` SPEC 0023) — vượt 5000 recipients.
 
-**Sửa endpoint hiện có (SPEC 0020):**
-- `GET /api/v1/auth/me` ⇒ thêm field `is_super_admin: bool`.
+**Sửa endpoint hiện có:**
+- `GET /api/v1/auth/me` ⇒ **Spec 2026-05-17:** field `is_super_admin` đã bỏ (super-admin nằm bảng riêng `admin_users`, dùng `/api/v1/admin/auth/me`).
 - `GET /api/v1/billing/subscription` ⇒ `data` thêm `over_quota_warned_at: string|null`, `over_quota_locked: bool`, `over_quota_grace_hours: int` (banner FE đọc từ đây).
 
 **Middleware gating mới (SPEC 0020):**

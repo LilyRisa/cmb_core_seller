@@ -32,17 +32,18 @@
 
 - Phân quyền chi tiết bằng **permission string** (vd `orders.update`, `inventory.adjust`, `fulfillment.print`, `finance.view`, `billing.manage`...) gán cho role; `owner`/`admin` cấu hình lại role hoặc tạo role tuỳ biến (Phase sau).
 
-### 3.1 Super-admin hệ thống (SPEC 0020)
+### 3.1 Super-admin hệ thống (SPEC 0020 + Spec 2026-05-17 tách lập)
 
-Khác với role-trong-tenant ở §3, **super-admin = nhân viên vận hành SaaS** (nhân viên hỗ trợ của CMBcoreSeller), xuyên suốt mọi tenant. Đặc điểm:
-- Cờ `users.is_super_admin=true` (boolean trên bảng `users`). Promote/demote qua Artisan: `php artisan admin:promote {email}` / `admin:demote {email}` (idempotent).
-- Truy cập `/api/v1/admin/*` qua middleware `super_admin` — **KHÔNG cần `X-Tenant-Id`** (admin global).
-- Có thể: list mọi tenant, xem detail (gian hàng + subscription + member + audit), force-delete `channel_accounts` (reuse `ChannelConnectionService::deleteWithOrders`), đổi gói tenant (bypass `DOWNGRADE_NOT_ALLOWED`), suspend/reactivate tenant.
-- Mỗi action ghi `audit_logs` với `action` prefix `admin.*` (vd `admin.channel_account.delete`), `tenant_id` = target tenant, `user_id` = admin.
+Khác với role-trong-tenant ở §3, **super-admin = nhân viên vận hành SaaS** (nhân viên hỗ trợ của CMBcoreSeller), xuyên suốt mọi tenant. **Spec 2026-05-17** đã tách bảng & guard:
+
+- **Bảng riêng** `admin_users` (id, username, email?, name, password, is_active, last_login_at). KHÔNG dùng `users.is_super_admin` nữa (cột đã drop). Tạo qua Artisan: `php artisan admin:create {username}` / `admin:reset-password {username}` / `admin:promote {email}` (mirror từ user) / `admin:demote {username}` (set is_active=false).
+- **Auth tách**: login qua `POST /api/v1/admin/auth/login` (username + password). Guard `admin_web` (session) cho login; Sanctum stateful resolve qua `config/sanctum.php` `guard: ['web', 'admin_web']`. Middleware `auth:admin_web` bảo vệ `/api/v1/admin/*` — **KHÔNG cần `X-Tenant-Id`**.
+- **SPA tách**: bundle Vite riêng `resources/js/admin.tsx` phục vụ tại `/admin/{any?}` (Blade `admin.blade.php`). User SPA không còn route admin nào.
+- **Quyền**: list mọi tenant, xem detail, force-delete `channel_accounts`, đổi gói tenant (bypass `DOWNGRADE_NOT_ALLOWED`), suspend/reactivate tenant. CRUD admin_users (Spec 2026-05-17) với guard-rails `CANNOT_SELF_MUTATE` / `LAST_ACTIVE_ADMIN`. CRUD tenant users (name/email + reset password + suspend = set `users.suspended_at`).
+- **Cấu hình hệ thống**: 38 key trong DB (`system_settings`) thay env cho các knob runtime. Đọc qua `system_setting('key', config('xxx'))` — module Settings (Spec 2026-05-17).
+- **Audit**: mỗi action mutating ghi `audit_logs` với `action` prefix `admin.*`, cột `admin_user_id` (mới — không FK cứng) lưu actor, `tenant_id` = target tenant nếu có. Cột `user_id` cũ chỉ dùng cho tenant user.
 - KHÔNG có "phân quyền nội bộ admin" v1 (mọi super-admin có quyền như nhau). Khi cần phân cấp ⇒ spec mới.
 - 2FA cho super-admin: backlog.
-- Triển khai: dùng `spatie/laravel-permission` với "team/tenant" mode, hoặc bảng tự viết — quyết định ở Phase 0 (ghi ADR nếu chọn lib).
-- Mọi action nhạy cảm ghi `audit_logs` (ai, tenant, action, đối tượng, before/after, ip, time).
 
 ## 4. Đăng nhập & phiên
 - Sanctum SPA cookie (cùng domain). Đăng ký → tạo user; tạo tenant mới hoặc nhận lời mời vào tenant có sẵn.
