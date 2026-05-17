@@ -12,6 +12,7 @@ import { AdminVouchersPage } from './pages/tenants/AdminVouchersPage';
 import { AdminPlansPage } from './pages/tenants/AdminPlansPage';
 import { AdminAuditLogsPage } from './pages/tenants/AdminAuditLogsPage';
 import { AdminBroadcastsPage } from './pages/tenants/AdminBroadcastsPage';
+import { AdminUsersPage } from './pages/users/AdminUsersPage';
 
 export function AdminApp() {
     return (
@@ -32,7 +33,8 @@ export function AdminApp() {
                     <Route path="plans" element={<AdminPlansPage />} />
                     <Route path="broadcasts" element={<AdminBroadcastsPage />} />
                     <Route path="audit-logs" element={<AdminAuditLogsPage />} />
-                    {/* Users + Settings added in Task 21, 22. */}
+                    <Route path="users" element={<AdminUsersPage />} />
+                    {/* Settings added in Task 22. */}
                     <Route path="*" element={<Navigate to="/admin" replace />} />
                 </Route>
             </Routes>
