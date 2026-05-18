@@ -1,6 +1,6 @@
 import { Form, Input, InputNumber, Radio, Segmented } from 'antd';
 import { DatabaseOutlined } from '@ant-design/icons';
-import { Group, Rect, Text } from 'react-konva';
+import { Rect, Text } from 'react-konva';
 import type { DataField, DataKey } from '@/lib/shippingLabelTypes';
 import { DATA_KEYS } from '@/lib/shippingLabelTypes';
 import { mm2px } from '@/lib/labelEditor/coords';
@@ -31,15 +31,16 @@ export const DataFieldDef: FieldDef<DataField> = {
     defaultProps: () => ({ type: 'data', x: 5, y: 5, w: 50, h: 6, key: 'recipient_name', style: { fontSize: 12, fontWeight: 700, align: 'left' } }),
     KonvaRenderer: ({ field, ctx, selected, zoom }) => {
         const sampleText = field.key === 'carrier_logo' ? (ctx.carrier_logo || 'GHN') : ((field.prefix ?? '') + (ctx[field.key] ?? '') + (field.suffix ?? ''));
+        const w = mm2px(field.w, zoom);
+        const h = mm2px(field.h, zoom);
         return (
-            <Group x={mm2px(field.x, zoom)} y={mm2px(field.y, zoom)} rotation={field.rotation ?? 0}>
-                <Rect width={mm2px(field.w, zoom)} height={mm2px(field.h, zoom)}
-                      stroke={selected ? '#1677ff' : 'transparent'} strokeWidth={1} dash={[4, 2]} />
-                <Text width={mm2px(field.w, zoom)} height={mm2px(field.h, zoom)} padding={1}
+            <>
+                <Rect width={w} height={h} stroke={selected ? '#1677ff' : 'transparent'} strokeWidth={1} dash={[4, 2]} />
+                <Text width={w} height={h} padding={1}
                       text={sampleText} fontSize={field.style.fontSize * zoom * 0.9}
                       fontStyle={field.style.fontWeight === 700 ? 'bold' : field.style.fontWeight === 600 ? '600' : 'normal'}
                       align={field.style.align ?? 'left'} fill={field.style.color ?? '#222'} verticalAlign="middle" wrap="word" />
-            </Group>
+            </>
         );
     },
     InspectorPanel: ({ field, onChange }) => (

@@ -1,6 +1,6 @@
 import { ColorPicker, Form, InputNumber } from 'antd';
 import { MinusOutlined } from '@ant-design/icons';
-import { Group, Rect } from 'react-konva';
+import { Rect } from 'react-konva';
 import type { DividerField } from '@/lib/shippingLabelTypes';
 import { mm2px } from '@/lib/labelEditor/coords';
 import type { FieldDef } from './index';
@@ -8,13 +8,19 @@ import type { FieldDef } from './index';
 export const DividerFieldDef: FieldDef<DividerField> = {
     type: 'divider', label: 'Đường kẻ', icon: <MinusOutlined />, group: 'shape',
     defaultProps: () => ({ type: 'divider', x: 5, y: 5, w: 80, h: 1, thickness: 1, color: '#222222' }),
-    KonvaRenderer: ({ field, selected, zoom }) => (
-        <Group x={mm2px(field.x, zoom)} y={mm2px(field.y, zoom)} rotation={field.rotation ?? 0}>
-            <Rect width={mm2px(field.w, zoom)} height={mm2px(field.h, zoom)} fill={selected ? 'rgba(22,119,255,0.1)' : 'transparent'} />
-            <Rect y={(mm2px(field.h, zoom) - (field.thickness ?? 1)) / 2}
-                  width={mm2px(field.w, zoom)} height={field.thickness ?? 1} fill={field.color ?? '#222222'} />
-        </Group>
-    ),
+    KonvaRenderer: ({ field, selected, zoom }) => {
+        const w = mm2px(field.w, zoom);
+        const h = mm2px(field.h, zoom);
+        const t = field.thickness ?? 1;
+        return (
+            <>
+                <Rect width={w} height={h}
+                      fill={selected ? 'rgba(22,119,255,0.1)' : 'transparent'}
+                      stroke={selected ? '#1677ff' : 'transparent'} strokeWidth={1} dash={[4, 2]} />
+                <Rect y={(h - t) / 2} width={w} height={t} fill={field.color ?? '#222222'} />
+            </>
+        );
+    },
     InspectorPanel: ({ field, onChange }) => (
         <>
             <Form.Item label="Độ dày (px)">

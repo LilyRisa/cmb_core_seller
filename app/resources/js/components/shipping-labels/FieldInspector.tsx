@@ -35,12 +35,12 @@ export function FieldInspector() {
                     </Space.Compact>
                     <Space.Compact block style={{ marginTop: 8 }}>
                         <Form.Item label="W" style={{ flex: 1, margin: 0 }}>
-                            <InputNumber min={1} value={selected.w}
-                                onChange={(v) => commitTransform(selected.id, { x: selected.x, y: selected.y, w: v ?? 1, h: selected.h })} />
+                            <InputNumber min={5} value={selected.w}
+                                onChange={(v) => commitTransform(selected.id, { x: selected.x, y: selected.y, w: v ?? 5, h: selected.h })} />
                         </Form.Item>
                         <Form.Item label="H" style={{ flex: 1, margin: 0 }}>
-                            <InputNumber min={1} value={selected.h}
-                                onChange={(v) => commitTransform(selected.id, { x: selected.x, y: selected.y, w: selected.w, h: v ?? 1 })} />
+                            <InputNumber min={5} value={selected.h}
+                                onChange={(v) => commitTransform(selected.id, { x: selected.x, y: selected.y, w: selected.w, h: v ?? 5 })} />
                         </Form.Item>
                     </Space.Compact>
                     <Panel field={selected} onChange={(p) => updateField(selected.id, p)} />

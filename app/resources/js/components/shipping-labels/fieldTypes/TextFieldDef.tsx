@@ -1,6 +1,6 @@
 import { Form, Input, InputNumber, Segmented } from 'antd';
 import { FontSizeOutlined } from '@ant-design/icons';
-import { Group, Rect, Text } from 'react-konva';
+import { Rect, Text } from 'react-konva';
 import type { TextField } from '@/lib/shippingLabelTypes';
 import { mm2px } from '@/lib/labelEditor/coords';
 import type { FieldDef } from './index';
@@ -11,15 +11,19 @@ export const TextFieldDef: FieldDef<TextField> = {
     icon: <FontSizeOutlined />,
     group: 'display',
     defaultProps: () => ({ type: 'text', x: 5, y: 5, w: 50, h: 6, text: 'Văn bản', style: { fontSize: 11, fontWeight: 400, align: 'left' } }),
-    KonvaRenderer: ({ field, selected, zoom }) => (
-        <Group x={mm2px(field.x, zoom)} y={mm2px(field.y, zoom)} rotation={field.rotation ?? 0}>
-            <Rect width={mm2px(field.w, zoom)} height={mm2px(field.h, zoom)} stroke={selected ? '#1677ff' : 'transparent'} strokeWidth={1} dash={[4, 2]} />
-            <Text width={mm2px(field.w, zoom)} height={mm2px(field.h, zoom)} padding={1}
-                  text={field.text} fontSize={field.style.fontSize * zoom * 0.9}
-                  fontStyle={field.style.fontWeight === 700 ? 'bold' : 'normal'} align={field.style.align ?? 'left'}
-                  fill={field.style.color ?? '#222'} verticalAlign="middle" />
-        </Group>
-    ),
+    KonvaRenderer: ({ field, selected, zoom }) => {
+        const w = mm2px(field.w, zoom);
+        const h = mm2px(field.h, zoom);
+        return (
+            <>
+                <Rect width={w} height={h} stroke={selected ? '#1677ff' : 'transparent'} strokeWidth={1} dash={[4, 2]} />
+                <Text width={w} height={h} padding={1}
+                      text={field.text} fontSize={field.style.fontSize * zoom * 0.9}
+                      fontStyle={field.style.fontWeight === 700 ? 'bold' : 'normal'} align={field.style.align ?? 'left'}
+                      fill={field.style.color ?? '#222'} verticalAlign="middle" />
+            </>
+        );
+    },
     InspectorPanel: ({ field, onChange }) => (
         <>
             <Form.Item label="Nội dung">

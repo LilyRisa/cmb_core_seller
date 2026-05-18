@@ -60,12 +60,25 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
         history: { past: [], future: [] },
     }),
 
-    addField: (field) => set((s) => ({
-        history: { past: pushHistory(s), future: [] },
-        fields: [...s.fields, { ...field, id: field.id || nanoid(8) }],
-        selection: [field.id],
-    })),
+    addField: (field) => set((s) => {
+        const id = field.id || nanoid(8);
+        // Stagger so consecutive adds don't pile on the same (x,y) and become unselectable.
+        const offset = (s.fields.length % 8) * 3;
+        const placed: Field = {
+            ...field,
+            id,
+            x: Math.min(field.x + offset, Math.max(0, s.meta.paper_w_mm - field.w)),
+            y: Math.min(field.y + offset, Math.max(0, (s.meta.paper_h_mm > 0 ? s.meta.paper_h_mm : 9999) - field.h)),
+        } as Field;
+        return {
+            history: { past: pushHistory(s), future: [] },
+            fields: [...s.fields, placed],
+            selection: [id],
+        };
+    }),
 
+    // No history push here: Inspector fires onChange per keystroke; commit-on-blur debouncing
+    // is a later iteration (spec §7.1 — debounce 300ms). For now, style/text changes aren't undoable.
     updateField: (id, patch) => set((s) => ({
         fields: s.fields.map((f) => (f.id === id ? ({ ...f, ...patch } as Field) : f)),
     })),

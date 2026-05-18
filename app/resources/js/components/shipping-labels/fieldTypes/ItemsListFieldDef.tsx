@@ -1,6 +1,6 @@
 import { Form, InputNumber, Segmented } from 'antd';
 import { UnorderedListOutlined } from '@ant-design/icons';
-import { Group, Rect, Text } from 'react-konva';
+import { Rect, Text } from 'react-konva';
 import type { ItemsListField } from '@/lib/shippingLabelTypes';
 import { mm2px } from '@/lib/labelEditor/coords';
 import type { FieldDef } from './index';
@@ -11,12 +11,14 @@ export const ItemsListFieldDef: FieldDef<ItemsListField> = {
     KonvaRenderer: ({ field, ctx, selected, zoom }) => {
         const items = ctx.items.slice(0, field.maxRows ?? ctx.items.length);
         const lines = items.map((it, i) => ((field.format ?? 'bullet') === 'numbered' ? `${i + 1}.` : '•') + ' ' + it.name + ' x ' + it.qty);
+        const w = mm2px(field.w, zoom);
+        const h = mm2px(field.h, zoom);
         return (
-            <Group x={mm2px(field.x, zoom)} y={mm2px(field.y, zoom)} rotation={field.rotation ?? 0}>
-                <Rect width={mm2px(field.w, zoom)} height={mm2px(field.h, zoom)} stroke={selected ? '#1677ff' : 'transparent'} dash={[4, 2]} />
-                <Text width={mm2px(field.w, zoom)} height={mm2px(field.h, zoom)} padding={1}
+            <>
+                <Rect width={w} height={h} stroke={selected ? '#1677ff' : 'transparent'} strokeWidth={1} dash={[4, 2]} />
+                <Text width={w} height={h} padding={1}
                       text={lines.join('\n')} fontSize={field.style.fontSize * zoom * 0.9} lineHeight={1.25} fill="#222" wrap="word" />
-            </Group>
+            </>
         );
     },
     InspectorPanel: ({ field, onChange }) => (

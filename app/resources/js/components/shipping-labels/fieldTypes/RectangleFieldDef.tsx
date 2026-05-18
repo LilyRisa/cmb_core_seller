@@ -1,6 +1,6 @@
 import { ColorPicker, Form, InputNumber } from 'antd';
 import { BorderOutlined } from '@ant-design/icons';
-import { Group, Rect } from 'react-konva';
+import { Rect } from 'react-konva';
 import type { RectangleField } from '@/lib/shippingLabelTypes';
 import { mm2px } from '@/lib/labelEditor/coords';
 import type { FieldDef } from './index';
@@ -9,12 +9,11 @@ export const RectangleFieldDef: FieldDef<RectangleField> = {
     type: 'rectangle', label: 'Khung', icon: <BorderOutlined />, group: 'shape',
     defaultProps: () => ({ type: 'rectangle', x: 5, y: 5, w: 50, h: 30, borderThickness: 1, borderColor: '#222222', cornerRadius: 0, fillColor: '#ffffff' }),
     KonvaRenderer: ({ field, selected, zoom }) => (
-        <Group x={mm2px(field.x, zoom)} y={mm2px(field.y, zoom)} rotation={field.rotation ?? 0}>
-            <Rect width={mm2px(field.w, zoom)} height={mm2px(field.h, zoom)}
-                  fill={field.fillColor ?? 'transparent'}
-                  stroke={field.borderColor ?? '#222'} strokeWidth={field.borderThickness ?? 1}
-                  cornerRadius={field.cornerRadius ?? 0} dash={selected ? [4, 2] : undefined} />
-        </Group>
+        <Rect width={mm2px(field.w, zoom)} height={mm2px(field.h, zoom)}
+              fill={field.fillColor ?? 'transparent'}
+              stroke={selected ? '#1677ff' : (field.borderColor ?? '#222')}
+              strokeWidth={field.borderThickness ?? 1}
+              cornerRadius={field.cornerRadius ?? 0} dash={selected ? [4, 2] : undefined} />
     ),
     InspectorPanel: ({ field, onChange }) => (
         <>
