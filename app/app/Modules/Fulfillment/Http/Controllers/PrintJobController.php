@@ -46,13 +46,26 @@ class PrintJobController extends Controller
             'order_ids.*' => ['integer'],
             'shipment_ids' => ['sometimes', 'array', 'max:500'],
             'shipment_ids.*' => ['integer'],
+            'template_id' => ['sometimes', 'nullable', 'integer'],
         ]);
         $orderIds = array_map('intval', $data['order_ids'] ?? []);
         $shipmentIds = array_map('intval', $data['shipment_ids'] ?? []);
         if ($orderIds === [] && $shipmentIds === []) {
             throw ValidationException::withMessages(['order_ids' => 'Chọn ít nhất một đơn hoặc một vận đơn.']);
         }
-        $job = $service->createJob((int) $tenant->id(), $data['type'], $orderIds, $shipmentIds, $request->user()->getKey());
+        $meta = [];
+        if (! empty($data['template_id'])) {
+            if ($data['type'] !== 'delivery') {
+                throw ValidationException::withMessages(['template_id' => 'template_id chỉ dùng cho type=delivery.']);
+            }
+            $tpl = \CMBcoreSeller\Modules\Fulfillment\Models\ShippingLabelTemplate::query()
+                ->where('tenant_id', $tenant->id())->find((int) $data['template_id']);
+            if (! $tpl) {
+                throw ValidationException::withMessages(['template_id' => 'Template không tồn tại.']);
+            }
+            $meta = ['template_id' => $tpl->id, 'template_name' => $tpl->name];
+        }
+        $job = $service->createJob((int) $tenant->id(), $data['type'], $orderIds, $shipmentIds, $request->user()->getKey(), $meta);
 
         return response()->json(['data' => new PrintJobResource($job)], 201);
     }
