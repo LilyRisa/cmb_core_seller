@@ -6,6 +6,7 @@ import { CarOutlined, CheckCircleOutlined, CloseCircleOutlined, ExportOutlined, 
 import type { ColumnsType } from 'antd/es/table';
 import { ChannelBadge } from '@/components/ChannelBadge';
 import { CarrierAccountPicker } from '@/components/CarrierAccountPicker';
+import { TemplateAliasPicker } from '@/components/shipping-labels/TemplateAliasPicker';
 import { MoneyText, DateText } from '@/components/MoneyText';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
@@ -112,6 +113,7 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
     const busy = ship.isPending || pack.isPending || handover.isPending || createPrint.isPending || refetchSlip.isPending;
     // SPEC 0021 — đơn manual cần chọn ĐVVC trước khi "Chuẩn bị hàng" (đẩy sang GHN/...). Đơn sàn KHÔNG cần.
     const [carrierPicker, setCarrierPicker] = useState(false);
+    const [pickerOpen, setPickerOpen] = useState<{ open: boolean; orderIds: number[] }>({ open: false, orderIds: [] });
     const isManual = order.source === 'manual' || !order.channel_account_id;
     if (busy) return <Spin size="small" />;
 
@@ -141,14 +143,10 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
         }
         runPrintLabel();
     };
-    // "In phiếu giao hàng": nếu đã có phiếu ⇒ in luôn; chưa có ⇒ popup hướng dẫn (ngôn ngữ dễ hiểu) gợi bấm "Nhận phiếu giao hàng".
+    // "In phiếu giao hàng": nếu đã có phiếu ⇒ in luôn; chưa có ⇒ mở TemplateAliasPicker để chọn mẫu rồi tạo print job.
     const printDelivery = () => {
         if (sh && sh.has_label) { printLabelBundle(); return; }
-        Modal.confirm({
-            title: 'Đơn này chưa có phiếu giao hàng',
-            content: 'Cần lấy phiếu giao hàng về máy trước khi in. Bấm "Nhận phiếu giao hàng" để hệ thống tự tải về — sẽ có thanh tiến trình; khi xong, bấm "Mở để in".',
-            okText: 'Nhận phiếu giao hàng', cancelText: 'Đóng', onOk: () => getSlip(),
-        });
+        setPickerOpen({ open: true, orderIds: [order.id] });
     };
     const printInvoice = () => createPrint.mutate({ type: 'invoice', order_ids: [order.id] }, { onSuccess: (j) => onPrint(j.id), onError: err });
     // "Chuẩn bị hàng": đơn sàn ⇒ hệ thống tự lấy mã vận đơn + phiếu giao hàng của sàn. Đơn manual ⇒ FE mở
@@ -220,6 +218,16 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
                 preferredAccountId={typeof order.meta?.preferred_carrier_account_id === 'number' ? order.meta.preferred_carrier_account_id : null}
                 onCancel={() => setCarrierPicker(false)}
                 onConfirm={(cid) => runPrepare(cid)}
+            />
+            <TemplateAliasPicker
+                open={pickerOpen.open}
+                onCancel={() => setPickerOpen({ open: false, orderIds: [] })}
+                onConfirm={(templateId) => {
+                    const ids = pickerOpen.orderIds;
+                    setPickerOpen({ open: false, orderIds: [] });
+                    createPrint.mutate({ type: 'delivery', order_ids: ids, template_id: templateId },
+                        { onSuccess: (j) => onPrint(j.id), onError: err });
+                }}
             />
         </>
     );
