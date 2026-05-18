@@ -2,16 +2,16 @@
 
 namespace CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields;
 
+use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Concerns\ValidatesProps;
 use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Contracts\FieldType;
 use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\DataContext;
 use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\FieldRenderHelpers;
-use Illuminate\Translation\ArrayLoader;
-use Illuminate\Translation\Translator;
-use Illuminate\Validation\Factory as ValidatorFactory;
 use Illuminate\Validation\Rule;
 
 class TextField implements FieldType
 {
+    use ValidatesProps;
+
     public function key(): string { return 'text'; }
 
     public function validateProps(array $props): array
@@ -32,12 +32,5 @@ class TextField implements FieldType
     public function renderHtml(array $field, DataContext $ctx, FieldRenderHelpers $h): string
     {
         return $h->positionedBox($field, $h->textStyle($field['style'] ?? []), $h->escape((string) ($field['text'] ?? '')));
-    }
-
-    private function validatorFactory(): ValidatorFactory
-    {
-        $translator = new Translator(new ArrayLoader(), 'en');
-
-        return new ValidatorFactory($translator);
     }
 }
