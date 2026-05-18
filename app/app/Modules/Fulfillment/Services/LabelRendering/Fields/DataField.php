@@ -21,7 +21,10 @@ class DataField implements FieldType
         'cod', 'weight', 'print_note', 'created_at', 'total_qty',
     ];
 
-    public function key(): string { return 'data'; }
+    public function key(): string
+    {
+        return 'data';
+    }
 
     public function validateProps(array $props): array
     {

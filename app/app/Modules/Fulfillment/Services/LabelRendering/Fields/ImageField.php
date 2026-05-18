@@ -15,7 +15,10 @@ class ImageField implements FieldType
 
     public function __construct(private readonly ?MediaUploader $media = null) {}
 
-    public function key(): string { return 'image'; }
+    public function key(): string
+    {
+        return 'image';
+    }
 
     public function validateProps(array $props): array
     {
@@ -27,7 +30,10 @@ class ImageField implements FieldType
         return $props;
     }
 
-    public function dataKeys(): array { return []; }
+    public function dataKeys(): array
+    {
+        return [];
+    }
 
     public function renderHtml(array $field, DataContext $ctx, FieldRenderHelpers $h): string
     {

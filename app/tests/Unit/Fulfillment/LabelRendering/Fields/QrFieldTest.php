@@ -2,8 +2,8 @@
 
 namespace Tests\Unit\Fulfillment\LabelRendering\Fields;
 
-use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields\QrField;
 use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\FieldRenderHelpers;
+use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields\QrField;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\TestCase;
 use Tests\Support\MakesDataContext;
@@ -13,12 +13,13 @@ class QrFieldTest extends TestCase
     use MakesDataContext;
 
     private QrField $f;
+
     private FieldRenderHelpers $h;
 
     protected function setUp(): void
     {
-        $this->f = new QrField();
-        $this->h = new FieldRenderHelpers();
+        $this->f = new QrField;
+        $this->h = new FieldRenderHelpers;
     }
 
     public function test_validate_props_rejects_unknown_source(): void

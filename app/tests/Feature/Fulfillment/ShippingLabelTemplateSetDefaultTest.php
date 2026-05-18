@@ -44,7 +44,7 @@ class ShippingLabelTemplateSetDefaultTest extends TestCase
         $t = Tenant::factory()->create();
         $a = $this->makeTpl($t->id, 'Tem A', false);
 
-        $copy = app(ShippingLabelTemplateService::class)->duplicate($t->id, $a->id, /*createdBy*/ null);
+        $copy = app(ShippingLabelTemplateService::class)->duplicate($t->id, $a->id, /* createdBy */ null);
 
         $this->assertSame('Tem A (copy)', $copy->name);
         $this->assertFalse($copy->is_default);

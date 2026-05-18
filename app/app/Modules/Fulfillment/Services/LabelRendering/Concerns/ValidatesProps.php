@@ -17,7 +17,7 @@ trait ValidatesProps
     {
         static $factory = null;
         if ($factory === null) {
-            $factory = new ValidatorFactory(new Translator(new ArrayLoader(), 'en'));
+            $factory = new ValidatorFactory(new Translator(new ArrayLoader, 'en'));
         }
 
         return $factory;

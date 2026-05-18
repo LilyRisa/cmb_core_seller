@@ -2,8 +2,8 @@
 
 namespace Tests\Unit\Fulfillment\LabelRendering\Fields;
 
-use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields\DataField;
 use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\FieldRenderHelpers;
+use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields\DataField;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\TestCase;
 use Tests\Support\MakesDataContext;
@@ -13,12 +13,13 @@ class DataFieldTest extends TestCase
     use MakesDataContext;
 
     private DataField $f;
+
     private FieldRenderHelpers $h;
 
     protected function setUp(): void
     {
-        $this->f = new DataField();
-        $this->h = new FieldRenderHelpers();
+        $this->f = new DataField;
+        $this->h = new FieldRenderHelpers;
     }
 
     public function test_validate_rejects_unknown_key(): void
@@ -57,7 +58,7 @@ class DataFieldTest extends TestCase
         // 'created_at_fmt' input in MakesDataContext but DataField key is 'created_at'
         $dataFieldKey = $key === 'created_at_fmt' ? 'created_at' : $key;
         $field = ['type' => 'data', 'x' => 0, 'y' => 0, 'w' => 50, 'h' => 6,
-                  'key' => $dataFieldKey, 'style' => ['fontSize' => 11]];
+            'key' => $dataFieldKey, 'style' => ['fontSize' => 11]];
         $html = $this->f->renderHtml($field, $this->makeContext(), $this->h);
         $this->assertStringContainsString($expected, $html);
     }
@@ -65,8 +66,8 @@ class DataFieldTest extends TestCase
     public function test_prefix_suffix_applied(): void
     {
         $field = ['type' => 'data', 'x' => 0, 'y' => 0, 'w' => 50, 'h' => 6,
-                  'key' => 'order_number', 'style' => ['fontSize' => 11],
-                  'prefix' => 'Mã: ', 'suffix' => ' #'];
+            'key' => 'order_number', 'style' => ['fontSize' => 11],
+            'prefix' => 'Mã: ', 'suffix' => ' #'];
         $html = $this->f->renderHtml($field, $this->makeContext(), $this->h);
         $this->assertStringContainsString('Mã: M-001 #', $html);
     }
@@ -74,7 +75,7 @@ class DataFieldTest extends TestCase
     public function test_cod_zero_renders_dash(): void
     {
         $field = ['type' => 'data', 'x' => 0, 'y' => 0, 'w' => 50, 'h' => 6,
-                  'key' => 'cod', 'style' => ['fontSize' => 11]];
+            'key' => 'cod', 'style' => ['fontSize' => 11]];
         $html = $this->f->renderHtml($field, $this->makeContext(['cod' => 0]), $this->h);
         $this->assertStringContainsString('—', $html);
     }

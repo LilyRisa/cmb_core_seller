@@ -15,7 +15,9 @@ class ShippingLabelTemplateCrudTest extends TestCase
     use RefreshDatabase;
 
     private Tenant $tenant;
+
     private User $owner;
+
     private User $viewer;
 
     protected function setUp(): void
@@ -35,7 +37,7 @@ class ShippingLabelTemplateCrudTest extends TestCase
             'paper' => 'A6', 'paper_w_mm' => 105, 'paper_h_mm' => 148,
             'schema' => ['fields' => [
                 ['id' => 'a', 'type' => 'text', 'x' => 5, 'y' => 5, 'w' => 50, 'h' => 6,
-                 'text' => 'Shop', 'style' => ['fontSize' => 11]],
+                    'text' => 'Shop', 'style' => ['fontSize' => 11]],
             ]],
         ], $overrides);
     }
@@ -44,16 +46,16 @@ class ShippingLabelTemplateCrudTest extends TestCase
     {
         Sanctum::actingAs($this->owner);
         $this->withHeader('X-Tenant-Id', (string) $this->tenant->id)
-             ->postJson('/api/v1/shipping-label-templates', $this->payload())
-             ->assertCreated()->assertJsonPath('data.name', 'Tem A6 chuẩn');
+            ->postJson('/api/v1/shipping-label-templates', $this->payload())
+            ->assertCreated()->assertJsonPath('data.name', 'Tem A6 chuẩn');
     }
 
     public function test_viewer_cannot_create_template(): void
     {
         Sanctum::actingAs($this->viewer);
         $this->withHeader('X-Tenant-Id', (string) $this->tenant->id)
-             ->postJson('/api/v1/shipping-label-templates', $this->payload())
-             ->assertForbidden();
+            ->postJson('/api/v1/shipping-label-templates', $this->payload())
+            ->assertForbidden();
     }
 
     public function test_viewer_can_list_templates(): void
@@ -61,8 +63,8 @@ class ShippingLabelTemplateCrudTest extends TestCase
         ShippingLabelTemplate::create($this->payload() + ['tenant_id' => $this->tenant->id, 'schema_version' => 1, 'is_default' => false]);
         Sanctum::actingAs($this->viewer);
         $this->withHeader('X-Tenant-Id', (string) $this->tenant->id)
-             ->getJson('/api/v1/shipping-label-templates')
-             ->assertOk()->assertJsonCount(1, 'data');
+            ->getJson('/api/v1/shipping-label-templates')
+            ->assertOk()->assertJsonCount(1, 'data');
     }
 
     public function test_create_rejects_overflow_field(): void
@@ -71,8 +73,8 @@ class ShippingLabelTemplateCrudTest extends TestCase
         $payload = $this->payload();
         $payload['schema']['fields'][0]['w'] = 200;
         $resp = $this->withHeader('X-Tenant-Id', (string) $this->tenant->id)
-             ->postJson('/api/v1/shipping-label-templates', $payload)
-             ->assertStatus(422);
+            ->postJson('/api/v1/shipping-label-templates', $payload)
+            ->assertStatus(422);
         $this->assertArrayHasKey('schema.fields.0.w', $resp->json('error.details'));
     }
 
@@ -81,8 +83,8 @@ class ShippingLabelTemplateCrudTest extends TestCase
         ShippingLabelTemplate::create($this->payload() + ['tenant_id' => $this->tenant->id, 'schema_version' => 1, 'is_default' => false]);
         Sanctum::actingAs($this->owner);
         $this->withHeader('X-Tenant-Id', (string) $this->tenant->id)
-             ->postJson('/api/v1/shipping-label-templates', $this->payload())
-             ->assertStatus(422);
+            ->postJson('/api/v1/shipping-label-templates', $this->payload())
+            ->assertStatus(422);
     }
 
     public function test_destroy_soft_deletes(): void
@@ -90,8 +92,8 @@ class ShippingLabelTemplateCrudTest extends TestCase
         $tpl = ShippingLabelTemplate::create($this->payload() + ['tenant_id' => $this->tenant->id, 'schema_version' => 1, 'is_default' => false]);
         Sanctum::actingAs($this->owner);
         $this->withHeader('X-Tenant-Id', (string) $this->tenant->id)
-             ->deleteJson('/api/v1/shipping-label-templates/'.$tpl->id)
-             ->assertOk();
+            ->deleteJson('/api/v1/shipping-label-templates/'.$tpl->id)
+            ->assertOk();
         $this->assertSoftDeleted('shipping_label_templates', ['id' => $tpl->id]);
     }
 
@@ -101,7 +103,7 @@ class ShippingLabelTemplateCrudTest extends TestCase
         $tpl = ShippingLabelTemplate::create($this->payload() + ['tenant_id' => $other->id, 'schema_version' => 1, 'is_default' => false]);
         Sanctum::actingAs($this->owner);
         $this->withHeader('X-Tenant-Id', (string) $this->tenant->id)
-             ->getJson('/api/v1/shipping-label-templates/'.$tpl->id)
-             ->assertNotFound();
+            ->getJson('/api/v1/shipping-label-templates/'.$tpl->id)
+            ->assertNotFound();
     }
 }

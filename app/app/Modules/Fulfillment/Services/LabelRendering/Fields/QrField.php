@@ -12,7 +12,10 @@ class QrField implements FieldType
 {
     use ValidatesProps;
 
-    public function key(): string { return 'qr'; }
+    public function key(): string
+    {
+        return 'qr';
+    }
 
     public function validateProps(array $props): array
     {

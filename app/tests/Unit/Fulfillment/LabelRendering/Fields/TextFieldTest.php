@@ -2,8 +2,8 @@
 
 namespace Tests\Unit\Fulfillment\LabelRendering\Fields;
 
-use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields\TextField;
 use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\FieldRenderHelpers;
+use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields\TextField;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\TestCase;
 use Tests\Support\MakesDataContext;
@@ -13,12 +13,13 @@ class TextFieldTest extends TestCase
     use MakesDataContext;
 
     private TextField $f;
+
     private FieldRenderHelpers $h;
 
     protected function setUp(): void
     {
-        $this->f = new TextField();
-        $this->h = new FieldRenderHelpers();
+        $this->f = new TextField;
+        $this->h = new FieldRenderHelpers;
     }
 
     public function test_key(): void
@@ -41,7 +42,7 @@ class TextFieldTest extends TestCase
     public function test_render_html_escapes_text(): void
     {
         $field = ['type' => 'text', 'x' => 0, 'y' => 0, 'w' => 30, 'h' => 5,
-                  'text' => '<b>shop</b>', 'style' => ['fontSize' => 11]];
+            'text' => '<b>shop</b>', 'style' => ['fontSize' => 11]];
         $html = $this->f->renderHtml($field, $this->makeContext(), $this->h);
         $this->assertStringContainsString('&lt;b&gt;shop&lt;/b&gt;', $html);
     }

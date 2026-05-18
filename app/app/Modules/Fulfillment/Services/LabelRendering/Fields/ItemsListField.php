@@ -12,7 +12,10 @@ class ItemsListField implements FieldType
 {
     use ValidatesProps;
 
-    public function key(): string { return 'items_list'; }
+    public function key(): string
+    {
+        return 'items_list';
+    }
 
     public function validateProps(array $props): array
     {
@@ -26,7 +29,10 @@ class ItemsListField implements FieldType
         return $props;
     }
 
-    public function dataKeys(): array { return ['items']; }
+    public function dataKeys(): array
+    {
+        return ['items'];
+    }
 
     public function renderHtml(array $field, DataContext $ctx, FieldRenderHelpers $h): string
     {

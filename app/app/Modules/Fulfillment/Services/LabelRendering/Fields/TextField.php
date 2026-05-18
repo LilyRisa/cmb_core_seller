@@ -12,7 +12,10 @@ class TextField implements FieldType
 {
     use ValidatesProps;
 
-    public function key(): string { return 'text'; }
+    public function key(): string
+    {
+        return 'text';
+    }
 
     public function validateProps(array $props): array
     {
@@ -27,7 +30,10 @@ class TextField implements FieldType
         return $props;
     }
 
-    public function dataKeys(): array { return []; }
+    public function dataKeys(): array
+    {
+        return [];
+    }
 
     public function renderHtml(array $field, DataContext $ctx, FieldRenderHelpers $h): string
     {

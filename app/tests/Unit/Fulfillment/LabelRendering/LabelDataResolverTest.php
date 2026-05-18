@@ -2,7 +2,6 @@
 
 namespace Tests\Unit\Fulfillment\LabelRendering;
 
-use CMBcoreSeller\Modules\Fulfillment\Models\CarrierAccount;
 use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
 use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\LabelDataResolver;
 use CMBcoreSeller\Modules\Inventory\Models\Warehouse;
@@ -26,7 +25,7 @@ class LabelDataResolverTest extends TestCase
             'tenant_id' => $t->id, 'warehouse_id' => $wh->id, 'source' => 'manual',
             'order_number' => 'M-9', 'buyer_name' => 'Nguyễn B',
             'shipping_address' => ['fullName' => 'Nguyễn B', 'phone' => '0911', 'line1' => '34 THD',
-                                   'ward' => 'Hàng Bài', 'district' => 'Hoàn Kiếm', 'province' => 'Hà Nội'],
+                'ward' => 'Hàng Bài', 'district' => 'Hoàn Kiếm', 'province' => 'Hà Nội'],
             'cod_amount' => 250000, 'is_cod' => true, 'grand_total' => 250000,
             'meta' => ['print_note' => 'Cảm ơn'], 'status' => 'processing',
         ]);
@@ -35,7 +34,7 @@ class LabelDataResolverTest extends TestCase
         Shipment::create(['tenant_id' => $t->id, 'order_id' => $o->id, 'carrier' => 'ghn',
             'tracking_no' => 'AWB-9', 'status' => 'created', 'weight_grams' => 500]);
 
-        $ctx = (new LabelDataResolver())->resolve($o->fresh());
+        $ctx = (new LabelDataResolver)->resolve($o->fresh());
 
         $this->assertSame('M-9', $ctx->order_number);
         $this->assertSame('AWB-9', $ctx->tracking_no);
@@ -62,7 +61,7 @@ class LabelDataResolverTest extends TestCase
         $o = Order::create(['tenant_id' => $t->id, 'warehouse_id' => null, 'source' => 'manual',
             'order_number' => 'M-1', 'shipping_address' => [], 'status' => 'pending']);
 
-        $ctx = (new LabelDataResolver())->resolve($o->fresh());
+        $ctx = (new LabelDataResolver)->resolve($o->fresh());
 
         $this->assertSame('Default Shop', $ctx->sender_name);
     }
@@ -79,7 +78,7 @@ class LabelDataResolverTest extends TestCase
         $o = $o->fresh();
         DB::flushQueryLog();
         DB::enableQueryLog();
-        (new LabelDataResolver())->resolve($o);
+        (new LabelDataResolver)->resolve($o);
         $this->assertLessThanOrEqual(4, count(DB::getQueryLog()), 'Expected ≤4 queries (warehouse, shipment, items, fallback) — got '.count(DB::getQueryLog()));
     }
 }

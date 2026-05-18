@@ -11,7 +11,7 @@ class FieldRenderHelpersTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->h = new FieldRenderHelpers();
+        $this->h = new FieldRenderHelpers;
     }
 
     public function test_escape_handles_html(): void

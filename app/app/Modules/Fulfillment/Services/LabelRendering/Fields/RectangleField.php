@@ -11,7 +11,10 @@ class RectangleField implements FieldType
 {
     use ValidatesProps;
 
-    public function key(): string { return 'rectangle'; }
+    public function key(): string
+    {
+        return 'rectangle';
+    }
 
     public function validateProps(array $props): array
     {
@@ -25,7 +28,10 @@ class RectangleField implements FieldType
         return $props;
     }
 
-    public function dataKeys(): array { return []; }
+    public function dataKeys(): array
+    {
+        return [];
+    }
 
     public function renderHtml(array $field, DataContext $ctx, FieldRenderHelpers $h): string
     {

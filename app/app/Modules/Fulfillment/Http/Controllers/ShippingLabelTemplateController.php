@@ -17,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ShippingLabelTemplateController extends Controller
 {
@@ -175,22 +176,23 @@ class ShippingLabelTemplateController extends Controller
             $type = $registry->get($field['type']);
             if (! $type) {
                 $fullFields[] = $rawField;
+
                 continue;
             }
             try {
                 $type->validateProps($rawField);
-            } catch (\Illuminate\Validation\ValidationException $e) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
+            } catch (ValidationException $e) {
+                throw ValidationException::withMessages([
                     "schema.fields.{$i}" => $e->errors(),
                 ]);
             }
             if (($field['x'] + $field['w']) > $data['paper_w_mm']) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
+                throw ValidationException::withMessages([
                     "schema.fields.{$i}.w" => "Field '{$field['id']}' vượt chiều rộng giấy.",
                 ]);
             }
             if ($data['paper_h_mm'] > 0 && ($field['y'] + $field['h']) > $data['paper_h_mm']) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
+                throw ValidationException::withMessages([
                     "schema.fields.{$i}.h" => "Field '{$field['id']}' vượt chiều cao giấy.",
                 ]);
             }

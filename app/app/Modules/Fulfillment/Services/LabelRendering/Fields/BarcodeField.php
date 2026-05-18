@@ -12,7 +12,10 @@ class BarcodeField implements FieldType
 {
     use ValidatesProps;
 
-    public function key(): string { return 'barcode'; }
+    public function key(): string
+    {
+        return 'barcode';
+    }
 
     public function validateProps(array $props): array
     {

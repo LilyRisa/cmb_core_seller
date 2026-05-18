@@ -11,7 +11,10 @@ class DividerField implements FieldType
 {
     use ValidatesProps;
 
-    public function key(): string { return 'divider'; }
+    public function key(): string
+    {
+        return 'divider';
+    }
 
     public function validateProps(array $props): array
     {
@@ -23,7 +26,10 @@ class DividerField implements FieldType
         return $props;
     }
 
-    public function dataKeys(): array { return []; }
+    public function dataKeys(): array
+    {
+        return [];
+    }
 
     public function renderHtml(array $field, DataContext $ctx, FieldRenderHelpers $h): string
     {
