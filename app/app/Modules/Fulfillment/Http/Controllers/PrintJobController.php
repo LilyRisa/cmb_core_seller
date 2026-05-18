@@ -10,6 +10,7 @@ use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\ValidationException;
 
 /** /api/v1/print-jobs — bulk shipping-label / picking-list / packing-list PDFs. See SPEC 0006 §6. */
@@ -83,12 +84,24 @@ class PrintJobController extends Controller
         return response()->json(['data' => $service->markPrinted($job, (int) ($data['copies'] ?? 1))]);
     }
 
-    public function download(Request $request, int $id): JsonResponse|RedirectResponse
+    public function download(Request $request, int $id, PrintService $service): JsonResponse|RedirectResponse|Response
     {
         abort_unless($request->user()?->can('fulfillment.print'), 403, 'Bạn không có quyền.');
         $job = PrintJob::query()->findOrFail($id);
         if ($job->status !== PrintJob::STATUS_DONE || ! $job->file_url) {
             abort(409, 'Tệp in chưa sẵn sàng'.($job->status === PrintJob::STATUS_ERROR ? ' (lỗi: '.$job->error.')' : '.'));
+        }
+        // Ephemeral (template-rendered delivery slip for manual orders): bytes live 1h in Redis,
+        // not on R2 — re-trigger print if cache expired.
+        if (data_get($job->meta, 'ephemeral') === true) {
+            $bytes = $service->ephemeralBytes($job);
+            abort_if($bytes === null, 410, 'Phiếu in đã hết hạn (giữ tối đa 1 giờ) — vui lòng in lại.');
+
+            return response($bytes, 200, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="phieu-giao-hang-'.$id.'.pdf"',
+                'Cache-Control' => 'no-store',
+            ]);
         }
 
         return redirect()->away($job->file_url);
