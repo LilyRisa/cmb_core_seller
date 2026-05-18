@@ -15,6 +15,7 @@ import { LinkSkusModal } from '@/components/LinkSkusModal';
 import { OrderDetailModal } from '@/components/OrderDetailModal';
 import { OrderActions, PrintCountBadge, PrintJobBar, ScanTab, ShipmentsTab } from '@/components/OrderProcessing';
 import { CarrierAccountPicker } from '@/components/CarrierAccountPicker';
+import { TemplateAliasPicker } from '@/components/shipping-labels/TemplateAliasPicker';
 import { errorMessage } from '@/lib/api';
 import { CHANNEL_META, ORDER_STATUS_TABS } from '@/lib/format';
 import { Order, useOrders, useOrderStats, useSyncOrders } from '@/lib/orders';
@@ -74,6 +75,8 @@ export function OrdersPage() {
     const [scan, setScan] = useState<{ open: boolean; mode: 'pack' | 'handover' }>({ open: false, mode: 'pack' });
     // SPEC 0021 — popup chọn ĐVVC khi "Chuẩn bị hàng" cho đơn manual; lưu các id manual đang chờ confirm.
     const [carrierPicker, setCarrierPicker] = useState<{ open: boolean; orderIds: number[] }>({ open: false, orderIds: [] });
+    // Shipping-label designer — bulk print phiếu giao hàng cho đơn manual đi qua picker để chọn template.
+    const [bulkLabelPicker, setBulkLabelPicker] = useState<{ open: boolean; orderIds: number[] }>({ open: false, orderIds: [] });
 
     const tabKey = params.get('tab') ?? (params.get('has_issue') ? 'issue' : '');
     const statusParam = params.get('status') ?? '';
@@ -321,12 +324,17 @@ export function OrdersPage() {
             });
             return;
         }
-        const runPrint = () => createPrintJob.mutate({ type: 'label', shipment_ids: ready.map((o) => o.shipment!.id) }, {
+        // Đơn manual ⇒ render qua template do shop tự thiết kế (type='delivery' + template_id);
+        // đơn sàn ⇒ in tem bundle của sàn (type='label' + shipment_ids).
+        const allManual = ready.every((o) => o.source === 'manual');
+        const reprinted = ready.filter((o) => (o.shipment!.print_count ?? 0) > 0);
+        const runChannelPrint = () => createPrintJob.mutate({ type: 'label', shipment_ids: ready.map((o) => o.shipment!.id) }, {
             onSuccess: (j) => { setPrintJobId(j.id); setSelectedKeys([]); },
             onError: (e) => Modal.warning({ title: 'Không in được tem', content: errorMessage(e), okText: 'Đã hiểu' }),
         });
+        const openManualPicker = () => setBulkLabelPicker({ open: true, orderIds: ready.map((o) => o.id) });
+        const proceed = allManual ? openManualPicker : runChannelPrint;
         // Cảnh báo in lại: ≥1 đơn đã được in trước đó (`print_count > 0`) ⇒ tránh in trùng phiếu vận chuyển.
-        const reprinted = ready.filter((o) => (o.shipment!.print_count ?? 0) > 0);
         if (reprinted.length > 0) {
             Modal.confirm({
                 title: `${reprinted.length} đơn đã từng in phiếu — vẫn in tiếp?`,
@@ -341,11 +349,11 @@ export function OrdersPage() {
                     </div>
                 ),
                 okText: 'Vẫn in', okButtonProps: { danger: true }, cancelText: 'Huỷ',
-                onOk: runPrint,
+                onOk: proceed,
             });
             return;
         }
-        runPrint();
+        proceed();
     };
 
     // chip-row items — kèm logo gian hàng để nhận diện trực quan (logo sàn cho cả "Sàn TMĐT" lẫn "Gian hàng")
@@ -658,6 +666,18 @@ export function OrdersPage() {
                 })()}
                 onCancel={() => setCarrierPicker({ open: false, orderIds: [] })}
                 onConfirm={(cid) => runBulkPrepare(carrierPicker.orderIds, cid)}
+            />
+            <TemplateAliasPicker
+                open={bulkLabelPicker.open}
+                onCancel={() => setBulkLabelPicker({ open: false, orderIds: [] })}
+                onConfirm={(templateId) => {
+                    const ids = bulkLabelPicker.orderIds;
+                    setBulkLabelPicker({ open: false, orderIds: [] });
+                    createPrintJob.mutate({ type: 'delivery', order_ids: ids, template_id: templateId }, {
+                        onSuccess: (j) => { setPrintJobId(j.id); setSelectedKeys([]); },
+                        onError: (e) => Modal.warning({ title: 'Không in được phiếu', content: errorMessage(e), okText: 'Đã hiểu' }),
+                    });
+                }}
             />
             {printJobId != null && <PrintJobBar jobId={printJobId} onClose={() => setPrintJobId(null)} />}
             <LinkSkusModal open={linkModal.open} orderIds={linkModal.orderIds} onClose={() => { setLinkModal({ open: false }); setSelectedKeys([]); }} />

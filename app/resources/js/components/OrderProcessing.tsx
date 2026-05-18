@@ -143,8 +143,26 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
         }
         runPrintLabel();
     };
-    // "In phiếu giao hàng": nếu đã có phiếu ⇒ in luôn; chưa có ⇒ mở TemplateAliasPicker để chọn mẫu rồi tạo print job.
+    // "In phiếu giao hàng":
+    //   - Đơn manual ⇒ LUÔN mở TemplateAliasPicker (cho phép chọn template tự thiết kế hoặc fallback hệ thống).
+    //     SPEC 0021 auto-render slip mặc định nên has_label=true; cần override bằng template do shop tạo.
+    //   - Đơn sàn (TikTok/Shopee/…) ⇒ đã có label gốc ⇒ in tem bundle; chưa có ⇒ rơi vào picker để render fallback.
     const printDelivery = () => {
+        if (isManual) {
+            const open = () => setPickerOpen({ open: true, orderIds: [order.id] });
+            if (sh && (sh.print_count ?? 0) > 0) {
+                const code = order.order_number ?? order.external_order_id ?? `#${order.id}`;
+                Modal.confirm({
+                    title: 'Đơn này đã từng in phiếu',
+                    content: <span>Đơn <b>{code}</b> đã in <b>{sh.print_count}</b> lần. In lại có thể tạo trùng phiếu vận chuyển — vẫn tiếp tục?</span>,
+                    okText: 'Vẫn in', okButtonProps: { danger: true }, cancelText: 'Huỷ',
+                    onOk: open,
+                });
+                return;
+            }
+            open();
+            return;
+        }
         if (sh && sh.has_label) { printLabelBundle(); return; }
         setPickerOpen({ open: true, orderIds: [order.id] });
     };
