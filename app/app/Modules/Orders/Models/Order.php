@@ -72,7 +72,7 @@ class Order extends Model
     use BelongsToTenant, SoftDeletes;
 
     protected $fillable = [
-        'tenant_id', 'source', 'channel_account_id', 'customer_id', 'external_order_id', 'order_number',
+        'tenant_id', 'warehouse_id', 'source', 'channel_account_id', 'customer_id', 'external_order_id', 'order_number',
         'status', 'raw_status', 'payment_status', 'buyer_name', 'buyer_phone', 'shipping_address',
         'currency', 'item_total', 'shipping_fee', 'platform_discount', 'seller_discount', 'tax',
         'cod_amount', 'prepaid_amount', 'surcharge', 'grand_total', 'is_cod', 'fulfillment_type', 'carrier',

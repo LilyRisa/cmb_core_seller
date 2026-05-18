@@ -16,7 +16,7 @@ import { OrderItemsEditor, PickerTrigger, type OrderLineInput } from '@/componen
 import { AddressPicker, type PickedAddress } from '@/components/AddressPicker';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import { errorMessage } from '@/lib/api';
-import { useCreateManualOrder, useUpdateManualOrder, useUploadImage, type Sku } from '@/lib/inventory';
+import { useCreateManualOrder, useUpdateManualOrder, useUploadImage, useWarehouses, type Sku } from '@/lib/inventory';
 import { useOrder } from '@/lib/orders';
 import { useTenantMembers } from '@/lib/tenant';
 import { useAuth } from '@/lib/auth';
@@ -69,6 +69,16 @@ export function CreateOrderPage() {
     const upload = useUploadImage();
     const { data: me } = useAuth();
     const meId = me?.id ?? null;
+
+    // ---- warehouses ----
+    const { data: warehouses = [] } = useWarehouses();
+    const [warehouseId, setWarehouseId] = useState<number | null>(null);
+
+    useEffect(() => {
+        if (warehouseId == null && warehouses.length > 0) {
+            setWarehouseId(warehouses.find((w) => w.is_default)?.id ?? warehouses[0].id);
+        }
+    }, [warehouses, warehouseId]);
 
     // ---- state ngoài form ----
     const [items, setItems] = useState<OrderLineInput[]>([]);
@@ -276,6 +286,7 @@ export function CreateOrderPage() {
             prepaid_amount: (v.prepaid_amount as number) ?? 0,
             surcharge: (v.surcharge as number) ?? 0,
             is_cod: isCod,
+            warehouse_id: warehouseId ?? undefined,
             note: (v.note_internal as string) || undefined,
             tags,
             meta: {
@@ -648,6 +659,15 @@ export function CreateOrderPage() {
                         <Card size="small" className="ord-card" style={{ marginBottom: 16 }}
                             title={<span className="ord-card-title">Nhận hàng <span style={{ color: '#cf1322', marginInlineStart: 4 }}>*</span></span>}
                         >
+                            {warehouses.length > 1 && (
+                                <Form.Item label="Kho gửi" style={{ marginBottom: 8 }}>
+                                    <Radio.Group value={warehouseId} onChange={(e) => setWarehouseId(e.target.value as number)}>
+                                        {warehouses.map((w) => (
+                                            <Radio key={w.id} value={w.id}>{w.name}{w.is_default ? ' (mặc định)' : ''}</Radio>
+                                        ))}
+                                    </Radio.Group>
+                                </Form.Item>
+                            )}
                             <Form.Item name="expected_delivery_date" style={{ marginBottom: 8 }}>
                                 <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" placeholder="Dự kiến nhận hàng" suffixIcon={<CalendarOutlined />} />
                             </Form.Item>

@@ -39,8 +39,9 @@ class PrintService
     /**
      * @param  list<int>  $orderIds
      * @param  list<int>  $shipmentIds
+     * @param  array<string, mixed>  $meta
      */
-    public function createJob(int $tenantId, string $type, array $orderIds, array $shipmentIds, ?int $userId): PrintJob
+    public function createJob(int $tenantId, string $type, array $orderIds, array $shipmentIds, ?int $userId, array $meta = []): PrintJob
     {
         if ($type === PrintJob::TYPE_LABEL) {
             $this->assertSinglePlatformAndCarrier($tenantId, $orderIds, $shipmentIds);
@@ -49,6 +50,7 @@ class PrintService
             'tenant_id' => $tenantId, 'type' => $type,
             'scope' => array_filter(['order_ids' => array_values(array_unique(array_map('intval', $orderIds))), 'shipment_ids' => array_values(array_unique(array_map('intval', $shipmentIds)))]),
             'status' => PrintJob::STATUS_PENDING, 'created_by' => $userId,
+            'meta' => $meta ?: null,
         ]);
         RenderPrintJob::dispatch($job->getKey())->onQueue('labels');
 
@@ -286,17 +288,26 @@ class PrintService
         if ($orderIds === [] && ($sids = $job->shipmentIds())) {
             $orderIds = Shipment::query()->where('tenant_id', $tenantId)->whereIn('id', $sids)->pluck('order_id')->all();
         }
-        $orders = Order::query()->where('tenant_id', $tenantId)->whereIn('id', $orderIds)->whereNull('deleted_at')
+        $orders = Order::withoutGlobalScope(TenantScope::class)->where('tenant_id', $tenantId)->whereIn('id', $orderIds)->whereNull('deleted_at')
             ->with(['items', 'shipments' => fn ($q) => $q->orderByDesc('id')])->get();
         if ($orders->isEmpty()) {
             throw new \RuntimeException('Không có đơn nào để in.');
         }
-        // Defensive: phiếu giao hàng tự tạo KHÔNG dùng cho đơn sàn. Nếu lọt vào (race condition / future caller),
-        // chặn rõ ràng thay vì in ra phiếu tạm vô dụng cho người bán.
         $channelOrders = $orders->filter(fn (Order $o) => $o->channel_account_id !== null);
         if ($channelOrders->isNotEmpty()) {
-            throw new \RuntimeException('Đơn của sàn TMĐT chỉ dùng được phiếu/AWB thật của sàn — không in phiếu giao hàng tự tạo. Bấm "Nhận phiếu giao hàng" để hệ thống kéo phiếu thật từ sàn.');
+            throw new \RuntimeException('Đơn của sàn TMĐT chỉ dùng được phiếu/AWB thật của sàn — không in phiếu giao hàng tự tạo.');
         }
+
+        $templateId = (int) (data_get($job->meta, 'template_id') ?: 0);
+        if ($templateId > 0) {
+            $tpl = \CMBcoreSeller\Modules\Fulfillment\Models\ShippingLabelTemplate::withoutGlobalScope(TenantScope::class)
+                ->withTrashed()->where('tenant_id', $tenantId)->findOrFail($templateId);
+            $renderer = app(\CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\LabelRenderer::class);
+            $html = $renderer->renderBatch($orders, $tpl);
+
+            return [$this->gotenberg->htmlToPdf($html), ['orders' => $orders->count(), 'template_id' => $tpl->id, 'template_name' => $tpl->name, 'order_ids' => $orders->modelKeys()]];
+        }
+
         $shopName = (string) (Tenant::query()->whereKey($tenantId)->value('name') ?? 'Cửa hàng');
 
         return [$this->gotenberg->htmlToPdf(PrintTemplates::deliverySlip($orders, $shopName, $this->paperSize($tenantId), $this->skuMapFor($orders))), ['orders' => $orders->count(), 'order_ids' => $orders->modelKeys()]];
