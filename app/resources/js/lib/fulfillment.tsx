@@ -374,7 +374,7 @@ export function useScanProcess(mode: 'pack' | 'handover') {
 export function useCreatePrintJob() {
     const api = useScopedApi();
     return useMutation({
-        mutationFn: async (vars: { type: 'label' | 'picking' | 'packing' | 'invoice' | 'delivery'; order_ids?: number[]; shipment_ids?: number[] }) => {
+        mutationFn: async (vars: { type: 'label' | 'picking' | 'packing' | 'invoice' | 'delivery'; order_ids?: number[]; shipment_ids?: number[]; template_id?: number | null }) => {
             const { data } = await api!.post<{ data: PrintJob }>('/print-jobs', vars); return data.data;
         },
     });
