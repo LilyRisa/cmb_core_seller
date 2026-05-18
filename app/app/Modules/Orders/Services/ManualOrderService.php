@@ -28,6 +28,7 @@ class ManualOrderService
     public function create(int $tenantId, ?int $userId, array $data): Order
     {
         $items = $this->normalizeItems($data['items'] ?? []);
+        $warehouseId = $this->resolveWarehouseId($tenantId, $data['warehouse_id'] ?? null);
         $status = $this->chosenStatus($data['status'] ?? null);
         $buyer = (array) ($data['buyer'] ?? []);
         $recipient = (array) ($data['recipient'] ?? []);
@@ -68,9 +69,10 @@ class ManualOrderService
         };
         $now = now();
 
-        $order = DB::transaction(function () use ($tenantId, $userId, $items, $status, $buyer, $recipient, $shippingFee, $tax, $isCod, $itemTotal, $sellerDiscount, $grandTotal, $codAmount, $prepaidAmount, $surcharge, $freeShipping, $paymentStatus, $now, $data) {
+        $order = DB::transaction(function () use ($tenantId, $userId, $items, $status, $buyer, $recipient, $shippingFee, $tax, $isCod, $itemTotal, $sellerDiscount, $grandTotal, $codAmount, $prepaidAmount, $surcharge, $freeShipping, $paymentStatus, $now, $data, $warehouseId) {
             $order = Order::withoutGlobalScope(TenantScope::class)->create([
                 'tenant_id' => $tenantId,
+                'warehouse_id' => $warehouseId,
                 'source' => 'manual',
                 'channel_account_id' => null,
                 'external_order_id' => null,
@@ -487,5 +489,20 @@ class ManualOrderService
         }
 
         return 'M'.now()->format('ymdHis').'-'.Str::upper(Str::random(4));
+    }
+
+    private function resolveWarehouseId(int $tenantId, mixed $requested): int
+    {
+        if ($requested === null || $requested === '') {
+            return \CMBcoreSeller\Modules\Inventory\Models\Warehouse::defaultFor($tenantId)->id;
+        }
+        $exists = \CMBcoreSeller\Modules\Inventory\Models\Warehouse::query()
+            ->withoutGlobalScopes()
+            ->where('tenant_id', $tenantId)->where('id', (int) $requested)->exists();
+        if (! $exists) {
+            throw ValidationException::withMessages(['warehouse_id' => 'Kho gửi không thuộc shop hiện tại.']);
+        }
+
+        return (int) $requested;
     }
 }
