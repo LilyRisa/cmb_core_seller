@@ -22,14 +22,27 @@ class GotenbergClient
         return rtrim($this->baseUrl ?: $configured, '/').$path;
     }
 
-    /** Render an HTML document to a PDF (Chromium engine). Returns the PDF bytes. */
+    /**
+     * Render an HTML document to a PDF (Chromium engine). Returns the PDF bytes.
+     *
+     * Multipart parts are built manually rather than via Http::attach() because
+     * Laravel's PendingRequest::attach() runs the multipart entry through
+     * array_filter() (no callback), which silently drops any 'contents' value
+     * that PHP considers falsy — including the literal string '0'. Passing e.g.
+     * marginTop='0' would leave the part without a 'contents' key and Guzzle's
+     * MultipartStream then throws "A 'contents' key is required" before the
+     * request even leaves the app.
+     */
     public function htmlToPdf(string $html, array $options = []): string
     {
-        $req = Http::timeout(60)->attach('files', $html, 'index.html', ['Content-Type' => 'text/html']);
+        $multipart = [
+            ['name' => 'files', 'contents' => $html, 'filename' => 'index.html', 'headers' => ['Content-Type' => 'text/html']],
+        ];
         foreach ($options as $k => $v) {
-            $req = $req->attach($k, (string) $v);
+            $multipart[] = ['name' => $k, 'contents' => (string) $v];
         }
-        $res = $req->post($this->url('/forms/chromium/convert/html'));
+        $res = Http::timeout(60)->withOptions(['multipart' => $multipart])
+            ->post($this->url('/forms/chromium/convert/html'));
         if (! $res->successful()) {
             throw new RuntimeException('Gotenberg render HTML lỗi: '.$res->status().' '.$res->body());
         }
