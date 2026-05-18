@@ -6,11 +6,11 @@ import { mm2px } from '@/lib/labelEditor/coords';
 import type { FieldDef } from './index';
 
 export const ItemsListFieldDef: FieldDef<ItemsListField> = {
-    type: 'items_list', label: 'Danh sach SP', icon: <UnorderedListOutlined />, group: 'list',
+    type: 'items_list', label: 'Danh sách SP', icon: <UnorderedListOutlined />, group: 'list',
     defaultProps: () => ({ type: 'items_list', x: 5, y: 5, w: 80, h: 30, style: { fontSize: 10 }, format: 'bullet', maxRows: 5 }),
     KonvaRenderer: ({ field, ctx, selected, zoom }) => {
         const items = ctx.items.slice(0, field.maxRows ?? ctx.items.length);
-        const lines = items.map((it, i) => ((field.format ?? 'bullet') === 'numbered' ? `${i + 1}.` : '*') + ' ' + it.name + ' x ' + it.qty);
+        const lines = items.map((it, i) => ((field.format ?? 'bullet') === 'numbered' ? `${i + 1}.` : '•') + ' ' + it.name + ' x ' + it.qty);
         return (
             <Group x={mm2px(field.x, zoom)} y={mm2px(field.y, zoom)} rotation={field.rotation ?? 0}>
                 <Rect width={mm2px(field.w, zoom)} height={mm2px(field.h, zoom)} stroke={selected ? '#1677ff' : 'transparent'} dash={[4, 2]} />
@@ -21,14 +21,14 @@ export const ItemsListFieldDef: FieldDef<ItemsListField> = {
     },
     InspectorPanel: ({ field, onChange }) => (
         <>
-            <Form.Item label="Dinh dang">
+            <Form.Item label="Định dạng">
                 <Segmented options={[{ label: 'Bullet', value: 'bullet' }, { label: 'So TT', value: 'numbered' }]}
                     value={field.format ?? 'bullet'} onChange={(v) => onChange({ format: v as 'bullet' | 'numbered' })} />
             </Form.Item>
-            <Form.Item label="So dong toi da">
+            <Form.Item label="Số dòng tối đa">
                 <InputNumber min={1} max={50} value={field.maxRows ?? 5} onChange={(v) => onChange({ maxRows: v ?? 5 })} />
             </Form.Item>
-            <Form.Item label="Co chu (pt)">
+            <Form.Item label="Cỡ chữ (pt)">
                 <InputNumber min={6} max={24} value={field.style.fontSize}
                     onChange={(v) => onChange({ style: { ...field.style, fontSize: v ?? 10 } })} />
             </Form.Item>

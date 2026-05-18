@@ -6,7 +6,7 @@ import { mm2px } from '@/lib/labelEditor/coords';
 import type { FieldDef } from './index';
 
 export const DividerFieldDef: FieldDef<DividerField> = {
-    type: 'divider', label: 'Duong ke', icon: <MinusOutlined />, group: 'shape',
+    type: 'divider', label: 'Đường kẻ', icon: <MinusOutlined />, group: 'shape',
     defaultProps: () => ({ type: 'divider', x: 5, y: 5, w: 80, h: 1, thickness: 1, color: '#222222' }),
     KonvaRenderer: ({ field, selected, zoom }) => (
         <Group x={mm2px(field.x, zoom)} y={mm2px(field.y, zoom)} rotation={field.rotation ?? 0}>
@@ -17,10 +17,10 @@ export const DividerFieldDef: FieldDef<DividerField> = {
     ),
     InspectorPanel: ({ field, onChange }) => (
         <>
-            <Form.Item label="Do day (px)">
+            <Form.Item label="Độ dày (px)">
                 <InputNumber min={1} max={8} value={field.thickness ?? 1} onChange={(v) => onChange({ thickness: v ?? 1 })} />
             </Form.Item>
-            <Form.Item label="Mau">
+            <Form.Item label="Màu">
                 <ColorPicker value={field.color ?? '#222222'} onChange={(c) => onChange({ color: c.toHexString() })} />
             </Form.Item>
         </>

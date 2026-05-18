@@ -18,16 +18,16 @@ export const RectangleFieldDef: FieldDef<RectangleField> = {
     ),
     InspectorPanel: ({ field, onChange }) => (
         <>
-            <Form.Item label="Vien (px)">
+            <Form.Item label="Viền (px)">
                 <InputNumber min={0} max={8} value={field.borderThickness ?? 1} onChange={(v) => onChange({ borderThickness: v ?? 1 })} />
             </Form.Item>
-            <Form.Item label="Mau vien">
+            <Form.Item label="Màu viền">
                 <ColorPicker value={field.borderColor ?? '#222222'} onChange={(c) => onChange({ borderColor: c.toHexString() })} />
             </Form.Item>
-            <Form.Item label="Bo goc (px)">
+            <Form.Item label="Bo góc (px)">
                 <InputNumber min={0} max={20} value={field.cornerRadius ?? 0} onChange={(v) => onChange({ cornerRadius: v ?? 0 })} />
             </Form.Item>
-            <Form.Item label="Mau nen">
+            <Form.Item label="Màu nền">
                 <ColorPicker value={field.fillColor ?? '#ffffff'} onChange={(c) => onChange({ fillColor: c.toHexString() })} />
             </Form.Item>
         </>

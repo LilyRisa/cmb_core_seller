@@ -13,7 +13,7 @@ export const ImageFieldDef: FieldDef<ImageField> = {
             <Rect width={mm2px(field.w, zoom)} height={mm2px(field.h, zoom)} fill="#fafafa"
                   stroke={selected ? '#1677ff' : '#d9d9d9'} strokeWidth={1} dash={selected ? [4, 2] : []} />
             <Text width={mm2px(field.w, zoom)} height={mm2px(field.h, zoom)}
-                  text="Anh" fontSize={Math.min(mm2px(field.w, zoom), mm2px(field.h, zoom)) * 0.4} align="center" verticalAlign="middle" fill="#8c8c8c" />
+                  text="Ảnh" fontSize={Math.min(mm2px(field.w, zoom), mm2px(field.h, zoom)) * 0.4} align="center" verticalAlign="middle" fill="#8c8c8c" />
         </Group>
     ),
     InspectorPanel: ({ field, onChange }) => (
