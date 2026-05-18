@@ -3,6 +3,9 @@
 namespace CMBcoreSeller\Modules\Tenancy\Models;
 
 use CMBcoreSeller\Models\User;
+use Database\Factories\TenantFactory;
+use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -10,7 +13,13 @@ use Illuminate\Support\Str;
 
 class Tenant extends Model
 {
-    use SoftDeletes;
+    /** @use HasFactory<TenantFactory> */
+    use HasFactory, SoftDeletes;
+
+    protected static function newFactory(): Factory
+    {
+        return TenantFactory::new();
+    }
 
     protected $fillable = ['name', 'slug', 'status', 'settings'];
 
