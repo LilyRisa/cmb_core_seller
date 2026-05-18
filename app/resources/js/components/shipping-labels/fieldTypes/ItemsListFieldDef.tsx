@@ -2,7 +2,7 @@ import { Form, InputNumber, Segmented } from 'antd';
 import { UnorderedListOutlined } from '@ant-design/icons';
 import { Rect, Text } from 'react-konva';
 import type { ItemsListField } from '@/lib/shippingLabelTypes';
-import { mm2px } from '@/lib/labelEditor/coords';
+import { mm2px, ptToCanvasPx } from '@/lib/labelEditor/coords';
 import type { FieldDef } from './index';
 
 export const ItemsListFieldDef: FieldDef<ItemsListField> = {
@@ -17,7 +17,7 @@ export const ItemsListFieldDef: FieldDef<ItemsListField> = {
             <>
                 <Rect width={w} height={h} stroke={selected ? '#1677ff' : 'transparent'} strokeWidth={1} dash={[4, 2]} />
                 <Text width={w} height={h} padding={1}
-                      text={lines.join('\n')} fontSize={field.style.fontSize * zoom * 0.9} lineHeight={1.25} fill="#222" wrap="word" />
+                      text={lines.join('\n')} fontSize={ptToCanvasPx(field.style.fontSize, zoom)} lineHeight={field.style.lineHeight ?? 1.25} fill="#222" wrap="word" />
             </>
         );
     },

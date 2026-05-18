@@ -38,6 +38,24 @@ class GotenbergClient
     }
 
     /**
+     * Render a shipping label / delivery slip — honors the @page CSS size from the template
+     * shell AND forces all 4 margins to 0. Gotenberg defaults to Letter + 0.39in margins
+     * which silently override @page CSS (preferCssPageSize must be 'true'), shifting all
+     * absolute-positioned fields inward by ~10mm and clipping content near the right edge.
+     */
+    public function htmlToLabelPdf(string $html): string
+    {
+        return $this->htmlToPdf($html, [
+            'preferCssPageSize' => 'true',
+            'marginTop' => '0',
+            'marginBottom' => '0',
+            'marginLeft' => '0',
+            'marginRight' => '0',
+            'printBackground' => 'true',
+        ]);
+    }
+
+    /**
      * Merge several PDF byte-strings into one PDF (order preserved).
      *
      * @param  list<string>  $pdfContents

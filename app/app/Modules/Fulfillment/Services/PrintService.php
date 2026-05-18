@@ -305,7 +305,7 @@ class PrintService
             $renderer = app(\CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\LabelRenderer::class);
             $html = $renderer->renderBatch($orders, $tpl);
 
-            return [$this->gotenberg->htmlToPdf($html), ['orders' => $orders->count(), 'template_id' => $tpl->id, 'template_name' => $tpl->name, 'order_ids' => $orders->modelKeys()]];
+            return [$this->gotenberg->htmlToLabelPdf($html), ['orders' => $orders->count(), 'template_id' => $tpl->id, 'template_name' => $tpl->name, 'order_ids' => $orders->modelKeys()]];
         }
 
         $shopName = (string) (Tenant::query()->whereKey($tenantId)->value('name') ?? 'Cửa hàng');

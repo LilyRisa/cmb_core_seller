@@ -59,7 +59,10 @@ class PrintDeliveryWithTemplateTest extends TestCase
         OrderItem::create(['order_id' => $o->id, 'name' => 'X', 'quantity' => 1, 'tenant_id' => $t->id, 'external_item_id' => 'X-1']);
 
         $gotenberg = $this->createMock(GotenbergClient::class);
-        $gotenberg->expects($this->once())->method('htmlToPdf')->willReturn('PDF-BYTES');
+        // Template-based delivery slips go through htmlToLabelPdf so Gotenberg honours
+        // @page CSS size and applies zero margins (preferCssPageSize=true). Without this
+        // path, Gotenberg defaults to Letter + 0.39in margins and clips the right edge.
+        $gotenberg->expects($this->once())->method('htmlToLabelPdf')->willReturn('PDF-BYTES');
         $this->app->instance(GotenbergClient::class, $gotenberg);
 
         $job = PrintJob::create(['tenant_id' => $t->id, 'type' => 'delivery',

@@ -3,6 +3,15 @@ export const PX_PER_MM = 4;                          // editor base scale; zoom 
 export const mm2px = (mm: number, zoom = 1): number => mm * PX_PER_MM * zoom;
 export const px2mm = (px: number, zoom = 1): number => px / (PX_PER_MM * zoom);
 
+/**
+ * Convert spec font size (pt-equivalent) to Konva canvas pixels so editor matches PDF print.
+ *   1pt = 0.3528mm; 1mm on canvas = PX_PER_MM * zoom Konva-px.
+ *   Therefore 1pt = 0.3528 * PX_PER_MM * zoom Konva-px ≈ 1.411 * zoom Konva-px.
+ * Previously fields used `fontSize * zoom * 0.9` which undersized text by ~36% — labels
+ * looked airy in the editor but text overlapped neighbours once Gotenberg rendered at pt.
+ */
+export const ptToCanvasPx = (pt: number, zoom = 1): number => pt * 0.3528 * PX_PER_MM * zoom;
+
 export function snap(value: number, grid: number): number {
     if (grid <= 0) return Math.round(value * 10) / 10;
     return Math.round(value / grid) * grid;

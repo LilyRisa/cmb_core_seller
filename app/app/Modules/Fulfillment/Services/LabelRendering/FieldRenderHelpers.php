@@ -109,11 +109,17 @@ class FieldRenderHelpers
 
     public function textStyle(array $s): array
     {
+        // Spec §4.4: fontSize is in pt-equivalent. Using 'px' here previously made print 25%
+        // smaller than designed (11px = 2.91mm vs 11pt = 3.88mm), causing fields to look
+        // tight in the editor but overlap once printed at the physically larger size.
+        $lh = isset($s['lineHeight']) ? (float) $s['lineHeight'] : 1.15;
+
         return [
-            'font-size' => ((int) ($s['fontSize'] ?? 11)).'px',
+            'font-size' => ((int) ($s['fontSize'] ?? 11)).'pt',
             'font-weight' => (int) ($s['fontWeight'] ?? 400),
             'text-align' => (string) ($s['align'] ?? 'left'),
             'color' => (string) ($s['color'] ?? '#222'),
+            'line-height' => (string) $lh,
         ];
     }
 

@@ -103,7 +103,7 @@ class ShippingLabelTemplateController extends Controller
         $tpl = ShippingLabelTemplate::query()->where('tenant_id', $tenant->id())->findOrFail($id);
         $profile = (string) $request->input('sample_profile', 'one_item_short_address');
         abort_unless(in_array($profile, SampleDataFactory::PROFILES, true), 422, 'sample_profile không hợp lệ.');
-        $bytes = $gotenberg->htmlToPdf($renderer->renderSample($profile, $tpl, $factory));
+        $bytes = $gotenberg->htmlToLabelPdf($renderer->renderSample($profile, $tpl, $factory));
         $stored = $media->storeBytes($bytes, $tenant->id(), 'print', 'preview-'.Str::ulid(), 'pdf');
 
         return response()->json(['data' => ['url' => $stored['url']]]);
@@ -122,7 +122,7 @@ class ShippingLabelTemplateController extends Controller
             'paper' => $data['paper'], 'paper_w_mm' => $data['paper_w_mm'], 'paper_h_mm' => $data['paper_h_mm'],
             'schema' => ['fields' => $data['schema']['fields']], 'schema_version' => 1, 'is_default' => false,
         ]);
-        $bytes = $gotenberg->htmlToPdf($renderer->renderSample($profile, $tpl, $factory));
+        $bytes = $gotenberg->htmlToLabelPdf($renderer->renderSample($profile, $tpl, $factory));
         $stored = $media->storeBytes($bytes, $tenant->id(), 'print', 'preview-'.Str::ulid(), 'pdf');
 
         return response()->json(['data' => ['url' => $stored['url']]]);

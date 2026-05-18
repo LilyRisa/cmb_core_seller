@@ -3,7 +3,7 @@ import { DatabaseOutlined } from '@ant-design/icons';
 import { Rect, Text } from 'react-konva';
 import type { DataField, DataKey } from '@/lib/shippingLabelTypes';
 import { DATA_KEYS } from '@/lib/shippingLabelTypes';
-import { mm2px } from '@/lib/labelEditor/coords';
+import { mm2px, ptToCanvasPx } from '@/lib/labelEditor/coords';
 import type { FieldDef } from './index';
 
 const KEY_LABELS: Record<DataKey, string> = {
@@ -37,7 +37,7 @@ export const DataFieldDef: FieldDef<DataField> = {
             <>
                 <Rect width={w} height={h} stroke={selected ? '#1677ff' : 'transparent'} strokeWidth={1} dash={[4, 2]} />
                 <Text width={w} height={h} padding={1}
-                      text={sampleText} fontSize={field.style.fontSize * zoom * 0.9}
+                      text={sampleText} fontSize={ptToCanvasPx(field.style.fontSize, zoom)} lineHeight={1.15}
                       fontStyle={field.style.fontWeight === 700 ? 'bold' : field.style.fontWeight === 600 ? '600' : 'normal'}
                       align={field.style.align ?? 'left'} fill={field.style.color ?? '#222'} verticalAlign="middle" wrap="word" />
             </>
