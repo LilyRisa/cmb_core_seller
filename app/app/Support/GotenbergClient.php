@@ -26,12 +26,19 @@ class GotenbergClient
      * Render an HTML document to a PDF (Chromium engine). Returns the PDF bytes.
      *
      * Multipart parts are built manually rather than via Http::attach() because
-     * Laravel's PendingRequest::attach() runs the multipart entry through
-     * array_filter() (no callback), which silently drops any 'contents' value
-     * that PHP considers falsy — including the literal string '0'. Passing e.g.
-     * marginTop='0' would leave the part without a 'contents' key and Guzzle's
-     * MultipartStream then throws "A 'contents' key is required" before the
-     * request even leaves the app.
+     * PendingRequest::attach() runs each part through array_filter() (no callback),
+     * silently dropping any 'contents' that PHP considers falsy — including the
+     * literal string '0'. Passing e.g. marginTop='0' would leave the part without
+     * a 'contents' key and Guzzle's MultipartStream throws "A 'contents' key is
+     * required" before the request leaves the app.
+     *
+     * The manual array is handed to ->asMultipart()->post($url, $multipart) — NOT
+     * ->withOptions(['multipart' => ...]). Without asMultipart() the PendingRequest
+     * bodyFormat stays at the default 'json', parseHttpOptions then injects
+     * $options['json'] = null, and Guzzle's option handler overwrites the multipart
+     * body with the JSON-encoded "null" string and sets Content-Type: application/json
+     * — Gotenberg responds 415 "Invalid Content-Type header value: want
+     * multipart/form-data".
      */
     public function htmlToPdf(string $html, array $options = []): string
     {
@@ -41,8 +48,8 @@ class GotenbergClient
         foreach ($options as $k => $v) {
             $multipart[] = ['name' => $k, 'contents' => (string) $v];
         }
-        $res = Http::timeout(60)->withOptions(['multipart' => $multipart])
-            ->post($this->url('/forms/chromium/convert/html'));
+        $res = Http::timeout(60)->asMultipart()
+            ->post($this->url('/forms/chromium/convert/html'), $multipart);
         if (! $res->successful()) {
             throw new RuntimeException('Gotenberg render HTML lỗi: '.$res->status().' '.$res->body());
         }
