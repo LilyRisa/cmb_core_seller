@@ -58,12 +58,39 @@ class LabelDataResolver
             recipient_address: $recFull,
             recipient_address_detail: $recDetail,
             recipient_address_admin: $recAdmin,
-            cod: (int) ($order->cod_amount ?: ($order->is_cod ? $order->grand_total : 0)),
+            cod: $this->resolveCod($order),
             weight_g: $shipment?->weight_grams ? (int) $shipment->weight_grams : null,
             total_qty: (int) $order->items->sum('quantity'),
             print_note: (string) (data_get($order->meta, 'print_note') ?: ''),
             created_at_fmt: $createdAt,
             items: $items,
         );
+    }
+
+    /**
+     * COD displayed on the delivery slip must reflect WHAT THE COURIER COLLECTS:
+     *   1. If `cod_amount` is set (and non-zero) it is the canonical value — ManualOrderService and
+     *      the channel upsert pipeline both pre-compute and persist it. Use as-is.
+     *   2. Else, if the order is flagged COD (`is_cod` OR `payment_status='cod'` — channel orders
+     *      sometimes set only one of the two) derive it the same way ManualOrderService does:
+     *      `grand_total - prepaid_amount` clamped at 0. Previously this branch used `grand_total`
+     *      alone, ignoring prepaid → over-collected on the slip vs. what the courier system has.
+     *   3. Else, 0 (non-COD).
+     *
+     * Edge case caught here: legacy/migrated orders where `cod_amount=0` but `is_cod=true`. Without
+     * this fallback, DataField rendered "—" for them — the user's reported "COD không hoạt động".
+     */
+    private function resolveCod(Order $order): int
+    {
+        $persisted = (int) ($order->cod_amount ?? 0);
+        if ($persisted > 0) {
+            return $persisted;
+        }
+        $wantsCod = (bool) $order->is_cod || (string) ($order->payment_status ?? '') === 'cod';
+        if (! $wantsCod) {
+            return 0;
+        }
+
+        return max(0, (int) $order->grand_total - (int) ($order->prepaid_amount ?? 0));
     }
 }

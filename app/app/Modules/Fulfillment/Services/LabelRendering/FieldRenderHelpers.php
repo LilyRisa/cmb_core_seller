@@ -6,6 +6,7 @@ use BaconQrCode\Common\ErrorCorrectionLevel;
 use BaconQrCode\Renderer\GDLibRenderer;
 use BaconQrCode\Writer;
 use Picqer\Barcode\BarcodeGeneratorPNG;
+use Picqer\Barcode\BarcodeGeneratorSVG;
 
 /**
  * Thin helpers cho field type renders — wrap QR/barcode/escape/format chung,
@@ -40,10 +41,25 @@ class FieldRenderHelpers
         return $t ? $t->format('d/m/Y H:i') : '';
     }
 
+    /**
+     * Đơn manual đẩy ĐVVC ⇒ ShipmentService persists carrier as `manual_<code>` (ví dụ `manual_ghn`).
+     * Mọi UX hiển thị ĐVVC (tên, logo, short-name) phải hiểu đây vẫn là GHN — không phải một carrier
+     * mới tên "manual ghn". Đồng nhất với PrintTemplates.php:247 (legacy delivery slip strip-prefix).
+     */
+    private function normalizeCarrierKey(?string $carrier): string
+    {
+        $key = strtolower(trim((string) $carrier));
+        if ($key !== 'manual' && str_starts_with($key, 'manual_')) {
+            $key = substr($key, 7);
+        }
+
+        return $key;
+    }
+
     public function carrierFullName(?string $carrier): string
     {
-        $key = strtolower((string) $carrier);
-        if ($key === '' || $carrier === null) {
+        $key = $this->normalizeCarrierKey($carrier);
+        if ($key === '') {
             return 'ĐVVC';
         }
 
@@ -52,8 +68,8 @@ class FieldRenderHelpers
 
     public function carrierShortName(?string $carrier): string
     {
-        $key = strtolower((string) $carrier);
-        if ($key === '' || $carrier === null) {
+        $key = $this->normalizeCarrierKey($carrier);
+        if ($key === '') {
             return 'ĐVVC';
         }
 
@@ -62,16 +78,19 @@ class FieldRenderHelpers
 
     public function carrierLogoImg(?string $carrier, int $widthMm, int $heightMm): string
     {
-        $key = strtolower((string) $carrier);
+        $key = $this->normalizeCarrierKey($carrier);
         $path = __DIR__.'/../../../../../resources/labels/carrier-logos/'.$key.'.svg';
-        if ($carrier && is_file($path)) {
+        if ($key !== '' && is_file($path)) {
             $svg = (string) file_get_contents($path);
             $b64 = base64_encode($svg);
 
             return '<img alt="'.$this->escape($key).'" src="data:image/svg+xml;base64,'.$b64.'" style="width:'.$widthMm.'mm;height:'.$heightMm.'mm;object-fit:contain" />';
         }
 
-        return '<div style="display:flex;align-items:center;justify-content:center;width:'.$widthMm.'mm;height:'.$heightMm.'mm;color:#8c8c8c;border:1px dashed #d9d9d9;font-size:9px">'.$this->escape($this->carrierShortName($carrier)).'</div>';
+        // Fallback styled placeholder — short-name in bold, no dashed border (looks cleaner than
+        // the previous "missing-image" hint, which leaked into production because we never
+        // shipped SVG assets under resources/labels/carrier-logos/).
+        return '<div style="display:flex;align-items:center;justify-content:center;width:'.$widthMm.'mm;height:'.$heightMm.'mm;color:#111;font-weight:700;font-size:'.max(8, min(16, (int) round($heightMm * 1.8))).'pt;letter-spacing:0.5px">'.$this->escape($this->carrierShortName($carrier)).'</div>';
     }
 
     public function qrPng(string $payload, int $widthMm, string $ecc = 'M'): string
@@ -105,6 +124,31 @@ class FieldRenderHelpers
         );
 
         return 'data:image/png;base64,'.base64_encode($png);
+    }
+
+    /**
+     * SVG variant — used by BarcodeField. SVG scales without rasterization artefacts in Chromium/PDF
+     * and the <svg preserveAspectRatio="none"> override lets us stretch the bars to exactly fill the
+     * field box. The previous PNG path was rendered with `object-fit:contain`, which kept the PNG's
+     * native ~75:1 aspect ratio and shrank the bars to ~1mm tall regardless of the field's `h` —
+     * the symptom users described as "barcode không nhận height".
+     */
+    public function barcodeSvg(string $payload, int $widthMm, int $heightMm): string
+    {
+        $generator = new BarcodeGeneratorSVG;
+        $barPayload = $payload === '' ? '0' : $payload;
+        // widthFactor=2 keeps each bar at minimum 2 user-units (Picqer doesn't honour total width;
+        // we rely on preserveAspectRatio="none" + CSS width:100% to scale to the field). barHeight
+        // is the SVG's height attribute — vertical stretch via CSS handles any field.h.
+        $svg = $generator->getBarcode($barPayload, BarcodeGeneratorSVG::TYPE_CODE_128, 2, max(20, $heightMm * 4), 'black');
+        // Picqer emits `<svg width="..." height="..." ...>` with default preserveAspectRatio. Force
+        // 'none' so the <img> sized to width:100%;height:<h>mm stretches the bars to fill the box
+        // without letterboxing.
+        if (! str_contains($svg, 'preserveAspectRatio=')) {
+            $svg = (string) preg_replace('/<svg\b/', '<svg preserveAspectRatio="none"', $svg, 1);
+        }
+
+        return 'data:image/svg+xml;base64,'.base64_encode($svg);
     }
 
     public function textStyle(array $s): array

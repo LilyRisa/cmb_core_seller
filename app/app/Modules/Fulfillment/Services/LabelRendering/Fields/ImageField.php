@@ -39,8 +39,16 @@ class ImageField implements FieldType
     {
         $path = (string) $field['assetPath'];
         $fit = (string) ($field['fit'] ?? 'contain');
-        // If MediaUploader has a signedUrl method, use it; otherwise pass the path through.
-        $src = ($this->media !== null && method_exists($this->media, 'signedUrl')) ? $this->media->signedUrl($path) : $path;
+        // Previously this checked `method_exists($this->media, 'signedUrl')` and fell through to
+        // $path raw — MediaUploader has no signedUrl method, so the <img src> was always the bare
+        // R2 object key (e.g. "tenants/1/logos/shop.png") and never loaded. Use url() so the disk's
+        // configured public URL (Cloudflare R2 / local media disk) resolves properly. If the asset
+        // is already a full URL the user pasted in (http(s)://…, data:…), pass it through as-is.
+        if ($path === '') {
+            return $h->positionedBox($field, [], '');
+        }
+        $isAbsolute = str_starts_with($path, 'http://') || str_starts_with($path, 'https://') || str_starts_with($path, 'data:');
+        $src = ($this->media !== null && ! $isAbsolute) ? $this->media->url($path) : $path;
         $img = '<img src="'.$h->escape($src).'" style="width:100%;height:100%;object-fit:'.$fit.'" alt="" />';
 
         return $h->positionedBox($field, [], $img);

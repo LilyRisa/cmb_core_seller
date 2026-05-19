@@ -58,6 +58,39 @@ class FieldRenderHelpersTest extends TestCase
         $this->assertSame('CARRIER X', $this->h->carrierFullName('carrier_x'));
     }
 
+    /**
+     * Manual orders persist carrier as `manual_<code>` (ShipmentService:475). Without the prefix
+     * strip the field rendered "MANUAL GHN" / "MANUAL_GHN" — the user-facing "tên ĐVVC dùng manual"
+     * bug. After the fix every carrier-* helper resolves `manual_<x>` to `<x>` and looks up the
+     * canonical CARRIER_META entry.
+     */
+    public function test_carrier_full_name_strips_manual_prefix(): void
+    {
+        $this->assertSame('GIAO HÀNG NHANH', $this->h->carrierFullName('manual_ghn'));
+        $this->assertSame('GIAO HÀNG TIẾT KIỆM', $this->h->carrierFullName('manual_ghtk'));
+        $this->assertSame('J&T EXPRESS', $this->h->carrierFullName('manual_jt'));
+        // Bare 'manual' (no underlying carrier) stays as self-ship — strip only applies to `manual_`.
+        $this->assertSame('TỰ VẬN CHUYỂN', $this->h->carrierFullName('manual'));
+    }
+
+    public function test_carrier_short_name_strips_manual_prefix(): void
+    {
+        $this->assertSame('GHN', $this->h->carrierShortName('manual_ghn'));
+        $this->assertSame('GHTK', $this->h->carrierShortName('manual_ghtk'));
+        $this->assertSame('TỰ VC', $this->h->carrierShortName('manual'));
+    }
+
+    public function test_carrier_logo_falls_back_to_short_name_for_manual_prefix(): void
+    {
+        // SVG assets aren't shipped (resources/labels/carrier-logos/ is empty), so the fallback
+        // text-placeholder is what users actually see. It must display "GHN" — not the raw
+        // "MANUAL_GHN" the previous code produced.
+        $html = $this->h->carrierLogoImg('manual_ghn', 30, 12);
+        $this->assertStringContainsString('>GHN<', $html);
+        $this->assertStringNotContainsString('MANUAL_GHN', $html);
+        $this->assertStringNotContainsString('MANUAL GHN', $html);
+    }
+
     public function test_qr_png_returns_base64_data_url(): void
     {
         $url = $this->h->qrPng('TEST123', 30);
@@ -68,5 +101,21 @@ class FieldRenderHelpersTest extends TestCase
     {
         $url = $this->h->barcodePng('TEST123', 50, 15, true);
         $this->assertStringStartsWith('data:image/png;base64,', $url);
+    }
+
+    /**
+     * Regression for "barcode không nhận height". The PNG path (barcodePng) was rendered through
+     * <img object-fit:contain>, which preserved the PNG's ~75:1 native aspect ratio and squeezed
+     * each barcode down to ~1mm regardless of field height. The SVG variant ships the markup with
+     * preserveAspectRatio="none" so the consumer's CSS width:100%/height:Xmm stretches the bars
+     * to fill the field box.
+     */
+    public function test_barcode_svg_returns_data_url_with_stretchable_aspect(): void
+    {
+        $url = $this->h->barcodeSvg('TEST123', 50, 15);
+        $this->assertStringStartsWith('data:image/svg+xml;base64,', $url);
+        $decoded = base64_decode(substr($url, strlen('data:image/svg+xml;base64,')));
+        $this->assertStringContainsString('preserveAspectRatio="none"', $decoded);
+        $this->assertStringStartsWith('<', ltrim($decoded));
     }
 }
