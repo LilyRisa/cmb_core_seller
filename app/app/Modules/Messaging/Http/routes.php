@@ -106,6 +106,8 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
         // --- Kết nối & quản lý kênh nhắn tin (UI /messaging/channels) ---
         Route::get('channels', [MessagingChannelController::class, 'index'])
             ->name('messaging.channels.index');
+        Route::delete('channels/{id}', [MessagingChannelController::class, 'destroy'])
+            ->whereNumber('id')->name('messaging.channels.destroy');
 
         // --- Auto-reply rules (S5) -----------------------------------------
         Route::get('auto-reply-rules', [AutoReplyRuleController::class, 'index'])

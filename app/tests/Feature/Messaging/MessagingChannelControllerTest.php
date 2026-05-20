@@ -100,4 +100,71 @@ class MessagingChannelControllerTest extends TestCase
         // Không lộ token
         $this->assertStringNotContainsString('SECRET_PAGE_TOKEN', $res->getContent());
     }
+
+    public function test_disconnect_deletes_page_and_cascades(): void
+    {
+        $account = \CMBcoreSeller\Modules\Channels\Models\ChannelAccount::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'provider' => 'facebook_page',
+            'external_shop_id' => 'PAGE_7', 'shop_name' => 'FB7', 'status' => 'active',
+            'access_token' => 'PAGE_TOKEN', 'messaging_enabled' => true,
+        ]);
+        $conv = \CMBcoreSeller\Modules\Messaging\Models\Conversation::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'channel_account_id' => $account->id,
+            'provider' => 'facebook_page', 'external_conversation_id' => 'psid_7',
+            'buyer_external_id' => 'psid_7', 'status' => 'open', 'last_message_at' => now(),
+        ]);
+        $msg = \CMBcoreSeller\Modules\Messaging\Models\Message::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'conversation_id' => $conv->id,
+            'direction' => 'inbound', 'kind' => 'text', 'body' => 'hi', 'delivery_status' => 'delivered',
+        ]);
+        \CMBcoreSeller\Modules\Messaging\Models\MessageAttachment::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'message_id' => $msg->id,
+            'kind' => 'image', 'mime' => 'image/jpeg', 'status' => 'pending',
+        ]);
+
+        \Illuminate\Support\Facades\Http::fake([
+            'graph.facebook.com/*subscribed_apps*' => \Illuminate\Support\Facades\Http::response(['success' => true], 200),
+        ]);
+
+        $this->actingAs($this->userWithRole(Role::Owner))
+            ->withHeaders($this->h())
+            ->deleteJson("/api/v1/messaging/channels/{$account->id}")
+            ->assertOk()
+            ->assertJsonPath('data.ok', true)
+            ->assertJsonPath('data.conversations_deleted', 1);
+
+        $this->assertDatabaseMissing('channel_accounts', ['id' => $account->id, 'deleted_at' => null]);
+        $this->assertDatabaseMissing('conversations', ['id' => $conv->id]);
+        $this->assertDatabaseMissing('messages', ['id' => $msg->id]);
+        $this->assertDatabaseMissing('message_attachments', ['message_id' => $msg->id]);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'messaging.facebook.disconnected']);
+    }
+
+    public function test_disconnect_rejects_non_facebook_account(): void
+    {
+        $lz = \CMBcoreSeller\Modules\Channels\Models\ChannelAccount::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'provider' => 'lazada',
+            'external_shop_id' => 'LZ_2', 'status' => 'active',
+        ]);
+
+        $this->actingAs($this->userWithRole(Role::Owner))
+            ->withHeaders($this->h())
+            ->deleteJson("/api/v1/messaging/channels/{$lz->id}")
+            ->assertNotFound();
+
+        $this->assertDatabaseHas('channel_accounts', ['id' => $lz->id, 'deleted_at' => null]);
+    }
+
+    public function test_staff_cs_cannot_disconnect(): void
+    {
+        $account = \CMBcoreSeller\Modules\Channels\Models\ChannelAccount::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'provider' => 'facebook_page',
+            'external_shop_id' => 'PAGE_8', 'status' => 'active',
+        ]);
+
+        $this->actingAs($this->userWithRole(Role::StaffCs))
+            ->withHeaders($this->h())
+            ->deleteJson("/api/v1/messaging/channels/{$account->id}")
+            ->assertStatus(403);
+    }
 }
