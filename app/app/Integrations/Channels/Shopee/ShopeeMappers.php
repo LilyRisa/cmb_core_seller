@@ -82,7 +82,7 @@ final class ShopeeMappers
             shippingAddress: [
                 'fullName' => (string) ($addr['name'] ?? ''), 'phone' => (string) ($addr['phone'] ?? ''),
                 'line1' => (string) ($addr['full_address'] ?? ''), 'ward' => (string) ($addr['town'] ?? ''),
-                'district' => (string) ($addr['district'] ?? ''), 'province' => (string) ($addr['state'] ?? ($addr['city'] ?? '')),
+                'district' => (string) ($addr['district'] ?? ''), 'province' => (string) ($addr['city'] ?? ($addr['state'] ?? '')),
                 'country' => 'VN', 'zip' => (string) ($addr['zipcode'] ?? ''),
             ],
             shippingFee: (int) round((float) ($d['actual_shipping_fee'] ?? $d['estimated_shipping_fee'] ?? 0)),

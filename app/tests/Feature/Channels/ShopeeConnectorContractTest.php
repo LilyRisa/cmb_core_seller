@@ -119,4 +119,21 @@ class ShopeeConnectorContractTest extends TestCase
         $this->assertSame('SN_1', $order->externalOrderId);
         $this->assertSame('READY_TO_SHIP', $order->rawStatus);
     }
+
+    public function test_fetch_orders_sends_order_status_filter(): void
+    {
+        Http::fake([
+            '*/api/v2/order/get_order_list*' => Http::response(ShopeeFixtures::orderList('', false), 200),
+            '*/api/v2/order/get_order_detail*' => Http::response(ShopeeFixtures::orderDetail(), 200),
+        ]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        $this->connector()->fetchOrders($auth, [
+            'updatedFrom' => \Carbon\CarbonImmutable::parse('2026-01-01T00:00:00Z'),
+            'updatedTo' => \Carbon\CarbonImmutable::parse('2026-01-05T00:00:00Z'),
+            'statuses' => ['READY_TO_SHIP'],
+        ]);
+
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/api/v2/order/get_order_list') && str_contains($r->url(), 'order_status=READY_TO_SHIP'));
+    }
 }

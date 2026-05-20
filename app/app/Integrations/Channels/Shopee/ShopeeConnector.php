@@ -108,9 +108,12 @@ class ShopeeConnector implements ChannelConnector
 
         $params = [
             'time_range_field' => 'update_time', 'time_from' => $winStart, 'time_to' => $winEnd,
-            'page_size' => $pageSize, 'cursor' => $inner,
+            'page_size' => $pageSize, 'cursor' => $inner !== '' ? $inner : null,
         ];
         if (! empty($query['statuses'])) {
+            if (count($query['statuses']) > 1) {
+                throw new \InvalidArgumentException('Shopee get_order_list accepts a single order_status per call; pass one status per fetchOrders call.');
+            }
             $params['order_status'] = (string) $query['statuses'][0];
         }
         $list = $this->client->shopGet($auth, $this->client->endpoint('order_list'), $params);
@@ -124,7 +127,7 @@ class ShopeeConnector implements ChannelConnector
             return new Page($orders, $winStart.':'.$innerNext, true);
         }
         if ($winEnd < $to->getTimestamp()) {
-            return new Page($orders, ($winEnd).':', true); // advance to next window
+            return new Page($orders, ($winEnd + 1).':', true); // +1s: time_from/time_to inclusive — avoid boundary dup
         }
 
         return new Page($orders, null, false);
