@@ -190,6 +190,12 @@ class ShopeeConnectorContractTest extends TestCase
         $res = $this->connector()->arrangeShipment($auth, 'SN_1', ['packages' => [['externalPackageId' => 'PKG_1']]]);
         $this->assertSame('TRK123', $res['tracking_no']);
         $this->assertSame('PROCESSED', $res['raw_status']);
+        Http::assertSent(function (\Illuminate\Http\Client\Request $r) {
+            if (! str_contains($r->url(), '/api/v2/logistics/ship_order')) {
+                return false;
+            }
+            return array_key_exists('pickup', $r->data()) && ! array_key_exists('dropoff', $r->data());
+        });
     }
 
     public function test_get_shipping_document_polls_then_downloads(): void
@@ -342,6 +348,26 @@ class ShopeeConnectorContractTest extends TestCase
         // escrow_detail must have been fetched for both SNs
         Http::assertSent(fn ($r) => str_contains($r->url(), '/api/v2/payment/get_escrow_detail') && ($r['order_sn'] ?? '') === 'SN_P1');
         Http::assertSent(fn ($r) => str_contains($r->url(), '/api/v2/payment/get_escrow_detail') && ($r['order_sn'] ?? '') === 'SN_P2');
+    }
+
+    public function test_map_status_covers_full_table(): void
+    {
+        $c = $this->connector();
+        $expected = [
+            'UNPAID' => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Unpaid,
+            'READY_TO_SHIP' => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Pending,
+            'PROCESSED' => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Processing,
+            'RETRY_SHIP' => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Processing,
+            'SHIPPED' => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Shipped,
+            'TO_CONFIRM_RECEIVE' => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Delivered,
+            'COMPLETED' => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Completed,
+            'IN_CANCEL' => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Processing,
+            'CANCELLED' => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Cancelled,
+            'TO_RETURN' => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Returning,
+        ];
+        foreach ($expected as $raw => $std) {
+            $this->assertSame($std, $c->mapStatus($raw), "status {$raw}");
+        }
     }
 
     public function test_arrange_shipment_uses_dropoff_when_offered(): void

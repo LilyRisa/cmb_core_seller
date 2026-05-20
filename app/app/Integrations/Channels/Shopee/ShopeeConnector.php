@@ -12,6 +12,7 @@ use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
 use CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -227,6 +228,9 @@ class ShopeeConnector implements ChannelConnector
                     'address_id' => $addr['address_id'] ?? null,
                     'pickup_time_id' => $addr['time_slot_list'][0]['pickup_time_id'] ?? null,
                 ]);
+                if (empty($body['pickup']['address_id'])) {
+                    throw new ShopeeApiException("Shopee get_shipping_parameter returned no pickup address for order {$externalOrderId}; set SHOPEE_SHIP_METHOD=dropoff or verify the shipping parameter response.", 'error_param');
+                }
             }
             $this->client->shopPost($auth, $this->client->endpoint('ship_order'), [], $body);
         }
@@ -297,6 +301,9 @@ class ShopeeConnector implements ChannelConnector
         $sns = [];
         $pageNo = 1;
         for ($i = 0; $i < 100; $i++) { // safety cap 100 pages
+            if ($i === 99) {
+                Log::warning('shopee.settlement.page_cap_reached', ['from' => $from->toIso8601String(), 'to' => $to->toIso8601String(), 'sns_so_far' => count($sns)]);
+            }
             $list = $this->client->shopGet($auth, $this->client->endpoint('escrow_list'), [
                 'release_time_from' => $from->getTimestamp(), 'release_time_to' => $to->getTimestamp(),
                 'page_size' => 100, 'page_no' => $pageNo,

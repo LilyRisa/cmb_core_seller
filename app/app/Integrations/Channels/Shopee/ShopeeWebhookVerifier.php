@@ -26,6 +26,7 @@ class ShopeeWebhookVerifier
 
                 return true;
             }
+            Log::warning('shopee.webhook.partner_key_not_configured');
 
             return false;
         }
