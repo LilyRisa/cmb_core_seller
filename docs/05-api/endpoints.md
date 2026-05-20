@@ -337,3 +337,49 @@ Cấu hình động lưu trong DB (`system_settings`), ghi đè giá trị từ 
 ## Sắp có (theo roadmap)
 
 `/webhook/payments/{sepay,vnpay,momo}` + CheckoutSession thật (Phase 6.4 — PR2 SePay, PR3 VNPay) · `/api/v1/automation-rules` (Phase 6.5) · `/api/v1/notifications` + channels Zalo/Email (Phase 6.5) … — thêm vào đây khi xây.
+
+### Phase 7.x đề xuất — Messaging (SPEC-0024 Draft, ADR-0017..0021)
+
+> Spec & ADR đã viết, **chưa code**. Endpoints liệt kê dưới đây là kế hoạch — chỉ thêm chính thức vào table trên khi PR foundation merge.
+
+**Webhook (public, verify chữ ký, 1 controller chung `MessagingWebhookController@handle($provider)`):**
+- `POST /webhook/messaging/{provider}` với `provider ∈ {shopee,tiktok,lazada,facebook}` — verify chữ ký, ghi `webhook_events` (`provider='messaging.<code>'`), dispatch `ProcessMessagingWebhook` lên queue `messaging-webhooks`, trả `200 {ok:true}`.
+- `GET /webhook/messaging/facebook` — Meta hub.verify_token challenge (chỉ Facebook).
+
+**OAuth callback (Facebook Page mới; 3 sàn còn lại reuse `/oauth/{provider}/callback`):**
+- `GET /oauth/facebook_page/callback`
+
+**REST `/api/v1/messaging/*`** (Sanctum + tenant + permission gate):
+- `GET    /messaging/conversations` (`messaging.view`) — filter `provider`, `status`, `unread`, `assigned`, `customer_id`, `q`. Page-based 20/page.
+- `GET    /messaging/conversations/{id}` (`messaging.view`) — detail + last 50 messages (cursor `before_message_id`).
+- `POST   /messaging/conversations/{id}/messages` (`messaging.reply`) — `{kind:'text', body}`.
+- `POST   /messaging/conversations/{id}/messages/media` (`messaging.reply`) — multipart `{kind:'image|video|file', file}`.
+- `POST   /messaging/conversations/{id}/messages/template` (`messaging.reply`) — `{template_id, vars}`.
+- `POST   /messaging/conversations/{id}/read` (`messaging.view`) — reset unread.
+- `PATCH  /messaging/conversations/{id}` (`messaging.view`/`messaging.assign`) — `{status?, assigned_user_id?, tags?, snoozed_until?}`.
+- `POST   /messaging/conversations/{id}/ai-suggestion` (`messaging.reply` + `plan.feature:messaging_ai`) — dispatch + sync wait ≤30s → `{draft_id, draft_text, suggested_attachments}`.
+- `POST   /messaging/conversations/{id}/ai-suggestion/{draftId}/accept` — gửi draft.
+- `DELETE /messaging/conversations/{id}/ai-suggestion/{draftId}` — reject (audit).
+- `GET/POST/PATCH/DELETE /messaging/templates[/{id}]` (`messaging.template.manage`).
+- `GET/POST/PATCH/DELETE /messaging/auto-reply-rules[/{id}]` (`messaging.rule.manage`).
+- `GET    /messaging/knowledge-docs` (`messaging.view`).
+- `POST   /messaging/knowledge-docs` (`messaging.ai.train`) — multipart/URL/inline, dispatch `IndexKnowledgeDoc`.
+- `DELETE /messaging/knowledge-docs/{id}` (`messaging.ai.train`).
+- `GET    /messaging/stats` (`messaging.view`) — `{open, unread, snoozed, by_provider, avg_first_response_minutes_7d, meta.realtime_enabled}`.
+- `GET    /tenant/settings/messaging` (`messaging.ai.config`) — `{ai_provider_code?, available_providers:[{code,name}], away_hours, fallback_template_id?}`.
+- `PATCH  /tenant/settings/messaging` (`messaging.ai.config`).
+
+**Admin SPA `/api/v1/admin/*`** (admin guard, không cần tenant):
+- `GET/POST/PATCH/DELETE /admin/ai-providers[/{code}]` — CRUD provider trong `system_settings.ai_providers.<code>`.
+- `POST   /admin/ai-providers/{code}/test` — test connection (sinh 1 reply "hello").
+- `GET    /admin/messaging/ai-usage` — per-tenant per-month cost (đọc từ `ai_assistant_runs`).
+
+**Mã lỗi mới (đề xuất):**
+- `OUTBOUND_WINDOW_CLOSED` (`422`) — vi phạm window rule (Facebook 24h).
+- `CONVERSATION_CLOSED` (`409`) — sàn báo conversation đã đóng.
+- `CHANNEL_ACCOUNT_INACTIVE` (`409`) — shop bị deauthorize.
+- `ATTACHMENT_INVALID` (`422`) — MIME / size sai.
+- `AI_PROVIDER_NOT_AVAILABLE` (`422`) — tenant chưa chọn / provider đã `is_active=false`.
+- `MESSAGING_RATE_LIMIT` (`429`) — vượt 60 msg/phút/shop hoặc 30/phút/user.
+- `PLAN_FEATURE_LOCKED` (`402`) — `messaging_inbox` hoặc `messaging_ai` không có trong gói.
+- `PLAN_LIMIT_REACHED` (`402`) — vượt `messaging_ai_replies_monthly` hoặc `messaging_media_mb_daily`.

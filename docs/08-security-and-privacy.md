@@ -51,6 +51,26 @@ RULES:
 8. **Mã hoá at-rest**: bật mã hoá đĩa cho DB & object storage ở prod; cột nhạy cảm (SĐT) cân nhắc mã hoá ứng dụng (đánh đổi: khó tìm kiếm — có thể lưu thêm cột hash để lookup).
 9. **Tài liệu hoá** chính sách lưu trữ & xoá ở đây và công bố trong privacy policy của sản phẩm.
 
+## 6b. Messaging — PII trong nội dung chat *(Phase 7.x đề xuất — SPEC-0024 Draft, ADR-0020)*
+
+> Nội dung chat buyer có thể chứa SĐT/STK/CMND/địa chỉ. Coi như PII cấp cao — quy tắc nghiêm ngặt như buyer PII §6.
+
+RULES bổ sung cho module Messaging:
+
+1. **Encrypt at rest**: `messaging_account_meta.settings` (encrypted cast). Page access token Facebook + mọi token messaging — encrypted (như `channel_accounts`).
+2. **AI provider API key** chỉ trong `system_settings` group `ai_providers.<code>` (Admin SPA scope, encrypted) — **KHÔNG** lộ ra tenant qua bất kỳ endpoint nào.
+3. **PII redaction trước khi gọi LLM ngoài**: `PiiRedactor` helper (regex SĐT VN 10 số, email, STK 9-14 số sau từ khoá "stk/tk/account") thay placeholder `[PHONE_1]`, `[EMAIL_1]`. Mapping giữ ở server, không qua wire. Provider `local_llm` (self-host) có thể bypass redact (config-able per provider). Ghi `ai_assistant_runs.meta.redacted_count`.
+4. **Data deletion**:
+   - Webhook `data_deletion` từ sàn → `Messaging\Jobs\PurgeMessagingDataForBuyer`: tìm conversations match buyer external_id → delete attachments file MinIO → delete messages → soft-delete conversation. Audit log.
+   - Disconnect shop → `Messaging\Jobs\AnonymizeMessagingDataForShop` delay 90 ngày (`customers.anonymize_after_days`): clear `messages.body = '[anonymized]'`, drop attachments file, giữ metadata (counts).
+5. **Raw payload window 30 ngày**: `Messaging\Jobs\PruneMessagingPayloads` daily set `messages.raw_payload=NULL` khi > 30 ngày. DTO + metadata giữ vĩnh viễn (đến khi anonymize policy đẩy đi).
+6. **Mask SĐT khi hiển thị**: gate `customers.view_phone` mở rộng sang messaging (SĐT trong `conversations.buyer_phone`/inline trong `messages.body`).
+7. **Signed URL TTL 5 phút** cho media MinIO. FE re-fetch khi expire qua `useSignedUrl` hook. Cấm hot-link ngoài tenant.
+8. **Webhook verify**: mỗi `MessagingConnector` implement `verifyWebhookSignature(Request)`. Sai ⇒ `401`, không lưu, không log payload.
+9. **Audit log**: mọi action mutating — `messaging.message.send` (gửi nhầm khách rất đau), `messaging.conversation.assign/status_change`, `messaging.rule.*`, `messaging.template.*`, `messaging.ai.config_change`, `messaging.knowledge.upload`.
+10. **Rate limit gửi tin**: per tenant per shop 60 msg/phút (chống lock account sàn); per user 30 msg/phút (chống gửi nhầm); trả `429 Retry-After`. Config-able qua `tenant_settings.messaging.rate_limit_*`.
+11. **DPA / zero-retention với LLM provider**: super-admin chịu trách nhiệm ký hợp đồng dữ liệu với mỗi LLM vendor (Claude/OpenAI/Gemini) hoặc dùng `local_llm`. Provider nào không ký được DPA ⇒ super-admin để `is_active=false`. Document đầy đủ trong privacy policy.
+
 ## 7. An toàn vận hành
 - HTTPS bắt buộc; HSTS. Cập nhật bản vá hệ điều hành/dependency định kỳ; `composer audit` / `npm audit` trong CI.
 - Phân tách quyền hạ tầng (least privilege) cho DB/MinIO/secret manager.

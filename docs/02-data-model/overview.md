@@ -14,7 +14,7 @@
 6. **Trạng thái:** lưu **mã chuẩn** (`status`) + **chuỗi gốc** (`raw_status`). Mã chuẩn là enum trong code (string trong DB), không phải số ma thuật.
 7. **Payload thô từ sàn:** cột `raw_payload jsonb` ở bảng `orders`, `webhook_events`, `settlement_lines`... để debug & tái xử lý. Index GIN nếu cần truy vấn.
 8. **Idempotency:** mọi bảng nhận dữ liệu ngoài có **unique constraint** chống trùng (vd `orders(source, channel_account_id, external_order_id)`; `webhook_events(provider, external_id, event_type)`).
-9. **Partition theo tháng (RANGE trên `created_at` hoặc cột thời gian nghiệp vụ):** `orders`, `order_items`, `order_status_history`, `inventory_movements`, `webhook_events`, `sync_runs`, `settlement_lines`, (sau) `messages`. Job định kỳ tạo partition tháng kế; archive/drop partition cũ theo chính sách lưu trữ.
+9. **Partition theo tháng (RANGE trên `created_at` hoặc cột thời gian nghiệp vụ):** `orders`, `order_items`, `order_status_history`, `inventory_movements`, `webhook_events`, `sync_runs`, `settlement_lines`, *(SPEC-0024 đề xuất Phase 7.x — ADR-0020)* `messages` (theo `created_at`), `auto_reply_runs` (theo `fired_at`), `ai_assistant_runs` (theo `created_at`). Job định kỳ tạo partition tháng kế; archive/drop partition cũ theo chính sách lưu trữ. **Lưu ý:** `conversations` KHÔNG partition (cột `last_message_at` UPDATE thường xuyên gây di chuyển partition — không khả thi); index `(tenant_id, last_message_at DESC)` đủ.
 10. **Tiền & số lượng tồn** thay đổi → luôn đi kèm 1 dòng trong sổ cái tương ứng (`inventory_movements`, `order_costs`...) — không bao giờ "ghi đè im lặng".
 11. **Không cascade delete** xuyên module quan trọng — dùng soft delete + job dọn dẹp có kiểm soát.
 
@@ -64,6 +64,30 @@
 
 ### Settings
 `tenant_settings` (tenant_id, key, value jsonb) · `automation_rules` (tenant_id, name, enabled, trigger jsonb, conditions jsonb, actions jsonb) · `notifications` (tenant_id, user_id?, type, payload jsonb, read_at) · `notification_channels` (tenant_id, type[email|inapp|zalo|telegram], config🔒 jsonb, enabled)
+
+### Messaging *(Phase 7.x đề xuất — SPEC-0024 Draft, ADR-0017..0021)*
+> Module mới. Hai trục mở rộng kèm theo: `MessagingConnector` (4 nền tảng — Shopee/TikTok/Lazada/Facebook Page) + `AiAssistantConnector` (LLM — super-admin quản, tenant chọn 1 qua `tenant_settings.messaging.ai_provider_code`). Provider AI config sống ở `system_settings` group `ai_providers.<code>` (Admin SPA).
+
+- `messaging_account_meta` (1-1 `channel_accounts`): channel_account_id PK FK cascade, tenant_id, messaging_enabled bool, last_inbound_at?, last_outbound_at?, outbound_window_meta jsonb, ai_enabled bool, settings jsonb🔒
+- `conversations` (KHÔNG partition — `last_message_at` update thường xuyên; index `(tenant_id, status, last_message_at DESC)`): tenant_id, channel_account_id, provider (denorm), external_conversation_id, buyer_external_id, buyer_name?, buyer_avatar_url?, customer_id? FK customers, order_id? FK orders, status[open|snoozed|resolved|spam], snoozed_until?, unread_count, message_count, last_message_at, last_message_preview, last_inbound_at?, last_outbound_at?, assigned_user_id?, tags jsonb, meta jsonb; 🔑uniq `(channel_account_id, external_conversation_id)`
+- `messages` (**partition RANGE `created_at` theo tháng** — bảng lớn nhất, dự kiến 10× `orders`): tenant_id, conversation_id, external_message_id?, direction[inbound|outbound], kind[text|image|video|file|template|system], body text, attachments_count, sent_by_user_id?, sent_by_ai bool, delivery_status[pending|sent|delivered|read|failed], failure_code?, reply_to_message_id?, sent_at, delivered_at?, read_at?, raw_payload jsonb (**purge sau 30 ngày** qua `PruneMessagingPayloads`), meta jsonb (auto_rule_id?/template_id?/ai_run_id?); 🔑uniq `(conversation_id, external_message_id) WHERE external_message_id IS NOT NULL`; index `(conversation_id, created_at DESC)`, `(tenant_id, created_at DESC)`
+- `message_attachments`: tenant_id, message_id FK cascade, kind[image|video|file|audio], mime, size_bytes, **storage_path🔒** (`tenants/{id}/messaging/{yyyy/mm}/{conversation_id}/{uuid}.{ext}` trên MinIO), external_url? (cache để re-fetch), checksum sha256, width?/height?/duration_ms?, status[pending|downloaded|failed]
+- `message_templates`: tenant_id, code 🔑uniq/tenant, name, body text (vars `{{customer.name}}`/`{{order.code}}`), vars jsonb, attachments jsonb, scope jsonb (providers whitelist), shortcut_key?, enabled, created_by
+- `auto_reply_rules`: tenant_id, name, trigger[schedule|order_status|away_no_response|first_message], trigger_config jsonb (vd `{window:'22:00-08:00',tz}` / `{order_status,delay_minutes}` / `{minutes,business_hours_only}` / `{}`), filter jsonb (providers/customer_tags/keywords), action jsonb ({kind:template|raw|ai_reply, template_id?/raw_text?/ai_prompt_extra?}), cooldown_seconds default 3600, enabled, priority int, created_by
+- `auto_reply_runs` (**partition `fired_at` tháng**, prune > 90 ngày): tenant_id, rule_id FK cascade, conversation_id FK, window_key (`YYYY-MM-DD-HH` hoặc `order:{id}:status:{s}` — idempotency), fired_at, message_id? FK, status[fired|skipped_cooldown|skipped_filter|failed], error?; 🔑uniq `(rule_id, conversation_id, window_key)`
+- `ai_knowledge_documents`: tenant_id, title, source[upload|url|inline], storage_path?, url?, inline_text?, chunk_count, embedding_provider_code, embedding_model, embedding_version, indexed_at?, status[pending|ready|failed], error?, created_by
+- `ai_knowledge_chunks` (pgvector — HNSW index trên `embedding`, filter `tenant_id` trước): tenant_id, document_id FK cascade, chunk_index, chunk_text, embedding vector(1536), token_count
+- `ai_assistant_runs` (**partition `created_at` tháng**, prune > 365 ngày): tenant_id, conversation_id?, message_id?, provider_code, model, mode[suggest|auto|intent|rag], prompt_tokens, completion_tokens, cost_micro_vnd, duration_ms, status[success|error|timeout|blocked_by_guardrail], error?, created_by? (NULL nếu system); index `(tenant_id, created_at DESC)`
+- `message_drafts` (AI suggestion chờ NV duyệt — tự xoá sau 1h qua `PruneAiSuggestionDrafts`): tenant_id, conversation_id FK cascade, ai_run_id FK, draft_text, suggested_attachments jsonb, status[pending|accepted|rejected|expired], created_at, accepted_at?/accepted_by?/accepted_message_id?, expires_at
+
+> **Mở rộng bảng module khác (phối hợp PR, KHÔNG tự sửa từ Messaging):**
+> - `channel_accounts`: thêm cột `messaging_enabled bool default false` (Channels migration; Messaging đọc/ghi qua `MessagingEnablementContract`).
+> - `roles`/permission map: thêm `staff_cs` + `messaging.*` permissions (Tenancy).
+> - `plans.limits`/`features`: thêm `messaging_ai_replies_monthly`, `messaging_media_mb_daily`, `messaging_inbox`, `messaging_ai` (Billing seeder).
+> - `system_settings`: thêm group `ai_providers.<code>` (Admin).
+> - `audit_logs`: thêm action prefix `messaging.*` (Tenancy).
+
+> Domain events: `Orders\OrderStatusChanged` ⇒ `Messaging\AutoReplyOnOrderStatus`. `Customers\CustomerLinked` ⇒ `Messaging\BackfillConversationCustomer`. `Channels\DataDeletionRequested` ⇒ `Messaging\PurgeMessagingDataForBuyer`. `Channels\ChannelAccountRevoked` ⇒ `Messaging\AnonymizeMessagingDataForShop` (delay 90 ngày). Messaging phát: `MessageReceived`, `MessageSent`, `MessageFailed`, `MessagingTriggerFired`, `ConversationCreated`/`ConversationUpdated` (broadcast Reverb).
 
 > 🔒 = mã hoá ở tầng ứng dụng (Laravel `encrypted` cast). 🔑 = ràng buộc unique. `?` = nullable.
 

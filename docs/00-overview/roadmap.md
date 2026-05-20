@@ -199,8 +199,34 @@
 
 **Phase 7+ — Backlog kế toán:** phê duyệt nhiều cấp cho bút toán tay; chi phí vận hành & phân bổ (payroll lite, marketing, allocation rule); tích hợp **API** MISA AMIS / Fast / SmartBooks (thay vì chỉ file Excel); audit log trail riêng cho kế toán.
 
+## Phase 7.x — Omnichannel Messaging (đề xuất — kéo từ Phase 8+ vào)  ☐ (Spec viết xong, chờ duyệt phase)
+
+> **Đề xuất 2026-05-19 (chủ dự án yêu cầu lập kế hoạch ngay)** — kéo "chat hợp nhất đa sàn" từ Phase 8+ vào Phase 7.x (sau hoặc song song Accounting Phase 7) với rationale: (a) NV CSKH đa sàn thường xuyên kêu khó dùng 4 app, (b) feature này là điểm tăng giá trị rõ ràng cho gói Pro/Business, (c) sớm có Reverb realtime giúp các feature khác (đơn mới, in xong, notification) hưởng lợi cùng.
+
+**Bao gồm:** SPEC-0024 (Omnichannel Messaging) + 5 ADR mới (0017–0021):
+- ADR-0017: `MessagingConnector` + `MessagingRegistry` (trục mở rộng thứ 4 — 4 nền tảng Shopee/TikTok/Lazada/Facebook Page).
+- ADR-0018: `AiAssistantConnector` + `AiAssistantRegistry` (trục mở rộng thứ 5 — LLM; super-admin quản provider, tenant chọn 1).
+- ADR-0019: Messaging tái sử dụng `channel_accounts` cho 3 sàn + Facebook là provider `channel_account` mới (`kind=social`, không bảng `messaging_accounts` riêng).
+- ADR-0020: Lưu trữ — `messages` partition tháng + media relay MinIO + raw payload purge 30 ngày.
+- ADR-0021: Realtime Reverb (kéo từ Phase 8 vào) với fallback polling.
+
+**Việc:** module `Messaging` mới (4 connector + AI orchestrator + RAG + auto-reply 4 trigger + inbox 3 cột realtime + templates + knowledge base) + role mới `staff_cs` + Billing gating (`plan.feature:messaging_inbox`/`messaging_ai` + `plan.limit:messaging_ai_replies_monthly`/`messaging_media_mb_daily`).
+
+**Phụ thuộc bắt buộc trước khi bắt đầu code:**
+- Phase 6.5 — Rules engine + Notifications channels mở rộng (auto-reply theo order_status dùng engine này; alert "tin mới" cần in-app/web push).
+- Phase 4 — Shopee connector (chat Shopee dùng cùng OAuth token với orders).
+- Reverb container + nginx proxy WebSocket (kéo từ Phase 8 vào — ADR-0021).
+
+**Slice rollout (8 SPEC con, mỗi cái 2–6 tuần — chi tiết §12 của SPEC-0024):** S1 Foundation → S2 Facebook → S3 Templates → S4 TikTok+Shopee → S5 Auto-reply → S6 AI suggest → S7 AI auto guardrail → S8 Lazada (best-effort). Tổng tối thiểu S1–S6 ≈ 22–26 tuần cho team 2–4 dev.
+
+**Exit criteria:** kết nối 1 Facebook Page → buyer test gửi tin → app nhận ≤ 10s → NV gửi reply → buyer thấy. AI suggest accept rate ≥ 60% sau 1 tháng vận hành. 3 nền tảng (Facebook + TikTok + Shopee) wired (Lazada best-effort, không cam kết v1).
+
+**Câu hỏi mở chưa chốt (xem SPEC-0024 §11):** cost model AI (super-admin chịu vs BYO key), auto-mode v1 có bật không, Lazada API khả thi không, DPA với LLM vendor, phase number chính thức.
+
 ## Phase 8+ — Hậu mãi & nâng cao  ☐
-Trả hàng/hoàn tiền; chat hợp nhất đa sàn; **HĐĐT (TT78 — VNPT/Viettel/MISA + ký số)** (đẩy từ Phase 7+ cũ); tối ưu hiệu năng (read replica, search engine, archive partition); realtime UI (Reverb); PWA quét đóng gói.
+Trả hàng/hoàn tiền; **HĐĐT (TT78 — VNPT/Viettel/MISA + ký số)** (đẩy từ Phase 7+ cũ); tối ưu hiệu năng (read replica, search engine, archive partition); PWA quét đóng gói.
+
+> *"Chat hợp nhất đa sàn"* và *"realtime UI (Reverb)"* đã được đề xuất kéo lên Phase 7.x — xem section ngay trên.
 
 ---
 

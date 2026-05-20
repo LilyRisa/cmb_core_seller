@@ -32,6 +32,7 @@
 | [0018](0018-billing-saas.md) | Billing SaaS — gói thuê bao (trial/starter/pro/business) + hạn mức gian hàng + gating tính năng nâng cao + thanh toán SePay/VNPay (MoMo skeleton) | 6.4 | Reviewed (đang triển khai PR1) | — |
 | [0019](0019-accounting-foundation.md) | Module Kế toán đầy đủ — CoA (TT133) + Double-entry GL + Kỳ kế toán + Sổ NK/Sổ cái + AR/AP/Quỹ&NH + Báo cáo TC (Trial Balance/B01/B02) + Export MISA | 7.1–7.5 | Implemented (46/46 tests xanh) | — |
 | [0020](0020-admin-user-management.md) | Admin hệ thống — super-admin xuyên tenant + can thiệp khi vượt hạn mức (force-delete kênh, đổi gói tay, suspend tenant) + 2-day grace lock | 6.4 mở rộng | Draft | — |
+| [0024](0024-omnichannel-messaging.md) | Hộp thư hợp nhất đa nền tảng (Shopee + TikTok + Lazada + Facebook) — sync realtime, template, auto-reply (lịch / order status / vắng mặt / first-message), gửi media, AI assistant (super-admin quản provider, tenant chọn 1) + RAG training | 7.x (đề xuất — đẩy từ Phase 8+) | Draft (5 ADR 0017–0021 kèm) | — |
 
 ## Khi nào KHÔNG cần spec
 - Sửa lỗi nhỏ, refactor không đổi hành vi, thay đổi tài liệu, bump dependency, chỉnh CI — chỉ cần PR mô tả rõ. Nhưng nếu "việc nhỏ" hoá ra động chạm kiến trúc/hành vi nghiệp vụ ⇒ dừng, viết spec/ADR.

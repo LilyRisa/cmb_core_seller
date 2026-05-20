@@ -5,10 +5,14 @@ namespace CMBcoreSeller\Integrations;
 use CMBcoreSeller\Integrations\Carriers\CarrierRegistry;
 use CMBcoreSeller\Integrations\Carriers\Ghn\GhnConnector;
 use CMBcoreSeller\Integrations\Carriers\Manual\ManualCarrierConnector;
+use CMBcoreSeller\Integrations\Ai\AiAssistantRegistry;
+use CMBcoreSeller\Integrations\Ai\Manual\ManualAiAssistantConnector;
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Integrations\Channels\Lazada\LazadaConnector;
 use CMBcoreSeller\Integrations\Channels\Manual\ManualConnector;
 use CMBcoreSeller\Integrations\Channels\TikTok\TikTokConnector;
+use CMBcoreSeller\Integrations\Messaging\Manual\ManualMessagingConnector;
+use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Integrations\Payments\Momo\MomoConnector;
 use CMBcoreSeller\Integrations\Payments\PaymentRegistry;
 use CMBcoreSeller\Integrations\Payments\SePay\SePayConnector;
@@ -63,6 +67,41 @@ class IntegrationsServiceProvider extends ServiceProvider
         'momo' => MomoConnector::class,                 // skeleton — capability=false
     ];
 
+    /**
+     * Messaging connectors (Phase 7.x đề xuất — SPEC-0024 / ADR-0017).
+     * Registry chỉ nạp những provider trong `config('integrations.messaging')`.
+     * `manual` luôn nạp (test/dev — tương tự ManualConnector cho Channels).
+     *
+     * S1: chỉ có `manual`. S2 thêm `facebook_page`, S4 thêm `tiktok_chat`/`shopee_chat`,
+     * S8 cân nhắc `lazada_chat`.
+     *
+     * @var array<string, class-string>
+     */
+    protected array $messagingConnectors = [
+        'manual' => ManualMessagingConnector::class,
+        // 'facebook_page' => \CMBcoreSeller\Integrations\Messaging\Facebook\FacebookPageConnector::class,  // S2
+        // 'tiktok_chat'   => \CMBcoreSeller\Integrations\Messaging\TikTok\TikTokChatConnector::class,     // S4
+        // 'shopee_chat'   => \CMBcoreSeller\Integrations\Messaging\Shopee\ShopeeChatConnector::class,    // S4
+        // 'lazada_chat'   => \CMBcoreSeller\Integrations\Messaging\Lazada\LazadaChatConnector::class,    // S8 (best-effort)
+    ];
+
+    /**
+     * AI assistant connectors (Phase 7.x đề xuất — SPEC-0024 / ADR-0018).
+     * KHÁC các registry khác: enable/disable đọc từ DB `system_settings.ai_providers.<code>.is_active`
+     * thay vì config — super-admin bật/tắt runtime mà không deploy.
+     *
+     * S1: chỉ có `manual` (deterministic, free). S6 sẽ thêm Claude/OpenAI/Gemini.
+     *
+     * @var array<string, class-string>
+     */
+    protected array $aiAssistantConnectors = [
+        'manual' => ManualAiAssistantConnector::class,
+        // 'claude' => \CMBcoreSeller\Integrations\Ai\Claude\ClaudeConnector::class,   // S6
+        // 'openai' => \CMBcoreSeller\Integrations\Ai\OpenAi\OpenAiConnector::class,   // S6
+        // 'gemini' => \CMBcoreSeller\Integrations\Ai\Gemini\GeminiConnector::class,   // S6
+        // 'local_llm' => \CMBcoreSeller\Integrations\Ai\LocalLlm\LocalLlmConnector::class,   // S6
+    ];
+
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../../config/integrations.php', 'integrations');
@@ -106,6 +145,34 @@ class IntegrationsServiceProvider extends ServiceProvider
                 if ($code !== '' && isset($this->paymentConnectors[$code])) {
                     $registry->register($code, $this->paymentConnectors[$code]);
                 }
+            }
+
+            return $registry;
+        });
+
+        // Messaging (Phase 7.x đề xuất / SPEC-0024).
+        // `manual` luôn nạp (test/dev); env `INTEGRATIONS_MESSAGING=facebook_page,tiktok_chat,...`
+        // bật connector thật khi available.
+        $this->app->singleton(MessagingRegistry::class, function ($app) {
+            $registry = new MessagingRegistry($app);
+            $envFilter = array_filter(array_map('trim', (array) config('integrations.messaging', [])));
+            $codes = array_unique(array_merge(['manual'], $envFilter));
+            foreach ($codes as $code) {
+                if (isset($this->messagingConnectors[$code])) {
+                    $registry->register($code, $this->messagingConnectors[$code]);
+                }
+            }
+
+            return $registry;
+        });
+
+        // AI Assistant (Phase 7.x đề xuất / SPEC-0024). Activation đọc DB —
+        // registry chỉ chứa class map; `for($code)` check `system_settings` trước
+        // khi resolve.
+        $this->app->singleton(AiAssistantRegistry::class, function ($app) {
+            $registry = new AiAssistantRegistry($app);
+            foreach ($this->aiAssistantConnectors as $code => $class) {
+                $registry->register($code, $class);
             }
 
             return $registry;

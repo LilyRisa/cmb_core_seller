@@ -9,6 +9,7 @@ use CMBcoreSeller\Modules\Customers\CustomersServiceProvider;
 use CMBcoreSeller\Modules\Finance\FinanceServiceProvider;
 use CMBcoreSeller\Modules\Fulfillment\FulfillmentServiceProvider;
 use CMBcoreSeller\Modules\Inventory\InventoryServiceProvider;
+use CMBcoreSeller\Modules\Messaging\MessagingServiceProvider;
 use CMBcoreSeller\Modules\Notifications\NotificationsServiceProvider;
 use CMBcoreSeller\Modules\Orders\OrdersServiceProvider;
 use CMBcoreSeller\Modules\Procurement\ProcurementServiceProvider;
@@ -42,4 +43,6 @@ return [
     SettingsServiceProvider::class,
     AdminServiceProvider::class,
     NotificationsServiceProvider::class,
+    // SPEC-0024 (Phase 7.x đề xuất) — Omnichannel Messaging foundation (S1).
+    MessagingServiceProvider::class,
 ];

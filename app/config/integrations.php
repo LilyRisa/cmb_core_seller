@@ -16,6 +16,35 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Enabled messaging providers (SPEC-0024 / ADR-0017 — Phase 7.x đề xuất)
+    |--------------------------------------------------------------------------
+    |
+    | Provider codes whose messaging connectors should be loaded into
+    | MessagingRegistry. `manual` luôn nạp (test/dev — không cần env).
+    | Khi connector thật sẵn sàng (S2+): thêm vào env, vd
+    | `INTEGRATIONS_MESSAGING=facebook_page,tiktok_chat`.
+    |
+    */
+    'messaging' => array_filter(explode(',', (string) env('INTEGRATIONS_MESSAGING', ''))),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Facebook Page Messenger (SPEC-0024 — S2)
+    |--------------------------------------------------------------------------
+    |
+    | `verify_token` cho GET /webhook/messaging/facebook hub.challenge.
+    | App secret / Page tokens sống ở `channel_accounts` per page.
+    |
+    */
+    'messaging_facebook_page' => [
+        'verify_token' => env('MESSAGING_FACEBOOK_VERIFY_TOKEN'),
+        'app_id' => env('MESSAGING_FACEBOOK_APP_ID'),
+        'app_secret' => env('MESSAGING_FACEBOOK_APP_SECRET'),
+        'graph_version' => env('MESSAGING_FACEBOOK_GRAPH_VERSION', 'v19.0'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Enabled shipping carriers
     |--------------------------------------------------------------------------
     |

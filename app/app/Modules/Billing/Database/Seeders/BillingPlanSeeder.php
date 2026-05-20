@@ -31,6 +31,9 @@ class BillingPlanSeeder extends Seeder
             // Phase 7 — Kế toán đầy đủ (SPEC 0019).
             'accounting_basic' => false,
             'accounting_advanced' => false,
+            // SPEC-0024 (Phase 7.x đề xuất) — Omnichannel Messaging.
+            'messaging_inbox' => false,    // Inbox hợp nhất + auto-reply + template
+            'messaging_ai' => false,       // AI suggestion/auto + RAG knowledge base
         ];
 
         $featuresPro = array_merge($featuresBasic, [
@@ -41,6 +44,8 @@ class BillingPlanSeeder extends Seeder
             'demand_planning' => true,
             // Pro: bật Accounting nền (CoA, journal, AR/AP, sổ NK, BS/P&L cơ bản).
             'accounting_basic' => true,
+            // Pro: bật Inbox; AI chỉ Business.
+            'messaging_inbox' => true,
         ]);
 
         $featuresBusiness = array_merge($featuresPro, [
@@ -49,6 +54,8 @@ class BillingPlanSeeder extends Seeder
             'priority_support' => true,
             // Business: thêm Accounting nâng cao (VAT + tờ khai + bank reconcile + export MISA).
             'accounting_advanced' => true,
+            // Business: AI assistant cho messaging.
+            'messaging_ai' => true,
         ]);
 
         $plans = [
@@ -60,7 +67,11 @@ class BillingPlanSeeder extends Seeder
                 'price_monthly' => 0,
                 'price_yearly' => 0,
                 'trial_days' => 14,
-                'limits' => ['max_channel_accounts' => 2],
+                'limits' => [
+                    'max_channel_accounts' => 2,
+                    'messaging_ai_replies_monthly' => 0,
+                    'messaging_media_mb_daily' => 0,
+                ],
                 'features' => $featuresBasic,
             ],
             [
@@ -71,29 +82,41 @@ class BillingPlanSeeder extends Seeder
                 'price_monthly' => 99_000,
                 'price_yearly' => 990_000,
                 'trial_days' => 0,
-                'limits' => ['max_channel_accounts' => 2],
+                'limits' => [
+                    'max_channel_accounts' => 2,
+                    'messaging_ai_replies_monthly' => 0,
+                    'messaging_media_mb_daily' => 0,
+                ],
                 'features' => $featuresBasic,
             ],
             [
                 'code' => Plan::CODE_PRO,
                 'name' => 'Pro',
-                'description' => 'Tính năng nâng cao đầy đủ — quản lý mua hàng, FIFO, đối soát, báo cáo lợi nhuận thật, đề xuất nhập hàng.',
+                'description' => 'Tính năng nâng cao đầy đủ — quản lý mua hàng, FIFO, đối soát, báo cáo lợi nhuận thật, đề xuất nhập hàng. Bao gồm Hộp thư hợp nhất đa sàn.',
                 'sort_order' => 2,
                 'price_monthly' => 199_000,
                 'price_yearly' => 1_990_000,
                 'trial_days' => 0,
-                'limits' => ['max_channel_accounts' => 5],
+                'limits' => [
+                    'max_channel_accounts' => 5,
+                    'messaging_ai_replies_monthly' => 0,    // Pro: chỉ inbox + manual reply, KHÔNG có AI
+                    'messaging_media_mb_daily' => 500,
+                ],
                 'features' => $featuresPro,
             ],
             [
                 'code' => Plan::CODE_BUSINESS,
                 'name' => 'Business',
-                'description' => 'Shop đa sàn quy mô lớn — đăng bán đa sàn, tự động hoá, hỗ trợ SLA.',
+                'description' => 'Shop đa sàn quy mô lớn — đăng bán đa sàn, tự động hoá, hỗ trợ SLA. Bao gồm AI hỗ trợ trả lời + RAG training tài liệu.',
                 'sort_order' => 3,
                 'price_monthly' => 399_000,
                 'price_yearly' => 3_990_000,
                 'trial_days' => 0,
-                'limits' => ['max_channel_accounts' => 10],
+                'limits' => [
+                    'max_channel_accounts' => 10,
+                    'messaging_ai_replies_monthly' => -1,  // unlimited (super-admin chịu cost LLM)
+                    'messaging_media_mb_daily' => 5_000,
+                ],
                 'features' => $featuresBusiness,
             ],
         ];

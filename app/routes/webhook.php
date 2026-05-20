@@ -3,6 +3,7 @@
 use CMBcoreSeller\Modules\Billing\Http\Controllers\PaymentWebhookController;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\WebhookController;
 use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\CarrierWebhookController;
+use CMBcoreSeller\Modules\Messaging\Http\Controllers\MessagingWebhookController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -42,3 +43,20 @@ Route::post('payments/{gateway}', [PaymentWebhookController::class, 'handle'])
 Route::post('carriers/{carrier}', [CarrierWebhookController::class, 'handle'])
     ->whereIn('carrier', ['ghn', 'ghtk', 'jt', 'viettelpost'])
     ->name('carriers');
+
+/*
+| Messaging webhooks (SPEC-0024 — Phase 7.x đề xuất):
+|   POST /webhook/messaging/{provider}  — sàn push message events (verify chữ ký ở connector)
+|   GET  /webhook/messaging/facebook    — Meta hub.challenge verify (setup)
+|
+| Mở rộng provider: cùng controller chung, khác `MessagingConnector::verifyWebhookSignature`
+| + `parseWebhook`. KHÔNG sửa controller khi thêm sàn — đúng ADR-0017.
+|
+| `manual` provider có ở registry để test pipeline (verify trả true trong non-prod).
+*/
+Route::post('messaging/{provider}', [MessagingWebhookController::class, 'handle'])
+    ->whereIn('provider', ['manual', 'facebook_page', 'facebook', 'tiktok_chat', 'shopee_chat', 'lazada_chat'])
+    ->name('messaging');
+Route::get('messaging/facebook', [MessagingWebhookController::class, 'verify'])
+    ->defaults('provider', 'facebook')
+    ->name('messaging.verify');

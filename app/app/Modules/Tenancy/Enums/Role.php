@@ -12,6 +12,7 @@ enum Role: string
     case Admin = 'admin';
     case StaffOrder = 'staff_order';
     case StaffWarehouse = 'staff_warehouse';
+    case StaffCs = 'staff_cs';           // SPEC-0024 — NV chăm sóc khách hàng (chat)
     case Accountant = 'accountant';
     case Viewer = 'viewer';
 
@@ -22,6 +23,7 @@ enum Role: string
             self::Admin => 'Quản trị',
             self::StaffOrder => 'NV xử lý đơn',
             self::StaffWarehouse => 'NV kho',
+            self::StaffCs => 'NV chăm sóc khách hàng',
             self::Accountant => 'Kế toán',
             self::Viewer => 'Chỉ xem',
         };
@@ -45,6 +47,8 @@ enum Role: string
                 'fulfillment.view', 'fulfillment.print', 'fulfillment.ship',
                 'products.view', 'inventory.view', 'inventory.map', 'channels.view', 'dashboard.view',
                 'customers.view', 'customers.note', 'customers.view_phone',
+                // SPEC-0024 — NV đơn thường cũng trả tin với khách trong context xử lý đơn.
+                'messaging.view', 'messaging.reply',
             ],
             self::StaffWarehouse => [
                 'inventory.view', 'inventory.adjust', 'inventory.transfer', 'inventory.stocktake', 'inventory.map',
@@ -66,6 +70,13 @@ enum Role: string
                 'accounting.view', 'accounting.post', 'accounting.close_period', 'accounting.export',
             ],
             self::Viewer => ['orders.view', 'inventory.view', 'products.view', 'channels.view', 'dashboard.view', 'customers.view'],
+            // SPEC-0024 — staff_cs (Customer Service): full messaging permission + chỉ-xem context đơn/khách.
+            // KHÔNG có quyền sửa đơn / kho / billing. Mở rộng phase sau nếu cần.
+            self::StaffCs => [
+                'messaging.view', 'messaging.reply', 'messaging.template.manage',
+                'orders.view', 'customers.view', 'customers.view_phone', 'customers.note',
+                'channels.view', 'dashboard.view', 'products.view', 'inventory.view',
+            ],
         };
     }
 

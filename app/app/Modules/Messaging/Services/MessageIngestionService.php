@@ -1,0 +1,179 @@
+<?php
+
+namespace CMBcoreSeller\Modules\Messaging\Services;
+
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageDirection;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
+use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Messaging\Events\ConversationCreated;
+use CMBcoreSeller\Modules\Messaging\Events\MessageReceived;
+use CMBcoreSeller\Modules\Messaging\Models\Conversation;
+use CMBcoreSeller\Modules\Messaging\Models\Message;
+use CMBcoreSeller\Modules\Messaging\Models\MessageAttachment;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+
+/**
+ * Upsert idempotent inbound messages từ webhook hoặc polling.
+ *
+ * Idempotency: UNIQUE `(conversation_id, external_message_id)` ở DB chống
+ * duplicate khi webhook + polling cùng về. Service-level chạy trong transaction
+ * + `lockForUpdate` trên conversation để tránh race count/preview drift.
+ *
+ * SPEC-0024 §4.1.
+ *
+ * Mirror pattern `OrderUpsertService` (Phase 1) — single entry point cho mọi
+ * inbound flow, không có 2 codepath song song.
+ */
+class MessageIngestionService
+{
+    /**
+     * Upsert 1 inbound message vào DB. Tạo conversation nếu chưa có.
+     *
+     * Trả `['conversation' => Conversation, 'message' => Message, 'created' => bool]`.
+     * `created=false` nếu message đã tồn tại (dedupe).
+     *
+     * @return array{conversation: Conversation, message: Message, created: bool}
+     */
+    public function ingest(ChannelAccount $channelAccount, MessageDTO $dto): array
+    {
+        return DB::transaction(function () use ($channelAccount, $dto) {
+            $conversation = $this->ensureConversation($channelAccount, $dto);
+
+            // Dedupe: tìm theo (conversation_id, external_message_id)
+            $existing = Message::query()
+                ->where('conversation_id', $conversation->id)
+                ->where('external_message_id', $dto->externalMessageId)
+                ->lockForUpdate()
+                ->first();
+
+            if ($existing !== null) {
+                return ['conversation' => $conversation, 'message' => $existing, 'created' => false];
+            }
+
+            $message = Message::create([
+                'tenant_id' => $channelAccount->tenant_id,
+                'conversation_id' => $conversation->id,
+                'external_message_id' => $dto->externalMessageId,
+                'direction' => $dto->direction->value,
+                'kind' => $dto->kind->value,
+                'body' => $dto->body,
+                'attachments_count' => count($dto->attachments),
+                // Delivery status: inbound luôn 'sent' (tin đã tới buyer khi sàn push về app);
+                // outbound (echo-back) cũng 'sent' — chỉ outbound mới do app gửi mới start 'pending'.
+                'delivery_status' => Message::STATUS_SENT,
+                'sent_at' => $dto->sentAt,
+                'delivered_at' => $dto->deliveredAt,
+                'read_at' => $dto->readAt,
+                'raw_payload' => $dto->raw,
+            ]);
+
+            foreach ($dto->attachments as $media) {
+                MessageAttachment::create([
+                    'tenant_id' => $channelAccount->tenant_id,
+                    'message_id' => $message->id,
+                    'kind' => $media->kind->value,
+                    'mime' => $media->mime,
+                    'size_bytes' => $media->sizeBytes,
+                    'external_url' => $media->externalUrl,
+                    'storage_path' => $media->storagePath,
+                    'filename' => $media->filename,
+                    'width' => $media->width,
+                    'height' => $media->height,
+                    'duration_ms' => $media->durationMs,
+                    'status' => $media->storagePath
+                        ? MessageAttachment::STATUS_DOWNLOADED
+                        : MessageAttachment::STATUS_PENDING,
+                ]);
+            }
+
+            // Cập nhật conversation header. Lock đã ở `ensureConversation` ⇒ no race.
+            $this->updateConversationOnNewMessage($conversation, $message);
+
+            return ['conversation' => $conversation, 'message' => $message, 'created' => true];
+        });
+    }
+
+    /**
+     * Fire event sau khi transaction commit (idempotent với DB row đã tạo).
+     * Tách khỏi `ingest` để caller (webhook job) tự kiểm `created` flag rồi mới fire.
+     */
+    public function fireEventsForNewMessage(Conversation $conversation, Message $message, bool $isNewConversation): void
+    {
+        if ($isNewConversation) {
+            ConversationCreated::dispatch($conversation->id);
+        }
+        if ($message->isInbound()) {
+            MessageReceived::dispatch($message->id, $conversation->id, requiresHuman: false);
+        }
+    }
+
+    private function ensureConversation(ChannelAccount $channelAccount, MessageDTO $dto): Conversation
+    {
+        // Lookup with lock — chống race khi 2 webhook cùng tới về cùng conv mới.
+        $existing = Conversation::query()
+            ->where('channel_account_id', $channelAccount->id)
+            ->where('external_conversation_id', $dto->externalConversationId)
+            ->lockForUpdate()
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        try {
+            return Conversation::create([
+                'tenant_id' => $channelAccount->tenant_id,
+                'channel_account_id' => $channelAccount->id,
+                'provider' => $channelAccount->provider,
+                'external_conversation_id' => $dto->externalConversationId,
+                'buyer_external_id' => $dto->buyerExternalId,
+                'buyer_name' => null,
+                'buyer_avatar_url' => null,
+                'status' => Conversation::STATUS_OPEN,
+                'unread_count' => 0,
+                'message_count' => 0,
+                'last_message_at' => $dto->sentAt ?? now(),
+            ]);
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Race: insert đồng thời với connection khác — re-lookup.
+            $row = Conversation::query()
+                ->where('channel_account_id', $channelAccount->id)
+                ->where('external_conversation_id', $dto->externalConversationId)
+                ->first();
+
+            if ($row) {
+                return $row;
+            }
+
+            throw $e;
+        }
+    }
+
+    private function updateConversationOnNewMessage(Conversation $conversation, Message $message): void
+    {
+        $preview = $message->body !== null
+            ? Str::limit(preg_replace('/\s+/', ' ', $message->body), 197)
+            : '['.$message->kind.']';
+
+        $conversation->message_count++;
+        $conversation->last_message_at = $message->created_at;
+        $conversation->last_message_preview = $preview;
+
+        if ($message->isInbound()) {
+            $conversation->unread_count++;
+            $conversation->last_inbound_at = $message->created_at;
+            // Tin mới đẩy snoozed/resolved về open
+            if (in_array($conversation->status, [Conversation::STATUS_SNOOZED, Conversation::STATUS_RESOLVED], true)) {
+                $conversation->status = Conversation::STATUS_OPEN;
+                $conversation->snoozed_until = null;
+            }
+        } else {
+            $conversation->last_outbound_at = $message->created_at;
+        }
+
+        $conversation->save();
+    }
+}

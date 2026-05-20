@@ -17,6 +17,11 @@
 | `notifications` | gửi email/in-app/Zalo/Telegram. *(SPEC 0022 — đã implement kênh `mail`: `VerifyEmailNotification`, `WelcomeNotification`, `ResetPasswordNotification` + listener `SendWelcomeEmailOnVerified` listen `Illuminate\Auth\Events\Verified`. SPEC 0023 — thêm `BroadcastNotification` cho admin gửi mail tới user tenant qua endpoint `POST /admin/broadcasts`. Tries 3, backoff 10/60/300s.)* | Trung bình |
 | `customers` | *(Phase 2 — SPEC-0002, đã implement)* `LinkOrderToCustomer` (listener), `AnonymizeCustomersForShop` (cả data_deletion & disconnect); commands `customers:recompute-stale` (hằng giờ), `customers:backfill` (one-shot) | Thấp — không chặn order pipeline; race xử lý bằng `lockForUpdate` + unique `(tenant_id,phone_hash)` trong service |
 | `billing` | *(Phase 6.4 — SPEC-0018, đã implement đầy đủ PR1+PR2+PR3)* `StartTrialSubscription` (listener `TenantCreated` — auto-start trial 14 ngày), `ActivateSubscription` (listener `InvoicePaid` — swap gói khi paid); commands `subscriptions:check-expiring` (hằng ngày — state machine), `billing:recompute-usage` (hằng giờ — lưới an toàn `usage_counters`), **`subscriptions:check-over-quota`** *(SPEC-0020 — hằng giờ — set/clear `over_quota_warned_at` 2-day grace)*. | Thấp — đăng ký + checkout không chặn UI; race xử lý bằng partial unique index "1 alive subscription per tenant" |
+| `messaging-webhooks` *(Phase 7.x đề xuất — SPEC-0024, supervisor `critical`)* | `Messaging\Jobs\ProcessMessagingWebhook` (tries 5, backoff 10/30/60/300/900s) — verify, ghi `webhook_events` (`provider='messaging.<code>'`), resolve `channel_account` → `MessageIngestionService::upsert` idempotent | Cao nhất — chung supervisor `critical` với webhook sàn/payment |
+| `messaging-inbound` *(Phase 7.x — SPEC-0024)* | `Messaging\Jobs\PollConversations` (`ShouldBeUnique` per shop, throttle Redis per (provider, shop)) — backup khi webhook hỏng | Trung bình |
+| `messaging-media` *(Phase 7.x — SPEC-0024)* | `Messaging\Jobs\DownloadInboundMedia` (tries 3, backoff 30/120/600s) — tải ảnh/video/file từ URL sàn (TTL ngắn) về MinIO `tenants/{id}/messaging/...` | Trung bình; I/O nặng, tách queue |
+| `messaging-outbound` *(Phase 7.x — SPEC-0024)* | `Messaging\Jobs\SendMessage` (tries 4, backoff 5/30/120/600s — tôn trọng 429/Retry-After; check `OutboundWindowGuard` trước) | Cao (UX gửi tin) |
+| `messaging-ai` *(Phase 7.x — SPEC-0024)* | `Messaging\Jobs\GenerateAiSuggestion`, `ClassifyIntent`, `IndexKnowledgeDoc` (embedding) — timeout cứng 30s, retry 1 lần; ghi `ai_assistant_runs` cost | Trung bình; chi phí tiền (LLM) |
 | `webhooks` (shared) | *(Phase 6.4 — SPEC-0018, PR2/PR3)* `ProcessPaymentWebhook` cho payment gateway IPN (SePay/VNPay). Verify chữ ký ở controller → ghi `webhook_events` (provider=`payments.<gateway>`) → dispatch job. Dedupe unique `(gateway, external_ref)` trên `payments`. | Cao — chung supervisor `critical` với webhook sàn TMĐT |
 | `default` | còn lại | Trung bình |
 
@@ -49,6 +54,15 @@
 | hằng ngày | `SendDigestNotifications` (tuỳ cấu hình tenant) | Tóm tắt đơn/cảnh báo |
 | hằng tuần | `ReconcileShippingFees` (Phase 6) | Đối soát phí ship ước tính vs thực tế |
 | hằng tuần | `CheckWebhookHeartbeat` | Cảnh báo nếu sàn ngừng gửi webhook (polling vẫn chạy nên không mất đơn) |
+| mỗi 5' | *(Phase 7.x — SPEC-0024)* `Messaging\Jobs\PollConversations` cho mỗi shop `messaging_enabled` active | Backup khi webhook messaging hỏng — `connector.fetchConversations(since=last_inbound_at)` rồi `fetchMessages` |
+| mỗi 1' | *(Phase 7.x — SPEC-0024)* `Messaging\Schedulers\AutoReplyScheduler::tick` | Quét rule `schedule` & `away_no_response` matching conversations |
+| mỗi 30' | *(Phase 7.x — SPEC-0024)* `Messaging\Jobs\CheckMessagingTokenHealth` | Token Facebook Page hết hạn → reconnect notice (Shopee/TikTok/Lazada token dùng chung với Channels, đã có pipeline refresh) |
+| hằng ngày 03:00 | *(Phase 7.x — SPEC-0024 / ADR-0020)* `Messaging\Jobs\PruneMessagingPayloads` | Set `messages.raw_payload=NULL` cho rows > 30 ngày (giữ DTO + metadata) |
+| hằng ngày | *(Phase 7.x — SPEC-0024)* `Messaging\Jobs\PruneAutoReplyRuns` | Drop `auto_reply_runs` > 90 ngày (qua partition detach) |
+| hằng ngày | *(Phase 7.x — SPEC-0024)* `Messaging\Jobs\PruneAiAssistantRuns` | Drop `ai_assistant_runs` > 365 ngày (partition detach) |
+| hằng ngày | *(Phase 7.x — SPEC-0024)* `Messaging\Jobs\PruneAiSuggestionDrafts` | Mark `message_drafts` `expired` (created > 1h chưa accept/reject) |
+| hằng ngày | *(Phase 7.x — SPEC-0024)* `EnsureMessagingPartitions` (extend `db:partitions:ensure`) | Tạo trước partition tháng kế cho `messages`/`auto_reply_runs`/`ai_assistant_runs` |
+| hằng tuần | *(Phase 7.x — SPEC-0024)* `Messaging\Jobs\CheckMessagingWebhookHeartbeat` | Cảnh báo nếu nền tảng messaging ngừng gửi event (polling 5' vẫn chạy) |
 
 - Scheduler chạy ở container `scheduler` (một instance để tránh chạy trùng), hoặc dùng `withoutOverlapping()`.
 - Job định kỳ nặng (`SyncOrdersForShop` cho N shop) ⇒ dispatch các job con lên queue, không tự chạy đồng bộ trong scheduler tick.

@@ -34,7 +34,8 @@ resources/js/
 │   ├── finance/             (đối soát, lợi nhuận)
 │   ├── reports/
 │   ├── settings/            (thành viên & phân quyền, automation rules, thông báo)
-│   └── billing/             (gói, hoá đơn, nâng cấp)
+│   ├── billing/             (gói, hoá đơn, nâng cấp)
+│   └── messaging/           (Phase 7.x — SPEC-0024: inbox 3 cột, templates, auto-rules, knowledge AI)
 ├── hooks/                   // hook chung (useDebounce, useTableQuery, ...)
 └── types/                   // TS types — ưu tiên generate/đồng bộ với backend Resource
 ```
@@ -55,6 +56,8 @@ resources/js/
 13. **Hạn chế `<Select>`**: ưu tiên `Radio.Group`/`Segmented`/`Tag.CheckableTag`/nút bấm cho lựa chọn ít phương án; chỉ dùng `Select` khi danh sách dài/động.
 
 ## 5. Trang chính (sitemap rút gọn)
-`/login` `/register` `/forgot-password` · `/onboarding` (tạo tenant + kết nối gian hàng đầu) · `/` Dashboard · `/orders` (list — panel "Lọc" chip rows, xem [`orders-filter-panel.md`](orders-filter-panel.md)) `/orders/:id` `/orders/new` (tạo tay) · `/channels` · `/products` `/products/skus` `/products/listings` `/products/sku-mapping` · `/inventory` `/inventory/:sku` `/inventory/stocktakes` `/warehouses` · `/fulfillment/shipments` `/fulfillment/print` `/fulfillment/templates` `/fulfillment/scan` (quét đóng gói) `/fulfillment/pickups` · `/procurement/suppliers` `/procurement/pos` · `/finance/settlements` `/finance/profit` · `/reports` · `/settings/profile` `/settings/workspace` `/settings/plan` *(Phase 6.4 — SPEC-0018: gói thuê bao + nâng cấp + hoá đơn)* `/settings/members` `/settings/carriers` `/settings/orders` `/settings/print` `/settings/automations` `/settings/notifications` · `/sync-logs` (nhật ký đồng bộ).
+`/login` `/register` `/forgot-password` · `/onboarding` (tạo tenant + kết nối gian hàng đầu) · `/` Dashboard · `/orders` (list — panel "Lọc" chip rows, xem [`orders-filter-panel.md`](orders-filter-panel.md)) `/orders/:id` `/orders/new` (tạo tay) · `/channels` · `/products` `/products/skus` `/products/listings` `/products/sku-mapping` · `/inventory` `/inventory/:sku` `/inventory/stocktakes` `/warehouses` · `/fulfillment/shipments` `/fulfillment/print` `/fulfillment/templates` `/fulfillment/scan` (quét đóng gói) `/fulfillment/pickups` · `/procurement/suppliers` `/procurement/pos` · `/finance/settlements` `/finance/profit` · `/reports` · `/settings/profile` `/settings/workspace` `/settings/plan` *(Phase 6.4 — SPEC-0018: gói thuê bao + nâng cấp + hoá đơn)* `/settings/members` `/settings/carriers` `/settings/orders` `/settings/print` `/settings/automations` `/settings/notifications` `/settings/messaging` *(Phase 7.x — SPEC-0024: chọn AI provider, giờ vắng mặt, fallback template)* · `/sync-logs` (nhật ký đồng bộ) · `/messaging` *(Phase 7.x — SPEC-0024: inbox 3 cột realtime Reverb)* `/messaging/templates` `/messaging/auto-rules` `/messaging/knowledge` `/messaging/stats`.
+
+> **Admin SPA mở rộng (Phase 7.x — SPEC-0024):** `/admin/ai-providers` (super-admin CRUD LLM provider trong `system_settings`) · `/admin/messaging/ai-usage` (cost per tenant).
 
 > **Pattern "panel Lọc + chip rows"** (kiểu BigSeller): các facet dạng danh sách hiển thị chip có số lượng (component `FilterChipRow`), state lọc trong query string, đếm từ `/orders/stats` faceted. Recipe thêm facet mới + ngoài-phạm-vi: [`orders-filter-panel.md`](orders-filter-panel.md).
