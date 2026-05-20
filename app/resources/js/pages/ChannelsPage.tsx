@@ -96,7 +96,7 @@ function ShopCard({ account, canManage, onResync, onDelete, onRename, onReauthor
                 <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <MessageOutlined style={{ color: '#8c8c8c' }} />
                     <Typography.Text style={{ fontSize: 13 }}>Nhận & trả lời tin nhắn trong Hộp thư</Typography.Text>
-                    <Switch size="small" checked={account.messaging_enabled} loading={togglingMessaging} onChange={onToggleMessaging} />
+                    <Switch size="small" checked={account.messaging_enabled} loading={togglingMessaging} onChange={onToggleMessaging} aria-label="Bật nhắn tin cho gian hàng" />
                 </div>
             )}
         </Card>

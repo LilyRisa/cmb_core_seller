@@ -126,7 +126,8 @@ export function useSetChannelMessaging() {
     const tenantId = useCurrentTenantId();
     return useMutation({
         mutationFn: async (vars: { id: number; messaging_enabled: boolean }) => {
-            await api!.patch(`/channel-accounts/${vars.id}/messaging`, { messaging_enabled: vars.messaging_enabled });
+            const { data } = await api!.patch<{ data: ChannelAccount }>(`/channel-accounts/${vars.id}/messaging`, { messaging_enabled: vars.messaging_enabled });
+            return data.data;
         },
         onSuccess: () => qc.invalidateQueries({ queryKey: ['channel-accounts', tenantId] }),
     });
