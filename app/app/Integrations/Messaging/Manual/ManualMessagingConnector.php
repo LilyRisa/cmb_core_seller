@@ -105,6 +105,11 @@ class ManualMessagingConnector implements MessagingConnector
         );
     }
 
+    public function parseWebhookEvents(Request $request): array
+    {
+        return [$this->parseWebhook($request)];
+    }
+
     public function fetchConversations(MessagingAuthContext $auth, array $query = []): Page
     {
         return new Page(items: [], nextCursor: null, hasMore: false);

@@ -108,6 +108,10 @@ class OutboundWindowGuardTest extends TestCase
             {
                 return new \CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO('fake', 'unknown');
             }
+            public function parseWebhookEvents(\Symfony\Component\HttpFoundation\Request $request): array
+            {
+                return [$this->parseWebhook($request)];
+            }
             public function fetchConversations(\CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext $auth, array $query = []): \CMBcoreSeller\Integrations\Messaging\DTO\Page
             { return new \CMBcoreSeller\Integrations\Messaging\DTO\Page([]); }
             public function fetchMessages(\CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext $auth, string $externalConversationId, array $query = []): \CMBcoreSeller\Integrations\Messaging\DTO\Page

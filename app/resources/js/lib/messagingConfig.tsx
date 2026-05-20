@@ -177,3 +177,13 @@ export function useSaveMessagingSettings() {
         onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'settings'] }),
     });
 }
+
+// --- Kết nối kênh (Facebook Page OAuth) -------------------------------------
+
+export function useConnectFacebook() {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async () =>
+            (await api!.post<{ data: { authorize_url: string } }>('/messaging/facebook/connect')).data.data,
+    });
+}

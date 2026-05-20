@@ -1,15 +1,24 @@
 import { useEffect } from 'react';
-import { App as AntApp, Alert, Button, Card, Form, Select, Spin, Switch, Typography } from 'antd';
+import { App as AntApp, Alert, Button, Card, Form, Select, Space, Spin, Switch, Typography } from 'antd';
+import { FacebookFilled } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
-import { useMessagingSettings, useSaveMessagingSettings } from '@/lib/messagingConfig';
+import { useConnectFacebook, useMessagingSettings, useSaveMessagingSettings } from '@/lib/messagingConfig';
 
 const { Text } = Typography;
 
-/** /settings/messaging — chọn AI provider + bật AI / auto-mode (SPEC-0024 §6.2). */
+/** /settings/messaging — kết nối kênh + chọn AI provider + bật AI / auto-mode (SPEC-0024 §6.2). */
 export function MessagingSettingsPage() {
     const { message } = AntApp.useApp();
     const canConfig = useCan('messaging.ai.config');
+    const connectFb = useConnectFacebook();
+
+    const handleConnectFacebook = () => {
+        connectFb.mutate(undefined, {
+            onSuccess: (d) => { window.location.href = d.authorize_url; },
+            onError: (e) => message.error(errorMessage(e, 'Không khởi tạo được kết nối Facebook. Quản trị viên cần bật facebook_page.')),
+        });
+    };
     const { data, isLoading } = useMessagingSettings();
     const save = useSaveMessagingSettings();
     const [form] = Form.useForm();
@@ -31,7 +40,18 @@ export function MessagingSettingsPage() {
     });
 
     return (
-        <Card title="Cài đặt AI tin nhắn" style={{ maxWidth: 640 }}>
+        <Space direction="vertical" size="large" style={{ display: 'flex', maxWidth: 640 }}>
+        <Card title="Kết nối kênh nhắn tin">
+            <Space direction="vertical" size={12} style={{ display: 'flex' }}>
+                <Text type="secondary">Kết nối Facebook Page để nhận & trả lời tin nhắn Messenger ngay trong hộp thư.</Text>
+                <Button icon={<FacebookFilled style={{ color: '#1877F2' }} />} loading={connectFb.isPending}
+                    onClick={handleConnectFacebook} disabled={!canConfig}>
+                    Kết nối Facebook Page
+                </Button>
+                <Text type="secondary" style={{ fontSize: 12 }}>TikTok / Lazada chia sẻ kết nối với Gian hàng (Channels). Shopee sắp có.</Text>
+            </Space>
+        </Card>
+        <Card title="Cài đặt AI tin nhắn">
             {providers.length === 0 && (
                 <Alert type="warning" showIcon style={{ marginBottom: 16 }}
                     message="Chưa có AI provider khả dụng"
@@ -49,5 +69,6 @@ export function MessagingSettingsPage() {
                 {canConfig && <Button type="primary" loading={save.isPending} onClick={submit}>Lưu</Button>}
             </Form>
         </Card>
+        </Space>
     );
 }

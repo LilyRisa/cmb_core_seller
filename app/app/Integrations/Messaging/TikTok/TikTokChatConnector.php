@@ -123,6 +123,12 @@ class TikTokChatConnector implements MessagingConnector
         );
     }
 
+    public function parseWebhookEvents(Request $request): array
+    {
+        // TikTok IM push 1 event / POST — wrap. Nâng lên loop nếu sàn batch.
+        return [$this->parseWebhook($request)];
+    }
+
     public function fetchConversations(MessagingAuthContext $auth, array $query = []): Page
     {
         throw UnsupportedOperation::for($this->code(), 'fetchConversations (polling — follow-up)');

@@ -43,51 +43,74 @@ class MessagingWebhookIngestService
             ];
         }
 
+        // 1 HTTP POST có thể chứa NHIỀU event (Facebook entry[].messaging[]). Parse
+        // tất cả → store + dispatch TỪNG event (dedupe theo message id) để không mất tin.
         try {
-            $event = $connector->parseWebhook($request);
+            $events = $connector->parseWebhookEvents($request);
         } catch (\Throwable $e) {
             Log::warning('messaging.webhook.parse_failed', ['provider' => $provider, 'error' => $e->getMessage()]);
             return ['status' => 202, 'body' => ['ok' => true, 'note' => 'unparseable']];
         }
 
-        $dedupeKey = $event->externalMessageId
-            ?: ($event->externalConversationId.'@'.$event->type);
+        if ($events === []) {
+            return ['status' => 200, 'body' => ['ok' => true, 'note' => 'no_events']];
+        }
 
         $storedProvider = 'messaging.'.$provider;
+        $headers = $this->safeHeaders($request);
+        $stored = 0;
+        $duplicates = 0;
 
-        // Dedupe
-        $exists = WebhookEvent::query()
-            ->where('provider', $storedProvider)
-            ->where('event_type', $event->type)
-            ->where('external_id', $dedupeKey)
-            ->where('external_shop_id', $event->externalShopId)
-            ->whereIn('status', [WebhookEvent::STATUS_PENDING, WebhookEvent::STATUS_PROCESSED])
-            ->exists();
+        foreach ($events as $event) {
+            // Bỏ event không có gì để xử lý (không conversation & không message — vd ping rỗng).
+            if (! $event->externalMessageId && ! $event->externalConversationId) {
+                continue;
+            }
 
-        if ($exists) {
+            $dedupeKey = $event->externalMessageId
+                ?: ($event->externalConversationId.'@'.$event->type);
+
+            $exists = WebhookEvent::query()
+                ->where('provider', $storedProvider)
+                ->where('event_type', $event->type)
+                ->where('external_id', $dedupeKey)
+                ->where('external_shop_id', $event->externalShopId)
+                ->whereIn('status', [WebhookEvent::STATUS_PENDING, WebhookEvent::STATUS_PROCESSED])
+                ->exists();
+
+            if ($exists) {
+                $duplicates++;
+
+                continue;
+            }
+
+            // payload đầy đủ + shortcut fields (job đọc external_conversation_id/message_id từ đây).
+            $row = WebhookEvent::create([
+                'provider' => $storedProvider,
+                'event_type' => $event->type,
+                'external_id' => $dedupeKey,
+                'external_shop_id' => $event->externalShopId,
+                'signature_ok' => true,
+                'headers' => $headers,
+                'payload' => array_merge($event->raw, [
+                    'external_conversation_id' => $event->externalConversationId,
+                    'external_message_id' => $event->externalMessageId,
+                    'buyer_external_id' => $event->buyerExternalId,
+                ]),
+                'status' => WebhookEvent::STATUS_PENDING,
+                'received_at' => now(),
+            ]);
+
+            ProcessMessagingWebhook::dispatch((int) $row->getKey());
+            $stored++;
+        }
+
+        // Tất cả là trùng ⇒ giữ response cũ `note=duplicate` (Meta/sàn retry an toàn).
+        if ($stored === 0 && $duplicates > 0) {
             return ['status' => 200, 'body' => ['ok' => true, 'note' => 'duplicate']];
         }
 
-        // Lưu event — payload đầy đủ + 4 field shortcut (provider, type, external_id, external_shop_id)
-        $row = WebhookEvent::create([
-            'provider' => $storedProvider,
-            'event_type' => $event->type,
-            'external_id' => $dedupeKey,
-            'external_shop_id' => $event->externalShopId,
-            'signature_ok' => true,
-            'headers' => $this->safeHeaders($request),
-            'payload' => array_merge($event->raw, [
-                'external_conversation_id' => $event->externalConversationId,
-                'external_message_id' => $event->externalMessageId,
-                'buyer_external_id' => $event->buyerExternalId,
-            ]),
-            'status' => WebhookEvent::STATUS_PENDING,
-            'received_at' => now(),
-        ]);
-
-        ProcessMessagingWebhook::dispatch((int) $row->getKey());
-
-        return ['status' => 200, 'body' => ['ok' => true]];
+        return ['status' => 200, 'body' => ['ok' => true, 'stored' => $stored, 'duplicates' => $duplicates]];
     }
 
     /** @return array<string,string> */

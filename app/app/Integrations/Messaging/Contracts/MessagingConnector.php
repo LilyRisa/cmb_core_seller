@@ -83,11 +83,24 @@ interface MessagingConnector
     public function verifyWebhookSignature(Request $request): bool;
 
     /**
-     * Parse 1 webhook request thành event chuẩn. Provider không xác định được
-     * type ⇒ trả `type=TYPE_UNKNOWN` (kèm raw để debug, KHÔNG ném — vì
-     * `webhook_events` đã ghi rồi).
+     * Parse 1 webhook request thành event chuẩn (event ĐẦU TIÊN). Provider không
+     * xác định được type ⇒ trả `type=TYPE_UNKNOWN` (kèm raw để debug, KHÔNG ném —
+     * vì `webhook_events` đã ghi rồi). Dùng cho contract test + làm block cho
+     * {@see parseWebhookEvents}.
      */
     public function parseWebhook(Request $request): MessagingWebhookEventDTO;
+
+    /**
+     * Parse TẤT CẢ event trong 1 webhook request. Một HTTP POST có thể chứa NHIỀU
+     * tin nhắn (vd Facebook `entry[].messaging[]`, mỗi entry nhiều messaging) —
+     * core ingest TỪNG event riêng (dedupe theo external_message_id) nên không
+     * mất tin khi sàn gộp batch.
+     *
+     * Connector single-event chỉ cần `return [$this->parseWebhook($request)];`.
+     *
+     * @return list<MessagingWebhookEventDTO>
+     */
+    public function parseWebhookEvents(Request $request): array;
 
     /**
      * Polling backup: list conversations đã có activity gần đây.

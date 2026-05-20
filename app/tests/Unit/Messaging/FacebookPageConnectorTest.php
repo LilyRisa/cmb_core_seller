@@ -78,6 +78,31 @@ class FacebookPageConnectorTest extends TestCase
         $this->assertSame('m_abc', $event->externalMessageId);
     }
 
+    public function test_parses_all_events_in_a_batch(): void
+    {
+        // Messenger gộp nhiều messaging event / POST — phải lấy HẾT (không mất tin).
+        $payload = json_encode([
+            'object' => 'page',
+            'entry' => [[
+                'id' => 'PAGE_123',
+                'messaging' => [
+                    ['sender' => ['id' => 'PSID_A'], 'message' => ['mid' => 'm_1', 'text' => 'tin 1']],
+                    ['sender' => ['id' => 'PSID_B'], 'message' => ['mid' => 'm_2', 'text' => 'tin 2']],
+                    ['sender' => ['id' => 'PSID_A'], 'read' => ['watermark' => 123]],
+                ],
+            ]],
+        ]);
+
+        $events = $this->connector()->parseWebhookEvents($this->request($payload, null));
+
+        $this->assertCount(3, $events);
+        $this->assertSame('m_1', $events[0]->externalMessageId);
+        $this->assertSame('m_2', $events[1]->externalMessageId);
+        $this->assertSame(MessagingWebhookEventDTO::TYPE_MESSAGE_READ, $events[2]->type);
+        // parseWebhook (single) vẫn trả event đầu — backward compat.
+        $this->assertSame('m_1', $this->connector()->parseWebhook($this->request($payload, null))->externalMessageId);
+    }
+
     public function test_ignores_echo_messages(): void
     {
         $payload = json_encode([

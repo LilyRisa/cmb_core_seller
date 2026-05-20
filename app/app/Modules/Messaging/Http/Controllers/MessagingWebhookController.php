@@ -44,7 +44,7 @@ class MessagingWebhookController extends Controller
         $token = $request->query('hub_verify_token');
         $challenge = $request->query('hub_challenge');
 
-        $expectedToken = (string) (config('integrations.messaging.facebook_page.verify_token')
+        $expectedToken = (string) (config('integrations.messaging_facebook_page.verify_token')
             ?? env('MESSAGING_FACEBOOK_VERIFY_TOKEN', ''));
 
         if ($mode === 'subscribe' && $expectedToken !== '' && hash_equals($expectedToken, (string) $token)) {

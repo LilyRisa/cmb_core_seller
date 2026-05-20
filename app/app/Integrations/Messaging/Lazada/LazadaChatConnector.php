@@ -137,6 +137,11 @@ class LazadaChatConnector implements MessagingConnector
         );
     }
 
+    public function parseWebhookEvents(Request $request): array
+    {
+        return [$this->parseWebhook($request)];
+    }
+
     public function fetchConversations(MessagingAuthContext $auth, array $query = []): Page
     {
         throw UnsupportedOperation::for($this->code(), 'fetchConversations');

@@ -133,16 +133,40 @@ class FacebookPageConnector implements MessagingConnector
 
     public function parseWebhook(Request $request): MessagingWebhookEventDTO
     {
+        $events = $this->parseWebhookEvents($request);
+
+        // Event đầu tiên (contract test / fallback). Rỗng ⇒ unknown.
+        return $events[0] ?? new MessagingWebhookEventDTO($this->code(), MessagingWebhookEventDTO::TYPE_UNKNOWN);
+    }
+
+    public function parseWebhookEvents(Request $request): array
+    {
         $payload = json_decode($request->getContent(), true) ?: [];
 
-        $entry = $payload['entry'][0] ?? [];
-        $pageId = isset($entry['id']) ? (string) $entry['id'] : null;
-        $event = $entry['messaging'][0] ?? [];
+        // Messenger gộp nhiều page (entry) × nhiều messaging event / POST.
+        // Map TỪNG event → core ingest riêng (không mất tin khi batch).
+        $events = [];
+        foreach ((array) ($payload['entry'] ?? []) as $entry) {
+            $pageId = isset($entry['id']) ? (string) $entry['id'] : null;
+            foreach ((array) ($entry['messaging'] ?? []) as $messaging) {
+                $events[] = $this->mapEvent((array) $messaging, $pageId);
+            }
+        }
 
+        return $events;
+    }
+
+    /**
+     * Map 1 Messenger messaging-event → DTO chuẩn. PSID người gửi = conversation
+     * (Send API địa chỉ theo PSID). Bỏ echo (tin do page tự gửi) — type unknown.
+     *
+     * @param  array<string,mixed>  $event
+     */
+    private function mapEvent(array $event, ?string $pageId): MessagingWebhookEventDTO
+    {
         $senderId = isset($event['sender']['id']) ? (string) $event['sender']['id'] : null;
         $occurredAt = isset($event['timestamp']) ? CarbonImmutable::createFromTimestampMs((int) $event['timestamp']) : null;
 
-        // message_received (có message + không phải echo do page tự gửi)
         if (isset($event['message']) && empty($event['message']['is_echo'])) {
             return new MessagingWebhookEventDTO(
                 provider: $this->code(),
@@ -155,7 +179,6 @@ class FacebookPageConnector implements MessagingConnector
                 raw: $event,
             );
         }
-
         if (isset($event['delivery'])) {
             return new MessagingWebhookEventDTO($this->code(), MessagingWebhookEventDTO::TYPE_MESSAGE_DELIVERED, $pageId, $senderId, null, $senderId, $occurredAt, $event);
         }
