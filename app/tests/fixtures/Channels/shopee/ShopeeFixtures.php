@@ -44,4 +44,39 @@ final class ShopeeFixtures
     {
         return ['error' => '', 'request_id' => 'r2', 'response' => ['shop_name' => 'Shop Shopee VN', 'region' => 'VN', 'status' => 'NORMAL']];
     }
+
+    /** @return array<string,mixed> get_order_list page */
+    public static function orderList(string $nextCursor = '', bool $more = false): array
+    {
+        return ['error' => '', 'response' => [
+            'order_list' => [['order_sn' => 'SN_1'], ['order_sn' => 'SN_2']],
+            'next_cursor' => $nextCursor, 'more' => $more,
+        ]];
+    }
+
+    /** @return array<string,mixed> get_order_detail */
+    public static function orderDetail(): array
+    {
+        return ['error' => '', 'response' => ['order_list' => [
+            self::orderRow('SN_1', 'READY_TO_SHIP'),
+            self::orderRow('SN_2', 'PROCESSED'),
+        ]]];
+    }
+
+    /** @return array<string,mixed> */
+    public static function orderRow(string $sn, string $status): array
+    {
+        return [
+            'order_sn' => $sn, 'order_status' => $status, 'update_time' => 1700000000, 'create_time' => 1699990000,
+            'currency' => 'VND', 'cod' => true, 'total_amount' => 250000, 'actual_shipping_fee' => 20000,
+            'buyer_username' => 'buyer_'.$sn,
+            'recipient_address' => ['name' => 'Nguyen Van A', 'phone' => '0900000000', 'full_address' => '12 Le Loi', 'town' => 'P1', 'district' => 'Q1', 'city' => 'HCM', 'state' => 'HCM', 'zipcode' => '700000'],
+            'item_list' => [[
+                'item_id' => 111, 'model_id' => 222, 'item_sku' => 'SKU-A', 'model_sku' => 'SKU-A-RED',
+                'item_name' => 'Áo thun', 'model_name' => 'Đỏ / M', 'model_quantity_purchased' => 2,
+                'model_discounted_price' => 115000, 'image_info' => ['image_url' => 'https://img/a.jpg'],
+            ]],
+            'package_list' => [['package_number' => 'PKG_1', 'shipping_carrier' => 'SPX Express']],
+        ];
+    }
 }

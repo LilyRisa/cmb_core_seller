@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Integrations\Channels\Shopee;
 
+use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\Contracts\ChannelConnector;
 use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
 use CMBcoreSeller\Integrations\Channels\DTO\OrderDTO;
@@ -95,12 +96,48 @@ class ShopeeConnector implements ChannelConnector
 
     public function fetchOrders(AuthContext $auth, array $query = []): Page
     {
-        throw UnsupportedOperation::for($this->code(), 'fetchOrders'); // Task 5
+        $cfg = $this->client->cfg();
+        $windowDays = (int) ($cfg['order_window_days'] ?? 15);
+        $pageSize = min(100, max(1, (int) ($query['pageSize'] ?? 50)));
+        $from = $query['updatedFrom'] ?? CarbonImmutable::now()->subDays($windowDays);
+        $to = $query['updatedTo'] ?? CarbonImmutable::now();
+
+        // cursor encodes "windowStartUnix:innerCursor"; first call has no cursor.
+        [$winStart, $inner] = $this->decodeCursor((string) ($query['cursor'] ?? ''), $from);
+        $winEnd = min($to->getTimestamp(), $winStart + $windowDays * 86400);
+
+        $params = [
+            'time_range_field' => 'update_time', 'time_from' => $winStart, 'time_to' => $winEnd,
+            'page_size' => $pageSize, 'cursor' => $inner,
+        ];
+        if (! empty($query['statuses'])) {
+            $params['order_status'] = (string) $query['statuses'][0];
+        }
+        $list = $this->client->shopGet($auth, $this->client->endpoint('order_list'), $params);
+
+        $sns = array_values(array_filter(array_map(fn ($o) => (string) ($o['order_sn'] ?? ''), (array) ($list['order_list'] ?? []))));
+        $orders = $sns === [] ? [] : $this->loadDetails($auth, $sns);
+
+        $innerNext = (string) ($list['next_cursor'] ?? '');
+        $hasInnerMore = (bool) ($list['more'] ?? false) && $innerNext !== '';
+        if ($hasInnerMore) {
+            return new Page($orders, $winStart.':'.$innerNext, true);
+        }
+        if ($winEnd < $to->getTimestamp()) {
+            return new Page($orders, ($winEnd).':', true); // advance to next window
+        }
+
+        return new Page($orders, null, false);
     }
 
     public function fetchOrderDetail(AuthContext $auth, string $externalOrderId): OrderDTO
     {
-        throw UnsupportedOperation::for($this->code(), 'fetchOrderDetail'); // Task 5
+        $orders = $this->loadDetails($auth, [$externalOrderId]);
+        if ($orders === []) {
+            throw new ShopeeApiException("Shopee order not found: {$externalOrderId}", 'error_not_found');
+        }
+
+        return $orders[0];
     }
 
     public function parseWebhook(Request $request): WebhookEventDTO
@@ -151,5 +188,38 @@ class ShopeeConnector implements ChannelConnector
     public function fetchSettlements(AuthContext $auth, array $query = []): Page
     {
         throw UnsupportedOperation::for($this->code(), 'fetchSettlements'); // Task 8
+    }
+
+    /**
+     * @param  list<string>  $sns
+     * @return list<OrderDTO>
+     */
+    private function loadDetails(AuthContext $auth, array $sns): array
+    {
+        $out = [];
+        foreach (array_chunk($sns, 50) as $chunk) {
+            $res = $this->client->shopGet($auth, $this->client->endpoint('order_detail'), [
+                'order_sn_list' => implode(',', $chunk),
+                'response_optional_fields' => 'buyer_username,recipient_address,item_list,package_list,pay_time,total_amount,actual_shipping_fee,estimated_shipping_fee,cod,order_status,update_time,create_time',
+            ]);
+            foreach ((array) ($res['order_list'] ?? []) as $row) {
+                $out[] = ShopeeMappers::order((array) $row);
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return array{0:int,1:string} [windowStartUnix, innerCursor]
+     */
+    private function decodeCursor(string $cursor, CarbonImmutable $from): array
+    {
+        if ($cursor === '') {
+            return [$from->getTimestamp(), ''];
+        }
+        $parts = explode(':', $cursor, 2);
+
+        return [(int) $parts[0], $parts[1] ?? ''];
     }
 }

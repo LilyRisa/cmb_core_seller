@@ -63,4 +63,60 @@ class ShopeeConnectorContractTest extends TestCase
         $this->assertSame('Shop Shopee VN', $shop->name);
         $this->assertSame('VN', $shop->region);
     }
+
+    public function test_fetch_orders_splits_15_day_windows_and_maps_detail(): void
+    {
+        Http::fake([
+            '*/api/v2/order/get_order_list*' => Http::response(ShopeeFixtures::orderList('', false), 200),
+            '*/api/v2/order/get_order_detail*' => Http::response(ShopeeFixtures::orderDetail(), 200),
+        ]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        $page = $this->connector()->fetchOrders($auth, [
+            'updatedFrom' => \Carbon\CarbonImmutable::parse('2026-01-01T00:00:00Z'),
+            'updatedTo' => \Carbon\CarbonImmutable::parse('2026-01-10T00:00:00Z'),
+        ]);
+
+        $this->assertCount(2, $page->items);
+        $first = $page->items[0];
+        $this->assertSame('SN_1', $first->externalOrderId);
+        $this->assertSame('READY_TO_SHIP', $first->rawStatus);
+        $this->assertSame('shopee', $first->source);
+        $this->assertTrue($first->isCod);
+        $this->assertSame(250000, $first->grandTotal);
+        $this->assertSame(20000, $first->shippingFee);
+        $this->assertCount(1, $first->items);
+        $this->assertSame('111', $first->items[0]->externalProductId);
+        $this->assertSame('SKU-A-RED', $first->items[0]->externalSkuId);
+        $this->assertSame(2, $first->items[0]->quantity);
+        $this->assertSame('HCM', $first->shippingAddress['province']);
+    }
+
+    public function test_fetch_orders_window_over_15_days_returns_cursor_to_continue(): void
+    {
+        Http::fake([
+            '*/api/v2/order/get_order_list*' => Http::response(ShopeeFixtures::orderList('', false), 200),
+            '*/api/v2/order/get_order_detail*' => Http::response(ShopeeFixtures::orderDetail(), 200),
+        ]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        $page = $this->connector()->fetchOrders($auth, [
+            'updatedFrom' => \Carbon\CarbonImmutable::parse('2026-01-01T00:00:00Z'),
+            'updatedTo' => \Carbon\CarbonImmutable::parse('2026-02-15T00:00:00Z'), // 45 days -> needs >1 window
+        ]);
+
+        $this->assertTrue($page->hasMore);
+        $this->assertNotNull($page->nextCursor);
+        $this->assertStringContainsString(':', $page->nextCursor); // encodes window + inner cursor
+    }
+
+    public function test_fetch_order_detail_maps_single_order(): void
+    {
+        Http::fake(['*/api/v2/order/get_order_detail*' => Http::response(ShopeeFixtures::orderDetail(), 200)]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        $order = $this->connector()->fetchOrderDetail($auth, 'SN_1');
+        $this->assertSame('SN_1', $order->externalOrderId);
+        $this->assertSame('READY_TO_SHIP', $order->rawStatus);
+    }
 }
