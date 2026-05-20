@@ -87,7 +87,8 @@ class ShopeeConnectorContractTest extends TestCase
         $this->assertSame(20000, $first->shippingFee);
         $this->assertCount(1, $first->items);
         $this->assertSame('111', $first->items[0]->externalProductId);
-        $this->assertSame('SKU-A-RED', $first->items[0]->externalSkuId);
+        $this->assertSame('222', $first->items[0]->externalSkuId);
+        $this->assertSame('SKU-A-RED', $first->items[0]->sellerSku);
         $this->assertSame(2, $first->items[0]->quantity);
         $this->assertSame('HCM', $first->shippingAddress['province']);
     }
@@ -237,7 +238,8 @@ class ShopeeConnectorContractTest extends TestCase
         $page = $this->connector()->fetchListings($auth, ['pageSize' => 50]);
         $this->assertCount(1, $page->items);
         $l = $page->items[0];
-        $this->assertSame('SKU-A-RED', $l->externalSkuId);
+        $this->assertSame('222', $l->externalSkuId);
+        $this->assertSame('SKU-A-RED', $l->sellerSku);
         $this->assertSame('111', $l->externalProductId);
         $this->assertSame(115000, $l->price);
         $this->assertSame(7, $l->channelStock);
@@ -252,6 +254,24 @@ class ShopeeConnectorContractTest extends TestCase
         $this->connector()->updateStock($auth, '222', 9, ['external_product_id' => '111']);
         Http::assertSent(fn ($r) => str_contains($r->url(), '/api/v2/product/update_stock')
             && $r['item_id'] === 111
+            && $r['stock_list'][0]['model_id'] === 222
+            && $r['stock_list'][0]['seller_stock'][0]['stock'] === 9);
+    }
+
+    public function test_listing_external_sku_id_round_trips_into_update_stock(): void
+    {
+        Http::fake([
+            '*/api/v2/product/get_item_list*' => Http::response(ShopeeFixtures::itemList(), 200),
+            '*/api/v2/product/get_item_base_info*' => Http::response(ShopeeFixtures::itemBaseInfo(), 200),
+            '*/api/v2/product/get_model_list*' => Http::response(ShopeeFixtures::modelList(), 200),
+            '*/api/v2/product/update_stock*' => Http::response(['error' => '', 'response' => []], 200),
+        ]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+        $listing = $this->connector()->fetchListings($auth, ['pageSize' => 50])->items[0];
+
+        $this->connector()->updateStock($auth, $listing->externalSkuId, 9, ['external_product_id' => $listing->externalProductId]);
+
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/api/v2/product/update_stock')
             && $r['stock_list'][0]['model_id'] === 222
             && $r['stock_list'][0]['seller_stock'][0]['stock'] === 9);
     }

@@ -46,11 +46,13 @@ final class ShopeeMappers
         $addr = (array) ($d['recipient_address'] ?? []);
         $items = [];
         foreach ((array) ($d['item_list'] ?? []) as $it) {
+            $modelId = (string) ($it['model_id'] ?? '0');
+            $itemId = (string) ($it['item_id'] ?? '');
             $items[] = new \CMBcoreSeller\Integrations\Channels\DTO\OrderItemDTO(
-                externalItemId: (string) ($it['item_id'] ?? '').'-'.(string) ($it['model_id'] ?? '0'),
-                externalProductId: isset($it['item_id']) ? (string) $it['item_id'] : null,
-                externalSkuId: ($it['model_sku'] ?? '') !== '' ? (string) $it['model_sku'] : (string) ($it['model_id'] ?? ''),
-                sellerSku: ($it['item_sku'] ?? '') !== '' ? (string) $it['item_sku'] : (($it['model_sku'] ?? '') !== '' ? (string) $it['model_sku'] : null),
+                externalItemId: $itemId.'-'.$modelId,
+                externalProductId: $itemId !== '' ? $itemId : null,
+                externalSkuId: ($modelId !== '' && $modelId !== '0') ? $modelId : ($itemId !== '' ? $itemId : null),
+                sellerSku: ($it['model_sku'] ?? '') !== '' ? (string) $it['model_sku'] : (($it['item_sku'] ?? '') !== '' ? (string) $it['item_sku'] : null),
                 name: (string) ($it['item_name'] ?? ''),
                 variation: ($it['model_name'] ?? '') !== '' ? (string) $it['model_name'] : null,
                 quantity: (int) ($it['model_quantity_purchased'] ?? 1),
@@ -122,11 +124,11 @@ final class ShopeeMappers
             return $out;
         }
         foreach ($models as $m) {
-            $modelSku = ($m['model_sku'] ?? '') !== '' ? (string) $m['model_sku'] : null;
+            $modelId = (string) ($m['model_id'] ?? '0');
             $out[] = new \CMBcoreSeller\Integrations\Channels\DTO\ChannelListingDTO(
-                externalSkuId: $modelSku ?? (string) ($m['model_id'] ?? ''),
+                externalSkuId: ($modelId !== '' && $modelId !== '0') ? $modelId : $itemId,
                 externalProductId: $itemId,
-                sellerSku: $modelSku ?? (($itemBase['item_sku'] ?? '') !== '' ? (string) $itemBase['item_sku'] : null),
+                sellerSku: ($m['model_sku'] ?? '') !== '' ? (string) $m['model_sku'] : (($itemBase['item_sku'] ?? '') !== '' ? (string) $itemBase['item_sku'] : null),
                 title: $title,
                 variation: ($m['model_name'] ?? '') !== '' ? (string) $m['model_name'] : null,
                 price: (int) round((float) ($m['price_info'][0]['current_price'] ?? 0)),
