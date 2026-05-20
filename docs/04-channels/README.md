@@ -78,6 +78,6 @@ Core gọi `$connector->supports('listings.publish')` trước khi dùng; thiế
 | Sàn | Code | Trạng thái | Ghi chú |
 |---|---|---|---|
 | TikTok Shop | `tiktok` | **Implemented (Phase 1)** — version API `202309` | Code: `app/Integrations/Channels/TikTok/`; chi tiết: [`tiktok-shop.md`](tiktok-shop.md), spec [`docs/specs/0001-tiktok-order-sync.md`](../specs/0001-tiktok-order-sync.md). Sandbox vs prod = config. Còn chờ kiểm thử với sandbox thật. |
-| Shopee | `shopee` | Chờ cấp API (Phase 4) | Nộp hồ sơ Shopee Open Platform ngay tuần đầu. Route `/webhook/shopee` + `/oauth/shopee/callback` tồn tại nhưng connector chưa có ⇒ `404` cho tới khi làm. |
+| Shopee | `shopee` | **Implemented (Phase 4, faithful docs v2) — chờ verify sandbox**; code `app/Integrations/Channels/Shopee/` | Chi tiết: [`shopee.md`](shopee.md), spec [`docs/superpowers/specs/2026-05-20-shopee-channel-connector-design.md`](../superpowers/specs/2026-05-20-shopee-channel-connector-design.md). `INTEGRATIONS_CHANNELS` chưa bật shopee mặc định; `finance_enabled` mặc định `false`. |
 | Lazada | `lazada` | Chờ cấp API (Phase 4) | Nộp hồ sơ Lazada Open Platform ngay tuần đầu. (Như trên.) |
 | Manual | `manual` | `ManualConnector` rỗng đã có (Phase 0); luồng tạo đơn tay = Phase 2 | Để code đối xử mọi nguồn đơn đồng nhất. |

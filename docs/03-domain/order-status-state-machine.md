@@ -60,8 +60,21 @@ Mỗi connector có `XStatusMap` ánh xạ `raw_status` (+ một số trường 
 | `COMPLETED` | `completed` |
 | `CANCELLED` | `cancelled` |
 
-### Shopee  *(điền khi có API)*
-`UNPAID`→unpaid · `READY_TO_SHIP`→`pending` (chưa in phiếu) · `PROCESSED`→`processing` (đã in/arrange phiếu) · `SHIPPED`→shipped · `TO_CONFIRM_RECEIVE`→delivered · `COMPLETED`→completed · `CANCELLED`/`IN_CANCEL`→cancelled · `TO_RETURN`→returning · ...
+### Shopee
+| raw_status | → chuẩn |
+|---|---|
+| `UNPAID` | `unpaid` |
+| `READY_TO_SHIP` | `pending` *(chưa in/arrange phiếu — SPEC 0013)* |
+| `PROCESSED` | `processing` *(đã in/arrange phiếu — SPEC 0013)* |
+| `RETRY_SHIP` | `processing` |
+| `SHIPPED` | `shipped` |
+| `TO_CONFIRM_RECEIVE` | `delivered` |
+| `IN_CANCEL` | `processing` |
+| `CANCELLED` | `cancelled` |
+| `TO_RETURN` | `returning` |
+| `COMPLETED` | `completed` |
+
+Nguồn: `ShopeeStatusMap` + config `integrations.shopee.status_map`. `ready_to_ship` (chuẩn) chỉ đạt được bằng thao tác nội bộ — không từ raw status Shopee nào.
 
 ### Lazada
 `unpaid`→unpaid · `pending`/`topack`→`pending` (chưa RTS/in phiếu) · `packed`/`ready_to_ship`→`processing` (đã RTS/in phiếu) · `shipped`→shipped · `delivered`→delivered · `failed`/`lost`/`damaged`→delivery_failed · `shipped_back*`→returning · `returned`→returned_refunded · `canceled`→cancelled · ... *(`ready_to_ship` chuẩn chỉ đạt được bằng thao tác nội bộ — SPEC 0013)*
