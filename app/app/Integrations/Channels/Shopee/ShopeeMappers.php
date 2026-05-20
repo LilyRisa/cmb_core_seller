@@ -94,4 +94,45 @@ final class ShopeeMappers
             raw: $d,
         );
     }
+
+    /**
+     * @param  array<string,mixed>  $itemBase  one get_item_base_info item
+     * @param  array<string,mixed>  $modelRes  get_model_list `response`
+     * @return list<\CMBcoreSeller\Integrations\Channels\DTO\ChannelListingDTO>
+     */
+    public static function listings(array $itemBase, array $modelRes): array
+    {
+        $itemId = (string) ($itemBase['item_id'] ?? '');
+        $title = (string) ($itemBase['item_name'] ?? '');
+        $image = $itemBase['image']['image_url_list'][0] ?? null;
+        $active = (string) ($itemBase['item_status'] ?? 'NORMAL') === 'NORMAL';
+        $models = (array) ($modelRes['model'] ?? []);
+        $out = [];
+        if ($models === []) {
+            $out[] = new \CMBcoreSeller\Integrations\Channels\DTO\ChannelListingDTO(
+                externalSkuId: $itemId, externalProductId: $itemId,
+                sellerSku: ($itemBase['item_sku'] ?? '') !== '' ? (string) $itemBase['item_sku'] : null,
+                title: $title, variation: null,
+                price: (int) round((float) ($itemBase['price_info'][0]['current_price'] ?? 0)),
+                channelStock: null, image: $image, isActive: $active, raw: $itemBase,
+            );
+
+            return $out;
+        }
+        foreach ($models as $m) {
+            $modelSku = ($m['model_sku'] ?? '') !== '' ? (string) $m['model_sku'] : null;
+            $out[] = new \CMBcoreSeller\Integrations\Channels\DTO\ChannelListingDTO(
+                externalSkuId: $modelSku ?? (string) ($m['model_id'] ?? ''),
+                externalProductId: $itemId,
+                sellerSku: $modelSku ?? (($itemBase['item_sku'] ?? '') !== '' ? (string) $itemBase['item_sku'] : null),
+                title: $title,
+                variation: ($m['model_name'] ?? '') !== '' ? (string) $m['model_name'] : null,
+                price: (int) round((float) ($m['price_info'][0]['current_price'] ?? 0)),
+                channelStock: isset($m['stock_info_v2']['summary_info']['total_available_stock']) ? (int) $m['stock_info_v2']['summary_info']['total_available_stock'] : null,
+                image: $image, isActive: $active, raw: $m,
+            );
+        }
+
+        return $out;
+    }
 }

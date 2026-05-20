@@ -224,4 +224,35 @@ class ShopeeConnectorContractTest extends TestCase
         $this->expectException(\CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation::class);
         $this->connector()->pushReadyToShip(new AuthContext(1, 'shopee', '55', 'ACCESS_1'), 'SN_1');
     }
+
+    public function test_fetch_listings_returns_one_entry_per_model(): void
+    {
+        Http::fake([
+            '*/api/v2/product/get_item_list*' => Http::response(ShopeeFixtures::itemList(), 200),
+            '*/api/v2/product/get_item_base_info*' => Http::response(ShopeeFixtures::itemBaseInfo(), 200),
+            '*/api/v2/product/get_model_list*' => Http::response(ShopeeFixtures::modelList(), 200),
+        ]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        $page = $this->connector()->fetchListings($auth, ['pageSize' => 50]);
+        $this->assertCount(1, $page->items);
+        $l = $page->items[0];
+        $this->assertSame('SKU-A-RED', $l->externalSkuId);
+        $this->assertSame('111', $l->externalProductId);
+        $this->assertSame(115000, $l->price);
+        $this->assertSame(7, $l->channelStock);
+        $this->assertTrue($l->isActive);
+    }
+
+    public function test_update_stock_posts_model_stock(): void
+    {
+        Http::fake(['*/api/v2/product/update_stock*' => Http::response(['error' => '', 'response' => []], 200)]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        $this->connector()->updateStock($auth, '222', 9, ['external_product_id' => '111']);
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/api/v2/product/update_stock')
+            && $r['item_id'] === 111
+            && $r['stock_list'][0]['model_id'] === 222
+            && $r['stock_list'][0]['seller_stock'][0]['stock'] === 9);
+    }
 }

@@ -104,4 +104,24 @@ final class ShopeeFixtures
     {
         return ['error' => '', 'response' => ['result_list' => [['order_sn' => 'SN_1', 'package_number' => 'PKG_1', 'status' => $status]]]];
     }
+
+    public static function itemList(): array
+    {
+        return ['error' => '', 'response' => ['item' => [['item_id' => 111]], 'next_offset' => 0, 'has_next_page' => false]];
+    }
+
+    public static function itemBaseInfo(): array
+    {
+        return ['error' => '', 'response' => ['item_list' => [[
+            'item_id' => 111, 'item_name' => 'Áo thun', 'item_sku' => 'SKU-A', 'item_status' => 'NORMAL',
+            'image' => ['image_url_list' => ['https://img/a.jpg']], 'price_info' => [['current_price' => 120000]],
+        ]]]];
+    }
+
+    public static function modelList(): array
+    {
+        return ['error' => '', 'response' => ['model' => [
+            ['model_id' => 222, 'model_sku' => 'SKU-A-RED', 'price_info' => [['current_price' => 115000]], 'stock_info_v2' => ['summary_info' => ['total_available_stock' => 7]]],
+        ]]];
+    }
 }

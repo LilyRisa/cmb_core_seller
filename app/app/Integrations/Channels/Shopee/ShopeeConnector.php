@@ -165,12 +165,40 @@ class ShopeeConnector implements ChannelConnector
 
     public function fetchListings(AuthContext $auth, array $query = []): Page
     {
-        throw UnsupportedOperation::for($this->code(), 'fetchListings'); // Task 7
+        $pageSize = min(100, max(1, (int) ($query['pageSize'] ?? 50)));
+        $offset = (int) ($query['cursor'] ?? 0);
+        $list = $this->client->shopGet($auth, $this->client->endpoint('item_list'), [
+            'offset' => $offset, 'page_size' => $pageSize, 'item_status' => 'NORMAL',
+        ]);
+        $itemIds = array_values(array_filter(array_map(fn ($i) => (int) ($i['item_id'] ?? 0), (array) ($list['item'] ?? []))));
+        $items = [];
+        if ($itemIds !== []) {
+            $base = $this->client->shopGet($auth, $this->client->endpoint('item_base_info'), ['item_id_list' => implode(',', $itemIds)]);
+            foreach ((array) ($base['item_list'] ?? []) as $itemBase) {
+                $models = $this->client->shopGet($auth, $this->client->endpoint('model_list'), ['item_id' => (int) ($itemBase['item_id'] ?? 0)]);
+                foreach (ShopeeMappers::listings((array) $itemBase, $models) as $dto) {
+                    $items[] = $dto;
+                }
+            }
+        }
+        $hasMore = (bool) ($list['has_next_page'] ?? false);
+
+        return new Page($items, $hasMore ? (string) ((int) ($list['next_offset'] ?? ($offset + $pageSize))) : null, $hasMore);
     }
 
     public function updateStock(AuthContext $auth, string $externalSkuId, int $available, array $context = []): void
     {
-        throw UnsupportedOperation::for($this->code(), 'updateStock'); // Task 7
+        $itemId = (int) ($context['external_product_id'] ?? 0);
+        if ($itemId === 0) {
+            throw new ShopeeApiException('Shopee updateStock requires external_product_id (item_id).', 'error_param');
+        }
+        $this->client->shopPost($auth, $this->client->endpoint('update_stock'), [], [
+            'item_id' => $itemId,
+            'stock_list' => [[
+                'model_id' => (int) $externalSkuId,
+                'seller_stock' => [['stock' => max(0, $available)]],
+            ]],
+        ]);
     }
 
     public function arrangeShipment(AuthContext $auth, string $externalOrderId, array $params = []): array
