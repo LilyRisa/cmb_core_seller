@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Alert, Button, Card, Col, Empty, Input, Modal, Result, Row, Space, Tag, Tooltip, Typography } from 'antd';
+import { Alert, Button, Card, Col, Empty, Input, Modal, Result, Row, Space, Switch, Tag, Tooltip, Typography } from 'antd';
 import { App as AntApp } from 'antd';
-import { CheckCircleOutlined, ClockCircleOutlined, DeleteOutlined, EditOutlined, KeyOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, ClockCircleOutlined, DeleteOutlined, EditOutlined, KeyOutlined, MessageOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { DateText } from '@/components/MoneyText';
 import { ChannelLogo } from '@/components/ChannelLogo';
 import { CHANNEL_META, CHANNEL_STATUS_COLOR, CHANNEL_STATUS_LABEL } from '@/lib/format';
 import { errorMessage } from '@/lib/api';
-import { ChannelAccount, useChannelAccounts, useConnectChannel, useDeleteChannelAccount, useOutboundIp, useRenameChannel, useResyncChannel } from '@/lib/channels';
+import { ChannelAccount, useChannelAccounts, useConnectChannel, useDeleteChannelAccount, useOutboundIp, useRenameChannel, useResyncChannel, useSetChannelMessaging } from '@/lib/channels';
 import { useSyncPolling } from '@/lib/syncPolling';
 import { useCan } from '@/lib/tenant';
 
@@ -58,7 +58,7 @@ const PROVIDER_ERROR_PREFIXES: Record<string, string> = {
     lazada_temporarily_unavailable: 'Lazada bảo trì / quá tải, thử lại sau.',
 };
 
-function ShopCard({ account, canManage, onResync, onDelete, onRename, onReauthorize, reauthorizing }: { account: ChannelAccount; canManage: boolean; onResync: () => void; onDelete: () => void; onRename: () => void; onReauthorize: () => void; reauthorizing: boolean }) {
+function ShopCard({ account, canManage, onResync, onDelete, onRename, onReauthorize, reauthorizing, onToggleMessaging, togglingMessaging }: { account: ChannelAccount; canManage: boolean; onResync: () => void; onDelete: () => void; onRename: () => void; onReauthorize: () => void; reauthorizing: boolean; onToggleMessaging: (v: boolean) => void; togglingMessaging: boolean }) {
     const meta = CHANNEL_META[account.provider] ?? { name: account.provider, color: '#8c8c8c' };
     return (
         <Card styles={{ body: { padding: 16 } }}>
@@ -92,6 +92,13 @@ function ShopCard({ account, canManage, onResync, onDelete, onRename, onReauthor
                     action={canManage && <Button size="small" type="primary" icon={<KeyOutlined />} loading={reauthorizing} onClick={onReauthorize}>Cấp quyền lại</Button>}
                 />
             )}
+            {canManage && account.messaging_available && (
+                <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <MessageOutlined style={{ color: '#8c8c8c' }} />
+                    <Typography.Text style={{ fontSize: 13 }}>Nhận & trả lời tin nhắn trong Hộp thư</Typography.Text>
+                    <Switch size="small" checked={account.messaging_enabled} loading={togglingMessaging} onChange={onToggleMessaging} />
+                </div>
+            )}
         </Card>
     );
 }
@@ -107,6 +114,7 @@ export function ChannelsPage() {
     // Resync là job chạy nền — sau khi enqueue xong, poll để `last_synced_at` tự cập nhật khi job kết thúc.
     const resyncPoll = useSyncPolling(() => { refetch(); }, { durationMs: 90_000 });
     const rename = useRenameChannel();
+    const setMessaging = useSetChannelMessaging();
     const [renaming, setRenaming] = useState<ChannelAccount | null>(null);
     const [aliasDraft, setAliasDraft] = useState('');
     const [deleteTarget, setDeleteTarget] = useState<ChannelAccount | null>(null);
@@ -203,6 +211,11 @@ export function ChannelsPage() {
                                     onRename={() => { setRenaming(a); setAliasDraft(a.display_name ?? ''); }}
                                     onReauthorize={() => connect.mutate(a.provider)}
                                     reauthorizing={connect.isPending && connect.variables === a.provider}
+                                    onToggleMessaging={(v) => setMessaging.mutate({ id: a.id, messaging_enabled: v }, {
+                                        onSuccess: () => message.success(v ? 'Đã bật nhắn tin cho gian hàng.' : 'Đã tắt nhắn tin.'),
+                                        onError: (e) => message.error(errorMessage(e)),
+                                    })}
+                                    togglingMessaging={setMessaging.isPending && setMessaging.variables?.id === a.id}
                                 />
                             </Col>
                         ))}

@@ -18,6 +18,8 @@ export interface ChannelAccount {
     last_webhook_at: string | null;
     created_at: string | null;
     has_shop_cipher: boolean;
+    messaging_enabled: boolean;
+    messaging_available: boolean;
 }
 
 export interface ConnectableProvider {
@@ -113,6 +115,19 @@ export function useRenameChannel() {
     const tenantId = useCurrentTenantId();
     return useMutation({
         mutationFn: async (vars: { id: number; display_name: string | null }) => { await api!.patch(`/channel-accounts/${vars.id}`, { display_name: vars.display_name }); },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['channel-accounts', tenantId] }),
+    });
+}
+
+/** Bật/tắt nhắn tin cho gian hàng (Lazada/TikTok dùng chung token — ADR-0019). */
+export function useSetChannelMessaging() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    const tenantId = useCurrentTenantId();
+    return useMutation({
+        mutationFn: async (vars: { id: number; messaging_enabled: boolean }) => {
+            await api!.patch(`/channel-accounts/${vars.id}/messaging`, { messaging_enabled: vars.messaging_enabled });
+        },
         onSuccess: () => qc.invalidateQueries({ queryKey: ['channel-accounts', tenantId] }),
     });
 }
