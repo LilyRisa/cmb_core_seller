@@ -60,7 +60,9 @@ class MessagingApiTest extends TestCase
 
     private function activateSubscription(string $planCode): void
     {
-        Subscription::query()->where('tenant_id', $this->tenant->getKey())->delete();
+        // withoutGlobalScopes: TenantScope chưa bind current tenant trong setUp ⇒
+        // delete có scope sẽ không khớp row nào ⇒ unique(tenant_id) vỡ khi re-activate.
+        Subscription::withoutGlobalScopes()->where('tenant_id', $this->tenant->getKey())->delete();
         $plan = Plan::query()->where('code', $planCode)->firstOrFail();
         $now = now();
 

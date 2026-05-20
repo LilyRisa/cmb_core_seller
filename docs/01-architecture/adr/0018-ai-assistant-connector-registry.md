@@ -5,6 +5,18 @@
 - **Người quyết định:** Team (chủ dự án đã chốt 2026-05-19: "AI do super admin thêm và user chỉ có thể dùng 1 trong số các provider")
 - **Liên quan:** SPEC-0024, ADR-0004, ADR-0017, SPEC-0023 (`system_settings`), `08-security-and-privacy.md`
 
+> **REVISION 2026-05-20 (khi implement S6):** Lưu trữ provider config **CHUYỂN từ
+> `system_settings` sang bảng riêng `ai_providers`** (super-admin quản, không
+> tenant-scoped). Lý do: `SystemSettingsCatalog` là allowlist key **TĨNH**
+> (exact-match, 38 key) theo thiết kế — không nhận key động `ai_providers.<code>.*`,
+> nên `system_setting()` luôn trả default ⇒ `AiAssistantRegistry::isActive()` luôn
+> false ⇒ KHÔNG provider nào active được (lỗi tiềm ẩn). Bảng riêng mô hình hoá đúng
+> (record có cấu trúc: `api_key` encrypted, `pricing` json, `is_active`), không phá
+> hợp đồng "single source of truth" của Settings module, và test được không cần
+> system_settings. `capabilities` KHÔNG lưu DB — đọc từ connector class (super-admin
+> không thể "claim" capability mà class chưa implement). Mọi điều khác trong ADR giữ
+> nguyên (trục #5, tenant chọn 1 provider active, cost tracking qua `ai_assistant_runs`).
+
 ## Bối cảnh
 
 SPEC-0024 đưa AI hỗ trợ trả lời (suggest + auto + RAG training). Câu hỏi kiến trúc: làm sao tích hợp LLM mà (a) không khoá vào 1 vendor, (b) không để tenant tự nhập API key (chi phí + bảo mật), (c) tách rõ tầng "messaging" và tầng "AI".

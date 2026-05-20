@@ -79,7 +79,7 @@ class IntegrationsServiceProvider extends ServiceProvider
      */
     protected array $messagingConnectors = [
         'manual' => ManualMessagingConnector::class,
-        // 'facebook_page' => \CMBcoreSeller\Integrations\Messaging\Facebook\FacebookPageConnector::class,  // S2
+        'facebook_page' => \CMBcoreSeller\Integrations\Messaging\Facebook\FacebookPageConnector::class,  // S2
         // 'tiktok_chat'   => \CMBcoreSeller\Integrations\Messaging\TikTok\TikTokChatConnector::class,     // S4
         // 'shopee_chat'   => \CMBcoreSeller\Integrations\Messaging\Shopee\ShopeeChatConnector::class,    // S4
         // 'lazada_chat'   => \CMBcoreSeller\Integrations\Messaging\Lazada\LazadaChatConnector::class,    // S8 (best-effort)
@@ -96,10 +96,13 @@ class IntegrationsServiceProvider extends ServiceProvider
      */
     protected array $aiAssistantConnectors = [
         'manual' => ManualAiAssistantConnector::class,
-        // 'claude' => \CMBcoreSeller\Integrations\Ai\Claude\ClaudeConnector::class,   // S6
-        // 'openai' => \CMBcoreSeller\Integrations\Ai\OpenAi\OpenAiConnector::class,   // S6
-        // 'gemini' => \CMBcoreSeller\Integrations\Ai\Gemini\GeminiConnector::class,   // S6
-        // 'local_llm' => \CMBcoreSeller\Integrations\Ai\LocalLlm\LocalLlmConnector::class,   // S6
+        // Claude/OpenAI: capability đầy đủ; live HTTP call ném UnsupportedOperation
+        // cho tới khi wire (S6.1). Đăng ký sẵn để super-admin cấu hình credentials
+        // trong /admin/ai-providers; tenant chọn được khi is_active.
+        'claude' => \CMBcoreSeller\Integrations\Ai\Claude\ClaudeConnector::class,
+        'openai' => \CMBcoreSeller\Integrations\Ai\OpenAi\OpenAiConnector::class,
+        // 'gemini' => \CMBcoreSeller\Integrations\Ai\Gemini\GeminiConnector::class,        // S6.1
+        // 'local_llm' => \CMBcoreSeller\Integrations\Ai\LocalLlm\LocalLlmConnector::class,  // S6.1
     ];
 
     public function register(): void
@@ -148,6 +151,15 @@ class IntegrationsServiceProvider extends ServiceProvider
             }
 
             return $registry;
+        });
+
+        // FacebookPageConnector cần config block (không auto-resolve được array) —
+        // bind tường minh; verifier auto-resolve.
+        $this->app->bind(\CMBcoreSeller\Integrations\Messaging\Facebook\FacebookPageConnector::class, function ($app) {
+            return new \CMBcoreSeller\Integrations\Messaging\Facebook\FacebookPageConnector(
+                (array) config('integrations.messaging_facebook_page', []),
+                $app->make(\CMBcoreSeller\Integrations\Messaging\Facebook\FacebookSignatureVerifier::class),
+            );
         });
 
         // Messaging (Phase 7.x đề xuất / SPEC-0024).

@@ -20,7 +20,8 @@ return new class extends Migration
             $table->foreignId('tenant_id')->index();
             $table->string('name');
             $table->string('trigger', 32);                  // schedule|order_status|away_no_response|first_message
-            $table->json('trigger_config');                 // shape phụ thuộc trigger
+            // nullable: first_message không có config (SPEC §5.6 cho `{}`).
+            $table->json('trigger_config')->nullable();     // shape phụ thuộc trigger
             $table->json('filter')->nullable();             // {providers, customer_tags, keywords}
             $table->json('action');                         // {kind:template|raw|ai_reply, template_id?, raw_text?, ai_prompt_extra?}
             $table->unsignedInteger('cooldown_seconds')->default(3600);

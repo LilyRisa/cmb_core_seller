@@ -141,11 +141,18 @@ class SendMessage implements ShouldQueue
             throw new \RuntimeException('Media message thiếu attachment.');
         }
 
+        // Outbound: sàn (vd Facebook) cần URL public — sinh signed URL từ storage
+        // nếu attachment chưa có external_url.
+        $externalUrl = $attachment->external_url;
+        if (! $externalUrl && $attachment->storage_path) {
+            $externalUrl = app(\CMBcoreSeller\Modules\Messaging\Services\MediaStorage::class)->temporaryUrl($attachment);
+        }
+
         $media = new MediaRefDTO(
             kind: MessageKind::from($attachment->kind),
             mime: $attachment->mime,
             sizeBytes: $attachment->size_bytes,
-            externalUrl: $attachment->external_url,
+            externalUrl: $externalUrl,
             storagePath: $attachment->storage_path,
             filename: $attachment->filename,
             width: $attachment->width,

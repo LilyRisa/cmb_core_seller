@@ -1,7 +1,13 @@
 <?php
 
+use CMBcoreSeller\Modules\Messaging\Http\Controllers\AdminAiProviderController;
+use CMBcoreSeller\Modules\Messaging\Http\Controllers\AiSuggestionController;
+use CMBcoreSeller\Modules\Messaging\Http\Controllers\AutoReplyRuleController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\ConversationController;
+use CMBcoreSeller\Modules\Messaging\Http\Controllers\KnowledgeController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\MessageController;
+use CMBcoreSeller\Modules\Messaging\Http\Controllers\MessagingSettingsController;
+use CMBcoreSeller\Modules\Messaging\Http\Controllers\TemplateController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -51,10 +57,71 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
                 ->whereNumber('id')->name('messaging.messages.send');
             Route::post('conversations/{id}/messages/template', [MessageController::class, 'sendTemplate'])
                 ->whereNumber('id')->name('messaging.messages.template');
-            // POST conversations/{id}/messages/media     ⇒ S2 (FacebookConnector + MediaRelayService)
-            // POST conversations/{id}/ai-suggestion       ⇒ S6
-            // POST conversations/{id}/ai-suggestion/{id}/accept ⇒ S6
+            Route::post('conversations/{id}/messages/media', [MessageController::class, 'sendMedia'])
+                ->whereNumber('id')->name('messaging.messages.media');
+
+            // --- AI suggestion (S6) — gate thêm plan.feature:messaging_ai (Business) ---
+            Route::middleware('plan.feature:messaging_ai')->group(function () {
+                Route::post('conversations/{id}/ai-suggestion', [AiSuggestionController::class, 'generate'])
+                    ->whereNumber('id')->name('messaging.ai.suggestion.generate');
+                Route::post('conversations/{id}/ai-suggestion/{draftId}/accept', [AiSuggestionController::class, 'accept'])
+                    ->whereNumber('id')->whereNumber('draftId')->name('messaging.ai.suggestion.accept');
+                Route::delete('conversations/{id}/ai-suggestion/{draftId}', [AiSuggestionController::class, 'reject'])
+                    ->whereNumber('id')->whereNumber('draftId')->name('messaging.ai.suggestion.reject');
+            });
         });
 
-        // CRUD endpoints (template/rule/knowledge/ai-config) đặt ở SPEC S3..S6.
+        // --- Templates (S3) — CRUD mẫu tin ---------------------------------
+        Route::get('templates', [TemplateController::class, 'index'])
+            ->name('messaging.templates.index');
+        Route::get('templates/{id}', [TemplateController::class, 'show'])
+            ->whereNumber('id')->name('messaging.templates.show');
+        Route::post('templates', [TemplateController::class, 'store'])
+            ->name('messaging.templates.store');
+        Route::patch('templates/{id}', [TemplateController::class, 'update'])
+            ->whereNumber('id')->name('messaging.templates.update');
+        Route::delete('templates/{id}', [TemplateController::class, 'destroy'])
+            ->whereNumber('id')->name('messaging.templates.destroy');
+
+        // --- AI training knowledge docs (S6) -------------------------------
+        Route::get('knowledge-docs', [KnowledgeController::class, 'index'])
+            ->name('messaging.knowledge.index');
+        Route::post('knowledge-docs', [KnowledgeController::class, 'store'])
+            ->name('messaging.knowledge.store');
+        Route::delete('knowledge-docs/{id}', [KnowledgeController::class, 'destroy'])
+            ->whereNumber('id')->name('messaging.knowledge.destroy');
+
+        // --- Tenant messaging settings (S6) — chọn AI provider, away hours --
+        Route::get('settings', [MessagingSettingsController::class, 'show'])
+            ->name('messaging.settings.show');
+        Route::patch('settings', [MessagingSettingsController::class, 'update'])
+            ->name('messaging.settings.update');
+
+        // --- Auto-reply rules (S5) -----------------------------------------
+        Route::get('auto-reply-rules', [AutoReplyRuleController::class, 'index'])
+            ->name('messaging.rules.index');
+        Route::post('auto-reply-rules', [AutoReplyRuleController::class, 'store'])
+            ->name('messaging.rules.store');
+        Route::patch('auto-reply-rules/{id}', [AutoReplyRuleController::class, 'update'])
+            ->whereNumber('id')->name('messaging.rules.update');
+        Route::delete('auto-reply-rules/{id}', [AutoReplyRuleController::class, 'destroy'])
+            ->whereNumber('id')->name('messaging.rules.destroy');
+    });
+
+/*
+ |--------------------------------------------------------------------------
+ | Admin AI providers (S6) — super-admin, guard `admin_web`, KHÔNG tenant.
+ |--------------------------------------------------------------------------
+ | Cùng stack với module Admin/Settings (web + auth:admin_web).
+ */
+Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
+    ->prefix('api/v1/admin/ai-providers')->group(function () {
+        Route::get('/', [AdminAiProviderController::class, 'index'])->name('admin.ai-providers.index');
+        Route::post('/', [AdminAiProviderController::class, 'store'])->name('admin.ai-providers.store');
+        Route::patch('{code}', [AdminAiProviderController::class, 'update'])
+            ->where('code', '[a-z0-9_]+')->name('admin.ai-providers.update');
+        Route::delete('{code}', [AdminAiProviderController::class, 'destroy'])
+            ->where('code', '[a-z0-9_]+')->name('admin.ai-providers.destroy');
+        Route::post('{code}/test', [AdminAiProviderController::class, 'test'])
+            ->where('code', '[a-z0-9_]+')->name('admin.ai-providers.test');
     });

@@ -11,6 +11,7 @@ use CMBcoreSeller\Modules\Messaging\Events\MessageReceived;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Models\MessageAttachment;
+use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -42,8 +43,10 @@ class MessageIngestionService
         return DB::transaction(function () use ($channelAccount, $dto) {
             $conversation = $this->ensureConversation($channelAccount, $dto);
 
-            // Dedupe: tìm theo (conversation_id, external_message_id)
-            $existing = Message::query()
+            // Dedupe: tìm theo (conversation_id, external_message_id).
+            // withoutGlobalScope(TenantScope): service chạy trong job/webhook
+            // KHÔNG có tenant context — tenant lấy từ $channelAccount.
+            $existing = Message::withoutGlobalScope(TenantScope::class)
                 ->where('conversation_id', $conversation->id)
                 ->where('external_message_id', $dto->externalMessageId)
                 ->lockForUpdate()
@@ -106,14 +109,27 @@ class MessageIngestionService
             ConversationCreated::dispatch($conversation->id);
         }
         if ($message->isInbound()) {
-            MessageReceived::dispatch($message->id, $conversation->id, requiresHuman: false);
+            // Positional — Dispatchable::dispatch là variadic; truyền named arg
+            // qua spread không bind được (Unknown named parameter).
+            MessageReceived::dispatch($message->id, $conversation->id, false);
+
+            // Relay media inbound (URL sàn TTL ngắn) vào object storage — chỉ
+            // attachment chưa có storage_path (status pending). SPEC-0024 §6.4.
+            if ($message->attachments_count > 0) {
+                $message->attachments()
+                    ->withoutGlobalScope(TenantScope::class)
+                    ->where('status', MessageAttachment::STATUS_PENDING)
+                    ->get()
+                    ->each(fn (MessageAttachment $a) => \CMBcoreSeller\Modules\Messaging\Jobs\DownloadInboundMedia::dispatch($a->id));
+            }
         }
     }
 
     private function ensureConversation(ChannelAccount $channelAccount, MessageDTO $dto): Conversation
     {
         // Lookup with lock — chống race khi 2 webhook cùng tới về cùng conv mới.
-        $existing = Conversation::query()
+        // withoutGlobalScope(TenantScope): không có tenant context trong job.
+        $existing = Conversation::withoutGlobalScope(TenantScope::class)
             ->where('channel_account_id', $channelAccount->id)
             ->where('external_conversation_id', $dto->externalConversationId)
             ->lockForUpdate()
@@ -139,7 +155,7 @@ class MessageIngestionService
             ]);
         } catch (\Illuminate\Database\QueryException $e) {
             // Race: insert đồng thời với connection khác — re-lookup.
-            $row = Conversation::query()
+            $row = Conversation::withoutGlobalScope(TenantScope::class)
                 ->where('channel_account_id', $channelAccount->id)
                 ->where('external_conversation_id', $dto->externalConversationId)
                 ->first();

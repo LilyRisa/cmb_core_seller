@@ -2,9 +2,17 @@
 
 namespace CMBcoreSeller\Modules\Messaging;
 
+use CMBcoreSeller\Modules\Messaging\Console\Commands\AutoReplyTick;
+use CMBcoreSeller\Modules\Messaging\Console\Commands\PruneAiSuggestionDrafts;
+use CMBcoreSeller\Modules\Messaging\Console\Commands\PruneMessagingPayloads;
 use CMBcoreSeller\Modules\Messaging\Contracts\MessageInboxContract;
+use CMBcoreSeller\Modules\Messaging\Events\MessageReceived;
+use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnInbound;
+use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnOrderStatus;
 use CMBcoreSeller\Modules\Messaging\Services\MessageInboxReader;
+use CMBcoreSeller\Modules\Orders\Events\OrderStatusChanged;
 use CMBcoreSeller\Support\Database\PartitionRegistry;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -27,6 +35,9 @@ class MessagingServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(MessageInboxContract::class, MessageInboxReader::class);
+
+        // Per-module config (media disk, size limits, signed URL TTL).
+        $this->mergeConfigFrom(__DIR__.'/../../../config/messaging.php', 'messaging');
     }
 
     public function boot(): void
@@ -40,5 +51,17 @@ class MessagingServiceProvider extends ServiceProvider
         // Pre-register partition target. Phase sau nâng partition không cần đổi
         // gọi `db:partitions:ensure` — registry đã có.
         PartitionRegistry::register('messages', 'created_at');
+
+        // Auto-reply (S5): trigger theo event. away_no_response sweep qua command.
+        Event::listen(MessageReceived::class, RunAutoReplyOnInbound::class);
+        Event::listen(OrderStatusChanged::class, RunAutoReplyOnOrderStatus::class);
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                AutoReplyTick::class,
+                PruneMessagingPayloads::class,
+                PruneAiSuggestionDrafts::class,
+            ]);
+        }
     }
 }

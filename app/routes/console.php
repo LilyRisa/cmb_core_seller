@@ -90,6 +90,16 @@ Schedule::command('billing:recompute-usage')->hourly()->onOneServer()->withoutOv
 // SPEC 0020 — Mỗi giờ: phát hiện tenant vượt hạn mức + set timer ân hạn 2 ngày.
 Schedule::command('subscriptions:check-over-quota')->hourly()->onOneServer()->withoutOverlapping();
 
+// --- SPEC-0024: Omnichannel Messaging (Phase 7.x đề xuất) ---
+// Mỗi phút: quét away_no_response auto-reply (các trigger khác fire theo event).
+Schedule::command('messaging:auto-reply-tick')->everyMinute()->onOneServer()->withoutOverlapping();
+// Hằng ngày 03:00: null hoá raw_payload tin nhắn > 30 ngày (PII hygiene §6b).
+Schedule::command('messaging:prune-payloads')->dailyAt('03:00')->onOneServer();
+// Hằng ngày: expire + dọn AI suggestion drafts quá hạn.
+Schedule::command('messaging:prune-drafts')->dailyAt('03:10')->onOneServer();
+// NOTE (deferred): PollConversations 5' — chưa có connector hỗ trợ inbound.polling
+// (Facebook webhook-only; TikTok/Shopee/Lazada ở S4/S8). Thêm khi connector polling sẵn sàng.
+
 // Prune old framework rows so the DB stays lean.
 Schedule::command('queue:prune-failed --hours=336')->daily()->onOneServer();      // keep 14d of failed jobs
 Schedule::command('queue:prune-batches --hours=72 --unfinished=72')->daily()->onOneServer();

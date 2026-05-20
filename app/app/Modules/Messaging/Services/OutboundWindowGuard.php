@@ -36,7 +36,10 @@ class OutboundWindowGuard
             // cụ thể có thể yêu cầu tag từ đầu. Coi như "window closed" để an toàn.
             $hoursSince = $policy->freeWindowHours + 1;
         } else {
-            $hoursSince = (int) floor(CarbonImmutable::now()->diffInMinutes($lastInbound) / 60);
+            // Carbon 3 `diffInMinutes` trả giá trị CÓ DẤU (âm khi mốc ở quá khứ) ⇒
+            // phải abs() nếu không window guard không bao giờ chặn (lỗi tiềm ẩn nặng:
+            // 24h Facebook window mất tác dụng). Xem test OutboundWindowGuardTest.
+            $hoursSince = (int) floor(abs(CarbonImmutable::now()->diffInMinutes($lastInbound)) / 60);
         }
 
         if ($hoursSince < $policy->freeWindowHours) {

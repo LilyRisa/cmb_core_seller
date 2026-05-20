@@ -31,6 +31,8 @@ class MessageResource extends JsonResource
             'read_at' => $this->read_at?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),
             'attachments' => $this->whenLoaded('attachments', function () {
+                $storage = app(\CMBcoreSeller\Modules\Messaging\Services\MediaStorage::class);
+
                 return $this->attachments->map(fn ($a) => [
                     'id' => $a->id,
                     'kind' => $a->kind,
@@ -41,8 +43,8 @@ class MessageResource extends JsonResource
                     'duration_ms' => $a->duration_ms,
                     'filename' => $a->filename,
                     'status' => $a->status,
-                    // KHÔNG lộ storage_path raw — phải qua signed URL.
-                    // S2 sẽ thêm `download_url` qua `MediaController::signed()`.
+                    // KHÔNG lộ storage_path raw — chỉ signed URL TTL ngắn (§8.5).
+                    'download_url' => $storage->temporaryUrl($a),
                 ]);
             }),
         ];

@@ -31,6 +31,10 @@ class MessageController extends Controller
     public function __construct(
         private MessagingRegistry $registry,
         private OutboundWindowGuard $guard,
+        private \CMBcoreSeller\Modules\Messaging\Services\TemplateResolver $templateResolver,
+        private \CMBcoreSeller\Modules\Messaging\Services\TemplateContextBuilder $templateContext,
+        private \CMBcoreSeller\Modules\Messaging\Services\MediaRelayService $media,
+        private \CMBcoreSeller\Modules\Messaging\Services\OutboundMessageService $outbound,
     ) {}
 
     public function sendText(int $conversationId, Request $request): JsonResponse
@@ -72,36 +76,15 @@ class MessageController extends Controller
             ], 422);
         }
 
-        // Ghi message với status pending. SendMessage job sẽ gọi connector + update.
-        $message = DB::transaction(function () use ($conv, $data, $request) {
-            $message = Message::create([
-                'tenant_id' => $conv->tenant_id,
-                'conversation_id' => $conv->id,
-                'external_message_id' => null,                 // chưa có cho tới khi sàn echo back
-                'direction' => Message::DIRECTION_OUTBOUND,
-                'kind' => Message::KIND_TEXT,
-                'body' => $data['body'],
-                'sent_by_user_id' => $request->user()->id,
-                'sent_by_ai' => false,
-                'delivery_status' => Message::STATUS_PENDING,
-                'meta' => array_filter([
-                    'message_tag' => $data['message_tag'] ?? null,
-                ]),
-            ]);
-
-            // Cập nhật conversation header (preview + last_outbound_at — sẽ "sent" sau khi job xong)
-            $conv->update([
-                'last_message_at' => $message->created_at,
-                'last_outbound_at' => $message->created_at,
-                'last_message_preview' => \Illuminate\Support\Str::limit($data['body'], 197),
-                'message_count' => $conv->message_count + 1,
-            ]);
-
-            return $message;
-        });
-
-        // Dispatch SendMessage job (S2 sẽ implement đầy đủ; S1 inline-dispatch placeholder)
-        \CMBcoreSeller\Modules\Messaging\Jobs\SendMessage::dispatch($message->id);
+        // Ghi message pending + dispatch — qua OutboundMessageService (entry point
+        // duy nhất, dùng chung với AI-accept để không lệch logic header/idempotency).
+        $message = $this->outbound->queueText($conv, [
+            'body' => $data['body'],
+            'sent_by_user_id' => $request->user()->id,
+            'sent_by_ai' => false,
+            'message_tag' => $data['message_tag'] ?? null,
+            'template_id' => $request->input('template_id'),
+        ]);
 
         return response()->json([
             'data' => (new MessageResource($message))->toArray($request),
@@ -124,14 +107,117 @@ class MessageController extends Controller
             ->where('enabled', true)
             ->firstOrFail();
 
-        // S3 sẽ implement TemplateResolver đầy đủ. S1: substitute đơn giản {{var}}.
-        $body = $template->body;
-        foreach ((array) ($data['vars'] ?? []) as $key => $value) {
-            $body = str_replace('{{'.$key.'}}', (string) $value, $body);
+        // Template scope (optional): nếu khai báo providers thì conversation phải khớp.
+        $scopeProviders = (array) ($template->scope['providers'] ?? []);
+        if ($scopeProviders !== [] && ! in_array($conv->provider, $scopeProviders, true)) {
+            return response()->json([
+                'error' => ['code' => 'TEMPLATE_SCOPE_MISMATCH', 'message' => "Template không áp dụng cho provider [{$conv->provider}]."],
+            ], 422);
         }
 
-        // Re-use sendText path
-        $request->merge(['body' => $body, 'message_tag' => $data['message_tag'] ?? null]);
+        // Resolve body qua TemplateResolver (S3) với context dựng từ conversation.
+        $context = $this->templateContext->forConversation($conv, (array) ($data['vars'] ?? []));
+        $rendered = $this->templateResolver->resolve($template->body, $context);
+
+        // Re-use sendText path; ghi lại template_id vào meta để audit/analytics.
+        $request->merge([
+            'body' => $rendered->text,
+            'message_tag' => $data['message_tag'] ?? null,
+            'template_id' => $template->id,
+        ]);
+
         return $this->sendText($conversationId, $request);
+    }
+
+    /**
+     * Gửi media (image/video/file): upload multipart → lưu object storage →
+     * ghi message+attachment pending → dispatch SendMessage. SPEC-0024 §6.1.
+     */
+    public function sendMedia(int $conversationId, Request $request): JsonResponse
+    {
+        Gate::authorize('messaging.reply');
+
+        $data = $request->validate([
+            'kind' => ['required', 'in:image,video,file'],
+            'file' => ['required', 'file'],
+            'caption' => ['nullable', 'string', 'max:1000'],
+            'message_tag' => ['nullable', 'string', 'max:64'],
+        ]);
+
+        $conv = Conversation::query()->findOrFail($conversationId);
+        $kind = $data['kind'];
+
+        if (! $this->registry->has($conv->provider)) {
+            return response()->json([
+                'error' => ['code' => 'UNKNOWN_MESSAGING_PROVIDER', 'message' => "Provider [{$conv->provider}] không khả dụng."],
+            ], 422);
+        }
+        $connector = $this->registry->for($conv->provider);
+
+        if (! $connector->supports("outbound.{$kind}")) {
+            return response()->json([
+                'error' => ['code' => 'UNSUPPORTED', 'message' => "Provider [{$conv->provider}] không hỗ trợ gửi [{$kind}]."],
+            ], 422);
+        }
+
+        try {
+            $this->guard->assertCanSend($connector, $conv, ['message_tag' => $data['message_tag'] ?? null]);
+        } catch (OutboundWindowClosed $e) {
+            return response()->json([
+                'error' => ['code' => 'OUTBOUND_WINDOW_CLOSED', 'message' => $e->getMessage()],
+            ], 422);
+        }
+
+        // Validate + lưu file. Sai MIME/size ⇒ 422 ATTACHMENT_INVALID.
+        try {
+            $stored = $this->media->storeUpload((int) $conv->tenant_id, (int) $conv->id, $request->file('file'), $kind);
+        } catch (\CMBcoreSeller\Modules\Messaging\Exceptions\AttachmentInvalid $e) {
+            return response()->json([
+                'error' => ['code' => 'ATTACHMENT_INVALID', 'message' => $e->getMessage()],
+            ], 422);
+        }
+
+        $message = DB::transaction(function () use ($conv, $data, $kind, $stored, $request) {
+            $message = Message::create([
+                'tenant_id' => $conv->tenant_id,
+                'conversation_id' => $conv->id,
+                'external_message_id' => null,
+                'direction' => Message::DIRECTION_OUTBOUND,
+                'kind' => $kind,
+                'body' => $data['caption'] ?? null,
+                'attachments_count' => 1,
+                'sent_by_user_id' => $request->user()->id,
+                'sent_by_ai' => false,
+                'delivery_status' => Message::STATUS_PENDING,
+                'meta' => array_filter(['message_tag' => $data['message_tag'] ?? null]),
+            ]);
+
+            \CMBcoreSeller\Modules\Messaging\Models\MessageAttachment::create([
+                'tenant_id' => $conv->tenant_id,
+                'message_id' => $message->id,
+                'kind' => $kind,
+                'mime' => $stored['mime'],
+                'size_bytes' => $stored['size_bytes'],
+                'storage_path' => $stored['storage_path'],
+                'checksum' => $stored['checksum'],
+                'filename' => $stored['filename'],
+                'status' => \CMBcoreSeller\Modules\Messaging\Models\MessageAttachment::STATUS_DOWNLOADED,
+            ]);
+
+            $conv->update([
+                'last_message_at' => $message->created_at,
+                'last_outbound_at' => $message->created_at,
+                'last_message_preview' => '['.$kind.']'.($data['caption'] ?? '' ? ' '.$data['caption'] : ''),
+                'message_count' => $conv->message_count + 1,
+            ]);
+
+            return $message;
+        });
+
+        \CMBcoreSeller\Modules\Messaging\Jobs\SendMessage::dispatch($message->id);
+
+        return response()->json([
+            'data' => (new MessageResource($message->load('attachments')))->toArray($request),
+        ], 202);
     }
 }

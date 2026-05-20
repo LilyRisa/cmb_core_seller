@@ -114,14 +114,16 @@ class MessagingWebhookIngestTest extends TestCase
             app(\CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService::class),
         );
 
-        $conv = Conversation::query()->where('external_conversation_id', 'conv_X')->first();
+        // Webhook chạy cross-tenant (không có tenant context) ⇒ verify queries
+        // phải bỏ TenantScope.
+        $conv = Conversation::withoutGlobalScopes()->where('external_conversation_id', 'conv_X')->first();
         $this->assertNotNull($conv);
         $this->assertSame($this->tenant->getKey(), $conv->tenant_id);
         $this->assertSame(1, $conv->message_count);
         $this->assertSame(1, $conv->unread_count);
         $this->assertSame('Cảm ơn shop', $conv->last_message_preview);
 
-        $msg = Message::query()->where('conversation_id', $conv->id)->first();
+        $msg = Message::withoutGlobalScopes()->where('conversation_id', $conv->id)->first();
         $this->assertNotNull($msg);
         $this->assertSame('msg_X_1', $msg->external_message_id);
         $this->assertSame(Message::DIRECTION_INBOUND, $msg->direction);
@@ -156,7 +158,7 @@ class MessagingWebhookIngestTest extends TestCase
             app(\CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService::class),
         );
 
-        $this->assertSame(1, Conversation::query()->where('external_conversation_id', 'conv_Y')->count());
-        $this->assertSame(1, Message::query()->where('external_message_id', 'msg_Y_1')->count());
+        $this->assertSame(1, Conversation::withoutGlobalScopes()->where('external_conversation_id', 'conv_Y')->count());
+        $this->assertSame(1, Message::withoutGlobalScopes()->where('external_message_id', 'msg_Y_1')->count());
     }
 }

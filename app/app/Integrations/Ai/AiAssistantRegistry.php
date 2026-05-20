@@ -8,8 +8,10 @@ use Illuminate\Contracts\Container\Container;
 
 /**
  * Singleton — tập hợp AI assistant connector active. Khác `ChannelRegistry`:
- * `is_active` đọc từ DB (`system_settings.ai_providers.<code>.is_active`)
- * thay vì config — super-admin có thể bật/tắt provider runtime mà không deploy.
+ * `is_active` đọc từ DB (bảng `ai_providers`, super-admin quản qua
+ * `/admin/ai-providers`) thay vì config — bật/tắt runtime không cần deploy.
+ * (ADR-0018 revised: bảng riêng thay vì `system_settings` — catalog Settings là
+ * allowlist key tĩnh, không nhận key động.)
  *
  * Resolve qua `for($code)` — provider không có hoặc `is_active=false` ⇒ ném
  * `ProviderNotConfigured` (caller mapping → `422 AI_PROVIDER_NOT_AVAILABLE`).
@@ -58,6 +60,20 @@ class AiAssistantRegistry
     }
 
     /**
+     * Resolve connector KHÔNG kiểm `is_active` — chỉ super-admin dùng (test
+     * connection / inspect capability của provider chưa bật). Runtime tenant
+     * luôn đi qua `for()` (có active guard).
+     */
+    public function make(string $code): AiAssistantConnector
+    {
+        if (! $this->has($code)) {
+            throw new ProviderNotConfigured("AI provider [{$code}] is not registered.");
+        }
+
+        return $this->container->make($this->connectors[$code]);
+    }
+
+    /**
      * Subset providers đang active (cho `/tenant/settings/messaging` list).
      *
      * @return list<string>
@@ -68,15 +84,23 @@ class AiAssistantRegistry
     }
 
     /**
-     * Đọc `is_active` từ `system_settings`. Chống tight-couple — không import
-     * SystemSettingService trực tiếp; dùng helper `system_setting()` (Settings module).
+     * Đọc `is_active` từ bảng `ai_providers` (super-admin quản).
+     *
+     * Trước đây đọc `system_setting("ai_providers.{code}.is_active")` — nhưng
+     * `SystemSettingsCatalog` là allowlist key TĨNH, không nhận key động ⇒ luôn
+     * trả false ⇒ KHÔNG provider nào active được (lỗi S1). Bảng riêng sửa triệt để.
+     *
+     * Bọc try/catch: boot/migration pending (bảng chưa có) ⇒ trả false, không crash.
      */
     protected function isActive(string $code): bool
     {
-        if (! function_exists('system_setting')) {
+        try {
+            return \CMBcoreSeller\Modules\Messaging\Models\AiProvider::query()
+                ->whereKey($code)
+                ->where('is_active', true)
+                ->exists();
+        } catch (\Throwable) {
             return false;
         }
-
-        return (bool) system_setting("ai_providers.{$code}.is_active", false);
     }
 }
