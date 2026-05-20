@@ -1,0 +1,57 @@
+<?php
+
+namespace CMBcoreSeller\Integrations\Channels\Shopee;
+
+use Carbon\CarbonImmutable;
+use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
+use Symfony\Component\HttpFoundation\Request;
+
+/**
+ * Shopee push verification + parsing. Signature: Authorization header == HMAC-SHA256(push_url|raw_body, partner_key).
+ * Body: { code:int, shop_id:int, timestamp:int, data: "<json-string>" }. See docs/04-channels/shopee.md §4.
+ */
+class ShopeeWebhookVerifier
+{
+    public function verify(Request $request): bool
+    {
+        $cfg = (array) config('integrations.shopee', []);
+        $partnerKey = (string) ($cfg['partner_key'] ?? '');
+        $pushUrl = (string) ($cfg['push_url'] ?? url('/webhook/shopee'));
+        $raw = $request->getContent();
+        $provided = trim((string) $request->headers->get('Authorization', ''));
+        if ($partnerKey === '' || $provided === '') {
+            return (string) ($cfg['webhook_verify_mode'] ?? 'strict') === 'lenient';
+        }
+        $expected = hash_hmac('sha256', $pushUrl.'|'.$raw, $partnerKey);
+        $ok = hash_equals($expected, strtolower($provided));
+        if (! $ok && (string) ($cfg['webhook_verify_mode'] ?? 'strict') === 'lenient') {
+            return true;
+        }
+
+        return $ok;
+    }
+
+    public function parse(Request $request): WebhookEventDTO
+    {
+        $body = (array) ($request->json()?->all() ?? json_decode($request->getContent() ?: '[]', true) ?? []);
+        $code = (int) ($body['code'] ?? -1);
+        $map = (array) config('integrations.shopee.webhook_event_types', []);
+        $type = (string) ($map[$code] ?? WebhookEventDTO::TYPE_UNKNOWN);
+
+        $data = $body['data'] ?? [];
+        if (is_string($data)) {
+            $data = json_decode($data, true) ?: [];
+        }
+        $orderSn = isset($data['ordersn']) ? (string) $data['ordersn'] : (isset($data['order_sn']) ? (string) $data['order_sn'] : null);
+
+        return new WebhookEventDTO(
+            provider: 'shopee',
+            type: $type,
+            externalShopId: isset($body['shop_id']) ? (string) $body['shop_id'] : null,
+            externalOrderId: $orderSn,
+            occurredAt: isset($body['timestamp']) ? CarbonImmutable::createFromTimestamp((int) $body['timestamp']) : null,
+            orderRawStatus: isset($data['status']) ? (string) $data['status'] : null,
+            raw: $body,
+        );
+    }
+}

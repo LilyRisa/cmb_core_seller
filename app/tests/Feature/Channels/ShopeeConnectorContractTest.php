@@ -136,4 +136,44 @@ class ShopeeConnectorContractTest extends TestCase
 
         Http::assertSent(fn ($r) => str_contains($r->url(), '/api/v2/order/get_order_list') && str_contains($r->url(), 'order_status=READY_TO_SHIP'));
     }
+
+    private function signedPush(array $body): \Illuminate\Http\Request
+    {
+        $raw = json_encode($body, JSON_UNESCAPED_SLASHES);
+        $pushUrl = 'https://partner.test-stable.shopeemobile.com/webhook/shopee';
+        config(['integrations.shopee.push_url' => $pushUrl]);
+        $sign = hash_hmac('sha256', $pushUrl.'|'.$raw, 'PARTNER_KEY');
+        $req = \Illuminate\Http\Request::create($pushUrl, 'POST', content: $raw);
+        $req->headers->set('Authorization', $sign);
+
+        return $req;
+    }
+
+    public function test_verify_webhook_signature_ok_and_reject(): void
+    {
+        $this->connector(); // configure
+        $req = $this->signedPush(['code' => 3, 'shop_id' => 55, 'timestamp' => 1700000000, 'data' => json_encode(['ordersn' => 'SN_9', 'status' => 'READY_TO_SHIP'])]);
+        $this->assertTrue($this->connector()->verifyWebhookSignature($req));
+
+        $bad = \Illuminate\Http\Request::create('https://partner.test-stable.shopeemobile.com/webhook/shopee', 'POST', content: '{}');
+        $bad->headers->set('Authorization', 'deadbeef');
+        $this->assertFalse($this->connector()->verifyWebhookSignature($bad));
+    }
+
+    public function test_parse_webhook_order_status_update(): void
+    {
+        $req = $this->signedPush(['code' => 3, 'shop_id' => 55, 'timestamp' => 1700000000, 'data' => json_encode(['ordersn' => 'SN_9', 'status' => 'READY_TO_SHIP'])]);
+        $evt = $this->connector()->parseWebhook($req);
+
+        $this->assertSame('order_status_update', $evt->type);
+        $this->assertSame('55', $evt->externalShopId);
+        $this->assertSame('SN_9', $evt->externalOrderId);
+        $this->assertSame('READY_TO_SHIP', $evt->orderRawStatus);
+    }
+
+    public function test_parse_webhook_deauthorized(): void
+    {
+        $req = $this->signedPush(['code' => 1, 'shop_id' => 55, 'timestamp' => 1700000000, 'data' => json_encode(['success' => 1])]);
+        $this->assertSame('shop_deauthorized', $this->connector()->parseWebhook($req)->type);
+    }
 }

@@ -20,7 +20,7 @@ use Symfony\Component\HttpFoundation\Request;
  */
 class ShopeeConnector implements ChannelConnector
 {
-    public function __construct(private ShopeeClient $client) {}
+    public function __construct(private ShopeeClient $client, private ShopeeWebhookVerifier $verifier = new ShopeeWebhookVerifier()) {}
 
     public function code(): string
     {
@@ -145,12 +145,12 @@ class ShopeeConnector implements ChannelConnector
 
     public function parseWebhook(Request $request): WebhookEventDTO
     {
-        throw UnsupportedOperation::for($this->code(), 'parseWebhook'); // Task 6
+        return $this->verifier->parse($request);
     }
 
     public function verifyWebhookSignature(Request $request): bool
     {
-        return false; // Task 6
+        return $this->verifier->verify($request);
     }
 
     public function mapStatus(string $rawStatus, array $rawOrder = []): StandardOrderStatus
