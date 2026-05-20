@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { App, Badge, Button, Empty, Input, List, Segmented, Space, Spin, Tag, Typography } from 'antd';
-import { RobotOutlined, SendOutlined } from '@ant-design/icons';
+import { RobotOutlined, SendOutlined, ShopOutlined } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
 import {
     type Conversation,
@@ -14,6 +14,7 @@ import {
     useMarkRead,
     useSendText,
 } from '@/lib/messaging';
+import { MessagingNav } from '@/components/MessagingNav';
 
 const { Text } = Typography;
 
@@ -70,7 +71,9 @@ export function MessagingPage() {
     };
 
     return (
-        <div style={{ display: 'flex', height: 'calc(100vh - 96px)', gap: 12 }}>
+        <div>
+            <MessagingNav />
+            <div style={{ display: 'flex', height: 'calc(100vh - 150px)', gap: 12 }}>
             {/* Cột trái — danh sách hội thoại */}
             <div style={{ width: 320, background: '#fff', borderRadius: 12, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <div style={{ padding: 12, borderBottom: '1px solid #F1F5F9', display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -120,7 +123,7 @@ export function MessagingPage() {
                                         description={(
                                             <Space direction="vertical" size={0} style={{ width: '100%' }}>
                                                 {c.channel_account_name && (
-                                                    <Text type="secondary" style={{ fontSize: 11 }} ellipsis>📍 {c.channel_account_name}</Text>
+                                                    <Text type="secondary" style={{ fontSize: 11 }} ellipsis><ShopOutlined /> {c.channel_account_name}</Text>
                                                 )}
                                                 <Text type="secondary" ellipsis style={{ fontSize: 12 }}>{c.last_message_preview ?? '—'}</Text>
                                             </Space>
@@ -204,6 +207,7 @@ export function MessagingPage() {
                 ) : (
                     <div style={{ marginTop: 12 }}><Text type="secondary">Chọn hội thoại để xem chi tiết.</Text></div>
                 )}
+            </div>
             </div>
         </div>
     );
