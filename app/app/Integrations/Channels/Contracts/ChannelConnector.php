@@ -55,10 +55,10 @@ interface ChannelConnector
      */
     public function buildAuthorizationUrl(string $state, array $opts = []): string;
 
-    /** @param array<string,mixed> $context callback/account fields some APIs need (e.g. Shopee shop_id). */
+    /** @param array<string,mixed> $context business fields from the OAuth callback some APIs need, e.g. ['shop_id' => '12345'] (Shopee). OAuth control params (code/state/error) are excluded by the caller. */
     public function exchangeCodeForToken(string $code, array $context = []): TokenDTO;
 
-    /** @param array<string,mixed> $context account fields some APIs need (e.g. Shopee shop_id). */
+    /** @param array<string,mixed> $context account fields some APIs need, e.g. ['shop_id' => '12345'] (Shopee). */
     public function refreshToken(string $refreshToken, array $context = []): TokenDTO;
 
     public function fetchShopInfo(AuthContext $auth): ShopInfoDTO;

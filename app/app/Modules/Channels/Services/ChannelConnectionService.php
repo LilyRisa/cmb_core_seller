@@ -68,7 +68,11 @@ class ChannelConnectionService
         $this->assertProviderConnectable($provider);
         $connector = $this->registry->for($provider);
 
-        $token = $connector->exchangeCodeForToken($code, $callbackParams);
+        // Thread chỉ các field nghiệp vụ của callback (vd Shopee `shop_id`) vào connector — loại bỏ
+        // tham số điều khiển OAuth (`code`/`state`/`error`/…) để `$context` đúng với hợp đồng "fields
+        // some APIs need", tránh connector về sau dùng nhầm `code`/`state` từ context.
+        $exchangeContext = array_diff_key($callbackParams, array_flip(['code', 'state', 'app_key', 'app_key_state', 'error', 'error_description']));
+        $token = $connector->exchangeCodeForToken($code, $exchangeContext);
         // Một số connector (Lazada) cần `country_user_info` / `country_user_info_list` từ token để chốt
         // `external_shop_id` khớp với webhook push của sàn — thread raw token qua `AuthContext::extra` để
         // `fetchShopInfo` không bị mất ngữ cảnh. Connector nào không dùng tới thì cứ bỏ qua.
