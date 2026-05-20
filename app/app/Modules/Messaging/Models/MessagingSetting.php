@@ -20,7 +20,7 @@ class MessagingSetting extends Model
     public $incrementing = false;
 
     protected $fillable = [
-        'tenant_id', 'ai_provider_code', 'ai_enabled',
+        'tenant_id', 'ai_provider_code', 'ai_enabled', 'auto_mode',
         'away_hours', 'fallback_template_id', 'settings',
     ];
 
@@ -28,6 +28,7 @@ class MessagingSetting extends Model
     {
         return [
             'ai_enabled' => 'boolean',
+            'auto_mode' => 'boolean',
             'away_hours' => 'array',
             'settings' => 'array',
         ];

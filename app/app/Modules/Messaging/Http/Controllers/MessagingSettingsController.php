@@ -34,6 +34,7 @@ class MessagingSettingsController extends Controller
             'data' => [
                 'ai_provider_code' => $setting?->ai_provider_code,
                 'ai_enabled' => (bool) ($setting?->ai_enabled ?? false),
+                'auto_mode' => (bool) ($setting?->auto_mode ?? false),
                 'away_hours' => $setting?->away_hours,
                 'fallback_template_id' => $setting?->fallback_template_id,
                 'available_providers' => $this->availableProviders(),
@@ -50,6 +51,7 @@ class MessagingSettingsController extends Controller
         $data = $request->validate([
             'ai_provider_code' => ['nullable', 'string', Rule::in($activeCodes)],
             'ai_enabled' => ['nullable', 'boolean'],
+            'auto_mode' => ['nullable', 'boolean'],
             'away_hours' => ['nullable', 'array'],
             'fallback_template_id' => ['nullable', 'integer'],
         ]);

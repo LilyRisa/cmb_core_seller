@@ -80,9 +80,9 @@ class IntegrationsServiceProvider extends ServiceProvider
     protected array $messagingConnectors = [
         'manual' => ManualMessagingConnector::class,
         'facebook_page' => \CMBcoreSeller\Integrations\Messaging\Facebook\FacebookPageConnector::class,  // S2
-        // 'tiktok_chat'   => \CMBcoreSeller\Integrations\Messaging\TikTok\TikTokChatConnector::class,     // S4
-        // 'shopee_chat'   => \CMBcoreSeller\Integrations\Messaging\Shopee\ShopeeChatConnector::class,    // S4
-        // 'lazada_chat'   => \CMBcoreSeller\Integrations\Messaging\Lazada\LazadaChatConnector::class,    // S8 (best-effort)
+        'tiktok_chat' => \CMBcoreSeller\Integrations\Messaging\TikTok\TikTokChatConnector::class,        // S4
+        'lazada_chat' => \CMBcoreSeller\Integrations\Messaging\Lazada\LazadaChatConnector::class,        // S8 (best-effort, §11 Q3)
+        // 'shopee_chat' => ...: chờ Channels Shopee infra (Phase 4 — chưa có signer/config Shopee).
     ];
 
     /**

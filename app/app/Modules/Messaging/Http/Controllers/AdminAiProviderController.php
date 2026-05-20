@@ -126,6 +126,8 @@ class AdminAiProviderController extends Controller
             return response()->json(['data' => ['ok' => true, 'sample' => Str::limit($reply->body, 120)]]);
         } catch (UnsupportedOperation $e) {
             return response()->json(['data' => ['ok' => false, 'reason' => 'connector_not_implemented', 'message' => $e->getMessage()]]);
+        } catch (\CMBcoreSeller\Integrations\Ai\Exceptions\ProviderNotConfigured $e) {
+            return response()->json(['data' => ['ok' => false, 'reason' => 'not_configured', 'message' => $e->getMessage()]]);
         } catch (\Throwable $e) {
             return response()->json(['data' => ['ok' => false, 'reason' => 'error', 'message' => Str::limit($e->getMessage(), 200)]]);
         }

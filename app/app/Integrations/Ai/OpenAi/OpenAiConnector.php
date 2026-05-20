@@ -2,29 +2,37 @@
 
 namespace CMBcoreSeller\Integrations\Ai\OpenAi;
 
+use CMBcoreSeller\Integrations\Ai\Concerns\EstimatesAiCost;
 use CMBcoreSeller\Integrations\Ai\Contracts\AiAssistantConnector;
+use CMBcoreSeller\Integrations\Ai\Contracts\AiProviderCredentials;
 use CMBcoreSeller\Integrations\Ai\DTO\AiContext;
 use CMBcoreSeller\Integrations\Ai\DTO\AiReplyDTO;
 use CMBcoreSeller\Integrations\Ai\DTO\ConversationSnapshot;
 use CMBcoreSeller\Integrations\Ai\DTO\EmbeddingDTO;
 use CMBcoreSeller\Integrations\Ai\DTO\IntentDTO;
 use CMBcoreSeller\Integrations\Ai\DTO\KnowledgeBase;
-use CMBcoreSeller\Integrations\Ai\Exceptions\UnsupportedOperation;
+use CMBcoreSeller\Integrations\Ai\Exceptions\ProviderNotConfigured;
+use Illuminate\Support\Facades\Http;
 
 /**
- * OpenAI connector — STUB (S6). Khác Claude: OpenAI CÓ embedding API
- * (`text-embedding-3-*`) ⇒ capability `embedding`+`rag.training`=true (khi wire,
- * KnowledgeIndexer sẽ dùng OpenAI để embed kể cả khi reply provider là Claude).
+ * OpenAI connector — Chat Completions + Embeddings (raw HTTP, không SDK).
  *
- * TODO (S6.1 — wire live API):
- *   - Credentials từ `AiProvider` record (code='openai'): api_key, base_url
- *     (cho Azure/proxy), default_model.
- *   - Chat: POST {base_url}/v1/chat/completions (Bearer key).
- *   - Embedding: POST {base_url}/v1/embeddings, model text-embedding-3-small (1536d).
- *   - Map usage → AiReplyDTO/EmbeddingDTO + cost theo pricing().
+ * Chat : POST {base_url|https://api.openai.com}/v1/chat/completions (Bearer key)
+ * Embed: POST {base_url}/v1/embeddings
+ * Model: super-admin nhập `default_model` (BẮT BUỘC — không hardcode để tránh
+ *        đoán sai model OpenAI). Embedding model lấy từ ctx.meta hoặc mặc định
+ *        text-embedding-3-small.
+ *
+ * `base_url` cho phép trỏ Azure OpenAI / proxy tương thích OpenAI.
+ * OpenAI CÓ embedding ⇒ capability rag.training/embedding=true: KnowledgeIndexer
+ * có thể dùng provider này để embed kể cả khi reply provider là Claude.
  */
 class OpenAiConnector implements AiAssistantConnector
 {
+    use EstimatesAiCost;
+
+    public function __construct(private AiProviderCredentials $credentials) {}
+
     public function code(): string
     {
         return 'openai';
@@ -53,21 +61,147 @@ class OpenAiConnector implements AiAssistantConnector
 
     public function generateReply(AiContext $ctx, ConversationSnapshot $conversation, ?KnowledgeBase $kb = null): AiReplyDTO
     {
-        throw UnsupportedOperation::for($this->code(), 'generateReply (chưa wire HTTP client — xem TODO trong OpenAiConnector)');
+        $cfg = $this->config();
+        $model = $ctx->model ?: $cfg->defaultModel;
+        if (! $model) {
+            throw new ProviderNotConfigured('OpenAI provider cần default_model.');
+        }
+
+        $startedAt = microtime(true);
+        $response = Http::withToken($cfg->apiKey)
+            ->timeout(30)->retry(2, 1000, throw: false)
+            ->post($this->base($cfg).'/v1/chat/completions', [
+                'model' => $model,
+                'max_tokens' => $ctx->maxTokens ?: 1024,
+                'messages' => $this->buildMessages($conversation, $kb),
+            ]);
+
+        $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
+
+        if (! $response->successful()) {
+            $error = (array) $response->json('error');
+            throw new \RuntimeException('OpenAI API '.$response->status().': '.($error['message'] ?? $response->body()));
+        }
+
+        $text = (string) $response->json('choices.0.message.content', '');
+        $usage = (array) $response->json('usage', []);
+        $promptTokens = (int) ($usage['prompt_tokens'] ?? 0);
+        $completionTokens = (int) ($usage['completion_tokens'] ?? 0);
+
+        return new AiReplyDTO(
+            body: trim($text),
+            promptTokens: $promptTokens,
+            completionTokens: $completionTokens,
+            costMicroVnd: $this->estimateCostMicroVnd($cfg->pricing, $promptTokens, $completionTokens),
+            durationMs: $durationMs,
+            raw: ['model' => $response->json('model'), 'finish_reason' => $response->json('choices.0.finish_reason'), 'usage' => $usage],
+        );
     }
 
     public function classifyIntent(AiContext $ctx, string $text, array $candidates = []): IntentDTO
     {
-        throw UnsupportedOperation::for($this->code(), 'classifyIntent');
+        $cfg = $this->config();
+        $model = $ctx->model ?: $cfg->defaultModel;
+        if (! $model) {
+            throw new ProviderNotConfigured('OpenAI provider cần default_model.');
+        }
+
+        $labels = $candidates !== [] ? $candidates
+            : ['order_status', 'complaint', 'price', 'refund', 'urgent', 'smalltalk', 'other'];
+
+        $response = Http::withToken($cfg->apiKey)->timeout(20)->retry(2, 1000, throw: false)
+            ->post($this->base($cfg).'/v1/chat/completions', [
+                'model' => $model,
+                'max_tokens' => 8,
+                'messages' => [
+                    ['role' => 'system', 'content' => 'Phân loại ý định tin nhắn khách. Chỉ trả về 1 nhãn trong: '.implode(', ', $labels).'.'],
+                    ['role' => 'user', 'content' => $text],
+                ],
+            ]);
+
+        if (! $response->successful()) {
+            throw new \RuntimeException('OpenAI classify '.$response->status());
+        }
+
+        $intent = strtolower(trim((string) $response->json('choices.0.message.content', 'other')));
+        if (! in_array($intent, $labels, true)) {
+            $intent = 'other';
+        }
+
+        return new IntentDTO(intent: $intent, confidence: 0.8);
     }
 
     public function embed(AiContext $ctx, string $text): EmbeddingDTO
     {
-        throw UnsupportedOperation::for($this->code(), 'embed');
+        $cfg = $this->config();
+        $model = (string) ($ctx->meta['embedding_model'] ?? 'text-embedding-3-small');
+
+        $response = Http::withToken($cfg->apiKey)->timeout(30)->retry(2, 1000, throw: false)
+            ->post($this->base($cfg).'/v1/embeddings', [
+                'model' => $model,
+                'input' => $text,
+            ]);
+
+        if (! $response->successful()) {
+            throw new \RuntimeException('OpenAI embed '.$response->status());
+        }
+
+        $vector = array_map('floatval', (array) $response->json('data.0.embedding', []));
+        $tokens = (int) $response->json('usage.total_tokens', 0);
+
+        return new EmbeddingDTO(
+            vector: $vector,
+            dimension: count($vector),
+            model: $model,
+            tokenCount: $tokens,
+        );
     }
 
     public function pricing(): array
     {
-        return [];
+        return $this->config(false)->pricing;
+    }
+
+    private function config(bool $requireKey = true): \CMBcoreSeller\Integrations\Ai\DTO\AiProviderRuntimeConfig
+    {
+        $cfg = $this->credentials->resolve($this->code());
+        if (! $cfg || ($requireKey && ! $cfg->apiKey)) {
+            throw new ProviderNotConfigured('OpenAI provider chưa cấu hình api_key.');
+        }
+
+        return $cfg;
+    }
+
+    private function base(\CMBcoreSeller\Integrations\Ai\DTO\AiProviderRuntimeConfig $cfg): string
+    {
+        return rtrim($cfg->baseUrl ?: 'https://api.openai.com', '/');
+    }
+
+    /** @return list<array{role:string, content:string}> */
+    private function buildMessages(ConversationSnapshot $c, ?KnowledgeBase $kb): array
+    {
+        $system = 'Bạn là nhân viên CSKH shop online tại Việt Nam. Trả lời ngắn gọn, lịch sự, tiếng Việt, '
+            .'xưng "shop"/"em", gọi khách "anh/chị". Không bịa thông tin đơn/giá/tồn kho; không chắc thì đề nghị khách chờ NV.';
+        if ($c->buyerName) {
+            $system .= ' Tên khách: '.$c->buyerName.'.';
+        }
+        if ($kb && $kb->chunks !== []) {
+            $system .= "\n\nTài liệu tham khảo:\n";
+            foreach ($kb->chunks as $chunk) {
+                $system .= '- ['.($chunk['title'] ?? '').'] '.($chunk['chunk_text'] ?? '')."\n";
+            }
+        }
+
+        $messages = [['role' => 'system', 'content' => $system]];
+        foreach ($c->recentMessages as $m) {
+            $role = ($m['direction'] ?? '') === 'outbound' ? 'assistant' : 'user';
+            $body = trim((string) ($m['body'] ?? '')) ?: '['.($m['kind'] ?? 'media').']';
+            $messages[] = ['role' => $role, 'content' => $body];
+        }
+        if (count($messages) === 1) {
+            $messages[] = ['role' => 'user', 'content' => 'Khách vừa nhắn tin, hãy soạn lời chào hỗ trợ.'];
+        }
+
+        return $messages;
     }
 }

@@ -50,6 +50,8 @@ class ChannelAccount extends Model
         'tenant_id', 'provider', 'external_shop_id', 'shop_name', 'display_name', 'shop_region', 'seller_type',
         'status', 'access_token', 'refresh_token', 'token_expires_at', 'refresh_token_expires_at',
         'last_synced_at', 'last_webhook_at', 'meta', 'created_by',
+        // SPEC-0024: bật messaging per-shop (cột do migration Messaging thêm).
+        'messaging_enabled',
     ];
 
     protected $hidden = ['access_token', 'refresh_token'];
@@ -70,6 +72,7 @@ class ChannelAccount extends Model
             'last_synced_at' => 'datetime',
             'last_webhook_at' => 'datetime',
             'meta' => 'array',
+            'messaging_enabled' => 'boolean',
         ];
     }
 

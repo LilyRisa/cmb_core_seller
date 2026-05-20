@@ -42,7 +42,80 @@ class AiSuggestionService
         private KnowledgeRetriever $retriever,
         private CustomerProfileContract $customers,
         private SubscriptionService $subscriptions,
+        private IntentClassifier $intentClassifier,
+        private OutboundMessageService $outbound,
     ) {}
+
+    /**
+     * Auto-mode (S7): AI tự trả lời KHÔNG cần NV duyệt — nhưng qua guardrail
+     * intent. Intent nhạy cảm (complaint/refund/urgent/legal_threat/abuse) ⇒
+     * KHÔNG gửi, đánh `requires_human` để NV vào. SPEC §4.6.
+     *
+     * Vẫn đi qua đúng `OutboundMessageService` + ghi `ai_assistant_runs` (mode=auto)
+     * — cùng pipeline với NV gửi tay (audit + window guard ở job).
+     *
+     * @return array{action:string, intent:string, message?:\CMBcoreSeller\Modules\Messaging\Models\Message}
+     */
+    public function autoRespond(Conversation $conv, string $inboundText): array
+    {
+        $tenantId = (int) $conv->tenant_id;
+        $providerCode = $this->resolveProviderCode($tenantId);
+        $this->assertWithinMonthlyLimit($tenantId);
+
+        // Guardrail: phân loại intent trước khi cho AI tự gửi.
+        $intent = $this->intentClassifier->classify($tenantId, $providerCode, $inboundText);
+        if ($this->intentClassifier->shouldEscalate($intent)) {
+            $conv->forceFill([
+                'meta' => array_merge((array) $conv->meta, ['requires_human' => true, 'last_intent' => $intent->intent]),
+            ])->save();
+
+            return ['action' => 'escalated', 'intent' => $intent->intent];
+        }
+
+        try {
+            $connector = $this->registry->for($providerCode);
+        } catch (ProviderNotConfigured) {
+            throw AiSuggestionException::providerNotAvailable();
+        }
+
+        [$snapshot, $mapping, $redactedCount] = $this->buildSnapshot($conv, $tenantId);
+        $kb = $this->retriever->retrieve($tenantId, $inboundText);
+        $provider = AiProvider::query()->find($providerCode);
+        $ctx = new AiContext(tenantId: $tenantId, providerCode: $providerCode, model: $provider?->default_model, meta: ['mode' => 'auto']);
+
+        $startedAt = microtime(true);
+        try {
+            $reply = $connector->generateReply($ctx, $snapshot, $kb);
+        } catch (\Throwable $e) {
+            $this->recordRun($tenantId, $conv, $providerCode, $provider?->default_model, AiAssistantRun::STATUS_ERROR, [
+                'mode' => AiAssistantRun::MODE_AUTO,
+                'error' => substr($e->getMessage(), 0, 250),
+                'duration_ms' => (int) ((microtime(true) - $startedAt) * 1000),
+                'meta' => ['redacted_count' => $redactedCount],
+            ]);
+            throw AiSuggestionException::generationFailed($e->getMessage());
+        }
+
+        $body = $mapping === [] ? $reply->body : strtr($reply->body, $mapping);
+
+        $run = $this->recordRun($tenantId, $conv, $providerCode, $provider?->default_model, AiAssistantRun::STATUS_SUCCESS, [
+            'mode' => AiAssistantRun::MODE_AUTO,
+            'prompt_tokens' => $reply->promptTokens,
+            'completion_tokens' => $reply->completionTokens,
+            'cost_micro_vnd' => $reply->costMicroVnd,
+            'duration_ms' => $reply->durationMs,
+            'meta' => ['redacted_count' => $redactedCount, 'intent' => $intent->intent, 'kb_chunks' => count($kb->chunks)],
+        ]);
+
+        $message = $this->outbound->queueText($conv, [
+            'body' => $body,
+            'sent_by_user_id' => null,
+            'sent_by_ai' => true,
+            'ai_run_id' => $run->id,
+        ]);
+
+        return ['action' => 'sent', 'intent' => $intent->intent, 'message' => $message];
+    }
 
     public function suggest(Conversation $conv, ?int $userId = null): MessageDraft
     {

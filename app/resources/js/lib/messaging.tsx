@@ -1,0 +1,163 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
+import { tenantApi } from './api';
+import { useCurrentTenantId } from './tenant';
+import type { Paginated } from './orders';
+
+/**
+ * Data layer cho Hộp thư hợp nhất (SPEC-0024). Gọi `/api/v1/messaging/*` qua
+ * `tenantApi` (X-Tenant-Id). Realtime (Reverb) là follow-up — MVP dùng refetch
+ * + polling nhẹ (refetchInterval) làm fallback (SPEC §6.3).
+ */
+
+export type ConversationStatus = 'open' | 'snoozed' | 'resolved' | 'spam';
+export type MessageDirection = 'inbound' | 'outbound';
+export type DeliveryStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
+
+export interface Conversation {
+    id: number;
+    channel_account_id: number;
+    provider: string;
+    external_conversation_id: string;
+    buyer_external_id: string;
+    buyer_name: string | null;
+    buyer_avatar_url: string | null;
+    customer_id: number | null;
+    order_id: number | null;
+    status: ConversationStatus;
+    unread_count: number;
+    message_count: number;
+    last_message_at: string | null;
+    last_message_preview: string | null;
+    last_inbound_at: string | null;
+    last_outbound_at: string | null;
+    assigned_user_id: number | null;
+    tags: string[];
+    created_at: string | null;
+}
+
+export interface MessageAttachment {
+    id: number;
+    kind: string;
+    mime: string;
+    size_bytes: number | null;
+    filename: string | null;
+    status: string;
+    download_url: string | null;
+}
+
+export interface Message {
+    id: number;
+    conversation_id: number;
+    external_message_id: string | null;
+    direction: MessageDirection;
+    kind: string;
+    body: string | null;
+    attachments_count: number;
+    sent_by_user_id: number | null;
+    sent_by_ai: boolean;
+    delivery_status: DeliveryStatus;
+    failure_code: string | null;
+    sent_at: string | null;
+    read_at: string | null;
+    created_at: string | null;
+    attachments?: MessageAttachment[];
+}
+
+export interface ConversationFilters {
+    provider?: string;
+    status?: string;
+    unread?: boolean;
+    assigned?: string;
+    q?: string;
+    page?: number;
+    per_page?: number;
+}
+
+function useScopedApi() {
+    const tenantId = useCurrentTenantId();
+    return useMemo(() => (tenantId == null ? null : tenantApi(tenantId)), [tenantId]);
+}
+
+export function useConversations(filters: ConversationFilters) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['messaging', 'conversations', tenantId, filters],
+        enabled: api != null,
+        placeholderData: (prev) => prev,
+        refetchInterval: 15_000, // polling fallback tới khi Reverb bật
+        queryFn: async () => {
+            const params: Record<string, string | number | boolean> = {};
+            Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== '' && v !== false) params[k] = v as never; });
+            const { data } = await api!.get<Paginated<Conversation>>('/messaging/conversations', { params });
+            return data;
+        },
+    });
+}
+
+export interface ThreadResult { conversation: Conversation; messages: Message[] }
+
+export function useConversationThread(id: number | null) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['messaging', 'thread', tenantId, id],
+        enabled: api != null && id != null,
+        refetchInterval: 10_000,
+        queryFn: async () => {
+            const { data } = await api!.get<{ data: ThreadResult }>(`/messaging/conversations/${id}`);
+            return data.data;
+        },
+    });
+}
+
+export function useSendText(conversationId: number | null) {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (body: string) => {
+            const { data } = await api!.post<{ data: Message }>(`/messaging/conversations/${conversationId}/messages`, { body });
+            return data.data;
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['messaging', 'thread'] });
+            qc.invalidateQueries({ queryKey: ['messaging', 'conversations'] });
+        },
+    });
+}
+
+export function useMarkRead() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (conversationId: number) => {
+            await api!.post(`/messaging/conversations/${conversationId}/read`);
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'conversations'] }),
+    });
+}
+
+export function useAiSuggestion(conversationId: number | null) {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async () => {
+            const { data } = await api!.post<{ data: { draft_id: number; draft_text: string } }>(
+                `/messaging/conversations/${conversationId}/ai-suggestion`,
+            );
+            return data.data;
+        },
+    });
+}
+
+const PROVIDER_LABELS: Record<string, string> = {
+    facebook_page: 'Facebook',
+    tiktok_chat: 'TikTok',
+    shopee_chat: 'Shopee',
+    lazada_chat: 'Lazada',
+    manual: 'Nội bộ',
+};
+
+export function providerLabel(code: string): string {
+    return PROVIDER_LABELS[code] ?? code;
+}

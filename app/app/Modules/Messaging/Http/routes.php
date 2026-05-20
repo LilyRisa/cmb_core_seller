@@ -4,6 +4,7 @@ use CMBcoreSeller\Modules\Messaging\Http\Controllers\AdminAiProviderController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\AiSuggestionController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\AutoReplyRuleController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\ConversationController;
+use CMBcoreSeller\Modules\Messaging\Http\Controllers\FacebookOAuthController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\KnowledgeController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\MessageController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\MessagingSettingsController;
@@ -96,6 +97,10 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
             ->name('messaging.settings.show');
         Route::patch('settings', [MessagingSettingsController::class, 'update'])
             ->name('messaging.settings.update');
+
+        // --- Facebook Page OAuth connect (S2) — trả authorize URL ---
+        Route::post('facebook/connect', [FacebookOAuthController::class, 'start'])
+            ->name('messaging.facebook.connect');
 
         // --- Auto-reply rules (S5) -----------------------------------------
         Route::get('auto-reply-rules', [AutoReplyRuleController::class, 'index'])

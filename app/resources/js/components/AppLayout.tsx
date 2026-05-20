@@ -14,21 +14,16 @@ import {
     LogoutOutlined,
     MenuFoldOutlined,
     MenuUnfoldOutlined,
+    MessageOutlined,
     PartitionOutlined,
-    SafetyCertificateOutlined,
     SettingOutlined,
     ShopOutlined,
     ShoppingCartOutlined,
     ShoppingOutlined,
     SwapOutlined,
     TeamOutlined,
-    ToolOutlined,
     UserOutlined,
     WalletOutlined,
-    GiftOutlined,
-    TagsOutlined,
-    AuditOutlined,
-    SoundOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { getCurrentTenantId, setCurrentTenantId, useAuth, useLogout } from '@/lib/auth';
@@ -45,6 +40,12 @@ function buildNav(): MenuProps['items'] {
         { type: 'group', label: 'Bán hàng', children: [
             { key: '/orders', icon: <ShoppingOutlined />, label: <Link to="/orders">Đơn hàng</Link> },
             { key: '/customers', icon: <TeamOutlined />, label: <Link to="/customers">Khách hàng</Link> },
+            { key: 'messaging', icon: <MessageOutlined />, label: 'Tin nhắn', children: [
+                { key: '/messaging', label: <Link to="/messaging">Hộp thư</Link> },
+                { key: '/messaging/templates', label: <Link to="/messaging/templates">Mẫu tin</Link> },
+                { key: '/messaging/auto-rules', label: <Link to="/messaging/auto-rules">Tự động trả lời</Link> },
+                { key: '/messaging/knowledge', label: <Link to="/messaging/knowledge">AI training</Link> },
+            ] },
             { key: '/channels', icon: <ShopOutlined />, label: <Link to="/channels">Gian hàng</Link> },
             { key: '/products', icon: <AppstoreOutlined />, label: <Link to="/products">Sản phẩm & SKU</Link> },
         ] },

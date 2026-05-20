@@ -23,6 +23,11 @@ import { ChannelsPage } from '@/pages/ChannelsPage';
 import { SyncLogsPage } from '@/pages/SyncLogsPage';
 import { CustomersPage } from '@/pages/CustomersPage';
 import { CustomerDetailPage } from '@/pages/CustomerDetailPage';
+import { MessagingPage } from '@/pages/MessagingPage';
+import { MessagingTemplatesPage } from '@/pages/MessagingTemplatesPage';
+import { MessagingAutoRulesPage } from '@/pages/MessagingAutoRulesPage';
+import { MessagingKnowledgePage } from '@/pages/MessagingKnowledgePage';
+import { MessagingSettingsPage } from '@/pages/MessagingSettingsPage';
 import { InventoryPage } from '@/pages/InventoryPage';
 import { CreateSkuPage } from '@/pages/CreateSkuPage';
 import { CreateOrderPage } from '@/pages/CreateOrderPage';
@@ -87,6 +92,11 @@ function Root() {
                 <Route path="channels" element={<ChannelsPage />} />
                 <Route path="customers" element={<CustomersPage />} />
                 <Route path="customers/:id" element={<CustomerDetailPage />} />
+                {/* SPEC-0024 — Hộp thư hợp nhất + trang quản lý. */}
+                <Route path="messaging" element={<MessagingPage />} />
+                <Route path="messaging/templates" element={<MessagingTemplatesPage />} />
+                <Route path="messaging/auto-rules" element={<MessagingAutoRulesPage />} />
+                <Route path="messaging/knowledge" element={<MessagingKnowledgePage />} />
                 <Route path="products" element={<Navigate to="/inventory?tab=skus" replace />} />
                 <Route path="inventory" element={<InventoryPage />} />
                 <Route path="inventory/skus/new" element={<CreateSkuPage />} />
@@ -118,6 +128,7 @@ function Root() {
                     <Route path="members" element={<SettingsMembersPage />} />
                     <Route path="carriers" element={<CarrierAccountsPage />} />
                     <Route path="orders" element={<SettingsOrdersPage />} />
+                    <Route path="messaging" element={<MessagingSettingsPage />} />
                     <Route path="plan" element={<SettingsPlanPage />} />
                     <Route path="print" element={<SettingsPrintPage />} />
                     <Route path="shipping-labels" element={<SettingsShippingLabelsPage />} />

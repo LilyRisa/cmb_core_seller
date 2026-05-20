@@ -20,6 +20,9 @@ return new class extends Migration
             $table->unsignedBigInteger('tenant_id')->primary();
             $table->string('ai_provider_code', 32)->nullable();   // ∈ ai_providers.is_active
             $table->boolean('ai_enabled')->default(false);
+            // auto_mode (S7): AI tự gửi reply (qua guardrail intent), KHÔNG cần NV duyệt.
+            // Opt-in; mặc định false (suggest-only — SPEC §11 Q2).
+            $table->boolean('auto_mode')->default(false);
             $table->json('away_hours')->nullable();               // {window:'22:00-08:00', tz, days}
             $table->unsignedBigInteger('fallback_template_id')->nullable();
             $table->json('settings')->nullable();                 // mở rộng tương lai

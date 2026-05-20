@@ -5,6 +5,7 @@ namespace Tests\Feature\Messaging;
 use CMBcoreSeller\Models\AdminUser;
 use CMBcoreSeller\Modules\Messaging\Models\AiProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /**
@@ -57,15 +58,42 @@ class AdminAiProviderTest extends TestCase
             ->assertStatus(422);
     }
 
-    public function test_test_endpoint_graceful_for_unimplemented_connector(): void
+    public function test_test_endpoint_graceful_when_not_configured(): void
     {
         $this->actingAdmin();
+        // Claude active nhưng CHƯA nhập api_key ⇒ ProviderNotConfigured → ok:false.
         AiProvider::query()->create(['code' => 'claude', 'is_active' => true]);
 
         $this->postJson('/api/v1/admin/ai-providers/claude/test')
             ->assertOk()
             ->assertJsonPath('data.ok', false)
-            ->assertJsonPath('data.reason', 'connector_not_implemented');
+            ->assertJsonPath('data.reason', 'not_configured');
+    }
+
+    public function test_test_endpoint_ok_for_claude_with_key(): void
+    {
+        Http::fake([
+            'api.anthropic.com/*' => Http::response([
+                'model' => 'claude-opus-4-7',
+                'stop_reason' => 'end_turn',
+                'content' => [['type' => 'text', 'text' => 'Em chào anh/chị ạ!']],
+                'usage' => ['input_tokens' => 12, 'output_tokens' => 8],
+            ], 200),
+        ]);
+
+        $this->actingAdmin();
+        AiProvider::query()->create([
+            'code' => 'claude', 'is_active' => true,
+            'api_key' => 'sk-ant-test', 'default_model' => 'claude-opus-4-7',
+        ]);
+
+        $this->postJson('/api/v1/admin/ai-providers/claude/test')
+            ->assertOk()
+            ->assertJsonPath('data.ok', true);
+
+        Http::assertSent(fn ($req) => str_contains($req->url(), '/v1/messages')
+            && $req->hasHeader('x-api-key', 'sk-ant-test')
+            && $req->hasHeader('anthropic-version', '2023-06-01'));
     }
 
     public function test_test_endpoint_ok_for_manual(): void

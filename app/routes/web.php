@@ -3,6 +3,7 @@
 use CMBcoreSeller\Http\Controllers\AdminSpaController;
 use CMBcoreSeller\Http\Controllers\SpaController;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\OAuthCallbackController;
+use CMBcoreSeller\Modules\Messaging\Http\Controllers\FacebookOAuthController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -28,6 +29,10 @@ use Illuminate\Support\Facades\Route;
 Route::get('oauth/{provider}/callback', OAuthCallbackController::class)
     ->whereIn('provider', ['tiktok', 'shopee', 'lazada'])
     ->name('oauth.callback');
+
+// Facebook Page messaging OAuth (SPEC-0024) — MessagingConnector, flow riêng.
+Route::get('oauth/facebook_page/callback', [FacebookOAuthController::class, 'callback'])
+    ->name('messaging.facebook.callback');
 
 // --- Admin SPA shell (Spec 2026-05-17) ---
 // `/admin` và mọi sub-path serve Blade `admin.blade.php` nạp bundle `admin.tsx`.

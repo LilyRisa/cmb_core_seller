@@ -7,6 +7,7 @@ use CMBcoreSeller\Modules\Messaging\Console\Commands\PruneAiSuggestionDrafts;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\PruneMessagingPayloads;
 use CMBcoreSeller\Modules\Messaging\Contracts\MessageInboxContract;
 use CMBcoreSeller\Modules\Messaging\Events\MessageReceived;
+use CMBcoreSeller\Modules\Messaging\Listeners\AiAutoModeOnInbound;
 use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnInbound;
 use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnOrderStatus;
 use CMBcoreSeller\Modules\Messaging\Services\MessageInboxReader;
@@ -36,6 +37,13 @@ class MessagingServiceProvider extends ServiceProvider
     {
         $this->app->bind(MessageInboxContract::class, MessageInboxReader::class);
 
+        // AI provider credentials seam — connector (Integrations\Ai) đọc api_key/
+        // model qua interface này thay vì import bảng ai_providers trực tiếp.
+        $this->app->bind(
+            \CMBcoreSeller\Integrations\Ai\Contracts\AiProviderCredentials::class,
+            \CMBcoreSeller\Modules\Messaging\Services\DbAiProviderCredentials::class,
+        );
+
         // Per-module config (media disk, size limits, signed URL TTL).
         $this->mergeConfigFrom(__DIR__.'/../../../config/messaging.php', 'messaging');
     }
@@ -55,6 +63,9 @@ class MessagingServiceProvider extends ServiceProvider
         // Auto-reply (S5): trigger theo event. away_no_response sweep qua command.
         Event::listen(MessageReceived::class, RunAutoReplyOnInbound::class);
         Event::listen(OrderStatusChanged::class, RunAutoReplyOnOrderStatus::class);
+
+        // AI auto-mode (S7): tự trả lời qua guardrail intent (gated auto_mode + Business).
+        Event::listen(MessageReceived::class, AiAutoModeOnInbound::class);
 
         if ($this->app->runningInConsole()) {
             $this->commands([

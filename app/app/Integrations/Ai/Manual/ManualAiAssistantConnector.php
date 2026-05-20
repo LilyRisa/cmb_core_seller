@@ -74,7 +74,17 @@ class ManualAiAssistantConnector implements AiAssistantConnector
 
     public function classifyIntent(AiContext $ctx, string $text, array $candidates = []): IntentDTO
     {
-        return new IntentDTO(intent: 'other', confidence: 0.5);
+        // Heuristic keyword đơn giản (deterministic) — đủ để test guardrail auto-mode
+        // mà không gọi LLM. Provider thật override bằng classify đúng nghĩa.
+        $t = mb_strtolower($text);
+        $intent = match (true) {
+            str_contains($t, 'hoàn tiền') || str_contains($t, 'refund') || str_contains($t, 'trả lại tiền') => 'refund',
+            str_contains($t, 'khiếu nại') || str_contains($t, 'tố cáo') || str_contains($t, 'kiện') => 'complaint',
+            str_contains($t, 'gấp') || str_contains($t, 'khẩn') || str_contains($t, 'urgent') => 'urgent',
+            default => 'other',
+        };
+
+        return new IntentDTO(intent: $intent, confidence: 0.6);
     }
 
     public function embed(AiContext $ctx, string $text): EmbeddingDTO
