@@ -38,7 +38,7 @@ class FacebookOAuthController extends Controller
     /** [auth] Khởi tạo OAuth: trả authorize URL cho FE redirect sang Meta. */
     public function start(Request $request): JsonResponse
     {
-        Gate::authorize('messaging.ai.config');
+        Gate::authorize('messaging.connect');
 
         $tenantId = app(CurrentTenant::class)->id();
         $state = OAuthState::issue(self::PROVIDER, (int) $tenantId, $request->user()?->id, '/messaging?connected=facebook_page');
