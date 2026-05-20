@@ -25,6 +25,7 @@ export function MessagingChannelsPage() {
     const connectFb = useConnectFacebook();
     const { data: channels, isLoading, isError, error } = useMessagingChannels();
     const [reconnectingId, setReconnectingId] = useState<number | null>(null);
+    const [disconnectingId, setDisconnectingId] = useState<number | null>(null);
     const disconnect = useDisconnectFacebookPage();
 
     useEffect(() => {
@@ -89,13 +90,16 @@ export function MessagingChannelsPage() {
                                         <Popconfirm
                                             title="Ngắt kết nối Page?"
                                             description="Sẽ gỡ Page và xoá toàn bộ hội thoại liên quan, không khôi phục được."
-                                            okText="Ngắt kết nối" okButtonProps={{ danger: true, loading: disconnect.isPending }} cancelText="Huỷ"
-                                            onConfirm={() => disconnect.mutate(p.id, {
-                                                onSuccess: () => message.success('Đã ngắt kết nối Page.'),
-                                                onError: (e) => message.error(errorMessage(e)),
-                                            })}
+                                            okText="Ngắt kết nối" okButtonProps={{ danger: true, loading: disconnectingId === p.id }} cancelText="Huỷ"
+                                            onConfirm={() => {
+                                                setDisconnectingId(p.id);
+                                                disconnect.mutate(p.id, {
+                                                    onSuccess: () => { setDisconnectingId(null); message.success('Đã ngắt kết nối Page.'); },
+                                                    onError: (e) => { setDisconnectingId(null); message.error(errorMessage(e)); },
+                                                });
+                                            }}
                                         >
-                                            <Button size="small" danger icon={<DisconnectOutlined />} loading={disconnect.isPending}>Ngắt kết nối</Button>
+                                            <Button size="small" danger icon={<DisconnectOutlined />} loading={disconnectingId === p.id}>Ngắt kết nối</Button>
                                         </Popconfirm>
                                     </Space>
                                 )}

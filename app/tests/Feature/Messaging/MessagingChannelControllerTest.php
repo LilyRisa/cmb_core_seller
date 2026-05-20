@@ -101,6 +101,15 @@ class MessagingChannelControllerTest extends TestCase
         $this->assertStringNotContainsString('SECRET_PAGE_TOKEN', $res->getContent());
     }
 
+    public function test_staff_cs_can_list_channels(): void
+    {
+        // staff_cs có messaging.view (không có messaging.connect) ⇒ vẫn xem được danh sách.
+        $this->actingAs($this->userWithRole(Role::StaffCs))
+            ->withHeaders($this->h())
+            ->getJson('/api/v1/messaging/channels')
+            ->assertOk();
+    }
+
     public function test_disconnect_deletes_page_and_cascades(): void
     {
         $disk = (string) config('messaging.media_disk', 'local');
