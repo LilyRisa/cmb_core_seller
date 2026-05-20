@@ -255,4 +255,28 @@ class ShopeeConnectorContractTest extends TestCase
             && $r['stock_list'][0]['model_id'] === 222
             && $r['stock_list'][0]['seller_stock'][0]['stock'] === 9);
     }
+
+    public function test_fetch_settlements_maps_escrow_to_settlement_dto(): void
+    {
+        Http::fake([
+            '*/api/v2/payment/get_escrow_list*' => Http::response(ShopeeFixtures::escrowList(), 200),
+            '*/api/v2/payment/get_escrow_detail*' => Http::response(ShopeeFixtures::escrowDetail(), 200),
+        ]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+        // Get connector first (calls configure() which sets finance_enabled=false), then override.
+        $connector = $this->connector();
+        config(['integrations.shopee.finance_enabled' => true]);
+
+        $page = $connector->fetchSettlements($auth, [
+            'from' => \Carbon\CarbonImmutable::parse('2026-01-01T00:00:00Z'),
+            'to' => \Carbon\CarbonImmutable::parse('2026-01-15T00:00:00Z'),
+        ]);
+        $this->assertCount(1, $page->items);
+        $s = $page->items[0];
+        $this->assertSame(210000, $s->totalPayout);
+        $this->assertNotEmpty($s->lines);
+        $types = array_map(fn ($l) => $l->feeType, $s->lines);
+        $this->assertContains('commission', $types);
+        $this->assertContains('revenue', $types);
+    }
 }

@@ -124,4 +124,22 @@ final class ShopeeFixtures
             ['model_id' => 222, 'model_sku' => 'SKU-A-RED', 'price_info' => [['current_price' => 115000]], 'stock_info_v2' => ['summary_info' => ['total_available_stock' => 7]]],
         ]]];
     }
+
+    public static function escrowList(): array
+    {
+        return ['error' => '', 'response' => ['order_sn_list' => ['SN_1'], 'more' => false]];
+    }
+
+    public static function escrowDetail(): array
+    {
+        return ['error' => '', 'response' => [
+            'order_sn' => 'SN_1',
+            'order_income' => [
+                'escrow_amount' => 210000, 'buyer_total_amount' => 250000,
+                'commission_fee' => 15000, 'service_fee' => 5000, 'seller_transaction_fee' => 2000,
+                'actual_shipping_fee' => 20000, 'shopee_shipping_rebate' => 18000,
+                'voucher_from_seller' => 0, 'voucher_from_shopee' => 0,
+            ],
+        ]];
+    }
 }

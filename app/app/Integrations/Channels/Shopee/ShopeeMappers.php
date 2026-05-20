@@ -3,6 +3,8 @@
 namespace CMBcoreSeller\Integrations\Channels\Shopee;
 
 use Carbon\CarbonImmutable;
+use CMBcoreSeller\Integrations\Channels\DTO\SettlementDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 
@@ -134,5 +136,49 @@ final class ShopeeMappers
         }
 
         return $out;
+    }
+
+    /**
+     * @param  list<array<string,mixed>>  $escrows  list of get_escrow_detail `response`
+     */
+    public static function settlement(array $escrows, CarbonImmutable $from, CarbonImmutable $to): SettlementDTO
+    {
+        $lines = [];
+        $payout = 0;
+        $revenue = 0;
+        $fee = 0;
+        $ship = 0;
+        foreach ($escrows as $e) {
+            $sn = (string) ($e['order_sn'] ?? '');
+            $inc = (array) ($e['order_income'] ?? []);
+            $payout += (int) round((float) ($inc['escrow_amount'] ?? 0));
+            $add = function (string $type, int $amount, ?string $sn) use (&$lines, &$revenue, &$fee, &$ship) {
+                if ($amount === 0) {
+                    return;
+                }
+                $lines[] = new SettlementLineDTO(feeType: $type, amount: $amount, externalOrderId: $sn);
+                if ($type === SettlementLineDTO::TYPE_REVENUE) {
+                    $revenue += $amount;
+                } elseif ($type === SettlementLineDTO::TYPE_SHIPPING_FEE || $type === SettlementLineDTO::TYPE_SHIPPING_SUBSIDY) {
+                    $ship += $amount;
+                } else {
+                    $fee += $amount;
+                }
+            };
+            $add(SettlementLineDTO::TYPE_REVENUE, (int) round((float) ($inc['buyer_total_amount'] ?? 0)), $sn);
+            $add(SettlementLineDTO::TYPE_COMMISSION, -(int) round((float) ($inc['commission_fee'] ?? 0)), $sn);
+            $add(SettlementLineDTO::TYPE_PAYMENT_FEE, -(int) round((float) ($inc['seller_transaction_fee'] ?? 0)), $sn);
+            $add(SettlementLineDTO::TYPE_OTHER, -(int) round((float) ($inc['service_fee'] ?? 0)), $sn);
+            $add(SettlementLineDTO::TYPE_SHIPPING_FEE, -(int) round((float) ($inc['actual_shipping_fee'] ?? 0)), $sn);
+            $add(SettlementLineDTO::TYPE_SHIPPING_SUBSIDY, (int) round((float) ($inc['shopee_shipping_rebate'] ?? 0)), $sn);
+            $add(SettlementLineDTO::TYPE_VOUCHER_SELLER, -(int) round((float) ($inc['voucher_from_seller'] ?? 0)), $sn);
+            $add(SettlementLineDTO::TYPE_VOUCHER_PLATFORM, (int) round((float) ($inc['voucher_from_shopee'] ?? 0)), $sn);
+        }
+
+        return new SettlementDTO(
+            externalId: null, periodStart: $from, periodEnd: $to,
+            totalPayout: $payout, totalRevenue: $revenue, totalFee: $fee, totalShippingFee: $ship,
+            lines: $lines, raw: ['escrows' => $escrows],
+        );
     }
 }

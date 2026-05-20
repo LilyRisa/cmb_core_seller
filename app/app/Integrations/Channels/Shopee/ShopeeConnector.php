@@ -36,6 +36,8 @@ class ShopeeConnector implements ChannelConnector
     {
         $cfg = $this->client->cfg();
         $fulfill = (bool) ($cfg['fulfillment_enabled'] ?? true);
+        // Read finance_enabled live from config so tests and runtime overrides take effect immediately.
+        $finance = (bool) config('integrations.shopee.finance_enabled', $cfg['finance_enabled'] ?? false);
 
         return [
             'orders.fetch' => true, 'orders.webhook' => true, 'orders.confirm' => false,
@@ -43,7 +45,7 @@ class ShopeeConnector implements ChannelConnector
             'shipping.document' => $fulfill, 'shipping.tracking' => true,
             'listings.fetch' => true, 'listings.publish' => false,
             'listings.updateStock' => true, 'listings.updatePrice' => false,
-            'finance.settlements' => (bool) ($cfg['finance_enabled'] ?? false),
+            'finance.settlements' => $finance,
             'returns.fetch' => false,
         ];
     }
@@ -283,7 +285,23 @@ class ShopeeConnector implements ChannelConnector
 
     public function fetchSettlements(AuthContext $auth, array $query = []): Page
     {
-        throw UnsupportedOperation::for($this->code(), 'fetchSettlements'); // Task 8
+        if (! $this->supports('finance.settlements')) {
+            throw UnsupportedOperation::for($this->code(), 'fetchSettlements');
+        }
+        $from = $query['from'] ?? CarbonImmutable::now()->subDays(15);
+        $to = $query['to'] ?? CarbonImmutable::now();
+        $list = $this->client->shopGet($auth, $this->client->endpoint('escrow_list'), [
+            'release_time_from' => $from->getTimestamp(), 'release_time_to' => $to->getTimestamp(), 'page_size' => 100,
+        ]);
+        $sns = array_values(array_filter(array_map('strval', (array) ($list['order_sn_list'] ?? []))));
+        $escrows = [];
+        foreach ($sns as $sn) {
+            $detail = $this->client->shopGet($auth, $this->client->endpoint('escrow_detail'), ['order_sn' => $sn]);
+            $escrows[] = $detail;
+        }
+        $settlement = ShopeeMappers::settlement($escrows, $from, $to);
+
+        return new Page([$settlement], null, false);
     }
 
     /**
