@@ -39,7 +39,7 @@ class IntegrationsServiceProvider extends ServiceProvider
         'manual' => ManualConnector::class,
         'tiktok' => TikTokConnector::class,
         'lazada' => LazadaConnector::class,
-        // 'shopee' => \CMBcoreSeller\Integrations\Channels\Shopee\ShopeeConnector::class,
+        'shopee' => \CMBcoreSeller\Integrations\Channels\Shopee\ShopeeConnector::class,
     ];
 
     /**

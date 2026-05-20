@@ -389,4 +389,72 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Shopee Open Platform API v2 — see docs/04-channels/shopee.md, SPEC 0020
+    |--------------------------------------------------------------------------
+    |
+    | Sandbox vs production = config: base_url points at sandbox/prod host.
+    | partner_key is a secret — never log it. INTEGRATIONS_CHANNELS does NOT
+    | include 'shopee' by default; enable only after sandbox verification.
+    | This is the ONLY place Shopee-specific config / status & event maps live.
+    |
+    */
+    'shopee' => [
+        'partner_id'   => env('SHOPEE_PARTNER_ID'),            // int
+        'partner_key'  => env('SHOPEE_PARTNER_KEY'),           // bí mật — ký HMAC
+        'sandbox'      => (bool) env('SHOPEE_SANDBOX', true),
+        'base_url'     => env('SHOPEE_API_BASE_URL', 'https://partner.shopeemobile.com'),
+        'redirect_uri' => env('SHOPEE_REDIRECT_URI'),          // default url('/oauth/shopee/callback')
+        'push_url'     => env('SHOPEE_PUSH_URL'),               // default url('/webhook/shopee') — để verify chữ ký push
+        'http'         => ['timeout' => 20, 'retries' => 2, 'retry_sleep_ms' => 500],
+        'webhook_verify_mode' => env('SHOPEE_WEBHOOK_VERIFY_MODE', 'strict'),
+        'order_window_days'   => 15,                            // max get_order_list window
+        'fulfillment_enabled' => (bool) env('INTEGRATIONS_SHOPEE_FULFILLMENT', true),
+        'fulfillment_mode'    => env('SHOPEE_FULFILLMENT_MODE', 'auto'),  // 'auto' | 'refetch_only'
+        'finance_enabled'     => (bool) env('INTEGRATIONS_SHOPEE_FINANCE', false),
+        'endpoints' => [
+            'auth_partner'              => '/api/v2/shop/auth_partner',
+            'token_get'                 => '/api/v2/auth/token/get',
+            'token_refresh'             => '/api/v2/auth/access_token/get',
+            'shop_info'                 => '/api/v2/shop/get_shop_info',
+            'order_list'                => '/api/v2/order/get_order_list',
+            'order_detail'              => '/api/v2/order/get_order_detail',
+            'shipping_parameter'        => '/api/v2/logistics/get_shipping_parameter',
+            'ship_order'                => '/api/v2/logistics/ship_order',
+            'tracking_number'           => '/api/v2/logistics/get_tracking_number',
+            'create_document'           => '/api/v2/logistics/create_shipping_document',
+            'get_document_result'       => '/api/v2/logistics/get_shipping_document_result',
+            'download_document'         => '/api/v2/logistics/download_shipping_document',
+            'item_list'                 => '/api/v2/product/get_item_list',
+            'item_base_info'            => '/api/v2/product/get_item_base_info',
+            'model_list'                => '/api/v2/product/get_model_list',
+            'update_stock'              => '/api/v2/product/update_stock',
+            'escrow_detail'             => '/api/v2/payment/get_escrow_detail',
+            'escrow_list'               => '/api/v2/payment/get_escrow_list',
+        ],
+        'document_type'        => env('SHOPEE_DOCUMENT_TYPE', 'NORMAL_AIR_WAYBILL'),
+        'document_poll_attempts' => (int) env('SHOPEE_DOC_POLL_ATTEMPTS', 6),
+        'document_poll_sleep_ms' => (int) env('SHOPEE_DOC_POLL_SLEEP_MS', 1000),
+        'status_map' => [
+            'UNPAID'             => 'unpaid',
+            'READY_TO_SHIP'      => 'pending',
+            'PROCESSED'          => 'processing',
+            'RETRY_SHIP'         => 'processing',
+            'SHIPPED'            => 'shipped',
+            'TO_CONFIRM_RECEIVE' => 'delivered',
+            'COMPLETED'          => 'completed',
+            'IN_CANCEL'          => 'processing',
+            'CANCELLED'          => 'cancelled',
+            'TO_RETURN'          => 'returning',
+        ],
+        'webhook_event_types' => [
+            1 => 'shop_deauthorized',   // shop authorization/deauthorization (partner-level)
+            3 => 'order_status_update', // order status (data.ordersn, data.status)
+            4 => 'product_update',      // item update (verify)
+            6 => 'order_status_update', // tracking number update → re-fetch order
+            // 2,5,7..13: verify sandbox trước khi dùng — default 'unknown'
+        ],
+    ],
+
 ];
