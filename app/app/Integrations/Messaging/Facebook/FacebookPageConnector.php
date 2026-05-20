@@ -78,16 +78,28 @@ class FacebookPageConnector implements MessagingConnector
     public function buildAuthorizationUrl(string $state, array $opts = []): string
     {
         $appId = (string) ($this->config['app_id'] ?? '');
-        $redirect = (string) ($opts['redirect_uri'] ?? '');
         $scope = 'pages_messaging,pages_manage_metadata,pages_read_engagement,pages_show_list';
 
         return 'https://www.facebook.com/'.$this->graphVersion().'/dialog/oauth?'.http_build_query([
             'client_id' => $appId,
-            'redirect_uri' => $redirect,
+            // Dùng redirect_uri canonical (config/APP_URL) — KHÔNG lấy từ caller — để
+            // KHỚP TUYỆT ĐỐI với bước exchangeCodeForToken (Meta bắt buộc giống nhau).
+            'redirect_uri' => $opts['redirect_uri'] ?? $this->redirectUri(),
             'state' => $state,
             'scope' => $scope,
             'response_type' => 'code',
         ]);
+    }
+
+    /** Redirect URI OAuth canonical — phải đăng ký y hệt trong Meta App. */
+    private function redirectUri(): string
+    {
+        $configured = (string) ($this->config['redirect_uri'] ?? '');
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        return rtrim((string) config('app.url'), '/').'/oauth/facebook_page/callback';
     }
 
     public function exchangeCodeForToken(string $code): TokenDTO
@@ -95,6 +107,7 @@ class FacebookPageConnector implements MessagingConnector
         $res = Http::get('https://graph.facebook.com/'.$this->graphVersion().'/oauth/access_token', [
             'client_id' => $this->config['app_id'] ?? '',
             'client_secret' => $this->config['app_secret'] ?? '',
+            'redirect_uri' => $this->redirectUri(),   // PHẢI giống dialog login — nếu không Meta trả lỗi mismatch.
             'code' => $code,
         ]);
 

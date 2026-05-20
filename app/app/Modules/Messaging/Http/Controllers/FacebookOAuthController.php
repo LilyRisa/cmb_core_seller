@@ -43,10 +43,10 @@ class FacebookOAuthController extends Controller
         $tenantId = app(CurrentTenant::class)->id();
         $state = OAuthState::issue(self::PROVIDER, (int) $tenantId, $request->user()?->id, '/messaging?connected=facebook_page');
 
+        // KHÔNG truyền redirect_uri — connector dùng URI canonical (config/APP_URL)
+        // cho cả dialog login lẫn đổi token, đảm bảo Meta thấy 2 URI giống hệt.
         $connector = $this->registry->for(self::PROVIDER);
-        $url = $connector->buildAuthorizationUrl($state->state, [
-            'redirect_uri' => route('messaging.facebook.callback'),
-        ]);
+        $url = $connector->buildAuthorizationUrl($state->state);
 
         return response()->json(['data' => ['authorize_url' => $url]]);
     }

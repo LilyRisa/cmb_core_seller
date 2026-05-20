@@ -41,6 +41,9 @@ return [
         'app_id' => env('MESSAGING_FACEBOOK_APP_ID'),
         'app_secret' => env('MESSAGING_FACEBOOK_APP_SECRET'),
         'graph_version' => env('MESSAGING_FACEBOOK_GRAPH_VERSION', 'v19.0'),
+        // Redirect URI OAuth — PHẢI giống hệt giữa dialog login & đổi code lấy token
+        // (Meta yêu cầu khớp tuyệt đối). Mặc định suy từ APP_URL; override khi domain khác.
+        'redirect_uri' => env('MESSAGING_FACEBOOK_REDIRECT_URI'),
     ],
 
     /*

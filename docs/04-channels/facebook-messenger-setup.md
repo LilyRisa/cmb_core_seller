@@ -1,129 +1,194 @@
-# Cấu hình Facebook Page Messenger (SPEC-0024 / ADR-0017, ADR-0019)
+# Cấu hình Facebook Page Messenger (chi tiết) — SPEC-0024 / ADR-0017, ADR-0019
 
-Hướng dẫn cấu hình **Facebook Developer** để bật tính năng nhắn tin Messenger của
-Facebook Page trong CMBcoreSeller. Đối tượng: super-admin/dev cấu hình app lần đầu.
+Hướng dẫn **từng bước** cấu hình Facebook Developer để bật nhắn tin Messenger của
+Facebook Page trong CMBcoreSeller. Có cả phần **đăng nhập Facebook (OAuth)** — điểm
+nhiều người vướng. Đối tượng: super-admin/dev cấu hình lần đầu.
 
-> Tham chiếu: [Meta Messenger Platform — Webhooks](https://developers.facebook.com/docs/messenger-platform/webhooks),
-> [Send API](https://developers.facebook.com/docs/messenger-platform/reference/send-api),
-> [Page Access Tokens](https://developers.facebook.com/docs/pages/access-tokens),
-> [24-hour messaging window & tags](https://developers.facebook.com/docs/messenger-platform/policy/policy-overview).
+> Tài liệu Meta: [Messenger Webhooks](https://developers.facebook.com/docs/messenger-platform/webhooks) ·
+> [Send API](https://developers.facebook.com/docs/messenger-platform/reference/send-api) ·
+> [Page Access Tokens](https://developers.facebook.com/docs/pages/access-tokens) ·
+> [Facebook Login — manual flow](https://developers.facebook.com/docs/facebook-login/guides/advanced/manual-flow) ·
+> [Messaging policy & 24h window](https://developers.facebook.com/docs/messenger-platform/policy/policy-overview).
 
 ---
 
-## 0. Kiến trúc tích hợp (đã code sẵn — chỉ cần cấu hình)
+## 0. App đã code sẵn 2 URL — ghi nhớ để dán vào Meta
 
-| Thành phần | Vị trí | Vai trò |
-|---|---|---|
-| `FacebookPageConnector` | `app/Integrations/Messaging/Facebook/` | verify chữ ký, parse webhook (batch), Send API, 24h window |
-| Webhook nhận | `POST /webhook/messaging/facebook` | sàn đẩy tin → verify HMAC → store → xử lý async |
-| Webhook verify | `GET  /webhook/messaging/facebook` | trả `hub.challenge` lúc Meta setup |
-| OAuth connect | `POST /api/v1/messaging/facebook/connect` → callback `GET /oauth/facebook_page/callback` | đổi code → page token → tạo `channel_accounts` |
+Thay `app.cmbcore.com` bằng domain thật của bạn (`APP_URL`):
 
-`external_conversation_id` = **PSID** (Page-Scoped ID của buyer); `external_shop_id` = **page id**.
+| Mục đích | URL (dán vào Meta) |
+|---|---|
+| **Webhook callback** (Messenger) | `https://app.cmbcore.com/webhook/messaging/facebook` |
+| **OAuth Redirect URI** (Facebook Login) | `https://app.cmbcore.com/oauth/facebook_page/callback` |
+
+> Redirect URI được app suy ra từ `APP_URL` (hoặc `MESSAGING_FACEBOOK_REDIRECT_URI` nếu
+> đặt). App dùng **đúng 1 URI này** cho cả lúc bấm "Đăng nhập" lẫn lúc đổi code lấy token —
+> nên trong Meta phải đăng ký **chính xác** chuỗi này (sai 1 ký tự ⇒ lỗi mismatch).
 
 ---
 
 ## 1. Tạo Facebook App
 
-1. Vào <https://developers.facebook.com/apps> → **Create App**.
-2. Use case: chọn **Other** → loại **Business**.
-3. Sau khi tạo, vào **App settings → Basic**, lấy:
-   - **App ID** → `MESSAGING_FACEBOOK_APP_ID`
-   - **App Secret** → `MESSAGING_FACEBOOK_APP_SECRET` (dùng để verify chữ ký webhook HMAC-SHA256).
-4. Thêm sản phẩm **Messenger** (Add Product → Messenger → Set Up).
+1. Vào <https://developers.facebook.com/apps> → **Create app**.
+2. **Use cases**: chọn **Other** → **Next**.
+3. **App type**: chọn **Business** → **Next**.
+4. Nhập **App name** (vd "CMBcoreSeller"), **App contact email** → **Create app**
+   (xác nhận mật khẩu nếu được hỏi).
+
+## 2. Lấy App ID / App Secret (Settings → Basic)
+
+1. Sidebar trái: **App settings → Basic**.
+2. Copy:
+   - **App ID** → biến `MESSAGING_FACEBOOK_APP_ID`.
+   - **App secret** (bấm **Show**) → biến `MESSAGING_FACEBOOK_APP_SECRET`.
+3. Điền các trường cần để lên Live: **Privacy Policy URL**, **App domains**
+   (thêm `app.cmbcore.com`), **Category**. Bấm **Save changes**.
 
 ---
 
-## 2. Cấu hình Webhook
+## 3. ⭐ Cấu hình ĐĂNG NHẬP Facebook (Facebook Login) — phần hay vướng
 
-Trong **Messenger → Settings → Webhooks** (hoặc App → Webhooks):
+App dùng OAuth server-side cổ điển (`/dialog/oauth` → redirect về callback của ta → đổi
+`code` lấy token). Cần thêm sản phẩm **Facebook Login** và khai báo Redirect URI.
 
-1. **Callback URL**: `https://<APP_DOMAIN>/webhook/messaging/facebook`
-   (vd `https://app.cmbcore.vn/webhook/messaging/facebook`). Phải là HTTPS, public.
-2. **Verify Token**: nhập 1 chuỗi bí mật bất kỳ → đặt **GIỐNG** vào
-   `MESSAGING_FACEBOOK_VERIFY_TOKEN`. Khi bấm Verify, Meta gọi `GET` với
-   `hub.mode=subscribe&hub.verify_token=...&hub.challenge=...`; hệ thống so khớp
-   token (so sánh hằng-thời-gian) và echo lại `hub.challenge`.
-3. **Subscribe fields**: tick tối thiểu `messages`. Nên thêm `messaging_postbacks`,
-   `message_deliveries`, `message_reads` (connector đã parse các loại này).
+1. Sidebar trái → **Add product** (dấu +) → tìm **Facebook Login** → **Set up**.
+   (Nếu Meta gợi ý **Facebook Login for Business** cũng được — khai báo Redirect URI giống nhau.)
+2. Vào **Facebook Login → Settings**, mục **Client OAuth Settings**, bật/điền:
+   - **Client OAuth Login**: **Yes (On)**.
+   - **Web OAuth Login**: **Yes (On)**.
+   - **Enforce HTTPS**: **Yes** (production bắt buộc HTTPS).
+   - **Valid OAuth Redirect URIs**: dán **chính xác**
+     `https://app.cmbcore.com/oauth/facebook_page/callback` → Enter → **Save changes**.
+     - ⚠️ Khớp tuyệt đối với redirect URI app gửi (§0). Khác scheme (`http`↔`https`),
+       thiếu/thừa `/`, sai domain → Meta báo **"URL Blocked / redirect_uri isn't allowed"**.
+3. (Nếu domain dev khác prod) thêm cả URI dev, vd `https://dev.cmbcore.com/oauth/facebook_page/callback`.
 
-> Sau khi connect 1 page (bước 4), hệ thống tự gọi `POST /{page_id}/subscribed_apps`
-> để subscribe page vào app cho các field trên (xem `FacebookPageConnector::registerWebhooks`).
+**Luồng app thực hiện (đã code — chỉ để hiểu):**
+
+```
+1) FE bấm "Kết nối Facebook Page"  → POST /api/v1/messaging/facebook/connect
+2) BE trả authorize_url:
+   https://www.facebook.com/v19.0/dialog/oauth?client_id=<APP_ID>
+     &redirect_uri=https://app.cmbcore.com/oauth/facebook_page/callback
+     &state=<csrf>&response_type=code
+     &scope=pages_messaging,pages_manage_metadata,pages_read_engagement,pages_show_list
+3) User đăng nhập FB, chọn Page, đồng ý quyền  → Meta redirect:
+   GET /oauth/facebook_page/callback?code=...&state=...
+4) BE: verify state → đổi code lấy USER token (kèm redirect_uri GIỐNG HỆT)
+   → gọi /me/accounts lấy PAGE access token từng page
+   → tạo channel_accounts (provider=facebook_page, messaging_enabled=true) → subscribe webhook
+```
 
 ---
 
-## 3. Quyền (Permissions) & App Review
+## 4. Cấu hình Webhook (Messenger)
 
-Để gửi/nhận tin trên page thật, app cần các quyền:
+1. **Add product → Messenger → Set up**.
+2. **Messenger → Settings** (hoặc *Messenger API Settings*) → mục **Webhooks** →
+   **Configure / Edit callback URL**:
+   - **Callback URL**: `https://app.cmbcore.com/webhook/messaging/facebook`
+   - **Verify Token**: tự đặt 1 chuỗi bí mật → nhập **GIỐNG HỆT** vào
+     `MESSAGING_FACEBOOK_VERIFY_TOKEN`.
+   - Bấm **Verify and Save**. Meta gọi `GET` với `hub.mode=subscribe&hub.verify_token=...
+     &hub.challenge=...`; app so token (hằng-thời-gian) và echo `hub.challenge` → phải xanh.
+3. **Subscription fields**: tick tối thiểu `messages`. Nên thêm `messaging_postbacks`,
+   `message_deliveries`, `message_reads` (connector đã parse).
+
+> Sau khi connect page (§3), app tự `POST /{page_id}/subscribed_apps` để gắn page vào app
+> cho các field trên (`FacebookPageConnector::registerWebhooks`).
+
+---
+
+## 5. Quyền & App Review (để chạy với page của người khác)
 
 | Quyền | Mục đích |
 |---|---|
-| `pages_messaging` | gửi/nhận tin nhắn Messenger thay mặt page |
+| `pages_messaging` | gửi/nhận tin Messenger thay mặt page |
 | `pages_manage_metadata` | subscribe page vào webhook |
 | `pages_show_list` | liệt kê page user quản lý (lúc OAuth) |
 | `pages_read_engagement` | đọc thông tin page |
 
-- **Development mode**: chỉ admin/developer/tester của app nhắn được — đủ để test.
-- **Production**: phải qua **App Review** cho `pages_messaging` (+ Business Verification).
-  Chuẩn bị video demo luồng: buyer nhắn page → app nhận → NV trả lời.
+- **Development mode** (mặc định): chỉ tài khoản có **vai trò** trong app
+  (Admin/Developer/Tester) mới đăng nhập & nhắn được — **đủ để test ngay**.
+- **Production/Live**: cần **App Review → Advanced Access** cho `pages_messaging` (+ các
+  quyền trên) và **Business Verification**. Chuẩn bị video demo luồng nhắn tin.
+- Thêm người test: **App roles → Roles → Add People** (Tester/Developer) → người đó vào
+  <https://developers.facebook.com/requests> chấp nhận.
 
 ---
 
-## 4. Luồng kết nối Page (OAuth) — phía người dùng
+## 6. Biến môi trường (đối chiếu Meta ↔ env ↔ docker)
 
-1. Tenant (Owner/Admin) vào **Cài đặt → Tin nhắn** → bấm **Kết nối Facebook Page**.
-   - FE gọi `POST /api/v1/messaging/facebook/connect` → nhận `authorize_url` → redirect sang Meta.
-2. User đăng nhập FB, chọn page cho phép → Meta redirect về
-   `GET /oauth/facebook_page/callback?code=...&state=...`.
-3. Hệ thống: verify `state` (bảng `oauth_states`) → đổi `code` lấy **user token** →
-   gọi `/me/accounts` lấy **page access token** từng page → upsert `channel_accounts`
-   (`provider=facebook_page`, `messaging_enabled=true`) → subscribe webhook → về `/messaging`.
+| Biến env | Lấy từ đâu | Ghi chú |
+|---|---|---|
+| `INTEGRATIONS_MESSAGING` | (tự đặt) | thêm `facebook_page` (CSV). Vd `facebook_page,lazada_chat` |
+| `MESSAGING_FACEBOOK_APP_ID` | Settings → Basic → App ID | |
+| `MESSAGING_FACEBOOK_APP_SECRET` | Settings → Basic → App secret | **bí mật** |
+| `MESSAGING_FACEBOOK_VERIFY_TOKEN` | tự đặt, dán vào Messenger → Webhooks | **bí mật** |
+| `MESSAGING_FACEBOOK_GRAPH_VERSION` | mặc định `v19.0` | đổi khi nâng Graph API |
+| `MESSAGING_FACEBOOK_REDIRECT_URI` | mặc định = `APP_URL` + `/oauth/facebook_page/callback` | chỉ đặt khi domain callback ≠ APP_URL |
 
-> **Redirect URI** đăng ký trong **Facebook Login → Settings → Valid OAuth Redirect URIs**
-> phải đúng: `https://<APP_DOMAIN>/oauth/facebook_page/callback`.
-
----
-
-## 5. Biến môi trường (`.env`)
+**`.env` (CLI / dev):**
 
 ```dotenv
-# Bật connector trong registry (CSV nhiều provider)
 INTEGRATIONS_MESSAGING=facebook_page
-
-# Facebook App
 MESSAGING_FACEBOOK_APP_ID=xxxxxxxxxxxx
 MESSAGING_FACEBOOK_APP_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 MESSAGING_FACEBOOK_VERIFY_TOKEN=mot-chuoi-bi-mat-tu-dat
 MESSAGING_FACEBOOK_GRAPH_VERSION=v19.0
+# MESSAGING_FACEBOOK_REDIRECT_URI=   # bỏ trống = suy từ APP_URL
 ```
 
-App secret/token KHÔNG commit; page access token lưu **mã hoá** trong `channel_accounts.access_token`.
+**Production (`docker-compose.prod.yml`)** — đã khai báo sẵn trong khối `x-app-env`
+(`MESSAGING_FACEBOOK_*` + `INTEGRATIONS_MESSAGING` + `MESSAGING_MEDIA_DISK`…). Quy ước file:
+**biến phải được liệt kê trong `x-app-env` mới vào container**; trên Portainer còn phải
+**nhập lại** biến đó ở mục *Environment variables* (Portainer chỉ thay `${VAR}`, không tự
+inject vào container).
+
+> ⚠️ Cú pháp default phải là `${VAR:-giá_trị}` — **KHÔNG có khoảng trắng**: `${VAR: -x}` là
+> SAI (compose lấy default lệch thành ` -x`). App secret / verify token **nên để trống
+> default** trong file và nhập ở Portainer/`.env` để tránh commit bí mật vào repo.
 
 ---
 
-## 6. Cửa sổ 24 giờ (quan trọng về nghiệp vụ)
+## 7. Cửa sổ 24 giờ (nghiệp vụ quan trọng)
 
-Messenger chỉ cho gửi tin **tự do trong 24h** kể từ tin cuối của buyer. Quá 24h chỉ
-gửi được tin có **message tag** hợp lệ (`CONFIRMED_EVENT_UPDATE`, `POST_PURCHASE_UPDATE`,
-`ACCOUNT_UPDATE`). Hệ thống tự chặn ở `OutboundWindowGuard` → trả `422 OUTBOUND_WINDOW_CLOSED`;
-muốn gửi ngoài window phải đính `message_tag`. (Vi phạm → Meta có thể hạn chế page.)
-
----
-
-## 7. Kiểm thử nhanh
-
-1. **Verify webhook**: bấm Verify trong dashboard → phải xanh (echo challenge).
-2. **Nhận tin**: dùng tài khoản tester nhắn vào page → kiểm `messages` tin về
-   `/messaging` ≤ 10s (hoặc check bảng `webhook_events` provider `messaging.facebook_page`).
-3. **Gửi tin**: trong inbox bấm trả lời → buyer nhận được.
-4. **Batch**: Meta đôi khi gộp nhiều tin/1 POST — hệ thống fan-out từng tin (test
-   `MessagingFacebookWebhookTest::test_post_batch_fans_out_each_message`).
+Messenger cho gửi **tự do trong 24h** kể từ tin cuối của buyer. Quá 24h chỉ gửi được tin có
+**message tag** hợp lệ (`CONFIRMED_EVENT_UPDATE`, `POST_PURCHASE_UPDATE`, `ACCOUNT_UPDATE`).
+App tự chặn ở `OutboundWindowGuard` → `422 OUTBOUND_WINDOW_CLOSED`; ngoài window phải đính
+`message_tag`. (Vi phạm chính sách → Meta có thể hạn chế page.)
 
 ---
 
-## 8. Mở rộng sang sàn khác
+## 8. Kiểm thử nhanh (theo thứ tự)
+
+1. **Webhook verify**: bấm *Verify and Save* (Messenger → Webhooks) → xanh.
+2. **Kết nối page**: app → **Cài đặt → Tin nhắn → Kết nối Facebook Page** → đăng nhập → chọn page.
+   - Thành công → redirect `/messaging?connected=facebook_page`; có row `channel_accounts`
+     (`provider=facebook_page`, `messaging_enabled=true`).
+3. **Nhận tin**: tài khoản Tester nhắn vào page → tin về `/messaging` ≤ 10s (hoặc check
+   `webhook_events` provider `messaging.facebook_page`).
+4. **Gửi tin**: trả lời trong inbox → buyer nhận được.
+
+---
+
+## 9. Xử lý lỗi thường gặp
+
+| Triệu chứng | Nguyên nhân & cách sửa |
+|---|---|
+| **"URL Blocked / redirect_uri isn't allowed"** | Redirect URI gửi đi ≠ *Valid OAuth Redirect URIs*. Kiểm `APP_URL`/`MESSAGING_FACEBOOK_REDIRECT_URI`, dán đúng `https://<domain>/oauth/facebook_page/callback`. |
+| **Webhook verify đỏ** | `MESSAGING_FACEBOOK_VERIFY_TOKEN` ≠ token trên Meta; hoặc Callback URL sai/không HTTPS/không public. |
+| **Đăng nhập xong không thấy page** | Tài khoản không quản lý page, hoặc thiếu `pages_show_list`/chưa cấp quyền page. Dev mode: tài khoản phải có vai trò trong app. |
+| **401 ở webhook POST** | Chữ ký `X-Hub-Signature-256` sai → `MESSAGING_FACEBOOK_APP_SECRET` không khớp app. |
+| **Gửi lỗi ngoài 24h** | `422 OUTBOUND_WINDOW_CLOSED` — dùng template có `message_tag` hợp lệ. |
+| **Token page hết hạn / bị thu hồi** | Kết nối lại (re-OAuth); connector `refreshToken` cố ý không hỗ trợ (page token dài hạn). |
+| **"App đang Development / chỉ admin nhắn được"** | Thêm người vào App roles, hoặc đưa app lên Live sau App Review. |
+
+---
+
+## 10. Mở rộng sang sàn khác
 
 Connector khác (TikTok/Lazada chat) cùng pattern `MessagingConnector`: chỉ khác
-`verifyWebhookSignature` + `parseWebhookEvents` + endpoint Send. **Không sửa controller
-/ pipeline** khi thêm sàn (ADR-0017). Thêm provider = 1 class + 1 dòng register +
-1 mục `INTEGRATIONS_MESSAGING` + doc này tương ứng.
+`verifyWebhookSignature` + `parseWebhookEvents` + endpoint Send. **Không sửa controller/
+pipeline** khi thêm sàn (ADR-0017). Thêm provider = 1 class + 1 dòng register + 1 mục
+`INTEGRATIONS_MESSAGING` + doc tương ứng (vd `lazada-chat-setup.md`).

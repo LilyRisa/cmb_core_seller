@@ -125,6 +125,24 @@ class FacebookPageConnectorTest extends TestCase
         $this->assertContains('POST_PURCHASE_UPDATE', $policy->allowedTags);
     }
 
+    public function test_oauth_dialog_and_token_exchange_use_same_redirect_uri(): void
+    {
+        // Meta bắt buộc redirect_uri ở dialog login & lúc đổi code PHẢI giống hệt —
+        // lệch ⇒ lỗi "redirect_uri mismatch". Connector dùng 1 URI canonical (APP_URL).
+        config(['app.url' => 'https://app.cmbcore.com']);
+        $expected = 'https://app.cmbcore.com/oauth/facebook_page/callback';
+
+        $url = $this->connector()->buildAuthorizationUrl('state_1');
+        $this->assertStringContainsString('redirect_uri='.urlencode($expected), $url);
+
+        Http::fake(['graph.facebook.com/*' => Http::response(['access_token' => 'PAGE_USER_TOKEN'], 200)]);
+        $token = $this->connector()->exchangeCodeForToken('CODE_123');
+        $this->assertSame('PAGE_USER_TOKEN', $token->accessToken);
+
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/oauth/access_token')
+            && str_contains($r->url(), 'redirect_uri='.urlencode($expected)));
+    }
+
     public function test_send_text_posts_correct_shape(): void
     {
         Http::fake([

@@ -121,6 +121,26 @@ x-app-env: &app-env
   LAZADA_APP_KEY: ${LAZADA_APP_KEY}
   LAZADA_APP_SECRET: ${LAZADA_APP_SECRET}
   LAZADA_SANDBOX: "${LAZADA_SANDBOX:-false}"
+  # --- Hộp thư hợp nhất / Messaging (SPEC-0024) -------------------------------
+  # Bật connector nào (CSV). 'manual' luôn có (test). Vd: facebook_page,lazada_chat
+  # Lazada/TikTok chat dùng chung credentials với orders ở trên (ADR-0019).
+  INTEGRATIONS_MESSAGING: ${INTEGRATIONS_MESSAGING:-}
+  # Facebook Page Messenger — xem docs/04-channels/facebook-messenger-setup.md.
+  # APP_ID/APP_SECRET lấy từ Meta App → Settings → Basic. VERIFY_TOKEN tự đặt 1 chuỗi
+  # bí mật rồi nhập GIỐNG vào Meta → Messenger → Webhooks. (Bắt buộc khi bật facebook_page.)
+  MESSAGING_FACEBOOK_APP_ID: ${MESSAGING_FACEBOOK_APP_ID:-3063164863879766}
+  MESSAGING_FACEBOOK_APP_SECRET: ${MESSAGING_FACEBOOK_APP_SECRET:-695f78115c33f1f63b169017a3f2d04e}
+  MESSAGING_FACEBOOK_VERIFY_TOKEN: ${MESSAGING_FACEBOOK_VERIFY_TOKEN:-cmbcoremessagingverifytoken}
+  MESSAGING_FACEBOOK_GRAPH_VERSION: ${MESSAGING_FACEBOOK_GRAPH_VERSION:-v19.0}
+  # Redirect URI OAuth — mặc định = APP_URL + /oauth/facebook_page/callback. Chỉ đặt khi
+  # domain callback khác APP_URL. PHẢI đăng ký Y HỆT trong Meta → Facebook Login → Valid OAuth Redirect URIs.
+  MESSAGING_FACEBOOK_REDIRECT_URI: ${MESSAGING_FACEBOOK_REDIRECT_URI:-}
+  # Media tin nhắn: dùng r2 (public-CDN, browser fetch được qua signed URL). TTL signed URL (giây).
+  MESSAGING_MEDIA_DISK: ${MESSAGING_MEDIA_DISK:-r2}
+  MESSAGING_SIGNED_URL_TTL: ${MESSAGING_SIGNED_URL_TTL:-300}
+  MESSAGING_MAX_IMAGE_MB: ${MESSAGING_MAX_IMAGE_MB:-25}
+  MESSAGING_MAX_VIDEO_MB: ${MESSAGING_MAX_VIDEO_MB:-100}
+  MESSAGING_MAX_FILE_MB: ${MESSAGING_MAX_FILE_MB:-25}
 
 services:
   app:                                # php-fpm
