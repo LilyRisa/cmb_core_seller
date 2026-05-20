@@ -10,7 +10,9 @@ use CMBcoreSeller\Modules\Channels\Jobs\SyncOrdersForShop;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\SyncRun;
 use CMBcoreSeller\Modules\Channels\Services\ChannelConnectionService;
+use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
+use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -118,6 +120,39 @@ class ChannelAccountController extends Controller
         $account->forceFill(['display_name' => ($data['display_name'] ?? null) ?: null])->save();
 
         return response()->json(['data' => new ChannelAccountResource($account)]);
+    }
+
+    /**
+     * PATCH /api/v1/channel-accounts/{id}/messaging — bật/tắt nhắn tin cho gian
+     * hàng (Lazada/TikTok dùng chung token — ADR-0019). Chỉ provider có
+     * messaging connector đang bật. Quyền `messaging.connect`.
+     */
+    public function setMessaging(Request $request, int $id, MessagingRegistry $registry): JsonResponse
+    {
+        abort_unless($request->user()?->can('messaging.connect'), 403, 'Chỉ chủ sở hữu / quản trị mới bật nhắn tin.');
+
+        $account = ChannelAccount::query()->findOrFail($id);
+        $data = $request->validate(['messaging_enabled' => ['required', 'boolean']]);
+
+        $code = self::messagingCodeFor($account->provider);
+        abort_unless($code !== null && $registry->has($code), 422, 'Kênh này chưa hỗ trợ nhắn tin.');
+
+        $account->forceFill(['messaging_enabled' => $data['messaging_enabled']])->save();
+        AuditLog::record('messaging.channel.toggle', $account, ['messaging_enabled' => $data['messaging_enabled']]);
+
+        return response()->json(['data' => new ChannelAccountResource($account)]);
+    }
+
+    /** Map provider gian hàng → messaging connector code (ADR-0019). */
+    private static function messagingCodeFor(string $provider): ?string
+    {
+        return match ($provider) {
+            'lazada' => 'lazada_chat',
+            'tiktok' => 'tiktok_chat',
+            'shopee' => 'shopee_chat',
+            'facebook_page' => 'facebook_page',
+            default => null,
+        };
     }
 
     /** POST /api/v1/channel-accounts/{id}/resync */

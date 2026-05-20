@@ -28,6 +28,14 @@ class ChannelAccountResource extends JsonResource
             'last_synced_at' => $this->last_synced_at?->toIso8601String(),
             'last_webhook_at' => $this->last_webhook_at?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),
+            'messaging_enabled' => (bool) $this->messaging_enabled,
+            'messaging_available' => app(\CMBcoreSeller\Integrations\Messaging\MessagingRegistry::class)->has(match ($this->provider) {
+                'lazada' => 'lazada_chat',
+                'tiktok' => 'tiktok_chat',
+                'shopee' => 'shopee_chat',
+                'facebook_page' => 'facebook_page',
+                default => '',
+            }),
             // never expose tokens; expose only that a shop_cipher exists
             'has_shop_cipher' => ! empty($this->meta['shop_cipher'] ?? null),
         ];
