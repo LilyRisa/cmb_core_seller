@@ -129,30 +129,18 @@ class ChannelAccountController extends Controller
      */
     public function setMessaging(Request $request, int $id, MessagingRegistry $registry): JsonResponse
     {
-        abort_unless($request->user()?->can('messaging.connect'), 403, 'Chỉ chủ sở hữu / quản trị mới bật nhắn tin.');
+        $this->authorizeMessagingConnect($request);
 
         $account = ChannelAccount::query()->findOrFail($id);
         $data = $request->validate(['messaging_enabled' => ['required', 'boolean']]);
 
-        $code = self::messagingCodeFor($account->provider);
+        $code = $account->messagingConnectorCode();
         abort_unless($code !== null && $registry->has($code), 422, 'Kênh này chưa hỗ trợ nhắn tin.');
 
         $account->forceFill(['messaging_enabled' => $data['messaging_enabled']])->save();
         AuditLog::record('messaging.channel.toggle', $account, ['messaging_enabled' => $data['messaging_enabled']]);
 
         return response()->json(['data' => new ChannelAccountResource($account)]);
-    }
-
-    /** Map provider gian hàng → messaging connector code (ADR-0019). */
-    private static function messagingCodeFor(string $provider): ?string
-    {
-        return match ($provider) {
-            'lazada' => 'lazada_chat',
-            'tiktok' => 'tiktok_chat',
-            'shopee' => 'shopee_chat',
-            'facebook_page' => 'facebook_page',
-            default => null,
-        };
     }
 
     /** POST /api/v1/channel-accounts/{id}/resync */
@@ -209,5 +197,10 @@ class ChannelAccountController extends Controller
     private function authorizeManage(Request $request): void
     {
         abort_unless($request->user()?->can('channels.manage'), 403, 'Chỉ chủ sở hữu / quản trị mới quản lý gian hàng.');
+    }
+
+    private function authorizeMessagingConnect(Request $request): void
+    {
+        abort_unless($request->user()?->can('messaging.connect'), 403, 'Chỉ chủ sở hữu / quản trị mới bật nhắn tin.');
     }
 }

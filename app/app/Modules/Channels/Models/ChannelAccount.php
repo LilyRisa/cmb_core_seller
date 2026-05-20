@@ -62,6 +62,18 @@ class ChannelAccount extends Model
         return $this->display_name ?: ($this->shop_name ?: $this->external_shop_id);
     }
 
+    /** Mã messaging connector ứng với provider của gian hàng (ADR-0019), hoặc null nếu không hỗ trợ. */
+    public function messagingConnectorCode(): ?string
+    {
+        return match ($this->provider) {
+            'lazada' => 'lazada_chat',
+            'tiktok' => 'tiktok_chat',
+            'shopee' => 'shopee_chat',
+            'facebook_page' => 'facebook_page',
+            default => null,
+        };
+    }
+
     protected function casts(): array
     {
         return [

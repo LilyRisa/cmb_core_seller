@@ -54,9 +54,24 @@ class ChannelMessagingToggleTest extends TestCase
             ->withHeaders($this->h())
             ->patchJson("/api/v1/channel-accounts/{$a->id}/messaging", ['messaging_enabled' => true])
             ->assertOk()
-            ->assertJsonPath('data.messaging_enabled', true);
+            ->assertJsonPath('data.messaging_enabled', true)
+            ->assertJsonPath('data.messaging_available', true);
 
         $this->assertDatabaseHas('channel_accounts', ['id' => $a->id, 'messaging_enabled' => true]);
+    }
+
+    public function test_owner_disables_messaging_for_lazada(): void
+    {
+        $a = $this->account('lazada');
+        $a->forceFill(['messaging_enabled' => true])->save();
+
+        $this->actingAs($this->userWithRole(Role::Owner))
+            ->withHeaders($this->h())
+            ->patchJson("/api/v1/channel-accounts/{$a->id}/messaging", ['messaging_enabled' => false])
+            ->assertOk()
+            ->assertJsonPath('data.messaging_enabled', false);
+
+        $this->assertDatabaseHas('channel_accounts', ['id' => $a->id, 'messaging_enabled' => false]);
     }
 
     public function test_toggle_rejected_for_provider_without_messaging_connector(): void
