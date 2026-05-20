@@ -55,7 +55,7 @@ class ChannelConnectionService
      *
      * @return array{account: ChannelAccount, redirect: string, created: bool}
      */
-    public function completeConnect(string $provider, string $code, string $stateValue): array
+    public function completeConnect(string $provider, string $code, string $stateValue, array $callbackParams = []): array
     {
         $state = OAuthState::query()->where('state', $stateValue)->first();
         if (! $state || $state->provider !== $provider) {
@@ -68,7 +68,7 @@ class ChannelConnectionService
         $this->assertProviderConnectable($provider);
         $connector = $this->registry->for($provider);
 
-        $token = $connector->exchangeCodeForToken($code);
+        $token = $connector->exchangeCodeForToken($code, $callbackParams);
         // Một số connector (Lazada) cần `country_user_info` / `country_user_info_list` từ token để chốt
         // `external_shop_id` khớp với webhook push của sàn — thread raw token qua `AuthContext::extra` để
         // `fetchShopInfo` không bị mất ngữ cảnh. Connector nào không dùng tới thì cứ bỏ qua.

@@ -47,12 +47,12 @@ class ManualConnector implements ChannelConnector
         throw UnsupportedOperation::for($this->code(), 'buildAuthorizationUrl');
     }
 
-    public function exchangeCodeForToken(string $code): TokenDTO
+    public function exchangeCodeForToken(string $code, array $context = []): TokenDTO
     {
         throw UnsupportedOperation::for($this->code(), 'exchangeCodeForToken');
     }
 
-    public function refreshToken(string $refreshToken): TokenDTO
+    public function refreshToken(string $refreshToken, array $context = []): TokenDTO
     {
         throw UnsupportedOperation::for($this->code(), 'refreshToken');
     }

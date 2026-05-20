@@ -82,12 +82,12 @@ class TikTokConnector implements ChannelConnector
         return $this->client->authorizeUrl($state);
     }
 
-    public function exchangeCodeForToken(string $code): TokenDTO
+    public function exchangeCodeForToken(string $code, array $context = []): TokenDTO
     {
         return TikTokMappers::token($this->client->getAccessToken($code));
     }
 
-    public function refreshToken(string $refreshToken): TokenDTO
+    public function refreshToken(string $refreshToken, array $context = []): TokenDTO
     {
         return TikTokMappers::token($this->client->refreshAccessToken($refreshToken));
     }

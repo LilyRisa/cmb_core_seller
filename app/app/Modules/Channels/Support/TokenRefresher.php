@@ -27,7 +27,7 @@ class TokenRefresher
         }
 
         try {
-            $token = $this->registry->for($account->provider)->refreshToken((string) $account->refresh_token);
+            $token = $this->registry->for($account->provider)->refreshToken((string) $account->refresh_token, ['shop_id' => $account->external_shop_id]);
         } catch (Throwable $e) {
             Log::warning('channel.token_refresh_failed', ['account' => $account->getKey(), 'provider' => $account->provider, 'error' => class_basename($e)]);
             $this->markExpired($account, 'token refresh failed: '.class_basename($e));

@@ -55,9 +55,11 @@ interface ChannelConnector
      */
     public function buildAuthorizationUrl(string $state, array $opts = []): string;
 
-    public function exchangeCodeForToken(string $code): TokenDTO;
+    /** @param array<string,mixed> $context callback/account fields some APIs need (e.g. Shopee shop_id). */
+    public function exchangeCodeForToken(string $code, array $context = []): TokenDTO;
 
-    public function refreshToken(string $refreshToken): TokenDTO;
+    /** @param array<string,mixed> $context account fields some APIs need (e.g. Shopee shop_id). */
+    public function refreshToken(string $refreshToken, array $context = []): TokenDTO;
 
     public function fetchShopInfo(AuthContext $auth): ShopInfoDTO;
 

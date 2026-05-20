@@ -80,12 +80,12 @@ class LazadaConnector implements ChannelConnector
         return $this->client->authorizeUrl($state, isset($opts['redirect_uri']) ? (string) $opts['redirect_uri'] : null);
     }
 
-    public function exchangeCodeForToken(string $code): TokenDTO
+    public function exchangeCodeForToken(string $code, array $context = []): TokenDTO
     {
         return LazadaMappers::token($this->client->getAccessToken($code));
     }
 
-    public function refreshToken(string $refreshToken): TokenDTO
+    public function refreshToken(string $refreshToken, array $context = []): TokenDTO
     {
         return LazadaMappers::token($this->client->refreshAccessToken($refreshToken));
     }

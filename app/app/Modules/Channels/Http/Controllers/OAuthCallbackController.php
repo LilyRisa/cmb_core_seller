@@ -60,7 +60,7 @@ class OAuthCallbackController extends Controller
         }
 
         try {
-            $result = $service->completeConnect($provider, $code, $state);
+            $result = $service->completeConnect($provider, $code, $state, $request->query());
         } catch (\Throwable $e) {
             $errorCode = match (true) {
                 $e->getMessage() === 'OAUTH_STATE_INVALID', $e->getMessage() === 'OAUTH_STATE_EXPIRED' => 'oauth_state',
