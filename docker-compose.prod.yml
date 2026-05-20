@@ -121,6 +121,18 @@ x-app-env: &app-env
   LAZADA_APP_KEY: ${LAZADA_APP_KEY}
   LAZADA_APP_SECRET: ${LAZADA_APP_SECRET}
   LAZADA_SANDBOX: "${LAZADA_SANDBOX:-false}"
+  # shopee — connector faithful theo Shopee Open Platform v2 (docs/04-channels/shopee.md). Build sẵn nhưng
+  # CHƯA bật mặc định: thêm `shopee` vào INTEGRATIONS_CHANNELS SAU khi verify sandbox. PARTNER_KEY là BÍ MẬT
+  # (ký HMAC request + verify webhook) — KHÔNG để default; nhập ở Portainer/.env. Super-admin cũng đặt được ở
+  # /admin/system-settings (marketplace.shopee.partner_id/partner_key/sandbox) — DB đè config.
+  SHOPEE_PARTNER_ID: ${SHOPEE_PARTNER_ID:-}
+  SHOPEE_PARTNER_KEY: ${SHOPEE_PARTNER_KEY:-}
+  SHOPEE_SANDBOX: "${SHOPEE_SANDBOX:-false}"
+  # Sandbox=true KHÔNG tự đổi host — đặt SHOPEE_API_BASE_URL=https://partner.test-stable.shopeemobile.com khi test.
+  SHOPEE_API_BASE_URL: ${SHOPEE_API_BASE_URL:-https://partner.shopeemobile.com}
+  INTEGRATIONS_SHOPEE_FULFILLMENT: "${INTEGRATIONS_SHOPEE_FULFILLMENT:-true}"
+  INTEGRATIONS_SHOPEE_FINANCE: "${INTEGRATIONS_SHOPEE_FINANCE:-false}"
+  SHOPEE_SHIP_METHOD: ${SHOPEE_SHIP_METHOD:-auto}
   # --- Hộp thư hợp nhất / Messaging (SPEC-0024) -------------------------------
   # Bật connector nào (CSV). 'manual' luôn có (test). Vd: facebook_page,lazada_chat
   # Lazada/TikTok chat dùng chung credentials với orders ở trên (ADR-0019).
