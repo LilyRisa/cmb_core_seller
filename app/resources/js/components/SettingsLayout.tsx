@@ -27,12 +27,13 @@ const SECTIONS: MenuProps['items'] = [
     { type: 'group', label: 'Vận hành', children: [
         { key: '/settings/orders', icon: <FileTextOutlined />, label: <Link to="/settings/orders">Cài đặt đơn hàng</Link> },
         { key: '/settings/print', icon: <PrinterOutlined />, label: <Link to="/settings/print">Mẫu in</Link> },
+        { key: '/settings/shipping-labels', icon: <PrinterOutlined />, label: <Link to="/settings/shipping-labels">Mẫu phiếu giao hàng</Link> },
         { key: '/settings/accounting/post-rules', icon: <AuditOutlined />, label: <Link to="/settings/accounting/post-rules">Quy tắc hạch toán</Link> },
         { key: '/settings/audit', icon: <HistoryOutlined />, label: <Link to="/settings/audit">Nhật ký thao tác</Link> },
     ] },
 ];
 
-const KEYS = ['/settings/profile', '/settings/workspace', '/settings/plan', '/settings/members', '/settings/carriers', '/settings/channels', '/settings/orders', '/settings/print', '/settings/accounting/post-rules', '/settings/audit'];
+const KEYS = ['/settings/profile', '/settings/workspace', '/settings/plan', '/settings/members', '/settings/carriers', '/settings/channels', '/settings/orders', '/settings/print', '/settings/shipping-labels', '/settings/accounting/post-rules', '/settings/audit'];
 
 export function SettingsLayout() {
     const { pathname } = useLocation();

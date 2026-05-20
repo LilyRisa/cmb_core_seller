@@ -48,6 +48,8 @@ import { ApPage } from '@/pages/accounting/ApPage';
 import { CashPage } from '@/pages/accounting/CashPage';
 import { AccountingReportsPage } from '@/pages/accounting/ReportsPage';
 import { AccountingPostRulesPage } from '@/pages/settings/AccountingPostRulesPage';
+import { SettingsShippingLabelsPage } from '@/pages/SettingsShippingLabelsPage';
+import { ShippingLabelEditorPage } from '@/pages/ShippingLabelEditorPage';
 // Spec 2026-05-17 — admin SPA tách bundle riêng tại `/admin/*` (xem
 // `resources/js/admin.tsx`). User SPA không còn route admin nào.
 import { NotFoundPage } from '@/pages/NotFoundPage';
@@ -118,6 +120,9 @@ function Root() {
                     <Route path="orders" element={<SettingsOrdersPage />} />
                     <Route path="plan" element={<SettingsPlanPage />} />
                     <Route path="print" element={<SettingsPrintPage />} />
+                    <Route path="shipping-labels" element={<SettingsShippingLabelsPage />} />
+                    <Route path="shipping-labels/new" element={<ShippingLabelEditorPage />} />
+                    <Route path="shipping-labels/:id" element={<ShippingLabelEditorPage />} />
                     <Route path="accounting/post-rules" element={<AccountingPostRulesPage />} />
                     <Route path="*" element={<ComingSoon title="Phần này đang được xây dựng" phase="SPEC 0007 / 0011" />} />
                 </Route>

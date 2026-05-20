@@ -8,6 +8,7 @@ use CMBcoreSeller\Modules\Customers\Http\Controllers\CustomerController;
 use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\CarrierAccountController;
 use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\MasterDataController;
 use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\PrintJobController;
+use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\ShippingLabelTemplateController;
 use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\ShipmentController;
 use CMBcoreSeller\Modules\Inventory\Http\Controllers\InventoryController;
 use CMBcoreSeller\Modules\Inventory\Http\Controllers\SkuController;
@@ -209,6 +210,17 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::get('print-jobs/{id}', [PrintJobController::class, 'show'])->whereNumber('id')->name('print-jobs.show');
             Route::post('print-jobs/{id}/mark-printed', [PrintJobController::class, 'markPrinted'])->whereNumber('id')->name('print-jobs.mark-printed'); // "Đánh dấu đã in" — SPEC 0013
             Route::get('print-jobs/{id}/download', [PrintJobController::class, 'download'])->whereNumber('id')->name('print-jobs.download');
+
+            // --- Shipping label templates (drag/drop editor cho phiếu giao hàng đơn manual) ---
+            Route::get('shipping-label-templates', [ShippingLabelTemplateController::class, 'index'])->name('shipping-label-templates.index');
+            Route::post('shipping-label-templates', [ShippingLabelTemplateController::class, 'store'])->name('shipping-label-templates.store');
+            Route::post('shipping-label-templates/preview', [ShippingLabelTemplateController::class, 'previewInline'])->name('shipping-label-templates.preview-inline');
+            Route::get('shipping-label-templates/{id}', [ShippingLabelTemplateController::class, 'show'])->whereNumber('id')->name('shipping-label-templates.show');
+            Route::put('shipping-label-templates/{id}', [ShippingLabelTemplateController::class, 'update'])->whereNumber('id')->name('shipping-label-templates.update');
+            Route::delete('shipping-label-templates/{id}', [ShippingLabelTemplateController::class, 'destroy'])->whereNumber('id')->name('shipping-label-templates.destroy');
+            Route::post('shipping-label-templates/{id}/set-default', [ShippingLabelTemplateController::class, 'setDefault'])->whereNumber('id')->name('shipping-label-templates.set-default');
+            Route::post('shipping-label-templates/{id}/duplicate', [ShippingLabelTemplateController::class, 'duplicate'])->whereNumber('id')->name('shipping-label-templates.duplicate');
+            Route::post('shipping-label-templates/{id}/preview', [ShippingLabelTemplateController::class, 'preview'])->whereNumber('id')->name('shipping-label-templates.preview');
 
             // --- Dashboard ---
             Route::get('dashboard/summary', [DashboardController::class, 'summary'])->name('dashboard.summary');

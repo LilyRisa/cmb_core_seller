@@ -1,0 +1,32 @@
+{
+  "name": "Kitchen Sink",
+  "paper": "100x150mm",
+  "paper_w_mm": 100,
+  "paper_h_mm": 150,
+  "schema_version": 1,
+  "is_default": false,
+  "schema": {
+    "fields": [
+      {"id": "a1", "type": "data", "x": 4, "y": 4, "w": 60, "h": 10, "key": "carrier_name", "style": {"fontSize": 14, "fontWeight": 700}},
+      {"id": "a2", "type": "data", "x": 4, "y": 14, "w": 60, "h": 6, "key": "carrier_logo"},
+      {"id": "b1", "type": "barcode", "x": 4, "y": 22, "w": 70, "h": 14, "source": "tracking_no", "showText": true},
+      {"id": "b2", "type": "qr", "x": 76, "y": 4, "w": 22, "h": 22, "source": "tracking_no"},
+      {"id": "d1", "type": "divider", "x": 4, "y": 40, "w": 92, "h": 1, "thickness": 1, "color": "#222222"},
+      {"id": "s1", "type": "text", "x": 4, "y": 43, "w": 30, "h": 4, "text": "Từ:", "style": {"fontSize": 9, "fontWeight": 700}},
+      {"id": "s2", "type": "data", "x": 4, "y": 47, "w": 92, "h": 5, "key": "sender_name", "style": {"fontSize": 11, "fontWeight": 600}},
+      {"id": "s3", "type": "data", "x": 4, "y": 52, "w": 92, "h": 4, "key": "sender_phone", "style": {"fontSize": 9}},
+      {"id": "s4", "type": "data", "x": 4, "y": 56, "w": 92, "h": 6, "key": "sender_address", "style": {"fontSize": 9}},
+      {"id": "d2", "type": "divider", "x": 4, "y": 64, "w": 92, "h": 1, "thickness": 1, "color": "#222222"},
+      {"id": "r1", "type": "text", "x": 4, "y": 67, "w": 30, "h": 4, "text": "Đến:", "style": {"fontSize": 9, "fontWeight": 700}},
+      {"id": "r2", "type": "data", "x": 4, "y": 71, "w": 92, "h": 7, "key": "recipient_name", "style": {"fontSize": 15, "fontWeight": 700}},
+      {"id": "r3", "type": "data", "x": 4, "y": 78, "w": 92, "h": 5, "key": "recipient_phone", "style": {"fontSize": 12, "fontWeight": 600}},
+      {"id": "r4", "type": "data", "x": 4, "y": 83, "w": 92, "h": 12, "key": "recipient_address", "style": {"fontSize": 10}},
+      {"id": "rect", "type": "rectangle", "x": 4, "y": 96, "w": 92, "h": 18, "borderThickness": 1, "borderColor": "#222222", "cornerRadius": 2},
+      {"id": "c1", "type": "text", "x": 6, "y": 98, "w": 30, "h": 4, "text": "COD:", "style": {"fontSize": 10, "fontWeight": 700}},
+      {"id": "c2", "type": "data", "x": 30, "y": 98, "w": 66, "h": 5, "key": "cod", "style": {"fontSize": 13, "fontWeight": 700, "color": "#cf1322"}},
+      {"id": "c3", "type": "data", "x": 6, "y": 104, "w": 88, "h": 8, "key": "print_note", "style": {"fontSize": 9}},
+      {"id": "il", "type": "items_list", "x": 4, "y": 116, "w": 92, "h": 22, "style": {"fontSize": 9}, "maxRows": 4},
+      {"id": "f", "type": "data", "x": 4, "y": 140, "w": 92, "h": 5, "key": "order_number", "style": {"fontSize": 9, "align": "right"}}
+    ]
+  }
+}

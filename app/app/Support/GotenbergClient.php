@@ -22,19 +22,57 @@ class GotenbergClient
         return rtrim($this->baseUrl ?: $configured, '/').$path;
     }
 
-    /** Render an HTML document to a PDF (Chromium engine). Returns the PDF bytes. */
+    /**
+     * Render an HTML document to a PDF (Chromium engine). Returns the PDF bytes.
+     *
+     * Multipart parts are built manually rather than via Http::attach() because
+     * PendingRequest::attach() runs each part through array_filter() (no callback),
+     * silently dropping any 'contents' that PHP considers falsy — including the
+     * literal string '0'. Passing e.g. marginTop='0' would leave the part without
+     * a 'contents' key and Guzzle's MultipartStream throws "A 'contents' key is
+     * required" before the request leaves the app.
+     *
+     * The manual array is handed to ->asMultipart()->post($url, $multipart) — NOT
+     * ->withOptions(['multipart' => ...]). Without asMultipart() the PendingRequest
+     * bodyFormat stays at the default 'json', parseHttpOptions then injects
+     * $options['json'] = null, and Guzzle's option handler overwrites the multipart
+     * body with the JSON-encoded "null" string and sets Content-Type: application/json
+     * — Gotenberg responds 415 "Invalid Content-Type header value: want
+     * multipart/form-data".
+     */
     public function htmlToPdf(string $html, array $options = []): string
     {
-        $req = Http::timeout(60)->attach('files', $html, 'index.html', ['Content-Type' => 'text/html']);
+        $multipart = [
+            ['name' => 'files', 'contents' => $html, 'filename' => 'index.html', 'headers' => ['Content-Type' => 'text/html']],
+        ];
         foreach ($options as $k => $v) {
-            $req = $req->attach($k, (string) $v);
+            $multipart[] = ['name' => $k, 'contents' => (string) $v];
         }
-        $res = $req->post($this->url('/forms/chromium/convert/html'));
+        $res = Http::timeout(60)->asMultipart()
+            ->post($this->url('/forms/chromium/convert/html'), $multipart);
         if (! $res->successful()) {
             throw new RuntimeException('Gotenberg render HTML lỗi: '.$res->status().' '.$res->body());
         }
 
         return $res->body();
+    }
+
+    /**
+     * Render a shipping label / delivery slip — honors the @page CSS size from the template
+     * shell AND forces all 4 margins to 0. Gotenberg defaults to Letter + 0.39in margins
+     * which silently override @page CSS (preferCssPageSize must be 'true'), shifting all
+     * absolute-positioned fields inward by ~10mm and clipping content near the right edge.
+     */
+    public function htmlToLabelPdf(string $html): string
+    {
+        return $this->htmlToPdf($html, [
+            'preferCssPageSize' => 'true',
+            'marginTop' => '0',
+            'marginBottom' => '0',
+            'marginLeft' => '0',
+            'marginRight' => '0',
+            'printBackground' => 'true',
+        ]);
     }
 
     /**

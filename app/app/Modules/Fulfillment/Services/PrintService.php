@@ -13,6 +13,7 @@ use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use CMBcoreSeller\Support\GotenbergClient;
 use CMBcoreSeller\Support\MediaUploader;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -39,8 +40,9 @@ class PrintService
     /**
      * @param  list<int>  $orderIds
      * @param  list<int>  $shipmentIds
+     * @param  array<string, mixed>  $meta
      */
-    public function createJob(int $tenantId, string $type, array $orderIds, array $shipmentIds, ?int $userId): PrintJob
+    public function createJob(int $tenantId, string $type, array $orderIds, array $shipmentIds, ?int $userId, array $meta = []): PrintJob
     {
         if ($type === PrintJob::TYPE_LABEL) {
             $this->assertSinglePlatformAndCarrier($tenantId, $orderIds, $shipmentIds);
@@ -49,6 +51,7 @@ class PrintService
             'tenant_id' => $tenantId, 'type' => $type,
             'scope' => array_filter(['order_ids' => array_values(array_unique(array_map('intval', $orderIds))), 'shipment_ids' => array_values(array_unique(array_map('intval', $shipmentIds)))]),
             'status' => PrintJob::STATUS_PENDING, 'created_by' => $userId,
+            'meta' => $meta ?: null,
         ]);
         RenderPrintJob::dispatch($job->getKey())->onQueue('labels');
 
@@ -122,7 +125,16 @@ class PrintService
         return ['shipment_ids' => $shipmentIds, 'copies' => $copies];
     }
 
-    /** Runs inside RenderPrintJob — fills in file_url/status or error. */
+    /**
+     * Runs inside RenderPrintJob — fills in file_url/status or error.
+     *
+     * Ephemeral path: manual-order delivery slips rendered from a shop-designed template
+     * regenerate from current order data + current template on every print, so persisting
+     * the PDF to R2 wastes storage and risks staleness if the template is edited. They go
+     * into a 1h Redis cache instead; file_url points at the download endpoint which streams
+     * from the cache. No shipment.label_url write-back either — that field is reserved for
+     * carrier/marketplace labels (set by ShipmentService at "Chuẩn bị hàng").
+     */
     public function render(PrintJob $job): void
     {
         $job->forceFill(['status' => PrintJob::STATUS_PROCESSING])->save();
@@ -135,9 +147,22 @@ class PrintService
                 PrintJob::TYPE_DELIVERY => $this->renderDeliverySlip($job),
                 default => throw new \InvalidArgumentException("Loại phiếu in [{$job->type}] không hợp lệ."),
             };
+            if ($this->isEphemeral($job, $meta)) {
+                Cache::put($this->ephemeralCacheKey($job->getKey()), $bytes, now()->addHour());
+                $url = route('api.v1.print-jobs.download', ['id' => $job->getKey()]);
+                $meta['ephemeral'] = true;
+                $job->forceFill([
+                    'status' => PrintJob::STATUS_DONE,
+                    'file_url' => $url, 'file_path' => null,
+                    'file_size' => strlen($bytes), 'meta' => $meta, 'error' => null,
+                ])->save();
+
+                return;
+            }
             $stored = $this->media->storeBytes($bytes, (int) $job->tenant_id, 'print', $job->type.'-'.Str::ulid(), 'pdf');
             $job->forceFill(['status' => PrintJob::STATUS_DONE, 'file_url' => $stored['url'], 'file_path' => $stored['path'], 'file_size' => strlen($bytes), 'meta' => $meta, 'error' => null])->save();
-            // Lưu trữ phiếu giao hàng tự tạo cho đơn: gắn vào vận đơn nếu vận đơn chưa có tem của sàn/ĐVVC. SPEC 0013.
+            // Cache phiếu giao hàng tự tạo lên shipment CHỈ cho fallback legacy (không có template_id).
+            // Template renders đã đi qua nhánh ephemeral phía trên — không bao giờ đến đây.
             if ($job->type === PrintJob::TYPE_DELIVERY && $job->orderIds()) {
                 Shipment::query()->where('tenant_id', $job->tenant_id)->whereIn('order_id', $job->orderIds())->open()
                     ->whereNull('label_path')->update(['label_url' => $stored['url'], 'label_path' => $stored['path']]);
@@ -146,6 +171,29 @@ class PrintService
             $job->forceFill(['status' => PrintJob::STATUS_ERROR, 'error' => $e->getMessage()])->save();
             throw $e;
         }
+    }
+
+    /**
+     * Ephemeral = delivery slip rendered from a shop's custom template (manual orders).
+     * Stored 1h in Redis instead of R2; served by PrintJobController::download.
+     */
+    private function isEphemeral(PrintJob $job, array $meta): bool
+    {
+        return $job->type === PrintJob::TYPE_DELIVERY
+            && (int) (data_get($meta, 'template_id') ?: data_get($job->meta, 'template_id', 0)) > 0;
+    }
+
+    public function ephemeralCacheKey(int $jobId): string
+    {
+        return "print-job:{$jobId}:pdf";
+    }
+
+    /** Pull ephemeral PDF bytes from cache (null if expired/missing). */
+    public function ephemeralBytes(PrintJob $job): ?string
+    {
+        $val = Cache::get($this->ephemeralCacheKey((int) $job->getKey()));
+
+        return is_string($val) ? $val : null;
     }
 
     /** @return array{0:string,1:array<string,mixed>} */
@@ -286,17 +334,26 @@ class PrintService
         if ($orderIds === [] && ($sids = $job->shipmentIds())) {
             $orderIds = Shipment::query()->where('tenant_id', $tenantId)->whereIn('id', $sids)->pluck('order_id')->all();
         }
-        $orders = Order::query()->where('tenant_id', $tenantId)->whereIn('id', $orderIds)->whereNull('deleted_at')
+        $orders = Order::withoutGlobalScope(TenantScope::class)->where('tenant_id', $tenantId)->whereIn('id', $orderIds)->whereNull('deleted_at')
             ->with(['items', 'shipments' => fn ($q) => $q->orderByDesc('id')])->get();
         if ($orders->isEmpty()) {
             throw new \RuntimeException('Không có đơn nào để in.');
         }
-        // Defensive: phiếu giao hàng tự tạo KHÔNG dùng cho đơn sàn. Nếu lọt vào (race condition / future caller),
-        // chặn rõ ràng thay vì in ra phiếu tạm vô dụng cho người bán.
         $channelOrders = $orders->filter(fn (Order $o) => $o->channel_account_id !== null);
         if ($channelOrders->isNotEmpty()) {
-            throw new \RuntimeException('Đơn của sàn TMĐT chỉ dùng được phiếu/AWB thật của sàn — không in phiếu giao hàng tự tạo. Bấm "Nhận phiếu giao hàng" để hệ thống kéo phiếu thật từ sàn.');
+            throw new \RuntimeException('Đơn của sàn TMĐT chỉ dùng được phiếu/AWB thật của sàn — không in phiếu giao hàng tự tạo.');
         }
+
+        $templateId = (int) (data_get($job->meta, 'template_id') ?: 0);
+        if ($templateId > 0) {
+            $tpl = \CMBcoreSeller\Modules\Fulfillment\Models\ShippingLabelTemplate::withoutGlobalScope(TenantScope::class)
+                ->withTrashed()->where('tenant_id', $tenantId)->findOrFail($templateId);
+            $renderer = app(\CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\LabelRenderer::class);
+            $html = $renderer->renderBatch($orders, $tpl);
+
+            return [$this->gotenberg->htmlToLabelPdf($html), ['orders' => $orders->count(), 'template_id' => $tpl->id, 'template_name' => $tpl->name, 'order_ids' => $orders->modelKeys()]];
+        }
+
         $shopName = (string) (Tenant::query()->whereKey($tenantId)->value('name') ?? 'Cửa hàng');
 
         return [$this->gotenberg->htmlToPdf(PrintTemplates::deliverySlip($orders, $shopName, $this->paperSize($tenantId), $this->skuMapFor($orders))), ['orders' => $orders->count(), 'order_ids' => $orders->modelKeys()]];
