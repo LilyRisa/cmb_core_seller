@@ -4,8 +4,10 @@ namespace CMBcoreSeller\Modules\Messaging\Services;
 
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
+use CMBcoreSeller\Modules\Messaging\Models\AutoReplyRun;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Models\MessageAttachment;
+use CMBcoreSeller\Modules\Messaging\Models\MessageDraft;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -26,18 +28,20 @@ class FacebookPageDisconnectService
     {
         $this->unsubscribeWebhook($account);
 
-        $convIds = Conversation::query()
-            ->where('channel_account_id', $account->getKey())
-            ->pluck('id');
-
         $deletedConversations = 0;
-        DB::transaction(function () use ($account, $convIds, &$deletedConversations) {
+        DB::transaction(function () use ($account, &$deletedConversations) {
+            $convIds = Conversation::query()
+                ->where('channel_account_id', $account->getKey())
+                ->pluck('id');
+
             if ($convIds->isNotEmpty()) {
                 $messageIds = Message::query()->whereIn('conversation_id', $convIds)->pluck('id');
                 if ($messageIds->isNotEmpty()) {
                     $this->deleteAttachments($messageIds);
                     Message::query()->whereIn('id', $messageIds)->delete();
                 }
+                MessageDraft::query()->whereIn('conversation_id', $convIds)->delete();
+                AutoReplyRun::query()->whereIn('conversation_id', $convIds)->delete();
                 $deletedConversations = Conversation::query()->whereIn('id', $convIds)->delete();
             }
             MessagingAccountMeta::query()->where('channel_account_id', $account->getKey())->delete();

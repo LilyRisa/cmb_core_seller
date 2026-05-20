@@ -103,6 +103,10 @@ class MessagingChannelControllerTest extends TestCase
 
     public function test_disconnect_deletes_page_and_cascades(): void
     {
+        $disk = (string) config('messaging.media_disk', 'local');
+        \Illuminate\Support\Facades\Storage::fake($disk);
+        \Illuminate\Support\Facades\Storage::disk($disk)->put('tenants/x/messaging/test.jpg', 'fakebytes');
+
         $account = \CMBcoreSeller\Modules\Channels\Models\ChannelAccount::query()->create([
             'tenant_id' => $this->tenant->getKey(), 'provider' => 'facebook_page',
             'external_shop_id' => 'PAGE_7', 'shop_name' => 'FB7', 'status' => 'active',
@@ -119,7 +123,8 @@ class MessagingChannelControllerTest extends TestCase
         ]);
         \CMBcoreSeller\Modules\Messaging\Models\MessageAttachment::query()->create([
             'tenant_id' => $this->tenant->getKey(), 'message_id' => $msg->id,
-            'kind' => 'image', 'mime' => 'image/jpeg', 'status' => 'pending',
+            'kind' => 'image', 'mime' => 'image/jpeg', 'status' => 'downloaded',
+            'storage_path' => 'tenants/x/messaging/test.jpg',
         ]);
 
         \Illuminate\Support\Facades\Http::fake([
@@ -133,11 +138,12 @@ class MessagingChannelControllerTest extends TestCase
             ->assertJsonPath('data.ok', true)
             ->assertJsonPath('data.conversations_deleted', 1);
 
-        $this->assertDatabaseMissing('channel_accounts', ['id' => $account->id, 'deleted_at' => null]);
+        $this->assertDatabaseMissing('channel_accounts', ['id' => $account->id]);
         $this->assertDatabaseMissing('conversations', ['id' => $conv->id]);
         $this->assertDatabaseMissing('messages', ['id' => $msg->id]);
         $this->assertDatabaseMissing('message_attachments', ['message_id' => $msg->id]);
         $this->assertDatabaseHas('audit_logs', ['action' => 'messaging.facebook.disconnected']);
+        \Illuminate\Support\Facades\Storage::disk($disk)->assertMissing('tenants/x/messaging/test.jpg');
     }
 
     public function test_disconnect_rejects_non_facebook_account(): void
