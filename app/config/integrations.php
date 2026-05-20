@@ -402,7 +402,10 @@ return [
     */
     'shopee' => [
         'partner_id'   => env('SHOPEE_PARTNER_ID'),            // int
-        'partner_key'  => env('SHOPEE_PARTNER_KEY'),           // bí mật — ký HMAC
+        'partner_key'  => env('SHOPEE_PARTNER_KEY'),           // bí mật — ký HMAC request API
+        // Shopee Push Mechanism cấp "Push Partner Key" RIÊNG (khác partner_key) để ký webhook push.
+        // Để trống ⇒ verify push fallback về partner_key (khi sàn dùng chung 1 key). Bí mật.
+        'push_partner_key' => env('SHOPEE_PUSH_PARTNER_KEY'),
         'sandbox'      => (bool) env('SHOPEE_SANDBOX', true),
         'base_url'     => env('SHOPEE_API_BASE_URL', 'https://partner.shopeemobile.com'),
         'redirect_uri' => env('SHOPEE_REDIRECT_URI'),          // default url('/oauth/shopee/callback')

@@ -8,29 +8,36 @@ use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
- * Shopee push verification + parsing. Signature: Authorization header == HMAC-SHA256(push_url|raw_body, partner_key).
- * Body: { code:int, shop_id:int, timestamp:int, data: "<json-string>" }. See docs/04-channels/shopee.md §4.
+ * Shopee push verification + parsing. Signature: Authorization header == HMAC-SHA256(push_url|raw_body, push_key).
+ * `push_key` = Shopee "Push Partner Key" (RIÊNG với partner_key API; lấy ở Push Mechanism), fallback partner_key
+ * khi không cấu hình. Đọc qua system_setting (admin /admin/system-settings đè env). Body:
+ * { code:int, shop_id:int, timestamp:int, data: "<json-string>" }. See docs/04-channels/shopee.md §4.
  */
 class ShopeeWebhookVerifier
 {
     public function verify(Request $request): bool
     {
         $cfg = (array) config('integrations.shopee', []);
-        $partnerKey = (string) ($cfg['partner_key'] ?? '');
+        // Push được ký bằng "Push Partner Key" (nếu Shopee cấp riêng); fallback partner_key. DB (admin) đè env.
+        $pushKey = (string) (
+            system_setting('marketplace.shopee.push_partner_key', $cfg['push_partner_key'] ?? null)
+            ?: system_setting('marketplace.shopee.partner_key', $cfg['partner_key'] ?? null)
+            ?: ''
+        );
         $pushUrl = (string) ($cfg['push_url'] ?? url('/webhook/shopee'));
         $raw = $request->getContent();
         $provided = trim((string) $request->headers->get('Authorization', ''));
-        if ($partnerKey === '' || $provided === '') {
+        if ($pushKey === '' || $provided === '') {
             if ((string) ($cfg['webhook_verify_mode'] ?? 'strict') === 'lenient') {
                 \Illuminate\Support\Facades\Log::warning('shopee.webhook.signature_mismatch_but_accepted', ['mode' => 'lenient', 'has_header' => $provided !== '']);
 
                 return true;
             }
-            Log::warning('shopee.webhook.partner_key_not_configured');
+            Log::warning('shopee.webhook.push_key_not_configured');
 
             return false;
         }
-        $expected = hash_hmac('sha256', $pushUrl.'|'.$raw, $partnerKey);
+        $expected = hash_hmac('sha256', $pushUrl.'|'.$raw, $pushKey);
         $ok = hash_equals($expected, strtolower($provided));
         if (! $ok && (string) ($cfg['webhook_verify_mode'] ?? 'strict') === 'lenient') {
             \Illuminate\Support\Facades\Log::warning('shopee.webhook.signature_mismatch_but_accepted', ['mode' => 'lenient', 'has_header' => $provided !== '']);

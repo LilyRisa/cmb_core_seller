@@ -17,16 +17,16 @@ class SystemSettingsCatalogTest extends TestCase
         $this->assertSame(['branding', 'fulfillment', 'marketplace', 'sync'], $groups);
     }
 
-    public function test_count_is_39(): void
+    public function test_count_is_40(): void
     {
-        $this->assertCount(39, SystemSettingsCatalog::all());
+        $this->assertCount(40, SystemSettingsCatalog::all());
     }
 
-    public function test_secret_count_is_8(): void
+    public function test_secret_count_is_9(): void
     {
-        // marketplace.shopee.sandbox is not secret, so the secret count stays 8.
+        // 8 + marketplace.shopee.push_partner_key (secret). (shopee.sandbox is not secret.)
         $secrets = collect(SystemSettingsCatalog::all())->where('is_secret', true)->keys()->all();
-        $this->assertCount(8, $secrets);
+        $this->assertCount(9, $secrets);
     }
 
     public function test_require_throws_on_unknown(): void

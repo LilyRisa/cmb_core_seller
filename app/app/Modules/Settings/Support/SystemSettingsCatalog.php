@@ -62,7 +62,7 @@ class SystemSettingsCatalog
                 'env' => 'MAIL_FROM_NAME', 'label' => 'Tên người gửi (mail)',
             ],
 
-            // ── Marketplace (10) ────────────────────────────────────────────
+            // ── Marketplace (11) ────────────────────────────────────────────
             'marketplace.tiktok.app_key' => [
                 'group' => 'marketplace', 'type' => 'string', 'is_secret' => true,
                 'env' => 'TIKTOK_APP_KEY', 'label' => 'TikTok App Key',
@@ -98,6 +98,10 @@ class SystemSettingsCatalog
             'marketplace.shopee.partner_key' => [
                 'group' => 'marketplace', 'type' => 'string', 'is_secret' => true,
                 'env' => 'SHOPEE_PARTNER_KEY', 'label' => 'Shopee Partner Key',
+            ],
+            'marketplace.shopee.push_partner_key' => [
+                'group' => 'marketplace', 'type' => 'string', 'is_secret' => true,
+                'env' => 'SHOPEE_PUSH_PARTNER_KEY', 'label' => 'Shopee Push Partner Key (webhook)',
             ],
             'marketplace.shopee.sandbox' => [
                 'group' => 'marketplace', 'type' => 'bool', 'is_secret' => false,

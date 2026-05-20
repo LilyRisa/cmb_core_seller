@@ -20,7 +20,7 @@ Ký bởi `ShopeeSigner::signPublic()` / `ShopeeSigner::signShop()`. Token refre
 `order` (`get_order_list` theo `update_time` — window tối đa 15 ngày, dùng cursor, `get_order_detail`), `logistics` (`get_shipping_parameter`, `ship_order`, `get_tracking_number`, `create_shipping_document`, `download_shipping_document`), `product` (`get_item_list`, `get_item_base_info`, `get_model_list`, `update_stock`), `shop` (`get_shop_info`), `payment` (`get_escrow_detail`/`get_escrow_list` cho đối soát), `push` (cấu hình webhook một lần trong app console — không subscribe per-shop).
 
 ## 4. Webhook
-URL `/webhook/shopee`; verify bằng `Authorization` header = `HMAC-SHA256(partner_key, url|body)` — xử lý bởi `ShopeeWebhookVerifier`. Map `code` push: `1`→`shop_deauthorized`, `3`/`6`→`order_status_update`. Các code chưa map mặc định `unknown` (verify sandbox).
+URL `/webhook/shopee`; verify bằng `Authorization` header = `HMAC-SHA256(push_key, url|body)` — xử lý bởi `ShopeeWebhookVerifier`. **`push_key`** = "**Push Partner Key**" (Shopee console → Push Mechanism) — sàn cấp RIÊNG, **khác `partner_key` của API**. Đặt `SHOPEE_PUSH_PARTNER_KEY` (hoặc `/admin/system-settings` → `marketplace.shopee.push_partner_key`); để trống ⇒ fallback `partner_key`. `push_url` verify lấy từ `SHOPEE_PUSH_URL` (mặc định `APP_URL`+`/webhook/shopee`) — phải khớp URL khai trong console. Map `code` push: `1`→`shop_deauthorized`, `3`/`6`→`order_status_update`. Các code chưa map mặc định `unknown` (verify sandbox).
 
 ## 5. Mapping trạng thái
 Xem `docs/03-domain/order-status-state-machine.md` §4. Bảng đầy đủ trong `ShopeeStatusMap` + config `integrations.shopee.status_map`:

@@ -178,6 +178,25 @@ class ShopeeConnectorContractTest extends TestCase
         $this->assertSame('shop_deauthorized', $this->connector()->parseWebhook($req)->type);
     }
 
+    public function test_verify_uses_separate_push_partner_key_when_set(): void
+    {
+        // Shopee Push Mechanism cấp Push Partner Key RIÊNG với partner_key API.
+        $c = $this->connector();
+        $pushUrl = 'https://partner.test-stable.shopeemobile.com/webhook/shopee';
+        config(['integrations.shopee.push_url' => $pushUrl, 'integrations.shopee.push_partner_key' => 'PUSH_KEY_TEST']);
+        $raw = json_encode(['code' => 3, 'shop_id' => 55, 'timestamp' => 1700000000, 'data' => json_encode(['ordersn' => 'SN_9', 'status' => 'READY_TO_SHIP'])], JSON_UNESCAPED_SLASHES);
+
+        // Ký bằng push partner key ⇒ verify OK.
+        $ok = \Illuminate\Http\Request::create($pushUrl, 'POST', content: $raw);
+        $ok->headers->set('Authorization', hash_hmac('sha256', $pushUrl.'|'.$raw, 'PUSH_KEY_TEST'));
+        $this->assertTrue($c->verifyWebhookSignature($ok));
+
+        // Ký bằng partner_key API (sai vì đã có push key riêng) ⇒ reject.
+        $bad = \Illuminate\Http\Request::create($pushUrl, 'POST', content: $raw);
+        $bad->headers->set('Authorization', hash_hmac('sha256', $pushUrl.'|'.$raw, 'PARTNER_KEY'));
+        $this->assertFalse($c->verifyWebhookSignature($bad));
+    }
+
     public function test_arrange_shipment_ships_and_returns_tracking(): void
     {
         Http::fake([
