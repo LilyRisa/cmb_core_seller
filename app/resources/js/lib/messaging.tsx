@@ -14,10 +14,14 @@ export type ConversationStatus = 'open' | 'snoozed' | 'resolved' | 'spam';
 export type MessageDirection = 'inbound' | 'outbound';
 export type DeliveryStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
 
+export type ChannelGroup = 'marketplace' | 'facebook' | 'internal';
+
 export interface Conversation {
     id: number;
     channel_account_id: number;
     provider: string;
+    channel_group: ChannelGroup;
+    channel_account_name: string | null;
     external_conversation_id: string;
     buyer_external_id: string;
     buyer_name: string | null;
@@ -161,3 +165,15 @@ const PROVIDER_LABELS: Record<string, string> = {
 export function providerLabel(code: string): string {
     return PROVIDER_LABELS[code] ?? code;
 }
+
+/**
+ * Tách inbox theo nguồn: "Tin nhắn sàn" (marketplace) vs "Tin nhắn Facebook".
+ * Map sang param `provider` (CSV) của API list. 'all' = không lọc.
+ */
+export type InboxGroup = 'all' | 'marketplace' | 'facebook';
+
+export const INBOX_GROUP_PROVIDERS: Record<InboxGroup, string | undefined> = {
+    all: undefined,
+    marketplace: 'tiktok_chat,shopee_chat,lazada_chat',
+    facebook: 'facebook_page',
+};

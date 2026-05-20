@@ -27,7 +27,7 @@ class ConversationController extends Controller
     {
         Gate::authorize('messaging.view');
 
-        $q = Conversation::query();
+        $q = Conversation::query()->with('channelAccount'); // nguồn gốc (shop/page) — tránh N+1
 
         if ($provider = $request->query('provider')) {
             $q->whereIn('provider', explode(',', (string) $provider));
@@ -71,7 +71,7 @@ class ConversationController extends Controller
     {
         Gate::authorize('messaging.view');
 
-        $conv = Conversation::query()->findOrFail($id);
+        $conv = Conversation::query()->with('channelAccount')->findOrFail($id);
 
         $messagesQuery = Message::query()
             ->where('conversation_id', $conv->id)

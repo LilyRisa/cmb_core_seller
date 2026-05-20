@@ -5,6 +5,8 @@ import { errorMessage } from '@/lib/api';
 import {
     type Conversation,
     type ConversationStatus,
+    INBOX_GROUP_PROVIDERS,
+    type InboxGroup,
     providerLabel,
     useAiSuggestion,
     useConversations,
@@ -22,11 +24,15 @@ const { Text } = Typography;
  */
 export function MessagingPage() {
     const { message } = App.useApp();
+    const [group, setGroup] = useState<InboxGroup>('all');   // tách: sàn TMĐT vs Facebook
     const [status, setStatus] = useState<ConversationStatus | 'all'>('open');
     const [activeId, setActiveId] = useState<number | null>(null);
     const [draft, setDraft] = useState('');
 
-    const list = useConversations({ status: status === 'all' ? undefined : status });
+    const list = useConversations({
+        status: status === 'all' ? undefined : status,
+        provider: INBOX_GROUP_PROVIDERS[group],
+    });
     const thread = useConversationThread(activeId);
     const sendText = useSendText(activeId);
     const markRead = useMarkRead();
@@ -67,7 +73,18 @@ export function MessagingPage() {
         <div style={{ display: 'flex', height: 'calc(100vh - 96px)', gap: 12 }}>
             {/* Cột trái — danh sách hội thoại */}
             <div style={{ width: 320, background: '#fff', borderRadius: 12, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                <div style={{ padding: 12, borderBottom: '1px solid #F1F5F9' }}>
+                <div style={{ padding: 12, borderBottom: '1px solid #F1F5F9', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {/* Tách nguồn: Tin nhắn sàn (Shopee/TikTok/Lazada) vs Facebook Page */}
+                    <Segmented
+                        block
+                        value={group}
+                        onChange={(v) => { setGroup(v as InboxGroup); setActiveId(null); }}
+                        options={[
+                            { label: 'Tất cả', value: 'all' },
+                            { label: 'Tin nhắn sàn', value: 'marketplace' },
+                            { label: 'Facebook', value: 'facebook' },
+                        ]}
+                    />
                     <Segmented
                         block
                         value={status}
@@ -100,7 +117,14 @@ export function MessagingPage() {
                                                 <Tag color="blue" style={{ marginInlineEnd: 0 }}>{providerLabel(c.provider)}</Tag>
                                             </Space>
                                         )}
-                                        description={<Text type="secondary" ellipsis style={{ fontSize: 12 }}>{c.last_message_preview ?? '—'}</Text>}
+                                        description={(
+                                            <Space direction="vertical" size={0} style={{ width: '100%' }}>
+                                                {c.channel_account_name && (
+                                                    <Text type="secondary" style={{ fontSize: 11 }} ellipsis>📍 {c.channel_account_name}</Text>
+                                                )}
+                                                <Text type="secondary" ellipsis style={{ fontSize: 12 }}>{c.last_message_preview ?? '—'}</Text>
+                                            </Space>
+                                        )}
                                     />
                                 </List.Item>
                             )}
@@ -120,6 +144,9 @@ export function MessagingPage() {
                         <div style={{ padding: 12, borderBottom: '1px solid #F1F5F9' }}>
                             <Text strong>{active?.buyer_name ?? active?.buyer_external_id}</Text>{' '}
                             <Tag color="blue">{providerLabel(active?.provider ?? '')}</Tag>
+                            {active?.channel_account_name && (
+                                <Text type="secondary" style={{ marginInlineStart: 4 }}>· {active.channel_account_name}</Text>
+                            )}
                         </div>
                         <div style={{ flex: 1, overflowY: 'auto', padding: 16, background: '#F8FAFC' }}>
                             {thread.isLoading ? (
@@ -169,7 +196,7 @@ export function MessagingPage() {
                 {active ? (
                     <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
                         <div><Text type="secondary">Khách: </Text>{active.buyer_name ?? active.buyer_external_id}</div>
-                        <div><Text type="secondary">Nền tảng: </Text>{providerLabel(active.provider)}</div>
+                        <div><Text type="secondary">Nguồn: </Text>{providerLabel(active.provider)}{active.channel_account_name ? ` · ${active.channel_account_name}` : ''}</div>
                         <div><Text type="secondary">Trạng thái: </Text>{active.status}</div>
                         {active.order_id && <div><Text type="secondary">Đơn liên quan: </Text><a href={`/orders/${active.order_id}`}>#{active.order_id}</a></div>}
                         {active.customer_id && <div><Text type="secondary">Khách hàng: </Text><a href={`/customers/${active.customer_id}`}>Hồ sơ</a></div>}

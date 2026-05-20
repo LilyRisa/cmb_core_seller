@@ -128,9 +128,11 @@ x-app-env: &app-env
   # Facebook Page Messenger — xem docs/04-channels/facebook-messenger-setup.md.
   # APP_ID/APP_SECRET lấy từ Meta App → Settings → Basic. VERIFY_TOKEN tự đặt 1 chuỗi
   # bí mật rồi nhập GIỐNG vào Meta → Messenger → Webhooks. (Bắt buộc khi bật facebook_page.)
+  # ⚠️ APP_SECRET & VERIFY_TOKEN là BÍ MẬT — KHÔNG để default ở đây (tránh commit lộ).
+  # Nhập ở Portainer "Environment variables" hoặc ./.env. App ID là public nên để default được.
   MESSAGING_FACEBOOK_APP_ID: ${MESSAGING_FACEBOOK_APP_ID:-3063164863879766}
-  MESSAGING_FACEBOOK_APP_SECRET: ${MESSAGING_FACEBOOK_APP_SECRET:-695f78115c33f1f63b169017a3f2d04e}
-  MESSAGING_FACEBOOK_VERIFY_TOKEN: ${MESSAGING_FACEBOOK_VERIFY_TOKEN:-cmbcoremessagingverifytoken}
+  MESSAGING_FACEBOOK_APP_SECRET: ${MESSAGING_FACEBOOK_APP_SECRET:-}
+  MESSAGING_FACEBOOK_VERIFY_TOKEN: ${MESSAGING_FACEBOOK_VERIFY_TOKEN:-}
   MESSAGING_FACEBOOK_GRAPH_VERSION: ${MESSAGING_FACEBOOK_GRAPH_VERSION:-v19.0}
   # Redirect URI OAuth — mặc định = APP_URL + /oauth/facebook_page/callback. Chỉ đặt khi
   # domain callback khác APP_URL. PHẢI đăng ký Y HỆT trong Meta → Facebook Login → Valid OAuth Redirect URIs.

@@ -114,7 +114,50 @@ class MessagingApiTest extends TestCase
             ->getJson('/api/v1/messaging/conversations')
             ->assertOk()
             ->assertJsonPath('data.0.buyer_name', 'Anh Khách')
-            ->assertJsonPath('data.0.unread_count', 2);
+            ->assertJsonPath('data.0.unread_count', 2)
+            // Nguồn gốc hội thoại: tên shop/page + nhóm kênh.
+            ->assertJsonPath('data.0.channel_account_name', 'API Shop')
+            ->assertJsonPath('data.0.channel_group', 'internal');
+    }
+
+    public function test_inbox_separates_marketplace_and_facebook(): void
+    {
+        // 1 hội thoại Facebook + 1 hội thoại sàn (tiktok) — list lọc theo provider phải tách đúng.
+        $fbAccount = ChannelAccount::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'provider' => 'facebook_page',
+            'external_shop_id' => 'PAGE_9', 'shop_name' => 'Shop FB', 'status' => 'active', 'messaging_enabled' => true,
+        ]);
+        Conversation::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'channel_account_id' => $fbAccount->id, 'provider' => 'facebook_page',
+            'external_conversation_id' => 'psid_1', 'buyer_external_id' => 'psid_1', 'buyer_name' => 'FB Buyer',
+            'status' => Conversation::STATUS_OPEN, 'last_message_at' => now(),
+        ]);
+        // ADR-0019: chat sàn dùng CHUNG channel_account với orders ⇒ account.provider='tiktok'
+        // nhưng conversation.provider='tiktok_chat'. channel_group đọc từ conversation.provider.
+        $ttAccount = ChannelAccount::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'provider' => 'tiktok',
+            'external_shop_id' => 'TT_1', 'shop_name' => 'Shop TikTok', 'status' => 'active', 'messaging_enabled' => true,
+        ]);
+        Conversation::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'channel_account_id' => $ttAccount->id, 'provider' => 'tiktok_chat',
+            'external_conversation_id' => 'conv_tt', 'buyer_external_id' => 'b', 'buyer_name' => 'TT Buyer',
+            'status' => Conversation::STATUS_OPEN, 'last_message_at' => now()->subMinute(),
+        ]);
+
+        // Lọc Facebook
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->getJson('/api/v1/messaging/conversations?provider=facebook_page')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.channel_group', 'facebook')
+            ->assertJsonPath('data.0.channel_account_name', 'Shop FB');
+
+        // Lọc sàn
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->getJson('/api/v1/messaging/conversations?provider=tiktok_chat,shopee_chat,lazada_chat')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.channel_group', 'marketplace');
     }
 
     public function test_staff_warehouse_cannot_view_inbox(): void

@@ -17,6 +17,11 @@ class ConversationResource extends JsonResource
             'id' => $this->id,
             'channel_account_id' => $this->channel_account_id,
             'provider' => $this->provider,
+            // Nguồn gốc hội thoại: nhóm kênh (marketplace/facebook/internal) + tên
+            // shop/page cụ thể — FE tách "tin nhắn sàn" vs "tin nhắn Facebook" + hiện
+            // rõ tin đến từ đâu (SPEC-0024 §3.1).
+            'channel_group' => self::groupFor((string) $this->provider),
+            'channel_account_name' => $this->channelAccount?->effectiveName(),
             'external_conversation_id' => $this->external_conversation_id,
             'buyer_external_id' => $this->buyer_external_id,
             'buyer_name' => $this->buyer_name,
@@ -36,5 +41,15 @@ class ConversationResource extends JsonResource
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
+    }
+
+    /** Nhóm nguồn để FE tách inbox: sàn TMĐT vs Facebook vs nội bộ. */
+    public static function groupFor(string $provider): string
+    {
+        return match ($provider) {
+            'facebook_page' => 'facebook',
+            'tiktok_chat', 'shopee_chat', 'lazada_chat' => 'marketplace',
+            default => 'internal',
+        };
     }
 }
