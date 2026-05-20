@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { App as AntApp, Button, Card, Empty, Popconfirm, Space, Spin, Tag, Typography } from 'antd';
+import { App as AntApp, Button, Card, Empty, Popconfirm, Result, Space, Spin, Tag, Typography } from 'antd';
 import { DisconnectOutlined, FacebookFilled, KeyOutlined } from '@ant-design/icons';
 import { MessagingNav } from '@/components/MessagingNav';
 import { PageHeader } from '@/components/PageHeader';
@@ -23,7 +23,8 @@ export function MessagingChannelsPage() {
     const [params, setParams] = useSearchParams();
     const canConnect = useCan('messaging.connect');
     const connectFb = useConnectFacebook();
-    const { data: channels, isLoading } = useMessagingChannels();
+    const { data: channels, isLoading, isError, error } = useMessagingChannels();
+    const [reconnectingId, setReconnectingId] = useState<number | null>(null);
     const disconnect = useDisconnectFacebookPage();
 
     useEffect(() => {
@@ -44,7 +45,17 @@ export function MessagingChannelsPage() {
         onError: (e) => message.error(errorMessage(e, 'Không khởi tạo được kết nối. Quản trị viên cần bật facebook_page.')),
     });
 
+    const handleReconnect = (id: number) => {
+        setReconnectingId(id);
+        connectFb.mutate(undefined, {
+            onSuccess: (d) => { window.location.href = d.authorize_url; },
+            onError: (e) => { setReconnectingId(null); message.error(errorMessage(e, 'Không khởi tạo được kết nối.')); },
+        });
+    };
+
     const pages = channels ?? [];
+
+    if (isError) return <Result status="error" title="Không tải được danh sách kênh" subTitle={errorMessage(error)} />;
 
     return (
         <div>
@@ -73,18 +84,18 @@ export function MessagingChannelsPage() {
                                 {canConnect && (
                                     <Space>
                                         {p.token_expired && (
-                                            <Button size="small" type="primary" icon={<KeyOutlined />} loading={connectFb.isPending} onClick={handleConnect}>Kết nối lại</Button>
+                                            <Button size="small" type="primary" icon={<KeyOutlined />} loading={reconnectingId === p.id} onClick={() => handleReconnect(p.id)}>Kết nối lại</Button>
                                         )}
                                         <Popconfirm
                                             title="Ngắt kết nối Page?"
                                             description="Sẽ gỡ Page và xoá toàn bộ hội thoại liên quan, không khôi phục được."
-                                            okText="Ngắt kết nối" okButtonProps={{ danger: true }} cancelText="Huỷ"
+                                            okText="Ngắt kết nối" okButtonProps={{ danger: true, loading: disconnect.isPending }} cancelText="Huỷ"
                                             onConfirm={() => disconnect.mutate(p.id, {
                                                 onSuccess: () => message.success('Đã ngắt kết nối Page.'),
                                                 onError: (e) => message.error(errorMessage(e)),
                                             })}
                                         >
-                                            <Button size="small" danger icon={<DisconnectOutlined />}>Ngắt kết nối</Button>
+                                            <Button size="small" danger icon={<DisconnectOutlined />} loading={disconnect.isPending}>Ngắt kết nối</Button>
                                         </Popconfirm>
                                     </Space>
                                 )}

@@ -78,7 +78,7 @@ function buildNav(): MenuProps['items'] {
 }
 
 // Flat key list for selected-key matching.
-const BASE_KEYS = ['/', '/orders', '/customers', '/channels', '/products', '/inventory',
+const BASE_KEYS = ['/', '/orders', '/customers', '/messaging', '/channels', '/products', '/inventory',
     '/procurement/demand-planning', '/procurement/suppliers', '/procurement/purchase-orders',
     '/reports', '/finance/settlements',
     '/accounting/journals', '/accounting/chart-of-accounts', '/accounting/balances', '/accounting/ar', '/accounting/ap', '/accounting/cash', '/accounting/reports', '/accounting/periods',
