@@ -216,8 +216,10 @@ class ShopeeConnector implements ChannelConnector
             if ($packageNumber !== '') {
                 $body['package_number'] = $packageNumber;
             }
-            // Prefer dropoff when offered, else pickup with first available slot.
-            if (! empty($param['dropoff'])) {
+            $method = (string) ($cfg['ship_method'] ?? 'auto');
+            // 'auto': ưu tiên dropoff khi sàn có khai báo dropoff cho đơn này; else pickup. Verify trên sandbox.
+            $useDropoff = $method === 'dropoff' || ($method === 'auto' && array_key_exists('dropoff', $param) && $param['dropoff'] !== null && $param['dropoff'] !== []);
+            if ($useDropoff) {
                 $body['dropoff'] = (object) [];
             } else {
                 $addr = (array) ($param['pickup']['address_list'][0] ?? []);
@@ -292,10 +294,22 @@ class ShopeeConnector implements ChannelConnector
         }
         $from = $query['from'] ?? CarbonImmutable::now()->subDays(15);
         $to = $query['to'] ?? CarbonImmutable::now();
-        $list = $this->client->shopGet($auth, $this->client->endpoint('escrow_list'), [
-            'release_time_from' => $from->getTimestamp(), 'release_time_to' => $to->getTimestamp(), 'page_size' => 100,
-        ]);
-        $sns = array_values(array_filter(array_map('strval', (array) ($list['order_sn_list'] ?? []))));
+        $sns = [];
+        $pageNo = 1;
+        for ($i = 0; $i < 100; $i++) { // safety cap 100 pages
+            $list = $this->client->shopGet($auth, $this->client->endpoint('escrow_list'), [
+                'release_time_from' => $from->getTimestamp(), 'release_time_to' => $to->getTimestamp(),
+                'page_size' => 100, 'page_no' => $pageNo,
+            ]);
+            foreach ((array) ($list['order_sn_list'] ?? []) as $sn) {
+                $sns[] = (string) $sn;
+            }
+            if (! (bool) ($list['more'] ?? false)) {
+                break;
+            }
+            $pageNo++;
+        }
+        $sns = array_values(array_unique(array_filter($sns)));
         $escrows = [];
         foreach ($sns as $sn) {
             $detail = $this->client->shopGet($auth, $this->client->endpoint('escrow_detail'), ['order_sn' => $sn]);

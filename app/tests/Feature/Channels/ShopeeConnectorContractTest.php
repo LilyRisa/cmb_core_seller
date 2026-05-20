@@ -299,4 +299,71 @@ class ShopeeConnectorContractTest extends TestCase
         $this->assertContains('commission', $types);
         $this->assertContains('revenue', $types);
     }
+
+    public function test_fetch_settlements_paginates_escrow_list(): void
+    {
+        // escrow_list returns more=true on page 1, more=false on page 2.
+        // escrow_detail is called for each SN found across both pages.
+        $page1Response = ShopeeFixtures::escrowListPage1();
+        $page2Response = ShopeeFixtures::escrowListPage2();
+
+        Http::fake(function (\Illuminate\Http\Client\Request $r) use ($page1Response, $page2Response) {
+            if (str_contains($r->url(), '/api/v2/payment/get_escrow_list')) {
+                $pageNo = (int) ($r['page_no'] ?? 1);
+
+                return Http::response($pageNo === 1 ? $page1Response : $page2Response, 200);
+            }
+            // escrow_detail — return a minimal valid detail for whatever SN is requested
+            $sn = (string) ($r['order_sn'] ?? 'SN_UNKNOWN');
+
+            return Http::response(['error' => '', 'response' => [
+                'order_sn' => $sn,
+                'order_income' => [
+                    'escrow_amount' => 100000, 'buyer_total_amount' => 120000,
+                    'commission_fee' => 10000, 'service_fee' => 2000, 'seller_transaction_fee' => 1000,
+                    'actual_shipping_fee' => 8000, 'shopee_shipping_rebate' => 5000,
+                    'voucher_from_seller' => 0, 'voucher_from_shopee' => 0,
+                ],
+            ]], 200);
+        });
+
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+        $connector = $this->connector();
+        config(['integrations.shopee.finance_enabled' => true]);
+
+        $connector->fetchSettlements($auth, [
+            'from' => \Carbon\CarbonImmutable::parse('2026-01-01T00:00:00Z'),
+            'to' => \Carbon\CarbonImmutable::parse('2026-01-15T00:00:00Z'),
+        ]);
+
+        // escrow_list must have been called at least twice (once per page)
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/api/v2/payment/get_escrow_list') && (int) ($r['page_no'] ?? 0) === 1);
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/api/v2/payment/get_escrow_list') && (int) ($r['page_no'] ?? 0) === 2);
+        // escrow_detail must have been fetched for both SNs
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/api/v2/payment/get_escrow_detail') && ($r['order_sn'] ?? '') === 'SN_P1');
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/api/v2/payment/get_escrow_detail') && ($r['order_sn'] ?? '') === 'SN_P2');
+    }
+
+    public function test_arrange_shipment_uses_dropoff_when_offered(): void
+    {
+        Http::fake([
+            '*/api/v2/logistics/get_shipping_parameter*' => Http::response(ShopeeFixtures::shippingParameterDropoff(), 200),
+            '*/api/v2/logistics/ship_order*' => Http::response(ShopeeFixtures::shipOrder(), 200),
+            '*/api/v2/logistics/get_tracking_number*' => Http::response(ShopeeFixtures::trackingNumber(), 200),
+        ]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        $res = $this->connector()->arrangeShipment($auth, 'SN_1', ['packages' => [['externalPackageId' => 'PKG_1']]]);
+
+        $this->assertSame('TRK123', $res['tracking_no']);
+        // ship_order request body must contain a 'dropoff' key
+        Http::assertSent(function (\Illuminate\Http\Client\Request $r) {
+            if (! str_contains($r->url(), '/api/v2/logistics/ship_order')) {
+                return false;
+            }
+            $data = $r->data();
+
+            return array_key_exists('dropoff', $data);
+        });
+    }
 }

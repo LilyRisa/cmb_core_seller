@@ -412,6 +412,7 @@ return [
         'order_window_days'   => 15,                            // max get_order_list window
         'fulfillment_enabled' => (bool) env('INTEGRATIONS_SHOPEE_FULFILLMENT', true),
         'fulfillment_mode'    => env('SHOPEE_FULFILLMENT_MODE', 'auto'),  // 'auto' | 'refetch_only'
+        'ship_method'  => env('SHOPEE_SHIP_METHOD', 'auto'),  // 'auto' | 'dropoff' | 'pickup' — exact selection verify trên sandbox
         'finance_enabled'     => (bool) env('INTEGRATIONS_SHOPEE_FINANCE', false),
         'endpoints' => [
             'auth_partner'              => '/api/v2/shop/auth_partner',

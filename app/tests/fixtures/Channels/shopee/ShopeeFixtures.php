@@ -130,6 +130,24 @@ final class ShopeeFixtures
         return ['error' => '', 'response' => ['order_sn_list' => ['SN_1'], 'more' => false]];
     }
 
+    /** Page 1 of a multi-page escrow list (more=true). */
+    public static function escrowListPage1(): array
+    {
+        return ['error' => '', 'response' => ['order_sn_list' => ['SN_P1'], 'more' => true]];
+    }
+
+    /** Page 2 of a multi-page escrow list (more=false / last page). */
+    public static function escrowListPage2(): array
+    {
+        return ['error' => '', 'response' => ['order_sn_list' => ['SN_P2'], 'more' => false]];
+    }
+
+    /** shipping_parameter response where the platform offers a dropoff option. */
+    public static function shippingParameterDropoff(): array
+    {
+        return ['error' => '', 'response' => ['dropoff' => ['branch_list' => [['branch_id' => 7]]], 'pickup' => []]];
+    }
+
     public static function escrowDetail(): array
     {
         return ['error' => '', 'response' => [

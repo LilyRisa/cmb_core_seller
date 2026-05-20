@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Integrations\Channels\Shopee;
 
 use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -20,11 +21,19 @@ class ShopeeWebhookVerifier
         $raw = $request->getContent();
         $provided = trim((string) $request->headers->get('Authorization', ''));
         if ($partnerKey === '' || $provided === '') {
-            return (string) ($cfg['webhook_verify_mode'] ?? 'strict') === 'lenient';
+            if ((string) ($cfg['webhook_verify_mode'] ?? 'strict') === 'lenient') {
+                \Illuminate\Support\Facades\Log::warning('shopee.webhook.signature_mismatch_but_accepted', ['mode' => 'lenient', 'has_header' => $provided !== '']);
+
+                return true;
+            }
+
+            return false;
         }
         $expected = hash_hmac('sha256', $pushUrl.'|'.$raw, $partnerKey);
         $ok = hash_equals($expected, strtolower($provided));
         if (! $ok && (string) ($cfg['webhook_verify_mode'] ?? 'strict') === 'lenient') {
+            \Illuminate\Support\Facades\Log::warning('shopee.webhook.signature_mismatch_but_accepted', ['mode' => 'lenient', 'has_header' => $provided !== '']);
+
             return true;
         }
 

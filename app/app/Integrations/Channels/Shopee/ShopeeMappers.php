@@ -83,6 +83,7 @@ final class ShopeeMappers
             placedAt: isset($d['create_time']) ? CarbonImmutable::createFromTimestamp((int) $d['create_time']) : null,
             paidAt: isset($d['pay_time']) ? CarbonImmutable::createFromTimestamp((int) $d['pay_time']) : null,
             buyer: ['name' => (string) ($addr['name'] ?? ($d['buyer_username'] ?? '')), 'phone' => (string) ($addr['phone'] ?? '')],
+            // Địa chỉ VN: province-level lấy `city` (fallback `state`/region). ⚠ field chính xác phải verify trên sandbox Shopee.
             shippingAddress: [
                 'fullName' => (string) ($addr['name'] ?? ''), 'phone' => (string) ($addr['phone'] ?? ''),
                 'line1' => (string) ($addr['full_address'] ?? ''), 'ward' => (string) ($addr['town'] ?? ''),
@@ -163,6 +164,8 @@ final class ShopeeMappers
                     $revenue += $amount;
                 } elseif ($type === SettlementLineDTO::TYPE_SHIPPING_FEE || $type === SettlementLineDTO::TYPE_SHIPPING_SUBSIDY) {
                     $ship += $amount;
+                } elseif ($type === SettlementLineDTO::TYPE_VOUCHER_SELLER || $type === SettlementLineDTO::TYPE_VOUCHER_PLATFORM) {
+                    // vouchers tracked as lines only — not part of platform-fee total (SettlementDTO.totalFee = commission+payment+...)
                 } else {
                     $fee += $amount;
                 }
