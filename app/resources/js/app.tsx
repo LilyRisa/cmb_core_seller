@@ -28,6 +28,7 @@ import { MessagingTemplatesPage } from '@/pages/MessagingTemplatesPage';
 import { MessagingAutoRulesPage } from '@/pages/MessagingAutoRulesPage';
 import { MessagingKnowledgePage } from '@/pages/MessagingKnowledgePage';
 import { MessagingSettingsPage } from '@/pages/MessagingSettingsPage';
+import { MessagingChannelsPage } from '@/pages/MessagingChannelsPage';
 import { InventoryPage } from '@/pages/InventoryPage';
 import { CreateSkuPage } from '@/pages/CreateSkuPage';
 import { CreateOrderPage } from '@/pages/CreateOrderPage';
@@ -94,6 +95,7 @@ function Root() {
                 <Route path="customers/:id" element={<CustomerDetailPage />} />
                 {/* SPEC-0024 — Hộp thư hợp nhất + trang quản lý. */}
                 <Route path="messaging" element={<MessagingPage />} />
+                <Route path="messaging/channels" element={<MessagingChannelsPage />} />
                 <Route path="messaging/templates" element={<MessagingTemplatesPage />} />
                 <Route path="messaging/auto-rules" element={<MessagingAutoRulesPage />} />
                 <Route path="messaging/knowledge" element={<MessagingKnowledgePage />} />

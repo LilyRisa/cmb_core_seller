@@ -7,6 +7,7 @@ export function MessagingNav() {
     const { pathname } = useLocation();
     const options = [
         { label: 'Hộp thư', value: '/messaging' },
+        { label: 'Kết nối kênh', value: '/messaging/channels' },
         { label: 'Mẫu tin', value: '/messaging/templates' },
         { label: 'Tự động trả lời', value: '/messaging/auto-rules' },
         { label: 'AI training', value: '/messaging/knowledge' },

@@ -42,6 +42,7 @@ function buildNav(): MenuProps['items'] {
             { key: '/customers', icon: <TeamOutlined />, label: <Link to="/customers">Khách hàng</Link> },
             { key: 'messaging', icon: <MessageOutlined />, label: 'Tin nhắn', children: [
                 { key: '/messaging', label: <Link to="/messaging">Hộp thư</Link> },
+                { key: '/messaging/channels', label: <Link to="/messaging/channels">Kết nối kênh</Link> },
                 { key: '/messaging/templates', label: <Link to="/messaging/templates">Mẫu tin</Link> },
                 { key: '/messaging/auto-rules', label: <Link to="/messaging/auto-rules">Tự động trả lời</Link> },
                 { key: '/messaging/knowledge', label: <Link to="/messaging/knowledge">AI training</Link> },

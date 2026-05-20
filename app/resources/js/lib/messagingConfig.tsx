@@ -187,3 +187,36 @@ export function useConnectFacebook() {
             (await api!.post<{ data: { authorize_url: string } }>('/messaging/facebook/connect')).data.data,
     });
 }
+
+// --- Quản lý kênh Facebook Page (UI /messaging/channels) -------------------
+
+export interface MessagingChannel {
+    id: number;
+    provider: string;
+    shop_name: string | null;
+    name: string;
+    external_shop_id: string;
+    status: string;
+    messaging_enabled: boolean;
+    token_expired: boolean;
+    connected_at: string | null;
+}
+
+export function useMessagingChannels() {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['messaging', 'channels', tenantId],
+        enabled: api != null,
+        queryFn: async () => (await api!.get<{ data: MessagingChannel[] }>('/messaging/channels')).data.data,
+    });
+}
+
+export function useDisconnectFacebookPage() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: number) => { await api!.delete(`/messaging/channels/${id}`); },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'channels'] }),
+    });
+}
