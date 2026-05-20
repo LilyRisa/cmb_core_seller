@@ -195,14 +195,15 @@ class ShopeeConnector implements ChannelConnector
         if ($itemId === 0) {
             throw new ShopeeApiException('Shopee updateStock requires external_product_id (item_id).', 'error_param');
         }
-        // No-variant items use externalSkuId == item_id and model_id 0; variant items use the numeric model_id.
-        $modelId = ((string) $externalSkuId === (string) $itemId) ? 0 : (int) $externalSkuId;
+        // Có variant: externalSkuId là model_id. Không variant (externalSkuId == item_id): BỎ model_id
+        // (theo body chính thức v2.product.update_stock — shopee_docs/05-stock-and-price.md).
+        $sellerStock = ['seller_stock' => [['stock' => max(0, $available)]]];
+        $entry = ((string) $externalSkuId === (string) $itemId)
+            ? $sellerStock
+            : ['model_id' => (int) $externalSkuId] + $sellerStock;
         $this->client->shopPost($auth, $this->client->endpoint('update_stock'), [], [
             'item_id' => $itemId,
-            'stock_list' => [[
-                'model_id' => $modelId,
-                'seller_stock' => [['stock' => max(0, $available)]],
-            ]],
+            'stock_list' => [$entry],
         ]);
     }
 

@@ -193,7 +193,8 @@ class ShopeeClient
 
     /**
      * NOTE: `sandbox=true` does NOT auto-switch the host (mirrors Lazada/TikTok convention).
-     * For sandbox set SHOPEE_API_BASE_URL=https://partner.test-stable.shopeemobile.com explicitly.
+     * Prod: https://partner.shopeemobile.com · Sandbox (VN/Global): https://openplatform.sandbox.test-stable.shopee.sg
+     * Set SHOPEE_API_BASE_URL explicitly. (KHÔNG dùng partner.test-stable.shopeemobile.com — sai host.)
      */
     protected function baseUrl(): string
     {

@@ -4,7 +4,7 @@
 - **Phase:** Phase 4 — `04-channels/shopee.md` ("Chờ cấp API"), `04-channels/README.md` §5 (Shopee = chờ Phase 4). Connector mới, **không** đụng core.
 - **Module backend chính:** `Integrations/Channels/Shopee` (mới) + sửa nhỏ shared OAuth seam (`ChannelConnector` interface, `ChannelConnectionService`, `OAuthCallbackController`, `TokenRefresher`) theo kiểu cộng tham số optional (không phá Lazada/TikTok/Manual).
 - **Liên quan:** ADR-0004 (connector registry), `01-architecture/extensibility-rules.md`, `04-channels/README.md` (DTO chuẩn + capability map), `04-channels/shopee.md` (đặc tả sàn), `04-channels/tiktok-shop.md` + `lazada.md` (mẫu), specs `0001-tiktok-order-sync.md` + `0008-lazada-channel.md`, `03-domain/order-sync-pipeline.md`, `03-domain/order-status-state-machine.md` §4, SPEC-0016 (finance/settlement).
-- **Nguồn API:** Shopee Open Platform API v2 (`partner.shopeemobile.com`; sandbox `partner.test-stable.shopeemobile.com`).
+- **Nguồn API:** Shopee Open Platform API v2 — production `partner.shopeemobile.com`; sandbox VN/Global `openplatform.sandbox.test-stable.shopee.sg` (xác minh từ docs chính thức, xem `shopee_docs/`). ⚠ `partner.test-stable.shopeemobile.com` (SDK cộng đồng) là SAI.
 
 ---
 

@@ -141,7 +141,7 @@ class ShopeeConnectorContractTest extends TestCase
     private function signedPush(array $body): \Illuminate\Http\Request
     {
         $raw = json_encode($body, JSON_UNESCAPED_SLASHES);
-        $pushUrl = 'https://partner.test-stable.shopeemobile.com/webhook/shopee';
+        $pushUrl = 'https://app.cmbcore.com/webhook/shopee';
         config(['integrations.shopee.push_url' => $pushUrl]);
         $sign = hash_hmac('sha256', $pushUrl.'|'.$raw, 'PARTNER_KEY');
         $req = \Illuminate\Http\Request::create($pushUrl, 'POST', content: $raw);
@@ -156,7 +156,7 @@ class ShopeeConnectorContractTest extends TestCase
         $req = $this->signedPush(['code' => 3, 'shop_id' => 55, 'timestamp' => 1700000000, 'data' => json_encode(['ordersn' => 'SN_9', 'status' => 'READY_TO_SHIP'])]);
         $this->assertTrue($this->connector()->verifyWebhookSignature($req));
 
-        $bad = \Illuminate\Http\Request::create('https://partner.test-stable.shopeemobile.com/webhook/shopee', 'POST', content: '{}');
+        $bad = \Illuminate\Http\Request::create('https://app.cmbcore.com/webhook/shopee', 'POST', content: '{}');
         $bad->headers->set('Authorization', 'deadbeef');
         $this->assertFalse($this->connector()->verifyWebhookSignature($bad));
     }
@@ -174,15 +174,19 @@ class ShopeeConnectorContractTest extends TestCase
 
     public function test_parse_webhook_deauthorized(): void
     {
-        $req = $this->signedPush(['code' => 1, 'shop_id' => 55, 'timestamp' => 1700000000, 'data' => json_encode(['success' => 1])]);
+        // Code 2 = Shop Authorization Canceled (deauth). Code 1 = authorization GRANTED (không revoke).
+        $req = $this->signedPush(['code' => 2, 'shop_id' => 55, 'timestamp' => 1700000000, 'data' => json_encode(['success' => 1])]);
         $this->assertSame('shop_deauthorized', $this->connector()->parseWebhook($req)->type);
+
+        $granted = $this->signedPush(['code' => 1, 'shop_id' => 55, 'timestamp' => 1700000000, 'data' => json_encode(['success' => 1])]);
+        $this->assertSame('unknown', $this->connector()->parseWebhook($granted)->type);
     }
 
     public function test_verify_uses_separate_push_partner_key_when_set(): void
     {
         // Shopee Push Mechanism cấp Push Partner Key RIÊNG với partner_key API.
         $c = $this->connector();
-        $pushUrl = 'https://partner.test-stable.shopeemobile.com/webhook/shopee';
+        $pushUrl = 'https://app.cmbcore.com/webhook/shopee';
         config(['integrations.shopee.push_url' => $pushUrl, 'integrations.shopee.push_partner_key' => 'PUSH_KEY_TEST']);
         $raw = json_encode(['code' => 3, 'shop_id' => 55, 'timestamp' => 1700000000, 'data' => json_encode(['ordersn' => 'SN_9', 'status' => 'READY_TO_SHIP'])], JSON_UNESCAPED_SLASHES);
 

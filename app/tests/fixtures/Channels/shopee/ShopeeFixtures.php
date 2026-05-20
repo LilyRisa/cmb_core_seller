@@ -10,7 +10,7 @@ final class ShopeeFixtures
         config([
             'integrations.shopee.partner_id' => 1001,
             'integrations.shopee.partner_key' => 'PARTNER_KEY',
-            'integrations.shopee.base_url' => 'https://partner.test-stable.shopeemobile.com',
+            'integrations.shopee.base_url' => 'https://openplatform.sandbox.test-stable.shopee.sg',
             'integrations.shopee.finance_enabled' => false,
             'integrations.shopee.fulfillment_enabled' => true,
             'integrations.shopee.status_map' => [
@@ -18,7 +18,7 @@ final class ShopeeFixtures
                 'RETRY_SHIP' => 'processing', 'SHIPPED' => 'shipped', 'TO_CONFIRM_RECEIVE' => 'delivered',
                 'COMPLETED' => 'completed', 'IN_CANCEL' => 'processing', 'CANCELLED' => 'cancelled', 'TO_RETURN' => 'returning',
             ],
-            'integrations.shopee.webhook_event_types' => [1 => 'shop_deauthorized', 3 => 'order_status_update', 6 => 'order_status_update'],
+            'integrations.shopee.webhook_event_types' => [1 => 'unknown', 2 => 'shop_deauthorized', 3 => 'order_status_update', 4 => 'order_status_update', 6 => 'product_update', 12 => 'unknown', 15 => 'unknown'],
             'integrations.shopee.endpoints' => [
                 'auth_partner' => '/api/v2/shop/auth_partner', 'token_get' => '/api/v2/auth/token/get',
                 'token_refresh' => '/api/v2/auth/access_token/get', 'shop_info' => '/api/v2/shop/get_shop_info',

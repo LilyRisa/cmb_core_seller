@@ -407,6 +407,8 @@ return [
         // Để trống ⇒ verify push fallback về partner_key (khi sàn dùng chung 1 key). Bí mật.
         'push_partner_key' => env('SHOPEE_PUSH_PARTNER_KEY'),
         'sandbox'      => (bool) env('SHOPEE_SANDBOX', true),
+        // Production: https://partner.shopeemobile.com · Sandbox (VN/Global): https://openplatform.sandbox.test-stable.shopee.sg
+        // (CN sandbox: ...shopee.cn). KHÔNG dùng partner.test-stable.shopeemobile.com (sai). Xem shopee_docs/02-*.md.
         'base_url'     => env('SHOPEE_API_BASE_URL', 'https://partner.shopeemobile.com'),
         'redirect_uri' => env('SHOPEE_REDIRECT_URI'),          // default url('/oauth/shopee/callback')
         'push_url'     => env('SHOPEE_PUSH_URL'),               // default url('/webhook/shopee') — để verify chữ ký push
@@ -452,12 +454,16 @@ return [
             'CANCELLED'          => 'cancelled',
             'TO_RETURN'          => 'returning',
         ],
+        // Mã push CHÍNH THỨC (open.shopee.com/developer-guide/18 — xem shopee_docs/03-push-mechanism-webhook.md).
         'webhook_event_types' => [
-            1 => 'shop_deauthorized',   // shop authorization/deauthorization (partner-level)
-            3 => 'order_status_update', // order status (data.ordersn, data.status)
-            4 => 'product_update',      // item update (verify)
-            6 => 'order_status_update', // tracking number update → re-fetch order
-            // 2,5,7..13: verify sandbox trước khi dùng — default 'unknown'
+            1  => 'unknown',              // Shop Authorization GRANTED (KHÔNG phải deauth)
+            2  => 'shop_deauthorized',    // Shop Authorization Canceled (đây mới là huỷ quyền)
+            3  => 'order_status_update',  // Order Status Update (data.ordersn, data.status)
+            4  => 'order_status_update',  // Order TrackingNo Update → re-fetch đơn
+            6  => 'product_update',       // Banned Item
+            12 => 'unknown',              // Auth Expiry warning (7 ngày trước) — KHÔNG revoke sớm
+            15 => 'unknown',              // Shipping Document Status (READY/FAILED)
+            // 5,7,8,9,10,11,13: marketing/product/chat — chưa dùng cho connector đơn.
         ],
     ],
 

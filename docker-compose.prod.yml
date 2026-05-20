@@ -131,8 +131,9 @@ x-app-env: &app-env
   # fallback dùng PARTNER_KEY. Bí mật — nhập ở Portainer/.env, hoặc /admin/system-settings (marketplace.shopee.push_partner_key).
   SHOPEE_PUSH_PARTNER_KEY: ${SHOPEE_PUSH_PARTNER_KEY:-}
   SHOPEE_SANDBOX: "${SHOPEE_SANDBOX:-true}"
-  # Sandbox=true KHÔNG tự đổi host — đặt SHOPEE_API_BASE_URL=https://partner.test-stable.shopeemobile.com khi test. prod https://partner.shopeemobile.com
-  SHOPEE_API_BASE_URL: ${SHOPEE_API_BASE_URL:-https://partner.test-stable.shopeemobile.com}
+  # Host API (CHÍNH THỨC theo open.shopee.com): SANDBOX VN/Global = https://openplatform.sandbox.test-stable.shopee.sg ;
+  # PRODUCTION = https://partner.shopeemobile.com. (Đang để mặc định SANDBOX để test — đổi sang prod khi go-live.)
+  SHOPEE_API_BASE_URL: ${SHOPEE_API_BASE_URL:-https://openplatform.sandbox.test-stable.shopee.sg}
   INTEGRATIONS_SHOPEE_FULFILLMENT: "${INTEGRATIONS_SHOPEE_FULFILLMENT:-true}"
   INTEGRATIONS_SHOPEE_FINANCE: "${INTEGRATIONS_SHOPEE_FINANCE:-false}"
   SHOPEE_SHIP_METHOD: ${SHOPEE_SHIP_METHOD:-auto}
