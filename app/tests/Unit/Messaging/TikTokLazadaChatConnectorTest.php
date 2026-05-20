@@ -97,6 +97,14 @@ class TikTokLazadaChatConnectorTest extends TestCase
         $result = (new LazadaChatConnector)->sendText($auth, 'SESS_1', 'Xin chào');
 
         $this->assertSame('LZ_OUT', $result->externalMessageId);
-        Http::assertSent(fn ($r) => str_contains($r->url(), '/im/message/send'));
+        Http::assertSent(function ($r) {
+            $d = $r->data();
+
+            return str_contains($r->url(), '/im/message/send')
+                && ($d['template_id'] ?? null) === '1'   // text template
+                && ($d['session_id'] ?? null) === 'SESS_1'
+                && ($d['txt'] ?? null) === 'Xin chào'
+                && ! empty($d['sign']);
+        });
     }
 }

@@ -152,18 +152,33 @@ class LazadaChatConnector implements MessagingConnector
         throw UnsupportedOperation::for($this->code(), 'fetchMessages');
     }
 
+    /**
+     * `template_id` của Lazada IM `/im/message/send` chọn loại nội dung; field
+     * content đi kèm tương ứng (txt / img_url+width+height / item_id / order_id /
+     * promotion_id). Giá trị int chuẩn theo doc Lazada IM Open API + SDK
+     * `lazada-openapi`. (Xem docs/04-channels/lazada-chat-setup.md — verify lại
+     * trên sandbox vì doc Lazada gated.)
+     */
+    private const TEMPLATE_TEXT = 1;
+
+    private const TEMPLATE_IMAGE = 2;
+
     public function sendText(MessagingAuthContext $auth, string $externalConversationId, string $body, array $opts = []): SendResultDTO
     {
-        return $this->send($auth, $externalConversationId, ['txt' => $body], 'text');
+        return $this->send($auth, $externalConversationId, self::TEMPLATE_TEXT, ['txt' => $body]);
     }
 
     public function sendMedia(MessagingAuthContext $auth, string $externalConversationId, MediaRefDTO $media, array $opts = []): SendResultDTO
     {
         if ($media->kind->value !== 'image') {
-            throw UnsupportedOperation::for($this->code(), 'sendMedia ('.$media->kind->value.')');
+            throw UnsupportedOperation::for($this->code(), 'sendMedia ('.$media->kind->value.') — Lazada IM chỉ hỗ trợ ảnh');
         }
 
-        return $this->send($auth, $externalConversationId, ['img' => $media->externalUrl], 'image');
+        return $this->send($auth, $externalConversationId, self::TEMPLATE_IMAGE, array_filter([
+            'img_url' => $media->externalUrl,
+            'width' => $media->width,
+            'height' => $media->height,
+        ], fn ($v) => $v !== null));
     }
 
     public function sendTemplate(MessagingAuthContext $auth, string $externalConversationId, string $templateKey, array $vars = [], array $opts = []): SendResultDTO
@@ -177,30 +192,38 @@ class LazadaChatConnector implements MessagingConnector
     }
 
     /**
-     * Gửi message qua Lazada IM (`/im/message/send`), ký bằng LazadaSigner.
+     * Gửi message qua Lazada IM `/im/message/send`.
      *
-     * @param  array<string,mixed>  $message
+     * Tham số THẬT (Lazada Open Platform + SDK lazada-openapi): system params
+     * (app_key/sign_method/timestamp/access_token/sign) + `session_id` +
+     * `template_id` + field content phẳng (`txt` | `img_url`,`width`,`height` |
+     * `item_id` | `order_id`). Ký bằng {@see LazadaSigner} (sha256, UPPERCASE).
+     * Lazada nhận business params ở query/form nên đưa hết vào 1 map đã ký.
+     *
+     * @param  array<string,scalar>  $content  field nội dung theo template_id
      */
-    private function send(MessagingAuthContext $auth, string $sessionId, array $message, string $type): SendResultDTO
+    private function send(MessagingAuthContext $auth, string $sessionId, int $templateId, array $content): SendResultDTO
     {
         $cfg = (array) config('integrations.lazada', []);
         $base = rtrim((string) ($cfg['base_url'] ?? 'https://api.lazada.vn/rest'), '/');
         $path = '/im/message/send';
 
-        $params = [
+        $params = array_merge([
             'app_key' => (string) ($cfg['app_key'] ?? ''),
             'access_token' => $auth->accessToken,
             'sign_method' => 'sha256',
             'timestamp' => (string) (int) (microtime(true) * 1000),
             'session_id' => $sessionId,
-            'message_type' => $type,
-            'message' => json_encode($message, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-        ];
+            'template_id' => (string) $templateId,
+        ], array_map(fn ($v) => (string) $v, $content));
+
         $params['sign'] = LazadaSigner::sign((string) ($cfg['app_secret'] ?? ''), $path, $params);
 
         $response = Http::asForm()->timeout(30)->retry(2, 500, throw: false)->post($base.$path, $params);
 
-        if (! $response->successful() || ($response->json('code') !== null && (string) $response->json('code') !== '0')) {
+        // Lazada: thành công khi `code` rỗng/'0'. Có `code` khác ⇒ lỗi (kèm message để debug).
+        $code = $response->json('code');
+        if (! $response->successful() || ($code !== null && (string) $code !== '0' && (string) $code !== '')) {
             throw new \RuntimeException('Lazada IM send failed: '.$response->body());
         }
 
