@@ -128,8 +128,12 @@ class ShopeeClient
         $this->throttle($auth);
         $url = rtrim($this->baseUrl(), '/').$path.'?'.http_build_query($this->shopParams($auth, $path));
         $resp = $this->http()->post($url, $body);
-        if (! $resp->successful()) {
-            $this->fail($path, $resp->json() ?? [], $resp->status());
+
+        // Shopee returns HTTP 200 with a JSON `error` envelope even for binary endpoints on app-level errors;
+        // a real document body is binary (not valid JSON) so $resp->json() is null for it.
+        $json = $resp->json();
+        if (! $resp->successful() || (is_array($json) && (string) ($json['error'] ?? '') !== '')) {
+            $this->fail($path, is_array($json) ? $json : [], $resp->status());
         }
 
         return (string) $resp->body();
@@ -183,9 +187,14 @@ class ShopeeClient
             $this->fail($path, $json, $resp->status());
         }
 
-        return (array) ($json['response'] ?? $json);
+        // Token endpoints (publicPost) put data at the root (no `response` key); shop endpoints wrap in `response`.
+        return array_key_exists('response', $json) ? (array) ($json['response'] ?? []) : $json;
     }
 
+    /**
+     * NOTE: `sandbox=true` does NOT auto-switch the host (mirrors Lazada/TikTok convention).
+     * For sandbox set SHOPEE_API_BASE_URL=https://partner.test-stable.shopeemobile.com explicitly.
+     */
     protected function baseUrl(): string
     {
         return (string) ($this->cfg['base_url'] ?? 'https://partner.shopeemobile.com');

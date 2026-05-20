@@ -407,7 +407,7 @@ return [
         'base_url'     => env('SHOPEE_API_BASE_URL', 'https://partner.shopeemobile.com'),
         'redirect_uri' => env('SHOPEE_REDIRECT_URI'),          // default url('/oauth/shopee/callback')
         'push_url'     => env('SHOPEE_PUSH_URL'),               // default url('/webhook/shopee') — để verify chữ ký push
-        'http'         => ['timeout' => 20, 'retries' => 2, 'retry_sleep_ms' => 500],
+        'http'         => ['timeout' => (int) env('SHOPEE_HTTP_TIMEOUT', 20), 'retries' => (int) env('SHOPEE_HTTP_RETRIES', 2), 'retry_sleep_ms' => (int) env('SHOPEE_HTTP_RETRY_SLEEP_MS', 500)],
         'webhook_verify_mode' => env('SHOPEE_WEBHOOK_VERIFY_MODE', 'strict'),
         'order_window_days'   => 15,                            // max get_order_list window
         'fulfillment_enabled' => (bool) env('INTEGRATIONS_SHOPEE_FULFILLMENT', true),
