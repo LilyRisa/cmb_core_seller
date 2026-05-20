@@ -127,9 +127,9 @@ x-app-env: &app-env
   # /admin/system-settings (marketplace.shopee.partner_id/partner_key/sandbox) — DB đè config.
   SHOPEE_PARTNER_ID: ${SHOPEE_PARTNER_ID:-}
   SHOPEE_PARTNER_KEY: ${SHOPEE_PARTNER_KEY:-}
-  SHOPEE_SANDBOX: "${SHOPEE_SANDBOX:-false}"
-  # Sandbox=true KHÔNG tự đổi host — đặt SHOPEE_API_BASE_URL=https://partner.test-stable.shopeemobile.com khi test.
-  SHOPEE_API_BASE_URL: ${SHOPEE_API_BASE_URL:-https://partner.shopeemobile.com}
+  SHOPEE_SANDBOX: "${SHOPEE_SANDBOX:-true}"
+  # Sandbox=true KHÔNG tự đổi host — đặt SHOPEE_API_BASE_URL=https://partner.test-stable.shopeemobile.com khi test. prod https://partner.shopeemobile.com
+  SHOPEE_API_BASE_URL: ${SHOPEE_API_BASE_URL:-https://partner.test-stable.shopeemobile.com}
   INTEGRATIONS_SHOPEE_FULFILLMENT: "${INTEGRATIONS_SHOPEE_FULFILLMENT:-true}"
   INTEGRATIONS_SHOPEE_FINANCE: "${INTEGRATIONS_SHOPEE_FINANCE:-false}"
   SHOPEE_SHIP_METHOD: ${SHOPEE_SHIP_METHOD:-auto}
