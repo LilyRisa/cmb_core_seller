@@ -74,4 +74,30 @@ class MessagingChannelControllerTest extends TestCase
             ->postJson('/api/v1/messaging/facebook/connect')
             ->assertStatus(403);
     }
+
+    public function test_index_lists_only_facebook_pages_without_token(): void
+    {
+        \CMBcoreSeller\Modules\Channels\Models\ChannelAccount::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'provider' => 'facebook_page',
+            'external_shop_id' => 'PAGE_1', 'shop_name' => 'Shop FB', 'status' => 'active',
+            'access_token' => 'SECRET_PAGE_TOKEN', 'messaging_enabled' => true,
+        ]);
+        // 1 gian hàng sàn — KHÔNG được xuất hiện trong list facebook.
+        \CMBcoreSeller\Modules\Channels\Models\ChannelAccount::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'provider' => 'lazada',
+            'external_shop_id' => 'LZ_1', 'shop_name' => 'Shop LZ', 'status' => 'active',
+        ]);
+
+        $res = $this->actingAs($this->userWithRole(Role::Owner))
+            ->withHeaders($this->h())
+            ->getJson('/api/v1/messaging/channels')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.external_shop_id', 'PAGE_1')
+            ->assertJsonPath('data.0.messaging_enabled', true)
+            ->assertJsonPath('data.0.token_expired', false);
+
+        // Không lộ token
+        $this->assertStringNotContainsString('SECRET_PAGE_TOKEN', $res->getContent());
+    }
 }
