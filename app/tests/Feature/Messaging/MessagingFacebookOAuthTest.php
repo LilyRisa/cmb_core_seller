@@ -39,12 +39,12 @@ class MessagingFacebookOAuthTest extends TestCase
         $tenant = Tenant::create(['name' => 'FbShop']);
         OAuthState::create([
             'state' => 'st_valid_123', 'provider' => 'facebook_page', 'tenant_id' => $tenant->getKey(),
-            'created_by' => null, 'redirect_after' => '/messaging?connected=facebook_page',
+            'created_by' => null, 'redirect_after' => '/messaging/channels?connected=facebook_page',
             'expires_at' => now()->addMinutes(10),
         ]);
 
         $this->get('/oauth/facebook_page/callback?code=CODE&state=st_valid_123')
-            ->assertRedirect('/messaging?connected=facebook_page');
+            ->assertRedirect('/messaging/channels?connected=facebook_page');
 
         $this->assertDatabaseHas('channel_accounts', [
             'tenant_id' => $tenant->getKey(),
@@ -60,7 +60,7 @@ class MessagingFacebookOAuthTest extends TestCase
     public function test_callback_rejects_invalid_state(): void
     {
         $this->get('/oauth/facebook_page/callback?code=CODE&state=bogus')
-            ->assertRedirect('/messaging?error=facebook_oauth_state');
+            ->assertRedirect('/messaging/channels?error=facebook_oauth_state');
 
         $this->assertSame(0, ChannelAccount::withoutGlobalScopes()->where('provider', 'facebook_page')->count());
     }

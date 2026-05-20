@@ -41,7 +41,7 @@ class FacebookOAuthController extends Controller
         Gate::authorize('messaging.connect');
 
         $tenantId = app(CurrentTenant::class)->id();
-        $state = OAuthState::issue(self::PROVIDER, (int) $tenantId, $request->user()?->id, '/messaging?connected=facebook_page');
+        $state = OAuthState::issue(self::PROVIDER, (int) $tenantId, $request->user()?->id, '/messaging/channels?connected=facebook_page');
 
         // KHÔNG truyền redirect_uri — connector dùng URI canonical (config/APP_URL)
         // cho cả dialog login lẫn đổi token, đảm bảo Meta thấy 2 URI giống hệt.
@@ -58,12 +58,12 @@ class FacebookOAuthController extends Controller
         $stateToken = (string) $request->query('state', '');
 
         if ($request->query('error') || $code === '' || $stateToken === '') {
-            return redirect('/messaging?error=facebook_oauth_'.preg_replace('/[^a-z0-9_]/i', '_', strtolower((string) $request->query('error', 'missing_params'))));
+            return redirect('/messaging/channels?error=facebook_oauth_'.preg_replace('/[^a-z0-9_]/i', '_', strtolower((string) $request->query('error', 'missing_params'))));
         }
 
         $state = OAuthState::query()->where('state', $stateToken)->where('provider', self::PROVIDER)->first();
         if (! $state || $state->isExpired()) {
-            return redirect('/messaging?error=facebook_oauth_state');
+            return redirect('/messaging/channels?error=facebook_oauth_state');
         }
 
         try {
@@ -72,7 +72,7 @@ class FacebookOAuthController extends Controller
 
             $pages = $this->fetchPages($userToken);
             if ($pages === []) {
-                return redirect('/messaging?error=facebook_no_pages');
+                return redirect('/messaging/channels?error=facebook_no_pages');
             }
 
             $connected = 0;
@@ -107,10 +107,10 @@ class FacebookOAuthController extends Controller
         } catch (\Throwable $e) {
             Log::warning('messaging.facebook.oauth_failed', ['error' => $e->getMessage()]);
 
-            return redirect('/messaging?error=facebook_oauth_failed');
+            return redirect('/messaging/channels?error=facebook_oauth_failed');
         }
 
-        return redirect($state->redirect_after ?: '/messaging?connected=facebook_page');
+        return redirect($state->redirect_after ?: '/messaging/channels?connected=facebook_page');
     }
 
     /**
