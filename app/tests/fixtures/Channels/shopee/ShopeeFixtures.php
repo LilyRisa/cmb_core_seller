@@ -79,4 +79,29 @@ final class ShopeeFixtures
             'package_list' => [['package_number' => 'PKG_1', 'shipping_carrier' => 'SPX Express']],
         ];
     }
+
+    public static function shippingParameter(): array
+    {
+        return ['error' => '', 'response' => ['dropoff' => [], 'pickup' => ['address_list' => [['address_id' => 9, 'time_slot_list' => [['pickup_time_id' => 'T1']]]]]]];
+    }
+
+    public static function shipOrder(): array
+    {
+        return ['error' => '', 'response' => []];
+    }
+
+    public static function trackingNumber(): array
+    {
+        return ['error' => '', 'response' => ['tracking_number' => 'TRK123', 'first_mile_tracking_number' => null]];
+    }
+
+    public static function createDocument(): array
+    {
+        return ['error' => '', 'response' => ['result_list' => [['order_sn' => 'SN_1', 'package_number' => 'PKG_1']]]];
+    }
+
+    public static function documentResult(string $status = 'READY'): array
+    {
+        return ['error' => '', 'response' => ['result_list' => [['order_sn' => 'SN_1', 'package_number' => 'PKG_1', 'status' => $status]]]];
+    }
 }

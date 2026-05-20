@@ -175,7 +175,38 @@ class ShopeeConnector implements ChannelConnector
 
     public function arrangeShipment(AuthContext $auth, string $externalOrderId, array $params = []): array
     {
-        throw UnsupportedOperation::for($this->code(), 'arrangeShipment'); // Task 6b
+        $cfg = $this->client->cfg();
+        $packageNumber = (string) ($params['packages'][0]['externalPackageId'] ?? '');
+
+        if ((string) ($cfg['fulfillment_mode'] ?? 'auto') !== 'refetch_only') {
+            $param = $this->client->shopGet($auth, $this->client->endpoint('shipping_parameter'), array_filter(['order_sn' => $externalOrderId, 'package_number' => $packageNumber ?: null]));
+            $body = ['order_sn' => $externalOrderId];
+            if ($packageNumber !== '') {
+                $body['package_number'] = $packageNumber;
+            }
+            // Prefer dropoff when offered, else pickup with first available slot.
+            if (! empty($param['dropoff'])) {
+                $body['dropoff'] = (object) [];
+            } else {
+                $addr = (array) ($param['pickup']['address_list'][0] ?? []);
+                $body['pickup'] = array_filter([
+                    'address_id' => $addr['address_id'] ?? null,
+                    'pickup_time_id' => $addr['time_slot_list'][0]['pickup_time_id'] ?? null,
+                ]);
+            }
+            $this->client->shopPost($auth, $this->client->endpoint('ship_order'), [], $body);
+        }
+
+        $track = $this->client->shopGet($auth, $this->client->endpoint('tracking_number'), array_filter([
+            'order_sn' => $externalOrderId, 'package_number' => $packageNumber ?: null,
+        ]));
+
+        return [
+            'tracking_no' => ($track['tracking_number'] ?? null) ? (string) $track['tracking_number'] : null,
+            'carrier' => null,
+            'raw_status' => 'PROCESSED',
+            'package_id' => $packageNumber ?: $externalOrderId,
+        ];
     }
 
     public function pushReadyToShip(AuthContext $auth, string $externalOrderId, array $params = []): array
@@ -185,7 +216,41 @@ class ShopeeConnector implements ChannelConnector
 
     public function getShippingDocument(AuthContext $auth, string $externalOrderId, array $query = []): array
     {
-        throw UnsupportedOperation::for($this->code(), 'getShippingDocument'); // Task 6b
+        $cfg = $this->client->cfg();
+        $packageNumber = (string) ($query['externalPackageId'] ?? '');
+        $docType = (string) ($cfg['document_type'] ?? 'NORMAL_AIR_WAYBILL');
+        $orderEntry = array_filter(['order_sn' => $externalOrderId, 'package_number' => $packageNumber ?: null, 'shipping_document_type' => $docType]);
+
+        $this->client->shopPost($auth, $this->client->endpoint('create_document'), [], ['order_list' => [$orderEntry]]);
+
+        $attempts = (int) ($cfg['document_poll_attempts'] ?? 6);
+        $sleepMs = (int) ($cfg['document_poll_sleep_ms'] ?? 1000);
+        $ready = false;
+        for ($i = 0; $i < $attempts; $i++) {
+            $res = $this->client->shopPost($auth, $this->client->endpoint('get_document_result'), [], [
+                'order_list' => [array_filter(['order_sn' => $externalOrderId, 'package_number' => $packageNumber ?: null])],
+            ]);
+            $status = (string) ($res['result_list'][0]['status'] ?? 'PROCESSING');
+            if ($status === 'READY') {
+                $ready = true;
+                break;
+            }
+            if ($status === 'FAILED') {
+                throw new ShopeeApiException("Shopee shipping document FAILED for {$externalOrderId}", 'document_failed');
+            }
+            if ($sleepMs > 0) {
+                usleep($sleepMs * 1000);
+            }
+        }
+        if (! $ready) {
+            throw new ShopeeApiException("Shopee shipping document not ready for {$externalOrderId} after {$attempts} attempts", 'document_timeout');
+        }
+
+        $bytes = $this->client->shopPostRaw($auth, $this->client->endpoint('download_document'), [
+            'order_list' => [array_filter(['order_sn' => $externalOrderId, 'package_number' => $packageNumber ?: null, 'shipping_document_type' => $docType])],
+        ]);
+
+        return ['filename' => 'shopee-'.$externalOrderId.'.pdf', 'mime' => 'application/pdf', 'bytes' => $bytes];
     }
 
     public function fetchSettlements(AuthContext $auth, array $query = []): Page

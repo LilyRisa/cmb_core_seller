@@ -176,4 +176,52 @@ class ShopeeConnectorContractTest extends TestCase
         $req = $this->signedPush(['code' => 1, 'shop_id' => 55, 'timestamp' => 1700000000, 'data' => json_encode(['success' => 1])]);
         $this->assertSame('shop_deauthorized', $this->connector()->parseWebhook($req)->type);
     }
+
+    public function test_arrange_shipment_ships_and_returns_tracking(): void
+    {
+        Http::fake([
+            '*/api/v2/logistics/get_shipping_parameter*' => Http::response(ShopeeFixtures::shippingParameter(), 200),
+            '*/api/v2/logistics/ship_order*' => Http::response(ShopeeFixtures::shipOrder(), 200),
+            '*/api/v2/logistics/get_tracking_number*' => Http::response(ShopeeFixtures::trackingNumber(), 200),
+        ]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        $res = $this->connector()->arrangeShipment($auth, 'SN_1', ['packages' => [['externalPackageId' => 'PKG_1']]]);
+        $this->assertSame('TRK123', $res['tracking_no']);
+        $this->assertSame('PROCESSED', $res['raw_status']);
+    }
+
+    public function test_get_shipping_document_polls_then_downloads(): void
+    {
+        Http::fake([
+            '*/api/v2/logistics/create_shipping_document*' => Http::response(ShopeeFixtures::createDocument(), 200),
+            '*/api/v2/logistics/get_shipping_document_result*' => Http::response(ShopeeFixtures::documentResult('READY'), 200),
+            '*/api/v2/logistics/download_shipping_document*' => Http::response('%PDF-1.4 fake', 200, ['Content-Type' => 'application/pdf']),
+        ]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        $doc = $this->connector()->getShippingDocument($auth, 'SN_1', ['externalPackageId' => 'PKG_1']);
+        $this->assertSame('application/pdf', $doc['mime']);
+        $this->assertStringContainsString('%PDF', $doc['bytes']);
+        $this->assertStringEndsWith('.pdf', $doc['filename']);
+    }
+
+    public function test_get_shipping_document_failed_throws(): void
+    {
+        config(['integrations.shopee.document_poll_attempts' => 2, 'integrations.shopee.document_poll_sleep_ms' => 0]);
+        Http::fake([
+            '*/api/v2/logistics/create_shipping_document*' => Http::response(ShopeeFixtures::createDocument(), 200),
+            '*/api/v2/logistics/get_shipping_document_result*' => Http::response(ShopeeFixtures::documentResult('FAILED'), 200),
+        ]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        $this->expectException(\CMBcoreSeller\Integrations\Channels\Shopee\ShopeeApiException::class);
+        $this->connector()->getShippingDocument($auth, 'SN_1', ['externalPackageId' => 'PKG_1']);
+    }
+
+    public function test_push_ready_to_ship_unsupported(): void
+    {
+        $this->expectException(\CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation::class);
+        $this->connector()->pushReadyToShip(new AuthContext(1, 'shopee', '55', 'ACCESS_1'), 'SN_1');
+    }
 }
