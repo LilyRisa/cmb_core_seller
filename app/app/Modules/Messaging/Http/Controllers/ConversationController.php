@@ -79,6 +79,7 @@ class ConversationController extends Controller
         $conv = Conversation::query()->with('channelAccount')->findOrFail($id);
 
         $messagesQuery = Message::query()
+            ->with('attachments')
             ->where('conversation_id', $conv->id)
             ->orderByDesc('created_at');
 

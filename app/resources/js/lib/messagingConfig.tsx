@@ -190,6 +190,17 @@ export function useConnectFacebook() {
 
 // --- Quản lý kênh Facebook Page (UI /messaging/channels) -------------------
 
+export interface ChannelSync {
+    status: 'idle' | 'queued' | 'running' | 'done' | 'failed';
+    total: number | null;
+    done: number;
+    message_count: number;
+    started_at: string | null;
+    finished_at: string | null;
+    last_synced_at: string | null;
+    error: string | null;
+}
+
 export interface MessagingChannel {
     id: number;
     provider: string;
@@ -200,6 +211,9 @@ export interface MessagingChannel {
     messaging_enabled: boolean;
     token_expired: boolean;
     connected_at: string | null;
+    avatar_url: string | null;
+    message_count: number;
+    sync: ChannelSync;
 }
 
 export function useMessagingChannels() {
@@ -208,7 +222,18 @@ export function useMessagingChannels() {
     return useQuery({
         queryKey: ['messaging', 'channels', tenantId],
         enabled: api != null,
+        refetchInterval: (q) =>
+            q.state.data?.some((c) => c.sync.status === 'queued' || c.sync.status === 'running') ? 4_000 : false,
         queryFn: async () => (await api!.get<{ data: MessagingChannel[] }>('/messaging/channels')).data.data,
+    });
+}
+
+export function useSyncChannel() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: number) => { await api!.post(`/messaging/channels/${id}/sync`); },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'channels'] }),
     });
 }
 

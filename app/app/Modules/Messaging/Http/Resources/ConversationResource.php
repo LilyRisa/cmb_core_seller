@@ -25,10 +25,12 @@ class ConversationResource extends JsonResource
             'external_conversation_id' => $this->external_conversation_id,
             'buyer_external_id' => $this->buyer_external_id,
             'buyer_name' => $this->buyer_name,
-            'buyer_avatar_url' => $this->buyer_avatar_url,
+            'buyer_avatar_url' => app(\CMBcoreSeller\Modules\Messaging\Services\MediaStorage::class)
+                ->temporaryUrlForPath($this->buyer_avatar_path) ?? $this->buyer_avatar_url,
             'customer_id' => $this->customer_id,
             'order_id' => $this->order_id,
             'status' => $this->status,
+            'blocked_at' => $this->blocked_at?->toIso8601String(),
             'snoozed_until' => $this->snoozed_until?->toIso8601String(),
             'unread_count' => (int) $this->unread_count,
             'message_count' => (int) $this->message_count,

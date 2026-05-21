@@ -29,6 +29,7 @@ export interface Conversation {
     customer_id: number | null;
     order_id: number | null;
     status: ConversationStatus;
+    blocked_at: string | null;
     unread_count: number;
     message_count: number;
     last_message_at: string | null;
@@ -72,6 +73,7 @@ export interface ConversationFilters {
     provider?: string;
     status?: string;
     unread?: boolean;
+    blocked?: boolean;
     assigned?: string;
     q?: string;
     page?: number;
@@ -139,6 +141,66 @@ export function useMarkRead() {
             await api!.post(`/messaging/conversations/${conversationId}/read`);
         },
         onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'conversations'] }),
+    });
+}
+
+export function useSendMedia(conversationId: number | null) {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (input: { file: File; kind: 'image' | 'video' | 'file'; caption?: string }) => {
+            const form = new FormData();
+            form.append('file', input.file);
+            form.append('kind', input.kind);
+            if (input.caption) form.append('caption', input.caption);
+            const { data } = await api!.post<{ data: Message }>(
+                `/messaging/conversations/${conversationId}/messages/media`, form,
+            );
+            return data.data;
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['messaging', 'thread'] });
+            qc.invalidateQueries({ queryKey: ['messaging', 'conversations'] });
+        },
+    });
+}
+
+export function useMarkUnread() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (conversationId: number) => {
+            await api!.post(`/messaging/conversations/${conversationId}/unread`);
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'conversations'] }),
+    });
+}
+
+export function useBlockConversation() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (conversationId: number) => {
+            await api!.post(`/messaging/conversations/${conversationId}/block`);
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['messaging', 'conversations'] });
+            qc.invalidateQueries({ queryKey: ['messaging', 'thread'] });
+        },
+    });
+}
+
+export function useUnblockConversation() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (conversationId: number) => {
+            await api!.delete(`/messaging/conversations/${conversationId}/block`);
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['messaging', 'conversations'] });
+            qc.invalidateQueries({ queryKey: ['messaging', 'thread'] });
+        },
     });
 }
 
