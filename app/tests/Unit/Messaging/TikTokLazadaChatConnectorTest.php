@@ -2,10 +2,14 @@
 
 namespace Tests\Unit\Messaging;
 
+use CMBcoreSeller\Integrations\Messaging\DTO\ConversationDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageDirection;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
+use CMBcoreSeller\Integrations\Messaging\Exceptions\UnsupportedOperation;
 use CMBcoreSeller\Integrations\Messaging\Lazada\LazadaChatConnector;
 use CMBcoreSeller\Integrations\Messaging\TikTok\TikTokChatConnector;
 use Illuminate\Http\Request;
@@ -49,6 +53,76 @@ class TikTokLazadaChatConnectorTest extends TestCase
         $this->assertSame('CONV_1', $event->externalConversationId);
         $this->assertSame('MSG_1', $event->externalMessageId);
         $this->assertSame('BUYER_1', $event->buyerExternalId);
+    }
+
+    // --- Phase 1: echo / own-message guard -----------------------------------
+
+    /**
+     * @dataProvider tiktokNonBuyerRoleProvider
+     */
+    public function test_tiktok_non_buyer_role_maps_to_unknown(string $role): void
+    {
+        // Per TikTok CS API overview: sender.role = BUYER | SHOP | CUSTOMER_SERVICE | SYSTEM | ROBOT.
+        // Messages sent by the shop/agent/system must not be ingested as inbound buyer messages.
+        $body = json_encode([
+            'shop_id' => 'SHOP_1', 'timestamp' => 1716200000,
+            'data' => [
+                'conversation_id' => 'CONV_ECHO',
+                'message_id' => 'MSG_ECHO',
+                'sender' => ['im_user_id' => 'SHOP_IM_ID', 'role' => $role],
+                'type' => 'TEXT',
+                'content' => json_encode(['content' => 'Auto-reply từ shop']),
+            ],
+        ]);
+
+        $event = (new TikTokChatConnector)->parseWebhook($this->req($body));
+        $this->assertSame(
+            MessagingWebhookEventDTO::TYPE_UNKNOWN,
+            $event->type,
+            "Sender role '{$role}' must map to TYPE_UNKNOWN (not be ingested as inbound)",
+        );
+    }
+
+    /** @return array<string, array{string}> */
+    public static function tiktokNonBuyerRoleProvider(): array
+    {
+        return [
+            'SHOP' => ['SHOP'],
+            'CUSTOMER_SERVICE' => ['CUSTOMER_SERVICE'],
+            'SYSTEM' => ['SYSTEM'],
+            'ROBOT' => ['ROBOT'],
+        ];
+    }
+
+    public function test_tiktok_buyer_role_still_maps_to_message_received(): void
+    {
+        // Ensure the echo guard does NOT drop genuine buyer messages (regression check).
+        $body = json_encode([
+            'shop_id' => 'SHOP_1', 'timestamp' => 1716200000,
+            'data' => [
+                'conversation_id' => 'CONV_B',
+                'message_id' => 'MSG_B',
+                'sender' => ['im_user_id' => 'BUYER_IM_ID', 'role' => 'BUYER'],
+                'type' => 'TEXT',
+                'content' => json_encode(['content' => 'Còn hàng không?']),
+            ],
+        ]);
+
+        $event = (new TikTokChatConnector)->parseWebhook($this->req($body));
+        $this->assertSame(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, $event->type);
+        $this->assertSame('BUYER_IM_ID', $event->buyerExternalId);
+    }
+
+    public function test_tiktok_absent_role_still_maps_to_message_received(): void
+    {
+        // When sender.role is absent (old webhook or sandbox), default to ingest (no false drop).
+        $body = json_encode([
+            'shop_id' => 'SHOP_1', 'timestamp' => 1716200000,
+            'data' => ['conversation_id' => 'CONV_1', 'message_id' => 'MSG_1', 'sender' => ['im_user_id' => 'BUYER_1']],
+        ]);
+
+        $event = (new TikTokChatConnector)->parseWebhook($this->req($body));
+        $this->assertSame(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, $event->type);
     }
 
     // --- Phase B: normalized kind/body/attachments parsing -------------------
@@ -258,7 +332,7 @@ class TikTokLazadaChatConnectorTest extends TestCase
         $auth = new MessagingAuthContext(channelAccountId: 1, provider: 'tiktok_chat', externalShopId: 'SHOP_1', accessToken: 'TOK', extra: ['shop_cipher' => 'CIPHER']);
         $media = new MediaRefDTO(kind: MessageKind::Video, mime: 'video/mp4', externalUrl: 'https://cdn/v.mp4');
 
-        $this->expectException(\CMBcoreSeller\Integrations\Messaging\Exceptions\UnsupportedOperation::class);
+        $this->expectException(UnsupportedOperation::class);
         (new TikTokChatConnector)->sendMedia($auth, 'CONV_1', $media);
     }
 
@@ -367,7 +441,7 @@ class TikTokLazadaChatConnectorTest extends TestCase
         $auth = new MessagingAuthContext(channelAccountId: 1, provider: 'lazada_chat', externalShopId: 'SELLER_1', accessToken: 'TOK');
         $media = new MediaRefDTO(kind: MessageKind::Video, mime: 'video/mp4', externalUrl: 'https://cdn/v.mp4');
 
-        $this->expectException(\CMBcoreSeller\Integrations\Messaging\Exceptions\UnsupportedOperation::class);
+        $this->expectException(UnsupportedOperation::class);
         (new LazadaChatConnector)->sendMedia($auth, 'SESS_1', $media);
     }
 
@@ -447,7 +521,7 @@ class TikTokLazadaChatConnectorTest extends TestCase
         // Assert 2 ConversationDTOs parsed correctly
         $this->assertCount(2, $page->items);
 
-        /** @var \CMBcoreSeller\Integrations\Messaging\DTO\ConversationDTO $first */
+        /** @var ConversationDTO $first */
         $first = $page->items[0];
         $this->assertSame('SESS_A', $first->externalConversationId);
         $this->assertSame('111111', $first->buyerExternalId);
@@ -457,7 +531,7 @@ class TikTokLazadaChatConnectorTest extends TestCase
         $this->assertSame(3, $first->unreadCount);
         $this->assertNotNull($first->lastMessageAt);
 
-        /** @var \CMBcoreSeller\Integrations\Messaging\DTO\ConversationDTO $second */
+        /** @var ConversationDTO $second */
         $second = $page->items[1];
         $this->assertSame('SESS_B', $second->externalConversationId);
         $this->assertSame('222222', $second->buyerExternalId);
@@ -551,28 +625,28 @@ class TikTokLazadaChatConnectorTest extends TestCase
 
         $this->assertCount(2, $page->items);
 
-        /** @var \CMBcoreSeller\Integrations\Messaging\DTO\MessageDTO $textMsg */
+        /** @var MessageDTO $textMsg */
         $textMsg = $page->items[0];
         $this->assertSame('MSG_TEXT_1', $textMsg->externalMessageId);
         $this->assertSame('SESS_X', $textMsg->externalConversationId);
         $this->assertSame(MessageKind::Text, $textMsg->kind);
         $this->assertSame('Bao giờ ship?', $textMsg->body);
         $this->assertSame([], $textMsg->attachments);
-        $this->assertSame(\CMBcoreSeller\Integrations\Messaging\DTO\MessageDirection::Inbound, $textMsg->direction);
+        $this->assertSame(MessageDirection::Inbound, $textMsg->direction);
         $this->assertSame('999001', $textMsg->buyerExternalId);
         $this->assertNotNull($textMsg->sentAt);
 
-        /** @var \CMBcoreSeller\Integrations\Messaging\DTO\MessageDTO $imgMsg */
+        /** @var MessageDTO $imgMsg */
         $imgMsg = $page->items[1];
         $this->assertSame('MSG_IMAGE_1', $imgMsg->externalMessageId);
         $this->assertSame(MessageKind::Image, $imgMsg->kind);
         $this->assertNull($imgMsg->body);
         $this->assertCount(1, $imgMsg->attachments);
-        $this->assertSame(\CMBcoreSeller\Integrations\Messaging\DTO\MessageDirection::Outbound, $imgMsg->direction);
+        $this->assertSame(MessageDirection::Outbound, $imgMsg->direction);
 
-        /** @var \CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO $att */
+        /** @var MediaRefDTO $att */
         $att = $imgMsg->attachments[0];
-        $this->assertInstanceOf(\CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO::class, $att);
+        $this->assertInstanceOf(MediaRefDTO::class, $att);
         $this->assertSame(MessageKind::Image, $att->kind);
         $this->assertSame('https://img.lazada.vn/photo.jpg', $att->externalUrl);
         $this->assertSame(800, $att->width);

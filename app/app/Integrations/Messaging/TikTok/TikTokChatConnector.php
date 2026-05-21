@@ -108,11 +108,26 @@ class TikTokChatConnector implements MessagingConnector
 
         // TikTok message webhook (type code IM) — data mang conversation/message.
         // Per docv2_page_14-new-message.md: data.conversation_id, data.message_id,
-        // data.sender.im_user_id, data.type (TEXT/IMAGE/VIDEO/...), data.content (JSON string).
+        // data.sender.im_user_id, data.sender.role, data.type (TEXT/IMAGE/VIDEO/...),
+        // data.content (JSON string).
         $conversationId = $data['conversation_id'] ?? null;
         $messageId = $data['message_id'] ?? null;
         $senderId = $data['sender']['im_user_id'] ?? ($data['from_user_id'] ?? null);
         $hasMessage = $conversationId !== null && $messageId !== null;
+
+        // Echo guard: bỏ tin do shop/agent/system tự gửi (không phải buyer) — mirror Facebook is_echo.
+        // Per docv2_page_customer-service-api-overview.md: sender.role = BUYER | SHOP |
+        // CUSTOMER_SERVICE | SYSTEM | ROBOT. Nếu role có mặt và != BUYER thì là tin shop gửi/echo,
+        // ack nhưng không ingest vào hộp thư (tránh auto-reply nhầm).
+        $senderRole = isset($data['sender']['role']) ? strtoupper((string) $data['sender']['role']) : null;
+        if ($senderRole !== null && $senderRole !== 'BUYER') {
+            return new MessagingWebhookEventDTO(
+                $this->code(),
+                MessagingWebhookEventDTO::TYPE_UNKNOWN,
+                isset($body['shop_id']) ? (string) $body['shop_id'] : null,
+                raw: $body,
+            );
+        }
 
         // Parse normalized kind/body/attachments from TikTok's type + content (JSON string).
         // doc: data.type = "TEXT"|"IMAGE"|"VIDEO"|...; data.content = JSON string.
