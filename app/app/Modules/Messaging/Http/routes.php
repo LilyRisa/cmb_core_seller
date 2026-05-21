@@ -50,6 +50,8 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
             ->whereNumber('id')->name('messaging.conversations.show');
         Route::post('conversations/{id}/read', [ConversationController::class, 'markRead'])
             ->whereNumber('id')->name('messaging.conversations.read');
+        Route::post('conversations/{id}/unread', [ConversationController::class, 'markUnread'])
+            ->whereNumber('id')->name('messaging.conversations.unread');
         Route::patch('conversations/{id}', [ConversationController::class, 'update'])
             ->whereNumber('id')->name('messaging.conversations.update');
 
@@ -102,6 +104,10 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
         // --- Facebook Page OAuth connect (S2) — trả authorize URL ---
         Route::post('facebook/connect', [FacebookOAuthController::class, 'start'])
             ->name('messaging.facebook.connect');
+
+        // --- Capabilities map — provider-agnostic (Phase A2) ---------------
+        Route::get('capabilities', [MessagingChannelController::class, 'capabilities'])
+            ->name('messaging.capabilities');
 
         // --- Kết nối & quản lý kênh nhắn tin (UI /messaging/channels) ---
         Route::get('channels', [MessagingChannelController::class, 'index'])

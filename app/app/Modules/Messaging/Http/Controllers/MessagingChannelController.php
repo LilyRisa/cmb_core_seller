@@ -40,6 +40,19 @@ class MessagingChannelController extends Controller
         return response()->json(['data' => $pages]);
     }
 
+    /** GET /api/v1/messaging/capabilities — capability map của mọi messaging connector đang bật. */
+    public function capabilities(\CMBcoreSeller\Integrations\Messaging\MessagingRegistry $registry): JsonResponse
+    {
+        Gate::authorize('messaging.view');
+
+        $caps = [];
+        foreach ($registry->providers() as $code) {
+            $caps[$code] = $registry->for($code)->capabilities();
+        }
+
+        return response()->json(['data' => $caps]);
+    }
+
     /** DELETE /api/v1/messaging/channels/{id} — ngắt kết nối 1 page (xoá hẳn + cascade). */
     public function destroy(int $id, FacebookPageDisconnectService $service): JsonResponse
     {

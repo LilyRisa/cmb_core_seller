@@ -109,6 +109,30 @@ class ConversationController extends Controller
         return response()->json(['data' => ['ok' => true]]);
     }
 
+    public function markUnread(int $id, Request $request): JsonResponse
+    {
+        Gate::authorize('messaging.view');
+
+        $conv = Conversation::query()->findOrFail($id);
+
+        $latestInbound = Message::query()
+            ->where('conversation_id', $conv->id)
+            ->where('direction', Message::DIRECTION_INBOUND)
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $latestInbound) {
+            return response()->json([
+                'error' => ['code' => 'NO_INBOUND', 'message' => 'Không có tin của người mua để đánh dấu chưa đọc.'],
+            ], 422);
+        }
+
+        $latestInbound->forceFill(['read_at' => null])->save();
+        $conv->update(['unread_count' => max(1, (int) $conv->unread_count)]);
+
+        return response()->json(['data' => (new ConversationResource($conv->fresh()))->toArray($request)]);
+    }
+
     public function update(int $id, Request $request): JsonResponse
     {
         Gate::authorize('messaging.view');
