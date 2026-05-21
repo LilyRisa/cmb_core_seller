@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Messaging\Jobs;
 
+use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageDirection;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
@@ -134,10 +135,38 @@ class ProcessMessagingWebhook implements ShouldQueue
     /**
      * Rebuild MessagingWebhookEventDTO từ row `webhook_events` (payload đã lưu).
      * Không cần Request nguyên gốc — `payload` đã JSON serialized.
+     *
+     * Reads normalized _kind/_body/_attachments keys written by MessagingWebhookIngestService
+     * (Phase B). Falls back gracefully when keys absent (legacy rows / manual connector).
      */
     private function rebuildDtoFromStoredPayload(WebhookEvent $event): ?MessagingWebhookEventDTO
     {
         $payload = is_array($event->payload) ? $event->payload : [];
+
+        // Rebuild kind from _kind (Phase B normalized key).
+        $kind = isset($payload['_kind']) ? MessageKind::tryFrom((string) $payload['_kind']) : null;
+
+        // Rebuild attachments from _attachments array (Phase B).
+        $attachments = [];
+        if (! empty($payload['_attachments']) && is_array($payload['_attachments'])) {
+            foreach ($payload['_attachments'] as $a) {
+                $attachmentKind = MessageKind::tryFrom((string) ($a['kind'] ?? ''));
+                if ($attachmentKind === null) {
+                    continue;
+                }
+                $attachments[] = new MediaRefDTO(
+                    kind: $attachmentKind,
+                    mime: $a['mime'] ?? 'application/octet-stream',
+                    sizeBytes: isset($a['size_bytes']) ? (int) $a['size_bytes'] : null,
+                    externalUrl: $a['external_url'] ?? null,
+                    storagePath: $a['storage_path'] ?? null,
+                    filename: $a['filename'] ?? null,
+                    width: isset($a['width']) ? (int) $a['width'] : null,
+                    height: isset($a['height']) ? (int) $a['height'] : null,
+                    durationMs: isset($a['duration_ms']) ? (int) $a['duration_ms'] : null,
+                );
+            }
+        }
 
         return new MessagingWebhookEventDTO(
             provider: $this->messagingProviderCode($event->provider) ?? $event->provider,
@@ -147,6 +176,9 @@ class ProcessMessagingWebhook implements ShouldQueue
             externalMessageId: isset($payload['external_message_id']) ? (string) $payload['external_message_id'] : null,
             buyerExternalId: isset($payload['buyer_external_id']) ? (string) $payload['buyer_external_id'] : null,
             raw: $payload,
+            kind: $kind,
+            body: isset($payload['_body']) ? (string) $payload['_body'] : null,
+            attachments: $attachments,
         );
     }
 
@@ -167,8 +199,15 @@ class ProcessMessagingWebhook implements ShouldQueue
         }
 
         $payload = $event->raw;
-        $body = isset($payload['body']) ? (string) $payload['body'] : null;
-        $kind = MessageKind::tryFrom((string) ($payload['kind'] ?? 'text')) ?? MessageKind::Text;
+
+        // Use normalized kind from DTO (Phase B connectors set this), falling back to
+        // legacy payload['kind'] key (manual connector) and finally defaulting to Text.
+        $kind = $event->kind
+            ?? MessageKind::tryFrom((string) ($payload['kind'] ?? 'text'))
+            ?? MessageKind::Text;
+
+        // Use normalized body from DTO (Phase B), falling back to legacy payload['body'].
+        $body = $event->body ?? (isset($payload['body']) ? (string) $payload['body'] : null);
 
         return new MessageDTO(
             externalConversationId: $event->externalConversationId,
@@ -177,7 +216,7 @@ class ProcessMessagingWebhook implements ShouldQueue
             direction: MessageDirection::Inbound,
             kind: $kind,
             body: $body,
-            attachments: [], // S2+ connector mới parse media; S1 manual chỉ text
+            attachments: $event->attachments, // Phase B: connectors populate; manual/legacy → []
             sentAt: $event->occurredAt ?? \Carbon\CarbonImmutable::now(),
             raw: $payload,
         );

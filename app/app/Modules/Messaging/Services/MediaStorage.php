@@ -65,4 +65,26 @@ class MediaStorage
             }
         }
     }
+
+    /**
+     * Signed URL TTL ngắn cho 1 storage_path bất kỳ (avatar). Null nếu path rỗng.
+     * Disk local không hỗ trợ temporaryUrl ⇒ fallback url().
+     */
+    public function temporaryUrlForPath(?string $path): ?string
+    {
+        if (! $path) {
+            return null;
+        }
+        $disk = $this->disk();
+        $ttl = (int) config('messaging.signed_url_ttl', 300);
+        try {
+            return $disk->temporaryUrl($path, now()->addSeconds($ttl));
+        } catch (\Throwable) {
+            try {
+                return $disk->url($path);
+            } catch (\Throwable) {
+                return null;
+            }
+        }
+    }
 }

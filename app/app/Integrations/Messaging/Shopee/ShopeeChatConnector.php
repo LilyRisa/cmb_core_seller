@@ -9,6 +9,7 @@ use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeClient;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeWebhookVerifier;
 use CMBcoreSeller\Integrations\Messaging\Contracts\MessagingConnector;
 use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\OutboundWindowPolicyDTO;
@@ -130,6 +131,65 @@ class ShopeeChatConnector implements MessagingConnector
             ? CarbonImmutable::createFromTimestamp((int) $content['created_timestamp'])
             : (isset($body['timestamp']) ? CarbonImmutable::createFromTimestamp((int) $body['timestamp']) : null);
 
+        // Parse message kind/body/attachments from data.content.message_type + data.content.content.
+        // Per Shopee webchat_push docs (push-025-webchat-push.md):
+        //   text  → content.text (string)
+        //   image → content.url, content.thumb_width, content.thumb_height
+        //   video → content.video_url, content.duration_seconds, content.thumb_width, content.thumb_height
+        //   item  → content.item_id
+        //   other → fallback text label
+        $kind = MessageKind::Text;
+        $parsedBody = null;
+        $attachments = [];
+
+        if ($hasMessage) {
+            $messageType = (string) ($content['message_type'] ?? 'text');
+            $msgContent = (array) ($content['content'] ?? []);
+
+            switch ($messageType) {
+                case 'text':
+                case 'faq_liveagent':
+                    $kind = MessageKind::Text;
+                    $parsedBody = isset($msgContent['text']) ? (string) $msgContent['text'] : null;
+                    break;
+
+                case 'image':
+                    $kind = MessageKind::Image;
+                    $attachments[] = new MediaRefDTO(
+                        kind: MessageKind::Image,
+                        mime: 'image/jpeg',
+                        externalUrl: isset($msgContent['url']) ? (string) $msgContent['url'] : null,
+                        width: isset($msgContent['thumb_width']) ? (int) $msgContent['thumb_width'] : null,
+                        height: isset($msgContent['thumb_height']) ? (int) $msgContent['thumb_height'] : null,
+                    );
+                    break;
+
+                case 'video':
+                    $kind = MessageKind::Video;
+                    $attachments[] = new MediaRefDTO(
+                        kind: MessageKind::Video,
+                        mime: 'video/mp4',
+                        externalUrl: isset($msgContent['video_url']) ? (string) $msgContent['video_url'] : null,
+                        durationMs: isset($msgContent['duration_seconds'])
+                            ? (int) ((float) $msgContent['duration_seconds'] * 1000)
+                            : null,
+                        width: isset($msgContent['thumb_width']) ? (int) $msgContent['thumb_width'] : null,
+                        height: isset($msgContent['thumb_height']) ? (int) $msgContent['thumb_height'] : null,
+                    );
+                    break;
+
+                case 'item':
+                    $kind = MessageKind::Text;
+                    $parsedBody = '[Sản phẩm] item_id='.($msgContent['item_id'] ?? '');
+                    break;
+
+                default:
+                    $kind = MessageKind::Text;
+                    $parsedBody = '['.$messageType.']';
+                    break;
+            }
+        }
+
         return [new MessagingWebhookEventDTO(
             provider: $this->code(),
             type: $hasMessage ? MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED : MessagingWebhookEventDTO::TYPE_UNKNOWN,
@@ -139,6 +199,9 @@ class ShopeeChatConnector implements MessagingConnector
             buyerExternalId: $fromId,
             occurredAt: $occurredAt,
             raw: $body,
+            kind: $hasMessage ? $kind : null,
+            body: $hasMessage ? $parsedBody : null,
+            attachments: $hasMessage ? $attachments : [],
         )];
     }
 

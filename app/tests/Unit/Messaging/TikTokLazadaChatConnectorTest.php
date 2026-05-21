@@ -2,6 +2,8 @@
 
 namespace Tests\Unit\Messaging;
 
+use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
 use CMBcoreSeller\Integrations\Messaging\Lazada\LazadaChatConnector;
@@ -47,6 +49,135 @@ class TikTokLazadaChatConnectorTest extends TestCase
         $this->assertSame('CONV_1', $event->externalConversationId);
         $this->assertSame('MSG_1', $event->externalMessageId);
         $this->assertSame('BUYER_1', $event->buyerExternalId);
+    }
+
+    // --- Phase B: normalized kind/body/attachments parsing -------------------
+
+    public function test_tiktok_parses_text_message_with_body(): void
+    {
+        // TikTok doc: data.type="TEXT", data.content=JSON string {"content":"simple text"}
+        $body = json_encode([
+            'shop_id' => 'SHOP_1', 'timestamp' => 1716200000,
+            'data' => [
+                'conversation_id' => 'CONV_TXT',
+                'message_id' => 'MSG_TXT',
+                'sender' => ['im_user_id' => 'BUYER_1'],
+                'type' => 'TEXT',
+                'content' => json_encode(['content' => 'Hello seller!']),
+            ],
+        ]);
+
+        $event = (new TikTokChatConnector)->parseWebhook($this->req($body));
+
+        $this->assertSame(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, $event->type);
+        $this->assertSame(MessageKind::Text, $event->kind);
+        $this->assertSame('Hello seller!', $event->body);
+        $this->assertSame([], $event->attachments);
+    }
+
+    public function test_tiktok_parses_image_message_with_attachment(): void
+    {
+        // TikTok doc: data.type="IMAGE", data.content=JSON string {"url":"...","width":"304","height":"290"}
+        $imageContent = json_encode([
+            'url' => 'https://tosv.boei18n.byted.org/obj/temai-im/FszkJ53n.jpg',
+            'width' => '304',
+            'height' => '290',
+        ]);
+        $body = json_encode([
+            'shop_id' => 'SHOP_1', 'timestamp' => 1716200000,
+            'data' => [
+                'conversation_id' => 'CONV_IMG',
+                'message_id' => 'MSG_IMG',
+                'sender' => ['im_user_id' => 'BUYER_IMG'],
+                'type' => 'IMAGE',
+                'content' => $imageContent,
+            ],
+        ]);
+
+        $event = (new TikTokChatConnector)->parseWebhook($this->req($body));
+
+        $this->assertSame(MessageKind::Image, $event->kind);
+        $this->assertNull($event->body);
+        $this->assertCount(1, $event->attachments);
+
+        /** @var MediaRefDTO $att */
+        $att = $event->attachments[0];
+        $this->assertInstanceOf(MediaRefDTO::class, $att);
+        $this->assertSame(MessageKind::Image, $att->kind);
+        $this->assertSame('https://tosv.boei18n.byted.org/obj/temai-im/FszkJ53n.jpg', $att->externalUrl);
+        $this->assertSame(304, $att->width);
+        $this->assertSame(290, $att->height);
+    }
+
+    public function test_tiktok_parses_video_message_with_attachment(): void
+    {
+        // TikTok doc: data.type="VIDEO", data.content=JSON string with url + duration (string seconds)
+        $videoContent = json_encode([
+            'url' => 'https://video-boei18n.byted.org/storage/v1/tos-boei18n/abc.mp4',
+            'cover' => 'https://p-boei18n.byted.org/cover.jpeg',
+            'width' => 640,
+            'height' => 360,
+            'duration' => '20.504',  // string seconds per doc — verify sandbox
+            'format' => 'mp4',
+        ]);
+        $body = json_encode([
+            'shop_id' => 'SHOP_1', 'timestamp' => 1716200000,
+            'data' => [
+                'conversation_id' => 'CONV_VID',
+                'message_id' => 'MSG_VID',
+                'sender' => ['im_user_id' => 'BUYER_VID'],
+                'type' => 'VIDEO',
+                'content' => $videoContent,
+            ],
+        ]);
+
+        $event = (new TikTokChatConnector)->parseWebhook($this->req($body));
+
+        $this->assertSame(MessageKind::Video, $event->kind);
+        $this->assertNull($event->body);
+        $this->assertCount(1, $event->attachments);
+
+        /** @var MediaRefDTO $att */
+        $att = $event->attachments[0];
+        $this->assertSame(MessageKind::Video, $att->kind);
+        $this->assertSame('https://video-boei18n.byted.org/storage/v1/tos-boei18n/abc.mp4', $att->externalUrl);
+        $this->assertSame(20504, $att->durationMs);
+        $this->assertSame(640, $att->width);
+        $this->assertSame(360, $att->height);
+    }
+
+    public function test_tiktok_parses_card_type_as_text_label(): void
+    {
+        // PRODUCT_CARD, ORDER_CARD, etc. → body = '[TYPE]'
+        $body = json_encode([
+            'shop_id' => 'SHOP_1', 'timestamp' => 1716200000,
+            'data' => [
+                'conversation_id' => 'CONV_CARD',
+                'message_id' => 'MSG_CARD',
+                'sender' => ['im_user_id' => 'BUYER_CARD'],
+                'type' => 'PRODUCT_CARD',
+                'content' => json_encode(['product_id' => '12345']),
+            ],
+        ]);
+
+        $event = (new TikTokChatConnector)->parseWebhook($this->req($body));
+
+        $this->assertSame(MessageKind::Text, $event->kind);
+        $this->assertSame('[PRODUCT_CARD]', $event->body);
+        $this->assertSame([], $event->attachments);
+    }
+
+    public function test_tiktok_message_without_type_has_null_kind(): void
+    {
+        // No conversation/message IDs → TYPE_UNKNOWN, kind=null.
+        $body = json_encode(['shop_id' => 'SHOP_1', 'timestamp' => 1716200000, 'data' => []]);
+
+        $event = (new TikTokChatConnector)->parseWebhook($this->req($body));
+
+        $this->assertSame(MessagingWebhookEventDTO::TYPE_UNKNOWN, $event->type);
+        $this->assertNull($event->kind);
+        $this->assertNull($event->body);
+        $this->assertSame([], $event->attachments);
     }
 
     public function test_tiktok_send_text_posts(): void

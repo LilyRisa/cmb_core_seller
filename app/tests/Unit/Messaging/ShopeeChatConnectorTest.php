@@ -148,6 +148,128 @@ class ShopeeChatConnectorTest extends TestCase
         $this->connector()->sendTemplate($auth, 'BUYER_1', 'tpl_code', ['_resolved_body' => 'hi']);
     }
 
+    // --- Phase B: normalized kind/body/attachments parsing -------------------
+
+    public function test_parses_code_10_text_push_with_kind_and_body(): void
+    {
+        $req = $this->signedPush(['code' => 10, 'shop_id' => 55, 'timestamp' => 1700000000, 'data' => json_encode([
+            'type' => 'message',
+            'content' => [
+                'conversation_id' => 'CONV_T',
+                'message_id' => 'MSG_T',
+                'from_id' => 'BUYER_T',
+                'message_type' => 'text',
+                'content' => ['text' => 'Còn hàng không shop?'],
+                'created_timestamp' => 1700000001,
+            ],
+        ])]);
+
+        $event = $this->connector()->parseWebhook($req);
+
+        $this->assertSame(\CMBcoreSeller\Integrations\Messaging\DTO\MessageKind::Text, $event->kind);
+        $this->assertSame('Còn hàng không shop?', $event->body);
+        $this->assertSame([], $event->attachments);
+    }
+
+    public function test_parses_code_10_image_push_with_attachment(): void
+    {
+        $req = $this->signedPush(['code' => 10, 'shop_id' => 55, 'timestamp' => 1700000000, 'data' => json_encode([
+            'type' => 'message',
+            'content' => [
+                'conversation_id' => 'CONV_I',
+                'message_id' => 'MSG_I',
+                'from_id' => 'BUYER_I',
+                'message_type' => 'image',
+                'content' => [
+                    'url' => 'https://cf.shopee.vn/file/09591ecdc9f1dc7bd507817797d826fe_dynamic',
+                    'thumb_url' => 'b9591ecdc9f1dc7bd507817797d826fe_dynamic_tn',
+                    'thumb_height' => 711,
+                    'thumb_width' => 400,
+                    'file_server_id' => 0,
+                ],
+                'created_timestamp' => 1700000002,
+            ],
+        ])]);
+
+        $event = $this->connector()->parseWebhook($req);
+
+        $this->assertSame(\CMBcoreSeller\Integrations\Messaging\DTO\MessageKind::Image, $event->kind);
+        $this->assertNull($event->body);
+        $this->assertCount(1, $event->attachments);
+
+        $att = $event->attachments[0];
+        $this->assertInstanceOf(\CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO::class, $att);
+        $this->assertSame(\CMBcoreSeller\Integrations\Messaging\DTO\MessageKind::Image, $att->kind);
+        $this->assertSame('https://cf.shopee.vn/file/09591ecdc9f1dc7bd507817797d826fe_dynamic', $att->externalUrl);
+        $this->assertSame(400, $att->width);
+        $this->assertSame(711, $att->height);
+    }
+
+    public function test_parses_code_10_video_push_with_attachment(): void
+    {
+        $req = $this->signedPush(['code' => 10, 'shop_id' => 55, 'timestamp' => 1700000000, 'data' => json_encode([
+            'type' => 'message',
+            'content' => [
+                'conversation_id' => 'CONV_V',
+                'message_id' => 'MSG_V',
+                'from_id' => 'BUYER_V',
+                'message_type' => 'video',
+                'content' => [
+                    'video_url' => 'cf03c9e1fe2c0992cdb51c3cb6eab2bd',
+                    'thumb_url' => '6c710d7679c9f3a9a7287250421d17d3_dynamic_tn',
+                    'thumb_width' => 399,
+                    'thumb_height' => 713,
+                    'duration_seconds' => 15,
+                ],
+                'created_timestamp' => 1700000003,
+            ],
+        ])]);
+
+        $event = $this->connector()->parseWebhook($req);
+
+        $this->assertSame(\CMBcoreSeller\Integrations\Messaging\DTO\MessageKind::Video, $event->kind);
+        $this->assertNull($event->body);
+        $this->assertCount(1, $event->attachments);
+
+        $att = $event->attachments[0];
+        $this->assertSame(\CMBcoreSeller\Integrations\Messaging\DTO\MessageKind::Video, $att->kind);
+        $this->assertSame('cf03c9e1fe2c0992cdb51c3cb6eab2bd', $att->externalUrl);
+        $this->assertSame(15000, $att->durationMs);
+        $this->assertSame(399, $att->width);
+        $this->assertSame(713, $att->height);
+    }
+
+    public function test_parses_code_10_item_push_as_text_with_item_body(): void
+    {
+        $req = $this->signedPush(['code' => 10, 'shop_id' => 55, 'timestamp' => 1700000000, 'data' => json_encode([
+            'type' => 'message',
+            'content' => [
+                'conversation_id' => 'CONV_ITEM',
+                'message_id' => 'MSG_ITEM',
+                'from_id' => 'BUYER_ITEM',
+                'message_type' => 'item',
+                'content' => ['shop_id' => 123456789, 'item_id' => 9112503530],
+                'created_timestamp' => 1700000004,
+            ],
+        ])]);
+
+        $event = $this->connector()->parseWebhook($req);
+
+        $this->assertSame(\CMBcoreSeller\Integrations\Messaging\DTO\MessageKind::Text, $event->kind);
+        $this->assertStringContainsString('9112503530', $event->body ?? '');
+        $this->assertSame([], $event->attachments);
+    }
+
+    public function test_non_chat_code_has_null_kind_and_no_attachments(): void
+    {
+        $req = $this->signedPush(['code' => 3, 'shop_id' => 55, 'timestamp' => 1700000000, 'data' => json_encode(['ordersn' => 'SN_9'])]);
+        $event = $this->connector()->parseWebhook($req);
+
+        $this->assertNull($event->kind);
+        $this->assertNull($event->body);
+        $this->assertSame([], $event->attachments);
+    }
+
     public function test_registry_resolves_shopee_chat_when_enabled(): void
     {
         ShopeeFixtures::configure();

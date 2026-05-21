@@ -7,6 +7,7 @@ use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Channels\TikTok\TikTokSigner;
 use CMBcoreSeller\Integrations\Messaging\Contracts\MessagingConnector;
 use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\OutboundWindowPolicyDTO;
@@ -106,10 +107,72 @@ class TikTokChatConnector implements MessagingConnector
         $data = (array) ($body['data'] ?? []);
 
         // TikTok message webhook (type code IM) — data mang conversation/message.
+        // Per docv2_page_14-new-message.md: data.conversation_id, data.message_id,
+        // data.sender.im_user_id, data.type (TEXT/IMAGE/VIDEO/...), data.content (JSON string).
         $conversationId = $data['conversation_id'] ?? null;
         $messageId = $data['message_id'] ?? null;
         $senderId = $data['sender']['im_user_id'] ?? ($data['from_user_id'] ?? null);
         $hasMessage = $conversationId !== null && $messageId !== null;
+
+        // Parse normalized kind/body/attachments from TikTok's type + content (JSON string).
+        // doc: data.type = "TEXT"|"IMAGE"|"VIDEO"|...; data.content = JSON string.
+        $kind = MessageKind::Text;
+        $parsedBody = null;
+        $attachments = [];
+
+        if ($hasMessage) {
+            $messageType = strtoupper((string) ($data['type'] ?? 'TEXT'));
+            // data.content is a JSON-encoded string per docs: {"content":"text"} for TEXT,
+            // {"url":"...","width":"304","height":"290"} for IMAGE,
+            // {"url":"...","width":640,"height":360,"duration":"20.504",...} for VIDEO.
+            $rawContent = $data['content'] ?? '';
+            $msgContent = is_string($rawContent)
+                ? (json_decode($rawContent, true) ?: [])
+                : (array) $rawContent;
+
+            switch ($messageType) {
+                case 'TEXT':
+                    $kind = MessageKind::Text;
+                    // TEXT content: {"content": "simple text"} — key is "content" per docs.
+                    $parsedBody = isset($msgContent['content']) ? (string) $msgContent['content'] : null;
+                    break;
+
+                case 'IMAGE':
+                    $kind = MessageKind::Image;
+                    // IMAGE content: {"url":"...","width":"304","height":"290"} — verify sandbox.
+                    $attachments[] = new MediaRefDTO(
+                        kind: MessageKind::Image,
+                        mime: 'image/jpeg',
+                        externalUrl: isset($msgContent['url']) ? (string) $msgContent['url'] : null,
+                        width: isset($msgContent['width']) ? (int) $msgContent['width'] : null,
+                        height: isset($msgContent['height']) ? (int) $msgContent['height'] : null,
+                    );
+                    break;
+
+                case 'VIDEO':
+                    $kind = MessageKind::Video;
+                    // VIDEO content: {"url":"...","width":640,"height":360,"duration":"20.504",...}
+                    // duration field is a string in seconds — verify sandbox.
+                    $attachments[] = new MediaRefDTO(
+                        kind: MessageKind::Video,
+                        mime: 'video/mp4',
+                        externalUrl: isset($msgContent['url']) ? (string) $msgContent['url'] : null,
+                        durationMs: isset($msgContent['duration'])
+                            ? (int) ((float) $msgContent['duration'] * 1000)
+                            : null,
+                        width: isset($msgContent['width']) ? (int) $msgContent['width'] : null,
+                        height: isset($msgContent['height']) ? (int) $msgContent['height'] : null,
+                    );
+                    break;
+
+                default:
+                    // PRODUCT_CARD, ORDER_CARD, EMOTICONS, COUPON_CARD, LOGISTICS_CARD,
+                    // ALLOCATED_SERVICE, NOTIFICATION, BUYER_ENTER_FROM_*, OTHER → text label.
+                    $kind = MessageKind::Text;
+                    $parsedBody = '['.$messageType.']';
+                    break;
+            }
+        }
 
         return new MessagingWebhookEventDTO(
             provider: $this->code(),
@@ -120,6 +183,9 @@ class TikTokChatConnector implements MessagingConnector
             buyerExternalId: $senderId !== null ? (string) $senderId : null,
             occurredAt: isset($body['timestamp']) ? CarbonImmutable::createFromTimestamp((int) $body['timestamp']) : null,
             raw: $body,
+            kind: $hasMessage ? $kind : null,
+            body: $hasMessage ? $parsedBody : null,
+            attachments: $hasMessage ? $attachments : [],
         );
     }
 

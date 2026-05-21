@@ -31,5 +31,12 @@ final readonly class MessagingWebhookEventDTO
         public ?CarbonImmutable $occurredAt = null,
         /** @var array<string, mixed> */
         public array $raw = [],
+        // Normalized content fields — set by connector parsers (Phase B).
+        // When set, MessagingWebhookIngestService stores them as _kind/_body/_attachments
+        // so ProcessMessagingWebhook can rebuild them without re-parsing the raw payload.
+        public ?MessageKind $kind = null,
+        public ?string $body = null,
+        /** @var list<MediaRefDTO> */
+        public array $attachments = [],
     ) {}
 }
