@@ -33,7 +33,7 @@ class ChannelAccountController extends Controller
     {
         $this->authorizeView($request);
 
-        $accounts = ChannelAccount::query()->orderByDesc('created_at')->get();
+        $accounts = ChannelAccount::query()->where('provider', '!=', 'facebook_page')->orderByDesc('created_at')->get();
         $connectable = collect($registry->providers())
             ->filter(fn ($p) => $p !== 'manual' && $registry->for($p)->supports('orders.fetch'))
             ->map(fn ($p) => ['code' => $p, 'name' => $registry->for($p)->displayName()])

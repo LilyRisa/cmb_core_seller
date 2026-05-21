@@ -167,7 +167,9 @@ export function ChannelsPage() {
 
     if (isError) return <Result status="error" title="Không tải được danh sách gian hàng" subTitle={errorMessage(error)} extra={<Button onClick={() => refetch()}>Thử lại</Button>} />;
 
-    const accounts = data?.data ?? [];
+    const allAccounts = data?.data ?? [];
+    const visibleAccounts = allAccounts.filter((a) => a.provider !== 'facebook_page');
+    const accounts = visibleAccounts;
     const connectable = data?.meta.connectable_providers ?? [];
 
     return (

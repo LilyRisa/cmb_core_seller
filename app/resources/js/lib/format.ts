@@ -78,6 +78,8 @@ export const CHANNEL_META: Record<string, { name: string; color: string }> = {
     shopee: { name: 'Shopee', color: '#ee4d2d' },
     lazada: { name: 'Lazada', color: '#0f146d' },
     manual: { name: 'Đơn thủ công', color: '#8c8c8c' },
+    facebook_page: { name: 'Facebook', color: '#1877F2' },
+    facebook: { name: 'Facebook', color: '#1877F2' },
 };
 
 export const CHANNEL_STATUS_COLOR: Record<string, string> = {
