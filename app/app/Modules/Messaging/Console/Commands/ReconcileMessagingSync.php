@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Modules\Messaging\Console\Commands;
 
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Messaging\Jobs\BackfillFacebookComments;
 use CMBcoreSeller\Modules\Messaging\Jobs\BackfillMessagingChannel;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
@@ -37,6 +38,9 @@ class ReconcileMessagingSync extends Command
                 $meta = MessagingAccountMeta::withoutGlobalScope(TenantScope::class)->find($a->id);
                 $since = $meta?->last_synced_at?->toIso8601String();
                 BackfillMessagingChannel::dispatch((int) $a->getKey(), $since);
+                if ($registry->for($code)->supports('inbound.comments')) {
+                    BackfillFacebookComments::dispatch((int) $a->getKey(), $since);
+                }
             });
 
         return self::SUCCESS;

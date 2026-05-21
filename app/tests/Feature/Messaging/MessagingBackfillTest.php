@@ -8,6 +8,7 @@ use CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Messaging\Jobs\BackfillFacebookComments;
 use CMBcoreSeller\Modules\Messaging\Jobs\BackfillMessagingChannel;
 use CMBcoreSeller\Modules\Messaging\Jobs\DownloadInboundMedia;
 use CMBcoreSeller\Modules\Messaging\Jobs\RelayMessagingAvatar;
@@ -193,7 +194,7 @@ class MessagingBackfillTest extends TestCase
 
     public function test_sync_endpoint_dispatches_backfill_for_owner(): void
     {
-        Bus::fake([BackfillMessagingChannel::class]);
+        Bus::fake([BackfillMessagingChannel::class, BackfillFacebookComments::class]);
         [$tenant, $account] = $this->fbAccount();
         $this->activateProFor($tenant);
 
@@ -204,6 +205,8 @@ class MessagingBackfillTest extends TestCase
 
         Bus::assertDispatched(BackfillMessagingChannel::class,
             fn ($job) => $job->channelAccountId === $account->id);
+        Bus::assertDispatched(BackfillFacebookComments::class,
+            fn ($job) => $job->channelAccountId === $account->id);
 
         $meta = MessagingAccountMeta::query()->find($account->id);
         $this->assertSame('queued', $meta->sync_status);
@@ -211,7 +214,7 @@ class MessagingBackfillTest extends TestCase
 
     public function test_reconcile_command_dispatches_incremental_backfill_for_active_pages(): void
     {
-        Bus::fake([BackfillMessagingChannel::class]);
+        Bus::fake([BackfillMessagingChannel::class, BackfillFacebookComments::class]);
         [$tenant, $account] = $this->fbAccount();
         MessagingAccountMeta::query()->where('channel_account_id', $account->id)
             ->update(['last_synced_at' => now()->subHours(2)]);
@@ -219,6 +222,8 @@ class MessagingBackfillTest extends TestCase
         $this->artisan('messaging:reconcile-sync')->assertExitCode(0);
 
         Bus::assertDispatched(BackfillMessagingChannel::class,
+            fn ($job) => $job->channelAccountId === $account->id && $job->sinceIso !== null);
+        Bus::assertDispatched(BackfillFacebookComments::class,
             fn ($job) => $job->channelAccountId === $account->id && $job->sinceIso !== null);
     }
 

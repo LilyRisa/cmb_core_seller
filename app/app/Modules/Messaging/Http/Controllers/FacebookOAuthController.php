@@ -7,6 +7,7 @@ use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\OAuthState;
+use CMBcoreSeller\Modules\Messaging\Jobs\BackfillFacebookComments;
 use CMBcoreSeller\Modules\Messaging\Jobs\BackfillMessagingChannel;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
@@ -108,6 +109,7 @@ class FacebookOAuthController extends Controller
                             'sync_status' => MessagingAccountMeta::SYNC_QUEUED],
                     );
                 BackfillMessagingChannel::dispatch((int) $account->getKey());
+                BackfillFacebookComments::dispatch((int) $account->getKey());
                 $connected++;
             }
 

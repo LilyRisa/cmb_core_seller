@@ -168,6 +168,31 @@ class FacebookPageConnectorTest extends TestCase
         });
     }
 
+    public function test_register_webhooks_subscribes_feed_field(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response(['success' => true], 200),
+        ]);
+
+        $auth = new MessagingAuthContext(
+            channelAccountId: 1,
+            provider: 'facebook_page',
+            externalShopId: 'PAGE_123',
+            accessToken: 'PAGE_TOKEN',
+        );
+
+        $this->connector()->registerWebhooks($auth);
+
+        Http::assertSent(function ($request) {
+            $data = $request->data();
+            $fields = (string) ($data['subscribed_fields'] ?? '');
+
+            return str_contains($request->url(), '/subscribed_apps')
+                && str_contains($fields, 'feed')
+                && str_contains($fields, 'messages');
+        });
+    }
+
     public function test_send_maps_window_error_to_exception(): void
     {
         Http::fake([

@@ -139,7 +139,7 @@ class FacebookPageConnector implements MessagingConnector
     {
         // Subscribe page vào app cho field `messages`, `messaging_postbacks`.
         Http::post($this->graphUrl($auth->externalShopId.'/subscribed_apps'), [
-            'subscribed_fields' => 'messages,messaging_postbacks,message_deliveries,message_reads',
+            'subscribed_fields' => 'messages,messaging_postbacks,message_deliveries,message_reads,feed',
             'access_token' => $auth->accessToken,
         ]);
     }

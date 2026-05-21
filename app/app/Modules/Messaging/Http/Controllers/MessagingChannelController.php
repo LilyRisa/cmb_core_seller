@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Messaging\Http\Controllers;
 use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Messaging\Jobs\BackfillFacebookComments;
 use CMBcoreSeller\Modules\Messaging\Jobs\BackfillMessagingChannel;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta;
@@ -86,6 +87,7 @@ class MessagingChannelController extends Controller
             ['tenant_id' => $account->tenant_id, 'sync_status' => MessagingAccountMeta::SYNC_QUEUED],
         );
         BackfillMessagingChannel::dispatch($account->id);
+        BackfillFacebookComments::dispatch($account->id);
         AuditLog::record('messaging.facebook.sync.requested', null, ['external_shop_id' => $account->external_shop_id]);
 
         return response()->json(['data' => ['ok' => true]], 202);
