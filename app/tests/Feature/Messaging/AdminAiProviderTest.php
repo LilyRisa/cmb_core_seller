@@ -160,4 +160,37 @@ class AdminAiProviderTest extends TestCase
             'base_url' => 'http://169.254.169.254', 'default_model' => 'x',
         ])->assertStatus(422);
     }
+
+    public function test_hyphenated_code_is_editable_testable_deletable(): void
+    {
+        Http::fake(['*' => Http::response([
+            'choices' => [['message' => ['content' => 'hi'], 'finish_reason' => 'stop']],
+            'usage' => [],
+        ], 200)]);
+        $this->actingAdmin();
+
+        $this->postJson('/api/v1/admin/ai-providers', [
+            'code' => 'deepseek-prod', 'adapter' => 'openai_compatible',
+            'base_url' => 'https://api.deepseek.com', 'default_model' => 'deepseek-chat',
+            'api_key' => 'k', 'is_active' => true,
+        ])->assertStatus(201);
+
+        // Route constraint phải cho phép dấu '-' (trước đây [a-z0-9_]+ ⇒ 404 mọi thao tác).
+        $this->patchJson('/api/v1/admin/ai-providers/deepseek-prod', ['display_name' => 'DeepSeek Prod'])
+            ->assertOk()->assertJsonPath('data.display_name', 'DeepSeek Prod');
+        $this->postJson('/api/v1/admin/ai-providers/deepseek-prod/test')
+            ->assertOk()->assertJsonPath('data.ok', true);
+        $this->deleteJson('/api/v1/admin/ai-providers/deepseek-prod')->assertOk();
+        $this->assertDatabaseHas('ai_providers', ['code' => 'deepseek-prod', 'is_active' => false]);
+    }
+
+    public function test_test_endpoint_graceful_when_adapter_unregistered(): void
+    {
+        $this->actingAdmin();
+        AiProvider::query()->create(['code' => 'weird', 'adapter' => 'bogus_adapter', 'is_active' => true]);
+
+        // make() ném ProviderNotConfigured (adapter chưa register) — phải bắt trong try ⇒ 200 ok:false (KHÔNG 500).
+        $this->postJson('/api/v1/admin/ai-providers/weird/test')
+            ->assertOk()->assertJsonPath('data.ok', false);
+    }
 }

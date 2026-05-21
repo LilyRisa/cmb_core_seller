@@ -27,4 +27,11 @@ class SafeProviderUrlTest extends TestCase
         $this->assertTrue($this->fails('https://192.168.1.10'));
         $this->assertTrue($this->fails('https://10.0.0.5'));
     }
+
+    public function test_rejects_ipv6_loopback_literal(): void
+    {
+        // Literal IPv6 loopback bọc trong [ ] — trước đây lọt qua vì gethostbyname chỉ IPv4.
+        $this->assertTrue($this->fails('https://[::1]'));
+        $this->assertTrue($this->fails('https://[::1]:8443/v1'));
+    }
 }
