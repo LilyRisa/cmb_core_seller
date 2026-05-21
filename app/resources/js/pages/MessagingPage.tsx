@@ -92,7 +92,10 @@ export function MessagingPage() {
     };
 
     const handleEmoji = (emoji: { native?: string }) => {
-        if (emoji.native) setDraft((d) => d + emoji.native);
+        if (emoji.native) {
+            setDraft((d) => d + emoji.native);
+            setEmojiOpen(false);
+        }
     };
 
     const convMenuItems = (c: Conversation) => [
