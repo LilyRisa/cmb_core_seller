@@ -238,4 +238,215 @@ class TikTokLazadaChatConnectorTest extends TestCase
                 && ! empty($d['sign']);
         });
     }
+
+    // --- Lazada IM polling (Phase C2) ----------------------------------------
+
+    public function test_lazada_inbound_polling_capability_true(): void
+    {
+        $caps = (new LazadaChatConnector)->capabilities();
+        $this->assertTrue($caps['inbound.polling']);
+    }
+
+    public function test_lazada_fetch_conversations_parses_sessions(): void
+    {
+        config(['integrations.lazada' => [
+            'app_key' => 'K',
+            'app_secret' => 'S',
+            'base_url' => 'https://api.lazada.vn/rest',
+        ]]);
+
+        $responsePayload = [
+            'code' => '0',
+            'success' => 'true',
+            'err_code' => '0',
+            'err_message' => 'SUCCESS',
+            'data' => [
+                'session_list' => [
+                    [
+                        'session_id' => 'SESS_A',
+                        'buyer_id' => '111111',
+                        'title' => 'Buyer Alpha',
+                        'head_url' => 'https://example.com/alpha.jpg',
+                        'summary' => 'Hello!',
+                        'unread_count' => '3',
+                        'last_message_time' => '1716200000000',
+                        'last_message_id' => 'MSG_A1',
+                        'site_id' => 'VN',
+                        'tags' => [],
+                    ],
+                    [
+                        'session_id' => 'SESS_B',
+                        'buyer_id' => '222222',
+                        'title' => 'Buyer Beta',
+                        'head_url' => '',
+                        'summary' => 'Còn hàng không?',
+                        'unread_count' => '0',
+                        'last_message_time' => '1716100000000',
+                        'last_message_id' => 'MSG_B1',
+                        'site_id' => 'VN',
+                        'tags' => [],
+                    ],
+                ],
+                'has_more' => 'true',
+                'next_start_time' => '1716100000000',
+                'last_session_id' => 'SESS_B',
+            ],
+        ];
+
+        Http::fake(['api.lazada.vn/*' => Http::response($responsePayload, 200)]);
+
+        $auth = new MessagingAuthContext(
+            channelAccountId: 1,
+            provider: 'lazada_chat',
+            externalShopId: 'SELLER1',
+            accessToken: 'TOKEN'
+        );
+
+        $page = (new LazadaChatConnector)->fetchConversations($auth);
+
+        // Assert 2 ConversationDTOs parsed correctly
+        $this->assertCount(2, $page->items);
+
+        /** @var \CMBcoreSeller\Integrations\Messaging\DTO\ConversationDTO $first */
+        $first = $page->items[0];
+        $this->assertSame('SESS_A', $first->externalConversationId);
+        $this->assertSame('111111', $first->buyerExternalId);
+        $this->assertSame('Buyer Alpha', $first->buyerName);
+        $this->assertSame('https://example.com/alpha.jpg', $first->buyerAvatarUrl);
+        $this->assertSame('Hello!', $first->lastMessagePreview);
+        $this->assertSame(3, $first->unreadCount);
+        $this->assertNotNull($first->lastMessageAt);
+
+        /** @var \CMBcoreSeller\Integrations\Messaging\DTO\ConversationDTO $second */
+        $second = $page->items[1];
+        $this->assertSame('SESS_B', $second->externalConversationId);
+        $this->assertSame('222222', $second->buyerExternalId);
+        $this->assertNull($second->buyerAvatarUrl);  // empty head_url → null
+        $this->assertSame(0, $second->unreadCount);
+
+        // Assert pagination
+        $this->assertTrue($page->hasMore);
+        $this->assertNotNull($page->nextCursor);
+        // cursor encodes "last_session_id|next_start_time"
+        $this->assertStringContainsString('SESS_B', $page->nextCursor);
+        $this->assertStringContainsString('1716100000000', $page->nextCursor);
+
+        // Assert the GET request was sent to the correct endpoint with sign
+        Http::assertSent(function ($r) {
+            return str_contains($r->url(), '/im/session/list')
+                && str_contains($r->url(), 'sign=')
+                && str_contains($r->url(), 'app_key=K')
+                && str_contains($r->url(), 'access_token=TOKEN');
+        });
+    }
+
+    public function test_lazada_fetch_messages_parses_text_and_image(): void
+    {
+        config(['integrations.lazada' => [
+            'app_key' => 'K',
+            'app_secret' => 'S',
+            'base_url' => 'https://api.lazada.vn/rest',
+        ]]);
+
+        // Text message: template_id=1, from_account_type=1 (buyer → Inbound)
+        $textContent = json_encode(['txt' => 'Bao giờ ship?', 'activeContent' => []]);
+        // Image message: template_id=3, from_account_type=2 (seller → Outbound)
+        $imageContent = json_encode(['img_url' => 'https://img.lazada.vn/photo.jpg', 'width' => 800, 'height' => 600]);
+
+        $responsePayload = [
+            'code' => '0',
+            'success' => 'true',
+            'err_code' => '0',
+            'err_message' => 'null',
+            'data' => [
+                'message_list' => [
+                    [
+                        'message_id' => 'MSG_TEXT_1',
+                        'session_id' => 'SESS_X',
+                        'template_id' => '1',
+                        'from_account_id' => '999001',
+                        'from_account_type' => '1',  // buyer
+                        'to_account_id' => '100001',
+                        'to_account_type' => '2',
+                        'content' => $textContent,
+                        'send_time' => '1716200000000',
+                        'type' => '1',
+                        'status' => '0',
+                        'auto_reply' => 'false',
+                        'site_id' => 'VN',
+                    ],
+                    [
+                        'message_id' => 'MSG_IMAGE_1',
+                        'session_id' => 'SESS_X',
+                        'template_id' => '3',
+                        'from_account_id' => '100001',
+                        'from_account_type' => '2',  // seller
+                        'to_account_id' => '999001',
+                        'to_account_type' => '1',
+                        'content' => $imageContent,
+                        'send_time' => '1716200005000',
+                        'type' => '1',
+                        'status' => '0',
+                        'auto_reply' => 'false',
+                        'site_id' => 'VN',
+                    ],
+                ],
+                'has_more' => 'false',
+                'next_start_time' => '1716200005000',
+                'last_message_id' => 'MSG_IMAGE_1',
+            ],
+        ];
+
+        Http::fake(['api.lazada.vn/*' => Http::response($responsePayload, 200)]);
+
+        $auth = new MessagingAuthContext(
+            channelAccountId: 1,
+            provider: 'lazada_chat',
+            externalShopId: 'SELLER1',
+            accessToken: 'TOKEN'
+        );
+
+        $page = (new LazadaChatConnector)->fetchMessages($auth, 'SESS_X');
+
+        $this->assertCount(2, $page->items);
+
+        /** @var \CMBcoreSeller\Integrations\Messaging\DTO\MessageDTO $textMsg */
+        $textMsg = $page->items[0];
+        $this->assertSame('MSG_TEXT_1', $textMsg->externalMessageId);
+        $this->assertSame('SESS_X', $textMsg->externalConversationId);
+        $this->assertSame(MessageKind::Text, $textMsg->kind);
+        $this->assertSame('Bao giờ ship?', $textMsg->body);
+        $this->assertSame([], $textMsg->attachments);
+        $this->assertSame(\CMBcoreSeller\Integrations\Messaging\DTO\MessageDirection::Inbound, $textMsg->direction);
+        $this->assertSame('999001', $textMsg->buyerExternalId);
+        $this->assertNotNull($textMsg->sentAt);
+
+        /** @var \CMBcoreSeller\Integrations\Messaging\DTO\MessageDTO $imgMsg */
+        $imgMsg = $page->items[1];
+        $this->assertSame('MSG_IMAGE_1', $imgMsg->externalMessageId);
+        $this->assertSame(MessageKind::Image, $imgMsg->kind);
+        $this->assertNull($imgMsg->body);
+        $this->assertCount(1, $imgMsg->attachments);
+        $this->assertSame(\CMBcoreSeller\Integrations\Messaging\DTO\MessageDirection::Outbound, $imgMsg->direction);
+
+        /** @var \CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO $att */
+        $att = $imgMsg->attachments[0];
+        $this->assertInstanceOf(\CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO::class, $att);
+        $this->assertSame(MessageKind::Image, $att->kind);
+        $this->assertSame('https://img.lazada.vn/photo.jpg', $att->externalUrl);
+        $this->assertSame(800, $att->width);
+        $this->assertSame(600, $att->height);
+        $this->assertSame('image/jpeg', $att->mime);
+
+        // has_more = false → no nextCursor
+        $this->assertFalse($page->hasMore);
+        $this->assertNull($page->nextCursor);
+
+        // Assert GET to correct endpoint
+        Http::assertSent(function ($r) {
+            return str_contains($r->url(), '/im/message/list')
+                && str_contains($r->url(), 'session_id=SESS_X')
+                && str_contains($r->url(), 'sign=');
+        });
+    }
 }

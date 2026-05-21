@@ -6,7 +6,11 @@ use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Channels\Lazada\LazadaSigner;
 use CMBcoreSeller\Integrations\Messaging\Contracts\MessagingConnector;
+use CMBcoreSeller\Integrations\Messaging\DTO\ConversationDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageDirection;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\OutboundWindowPolicyDTO;
@@ -46,7 +50,7 @@ class LazadaChatConnector implements MessagingConnector
     {
         return [
             'inbound.webhook' => true,
-            'inbound.polling' => false,
+            'inbound.polling' => true,
             'outbound.text' => true,
             'outbound.image' => true,
             'outbound.video' => false,
@@ -142,14 +146,242 @@ class LazadaChatConnector implements MessagingConnector
         return [$this->parseWebhook($request)];
     }
 
+    /**
+     * Poll Lazada IM `/im/session/list` (GET) để lấy danh sách conversation.
+     *
+     * Lazada IM KHÔNG có webhook outbound polling — đây là cách DUY NHẤT nhận chat buyer.
+     *
+     * Request params (doc chính thức GetSessionList):
+     *   - `start_time`      (ms) — bắt buộc; first-page = current time, next-page = next_start_time từ response.
+     *   - `page_size`       — bắt buộc.
+     *   - `last_session_id` — optional; từ $query['cursor'] (cursor = last_session_id của page trước).
+     *
+     * Pagination fields trong response (doc):
+     *   - `has_more`         Boolean (string "true"/"false" hoặc bool) — còn trang sau.
+     *   - `next_start_time`  Number — timestamp ms của trang sau (truyền làm start_time).
+     *   - `last_session_id`  String — session_id cuối trang (truyền làm last_session_id + nextCursor).
+     *
+     * nextCursor = `last_session_id` (caller cần pass cả start_time lần sau = next_start_time;
+     * ta encode cả hai vào cursor dạng "lastSessionId|nextStartTime").
+     */
     public function fetchConversations(MessagingAuthContext $auth, array $query = []): Page
     {
-        throw UnsupportedOperation::for($this->code(), 'fetchConversations');
+        $cfg = (array) config('integrations.lazada', []);
+        $path = '/im/session/list';
+
+        // start_time: first page = now ms; next page = next_start_time từ response trước (encoded trong cursor)
+        $startTime = (string) (int) (microtime(true) * 1000);
+        $lastSessionId = null;
+
+        if (isset($query['since']) && $query['since'] instanceof CarbonImmutable) {
+            $startTime = (string) ((int) ($query['since']->valueOf()));  // ms
+        }
+
+        // cursor = "lastSessionId|nextStartTime"
+        if (! empty($query['cursor']) && str_contains((string) $query['cursor'], '|')) {
+            [$lastSessionId, $startTime] = explode('|', (string) $query['cursor'], 2);
+        }
+
+        $pageSize = (string) ((int) ($query['pageSize'] ?? 50));
+
+        $params = [
+            'app_key' => (string) ($cfg['app_key'] ?? ''),
+            'access_token' => $auth->accessToken,
+            'sign_method' => 'sha256',
+            'timestamp' => (string) (int) (microtime(true) * 1000),
+            'start_time' => $startTime,
+            'page_size' => $pageSize,
+        ];
+        if ($lastSessionId !== null && $lastSessionId !== '') {
+            $params['last_session_id'] = $lastSessionId;
+        }
+
+        $params['sign'] = LazadaSigner::sign((string) ($cfg['app_secret'] ?? ''), $path, $params);
+
+        $base = rtrim((string) ($cfg['base_url'] ?? 'https://api.lazada.vn/rest'), '/');
+        $response = Http::timeout(30)->retry(2, 500, throw: false)->get($base.$path, $params);
+
+        $data = (array) ($response->json('data') ?? []);
+        $sessionList = (array) ($data['session_list'] ?? []);
+
+        $items = array_values(array_map(function (array $s) {
+            $lastMsgTime = isset($s['last_message_time'])
+                ? CarbonImmutable::createFromTimestampMs((int) $s['last_message_time'])
+                : null;
+
+            return new ConversationDTO(
+                externalConversationId: (string) ($s['session_id'] ?? ''),
+                buyerExternalId: (string) ($s['buyer_id'] ?? ''),
+                buyerName: isset($s['title']) ? (string) $s['title'] : null,
+                buyerAvatarUrl: isset($s['head_url']) && $s['head_url'] !== '' ? (string) $s['head_url'] : null,
+                lastMessageAt: $lastMsgTime,
+                lastMessagePreview: isset($s['summary']) ? (string) $s['summary'] : null,
+                unreadCount: isset($s['unread_count']) ? (int) $s['unread_count'] : null,
+                raw: $s,
+            );
+        }, array_filter($sessionList, 'is_array')));
+
+        // has_more: doc nói Boolean nhưng response example dùng string "true"/"false" — normalize.
+        $hasMore = filter_var($data['has_more'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        // nextCursor = "last_session_id|next_start_time" — encode cả hai để trang sau dùng đúng.
+        // Nếu Lazada chỉ trả một trong hai thì encode phần còn lại rỗng (caller tự fallback now).
+        // // verify sandbox: response example chứa cả hai field.
+        $nextCursor = null;
+        if ($hasMore) {
+            $respLastSessionId = (string) ($data['last_session_id'] ?? '');
+            $respNextStartTime = (string) ($data['next_start_time'] ?? '');
+            $nextCursor = $respLastSessionId.'|'.$respNextStartTime;
+        }
+
+        return new Page(items: $items, nextCursor: $nextCursor, hasMore: $hasMore);
     }
 
+    /**
+     * Poll Lazada IM `/im/message/list` (GET) để lấy messages trong 1 conversation.
+     *
+     * Request params (doc chính thức GetMessages):
+     *   - `session_id`      — bắt buộc.
+     *   - `start_time`      (ms) — bắt buộc; first-page = current time, next-page = next_start_time.
+     *   - `page_size`       — bắt buộc.
+     *   - `last_message_id` — optional; cursor từ page trước.
+     *
+     * `content` field trong message/list là JSON string — decode defensively.
+     *
+     * template_id → kind/body/attachments mapping (doc):
+     *   1  = text   → body = content.txt
+     *   3  = image  → attachment(externalUrl=content.img_url, width, height)
+     *   6  = video  → attachment(externalUrl=content.video_url ?? content.url, durationMs)
+     *   10006 = item card  → body = '[Sản phẩm]'
+     *   10007 = order card → body = '[Đơn hàng]'
+     *   else → body = '[{template_id}]'
+     *
+     * from_account_type: 1=buyer (Inbound), 2=seller (Outbound).
+     * Pagination: has_more + last_message_id (nextCursor).
+     */
     public function fetchMessages(MessagingAuthContext $auth, string $externalConversationId, array $query = []): Page
     {
-        throw UnsupportedOperation::for($this->code(), 'fetchMessages');
+        $cfg = (array) config('integrations.lazada', []);
+        $path = '/im/message/list';
+
+        $startTime = (string) (int) (microtime(true) * 1000);
+        $lastMessageId = null;
+
+        if (isset($query['since']) && $query['since'] instanceof CarbonImmutable) {
+            $startTime = (string) ((int) ($query['since']->valueOf()));
+        }
+        if (! empty($query['cursor'])) {
+            $lastMessageId = (string) $query['cursor'];
+        }
+
+        $pageSize = (string) ((int) ($query['pageSize'] ?? 50));
+
+        $params = [
+            'app_key' => (string) ($cfg['app_key'] ?? ''),
+            'access_token' => $auth->accessToken,
+            'sign_method' => 'sha256',
+            'timestamp' => (string) (int) (microtime(true) * 1000),
+            'session_id' => $externalConversationId,
+            'start_time' => $startTime,
+            'page_size' => $pageSize,
+        ];
+        if ($lastMessageId !== null && $lastMessageId !== '') {
+            $params['last_message_id'] = $lastMessageId;
+        }
+
+        $params['sign'] = LazadaSigner::sign((string) ($cfg['app_secret'] ?? ''), $path, $params);
+
+        $base = rtrim((string) ($cfg['base_url'] ?? 'https://api.lazada.vn/rest'), '/');
+        $response = Http::timeout(30)->retry(2, 500, throw: false)->get($base.$path, $params);
+
+        $data = (array) ($response->json('data') ?? []);
+        $messageList = (array) ($data['message_list'] ?? []);
+
+        $items = array_values(array_map(function (array $m) use ($externalConversationId) {
+            // content là JSON string per doc — decode defensively
+            $content = json_decode($m['content'] ?? '{}', true) ?: [];
+
+            $templateId = (int) ($m['template_id'] ?? 0);
+            $fromAccountType = (int) ($m['from_account_type'] ?? 0);
+            $direction = $fromAccountType === 1 ? MessageDirection::Inbound : MessageDirection::Outbound;
+
+            $kind = MessageKind::Text;
+            $body = null;
+            $attachments = [];
+
+            switch ($templateId) {
+                case 1: // text
+                    $kind = MessageKind::Text;
+                    $body = (string) ($content['txt'] ?? '');
+                    break;
+
+                case 3: // image
+                    $kind = MessageKind::Image;
+                    $attachments = [new MediaRefDTO(
+                        kind: MessageKind::Image,
+                        mime: 'image/jpeg',
+                        externalUrl: isset($content['img_url']) ? (string) $content['img_url'] : null,
+                        width: isset($content['width']) ? (int) $content['width'] : null,
+                        height: isset($content['height']) ? (int) $content['height'] : null,
+                    )];
+                    break;
+
+                case 6: // video
+                    $kind = MessageKind::Video;
+                    $videoUrl = (string) ($content['video_url'] ?? $content['url'] ?? '');
+                    $durationMs = isset($content['duration']) ? (int) ((float) $content['duration'] * 1000) : null;
+                    $attachments = [new MediaRefDTO(
+                        kind: MessageKind::Video,
+                        mime: 'video/mp4',
+                        externalUrl: $videoUrl !== '' ? $videoUrl : null,
+                        durationMs: $durationMs,
+                    )];
+                    break;
+
+                case 10006: // item card
+                    $kind = MessageKind::Text;
+                    $body = '[Sản phẩm]';
+                    break;
+
+                case 10007: // order card
+                    $kind = MessageKind::Text;
+                    $body = '[Đơn hàng]';
+                    break;
+
+                default:
+                    $kind = MessageKind::Text;
+                    $body = '['.$templateId.']';
+                    break;
+            }
+
+            $sentAt = isset($m['send_time'])
+                ? CarbonImmutable::createFromTimestampMs((int) $m['send_time'])
+                : null;
+
+            $buyerExternalId = (string) ($m['from_account_id'] ?? $m['buyer_id'] ?? '');
+
+            return new MessageDTO(
+                externalConversationId: $externalConversationId,
+                externalMessageId: (string) ($m['message_id'] ?? ''),
+                buyerExternalId: $buyerExternalId,
+                direction: $direction,
+                kind: $kind,
+                body: $body,
+                attachments: $attachments,
+                sentAt: $sentAt,
+                raw: $m,
+            );
+        }, array_filter($messageList, 'is_array')));
+
+        // has_more: normalize string/bool per doc example pattern
+        $hasMore = filter_var($data['has_more'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        // nextCursor = last_message_id from response (doc field name confirmed in example)
+        $nextCursor = $hasMore && isset($data['last_message_id']) && $data['last_message_id'] !== ''
+            ? (string) $data['last_message_id']
+            : null;
+
+        return new Page(items: $items, nextCursor: $nextCursor, hasMore: $hasMore);
     }
 
     /**
