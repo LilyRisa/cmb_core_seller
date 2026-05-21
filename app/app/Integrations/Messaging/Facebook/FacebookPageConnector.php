@@ -58,6 +58,7 @@ class FacebookPageConnector implements MessagingConnector
         return [
             'inbound.webhook' => true,
             'inbound.polling' => false,
+            'inbound.backfill' => true,
             'outbound.text' => true,
             'outbound.image' => true,
             'outbound.video' => true,
@@ -135,6 +136,53 @@ class FacebookPageConnector implements MessagingConnector
             'subscribed_fields' => 'messages,messaging_postbacks,message_deliveries,message_reads',
             'access_token' => $auth->accessToken,
         ]);
+    }
+
+    /**
+     * Lấy tên + avatar của page. URL avatar (picture.data.url) là CDN sẽ hết hạn —
+     * caller relay vào object storage. Lỗi ⇒ trả null (best-effort).
+     *
+     * @return array{name: ?string, avatar_url: ?string}
+     */
+    public function fetchPageProfile(MessagingAuthContext $auth): array
+    {
+        $res = Http::timeout(20)->get($this->graphUrl($auth->externalShopId), [
+            'fields' => 'name,picture{url}',
+            'access_token' => $auth->accessToken,
+        ]);
+
+        if (! $res->successful()) {
+            return ['name' => null, 'avatar_url' => null];
+        }
+
+        return [
+            'name' => $res->json('name'),
+            'avatar_url' => $res->json('picture.data.url'),
+        ];
+    }
+
+    /**
+     * Lấy tên + profile_pic của buyer theo PSID. profile_pic URL hết hạn ⇒ relay.
+     * Cần app review "Business Asset User Profile Access" với page người khác (dev mode
+     * chạy với tester). Lỗi ⇒ null (không chặn backfill).
+     *
+     * @return array{name: ?string, avatar_url: ?string}
+     */
+    public function fetchUserProfile(MessagingAuthContext $auth, string $psid): array
+    {
+        $res = Http::timeout(20)->get($this->graphUrl($psid), [
+            'fields' => 'name,profile_pic',
+            'access_token' => $auth->accessToken,
+        ]);
+
+        if (! $res->successful()) {
+            return ['name' => null, 'avatar_url' => null];
+        }
+
+        return [
+            'name' => $res->json('name'),
+            'avatar_url' => $res->json('profile_pic'),
+        ];
     }
 
     // --- Inbound ----------------------------------------------------------
