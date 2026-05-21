@@ -71,7 +71,8 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
                 ->whereNumber('id')->name('messaging.messages.media');
 
             // --- AI suggestion (S6) — gate thêm plan.feature:messaging_ai (Business) ---
-            Route::middleware('plan.feature:messaging_ai')->group(function () {
+            // + rate-limit ai-suggestion theo tenant (20/phút, định nghĩa ở AppServiceProvider).
+            Route::middleware(['plan.feature:messaging_ai', 'throttle:ai-suggestion'])->group(function () {
                 Route::post('conversations/{id}/ai-suggestion', [AiSuggestionController::class, 'generate'])
                     ->whereNumber('id')->name('messaging.ai.suggestion.generate');
                 Route::post('conversations/{id}/ai-suggestion/{draftId}/accept', [AiSuggestionController::class, 'accept'])
@@ -161,9 +162,9 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
         Route::get('/', [AdminAiProviderController::class, 'index'])->name('admin.ai-providers.index');
         Route::post('/', [AdminAiProviderController::class, 'store'])->name('admin.ai-providers.store');
         Route::patch('{code}', [AdminAiProviderController::class, 'update'])
-            ->where('code', '[a-z0-9_]+')->name('admin.ai-providers.update');
+            ->where('code', '[a-z0-9][a-z0-9_-]*')->name('admin.ai-providers.update');
         Route::delete('{code}', [AdminAiProviderController::class, 'destroy'])
-            ->where('code', '[a-z0-9_]+')->name('admin.ai-providers.destroy');
+            ->where('code', '[a-z0-9][a-z0-9_-]*')->name('admin.ai-providers.destroy');
         Route::post('{code}/test', [AdminAiProviderController::class, 'test'])
-            ->where('code', '[a-z0-9_]+')->name('admin.ai-providers.test');
+            ->where('code', '[a-z0-9][a-z0-9_-]*')->name('admin.ai-providers.test');
     });

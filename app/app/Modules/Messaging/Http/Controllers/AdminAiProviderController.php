@@ -140,9 +140,8 @@ class AdminAiProviderController extends Controller
             return response()->json(['error' => ['code' => 'UNKNOWN_AI_PROVIDER', 'message' => "Provider [{$code}] không tồn tại."]], 404);
         }
 
-        $connector = $this->registry->make($code); // resolve theo adapter, inject code
-
         try {
+            $connector = $this->registry->make($code); // resolve theo adapter, inject code
             $reply = $connector->generateReply(
                 new AiContext(tenantId: 0, providerCode: $code),
                 new ConversationSnapshot(
