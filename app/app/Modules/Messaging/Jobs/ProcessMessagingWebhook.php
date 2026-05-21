@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Messaging\Jobs;
 
+use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageDirection;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageDTO;
@@ -10,6 +11,8 @@ use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\WebhookEvent;
+use CMBcoreSeller\Modules\Messaging\Models\Conversation;
+use CMBcoreSeller\Modules\Messaging\Services\CommentConversationUpserter;
 use CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Bus\Queueable;
@@ -45,7 +48,7 @@ class ProcessMessagingWebhook implements ShouldQueue
         return [10, 30, 60, 300, 900];
     }
 
-    public function handle(MessagingRegistry $registry, MessageIngestionService $ingest): void
+    public function handle(MessagingRegistry $registry, MessageIngestionService $ingest, CommentConversationUpserter $commentUpserter): void
     {
         $event = WebhookEvent::find($this->webhookEventId);
         if (! $event || $event->status === WebhookEvent::STATUS_PROCESSED) {
@@ -57,6 +60,7 @@ class ProcessMessagingWebhook implements ShouldQueue
 
         if (! $messagingCode || ! $registry->has($messagingCode)) {
             $event->markProcessed(WebhookEvent::STATUS_IGNORED);
+
             return;
         }
         $connector = $registry->for($messagingCode);
@@ -79,6 +83,7 @@ class ProcessMessagingWebhook implements ShouldQueue
                 'shop' => $shopId,
             ]);
             $event->markProcessed(WebhookEvent::STATUS_IGNORED);
+
             return;
         }
 
@@ -86,6 +91,7 @@ class ProcessMessagingWebhook implements ShouldQueue
         $dto = $this->rebuildDtoFromStoredPayload($event);
         if (! $dto || ! $dto->externalConversationId || ! $dto->externalMessageId) {
             $event->markProcessed(WebhookEvent::STATUS_IGNORED);
+
             return;
         }
 
@@ -93,14 +99,31 @@ class ProcessMessagingWebhook implements ShouldQueue
         if (! $msgDto) {
             // Event không phải message_received (vd typing/read receipt) — đã ack, không ingest.
             $event->markProcessed(WebhookEvent::STATUS_PROCESSED);
+
             return;
         }
 
+        // Comment thread: upsert the comment-conversation BEFORE calling ingest so
+        // MessageIngestionService finds an existing comment-conversation instead of
+        // creating a default message-conversation.
+        $isComment = $dto->threadType === Conversation::THREAD_COMMENT;
+        if ($isComment) {
+            $commentUpserter->upsert($account, array_merge([
+                'top_level_comment_id' => $dto->externalConversationId,
+                'buyer_external_id' => $dto->buyerExternalId ?? '',
+                'occurred_at' => $dto->occurredAt,
+            ], $dto->threadMeta));
+        }
+
         $result = $ingest->ingest($account, $msgDto);
+
+        // For comment threads: do NOT fire MessageReceived auto-reply event — page
+        // replies to comments are manual (not bot). Media relay still runs if needed.
         $ingest->fireEventsForNewMessage(
             $result['conversation'],
             $result['message'],
             isNewConversation: $result['conversation']->wasRecentlyCreated,
+            fireInboundEvent: ! $isComment,
         );
 
         $event->markProcessed(WebhookEvent::STATUS_PROCESSED);
@@ -112,6 +135,7 @@ class ProcessMessagingWebhook implements ShouldQueue
         if (! str_starts_with($provider, 'messaging.')) {
             return null;
         }
+
         return substr($provider, strlen('messaging.'));
     }
 
@@ -168,6 +192,14 @@ class ProcessMessagingWebhook implements ShouldQueue
             }
         }
 
+        // Rebuild thread context (Phase C) — persisted by MessagingWebhookIngestService.
+        $threadType = isset($payload['_thread_type']) && is_string($payload['_thread_type'])
+            ? $payload['_thread_type']
+            : null;
+        $threadMeta = isset($payload['_thread_meta']) && is_array($payload['_thread_meta'])
+            ? $payload['_thread_meta']
+            : [];
+
         return new MessagingWebhookEventDTO(
             provider: $this->messagingProviderCode($event->provider) ?? $event->provider,
             type: (string) ($event->event_type ?: MessagingWebhookEventDTO::TYPE_UNKNOWN),
@@ -179,6 +211,8 @@ class ProcessMessagingWebhook implements ShouldQueue
             kind: $kind,
             body: isset($payload['_body']) ? (string) $payload['_body'] : null,
             attachments: $attachments,
+            threadType: $threadType,
+            threadMeta: $threadMeta,
         );
     }
 
@@ -217,7 +251,7 @@ class ProcessMessagingWebhook implements ShouldQueue
             kind: $kind,
             body: $body,
             attachments: $event->attachments, // Phase B: connectors populate; manual/legacy → []
-            sentAt: $event->occurredAt ?? \Carbon\CarbonImmutable::now(),
+            sentAt: $event->occurredAt ?? CarbonImmutable::now(),
             raw: $payload,
         );
     }

@@ -14,11 +14,17 @@ use Carbon\CarbonImmutable;
 final readonly class MessagingWebhookEventDTO
 {
     public const TYPE_MESSAGE_RECEIVED = 'message_received';
+
     public const TYPE_MESSAGE_DELIVERED = 'message_delivered';
+
     public const TYPE_MESSAGE_READ = 'message_read';
+
     public const TYPE_CONVERSATION_OPENED = 'conversation_opened';
+
     public const TYPE_CONVERSATION_CLOSED = 'conversation_closed';
+
     public const TYPE_TYPING = 'typing';
+
     public const TYPE_UNKNOWN = 'unknown';
 
     public function __construct(
@@ -38,5 +44,11 @@ final readonly class MessagingWebhookEventDTO
         public ?string $body = null,
         /** @var list<MediaRefDTO> */
         public array $attachments = [],
+        // Thread context — set by connectors that produce non-DM threads (e.g. Facebook feed
+        // comment events). MessagingWebhookIngestService persists these as _thread_type /
+        // _thread_meta so ProcessMessagingWebhook can upsert the correct conversation type.
+        public ?string $threadType = null,
+        /** @var array<string, mixed> */
+        public array $threadMeta = [],
     ) {}
 }

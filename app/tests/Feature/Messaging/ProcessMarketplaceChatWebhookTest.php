@@ -2,13 +2,14 @@
 
 namespace Tests\Feature\Messaging;
 
-use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
+use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\WebhookEvent;
 use CMBcoreSeller\Modules\Messaging\Jobs\ProcessMessagingWebhook;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
+use CMBcoreSeller\Modules\Messaging\Services\CommentConversationUpserter;
 use CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -91,6 +92,7 @@ class ProcessMarketplaceChatWebhookTest extends TestCase
         (new ProcessMessagingWebhook($event->id))->handle(
             app(MessagingRegistry::class),
             app(MessageIngestionService::class),
+            app(CommentConversationUpserter::class),
         );
 
         // Conversation phải tồn tại với provider = 'shopee_chat' (messaging code),
@@ -147,12 +149,13 @@ class ProcessMarketplaceChatWebhookTest extends TestCase
 
         $registry = app(MessagingRegistry::class);
         $ingest = app(MessageIngestionService::class);
+        $commentUpserter = app(CommentConversationUpserter::class);
 
-        (new ProcessMessagingWebhook($event->id))->handle($registry, $ingest);
+        (new ProcessMessagingWebhook($event->id))->handle($registry, $ingest, $commentUpserter);
 
         // Re-drive: reset status để job chạy lại
         $event->forceFill(['status' => WebhookEvent::STATUS_PENDING])->save();
-        (new ProcessMessagingWebhook($event->id))->handle($registry, $ingest);
+        (new ProcessMessagingWebhook($event->id))->handle($registry, $ingest, $commentUpserter);
 
         $this->assertSame(
             1,

@@ -2,16 +2,18 @@
 
 namespace Tests\Feature\Messaging;
 
-use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
+use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\WebhookEvent;
 use CMBcoreSeller\Modules\Messaging\Jobs\DownloadInboundMedia;
 use CMBcoreSeller\Modules\Messaging\Jobs\ProcessMessagingWebhook;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Models\MessageAttachment;
+use CMBcoreSeller\Modules\Messaging\Services\CommentConversationUpserter;
 use CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
+use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Tests\Fixtures\Channels\Shopee\ShopeeFixtures;
@@ -82,6 +84,7 @@ class InboundMediaIngestTest extends TestCase
         (new ProcessMessagingWebhook($event->id))->handle(
             app(MessagingRegistry::class),
             app(MessageIngestionService::class),
+            app(CommentConversationUpserter::class),
         );
     }
 
@@ -124,7 +127,7 @@ class InboundMediaIngestTest extends TestCase
         $this->assertSame(1, $msg->attachments_count, 'attachments_count phải là 1');
 
         // MessageAttachment must exist with correct external_url and status=pending.
-        $attachment = MessageAttachment::withoutGlobalScope(\CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class)
+        $attachment = MessageAttachment::withoutGlobalScope(TenantScope::class)
             ->where('message_id', $msg->id)
             ->first();
         $this->assertNotNull($attachment, 'MessageAttachment phải được tạo');

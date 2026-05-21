@@ -218,9 +218,86 @@ class FacebookPageConnector implements MessagingConnector
             foreach ((array) ($entry['messaging'] ?? []) as $messaging) {
                 $events[] = $this->mapEvent((array) $messaging, $pageId);
             }
+            // Real-time feed comment events (field='feed', item='comment', verb='add'|'edited').
+            // Each change becomes an inbound comment on the top-level comment thread.
+            foreach ((array) ($entry['changes'] ?? []) as $change) {
+                $dto = $this->mapFeedChange((array) $change, $pageId);
+                if ($dto !== null) {
+                    $events[] = $dto;
+                }
+            }
         }
 
         return $events;
+    }
+
+    /**
+     * Map 1 feed-change entry → DTO cho comment inbound, hoặc null nếu bỏ qua.
+     * Chỉ xử lý field=feed + item=comment + verb=add|edited.
+     * Bỏ qua comment của page (from.id === page id) để không ingest reply của page.
+     *
+     * @param  array<string,mixed>  $change
+     */
+    private function mapFeedChange(array $change, ?string $pageId): ?MessagingWebhookEventDTO
+    {
+        if (($change['field'] ?? '') !== 'feed') {
+            return null;
+        }
+
+        $value = (array) ($change['value'] ?? []);
+
+        if (($value['item'] ?? '') !== 'comment') {
+            return null;
+        }
+
+        if (! in_array($value['verb'] ?? '', ['add', 'edited'], true)) {
+            return null;
+        }
+
+        $fromId = isset($value['from']['id']) ? (string) $value['from']['id'] : null;
+
+        // Bỏ comment của chính page — reply của page không phải inbound customer message.
+        if ($fromId !== null && $pageId !== null && $fromId === $pageId) {
+            return null;
+        }
+
+        $commentId = isset($value['comment_id']) ? (string) $value['comment_id'] : null;
+        if ($commentId === null || $commentId === '') {
+            return null;
+        }
+
+        // Group replies under the top-level comment thread.
+        // When parent_id is present this is a reply; use parent_id as the thread id.
+        $topLevelCommentId = isset($value['parent_id']) && (string) $value['parent_id'] !== ''
+            ? (string) $value['parent_id']
+            : $commentId;
+
+        $postId = isset($value['post_id']) ? (string) $value['post_id'] : null;
+        $body = isset($value['message']) && (string) $value['message'] !== ''
+            ? (string) $value['message']
+            : null;
+        $occurredAt = isset($value['created_time']) && is_numeric($value['created_time'])
+            ? CarbonImmutable::createFromTimestamp((int) $value['created_time'])
+            : null;
+
+        return new MessagingWebhookEventDTO(
+            provider: $this->code(),
+            type: MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED,
+            externalShopId: $pageId,
+            externalConversationId: $topLevelCommentId,
+            externalMessageId: $commentId,
+            buyerExternalId: $fromId,
+            occurredAt: $occurredAt,
+            raw: $change,
+            kind: MessageKind::Text,
+            body: $body,
+            attachments: [],
+            threadType: 'comment',
+            threadMeta: array_filter([
+                'fb_post_id' => $postId,
+                'fb_comment_id' => $topLevelCommentId,
+            ], fn ($v) => $v !== null),
+        );
     }
 
     /**

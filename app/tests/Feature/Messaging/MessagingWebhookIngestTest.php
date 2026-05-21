@@ -2,11 +2,14 @@
 
 namespace Tests\Feature\Messaging;
 
+use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\WebhookEvent;
 use CMBcoreSeller\Modules\Messaging\Jobs\ProcessMessagingWebhook;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
+use CMBcoreSeller\Modules\Messaging\Services\CommentConversationUpserter;
+use CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
@@ -110,8 +113,9 @@ class MessagingWebhookIngestTest extends TestCase
         $event = WebhookEvent::query()->where('provider', 'messaging.manual')->first();
         $this->assertNotNull($event);
         (new ProcessMessagingWebhook($event->id))->handle(
-            app(\CMBcoreSeller\Integrations\Messaging\MessagingRegistry::class),
-            app(\CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService::class),
+            app(MessagingRegistry::class),
+            app(MessageIngestionService::class),
+            app(CommentConversationUpserter::class),
         );
 
         // Webhook chạy cross-tenant (không có tenant context) ⇒ verify queries
@@ -145,8 +149,9 @@ class MessagingWebhookIngestTest extends TestCase
 
         // Chạy job 2 lần — kết quả: 1 conversation, 1 message
         (new ProcessMessagingWebhook($event->id))->handle(
-            app(\CMBcoreSeller\Integrations\Messaging\MessagingRegistry::class),
-            app(\CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService::class),
+            app(MessagingRegistry::class),
+            app(MessageIngestionService::class),
+            app(CommentConversationUpserter::class),
         );
 
         // Reset status để re-run (job đã markProcessed sau call đầu)
@@ -154,8 +159,9 @@ class MessagingWebhookIngestTest extends TestCase
         $event->forceFill(['status' => WebhookEvent::STATUS_PENDING])->save();
 
         (new ProcessMessagingWebhook($event->id))->handle(
-            app(\CMBcoreSeller\Integrations\Messaging\MessagingRegistry::class),
-            app(\CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService::class),
+            app(MessagingRegistry::class),
+            app(MessageIngestionService::class),
+            app(CommentConversationUpserter::class),
         );
 
         $this->assertSame(1, Conversation::withoutGlobalScopes()->where('external_conversation_id', 'conv_Y')->count());

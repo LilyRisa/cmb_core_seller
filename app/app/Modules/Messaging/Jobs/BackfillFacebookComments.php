@@ -10,8 +10,8 @@ use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\Facebook\FacebookPageConnector;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
-use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta;
+use CMBcoreSeller\Modules\Messaging\Services\CommentConversationUpserter;
 use CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Bus\Queueable;
@@ -180,31 +180,22 @@ class BackfillFacebookComments implements ShouldBeUnique, ShouldQueue
             ? CarbonImmutable::parse((string) $thread['created_time'])
             : null;
 
-        // --- 1. Upsert conversation (comment thread) ---
-        $conv = Conversation::withoutGlobalScope(TenantScope::class)->firstOrNew([
-            'channel_account_id' => (int) $account->getKey(),
-            'external_conversation_id' => $commentId,
+        // --- 1. Upsert conversation (comment thread) via shared upserter ---
+        $upserter = app(CommentConversationUpserter::class);
+        $conv = $upserter->upsert($account, [
+            'top_level_comment_id' => $commentId,
+            'buyer_external_id' => $commenterId,
+            'buyer_name' => $commenterName,
+            'fb_post_id' => (string) $thread['post_id'],
+            'fb_comment_id' => $commentId,
+            'occurred_at' => $createdTime,
         ]);
 
-        if (! $conv->exists) {
-            $conv->tenant_id = (int) $account->tenant_id;
-            $conv->provider = $account->messagingConnectorCode() ?? $account->provider;
-            $conv->buyer_external_id = $commenterId;
-            $conv->status = Conversation::STATUS_OPEN;
-            $conv->unread_count = 0;
-            $conv->message_count = 0;
-            $conv->last_message_at = $createdTime ?? now();
-        }
-
-        $conv->thread_type = Conversation::THREAD_COMMENT;
-        $conv->buyer_name = $commenterName ?? $conv->buyer_name;
-
+        // Backfill also carries post_permalink + post_message in meta.
         $existingMeta = (array) ($conv->meta ?? []);
         $conv->meta = array_merge($existingMeta, [
-            'fb_post_id' => (string) $thread['post_id'],
             'fb_post_permalink' => $thread['post_permalink'],
             'fb_post_message' => $thread['post_message'],
-            'fb_comment_id' => $commentId,
         ]);
         $conv->save();
 

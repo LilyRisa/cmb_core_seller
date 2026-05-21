@@ -37,6 +37,7 @@ class MessagingWebhookIngestService
 
         if (! $connector->verifyWebhookSignature($request)) {
             Log::warning('messaging.webhook.signature_invalid', ['provider' => $provider]);
+
             return [
                 'status' => 401,
                 'body' => ['error' => ['code' => 'INVALID_SIGNATURE', 'message' => 'Messaging webhook signature verification failed.']],
@@ -49,6 +50,7 @@ class MessagingWebhookIngestService
             $events = $connector->parseWebhookEvents($request);
         } catch (\Throwable $e) {
             Log::warning('messaging.webhook.parse_failed', ['provider' => $provider, 'error' => $e->getMessage()]);
+
             return ['status' => 202, 'body' => ['ok' => true, 'note' => 'unparseable']];
         }
 
@@ -110,6 +112,11 @@ class MessagingWebhookIngestService
                         'height' => $m->height,
                         'duration_ms' => $m->durationMs,
                     ], $event->attachments),
+                    // Thread context (Phase C) — set by connectors for non-DM threads
+                    // (e.g. Facebook feed comment). ProcessMessagingWebhook reads these to
+                    // upsert the correct conversation type before ingesting.
+                    '_thread_type' => $event->threadType,
+                    '_thread_meta' => $event->threadMeta !== [] ? $event->threadMeta : null,
                 ]),
                 'status' => WebhookEvent::STATUS_PENDING,
                 'received_at' => now(),
@@ -141,6 +148,7 @@ class MessagingWebhookIngestService
                 $out[$h] = (string) $request->headers->get($h);
             }
         }
+
         return $out;
     }
 }
