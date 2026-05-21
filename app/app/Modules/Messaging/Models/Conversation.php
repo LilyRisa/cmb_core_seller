@@ -55,6 +55,7 @@ class Conversation extends Model
         'customer_id', 'order_id', 'status', 'snoozed_until',
         'unread_count', 'message_count', 'last_message_at', 'last_message_preview',
         'last_inbound_at', 'last_outbound_at', 'assigned_user_id', 'tags', 'meta',
+        'blocked_at', 'blocked_by_user_id', 'manually_unread', 'buyer_avatar_path',
     ];
 
     protected function casts(): array
@@ -66,6 +67,8 @@ class Conversation extends Model
             'last_outbound_at' => 'datetime',
             'tags' => 'array',
             'meta' => 'array',
+            'blocked_at' => 'datetime',
+            'manually_unread' => 'boolean',
         ];
     }
 
@@ -87,5 +90,10 @@ class Conversation extends Model
     public function scopeUnread(Builder $q): Builder
     {
         return $q->where('unread_count', '>', 0);
+    }
+
+    public function scopeNotBlocked(Builder $q): Builder
+    {
+        return $q->whereNull('blocked_at');
     }
 }

@@ -32,10 +32,20 @@ class MessagingAccountMeta extends Model
 
     protected $keyType = 'int';
 
+    public const SYNC_IDLE = 'idle';
+    public const SYNC_QUEUED = 'queued';
+    public const SYNC_RUNNING = 'running';
+    public const SYNC_DONE = 'done';
+    public const SYNC_FAILED = 'failed';
+
     protected $fillable = [
         'channel_account_id', 'tenant_id',
         'messaging_enabled', 'last_inbound_at', 'last_outbound_at',
         'outbound_window_meta', 'ai_enabled', 'settings',
+        // SPEC 2026-05-21: sync-state + page avatar
+        'page_avatar_path', 'page_avatar_synced_at', 'sync_status',
+        'sync_total_conversations', 'sync_done_conversations', 'sync_message_count',
+        'sync_cursor', 'sync_started_at', 'sync_finished_at', 'sync_error', 'last_synced_at',
     ];
 
     protected function casts(): array
@@ -47,6 +57,11 @@ class MessagingAccountMeta extends Model
             'last_outbound_at' => 'datetime',
             'outbound_window_meta' => 'array',
             'settings' => 'encrypted:array',
+            // SPEC 2026-05-21
+            'page_avatar_synced_at' => 'datetime',
+            'sync_started_at' => 'datetime',
+            'sync_finished_at' => 'datetime',
+            'last_synced_at' => 'datetime',
         ];
     }
 
