@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Messaging\Models;
 
+use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -43,14 +44,19 @@ use Illuminate\Support\Carbon;
  * @property ?int $blocked_by_user_id
  * @property bool $manually_unread
  * @property ?string $buyer_avatar_path
+ * @property bool $has_phone
+ * @property ?string $detected_phone
  */
 class Conversation extends Model
 {
     use BelongsToTenant;
 
     public const STATUS_OPEN = 'open';
+
     public const STATUS_SNOOZED = 'snoozed';
+
     public const STATUS_RESOLVED = 'resolved';
+
     public const STATUS_SPAM = 'spam';
 
     protected $fillable = [
@@ -60,6 +66,7 @@ class Conversation extends Model
         'unread_count', 'message_count', 'last_message_at', 'last_message_preview',
         'last_inbound_at', 'last_outbound_at', 'assigned_user_id', 'tags', 'meta',
         'blocked_at', 'blocked_by_user_id', 'manually_unread', 'buyer_avatar_path',
+        'has_phone', 'detected_phone',
     ];
 
     protected function casts(): array
@@ -73,6 +80,7 @@ class Conversation extends Model
             'meta' => 'array',
             'blocked_at' => 'datetime',
             'manually_unread' => 'boolean',
+            'has_phone' => 'boolean',
         ];
     }
 
@@ -83,7 +91,7 @@ class Conversation extends Model
 
     public function channelAccount(): BelongsTo
     {
-        return $this->belongsTo(\CMBcoreSeller\Modules\Channels\Models\ChannelAccount::class);
+        return $this->belongsTo(ChannelAccount::class);
     }
 
     public function scopeOpen(Builder $q): Builder

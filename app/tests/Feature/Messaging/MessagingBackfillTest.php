@@ -3,6 +3,10 @@
 namespace Tests\Feature\Messaging;
 
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
+use CMBcoreSeller\Models\User;
+use CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder;
+use CMBcoreSeller\Modules\Billing\Models\Plan;
+use CMBcoreSeller\Modules\Billing\Models\Subscription;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Jobs\BackfillMessagingChannel;
 use CMBcoreSeller\Modules\Messaging\Jobs\DownloadInboundMedia;
@@ -10,8 +14,10 @@ use CMBcoreSeller\Modules\Messaging\Jobs\RelayMessagingAvatar;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta;
+use CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService;
 use CMBcoreSeller\Modules\Messaging\Services\MessagingAvatarRelay;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
+use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
@@ -34,6 +40,13 @@ class MessagingBackfillTest extends TestCase
         $this->assertTrue(Schema::hasColumns('conversations', [
             'blocked_at', 'blocked_by_user_id', 'manually_unread', 'buyer_avatar_path',
         ]));
+    }
+
+    public function test_phone_and_tag_schema(): void
+    {
+        $this->assertTrue(Schema::hasColumns('conversations', ['has_phone', 'detected_phone']));
+        $this->assertTrue(Schema::hasTable('messaging_tags'));
+        $this->assertTrue(Schema::hasColumns('messaging_tags', ['id', 'tenant_id', 'name', 'color', 'created_at', 'updated_at']));
     }
 
     public function test_relay_messaging_avatar_stores_conversation_avatar(): void
@@ -158,29 +171,29 @@ class MessagingBackfillTest extends TestCase
         $this->assertSame('done', $meta->sync_status);
     }
 
-    private function activateProFor(\CMBcoreSeller\Modules\Tenancy\Models\Tenant $tenant): void
+    private function activateProFor(Tenant $tenant): void
     {
-        $this->seed(\CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder::class);
-        $plan = \CMBcoreSeller\Modules\Billing\Models\Plan::query()->where('code', \CMBcoreSeller\Modules\Billing\Models\Plan::CODE_PRO)->firstOrFail();
-        \CMBcoreSeller\Modules\Billing\Models\Subscription::query()->create([
+        $this->seed(BillingPlanSeeder::class);
+        $plan = Plan::query()->where('code', Plan::CODE_PRO)->firstOrFail();
+        Subscription::query()->create([
             'tenant_id' => $tenant->getKey(), 'plan_id' => $plan->getKey(),
-            'status' => \CMBcoreSeller\Modules\Billing\Models\Subscription::STATUS_ACTIVE,
-            'billing_cycle' => \CMBcoreSeller\Modules\Billing\Models\Subscription::CYCLE_MONTHLY,
+            'status' => Subscription::STATUS_ACTIVE,
+            'billing_cycle' => Subscription::CYCLE_MONTHLY,
             'current_period_start' => now(), 'current_period_end' => now()->addMonth(),
         ]);
     }
 
-    private function ownerFor(\CMBcoreSeller\Modules\Tenancy\Models\Tenant $tenant): \CMBcoreSeller\Models\User
+    private function ownerFor(Tenant $tenant): User
     {
-        $user = \CMBcoreSeller\Models\User::factory()->create(['email_verified_at' => now()]);
-        $tenant->users()->attach($user->getKey(), ['role' => \CMBcoreSeller\Modules\Tenancy\Enums\Role::Owner->value]);
+        $user = User::factory()->create(['email_verified_at' => now()]);
+        $tenant->users()->attach($user->getKey(), ['role' => Role::Owner->value]);
 
         return $user;
     }
 
     public function test_sync_endpoint_dispatches_backfill_for_owner(): void
     {
-        \Illuminate\Support\Facades\Bus::fake([\CMBcoreSeller\Modules\Messaging\Jobs\BackfillMessagingChannel::class]);
+        Bus::fake([BackfillMessagingChannel::class]);
         [$tenant, $account] = $this->fbAccount();
         $this->activateProFor($tenant);
 
@@ -189,60 +202,60 @@ class MessagingBackfillTest extends TestCase
             ->assertStatus(202)
             ->assertJsonPath('data.ok', true);
 
-        \Illuminate\Support\Facades\Bus::assertDispatched(\CMBcoreSeller\Modules\Messaging\Jobs\BackfillMessagingChannel::class,
+        Bus::assertDispatched(BackfillMessagingChannel::class,
             fn ($job) => $job->channelAccountId === $account->id);
 
-        $meta = \CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta::query()->find($account->id);
+        $meta = MessagingAccountMeta::query()->find($account->id);
         $this->assertSame('queued', $meta->sync_status);
     }
 
     public function test_reconcile_command_dispatches_incremental_backfill_for_active_pages(): void
     {
-        \Illuminate\Support\Facades\Bus::fake([\CMBcoreSeller\Modules\Messaging\Jobs\BackfillMessagingChannel::class]);
+        Bus::fake([BackfillMessagingChannel::class]);
         [$tenant, $account] = $this->fbAccount();
-        \CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta::query()->where('channel_account_id', $account->id)
+        MessagingAccountMeta::query()->where('channel_account_id', $account->id)
             ->update(['last_synced_at' => now()->subHours(2)]);
 
         $this->artisan('messaging:reconcile-sync')->assertExitCode(0);
 
-        \Illuminate\Support\Facades\Bus::assertDispatched(\CMBcoreSeller\Modules\Messaging\Jobs\BackfillMessagingChannel::class,
+        Bus::assertDispatched(BackfillMessagingChannel::class,
             fn ($job) => $job->channelAccountId === $account->id && $job->sinceIso !== null);
     }
 
     public function test_full_backfill_resets_stale_cursor(): void
     {
-        \Illuminate\Support\Facades\Bus::fake([\CMBcoreSeller\Modules\Messaging\Jobs\RelayMessagingAvatar::class, \CMBcoreSeller\Modules\Messaging\Jobs\DownloadInboundMedia::class]);
+        Bus::fake([RelayMessagingAvatar::class, DownloadInboundMedia::class]);
         [$tenant, $account] = $this->fbAccount();
-        \CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta::query()->where('channel_account_id', $account->id)->update(['sync_cursor' => 'STALE_CURSOR']);
-        \Illuminate\Support\Facades\Http::fake([
-            'graph.facebook.com/*/conversations*' => \Illuminate\Support\Facades\Http::response(['data' => [], 'paging' => []], 200),
-            'graph.facebook.com/*' => \Illuminate\Support\Facades\Http::response(['name' => 'Page'], 200),
+        MessagingAccountMeta::query()->where('channel_account_id', $account->id)->update(['sync_cursor' => 'STALE_CURSOR']);
+        Http::fake([
+            'graph.facebook.com/*/conversations*' => Http::response(['data' => [], 'paging' => []], 200),
+            'graph.facebook.com/*' => Http::response(['name' => 'Page'], 200),
         ]);
-        \CMBcoreSeller\Modules\Messaging\Jobs\BackfillMessagingChannel::dispatchSync($account->id); // sinceIso null = full
+        BackfillMessagingChannel::dispatchSync($account->id); // sinceIso null = full
         // The first conversations fetch must NOT carry the stale after-cursor.
-        \Illuminate\Support\Facades\Http::assertSent(fn ($r) => str_contains($r->url(), '/conversations') && ! str_contains($r->url(), 'after=STALE_CURSOR'));
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/conversations') && ! str_contains($r->url(), 'after=STALE_CURSOR'));
     }
 
     public function test_incremental_backfill_keeps_cursor(): void
     {
-        \Illuminate\Support\Facades\Bus::fake([\CMBcoreSeller\Modules\Messaging\Jobs\RelayMessagingAvatar::class, \CMBcoreSeller\Modules\Messaging\Jobs\DownloadInboundMedia::class]);
+        Bus::fake([RelayMessagingAvatar::class, DownloadInboundMedia::class]);
         [$tenant, $account] = $this->fbAccount();
-        \CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta::query()->where('channel_account_id', $account->id)->update(['sync_cursor' => 'KEEP_CURSOR']);
-        \Illuminate\Support\Facades\Http::fake([
-            'graph.facebook.com/*/conversations*' => \Illuminate\Support\Facades\Http::response(['data' => [], 'paging' => []], 200),
-            'graph.facebook.com/*' => \Illuminate\Support\Facades\Http::response(['name' => 'Page'], 200),
+        MessagingAccountMeta::query()->where('channel_account_id', $account->id)->update(['sync_cursor' => 'KEEP_CURSOR']);
+        Http::fake([
+            'graph.facebook.com/*/conversations*' => Http::response(['data' => [], 'paging' => []], 200),
+            'graph.facebook.com/*' => Http::response(['name' => 'Page'], 200),
         ]);
-        (new \CMBcoreSeller\Modules\Messaging\Jobs\BackfillMessagingChannel($account->id, now()->subHour()->toIso8601String()))->handle(app(\CMBcoreSeller\Integrations\Messaging\MessagingRegistry::class), app(\CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService::class));
-        \Illuminate\Support\Facades\Http::assertSent(fn ($r) => str_contains($r->url(), '/conversations') && str_contains($r->url(), 'after=KEEP_CURSOR'));
+        (new BackfillMessagingChannel($account->id, now()->subHour()->toIso8601String()))->handle(app(MessagingRegistry::class), app(MessageIngestionService::class));
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/conversations') && str_contains($r->url(), 'after=KEEP_CURSOR'));
     }
 
     public function test_channels_index_returns_avatar_count_and_sync(): void
     {
         [$tenant, $account] = $this->fbAccount();
         $this->activateProFor($tenant);
-        \CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta::query()->where('channel_account_id', $account->id)
+        MessagingAccountMeta::query()->where('channel_account_id', $account->id)
             ->update(['sync_status' => 'done', 'sync_message_count' => 5, 'sync_done_conversations' => 2]);
-        \CMBcoreSeller\Modules\Messaging\Models\Conversation::query()->create([
+        Conversation::query()->create([
             'tenant_id' => $tenant->getKey(), 'channel_account_id' => $account->id, 'provider' => 'facebook_page',
             'external_conversation_id' => 'p1', 'buyer_external_id' => 'p1', 'status' => 'open',
             'message_count' => 3, 'last_message_at' => now(),
