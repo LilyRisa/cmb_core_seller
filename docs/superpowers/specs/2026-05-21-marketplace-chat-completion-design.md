@@ -106,6 +106,28 @@ Trong group `api/v1/messaging`:
 
 **Không đụng:** FacebookPageConnector (agent khác), `MessagingPage.tsx`.
 
-## PHASE C/D — chi tiết hoá khi tới (design riêng trước khi code)
-- C: polling/sync (Lazada bắt buộc) + activate UX, mirror `SyncOrdersForShop`.
-- D: mở rộng send-type (Lazada image/item/order; TikTok image; Shopee image).
+## PHASE C — Polling/Sync + Activate (chi tiết)
+
+**Scope đợt này:** hạ tầng sync + **Lazada polling** (Lazada IM KHÔNG có webhook → bắt buộc). TikTok/Shopee polling-backup để **follow-up** (đã có webhook). `MessagingAccountMeta` đã có sẵn cột sync (`sync_status`, `sync_cursor`, `last_synced_at`, `sync_started_at/finished_at/error`, counters) — KHÔNG cần migration.
+
+**C2 (làm trước — unit-test bằng Http::fake) — Lazada `fetchConversations`/`fetchMessages`:**
+- `capabilities()['inbound.polling'] = true` cho Lazada.
+- `fetchConversations(MessagingAuthContext, $query)`: GET `/im/session/list` (ký LazadaSigner, system params giống `LazadaChatConnector::send`) với `start_time` (từ `$query['since']` ?: now), `page_size` (từ `$query['pageSize']` ?: 50), `last_session_id` (từ `$query['cursor']`). Map session → `ConversationDTO` (externalConversationId=`session_id`, buyerExternalId=`buyer_id`, buyerName=`title`, lastMessagePreview=`summary`, unreadCount=`unread_count`, lastMessageAt từ `last_message_time`). `Page(items, nextCursor=last_session_id|next_start_time, hasMore)`.
+- `fetchMessages(MessagingAuthContext, $sessionId, $query)`: GET `/im/message/list` với `session_id`, `start_time`, `page_size`, `last_message_id` (cursor). Map message → `MessageDTO`: direction = `from_account_type==1`(buyer)?Inbound:Outbound; kind/body/attachments theo `template_id` (1=text→`content.txt`; 3=image→attachment `content.img_url` + w/h; 6=video→attachment; 10006/10007/10008 → text label). `externalMessageId=message_id`, `buyerExternalId=from_account_id|buyer_id`, sentAt từ `send_time`.
+- Nguồn: tài liệu chính thức Lazada `im/session/list`, `im/message/list` (đã đối chiếu).
+
+**C1 — Sync infra:**
+- Job `app/app/Modules/Messaging/Jobs/SyncConversationsForShop.php`: ctor `(int $channelAccountId)`, queue `messaging-sync`, `ShouldBeUnique` uniqueId `sync-chat:{id}` (lock 900s), `$tries=3`, `backoff=[60,300,900]`.
+  - Load `ChannelAccount::withoutGlobalScope(TenantScope)` + `MessagingAccountMeta`. Resolve connector qua `messagingConnectorCode()` + registry. Nếu không có hoặc `!supports('inbound.polling')` → set `sync_status='done'` (no-op) + return (KHÔNG throw — mirror gotcha).
+  - `sync_status='running'`, `sync_started_at=now`. Build `MessagingAuthContext` từ account.
+  - Loop `fetchConversations(['since'=>last_synced_at,'cursor'=>sync_cursor,'pageSize'=>50])` (giới hạn maxConvPages=50, lưu `sync_cursor` mỗi trang). Mỗi conversation → loop `fetchMessages($convId, ['since'=>last_synced_at,'pageSize'=>50])` (maxMsgPages=20) → `MessageIngestionService::ingest($account,$dto)` + `fireEventsForNewMessage` khi `created`.
+  - Kết thúc OK: `last_synced_at=runStart->subMinutes(overlap)`, `sync_status='done'`, `sync_finished_at`, counters. Lỗi: `sync_status='failed'`, `sync_error`.
+- Lịch (`routes/console.php`): `everyFiveMinutes()->onOneServer()->withoutOverlapping()` — enumerate `ChannelAccount` active + `messaging_enabled=true`, dispatch `SyncConversationsForShop`. (Gate inbound.polling trong job.)
+- Endpoint `POST /api/v1/channel-accounts/{id}/resync-chat` → `ChannelAccountController::resyncChat` (mirror `resyncListings`: gate `messaging.connect`, isActive, capability `inbound.polling` qua `MessagingRegistry`, dispatch job). Route ở `routes/api.php` cạnh resync khác.
+
+**Test:** C2 unit (Http::fake session/list + message/list → ConversationDTO/MessageDTO đúng, direction/kind/attachment). C1 feature: shop Lazada active+messaging_enabled, Http::fake Lazada → chạy job → tạo Conversation(provider=lazada_chat) + Message(s); `last_synced_at` set; resync-chat endpoint dispatch job (Queue::fake) + 422 khi connector không hỗ trợ polling.
+
+**Không đụng:** Facebook, `MessagingPage.tsx`.
+
+## PHASE D — Mở rộng send-type (chi tiết hoá khi tới)
+Lazada (image qua `image/upload`→img_url, item/order); TikTok (image upload); Shopee (image qua endpoint cộng đồng). Design riêng trước khi code.
