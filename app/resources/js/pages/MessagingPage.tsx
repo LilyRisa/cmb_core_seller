@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { App, Avatar, Badge, Button, Checkbox, Dropdown, Empty, Grid, Image, Input, List, Popover, Radio, Segmented, Select, Space, Spin, Tag, Typography, Upload } from 'antd';
-import { FileOutlined, FilterOutlined, MoreOutlined, PaperClipOutlined, PhoneOutlined, PictureOutlined, RobotOutlined, SendOutlined, ShopOutlined, SmileOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
+import { App, Avatar, Badge, Button, Checkbox, Dropdown, Empty, Grid, Image, Input, List, Modal, Popconfirm, Popover, Radio, Segmented, Select, Space, Spin, Tag, Tooltip, Typography, Upload } from 'antd';
+import { CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FileOutlined, FilterOutlined, MessageFilled, MessageOutlined, MoreOutlined, PaperClipOutlined, PhoneOutlined, PictureOutlined, RobotOutlined, SendOutlined, ShopOutlined, SmileOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import Picker from '@emoji-mart/react';
 import emojiData from '@emoji-mart/data';
 import { errorMessage } from '@/lib/api';
@@ -14,9 +14,13 @@ import {
     useBlockConversation,
     useConversations,
     useConversationThread,
+    useDeleteComment,
+    useHideComment,
     useMarkRead,
     useMarkUnread,
     useMessagingTags,
+    usePrivateReplyComment,
+    useReplyComment,
     useSendMedia,
     useSendText,
     useSetConversationTags,
@@ -97,6 +101,11 @@ export function MessagingPage() {
     const [emojiOpen, setEmojiOpen] = useState(false);
     const [tagPopoverConvId, setTagPopoverConvId] = useState<number | null>(null);
 
+    // ── Comment-specific state ────────────────────────────────────────────────
+    const [privateReplyOpen, setPrivateReplyOpen] = useState(false);
+    const [privateReplyDraft, setPrivateReplyDraft] = useState('');
+    const [openingLink, setOpeningLink] = useState(false);
+
     // ── Tags ──────────────────────────────────────────────────────────────────
     const tagsQuery = useMessagingTags();
     const tags: MessagingTag[] = tagsQuery.data ?? [];
@@ -125,6 +134,10 @@ export function MessagingPage() {
     const block = useBlockConversation();
     const unblock = useUnblockConversation();
     const aiSuggest = useAiSuggestion(activeId);
+    const hideComment = useHideComment();
+    const deleteComment = useDeleteComment();
+    const replyComment = useReplyComment(activeId);
+    const privateReply = usePrivateReplyComment(activeId);
 
     const conversations = list.data?.data ?? [];
     const active = useMemo(
@@ -171,6 +184,39 @@ export function MessagingPage() {
         if (emoji.native) {
             setDraft((d) => d + emoji.native);
             setEmojiOpen(false);
+        }
+    };
+
+    const handleCommentReply = () => {
+        const body = draft.trim();
+        if (!body || !activeId) return;
+        replyComment.mutate(body, {
+            onSuccess: () => setDraft(''),
+            onError: (e) => message.error(errorMessage(e, 'Không gửi được trả lời.')),
+        });
+    };
+
+    const handlePrivateReplySend = () => {
+        const body = privateReplyDraft.trim();
+        if (!body || !activeId) return;
+        privateReply.mutate(body, {
+            onSuccess: () => {
+                setPrivateReplyDraft('');
+                setPrivateReplyOpen(false);
+                message.success('Đã gửi tin nhắn riêng.');
+            },
+            onError: (e) => message.error(errorMessage(e, 'Không gửi được tin nhắn riêng.')),
+        });
+    };
+
+    const handleAvatarClick = () => {
+        if (!active) return;
+        if (active.thread_type === 'comment' && active.comment?.post_permalink) {
+            setOpeningLink(true);
+            setTimeout(() => setOpeningLink(false), 600);
+            window.open(active.comment.post_permalink, '_blank', 'noopener');
+        } else {
+            message.info('Không có link công khai cho hội thoại chat.');
         }
     };
 
@@ -346,6 +392,23 @@ export function MessagingPage() {
         <div>
             <MessagingNav />
             <TagManagerModal open={tagModalOpen} onClose={() => setTagModalOpen(false)} />
+            {/* Private reply modal */}
+            <Modal
+                title="Nhắn riêng"
+                open={privateReplyOpen}
+                onCancel={() => { setPrivateReplyOpen(false); setPrivateReplyDraft(''); }}
+                footer={[
+                    <Button key="cancel" onClick={() => { setPrivateReplyOpen(false); setPrivateReplyDraft(''); }}>Huỷ</Button>,
+                    <Button key="send" type="primary" icon={<SendOutlined />} loading={privateReply.isPending} onClick={handlePrivateReplySend} disabled={!privateReplyDraft.trim()}>Gửi</Button>,
+                ]}
+            >
+                <Input.TextArea
+                    value={privateReplyDraft}
+                    onChange={(e) => setPrivateReplyDraft(e.target.value)}
+                    placeholder="Nội dung tin nhắn riêng…"
+                    autoSize={{ minRows: 3, maxRows: 8 }}
+                />
+            </Modal>
             <div style={{ display: 'flex', height: 'calc(100vh - 150px)', gap: 12, minWidth: 0 }}>
             {/* Cột trái — danh sách hội thoại */}
             <div style={{ flex: `0 0 ${screens.md ? 300 : 240}px`, minWidth: 240, maxWidth: 340, background: '#fff', borderRadius: 12, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
@@ -403,7 +466,17 @@ export function MessagingPage() {
                                         }}
                                     >
                                         <List.Item.Meta
-                                            avatar={<Avatar src={c.buyer_avatar_url ?? undefined}>{(c.buyer_name ?? c.buyer_external_id ?? '?').slice(0, 1).toUpperCase()}</Avatar>}
+                                            avatar={(
+                                                <Badge
+                                                    count={c.thread_type === 'comment'
+                                                        ? <CommentOutlined style={{ fontSize: 10, color: '#1677ff', background: '#fff', borderRadius: '50%', padding: 1 }} />
+                                                        : <MessageOutlined style={{ fontSize: 10, color: '#52c41a', background: '#fff', borderRadius: '50%', padding: 1 }} />
+                                                    }
+                                                    offset={[-2, 28]}
+                                                >
+                                                    <Avatar src={c.buyer_avatar_url ?? undefined}>{(c.buyer_name ?? c.buyer_external_id ?? '?').slice(0, 1).toUpperCase()}</Avatar>
+                                                </Badge>
+                                            )}
                                             title={(
                                                 <Space size={6} style={{ width: '100%', justifyContent: 'space-between' }}>
                                                     <Space size={6}>
@@ -464,18 +537,114 @@ export function MessagingPage() {
                     </div>
                 ) : (
                     <>
-                        <div style={{ padding: 12, borderBottom: '1px solid #F1F5F9', display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <Avatar src={active?.buyer_avatar_url ?? undefined} size={32}>{(active?.buyer_name ?? active?.buyer_external_id ?? '?').slice(0, 1).toUpperCase()}</Avatar>
-                            <div style={{ flex: 1 }}>
-                                <Text strong>{active?.buyer_name ?? active?.buyer_external_id}</Text>{' '}
-                                <Tag color="blue">{providerLabel(active?.provider ?? '')}</Tag>
-                                {active?.has_phone && active?.detected_phone && (
-                                    <Tag icon={<PhoneOutlined />} color="green" style={{ marginInlineStart: 4 }}>{active.detected_phone}</Tag>
-                                )}
-                                {active?.channel_account_name && (
-                                    <Text type="secondary" style={{ marginInlineStart: 4 }}>· {active.channel_account_name}</Text>
+                        <div style={{ padding: 12, borderBottom: '1px solid #F1F5F9' }}>
+                            {/* Row 1: avatar + name + provider chips + comment action buttons */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <Tooltip title={active?.thread_type === 'comment' && active?.comment?.post_permalink ? 'Xem bài viết Facebook' : 'Không có link công khai'}>
+                                    <Spin spinning={openingLink} size="small">
+                                        <Avatar
+                                            src={active?.buyer_avatar_url ?? undefined}
+                                            size={32}
+                                            style={{ cursor: 'pointer' }}
+                                            onClick={handleAvatarClick}
+                                        >
+                                            {(active?.buyer_name ?? active?.buyer_external_id ?? '?').slice(0, 1).toUpperCase()}
+                                        </Avatar>
+                                    </Spin>
+                                </Tooltip>
+                                <div style={{ flex: 1 }}>
+                                    <Text strong>{active?.buyer_name ?? active?.buyer_external_id}</Text>{' '}
+                                    <Tag color="blue">{providerLabel(active?.provider ?? '')}</Tag>
+                                    {active?.has_phone && active?.detected_phone && (
+                                        <Tag icon={<PhoneOutlined />} color="green" style={{ marginInlineStart: 4 }}>{active.detected_phone}</Tag>
+                                    )}
+                                    {active?.channel_account_name && (
+                                        <Text type="secondary" style={{ marginInlineStart: 4 }}>· {active.channel_account_name}</Text>
+                                    )}
+                                </div>
+                                {/* Comment action buttons — only for comment threads */}
+                                {active?.thread_type === 'comment' && active.comment && (
+                                    <Space size={4}>
+                                        <Tooltip title={active.comment.hidden ? 'Hiện bình luận' : 'Ẩn bình luận'}>
+                                            <Button
+                                                type="text"
+                                                size="small"
+                                                icon={active.comment.hidden ? <EyeOutlined /> : <EyeInvisibleOutlined />}
+                                                loading={hideComment.isPending}
+                                                onClick={() => {
+                                                    if (!active?.comment) return;
+                                                    hideComment.mutate(
+                                                        { conversationId: active.id, hidden: !active.comment.hidden },
+                                                        { onError: (e) => message.error(errorMessage(e, 'Không thực hiện được.')) },
+                                                    );
+                                                }}
+                                            />
+                                        </Tooltip>
+                                        <Popconfirm
+                                            title="Xoá bình luận này?"
+                                            description="Hành động này không thể hoàn tác."
+                                            okText="Xoá"
+                                            cancelText="Huỷ"
+                                            okButtonProps={{ danger: true }}
+                                            onConfirm={() => {
+                                                deleteComment.mutate(active.id, {
+                                                    onSuccess: () => { setActiveId(null); message.success('Đã xoá bình luận.'); },
+                                                    onError: (e) => message.error(errorMessage(e, 'Không xoá được.')),
+                                                });
+                                            }}
+                                        >
+                                            <Tooltip title="Xoá bình luận">
+                                                <Button
+                                                    type="text"
+                                                    size="small"
+                                                    danger
+                                                    icon={<DeleteOutlined />}
+                                                    loading={deleteComment.isPending}
+                                                />
+                                            </Tooltip>
+                                        </Popconfirm>
+                                        <Tooltip title={active.comment.private_replied ? 'Đã nhắn riêng — nhắn thêm' : 'Nhắn riêng (tin nhắn cá nhân)'}>
+                                            <Button
+                                                type="text"
+                                                size="small"
+                                                icon={active.comment.private_replied ? <MessageFilled style={{ color: '#16A34A' }} /> : <MessageOutlined />}
+                                                style={active.comment.private_replied ? { color: '#16A34A', fontWeight: 700 } : undefined}
+                                                onClick={() => setPrivateReplyOpen(true)}
+                                            />
+                                        </Tooltip>
+                                    </Space>
                                 )}
                             </div>
+                            {/* Row 2: post preview banner (comment threads only) */}
+                            {active?.thread_type === 'comment' && active.comment && (
+                                <div style={{
+                                    marginTop: 8,
+                                    padding: '6px 10px',
+                                    background: '#EFF6FF',
+                                    borderRadius: 6,
+                                    borderLeft: '3px solid #2563EB',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    flexWrap: 'wrap',
+                                }}>
+                                    <Tag color="blue" style={{ marginInlineEnd: 0 }}>Bình luận</Tag>
+                                    {active.comment.post_message && (
+                                        <Text type="secondary" ellipsis style={{ flex: 1, minWidth: 0, fontSize: 12 }}>
+                                            {active.comment.post_message.length > 80
+                                                ? `${active.comment.post_message.slice(0, 80)}…`
+                                                : active.comment.post_message}
+                                        </Text>
+                                    )}
+                                    {active.comment.post_permalink && (
+                                        <a href={active.comment.post_permalink} target="_blank" rel="noreferrer" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                                            Xem bài viết
+                                        </a>
+                                    )}
+                                    {active.comment.hidden && <Tag color="orange" style={{ marginInlineEnd: 0 }}>Đã ẩn</Tag>}
+                                    {active.comment.private_replied && <Tag color="green" style={{ marginInlineEnd: 0 }}>Đã nhắn riêng</Tag>}
+                                </div>
+                            )}
                         </div>
                         <div style={{ flex: 1, overflowY: 'auto', padding: 16, background: '#F8FAFC' }}>
                             {thread.isLoading ? (
@@ -525,7 +694,32 @@ export function MessagingPage() {
                                     <Button onClick={() => active && onConvAction('unblock', active)}>Bỏ chặn để nhắn lại</Button>
                                 </Space>
                             </div>
+                        ) : active?.thread_type === 'comment' ? (
+                        /* ── Comment composer: public reply only, no media ── */
+                        <div style={{ padding: 12, borderTop: '1px solid #F1F5F9' }}>
+                            <Input.TextArea
+                                value={draft}
+                                onChange={(e) => setDraft(e.target.value)}
+                                placeholder="Trả lời bình luận… (Enter để gửi, Shift+Enter xuống dòng)"
+                                autoSize={{ minRows: 1, maxRows: 4 }}
+                                onPressEnter={(e) => { if (!e.shiftKey) { e.preventDefault(); handleCommentReply(); } }}
+                            />
+                            <Space style={{ marginTop: 8, justifyContent: 'space-between', width: '100%' }}>
+                                <Space size={4}>
+                                    <Popover
+                                        open={emojiOpen}
+                                        onOpenChange={setEmojiOpen}
+                                        trigger="click"
+                                        content={<Picker data={emojiData} onEmojiSelect={(e: { native?: string }) => handleEmoji(e)} previewPosition="none" locale="vi" />}
+                                    >
+                                        <Button icon={<SmileOutlined />} title="Chèn emoji" />
+                                    </Popover>
+                                </Space>
+                                <Button type="primary" icon={<SendOutlined />} loading={replyComment.isPending} onClick={handleCommentReply} disabled={!draft.trim()}>Trả lời</Button>
+                            </Space>
+                        </div>
                         ) : (
+                        /* ── Message composer (original) ── */
                         <div style={{ padding: 12, borderTop: '1px solid #F1F5F9' }}>
                             <Input.TextArea
                                 value={draft}

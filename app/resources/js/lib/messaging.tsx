@@ -16,6 +16,13 @@ export type DeliveryStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'failed
 
 export type ChannelGroup = 'marketplace' | 'facebook' | 'internal';
 
+export interface ConversationComment {
+    post_message: string | null;
+    post_permalink: string | null;
+    hidden: boolean;
+    private_replied: boolean;
+}
+
 export interface Conversation {
     id: number;
     channel_account_id: number;
@@ -41,6 +48,8 @@ export interface Conversation {
     detected_phone: string | null;
     tags: number[];
     created_at: string | null;
+    thread_type: 'message' | 'comment';
+    comment: ConversationComment | null;
 }
 
 export interface MessageAttachment {
@@ -300,6 +309,74 @@ export function useSetConversationTags() {
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['messaging', 'conversations'] });
             qc.invalidateQueries({ queryKey: ['messaging', 'thread'] });
+        },
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Facebook comment actions
+// ---------------------------------------------------------------------------
+
+export function useHideComment() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (input: { conversationId: number; hidden: boolean }) => {
+            await api!.post(`/messaging/conversations/${input.conversationId}/comment/hide`, { hidden: input.hidden });
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['messaging', 'thread'] });
+            qc.invalidateQueries({ queryKey: ['messaging', 'conversations'] });
+        },
+    });
+}
+
+export function useDeleteComment() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (conversationId: number) => {
+            await api!.delete(`/messaging/conversations/${conversationId}/comment`);
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['messaging', 'thread'] });
+            qc.invalidateQueries({ queryKey: ['messaging', 'conversations'] });
+        },
+    });
+}
+
+export function useReplyComment(conversationId: number | null) {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (body: string) => {
+            const { data } = await api!.post<{ data: Message }>(
+                `/messaging/conversations/${conversationId}/comment/reply`,
+                { body },
+            );
+            return data.data;
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['messaging', 'thread'] });
+            qc.invalidateQueries({ queryKey: ['messaging', 'conversations'] });
+        },
+    });
+}
+
+export function usePrivateReplyComment(conversationId: number | null) {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (body: string) => {
+            const { data } = await api!.post<{ data: Message }>(
+                `/messaging/conversations/${conversationId}/comment/private-reply`,
+                { body },
+            );
+            return data.data;
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['messaging', 'thread'] });
+            qc.invalidateQueries({ queryKey: ['messaging', 'conversations'] });
         },
     });
 }
