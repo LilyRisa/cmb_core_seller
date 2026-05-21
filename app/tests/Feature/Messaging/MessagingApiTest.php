@@ -211,6 +211,44 @@ class MessagingApiTest extends TestCase
         \Illuminate\Support\Facades\Queue::assertPushed(\CMBcoreSeller\Modules\Messaging\Jobs\SendMessage::class);
     }
 
+    public function test_filter_by_channel_account_id_returns_only_that_channel(): void
+    {
+        // Tạo 2 channel accounts cho 2 Facebook page khác nhau.
+        $pageA = ChannelAccount::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'provider' => 'facebook_page',
+            'external_shop_id' => 'PAGE_A', 'shop_name' => 'Page A', 'status' => 'active', 'messaging_enabled' => true,
+        ]);
+        $pageB = ChannelAccount::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'provider' => 'facebook_page',
+            'external_shop_id' => 'PAGE_B', 'shop_name' => 'Page B', 'status' => 'active', 'messaging_enabled' => true,
+        ]);
+
+        Conversation::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'channel_account_id' => $pageA->id, 'provider' => 'facebook_page',
+            'external_conversation_id' => 'psid_a1', 'buyer_external_id' => 'psid_a1', 'buyer_name' => 'Buyer A',
+            'status' => Conversation::STATUS_OPEN, 'last_message_at' => now(),
+        ]);
+        Conversation::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'channel_account_id' => $pageB->id, 'provider' => 'facebook_page',
+            'external_conversation_id' => 'psid_b1', 'buyer_external_id' => 'psid_b1', 'buyer_name' => 'Buyer B',
+            'status' => Conversation::STATUS_OPEN, 'last_message_at' => now()->subMinute(),
+        ]);
+
+        // Lọc theo channel_account_id của page A — chỉ trả về hội thoại của page A.
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->getJson("/api/v1/messaging/conversations?provider=facebook_page&channel_account_id={$pageA->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.buyer_name', 'Buyer A');
+
+        // Lọc theo channel_account_id của page B — chỉ trả về hội thoại của page B.
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->getJson("/api/v1/messaging/conversations?provider=facebook_page&channel_account_id={$pageB->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.buyer_name', 'Buyer B');
+    }
+
     public function test_mark_read_resets_unread_count(): void
     {
         $conv = $this->seedConversation();

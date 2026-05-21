@@ -83,6 +83,7 @@ export interface ConversationFilters {
     read?: boolean;
     has_phone?: boolean;
     tags?: string; // CSV of tag ids, e.g. "1,2"
+    channel_account_id?: number;
 }
 
 function useScopedApi() {

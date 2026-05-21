@@ -71,6 +71,9 @@ class ConversationController extends Controller
                 $q->where('assigned_user_id', (int) $assigned);
             }
         }
+        if ($channelId = $request->query('channel_account_id')) {
+            $q->where('channel_account_id', (int) $channelId);
+        }
         if ($customerId = $request->query('customer_id')) {
             $q->where('customer_id', (int) $customerId);
         }

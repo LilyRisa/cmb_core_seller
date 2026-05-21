@@ -84,7 +84,7 @@ class FacebookPageConnector implements MessagingConnector
     public function buildAuthorizationUrl(string $state, array $opts = []): string
     {
         $appId = (string) ($this->config['app_id'] ?? '');
-        $scope = 'pages_messaging,pages_manage_metadata,pages_read_engagement,pages_show_list';
+        $scope = 'pages_messaging,pages_manage_metadata,pages_read_engagement,pages_show_list,pages_read_user_content,pages_manage_engagement';
 
         return 'https://www.facebook.com/'.$this->graphVersion().'/dialog/oauth?'.http_build_query([
             'client_id' => $appId,

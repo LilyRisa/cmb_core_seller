@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { App, Avatar, Badge, Button, Checkbox, Dropdown, Empty, Grid, Image, Input, List, Popover, Radio, Segmented, Space, Spin, Tag, Typography, Upload } from 'antd';
+import { App, Avatar, Badge, Button, Checkbox, Dropdown, Empty, Grid, Image, Input, List, Popover, Radio, Segmented, Select, Space, Spin, Tag, Typography, Upload } from 'antd';
 import { FileOutlined, FilterOutlined, MoreOutlined, PaperClipOutlined, PhoneOutlined, PictureOutlined, RobotOutlined, SendOutlined, ShopOutlined, SmileOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import Picker from '@emoji-mart/react';
 import emojiData from '@emoji-mart/data';
@@ -22,6 +22,7 @@ import {
     useSetConversationTags,
     useUnblockConversation,
 } from '@/lib/messaging';
+import { useMessagingChannels } from '@/lib/messagingConfig';
 import { MessagingNav } from '@/components/MessagingNav';
 import { TagManagerModal } from '@/components/TagManagerModal';
 
@@ -86,6 +87,7 @@ export function MessagingPage() {
     const [hasPhone, setHasPhone] = useState(false);
     const [tagFilter, setTagFilter] = useState<number[]>([]);
     const [statusState, setStatusState] = useState<'open' | 'resolved' | 'blocked' | 'all'>('open');
+    const [channelAccountId, setChannelAccountId] = useState<number | undefined>(undefined);
     const [filterOpen, setFilterOpen] = useState(false);
     const [tagModalOpen, setTagModalOpen] = useState(false);
 
@@ -100,6 +102,10 @@ export function MessagingPage() {
     const tags: MessagingTag[] = tagsQuery.data ?? [];
     const setConvTags = useSetConversationTags();
 
+    // ── Channels (for Facebook page filter) ──────────────────────────────────
+    const channelsQuery = useMessagingChannels();
+    const facebookPages = (channelsQuery.data ?? []).filter((c) => c.provider === 'facebook_page');
+
     // ── Conversations ─────────────────────────────────────────────────────────
     const list = useConversations({
         provider: INBOX_GROUP_PROVIDERS[board === 'facebook' ? 'facebook' : 'marketplace'],
@@ -109,6 +115,7 @@ export function MessagingPage() {
         unread: readState === 'unread' || undefined,
         has_phone: hasPhone || undefined,
         tags: tagFilter.length ? tagFilter.join(',') : undefined,
+        channel_account_id: board === 'facebook' ? channelAccountId : undefined,
     });
     const thread = useConversationThread(activeId);
     const sendText = useSendText(activeId);
@@ -173,6 +180,7 @@ export function MessagingPage() {
         statusState !== 'open',
         hasPhone,
         tagFilter.length > 0,
+        board === 'facebook' && channelAccountId != null,
     ].filter(Boolean).length;
 
     // ── Filter popover content ────────────────────────────────────────────────
@@ -216,6 +224,21 @@ export function MessagingPage() {
             >
                 Chỉ hội thoại có SĐT
             </Checkbox>
+
+            {/* Trang Facebook (chỉ hiện khi đang ở tab Facebook) */}
+            {board === 'facebook' && (
+                <div>
+                    <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>Trang</Text>
+                    <Select
+                        allowClear
+                        placeholder="Tất cả trang"
+                        style={{ width: '100%' }}
+                        value={channelAccountId}
+                        onChange={(v) => setChannelAccountId(v as number | undefined)}
+                        options={facebookPages.map((p) => ({ value: p.id, label: p.name }))}
+                    />
+                </div>
+            )}
 
             {/* Thẻ */}
             <div>
@@ -333,7 +356,7 @@ export function MessagingPage() {
                             block
                             style={{ flex: 1 }}
                             value={board}
-                            onChange={(v) => { setBoard(v as 'marketplace' | 'facebook'); setActiveId(null); }}
+                            onChange={(v) => { setBoard(v as 'marketplace' | 'facebook'); setActiveId(null); setChannelAccountId(undefined); }}
                             options={[
                                 { label: 'Sàn', value: 'marketplace' },
                                 { label: 'Facebook', value: 'facebook' },
@@ -386,7 +409,10 @@ export function MessagingPage() {
                                                     <Space size={6}>
                                                         <Badge count={c.unread_count} size="small" />
                                                         <Text strong={c.unread_count > 0} ellipsis style={{ maxWidth: 120 }}>{c.buyer_name ?? c.buyer_external_id}</Text>
-                                                        <Tag color="blue" style={{ marginInlineEnd: 0 }}>{providerLabel(c.provider)}</Tag>
+                                                        {c.provider === 'facebook_page'
+                                                            ? <Tag color="blue" style={{ marginInlineEnd: 0 }}>{c.channel_account_name ?? 'Facebook'}</Tag>
+                                                            : <Tag color="blue" style={{ marginInlineEnd: 0 }}>{providerLabel(c.provider)}</Tag>
+                                                        }
                                                     </Space>
                                                     <Dropdown
                                                         trigger={['click']}
@@ -401,7 +427,7 @@ export function MessagingPage() {
                                             )}
                                             description={(
                                                 <Space direction="vertical" size={0} style={{ width: '100%' }}>
-                                                    {c.channel_account_name && (
+                                                    {c.channel_account_name && c.provider !== 'facebook_page' && (
                                                         <Text type="secondary" style={{ fontSize: 11 }} ellipsis><ShopOutlined /> {c.channel_account_name}</Text>
                                                     )}
                                                     <Text type="secondary" ellipsis style={{ fontSize: 12 }}>{c.last_message_preview ?? '—'}</Text>

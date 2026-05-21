@@ -107,6 +107,8 @@ App dùng OAuth server-side cổ điển (`/dialog/oauth` → redirect về call
 | `pages_manage_metadata` | subscribe page vào webhook |
 | `pages_show_list` | liệt kê page user quản lý (lúc OAuth) |
 | `pages_read_engagement` | đọc thông tin page |
+| `pages_read_user_content` | đọc bình luận/bài đăng của user trên page (cần cho tính năng comment) |
+| `pages_manage_engagement` | kiểm duyệt/trả lời bình luận trên page (cần cho tính năng comment) |
 
 - **Development mode** (mặc định): chỉ tài khoản có **vai trò** trong app
   (Admin/Developer/Tester) mới đăng nhập & nhắn được — **đủ để test ngay**.
