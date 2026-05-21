@@ -2,12 +2,19 @@
 
 namespace Tests\Unit\Messaging;
 
+use Carbon\CarbonImmutable;
+use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Messaging\Contracts\MessagingConnector;
+use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\OutboundWindowPolicyDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\Page;
+use CMBcoreSeller\Integrations\Messaging\DTO\SendResultDTO;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\OutboundWindowClosed;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Services\OutboundWindowGuard;
-use Carbon\CarbonImmutable;
+use Symfony\Component\HttpFoundation\Request;
 use Tests\TestCase;
 
 /**
@@ -95,34 +102,98 @@ class OutboundWindowGuardTest extends TestCase
         return new class($policy) implements MessagingConnector
         {
             public function __construct(public OutboundWindowPolicyDTO $policy) {}
-            public function code(): string { return 'fake'; }
-            public function displayName(): string { return 'Fake'; }
-            public function capabilities(): array { return []; }
-            public function supports(string $capability): bool { return false; }
-            public function buildAuthorizationUrl(string $state, array $opts = []): string { return ''; }
-            public function exchangeCodeForToken(string $code): \CMBcoreSeller\Integrations\Channels\DTO\TokenDTO { return new \CMBcoreSeller\Integrations\Channels\DTO\TokenDTO('x'); }
-            public function refreshToken(string $refreshToken): \CMBcoreSeller\Integrations\Channels\DTO\TokenDTO { return new \CMBcoreSeller\Integrations\Channels\DTO\TokenDTO('x'); }
-            public function registerWebhooks(\CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext $auth): void {}
-            public function verifyWebhookSignature(\Symfony\Component\HttpFoundation\Request $request): bool { return true; }
-            public function parseWebhook(\Symfony\Component\HttpFoundation\Request $request): \CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO
+
+            public function code(): string
             {
-                return new \CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO('fake', 'unknown');
+                return 'fake';
             }
-            public function parseWebhookEvents(\Symfony\Component\HttpFoundation\Request $request): array
+
+            public function displayName(): string
+            {
+                return 'Fake';
+            }
+
+            public function capabilities(): array
+            {
+                return [];
+            }
+
+            public function supports(string $capability): bool
+            {
+                return false;
+            }
+
+            public function buildAuthorizationUrl(string $state, array $opts = []): string
+            {
+                return '';
+            }
+
+            public function exchangeCodeForToken(string $code): TokenDTO
+            {
+                return new TokenDTO('x');
+            }
+
+            public function refreshToken(string $refreshToken): TokenDTO
+            {
+                return new TokenDTO('x');
+            }
+
+            public function registerWebhooks(MessagingAuthContext $auth): void {}
+
+            public function verifyWebhookSignature(Request $request): bool
+            {
+                return true;
+            }
+
+            public function parseWebhook(Request $request): MessagingWebhookEventDTO
+            {
+                return new MessagingWebhookEventDTO('fake', 'unknown');
+            }
+
+            public function parseWebhookEvents(Request $request): array
             {
                 return [$this->parseWebhook($request)];
             }
-            public function fetchConversations(\CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext $auth, array $query = []): \CMBcoreSeller\Integrations\Messaging\DTO\Page
-            { return new \CMBcoreSeller\Integrations\Messaging\DTO\Page([]); }
-            public function fetchMessages(\CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext $auth, string $externalConversationId, array $query = []): \CMBcoreSeller\Integrations\Messaging\DTO\Page
-            { return new \CMBcoreSeller\Integrations\Messaging\DTO\Page([]); }
-            public function sendText(\CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext $auth, string $externalConversationId, string $body, array $opts = []): \CMBcoreSeller\Integrations\Messaging\DTO\SendResultDTO
-            { return new \CMBcoreSeller\Integrations\Messaging\DTO\SendResultDTO('x'); }
-            public function sendMedia(\CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext $auth, string $externalConversationId, \CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO $media, array $opts = []): \CMBcoreSeller\Integrations\Messaging\DTO\SendResultDTO
-            { return new \CMBcoreSeller\Integrations\Messaging\DTO\SendResultDTO('x'); }
-            public function sendTemplate(\CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext $auth, string $externalConversationId, string $templateKey, array $vars = [], array $opts = []): \CMBcoreSeller\Integrations\Messaging\DTO\SendResultDTO
-            { return new \CMBcoreSeller\Integrations\Messaging\DTO\SendResultDTO('x'); }
-            public function outboundWindow(): OutboundWindowPolicyDTO { return $this->policy; }
+
+            public function fetchConversations(MessagingAuthContext $auth, array $query = []): Page
+            {
+                return new Page([]);
+            }
+
+            public function fetchMessages(MessagingAuthContext $auth, string $externalConversationId, array $query = []): Page
+            {
+                return new Page([]);
+            }
+
+            public function sendText(MessagingAuthContext $auth, string $externalConversationId, string $body, array $opts = []): SendResultDTO
+            {
+                return new SendResultDTO('x');
+            }
+
+            public function sendMedia(MessagingAuthContext $auth, string $externalConversationId, MediaRefDTO $media, array $opts = []): SendResultDTO
+            {
+                return new SendResultDTO('x');
+            }
+
+            public function sendTemplate(MessagingAuthContext $auth, string $externalConversationId, string $templateKey, array $vars = [], array $opts = []): SendResultDTO
+            {
+                return new SendResultDTO('x');
+            }
+
+            public function outboundWindow(): OutboundWindowPolicyDTO
+            {
+                return $this->policy;
+            }
+
+            public function fetchPageProfile(MessagingAuthContext $auth): array
+            {
+                return ['name' => null, 'avatar_url' => null];
+            }
+
+            public function fetchUserProfile(MessagingAuthContext $auth, string $externalUserId): array
+            {
+                return ['name' => null, 'avatar_url' => null];
+            }
         };
     }
 
@@ -130,6 +201,7 @@ class OutboundWindowGuardTest extends TestCase
     {
         $c = new Conversation;
         $c->last_inbound_at = $lastInboundAt;
+
         return $c;
     }
 }
