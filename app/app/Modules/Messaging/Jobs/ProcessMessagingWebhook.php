@@ -12,6 +12,7 @@ use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\WebhookEvent;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
+use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Services\CommentConversationUpserter;
 use CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
@@ -91,6 +92,14 @@ class ProcessMessagingWebhook implements ShouldQueue
         $dto = $this->rebuildDtoFromStoredPayload($event);
         if (! $dto || ! $dto->externalConversationId || ! $dto->externalMessageId) {
             $event->markProcessed(WebhookEvent::STATUS_IGNORED);
+
+            return;
+        }
+
+        // ── Reaction event: update meta['reaction'] on the target message ────────
+        if ($dto->type === MessagingWebhookEventDTO::TYPE_MESSAGE_REACTION) {
+            $this->applyReaction($dto, $account);
+            $event->markProcessed(WebhookEvent::STATUS_PROCESSED);
 
             return;
         }
@@ -214,6 +223,58 @@ class ProcessMessagingWebhook implements ShouldQueue
             threadType: $threadType,
             threadMeta: $threadMeta,
         );
+    }
+
+    /**
+     * Apply a Facebook reaction (react|unreact) to the target message.
+     * Finds the message by external_message_id within the conversation identified
+     * by (channel_account_id, external_conversation_id = sender PSID).
+     * If the target message is not found (arrived before the message, or too old),
+     * we silently skip — no error, the event is still marked processed.
+     */
+    private function applyReaction(MessagingWebhookEventDTO $dto, ChannelAccount $account): void
+    {
+        $raw = $dto->raw;
+        $reaction = is_array($raw['reaction'] ?? null) ? (array) $raw['reaction'] : [];
+        $action = (string) ($reaction['action'] ?? 'react');
+        $emoji = isset($reaction['emoji']) ? (string) $reaction['emoji'] : null;
+        $mid = $dto->externalMessageId;
+        $psid = $dto->externalConversationId;
+
+        if (! $mid || ! $psid) {
+            return;
+        }
+
+        // Find the conversation for this (account, PSID) pair.
+        $conversation = Conversation::withoutGlobalScope(TenantScope::class)
+            ->where('channel_account_id', $account->getKey())
+            ->where('external_conversation_id', $psid)
+            ->first();
+
+        if (! $conversation) {
+            return; // Conversation not yet created — skip gracefully.
+        }
+
+        // Find the target message by its external_message_id within the conversation.
+        $message = Message::withoutGlobalScope(TenantScope::class)
+            ->where('conversation_id', $conversation->getKey())
+            ->where('external_message_id', $mid)
+            ->first();
+
+        if (! $message) {
+            return; // Message not yet ingested or too old — skip gracefully.
+        }
+
+        $meta = is_array($message->meta) ? $message->meta : [];
+
+        if ($action === 'react' && $emoji !== null) {
+            $meta['reaction'] = $emoji;
+        } else {
+            unset($meta['reaction']);
+        }
+
+        $message->meta = $meta;
+        $message->save();
     }
 
     /**

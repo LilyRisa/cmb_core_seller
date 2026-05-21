@@ -139,7 +139,7 @@ class FacebookPageConnector implements MessagingConnector
     {
         // Subscribe page vào app cho field `messages`, `messaging_postbacks`.
         Http::post($this->graphUrl($auth->externalShopId.'/subscribed_apps'), [
-            'subscribed_fields' => 'messages,messaging_postbacks,message_deliveries,message_reads,feed',
+            'subscribed_fields' => 'messages,messaging_postbacks,message_deliveries,message_reads,feed,message_reactions',
             'access_token' => $auth->accessToken,
         ]);
     }
@@ -384,6 +384,21 @@ class FacebookPageConnector implements MessagingConnector
                 kind: $kind,
                 body: $body,
                 attachments: $attachments,
+            );
+        }
+        if (isset($event['reaction'])) {
+            $reaction = (array) $event['reaction'];
+            $mid = isset($reaction['mid']) ? (string) $reaction['mid'] : '';
+
+            return new MessagingWebhookEventDTO(
+                provider: $this->code(),
+                type: MessagingWebhookEventDTO::TYPE_MESSAGE_REACTION,
+                externalShopId: $pageId,
+                externalConversationId: $senderId,   // PSID of the reacting user = conversation key
+                externalMessageId: $mid,             // TARGET message mid
+                buyerExternalId: $senderId,
+                occurredAt: $occurredAt,
+                raw: $event,                         // raw['reaction']['emoji'] + raw['reaction']['action']
             );
         }
         if (isset($event['delivery'])) {

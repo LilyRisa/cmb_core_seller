@@ -651,34 +651,53 @@ export function MessagingPage() {
                                 <div style={{ textAlign: 'center', marginTop: 48 }}><Spin /></div>
                             ) : (
                                 (thread.data?.messages ?? []).map((m) => (
-                                    <div key={m.id} style={{ display: 'flex', justifyContent: m.direction === 'outbound' ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
-                                        <div style={{
-                                            maxWidth: '70%', padding: '8px 12px', borderRadius: 12,
-                                            background: m.direction === 'outbound' ? '#2563EB' : '#fff',
-                                            color: m.direction === 'outbound' ? '#fff' : '#0F172A',
-                                            border: m.direction === 'outbound' ? 'none' : '1px solid #E2E8F0',
-                                        }}>
-                                            {m.sent_by_ai && <Tag color="purple" style={{ marginBottom: 4 }}>AI</Tag>}
-                                            {(m.attachments ?? []).map((a) => (
-                                                <div key={a.id} style={{ marginBottom: m.body ? 6 : 0 }}>
-                                                    {a.kind === 'image' && a.download_url ? (
-                                                        <Image src={a.download_url} alt={a.filename ?? ''} style={{ maxWidth: 220, borderRadius: 8 }} />
-                                                    ) : a.kind === 'video' && a.download_url ? (
-                                                        <video src={a.download_url} controls style={{ maxWidth: 240, borderRadius: 8 }} />
-                                                    ) : (
-                                                        <a href={a.download_url ?? '#'} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>
-                                                            <Space size={4}><FileOutlined /> {a.filename ?? 'Tệp đính kèm'}</Space>
-                                                        </a>
-                                                    )}
-                                                </div>
-                                            ))}
-                                            {m.body != null && <div style={{ whiteSpace: 'pre-wrap' }}><LinkifiedText text={m.body} /></div>}
-                                            {m.body == null && (m.attachments ?? []).length === 0 && (
-                                                <div style={{ fontStyle: 'italic', opacity: 0.7 }}>{KIND_LABEL[m.kind] ?? m.kind}</div>
-                                            )}
-                                            {m.direction === 'outbound' && (
-                                                <div style={{ fontSize: 10, opacity: 0.8, textAlign: 'right' }}>
-                                                    {DELIVERY_STATUS_LABEL[m.delivery_status ?? ''] ?? m.delivery_status}
+                                    <div key={m.id} style={{ display: 'flex', justifyContent: m.direction === 'outbound' ? 'flex-end' : 'flex-start', marginBottom: m.reaction ? 18 : 8 }}>
+                                        <div style={{ position: 'relative', maxWidth: '70%' }}>
+                                            <div style={{
+                                                padding: '8px 12px', borderRadius: 12,
+                                                background: m.direction === 'outbound' ? '#2563EB' : '#fff',
+                                                color: m.direction === 'outbound' ? '#fff' : '#0F172A',
+                                                border: m.direction === 'outbound' ? 'none' : '1px solid #E2E8F0',
+                                            }}>
+                                                {m.sent_by_ai && <Tag color="purple" style={{ marginBottom: 4 }}>AI</Tag>}
+                                                {(m.attachments ?? []).map((a) => (
+                                                    <div key={a.id} style={{ marginBottom: m.body ? 6 : 0 }}>
+                                                        {a.kind === 'image' && a.download_url ? (
+                                                            <Image src={a.download_url} alt={a.filename ?? ''} style={{ maxWidth: 220, borderRadius: 8 }} />
+                                                        ) : a.kind === 'video' && a.download_url ? (
+                                                            <video src={a.download_url} controls style={{ maxWidth: 240, borderRadius: 8 }} />
+                                                        ) : (
+                                                            <a href={a.download_url ?? '#'} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>
+                                                                <Space size={4}><FileOutlined /> {a.filename ?? 'Tệp đính kèm'}</Space>
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                                {m.body != null && <div style={{ whiteSpace: 'pre-wrap' }}><LinkifiedText text={m.body} /></div>}
+                                                {m.body == null && (m.attachments ?? []).length === 0 && (
+                                                    <div style={{ fontStyle: 'italic', opacity: 0.7 }}>{KIND_LABEL[m.kind] ?? m.kind}</div>
+                                                )}
+                                                {m.direction === 'outbound' && (
+                                                    <div style={{ fontSize: 10, opacity: 0.8, textAlign: 'right' }}>
+                                                        {DELIVERY_STATUS_LABEL[m.delivery_status ?? ''] ?? m.delivery_status}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {m.reaction && (
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    bottom: -14,
+                                                    [m.direction === 'outbound' ? 'right' : 'left']: 8,
+                                                    background: '#fff',
+                                                    border: '1px solid #E2E8F0',
+                                                    borderRadius: 12,
+                                                    padding: '1px 5px',
+                                                    fontSize: 13,
+                                                    lineHeight: '18px',
+                                                    boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                                                    userSelect: 'none',
+                                                }}>
+                                                    {m.reaction}
                                                 </div>
                                             )}
                                         </div>

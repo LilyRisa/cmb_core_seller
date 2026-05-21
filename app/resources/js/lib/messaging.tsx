@@ -77,6 +77,7 @@ export interface Message {
     sent_at: string | null;
     read_at: string | null;
     created_at: string | null;
+    reaction?: string | null;
     attachments?: MessageAttachment[];
 }
 

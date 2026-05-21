@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Messaging\Http\Resources;
 
 use CMBcoreSeller\Modules\Messaging\Models\Message;
+use CMBcoreSeller\Modules\Messaging\Services\MediaStorage;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -30,8 +31,9 @@ class MessageResource extends JsonResource
             'delivered_at' => $this->delivered_at?->toIso8601String(),
             'read_at' => $this->read_at?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),
+            'reaction' => $this->meta['reaction'] ?? null,
             'attachments' => $this->whenLoaded('attachments', function () {
-                $storage = app(\CMBcoreSeller\Modules\Messaging\Services\MediaStorage::class);
+                $storage = app(MediaStorage::class);
 
                 return $this->attachments->map(fn ($a) => [
                     'id' => $a->id,

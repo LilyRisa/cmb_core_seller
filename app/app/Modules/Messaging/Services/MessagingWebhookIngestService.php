@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Messaging\Services;
 
+use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\WebhookEvent;
 use CMBcoreSeller\Modules\Messaging\Jobs\ProcessMessagingWebhook;
@@ -69,8 +70,16 @@ class MessagingWebhookIngestService
                 continue;
             }
 
-            $dedupeKey = $event->externalMessageId
-                ?: ($event->externalConversationId.'@'.$event->type);
+            // For reaction events, append the action (react|unreact) so that both a react
+            // and a subsequent unreact on the same mid are treated as distinct events.
+            if ($event->type === MessagingWebhookEventDTO::TYPE_MESSAGE_REACTION) {
+                $reactionData = is_array($event->raw['reaction'] ?? null) ? $event->raw['reaction'] : [];
+                $action = is_string($reactionData['action'] ?? null) ? $reactionData['action'] : 'react';
+                $dedupeKey = ($event->externalMessageId ?: 'noid').'@reaction@'.$action;
+            } else {
+                $dedupeKey = $event->externalMessageId
+                    ?: ($event->externalConversationId.'@'.$event->type);
+            }
 
             $exists = WebhookEvent::query()
                 ->where('provider', $storedProvider)
