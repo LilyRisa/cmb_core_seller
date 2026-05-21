@@ -47,6 +47,11 @@ class AutoReplyEngine
     {
         $now = isset($context['now']) ? CarbonImmutable::parse($context['now']) : CarbonImmutable::now();
 
+        // keyword trigger có logic chọn rule đặc biệt (Feature G+H) — tách riêng.
+        if ($trigger === AutoReplyRule::TRIGGER_KEYWORD) {
+            return $this->fireKeyword($conv, $context, $now);
+        }
+
         $rules = AutoReplyRule::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $conv->tenant_id)
             ->where('trigger', $trigger)
@@ -104,6 +109,115 @@ class AutoReplyEngine
         return null;
     }
 
+    /**
+     * Feature G+H — fire keyword trigger.
+     *
+     * Chọn rule khớp nhiều từ khoá nhất (highest matched-keyword count); tie-break
+     * bằng `priority` ASC rồi `id` ASC. Chỉ fire 1 keyword-rule (most-specific wins).
+     *
+     * @param  array<string,mixed>  $context
+     */
+    private function fireKeyword(Conversation $conv, array $context, CarbonImmutable $now): ?AutoReplyRun
+    {
+        $haystack = mb_strtolower((string) ($context['inbound_body'] ?? $conv->last_message_preview ?? ''));
+
+        $rules = AutoReplyRule::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $conv->tenant_id)
+            ->where('trigger', AutoReplyRule::TRIGGER_KEYWORD)
+            ->where('enabled', true)
+            ->orderBy('priority')
+            ->orderBy('id')
+            ->get();
+
+        // Tính matched count cho mỗi rule, lọc ra rule khớp ít nhất 1 từ khoá.
+        $candidates = [];
+        foreach ($rules as $rule) {
+            if (! $this->matchesFilter($rule, $conv, $context)) {
+                continue;
+            }
+            $matchedCount = $this->countMatchedKeywords($rule, $haystack);
+            if ($matchedCount === 0) {
+                continue;
+            }
+            if ($this->inCooldown($rule, $conv, $now)) {
+                continue;
+            }
+            $candidates[] = ['rule' => $rule, 'matched' => $matchedCount];
+        }
+
+        if ($candidates === []) {
+            return null;
+        }
+
+        // Sắp xếp: matched DESC, priority ASC, id ASC.
+        usort($candidates, static function (array $a, array $b): int {
+            if ($b['matched'] !== $a['matched']) {
+                return $b['matched'] <=> $a['matched'];
+            }
+            if ($a['rule']->priority !== $b['rule']->priority) {
+                return $a['rule']->priority <=> $b['rule']->priority;
+            }
+
+            return $a['rule']->id <=> $b['rule']->id;
+        });
+
+        foreach ($candidates as $candidate) {
+            $rule = $candidate['rule'];
+            $windowKey = $this->windowKey($rule, $conv, $context, $now);
+
+            try {
+                $run = AutoReplyRun::create([
+                    'tenant_id' => $conv->tenant_id,
+                    'rule_id' => $rule->id,
+                    'conversation_id' => $conv->id,
+                    'window_key' => $windowKey,
+                    'fired_at' => $now,
+                    'status' => AutoReplyRun::STATUS_FIRED,
+                ]);
+            } catch (QueryException) {
+                continue; // window đã fire (idempotency) ⇒ thử candidate tiếp
+            }
+
+            $body = $this->resolveAction($rule, $conv, $context);
+            if ($body === null || trim($body) === '') {
+                $run->update(['status' => AutoReplyRun::STATUS_FAILED, 'error' => 'unresolved_action']);
+
+                continue;
+            }
+
+            $message = $this->outbound->queueText($conv, [
+                'body' => $body,
+                'sent_by_user_id' => null,
+                'sent_by_ai' => true,
+                'auto_rule_id' => $rule->id,
+            ]);
+
+            $run->update(['message_id' => $message->id]);
+
+            return $run;
+        }
+
+        return null;
+    }
+
+    /**
+     * Đếm số từ khoá trong `trigger_config.keywords` xuất hiện trong `$haystack`
+     * (đã lowercase). Trim + bỏ qua keyword rỗng.
+     */
+    private function countMatchedKeywords(AutoReplyRule $rule, string $haystack): int
+    {
+        $keywords = (array) (($rule->trigger_config ?? [])['keywords'] ?? []);
+        $count = 0;
+        foreach ($keywords as $kw) {
+            $kw = trim((string) $kw);
+            if ($kw !== '' && str_contains($haystack, mb_strtolower($kw))) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
     /** @param array<string,mixed> $context */
     private function matchesFilter(AutoReplyRule $rule, Conversation $conv, array $context): bool
     {
@@ -142,6 +256,8 @@ class AutoReplyEngine
             AutoReplyRule::TRIGGER_ORDER_STATUS => ($cfg['order_status'] ?? null) === ($context['order_status'] ?? null),
             AutoReplyRule::TRIGGER_SCHEDULE => $this->inScheduleWindow($cfg, $now),
             AutoReplyRule::TRIGGER_AWAY_NO_RESPONSE => $this->awayThresholdMet($cfg, $conv, $now),
+            // keyword: matching đã xử lý riêng trong fireKeyword() — không vào đây.
+            AutoReplyRule::TRIGGER_KEYWORD => false,
             default => false,
         };
     }
@@ -220,6 +336,8 @@ class AutoReplyEngine
             AutoReplyRule::TRIGGER_ORDER_STATUS => 'order:'.($context['order_id'] ?? '0').':status:'.($context['order_status'] ?? ''),
             AutoReplyRule::TRIGGER_AWAY_NO_RESPONSE => 'away:'.$conv->id.':'.optional($conv->last_inbound_at)->timestamp,
             AutoReplyRule::TRIGGER_SCHEDULE => 'sched:'.$now->format('Y-m-d-H'),
+            // keyword: idempotency per message (dùng hash body để tránh double fire cùng tin)
+            AutoReplyRule::TRIGGER_KEYWORD => 'kw:'.md5((string) ($context['inbound_body'] ?? '')),
             default => $now->format('Y-m-d-H-i-s'),
         };
     }

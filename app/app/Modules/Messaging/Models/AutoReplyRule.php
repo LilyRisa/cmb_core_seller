@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Messaging\Models;
 use CMBcoreSeller\Modules\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
  * Quy tắc trả lời tự động — 4 trigger:
@@ -12,21 +13,44 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  *   - order_status: khi order chuyển trạng thái (vd delivered → cảm ơn)
  *   - away_no_response: NV chưa trả lời sau N phút
  *   - first_message: lần đầu buyer nhắn tới (chào)
+ *   - keyword: buyer nhắn có từ khoá khớp
  *
  * `trigger_config` shape phụ thuộc trigger (xem SPEC-0024 §5.6).
- * Engine + 4 trigger handler ở S5 (sau Phase 6.5 done).
+ * Engine + trigger handler ở AutoReplyEngine.
+ *
+ * @property int $id
+ * @property int $tenant_id
+ * @property string $name
+ * @property string $trigger
+ * @property ?array $trigger_config
+ * @property ?array $filter
+ * @property array $action
+ * @property int $cooldown_seconds
+ * @property bool $enabled
+ * @property int $priority
+ * @property ?int $created_by
+ * @property ?Carbon $created_at
+ * @property ?Carbon $updated_at
+ * @property ?Carbon $deleted_at
  */
 class AutoReplyRule extends Model
 {
     use BelongsToTenant, SoftDeletes;
 
     public const TRIGGER_SCHEDULE = 'schedule';
+
     public const TRIGGER_ORDER_STATUS = 'order_status';
+
     public const TRIGGER_AWAY_NO_RESPONSE = 'away_no_response';
+
     public const TRIGGER_FIRST_MESSAGE = 'first_message';
 
+    public const TRIGGER_KEYWORD = 'keyword';
+
     public const ACTION_TEMPLATE = 'template';
+
     public const ACTION_RAW = 'raw';
+
     public const ACTION_AI_REPLY = 'ai_reply';
 
     protected $fillable = [

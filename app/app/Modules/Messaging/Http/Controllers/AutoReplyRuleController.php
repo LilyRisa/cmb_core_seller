@@ -72,7 +72,7 @@ class AutoReplyRuleController extends Controller
 
         return $request->validate([
             'name' => [$req, 'string', 'max:160'],
-            'trigger' => [$req, 'in:schedule,order_status,away_no_response,first_message'],
+            'trigger' => [$req, 'in:schedule,order_status,away_no_response,first_message,keyword'],
             'trigger_config' => ['nullable', 'array'],
             'filter' => ['nullable', 'array'],
             'action' => [$req, 'array'],

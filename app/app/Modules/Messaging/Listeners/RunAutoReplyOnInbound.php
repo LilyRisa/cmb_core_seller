@@ -37,6 +37,9 @@ class RunAutoReplyOnInbound
 
         $fired = $this->engine->fire($conv, AutoReplyRule::TRIGGER_FIRST_MESSAGE, $context);
         if ($fired === null) {
+            $fired = $this->engine->fire($conv, AutoReplyRule::TRIGGER_KEYWORD, $context);
+        }
+        if ($fired === null) {
             $this->engine->fire($conv, AutoReplyRule::TRIGGER_SCHEDULE, $context);
         }
     }

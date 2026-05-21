@@ -59,7 +59,7 @@ export function useDeleteTemplate() {
 
 // --- Auto-reply rules -------------------------------------------------------
 
-export type RuleTrigger = 'schedule' | 'order_status' | 'away_no_response' | 'first_message';
+export type RuleTrigger = 'schedule' | 'order_status' | 'away_no_response' | 'first_message' | 'keyword';
 
 export interface AutoReplyRule {
     id: number;
