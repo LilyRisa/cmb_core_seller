@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { App, Avatar, Badge, Button, Checkbox, Dropdown, Empty, Image, Input, List, Popover, Radio, Segmented, Space, Spin, Tag, Typography, Upload } from 'antd';
+import { Link } from 'react-router-dom';
+import { App, Avatar, Badge, Button, Checkbox, Dropdown, Empty, Grid, Image, Input, List, Popover, Radio, Segmented, Space, Spin, Tag, Typography, Upload } from 'antd';
 import { FileOutlined, FilterOutlined, MoreOutlined, PaperClipOutlined, PhoneOutlined, PictureOutlined, RobotOutlined, SendOutlined, ShopOutlined, SmileOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import Picker from '@emoji-mart/react';
 import emojiData from '@emoji-mart/data';
@@ -33,6 +34,16 @@ const { Text } = Typography;
  */
 export function MessagingPage() {
     const { message } = App.useApp();
+    const screens = Grid.useBreakpoint();
+
+    // ── Delivery status localisation ──────────────────────────────────────────
+    const DELIVERY_STATUS_LABEL: Record<string, string> = {
+        pending: 'Đang gửi',
+        sent: 'Đã gửi',
+        delivered: 'Đã nhận',
+        read: 'Đã xem',
+        failed: 'Gửi lỗi',
+    };
 
     // ── Filter state ──────────────────────────────────────────────────────────
     const [board, setBoard] = useState<'marketplace' | 'facebook'>('marketplace');
@@ -277,9 +288,9 @@ export function MessagingPage() {
         <div>
             <MessagingNav />
             <TagManagerModal open={tagModalOpen} onClose={() => setTagModalOpen(false)} />
-            <div style={{ display: 'flex', height: 'calc(100vh - 150px)', gap: 12 }}>
+            <div style={{ display: 'flex', height: 'calc(100vh - 150px)', gap: 12, minWidth: 0 }}>
             {/* Cột trái — danh sách hội thoại */}
-            <div style={{ width: 320, background: '#fff', borderRadius: 12, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ flex: `0 0 ${screens.md ? 300 : 240}px`, minWidth: 240, maxWidth: 340, background: '#fff', borderRadius: 12, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
                 <div style={{ padding: 12, borderBottom: '1px solid #F1F5F9', display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {/* 2 tab chính: Sàn / Facebook */}
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -379,7 +390,7 @@ export function MessagingPage() {
             </div>
 
             {/* Cột giữa — luồng tin + ô soạn */}
-            <div style={{ flex: 1, background: '#fff', borderRadius: 12, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ flex: 1, minWidth: 0, minHeight: 0, background: '#fff', borderRadius: 12, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 {!activeId ? (
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Empty description="Chọn một hội thoại để xem" />
@@ -426,7 +437,7 @@ export function MessagingPage() {
                                             {m.body == null && (m.attachments ?? []).length === 0 && <div>{`[${m.kind}]`}</div>}
                                             {m.direction === 'outbound' && (
                                                 <div style={{ fontSize: 10, opacity: 0.8, textAlign: 'right' }}>
-                                                    {m.delivery_status === 'failed' ? 'Gửi lỗi' : m.delivery_status}
+                                                    {DELIVERY_STATUS_LABEL[m.delivery_status ?? ''] ?? m.delivery_status}
                                                 </div>
                                             )}
                                         </div>
@@ -480,21 +491,23 @@ export function MessagingPage() {
                 )}
             </div>
 
-            {/* Cột phải — panel thông tin (MVP) */}
-            <div style={{ width: 280, background: '#fff', borderRadius: 12, padding: 16 }}>
+            {/* Cột phải — panel thông tin (MVP, chỉ ≥1200px) */}
+            {screens.xl && (
+            <div style={{ width: 280, background: '#fff', borderRadius: 12, padding: 16, minHeight: 0, flexShrink: 0 }}>
                 <Text strong>Thông tin</Text>
                 {active ? (
                     <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
                         <div><Text type="secondary">Khách: </Text>{active.buyer_name ?? active.buyer_external_id}</div>
                         <div><Text type="secondary">Nguồn: </Text>{providerLabel(active.provider)}{active.channel_account_name ? ` · ${active.channel_account_name}` : ''}</div>
                         <div><Text type="secondary">Trạng thái: </Text>{active.status}</div>
-                        {active.order_id && <div><Text type="secondary">Đơn liên quan: </Text><a href={`/orders/${active.order_id}`}>#{active.order_id}</a></div>}
-                        {active.customer_id && <div><Text type="secondary">Khách hàng: </Text><a href={`/customers/${active.customer_id}`}>Hồ sơ</a></div>}
+                        {active.order_id && <div><Text type="secondary">Đơn liên quan: </Text><Link to={`/orders/${active.order_id}`}>#{active.order_id}</Link></div>}
+                        {active.customer_id && <div><Text type="secondary">Khách hàng: </Text><Link to={`/customers/${active.customer_id}`}>Hồ sơ</Link></div>}
                     </div>
                 ) : (
                     <div style={{ marginTop: 12 }}><Text type="secondary">Chọn hội thoại để xem chi tiết.</Text></div>
                 )}
             </div>
+            )}
             </div>
         </div>
     );

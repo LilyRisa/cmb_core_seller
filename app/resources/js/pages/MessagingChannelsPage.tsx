@@ -100,10 +100,10 @@ export function MessagingChannelsPage() {
                                         </Space>
                                         <Text type="secondary" style={{ fontSize: 12 }}>Page ID: {p.external_shop_id}</Text>
                                         {syncing ? (
-                                            <Space size={8} style={{ width: 240 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 280, width: '100%' }}>
                                                 <Progress percent={100} status="active" showInfo={false} size="small" style={{ flex: 1, margin: 0 }} />
-                                                <Text type="secondary" style={{ fontSize: 12 }}>Đang đồng bộ… {p.sync.done} hội thoại</Text>
-                                            </Space>
+                                                <Text type="secondary" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>Đang đồng bộ… {p.sync.done} hội thoại</Text>
+                                            </div>
                                         ) : p.sync.status === 'done' ? (
                                             <Text type="secondary" style={{ fontSize: 12 }}>
                                                 Đã đồng bộ • {p.message_count} tin nhắn
