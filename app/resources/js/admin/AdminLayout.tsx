@@ -14,6 +14,7 @@ import {
     GiftOutlined,
     ProfileOutlined,
     NotificationOutlined,
+    ApiOutlined,
 } from '@ant-design/icons';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAdminLogout, useAdminMe } from './lib/adminAuth';
@@ -26,6 +27,7 @@ const SIDEBAR_ITEMS = [
     { key: '/admin/plans', icon: <ProfileOutlined />, label: 'Gói thuê bao' },
     { key: '/admin/broadcasts', icon: <NotificationOutlined />, label: 'Broadcast' },
     { key: '/admin/settings', icon: <SettingOutlined />, label: 'Hệ thống' },
+    { key: '/admin/ai-providers', icon: <ApiOutlined />, label: 'Nhà cung cấp AI' },
     { key: '/admin/audit-logs', icon: <AuditOutlined />, label: 'Nhật ký' },
 ];
 
