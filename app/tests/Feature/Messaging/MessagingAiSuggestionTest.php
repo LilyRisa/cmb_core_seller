@@ -44,7 +44,7 @@ class MessagingAiSuggestionTest extends TestCase
         $this->activate(Plan::CODE_BUSINESS);
 
         // Super-admin đã bật provider manual.
-        AiProvider::query()->create(['code' => 'manual', 'is_active' => true, 'default_model' => 'manual-v1']);
+        AiProvider::query()->create(['code' => 'manual', 'adapter' => 'manual', 'is_active' => true, 'default_model' => 'manual-v1']);
 
         $account = ChannelAccount::query()->create([
             'tenant_id' => $this->tenant->getKey(),

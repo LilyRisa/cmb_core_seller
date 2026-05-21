@@ -52,7 +52,7 @@ class MessagingAutoModeTest extends TestCase
             'current_period_end' => now()->addMonth(),
         ]);
 
-        AiProvider::query()->create(['code' => 'manual', 'is_active' => true]);
+        AiProvider::query()->create(['code' => 'manual', 'adapter' => 'manual', 'is_active' => true]);
 
         $account = ChannelAccount::query()->create([
             'tenant_id' => $this->tenant->getKey(), 'provider' => 'manual',

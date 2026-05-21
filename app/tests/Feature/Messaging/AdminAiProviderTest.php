@@ -30,6 +30,7 @@ class AdminAiProviderTest extends TestCase
 
         $this->postJson('/api/v1/admin/ai-providers', [
             'code' => 'claude',
+            'adapter' => 'anthropic',
             'display_name' => 'Claude Prod',
             'api_key' => 'sk-ant-secret-xxx',
             'default_model' => 'claude-opus-4-7',
@@ -50,19 +51,28 @@ class AdminAiProviderTest extends TestCase
         $this->assertTrue($caps['reply.suggest'] ?? false);
     }
 
-    public function test_store_rejects_unregistered_code(): void
+    public function test_store_rejects_unregistered_adapter(): void
     {
         $this->actingAdmin();
-
-        $this->postJson('/api/v1/admin/ai-providers', ['code' => 'bogus_llm'])
+        $this->postJson('/api/v1/admin/ai-providers', ['code' => 'bogus', 'adapter' => 'bogus_adapter'])
             ->assertStatus(422);
+    }
+
+    public function test_store_allows_free_form_code_with_known_adapter(): void
+    {
+        $this->actingAdmin();
+        $this->postJson('/api/v1/admin/ai-providers', [
+            'code' => 'deepseek-prod', 'adapter' => 'openai_compatible',
+            'base_url' => 'https://api.deepseek.com', 'default_model' => 'deepseek-chat',
+            'api_key' => 'sk-ds-xxx', 'is_active' => true,
+        ])->assertStatus(201)->assertJsonPath('data.adapter', 'openai_compatible');
     }
 
     public function test_test_endpoint_graceful_when_not_configured(): void
     {
         $this->actingAdmin();
         // Claude active nhưng CHƯA nhập api_key ⇒ ProviderNotConfigured → ok:false.
-        AiProvider::query()->create(['code' => 'claude', 'is_active' => true]);
+        AiProvider::query()->create(['code' => 'claude', 'adapter' => 'anthropic', 'is_active' => true]);
 
         $this->postJson('/api/v1/admin/ai-providers/claude/test')
             ->assertOk()
@@ -83,7 +93,7 @@ class AdminAiProviderTest extends TestCase
 
         $this->actingAdmin();
         AiProvider::query()->create([
-            'code' => 'claude', 'is_active' => true,
+            'code' => 'claude', 'adapter' => 'anthropic', 'is_active' => true,
             'api_key' => 'sk-ant-test', 'default_model' => 'claude-opus-4-7',
         ]);
 
@@ -99,7 +109,7 @@ class AdminAiProviderTest extends TestCase
     public function test_test_endpoint_ok_for_manual(): void
     {
         $this->actingAdmin();
-        AiProvider::query()->create(['code' => 'manual', 'is_active' => true]);
+        AiProvider::query()->create(['code' => 'manual', 'adapter' => 'manual', 'is_active' => true]);
 
         $this->postJson('/api/v1/admin/ai-providers/manual/test')
             ->assertOk()
@@ -109,7 +119,7 @@ class AdminAiProviderTest extends TestCase
     public function test_destroy_disables_provider(): void
     {
         $this->actingAdmin();
-        AiProvider::query()->create(['code' => 'manual', 'is_active' => true]);
+        AiProvider::query()->create(['code' => 'manual', 'adapter' => 'manual', 'is_active' => true]);
 
         $this->deleteJson('/api/v1/admin/ai-providers/manual')->assertOk();
 
@@ -120,5 +130,34 @@ class AdminAiProviderTest extends TestCase
     {
         // Không login admin ⇒ 401/403.
         $this->getJson('/api/v1/admin/ai-providers')->assertStatus(401);
+    }
+
+    public function test_multiple_openai_compatible_instances_coexist(): void
+    {
+        $this->actingAdmin();
+        foreach ([
+            ['deepseek-prod', 'https://api.deepseek.com', 'deepseek-chat'],
+            ['qwen-cheap', 'https://dashscope-intl.aliyuncs.com/compatible-mode', 'qwen-plus'],
+            ['openrouter-fb', 'https://openrouter.ai/api', 'openai/gpt-4o-mini'],
+        ] as [$code, $url, $model]) {
+            $this->postJson('/api/v1/admin/ai-providers', [
+                'code' => $code, 'adapter' => 'openai_compatible',
+                'base_url' => $url, 'default_model' => $model, 'api_key' => 'k', 'is_active' => true,
+            ])->assertStatus(201);
+        }
+
+        $codes = collect($this->getJson('/api/v1/admin/ai-providers')->json('data'))->pluck('code');
+        $this->assertContains('deepseek-prod', $codes);
+        $this->assertContains('qwen-cheap', $codes);
+        $this->assertContains('openrouter-fb', $codes);
+    }
+
+    public function test_store_rejects_non_https_base_url(): void
+    {
+        $this->actingAdmin();
+        $this->postJson('/api/v1/admin/ai-providers', [
+            'code' => 'evil', 'adapter' => 'openai_compatible',
+            'base_url' => 'http://169.254.169.254', 'default_model' => 'x',
+        ])->assertStatus(422);
     }
 }

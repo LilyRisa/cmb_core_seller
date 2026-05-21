@@ -44,7 +44,7 @@ class AiProviderHttpTest extends TestCase
         ]);
 
         AiProvider::query()->create([
-            'code' => 'claude', 'is_active' => true,
+            'code' => 'claude', 'adapter' => 'anthropic', 'is_active' => true,
             'api_key' => 'sk-ant-xxx', 'default_model' => 'claude-opus-4-7',
             'pricing' => [
                 ['kind' => 'input_token', 'unit' => 1000, 'micro_vnd' => 100],
@@ -79,7 +79,7 @@ class AiProviderHttpTest extends TestCase
     {
         Http::fake(['api.anthropic.com/*' => Http::response(['error' => ['message' => 'rate limited']], 429)]);
 
-        AiProvider::query()->create(['code' => 'claude', 'is_active' => true, 'api_key' => 'k', 'default_model' => 'claude-opus-4-7']);
+        AiProvider::query()->create(['code' => 'claude', 'adapter' => 'anthropic', 'is_active' => true, 'api_key' => 'k', 'default_model' => 'claude-opus-4-7']);
 
         $this->expectException(\RuntimeException::class);
         app(ClaudeConnector::class)->generateReply(new AiContext(tenantId: 1, providerCode: 'claude'), $this->snapshot(), null);
@@ -96,7 +96,7 @@ class AiProviderHttpTest extends TestCase
         ]);
 
         AiProvider::query()->create([
-            'code' => 'openai', 'is_active' => true,
+            'code' => 'openai', 'adapter' => 'openai_compatible', 'is_active' => true,
             'api_key' => 'sk-oai', 'default_model' => 'gpt-4o-mini',
         ]);
 
@@ -124,7 +124,7 @@ class AiProviderHttpTest extends TestCase
             ], 200),
         ]);
 
-        AiProvider::query()->create(['code' => 'openai', 'is_active' => true, 'api_key' => 'sk-oai', 'default_model' => 'gpt-4o-mini']);
+        AiProvider::query()->create(['code' => 'openai', 'adapter' => 'openai_compatible', 'is_active' => true, 'api_key' => 'sk-oai', 'default_model' => 'gpt-4o-mini']);
 
         $embedding = app(OpenAiConnector::class)->embed(new AiContext(tenantId: 1, providerCode: 'openai'), 'chính sách đổi trả');
 
