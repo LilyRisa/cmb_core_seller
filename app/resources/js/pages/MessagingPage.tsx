@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { App, Avatar, Badge, Button, Checkbox, Dropdown, Empty, Grid, Image, Input, List, Modal, Popconfirm, Popover, Radio, Segmented, Select, Space, Spin, Tag, Tooltip, Typography, Upload } from 'antd';
 import { CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FileOutlined, FilterOutlined, MessageFilled, MessageOutlined, MoreOutlined, PaperClipOutlined, PhoneOutlined, PictureOutlined, RobotOutlined, SendOutlined, ShopOutlined, SmileOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
@@ -26,7 +26,7 @@ import {
     useSetConversationTags,
     useUnblockConversation,
 } from '@/lib/messaging';
-import { useMessagingChannels } from '@/lib/messagingConfig';
+import { useMessagingChannels, useTemplates, type MessageTemplate } from '@/lib/messagingConfig';
 import { MessagingNav } from '@/components/MessagingNav';
 import { TagManagerModal } from '@/components/TagManagerModal';
 
@@ -105,6 +105,40 @@ export function MessagingPage() {
     const [privateReplyOpen, setPrivateReplyOpen] = useState(false);
     const [privateReplyDraft, setPrivateReplyDraft] = useState('');
     const [openingLink, setOpeningLink] = useState(false);
+
+    // ── Templates (for slash-command) ─────────────────────────────────────────
+    const templatesQuery = useTemplates();
+
+    /**
+     * Slash-command: draft bắt đầu bằng `/` (và chỉ `/...` — không có khoảng trắng ở đầu,
+     * không có ký tự xuống dòng) → hiện danh sách mẫu khớp với query.
+     * Regex: /^\/(\S*)$/ — neo đầu, phần query không chứa khoảng trắng.
+     */
+    const SLASH_RE = /^\/(\S*)$/;
+    const slashMatch = SLASH_RE.exec(draft);
+    const slashQuery = slashMatch ? slashMatch[1].toLowerCase() : null;
+    const slashOpen = slashQuery !== null;
+
+    const slashMatches = useMemo<MessageTemplate[]>(() => {
+        const templates = templatesQuery.data?.data ?? [];
+        if (slashQuery === null) return [];
+        const q = slashQuery;
+        if (q === '') return templates.filter((t) => t.enabled);
+        return templates.filter((t) => {
+            if (!t.enabled) return false;
+            // shortcut_key là ưu tiên (startsWith), sau đó name (includes, case-insensitive)
+            if (t.shortcut_key && t.shortcut_key.toLowerCase().startsWith(q)) return true;
+            return t.name.toLowerCase().includes(q);
+        });
+    }, [slashQuery, templatesQuery.data]);
+
+    const [slashHighlight, setSlashHighlight] = useState(0);
+    // Reset highlight mỗi khi danh sách thay đổi
+    useEffect(() => { setSlashHighlight(0); }, [slashMatches]);
+
+    const applySlashTemplate = useCallback((t: MessageTemplate) => {
+        setDraft(t.body);
+    }, []);
 
     // ── Tags ──────────────────────────────────────────────────────────────────
     const tagsQuery = useMessagingTags();
@@ -746,13 +780,75 @@ export function MessagingPage() {
                         ) : (
                         /* ── Message composer (original) ── */
                         <div style={{ padding: 12, borderTop: '1px solid #F1F5F9' }}>
+                            <Popover
+                                open={slashOpen && (slashMatches.length > 0 || slashQuery !== null)}
+                                placement="topLeft"
+                                trigger={[]}
+                                arrow={false}
+                                overlayInnerStyle={{ padding: 4, minWidth: 280, maxWidth: 360 }}
+                                content={(
+                                    <div>
+                                        {slashMatches.length === 0 ? (
+                                            <div style={{ padding: '6px 10px', color: '#94A3B8', fontSize: 13 }}>Không có mẫu tin khớp</div>
+                                        ) : (
+                                            slashMatches.map((t, idx) => (
+                                                <div
+                                                    key={t.id}
+                                                    onClick={() => applySlashTemplate(t)}
+                                                    style={{
+                                                        padding: '6px 10px',
+                                                        borderRadius: 6,
+                                                        cursor: 'pointer',
+                                                        background: idx === slashHighlight ? '#EFF6FF' : undefined,
+                                                        display: 'flex',
+                                                        alignItems: 'baseline',
+                                                        gap: 8,
+                                                    }}
+                                                    onMouseEnter={() => setSlashHighlight(idx)}
+                                                >
+                                                    <span style={{ fontWeight: 600, fontSize: 13, flex: '0 0 auto' }}>{t.name}</span>
+                                                    {t.shortcut_key && (
+                                                        <Tag style={{ marginInlineEnd: 0, fontFamily: 'monospace', fontSize: 11 }}>/{t.shortcut_key}</Tag>
+                                                    )}
+                                                    <span style={{ color: '#64748B', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                                                        {t.body.length > 50 ? t.body.slice(0, 50) + '…' : t.body}
+                                                    </span>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                )}
+                            >
                             <Input.TextArea
                                 value={draft}
                                 onChange={(e) => setDraft(e.target.value)}
-                                placeholder="Nhập tin nhắn… (Enter để gửi, Shift+Enter xuống dòng)"
+                                placeholder="Nhập tin nhắn… (Enter để gửi, Shift+Enter xuống dòng; /slug để chèn mẫu)"
                                 autoSize={{ minRows: 3, maxRows: 10 }}
-                                onPressEnter={(e) => { if (!e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                                onPressEnter={(e) => {
+                                    if (e.shiftKey) return; // xuống dòng bình thường
+                                    if (slashOpen && slashMatches.length > 0) {
+                                        e.preventDefault();
+                                        applySlashTemplate(slashMatches[slashHighlight] ?? slashMatches[0]);
+                                        return;
+                                    }
+                                    e.preventDefault();
+                                    handleSend();
+                                }}
+                                onKeyDown={(e) => {
+                                    if (!slashOpen || slashMatches.length === 0) return;
+                                    if (e.key === 'ArrowDown') {
+                                        e.preventDefault();
+                                        setSlashHighlight((h) => Math.min(h + 1, slashMatches.length - 1));
+                                    } else if (e.key === 'ArrowUp') {
+                                        e.preventDefault();
+                                        setSlashHighlight((h) => Math.max(h - 1, 0));
+                                    } else if (e.key === 'Escape') {
+                                        e.preventDefault();
+                                        setDraft('');
+                                    }
+                                }}
                             />
+                            </Popover>
                             <Space style={{ marginTop: 8, justifyContent: 'space-between', width: '100%' }}>
                                 <Space size={4}>
                                     <Upload showUploadList={false} accept="image/*" beforeUpload={(f) => handleMedia(f as File, 'image')}>
