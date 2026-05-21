@@ -9,6 +9,7 @@ use CMBcoreSeller\Modules\Messaging\Http\Controllers\KnowledgeController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\MessageController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\MessagingChannelController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\MessagingSettingsController;
+use CMBcoreSeller\Modules\Messaging\Http\Controllers\TagController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\TemplateController;
 use Illuminate\Support\Facades\Route;
 
@@ -120,6 +121,12 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
             ->whereNumber('id')->name('messaging.channels.sync');     // messaging.connect
         Route::delete('channels/{id}', [MessagingChannelController::class, 'destroy'])
             ->whereNumber('id')->name('messaging.channels.destroy');
+
+        // --- Tags (conversation labels) ------------------------------------
+        Route::get('tags', [TagController::class, 'index'])->name('messaging.tags.index');                   // messaging.view
+        Route::post('tags', [TagController::class, 'store'])->name('messaging.tags.store');                  // messaging.reply
+        Route::patch('tags/{id}', [TagController::class, 'update'])->whereNumber('id')->name('messaging.tags.update');    // messaging.reply
+        Route::delete('tags/{id}', [TagController::class, 'destroy'])->whereNumber('id')->name('messaging.tags.destroy'); // messaging.reply
 
         // --- Auto-reply rules (S5) -----------------------------------------
         Route::get('auto-reply-rules', [AutoReplyRuleController::class, 'index'])

@@ -50,6 +50,8 @@ class ConversationResource extends JsonResource
             'last_outbound_at' => $this->last_outbound_at?->toIso8601String(),
             'assigned_user_id' => $this->assigned_user_id,
             'tags' => $this->tags ?? [],
+            'has_phone' => (bool) $this->has_phone,
+            'detected_phone' => $this->detected_phone,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

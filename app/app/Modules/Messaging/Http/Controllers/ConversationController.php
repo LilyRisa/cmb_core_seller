@@ -46,6 +46,22 @@ class ConversationController extends Controller
         if ($request->boolean('unread')) {
             $q->where('unread_count', '>', 0);
         }
+        if ($request->boolean('read')) {
+            $q->where('unread_count', 0);
+        }
+        if ($request->boolean('has_phone')) {
+            $q->where('has_phone', true);
+        }
+        if ($tags = $request->query('tags')) {
+            $ids = array_filter(array_map('intval', explode(',', (string) $tags)));
+            if ($ids !== []) {
+                $q->where(function ($qq) use ($ids) {
+                    foreach ($ids as $id) {
+                        $qq->orWhereJsonContains('tags', $id);
+                    }
+                });
+            }
+        }
         if ($assigned = $request->query('assigned')) {
             if ($assigned === 'me') {
                 $q->where('assigned_user_id', $request->user()->id);
