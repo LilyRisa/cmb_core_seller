@@ -97,6 +97,11 @@ class SyncConversationsForShop implements ShouldBeUnique, ShouldQueue
             accessToken: (string) $account->access_token,
         );
 
+        // Guard: lần sync đầu tiên (last_synced_at=null) ⇒ toàn bộ tin là backlog lịch sử.
+        // Không fire MessageReceived để tránh auto-reply/AI cho khách hàng cũ.
+        // Phải capture TRƯỚC khi meta bị mutation bên dưới.
+        $firstSync = $meta->last_synced_at === null;
+
         $since = $meta->last_synced_at ? CarbonImmutable::parse($meta->last_synced_at) : null;
 
         try {
@@ -132,6 +137,7 @@ class SyncConversationsForShop implements ShouldBeUnique, ShouldQueue
                                     $res['conversation'],
                                     $res['message'],
                                     $res['conversation']->wasRecentlyCreated,
+                                    ! $firstSync,
                                 );
                                 $msgCount++;
                             }

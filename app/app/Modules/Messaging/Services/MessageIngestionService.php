@@ -101,19 +101,27 @@ class MessageIngestionService
     /**
      * Fire event sau khi transaction commit (idempotent với DB row đã tạo).
      * Tách khỏi `ingest` để caller (webhook job) tự kiểm `created` flag rồi mới fire.
+     *
+     * @param  bool  $fireInboundEvent  Khi `false`, bỏ qua `MessageReceived` (dùng cho lần sync
+     *                                  đầu tiên của Lazada để không auto-reply toàn bộ backlog
+     *                                  lịch sử). Media relay và `ConversationCreated` vẫn chạy
+     *                                  bình thường. Mặc định `true` — webhook path không đổi.
      */
-    public function fireEventsForNewMessage(Conversation $conversation, Message $message, bool $isNewConversation): void
+    public function fireEventsForNewMessage(Conversation $conversation, Message $message, bool $isNewConversation, bool $fireInboundEvent = true): void
     {
         if ($isNewConversation) {
             ConversationCreated::dispatch($conversation->id);
         }
         if ($message->isInbound()) {
-            // Positional — Dispatchable::dispatch là variadic; truyền named arg
-            // qua spread không bind được (Unknown named parameter).
-            MessageReceived::dispatch($message->id, $conversation->id, false);
+            if ($fireInboundEvent) {
+                // Positional — Dispatchable::dispatch là variadic; truyền named arg
+                // qua spread không bind được (Unknown named parameter).
+                MessageReceived::dispatch($message->id, $conversation->id, false);
+            }
 
             // Relay media inbound (URL sàn TTL ngắn) vào object storage — chỉ
             // attachment chưa có storage_path (status pending). SPEC-0024 §6.4.
+            // Luôn chạy bất kể $fireInboundEvent để không mất media backlog.
             if ($message->attachments_count > 0) {
                 $message->attachments()
                     ->withoutGlobalScope(TenantScope::class)

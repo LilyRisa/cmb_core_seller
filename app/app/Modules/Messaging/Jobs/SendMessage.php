@@ -12,6 +12,7 @@ use CMBcoreSeller\Modules\Messaging\Events\MessageFailed;
 use CMBcoreSeller\Modules\Messaging\Events\MessageSent;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
+use CMBcoreSeller\Modules\Messaging\Services\MediaStorage;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -64,11 +65,21 @@ class SendMessage implements ShouldQueue
         $conversation = Conversation::withoutGlobalScope(TenantScope::class)->find($message->conversation_id);
         if (! $conversation) {
             $this->markFailed($message, 'conversation_not_found');
+
+            return;
+        }
+
+        // Guard: hội thoại bị chặn ⇒ không gửi (tránh gửi nhầm auto-reply/AI cho
+        // người dùng đã bị block). Dừng vĩnh viễn — không retry.
+        if ($conversation->blocked_at !== null) {
+            $this->markFailed($message, 'conversation_blocked');
+
             return;
         }
 
         if (! $registry->has($conversation->provider)) {
             $this->markFailed($message, 'unknown_provider');
+
             return;
         }
         $connector = $registry->for($conversation->provider);
@@ -76,10 +87,12 @@ class SendMessage implements ShouldQueue
         $account = ChannelAccount::withoutGlobalScope(TenantScope::class)->find($conversation->channel_account_id);
         if (! $account) {
             $this->markFailed($message, 'channel_account_missing');
+
             return;
         }
         if ($account->status !== ChannelAccount::STATUS_ACTIVE) {
             $this->markFailed($message, 'channel_account_inactive');
+
             return;
         }
 
@@ -104,8 +117,7 @@ class SendMessage implements ShouldQueue
                     (array) ($opts['vars'] ?? []),
                     $opts,
                 ),
-                in_array($message->kind, [Message::KIND_IMAGE, Message::KIND_VIDEO, Message::KIND_FILE], true)
-                    => $this->sendMediaForMessage($connector, $auth, $conversation->external_conversation_id, $message, $opts),
+                in_array($message->kind, [Message::KIND_IMAGE, Message::KIND_VIDEO, Message::KIND_FILE], true) => $this->sendMediaForMessage($connector, $auth, $conversation->external_conversation_id, $message, $opts),
                 default => throw new \RuntimeException("Kind [{$message->kind}] không hỗ trợ ở S1."),
             };
 
@@ -145,7 +157,7 @@ class SendMessage implements ShouldQueue
         // nếu attachment chưa có external_url.
         $externalUrl = $attachment->external_url;
         if (! $externalUrl && $attachment->storage_path) {
-            $externalUrl = app(\CMBcoreSeller\Modules\Messaging\Services\MediaStorage::class)->temporaryUrl($attachment);
+            $externalUrl = app(MediaStorage::class)->temporaryUrl($attachment);
         }
 
         $media = new MediaRefDTO(

@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Messaging\Listeners;
 
 use CMBcoreSeller\Modules\Messaging\Events\MessageReceived;
+use CMBcoreSeller\Modules\Messaging\Models\AutoReplyRule;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Services\AutoReplyEngine;
@@ -23,7 +24,7 @@ class RunAutoReplyOnInbound
     public function handle(MessageReceived $event): void
     {
         $conv = Conversation::withoutGlobalScope(TenantScope::class)->find($event->conversationId);
-        if (! $conv || $conv->status === Conversation::STATUS_SPAM) {
+        if (! $conv || $conv->status === Conversation::STATUS_SPAM || $conv->blocked_at !== null) {
             return;
         }
 
@@ -34,9 +35,9 @@ class RunAutoReplyOnInbound
 
         $context = ['inbound_body' => $message->body];
 
-        $fired = $this->engine->fire($conv, \CMBcoreSeller\Modules\Messaging\Models\AutoReplyRule::TRIGGER_FIRST_MESSAGE, $context);
+        $fired = $this->engine->fire($conv, AutoReplyRule::TRIGGER_FIRST_MESSAGE, $context);
         if ($fired === null) {
-            $this->engine->fire($conv, \CMBcoreSeller\Modules\Messaging\Models\AutoReplyRule::TRIGGER_SCHEDULE, $context);
+            $this->engine->fire($conv, AutoReplyRule::TRIGGER_SCHEDULE, $context);
         }
     }
 }

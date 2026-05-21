@@ -33,7 +33,7 @@ class AiAutoModeOnInbound implements ShouldQueue
     public function handle(MessageReceived $event): void
     {
         $conv = Conversation::withoutGlobalScope(TenantScope::class)->find($event->conversationId);
-        if (! $conv || $conv->status === Conversation::STATUS_SPAM) {
+        if (! $conv || $conv->status === Conversation::STATUS_SPAM || $conv->blocked_at !== null) {
             return;
         }
 
