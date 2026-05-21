@@ -12,6 +12,7 @@ use CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta;
 use CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -31,24 +32,34 @@ use Illuminate\Support\Facades\Log;
  * $sinceIso: nếu set, dừng phân trang khi conversation updated_time < since (đối
  * soát incremental); nếu null, dùng cutoff cố định (messaging.backfill.days, mặc định 90).
  */
-class BackfillMessagingChannel implements ShouldQueue
+class BackfillMessagingChannel implements ShouldBeUnique, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 5;
+
+    public int $uniqueFor = 900;
 
     public function __construct(public int $channelAccountId, public ?string $sinceIso = null)
     {
         $this->onQueue('messaging-sync');
     }
 
+    public function uniqueId(): string
+    {
+        return "backfill:{$this->channelAccountId}";
+    }
+
     public function handle(MessagingRegistry $registry, MessageIngestionService $ingestion): void
     {
         $account = ChannelAccount::withoutGlobalScope(TenantScope::class)->find($this->channelAccountId);
-        if (! $account || ! $registry->has($account->provider)) {
+
+        // (5) Resolve connector via messagingConnectorCode() — aligns with ReconcileMessagingSync.
+        $code = $account?->messagingConnectorCode();
+        if (! $account || $code === null || ! $registry->has($code)) {
             return;
         }
-        $connector = $registry->for($account->provider);
+        $connector = $registry->for($code);
         if (! $connector->supports('inbound.backfill')) {
             return;
         }
@@ -57,6 +68,11 @@ class BackfillMessagingChannel implements ShouldQueue
             ['channel_account_id' => (int) $account->getKey()],
             ['tenant_id' => (int) $account->tenant_id, 'messaging_enabled' => true],
         );
+
+        // (2) Full backfill (sinceIso === null) resets the stale cursor from any prior run.
+        if ($this->sinceIso === null) {
+            $meta->forceFill(['sync_cursor' => null])->save();
+        }
 
         $auth = new MessagingAuthContext(
             channelAccountId: (int) $account->getKey(),
@@ -86,6 +102,7 @@ class BackfillMessagingChannel implements ShouldQueue
 
         try {
             do {
+                $prevConvCursor = $cursor;
                 $page = $connector->fetchConversations($auth, ['cursor' => $cursor, 'pageSize' => $perPage]);
                 $reachedCutoff = false;
 
@@ -132,11 +149,18 @@ class BackfillMessagingChannel implements ShouldQueue
                     $meta->forceFill(['sync_done_conversations' => $meta->sync_done_conversations + 1])->save();
                 }
 
+                // (4) Cursor-didn't-advance guard — prevents infinite page loop.
+                if ($page->nextCursor !== null && $page->nextCursor === $prevConvCursor) {
+                    break;
+                }
+
                 $cursor = $page->nextCursor;
                 $meta->forceFill(['sync_cursor' => $cursor])->save();
             } while (! $reachedCutoff && $cursor !== null && $page->hasMore);
         } catch (\Throwable $e) {
             if (str_contains($e->getMessage(), 'FACEBOOK_RATE_LIMIT')) {
+                // (1) Set status to queued before releasing so the row is never stranded at 'running'.
+                $meta->forceFill(['sync_status' => MessagingAccountMeta::SYNC_QUEUED])->save();
                 $this->release(120);
 
                 return;
@@ -156,6 +180,18 @@ class BackfillMessagingChannel implements ShouldQueue
             'last_synced_at' => now(),
             'sync_cursor' => null,
         ])->save();
+    }
+
+    /**
+     * (1) Terminal-state hook — when all tries are exhausted, land the row in SYNC_FAILED
+     * instead of leaving it stranded at 'running' or 'queued'.
+     */
+    public function failed(\Throwable $e): void
+    {
+        $meta = MessagingAccountMeta::withoutGlobalScope(TenantScope::class)->find($this->channelAccountId);
+        if ($meta && in_array($meta->sync_status, [MessagingAccountMeta::SYNC_RUNNING, MessagingAccountMeta::SYNC_QUEUED], true)) {
+            $meta->forceFill(['sync_status' => MessagingAccountMeta::SYNC_FAILED, 'sync_error' => substr($e->getMessage(), 0, 250)])->save();
+        }
     }
 
     private function upsertConversation(ChannelAccount $account, ConversationDTO $dto, string $threadId): Conversation

@@ -209,6 +209,33 @@ class MessagingBackfillTest extends TestCase
             fn ($job) => $job->channelAccountId === $account->id && $job->sinceIso !== null);
     }
 
+    public function test_full_backfill_resets_stale_cursor(): void
+    {
+        \Illuminate\Support\Facades\Bus::fake([\CMBcoreSeller\Modules\Messaging\Jobs\RelayMessagingAvatar::class, \CMBcoreSeller\Modules\Messaging\Jobs\DownloadInboundMedia::class]);
+        [$tenant, $account] = $this->fbAccount();
+        \CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta::query()->where('channel_account_id', $account->id)->update(['sync_cursor' => 'STALE_CURSOR']);
+        \Illuminate\Support\Facades\Http::fake([
+            'graph.facebook.com/*/conversations*' => \Illuminate\Support\Facades\Http::response(['data' => [], 'paging' => []], 200),
+            'graph.facebook.com/*' => \Illuminate\Support\Facades\Http::response(['name' => 'Page'], 200),
+        ]);
+        \CMBcoreSeller\Modules\Messaging\Jobs\BackfillMessagingChannel::dispatchSync($account->id); // sinceIso null = full
+        // The first conversations fetch must NOT carry the stale after-cursor.
+        \Illuminate\Support\Facades\Http::assertSent(fn ($r) => str_contains($r->url(), '/conversations') && ! str_contains($r->url(), 'after=STALE_CURSOR'));
+    }
+
+    public function test_incremental_backfill_keeps_cursor(): void
+    {
+        \Illuminate\Support\Facades\Bus::fake([\CMBcoreSeller\Modules\Messaging\Jobs\RelayMessagingAvatar::class, \CMBcoreSeller\Modules\Messaging\Jobs\DownloadInboundMedia::class]);
+        [$tenant, $account] = $this->fbAccount();
+        \CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta::query()->where('channel_account_id', $account->id)->update(['sync_cursor' => 'KEEP_CURSOR']);
+        \Illuminate\Support\Facades\Http::fake([
+            'graph.facebook.com/*/conversations*' => \Illuminate\Support\Facades\Http::response(['data' => [], 'paging' => []], 200),
+            'graph.facebook.com/*' => \Illuminate\Support\Facades\Http::response(['name' => 'Page'], 200),
+        ]);
+        (new \CMBcoreSeller\Modules\Messaging\Jobs\BackfillMessagingChannel($account->id, now()->subHour()->toIso8601String()))->handle(app(\CMBcoreSeller\Integrations\Messaging\MessagingRegistry::class), app(\CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService::class));
+        \Illuminate\Support\Facades\Http::assertSent(fn ($r) => str_contains($r->url(), '/conversations') && str_contains($r->url(), 'after=KEEP_CURSOR'));
+    }
+
     public function test_channels_index_returns_avatar_count_and_sync(): void
     {
         [$tenant, $account] = $this->fbAccount();
