@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Messaging\Models;
 
+use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -19,6 +20,17 @@ use Illuminate\Support\Carbon;
  * @property ?array $outbound_window_meta
  * @property bool $ai_enabled
  * @property ?array $settings
+ * @property ?string $page_avatar_path
+ * @property ?Carbon $page_avatar_synced_at
+ * @property ?string $sync_status
+ * @property ?int $sync_total_conversations
+ * @property int $sync_done_conversations
+ * @property int $sync_message_count
+ * @property ?string $sync_cursor
+ * @property ?Carbon $sync_started_at
+ * @property ?Carbon $sync_finished_at
+ * @property ?string $sync_error
+ * @property ?Carbon $last_synced_at
  */
 class MessagingAccountMeta extends Model
 {
@@ -33,9 +45,13 @@ class MessagingAccountMeta extends Model
     protected $keyType = 'int';
 
     public const SYNC_IDLE = 'idle';
+
     public const SYNC_QUEUED = 'queued';
+
     public const SYNC_RUNNING = 'running';
+
     public const SYNC_DONE = 'done';
+
     public const SYNC_FAILED = 'failed';
 
     protected $fillable = [
@@ -67,6 +83,6 @@ class MessagingAccountMeta extends Model
 
     public function channelAccount(): BelongsTo
     {
-        return $this->belongsTo(\CMBcoreSeller\Modules\Channels\Models\ChannelAccount::class);
+        return $this->belongsTo(ChannelAccount::class);
     }
 }

@@ -164,6 +164,16 @@ class LazadaChatConnector implements MessagingConnector
      * nextCursor = `last_session_id` (caller cần pass cả start_time lần sau = next_start_time;
      * ta encode cả hai vào cursor dạng "lastSessionId|nextStartTime").
      */
+    public function fetchPageProfile(MessagingAuthContext $auth): array
+    {
+        return ['name' => null, 'avatar_url' => null];
+    }
+
+    public function fetchUserProfile(MessagingAuthContext $auth, string $externalUserId): array
+    {
+        return ['name' => null, 'avatar_url' => null];
+    }
+
     public function fetchConversations(MessagingAuthContext $auth, array $query = []): Page
     {
         $cfg = (array) config('integrations.lazada', []);

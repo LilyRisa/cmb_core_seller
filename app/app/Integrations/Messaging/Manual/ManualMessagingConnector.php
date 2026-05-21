@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Integrations\Messaging\Manual;
 
+use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Messaging\Contracts\MessagingConnector;
 use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
@@ -110,6 +111,16 @@ class ManualMessagingConnector implements MessagingConnector
         return [$this->parseWebhook($request)];
     }
 
+    public function fetchPageProfile(MessagingAuthContext $auth): array
+    {
+        return ['name' => null, 'avatar_url' => null];
+    }
+
+    public function fetchUserProfile(MessagingAuthContext $auth, string $externalUserId): array
+    {
+        return ['name' => null, 'avatar_url' => null];
+    }
+
     public function fetchConversations(MessagingAuthContext $auth, array $query = []): Page
     {
         return new Page(items: [], nextCursor: null, hasMore: false);
@@ -124,7 +135,7 @@ class ManualMessagingConnector implements MessagingConnector
     {
         return new SendResultDTO(
             externalMessageId: 'manual_'.Str::uuid(),
-            sentAt: \Carbon\CarbonImmutable::now(),
+            sentAt: CarbonImmutable::now(),
             raw: ['echo' => true, 'body' => $body, 'opts' => $opts],
         );
     }
@@ -133,7 +144,7 @@ class ManualMessagingConnector implements MessagingConnector
     {
         return new SendResultDTO(
             externalMessageId: 'manual_'.Str::uuid(),
-            sentAt: \Carbon\CarbonImmutable::now(),
+            sentAt: CarbonImmutable::now(),
             raw: ['echo' => true, 'media_kind' => $media->kind->value],
         );
     }
@@ -142,7 +153,7 @@ class ManualMessagingConnector implements MessagingConnector
     {
         return new SendResultDTO(
             externalMessageId: 'manual_'.Str::uuid(),
-            sentAt: \Carbon\CarbonImmutable::now(),
+            sentAt: CarbonImmutable::now(),
             raw: ['echo' => true, 'template_key' => $templateKey, 'vars' => $vars],
         );
     }

@@ -195,6 +195,16 @@ class TikTokChatConnector implements MessagingConnector
         return [$this->parseWebhook($request)];
     }
 
+    public function fetchPageProfile(MessagingAuthContext $auth): array
+    {
+        return ['name' => null, 'avatar_url' => null];
+    }
+
+    public function fetchUserProfile(MessagingAuthContext $auth, string $externalUserId): array
+    {
+        return ['name' => null, 'avatar_url' => null];
+    }
+
     public function fetchConversations(MessagingAuthContext $auth, array $query = []): Page
     {
         throw UnsupportedOperation::for($this->code(), 'fetchConversations (polling — follow-up)');

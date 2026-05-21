@@ -16,13 +16,14 @@ use CMBcoreSeller\Integrations\Messaging\DTO\OutboundWindowPolicyDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\Page;
 use CMBcoreSeller\Integrations\Messaging\DTO\SendResultDTO;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\UnsupportedOperation;
+use CMBcoreSeller\Modules\Channels\Http\Controllers\ShopeeWebhookController;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
  * Shopee Seller Chat connector — SPEC-0024 / ADR-0017, ADR-0019.
  *
  * Inbound: Shopee 1 push URL/app ⇒ tin chat (push code 10 "Webchat") về
- * /webhook/shopee; {@see \CMBcoreSeller\Modules\Channels\Http\Controllers\ShopeeWebhookController}
+ * /webhook/shopee; {@see ShopeeWebhookController}
  * demux code 10 vào pipeline messaging. Chữ ký push tái dùng
  * {@see ShopeeWebhookVerifier} (HMAC-SHA256(push_key, push_url|raw_body)).
  *
@@ -203,6 +204,16 @@ class ShopeeChatConnector implements MessagingConnector
             body: $hasMessage ? $parsedBody : null,
             attachments: $hasMessage ? $attachments : [],
         )];
+    }
+
+    public function fetchPageProfile(MessagingAuthContext $auth): array
+    {
+        return ['name' => null, 'avatar_url' => null];
+    }
+
+    public function fetchUserProfile(MessagingAuthContext $auth, string $externalUserId): array
+    {
+        return ['name' => null, 'avatar_url' => null];
     }
 
     public function fetchConversations(MessagingAuthContext $auth, array $query = []): Page

@@ -2,8 +2,11 @@
 
 namespace CMBcoreSeller\Integrations\Messaging\Contracts;
 
+use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\ConversationDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\OutboundWindowPolicyDTO;
@@ -77,6 +80,22 @@ interface MessagingConnector
      */
     public function registerWebhooks(MessagingAuthContext $auth): void;
 
+    /**
+     * Lấy thông tin page/shop (tên, avatar). Dùng trong backfill.
+     * Connector không hỗ trợ ⇒ trả `['name' => null, 'avatar_url' => null]`.
+     *
+     * @return array{name: ?string, avatar_url: ?string}
+     */
+    public function fetchPageProfile(MessagingAuthContext $auth): array;
+
+    /**
+     * Lấy thông tin người dùng (buyer) theo external id (vd PSID Facebook).
+     * Connector không hỗ trợ ⇒ trả `['name' => null, 'avatar_url' => null]`.
+     *
+     * @return array{name: ?string, avatar_url: ?string}
+     */
+    public function fetchUserProfile(MessagingAuthContext $auth, string $externalUserId): array;
+
     // --- Inbound (webhook + polling) -------------------------------------
 
     /** Verify chữ ký webhook (HMAC SHA256 / SHA512 / hub.verify tuỳ provider). Sai ⇒ false. */
@@ -105,16 +124,16 @@ interface MessagingConnector
     /**
      * Polling backup: list conversations đã có activity gần đây.
      *
-     * @param  array{since?:\Carbon\CarbonImmutable,cursor?:string,pageSize?:int}  $query
-     * @return Page<\CMBcoreSeller\Integrations\Messaging\DTO\ConversationDTO>
+     * @param  array{since?:CarbonImmutable,cursor?:string,pageSize?:int}  $query
+     * @return Page<ConversationDTO>
      */
     public function fetchConversations(MessagingAuthContext $auth, array $query = []): Page;
 
     /**
      * Polling backup: list messages của 1 conversation.
      *
-     * @param  array{since?:\Carbon\CarbonImmutable,cursor?:string,pageSize?:int}  $query
-     * @return Page<\CMBcoreSeller\Integrations\Messaging\DTO\MessageDTO>
+     * @param  array{since?:CarbonImmutable,cursor?:string,pageSize?:int}  $query
+     * @return Page<MessageDTO>
      */
     public function fetchMessages(MessagingAuthContext $auth, string $externalConversationId, array $query = []): Page;
 
