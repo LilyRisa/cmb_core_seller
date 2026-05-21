@@ -77,4 +77,18 @@ class ShopeeChatWebhookRoutingTest extends TestCase
             ['HTTP_AUTHORIZATION' => 'deadbeef', 'CONTENT_TYPE' => 'application/json'], $raw)
             ->assertStatus(401);
     }
+
+    public function test_chat_push_when_connector_disabled_is_acked_without_storing(): void
+    {
+        Queue::fake();
+        config(['integrations.messaging' => []]); // shopee_chat KHÔNG đăng ký
+        $this->app->forgetInstance(MessagingRegistry::class);
+
+        $this->postPush(['code' => 10, 'shop_id' => 55, 'timestamp' => 1700000000, 'data' => json_encode([
+            'content' => ['conversation_id' => 'C1', 'message_id' => 'M1', 'from_id' => 'B1'],
+        ])])->assertOk()->assertJsonPath('note', 'chat_connector_disabled');
+
+        $this->assertSame(0, WebhookEvent::query()->where('provider', 'shopee')->count());
+        $this->assertSame(0, WebhookEvent::query()->where('provider', 'messaging.shopee_chat')->count());
+    }
 }

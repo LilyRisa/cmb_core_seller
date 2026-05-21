@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Route;
 | (sai chữ ký ⇒ 401, không ghi gì), then the event is stored verbatim and
 | processed asynchronously. See docs/05-api/webhooks-and-oauth.md.
 |
-| Providers without a connector yet (shopee/lazada) get a 404 from
+| Providers without a connector yet (lazada) get a 404 from
 | WebhookIngestService — the route + handler exist; the connector is pending.
 */
 
@@ -59,7 +59,8 @@ Route::post('carriers/{carrier}', [CarrierWebhookController::class, 'handle'])
 | `manual` provider có ở registry để test pipeline (verify trả true trong non-prod).
 */
 Route::post('messaging/{provider}', [MessagingWebhookController::class, 'handle'])
-    ->whereIn('provider', ['manual', 'facebook_page', 'facebook', 'tiktok_chat', 'shopee_chat', 'lazada_chat'])
+    // shopee_chat KHÔNG ở đây: Shopee chỉ 1 push URL → tin chat về /webhook/shopee (ShopeeWebhookController demux).
+    ->whereIn('provider', ['manual', 'facebook_page', 'facebook', 'tiktok_chat', 'lazada_chat'])
     ->name('messaging');
 Route::get('messaging/facebook', [MessagingWebhookController::class, 'verify'])
     ->defaults('provider', 'facebook')
