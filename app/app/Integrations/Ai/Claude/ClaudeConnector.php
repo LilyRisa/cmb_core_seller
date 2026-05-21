@@ -38,11 +38,11 @@ class ClaudeConnector implements AiAssistantConnector
 
     private const DEFAULT_MODEL = 'claude-opus-4-7';
 
-    public function __construct(private AiProviderCredentials $credentials) {}
+    public function __construct(private AiProviderCredentials $credentials, private string $code = 'claude') {}
 
     public function code(): string
     {
-        return 'claude';
+        return $this->code;
     }
 
     public function displayName(): string

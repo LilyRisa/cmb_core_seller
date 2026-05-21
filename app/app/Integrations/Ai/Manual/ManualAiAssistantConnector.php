@@ -22,9 +22,11 @@ use CMBcoreSeller\Integrations\Ai\Exceptions\UnsupportedOperation;
  */
 class ManualAiAssistantConnector implements AiAssistantConnector
 {
+    public function __construct(private string $code = 'manual') {}
+
     public function code(): string
     {
-        return 'manual';
+        return $this->code;
     }
 
     public function displayName(): string

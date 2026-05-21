@@ -4,103 +4,95 @@ namespace CMBcoreSeller\Integrations\Ai;
 
 use CMBcoreSeller\Integrations\Ai\Contracts\AiAssistantConnector;
 use CMBcoreSeller\Integrations\Ai\Exceptions\ProviderNotConfigured;
+use CMBcoreSeller\Modules\Messaging\Models\AiProvider;
 use Illuminate\Contracts\Container\Container;
 
 /**
- * Singleton — tập hợp AI assistant connector active. Khác `ChannelRegistry`:
- * `is_active` đọc từ DB (bảng `ai_providers`, super-admin quản qua
- * `/admin/ai-providers`) thay vì config — bật/tắt runtime không cần deploy.
- * (ADR-0018 revised: bảng riêng thay vì `system_settings` — catalog Settings là
- * allowlist key tĩnh, không nhận key động.)
+ * Registry AI assistant. Map giờ là **adapter → connector class**
+ * (anthropic|openai_compatible|manual). 1 connector phục vụ NHIỀU instance
+ * (rows `ai_providers`): resolve theo `adapter`, inject instance `code` để
+ * connector tự lấy đúng credentials (`resolve($this->code())`).
  *
- * Resolve qua `for($code)` — provider không có hoặc `is_active=false` ⇒ ném
- * `ProviderNotConfigured` (caller mapping → `422 AI_PROVIDER_NOT_AVAILABLE`).
+ * `for($code)`/`make($code)` vẫn nhận **code instance** (call-site không đổi).
  */
 class AiAssistantRegistry
 {
-    /** @var array<string, class-string<AiAssistantConnector>> */
-    protected array $connectors = [];
+    /** @var array<string, class-string<AiAssistantConnector>> adapter => class */
+    protected array $adapters = [];
 
     public function __construct(protected Container $container) {}
 
-    /**
-     * @param  class-string<AiAssistantConnector>  $connectorClass
-     */
-    public function register(string $code, string $connectorClass): void
+    /** @param  class-string<AiAssistantConnector>  $connectorClass */
+    public function register(string $adapter, string $connectorClass): void
     {
-        $this->connectors[$code] = $connectorClass;
+        $this->adapters[$adapter] = $connectorClass;
     }
 
-    public function has(string $code): bool
+    public function hasAdapter(string $adapter): bool
     {
-        return isset($this->connectors[$code]);
+        return isset($this->adapters[$adapter]);
     }
 
     /** @return list<string> */
-    public function providers(): array
+    public function adapters(): array
     {
-        return array_keys($this->connectors);
+        return array_keys($this->adapters);
     }
 
-    /**
-     * Resolve connector. Nếu super-admin chưa cấu hình hoặc `is_active=false`
-     * ⇒ ném `ProviderNotConfigured` (caller mapping 422).
-     */
+    /** Resolve connector cho 1 instance code (có active guard). */
     public function for(string $code): AiAssistantConnector
     {
-        if (! $this->has($code)) {
-            throw new ProviderNotConfigured("AI provider [{$code}] is not registered.");
-        }
-
-        if (! $this->isActive($code)) {
+        $row = $this->row($code);
+        if (! $row || ! $row->is_active) {
             throw new ProviderNotConfigured("AI provider [{$code}] is not active.");
         }
 
-        return $this->container->make($this->connectors[$code]);
+        return $this->resolveAdapter((string) $row->adapter, $code);
     }
 
-    /**
-     * Resolve connector KHÔNG kiểm `is_active` — chỉ super-admin dùng (test
-     * connection / inspect capability của provider chưa bật). Runtime tenant
-     * luôn đi qua `for()` (có active guard).
-     */
+    /** Resolve KHÔNG check active (admin test/inspect). */
     public function make(string $code): AiAssistantConnector
     {
-        if (! $this->has($code)) {
-            throw new ProviderNotConfigured("AI provider [{$code}] is not registered.");
+        $row = $this->row($code);
+        if (! $row) {
+            throw new ProviderNotConfigured("AI provider [{$code}] not found.");
         }
 
-        return $this->container->make($this->connectors[$code]);
+        return $this->resolveAdapter((string) $row->adapter, $code);
     }
 
-    /**
-     * Subset providers đang active (cho `/tenant/settings/messaging` list).
-     *
-     * @return list<string>
-     */
+    /** @return list<string> active codes có adapter đã register */
     public function activeProviders(): array
     {
-        return array_values(array_filter($this->providers(), fn (string $code) => $this->isActive($code)));
+        try {
+            return AiProvider::query()
+                ->where('is_active', true)
+                ->orderBy('sort_order')->orderBy('code')
+                ->get(['code', 'adapter'])
+                ->filter(fn ($r) => isset($this->adapters[$r->adapter]))
+                ->pluck('code')
+                ->values()
+                ->all();
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
-    /**
-     * Đọc `is_active` từ bảng `ai_providers` (super-admin quản).
-     *
-     * Trước đây đọc `system_setting("ai_providers.{code}.is_active")` — nhưng
-     * `SystemSettingsCatalog` là allowlist key TĨNH, không nhận key động ⇒ luôn
-     * trả false ⇒ KHÔNG provider nào active được (lỗi S1). Bảng riêng sửa triệt để.
-     *
-     * Bọc try/catch: boot/migration pending (bảng chưa có) ⇒ trả false, không crash.
-     */
-    protected function isActive(string $code): bool
+    private function resolveAdapter(string $adapter, string $code): AiAssistantConnector
+    {
+        if (! isset($this->adapters[$adapter])) {
+            throw new ProviderNotConfigured("AI adapter [{$adapter}] is not registered.");
+        }
+
+        return $this->container->makeWith($this->adapters[$adapter], ['code' => $code]);
+    }
+
+    private function row(string $code): ?AiProvider
     {
         try {
-            return \CMBcoreSeller\Modules\Messaging\Models\AiProvider::query()
-                ->whereKey($code)
-                ->where('is_active', true)
-                ->exists();
+            return AiProvider::query()->find($code);
         } catch (\Throwable) {
-            return false;
+            return null;
         }
     }
 }

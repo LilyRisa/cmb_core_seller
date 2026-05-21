@@ -6,6 +6,7 @@ use CMBcoreSeller\Integrations\Ai\Concerns\EstimatesAiCost;
 use CMBcoreSeller\Integrations\Ai\Contracts\AiAssistantConnector;
 use CMBcoreSeller\Integrations\Ai\Contracts\AiProviderCredentials;
 use CMBcoreSeller\Integrations\Ai\DTO\AiContext;
+use CMBcoreSeller\Integrations\Ai\DTO\AiProviderRuntimeConfig;
 use CMBcoreSeller\Integrations\Ai\DTO\AiReplyDTO;
 use CMBcoreSeller\Integrations\Ai\DTO\ConversationSnapshot;
 use CMBcoreSeller\Integrations\Ai\DTO\EmbeddingDTO;
@@ -26,16 +27,19 @@ use Illuminate\Support\Facades\Http;
  * `base_url` cho phép trỏ Azure OpenAI / proxy tương thích OpenAI.
  * OpenAI CÓ embedding ⇒ capability rag.training/embedding=true: KnowledgeIndexer
  * có thể dùng provider này để embed kể cả khi reply provider là Claude.
+ *
+ * Adapter `openai_compatible`: dùng cho OpenAI, DeepSeek, Qwen (DashScope compat),
+ * OpenRouter, Gemini (v1beta/openai)… phân biệt qua base_url + api_key + default_model per-instance.
  */
 class OpenAiConnector implements AiAssistantConnector
 {
     use EstimatesAiCost;
 
-    public function __construct(private AiProviderCredentials $credentials) {}
+    public function __construct(private AiProviderCredentials $credentials, private string $code = 'openai') {}
 
     public function code(): string
     {
-        return 'openai';
+        return $this->code;
     }
 
     public function displayName(): string
@@ -162,7 +166,7 @@ class OpenAiConnector implements AiAssistantConnector
         return $this->config(false)->pricing;
     }
 
-    private function config(bool $requireKey = true): \CMBcoreSeller\Integrations\Ai\DTO\AiProviderRuntimeConfig
+    private function config(bool $requireKey = true): AiProviderRuntimeConfig
     {
         $cfg = $this->credentials->resolve($this->code());
         if (! $cfg || ($requireKey && ! $cfg->apiKey)) {
@@ -172,7 +176,7 @@ class OpenAiConnector implements AiAssistantConnector
         return $cfg;
     }
 
-    private function base(\CMBcoreSeller\Integrations\Ai\DTO\AiProviderRuntimeConfig $cfg): string
+    private function base(AiProviderRuntimeConfig $cfg): string
     {
         return rtrim($cfg->baseUrl ?: 'https://api.openai.com', '/');
     }
