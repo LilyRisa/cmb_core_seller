@@ -7,6 +7,7 @@ use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Modules\Channels\Http\Resources\ChannelAccountResource;
 use CMBcoreSeller\Modules\Channels\Jobs\FetchChannelListings;
 use CMBcoreSeller\Modules\Channels\Jobs\SyncOrdersForShop;
+use CMBcoreSeller\Modules\Messaging\Jobs\SyncConversationsForShop;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\SyncRun;
 use CMBcoreSeller\Modules\Channels\Services\ChannelConnectionService;
@@ -172,6 +173,25 @@ class ChannelAccountController extends Controller
         abort_unless($registry->for($account->provider)->unprocessedRawStatuses() !== [], 422, 'Kênh bán này chưa hỗ trợ đồng bộ đơn chưa xử lý.');
 
         SyncOrdersForShop::dispatch((int) $account->getKey(), null, SyncRun::TYPE_UNPROCESSED);
+
+        return response()->json(['data' => ['queued' => true, 'channel_account_id' => $account->getKey()]]);
+    }
+
+    /**
+     * POST /api/v1/channel-accounts/{id}/resync-chat
+     *
+     * Kích hoạt thủ công một lần chạy đồng bộ chat cho gian hàng — chỉ dành cho
+     * connector hỗ trợ polling (hiện tại: Lazada). Shopee/TikTok/Facebook nhận chat
+     * qua webhook nên trả 422.
+     */
+    public function resyncChat(Request $request, int $id, MessagingRegistry $registry): JsonResponse
+    {
+        abort_unless($request->user()?->can('messaging.connect'), 403, 'Chỉ chủ sở hữu / quản trị mới đồng bộ chat.');
+        $account = ChannelAccount::query()->findOrFail($id);
+        abort_unless($account->isActive(), 409, 'Gian hàng không ở trạng thái hoạt động.');
+        $code = $account->messagingConnectorCode();
+        abort_unless($code !== null && $registry->has($code) && $registry->for($code)->supports('inbound.polling'), 422, 'Kênh này không hỗ trợ đồng bộ chat (nhận qua webhook).');
+        SyncConversationsForShop::dispatch((int) $account->getKey());
 
         return response()->json(['data' => ['queued' => true, 'channel_account_id' => $account->getKey()]]);
     }

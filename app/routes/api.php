@@ -96,6 +96,7 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::post('channel-accounts/{id}/resync', [ChannelAccountController::class, 'resync'])->whereNumber('id')->name('channel-accounts.resync');
             Route::post('channel-accounts/{id}/resync-unprocessed', [ChannelAccountController::class, 'resyncUnprocessed'])->whereNumber('id')->name('channel-accounts.resync-unprocessed');
             Route::post('channel-accounts/{id}/resync-listings', [ChannelAccountController::class, 'resyncListings'])->whereNumber('id')->name('channel-accounts.resync-listings');
+            Route::post('channel-accounts/{id}/resync-chat', [ChannelAccountController::class, 'resyncChat'])->whereNumber('id')->name('channel-accounts.resync-chat');
 
             // --- Sync log (Phase 1) — webhook_events / sync_runs + re-drive ---
             Route::get('sync-runs', [SyncLogController::class, 'runs'])->name('sync-runs.index');
