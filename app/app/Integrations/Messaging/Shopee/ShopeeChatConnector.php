@@ -172,9 +172,7 @@ class ShopeeChatConnector implements MessagingConnector
 
     public function sendTemplate(MessagingAuthContext $auth, string $externalConversationId, string $templateKey, array $vars = [], array $opts = []): SendResultDTO
     {
-        $body = (string) ($vars['_resolved_body'] ?? $opts['body'] ?? '');
-
-        return $this->sendText($auth, $externalConversationId, $body, $opts);
+        throw UnsupportedOperation::for($this->code(), 'sendTemplate');
     }
 
     public function outboundWindow(): OutboundWindowPolicyDTO
@@ -199,10 +197,10 @@ class ShopeeChatConnector implements MessagingConnector
             'content' => $content,
         ]);
 
-        $messageId = $resp['message_id'] ?? ($resp['data']['message_id'] ?? '');
+        $messageId = (string) ($resp['message_id'] ?? '');
 
         return new SendResultDTO(
-            externalMessageId: (string) $messageId,
+            externalMessageId: $messageId,
             sentAt: CarbonImmutable::now(),
             raw: $resp,
         );

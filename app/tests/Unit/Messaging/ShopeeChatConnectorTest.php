@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Feature\Messaging;
+namespace Tests\Unit\Messaging;
 
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeClient;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeWebhookVerifier;
@@ -137,5 +137,13 @@ class ShopeeChatConnectorTest extends TestCase
 
         $this->expectException(UnsupportedOperation::class);
         $this->connector()->sendMedia($auth, 'BUYER_1', $media);
+    }
+
+    public function test_send_template_unsupported(): void
+    {
+        $auth = new MessagingAuthContext(channelAccountId: 1, provider: 'shopee', externalShopId: '55', accessToken: 'ACCESS_1');
+
+        $this->expectException(UnsupportedOperation::class);
+        $this->connector()->sendTemplate($auth, 'BUYER_1', 'tpl_code', ['_resolved_body' => 'hi']);
     }
 }
