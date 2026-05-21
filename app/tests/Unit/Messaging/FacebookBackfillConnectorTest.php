@@ -115,4 +115,46 @@ class FacebookBackfillConnectorTest extends TestCase
 
         Http::assertSent(fn ($r) => str_contains($r->url(), 'after=CURSOR_2'));
     }
+
+    public function test_fetch_messages_maps_direction_and_attachments(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response([
+                'id' => 't_aaa',
+                'messages' => ['data' => [
+                    [
+                        'id' => 'm_out', 'message' => 'Chào anh', 'created_time' => '2026-05-20T10:01:00+0000',
+                        'from' => ['id' => 'PAGE_123', 'name' => 'My Page'],
+                    ],
+                    [
+                        'id' => 'm_in', 'message' => '', 'created_time' => '2026-05-20T10:00:00+0000',
+                        'from' => ['id' => 'PSID_999', 'name' => 'A'],
+                        'attachments' => ['data' => [[
+                            'mime_type' => 'image/jpeg', 'name' => 'photo.jpg',
+                            'image_data' => ['url' => 'https://cdn.fb/photo.jpg'],
+                        ]]],
+                    ],
+                ]],
+            ], 200),
+        ]);
+
+        $page = $this->connector()->fetchMessages($this->auth(), 'PSID_999', ['thread_id' => 't_aaa', 'pageSize' => 50]);
+
+        $this->assertCount(2, $page->items);
+
+        $out = $page->items[0];
+        $this->assertSame('m_out', $out->externalMessageId);
+        $this->assertSame('PSID_999', $out->externalConversationId);   // PSID, không phải thread id
+        $this->assertSame('outbound', $out->direction->value);
+        $this->assertSame('text', $out->kind->value);
+
+        $in = $page->items[1];
+        $this->assertSame('inbound', $in->direction->value);
+        $this->assertSame('image', $in->kind->value);
+        $this->assertCount(1, $in->attachments);
+        $this->assertSame('https://cdn.fb/photo.jpg', $in->attachments[0]->externalUrl);
+        $this->assertSame('image/jpeg', $in->attachments[0]->mime);
+
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/t_aaa'));
+    }
 }

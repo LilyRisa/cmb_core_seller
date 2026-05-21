@@ -7,6 +7,9 @@ use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Messaging\Contracts\MessagingConnector;
 use CMBcoreSeller\Integrations\Messaging\DTO\ConversationDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageDirection;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\OutboundWindowPolicyDTO;
@@ -309,7 +312,64 @@ class FacebookPageConnector implements MessagingConnector
 
     public function fetchMessages(MessagingAuthContext $auth, string $externalConversationId, array $query = []): Page
     {
-        throw UnsupportedOperation::for($this->code(), 'fetchMessages');
+        // Backfill địa chỉ tin theo THREAD id (Graph) truyền qua $query['thread_id'];
+        // mỗi MessageDTO mang externalConversationId = PSID để ingest khớp hội thoại
+        // (Send API/webhook đều dùng PSID).
+        $threadId = (string) ($query['thread_id'] ?? $externalConversationId);
+        $limit = (int) ($query['pageSize'] ?? 50);
+
+        $res = Http::timeout(30)->get($this->graphUrl($threadId), [
+            'fields' => "messages.limit({$limit}){id,message,created_time,from,attachments{mime_type,name,image_data,video_data,file_url}}",
+            'access_token' => $auth->accessToken,
+        ]);
+        if (! $res->successful()) {
+            $this->throwGraphError($res, 'fetchMessages');
+        }
+
+        $items = [];
+        foreach ((array) $res->json('messages.data', []) as $row) {
+            $fromId = (string) ($row['from']['id'] ?? '');
+            $direction = $fromId === $auth->externalShopId ? MessageDirection::Outbound : MessageDirection::Inbound;
+
+            $attachments = [];
+            foreach ((array) ($row['attachments']['data'] ?? []) as $att) {
+                $attachments[] = $this->mapBackfillAttachment((array) $att);
+            }
+            $kind = $attachments !== [] ? $attachments[0]->kind : MessageKind::Text;
+
+            $items[] = new MessageDTO(
+                externalConversationId: $externalConversationId,
+                externalMessageId: (string) ($row['id'] ?? ''),
+                buyerExternalId: $externalConversationId,
+                direction: $direction,
+                kind: $kind,
+                body: ($row['message'] ?? '') !== '' ? (string) $row['message'] : null,
+                attachments: $attachments,
+                sentAt: isset($row['created_time']) ? CarbonImmutable::parse($row['created_time']) : null,
+                raw: $row,
+            );
+        }
+
+        return new Page($items, null, false);
+    }
+
+    /** @param array<string,mixed> $att */
+    private function mapBackfillAttachment(array $att): MediaRefDTO
+    {
+        $mime = (string) ($att['mime_type'] ?? 'application/octet-stream');
+        $url = $att['image_data']['url'] ?? $att['video_data']['url'] ?? $att['file_url'] ?? null;
+        $kind = match (true) {
+            isset($att['image_data']) || str_starts_with($mime, 'image/') => MessageKind::Image,
+            isset($att['video_data']) || str_starts_with($mime, 'video/') => MessageKind::Video,
+            default => MessageKind::File,
+        };
+
+        return new MediaRefDTO(
+            kind: $kind,
+            mime: $mime,
+            externalUrl: $url !== null ? (string) $url : null,
+            filename: $att['name'] ?? null,
+        );
     }
 
     // --- Outbound ---------------------------------------------------------
