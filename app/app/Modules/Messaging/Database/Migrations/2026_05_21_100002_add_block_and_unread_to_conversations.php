@@ -21,7 +21,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('conversations', function (Blueprint $table) {
-            $table->dropIndex(['tenant_id', 'blocked_at']);
+            $table->dropIndex('conversations_tenant_id_blocked_at_index');
             $table->dropColumn(['blocked_at', 'blocked_by_user_id', 'manually_unread', 'buyer_avatar_path']);
         });
     }

@@ -39,6 +39,10 @@ use Illuminate\Support\Carbon;
  * @property ?int $assigned_user_id
  * @property ?array $tags
  * @property ?array $meta
+ * @property ?Carbon $blocked_at
+ * @property ?int $blocked_by_user_id
+ * @property bool $manually_unread
+ * @property ?string $buyer_avatar_path
  */
 class Conversation extends Model
 {
