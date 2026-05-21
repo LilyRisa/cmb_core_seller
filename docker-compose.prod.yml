@@ -138,9 +138,13 @@ x-app-env: &app-env
   INTEGRATIONS_SHOPEE_FINANCE: "${INTEGRATIONS_SHOPEE_FINANCE:-false}"
   SHOPEE_SHIP_METHOD: ${SHOPEE_SHIP_METHOD:-auto}
   # --- Hộp thư hợp nhất / Messaging (SPEC-0024) -------------------------------
-  # Bật connector nào (CSV). 'manual' luôn có (test). Vd: facebook_page,lazada_chat
-  # Lazada/TikTok chat dùng chung credentials với orders ở trên (ADR-0019).
-  INTEGRATIONS_MESSAGING: ${INTEGRATIONS_MESSAGING:-}
+  # Bật connector nào (CSV). 'manual' luôn có (test). Default đã bật chat 3 sàn
+  # (tiktok_chat/lazada_chat/shopee_chat) — dùng chung credentials+OAuth với orders
+  # (ADR-0019), chỉ hoạt động khi gian hàng tương ứng đã kết nối + bật "nhắn tin".
+  # KHÔNG bật facebook_page mặc định (cần App Review + MESSAGING_FACEBOOK_* riêng) —
+  # thêm vào INTEGRATIONS_MESSAGING ở Portainer khi sẵn sàng. Connector chat ở mức
+  # shape-tested → verify sandbox từng sàn trước khi tin dùng rộng.
+  INTEGRATIONS_MESSAGING: ${INTEGRATIONS_MESSAGING:-tiktok_chat,lazada_chat,shopee_chat}
   # Facebook Page Messenger — xem docs/04-channels/facebook-messenger-setup.md.
   # APP_ID/APP_SECRET lấy từ Meta App → Settings → Basic. VERIFY_TOKEN tự đặt 1 chuỗi
   # bí mật rồi nhập GIỐNG vào Meta → Messenger → Webhooks. (Bắt buộc khi bật facebook_page.)

@@ -2,6 +2,7 @@
 
 use CMBcoreSeller\Modules\Billing\Http\Controllers\PaymentWebhookController;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\WebhookController;
+use CMBcoreSeller\Modules\Channels\Http\Controllers\ShopeeWebhookController;
 use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\CarrierWebhookController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\MessagingWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -14,15 +15,18 @@ use Illuminate\Support\Facades\Route;
 | (sai chữ ký ⇒ 401, không ghi gì), then the event is stored verbatim and
 | processed asynchronously. See docs/05-api/webhooks-and-oauth.md.
 |
-| Providers without a connector yet (shopee/lazada) get a 404 from
+| Providers without a connector yet (lazada) get a 404 from
 | WebhookIngestService — the route + handler exist; the connector is pending.
 */
 
-foreach (['tiktok', 'shopee', 'lazada'] as $provider) {
+foreach (['tiktok', 'lazada'] as $provider) {
     Route::post($provider, [WebhookController::class, 'handle'])
         ->defaults('provider', $provider)
         ->name($provider);
 }
+
+// Shopee: 1 push URL gánh cả đơn hàng lẫn chat (code 10) → controller riêng demux.
+Route::post('shopee', [ShopeeWebhookController::class, 'handle'])->name('shopee');
 
 /*
 | Payment gateway webhooks (Phase 6.4 / SPEC 0018):
@@ -55,7 +59,8 @@ Route::post('carriers/{carrier}', [CarrierWebhookController::class, 'handle'])
 | `manual` provider có ở registry để test pipeline (verify trả true trong non-prod).
 */
 Route::post('messaging/{provider}', [MessagingWebhookController::class, 'handle'])
-    ->whereIn('provider', ['manual', 'facebook_page', 'facebook', 'tiktok_chat', 'shopee_chat', 'lazada_chat'])
+    // shopee_chat KHÔNG ở đây: Shopee chỉ 1 push URL → tin chat về /webhook/shopee (ShopeeWebhookController demux).
+    ->whereIn('provider', ['manual', 'facebook_page', 'facebook', 'tiktok_chat', 'lazada_chat'])
     ->name('messaging');
 Route::get('messaging/facebook', [MessagingWebhookController::class, 'verify'])
     ->defaults('provider', 'facebook')

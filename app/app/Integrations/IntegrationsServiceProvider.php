@@ -82,7 +82,7 @@ class IntegrationsServiceProvider extends ServiceProvider
         'facebook_page' => \CMBcoreSeller\Integrations\Messaging\Facebook\FacebookPageConnector::class,  // S2
         'tiktok_chat' => \CMBcoreSeller\Integrations\Messaging\TikTok\TikTokChatConnector::class,        // S4
         'lazada_chat' => \CMBcoreSeller\Integrations\Messaging\Lazada\LazadaChatConnector::class,        // S8 (best-effort, §11 Q3)
-        // 'shopee_chat' => ...: chờ Channels Shopee infra (Phase 4 — chưa có signer/config Shopee).
+        'shopee_chat' => \CMBcoreSeller\Integrations\Messaging\Shopee\ShopeeChatConnector::class,        // SPEC-0024 (spec 2026-05-21)
     ];
 
     /**
@@ -159,6 +159,15 @@ class IntegrationsServiceProvider extends ServiceProvider
             return new \CMBcoreSeller\Integrations\Messaging\Facebook\FacebookPageConnector(
                 (array) config('integrations.messaging_facebook_page', []),
                 $app->make(\CMBcoreSeller\Integrations\Messaging\Facebook\FacebookSignatureVerifier::class),
+            );
+        });
+
+        // ShopeeChatConnector cần config block + ShopeeClient/Verifier (Channels) — bind tường minh.
+        $this->app->bind(\CMBcoreSeller\Integrations\Messaging\Shopee\ShopeeChatConnector::class, function ($app) {
+            return new \CMBcoreSeller\Integrations\Messaging\Shopee\ShopeeChatConnector(
+                (array) config('integrations.shopee', []),
+                $app->make(\CMBcoreSeller\Integrations\Channels\Shopee\ShopeeWebhookVerifier::class),
+                $app->make(\CMBcoreSeller\Integrations\Channels\Shopee\ShopeeClient::class),
             );
         });
 

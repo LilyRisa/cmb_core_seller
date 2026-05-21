@@ -29,7 +29,9 @@ final class ShopeeFixtures
                 'item_list' => '/api/v2/product/get_item_list', 'item_base_info' => '/api/v2/product/get_item_base_info',
                 'model_list' => '/api/v2/product/get_model_list', 'update_stock' => '/api/v2/product/update_stock',
                 'escrow_detail' => '/api/v2/payment/get_escrow_detail', 'escrow_list' => '/api/v2/payment/get_escrow_list',
+                'send_message' => '/api/v2/sellerchat/send_message',
             ],
+            'integrations.shopee.chat_push_codes' => [10],
         ]);
     }
 

@@ -143,7 +143,9 @@ class MessageIngestionService
             return Conversation::create([
                 'tenant_id' => $channelAccount->tenant_id,
                 'channel_account_id' => $channelAccount->id,
-                'provider' => $channelAccount->provider,
+                // Conversation lưu MÃ messaging connector (shopee_chat/tiktok_chat/...), không phải
+                // provider gian hàng (shopee/tiktok). Facebook/manual map về chính nó.
+                'provider' => $channelAccount->messagingConnectorCode() ?? $channelAccount->provider,
                 'external_conversation_id' => $dto->externalConversationId,
                 'buyer_external_id' => $dto->buyerExternalId,
                 'buyer_name' => null,
