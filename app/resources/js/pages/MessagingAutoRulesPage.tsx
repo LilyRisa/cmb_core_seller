@@ -13,6 +13,7 @@ const TRIGGER_LABELS: Record<RuleTrigger, string> = {
     schedule: 'Theo lịch (vắng mặt)',
     order_status: 'Theo trạng thái đơn',
     away_no_response: 'NV chưa trả lời',
+    keyword: 'Từ khoá',
 };
 
 /** /messaging/auto-rules — quản lý quy tắc trả lời tự động (SPEC-0024 §6.2). */
@@ -30,8 +31,14 @@ export function MessagingAutoRulesPage() {
     const openForm = (r?: AutoReplyRule) => {
         setEditing(r ?? null);
         form.setFieldsValue(r
-            ? { ...r, raw_text: r.action?.raw_text, minutes: r.trigger_config?.minutes, order_status: r.trigger_config?.order_status }
-            : { enabled: true, trigger: 'first_message', cooldown_seconds: 3600, priority: 100 });
+            ? {
+                ...r,
+                raw_text: r.action?.raw_text,
+                minutes: r.trigger_config?.minutes,
+                order_status: r.trigger_config?.order_status,
+                keywords: Array.isArray(r.trigger_config?.keywords) ? r.trigger_config.keywords : [],
+            }
+            : { enabled: true, trigger: 'first_message', cooldown_seconds: 3600, priority: 100, keywords: [] });
         setOpen(true);
     };
 
@@ -40,7 +47,8 @@ export function MessagingAutoRulesPage() {
             v.trigger === 'away_no_response' ? { minutes: v.minutes ?? 15 }
                 : v.trigger === 'order_status' ? { order_status: v.order_status }
                     : v.trigger === 'schedule' ? { window: v.window, tz: 'Asia/Ho_Chi_Minh' }
-                        : {};
+                        : v.trigger === 'keyword' ? { keywords: v.keywords ?? [] }
+                            : {};
         const payload = {
             ...(editing ? { id: editing.id } : {}),
             name: v.name, trigger: v.trigger, enabled: v.enabled, cooldown_seconds: v.cooldown_seconds, priority: v.priority,
@@ -95,6 +103,16 @@ export function MessagingAutoRulesPage() {
                     )}
                     {trigger === 'schedule' && (
                         <Form.Item name="window" label="Khung giờ (vd 22:00-08:00)" rules={[{ required: true }]}><Input placeholder="22:00-08:00" /></Form.Item>
+                    )}
+                    {trigger === 'keyword' && (
+                        <Form.Item
+                            name="keywords"
+                            label="Từ khoá kích hoạt"
+                            rules={[{ required: true, type: 'array', min: 1, message: 'Nhập ít nhất 1 từ khoá' }]}
+                            extra="Nhập từ khoá rồi nhấn Enter để thêm. Quy tắc fire khi tin nhắn chứa ít nhất 1 từ khoá."
+                        >
+                            <Select mode="tags" placeholder="Nhập từ khoá, Enter để thêm" tokenSeparators={[',']} />
+                        </Form.Item>
                     )}
                     <Form.Item name="raw_text" label="Nội dung trả lời" rules={[{ required: true }]}><Input.TextArea rows={3} /></Form.Item>
                     <Space size="large">

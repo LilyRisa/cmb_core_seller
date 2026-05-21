@@ -21,12 +21,19 @@ class AutoReplyRule extends Model
     use BelongsToTenant, SoftDeletes;
 
     public const TRIGGER_SCHEDULE = 'schedule';
+
     public const TRIGGER_ORDER_STATUS = 'order_status';
+
     public const TRIGGER_AWAY_NO_RESPONSE = 'away_no_response';
+
     public const TRIGGER_FIRST_MESSAGE = 'first_message';
 
+    public const TRIGGER_KEYWORD = 'keyword';
+
     public const ACTION_TEMPLATE = 'template';
+
     public const ACTION_RAW = 'raw';
+
     public const ACTION_AI_REPLY = 'ai_reply';
 
     protected $fillable = [
