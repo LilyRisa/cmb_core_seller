@@ -263,6 +263,34 @@ return [
             'timeout' => 120,
             'nice' => 5,
         ],
+        // SPEC-0024 messaging: realtime (webhook ingest + outbound send) — latency-sensitive.
+        'supervisor-messaging-rt' => [
+            'connection' => 'redis',
+            'queue' => ['messaging-webhooks', 'messaging-outbound'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 6,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 192,
+            'tries' => 3,
+            'timeout' => 90,
+            'nice' => 0,
+        ],
+        // SPEC-0024 messaging: heavy/background (history backfill + media relay + AI index).
+        'supervisor-messaging-bg' => [
+            'connection' => 'redis',
+            'queue' => ['messaging-sync', 'messaging-media', 'messaging-ai'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 4,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 256,
+            'tries' => 3,
+            'timeout' => 600,
+            'nice' => 5,
+        ],
     ],
 
     'environments' => [
@@ -271,6 +299,8 @@ return [
             'supervisor-sync' => ['maxProcesses' => 12, 'balanceMaxShift' => 2, 'balanceCooldown' => 3],
             'supervisor-labels' => ['maxProcesses' => 4, 'balanceMaxShift' => 1, 'balanceCooldown' => 3],
             'supervisor-default' => ['maxProcesses' => 8, 'balanceMaxShift' => 1, 'balanceCooldown' => 3],
+            'supervisor-messaging-rt' => ['maxProcesses' => 8, 'balanceMaxShift' => 2, 'balanceCooldown' => 3],
+            'supervisor-messaging-bg' => ['maxProcesses' => 6, 'balanceMaxShift' => 1, 'balanceCooldown' => 3],
         ],
 
         'staging' => [
@@ -278,6 +308,8 @@ return [
             'supervisor-sync' => ['maxProcesses' => 3],
             'supervisor-labels' => ['maxProcesses' => 2],
             'supervisor-default' => ['maxProcesses' => 2],
+            'supervisor-messaging-rt' => ['maxProcesses' => 2],
+            'supervisor-messaging-bg' => ['maxProcesses' => 2],
         ],
 
         'local' => [
@@ -285,6 +317,8 @@ return [
             'supervisor-sync' => ['maxProcesses' => 2],
             'supervisor-labels' => ['maxProcesses' => 1],
             'supervisor-default' => ['maxProcesses' => 2],
+            'supervisor-messaging-rt' => ['maxProcesses' => 2],
+            'supervisor-messaging-bg' => ['maxProcesses' => 1],
         ],
     ],
 
