@@ -78,5 +78,34 @@ Trong group `api/v1/messaging`:
 
 ---
 
-## PHASE B/C/D — sẽ chi tiết hoá khi tới (brainstorm + design riêng)
-Tóm tắt ý đồ ở trên; mỗi phase mở rộng spec này hoặc tạo spec riêng + plan trước khi code.
+## PHASE B — Chuẩn hoá nội dung inbound + media (Shopee/TikTok) (chi tiết)
+
+**Phát hiện:** `MessageIngestionService.ingest` đã tạo `Message` (kind/body) + `MessageAttachment` từ `MessageDTO.attachments` + relay qua `DownloadInboundMedia` (sẵn). NHƯNG `MessagingWebhookEventDTO` không mang `kind`/`body`/`attachments`, và `ProcessMessagingWebhook` hardcode `attachments: []`, đọc `body`/`kind` từ `payload['body']`/`payload['kind']` (chỉ `manual` set top-level). ⇒ inbound sàn: **body null, media mất**.
+
+**B1. DTO** — thêm field optional vào `MessagingWebhookEventDTO` (backward-compat, default giữ hành vi cũ):
+- `?MessageKind $kind = null`, `?string $body = null`, `array $attachments = []` (list<MediaRefDTO>).
+
+**B2. Lưu webhook_event** — `MessagingWebhookIngestService` thêm vào payload các key chuẩn hoá (prefix `_` tránh đụng raw sàn): `_kind` (string|null), `_body` (string|null), `_attachments` (list các MediaRefDTO serialize thành array: kind,mime,size_bytes,external_url,storage_path,filename,width,height,duration_ms).
+
+**B3. ProcessMessagingWebhook** — `rebuildDtoFromStoredPayload` đọc `_kind`/`_body`/`_attachments` (dựng lại MediaRefDTO[]); `messagingDtoFromWebhook` build `MessageDTO` với kind/body/attachments đó. **Fallback** về `payload['body']`/`payload['kind']` cũ khi thiếu `_*` (giữ manual + cũ chạy). Cho phép ingest cả message chỉ có media (body null nhưng có attachments) — nới điều kiện `messagingDtoFromWebhook` (hiện yêu cầu conv+message+buyer; vẫn giữ, chỉ bỏ ràng buộc phải có body).
+
+**B4. ShopeeChatConnector.parseWebhookEvents** — map theo `message_type` (push code 10, tài liệu `push-025`):
+- `text` → kind=Text, body=`content.text`.
+- `image` → kind=Image, attachments=[MediaRef(Image, mime suy từ url, externalUrl=`content.url`, width=`thumb_width`, height=`thumb_height`)].
+- `video` → kind=Video, attachments=[MediaRef(Video, externalUrl=`content.video_url`, durationMs=`duration_seconds`*1000, width/height thumb)].
+- `item` → kind=Text, body=`"[Sản phẩm] item_id=<id>"` (card → text, YAGNI).
+- khác → kind=Text, body=`"[<message_type>]"`.
+
+**B5. TikTokChatConnector.parseWebhook** — webhook type 14 `content` (JSON string) → `type`+`content`:
+- `TEXT` → body. `IMAGE` → attachment (url+w+h). `VIDEO` → attachment. card types → text body `"[<type>]"`.
+
+**Test:**
+- `MessagingWebhookEventDTO` carry kind/body/attachments → stored payload có `_*` → ProcessMessagingWebhook tạo Message(kind/body) + MessageAttachment(external_url, status pending) + dispatch DownloadInboundMedia.
+- Shopee unit: parse push image/video/text → DTO đúng kind/body/attachments. TikTok unit tương tự.
+- Regression: manual flow (top-level body) vẫn ingest đúng (fallback).
+
+**Không đụng:** FacebookPageConnector (agent khác), `MessagingPage.tsx`.
+
+## PHASE C/D — chi tiết hoá khi tới (design riêng trước khi code)
+- C: polling/sync (Lazada bắt buộc) + activate UX, mirror `SyncOrdersForShop`.
+- D: mở rộng send-type (Lazada image/item/order; TikTok image; Shopee image).
