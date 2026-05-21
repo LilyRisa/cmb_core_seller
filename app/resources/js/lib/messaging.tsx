@@ -37,7 +37,9 @@ export interface Conversation {
     last_inbound_at: string | null;
     last_outbound_at: string | null;
     assigned_user_id: number | null;
-    tags: string[];
+    has_phone: boolean;
+    detected_phone: string | null;
+    tags: number[];
     created_at: string | null;
 }
 
@@ -78,6 +80,9 @@ export interface ConversationFilters {
     q?: string;
     page?: number;
     per_page?: number;
+    read?: boolean;
+    has_phone?: boolean;
+    tags?: string; // CSV of tag ids, e.g. "1,2"
 }
 
 function useScopedApi() {
@@ -239,3 +244,61 @@ export const INBOX_GROUP_PROVIDERS: Record<InboxGroup, string | undefined> = {
     marketplace: 'tiktok_chat,shopee_chat,lazada_chat',
     facebook: 'facebook_page',
 };
+
+// ---------------------------------------------------------------------------
+// Messaging tags
+// ---------------------------------------------------------------------------
+
+export interface MessagingTag {
+    id: number;
+    name: string;
+    color: string;
+}
+
+export function useMessagingTags() {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['messaging', 'tags', tenantId],
+        enabled: api != null,
+        queryFn: async () => (await api!.get<{ data: MessagingTag[] }>('/messaging/tags')).data.data,
+    });
+}
+
+export function useSaveTag() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (t: { id?: number; name: string; color: string }) => {
+            if (t.id) return (await api!.patch<{ data: MessagingTag }>(`/messaging/tags/${t.id}`, { name: t.name, color: t.color })).data.data;
+            return (await api!.post<{ data: MessagingTag }>('/messaging/tags', { name: t.name, color: t.color })).data.data;
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'tags'] }),
+    });
+}
+
+export function useDeleteTag() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: number) => { await api!.delete(`/messaging/tags/${id}`); },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['messaging', 'tags'] });
+            qc.invalidateQueries({ queryKey: ['messaging', 'conversations'] });
+        },
+    });
+}
+
+export function useSetConversationTags() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (input: { conversationId: number; tags: number[] }) => {
+            await api!.patch(`/messaging/conversations/${input.conversationId}`, { tags: input.tags });
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['messaging', 'conversations'] });
+            qc.invalidateQueries({ queryKey: ['messaging', 'thread'] });
+        },
+    });
+}
