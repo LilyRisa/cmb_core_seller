@@ -7,6 +7,8 @@ use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\OAuthState;
+use CMBcoreSeller\Modules\Messaging\Jobs\BackfillMessagingChannel;
+use CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
@@ -99,6 +101,13 @@ class FacebookOAuthController extends Controller
                 } catch (\Throwable $e) {
                     Log::warning('messaging.facebook.subscribe_failed', ['page' => $page['id'], 'error' => $e->getMessage()]);
                 }
+                MessagingAccountMeta::withoutGlobalScope(TenantScope::class)
+                    ->updateOrCreate(
+                        ['channel_account_id' => (int) $account->getKey()],
+                        ['tenant_id' => (int) $account->tenant_id, 'messaging_enabled' => true,
+                            'sync_status' => MessagingAccountMeta::SYNC_QUEUED],
+                    );
+                BackfillMessagingChannel::dispatch((int) $account->getKey());
                 $connected++;
             }
 

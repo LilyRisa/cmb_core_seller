@@ -5,9 +5,9 @@ use CMBcoreSeller\Modules\Messaging\Http\Controllers\AiSuggestionController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\AutoReplyRuleController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\ConversationController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\FacebookOAuthController;
-use CMBcoreSeller\Modules\Messaging\Http\Controllers\MessagingChannelController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\KnowledgeController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\MessageController;
+use CMBcoreSeller\Modules\Messaging\Http\Controllers\MessagingChannelController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\MessagingSettingsController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\TemplateController;
 use Illuminate\Support\Facades\Route;
@@ -112,6 +112,8 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
         // --- Kết nối & quản lý kênh nhắn tin (UI /messaging/channels) ---
         Route::get('channels', [MessagingChannelController::class, 'index'])
             ->name('messaging.channels.index');
+        Route::post('channels/{id}/sync', [MessagingChannelController::class, 'sync'])
+            ->whereNumber('id')->name('messaging.channels.sync');     // messaging.connect
         Route::delete('channels/{id}', [MessagingChannelController::class, 'destroy'])
             ->whereNumber('id')->name('messaging.channels.destroy');
 

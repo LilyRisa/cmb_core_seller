@@ -28,6 +28,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $refresh_token_expires_at
  * @property Carbon|null $last_synced_at
  * @property Carbon|null $last_webhook_at
+ * @property bool $messaging_enabled
  * @property array|null $meta
  * @property int|null $created_by
  * @property Carbon|null $created_at

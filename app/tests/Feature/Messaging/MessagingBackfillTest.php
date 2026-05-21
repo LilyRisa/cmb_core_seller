@@ -157,4 +157,61 @@ class MessagingBackfillTest extends TestCase
         $meta = MessagingAccountMeta::query()->find($account->id);
         $this->assertSame('done', $meta->sync_status);
     }
+
+    private function activateProFor(\CMBcoreSeller\Modules\Tenancy\Models\Tenant $tenant): void
+    {
+        $this->seed(\CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder::class);
+        $plan = \CMBcoreSeller\Modules\Billing\Models\Plan::query()->where('code', \CMBcoreSeller\Modules\Billing\Models\Plan::CODE_PRO)->firstOrFail();
+        \CMBcoreSeller\Modules\Billing\Models\Subscription::query()->create([
+            'tenant_id' => $tenant->getKey(), 'plan_id' => $plan->getKey(),
+            'status' => \CMBcoreSeller\Modules\Billing\Models\Subscription::STATUS_ACTIVE,
+            'billing_cycle' => \CMBcoreSeller\Modules\Billing\Models\Subscription::CYCLE_MONTHLY,
+            'current_period_start' => now(), 'current_period_end' => now()->addMonth(),
+        ]);
+    }
+
+    private function ownerFor(\CMBcoreSeller\Modules\Tenancy\Models\Tenant $tenant): \CMBcoreSeller\Models\User
+    {
+        $user = \CMBcoreSeller\Models\User::factory()->create(['email_verified_at' => now()]);
+        $tenant->users()->attach($user->getKey(), ['role' => \CMBcoreSeller\Modules\Tenancy\Enums\Role::Owner->value]);
+
+        return $user;
+    }
+
+    public function test_sync_endpoint_dispatches_backfill_for_owner(): void
+    {
+        \Illuminate\Support\Facades\Bus::fake([\CMBcoreSeller\Modules\Messaging\Jobs\BackfillMessagingChannel::class]);
+        [$tenant, $account] = $this->fbAccount();
+        $this->activateProFor($tenant);
+
+        $this->actingAs($this->ownerFor($tenant))->withHeaders(['X-Tenant-Id' => (string) $tenant->getKey()])
+            ->postJson("/api/v1/messaging/channels/{$account->id}/sync")
+            ->assertStatus(202)
+            ->assertJsonPath('data.ok', true);
+
+        \Illuminate\Support\Facades\Bus::assertDispatched(\CMBcoreSeller\Modules\Messaging\Jobs\BackfillMessagingChannel::class,
+            fn ($job) => $job->channelAccountId === $account->id);
+
+        $meta = \CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta::query()->find($account->id);
+        $this->assertSame('queued', $meta->sync_status);
+    }
+
+    public function test_channels_index_returns_avatar_count_and_sync(): void
+    {
+        [$tenant, $account] = $this->fbAccount();
+        $this->activateProFor($tenant);
+        \CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta::query()->where('channel_account_id', $account->id)
+            ->update(['sync_status' => 'done', 'sync_message_count' => 5, 'sync_done_conversations' => 2]);
+        \CMBcoreSeller\Modules\Messaging\Models\Conversation::query()->create([
+            'tenant_id' => $tenant->getKey(), 'channel_account_id' => $account->id, 'provider' => 'facebook_page',
+            'external_conversation_id' => 'p1', 'buyer_external_id' => 'p1', 'status' => 'open',
+            'message_count' => 3, 'last_message_at' => now(),
+        ]);
+
+        $this->actingAs($this->ownerFor($tenant))->withHeaders(['X-Tenant-Id' => (string) $tenant->getKey()])
+            ->getJson('/api/v1/messaging/channels')->assertOk()
+            ->assertJsonPath('data.0.message_count', 3)
+            ->assertJsonPath('data.0.sync.status', 'done')
+            ->assertJsonPath('data.0.sync.message_count', 5);
+    }
 }
