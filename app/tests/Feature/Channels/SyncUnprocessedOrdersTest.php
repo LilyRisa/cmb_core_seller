@@ -116,9 +116,11 @@ class SyncUnprocessedOrdersTest extends TestCase
         $job = new SyncOrdersForShop((int) $this->account->getKey(), null, SyncRun::TYPE_UNPROCESSED);
         $job->handle(app(ChannelRegistry::class), app(OrderUpsertService::class));
 
-        // Tất cả 3 đơn được upsert
+        // Chỉ kéo 2 status hợp lệ: pending → 8001, ready_to_ship → 8002. Đơn `packed` (8003)
+        // KHÔNG được query (Lazada GetOrders không nhận status=packed; thực tế đơn packed sẽ
+        // xuất hiện dưới ready_to_ship).
         $this->assertEqualsCanonicalizing(
-            ['8001', '8002', '8003'],
+            ['8001', '8002'],
             Order::withoutGlobalScope(TenantScope::class)
                 ->where('channel_account_id', $this->account->getKey())
                 ->pluck('external_order_id')->all(),
@@ -130,16 +132,16 @@ class SyncUnprocessedOrdersTest extends TestCase
         $this->assertNotNull($run);
         $this->assertSame(SyncRun::TYPE_UNPROCESSED, $run->type);
         $this->assertSame(SyncRun::STATUS_DONE, $run->status);
-        $this->assertSame(3, $run->stats['fetched']);
+        $this->assertSame(2, $run->stats['fetched']);
 
         // Quan trọng: unprocessed KHÔNG bump last_synced_at (giữ NULL như ban đầu)
         $this->account->refresh();
         $this->assertNull($this->account->last_synced_at);
 
-        // Có gọi /orders/get cho cả 4 status (pending/topack/ready_to_ship/packed). update_after có
-        // present (vì Lazada bắt buộc update_after hoặc created_after) — nhưng giá trị là 1 năm trước
+        // Có gọi /orders/get cho 2 status hợp lệ (pending/ready_to_ship). update_after có present
+        // (vì Lazada bắt buộc update_after hoặc created_after) — nhưng giá trị là 1 năm trước
         // (config `unprocessed_lookback_days` mặc định 365) ⇒ bắt được mọi đơn cũ.
-        foreach (['pending', 'topack', 'ready_to_ship', 'packed'] as $st) {
+        foreach (['pending', 'ready_to_ship'] as $st) {
             Http::assertSent(fn ($req) => str_contains($req->url(), '/orders/get')
                 && str_contains($req->url(), "status={$st}"));
         }

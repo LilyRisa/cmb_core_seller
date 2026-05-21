@@ -70,9 +70,10 @@ class LazadaConnectorContractTest extends TestCase
 
     public function test_unprocessed_raw_statuses_default(): void
     {
-        // Lazada item-level: đơn chưa rời kho ⇒ pending/topack/ready_to_ship/packed.
+        // Lazada GetOrders chỉ nhận status filter hợp lệ: `pending` (bao item-level pending+topack)
+        // và `ready_to_ship` (bao item-level packed+ready_to_ship). `topack`/`packed` KHÔNG hợp lệ.
         $statuses = $this->connector()->unprocessedRawStatuses();
-        $this->assertSame(['pending', 'topack', 'ready_to_ship', 'packed'], $statuses);
+        $this->assertSame(['pending', 'ready_to_ship'], $statuses);
     }
 
     public function test_unprocessed_raw_statuses_overridable_via_config(): void
