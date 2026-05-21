@@ -11,6 +11,7 @@ use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
+use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
@@ -120,5 +121,85 @@ class MessagingBlockTest extends TestCase
         $c->refresh();
         $this->assertSame(0, (int) $c->unread_count); // not bumped for blocked
         $this->assertDatabaseHas('messages', ['external_message_id' => 'm_blocked_1']); // still stored (audit)
+    }
+
+    public function test_ingest_message_with_phone_sets_has_phone_flag(): void
+    {
+        $c = $this->conv(['has_phone' => false, 'detected_phone' => null]);
+
+        app(MessageIngestionService::class)->ingest($this->account, new MessageDTO(
+            externalConversationId: $c->external_conversation_id,
+            externalMessageId: 'msg_phone_1',
+            buyerExternalId: $c->buyer_external_id,
+            direction: MessageDirection::Inbound,
+            kind: MessageKind::Text,
+            body: 'Anh ơi gọi mình số 0912345678 nhé',
+        ));
+
+        $c->refresh();
+        $this->assertTrue((bool) $c->has_phone);
+        $this->assertSame('0912345678', $c->detected_phone);
+    }
+
+    public function test_ingest_message_without_phone_leaves_has_phone_false(): void
+    {
+        $c = $this->conv(['has_phone' => false, 'detected_phone' => null]);
+
+        app(MessageIngestionService::class)->ingest($this->account, new MessageDTO(
+            externalConversationId: $c->external_conversation_id,
+            externalMessageId: 'msg_nophone_1',
+            buyerExternalId: $c->buyer_external_id,
+            direction: MessageDirection::Inbound,
+            kind: MessageKind::Text,
+            body: 'Chào shop, cho hỏi có hàng không ạ?',
+        ));
+
+        $c->refresh();
+        $this->assertFalse((bool) $c->has_phone);
+        $this->assertNull($c->detected_phone);
+    }
+
+    public function test_detect_phones_command_backfills_existing_conversation(): void
+    {
+        // Tạo conversation has_phone=false và tin nhắn chứa SĐT
+        $c = $this->conv(['has_phone' => false, 'detected_phone' => null]);
+        Message::query()->create([
+            'tenant_id' => $this->tenant->getKey(),
+            'conversation_id' => $c->id,
+            'external_message_id' => 'backfill_msg_1',
+            'direction' => 'inbound',
+            'kind' => 'text',
+            'body' => 'SĐT của mình là 0987654321',
+            'delivery_status' => 'sent',
+            'sent_at' => now(),
+        ]);
+
+        $this->artisan('messaging:detect-phones')->assertExitCode(0);
+
+        $c->refresh();
+        $this->assertTrue((bool) $c->has_phone);
+        $this->assertSame('0987654321', $c->detected_phone);
+    }
+
+    public function test_detect_phones_command_skips_conversation_already_flagged(): void
+    {
+        // Conversation đã có has_phone=true — command không động vào
+        $c = $this->conv(['has_phone' => true, 'detected_phone' => '0911111111']);
+        Message::query()->create([
+            'tenant_id' => $this->tenant->getKey(),
+            'conversation_id' => $c->id,
+            'external_message_id' => 'backfill_msg_2',
+            'direction' => 'inbound',
+            'kind' => 'text',
+            'body' => 'số khác 0922222222',
+            'delivery_status' => 'sent',
+            'sent_at' => now(),
+        ]);
+
+        $this->artisan('messaging:detect-phones')->assertExitCode(0);
+
+        $c->refresh();
+        // detected_phone không bị ghi đè
+        $this->assertSame('0911111111', $c->detected_phone);
     }
 }

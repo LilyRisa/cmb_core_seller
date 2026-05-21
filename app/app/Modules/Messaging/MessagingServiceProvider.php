@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Modules\Messaging;
 
 use CMBcoreSeller\Integrations\Ai\Contracts\AiProviderCredentials;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\AutoReplyTick;
+use CMBcoreSeller\Modules\Messaging\Console\Commands\DetectConversationPhones;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\PruneAiSuggestionDrafts;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\PruneMessagingPayloads;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\ReconcileMessagingSync;
@@ -76,6 +77,7 @@ class MessagingServiceProvider extends ServiceProvider
                 PruneMessagingPayloads::class,
                 PruneAiSuggestionDrafts::class,
                 ReconcileMessagingSync::class,
+                DetectConversationPhones::class,
             ]);
         }
     }

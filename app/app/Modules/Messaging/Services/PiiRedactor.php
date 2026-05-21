@@ -31,6 +31,7 @@ class PiiRedactor
                 $counter['EMAIL']++;
                 $placeholder = '[EMAIL_'.$counter['EMAIL'].']';
                 $mapping[$placeholder] = $m[0];
+
                 return $placeholder;
             },
             $text
@@ -43,6 +44,7 @@ class PiiRedactor
                 $counter['ACCOUNT']++;
                 $placeholder = '[ACCOUNT_'.$counter['ACCOUNT'].']';
                 $mapping[$placeholder] = $m[1];
+
                 return str_replace($m[1], $placeholder, $m[0]);
             },
             $text
@@ -55,6 +57,7 @@ class PiiRedactor
                 $counter['ID']++;
                 $placeholder = '[ID_'.$counter['ID'].']';
                 $mapping[$placeholder] = $m[1];
+
                 return str_replace($m[1], $placeholder, $m[0]);
             },
             $text
@@ -62,11 +65,12 @@ class PiiRedactor
 
         // SĐT VN (chặt: không nuốt số bất kỳ — phải có format đầy đủ)
         $text = preg_replace_callback(
-            '/(?<!\d)(?:\+84|84|0)(?:3|5|7|8|9)\d{8}(?!\d)/u',
+            PhoneDetector::PATTERN,
             function (array $m) use (&$mapping, &$counter): string {
                 $counter['PHONE']++;
                 $placeholder = '[PHONE_'.$counter['PHONE'].']';
                 $mapping[$placeholder] = $m[0];
+
                 return $placeholder;
             },
             $text

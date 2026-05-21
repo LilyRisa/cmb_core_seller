@@ -29,6 +29,8 @@ use Illuminate\Support\Str;
  */
 class MessageIngestionService
 {
+    public function __construct(private PhoneDetector $phones) {}
+
     /**
      * Upsert 1 inbound message vào DB. Tạo conversation nếu chưa có.
      *
@@ -200,6 +202,14 @@ class MessageIngestionService
             }
         } else {
             $conversation->last_outbound_at = $message->created_at;
+        }
+
+        if (! $conversation->has_phone && $message->body !== null) {
+            $phone = $this->phones->firstPhone($message->body);
+            if ($phone !== null) {
+                $conversation->has_phone = true;
+                $conversation->detected_phone = $phone;
+            }
         }
 
         $conversation->save();
