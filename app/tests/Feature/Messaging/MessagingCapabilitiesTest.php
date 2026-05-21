@@ -34,6 +34,7 @@ class MessagingCapabilitiesTest extends TestCase
         $this->activateSubscription(Plan::CODE_PRO);
 
         // Wire tiktok_chat + shopee_chat (plus the always-loaded manual)
+        // Thứ tự quan trọng: set config Shopee TRƯỚC khi forget registry (ShopeeChatConnector đọc config lúc resolve).
         ShopeeFixtures::configure();
         config(['integrations.messaging' => ['tiktok_chat', 'shopee_chat']]);
         $this->app->forgetInstance(MessagingRegistry::class);
@@ -84,5 +85,17 @@ class MessagingCapabilitiesTest extends TestCase
 
         // TikTok does not support video outbound
         $this->assertFalse($data['tiktok_chat']['outbound.video']);
+    }
+
+    public function test_role_without_messaging_view_gets_403(): void
+    {
+        // StaffWarehouse không có messaging.view (xác nhận từ Role::StaffWarehouse->permissions()).
+        $warehouseUser = User::factory()->create(['email_verified_at' => now()]);
+        $this->tenant->users()->attach($warehouseUser->getKey(), ['role' => Role::StaffWarehouse->value]);
+
+        $this->actingAs($warehouseUser)
+            ->withHeaders($this->h())
+            ->getJson('/api/v1/messaging/capabilities')
+            ->assertForbidden();
     }
 }

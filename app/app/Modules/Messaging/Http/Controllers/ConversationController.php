@@ -118,6 +118,7 @@ class ConversationController extends Controller
         $latestInbound = Message::query()
             ->where('conversation_id', $conv->id)
             ->where('direction', Message::DIRECTION_INBOUND)
+            ->orderByDesc('created_at')
             ->orderByDesc('id')
             ->first();
 

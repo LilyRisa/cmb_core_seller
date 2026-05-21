@@ -149,4 +149,29 @@ class MarkUnreadTest extends TestCase
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'NO_INBOUND');
     }
+
+    public function test_role_without_messaging_view_gets_403(): void
+    {
+        // StaffWarehouse không có messaging.view (xác nhận từ Role::StaffWarehouse->permissions()).
+        $warehouseUser = User::factory()->create(['email_verified_at' => now()]);
+        $this->tenant->users()->attach($warehouseUser->getKey(), ['role' => Role::StaffWarehouse->value]);
+
+        $conv = Conversation::query()->create([
+            'tenant_id' => $this->tenant->getKey(),
+            'channel_account_id' => $this->account->id,
+            'provider' => 'manual',
+            'external_conversation_id' => 'conv_403_unread',
+            'buyer_external_id' => 'buyer_403',
+            'buyer_name' => 'Khách 403',
+            'status' => Conversation::STATUS_OPEN,
+            'unread_count' => 0,
+            'message_count' => 0,
+            'last_message_at' => now(),
+        ]);
+
+        $this->actingAs($warehouseUser)
+            ->withHeaders($this->h())
+            ->postJson("/api/v1/messaging/conversations/{$conv->id}/unread")
+            ->assertForbidden();
+    }
 }
