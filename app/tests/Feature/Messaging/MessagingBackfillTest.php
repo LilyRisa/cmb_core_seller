@@ -196,6 +196,19 @@ class MessagingBackfillTest extends TestCase
         $this->assertSame('queued', $meta->sync_status);
     }
 
+    public function test_reconcile_command_dispatches_incremental_backfill_for_active_pages(): void
+    {
+        \Illuminate\Support\Facades\Bus::fake([\CMBcoreSeller\Modules\Messaging\Jobs\BackfillMessagingChannel::class]);
+        [$tenant, $account] = $this->fbAccount();
+        \CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta::query()->where('channel_account_id', $account->id)
+            ->update(['last_synced_at' => now()->subHours(2)]);
+
+        $this->artisan('messaging:reconcile-sync')->assertExitCode(0);
+
+        \Illuminate\Support\Facades\Bus::assertDispatched(\CMBcoreSeller\Modules\Messaging\Jobs\BackfillMessagingChannel::class,
+            fn ($job) => $job->channelAccountId === $account->id && $job->sinceIso !== null);
+    }
+
     public function test_channels_index_returns_avatar_count_and_sync(): void
     {
         [$tenant, $account] = $this->fbAccount();

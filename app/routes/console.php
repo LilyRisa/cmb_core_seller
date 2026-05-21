@@ -5,8 +5,8 @@ use CMBcoreSeller\Modules\Channels\Jobs\FetchChannelListings;
 use CMBcoreSeller\Modules\Channels\Jobs\SyncOrdersForShop;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\SyncRun;
-use CMBcoreSeller\Modules\Messaging\Jobs\SyncConversationsForShop;
 use CMBcoreSeller\Modules\Fulfillment\Jobs\SyncShipmentTracking;
+use CMBcoreSeller\Modules\Messaging\Jobs\SyncConversationsForShop;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -98,11 +98,14 @@ Schedule::command('messaging:auto-reply-tick')->everyMinute()->onOneServer()->wi
 Schedule::command('messaging:prune-payloads')->dailyAt('03:00')->onOneServer();
 // Hằng ngày: expire + dọn AI suggestion drafts quá hạn.
 Schedule::command('messaging:prune-drafts')->dailyAt('03:10')->onOneServer();
+// SPEC 2026-05-21: hằng giờ đối soát backfill Facebook (incremental) — webhook lo realtime.
+Schedule::command('messaging:reconcile-sync')->hourly()->onOneServer()->withoutOverlapping();
+
 // Every 5': poll chat for shops with messaging enabled on connectors that support polling
 // (currently Lazada — has no webhook for buyer messages; Shopee/TikTok/Facebook are webhook-only).
 // ShouldBeUnique(900s) guards against overlap between ticks.
 Schedule::call(function () {
-    ChannelAccount::withoutGlobalScope(\CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class)
+    ChannelAccount::withoutGlobalScope(TenantScope::class)
         ->where('status', ChannelAccount::STATUS_ACTIVE)
         ->where('messaging_enabled', true)
         ->orderBy('id')

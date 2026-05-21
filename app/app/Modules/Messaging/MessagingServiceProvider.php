@@ -2,14 +2,17 @@
 
 namespace CMBcoreSeller\Modules\Messaging;
 
+use CMBcoreSeller\Integrations\Ai\Contracts\AiProviderCredentials;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\AutoReplyTick;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\PruneAiSuggestionDrafts;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\PruneMessagingPayloads;
+use CMBcoreSeller\Modules\Messaging\Console\Commands\ReconcileMessagingSync;
 use CMBcoreSeller\Modules\Messaging\Contracts\MessageInboxContract;
 use CMBcoreSeller\Modules\Messaging\Events\MessageReceived;
 use CMBcoreSeller\Modules\Messaging\Listeners\AiAutoModeOnInbound;
 use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnInbound;
 use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnOrderStatus;
+use CMBcoreSeller\Modules\Messaging\Services\DbAiProviderCredentials;
 use CMBcoreSeller\Modules\Messaging\Services\MessageInboxReader;
 use CMBcoreSeller\Modules\Orders\Events\OrderStatusChanged;
 use CMBcoreSeller\Support\Database\PartitionRegistry;
@@ -40,8 +43,8 @@ class MessagingServiceProvider extends ServiceProvider
         // AI provider credentials seam — connector (Integrations\Ai) đọc api_key/
         // model qua interface này thay vì import bảng ai_providers trực tiếp.
         $this->app->bind(
-            \CMBcoreSeller\Integrations\Ai\Contracts\AiProviderCredentials::class,
-            \CMBcoreSeller\Modules\Messaging\Services\DbAiProviderCredentials::class,
+            AiProviderCredentials::class,
+            DbAiProviderCredentials::class,
         );
 
         // Per-module config (media disk, size limits, signed URL TTL).
@@ -72,6 +75,7 @@ class MessagingServiceProvider extends ServiceProvider
                 AutoReplyTick::class,
                 PruneMessagingPayloads::class,
                 PruneAiSuggestionDrafts::class,
+                ReconcileMessagingSync::class,
             ]);
         }
     }
