@@ -64,6 +64,7 @@ class FacebookPageConnector implements MessagingConnector
             'inbound.webhook' => true,
             'inbound.polling' => false,
             'inbound.backfill' => true,
+            'inbound.comments' => true,
             'outbound.text' => true,
             'outbound.image' => true,
             'outbound.video' => true,
@@ -448,6 +449,113 @@ class FacebookPageConnector implements MessagingConnector
         }
 
         return new Page($items, null, false);
+    }
+
+    /**
+     * Lấy danh sách top-level comment threads từ page feed.
+     *
+     * Mỗi item = 1 comment khách hàng (cha — không có `parent`) trên 1 bài viết.
+     * Comment của chính page (from.id == page id) bị bỏ qua (không phải customer).
+     * Reply (comment con — có `parent`) được gom vào `replies[]` của comment cha.
+     *
+     * Return shape (plain array):
+     * ```
+     * [
+     *   'items'      => [ [...comment_thread], ... ],
+     *   'nextCursor' => string|null,
+     *   'hasMore'    => bool,
+     * ]
+     * ```
+     *
+     * @param  array{pageSize?: int, commentLimit?: int, cursor?: string}  $query
+     * @return array{items: list<array<string,mixed>>, nextCursor: string|null, hasMore: bool}
+     */
+    public function fetchCommentThreads(MessagingAuthContext $auth, array $query = []): array
+    {
+        $postLimit = (int) ($query['pageSize'] ?? 10);
+        $commentLimit = (int) ($query['commentLimit'] ?? 50);
+
+        $params = [
+            'fields' => "id,message,permalink_url,created_time,comments.limit({$commentLimit}){id,message,created_time,from{id,name},parent}",
+            'limit' => $postLimit,
+            'access_token' => $auth->accessToken,
+        ];
+        if (! empty($query['cursor'])) {
+            $params['after'] = (string) $query['cursor'];
+        }
+
+        $res = Http::timeout(30)->get($this->graphUrl($auth->externalShopId.'/feed'), $params);
+        if (! $res->successful()) {
+            $this->throwGraphError($res, 'fetchCommentThreads');
+        }
+
+        $pageId = $auth->externalShopId;
+        $items = [];
+
+        foreach ((array) $res->json('data', []) as $post) {
+            $postId = (string) ($post['id'] ?? '');
+            $postMessage = isset($post['message']) && (string) $post['message'] !== '' ? (string) $post['message'] : null;
+            $postPermalink = isset($post['permalink_url']) && (string) $post['permalink_url'] !== '' ? (string) $post['permalink_url'] : null;
+
+            // index top-level comments keyed by id for reply grouping
+            /** @var array<string, array<string,mixed>> $topLevel */
+            $topLevel = [];
+            /** @var array<string, list<array<string,mixed>>> $replies */
+            $replies = [];
+
+            foreach ((array) ($post['comments']['data'] ?? []) as $comment) {
+                $commentId = (string) ($comment['id'] ?? '');
+                $fromId = (string) ($comment['from']['id'] ?? '');
+
+                if (isset($comment['parent'])) {
+                    // This is a reply — attach to parent thread
+                    $parentId = (string) ($comment['parent']['id'] ?? '');
+                    if ($parentId !== '') {
+                        $replies[$parentId][] = [
+                            'id' => $commentId,
+                            'from_id' => $fromId,
+                            'from_name' => $comment['from']['name'] ?? null,
+                            'message' => isset($comment['message']) && (string) $comment['message'] !== '' ? (string) $comment['message'] : null,
+                            'created_time' => $comment['created_time'] ?? null,
+                        ];
+                    }
+
+                    continue;
+                }
+
+                // Top-level comment — skip page's own comments (not a customer)
+                if ($fromId === $pageId) {
+                    continue;
+                }
+
+                $topLevel[$commentId] = [
+                    'comment_id' => $commentId,
+                    'commenter_id' => $fromId,
+                    'commenter_name' => $comment['from']['name'] ?? null,
+                    'message' => isset($comment['message']) && (string) $comment['message'] !== '' ? (string) $comment['message'] : null,
+                    'created_time' => $comment['created_time'] ?? null,
+                    'post_id' => $postId,
+                    'post_message' => $postMessage,
+                    'post_permalink' => $postPermalink,
+                    'replies' => [],
+                ];
+            }
+
+            // Attach gathered replies to their top-level parent
+            foreach ($topLevel as $commentId => $thread) {
+                $topLevel[$commentId]['replies'] = $replies[$commentId] ?? [];
+                $items[] = $topLevel[$commentId];
+            }
+        }
+
+        $nextCursor = $res->json('paging.cursors.after');
+        $hasMore = $res->json('paging.next') !== null;
+
+        return [
+            'items' => $items,
+            'nextCursor' => $nextCursor !== null ? (string) $nextCursor : null,
+            'hasMore' => (bool) $hasMore,
+        ];
     }
 
     /** @param array<string,mixed> $att */

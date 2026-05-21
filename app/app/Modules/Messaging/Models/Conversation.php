@@ -19,10 +19,15 @@ use Illuminate\Support\Carbon;
  *  - resolved: NV bấm xong; tin mới ⇒ tự về open
  *  - spam: NV bấm; auto-reply bypass; tin vẫn lưu nhưng ẩn khỏi inbox mặc định
  *
+ * `thread_type`:
+ *  - message: Messenger DM thông thường (mặc định)
+ *  - comment: comment bài viết Facebook (external_conversation_id = top-level comment id)
+ *
  * @property int $id
  * @property int $tenant_id
  * @property int $channel_account_id
  * @property string $provider
+ * @property string $thread_type
  * @property string $external_conversation_id
  * @property string $buyer_external_id
  * @property ?string $buyer_name
@@ -59,8 +64,12 @@ class Conversation extends Model
 
     public const STATUS_SPAM = 'spam';
 
+    public const THREAD_MESSAGE = 'message';
+
+    public const THREAD_COMMENT = 'comment';
+
     protected $fillable = [
-        'tenant_id', 'channel_account_id', 'provider',
+        'tenant_id', 'channel_account_id', 'provider', 'thread_type',
         'external_conversation_id', 'buyer_external_id', 'buyer_name', 'buyer_avatar_url',
         'customer_id', 'order_id', 'status', 'snoozed_until',
         'unread_count', 'message_count', 'last_message_at', 'last_message_preview',

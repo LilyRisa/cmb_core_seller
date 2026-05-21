@@ -1,0 +1,261 @@
+<?php
+
+namespace CMBcoreSeller\Modules\Messaging\Jobs;
+
+use Carbon\CarbonImmutable;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageDirection;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
+use CMBcoreSeller\Integrations\Messaging\Facebook\FacebookPageConnector;
+use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
+use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Messaging\Models\Conversation;
+use CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta;
+use CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService;
+use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
+
+/**
+ * Backfill comment threads từ page feed Facebook vào messaging inbox.
+ *
+ * Mỗi top-level comment của khách hàng = 1 `conversations` row riêng (thread_type='comment').
+ * Reply của page = outbound message; reply của khách = inbound message.
+ *
+ * Idempotent: ingest dedupe theo (channel_account_id, external_conversation_id) ở conversation
+ * và (conversation_id, external_message_id) ở message.
+ *
+ * KHÔNG fire auto-reply events (fireEventsForNewMessage) — backfill tin cũ.
+ * KHÔNG relay media (comments là text; bỏ qua DownloadInboundMedia).
+ *
+ * Đồng tồn tại với BackfillMessagingChannel: cả hai ghi vào messaging_account_meta
+ * (sync_status) — chạy độc lập, chấp nhận race cập nhật cột sync_* khi cả hai chạy
+ * song song (acceptable cho now).
+ *
+ * Constructor: `(int $channelAccountId, ?string $sinceIso = null)`.
+ */
+class BackfillFacebookComments implements ShouldBeUnique, ShouldQueue
+{
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public int $tries = 5;
+
+    public int $uniqueFor = 900;
+
+    public function __construct(public int $channelAccountId, public ?string $sinceIso = null)
+    {
+        $this->onQueue('messaging-sync');
+    }
+
+    public function uniqueId(): string
+    {
+        return "comments:{$this->channelAccountId}";
+    }
+
+    public function handle(MessagingRegistry $registry, MessageIngestionService $ingestion): void
+    {
+        $account = ChannelAccount::withoutGlobalScope(TenantScope::class)->find($this->channelAccountId);
+
+        $code = $account?->messagingConnectorCode();
+        if (! $account || $code === null || ! $registry->has($code)) {
+            return;
+        }
+        /** @var FacebookPageConnector $connector */
+        $connector = $registry->for($code);
+        if (! $connector->supports('inbound.comments')) {
+            return;
+        }
+
+        $meta = MessagingAccountMeta::withoutGlobalScope(TenantScope::class)->firstOrCreate(
+            ['channel_account_id' => (int) $account->getKey()],
+            ['tenant_id' => (int) $account->tenant_id, 'messaging_enabled' => true],
+        );
+
+        $auth = new MessagingAuthContext(
+            channelAccountId: (int) $account->getKey(),
+            provider: $account->provider,
+            externalShopId: (string) $account->external_shop_id,
+            accessToken: (string) $account->access_token,
+        );
+
+        $meta->forceFill([
+            'sync_status' => MessagingAccountMeta::SYNC_RUNNING,
+            'sync_started_at' => $meta->sync_started_at ?? now(),
+            'sync_error' => null,
+        ])->save();
+
+        $cutoff = $this->sinceIso
+            ? Carbon::parse($this->sinceIso)
+            : now()->subDays((int) config('messaging.backfill.days', 90));
+
+        $cursor = null;
+
+        try {
+            do {
+                $result = $connector->fetchCommentThreads($auth, [
+                    'pageSize' => (int) config('messaging.backfill.posts_per_page', 10),
+                    'commentLimit' => (int) config('messaging.backfill.comments_per_post', 50),
+                    'cursor' => $cursor,
+                ]);
+
+                foreach ($result['items'] as $thread) {
+                    $createdTime = ! empty($thread['created_time'])
+                        ? CarbonImmutable::parse((string) $thread['created_time'])
+                        : null;
+
+                    // Cutoff check — stop pagination when comment is older than cutoff
+                    if ($createdTime !== null && $createdTime->lt($cutoff)) {
+                        // Items are roughly newest-first; once we see an old one, stop
+                        break 2;
+                    }
+
+                    $this->ingestThread($account, $auth, $ingestion, $thread);
+                }
+
+                $prevCursor = $cursor;
+                $cursor = $result['nextCursor'];
+
+                // Guard against infinite loop on stuck cursor
+                if ($cursor !== null && $cursor === $prevCursor) {
+                    break;
+                }
+            } while ($result['hasMore'] && $cursor !== null);
+        } catch (\Throwable $e) {
+            if (str_contains($e->getMessage(), 'FACEBOOK_RATE_LIMIT')) {
+                $meta->forceFill(['sync_status' => MessagingAccountMeta::SYNC_QUEUED])->save();
+                $this->release(120);
+
+                return;
+            }
+            $meta->forceFill([
+                'sync_status' => MessagingAccountMeta::SYNC_FAILED,
+                'sync_error' => substr($e->getMessage(), 0, 250),
+            ])->save();
+            Log::warning('messaging.comments_backfill.failed', ['account' => $account->id, 'error' => $e->getMessage()]);
+
+            return;
+        }
+
+        $meta->forceFill([
+            'sync_status' => MessagingAccountMeta::SYNC_DONE,
+            'sync_finished_at' => now(),
+            'last_synced_at' => now(),
+        ])->save();
+    }
+
+    /**
+     * Terminal-state hook — when all tries exhausted, land row in SYNC_FAILED.
+     */
+    public function failed(\Throwable $e): void
+    {
+        $meta = MessagingAccountMeta::withoutGlobalScope(TenantScope::class)->find($this->channelAccountId);
+        if ($meta && in_array($meta->sync_status, [MessagingAccountMeta::SYNC_RUNNING, MessagingAccountMeta::SYNC_QUEUED], true)) {
+            $meta->forceFill(['sync_status' => MessagingAccountMeta::SYNC_FAILED, 'sync_error' => substr($e->getMessage(), 0, 250)])->save();
+        }
+    }
+
+    /**
+     * Upsert conversation + ingest comment + replies for 1 top-level comment thread.
+     *
+     * @param  array<string,mixed>  $thread  Normalized shape from fetchCommentThreads
+     */
+    private function ingestThread(
+        ChannelAccount $account,
+        MessagingAuthContext $auth,
+        MessageIngestionService $ingestion,
+        array $thread,
+    ): void {
+        $commentId = (string) $thread['comment_id'];
+        $commenterId = (string) $thread['commenter_id'];
+        $commenterName = isset($thread['commenter_name']) ? (string) $thread['commenter_name'] : null;
+        $message = isset($thread['message']) ? (string) $thread['message'] : null;
+        $createdTime = ! empty($thread['created_time'])
+            ? CarbonImmutable::parse((string) $thread['created_time'])
+            : null;
+
+        // --- 1. Upsert conversation (comment thread) ---
+        $conv = Conversation::withoutGlobalScope(TenantScope::class)->firstOrNew([
+            'channel_account_id' => (int) $account->getKey(),
+            'external_conversation_id' => $commentId,
+        ]);
+
+        if (! $conv->exists) {
+            $conv->tenant_id = (int) $account->tenant_id;
+            $conv->provider = $account->messagingConnectorCode() ?? $account->provider;
+            $conv->buyer_external_id = $commenterId;
+            $conv->status = Conversation::STATUS_OPEN;
+            $conv->unread_count = 0;
+            $conv->message_count = 0;
+            $conv->last_message_at = $createdTime ?? now();
+        }
+
+        $conv->thread_type = Conversation::THREAD_COMMENT;
+        $conv->buyer_name = $commenterName ?? $conv->buyer_name;
+
+        $existingMeta = (array) ($conv->meta ?? []);
+        $conv->meta = array_merge($existingMeta, [
+            'fb_post_id' => (string) $thread['post_id'],
+            'fb_post_permalink' => $thread['post_permalink'],
+            'fb_post_message' => $thread['post_message'],
+            'fb_comment_id' => $commentId,
+        ]);
+        $conv->save();
+
+        // --- 2. Ingest top-level comment as inbound message ---
+        $ingestion->ingest($account, new MessageDTO(
+            externalConversationId: $commentId,
+            externalMessageId: $commentId,
+            buyerExternalId: $commenterId,
+            direction: MessageDirection::Inbound,
+            kind: MessageKind::Text,
+            body: $message,
+            sentAt: $createdTime,
+            raw: [
+                'type' => 'comment',
+                'post_id' => $thread['post_id'],
+                'comment_id' => $commentId,
+            ],
+        ));
+
+        // --- 3. Ingest replies ---
+        foreach ((array) ($thread['replies'] ?? []) as $reply) {
+            $replyId = (string) ($reply['id'] ?? '');
+            $replyFromId = (string) ($reply['from_id'] ?? '');
+            if ($replyId === '') {
+                continue;
+            }
+
+            $replyDirection = $replyFromId === $auth->externalShopId
+                ? MessageDirection::Outbound
+                : MessageDirection::Inbound;
+
+            $replySentAt = ! empty($reply['created_time'])
+                ? CarbonImmutable::parse((string) $reply['created_time'])
+                : null;
+
+            $ingestion->ingest($account, new MessageDTO(
+                externalConversationId: $commentId,
+                externalMessageId: $replyId,
+                buyerExternalId: $commenterId,
+                direction: $replyDirection,
+                kind: MessageKind::Text,
+                body: isset($reply['message']) ? (string) $reply['message'] : null,
+                sentAt: $replySentAt,
+                raw: [
+                    'type' => 'reply',
+                    'post_id' => $thread['post_id'],
+                    'comment_id' => $commentId,
+                    'reply_id' => $replyId,
+                    'from_id' => $replyFromId,
+                ],
+            ));
+        }
+    }
+}
