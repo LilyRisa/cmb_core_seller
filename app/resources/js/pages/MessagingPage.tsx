@@ -22,6 +22,7 @@ import {
     useUnblockConversation,
 } from '@/lib/messaging';
 import { MessagingNav } from '@/components/MessagingNav';
+import { TagManagerModal } from '@/components/TagManagerModal';
 
 const { Text } = Typography;
 
@@ -40,6 +41,7 @@ export function MessagingPage() {
     const [tagFilter, setTagFilter] = useState<number[]>([]);
     const [statusState, setStatusState] = useState<'open' | 'resolved' | 'blocked' | 'all'>('open');
     const [filterOpen, setFilterOpen] = useState(false);
+    const [tagModalOpen, setTagModalOpen] = useState(false);
 
     // ── Other state ───────────────────────────────────────────────────────────
     const [activeId, setActiveId] = useState<number | null>(null);
@@ -170,11 +172,14 @@ export function MessagingPage() {
             </Checkbox>
 
             {/* Thẻ */}
-            {tags.length > 0 && (
-                <div>
-                    <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>
+            <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <Text strong style={{ fontSize: 12 }}>
                         <TagOutlined style={{ marginInlineEnd: 4 }} />Thẻ
                     </Text>
+                    <Button type="link" size="small" style={{ padding: 0, height: 'auto' }} onClick={() => setTagModalOpen(true)}>Quản lý thẻ</Button>
+                </div>
+                {tags.length > 0 && (
                     <Space direction="vertical" size={4}>
                         {tags.map((t) => (
                             <Checkbox
@@ -202,8 +207,8 @@ export function MessagingPage() {
                             </Checkbox>
                         ))}
                     </Space>
-                </div>
-            )}
+                )}
+            </div>
         </div>
     );
 
@@ -271,6 +276,7 @@ export function MessagingPage() {
     return (
         <div>
             <MessagingNav />
+            <TagManagerModal open={tagModalOpen} onClose={() => setTagModalOpen(false)} />
             <div style={{ display: 'flex', height: 'calc(100vh - 150px)', gap: 12 }}>
             {/* Cột trái — danh sách hội thoại */}
             <div style={{ width: 320, background: '#fff', borderRadius: 12, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
