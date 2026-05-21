@@ -72,4 +72,47 @@ class FacebookBackfillConnectorTest extends TestCase
         $this->assertNull($profile['name']);
         $this->assertNull($profile['avatar_url']);
     }
+
+    public function test_fetch_conversations_maps_thread_and_psid(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*conversations*' => Http::response([
+                'data' => [[
+                    'id' => 't_aaa',
+                    'updated_time' => '2026-05-20T10:00:00+0000',
+                    'message_count' => 12,
+                    'snippet' => 'tin gần nhất',
+                    'participants' => ['data' => [
+                        ['id' => 'PAGE_123', 'name' => 'My Page'],
+                        ['id' => 'PSID_999', 'name' => 'Nguyen Van A'],
+                    ]],
+                ]],
+                'paging' => ['cursors' => ['after' => 'CURSOR_2'], 'next' => 'https://graph.facebook.com/next'],
+            ], 200),
+        ]);
+
+        $page = $this->connector()->fetchConversations($this->auth(), ['pageSize' => 25]);
+
+        $this->assertCount(1, $page->items);
+        $dto = $page->items[0];
+        $this->assertSame('PSID_999', $dto->externalConversationId);
+        $this->assertSame('PSID_999', $dto->buyerExternalId);
+        $this->assertSame('Nguyen Van A', $dto->buyerName);
+        $this->assertSame('t_aaa', $dto->raw['fb_thread_id']);
+        $this->assertSame(12, $dto->raw['message_count']);
+        $this->assertSame('CURSOR_2', $page->nextCursor);
+        $this->assertTrue($page->hasMore);
+
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/PAGE_123/conversations')
+            && str_contains($r->url(), 'platform=MESSENGER'));
+    }
+
+    public function test_fetch_conversations_paginates_with_after_cursor(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response(['data' => [], 'paging' => []], 200)]);
+
+        $this->connector()->fetchConversations($this->auth(), ['cursor' => 'CURSOR_2', 'pageSize' => 25]);
+
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'after=CURSOR_2'));
+    }
 }

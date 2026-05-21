@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Integrations\Messaging\Facebook;
 use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Messaging\Contracts\MessagingConnector;
+use CMBcoreSeller\Integrations\Messaging\DTO\ConversationDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
@@ -14,6 +15,7 @@ use CMBcoreSeller\Integrations\Messaging\DTO\SendResultDTO;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\ConversationClosed;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\OutboundWindowClosed;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\UnsupportedOperation;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -252,7 +254,57 @@ class FacebookPageConnector implements MessagingConnector
 
     public function fetchConversations(MessagingAuthContext $auth, array $query = []): Page
     {
-        throw UnsupportedOperation::for($this->code(), 'fetchConversations (Messenger dựa webhook, không polling)');
+        $params = [
+            'platform' => 'MESSENGER',
+            'fields' => 'id,updated_time,message_count,snippet,participants{id,name}',
+            'limit' => (int) ($query['pageSize'] ?? 25),
+            'access_token' => $auth->accessToken,
+        ];
+        if (! empty($query['cursor'])) {
+            $params['after'] = (string) $query['cursor'];
+        }
+
+        $res = Http::timeout(30)->get($this->graphUrl($auth->externalShopId.'/conversations'), $params);
+        if (! $res->successful()) {
+            $this->throwGraphError($res, 'fetchConversations');
+        }
+
+        $items = [];
+        foreach ((array) $res->json('data', []) as $row) {
+            $threadId = (string) ($row['id'] ?? '');
+            $psid = null;
+            $buyerName = null;
+            foreach ((array) ($row['participants']['data'] ?? []) as $p) {
+                if ((string) ($p['id'] ?? '') !== $auth->externalShopId) {
+                    $psid = (string) ($p['id'] ?? '');
+                    $buyerName = $p['name'] ?? null;
+                    break;
+                }
+            }
+            if ($psid === null || $psid === '') {
+                continue; // không xác định được buyer ⇒ bỏ qua hội thoại
+            }
+
+            $items[] = new ConversationDTO(
+                externalConversationId: $psid,
+                buyerExternalId: $psid,
+                buyerName: $buyerName,
+                buyerAvatarUrl: null,            // lấy riêng qua fetchUserProfile (relay)
+                lastMessageAt: isset($row['updated_time']) ? CarbonImmutable::parse($row['updated_time']) : null,
+                lastMessagePreview: $row['snippet'] ?? null,
+                unreadCount: null,
+                raw: [
+                    'fb_thread_id' => $threadId,
+                    'message_count' => (int) ($row['message_count'] ?? 0),
+                    'updated_time' => $row['updated_time'] ?? null,
+                ],
+            );
+        }
+
+        $after = $res->json('paging.cursors.after');
+        $hasMore = $res->json('paging.next') !== null;
+
+        return new Page($items, $after ? (string) $after : null, (bool) $hasMore);
     }
 
     public function fetchMessages(MessagingAuthContext $auth, string $externalConversationId, array $query = []): Page
@@ -341,6 +393,17 @@ class FacebookPageConnector implements MessagingConnector
         }
 
         throw new \RuntimeException('Facebook send failed: '.$res->body());
+    }
+
+    /** Ném lỗi Graph; map rate-limit (code 80006) sang RuntimeException nhận diện được để job backoff. */
+    private function throwGraphError(Response $res, string $op): never
+    {
+        $error = (array) $res->json('error');
+        $code = (int) ($error['code'] ?? 0);
+        if ($code === 80006) {
+            throw new \RuntimeException('FACEBOOK_RATE_LIMIT: '.$op);
+        }
+        throw new \RuntimeException("Facebook {$op} failed: ".$res->body());
     }
 
     private function graphUrl(string $path): string
