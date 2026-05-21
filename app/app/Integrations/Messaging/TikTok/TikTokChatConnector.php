@@ -216,7 +216,54 @@ class TikTokChatConnector implements MessagingConnector
             throw UnsupportedOperation::for($this->code(), 'sendMedia ('.$media->kind->value.')');
         }
 
-        return $this->send($auth, $externalConversationId, ['type' => 'IMAGE', 'content' => json_encode(['image_url' => $media->externalUrl], JSON_UNESCAPED_UNICODE)]);
+        // Phase D: upload-first — fetch bytes from our signed URL, upload to TikTok CDN via
+        // POST /customer_service/202309/images/upload (multipart field `data`), then send.
+        // Per official doc: returns data.url, data.width, data.height.
+        if (! $media->externalUrl) {
+            throw new \RuntimeException('TikTok sendMedia cần externalUrl (signed) để fetch bytes ảnh');
+        }
+
+        $bytes = Http::timeout(30)->get($media->externalUrl)->body();
+
+        $cfg = (array) config('integrations.tiktok', []);
+        $appKey = (string) ($cfg['app_key'] ?? '');
+        $appSecret = (string) ($cfg['app_secret'] ?? '');
+        $base = rtrim((string) ($cfg['base_url'] ?? 'https://open-api.tiktokglobalshop.com'), '/');
+        $uploadPath = '/customer_service/202309/images/upload';
+
+        $uploadQuery = [
+            'app_key' => $appKey,
+            'shop_cipher' => (string) ($auth->extra['shop_cipher'] ?? ''),
+            'timestamp' => (string) time(),
+        ];
+        // Multipart: body NOT included in sign (multipart=true).
+        $uploadQuery['sign'] = TikTokSigner::sign($appSecret, $uploadPath, $uploadQuery, '', true);
+
+        $uploadResp = Http::attach('data', $bytes, $media->filename ?? 'image.jpg')
+            ->withHeaders(['x-tts-access-token' => $auth->accessToken])
+            ->timeout(30)
+            ->post($base.$uploadPath.'?'.http_build_query($uploadQuery));
+
+        if (! $uploadResp->successful() || (int) $uploadResp->json('code', -1) !== 0) {
+            throw new \RuntimeException('TikTok images/upload failed: '.$uploadResp->body());
+        }
+        $cdnUrl = $uploadResp->json('data.url');
+        if (! $cdnUrl) {
+            throw new \RuntimeException('TikTok images/upload missing data.url: '.$uploadResp->body());
+        }
+        $cdnWidth = $uploadResp->json('data.width');
+        $cdnHeight = $uploadResp->json('data.height');
+
+        $imageContent = array_filter([
+            'url' => $cdnUrl,
+            'width' => $cdnWidth,
+            'height' => $cdnHeight,
+        ], fn ($v) => $v !== null);
+
+        return $this->send($auth, $externalConversationId, [
+            'type' => 'IMAGE',
+            'content' => json_encode($imageContent, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        ]);
     }
 
     public function sendTemplate(MessagingAuthContext $auth, string $externalConversationId, string $templateKey, array $vars = [], array $opts = []): SendResultDTO

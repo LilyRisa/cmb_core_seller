@@ -230,6 +230,8 @@ class ShopeeChatConnector implements MessagingConnector
             throw new \RuntimeException('Shopee sendMedia cần externalUrl (signed) — storage_path không gửi trực tiếp được.');
         }
 
+        // NOTE (Phase D): Shopee sendMedia dùng community/SDK endpoint image_url trực tiếp (không
+        // có upload-first API riêng trong tài liệu chính thức hiện tại). PHẢI verify sandbox thật.
         return $this->send($auth, $externalConversationId, 'image', ['image_url' => $url]);
     }
 

@@ -409,8 +409,43 @@ class LazadaChatConnector implements MessagingConnector
             throw UnsupportedOperation::for($this->code(), 'sendMedia ('.$media->kind->value.') — Lazada IM chỉ hỗ trợ ảnh');
         }
 
+        // Phase D: upload-first — fetch bytes from our signed URL, upload to Lazada CDN,
+        // then send the CDN URL. Per official doc /image/upload: param `image` = binary stream,
+        // JPG/PNG ≤1MB; returns data.image.url. Binary is NOT included in the signed params.
+        if (! $media->externalUrl) {
+            throw new \RuntimeException('Lazada sendMedia cần externalUrl (signed) để fetch bytes ảnh');
+        }
+
+        $bytes = Http::timeout(30)->get($media->externalUrl)->body();
+
+        $cfg = (array) config('integrations.lazada', []);
+        $base = rtrim((string) ($cfg['base_url'] ?? 'https://api.lazada.vn/rest'), '/');
+        $uploadPath = '/image/upload';
+
+        $uploadSysParams = [
+            'app_key' => (string) ($cfg['app_key'] ?? ''),
+            'partner_id' => (string) ($cfg['partner_id'] ?? 'lazop-sdk-php-20180422'),
+            'access_token' => $auth->accessToken,
+            'sign_method' => 'sha256',
+            'timestamp' => (string) (int) (microtime(true) * 1000),
+        ];
+        // Sign over system params only — the binary field `image` is NOT signed (per SDK pattern).
+        $uploadSysParams['sign'] = LazadaSigner::sign((string) ($cfg['app_secret'] ?? ''), $uploadPath, $uploadSysParams);
+
+        $uploadResp = Http::attach('image', $bytes, $media->filename ?? 'image.jpg')
+            ->timeout(30)
+            ->post($base.$uploadPath.'?'.http_build_query($uploadSysParams));
+
+        if (! $uploadResp->successful()) {
+            throw new \RuntimeException('Lazada image/upload HTTP error: '.$uploadResp->body());
+        }
+        $cdnUrl = $uploadResp->json('data.image.url');
+        if (! $cdnUrl) {
+            throw new \RuntimeException('Lazada image/upload missing data.image.url: '.$uploadResp->body());
+        }
+
         return $this->send($auth, $externalConversationId, self::TEMPLATE_IMAGE, array_filter([
-            'img_url' => $media->externalUrl,
+            'img_url' => $cdnUrl,
             'width' => $media->width,
             'height' => $media->height,
         ], fn ($v) => $v !== null));

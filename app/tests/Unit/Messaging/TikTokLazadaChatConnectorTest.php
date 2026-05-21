@@ -193,6 +193,72 @@ class TikTokLazadaChatConnectorTest extends TestCase
             && $r->hasHeader('x-tts-access-token', 'TOK'));
     }
 
+    public function test_tiktok_send_image_uploads_then_sends(): void
+    {
+        // Phase D: upload-first flow — fetch bytes from our signed URL, upload to TikTok CDN via
+        // POST /customer_service/202309/images/upload (multipart field `data`; returns data.url,
+        // data.width, data.height), then send IMAGE with the CDN url.
+        // Per official doc docv2_page_upload-buyer-messages-image-202309.md.
+        config(['integrations.tiktok.app_key' => 'AK', 'integrations.tiktok.app_secret' => 'SECRET', 'integrations.tiktok.base_url' => 'https://open-api.tiktokglobalshop.com']);
+
+        Http::fake([
+            // Byte fetch from our signed storage URL.
+            'our-signed.internal/*' => Http::response('BYTES', 200),
+            // TikTok image upload endpoint → CDN url with dimensions.
+            'open-api.tiktokglobalshop.com/customer_service/202309/images/upload*' => Http::response([
+                'code' => 0,
+                'message' => 'Success',
+                'data' => ['url' => 'https://tt-cdn/y.jpg', 'width' => 100, 'height' => 100],
+            ], 200),
+            // TikTok IM send → message_id.
+            'open-api.tiktokglobalshop.com/customer_service/202309/conversations/*' => Http::response([
+                'code' => 0,
+                'data' => ['message_id' => 'TT_IMG_OUT'],
+            ], 200),
+        ]);
+
+        $media = new MediaRefDTO(
+            kind: MessageKind::Image,
+            mime: 'image/jpeg',
+            externalUrl: 'https://our-signed.internal/y.jpg',
+            width: 100,
+            height: 100,
+        );
+
+        $auth = new MessagingAuthContext(channelAccountId: 1, provider: 'tiktok_chat', externalShopId: 'SHOP_1', accessToken: 'TOK', extra: ['shop_cipher' => 'CIPHER']);
+        $result = (new TikTokChatConnector)->sendMedia($auth, 'CONV_1', $media);
+
+        $this->assertSame('TT_IMG_OUT', $result->externalMessageId);
+
+        // Assert upload was called at /images/upload with multipart and access token header.
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/customer_service/202309/images/upload')
+            && $r->hasHeader('x-tts-access-token', 'TOK')
+        );
+
+        // Assert send used the CDN url (not the original externalUrl) as IMAGE type.
+        Http::assertSent(function ($r) {
+            if (! str_contains($r->url(), '/customer_service/202309/conversations/CONV_1/messages')) {
+                return false;
+            }
+            $payload = json_decode($r->body(), true);
+            if (($payload['type'] ?? null) !== 'IMAGE') {
+                return false;
+            }
+            $content = json_decode($payload['content'] ?? '{}', true);
+
+            return ($content['url'] ?? null) === 'https://tt-cdn/y.jpg';  // UPLOADED CDN url
+        });
+    }
+
+    public function test_tiktok_send_video_unsupported(): void
+    {
+        $auth = new MessagingAuthContext(channelAccountId: 1, provider: 'tiktok_chat', externalShopId: 'SHOP_1', accessToken: 'TOK', extra: ['shop_cipher' => 'CIPHER']);
+        $media = new MediaRefDTO(kind: MessageKind::Video, mime: 'video/mp4', externalUrl: 'https://cdn/v.mp4');
+
+        $this->expectException(\CMBcoreSeller\Integrations\Messaging\Exceptions\UnsupportedOperation::class);
+        (new TikTokChatConnector)->sendMedia($auth, 'CONV_1', $media);
+    }
+
     // --- Lazada -----------------------------------------------------------
 
     public function test_lazada_verifies_header_signature(): void
@@ -240,16 +306,29 @@ class TikTokLazadaChatConnectorTest extends TestCase
         });
     }
 
-    public function test_lazada_send_image_uses_template_3(): void
+    public function test_lazada_send_image_uploads_then_sends(): void
     {
-        // Official Lazada IM doc: template_id 3 = image (img_url+width+height content).
+        // Phase D: upload-first flow — fetch bytes from our signed URL, upload to Lazada CDN
+        // via /image/upload (param `image` = binary stream; returns data.image.url), then send
+        // with template_id=3 and the CDN url. Per official doc apps_doc_api_path_2Fimage_2Fupload.md.
         config(['integrations.lazada.app_key' => 'LK', 'integrations.lazada.app_secret' => 'LZSEC', 'integrations.lazada.base_url' => 'https://api.lazada.vn/rest']);
-        Http::fake(['api.lazada.vn/*' => Http::response(['code' => '0', 'data' => ['message_id' => 'LZ_IMG_OUT']], 200)]);
+
+        Http::fake([
+            // Byte fetch from our signed storage URL.
+            'our-signed.internal/*' => Http::response('BYTES', 200),
+            // Lazada image upload endpoint → CDN url.
+            'api.lazada.vn/rest/image/upload*' => Http::response([
+                'code' => '0',
+                'data' => ['image' => ['url' => 'https://lzd-cdn/x.jpg', 'hash_code' => 'abc']],
+            ], 200),
+            // Lazada IM send → message_id.
+            'api.lazada.vn/rest/im/message/send*' => Http::response(['code' => '0', 'data' => ['message_id' => 'LZ_IMG_OUT']], 200),
+        ]);
 
         $media = new MediaRefDTO(
             kind: MessageKind::Image,
             mime: 'image/jpeg',
-            externalUrl: 'https://img.lazada.vn/photo.jpg',
+            externalUrl: 'https://our-signed.internal/photo.jpg',
             width: 800,
             height: 600,
         );
@@ -258,16 +337,32 @@ class TikTokLazadaChatConnectorTest extends TestCase
         $result = (new LazadaChatConnector)->sendMedia($auth, 'SESS_1', $media);
 
         $this->assertSame('LZ_IMG_OUT', $result->externalMessageId);
+
+        // Assert upload was called at /image/upload.
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/image/upload')
+            && ! empty($r->url())  // upload endpoint hit
+        );
+
+        // Assert send used the CDN url (not the original externalUrl) with template_id=3.
         Http::assertSent(function ($r) {
             $d = $r->data();
 
             return str_contains($r->url(), '/im/message/send')
-                && ($d['template_id'] ?? null) === '3'   // image template per official Lazada IM doc
-                && ($d['img_url'] ?? null) === 'https://img.lazada.vn/photo.jpg'
+                && ($d['template_id'] ?? null) === '3'
+                && ($d['img_url'] ?? null) === 'https://lzd-cdn/x.jpg'   // UPLOADED CDN url
                 && ($d['session_id'] ?? null) === 'SESS_1'
                 && ! empty($d['sign'])
-                && ! empty($d['partner_id']);   // mandatory system param
+                && ! empty($d['partner_id']);
         });
+    }
+
+    public function test_lazada_send_video_unsupported(): void
+    {
+        $auth = new MessagingAuthContext(channelAccountId: 1, provider: 'lazada_chat', externalShopId: 'SELLER_1', accessToken: 'TOK');
+        $media = new MediaRefDTO(kind: MessageKind::Video, mime: 'video/mp4', externalUrl: 'https://cdn/v.mp4');
+
+        $this->expectException(\CMBcoreSeller\Integrations\Messaging\Exceptions\UnsupportedOperation::class);
+        (new LazadaChatConnector)->sendMedia($auth, 'SESS_1', $media);
     }
 
     // --- Lazada IM polling (Phase C2) ----------------------------------------
