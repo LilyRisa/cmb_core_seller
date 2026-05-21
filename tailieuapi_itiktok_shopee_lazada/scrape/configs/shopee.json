@@ -1,0 +1,13 @@
+{
+  "name": "Shopee Open Platform",
+  "startUrls": ["https://open.shopee.com/developer-guide/20"],
+  "outDir": "../shopee",
+  "includePattern": "open\\.shopee\\.com/(developer-guide|documents)",
+  "excludePattern": "\\.(png|jpg|jpeg|gif|svg|pdf|zip)$",
+  "contentSelector": ["main", "article", ".markdown-body", ".doc-content", ".content"],
+  "removeSelectors": ["script", "style", "noscript", "svg"],
+  "expandSelectors": [],
+  "waitMs": 1200,
+  "maxPages": 1500,
+  "headless": true
+}

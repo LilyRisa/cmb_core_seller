@@ -1,0 +1,1271 @@
+- generic [ref=e7]:
+  - generic [ref=e9]:
+    - img [ref=e13] [cursor=pointer]:
+      - generic [ref=e18]: Open Platform
+    - generic [ref=e20]:
+      - link "Documentation" [ref=e21] [cursor=pointer]:
+        - /url: /developer-guide
+        - generic [ref=e23]:
+          - generic [ref=e24]: Documentation
+          - img [ref=e27]
+      - generic [ref=e31] [cursor=pointer]:
+        - generic [ref=e32]: Support Center
+        - img [ref=e35]
+      - link "Announcement" [ref=e37] [cursor=pointer]:
+        - /url: /announcements
+      - link "Console" [ref=e38] [cursor=pointer]:
+        - /url: /console?from=header
+    - generic [ref=e39]:
+      - img [ref=e43] [cursor=pointer]
+      - generic [ref=e48] [cursor=pointer]:
+        - generic [ref=e49]: English
+        - img [ref=e52]
+      - generic [ref=e55] [cursor=pointer]: Log In
+  - generic [ref=e58]:
+    - generic [ref=e59]:
+      - paragraph [ref=e61]: Tables of Contents
+      - generic [ref=e62]:
+        - generic [ref=e66]: Getting Started
+        - text: ">"
+        - generic [ref=e70]: Authorization and Authentication
+      - generic [ref=e75]:
+        - generic [ref=e81] [cursor=pointer]: The authorization process
+        - generic [ref=e87] [cursor=pointer]: Generating the authorization link
+        - generic [ref=e93] [cursor=pointer]: Redirect URL Domain Validation Requirements
+        - generic [ref=e99] [cursor=pointer]: Notes on Redirect URL Domain Validation
+        - generic [ref=e105] [cursor=pointer]: Authorization Link Examples
+        - generic [ref=e111] [cursor=pointer]: Acquiring authorizations from shop(s)
+        - generic [ref=e117] [cursor=pointer]: Authorizing from a shop account
+        - generic [ref=e123] [cursor=pointer]: Authorizing from a main account
+        - generic [ref=e129] [cursor=pointer]: Getting and using the authorization code
+        - generic [ref=e135] [cursor=pointer]: Getting and refreshing the access_token
+        - generic [ref=e141] [cursor=pointer]: GetAccesstoken
+        - generic [ref=e147] [cursor=pointer]: RefreshAccessToken
+        - generic [ref=e153] [cursor=pointer]: Refreshing the access_token and refresh_token on a shop account
+        - generic [ref=e159] [cursor=pointer]: Refreshing the access_token and refresh_token on a main account
+        - generic [ref=e165] [cursor=pointer]: Canceling authorization
+        - generic [ref=e171] [cursor=pointer]: Canceling authorization by changing the authorization URL
+        - generic [ref=e177] [cursor=pointer]: Canceling authorization on Seller Center
+        - generic [ref=e183] [cursor=pointer]: FAQs on authorization and authentication
+    - generic [ref=e184]:
+      - generic [ref=e185]:
+        - generic [ref=e186]:
+          - generic [ref=e187] [cursor=pointer]:
+            - img [ref=e190]
+            - generic [ref=e196]: Getting Started
+          - generic [ref=e197]:
+            - generic [ref=e204] [cursor=pointer]: Introduction
+            - generic [ref=e211] [cursor=pointer]: Developer account registration
+            - generic [ref=e218] [cursor=pointer]: App management
+            - generic [ref=e225] [cursor=pointer]: API calls
+            - generic [ref=e232] [cursor=pointer]: Push Mechanism notifications
+            - generic [ref=e239] [cursor=pointer]: Authorization and Authentication
+            - generic [ref=e246] [cursor=pointer]: Sandbox Testing V2
+            - generic [ref=e253] [cursor=pointer]: Service Partner Program
+            - generic [ref=e260] [cursor=pointer]: V2.0 API Call Flow
+            - generic [ref=e267] [cursor=pointer]: CNSC API Integration Guide
+            - generic [ref=e274] [cursor=pointer]: KRSC API Integration Guide
+            - generic [ref=e281] [cursor=pointer]: V2.0 Data Definition
+            - generic [ref=e288] [cursor=pointer]: Requesting Access to Sensitive Data
+            - generic [ref=e295] [cursor=pointer]: TW New Developer Audit
+        - generic [ref=e296]:
+          - generic [ref=e297] [cursor=pointer]:
+            - img [ref=e300]
+            - generic [ref=e306]: API Best Practices
+          - generic [ref=e307]:
+            - generic [ref=e314] [cursor=pointer]: Guidelines for Creating Product
+            - generic [ref=e321] [cursor=pointer]: Product creation preparation
+            - generic [ref=e328] [cursor=pointer]: Creating product
+            - generic [ref=e335] [cursor=pointer]: Creating global product
+            - generic [ref=e342] [cursor=pointer]: Publishing global product
+            - generic [ref=e349] [cursor=pointer]: Variant management
+            - generic [ref=e356] [cursor=pointer]: Product base info management
+            - generic [ref=e363] [cursor=pointer]: Stock & Price Management
+            - generic [ref=e370] [cursor=pointer]: Order Management
+            - generic [ref=e377] [cursor=pointer]: First Mile Binding
+            - generic [ref=e384] [cursor=pointer]: Return Refund Management
+            - generic [ref=e391] [cursor=pointer]: SIP best practices
+            - generic [ref=e398] [cursor=pointer]: Shopee On-Platform Ads API Guide
+            - generic [ref=e405] [cursor=pointer]: Shopee Xpress - Package-free Integration Guide
+            - generic [ref=e412] [cursor=pointer]: API de Cotação (Logística do Vendedor)
+            - generic [ref=e419] [cursor=pointer]: Shopee Entrega Direta
+            - generic [ref=e426] [cursor=pointer]: "AUTO PARTS: COMPATIBILIDADE DE AUTOPEÇAS"
+            - generic [ref=e427]:
+              - generic [ref=e428] [cursor=pointer]:
+                - img [ref=e431]
+                - generic [ref=e437]: Brazil Open API Best Practice
+              - generic [ref=e438]:
+                - generic [ref=e445] [cursor=pointer]: Passo a Passo Logistica API
+                - generic [ref=e452] [cursor=pointer]: Ferramenta de Log da Open Platform
+                - generic [ref=e459] [cursor=pointer]: Passo a passo para subir a NF-e através da OpenAPI
+                - generic [ref=e466] [cursor=pointer]: APIs de orders
+                - generic [ref=e473] [cursor=pointer]: Shopee Open API Platform | Passo a Passo de Solicitação
+                - generic [ref=e480] [cursor=pointer]: Open API auth call | Fluxo autorização
+                - generic [ref=e487] [cursor=pointer]: Fulfilled by Shopee (BR)
+                - generic [ref=e494] [cursor=pointer]: Quotation API (Entrega Expressa) Developer Guide
+            - generic [ref=e501] [cursor=pointer]: Instant Mart Integration Guide
+            - generic [ref=e508] [cursor=pointer]: Livestream API Integration Guide
+            - generic [ref=e515] [cursor=pointer]: Shopee AMS API Integration Guide
+            - generic [ref=e522] [cursor=pointer]: Shopee Video API Integration Guide
+        - generic [ref=e523]:
+          - generic [ref=e524] [cursor=pointer]:
+            - img [ref=e527]
+            - generic [ref=e533]: Terms of Use
+          - generic [ref=e534]:
+            - generic [ref=e541] [cursor=pointer]: Terms of Service
+            - generic [ref=e548] [cursor=pointer]: Data Protection Policy
+            - generic [ref=e555] [cursor=pointer]: Platform Partner Rules
+            - generic [ref=e562] [cursor=pointer]: TW Developer Screening
+            - generic [ref=e569] [cursor=pointer]: Chatbot Terms of Service
+      - generic [ref=e570]:
+        - generic [ref=e571]:
+          - heading "Authorization and Authentication" [level=1] [ref=e572]
+          - generic [ref=e573]: "Last Updated: 2026-05-13"
+          - generic [ref=e574]:
+            - img [ref=e576]
+            - generic [ref=e578]: "Language Supported: English / 简体中文 / 繁體中文 / Português (Brasil) / ไทย"
+        - generic [ref=e580]:
+          - paragraph [ref=e581]
+          - paragraph [ref=e582]: Authorization is an important step to using Open API. You need to be authorized by the seller in order for your App to call non-public APIs required for shop management.
+          - paragraph [ref=e583]
+          - paragraph [ref=e584]: You will be authenticated based on the public parameters passed to Open API. If the authentication fails, your call will fail and an error will be returned.
+          - table [ref=e586]:
+            - rowgroup [ref=e587]:
+              - row "⚠️ Note Authorization Validity The maximum validity period for each authorization is 365 days. Sellers may customize the authorization expiration time during the authorization process. Once the authorization expires, you will need to contact the seller to re-authorize your App. SIP Shops Authorization If a CB SIP primary shop grants authorization to an application, all SIP linked shops will automatically receive the same authorization. However, API access permissions for linked shops are limited. For more details, please refer to the FAQ ." [ref=e588]:
+                - cell "⚠️ Note Authorization Validity The maximum validity period for each authorization is 365 days. Sellers may customize the authorization expiration time during the authorization process. Once the authorization expires, you will need to contact the seller to re-authorize your App. SIP Shops Authorization If a CB SIP primary shop grants authorization to an application, all SIP linked shops will automatically receive the same authorization. However, API access permissions for linked shops are limited. For more details, please refer to the FAQ ." [ref=e589]:
+                  - generic [ref=e590]: ⚠️ Note
+                  - list [ref=e591]:
+                    - listitem [ref=e592]: Authorization Validity
+                  - generic [ref=e593]: The maximum validity period for each authorization is 365 days. Sellers may customize the authorization expiration time during the authorization process. Once the authorization expires, you will need to contact the seller to re-authorize your App.
+                  - list [ref=e595]:
+                    - listitem [ref=e596]: SIP Shops Authorization
+                  - generic [ref=e597]:
+                    - text: If a CB SIP primary shop grants authorization to an application, all SIP linked shops will automatically receive the same authorization. However, API access permissions for linked shops are limited. For more details, please refer to the
+                    - link "FAQ" [ref=e598] [cursor=pointer]:
+                      - /url: https://open.shopee.com/faq?top=162&sub=166&page=1&faq=214
+                    - text: .
+          - heading "The authorization process" [level=1] [ref=e599]
+          - paragraph [ref=e600]
+          - paragraph [ref=e601]: "There are 3 steps to complete authorization: generating the authorization link, acquiring authorization from shop(s), and getting and refreshing the access_token."
+          - paragraph [ref=e602]
+          - paragraph [ref=e603]: These will be explained in detail below, along with information on what to prepare before authorization, details of the authorization process, and how to use the information returned after authorization to pass the authentication of the platform.
+          - heading "Generating the authorization link" [level=2] [ref=e604]
+          - paragraph [ref=e605]
+          - paragraph [ref=e606]: To improve integration efficiency, the platform provides a new method for generating authorization links. The authorization link is composed of a fixed authorization URL and authorization parameters. All types of Apps can generate authorization links according to the specifications below.
+          - paragraph [ref=e607]
+          - paragraph [ref=e608]: "Note: For Seller in House System Apps, you can log in to the Open Platform > App list > click “Authorize” > fill in Redirect URL to generate an authorization link."
+          - img [ref=e610]
+          - paragraph [ref=e611]
+          - paragraph [ref=e612]: For all type of App, you need to create an authorization link with the following specifications. The authorization link comprises a fixed authorization URL and other required parameters.
+          - paragraph [ref=e613]
+          - paragraph [ref=e614]: "Fixed authorization URL:"
+          - table [ref=e616]:
+            - rowgroup [ref=e617]:
+              - row "Environment Region URL" [ref=e618]:
+                - columnheader "Environment" [ref=e619]:
+                  - generic [ref=e620]: Environment
+                - columnheader "Region" [ref=e621]:
+                  - generic [ref=e622]: Region
+                - columnheader "URL" [ref=e623]:
+                  - generic [ref=e624]: URL
+            - rowgroup [ref=e625]:
+              - row "Production Global (excluding Mainland China and Brazil) https://open.shopee.com/auth" [ref=e626]:
+                - cell "Production" [ref=e627]:
+                  - generic [ref=e628]: Production
+                - cell "Global (excluding Mainland China and Brazil)" [ref=e629]:
+                  - generic [ref=e630]: Global (excluding Mainland China and Brazil)
+                - cell "https://open.shopee.com/auth" [ref=e631]:
+                  - link "https://open.shopee.com/auth" [ref=e633] [cursor=pointer]:
+                    - /url: https://open.shopee.com/auth
+              - row "Mainland China https://open.shopee.cn/auth" [ref=e634]:
+                - cell "Mainland China" [ref=e635]:
+                  - generic [ref=e636]: Mainland China
+                - cell "https://open.shopee.cn/auth" [ref=e637]:
+                  - link "https://open.shopee.cn/auth" [ref=e639] [cursor=pointer]:
+                    - /url: https://open.shopee.cn/auth
+              - row "Brazil https://open.shopee.com.br/auth" [ref=e640]:
+                - cell "Brazil" [ref=e641]:
+                  - generic [ref=e642]: Brazil
+                - cell "https://open.shopee.com.br/auth" [ref=e643]:
+                  - link "https://open.shopee.com.br/auth" [ref=e645] [cursor=pointer]:
+                    - /url: https://open.shopee.com.br/auth
+              - row "Sandbox Global (excluding Mainland China and Brazil) https://open.sandbox.test-stable.shopee.com/auth" [ref=e646]:
+                - cell "Sandbox" [ref=e647]:
+                  - generic [ref=e648]: Sandbox
+                - cell "Global (excluding Mainland China and Brazil)" [ref=e649]:
+                  - generic [ref=e650]: Global (excluding Mainland China and Brazil)
+                - cell "https://open.sandbox.test-stable.shopee.com/auth" [ref=e651]:
+                  - link "https://open.sandbox.test-stable.shopee.com/auth" [ref=e653] [cursor=pointer]:
+                    - /url: https://open.test-stable.shopee.com/auth
+              - row "Mainland China https://open.sandbox.test-stable.shopee.cn/auth" [ref=e654]:
+                - cell "Mainland China" [ref=e655]:
+                  - generic [ref=e656]: Mainland China
+                - cell "https://open.sandbox.test-stable.shopee.cn/auth" [ref=e657]:
+                  - generic [ref=e658]:
+                    - link "https://open.sandbox.test-stable." [ref=e659] [cursor=pointer]:
+                      - /url: https://open.test-stable.shopee.com/auth
+                    - link "shopee.cn/auth" [ref=e660] [cursor=pointer]:
+                      - /url: https://open.test-stable.shopee.cn/auth
+              - row "Brazil https://open.sandbox.test-stable.shopee.com.br/auth" [ref=e661]:
+                - cell "Brazil" [ref=e662]:
+                  - generic [ref=e663]: Brazil
+                - cell "https://open.sandbox.test-stable.shopee.com.br/auth" [ref=e664]:
+                  - generic [ref=e665]:
+                    - link "https://open.sandbox.test-stable." [ref=e666] [cursor=pointer]:
+                      - /url: https://open.test-stable.shopee.com/auth
+                    - link "shopee.com.br/auth" [ref=e667] [cursor=pointer]:
+                      - /url: https://open.test-stable.shopee.com.br/auth
+          - paragraph [ref=e668]
+          - paragraph [ref=e669]: "Other required parameters:"
+          - table [ref=e671]:
+            - rowgroup [ref=e672]:
+              - row "Parameter name Type Required Description" [ref=e673]:
+                - columnheader "Parameter name" [ref=e674]:
+                  - generic [ref=e675]: Parameter name
+                - columnheader "Type" [ref=e676]:
+                  - generic [ref=e677]: Type
+                - columnheader "Required" [ref=e678]:
+                  - generic [ref=e679]: Required
+                - columnheader "Description" [ref=e680]:
+                  - generic [ref=e681]: Description
+            - rowgroup [ref=e682]:
+              - row "partner_id int Yes partner_id obtained from the App." [ref=e683]:
+                - cell "partner_id" [ref=e684]:
+                  - generic [ref=e685]: partner_id
+                - cell "int" [ref=e686]:
+                  - generic [ref=e687]: int
+                - cell "Yes" [ref=e688]:
+                  - generic [ref=e689]: "Yes"
+                - cell "partner_id obtained from the App." [ref=e690]:
+                  - generic [ref=e691]: partner_id obtained from the App.
+              - 'row "auth_type string Yes The role type to be authorized. Enum values: - seller: used when authorizing a shop or merchant; - supplier: used when authorizing suppliers (for SCS users); - user: used when authorizing users (for livestream-related apps, see https://open.shopee.com/announcements/1190 。" [ref=e692]':
+                - cell "auth_type" [ref=e693]:
+                  - generic [ref=e694]: auth_type
+                - cell "string" [ref=e695]:
+                  - generic [ref=e696]: string
+                - cell "Yes" [ref=e697]:
+                  - generic [ref=e698]: "Yes"
+                - 'cell "The role type to be authorized. Enum values: - seller: used when authorizing a shop or merchant; - supplier: used when authorizing suppliers (for SCS users); - user: used when authorizing users (for livestream-related apps, see https://open.shopee.com/announcements/1190 。" [ref=e699]':
+                  - generic [ref=e700]: "The role type to be authorized. Enum values:"
+                  - generic [ref=e701]: "- seller: used when authorizing a shop or merchant;"
+                  - generic [ref=e702]: "- supplier: used when authorizing suppliers (for SCS users);"
+                  - generic [ref=e703]: "- user: used when authorizing users (for livestream-related apps, see"
+                  - generic [ref=e704]:
+                    - link "https://open.shopee.com/announcements/1190" [ref=e705] [cursor=pointer]:
+                      - /url: https://open.shopee.com/announcements/1190
+                    - text: 。
+              - 'row "redirect_uri string Yes The URL where the authorization code (code) is received after the seller completes authorization. Production environment: If the production callback URL domain of the app is empty, the redirect_uri domain is not validated; otherwise, it must match the configured production callback URL domain. Sandbox environment: If the sandbox callback URL domain is empty, the redirect_uri domain is not validated; otherwise, it must match the configured sandbox callback URL domain." [ref=e706]':
+                - cell "redirect_uri" [ref=e707]:
+                  - generic [ref=e708]: redirect_uri
+                - cell "string" [ref=e709]:
+                  - generic [ref=e710]: string
+                - cell "Yes" [ref=e711]:
+                  - generic [ref=e712]: "Yes"
+                - 'cell "The URL where the authorization code (code) is received after the seller completes authorization. Production environment: If the production callback URL domain of the app is empty, the redirect_uri domain is not validated; otherwise, it must match the configured production callback URL domain. Sandbox environment: If the sandbox callback URL domain is empty, the redirect_uri domain is not validated; otherwise, it must match the configured sandbox callback URL domain." [ref=e713]':
+                  - generic [ref=e714]: The URL where the authorization code (code) is received after the seller completes authorization.
+                  - generic [ref=e716]: "Production environment: If the production callback URL domain of the app is empty, the redirect_uri domain is not validated; otherwise, it must match the configured production callback URL domain."
+                  - generic [ref=e718]: "Sandbox environment: If the sandbox callback URL domain is empty, the redirect_uri domain is not validated; otherwise, it must match the configured sandbox callback URL domain."
+              - 'row "response_type string Yes The authorization type. Fixed value: \"code\"." [ref=e719]':
+                - cell "response_type" [ref=e720]:
+                  - generic [ref=e721]: response_type
+                - cell "string" [ref=e722]:
+                  - generic [ref=e723]: string
+                - cell "Yes" [ref=e724]:
+                  - generic [ref=e725]: "Yes"
+                - 'cell "The authorization type. Fixed value: \"code\"." [ref=e726]':
+                  - generic [ref=e727]: "The authorization type. Fixed value: \"code\"."
+              - row "state string No A random, unguessable string used to prevent CSRF attacks. It will be returned as-is to the redirect_uri after authorization is completed." [ref=e728]:
+                - cell "state" [ref=e729]:
+                  - generic [ref=e730]: state
+                - cell "string" [ref=e731]:
+                  - generic [ref=e732]: string
+                - cell "No" [ref=e733]:
+                  - generic [ref=e734]: "No"
+                - cell "A random, unguessable string used to prevent CSRF attacks. It will be returned as-is to the redirect_uri after authorization is completed." [ref=e735]:
+                  - generic [ref=e736]: A random, unguessable string used to prevent CSRF attacks. It will be returned as-is to the redirect_uri after authorization is completed.
+          - heading "Redirect URL Domain Validation Requirements" [level=3] [ref=e737]
+          - paragraph [ref=e738]
+          - paragraph [ref=e739]: To ensure seller data security, the platform has introduced domain validation for the callback address (redirect_uri) in authorization links. All developers are required to configure the Test Redirect URL Domain and Live Redirect URL Domain for each App in the Console.
+          - paragraph [ref=e740]
+          - paragraph [ref=e741]: "The redirect_uri parameter mentioned above refers to the callback URL configured in the App information page. You can view it as follows:"
+          - img [ref=e743]
+          - paragraph [ref=e744]
+          - paragraph [ref=e745]
+          - heading "Notes on Redirect URL Domain Validation" [level=3] [ref=e746]
+          - paragraph [ref=e747]
+          - paragraph [ref=e748]: 1. For Apps that have already been created but have not yet declared a callback URL domain, developers should log in to the Console and complete the configuration in the App edit page as soon as possible. Before the configuration is completed, the platform will not enforce domain validation, and the existing authorization process will not be affected.
+          - paragraph [ref=e749]: "2. If the domain of the redirect_uri parameter (or the redirect parameter in legacy links) does not match the Redirect URL Domain configured in the Console when generating an authorization link, the platform will return the following error:"
+          - paragraph [ref=e750]:
+            - text: "\"The domain of redirect_uri is not consistent with the Redirect URL Domain declared in console\""
+            - text: (The domain of the callback URL does not match the Redirect URL Domain declared in the Console.)
+          - paragraph [ref=e751]
+          - heading "Authorization Link Examples" [level=3] [ref=e752]
+          - paragraph [ref=e753]
+          - paragraph [ref=e754]: The following are examples of authorization links for both the Production and Sandbox environments for your reference.
+          - paragraph [ref=e755]
+          - paragraph [ref=e756]: "Production Environment:"
+          - paragraph [ref=e757]:
+            - link "https://open.shopee.com/auth?partner_id=10090&auth_type=seller&redirect_uri=https://open.shopee.com&response_type=code" [ref=e758] [cursor=pointer]:
+              - /url: https://open.shopee.com/auth?partner_id=10090&auth_type=seller&redirect_uri=https://open.shopee.com&response_type=code
+          - paragraph [ref=e759]
+          - paragraph [ref=e760]: "Sandbox Environment:"
+          - paragraph [ref=e761]: https://open.test-stable.shopee.com/auth?partner_id=1000016&auth_type=seller&redirect_uri=https://open.test-stable.shopee.com&response_type=code
+          - table [ref=e763]:
+            - rowgroup [ref=e764]:
+              - row "⚠️ Note The timestamp used to calculate the sign is only valid for 5 minutes. After the timestamp and the sign expire, the authorization link will no longer be valid, and you need to generate a new link." [ref=e765]:
+                - cell "⚠️ Note The timestamp used to calculate the sign is only valid for 5 minutes. After the timestamp and the sign expire, the authorization link will no longer be valid, and you need to generate a new link." [ref=e766]:
+                  - generic [ref=e767]: ⚠️ Note
+                  - generic [ref=e768]: The timestamp used to calculate the sign is only valid for 5 minutes. After the timestamp and the sign expire, the authorization link will no longer be valid, and you need to generate a new link.
+          - heading "Acquiring authorizations from shop(s)" [level=2] [ref=e769]
+          - paragraph [ref=e770]
+          - paragraph [ref=e771]: After you share the authorization link with the seller, the seller needs to log in to their account, fill in the verification code sent to their mobile phone, and enter the authorization page.
+          - paragraph [ref=e772]
+          - paragraph [ref=e773]: "Account types:"
+          - list [ref=e774]:
+            - listitem [ref=e775]: "Shop account: can authorize a single shop;"
+            - listitem [ref=e776]: "Main account: can authorize multiple merchants / shops;"
+            - listitem [ref=e777]: "Sub-account: cannot log in to the authorization page."
+          - heading "Authorizing from a shop account" [level=3] [ref=e778]
+          - paragraph [ref=e779]
+          - paragraph [ref=e780]: 1. The seller fills in their login details and selects Log In.
+          - img [ref=e782]
+          - paragraph [ref=e783]
+          - paragraph [ref=e784]: 2. The seller fills in the verification code sent to their mobile phone and selects Verify.
+          - img [ref=e786]
+          - paragraph [ref=e787]
+          - paragraph [ref=e788]: 3. Upon logging in, the seller selects Confirm Authorization.
+          - img [ref=e790]
+          - paragraph [ref=e791]
+          - paragraph [ref=e792]: 4. The system will display an authorization validity period selector. Sellers can choose from preset durations (7 days, 30 days, 90 days, 180 days, or 365 days), or select “Customize Expiration Time” to set any expiration date within 365 days.
+          - paragraph [ref=e793]
+          - paragraph [ref=e794]: "5. After authorization is completed, the frontend page will redirect to the redirect_uri specified in the authorization link, along with the authorization code (code) and shop ID (shop_id):"
+          - paragraph [ref=e795]:
+            - link "https://open.shopee.com/?code=xxxxxxxxxx&shop_id=xxxxxx" [ref=e796] [cursor=pointer]:
+              - /url: https://open.shopee.com/?code=xxxxxxxxxx&shop_id=xxxxxx
+          - heading "Authorizing from a main account" [level=3] [ref=e797]
+          - paragraph [ref=e798]
+          - paragraph [ref=e799]: 1. To log in to a main account, the seller selects Switch to Sub Account on the login page.
+          - img [ref=e801]
+          - paragraph [ref=e802]
+          - paragraph [ref=e803]: 2. The seller can then fill in their login details and select Log In.
+          - img [ref=e805]
+          - paragraph [ref=e806]
+          - paragraph [ref=e807]: 3. The seller selects the shops that need to be authorized.
+          - paragraph [ref=e808]: "Note: For cross border sellers, If you need to call the merchant’s API, please remind the seller to select the Auth Merchant checkbox."
+          - img [ref=e810]
+          - paragraph [ref=e811]: "Local main account authorization:"
+          - img [ref=e813]
+          - paragraph [ref=e814]: 4. If the authorization checkbox is not selected, the system will display a reminder popup.
+          - img [ref=e816]
+          - paragraph [ref=e817]: 5. The seller selects Confirm Authorization to confirm their selection.
+          - img [ref=e819]
+          - paragraph [ref=e820]: "6. After authorization is completed, the frontend page will redirect to the redirect_uri specified in the authorization link, along with the authorization code (code) and main account ID (main_account_id):"
+          - paragraph [ref=e821]:
+            - link "https://open.shopee.com/?code=xxxxxx&main_account_id=xxxxxx" [ref=e822] [cursor=pointer]:
+              - /url: https://open.shopee.com/?code=xxxxxx&main_account_id=xxxxxx
+          - heading "Getting and using the authorization code" [level=2] [ref=e823]
+          - paragraph [ref=e824]
+          - paragraph [ref=e825]: "After the seller completes authorization, the frontend page will redirect to the redirect_uri specified in the authorization link, along with the authorization code (code) and shop_id / main_account_id. Taking main_account_id as an example:"
+          - paragraph [ref=e826]:
+            - link "https://open.shopee.com/?code=xxxxxx&main_account_id=xxxxxx" [ref=e827] [cursor=pointer]:
+              - /url: https://open.shopee.com/?code=xxxxxx&main_account_id=xxxxxx
+          - paragraph [ref=e828]
+          - paragraph [ref=e829]: You can use this authorization code (code) to obtain the initial access token (access_token).
+          - paragraph [ref=e830]
+          - paragraph [ref=e831]: Parameters Returned in the Redirect URL
+          - table [ref=e833]:
+            - rowgroup [ref=e834]:
+              - row "Parameter name Type Description" [ref=e835]:
+                - columnheader "Parameter name" [ref=e836]:
+                  - generic [ref=e837]: Parameter name
+                - columnheader "Type" [ref=e838]:
+                  - generic [ref=e839]: Type
+                - columnheader "Description" [ref=e840]:
+                  - generic [ref=e841]: Description
+            - rowgroup [ref=e842]:
+              - row "code string Returned when the call is successful. This code is used to obtain access_token and refresh_token. It is valid for only once and expires after 10 minutes." [ref=e843]:
+                - cell "code" [ref=e844]:
+                  - generic [ref=e845]: code
+                - cell "string" [ref=e846]:
+                  - generic [ref=e847]: string
+                - cell "Returned when the call is successful. This code is used to obtain access_token and refresh_token. It is valid for only once and expires after 10 minutes." [ref=e848]:
+                  - generic [ref=e849]: Returned when the call is successful. This code is used to obtain access_token and refresh_token. It is valid for only once and expires after 10 minutes.
+              - row "shop_id int The ID of the shop that just granted authorization to your App. Returned after authorization was done on a shop account." [ref=e850]:
+                - cell "shop_id" [ref=e851]:
+                  - generic [ref=e852]: shop_id
+                - cell "int" [ref=e853]:
+                  - generic [ref=e854]: int
+                - cell "The ID of the shop that just granted authorization to your App. Returned after authorization was done on a shop account." [ref=e855]:
+                  - generic [ref=e856]: The ID of the shop that just granted authorization to your App. Returned after authorization was done on a shop account.
+              - row "main_account_id int The ID of the main account that just granted authorization to your shop. . Returned after authorization was done on a main account." [ref=e857]:
+                - cell "main_account_id" [ref=e858]:
+                  - generic [ref=e859]: main_account_id
+                - cell "int" [ref=e860]:
+                  - generic [ref=e861]: int
+                - cell "The ID of the main account that just granted authorization to your shop. . Returned after authorization was done on a main account." [ref=e862]:
+                  - generic [ref=e863]: The ID of the main account that just granted authorization to your shop. . Returned after authorization was done on a main account.
+          - paragraph [ref=e864]
+          - paragraph [ref=e865]: "Note: If the domain of the redirect_uri parameter (or the redirect parameter in legacy links) does not match the Redirect URL Domain declared in the Console when generating the authorization link, the following error will be returned:"
+          - paragraph [ref=e866]:
+            - text: “The domain of redirect_uri is not consistent with the Redirect URL Domain declared in console”
+            - text: (The domain of the callback URL is inconsistent with the Redirect URL Domain declared in the Console.)
+          - heading "Getting and refreshing the access_token" [level=2] [ref=e867]
+          - paragraph [ref=e868]
+          - paragraph [ref=e869]: The access_token is a dynamic token required for calling non-public APIs. It is valid for 4 hours and can be used multiple times within its validity period.
+          - paragraph [ref=e870]
+          - paragraph [ref=e871]: Before the access_token expires, you need to use the refresh_token to call the Refresh Access Token API (RefreshAccessToken) to obtain a new access_token. The refresh_token is valid for 30 days.
+          - paragraph [ref=e872]
+          - paragraph [ref=e873]: ⚠️ Note
+          - list [ref=e874]:
+            - listitem [ref=e875]: The access_token and refresh_token corresponding to each shop_id / merchant_id / user_id / supplier_id must be stored separately;
+            - listitem [ref=e876]: After a new access_token is generated, the previous access_token will remain valid for another 5 minutes;
+            - listitem [ref=e877]: Re-authorization will refresh both the refresh_token and access_token;
+            - listitem [ref=e878]: The RefreshAccessToken API must be called within the authorization validity period;
+            - listitem [ref=e879]:
+              - text: If the latest available refresh_token and access_token are lost, please refer to the relevant
+              - link "FAQ" [ref=e880] [cursor=pointer]:
+                - /url: https://open.shopee.com/faq?top=177&sub=180&page=1&faq=216
+              - text: .
+          - heading "GetAccesstoken" [level=3] [ref=e881]
+          - paragraph [ref=e882]
+          - paragraph [ref=e883]: After successful authorization, use the code and shop_id or main_account_id in the redirect URL to call this API. This helps you obtain the shop_id, merchant_id, access_token and refresh_token.
+          - paragraph [ref=e884]
+          - paragraph [ref=e885]: Request Information
+          - table [ref=e887]:
+            - rowgroup [ref=e888]:
+              - row "Path Details" [ref=e889]:
+                - columnheader "Path" [ref=e890]:
+                  - generic [ref=e891]: Path
+                - columnheader "Details" [ref=e892]:
+                  - generic [ref=e893]: Details
+            - rowgroup [ref=e894]:
+              - row "Production Environment https://partner.shopeemobile.com/api/v2/auth/token/get" [ref=e895]:
+                - cell "Production Environment" [ref=e896]:
+                  - generic [ref=e897]: Production Environment
+                - cell "https://partner.shopeemobile.com/api/v2/auth/token/get" [ref=e898]:
+                  - link "https://partner.shopeemobile.com/api/v2/auth/token/get" [ref=e900] [cursor=pointer]:
+                    - /url: https://partner.shopeemobile.com/api/v2/auth/token/get
+              - row "Sandbox Environment https://openplatform.sandbox.test-stable.shopee.sg/api/v2/auth/token/get" [ref=e901]:
+                - cell "Sandbox Environment" [ref=e902]:
+                  - generic [ref=e903]: Sandbox Environment
+                - cell "https://openplatform.sandbox.test-stable.shopee.sg/api/v2/auth/token/get" [ref=e904]:
+                  - link "https://openplatform.sandbox.test-stable.shopee.sg/api/v2/auth/token/get" [ref=e906] [cursor=pointer]:
+                    - /url: https://openplatform.sandbox.test-stable.shopee.sg/api/v2/auth/token/get
+              - row "Request Method POST" [ref=e907]:
+                - cell "Request Method" [ref=e908]:
+                  - generic [ref=e909]: Request Method
+                - cell "POST" [ref=e910]:
+                  - generic [ref=e911]: POST
+          - paragraph [ref=e912]
+          - paragraph [ref=e913]: Common parameters
+          - table [ref=e915]:
+            - rowgroup [ref=e916]:
+              - row "Parameter name Type Required Description" [ref=e917]:
+                - columnheader "Parameter name" [ref=e918]:
+                  - generic [ref=e919]: Parameter name
+                - columnheader "Type" [ref=e920]:
+                  - generic [ref=e921]: Type
+                - columnheader "Required" [ref=e922]:
+                  - generic [ref=e923]: Required
+                - columnheader "Description" [ref=e924]:
+                  - generic [ref=e925]: Description
+            - rowgroup [ref=e926]:
+              - 'row "sign string True The signature obtained by sign base string (order: partner_id, api path, timestamp...) HMAC-SHA256 hashing with the partner_key." [ref=e927]':
+                - cell "sign" [ref=e928]:
+                  - generic [ref=e929]: sign
+                - cell "string" [ref=e930]:
+                  - generic [ref=e931]: string
+                - cell "True" [ref=e932]:
+                  - generic [ref=e933]: "True"
+                - 'cell "The signature obtained by sign base string (order: partner_id, api path, timestamp...) HMAC-SHA256 hashing with the partner_key." [ref=e934]':
+                  - generic [ref=e935]: "The signature obtained by sign base string (order: partner_id, api path, timestamp...) HMAC-SHA256 hashing with the partner_key."
+              - row "partner_id int True The partner_id obtained from the App. This partner_id is put into the query." [ref=e936]:
+                - cell "partner_id" [ref=e937]:
+                  - generic [ref=e938]: partner_id
+                - cell "int" [ref=e939]:
+                  - generic [ref=e940]: int
+                - cell "True" [ref=e941]:
+                  - generic [ref=e942]: "True"
+                - cell "The partner_id obtained from the App. This partner_id is put into the query." [ref=e943]:
+                  - generic [ref=e944]: The partner_id obtained from the App. This partner_id is put into the query.
+              - row "timestamp int True Timestamp, valid for 5 minutes." [ref=e945]:
+                - cell "timestamp" [ref=e946]:
+                  - generic [ref=e947]: timestamp
+                - cell "int" [ref=e948]:
+                  - generic [ref=e949]: int
+                - cell "True" [ref=e950]:
+                  - generic [ref=e951]: "True"
+                - cell "Timestamp, valid for 5 minutes." [ref=e952]:
+                  - generic [ref=e953]: Timestamp, valid for 5 minutes.
+          - paragraph [ref=e954]
+          - paragraph [ref=e955]: "Request parameters:"
+          - table [ref=e957]:
+            - rowgroup [ref=e958]:
+              - row "Parameter name Type Required Description" [ref=e959]:
+                - columnheader "Parameter name" [ref=e960]:
+                  - generic [ref=e961]: Parameter name
+                - columnheader "Type" [ref=e962]:
+                  - generic [ref=e963]: Type
+                - columnheader "Required" [ref=e964]:
+                  - generic [ref=e965]: Required
+                - columnheader "Description" [ref=e966]:
+                  - generic [ref=e967]: Description
+            - rowgroup [ref=e968]:
+              - row "code string True The code in the redirect URL after authorization. It is only valid once and expires after 10 minutes." [ref=e969]:
+                - cell "code" [ref=e970]:
+                  - generic [ref=e971]: code
+                - cell "string" [ref=e972]:
+                  - generic [ref=e973]: string
+                - cell "True" [ref=e974]:
+                  - generic [ref=e975]: "True"
+                - cell "The code in the redirect URL after authorization. It is only valid once and expires after 10 minutes." [ref=e976]:
+                  - generic [ref=e977]: The code in the redirect URL after authorization. It is only valid once and expires after 10 minutes.
+              - row "partner_id int True The partner_id obtained from the App. This partner_id is put into the request body." [ref=e978]:
+                - cell "partner_id" [ref=e979]:
+                  - generic [ref=e980]: partner_id
+                - cell "int" [ref=e981]:
+                  - generic [ref=e982]: int
+                - cell "True" [ref=e983]:
+                  - generic [ref=e984]: "True"
+                - cell "The partner_id obtained from the App. This partner_id is put into the request body." [ref=e985]:
+                  - generic [ref=e986]: The partner_id obtained from the App. This partner_id is put into the request body.
+              - row "shop_id int True, input 1 only. For the shop_id authorized to you, either the shop_id or main_account_id can be selected as the input parameter." [ref=e987]:
+                - cell "shop_id" [ref=e988]:
+                  - generic [ref=e989]: shop_id
+                - cell "int" [ref=e990]:
+                  - generic [ref=e991]: int
+                - cell "True, input 1 only." [ref=e992]:
+                  - generic [ref=e994]: True, input 1 only.
+                - cell "For the shop_id authorized to you, either the shop_id or main_account_id can be selected as the input parameter." [ref=e995]:
+                  - generic [ref=e996]: For the shop_id authorized to you, either the shop_id or main_account_id can be selected as the input parameter.
+              - row "main_account_id int For the main_account_id authorized to you, either the shop_id or main_account_id can be selected as the input parameter." [ref=e997]:
+                - cell "main_account_id" [ref=e998]:
+                  - generic [ref=e999]: main_account_id
+                - cell "int" [ref=e1000]:
+                  - generic [ref=e1001]: int
+                - cell "For the main_account_id authorized to you, either the shop_id or main_account_id can be selected as the input parameter." [ref=e1002]:
+                  - generic [ref=e1003]: For the main_account_id authorized to you, either the shop_id or main_account_id can be selected as the input parameter.
+          - paragraph [ref=e1004]
+          - paragraph [ref=e1005]: "Response parameters:"
+          - table [ref=e1007]:
+            - rowgroup [ref=e1008]:
+              - row "Parameter name Type Description" [ref=e1009]:
+                - columnheader "Parameter name" [ref=e1010]:
+                  - generic [ref=e1011]: Parameter name
+                - columnheader "Type" [ref=e1012]:
+                  - generic [ref=e1013]: Type
+                - columnheader "Description" [ref=e1014]:
+                  - generic [ref=e1015]: Description
+            - rowgroup [ref=e1016]:
+              - row "request_id string ID of API requests; always returned. Used to diagnose problems." [ref=e1017]:
+                - cell "request_id" [ref=e1018]:
+                  - generic [ref=e1019]: request_id
+                - cell "string" [ref=e1020]:
+                  - generic [ref=e1021]: string
+                - cell "ID of API requests; always returned. Used to diagnose problems." [ref=e1022]:
+                  - generic [ref=e1023]: ID of API requests; always returned. Used to diagnose problems.
+              - row "error string Error codes for API requests; always returned. When the API call is successful, the error code returned is empty." [ref=e1024]:
+                - cell "error" [ref=e1025]:
+                  - generic [ref=e1026]: error
+                - cell "string" [ref=e1027]:
+                  - generic [ref=e1028]: string
+                - cell "Error codes for API requests; always returned. When the API call is successful, the error code returned is empty." [ref=e1029]:
+                  - generic [ref=e1030]: Error codes for API requests; always returned.
+                  - generic [ref=e1031]: When the API call is successful, the error code returned is empty.
+              - row "refresh_token string Returned when the API call is successful. Use refresh_token to get a new access_token. Valid for each shop_id and merchant_id respectively, for 30 days." [ref=e1032]:
+                - cell "refresh_token" [ref=e1033]:
+                  - generic [ref=e1034]: refresh_token
+                - cell "string" [ref=e1035]:
+                  - generic [ref=e1036]: string
+                - cell "Returned when the API call is successful. Use refresh_token to get a new access_token. Valid for each shop_id and merchant_id respectively, for 30 days." [ref=e1037]:
+                  - generic [ref=e1038]: Returned when the API call is successful.
+                  - generic [ref=e1039]: Use refresh_token to get a new access_token. Valid for each shop_id and merchant_id respectively, for 30 days.
+              - row "access_token string Returned when the API call is successful. A dynamic token that can be used multiple times and expires after 4 hours." [ref=e1040]:
+                - cell "access_token" [ref=e1041]:
+                  - generic [ref=e1042]: access_token
+                - cell "string" [ref=e1043]:
+                  - generic [ref=e1044]: string
+                - cell "Returned when the API call is successful. A dynamic token that can be used multiple times and expires after 4 hours." [ref=e1045]:
+                  - generic [ref=e1046]: Returned when the API call is successful.
+                  - generic [ref=e1047]: A dynamic token that can be used multiple times and expires after 4 hours.
+              - row "expire_in int Returned when the API call is successful. The validity period of the access_token, in seconds." [ref=e1048]:
+                - cell "expire_in" [ref=e1049]:
+                  - generic [ref=e1050]: expire_in
+                - cell "int" [ref=e1051]:
+                  - generic [ref=e1052]: int
+                - cell "Returned when the API call is successful. The validity period of the access_token, in seconds." [ref=e1053]:
+                  - generic [ref=e1054]: Returned when the API call is successful.
+                  - generic [ref=e1055]: The validity period of the access_token, in seconds.
+              - row "message string Always returned. Provides detailed error information." [ref=e1056]:
+                - cell "message" [ref=e1057]:
+                  - generic [ref=e1058]: message
+                - cell "string" [ref=e1059]:
+                  - generic [ref=e1060]: string
+                - cell "Always returned. Provides detailed error information." [ref=e1061]:
+                  - generic [ref=e1062]: Always returned. Provides detailed error information.
+              - row "merchant_id_list int[ ] Returned when there is main_account_id in the input parameter, including all the merchant_ids authorized this time under the main account." [ref=e1063]:
+                - cell "merchant_id_list" [ref=e1064]:
+                  - generic [ref=e1065]: merchant_id_list
+                - cell "int[ ]" [ref=e1066]:
+                  - generic [ref=e1067]: int[ ]
+                - cell "Returned when there is main_account_id in the input parameter, including all the merchant_ids authorized this time under the main account." [ref=e1068]:
+                  - generic [ref=e1069]: Returned when there is main_account_id in the input parameter, including all the merchant_ids authorized this time under the main account.
+              - row "shop_id_list int[ ] Returned when there is main_account_id in the input parameter, including all shop_ids authorized this time under the main account." [ref=e1070]:
+                - cell "shop_id_list" [ref=e1071]:
+                  - generic [ref=e1072]: shop_id_list
+                - cell "int[ ]" [ref=e1073]:
+                  - generic [ref=e1074]: int[ ]
+                - cell "Returned when there is main_account_id in the input parameter, including all shop_ids authorized this time under the main account." [ref=e1075]:
+                  - generic [ref=e1076]: Returned when there is main_account_id in the input parameter, including all shop_ids authorized this time under the main account.
+              - row "supplier_id_list int[] Returned when auth_type=supplier" [ref=e1077]:
+                - cell "supplier_id_list" [ref=e1078]:
+                  - generic [ref=e1079]: supplier_id_list
+                - cell "int[]" [ref=e1080]:
+                  - generic [ref=e1081]: int[]
+                - cell "Returned when auth_type=supplier" [ref=e1082]:
+                  - generic [ref=e1083]: Returned when auth_type=supplier
+              - row "user_id_list int[] Returned when auth_type=user" [ref=e1084]:
+                - cell "user_id_list" [ref=e1085]:
+                  - generic [ref=e1086]: user_id_list
+                - cell "int[]" [ref=e1087]:
+                  - generic [ref=e1088]: int[]
+                - cell "Returned when auth_type=user" [ref=e1089]:
+                  - generic [ref=e1090]: Returned when auth_type=user
+          - paragraph [ref=e1091]
+          - paragraph [ref=e1092]: Calculating the sign parameter
+          - paragraph [ref=e1093]
+          - paragraph [ref=e1094]: The sign parameter is not only a component of the authorization link, but also a parameter used for authentication each time it is called. This section will explain how to create a sign base string and calculate the authentication signature through HMAC-SHA256.
+          - paragraph [ref=e1095]
+          - paragraph [ref=e1096]: Creating a sign base string
+          - paragraph [ref=e1097]: There are 3 types of APIs that require the use of different parameters to create the sign base string. (consistent with its common parameters).
+          - paragraph [ref=e1098]
+          - paragraph [ref=e1099]: "Concatenate the API path (without host) and the common parameters below into a single sign base string in the following order:"
+          - paragraph [ref=e1100]
+          - list [ref=e1101]:
+            - listitem [ref=e1102]: "For Shop APIs: partner_id, api path, timestamp, access_token, shop_id"
+            - listitem [ref=e1103]: "For Merchant APIs: partner_id, api path, timestamp, access_token, merchant_id"
+            - listitem [ref=e1104]: "For Public APIs: partner_id, api path, timestamp"
+          - paragraph [ref=e1105]
+          - paragraph [ref=e1106]: Calculating the authentication signature
+          - paragraph [ref=e1107]: Use HMAC-SHA256 to hash the sign base string, and use the partner key as the encryption key. The hexadecimal all-lowercase hash value is the authentication signature.
+          - paragraph [ref=e1108]
+          - paragraph [ref=e1109]: "Python Code Demo:"
+          - generic [ref=e1110]:
+            - paragraph [ref=e1111]: Python
+            - code [ref=e1113]: "import hmac import json import time import requests import hashlib def shop_auth(): timest = int(time.time()) host = \"https://partner.shopeemobile.com\" path = \"/api/v2/shop/auth_partner\" redirect_url = \"https://www.baidu.com/\" partner_id = 80001 tmp = \"test....\" partner_key = tmp.encode() tmp_base_string = \"%s%s%s\" % (partner_id, path, timest) base_string = tmp_base_string.encode() sign = hmac.new(partner_key, base_string, hashlib.sha256).hexdigest() ##generate api url = host + path + \"?partner_id=%s&timestamp=%s&sign=%s&redirect=%s\" % (partner_id, timest, sign, redirect_url) print(url)"
+          - paragraph [ref=e1114]
+          - paragraph [ref=e1115]: "Go Code Demo:"
+          - generic [ref=e1116]:
+            - paragraph [ref=e1117]: Go
+            - code [ref=e1119]:
+              - text: func
+              - generic [ref=e1120]:
+                - text: auth_shop(
+                - text: )
+              - text: "{ timest := strconv.FormatInt(time.Now().Unix(),10) host := \"https://openplatform.sandbox.test-stable.shopee.sg\" path := \"/api/v2/shop/auth_partner\" redirectUrl := \"https://www.baidu.com/\" partnerId := strconv.Itoa(2006566) partnerKey := \"1391fd986fe8ec7569bebed75b0c33ee35eb5a305bed7038657a5cd5f75b1c88\" baseString := fmt.Sprintf(\"%s%s%s\", partnerId,path,timest) h := hmac.New(sha256.New,[]byte(partnerKey)) h.Write([]byte(baseString)) sign := hex.EncodeToString(h.Sum(nil)) url := fmt.Sprintf(host+path+\"?partner_id=%s&timestamp=%s&sign=%s&redirect=%s\", partnerId,timest,sign, redirectUrl) fmt.Println(url) }"
+          - paragraph [ref=e1121]
+          - paragraph [ref=e1122]: "Java Code Demo:"
+          - generic [ref=e1123]:
+            - paragraph [ref=e1124]: Java
+            - code [ref=e1126]:
+              - text: //generate auth url public static void
+              - generic [ref=e1127]:
+                - text: shop_auth(
+                - text: )
+              - text: "{ long timest = System.currentTimeMillis() / 1000L; String host = \"https://partner.shopeemobile.com\"; String path = \"/api/v2/shop/auth_partner\"; String redirect_url = \"https://www.baidu.com/\"; long partner_id = 123456L; String tmp_partner_key = \"...\"; String tmp_base_string = String.format(\"%s%s%s\", partner_id, path, timest); byte[] partner_key; byte[] base_string; String sign = \"\"; try { base_string = tmp_base_string.getBytes(\"UTF-8\"); partner_key = tmp_partner_key.getBytes(\"UTF-8\"); Mac mac = Mac.getInstance(\"HmacSHA256\"); SecretKeySpec secret_key = new SecretKeySpec(partner_key, \"HmacSHA256\"); mac.init(secret_key); sign = String.format(\"%064x\",new BigInteger(1,mac.doFinal(base_string))); } catch (Exception e) { e.printStackTrace(); } String url = host + path + String.format(\"?partner_id=%s&timestamp=%s&sign=%s&redirect=%s\", partner_id,timest, sign, redirect_url); System.out.println(url); }"
+          - paragraph [ref=e1128]
+          - paragraph [ref=e1129]: "PHP Code Demo:"
+          - generic [ref=e1130]:
+            - paragraph [ref=e1131]: PHP
+            - code [ref=e1133]:
+              - text: <?php
+              - generic [ref=e1134]: function authShop($partnerId, $partnerKey)
+              - text: "{ global $host; $path = \"/api/v2/shop/auth_partner\"; $redirectUrl = \"https://www.baidu.com/\"; $timest = time(); $baseString = sprintf(\"%s%s%s\", $partnerId, $path, $timest); $sign = hash_hmac('sha256', $baseString, $partnerKey); $url = sprintf(\"%s%s?partner_id=%s&timestamp=%s&sign=%s&redirect=%s\", $host, $path, $partnerId, $timest, $sign, $redirectUrl); return $url; } $host=\"https://openplatform.sandbox.test-stable.shopee.sg\"; $partnerId = 847892; $partnerKey = \"57615053704d6470644f554a78656d50484143644964436a5568777544524579\"; echo authShop($partnerId, $partnerKey); ?>"
+          - paragraph [ref=e1135]
+          - paragraph [ref=e1136]
+          - paragraph [ref=e1137]: GetAccesstoken Demo
+          - paragraph [ref=e1138]
+          - paragraph [ref=e1139]: "Python Code Demo:"
+          - generic [ref=e1140]:
+            - paragraph [ref=e1141]: Python
+            - code [ref=e1143]: "print(shop_auth()) # first time request token def get_token_shop_level(code, partner_id, tmp_partner_key, shop_id): timest = int(time.time()) host = \"https://partner.shopeemobile.com\" path = \"/api/v2/auth/token/get\" body = {\"code\": code, \"shop_id\": shop_id, \"partner_id\": partner_id} tmp_base_string = \"%s%s%s\" % (partner_id, path, timest) base_string = tmp_base_string.encode() partner_key = tmp_partner_key.encode() sign = hmac.new(partner_key, base_string, hashlib.sha256).hexdigest() url = host + path + \"?partner_id=%s&timestamp=%s&sign=%s\" % (partner_id, timest, sign) # print(url) headers = {\"Content-Type\": \"application/json\"} resp = requests.post(url, json=body, headers=headers) ret = json.loads(resp.content) access_token = ret.get(\"access_token\") new_refresh_token = ret.get(\"refresh_token\") return access_token, new_refresh_token def get_token_account_level(code, partner_id, tmp_partner_key, main_account_id): timest = int(time.time()) host = \"https://openplatform.sandbox.test-stable.shopee.sg\" path = \"/api/v2/auth/token/get\" body = {\"code\": code, \"main_account_id\": main_account_id, \"partner_id\": partner_id} tmp_base_string = \"%s%s%s\" % (partner_id, path, timest) base_string = tmp_base_string.encode() partner_key = tmp_partner_key.encode() sign = hmac.new(partner_key, base_string, hashlib.sha256).hexdigest() url = host + path + \"?partner_id=%s&timestamp=%s&sign=%s\" % (partner_id, timest, sign) headers = {\"Content-Type\": \"application/json\"} resp = requests.post(url, json=body, headers=headers) ret = json.loads(resp.content) access_token = ret.get(\"access_token\") new_refresh_token = ret.get(\"refresh_token\") return access_token, new_refresh_token"
+          - paragraph [ref=e1144]
+          - paragraph [ref=e1145]: "Java Code Demo:"
+          - generic [ref=e1146]:
+            - paragraph [ref=e1147]: Java
+            - code [ref=e1149]:
+              - text: import com.alibaba.fastjson.JSONObject; import javax.crypto.Mac; import javax.crypto.spec.SecretKeySpec; import java.io.*; import java.math.BigInteger; import java.nio.charset.StandardCharsets; import java.text.ParseException; import java.util.HashMap; import java.net.HttpURLConnection; import java.net.URL; import java.util.Map; import com.alibaba.fastjson.JSON; public
+              - generic [ref=e1150]: class shop_auth
+              - text: "{ public static void main(String[] args) throws ParseException, IOException { shop_auth(); //get_token_shop_level(code,partner_id,partner_key,shop_id); } //generate auth url public static void"
+              - generic [ref=e1151]:
+                - text: shop_auth(
+                - text: )
+              - text: "{ long timest = System.currentTimeMillis() / 1000L; String host = \"https://partner.shopeemobile.com\"; String path = \"/api/v2/shop/auth_partner\"; String redirect_url = \"https://www.baidu.com/\"; long partner_id = 123456L; String tmp_partner_key = \"...\"; String tmp_base_string = String.format(\"%s%s%s\", partner_id, path, timest); byte[] partner_key; byte[] base_string; String sign = \"\"; try { base_string = tmp_base_string.getBytes(\"UTF-8\"); partner_key = tmp_partner_key.getBytes(\"UTF-8\"); Mac mac = Mac.getInstance(\"HmacSHA256\"); SecretKeySpec secret_key = new SecretKeySpec(partner_key, \"HmacSHA256\"); mac.init(secret_key); sign = String.format(\"%064x\",new BigInteger(1,mac.doFinal(base_string))); } catch (Exception e) { e.printStackTrace(); } String url = host + path + String.format(\"?partner_id=%s&timestamp=%s&sign=%s&redirect=%s\", partner_id,timest, sign, redirect_url); System.out.println(url); } //shop request for access token for the first time public static String[] get_token_shop_level(String code,long partner_id,String tmp_partner_key,long shop_id) throws ParseException,IOException{ String[] res = new String[2]; long timest = System.currentTimeMillis() / 1000L; String host = \"https://partner.shopeemobile.com\"; String path = \"/api/v2/auth/token/get\"; String tmp_base_string = String.format(\"%s%s%s\", partner_id, path, timest); byte[] partner_key; byte[] base_string; BigInteger sign = null; String result = \"\"; try { base_string = tmp_base_string.getBytes(\"UTF-8\"); partner_key = tmp_partner_key.getBytes(\"UTF-8\"); Mac mac = Mac.getInstance(\"HmacSHA256\"); SecretKeySpec secret_key = new SecretKeySpec(partner_key, \"HmacSHA256\"); mac.init(secret_key); sign = new BigInteger(1,mac.doFinal(base_string)); } catch (Exception e) { e.printStackTrace(); } String tmp_url = host + path + String.format(\"?partner_id=%s&timestamp=%s&sign=%s\", partner_id,timest, String.format(\"%032x\",sign)); URL url = new URL(tmp_url); HttpURLConnection conn = null; PrintWriter out = null; BufferedReader in = null; try { conn = (HttpURLConnection) url.openConnection(); conn.setRequestMethod(\"POST\"); conn.setDoOutput(true); conn.setDoInput(true); conn.setConnectTimeout(30000); conn.setReadTimeout(10000); conn.setRequestProperty(\"Content-Type\", \"application/json\"); conn.setRequestProperty(\"Accept\", \"application/json\"); Map<String,Object> map = new HashMap<>(); map.put(\"code\",code); map.put(\"shop_id\",shop_id); map.put(\"partner_id\",partner_id); String json = JSON.toJSONString(map); conn.connect(); out = new PrintWriter(conn.getOutputStream()); out.print(json); out.flush(); in = new BufferedReader(new InputStreamReader(conn.getInputStream())); String line = \"\"; while((line=in.readLine())!=null){ result +=line; } JSONObject jsonObject = JSONObject.parseObject(result); res[0] = (String) jsonObject.get(\"access_token\"); res[1] = (String) jsonObject.get(\"refresh_token\"); } catch(Exception e){ e.printStackTrace(); }finally { try{ if(out != null){ out.close(); } if(in != null){ in.close(); } }catch (IOException ioe){ ioe.printStackTrace(); } } return res; } //main account request for the access token for the first time public static String[] get_token_account_level(String code,long partner_id,String tmp_partner_key,long main_account_id) throws ParseException,IOException{ String[] res = new String[2]; long timest = System.currentTimeMillis() / 1000L; String host = \"https://openplatform.sandbox.test-stable.shopee.sg\"; String path = \"/api/v2/auth/token/get\"; String tmp_base_string = String.format(\"%s%s%s\", partner_id, path, timest); byte[] partner_key; byte[] base_string; BigInteger sign = null; String result = \"\"; try { base_string = tmp_base_string.getBytes(\"UTF-8\"); partner_key = tmp_partner_key.getBytes(\"UTF-8\"); Mac mac = Mac.getInstance(\"HmacSHA256\"); SecretKeySpec secret_key = new SecretKeySpec(partner_key, \"HmacSHA256\"); mac.init(secret_key); sign = new BigInteger(1,mac.doFinal(base_string)); } catch (Exception e) { e.printStackTrace(); } String tmp_url = host + path + String.format(\"?partner_id=%s&timestamp=%s&sign=%s\", partner_id,timest, String.format(\"%032x\",sign)); URL url = new URL(tmp_url); HttpURLConnection conn = null; PrintWriter out = null; BufferedReader in = null; try { conn = (HttpURLConnection) url.openConnection(); conn.setRequestMethod(\"POST\"); conn.setDoOutput(true); conn.setDoInput(true); conn.setConnectTimeout(30000); conn.setReadTimeout(10000); conn.setRequestProperty(\"Content-Type\", \"application/json\"); conn.setRequestProperty(\"Accept\", \"application/json\"); Map<String,Object> map = new HashMap<>(); map.put(\"code\",code); map.put(\"main_account_id\",main_account_id); map.put(\"partner_id\",partner_id); String json = JSON.toJSONString(map); conn.connect(); out = new PrintWriter(conn.getOutputStream()); out.print(json); out.flush(); in = new BufferedReader(new InputStreamReader(conn.getInputStream())); String line = \"\"; while((line=in.readLine())!=null){ result +=line; } JSONObject jsonObject = JSONObject.parseObject(result); res[0] = (String) jsonObject.get(\"access_token\"); res[1] = (String) jsonObject.get(\"refresh_token\"); } catch(Exception e){ e.printStackTrace(); }finally { try{ if(out != null){ out.close(); } if(in != null){ in.close(); } }catch (IOException ioe){ ioe.printStackTrace(); } } return res; }"
+          - paragraph [ref=e1152]
+          - paragraph [ref=e1153]: "PHP Code Demo:"
+          - generic [ref=e1154]:
+            - paragraph [ref=e1155]: PHP
+            - code [ref=e1157]:
+              - text: <?php
+              - generic [ref=e1158]: function getTokenShopLevel($code, $partnerId, $partnerKey, $shopId)
+              - text: "{ global $host; $path = \"/api/v2/auth/token/get\"; $timest = time(); $body = array(\"code\" => $code, \"shop_id\" => $shopId, \"partner_id\" => $partnerId); $baseString = sprintf(\"%s%s%s\", $partnerId, $path, $timest); $sign = hash_hmac('sha256', $baseString, $partnerKey); $url = sprintf(\"%s%s?partner_id=%s&timestamp=%s&sign=%s\", $host, $path, $partnerId, $timest, $sign); $c = curl_init($url); curl_setopt($c, CURLOPT_POST, 1); curl_setopt($c, CURLOPT_POSTFIELDS, json_encode($body)); curl_setopt($c, CURLOPT_HTTPHEADER, array('Content-Type: application/json')); curl_setopt($c, CURLOPT_RETURNTRANSFER, 1); $resp = curl_exec($c); echo \"raw result: $resp\"; $ret = json_decode($resp, true); $accessToken = $ret[\"access_token\"]; $newRefreshToken = $ret[\"refresh_token\"]; echo \"\\naccess_token: $accessToken, refresh_token: $newRefreshToken raw: $ret\".\"\\n\"; return $ret; }"
+              - generic [ref=e1159]: function getTokenAccountLevel($code, $partnerId, $partnerKey, $mainAccountId)
+              - text: "{ global $host; $path = \"/api/v2/auth/token/get\"; $timest = time(); $body = array(\"code\" => $code, \"main_account_id\" => $mainAccountId, \"partner_id\" => $partnerId); $baseString = sprintf(\"%s%s%s\", $partnerId, $path, $timest); $sign = hash_hmac('sha256', $baseString, $partnerKey); $url = sprintf(\"%s%s?partner_id=%s&timestamp=%s&sign=%s\", $host, $path, $partnerId, $timest, $sign); $c = curl_init($url); curl_setopt($c, CURLOPT_POST, 1); curl_setopt($c, CURLOPT_POSTFIELDS, json_encode($body)); curl_setopt($c, CURLOPT_HTTPHEADER, array('Content-Type: application/json')); curl_setopt($c, CURLOPT_RETURNTRANSFER, 1); $result = curl_exec($c); echo \"\\nraw result \".$result.\"\\n\"; $ret = json_decode($result, true); $accessToken = $ret[\"access_token\"]; $newRefreshToken = $ret[\"refresh_token\"]; echo \"\\naccess_token: \".$accessToken.\", refresh_token: \".$newRefreshToken.\"\\n\"; return $ret; } $host=\"https://partner.shopeemobile.com\"; $partnerId = 847892; $partnerKey = \"57615053704d6470644f554a78656d50484143644964436a5568777544524579\"; $code=\"494d7a4a4f5a66524556776f66425453\"; // $shopId=200520705; // getTokenShopLevel($code, $partnerId, $partnerKey, $shopId); $accountId=19479; getTokenAccountLevel($code, $partnerId, $partnerKey, $accountId) ?>"
+          - heading "RefreshAccessToken" [level=3] [ref=e1160]
+          - paragraph [ref=e1161]
+          - paragraph [ref=e1162]: Before the access_token expires, use the refresh_token to call this API to obtain a new access_token and refresh_token. The new refresh_token must be used for the next refresh request.
+          - paragraph [ref=e1163]
+          - paragraph [ref=e1164]: Request Information
+          - table [ref=e1166]:
+            - rowgroup [ref=e1167]:
+              - row "Path Details" [ref=e1168]:
+                - columnheader "Path" [ref=e1169]:
+                  - generic [ref=e1170]: Path
+                - columnheader "Details" [ref=e1171]:
+                  - generic [ref=e1172]: Details
+            - rowgroup [ref=e1173]:
+              - row "Production Environment https://partner.shopeemobile.com/api/v2/auth/access_token/get" [ref=e1174]:
+                - cell "Production Environment" [ref=e1175]:
+                  - generic [ref=e1176]: Production Environment
+                - cell "https://partner.shopeemobile.com/api/v2/auth/access_token/get" [ref=e1177]:
+                  - link "https://partner.shopeemobile.com/api/v2/auth/access_token/get" [ref=e1179] [cursor=pointer]:
+                    - /url: https://partner.shopeemobile.com/api/v2/auth/access_token/get
+              - row "Sandbox Environment https://openplatform.sandbox.test-stable.shopee.sg/api/v2/auth/access_token/get" [ref=e1180]:
+                - cell "Sandbox Environment" [ref=e1181]:
+                  - generic [ref=e1182]: Sandbox Environment
+                - cell "https://openplatform.sandbox.test-stable.shopee.sg/api/v2/auth/access_token/get" [ref=e1183]:
+                  - link "https://openplatform.sandbox.test-stable.shopee.sg/api/v2/auth/access_token/get" [ref=e1185] [cursor=pointer]:
+                    - /url: https://openplatform.sandbox.test-stable.shopee.sg/api/v2/auth/access_token/get
+              - row "Request Method POST" [ref=e1186]:
+                - cell "Request Method" [ref=e1187]:
+                  - generic [ref=e1188]: Request Method
+                - cell "POST" [ref=e1189]:
+                  - generic [ref=e1190]: POST
+          - table [ref=e1192]:
+            - rowgroup [ref=e1193]:
+              - 'row "⚠️ Note For the same main_account_id, the initial access_token and refresh_token obtained from GetAccessToken are identical. After calling the RefreshAccessToken API separately for each shop_id and merchant_id, each shop_id and merchant_id will generate its own independent new access_token and refresh_token. For example: 1. The initial access_token / refresh_token obtained from GetAccessToken is assigned to 7 shop_ids and 3 merchant_ids. 2. After the initial access_token expires, you use the initial refresh_token to call RefreshAccessToken,and obtain 10 independent sets of access_token and refresh_token for each shop_id and merchant_id. 3. After this, shop_id and merchant_id will no longer share any access_token or refresh_token." [ref=e1194]':
+                - 'cell "⚠️ Note For the same main_account_id, the initial access_token and refresh_token obtained from GetAccessToken are identical. After calling the RefreshAccessToken API separately for each shop_id and merchant_id, each shop_id and merchant_id will generate its own independent new access_token and refresh_token. For example: 1. The initial access_token / refresh_token obtained from GetAccessToken is assigned to 7 shop_ids and 3 merchant_ids. 2. After the initial access_token expires, you use the initial refresh_token to call RefreshAccessToken,and obtain 10 independent sets of access_token and refresh_token for each shop_id and merchant_id. 3. After this, shop_id and merchant_id will no longer share any access_token or refresh_token." [ref=e1195]':
+                  - generic [ref=e1196]: ⚠️ Note
+                  - generic [ref=e1198]: For the same main_account_id, the initial access_token and refresh_token obtained from GetAccessToken are identical. After calling the RefreshAccessToken API separately for each shop_id and merchant_id, each shop_id and merchant_id will generate its own independent new access_token and refresh_token.
+                  - generic [ref=e1200]:
+                    - text: "For example:"
+                    - text: 1. The initial access_token / refresh_token obtained from GetAccessToken is assigned to 7 shop_ids and 3 merchant_ids.
+                    - text: 2. After the initial access_token expires, you use the initial refresh_token to call RefreshAccessToken,and obtain 10 independent sets of access_token and refresh_token for each shop_id and merchant_id.
+                    - text: 3. After this, shop_id and merchant_id will no longer share any access_token or refresh_token.
+          - paragraph [ref=e1201]
+          - paragraph [ref=e1202]: "Public parameters:"
+          - paragraph [ref=e1203]
+          - paragraph [ref=e1204]: Consistent with the common parameters of the GetAccessToken API.
+          - table [ref=e1206]:
+            - rowgroup [ref=e1207]:
+              - row "Parameter name Type Required Description" [ref=e1208]:
+                - columnheader "Parameter name" [ref=e1209]:
+                  - generic [ref=e1210]: Parameter name
+                - columnheader "Type" [ref=e1211]:
+                  - generic [ref=e1212]: Type
+                - columnheader "Required" [ref=e1213]:
+                  - generic [ref=e1214]: Required
+                - columnheader "Description" [ref=e1215]:
+                  - generic [ref=e1216]: Description
+            - rowgroup [ref=e1217]:
+              - 'row "sign string True The signature obtained by sign base string (order: partner_id, api path, timestamp...) HMAC-SHA256 hashing with the partner_key." [ref=e1218]':
+                - cell "sign" [ref=e1219]:
+                  - generic [ref=e1220]: sign
+                - cell "string" [ref=e1221]:
+                  - generic [ref=e1222]: string
+                - cell "True" [ref=e1223]:
+                  - generic [ref=e1224]: "True"
+                - 'cell "The signature obtained by sign base string (order: partner_id, api path, timestamp...) HMAC-SHA256 hashing with the partner_key." [ref=e1225]':
+                  - generic [ref=e1226]: "The signature obtained by sign base string (order: partner_id, api path, timestamp...) HMAC-SHA256 hashing with the partner_key."
+              - row "partner_id int True The partner_id obtained from the APP. This partner_id is put into the query." [ref=e1227]:
+                - cell "partner_id" [ref=e1228]:
+                  - generic [ref=e1229]: partner_id
+                - cell "int" [ref=e1230]:
+                  - generic [ref=e1231]: int
+                - cell "True" [ref=e1232]:
+                  - generic [ref=e1233]: "True"
+                - cell "The partner_id obtained from the APP. This partner_id is put into the query." [ref=e1234]:
+                  - generic [ref=e1235]: The partner_id obtained from the APP. This partner_id is put into the query.
+              - row "timestamp int True Timestamp, valid for 5 minutes." [ref=e1236]:
+                - cell "timestamp" [ref=e1237]:
+                  - generic [ref=e1238]: timestamp
+                - cell "int" [ref=e1239]:
+                  - generic [ref=e1240]: int
+                - cell "True" [ref=e1241]:
+                  - generic [ref=e1242]: "True"
+                - cell "Timestamp, valid for 5 minutes." [ref=e1243]:
+                  - generic [ref=e1244]: Timestamp, valid for 5 minutes.
+          - paragraph [ref=e1245]
+          - paragraph [ref=e1246]: "Request parameters:"
+          - table [ref=e1248]:
+            - rowgroup [ref=e1249]:
+              - row "Parameter name Type Required Description" [ref=e1250]:
+                - columnheader "Parameter name" [ref=e1251]:
+                  - generic [ref=e1252]: Parameter name
+                - columnheader "Type" [ref=e1253]:
+                  - generic [ref=e1254]: Type
+                - columnheader "Required" [ref=e1255]:
+                  - generic [ref=e1256]: Required
+                - columnheader "Description" [ref=e1257]:
+                  - generic [ref=e1258]: Description
+            - rowgroup [ref=e1259]:
+              - row "refresh_token string True Use refresh_token to get a new access_token. Each refresh_token is valid for 30 days, and can only be used once by either a shop_id or merchant_id." [ref=e1260]:
+                - cell "refresh_token" [ref=e1261]:
+                  - generic [ref=e1262]: refresh_token
+                - cell "string" [ref=e1263]:
+                  - generic [ref=e1264]: string
+                - cell "True" [ref=e1265]:
+                  - generic [ref=e1266]: "True"
+                - cell "Use refresh_token to get a new access_token. Each refresh_token is valid for 30 days, and can only be used once by either a shop_id or merchant_id." [ref=e1267]:
+                  - generic [ref=e1268]: Use refresh_token to get a new access_token. Each refresh_token is valid for 30 days, and can only be used once by either a shop_id or merchant_id.
+              - row "partner_id int True The partner_id obtained from the App. This partner_id is inserted into the body." [ref=e1269]:
+                - cell "partner_id" [ref=e1270]:
+                  - generic [ref=e1271]: partner_id
+                - cell "int" [ref=e1272]:
+                  - generic [ref=e1273]: int
+                - cell "True" [ref=e1274]:
+                  - generic [ref=e1275]: "True"
+                - cell "The partner_id obtained from the App. This partner_id is inserted into the body." [ref=e1276]:
+                  - generic [ref=e1277]: The partner_id obtained from the App. This partner_id is inserted into the body.
+              - row "shop_id int Yes, input 1 only. The shop_id of the main account that granted authorization to your App. Only the shop_id or merchant_id can be selected as the input parameter, and they must be refreshed separately." [ref=e1278]:
+                - cell "shop_id" [ref=e1279]:
+                  - generic [ref=e1280]: shop_id
+                - cell "int" [ref=e1281]:
+                  - generic [ref=e1282]: int
+                - cell "Yes, input 1 only." [ref=e1283]:
+                  - generic [ref=e1286]: Yes, input 1 only.
+                - cell "The shop_id of the main account that granted authorization to your App. Only the shop_id or merchant_id can be selected as the input parameter, and they must be refreshed separately." [ref=e1287]:
+                  - generic [ref=e1288]: The shop_id of the main account that granted authorization to your App. Only the shop_id or merchant_id can be selected as the input parameter, and they must be refreshed separately.
+              - row "merchant_id int The merchant_id for identifying the main account that granted authorization to your App. Only the shop_id or merchant_id can be selected as the input parameter, and they must be refreshed separately." [ref=e1290]:
+                - cell "merchant_id" [ref=e1291]:
+                  - generic [ref=e1292]: merchant_id
+                - cell "int" [ref=e1293]:
+                  - generic [ref=e1294]: int
+                - cell "The merchant_id for identifying the main account that granted authorization to your App. Only the shop_id or merchant_id can be selected as the input parameter, and they must be refreshed separately." [ref=e1295]:
+                  - generic [ref=e1296]: The merchant_id for identifying the main account that granted authorization to your App. Only the shop_id or merchant_id can be selected as the input parameter, and they must be refreshed separately.
+          - paragraph [ref=e1298]
+          - paragraph [ref=e1299]: "Response parameters:"
+          - table [ref=e1301]:
+            - rowgroup [ref=e1302]:
+              - row "Parameter name Type Description" [ref=e1303]:
+                - columnheader "Parameter name" [ref=e1304]:
+                  - generic [ref=e1305]: Parameter name
+                - columnheader "Type" [ref=e1306]:
+                  - generic [ref=e1307]: Type
+                - columnheader "Description" [ref=e1308]:
+                  - generic [ref=e1309]: Description
+            - rowgroup [ref=e1310]:
+              - row "request_id string ID of API requests; always returned. Used to diagnose problems." [ref=e1311]:
+                - cell "request_id" [ref=e1312]:
+                  - generic [ref=e1313]: request_id
+                - cell "string" [ref=e1314]:
+                  - generic [ref=e1315]: string
+                - cell "ID of API requests; always returned. Used to diagnose problems." [ref=e1316]:
+                  - generic [ref=e1317]: ID of API requests; always returned.
+                  - generic [ref=e1318]: Used to diagnose problems.
+              - row "error string Error codes for API requests; always returned. When the API call is successful, the error code returned is empty." [ref=e1320]:
+                - cell "error" [ref=e1321]:
+                  - generic [ref=e1322]: error
+                - cell "string" [ref=e1323]:
+                  - generic [ref=e1324]: string
+                - cell "Error codes for API requests; always returned. When the API call is successful, the error code returned is empty." [ref=e1325]:
+                  - generic [ref=e1326]: Error codes for API requests; always returned.
+                  - generic [ref=e1327]: When the API call is successful, the error code returned is empty.
+              - row "refresh_token string New refresh_token Returned when the API call is successful. Use a refresh_token to get a new access_token. Each refresh_token is valid for 30 days, and can only be used once by either a shop_id or merchant_id." [ref=e1328]:
+                - cell "refresh_token" [ref=e1329]:
+                  - generic [ref=e1330]: refresh_token
+                - cell "string" [ref=e1331]:
+                  - generic [ref=e1332]: string
+                - cell "New refresh_token Returned when the API call is successful. Use a refresh_token to get a new access_token. Each refresh_token is valid for 30 days, and can only be used once by either a shop_id or merchant_id." [ref=e1333]:
+                  - generic [ref=e1334]: New refresh_token
+                  - generic [ref=e1335]: Returned when the API call is successful.
+                  - generic [ref=e1336]: Use a refresh_token to get a new access_token.
+                  - generic [ref=e1337]: Each refresh_token is valid for 30 days, and can only be used once by either a shop_id or merchant_id.
+              - row "access_token string Returned when the API call is successful. Each new access_token is a dynamic token that can be used multiple times. It expires after 4 hours." [ref=e1338]:
+                - cell "access_token" [ref=e1339]:
+                  - generic [ref=e1340]: access_token
+                - cell "string" [ref=e1341]:
+                  - generic [ref=e1342]: string
+                - cell "Returned when the API call is successful. Each new access_token is a dynamic token that can be used multiple times. It expires after 4 hours." [ref=e1343]:
+                  - generic [ref=e1344]: Returned when the API call is successful.
+                  - generic [ref=e1345]: Each new access_token is a dynamic token that can be used multiple times. It expires after 4 hours.
+              - row "expire_in int Returned when the API call is successful. The validity period of the access_token, in seconds." [ref=e1346]:
+                - cell "expire_in" [ref=e1347]:
+                  - generic [ref=e1348]: expire_in
+                - cell "int" [ref=e1349]:
+                  - generic [ref=e1350]: int
+                - cell "Returned when the API call is successful. The validity period of the access_token, in seconds." [ref=e1351]:
+                  - generic [ref=e1352]: Returned when the API call is successful.
+                  - generic [ref=e1353]: The validity period of the access_token, in seconds.
+              - row "message string Always returned. Provides detailed error information." [ref=e1354]:
+                - cell "message" [ref=e1355]:
+                  - generic [ref=e1356]: message
+                - cell "string" [ref=e1357]:
+                  - generic [ref=e1358]: string
+                - cell "Always returned. Provides detailed error information." [ref=e1359]:
+                  - generic [ref=e1360]: Always returned. Provides detailed error information.
+              - row "merchant_id int Returned when the API call is successful. The merchant_id for this refresh, for identifying each merchant." [ref=e1361]:
+                - cell "merchant_id" [ref=e1362]:
+                  - generic [ref=e1363]: merchant_id
+                - cell "int" [ref=e1364]:
+                  - generic [ref=e1365]: int
+                - cell "Returned when the API call is successful. The merchant_id for this refresh, for identifying each merchant." [ref=e1366]:
+                  - generic [ref=e1367]: Returned when the API call is successful.
+                  - generic [ref=e1368]: The merchant_id for this refresh, for identifying each merchant.
+              - row "shop_id int Returned when the API call is successful. The shop_id for this refresh" [ref=e1369]:
+                - cell "shop_id" [ref=e1370]:
+                  - generic [ref=e1371]: shop_id
+                - cell "int" [ref=e1372]:
+                  - generic [ref=e1373]: int
+                - cell "Returned when the API call is successful. The shop_id for this refresh" [ref=e1374]:
+                  - generic [ref=e1375]: Returned when the API call is successful.
+                  - generic [ref=e1376]: The shop_id for this refresh
+              - row "partner_id int Returned when the API call is successful. The partner_id you used for this refresh" [ref=e1377]:
+                - cell "partner_id" [ref=e1378]:
+                  - generic [ref=e1379]: partner_id
+                - cell "int" [ref=e1380]:
+                  - generic [ref=e1381]: int
+                - cell "Returned when the API call is successful. The partner_id you used for this refresh" [ref=e1382]:
+                  - generic [ref=e1383]: Returned when the API call is successful.
+                  - generic [ref=e1384]: The partner_id you used for this refresh
+              - row "supplier_id_list int[] Return when auth_type=supplier" [ref=e1385]:
+                - cell "supplier_id_list" [ref=e1386]:
+                  - generic [ref=e1387]: supplier_id_list
+                - cell "int[]" [ref=e1388]:
+                  - generic [ref=e1389]: int[]
+                - cell "Return when auth_type=supplier" [ref=e1390]:
+                  - generic [ref=e1391]: Return when auth_type=supplier
+              - row "user_id_list int[] Return when auth_type=user" [ref=e1392]:
+                - cell "user_id_list" [ref=e1393]:
+                  - generic [ref=e1394]: user_id_list
+                - cell "int[]" [ref=e1395]:
+                  - generic [ref=e1396]: int[]
+                - cell "Return when auth_type=user" [ref=e1397]:
+                  - generic [ref=e1398]: Return when auth_type=user
+          - paragraph [ref=e1399]
+          - paragraph [ref=e1400]: RefreshAccessToken Demo
+          - paragraph [ref=e1401]
+          - paragraph [ref=e1402]: "Python Code Demo:"
+          - generic [ref=e1403]:
+            - paragraph [ref=e1404]: Python
+            - code [ref=e1406]: "# refresh token def get_access_token_shop_level(shop_id, partner_id, tmp_partner_key, refresh_token): timest = int(time.time()) host = \"https://openplatform.sandbox.test-stable.shopee.sg\" path = \"/api/v2/auth/access_token/get\" body = {\"shop_id\": shop_id, \"refresh_token\": refresh_token,\"partner_id\":partner_id} tmp_base_string = \"%s%s%s\" % (partner_id, path, timest) base_string = tmp_base_string.encode() partner_key = tmp_partner_key.encode() sign = hmac.new(partner_key, base_string, hashlib.sha256).hexdigest() url = host + path + \"?partner_id=%s&timestamp=%s&sign=%s\" % (partner_id, timest, sign) # print(url) headers = {\"Content-Type\": \"application/json\"} resp = requests.post(url, json=body, headers=headers) ret = json.loads(resp.content) access_token = ret.get(\"access_token\") new_refresh_token = ret.get(\"refresh_token\") return access_token, new_refresh_token def get_access_token_merchant_level(merchant_id, partner_id, tmp_partner_key, refresh_token): timest = int(time.time()) host = \"https://openplatform.sandbox.test-stable.shopee.sg\" path = \"/api/v2/auth/access_token/get\" body = {\"merchant_id\": merchant_id, \"refresh_token\": refresh_token} tmp_base_string = \"%s%s%s\" % (partner_id, path, timest) base_string = tmp_base_string.encode() partner_key = tmp_partner_key.encode() sign = hmac.new(partner_key, base_string, hashlib.sha256).hexdigest() url = host + path + \"?partner_id=%s&timestamp=%s&sign=%s\" % (partner_id, timest, sign) headers = {\"Content-Type\": \"application/json\"} resp = requests.post(url, json=body, headers=headers) ret = json.loads(resp.content) access_token = ret.get(\"access_token\") new_refresh_token = ret.get(\"refresh_token\") return access_token, new_refresh_token partner_id = 2006566 partner_key = \"1a78dde5d6c3342f56ac939cbdd81607654c0e87725e118736ba5e3ae31c579c\" shop_id = 602226924 main_account_id = 31219 merchant_id = 45719 code = \"c01204cada7b4cd0e4688154f5a256ca\" print(shop_auth()) # access_token,refresh_token = get_token_shop_level(code,partner_id,partner_key,602226924) # print(access_token) # print(refresh_token) # print(get_access_token_shop_level(shop_id,partner_id,partner_key,refresh_token)) access_token,refresh_token = get_token_account_level(code,partner_id,partner_key,main_account_id) print(access_token) print(refresh_token) print(get_access_token_merchant_level(merchant_id,partner_id,partner_key,refresh_token))"
+          - paragraph [ref=e1407]
+          - paragraph [ref=e1408]: "Java Code Demo:"
+          - generic [ref=e1409]:
+            - paragraph [ref=e1410]: Java
+            - code [ref=e1412]: "//shop refresh the access token public static String[] get_access_token_shop_level(String refresh_token,long partner_id,String tmp_partner_key,long shop_id) throws ParseException,IOException{ String[] res = new String[2]; long timest = System.currentTimeMillis() / 1000L; String host = \"https://partner.shopeemobile.com\"; String path = \"/api/v2/auth/access_token/get\"; String tmp_base_string = String.format(\"%s%s%s\", partner_id, path, timest); byte[] partner_key; byte[] base_string; BigInteger sign = null; String result = \"\"; try { base_string = tmp_base_string.getBytes(\"UTF-8\"); partner_key = tmp_partner_key.getBytes(\"UTF-8\"); Mac mac = Mac.getInstance(\"HmacSHA256\"); SecretKeySpec secret_key = new SecretKeySpec(partner_key, \"HmacSHA256\"); mac.init(secret_key); sign = new BigInteger(1,mac.doFinal(base_string)); } catch (Exception e) { e.printStackTrace(); } String tmp_url = host + path + String.format(\"?partner_id=%s&timestamp=%s&sign=%s\", partner_id,timest, String.format(\"%032x\",sign)); URL url = new URL(tmp_url); HttpURLConnection conn = null; PrintWriter out = null; BufferedReader in = null; try { conn = (HttpURLConnection) url.openConnection(); conn.setRequestMethod(\"POST\"); conn.setDoOutput(true); conn.setDoInput(true); conn.setConnectTimeout(30000); conn.setReadTimeout(10000); conn.setRequestProperty(\"Content-Type\", \"application/json\"); conn.setRequestProperty(\"Accept\", \"application/json\"); Map<String,Object> map = new HashMap<>(); map.put(\"refresh_token\",refresh_token); map.put(\"shop_id\",shop_id); map.put(\"partner_id\",partner_id); String json = JSON.toJSONString(map); conn.connect(); out = new PrintWriter(conn.getOutputStream()); out.print(json); out.flush(); in = new BufferedReader(new InputStreamReader(conn.getInputStream())); String line = \"\"; while((line=in.readLine())!=null){ result +=line; } JSONObject jsonObject = JSONObject.parseObject(result); res[0] = (String) jsonObject.get(\"access_token\"); res[1] = (String) jsonObject.get(\"refresh_token\"); } catch(Exception e){ e.printStackTrace(); }finally { try{ if(out != null){ out.close(); } if(in != null){ in.close(); } }catch (IOException ioe){ ioe.printStackTrace(); } } return res; } //merchant refresh the access token public static String[] get_access_token_merchant_level(String refresh_token,long partner_id,String tmp_partner_key,long merchant_id) throws ParseException,IOException{ String[] res = new String[2]; long timest = System.currentTimeMillis() / 1000L; String host = \"https://partner.shopeemobile.com\"; String path = \"/api/v2/auth/access_token/get\"; String tmp_base_string = String.format(\"%s%s%s\", partner_id, path, timest); byte[] partner_key; byte[] base_string; BigInteger sign = null; String result = \"\"; try { base_string = tmp_base_string.getBytes(\"UTF-8\"); partner_key = tmp_partner_key.getBytes(\"UTF-8\"); Mac mac = Mac.getInstance(\"HmacSHA256\"); SecretKeySpec secret_key = new SecretKeySpec(partner_key, \"HmacSHA256\"); mac.init(secret_key); sign = new BigInteger(1,mac.doFinal(base_string)); } catch (Exception e) { e.printStackTrace(); } String tmp_url = host + path + String.format(\"?partner_id=%s&timestamp=%s&sign=%s\", partner_id,timest, String.format(\"%032x\",sign)); URL url = new URL(tmp_url); HttpURLConnection conn = null; PrintWriter out = null; BufferedReader in = null; try { conn = (HttpURLConnection) url.openConnection(); conn.setRequestMethod(\"POST\"); conn.setDoOutput(true); conn.setDoInput(true); conn.setConnectTimeout(30000); conn.setReadTimeout(10000); conn.setRequestProperty(\"Content-Type\", \"application/json\"); conn.setRequestProperty(\"Accept\", \"application/json\"); Map<String,Object> map = new HashMap<>(); map.put(\"refresh_token\",refresh_token); map.put(\"merchant_id\",merchant_id); map.put(\"partner_id\",partner_id); String json = JSON.toJSONString(map); conn.connect(); out = new PrintWriter(conn.getOutputStream()); out.print(json); out.flush(); in = new BufferedReader(new InputStreamReader(conn.getInputStream())); String line = \"\"; while((line=in.readLine())!=null){ result +=line; } JSONObject jsonObject = JSONObject.parseObject(result); res[0] = (String) jsonObject.get(\"access_token\"); res[1] = (String) jsonObject.get(\"refresh_token\"); } catch(Exception e){ e.printStackTrace(); }finally { try{ if(out != null){ out.close(); } if(in != null){ in.close(); } }catch (IOException ioe){ ioe.printStackTrace(); } } return res; } }"
+          - paragraph [ref=e1413]
+          - paragraph [ref=e1414]: "PHP Code Demo:"
+          - generic [ref=e1415]:
+            - paragraph [ref=e1416]: PHP
+            - code [ref=e1418]:
+              - text: <?php
+              - generic [ref=e1419]: function getAccessTokenShopLevel($partnerId, $partnerKey, $shopId, $refreshToken)
+              - text: "{ global $host; $path = \"/api/v2/auth/access_token/get\"; $timest = time(); $body = array(\"partner_id\" => $partnerId, \"shop_id\" => $shopId, \"refresh_token\" => $refreshToken); $baseString = sprintf(\"%s%s%s\", $partnerId, $path, $timest); $sign = hash_hmac('sha256', $baseString, $partnerKey); $url = sprintf(\"%s%s?partner_id=%s&timestamp=%s&sign=%s\", $host, $path, $partnerId, $timest, $sign); $c = curl_init($url); curl_setopt($c, CURLOPT_POST, 1); curl_setopt($c, CURLOPT_POSTFIELDS, json_encode($body)); curl_setopt($c, CURLOPT_HTTPHEADER, array('Content-Type: application/json')); curl_setopt($c, CURLOPT_RETURNTRANSFER, 1); $result = curl_exec($c); echo \"\\nraw result \".$result.\"\\n\"; $ret = json_decode($result, true); $accessToken = $ret[\"access_token\"]; $newRefreshToken = $ret[\"refresh_token\"]; echo \"\\naccess_token: \".$accessToken.\", refresh_token: \".$newRefreshToken.\"\\n\"; return $ret; }"
+              - generic [ref=e1420]: function getAccessTokenMerchantLevel($partnerId, $partnerKey, $merchantId, $refreshToken)
+              - text: "{ global $host; $path = \"/api/v2/auth/access_token/get\"; $timest = time(); $body = array(\"partner_id\" => $partnerId, \"merchant_id\" => $merchantId, \"refresh_token\" => $refreshToken); $baseString = sprintf(\"%s%s%s\", $partnerId, $path, $timest); $sign = hash_hmac('sha256', $baseString, $partnerKey); $url = sprintf(\"%s%s?partner_id=%s&timestamp=%s&sign=%s\", $host, $path, $partnerId, $timest, $sign); $c = curl_init($url); curl_setopt($c, CURLOPT_POST, 1); curl_setopt($c, CURLOPT_POSTFIELDS, json_encode($body)); curl_setopt($c, CURLOPT_HTTPHEADER, array('Content-Type: application/json')); curl_setopt($c, CURLOPT_RETURNTRANSFER, 1); $result = curl_exec($c); echo \"\\nraw result \".$result.\"\\n\"; $ret = json_decode($result, true); $accessToken = $ret[\"access_token\"]; $newRefreshToken = $ret[\"refresh_token\"]; echo \"\\naccess_token: \".$accessToken.\", refresh_token: \".$newRefreshToken.\"\\n\"; return $ret; } $host=\"https://partner.shopeemobile.com\"; $partnerId = 847892; $partnerKey = \"57615053704d6470644f554a78656d50484143644964436a5568777544524579\"; // $shopId=200520705; // $shopRefreshToken=\"71724c4e68746b546965424c70617244\"; // getAccessTokenShopLevel($partnerId, $partnerKey, $shopId, $shopRefreshToken) $merchantId=1018829; $merchantRefreshToken=\"546e5064627042696756455277774f53\"; getAccessTokenMerchantLevel($partnerId, $partnerKey, $merchantId, $merchantRefreshToken) ?>"
+          - heading "Refreshing the access_token and refresh_token on a shop account" [level=3] [ref=e1421]
+          - paragraph [ref=e1422]
+          - paragraph [ref=e1423]:
+            - text: 1. Use the code and shop_id from the redirect URL
+            - link [ref=e1424] [cursor=pointer]:
+              - /url: https://open.shopee.com/?code=7867624d4e76616648544f6e52625557&shop_id=54804
+            - link "https://open.shopee.com/?code=7867624d4e76616648544f6e52625557&shop_id=54804" [ref=e1425] [cursor=pointer]:
+              - /url: https://open.shopee.com/?code=7867624d4e76616648544f6e52625557&shop_id=54804
+            - text: to call the GetAccessToken API to obtain the first pair of access_token and refresh_token.
+          - paragraph [ref=e1426]
+          - paragraph [ref=e1427]: "Query: https://partner.shopeemobile.com/api/v2/auth/token/get?partner_id=1000016&timestamp=1657263479&sign=9c685bc7e4a74e90f45fe1933f1d72b2d9705acda4093a9fb1ec7e2b57ccea2a"
+          - paragraph [ref=e1428]
+          - paragraph [ref=e1429]: "{\"shop_id\":54804,"
+          - paragraph [ref=e1430]: "\"code\":\"7867624d4e76616648544f6e52625557\","
+          - paragraph [ref=e1431]: "\"partner_id\":1000016"
+          - paragraph [ref=e1432]: "}"
+          - paragraph [ref=e1433]
+          - paragraph [ref=e1434]: 2.Save the first pair of access_token and refresh_token returned.
+          - paragraph [ref=e1435]: "{"
+          - paragraph [ref=e1436]: "\"refresh_token\": \"456e416149664b76745a6a794156794a\","
+          - paragraph [ref=e1437]: "\"access_token\": \"6a55746e61546f707579627656637464\","
+          - paragraph [ref=e1438]: "\"expire_in\": 13859,"
+          - paragraph [ref=e1439]: "\"request_id\": \"c040b886cfcabdfa5a23af51c595cd1b\","
+          - paragraph [ref=e1440]: "\"error\": \"\","
+          - paragraph [ref=e1441]: "\"message\": \"\""
+          - paragraph [ref=e1442]: "}"
+          - paragraph [ref=e1443]
+          - paragraph [ref=e1444]: 3.Call the RefreshAccessToken API to refresh the access_token and refresh_token.
+          - paragraph [ref=e1445]: "Query: https://partner.shopeemobile.com/api/v2/auth/access_token/get?partner_id=1000016&timestamp=1657263479&sign=9c685bc7e4a74e90f45fe1933f1d72b2d9705acda4093a9fb1ec7e2b57ccea2a"
+          - paragraph [ref=e1446]
+          - paragraph [ref=e1447]: "{\"shop_id\":54804,"
+          - paragraph [ref=e1448]: "\"refresh_token\":\"456e416149664b76745a6a794156794a\","
+          - paragraph [ref=e1449]: "\"partner_id\":1000016"
+          - paragraph [ref=e1450]: "}"
+          - paragraph [ref=e1451]
+          - paragraph [ref=e1452]: 4.Save the new access_token and refresh_token.
+          - paragraph [ref=e1453]: "{"
+          - paragraph [ref=e1454]: "\"partner_id\": 1000016,"
+          - paragraph [ref=e1455]: "\"refresh_token\": \"666478546b6c63464867685554477a57\","
+          - paragraph [ref=e1456]: "\"access_token\": \"7a5970754768697552654a466f425573\","
+          - paragraph [ref=e1457]: "\"expire_in\": 14400,"
+          - paragraph [ref=e1458]: "\"request_id\": \"6d79dd0ffe4e070e185c71ca5153cd51\","
+          - paragraph [ref=e1459]: "\"error\": \"\","
+          - paragraph [ref=e1460]: "\"message\": \"\","
+          - paragraph [ref=e1461]: "\"shop_id\": 54804"
+          - paragraph [ref=e1462]: "}"
+          - heading "Refreshing the access_token and refresh_token on a main account" [level=3] [ref=e1463]
+          - paragraph [ref=e1464]
+          - paragraph [ref=e1465]: 1.Use the code and main_account_id from the URL obtained during authorization to call the GetAccessToken API and obtain the first pair of access_token and refresh_token.
+          - paragraph [ref=e1466]: "Redirect URL: : https://open.shopee.com/?code=644d4e48787873706c5a444c776d4b59&main_account_id=10208"
+          - paragraph [ref=e1467]
+          - paragraph [ref=e1468]: "Query: https://partner.shopeemobile.com/api/v2/auth/token/get?partner_id=1000016&timestamp=1657263479&sign=9c685bc7e4a74e90f45fe1933f1d72b2d9705acda4093a9fb1ec7e2b57ccea2a"
+          - paragraph [ref=e1469]: "{\"main_account_id\":10208,"
+          - paragraph [ref=e1470]: "\"code\":\"644d4e48787873706c5a444c776d4b59\","
+          - paragraph [ref=e1471]: "\"partner_id\":1000016"
+          - paragraph [ref=e1472]: "}"
+          - paragraph [ref=e1473]
+          - paragraph [ref=e1474]: 2.Save the first pair of access_token and refresh_token returned.
+          - paragraph [ref=e1475]
+          - paragraph [ref=e1476]: "{"
+          - paragraph [ref=e1477]: "\"refresh_token\": \"684d42685667777868597a4477587455\","
+          - paragraph [ref=e1478]: "\"access_token\": \"44776151594778486943647644745361\","
+          - paragraph [ref=e1479]: "\"expire_in\": 14344,"
+          - paragraph [ref=e1480]: "\"request_id\": \"9199e13ee74b22411498209cb5516e24\","
+          - paragraph [ref=e1481]: "\"merchant_id_list\": ["
+          - paragraph [ref=e1482]: "1001705"
+          - paragraph [ref=e1483]: "],"
+          - paragraph [ref=e1484]: "\"shop_id_list\": ["
+          - paragraph [ref=e1485]: 33142,
+          - paragraph [ref=e1486]: "46154"
+          - paragraph [ref=e1487]: "],"
+          - paragraph [ref=e1488]: "\"error\": \"\","
+          - paragraph [ref=e1489]: "\"message\": \"\""
+          - paragraph [ref=e1490]: "}"
+          - paragraph [ref=e1491]
+          - paragraph [ref=e1492]: 3.Call the RefreshAccessToken API to refresh the access_token and refresh_token of shop_id and merchant_id respectively
+          - paragraph [ref=e1493]
+          - paragraph [ref=e1494]: "Query: https://partner.shopeemobile.com/api/v2/auth/access_token/get?partner_id=1000016&timestamp=1657868745&sign=b78833ddcf533903cfae818bbfcf2b6b630e3bc0c941dd65453632f63bf7b495"
+          - paragraph [ref=e1495]: "{\"shop_id\":33142,"
+          - paragraph [ref=e1496]: "\"refresh_token\":\"684d42685667777868597a4477587455\","
+          - paragraph [ref=e1497]: "\"partner_id\":1000016"
+          - paragraph [ref=e1498]: "}"
+          - paragraph [ref=e1499]: "Query: https://partner.shopeemobile.com/api/v2/auth/access_token/get?partner_id=1000016&timestamp=1657868745&sign=b78833ddcf533903cfae818bbfcf2b6b630e3bc0c941dd65453632f63bf7b495"
+          - paragraph [ref=e1500]: "{\"merchant_id\":1001705,"
+          - paragraph [ref=e1501]: "\"refresh_token\":\"684d42685667777868597a4477587455\","
+          - paragraph [ref=e1502]: "\"partner_id\":1000016"
+          - paragraph [ref=e1503]: "}"
+          - paragraph [ref=e1504]
+          - paragraph [ref=e1505]: 4.Save the new access_token and refresh_token.
+          - paragraph [ref=e1506]
+          - paragraph [ref=e1507]: "{"
+          - paragraph [ref=e1508]: "\"partner_id\": 1000016,"
+          - paragraph [ref=e1509]: "\"refresh_token\": \"417472546e73504949676279576c477a\","
+          - paragraph [ref=e1510]: "\"access_token\": \"646d474965714a696177764963775743\","
+          - paragraph [ref=e1511]: "\"expire_in\": 14400,"
+          - paragraph [ref=e1512]: "\"request_id\": \"78e64d11cb6dec6f6669282839fca916\","
+          - paragraph [ref=e1513]: "\"error\": \"\","
+          - paragraph [ref=e1514]: "\"message\": \"\","
+          - paragraph [ref=e1515]: "\"shop_id\": 33142"
+          - paragraph [ref=e1516]: "}"
+          - paragraph [ref=e1517]: "{"
+          - paragraph [ref=e1518]: "\"partner_id\": 1000016,"
+          - paragraph [ref=e1519]: "\"refresh_token\": \"715075736d6c6570544364774f437369\","
+          - paragraph [ref=e1520]: "\"access_token\": \"69634c664a7350696c6b466d5a53714a\","
+          - paragraph [ref=e1521]: "\"expire_in\": 14400,"
+          - paragraph [ref=e1522]: "\"request_id\": \"51eacbc81bd6fa8fddddf1e0ef2dee16\","
+          - paragraph [ref=e1523]: "\"error\": \"\","
+          - paragraph [ref=e1524]: "\"message\": \"\","
+          - paragraph [ref=e1525]: "\"merchant_id\": 1001705"
+          - paragraph [ref=e1526]: "}"
+          - paragraph [ref=e1527]
+          - paragraph [ref=e1528]: By following the steps above, you can call the RefreshAccessToken API within 4 hours to get new access_token and refresh_token. Maintaining the API call loop will ensure you can continue to obtain new sets of access_token and refresh_token within the authorization validity period.
+          - table [ref=e1530]:
+            - rowgroup [ref=e1531]:
+              - row "⚠️ Note If you did not save the new refresh_token and access_token returned, see possible solutions." [ref=e1532]:
+                - cell "⚠️ Note If you did not save the new refresh_token and access_token returned, see possible solutions." [ref=e1533]:
+                  - generic [ref=e1534]: ⚠️ Note
+                  - generic [ref=e1535]:
+                    - text: If you did not save the new refresh_token and access_token returned,
+                    - link "see possible solutions" [ref=e1536] [cursor=pointer]:
+                      - /url: https://open.shopee.com/faq?top=177&sub=180&page=1&faq=216
+                    - text: .
+          - heading "Canceling authorization" [level=1] [ref=e1537]
+          - paragraph [ref=e1538]
+          - paragraph [ref=e1539]: You can cancel an authorization by changing the authorization URL or via Seller Center.
+          - heading "Canceling authorization by changing the authorization URL" [level=3] [ref=e1540]
+          - paragraph [ref=e1541]
+          - paragraph [ref=e1542]: Authorization can be revoked either by generating a cancellation authorization link or by performing the operation in Seller Center.
+          - paragraph [ref=e1543]
+          - paragraph [ref=e1544]: Revoking authorization via cancellation link
+          - paragraph [ref=e1545]: The method for generating a cancellation authorization link is the same as that for the authorization link, except that the fixed authorization URL should be replaced with the fixed cancellation authorization URL.
+          - paragraph [ref=e1546]
+          - paragraph [ref=e1547]: Fixed Cancellation Authorization URL
+          - table [ref=e1549]:
+            - rowgroup [ref=e1550]:
+              - row "Environment Region URL" [ref=e1551]:
+                - cell "Environment" [ref=e1552]:
+                  - generic [ref=e1553]: Environment
+                - cell "Region" [ref=e1554]:
+                  - generic [ref=e1555]: Region
+                - cell "URL" [ref=e1556]:
+                  - generic [ref=e1557]: URL
+              - row "Production Global (excluding Mainland China and Brazil) https://open.shopee.com/cancel_auth" [ref=e1558]:
+                - cell "Production" [ref=e1559]:
+                  - generic [ref=e1560]: Production
+                - cell "Global (excluding Mainland China and Brazil)" [ref=e1561]:
+                  - generic [ref=e1562]: Global (excluding Mainland China and Brazil)
+                - cell "https://open.shopee.com/cancel_auth" [ref=e1563]:
+                  - link "https://open.shopee.com/cancel_auth" [ref=e1565] [cursor=pointer]:
+                    - /url: https://open.shopee.com/cancel_auth
+              - row "Mainland China https://open.shopee.cn/cancel_auth" [ref=e1566]:
+                - cell "Mainland China" [ref=e1567]:
+                  - generic [ref=e1568]: Mainland China
+                - cell "https://open.shopee.cn/cancel_auth" [ref=e1569]:
+                  - link "https://open.shopee.cn/cancel_auth" [ref=e1571] [cursor=pointer]:
+                    - /url: https://open.shopee.cn/cancel_auth
+              - row "Brazil https://open.shopee.com.br/cancel_auth" [ref=e1572]:
+                - cell "Brazil" [ref=e1573]:
+                  - generic [ref=e1574]: Brazil
+                - cell "https://open.shopee.com.br/cancel_auth" [ref=e1575]:
+                  - link "https://open.shopee.com.br/cancel_auth" [ref=e1577] [cursor=pointer]:
+                    - /url: https://open.shopee.com.br/cancel_auth
+              - row "Sandbox Global (excluding Mainland China and Brazil) https://open.sandbox.test-stable.shopee.com/cancel_auth" [ref=e1578]:
+                - cell "Sandbox" [ref=e1579]:
+                  - generic [ref=e1580]: Sandbox
+                - cell "Global (excluding Mainland China and Brazil)" [ref=e1581]:
+                  - generic [ref=e1582]: Global (excluding Mainland China and Brazil)
+                - cell "https://open.sandbox.test-stable.shopee.com/cancel_auth" [ref=e1583]:
+                  - generic [ref=e1584]:
+                    - link "https://open." [ref=e1585] [cursor=pointer]:
+                      - /url: https://open.test-stable.shopee.com/cancel_auth
+                    - link "sandbox.test-stable." [ref=e1586] [cursor=pointer]:
+                      - /url: https://open.test-stable.shopee.com/auth
+                    - link "shopee.com/cancel_auth" [ref=e1587] [cursor=pointer]:
+                      - /url: https://open.test-stable.shopee.com/cancel_auth
+              - row "Mainland China https://open.sandbox.test-stable.shopee.cn/cancel_auth" [ref=e1588]:
+                - cell "Mainland China" [ref=e1589]:
+                  - generic [ref=e1590]: Mainland China
+                - cell "https://open.sandbox.test-stable.shopee.cn/cancel_auth" [ref=e1591]:
+                  - generic [ref=e1592]:
+                    - link "https://open." [ref=e1593] [cursor=pointer]:
+                      - /url: https://open.test-stable.shopee.cn/cancel_auth
+                    - link "sandbox.test-stable." [ref=e1594] [cursor=pointer]:
+                      - /url: https://open.test-stable.shopee.com/auth
+                    - link "shopee.cn/cancel_auth" [ref=e1595] [cursor=pointer]:
+                      - /url: https://open.test-stable.shopee.cn/cancel_auth
+              - row "Brazil https://open.sandbox.test-stable.shopee.com.br/cancel_auth" [ref=e1596]:
+                - cell "Brazil" [ref=e1597]:
+                  - generic [ref=e1598]: Brazil
+                - cell "https://open.sandbox.test-stable.shopee.com.br/cancel_auth" [ref=e1599]:
+                  - generic [ref=e1600]:
+                    - link "https://open." [ref=e1601] [cursor=pointer]:
+                      - /url: https://open.test-stable.shopee.com.br/cancel_auth
+                    - link "sandbox.test-stable." [ref=e1602] [cursor=pointer]:
+                      - /url: https://open.test-stable.shopee.com/auth
+                    - link "shopee.com.br/cancel_auth" [ref=e1603] [cursor=pointer]:
+                      - /url: https://open.test-stable.shopee.com.br/cancel_auth
+          - paragraph [ref=e1604]
+          - paragraph [ref=e1605]: Cancellation Authorization Link Examples
+          - paragraph [ref=e1606]
+          - paragraph [ref=e1607]: "Production Environment:"
+          - paragraph [ref=e1608]:
+            - link "https://open.shopee.com/cancel_auth?partner_id=10090&auth_type=seller&redirect_uri=https://open.shopee.com&response_type=code" [ref=e1609] [cursor=pointer]:
+              - /url: https://open.shopee.com/cancel_auth?partner_id=10090&auth_type=seller&redirect_uri=https://open.shopee.com&response_type=code
+          - paragraph [ref=e1610]
+          - paragraph [ref=e1611]: "Sandbox Environment:"
+          - paragraph [ref=e1612]:
+            - link "https://open.test-stable.shopee.com/cancel_auth?partner_id=1000016&auth_type=seller&redirect_uri=https://open.test-stable.shopee.com&response_type=code" [ref=e1613] [cursor=pointer]:
+              - /url: https://open.test-stable.shopee.com/cancel_auth?partner_id=1000016&auth_type=seller&redirect_uri=https://open.test-stable.shopee.com&response_type=code
+          - paragraph [ref=e1614]
+          - paragraph [ref=e1615]: Cancellation Process
+          - paragraph [ref=e1616]
+          - paragraph [ref=e1617]: 1. Generate the cancellation authorization link according to the specifications above;
+          - paragraph [ref=e1618]: 2. The seller logs in via the cancellation authorization link;
+          - img [ref=e1620]
+          - paragraph [ref=e1621]: 3. The seller clicks “Cancel Authorization” to complete the process. After cancellation, the application will no longer have access to the seller’s information.
+          - img [ref=e1623]
+          - heading "Canceling authorization on Seller Center" [level=3] [ref=e1624]
+          - paragraph [ref=e1625]
+          - paragraph [ref=e1626]: "Local Sellers:"
+          - list [ref=e1627]:
+            - listitem [ref=e1628]: The seller logs in to Seller Center and navigates to “Home Page > Platform Partner”;
+            - listitem [ref=e1629]: On the Platform Partner page, the seller can view all apps authorized by the shop / main account, along with their authorization expiration time;
+            - listitem [ref=e1630]: The seller clicks “Separate” in the action column to revoke authorization for the corresponding application.
+          - img [ref=e1632]
+          - paragraph [ref=e1633]
+          - paragraph [ref=e1634]: CNSC/KRSC Sellers
+          - paragraph [ref=e1635]: "“Home Page > Open Platform Management”: Sellers can view which apps have been authorized by the main account. In the authorization management page, sellers can directly revoke the authorization relationship for the merchant or shop."
+          - img [ref=e1637]
+          - img [ref=e1639]
+          - heading "FAQs on authorization and authentication" [level=1] [ref=e1640]
+          - paragraph [ref=e1641]
+          - paragraph [ref=e1642]:
+            - text: If you encounter errors during the authorization process, you can refer to our
+            - link "FAQs on authorization and authentication." [ref=e1643] [cursor=pointer]:
+              - /url: https://open.shopee.com/faq?top=177&sub=180&page=1&faq=215
+  - generic [ref=e1644]:
+    - generic [ref=e1646]:
+      - generic [ref=e1647]:
+        - heading "User Guide" [level=3] [ref=e1648]
+        - list [ref=e1649] [cursor=pointer]:
+          - heading "Developer Guide" [level=4] [ref=e1650]:
+            - link "Developer Guide" [ref=e1651]:
+              - /url: /developer-guide/0
+          - heading "API reference" [level=4] [ref=e1652]:
+            - link "API reference" [ref=e1653]:
+              - /url: /documents/v2/v2.ams.get_open_campaign_added_product?module=127&type=1
+          - heading "Push Mechanism" [level=4] [ref=e1654]:
+            - link "Push Mechanism" [ref=e1655]:
+              - /url: /push-mechanism/5
+          - heading "Shopee Open Platform Data Protection Policy" [level=4] [ref=e1656]:
+            - link "Shopee Open Platform Data Protection Policy" [ref=e1657]:
+              - /url: /policy?policy_id=1
+      - generic [ref=e1658]:
+        - heading "Shopee Markets" [level=3] [ref=e1659]
+        - list [ref=e1660] [cursor=pointer]:
+          - heading "Service Market" [level=4] [ref=e1661]:
+            - link "Service Market" [ref=e1662]:
+              - /url: https://service.shopee.cn/
+          - heading "Seller Education Hub (Singapore)" [level=4] [ref=e1663]:
+            - link "Seller Education Hub (Singapore)" [ref=e1664]:
+              - /url: https://seller.shopee.sg/edu
+          - heading "Seller Education Hub (Malaysia)" [level=4] [ref=e1665]:
+            - link "Seller Education Hub (Malaysia)" [ref=e1666]:
+              - /url: https://seller.shopee.com.my/edu
+          - heading "Seller Education Hub (Thailand)" [level=4] [ref=e1667]:
+            - link "Seller Education Hub (Thailand)" [ref=e1668]:
+              - /url: https://seller.shopee.co.th/edu
+          - heading "Seller Education Hub (Vietnam)" [level=4] [ref=e1669]:
+            - link "Seller Education Hub (Vietnam)" [ref=e1670]:
+              - /url: https://banhang.shopee.vn/edu
+          - heading "Seller Education Hub (Indonesia)" [level=4] [ref=e1671]:
+            - link "Seller Education Hub (Indonesia)" [ref=e1672]:
+              - /url: https://seller.shopee.co.id/edu
+          - heading "Seller Education Hub (Philippines)" [level=4] [ref=e1673]:
+            - link "Seller Education Hub (Philippines)" [ref=e1674]:
+              - /url: https://seller.shopee.ph/edu
+          - heading "Seller Education Hub (Brazil)" [level=4] [ref=e1675]:
+            - link "Seller Education Hub (Brazil)" [ref=e1676]:
+              - /url: https://seller.shopee.com.br/edu
+          - heading "Seller Education Hub (Japan)" [level=4] [ref=e1677]:
+            - link "Seller Education Hub (Japan)" [ref=e1678]:
+              - /url: https://shopee.jp/edu
+          - heading "Seller Education Hub (Korea)" [level=4] [ref=e1679]:
+            - link "Seller Education Hub (Korea)" [ref=e1680]:
+              - /url: https://shopee.kr/edu
+          - heading "Seller Education Hub (Hongkong)" [level=4] [ref=e1681]:
+            - link "Seller Education Hub (Hongkong)" [ref=e1682]:
+              - /url: https://shopee.com.hk/edu
+          - heading "虾皮卖家学习中心" [level=4] [ref=e1683]:
+            - link "虾皮卖家学习中心" [ref=e1684]:
+              - /url: https://shopee.cn/edu
+      - generic [ref=e1685]:
+        - heading "Support" [level=3] [ref=e1686]
+        - list [ref=e1687] [cursor=pointer]:
+          - heading "Announcement" [level=4] [ref=e1688]:
+            - link "Announcement" [ref=e1689]:
+              - /url: /announcements
+          - heading "FAQ" [level=4] [ref=e1690]:
+            - link "FAQ" [ref=e1691]:
+              - /url: /faq
+          - heading "Raise Ticket" [level=4] [ref=e1692]:
+            - link "Raise Ticket" [ref=e1693]:
+              - /url: /console/raise-ticket
+    - generic [ref=e1694]: Copyright @ Shopee 2025

@@ -1,0 +1,15 @@
+{
+  "name": "TikTok Shop Partner",
+  "startUrls": ["https://partner.tiktokshop.com/docv2/page/tts-developer-types"],
+  "outDir": "../tiktok",
+  "includePattern": "partner\\.tiktokshop\\.com/docv2/page/",
+  "excludePattern": "\\.(png|jpg|jpeg|gif|svg|pdf|zip)$|#",
+  "linkSelector": "a[href*='/docv2/page/']",
+  "contentSelector": ["[class*='markdown-container']", "#doc_scroll_container", "#scrollIntersectionCenter", "main"],
+  "removeSelectors": ["script", "style", "noscript", "svg", "[class*='scribe-feedback']"],
+  "waitForSelector": "[class*='markdown-container']",
+  "waitMs": 1500,
+  "navTimeoutMs": 45000,
+  "maxPages": 3000,
+  "headless": true
+}

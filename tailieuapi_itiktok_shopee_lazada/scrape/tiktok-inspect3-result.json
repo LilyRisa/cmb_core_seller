@@ -1,0 +1,972 @@
+{
+  "tabTitles": [
+    {
+      "index": 0,
+      "text": "Partner Guide",
+      "cls": "arco-tabs-header-title",
+      "id": "arco-tabs-0-tab-0",
+      "role": "tab"
+    },
+    {
+      "index": 2,
+      "text": "Developer Guide",
+      "cls": "arco-tabs-header-title arco-tabs-header-title-active",
+      "id": "arco-tabs-0-tab-1",
+      "role": "tab"
+    },
+    {
+      "index": 4,
+      "text": "API Reference",
+      "cls": "arco-tabs-header-title",
+      "id": "arco-tabs-0-tab-2",
+      "role": "tab"
+    },
+    {
+      "index": 6,
+      "text": "Webhooks",
+      "cls": "arco-tabs-header-title",
+      "id": "arco-tabs-0-tab-3",
+      "role": "tab"
+    },
+    {
+      "index": 8,
+      "text": "Terms and Policies",
+      "cls": "arco-tabs-header-title",
+      "id": "arco-tabs-0-tab-4",
+      "role": "tab"
+    },
+    {
+      "index": 10,
+      "text": "Changelog",
+      "cls": "arco-tabs-header-title",
+      "id": "arco-tabs-0-tab-5",
+      "role": "tab"
+    },
+    {
+      "index": 12,
+      "text": "FAQs",
+      "cls": "arco-tabs-header-title",
+      "id": "arco-tabs-0-tab-6",
+      "role": "tab"
+    },
+    {
+      "index": 14,
+      "text": "API Testing Tool",
+      "cls": "arco-tabs-header-title",
+      "id": "arco-tabs-0-tab-7",
+      "role": "tab"
+    }
+  ],
+  "categoriesData": [
+    {
+      "tab": "Partner Guide",
+      "tabId": "arco-tabs-0-tab-0",
+      "links": [
+        {
+          "href": "/docv2/page/about-partner-center-console",
+          "text": "About the Partner Center Console"
+        },
+        {
+          "href": "/docv2/page/developer",
+          "text": "Developer"
+        },
+        {
+          "href": "/docv2/page/tiktok-shop-partner-tsp",
+          "text": "TikTok Shop Partner (TSP)"
+        },
+        {
+          "href": "/docv2/page/creator-agency-partner-cap",
+          "text": "Creator Agency Partner (CAP)"
+        },
+        {
+          "href": "/docv2/page/non-us-tiktok-shop-affiliate-partner-tap",
+          "text": "Non-US TikTok Shop Affiliate Partner (TAP)"
+        },
+        {
+          "href": "/docv2/page/us-tiktok-shop-affiliate-partner-tap",
+          "text": "US TikTok Shop Affiliate Partner (TAP)"
+        },
+        {
+          "href": "/docv2/page/multi-channel-network-mcn",
+          "text": "Multi-Channel Network (MCN)"
+        },
+        {
+          "href": "/docv2/page/64f19887dc7f3e028d381064",
+          "text": "Register as a service partner"
+        },
+        {
+          "href": "/docv2/page/683f1353f979330480b82080",
+          "text": "[US] Agency Partner Onboard Guide"
+        },
+        {
+          "href": "/docv2/page/dvc9si7n",
+          "text": "[US] Service Category- Shop Registration"
+        },
+        {
+          "href": "/docv2/page/64f1989064ed2e0295f3c1b5",
+          "text": "Partner service categories"
+        },
+        {
+          "href": "/docv2/page/64f19899cb677b0286e75d67",
+          "text": "Partner registration application requirement"
+        },
+        {
+          "href": "/docv2/page/65e692774555b202bae5f694",
+          "text": "Edit certification details"
+        },
+        {
+          "href": "/docv2/page/65b3630a36248f02beb2ffd8",
+          "text": "Managing Main and Member Accounts"
+        },
+        {
+          "href": "/docv2/page/6809c6bb40605c04bbb7f95a",
+          "text": "[SEA] Creator Level for Partners"
+        },
+        {
+          "href": "/docv2/page/68411b45314d2504a1a7c407",
+          "text": "[US] TikTok Shop Partner Tiering Mechanism"
+        },
+        {
+          "href": "/docv2/page/27l52z0f",
+          "text": "[US] Partner Workbench- Homepage"
+        },
+        {
+          "href": "/docv2/page/lu8gy7a6",
+          "text": "[US] Partner Growth Center"
+        },
+        {
+          "href": "/docv2/page/npz00tc3",
+          "text": "[MY] Partner Tax Info Collection"
+        },
+        {
+          "href": "/docv2/page/64f198a193f5dc028e35505f",
+          "text": "Create and publish a service"
+        },
+        {
+          "href": "/docv2/page/650411a75a12ff0294023d30",
+          "text": "Listing your service on the App & Service Store"
+        },
+        {
+          "href": "/docv2/page/65fb2c789980e402be63e05b",
+          "text": "Edit your app and service"
+        },
+        {
+          "href": "/docv2/page/67162b1c50a484031dd4dadb",
+          "text": "Seller Leads Pool"
+        },
+        {
+          "href": "/docv2/page/64f198a9dc7f3e028d38171a",
+          "text": "Steps to Get Service Authorization"
+        },
+        {
+          "href": "/docv2/page/67f342f80e952804ac403aa0",
+          "text": "Steps to cancel authorization for TSP"
+        },
+        {
+          "href": "/docv2/page/64f198b5dc7f3e028d381882",
+          "text": "Management- Manage authorizations"
+        },
+        {
+          "href": "/docv2/page/666feffacf2e2202c8d39191",
+          "text": "TSP Access Feature"
+        },
+        {
+          "href": "/docv2/page/hdcn0oi7",
+          "text": "TSP Access Seller-Creator IM"
+        },
+        {
+          "href": "/docv2/page/scojt4gb",
+          "text": "[US] Partner Submitted Seller Leads Pool"
+        },
+        {
+          "href": "/docv2/page/666ff8ac20c18b02e5f8111e",
+          "text": "[MY] TSP Service Report"
+        },
+        {
+          "href": "/docv2/page/67f631bf30769204a95094cf",
+          "text": "[US] TSP Service Details"
+        },
+        {
+          "href": "/docv2/page/674588096e6be2030f1fda2e",
+          "text": "[US TSP] TSP Service Offer"
+        },
+        {
+          "href": "/docv2/page/6763cbc6e68c03030643b296",
+          "text": "[US TSP] Manage Company Profile"
+        },
+        {
+          "href": "/docv2/page/683f1483ffedae049865673e",
+          "text": "[UK/JP/Latam] TSP Online Signing Process"
+        },
+        {
+          "href": "/docv2/page/gkg274vo",
+          "text": "[US] TSP-Seller Service Online Signing Process"
+        },
+        {
+          "href": "/docv2/page/nkwyi8y4",
+          "text": "[US]Expand to All 3 Partner Services to Unlock Tier Growth & Benefits"
+        },
+        {
+          "href": "/docv2/page/650a32eec16ffe02b8e4a6b8",
+          "text": "Creator Management - Find Creators"
+        },
+        {
+          "href": "/docv2/page/670deef454f920030fbd9e2f",
+          "text": "Creator Management - Linked Creators"
+        },
+        {
+          "href": "/docv2/page/663a5ffd26b40c02d9c3db02",
+          "text": "Creator Management - Find Creators (US)"
+        },
+        {
+          "href": "/docv2/page/650a34b4f1fd3102b9206dbc",
+          "text": "Creator Management - Fee Agreement/Commission Sharing"
+        },
+        {
+          "href": "/docv2/page/660357886d72f402e3b598fe",
+          "text": "Creator Management - Linking with Creators for Data Authorization & Commission Sharing (US ONLY)"
+        },
+        {
+          "href": "/docv2/page/673f635a9e9ff30309130271",
+          "text": "Agency - Creator Instant Messaging (IM)"
+        },
+        {
+          "href": "/docv2/page/650a33b1c16ffe02b8e4bce8",
+          "text": "Product Management"
+        },
+        {
+          "href": "/docv2/page/6797b00f23ae4b030c8df132",
+          "text": "CAP Agency LIVE Commission (US)"
+        },
+        {
+          "href": "/docv2/page/67eb982ea15973047e1d633e",
+          "text": "[US]Creator Lead Management"
+        },
+        {
+          "href": "/docv2/page/67f85a66a15973047ea02b07",
+          "text": "[User guide] CAP Profile displayed to Creators"
+        },
+        {
+          "href": "/docv2/page/yok86lgy",
+          "text": "How to Link Your TikTok Business Account"
+        },
+        {
+          "href": "/docv2/page/lvau79md",
+          "text": "Agency Access to Live Manager"
+        },
+        {
+          "href": "/docv2/page/67894027bae28f030a6eee51",
+          "text": "Creator Management - Managing Sample Requests for Campaigns"
+        },
+        {
+          "href": "/docv2/page/650a395adefece02be63046f",
+          "text": "Partner Collaboration"
+        },
+        {
+          "href": "/docv2/page/657ff1d379b09302bc819d28",
+          "text": "Global Selling Collaborations Handbook"
+        },
+        {
+          "href": "/docv2/page/kx5j57ql",
+          "text": "Partner Campaign- Ads Commission"
+        },
+        {
+          "href": "/docv2/page/66064ce8337fa302d9c028db",
+          "text": "Affiliate Partner Custom Report"
+        },
+        {
+          "href": "/docv2/page/661e23f026367902bfae36f8",
+          "text": "[User Guide for Agencies] Requesting Samples through TAP Campaigns"
+        },
+        {
+          "href": "/docv2/page/66e21130640e850302941aae",
+          "text": "Linking your Affiliate profile to TikTok Business Account"
+        },
+        {
+          "href": "/docv2/page/671a77cda0ae7b030126e7c2",
+          "text": "[User Guide for Agencies] High opportunity product pool"
+        },
+        {
+          "href": "/docv2/page/67f85c13a15973047ea038da",
+          "text": "[User guide] TAP Profile displayed to Creators"
+        },
+        {
+          "href": "/docv2/page/jwkahmef",
+          "text": "[US] Shop Health"
+        },
+        {
+          "href": "/docv2/page/66688ae10664fe02c1da888e",
+          "text": "Contact a support agent"
+        },
+        {
+          "href": "/docv2/page/6661ee49ea792702c925ff02",
+          "text": "Submit a ticket"
+        },
+        {
+          "href": "/docv2/page/67dcd083cfbe6c04a15be01d",
+          "text": "[CAP/TAP] Finance guide (US only)"
+        },
+        {
+          "href": "/docv2/page/bz0jsiat",
+          "text": "[US] 1099-K and Tax Form FAQs"
+        },
+        {
+          "href": "/docv2/page/67e138cde2bca304a1450925",
+          "text": "UK MRDP TAX Compliance"
+        },
+        {
+          "href": "/docv2/page/67e1390ae2bca304a1450a92",
+          "text": "[CAP/TAP] Payouts and Earnings (UK only)"
+        },
+        {
+          "href": "/docv2/page/650a33f2c16ffe02b8e4c4c4",
+          "text": "Finance(Non-us)"
+        },
+        {
+          "href": "/docv2/page/dyr6jbn3",
+          "text": "[US] Creator Service(CAP) Settlement report Guide"
+        },
+        {
+          "href": "/docv2/page/tur4s3v7",
+          "text": "[US]Creator Matchmaking (TAP) Settlement report Guide"
+        },
+        {
+          "href": "/docv2/page/6506bbf2de672602b7bc0697",
+          "text": "GLOBAL: TIKTOK SHOP PARTNER CENTER TERMS OF SERVICE"
+        },
+        {
+          "href": "/docv2/page/65c05d6e4e466602e08fa537",
+          "text": "GLOBAL: KETENTUAN LAYANAN PUSAT MITRA TIKTOK SHOP"
+        },
+        {
+          "href": "/docv2/page/6678d6e01f4e9c02dd63e26d",
+          "text": "TÉRMINOS DE SERVICIO PARA DESARROLLADORES DE TIKTOK SHOP"
+        },
+        {
+          "href": "/docv2/page/66d6b58022eab802ed403fb3",
+          "text": "ข้อกำหนดการให้บริการศูนย์พาร์ทเนอร์ TikTok Shop"
+        },
+        {
+          "href": "/docv2/page/6506bc942f024f02be400315",
+          "text": "Developer Terms of Service"
+        },
+        {
+          "href": "/docv2/page/6678d65b11cb9502dd9b954d",
+          "text": "EU-UK TIKTOK SHOP DEVELOPER TERMS OF SERVICE"
+        },
+        {
+          "href": "/docv2/page/6506bcc7e7071002be1597cc",
+          "text": "Sandbox Terms of Service"
+        },
+        {
+          "href": "/docv2/page/6506bce1e7071002be159c31",
+          "text": "Development Shops Terms of Service"
+        },
+        {
+          "href": "/docv2/page/6506bc3d3edda702b7686ff5",
+          "text": "Partner Center Privacy Policy"
+        },
+        {
+          "href": "/docv2/page/6506bc5ede672602b7bc0efb",
+          "text": "Violation Management Regulations for TikTok Shop Partners"
+        },
+        {
+          "href": "/docv2/page/6506bd0bde672602b7bc1a9f",
+          "text": "Operation Assessment Standard for Cross-Border Partners"
+        },
+        {
+          "href": "/docv2/page/65fa756a8de0b902be2b4644",
+          "text": "TSP Certification Program for Local Thailand TSPs"
+        },
+        {
+          "href": "/docv2/page/66020d6c451b8102d6ec66af",
+          "text": "Understand Creator Violations as a Local SEA/UK MCN"
+        },
+        {
+          "href": "/docv2/page/66554f0cdd2fa302bf4d7457",
+          "text": "Please add the reminder: Seller's acknowledgement regarding the use of the AI-based feature"
+        },
+        {
+          "href": "/docv2/page/664c9549130c7802c8b0c1d6",
+          "text": "Seller's acknowledgement regarding the use of the AI-based feature"
+        },
+        {
+          "href": "/docv2/page/6746be6cebbeff030f7c5805",
+          "text": "【TikTok Shop - Cross-border Partner】 Onboarding Guide"
+        },
+        {
+          "href": "/docv2/page/6746bfaa13bf500306f47faa",
+          "text": "【TikTok Shop - Cross-border Partner】 Onboarding Guide for SEA"
+        },
+        {
+          "href": "/docv2/page/6746beaec77842030e83274c",
+          "text": "【TikTok Shop Cross-border Partner】 Onboarding - Common Reasons of Rejection"
+        }
+      ],
+      "sidebarHtmlPreview": "<div class=\"style-module__side-menu-container--V7HQW style-module__left-menu--Q34Do custom-scroll\" id=\"doc_left_menu\"><a id=\"menu_id_about-partner-center-console\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-selected--Jc1lO\" target=\"_blank\" href=\"/docv2/page/about-partner-center-console\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 0px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M12 3L4 3C3.44772 3 3 3.44772 3 4L3 12C3 12.5523 3.44772 13 4 13L12 13C12.5523 13 13 12.5523 13 12L13 4C13 3.44772 12.5523 3 12 3ZM4 2C2.89543 2 2 2.89543 2 4L2 12C2 13.1046 2.89543 14 4 14L12 14C13.1046 14 14 13.1046 14 12L14 4C14 2.89543 13.1046 2 12 2L4 2Z\" fill=\"currentColor\"></path><path d=\"M5.5 6C5.22386 6 5 5.77614 5 5.5C5 5.22386 5.22386 5 5.5 5L10.5 5C10.7761 5 11 5.22386 11 5.5C11 5.77614 10.7761 6 10.5 6L5.5 6Z\" fill=\"currentColor\"></path><path d=\"M5.5 8C5.22386 8 5 7.77614 5 7.5C5 7.22386 5.22386 7 5.5 7H8.5C8.77614 7 9 7.22386 9 7.5C9 7.77614 8.77614 8 8.5 8H5.5Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--GL7U8\">About the Partner Center Console</span></span></div></a><a id=\"menu_id_zdf5bju9\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-dir--IbLLG\" target=\"_blank\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 0px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M3.64645 10.3536C3.84171 10.5488 4.15829 10.5488 4.35355 10.3536L8 6.70711L11.6464 10.3536C11.8417 10.5488 12.1583 10.5488 12.3536 10.3536C12.5488 10.1583 12.5488 9.84171 12.3536 9.64645L8.35355 5.64645C8.15829 5.45118 7.84171 5.45118 7.64645 5.64645L3.64645 9.64645C3.45118 9.84171 3.45118 10.1583 3.64645 10.3536Z\" fill=\"c"
+    },
+    {
+      "tab": "Developer Guide",
+      "tabId": "arco-tabs-0-tab-1",
+      "links": [
+        {
+          "href": "/docv2/page/tts-developer-guide",
+          "text": "TikTok Shop developer guide"
+        },
+        {
+          "href": "/docv2/page/tts-developer-types",
+          "text": "Get started overview"
+        },
+        {
+          "href": "/docv2/page/hulvi36o",
+          "text": "App Category Selection Guide"
+        },
+        {
+          "href": "/docv2/page/api-entity-tags",
+          "text": "API entity tags"
+        },
+        {
+          "href": "/docv2/page/access-scope",
+          "text": "Access scope"
+        },
+        {
+          "href": "/docv2/page/tts-api-concepts-overview",
+          "text": "Overview"
+        },
+        {
+          "href": "/docv2/page/methods-and-endpoints",
+          "text": "Methods and endpoints"
+        },
+        {
+          "href": "/docv2/page/common-parameters",
+          "text": "Common parameters"
+        },
+        {
+          "href": "/docv2/page/sign-your-api-request",
+          "text": "Sign your API request"
+        },
+        {
+          "href": "/docv2/page/common-errors",
+          "text": "Common errors"
+        },
+        {
+          "href": "/docv2/page/regions-and-languages",
+          "text": "Regions and languages"
+        },
+        {
+          "href": "/docv2/page/rate-limits",
+          "text": "Rate limits"
+        },
+        {
+          "href": "/docv2/page/api-versioning",
+          "text": "API versioning"
+        },
+        {
+          "href": "/docv2/page/upgrading-to-api-version-202309",
+          "text": "Upgrading to API version 202309"
+        },
+        {
+          "href": "/docv2/page/upgrade-customer-service-api-to-202309",
+          "text": "Upgrade Customer Service API to 202309"
+        },
+        {
+          "href": "/docv2/page/seller-center-development-shops",
+          "text": "Seller Center development shops"
+        },
+        {
+          "href": "/docv2/page/api-testing-tool",
+          "text": "API testing tool"
+        },
+        {
+          "href": "/docv2/page/developer-dashboard",
+          "text": "Developer dashboard"
+        },
+        {
+          "href": "/docv2/page/app-development-overview",
+          "text": "App development overview"
+        },
+        {
+          "href": "/docv2/page/create-your-app",
+          "text": "Create your App"
+        },
+        {
+          "href": "/docv2/page/edit-your-app",
+          "text": "Edit your App"
+        },
+        {
+          "href": "/docv2/page/test-your-app",
+          "text": "Test your App"
+        },
+        {
+          "href": "/docv2/page/tts-webhooks-overview",
+          "text": "Overview"
+        },
+        {
+          "href": "/docv2/page/configuration-guide",
+          "text": "Configuration guide"
+        },
+        {
+          "href": "/docv2/page/tts-api-sdk-overview",
+          "text": "Overview"
+        },
+        {
+          "href": "/docv2/page/download-sdk",
+          "text": "Download SDK"
+        },
+        {
+          "href": "/docv2/page/integrate-java-sdk",
+          "text": "Integrate Java SDK"
+        },
+        {
+          "href": "/docv2/page/integrate-golang-sdk",
+          "text": "Integrate GoLang SDK"
+        },
+        {
+          "href": "/docv2/page/integrate-node-js-sdk",
+          "text": "Integrate Node.js SDK"
+        },
+        {
+          "href": "/docv2/page/update-sdk",
+          "text": "Update SDK"
+        },
+        {
+          "href": "/docv2/page/tts-widgets-overview",
+          "text": "Overview"
+        },
+        {
+          "href": "/docv2/page/get-widget-token",
+          "text": "Get widget token"
+        },
+        {
+          "href": "/docv2/page/widget-sdk-user-guide",
+          "text": "Widget SDK user guide"
+        },
+        {
+          "href": "/docv2/page/quality-engine-incident-reason-code",
+          "text": "Quality engine incident reason code"
+        },
+        {
+          "href": "/docv2/page/link-to-tokopedia-shop-isv-seller-developer-onboarding",
+          "text": "Link to Tokopedia & Shop - ISV & Seller developer onboarding"
+        },
+        {
+          "href": "/docv2/page/link-to-tokopedia-shop-migration-rehearsal",
+          "text": "Link to Tokopedia & Shop - Migration Rehearsal"
+        },
+        {
+          "href": "/docv2/page/how-to-contact-support",
+          "text": "How to contact support"
+        }
+      ],
+      "sidebarHtmlPreview": "<div class=\"style-module__side-menu-container--V7HQW style-module__left-menu--Q34Do custom-scroll\" id=\"doc_left_menu\"><a id=\"menu_id_tts-developer-guide\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-selected--Jc1lO\" target=\"_blank\" href=\"/docv2/page/tts-developer-guide\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 0px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M12 3L4 3C3.44772 3 3 3.44772 3 4L3 12C3 12.5523 3.44772 13 4 13L12 13C12.5523 13 13 12.5523 13 12L13 4C13 3.44772 12.5523 3 12 3ZM4 2C2.89543 2 2 2.89543 2 4L2 12C2 13.1046 2.89543 14 4 14L12 14C13.1046 14 14 13.1046 14 12L14 4C14 2.89543 13.1046 2 12 2L4 2Z\" fill=\"currentColor\"></path><path d=\"M5.5 6C5.22386 6 5 5.77614 5 5.5C5 5.22386 5.22386 5 5.5 5L10.5 5C10.7761 5 11 5.22386 11 5.5C11 5.77614 10.7761 6 10.5 6L5.5 6Z\" fill=\"currentColor\"></path><path d=\"M5.5 8C5.22386 8 5 7.77614 5 7.5C5 7.22386 5.22386 7 5.5 7H8.5C8.77614 7 9 7.22386 9 7.5C9 7.77614 8.77614 8 8.5 8H5.5Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--GL7U8\">TikTok Shop developer guide</span></span></div></a><a id=\"menu_id_650423bdb99d5302be3adabf\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-dir--IbLLG\" target=\"_blank\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 0px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M3.64645 10.3536C3.84171 10.5488 4.15829 10.5488 4.35355 10.3536L8 6.70711L11.6464 10.3536C11.8417 10.5488 12.1583 10.5488 12.3536 10.3536C12.5488 10.1583 12.5488 9.84171 12.3536 9.64645L8.35355 5.64645C8.15829 5.45118 7.84171 5.45118 7.64645 5.64645L3.64645 9.64645C3.45118 9.84171 3.45118 10.1583 3.64645 10.3536Z\" fill=\"currentC"
+    },
+    {
+      "tab": "API Reference",
+      "tabId": "arco-tabs-0-tab-2",
+      "links": [
+        {
+          "href": "/docv2/page/get-authorized-category-assets-202405",
+          "text": "GETGet Authorized Category Assets"
+        },
+        {
+          "href": "/docv2/page/get-authorized-shops-202309",
+          "text": "GETGet Authorized Shops"
+        },
+        {
+          "href": "https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e",
+          "text": "common parameters"
+        },
+        {
+          "href": "https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get Access Token API",
+          "text": "Get Access Token"
+        },
+        {
+          "href": "https://partner.tiktokshop.com/docv2/page/678e3a3978f4c20311b8b555",
+          "text": "guide"
+        },
+        {
+          "href": "https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942",
+          "text": "common error codes"
+        }
+      ],
+      "sidebarHtmlPreview": "<div class=\"style-module__side-menu-container--V7HQW style-module__left-menu--Q34Do style-module__doc-menu--KEk1t custom-scroll\" id=\"doc_left_menu\"><a id=\"menu_id_59gzxfos\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-dir--IbLLG\" target=\"_blank\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 0px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M3.64645 10.3536C3.84171 10.5488 4.15829 10.5488 4.35355 10.3536L8 6.70711L11.6464 10.3536C11.8417 10.5488 12.1583 10.5488 12.3536 10.3536C12.5488 10.1583 12.5488 9.84171 12.3536 9.64645L8.35355 5.64645C8.15829 5.45118 7.84171 5.45118 7.64645 5.64645L3.64645 9.64645C3.45118 9.84171 3.45118 10.1583 3.64645 10.3536Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Authorization</span></span></div></a><a id=\"menu_id_get-authorized-category-assets-202405\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-selected--Jc1lO\" target=\"_blank\" href=\"/docv2/page/get-authorized-category-assets-202405\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-positive partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">GET</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Get Authorized Category Assets</span></span></div></a><a id=\"menu_id_get-authorized-shops-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/get-authorized-shops-202309\"><div class=\"style-m"
+    },
+    {
+      "tab": "Webhooks",
+      "tabId": "arco-tabs-0-tab-3",
+      "links": [
+        {
+          "href": "/docv2/page/17-shoppable-content-posting",
+          "text": "(17) Shoppable content posting"
+        },
+        {
+          "href": "/docv2/page/20-creator-deauthorization",
+          "text": "(20) Creator deauthorization"
+        },
+        {
+          "href": "/docv2/page/iygh3ycz",
+          "text": "(55) Video Precheck Result"
+        },
+        {
+          "href": "/docv2/page/arpnre1g",
+          "text": "(59) Shoppable Video Precheck Tasks Result"
+        },
+        {
+          "href": "/docv2/page/33-new-message-listener",
+          "text": "(33) New message listener"
+        },
+        {
+          "href": "/docv2/page/urzvzank",
+          "text": "(56) Sample Application Status Change"
+        },
+        {
+          "href": "/docv2/page/13-new-conversation",
+          "text": "(13) New conversation"
+        },
+        {
+          "href": "/docv2/page/14-new-message",
+          "text": "(14) New message"
+        },
+        {
+          "href": "/docv2/page/36-invoice-status-change",
+          "text": "(36) Invoice status change"
+        },
+        {
+          "href": "/docv2/page/21-inbound-fbt-order-status-change",
+          "text": "(21) Inbound FBT order status change"
+        },
+        {
+          "href": "/docv2/page/22-fbt-merchant-onboarding",
+          "text": "(22) FBT merchant onboarding"
+        },
+        {
+          "href": "/docv2/page/23-goods-match",
+          "text": "(23) Goods match"
+        },
+        {
+          "href": "/docv2/page/24-fbt-inventory-update",
+          "text": "(24) FBT inventory update"
+        },
+        {
+          "href": "/docv2/page/gqh1f39k",
+          "text": "(58) Get FBT MCF Order Status"
+        },
+        {
+          "href": "/docv2/page/3-recipient-address-update",
+          "text": "(3) Recipient address update"
+        },
+        {
+          "href": "/docv2/page/4-package-update",
+          "text": "(4) Package update"
+        },
+        {
+          "href": "/docv2/page/1-order-status-change",
+          "text": "(1) Order status change"
+        },
+        {
+          "href": "/docv2/page/11-cancellation-status-change",
+          "text": "(11) Cancellation status change"
+        },
+        {
+          "href": "/docv2/page/5-product-status-change",
+          "text": "(5) Product status change"
+        },
+        {
+          "href": "/docv2/page/15-product-information-change",
+          "text": "(15) Product information change"
+        },
+        {
+          "href": "/docv2/page/16-product-creation",
+          "text": "(16) Product creation"
+        },
+        {
+          "href": "/docv2/page/18-product-category-change",
+          "text": "(18) Product category change"
+        },
+        {
+          "href": "/docv2/page/19-size-chart-change",
+          "text": "(19) Size chart change"
+        },
+        {
+          "href": "/docv2/page/25-opportunity-matching-status-change",
+          "text": "(25) Opportunity matching status change"
+        },
+        {
+          "href": "/docv2/page/27-inventory-status-change",
+          "text": "(27) Inventory status change"
+        },
+        {
+          "href": "/docv2/page/37-product-audit-status-change",
+          "text": "(37) Product audit status change"
+        },
+        {
+          "href": "/docv2/page/38-strikethrough-price-expired",
+          "text": "(38) Strikethrough price expired"
+        },
+        {
+          "href": "/docv2/page/42-combined-listing-change",
+          "text": "(42) Combined listing change"
+        },
+        {
+          "href": "/docv2/page/46-image-translation-completed",
+          "text": "(46) Image translation completed"
+        },
+        {
+          "href": "/docv2/page/7nzxgima",
+          "text": "(51) Global replication status change"
+        },
+        {
+          "href": "/docv2/page/g2wnrb57",
+          "text": "(52) Global listing method change"
+        },
+        {
+          "href": "/docv2/page/ve4gakno",
+          "text": "(62) Product Package Recommended"
+        },
+        {
+          "href": "/docv2/page/7u0ofsrd",
+          "text": "(68) Inventory changed"
+        },
+        {
+          "href": "/docv2/page/ohw7toic",
+          "text": "(66)Appeal Completed Webhook"
+        },
+        {
+          "href": "/docv2/page/39-activity-status-change",
+          "text": "(39) Activity status change"
+        },
+        {
+          "href": "/docv2/page/x6legjl9",
+          "text": "(63) Activity change"
+        },
+        {
+          "href": "/docv2/page/12-return-status-change",
+          "text": "(12) Return status change"
+        },
+        {
+          "href": "/docv2/page/h4cxaxub",
+          "text": "(64) Aftersales Request Status Update"
+        },
+        {
+          "href": "/docv2/page/2f0jrrxc",
+          "text": "(65) RMA Status Update"
+        },
+        {
+          "href": "/docv2/page/8y10pibm",
+          "text": "(67) Refund Success"
+        },
+        {
+          "href": "/docv2/page/6-seller-deauthorization",
+          "text": "(6) Seller deauthorization"
+        },
+        {
+          "href": "/docv2/page/7-upcoming-authorization-expiration",
+          "text": "(7) Upcoming authorization expiration"
+        },
+        {
+          "href": "/docv2/page/35-tokopedia-mirror-status-change",
+          "text": "(35) Tokopedia mirror status change"
+        }
+      ],
+      "sidebarHtmlPreview": "<div class=\"style-module__side-menu-container--V7HQW style-module__left-menu--Q34Do custom-scroll\" id=\"doc_left_menu\"><a id=\"menu_id_670cb975c78b9802f7942cda\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-dir--IbLLG\" target=\"_blank\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 0px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M3.64645 10.3536C3.84171 10.5488 4.15829 10.5488 4.35355 10.3536L8 6.70711L11.6464 10.3536C11.8417 10.5488 12.1583 10.5488 12.3536 10.3536C12.5488 10.1583 12.5488 9.84171 12.3536 9.64645L8.35355 5.64645C8.15829 5.45118 7.84171 5.45118 7.64645 5.64645L3.64645 9.64645C3.45118 9.84171 3.45118 10.1583 3.64645 10.3536Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--GL7U8\">Affiliate Creator</span></span></div></a><a id=\"menu_id_17-shoppable-content-posting\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-selected--Jc1lO\" target=\"_blank\" href=\"/docv2/page/17-shoppable-content-posting\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M12 3L4 3C3.44772 3 3 3.44772 3 4L3 12C3 12.5523 3.44772 13 4 13L12 13C12.5523 13 13 12.5523 13 12L13 4C13 3.44772 12.5523 3 12 3ZM4 2C2.89543 2 2 2.89543 2 4L2 12C2 13.1046 2.89543 14 4 14L12 14C13.1046 14 14 13.1046 14 12L14 4C14 2.89543 13.1046 2 12 2L4 2Z\" fill=\"currentColor\"></path><path d=\"M5.5 6C5.22386 6 5 5.77614 5 5.5C5 5.22386 5.22386 5 5.5 5L10.5 5C10.7761 5 11 5.22386 11 5.5C11 5.77614 10.7761 6 10.5 6L5.5 6Z\" fill=\"currentColor\"></path><path d=\"M5.5 8C5.22386 8 5 7.77614 5 7.5C5 7.22386 5.22386 7 5.5 7H8.5C8.77614 7 9 7.22386 9 7.5C9 7.77614 8.77614 8 8.5 8H5.5Z\" fill="
+    },
+    {
+      "tab": "Terms and Policies",
+      "tabId": "arco-tabs-0-tab-4",
+      "links": [
+        {
+          "href": "/docv2/page/17-shoppable-content-posting",
+          "text": "(17) Shoppable content posting"
+        },
+        {
+          "href": "/docv2/page/20-creator-deauthorization",
+          "text": "(20) Creator deauthorization"
+        },
+        {
+          "href": "/docv2/page/iygh3ycz",
+          "text": "(55) Video Precheck Result"
+        },
+        {
+          "href": "/docv2/page/arpnre1g",
+          "text": "(59) Shoppable Video Precheck Tasks Result"
+        },
+        {
+          "href": "/docv2/page/33-new-message-listener",
+          "text": "(33) New message listener"
+        },
+        {
+          "href": "/docv2/page/urzvzank",
+          "text": "(56) Sample Application Status Change"
+        },
+        {
+          "href": "/docv2/page/13-new-conversation",
+          "text": "(13) New conversation"
+        },
+        {
+          "href": "/docv2/page/14-new-message",
+          "text": "(14) New message"
+        },
+        {
+          "href": "/docv2/page/36-invoice-status-change",
+          "text": "(36) Invoice status change"
+        },
+        {
+          "href": "/docv2/page/21-inbound-fbt-order-status-change",
+          "text": "(21) Inbound FBT order status change"
+        },
+        {
+          "href": "/docv2/page/22-fbt-merchant-onboarding",
+          "text": "(22) FBT merchant onboarding"
+        },
+        {
+          "href": "/docv2/page/23-goods-match",
+          "text": "(23) Goods match"
+        },
+        {
+          "href": "/docv2/page/24-fbt-inventory-update",
+          "text": "(24) FBT inventory update"
+        },
+        {
+          "href": "/docv2/page/gqh1f39k",
+          "text": "(58) Get FBT MCF Order Status"
+        },
+        {
+          "href": "/docv2/page/3-recipient-address-update",
+          "text": "(3) Recipient address update"
+        },
+        {
+          "href": "/docv2/page/4-package-update",
+          "text": "(4) Package update"
+        },
+        {
+          "href": "/docv2/page/1-order-status-change",
+          "text": "(1) Order status change"
+        },
+        {
+          "href": "/docv2/page/11-cancellation-status-change",
+          "text": "(11) Cancellation status change"
+        },
+        {
+          "href": "/docv2/page/5-product-status-change",
+          "text": "(5) Product status change"
+        },
+        {
+          "href": "/docv2/page/15-product-information-change",
+          "text": "(15) Product information change"
+        },
+        {
+          "href": "/docv2/page/16-product-creation",
+          "text": "(16) Product creation"
+        },
+        {
+          "href": "/docv2/page/18-product-category-change",
+          "text": "(18) Product category change"
+        },
+        {
+          "href": "/docv2/page/19-size-chart-change",
+          "text": "(19) Size chart change"
+        },
+        {
+          "href": "/docv2/page/25-opportunity-matching-status-change",
+          "text": "(25) Opportunity matching status change"
+        },
+        {
+          "href": "/docv2/page/27-inventory-status-change",
+          "text": "(27) Inventory status change"
+        },
+        {
+          "href": "/docv2/page/37-product-audit-status-change",
+          "text": "(37) Product audit status change"
+        },
+        {
+          "href": "/docv2/page/38-strikethrough-price-expired",
+          "text": "(38) Strikethrough price expired"
+        },
+        {
+          "href": "/docv2/page/42-combined-listing-change",
+          "text": "(42) Combined listing change"
+        },
+        {
+          "href": "/docv2/page/46-image-translation-completed",
+          "text": "(46) Image translation completed"
+        },
+        {
+          "href": "/docv2/page/7nzxgima",
+          "text": "(51) Global replication status change"
+        },
+        {
+          "href": "/docv2/page/g2wnrb57",
+          "text": "(52) Global listing method change"
+        },
+        {
+          "href": "/docv2/page/ve4gakno",
+          "text": "(62) Product Package Recommended"
+        },
+        {
+          "href": "/docv2/page/7u0ofsrd",
+          "text": "(68) Inventory changed"
+        },
+        {
+          "href": "/docv2/page/ohw7toic",
+          "text": "(66)Appeal Completed Webhook"
+        },
+        {
+          "href": "/docv2/page/39-activity-status-change",
+          "text": "(39) Activity status change"
+        },
+        {
+          "href": "/docv2/page/x6legjl9",
+          "text": "(63) Activity change"
+        },
+        {
+          "href": "/docv2/page/12-return-status-change",
+          "text": "(12) Return status change"
+        },
+        {
+          "href": "/docv2/page/h4cxaxub",
+          "text": "(64) Aftersales Request Status Update"
+        },
+        {
+          "href": "/docv2/page/2f0jrrxc",
+          "text": "(65) RMA Status Update"
+        },
+        {
+          "href": "/docv2/page/8y10pibm",
+          "text": "(67) Refund Success"
+        },
+        {
+          "href": "/docv2/page/6-seller-deauthorization",
+          "text": "(6) Seller deauthorization"
+        },
+        {
+          "href": "/docv2/page/7-upcoming-authorization-expiration",
+          "text": "(7) Upcoming authorization expiration"
+        },
+        {
+          "href": "/docv2/page/35-tokopedia-mirror-status-change",
+          "text": "(35) Tokopedia mirror status change"
+        }
+      ],
+      "sidebarHtmlPreview": "<div class=\"style-module__side-menu-container--V7HQW style-module__left-menu--Q34Do custom-scroll\" id=\"doc_left_menu\"><a id=\"menu_id_670cb975c78b9802f7942cda\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-dir--IbLLG\" target=\"_blank\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 0px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M3.64645 10.3536C3.84171 10.5488 4.15829 10.5488 4.35355 10.3536L8 6.70711L11.6464 10.3536C11.8417 10.5488 12.1583 10.5488 12.3536 10.3536C12.5488 10.1583 12.5488 9.84171 12.3536 9.64645L8.35355 5.64645C8.15829 5.45118 7.84171 5.45118 7.64645 5.64645L3.64645 9.64645C3.45118 9.84171 3.45118 10.1583 3.64645 10.3536Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--GL7U8\">Affiliate Creator</span></span></div></a><a id=\"menu_id_17-shoppable-content-posting\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-selected--Jc1lO\" target=\"_blank\" href=\"/docv2/page/17-shoppable-content-posting\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M12 3L4 3C3.44772 3 3 3.44772 3 4L3 12C3 12.5523 3.44772 13 4 13L12 13C12.5523 13 13 12.5523 13 12L13 4C13 3.44772 12.5523 3 12 3ZM4 2C2.89543 2 2 2.89543 2 4L2 12C2 13.1046 2.89543 14 4 14L12 14C13.1046 14 14 13.1046 14 12L14 4C14 2.89543 13.1046 2 12 2L4 2Z\" fill=\"currentColor\"></path><path d=\"M5.5 6C5.22386 6 5 5.77614 5 5.5C5 5.22386 5.22386 5 5.5 5L10.5 5C10.7761 5 11 5.22386 11 5.5C11 5.77614 10.7761 6 10.5 6L5.5 6Z\" fill=\"currentColor\"></path><path d=\"M5.5 8C5.22386 8 5 7.77614 5 7.5C5 7.22386 5.22386 7 5.5 7H8.5C8.77614 7 9 7.22386 9 7.5C9 7.77614 8.77614 8 8.5 8H5.5Z\" fill="
+    },
+    {
+      "tab": "Changelog",
+      "tabId": "arco-tabs-0-tab-5",
+      "links": [],
+      "error": "elementHandle.click: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div tabindex=\"-1\" class=\"arco-modal-wrapper arco-modal-wrapper-align-center\">…</div> from <div>…</div> subtree intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div tabindex=\"-1\" class=\"arco-modal-wrapper arco-modal-wrapper-align-center\">…</div> from <div>…</div> subtree intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    8 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div tabindex=\"-1\" class=\"arco-modal-wrapper arco-modal-wrapper-align-center\">…</div> from <div>…</div> subtree intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 500ms\u001b[22m\n"
+    },
+    {
+      "tab": "FAQs",
+      "tabId": "arco-tabs-0-tab-6",
+      "links": [],
+      "error": "elementHandle.click: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div tabindex=\"-1\" class=\"arco-modal-wrapper arco-modal-wrapper-align-center\">…</div> from <div>…</div> subtree intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div tabindex=\"-1\" class=\"arco-modal-wrapper arco-modal-wrapper-align-center\">…</div> from <div>…</div> subtree intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    8 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div tabindex=\"-1\" class=\"arco-modal-wrapper arco-modal-wrapper-align-center\">…</div> from <div>…</div> subtree intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 500ms\u001b[22m\n\u001b[2m    - waiting for element to be visible, enabled and stable\u001b[22m\n"
+    },
+    {
+      "tab": "API Testing Tool",
+      "tabId": "arco-tabs-0-tab-7",
+      "links": [],
+      "error": "elementHandle.click: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div tabindex=\"-1\" class=\"arco-modal-wrapper arco-modal-wrapper-align-center\">…</div> from <div>…</div> subtree intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div tabindex=\"-1\" class=\"arco-modal-wrapper arco-modal-wrapper-align-center\">…</div> from <div>…</div> subtree intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    9 × waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div tabindex=\"-1\" class=\"arco-modal-wrapper arco-modal-wrapper-align-center\">…</div> from <div>…</div> subtree intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 500ms\u001b[22m\n"
+    }
+  ],
+  "totalUniqueUrls": 171
+}

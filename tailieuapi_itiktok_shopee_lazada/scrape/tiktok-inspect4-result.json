@@ -1,0 +1,1253 @@
+{
+  "linksBefore": [
+    {
+      "href": "/docv2/page/get-authorized-category-assets-202405",
+      "text": "GETGet Authorized Category Assets"
+    },
+    {
+      "href": "/docv2/page/get-authorized-shops-202309",
+      "text": "GETGet Authorized Shops"
+    },
+    {
+      "href": "https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e",
+      "text": "common parameters"
+    },
+    {
+      "href": "https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get Access Token API",
+      "text": "Get Access Token"
+    },
+    {
+      "href": "https://partner.tiktokshop.com/docv2/page/678e3a3978f4c20311b8b555",
+      "text": "guide"
+    },
+    {
+      "href": "https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942",
+      "text": "common error codes"
+    }
+  ],
+  "linksAfter": [
+    {
+      "href": "/docv2/page/get-shop-webhooks-202309",
+      "text": "GETGet Shop Webhooks"
+    },
+    {
+      "href": "/docv2/page/update-shop-webhook-202309",
+      "text": "PUTUpdate Shop Webhook"
+    },
+    {
+      "href": "/docv2/page/delete-shop-webhook-202309",
+      "text": "DELDelete Shop Webhook"
+    },
+    {
+      "href": "/docv2/page/seller-api-overview",
+      "text": "Seller API overview"
+    },
+    {
+      "href": "/docv2/page/get-active-shops-202309",
+      "text": "GETGet Active Shops"
+    },
+    {
+      "href": "/docv2/page/get-seller-permissions-202309",
+      "text": "GETGet Seller Permissions"
+    },
+    {
+      "href": "/docv2/page/get-shop-group-202601",
+      "text": "GETGet Shop Group"
+    },
+    {
+      "href": "/docv2/page/products-api-overview",
+      "text": "Products API overview"
+    },
+    {
+      "href": "/docv2/page/listing-quality-diagnosis",
+      "text": "Listing quality diagnosis"
+    },
+    {
+      "href": "/docv2/page/product-pricing",
+      "text": "Product pricing"
+    },
+    {
+      "href": "/docv2/page/common-mistakes",
+      "text": "Common mistakes"
+    },
+    {
+      "href": "/docv2/page/check-listing-prerequisites-202312",
+      "text": "GETCheck Listing Prerequisites"
+    },
+    {
+      "href": "/docv2/page/get-categories-202309",
+      "text": "GETGet Categories"
+    },
+    {
+      "href": "/docv2/page/recommend-category-202309",
+      "text": "POSTRecommend Category"
+    },
+    {
+      "href": "/docv2/page/get-category-rules-202309",
+      "text": "GETGet Category Rules"
+    },
+    {
+      "href": "/docv2/page/get-attributes-202309",
+      "text": "GETGet Attributes"
+    },
+    {
+      "href": "/docv2/page/get-brands-202309",
+      "text": "GETGet Brands"
+    },
+    {
+      "href": "/docv2/page/create-custom-brands-202309",
+      "text": "POSTCreate Custom Brands"
+    },
+    {
+      "href": "/docv2/page/check-product-listing-202309",
+      "text": "POSTCheck Product Listing"
+    },
+    {
+      "href": "/docv2/page/upload-product-image-202309",
+      "text": "POSTUpload Product Image"
+    },
+    {
+      "href": "/docv2/page/upload-product-file-202309",
+      "text": "POSTUpload Product File"
+    },
+    {
+      "href": "/docv2/page/search-size-charts-202407",
+      "text": "POSTSearch Size Charts"
+    },
+    {
+      "href": "/docv2/page/create-product-202309",
+      "text": "POSTCreate Product"
+    },
+    {
+      "href": "/docv2/page/activate-product-202309",
+      "text": "POSTActivate Product"
+    },
+    {
+      "href": "/docv2/page/deactivate-products-202309",
+      "text": "POSTDeactivate Products"
+    },
+    {
+      "href": "/docv2/page/delete-products-202309",
+      "text": "DELDelete Products"
+    },
+    {
+      "href": "/docv2/page/recover-products-202309",
+      "text": "POSTRecover Products"
+    },
+    {
+      "href": "/docv2/page/get-product-202309",
+      "text": "GETGet Product"
+    },
+    {
+      "href": "/docv2/page/search-products-202502",
+      "text": "POSTSearch Products"
+    },
+    {
+      "href": "/docv2/page/update-price-202309",
+      "text": "POSTUpdate Price"
+    },
+    {
+      "href": "/docv2/page/update-inventory-202309",
+      "text": "POSTUpdate Inventory"
+    },
+    {
+      "href": "/docv2/page/inventory-search-202309",
+      "text": "POSTInventory Search"
+    },
+    {
+      "href": "/docv2/page/diagnose-and-optimize-product-202411",
+      "text": "POSTDiagnose and Optimize Product"
+    },
+    {
+      "href": "/docv2/page/product-information-issue-diagnosis-202405",
+      "text": "GETProduct Information Issue Diagnosis"
+    },
+    {
+      "href": "/docv2/page/get-products-seo-words-202405",
+      "text": "GETGet Products SEO Words"
+    },
+    {
+      "href": "/docv2/page/get-recommended-product-title-and-description-202405",
+      "text": "GETGet Recommended Product Title And Description"
+    },
+    {
+      "href": "/docv2/page/optimized-images-202404",
+      "text": "POSTOptimized Images"
+    },
+    {
+      "href": "/docv2/page/create-image-translation-tasks-202505",
+      "text": "POSTCreate Image Translation Tasks"
+    },
+    {
+      "href": "/docv2/page/get-image-translation-tasks-202506",
+      "text": "GETGet Image Translation Tasks"
+    },
+    {
+      "href": "/docv2/page/get-global-categories-202309",
+      "text": "GETGet Global Categories"
+    },
+    {
+      "href": "/docv2/page/recommend-global-categories-202309",
+      "text": "POSTRecommend Global Categories"
+    },
+    {
+      "href": "/docv2/page/get-global-category-rules-202309",
+      "text": "GETGet Global Category Rules"
+    },
+    {
+      "href": "/docv2/page/get-global-attributes-202309",
+      "text": "GETGet Global Attributes"
+    },
+    {
+      "href": "/docv2/page/create-global-product-202309",
+      "text": "POSTCreate Global Product"
+    },
+    {
+      "href": "/docv2/page/publish-global-product-202309",
+      "text": "POSTPublish Global Product"
+    },
+    {
+      "href": "/docv2/page/edit-global-product-202309",
+      "text": "PUTEdit Global Product"
+    },
+    {
+      "href": "/docv2/page/delete-global-products-202309",
+      "text": "DELDelete Global Products"
+    },
+    {
+      "href": "/docv2/page/get-global-product-202309",
+      "text": "GETGet Global Product"
+    },
+    {
+      "href": "/docv2/page/search-global-products-202312",
+      "text": "POSTSearch Global Products"
+    },
+    {
+      "href": "/docv2/page/update-global-inventory-202309",
+      "text": "POSTUpdate Global Inventory"
+    },
+    {
+      "href": "/docv2/page/create-manufacturer-202409",
+      "text": "POSTCreate Manufacturer"
+    },
+    {
+      "href": "/docv2/page/partial-edit-manufacturer-202409",
+      "text": "POSTPartial Edit Manufacturer"
+    },
+    {
+      "href": "/docv2/page/search-manufacturers-202501",
+      "text": "POSTSearch Manufacturers"
+    },
+    {
+      "href": "/docv2/page/create-responsible-person-202409",
+      "text": "POSTCreate Responsible Person"
+    },
+    {
+      "href": "/docv2/page/partial-edit-responsible-person-202409",
+      "text": "POSTPartial Edit Responsible Person"
+    },
+    {
+      "href": "/docv2/page/search-responsible-persons-202501",
+      "text": "POSTSearch Responsible Persons"
+    },
+    {
+      "href": "/docv2/page/create-category-upgrade-task-202407",
+      "text": "POSTCreate Category Upgrade Task"
+    },
+    {
+      "href": "/docv2/page/get-global-listing-rules-202507",
+      "text": "GETGet Global Listing Rules"
+    },
+    {
+      "href": "/docv2/page/replicate-product-202507",
+      "text": "POSTReplicate Product"
+    },
+    {
+      "href": "/docv2/page/get-global-replicated-products-202507",
+      "text": "GETGet Global Replicated Products"
+    },
+    {
+      "href": "/docv2/page/edit-product-202509",
+      "text": "PUTEdit Product"
+    },
+    {
+      "href": "/docv2/page/partial-edit-product-202509",
+      "text": "POSTPartial Edit Product"
+    },
+    {
+      "href": "/docv2/page/partial-edit-global-product-202509",
+      "text": "PUTPartial Edit Global Product"
+    },
+    {
+      "href": "/docv2/page/product-auditing-research-202601",
+      "text": "POSTProduct Auditing Research"
+    },
+    {
+      "href": "/docv2/page/get-recommended-product-package-202602",
+      "text": "POSTGet Recommended Product Package"
+    },
+    {
+      "href": "/docv2/page/get-opportunity-detail-202604",
+      "text": "GETGet Opportunity Detail"
+    },
+    {
+      "href": "/docv2/page/list-opportunity-202604",
+      "text": "POSTList Opportunity"
+    },
+    {
+      "href": "/docv2/page/submit-product-via-opportunity-202604",
+      "text": "POSTSubmit Product via Opportunity"
+    },
+    {
+      "href": "/docv2/page/get-submission-records-202604",
+      "text": "GETGet Submission Records"
+    },
+    {
+      "href": "/docv2/page/create-gpa-upgrade-task-202604",
+      "text": "POSTCreate GPA Upgrade Task"
+    },
+    {
+      "href": "/docv2/page/update-stock-operation-settings-202604",
+      "text": "POSTUpdate Stock Operation Settings"
+    },
+    {
+      "href": "/docv2/page/submit-appeal-task-202604",
+      "text": "POSTSubmit Appeal Task"
+    },
+    {
+      "href": "/docv2/page/promotion-api-overview",
+      "text": "Promotion API overview"
+    },
+    {
+      "href": "/docv2/page/shipping-discount-supported-areas",
+      "text": "Shipping discount supported areas"
+    },
+    {
+      "href": "/docv2/page/create-activity-202309",
+      "text": "POSTCreate Activity"
+    },
+    {
+      "href": "/docv2/page/update-activity-202309",
+      "text": "PUTUpdate Activity"
+    },
+    {
+      "href": "/docv2/page/deactivate-activity-202309",
+      "text": "POSTDeactivate Activity"
+    },
+    {
+      "href": "/docv2/page/get-activity-202309",
+      "text": "GETGet Activity"
+    },
+    {
+      "href": "/docv2/page/search-activities-202309",
+      "text": "POSTSearch Activities"
+    },
+    {
+      "href": "/docv2/page/update-activity-product-202309",
+      "text": "PUTUpdate Activity Product"
+    },
+    {
+      "href": "/docv2/page/remove-activity-product-202309",
+      "text": "DELRemove Activity Product"
+    },
+    {
+      "href": "/docv2/page/get-coupon-202406",
+      "text": "GETGet Coupon"
+    },
+    {
+      "href": "/docv2/page/search-coupons-202406",
+      "text": "POSTSearch Coupons"
+    },
+    {
+      "href": "/docv2/page/order-api-overview",
+      "text": "Order API overview"
+    },
+    {
+      "href": "/docv2/page/get-order-list-202309",
+      "text": "POSTGet Order List"
+    },
+    {
+      "href": "/docv2/page/get-price-detail-202407",
+      "text": "GETGet Price Detail"
+    },
+    {
+      "href": "/docv2/page/add-external-order-references-202406",
+      "text": "POSTAdd External Order References"
+    },
+    {
+      "href": "/docv2/page/get-external-order-references-202406",
+      "text": "GETGet External Order References"
+    },
+    {
+      "href": "/docv2/page/search-order-by-external-order-reference-202406",
+      "text": "POSTSearch Order By External Order Reference"
+    },
+    {
+      "href": "/docv2/page/get-order-detail-202507",
+      "text": "GETGet Order Detail"
+    },
+    {
+      "href": "/docv2/page/update-the-blind-box-opening-results-202511",
+      "text": "POSTUpdate The Blind Box Opening Results"
+    },
+    {
+      "href": "/docv2/page/fulfillment-api-overview",
+      "text": "Fulfillment API overview"
+    },
+    {
+      "href": "/docv2/page/get-order-split-attributes-202309",
+      "text": "GETGet Order Split Attributes"
+    },
+    {
+      "href": "/docv2/page/split-orders-202309",
+      "text": "POSTSplit Orders"
+    },
+    {
+      "href": "/docv2/page/get-eligible-shipping-service-202309",
+      "text": "POSTGet Eligible Shipping Service"
+    },
+    {
+      "href": "/docv2/page/create-first-mile-bundle-202407",
+      "text": "POSTCreate First Mile Bundle"
+    },
+    {
+      "href": "/docv2/page/search-package-202309",
+      "text": "POSTSearch Package"
+    },
+    {
+      "href": "/docv2/page/search-combinable-packages-202309",
+      "text": "GETSearch Combinable Packages"
+    },
+    {
+      "href": "/docv2/page/combine-package-202309",
+      "text": "POSTCombine Package"
+    },
+    {
+      "href": "/docv2/page/uncombine-packages-202309",
+      "text": "POSTUncombine Packages"
+    },
+    {
+      "href": "/docv2/page/get-package-handover-time-slots-202309",
+      "text": "GETGet Package Handover Time Slots"
+    },
+    {
+      "href": "/docv2/page/ship-package-202309",
+      "text": "POSTShip Package"
+    },
+    {
+      "href": "/docv2/page/batch-ship-packages-202309",
+      "text": "POSTBatch Ship Packages"
+    },
+    {
+      "href": "/docv2/page/mark-package-as-shipped-202309",
+      "text": "POSTMark Package As Shipped"
+    },
+    {
+      "href": "/docv2/page/get-package-shipping-document-202309",
+      "text": "GETGet Package Shipping Document"
+    },
+    {
+      "href": "/docv2/page/get-package-detail-202309",
+      "text": "GETGet Package Detail"
+    },
+    {
+      "href": "/docv2/page/get-tracking-202309",
+      "text": "GETGet Tracking"
+    },
+    {
+      "href": "/docv2/page/update-shipping-info-202309",
+      "text": "POSTUpdate Shipping Info"
+    },
+    {
+      "href": "/docv2/page/update-package-shipping-info-202309",
+      "text": "POSTUpdate Package Shipping Info"
+    },
+    {
+      "href": "/docv2/page/fulfillment-upload-delivery-file-202309",
+      "text": "POSTFulfillment Upload Delivery File"
+    },
+    {
+      "href": "/docv2/page/fulfillment-upload-delivery-image-202309",
+      "text": "POSTFulfillment Upload Delivery Image"
+    },
+    {
+      "href": "/docv2/page/update-package-delivery-status-202309",
+      "text": "POSTUpdate Package Delivery Status"
+    },
+    {
+      "href": "/docv2/page/upload-invoice-202502",
+      "text": "POSTUpload Invoice"
+    },
+    {
+      "href": "/docv2/page/tts-tracking-validation-202508",
+      "text": "GETTTS Tracking Validation"
+    },
+    {
+      "href": "/docv2/page/create-first-mile-bundle-v2-202510",
+      "text": "POSTCreate First Mile Bundle(V2)"
+    },
+    {
+      "href": "/docv2/page/create-packages-202512",
+      "text": "POSTCreate Packages"
+    },
+    {
+      "href": "/docv2/page/redeem-info-callback-202601",
+      "text": "POSTRedeem Info Callback"
+    },
+    {
+      "href": "/docv2/page/16f0ojsg",
+      "text": "FBT Inbound API — Overview Guide"
+    },
+    {
+      "href": "/docv2/page/get-fbt-merchant-onboarded-regions-202409",
+      "text": "GETGet FBT Merchant Onboarded Regions"
+    },
+    {
+      "href": "/docv2/page/get-fbt-warehouse-list-202408",
+      "text": "GETGet FBT Warehouse List"
+    },
+    {
+      "href": "/docv2/page/search-fbt-inventory-202408",
+      "text": "POSTSearch FBT Inventory"
+    },
+    {
+      "href": "/docv2/page/search-fbt-inventory-record-202410",
+      "text": "POSTSearch FBT Inventory Record"
+    },
+    {
+      "href": "/docv2/page/search-goods-info-202409",
+      "text": "POSTSearch Goods Info"
+    },
+    {
+      "href": "/docv2/page/get-fbf-mcf-order-status-202601",
+      "text": "GETGet FBF MCF Order Status"
+    },
+    {
+      "href": "/docv2/page/cancel-fbt-mcf-order-202601",
+      "text": "POSTCancel FBT MCF Order"
+    },
+    {
+      "href": "/docv2/page/create-fbt-mcf-order-202601",
+      "text": "POSTCreate FBT MCF Order"
+    },
+    {
+      "href": "/docv2/page/query-goods-inventory-for-mcf-202601",
+      "text": "POSTQuery Goods Inventory For MCF"
+    },
+    {
+      "href": "/docv2/page/get-fbt-merchant-mcf-status-202601",
+      "text": "GETGet FBT Merchant MCF Status"
+    },
+    {
+      "href": "/docv2/page/create-update-inbound-plan-202602",
+      "text": "POSTCreate Update Inbound Plan"
+    },
+    {
+      "href": "/docv2/page/list-available-inbound-method-202602",
+      "text": "POSTList Available Inbound Method"
+    },
+    {
+      "href": "/docv2/page/get-inbound-method-detail-202602",
+      "text": "POSTGet Inbound Method Detail"
+    },
+    {
+      "href": "/docv2/page/print-label-202602",
+      "text": "POSTPrint Label"
+    },
+    {
+      "href": "/docv2/page/update-tracking-202602",
+      "text": "POSTUpdate Tracking"
+    },
+    {
+      "href": "/docv2/page/cancel-inbound-order-202602",
+      "text": "POSTCancel Inbound Order"
+    },
+    {
+      "href": "/docv2/page/get-inbound-order-202602",
+      "text": "GETGet Inbound Order"
+    },
+    {
+      "href": "/docv2/page/confirm-inbound-method-202603",
+      "text": "POSTConfirm Inbound Method"
+    },
+    {
+      "href": "/docv2/page/ship-inbound-order-202603",
+      "text": "POSTShip Inbound Order"
+    },
+    {
+      "href": "/docv2/page/update-goods-sku-relation-202603",
+      "text": "POSTUpdate Goods Sku Relation"
+    },
+    {
+      "href": "/docv2/page/create-goods-202603",
+      "text": "POSTCreate Goods"
+    },
+    {
+      "href": "/docv2/page/get-hazmat-and-expiration-info-202603",
+      "text": "POSTGet Hazmat And Expiration Info"
+    },
+    {
+      "href": "/docv2/page/update-goods-202603",
+      "text": "POSTUpdate Goods"
+    },
+    {
+      "href": "/docv2/page/logistic-api-overview",
+      "text": "Logistic API overview"
+    },
+    {
+      "href": "/docv2/page/get-warehouse-list-202309",
+      "text": "GETGet Warehouse List"
+    },
+    {
+      "href": "/docv2/page/get-global-seller-warehouse-202309",
+      "text": "GETGet Global Seller Warehouse"
+    },
+    {
+      "href": "/docv2/page/get-warehouse-delivery-options-202309",
+      "text": "GETGet Warehouse Delivery Options"
+    },
+    {
+      "href": "/docv2/page/get-shipping-providers-202309",
+      "text": "GETGet Shipping Providers"
+    },
+    {
+      "href": "/docv2/page/get-available-shipping-template-202510",
+      "text": "GETGet Available Shipping Template"
+    },
+    {
+      "href": "/docv2/page/get-logistics-tracking-202604",
+      "text": "GETGet Logistics Tracking"
+    },
+    {
+      "href": "/docv2/page/return-refund-and-cancel-api-overview",
+      "text": "Return, refund, and cancel API overview"
+    },
+    {
+      "href": "/docv2/page/return-reasons",
+      "text": "Return reasons"
+    },
+    {
+      "href": "/docv2/page/refund-reasons",
+      "text": "Refund reasons"
+    },
+    {
+      "href": "/docv2/page/cancel-reasons",
+      "text": "Cancel reasons"
+    },
+    {
+      "href": "/docv2/page/get-reject-reasons-202309",
+      "text": "GETGet Reject Reasons"
+    },
+    {
+      "href": "/docv2/page/approve-return-202309",
+      "text": "POSTApprove Return"
+    },
+    {
+      "href": "/docv2/page/reject-return-202309",
+      "text": "POSTReject Return"
+    },
+    {
+      "href": "/docv2/page/get-return-records-202309",
+      "text": "GETGet Return Records"
+    },
+    {
+      "href": "/docv2/page/approve-cancellation-202309",
+      "text": "POSTApprove Cancellation"
+    },
+    {
+      "href": "/docv2/page/reject-cancellation-202309",
+      "text": "POSTReject Cancellation"
+    },
+    {
+      "href": "/docv2/page/get-decision-eligibility-202601",
+      "text": "GETGet Decision Eligibility"
+    },
+    {
+      "href": "/docv2/page/calculate-refund-202602",
+      "text": "POSTCalculate Refund"
+    },
+    {
+      "href": "/docv2/page/cancel-order-202602",
+      "text": "POSTCancel Order"
+    },
+    {
+      "href": "/docv2/page/create-return-202602",
+      "text": "POSTCreate Return"
+    },
+    {
+      "href": "/docv2/page/search-cancellations-202602",
+      "text": "POSTSearch Cancellations"
+    },
+    {
+      "href": "/docv2/page/search-returns-202602",
+      "text": "POSTSearch Returns"
+    },
+    {
+      "href": "/docv2/page/get-aftersale-eligibility-202602",
+      "text": "GETGet Aftersale Eligibility"
+    },
+    {
+      "href": "/docv2/page/search-aftersales-request-202603",
+      "text": "POSTSearch Aftersales Request"
+    },
+    {
+      "href": "/docv2/page/review-aftersales-202603",
+      "text": "POSTReview Aftersales"
+    },
+    {
+      "href": "/docv2/page/search-return-merchandise-authorization-202604",
+      "text": "POSTSearch Return Merchandise Authorization"
+    },
+    {
+      "href": "/docv2/page/finance-api-overview",
+      "text": "Finance API overview"
+    },
+    {
+      "href": "/docv2/page/get-statements-202309",
+      "text": "GETGet Statements"
+    },
+    {
+      "href": "/docv2/page/get-payments-202309",
+      "text": "GETGet Payments"
+    },
+    {
+      "href": "/docv2/page/get-withdrawals-202309",
+      "text": "GETGet Withdrawals"
+    },
+    {
+      "href": "/docv2/page/get-transactions-by-order-202501",
+      "text": "GETGet Transactions by Order"
+    },
+    {
+      "href": "/docv2/page/get-transactions-by-statement-202501",
+      "text": "GETGet Transactions by Statement"
+    },
+    {
+      "href": "/docv2/page/get-unsettled-transactions-202507",
+      "text": "GETGet Unsettled Transactions"
+    },
+    {
+      "href": "/docv2/page/get-video-performances-202403",
+      "text": "GETGet Video Performances"
+    },
+    {
+      "href": "/docv2/page/get-shop-performance-per-hour-202510",
+      "text": "GETGet Shop Performance Per Hour"
+    },
+    {
+      "href": "/docv2/page/get-shop-live-performance-per-minutes-202510",
+      "text": "GETGet Shop LIVE Performance Per Minutes"
+    },
+    {
+      "href": "/docv2/page/get-shop-live-products-performance-list-202512",
+      "text": "GETGet Shop LIVE Products Performance List"
+    },
+    {
+      "href": "/docv2/page/get-shop-performance-202509",
+      "text": "GETGet Shop Performance"
+    },
+    {
+      "href": "/docv2/page/get-shop-product-performance-detail-202509",
+      "text": "GETGet Shop Product Performance Detail"
+    },
+    {
+      "href": "/docv2/page/get-shop-sku-performance-202509",
+      "text": "GETGet Shop SKU Performance"
+    },
+    {
+      "href": "/docv2/page/get-shop-sku-performance-list-202509",
+      "text": "GETGet Shop SKU Performance List"
+    },
+    {
+      "href": "/docv2/page/get-shop-video-performance-list-202509",
+      "text": "GETGet Shop Video Performance List"
+    },
+    {
+      "href": "/docv2/page/get-shop-video-performance-overview-202509",
+      "text": "GETGet Shop Video Performance Overview"
+    },
+    {
+      "href": "/docv2/page/get-shop-video-performance-details-202509",
+      "text": "GETGet Shop Video Performance Details"
+    },
+    {
+      "href": "/docv2/page/get-shop-video-product-performance-list-202509",
+      "text": "GETGet Shop Video Product Performance List"
+    },
+    {
+      "href": "/docv2/page/get-shop-live-performance-list-202509",
+      "text": "GETGet Shop LIVE Performance List"
+    },
+    {
+      "href": "/docv2/page/get-shop-live-performance-overview-202509",
+      "text": "GETGet Shop LIVE Performance Overview"
+    },
+    {
+      "href": "/docv2/page/get-shop-product-performance-list-202509",
+      "text": "GETGet Shop Product Performance List"
+    },
+    {
+      "href": "/docv2/page/get-view-trend-performances-202502",
+      "text": "GETGet View Trend Performances"
+    },
+    {
+      "href": "/docv2/page/get-traffic-performances-202502",
+      "text": "GETGet Traffic Performances"
+    },
+    {
+      "href": "/docv2/page/get-user-portraits-202502",
+      "text": "GETGet User Portraits"
+    },
+    {
+      "href": "/docv2/page/get-product-stats-202502",
+      "text": "GETGet Product Stats"
+    },
+    {
+      "href": "/docv2/page/get-interactive-trend-performances-202502",
+      "text": "GETGet Interactive Trend Performances"
+    },
+    {
+      "href": "/docv2/page/get-gmv-trend-performances-202502",
+      "text": "GETGet GMV Trend Performances"
+    },
+    {
+      "href": "/docv2/page/get-live-core-stats-202502",
+      "text": "GETGet Live Core Stats"
+    },
+    {
+      "href": "/docv2/page/get-bestselling-products-202511",
+      "text": "GETGet Bestselling Products"
+    },
+    {
+      "href": "/docv2/page/get-bestselling-creators-202511",
+      "text": "GETGet Bestselling Creators"
+    },
+    {
+      "href": "/docv2/page/get-bestselling-videos-202511",
+      "text": "GETGet Bestselling Videos"
+    },
+    {
+      "href": "/docv2/page/get-bestselling-lives-202511",
+      "text": "GETGet Bestselling LIVEs"
+    },
+    {
+      "href": "/docv2/page/customer-service-api-overview",
+      "text": "Customer Service API overview"
+    },
+    {
+      "href": "/docv2/page/6y23rc6a",
+      "text": "Message Types"
+    },
+    {
+      "href": "/docv2/page/gx13i64p",
+      "text": "Post-sales Solutions for Customer Services"
+    },
+    {
+      "href": "/docv2/page/create-conversation-202309",
+      "text": "POSTCreate Conversation"
+    },
+    {
+      "href": "/docv2/page/get-conversations-202309",
+      "text": "GETGet Conversations"
+    },
+    {
+      "href": "/docv2/page/get-conversation-messages-202309",
+      "text": "GETGet Conversation Messages"
+    },
+    {
+      "href": "/docv2/page/upload-buyer-messages-image-202309",
+      "text": "POSTUpload Buyer Messages Image"
+    },
+    {
+      "href": "/docv2/page/send-message-202309",
+      "text": "POSTSend Message"
+    },
+    {
+      "href": "/docv2/page/read-message-202309",
+      "text": "POSTRead Message"
+    },
+    {
+      "href": "/docv2/page/get-agent-settings-202309",
+      "text": "GETGet Agent Settings"
+    },
+    {
+      "href": "/docv2/page/update-agent-settings-202309",
+      "text": "PUTUpdate Agent Settings"
+    },
+    {
+      "href": "/docv2/page/get-customer-service-performance-202407",
+      "text": "GETGet Customer Service Performance"
+    },
+    {
+      "href": "/docv2/page/get-conversation-202601",
+      "text": "GETGet Conversation"
+    },
+    {
+      "href": "/docv2/page/search-sessions-202602",
+      "text": "POSTSearch Sessions"
+    },
+    {
+      "href": "/docv2/page/end-session-202605",
+      "text": "POSTEnd Session"
+    },
+    {
+      "href": "/docv2/page/customer-engagement-api-overview",
+      "text": "Customer engagement API overview"
+    },
+    {
+      "href": "/docv2/page/get-message-templates-202412",
+      "text": "GETGet Message Templates"
+    },
+    {
+      "href": "/docv2/page/create-engagement-task-202412",
+      "text": "POSTCreate Engagement Task"
+    },
+    {
+      "href": "/docv2/page/send-engagement-message-202412",
+      "text": "POSTSend Engagement Message"
+    },
+    {
+      "href": "/docv2/page/get-task-performances-202412",
+      "text": "POSTGet Task Performances"
+    },
+    {
+      "href": "/docv2/page/create-custom-engagement-task-202502",
+      "text": "POSTCreate Custom Engagement Task"
+    },
+    {
+      "href": "/docv2/page/get-feature-permissions-202502",
+      "text": "GETGet Feature Permissions"
+    },
+    {
+      "href": "/docv2/page/get-product-reviews-202605",
+      "text": "POSTGet product reviews"
+    },
+    {
+      "href": "/docv2/page/affiliate-creator-api-overview",
+      "text": "Affiliate Creator API overview"
+    },
+    {
+      "href": "/docv2/page/get-creator-profile-202508",
+      "text": "GETGet Creator Profile"
+    },
+    {
+      "href": "/docv2/page/get-showcase-products-202405",
+      "text": "GETGet Showcase Products"
+    },
+    {
+      "href": "/docv2/page/add-showcase-products-202405",
+      "text": "POSTAdd Showcase Products"
+    },
+    {
+      "href": "/docv2/page/remove-showcase-products-202409",
+      "text": "DELRemove Showcase Products"
+    },
+    {
+      "href": "/docv2/page/top-showcase-products-202409",
+      "text": "POSTTop Showcase Products"
+    },
+    {
+      "href": "/docv2/page/creator-search-open-collaboration-product-202405",
+      "text": "POSTCreator Search Open Collaboration Product"
+    },
+    {
+      "href": "/docv2/page/get-open-collaboration-product-list-by-product-ids-202509",
+      "text": "POSTGet Open Collaboration Product List By Product Ids"
+    },
+    {
+      "href": "/docv2/page/search-creator-target-collaborations-202405",
+      "text": "POSTSearch Creator Target Collaborations"
+    },
+    {
+      "href": "/docv2/page/search-creator-sample-applications-202412",
+      "text": "POSTSearch Creator Sample Applications"
+    },
+    {
+      "href": "/docv2/page/get-creator-sample-application-detail-202412",
+      "text": "POSTGet Creator Sample Application Detail"
+    },
+    {
+      "href": "/docv2/page/creator-search-sample-application-fulfillments-202409",
+      "text": "POSTCreator Search Sample Application Fulfillments"
+    },
+    {
+      "href": "/docv2/page/creator-generate-general-link-202505",
+      "text": "POSTCreator Generate General Link"
+    },
+    {
+      "href": "/docv2/page/creator-generate-publisher-link-202504",
+      "text": "POSTCreator Generate Publisher Link"
+    },
+    {
+      "href": "/docv2/page/creator-search-affiliate-trace-orders-202505",
+      "text": "POSTCreator Search Affiliate Trace Orders"
+    },
+    {
+      "href": "/docv2/page/search-creator-affiliate-orders-202410",
+      "text": "POSTSearch Creator Affiliate Orders"
+    },
+    {
+      "href": "/docv2/page/get-creator-applicable-sample-label-202412",
+      "text": "GETGet Creator Applicable Sample Label"
+    },
+    {
+      "href": "/docv2/page/upload-shoppable-video-file-202505",
+      "text": "POSTUpload Shoppable Video File"
+    },
+    {
+      "href": "/docv2/page/get-shop-products-202509",
+      "text": "GETGet Shop Products"
+    },
+    {
+      "href": "/docv2/page/get-shoppable-video-status-202509",
+      "text": "GETGet Shoppable Video Status"
+    },
+    {
+      "href": "/docv2/page/precheck-video-content-202511",
+      "text": "POSTPrecheck Video Content"
+    },
+    {
+      "href": "/docv2/page/get-shoppable-video-precheck-result-202601",
+      "text": "GETGet Shoppable Video Precheck Result"
+    },
+    {
+      "href": "/docv2/page/post-shoppable-video-202603",
+      "text": "POSTPost Shoppable Video"
+    },
+    {
+      "href": "/docv2/page/affiliate-partner-api-overview",
+      "text": "Affiliate Partner API overview"
+    },
+    {
+      "href": "/docv2/page/create-affiliate-partner-campaign-202405",
+      "text": "POSTCreate Affiliate Partner Campaign"
+    },
+    {
+      "href": "/docv2/page/edit-affiliate-partner-campaign-202405",
+      "text": "POSTEdit Affiliate Partner Campaign"
+    },
+    {
+      "href": "/docv2/page/publish-affiliate-partner-campaign-202405",
+      "text": "POSTPublish Affiliate Partner Campaign"
+    },
+    {
+      "href": "/docv2/page/review-affiliate-partner-campaign-product-202405",
+      "text": "POSTReview Affiliate Partner Campaign Product"
+    },
+    {
+      "href": "/docv2/page/generate-affiliate-partner-campaign-product-link-202405",
+      "text": "POSTGenerate Affiliate Partner Campaign Product Link"
+    },
+    {
+      "href": "/docv2/page/get-affiliate-partner-campaign-detail-202405",
+      "text": "GETGet Affiliate Partner Campaign Detail"
+    },
+    {
+      "href": "/docv2/page/get-affiliate-partner-campaign-list-202405",
+      "text": "GETGet Affiliate Partner Campaign List"
+    },
+    {
+      "href": "/docv2/page/get-affiliate-partner-campaign-product-list-202405",
+      "text": "GETGet Affiliate Partner Campaign Product List"
+    },
+    {
+      "href": "/docv2/page/get-affiliate-campaign-creator-fulfillment-status-list-202501",
+      "text": "GETGet Affiliate Campaign Creator Fulfillment Status List"
+    },
+    {
+      "href": "/docv2/page/partner-generate-multi-affiliate-campaign-product-link-202505",
+      "text": "POSTPartner Generate Multi Affiliate Campaign Product Link"
+    },
+    {
+      "href": "/docv2/page/get-affiliate-campaign-creator-fulfillment-status-info-202508",
+      "text": "GETGet Affiliate Campaign Creator Fulfillment Status Info"
+    },
+    {
+      "href": "/docv2/page/get-affiliate-campaign-creator-product-content-statistics-202508",
+      "text": "GETGet Affiliate Campaign Creator Product Content Statistics"
+    },
+    {
+      "href": "/docv2/page/get-affiliate-campaign-creator-product-sample-status-202508",
+      "text": "GETGet Affiliate Campaign Creator Product Sample Status"
+    },
+    {
+      "href": "/docv2/page/search-cap-affiliate-orders-202603",
+      "text": "POSTSearch CAP Affiliate Orders"
+    },
+    {
+      "href": "/docv2/page/search-tap-affiliate-orders-202603",
+      "text": "POSTSearch Tap Affiliate Orders"
+    },
+    {
+      "href": "/docv2/page/affiliate-seller-api-overview",
+      "text": "Affiliate Seller API overview"
+    },
+    {
+      "href": "/docv2/page/seller-search-creator-on-marketplace-202508",
+      "text": "POSTSeller Search Creator on Marketplace"
+    },
+    {
+      "href": "/docv2/page/get-marketplace-creator-performance-202508",
+      "text": "GETGet Marketplace Creator Performance"
+    },
+    {
+      "href": "/docv2/page/get-open-collaboration-settings-202409",
+      "text": "GETGet Open Collaboration Settings"
+    },
+    {
+      "href": "/docv2/page/edit-open-collaboration-settings-202405",
+      "text": "POSTEdit Open Collaboration Settings"
+    },
+    {
+      "href": "/docv2/page/get-open-collaboration-sample-rules-202410",
+      "text": "GETGet Open Collaboration Sample Rules"
+    },
+    {
+      "href": "/docv2/page/edit-open-collaboration-sample-rule-202410",
+      "text": "POSTEdit Open Collaboration Sample Rule"
+    },
+    {
+      "href": "/docv2/page/create-open-collaboration-202412",
+      "text": "POSTCreate Open Collaboration"
+    },
+    {
+      "href": "/docv2/page/search-open-collaboration-202412",
+      "text": "POSTSearch Open Collaboration"
+    },
+    {
+      "href": "/docv2/page/remove-open-collaboration-202409",
+      "text": "DELRemove Open Collaboration"
+    },
+    {
+      "href": "/docv2/page/get-open-collaboration-creator-content-detail-202508",
+      "text": "GETGet Open Collaboration Creator Content Detail"
+    },
+    {
+      "href": "/docv2/page/seller-search-affiliate-open-collaboration-product-202405",
+      "text": "POSTSeller Search Affiliate Open Collaboration Product"
+    },
+    {
+      "href": "/docv2/page/remove-creator-from-open-collaboration-202508",
+      "text": "POSTRemove Creator From Open Collaboration"
+    },
+    {
+      "href": "/docv2/page/create-target-collaboration-202508",
+      "text": "POSTCreate Target Collaboration"
+    },
+    {
+      "href": "/docv2/page/search-target-collaborations-202508",
+      "text": "POSTSearch Target Collaborations"
+    },
+    {
+      "href": "/docv2/page/update-target-collaboration-202508",
+      "text": "PUTUpdate Target Collaboration"
+    },
+    {
+      "href": "/docv2/page/remove-target-collaboration-202409",
+      "text": "DELRemove Target Collaboration"
+    },
+    {
+      "href": "/docv2/page/query-target-collaboration-detail-202508",
+      "text": "GETQuery Target Collaboration Detail"
+    },
+    {
+      "href": "/docv2/page/get-conversation-list-202412",
+      "text": "GETGet Conversation List"
+    },
+    {
+      "href": "/docv2/page/get-message-in-the-conversation-202412",
+      "text": "GETGet Message in the Conversation"
+    },
+    {
+      "href": "/docv2/page/get-latest-unread-messages-202412",
+      "text": "GETGet Latest Unread Messages"
+    },
+    {
+      "href": "/docv2/page/create-conversation-with-creator-202508",
+      "text": "POSTCreate Conversation with creator"
+    },
+    {
+      "href": "/docv2/page/upload-message-image-202511",
+      "text": "POSTUpload Message Image"
+    },
+    {
+      "href": "/docv2/page/send-im-message-202412",
+      "text": "POSTSend IM Message"
+    },
+    {
+      "href": "/docv2/page/mark-conversation-read-202412",
+      "text": "POSTMark Conversation Read"
+    },
+    {
+      "href": "/docv2/page/seller-search-sample-applications-202508",
+      "text": "POSTSeller Search Sample Applications"
+    },
+    {
+      "href": "/docv2/page/seller-review-sample-applications-202507",
+      "text": "POSTSeller Review Sample Applications"
+    },
+    {
+      "href": "/docv2/page/seller-search-sample-applications-fulfillments-202409",
+      "text": "POSTSeller Search Sample Applications Fulfillments"
+    },
+    {
+      "href": "/docv2/page/generate-target-collaboration-link-202509",
+      "text": "POSTGenerate Target Collaboration Link"
+    },
+    {
+      "href": "/docv2/page/generate-affiliate-product-promotion-link-202405",
+      "text": "POSTGenerate Affiliate Product Promotion Link"
+    },
+    {
+      "href": "/docv2/page/seller-get-sample-request-deeplink-202512",
+      "text": "GETSeller Get Sample Request Deeplink"
+    },
+    {
+      "href": "/docv2/page/search-seller-affiliate-orders-202410",
+      "text": "POSTSearch Seller Affiliate Orders"
+    },
+    {
+      "href": "/docv2/page/get-seller-search-creator-marketplace-advanced-filters-202601",
+      "text": "POSTGet Seller Search Creator Marketplace Advanced Filters"
+    },
+    {
+      "href": "/docv2/page/create-compass-offline-export-task-202603",
+      "text": "POSTCreate Compass Offline Export Task"
+    },
+    {
+      "href": "/docv2/page/get-compass-task-list-202603",
+      "text": "GETGet Compass Task List"
+    },
+    {
+      "href": "/docv2/page/download-compass-task-file-202603",
+      "text": "GETDownload Compass Task File"
+    },
+    {
+      "href": "/docv2/page/confirm-package-shipment-202309",
+      "text": "POSTConfirm Package Shipment"
+    },
+    {
+      "href": "/docv2/page/upload-file-init-202512",
+      "text": "POSTUpload File Init"
+    },
+    {
+      "href": "https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e",
+      "text": "common parameters"
+    },
+    {
+      "href": "https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get Access Token API",
+      "text": "Get Access Token"
+    },
+    {
+      "href": "https://partner.tiktokshop.com/docv2/page/678e3a3978f4c20311b8b555",
+      "text": "guide"
+    },
+    {
+      "href": "https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942",
+      "text": "common error codes"
+    }
+  ],
+  "sidebarBeforePreview": "<div class=\"style-module__side-menu-container--V7HQW style-module__left-menu--Q34Do style-module__doc-menu--KEk1t custom-scroll\" id=\"doc_left_menu\"><a id=\"menu_id_59gzxfos\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-dir--IbLLG\" target=\"_blank\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 0px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M3.64645 10.3536C3.84171 10.5488 4.15829 10.5488 4.35355 10.3536L8 6.70711L11.6464 10.3536C11.8417 10.5488 12.1583 10.5488 12.3536 10.3536C12.5488 10.1583 12.5488 9.84171 12.3536 9.64645L8.35355 5.64645C8.15829 5.45118 7.84171 5.45118 7.64645 5.64645L3.64645 9.64645C3.45118 9.84171 3.45118 10.1583 3.64645 10.3536Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Authorization</span></span></div></a><a id=\"menu_id_get-authorized-category-assets-202405\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-selected--Jc1lO\" target=\"_blank\" href=\"/docv2/page/get-authorized-category-assets-202405\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-positive partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">GET</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Get Authorized Category Assets</span></span></div></a><a id=\"menu_id_get-authorized-shops-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/get-authorized-shops-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-positive partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">GET</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Get Authorized Shops</span></span></div></a><a id=\"menu_id_6d9yyw58\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-dir--IbLLG\" target=\"_blank\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 0px;\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M3.64645 6.14645C3.84171 5.95118 4.15829 5.95118 4.35355 6.14645L8 9.79289L11.6464 6.14645C11.8417 5.95118 12.1583 5.95118 12.3536 6.14645C12.5488 6.34171 12.5488 6.65829 12.3536 6.85355L8.35355 10.8536C8.15829 11.0488 7.84171 11.0488 7.64645 10.8536L3.64645 6.85355C3.45118 6.65829 3.45118 6.34171 3.64645 6.14645Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Event</span></span></div></a><a id=\"menu_id_2rcneftu\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-dir--IbLLG\" target=\"_blank\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 0px;\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M3.64645 6.14645C3.84171 5.95118 4.15829 5.95118 4.35355 6.14645L8 9.79289L11.6464 6.14645C11.8417 5.95118 12.1583 5.95118 12.3536 6.14645C12.5488 6.34171 12.5488 6.65829 12.3536 6.85355L8.35355 10.8536C8.15829 11.0488 7.84171 11.0488 7.64645 10.8536L3.64645 6.85355C3.45118 6.65829 3.45118 6.34171 3.64645 6.14645Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Seller</span></span></div></a><a id=\"menu_id_37f51kv3\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-dir--IbLLG\" target=\"_blank\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 0px;\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M3.64645 6.14645C3.84171 5.95118 4.15829 5.95118 4.35355 6.14645L8 9.79289L11.6464 6.14645C11.8417 5.95118 12.1583 5.95118 12.3536 6.14645C12.5488 6.34171 12.5488 6.65829 12.3536 6.85355L8.35355 10.8536C8.15829 11.0488 7.84171 11.0488 7.64645 10.8536L3.64645 6.85355C3.45118 6.65829 3.45118 6.34171 3.6464",
+  "sidebarAfterPreview": "<div class=\"style-module__side-menu-container--V7HQW style-module__left-menu--Q34Do style-module__doc-menu--KEk1t custom-scroll\" id=\"doc_left_menu\"><a id=\"menu_id_59gzxfos\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-selected--Jc1lO style-module__side-menu-dir--IbLLG\" target=\"_blank\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 0px;\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M3.64645 6.14645C3.84171 5.95118 4.15829 5.95118 4.35355 6.14645L8 9.79289L11.6464 6.14645C11.8417 5.95118 12.1583 5.95118 12.3536 6.14645C12.5488 6.34171 12.5488 6.65829 12.3536 6.85355L8.35355 10.8536C8.15829 11.0488 7.84171 11.0488 7.64645 10.8536L3.64645 6.85355C3.45118 6.65829 3.45118 6.34171 3.64645 6.14645Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Authorization</span></span></div></a><a id=\"menu_id_6d9yyw58\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-dir--IbLLG\" target=\"_blank\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 0px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M3.64645 10.3536C3.84171 10.5488 4.15829 10.5488 4.35355 10.3536L8 6.70711L11.6464 10.3536C11.8417 10.5488 12.1583 10.5488 12.3536 10.3536C12.5488 10.1583 12.5488 9.84171 12.3536 9.64645L8.35355 5.64645C8.15829 5.45118 7.84171 5.45118 7.64645 5.64645L3.64645 9.64645C3.45118 9.84171 3.45118 10.1583 3.64645 10.3536Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Event</span></span></div></a><a id=\"menu_id_get-shop-webhooks-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/get-shop-webhooks-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-positive partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">GET</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Get Shop Webhooks</span></span></div></a><a id=\"menu_id_update-shop-webhook-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/update-shop-webhook-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-informative partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">PUT</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Update Shop Webhook</span></span></div></a><a id=\"menu_id_delete-shop-webhook-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/delete-shop-webhook-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-negative partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">DEL</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Delete Shop Webhook</span></span></div></a><a id=\"menu_id_2rcneftu\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-dir--IbLLG\" target=\"_blank\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 0px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M3.64645 10.3536C3.84171 10.5488 4.15829 10.5488 4.35355 10.3536L8 6.70711L11.6464 10.3536C11.8417 10.5488 12.1583 10.5488 12.3536 10.3536C12.5488 10.1583 12.5488 9.84171 12.3536 9.64645L8.35355 5.64645C8.15829 5.45118 7.84171 5.45118 7.64645 5.64645L3.64645 9.64645C3.45118 9.84171 3.45118 10.1583 3.64645 10.3536Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Seller</span></span></div></a><a id=\"menu_id_seller-api-overview\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/seller-api-overview\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M12 3L4 3C3.44772 3 3 3.44772 3 4L3 12C3 12.5523 3.44772 13 4 13L12 13C12.5523 13 13 12.5523 13 12L13 4C13 3.44772 12.5523 3 12 3ZM4 2C2.89543 2 2 2.89543 2 4L2 12C2 13.1046 2.89543 14 4 14L12 14C13.1046 14 14 13.1046 14 12L14 4C14 2.89543 13.1046 2 12 2L4 2Z\" fill=\"currentColor\"></path><path d=\"M5.5 6C5.22386 6 5 5.77614 5 5.5C5 5.22386 5.22386 5 5.5 5L10.5 5C10.7761 5 11 5.22386 11 5.5C11 5.77614 10.7761 6 10.5 6L5.5 6Z\" fill=\"currentColor\"></path><path d=\"M5.5 8C5.22386 8 5 7.77614 5 7.5C5 7.22386 5.22386 7 5.5 7H8.5C8.77614 7 9 7.22386 9 7.5C9 7.77614 8.77614 8 8.5 8H5.5Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Seller API overview</span></span></div></a><a id=\"menu_id_get-active-shops-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/get-active-shops-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-positive partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">GET</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Get Active Shops</span></span></div></a><a id=\"menu_id_get-seller-permissions-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/get-seller-permissions-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-positive partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">GET</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Get Seller Permissions</span></span></div></a><a id=\"menu_id_get-shop-group-202601\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/get-shop-group-202601\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-positive partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">GET</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Get Shop Group</span></span></div></a><a id=\"menu_id_37f51kv3\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-dir--IbLLG\" target=\"_blank\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 0px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M3.64645 10.3536C3.84171 10.5488 4.15829 10.5488 4.35355 10.3536L8 6.70711L11.6464 10.3536C11.8417 10.5488 12.1583 10.5488 12.3536 10.3536C12.5488 10.1583 12.5488 9.84171 12.3536 9.64645L8.35355 5.64645C8.15829 5.45118 7.84171 5.45118 7.64645 5.64645L3.64645 9.64645C3.45118 9.84171 3.45118 10.1583 3.64645 10.3536Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Products</span></span></div></a><a id=\"menu_id_products-api-overview\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/products-api-overview\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M12 3L4 3C3.44772 3 3 3.44772 3 4L3 12C3 12.5523 3.44772 13 4 13L12 13C12.5523 13 13 12.5523 13 12L13 4C13 3.44772 12.5523 3 12 3ZM4 2C2.89543 2 2 2.89543 2 4L2 12C2 13.1046 2.89543 14 4 14L12 14C13.1046 14 14 13.1046 14 12L14 4C14 2.89543 13.1046 2 12 2L4 2Z\" fill=\"currentColor\"></path><path d=\"M5.5 6C5.22386 6 5 5.77614 5 5.5C5 5.22386 5.22386 5 5.5 5L10.5 5C10.7761 5 11 5.22386 11 5.5C11 5.77614 10.7761 6 10.5 6L5.5 6Z\" fill=\"currentColor\"></path><path d=\"M5.5 8C5.22386 8 5 7.77614 5 7.5C5 7.22386 5.22386 7 5.5 7H8.5C8.77614 7 9 7.22386 9 7.5C9 7.77614 8.77614 8 8.5 8H5.5Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Products API overview</span></span></div></a><a id=\"menu_id_listing-quality-diagnosis\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/listing-quality-diagnosis\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M12 3L4 3C3.44772 3 3 3.44772 3 4L3 12C3 12.5523 3.44772 13 4 13L12 13C12.5523 13 13 12.5523 13 12L13 4C13 3.44772 12.5523 3 12 3ZM4 2C2.89543 2 2 2.89543 2 4L2 12C2 13.1046 2.89543 14 4 14L12 14C13.1046 14 14 13.1046 14 12L14 4C14 2.89543 13.1046 2 12 2L4 2Z\" fill=\"currentColor\"></path><path d=\"M5.5 6C5.22386 6 5 5.77614 5 5.5C5 5.22386 5.22386 5 5.5 5L10.5 5C10.7761 5 11 5.22386 11 5.5C11 5.77614 10.7761 6 10.5 6L5.5 6Z\" fill=\"currentColor\"></path><path d=\"M5.5 8C5.22386 8 5 7.77614 5 7.5C5 7.22386 5.22386 7 5.5 7H8.5C8.77614 7 9 7.22386 9 7.5C9 7.77614 8.77614 8 8.5 8H5.5Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Listing quality diagnosis</span></span></div></a><a id=\"menu_id_product-pricing\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/product-pricing\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M12 3L4 3C3.44772 3 3 3.44772 3 4L3 12C3 12.5523 3.44772 13 4 13L12 13C12.5523 13 13 12.5523 13 12L13 4C13 3.44772 12.5523 3 12 3ZM4 2C2.89543 2 2 2.89543 2 4L2 12C2 13.1046 2.89543 14 4 14L12 14C13.1046 14 14 13.1046 14 12L14 4C14 2.89543 13.1046 2 12 2L4 2Z\" fill=\"currentColor\"></path><path d=\"M5.5 6C5.22386 6 5 5.77614 5 5.5C5 5.22386 5.22386 5 5.5 5L10.5 5C10.7761 5 11 5.22386 11 5.5C11 5.77614 10.7761 6 10.5 6L5.5 6Z\" fill=\"currentColor\"></path><path d=\"M5.5 8C5.22386 8 5 7.77614 5 7.5C5 7.22386 5.22386 7 5.5 7H8.5C8.77614 7 9 7.22386 9 7.5C9 7.77614 8.77614 8 8.5 8H5.5Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Product pricing</span></span></div></a><a id=\"menu_id_common-mistakes\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/common-mistakes\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M12 3L4 3C3.44772 3 3 3.44772 3 4L3 12C3 12.5523 3.44772 13 4 13L12 13C12.5523 13 13 12.5523 13 12L13 4C13 3.44772 12.5523 3 12 3ZM4 2C2.89543 2 2 2.89543 2 4L2 12C2 13.1046 2.89543 14 4 14L12 14C13.1046 14 14 13.1046 14 12L14 4C14 2.89543 13.1046 2 12 2L4 2Z\" fill=\"currentColor\"></path><path d=\"M5.5 6C5.22386 6 5 5.77614 5 5.5C5 5.22386 5.22386 5 5.5 5L10.5 5C10.7761 5 11 5.22386 11 5.5C11 5.77614 10.7761 6 10.5 6L5.5 6Z\" fill=\"currentColor\"></path><path d=\"M5.5 8C5.22386 8 5 7.77614 5 7.5C5 7.22386 5.22386 7 5.5 7H8.5C8.77614 7 9 7.22386 9 7.5C9 7.77614 8.77614 8 8.5 8H5.5Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Common mistakes</span></span></div></a><a id=\"menu_id_check-listing-prerequisites-202312\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/check-listing-prerequisites-202312\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-positive partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">GET</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Check Listing Prerequisites</span></span></div></a><a id=\"menu_id_get-categories-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/get-categories-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-positive partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">GET</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Get Categories</span></span></div></a><a id=\"menu_id_recommend-category-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/recommend-category-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-notice partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">POST</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Recommend Category</span></span></div></a><a id=\"menu_id_get-category-rules-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/get-category-rules-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-positive partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">GET</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Get Category Rules</span></span></div></a><a id=\"menu_id_get-attributes-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/get-attributes-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-positive partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">GET</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Get Attributes</span></span></div></a><a id=\"menu_id_get-brands-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/get-brands-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-positive partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">GET</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Get Brands</span></span></div></a><a id=\"menu_id_create-custom-brands-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/create-custom-brands-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-notice partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">POST</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Create Custom Brands</span></span></div></a><a id=\"menu_id_check-product-listing-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/check-product-listing-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-notice partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">POST</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Check Product Listing</span></span></div></a><a id=\"menu_id_upload-product-image-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/upload-product-image-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-notice partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">POST</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Upload Product Image</span></span></div></a><a id=\"menu_id_upload-product-file-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/upload-product-file-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-notice partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">POST</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Upload Product File</span></span></div></a><a id=\"menu_id_search-size-charts-202407\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/search-size-charts-202407\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-notice partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">POST</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Search Size Charts</span></span></div></a><a id=\"menu_id_create-product-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/create-product-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-notice partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">POST</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Create Product</span></span></div></a><a id=\"menu_id_activate-product-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/activate-product-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-notice partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">POST</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Activate Product</span></span></div></a><a id=\"menu_id_deactivate-products-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/deactivate-products-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-notice partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">POST</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Deactivate Products</span></span></div></a><a id=\"menu_id_delete-products-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/delete-products-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-negative partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">DEL</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Delete Products</span></span></div></a><a id=\"menu_id_recover-products-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/recover-products-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-notice partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">POST</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Recover Products</span></span></div></a><a id=\"menu_id_get-product-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/get-product-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-positive partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">GET</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Get Product</span></span></div></a><a id=\"menu_id_search-products-202502\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/search-products-202502\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-notice partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">POST</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Search Products</span></span></div></a><a id=\"menu_id_update-price-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/update-price-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-notice partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">POST</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Update Price</span></span></div></a><a id=\"menu_id_update-inventory-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/update-inventory-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-notice partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">POST</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Update Inventory</span></span></div></a><a id=\"menu_id_inventory-search-202309\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/inventory-search-202309\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><span class=\"partner-main-m4b-tag partner-main-m4b-tag-notice partner-main-m4b-tag-s style-module__tag-wrapper--Fg8FR\" data-tid=\"m4b_tag\"><div class=\"arco-tag arco-tag-checked arco-tag-size-default style-module__tag--B0AJ5\" wrapclassname=\"style-module__tag-wrapper--Fg8FR\" style=\"max-width: 247px;\"><span class=\"arco-tag-content\"><div class=\"content\"><div class=\"text\">POST</div></div></span></div></span><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--f5G3W\">Inventory Search</span></span></div></a><a id=\"menu_id_diagnose-and-optimize-product-202411\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/diagnose-and-optimize-product-202411\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;",
+  "sidebarText": "AuthorizationEventGETGet Shop WebhooksPUTUpdate Shop WebhookDELDelete Shop WebhookSellerSeller API overviewGETGet Active ShopsGETGet Seller PermissionsGETGet Shop GroupProductsProducts API overviewListing quality diagnosisProduct pricingCommon mistakesGETCheck Listing PrerequisitesGETGet CategoriesPOSTRecommend CategoryGETGet Category RulesGETGet AttributesGETGet BrandsPOSTCreate Custom BrandsPOSTCheck Product ListingPOSTUpload Product ImagePOSTUpload Product FilePOSTSearch Size ChartsPOSTCreate ProductPOSTActivate ProductPOSTDeactivate ProductsDELDelete ProductsPOSTRecover ProductsGETGet ProductPOSTSearch ProductsPOSTUpdate PricePOSTUpdate InventoryPOSTInventory SearchPOSTDiagnose and Optimize ProductGETProduct Information Issue DiagnosisGETGet Products SEO WordsGETGet Recommended Product Title And DescriptionPOSTOptimized ImagesPOSTCreate Image Translation TasksGETGet Image Translation TasksGETGet Global CategoriesPOSTRecommend Global CategoriesGETGet Global Category RulesGETGet Global AttributesPOSTCreate Global ProductPOSTPublish Global ProductPUTEdit Global ProductDELDelete Global ProductsGETGet Global ProductPOSTSearch Global ProductsPOSTUpdate Global InventoryPOSTCreate ManufacturerPOSTPartial Edit ManufacturerPOSTSearch ManufacturersPOSTCreate Responsible PersonPOSTPartial Edit Responsible PersonPOSTSearch Responsible PersonsPOSTCreate Category Upgrade TaskGETGet Global Listing RulesPOSTReplicate ProductGETGet Global Replicated Products PUTEdit ProductPOSTPartial Edit ProductPUTPartial Edit Global ProductPOSTProduct Auditing ResearchPOSTGet Recommended Product PackageGETGet Opportunity DetailPOSTList OpportunityPOSTSubmit Product via OpportunityGETGet Submission RecordsPOSTCreate GPA Upgrade TaskPOSTUpdate Stock Operation SettingsPOSTSubmit Appeal TaskPromotionPromotion API overviewShipping discount supported areasPOSTCreate ActivityPUTUpdate ActivityPOSTDeactivate ActivityGETGet ActivityPOSTSearch ActivitiesPUTUpdate Activity ProductDELRemove Activity ProductGETGet Coupon POSTSearch CouponsOrdersOrder API overviewPOSTGet Order ListGETGet Price DetailPOSTAdd External Order ReferencesGETGet External Order ReferencesPOSTSearch Order By External Order ReferenceGETGet Order DetailPOSTUpdate The Blind Box Opening ResultsFulfillmentFulfillment API overviewTikTok shippingGETGet Order Split AttributesPOSTSplit OrdersPOSTGet Eligible Shipping ServicePOSTCreate First Mile BundlePOSTSearch PackageGETSearch Combinable PackagesPOSTCombine PackagePOSTUncombine PackagesGETGet Package Handover Time SlotsPOSTShip PackagePOSTBatch Ship PackagesPOSTMark Package As ShippedGETGet Package Shipping DocumentGETGet Package DetailGETGet TrackingPOSTUpdate Shipping InfoPOSTUpdate Package Shipping InfoPOSTFulfillment Upload Delivery FilePOSTFulfillment Upload Delivery ImagePOSTUpdate Package Delivery StatusPOSTUpload InvoiceGETTTS Tracking Validation POSTCreate First Mile Bundle(V2)POSTCreate PackagesPOSTRedeem Info CallbackFulfilled by TikTok (FBT)FBT Inbound API — Overview GuideGETGet FBT Merchant Onboarded RegionsGETGet FBT Warehouse List POSTSearch FBT InventoryPOSTSearch FBT Inventory RecordPOSTSearch Goods InfoGETGet FBF MCF Order StatusPOSTCancel FBT MCF OrderPOSTCreate FBT MCF OrderPOSTQuery Goods Inventory For MCFGETGet FBT Merchant MCF StatusPOSTCreate Update Inbound PlanPOSTList Available Inbound MethodPOSTGet Inbound Method DetailPOSTPrint LabelPOSTUpdate TrackingPOSTCancel Inbound OrderGETGet Inbound OrderPOSTConfirm Inbound MethodPOSTShip Inbound OrderPOSTUpdate Goods Sku RelationPOSTCreate GoodsPOSTGet Hazmat And Expiration InfoPOSTUpdate GoodsLogisticsLogistic API overviewGETGet Warehouse ListGETGet Global Seller WarehouseGETGet Warehouse Delivery OptionsGETGet Shipping ProvidersGETGet Available Shipping TemplateGETGet Logistics TrackingReturn and refundReturn, refund, and cancel API overviewReturn reasonsRefund reasonsCancel reasonsGETGet Reject ReasonsPOSTApprove ReturnPOSTReject ReturnGETGet Return RecordsPOSTApprove CancellationPOSTReject CancellationGETGet Decision EligibilityPOSTCalculate RefundPOSTCancel OrderPOSTCreate ReturnPOSTSearch CancellationsPOSTSearch ReturnsGETGet Aftersale EligibilityPOSTSearch Aftersales RequestPOSTReview AftersalesPOSTSearch Return Merchandise AuthorizationFinanceFinance API overviewGETGet StatementsGETGet PaymentsGETGet WithdrawalsGETGet Transactions by OrderGETGet Transactions by StatementGETGet Unsettled TransactionsAnalyticsGETGet Video PerformancesGETGet Shop Performance Per HourGETGet Shop LIVE Performance Per MinutesGETGet Shop LIVE Products Performance ListGETGet Shop PerformanceGETGet Shop Product Performance DetailGETGet Shop SKU PerformanceGETGet Shop SKU Performance ListGETGet Shop Video Performance ListGETGet Shop Video Performance OverviewGETGet Shop Video Performance DetailsGETGet Shop Video Product Performance ListGETGet Shop LIVE Performance ListGETGet Shop LIVE Performance OverviewGETGet Shop Product Performance ListGETGet View Trend PerformancesGETGet Traf"
+}

@@ -1,0 +1,244 @@
+{
+  "tabsInfo": [
+    {
+      "headerCls": "arco-tabs-header-nav arco-tabs-header-nav-horizontal arco-tabs-header-nav-top arco-tabs-header-size-",
+      "tabs": []
+    },
+    {
+      "headerCls": "arco-tabs-header-scroll",
+      "tabs": []
+    },
+    {
+      "headerCls": "arco-tabs-header-wrapper",
+      "tabs": []
+    },
+    {
+      "headerCls": "arco-tabs-header",
+      "tabs": []
+    },
+    {
+      "headerCls": "arco-tabs-header-title",
+      "tabs": []
+    },
+    {
+      "headerCls": "arco-tabs-header-title-text",
+      "tabs": []
+    },
+    {
+      "headerCls": "arco-tabs-header-title arco-tabs-header-title-active",
+      "tabs": []
+    },
+    {
+      "headerCls": "arco-tabs-header-title-text",
+      "tabs": []
+    },
+    {
+      "headerCls": "arco-tabs-header-title",
+      "tabs": []
+    },
+    {
+      "headerCls": "arco-tabs-header-title-text",
+      "tabs": []
+    },
+    {
+      "headerCls": "arco-tabs-header-title",
+      "tabs": []
+    },
+    {
+      "headerCls": "arco-tabs-header-title-text",
+      "tabs": []
+    },
+    {
+      "headerCls": "arco-tabs-header-title",
+      "tabs": []
+    },
+    {
+      "headerCls": "arco-tabs-header-title-text",
+      "tabs": []
+    },
+    {
+      "headerCls": "arco-tabs-header-title",
+      "tabs": []
+    },
+    {
+      "headerCls": "arco-tabs-header-title-text",
+      "tabs": []
+    },
+    {
+      "headerCls": "arco-tabs-header-title",
+      "tabs": []
+    },
+    {
+      "headerCls": "arco-tabs-header-title-text",
+      "tabs": []
+    },
+    {
+      "headerCls": "arco-tabs-header-title",
+      "tabs": []
+    },
+    {
+      "headerCls": "arco-tabs-header-title-text",
+      "tabs": []
+    },
+    {
+      "headerCls": "arco-tabs-header-ink",
+      "tabs": []
+    }
+  ],
+  "sidebarHtml": {
+    "sel": "[class*=\"side-menu\"]",
+    "html": "<div class=\"style-module__side-menu-container--V7HQW style-module__left-menu--Q34Do custom-scroll\" id=\"doc_left_menu\"><a id=\"menu_id_tts-developer-guide\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/tts-developer-guide\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 0px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M12 3L4 3C3.44772 3 3 3.44772 3 4L3 12C3 12.5523 3.44772 13 4 13L12 13C12.5523 13 13 12.5523 13 12L13 4C13 3.44772 12.5523 3 12 3ZM4 2C2.89543 2 2 2.89543 2 4L2 12C2 13.1046 2.89543 14 4 14L12 14C13.1046 14 14 13.1046 14 12L14 4C14 2.89543 13.1046 2 12 2L4 2Z\" fill=\"currentColor\"></path><path d=\"M5.5 6C5.22386 6 5 5.77614 5 5.5C5 5.22386 5.22386 5 5.5 5L10.5 5C10.7761 5 11 5.22386 11 5.5C11 5.77614 10.7761 6 10.5 6L5.5 6Z\" fill=\"currentColor\"></path><path d=\"M5.5 8C5.22386 8 5 7.77614 5 7.5C5 7.22386 5.22386 7 5.5 7H8.5C8.77614 7 9 7.22386 9 7.5C9 7.77614 8.77614 8 8.5 8H5.5Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--GL7U8\">TikTok Shop developer guide</span></span></div></a><a id=\"menu_id_650423bdb99d5302be3adabf\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-dir--IbLLG\" target=\"_blank\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 0px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M3.64645 10.3536C3.84171 10.5488 4.15829 10.5488 4.35355 10.3536L8 6.70711L11.6464 10.3536C11.8417 10.5488 12.1583 10.5488 12.3536 10.3536C12.5488 10.1583 12.5488 9.84171 12.3536 9.64645L8.35355 5.64645C8.15829 5.45118 7.84171 5.45118 7.64645 5.64645L3.64645 9.64645C3.45118 9.84171 3.45118 10.1583 3.64645 10.3536Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--GL7U8\">Get started</span></span></div></a><a id=\"menu_id_tts-developer-types\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-selected--Jc1lO\" target=\"_blank\" href=\"/docv2/page/tts-developer-types\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M12 3L4 3C3.44772 3 3 3.44772 3 4L3 12C3 12.5523 3.44772 13 4 13L12 13C12.5523 13 13 12.5523 13 12L13 4C13 3.44772 12.5523 3 12 3ZM4 2C2.89543 2 2 2.89543 2 4L2 12C2 13.1046 2.89543 14 4 14L12 14C13.1046 14 14 13.1046 14 12L14 4C14 2.89543 13.1046 2 12 2L4 2Z\" fill=\"currentColor\"></path><path d=\"M5.5 6C5.22386 6 5 5.77614 5 5.5C5 5.22386 5.22386 5 5.5 5L10.5 5C10.7761 5 11 5.22386 11 5.5C11 5.77614 10.7761 6 10.5 6L5.5 6Z\" fill=\"currentColor\"></path><path d=\"M5.5 8C5.22386 8 5 7.77614 5 7.5C5 7.22386 5.22386 7 5.5 7H8.5C8.77614 7 9 7.22386 9 7.5C9 7.77614 8.77614 8 8.5 8H5.5Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--GL7U8\">Get started overview</span></span></div></a><a id=\"menu_id_hulvi36o\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/hulvi36o\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M12 3L4 3C3.44772 3 3 3.44772 3 4L3 12C3 12.5523 3.44772 13 4 13L12 13C12.5523 13 13 12.5523 13 12L13 4C13 3.44772 12.5523 3 12 3ZM4 2C2.89543 2 2 2.89543 2 4L2 12C2 13.1046 2.89543 14 4 14L12 14C13.1046 14 14 13.1046 14 12L14 4C14 2.89543 13.1046 2 12 2L4 2Z\" fill=\"currentColor\"></path><path d=\"M5.5 6C5.22386 6 5 5.77614 5 5.5C5 5.22386 5.22386 5 5.5 5L10.5 5C10.7761 5 11 5.22386 11 5.5C11 5.77614 10.7761 6 10.5 6L5.5 6Z\" fill=\"currentColor\"></path><path d=\"M5.5 8C5.22386 8 5 7.77614 5 7.5C5 7.22386 5.22386 7 5.5 7H8.5C8.77614 7 9 7.22386 9 7.5C9 7.77614 8.77614 8 8.5 8H5.5Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--GL7U8\">App Category Selection Guide</span></span></div></a><a id=\"menu_id_hm3m0a31\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-dir--IbLLG\" target=\"_blank\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M3.64645 6.14645C3.84171 5.95118 4.15829 5.95118 4.35355 6.14645L8 9.79289L11.6464 6.14645C11.8417 5.95118 12.1583 5.95118 12.3536 6.14645C12.5488 6.34171 12.5488 6.65829 12.3536 6.85355L8.35355 10.8536C8.15829 11.0488 7.84171 11.0488 7.64645 10.8536L3.64645 6.85355C3.45118 6.65829 3.45118 6.34171 3.64645 6.14645Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--GL7U8\">Onboarding</span></span></div></a><a id=\"menu_id_authorization\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-dir--IbLLG\" target=\"_blank\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M3.64645 6.14645C3.84171 5.95118 4.15829 5.95118 4.35355 6.14645L8 9.79289L11.6464 6.14645C11.8417 5.95118 12.1583 5.95118 12.3536 6.14645C12.5488 6.34171 12.5488 6.65829 12.3536 6.85355L8.35355 10.8536C8.15829 11.0488 7.84171 11.0488 7.64645 10.8536L3.64645 6.85355C3.45118 6.65829 3.45118 6.34171 3.64645 6.14645Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--GL7U8\">Authorization</span></span></div></a><a id=\"menu_id_6789f748c815c70313cf8b14\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-dir--IbLLG\" target=\"_blank\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 20px;\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M3.64645 6.14645C3.84171 5.95118 4.15829 5.95118 4.35355 6.14645L8 9.79289L11.6464 6.14645C11.8417 5.95118 12.1583 5.95118 12.3536 6.14645C12.5488 6.34171 12.5488 6.65829 12.3536 6.85355L8.35355 10.8536C8.15829 11.0488 7.84171 11.0488 7.64645 10.8536L3.64645 6.85355C3.45118 6.65829 3.45118 6.34171 3.64645 6.14645Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--GL7U8\">Make your first API call</span></span></div></a><a id=\"menu_id_account-management\" class=\"style-module__side-menu-item--pNjUL style-module__side-menu-dir--IbLLG\" target=\"_blank\"><div class=\"style-module__side-menu-a--FSwus\" style=\"padding-left: 0px;\"><svg viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"style-module__side-menu-icon--_JN3u\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M3.64645 10.3536C3.84171 10.5488 4.15829 10.5488 4.35355 10.3536L8 6.70711L11.6464 10.3536C11.8417 10.5488 12.1583 10.5488 12.3536 10.3536C12.5488 10.1583 12.5488 9.84171 12.3536 9.64645L8.35355 5.64645C8.15829 5.45118 7.84171 5.45118 7.64645 5.64645L3.64645 9.64645C3.45118 9.84171 3.45118 10.1583 3.64645 10.3536Z\" fill=\"currentColor\"></path></svg><span class=\"style-module__side-menu-span--OT1zx\"><span class=\"style-module__allow-wrap--GL7U8\">Account management</span></span></div></a><a id=\"menu_id_api-entity-tags\" class=\"style-module__side-menu-item--pNjUL\" target=\"_blank\" href=\"/docv2/page/api-entity-t"
+  },
+  "tabTexts": [],
+  "initialLinks": [
+    {
+      "href": "/docv2/page/tts-developer-guide",
+      "text": "TikTok Shop developer guide"
+    },
+    {
+      "href": "/docv2/page/tts-developer-types",
+      "text": "Get started overview"
+    },
+    {
+      "href": "/docv2/page/hulvi36o",
+      "text": "App Category Selection Guide"
+    },
+    {
+      "href": "/docv2/page/api-entity-tags",
+      "text": "API entity tags"
+    },
+    {
+      "href": "/docv2/page/access-scope",
+      "text": "Access scope"
+    },
+    {
+      "href": "/docv2/page/tts-api-concepts-overview",
+      "text": "Overview"
+    },
+    {
+      "href": "/docv2/page/methods-and-endpoints",
+      "text": "Methods and endpoints"
+    },
+    {
+      "href": "/docv2/page/common-parameters",
+      "text": "Common parameters"
+    },
+    {
+      "href": "/docv2/page/sign-your-api-request",
+      "text": "Sign your API request"
+    },
+    {
+      "href": "/docv2/page/common-errors",
+      "text": "Common errors"
+    },
+    {
+      "href": "/docv2/page/regions-and-languages",
+      "text": "Regions and languages"
+    },
+    {
+      "href": "/docv2/page/rate-limits",
+      "text": "Rate limits"
+    },
+    {
+      "href": "/docv2/page/api-versioning",
+      "text": "API versioning"
+    },
+    {
+      "href": "/docv2/page/upgrading-to-api-version-202309",
+      "text": "Upgrading to API version 202309"
+    },
+    {
+      "href": "/docv2/page/upgrade-customer-service-api-to-202309",
+      "text": "Upgrade Customer Service API to 202309"
+    },
+    {
+      "href": "/docv2/page/seller-center-development-shops",
+      "text": "Seller Center development shops"
+    },
+    {
+      "href": "/docv2/page/api-testing-tool",
+      "text": "API testing tool"
+    },
+    {
+      "href": "/docv2/page/developer-dashboard",
+      "text": "Developer dashboard"
+    },
+    {
+      "href": "/docv2/page/app-development-overview",
+      "text": "App development overview"
+    },
+    {
+      "href": "/docv2/page/create-your-app",
+      "text": "Create your App"
+    },
+    {
+      "href": "/docv2/page/edit-your-app",
+      "text": "Edit your App"
+    },
+    {
+      "href": "/docv2/page/test-your-app",
+      "text": "Test your App"
+    },
+    {
+      "href": "/docv2/page/tts-webhooks-overview",
+      "text": "Overview"
+    },
+    {
+      "href": "/docv2/page/configuration-guide",
+      "text": "Configuration guide"
+    },
+    {
+      "href": "/docv2/page/tts-api-sdk-overview",
+      "text": "Overview"
+    },
+    {
+      "href": "/docv2/page/download-sdk",
+      "text": "Download SDK"
+    },
+    {
+      "href": "/docv2/page/integrate-java-sdk",
+      "text": "Integrate Java SDK"
+    },
+    {
+      "href": "/docv2/page/integrate-golang-sdk",
+      "text": "Integrate GoLang SDK"
+    },
+    {
+      "href": "/docv2/page/integrate-node-js-sdk",
+      "text": "Integrate Node.js SDK"
+    },
+    {
+      "href": "/docv2/page/update-sdk",
+      "text": "Update SDK"
+    },
+    {
+      "href": "/docv2/page/tts-widgets-overview",
+      "text": "Overview"
+    },
+    {
+      "href": "/docv2/page/get-widget-token",
+      "text": "Get widget token"
+    },
+    {
+      "href": "/docv2/page/widget-sdk-user-guide",
+      "text": "Widget SDK user guide"
+    },
+    {
+      "href": "/docv2/page/quality-engine-incident-reason-code",
+      "text": "Quality engine incident reason code"
+    },
+    {
+      "href": "/docv2/page/link-to-tokopedia-shop-isv-seller-developer-onboarding",
+      "text": "Link to Tokopedia & Shop - ISV & Seller developer onboarding"
+    },
+    {
+      "href": "/docv2/page/link-to-tokopedia-shop-migration-rehearsal",
+      "text": "Link to Tokopedia & Shop - Migration Rehearsal"
+    },
+    {
+      "href": "/docv2/page/how-to-contact-support",
+      "text": "How to contact support"
+    }
+  ],
+  "categoriesData": []
+}

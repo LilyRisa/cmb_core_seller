@@ -1,0 +1,390 @@
+{
+  "name": "Shopee Developer Guide",
+  "count": 48,
+  "pages": [
+    {
+      "id": "20",
+      "name": "Authorization and Authentication",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/20",
+      "file": "20-authorization-and-authentication.md",
+      "len": 49393
+    },
+    {
+      "id": "4",
+      "name": "Introduction",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/4",
+      "file": "4-introduction.md",
+      "len": 2350
+    },
+    {
+      "id": "12",
+      "name": "Developer account registration",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/12",
+      "file": "12-developer-account-registration.md",
+      "len": 8516
+    },
+    {
+      "id": "14",
+      "name": "App management",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/14",
+      "file": "14-app-management.md",
+      "len": 7987
+    },
+    {
+      "id": "16",
+      "name": "API calls",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/16",
+      "file": "16-api-calls.md",
+      "len": 13129
+    },
+    {
+      "id": "18",
+      "name": "Push Mechanism notifications",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/18",
+      "file": "18-push-mechanism-notifications.md",
+      "len": 14288
+    },
+    {
+      "id": "644",
+      "name": "Sandbox Testing V2",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/644",
+      "file": "644-sandbox-testing-v2.md",
+      "len": 12412
+    },
+    {
+      "id": "24",
+      "name": "Service Partner Program",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/24",
+      "file": "24-service-partner-program.md",
+      "len": 9847
+    },
+    {
+      "id": "27",
+      "name": "V2.0 API Call Flow",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/27",
+      "file": "27-v2-0-api-call-flow.md",
+      "len": 363
+    },
+    {
+      "id": "28",
+      "name": "CNSC API Integration Guide",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/28",
+      "file": "28-cnsc-api-integration-guide.md",
+      "len": 7274
+    },
+    {
+      "id": "29",
+      "name": "KRSC API Integration Guide",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/29",
+      "file": "29-krsc-api-integration-guide.md",
+      "len": 7267
+    },
+    {
+      "id": "31",
+      "name": "V2.0 Data Definition",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/31",
+      "file": "31-v2-0-data-definition.md",
+      "len": 16836
+    },
+    {
+      "id": "718",
+      "name": "Requesting Access to Sensitive Data",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/718",
+      "file": "718-requesting-access-to-sensitive-data.md",
+      "len": 3375
+    },
+    {
+      "id": "732",
+      "name": "TW New Developer Audit",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/732",
+      "file": "732-tw-new-developer-audit.md",
+      "len": 682
+    },
+    {
+      "id": "217",
+      "name": "Guidelines for Creating Product",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/217",
+      "file": "217-guidelines-for-creating-product.md",
+      "len": 1505
+    },
+    {
+      "id": "209",
+      "name": "Product creation preparation",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/209",
+      "file": "209-product-creation-preparation.md",
+      "len": 13387
+    },
+    {
+      "id": "211",
+      "name": "Creating product",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/211",
+      "file": "211-creating-product.md",
+      "len": 14285
+    },
+    {
+      "id": "213",
+      "name": "Creating global product",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/213",
+      "file": "213-creating-global-product.md",
+      "len": 17039
+    },
+    {
+      "id": "215",
+      "name": "Publishing global product",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/215",
+      "file": "215-publishing-global-product.md",
+      "len": 3051
+    },
+    {
+      "id": "219",
+      "name": "Variant management",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/219",
+      "file": "219-variant-management.md",
+      "len": 10182
+    },
+    {
+      "id": "221",
+      "name": "Product base info management",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/221",
+      "file": "221-product-base-info-management.md",
+      "len": 5697
+    },
+    {
+      "id": "223",
+      "name": "Stock & Price Management",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/223",
+      "file": "223-stock-price-management.md",
+      "len": 6231
+    },
+    {
+      "id": "229",
+      "name": "Order Management",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/229",
+      "file": "229-order-management.md",
+      "len": 17996
+    },
+    {
+      "id": "225",
+      "name": "First Mile Binding",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/225",
+      "file": "225-first-mile-binding.md",
+      "len": 5024
+    },
+    {
+      "id": "227",
+      "name": "Return Refund Management",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/227",
+      "file": "227-return-refund-management.md",
+      "len": 6289
+    },
+    {
+      "id": "261",
+      "name": "SIP best practices",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/261",
+      "file": "261-sip-best-practices.md",
+      "len": 10233
+    },
+    {
+      "id": "277",
+      "name": "Shopee On-Platform Ads API Guide",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/277",
+      "file": "277-shopee-on-platform-ads-api-guide.md",
+      "len": 8609
+    },
+    {
+      "id": "677",
+      "name": "Shopee Xpress - Package-free Integration Guide",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/677",
+      "file": "677-shopee-xpress-package-free-integration-guide.md",
+      "len": 6350
+    },
+    {
+      "id": "286",
+      "name": "API de Cotação (Logística do Vendedor)",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/286",
+      "file": "286-api-de-cota-o-log-stica-do-vendedor.md",
+      "len": 21764
+    },
+    {
+      "id": "290",
+      "name": "Shopee Entrega Direta",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/290",
+      "file": "290-shopee-entrega-direta.md",
+      "len": 4292
+    },
+    {
+      "id": "378",
+      "name": "AUTO PARTS: COMPATIBILIDADE DE AUTOPEÇAS",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/378",
+      "file": "378-auto-parts-compatibilidade-de-autope-as.md",
+      "len": 6954
+    },
+    {
+      "id": "292",
+      "name": "Passo a Passo Logistica API",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/292",
+      "file": "292-passo-a-passo-logistica-api.md",
+      "len": 4830
+    },
+    {
+      "id": "381",
+      "name": "Ferramenta de Log da Open Platform",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/381",
+      "file": "381-ferramenta-de-log-da-open-platform.md",
+      "len": 3740
+    },
+    {
+      "id": "382",
+      "name": "Passo a passo para subir a NF-e através da OpenAPI",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/382",
+      "file": "382-passo-a-passo-para-subir-a-nf-e-atrav-s-da-openapi.md",
+      "len": 10632
+    },
+    {
+      "id": "383",
+      "name": "APIs de orders",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/383",
+      "file": "383-apis-de-orders.md",
+      "len": 5656
+    },
+    {
+      "id": "384",
+      "name": "Shopee Open API Platform | Passo a Passo de Solicitação",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/384",
+      "file": "384-shopee-open-api-platform-passo-a-passo-de-solicita-o.md",
+      "len": 10253
+    },
+    {
+      "id": "385",
+      "name": "Open API auth call | Fluxo autorização ",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/385",
+      "file": "385-open-api-auth-call-fluxo-autoriza-o.md",
+      "len": 13096
+    },
+    {
+      "id": "568",
+      "name": "Fulfilled by Shopee (BR)",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/568",
+      "file": "568-fulfilled-by-shopee-br.md",
+      "len": 3946
+    },
+    {
+      "id": "697",
+      "name": "Quotation API (Entrega Expressa) Developer Guide",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/697",
+      "file": "697-quotation-api-entrega-expressa-developer-guide.md",
+      "len": 14698
+    },
+    {
+      "id": "643",
+      "name": "Instant Mart Integration Guide",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/643",
+      "file": "643-instant-mart-integration-guide.md",
+      "len": 15623
+    },
+    {
+      "id": "669",
+      "name": "Livestream API Integration Guide",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/669",
+      "file": "669-livestream-api-integration-guide.md",
+      "len": 15381
+    },
+    {
+      "id": "702",
+      "name": "Shopee AMS API Integration Guide",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/702",
+      "file": "702-shopee-ams-api-integration-guide.md",
+      "len": 10879
+    },
+    {
+      "id": "706",
+      "name": "Shopee Video API Integration Guide",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/706",
+      "file": "706-shopee-video-api-integration-guide.md",
+      "len": 6019
+    },
+    {
+      "id": "36",
+      "name": "Terms of Service",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/36",
+      "file": "36-terms-of-service.md",
+      "len": 41405
+    },
+    {
+      "id": "32",
+      "name": "Data Protection Policy",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/32",
+      "file": "32-data-protection-policy.md",
+      "len": 37342
+    },
+    {
+      "id": "34",
+      "name": "Platform Partner Rules",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/34",
+      "file": "34-platform-partner-rules.md",
+      "len": 8822
+    },
+    {
+      "id": "646",
+      "name": "TW Developer Screening",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/646",
+      "file": "646-tw-developer-screening.md",
+      "len": 2526
+    },
+    {
+      "id": "723",
+      "name": "Chatbot Terms of Service",
+      "cat": "",
+      "url": "https://open.shopee.com/developer-guide/723",
+      "file": "723-chatbot-terms-of-service.md",
+      "len": 1718
+    }
+  ]
+}

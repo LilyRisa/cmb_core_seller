@@ -1,0 +1,128 @@
+# GET/POSTGenerateAccessTokenWithOpenId
+
+> Source: https://open.lazada.com/apps/doc/api?path=%2Fauth%2Ftoken%2FcreateWithOpenId
+> API path: /auth/token/createWithOpenId
+> Category: System API
+> Scraped: 2026-05-20T23:01:59.545Z
+
+---
+
+Latest update2023-02-02 11:18:07
+
+29290
+
+GenerateAccessTokenWithOpenId
+
+GET/POST
+
+/auth/token/createWithOpenId
+
+No Authorization Required
+
+Description:generate access\_token with openId for call api
+
+## Service Endpoints
+
+| Region | Endpoint |
+| --- | --- |
+| Vietnam | https://api.lazada.vn/rest |
+| Singapore | https://api.lazada.sg/rest |
+| Philippines | https://api.lazada.com.ph/rest |
+| Malaysia | https://api.lazada.com.my/rest |
+| Thailand | https://api.lazada.co.th/rest |
+| Indonesia | https://api.lazada.co.id/rest |
+## Common Parameters
+
+| Name | Type | Required or not | Description |
+| --- | --- | --- | --- |
+| app\_key | String | Yes | Unique app ID issued by LAZADA Open Platform console when you apply for an app category |
+| timestamp | String | Yes | The time stamp of the request e.g. 1517820392000 (which translates to 5 February 2018 08:46:32) with less than 7200s difference from UTC time |
+| access\_token | String | No | API interface call credentials |
+| sign\_method | String | Yes | The HMAC hash algorithm you are using to calculate your signature |
+| sign | String | Yes | Part of the authentication process that is used for identifying and verifying who is sending a request (click [here](https://open.lazada.com/apps/doc/doc?nodeId=10450&docId=108068) for details) |
+## Parameters
+
+| Name | Type | Required or not | Description |
+| --- | --- | --- | --- |
+| code | String | Yes | oauth code, get from app callback URL |
+| uuid | String | No | This field is currently invalid, do not use this field please |
+## Response Parameters
+
+| Name | Type | Description |
+| --- | --- | --- |
+| expires\_in | Number | The expiring time of the access token, in seconds |
+| account\_id | String | Account ID，Allow null. if(account\_platform=seller\_center) account\_id=null |
+| country | String | The country ID (sg:Singapore, my:Malaysia, ph:Philippines, th:Thailand, id:Indonesia, vn:Vietnam) |
+| country\_user\_info | Object\[\] | Country user details |
+| country | String | The country ID,(sg:Singapore, my:Malaysia, ph:Philippines, th:Thailand, id:Indonesia, vn:Vietnam) |
+| seller\_id | String | Seller Id |
+| user\_id | String | User Id |
+| short\_code | String | Seller short code |
+| account\_platform | String | Account platform |
+| access\_token | String | Access token |
+| account | String | User account(login user) |
+| refresh\_expires\_in | String | The expiring time of th refresh token |
+| refresh\_token | String | Refresh token, used to refresh the token when “refresh\_expires\_in”>0. |
+## Error Code
+
+| Error Code | Error Message | Solution |
+| --- | --- | --- |
+| MissingParameter | the input parameter “sign” that is mandatory for processing this request is not supplied | 1 |
+| IncompleteSignature | The request signature does not conform to lazop standards | 1 |
+| InvalidCode | Invalid authorization code | Possible causes, incorrect authorisation url; authorisation code more than half an hour old |
+[API Testing Tool](//isvconsole.lazada.com/apps/console/test_api#/auth/token/createWithOpenId)[SDK Download](//isvconsole.lazada.com/apps/console/sdk_download)
+
+GET/POST
+
+/auth/token/createWithOpenId
+
+-   JAVA
+    
+-   PHP
+    
+-   .NET
+    
+-   RUBY
+    
+-   PYTHON
+    
+-   CURL
+    
+
+```
+LazopClient client = new LazopClient(url, appkey, appSecret);
+LazopRequest request = new LazopRequest();
+request.setApiName("/auth/token/createWithOpenId");
+request.addApiParameter("code", "0_100132_2DL4DV3jcU1UOT7WGI1A4rY91");
+request.addApiParameter("uuid", "This field is currently invalid,  do not use this field please");
+LazopResponse response = client.execute(request);
+System.out.println(response.getBody());
+Thread.sleep(10);
+```
+
+Response
+
+* * *
+
+```
+{
+  "access_token": "50000601c30atpedfgu3LVvik87Ixlsvle3mSoB7701ceb156fPunYZ43GBg",
+  "country": "sg",
+  "refresh_token": "500016000300bwa2WteaQyfwBMnPxurcA0mXGhQdTt18356663CfcDTYpWoi",
+  "account_id": "7063844",
+  "code": "0",
+  "account_platform": "seller_center",
+  "refresh_expires_in": "60",
+  "country_user_info": [
+    {
+      "country": "SG",
+      "user_id": "1001",
+      "seller_id": "1001",
+      "short_code": "SG1001"
+    }
+  ],
+  "expires_in": "10",
+  "request_id": "0ba2887315178178017221014",
+  "account": "xxx@126.com"
+}
+```

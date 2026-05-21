@@ -1,0 +1,649 @@
+# TikTok Shop Partner — Scraped Documentation Index
+
+Total pages: 624
+Generated: 2026-05-20T23:18:45.960Z
+
+## Sections
+
+### Partner Guide (85 pages)
+
+- [About the Partner Center Console](./docv2_page_about-partner-center-console.md) — https://partner.tiktokshop.com/docv2/page/about-partner-center-console
+- [Developer](./docv2_page_developer.md) — https://partner.tiktokshop.com/docv2/page/developer
+- [TikTok Shop Partner (TSP)](./docv2_page_tiktok-shop-partner-tsp.md) — https://partner.tiktokshop.com/docv2/page/tiktok-shop-partner-tsp
+- [Creator Agency Partner (CAP)](./docv2_page_creator-agency-partner-cap.md) — https://partner.tiktokshop.com/docv2/page/creator-agency-partner-cap
+- [Non-US TikTok Shop Affiliate Partner (TAP)](./docv2_page_non-us-tiktok-shop-affiliate-partner-tap.md) — https://partner.tiktokshop.com/docv2/page/non-us-tiktok-shop-affiliate-partner-tap
+- [US TikTok Shop Affiliate Partner (TAP)](./docv2_page_us-tiktok-shop-affiliate-partner-tap.md) — https://partner.tiktokshop.com/docv2/page/us-tiktok-shop-affiliate-partner-tap
+- [Multi-Channel Network (MCN)](./docv2_page_multi-channel-network-mcn.md) — https://partner.tiktokshop.com/docv2/page/multi-channel-network-mcn
+- [Register as a service partner](./docv2_page_64f19887dc7f3e028d381064.md) — https://partner.tiktokshop.com/docv2/page/64f19887dc7f3e028d381064
+- [[US] Agency Partner Onboard Guide](./docv2_page_683f1353f979330480b82080.md) — https://partner.tiktokshop.com/docv2/page/683f1353f979330480b82080
+- [[US] Service Category- Shop Registration](./docv2_page_dvc9si7n.md) — https://partner.tiktokshop.com/docv2/page/dvc9si7n
+- [Partner service categories](./docv2_page_64f1989064ed2e0295f3c1b5.md) — https://partner.tiktokshop.com/docv2/page/64f1989064ed2e0295f3c1b5
+- [Partner registration application requirement](./docv2_page_64f19899cb677b0286e75d67.md) — https://partner.tiktokshop.com/docv2/page/64f19899cb677b0286e75d67
+- [Edit certification details](./docv2_page_65e692774555b202bae5f694.md) — https://partner.tiktokshop.com/docv2/page/65e692774555b202bae5f694
+- [Managing Main and Member Accounts](./docv2_page_65b3630a36248f02beb2ffd8.md) — https://partner.tiktokshop.com/docv2/page/65b3630a36248f02beb2ffd8
+- [[SEA] Creator Level for Partners](./docv2_page_6809c6bb40605c04bbb7f95a.md) — https://partner.tiktokshop.com/docv2/page/6809c6bb40605c04bbb7f95a
+- [[US] TikTok Shop Partner Tiering Mechanism](./docv2_page_68411b45314d2504a1a7c407.md) — https://partner.tiktokshop.com/docv2/page/68411b45314d2504a1a7c407
+- [[US] Partner Workbench- Homepage](./docv2_page_27l52z0f.md) — https://partner.tiktokshop.com/docv2/page/27l52z0f
+- [[US] Partner Growth Center](./docv2_page_lu8gy7a6.md) — https://partner.tiktokshop.com/docv2/page/lu8gy7a6
+- [[MY] Partner Tax Info Collection](./docv2_page_npz00tc3.md) — https://partner.tiktokshop.com/docv2/page/npz00tc3
+- [Create and publish a service](./docv2_page_64f198a193f5dc028e35505f.md) — https://partner.tiktokshop.com/docv2/page/64f198a193f5dc028e35505f
+- [Listing your service on the App & Service Store](./docv2_page_650411a75a12ff0294023d30.md) — https://partner.tiktokshop.com/docv2/page/650411a75a12ff0294023d30
+- [Edit your app and service](./docv2_page_65fb2c789980e402be63e05b.md) — https://partner.tiktokshop.com/docv2/page/65fb2c789980e402be63e05b
+- [Seller Leads Pool](./docv2_page_67162b1c50a484031dd4dadb.md) — https://partner.tiktokshop.com/docv2/page/67162b1c50a484031dd4dadb
+- [Steps to Get Service Authorization](./docv2_page_64f198a9dc7f3e028d38171a.md) — https://partner.tiktokshop.com/docv2/page/64f198a9dc7f3e028d38171a
+- [Steps to cancel authorization for TSP](./docv2_page_67f342f80e952804ac403aa0.md) — https://partner.tiktokshop.com/docv2/page/67f342f80e952804ac403aa0
+- [Management- Manage authorizations](./docv2_page_64f198b5dc7f3e028d381882.md) — https://partner.tiktokshop.com/docv2/page/64f198b5dc7f3e028d381882
+- [TSP Access Feature](./docv2_page_666feffacf2e2202c8d39191.md) — https://partner.tiktokshop.com/docv2/page/666feffacf2e2202c8d39191
+- [TSP Access Seller-Creator IM](./docv2_page_hdcn0oi7.md) — https://partner.tiktokshop.com/docv2/page/hdcn0oi7
+- [[US] Partner Submitted Seller Leads Pool](./docv2_page_scojt4gb.md) — https://partner.tiktokshop.com/docv2/page/scojt4gb
+- [[MY] TSP Service Report](./docv2_page_666ff8ac20c18b02e5f8111e.md) — https://partner.tiktokshop.com/docv2/page/666ff8ac20c18b02e5f8111e
+- [[US] TSP Service Details](./docv2_page_67f631bf30769204a95094cf.md) — https://partner.tiktokshop.com/docv2/page/67f631bf30769204a95094cf
+- [[US TSP] TSP Service Offer](./docv2_page_674588096e6be2030f1fda2e.md) — https://partner.tiktokshop.com/docv2/page/674588096e6be2030f1fda2e
+- [[US TSP] Manage Company Profile](./docv2_page_6763cbc6e68c03030643b296.md) — https://partner.tiktokshop.com/docv2/page/6763cbc6e68c03030643b296
+- [[UK/JP/Latam] TSP Online Signing Process](./docv2_page_683f1483ffedae049865673e.md) — https://partner.tiktokshop.com/docv2/page/683f1483ffedae049865673e
+- [[US] TSP-Seller Service Online Signing Process](./docv2_page_gkg274vo.md) — https://partner.tiktokshop.com/docv2/page/gkg274vo
+- [[US]Expand to All 3 Partner Services to Unlock Tier Growth & Benefits](./docv2_page_nkwyi8y4.md) — https://partner.tiktokshop.com/docv2/page/nkwyi8y4
+- [Creator Management - Find Creators](./docv2_page_650a32eec16ffe02b8e4a6b8.md) — https://partner.tiktokshop.com/docv2/page/650a32eec16ffe02b8e4a6b8
+- [Creator Management - Linked Creators](./docv2_page_670deef454f920030fbd9e2f.md) — https://partner.tiktokshop.com/docv2/page/670deef454f920030fbd9e2f
+- [Creator Management - Find Creators (US)](./docv2_page_663a5ffd26b40c02d9c3db02.md) — https://partner.tiktokshop.com/docv2/page/663a5ffd26b40c02d9c3db02
+- [Creator Management - Fee Agreement/Commission Sharing](./docv2_page_650a34b4f1fd3102b9206dbc.md) — https://partner.tiktokshop.com/docv2/page/650a34b4f1fd3102b9206dbc
+- [Creator Management - Linking with Creators for Data Authorization & Commission Sharing (US ONLY)](./docv2_page_660357886d72f402e3b598fe.md) — https://partner.tiktokshop.com/docv2/page/660357886d72f402e3b598fe
+- [Agency - Creator Instant Messaging (IM)](./docv2_page_673f635a9e9ff30309130271.md) — https://partner.tiktokshop.com/docv2/page/673f635a9e9ff30309130271
+- [Product Management](./docv2_page_650a33b1c16ffe02b8e4bce8.md) — https://partner.tiktokshop.com/docv2/page/650a33b1c16ffe02b8e4bce8
+- [CAP Agency LIVE Commission (US)](./docv2_page_6797b00f23ae4b030c8df132.md) — https://partner.tiktokshop.com/docv2/page/6797b00f23ae4b030c8df132
+- [[US]Creator Lead Management](./docv2_page_67eb982ea15973047e1d633e.md) — https://partner.tiktokshop.com/docv2/page/67eb982ea15973047e1d633e
+- [[User guide] CAP Profile displayed to Creators](./docv2_page_67f85a66a15973047ea02b07.md) — https://partner.tiktokshop.com/docv2/page/67f85a66a15973047ea02b07
+- [How to Link Your TikTok Business Account](./docv2_page_yok86lgy.md) — https://partner.tiktokshop.com/docv2/page/yok86lgy
+- [Agency Access to Live Manager](./docv2_page_lvau79md.md) — https://partner.tiktokshop.com/docv2/page/lvau79md
+- [Creator Management - Managing Sample Requests for Campaigns](./docv2_page_67894027bae28f030a6eee51.md) — https://partner.tiktokshop.com/docv2/page/67894027bae28f030a6eee51
+- [Partner Collaboration](./docv2_page_650a395adefece02be63046f.md) — https://partner.tiktokshop.com/docv2/page/650a395adefece02be63046f
+- [Global Selling Collaborations Handbook](./docv2_page_657ff1d379b09302bc819d28.md) — https://partner.tiktokshop.com/docv2/page/657ff1d379b09302bc819d28
+- [Partner Campaign- Ads Commission](./docv2_page_kx5j57ql.md) — https://partner.tiktokshop.com/docv2/page/kx5j57ql
+- [Affiliate Partner Custom Report](./docv2_page_66064ce8337fa302d9c028db.md) — https://partner.tiktokshop.com/docv2/page/66064ce8337fa302d9c028db
+- [[User Guide for Agencies] Requesting Samples through TAP Campaigns](./docv2_page_661e23f026367902bfae36f8.md) — https://partner.tiktokshop.com/docv2/page/661e23f026367902bfae36f8
+- [Linking your Affiliate profile to TikTok Business Account](./docv2_page_66e21130640e850302941aae.md) — https://partner.tiktokshop.com/docv2/page/66e21130640e850302941aae
+- [[User Guide for Agencies] High opportunity product pool](./docv2_page_671a77cda0ae7b030126e7c2.md) — https://partner.tiktokshop.com/docv2/page/671a77cda0ae7b030126e7c2
+- [[User guide] TAP Profile displayed to Creators](./docv2_page_67f85c13a15973047ea038da.md) — https://partner.tiktokshop.com/docv2/page/67f85c13a15973047ea038da
+- [[US] Shop Health](./docv2_page_jwkahmef.md) — https://partner.tiktokshop.com/docv2/page/jwkahmef
+- [Contact a support agent](./docv2_page_66688ae10664fe02c1da888e.md) — https://partner.tiktokshop.com/docv2/page/66688ae10664fe02c1da888e
+- [Submit a ticket](./docv2_page_6661ee49ea792702c925ff02.md) — https://partner.tiktokshop.com/docv2/page/6661ee49ea792702c925ff02
+- [[CAP/TAP] Finance guide (US only)](./docv2_page_67dcd083cfbe6c04a15be01d.md) — https://partner.tiktokshop.com/docv2/page/67dcd083cfbe6c04a15be01d
+- [[US] 1099-K and Tax Form FAQs](./docv2_page_bz0jsiat.md) — https://partner.tiktokshop.com/docv2/page/bz0jsiat
+- [UK MRDP TAX Compliance](./docv2_page_67e138cde2bca304a1450925.md) — https://partner.tiktokshop.com/docv2/page/67e138cde2bca304a1450925
+- [[CAP/TAP] Payouts and Earnings (UK only)](./docv2_page_67e1390ae2bca304a1450a92.md) — https://partner.tiktokshop.com/docv2/page/67e1390ae2bca304a1450a92
+- [Finance(Non-us)](./docv2_page_650a33f2c16ffe02b8e4c4c4.md) — https://partner.tiktokshop.com/docv2/page/650a33f2c16ffe02b8e4c4c4
+- [[US] Creator Service(CAP) Settlement report Guide](./docv2_page_dyr6jbn3.md) — https://partner.tiktokshop.com/docv2/page/dyr6jbn3
+- [[US]Creator Matchmaking (TAP) Settlement report Guide](./docv2_page_tur4s3v7.md) — https://partner.tiktokshop.com/docv2/page/tur4s3v7
+- [GLOBAL: TIKTOK SHOP PARTNER CENTER TERMS OF SERVICE](./docv2_page_6506bbf2de672602b7bc0697.md) — https://partner.tiktokshop.com/docv2/page/6506bbf2de672602b7bc0697
+- [GLOBAL: KETENTUAN LAYANAN PUSAT MITRA TIKTOK SHOP](./docv2_page_65c05d6e4e466602e08fa537.md) — https://partner.tiktokshop.com/docv2/page/65c05d6e4e466602e08fa537
+- [TÉRMINOS DE SERVICIO PARA DESARROLLADORES DE TIKTOK SHOP](./docv2_page_6678d6e01f4e9c02dd63e26d.md) — https://partner.tiktokshop.com/docv2/page/6678d6e01f4e9c02dd63e26d
+- [ข้อกำหนดการให้บริการศูนย์พาร์ทเนอร์ TikTok Shop](./docv2_page_66d6b58022eab802ed403fb3.md) — https://partner.tiktokshop.com/docv2/page/66d6b58022eab802ed403fb3
+- [Developer Terms of Service](./docv2_page_6506bc942f024f02be400315.md) — https://partner.tiktokshop.com/docv2/page/6506bc942f024f02be400315
+- [EU-UK TIKTOK SHOP DEVELOPER TERMS OF SERVICE](./docv2_page_6678d65b11cb9502dd9b954d.md) — https://partner.tiktokshop.com/docv2/page/6678d65b11cb9502dd9b954d
+- [Sandbox Terms of Service](./docv2_page_6506bcc7e7071002be1597cc.md) — https://partner.tiktokshop.com/docv2/page/6506bcc7e7071002be1597cc
+- [Development Shops Terms of Service](./docv2_page_6506bce1e7071002be159c31.md) — https://partner.tiktokshop.com/docv2/page/6506bce1e7071002be159c31
+- [Partner Center Privacy Policy](./docv2_page_6506bc3d3edda702b7686ff5.md) — https://partner.tiktokshop.com/docv2/page/6506bc3d3edda702b7686ff5
+- [Violation Management Regulations for TikTok Shop Partners](./docv2_page_6506bc5ede672602b7bc0efb.md) — https://partner.tiktokshop.com/docv2/page/6506bc5ede672602b7bc0efb
+- [Operation Assessment Standard for Cross-Border Partners](./docv2_page_6506bd0bde672602b7bc1a9f.md) — https://partner.tiktokshop.com/docv2/page/6506bd0bde672602b7bc1a9f
+- [TSP Certification Program for Local Thailand TSPs](./docv2_page_65fa756a8de0b902be2b4644.md) — https://partner.tiktokshop.com/docv2/page/65fa756a8de0b902be2b4644
+- [Understand Creator Violations as a Local SEA/UK MCN](./docv2_page_66020d6c451b8102d6ec66af.md) — https://partner.tiktokshop.com/docv2/page/66020d6c451b8102d6ec66af
+- [Please add the reminder: Seller's acknowledgement regarding the use of the AI-based feature](./docv2_page_66554f0cdd2fa302bf4d7457.md) — https://partner.tiktokshop.com/docv2/page/66554f0cdd2fa302bf4d7457
+- [Seller's acknowledgement regarding the use of the AI-based feature](./docv2_page_664c9549130c7802c8b0c1d6.md) — https://partner.tiktokshop.com/docv2/page/664c9549130c7802c8b0c1d6
+- [【TikTok Shop - Cross-border Partner】 Onboarding Guide](./docv2_page_6746be6cebbeff030f7c5805.md) — https://partner.tiktokshop.com/docv2/page/6746be6cebbeff030f7c5805
+- [【TikTok Shop - Cross-border Partner】 Onboarding Guide for SEA](./docv2_page_6746bfaa13bf500306f47faa.md) — https://partner.tiktokshop.com/docv2/page/6746bfaa13bf500306f47faa
+- [【TikTok Shop Cross-border Partner】 Onboarding - Common Reasons of Rejection](./docv2_page_6746beaec77842030e83274c.md) — https://partner.tiktokshop.com/docv2/page/6746beaec77842030e83274c
+
+### Developer Guide (37 pages)
+
+- [TikTok Shop developer guide](./docv2_page_tts-developer-guide.md) — https://partner.tiktokshop.com/docv2/page/tts-developer-guide
+- [Get started overview](./docv2_page_tts-developer-types.md) — https://partner.tiktokshop.com/docv2/page/tts-developer-types
+- [App Category Selection Guide](./docv2_page_hulvi36o.md) — https://partner.tiktokshop.com/docv2/page/hulvi36o
+- [API entity tags](./docv2_page_api-entity-tags.md) — https://partner.tiktokshop.com/docv2/page/api-entity-tags
+- [Access scope](./docv2_page_access-scope.md) — https://partner.tiktokshop.com/docv2/page/access-scope
+- [Overview](./docv2_page_tts-api-concepts-overview.md) — https://partner.tiktokshop.com/docv2/page/tts-api-concepts-overview
+- [Methods and endpoints](./docv2_page_methods-and-endpoints.md) — https://partner.tiktokshop.com/docv2/page/methods-and-endpoints
+- [Common parameters](./docv2_page_common-parameters.md) — https://partner.tiktokshop.com/docv2/page/common-parameters
+- [Sign your API request](./docv2_page_sign-your-api-request.md) — https://partner.tiktokshop.com/docv2/page/sign-your-api-request
+- [Common errors](./docv2_page_common-errors.md) — https://partner.tiktokshop.com/docv2/page/common-errors
+- [Regions and languages](./docv2_page_regions-and-languages.md) — https://partner.tiktokshop.com/docv2/page/regions-and-languages
+- [Rate limits](./docv2_page_rate-limits.md) — https://partner.tiktokshop.com/docv2/page/rate-limits
+- [API versioning](./docv2_page_api-versioning.md) — https://partner.tiktokshop.com/docv2/page/api-versioning
+- [Upgrading to API version 202309](./docv2_page_upgrading-to-api-version-202309.md) — https://partner.tiktokshop.com/docv2/page/upgrading-to-api-version-202309
+- [Upgrade Customer Service API to 202309](./docv2_page_upgrade-customer-service-api-to-202309.md) — https://partner.tiktokshop.com/docv2/page/upgrade-customer-service-api-to-202309
+- [Seller Center development shops](./docv2_page_seller-center-development-shops.md) — https://partner.tiktokshop.com/docv2/page/seller-center-development-shops
+- [API testing tool](./docv2_page_api-testing-tool.md) — https://partner.tiktokshop.com/docv2/page/api-testing-tool
+- [Developer dashboard](./docv2_page_developer-dashboard.md) — https://partner.tiktokshop.com/docv2/page/developer-dashboard
+- [App development overview](./docv2_page_app-development-overview.md) — https://partner.tiktokshop.com/docv2/page/app-development-overview
+- [Create your App](./docv2_page_create-your-app.md) — https://partner.tiktokshop.com/docv2/page/create-your-app
+- [Edit your App](./docv2_page_edit-your-app.md) — https://partner.tiktokshop.com/docv2/page/edit-your-app
+- [Test your App](./docv2_page_test-your-app.md) — https://partner.tiktokshop.com/docv2/page/test-your-app
+- [Overview](./docv2_page_tts-webhooks-overview.md) — https://partner.tiktokshop.com/docv2/page/tts-webhooks-overview
+- [Configuration guide](./docv2_page_configuration-guide.md) — https://partner.tiktokshop.com/docv2/page/configuration-guide
+- [Overview](./docv2_page_tts-api-sdk-overview.md) — https://partner.tiktokshop.com/docv2/page/tts-api-sdk-overview
+- [Download SDK](./docv2_page_download-sdk.md) — https://partner.tiktokshop.com/docv2/page/download-sdk
+- [Integrate Java SDK](./docv2_page_integrate-java-sdk.md) — https://partner.tiktokshop.com/docv2/page/integrate-java-sdk
+- [Integrate GoLang SDK](./docv2_page_integrate-golang-sdk.md) — https://partner.tiktokshop.com/docv2/page/integrate-golang-sdk
+- [Integrate Node.js SDK](./docv2_page_integrate-node-js-sdk.md) — https://partner.tiktokshop.com/docv2/page/integrate-node-js-sdk
+- [Update SDK](./docv2_page_update-sdk.md) — https://partner.tiktokshop.com/docv2/page/update-sdk
+- [Overview](./docv2_page_tts-widgets-overview.md) — https://partner.tiktokshop.com/docv2/page/tts-widgets-overview
+- [Get widget token](./docv2_page_get-widget-token.md) — https://partner.tiktokshop.com/docv2/page/get-widget-token
+- [Widget SDK user guide](./docv2_page_widget-sdk-user-guide.md) — https://partner.tiktokshop.com/docv2/page/widget-sdk-user-guide
+- [Quality engine incident reason code](./docv2_page_quality-engine-incident-reason-code.md) — https://partner.tiktokshop.com/docv2/page/quality-engine-incident-reason-code
+- [Link to Tokopedia & Shop - ISV & Seller developer onboarding](./docv2_page_link-to-tokopedia-shop-isv-seller-developer-onboarding.md) — https://partner.tiktokshop.com/docv2/page/link-to-tokopedia-shop-isv-seller-developer-onboarding
+- [Link to Tokopedia & Shop - Migration Rehearsal](./docv2_page_link-to-tokopedia-shop-migration-rehearsal.md) — https://partner.tiktokshop.com/docv2/page/link-to-tokopedia-shop-migration-rehearsal
+- [How to contact support](./docv2_page_how-to-contact-support.md) — https://partner.tiktokshop.com/docv2/page/how-to-contact-support
+
+### API Reference (301 pages)
+
+- [GETGet Shop Webhooks](./docv2_page_get-shop-webhooks-202309.md) — https://partner.tiktokshop.com/docv2/page/get-shop-webhooks-202309
+- [PUTUpdate Shop Webhook](./docv2_page_update-shop-webhook-202309.md) — https://partner.tiktokshop.com/docv2/page/update-shop-webhook-202309
+- [DELDelete Shop Webhook](./docv2_page_delete-shop-webhook-202309.md) — https://partner.tiktokshop.com/docv2/page/delete-shop-webhook-202309
+- [Seller API overview](./docv2_page_seller-api-overview.md) — https://partner.tiktokshop.com/docv2/page/seller-api-overview
+- [GETGet Active Shops](./docv2_page_get-active-shops-202309.md) — https://partner.tiktokshop.com/docv2/page/get-active-shops-202309
+- [GETGet Seller Permissions](./docv2_page_get-seller-permissions-202309.md) — https://partner.tiktokshop.com/docv2/page/get-seller-permissions-202309
+- [GETGet Shop Group](./docv2_page_get-shop-group-202601.md) — https://partner.tiktokshop.com/docv2/page/get-shop-group-202601
+- [Products API overview](./docv2_page_products-api-overview.md) — https://partner.tiktokshop.com/docv2/page/products-api-overview
+- [Listing quality diagnosis](./docv2_page_listing-quality-diagnosis.md) — https://partner.tiktokshop.com/docv2/page/listing-quality-diagnosis
+- [Product pricing](./docv2_page_product-pricing.md) — https://partner.tiktokshop.com/docv2/page/product-pricing
+- [Common mistakes](./docv2_page_common-mistakes.md) — https://partner.tiktokshop.com/docv2/page/common-mistakes
+- [GETCheck Listing Prerequisites](./docv2_page_check-listing-prerequisites-202312.md) — https://partner.tiktokshop.com/docv2/page/check-listing-prerequisites-202312
+- [GETGet Categories](./docv2_page_get-categories-202309.md) — https://partner.tiktokshop.com/docv2/page/get-categories-202309
+- [POSTRecommend Category](./docv2_page_recommend-category-202309.md) — https://partner.tiktokshop.com/docv2/page/recommend-category-202309
+- [GETGet Category Rules](./docv2_page_get-category-rules-202309.md) — https://partner.tiktokshop.com/docv2/page/get-category-rules-202309
+- [GETGet Attributes](./docv2_page_get-attributes-202309.md) — https://partner.tiktokshop.com/docv2/page/get-attributes-202309
+- [GETGet Brands](./docv2_page_get-brands-202309.md) — https://partner.tiktokshop.com/docv2/page/get-brands-202309
+- [POSTCreate Custom Brands](./docv2_page_create-custom-brands-202309.md) — https://partner.tiktokshop.com/docv2/page/create-custom-brands-202309
+- [POSTCheck Product Listing](./docv2_page_check-product-listing-202309.md) — https://partner.tiktokshop.com/docv2/page/check-product-listing-202309
+- [POSTUpload Product Image](./docv2_page_upload-product-image-202309.md) — https://partner.tiktokshop.com/docv2/page/upload-product-image-202309
+- [POSTUpload Product File](./docv2_page_upload-product-file-202309.md) — https://partner.tiktokshop.com/docv2/page/upload-product-file-202309
+- [POSTSearch Size Charts](./docv2_page_search-size-charts-202407.md) — https://partner.tiktokshop.com/docv2/page/search-size-charts-202407
+- [POSTCreate Product](./docv2_page_create-product-202309.md) — https://partner.tiktokshop.com/docv2/page/create-product-202309
+- [POSTActivate Product](./docv2_page_activate-product-202309.md) — https://partner.tiktokshop.com/docv2/page/activate-product-202309
+- [POSTDeactivate Products](./docv2_page_deactivate-products-202309.md) — https://partner.tiktokshop.com/docv2/page/deactivate-products-202309
+- [DELDelete Products](./docv2_page_delete-products-202309.md) — https://partner.tiktokshop.com/docv2/page/delete-products-202309
+- [POSTRecover Products](./docv2_page_recover-products-202309.md) — https://partner.tiktokshop.com/docv2/page/recover-products-202309
+- [GETGet Product](./docv2_page_get-product-202309.md) — https://partner.tiktokshop.com/docv2/page/get-product-202309
+- [POSTSearch Products](./docv2_page_search-products-202502.md) — https://partner.tiktokshop.com/docv2/page/search-products-202502
+- [POSTUpdate Price](./docv2_page_update-price-202309.md) — https://partner.tiktokshop.com/docv2/page/update-price-202309
+- [POSTUpdate Inventory](./docv2_page_update-inventory-202309.md) — https://partner.tiktokshop.com/docv2/page/update-inventory-202309
+- [POSTInventory Search](./docv2_page_inventory-search-202309.md) — https://partner.tiktokshop.com/docv2/page/inventory-search-202309
+- [POSTDiagnose and Optimize Product](./docv2_page_diagnose-and-optimize-product-202411.md) — https://partner.tiktokshop.com/docv2/page/diagnose-and-optimize-product-202411
+- [GETProduct Information Issue Diagnosis](./docv2_page_product-information-issue-diagnosis-202405.md) — https://partner.tiktokshop.com/docv2/page/product-information-issue-diagnosis-202405
+- [GETGet Products SEO Words](./docv2_page_get-products-seo-words-202405.md) — https://partner.tiktokshop.com/docv2/page/get-products-seo-words-202405
+- [GETGet Recommended Product Title And Description](./docv2_page_get-recommended-product-title-and-description-202405.md) — https://partner.tiktokshop.com/docv2/page/get-recommended-product-title-and-description-202405
+- [POSTOptimized Images](./docv2_page_optimized-images-202404.md) — https://partner.tiktokshop.com/docv2/page/optimized-images-202404
+- [POSTCreate Image Translation Tasks](./docv2_page_create-image-translation-tasks-202505.md) — https://partner.tiktokshop.com/docv2/page/create-image-translation-tasks-202505
+- [GETGet Image Translation Tasks](./docv2_page_get-image-translation-tasks-202506.md) — https://partner.tiktokshop.com/docv2/page/get-image-translation-tasks-202506
+- [GETGet Global Categories](./docv2_page_get-global-categories-202309.md) — https://partner.tiktokshop.com/docv2/page/get-global-categories-202309
+- [POSTRecommend Global Categories](./docv2_page_recommend-global-categories-202309.md) — https://partner.tiktokshop.com/docv2/page/recommend-global-categories-202309
+- [GETGet Global Category Rules](./docv2_page_get-global-category-rules-202309.md) — https://partner.tiktokshop.com/docv2/page/get-global-category-rules-202309
+- [GETGet Global Attributes](./docv2_page_get-global-attributes-202309.md) — https://partner.tiktokshop.com/docv2/page/get-global-attributes-202309
+- [POSTCreate Global Product](./docv2_page_create-global-product-202309.md) — https://partner.tiktokshop.com/docv2/page/create-global-product-202309
+- [POSTPublish Global Product](./docv2_page_publish-global-product-202309.md) — https://partner.tiktokshop.com/docv2/page/publish-global-product-202309
+- [PUTEdit Global Product](./docv2_page_edit-global-product-202309.md) — https://partner.tiktokshop.com/docv2/page/edit-global-product-202309
+- [DELDelete Global Products](./docv2_page_delete-global-products-202309.md) — https://partner.tiktokshop.com/docv2/page/delete-global-products-202309
+- [GETGet Global Product](./docv2_page_get-global-product-202309.md) — https://partner.tiktokshop.com/docv2/page/get-global-product-202309
+- [POSTSearch Global Products](./docv2_page_search-global-products-202312.md) — https://partner.tiktokshop.com/docv2/page/search-global-products-202312
+- [POSTUpdate Global Inventory](./docv2_page_update-global-inventory-202309.md) — https://partner.tiktokshop.com/docv2/page/update-global-inventory-202309
+- [POSTCreate Manufacturer](./docv2_page_create-manufacturer-202409.md) — https://partner.tiktokshop.com/docv2/page/create-manufacturer-202409
+- [POSTPartial Edit Manufacturer](./docv2_page_partial-edit-manufacturer-202409.md) — https://partner.tiktokshop.com/docv2/page/partial-edit-manufacturer-202409
+- [POSTSearch Manufacturers](./docv2_page_search-manufacturers-202501.md) — https://partner.tiktokshop.com/docv2/page/search-manufacturers-202501
+- [POSTCreate Responsible Person](./docv2_page_create-responsible-person-202409.md) — https://partner.tiktokshop.com/docv2/page/create-responsible-person-202409
+- [POSTPartial Edit Responsible Person](./docv2_page_partial-edit-responsible-person-202409.md) — https://partner.tiktokshop.com/docv2/page/partial-edit-responsible-person-202409
+- [POSTSearch Responsible Persons](./docv2_page_search-responsible-persons-202501.md) — https://partner.tiktokshop.com/docv2/page/search-responsible-persons-202501
+- [POSTCreate Category Upgrade Task](./docv2_page_create-category-upgrade-task-202407.md) — https://partner.tiktokshop.com/docv2/page/create-category-upgrade-task-202407
+- [GETGet Global Listing Rules](./docv2_page_get-global-listing-rules-202507.md) — https://partner.tiktokshop.com/docv2/page/get-global-listing-rules-202507
+- [POSTReplicate Product](./docv2_page_replicate-product-202507.md) — https://partner.tiktokshop.com/docv2/page/replicate-product-202507
+- [GETGet Global Replicated Products](./docv2_page_get-global-replicated-products-202507.md) — https://partner.tiktokshop.com/docv2/page/get-global-replicated-products-202507
+- [PUTEdit Product](./docv2_page_edit-product-202509.md) — https://partner.tiktokshop.com/docv2/page/edit-product-202509
+- [POSTPartial Edit Product](./docv2_page_partial-edit-product-202509.md) — https://partner.tiktokshop.com/docv2/page/partial-edit-product-202509
+- [PUTPartial Edit Global Product](./docv2_page_partial-edit-global-product-202509.md) — https://partner.tiktokshop.com/docv2/page/partial-edit-global-product-202509
+- [POSTProduct Auditing Research](./docv2_page_product-auditing-research-202601.md) — https://partner.tiktokshop.com/docv2/page/product-auditing-research-202601
+- [POSTGet Recommended Product Package](./docv2_page_get-recommended-product-package-202602.md) — https://partner.tiktokshop.com/docv2/page/get-recommended-product-package-202602
+- [GETGet Opportunity Detail](./docv2_page_get-opportunity-detail-202604.md) — https://partner.tiktokshop.com/docv2/page/get-opportunity-detail-202604
+- [POSTList Opportunity](./docv2_page_list-opportunity-202604.md) — https://partner.tiktokshop.com/docv2/page/list-opportunity-202604
+- [POSTSubmit Product via Opportunity](./docv2_page_submit-product-via-opportunity-202604.md) — https://partner.tiktokshop.com/docv2/page/submit-product-via-opportunity-202604
+- [GETGet Submission Records](./docv2_page_get-submission-records-202604.md) — https://partner.tiktokshop.com/docv2/page/get-submission-records-202604
+- [POSTCreate GPA Upgrade Task](./docv2_page_create-gpa-upgrade-task-202604.md) — https://partner.tiktokshop.com/docv2/page/create-gpa-upgrade-task-202604
+- [POSTUpdate Stock Operation Settings](./docv2_page_update-stock-operation-settings-202604.md) — https://partner.tiktokshop.com/docv2/page/update-stock-operation-settings-202604
+- [POSTSubmit Appeal Task](./docv2_page_submit-appeal-task-202604.md) — https://partner.tiktokshop.com/docv2/page/submit-appeal-task-202604
+- [Promotion API overview](./docv2_page_promotion-api-overview.md) — https://partner.tiktokshop.com/docv2/page/promotion-api-overview
+- [Shipping discount supported areas](./docv2_page_shipping-discount-supported-areas.md) — https://partner.tiktokshop.com/docv2/page/shipping-discount-supported-areas
+- [POSTCreate Activity](./docv2_page_create-activity-202309.md) — https://partner.tiktokshop.com/docv2/page/create-activity-202309
+- [PUTUpdate Activity](./docv2_page_update-activity-202309.md) — https://partner.tiktokshop.com/docv2/page/update-activity-202309
+- [POSTDeactivate Activity](./docv2_page_deactivate-activity-202309.md) — https://partner.tiktokshop.com/docv2/page/deactivate-activity-202309
+- [GETGet Activity](./docv2_page_get-activity-202309.md) — https://partner.tiktokshop.com/docv2/page/get-activity-202309
+- [POSTSearch Activities](./docv2_page_search-activities-202309.md) — https://partner.tiktokshop.com/docv2/page/search-activities-202309
+- [PUTUpdate Activity Product](./docv2_page_update-activity-product-202309.md) — https://partner.tiktokshop.com/docv2/page/update-activity-product-202309
+- [DELRemove Activity Product](./docv2_page_remove-activity-product-202309.md) — https://partner.tiktokshop.com/docv2/page/remove-activity-product-202309
+- [GETGet Coupon](./docv2_page_get-coupon-202406.md) — https://partner.tiktokshop.com/docv2/page/get-coupon-202406
+- [POSTSearch Coupons](./docv2_page_search-coupons-202406.md) — https://partner.tiktokshop.com/docv2/page/search-coupons-202406
+- [Order API overview](./docv2_page_order-api-overview.md) — https://partner.tiktokshop.com/docv2/page/order-api-overview
+- [POSTGet Order List](./docv2_page_get-order-list-202309.md) — https://partner.tiktokshop.com/docv2/page/get-order-list-202309
+- [GETGet Price Detail](./docv2_page_get-price-detail-202407.md) — https://partner.tiktokshop.com/docv2/page/get-price-detail-202407
+- [POSTAdd External Order References](./docv2_page_add-external-order-references-202406.md) — https://partner.tiktokshop.com/docv2/page/add-external-order-references-202406
+- [GETGet External Order References](./docv2_page_get-external-order-references-202406.md) — https://partner.tiktokshop.com/docv2/page/get-external-order-references-202406
+- [POSTSearch Order By External Order Reference](./docv2_page_search-order-by-external-order-reference-202406.md) — https://partner.tiktokshop.com/docv2/page/search-order-by-external-order-reference-202406
+- [GETGet Order Detail](./docv2_page_get-order-detail-202507.md) — https://partner.tiktokshop.com/docv2/page/get-order-detail-202507
+- [POSTUpdate The Blind Box Opening Results](./docv2_page_update-the-blind-box-opening-results-202511.md) — https://partner.tiktokshop.com/docv2/page/update-the-blind-box-opening-results-202511
+- [Fulfillment API overview](./docv2_page_fulfillment-api-overview.md) — https://partner.tiktokshop.com/docv2/page/fulfillment-api-overview
+- [GETGet Order Split Attributes](./docv2_page_get-order-split-attributes-202309.md) — https://partner.tiktokshop.com/docv2/page/get-order-split-attributes-202309
+- [POSTSplit Orders](./docv2_page_split-orders-202309.md) — https://partner.tiktokshop.com/docv2/page/split-orders-202309
+- [POSTGet Eligible Shipping Service](./docv2_page_get-eligible-shipping-service-202309.md) — https://partner.tiktokshop.com/docv2/page/get-eligible-shipping-service-202309
+- [POSTCreate First Mile Bundle](./docv2_page_create-first-mile-bundle-202407.md) — https://partner.tiktokshop.com/docv2/page/create-first-mile-bundle-202407
+- [POSTSearch Package](./docv2_page_search-package-202309.md) — https://partner.tiktokshop.com/docv2/page/search-package-202309
+- [GETSearch Combinable Packages](./docv2_page_search-combinable-packages-202309.md) — https://partner.tiktokshop.com/docv2/page/search-combinable-packages-202309
+- [POSTCombine Package](./docv2_page_combine-package-202309.md) — https://partner.tiktokshop.com/docv2/page/combine-package-202309
+- [POSTUncombine Packages](./docv2_page_uncombine-packages-202309.md) — https://partner.tiktokshop.com/docv2/page/uncombine-packages-202309
+- [GETGet Package Handover Time Slots](./docv2_page_get-package-handover-time-slots-202309.md) — https://partner.tiktokshop.com/docv2/page/get-package-handover-time-slots-202309
+- [POSTShip Package](./docv2_page_ship-package-202309.md) — https://partner.tiktokshop.com/docv2/page/ship-package-202309
+- [POSTBatch Ship Packages](./docv2_page_batch-ship-packages-202309.md) — https://partner.tiktokshop.com/docv2/page/batch-ship-packages-202309
+- [POSTMark Package As Shipped](./docv2_page_mark-package-as-shipped-202309.md) — https://partner.tiktokshop.com/docv2/page/mark-package-as-shipped-202309
+- [GETGet Package Shipping Document](./docv2_page_get-package-shipping-document-202309.md) — https://partner.tiktokshop.com/docv2/page/get-package-shipping-document-202309
+- [GETGet Package Detail](./docv2_page_get-package-detail-202309.md) — https://partner.tiktokshop.com/docv2/page/get-package-detail-202309
+- [GETGet Tracking](./docv2_page_get-tracking-202309.md) — https://partner.tiktokshop.com/docv2/page/get-tracking-202309
+- [POSTUpdate Shipping Info](./docv2_page_update-shipping-info-202309.md) — https://partner.tiktokshop.com/docv2/page/update-shipping-info-202309
+- [POSTUpdate Package Shipping Info](./docv2_page_update-package-shipping-info-202309.md) — https://partner.tiktokshop.com/docv2/page/update-package-shipping-info-202309
+- [POSTFulfillment Upload Delivery File](./docv2_page_fulfillment-upload-delivery-file-202309.md) — https://partner.tiktokshop.com/docv2/page/fulfillment-upload-delivery-file-202309
+- [POSTFulfillment Upload Delivery Image](./docv2_page_fulfillment-upload-delivery-image-202309.md) — https://partner.tiktokshop.com/docv2/page/fulfillment-upload-delivery-image-202309
+- [POSTUpdate Package Delivery Status](./docv2_page_update-package-delivery-status-202309.md) — https://partner.tiktokshop.com/docv2/page/update-package-delivery-status-202309
+- [POSTUpload Invoice](./docv2_page_upload-invoice-202502.md) — https://partner.tiktokshop.com/docv2/page/upload-invoice-202502
+- [GETTTS Tracking Validation](./docv2_page_tts-tracking-validation-202508.md) — https://partner.tiktokshop.com/docv2/page/tts-tracking-validation-202508
+- [POSTCreate First Mile Bundle(V2)](./docv2_page_create-first-mile-bundle-v2-202510.md) — https://partner.tiktokshop.com/docv2/page/create-first-mile-bundle-v2-202510
+- [POSTCreate Packages](./docv2_page_create-packages-202512.md) — https://partner.tiktokshop.com/docv2/page/create-packages-202512
+- [POSTRedeem Info Callback](./docv2_page_redeem-info-callback-202601.md) — https://partner.tiktokshop.com/docv2/page/redeem-info-callback-202601
+- [FBT Inbound API — Overview Guide](./docv2_page_16f0ojsg.md) — https://partner.tiktokshop.com/docv2/page/16f0ojsg
+- [GETGet FBT Merchant Onboarded Regions](./docv2_page_get-fbt-merchant-onboarded-regions-202409.md) — https://partner.tiktokshop.com/docv2/page/get-fbt-merchant-onboarded-regions-202409
+- [GETGet FBT Warehouse List](./docv2_page_get-fbt-warehouse-list-202408.md) — https://partner.tiktokshop.com/docv2/page/get-fbt-warehouse-list-202408
+- [POSTSearch FBT Inventory](./docv2_page_search-fbt-inventory-202408.md) — https://partner.tiktokshop.com/docv2/page/search-fbt-inventory-202408
+- [POSTSearch FBT Inventory Record](./docv2_page_search-fbt-inventory-record-202410.md) — https://partner.tiktokshop.com/docv2/page/search-fbt-inventory-record-202410
+- [POSTSearch Goods Info](./docv2_page_search-goods-info-202409.md) — https://partner.tiktokshop.com/docv2/page/search-goods-info-202409
+- [GETGet FBF MCF Order Status](./docv2_page_get-fbf-mcf-order-status-202601.md) — https://partner.tiktokshop.com/docv2/page/get-fbf-mcf-order-status-202601
+- [POSTCancel FBT MCF Order](./docv2_page_cancel-fbt-mcf-order-202601.md) — https://partner.tiktokshop.com/docv2/page/cancel-fbt-mcf-order-202601
+- [POSTCreate FBT MCF Order](./docv2_page_create-fbt-mcf-order-202601.md) — https://partner.tiktokshop.com/docv2/page/create-fbt-mcf-order-202601
+- [POSTQuery Goods Inventory For MCF](./docv2_page_query-goods-inventory-for-mcf-202601.md) — https://partner.tiktokshop.com/docv2/page/query-goods-inventory-for-mcf-202601
+- [GETGet FBT Merchant MCF Status](./docv2_page_get-fbt-merchant-mcf-status-202601.md) — https://partner.tiktokshop.com/docv2/page/get-fbt-merchant-mcf-status-202601
+- [POSTCreate Update Inbound Plan](./docv2_page_create-update-inbound-plan-202602.md) — https://partner.tiktokshop.com/docv2/page/create-update-inbound-plan-202602
+- [POSTList Available Inbound Method](./docv2_page_list-available-inbound-method-202602.md) — https://partner.tiktokshop.com/docv2/page/list-available-inbound-method-202602
+- [POSTGet Inbound Method Detail](./docv2_page_get-inbound-method-detail-202602.md) — https://partner.tiktokshop.com/docv2/page/get-inbound-method-detail-202602
+- [POSTPrint Label](./docv2_page_print-label-202602.md) — https://partner.tiktokshop.com/docv2/page/print-label-202602
+- [POSTUpdate Tracking](./docv2_page_update-tracking-202602.md) — https://partner.tiktokshop.com/docv2/page/update-tracking-202602
+- [POSTCancel Inbound Order](./docv2_page_cancel-inbound-order-202602.md) — https://partner.tiktokshop.com/docv2/page/cancel-inbound-order-202602
+- [GETGet Inbound Order](./docv2_page_get-inbound-order-202602.md) — https://partner.tiktokshop.com/docv2/page/get-inbound-order-202602
+- [POSTConfirm Inbound Method](./docv2_page_confirm-inbound-method-202603.md) — https://partner.tiktokshop.com/docv2/page/confirm-inbound-method-202603
+- [POSTShip Inbound Order](./docv2_page_ship-inbound-order-202603.md) — https://partner.tiktokshop.com/docv2/page/ship-inbound-order-202603
+- [POSTUpdate Goods Sku Relation](./docv2_page_update-goods-sku-relation-202603.md) — https://partner.tiktokshop.com/docv2/page/update-goods-sku-relation-202603
+- [POSTCreate Goods](./docv2_page_create-goods-202603.md) — https://partner.tiktokshop.com/docv2/page/create-goods-202603
+- [POSTGet Hazmat And Expiration Info](./docv2_page_get-hazmat-and-expiration-info-202603.md) — https://partner.tiktokshop.com/docv2/page/get-hazmat-and-expiration-info-202603
+- [POSTUpdate Goods](./docv2_page_update-goods-202603.md) — https://partner.tiktokshop.com/docv2/page/update-goods-202603
+- [Logistic API overview](./docv2_page_logistic-api-overview.md) — https://partner.tiktokshop.com/docv2/page/logistic-api-overview
+- [GETGet Warehouse List](./docv2_page_get-warehouse-list-202309.md) — https://partner.tiktokshop.com/docv2/page/get-warehouse-list-202309
+- [GETGet Global Seller Warehouse](./docv2_page_get-global-seller-warehouse-202309.md) — https://partner.tiktokshop.com/docv2/page/get-global-seller-warehouse-202309
+- [GETGet Warehouse Delivery Options](./docv2_page_get-warehouse-delivery-options-202309.md) — https://partner.tiktokshop.com/docv2/page/get-warehouse-delivery-options-202309
+- [GETGet Shipping Providers](./docv2_page_get-shipping-providers-202309.md) — https://partner.tiktokshop.com/docv2/page/get-shipping-providers-202309
+- [GETGet Available Shipping Template](./docv2_page_get-available-shipping-template-202510.md) — https://partner.tiktokshop.com/docv2/page/get-available-shipping-template-202510
+- [GETGet Logistics Tracking](./docv2_page_get-logistics-tracking-202604.md) — https://partner.tiktokshop.com/docv2/page/get-logistics-tracking-202604
+- [Return, refund, and cancel API overview](./docv2_page_return-refund-and-cancel-api-overview.md) — https://partner.tiktokshop.com/docv2/page/return-refund-and-cancel-api-overview
+- [Return reasons](./docv2_page_return-reasons.md) — https://partner.tiktokshop.com/docv2/page/return-reasons
+- [Refund reasons](./docv2_page_refund-reasons.md) — https://partner.tiktokshop.com/docv2/page/refund-reasons
+- [Cancel reasons](./docv2_page_cancel-reasons.md) — https://partner.tiktokshop.com/docv2/page/cancel-reasons
+- [GETGet Reject Reasons](./docv2_page_get-reject-reasons-202309.md) — https://partner.tiktokshop.com/docv2/page/get-reject-reasons-202309
+- [POSTApprove Return](./docv2_page_approve-return-202309.md) — https://partner.tiktokshop.com/docv2/page/approve-return-202309
+- [POSTReject Return](./docv2_page_reject-return-202309.md) — https://partner.tiktokshop.com/docv2/page/reject-return-202309
+- [GETGet Return Records](./docv2_page_get-return-records-202309.md) — https://partner.tiktokshop.com/docv2/page/get-return-records-202309
+- [POSTApprove Cancellation](./docv2_page_approve-cancellation-202309.md) — https://partner.tiktokshop.com/docv2/page/approve-cancellation-202309
+- [POSTReject Cancellation](./docv2_page_reject-cancellation-202309.md) — https://partner.tiktokshop.com/docv2/page/reject-cancellation-202309
+- [GETGet Decision Eligibility](./docv2_page_get-decision-eligibility-202601.md) — https://partner.tiktokshop.com/docv2/page/get-decision-eligibility-202601
+- [POSTCalculate Refund](./docv2_page_calculate-refund-202602.md) — https://partner.tiktokshop.com/docv2/page/calculate-refund-202602
+- [POSTCancel Order](./docv2_page_cancel-order-202602.md) — https://partner.tiktokshop.com/docv2/page/cancel-order-202602
+- [POSTCreate Return](./docv2_page_create-return-202602.md) — https://partner.tiktokshop.com/docv2/page/create-return-202602
+- [POSTSearch Cancellations](./docv2_page_search-cancellations-202602.md) — https://partner.tiktokshop.com/docv2/page/search-cancellations-202602
+- [POSTSearch Returns](./docv2_page_search-returns-202602.md) — https://partner.tiktokshop.com/docv2/page/search-returns-202602
+- [GETGet Aftersale Eligibility](./docv2_page_get-aftersale-eligibility-202602.md) — https://partner.tiktokshop.com/docv2/page/get-aftersale-eligibility-202602
+- [POSTSearch Aftersales Request](./docv2_page_search-aftersales-request-202603.md) — https://partner.tiktokshop.com/docv2/page/search-aftersales-request-202603
+- [POSTReview Aftersales](./docv2_page_review-aftersales-202603.md) — https://partner.tiktokshop.com/docv2/page/review-aftersales-202603
+- [POSTSearch Return Merchandise Authorization](./docv2_page_search-return-merchandise-authorization-202604.md) — https://partner.tiktokshop.com/docv2/page/search-return-merchandise-authorization-202604
+- [Finance API overview](./docv2_page_finance-api-overview.md) — https://partner.tiktokshop.com/docv2/page/finance-api-overview
+- [GETGet Statements](./docv2_page_get-statements-202309.md) — https://partner.tiktokshop.com/docv2/page/get-statements-202309
+- [GETGet Payments](./docv2_page_get-payments-202309.md) — https://partner.tiktokshop.com/docv2/page/get-payments-202309
+- [GETGet Withdrawals](./docv2_page_get-withdrawals-202309.md) — https://partner.tiktokshop.com/docv2/page/get-withdrawals-202309
+- [GETGet Transactions by Order](./docv2_page_get-transactions-by-order-202501.md) — https://partner.tiktokshop.com/docv2/page/get-transactions-by-order-202501
+- [GETGet Transactions by Statement](./docv2_page_get-transactions-by-statement-202501.md) — https://partner.tiktokshop.com/docv2/page/get-transactions-by-statement-202501
+- [GETGet Unsettled Transactions](./docv2_page_get-unsettled-transactions-202507.md) — https://partner.tiktokshop.com/docv2/page/get-unsettled-transactions-202507
+- [GETGet Video Performances](./docv2_page_get-video-performances-202403.md) — https://partner.tiktokshop.com/docv2/page/get-video-performances-202403
+- [GETGet Shop Performance Per Hour](./docv2_page_get-shop-performance-per-hour-202510.md) — https://partner.tiktokshop.com/docv2/page/get-shop-performance-per-hour-202510
+- [GETGet Shop LIVE Performance Per Minutes](./docv2_page_get-shop-live-performance-per-minutes-202510.md) — https://partner.tiktokshop.com/docv2/page/get-shop-live-performance-per-minutes-202510
+- [GETGet Shop LIVE Products Performance List](./docv2_page_get-shop-live-products-performance-list-202512.md) — https://partner.tiktokshop.com/docv2/page/get-shop-live-products-performance-list-202512
+- [GETGet Shop Performance](./docv2_page_get-shop-performance-202509.md) — https://partner.tiktokshop.com/docv2/page/get-shop-performance-202509
+- [GETGet Shop Product Performance Detail](./docv2_page_get-shop-product-performance-detail-202509.md) — https://partner.tiktokshop.com/docv2/page/get-shop-product-performance-detail-202509
+- [GETGet Shop SKU Performance](./docv2_page_get-shop-sku-performance-202509.md) — https://partner.tiktokshop.com/docv2/page/get-shop-sku-performance-202509
+- [GETGet Shop SKU Performance List](./docv2_page_get-shop-sku-performance-list-202509.md) — https://partner.tiktokshop.com/docv2/page/get-shop-sku-performance-list-202509
+- [GETGet Shop Video Performance List](./docv2_page_get-shop-video-performance-list-202509.md) — https://partner.tiktokshop.com/docv2/page/get-shop-video-performance-list-202509
+- [GETGet Shop Video Performance Overview](./docv2_page_get-shop-video-performance-overview-202509.md) — https://partner.tiktokshop.com/docv2/page/get-shop-video-performance-overview-202509
+- [GETGet Shop Video Performance Details](./docv2_page_get-shop-video-performance-details-202509.md) — https://partner.tiktokshop.com/docv2/page/get-shop-video-performance-details-202509
+- [GETGet Shop Video Product Performance List](./docv2_page_get-shop-video-product-performance-list-202509.md) — https://partner.tiktokshop.com/docv2/page/get-shop-video-product-performance-list-202509
+- [GETGet Shop LIVE Performance List](./docv2_page_get-shop-live-performance-list-202509.md) — https://partner.tiktokshop.com/docv2/page/get-shop-live-performance-list-202509
+- [GETGet Shop LIVE Performance Overview](./docv2_page_get-shop-live-performance-overview-202509.md) — https://partner.tiktokshop.com/docv2/page/get-shop-live-performance-overview-202509
+- [GETGet Shop Product Performance List](./docv2_page_get-shop-product-performance-list-202509.md) — https://partner.tiktokshop.com/docv2/page/get-shop-product-performance-list-202509
+- [GETGet View Trend Performances](./docv2_page_get-view-trend-performances-202502.md) — https://partner.tiktokshop.com/docv2/page/get-view-trend-performances-202502
+- [GETGet Traffic Performances](./docv2_page_get-traffic-performances-202502.md) — https://partner.tiktokshop.com/docv2/page/get-traffic-performances-202502
+- [GETGet User Portraits](./docv2_page_get-user-portraits-202502.md) — https://partner.tiktokshop.com/docv2/page/get-user-portraits-202502
+- [GETGet Product Stats](./docv2_page_get-product-stats-202502.md) — https://partner.tiktokshop.com/docv2/page/get-product-stats-202502
+- [GETGet Interactive Trend Performances](./docv2_page_get-interactive-trend-performances-202502.md) — https://partner.tiktokshop.com/docv2/page/get-interactive-trend-performances-202502
+- [GETGet GMV Trend Performances](./docv2_page_get-gmv-trend-performances-202502.md) — https://partner.tiktokshop.com/docv2/page/get-gmv-trend-performances-202502
+- [GETGet Live Core Stats](./docv2_page_get-live-core-stats-202502.md) — https://partner.tiktokshop.com/docv2/page/get-live-core-stats-202502
+- [GETGet Bestselling Products](./docv2_page_get-bestselling-products-202511.md) — https://partner.tiktokshop.com/docv2/page/get-bestselling-products-202511
+- [GETGet Bestselling Creators](./docv2_page_get-bestselling-creators-202511.md) — https://partner.tiktokshop.com/docv2/page/get-bestselling-creators-202511
+- [GETGet Bestselling Videos](./docv2_page_get-bestselling-videos-202511.md) — https://partner.tiktokshop.com/docv2/page/get-bestselling-videos-202511
+- [GETGet Bestselling LIVEs](./docv2_page_get-bestselling-lives-202511.md) — https://partner.tiktokshop.com/docv2/page/get-bestselling-lives-202511
+- [Customer Service API overview](./docv2_page_customer-service-api-overview.md) — https://partner.tiktokshop.com/docv2/page/customer-service-api-overview
+- [Message Types](./docv2_page_6y23rc6a.md) — https://partner.tiktokshop.com/docv2/page/6y23rc6a
+- [Post-sales Solutions for Customer Services](./docv2_page_gx13i64p.md) — https://partner.tiktokshop.com/docv2/page/gx13i64p
+- [POSTCreate Conversation](./docv2_page_create-conversation-202309.md) — https://partner.tiktokshop.com/docv2/page/create-conversation-202309
+- [GETGet Conversations](./docv2_page_get-conversations-202309.md) — https://partner.tiktokshop.com/docv2/page/get-conversations-202309
+- [GETGet Conversation Messages](./docv2_page_get-conversation-messages-202309.md) — https://partner.tiktokshop.com/docv2/page/get-conversation-messages-202309
+- [POSTUpload Buyer Messages Image](./docv2_page_upload-buyer-messages-image-202309.md) — https://partner.tiktokshop.com/docv2/page/upload-buyer-messages-image-202309
+- [POSTSend Message](./docv2_page_send-message-202309.md) — https://partner.tiktokshop.com/docv2/page/send-message-202309
+- [POSTRead Message](./docv2_page_read-message-202309.md) — https://partner.tiktokshop.com/docv2/page/read-message-202309
+- [GETGet Agent Settings](./docv2_page_get-agent-settings-202309.md) — https://partner.tiktokshop.com/docv2/page/get-agent-settings-202309
+- [PUTUpdate Agent Settings](./docv2_page_update-agent-settings-202309.md) — https://partner.tiktokshop.com/docv2/page/update-agent-settings-202309
+- [GETGet Customer Service Performance](./docv2_page_get-customer-service-performance-202407.md) — https://partner.tiktokshop.com/docv2/page/get-customer-service-performance-202407
+- [GETGet Conversation](./docv2_page_get-conversation-202601.md) — https://partner.tiktokshop.com/docv2/page/get-conversation-202601
+- [POSTSearch Sessions](./docv2_page_search-sessions-202602.md) — https://partner.tiktokshop.com/docv2/page/search-sessions-202602
+- [POSTEnd Session](./docv2_page_end-session-202605.md) — https://partner.tiktokshop.com/docv2/page/end-session-202605
+- [Customer engagement API overview](./docv2_page_customer-engagement-api-overview.md) — https://partner.tiktokshop.com/docv2/page/customer-engagement-api-overview
+- [GETGet Message Templates](./docv2_page_get-message-templates-202412.md) — https://partner.tiktokshop.com/docv2/page/get-message-templates-202412
+- [POSTCreate Engagement Task](./docv2_page_create-engagement-task-202412.md) — https://partner.tiktokshop.com/docv2/page/create-engagement-task-202412
+- [POSTSend Engagement Message](./docv2_page_send-engagement-message-202412.md) — https://partner.tiktokshop.com/docv2/page/send-engagement-message-202412
+- [POSTGet Task Performances](./docv2_page_get-task-performances-202412.md) — https://partner.tiktokshop.com/docv2/page/get-task-performances-202412
+- [POSTCreate Custom Engagement Task](./docv2_page_create-custom-engagement-task-202502.md) — https://partner.tiktokshop.com/docv2/page/create-custom-engagement-task-202502
+- [GETGet Feature Permissions](./docv2_page_get-feature-permissions-202502.md) — https://partner.tiktokshop.com/docv2/page/get-feature-permissions-202502
+- [POSTGet product reviews](./docv2_page_get-product-reviews-202605.md) — https://partner.tiktokshop.com/docv2/page/get-product-reviews-202605
+- [Affiliate Creator API overview](./docv2_page_affiliate-creator-api-overview.md) — https://partner.tiktokshop.com/docv2/page/affiliate-creator-api-overview
+- [GETGet Creator Profile](./docv2_page_get-creator-profile-202508.md) — https://partner.tiktokshop.com/docv2/page/get-creator-profile-202508
+- [GETGet Showcase Products](./docv2_page_get-showcase-products-202405.md) — https://partner.tiktokshop.com/docv2/page/get-showcase-products-202405
+- [POSTAdd Showcase Products](./docv2_page_add-showcase-products-202405.md) — https://partner.tiktokshop.com/docv2/page/add-showcase-products-202405
+- [DELRemove Showcase Products](./docv2_page_remove-showcase-products-202409.md) — https://partner.tiktokshop.com/docv2/page/remove-showcase-products-202409
+- [POSTTop Showcase Products](./docv2_page_top-showcase-products-202409.md) — https://partner.tiktokshop.com/docv2/page/top-showcase-products-202409
+- [POSTCreator Search Open Collaboration Product](./docv2_page_creator-search-open-collaboration-product-202405.md) — https://partner.tiktokshop.com/docv2/page/creator-search-open-collaboration-product-202405
+- [POSTGet Open Collaboration Product List By Product Ids](./docv2_page_get-open-collaboration-product-list-by-product-ids-202509.md) — https://partner.tiktokshop.com/docv2/page/get-open-collaboration-product-list-by-product-ids-202509
+- [POSTSearch Creator Target Collaborations](./docv2_page_search-creator-target-collaborations-202405.md) — https://partner.tiktokshop.com/docv2/page/search-creator-target-collaborations-202405
+- [POSTSearch Creator Sample Applications](./docv2_page_search-creator-sample-applications-202412.md) — https://partner.tiktokshop.com/docv2/page/search-creator-sample-applications-202412
+- [POSTGet Creator Sample Application Detail](./docv2_page_get-creator-sample-application-detail-202412.md) — https://partner.tiktokshop.com/docv2/page/get-creator-sample-application-detail-202412
+- [POSTCreator Search Sample Application Fulfillments](./docv2_page_creator-search-sample-application-fulfillments-202409.md) — https://partner.tiktokshop.com/docv2/page/creator-search-sample-application-fulfillments-202409
+- [POSTCreator Generate General Link](./docv2_page_creator-generate-general-link-202505.md) — https://partner.tiktokshop.com/docv2/page/creator-generate-general-link-202505
+- [POSTCreator Generate Publisher Link](./docv2_page_creator-generate-publisher-link-202504.md) — https://partner.tiktokshop.com/docv2/page/creator-generate-publisher-link-202504
+- [POSTCreator Search Affiliate Trace Orders](./docv2_page_creator-search-affiliate-trace-orders-202505.md) — https://partner.tiktokshop.com/docv2/page/creator-search-affiliate-trace-orders-202505
+- [POSTSearch Creator Affiliate Orders](./docv2_page_search-creator-affiliate-orders-202410.md) — https://partner.tiktokshop.com/docv2/page/search-creator-affiliate-orders-202410
+- [GETGet Creator Applicable Sample Label](./docv2_page_get-creator-applicable-sample-label-202412.md) — https://partner.tiktokshop.com/docv2/page/get-creator-applicable-sample-label-202412
+- [POSTUpload Shoppable Video File](./docv2_page_upload-shoppable-video-file-202505.md) — https://partner.tiktokshop.com/docv2/page/upload-shoppable-video-file-202505
+- [GETGet Shop Products](./docv2_page_get-shop-products-202509.md) — https://partner.tiktokshop.com/docv2/page/get-shop-products-202509
+- [GETGet Shoppable Video Status](./docv2_page_get-shoppable-video-status-202509.md) — https://partner.tiktokshop.com/docv2/page/get-shoppable-video-status-202509
+- [POSTPrecheck Video Content](./docv2_page_precheck-video-content-202511.md) — https://partner.tiktokshop.com/docv2/page/precheck-video-content-202511
+- [GETGet Shoppable Video Precheck Result](./docv2_page_get-shoppable-video-precheck-result-202601.md) — https://partner.tiktokshop.com/docv2/page/get-shoppable-video-precheck-result-202601
+- [POSTPost Shoppable Video](./docv2_page_post-shoppable-video-202603.md) — https://partner.tiktokshop.com/docv2/page/post-shoppable-video-202603
+- [Affiliate Partner API overview](./docv2_page_affiliate-partner-api-overview.md) — https://partner.tiktokshop.com/docv2/page/affiliate-partner-api-overview
+- [POSTCreate Affiliate Partner Campaign](./docv2_page_create-affiliate-partner-campaign-202405.md) — https://partner.tiktokshop.com/docv2/page/create-affiliate-partner-campaign-202405
+- [POSTEdit Affiliate Partner Campaign](./docv2_page_edit-affiliate-partner-campaign-202405.md) — https://partner.tiktokshop.com/docv2/page/edit-affiliate-partner-campaign-202405
+- [POSTPublish Affiliate Partner Campaign](./docv2_page_publish-affiliate-partner-campaign-202405.md) — https://partner.tiktokshop.com/docv2/page/publish-affiliate-partner-campaign-202405
+- [POSTReview Affiliate Partner Campaign Product](./docv2_page_review-affiliate-partner-campaign-product-202405.md) — https://partner.tiktokshop.com/docv2/page/review-affiliate-partner-campaign-product-202405
+- [POSTGenerate Affiliate Partner Campaign Product Link](./docv2_page_generate-affiliate-partner-campaign-product-link-202405.md) — https://partner.tiktokshop.com/docv2/page/generate-affiliate-partner-campaign-product-link-202405
+- [GETGet Affiliate Partner Campaign Detail](./docv2_page_get-affiliate-partner-campaign-detail-202405.md) — https://partner.tiktokshop.com/docv2/page/get-affiliate-partner-campaign-detail-202405
+- [GETGet Affiliate Partner Campaign List](./docv2_page_get-affiliate-partner-campaign-list-202405.md) — https://partner.tiktokshop.com/docv2/page/get-affiliate-partner-campaign-list-202405
+- [GETGet Affiliate Partner Campaign Product List](./docv2_page_get-affiliate-partner-campaign-product-list-202405.md) — https://partner.tiktokshop.com/docv2/page/get-affiliate-partner-campaign-product-list-202405
+- [GETGet Affiliate Campaign Creator Fulfillment Status List](./docv2_page_get-affiliate-campaign-creator-fulfillment-status-list-202501.md) — https://partner.tiktokshop.com/docv2/page/get-affiliate-campaign-creator-fulfillment-status-list-202501
+- [POSTPartner Generate Multi Affiliate Campaign Product Link](./docv2_page_partner-generate-multi-affiliate-campaign-product-link-202505.md) — https://partner.tiktokshop.com/docv2/page/partner-generate-multi-affiliate-campaign-product-link-202505
+- [GETGet Affiliate Campaign Creator Fulfillment Status Info](./docv2_page_get-affiliate-campaign-creator-fulfillment-status-info-202508.md) — https://partner.tiktokshop.com/docv2/page/get-affiliate-campaign-creator-fulfillment-status-info-202508
+- [GETGet Affiliate Campaign Creator Product Content Statistics](./docv2_page_get-affiliate-campaign-creator-product-content-statistics-202508.md) — https://partner.tiktokshop.com/docv2/page/get-affiliate-campaign-creator-product-content-statistics-202508
+- [GETGet Affiliate Campaign Creator Product Sample Status](./docv2_page_get-affiliate-campaign-creator-product-sample-status-202508.md) — https://partner.tiktokshop.com/docv2/page/get-affiliate-campaign-creator-product-sample-status-202508
+- [POSTSearch CAP Affiliate Orders](./docv2_page_search-cap-affiliate-orders-202603.md) — https://partner.tiktokshop.com/docv2/page/search-cap-affiliate-orders-202603
+- [POSTSearch Tap Affiliate Orders](./docv2_page_search-tap-affiliate-orders-202603.md) — https://partner.tiktokshop.com/docv2/page/search-tap-affiliate-orders-202603
+- [Affiliate Seller API overview](./docv2_page_affiliate-seller-api-overview.md) — https://partner.tiktokshop.com/docv2/page/affiliate-seller-api-overview
+- [POSTSeller Search Creator on Marketplace](./docv2_page_seller-search-creator-on-marketplace-202508.md) — https://partner.tiktokshop.com/docv2/page/seller-search-creator-on-marketplace-202508
+- [GETGet Marketplace Creator Performance](./docv2_page_get-marketplace-creator-performance-202508.md) — https://partner.tiktokshop.com/docv2/page/get-marketplace-creator-performance-202508
+- [GETGet Open Collaboration Settings](./docv2_page_get-open-collaboration-settings-202409.md) — https://partner.tiktokshop.com/docv2/page/get-open-collaboration-settings-202409
+- [POSTEdit Open Collaboration Settings](./docv2_page_edit-open-collaboration-settings-202405.md) — https://partner.tiktokshop.com/docv2/page/edit-open-collaboration-settings-202405
+- [GETGet Open Collaboration Sample Rules](./docv2_page_get-open-collaboration-sample-rules-202410.md) — https://partner.tiktokshop.com/docv2/page/get-open-collaboration-sample-rules-202410
+- [POSTEdit Open Collaboration Sample Rule](./docv2_page_edit-open-collaboration-sample-rule-202410.md) — https://partner.tiktokshop.com/docv2/page/edit-open-collaboration-sample-rule-202410
+- [POSTCreate Open Collaboration](./docv2_page_create-open-collaboration-202412.md) — https://partner.tiktokshop.com/docv2/page/create-open-collaboration-202412
+- [POSTSearch Open Collaboration](./docv2_page_search-open-collaboration-202412.md) — https://partner.tiktokshop.com/docv2/page/search-open-collaboration-202412
+- [DELRemove Open Collaboration](./docv2_page_remove-open-collaboration-202409.md) — https://partner.tiktokshop.com/docv2/page/remove-open-collaboration-202409
+- [GETGet Open Collaboration Creator Content Detail](./docv2_page_get-open-collaboration-creator-content-detail-202508.md) — https://partner.tiktokshop.com/docv2/page/get-open-collaboration-creator-content-detail-202508
+- [POSTSeller Search Affiliate Open Collaboration Product](./docv2_page_seller-search-affiliate-open-collaboration-product-202405.md) — https://partner.tiktokshop.com/docv2/page/seller-search-affiliate-open-collaboration-product-202405
+- [POSTRemove Creator From Open Collaboration](./docv2_page_remove-creator-from-open-collaboration-202508.md) — https://partner.tiktokshop.com/docv2/page/remove-creator-from-open-collaboration-202508
+- [POSTCreate Target Collaboration](./docv2_page_create-target-collaboration-202508.md) — https://partner.tiktokshop.com/docv2/page/create-target-collaboration-202508
+- [POSTSearch Target Collaborations](./docv2_page_search-target-collaborations-202508.md) — https://partner.tiktokshop.com/docv2/page/search-target-collaborations-202508
+- [PUTUpdate Target Collaboration](./docv2_page_update-target-collaboration-202508.md) — https://partner.tiktokshop.com/docv2/page/update-target-collaboration-202508
+- [DELRemove Target Collaboration](./docv2_page_remove-target-collaboration-202409.md) — https://partner.tiktokshop.com/docv2/page/remove-target-collaboration-202409
+- [GETQuery Target Collaboration Detail](./docv2_page_query-target-collaboration-detail-202508.md) — https://partner.tiktokshop.com/docv2/page/query-target-collaboration-detail-202508
+- [GETGet Conversation List](./docv2_page_get-conversation-list-202412.md) — https://partner.tiktokshop.com/docv2/page/get-conversation-list-202412
+- [GETGet Message in the Conversation](./docv2_page_get-message-in-the-conversation-202412.md) — https://partner.tiktokshop.com/docv2/page/get-message-in-the-conversation-202412
+- [GETGet Latest Unread Messages](./docv2_page_get-latest-unread-messages-202412.md) — https://partner.tiktokshop.com/docv2/page/get-latest-unread-messages-202412
+- [POSTCreate Conversation with creator](./docv2_page_create-conversation-with-creator-202508.md) — https://partner.tiktokshop.com/docv2/page/create-conversation-with-creator-202508
+- [POSTUpload Message Image](./docv2_page_upload-message-image-202511.md) — https://partner.tiktokshop.com/docv2/page/upload-message-image-202511
+- [POSTSend IM Message](./docv2_page_send-im-message-202412.md) — https://partner.tiktokshop.com/docv2/page/send-im-message-202412
+- [POSTMark Conversation Read](./docv2_page_mark-conversation-read-202412.md) — https://partner.tiktokshop.com/docv2/page/mark-conversation-read-202412
+- [POSTSeller Search Sample Applications](./docv2_page_seller-search-sample-applications-202508.md) — https://partner.tiktokshop.com/docv2/page/seller-search-sample-applications-202508
+- [POSTSeller Review Sample Applications](./docv2_page_seller-review-sample-applications-202507.md) — https://partner.tiktokshop.com/docv2/page/seller-review-sample-applications-202507
+- [POSTSeller Search Sample Applications Fulfillments](./docv2_page_seller-search-sample-applications-fulfillments-202409.md) — https://partner.tiktokshop.com/docv2/page/seller-search-sample-applications-fulfillments-202409
+- [POSTGenerate Target Collaboration Link](./docv2_page_generate-target-collaboration-link-202509.md) — https://partner.tiktokshop.com/docv2/page/generate-target-collaboration-link-202509
+- [POSTGenerate Affiliate Product Promotion Link](./docv2_page_generate-affiliate-product-promotion-link-202405.md) — https://partner.tiktokshop.com/docv2/page/generate-affiliate-product-promotion-link-202405
+- [GETSeller Get Sample Request Deeplink](./docv2_page_seller-get-sample-request-deeplink-202512.md) — https://partner.tiktokshop.com/docv2/page/seller-get-sample-request-deeplink-202512
+- [POSTSearch Seller Affiliate Orders](./docv2_page_search-seller-affiliate-orders-202410.md) — https://partner.tiktokshop.com/docv2/page/search-seller-affiliate-orders-202410
+- [POSTGet Seller Search Creator Marketplace Advanced Filters](./docv2_page_get-seller-search-creator-marketplace-advanced-filters-202601.md) — https://partner.tiktokshop.com/docv2/page/get-seller-search-creator-marketplace-advanced-filters-202601
+- [POSTCreate Compass Offline Export Task](./docv2_page_create-compass-offline-export-task-202603.md) — https://partner.tiktokshop.com/docv2/page/create-compass-offline-export-task-202603
+- [GETGet Compass Task List](./docv2_page_get-compass-task-list-202603.md) — https://partner.tiktokshop.com/docv2/page/get-compass-task-list-202603
+- [GETDownload Compass Task File](./docv2_page_download-compass-task-file-202603.md) — https://partner.tiktokshop.com/docv2/page/download-compass-task-file-202603
+- [POSTConfirm Package Shipment](./docv2_page_confirm-package-shipment-202309.md) — https://partner.tiktokshop.com/docv2/page/confirm-package-shipment-202309
+- [POSTUpload File Init](./docv2_page_upload-file-init-202512.md) — https://partner.tiktokshop.com/docv2/page/upload-file-init-202512
+
+### Webhooks (43 pages)
+
+- [(17) Shoppable content posting](./docv2_page_17-shoppable-content-posting.md) — https://partner.tiktokshop.com/docv2/page/17-shoppable-content-posting
+- [(20) Creator deauthorization](./docv2_page_20-creator-deauthorization.md) — https://partner.tiktokshop.com/docv2/page/20-creator-deauthorization
+- [(55) Video Precheck Result](./docv2_page_iygh3ycz.md) — https://partner.tiktokshop.com/docv2/page/iygh3ycz
+- [(59) Shoppable Video Precheck Tasks Result](./docv2_page_arpnre1g.md) — https://partner.tiktokshop.com/docv2/page/arpnre1g
+- [(33) New message listener](./docv2_page_33-new-message-listener.md) — https://partner.tiktokshop.com/docv2/page/33-new-message-listener
+- [(56) Sample Application Status Change](./docv2_page_urzvzank.md) — https://partner.tiktokshop.com/docv2/page/urzvzank
+- [(13) New conversation](./docv2_page_13-new-conversation.md) — https://partner.tiktokshop.com/docv2/page/13-new-conversation
+- [(14) New message](./docv2_page_14-new-message.md) — https://partner.tiktokshop.com/docv2/page/14-new-message
+- [(36) Invoice status change](./docv2_page_36-invoice-status-change.md) — https://partner.tiktokshop.com/docv2/page/36-invoice-status-change
+- [(21) Inbound FBT order status change](./docv2_page_21-inbound-fbt-order-status-change.md) — https://partner.tiktokshop.com/docv2/page/21-inbound-fbt-order-status-change
+- [(22) FBT merchant onboarding](./docv2_page_22-fbt-merchant-onboarding.md) — https://partner.tiktokshop.com/docv2/page/22-fbt-merchant-onboarding
+- [(23) Goods match](./docv2_page_23-goods-match.md) — https://partner.tiktokshop.com/docv2/page/23-goods-match
+- [(24) FBT inventory update](./docv2_page_24-fbt-inventory-update.md) — https://partner.tiktokshop.com/docv2/page/24-fbt-inventory-update
+- [(58) Get FBT MCF Order Status](./docv2_page_gqh1f39k.md) — https://partner.tiktokshop.com/docv2/page/gqh1f39k
+- [(3) Recipient address update](./docv2_page_3-recipient-address-update.md) — https://partner.tiktokshop.com/docv2/page/3-recipient-address-update
+- [(4) Package update](./docv2_page_4-package-update.md) — https://partner.tiktokshop.com/docv2/page/4-package-update
+- [(1) Order status change](./docv2_page_1-order-status-change.md) — https://partner.tiktokshop.com/docv2/page/1-order-status-change
+- [(11) Cancellation status change](./docv2_page_11-cancellation-status-change.md) — https://partner.tiktokshop.com/docv2/page/11-cancellation-status-change
+- [(5) Product status change](./docv2_page_5-product-status-change.md) — https://partner.tiktokshop.com/docv2/page/5-product-status-change
+- [(15) Product information change](./docv2_page_15-product-information-change.md) — https://partner.tiktokshop.com/docv2/page/15-product-information-change
+- [(16) Product creation](./docv2_page_16-product-creation.md) — https://partner.tiktokshop.com/docv2/page/16-product-creation
+- [(18) Product category change](./docv2_page_18-product-category-change.md) — https://partner.tiktokshop.com/docv2/page/18-product-category-change
+- [(19) Size chart change](./docv2_page_19-size-chart-change.md) — https://partner.tiktokshop.com/docv2/page/19-size-chart-change
+- [(25) Opportunity matching status change](./docv2_page_25-opportunity-matching-status-change.md) — https://partner.tiktokshop.com/docv2/page/25-opportunity-matching-status-change
+- [(27) Inventory status change](./docv2_page_27-inventory-status-change.md) — https://partner.tiktokshop.com/docv2/page/27-inventory-status-change
+- [(37) Product audit status change](./docv2_page_37-product-audit-status-change.md) — https://partner.tiktokshop.com/docv2/page/37-product-audit-status-change
+- [(38) Strikethrough price expired](./docv2_page_38-strikethrough-price-expired.md) — https://partner.tiktokshop.com/docv2/page/38-strikethrough-price-expired
+- [(42) Combined listing change](./docv2_page_42-combined-listing-change.md) — https://partner.tiktokshop.com/docv2/page/42-combined-listing-change
+- [(46) Image translation completed](./docv2_page_46-image-translation-completed.md) — https://partner.tiktokshop.com/docv2/page/46-image-translation-completed
+- [(51) Global replication status change](./docv2_page_7nzxgima.md) — https://partner.tiktokshop.com/docv2/page/7nzxgima
+- [(52) Global listing method change](./docv2_page_g2wnrb57.md) — https://partner.tiktokshop.com/docv2/page/g2wnrb57
+- [(62) Product Package Recommended](./docv2_page_ve4gakno.md) — https://partner.tiktokshop.com/docv2/page/ve4gakno
+- [(68) Inventory changed](./docv2_page_7u0ofsrd.md) — https://partner.tiktokshop.com/docv2/page/7u0ofsrd
+- [(66)Appeal Completed Webhook](./docv2_page_ohw7toic.md) — https://partner.tiktokshop.com/docv2/page/ohw7toic
+- [(39) Activity status change](./docv2_page_39-activity-status-change.md) — https://partner.tiktokshop.com/docv2/page/39-activity-status-change
+- [(63) Activity change](./docv2_page_x6legjl9.md) — https://partner.tiktokshop.com/docv2/page/x6legjl9
+- [(12) Return status change](./docv2_page_12-return-status-change.md) — https://partner.tiktokshop.com/docv2/page/12-return-status-change
+- [(64) Aftersales Request Status Update](./docv2_page_h4cxaxub.md) — https://partner.tiktokshop.com/docv2/page/h4cxaxub
+- [(65) RMA Status Update](./docv2_page_2f0jrrxc.md) — https://partner.tiktokshop.com/docv2/page/2f0jrrxc
+- [(67) Refund Success](./docv2_page_8y10pibm.md) — https://partner.tiktokshop.com/docv2/page/8y10pibm
+- [(6) Seller deauthorization](./docv2_page_6-seller-deauthorization.md) — https://partner.tiktokshop.com/docv2/page/6-seller-deauthorization
+- [(7) Upcoming authorization expiration](./docv2_page_7-upcoming-authorization-expiration.md) — https://partner.tiktokshop.com/docv2/page/7-upcoming-authorization-expiration
+- [(35) Tokopedia mirror status change](./docv2_page_35-tokopedia-mirror-status-change.md) — https://partner.tiktokshop.com/docv2/page/35-tokopedia-mirror-status-change
+
+### Changelog (147 pages)
+
+- [New APIs and webhook for affiliates (beta)](./docv2_page_new-apis-and-webhook-for-affiliates-beta.md) — https://partner.tiktokshop.com/docv2/page/new-apis-and-webhook-for-affiliates-beta
+- [New affiliate messaging APIs](./docv2_page_new-affiliate-messaging-apis.md) — https://partner.tiktokshop.com/docv2/page/new-affiliate-messaging-apis
+- [Creator Open ID for Affiliate APIs](./docv2_page_3obfokj6.md) — https://partner.tiktokshop.com/docv2/page/3obfokj6
+- [New Capability for Affiliate Sample Applications](./docv2_page_x0ebukvz.md) — https://partner.tiktokshop.com/docv2/page/x0ebukvz
+- [New Capability for Affiliate Data Compass Offline Data Export](./docv2_page_4brha1mn.md) — https://partner.tiktokshop.com/docv2/page/4brha1mn
+- [Authorization page updates](./docv2_page_authorization-page-updates.md) — https://partner.tiktokshop.com/docv2/page/authorization-page-updates
+- [New shipping label format launched in the ID, MY and VN markets](./docv2_page_new-shipping-label-format-launched-in-id-my-and-vn-markets.md) — https://partner.tiktokshop.com/docv2/page/new-shipping-label-format-launched-in-id-my-and-vn-markets
+- [For local and cross-border sellers in the US market: Shipping information update time window extende](./docv2_page_for-local-and-cross-border-sellers-in-us-market-shipping-information-update-time-window-extended-to-72-hours.md) — https://partner.tiktokshop.com/docv2/page/for-local-and-cross-border-sellers-in-us-market-shipping-information-update-time-window-extended-to-72-hours
+- [For local sellers in the UK market: Introducing item level order split shipping](./docv2_page_for-local-sellers-in-uk-market-introducing-item-level-order-split-shipping.md) — https://partner.tiktokshop.com/docv2/page/for-local-sellers-in-uk-market-introducing-item-level-order-split-shipping
+- [For local sellers in the US market: Warning information added to Mark Package as Shipped API](./docv2_page_for-local-sellers-in-us-market-warning-information-added-to-mark-package-as-shipped-api.md) — https://partner.tiktokshop.com/docv2/page/for-local-sellers-in-us-market-warning-information-added-to-mark-package-as-shipped-api
+- [For the SEA market partner&developer: The parameters "handover_method" in API Ship Package and Batch](./docv2_page_for-sea-market-partner-developer-parameters-handover-method-in-api-ship-package-and-batch-ship-package-will-b.md) — https://partner.tiktokshop.com/docv2/page/for-sea-market-partner-developer-parameters-handover-method-in-api-ship-package-and-batch-ship-package-will-be-useless
+- [When SEA POP sellers add, edit or publish global products by API, some specific categories will be p](./docv2_page_when-sea-pop-sellers-add-edit-or-publish-global-products-by-api-some-specific-categories-will-be-prohibited-a.md) — https://partner.tiktokshop.com/docv2/page/when-sea-pop-sellers-add-edit-or-publish-global-products-by-api-some-specific-categories-will-be-prohibited-and-restricted-directly
+- [BR market: ZPL format support for shipping documents](./docv2_page_br-market-zpl-format-support-for-shipping-documents.md) — https://partner.tiktokshop.com/docv2/page/br-market-zpl-format-support-for-shipping-documents
+- [US market: TikTok Shipping label allocation](./docv2_page_us-market-tiktok-shipping-label-allocation.md) — https://partner.tiktokshop.com/docv2/page/us-market-tiktok-shipping-label-allocation
+- [For SEA Market: Recommended Default Order Sorting Logic to Support Fast Delivery Service](./docv2_page_t9ucngno.md) — https://partner.tiktokshop.com/docv2/page/t9ucngno
+- [US market: POP USPS label restriction](./docv2_page_gt8qv13g.md) — https://partner.tiktokshop.com/docv2/page/gt8qv13g
+- [For SEA market: The parameter "handover_method" in API Ship Package and Batch Ship Package will be u](./docv2_page_4260w8mg.md) — https://partner.tiktokshop.com/docv2/page/4260w8mg
+- [For SEA Market: Recommended Improvement to Support Fast Delivery Service](./docv2_page_m5p1u1fo.md) — https://partner.tiktokshop.com/docv2/page/m5p1u1fo
+- [For all EU markets (EU5) Get Shipping Providers API](./docv2_page_7z0wsn3s.md) — https://partner.tiktokshop.com/docv2/page/7z0wsn3s
+- [Automated Order Combination — ISV Integration Guide](./docv2_page_lm9400zu.md) — https://partner.tiktokshop.com/docv2/page/lm9400zu
+- [Enhanced Get Tracking API for CBT First-Mile Pickup Visibility](./docv2_page_8syhoy40.md) — https://partner.tiktokshop.com/docv2/page/8syhoy40
+- [Post town added for UK recipient addresses in the Get Order Detail API](./docv2_page_order_orders_post_town.md) — https://partner.tiktokshop.com/docv2/page/order_orders_post_town
+- [Shortened string length for buyer_email in Get Order Detail API](./docv2_page_shortened-string-length-for-buyer-email-in-get-order-detail-api.md) — https://partner.tiktokshop.com/docv2/page/shortened-string-length-for-buyer-email-in-get-order-detail-api
+- [For US and UK markets: Introducing "On Hold" order status](./docv2_page_for-us-and-uk-markets-introducing-on-hold-order-status.md) — https://partner.tiktokshop.com/docv2/page/for-us-and-uk-markets-introducing-on-hold-order-status
+- [SLA information now available in Orders API](./docv2_page_sla-information-now-available-in-orders-api.md) — https://partner.tiktokshop.com/docv2/page/sla-information-now-available-in-orders-api
+- [Delivery instructions now available in Orders API](./docv2_page_delivery-instructions-now-available-in-orders-api.md) — https://partner.tiktokshop.com/docv2/page/delivery-instructions-now-available-in-orders-api
+- [For US local sellers: Item level tax rate added to the Order resource](./docv2_page_for-us-local-sellers-item-level-tax-rate-added-to-order-resource.md) — https://partner.tiktokshop.com/docv2/page/for-us-local-sellers-item-level-tax-rate-added-to-order-resource
+- [For SEA market: Upcoming changes on tracking number availability in Orders API](./docv2_page_for-sea-market-upcoming-changes-on-tracking-number-availability-in-orders-api.md) — https://partner.tiktokshop.com/docv2/page/for-sea-market-upcoming-changes-on-tracking-number-availability-in-orders-api
+- [For US market: Replacement orders now available](./docv2_page_for-us-market-replacement-orders-now-available.md) — https://partner.tiktokshop.com/docv2/page/for-us-market-replacement-orders-now-available
+- [For US market: New property address_level field added to Orders API](./docv2_page_for-us-market-new-property-address-level-field-added-to-orders-api.md) — https://partner.tiktokshop.com/docv2/page/for-us-market-new-property-address-level-field-added-to-orders-api
+- [For UK market: Support item level cancellation](./docv2_page_for-uk-market-support-item-level-cancellation.md) — https://partner.tiktokshop.com/docv2/page/for-uk-market-support-item-level-cancellation
+- [Virtual bundles are now available in order details](./docv2_page_virtual-bundles-are-now-available-in-order-details.md) — https://partner.tiktokshop.com/docv2/page/virtual-bundles-are-now-available-in-order-details
+- [For SEA market: Upcoming changes on tracking number availability](./docv2_page_for-sea-market-upcoming-changes-on-tracking-number-availability.md) — https://partner.tiktokshop.com/docv2/page/for-sea-market-upcoming-changes-on-tracking-number-availability
+- [Auto Combine Order ID available in Order Details for LIVE sessions](./docv2_page_auto-combine-order-id-available-in-order-details-for-live-sessions.md) — https://partner.tiktokshop.com/docv2/page/auto-combine-order-id-available-in-order-details-for-live-sessions
+- [Adding co-founded shipping discount fields](./docv2_page_adding-co-founded-shipping-discount-fields.md) — https://partner.tiktokshop.com/docv2/page/adding-co-founded-shipping-discount-fields
+- [US market: Pre-order, made-to-order, back-order functionality; delivery SLA](./docv2_page_us-market-pre-order-made-to-order-back-order-functionality-delivery-sla.md) — https://partner.tiktokshop.com/docv2/page/us-market-pre-order-made-to-order-back-order-functionality-delivery-sla
+- [US and UK markets: Exchange orders](./docv2_page_us-and-uk-markets-exchange-orders.md) — https://partner.tiktokshop.com/docv2/page/us-and-uk-markets-exchange-orders
+- [US market: Fast delivery program](./docv2_page_us-market-fast-delivery-program.md) — https://partner.tiktokshop.com/docv2/page/us-market-fast-delivery-program
+- [US market: Changes to recipient_address masking](./docv2_page_us-market-changes-to-recipient-address-masking.md) — https://partner.tiktokshop.com/docv2/page/us-market-changes-to-recipient-address-masking
+- [BR and MX markets: Changes to name logic](./docv2_page_br-and-mx-markets-changes-to-name-logic.md) — https://partner.tiktokshop.com/docv2/page/br-and-mx-markets-changes-to-name-logic
+- [UK and EU markets: Introducing On Time Delivery Rate (OTDR) for Shipped by Seller (3PL) Orders](./docv2_page_yeklql2a.md) — https://partner.tiktokshop.com/docv2/page/yeklql2a
+- [US market: Item protection/insurance](./docv2_page_8cpq7zt5.md) — https://partner.tiktokshop.com/docv2/page/8cpq7zt5
+- [【Important Notice】Enable Support for the New “On Hold” Order Status](./docv2_page_yb76cyzi.md) — https://partner.tiktokshop.com/docv2/page/yb76cyzi
+- [For US Market: Add subscription order tag to Order APIs](./docv2_page_uc1ds0td.md) — https://partner.tiktokshop.com/docv2/page/uc1ds0td
+- [US only: Order cancellation workflow updates](./docv2_page_us-only-order-cancellation-workflow-updates.md) — https://partner.tiktokshop.com/docv2/page/us-only-order-cancellation-workflow-updates
+- [Removal of "unable to deliver to buyer address" as a cancellation reason in ID, VN, TH, SG, PH marke](./docv2_page_removal-of-unable-to-deliver-to-buyer-address-as-cancellation-reason-in-id-vn-th-sg-ph-markets.md) — https://partner.tiktokshop.com/docv2/page/removal-of-unable-to-deliver-to-buyer-address-as-cancellation-reason-in-id-vn-th-sg-ph-markets
+- [SEA market only:Three Seller Initiates Cancel Reasons will be changed](./docv2_page_three-seller-initiates-cancel-reasons-will-be-changed.md) — https://partner.tiktokshop.com/docv2/page/three-seller-initiates-cancel-reasons-will-be-changed
+- [For SEA market: Get Rejection Reasons before Cancellation or Return Rejection](./docv2_page_c44syeeb.md) — https://partner.tiktokshop.com/docv2/page/c44syeeb
+- [For SEA market: Configure "Cancellation status change" webhook to receive cancellation message](./docv2_page_jsqxpibu.md) — https://partner.tiktokshop.com/docv2/page/jsqxpibu
+- [Updates to product errors](./docv2_page_updates-to-product-errors.md) — https://partner.tiktokshop.com/docv2/page/updates-to-product-errors
+- [Introducing new product image text translation APIs and webhook](./docv2_page_new-image-translation-apis.md) — https://partner.tiktokshop.com/docv2/page/new-image-translation-apis
+- [For the SEA Market Partner & Developer: Add Expire Date on Product Certifications](./docv2_page_for-sea-market-partner-developer-add-expire-date-on-product-certifications.md) — https://partner.tiktokshop.com/docv2/page/for-sea-market-partner-developer-add-expire-date-on-product-certifications
+- [EU GPSR Communication Doc - adding Responsible person, Manufacturer and Safety label information](./docv2_page_eu-gpsr-communication-doc-adding-responsible-person-manufacturer-and-safety-label-information.md) — https://partner.tiktokshop.com/docv2/page/eu-gpsr-communication-doc-adding-responsible-person-manufacturer-and-safety-label-information
+- [Updates to Product API Mandatory Certifications](./docv2_page_updates-to-product-api-mandatory-certifications.md) — https://partner.tiktokshop.com/docv2/page/updates-to-product-api-mandatory-certifications
+- [New property added to Recommend Category API to indicate whether sellers can use the recommended cat](./docv2_page_new-property-added-to-recommend-category-api-to-indicate-whether-sellers-can-use-recommended-category.md) — https://partner.tiktokshop.com/docv2/page/new-property-added-to-recommend-category-api-to-indicate-whether-sellers-can-use-recommended-category
+- [New property added to Get Category Rules API to indicate whether the package dimension is mandatory](./docv2_page_new-property-added-to-get-category-rules-api-to-indicate-whether-package-dimension-is-mandatory.md) — https://partner.tiktokshop.com/docv2/page/new-property-added-to-get-category-rules-api-to-indicate-whether-package-dimension-is-mandatory
+- [Changes to Check Listing Prerequisite API in v202312](./docv2_page_changes-to-check-listing-prerequisite-api-in-v202312.md) — https://partner.tiktokshop.com/docv2/page/changes-to-check-listing-prerequisite-api-in-v202312
+- [Changes to Create Product and Edit Product APIs](./docv2_page_changes-to-create-product-and-edit-product-apis.md) — https://partner.tiktokshop.com/docv2/page/changes-to-create-product-and-edit-product-apis
+- [Draft status available for Create Product API](./docv2_page_draft-status-available-for-create-product-api.md) — https://partner.tiktokshop.com/docv2/page/draft-status-available-for-create-product-api
+- [New endpoint: Listing schema](./docv2_page_new-endpoint-listing-schema.md) — https://partner.tiktokshop.com/docv2/page/new-endpoint-listing-schema
+- [New webhook: Product update](./docv2_page_new-webhook-product-update.md) — https://partner.tiktokshop.com/docv2/page/new-webhook-product-update
+- [UK market only: Size chart is now mandatory for product listings](./docv2_page_uk-market-only-size-chart-is-now-mandatory-for-product-listings.md) — https://partner.tiktokshop.com/docv2/page/uk-market-only-size-chart-is-now-mandatory-for-product-listings
+- [For the UK market: Updates to mandatory attributes and product certifications for certain product ca](./docv2_page_for-uk-market-updates-to-mandatory-attributes-and-product-certifications-for-certain-product-categories.md) — https://partner.tiktokshop.com/docv2/page/for-uk-market-updates-to-mandatory-attributes-and-product-certifications-for-certain-product-categories
+- [US market: Product category expansion](./docv2_page_us-market-product-category-expansion.md) — https://partner.tiktokshop.com/docv2/page/us-market-product-category-expansion
+- [US and UK markets: Product information quality APIs](./docv2_page_us-and-uk-markets-product-information-quality-apis.md) — https://partner.tiktokshop.com/docv2/page/us-and-uk-markets-product-information-quality-apis
+- [For the TH market: Updates to mandatory attributes and product certifications for certain product ca](./docv2_page_for-th-market-updates-to-mandatory-attributes-and-product-certifications-for-certain-product-categories.md) — https://partner.tiktokshop.com/docv2/page/for-th-market-updates-to-mandatory-attributes-and-product-certifications-for-certain-product-categories
+- [New fields added to Product API for Shop Ads](./docv2_page_new-fields-added-to-product-api-for-shop-ads.md) — https://partner.tiktokshop.com/docv2/page/new-fields-added-to-product-api-for-shop-ads
+- [For the TH market: Updates to mandatory certifications for certain product categories](./docv2_page_for-th-market-updates-to-mandatory-certifications-for-certain-product-categories.md) — https://partner.tiktokshop.com/docv2/page/for-th-market-updates-to-mandatory-certifications-for-certain-product-categories
+- [New Promotion APIs: Gift with purchase and free sample](./docv2_page_new-promotion-apis-gift-with-purchase-and-free-sample.md) — https://partner.tiktokshop.com/docv2/page/new-promotion-apis-gift-with-purchase-and-free-sample
+- [US market: Mandatory hazmat attributes added](./docv2_page_us-market-mandatory-hazmat-attributes-added.md) — https://partner.tiktokshop.com/docv2/page/us-market-mandatory-hazmat-attributes-added
+- [US and UK markets: Product category recommendation](./docv2_page_us-and-uk-markets-product-category-recommendation.md) — https://partner.tiktokshop.com/docv2/page/us-and-uk-markets-product-category-recommendation
+- [For the PH market: Updates to mandatory attributes on fresh and frozen related categories](./docv2_page_for-ph-market-updates-to-mandatory-attributes-on-fresh-and-frozen-related-categories.md) — https://partner.tiktokshop.com/docv2/page/for-ph-market-updates-to-mandatory-attributes-on-fresh-and-frozen-related-categories
+- [For the SEA market: Various categories will require the mandatory attribute - "Dangerous Goods"](./docv2_page_for-sea-market-various-categories-will-require-mandatory-attribute-dangerous-goods.md) — https://partner.tiktokshop.com/docv2/page/for-sea-market-various-categories-will-require-mandatory-attribute-dangerous-goods
+- [New webhook: Product creation](./docv2_page_new-webhook-product-creation.md) — https://partner.tiktokshop.com/docv2/page/new-webhook-product-creation
+- [Sunsetting listing schemas endpoint](./docv2_page_sunsetting-listing-schemas-endpoint.md) — https://partner.tiktokshop.com/docv2/page/sunsetting-listing-schemas-endpoint
+- [UK market: Mandatory hazmat attributes added](./docv2_page_uk-market-mandatory-hazmat-attributes-added.md) — https://partner.tiktokshop.com/docv2/page/uk-market-mandatory-hazmat-attributes-added
+- [US market: Introducing Listing Quality Tiers (LQT) for products](./docv2_page_us-market-introducing-listing-quality-tiers-lqt-for-products.md) — https://partner.tiktokshop.com/docv2/page/us-market-introducing-listing-quality-tiers-lqt-for-products
+- [EU market: Adding compliance required fields to Products API](./docv2_page_eu-market-adding-compliance-required-fields-to-products-api.md) — https://partner.tiktokshop.com/docv2/page/eu-market-adding-compliance-required-fields-to-products-api
+- [For the ES and IE market: Updates to Mandatory Certifications for Certain Product Categories](./docv2_page_for-es-and-ie-market-updates-to-mandatory-certifications-for-certain-product-categories.md) — https://partner.tiktokshop.com/docv2/page/for-es-and-ie-market-updates-to-mandatory-certifications-for-certain-product-categories
+- [US market: Adding mandatory certificates for Bikes, Scooters and Appliances](./docv2_page_us-market-adding-mandatory-certificates-for-bikes-scooters-and-appliances.md) — https://partner.tiktokshop.com/docv2/page/us-market-adding-mandatory-certificates-for-bikes-scooters-and-appliances
+- [HTML Tags are supported in product descriptions](./docv2_page_html-tags-are-supported-in-product-descriptions.md) — https://partner.tiktokshop.com/docv2/page/html-tags-are-supported-in-product-descriptions
+- [US market: Updates to mandatory attributes](./docv2_page_um8sunwp.md) — https://partner.tiktokshop.com/docv2/page/um8sunwp
+- [External Product Attribution for Reviews and Ads](./docv2_page_external-product-attribution-for-reviews-and-ads.md) — https://partner.tiktokshop.com/docv2/page/external-product-attribution-for-reviews-and-ads
+- [US&UK Markets: Hazmat Deadline Extension](./docv2_page_us-uk-markets-hazmat-deadline-extension.md) — https://partner.tiktokshop.com/docv2/page/us-uk-markets-hazmat-deadline-extension
+- [Product Audit Status is Added to Products API](./docv2_page_product-audit-status-is-added-to-products-api.md) — https://partner.tiktokshop.com/docv2/page/product-audit-status-is-added-to-products-api
+- [Price and Inventory is optional when editing products](./docv2_page_price-and-inventory-is-optional-when-editing-products.md) — https://partner.tiktokshop.com/docv2/page/price-and-inventory-is-optional-when-editing-products
+- [New Endpoint: Diagnose and Optimize Product](./docv2_page_new-endpoint-diagnose-and-optimize-product.md) — https://partner.tiktokshop.com/docv2/page/new-endpoint-diagnose-and-optimize-product
+- [MX market: Minimum product price adjustment](./docv2_page_mx-market-minimum-product-price-adjustment.md) — https://partner.tiktokshop.com/docv2/page/mx-market-minimum-product-price-adjustment
+- [Product API now supports two prices](./docv2_page_product-api-now-supports-two-prices.md) — https://partner.tiktokshop.com/docv2/page/product-api-now-supports-two-prices
+- [Create Product API now supports an idempotency key](./docv2_page_create-product-api-now-supports-an-idempotency-key.md) — https://partner.tiktokshop.com/docv2/page/create-product-api-now-supports-an-idempotency-key
+- [Hazmat Deadline Extended to April 15](./docv2_page_hazmat-deadline-extended-to-april-15.md) — https://partner.tiktokshop.com/docv2/page/hazmat-deadline-extended-to-april-15
+- [Mandatory certifications for certain categories added](./docv2_page_mandatory-certifications-for-certain-categories-added.md) — https://partner.tiktokshop.com/docv2/page/mandatory-certifications-for-certain-categories-added
+- [Upload Product Image and Upload Product File support more file formats](./docv2_page_upload-product-image-and-upload-product-file-support-more-file-formats.md) — https://partner.tiktokshop.com/docv2/page/upload-product-image-and-upload-product-file-support-more-file-formats
+- [Streamlining of invite-only product categories](./docv2_page_streamlining-of-invite-only-product-categories.md) — https://partner.tiktokshop.com/docv2/page/streamlining-of-invite-only-product-categories
+- [US market: Supplementary SKU images](./docv2_page_us-market-supplementary-sku-images.md) — https://partner.tiktokshop.com/docv2/page/us-market-supplementary-sku-images
+- [US, UK, and SEA markets: Pre-order and made-to-order product types](./docv2_page_us-uk-and-sea-markets-pre-order-and-made-to-order-product-types.md) — https://partner.tiktokshop.com/docv2/page/us-uk-and-sea-markets-pre-order-and-made-to-order-product-types
+- [US market: Updates to mandatory attributes](./docv2_page_us-market-updates-to-mandatory-attributes.md) — https://partner.tiktokshop.com/docv2/page/us-market-updates-to-mandatory-attributes
+- [Draft editing support for published listings](./docv2_page_g03iqsx0.md) — https://partner.tiktokshop.com/docv2/page/g03iqsx0
+- [GS POP product listing workflow revamp](./docv2_page_a5crrkzs.md) — https://partner.tiktokshop.com/docv2/page/a5crrkzs
+- [SEA market: Product category expansion](./docv2_page_npb6fvbh.md) — https://partner.tiktokshop.com/docv2/page/npb6fvbh
+- [EU market: New compliance data required - CLP/Biocides](./docv2_page_vfskyjvl.md) — https://partner.tiktokshop.com/docv2/page/vfskyjvl
+- [UK, EU, & JP markets: Product category expansion](./docv2_page_7s72ctzw.md) — https://partner.tiktokshop.com/docv2/page/7s72ctzw
+- [US market: Existing SKU standardization](./docv2_page_sj5neagj.md) — https://partner.tiktokshop.com/docv2/page/sj5neagj
+- [US market: Backorder Quantity Thresholds](./docv2_page_xmc35tyc.md) — https://partner.tiktokshop.com/docv2/page/xmc35tyc
+- [[Important] Legacy Global Product Management Flow Decommission Notice](./docv2_page_fapus8ql.md) — https://partner.tiktokshop.com/docv2/page/fapus8ql
+- [For SEA market: Product category expansion cutoff date is January 12, 2026](./docv2_page_ezoyrtmn.md) — https://partner.tiktokshop.com/docv2/page/ezoyrtmn
+- [EU Markets: Category Rules Update – Responsible Person Attribute Now Mandatory](./docv2_page_r1wchdjn.md) — https://partner.tiktokshop.com/docv2/page/r1wchdjn
+- [US market: Mandatory compliance attributes added for Paper Money and Coins Categories](./docv2_page_l8xklei9.md) — https://partner.tiktokshop.com/docv2/page/l8xklei9
+- [US market: New GTM for OTC Mandatory Attributes](./docv2_page_nvx9wggt.md) — https://partner.tiktokshop.com/docv2/page/nvx9wggt
+- [New Feature: Inventory Update Webhook](./docv2_page_9q4we8qr.md) — https://partner.tiktokshop.com/docv2/page/9q4we8qr
+- [For Vietnam market: Updates to Mandatory attributes on Beauty & Personal Care, Health, Baby & Matern](./docv2_page_qc6yk2e0.md) — https://partner.tiktokshop.com/docv2/page/qc6yk2e0
+- [For US market: Mandatory Size Chart Quality Validation](./docv2_page_digvqy0x.md) — https://partner.tiktokshop.com/docv2/page/digvqy0x
+- [EU Markets: Introducing VAT Calculation Service (VCS) — New Product and Order API Fields](./docv2_page_pnlwkbnq.md) — https://partner.tiktokshop.com/docv2/page/pnlwkbnq
+- [US/SEA（POP）Market：Support product weight and dimensions at the SKU level](./docv2_page_07q2huia.md) — https://partner.tiktokshop.com/docv2/page/07q2huia
+- [(MAINTENANCE) Scheduled downtime for Promotion APIs](./docv2_page_maintenance-scheduled-downtime-for-promotion-apis.md) — https://partner.tiktokshop.com/docv2/page/maintenance-scheduled-downtime-for-promotion-apis
+- [Supplementary Notice on API Deprecation: Finance APIs](./docv2_page_supplementary-notice-on-api-deprecation-finance-apis.md) — https://partner.tiktokshop.com/docv2/page/supplementary-notice-on-api-deprecation-finance-apis
+- [US and UK markets: New properties added to Finance API](./docv2_page_us-and-uk-markets-new-properties-added-to-finance-api.md) — https://partner.tiktokshop.com/docv2/page/us-and-uk-markets-new-properties-added-to-finance-api
+- [US market: Adding shipping fee items to Finance API](./docv2_page_us-market-adding-shipping-fee-items-to-finance-api.md) — https://partner.tiktokshop.com/docv2/page/us-market-adding-shipping-fee-items-to-finance-api
+- [New version (v202501) for Statement Transactions and Order Statement Transactions](./docv2_page_new-version-v202501-for-statement-transactions-and-order-statement-transactions.md) — https://partner.tiktokshop.com/docv2/page/new-version-v202501-for-statement-transactions-and-order-statement-transactions
+- [For Indonesian market: Changes in Order and Finance APIs for Horizon+ Orders](./docv2_page_u62dh98s.md) — https://partner.tiktokshop.com/docv2/page/u62dh98s
+- [Analytics Open API Metric Consistency Adjustment Announcement](./docv2_page_joyljtav.md) — https://partner.tiktokshop.com/docv2/page/joyljtav
+- [New APIs for TikTok LIVE](./docv2_page_sv0xa2r6.md) — https://partner.tiktokshop.com/docv2/page/sv0xa2r6
+- [Analytics APIs now available globally](./docv2_page_j5k1cmia.md) — https://partner.tiktokshop.com/docv2/page/j5k1cmia
+- [[Important] New Analytics API Supports Data Drill Down & Deprecation of Old Versions](./docv2_page_ukjcmkq5.md) — https://partner.tiktokshop.com/docv2/page/ukjcmkq5
+- [Bestsellers Analytics Open API Launch](./docv2_page_3dk9557y.md) — https://partner.tiktokshop.com/docv2/page/3dk9557y
+- [Deprecating TikTok Shop API V1](./docv2_page_deprecating-tts-api-v1.md) — https://partner.tiktokshop.com/docv2/page/deprecating-tts-api-v1
+- [Introducing API version 202309](./docv2_page_introducing-api-version-202309.md) — https://partner.tiktokshop.com/docv2/page/introducing-api-version-202309
+- [Black Friday Cyber Monday campaign developer update](./docv2_page_black-friday-cyber-monday-campaign-developer-update.md) — https://partner.tiktokshop.com/docv2/page/black-friday-cyber-monday-campaign-developer-update
+- [TikTok Shop open API release update - November 2023](./docv2_page_tts-open-api-release-update-november-2023.md) — https://partner.tiktokshop.com/docv2/page/tts-open-api-release-update-november-2023
+- [Upcoming updates to TikTok Shop open API (release: December 2023/Q1 2024)](./docv2_page_upcoming-updates-to-tts-open-api-release-december-2023-q1-2024.md) — https://partner.tiktokshop.com/docv2/page/upcoming-updates-to-tts-open-api-release-december-2023-q1-2024
+- [Introducing Seller Center development shops](./docv2_page_introducing-seller-center-development-shops.md) — https://partner.tiktokshop.com/docv2/page/introducing-seller-center-development-shops
+- [New function: Pre-publish checklist](./docv2_page_new-function-pre-publish-checklist.md) — https://partner.tiktokshop.com/docv2/page/new-function-pre-publish-checklist
+- [For US local sellers: Retail delivery fee is added to API](./docv2_page_for-us-local-sellers-retail-delivery-fee-is-added-to-api.md) — https://partner.tiktokshop.com/docv2/page/for-us-local-sellers-retail-delivery-fee-is-added-to-api
+- [Return amount detail information available in Search Return API](./docv2_page_return-amount-detail-information-available-in-search-return-api.md) — https://partner.tiktokshop.com/docv2/page/return-amount-detail-information-available-in-search-return-api
+- [For SEA markets: Introducing development shops](./docv2_page_for-sea-markets-introducing-development-shops.md) — https://partner.tiktokshop.com/docv2/page/for-sea-markets-introducing-development-shops
+- [Development shops supports creating accounts for cross-border shops](./docv2_page_development-shops-supports-creating-accounts-for-cross-border-shops.md) — https://partner.tiktokshop.com/docv2/page/development-shops-supports-creating-accounts-for-cross-border-shops
+- [ARD updates](./docv2_page_ard-updates.md) — https://partner.tiktokshop.com/docv2/page/ard-updates
+- [Adding SKU and product limit to Promotion API](./docv2_page_adding-sku-and-product-limit-to-promotion-api.md) — https://partner.tiktokshop.com/docv2/page/adding-sku-and-product-limit-to-promotion-api
+- [(REMINDER) Legacy API Sunsets on Dec 31, 2024](./docv2_page_reminder-legacy-api-sunsets-on-dec-31-2024.md) — https://partner.tiktokshop.com/docv2/page/reminder-legacy-api-sunsets-on-dec-31-2024
+- [US market: Removing some reject reasons for returns](./docv2_page_us-market-removing-some-reject-reasons-for-returns.md) — https://partner.tiktokshop.com/docv2/page/us-market-removing-some-reject-reasons-for-returns
+- [ID market: "Tokopedia & Shop" Open API Integration One Pager](./docv2_page_id-market-tokopedia-shop-open-api-integration-one-pager.md) — https://partner.tiktokshop.com/docv2/page/id-market-tokopedia-shop-open-api-integration-one-pager
+- [BR market: Updated API workflow to support Order, Invoice and Warehouse](./docv2_page_br-market-updated-api-workflow-to-support-order-invoice-and-warehouse.md) — https://partner.tiktokshop.com/docv2/page/br-market-updated-api-workflow-to-support-order-invoice-and-warehouse
+- [JP market: Updated APIs for Products, Orders, Logistics, and Customer service](./docv2_page_jp-market-updated-apis-for-products-orders-logistics-and-customer-service.md) — https://partner.tiktokshop.com/docv2/page/jp-market-updated-apis-for-products-orders-logistics-and-customer-service
+- [MX market: GS POP API Updates](./docv2_page_mx-market-gs-pop-api-updates.md) — https://partner.tiktokshop.com/docv2/page/mx-market-gs-pop-api-updates
+- [For ID market: One Change for Privacy Improvement of Image Message](./docv2_page_hrilusvh.md) — https://partner.tiktokshop.com/docv2/page/hrilusvh
+- [ID market: Tokopedia Open API Termination - Migrate to TikTok Shop Partner Center by September 30, 2](./docv2_page_k1156vkq.md) — https://partner.tiktokshop.com/docv2/page/k1156vkq
+- [EU market: Pfand Fees and Packaging Type Data](./docv2_page_gvt0yknn.md) — https://partner.tiktokshop.com/docv2/page/gvt0yknn
+
+### FAQs (11 pages)
+
+- [Registration](./docv2_faqs_7174708677826370049.md) — https://partner.tiktokshop.com/docv2/faqs/7174708677826370049
+- [Onboarding Process](./docv2_faqs_7174707527232363009.md) — https://partner.tiktokshop.com/docv2/faqs/7174707527232363009
+- [Authorization](./docv2_faqs_7174708423559305730.md) — https://partner.tiktokshop.com/docv2/faqs/7174708423559305730
+- [Order API](./docv2_faqs_7176589485650565634.md) — https://partner.tiktokshop.com/docv2/faqs/7176589485650565634
+- [Product API](./docv2_faqs_7174708677826419201.md) — https://partner.tiktokshop.com/docv2/faqs/7174708677826419201
+- [Logistic API](./docv2_faqs_7174708677826435585.md) — https://partner.tiktokshop.com/docv2/faqs/7174708677826435585
+- [Other API](./docv2_faqs_7174708423559338498.md) — https://partner.tiktokshop.com/docv2/faqs/7174708423559338498
+- [Error Code](./docv2_faqs_7291358699015133701.md) — https://partner.tiktokshop.com/docv2/faqs/7291358699015133701
+- [Sandbox](./docv2_faqs_7174708677826386433.md) — https://partner.tiktokshop.com/docv2/faqs/7174708677826386433
+- [US Sandbox](./docv2_faqs_7200728824298985990.md) — https://partner.tiktokshop.com/docv2/faqs/7200728824298985990
+- [Linke Creator](./docv2_faqs_7176958339941685761.md) — https://partner.tiktokshop.com/docv2/faqs/7176958339941685761
+

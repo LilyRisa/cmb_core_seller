@@ -1,0 +1,172 @@
+[
+  {
+    "text": "reserved_stock_change_push",
+    "cat": "Product Push",
+    "idx": 0
+  },
+  {
+    "text": "video_upload_push",
+    "cat": "Product Push",
+    "idx": 1
+  },
+  {
+    "text": "brand_register_result",
+    "cat": "Product Push",
+    "idx": 2
+  },
+  {
+    "text": "violation_item_push",
+    "cat": "Product Push",
+    "idx": 3
+  },
+  {
+    "text": "item_price_update_push",
+    "cat": "Product Push",
+    "idx": 4
+  },
+  {
+    "text": "item_scheduled_publish_failed_push",
+    "cat": "Product Push",
+    "idx": 5
+  },
+  {
+    "text": "order_status_push",
+    "cat": "Order Push",
+    "idx": 6
+  },
+  {
+    "text": "order_trackingno_push",
+    "cat": "Order Push",
+    "idx": 7
+  },
+  {
+    "text": "shipping_document_status_push",
+    "cat": "Order Push",
+    "idx": 8
+  },
+  {
+    "text": "booking_status_push",
+    "cat": "Order Push",
+    "idx": 9
+  },
+  {
+    "text": "booking_trackingno_push",
+    "cat": "Order Push",
+    "idx": 10
+  },
+  {
+    "text": "booking_shipping_document_status_push",
+    "cat": "Order Push",
+    "idx": 11
+  },
+  {
+    "text": "package_fulfillment_status_push",
+    "cat": "Order Push",
+    "idx": 12
+  },
+  {
+    "text": "courier_delivery_binding_status_push",
+    "cat": "Order Push",
+    "idx": 13
+  },
+  {
+    "text": "package_info_push",
+    "cat": "Order Push",
+    "idx": 14
+  },
+  {
+    "text": "return_updates_push",
+    "cat": "Return Push",
+    "idx": 15
+  },
+  {
+    "text": "item_promotion_push",
+    "cat": "Marketing Push",
+    "idx": 16
+  },
+  {
+    "text": "promotion_update_push",
+    "cat": "Marketing Push",
+    "idx": 17
+  },
+  {
+    "text": "shopee_updates",
+    "cat": "Shopee Push",
+    "idx": 18
+  },
+  {
+    "text": "open_api_authorization_expiry",
+    "cat": "Shopee Push",
+    "idx": 19
+  },
+  {
+    "text": "shop_authorization_push",
+    "cat": "Shopee Push",
+    "idx": 20
+  },
+  {
+    "text": "shop_authorization_canceled_push",
+    "cat": "Shopee Push",
+    "idx": 21
+  },
+  {
+    "text": "shop_penalty_update_push",
+    "cat": "Shopee Push",
+    "idx": 22
+  },
+  {
+    "text": "video_upload_result_push",
+    "cat": "Shopee Push",
+    "idx": 23
+  },
+  {
+    "text": "webchat_push",
+    "cat": "Webchat Push",
+    "idx": 24
+  },
+  {
+    "text": "inbound_status_push",
+    "cat": "Consignment Service Push",
+    "idx": 25
+  },
+  {
+    "text": "supplier_create_product_push",
+    "cat": "Consignment Service Push",
+    "idx": 26
+  },
+  {
+    "text": "supplier_prouduct_review_result_push",
+    "cat": "Consignment Service Push",
+    "idx": 27
+  },
+  {
+    "text": "purchase_order_Push",
+    "cat": "Consignment Service Push",
+    "idx": 28
+  },
+  {
+    "text": "fbs_sellable_stock",
+    "cat": "Fulfillment by Shopee Push",
+    "idx": 29
+  },
+  {
+    "text": "fbs_br_invoice_error_push",
+    "cat": "Fulfillment by Shopee Push",
+    "idx": 30
+  },
+  {
+    "text": "fbs_br_block_shop_push",
+    "cat": "Fulfillment by Shopee Push",
+    "idx": 31
+  },
+  {
+    "text": "fbs_br_block_sku_push",
+    "cat": "Fulfillment by Shopee Push",
+    "idx": 32
+  },
+  {
+    "text": "fbs_br_invoice_issued_push",
+    "cat": "Fulfillment by Shopee Push",
+    "idx": 33
+  }
+]

@@ -1,0 +1,244 @@
+{
+  "name": "Shopee Push Mechanism",
+  "count": 34,
+  "pages": [
+    {
+      "text": "reserved_stock_change_push",
+      "cat": "Product Push",
+      "idx": 0,
+      "file": "push-001-reserved-stock-change-push.md",
+      "len": 7499
+    },
+    {
+      "text": "video_upload_push",
+      "cat": "Product Push",
+      "idx": 1,
+      "file": "push-002-video-upload-push.md",
+      "len": 10218
+    },
+    {
+      "text": "brand_register_result",
+      "cat": "Product Push",
+      "idx": 2,
+      "file": "push-003-brand-register-result.md",
+      "len": 7185
+    },
+    {
+      "text": "violation_item_push",
+      "cat": "Product Push",
+      "idx": 3,
+      "file": "push-004-violation-item-push.md",
+      "len": 10922
+    },
+    {
+      "text": "item_price_update_push",
+      "cat": "Product Push",
+      "idx": 4,
+      "file": "push-005-item-price-update-push.md",
+      "len": 5777
+    },
+    {
+      "text": "item_scheduled_publish_failed_push",
+      "cat": "Product Push",
+      "idx": 5,
+      "file": "push-006-item-scheduled-publish-failed-push.md",
+      "len": 4892
+    },
+    {
+      "text": "order_status_push",
+      "cat": "Order Push",
+      "idx": 6,
+      "file": "push-007-order-status-push.md",
+      "len": 5727
+    },
+    {
+      "text": "order_trackingno_push",
+      "cat": "Order Push",
+      "idx": 7,
+      "file": "push-008-order-trackingno-push.md",
+      "len": 5351
+    },
+    {
+      "text": "shipping_document_status_push",
+      "cat": "Order Push",
+      "idx": 8,
+      "file": "push-009-shipping-document-status-push.md",
+      "len": 4861
+    },
+    {
+      "text": "booking_status_push",
+      "cat": "Order Push",
+      "idx": 9,
+      "file": "push-010-booking-status-push.md",
+      "len": 4972
+    },
+    {
+      "text": "booking_trackingno_push",
+      "cat": "Order Push",
+      "idx": 10,
+      "file": "push-011-booking-trackingno-push.md",
+      "len": 4762
+    },
+    {
+      "text": "booking_shipping_document_status_push",
+      "cat": "Order Push",
+      "idx": 11,
+      "file": "push-012-booking-shipping-document-status-push.md",
+      "len": 4561
+    },
+    {
+      "text": "package_fulfillment_status_push",
+      "cat": "Order Push",
+      "idx": 12,
+      "file": "push-013-package-fulfillment-status-push.md",
+      "len": 5452
+    },
+    {
+      "text": "courier_delivery_binding_status_push",
+      "cat": "Order Push",
+      "idx": 13,
+      "file": "push-014-courier-delivery-binding-status-push.md",
+      "len": 5406
+    },
+    {
+      "text": "package_info_push",
+      "cat": "Order Push",
+      "idx": 14,
+      "file": "push-015-package-info-push.md",
+      "len": 7935
+    },
+    {
+      "text": "return_updates_push",
+      "cat": "Return Push",
+      "idx": 15,
+      "file": "push-016-return-updates-push.md",
+      "len": 6264
+    },
+    {
+      "text": "item_promotion_push",
+      "cat": "Marketing Push",
+      "idx": 16,
+      "file": "push-017-item-promotion-push.md",
+      "len": 7874
+    },
+    {
+      "text": "promotion_update_push",
+      "cat": "Marketing Push",
+      "idx": 17,
+      "file": "push-018-promotion-update-push.md",
+      "len": 7406
+    },
+    {
+      "text": "shopee_updates",
+      "cat": "Shopee Push",
+      "idx": 18,
+      "file": "push-019-shopee-updates.md",
+      "len": 6084
+    },
+    {
+      "text": "open_api_authorization_expiry",
+      "cat": "Shopee Push",
+      "idx": 19,
+      "file": "push-020-open-api-authorization-expiry.md",
+      "len": 5811
+    },
+    {
+      "text": "shop_authorization_push",
+      "cat": "Shopee Push",
+      "idx": 20,
+      "file": "push-021-shop-authorization-push.md",
+      "len": 7254
+    },
+    {
+      "text": "shop_authorization_canceled_push",
+      "cat": "Shopee Push",
+      "idx": 21,
+      "file": "push-022-shop-authorization-canceled-push.md",
+      "len": 8342
+    },
+    {
+      "text": "shop_penalty_update_push",
+      "cat": "Shopee Push",
+      "idx": 22,
+      "file": "push-023-shop-penalty-update-push.md",
+      "len": 11246
+    },
+    {
+      "text": "video_upload_result_push",
+      "cat": "Shopee Push",
+      "idx": 23,
+      "file": "push-024-video-upload-result-push.md",
+      "len": 7154
+    },
+    {
+      "text": "webchat_push",
+      "cat": "Webchat Push",
+      "idx": 24,
+      "file": "push-025-webchat-push.md",
+      "len": 19182
+    },
+    {
+      "text": "inbound_status_push",
+      "cat": "Consignment Service Push",
+      "idx": 25,
+      "file": "push-026-inbound-status-push.md",
+      "len": 4448
+    },
+    {
+      "text": "supplier_create_product_push",
+      "cat": "Consignment Service Push",
+      "idx": 26,
+      "file": "push-027-supplier-create-product-push.md",
+      "len": 4379
+    },
+    {
+      "text": "supplier_prouduct_review_result_push",
+      "cat": "Consignment Service Push",
+      "idx": 27,
+      "file": "push-028-supplier-prouduct-review-result-push.md",
+      "len": 4741
+    },
+    {
+      "text": "purchase_order_Push",
+      "cat": "Consignment Service Push",
+      "idx": 28,
+      "file": "push-029-purchase-order-push.md",
+      "len": 5457
+    },
+    {
+      "text": "fbs_sellable_stock",
+      "cat": "Fulfillment by Shopee Push",
+      "idx": 29,
+      "file": "push-030-fbs-sellable-stock.md",
+      "len": 6314
+    },
+    {
+      "text": "fbs_br_invoice_error_push",
+      "cat": "Fulfillment by Shopee Push",
+      "idx": 30,
+      "file": "push-031-fbs-br-invoice-error-push.md",
+      "len": 6486
+    },
+    {
+      "text": "fbs_br_block_shop_push",
+      "cat": "Fulfillment by Shopee Push",
+      "idx": 31,
+      "file": "push-032-fbs-br-block-shop-push.md",
+      "len": 4308
+    },
+    {
+      "text": "fbs_br_block_sku_push",
+      "cat": "Fulfillment by Shopee Push",
+      "idx": 32,
+      "file": "push-033-fbs-br-block-sku-push.md",
+      "len": 4921
+    },
+    {
+      "text": "fbs_br_invoice_issued_push",
+      "cat": "Fulfillment by Shopee Push",
+      "idx": 33,
+      "file": "push-034-fbs-br-invoice-issued-push.md",
+      "len": 4610
+    }
+  ]
+}

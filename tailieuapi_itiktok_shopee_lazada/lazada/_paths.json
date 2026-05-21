@@ -1,0 +1,2683 @@
+[
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fauth%2Ftoken%2Fcreate",
+    "href": "?path=%2Fauth%2Ftoken%2Fcreate",
+    "text": "GET/POSTGenerateAccessToken",
+    "topCat": "System API",
+    "subCat": "System API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fauth%2Ftoken%2FcreateWithOpenId",
+    "href": "?path=%2Fauth%2Ftoken%2FcreateWithOpenId",
+    "text": "GET/POSTGenerateAccessTokenWithOpenId",
+    "topCat": "System API",
+    "subCat": "System API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fauth%2Ftoken%2Frefresh",
+    "href": "?path=%2Fauth%2Ftoken%2Frefresh",
+    "text": "GET/POSTRefreshAccessToken",
+    "topCat": "System API",
+    "subCat": "System API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbi%2Fdownload%2FstartExportByDataset",
+    "href": "?path=%2Ffbi%2Fdownload%2FstartExportByDataset",
+    "text": "GET/POSTstartExportByDataset",
+    "topCat": "System API",
+    "subCat": "System API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fshop%2Ffollow%2Fstatus%2Fbatch%2Fquery",
+    "href": "?path=%2Fshop%2Ffollow%2Fstatus%2Fbatch%2Fquery",
+    "text": "GET/POSTBatchQueryFollowStatus",
+    "topCat": "Seller API",
+    "subCat": "Seller API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Frc%2Fstore%2Flist%2Fget",
+    "href": "?path=%2Frc%2Fstore%2Flist%2Fget",
+    "text": "GET/POSTGetPickUpStoreList",
+    "topCat": "Seller API",
+    "subCat": "Seller API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fseller%2Fget",
+    "href": "?path=%2Fseller%2Fget",
+    "text": "GETGetSeller",
+    "topCat": "Seller API",
+    "subCat": "Seller API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fseller%2Fmetrics%2Fget",
+    "href": "?path=%2Fseller%2Fmetrics%2Fget",
+    "text": "GETGetSellerMetricsById",
+    "topCat": "Seller API",
+    "subCat": "Seller API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fseller%2Fperformance%2Fget",
+    "href": "?path=%2Fseller%2Fperformance%2Fget",
+    "text": "GET/POSTGetSellerPerformance",
+    "topCat": "Seller API",
+    "subCat": "Seller API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Frc%2Fwarehouse%2Fget",
+    "href": "?path=%2Frc%2Fwarehouse%2Fget",
+    "text": "GET/POSTGetWarehouseBySellerId",
+    "topCat": "Seller API",
+    "subCat": "Seller API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Frc%2Fwarehouse%2Fdetail%2Fget",
+    "href": "?path=%2Frc%2Fwarehouse%2Fdetail%2Fget",
+    "text": "GET/POSTQueryWarehouseDetailInfoBySellerId",
+    "topCat": "Seller API",
+    "subCat": "Seller API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsellercenter%2Fmsg%2Flist",
+    "href": "?path=%2Fsellercenter%2Fmsg%2Flist",
+    "text": "GET/POSTSellerCenterMsgList",
+    "topCat": "Seller API",
+    "subCat": "Seller API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fseller%2Fpolicy%2Ffetch",
+    "href": "?path=%2Fseller%2Fpolicy%2Ffetch",
+    "text": "GETSellerPolicyFetch",
+    "topCat": "Seller API",
+    "subCat": "Seller API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fseller%2Far%2Fconfig%2Fsyn",
+    "href": "?path=%2Fseller%2Far%2Fconfig%2Fsyn",
+    "text": "GET/POSTSynchronizeSellerItemArConfig",
+    "topCat": "Seller API",
+    "subCat": "Seller API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fseller%2Fcb%2Fcountry%2Fget",
+    "href": "?path=%2Fseller%2Fcb%2Fcountry%2Fget",
+    "text": "GET/POSTgetCountryInfo",
+    "topCat": "Seller API",
+    "subCat": "Seller API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fseller%2Fcb%2Fregister%2Finfo",
+    "href": "?path=%2Fseller%2Fcb%2Fregister%2Finfo",
+    "text": "GET/POSTgetSellerRegisterInfo",
+    "topCat": "Seller API",
+    "subCat": "Seller API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fseller%2Fcb%2Fcountry%2Flocation%2Fget",
+    "href": "?path=%2Fseller%2Fcb%2Fcountry%2Flocation%2Fget",
+    "text": "GET/POSTgetSubAddress",
+    "topCat": "Seller API",
+    "subCat": "Seller API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fseller%2Fcb%2Fpayment%2Fconfig",
+    "href": "?path=%2Fseller%2Fcb%2Fpayment%2Fconfig",
+    "text": "GET/POSTpaymentBinding",
+    "topCat": "Seller API",
+    "subCat": "Seller API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fhunting%2Fbuybox%2Fget",
+    "href": "?path=%2Fhunting%2Fbuybox%2Fget",
+    "text": "GET/POSTqueryBuyboxHuntingInfo",
+    "topCat": "Seller API",
+    "subCat": "Seller API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Frc%2FsellerWarehouse%2FsaveWarehouseInfo",
+    "href": "?path=%2Frc%2FsellerWarehouse%2FsaveWarehouseInfo",
+    "text": "GET/POSTsaveSellerWarehouseInfo",
+    "topCat": "Seller API",
+    "subCat": "Seller API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fseller%2Fcb%2Fregister%2Ffieldcheck",
+    "href": "?path=%2Fseller%2Fcb%2Fregister%2Ffieldcheck",
+    "text": "GET/POSTsellerFieldVerify",
+    "topCat": "Seller API",
+    "subCat": "Seller API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fstock%2Fsellable%2Fadjust",
+    "href": "?path=%2Fproduct%2Fstock%2Fsellable%2Fadjust",
+    "text": "POSTAdjustSellableQuantity",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsize%2Fchart%2Fbatch%2Fupdate",
+    "href": "?path=%2Fsize%2Fchart%2Fbatch%2Fupdate",
+    "text": "POSTBatchUpdateSizeChart",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fcreate",
+    "href": "?path=%2Fproduct%2Fcreate",
+    "text": "POSTCreateProduct",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fdeactivate",
+    "href": "?path=%2Fproduct%2Fdeactivate",
+    "text": "POSTDeactivateProduct",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcategory%2Fbrands%2Fquery",
+    "href": "?path=%2Fcategory%2Fbrands%2Fquery",
+    "text": "GET/POSTGetBrandByPages",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcategory%2Fattributes%2Fget",
+    "href": "?path=%2Fcategory%2Fattributes%2Fget",
+    "text": "GETGetCategoryAttributes",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fcategory%2Fsuggestion%2Fget",
+    "href": "?path=%2Fproduct%2Fcategory%2Fsuggestion%2Fget",
+    "text": "GETGetCategorySuggestion",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcategory%2Ftree%2Fget",
+    "href": "?path=%2Fcategory%2Ftree%2Fget",
+    "text": "GETGetCategoryTree",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcategory%2Fcascade%2FgetNextCascadeProp",
+    "href": "?path=%2Fcategory%2Fcascade%2FgetNextCascadeProp",
+    "text": "GET/POSTGetNextCascadeProp",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fseller%2Fitem%2FgetPreQcRules",
+    "href": "?path=%2Fproduct%2Fseller%2Fitem%2FgetPreQcRules",
+    "text": "GET/POSTGetPreQcRules",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fcontent%2Fscore%2Fget",
+    "href": "?path=%2Fproduct%2Fcontent%2Fscore%2Fget",
+    "text": "GET/POSTGetProductContentScore",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fitem%2Fget",
+    "href": "?path=%2Fproduct%2Fitem%2Fget",
+    "text": "GETGetProductItem",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproducts%2Fget",
+    "href": "?path=%2Fproducts%2Fget",
+    "text": "GETGetProducts",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fqc%2Falert%2Flist",
+    "href": "?path=%2Fproduct%2Fqc%2Falert%2Flist",
+    "text": "GETGetQCAlertProducts",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fimage%2Fresponse%2Fget",
+    "href": "?path=%2Fimage%2Fresponse%2Fget",
+    "text": "GETGetResponse",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fseller%2Fitem%2Flimit",
+    "href": "?path=%2Fproduct%2Fseller%2Fitem%2Flimit",
+    "text": "GETGetSellerItemLimit",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsize%2Fchart%2Ftemplate%2Fget",
+    "href": "?path=%2Fsize%2Fchart%2Ftemplate%2Fget",
+    "text": "GETGetSizeChartTemplate",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Funfilled%2Fattribute%2Fget",
+    "href": "?path=%2Fproduct%2Funfilled%2Fattribute%2Fget",
+    "text": "GET/POSTGetUnfilledAttributeItem",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fimage%2Fmigrate",
+    "href": "?path=%2Fimage%2Fmigrate",
+    "text": "POSTMigrateImage",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fimages%2Fmigrate",
+    "href": "?path=%2Fimages%2Fmigrate",
+    "text": "POSTMigrateImages",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fpre%2Fcheck",
+    "href": "?path=%2Fproduct%2Fpre%2Fcheck",
+    "text": "GET/POSTProductCheck",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fremove",
+    "href": "?path=%2Fproduct%2Fremove",
+    "text": "POSTRemoveProduct",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fsku%2Fremove",
+    "href": "?path=%2Fproduct%2Fsku%2Fremove",
+    "text": "POSTRemoveSku",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fimages%2Fset",
+    "href": "?path=%2Fimages%2Fset",
+    "text": "POSTSetImages",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fprice_quantity%2Fupdate",
+    "href": "?path=%2Fproduct%2Fprice_quantity%2Fupdate",
+    "text": "POSTUpdatePriceQuantity",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fupdate",
+    "href": "?path=%2Fproduct%2Fupdate",
+    "text": "POSTUpdateProduct",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fstock%2Fsellable%2Fupdate",
+    "href": "?path=%2Fproduct%2Fstock%2Fsellable%2Fupdate",
+    "text": "GET/POSTUpdateSellableQuantity",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fimage%2Fupload",
+    "href": "?path=%2Fimage%2Fupload",
+    "text": "POSTUploadImage",
+    "topCat": "Product API",
+    "subCat": "Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fglobal%2Fcreate",
+    "href": "?path=%2Fproduct%2Fglobal%2Fcreate",
+    "text": "POSTCreateGlobalProduct",
+    "topCat": "Cross Boarder Product API",
+    "subCat": "Cross Boarder Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fglobal%2Fextension",
+    "href": "?path=%2Fproduct%2Fglobal%2Fextension",
+    "text": "GETGetGlobalProductExtension",
+    "topCat": "Cross Boarder Product API",
+    "subCat": "Cross Boarder Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fglobal%2Fstatus%2Fget",
+    "href": "?path=%2Fproduct%2Fglobal%2Fstatus%2Fget",
+    "text": "GETGetGlobalProductStatus",
+    "topCat": "Cross Boarder Product API",
+    "subCat": "Cross Boarder Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fglobal%2Fsemi%2Frecommend%2Fprice%2Fget",
+    "href": "?path=%2Fproduct%2Fglobal%2Fsemi%2Frecommend%2Fprice%2Fget",
+    "text": "GET/POSTGetRecommendPrice",
+    "topCat": "Cross Boarder Product API",
+    "subCat": "Cross Boarder Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fglobal%2Funfilled%2Fattribute%2Fget",
+    "href": "?path=%2Fproduct%2Fglobal%2Funfilled%2Fattribute%2Fget",
+    "text": "GETGetUnfilledAttribute",
+    "topCat": "Cross Boarder Product API",
+    "subCat": "Cross Boarder Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fglobal%2Fsemi%2Favaible%2Fget",
+    "href": "?path=%2Fproduct%2Fglobal%2Fsemi%2Favaible%2Fget",
+    "text": "GET/POSTGetUpgradableGlobalPlusProductList",
+    "topCat": "Cross Boarder Product API",
+    "subCat": "Cross Boarder Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fglobal%2Fsemi%2Fupdate",
+    "href": "?path=%2Fproduct%2Fglobal%2Fsemi%2Fupdate",
+    "text": "POSTSemiProductUpdate",
+    "topCat": "Cross Boarder Product API",
+    "subCat": "Cross Boarder Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fglobal%2Fsemi%2Fupgrade",
+    "href": "?path=%2Fproduct%2Fglobal%2Fsemi%2Fupgrade",
+    "text": "GET/POSTSemiProductUpgrade",
+    "topCat": "Cross Boarder Product API",
+    "subCat": "Cross Boarder Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fglobal%2Fattribute%2Fupdate",
+    "href": "?path=%2Fproduct%2Fglobal%2Fattribute%2Fupdate",
+    "text": "POSTUpdateGlobalProductAttribute",
+    "topCat": "Cross Boarder Product API",
+    "subCat": "Cross Boarder Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fglobal%2Fdelete",
+    "href": "?path=%2Fproduct%2Fglobal%2Fdelete",
+    "text": "POSTdeleteMerchantProduct",
+    "topCat": "Cross Boarder Product API",
+    "subCat": "Cross Boarder Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fproduct%2Fglobal%2Fupdate%2Fstatus",
+    "href": "?path=%2Fproduct%2Fglobal%2Fupdate%2Fstatus",
+    "text": "POSTupdateProductStatus",
+    "topCat": "Cross Boarder Product API",
+    "subCat": "Cross Boarder Product API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Freview%2Fseller%2Fhistory%2Flist",
+    "href": "?path=%2Freview%2Fseller%2Fhistory%2Flist",
+    "text": "GET/POSTGetHistoryReviewIdList",
+    "topCat": "Product Review API",
+    "subCat": "Product Review API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Freview%2Fseller%2Flist%2Fv2",
+    "href": "?path=%2Freview%2Fseller%2Flist%2Fv2",
+    "text": "GETGetReviewListByIdList",
+    "topCat": "Product Review API",
+    "subCat": "Product Review API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Freview%2Fseller%2Freply%2Fadd",
+    "href": "?path=%2Freview%2Fseller%2Freply%2Fadd",
+    "text": "GETSubmitSellerReply",
+    "topCat": "Product Review API",
+    "subCat": "Product Review API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fstore%2Fcustom%2Fpage%2Fget",
+    "href": "?path=%2Fstore%2Fcustom%2Fpage%2Fget",
+    "text": "GET/POSTGetStoreCustomPage",
+    "topCat": "Store Decoration API",
+    "subCat": "Store Decoration API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fmedia%2Fvideo%2Fblock%2Fcommit",
+    "href": "?path=%2Fmedia%2Fvideo%2Fblock%2Fcommit",
+    "text": "POSTCompleteCreateVideo",
+    "topCat": "Media Center API",
+    "subCat": "Media Center API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fmedia%2Fvideo%2Fget",
+    "href": "?path=%2Fmedia%2Fvideo%2Fget",
+    "text": "GETGetVideo",
+    "topCat": "Media Center API",
+    "subCat": "Media Center API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fmedia%2Fvideo%2Fquota%2Fget",
+    "href": "?path=%2Fmedia%2Fvideo%2Fquota%2Fget",
+    "text": "GETGetVideoQuota",
+    "topCat": "Media Center API",
+    "subCat": "Media Center API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fmedia%2Fvideo%2Fblock%2Fcreate",
+    "href": "?path=%2Fmedia%2Fvideo%2Fblock%2Fcreate",
+    "text": "POSTInitCreateVideo",
+    "topCat": "Media Center API",
+    "subCat": "Media Center API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fmedia%2Fvideo%2Fremove",
+    "href": "?path=%2Fmedia%2Fvideo%2Fremove",
+    "text": "POSTRemoveVideo",
+    "topCat": "Media Center API",
+    "subCat": "Media Center API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fmedia%2Fvideo%2Fblock%2Fupload",
+    "href": "?path=%2Fmedia%2Fvideo%2Fblock%2Fupload",
+    "text": "POSTUploadVideoBlock",
+    "topCat": "Media Center API",
+    "subCat": "Media Center API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Fflexicombo%2Factivate",
+    "href": "?path=%2Fpromotion%2Fflexicombo%2Factivate",
+    "text": "POSTActivateFlexiCombo",
+    "topCat": "Flexicombo API",
+    "subCat": "Flexicombo API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Fflexicombo%2Fproducts%2Fadd",
+    "href": "?path=%2Fpromotion%2Fflexicombo%2Fproducts%2Fadd",
+    "text": "POSTAddFlexiComboProducts",
+    "topCat": "Flexicombo API",
+    "subCat": "Flexicombo API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Fflexicombo%2Fcreate",
+    "href": "?path=%2Fpromotion%2Fflexicombo%2Fcreate",
+    "text": "POSTCreateFlexiCombo",
+    "topCat": "Flexicombo API",
+    "subCat": "Flexicombo API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Fflexicombo%2Fdeactivate",
+    "href": "?path=%2Fpromotion%2Fflexicombo%2Fdeactivate",
+    "text": "POSTDeactivateFlexiCombo",
+    "topCat": "Flexicombo API",
+    "subCat": "Flexicombo API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Fflexicombo%2Fproducts%2Fdelete",
+    "href": "?path=%2Fpromotion%2Fflexicombo%2Fproducts%2Fdelete",
+    "text": "POSTDeleteFlexiComboProducts",
+    "topCat": "Flexicombo API",
+    "subCat": "Flexicombo API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Fflexicombo%2Fdetails",
+    "href": "?path=%2Fpromotion%2Fflexicombo%2Fdetails",
+    "text": "GETGetFlexiComboDetails",
+    "topCat": "Flexicombo API",
+    "subCat": "Flexicombo API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Fflexicombo%2Flist",
+    "href": "?path=%2Fpromotion%2Fflexicombo%2Flist",
+    "text": "GETListFlexiCombo",
+    "topCat": "Flexicombo API",
+    "subCat": "Flexicombo API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Fflexicombo%2Fproducts%2Flist",
+    "href": "?path=%2Fpromotion%2Fflexicombo%2Fproducts%2Flist",
+    "text": "GETListFlexiComboProducts",
+    "topCat": "Flexicombo API",
+    "subCat": "Flexicombo API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Fflexicombo%2Fupdate",
+    "href": "?path=%2Fpromotion%2Fflexicombo%2Fupdate",
+    "text": "POSTUpdateFlexiCombo",
+    "topCat": "Flexicombo API",
+    "subCat": "Flexicombo API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Fvoucher%2Fproduct%2Fsku%2Fremove",
+    "href": "?path=%2Fpromotion%2Fvoucher%2Fproduct%2Fsku%2Fremove",
+    "text": "POSTSellerVoucheDeleteSelectedProductSKU",
+    "topCat": "Seller Voucher API",
+    "subCat": "Seller Voucher API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Fvoucher%2Factivate",
+    "href": "?path=%2Fpromotion%2Fvoucher%2Factivate",
+    "text": "POSTSellerVoucherActivate",
+    "topCat": "Seller Voucher API",
+    "subCat": "Seller Voucher API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Fvoucher%2Fproduct%2Fsku%2Fadd",
+    "href": "?path=%2Fpromotion%2Fvoucher%2Fproduct%2Fsku%2Fadd",
+    "text": "POSTSellerVoucherAddSelectedProductSKU",
+    "topCat": "Seller Voucher API",
+    "subCat": "Seller Voucher API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Fvoucher%2Fcreate",
+    "href": "?path=%2Fpromotion%2Fvoucher%2Fcreate",
+    "text": "POSTSellerVoucherCreate",
+    "topCat": "Seller Voucher API",
+    "subCat": "Seller Voucher API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Fvoucher%2Fdeactivate",
+    "href": "?path=%2Fpromotion%2Fvoucher%2Fdeactivate",
+    "text": "POSTSellerVoucherDeactivate",
+    "topCat": "Seller Voucher API",
+    "subCat": "Seller Voucher API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Fvoucher%2Fget",
+    "href": "?path=%2Fpromotion%2Fvoucher%2Fget",
+    "text": "GETSellerVoucherDetailQuery",
+    "topCat": "Seller Voucher API",
+    "subCat": "Seller Voucher API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Fvouchers%2Fget",
+    "href": "?path=%2Fpromotion%2Fvouchers%2Fget",
+    "text": "GETSellerVoucherList",
+    "topCat": "Seller Voucher API",
+    "subCat": "Seller Voucher API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Fvoucher%2Fproducts%2Fget",
+    "href": "?path=%2Fpromotion%2Fvoucher%2Fproducts%2Fget",
+    "text": "GETSellerVoucherSelectedProductList",
+    "topCat": "Seller Voucher API",
+    "subCat": "Seller Voucher API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Fvoucher%2Fupdate",
+    "href": "?path=%2Fpromotion%2Fvoucher%2Fupdate",
+    "text": "POSTSellerVoucherUpdate",
+    "topCat": "Seller Voucher API",
+    "subCat": "Seller Voucher API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Ffreeshipping%2Factivate",
+    "href": "?path=%2Fpromotion%2Ffreeshipping%2Factivate",
+    "text": "POSTFreeShippingActivate",
+    "topCat": "Free Shipping API",
+    "subCat": "Free Shipping API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Ffreeshipping%2Fproduct%2Fsku%2Fadd",
+    "href": "?path=%2Fpromotion%2Ffreeshipping%2Fproduct%2Fsku%2Fadd",
+    "text": "POSTFreeShippingAddSelectedProductSKU",
+    "topCat": "Free Shipping API",
+    "subCat": "Free Shipping API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Ffreeshipping%2Fcreate",
+    "href": "?path=%2Fpromotion%2Ffreeshipping%2Fcreate",
+    "text": "POSTFreeShippingCreate",
+    "topCat": "Free Shipping API",
+    "subCat": "Free Shipping API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Ffreeshipping%2Fdeactivate",
+    "href": "?path=%2Fpromotion%2Ffreeshipping%2Fdeactivate",
+    "text": "POSTFreeShippingDeactivate",
+    "topCat": "Free Shipping API",
+    "subCat": "Free Shipping API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Ffreeshipping%2Fproduct%2Fsku%2Fremove",
+    "href": "?path=%2Fpromotion%2Ffreeshipping%2Fproduct%2Fsku%2Fremove",
+    "text": "POSTFreeShippingDeleteSelectedProductSKU",
+    "topCat": "Free Shipping API",
+    "subCat": "Free Shipping API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Ffreeshipping%2Fdeliveryoptions%2Fget",
+    "href": "?path=%2Fpromotion%2Ffreeshipping%2Fdeliveryoptions%2Fget",
+    "text": "GETFreeShippingDeliveryOptionsQuery",
+    "topCat": "Free Shipping API",
+    "subCat": "Free Shipping API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Ffreeshipping%2Fget",
+    "href": "?path=%2Fpromotion%2Ffreeshipping%2Fget",
+    "text": "GETFreeShippingGet",
+    "topCat": "Free Shipping API",
+    "subCat": "Free Shipping API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Ffreeshippings%2Fget",
+    "href": "?path=%2Fpromotion%2Ffreeshippings%2Fget",
+    "text": "GETFreeShippingList",
+    "topCat": "Free Shipping API",
+    "subCat": "Free Shipping API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Ffreeshipping%2Fregions%2Fget",
+    "href": "?path=%2Fpromotion%2Ffreeshipping%2Fregions%2Fget",
+    "text": "GETFreeShippingRegionsQuery",
+    "topCat": "Free Shipping API",
+    "subCat": "Free Shipping API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Ffreeshipping%2Fproducts%2Fget",
+    "href": "?path=%2Fpromotion%2Ffreeshipping%2Fproducts%2Fget",
+    "text": "GETFreeShippingSelectedProductList",
+    "topCat": "Free Shipping API",
+    "subCat": "Free Shipping API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Ffreeshipping%2Fupdate",
+    "href": "?path=%2Fpromotion%2Ffreeshipping%2Fupdate",
+    "text": "POSTFreeShippingUpdate",
+    "topCat": "Free Shipping API",
+    "subCat": "Free Shipping API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Factivity%2Fearly%2Fbird%2Fcreate",
+    "href": "?path=%2Factivity%2Fearly%2Fbird%2Fcreate",
+    "text": "POSTCreateEarlyBirdActivity",
+    "topCat": "Early Bird Price API",
+    "subCat": "Early Bird Price API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Factivity%2Fearly%2Fbird%2Fcreate%2Fv2",
+    "href": "?path=%2Factivity%2Fearly%2Fbird%2Fcreate%2Fv2",
+    "text": "POSTCreateEarlyBirdActivityV2",
+    "topCat": "Early Bird Price API",
+    "subCat": "Early Bird Price API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Factivity%2Fearly%2Fbird%2FaddSkus",
+    "href": "?path=%2Factivity%2Fearly%2Fbird%2FaddSkus",
+    "text": "POSTEarlyBirdActivityAddSkus",
+    "topCat": "Early Bird Price API",
+    "subCat": "Early Bird Price API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Factivity%2Fearly%2Fbird%2FaddSkus%2Fv2",
+    "href": "?path=%2Factivity%2Fearly%2Fbird%2FaddSkus%2Fv2",
+    "text": "POSTEarlyBirdActivityAddSkusV2",
+    "topCat": "Early Bird Price API",
+    "subCat": "Early Bird Price API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Factivity%2Fearly%2Fbird%2FdeactivateSkus",
+    "href": "?path=%2Factivity%2Fearly%2Fbird%2FdeactivateSkus",
+    "text": "POSTEarlyBirdActivityDeactivateSkus",
+    "topCat": "Early Bird Price API",
+    "subCat": "Early Bird Price API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Factivity%2Fearly%2Fbird%2FdeactivateSkus%2Fv2",
+    "href": "?path=%2Factivity%2Fearly%2Fbird%2FdeactivateSkus%2Fv2",
+    "text": "POSTEarlyBirdActivityDeactivateSkusV2",
+    "topCat": "Early Bird Price API",
+    "subCat": "Early Bird Price API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Factivity%2Fearly%2Fbird%2FisWhitelistSeller",
+    "href": "?path=%2Factivity%2Fearly%2Fbird%2FisWhitelistSeller",
+    "text": "POSTEarlyBirdActivityIsWhitelistSeller",
+    "topCat": "Early Bird Price API",
+    "subCat": "Early Bird Price API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forder%2Fdocument%2Fget",
+    "href": "?path=%2Forder%2Fdocument%2Fget",
+    "text": "GETGetDocument",
+    "topCat": "Order API",
+    "subCat": "Order API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forders%2Fitems%2Fget",
+    "href": "?path=%2Forders%2Fitems%2Fget",
+    "text": "GETGetMultipleOrderItems",
+    "topCat": "Order API",
+    "subCat": "Order API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forders%2Fovo%2Fget",
+    "href": "?path=%2Forders%2Fovo%2Fget",
+    "text": "GET/POSTGetOVOOrders",
+    "topCat": "Order API",
+    "subCat": "Order API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forder%2Fget",
+    "href": "?path=%2Forder%2Fget",
+    "text": "GETGetOrder",
+    "topCat": "Order API",
+    "subCat": "Order API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forder%2Fitems%2Fget",
+    "href": "?path=%2Forder%2Fitems%2Fget",
+    "text": "GETGetOrderItems",
+    "topCat": "Order API",
+    "subCat": "Order API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forders%2Fget",
+    "href": "?path=%2Forders%2Fget",
+    "text": "GETGetOrders",
+    "topCat": "Order API",
+    "subCat": "Order API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forder%2Freverse%2Fcancel%2Fvalidate",
+    "href": "?path=%2Forder%2Freverse%2Fcancel%2Fvalidate",
+    "text": "GETOrderCancelValidate",
+    "topCat": "Order API",
+    "subCat": "Order API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forder%2Finvoice_number%2Fset",
+    "href": "?path=%2Forder%2Finvoice_number%2Fset",
+    "text": "POSTSetInvoiceNumber",
+    "topCat": "Order API",
+    "subCat": "Order API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forder%2Freverse%2Freturn%2Fdetail%2Flist",
+    "href": "?path=%2Forder%2Freverse%2Freturn%2Fdetail%2Flist",
+    "text": "GETGetReverseOrderDetail",
+    "topCat": "Return and Refund API",
+    "subCat": "Return and Refund API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forder%2Freverse%2Freturn%2Fhistory%2Flist",
+    "href": "?path=%2Forder%2Freverse%2Freturn%2Fhistory%2Flist",
+    "text": "GETGetReverseOrderHistoryList",
+    "topCat": "Return and Refund API",
+    "subCat": "Return and Refund API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forder%2Freverse%2Freason%2Flist",
+    "href": "?path=%2Forder%2Freverse%2Freason%2Flist",
+    "text": "GETGetReverseOrderReasonList",
+    "topCat": "Return and Refund API",
+    "subCat": "Return and Refund API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Freverse%2Fgetreverseordersforseller",
+    "href": "?path=%2Freverse%2Fgetreverseordersforseller",
+    "text": "GET/POSTGetReverseOrdersForSeller",
+    "topCat": "Return and Refund API",
+    "subCat": "Return and Refund API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forder%2Freverse%2Fcancel%2Fcreate",
+    "href": "?path=%2Forder%2Freverse%2Fcancel%2Fcreate",
+    "text": "GETInitReverseOrderCancel",
+    "topCat": "Return and Refund API",
+    "subCat": "Return and Refund API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forder%2Freverse%2Fcancel%2Fseller%2Fdecide",
+    "href": "?path=%2Forder%2Freverse%2Fcancel%2Fseller%2Fdecide",
+    "text": "GETInitReverseOrderCancelDecide",
+    "topCat": "Return and Refund API",
+    "subCat": "Return and Refund API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forder%2Freverse%2Fonlyrefund%2Fseller%2Fdecide",
+    "href": "?path=%2Forder%2Freverse%2Fonlyrefund%2Fseller%2Fdecide",
+    "text": "GETReverseOrderOnlyRefundDecide",
+    "topCat": "Return and Refund API",
+    "subCat": "Return and Refund API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forder%2Freverse%2Freturn%2Fupdate",
+    "href": "?path=%2Forder%2Freverse%2Freturn%2Fupdate",
+    "text": "GETReverseOrderReturnUpdate",
+    "topCat": "Return and Refund API",
+    "subCat": "Return and Refund API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forder%2Fpackage%2Fsof%2Fdelivered",
+    "href": "?path=%2Forder%2Fpackage%2Fsof%2Fdelivered",
+    "text": "POSTConfirmDeliveryForDBS",
+    "topCat": "Fulfillment API",
+    "subCat": "Fulfillment API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forder%2Fdigital%2Fdelivered",
+    "href": "?path=%2Forder%2Fdigital%2Fdelivered",
+    "text": "POSTDeliverDigital",
+    "topCat": "Fulfillment API",
+    "subCat": "Fulfillment API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forder%2Fpackage%2Fsof%2Ffailed_delivery",
+    "href": "?path=%2Forder%2Fpackage%2Fsof%2Ffailed_delivery",
+    "text": "POSTFailedDeliveryForDBS",
+    "topCat": "Fulfillment API",
+    "subCat": "Fulfillment API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forder%2Fshipment%2Fproviders%2Fget",
+    "href": "?path=%2Forder%2Fshipment%2Fproviders%2Fget",
+    "text": "GET/POSTGetShipmentProvider",
+    "topCat": "Fulfillment API",
+    "subCat": "Fulfillment API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forder%2Ffulfill%2Fpack",
+    "href": "?path=%2Forder%2Ffulfill%2Fpack",
+    "text": "POSTPack",
+    "topCat": "Fulfillment API",
+    "subCat": "Fulfillment API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forder%2Fpackage%2Fsof%2Fstatus%2Fupdate",
+    "href": "?path=%2Forder%2Fpackage%2Fsof%2Fstatus%2Fupdate",
+    "text": "POSTPackageStatusUpdateForDBS",
+    "topCat": "Fulfillment API",
+    "subCat": "Fulfillment API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forder%2Fpackage%2Fdocument%2Fget",
+    "href": "?path=%2Forder%2Fpackage%2Fdocument%2Fget",
+    "text": "GET/POSTPrintAWB",
+    "topCat": "Fulfillment API",
+    "subCat": "Fulfillment API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forder%2Fpackage%2Frts",
+    "href": "?path=%2Forder%2Fpackage%2Frts",
+    "text": "POSTReadyToShip",
+    "topCat": "Fulfillment API",
+    "subCat": "Fulfillment API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Forder%2Fpackage%2Frepack",
+    "href": "?path=%2Forder%2Fpackage%2Frepack",
+    "text": "GET/POSTRecreatePackage",
+    "topCat": "Fulfillment API",
+    "subCat": "Fulfillment API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Ftps%2Frunsheets%2Fstops",
+    "href": "?path=%2Flogistics%2Ftps%2Frunsheets%2Fstops",
+    "text": "POSTAddOrUpdatePickupStop",
+    "topCat": "Logistics API",
+    "subCat": "Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Ftps%2Fstations%2Fcreate",
+    "href": "?path=%2Flogistics%2Ftps%2Fstations%2Fcreate",
+    "text": "POSTCreate3PLStation",
+    "topCat": "Logistics API",
+    "subCat": "Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistic%2Forder%2Ftrace",
+    "href": "?path=%2Flogistic%2Forder%2Ftrace",
+    "text": "GET/POSTGetOrderTrace",
+    "topCat": "Logistics API",
+    "subCat": "Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fdop%2Fscan",
+    "href": "?path=%2Fdop%2Fscan",
+    "text": "GET/POSTScanParcel",
+    "topCat": "Logistics API",
+    "subCat": "Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fstations%2Fdop%2Fscan",
+    "href": "?path=%2Fstations%2Fdop%2Fscan",
+    "text": "GET/POSTStationDopScan",
+    "topCat": "Logistics API",
+    "subCat": "Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Ftps%2Fstations%2Fupdate",
+    "href": "?path=%2Flogistics%2Ftps%2Fstations%2Fupdate",
+    "text": "POSTUpdate3PLStation",
+    "topCat": "Logistics API",
+    "subCat": "Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Ftps%2Fsellers%2Fpickup_timeslot",
+    "href": "?path=%2Flogistics%2Ftps%2Fsellers%2Fpickup_timeslot",
+    "text": "POSTUpdatePickupTimeSlot",
+    "topCat": "Logistics API",
+    "subCat": "Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fldp%2FcreateConsolidationService",
+    "href": "?path=%2Flogistics%2Fldp%2FcreateConsolidationService",
+    "text": "POSTcreateConsolidationService",
+    "topCat": "Logistics API",
+    "subCat": "Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fldp%2FupdateLastmile",
+    "href": "?path=%2Flogistics%2Fldp%2FupdateLastmile",
+    "text": "POSTupdateLastMile",
+    "topCat": "Logistics API",
+    "subCat": "Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fcngfc%2Ffulfill%2Fgetchannelcode",
+    "href": "?path=%2Flogistics%2Fcngfc%2Ffulfill%2Fgetchannelcode",
+    "text": "GET/POSTGetChannelcodeByFirstMileNo",
+    "topCat": "FirstMile Bigbag(only for CN)",
+    "subCat": "FirstMile Bigbag(only for CN)"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fcnpms%2Fbigbag%2Flable%2FgetPdf",
+    "href": "?path=%2Flogistics%2Fcnpms%2Fbigbag%2Flable%2FgetPdf",
+    "text": "GET/POSTGetLazadaBigbagPDFLable",
+    "topCat": "FirstMile Bigbag(only for CN)",
+    "subCat": "FirstMile Bigbag(only for CN)"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fcnpms%2Fbigbag%2Fcancel",
+    "href": "?path=%2Flogistics%2Fcnpms%2Fbigbag%2Fcancel",
+    "text": "GET/POSTLazadaBigbagCancel",
+    "topCat": "FirstMile Bigbag(only for CN)",
+    "subCat": "FirstMile Bigbag(only for CN)"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fcnpms%2Fbigbag%2Fquerycollection",
+    "href": "?path=%2Flogistics%2Fcnpms%2Fbigbag%2Fquerycollection",
+    "text": "GET/POSTLazadaBigbagCollectionPoints",
+    "topCat": "FirstMile Bigbag(only for CN)",
+    "subCat": "FirstMile Bigbag(only for CN)"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fcnpms%2Fbigbag%2Fcommit",
+    "href": "?path=%2Flogistics%2Fcnpms%2Fbigbag%2Fcommit",
+    "text": "GET/POSTLazadaBigbagCommit",
+    "topCat": "FirstMile Bigbag(only for CN)",
+    "subCat": "FirstMile Bigbag(only for CN)"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fcnpms%2Fbigbag%2Fupdate",
+    "href": "?path=%2Flogistics%2Fcnpms%2Fbigbag%2Fupdate",
+    "text": "GET/POSTLazadaBigbagUpdate",
+    "topCat": "FirstMile Bigbag(only for CN)",
+    "subCat": "FirstMile Bigbag(only for CN)"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fcnpms%2Faccount%2Fbind",
+    "href": "?path=%2Flogistics%2Fcnpms%2Faccount%2Fbind",
+    "text": "GET/POSTLazadaSellerAccountBind",
+    "topCat": "FirstMile Bigbag(only for CN)",
+    "subCat": "FirstMile Bigbag(only for CN)"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fcnpms%2Faddress%2Fquery",
+    "href": "?path=%2Flogistics%2Fcnpms%2Faddress%2Fquery",
+    "text": "GET/POSTQueryAddressInformaiton",
+    "topCat": "FirstMile Bigbag(only for CN)",
+    "subCat": "FirstMile Bigbag(only for CN)"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fcnpms%2Fbigbag%2Fquery",
+    "href": "?path=%2Flogistics%2Fcnpms%2Fbigbag%2Fquery",
+    "text": "GET/POSTQueryLazadaBigbagInfo",
+    "topCat": "FirstMile Bigbag(only for CN)",
+    "subCat": "FirstMile Bigbag(only for CN)"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffinance%2Fpayout%2Fstatus%2Fget",
+    "href": "?path=%2Ffinance%2Fpayout%2Fstatus%2Fget",
+    "text": "GETGetPayoutStatus",
+    "topCat": "Finance API",
+    "subCat": "Finance API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffinance%2Ftransaction%2FaccountTransactions%2Fquery",
+    "href": "?path=%2Ffinance%2Ftransaction%2FaccountTransactions%2Fquery",
+    "text": "POSTQueryAccountTransactions",
+    "topCat": "Finance API",
+    "subCat": "Finance API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flbs%2Fslb%2FqueryLogisticsFeeDetail",
+    "href": "?path=%2Flbs%2Fslb%2FqueryLogisticsFeeDetail",
+    "text": "GET/POSTQueryLogisticsFeeDetail",
+    "topCat": "Finance API",
+    "subCat": "Finance API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffinance%2Ftransaction%2Fdetails%2Fget",
+    "href": "?path=%2Ffinance%2Ftransaction%2Fdetails%2Fget",
+    "text": "GETQueryTransactionDetails",
+    "topCat": "Finance API",
+    "subCat": "Finance API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fmembership%2Flinkmember%2Fget",
+    "href": "?path=%2Fmembership%2Flinkmember%2Fget",
+    "text": "GET/POSTGetLinkMember",
+    "topCat": "Membership API",
+    "subCat": "Membership API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpartner%2Fget",
+    "href": "?path=%2Fpartner%2Fget",
+    "text": "GET/POSTGetLinkMember",
+    "topCat": "Membership API",
+    "subCat": "Membership API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fmembership%2Flinkmember%2Flist",
+    "href": "?path=%2Fmembership%2Flinkmember%2Flist",
+    "text": "GET/POSTGetLinkMemberList",
+    "topCat": "Membership API",
+    "subCat": "Membership API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpartner%2Flist",
+    "href": "?path=%2Fpartner%2Flist",
+    "text": "GET/POSTGetLinkMemberList",
+    "topCat": "Membership API",
+    "subCat": "Membership API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fmembership%2Flink",
+    "href": "?path=%2Fmembership%2Flink",
+    "text": "POSTLinkMembership",
+    "topCat": "Membership API",
+    "subCat": "Membership API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpartner%2Flink",
+    "href": "?path=%2Fpartner%2Flink",
+    "text": "GET/POSTPartnerLink",
+    "topCat": "Membership API",
+    "subCat": "Membership API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpartner%2Ftransaction",
+    "href": "?path=%2Fpartner%2Ftransaction",
+    "text": "GET/POSTPartnerTransaction",
+    "topCat": "Membership API",
+    "subCat": "Membership API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpartner%2Funlink",
+    "href": "?path=%2Fpartner%2Funlink",
+    "text": "GET/POSTPartnerUnlink",
+    "topCat": "Membership API",
+    "subCat": "Membership API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpartner%2Fupdate",
+    "href": "?path=%2Fpartner%2Fupdate",
+    "text": "GET/POSTPartnerUpdate",
+    "topCat": "Membership API",
+    "subCat": "Membership API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpartner%2FupdatePartnerUserId",
+    "href": "?path=%2Fpartner%2FupdatePartnerUserId",
+    "text": "GET/POSTUpdatePartnerUserId",
+    "topCat": "Membership API",
+    "subCat": "Membership API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Ffulfillment_sku_relation%2Fwrite",
+    "href": "?path=%2Ffbl%2Ffulfillment_sku_relation%2Fwrite",
+    "text": "POSTBuildFulfillmentSkuRelation",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Ffulfillment_order%2Fcancel",
+    "href": "?path=%2Ffbl%2Ffulfillment_order%2Fcancel",
+    "text": "POSTCancelFulfillmentOrderForMCL",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Finbound_reservation%2Fcancel",
+    "href": "?path=%2Ffbl%2Finbound_reservation%2Fcancel",
+    "text": "POSTCancelInboundReservation",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Foutbound_order%2Fcancel",
+    "href": "?path=%2Ffbl%2Foutbound_order%2Fcancel",
+    "text": "POSTCancelOutboundOrder",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Fvas%2FcancelVasOrder",
+    "href": "?path=%2Ffbl%2Fvas%2FcancelVasOrder",
+    "text": "GET/POSTCancelVasOrder4FBL",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Finbound_order%2Fcancel",
+    "href": "?path=%2Ffbl%2Finbound_order%2Fcancel",
+    "text": "POSTCancelnBoundOrder",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Finbound_reservation%2Fcheck",
+    "href": "?path=%2Ffbl%2Finbound_reservation%2Fcheck",
+    "text": "GETCheckInboundReservationSlot",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Ffulfillment_order%2Fcreate",
+    "href": "?path=%2Ffbl%2Ffulfillment_order%2Fcreate",
+    "text": "POSTCreateFulfillmentOrderForMCL",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Ffulfillment_order_pnf%2Fcreate",
+    "href": "?path=%2Ffbl%2Ffulfillment_order_pnf%2Fcreate",
+    "text": "POSTCreateFulfillmentOrderForMCLV2PNF",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Ffulfillment_sku%2Fcreate",
+    "href": "?path=%2Ffbl%2Ffulfillment_sku%2Fcreate",
+    "text": "POSTCreateFulfillmentSkuDecouple",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Ffulfillment_sku_fbl%2Fcreate",
+    "href": "?path=%2Ffbl%2Ffulfillment_sku_fbl%2Fcreate",
+    "text": "POSTCreateFulfillmentSkuForFBL",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Finbound_order%2Fcreate",
+    "href": "?path=%2Ffbl%2Finbound_order%2Fcreate",
+    "text": "POSTCreateInboundOrder",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Finbound_reservation%2Fcreate",
+    "href": "?path=%2Ffbl%2Finbound_reservation%2Fcreate",
+    "text": "POSTCreateInboundReservation",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Foutbound_order%2Fcreate",
+    "href": "?path=%2Ffbl%2Foutbound_order%2Fcreate",
+    "text": "POSTCreateOutBoundOrder",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Fproduct_reinbound%2Fcreate",
+    "href": "?path=%2Ffbl%2Fproduct_reinbound%2Fcreate",
+    "text": "POSTCreateProductReinboundOrderForMCL",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Fvas%2FcreateVasOrder",
+    "href": "?path=%2Ffbl%2Fvas%2FcreateVasOrder",
+    "text": "GET/POSTCreateVasOrder4FBL",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Fchannel_stocks%2Fget",
+    "href": "?path=%2Ffbl%2Fchannel_stocks%2Fget",
+    "text": "GETGetChannelStocksForMCL",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Ffulfillment_products%2Fget",
+    "href": "?path=%2Ffbl%2Ffulfillment_products%2Fget",
+    "text": "GETGetFulfillmentProductDetail",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Ffulfillment_sku_list%2Fget",
+    "href": "?path=%2Ffbl%2Ffulfillment_sku_list%2Fget",
+    "text": "GETGetFulfillmentSkuListForMCL",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Ffulfillment_sku_relation%2Fget_by_sc_item",
+    "href": "?path=%2Ffbl%2Ffulfillment_sku_relation%2Fget_by_sc_item",
+    "text": "GET/POSTGetFulfillmentSkuRelationByScItem",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Ffulfillment_sku_relation%2Fget_by_sku",
+    "href": "?path=%2Ffbl%2Ffulfillment_sku_relation%2Fget_by_sku",
+    "text": "GET/POSTGetFulfillmentSkuRelationBySku",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Ffulfillment_sku_relation%2Fget_by_sc_items",
+    "href": "?path=%2Ffbl%2Ffulfillment_sku_relation%2Fget_by_sc_items",
+    "text": "GET/POSTGetFulfillmentSkuRelationsByScItems",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Ffulfillment_sku_relation%2Fget_by_skus",
+    "href": "?path=%2Ffbl%2Ffulfillment_sku_relation%2Fget_by_skus",
+    "text": "GET/POSTGetFulfillmentSkuRelationsBySkus",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Ficp_order%2Ffile",
+    "href": "?path=%2Ffbl%2Ficp_order%2Ffile",
+    "text": "GETGetIcpOrderFile",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Finbound_order_detail%2Fget",
+    "href": "?path=%2Ffbl%2Finbound_order_detail%2Fget",
+    "text": "GETGetInboundOrderDetail",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Finbound_orders%2Fget",
+    "href": "?path=%2Ffbl%2Finbound_orders%2Fget",
+    "text": "GETGetInboundOrderList",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Finbound_reservation%2Ffile",
+    "href": "?path=%2Ffbl%2Finbound_reservation%2Ffile",
+    "text": "GETGetInboundReservationFile",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Finventory_changed_sku%2Fget",
+    "href": "?path=%2Ffbl%2Finventory_changed_sku%2Fget",
+    "text": "GETGetInventoryChangedSKU",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Finventory_occupy_details%2Fget",
+    "href": "?path=%2Ffbl%2Finventory_occupy_details%2Fget",
+    "text": "GETGetInventoryOccupyDetails",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Finventory_operate_log%2Fget",
+    "href": "?path=%2Ffbl%2Finventory_operate_log%2Fget",
+    "text": "GETGetInventoryOperateLog",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Foutbound_order_detail%2Fget",
+    "href": "?path=%2Ffbl%2Foutbound_order_detail%2Fget",
+    "text": "GETGetOutboundOrderDetail",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Foutbound_orders%2Fget",
+    "href": "?path=%2Ffbl%2Foutbound_orders%2Fget",
+    "text": "GETGetOutboundOrderList",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Fplatform_products%2Fget2",
+    "href": "?path=%2Ffbl%2Fplatform_products%2Fget2",
+    "text": "GETGetPlatformProductsV2",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Fshipper%2Fget",
+    "href": "?path=%2Ffbl%2Fshipper%2Fget",
+    "text": "GETGetShipperInfo",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Fstock_rule%2Fget",
+    "href": "?path=%2Ffbl%2Fstock_rule%2Fget",
+    "text": "GETGetStockRule",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Fvas%2FgetVasOrderByNo",
+    "href": "?path=%2Ffbl%2Fvas%2FgetVasOrderByNo",
+    "text": "GET/POSTGetVasOrderByNo4FBL",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Fwarehouses%2Fget",
+    "href": "?path=%2Ffbl%2Fwarehouses%2Fget",
+    "text": "GETGetWarehouseListForMCL",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Fstocks%2Fget",
+    "href": "?path=%2Ffbl%2Fstocks%2Fget",
+    "text": "GETGetWarehouseStock",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Fstocks%2FgetV3",
+    "href": "?path=%2Ffbl%2Fstocks%2FgetV3",
+    "text": "GETGetWarehouseStockV3",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Ficp_warehouse%2Flist",
+    "href": "?path=%2Ffbl%2Ficp_warehouse%2Flist",
+    "text": "GETListIcpWarehouse",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Ffulfillment_order_list%2Fget",
+    "href": "?path=%2Ffbl%2Ffulfillment_order_list%2Fget",
+    "text": "GETQueryFulfillmentOrderForMCL",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Finbound_reservation%2Fget",
+    "href": "?path=%2Ffbl%2Finbound_reservation%2Fget",
+    "text": "GETQueryInboundReservationOrder",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Freverse_order%2Fget",
+    "href": "?path=%2Ffbl%2Freverse_order%2Fget",
+    "text": "GETQueryReverseOrderForMCL",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Ffulfillment_sku_relation%2Fremove",
+    "href": "?path=%2Ffbl%2Ffulfillment_sku_relation%2Fremove",
+    "text": "POSTRemoveFulfillmentSkuRelation",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Freturns%2Fcancel",
+    "href": "?path=%2Ffbl%2Freturns%2Fcancel",
+    "text": "POSTReturnCancellation",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Freturns%2Fcreate",
+    "href": "?path=%2Ffbl%2Freturns%2Fcreate",
+    "text": "POSTReturnOrderCreation",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Fstock_rule%2Fset",
+    "href": "?path=%2Ffbl%2Fstock_rule%2Fset",
+    "text": "POSTSetStockRule",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Ffulfillment_sku%2Fupdate",
+    "href": "?path=%2Ffbl%2Ffulfillment_sku%2Fupdate",
+    "text": "POSTUpdateFulfillmentSkuDecouple",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Ffbl%2Fwaybill%2Fupload",
+    "href": "?path=%2Ffbl%2Fwaybill%2Fupload",
+    "text": "GET/POSTUploadWaybill",
+    "topCat": "FBL API",
+    "subCat": "FBL API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fim%2Fmessage%2Flist",
+    "href": "?path=%2Fim%2Fmessage%2Flist",
+    "text": "GETGetMessages",
+    "topCat": "Instant Messaging API",
+    "subCat": "Instant Messaging API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fim%2Fsession%2Fget",
+    "href": "?path=%2Fim%2Fsession%2Fget",
+    "text": "GETGetSessionDetail",
+    "topCat": "Instant Messaging API",
+    "subCat": "Instant Messaging API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fim%2Fsession%2Flist",
+    "href": "?path=%2Fim%2Fsession%2Flist",
+    "text": "GETGetSessionList",
+    "topCat": "Instant Messaging API",
+    "subCat": "Instant Messaging API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fim%2Fmessage%2Frecall",
+    "href": "?path=%2Fim%2Fmessage%2Frecall",
+    "text": "GET/POSTMessageRecall",
+    "topCat": "Instant Messaging API",
+    "subCat": "Instant Messaging API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fim%2Fsession%2Fopen",
+    "href": "?path=%2Fim%2Fsession%2Fopen",
+    "text": "GET/POSTOpenSession",
+    "topCat": "Instant Messaging API",
+    "subCat": "Instant Messaging API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fim%2Fsession%2Fread",
+    "href": "?path=%2Fim%2Fsession%2Fread",
+    "text": "POSTReadSession",
+    "topCat": "Instant Messaging API",
+    "subCat": "Instant Messaging API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fim%2Fmessage%2Fsend",
+    "href": "?path=%2Fim%2Fmessage%2Fsend",
+    "text": "POSTSendMessage",
+    "topCat": "Instant Messaging API",
+    "subCat": "Instant Messaging API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fcustomers%2Fexternal_relationships_bundle",
+    "href": "?path=%2Flogistics%2Fepis%2Fcustomers%2Fexternal_relationships_bundle",
+    "text": "GET/POSTCreateCustomerAccountRelationshipByOTP",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fcustomers%2Fexternal_relationships",
+    "href": "?path=%2Flogistics%2Fepis%2Fcustomers%2Fexternal_relationships",
+    "text": "POSTCreateCustomerAccountRelationshipForExternal",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fcustomers%2Fwarehouses",
+    "href": "?path=%2Flogistics%2Fepis%2Fcustomers%2Fwarehouses",
+    "text": "POSTCreateOrUpdateCustomerWarehouse",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fexternal%2Fpackages",
+    "href": "?path=%2Flogistics%2Fepis%2Fexternal%2Fpackages",
+    "text": "UNKNOWNEPIS Send package information",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fservice%2Fdelivery_options",
+    "href": "?path=%2Flogistics%2Fepis%2Fservice%2Fdelivery_options",
+    "text": "GETEpisGetDeliveryOptions",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fpackages%2Fcancel",
+    "href": "?path=%2Flogistics%2Fepis%2Fpackages%2Fcancel",
+    "text": "POSTEpisPackageCancellation",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fexternal%2Fpackages%2Fcancel_status_update",
+    "href": "?path=%2Flogistics%2Fepis%2Fexternal%2Fpackages%2Fcancel_status_update",
+    "text": "UNKNOWNEpisPackageCancellationStatusUpdate",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fexternal%2Fv2%2Fpackages%2Fcancel_status_update",
+    "href": "?path=%2Flogistics%2Fepis%2Fexternal%2Fv2%2Fpackages%2Fcancel_status_update",
+    "text": "UNKNOWNEpisPackageCancellationStatusUpdateV2",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fpackages%2Fcancel%2Fv3",
+    "href": "?path=%2Flogistics%2Fepis%2Fpackages%2Fcancel%2Fv3",
+    "text": "POSTEpisPackageCancellationV3",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fpackages%2Fconsign",
+    "href": "?path=%2Flogistics%2Fepis%2Fpackages%2Fconsign",
+    "text": "POSTEpisPackageConsignment",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fpackages%2Fconsign%2Fv2",
+    "href": "?path=%2Flogistics%2Fepis%2Fpackages%2Fconsign%2Fv2",
+    "text": "POSTEpisPackageConsignmentV2",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fpackages",
+    "href": "?path=%2Flogistics%2Fepis%2Fpackages",
+    "text": "POSTEpisPackageCreation",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fexternal%2Fpackages%2Fdim_weight",
+    "href": "?path=%2Flogistics%2Fepis%2Fexternal%2Fpackages%2Fdim_weight",
+    "text": "UNKNOWNEpisPackageDimweightUpdate",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fpackages%2Fupdate",
+    "href": "?path=%2Flogistics%2Fepis%2Fpackages%2Fupdate",
+    "text": "POSTEpisPackageInfoUpdate",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fpackages%2Fawb",
+    "href": "?path=%2Flogistics%2Fepis%2Fpackages%2Fawb",
+    "text": "GETEpisPackagePrintAwb",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fpackages%2Freattempt",
+    "href": "?path=%2Flogistics%2Fepis%2Fpackages%2Freattempt",
+    "text": "POSTEpisPackageReAttempt",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fpackages%2Frts",
+    "href": "?path=%2Flogistics%2Fepis%2Fpackages%2Frts",
+    "text": "POSTEpisPackageReadyToBeShipped",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fexternal%2Fpackages%2Fstatuses",
+    "href": "?path=%2Flogistics%2Fepis%2Fexternal%2Fpackages%2Fstatuses",
+    "text": "UNKNOWNEpisPackageStatusUpdate",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Ffulfillment%2Fupload_awb",
+    "href": "?path=%2Flogistics%2Fepis%2Ffulfillment%2Fupload_awb",
+    "text": "POSTEpisUploadAwbFulfillment",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fxspace%2Fcreate",
+    "href": "?path=%2Flogistics%2Fepis%2Fxspace%2Fcreate",
+    "text": "POSTEpisXspaceCreate",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fxspace%2Fdetail",
+    "href": "?path=%2Flogistics%2Fepis%2Fxspace%2Fdetail",
+    "text": "POSTEpisXspaceGetDetail",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fxspace%2Fquery",
+    "href": "?path=%2Flogistics%2Fepis%2Fxspace%2Fquery",
+    "text": "GET/POSTEpisXspaceQuery",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fxspace%2Frate",
+    "href": "?path=%2Flogistics%2Fepis%2Fxspace%2Frate",
+    "text": "GET/POSTEpisXspaceRateTicket",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fxspace%2Fticket%2Fstatus",
+    "href": "?path=%2Flogistics%2Fepis%2Fxspace%2Fticket%2Fstatus",
+    "text": "UNKNOWNEpisXspaceTicketStatusUpdate",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Festimate_shipping_fee",
+    "href": "?path=%2Flogistics%2Fepis%2Festimate_shipping_fee",
+    "text": "GET/POSTEstimateShippingFee",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fepis%2Fget_shipping_fee",
+    "href": "?path=%2Flogistics%2Fepis%2Fget_shipping_fee",
+    "text": "GET/POSTGetShippingFee",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fv2%2Fpublic%2Fintegrations%2Flazada",
+    "href": "?path=%2Fv2%2Fpublic%2Fintegrations%2Flazada",
+    "text": "UNKNOWNMY - Pickupp addJobsToManifest",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpublic%2Fintegrations%2Flazada",
+    "href": "?path=%2Fpublic%2Fintegrations%2Flazada",
+    "text": "UNKNOWNMY - Pickupp createManifest",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpublic%2Fintegrations%2Flazada%2Fcancel",
+    "href": "?path=%2Fpublic%2Fintegrations%2Flazada%2Fcancel",
+    "text": "UNKNOWNMY - Pickupp removeJobFromManifest",
+    "topCat": "Lazada Logistics API",
+    "subCat": "Lazada Logistics API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Feticket%2Fcode%2Fquery",
+    "href": "?path=%2Feticket%2Fcode%2Fquery",
+    "text": "GET/POSTGetOrderItemsFromBarCode",
+    "topCat": "E-Tickets API",
+    "subCat": "E-Tickets API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Feticket%2Fma%2Favailable",
+    "href": "?path=%2Feticket%2Fma%2Favailable",
+    "text": "GET/POSTGlobalEticketMerchantMaAvailable",
+    "topCat": "E-Tickets API",
+    "subCat": "E-Tickets API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Feticket%2Fma%2Fconsume",
+    "href": "?path=%2Feticket%2Fma%2Fconsume",
+    "text": "POSTGlobalEticketMerchantMaConsume",
+    "topCat": "E-Tickets API",
+    "subCat": "E-Tickets API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Feticket%2Fma%2Ffailsend",
+    "href": "?path=%2Feticket%2Fma%2Ffailsend",
+    "text": "POSTGlobalEticketMerchantMaFailsend",
+    "topCat": "E-Tickets API",
+    "subCat": "E-Tickets API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Feticket%2Fma%2Fquery",
+    "href": "?path=%2Feticket%2Fma%2Fquery",
+    "text": "GET/POSTGlobalEticketMerchantMaQuery",
+    "topCat": "E-Tickets API",
+    "subCat": "E-Tickets API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Feticket%2Fma%2FqueryTbMa",
+    "href": "?path=%2Feticket%2Fma%2FqueryTbMa",
+    "text": "GET/POSTGlobalEticketMerchantMaQueryTbMa",
+    "topCat": "E-Tickets API",
+    "subCat": "E-Tickets API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Feticket%2Fma%2Fsend",
+    "href": "?path=%2Feticket%2Fma%2Fsend",
+    "text": "GET/POSTGlobalEticketMerchantMaSend",
+    "topCat": "E-Tickets API",
+    "subCat": "E-Tickets API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Feticket%2Fcode%2Fconsume",
+    "href": "?path=%2Feticket%2Fcode%2Fconsume",
+    "text": "GET/POSTRedeemOrderItems",
+    "topCat": "E-Tickets API",
+    "subCat": "E-Tickets API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flazadapay%2Fv1%2Fdebit%2Fconsult_payment",
+    "href": "?path=%2Flazadapay%2Fv1%2Fdebit%2Fconsult_payment",
+    "text": "GET/POSTConsultPayment",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Finsurance%2Fsubscription%2Fcreate",
+    "href": "?path=%2Finsurance%2Fsubscription%2Fcreate",
+    "text": "POSTCreateSubscriptionToFusion",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fdigital%2Fservice%2Fcreateorder",
+    "href": "?path=%2Fdigital%2Fservice%2Fcreateorder",
+    "text": "GET/POSTDGUtiityPreCreateOrder",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fdigital%2Fservice%2FgetPaymentStatus",
+    "href": "?path=%2Fdigital%2Fservice%2FgetPaymentStatus",
+    "text": "GET/POSTDGUtilityPreGetPaymentStatus",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fdigital%2Fservice%2FupdateFulfillemtStatus",
+    "href": "?path=%2Fdigital%2Fservice%2FupdateFulfillemtStatus",
+    "text": "GET/POSTDGUtilityPreUpdateFulfillemtStatus",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fdigital%2Forder%2FalterStatus",
+    "href": "?path=%2Fdigital%2Forder%2FalterStatus",
+    "text": "GET/POSTDigitalAlterOrderStatus",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fdigital%2Forder%2Fcreate",
+    "href": "?path=%2Fdigital%2Forder%2Fcreate",
+    "text": "GET/POSTDigitalCreateOrder",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fdigital%2Forder%2FgetStatus",
+    "href": "?path=%2Fdigital%2Forder%2FgetStatus",
+    "text": "GET/POSTDigitalQueryOrder",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Finsurance%2Fsubscription%2FgetSubscription",
+    "href": "?path=%2Finsurance%2Fsubscription%2FgetSubscription",
+    "text": "GET/POSTGetSubscriptionToFusion",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Finsurance%2Forder%2FalterStatus",
+    "href": "?path=%2Finsurance%2Forder%2FalterStatus",
+    "text": "GET/POSTInsuranceAlterOrderStatus",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Finsurance%2Forder%2Fcreate",
+    "href": "?path=%2Finsurance%2Forder%2Fcreate",
+    "text": "GET/POSTInsuranceCreateOrder",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Finsurance%2Fpromotion%2FgetPromotions",
+    "href": "?path=%2Finsurance%2Fpromotion%2FgetPromotions",
+    "text": "GET/POSTInsuranceGetPromotions",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Finsurance%2Forder%2FgetStatus",
+    "href": "?path=%2Finsurance%2Forder%2FgetStatus",
+    "text": "GET/POSTInsuranceQueryOrder",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flazpay%2Fv1%2Fpayment%2Fnotify",
+    "href": "?path=%2Flazpay%2Fv1%2Fpayment%2Fnotify",
+    "text": "UNKNOWNLazPayPaymentNotify",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Frpa%2Fid%2Ftax%2Fcallback",
+    "href": "?path=%2Frpa%2Fid%2Ftax%2Fcallback",
+    "text": "GET/POSTLazadaCFOInvoiceRpaCallback",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fwallet%2Fopen%2Fservice%2Fbalance%2Fquery",
+    "href": "?path=%2Fwallet%2Fopen%2Fservice%2Fbalance%2Fquery",
+    "text": "GET/POSTOpenServiceBalanceQuery",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fwallet%2Fopen%2Fservice%2Fkyc%2Fquery",
+    "href": "?path=%2Fwallet%2Fopen%2Fservice%2Fkyc%2Fquery",
+    "text": "GET/POSTOpenServiceKycQuery",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fwallet%2Fopen%2Fservice%2Fwithdraw",
+    "href": "?path=%2Fwallet%2Fopen%2Fservice%2Fwithdraw",
+    "text": "GET/POSTOpenServiceWithdrawApply",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fwallet%2Fopen%2Fservice%2Fwithdraw%2Fquery",
+    "href": "?path=%2Fwallet%2Fopen%2Fservice%2Fwithdraw%2Fquery",
+    "text": "GET/POSTOpenServiceWithdrawQuery",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fwallet%2Fopen%2Fservice%2Freconciliation",
+    "href": "?path=%2Fwallet%2Fopen%2Fservice%2Freconciliation",
+    "text": "GET/POSTReconciliation",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Finsurance%2Fpromotion%2FcollectBenefit",
+    "href": "?path=%2Finsurance%2Fpromotion%2FcollectBenefit",
+    "text": "GET/POSTcollectBenefit",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Finsurance%2FsyncCDP",
+    "href": "?path=%2Finsurance%2FsyncCDP",
+    "text": "GET/POSTinsuranceRealTimeCDP",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Finsurance%2Faddon%2Forders%2Fquery",
+    "href": "?path=%2Finsurance%2Faddon%2Forders%2Fquery",
+    "text": "GET/POSTqueryAddonOrder",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Finsurance%2Fpromotion%2FqueryBenefit",
+    "href": "?path=%2Finsurance%2Fpromotion%2FqueryBenefit",
+    "text": "GET/POSTqueryBenefit",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Finsurance%2Fvoucher%2FredeemVoucher",
+    "href": "?path=%2Finsurance%2Fvoucher%2FredeemVoucher",
+    "text": "GET/POSTredeemMpVoucher",
+    "topCat": "LazPay API",
+    "subCat": "LazPay API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fwallet%2Ftransfer%2Fquery",
+    "href": "?path=%2Fwallet%2Ftransfer%2Fquery",
+    "text": "GET/POSTDirectTransferQuery",
+    "topCat": "Lazada Wallet Corporate Top-up API",
+    "subCat": "Lazada Wallet Corporate Top-up API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fwallet%2Ftransfer%2Frequest",
+    "href": "?path=%2Fwallet%2Ftransfer%2Frequest",
+    "text": "GET/POSTDirectTransferRequest",
+    "topCat": "Lazada Wallet Corporate Top-up API",
+    "subCat": "Lazada Wallet Corporate Top-up API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fwallet%2Fgiftcode%2Fquery",
+    "href": "?path=%2Fwallet%2Fgiftcode%2Fquery",
+    "text": "GET/POSTGiftCodeQuery",
+    "topCat": "Lazada Wallet Corporate Top-up API",
+    "subCat": "Lazada Wallet Corporate Top-up API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fwallet%2Fgiftcode%2Frequest",
+    "href": "?path=%2Fwallet%2Fgiftcode%2Frequest",
+    "text": "GET/POSTGiftCodeRequest",
+    "topCat": "Lazada Wallet Corporate Top-up API",
+    "subCat": "Lazada Wallet Corporate Top-up API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fwallet%2Fopen%2Freconciliation",
+    "href": "?path=%2Fwallet%2Fopen%2Freconciliation",
+    "text": "GET/POSTReconciliation",
+    "topCat": "Lazada Wallet Corporate Top-up API",
+    "subCat": "Lazada Wallet Corporate Top-up API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Frss%2Fpickup-job%2Fget",
+    "href": "?path=%2Frss%2Fpickup-job%2Fget",
+    "text": "GET/POSTRssGetOnePickupJob",
+    "topCat": "RedMart API",
+    "subCat": "RedMart API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Frss%2Fpickup-jobs%2Fget",
+    "href": "?path=%2Frss%2Fpickup-jobs%2Fget",
+    "text": "GET/POSTRssGetPickupJobs",
+    "topCat": "RedMart API",
+    "subCat": "RedMart API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Frss%2FpickupLocations%2Fget",
+    "href": "?path=%2Frss%2FpickupLocations%2Fget",
+    "text": "GETRssGetPickupLocations",
+    "topCat": "RedMart API",
+    "subCat": "RedMart API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Frss%2Fproduct%2Fget",
+    "href": "?path=%2Frss%2Fproduct%2Fget",
+    "text": "GETRssGetProduct",
+    "topCat": "RedMart API",
+    "subCat": "RedMart API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Frss%2Fproducts%2Fget",
+    "href": "?path=%2Frss%2Fproducts%2Fget",
+    "text": "GETRssGetProducts",
+    "topCat": "RedMart API",
+    "subCat": "RedMart API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Frss%2FstockLot%2Fget",
+    "href": "?path=%2Frss%2FstockLot%2Fget",
+    "text": "GETRssGetStockLot",
+    "topCat": "RedMart API",
+    "subCat": "RedMart API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Frss%2FstockLots%2Fget",
+    "href": "?path=%2Frss%2FstockLots%2Fget",
+    "text": "GETRssGetStockLots",
+    "topCat": "RedMart API",
+    "subCat": "RedMart API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Frss%2FstockLot%2Fupdate",
+    "href": "?path=%2Frss%2FstockLot%2Fupdate",
+    "text": "GET/POSTRssUpdateStockLot",
+    "topCat": "RedMart API",
+    "subCat": "RedMart API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fdigital%2Finstall%2Fservicecallback",
+    "href": "?path=%2Fdigital%2Finstall%2Fservicecallback",
+    "text": "GET/POSTInstallServiceCallBack",
+    "topCat": "Lazada DG API",
+    "subCat": "Lazada DG API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fdigital%2Ftest%2Finstall%2Fservicecallback",
+    "href": "?path=%2Fdigital%2Ftest%2Finstall%2Fservicecallback",
+    "text": "GET/POSTInstallServiceCallBack",
+    "topCat": "Lazada DG API",
+    "subCat": "Lazada DG API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fdigital%2Finstall%2Ftest%2Fservicecallback",
+    "href": "?path=%2Fdigital%2Finstall%2Ftest%2Fservicecallback",
+    "text": "GET/POSTInstallServiceCallBackForTest",
+    "topCat": "Lazada DG API",
+    "subCat": "Lazada DG API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fdigital%2Finsurance%2Fnotification",
+    "href": "?path=%2Fdigital%2Finsurance%2Fnotification",
+    "text": "GET/POSTInuranceNotication",
+    "topCat": "Lazada DG API",
+    "subCat": "Lazada DG API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fdigital%2Finsurance%2Ftest%2Fnotificationcopy",
+    "href": "?path=%2Fdigital%2Finsurance%2Ftest%2Fnotificationcopy",
+    "text": "GET/POSTInuranceNotication",
+    "topCat": "Lazada DG API",
+    "subCat": "Lazada DG API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fdigital%2Finsurance%2Fnotificationlapse",
+    "href": "?path=%2Fdigital%2Finsurance%2Fnotificationlapse",
+    "text": "GET/POSTInuranceNotifyLapse",
+    "topCat": "Lazada DG API",
+    "subCat": "Lazada DG API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fdigital%2Fservice%2FcdkCodeReceived",
+    "href": "?path=%2Fdigital%2Fservice%2FcdkCodeReceived",
+    "text": "POSTdigitalServiceCdkCodeReceived",
+    "topCat": "Lazada DG API",
+    "subCat": "Lazada DG API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Fadgroup%2FaddAdgroupBatch",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Fadgroup%2FaddAdgroupBatch",
+    "text": "GET/POSTaddAdgroupBatch",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2FaddSolution",
+    "href": "?path=%2Fsponsor%2Fsolutions%2FaddSolution",
+    "text": "POSTaddSolution",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fgproject%2Fads%2Faidc%2Fclick",
+    "href": "?path=%2Fgproject%2Fads%2Faidc%2Fclick",
+    "text": "GET/POSTclickserver",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Fadgroup%2FdeleteAdgroupBatch",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Fadgroup%2FdeleteAdgroupBatch",
+    "text": "GET/POSTdeleteAdgroupBatch",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Fcampaign%2FdeleteCampaign",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Fcampaign%2FdeleteCampaign",
+    "text": "GET/POSTdeleteCampaign",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Faccount%2FgetAccountSignInfo",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Faccount%2FgetAccountSignInfo",
+    "text": "GETgetAccountSignInfo",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Fwallet%2FgetAutoTopUpOptionOneConfig",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Fwallet%2FgetAutoTopUpOptionOneConfig",
+    "text": "GET/POSTgetAutoTopUpOptionOneConfig",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Fcampaign%2FgetCampaign",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Fcampaign%2FgetCampaign",
+    "text": "GET/POSTgetCampaign",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Fcampaign%2FgetCampaignCount",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Fcampaign%2FgetCampaignCount",
+    "text": "GET/POSTgetCampaignCount",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Freport%2FgetDiscoveryReportAdgroup",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Freport%2FgetDiscoveryReportAdgroup",
+    "text": "GET/POSTgetDiscoveryReportAdgroup",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Freport%2FgetDiscoveryReportAudience",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Freport%2FgetDiscoveryReportAudience",
+    "text": "GET/POSTgetDiscoveryReportAudience",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Freport%2FgetDiscoveryReportCampaign",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Freport%2FgetDiscoveryReportCampaign",
+    "text": "GET/POSTgetDiscoveryReportCampaign",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Freport%2FgetDiscoveryReportKeyword",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Freport%2FgetDiscoveryReportKeyword",
+    "text": "GET/POSTgetDiscoveryReportKeyword",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Faccount%2FgetLatestSignInfo",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Faccount%2FgetLatestSignInfo",
+    "text": "GETgetLatestSignInfo",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Freport%2FgetReportCampaignOnPrePlacement",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Freport%2FgetReportCampaignOnPrePlacement",
+    "text": "GET/POSTgetReportCampaignOnFIrstSlot",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Freport%2FgetReportOverview",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Freport%2FgetReportOverview",
+    "text": "GET/POSTgetReportOverview",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Freport%2FgetReportOverviewMetric",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Freport%2FgetReportOverviewMetric",
+    "text": "GET/POSTgetReportOverviewMetric",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Fcategory%2FlistCategory",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Fcategory%2FlistCategory",
+    "text": "GET/POSTlistCategory",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Fkeyword%2FlistKeywordByAdgroup",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Fkeyword%2FlistKeywordByAdgroup",
+    "text": "GET/POSTlistKeywordByAdgroup",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Fkeyword%2FlistKeywordByItem",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Fkeyword%2FlistKeywordByItem",
+    "text": "GET/POSTlistKeywordByItem",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Fwallet%2FmodifyAutoTopUpOptionOneConfig",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Fwallet%2FmodifyAutoTopUpOptionOneConfig",
+    "text": "GET/POSTmodifyAutoTopUpOptionOneConfig",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Fadgroup%2FsearchAdgroupList",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Fadgroup%2FsearchAdgroupList",
+    "text": "GET/POSTsearchAdgroupList",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Fcampaign%2FsearchCampaignList",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Fcampaign%2FsearchCampaignList",
+    "text": "GET/POSTsearchCampaignList",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Fkeyword%2FsearchKeyword",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Fkeyword%2FsearchKeyword",
+    "text": "GET/POSTsearchKeyword",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Fproduct%2FsearchProductWithPage",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Fproduct%2FsearchProductWithPage",
+    "text": "GET/POSTsearchProductWithPage",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Faccount%2Fsign",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Faccount%2Fsign",
+    "text": "GET/POSTsign",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Fadgroup%2FupdateAdgroupBatch",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Fadgroup%2FupdateAdgroupBatch",
+    "text": "GET/POSTupdateAdgroupBatch",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fsponsor%2Fsolutions%2Fcampaign%2FupdateCampaign",
+    "href": "?path=%2Fsponsor%2Fsolutions%2Fcampaign%2FupdateCampaign",
+    "text": "GET/POSTupdateCampaign",
+    "topCat": "Sponsored Solutions API",
+    "subCat": "Sponsored Solutions API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fservice%2Fmarket%2Forder%2Fquery",
+    "href": "?path=%2Fservice%2Fmarket%2Forder%2Fquery",
+    "text": "GET/POSTServiceMarketAppKeyOrderQuery",
+    "topCat": "Service Market API",
+    "subCat": "Service Market API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fservice%2Fmarket%2Fsubs%2Fquery",
+    "href": "?path=%2Fservice%2Fmarket%2Fsubs%2Fquery",
+    "text": "GET/POSTServiceMarketAppKeySubQuery",
+    "topCat": "Service Market API",
+    "subCat": "Service Market API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fjit%2Fpurchase_order%2Fbatch_pickup_deliver",
+    "href": "?path=%2Fjit%2Fpurchase_order%2Fbatch_pickup_deliver",
+    "text": "GET/POSTBatchDeliverJitPurchaseOrder",
+    "topCat": "Choice Customized API",
+    "subCat": "Choice Customized API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fchoice%2Fstock%2Fedit",
+    "href": "?path=%2Fchoice%2Fstock%2Fedit",
+    "text": "POSTEditChoiceSkuStock",
+    "topCat": "Choice Customized API",
+    "subCat": "Choice Customized API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fchoice%2Fproduct%2Fitem%2Fget",
+    "href": "?path=%2Fchoice%2Fproduct%2Fitem%2Fget",
+    "text": "GETGetChoiceProductItem",
+    "topCat": "Choice Customized API",
+    "subCat": "Choice Customized API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fchoice%2Fproducts%2Fget",
+    "href": "?path=%2Fchoice%2Fproducts%2Fget",
+    "text": "GET/POSTGetChoiceProducts",
+    "topCat": "Choice Customized API",
+    "subCat": "Choice Customized API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fchoice%2Fseller%2Fget",
+    "href": "?path=%2Fchoice%2Fseller%2Fget",
+    "text": "GET/POSTGetChoiceSeller",
+    "topCat": "Choice Customized API",
+    "subCat": "Choice Customized API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fchoice%2Fsku_item_relation%2Fget_by_sku",
+    "href": "?path=%2Fchoice%2Fsku_item_relation%2Fget_by_sku",
+    "text": "GET/POSTGetChoiceSkuItemRelationBySku",
+    "topCat": "Choice Customized API",
+    "subCat": "Choice Customized API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fjit%2Fpurchase_order%2Fpackage",
+    "href": "?path=%2Fjit%2Fpurchase_order%2Fpackage",
+    "text": "POSTPackageJitPurchaseOrder",
+    "topCat": "Choice Customized API",
+    "subCat": "Choice Customized API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fjit%2Fpurchase_order%2Fprint",
+    "href": "?path=%2Fjit%2Fpurchase_order%2Fprint",
+    "text": "GET/POSTPrintJitPurchaseOrderAndItem",
+    "topCat": "Choice Customized API",
+    "subCat": "Choice Customized API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpickup_order%2Fprint",
+    "href": "?path=%2Fpickup_order%2Fprint",
+    "text": "GET/POSTPrintPickuoOrder",
+    "topCat": "Choice Customized API",
+    "subCat": "Choice Customized API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fjit%2Fpurchase_order%2Fquery_list",
+    "href": "?path=%2Fjit%2Fpurchase_order%2Fquery_list",
+    "text": "GET/POSTQueryListJitPurchaseOrder",
+    "topCat": "Choice Customized API",
+    "subCat": "Choice Customized API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fjit%2Fpurchase_order%2Fquery_list_purchase_item",
+    "href": "?path=%2Fjit%2Fpurchase_order%2Fquery_list_purchase_item",
+    "text": "GET/POSTQueryListPurchaseItem",
+    "topCat": "Choice Customized API",
+    "subCat": "Choice Customized API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpickup_order%2Fquery",
+    "href": "?path=%2Fpickup_order%2Fquery",
+    "text": "GET/POSTQueryPickupOrder",
+    "topCat": "Choice Customized API",
+    "subCat": "Choice Customized API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcontent%2Fmcn%2Fcontent%2FqueryTagInfosByName",
+    "href": "?path=%2Fcontent%2Fmcn%2Fcontent%2FqueryTagInfosByName",
+    "text": "GET/POSTMCNQueryTagInfoByName",
+    "topCat": "LazLike API",
+    "subCat": "LazLike API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcontent%2Fmcn%2Fcontent%2FcancelScheduled",
+    "href": "?path=%2Fcontent%2Fmcn%2Fcontent%2FcancelScheduled",
+    "text": "POSTMcnContentCancelSchedulePublish",
+    "topCat": "LazLike API",
+    "subCat": "LazLike API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcontent%2Fmcn%2Fvideo%2Fblock%2Fcommit",
+    "href": "?path=%2Fcontent%2Fmcn%2Fvideo%2Fblock%2Fcommit",
+    "text": "POSTMcnContentCompleteCreateVideo",
+    "topCat": "LazLike API",
+    "subCat": "LazLike API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcontent%2Fmcn%2Fcontent%2Fcreate",
+    "href": "?path=%2Fcontent%2Fmcn%2Fcontent%2Fcreate",
+    "text": "POSTMcnContentCreate",
+    "topCat": "LazLike API",
+    "subCat": "LazLike API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcontent%2Fmcn%2Fvideo%2Fblock%2Fcreate",
+    "href": "?path=%2Fcontent%2Fmcn%2Fvideo%2Fblock%2Fcreate",
+    "text": "GET/POSTMcnContentInitCreateVideo",
+    "topCat": "LazLike API",
+    "subCat": "LazLike API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcontent%2Fmcn%2Fcategory%2Flist",
+    "href": "?path=%2Fcontent%2Fmcn%2Fcategory%2Flist",
+    "text": "GETMcnContentListCategory",
+    "topCat": "LazLike API",
+    "subCat": "LazLike API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcontent%2Fmcn%2Fproperty%2Flist",
+    "href": "?path=%2Fcontent%2Fmcn%2Fproperty%2Flist",
+    "text": "GET/POSTMcnContentPropertyTagList",
+    "topCat": "LazLike API",
+    "subCat": "LazLike API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcontent%2Fmcn%2Fcontent%2FreplySchedulePublish",
+    "href": "?path=%2Fcontent%2Fmcn%2Fcontent%2FreplySchedulePublish",
+    "text": "POSTMcnContentReplySchedulePublish",
+    "topCat": "LazLike API",
+    "subCat": "LazLike API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcontent%2Fmcn%2Fimage%2Fupload",
+    "href": "?path=%2Fcontent%2Fmcn%2Fimage%2Fupload",
+    "text": "POSTMcnContentUploadImage",
+    "topCat": "LazLike API",
+    "subCat": "LazLike API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcontent%2Fmcn%2Fvideo%2Fblock%2Fupload",
+    "href": "?path=%2Fcontent%2Fmcn%2Fvideo%2Fblock%2Fupload",
+    "text": "POSTMcnContentUploadVideoBlock",
+    "topCat": "LazLike API",
+    "subCat": "LazLike API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcontent%2Fmcn%2Fproduct%2Fvalidate",
+    "href": "?path=%2Fcontent%2Fmcn%2Fproduct%2Fvalidate",
+    "text": "GETMcnProductValidator",
+    "topCat": "LazLike API",
+    "subCat": "LazLike API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcontent%2Fmcn%2Fsimilar%2Fproduct%2Fsearch",
+    "href": "?path=%2Fcontent%2Fmcn%2Fsimilar%2Fproduct%2Fsearch",
+    "text": "GET/POSTMcnSimilarProductSearch",
+    "topCat": "LazLike API",
+    "subCat": "LazLike API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcontent%2Fmcn%2Fcontent%2FqueryReviewRecords",
+    "href": "?path=%2Fcontent%2Fmcn%2Fcontent%2FqueryReviewRecords",
+    "text": "GET/POSTqueryContentReviewRecords",
+    "topCat": "LazLike API",
+    "subCat": "LazLike API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flazlive%2Fproduct%2Fhighlight",
+    "href": "?path=%2Flazlive%2Fproduct%2Fhighlight",
+    "text": "GET/POSTHighlightProduct",
+    "topCat": "LazLive API",
+    "subCat": "LazLive API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fstation%2Fcages%2Fvalidate",
+    "href": "?path=%2Flogistics%2Fstation%2Fcages%2Fvalidate",
+    "text": "POSTCageValidation",
+    "topCat": "Logistics Station API",
+    "subCat": "Logistics Station API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fstation%2Fv1%2Fconfirm-inbound",
+    "href": "?path=%2Flogistics%2Fstation%2Fv1%2Fconfirm-inbound",
+    "text": "POSTConfirmInbound",
+    "topCat": "Logistics Station API",
+    "subCat": "Logistics Station API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fstation%2Fv1%2Fcp%2Fconfirm-parcel-collection",
+    "href": "?path=%2Flogistics%2Fstation%2Fv1%2Fcp%2Fconfirm-parcel-collection",
+    "text": "POSTConfirmParcelCollection",
+    "topCat": "Logistics Station API",
+    "subCat": "Logistics Station API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fstation%2Fv1%2Fscanned-parcels%2Fcreate",
+    "href": "?path=%2Flogistics%2Fstation%2Fv1%2Fscanned-parcels%2Fcreate",
+    "text": "POSTCreateScannedParcel",
+    "topCat": "Logistics Station API",
+    "subCat": "Logistics Station API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fstation%2Fv1%2Fscanned-parcels%2Fdelete",
+    "href": "?path=%2Flogistics%2Fstation%2Fv1%2Fscanned-parcels%2Fdelete",
+    "text": "POSTDeleteScannedParcel",
+    "topCat": "Logistics Station API",
+    "subCat": "Logistics Station API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fstation%2Fdop%2Fconfirm-inbound",
+    "href": "?path=%2Flogistics%2Fstation%2Fdop%2Fconfirm-inbound",
+    "text": "POSTDopConfirmInbound",
+    "topCat": "Logistics Station API",
+    "subCat": "Logistics Station API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fstation%2Fdop%2Fscanned-parcels",
+    "href": "?path=%2Flogistics%2Fstation%2Fdop%2Fscanned-parcels",
+    "text": "POSTDopCreateScannedParcel",
+    "topCat": "Logistics Station API",
+    "subCat": "Logistics Station API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fstation%2Fdop%2Fscanned-parcels%2Fdelete",
+    "href": "?path=%2Flogistics%2Fstation%2Fdop%2Fscanned-parcels%2Fdelete",
+    "text": "POSTDopDeleteScannedParcel",
+    "topCat": "Logistics Station API",
+    "subCat": "Logistics Station API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fstation%2Fdop%2Finbounded-parcels%2Flist",
+    "href": "?path=%2Flogistics%2Fstation%2Fdop%2Finbounded-parcels%2Flist",
+    "text": "GETDopGetInboundedParcel",
+    "topCat": "Logistics Station API",
+    "subCat": "Logistics Station API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fstation%2Fdop%2Fscanned-parcels%2Flist",
+    "href": "?path=%2Flogistics%2Fstation%2Fdop%2Fscanned-parcels%2Flist",
+    "text": "GETDopGetScannedParcel",
+    "topCat": "Logistics Station API",
+    "subCat": "Logistics Station API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fstation%2Fv1%2Fcp%2Fscheduled-pu-parcels%2Flist",
+    "href": "?path=%2Flogistics%2Fstation%2Fv1%2Fcp%2Fscheduled-pu-parcels%2Flist",
+    "text": "GETGetCpScheduledPuParcel",
+    "topCat": "Logistics Station API",
+    "subCat": "Logistics Station API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fstation%2Fv1%2Finbounded-parcels%2Flist",
+    "href": "?path=%2Flogistics%2Fstation%2Fv1%2Finbounded-parcels%2Flist",
+    "text": "GETGetInboundedParcel",
+    "topCat": "Logistics Station API",
+    "subCat": "Logistics Station API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fstation%2Flist",
+    "href": "?path=%2Flogistics%2Fstation%2Flist",
+    "text": "GETGetListAccessStation",
+    "topCat": "Logistics Station API",
+    "subCat": "Logistics Station API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fstation%2Fv1%2Fmetadata",
+    "href": "?path=%2Flogistics%2Fstation%2Fv1%2Fmetadata",
+    "text": "GETGetMetaData",
+    "topCat": "Logistics Station API",
+    "subCat": "Logistics Station API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fstation%2Fv1%2Fscanned-parcels%2Flist",
+    "href": "?path=%2Flogistics%2Fstation%2Fv1%2Fscanned-parcels%2Flist",
+    "text": "GETGetScannedParcel",
+    "topCat": "Logistics Station API",
+    "subCat": "Logistics Station API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fstation%2Fv1%2Fdop%2Fcr-parcels%2Fsearch",
+    "href": "?path=%2Flogistics%2Fstation%2Fv1%2Fdop%2Fcr-parcels%2Fsearch",
+    "text": "GETSearchCustomerReturnParcel",
+    "topCat": "Logistics Station API",
+    "subCat": "Logistics Station API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fstation%2Fv1%2Fcages%2Fvalidate",
+    "href": "?path=%2Flogistics%2Fstation%2Fv1%2Fcages%2Fvalidate",
+    "text": "POSTValidateCage",
+    "topCat": "Logistics Station API",
+    "subCat": "Logistics Station API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Flogistics%2Fstation%2Fv1%2Fcp%2Fvalidate-otp",
+    "href": "?path=%2Flogistics%2Fstation%2Fv1%2Fcp%2Fvalidate-otp",
+    "text": "POSTValidateOTP",
+    "topCat": "Logistics Station API",
+    "subCat": "Logistics Station API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcontent%2Fai%2FcancelTask",
+    "href": "?path=%2Fcontent%2Fai%2FcancelTask",
+    "text": "POSTcancelTask",
+    "topCat": "Content API",
+    "subCat": "Content API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcontent%2Fai%2FchangeFace",
+    "href": "?path=%2Fcontent%2Fai%2FchangeFace",
+    "text": "POSTchangeFace",
+    "topCat": "Content API",
+    "subCat": "Content API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcontent%2Fai%2FchangeProductBackground",
+    "href": "?path=%2Fcontent%2Fai%2FchangeProductBackground",
+    "text": "POSTchangeProductBackground",
+    "topCat": "Content API",
+    "subCat": "Content API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcontent%2Fai%2FfixHand",
+    "href": "?path=%2Fcontent%2Fai%2FfixHand",
+    "text": "POSTfixHand",
+    "topCat": "Content API",
+    "subCat": "Content API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcontent%2Fai%2FgetTaskStatus",
+    "href": "?path=%2Fcontent%2Fai%2FgetTaskStatus",
+    "text": "GETgetTaskStatus",
+    "topCat": "Content API",
+    "subCat": "Content API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcontent%2Fai%2FproductImageMatch",
+    "href": "?path=%2Fcontent%2Fai%2FproductImageMatch",
+    "text": "GET/POSTproductImageMatch",
+    "topCat": "Content API",
+    "subCat": "Content API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fcontent%2Fai%2FtryOnCloth",
+    "href": "?path=%2Fcontent%2Fai%2FtryOnCloth",
+    "text": "POSTtryOnCloth",
+    "topCat": "Content API",
+    "subCat": "Content API"
+  },
+  {
+    "url": "https://open.lazada.com/apps/doc/api?path=%2Fpromotion%2Fstoreflashsale%2Factivate",
+    "href": "?path=%2Fpromotion%2Fstoreflashsale%2Factivate",
+    "text": "POSTActivateStoreFlashSale",
+    "topCat": "Store Flash Sale API",
+    "subCat": "Store Flash Sale API"
+  }
+]

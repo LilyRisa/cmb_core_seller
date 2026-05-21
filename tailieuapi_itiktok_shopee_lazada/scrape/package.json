@@ -1,0 +1,12 @@
+{
+  "name": "docs-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright-based crawler to scrape Shopee / Lazada / TikTok Shop developer docs",
+  "type": "commonjs",
+  "dependencies": {
+    "playwright": "^1.49.0",
+    "turndown": "^7.2.0",
+    "turndown-plugin-gfm": "^1.0.2"
+  }
+}

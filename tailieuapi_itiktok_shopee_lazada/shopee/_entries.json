@@ -1,0 +1,242 @@
+[
+  {
+    "id": "20",
+    "name": "Authorization and Authentication",
+    "cat": ""
+  },
+  {
+    "id": "4",
+    "name": "Introduction",
+    "cat": ""
+  },
+  {
+    "id": "12",
+    "name": "Developer account registration",
+    "cat": ""
+  },
+  {
+    "id": "14",
+    "name": "App management",
+    "cat": ""
+  },
+  {
+    "id": "16",
+    "name": "API calls",
+    "cat": ""
+  },
+  {
+    "id": "18",
+    "name": "Push Mechanism notifications",
+    "cat": ""
+  },
+  {
+    "id": "644",
+    "name": "Sandbox Testing V2",
+    "cat": ""
+  },
+  {
+    "id": "24",
+    "name": "Service Partner Program",
+    "cat": ""
+  },
+  {
+    "id": "27",
+    "name": "V2.0 API Call Flow",
+    "cat": ""
+  },
+  {
+    "id": "28",
+    "name": "CNSC API Integration Guide",
+    "cat": ""
+  },
+  {
+    "id": "29",
+    "name": "KRSC API Integration Guide",
+    "cat": ""
+  },
+  {
+    "id": "31",
+    "name": "V2.0 Data Definition",
+    "cat": ""
+  },
+  {
+    "id": "718",
+    "name": "Requesting Access to Sensitive Data",
+    "cat": ""
+  },
+  {
+    "id": "732",
+    "name": "TW New Developer Audit",
+    "cat": ""
+  },
+  {
+    "id": "217",
+    "name": "Guidelines for Creating Product",
+    "cat": ""
+  },
+  {
+    "id": "209",
+    "name": "Product creation preparation",
+    "cat": ""
+  },
+  {
+    "id": "211",
+    "name": "Creating product",
+    "cat": ""
+  },
+  {
+    "id": "213",
+    "name": "Creating global product",
+    "cat": ""
+  },
+  {
+    "id": "215",
+    "name": "Publishing global product",
+    "cat": ""
+  },
+  {
+    "id": "219",
+    "name": "Variant management",
+    "cat": ""
+  },
+  {
+    "id": "221",
+    "name": "Product base info management",
+    "cat": ""
+  },
+  {
+    "id": "223",
+    "name": "Stock & Price Management",
+    "cat": ""
+  },
+  {
+    "id": "229",
+    "name": "Order Management",
+    "cat": ""
+  },
+  {
+    "id": "225",
+    "name": "First Mile Binding",
+    "cat": ""
+  },
+  {
+    "id": "227",
+    "name": "Return Refund Management",
+    "cat": ""
+  },
+  {
+    "id": "261",
+    "name": "SIP best practices",
+    "cat": ""
+  },
+  {
+    "id": "277",
+    "name": "Shopee On-Platform Ads API Guide",
+    "cat": ""
+  },
+  {
+    "id": "677",
+    "name": "Shopee Xpress - Package-free Integration Guide",
+    "cat": ""
+  },
+  {
+    "id": "286",
+    "name": "API de Cotação (Logística do Vendedor)",
+    "cat": ""
+  },
+  {
+    "id": "290",
+    "name": "Shopee Entrega Direta",
+    "cat": ""
+  },
+  {
+    "id": "378",
+    "name": "AUTO PARTS: COMPATIBILIDADE DE AUTOPEÇAS",
+    "cat": ""
+  },
+  {
+    "id": "292",
+    "name": "Passo a Passo Logistica API",
+    "cat": ""
+  },
+  {
+    "id": "381",
+    "name": "Ferramenta de Log da Open Platform",
+    "cat": ""
+  },
+  {
+    "id": "382",
+    "name": "Passo a passo para subir a NF-e através da OpenAPI",
+    "cat": ""
+  },
+  {
+    "id": "383",
+    "name": "APIs de orders",
+    "cat": ""
+  },
+  {
+    "id": "384",
+    "name": "Shopee Open API Platform | Passo a Passo de Solicitação",
+    "cat": ""
+  },
+  {
+    "id": "385",
+    "name": "Open API auth call | Fluxo autorização ",
+    "cat": ""
+  },
+  {
+    "id": "568",
+    "name": "Fulfilled by Shopee (BR)",
+    "cat": ""
+  },
+  {
+    "id": "697",
+    "name": "Quotation API (Entrega Expressa) Developer Guide",
+    "cat": ""
+  },
+  {
+    "id": "643",
+    "name": "Instant Mart Integration Guide",
+    "cat": ""
+  },
+  {
+    "id": "669",
+    "name": "Livestream API Integration Guide",
+    "cat": ""
+  },
+  {
+    "id": "702",
+    "name": "Shopee AMS API Integration Guide",
+    "cat": ""
+  },
+  {
+    "id": "706",
+    "name": "Shopee Video API Integration Guide",
+    "cat": ""
+  },
+  {
+    "id": "36",
+    "name": "Terms of Service",
+    "cat": ""
+  },
+  {
+    "id": "32",
+    "name": "Data Protection Policy",
+    "cat": ""
+  },
+  {
+    "id": "34",
+    "name": "Platform Partner Rules",
+    "cat": ""
+  },
+  {
+    "id": "646",
+    "name": "TW Developer Screening",
+    "cat": ""
+  },
+  {
+    "id": "723",
+    "name": "Chatbot Terms of Service",
+    "cat": ""
+  }
+]

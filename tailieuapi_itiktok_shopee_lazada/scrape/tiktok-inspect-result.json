@@ -1,0 +1,380 @@
+{
+  "domDump": [
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "index__LoginNavBarWarpper--HOcOC",
+      "text": "DocumentationContact UsSearch contentLog inJoin now",
+      "childCount": 1
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "index__loginNavbar--zLxij",
+      "text": "DocumentationContact UsSearch contentLog inJoin now",
+      "childCount": 2
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "partner-main-m4b-dropdown",
+      "text": "Documentation",
+      "childCount": 1
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "arco-tabs-header-nav arco-tabs-header-nav-horizontal arco-tabs-header-nav-top arco-tabs-header-size-large arco-tabs-head",
+      "text": "Partner GuideDeveloper GuideAPI ReferenceWebhooksTerms and PoliciesChangelogFAQsAPI Testing Tool",
+      "childCount": 1
+    },
+    {
+      "tag": "A",
+      "id": "menu_id_tts-developer-types",
+      "cls": "style-module__side-menu-item--pNjUL style-module__side-menu-selected--Jc1lO",
+      "text": "Get started overview",
+      "childCount": 1
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "style-module__page-navigator-container--kZnpr",
+      "text": "PreviousNext",
+      "childCount": 3
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "style-module__page-navigator-prev--grMzR",
+      "text": "Previous",
+      "childCount": 2
+    },
+    {
+      "tag": "DIV",
+      "id": "",
+      "cls": "style-module__page-navigator-next--VbUIX",
+      "text": "Next",
+      "childCount": 2
+    }
+  ],
+  "headerDump": [
+    {
+      "selector": "[class*=\"header\"]",
+      "html": "<div class=\"index__portal-content-header--WRb9e\"><div class=\"index__LoginNavBarWarpper--HOcOC\"><div class=\"index__loginNavbar--zLxij\"><div class=\"index__left--BYzLY\"><a href=\"//partner.tiktokshop.com/\" target=\"_self\" style=\"margin-right: 70px; line-height: 0;\"><svg width=\"141\" height=\"39\" viewBox=\"0 0 141 39\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"index__logo--pk_Jx\"><path d=\"M13.0428 15.025V13.5818C12.5749 13.517 12.0979 13.4766 11.6128 13.4766C5.7603 13.4766 1 18.2999 1 24.2287C1 27.8667 2.7941 31.0861 5.5309 33.0323C5.48069 32.978 5.43161 32.9236 5.38368 32.8681C3.70827 30.9658 2.74502 28.4576 2.74502 25.7112C2.74502 19.8679 7.30674 15.1603 13.0428 15.025Z\" fill=\"#25F4EE\"></path><path d=\"M13.293 30.6626C15.9043 30.6626 18.0762 28.5187 18.1732 25.896L18.1846 2.52759L22.3708 2.53453L22.3606 2.48249C22.2727 2.00144 22.2247 1.5065 22.2247 1H16.459L16.4498 24.4123C16.3528 27.0339 14.2232 29.1385 11.6131 29.1385C10.8016 29.1385 10.0381 28.9327 9.36475 28.5742C10.2447 29.8127 11.6758 30.6626 13.293 30.6626Z\" fill=\"#25F4EE\"></path><path d=\"M30.2456 10.5223V9.1281C28.6353 9.1281 27.1356 8.64371 25.8779 7.8125C26.9975 9.11539 28.5189 10.1478 30.2456 10.5223Z\" fill=\"#25F4EE\"></path><path d=\"M25.8777 7.81303C24.6508 6.38489 23.9056 4.52194 23.9056 2.48438H22.3203C22.7266 4.71043 24.071 6.61963 25.8777 7.81303Z\" fill=\"#FE2C55\"></path><path d=\"M11.6116 19.2726C8.93871 19.2726 6.72119 21.5207 6.72119 24.2278C6.72119 26.1138 7.82139 27.7513 9.36327 28.5746C8.78806 27.7675 8.44567 26.7799 8.44567 25.7103C8.44567 23.002 10.6198 20.7991 13.2927 20.7991C13.7915 20.7991 14.2696 20.8823 14.7227 21.0257V15.0622C14.2548 14.9974 13.7778 14.957 13.2927 14.957C13.2083 14.957 13.1261 14.9616 13.0416 14.9639L13.0017 14.9697L12.9971 19.4738C12.5452 19.3304 12.1115 19.2726 11.6116 19.2726Z\" fill=\"#FE2C55\"></path><path d=\"M30.2456 10.4316L30.2148 10.4258L30.2011 14.9218C27.2109 14.9218 24.4525 13.9354 22.1904 12.291L22.1836 24.2296C22.1836 30.1585 17.4621 34.939 11.6107 34.939C9.34983 34.939 7.25215 34.2602 5.52881 33.0344C7.46785 35.1437 10.2286 36.4654 13.2907 36.4654C19.1421 36.4654 23.9024 31.6421 23.9024 25.7133V13.8406C26.1632 15.485 28.9343 16.4541 31.9233 16.4541V10.612C31.3504 10.612 30.7889 10.5495 30.2456 10.4316Z\" fill=\"#FE2C55\"></path><path d=\"M22.2245 24.2292V12.3577C24.4854 14.002 27.2564 14.9711 30.2455 14.9711V10.4311C28.5187 10.0564 26.9974 9.11744 25.8778 7.81303C24.0711 6.61963 22.7678 4.71043 22.3603 2.48438H18.1387L18.1296 25.8967C18.0326 28.5182 15.9029 30.6229 13.2928 30.6229C11.6756 30.6229 10.2444 29.8134 9.36452 28.5761C7.8215 27.7539 6.76581 26.1152 6.76581 24.2292C6.76581 21.5209 8.93996 19.318 11.6128 19.318C12.1116 19.318 12.5898 19.4012 13.0429 19.5446V14.9642C7.30678 15.0995 2.68115 19.8661 2.68115 25.7105C2.68115 28.5367 3.76423 31.1109 5.53094 33.0316C7.25428 34.2574 9.35082 34.9801 11.6128 34.9801C17.4642 34.9825 22.2245 30.1592 22.2245 24.2292Z\" fill=\"white\"></path><path d=\"M35.9316 4.4649H45.3311L44.4681 7.13605L42.0291 7."
+    }
+  ],
+  "dropdowns": [],
+  "allLinks": [
+    {
+      "href": "//partner.tiktokshop.com/",
+      "text": ""
+    },
+    {
+      "href": "/docv2/page/tts-developer-guide",
+      "text": "TikTok Shop developer guide"
+    },
+    {
+      "href": "/docv2/page/tts-developer-types",
+      "text": "Get started overview"
+    },
+    {
+      "href": "/docv2/page/hulvi36o",
+      "text": "App Category Selection Guide"
+    },
+    {
+      "href": "/docv2/page/api-entity-tags",
+      "text": "API entity tags"
+    },
+    {
+      "href": "/docv2/page/access-scope",
+      "text": "Access scope"
+    },
+    {
+      "href": "/docv2/page/tts-api-concepts-overview",
+      "text": "Overview"
+    },
+    {
+      "href": "/docv2/page/methods-and-endpoints",
+      "text": "Methods and endpoints"
+    },
+    {
+      "href": "/docv2/page/common-parameters",
+      "text": "Common parameters"
+    },
+    {
+      "href": "/docv2/page/sign-your-api-request",
+      "text": "Sign your API request"
+    },
+    {
+      "href": "/docv2/page/common-errors",
+      "text": "Common errors"
+    },
+    {
+      "href": "/docv2/page/regions-and-languages",
+      "text": "Regions and languages"
+    },
+    {
+      "href": "/docv2/page/rate-limits",
+      "text": "Rate limits"
+    },
+    {
+      "href": "/docv2/page/api-versioning",
+      "text": "API versioning"
+    },
+    {
+      "href": "/docv2/page/upgrading-to-api-version-202309",
+      "text": "Upgrading to API version 202309"
+    },
+    {
+      "href": "/docv2/page/upgrade-customer-service-api-to-202309",
+      "text": "Upgrade Customer Service API to 202309"
+    },
+    {
+      "href": "/docv2/page/seller-center-development-shops",
+      "text": "Seller Center development shops"
+    },
+    {
+      "href": "/docv2/page/api-testing-tool",
+      "text": "API testing tool"
+    },
+    {
+      "href": "/docv2/page/developer-dashboard",
+      "text": "Developer dashboard"
+    },
+    {
+      "href": "/docv2/page/app-development-overview",
+      "text": "App development overview"
+    },
+    {
+      "href": "/docv2/page/create-your-app",
+      "text": "Create your App"
+    },
+    {
+      "href": "/docv2/page/edit-your-app",
+      "text": "Edit your App"
+    },
+    {
+      "href": "/docv2/page/test-your-app",
+      "text": "Test your App"
+    },
+    {
+      "href": "/docv2/page/tts-webhooks-overview",
+      "text": "Overview"
+    },
+    {
+      "href": "/docv2/page/configuration-guide",
+      "text": "Configuration guide"
+    },
+    {
+      "href": "/docv2/page/tts-api-sdk-overview",
+      "text": "Overview"
+    },
+    {
+      "href": "/docv2/page/download-sdk",
+      "text": "Download SDK"
+    },
+    {
+      "href": "/docv2/page/integrate-java-sdk",
+      "text": "Integrate Java SDK"
+    },
+    {
+      "href": "/docv2/page/integrate-golang-sdk",
+      "text": "Integrate GoLang SDK"
+    },
+    {
+      "href": "/docv2/page/integrate-node-js-sdk",
+      "text": "Integrate Node.js SDK"
+    },
+    {
+      "href": "/docv2/page/update-sdk",
+      "text": "Update SDK"
+    },
+    {
+      "href": "/docv2/page/tts-widgets-overview",
+      "text": "Overview"
+    },
+    {
+      "href": "/docv2/page/get-widget-token",
+      "text": "Get widget token"
+    },
+    {
+      "href": "/docv2/page/widget-sdk-user-guide",
+      "text": "Widget SDK user guide"
+    },
+    {
+      "href": "/docv2/page/quality-engine-incident-reason-code",
+      "text": "Quality engine incident reason code"
+    },
+    {
+      "href": "/docv2/page/link-to-tokopedia-shop-isv-seller-developer-onboarding",
+      "text": "Link to Tokopedia & Shop - ISV & Seller developer onboarding"
+    },
+    {
+      "href": "/docv2/page/link-to-tokopedia-shop-migration-rehearsal",
+      "text": "Link to Tokopedia & Shop - Migration Rehearsal"
+    },
+    {
+      "href": "/docv2/page/how-to-contact-support",
+      "text": "How to contact support"
+    },
+    {
+      "href": "/4n48cxi1/developer-onboarding",
+      "text": "Developer onboarding"
+    },
+    {
+      "href": "#Back To Top",
+      "text": "Back To Top"
+    }
+  ],
+  "docLinks": [
+    {
+      "href": "/docv2/page/tts-developer-guide",
+      "text": "TikTok Shop developer guide"
+    },
+    {
+      "href": "/docv2/page/tts-developer-types",
+      "text": "Get started overview"
+    },
+    {
+      "href": "/docv2/page/hulvi36o",
+      "text": "App Category Selection Guide"
+    },
+    {
+      "href": "/docv2/page/api-entity-tags",
+      "text": "API entity tags"
+    },
+    {
+      "href": "/docv2/page/access-scope",
+      "text": "Access scope"
+    },
+    {
+      "href": "/docv2/page/tts-api-concepts-overview",
+      "text": "Overview"
+    },
+    {
+      "href": "/docv2/page/methods-and-endpoints",
+      "text": "Methods and endpoints"
+    },
+    {
+      "href": "/docv2/page/common-parameters",
+      "text": "Common parameters"
+    },
+    {
+      "href": "/docv2/page/sign-your-api-request",
+      "text": "Sign your API request"
+    },
+    {
+      "href": "/docv2/page/common-errors",
+      "text": "Common errors"
+    },
+    {
+      "href": "/docv2/page/regions-and-languages",
+      "text": "Regions and languages"
+    },
+    {
+      "href": "/docv2/page/rate-limits",
+      "text": "Rate limits"
+    },
+    {
+      "href": "/docv2/page/api-versioning",
+      "text": "API versioning"
+    },
+    {
+      "href": "/docv2/page/upgrading-to-api-version-202309",
+      "text": "Upgrading to API version 202309"
+    },
+    {
+      "href": "/docv2/page/upgrade-customer-service-api-to-202309",
+      "text": "Upgrade Customer Service API to 202309"
+    },
+    {
+      "href": "/docv2/page/seller-center-development-shops",
+      "text": "Seller Center development shops"
+    },
+    {
+      "href": "/docv2/page/api-testing-tool",
+      "text": "API testing tool"
+    },
+    {
+      "href": "/docv2/page/developer-dashboard",
+      "text": "Developer dashboard"
+    },
+    {
+      "href": "/docv2/page/app-development-overview",
+      "text": "App development overview"
+    },
+    {
+      "href": "/docv2/page/create-your-app",
+      "text": "Create your App"
+    },
+    {
+      "href": "/docv2/page/edit-your-app",
+      "text": "Edit your App"
+    },
+    {
+      "href": "/docv2/page/test-your-app",
+      "text": "Test your App"
+    },
+    {
+      "href": "/docv2/page/tts-webhooks-overview",
+      "text": "Overview"
+    },
+    {
+      "href": "/docv2/page/configuration-guide",
+      "text": "Configuration guide"
+    },
+    {
+      "href": "/docv2/page/tts-api-sdk-overview",
+      "text": "Overview"
+    },
+    {
+      "href": "/docv2/page/download-sdk",
+      "text": "Download SDK"
+    },
+    {
+      "href": "/docv2/page/integrate-java-sdk",
+      "text": "Integrate Java SDK"
+    },
+    {
+      "href": "/docv2/page/integrate-golang-sdk",
+      "text": "Integrate GoLang SDK"
+    },
+    {
+      "href": "/docv2/page/integrate-node-js-sdk",
+      "text": "Integrate Node.js SDK"
+    },
+    {
+      "href": "/docv2/page/update-sdk",
+      "text": "Update SDK"
+    },
+    {
+      "href": "/docv2/page/tts-widgets-overview",
+      "text": "Overview"
+    },
+    {
+      "href": "/docv2/page/get-widget-token",
+      "text": "Get widget token"
+    },
+    {
+      "href": "/docv2/page/widget-sdk-user-guide",
+      "text": "Widget SDK user guide"
+    },
+    {
+      "href": "/docv2/page/quality-engine-incident-reason-code",
+      "text": "Quality engine incident reason code"
+    },
+    {
+      "href": "/docv2/page/link-to-tokopedia-shop-isv-seller-developer-onboarding",
+      "text": "Link to Tokopedia & Shop - ISV & Seller developer onboarding"
+    },
+    {
+      "href": "/docv2/page/link-to-tokopedia-shop-migration-rehearsal",
+      "text": "Link to Tokopedia & Shop - Migration Rehearsal"
+    },
+    {
+      "href": "/docv2/page/how-to-contact-support",
+      "text": "How to contact support"
+    }
+  ],
+  "bodyHtmlPreview": "<noscript>We're sorry but react app doesn't work properly without JavaScript enabled. Please enable it to continue.</noscript><div id=\"root\"><div class=\"index__content-outer--fvPH_ index__portal-content-outer--U4h6j ttspc-row\"><div class=\"index__portal-content-header--WRb9e\"><div class=\"index__LoginNavBarWarpper--HOcOC\"><div class=\"index__loginNavbar--zLxij\"><div class=\"index__left--BYzLY\"><a href=\"//partner.tiktokshop.com/\" target=\"_self\" style=\"margin-right: 70px; line-height: 0;\"><svg width=\"141\" height=\"39\" viewBox=\"0 0 141 39\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" class=\"index__logo--pk_Jx\"><path d=\"M13.0428 15.025V13.5818C12.5749 13.517 12.0979 13.4766 11.6128 13.4766C5.7603 13.4766 1 18.2999 1 24.2287C1 27.8667 2.7941 31.0861 5.5309 33.0323C5.48069 32.978 5.43161 32.9236 5.38368 32.8681C3.70827 30.9658 2.74502 28.4576 2.74502 25.7112C2.74502 19.8679 7.30674 15.1603 13.0428 15.025Z\" fill=\"#25F4EE\"></path><path d=\"M13.293 30.6626C15.9043 30.6626 18.0762 28.5187 18.1732 25.896L18.1846 2.52759L22.3708 2.53453L22.3606 2.48249C22.2727 2.00144 22.2247 1.5065 22.2247 1H16.459L16.4498 24.4123C16.3528 27.0339 14.2232 29.1385 11.6131 29.1385C10.8016 29.1385 10.0381 28.9327 9.36475 28.5742C10.2447 29.8127 11.6758 30.6626 13.293 30.6626Z\" fill=\"#25F4EE\"></path><path d=\"M30.2456 10.5223V9.1281C28.6353 9.1281 27.1356 8.64371 25.8779 7.8125C26.9975 9.11539 28.5189 10.1478 30.2456 10.5223Z\" fill=\"#25F4EE\"></path><path d=\"M25.8777 7.81303C24.6508 6.38489 23.9056 4.52194 23.9056 2.48438H22.3203C22.7266 4.71043 24.071 6.61963 25.8777 7.81303Z\" fill=\"#FE2C55\"></path><path d=\"M11.6116 19.2726C8.93871 19.2726 6.72119 21.5207 6.72119 24.2278C6.72119 26.1138 7.82139 27.7513 9.36327 28.5746C8.78806 27.7675 8.44567 26.7799 8.44567 25.7103C8.44567 23.002 10.6198 20.7991 13.2927 20.7991C13.7915 20.7991 14.2696 20.8823 14.7227 21.0257V15.0622C14.2548 14.9974 13.7778 14.957 13.2927 14.957C13.2083 14.957 13.1261 14.9616 13.0416 14.9639L13.0017 14.9697L12.9971 19.4738C12.5452 19.3304 12.1115 19.2726 11.6116 19.2726Z\" fill=\"#FE2C55\"></path><path d=\"M30.2456 10.4316L30.2148 10.4258L30.2011 14.9218C27.2109 14.9218 24.4525 13.9354 22.1904 12.291L22.1836 24.2296C22.1836 30.1585 17.4621 34.939 11.6107 34.939C9.34983 34.939 7.25215 34.2602 5.52881 33.0344C7.46785 35.1437 10.2286 36.4654 13.2907 36.4654C19.1421 36.4654 23.9024 31.6421 23.9024 25.7133V13.8406C26.1632 15.485 28.9343 16.4541 31.9233 16.4541V10.612C31.3504 10.612 30.7889 10.5495 30.2456 10.4316Z\" fill=\"#FE2C55\"></path><path d=\"M22.2245 24.2292V12.3577C24.4854 14.002 27.2564 14.9711 30.2455 14.9711V10.4311C28.5187 10.0564 26.9974 9.11744 25.8778 7.81303C24.0711 6.61963 22.7678 4.71043 22.3603 2.48438H18.1387L18.1296 25.8967C18.0326 28.5182 15.9029 30.6229 13.2928 30.6229C11.6756 30.6229 10.2444 29.8134 9.36452 28.5761C7.8215 27.7539 6.76581 26.1152 6.76581 24.2292C6.76581 21.5209 8.93996 19.318 11.6128 19.318C12.1116 19.318 12.5898 19.4012 13.0429 19.5446V14.9642C7.30678 15.0995 2.68115 19.8661 2.68115 25.7105C2.68115 28.5367 3.76423 31.1109 5.53094 33.0316C7.25428 34.2574 9.35082 34.9801 11.6128 34.9801C17.4642 34.9825 22.2245 30.1592 22.2245 24.2292Z\" fill=\"white\"></path><path d=\"M35.9316 4.4649H45.3311L44.4681 7.13605L42.0291 7.13492V17.013H38.9906V7.13492L35.9328 7.14056L35.9316 4.4649Z\" fill=\"white\"></path><path d=\"M60.7285 4.4649H70.346L69.483 7.13605L66.8317 7.13492V17.013H63.7886V7.13492L60.7308 7.14056L60.7285 4.4649Z\" fill=\"white\"></path><path d=\"M45.9048 8.45709H48.9183L48.9149 17.0142H45.923L45.9048 8.45709Z\" fill=\"white\"></path><path d=\"M50.1133 4.4317H53.1234V10.276L56.1063 7.36793H59.7001L55.9258 11.0058L60.1532 17.0159H56.8364L54.0159 12.8478L53.1234 13.7096V17.0159H50.1133V4.4317Z\" fill=\"white\"></path><path d=\"M82.0112 4.4317H85.0214V10.276L88.0043 7.36793H91.598L87.8237 11.0058L92.0511 17.0159H88.7344L85.9139 12.8478L85.0214 13.7096V17.0159H82.0112V4.4317Z\" fill=\"white\"></path><path d=\"M47.4101 7.47812C48.2479 7.47812 48.9271 6.80359 48.9271 5.97151C48.9271 5.13944 48.2479 4.4649 47.4101 4.4649C46.5722 4.4649 45.8931 5.13944 45.8931 5.97151C45.8931 6.80359 46.5722 7.47812 47.4101 7.47812Z\" fill=\"white\"></path><path d=\"M69.9616 11.8919C69.9616 9.19821 72.0554 6.99181 74.7136 6.78651C74.5796 6.77636 74.3979 6.76959 74.2617 6.76959C71.4139 6.76959 69.1055 9.06285 69.1055 11.8919C69.1055 14.721 71.4139 17.0142 74.2617 17.0142C74.3979 17.0142 74.5796 17.0075 74.7136 16.9973C72.0554 16.792 69.9616 14.5856 69.9616 11.8919Z\" fill=\"#25F4EE\"></path><path d=\"M75.8855 6.76959C75.7481 6.76959 75.5653 6.77636 75.4302 6.78651C78.0872 6.99294 80.1787 9.19934 80.1787 11.8919C80.1787 14.5845 78.0872 16.7898 75.4302 16.9973C75.5642 17.0075 75.7481 17.0142 75.8855 17.0142C78.7333 17.0142 81.0417 14.721 81.0417 11.8919C81.0406 9.06285 78.7321 6.76959 75.8855 6.76959Z\" fill=\"#FE2C55\"></path><path d=\"M75.0703 6.76959C72.2225 6.76959 69.9141 9.06285 69.9141 11.8919C69.9141 14.721 72.2225 17.0142 75.0703 17.0142C77.918 17.0142 80.2264 14.721 80.2264 11.8919C80.2264 9.06285 77."
+}
