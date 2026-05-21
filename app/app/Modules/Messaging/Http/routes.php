@@ -71,7 +71,8 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
                 ->whereNumber('id')->name('messaging.messages.media');
 
             // --- AI suggestion (S6) — gate thêm plan.feature:messaging_ai (Business) ---
-            Route::middleware('plan.feature:messaging_ai')->group(function () {
+            // + rate-limit ai-suggestion theo tenant (20/phút, định nghĩa ở AppServiceProvider).
+            Route::middleware(['plan.feature:messaging_ai', 'throttle:ai-suggestion'])->group(function () {
                 Route::post('conversations/{id}/ai-suggestion', [AiSuggestionController::class, 'generate'])
                     ->whereNumber('id')->name('messaging.ai.suggestion.generate');
                 Route::post('conversations/{id}/ai-suggestion/{draftId}/accept', [AiSuggestionController::class, 'accept'])

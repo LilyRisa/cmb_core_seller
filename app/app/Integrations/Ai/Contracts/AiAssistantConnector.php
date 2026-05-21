@@ -13,10 +13,9 @@ use CMBcoreSeller\Integrations\Ai\Exceptions\UnsupportedOperation;
 /**
  * Contract mọi AI provider phải implement.
  *
- * Khác Messaging/Channels/Carriers/Payments: **config sống ở DB**
- * (`system_settings` group `ai_providers.<code>` — super-admin quản qua
- * `/admin/ai-providers`), không phải `config/integrations.php`. Tenant chỉ
- * chọn `tenant_settings.messaging.ai_provider_code` ∈ list `is_active=true`.
+ * Khác Messaging/Channels/Carriers/Payments: **config sống ở bảng `ai_providers`**
+ * (super-admin quản qua `/admin/ai-providers`), không phải `config/integrations.php`.
+ * Tenant chỉ chọn `messaging_settings.ai_provider_code` ∈ list `is_active=true`.
  *
  * Capabilities chuẩn:
  *   - 'reply.suggest'    — sinh draft cho NV duyệt
@@ -32,7 +31,7 @@ use CMBcoreSeller\Integrations\Ai\Exceptions\UnsupportedOperation;
  */
 interface AiAssistantConnector
 {
-    /** Stable code, e.g. 'claude' | 'openai' | 'gemini' | 'local_llm' | 'manual'. */
+    /** Instance code (slug), injected by the registry per provider row. */
     public function code(): string;
 
     public function displayName(): string;
