@@ -97,6 +97,9 @@ export function MessagingChannelsPage() {
                                             {p.sync.status === 'failed' && (
                                                 <Tooltip title={p.sync.error ?? 'Đồng bộ lỗi'}><Tag color="red">Đồng bộ lỗi</Tag></Tooltip>
                                             )}
+                                            {p.comment_sync?.status === 'failed' && (
+                                                <Tooltip title={p.comment_sync.error ?? 'Comment đồng bộ lỗi'}><Tag color="orange">Comment: cần cấp quyền</Tag></Tooltip>
+                                            )}
                                         </Space>
                                         <Text type="secondary" style={{ fontSize: 12 }}>Page ID: {p.external_shop_id}</Text>
                                         {syncing ? (

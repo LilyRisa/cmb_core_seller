@@ -35,9 +35,8 @@ use Illuminate\Support\Facades\Log;
  * KHÔNG fire auto-reply events (fireEventsForNewMessage) — backfill tin cũ.
  * KHÔNG relay media (comments là text; bỏ qua DownloadInboundMedia).
  *
- * Đồng tồn tại với BackfillMessagingChannel: cả hai ghi vào messaging_account_meta
- * (sync_status) — chạy độc lập, chấp nhận race cập nhật cột sync_* khi cả hai chạy
- * song song (acceptable cho now).
+ * Sử dụng comment_sync_status / comment_synced_at / comment_sync_error riêng — KHÔNG
+ * đụng vào message sync_status để tránh làm bẩn trạng thái BackfillMessagingChannel.
  *
  * Constructor: `(int $channelAccountId, ?string $sinceIso = null)`.
  */
@@ -86,9 +85,8 @@ class BackfillFacebookComments implements ShouldBeUnique, ShouldQueue
         );
 
         $meta->forceFill([
-            'sync_status' => MessagingAccountMeta::SYNC_RUNNING,
-            'sync_started_at' => $meta->sync_started_at ?? now(),
-            'sync_error' => null,
+            'comment_sync_status' => MessagingAccountMeta::SYNC_RUNNING,
+            'comment_sync_error' => null,
         ])->save();
 
         $cutoff = $this->sinceIso
@@ -129,24 +127,41 @@ class BackfillFacebookComments implements ShouldBeUnique, ShouldQueue
             } while ($result['hasMore'] && $cursor !== null);
         } catch (\Throwable $e) {
             if (str_contains($e->getMessage(), 'FACEBOOK_RATE_LIMIT')) {
-                $meta->forceFill(['sync_status' => MessagingAccountMeta::SYNC_QUEUED])->save();
+                $meta->forceFill(['comment_sync_status' => MessagingAccountMeta::SYNC_QUEUED])->save();
                 $this->release(120);
 
                 return;
             }
+
+            $msg = $e->getMessage();
+            if (
+                str_contains($msg, 'pages_read_engagement') ||
+                str_contains($msg, 'Page Public Content Access') ||
+                str_contains($msg, '(#10)') ||
+                (str_contains($msg, 'OAuthException') && preg_match('/"code"\s*:\s*(?:10|200)\b/', $msg))
+            ) {
+                $meta->forceFill([
+                    'comment_sync_status' => MessagingAccountMeta::SYNC_FAILED,
+                    'comment_sync_error' => 'Thiếu quyền đọc nội dung trang (pages_read_engagement). Hãy kết nối lại page để cấp quyền đồng bộ comment.',
+                ])->save();
+                Log::warning('messaging.comments_backfill.permission_denied', ['account' => $account->id, 'error' => $msg]);
+
+                return; // permanent error — do not retry
+            }
+
             $meta->forceFill([
-                'sync_status' => MessagingAccountMeta::SYNC_FAILED,
-                'sync_error' => substr($e->getMessage(), 0, 250),
+                'comment_sync_status' => MessagingAccountMeta::SYNC_FAILED,
+                'comment_sync_error' => substr($msg, 0, 250),
             ])->save();
-            Log::warning('messaging.comments_backfill.failed', ['account' => $account->id, 'error' => $e->getMessage()]);
+            Log::warning('messaging.comments_backfill.failed', ['account' => $account->id, 'error' => $msg]);
 
             return;
         }
 
         $meta->forceFill([
-            'sync_status' => MessagingAccountMeta::SYNC_DONE,
-            'sync_finished_at' => now(),
-            'last_synced_at' => now(),
+            'comment_sync_status' => MessagingAccountMeta::SYNC_DONE,
+            'comment_synced_at' => now(),
+            'comment_sync_error' => null,
         ])->save();
     }
 
@@ -156,8 +171,11 @@ class BackfillFacebookComments implements ShouldBeUnique, ShouldQueue
     public function failed(\Throwable $e): void
     {
         $meta = MessagingAccountMeta::withoutGlobalScope(TenantScope::class)->find($this->channelAccountId);
-        if ($meta && in_array($meta->sync_status, [MessagingAccountMeta::SYNC_RUNNING, MessagingAccountMeta::SYNC_QUEUED], true)) {
-            $meta->forceFill(['sync_status' => MessagingAccountMeta::SYNC_FAILED, 'sync_error' => substr($e->getMessage(), 0, 250)])->save();
+        if ($meta && in_array($meta->comment_sync_status, [MessagingAccountMeta::SYNC_RUNNING, MessagingAccountMeta::SYNC_QUEUED], true)) {
+            $meta->forceFill([
+                'comment_sync_status' => MessagingAccountMeta::SYNC_FAILED,
+                'comment_sync_error' => substr($e->getMessage(), 0, 250),
+            ])->save();
         }
     }
 
