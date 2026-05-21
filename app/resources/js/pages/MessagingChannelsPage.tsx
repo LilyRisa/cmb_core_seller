@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { App as AntApp, Button, Card, Empty, Popconfirm, Result, Space, Spin, Tag, Typography } from 'antd';
-import { DisconnectOutlined, FacebookFilled, KeyOutlined } from '@ant-design/icons';
+import { App as AntApp, Avatar, Button, Card, Empty, Popconfirm, Progress, Result, Space, Spin, Tag, Tooltip, Typography } from 'antd';
+import { DisconnectOutlined, FacebookFilled, KeyOutlined, SyncOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { MessagingNav } from '@/components/MessagingNav';
 import { PageHeader } from '@/components/PageHeader';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
-import { useConnectFacebook, useDisconnectFacebookPage, useMessagingChannels } from '@/lib/messagingConfig';
+import { useConnectFacebook, useDisconnectFacebookPage, useMessagingChannels, useSyncChannel } from '@/lib/messagingConfig';
 
 const { Text } = Typography;
 
@@ -27,6 +28,16 @@ export function MessagingChannelsPage() {
     const [reconnectingId, setReconnectingId] = useState<number | null>(null);
     const [disconnectingId, setDisconnectingId] = useState<number | null>(null);
     const disconnect = useDisconnectFacebookPage();
+    const syncChannel = useSyncChannel();
+    const [syncingId, setSyncingId] = useState<number | null>(null);
+
+    const handleSync = (id: number) => {
+        setSyncingId(id);
+        syncChannel.mutate(id, {
+            onSuccess: () => { setSyncingId(null); message.success('Đã bắt đầu đồng bộ tin nhắn.'); },
+            onError: (e) => { setSyncingId(null); message.error(errorMessage(e, 'Không bắt đầu được đồng bộ.')); },
+        });
+    };
 
     useEffect(() => {
         const connected = params.get('connected');
@@ -72,18 +83,42 @@ export function MessagingChannelsPage() {
                         <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>
                     ) : pages.length === 0 ? (
                         <Empty description="Chưa kết nối Page nào" />
-                    ) : pages.map((p) => (
+                    ) : pages.map((p) => {
+                        const syncing = p.sync.status === 'queued' || p.sync.status === 'running';
+                        return (
                         <Card key={p.id} size="small" styles={{ body: { padding: 12 } }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                                <Space direction="vertical" size={2}>
-                                    <Space size={6}>
-                                        <Text strong>{p.name}</Text>
-                                        <Tag color={p.token_expired ? 'red' : 'green'}>{p.token_expired ? 'Hết hạn token' : 'Đang hoạt động'}</Tag>
+                                <Space size={12} align="start">
+                                    <Avatar src={p.avatar_url ?? undefined} icon={<FacebookFilled />} size={40} style={{ background: p.avatar_url ? undefined : '#1877F2' }} />
+                                    <Space direction="vertical" size={2}>
+                                        <Space size={6}>
+                                            <Text strong>{p.name}</Text>
+                                            <Tag color={p.token_expired ? 'red' : 'green'}>{p.token_expired ? 'Hết hạn token' : 'Đang hoạt động'}</Tag>
+                                            {p.sync.status === 'failed' && (
+                                                <Tooltip title={p.sync.error ?? 'Đồng bộ lỗi'}><Tag color="red">Đồng bộ lỗi</Tag></Tooltip>
+                                            )}
+                                        </Space>
+                                        <Text type="secondary" style={{ fontSize: 12 }}>Page ID: {p.external_shop_id}</Text>
+                                        {syncing ? (
+                                            <Space size={8} style={{ width: 240 }}>
+                                                <Progress percent={100} status="active" showInfo={false} size="small" style={{ flex: 1, margin: 0 }} />
+                                                <Text type="secondary" style={{ fontSize: 12 }}>Đang đồng bộ… {p.sync.done} hội thoại</Text>
+                                            </Space>
+                                        ) : p.sync.status === 'done' ? (
+                                            <Text type="secondary" style={{ fontSize: 12 }}>
+                                                Đã đồng bộ • {p.message_count} tin nhắn
+                                                {p.sync.last_synced_at ? ` • ${dayjs(p.sync.last_synced_at).format('DD/MM HH:mm')}` : ''}
+                                            </Text>
+                                        ) : (
+                                            <Text type="secondary" style={{ fontSize: 12 }}>{p.message_count} tin nhắn</Text>
+                                        )}
                                     </Space>
-                                    <Text type="secondary" style={{ fontSize: 12 }}>Page ID: {p.external_shop_id}</Text>
                                 </Space>
                                 {canConnect && (
                                     <Space>
+                                        <Button size="small" icon={<SyncOutlined spin={syncing} />} loading={syncingId === p.id} disabled={syncing} onClick={() => handleSync(p.id)}>
+                                            Đồng bộ lại
+                                        </Button>
                                         {p.token_expired && (
                                             <Button size="small" type="primary" icon={<KeyOutlined />} loading={reconnectingId === p.id} onClick={() => handleReconnect(p.id)}>Kết nối lại</Button>
                                         )}
@@ -105,7 +140,8 @@ export function MessagingChannelsPage() {
                                 )}
                             </div>
                         </Card>
-                    ))}
+                        );
+                    })}
                 </Space>
             </Card>
 
