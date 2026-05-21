@@ -87,10 +87,12 @@ class BackfillMessagingChannel implements ShouldBeUnique, ShouldQueue
             'sync_error' => null,
         ])->save();
 
-        // Avatar page (best-effort, queued).
-        $pageProfile = $connector->fetchPageProfile($auth);
-        if (! empty($pageProfile['avatar_url'])) {
-            RelayMessagingAvatar::dispatch('page', (int) $account->getKey(), (string) $pageProfile['avatar_url']);
+        // Avatar page (best-effort, queued) — skip khi đã relay (tránh re-download mỗi giờ).
+        if ($meta->page_avatar_synced_at === null) {
+            $pageProfile = $connector->fetchPageProfile($auth);
+            if (! empty($pageProfile['avatar_url'])) {
+                RelayMessagingAvatar::dispatch('page', (int) $account->getKey(), (string) $pageProfile['avatar_url']);
+            }
         }
 
         $cutoff = $this->sinceIso
@@ -122,9 +124,12 @@ class BackfillMessagingChannel implements ShouldBeUnique, ShouldQueue
                         continue;
                     }
 
-                    $profile = $connector->fetchUserProfile($auth, $convDto->externalConversationId);
-                    if (! empty($profile['avatar_url'])) {
-                        RelayMessagingAvatar::dispatch('conversation', (int) $conversation->id, (string) $profile['avatar_url']);
+                    // Avatar buyer — skip cả Graph call lẫn dispatch khi ảnh đã lưu.
+                    if ($conversation->buyer_avatar_path === null) {
+                        $profile = $connector->fetchUserProfile($auth, $convDto->externalConversationId);
+                        if (! empty($profile['avatar_url'])) {
+                            RelayMessagingAvatar::dispatch('conversation', (int) $conversation->id, (string) $profile['avatar_url']);
+                        }
                     }
 
                     $msgPage = $connector->fetchMessages($auth, $convDto->externalConversationId, [

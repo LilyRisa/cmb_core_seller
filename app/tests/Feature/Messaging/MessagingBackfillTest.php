@@ -254,4 +254,75 @@ class MessagingBackfillTest extends TestCase
             ->assertJsonPath('data.0.sync.status', 'done')
             ->assertJsonPath('data.0.sync.message_count', 5);
     }
+
+    /**
+     * Khi page_avatar_synced_at đã set VÀ conversation.buyer_avatar_path đã có
+     * ⇒ backfill không dispatch RelayMessagingAvatar lần nào (tránh re-download mỗi giờ).
+     * Ngược lại, fresh account (page_avatar_synced_at = null) vẫn dispatch page relay.
+     */
+    public function test_backfill_skips_avatar_relay_when_already_present(): void
+    {
+        Bus::fake([RelayMessagingAvatar::class, DownloadInboundMedia::class]);
+        [$tenant, $account] = $this->fbAccount();
+
+        // Mark page avatar đã relay.
+        MessagingAccountMeta::query()->where('channel_account_id', $account->id)
+            ->update(['page_avatar_synced_at' => now()->subHour()]);
+
+        // Tạo conversation đã có buyer_avatar_path.
+        Conversation::query()->create([
+            'tenant_id' => $tenant->getKey(), 'channel_account_id' => $account->id,
+            'provider' => 'facebook_page', 'external_conversation_id' => 'PSID_AV',
+            'buyer_external_id' => 'PSID_AV', 'buyer_name' => 'Buyer AV',
+            'status' => 'open', 'last_message_at' => now(),
+            'buyer_avatar_path' => 'tenants/1/messaging/2025/01/1/avatar.jpg',
+        ]);
+
+        Http::fake([
+            'graph.facebook.com/*/conversations*' => Http::response([
+                'data' => [[
+                    'id' => 't_av', 'updated_time' => now()->subHour()->toIso8601String(), 'message_count' => 0,
+                    'participants' => ['data' => [
+                        ['id' => 'PAGE_123', 'name' => 'Page'], ['id' => 'PSID_AV', 'name' => 'Buyer AV'],
+                    ]],
+                ]],
+                'paging' => [],
+            ], 200),
+            // messages endpoint trả empty
+            'graph.facebook.com/*t_av*' => Http::response([
+                'id' => 't_av', 'messages' => ['data' => []],
+            ], 200),
+            // catch-all — không được gọi fetchPageProfile / fetchUserProfile vì guard đã chặn
+            'graph.facebook.com/*' => Http::response([], 200),
+        ]);
+
+        BackfillMessagingChannel::dispatchSync($account->id);
+
+        // Không được relay thêm lần nào — page đã sync, buyer_avatar_path đã có.
+        Bus::assertNotDispatched(RelayMessagingAvatar::class);
+    }
+
+    /**
+     * Fresh account (page_avatar_synced_at = null) phải vẫn dispatch relay cho page avatar.
+     */
+    public function test_backfill_dispatches_page_relay_on_first_run(): void
+    {
+        Bus::fake([RelayMessagingAvatar::class, DownloadInboundMedia::class]);
+        [$tenant, $account] = $this->fbAccount();
+
+        // page_avatar_synced_at = null (fresh — default từ fbAccount()).
+
+        Http::fake([
+            'graph.facebook.com/*/conversations*' => Http::response(['data' => [], 'paging' => []], 200),
+            // fetchPageProfile trả về avatar URL — connector dùng endpoint này.
+            'graph.facebook.com/*' => Http::response([
+                'name' => 'Page',
+                'picture' => ['data' => ['url' => 'https://cdn.fb/page.jpg']],
+            ], 200),
+        ]);
+
+        BackfillMessagingChannel::dispatchSync($account->id);
+
+        Bus::assertDispatched(RelayMessagingAvatar::class, fn ($job) => $job->target === 'page');
+    }
 }
