@@ -438,6 +438,7 @@ return [
             'update_stock'              => '/api/v2/product/update_stock',
             'escrow_detail'             => '/api/v2/payment/get_escrow_detail',
             'escrow_list'               => '/api/v2/payment/get_escrow_list',
+            'send_message'              => '/api/v2/sellerchat/send_message',
         ],
         'document_type'        => env('SHOPEE_DOCUMENT_TYPE', 'NORMAL_AIR_WAYBILL'),
         'document_poll_attempts' => (int) env('SHOPEE_DOC_POLL_ATTEMPTS', 6),
@@ -465,6 +466,8 @@ return [
             15 => 'unknown',              // Shipping Document Status (READY/FAILED)
             // 5,7,8,9,10,11,13: marketing/product/chat — chưa dùng cho connector đơn.
         ],
+        // Push code coi là tin chat (Webchat). Demux ở ShopeeWebhookController: code này → pipeline messaging.
+        'chat_push_codes' => [10],
     ],
 
 ];

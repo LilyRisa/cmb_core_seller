@@ -146,4 +146,15 @@ class ShopeeChatConnectorTest extends TestCase
         $this->expectException(UnsupportedOperation::class);
         $this->connector()->sendTemplate($auth, 'BUYER_1', 'tpl_code', ['_resolved_body' => 'hi']);
     }
+
+    public function test_registry_resolves_shopee_chat_when_enabled(): void
+    {
+        ShopeeFixtures::configure();
+        config(['integrations.messaging' => ['shopee_chat']]);
+        $this->app->forgetInstance(\CMBcoreSeller\Integrations\Messaging\MessagingRegistry::class);
+
+        $registry = $this->app->make(\CMBcoreSeller\Integrations\Messaging\MessagingRegistry::class);
+        $this->assertTrue($registry->has('shopee_chat'));
+        $this->assertInstanceOf(ShopeeChatConnector::class, $registry->for('shopee_chat'));
+    }
 }
