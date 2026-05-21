@@ -109,7 +109,7 @@ export function AppLayout() {
                     <img src="/images/logocmb.png" alt="CMB Core" style={{ width: 32, height: 32, objectFit: 'contain', flex: 'none' }} />
                     {!collapsed && <span>CMB Core</span>}
                 </div>
-                <Menu mode="inline" selectedKeys={[selectedKey]} items={nav} style={{ borderInlineEnd: 'none' }} />
+                <Menu mode="inline" selectedKeys={[selectedKey]} defaultOpenKeys={['messaging']} inlineIndent={16} items={nav} style={{ borderInlineEnd: 'none' }} />
             </Sider>
             <Layout>
                 <Header style={{ background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px 0 8px', borderBottom: '1px solid #f0f0f0', height: 56, lineHeight: 'normal' }}>

@@ -411,7 +411,7 @@ export function MessagingPage() {
             </Modal>
             <div style={{ display: 'flex', height: 'calc(100vh - 150px)', gap: 12, minWidth: 0 }}>
             {/* Cột trái — danh sách hội thoại */}
-            <div style={{ flex: `0 0 ${screens.md ? 300 : 240}px`, minWidth: 240, maxWidth: 340, background: '#fff', borderRadius: 12, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+            <div style={{ flex: `0 0 ${screens.md ? 360 : 320}px`, minWidth: 320, maxWidth: 420, background: '#fff', borderRadius: 12, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
                 <div style={{ padding: 12, borderBottom: '1px solid #F1F5F9', display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {/* 2 tab chính: Sàn / Facebook */}
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -474,29 +474,35 @@ export function MessagingPage() {
                                                     }
                                                     offset={[-2, 28]}
                                                 >
-                                                    <Avatar src={c.buyer_avatar_url ?? undefined}>{(c.buyer_name ?? c.buyer_external_id ?? '?').slice(0, 1).toUpperCase()}</Avatar>
+                                                    <Avatar size={40} src={c.buyer_avatar_url ?? undefined} style={{ background: '#2563EB', flexShrink: 0 }}>{(c.buyer_name ?? c.buyer_external_id ?? '?').slice(0, 1).toUpperCase()}</Avatar>
                                                 </Badge>
                                             )}
                                             title={(
-                                                <Space size={6} style={{ width: '100%', justifyContent: 'space-between' }}>
-                                                    <Space size={6}>
-                                                        <Badge count={c.unread_count} size="small" />
-                                                        <Text strong={c.unread_count > 0} ellipsis style={{ maxWidth: 120 }}>{c.buyer_name ?? c.buyer_external_id}</Text>
+                                                <div style={{ minWidth: 0 }}>
+                                                    {/* Row 1: unread badge + name + action menu */}
+                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, minWidth: 0 }}>
+                                                        <Space size={4} style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
+                                                            <Badge count={c.unread_count} size="small" />
+                                                            <Text strong={c.unread_count > 0} ellipsis style={{ maxWidth: 160 }}>{c.buyer_name ?? c.buyer_external_id}</Text>
+                                                        </Space>
+                                                        <Dropdown
+                                                            trigger={['click']}
+                                                            menu={{
+                                                                items: convMenuItems(c),
+                                                                onClick: ({ key, domEvent }) => { domEvent.stopPropagation(); onConvAction(key, c); },
+                                                            }}
+                                                        >
+                                                            <Button type="text" size="small" icon={<MoreOutlined />} onClick={(e) => e.stopPropagation()} />
+                                                        </Dropdown>
+                                                    </div>
+                                                    {/* Row 2: page/provider chip — wraps below name */}
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginTop: 2 }}>
                                                         {c.provider === 'facebook_page'
-                                                            ? <Tag color="blue" style={{ marginInlineEnd: 0 }}>{c.channel_account_name ?? 'Facebook'}</Tag>
-                                                            : <Tag color="blue" style={{ marginInlineEnd: 0 }}>{providerLabel(c.provider)}</Tag>
+                                                            ? <Tag color="blue" style={{ marginInlineEnd: 0, fontSize: 11 }}>{c.channel_account_name ?? 'Facebook'}</Tag>
+                                                            : <Tag color="blue" style={{ marginInlineEnd: 0, fontSize: 11 }}>{providerLabel(c.provider)}</Tag>
                                                         }
-                                                    </Space>
-                                                    <Dropdown
-                                                        trigger={['click']}
-                                                        menu={{
-                                                            items: convMenuItems(c),
-                                                            onClick: ({ key, domEvent }) => { domEvent.stopPropagation(); onConvAction(key, c); },
-                                                        }}
-                                                    >
-                                                        <Button type="text" size="small" icon={<MoreOutlined />} onClick={(e) => e.stopPropagation()} />
-                                                    </Dropdown>
-                                                </Space>
+                                                    </div>
+                                                </div>
                                             )}
                                             description={(
                                                 <Space direction="vertical" size={0} style={{ width: '100%' }}>
@@ -544,8 +550,8 @@ export function MessagingPage() {
                                     <Spin spinning={openingLink} size="small">
                                         <Avatar
                                             src={active?.buyer_avatar_url ?? undefined}
-                                            size={32}
-                                            style={{ cursor: 'pointer' }}
+                                            size={36}
+                                            style={{ cursor: 'pointer', background: '#2563EB', flexShrink: 0 }}
                                             onClick={handleAvatarClick}
                                         >
                                             {(active?.buyer_name ?? active?.buyer_external_id ?? '?').slice(0, 1).toUpperCase()}
@@ -720,7 +726,7 @@ export function MessagingPage() {
                                 value={draft}
                                 onChange={(e) => setDraft(e.target.value)}
                                 placeholder="Trả lời bình luận… (Enter để gửi, Shift+Enter xuống dòng)"
-                                autoSize={{ minRows: 1, maxRows: 4 }}
+                                autoSize={{ minRows: 3, maxRows: 10 }}
                                 onPressEnter={(e) => { if (!e.shiftKey) { e.preventDefault(); handleCommentReply(); } }}
                             />
                             <Space style={{ marginTop: 8, justifyContent: 'space-between', width: '100%' }}>
@@ -744,7 +750,7 @@ export function MessagingPage() {
                                 value={draft}
                                 onChange={(e) => setDraft(e.target.value)}
                                 placeholder="Nhập tin nhắn… (Enter để gửi, Shift+Enter xuống dòng)"
-                                autoSize={{ minRows: 1, maxRows: 4 }}
+                                autoSize={{ minRows: 3, maxRows: 10 }}
                                 onPressEnter={(e) => { if (!e.shiftKey) { e.preventDefault(); handleSend(); } }}
                             />
                             <Space style={{ marginTop: 8, justifyContent: 'space-between', width: '100%' }}>
