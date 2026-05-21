@@ -201,6 +201,12 @@ export interface ChannelSync {
     error: string | null;
 }
 
+export interface CommentSync {
+    status: string;
+    synced_at: string | null;
+    error: string | null;
+}
+
 export interface MessagingChannel {
     id: number;
     provider: string;
@@ -214,6 +220,7 @@ export interface MessagingChannel {
     avatar_url: string | null;
     message_count: number;
     sync: ChannelSync;
+    comment_sync: CommentSync;
 }
 
 export function useMessagingChannels() {

@@ -69,6 +69,15 @@ class MessagingChannelController extends Controller
                         'last_synced_at' => null,
                         'error' => null,
                     ],
+                    'comment_sync' => $meta !== null ? [
+                        'status' => $meta->comment_sync_status ?? 'idle',
+                        'synced_at' => $meta->comment_synced_at?->toIso8601String(),
+                        'error' => $meta->comment_sync_error,
+                    ] : [
+                        'status' => 'idle',
+                        'synced_at' => null,
+                        'error' => null,
+                    ],
                 ];
             });
 

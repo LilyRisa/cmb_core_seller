@@ -31,6 +31,9 @@ use Illuminate\Support\Carbon;
  * @property ?Carbon $sync_finished_at
  * @property ?string $sync_error
  * @property ?Carbon $last_synced_at
+ * @property string $comment_sync_status
+ * @property ?Carbon $comment_synced_at
+ * @property ?string $comment_sync_error
  */
 class MessagingAccountMeta extends Model
 {
@@ -62,6 +65,8 @@ class MessagingAccountMeta extends Model
         'page_avatar_path', 'page_avatar_synced_at', 'sync_status',
         'sync_total_conversations', 'sync_done_conversations', 'sync_message_count',
         'sync_cursor', 'sync_started_at', 'sync_finished_at', 'sync_error', 'last_synced_at',
+        // SPEC 2026-05-21: comment-sync columns (tách khỏi message sync_*)
+        'comment_sync_status', 'comment_synced_at', 'comment_sync_error',
     ];
 
     protected function casts(): array
@@ -78,6 +83,8 @@ class MessagingAccountMeta extends Model
             'sync_started_at' => 'datetime',
             'sync_finished_at' => 'datetime',
             'last_synced_at' => 'datetime',
+            // SPEC 2026-05-21: comment-sync
+            'comment_synced_at' => 'datetime',
         ];
     }
 

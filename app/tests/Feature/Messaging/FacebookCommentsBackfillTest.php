@@ -198,10 +198,48 @@ class FacebookCommentsBackfillTest extends TestCase
         $this->assertNotNull($outbound);
         $this->assertSame('outbound', $outbound->direction);
 
-        // Sync meta done
+        // Comment sync done; message sync_status must not have been touched by this job
         $meta = MessagingAccountMeta::withoutGlobalScope(TenantScope::class)
             ->find($account->id);
-        $this->assertSame('done', $meta->sync_status);
+        $this->assertSame('done', $meta->comment_sync_status);
+        $this->assertNotNull($meta->comment_synced_at);
+        $this->assertNull($meta->comment_sync_error);
+        // Message sync_status was seeded as 'idle' (DB default) — job must not have set it to 'failed'
+        $this->assertNotSame('failed', $meta->sync_status);
+        $this->assertNull($meta->sync_error);
+    }
+
+    public function test_backfill_permission_error_sets_friendly_comment_error_and_does_not_touch_message_sync(): void
+    {
+        [$tenant, $account] = $this->fbAccount();
+
+        // Facebook (#10) permission error response
+        Http::fake([
+            'graph.facebook.com/*/feed*' => Http::response([
+                'error' => [
+                    'message' => '(#10) To use Page Public Content Access, your use of this endpoint must be reviewed and approved by Facebook.',
+                    'type' => 'OAuthException',
+                    'code' => 10,
+                    'fbtrace_id' => 'TRACE_ABC',
+                ],
+            ], 400),
+        ]);
+
+        BackfillFacebookComments::dispatchSync($account->id);
+
+        $meta = MessagingAccountMeta::withoutGlobalScope(TenantScope::class)
+            ->find($account->id);
+
+        $this->assertSame('failed', $meta->comment_sync_status);
+        $this->assertStringContainsString('pages_read_engagement', $meta->comment_sync_error);
+        $this->assertStringContainsString('kết nối lại', $meta->comment_sync_error);
+
+        // Message sync_status must NOT be failed — job must not have touched it
+        $this->assertNotSame('failed', $meta->sync_status);
+        $this->assertNull($meta->sync_error);
+
+        // No conversations or messages created
+        $this->assertSame(0, Conversation::withoutGlobalScope(TenantScope::class)->count());
     }
 
     public function test_backfill_is_idempotent_on_rerun(): void
