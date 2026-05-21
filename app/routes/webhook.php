@@ -2,6 +2,7 @@
 
 use CMBcoreSeller\Modules\Billing\Http\Controllers\PaymentWebhookController;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\WebhookController;
+use CMBcoreSeller\Modules\Channels\Http\Controllers\ShopeeWebhookController;
 use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\CarrierWebhookController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\MessagingWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -18,11 +19,14 @@ use Illuminate\Support\Facades\Route;
 | WebhookIngestService — the route + handler exist; the connector is pending.
 */
 
-foreach (['tiktok', 'shopee', 'lazada'] as $provider) {
+foreach (['tiktok', 'lazada'] as $provider) {
     Route::post($provider, [WebhookController::class, 'handle'])
         ->defaults('provider', $provider)
         ->name($provider);
 }
+
+// Shopee: 1 push URL gánh cả đơn hàng lẫn chat (code 10) → controller riêng demux.
+Route::post('shopee', [ShopeeWebhookController::class, 'handle'])->name('shopee');
 
 /*
 | Payment gateway webhooks (Phase 6.4 / SPEC 0018):
