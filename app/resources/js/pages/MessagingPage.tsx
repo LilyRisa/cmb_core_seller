@@ -45,6 +45,16 @@ export function MessagingPage() {
         failed: 'Gửi lỗi',
     };
 
+    // ── Kind label fallback (khi body=null và không có attachment) ────────────
+    const KIND_LABEL: Record<string, string> = {
+        text: 'Tin không có nội dung',
+        image: 'Hình ảnh',
+        video: 'Video',
+        file: 'Tệp đính kèm',
+        template: 'Mẫu tin',
+        system: 'Tin hệ thống',
+    };
+
     // ── Filter state ──────────────────────────────────────────────────────────
     const [board, setBoard] = useState<'marketplace' | 'facebook'>('marketplace');
     const [readState, setReadState] = useState<'all' | 'read' | 'unread'>('all');
@@ -336,7 +346,13 @@ export function MessagingPage() {
                                 >
                                     <List.Item
                                         onClick={() => setActiveId(c.id)}
-                                        style={{ cursor: 'pointer', padding: '10px 14px', background: c.id === activeId ? '#EFF6FF' : undefined }}
+                                        style={{
+                                            cursor: 'pointer',
+                                            padding: '10px 14px',
+                                            background: c.id === activeId
+                                                ? '#EFF6FF'
+                                                : c.unread_count > 0 ? '#F0FDF4' : undefined,
+                                        }}
                                     >
                                         <List.Item.Meta
                                             avatar={<Avatar src={c.buyer_avatar_url ?? undefined}>{(c.buyer_name ?? c.buyer_external_id ?? '?').slice(0, 1).toUpperCase()}</Avatar>}
@@ -344,7 +360,7 @@ export function MessagingPage() {
                                                 <Space size={6} style={{ width: '100%', justifyContent: 'space-between' }}>
                                                     <Space size={6}>
                                                         <Badge count={c.unread_count} size="small" />
-                                                        <Text strong ellipsis style={{ maxWidth: 120 }}>{c.buyer_name ?? c.buyer_external_id}</Text>
+                                                        <Text strong={c.unread_count > 0} ellipsis style={{ maxWidth: 120 }}>{c.buyer_name ?? c.buyer_external_id}</Text>
                                                         <Tag color="blue" style={{ marginInlineEnd: 0 }}>{providerLabel(c.provider)}</Tag>
                                                     </Space>
                                                     <Dropdown
@@ -402,6 +418,9 @@ export function MessagingPage() {
                             <div style={{ flex: 1 }}>
                                 <Text strong>{active?.buyer_name ?? active?.buyer_external_id}</Text>{' '}
                                 <Tag color="blue">{providerLabel(active?.provider ?? '')}</Tag>
+                                {active?.has_phone && active?.detected_phone && (
+                                    <Tag icon={<PhoneOutlined />} color="green" style={{ marginInlineStart: 4 }}>{active.detected_phone}</Tag>
+                                )}
                                 {active?.channel_account_name && (
                                     <Text type="secondary" style={{ marginInlineStart: 4 }}>· {active.channel_account_name}</Text>
                                 )}
@@ -434,7 +453,9 @@ export function MessagingPage() {
                                                 </div>
                                             ))}
                                             {m.body != null && <div style={{ whiteSpace: 'pre-wrap' }}>{m.body}</div>}
-                                            {m.body == null && (m.attachments ?? []).length === 0 && <div>{`[${m.kind}]`}</div>}
+                                            {m.body == null && (m.attachments ?? []).length === 0 && (
+                                                <div style={{ fontStyle: 'italic', opacity: 0.7 }}>{KIND_LABEL[m.kind] ?? m.kind}</div>
+                                            )}
                                             {m.direction === 'outbound' && (
                                                 <div style={{ fontSize: 10, opacity: 0.8, textAlign: 'right' }}>
                                                     {DELIVERY_STATUS_LABEL[m.delivery_status ?? ''] ?? m.delivery_status}
