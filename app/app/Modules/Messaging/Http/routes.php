@@ -4,6 +4,7 @@ use CMBcoreSeller\Modules\Messaging\Http\Controllers\AdminAiProviderController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\AiSuggestionController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\AutoReplyRuleController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\ConversationController;
+use CMBcoreSeller\Modules\Messaging\Http\Controllers\FacebookCommentController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\FacebookOAuthController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\KnowledgeController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\MessageController;
@@ -127,6 +128,16 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
         Route::post('tags', [TagController::class, 'store'])->name('messaging.tags.store');                  // messaging.reply
         Route::patch('tags/{id}', [TagController::class, 'update'])->whereNumber('id')->name('messaging.tags.update');    // messaging.reply
         Route::delete('tags/{id}', [TagController::class, 'destroy'])->whereNumber('id')->name('messaging.tags.destroy'); // messaging.reply
+
+        // --- Facebook comment moderation ------------------------------------
+        Route::post('conversations/{id}/comment/hide', [FacebookCommentController::class, 'hide'])
+            ->whereNumber('id')->name('messaging.comment.hide');
+        Route::delete('conversations/{id}/comment', [FacebookCommentController::class, 'destroy'])
+            ->whereNumber('id')->name('messaging.comment.destroy');
+        Route::post('conversations/{id}/comment/reply', [FacebookCommentController::class, 'reply'])
+            ->whereNumber('id')->name('messaging.comment.reply');
+        Route::post('conversations/{id}/comment/private-reply', [FacebookCommentController::class, 'privateReply'])
+            ->whereNumber('id')->name('messaging.comment.private_reply');
 
         // --- Auto-reply rules (S5) -----------------------------------------
         Route::get('auto-reply-rules', [AutoReplyRuleController::class, 'index'])

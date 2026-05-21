@@ -630,6 +630,58 @@ class FacebookPageConnector implements MessagingConnector
         );
     }
 
+    // --- Comment moderation -----------------------------------------------
+
+    public function hideComment(MessagingAuthContext $auth, string $commentId, bool $hidden): void
+    {
+        $res = Http::post($this->graphUrl($commentId), [
+            'is_hidden' => $hidden,
+            'access_token' => $auth->accessToken,
+        ]);
+
+        if (! $res->successful()) {
+            $this->throwGraphError($res, 'hideComment');
+        }
+    }
+
+    public function deleteComment(MessagingAuthContext $auth, string $commentId): void
+    {
+        $res = Http::delete($this->graphUrl($commentId), [
+            'access_token' => $auth->accessToken,
+        ]);
+
+        if (! $res->successful()) {
+            $this->throwGraphError($res, 'deleteComment');
+        }
+    }
+
+    public function replyToComment(MessagingAuthContext $auth, string $commentId, string $message): string
+    {
+        $res = Http::post($this->graphUrl($commentId.'/comments'), [
+            'message' => $message,
+            'access_token' => $auth->accessToken,
+        ]);
+
+        if (! $res->successful()) {
+            $this->throwGraphError($res, 'replyToComment');
+        }
+
+        return (string) $res->json('id');
+    }
+
+    public function privateReplyToComment(MessagingAuthContext $auth, string $commentId, string $message): void
+    {
+        $res = Http::post($this->graphUrl('me/messages'), [
+            'recipient' => ['comment_id' => $commentId],
+            'message' => ['text' => $message],
+            'access_token' => $auth->accessToken,
+        ]);
+
+        if (! $res->successful()) {
+            $this->throwGraphError($res, 'privateReplyToComment');
+        }
+    }
+
     // --- Internals --------------------------------------------------------
 
     /** @param array<string,mixed> $body */

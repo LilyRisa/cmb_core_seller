@@ -194,6 +194,26 @@ class OutboundWindowGuardTest extends TestCase
             {
                 return ['name' => null, 'avatar_url' => null];
             }
+
+            public function hideComment(MessagingAuthContext $auth, string $commentId, bool $hidden): void
+            {
+                throw new \RuntimeException('not supported');
+            }
+
+            public function deleteComment(MessagingAuthContext $auth, string $commentId): void
+            {
+                throw new \RuntimeException('not supported');
+            }
+
+            public function replyToComment(MessagingAuthContext $auth, string $commentId, string $message): string
+            {
+                throw new \RuntimeException('not supported');
+            }
+
+            public function privateReplyToComment(MessagingAuthContext $auth, string $commentId, string $message): void
+            {
+                throw new \RuntimeException('not supported');
+            }
         };
     }
 

@@ -257,6 +257,26 @@ class ShopeeChatConnector implements MessagingConnector
         return new OutboundWindowPolicyDTO(freeWindowHours: null, requiresTag: false);
     }
 
+    public function hideComment(MessagingAuthContext $auth, string $commentId, bool $hidden): void
+    {
+        throw UnsupportedOperation::for($this->code(), 'hideComment');
+    }
+
+    public function deleteComment(MessagingAuthContext $auth, string $commentId): void
+    {
+        throw UnsupportedOperation::for($this->code(), 'deleteComment');
+    }
+
+    public function replyToComment(MessagingAuthContext $auth, string $commentId, string $message): string
+    {
+        throw UnsupportedOperation::for($this->code(), 'replyToComment');
+    }
+
+    public function privateReplyToComment(MessagingAuthContext $auth, string $commentId, string $message): void
+    {
+        throw UnsupportedOperation::for($this->code(), 'privateReplyToComment');
+    }
+
     /**
      * Gửi 1 tin qua Shopee Seller Chat send_message. `to_id` = id buyer
      * (external_conversation_id). Ký + envelope lỗi do ShopeeClient lo.

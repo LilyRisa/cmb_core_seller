@@ -168,4 +168,30 @@ interface MessagingConnector
 
     /** Outbound window rule — `OutboundWindowGuard` đọc trước khi cho phép gửi. */
     public function outboundWindow(): OutboundWindowPolicyDTO;
+
+    // --- Comment moderation (Facebook) -----------------------------------
+
+    /**
+     * Ẩn hoặc hiện 1 comment trên bài viết Facebook.
+     * Connector không hỗ trợ ⇒ ném {@see UnsupportedOperation}.
+     */
+    public function hideComment(MessagingAuthContext $auth, string $commentId, bool $hidden): void;
+
+    /**
+     * Xoá vĩnh viễn 1 comment trên bài viết Facebook.
+     * Connector không hỗ trợ ⇒ ném {@see UnsupportedOperation}.
+     */
+    public function deleteComment(MessagingAuthContext $auth, string $commentId): void;
+
+    /**
+     * Trả lời công khai 1 comment (tạo sub-comment). Trả về comment id mới.
+     * Connector không hỗ trợ ⇒ ném {@see UnsupportedOperation}.
+     */
+    public function replyToComment(MessagingAuthContext $auth, string $commentId, string $message): string;
+
+    /**
+     * Nhắn tin riêng tư cho người bình luận (Facebook Private Reply).
+     * Connector không hỗ trợ ⇒ ném {@see UnsupportedOperation}.
+     */
+    public function privateReplyToComment(MessagingAuthContext $auth, string $commentId, string $message): void;
 }

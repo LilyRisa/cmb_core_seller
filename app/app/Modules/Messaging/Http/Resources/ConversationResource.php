@@ -26,6 +26,13 @@ class ConversationResource extends JsonResource
             'id' => $this->id,
             'channel_account_id' => $this->channel_account_id,
             'provider' => $this->provider,
+            'thread_type' => $this->thread_type ?? 'message',
+            'comment' => $this->thread_type === 'comment' ? [
+                'post_message' => $this->meta['fb_post_message'] ?? null,
+                'post_permalink' => $this->meta['fb_post_permalink'] ?? null,
+                'hidden' => (bool) ($this->meta['comment_hidden'] ?? false),
+                'private_replied' => ! empty($this->meta['private_replied_at']),
+            ] : null,
             // Nguồn gốc hội thoại: nhóm kênh (marketplace/facebook/internal) + tên
             // shop/page cụ thể — FE tách "tin nhắn sàn" vs "tin nhắn Facebook" + hiện
             // rõ tin đến từ đâu (SPEC-0024 §3.1).
