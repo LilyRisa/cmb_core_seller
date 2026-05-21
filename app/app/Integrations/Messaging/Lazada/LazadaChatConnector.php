@@ -49,7 +49,7 @@ class LazadaChatConnector implements MessagingConnector
     public function capabilities(): array
     {
         return [
-            'inbound.webhook' => true,
+            'inbound.webhook' => false,   // Lazada IM has NO push webhook — polling only (SPEC-0024 §8)
             'inbound.polling' => true,
             'outbound.text' => true,
             'outbound.image' => true,
@@ -186,6 +186,7 @@ class LazadaChatConnector implements MessagingConnector
 
         $params = [
             'app_key' => (string) ($cfg['app_key'] ?? ''),
+            'partner_id' => (string) ($cfg['partner_id'] ?? 'lazop-sdk-php-20180422'),
             'access_token' => $auth->accessToken,
             'sign_method' => 'sha256',
             'timestamp' => (string) (int) (microtime(true) * 1000),
@@ -278,6 +279,7 @@ class LazadaChatConnector implements MessagingConnector
 
         $params = [
             'app_key' => (string) ($cfg['app_key'] ?? ''),
+            'partner_id' => (string) ($cfg['partner_id'] ?? 'lazop-sdk-php-20180422'),
             'access_token' => $auth->accessToken,
             'sign_method' => 'sha256',
             'timestamp' => (string) (int) (microtime(true) * 1000),
@@ -393,7 +395,8 @@ class LazadaChatConnector implements MessagingConnector
      */
     private const TEMPLATE_TEXT = 1;
 
-    private const TEMPLATE_IMAGE = 2;
+    // template_id 3 = image per official Lazada IM Open API doc (GetMessages / SendMessage reference).
+    private const TEMPLATE_IMAGE = 3;
 
     public function sendText(MessagingAuthContext $auth, string $externalConversationId, string $body, array $opts = []): SendResultDTO
     {
@@ -442,6 +445,7 @@ class LazadaChatConnector implements MessagingConnector
 
         $params = array_merge([
             'app_key' => (string) ($cfg['app_key'] ?? ''),
+            'partner_id' => (string) ($cfg['partner_id'] ?? 'lazop-sdk-php-20180422'),
             'access_token' => $auth->accessToken,
             'sign_method' => 'sha256',
             'timestamp' => (string) (int) (microtime(true) * 1000),

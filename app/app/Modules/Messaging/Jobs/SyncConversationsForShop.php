@@ -101,7 +101,6 @@ class SyncConversationsForShop implements ShouldBeUnique, ShouldQueue
 
         try {
             $convCursor = null;
-            $convCount = 0;
             $msgCount = 0;
             $doneConvs = 0;
             $maxConvPages = 50;
@@ -116,6 +115,7 @@ class SyncConversationsForShop implements ShouldBeUnique, ShouldQueue
                 foreach ($page->items as $conv) {
                     // Page messages for this conversation (max 20 pages).
                     $mCursor = null;
+                    $prevMCursor = null;
                     $maxMsgPages = 20;
 
                     for ($mPage = 0; $mPage < $maxMsgPages; $mPage++) {
@@ -140,11 +140,15 @@ class SyncConversationsForShop implements ShouldBeUnique, ShouldQueue
                         if (! $mPageResult->hasMore || ! $mPageResult->nextCursor) {
                             break;
                         }
+                        // Defensive: stop if cursor didn't advance (prevents infinite re-fetch of same page).
+                        if ($mPageResult->nextCursor === $prevMCursor) {
+                            break;
+                        }
+                        $prevMCursor = $mCursor;
                         $mCursor = $mPageResult->nextCursor;
                     }
 
                     $doneConvs++;
-                    $convCount++;
                     $meta->sync_done_conversations = $doneConvs;
                     $meta->sync_message_count = $msgCount;
                     $meta->save();
@@ -157,6 +161,10 @@ class SyncConversationsForShop implements ShouldBeUnique, ShouldQueue
                 if (! $page->hasMore || ! $page->nextCursor) {
                     break;
                 }
+                // Defensive: stop if conversation cursor didn't advance (prevents infinite re-fetch of same page).
+                if ($page->nextCursor === $convCursor) {
+                    break;
+                }
                 $convCursor = $page->nextCursor;
             }
 
@@ -166,7 +174,7 @@ class SyncConversationsForShop implements ShouldBeUnique, ShouldQueue
                 'sync_status' => MessagingAccountMeta::SYNC_DONE,
                 'sync_finished_at' => now(),
                 'sync_cursor' => null,
-                'sync_total_conversations' => $convCount,
+                'sync_total_conversations' => $doneConvs,
                 'sync_done_conversations' => $doneConvs,
                 'sync_message_count' => $msgCount,
             ]);

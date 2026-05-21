@@ -235,7 +235,38 @@ class TikTokLazadaChatConnectorTest extends TestCase
                 && ($d['template_id'] ?? null) === '1'   // text template
                 && ($d['session_id'] ?? null) === 'SESS_1'
                 && ($d['txt'] ?? null) === 'Xin chào'
-                && ! empty($d['sign']);
+                && ! empty($d['sign'])
+                && ! empty($d['partner_id']);   // mandatory system param
+        });
+    }
+
+    public function test_lazada_send_image_uses_template_3(): void
+    {
+        // Official Lazada IM doc: template_id 3 = image (img_url+width+height content).
+        config(['integrations.lazada.app_key' => 'LK', 'integrations.lazada.app_secret' => 'LZSEC', 'integrations.lazada.base_url' => 'https://api.lazada.vn/rest']);
+        Http::fake(['api.lazada.vn/*' => Http::response(['code' => '0', 'data' => ['message_id' => 'LZ_IMG_OUT']], 200)]);
+
+        $media = new MediaRefDTO(
+            kind: MessageKind::Image,
+            mime: 'image/jpeg',
+            externalUrl: 'https://img.lazada.vn/photo.jpg',
+            width: 800,
+            height: 600,
+        );
+
+        $auth = new MessagingAuthContext(channelAccountId: 1, provider: 'lazada_chat', externalShopId: 'SELLER_1', accessToken: 'TOK');
+        $result = (new LazadaChatConnector)->sendMedia($auth, 'SESS_1', $media);
+
+        $this->assertSame('LZ_IMG_OUT', $result->externalMessageId);
+        Http::assertSent(function ($r) {
+            $d = $r->data();
+
+            return str_contains($r->url(), '/im/message/send')
+                && ($d['template_id'] ?? null) === '3'   // image template per official Lazada IM doc
+                && ($d['img_url'] ?? null) === 'https://img.lazada.vn/photo.jpg'
+                && ($d['session_id'] ?? null) === 'SESS_1'
+                && ! empty($d['sign'])
+                && ! empty($d['partner_id']);   // mandatory system param
         });
     }
 
@@ -245,6 +276,14 @@ class TikTokLazadaChatConnectorTest extends TestCase
     {
         $caps = (new LazadaChatConnector)->capabilities();
         $this->assertTrue($caps['inbound.polling']);
+    }
+
+    public function test_lazada_inbound_webhook_false(): void
+    {
+        // Lazada IM has NO push webhook — polling is the only inbound path.
+        $caps = (new LazadaChatConnector)->capabilities();
+        $this->assertFalse($caps['inbound.webhook'], 'inbound.webhook must be false — Lazada IM has no webhook push');
+        $this->assertTrue($caps['inbound.polling'], 'inbound.polling must be true');
     }
 
     public function test_lazada_fetch_conversations_parses_sessions(): void
@@ -331,12 +370,13 @@ class TikTokLazadaChatConnectorTest extends TestCase
         $this->assertStringContainsString('SESS_B', $page->nextCursor);
         $this->assertStringContainsString('1716100000000', $page->nextCursor);
 
-        // Assert the GET request was sent to the correct endpoint with sign
+        // Assert the GET request was sent to the correct endpoint with sign and mandatory partner_id.
         Http::assertSent(function ($r) {
             return str_contains($r->url(), '/im/session/list')
                 && str_contains($r->url(), 'sign=')
                 && str_contains($r->url(), 'app_key=K')
-                && str_contains($r->url(), 'access_token=TOKEN');
+                && str_contains($r->url(), 'access_token=TOKEN')
+                && str_contains($r->url(), 'partner_id=');
         });
     }
 
@@ -442,11 +482,12 @@ class TikTokLazadaChatConnectorTest extends TestCase
         $this->assertFalse($page->hasMore);
         $this->assertNull($page->nextCursor);
 
-        // Assert GET to correct endpoint
+        // Assert GET to correct endpoint with mandatory partner_id in signed params.
         Http::assertSent(function ($r) {
             return str_contains($r->url(), '/im/message/list')
                 && str_contains($r->url(), 'session_id=SESS_X')
-                && str_contains($r->url(), 'sign=');
+                && str_contains($r->url(), 'sign=')
+                && str_contains($r->url(), 'partner_id=');
         });
     }
 }
