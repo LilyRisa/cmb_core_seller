@@ -141,6 +141,7 @@ class ShopeeChatConnectorTest extends TestCase
 
     public function test_send_template_unsupported(): void
     {
+        Http::preventStrayRequests(); // template không được gửi HTTP — nếu sau này đổi hành vi, test fail to.
         $auth = new MessagingAuthContext(channelAccountId: 1, provider: 'shopee', externalShopId: '55', accessToken: 'ACCESS_1');
 
         $this->expectException(UnsupportedOperation::class);
