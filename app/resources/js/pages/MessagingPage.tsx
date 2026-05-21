@@ -27,6 +27,31 @@ import { TagManagerModal } from '@/components/TagManagerModal';
 
 const { Text } = Typography;
 
+/** Renders plain text with http(s) URLs as clickable links. */
+function LinkifiedText({ text }: { text: string }) {
+    const URL_RE = /(https?:\/\/[^\s]+)/g;
+    const parts = text.split(URL_RE);
+    return (
+        <>
+            {parts.map((part, i) =>
+                URL_RE.test(part) ? (
+                    <a
+                        key={i}
+                        href={part}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: 'inherit', textDecoration: 'underline' }}
+                    >
+                        {part}
+                    </a>
+                ) : (
+                    part
+                ),
+            )}
+        </>
+    );
+}
+
 /**
  * Hộp thư hợp nhất 3 cột (SPEC-0024 §3.1): danh sách hội thoại | luồng tin +
  * ô soạn | panel thông tin. Realtime = polling fallback (Reverb là follow-up).
@@ -452,7 +477,7 @@ export function MessagingPage() {
                                                     )}
                                                 </div>
                                             ))}
-                                            {m.body != null && <div style={{ whiteSpace: 'pre-wrap' }}>{m.body}</div>}
+                                            {m.body != null && <div style={{ whiteSpace: 'pre-wrap' }}><LinkifiedText text={m.body} /></div>}
                                             {m.body == null && (m.attachments ?? []).length === 0 && (
                                                 <div style={{ fontStyle: 'italic', opacity: 0.7 }}>{KIND_LABEL[m.kind] ?? m.kind}</div>
                                             )}

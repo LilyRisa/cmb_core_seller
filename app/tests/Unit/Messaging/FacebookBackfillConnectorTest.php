@@ -157,4 +157,105 @@ class FacebookBackfillConnectorTest extends TestCase
 
         Http::assertSent(fn ($r) => str_contains($r->url(), '/t_aaa'));
     }
+
+    public function test_fetch_messages_sticker_creates_image_attachment(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response([
+                'id' => 't_sticker',
+                'messages' => ['data' => [[
+                    'id' => 'm_sticker',
+                    'message' => '',
+                    'created_time' => '2026-05-20T11:00:00+0000',
+                    'from' => ['id' => 'PSID_999', 'name' => 'A'],
+                    'sticker' => 'https://external.xx.fbcdn.net/sticker/369239263222822.png',
+                ]]],
+            ], 200),
+        ]);
+
+        $page = $this->connector()->fetchMessages($this->auth(), 'PSID_999', ['thread_id' => 't_sticker', 'pageSize' => 50]);
+
+        $this->assertCount(1, $page->items);
+        $msg = $page->items[0];
+        $this->assertSame('inbound', $msg->direction->value);
+        $this->assertSame('image', $msg->kind->value);
+        $this->assertCount(1, $msg->attachments);
+        $att = $msg->attachments[0];
+        $this->assertSame('https://external.xx.fbcdn.net/sticker/369239263222822.png', $att->externalUrl);
+        $this->assertSame('image/png', $att->mime);
+        $this->assertSame('sticker', $att->filename);
+        $this->assertNull($msg->body);
+
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'sticker'));
+    }
+
+    public function test_fetch_messages_shared_link_sets_body(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response([
+                'id' => 't_share',
+                'messages' => ['data' => [[
+                    'id' => 'm_share',
+                    'message' => '',
+                    'created_time' => '2026-05-20T12:00:00+0000',
+                    'from' => ['id' => 'PSID_999', 'name' => 'A'],
+                    'attachments' => ['data' => [[
+                        'type' => 'share',
+                        'title' => 'Sản phẩm hay',
+                        'url' => 'https://www.facebook.com/share/p/abc123',
+                    ]]],
+                ]]],
+            ], 200),
+        ]);
+
+        $page = $this->connector()->fetchMessages($this->auth(), 'PSID_999', ['thread_id' => 't_share', 'pageSize' => 50]);
+
+        $this->assertCount(1, $page->items);
+        $msg = $page->items[0];
+        $this->assertSame('text', $msg->kind->value);
+        $this->assertCount(0, $msg->attachments);
+        $this->assertSame('Sản phẩm hay https://www.facebook.com/share/p/abc123', $msg->body);
+    }
+
+    public function test_fetch_messages_shared_link_without_title_uses_url_only(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response([
+                'id' => 't_share2',
+                'messages' => ['data' => [[
+                    'id' => 'm_share2',
+                    'message' => '',
+                    'created_time' => '2026-05-20T12:01:00+0000',
+                    'from' => ['id' => 'PSID_999', 'name' => 'A'],
+                    'attachments' => ['data' => [[
+                        'type' => 'fallback',
+                        'url' => 'https://example.com/article',
+                    ]]],
+                ]]],
+            ], 200),
+        ]);
+
+        $page = $this->connector()->fetchMessages($this->auth(), 'PSID_999', ['thread_id' => 't_share2', 'pageSize' => 50]);
+
+        $this->assertCount(1, $page->items);
+        $msg = $page->items[0];
+        $this->assertSame('text', $msg->kind->value);
+        $this->assertSame('https://example.com/article', $msg->body);
+    }
+
+    public function test_fetch_messages_graph_fields_include_sticker_and_attachment_extras(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response(['id' => 't_x', 'messages' => ['data' => []]], 200),
+        ]);
+
+        $this->connector()->fetchMessages($this->auth(), 'PSID_999', ['thread_id' => 't_x', 'pageSize' => 20]);
+
+        Http::assertSent(function ($r) {
+            $fields = urldecode($r->url());
+            return str_contains($fields, 'sticker')
+                && str_contains($fields, 'type')
+                && str_contains($fields, 'title');
+        });
+    }
 }

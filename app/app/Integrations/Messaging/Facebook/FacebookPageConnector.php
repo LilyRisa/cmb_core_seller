@@ -234,15 +234,78 @@ class FacebookPageConnector implements MessagingConnector
         $occurredAt = isset($event['timestamp']) ? CarbonImmutable::createFromTimestampMs((int) $event['timestamp']) : null;
 
         if (isset($event['message']) && empty($event['message']['is_echo'])) {
+            $msg = (array) $event['message'];
+
+            // Normalize body: plain text first.
+            $body = isset($msg['text']) && (string) $msg['text'] !== '' ? (string) $msg['text'] : null;
+            $attachments = [];
+            $kind = MessageKind::Text;
+
+            // Sticker: Facebook sends `sticker_id` + an attachment with type=image and
+            // payload.sticker_id + payload.url. Treat the attachment url as the sticker image.
+            foreach ((array) ($msg['attachments'] ?? []) as $watt) {
+                $wtype = (string) ($watt['type'] ?? '');
+                $payload = (array) ($watt['payload'] ?? []);
+                if ($wtype === 'image' && ! empty($payload['sticker_id'])) {
+                    $stickerUrl = isset($payload['url']) && (string) $payload['url'] !== '' ? (string) $payload['url'] : null;
+                    $attachments[] = new MediaRefDTO(
+                        kind: MessageKind::Image,
+                        mime: 'image/png',
+                        externalUrl: $stickerUrl,
+                        filename: 'sticker',
+                    );
+                    $kind = MessageKind::Image;
+
+                    continue;
+                }
+                if ($wtype === 'fallback' || $wtype === 'share') {
+                    // Shared link: populate body if no text yet.
+                    $attUrl = (string) ($payload['url'] ?? '');
+                    if ($attUrl !== '' && $body === null) {
+                        $attTitle = isset($payload['title']) && (string) $payload['title'] !== ''
+                            ? (string) $payload['title']
+                            : null;
+                        $body = $attTitle !== null ? $attTitle.' '.$attUrl : $attUrl;
+                    }
+
+                    continue;
+                }
+                // Other attachment types (image/video/audio/file without sticker).
+                $mime = match ($wtype) {
+                    'image' => 'image/jpeg',
+                    'video' => 'video/mp4',
+                    'audio' => 'audio/mpeg',
+                    default => 'application/octet-stream',
+                };
+                $attKind = match ($wtype) {
+                    'image' => MessageKind::Image,
+                    'video' => MessageKind::Video,
+                    default => MessageKind::File,
+                };
+                $attUrl = isset($payload['url']) && (string) $payload['url'] !== '' ? (string) $payload['url'] : null;
+                $attachments[] = new MediaRefDTO(
+                    kind: $attKind,
+                    mime: $mime,
+                    externalUrl: $attUrl,
+                    filename: null,
+                );
+                if ($kind === MessageKind::Text) {
+                    $kind = $attKind;
+                }
+            }
+
             return new MessagingWebhookEventDTO(
                 provider: $this->code(),
                 type: MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED,
                 externalShopId: $pageId,
                 externalConversationId: $senderId,            // PSID buyer = conversation
-                externalMessageId: (string) ($event['message']['mid'] ?? ''),
+                externalMessageId: (string) ($msg['mid'] ?? ''),
                 buyerExternalId: $senderId,
                 occurredAt: $occurredAt,
                 raw: $event,
+                kind: $kind,
+                body: $body,
+                attachments: $attachments,
             );
         }
         if (isset($event['delivery'])) {
@@ -319,7 +382,7 @@ class FacebookPageConnector implements MessagingConnector
         $limit = (int) ($query['pageSize'] ?? 50);
 
         $res = Http::timeout(30)->get($this->graphUrl($threadId), [
-            'fields' => "messages.limit({$limit}){id,message,created_time,from,attachments{mime_type,name,image_data,video_data,file_url}}",
+            'fields' => "messages.limit({$limit}){id,message,created_time,from,sticker,attachments{mime_type,name,image_data,video_data,file_url,type,title,url}}",
             'access_token' => $auth->accessToken,
         ]);
         if (! $res->successful()) {
@@ -331,10 +394,44 @@ class FacebookPageConnector implements MessagingConnector
             $fromId = (string) ($row['from']['id'] ?? '');
             $direction = $fromId === $auth->externalShopId ? MessageDirection::Outbound : MessageDirection::Inbound;
 
+            $body = ($row['message'] ?? '') !== '' ? (string) $row['message'] : null;
             $attachments = [];
+
+            // Sticker: `sticker` field is a direct CDN URL string.
+            if (! empty($row['sticker'])) {
+                $attachments[] = new MediaRefDTO(
+                    kind: MessageKind::Image,
+                    mime: 'image/png',
+                    externalUrl: (string) $row['sticker'],
+                    filename: 'sticker',
+                );
+            }
+
+            // Shared links / fallback attachments from the `attachments` sub-field.
+            $shareUrl = null;
             foreach ((array) ($row['attachments']['data'] ?? []) as $att) {
+                $type = (string) ($att['type'] ?? '');
+                if ($type === 'fallback' || $type === 'share') {
+                    // Shared link: carry title + url — linkify body instead of a media attachment.
+                    $attUrl = (string) ($att['url'] ?? '');
+                    if ($attUrl !== '' && $shareUrl === null) {
+                        $attTitle = isset($att['title']) && (string) $att['title'] !== ''
+                            ? (string) $att['title']
+                            : null;
+                        $shareUrl = $attTitle !== null ? $attTitle.' '.$attUrl : $attUrl;
+                    }
+
+                    continue;
+                }
                 $attachments[] = $this->mapBackfillAttachment((array) $att);
             }
+
+            // When the message text is empty, fall back to the share URL as the body
+            // so the FE can linkify it.
+            if ($body === null && $shareUrl !== null) {
+                $body = $shareUrl;
+            }
+
             $kind = $attachments !== [] ? $attachments[0]->kind : MessageKind::Text;
 
             $items[] = new MessageDTO(
@@ -343,7 +440,7 @@ class FacebookPageConnector implements MessagingConnector
                 buyerExternalId: $externalConversationId,
                 direction: $direction,
                 kind: $kind,
-                body: ($row['message'] ?? '') !== '' ? (string) $row['message'] : null,
+                body: $body,
                 attachments: $attachments,
                 sentAt: isset($row['created_time']) ? CarbonImmutable::parse($row['created_time']) : null,
                 raw: $row,
