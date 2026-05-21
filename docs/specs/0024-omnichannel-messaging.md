@@ -103,6 +103,8 @@ NV chăm sóc khách hàng (CSKH) hiện phải mở **4 ứng dụng** (Shopee 
 4. Active / inactive.
 5. Tenant trong `/settings/messaging` thấy dropdown các provider `active`, chọn 1.
 
+> **Cập nhật (2026-05-21) — adapter động (đã triển khai).** Tách `code` (slug **instance tự do**, vẫn là PK, vd `deepseek-prod`/`qwen-cheap`/`openrouter-fb`) khỏi cột mới **`adapter`** (`anthropic` | `openai_compatible` | `manual`) — `adapter` chọn connector, nên thêm được **không giới hạn** provider. Gemini/DeepSeek/Qwen/OpenRouter đều là instance của `openai_compatible` (khác `base_url`/`api_key`/`default_model`; Gemini dùng endpoint OpenAI-compat). Registry resolve theo `adapter` và **inject instance code** vào connector (`container->makeWith(['code'=>$code])`). Config sống ở **bảng `ai_providers`** (KHÔNG còn `system_settings`); `capabilities` đọc từ connector class (admin không tự khai). Hardening: `base_url` bắt buộc HTTPS + chặn host nội bộ (rule `SafeProviderUrl`, chống SSRF); rate-limit `ai-suggestion` 20/phút/tenant; circuit breaker cho intent-classify (ngừng gọi provider lỗi sau 5 lần/2 phút). Chi tiết: `docs/superpowers/specs/2026-05-21-ai-providers-multi-adapter-and-hardening-design.md` + plan cùng tên trong `docs/superpowers/plans/`.
+
 ### 3.4 Owner upload tài liệu AI training
 1. `/messaging/knowledge` → upload PDF / DOCX / TXT / URL.
 2. Backend chunk + embed → ghi `ai_knowledge_chunks`.
