@@ -230,6 +230,9 @@ class TikTokLazadaChatConnectorTest extends TestCase
 
         $this->assertSame('TT_IMG_OUT', $result->externalMessageId);
 
+        // Assert byte-fetch was sent to our signed storage URL.
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'our-signed.internal'));
+
         // Assert upload was called at /images/upload with multipart and access token header.
         Http::assertSent(fn ($r) => str_contains($r->url(), '/customer_service/202309/images/upload')
             && $r->hasHeader('x-tts-access-token', 'TOK')
@@ -337,6 +340,9 @@ class TikTokLazadaChatConnectorTest extends TestCase
         $result = (new LazadaChatConnector)->sendMedia($auth, 'SESS_1', $media);
 
         $this->assertSame('LZ_IMG_OUT', $result->externalMessageId);
+
+        // Assert byte-fetch was sent to our signed storage URL.
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'our-signed.internal'));
 
         // Assert upload was called at /image/upload.
         Http::assertSent(fn ($r) => str_contains($r->url(), '/image/upload')

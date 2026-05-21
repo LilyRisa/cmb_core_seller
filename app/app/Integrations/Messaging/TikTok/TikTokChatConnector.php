@@ -223,7 +223,11 @@ class TikTokChatConnector implements MessagingConnector
             throw new \RuntimeException('TikTok sendMedia cần externalUrl (signed) để fetch bytes ảnh');
         }
 
-        $bytes = Http::timeout(30)->get($media->externalUrl)->body();
+        $fetch = Http::timeout(30)->get($media->externalUrl);
+        if (! $fetch->successful()) {
+            throw new \RuntimeException('Không tải được media để upload: HTTP '.$fetch->status());
+        }
+        $bytes = $fetch->body();
 
         $cfg = (array) config('integrations.tiktok', []);
         $appKey = (string) ($cfg['app_key'] ?? '');

@@ -416,7 +416,11 @@ class LazadaChatConnector implements MessagingConnector
             throw new \RuntimeException('Lazada sendMedia cần externalUrl (signed) để fetch bytes ảnh');
         }
 
-        $bytes = Http::timeout(30)->get($media->externalUrl)->body();
+        $fetch = Http::timeout(30)->get($media->externalUrl);
+        if (! $fetch->successful()) {
+            throw new \RuntimeException('Không tải được media để upload: HTTP '.$fetch->status());
+        }
+        $bytes = $fetch->body();
 
         $cfg = (array) config('integrations.lazada', []);
         $base = rtrim((string) ($cfg['base_url'] ?? 'https://api.lazada.vn/rest'), '/');
@@ -436,8 +440,9 @@ class LazadaChatConnector implements MessagingConnector
             ->timeout(30)
             ->post($base.$uploadPath.'?'.http_build_query($uploadSysParams));
 
-        if (! $uploadResp->successful()) {
-            throw new \RuntimeException('Lazada image/upload HTTP error: '.$uploadResp->body());
+        $uploadCode = $uploadResp->json('code');
+        if (! $uploadResp->successful() || ($uploadCode !== null && (string) $uploadCode !== '0' && (string) $uploadCode !== '')) {
+            throw new \RuntimeException('Lazada image/upload failed: '.$uploadResp->body());
         }
         $cdnUrl = $uploadResp->json('data.image.url');
         if (! $cdnUrl) {
