@@ -1,6 +1,6 @@
 # Thiết kế: Connector `shopee_chat` (Shopee Seller Chat) — SPEC-0024 / ADR-0017, ADR-0019
 
-> Trạng thái: **Đã duyệt thiết kế (2026-05-21)** — sẵn sàng viết plan.
+> Trạng thái: **Đã implement (2026-05-21)** — xem plan `docs/superpowers/plans/2026-05-21-shopee-chat-connector.md` + doc `docs/04-channels/shopee-chat-setup.md`.
 > Mục tiêu chất lượng: **shape-tested** (đúng tài liệu Shopee + unit-test `Http::fake`),
 > ngang `tiktok_chat`/`lazada_chat` — CHƯA verify sandbox thật (làm ở task riêng).
 
