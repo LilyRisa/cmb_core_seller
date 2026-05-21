@@ -52,6 +52,10 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
             ->whereNumber('id')->name('messaging.conversations.read');
         Route::post('conversations/{id}/unread', [ConversationController::class, 'markUnread'])
             ->whereNumber('id')->name('messaging.conversations.unread');
+        Route::post('conversations/{id}/block', [ConversationController::class, 'block'])
+            ->whereNumber('id')->name('messaging.conversations.block');      // messaging.reply
+        Route::delete('conversations/{id}/block', [ConversationController::class, 'unblock'])
+            ->whereNumber('id')->name('messaging.conversations.unblock');    // messaging.reply
         Route::patch('conversations/{id}', [ConversationController::class, 'update'])
             ->whereNumber('id')->name('messaging.conversations.update');
 

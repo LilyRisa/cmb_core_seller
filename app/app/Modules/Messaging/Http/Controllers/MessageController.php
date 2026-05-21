@@ -5,11 +5,18 @@ namespace CMBcoreSeller\Modules\Messaging\Http\Controllers;
 use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\OutboundWindowClosed;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
-use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Messaging\Exceptions\AttachmentInvalid;
 use CMBcoreSeller\Modules\Messaging\Http\Resources\MessageResource;
+use CMBcoreSeller\Modules\Messaging\Jobs\SendMessage;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
+use CMBcoreSeller\Modules\Messaging\Models\MessageAttachment;
+use CMBcoreSeller\Modules\Messaging\Models\MessageTemplate;
+use CMBcoreSeller\Modules\Messaging\Services\MediaRelayService;
+use CMBcoreSeller\Modules\Messaging\Services\OutboundMessageService;
 use CMBcoreSeller\Modules\Messaging\Services\OutboundWindowGuard;
+use CMBcoreSeller\Modules\Messaging\Services\TemplateContextBuilder;
+use CMBcoreSeller\Modules\Messaging\Services\TemplateResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -31,10 +38,10 @@ class MessageController extends Controller
     public function __construct(
         private MessagingRegistry $registry,
         private OutboundWindowGuard $guard,
-        private \CMBcoreSeller\Modules\Messaging\Services\TemplateResolver $templateResolver,
-        private \CMBcoreSeller\Modules\Messaging\Services\TemplateContextBuilder $templateContext,
-        private \CMBcoreSeller\Modules\Messaging\Services\MediaRelayService $media,
-        private \CMBcoreSeller\Modules\Messaging\Services\OutboundMessageService $outbound,
+        private TemplateResolver $templateResolver,
+        private TemplateContextBuilder $templateContext,
+        private MediaRelayService $media,
+        private OutboundMessageService $outbound,
     ) {}
 
     public function sendText(int $conversationId, Request $request): JsonResponse
@@ -47,6 +54,10 @@ class MessageController extends Controller
         ]);
 
         $conv = Conversation::query()->findOrFail($conversationId);
+
+        if ($blocked = $this->assertNotBlocked($conv)) {
+            return $blocked;
+        }
 
         // Resolve connector + window guard
         if (! $this->registry->has($conv->provider)) {
@@ -102,7 +113,7 @@ class MessageController extends Controller
         ]);
 
         $conv = Conversation::query()->findOrFail($conversationId);
-        $template = \CMBcoreSeller\Modules\Messaging\Models\MessageTemplate::query()
+        $template = MessageTemplate::query()
             ->where('id', $data['template_id'])
             ->where('enabled', true)
             ->firstOrFail();
@@ -145,6 +156,11 @@ class MessageController extends Controller
         ]);
 
         $conv = Conversation::query()->findOrFail($conversationId);
+
+        if ($blocked = $this->assertNotBlocked($conv)) {
+            return $blocked;
+        }
+
         $kind = $data['kind'];
 
         if (! $this->registry->has($conv->provider)) {
@@ -171,7 +187,7 @@ class MessageController extends Controller
         // Validate + lưu file. Sai MIME/size ⇒ 422 ATTACHMENT_INVALID.
         try {
             $stored = $this->media->storeUpload((int) $conv->tenant_id, (int) $conv->id, $request->file('file'), $kind);
-        } catch (\CMBcoreSeller\Modules\Messaging\Exceptions\AttachmentInvalid $e) {
+        } catch (AttachmentInvalid $e) {
             return response()->json([
                 'error' => ['code' => 'ATTACHMENT_INVALID', 'message' => $e->getMessage()],
             ], 422);
@@ -192,7 +208,7 @@ class MessageController extends Controller
                 'meta' => array_filter(['message_tag' => $data['message_tag'] ?? null]),
             ]);
 
-            \CMBcoreSeller\Modules\Messaging\Models\MessageAttachment::create([
+            MessageAttachment::create([
                 'tenant_id' => $conv->tenant_id,
                 'message_id' => $message->id,
                 'kind' => $kind,
@@ -201,7 +217,7 @@ class MessageController extends Controller
                 'storage_path' => $stored['storage_path'],
                 'checksum' => $stored['checksum'],
                 'filename' => $stored['filename'],
-                'status' => \CMBcoreSeller\Modules\Messaging\Models\MessageAttachment::STATUS_DOWNLOADED,
+                'status' => MessageAttachment::STATUS_DOWNLOADED,
             ]);
 
             $conv->update([
@@ -214,10 +230,21 @@ class MessageController extends Controller
             return $message;
         });
 
-        \CMBcoreSeller\Modules\Messaging\Jobs\SendMessage::dispatch($message->id);
+        SendMessage::dispatch($message->id);
 
         return response()->json([
             'data' => (new MessageResource($message->load('attachments')))->toArray($request),
         ], 202);
+    }
+
+    private function assertNotBlocked(Conversation $conv): ?JsonResponse
+    {
+        if ($conv->blocked_at !== null) {
+            return response()->json([
+                'error' => ['code' => 'CONVERSATION_BLOCKED', 'message' => 'Hội thoại đã bị chặn — bỏ chặn để gửi tin.'],
+            ], 422);
+        }
+
+        return null;
     }
 }

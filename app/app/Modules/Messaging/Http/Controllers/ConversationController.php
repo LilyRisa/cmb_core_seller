@@ -7,10 +7,10 @@ use CMBcoreSeller\Modules\Messaging\Http\Resources\ConversationResource;
 use CMBcoreSeller\Modules\Messaging\Http\Resources\MessageResource;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
+use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -37,6 +37,11 @@ class ConversationController extends Controller
         } else {
             // Default: ẩn spam khỏi inbox
             $q->where('status', '!=', Conversation::STATUS_SPAM);
+        }
+        if ($request->boolean('blocked')) {
+            $q->whereNotNull('blocked_at');
+        } else {
+            $q->whereNull('blocked_at');   // ẩn hội thoại đã chặn khỏi inbox mặc định
         }
         if ($request->boolean('unread')) {
             $q->where('unread_count', '>', 0);
@@ -130,6 +135,35 @@ class ConversationController extends Controller
 
         $latestInbound->forceFill(['read_at' => null])->save();
         $conv->update(['unread_count' => max(1, (int) $conv->unread_count)]);
+
+        return response()->json(['data' => (new ConversationResource($conv->fresh()))->toArray($request)]);
+    }
+
+    public function block(int $id, Request $request): JsonResponse
+    {
+        Gate::authorize('messaging.reply');
+
+        $conv = Conversation::query()->findOrFail($id);
+        $conv->update([
+            'blocked_at' => now(),
+            'blocked_by_user_id' => $request->user()->id,
+        ]);
+        AuditLog::record('messaging.conversation.blocked', null, [
+            'conversation_id' => $conv->id, 'buyer_external_id' => $conv->buyer_external_id,
+        ]);
+
+        return response()->json(['data' => (new ConversationResource($conv->fresh()))->toArray($request)]);
+    }
+
+    public function unblock(int $id, Request $request): JsonResponse
+    {
+        Gate::authorize('messaging.reply');
+
+        $conv = Conversation::query()->findOrFail($id);
+        $conv->update(['blocked_at' => null, 'blocked_by_user_id' => null]);
+        AuditLog::record('messaging.conversation.unblocked', null, [
+            'conversation_id' => $conv->id,
+        ]);
 
         return response()->json(['data' => (new ConversationResource($conv->fresh()))->toArray($request)]);
     }

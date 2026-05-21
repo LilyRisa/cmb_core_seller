@@ -2,18 +2,17 @@
 
 namespace CMBcoreSeller\Modules\Messaging\Services;
 
-use CMBcoreSeller\Integrations\Messaging\DTO\MessageDirection;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageDTO;
-use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Events\ConversationCreated;
 use CMBcoreSeller\Modules\Messaging\Events\MessageReceived;
+use CMBcoreSeller\Modules\Messaging\Jobs\DownloadInboundMedia;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Models\MessageAttachment;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
@@ -120,7 +119,7 @@ class MessageIngestionService
                     ->withoutGlobalScope(TenantScope::class)
                     ->where('status', MessageAttachment::STATUS_PENDING)
                     ->get()
-                    ->each(fn (MessageAttachment $a) => \CMBcoreSeller\Modules\Messaging\Jobs\DownloadInboundMedia::dispatch($a->id));
+                    ->each(fn (MessageAttachment $a) => DownloadInboundMedia::dispatch($a->id));
             }
         }
     }
@@ -155,7 +154,7 @@ class MessageIngestionService
                 'message_count' => 0,
                 'last_message_at' => $dto->sentAt ?? now(),
             ]);
-        } catch (\Illuminate\Database\QueryException $e) {
+        } catch (QueryException $e) {
             // Race: insert đồng thời với connection khác — re-lookup.
             $row = Conversation::withoutGlobalScope(TenantScope::class)
                 ->where('channel_account_id', $channelAccount->id)
@@ -181,10 +180,13 @@ class MessageIngestionService
         $conversation->last_message_preview = $preview;
 
         if ($message->isInbound()) {
-            $conversation->unread_count++;
+            if ($conversation->blocked_at === null) {
+                $conversation->unread_count++;
+            }
             $conversation->last_inbound_at = $message->created_at;
-            // Tin mới đẩy snoozed/resolved về open
-            if (in_array($conversation->status, [Conversation::STATUS_SNOOZED, Conversation::STATUS_RESOLVED], true)) {
+            // Tin mới đẩy snoozed/resolved về open — nhưng KHÔNG bỏ chặn / không nổi nếu blocked.
+            if ($conversation->blocked_at === null
+                && in_array($conversation->status, [Conversation::STATUS_SNOOZED, Conversation::STATUS_RESOLVED], true)) {
                 $conversation->status = Conversation::STATUS_OPEN;
                 $conversation->snoozed_until = null;
             }
