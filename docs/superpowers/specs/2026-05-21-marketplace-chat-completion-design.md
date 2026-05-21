@@ -129,5 +129,18 @@ Trong group `api/v1/messaging`:
 
 **Không đụng:** Facebook, `MessagingPage.tsx`.
 
-## PHASE D — Mở rộng send-type (chi tiết hoá khi tới)
-Lazada (image qua `image/upload`→img_url, item/order); TikTok (image upload); Shopee (image qua endpoint cộng đồng). Design riêng trước khi code.
+## PHASE D — Gửi ảnh đúng luồng upload-first (chi tiết)
+
+**Thực tế API (tài liệu chính thức):** video/document gửi đi KHÔNG khả thi cho sàn (TikTok video cần `vid` từ video-upload riêng không có trong docs; Lazada video cần `video_id`; document chỉ Facebook). ⇒ giữ `outbound.video/file=false` (ném `UnsupportedOperation`). Phần làm: **gửi ẢNH đúng luồng** — hầu hết sàn yêu cầu upload ảnh lên CDN của sàn trước rồi mới gửi URL đó (không nhận URL ngoài).
+
+**D-Lazada `sendMedia(image)`:** fetch bytes từ `media->externalUrl` (signed URL nội bộ) → `POST /image/upload` (binary, JPG/PNG ≤1MB theo doc) → lấy `data.image.url` → `send` `template_id=3` với `img_url=<url đó>` (+ width/height). Lỗi upload → RuntimeException (job retry).
+
+**D-TikTok `sendMedia(image)`:** fetch bytes → `POST /customer_service/202309/images/upload` (multipart field `data`) → lấy `data.url`(+width/height) → `send` IMAGE với `content={url,width,height}`. Bật `outbound.image` (đã có).
+
+**D-Shopee `sendMedia(image)`:** giữ endpoint cộng đồng (`upload_image` cộng đồng nếu có, hoặc gửi `image_url` trực tiếp) — đánh dấu "verify sandbox/cộng đồng".
+
+**Helper:** thêm 1 hàm fetch bytes từ signed URL (Http::get) dùng chung trong mỗi connector (không cần service mới). 
+
+**Test:** mỗi sàn `Http::fake` 2 chặng (upload → trả url; send → trả message_id) → assert `sendMedia(image)` upload trước rồi send với URL từ upload; assert video/file → `UnsupportedOperation`.
+
+**Không đụng:** Facebook, `MessagingPage.tsx`.
