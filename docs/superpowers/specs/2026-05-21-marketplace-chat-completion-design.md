@@ -1,0 +1,82 @@
+# Thiết kế: Hoàn thiện Chat người mua (sàn Lazada/TikTok/Shopee) — SPEC-0024 / ADR-0017
+
+> Trạng thái: **Phase A đã duyệt thiết kế (2026-05-21)**. B/C/D sẽ brainstorm/design riêng trước khi code.
+> Phạm vi của agent này: **backend + connector sàn**. KHÔNG đụng `MessagingPage.tsx` (inbox FE do agent Facebook sở hữu) và KHÔNG đụng luồng Facebook.
+> Nguồn sự thật API = tài liệu chính thức trong `tailieuapi_itiktok_shopee_lazada/` (Shopee gửi tin: dùng endpoint cộng đồng vì tài liệu chính thức thiếu — đã được chủ dự án chấp thuận).
+
+## Bối cảnh & phát hiện then chốt (từ đối chiếu tài liệu chính thức)
+
+| Sàn | Nhận | Gửi (tài liệu chính thức) | Ghi chú |
+|---|---|---|---|
+| Lazada IM | **KHÔNG webhook — chỉ POLLING** (`im/session/list` + `im/message/list`) | text(1), image(3 qua `image/upload` JPG/PNG ≤1MB), emoji(4), video(6), item(10006)/order(10007)/voucher(10008) | session mở qua `order_id` (≤30 ngày); recall ≤2 phút; `session/read(session_id,last_read_message_id)` |
+| TikTok CS (`/customer_service/202309/`) | webhook type 14 + polling | TEXT, IMAGE (upload ≤10MB), VIDEO (cần `vid`), PRODUCT/ORDER/RETURN/COUPON/LOGISTICS card | gate quyền: cần app duyệt (1000+ seller hoặc 1M call/ngày) hoặc app "TikTok Shop Seller" tự phát triển; quota 10k/ngày; mark read = `POST .../messages/read` |
+| Shopee | webchat push code 10 (text/image/video/item/...) | ⚠️ module `sellerchat` (whitelist) — tài liệu chính thức KHÔNG có endpoint chi tiết → **dùng endpoint cộng đồng** `/api/v2/sellerchat/send_message` (đã chấp thuận) | |
+| Facebook | (ngoài phạm vi — agent khác) | (ngoài phạm vi) | |
+
+**Hiện trạng backend (đã có):** model Conversation/Message/MessageAttachment đầy đủ (kind text/image/video/file/template/system; delivery_status; read tracking; attachment width/height/duration/checksum). `ConversationController` (lọc provider/status/unread/assigned/customer_id/q + markRead + update). `MessageController` (sendText/sendTemplate/sendMedia multipart). `SendMessage` job (signed URL, idempotent). `MessageIngestionService` (inbound upsert + unread++ + `DownloadInboundMedia` relay). `MessageResource` **đã sinh `download_url`** qua `MediaStorage::temporaryUrl()`.
+
+**Thiếu (gap chính cho yêu cầu "chat hoàn chỉnh"):**
+- Không có endpoint **đánh dấu chưa đọc** (chỉ có markRead).
+- Không **expose capabilities** để UI gate nút gửi theo sàn.
+- Connector sàn **không parse media inbound** (ảnh/video người mua gửi bị bỏ).
+- **Không có polling/sync** — Lazada (poll-only) hiện KHÔNG nhận được tin; TikTok/Shopee không có backup khi miss webhook.
+- Send-type sàn mới chỉ text+image (TikTok/Shopee) / chưa hoàn chỉnh (Lazada cần session_id từ poll).
+
+## Decomposition (mỗi phase = spec→plan→code riêng)
+
+- **A. API hỗ trợ inbox** (phase này): mark-unread + expose capabilities. Nhỏ, gỡ chặn agent inbox.
+- **B. Parse media inbound (sàn):** Shopee (code 10: image/video/item) + TikTok (webhook content) → `MessageAttachment` + relay.
+- **C. Polling/Sync + Activate UX:** job đồng bộ hội thoại/tin mirror luồng đồng bộ đơn hàng (`SyncOrdersForShop`). Bắt buộc cho Lazada; backup TikTok/Shopee. API "bật chat"/"đồng bộ ngay" per-shop.
+- **D. Mở rộng send-type:** Lazada (image qua `image/upload`, item/order/voucher); TikTok (image upload, cards); Shopee (image qua endpoint cộng đồng).
+
+---
+
+## PHASE A — API hỗ trợ inbox (chi tiết, sẵn sàng code)
+
+Provider-agnostic, không đụng FE inbox. Hai endpoint mới + 1 xác nhận.
+
+### A1. Đánh dấu chưa đọc
+`POST /api/v1/messaging/conversations/{id}/unread` → `ConversationController::markUnread(int $id, Request $request): JsonResponse`.
+
+Hành vi (đối xứng với `markRead` ở `ConversationController.php:95-110`):
+- `Gate::authorize('messaging.view')`.
+- Tìm `Conversation::findOrFail($id)`.
+- Lấy tin **inbound mới nhất** của hội thoại. Nếu KHÔNG có inbound nào → trả `422` `{error:{code:'NO_INBOUND', message:'Không có tin của người mua để đánh dấu chưa đọc.'}}`.
+- Set `read_at = null` cho tin inbound mới nhất đó; `unread_count = max(1, unread_count)`; lưu.
+- Trả `['data' => (new ConversationResource($conv))->toArray($request)]`.
+
+Hệ quả: hội thoại xuất hiện trong filter `?unread=1` (đã có ở `ConversationController.php:41-43`).
+
+### A2. Expose capabilities theo provider
+`GET /api/v1/messaging/capabilities` → method mới `MessagingChannelController::capabilities(MessagingRegistry $registry): JsonResponse`.
+
+- `Gate::authorize('messaging.view')`.
+- Với mỗi provider trong `$registry->providers()` (chỉ provider đang bật): gọi `$registry->for($code)->capabilities()`.
+- Trả:
+```json
+{ "data": {
+  "tiktok_chat": {"outbound.text":true,"outbound.image":true,"outbound.video":false,"outbound.file":false,"outbound.template":false,"read_receipt":true,"typing":false,"inbound.webhook":true,"inbound.polling":false},
+  "lazada_chat": {...}, "shopee_chat": {...}, "manual": {...}
+} }
+```
+- FE (agent inbox) gate nút gửi theo `conversation.provider`. Emoji = text → luôn cho phép khi `outbound.text`.
+
+### A3. download_url — đã có
+`MessageResource.php:47` đã trả `download_url` (signed, TTL ngắn) cho attachment. Không cần thay đổi. Ghi nhận để agent inbox dùng render media inbound.
+
+### Route (thêm vào `app/app/Modules/Messaging/Http/routes.php`)
+Trong group `api/v1/messaging`:
+- `Route::post('conversations/{id}/unread', [ConversationController::class, 'markUnread'])->whereNumber('id')->name('messaging.conversations.unread');` (đặt cạnh route `conversations/{id}/read`).
+- `Route::get('capabilities', [MessagingChannelController::class, 'capabilities'])->name('messaging.capabilities');`.
+
+### Test
+- **Feature `MarkUnreadTest`**: tạo conversation + 1 tin inbound đã đọc (`read_at` set, unread_count=0) → POST `/unread` → 200, `unread_count>=1`, tin inbound `read_at=null`; xuất hiện khi `index?unread=1`. Conversation không có inbound → 422 `NO_INBOUND`.
+- **Feature `MessagingCapabilitiesTest`**: bật `integrations.messaging=['tiktok_chat','shopee_chat']` → GET `/capabilities` trả map có 2 provider đó (+ `manual`) với capability đúng; KHÔNG có provider chưa bật (vd `lazada_chat`).
+
+### Không đụng
+`MessagingPage.tsx`, file Facebook, connector (chưa sửa ở phase A).
+
+---
+
+## PHASE B/C/D — sẽ chi tiết hoá khi tới (brainstorm + design riêng)
+Tóm tắt ý đồ ở trên; mỗi phase mở rộng spec này hoặc tạo spec riêng + plan trước khi code.
