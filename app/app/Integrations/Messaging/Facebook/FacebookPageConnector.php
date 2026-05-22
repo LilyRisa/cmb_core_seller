@@ -732,7 +732,7 @@ class FacebookPageConnector implements MessagingConnector
         return new OutboundWindowPolicyDTO(
             freeWindowHours: 24,
             requiresTag: true,
-            allowedTags: ['CONFIRMED_EVENT_UPDATE', 'POST_PURCHASE_UPDATE', 'ACCOUNT_UPDATE'],
+            allowedTags: ['HUMAN_AGENT', 'CONFIRMED_EVENT_UPDATE', 'POST_PURCHASE_UPDATE', 'ACCOUNT_UPDATE'],
         );
     }
 

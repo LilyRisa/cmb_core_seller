@@ -293,4 +293,12 @@ class FacebookBackfillConnectorTest extends TestCase
 
         Http::assertSent(fn ($r) => str_contains(urldecode($r->url()), 'shares'));
     }
+
+    public function test_outbound_window_allows_human_agent_tag(): void
+    {
+        $policy = $this->connector()->outboundWindow();
+        $this->assertContains('HUMAN_AGENT', $policy->allowedTags);
+        $this->assertSame(24, $policy->freeWindowHours);
+        $this->assertTrue($policy->requiresTag);
+    }
 }
