@@ -127,10 +127,11 @@ export function MessagingPage() {
 
     // ── Kind label fallback (khi body=null và không có attachment) ────────────
     const KIND_LABEL: Record<string, string> = {
-        text: 'Tin không có nội dung',
+        text: 'Tin nhắn không hỗ trợ hiển thị',
         image: 'Hình ảnh',
         video: 'Video',
         file: 'Tệp đính kèm',
+        sticker: 'Sticker',
         template: 'Mẫu tin',
         system: 'Tin hệ thống',
     };
