@@ -33,25 +33,53 @@ import { TagManagerModal } from '@/components/TagManagerModal';
 
 const { Text } = Typography;
 
-/** Renders plain text with http(s) URLs as clickable links. */
-function LinkifiedText({ text }: { text: string }) {
-    const URL_RE = /(https?:\/\/[^\s]+)/g;
-    const parts = text.split(URL_RE);
+const URL_SPLIT_RE = /(https?:\/\/[^\s]+)/g;
+const URL_TEST_RE = /^https?:\/\/[^\s]+$/;
+// SĐT VN: tiền tố +84 hoặc 0, cho phép . - và khoảng trắng giữa các nhóm số.
+const PHONE_SPLIT_RE = /((?:\+84|0)\d[\d .-]{7,12}\d)/g;
+const PHONE_TEST_RE = /^(?:\+84|0)\d[\d .-]{7,12}\d$/;
+
+/** Chip sđt: bấm để copy (đã bỏ ký tự ngăn cách). */
+function PhoneChip({ value }: { value: string }) {
+    const { message } = App.useApp();
+    const normalized = value.replace(/[ .-]/g, '');
+    return (
+        <Tag
+            color="green"
+            icon={<PhoneOutlined />}
+            style={{ cursor: 'pointer', marginInline: 2 }}
+            onClick={(e) => {
+                e.stopPropagation();
+                void navigator.clipboard?.writeText(normalized);
+                message.success('Đã copy số điện thoại');
+            }}
+        >
+            {value.trim()}
+        </Tag>
+    );
+}
+
+/** Render 1 đoạn text: tách sđt thành chip. */
+function renderPhones(text: string, keyPrefix: string) {
+    return text.split(PHONE_SPLIT_RE).map((part, i) =>
+        PHONE_TEST_RE.test(part.trim())
+            ? <PhoneChip key={`${keyPrefix}-p${i}`} value={part} />
+            : <span key={`${keyPrefix}-t${i}`}>{part}</span>,
+    );
+}
+
+/** Render nội dung tin: URL → link; sđt → chip màu (bấm copy); còn lại giữ nguyên. */
+function MessageBody({ text }: { text: string }) {
+    const parts = text.split(URL_SPLIT_RE);
     return (
         <>
             {parts.map((part, i) =>
-                URL_RE.test(part) ? (
-                    <a
-                        key={i}
-                        href={part}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ color: 'inherit', textDecoration: 'underline' }}
-                    >
+                URL_TEST_RE.test(part) ? (
+                    <a key={`u${i}`} href={part} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>
                         {part}
                     </a>
                 ) : (
-                    part
+                    <span key={`s${i}`}>{renderPhones(part, `s${i}`)}</span>
                 ),
             )}
         </>
@@ -740,7 +768,7 @@ export function MessagingPage() {
                                                         )}
                                                     </div>
                                                 ))}
-                                                {m.body != null && <div style={{ whiteSpace: 'pre-wrap' }}><LinkifiedText text={m.body} /></div>}
+                                                {m.body != null && <div style={{ whiteSpace: 'pre-wrap' }}><MessageBody text={m.body} /></div>}
                                                 {m.body == null && (m.attachments ?? []).length === 0 && (
                                                     <div style={{ fontStyle: 'italic', opacity: 0.7 }}>{KIND_LABEL[m.kind] ?? m.kind}</div>
                                                 )}
