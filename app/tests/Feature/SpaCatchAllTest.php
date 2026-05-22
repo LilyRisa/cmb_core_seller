@@ -42,9 +42,11 @@ class SpaCatchAllTest extends TestCase
 
     public function test_oauth_callback_with_a_bad_state_redirects_into_the_spa(): void
     {
-        // No valid oauth_states row -> friendly redirect to /channels?error=oauth_state (not a 5xx, not the SPA shell).
+        // No valid oauth_states row -> popup-friendly callback view carrying the SPA error redirect (not a 5xx, not the SPA shell).
         $this->get('/oauth/tiktok/callback?code=abc&state=does-not-exist')
-            ->assertRedirect('/channels?error=oauth_state');
+            ->assertOk()
+            ->assertViewIs('oauth-callback')
+            ->assertViewHas('redirect', '/channels?error=oauth_state');
     }
 
     public function test_webhook_rejects_an_unsigned_request(): void
