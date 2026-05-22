@@ -65,6 +65,20 @@ function fmtMsgTime(iso: string | null): string {
     return d.isSame(dayjs(), 'day') ? d.format('HH:mm') : d.format('DD/MM HH:mm');
 }
 
+/** Giờ gọn cho danh sách hội thoại: <60' → "x phút"; hôm nay → HH:mm; hôm qua → "Hôm qua"; còn lại → DD/MM. */
+function fmtListTime(iso: string | null): string {
+    if (!iso) return '';
+    const d = dayjs(iso);
+    const now = dayjs();
+    const diffMin = now.diff(d, 'minute');
+    if (diffMin < 1) return 'vừa xong';
+    if (diffMin < 60) return `${diffMin} phút`;
+    if (d.isSame(now, 'day')) return d.format('HH:mm');
+    if (d.isSame(now.subtract(1, 'day'), 'day')) return 'Hôm qua';
+    if (d.isSame(now, 'year')) return d.format('DD/MM');
+    return d.format('DD/MM/YY');
+}
+
 /**
  * Hộp thư hợp nhất 3 cột (SPEC-0024 §3.1): danh sách hội thoại | luồng tin +
  * ô soạn | panel thông tin. Realtime = polling fallback (Reverb là follow-up).
@@ -527,6 +541,11 @@ export function MessagingPage() {
                                                             <Badge count={c.unread_count} size="small" />
                                                             <Text strong={c.unread_count > 0} ellipsis style={{ maxWidth: 160 }}>{c.buyer_name ?? c.buyer_external_id}</Text>
                                                         </Space>
+                                                        {c.last_message_at && (
+                                                            <Text type="secondary" style={{ fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                                                {fmtListTime(c.last_message_at)}
+                                                            </Text>
+                                                        )}
                                                         <Dropdown
                                                             trigger={['click']}
                                                             menu={{
