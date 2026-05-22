@@ -230,7 +230,7 @@ export function ChannelsPage() {
                                     onResync={() => resync.mutate(a.id, { onSuccess: () => { message.success('Đã xếp lịch đồng bộ lại đơn của gian hàng này — danh sách sẽ tự cập nhật khi xong.'); resyncPoll.start(); } })}
                                     onDelete={() => { setDeleteTarget(a); setConfirmDraft(''); }}
                                     onRename={() => { setRenaming(a); setAliasDraft(a.display_name ?? ''); }}
-                                    onReauthorize={() => connect.mutate(a.provider)}
+                                    onReauthorize={() => handleConnectChannel(a.provider)}
                                     reauthorizing={connect.isPending && connect.variables === a.provider}
                                     onToggleMessaging={(v) => setMessaging.mutate({ id: a.id, messaging_enabled: v }, {
                                         onSuccess: () => message.success(v ? 'Đã bật nhắn tin cho gian hàng.' : 'Đã tắt nhắn tin.'),
