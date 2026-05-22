@@ -7,8 +7,8 @@ use CMBcoreSeller\Integrations\Channels\Lazada\LazadaApiException;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeApiException;
 use CMBcoreSeller\Integrations\Channels\TikTok\TikTokApiException;
 use CMBcoreSeller\Modules\Channels\Services\ChannelConnectionService;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -25,7 +25,7 @@ use Illuminate\Support\Facades\Log;
  */
 class OAuthCallbackController extends Controller
 {
-    public function __invoke(Request $request, string $provider, ChannelConnectionService $service): RedirectResponse
+    public function __invoke(Request $request, string $provider, ChannelConnectionService $service): Response
     {
         $code = (string) $request->query('code', '');
         $state = (string) ($request->query('state', '') ?: $request->query('app_key_state', ''));
@@ -51,13 +51,13 @@ class OAuthCallbackController extends Controller
                 $params['error_description'] = mb_substr($errDesc, 0, 200);
             }
 
-            return redirect('/channels?'.http_build_query($params));
+            return $this->finish('/channels?'.http_build_query($params));
         }
 
         if ($code === '' || $state === '') {
             Log::warning('oauth.callback_missing_params', ['provider' => $provider, 'query_keys' => array_keys($request->query())]);
 
-            return redirect('/channels?error=oauth_missing_params');
+            return $this->finish('/channels?error=oauth_missing_params');
         }
 
         try {
@@ -96,11 +96,17 @@ class OAuthCallbackController extends Controller
                 $params['sp_code'] = $e->shopeeError;
             }
 
-            return redirect('/channels?'.http_build_query($params));
+            return $this->finish('/channels?'.http_build_query($params));
         }
 
         Log::info('oauth.callback_ok', ['provider' => $provider, 'channel_account_id' => $result['account']->getKey()]);
 
-        return redirect($result['redirect']);
+        return $this->finish($result['redirect']);
+    }
+
+    /** Trả view popup-friendly: popup → postMessage + close; không popup → redirect SPA. */
+    private function finish(string $redirect): Response
+    {
+        return response()->view('oauth-callback', ['redirect' => $redirect]);
     }
 }
