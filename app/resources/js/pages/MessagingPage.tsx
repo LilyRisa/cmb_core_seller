@@ -245,7 +245,7 @@ export function MessagingPage() {
     const handleSend = () => {
         const body = draft.trim();
         if (!body || !activeId) return;
-        sendText.mutate(body, {
+        sendText.mutate({ body }, {
             onSuccess: () => setDraft(''),
             onError: (e) => message.error(errorMessage(e, 'Không gửi được tin.')),
         });
