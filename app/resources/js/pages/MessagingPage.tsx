@@ -525,10 +525,10 @@ export function MessagingPage() {
                                             avatar={(
                                                 <Badge
                                                     count={c.thread_type === 'comment'
-                                                        ? <CommentOutlined style={{ fontSize: 10, color: '#1677ff', background: '#fff', borderRadius: '50%', padding: 1 }} />
-                                                        : <MessageOutlined style={{ fontSize: 10, color: '#52c41a', background: '#fff', borderRadius: '50%', padding: 1 }} />
+                                                        ? <CommentOutlined style={{ fontSize: 15, color: '#1677ff', background: '#fff', borderRadius: '50%', padding: 2, boxShadow: '0 0 0 1px #fff' }} />
+                                                        : <MessageOutlined style={{ fontSize: 15, color: '#52c41a', background: '#fff', borderRadius: '50%', padding: 2, boxShadow: '0 0 0 1px #fff' }} />
                                                     }
-                                                    offset={[-2, 28]}
+                                                    offset={[-4, 30]}
                                                 >
                                                     <Avatar size={40} src={c.buyer_avatar_url ?? undefined} style={{ background: '#2563EB', flexShrink: 0 }}>{(c.buyer_name ?? c.buyer_external_id ?? '?').slice(0, 1).toUpperCase()}</Avatar>
                                                 </Badge>
