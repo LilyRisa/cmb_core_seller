@@ -258,4 +258,39 @@ class FacebookBackfillConnectorTest extends TestCase
                 && str_contains($fields, 'title');
         });
     }
+
+    public function test_fetch_messages_shares_edge_sets_body_when_text_empty(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response([
+                'id' => 't_shares',
+                'messages' => ['data' => [[
+                    'id' => 'm_shares',
+                    'message' => '',
+                    'created_time' => '2026-05-20T13:00:00+0000',
+                    'from' => ['id' => 'PSID_999', 'name' => 'A'],
+                    'shares' => ['data' => [[
+                        'name' => 'Bài viết hay',
+                        'link' => 'https://www.facebook.com/post/xyz',
+                    ]]],
+                ]]],
+            ], 200),
+        ]);
+
+        $page = $this->connector()->fetchMessages($this->auth(), 'PSID_999', ['thread_id' => 't_shares', 'pageSize' => 50]);
+
+        $this->assertCount(1, $page->items);
+        $msg = $page->items[0];
+        $this->assertSame('text', $msg->kind->value);
+        $this->assertSame('Bài viết hay https://www.facebook.com/post/xyz', $msg->body);
+    }
+
+    public function test_fetch_messages_graph_fields_include_shares(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response(['id' => 't_x', 'messages' => ['data' => []]], 200)]);
+
+        $this->connector()->fetchMessages($this->auth(), 'PSID_999', ['thread_id' => 't_x', 'pageSize' => 20]);
+
+        Http::assertSent(fn ($r) => str_contains(urldecode($r->url()), 'shares'));
+    }
 }

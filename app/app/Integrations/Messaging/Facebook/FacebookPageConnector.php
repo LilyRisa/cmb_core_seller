@@ -475,7 +475,7 @@ class FacebookPageConnector implements MessagingConnector
         $limit = (int) ($query['pageSize'] ?? 50);
 
         $res = Http::timeout(30)->get($this->graphUrl($threadId), [
-            'fields' => "messages.limit({$limit}){id,message,created_time,from,sticker,attachments{mime_type,name,image_data,video_data,file_url,type,title,url}}",
+            'fields' => "messages.limit({$limit}){id,message,created_time,from,sticker,shares{link,name,description},attachments{mime_type,name,image_data,video_data,file_url,type,title,url}}",
             'access_token' => $auth->accessToken,
         ]);
         if (! $res->successful()) {
@@ -517,6 +517,20 @@ class FacebookPageConnector implements MessagingConnector
                     continue;
                 }
                 $attachments[] = $this->mapBackfillAttachment((array) $att);
+            }
+
+            // Shared post/link nằm ở edge `shares` (KHÁC `attachments`) — nguồn gây
+            // tin rỗng khi `message` trống. Lấy name/description + link làm body.
+            if ($shareUrl === null) {
+                foreach ((array) ($row['shares']['data'] ?? []) as $share) {
+                    $link = (string) ($share['link'] ?? '');
+                    if ($link === '') {
+                        continue;
+                    }
+                    $label = (string) ($share['name'] ?? $share['description'] ?? '');
+                    $shareUrl = $label !== '' ? $label.' '.$link : $link;
+                    break;
+                }
             }
 
             // When the message text is empty, fall back to the share URL as the body
