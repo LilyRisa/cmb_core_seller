@@ -107,6 +107,20 @@ function fmtListTime(iso: string | null): string {
     return d.format('DD/MM/YY');
 }
 
+/** Hội thoại Facebook đã quá cửa sổ 24h kể từ tin buyer gần nhất? */
+function isOutsideWindow(lastInboundAt: string | null): boolean {
+    if (!lastInboundAt) return true;
+    return dayjs().diff(dayjs(lastInboundAt), 'hour') >= 24;
+}
+
+/** Thẻ tin nhắn Facebook ngoài 24h (mặc định HUMAN_AGENT cho trả lời của nhân viên). */
+const FB_MESSAGE_TAGS: Array<{ label: string; value: string }> = [
+    { label: 'Nhân viên (7 ngày)', value: 'HUMAN_AGENT' },
+    { label: 'Xác nhận sự kiện', value: 'CONFIRMED_EVENT_UPDATE' },
+    { label: 'Sau mua hàng', value: 'POST_PURCHASE_UPDATE' },
+    { label: 'Cập nhật tài khoản', value: 'ACCOUNT_UPDATE' },
+];
+
 /**
  * Hộp thư hợp nhất 3 cột (SPEC-0024 §3.1): danh sách hội thoại | luồng tin +
  * ô soạn | panel thông tin. Realtime = polling fallback (Reverb là follow-up).
@@ -149,6 +163,7 @@ export function MessagingPage() {
     // ── Other state ───────────────────────────────────────────────────────────
     const [activeId, setActiveId] = useState<number | null>(null);
     const [draft, setDraft] = useState('');
+    const [msgTag, setMsgTag] = useState<string>('HUMAN_AGENT');
     const [emojiOpen, setEmojiOpen] = useState(false);
     const [tagPopoverConvId, setTagPopoverConvId] = useState<number | null>(null);
 
@@ -230,6 +245,11 @@ export function MessagingPage() {
         [conversations, activeId, thread.data],
     );
 
+    const needsTag = active?.provider === 'facebook_page'
+        && active?.thread_type === 'message'
+        && !active?.blocked_at
+        && isOutsideWindow(active?.last_inbound_at ?? null);
+
     const bottomRef = useRef<HTMLDivElement>(null);
     useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [thread.data?.messages.length]);
 
@@ -245,7 +265,7 @@ export function MessagingPage() {
     const handleSend = () => {
         const body = draft.trim();
         if (!body || !activeId) return;
-        sendText.mutate({ body }, {
+        sendText.mutate({ body, message_tag: needsTag ? msgTag : undefined }, {
             onSuccess: () => setDraft(''),
             onError: (e) => message.error(errorMessage(e, 'Không gửi được tin.')),
         });
@@ -837,6 +857,21 @@ export function MessagingPage() {
                         ) : (
                         /* ── Message composer (original) ── */
                         <div style={{ padding: 12, borderTop: '1px solid #F1F5F9' }}>
+                            {needsTag && (
+                                <div style={{ marginBottom: 8 }}>
+                                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
+                                        Quá 24h từ tin cuối của khách — chọn loại thẻ tin nhắn để gửi (Facebook yêu cầu):
+                                    </Text>
+                                    <Radio.Group
+                                        size="small"
+                                        optionType="button"
+                                        buttonStyle="solid"
+                                        options={FB_MESSAGE_TAGS}
+                                        value={msgTag}
+                                        onChange={(e) => setMsgTag(e.target.value)}
+                                    />
+                                </div>
+                            )}
                             <Popover
                                 open={slashOpen && (slashMatches.length > 0 || slashQuery !== null)}
                                 placement="topLeft"
