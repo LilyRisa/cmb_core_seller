@@ -138,8 +138,11 @@ export function useSendText(conversationId: number | null) {
     const api = useScopedApi();
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: async (body: string) => {
-            const { data } = await api!.post<{ data: Message }>(`/messaging/conversations/${conversationId}/messages`, { body });
+        mutationFn: async (input: { body: string; message_tag?: string }) => {
+            const { data } = await api!.post<{ data: Message }>(
+                `/messaging/conversations/${conversationId}/messages`,
+                { body: input.body, message_tag: input.message_tag },
+            );
             return data.data;
         },
         onSuccess: () => {

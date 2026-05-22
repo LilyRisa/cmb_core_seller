@@ -74,7 +74,9 @@ class ChannelConnectFlowTest extends TestCase
         $state = OAuthState::issue('tiktok', (int) $this->tenant->getKey(), $this->owner->getKey());
 
         $this->get('/oauth/tiktok/callback?app_key='.F::APP_KEY."&code=auth_code_abc&state={$state->state}")
-            ->assertRedirect('/channels?connected=tiktok');
+            ->assertOk()
+            ->assertViewIs('oauth-callback')
+            ->assertViewHas('redirect', '/channels?connected=tiktok');
 
         $account = ChannelAccount::withoutGlobalScope(TenantScope::class)
             ->where('provider', 'tiktok')->where('external_shop_id', F::SHOP_ID)->first();
@@ -90,7 +92,10 @@ class ChannelConnectFlowTest extends TestCase
     public function test_oauth_callback_with_a_stale_state_redirects_with_an_error(): void
     {
         $state = OAuthState::create(['state' => 'oldstate', 'provider' => 'tiktok', 'tenant_id' => $this->tenant->getKey(), 'expires_at' => now()->subMinute()]);
-        $this->get("/oauth/tiktok/callback?code=abc&state={$state->state}")->assertRedirect('/channels?error=oauth_state');
+        $this->get("/oauth/tiktok/callback?code=abc&state={$state->state}")
+            ->assertOk()
+            ->assertViewIs('oauth-callback')
+            ->assertViewHas('redirect', '/channels?error=oauth_state');
     }
 
     public function test_delete_connection_removes_its_orders_and_sku_links_after_confirm(): void

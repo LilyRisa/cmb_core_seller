@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { App as AntApp, Avatar, Button, Card, Empty, Popconfirm, Progress, Result, Space, Spin, Tag, Tooltip, Typography } from 'antd';
 import { DisconnectOutlined, FacebookFilled, KeyOutlined, SyncOutlined } from '@ant-design/icons';
+import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { MessagingNav } from '@/components/MessagingNav';
 import { PageHeader } from '@/components/PageHeader';
 import { errorMessage } from '@/lib/api';
+import { openOAuthPopup } from '@/lib/oauthPopup';
 import { useCan } from '@/lib/tenant';
 import { useConnectFacebook, useDisconnectFacebookPage, useMessagingChannels, useSyncChannel } from '@/lib/messagingConfig';
 
@@ -30,6 +32,7 @@ export function MessagingChannelsPage() {
     const disconnect = useDisconnectFacebookPage();
     const syncChannel = useSyncChannel();
     const [syncingId, setSyncingId] = useState<number | null>(null);
+    const qc = useQueryClient();
 
     const handleSync = (id: number) => {
         setSyncingId(id);
@@ -39,28 +42,44 @@ export function MessagingChannelsPage() {
         });
     };
 
-    useEffect(() => {
-        const connected = params.get('connected');
-        const err = params.get('error');
+    const applyFbResult = (p: URLSearchParams) => {
+        const connected = p.get('connected');
+        const err = p.get('error');
         if (connected === 'facebook_page') {
             message.success('Đã kết nối Facebook Page!');
             params.delete('connected'); setParams(params, { replace: true });
+            qc.invalidateQueries({ queryKey: ['messaging', 'channels'] });
         } else if (err) {
             message.error({ content: FB_ERRORS[err] ?? 'Bạn đã huỷ hoặc Facebook từ chối cấp quyền.', duration: 12 });
             params.delete('error'); setParams(params, { replace: true });
         }
+    };
+
+    useEffect(() => {
+        applyFbResult(params);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleConnect = () => connectFb.mutate(undefined, {
-        onSuccess: (d) => { window.location.href = d.authorize_url; },
+        onSuccess: async (d) => {
+            const res = await openOAuthPopup(d.authorize_url);
+            if (res.status === 'done' && res.redirect) {
+                applyFbResult(new URL(res.redirect, window.location.origin).searchParams);
+            }
+        },
         onError: (e) => message.error(errorMessage(e, 'Không khởi tạo được kết nối. Quản trị viên cần bật facebook_page.')),
     });
 
     const handleReconnect = (id: number) => {
         setReconnectingId(id);
         connectFb.mutate(undefined, {
-            onSuccess: (d) => { window.location.href = d.authorize_url; },
+            onSuccess: async (d) => {
+                const res = await openOAuthPopup(d.authorize_url);
+                setReconnectingId(null);
+                if (res.status === 'done' && res.redirect) {
+                    applyFbResult(new URL(res.redirect, window.location.origin).searchParams);
+                }
+            },
             onError: (e) => { setReconnectingId(null); message.error(errorMessage(e, 'Không khởi tạo được kết nối.')); },
         });
     };

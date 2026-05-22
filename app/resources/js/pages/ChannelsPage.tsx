@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Alert, Button, Card, Col, Empty, Input, Modal, Result, Row, Space, Switch, Tag, Tooltip, Typography } from 'antd';
 import { App as AntApp } from 'antd';
@@ -11,6 +11,7 @@ import { errorMessage } from '@/lib/api';
 import { ChannelAccount, useChannelAccounts, useConnectChannel, useDeleteChannelAccount, useOutboundIp, useRenameChannel, useResyncChannel, useSetChannelMessaging } from '@/lib/channels';
 import { useSyncPolling } from '@/lib/syncPolling';
 import { useCan } from '@/lib/tenant';
+import { openOAuthPopup } from '@/lib/oauthPopup';
 
 const CALLBACK_ERRORS: Record<string, string> = {
     oauth_state: 'Phiên kết nối đã hết hạn hoặc không hợp lệ. Vui lòng thử kết nối lại.',
@@ -124,13 +125,13 @@ export function ChannelsPage() {
     const [ipModal, setIpModal] = useState<{ lzCode: string; guide: string; detail: string } | null>(null);
     const { data: outboundIp } = useOutboundIp(ipModal !== null);
 
-    useEffect(() => {
-        const connected = params.get('connected');
-        const err = params.get('error');
-        const ttCode = params.get('tt_code');
-        const lzCode = params.get('lz_code');
-        const lzMsg = params.get('lz_msg');
-        const errDesc = params.get('error_description');
+    const applyConnectResult = useCallback((p: URLSearchParams) => {
+        const connected = p.get('connected');
+        const err = p.get('error');
+        const ttCode = p.get('tt_code');
+        const lzCode = p.get('lz_code');
+        const lzMsg = p.get('lz_msg');
+        const errDesc = p.get('error_description');
         if (connected) {
             message.success(`Đã kết nối gian hàng ${CHANNEL_META[connected]?.name ?? connected}! Đơn 90 ngày gần đây đang được tải về.`);
             params.delete('connected'); setParams(params, { replace: true });
@@ -165,6 +166,24 @@ export function ChannelsPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    useEffect(() => {
+        applyConnectResult(params);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const handleConnectChannel = (provider: string) => {
+        connect.mutate(provider, {
+            onSuccess: async ({ auth_url }) => {
+                const res = await openOAuthPopup(auth_url);
+                if (res.status === 'done' && res.redirect) {
+                    applyConnectResult(new URL(res.redirect, window.location.origin).searchParams);
+                    refetch();
+                }
+            },
+            onError: () => { /* connect.isError đã hiển thị Alert sẵn có */ },
+        });
+    };
+
     if (isError) return <Result status="error" title="Không tải được danh sách gian hàng" subTitle={errorMessage(error)} extra={<Button onClick={() => refetch()}>Thử lại</Button>} />;
 
     const allAccounts = data?.data ?? [];
@@ -184,7 +203,7 @@ export function ChannelsPage() {
                         {connectable.map((p) => {
                             const meta = CHANNEL_META[p.code] ?? { name: p.name, color: '#8c8c8c' };
                             return (
-                                <Button key={p.code} type="primary" icon={<ChannelLogo provider={p.code} size={16} />} loading={connect.isPending && connect.variables === p.code} onClick={() => connect.mutate(p.code)} style={{ background: meta.color, borderColor: meta.color }}>
+                                <Button key={p.code} type="primary" icon={<ChannelLogo provider={p.code} size={16} />} loading={connect.isPending && connect.variables === p.code} onClick={() => handleConnectChannel(p.code)} style={{ background: meta.color, borderColor: meta.color }}>
                                     Kết nối {meta.name}
                                 </Button>
                             );
@@ -211,7 +230,7 @@ export function ChannelsPage() {
                                     onResync={() => resync.mutate(a.id, { onSuccess: () => { message.success('Đã xếp lịch đồng bộ lại đơn của gian hàng này — danh sách sẽ tự cập nhật khi xong.'); resyncPoll.start(); } })}
                                     onDelete={() => { setDeleteTarget(a); setConfirmDraft(''); }}
                                     onRename={() => { setRenaming(a); setAliasDraft(a.display_name ?? ''); }}
-                                    onReauthorize={() => connect.mutate(a.provider)}
+                                    onReauthorize={() => handleConnectChannel(a.provider)}
                                     reauthorizing={connect.isPending && connect.variables === a.provider}
                                     onToggleMessaging={(v) => setMessaging.mutate({ id: a.id, messaging_enabled: v }, {
                                         onSuccess: () => message.success(v ? 'Đã bật nhắn tin cho gian hàng.' : 'Đã tắt nhắn tin.'),

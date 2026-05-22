@@ -185,15 +185,19 @@ class MessageIngestionService
             ? Str::limit(preg_replace('/\s+/', ' ', $message->body), 197)
             : '['.$message->kind.']';
 
+        // Mốc thời gian hội thoại theo giờ tin NHẮN THẬT (sent_at từ sàn/FB), fallback
+        // created_at (giờ ingest) khi thiếu — để window guard 24h tính đúng cho tin backfill.
+        $occurredAt = $message->sent_at ?? $message->created_at;
+
         $conversation->message_count++;
-        $conversation->last_message_at = $message->created_at;
+        $conversation->last_message_at = $occurredAt;
         $conversation->last_message_preview = $preview;
 
         if ($message->isInbound()) {
             if ($conversation->blocked_at === null) {
                 $conversation->unread_count++;
             }
-            $conversation->last_inbound_at = $message->created_at;
+            $conversation->last_inbound_at = $occurredAt;
             // Tin mới đẩy snoozed/resolved về open — nhưng KHÔNG bỏ chặn / không nổi nếu blocked.
             if ($conversation->blocked_at === null
                 && in_array($conversation->status, [Conversation::STATUS_SNOOZED, Conversation::STATUS_RESOLVED], true)) {
@@ -201,7 +205,7 @@ class MessageIngestionService
                 $conversation->snoozed_until = null;
             }
         } else {
-            $conversation->last_outbound_at = $message->created_at;
+            $conversation->last_outbound_at = $occurredAt;
         }
 
         if (! $conversation->has_phone && $message->body !== null) {

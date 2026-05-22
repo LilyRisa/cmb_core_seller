@@ -68,7 +68,7 @@ export function useConnectChannel() {
             const { data } = await api!.post<{ data: { auth_url: string; provider: string } }>(`/channel-accounts/${provider}/connect`);
             return data.data;
         },
-        onSuccess: ({ auth_url }) => { window.location.href = auth_url; },
+        // mở popup do caller xử lý (ChannelsPage) — không redirect ở đây nữa.
     });
 }
 

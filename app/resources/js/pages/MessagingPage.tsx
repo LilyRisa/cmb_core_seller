@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import dayjs from 'dayjs';
 import { Link } from 'react-router-dom';
 import { App, Avatar, Badge, Button, Checkbox, Dropdown, Empty, Grid, Image, Input, List, Modal, Popconfirm, Popover, Radio, Segmented, Select, Space, Spin, Tag, Tooltip, Typography, Upload } from 'antd';
 import { CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FileOutlined, FilterOutlined, MessageFilled, MessageOutlined, MoreOutlined, PaperClipOutlined, PhoneOutlined, PictureOutlined, RobotOutlined, SendOutlined, ShopOutlined, SmileOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
@@ -32,30 +33,93 @@ import { TagManagerModal } from '@/components/TagManagerModal';
 
 const { Text } = Typography;
 
-/** Renders plain text with http(s) URLs as clickable links. */
-function LinkifiedText({ text }: { text: string }) {
-    const URL_RE = /(https?:\/\/[^\s]+)/g;
-    const parts = text.split(URL_RE);
+const URL_SPLIT_RE = /(https?:\/\/[^\s]+)/g;
+const URL_TEST_RE = /^https?:\/\/[^\s]+$/;
+// SĐT VN: tiền tố +84 hoặc 0, cho phép . - và khoảng trắng giữa các nhóm số.
+const PHONE_SPLIT_RE = /((?:\+84|0)\d[\d .-]{7,12}\d)/g;
+const PHONE_TEST_RE = /^(?:\+84|0)\d[\d .-]{7,12}\d$/;
+
+/** Chip sđt: bấm để copy (đã bỏ ký tự ngăn cách). */
+function PhoneChip({ value }: { value: string }) {
+    const { message } = App.useApp();
+    const normalized = value.replace(/[ .-]/g, '');
+    return (
+        <Tag
+            color="green"
+            icon={<PhoneOutlined />}
+            style={{ cursor: 'pointer', marginInline: 2 }}
+            onClick={(e) => {
+                e.stopPropagation();
+                void navigator.clipboard?.writeText(normalized);
+                message.success('Đã copy số điện thoại');
+            }}
+        >
+            {value.trim()}
+        </Tag>
+    );
+}
+
+/** Render 1 đoạn text: tách sđt thành chip. */
+function renderPhones(text: string, keyPrefix: string) {
+    return text.split(PHONE_SPLIT_RE).map((part, i) =>
+        PHONE_TEST_RE.test(part.trim())
+            ? <PhoneChip key={`${keyPrefix}-p${i}`} value={part} />
+            : <span key={`${keyPrefix}-t${i}`}>{part}</span>,
+    );
+}
+
+/** Render nội dung tin: URL → link; sđt → chip màu (bấm copy); còn lại giữ nguyên. */
+function MessageBody({ text }: { text: string }) {
+    const parts = text.split(URL_SPLIT_RE);
     return (
         <>
             {parts.map((part, i) =>
-                URL_RE.test(part) ? (
-                    <a
-                        key={i}
-                        href={part}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ color: 'inherit', textDecoration: 'underline' }}
-                    >
+                URL_TEST_RE.test(part) ? (
+                    <a key={`u${i}`} href={part} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>
                         {part}
                     </a>
                 ) : (
-                    part
+                    <span key={`s${i}`}>{renderPhones(part, `s${i}`)}</span>
                 ),
             )}
         </>
     );
 }
+
+/** Giờ hiển thị cho 1 tin trong thread: cùng ngày → HH:mm; khác ngày → DD/MM HH:mm. */
+function fmtMsgTime(iso: string | null): string {
+    if (!iso) return '';
+    const d = dayjs(iso);
+    return d.isSame(dayjs(), 'day') ? d.format('HH:mm') : d.format('DD/MM HH:mm');
+}
+
+/** Giờ gọn cho danh sách hội thoại: <60' → "x phút"; hôm nay → HH:mm; hôm qua → "Hôm qua"; còn lại → DD/MM. */
+function fmtListTime(iso: string | null): string {
+    if (!iso) return '';
+    const d = dayjs(iso);
+    const now = dayjs();
+    const diffMin = now.diff(d, 'minute');
+    if (diffMin < 1) return 'vừa xong';
+    if (diffMin < 60) return `${diffMin} phút`;
+    if (d.isSame(now, 'day')) return d.format('HH:mm');
+    if (d.isSame(now.subtract(1, 'day'), 'day')) return 'Hôm qua';
+    if (d.isSame(now, 'year')) return d.format('DD/MM');
+    return d.format('DD/MM/YY');
+}
+
+/** Hội thoại Facebook đã quá cửa sổ 24h kể từ tin buyer gần nhất? */
+function isOutsideWindow(lastInboundAt: string | null): boolean {
+    if (!lastInboundAt) return true;
+    return dayjs().diff(dayjs(lastInboundAt), 'hour') >= 24;
+}
+
+/** Thẻ tin nhắn Facebook ngoài 24h (mặc định HUMAN_AGENT cho trả lời của nhân viên). */
+const FB_MESSAGE_TAGS: Array<{ label: string; value: string }> = [
+    { label: 'Nhân viên (7 ngày)', value: 'HUMAN_AGENT' },
+    { label: 'Xác nhận sự kiện', value: 'CONFIRMED_EVENT_UPDATE' },
+    { label: 'Sau mua hàng', value: 'POST_PURCHASE_UPDATE' },
+    { label: 'Cập nhật tài khoản', value: 'ACCOUNT_UPDATE' },
+];
 
 /**
  * Hộp thư hợp nhất 3 cột (SPEC-0024 §3.1): danh sách hội thoại | luồng tin +
@@ -77,10 +141,11 @@ export function MessagingPage() {
 
     // ── Kind label fallback (khi body=null và không có attachment) ────────────
     const KIND_LABEL: Record<string, string> = {
-        text: 'Tin không có nội dung',
+        text: 'Tin nhắn không hỗ trợ hiển thị',
         image: 'Hình ảnh',
         video: 'Video',
         file: 'Tệp đính kèm',
+        sticker: 'Sticker',
         template: 'Mẫu tin',
         system: 'Tin hệ thống',
     };
@@ -98,6 +163,7 @@ export function MessagingPage() {
     // ── Other state ───────────────────────────────────────────────────────────
     const [activeId, setActiveId] = useState<number | null>(null);
     const [draft, setDraft] = useState('');
+    const [msgTag, setMsgTag] = useState<string>('HUMAN_AGENT');
     const [emojiOpen, setEmojiOpen] = useState(false);
     const [tagPopoverConvId, setTagPopoverConvId] = useState<number | null>(null);
 
@@ -179,6 +245,11 @@ export function MessagingPage() {
         [conversations, activeId, thread.data],
     );
 
+    const needsTag = active?.provider === 'facebook_page'
+        && active?.thread_type === 'message'
+        && !active?.blocked_at
+        && isOutsideWindow(active?.last_inbound_at ?? null);
+
     const bottomRef = useRef<HTMLDivElement>(null);
     useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [thread.data?.messages.length]);
 
@@ -194,7 +265,7 @@ export function MessagingPage() {
     const handleSend = () => {
         const body = draft.trim();
         if (!body || !activeId) return;
-        sendText.mutate(body, {
+        sendText.mutate({ body, message_tag: needsTag ? msgTag : undefined }, {
             onSuccess: () => setDraft(''),
             onError: (e) => message.error(errorMessage(e, 'Không gửi được tin.')),
         });
@@ -503,10 +574,10 @@ export function MessagingPage() {
                                             avatar={(
                                                 <Badge
                                                     count={c.thread_type === 'comment'
-                                                        ? <CommentOutlined style={{ fontSize: 10, color: '#1677ff', background: '#fff', borderRadius: '50%', padding: 1 }} />
-                                                        : <MessageOutlined style={{ fontSize: 10, color: '#52c41a', background: '#fff', borderRadius: '50%', padding: 1 }} />
+                                                        ? <CommentOutlined style={{ fontSize: 15, color: '#1677ff', background: '#fff', borderRadius: '50%', padding: 2, boxShadow: '0 0 0 1px #fff' }} />
+                                                        : <MessageOutlined style={{ fontSize: 15, color: '#52c41a', background: '#fff', borderRadius: '50%', padding: 2, boxShadow: '0 0 0 1px #fff' }} />
                                                     }
-                                                    offset={[-2, 28]}
+                                                    offset={[-4, 30]}
                                                 >
                                                     <Avatar size={40} src={c.buyer_avatar_url ?? undefined} style={{ background: '#2563EB', flexShrink: 0 }}>{(c.buyer_name ?? c.buyer_external_id ?? '?').slice(0, 1).toUpperCase()}</Avatar>
                                                 </Badge>
@@ -519,6 +590,11 @@ export function MessagingPage() {
                                                             <Badge count={c.unread_count} size="small" />
                                                             <Text strong={c.unread_count > 0} ellipsis style={{ maxWidth: 160 }}>{c.buyer_name ?? c.buyer_external_id}</Text>
                                                         </Space>
+                                                        {c.last_message_at && (
+                                                            <Text type="secondary" style={{ fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                                                {fmtListTime(c.last_message_at)}
+                                                            </Text>
+                                                        )}
                                                         <Dropdown
                                                             trigger={['click']}
                                                             menu={{
@@ -713,15 +789,16 @@ export function MessagingPage() {
                                                         )}
                                                     </div>
                                                 ))}
-                                                {m.body != null && <div style={{ whiteSpace: 'pre-wrap' }}><LinkifiedText text={m.body} /></div>}
+                                                {m.body != null && <div style={{ whiteSpace: 'pre-wrap' }}><MessageBody text={m.body} /></div>}
                                                 {m.body == null && (m.attachments ?? []).length === 0 && (
                                                     <div style={{ fontStyle: 'italic', opacity: 0.7 }}>{KIND_LABEL[m.kind] ?? m.kind}</div>
                                                 )}
-                                                {m.direction === 'outbound' && (
-                                                    <div style={{ fontSize: 10, opacity: 0.8, textAlign: 'right' }}>
-                                                        {DELIVERY_STATUS_LABEL[m.delivery_status ?? ''] ?? m.delivery_status}
-                                                    </div>
-                                                )}
+                                                <div style={{ fontSize: 10, opacity: 0.6, textAlign: m.direction === 'outbound' ? 'right' : 'left', marginTop: 2 }}>
+                                                    {fmtMsgTime(m.sent_at ?? m.created_at)}
+                                                    {m.direction === 'outbound' && (
+                                                        <> · {DELIVERY_STATUS_LABEL[m.delivery_status ?? ''] ?? m.delivery_status}</>
+                                                    )}
+                                                </div>
                                             </div>
                                             {m.reaction && (
                                                 <div style={{
@@ -780,6 +857,21 @@ export function MessagingPage() {
                         ) : (
                         /* ── Message composer (original) ── */
                         <div style={{ padding: 12, borderTop: '1px solid #F1F5F9' }}>
+                            {needsTag && (
+                                <div style={{ marginBottom: 8 }}>
+                                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
+                                        Quá 24h từ tin cuối của khách — chọn loại thẻ tin nhắn để gửi (Facebook yêu cầu):
+                                    </Text>
+                                    <Radio.Group
+                                        size="small"
+                                        optionType="button"
+                                        buttonStyle="solid"
+                                        options={FB_MESSAGE_TAGS}
+                                        value={msgTag}
+                                        onChange={(e) => setMsgTag(e.target.value)}
+                                    />
+                                </div>
+                            )}
                             <Popover
                                 open={slashOpen && (slashMatches.length > 0 || slashQuery !== null)}
                                 placement="topLeft"

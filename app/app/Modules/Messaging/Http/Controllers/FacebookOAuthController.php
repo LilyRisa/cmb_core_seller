@@ -14,8 +14,8 @@ use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -55,18 +55,18 @@ class FacebookOAuthController extends Controller
     }
 
     /** [web, no auth] Callback từ Meta sau khi user authorize. */
-    public function callback(Request $request): RedirectResponse
+    public function callback(Request $request): Response
     {
         $code = (string) $request->query('code', '');
         $stateToken = (string) $request->query('state', '');
 
         if ($request->query('error') || $code === '' || $stateToken === '') {
-            return redirect('/messaging/channels?error=facebook_oauth_'.preg_replace('/[^a-z0-9_]/i', '_', strtolower((string) $request->query('error', 'missing_params'))));
+            return $this->finish('/messaging/channels?error=facebook_oauth_'.preg_replace('/[^a-z0-9_]/i', '_', strtolower((string) $request->query('error', 'missing_params'))));
         }
 
         $state = OAuthState::query()->where('state', $stateToken)->where('provider', self::PROVIDER)->first();
         if (! $state || $state->isExpired()) {
-            return redirect('/messaging/channels?error=facebook_oauth_state');
+            return $this->finish('/messaging/channels?error=facebook_oauth_state');
         }
 
         try {
@@ -75,7 +75,7 @@ class FacebookOAuthController extends Controller
 
             $pages = $this->fetchPages($userToken);
             if ($pages === []) {
-                return redirect('/messaging/channels?error=facebook_no_pages');
+                return $this->finish('/messaging/channels?error=facebook_no_pages');
             }
 
             $connected = 0;
@@ -118,10 +118,16 @@ class FacebookOAuthController extends Controller
         } catch (\Throwable $e) {
             Log::warning('messaging.facebook.oauth_failed', ['error' => $e->getMessage()]);
 
-            return redirect('/messaging/channels?error=facebook_oauth_failed');
+            return $this->finish('/messaging/channels?error=facebook_oauth_failed');
         }
 
-        return redirect($state->redirect_after ?: '/messaging/channels?connected=facebook_page');
+        return $this->finish($state->redirect_after ?: '/messaging/channels?connected=facebook_page');
+    }
+
+    /** Trả view popup-friendly: popup → postMessage + close; không popup → redirect SPA. */
+    private function finish(string $redirect): Response
+    {
+        return response()->view('oauth-callback', ['redirect' => $redirect]);
     }
 
     /**
