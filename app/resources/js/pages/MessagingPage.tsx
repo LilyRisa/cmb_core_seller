@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import dayjs from 'dayjs';
 import { Link } from 'react-router-dom';
 import { App, Avatar, Badge, Button, Checkbox, Dropdown, Empty, Grid, Image, Input, List, Modal, Popconfirm, Popover, Radio, Segmented, Select, Space, Spin, Tag, Tooltip, Typography, Upload } from 'antd';
 import { CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FileOutlined, FilterOutlined, MessageFilled, MessageOutlined, MoreOutlined, PaperClipOutlined, PhoneOutlined, PictureOutlined, RobotOutlined, SendOutlined, ShopOutlined, SmileOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
@@ -55,6 +56,13 @@ function LinkifiedText({ text }: { text: string }) {
             )}
         </>
     );
+}
+
+/** Giờ hiển thị cho 1 tin trong thread: cùng ngày → HH:mm; khác ngày → DD/MM HH:mm. */
+function fmtMsgTime(iso: string | null): string {
+    if (!iso) return '';
+    const d = dayjs(iso);
+    return d.isSame(dayjs(), 'day') ? d.format('HH:mm') : d.format('DD/MM HH:mm');
 }
 
 /**
@@ -717,11 +725,12 @@ export function MessagingPage() {
                                                 {m.body == null && (m.attachments ?? []).length === 0 && (
                                                     <div style={{ fontStyle: 'italic', opacity: 0.7 }}>{KIND_LABEL[m.kind] ?? m.kind}</div>
                                                 )}
-                                                {m.direction === 'outbound' && (
-                                                    <div style={{ fontSize: 10, opacity: 0.8, textAlign: 'right' }}>
-                                                        {DELIVERY_STATUS_LABEL[m.delivery_status ?? ''] ?? m.delivery_status}
-                                                    </div>
-                                                )}
+                                                <div style={{ fontSize: 10, opacity: 0.6, textAlign: m.direction === 'outbound' ? 'right' : 'left', marginTop: 2 }}>
+                                                    {fmtMsgTime(m.sent_at ?? m.created_at)}
+                                                    {m.direction === 'outbound' && (
+                                                        <> · {DELIVERY_STATUS_LABEL[m.delivery_status ?? ''] ?? m.delivery_status}</>
+                                                    )}
+                                                </div>
                                             </div>
                                             {m.reaction && (
                                                 <div style={{
