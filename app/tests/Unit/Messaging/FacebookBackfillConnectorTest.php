@@ -256,7 +256,8 @@ class FacebookBackfillConnectorTest extends TestCase
                     ],
                 ]]],
             ], 200),
-            // messages edge → tin rỗng, KHÔNG attachments.
+            // messages edge → tin rỗng + 1 attachment "rác" (không media/url — vd template
+            // mà edge không trả sub-field). Phải bị BỎ để recovery chạy (không thành "file").
             'graph.facebook.com/*' => Http::response([
                 'id' => 't_tpl',
                 'messages' => ['data' => [[
@@ -264,6 +265,7 @@ class FacebookBackfillConnectorTest extends TestCase
                     'message' => '',
                     'created_time' => '2026-05-22T09:44:39+0000',
                     'from' => ['id' => 'PAGE_123', 'name' => 'Shop'],
+                    'attachments' => ['data' => [['id' => 'att_junk']]],
                 ]]],
             ], 200),
         ]);

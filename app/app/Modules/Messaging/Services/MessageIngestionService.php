@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Messaging\Services;
 
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Events\ConversationCreated;
 use CMBcoreSeller\Modules\Messaging\Events\MessageReceived;
@@ -54,7 +55,7 @@ class MessageIngestionService
                 ->first();
 
             if ($existing !== null) {
-                $this->healEmptyMessage($existing, $dto);
+                $this->reconcileMessageOnResync($existing, $dto);
 
                 return ['conversation' => $conversation, 'message' => $existing, 'created' => false];
             }
@@ -139,33 +140,74 @@ class MessageIngestionService
     }
 
     /**
-     * Bổ sung nội dung cho tin RỖNG đã lưu khi re-sync nhận được content mới (vd tin
-     * tự động template: lần đầu lưu rỗng, lần sau fetch được title + nút bấm nhờ field
-     * `generic_template`). CHỈ fill khi tin đang rỗng (body trống + không attachment) —
-     * KHÔNG bao giờ ghi đè tin đã có nội dung. Idempotent.
+     * Hoà hợp tin ĐÃ LƯU với DTO khi re-sync (dedupe hit) — sửa dữ liệu cũ bị lỗi mà
+     * KHÔNG ghi đè nội dung hợp lệ. Idempotent. Các case:
+     *   (a) Xoá attachment "rác" (không storage_path & không external_url — vd "file" giả
+     *       sinh từ template trước khi fix) khi DTO giờ không còn attachment đó.
+     *   (b) Body rỗng → điền nội dung mới (vd template recover được title + nút bấm).
+     *   (c) Body cũ là URL trần (sticker bị linkify trước khi fix) + tin giờ là ảnh → xoá link.
+     *   (d) Bổ sung nút bấm (template) nếu chưa có.
      */
-    private function healEmptyMessage(Message $existing, MessageDTO $dto): void
+    private function reconcileMessageOnResync(Message $existing, MessageDTO $dto): void
     {
-        $isEmpty = ($existing->body === null || $existing->body === '')
-            && (int) $existing->attachments_count === 0;
-
+        $changed = false;
         $incomingButtons = is_array($dto->meta['buttons'] ?? null) ? $dto->meta['buttons'] : [];
-        $hasContent = ($dto->body !== null && $dto->body !== '') || $incomingButtons !== [];
+        $incomingHasContent = ($dto->body !== null && $dto->body !== '') || $incomingButtons !== [];
 
-        if (! $isEmpty || ! $hasContent) {
-            return;
+        // (a) Dọn attachment rác khi DTO không còn attachment + đã có nội dung thay thế.
+        if ($dto->attachments === [] && (int) $existing->attachments_count > 0 && $incomingHasContent) {
+            $deleted = $existing->attachments()
+                ->withoutGlobalScope(TenantScope::class)
+                ->whereNull('storage_path')
+                ->whereNull('external_url')
+                ->delete();
+            if ($deleted > 0) {
+                $existing->attachments_count = max(0, (int) $existing->attachments_count - $deleted);
+                $changed = true;
+            }
         }
 
-        $meta = is_array($existing->meta) ? $existing->meta : [];
+        // (b) Body rỗng → điền + đặt kind.
+        if (($existing->body === null || trim((string) $existing->body) === '')
+            && $dto->body !== null && $dto->body !== '') {
+            $existing->body = $dto->body;
+            $existing->kind = $dto->kind->value;
+            $changed = true;
+        }
+
+        // (c) Body cũ là URL trần (sticker linkified) + tin giờ là ảnh không body ⇒ xoá link.
+        if ($dto->body === null
+            && $existing->body !== null
+            && preg_match('#^https?://\S+$#', trim((string) $existing->body)) === 1
+            && $this->dtoHasImage($dto)) {
+            $existing->body = null;
+            $changed = true;
+        }
+
+        // (d) Bổ sung nút bấm nếu chưa có.
         if ($incomingButtons !== []) {
-            $meta['buttons'] = $incomingButtons;
+            $meta = is_array($existing->meta) ? $existing->meta : [];
+            if (empty($meta['buttons'])) {
+                $meta['buttons'] = $incomingButtons;
+                $existing->meta = $meta;
+                $changed = true;
+            }
         }
 
-        $existing->forceFill([
-            'body' => $dto->body,
-            'kind' => $dto->kind->value,
-            'meta' => $meta !== [] ? $meta : null,
-        ])->save();
+        if ($changed) {
+            $existing->save();
+        }
+    }
+
+    private function dtoHasImage(MessageDTO $dto): bool
+    {
+        foreach ($dto->attachments as $media) {
+            if ($media->kind === MessageKind::Image) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function ensureConversation(ChannelAccount $channelAccount, MessageDTO $dto): Conversation

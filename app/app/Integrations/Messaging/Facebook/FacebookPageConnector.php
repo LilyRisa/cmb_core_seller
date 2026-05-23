@@ -661,7 +661,14 @@ class FacebookPageConnector implements MessagingConnector
 
                     continue;
                 }
-                $attachments[] = $this->mapBackfillAttachment((array) $att);
+                // CHỈ giữ attachment THẬT (có URL media). Bỏ "rác" không URL — vd tin tự động
+                // (template): messages edge trả 1 attachment rỗng (không generic_template vì
+                // không xin sub-field) ⇒ nếu tạo "file" giả thì attachments != [] sẽ CHẶN
+                // recoverMessageContent() chạy. Bỏ nó đi để recovery lấy nội dung thật.
+                $mapped = $this->mapBackfillAttachment((array) $att);
+                if ($mapped->externalUrl !== null) {
+                    $attachments[] = $mapped;
+                }
             }
 
             // Shared post/link nằm ở edge `shares` (KHÁC `attachments`) — nguồn gây
