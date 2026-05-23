@@ -177,12 +177,16 @@ class FacebookPageConnector implements MessagingConnector
      */
     public function fetchUserProfile(MessagingAuthContext $auth, string $psid): array
     {
-        // Messenger User Profile API: field chuẩn theo tài liệu là first_name/last_name/
-        // profile_pic. Vẫn xin `name` (Graph đôi khi trả full name) rồi fallback ghép
-        // first+last. `profile_pic` là URL CDN HẾT HẠN ⇒ caller relay về object storage.
+        // Messenger User Profile API — field HỢP LỆ cho node PSID theo tài liệu chính thức
+        // CHỈ gồm: first_name, last_name, profile_pic (+ locale/timezone/gender cần duyệt).
+        // KHÔNG xin `name` — không phải field của node này ⇒ Graph trả lỗi (#100) khiến CẢ
+        // request fail → mất luôn avatar. Tên ghép từ first+last (tên đầy đủ vẫn lấy từ
+        // participants ở fetchConversations). profile_pic là URL CDN HẾT HẠN ⇒ relay.
+        // `profile_pic` CHỈ trả về khi app có quyền (Advanced Access `pages_messaging` qua
+        // App Review; Dev Mode chỉ trả cho người có vai trò trong app).
         // docs: developers.facebook.com/docs/messenger-platform/identity/user-profile
         $res = Http::timeout(20)->get($this->graphUrl($psid), [
-            'fields' => 'name,first_name,last_name,profile_pic',
+            'fields' => 'first_name,last_name,profile_pic',
             'access_token' => $auth->accessToken,
         ]);
 

@@ -81,6 +81,9 @@ class FacebookBackfillConnectorTest extends TestCase
 
         $this->assertSame('Văn A Nguyễn', $profile['name']);
         $this->assertSame('https://cdn.fb/psidavatar.jpg', $profile['avatar_url']);
+
+        // Field đúng tài liệu User Profile API — KHÔNG xin `name` (gây lỗi #100 trên node PSID).
+        Http::assertSent(fn ($r) => str_contains(urldecode($r->url()), 'fields=first_name,last_name,profile_pic'));
     }
 
     public function test_fetch_profile_failure_returns_nulls(): void

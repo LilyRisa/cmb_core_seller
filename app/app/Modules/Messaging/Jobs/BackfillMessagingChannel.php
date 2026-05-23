@@ -87,13 +87,16 @@ class BackfillMessagingChannel implements ShouldBeUnique, ShouldQueue
             'sync_error' => null,
         ])->save();
 
-        // Avatar page (best-effort, queued) — skip khi đã relay (tránh re-download mỗi giờ).
-        if ($meta->page_avatar_synced_at === null) {
+        // Avatar page (best-effort). Lấy khi CHƯA relay (path) HOẶC thiếu URL CDN fallback —
+        // page đã sync trước đây (synced_at set) vẫn cần điền page_avatar_url để hiển thị
+        // khi storage URL không tới được. Chỉ DISPATCH relay khi chưa từng relay.
+        if ($meta->page_avatar_synced_at === null || $meta->page_avatar_url === null) {
             $pageProfile = $connector->fetchPageProfile($auth);
             if (! empty($pageProfile['avatar_url'])) {
-                // Lưu URL CDN làm fallback hiển thị ngay khi relay chưa xong / storage lỗi.
                 $meta->forceFill(['page_avatar_url' => (string) $pageProfile['avatar_url']])->save();
-                RelayMessagingAvatar::dispatch('page', (int) $account->getKey(), (string) $pageProfile['avatar_url']);
+                if ($meta->page_avatar_synced_at === null) {
+                    RelayMessagingAvatar::dispatch('page', (int) $account->getKey(), (string) $pageProfile['avatar_url']);
+                }
             }
         }
 
