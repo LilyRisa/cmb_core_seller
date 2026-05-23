@@ -192,22 +192,38 @@ class MessageIngestionService
         $occurredAt = $message->sent_at ?? $message->created_at;
 
         $conversation->message_count++;
-        $conversation->last_message_at = $occurredAt;
-        $conversation->last_message_preview = $preview;
+
+        // CHỈ cập nhật "tin gần nhất" khi message này MỚI HƠN mốc hiện tại. Backfill ingest
+        // nhiều tin (Graph trả newest→oldest); nếu ghi đè vô điều kiện, tin CŨ NHẤT (ingest
+        // cuối) sẽ clobber last_message_at + preview ⇒ inbox sai thứ tự + hiện tin đầu thay
+        // vì tin cuối. Realtime (1 tin mới) luôn qua guard này.
+        $isLatest = $conversation->last_message_at === null
+            || ($occurredAt !== null && $occurredAt->greaterThanOrEqualTo($conversation->last_message_at));
+
+        if ($isLatest) {
+            $conversation->last_message_at = $occurredAt;
+            $conversation->last_message_preview = $preview;
+        }
 
         if ($message->isInbound()) {
             if ($conversation->blocked_at === null) {
                 $conversation->unread_count++;
             }
-            $conversation->last_inbound_at = $occurredAt;
-            // Tin mới đẩy snoozed/resolved về open — nhưng KHÔNG bỏ chặn / không nổi nếu blocked.
-            if ($conversation->blocked_at === null
+            if ($conversation->last_inbound_at === null
+                || ($occurredAt !== null && $occurredAt->greaterThanOrEqualTo($conversation->last_inbound_at))) {
+                $conversation->last_inbound_at = $occurredAt;
+            }
+            // Tin mới (mới nhất) đẩy snoozed/resolved về open — nhưng KHÔNG bỏ chặn / không nổi nếu blocked.
+            if ($isLatest && $conversation->blocked_at === null
                 && in_array($conversation->status, [Conversation::STATUS_SNOOZED, Conversation::STATUS_RESOLVED], true)) {
                 $conversation->status = Conversation::STATUS_OPEN;
                 $conversation->snoozed_until = null;
             }
         } else {
-            $conversation->last_outbound_at = $occurredAt;
+            if ($conversation->last_outbound_at === null
+                || ($occurredAt !== null && $occurredAt->greaterThanOrEqualTo($conversation->last_outbound_at))) {
+                $conversation->last_outbound_at = $occurredAt;
+            }
         }
 
         if (! $conversation->has_phone && $message->body !== null) {

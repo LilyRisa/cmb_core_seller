@@ -117,7 +117,45 @@ class MessagingApiTest extends TestCase
             ->assertJsonPath('data.0.unread_count', 2)
             // Nguồn gốc hội thoại: tên shop/page + nhóm kênh.
             ->assertJsonPath('data.0.channel_account_name', 'API Shop')
-            ->assertJsonPath('data.0.channel_group', 'internal');
+            ->assertJsonPath('data.0.channel_group', 'internal')
+            // meta.pagination để FE infinite-scroll đọc total_pages.
+            ->assertJsonPath('meta.pagination.total_pages', 1)
+            ->assertJsonPath('meta.pagination.page', 1);
+    }
+
+    public function test_filter_by_multiple_channel_accounts_sorted_newest_first(): void
+    {
+        $pageA = ChannelAccount::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'provider' => 'facebook_page',
+            'external_shop_id' => 'PAGE_A', 'shop_name' => 'Trang A', 'status' => 'active', 'messaging_enabled' => true,
+        ]);
+        $pageB = ChannelAccount::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'provider' => 'facebook_page',
+            'external_shop_id' => 'PAGE_B', 'shop_name' => 'Trang B', 'status' => 'active', 'messaging_enabled' => true,
+        ]);
+        // Buyer A (trang A) cũ hơn; Buyer B (trang B) mới nhất.
+        Conversation::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'channel_account_id' => $pageA->id, 'provider' => 'facebook_page',
+            'external_conversation_id' => 'psid_a', 'buyer_external_id' => 'psid_a', 'buyer_name' => 'Buyer A',
+            'status' => Conversation::STATUS_OPEN, 'last_message_at' => now()->subMinutes(10),
+        ]);
+        Conversation::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'channel_account_id' => $pageB->id, 'provider' => 'facebook_page',
+            'external_conversation_id' => 'psid_b', 'buyer_external_id' => 'psid_b', 'buyer_name' => 'Buyer B',
+            'status' => Conversation::STATUS_OPEN, 'last_message_at' => now(),
+        ]);
+
+        // Lọc 1 trang → chỉ trang đó.
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->getJson('/api/v1/messaging/conversations?channel_account_id='.$pageA->id)
+            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.buyer_name', 'Buyer A');
+
+        // Lọc nhiều trang (CSV) → cả hai, sắp xếp mới→cũ (Buyer B trước).
+        $res = $this->actingAs($this->owner)->withHeaders($this->h())
+            ->getJson('/api/v1/messaging/conversations?channel_account_id='.$pageA->id.','.$pageB->id)
+            ->assertOk()->assertJsonCount(2, 'data');
+        $this->assertSame('Buyer B', $res->json('data.0.buyer_name'), 'phải sắp xếp theo last_message_at mới nhất trước');
+        $this->assertSame('Buyer A', $res->json('data.1.buyer_name'));
     }
 
     public function test_inbox_separates_marketplace_and_facebook(): void

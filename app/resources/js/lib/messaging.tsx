@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { tenantApi } from './api';
 import { useCurrentTenantId } from './tenant';
@@ -100,7 +100,7 @@ export interface ConversationFilters {
     read?: boolean;
     has_phone?: boolean;
     tags?: string; // CSV of tag ids, e.g. "1,2"
-    channel_account_id?: number;
+    channel_account_id?: number | string; // 1 id hoặc CSV nhiều page "5,6,7"
 }
 
 function useScopedApi() {
@@ -111,16 +111,23 @@ function useScopedApi() {
 export function useConversations(filters: ConversationFilters) {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();
-    return useQuery({
+    return useInfiniteQuery({
         queryKey: ['messaging', 'conversations', tenantId, filters],
         enabled: api != null,
         placeholderData: (prev) => prev,
         refetchInterval: 15_000, // polling fallback tới khi Reverb bật
-        queryFn: async () => {
+        initialPageParam: 1,
+        queryFn: async ({ pageParam }) => {
             const params: Record<string, string | number | boolean> = {};
             Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== '' && v !== false) params[k] = v as never; });
+            params.page = pageParam as number; // ghi đè mọi `page` rác trong filters
             const { data } = await api!.get<Paginated<Conversation>>('/messaging/conversations', { params });
             return data;
+        },
+        // Còn trang sau? page hiện < tổng số trang ⇒ trả page kế cho infinite scroll.
+        getNextPageParam: (lastPage: Paginated<Conversation>) => {
+            const p = lastPage.meta.pagination;
+            return p.page < p.total_pages ? p.page + 1 : undefined;
         },
     });
 }

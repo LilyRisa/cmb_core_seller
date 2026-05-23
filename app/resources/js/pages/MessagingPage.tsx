@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback, type CSSProperties, type ReactNode, type UIEvent } from 'react';
 import dayjs from 'dayjs';
 import { Link } from 'react-router-dom';
 import { App, Avatar, Badge, Button, Checkbox, Dropdown, Empty, Grid, Image, Input, List, Modal, Popconfirm, Popover, Radio, Segmented, Select, Space, Spin, Tag, Tooltip, Typography, Upload } from 'antd';
@@ -234,7 +234,7 @@ export function MessagingPage() {
     const [hasPhone, setHasPhone] = useState(false);
     const [tagFilter, setTagFilter] = useState<number[]>([]);
     const [statusState, setStatusState] = useState<'open' | 'resolved' | 'blocked' | 'all'>('open');
-    const [channelAccountId, setChannelAccountId] = useState<number | undefined>(undefined);
+    const [channelAccountId, setChannelAccountId] = useState<number[]>([]);
     const [filterOpen, setFilterOpen] = useState(false);
     const [tagModalOpen, setTagModalOpen] = useState(false);
 
@@ -302,7 +302,7 @@ export function MessagingPage() {
         unread: readState === 'unread' || undefined,
         has_phone: hasPhone || undefined,
         tags: tagFilter.length ? tagFilter.join(',') : undefined,
-        channel_account_id: board === 'facebook' ? channelAccountId : undefined,
+        channel_account_id: board === 'facebook' && channelAccountId.length ? channelAccountId.join(',') : undefined,
     });
     const thread = useConversationThread(activeId);
     const sendText = useSendText(activeId);
@@ -317,7 +317,14 @@ export function MessagingPage() {
     const replyComment = useReplyComment(activeId);
     const privateReply = usePrivateReplyComment(activeId);
 
-    const conversations = list.data?.data ?? [];
+    const conversations = useMemo(() => list.data?.pages.flatMap((p) => p.data) ?? [], [list.data]);
+    const handleConvScroll = useCallback((e: UIEvent<HTMLDivElement>) => {
+        const el = e.currentTarget;
+        // Gần đáy (<240px) ⇒ tải trang kế (infinite scroll danh sách hội thoại).
+        if (el.scrollHeight - el.scrollTop - el.clientHeight < 240 && list.hasNextPage && !list.isFetchingNextPage) {
+            void list.fetchNextPage();
+        }
+    }, [list]);
     const active = useMemo(
         () => conversations.find((c) => c.id === activeId) ?? thread.data?.conversation,
         [conversations, activeId, thread.data],
@@ -409,7 +416,7 @@ export function MessagingPage() {
         statusState !== 'open',
         hasPhone,
         tagFilter.length > 0,
-        board === 'facebook' && channelAccountId != null,
+        board === 'facebook' && channelAccountId.length > 0,
     ].filter(Boolean).length;
 
     // ── Filter popover content ────────────────────────────────────────────────
@@ -459,11 +466,13 @@ export function MessagingPage() {
                 <div>
                     <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>Trang</Text>
                     <Select
+                        mode="multiple"
                         allowClear
                         placeholder="Tất cả trang"
                         style={{ width: '100%' }}
                         value={channelAccountId}
-                        onChange={(v) => setChannelAccountId(v as number | undefined)}
+                        onChange={(v) => setChannelAccountId((v as number[]) ?? [])}
+                        maxTagCount="responsive"
                         options={facebookPages.map((p) => ({ value: p.id, label: p.name }))}
                     />
                 </div>
@@ -602,7 +611,7 @@ export function MessagingPage() {
                             block
                             style={{ flex: 1 }}
                             value={board}
-                            onChange={(v) => { setBoard(v as 'marketplace' | 'facebook'); setActiveId(null); setChannelAccountId(undefined); }}
+                            onChange={(v) => { setBoard(v as 'marketplace' | 'facebook'); setActiveId(null); setChannelAccountId([]); }}
                             options={[
                                 { label: 'Sàn', value: 'marketplace' },
                                 { label: 'Facebook', value: 'facebook' },
@@ -621,12 +630,13 @@ export function MessagingPage() {
                         </Popover>
                     </div>
                 </div>
-                <div style={{ flex: 1, overflowY: 'auto' }}>
+                <div style={{ flex: 1, overflowY: 'auto' }} onScroll={handleConvScroll}>
                     {list.isLoading ? (
                         <div style={{ padding: 24, textAlign: 'center' }}><Spin /></div>
                     ) : conversations.length === 0 ? (
                         <Empty description="Chưa có hội thoại" style={{ marginTop: 48 }} />
                     ) : (
+                        <>
                         <List
                             dataSource={conversations}
                             renderItem={(c: Conversation) => (
@@ -719,6 +729,10 @@ export function MessagingPage() {
                                 </Popover>
                             )}
                         />
+                        {list.isFetchingNextPage && (
+                            <div style={{ textAlign: 'center', padding: 12 }}><Spin size="small" /></div>
+                        )}
+                        </>
                     )}
                 </div>
             </div>

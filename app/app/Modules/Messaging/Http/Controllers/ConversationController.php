@@ -10,7 +10,6 @@ use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -23,7 +22,7 @@ use Illuminate\Support\Facades\Gate;
  */
 class ConversationController extends Controller
 {
-    public function index(Request $request): AnonymousResourceCollection
+    public function index(Request $request): JsonResponse
     {
         Gate::authorize('messaging.view');
 
@@ -72,7 +71,11 @@ class ConversationController extends Controller
             }
         }
         if ($channelId = $request->query('channel_account_id')) {
-            $q->where('channel_account_id', (int) $channelId);
+            // Hỗ trợ chọn NHIỀU trang/gian hàng: CSV "5,6,7" → whereIn. Cũng nhận 1 id.
+            $ids = array_values(array_filter(array_map('intval', explode(',', (string) $channelId))));
+            if ($ids !== []) {
+                $q->whereIn('channel_account_id', $ids);
+            }
         }
         if ($customerId = $request->query('customer_id')) {
             $q->where('customer_id', (int) $customerId);
@@ -87,8 +90,19 @@ class ConversationController extends Controller
         $q->orderByDesc('last_message_at');
 
         $perPage = min(100, max(1, (int) $request->query('per_page', 20)));
+        $page = $q->paginate($perPage)->appends($request->query());
 
-        return ConversationResource::collection($q->paginate($perPage));
+        // Trả `meta.pagination` chuẩn (giống OrderController) để FE infinite-scroll
+        // đọc được total_pages — `Resource::collection($paginate)` chỉ cho meta mặc định Laravel.
+        return response()->json([
+            'data' => ConversationResource::collection($page->getCollection())->toArray($request),
+            'meta' => ['pagination' => [
+                'page' => $page->currentPage(),
+                'per_page' => $page->perPage(),
+                'total' => $page->total(),
+                'total_pages' => $page->lastPage(),
+            ]],
+        ]);
     }
 
     public function show(int $id, Request $request): JsonResponse
