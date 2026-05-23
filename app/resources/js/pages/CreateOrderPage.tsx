@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
-    Alert, App as AntApp, Avatar, Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber, Modal,
-    Popover, Radio, Row, Segmented, Space, Tag, Tooltip, Typography, Upload,
+    Alert, App as AntApp, Avatar, Badge, Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber, Modal,
+    Popover, Radio, Row, Segmented, Space, Tabs, Tag, Tooltip, Typography, Upload,
 } from 'antd';
 import {
     ArrowLeftOutlined, BarcodeOutlined, CalendarOutlined, CheckCircleFilled, CloseCircleFilled,
@@ -51,7 +51,30 @@ const SUB_SOURCE_ICONS: Record<string, React.ReactNode> = {
     facebook: <FacebookFilled style={{ color: '#1877f2' }} />,
 };
 
-export function CreateOrderPage() {
+/** Nháp 1 đơn (serialize được) — dùng để lưu localStorage + khôi phục tab. */
+export type OrderDraft = {
+    items: OrderLineInput[];
+    phone: string;
+    shipAddress: PickedAddress;
+    tags: string[];
+    attachments: Array<{ url: string; name: string }>;
+    form: Record<string, unknown>;
+};
+
+interface CreateOrderFormProps {
+    /** Tab đang hiển thị? Chỉ tab active bắt hotkey F2/F4. Mặc định true (chế độ sửa/đứng riêng). */
+    active?: boolean;
+    /** Chế độ tạo (có tab): gọi thay vì navigate sau khi lưu — để parent reset tab. */
+    onSaved?: (orderId: number) => void;
+    /** Báo nháp lên parent (debounce). null = sạch (chưa nhập SĐT). Parent lưu localStorage. */
+    onDraftChange?: (draft: OrderDraft | null) => void;
+    /** Nháp khôi phục khi mở lại tab (từ localStorage). */
+    initialDraft?: OrderDraft | null;
+    /** Nhúng trong workspace nhiều tab ⇒ ẩn PageHeader riêng (workspace có header chung). */
+    embedded?: boolean;
+}
+
+function CreateOrderForm({ active = true, onSaved, onDraftChange, initialDraft, embedded = false }: CreateOrderFormProps) {
     const { message } = AntApp.useApp();
     const navigate = useNavigate();
     const { id: editIdRaw } = useParams();
@@ -116,54 +139,21 @@ export function CreateOrderPage() {
         if (meId != null) form.setFieldsValue({ assignee_user_id: meId });
     }, [meId, form]);
 
-    // U16 (Sprint 2) — Draft autosave / restore. Lưu vào localStorage mỗi 1s sau khi user thay đổi.
-    // Restore khi vào trang nếu có draft (≤24h) — show 1 prompt "Có nháp đơn chưa lưu, khôi phục?".
-    // Edit mode KHÔNG dùng draft: data đã có sẵn từ server, không cần localStorage.
-    const DRAFT_KEY = 'cmb.createOrder.draft.v1';
-    const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
+    // Khôi phục nháp khi mở lại tab — parent truyền `initialDraft` (đọc từ localStorage). Một
+    // lần. KHÔNG hỏi Modal: các tab CHÍNH LÀ đơn chưa lưu (parent đã chọn để khôi phục).
     useEffect(() => {
-        if (isEdit) { setDraftRestored(true); return; }
         if (draftRestored) return;
-        try {
-            const raw = localStorage.getItem(DRAFT_KEY);
-            if (!raw) { setDraftRestored(true); return; }
-            const parsed = JSON.parse(raw) as { savedAt: number; items?: OrderLineInput[]; phone?: string; shipAddress?: PickedAddress; tags?: string[]; attachments?: Array<{ url: string; name: string }>; form?: Record<string, unknown> };
-            if (!parsed.savedAt || Date.now() - parsed.savedAt > DRAFT_TTL_MS) { localStorage.removeItem(DRAFT_KEY); setDraftRestored(true); return; }
-            const has = (parsed.items?.length ?? 0) > 0 || !!parsed.phone || !!parsed.shipAddress?.province;
-            if (!has) { setDraftRestored(true); return; }
-            Modal.confirm({
-                title: 'Có nháp đơn chưa lưu',
-                content: `Tìm thấy nháp đơn từ ${dayjs(parsed.savedAt).fromNow()}. Khôi phục dữ liệu?`,
-                okText: 'Khôi phục', cancelText: 'Bắt đầu mới',
-                onOk: () => {
-                    if (parsed.items) setItems(parsed.items);
-                    if (parsed.phone) setPhone(parsed.phone);
-                    if (parsed.shipAddress) setShipAddress(parsed.shipAddress);
-                    if (parsed.tags) setTags(parsed.tags);
-                    if (parsed.attachments) setAttachments(parsed.attachments);
-                    if (parsed.form) form.setFieldsValue(parsed.form);
-                    setDraftRestored(true);
-                    message.success('Đã khôi phục nháp đơn.');
-                },
-                onCancel: () => { localStorage.removeItem(DRAFT_KEY); setDraftRestored(true); },
-            });
-        } catch { setDraftRestored(true); }
+        if (!isEdit && initialDraft) {
+            if (initialDraft.items) setItems(initialDraft.items);
+            if (initialDraft.phone) setPhone(initialDraft.phone);
+            if (initialDraft.shipAddress) setShipAddress(initialDraft.shipAddress);
+            if (initialDraft.tags) setTags(initialDraft.tags);
+            if (initialDraft.attachments) setAttachments(initialDraft.attachments);
+            if (initialDraft.form) form.setFieldsValue(initialDraft.form);
+        }
+        setDraftRestored(true);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-    // Debounce autosave 1s — chỉ ở chế độ tạo mới, KHÔNG ghi đè state edit.
-    useEffect(() => {
-        if (isEdit) return;
-        if (!draftRestored) return;
-        const t = setTimeout(() => {
-            try {
-                const formValues = form.getFieldsValue();
-                const has = items.length > 0 || phone || shipAddress.province;
-                if (!has) { localStorage.removeItem(DRAFT_KEY); return; }
-                localStorage.setItem(DRAFT_KEY, JSON.stringify({ savedAt: Date.now(), items, phone, shipAddress, tags, attachments, form: formValues }));
-            } catch { /* quota exceeded — silent */ }
-        }, 1000);
-        return () => clearTimeout(t);
-    }, [items, phone, shipAddress, tags, attachments, draftRestored, form, isEdit]);
 
     // ---- Edit mode prefill — khi load xong order, đổ data vào form/state một lần duy nhất ----
     const [editPrefilled, setEditPrefilled] = useState(false);
@@ -317,7 +307,12 @@ export function CreateOrderPage() {
         }
         create.mutate(payload, {
             onSuccess: (o) => {
-                try { localStorage.removeItem(DRAFT_KEY); } catch { /* */ }
+                if (onSaved) {
+                    // Chế độ tab: parent reset tab về form trắng + toast kèm link. KHÔNG navigate.
+                    if (andPrint) window.open(`/orders/${o.id}?print=1`, '_blank');
+                    onSaved(o.id);
+                    return;
+                }
                 message.success(andPrint ? 'Đã tạo đơn — chuyển sang in phiếu giao hàng.' : 'Đã tạo đơn');
                 navigate(`/orders/${o.id}${andPrint ? '?print=1' : ''}`);
             },
@@ -361,8 +356,9 @@ export function CreateOrderPage() {
         sendOrder(!!andPrint, payload);
     }).catch(() => message.error('Vui lòng kiểm tra lại thông tin.'));
 
-    // F2 / F4 hotkeys — chỉ trigger từ outside input
+    // F2 / F4 hotkeys — chỉ trigger từ outside input; CHỈ tab đang hiển thị mới bắt phím.
     useEffect(() => {
+        if (!active) return;
         const onKey = (e: KeyboardEvent) => {
             const tag = (e.target as HTMLElement)?.tagName;
             if (tag === 'INPUT' || tag === 'TEXTAREA') return;
@@ -372,7 +368,7 @@ export function CreateOrderPage() {
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [items, phone, shipAddress, tags, attachments]);
+    }, [active, items, phone, shipAddress, tags, attachments]);
 
     // ---- helpers ----
     const handlePhoneChange = (v: string) => {
@@ -391,6 +387,20 @@ export function CreateOrderPage() {
         if (rp === '') { setRecipientPhoneSynced(true); return; }
         if (rp !== phone) setRecipientPhoneSynced(false);
     }, [watchedRecipientPhone, phone]);
+
+    // Báo nháp lên parent (debounce). "Đang tạo dở" = đã nhập SĐT khách HOẶC người nhận mà
+    // chưa lưu ⇒ parent lưu localStorage + cảnh báo khi thoát. Sạch ⇒ báo null. `summary` (watch
+    // toàn form) làm dep để mọi thay đổi field đều được lưu vào nháp.
+    useEffect(() => {
+        if (isEdit || !onDraftChange || !draftRestored) return;
+        const t = setTimeout(() => {
+            const dirty = phone.trim() !== '' || (watchedRecipientPhone ?? '').toString().trim() !== '';
+            if (!dirty) { onDraftChange(null); return; }
+            onDraftChange({ items, phone, shipAddress, tags, attachments, form: form.getFieldsValue() });
+        }, 800);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [items, phone, shipAddress, tags, attachments, watchedRecipientPhone, summary, draftRestored, isEdit, onDraftChange]);
 
     const addTag = () => {
         // U12 (Sprint 2) — guard double-call: Enter triggers blur ⇒ both onPressEnter và onBlur gọi addTag.
@@ -423,10 +433,12 @@ export function CreateOrderPage() {
 
     return (
         <div className="create-order-page" style={{ paddingBottom: 88 }}>
-            <PageHeader
-                title={<Space size="middle"><Link to={isEdit && editId ? `/orders/${editId}` : '/orders'}><Button type="text" icon={<ArrowLeftOutlined />} /></Link><span>{headerTitle}</span></Space>}
-                subtitle={headerSubtitle}
-            />
+            {!embedded && (
+                <PageHeader
+                    title={<Space size="middle"><Link to={isEdit && editId ? `/orders/${editId}` : '/orders'}><Button type="text" icon={<ArrowLeftOutlined />} /></Link><span>{headerTitle}</span></Space>}
+                    subtitle={headerSubtitle}
+                />
+            )}
 
             {isEdit && isPushed && (
                 <Alert
@@ -817,6 +829,202 @@ export function CreateOrderPage() {
             `}</style>
         </div>
     );
+}
+
+// ============================================================================
+//  Tab workspace — tạo nhiều đơn liên tục (browser-like tabs). Chỉ cho route tạo
+//  mới (/orders/new); sửa đơn (/orders/:id/edit) dùng form đơn lẻ.
+// ============================================================================
+
+const TABS_DRAFT_KEY = 'cmb.createOrder.tabs.v1';
+
+function newTabKey(): string {
+    return `tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+/** Đọc các tab có nháp đơn CHƯA LƯU từ localStorage (chỉ những đơn dở mới được giữ). */
+function loadDraftTabs(): Array<{ key: string; draft: OrderDraft }> {
+    try {
+        const raw = localStorage.getItem(TABS_DRAFT_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed)
+            ? parsed.filter((t): t is { key: string; draft: OrderDraft } => !!t && typeof t.key === 'string' && !!t.draft)
+            : [];
+    } catch { return []; }
+}
+
+function CreateOrderTabs() {
+    const { notification } = AntApp.useApp();
+    const navigate = useNavigate();
+
+    // Khôi phục 1 lần khi mở trang: chỉ các tab có đơn chưa lưu; không có ⇒ 1 tab trắng.
+    const restored = useRef(loadDraftTabs());
+    const initialDrafts = useRef<Record<string, OrderDraft>>(
+        Object.fromEntries(restored.current.map((t) => [t.key, t.draft])),
+    );
+    const [tabs, setTabs] = useState<string[]>(() =>
+        restored.current.length > 0 ? restored.current.map((t) => t.key) : [newTabKey()],
+    );
+    const [drafts, setDrafts] = useState<Record<string, OrderDraft | null>>(() => ({ ...initialDrafts.current }));
+    const [activeKey, setActiveKey] = useState<string>(() => tabs[0]);
+
+    const dirtyCount = Object.values(drafts).filter((d) => d != null).length;
+    const hasDirty = dirtyCount > 0;
+
+    const persist = useCallback((map: Record<string, OrderDraft | null>) => {
+        try {
+            const arr = Object.entries(map).filter(([, d]) => d != null).map(([key, draft]) => ({ key, draft }));
+            if (arr.length > 0) localStorage.setItem(TABS_DRAFT_KEY, JSON.stringify(arr));
+            else localStorage.removeItem(TABS_DRAFT_KEY);
+        } catch { /* quota — bỏ qua */ }
+    }, []);
+
+    const handleDraftChange = useCallback((key: string, draft: OrderDraft | null) => {
+        setDrafts((prev) => {
+            if (prev[key] === draft) return prev;
+            const next = { ...prev, [key]: draft };
+            persist(next);
+            return next;
+        });
+    }, [persist]);
+
+    const addTab = useCallback(() => {
+        const key = newTabKey();
+        setTabs((t) => [...t, key]);
+        setActiveKey(key);
+    }, []);
+
+    const removeTab = useCallback((key: string) => {
+        const doRemove = () => {
+            const fallback = newTabKey(); // sinh 1 lần ⇒ updater thuần, an toàn StrictMode.
+            setTabs((t) => {
+                const next = t.filter((k) => k !== key);
+                return next.length > 0 ? next : [fallback];
+            });
+            setActiveKey((cur) => {
+                if (cur !== key) return cur;
+                const next = tabs.filter((k) => k !== key);
+                return next.length > 0 ? next[next.length - 1] : fallback;
+            });
+            setDrafts((prev) => { const n = { ...prev }; delete n[key]; persist(n); return n; });
+        };
+        if (drafts[key] != null) {
+            Modal.confirm({
+                title: 'Đơn đang tạo dở',
+                content: 'Đơn này đã nhập SĐT nhưng chưa lưu. Đóng tab và bỏ nháp?',
+                okText: 'Đóng & bỏ', okButtonProps: { danger: true }, cancelText: 'Giữ lại',
+                onOk: doRemove,
+            });
+        } else {
+            doRemove();
+        }
+    }, [tabs, drafts, persist]);
+
+    const handleSaved = useCallback((key: string, orderId: number) => {
+        // Lưu xong: reset tab về form trắng (key mới) ngay tại chỗ ⇒ tiếp tục tạo. Xoá nháp.
+        const fresh = newTabKey();
+        setTabs((t) => t.map((k) => (k === key ? fresh : k)));
+        setActiveKey((cur) => (cur === key ? fresh : cur));
+        setDrafts((prev) => { const n = { ...prev }; delete n[key]; n[fresh] = null; persist(n); return n; });
+        notification.success({
+            message: 'Đã tạo đơn',
+            description: <a href={`/orders/${orderId}`} target="_blank" rel="noreferrer">Xem đơn vừa tạo →</a>,
+            placement: 'topRight',
+        });
+    }, [persist, notification]);
+
+    // Cảnh báo khi refresh / đóng tab / đóng trình duyệt lúc còn đơn dở.
+    useEffect(() => {
+        if (!hasDirty) return;
+        const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+        window.addEventListener('beforeunload', onBeforeUnload);
+        return () => window.removeEventListener('beforeunload', onBeforeUnload);
+    }, [hasDirty]);
+
+    // Chặn nút Back trình duyệt khi còn đơn dở (component router không có useBlocker).
+    // Push 1 state khi chuyển sạch→dở (dep `hasDirty`) để không cộng dồn lịch sử.
+    useEffect(() => {
+        if (!hasDirty) return;
+        window.history.pushState(null, '', window.location.href);
+        const onPop = () => {
+            Modal.confirm({
+                title: 'Còn đơn đang tạo dở',
+                content: 'Có đơn đã nhập SĐT chưa lưu. Rời trang? (nháp được giữ để mở lại sau)',
+                okText: 'Rời trang', okButtonProps: { danger: true }, cancelText: 'Ở lại',
+                onOk: () => { window.removeEventListener('popstate', onPop); window.history.back(); },
+                onCancel: () => { window.history.pushState(null, '', window.location.href); },
+            });
+        };
+        window.addEventListener('popstate', onPop);
+        return () => window.removeEventListener('popstate', onPop);
+    }, [hasDirty]);
+
+    const leave = () => {
+        if (dirtyCount > 0) {
+            Modal.confirm({
+                title: 'Còn đơn đang tạo dở',
+                content: 'Có đơn đã nhập SĐT chưa lưu. Rời trang? (nháp được giữ để mở lại sau)',
+                okText: 'Rời trang', cancelText: 'Ở lại', onOk: () => navigate('/orders'),
+            });
+        } else {
+            navigate('/orders');
+        }
+    };
+
+    const labelFor = (key: string, idx: number): string => {
+        const d = drafts[key];
+        const name = (d?.form?.buyer_name as string) || (d?.form?.recipient_name as string) || d?.phone || '';
+        return name ? name.slice(0, 18) : `Đơn ${idx + 1}`;
+    };
+
+    const items = tabs.map((key, idx) => ({
+        key,
+        label: (
+            <Space size={4}>
+                {drafts[key] != null && <Badge status="warning" />}
+                {labelFor(key, idx)}
+            </Space>
+        ),
+        closable: tabs.length > 1,
+        children: (
+            <CreateOrderForm
+                embedded
+                active={key === activeKey}
+                onSaved={(id) => handleSaved(key, id)}
+                onDraftChange={(d) => handleDraftChange(key, d)}
+                initialDraft={initialDrafts.current[key] ?? null}
+            />
+        ),
+    }));
+
+    return (
+        <div>
+            <PageHeader
+                title={<Space size="middle"><Button type="text" icon={<ArrowLeftOutlined />} onClick={leave} /><span>Tạo đơn thủ công</span></Space>}
+                subtitle="Mỗi tab là 1 đơn. Lưu xong tab tự reset để tạo tiếp; đơn chưa lưu (đã nhập SĐT) được giữ khi mở lại trang."
+            />
+            <Tabs
+                type="editable-card"
+                animated={false}
+                activeKey={activeKey}
+                onChange={setActiveKey}
+                onEdit={(targetKey, action) => {
+                    if (action === 'add') addTab();
+                    else if (action === 'remove' && typeof targetKey === 'string') removeTab(targetKey);
+                }}
+                items={items}
+                style={{ paddingInline: 8 }}
+            />
+        </div>
+    );
+}
+
+/** Route component: sửa đơn → form đơn lẻ; tạo mới → workspace nhiều tab. */
+export function CreateOrderPage() {
+    const { id } = useParams();
+    const isEdit = id != null && !Number.isNaN(Number(id));
+    return isEdit ? <CreateOrderForm active /> : <CreateOrderTabs />;
 }
 
 // ============================================================================
