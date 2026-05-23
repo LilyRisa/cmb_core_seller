@@ -38,6 +38,11 @@ class ConversationResource extends JsonResource
             // rõ tin đến từ đâu (SPEC-0024 §3.1).
             'channel_group' => self::groupFor((string) $this->provider),
             'channel_account_name' => $this->channelAccount?->effectiveName(),
+            // Avatar page/gian hàng — hiện cho tin OUTBOUND (giống app nhắn tin chuẩn).
+            // Ưu tiên signed URL storage (đã relay), fallback URL CDN sàn.
+            'channel_account_avatar_url' => $this->whenLoaded('pageMeta', fn () => $this->pageMeta
+                ? (self::mediaStorage()->temporaryUrlForPath($this->pageMeta->page_avatar_path) ?? $this->pageMeta->page_avatar_url)
+                : null),
             'external_conversation_id' => $this->external_conversation_id,
             'buyer_external_id' => $this->buyer_external_id,
             'buyer_name' => $this->buyer_name,

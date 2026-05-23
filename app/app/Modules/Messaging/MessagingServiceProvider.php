@@ -8,6 +8,7 @@ use CMBcoreSeller\Modules\Messaging\Console\Commands\DetectConversationPhones;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\PruneAiSuggestionDrafts;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\PruneMessagingPayloads;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\ReconcileMessagingSync;
+use CMBcoreSeller\Modules\Messaging\Console\Commands\RecomputeConversationPreviews;
 use CMBcoreSeller\Modules\Messaging\Contracts\MessageInboxContract;
 use CMBcoreSeller\Modules\Messaging\Events\MessageReceived;
 use CMBcoreSeller\Modules\Messaging\Listeners\AiAutoModeOnInbound;
@@ -78,6 +79,7 @@ class MessagingServiceProvider extends ServiceProvider
                 PruneAiSuggestionDrafts::class,
                 ReconcileMessagingSync::class,
                 DetectConversationPhones::class,
+                RecomputeConversationPreviews::class,
             ]);
         }
     }

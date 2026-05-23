@@ -21,6 +21,7 @@ use Illuminate\Support\Carbon;
  * @property bool $ai_enabled
  * @property ?array $settings
  * @property ?string $page_avatar_path
+ * @property ?string $page_avatar_url
  * @property ?Carbon $page_avatar_synced_at
  * @property ?string $sync_status
  * @property ?int $sync_total_conversations
@@ -61,8 +62,8 @@ class MessagingAccountMeta extends Model
         'channel_account_id', 'tenant_id',
         'messaging_enabled', 'last_inbound_at', 'last_outbound_at',
         'outbound_window_meta', 'ai_enabled', 'settings',
-        // SPEC 2026-05-21: sync-state + page avatar
-        'page_avatar_path', 'page_avatar_synced_at', 'sync_status',
+        // SPEC 2026-05-21: sync-state + page avatar (+ page_avatar_url fallback CDN)
+        'page_avatar_path', 'page_avatar_url', 'page_avatar_synced_at', 'sync_status',
         'sync_total_conversations', 'sync_done_conversations', 'sync_message_count',
         'sync_cursor', 'sync_started_at', 'sync_finished_at', 'sync_error', 'last_synced_at',
         // SPEC 2026-05-21: comment-sync columns (tách khỏi message sync_*)

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
 /**
@@ -101,6 +102,15 @@ class Conversation extends Model
     public function channelAccount(): BelongsTo
     {
         return $this->belongsTo(ChannelAccount::class);
+    }
+
+    /**
+     * Meta của page/gian hàng (1-1 theo channel_account_id) — dùng lấy avatar page
+     * cho tin outbound. Cùng module Messaging nên không phá ranh giới Channels.
+     */
+    public function pageMeta(): HasOne
+    {
+        return $this->hasOne(MessagingAccountMeta::class, 'channel_account_id', 'channel_account_id');
     }
 
     public function scopeOpen(Builder $q): Builder

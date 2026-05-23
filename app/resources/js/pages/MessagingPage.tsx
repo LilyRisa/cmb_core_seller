@@ -164,6 +164,15 @@ function MessageButtons({ buttons, outbound }: { buttons: MessageButton[]; outbo
     );
 }
 
+/** Avatar nhỏ cạnh bong bóng tin: buyer cho inbound, page cho outbound (như app nhắn tin chuẩn). */
+function MsgAvatar({ src, name, page }: { src?: string | null; name?: string | null; page?: boolean }) {
+    return (
+        <Avatar size={28} src={src ?? undefined} style={{ flexShrink: 0, background: page ? '#2563EB' : '#94A3B8' }}>
+            {(name ?? '?').slice(0, 1).toUpperCase()}
+        </Avatar>
+    );
+}
+
 /** Giờ hiển thị cho 1 tin trong thread: cùng ngày → HH:mm; khác ngày → DD/MM HH:mm. */
 function fmtMsgTime(iso: string | null): string {
     if (!iso) return '';
@@ -858,8 +867,14 @@ export function MessagingPage() {
                             {thread.isLoading ? (
                                 <div style={{ textAlign: 'center', marginTop: 48 }}><Spin /></div>
                             ) : (
-                                (thread.data?.messages ?? []).map((m) => (
-                                    <div key={m.id} style={{ display: 'flex', justifyContent: m.direction === 'outbound' ? 'flex-end' : 'flex-start', marginBottom: m.reaction ? 18 : 8 }}>
+                                (thread.data?.messages ?? []).map((m, i, arr) => {
+                                    const isOut = m.direction === 'outbound';
+                                    const showAvatar = arr[i + 1]?.direction !== m.direction; // tin cuối 1 cụm cùng chiều
+                                    return (
+                                    <div key={m.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', justifyContent: isOut ? 'flex-end' : 'flex-start', marginBottom: m.reaction ? 18 : 8 }}>
+                                        {!isOut && (showAvatar
+                                            ? <MsgAvatar src={active?.buyer_avatar_url} name={active?.buyer_name ?? active?.buyer_external_id} />
+                                            : <span style={{ width: 28, flexShrink: 0 }} />)}
                                         <div style={{ position: 'relative', maxWidth: '70%' }}>
                                             <div style={{
                                                 padding: '8px 12px', borderRadius: 12,
@@ -905,8 +920,12 @@ export function MessagingPage() {
                                                 </div>
                                             )}
                                         </div>
+                                        {isOut && (showAvatar
+                                            ? <MsgAvatar src={active?.channel_account_avatar_url} name={active?.channel_account_name} page />
+                                            : <span style={{ width: 28, flexShrink: 0 }} />)}
                                     </div>
-                                ))
+                                    );
+                                })
                             )}
                             <div ref={bottomRef} />
                         </div>

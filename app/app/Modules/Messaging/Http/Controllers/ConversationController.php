@@ -26,7 +26,7 @@ class ConversationController extends Controller
     {
         Gate::authorize('messaging.view');
 
-        $q = Conversation::query()->with('channelAccount'); // nguồn gốc (shop/page) — tránh N+1
+        $q = Conversation::query()->with(['channelAccount', 'pageMeta']); // nguồn gốc + avatar page — tránh N+1
 
         if ($provider = $request->query('provider')) {
             $q->whereIn('provider', explode(',', (string) $provider));
@@ -109,7 +109,7 @@ class ConversationController extends Controller
     {
         Gate::authorize('messaging.view');
 
-        $conv = Conversation::query()->with('channelAccount')->findOrFail($id);
+        $conv = Conversation::query()->with(['channelAccount', 'pageMeta'])->findOrFail($id);
 
         $messagesQuery = Message::query()
             ->with('attachments')

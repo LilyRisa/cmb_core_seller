@@ -11,6 +11,7 @@ use CMBcoreSeller\Modules\Messaging\Http\Resources\ConversationResource;
 use CMBcoreSeller\Modules\Messaging\Jobs\ProcessMessagingWebhook;
 use CMBcoreSeller\Modules\Messaging\Jobs\SyncConversationProfile;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
+use CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta;
 use CMBcoreSeller\Modules\Messaging\Services\CommentConversationUpserter;
 use CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService;
 use CMBcoreSeller\Modules\Messaging\Services\MessagingAvatarRelay;
@@ -189,6 +190,24 @@ class BuyerProfileSyncTest extends TestCase
         $fresh = Conversation::withoutGlobalScope(TenantScope::class)->find($conv->id);
         $this->assertNull($fresh->buyer_avatar_path, 'relay lỗi ⇒ không có storage path');
         $this->assertSame('https://scontent.fbcdn.net/v/pic2.jpg', $fresh->buyer_avatar_url, 'fallback URL CDN vẫn được lưu');
+    }
+
+    /** Resource lộ avatar page (cho tin outbound) — fallback URL CDN khi chưa relay. */
+    public function test_resource_exposes_page_avatar_url(): void
+    {
+        $conv = $this->fbConversation();
+        MessagingAccountMeta::query()->create([
+            'channel_account_id' => $conv->channel_account_id,
+            'tenant_id' => $this->tenant->getKey(),
+            'messaging_enabled' => true,
+            'page_avatar_path' => null,
+            'page_avatar_url' => 'https://scontent.fbcdn.net/page.jpg',
+        ]);
+
+        $conv->load('pageMeta');
+        $data = (new ConversationResource($conv))->toArray(Request::create('/'));
+
+        $this->assertSame('https://scontent.fbcdn.net/page.jpg', $data['channel_account_avatar_url']);
     }
 
     /** Resource: chưa relay (path null) ⇒ trả URL CDN Facebook thay vì rỗng. */

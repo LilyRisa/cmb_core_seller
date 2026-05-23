@@ -29,6 +29,7 @@ export interface Conversation {
     provider: string;
     channel_group: ChannelGroup;
     channel_account_name: string | null;
+    channel_account_avatar_url: string | null;
     external_conversation_id: string;
     buyer_external_id: string;
     buyer_name: string | null;
