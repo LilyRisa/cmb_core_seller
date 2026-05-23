@@ -65,6 +65,24 @@ class FacebookBackfillConnectorTest extends TestCase
         $this->assertSame('https://cdn.fb/psidavatar.jpg', $profile['avatar_url']);
     }
 
+    public function test_fetch_user_profile_falls_back_to_first_last_name(): void
+    {
+        // FB User Profile API thường chỉ trả first_name/last_name (không có `name`).
+        Http::fake([
+            'graph.facebook.com/*' => Http::response([
+                'first_name' => 'Văn A',
+                'last_name' => 'Nguyễn',
+                'profile_pic' => 'https://cdn.fb/psidavatar.jpg',
+                'id' => 'PSID_555',
+            ], 200),
+        ]);
+
+        $profile = $this->connector()->fetchUserProfile($this->auth(), 'PSID_555');
+
+        $this->assertSame('Văn A Nguyễn', $profile['name']);
+        $this->assertSame('https://cdn.fb/psidavatar.jpg', $profile['avatar_url']);
+    }
+
     public function test_fetch_profile_failure_returns_nulls(): void
     {
         Http::fake(['graph.facebook.com/*' => Http::response(['error' => ['message' => 'no']], 400)]);

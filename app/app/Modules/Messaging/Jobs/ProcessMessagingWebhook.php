@@ -135,6 +135,12 @@ class ProcessMessagingWebhook implements ShouldQueue
             fireInboundEvent: ! $isComment,
         );
 
+        // Sync hồ sơ buyer (tên + avatar) cho DM còn thiếu — webhook tạo conversation
+        // KHÔNG fetch profile (khác backfill). Job tự throttle 24h tránh spam Graph.
+        if (! $isComment) {
+            $this->maybeSyncBuyerProfile($result['conversation']);
+        }
+
         $event->markProcessed(WebhookEvent::STATUS_PROCESSED);
     }
 
@@ -315,5 +321,27 @@ class ProcessMessagingWebhook implements ShouldQueue
             sentAt: $event->occurredAt ?? CarbonImmutable::now(),
             raw: $payload,
         );
+    }
+
+    /**
+     * Dispatch SyncConversationProfile khi conversation DM còn thiếu avatar và chưa
+     * thử fetch trong 24h gần đây (đọc mốc `meta.profile_attempted_at` để không
+     * đẩy job thừa mỗi tin khi page chưa được duyệt quyền lấy profile buyer).
+     */
+    private function maybeSyncBuyerProfile(Conversation $conversation): void
+    {
+        if ($conversation->buyer_avatar_path !== null) {
+            return;
+        }
+
+        $meta = is_array($conversation->meta) ? $conversation->meta : [];
+        $attemptedAt = isset($meta['profile_attempted_at'])
+            ? CarbonImmutable::parse((string) $meta['profile_attempted_at'])
+            : null;
+        if ($attemptedAt !== null && $attemptedAt->gt(now()->subDay())) {
+            return;
+        }
+
+        SyncConversationProfile::dispatch((int) $conversation->id);
     }
 }

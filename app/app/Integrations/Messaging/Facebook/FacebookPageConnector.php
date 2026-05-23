@@ -176,8 +176,12 @@ class FacebookPageConnector implements MessagingConnector
      */
     public function fetchUserProfile(MessagingAuthContext $auth, string $psid): array
     {
+        // Messenger User Profile API: field chuẩn theo tài liệu là first_name/last_name/
+        // profile_pic. Vẫn xin `name` (Graph đôi khi trả full name) rồi fallback ghép
+        // first+last. `profile_pic` là URL CDN HẾT HẠN ⇒ caller relay về object storage.
+        // docs: developers.facebook.com/docs/messenger-platform/identity/user-profile
         $res = Http::timeout(20)->get($this->graphUrl($psid), [
-            'fields' => 'name,profile_pic',
+            'fields' => 'name,first_name,last_name,profile_pic',
             'access_token' => $auth->accessToken,
         ]);
 
@@ -185,8 +189,13 @@ class FacebookPageConnector implements MessagingConnector
             return ['name' => null, 'avatar_url' => null];
         }
 
+        $name = $res->json('name');
+        if (! $name) {
+            $name = trim(((string) $res->json('first_name')).' '.((string) $res->json('last_name'))) ?: null;
+        }
+
         return [
-            'name' => $res->json('name'),
+            'name' => $name,
             'avatar_url' => $res->json('profile_pic'),
         ];
     }

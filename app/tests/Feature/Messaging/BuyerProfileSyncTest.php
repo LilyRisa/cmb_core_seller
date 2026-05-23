@@ -1,0 +1,200 @@
+<?php
+
+namespace Tests\Feature\Messaging;
+
+use CMBcoreSeller\Integrations\Messaging\Contracts\MessagingConnector;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
+use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
+use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Channels\Models\WebhookEvent;
+use CMBcoreSeller\Modules\Messaging\Jobs\ProcessMessagingWebhook;
+use CMBcoreSeller\Modules\Messaging\Jobs\SyncConversationProfile;
+use CMBcoreSeller\Modules\Messaging\Models\Conversation;
+use CMBcoreSeller\Modules\Messaging\Services\CommentConversationUpserter;
+use CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService;
+use CMBcoreSeller\Modules\Messaging\Services\MessagingAvatarRelay;
+use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
+use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
+use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
+use Tests\Fixtures\Channels\Shopee\ShopeeFixtures;
+use Tests\TestCase;
+
+/**
+ * Buyer profile sync (tên + avatar) cho hội thoại tạo từ webhook realtime.
+ *
+ * Gap: chỉ BackfillMessagingChannel fetch profile buyer; path webhook
+ * (MessageIngestionService::ensureConversation) tạo conversation với
+ * buyer_name=null, buyer_avatar_url=null ⇒ FE không có avatar.
+ *
+ * Fix: ProcessMessagingWebhook dispatch SyncConversationProfile cho conversation
+ * DM còn thiếu avatar; job gọi connector.fetchUserProfile + relay avatar về storage.
+ */
+class BuyerProfileSyncTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private Tenant $tenant;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->tenant = Tenant::create(['name' => 'ProfileSyncTenant']);
+        app(CurrentTenant::class)->set($this->tenant);
+    }
+
+    /** Webhook tạo conversation DM mới ⇒ dispatch SyncConversationProfile. */
+    public function test_process_webhook_dispatches_profile_sync_for_new_dm_conversation(): void
+    {
+        Queue::fake();
+
+        ShopeeFixtures::configure();
+        config([
+            'integrations.messaging' => ['shopee_chat'],
+            'integrations.channels' => ['manual', 'shopee'],
+        ]);
+        $this->app->forgetInstance(MessagingRegistry::class);
+
+        $account = ChannelAccount::query()->create([
+            'tenant_id' => $this->tenant->getKey(),
+            'provider' => 'shopee',
+            'external_shop_id' => '88',
+            'shop_name' => 'Profile Shop',
+            'status' => ChannelAccount::STATUS_ACTIVE,
+            'messaging_enabled' => true,
+            'access_token' => 'TOK',
+        ]);
+
+        $event = WebhookEvent::query()->create([
+            'provider' => 'messaging.shopee_chat',
+            'event_type' => MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED,
+            'external_id' => 'MSG_P1',
+            'external_shop_id' => '88',
+            'status' => WebhookEvent::STATUS_PENDING,
+            'signature_ok' => true,
+            'headers' => [],
+            'received_at' => now(),
+            'attempts' => 0,
+            'payload' => [
+                'external_conversation_id' => 'CONV_P1',
+                'external_message_id' => 'MSG_P1',
+                'buyer_external_id' => 'BUYER_P1',
+                '_kind' => 'text',
+                '_body' => 'Xin chào shop',
+                '_attachments' => [],
+            ],
+        ]);
+
+        (new ProcessMessagingWebhook($event->id))->handle(
+            app(MessagingRegistry::class),
+            app(MessageIngestionService::class),
+            app(CommentConversationUpserter::class),
+        );
+
+        $conv = Conversation::withoutGlobalScopes()->where('external_conversation_id', 'CONV_P1')->first();
+        $this->assertNotNull($conv);
+
+        Queue::assertPushed(
+            SyncConversationProfile::class,
+            fn (SyncConversationProfile $job) => $job->conversationId === (int) $conv->id,
+        );
+    }
+
+    private function fbConversation(array $overrides = []): Conversation
+    {
+        $account = ChannelAccount::query()->create([
+            'tenant_id' => $this->tenant->getKey(),
+            'provider' => 'facebook_page',
+            'external_shop_id' => 'PAGE_77',
+            'shop_name' => 'FB Page',
+            'status' => ChannelAccount::STATUS_ACTIVE,
+            'messaging_enabled' => true,
+            'access_token' => 'PAGE_TOKEN',
+        ]);
+
+        return Conversation::query()->create(array_merge([
+            'tenant_id' => $this->tenant->getKey(),
+            'channel_account_id' => $account->getKey(),
+            'provider' => 'facebook_page',
+            'thread_type' => Conversation::THREAD_MESSAGE,
+            'external_conversation_id' => 'PSID_77',
+            'buyer_external_id' => 'PSID_77',
+            'buyer_name' => null,
+            'buyer_avatar_url' => null,
+            'buyer_avatar_path' => null,
+            'status' => Conversation::STATUS_OPEN,
+            'last_inbound_at' => now(),
+        ], $overrides));
+    }
+
+    /** @return MessagingRegistry registry giả trả connector có fetchUserProfile cho test. */
+    private function fakeRegistry(array $profile, bool $expectCall = true): MessagingRegistry
+    {
+        $connector = \Mockery::mock(MessagingConnector::class);
+        if ($expectCall) {
+            $connector->shouldReceive('fetchUserProfile')->andReturn($profile);
+        } else {
+            $connector->shouldReceive('fetchUserProfile')->never();
+        }
+
+        $registry = \Mockery::mock(MessagingRegistry::class);
+        $registry->shouldReceive('has')->andReturn(true);
+        $registry->shouldReceive('for')->andReturn($connector);
+
+        return $registry;
+    }
+
+    /** Job set buyer_name + relay avatar về storage (buyer_avatar_path). */
+    public function test_job_sets_buyer_name_and_relays_avatar(): void
+    {
+        Storage::fake(config('messaging.media_disk'));
+        Http::fake([
+            'scontent.fbcdn.net/*' => Http::response('fake-jpeg-bytes', 200),
+        ]);
+
+        $conv = $this->fbConversation();
+        $registry = $this->fakeRegistry([
+            'name' => 'Nguyễn Văn A',
+            'avatar_url' => 'https://scontent.fbcdn.net/v/pic.jpg',
+        ]);
+
+        (new SyncConversationProfile((int) $conv->id))->handle($registry, app(MessagingAvatarRelay::class));
+
+        $fresh = Conversation::withoutGlobalScope(TenantScope::class)->find($conv->id);
+        $this->assertSame('Nguyễn Văn A', $fresh->buyer_name);
+        $this->assertNotNull($fresh->buyer_avatar_path, 'avatar phải được relay về storage');
+        Storage::disk(config('messaging.media_disk'))->assertExists($fresh->buyer_avatar_path);
+    }
+
+    /** Đã có avatar rồi ⇒ job không gọi lại Graph (idempotent). */
+    public function test_job_skips_when_avatar_already_present(): void
+    {
+        $conv = $this->fbConversation([
+            'buyer_name' => 'Đã có tên',
+            'buyer_avatar_path' => 'tenants/x/messaging/avatars/existing.jpg',
+        ]);
+
+        $registry = $this->fakeRegistry(['name' => 'X', 'avatar_url' => 'https://scontent.fbcdn.net/v/pic.jpg'], expectCall: false);
+
+        (new SyncConversationProfile((int) $conv->id))->handle($registry, app(MessagingAvatarRelay::class));
+
+        $fresh = Conversation::withoutGlobalScope(TenantScope::class)->find($conv->id);
+        $this->assertSame('Đã có tên', $fresh->buyer_name);
+        $this->assertSame('tenants/x/messaging/avatars/existing.jpg', $fresh->buyer_avatar_path);
+    }
+
+    /** Comment thread không sync profile theo PSID (commenter khác ngữ nghĩa). */
+    public function test_job_skips_comment_thread(): void
+    {
+        $conv = $this->fbConversation(['thread_type' => Conversation::THREAD_COMMENT, 'external_conversation_id' => 'COMMENT_1']);
+        $registry = $this->fakeRegistry(['name' => 'X', 'avatar_url' => 'https://scontent.fbcdn.net/v/pic.jpg'], expectCall: false);
+
+        (new SyncConversationProfile((int) $conv->id))->handle($registry, app(MessagingAvatarRelay::class));
+
+        $fresh = Conversation::withoutGlobalScope(TenantScope::class)->find($conv->id);
+        $this->assertNull($fresh->buyer_avatar_path);
+    }
+}
