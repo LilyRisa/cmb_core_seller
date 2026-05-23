@@ -591,10 +591,11 @@ class FacebookPageConnector implements MessagingConnector
         $threadId = (string) ($query['thread_id'] ?? $externalConversationId);
         $limit = (int) ($query['pageSize'] ?? 50);
 
+        // KHÔNG nhúng generic_template vào sub-field của messages edge — field con đó gây
+        // Graph 400 (vd `subtitle` không tồn tại) ⇒ vỡ TOÀN BỘ backfill (mất tin + avatar).
+        // Tin tự động (template) được phục hồi RIÊNG qua recoverMessageContent() bên dưới.
         $res = Http::timeout(30)->get($this->graphUrl($threadId), [
-            // generic_template{title,cta}: tin TỰ ĐỘNG của page (message rỗng) — nếu KHÔNG xin
-            // field này, Graph bỏ qua nội dung ⇒ tin "không hỗ trợ hiển thị". cta = nút bấm.
-            'fields' => "messages.limit({$limit}){id,message,created_time,from,sticker,shares{link,name,description},attachments{mime_type,name,image_data,video_data,file_url,type,title,url,generic_template{title,subtitle,cta}}}",
+            'fields' => "messages.limit({$limit}){id,message,created_time,from,sticker,shares{link,name,description},attachments{mime_type,name,image_data,video_data,file_url,type,title,url}}",
             'access_token' => $auth->accessToken,
         ]);
         if (! $res->successful()) {
@@ -679,6 +680,15 @@ class FacebookPageConnector implements MessagingConnector
                 $body = $shareUrl;
             }
 
+            // Tin KHÔNG còn nội dung hiển thị (vd tin tự động/template của page): messages
+            // edge KHÔNG trả generic_template. Fetch riêng /{mid}?fields=message,attachments
+            // (endpoint trả generic_template{title,cta} đầy đủ) để lấy text + nút bấm.
+            if ($body === null && $attachments === [] && $buttons === []) {
+                $recovered = $this->recoverMessageContent((string) ($row['id'] ?? ''), $auth->accessToken);
+                $body = $recovered['body'];
+                $buttons = $recovered['buttons'];
+            }
+
             $kind = $attachments !== [] ? $attachments[0]->kind : MessageKind::Text;
 
             $items[] = new MessageDTO(
@@ -696,6 +706,54 @@ class FacebookPageConnector implements MessagingConnector
         }
 
         return new Page($items, null, false);
+    }
+
+    /**
+     * Lấy nội dung tin qua endpoint /{message-id} — dùng khi messages edge trả tin RỖNG
+     * (tin tự động/template: edge bỏ qua, nhưng /{mid}?fields=message,attachments trả
+     * `generic_template{title,cta}` đầy đủ). Best-effort: lỗi ⇒ rỗng (không chặn backfill).
+     *
+     * @return array{body: ?string, buttons: list<array<string,string>>}
+     */
+    private function recoverMessageContent(string $messageId, string $accessToken): array
+    {
+        if ($messageId === '') {
+            return ['body' => null, 'buttons' => []];
+        }
+
+        try {
+            $res = Http::timeout(20)->get($this->graphUrl($messageId), [
+                'fields' => 'message,attachments',
+                'access_token' => $accessToken,
+            ]);
+            if (! $res->successful()) {
+                return ['body' => null, 'buttons' => []];
+            }
+
+            $body = ($res->json('message') ?? '') !== '' ? (string) $res->json('message') : null;
+            $buttons = [];
+            foreach ((array) $res->json('attachments.data', []) as $att) {
+                $gt = (array) ($att['generic_template'] ?? []);
+                if ($gt === []) {
+                    continue;
+                }
+                if ($body === null) {
+                    $title = (string) ($gt['title'] ?? '');
+                    $subtitle = (string) ($gt['subtitle'] ?? '');
+                    $body = trim($title.($subtitle !== '' ? "\n".$subtitle : '')) ?: null;
+                }
+                foreach ((array) ($gt['cta'] ?? []) as $c) {
+                    $btn = $this->mapTemplateButton((array) $c);
+                    if ($btn !== []) {
+                        $buttons[] = $btn;
+                    }
+                }
+            }
+
+            return ['body' => $body, 'buttons' => $buttons];
+        } catch (\Throwable) {
+            return ['body' => null, 'buttons' => []];
+        }
     }
 
     /**

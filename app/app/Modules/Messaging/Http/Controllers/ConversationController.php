@@ -111,10 +111,14 @@ class ConversationController extends Controller
 
         $conv = Conversation::query()->with(['channelAccount', 'pageMeta'])->findOrFail($id);
 
+        // Thứ tự theo GIỜ TIN THẬT (sent_at), fallback created_at — tin backfill có
+        // created_at = giờ ingest (gần như nhau) nên sort theo created_at sẽ sai thứ tự
+        // (tin bị gom cụm theo thứ tự nạp, không theo thời gian). id để tie-break ổn định.
         $messagesQuery = Message::query()
             ->with('attachments')
             ->where('conversation_id', $conv->id)
-            ->orderByDesc('created_at');
+            ->orderByRaw('COALESCE(sent_at, created_at) DESC')
+            ->orderByDesc('id');
 
         // Cursor-style: ?before_message_id=N (lazy load older)
         if ($before = $request->query('before_message_id')) {
