@@ -21,6 +21,8 @@ export interface ConversationComment {
     post_permalink: string | null;
     hidden: boolean;
     private_replied: boolean;
+    /** Tên người tham gia comment (commenter + người reply) — hiển thị "A, B +N người". */
+    participants: string[];
 }
 
 export interface Conversation {

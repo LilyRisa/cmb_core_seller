@@ -117,11 +117,18 @@ class ProcessMessagingWebhook implements ShouldQueue
         // creating a default message-conversation.
         $isComment = $dto->threadType === Conversation::THREAD_COMMENT;
         if ($isComment) {
-            $commentUpserter->upsert($account, array_merge([
+            $commenterName = isset($dto->threadMeta['commenter_name']) && (string) $dto->threadMeta['commenter_name'] !== ''
+                ? (string) $dto->threadMeta['commenter_name']
+                : null;
+            // threadMeta trước, key tường minh sau (đè) — buyer_name + participant_names từ
+            // tên người comment/reply để gộp danh sách hiển thị "A, B +N người".
+            $commentUpserter->upsert($account, array_merge($dto->threadMeta, [
                 'top_level_comment_id' => $dto->externalConversationId,
                 'buyer_external_id' => $dto->buyerExternalId ?? '',
+                'buyer_name' => $commenterName,
+                'participant_names' => $commenterName !== null ? [$commenterName] : [],
                 'occurred_at' => $dto->occurredAt,
-            ], $dto->threadMeta));
+            ]));
         }
 
         $result = $ingest->ingest($account, $msgDto);

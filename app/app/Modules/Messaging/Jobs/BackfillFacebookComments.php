@@ -198,12 +198,29 @@ class BackfillFacebookComments implements ShouldBeUnique, ShouldQueue
             ? CarbonImmutable::parse((string) $thread['created_time'])
             : null;
 
+        // Người tham gia comment = commenter + người reply (KHÔNG tính page). Tên dùng để
+        // hiển thị "A, B +N người" ở comment thread.
+        $participantNames = [];
+        if ($commenterName !== null && $commenterName !== '') {
+            $participantNames[] = $commenterName;
+        }
+        foreach ((array) ($thread['replies'] ?? []) as $reply) {
+            if ((string) ($reply['from_id'] ?? '') === $auth->externalShopId) {
+                continue; // reply của page — không phải người comment
+            }
+            $rName = isset($reply['from_name']) ? (string) $reply['from_name'] : '';
+            if ($rName !== '') {
+                $participantNames[] = $rName;
+            }
+        }
+
         // --- 1. Upsert conversation (comment thread) via shared upserter ---
         $upserter = app(CommentConversationUpserter::class);
         $conv = $upserter->upsert($account, [
             'top_level_comment_id' => $commentId,
             'buyer_external_id' => $commenterId,
             'buyer_name' => $commenterName,
+            'participant_names' => $participantNames,
             'fb_post_id' => (string) $thread['post_id'],
             'fb_comment_id' => $commentId,
             'occurred_at' => $createdTime,

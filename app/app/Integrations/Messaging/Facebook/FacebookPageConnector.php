@@ -310,6 +310,10 @@ class FacebookPageConnector implements MessagingConnector
             threadMeta: array_filter([
                 'fb_post_id' => $postId,
                 'fb_comment_id' => $topLevelCommentId,
+                // Tên người comment/reply (nếu webhook kèm) — để gộp danh sách người tham gia.
+                'commenter_name' => isset($value['from']['name']) && (string) $value['from']['name'] !== ''
+                    ? (string) $value['from']['name']
+                    : null,
             ], fn ($v) => $v !== null),
         );
     }
@@ -611,6 +615,10 @@ class FacebookPageConnector implements MessagingConnector
         foreach ((array) $res->json('messages.data', []) as $row) {
             $fromId = (string) ($row['from']['id'] ?? '');
             $direction = $fromId === $auth->externalShopId ? MessageDirection::Outbound : MessageDirection::Inbound;
+            // Tên buyer = `from.name` của tin INBOUND (tin OUTBOUND from.name là tên page).
+            $fromName = $direction === MessageDirection::Inbound && isset($row['from']['name']) && (string) $row['from']['name'] !== ''
+                ? (string) $row['from']['name']
+                : null;
 
             $body = ($row['message'] ?? '') !== '' ? (string) $row['message'] : null;
             $attachments = [];
@@ -725,6 +733,7 @@ class FacebookPageConnector implements MessagingConnector
                 sentAt: isset($row['created_time']) ? CarbonImmutable::parse($row['created_time']) : null,
                 raw: $row,
                 meta: $buttons !== [] ? ['buttons' => $buttons] : [],
+                buyerName: $fromName,
             );
         }
 

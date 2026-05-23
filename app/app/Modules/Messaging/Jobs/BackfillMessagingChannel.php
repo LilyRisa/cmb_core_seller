@@ -90,13 +90,19 @@ class BackfillMessagingChannel implements ShouldBeUnique, ShouldQueue
         // Avatar page (best-effort). Lấy khi CHƯA relay (path) HOẶC thiếu URL CDN fallback —
         // page đã sync trước đây (synced_at set) vẫn cần điền page_avatar_url để hiển thị
         // khi storage URL không tới được. Chỉ DISPATCH relay khi chưa từng relay.
+        // Bọc try-catch: avatar page là best-effort, KHÔNG được làm vỡ toàn bộ backfill
+        // (vd lỗi lưu URL, mạng) — block này nằm NGOÀI try/catch chính bên dưới.
         if ($meta->page_avatar_synced_at === null || $meta->page_avatar_url === null) {
-            $pageProfile = $connector->fetchPageProfile($auth);
-            if (! empty($pageProfile['avatar_url'])) {
-                $meta->forceFill(['page_avatar_url' => (string) $pageProfile['avatar_url']])->save();
-                if ($meta->page_avatar_synced_at === null) {
-                    RelayMessagingAvatar::dispatch('page', (int) $account->getKey(), (string) $pageProfile['avatar_url']);
+            try {
+                $pageProfile = $connector->fetchPageProfile($auth);
+                if (! empty($pageProfile['avatar_url'])) {
+                    $meta->forceFill(['page_avatar_url' => (string) $pageProfile['avatar_url']])->save();
+                    if ($meta->page_avatar_synced_at === null) {
+                        RelayMessagingAvatar::dispatch('page', (int) $account->getKey(), (string) $pageProfile['avatar_url']);
+                    }
                 }
+            } catch (\Throwable $e) {
+                Log::warning('messaging.backfill.page_avatar_failed', ['account' => $account->id, 'error' => $e->getMessage()]);
             }
         }
 

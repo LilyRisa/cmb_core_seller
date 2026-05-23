@@ -45,6 +45,13 @@ class MessageIngestionService
         return DB::transaction(function () use ($channelAccount, $dto) {
             $conversation = $this->ensureConversation($channelAccount, $dto);
 
+            // Điền tên buyer từ DTO (vd `from.name` của tin inbound backfill) khi hội thoại
+            // chưa có tên — webhook tạo conversation với buyer_name=null, nguồn này bù vào
+            // mà không cần quyền profile_pic. KHÔNG ghi đè tên đã có.
+            if ($dto->buyerName !== null && $dto->buyerName !== '' && blank($conversation->buyer_name)) {
+                $conversation->forceFill(['buyer_name' => $dto->buyerName])->save();
+            }
+
             // Dedupe: tìm theo (conversation_id, external_message_id).
             // withoutGlobalScope(TenantScope): service chạy trong job/webhook
             // KHÔNG có tenant context — tenant lấy từ $channelAccount.

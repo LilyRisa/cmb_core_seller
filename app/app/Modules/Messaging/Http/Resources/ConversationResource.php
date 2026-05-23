@@ -32,6 +32,11 @@ class ConversationResource extends JsonResource
                 'post_permalink' => $this->meta['fb_post_permalink'] ?? null,
                 'hidden' => (bool) ($this->meta['comment_hidden'] ?? false),
                 'private_replied' => ! empty($this->meta['private_replied_at']),
+                // Người tham gia comment (commenter + người reply) — FE hiển thị "A, B +N người".
+                'participants' => array_values(array_filter(
+                    (array) ($this->meta['comment_participants'] ?? []),
+                    fn ($n) => is_string($n) && $n !== '',
+                )),
             ] : null,
             // Nguồn gốc hội thoại: nhóm kênh (marketplace/facebook/internal) + tên
             // shop/page cụ thể — FE tách "tin nhắn sàn" vs "tin nhắn Facebook" + hiện

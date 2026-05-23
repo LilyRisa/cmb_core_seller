@@ -325,6 +325,27 @@ class FacebookBackfillConnectorTest extends TestCase
         Http::assertNotSent(fn ($r) => str_contains($r->url(), '/m_tpl2?') && str_contains(urldecode($r->url()), 'fields=message,attachments'));
     }
 
+    public function test_fetch_messages_captures_buyer_name_from_inbound_from_field(): void
+    {
+        // Tên buyer lấy từ `from.name` của tin INBOUND; tin OUTBOUND (from = page) thì không.
+        Http::fake([
+            'graph.facebook.com/*' => Http::response([
+                'id' => 't_name',
+                'messages' => ['data' => [
+                    ['id' => 'm_in', 'message' => 'hi', 'created_time' => '2026-05-22T09:00:00+0000', 'from' => ['id' => 'PSID_999', 'name' => 'Duong Le']],
+                    ['id' => 'm_out', 'message' => 'hello', 'created_time' => '2026-05-22T09:01:00+0000', 'from' => ['id' => 'PAGE_123', 'name' => 'Shop']],
+                ]],
+            ], 200),
+        ]);
+
+        $page = $this->connector()->fetchMessages($this->auth(), 'PSID_999', ['thread_id' => 't_name', 'pageSize' => 50]);
+
+        $in = collect($page->items)->firstWhere('externalMessageId', 'm_in');
+        $out = collect($page->items)->firstWhere('externalMessageId', 'm_out');
+        $this->assertSame('Duong Le', $in->buyerName, 'inbound lấy tên buyer từ from.name');
+        $this->assertNull($out->buyerName, 'outbound (from = page) không set buyerName');
+    }
+
     public function test_fetch_messages_shared_link_sets_body(): void
     {
         Http::fake([

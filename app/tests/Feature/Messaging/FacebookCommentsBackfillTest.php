@@ -184,6 +184,8 @@ class FacebookCommentsBackfillTest extends TestCase
         $this->assertSame('POST_1', $conv->meta['fb_post_id']);
         $this->assertSame('https://fb.com/post/1', $conv->meta['fb_post_permalink']);
         $this->assertSame('CMT_A', $conv->meta['fb_comment_id']);
+        // Người tham gia comment = chỉ commenter (reply của page bị loại).
+        $this->assertSame(['Nguyễn Văn A'], $conv->meta['comment_participants']);
 
         // Messages: 1 comment (inbound) + 1 reply from page (outbound)
         $this->assertSame(2, Message::withoutGlobalScope(TenantScope::class)->count());
@@ -207,6 +209,54 @@ class FacebookCommentsBackfillTest extends TestCase
         // Message sync_status was seeded as 'idle' (DB default) — job must not have set it to 'failed'
         $this->assertNotSame('failed', $meta->sync_status);
         $this->assertNull($meta->sync_error);
+    }
+
+    public function test_backfill_aggregates_comment_participants_from_customer_replies(): void
+    {
+        [$tenant, $account] = $this->fbAccount();
+
+        Http::fake([
+            'graph.facebook.com/*/feed*' => Http::response([
+                'data' => [[
+                    'id' => 'POST_2',
+                    'message' => 'Bài viết',
+                    'permalink_url' => 'https://fb.com/post/2',
+                    'created_time' => now()->subDay()->toIso8601String(),
+                    'comments' => ['data' => [
+                        ['id' => 'CMT_X', 'message' => 'Còn hàng?', 'created_time' => now()->subHours(23)->toIso8601String(), 'from' => ['id' => 'BUYER_1', 'name' => 'Nguyễn Văn A']],
+                        // reply từ KHÁCH khác → thêm vào danh sách người tham gia
+                        ['id' => 'REPLY_C', 'message' => 'Mình cũng hỏi', 'created_time' => now()->subHours(22)->toIso8601String(), 'from' => ['id' => 'BUYER_2', 'name' => 'Trần Văn B'], 'parent' => ['id' => 'CMT_X']],
+                        // reply từ PAGE → KHÔNG tính
+                        ['id' => 'REPLY_P', 'message' => 'Còn nhé', 'created_time' => now()->subHours(21)->toIso8601String(), 'from' => ['id' => 'PAGE_123', 'name' => 'Shop'], 'parent' => ['id' => 'CMT_X']],
+                    ]],
+                ]],
+                'paging' => ['cursors' => ['after' => null]],
+            ], 200),
+        ]);
+
+        BackfillFacebookComments::dispatchSync($account->id);
+
+        $conv = Conversation::withoutGlobalScope(TenantScope::class)
+            ->where('external_conversation_id', 'CMT_X')->first();
+        $this->assertSame(['Nguyễn Văn A', 'Trần Văn B'], $conv->meta['comment_participants']);
+    }
+
+    public function test_resource_exposes_comment_participants(): void
+    {
+        [$tenant, $account] = $this->fbAccount();
+
+        $conv = Conversation::query()->create([
+            'tenant_id' => $tenant->getKey(), 'channel_account_id' => $account->id,
+            'provider' => 'facebook_page', 'thread_type' => 'comment',
+            'external_conversation_id' => 'CMT_R', 'buyer_external_id' => 'BUYER_1',
+            'buyer_name' => 'Nguyễn Văn A', 'status' => 'open', 'last_message_at' => now(),
+            'meta' => ['comment_participants' => ['Nguyễn Văn A', 'Trần Văn B', 'Lê C', 'Phạm D']],
+        ]);
+
+        $data = (new \CMBcoreSeller\Modules\Messaging\Http\Resources\ConversationResource($conv))
+            ->toArray(\Illuminate\Http\Request::create('/'));
+
+        $this->assertSame(['Nguyễn Văn A', 'Trần Văn B', 'Lê C', 'Phạm D'], $data['comment']['participants']);
     }
 
     public function test_backfill_permission_error_sets_friendly_comment_error_and_does_not_touch_message_sync(): void

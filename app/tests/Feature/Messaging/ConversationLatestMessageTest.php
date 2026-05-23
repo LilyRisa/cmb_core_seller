@@ -122,6 +122,27 @@ class ConversationLatestMessageTest extends TestCase
         $this->assertSame('nội dung gốc', $msg->body, 'không ghi đè tin đã có nội dung');
     }
 
+    /** Tên buyer từ DTO (vd from.name backfill) điền vào hội thoại chưa có tên. */
+    public function test_ingest_sets_buyer_name_from_dto_when_missing(): void
+    {
+        $ingest = app(MessageIngestionService::class);
+
+        $ingest->ingest($this->account, new MessageDTO(
+            externalConversationId: 'PSID_L', externalMessageId: 'N1', buyerExternalId: 'PSID_L',
+            direction: MessageDirection::Inbound, kind: MessageKind::Text, body: 'hi',
+            sentAt: CarbonImmutable::now(), buyerName: 'Duong Le',
+        ));
+        // Tin sau KHÔNG ghi đè tên đã có.
+        $ingest->ingest($this->account, new MessageDTO(
+            externalConversationId: 'PSID_L', externalMessageId: 'N2', buyerExternalId: 'PSID_L',
+            direction: MessageDirection::Inbound, kind: MessageKind::Text, body: 'hi 2',
+            sentAt: CarbonImmutable::now(), buyerName: 'Tên khác',
+        ));
+
+        $conv = Conversation::withoutGlobalScope(TenantScope::class)->where('external_conversation_id', 'PSID_L')->first();
+        $this->assertSame('Duong Le', $conv->buyer_name);
+    }
+
     private function makeConversation(): Conversation
     {
         return Conversation::query()->create([

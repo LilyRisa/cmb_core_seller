@@ -88,6 +88,24 @@ function MessageBody({ text }: { text: string }) {
     );
 }
 
+/** Nhãn người tham gia comment: 1→"A"; 2→"A, B"; ≥3→"A, B +N người". */
+function commentParticipantsLabel(names: string[] | undefined): string | null {
+    const list = (names ?? []).filter((n) => n && n.trim() !== '');
+    if (list.length === 0) return null;
+    if (list.length === 1) return list[0];
+    if (list.length === 2) return `${list[0]}, ${list[1]}`;
+    return `${list[0]}, ${list[1]} +${list.length - 2} người`;
+}
+
+/** Tên hiển thị hội thoại: comment → danh sách người tham gia; còn lại → buyer_name. */
+function convDisplayName(c: Conversation): string {
+    if (c.thread_type === 'comment') {
+        const label = commentParticipantsLabel(c.comment?.participants);
+        if (label) return label;
+    }
+    return c.buyer_name ?? c.buyer_external_id ?? '?';
+}
+
 /** Placeholder khi media không có URL render được (relay lỗi & URL nguồn đã chết). */
 function AttachmentPlaceholder({ icon, label }: { icon: ReactNode; label: string }) {
     return (
@@ -676,7 +694,7 @@ export function MessagingPage() {
                                                     }
                                                     offset={[-4, 30]}
                                                 >
-                                                    <Avatar size={40} src={c.buyer_avatar_url ?? undefined} style={{ background: '#2563EB', flexShrink: 0 }}>{(c.buyer_name ?? c.buyer_external_id ?? '?').slice(0, 1).toUpperCase()}</Avatar>
+                                                    <Avatar size={40} src={c.buyer_avatar_url ?? undefined} style={{ background: '#2563EB', flexShrink: 0 }}>{convDisplayName(c).slice(0, 1).toUpperCase()}</Avatar>
                                                 </Badge>
                                             )}
                                             title={(
@@ -685,7 +703,7 @@ export function MessagingPage() {
                                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, minWidth: 0 }}>
                                                         <Space size={4} style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
                                                             <Badge count={c.unread_count} size="small" />
-                                                            <Text strong={c.unread_count > 0} ellipsis style={{ maxWidth: 160 }}>{c.buyer_name ?? c.buyer_external_id}</Text>
+                                                            <Text strong={c.unread_count > 0} ellipsis style={{ maxWidth: 160 }}>{convDisplayName(c)}</Text>
                                                         </Space>
                                                         {c.last_message_at && (
                                                             <Text type="secondary" style={{ fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }}>
@@ -765,12 +783,12 @@ export function MessagingPage() {
                                             style={{ cursor: 'pointer', background: '#2563EB', flexShrink: 0 }}
                                             onClick={handleAvatarClick}
                                         >
-                                            {(active?.buyer_name ?? active?.buyer_external_id ?? '?').slice(0, 1).toUpperCase()}
+                                            {(active ? convDisplayName(active) : '?').slice(0, 1).toUpperCase()}
                                         </Avatar>
                                     </Spin>
                                 </Tooltip>
                                 <div style={{ flex: 1 }}>
-                                    <Text strong>{active?.buyer_name ?? active?.buyer_external_id}</Text>{' '}
+                                    <Text strong>{active ? convDisplayName(active) : ''}</Text>{' '}
                                     <Tag color="blue">{providerLabel(active?.provider ?? '')}</Tag>
                                     {active?.has_phone && active?.detected_phone && (
                                         <Tag icon={<PhoneOutlined />} color="green" style={{ marginInlineStart: 4 }}>{active.detected_phone}</Tag>
@@ -1082,7 +1100,7 @@ export function MessagingPage() {
                 <Text strong>Thông tin</Text>
                 {active ? (
                     <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <div><Text type="secondary">Khách: </Text>{active.buyer_name ?? active.buyer_external_id}</div>
+                        <div><Text type="secondary">Khách: </Text>{convDisplayName(active)}</div>
                         <div><Text type="secondary">Nguồn: </Text>{providerLabel(active.provider)}{active.channel_account_name ? ` · ${active.channel_account_name}` : ''}</div>
                         <div><Text type="secondary">Trạng thái: </Text>{active.status}</div>
                         {active.order_id && <div><Text type="secondary">Đơn liên quan: </Text><Link to={`/orders/${active.order_id}`}>#{active.order_id}</Link></div>}

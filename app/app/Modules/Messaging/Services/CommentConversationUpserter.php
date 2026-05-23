@@ -64,15 +64,35 @@ class CommentConversationUpserter
             $conv->buyer_name = $buyerName;
         }
 
+        $meta = (array) ($conv->meta ?? []);
+
         $metaUpdates = array_filter([
             'fb_post_id' => isset($ctx['fb_post_id']) ? (string) $ctx['fb_post_id'] : null,
             'fb_comment_id' => isset($ctx['fb_comment_id']) ? (string) $ctx['fb_comment_id'] : null,
         ], fn ($v) => $v !== null);
 
         if ($metaUpdates !== []) {
-            $conv->meta = array_merge((array) ($conv->meta ?? []), $metaUpdates);
+            $meta = array_merge($meta, $metaUpdates);
         }
 
+        // Gộp tên người tham gia comment (commenter + người reply) — distinct, giữ thứ tự
+        // (commenter trước), cap 20. FE hiển thị "A, B +N người". Tên page bị loại ở caller.
+        $incoming = array_values(array_filter(
+            (array) ($ctx['participant_names'] ?? []),
+            fn ($n) => is_string($n) && trim($n) !== '',
+        ));
+        if ($incoming !== []) {
+            $participants = is_array($meta['comment_participants'] ?? null) ? $meta['comment_participants'] : [];
+            foreach ($incoming as $name) {
+                $name = trim((string) $name);
+                if (! in_array($name, $participants, true) && count($participants) < 20) {
+                    $participants[] = $name;
+                }
+            }
+            $meta['comment_participants'] = $participants;
+        }
+
+        $conv->meta = $meta;
         $conv->save();
 
         return $conv;

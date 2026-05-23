@@ -32,5 +32,8 @@ final readonly class MessageDTO
         // quick-reply có nút bấm). Mặc định rỗng.
         /** @var array<string, mixed> */
         public array $meta = [],
+        // Tên buyer kèm theo tin (vd `from.name` của tin inbound backfill) — dùng điền
+        // `conversations.buyer_name` khi hội thoại chưa có tên. Null nếu không kèm.
+        public ?string $buyerName = null,
     ) {}
 }

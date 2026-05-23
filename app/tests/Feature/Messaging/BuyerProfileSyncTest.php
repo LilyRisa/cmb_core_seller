@@ -192,6 +192,24 @@ class BuyerProfileSyncTest extends TestCase
         $this->assertSame('https://scontent.fbcdn.net/v/pic2.jpg', $fresh->buyer_avatar_url, 'fallback URL CDN vẫn được lưu');
     }
 
+    /** URL CDN Facebook (>512 ký tự) phải lưu được — cột đã nới sang TEXT (tránh 22001). */
+    public function test_long_facebook_cdn_url_persists(): void
+    {
+        $longUrl = 'https://scontent.fhan18-1.fna.fbcdn.net/v/t39.30808-1/444139864_'.str_repeat('x', 700).'.jpg';
+        $this->assertGreaterThan(512, strlen($longUrl));
+
+        $conv = $this->fbConversation(['buyer_avatar_url' => $longUrl]);
+        MessagingAccountMeta::query()->create([
+            'channel_account_id' => $conv->channel_account_id,
+            'tenant_id' => $this->tenant->getKey(),
+            'messaging_enabled' => true,
+            'page_avatar_url' => $longUrl,
+        ]);
+
+        $this->assertSame($longUrl, Conversation::withoutGlobalScope(TenantScope::class)->find($conv->id)->buyer_avatar_url);
+        $this->assertSame($longUrl, MessagingAccountMeta::withoutGlobalScope(TenantScope::class)->find($conv->channel_account_id)->page_avatar_url);
+    }
+
     /** Resource lộ avatar page (cho tin outbound) — fallback URL CDN khi chưa relay. */
     public function test_resource_exposes_page_avatar_url(): void
     {
