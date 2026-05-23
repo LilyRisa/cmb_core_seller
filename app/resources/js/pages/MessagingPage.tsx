@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback, type ReactNode } from 'react';
 import dayjs from 'dayjs';
 import { Link } from 'react-router-dom';
 import { App, Avatar, Badge, Button, Checkbox, Dropdown, Empty, Grid, Image, Input, List, Modal, Popconfirm, Popover, Radio, Segmented, Select, Space, Spin, Tag, Tooltip, Typography, Upload } from 'antd';
-import { CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FileOutlined, FilterOutlined, MessageFilled, MessageOutlined, MoreOutlined, PaperClipOutlined, PhoneOutlined, PictureOutlined, RobotOutlined, SendOutlined, ShopOutlined, SmileOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
+import { CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FileOutlined, FilterOutlined, MessageFilled, MessageOutlined, MoreOutlined, PaperClipOutlined, PhoneOutlined, PictureOutlined, RobotOutlined, SendOutlined, ShopOutlined, SmileOutlined, SoundOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import Picker from '@emoji-mart/react';
 import emojiData from '@emoji-mart/data';
 import { errorMessage } from '@/lib/api';
 import {
     type Conversation,
     INBOX_GROUP_PROVIDERS,
+    type MessageAttachment,
     type MessagingTag,
     providerLabel,
     useAiSuggestion,
@@ -84,6 +85,56 @@ function MessageBody({ text }: { text: string }) {
             )}
         </>
     );
+}
+
+/** Placeholder khi media không có URL render được (relay lỗi & URL nguồn đã chết). */
+function AttachmentPlaceholder({ icon, label }: { icon: ReactNode; label: string }) {
+    return (
+        <Space size={4} style={{ fontStyle: 'italic', opacity: 0.7 }}>
+            {icon}
+            {label}
+        </Space>
+    );
+}
+
+/**
+ * Render 1 attachment theo LOẠI, không phải dạng text/link:
+ *  - image (gồm sticker — sàn trả kind=image) → <Image> (bấm phóng to)
+ *  - video → <video controls>
+ *  - audio (voice — kind=file nhưng mime audio/*) → <audio controls>
+ *  - còn lại (file/tài liệu) → link tải thật (không phải href="#")
+ *
+ * `download_url` đã được BE fallback về URL CDN sàn khi relay chưa xong (xem
+ * MessageResource), nên ảnh/video/sticker hiển thị ngay thay vì rơi xuống link.
+ */
+function MessageAttachmentView({ att }: { att: MessageAttachment }) {
+    const url = att.download_url ?? null;
+    const isImage = att.kind === 'image';
+    const isVideo = att.kind === 'video';
+    const isAudio = att.kind === 'audio' || (att.mime?.startsWith('audio/') ?? false);
+
+    if (isImage) {
+        return url
+            ? <Image src={url} alt={att.filename ?? ''} style={{ maxWidth: 220, borderRadius: 8 }} />
+            : <AttachmentPlaceholder icon={<PictureOutlined />} label="Hình ảnh" />;
+    }
+    if (isVideo) {
+        return url
+            ? <video src={url} controls style={{ maxWidth: 240, borderRadius: 8 }} />
+            : <AttachmentPlaceholder icon={<VideoCameraOutlined />} label="Video" />;
+    }
+    if (isAudio) {
+        return url
+            ? <audio src={url} controls style={{ maxWidth: 240 }} />
+            : <AttachmentPlaceholder icon={<SoundOutlined />} label="Âm thanh" />;
+    }
+    return url
+        ? (
+            <a href={url} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>
+                <Space size={4}><FileOutlined /> {att.filename ?? 'Tệp đính kèm'}</Space>
+            </a>
+        )
+        : <AttachmentPlaceholder icon={<FileOutlined />} label={att.filename ?? 'Tệp đính kèm'} />;
 }
 
 /** Giờ hiển thị cho 1 tin trong thread: cùng ngày → HH:mm; khác ngày → DD/MM HH:mm. */
@@ -778,15 +829,7 @@ export function MessagingPage() {
                                                 {m.sent_by_ai && <Tag color="purple" style={{ marginBottom: 4 }}>AI</Tag>}
                                                 {(m.attachments ?? []).map((a) => (
                                                     <div key={a.id} style={{ marginBottom: m.body ? 6 : 0 }}>
-                                                        {a.kind === 'image' && a.download_url ? (
-                                                            <Image src={a.download_url} alt={a.filename ?? ''} style={{ maxWidth: 220, borderRadius: 8 }} />
-                                                        ) : a.kind === 'video' && a.download_url ? (
-                                                            <video src={a.download_url} controls style={{ maxWidth: 240, borderRadius: 8 }} />
-                                                        ) : (
-                                                            <a href={a.download_url ?? '#'} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>
-                                                                <Space size={4}><FileOutlined /> {a.filename ?? 'Tệp đính kèm'}</Space>
-                                                            </a>
-                                                        )}
+                                                        <MessageAttachmentView att={a} />
                                                     </div>
                                                 ))}
                                                 {m.body != null && <div style={{ whiteSpace: 'pre-wrap' }}><MessageBody text={m.body} /></div>}

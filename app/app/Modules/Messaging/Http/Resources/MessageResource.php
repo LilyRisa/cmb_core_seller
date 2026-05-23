@@ -46,7 +46,9 @@ class MessageResource extends JsonResource
                     'filename' => $a->filename,
                     'status' => $a->status,
                     // KHÔNG lộ storage_path raw — chỉ signed URL TTL ngắn (§8.5).
-                    'download_url' => $storage->temporaryUrl($a),
+                    // Fallback `external_url` (URL CDN sàn) khi relay chưa xong / thất bại
+                    // ⇒ FE vẫn render được ảnh/video/sticker thay vì rơi xuống link "Tệp đính kèm".
+                    'download_url' => $storage->temporaryUrl($a) ?? $a->external_url,
                 ]);
             }),
         ];
