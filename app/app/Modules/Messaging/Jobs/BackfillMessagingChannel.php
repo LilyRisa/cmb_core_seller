@@ -128,6 +128,8 @@ class BackfillMessagingChannel implements ShouldBeUnique, ShouldQueue
                     if ($conversation->buyer_avatar_path === null) {
                         $profile = $connector->fetchUserProfile($auth, $convDto->externalConversationId);
                         if (! empty($profile['avatar_url'])) {
+                            // Fallback hiển thị ngay khi relay chưa xong / storage lỗi.
+                            $conversation->forceFill(['buyer_avatar_url' => (string) $profile['avatar_url']])->save();
                             RelayMessagingAvatar::dispatch('conversation', (int) $conversation->id, (string) $profile['avatar_url']);
                         }
                     }

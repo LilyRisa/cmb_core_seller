@@ -7,6 +7,7 @@ use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\WebhookEvent;
+use CMBcoreSeller\Modules\Messaging\Http\Resources\ConversationResource;
 use CMBcoreSeller\Modules\Messaging\Jobs\ProcessMessagingWebhook;
 use CMBcoreSeller\Modules\Messaging\Jobs\SyncConversationProfile;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
@@ -17,6 +18,7 @@ use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -167,6 +169,39 @@ class BuyerProfileSyncTest extends TestCase
         $this->assertSame('Nguyễn Văn A', $fresh->buyer_name);
         $this->assertNotNull($fresh->buyer_avatar_path, 'avatar phải được relay về storage');
         Storage::disk(config('messaging.media_disk'))->assertExists($fresh->buyer_avatar_path);
+        $this->assertSame('https://scontent.fbcdn.net/v/pic.jpg', $fresh->buyer_avatar_url, 'giữ URL CDN làm fallback');
+    }
+
+    /** Relay thất bại (storage chưa cấu hình / lỗi) ⇒ vẫn giữ URL CDN Facebook để FE hiển thị. */
+    public function test_job_keeps_facebook_url_when_relay_fails(): void
+    {
+        Storage::fake(config('messaging.media_disk'));
+        Http::fake(['scontent.fbcdn.net/*' => Http::response('nope', 500)]);
+
+        $conv = $this->fbConversation();
+        $registry = $this->fakeRegistry([
+            'name' => 'Lê B',
+            'avatar_url' => 'https://scontent.fbcdn.net/v/pic2.jpg',
+        ]);
+
+        (new SyncConversationProfile((int) $conv->id))->handle($registry, app(MessagingAvatarRelay::class));
+
+        $fresh = Conversation::withoutGlobalScope(TenantScope::class)->find($conv->id);
+        $this->assertNull($fresh->buyer_avatar_path, 'relay lỗi ⇒ không có storage path');
+        $this->assertSame('https://scontent.fbcdn.net/v/pic2.jpg', $fresh->buyer_avatar_url, 'fallback URL CDN vẫn được lưu');
+    }
+
+    /** Resource: chưa relay (path null) ⇒ trả URL CDN Facebook thay vì rỗng. */
+    public function test_resource_falls_back_to_facebook_url_when_no_storage_path(): void
+    {
+        $conv = $this->fbConversation([
+            'buyer_avatar_path' => null,
+            'buyer_avatar_url' => 'https://scontent.fbcdn.net/v/pic3.jpg',
+        ]);
+
+        $data = (new ConversationResource($conv))->toArray(Request::create('/'));
+
+        $this->assertSame('https://scontent.fbcdn.net/v/pic3.jpg', $data['buyer_avatar_url']);
     }
 
     /** Đã có avatar rồi ⇒ job không gọi lại Graph (idempotent). */

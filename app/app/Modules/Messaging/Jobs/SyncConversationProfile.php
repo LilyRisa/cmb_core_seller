@@ -93,10 +93,17 @@ class SyncConversationProfile implements ShouldQueue
         }
 
         $avatarUrl = $profile['avatar_url'] ?? null;
-        if (filled($avatarUrl) && $conv->buyer_avatar_path === null) {
-            $path = $relay->relay((int) $conv->tenant_id, (string) $avatarUrl);
-            if ($path !== null) {
-                $conv->forceFill(['buyer_avatar_path' => $path])->save();
+        if (filled($avatarUrl)) {
+            // Lưu URL CDN Facebook làm FALLBACK hiển thị ngay (và khi relay lỗi / object
+            // storage chưa cấu hình) — giống cơ chế `external_url` của media tin nhắn.
+            // `ConversationResource` ưu tiên signed URL storage, fallback URL này.
+            $conv->forceFill(['buyer_avatar_url' => (string) $avatarUrl])->save();
+
+            if ($conv->buyer_avatar_path === null) {
+                $path = $relay->relay((int) $conv->tenant_id, (string) $avatarUrl);
+                if ($path !== null) {
+                    $conv->forceFill(['buyer_avatar_path' => $path])->save();
+                }
             }
         }
     }

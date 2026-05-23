@@ -41,9 +41,11 @@ class ConversationResource extends JsonResource
             'external_conversation_id' => $this->external_conversation_id,
             'buyer_external_id' => $this->buyer_external_id,
             'buyer_name' => $this->buyer_name,
-            'buyer_avatar_url' => $this->buyer_avatar_path !== null
-                ? self::mediaStorage()->temporaryUrlForPath($this->buyer_avatar_path)
-                : $this->buyer_avatar_url,
+            // Ưu tiên signed URL từ object storage (đã relay); fallback URL CDN sàn
+            // (`buyer_avatar_url`) khi chưa relay / storage chưa cấu hình (vd R2 thiếu
+            // env ở prod) — tránh mất avatar. temporaryUrlForPath(null) trả null ⇒ fallback.
+            'buyer_avatar_url' => self::mediaStorage()->temporaryUrlForPath($this->buyer_avatar_path)
+                ?? $this->buyer_avatar_url,
             'customer_id' => $this->customer_id,
             'order_id' => $this->order_id,
             'status' => $this->status,
