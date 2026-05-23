@@ -364,7 +364,7 @@ class TikTokLazadaChatConnectorTest extends TestCase
 
     public function test_lazada_send_text_posts(): void
     {
-        config(['integrations.lazada.app_key' => 'LK', 'integrations.lazada.app_secret' => 'LZSEC', 'integrations.lazada.base_url' => 'https://api.lazada.vn/rest']);
+        config(['integrations.lazada.app_key' => 'LK', 'integrations.lazada.app_secret' => 'LZSEC', 'integrations.lazada.api_base_url' => 'https://api.lazada.vn/rest']);
         Http::fake(['api.lazada.vn/*' => Http::response(['code' => '0', 'data' => ['message_id' => 'LZ_OUT']], 200)]);
 
         $auth = new MessagingAuthContext(channelAccountId: 1, provider: 'lazada_chat', externalShopId: 'SELLER_1', accessToken: 'TOK');
@@ -388,7 +388,7 @@ class TikTokLazadaChatConnectorTest extends TestCase
         // Phase D: upload-first flow — fetch bytes from our signed URL, upload to Lazada CDN
         // via /image/upload (param `image` = binary stream; returns data.image.url), then send
         // with template_id=3 and the CDN url. Per official doc apps_doc_api_path_2Fimage_2Fupload.md.
-        config(['integrations.lazada.app_key' => 'LK', 'integrations.lazada.app_secret' => 'LZSEC', 'integrations.lazada.base_url' => 'https://api.lazada.vn/rest']);
+        config(['integrations.lazada.app_key' => 'LK', 'integrations.lazada.app_secret' => 'LZSEC', 'integrations.lazada.api_base_url' => 'https://api.lazada.vn/rest']);
 
         Http::fake([
             // Byte fetch from our signed storage URL.
@@ -466,7 +466,7 @@ class TikTokLazadaChatConnectorTest extends TestCase
         config(['integrations.lazada' => [
             'app_key' => 'K',
             'app_secret' => 'S',
-            'base_url' => 'https://api.lazada.vn/rest',
+            'api_base_url' => 'https://api.lazada.vn/rest',
         ]]);
 
         $responsePayload = [
@@ -560,7 +560,7 @@ class TikTokLazadaChatConnectorTest extends TestCase
         config(['integrations.lazada' => [
             'app_key' => 'K',
             'app_secret' => 'S',
-            'base_url' => 'https://api.lazada.vn/rest',
+            'api_base_url' => 'https://api.lazada.vn/rest',
         ]]);
 
         // Text message: template_id=1, from_account_type=1 (buyer → Inbound)
@@ -664,5 +664,83 @@ class TikTokLazadaChatConnectorTest extends TestCase
                 && str_contains($r->url(), 'sign=')
                 && str_contains($r->url(), 'partner_id=');
         });
+    }
+
+    /**
+     * Regression: incremental sync phải gửi start_time = HIỆN TẠI (cận trên, lùi dần) — KHÔNG dùng
+     * `since` làm start_time. Truyền mốc cũ sẽ chỉ trả session cũ hơn ⇒ bỏ sót tin mới (deploy "không
+     * đồng bộ"). `since` chỉ để LỌC + DỪNG khi đã lùi quá mốc sync.
+     */
+    public function test_lazada_fetch_conversations_uses_now_start_time_and_stops_at_since(): void
+    {
+        config(['integrations.lazada' => [
+            'app_key' => 'K', 'app_secret' => 'S', 'api_base_url' => 'https://api.lazada.vn/rest',
+        ]]);
+
+        $sinceMs = 1716100000000;                       // mốc last sync
+        $since = \Carbon\CarbonImmutable::createFromTimestampMs($sinceMs);
+
+        Http::fake(['api.lazada.vn/*' => Http::response(['code' => '0', 'data' => [
+            'session_list' => [
+                ['session_id' => 'SESS_NEW', 'buyer_id' => '1', 'title' => 'Mới', 'last_message_time' => '1716200000000'],  // > since
+                ['session_id' => 'SESS_OLD', 'buyer_id' => '2', 'title' => 'Cũ', 'last_message_time' => '1716000000000'],   // < since
+            ],
+            'has_more' => 'true', 'next_start_time' => '1716000000000', 'last_session_id' => 'SESS_OLD',
+        ]], 200)]);
+
+        $auth = new MessagingAuthContext(channelAccountId: 1, provider: 'lazada_chat', externalShopId: 'S1', accessToken: 'TOK');
+        $page = (new LazadaChatConnector)->fetchConversations($auth, ['since' => $since]);
+
+        // start_time gửi đi là ~hiện tại (> mọi mốc trong fake), KHÔNG phải $sinceMs.
+        Http::assertSent(function ($r) use ($sinceMs) {
+            parse_str((string) parse_url($r->url(), PHP_URL_QUERY), $q);
+
+            return str_contains($r->url(), '/im/session/list')
+                && isset($q['start_time'])
+                && (int) $q['start_time'] > 1716200000000   // > session mới nhất ⇒ là "now", không phải since
+                && (int) $q['start_time'] !== $sinceMs;
+        });
+
+        // Chỉ session MỚI (>= since) được giữ; session cũ bị lọc ⇒ dừng phân trang.
+        $this->assertCount(1, $page->items);
+        $this->assertSame('SESS_NEW', $page->items[0]->externalConversationId);
+        $this->assertFalse($page->hasMore, 'gặp session cũ hơn since ⇒ dừng');
+        $this->assertNull($page->nextCursor);
+    }
+
+    /** Regression song song cho messages: start_time = now, lọc + dừng theo `since`. */
+    public function test_lazada_fetch_messages_uses_now_start_time_and_stops_at_since(): void
+    {
+        config(['integrations.lazada' => [
+            'app_key' => 'K', 'app_secret' => 'S', 'api_base_url' => 'https://api.lazada.vn/rest',
+        ]]);
+
+        $sinceMs = 1716100000000;
+        $since = \Carbon\CarbonImmutable::createFromTimestampMs($sinceMs);
+
+        Http::fake(['api.lazada.vn/*' => Http::response(['code' => '0', 'data' => [
+            'message_list' => [
+                ['message_id' => 'M_NEW', 'template_id' => '1', 'from_account_type' => '1', 'content' => json_encode(['txt' => 'mới']), 'send_time' => '1716200000000'],
+                ['message_id' => 'M_OLD', 'template_id' => '1', 'from_account_type' => '1', 'content' => json_encode(['txt' => 'cũ']), 'send_time' => '1716000000000'],
+            ],
+            'has_more' => 'true', 'next_start_time' => '1716000000000', 'last_message_id' => 'M_OLD',
+        ]], 200)]);
+
+        $auth = new MessagingAuthContext(channelAccountId: 1, provider: 'lazada_chat', externalShopId: 'S1', accessToken: 'TOK');
+        $page = (new LazadaChatConnector)->fetchMessages($auth, 'SESS_X', ['since' => $since]);
+
+        Http::assertSent(function ($r) use ($sinceMs) {
+            parse_str((string) parse_url($r->url(), PHP_URL_QUERY), $q);
+
+            return str_contains($r->url(), '/im/message/list')
+                && isset($q['start_time'])
+                && (int) $q['start_time'] > 1716200000000
+                && (int) $q['start_time'] !== $sinceMs;
+        });
+
+        $this->assertCount(1, $page->items);
+        $this->assertSame('M_NEW', $page->items[0]->externalMessageId);
+        $this->assertFalse($page->hasMore);
+        $this->assertNull($page->nextCursor);
     }
 }

@@ -179,13 +179,14 @@ class LazadaChatConnector implements MessagingConnector
         $cfg = (array) config('integrations.lazada', []);
         $path = '/im/session/list';
 
-        // start_time: first page = now ms; next page = next_start_time từ response trước (encoded trong cursor)
+        // start_time (doc /im/session/list): TRANG ĐẦU = current timestamp; TRANG SAU = next_start_time
+        // của response trước. KHÔNG dùng `since` làm start_time — start_time là CẬN TRÊN (API lùi dần về
+        // quá khứ); truyền mốc cũ sẽ chỉ trả session CŨ HƠN ⇒ bỏ sót tin mới. `since` chỉ dùng để DỪNG.
         $startTime = (string) (int) (microtime(true) * 1000);
         $lastSessionId = null;
-
-        if (isset($query['since']) && $query['since'] instanceof CarbonImmutable) {
-            $startTime = (string) ((int) ($query['since']->valueOf()));  // ms
-        }
+        $sinceMs = (isset($query['since']) && $query['since'] instanceof CarbonImmutable)
+            ? (int) $query['since']->valueOf()
+            : null;
 
         // cursor = "lastSessionId|nextStartTime"
         if (! empty($query['cursor']) && str_contains((string) $query['cursor'], '|')) {
@@ -209,7 +210,7 @@ class LazadaChatConnector implements MessagingConnector
 
         $params['sign'] = LazadaSigner::sign((string) ($cfg['app_secret'] ?? ''), $path, $params);
 
-        $base = rtrim((string) ($cfg['base_url'] ?? 'https://api.lazada.vn/rest'), '/');
+        $base = rtrim((string) ($cfg['api_base_url'] ?? 'https://api.lazada.vn/rest'), '/');
         $response = Http::timeout(30)->retry(2, 500, throw: false)->get($base.$path, $params);
 
         $data = (array) ($response->json('data') ?? []);
@@ -235,9 +236,20 @@ class LazadaChatConnector implements MessagingConnector
         // has_more: doc nói Boolean nhưng response example dùng string "true"/"false" — normalize.
         $hasMore = filter_var($data['has_more'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
+        // Incremental: khi đã lùi tới session CŨ HƠN mốc `since` ⇒ phần còn lại đều cũ ⇒ lọc bỏ +
+        // dừng phân trang (tránh quét lại toàn bộ lịch sử mỗi lần poll — vượt rate-limit Lazada).
+        if ($sinceMs !== null) {
+            $before = count($items);
+            $items = array_values(array_filter(
+                $items,
+                fn (ConversationDTO $c) => $c->lastMessageAt === null || $c->lastMessageAt->valueOf() >= $sinceMs,
+            ));
+            if (count($items) < $before) {
+                $hasMore = false;
+            }
+        }
+
         // nextCursor = "last_session_id|next_start_time" — encode cả hai để trang sau dùng đúng.
-        // Nếu Lazada chỉ trả một trong hai thì encode phần còn lại rỗng (caller tự fallback now).
-        // // verify sandbox: response example chứa cả hai field.
         $nextCursor = null;
         if ($hasMore) {
             $respLastSessionId = (string) ($data['last_session_id'] ?? '');
@@ -275,14 +287,15 @@ class LazadaChatConnector implements MessagingConnector
         $cfg = (array) config('integrations.lazada', []);
         $path = '/im/message/list';
 
+        // start_time (doc /im/message/list): TRANG ĐẦU = current timestamp; KHÔNG dùng `since` làm
+        // start_time (cận trên). `since` chỉ để DỪNG khi đã lùi quá mốc sync. cursor = "lastMessageId|nextStartTime".
         $startTime = (string) (int) (microtime(true) * 1000);
         $lastMessageId = null;
-
-        if (isset($query['since']) && $query['since'] instanceof CarbonImmutable) {
-            $startTime = (string) ((int) ($query['since']->valueOf()));
-        }
-        if (! empty($query['cursor'])) {
-            $lastMessageId = (string) $query['cursor'];
+        $sinceMs = (isset($query['since']) && $query['since'] instanceof CarbonImmutable)
+            ? (int) $query['since']->valueOf()
+            : null;
+        if (! empty($query['cursor']) && str_contains((string) $query['cursor'], '|')) {
+            [$lastMessageId, $startTime] = explode('|', (string) $query['cursor'], 2);
         }
 
         $pageSize = (string) ((int) ($query['pageSize'] ?? 50));
@@ -303,7 +316,7 @@ class LazadaChatConnector implements MessagingConnector
 
         $params['sign'] = LazadaSigner::sign((string) ($cfg['app_secret'] ?? ''), $path, $params);
 
-        $base = rtrim((string) ($cfg['base_url'] ?? 'https://api.lazada.vn/rest'), '/');
+        $base = rtrim((string) ($cfg['api_base_url'] ?? 'https://api.lazada.vn/rest'), '/');
         $response = Http::timeout(30)->retry(2, 500, throw: false)->get($base.$path, $params);
 
         $data = (array) ($response->json('data') ?? []);
@@ -388,10 +401,27 @@ class LazadaChatConnector implements MessagingConnector
         // has_more: normalize string/bool per doc example pattern
         $hasMore = filter_var($data['has_more'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
-        // nextCursor = last_message_id from response (doc field name confirmed in example)
-        $nextCursor = $hasMore && isset($data['last_message_id']) && $data['last_message_id'] !== ''
-            ? (string) $data['last_message_id']
-            : null;
+        // Incremental: lọc bỏ + dừng khi gặp message CŨ HƠN mốc `since` (đã quét hết phần mới).
+        if ($sinceMs !== null) {
+            $before = count($items);
+            $items = array_values(array_filter(
+                $items,
+                fn (MessageDTO $m) => $m->sentAt === null || $m->sentAt->valueOf() >= $sinceMs,
+            ));
+            if (count($items) < $before) {
+                $hasMore = false;
+            }
+        }
+
+        // nextCursor = "last_message_id|next_start_time" (doc: trang sau cần next_start_time, kèm last_message_id).
+        $nextCursor = null;
+        if ($hasMore) {
+            $respLastMessageId = (string) ($data['last_message_id'] ?? '');
+            $respNextStartTime = (string) ($data['next_start_time'] ?? '');
+            if ($respLastMessageId !== '' || $respNextStartTime !== '') {
+                $nextCursor = $respLastMessageId.'|'.$respNextStartTime;
+            }
+        }
 
         return new Page(items: $items, nextCursor: $nextCursor, hasMore: $hasMore);
     }

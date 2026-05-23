@@ -104,7 +104,7 @@ x-app-env: &app-env
   # Error monitoring
   SENTRY_LARAVEL_DSN: ${SENTRY_LARAVEL_DSN}
   # Marketplace integrations
-  INTEGRATIONS_CHANNELS: ${INTEGRATIONS_CHANNELS:-manual,tiktok}
+  INTEGRATIONS_CHANNELS: ${INTEGRATIONS_CHANNELS:-manual,tiktok,shopee,lazada}
   INTEGRATIONS_CARRIERS: ${INTEGRATIONS_CARRIERS:-}
   # "Luồng A": "Chuẩn bị hàng" gọi API sàn arrange-shipment + lấy tem thật (endpoint TikTok theo SDK chính
   # thức fulfillment 202309). Bật mặc định; đặt =false nếu shop yêu cầu handover_method khác / lỗi gọi sàn
