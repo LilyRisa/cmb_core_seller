@@ -393,6 +393,19 @@ export function MessagingPage() {
     const bottomRef = useRef<HTMLDivElement>(null);
     useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [thread.data?.messages.length]);
 
+    // Popover gắn thẻ dùng trigger={[]} (điều khiển hoàn toàn) nên antd KHÔNG tự đóng khi
+    // click ra ngoài. Tự đóng khi mousedown ngoài nội dung popover (.tag-attach-popover).
+    useEffect(() => {
+        if (tagPopoverConvId === null) return;
+        const onDocMouseDown = (e: MouseEvent) => {
+            const t = e.target as HTMLElement | null;
+            if (t && t.closest('.tag-attach-popover')) return; // click trong popover → giữ
+            setTagPopoverConvId(null);
+        };
+        document.addEventListener('mousedown', onDocMouseDown);
+        return () => document.removeEventListener('mousedown', onDocMouseDown);
+    }, [tagPopoverConvId]);
+
     // auto mark-read khi mở hội thoại có tin chưa đọc
     useEffect(() => {
         if (activeId && active && active.unread_count > 0) {
@@ -600,7 +613,7 @@ export function MessagingPage() {
 
     // ── Tag-attach popover content ────────────────────────────────────────────
     const tagAttachContent = (c: Conversation) => (
-        <div style={{ width: 200 }}>
+        <div className="tag-attach-popover" style={{ width: 200 }}>
             <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>Gắn thẻ hội thoại</Text>
             {tags.length === 0 ? (
                 <Text type="secondary" style={{ fontSize: 12 }}>Chưa có thẻ nào — tạo thẻ mới bên dưới.</Text>
@@ -761,7 +774,7 @@ export function MessagingPage() {
                                     content={tagAttachContent(c)}
                                 >
                                     <List.Item
-                                        onClick={() => setActiveId(c.id)}
+                                        onClick={() => { setActiveId(c.id); setTagPopoverConvId(null); }}
                                         style={{
                                             cursor: 'pointer',
                                             padding: '10px 14px',
