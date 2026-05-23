@@ -77,6 +77,10 @@ class ConversationController extends Controller
                 $q->whereIn('channel_account_id', $ids);
             }
         }
+        if ($threadType = $request->query('thread_type')) {
+            // Lọc loại hội thoại Facebook: message (DM) | comment. CSV cũng được.
+            $q->whereIn('thread_type', explode(',', (string) $threadType));
+        }
         if ($customerId = $request->query('customer_id')) {
             $q->where('customer_id', (int) $customerId);
         }

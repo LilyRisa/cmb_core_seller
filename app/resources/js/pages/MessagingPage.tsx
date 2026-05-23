@@ -257,6 +257,8 @@ export function MessagingPage() {
 
     // ── Filter state ──────────────────────────────────────────────────────────
     const [board, setBoard] = useState<'marketplace' | 'facebook'>('marketplace');
+    // Lọc loại hội thoại Facebook: tất cả / tin nhắn (DM) / bình luận.
+    const [fbThreadType, setFbThreadType] = useState<'all' | 'message' | 'comment'>('all');
     const [readState, setReadState] = useState<'all' | 'read' | 'unread'>('all');
     const [hasPhone, setHasPhone] = useState(false);
     const [tagFilter, setTagFilter] = useState<number[]>([]);
@@ -330,6 +332,7 @@ export function MessagingPage() {
         has_phone: hasPhone || undefined,
         tags: tagFilter.length ? tagFilter.join(',') : undefined,
         channel_account_id: board === 'facebook' && channelAccountId.length ? channelAccountId.join(',') : undefined,
+        thread_type: board === 'facebook' && fbThreadType !== 'all' ? fbThreadType : undefined,
     });
     const thread = useConversationThread(activeId);
     const sendText = useSendText(activeId);
@@ -638,7 +641,7 @@ export function MessagingPage() {
                             block
                             style={{ flex: 1 }}
                             value={board}
-                            onChange={(v) => { setBoard(v as 'marketplace' | 'facebook'); setActiveId(null); setChannelAccountId([]); }}
+                            onChange={(v) => { setBoard(v as 'marketplace' | 'facebook'); setActiveId(null); setChannelAccountId([]); setFbThreadType('all'); }}
                             options={[
                                 { label: 'Sàn', value: 'marketplace' },
                                 { label: 'Facebook', value: 'facebook' },
@@ -656,6 +659,20 @@ export function MessagingPage() {
                             </Badge>
                         </Popover>
                     </div>
+                    {/* Lọc loại hội thoại Facebook: tất cả / tin nhắn / bình luận */}
+                    {board === 'facebook' && (
+                        <Segmented
+                            block
+                            size="small"
+                            value={fbThreadType}
+                            onChange={(v) => { setFbThreadType(v as 'all' | 'message' | 'comment'); setActiveId(null); }}
+                            options={[
+                                { label: 'Tất cả', value: 'all' },
+                                { label: <Space size={4}><MessageOutlined />Tin nhắn</Space>, value: 'message' },
+                                { label: <Space size={4}><CommentOutlined />Bình luận</Space>, value: 'comment' },
+                            ]}
+                        />
+                    )}
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto' }} onScroll={handleConvScroll}>
                     {list.isLoading ? (

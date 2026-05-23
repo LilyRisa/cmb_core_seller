@@ -158,6 +158,32 @@ class MessagingApiTest extends TestCase
         $this->assertSame('Buyer A', $res->json('data.1.buyer_name'));
     }
 
+    public function test_filter_by_thread_type_message_vs_comment(): void
+    {
+        $page = ChannelAccount::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'provider' => 'facebook_page',
+            'external_shop_id' => 'PAGE_T', 'shop_name' => 'Trang T', 'status' => 'active', 'messaging_enabled' => true,
+        ]);
+        Conversation::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'channel_account_id' => $page->id, 'provider' => 'facebook_page',
+            'thread_type' => Conversation::THREAD_MESSAGE, 'external_conversation_id' => 'dm_1', 'buyer_external_id' => 'dm_1',
+            'buyer_name' => 'DM Buyer', 'status' => Conversation::STATUS_OPEN, 'last_message_at' => now(),
+        ]);
+        Conversation::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'channel_account_id' => $page->id, 'provider' => 'facebook_page',
+            'thread_type' => Conversation::THREAD_COMMENT, 'external_conversation_id' => 'cmt_1', 'buyer_external_id' => 'cmt_1',
+            'buyer_name' => 'Commenter', 'status' => Conversation::STATUS_OPEN, 'last_message_at' => now(),
+        ]);
+
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->getJson('/api/v1/messaging/conversations?provider=facebook_page&thread_type=comment')
+            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.buyer_name', 'Commenter');
+
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->getJson('/api/v1/messaging/conversations?provider=facebook_page&thread_type=message')
+            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.buyer_name', 'DM Buyer');
+    }
+
     public function test_inbox_separates_marketplace_and_facebook(): void
     {
         // 1 hội thoại Facebook + 1 hội thoại sàn (tiktok) — list lọc theo provider phải tách đúng.

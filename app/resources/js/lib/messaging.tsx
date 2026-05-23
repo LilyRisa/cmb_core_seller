@@ -104,6 +104,7 @@ export interface ConversationFilters {
     has_phone?: boolean;
     tags?: string; // CSV of tag ids, e.g. "1,2"
     channel_account_id?: number | string; // 1 id hoặc CSV nhiều page "5,6,7"
+    thread_type?: string; // 'message' (DM) | 'comment' — lọc hội thoại Facebook
 }
 
 function useScopedApi() {
