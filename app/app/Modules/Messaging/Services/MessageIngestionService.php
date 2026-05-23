@@ -54,6 +54,8 @@ class MessageIngestionService
                 ->first();
 
             if ($existing !== null) {
+                $this->healEmptyMessage($existing, $dto);
+
                 return ['conversation' => $conversation, 'message' => $existing, 'created' => false];
             }
 
@@ -134,6 +136,36 @@ class MessageIngestionService
                     ->each(fn (MessageAttachment $a) => DownloadInboundMedia::dispatch($a->id));
             }
         }
+    }
+
+    /**
+     * Bổ sung nội dung cho tin RỖNG đã lưu khi re-sync nhận được content mới (vd tin
+     * tự động template: lần đầu lưu rỗng, lần sau fetch được title + nút bấm nhờ field
+     * `generic_template`). CHỈ fill khi tin đang rỗng (body trống + không attachment) —
+     * KHÔNG bao giờ ghi đè tin đã có nội dung. Idempotent.
+     */
+    private function healEmptyMessage(Message $existing, MessageDTO $dto): void
+    {
+        $isEmpty = ($existing->body === null || $existing->body === '')
+            && (int) $existing->attachments_count === 0;
+
+        $incomingButtons = is_array($dto->meta['buttons'] ?? null) ? $dto->meta['buttons'] : [];
+        $hasContent = ($dto->body !== null && $dto->body !== '') || $incomingButtons !== [];
+
+        if (! $isEmpty || ! $hasContent) {
+            return;
+        }
+
+        $meta = is_array($existing->meta) ? $existing->meta : [];
+        if ($incomingButtons !== []) {
+            $meta['buttons'] = $incomingButtons;
+        }
+
+        $existing->forceFill([
+            'body' => $dto->body,
+            'kind' => $dto->kind->value,
+            'meta' => $meta !== [] ? $meta : null,
+        ])->save();
     }
 
     private function ensureConversation(ChannelAccount $channelAccount, MessageDTO $dto): Conversation

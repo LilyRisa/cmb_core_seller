@@ -592,7 +592,9 @@ class FacebookPageConnector implements MessagingConnector
         $limit = (int) ($query['pageSize'] ?? 50);
 
         $res = Http::timeout(30)->get($this->graphUrl($threadId), [
-            'fields' => "messages.limit({$limit}){id,message,created_time,from,sticker,shares{link,name,description},attachments{mime_type,name,image_data,video_data,file_url,type,title,url}}",
+            // generic_template{title,cta}: tin TỰ ĐỘNG của page (message rỗng) — nếu KHÔNG xin
+            // field này, Graph bỏ qua nội dung ⇒ tin "không hỗ trợ hiển thị". cta = nút bấm.
+            'fields' => "messages.limit({$limit}){id,message,created_time,from,sticker,shares{link,name,description},attachments{mime_type,name,image_data,video_data,file_url,type,title,url,generic_template{title,subtitle,cta}}}",
             'access_token' => $auth->accessToken,
         ]);
         if (! $res->successful()) {
@@ -621,7 +623,26 @@ class FacebookPageConnector implements MessagingConnector
 
             // Shared links / fallback attachments from the `attachments` sub-field.
             $shareUrl = null;
+            $buttons = [];
             foreach ((array) ($row['attachments']['data'] ?? []) as $att) {
+                // Tin tự động của page: generic_template{title, cta} — title→body, cta→nút bấm.
+                // KHÔNG tạo media attachment (đó là tin text có nút, không phải file).
+                if (! empty($att['generic_template'])) {
+                    $gt = (array) $att['generic_template'];
+                    if ($body === null) {
+                        $title = (string) ($gt['title'] ?? '');
+                        $subtitle = (string) ($gt['subtitle'] ?? '');
+                        $body = trim($title.($subtitle !== '' ? "\n".$subtitle : '')) ?: null;
+                    }
+                    foreach ((array) ($gt['cta'] ?? []) as $c) {
+                        $btn = $this->mapTemplateButton((array) $c);
+                        if ($btn !== []) {
+                            $buttons[] = $btn;
+                        }
+                    }
+
+                    continue;
+                }
                 $type = (string) ($att['type'] ?? '');
                 if ($type === 'fallback' || $type === 'share') {
                     // Shared link: carry title + url — linkify body instead of a media attachment.
@@ -670,6 +691,7 @@ class FacebookPageConnector implements MessagingConnector
                 attachments: $attachments,
                 sentAt: isset($row['created_time']) ? CarbonImmutable::parse($row['created_time']) : null,
                 raw: $row,
+                meta: $buttons !== [] ? ['buttons' => $buttons] : [],
             );
         }
 
