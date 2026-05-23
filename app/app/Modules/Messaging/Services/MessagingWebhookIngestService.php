@@ -126,6 +126,9 @@ class MessagingWebhookIngestService
                     // upsert the correct conversation type before ingesting.
                     '_thread_type' => $event->threadType,
                     '_thread_meta' => $event->threadMeta !== [] ? $event->threadMeta : null,
+                    // Direction + structured meta (vd nút bấm) — read back by ProcessMessagingWebhook.
+                    '_direction' => $event->direction->value,
+                    '_meta' => $event->meta !== [] ? $event->meta : null,
                 ]),
                 'status' => WebhookEvent::STATUS_PENDING,
                 'received_at' => now(),

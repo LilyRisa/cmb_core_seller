@@ -215,6 +215,12 @@ class ProcessMessagingWebhook implements ShouldQueue
             ? $payload['_thread_meta']
             : [];
 
+        // Direction + structured meta (vd nút bấm) — persisted by MessagingWebhookIngestService.
+        $direction = isset($payload['_direction'])
+            ? (MessageDirection::tryFrom((string) $payload['_direction']) ?? MessageDirection::Inbound)
+            : MessageDirection::Inbound;
+        $meta = isset($payload['_meta']) && is_array($payload['_meta']) ? $payload['_meta'] : [];
+
         return new MessagingWebhookEventDTO(
             provider: $this->messagingProviderCode($event->provider) ?? $event->provider,
             type: (string) ($event->event_type ?: MessagingWebhookEventDTO::TYPE_UNKNOWN),
@@ -228,6 +234,8 @@ class ProcessMessagingWebhook implements ShouldQueue
             attachments: $attachments,
             threadType: $threadType,
             threadMeta: $threadMeta,
+            direction: $direction,
+            meta: $meta,
         );
     }
 
@@ -314,12 +322,15 @@ class ProcessMessagingWebhook implements ShouldQueue
             externalConversationId: $event->externalConversationId,
             externalMessageId: $event->externalMessageId,
             buyerExternalId: $event->buyerExternalId,
-            direction: MessageDirection::Inbound,
+            // Direction từ DTO (echo Facebook = outbound); mặc định Inbound cho mọi
+            // connector cũ/manual không set ⇒ không đổi hành vi hiện có.
+            direction: $event->direction,
             kind: $kind,
             body: $body,
             attachments: $event->attachments, // Phase B: connectors populate; manual/legacy → []
             sentAt: $event->occurredAt ?? CarbonImmutable::now(),
             raw: $payload,
+            meta: $event->meta,
         );
     }
 

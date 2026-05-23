@@ -72,6 +72,8 @@ class MessageIngestionService
                 'delivered_at' => $dto->deliveredAt,
                 'read_at' => $dto->readAt,
                 'raw_payload' => $dto->raw,
+                // Structured meta (vd nút bấm template/quick-reply). Null khi rỗng.
+                'meta' => $dto->meta !== [] ? $dto->meta : null,
             ]);
 
             foreach ($dto->attachments as $media) {

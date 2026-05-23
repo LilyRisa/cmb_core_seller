@@ -28,5 +28,9 @@ final readonly class MessageDTO
         public ?string $replyToExternalMessageId = null,
         /** @var array<string, mixed> */
         public array $raw = [],
+        // Structured meta lưu vào `messages.meta` — vd `['buttons' => [...]]` (template/
+        // quick-reply có nút bấm). Mặc định rỗng.
+        /** @var array<string, mixed> */
+        public array $meta = [],
     ) {}
 }

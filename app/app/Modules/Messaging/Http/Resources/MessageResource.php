@@ -32,6 +32,11 @@ class MessageResource extends JsonResource
             'read_at' => $this->read_at?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),
             'reaction' => $this->meta['reaction'] ?? null,
+            // Nút bấm (template/quick-reply của trả lời tự động Facebook) — chỉ hiển thị.
+            'buttons' => array_values(array_filter(
+                (array) ($this->meta['buttons'] ?? []),
+                fn ($b) => is_array($b) && ($b['title'] ?? '') !== '',
+            )),
             'attachments' => $this->whenLoaded('attachments', function () {
                 $storage = app(MediaStorage::class);
 

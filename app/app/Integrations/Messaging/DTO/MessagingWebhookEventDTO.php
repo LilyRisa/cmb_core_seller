@@ -52,5 +52,12 @@ final readonly class MessagingWebhookEventDTO
         public ?string $threadType = null,
         /** @var array<string, mixed> */
         public array $threadMeta = [],
+        // Direction — mặc định inbound (buyer→shop). Connector set Outbound cho echo
+        // (tin page tự gửi qua công cụ Facebook) để ingest đúng chiều.
+        public MessageDirection $direction = MessageDirection::Inbound,
+        // Structured meta — vd `['buttons' => [...]]` cho template/quick-reply có nút bấm.
+        // MessagingWebhookIngestService lưu thành `_meta`; ProcessMessagingWebhook rebuild.
+        /** @var array<string, mixed> */
+        public array $meta = [],
     ) {}
 }

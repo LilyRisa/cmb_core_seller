@@ -207,6 +207,33 @@ class FacebookBackfillConnectorTest extends TestCase
         Http::assertSent(fn ($r) => str_contains($r->url(), 'sticker'));
     }
 
+    public function test_fetch_messages_sticker_with_fallback_does_not_set_body(): void
+    {
+        // Sticker kèm fallback có URL trùng ⇒ giữ ảnh sticker, KHÔNG đẩy URL vào body.
+        Http::fake([
+            'graph.facebook.com/*' => Http::response([
+                'id' => 't_st2',
+                'messages' => ['data' => [[
+                    'id' => 'm_st2',
+                    'message' => '',
+                    'created_time' => '2026-05-20T11:00:00+0000',
+                    'from' => ['id' => 'PSID_999', 'name' => 'A'],
+                    'sticker' => 'https://external.xx.fbcdn.net/sticker/abc.png',
+                    'attachments' => ['data' => [[
+                        'type' => 'fallback',
+                        'url' => 'https://external.xx.fbcdn.net/sticker/abc.png',
+                    ]]],
+                ]]],
+            ], 200),
+        ]);
+
+        $page = $this->connector()->fetchMessages($this->auth(), 'PSID_999', ['thread_id' => 't_st2', 'pageSize' => 50]);
+
+        $msg = $page->items[0];
+        $this->assertSame('image', $msg->kind->value);
+        $this->assertNull($msg->body, 'sticker không được set body thành link fallback');
+    }
+
     public function test_fetch_messages_shared_link_sets_body(): void
     {
         Http::fake([

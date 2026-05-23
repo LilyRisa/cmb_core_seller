@@ -137,9 +137,10 @@ class FacebookPageConnector implements MessagingConnector
 
     public function registerWebhooks(MessagingAuthContext $auth): void
     {
-        // Subscribe page vào app cho field `messages`, `messaging_postbacks`.
+        // Subscribe page vào app. `message_echoes` để nhận tin page tự gửi (qua Page
+        // Inbox / Meta Business Suite / trả lời tự động có nút bấm) → hiển thị trong hộp thư.
         Http::post($this->graphUrl($auth->externalShopId.'/subscribed_apps'), [
-            'subscribed_fields' => 'messages,messaging_postbacks,message_deliveries,message_reads,feed,message_reactions',
+            'subscribed_fields' => 'messages,message_echoes,messaging_postbacks,message_deliveries,message_reads,feed,message_reactions',
             'access_token' => $auth->accessToken,
         ]);
     }
@@ -311,7 +312,8 @@ class FacebookPageConnector implements MessagingConnector
 
     /**
      * Map 1 Messenger messaging-event → DTO chuẩn. PSID người gửi = conversation
-     * (Send API địa chỉ theo PSID). Bỏ echo (tin do page tự gửi) — type unknown.
+     * (Send API địa chỉ theo PSID). Echo do CHÍNH app gửi ⇒ bỏ (type unknown); echo
+     * từ nguồn khác (Page Inbox / trả lời tự động có nút bấm) ⇒ nhận thành outbound.
      *
      * @param  array<string,mixed>  $event
      */
@@ -320,79 +322,43 @@ class FacebookPageConnector implements MessagingConnector
         $senderId = isset($event['sender']['id']) ? (string) $event['sender']['id'] : null;
         $occurredAt = isset($event['timestamp']) ? CarbonImmutable::createFromTimestampMs((int) $event['timestamp']) : null;
 
-        if (isset($event['message']) && empty($event['message']['is_echo'])) {
+        if (isset($event['message'])) {
             $msg = (array) $event['message'];
+            $isEcho = ! empty($msg['is_echo']);
 
-            // Normalize body: plain text first.
-            $body = isset($msg['text']) && (string) $msg['text'] !== '' ? (string) $msg['text'] : null;
-            $attachments = [];
-            $kind = MessageKind::Text;
-
-            // Sticker: Facebook sends `sticker_id` + an attachment with type=image and
-            // payload.sticker_id + payload.url. Treat the attachment url as the sticker image.
-            foreach ((array) ($msg['attachments'] ?? []) as $watt) {
-                $wtype = (string) ($watt['type'] ?? '');
-                $payload = (array) ($watt['payload'] ?? []);
-                if ($wtype === 'image' && ! empty($payload['sticker_id'])) {
-                    $stickerUrl = isset($payload['url']) && (string) $payload['url'] !== '' ? (string) $payload['url'] : null;
-                    $attachments[] = new MediaRefDTO(
-                        kind: MessageKind::Image,
-                        mime: 'image/png',
-                        externalUrl: $stickerUrl,
-                        filename: 'sticker',
-                    );
-                    $kind = MessageKind::Image;
-
-                    continue;
-                }
-                if ($wtype === 'fallback' || $wtype === 'share') {
-                    // Shared link: populate body if no text yet.
-                    $attUrl = (string) ($payload['url'] ?? '');
-                    if ($attUrl !== '' && $body === null) {
-                        $attTitle = isset($payload['title']) && (string) $payload['title'] !== ''
-                            ? (string) $payload['title']
-                            : null;
-                        $body = $attTitle !== null ? $attTitle.' '.$attUrl : $attUrl;
-                    }
-
-                    continue;
-                }
-                // Other attachment types (image/video/audio/file without sticker).
-                $mime = match ($wtype) {
-                    'image' => 'image/jpeg',
-                    'video' => 'video/mp4',
-                    'audio' => 'audio/mpeg',
-                    default => 'application/octet-stream',
-                };
-                $attKind = match ($wtype) {
-                    'image' => MessageKind::Image,
-                    'video' => MessageKind::Video,
-                    default => MessageKind::File,
-                };
-                $attUrl = isset($payload['url']) && (string) $payload['url'] !== '' ? (string) $payload['url'] : null;
-                $attachments[] = new MediaRefDTO(
-                    kind: $attKind,
-                    mime: $mime,
-                    externalUrl: $attUrl,
-                    filename: null,
-                );
-                if ($kind === MessageKind::Text) {
-                    $kind = $attKind;
+            // Bỏ echo do CHÍNH app này gửi — đã được SendMessage ghi DB (tránh trùng).
+            // Echo từ nguồn khác (page tự gửi qua Page Inbox / Meta Business Suite /
+            // trả lời tự động CÓ NÚT BẤM của Facebook) ⇒ vẫn nhận để hiển thị.
+            if ($isEcho) {
+                $appId = isset($msg['app_id']) ? (string) $msg['app_id'] : null;
+                $ourAppId = isset($this->config['app_id']) && (string) $this->config['app_id'] !== ''
+                    ? (string) $this->config['app_id'] : null;
+                if ($appId !== null && $ourAppId !== null && $appId === $ourAppId) {
+                    return new MessagingWebhookEventDTO($this->code(), MessagingWebhookEventDTO::TYPE_UNKNOWN, $pageId, null, null, null, $occurredAt, $event);
                 }
             }
+
+            // Inbound: PSID người GỬI = conversation. Echo (page→buyer): PSID người NHẬN.
+            $recipientId = isset($event['recipient']['id']) ? (string) $event['recipient']['id'] : null;
+            $convKey = $isEcho ? $recipientId : $senderId;
+            $direction = $isEcho ? MessageDirection::Outbound : MessageDirection::Inbound;
+
+            $parsed = $this->parseMessageContent($msg);
 
             return new MessagingWebhookEventDTO(
                 provider: $this->code(),
                 type: MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED,
                 externalShopId: $pageId,
-                externalConversationId: $senderId,            // PSID buyer = conversation
+                externalConversationId: $convKey,
                 externalMessageId: (string) ($msg['mid'] ?? ''),
-                buyerExternalId: $senderId,
+                buyerExternalId: $convKey,
                 occurredAt: $occurredAt,
                 raw: $event,
-                kind: $kind,
-                body: $body,
-                attachments: $attachments,
+                kind: $parsed['kind'],
+                body: $parsed['body'],
+                attachments: $parsed['attachments'],
+                direction: $direction,
+                meta: $parsed['buttons'] !== [] ? ['buttons' => $parsed['buttons']] : [],
             );
         }
         if (isset($event['reaction'])) {
@@ -418,6 +384,148 @@ class FacebookPageConnector implements MessagingConnector
         }
 
         return new MessagingWebhookEventDTO($this->code(), MessagingWebhookEventDTO::TYPE_UNKNOWN, $pageId, $senderId, null, $senderId, $occurredAt, $event);
+    }
+
+    /**
+     * Parse 1 Messenger `message` object → nội dung chuẩn hoá: kind/body/attachments + buttons.
+     * Dùng chung cho tin INBOUND (buyer→page) lẫn ECHO (page→buyer, gồm template/quick-reply
+     * có NÚT BẤM của trả lời tự động Facebook). Giữ nguyên hành vi parse cũ cho inbound.
+     *
+     * @param  array<string,mixed>  $msg
+     * @return array{kind: MessageKind, body: ?string, attachments: list<MediaRefDTO>, buttons: list<array<string,string>>}
+     */
+    private function parseMessageContent(array $msg): array
+    {
+        $body = isset($msg['text']) && (string) $msg['text'] !== '' ? (string) $msg['text'] : null;
+        $attachments = [];
+        $kind = MessageKind::Text;
+        $buttons = [];
+
+        // Quick replies (kèm tin text) → nút bấm.
+        foreach ((array) ($msg['quick_replies'] ?? []) as $qr) {
+            $title = (string) (((array) $qr)['title'] ?? '');
+            if ($title !== '') {
+                $buttons[] = ['title' => $title];
+            }
+        }
+
+        // Sticker message? FB gắn `sticker_id` ở message-level và/hoặc trong payload
+        // attachment. Khi là sticker, KHÔNG linkify URL fallback (URL đó chính là ảnh
+        // sticker) ⇒ tránh hiển thị cả sticker lẫn link text trùng lặp.
+        $isSticker = ! empty($msg['sticker_id']);
+        if (! $isSticker) {
+            foreach ((array) ($msg['attachments'] ?? []) as $watt) {
+                if (! empty(((array) ($watt['payload'] ?? []))['sticker_id'])) {
+                    $isSticker = true;
+                    break;
+                }
+            }
+        }
+
+        foreach ((array) ($msg['attachments'] ?? []) as $watt) {
+            $wtype = (string) ($watt['type'] ?? '');
+            $payload = (array) ($watt['payload'] ?? []);
+
+            // Sticker: type=image + payload.sticker_id (+ url) ⇒ coi url là ảnh sticker.
+            if ($wtype === 'image' && ! empty($payload['sticker_id'])) {
+                $stickerUrl = isset($payload['url']) && (string) $payload['url'] !== '' ? (string) $payload['url'] : null;
+                $attachments[] = new MediaRefDTO(
+                    kind: MessageKind::Image,
+                    mime: 'image/png',
+                    externalUrl: $stickerUrl,
+                    filename: 'sticker',
+                );
+                $kind = MessageKind::Image;
+
+                continue;
+            }
+
+            // Template (button/generic): lấy text + nhãn nút bấm — KHÔNG tạo file attachment.
+            if ($wtype === 'template') {
+                if ($body === null && isset($payload['text']) && (string) $payload['text'] !== '') {
+                    $body = (string) $payload['text'];
+                }
+                foreach ((array) ($payload['buttons'] ?? []) as $b) {
+                    $btn = $this->mapTemplateButton((array) $b);
+                    if ($btn !== []) {
+                        $buttons[] = $btn;
+                    }
+                }
+                foreach ((array) ($payload['elements'] ?? []) as $el) {
+                    $el = (array) $el;
+                    if ($body === null && isset($el['title']) && (string) $el['title'] !== '') {
+                        $body = (string) $el['title'];
+                    }
+                    foreach ((array) ($el['buttons'] ?? []) as $b) {
+                        $btn = $this->mapTemplateButton((array) $b);
+                        if ($btn !== []) {
+                            $buttons[] = $btn;
+                        }
+                    }
+                }
+
+                continue;
+            }
+
+            if ($wtype === 'fallback' || $wtype === 'share') {
+                // Shared link: populate body if no text yet. Bỏ qua khi là sticker —
+                // fallback URL của sticker chính là ảnh, không phải link cần hiện.
+                $attUrl = (string) ($payload['url'] ?? '');
+                if ($attUrl !== '' && $body === null && ! $isSticker) {
+                    $attTitle = isset($payload['title']) && (string) $payload['title'] !== ''
+                        ? (string) $payload['title']
+                        : null;
+                    $body = $attTitle !== null ? $attTitle.' '.$attUrl : $attUrl;
+                }
+
+                continue;
+            }
+
+            // Media: image / video / audio / file.
+            $mime = match ($wtype) {
+                'image' => 'image/jpeg',
+                'video' => 'video/mp4',
+                'audio' => 'audio/mpeg',
+                default => 'application/octet-stream',
+            };
+            $attKind = match ($wtype) {
+                'image' => MessageKind::Image,
+                'video' => MessageKind::Video,
+                default => MessageKind::File,
+            };
+            $attUrl = isset($payload['url']) && (string) $payload['url'] !== '' ? (string) $payload['url'] : null;
+            $attachments[] = new MediaRefDTO(
+                kind: $attKind,
+                mime: $mime,
+                externalUrl: $attUrl,
+                filename: null,
+            );
+            if ($kind === MessageKind::Text) {
+                $kind = $attKind;
+            }
+        }
+
+        return ['kind' => $kind, 'body' => $body, 'attachments' => $attachments, 'buttons' => $buttons];
+    }
+
+    /**
+     * Chuẩn hoá 1 nút bấm template Messenger → ['title', 'url'?]. Nút rỗng tên ⇒ [].
+     *
+     * @param  array<string,mixed>  $b
+     * @return array<string,string>
+     */
+    private function mapTemplateButton(array $b): array
+    {
+        $title = (string) ($b['title'] ?? '');
+        if ($title === '') {
+            return [];
+        }
+        $out = ['title' => $title];
+        if (! empty($b['url'])) {
+            $out['url'] = (string) $b['url'];
+        }
+
+        return $out;
     }
 
     public function fetchConversations(MessagingAuthContext $auth, array $query = []): Page
@@ -498,6 +606,8 @@ class FacebookPageConnector implements MessagingConnector
 
             $body = ($row['message'] ?? '') !== '' ? (string) $row['message'] : null;
             $attachments = [];
+            // Sticker message ⇒ không linkify URL share/fallback (đó là ảnh sticker).
+            $isSticker = ! empty($row['sticker']);
 
             // Sticker: `sticker` field is a direct CDN URL string.
             if (! empty($row['sticker'])) {
@@ -543,8 +653,8 @@ class FacebookPageConnector implements MessagingConnector
             }
 
             // When the message text is empty, fall back to the share URL as the body
-            // so the FE can linkify it.
-            if ($body === null && $shareUrl !== null) {
+            // so the FE can linkify it. Trừ sticker — URL share là chính ảnh sticker.
+            if ($body === null && $shareUrl !== null && ! $isSticker) {
                 $body = $shareUrl;
             }
 

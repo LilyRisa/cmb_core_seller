@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Messaging;
 
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageDirection;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\OutboundWindowClosed;
@@ -103,18 +104,118 @@ class FacebookPageConnectorTest extends TestCase
         $this->assertSame('m_1', $this->connector()->parseWebhook($this->request($payload, null))->externalMessageId);
     }
 
-    public function test_ignores_echo_messages(): void
+    public function test_ignores_echo_from_own_app(): void
     {
+        // Echo do CHÍNH app này gửi (app_id khớp config) ⇒ bỏ (đã ghi qua SendMessage).
         $payload = json_encode([
             'object' => 'page',
-            'entry' => [['id' => 'P', 'messaging' => [[
-                'sender' => ['id' => 'P'],
-                'message' => ['mid' => 'm1', 'text' => 'echo', 'is_echo' => true],
+            'entry' => [['id' => 'PAGE_123', 'messaging' => [[
+                'sender' => ['id' => 'PAGE_123'],
+                'recipient' => ['id' => 'PSID_9'],
+                'message' => ['mid' => 'm1', 'text' => 'echo', 'is_echo' => true, 'app_id' => 'app123'],
             ]]]],
         ]);
 
         $event = $this->connector()->parseWebhook($this->request($payload, null));
         $this->assertSame(MessagingWebhookEventDTO::TYPE_UNKNOWN, $event->type);
+    }
+
+    public function test_captures_page_echo_button_template_as_outbound_with_buttons(): void
+    {
+        // Tin page tự gửi qua công cụ Facebook (app_id KHÁC) — gồm template có nút bấm.
+        // Phải nhận thành OUTBOUND, body = text template, kèm nhãn nút bấm.
+        $payload = json_encode([
+            'object' => 'page',
+            'entry' => [['id' => 'PAGE_123', 'messaging' => [[
+                'sender' => ['id' => 'PAGE_123'],
+                'recipient' => ['id' => 'PSID_9'],
+                'timestamp' => 1716200000000,
+                'message' => [
+                    'mid' => 'm_echo_btn',
+                    'is_echo' => true,
+                    'app_id' => 999888,
+                    'attachments' => [[
+                        'type' => 'template',
+                        'payload' => [
+                            'template_type' => 'button',
+                            'text' => 'Chào bạn! Bạn cần hỗ trợ gì?',
+                            'buttons' => [
+                                ['type' => 'postback', 'title' => 'Mua hàng', 'payload' => 'BUY'],
+                                ['type' => 'web_url', 'title' => 'Xem sản phẩm', 'url' => 'https://shop.vn/sp'],
+                            ],
+                        ],
+                    ]],
+                ],
+            ]]]],
+        ]);
+
+        $event = $this->connector()->parseWebhook($this->request($payload, null));
+
+        $this->assertSame(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, $event->type);
+        $this->assertSame(MessageDirection::Outbound, $event->direction);
+        $this->assertSame('PSID_9', $event->externalConversationId, 'conversation = người nhận (buyer)');
+        $this->assertSame('Chào bạn! Bạn cần hỗ trợ gì?', $event->body);
+        $this->assertCount(2, $event->meta['buttons']);
+        $this->assertSame('Mua hàng', $event->meta['buttons'][0]['title']);
+        $this->assertSame('Xem sản phẩm', $event->meta['buttons'][1]['title']);
+        $this->assertSame('https://shop.vn/sp', $event->meta['buttons'][1]['url']);
+    }
+
+    public function test_captures_quick_replies_on_inbound_message_as_buttons(): void
+    {
+        // Quick replies kèm tin → nhãn nút bấm (kể cả inbound).
+        $payload = json_encode([
+            'object' => 'page',
+            'entry' => [['id' => 'PAGE_123', 'messaging' => [[
+                'sender' => ['id' => 'PSID_9'],
+                'recipient' => ['id' => 'PAGE_123'],
+                'message' => [
+                    'mid' => 'm_qr',
+                    'text' => 'Chọn nhé',
+                    'quick_replies' => [
+                        ['content_type' => 'text', 'title' => 'Có', 'payload' => 'YES'],
+                        ['content_type' => 'text', 'title' => 'Không', 'payload' => 'NO'],
+                    ],
+                ],
+            ]]]],
+        ]);
+
+        $event = $this->connector()->parseWebhook($this->request($payload, null));
+
+        $this->assertSame(MessageDirection::Inbound, $event->direction);
+        $this->assertSame('Chọn nhé', $event->body);
+        $this->assertCount(2, $event->meta['buttons']);
+        $this->assertSame('Có', $event->meta['buttons'][0]['title']);
+    }
+
+    public function test_sticker_message_does_not_linkify_fallback_url(): void
+    {
+        // FB gửi sticker kèm cả attachment image (sticker_id) lẫn fallback có URL trùng.
+        // Không được set body thành URL ⇒ tránh hiện cả sticker lẫn link text.
+        $payload = json_encode([
+            'object' => 'page',
+            'entry' => [['id' => 'PAGE_123', 'messaging' => [[
+                'sender' => ['id' => 'PSID_9'],
+                'recipient' => ['id' => 'PAGE_123'],
+                'timestamp' => 1716200000000,
+                'message' => [
+                    'mid' => 'm_st',
+                    'sticker_id' => 369239263222822,
+                    'attachments' => [
+                        ['type' => 'image', 'payload' => ['sticker_id' => 369239263222822, 'url' => 'https://cdn.fb/sticker.png']],
+                        ['type' => 'fallback', 'payload' => ['url' => 'https://cdn.fb/sticker.png']],
+                    ],
+                ],
+            ]]]],
+        ]);
+
+        $event = $this->connector()->parseWebhook($this->request($payload, null));
+
+        $this->assertSame(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, $event->type);
+        $this->assertSame('image', $event->kind->value);
+        $this->assertCount(1, $event->attachments);
+        $this->assertSame('https://cdn.fb/sticker.png', $event->attachments[0]->externalUrl);
+        $this->assertNull($event->body, 'sticker không được set body thành link');
     }
 
     public function test_outbound_window_is_24h_with_tags(): void
@@ -189,7 +290,8 @@ class FacebookPageConnectorTest extends TestCase
 
             return str_contains($request->url(), '/subscribed_apps')
                 && str_contains($fields, 'feed')
-                && str_contains($fields, 'messages');
+                && str_contains($fields, 'messages')
+                && str_contains($fields, 'message_echoes');
         });
     }
 

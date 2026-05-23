@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback, type CSSProperties, type ReactNode } from 'react';
 import dayjs from 'dayjs';
 import { Link } from 'react-router-dom';
 import { App, Avatar, Badge, Button, Checkbox, Dropdown, Empty, Grid, Image, Input, List, Modal, Popconfirm, Popover, Radio, Segmented, Select, Space, Spin, Tag, Tooltip, Typography, Upload } from 'antd';
@@ -10,6 +10,7 @@ import {
     type Conversation,
     INBOX_GROUP_PROVIDERS,
     type MessageAttachment,
+    type MessageButton,
     type MessagingTag,
     providerLabel,
     useAiSuggestion,
@@ -137,6 +138,32 @@ function MessageAttachmentView({ att }: { att: MessageAttachment }) {
         : <AttachmentPlaceholder icon={<FileOutlined />} label={att.filename ?? 'Tệp đính kèm'} />;
 }
 
+/**
+ * Hàng nút bấm (CHỈ hiển thị) của tin trả lời tự động Facebook (template/quick-reply).
+ * Nút có URL → mở link; nút postback → chip tĩnh (không bấm được từ hộp thư này).
+ */
+function MessageButtons({ buttons, outbound }: { buttons: MessageButton[]; outbound: boolean }) {
+    const chip: CSSProperties = {
+        display: 'inline-block',
+        padding: '3px 10px',
+        borderRadius: 14,
+        fontSize: 12,
+        lineHeight: '18px',
+        border: `1px solid ${outbound ? 'rgba(255,255,255,0.6)' : '#CBD5E1'}`,
+        color: outbound ? '#fff' : '#2563EB',
+        background: outbound ? 'rgba(255,255,255,0.12)' : '#F8FAFC',
+        textDecoration: 'none',
+        maxWidth: '100%',
+    };
+    return (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+            {buttons.map((b, i) => b.url
+                ? <a key={i} href={b.url} target="_blank" rel="noreferrer" style={chip}>{b.title}</a>
+                : <span key={i} style={chip}>{b.title}</span>)}
+        </div>
+    );
+}
+
 /** Giờ hiển thị cho 1 tin trong thread: cùng ngày → HH:mm; khác ngày → DD/MM HH:mm. */
 function fmtMsgTime(iso: string | null): string {
     if (!iso) return '';
@@ -192,7 +219,7 @@ export function MessagingPage() {
 
     // ── Kind label fallback (khi body=null và không có attachment) ────────────
     const KIND_LABEL: Record<string, string> = {
-        text: 'Tin nhắn không hỗ trợ hiển thị',
+        text: 'Tin nhắn tự động trên Facebook',
         image: 'Hình ảnh',
         video: 'Video',
         file: 'Tệp đính kèm',
@@ -833,7 +860,10 @@ export function MessagingPage() {
                                                     </div>
                                                 ))}
                                                 {m.body != null && <div style={{ whiteSpace: 'pre-wrap' }}><MessageBody text={m.body} /></div>}
-                                                {m.body == null && (m.attachments ?? []).length === 0 && (
+                                                {(m.buttons ?? []).length > 0 && (
+                                                    <MessageButtons buttons={m.buttons!} outbound={m.direction === 'outbound'} />
+                                                )}
+                                                {m.body == null && (m.attachments ?? []).length === 0 && (m.buttons ?? []).length === 0 && (
                                                     <div style={{ fontStyle: 'italic', opacity: 0.7 }}>{KIND_LABEL[m.kind] ?? m.kind}</div>
                                                 )}
                                                 <div style={{ fontSize: 10, opacity: 0.6, textAlign: m.direction === 'outbound' ? 'right' : 'left', marginTop: 2 }}>

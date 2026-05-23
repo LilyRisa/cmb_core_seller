@@ -79,6 +79,33 @@ class MessageResourceMediaTest extends TestCase
         return (new MessageResource($message->load('attachments')))->toArray(Request::create('/'));
     }
 
+    /** Nút bấm (template/quick-reply) trong meta phải lộ ra `buttons` cho FE. */
+    public function test_buttons_in_meta_are_exposed(): void
+    {
+        $message = Message::query()->create([
+            'tenant_id' => $this->tenant->getKey(),
+            'conversation_id' => $this->conversation->getKey(),
+            'external_message_id' => 'MID_BTN',
+            'direction' => Message::DIRECTION_OUTBOUND,
+            'kind' => Message::KIND_TEXT,
+            'body' => 'Bạn cần hỗ trợ gì?',
+            'attachments_count' => 0,
+            'delivery_status' => Message::STATUS_SENT,
+            'sent_at' => now(),
+            'meta' => ['buttons' => [
+                ['title' => 'Mua hàng'],
+                ['title' => ''], // rỗng → bị loại
+                ['title' => 'Xem sản phẩm', 'url' => 'https://shop.vn/sp'],
+            ]],
+        ]);
+
+        $data = (new MessageResource($message))->toArray(Request::create('/'));
+
+        $this->assertCount(2, $data['buttons'], 'nút rỗng tên bị loại');
+        $this->assertSame('Mua hàng', $data['buttons'][0]['title']);
+        $this->assertSame('https://shop.vn/sp', $data['buttons'][1]['url']);
+    }
+
     /** Pending (chưa relay) ⇒ download_url fallback về external_url để FE render ảnh. */
     public function test_pending_image_attachment_exposes_external_url_as_download_url(): void
     {

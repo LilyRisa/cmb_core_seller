@@ -79,6 +79,13 @@ export interface Message {
     created_at: string | null;
     reaction?: string | null;
     attachments?: MessageAttachment[];
+    /** Nút bấm (template/quick-reply của trả lời tự động Facebook) — chỉ hiển thị. */
+    buttons?: MessageButton[];
+}
+
+export interface MessageButton {
+    title: string;
+    url?: string;
 }
 
 export interface ConversationFilters {

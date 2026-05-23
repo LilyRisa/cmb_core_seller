@@ -173,6 +173,38 @@ class InboundMediaIngestTest extends TestCase
     }
 
     /**
+     * Echo Facebook (page tự gửi, có nút bấm): _direction=outbound + _meta.buttons →
+     * Message OUTBOUND, body + meta.buttons được lưu để FE hiển thị nút.
+     */
+    public function test_outbound_echo_with_buttons_creates_outbound_message_with_meta(): void
+    {
+        Queue::fake();
+
+        $event = $this->createWebhookEvent([
+            'external_message_id' => 'MSG_ECHO_1',
+            'external_conversation_id' => 'CONV_ECHO_1',
+            '_kind' => 'text',
+            '_body' => 'Chào bạn! Bạn cần hỗ trợ gì?',
+            '_attachments' => [],
+            '_direction' => 'outbound',
+            '_meta' => ['buttons' => [
+                ['title' => 'Mua hàng'],
+                ['title' => 'Xem sản phẩm', 'url' => 'https://shop.vn/sp'],
+            ]],
+        ]);
+
+        $this->runJob($event);
+
+        $msg = Message::withoutGlobalScopes()->where('external_message_id', 'MSG_ECHO_1')->first();
+        $this->assertNotNull($msg, 'Echo phải tạo message');
+        $this->assertSame('outbound', $msg->direction, 'Echo page → outbound');
+        $this->assertSame('Chào bạn! Bạn cần hỗ trợ gì?', $msg->body);
+        $this->assertIsArray($msg->meta['buttons'] ?? null);
+        $this->assertSame('Mua hàng', $msg->meta['buttons'][0]['title']);
+        $this->assertSame('https://shop.vn/sp', $msg->meta['buttons'][1]['url']);
+    }
+
+    /**
      * Regression: existing manual connector path (no _kind/_body/_attachments keys) still
      * works — falls back to legacy payload['body']/payload['kind'] path.
      */
