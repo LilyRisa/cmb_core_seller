@@ -595,11 +595,12 @@ class FacebookPageConnector implements MessagingConnector
         $threadId = (string) ($query['thread_id'] ?? $externalConversationId);
         $limit = (int) ($query['pageSize'] ?? 50);
 
-        // KHÔNG nhúng generic_template vào sub-field của messages edge — field con đó gây
-        // Graph 400 (vd `subtitle` không tồn tại) ⇒ vỡ TOÀN BỘ backfill (mất tin + avatar).
-        // Tin tự động (template) được phục hồi RIÊNG qua recoverMessageContent() bên dưới.
+        // Xin `attachments` DẠNG TRẦN (không liệt kê sub-field) ⇒ Graph trả representation
+        // mặc định ĐẦY ĐỦ gồm cả `generic_template{title,cta,image_url}` (tin tự động của
+        // page) lẫn image_data/video_data/file_url. Nếu liệt kê sub-field cụ thể thì
+        // generic_template BỊ LOẠI ⇒ tin tự động thành rỗng ("không hỗ trợ hiển thị").
         $res = Http::timeout(30)->get($this->graphUrl($threadId), [
-            'fields' => "messages.limit({$limit}){id,message,created_time,from,sticker,shares{link,name,description},attachments{mime_type,name,image_data,video_data,file_url,type,title,url}}",
+            'fields' => "messages.limit({$limit}){id,message,created_time,from,sticker,shares{link,name,description},attachments}",
             'access_token' => $auth->accessToken,
         ]);
         if (! $res->successful()) {
@@ -639,6 +640,15 @@ class FacebookPageConnector implements MessagingConnector
                         $subtitle = (string) ($gt['subtitle'] ?? '');
                         $body = trim($title.($subtitle !== '' ? "\n".$subtitle : '')) ?: null;
                     }
+                    // Ảnh sản phẩm trong template (nếu có) → attachment ảnh.
+                    if (! empty($gt['image_url'])) {
+                        $attachments[] = new MediaRefDTO(
+                            kind: MessageKind::Image,
+                            mime: 'image/jpeg',
+                            externalUrl: (string) $gt['image_url'],
+                            filename: null,
+                        );
+                    }
                     foreach ((array) ($gt['cta'] ?? []) as $c) {
                         $btn = $this->mapTemplateButton((array) $c);
                         if ($btn !== []) {
@@ -661,10 +671,12 @@ class FacebookPageConnector implements MessagingConnector
 
                     continue;
                 }
-                // CHỈ giữ attachment THẬT (có URL media). Bỏ "rác" không URL — vd tin tự động
-                // (template): messages edge trả 1 attachment rỗng (không generic_template vì
-                // không xin sub-field) ⇒ nếu tạo "file" giả thì attachments != [] sẽ CHẶN
-                // recoverMessageContent() chạy. Bỏ nó đi để recovery lấy nội dung thật.
+                // Sticker đã lấy ảnh từ field `sticker` ⇒ bỏ qua attachment ảnh trùng trong loop.
+                if ($isSticker) {
+                    continue;
+                }
+                // CHỈ giữ attachment THẬT (có URL media). Bỏ "rác" không URL (vd object rỗng)
+                // để không tạo "file" giả + để recoverMessageContent() chạy khi cần.
                 $mapped = $this->mapBackfillAttachment((array) $att);
                 if ($mapped->externalUrl !== null) {
                     $attachments[] = $mapped;

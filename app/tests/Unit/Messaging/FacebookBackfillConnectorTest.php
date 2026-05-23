@@ -286,6 +286,45 @@ class FacebookBackfillConnectorTest extends TestCase
         Http::assertSent(fn ($r) => str_contains($r->url(), '/t_tpl') && ! str_contains(urldecode($r->url()), 'generic_template'));
     }
 
+    public function test_fetch_messages_parses_generic_template_inline_from_edge(): void
+    {
+        // `attachments` trần ⇒ edge trả generic_template ngay → lấy title + nút bấm + ảnh,
+        // KHÔNG cần gọi per-message recovery.
+        Http::fake([
+            'graph.facebook.com/*' => Http::response([
+                'id' => 't_tpl2',
+                'messages' => ['data' => [[
+                    'id' => 'm_tpl2',
+                    'message' => '',
+                    'created_time' => '2026-05-22T09:44:39+0000',
+                    'from' => ['id' => 'PAGE_123', 'name' => 'Shop'],
+                    'attachments' => ['data' => [[
+                        'generic_template' => [
+                            'title' => 'Ưu đãi hôm nay: 220.000đ',
+                            'image_url' => 'https://cdn.fb/product.jpg',
+                            'cta' => [
+                                ['title' => 'Đặt hàng ngay', 'type' => 'postback'],
+                                ['title' => 'Xem web', 'type' => 'web_url', 'url' => 'https://shop.vn/sp'],
+                            ],
+                        ],
+                    ]]],
+                ]]],
+            ], 200),
+        ]);
+
+        $page = $this->connector()->fetchMessages($this->auth(), 'PSID_999', ['thread_id' => 't_tpl2', 'pageSize' => 50]);
+
+        $msg = $page->items[0];
+        $this->assertSame('Ưu đãi hôm nay: 220.000đ', $msg->body);
+        $this->assertCount(2, $msg->meta['buttons']);
+        $this->assertSame('https://shop.vn/sp', $msg->meta['buttons'][1]['url']);
+        $this->assertCount(1, $msg->attachments);
+        $this->assertSame('https://cdn.fb/product.jpg', $msg->attachments[0]->externalUrl);
+
+        // KHÔNG gọi per-message recovery vì edge đã có nội dung.
+        Http::assertNotSent(fn ($r) => str_contains($r->url(), '/m_tpl2?') && str_contains(urldecode($r->url()), 'fields=message,attachments'));
+    }
+
     public function test_fetch_messages_shared_link_sets_body(): void
     {
         Http::fake([
@@ -350,9 +389,12 @@ class FacebookBackfillConnectorTest extends TestCase
 
         Http::assertSent(function ($r) {
             $fields = urldecode($r->url());
+
+            // `attachments` dạng trần (Graph trả default rep đầy đủ gồm generic_template).
             return str_contains($fields, 'sticker')
-                && str_contains($fields, 'type')
-                && str_contains($fields, 'title');
+                && str_contains($fields, 'shares')
+                && str_contains($fields, 'attachments')
+                && ! str_contains($fields, 'attachments{');
         });
     }
 
