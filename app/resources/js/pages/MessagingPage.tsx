@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback, type CSSProperties, 
 import dayjs from 'dayjs';
 import { Link } from 'react-router-dom';
 import { App, Avatar, Badge, Button, Checkbox, Dropdown, Empty, Grid, Image, Input, List, Modal, Popconfirm, Popover, Radio, Segmented, Select, Space, Spin, Tag, Tooltip, Typography, Upload } from 'antd';
-import { CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FileOutlined, FilterOutlined, MessageFilled, MessageOutlined, MoreOutlined, PaperClipOutlined, PhoneOutlined, PictureOutlined, RobotOutlined, SendOutlined, ShopOutlined, SmileOutlined, SoundOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
+import { BellFilled, BellOutlined, CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FileOutlined, FilterOutlined, MessageFilled, MessageOutlined, MoreOutlined, PaperClipOutlined, PhoneOutlined, PictureOutlined, RobotOutlined, SendOutlined, ShopOutlined, SmileOutlined, SoundOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import Picker from '@emoji-mart/react';
 import emojiData from '@emoji-mart/data';
 import { errorMessage } from '@/lib/api';
@@ -26,14 +26,20 @@ import {
     useReplyComment,
     useSendMedia,
     useSendText,
+    useSaveTag,
     useSetConversationTags,
     useUnblockConversation,
 } from '@/lib/messaging';
 import { useMessagingChannels, useTemplates, type MessageTemplate } from '@/lib/messagingConfig';
+import { useMessageNotifications } from '@/lib/useMessageNotifications';
+import { usePushNotifications } from '@/lib/usePushNotifications';
 import { MessagingNav } from '@/components/MessagingNav';
 import { TagManagerModal } from '@/components/TagManagerModal';
 
 const { Text } = Typography;
+
+// Bảng màu thẻ preset (tạo thẻ nhanh trong popover gắn thẻ).
+const TAG_COLORS = ['#2563EB', '#16A34A', '#DC2626', '#D97706', '#7C3AED', '#0891B2', '#DB2777', '#475569'];
 
 const URL_SPLIT_RE = /(https?:\/\/[^\s]+)/g;
 const URL_TEST_RE = /^https?:\/\/[^\s]+$/;
@@ -317,6 +323,23 @@ export function MessagingPage() {
     const tagsQuery = useMessagingTags();
     const tags: MessagingTag[] = tagsQuery.data ?? [];
     const setConvTags = useSetConversationTags();
+    const saveTag = useSaveTag();
+    const [newTagName, setNewTagName] = useState('');
+    const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
+
+    // Tạo thẻ mới rồi gắn ngay vào hội thoại (cho phép tạo thẻ từ chính chỗ gắn thẻ).
+    const createAndAttachTag = (c: Conversation) => {
+        const name = newTagName.trim();
+        if (name === '') return;
+        saveTag.mutate({ name, color: newTagColor }, {
+            onSuccess: (tag) => {
+                setConvTags.mutate({ conversationId: c.id, tags: [...(c.tags ?? []), tag.id] });
+                setNewTagName('');
+                message.success('Đã tạo & gắn thẻ.');
+            },
+            onError: (e) => message.error(errorMessage(e, 'Không tạo được thẻ.')),
+        });
+    };
 
     // ── Channels (for Facebook page filter) ──────────────────────────────────
     const channelsQuery = useMessagingChannels();
@@ -348,6 +371,8 @@ export function MessagingPage() {
     const privateReply = usePrivateReplyComment(activeId);
 
     const conversations = useMemo(() => list.data?.pages.flatMap((p) => p.data) ?? [], [list.data]);
+    useMessageNotifications(conversations); // toast + noti.wav khi tab mở; Web Push lo khi tab đóng
+    const push = usePushNotifications();
     const handleConvScroll = useCallback((e: UIEvent<HTMLDivElement>) => {
         const el = e.currentTarget;
         // Gần đáy (<240px) ⇒ tải trang kế (infinite scroll danh sách hội thoại).
@@ -578,7 +603,7 @@ export function MessagingPage() {
         <div style={{ width: 200 }}>
             <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>Gắn thẻ hội thoại</Text>
             {tags.length === 0 ? (
-                <Text type="secondary" style={{ fontSize: 12 }}>Chưa có thẻ nào.</Text>
+                <Text type="secondary" style={{ fontSize: 12 }}>Chưa có thẻ nào — tạo thẻ mới bên dưới.</Text>
             ) : (
                 <Space direction="vertical" size={4}>
                     {tags.map((t) => (
@@ -607,6 +632,41 @@ export function MessagingPage() {
                     ))}
                 </Space>
             )}
+            {/* Tạo thẻ mới + gắn ngay vào hội thoại */}
+            <div style={{ marginTop: tags.length ? 8 : 4, paddingTop: tags.length ? 8 : 0, borderTop: tags.length ? '1px solid #F1F5F9' : 'none' }}>
+                <Input
+                    size="small"
+                    placeholder="Tên thẻ mới…"
+                    value={newTagName}
+                    maxLength={50}
+                    onChange={(e) => setNewTagName(e.target.value)}
+                    onPressEnter={() => createAndAttachTag(c)}
+                />
+                <div style={{ display: 'flex', gap: 6, margin: '8px 0' }}>
+                    {TAG_COLORS.map((col) => (
+                        <span
+                            key={col}
+                            onClick={() => setNewTagColor(col)}
+                            title={col}
+                            style={{
+                                width: 16, height: 16, borderRadius: '50%', background: col, cursor: 'pointer',
+                                outline: newTagColor === col ? '2px solid #0F172A' : '1px solid #E2E8F0', outlineOffset: 1,
+                            }}
+                        />
+                    ))}
+                </div>
+                <Button
+                    size="small"
+                    type="primary"
+                    block
+                    icon={<TagOutlined />}
+                    loading={saveTag.isPending}
+                    disabled={newTagName.trim() === ''}
+                    onClick={() => createAndAttachTag(c)}
+                >
+                    Tạo &amp; gắn
+                </Button>
+            </div>
         </div>
     );
 
@@ -658,6 +718,14 @@ export function MessagingPage() {
                                 <Button icon={<FilterOutlined />} title="Bộ lọc">Bộ lọc</Button>
                             </Badge>
                         </Popover>
+                        {push.supported && (
+                            <Tooltip title={push.enabled ? 'Đã bật thông báo trình duyệt' : 'Bật thông báo trình duyệt (khi đóng tab)'}>
+                                <Button
+                                    icon={push.enabled ? <BellFilled style={{ color: '#16A34A' }} /> : <BellOutlined />}
+                                    onClick={() => { if (!push.enabled) void push.enable(); }}
+                                />
+                            </Tooltip>
+                        )}
                     </div>
                     {/* Lọc loại hội thoại Facebook: tất cả / tin nhắn / bình luận */}
                     {board === 'facebook' && (

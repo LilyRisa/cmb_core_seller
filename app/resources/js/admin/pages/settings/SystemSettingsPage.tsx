@@ -16,6 +16,7 @@ const GROUPS: { value: SettingGroup; label: string }[] = [
     { value: 'marketplace', label: 'Marketplace' },
     { value: 'fulfillment', label: 'Vận hành' },
     { value: 'sync', label: 'Đồng bộ' },
+    { value: 'push', label: 'Thông báo' },
 ];
 
 export function SystemSettingsPage() {

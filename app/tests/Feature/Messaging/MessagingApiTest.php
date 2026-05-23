@@ -158,6 +158,26 @@ class MessagingApiTest extends TestCase
         $this->assertSame('Buyer A', $res->json('data.1.buyer_name'));
     }
 
+    public function test_push_subscribe_then_heartbeat(): void
+    {
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->postJson('/api/v1/messaging/push/subscribe', [
+                'endpoint' => 'https://push.example/abc',
+                'keys' => ['p256dh' => 'PKEY', 'auth' => 'AUTH'],
+            ])->assertOk();
+
+        $this->assertDatabaseHas('messaging_push_subscriptions', [
+            'endpoint' => 'https://push.example/abc',
+            'user_id' => $this->owner->id,
+            'tenant_id' => $this->tenant->getKey(),
+            'p256dh' => 'PKEY',
+        ]);
+
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->postJson('/api/v1/messaging/push/heartbeat', ['endpoint' => 'https://push.example/abc'])
+            ->assertOk();
+    }
+
     public function test_filter_by_thread_type_message_vs_comment(): void
     {
         $page = ChannelAccount::query()->create([

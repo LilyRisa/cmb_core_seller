@@ -100,6 +100,8 @@ Schedule::command('messaging:prune-payloads')->dailyAt('03:00')->onOneServer();
 Schedule::command('messaging:prune-drafts')->dailyAt('03:10')->onOneServer();
 // SPEC 2026-05-21: hằng giờ đối soát backfill Facebook (incremental) — webhook lo realtime.
 Schedule::command('messaging:reconcile-sync')->hourly()->onOneServer()->withoutOverlapping();
+// Mỗi 30 phút: gom tin nhắn mới → Web Push cho user không hoạt động (tab đóng/ẩn).
+Schedule::command('messaging:push-digest')->everyThirtyMinutes()->onOneServer()->withoutOverlapping();
 
 // Every 5': poll chat for shops with messaging enabled on connectors that support polling
 // (currently Lazada — has no webhook for buyer messages; Shopee/TikTok/Facebook are webhook-only).

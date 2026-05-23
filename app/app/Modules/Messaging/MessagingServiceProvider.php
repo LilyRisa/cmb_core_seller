@@ -7,6 +7,7 @@ use CMBcoreSeller\Modules\Messaging\Console\Commands\AutoReplyTick;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\DetectConversationPhones;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\PruneAiSuggestionDrafts;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\PruneMessagingPayloads;
+use CMBcoreSeller\Modules\Messaging\Console\Commands\PushNewMessageDigest;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\ReconcileMessagingSync;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\RecomputeConversationPreviews;
 use CMBcoreSeller\Modules\Messaging\Contracts\MessageInboxContract;
@@ -80,6 +81,7 @@ class MessagingServiceProvider extends ServiceProvider
                 ReconcileMessagingSync::class,
                 DetectConversationPhones::class,
                 RecomputeConversationPreviews::class,
+                PushNewMessageDigest::class,
             ]);
         }
     }

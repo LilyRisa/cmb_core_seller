@@ -200,6 +200,22 @@ class SystemSettingsCatalog
                 'group' => 'sync', 'type' => 'int', 'is_secret' => false,
                 'env' => 'BILLING_OVER_QUOTA_GRACE_HOURS', 'label' => 'Over-quota grace (giờ)',
             ],
+
+            // ── Push notifications / Web Push (3, 1 secret) ─────────────────
+            'push.vapid_public_key' => [
+                'group' => 'push', 'type' => 'string', 'is_secret' => false,
+                'env' => 'VAPID_PUBLIC_KEY', 'label' => 'VAPID Public Key',
+                'description' => 'Khoá công khai Web Push — FE dùng để subscribe. Tạo cặp khoá bằng `web-push generate-vapid-keys` hoặc trang VAPID generator.',
+            ],
+            'push.vapid_private_key' => [
+                'group' => 'push', 'type' => 'string', 'is_secret' => true,
+                'env' => 'VAPID_PRIVATE_KEY', 'label' => 'VAPID Private Key',
+            ],
+            'push.vapid_subject' => [
+                'group' => 'push', 'type' => 'string', 'is_secret' => false,
+                'env' => 'VAPID_SUBJECT', 'label' => 'VAPID Subject',
+                'description' => 'mailto:admin@domain hoặc URL trang — định danh người gửi push.',
+            ],
         ];
     }
 
