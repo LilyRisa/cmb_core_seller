@@ -61,6 +61,9 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
             ->whereNumber('id')->name('messaging.conversations.unblock');    // messaging.reply
         Route::patch('conversations/{id}', [ConversationController::class, 'update'])
             ->whereNumber('id')->name('messaging.conversations.update');
+        // Gắn đơn vừa tạo (từ khung chat) vào hội thoại ⇒ hiện icon đơn ở danh sách.
+        Route::post('conversations/{id}/link-order', [ConversationController::class, 'linkOrder'])
+            ->whereNumber('id')->name('messaging.conversations.link-order');
 
         // Send tin — rate limit chặt
         Route::middleware('throttle:30,1')->group(function () {

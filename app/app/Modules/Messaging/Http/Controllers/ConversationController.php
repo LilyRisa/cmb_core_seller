@@ -7,6 +7,7 @@ use CMBcoreSeller\Modules\Messaging\Http\Resources\ConversationResource;
 use CMBcoreSeller\Modules\Messaging\Http\Resources\MessageResource;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
+use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -236,5 +237,37 @@ class ConversationController extends Controller
         $conv->fill(array_filter($data, fn ($v) => $v !== null))->save();
 
         return response()->json(['data' => (new ConversationResource($conv))->toArray($request)]);
+    }
+
+    /**
+     * Gắn 1 đơn (vừa tạo từ khung chat) vào hội thoại.
+     *
+     * Đơn phải thuộc tenant hiện tại (Order dùng BelongsToTenant ⇒ global scope tự lọc;
+     * đơn của tenant khác trả null ⇒ 404). Ghi đè order_id cũ nếu có.
+     */
+    public function linkOrder(int $id, Request $request): JsonResponse
+    {
+        Gate::authorize('messaging.view');
+
+        $data = $request->validate([
+            'order_id' => ['required', 'integer'],
+        ]);
+
+        $conv = Conversation::query()->findOrFail($id);
+
+        $order = Order::query()->find($data['order_id']);
+        if ($order === null) {
+            return response()->json([
+                'error' => ['code' => 'NOT_FOUND', 'message' => 'Đơn không tồn tại hoặc không thuộc gian hàng.'],
+            ], 404);
+        }
+
+        $conv->update(['order_id' => $order->getKey()]);
+        AuditLog::record('messaging.conversation.order_linked', null, [
+            'conversation_id' => $conv->id,
+            'order_id' => $order->getKey(),
+        ]);
+
+        return response()->json(['data' => (new ConversationResource($conv->fresh()))->toArray($request)]);
     }
 }

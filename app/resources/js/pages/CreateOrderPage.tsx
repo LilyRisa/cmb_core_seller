@@ -72,9 +72,11 @@ interface CreateOrderFormProps {
     initialDraft?: OrderDraft | null;
     /** Nhúng trong workspace nhiều tab ⇒ ẩn PageHeader riêng (workspace có header chung). */
     embedded?: boolean;
+    /** Nhúng trong Drawer/khung hẹp (vd khung chat) ⇒ thanh nút dưới dạng sticky thay vì fixed toàn màn. */
+    compact?: boolean;
 }
 
-function CreateOrderForm({ active = true, onSaved, onDraftChange, initialDraft, embedded = false }: CreateOrderFormProps) {
+export function CreateOrderForm({ active = true, onSaved, onDraftChange, initialDraft, embedded = false, compact = false }: CreateOrderFormProps) {
     const { message } = AntApp.useApp();
     const navigate = useNavigate();
     const { id: editIdRaw } = useParams();
@@ -432,7 +434,7 @@ function CreateOrderForm({ active = true, onSaved, onDraftChange, initialDraft, 
     const pushedCarrierLabel = (editingOrder?.pushed_carrier ?? '').replace(/^manual_/, '').toUpperCase() || 'ĐVVC';
 
     return (
-        <div className="create-order-page" style={{ paddingBottom: 88 }}>
+        <div className={`create-order-page${compact ? ' create-order-page--compact' : ''}`} style={{ paddingBottom: compact ? 0 : 88 }}>
             {!embedded && (
                 <PageHeader
                     title={<Space size="middle"><Link to={isEdit && editId ? `/orders/${editId}` : '/orders'}><Button type="text" icon={<ArrowLeftOutlined />} /></Link><span>{headerTitle}</span></Space>}
@@ -822,6 +824,8 @@ function CreateOrderForm({ active = true, onSaved, onDraftChange, initialDraft, 
                 .create-order-page .ord-dim-x { color: #bfbfbf; }
                 .create-order-page .ord-dim-unit { color: #8c8c8c; font-size: 12px; }
                 .create-order-page .ord-bottom-bar { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid #f0f0f0; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; z-index: 9; box-shadow: 0 -2px 8px rgba(0,0,0,0.04); }
+                /* Compact (Drawer/khung chat): bám đáy vùng cuộn thay vì cố định toàn màn hình. */
+                .create-order-page--compact .ord-bottom-bar { position: sticky; left: auto; right: auto; bottom: 0; flex-wrap: wrap; gap: 8px; }
                 .create-order-page .ord-bottom-money { color: #cf1322; font-weight: 600; }
                 .create-order-page .ord-bottom-money-muted { color: #8c8c8c; }
                 .create-order-page .ord-kbd { background: #f0f0f0; color: #8c8c8c; padding: 1px 6px; border-radius: 3px; font-size: 11px; margin-inline-start: 4px; font-family: inherit; }

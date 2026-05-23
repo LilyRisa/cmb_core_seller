@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback, type CSSProperties, 
 import dayjs from 'dayjs';
 import { Link } from 'react-router-dom';
 import { App, Avatar, Badge, Button, Checkbox, Dropdown, Empty, Grid, Image, Input, List, Modal, Popconfirm, Popover, Radio, Segmented, Select, Space, Spin, Tag, Tooltip, Typography, Upload } from 'antd';
-import { BellFilled, BellOutlined, CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FileOutlined, FilterOutlined, MessageFilled, MessageOutlined, MoreOutlined, PaperClipOutlined, PhoneOutlined, PictureOutlined, RobotOutlined, SendOutlined, ShopOutlined, SmileOutlined, SoundOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
+import { BellFilled, BellOutlined, CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FileOutlined, FilterOutlined, MessageFilled, MessageOutlined, MoreOutlined, PaperClipOutlined, PhoneOutlined, PictureOutlined, RobotOutlined, SendOutlined, ShopOutlined, ShoppingOutlined, SmileOutlined, SoundOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import Picker from '@emoji-mart/react';
 import emojiData from '@emoji-mart/data';
 import { errorMessage } from '@/lib/api';
@@ -35,6 +35,7 @@ import { useMessageNotifications } from '@/lib/useMessageNotifications';
 import { usePushNotifications } from '@/lib/usePushNotifications';
 import { MessagingNav } from '@/components/MessagingNav';
 import { TagManagerModal } from '@/components/TagManagerModal';
+import { ConversationOrderPanel } from '@/components/messaging/ConversationOrderPanel';
 
 const { Text } = Typography;
 
@@ -802,6 +803,11 @@ export function MessagingPage() {
                                                         <Space size={4} style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
                                                             <Badge count={c.unread_count} size="small" />
                                                             <Text strong={c.unread_count > 0} ellipsis style={{ maxWidth: 160 }}>{convDisplayName(c)}</Text>
+                                                            {c.order_id != null && (
+                                                                <Tooltip title="Đã có đơn hàng">
+                                                                    <ShoppingOutlined style={{ color: '#2563EB', flexShrink: 0 }} />
+                                                                </Tooltip>
+                                                            )}
                                                         </Space>
                                                         {c.last_message_at && (
                                                             <Text type="secondary" style={{ fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }}>
@@ -1192,18 +1198,20 @@ export function MessagingPage() {
                 )}
             </div>
 
-            {/* Cột phải — panel thông tin (MVP, chỉ ≥1200px) */}
+            {/* Cột phải — panel thông tin + đơn hàng (chỉ ≥1200px) */}
             {screens.xl && (
-            <div style={{ width: 280, background: '#fff', borderRadius: 12, padding: 16, minHeight: 0, flexShrink: 0 }}>
+            <div style={{ width: 280, background: '#fff', borderRadius: 12, padding: 16, minHeight: 0, flexShrink: 0, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
                 <Text strong>Thông tin</Text>
                 {active ? (
-                    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <div><Text type="secondary">Khách: </Text>{convDisplayName(active)}</div>
-                        <div><Text type="secondary">Nguồn: </Text>{providerLabel(active.provider)}{active.channel_account_name ? ` · ${active.channel_account_name}` : ''}</div>
-                        <div><Text type="secondary">Trạng thái: </Text>{active.status}</div>
-                        {active.order_id && <div><Text type="secondary">Đơn liên quan: </Text><Link to={`/orders/${active.order_id}`}>#{active.order_id}</Link></div>}
-                        {active.customer_id && <div><Text type="secondary">Khách hàng: </Text><Link to={`/customers/${active.customer_id}`}>Hồ sơ</Link></div>}
-                    </div>
+                    <>
+                        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <div><Text type="secondary">Khách: </Text>{convDisplayName(active)}</div>
+                            <div><Text type="secondary">Nguồn: </Text>{providerLabel(active.provider)}{active.channel_account_name ? ` · ${active.channel_account_name}` : ''}</div>
+                            <div><Text type="secondary">Trạng thái: </Text>{active.status}</div>
+                            {active.customer_id && <div><Text type="secondary">Khách hàng: </Text><Link to={`/customers/${active.customer_id}`}>Hồ sơ</Link></div>}
+                        </div>
+                        <ConversationOrderPanel conversation={active} />
+                    </>
                 ) : (
                     <div style={{ marginTop: 12 }}><Text type="secondary">Chọn hội thoại để xem chi tiết.</Text></div>
                 )}

@@ -335,6 +335,25 @@ export function useSetConversationTags() {
     });
 }
 
+/** Gắn đơn vừa tạo (từ khung chat) vào hội thoại ⇒ icon đơn hiện ở danh sách. */
+export function useLinkConversationOrder() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (input: { conversationId: number; orderId: number }) => {
+            const { data } = await api!.post<{ data: Conversation }>(
+                `/messaging/conversations/${input.conversationId}/link-order`,
+                { order_id: input.orderId },
+            );
+            return data.data;
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['messaging', 'conversations'] });
+            qc.invalidateQueries({ queryKey: ['messaging', 'thread'] });
+        },
+    });
+}
+
 // ---------------------------------------------------------------------------
 // Facebook comment actions
 // ---------------------------------------------------------------------------
