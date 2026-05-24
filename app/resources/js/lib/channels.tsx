@@ -20,6 +20,8 @@ export interface ChannelAccount {
     has_shop_cipher: boolean;
     messaging_enabled: boolean;
     messaging_available: boolean;
+    auto_rts_after_print: boolean;
+    auto_rts_available: boolean;
 }
 
 export interface ConnectableProvider {
@@ -127,6 +129,20 @@ export function useSetChannelMessaging() {
     return useMutation({
         mutationFn: async (vars: { id: number; messaging_enabled: boolean }) => {
             const { data } = await api!.patch<{ data: ChannelAccount }>(`/channel-accounts/${vars.id}/messaging`, { messaging_enabled: vars.messaging_enabled });
+            return data.data;
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['channel-accounts', tenantId] }),
+    });
+}
+
+/** Bật/tắt tự động gửi đơn cho ĐVVC sau khi in (Lazada auto-RTS). */
+export function useSetChannelAutoRts() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    const tenantId = useCurrentTenantId();
+    return useMutation({
+        mutationFn: async (vars: { id: number; auto_rts_after_print: boolean }) => {
+            const { data } = await api!.patch<{ data: ChannelAccount }>(`/channel-accounts/${vars.id}/auto-rts`, { auto_rts_after_print: vars.auto_rts_after_print });
             return data.data;
         },
         onSuccess: () => qc.invalidateQueries({ queryKey: ['channel-accounts', tenantId] }),

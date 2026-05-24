@@ -2,13 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Alert, Button, Card, Col, Empty, Input, Modal, Result, Row, Space, Switch, Tag, Tooltip, Typography } from 'antd';
 import { App as AntApp } from 'antd';
-import { CheckCircleOutlined, ClockCircleOutlined, DeleteOutlined, EditOutlined, KeyOutlined, MessageOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, ClockCircleOutlined, DeleteOutlined, EditOutlined, KeyOutlined, MessageOutlined, PlusOutlined, ReloadOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { DateText } from '@/components/MoneyText';
 import { ChannelLogo } from '@/components/ChannelLogo';
 import { CHANNEL_META, CHANNEL_STATUS_COLOR, CHANNEL_STATUS_LABEL } from '@/lib/format';
 import { errorMessage } from '@/lib/api';
-import { ChannelAccount, useChannelAccounts, useConnectChannel, useDeleteChannelAccount, useOutboundIp, useRenameChannel, useResyncChannel, useSetChannelMessaging } from '@/lib/channels';
+import { ChannelAccount, useChannelAccounts, useConnectChannel, useDeleteChannelAccount, useOutboundIp, useRenameChannel, useResyncChannel, useSetChannelMessaging, useSetChannelAutoRts } from '@/lib/channels';
 import { useSyncPolling } from '@/lib/syncPolling';
 import { useCan } from '@/lib/tenant';
 import { openOAuthPopup } from '@/lib/oauthPopup';
@@ -59,7 +59,7 @@ const PROVIDER_ERROR_PREFIXES: Record<string, string> = {
     lazada_temporarily_unavailable: 'Lazada bảo trì / quá tải, thử lại sau.',
 };
 
-function ShopCard({ account, canManage, onResync, onDelete, onRename, onReauthorize, reauthorizing, onToggleMessaging, togglingMessaging }: { account: ChannelAccount; canManage: boolean; onResync: () => void; onDelete: () => void; onRename: () => void; onReauthorize: () => void; reauthorizing: boolean; onToggleMessaging: (v: boolean) => void; togglingMessaging: boolean }) {
+function ShopCard({ account, canManage, onResync, onDelete, onRename, onReauthorize, reauthorizing, onToggleMessaging, togglingMessaging, onToggleAutoRts, togglingAutoRts }: { account: ChannelAccount; canManage: boolean; onResync: () => void; onDelete: () => void; onRename: () => void; onReauthorize: () => void; reauthorizing: boolean; onToggleMessaging: (v: boolean) => void; togglingMessaging: boolean; onToggleAutoRts: (v: boolean) => void; togglingAutoRts: boolean }) {
     const meta = CHANNEL_META[account.provider] ?? { name: account.provider, color: '#8c8c8c' };
     return (
         <Card styles={{ body: { padding: 16 } }}>
@@ -100,6 +100,15 @@ function ShopCard({ account, canManage, onResync, onDelete, onRename, onReauthor
                     <Switch size="small" checked={account.messaging_enabled} loading={togglingMessaging} onChange={onToggleMessaging} aria-label="Bật nhắn tin cho gian hàng" />
                 </div>
             )}
+            {canManage && account.auto_rts_available && (
+                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <ThunderboltOutlined style={{ color: '#8c8c8c' }} />
+                    <Typography.Text style={{ fontSize: 13 }}>Tự động gửi đơn cho ĐVVC sau khi in</Typography.Text>
+                    <Tooltip title="Sau khi in tem Lazada và bấm 'Đánh dấu đã in', đơn tự chuyển sang Sẵn sàng giao trên Lazada — không cần bấm 'Đã gói & sẵn sàng bàn giao'.">
+                        <Switch size="small" checked={account.auto_rts_after_print} loading={togglingAutoRts} onChange={onToggleAutoRts} aria-label="Tự động gửi đơn cho ĐVVC sau khi in" />
+                    </Tooltip>
+                </div>
+            )}
         </Card>
     );
 }
@@ -116,6 +125,7 @@ export function ChannelsPage() {
     const resyncPoll = useSyncPolling(() => { refetch(); }, { durationMs: 90_000 });
     const rename = useRenameChannel();
     const setMessaging = useSetChannelMessaging();
+    const setAutoRts = useSetChannelAutoRts();
     const [renaming, setRenaming] = useState<ChannelAccount | null>(null);
     const [aliasDraft, setAliasDraft] = useState('');
     const [deleteTarget, setDeleteTarget] = useState<ChannelAccount | null>(null);
@@ -237,6 +247,11 @@ export function ChannelsPage() {
                                         onError: (e) => message.error(errorMessage(e)),
                                     })}
                                     togglingMessaging={setMessaging.isPending && setMessaging.variables?.id === a.id}
+                                    onToggleAutoRts={(v) => setAutoRts.mutate({ id: a.id, auto_rts_after_print: v }, {
+                                        onSuccess: () => message.success(v ? 'Đã bật tự động gửi đơn cho ĐVVC sau khi in.' : 'Đã tắt tự động gửi đơn sau khi in.'),
+                                        onError: (e) => message.error(errorMessage(e)),
+                                    })}
+                                    togglingAutoRts={setAutoRts.isPending && setAutoRts.variables?.id === a.id}
                                 />
                             </Col>
                         ))}
