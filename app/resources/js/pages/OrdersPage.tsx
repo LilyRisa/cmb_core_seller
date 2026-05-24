@@ -19,7 +19,7 @@ import { TemplateAliasPicker } from '@/components/shipping-labels/TemplateAliasP
 import { errorMessage } from '@/lib/api';
 import { CHANNEL_META, ORDER_STATUS_TABS } from '@/lib/format';
 import { Order, useOrders, useOrderStats, useSyncOrders } from '@/lib/orders';
-import { useBulkCreateShipments, useBulkRefetchSlip, useCreatePrintJob, usePackShipments } from '@/lib/fulfillment';
+import { useBulkCreateShipments, useBulkRefetchSlip, useCreatePrintJob, useHandoverShipments, usePackShipments } from '@/lib/fulfillment';
 import { useChannelAccounts } from '@/lib/channels';
 import { useBulkAction } from '@/lib/useBulkAction';
 import { BulkProgressModal } from '@/components/BulkProgressModal';
@@ -63,6 +63,7 @@ export function OrdersPage() {
     const syncOrders = useSyncOrders();
     const bulkPrepare = useBulkCreateShipments();
     const bulkPack = usePackShipments();
+    const bulkHandover = useHandoverShipments();
     const refetchSlip = useBulkRefetchSlip();
     const createPrintJob = useCreatePrintJob();
     const canCreate = useCan('orders.create');
@@ -291,6 +292,18 @@ export function OrdersPage() {
             title: 'Đánh dấu sẵn sàng bàn giao',
             items: targets.map((o) => ({ id: o.shipment!.id, label: String(o.order_number ?? o.external_order_id ?? o.id), sub: CHANNEL_META[o.source]?.name ?? o.source })),
             runner: async (ids) => (await bulkPack.mutateAsync(ids)).results,
+        });
+    };
+    // "Bàn giao ĐVVC" hàng loạt ở tab "Chờ bàn giao": chạy qua popup tiến trình; server tự bỏ qua đơn không
+    // hợp lệ (đã bàn giao / huỷ / chưa có vận đơn). Trừ tồn ở bước này (xem ShipmentService::handover).
+    const doBulkHandover = () => {
+        const targets = selWithShipment;
+        if (targets.length === 0) return;
+        setSelectedKeys([]);
+        void bulkProgress.start({
+            title: 'Bàn giao ĐVVC',
+            items: targets.map((o) => ({ id: o.shipment!.id, label: String(o.order_number ?? o.external_order_id ?? o.id), sub: CHANNEL_META[o.source]?.name ?? o.source })),
+            runner: async (ids) => (await bulkHandover.mutateAsync(ids)).results,
         });
     };
     // "In phiếu giao hàng": chỉ in được đơn đã có phiếu; đơn nào chưa có ⇒ popup hướng dẫn bấm "Nhận phiếu giao hàng".
@@ -624,6 +637,7 @@ export function OrdersPage() {
                             Lấy phiếu giao hàng ({selWithoutShipment.length})
                         </Button>}
                         {canShip && isProcessingTab && selWithShipment.length > 0 && <Button icon={<CheckCircleOutlined />} style={{ background: '#52c41a', borderColor: '#52c41a', color: '#fff' }} loading={bulkPack.isPending} onClick={doBulkPack}>Sẵn sàng bàn giao ({selWithShipment.length})</Button>}
+                        {canShip && isShipTab && selWithShipment.length > 0 && <Button type="primary" icon={<CheckCircleOutlined />} loading={bulkHandover.isPending} onClick={doBulkHandover}>Bàn giao ĐVVC ({selWithShipment.length})</Button>}
                         {/* "Nhận lại phiếu" chỉ hiện khi user đang ở sub-tab "Nhận phiếu giao hàng" (`slip=failed`)
                             — nơi vận đơn KHÔNG có tem và queue retry đã exhaust. Ở `printable` (đã có tem) /
                             `loading` (queue đang retry) thì user không cần (in trực tiếp / chờ tự động). */}
