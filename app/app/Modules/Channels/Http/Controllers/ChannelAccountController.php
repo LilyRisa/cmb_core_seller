@@ -123,6 +123,20 @@ class ChannelAccountController extends Controller
         return response()->json(['data' => new ChannelAccountResource($account)]);
     }
 
+    /** PATCH /channel-accounts/{id}/auto-rts — bật/tắt auto-RTS-after-print (chỉ Lazada). */
+    public function toggleAutoRts(Request $request, int $id): JsonResponse
+    {
+        $this->authorizeManage($request);
+        $account = ChannelAccount::query()->findOrFail($id);
+        $data = $request->validate(['auto_rts_after_print' => ['required', 'boolean']]);
+        abort_unless($account->provider === 'lazada', 422, 'Tính năng này chỉ áp dụng cho gian hàng Lazada.');
+
+        $account->forceFill(['auto_rts_after_print' => $data['auto_rts_after_print']])->save();
+        AuditLog::record('fulfillment.channel.auto_rts.toggle', $account, ['auto_rts_after_print' => $data['auto_rts_after_print']]);
+
+        return response()->json(['data' => new ChannelAccountResource($account)]);
+    }
+
     /**
      * PATCH /api/v1/channel-accounts/{id}/messaging — bật/tắt nhắn tin cho gian
      * hàng (Lazada/TikTok dùng chung token — ADR-0019). Chỉ provider có

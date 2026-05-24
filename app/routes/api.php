@@ -92,6 +92,7 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
                 ->whereIn('provider', ['tiktok', 'shopee', 'lazada'])->name('channel-accounts.connect');
             Route::patch('channel-accounts/{id}', [ChannelAccountController::class, 'update'])->whereNumber('id')->name('channel-accounts.update');   // set display alias
             Route::patch('channel-accounts/{id}/messaging', [ChannelAccountController::class, 'setMessaging'])->whereNumber('id')->name('channel-accounts.messaging');
+            Route::patch('channel-accounts/{id}/auto-rts', [ChannelAccountController::class, 'toggleAutoRts'])->whereNumber('id')->name('channel-accounts.auto-rts');
             Route::delete('channel-accounts/{id}', [ChannelAccountController::class, 'destroy'])->whereNumber('id')->name('channel-accounts.destroy');
             Route::post('channel-accounts/{id}/resync', [ChannelAccountController::class, 'resync'])->whereNumber('id')->name('channel-accounts.resync');
             Route::post('channel-accounts/{id}/resync-unprocessed', [ChannelAccountController::class, 'resyncUnprocessed'])->whereNumber('id')->name('channel-accounts.resync-unprocessed');
