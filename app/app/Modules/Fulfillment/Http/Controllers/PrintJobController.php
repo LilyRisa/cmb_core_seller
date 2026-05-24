@@ -6,6 +6,7 @@ use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Modules\Fulfillment\Http\Resources\PrintJobResource;
 use CMBcoreSeller\Modules\Fulfillment\Models\PrintJob;
 use CMBcoreSeller\Modules\Fulfillment\Services\PrintService;
+use CMBcoreSeller\Modules\Fulfillment\Services\ShipmentService;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -75,13 +76,17 @@ class PrintJobController extends Controller
      * POST /api/v1/print-jobs/{id}/mark-printed { copies? } — "Đánh dấu các đơn đã in" (popup sau khi mở PDF):
      * cộng `print_count` cho các vận đơn trong phạm vi của print job (mặc định +1). SPEC 0013.
      */
-    public function markPrinted(Request $request, int $id, PrintService $service): JsonResponse
+    public function markPrinted(Request $request, int $id, PrintService $service, ShipmentService $shipmentService): JsonResponse
     {
         abort_unless($request->user()?->can('fulfillment.print'), 403, 'Bạn không có quyền.');
         $data = $request->validate(['copies' => ['sometimes', 'integer', 'min:1', 'max:50']]);
         $job = PrintJob::query()->findOrFail($id);
+        $res = $service->markPrinted($job, (int) ($data['copies'] ?? 1));
+        if ($job->type === PrintJob::TYPE_LABEL) {
+            $shipmentService->autoReadyToShipAfterPrint($res['shipment_ids'], $request->user()?->getKey());
+        }
 
-        return response()->json(['data' => $service->markPrinted($job, (int) ($data['copies'] ?? 1))]);
+        return response()->json(['data' => $res]);
     }
 
     public function download(Request $request, int $id, PrintService $service): JsonResponse|RedirectResponse|Response

@@ -580,6 +580,37 @@ class ShipmentService
     }
 
     /**
+     * Sau khi in tem (mark-printed) cho print job loại `label`: với mỗi shipment thuộc đơn Lazada
+     * mà gian hàng bật `auto_rts_after_print`, tự gọi markPacked (vốn đẩy /order/rts + chuyển
+     * trạng thái nội bộ sang "sẵn sàng bàn giao"). Bỏ qua êm nếu không đủ điều kiện; lỗi RTS không
+     * ném (markPacked tự gắn has_issue khi sàn flaky). Default tắt ⇒ không ảnh hưởng shop hiện có.
+     *
+     * @param  list<int>  $shipmentIds
+     */
+    public function autoReadyToShipAfterPrint(array $shipmentIds, ?int $userId = null): void
+    {
+        if ($shipmentIds === []) {
+            return;
+        }
+        $shipments = Shipment::query()->whereIn('id', $shipmentIds)->with('order')->get();
+        foreach ($shipments as $shipment) {
+            $order = $shipment->order;
+            if (! $order || ! $order->channel_account_id) {
+                continue;
+            }
+            $account = ChannelAccount::query()->find($order->channel_account_id);
+            if (! $account || $account->provider !== 'lazada' || ! $account->auto_rts_after_print) {
+                continue;
+            }
+            try {
+                $this->markPacked($shipment, 'system', $userId); // idempotent: đã packed/handed ⇒ no-op
+            } catch (\Throwable $e) {
+                Log::warning('shipment.auto_rts_after_print_failed', ['shipment' => $shipment->getKey(), 'error' => $e->getMessage()]);
+            }
+        }
+    }
+
+    /**
      * Đẩy /order/rts (Lazada) — đơn từ `packed` → `ready_to_ship` trên sàn. Capability-gated: chỉ chạy nếu
      * connector khai báo `shipping.ready_to_ship`=true (Lazada). TikTok / Shopee / Manual: skip.
      * Lỗi gọi sàn ⇒ gắn `has_issue` lên order để user retry "Nhận phiếu giao hàng"; KHÔNG throw — markPacked
