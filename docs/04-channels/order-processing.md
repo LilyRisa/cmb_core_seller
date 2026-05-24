@@ -29,6 +29,30 @@ Sau đó tracking (`POST /shipments/{id}/track` / job định kỳ) cập nhật
 
 **Chống in thiếu / gói thiếu:** `prepare` liệt kê **mọi** đơn chưa có vận đơn/chưa in (thấy ngay đơn nào sót); `pack` liệt kê **mọi** vận đơn đã in chưa gói; `handover` liệt kê **mọi** đơn đã gói chưa bàn giao. Bộ đếm badge mỗi bước. "đã in N lần" hiển thị icon trên từng dòng.
 
+## 1b. Mô hình thao tác hàng loạt mới (Bulk Actions)
+
+### Nhóm IN — in tem / in phiếu (không phụ thuộc trạng thái đơn)
+- Nút **In tem** và **In phiếu** trong cột "Thao tác" hoạt động **bất kể trạng thái đơn** — có thể in lại cho đơn đã giao, đã huỷ, đang vận chuyển.
+- Đơn không có tài liệu nào để in ⇒ tự động bỏ qua (skip), không báo lỗi làm dừng batch.
+- In tem (`type=label`) **cấm trộn nền tảng hoặc ĐVVC**: nếu bộ chọn có đơn của nhiều nền tảng / nhiều ĐVVC ⇒ hệ thống **báo rõ lý do và không thực thi** (422 từ server; FE hiển thị thông báo giải thích trước khi gọi). Trường hợp cùng nền tảng + cùng ĐVVC nhưng khác gian hàng vẫn in chung được.
+
+### Nhóm XỬ LÝ — đóng gói & bàn giao (validate per-đơn, skip đơn không hợp lệ)
+- Nút **Đã gói & Sẵn sàng bàn giao** (pack) và **Bàn giao ĐVVC** (handover) luôn bấm được cho toàn bộ bộ chọn — không cần lọc thủ công đơn hợp lệ trước.
+- Server validate từng đơn: đơn không hợp lệ (đã huỷ / đã đóng gói / đã bàn giao) bị **skip** (`status=skipped` trong `results[]`) thay vì làm dừng cả batch.
+- Response trả thêm mảng `results[]` (xem `POST /shipments/pack` và `POST /shipments/handover` trong `docs/05-api/endpoints.md`).
+
+### Popup tiến trình per-đơn (BulkProgressModal)
+Khi thực hiện bulk pack / bulk handover, FE hiển thị popup tiến trình liệt kê từng đơn với trạng thái:
+
+| Trạng thái | Ý nghĩa |
+|---|---|
+| Đang xử lý | Server đang xử lý đơn này |
+| Thành công | Đơn được xử lý thành công (`status=ok`) |
+| Bỏ qua (kèm lý do) | Đơn không hợp lệ, được bỏ qua (`status=skipped`) — lý do hiển thị rõ |
+| Lỗi (kèm lý do) | Đơn xử lý thất bại (`status=error`) — lý do hiển thị; chi tiết kỹ thuật chỉ hiển thị khi admin bật `fulfillment.expose_technical_errors` |
+
+Popup có thanh tiến trình tổng và nút **"Thử lại đơn lỗi"** — chỉ gửi lại các đơn có `status=error` ở lần trước.
+
 ## 2. TikTok Shop — vòng đời đơn & fulfillment
 - **`order.status`** (chuỗi `202309`, map ở `config/integrations.tiktok.status_map`): `UNPAID → AWAITING_SHIPMENT → AWAITING_COLLECTION → IN_TRANSIT → DELIVERED → COMPLETED` (nhánh `CANCELLED`, `PARTIALLY_SHIPPING`, `ON_HOLD`). Ánh xạ chuẩn: `AWAITING_SHIPMENT`→`pending` (→`processing` nếu đã có package), `AWAITING_COLLECTION`→`ready_to_ship`, `IN_TRANSIT`→`shipped`, `DELIVERED`→`delivered`, `COMPLETED`→`completed`.
 - **`fulfillment_type`** trên đơn: `FULFILLMENT_BY_SELLER` (người bán tự ship — dùng luồng B của ta) vs `FULFILLMENT_BY_TIKTOK` (FBT — TikTok lo kho/ship; ta hầu như chỉ theo dõi). Hiện ta xử lý chủ yếu FBS.

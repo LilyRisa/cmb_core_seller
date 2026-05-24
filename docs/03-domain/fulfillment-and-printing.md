@@ -115,7 +115,30 @@ Khi job `GenerateBulkLabel` / `GeneratePickingList` / `GeneratePackingList` hoà
 - Tải file luôn qua **signed URL** ngắn hạn, kiểm `tenant_id` + quyền (`fulfillment.print` / `fulfillment.view`) trước khi cấp; không bao giờ trả URL công khai vĩnh viễn.
 - Mọi truy cập tải phiếu (có PII) có thể bật ghi audit.
 
-## 9. RULES
+## 9. Cấu hình mở rộng
+
+### 9.1 Lazada `auto_rts_after_print` — tự động RTS sau khi in tem
+Mỗi gian hàng Lazada có toggle riêng **`auto_rts_after_print`** (boolean, mặc định `false`; cột trên `channel_accounts`). Cấu hình qua UI: trang **"Gian hàng"** → card từng shop Lazada → Switch "Tự động RTS sau khi in".
+
+**Cách hoạt động khi bật:**
+1. Print job của đơn Lazada hoàn tất → FE gọi `POST /print-jobs/{id}/mark-printed`.
+2. Hệ thống phát hiện gian hàng có `auto_rts_after_print=true` → tự gọi `markPacked` (đẩy `/order/rts` lên Lazada).
+3. Đơn chuyển sang trạng thái **"Chờ bàn giao"** (`shipment → packed`, đơn `→ ready_to_ship`) mà không cần người bán bấm nút "Đã gói & Sẵn sàng bàn giao" thủ công.
+
+Khi tắt (mặc định): quy trình không thay đổi — người bán vẫn phải bấm thủ công sau khi in.
+
+API: `PATCH /api/v1/channel-accounts/{id}/auto-rts` body `{ auto_rts_after_print: boolean }`, perm `channels.manage`, chỉ Lazada (provider khác ⇒ `422`). Ghi `AuditLog`.
+
+### 9.2 Admin toggle `fulfillment.expose_technical_errors` — hiển thị lỗi kỹ thuật
+Setting hệ thống trong nhóm `fulfillment` của trang **Admin → Cài đặt hệ thống** (`/admin/settings`).
+
+- **Mặc định**: fallback theo `APP_DEBUG` (bật ở môi trường dev, tắt ở prod).
+- **Khi BẬT**: response xử lý đơn hàng loạt (và popup tiến trình FE) bao gồm trường `technical` — chi tiết lỗi kỹ thuật (stack trace rút gọn, mã lỗi nội bộ) giúp debug.
+- **Khi TẮT** (khuyến nghị cho môi trường prod): chỉ hiển thị thông báo lỗi thân thiện bằng tiếng Việt; trường `technical` không xuất hiện trong response.
+
+> Không nên bật `expose_technical_errors` trên prod vì có thể lộ thông tin nội bộ ra giao diện người dùng.
+
+## 10. RULES
 1. Không bao giờ tự chế lại label của ĐVVC — dùng đúng file họ cấp.
 2. Mọi lần tạo/hủy vận đơn ghi audit + cập nhật `shipments` + đồng bộ trạng thái đơn.
 3. Sinh PDF luôn chạy ở job (queue `labels`), không trong request HTTP.
