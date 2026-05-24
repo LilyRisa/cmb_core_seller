@@ -29,6 +29,8 @@ class ChannelAccountResource extends JsonResource
             'last_webhook_at' => $this->last_webhook_at?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),
             'messaging_enabled' => (bool) $this->messaging_enabled,
+            'auto_rts_after_print' => (bool) $this->auto_rts_after_print,
+            'auto_rts_available' => $this->provider === 'lazada',
             'messaging_available' => ($code = $this->resource->messagingConnectorCode()) !== null
                 && app(\CMBcoreSeller\Integrations\Messaging\MessagingRegistry::class)->has($code),
             // never expose tokens; expose only that a shop_cipher exists

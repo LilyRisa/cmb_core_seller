@@ -29,6 +29,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $last_synced_at
  * @property Carbon|null $last_webhook_at
  * @property bool $messaging_enabled
+ * @property bool $auto_rts_after_print
  * @property array|null $meta
  * @property int|null $created_by
  * @property Carbon|null $created_at
@@ -53,6 +54,7 @@ class ChannelAccount extends Model
         'last_synced_at', 'last_webhook_at', 'meta', 'created_by',
         // SPEC-0024: bật messaging per-shop (cột do migration Messaging thêm).
         'messaging_enabled',
+        'auto_rts_after_print',
     ];
 
     protected $hidden = ['access_token', 'refresh_token'];
@@ -86,6 +88,7 @@ class ChannelAccount extends Model
             'last_webhook_at' => 'datetime',
             'meta' => 'array',
             'messaging_enabled' => 'boolean',
+            'auto_rts_after_print' => 'boolean',
         ];
     }
 
