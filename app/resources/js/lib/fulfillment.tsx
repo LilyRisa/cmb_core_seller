@@ -58,6 +58,8 @@ export interface PrintJob {
     created_at: string | null;
 }
 
+export interface BulkActionResult { id: number; status: 'ok' | 'skipped' | 'error'; reason?: string; technical?: string }
+
 export const SHIPMENT_STATUS_LABEL: Record<string, string> = {
     pending: 'Chờ tạo', created: 'Đã tạo vận đơn', packed: 'Đã đóng gói',
     // SPEC 0021 — `awaiting_pickup` = đã tạo đơn với ĐVVC, đang chờ shipper tới lấy hàng.
@@ -330,13 +332,13 @@ export function useCancelShipment() {
 export function usePackShipments() {
     const api = useScopedApi();
     const invalidate = useFulfillmentInvalidate();
-    return useMutation({ mutationFn: async (shipment_ids: number[]) => { const { data } = await api!.post<{ data: { packed: number } }>('/shipments/pack', { shipment_ids }); return data.data; }, onSuccess: invalidate });
+    return useMutation({ mutationFn: async (shipment_ids: number[]) => { const { data } = await api!.post<{ data: { packed: number; results: BulkActionResult[] } }>('/shipments/pack', { shipment_ids }); return data.data; }, onSuccess: invalidate });
 }
 
 export function useHandoverShipments() {
     const api = useScopedApi();
     const invalidate = useFulfillmentInvalidate();
-    return useMutation({ mutationFn: async (shipment_ids: number[]) => { const { data } = await api!.post<{ data: { handed_over: number } }>('/shipments/handover', { shipment_ids }); return data.data; }, onSuccess: invalidate });
+    return useMutation({ mutationFn: async (shipment_ids: number[]) => { const { data } = await api!.post<{ data: { handed_over: number; results: BulkActionResult[] } }>('/shipments/handover', { shipment_ids }); return data.data; }, onSuccess: invalidate });
 }
 
 /** "Nhận phiếu giao hàng" cho các đơn đã "Chuẩn bị hàng" — kéo tem/AWB thật của sàn về; đơn chưa có phiếu ⇒ render 1 print job `delivery` (trả `print_job_id` để FE hiện tiến trình). SPEC 0013. */

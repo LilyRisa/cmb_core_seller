@@ -7,6 +7,8 @@ import type { ColumnsType } from 'antd/es/table';
 import { ChannelBadge } from '@/components/ChannelBadge';
 import { CarrierAccountPicker } from '@/components/CarrierAccountPicker';
 import { TemplateAliasPicker } from '@/components/shipping-labels/TemplateAliasPicker';
+import { BulkProgressModal } from '@/components/BulkProgressModal';
+import { useBulkAction } from '@/lib/useBulkAction';
 import { MoneyText, DateText } from '@/components/MoneyText';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
@@ -213,15 +215,15 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
     } else if (shOpen && ['pending', 'created'].includes(sh!.status)) {
         // Đã chuẩn bị / có vận đơn, chờ đóng gói + quét nội bộ.
         if (canShip && (blockingIssue || !sh!.has_label)) actions.push(<a key="rs" style={{ color: blockingIssue ? '#cf1322' : undefined }} onClick={() => getSlip()}>Nhận phiếu giao hàng</a>);
-        if (canPrint) actions.push(<a key="ds1" onClick={printDelivery}>In phiếu giao hàng</a>);
-        if (canPrint && sh!.label_url) actions.push(<a key="lbl1" onClick={printLabelBundle}>In tem sàn</a>);
         if (canShip) actions.push(<a key="ready" onClick={markReady}>Đã gói & sẵn sàng bàn giao</a>);
     } else if (shOpen && sh!.status === 'packed') {
         // Đã đóng gói, chờ bàn giao ĐVVC.
         if (canShip) actions.push(<a key="ho" onClick={doHandover}>Bàn giao ĐVVC</a>);
-        if (canPrint) actions.push(<a key="ds2" onClick={printDelivery}>In phiếu giao hàng</a>);
-        if (canPrint && sh!.label_url) actions.push(<a key="lbl2" onClick={printLabelBundle}>In tem sàn</a>);
     }
+    // In lại phiếu/tem KHÔNG phụ thuộc trạng thái vận đơn (in lại được kể cả khi đã giao/huỷ/đang vận chuyển),
+    // miễn là có vận đơn (phiếu giao hàng) / có tem sàn (label_url). Giữ cảnh báo in lại khi print_count > 0.
+    if (canPrint && sh) actions.push(<a key="ds" onClick={printDelivery}>In phiếu giao hàng</a>);
+    if (canPrint && sh?.label_url) actions.push(<a key="lbl" onClick={printLabelBundle}>In tem sàn</a>);
     // "In hoá đơn" CHỈ áp dụng cho đơn manual (tự nhập). Đơn sàn (TikTok/Shopee/Lazada) đã có hoá đơn
     // điện tử / receipt do sàn cấp cho người mua — app tự sinh hoá đơn nội bộ sẽ trùng lặp & gây nhầm
     // lẫn. Đơn sàn chỉ cần "In phiếu giao hàng" + "In tem sàn".
@@ -312,6 +314,26 @@ export function ShipmentsTab({ onPrint }: { onPrint: (id: number) => void }) {
     const canPrint = useCan('fulfillment.print');
     const [sel, setSel] = useState<number[]>([]);
     const [detail, setDetail] = useState<Shipment | null>(null);
+    const shipBulk = useBulkAction();
+
+    // Map các vận đơn đang chọn → item cho popup tiến trình (label = mã đơn/mã vận đơn, sub = ĐVVC).
+    const bulkItems = () => (data?.data ?? []).filter((s) => sel.includes(s.id)).map((s) => ({
+        id: s.id,
+        label: String(s.order?.order_number ?? s.order?.external_order_id ?? s.tracking_no ?? `#${s.order_id}`),
+        sub: s.carrier,
+    }));
+    const doBulkPack = () => {
+        if (!sel.length) return;
+        const items = bulkItems();
+        setSel([]);
+        void shipBulk.start({ title: 'Đóng gói vận đơn', items, runner: async (ids) => (await pack.mutateAsync(ids)).results });
+    };
+    const doBulkHandover = () => {
+        if (!sel.length) return;
+        const items = bulkItems();
+        setSel([]);
+        void shipBulk.start({ title: 'Bàn giao ĐVVC', items, runner: async (ids) => (await handover.mutateAsync(ids)).results });
+    };
 
     const columns: ColumnsType<Shipment> = [
         { title: 'Mã đơn', key: 'o', render: (_, s) => <Link to={`/orders/${s.order_id}`} style={{ fontWeight: 600 }}>{s.order?.order_number ?? s.order?.external_order_id ?? `#${s.order_id}`}</Link> },
@@ -335,8 +357,8 @@ export function ShipmentsTab({ onPrint }: { onPrint: (id: number) => void }) {
             <Space style={{ marginBottom: 12 }} wrap>
                 <Input.Search allowClear placeholder="Mã vận đơn / mã đơn" style={{ width: 240 }} onSearch={(v) => { setQ(v); setPage(1); }} />
                 <Select allowClear placeholder="Trạng thái" style={{ width: 180 }} value={status} onChange={(v) => { setStatus(v); setPage(1); }} options={Object.entries(SHIPMENT_STATUS_LABEL).map(([v, l]) => ({ value: v, label: l }))} />
-                {canShip && <Button icon={<InboxOutlined />} disabled={!sel.length} loading={pack.isPending} onClick={() => pack.mutate(sel, { onSuccess: (r) => { message.success(`Đã đóng gói ${r.packed} đơn`); setSel([]); } })}>Đóng gói ({sel.length})</Button>}
-                {canShip && <Button icon={<ReloadOutlined />} disabled={!sel.length} loading={handover.isPending} onClick={() => handover.mutate(sel, { onSuccess: (r) => { message.success(`Đã bàn giao ${r.handed_over} đơn`); setSel([]); }, onError: (e) => message.error(errorMessage(e)) })}>Bàn giao ({sel.length})</Button>}
+                {canShip && <Button icon={<InboxOutlined />} disabled={!sel.length} loading={pack.isPending} onClick={doBulkPack}>Đóng gói ({sel.length})</Button>}
+                {canShip && <Button icon={<ReloadOutlined />} disabled={!sel.length} loading={handover.isPending} onClick={doBulkHandover}>Bàn giao ({sel.length})</Button>}
                 {canPrint && <Button icon={<PrinterOutlined />} disabled={!sel.length} loading={createPrint.isPending} onClick={() => {
                     const items = (data?.data ?? []).filter((s) => sel.includes(s.id));
                     const sources = Array.from(new Set(items.map((s) => s.order?.source).filter(Boolean) as string[]));
@@ -394,6 +416,7 @@ export function ShipmentsTab({ onPrint }: { onPrint: (id: number) => void }) {
             <Modal title={detail ? `Vận đơn ${detail.tracking_no ?? '#' + detail.id}` : ''} open={!!detail} onCancel={() => setDetail(null)} footer={null} width={560} destroyOnClose>
                 {detail && <ShipmentDetailBody shipmentId={detail.id} initial={detail} />}
             </Modal>
+            <BulkProgressModal title={shipBulk.title} open={shipBulk.open} items={shipBulk.items} running={shipBulk.running} onRetry={shipBulk.retryErrors} onClose={shipBulk.close} />
         </>
     );
 }

@@ -21,6 +21,8 @@ import { CHANNEL_META, ORDER_STATUS_TABS } from '@/lib/format';
 import { Order, useOrders, useOrderStats, useSyncOrders } from '@/lib/orders';
 import { useBulkCreateShipments, useBulkRefetchSlip, useCreatePrintJob, usePackShipments } from '@/lib/fulfillment';
 import { useChannelAccounts } from '@/lib/channels';
+import { useBulkAction } from '@/lib/useBulkAction';
+import { BulkProgressModal } from '@/components/BulkProgressModal';
 import { useSyncPolling } from '@/lib/syncPolling';
 import { useSyncRuns } from '@/lib/syncLogs';
 import { useCan } from '@/lib/tenant';
@@ -72,6 +74,7 @@ export function OrdersPage() {
     const [viewOrderId, setViewOrderId] = useState<number | null>(null);
     // fulfillment: print-job progress bar + scan-to-pack/handover modal (BigSeller-style — thao tác ngay trên list)
     const [printJobId, setPrintJobId] = useState<number | null>(null);
+    const bulkProgress = useBulkAction();
     const [scan, setScan] = useState<{ open: boolean; mode: 'pack' | 'handover' }>({ open: false, mode: 'pack' });
     // SPEC 0021 — popup chọn ĐVVC khi "Chuẩn bị hàng" cho đơn manual; lưu các id manual đang chờ confirm.
     const [carrierPicker, setCarrierPicker] = useState<{ open: boolean; orderIds: number[] }>({ open: false, orderIds: [] });
@@ -179,8 +182,6 @@ export function OrdersPage() {
     const selectedOrders = (data?.data ?? []).filter((o) => selectedKeys.includes(o.id));
     const selWithShipment = selectedOrders.filter((o) => o.shipment);
     const selWithoutShipment = selectedOrders.filter((o) => !o.shipment);
-    // Orders whose open shipment is in created/pending state → can be bulk-packed (→ ready_to_ship).
-    const selPackable = selWithShipment.filter((o) => o.shipment && ['created', 'pending'].includes(o.shipment.status));
     const negProfit = selectedOrders.filter((o) => o.profit && o.profit.estimated_profit < 0);
     // Phân loại đơn theo nguồn để áp đúng luồng (key truth = `source`):
     //   - manual (source='manual') → cần chọn ĐVVC qua CarrierAccountPicker, BE gọi GHN createOrder ngay.
@@ -282,10 +283,16 @@ export function OrdersPage() {
         onError: (e) => message.error(errorMessage(e)),
     });
     const doRefetchSlip = () => runRefetchSlip(selWithShipment.map((o) => o.id));
-    const doBulkPack = () => bulkPack.mutate(selPackable.map((o) => o.shipment!.id), {
-        onSuccess: (r) => { message.success(`Đã đánh dấu ${r.packed} đơn sẵn sàng bàn giao — chuyển sang "Chờ bàn giao".`); setSelectedKeys([]); },
-        onError: (e) => message.error(errorMessage(e)),
-    });
+    const doBulkPack = () => {
+        const targets = selWithShipment;
+        if (targets.length === 0) return;
+        setSelectedKeys([]);
+        void bulkProgress.start({
+            title: 'Đánh dấu sẵn sàng bàn giao',
+            items: targets.map((o) => ({ id: o.shipment!.id, label: String(o.order_number ?? o.external_order_id ?? o.id), sub: CHANNEL_META[o.source]?.name ?? o.source })),
+            runner: async (ids) => (await bulkPack.mutateAsync(ids)).results,
+        });
+    };
     // "In phiếu giao hàng": chỉ in được đơn đã có phiếu; đơn nào chưa có ⇒ popup hướng dẫn bấm "Nhận phiếu giao hàng".
     const doBulkPrintSlip = () => {
         const ready = selWithShipment.filter((o) => o.shipment!.has_label);
@@ -616,7 +623,7 @@ export function OrdersPage() {
                         {canShip && (isShipTab || isProcessingTab) && selWithoutShipment.length > 0 && <Button type="primary" icon={<FileTextOutlined />} loading={bulkPrepare.isPending} onClick={doBulkPrepareShipTab}>
                             Lấy phiếu giao hàng ({selWithoutShipment.length})
                         </Button>}
-                        {canShip && isProcessingTab && selPackable.length > 0 && <Button icon={<CheckCircleOutlined />} style={{ background: '#52c41a', borderColor: '#52c41a', color: '#fff' }} loading={bulkPack.isPending} onClick={doBulkPack}>Sẵn sàng bàn giao ({selPackable.length})</Button>}
+                        {canShip && isProcessingTab && selWithShipment.length > 0 && <Button icon={<CheckCircleOutlined />} style={{ background: '#52c41a', borderColor: '#52c41a', color: '#fff' }} loading={bulkPack.isPending} onClick={doBulkPack}>Sẵn sàng bàn giao ({selWithShipment.length})</Button>}
                         {/* "Nhận lại phiếu" chỉ hiện khi user đang ở sub-tab "Nhận phiếu giao hàng" (`slip=failed`)
                             — nơi vận đơn KHÔNG có tem và queue retry đã exhaust. Ở `printable` (đã có tem) /
                             `loading` (queue đang retry) thì user không cần (in trực tiếp / chờ tự động). */}
@@ -680,6 +687,7 @@ export function OrdersPage() {
                 }}
             />
             {printJobId != null && <PrintJobBar jobId={printJobId} onClose={() => setPrintJobId(null)} />}
+            <BulkProgressModal title={bulkProgress.title} open={bulkProgress.open} items={bulkProgress.items} running={bulkProgress.running} onRetry={bulkProgress.retryErrors} onClose={bulkProgress.close} />
             <LinkSkusModal open={linkModal.open} orderIds={linkModal.orderIds} onClose={() => { setLinkModal({ open: false }); setSelectedKeys([]); }} />
             <OrderDetailModal orderId={viewOrderId} open={viewOrderId != null} onClose={() => setViewOrderId(null)} />
             <Modal title="Quét đơn" open={scan.open} onCancel={() => setScan((s) => ({ ...s, open: false }))} footer={null} width={760} destroyOnClose>
