@@ -8,6 +8,7 @@ use CMBcoreSeller\Modules\Fulfillment\Models\PrintJob;
 use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
 use CMBcoreSeller\Modules\Fulfillment\Services\PrintService;
 use CMBcoreSeller\Modules\Fulfillment\Services\ShipmentService;
+use CMBcoreSeller\Modules\Fulfillment\Support\FulfillmentErrorMapper;
 use CMBcoreSeller\Modules\Orders\Http\Resources\OrderResource;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
@@ -229,17 +230,12 @@ class ShipmentController extends Controller
     {
         abort_unless($request->user()?->can('fulfillment.scan') || $request->user()?->can('fulfillment.ship'), 403, 'Bạn không có quyền đóng gói.');
         $data = $request->validate(['shipment_ids' => ['required', 'array', 'min:1', 'max:500'], 'shipment_ids.*' => ['integer']]);
-        $n = 0;
-        foreach (Shipment::query()->whereIn('id', array_map('intval', $data['shipment_ids']))->get() as $shipment) {
-            try {
-                if ($this->service->markPacked($shipment, 'user', $request->user()->getKey())) {
-                    $n++;
-                }
-            } catch (\Throwable) {
-            }
-        }
+        [$results, $packed] = $this->runBulkShipment(
+            array_map('intval', $data['shipment_ids']),
+            fn (Shipment $s) => $this->service->markPacked($s, 'user', $request->user()->getKey()),
+        );
 
-        return response()->json(['data' => ['packed' => $n]]);
+        return response()->json(['data' => ['packed' => $packed, 'results' => $results]]);
     }
 
     /** POST /api/v1/shipments/handover { shipment_ids } — bulk "bàn giao ĐVVC" (created/packed → picked_up, đơn shipped). */
@@ -247,17 +243,50 @@ class ShipmentController extends Controller
     {
         abort_unless($request->user()?->can('fulfillment.ship'), 403, 'Bạn không có quyền bàn giao.');
         $data = $request->validate(['shipment_ids' => ['required', 'array', 'min:1', 'max:500'], 'shipment_ids.*' => ['integer']]);
-        $n = 0;
-        foreach (Shipment::query()->whereIn('id', array_map('intval', $data['shipment_ids']))->get() as $shipment) {
+        [$results, $n] = $this->runBulkShipment(
+            array_map('intval', $data['shipment_ids']),
+            fn (Shipment $s) => $this->service->handover($s, 'system', $request->user()->getKey()),
+        );
+
+        return response()->json(['data' => ['handed_over' => $n, 'results' => $results]]);
+    }
+
+    /**
+     * Chạy một thao tác đổi trạng thái trên danh sách shipment, trả kết quả per-đơn.
+     * `$run` trả bool: true ⇒ ok; false ⇒ skipped (no-op idempotent). Exception ⇒ phân loại
+     * qua FulfillmentErrorMapper (skipped/error). `technical` chỉ kèm khi admin bật toggle.
+     *
+     * @param  list<int>  $shipmentIds
+     * @param  callable(Shipment):bool  $run
+     * @return array{0: list<array<string,mixed>>, 1: int}  [results, successCount]
+     */
+    private function runBulkShipment(array $shipmentIds, callable $run): array
+    {
+        $expose = (bool) system_setting('fulfillment.expose_technical_errors', (bool) config('app.debug'));
+        $results = [];
+        $ok = 0;
+        foreach (Shipment::query()->whereIn('id', $shipmentIds)->get() as $shipment) {
+            $row = ['id' => (int) $shipment->getKey()];
             try {
-                if ($this->service->handover($shipment, 'system', $request->user()->getKey())) {
-                    $n++;
+                if ($run($shipment)) {
+                    $row['status'] = 'ok';
+                    $ok++;
+                } else {
+                    $row['status'] = 'skipped';
+                    $row['reason'] = 'Đơn đã ở trạng thái này — bỏ qua.';
                 }
-            } catch (\Throwable) {
+            } catch (\Throwable $e) {
+                $c = FulfillmentErrorMapper::classify($e);
+                $row['status'] = $c['status'];
+                $row['reason'] = $c['reason'];
+                if ($expose) {
+                    $row['technical'] = $c['technical'];
+                }
             }
+            $results[] = $row;
         }
 
-        return response()->json(['data' => ['handed_over' => $n]]);
+        return [$results, $ok];
     }
 
     /**
