@@ -19,7 +19,7 @@ import { TemplateAliasPicker } from '@/components/shipping-labels/TemplateAliasP
 import { errorMessage } from '@/lib/api';
 import { CHANNEL_META, ORDER_STATUS_TABS } from '@/lib/format';
 import { Order, useOrders, useOrderStats, useSyncOrders } from '@/lib/orders';
-import { useBulkCreateShipments, useBulkRefetchSlip, useCreatePrintJob, useHandoverShipments, usePackShipments } from '@/lib/fulfillment';
+import { useBulkCreateShipments, useBulkRefetchSlip, useCreatePrintJob, useHandoverShipments, usePackShipments, type BulkActionResult } from '@/lib/fulfillment';
 import { useChannelAccounts } from '@/lib/channels';
 import { useBulkAction } from '@/lib/useBulkAction';
 import { BulkProgressModal } from '@/components/BulkProgressModal';
@@ -143,8 +143,7 @@ export function OrdersPage() {
     const isShipmentsTab = tabKey === 'shipments';
     // tab làm việc: "Chờ xử lý" / "Đang xử lý" / "Chờ bàn giao" — cho chọn nhiều đơn + bulk actions
     const isWorkTab = tabKey === 'pending' || tabKey === 'processing' || tabKey === 'ready_to_ship';
-    const isShipTab = tabKey === 'ready_to_ship';
-    const canBulkWork = isWorkTab && (canShip || canPrint);
+    const canBulkWork = !isShipmentsTab && (canShip || canPrint);
 
     // skip the (unused) orders list when on the shipments tab
     const { data, isFetching, refetch } = useOrders(isShipmentsTab ? { ...filters, page: 1, per_page: 1 } : filters);
@@ -182,23 +181,14 @@ export function OrdersPage() {
     // bulk actions: "Chuẩn bị hàng" + "In phiếu giao hàng" (tem của sàn) trên các đơn đã chọn
     const selectedOrders = (data?.data ?? []).filter((o) => selectedKeys.includes(o.id));
     const selWithShipment = selectedOrders.filter((o) => o.shipment);
-    const selWithoutShipment = selectedOrders.filter((o) => !o.shipment);
     const negProfit = selectedOrders.filter((o) => o.profit && o.profit.estimated_profit < 0);
     // Phân loại đơn theo nguồn để áp đúng luồng (key truth = `source`):
     //   - manual (source='manual') → cần chọn ĐVVC qua CarrierAccountPicker, BE gọi GHN createOrder ngay.
     //   - sàn (source!='manual')    → BE tự gọi `prepareChannelOrder` lấy AWB/tem, KHÔNG cần chọn ĐVVC.
     // SPEC 0021: không cho phép trộn lẫn 2 nhóm trong cùng một lần "Chuẩn bị hàng" vì payload & UX khác nhau.
     const selManual = selectedOrders.filter((o) => o.source === 'manual');
-    const selChannel = selectedOrders.filter((o) => o.source !== 'manual');
-    const runBulkPrepare = (orderIds: number[], carrierAccountId: number | null) => bulkPrepare.mutate({ order_ids: orderIds, carrier_account_id: carrierAccountId ?? undefined }, {
-        onSuccess: (r) => {
-            message.success(r.created.length > 0 ? `Đã chuẩn bị hàng ${r.created.length} đơn — đang lấy phiếu giao hàng. Các đơn chuyển sang "Đang xử lý".` : 'Không có đơn nào được chuẩn bị');
-            if (r.errors.length) Modal.warning({ title: `${r.errors.length} đơn không chuẩn bị được`, content: <ul style={{ margin: 0, paddingInlineStart: 18 }}>{r.errors.map((e) => <li key={e.order_id}>Đơn #{e.order_id}: {e.message}</li>)}</ul> });
-            setSelectedKeys([]);
-            setCarrierPicker({ open: false, orderIds: [] });
-        },
-        onError: (e) => message.error(errorMessage(e)),
-    });
+    // Trạng thái đơn còn "chuẩn bị hàng" được (chưa giao cho ĐVVC). Ngoài tập này ⇒ bỏ qua khi bấm Chuẩn bị hàng.
+    const PREPARE_OK_STATUSES = ['pending', 'unpaid', 'processing', 'ready_to_ship'];
     // B7 fix (Sprint 1 P0) — helper chặn trộn manual + sàn cho mọi bulk action liên quan tạo vận đơn.
     // Đơn sàn (`prepareChannelOrder`) dùng AWB & tem của sàn; đơn manual (`createForOrder` qua connector ĐVVC)
     // cần user chọn ĐVVC qua picker. Hai luồng nhập đầu vào khác hẳn → không gộp 1 lượt.
@@ -220,55 +210,47 @@ export function OrdersPage() {
         }
         return true;
     };
+    // "Chuẩn bị hàng (lấy phiếu)" qua popup: đơn đã có vận đơn / không ở trạng thái chuẩn bị ⇒ bỏ qua (ghi rõ);
+    // còn lại gọi bulk-create. Đơn manual cần chọn ĐVVC trước (picker) — sau khi chọn mới chạy popup.
+    const startPreparePopup = (carrierAccountId: number | null) => {
+        const targets = selectedOrders;
+        if (targets.length === 0) return;
+        setSelectedKeys([]);
+        void bulkProgress.start({
+            title: 'Chuẩn bị hàng (lấy phiếu)',
+            items: targets.map((o) => ({ id: o.id, label: String(o.order_number ?? o.external_order_id ?? o.id), sub: CHANNEL_META[o.source]?.name ?? o.source })),
+            runner: async (orderIds) => {
+                const chunk = targets.filter((o) => orderIds.includes(o.id));
+                const skips: BulkActionResult[] = [];
+                const actionable: number[] = [];
+                for (const o of chunk) {
+                    if (o.shipment) skips.push({ id: o.id, status: 'skipped', reason: 'Đã có phiếu giao hàng — bỏ qua.' });
+                    else if (!PREPARE_OK_STATUSES.includes(o.status)) skips.push({ id: o.id, status: 'skipped', reason: 'Đơn không ở trạng thái chuẩn bị — bỏ qua.' });
+                    else actionable.push(o.id);
+                }
+                if (actionable.length === 0) return skips;
+                const r = await bulkPrepare.mutateAsync({ order_ids: actionable, carrier_account_id: carrierAccountId ?? undefined });
+                const ok: BulkActionResult[] = r.created.map((s) => ({ id: s.order_id, status: 'ok' }));
+                const errs: BulkActionResult[] = r.errors.map((e) => ({ id: e.order_id, status: 'error', reason: e.message }));
+                return [...skips, ...ok, ...errs];
+            },
+        });
+    };
     const doBulkPrepare = () => {
-        if (!assertHomogeneousSource(selManual, selChannel, 'Chuẩn bị hàng')) return;
+        const actionable = selectedOrders.filter((o) => !o.shipment && PREPARE_OK_STATUSES.includes(o.status));
+        const manual = actionable.filter((o) => o.source === 'manual');
+        const channel = actionable.filter((o) => o.source !== 'manual');
+        if (!assertHomogeneousSource(manual, channel, 'Chuẩn bị hàng')) return;
         const proceed = () => {
-            if (selManual.length > 0) {
-                setCarrierPicker({ open: true, orderIds: selManual.map((o) => o.id) });
-            } else {
-                runBulkPrepare(selChannel.map((o) => o.id), null);
-            }
+            if (manual.length > 0) setCarrierPicker({ open: true, orderIds: selectedOrders.map((o) => o.id) });
+            else startPreparePopup(null);
         };
-        // U7 (P1 — coi nhẹ cho manual): đơn manual thường chưa có giá vốn → profit luôn âm; chỉ warn cho đơn
-        // sàn vì có dữ liệu profit chuẩn. Skip warning khi negProfit toàn đơn manual.
-        const negChannel = negProfit.filter((o) => o.source !== 'manual');
+        const negChannel = channel.filter((o) => o.profit && o.profit.estimated_profit < 0);
         if (negChannel.length > 0) {
             Modal.confirm({
                 title: `${negChannel.length} đơn có lợi nhuận ước tính ÂM`,
-                content: 'Tổng tiền các đơn này không bù được phí sàn + giá vốn hàng. Vẫn tiếp tục chuẩn bị hàng (tạo vận đơn / lấy phiếu)?',
+                content: 'Tổng tiền các đơn này không bù được phí sàn + giá vốn hàng. Vẫn tiếp tục chuẩn bị hàng?',
                 okText: 'Vẫn chuẩn bị', okButtonProps: { danger: true }, cancelText: 'Để tôi xem lại',
-                onOk: proceed,
-            });
-        } else { proceed(); }
-    };
-    // Tab "Chờ bàn giao" (ready_to_ship): đơn đã RTS trên sàn trước khi sync về — gọi prepareChannelOrder để
-    // tạo shipment record + lấy label; order KHÔNG chuyển sang "Đang xử lý" (stay in ready_to_ship).
-    const runBulkPrepareShipTab = () => bulkPrepare.mutate({ order_ids: selWithoutShipment.map((o) => o.id) }, {
-        onSuccess: (r) => {
-            message.success(r.created.length > 0 ? `Đã lấy phiếu giao hàng cho ${r.created.length} đơn — sẵn sàng để in.` : 'Không có đơn nào cần lấy phiếu');
-            if (r.errors.length) Modal.warning({ title: `${r.errors.length} đơn không lấy được phiếu`, content: <ul style={{ margin: 0, paddingInlineStart: 18 }}>{r.errors.map((e) => <li key={e.order_id}>Đơn #{e.order_id}: {e.message}</li>)}</ul> });
-            setSelectedKeys([]);
-        },
-        onError: (e) => message.error(errorMessage(e)),
-    });
-    const doBulkPrepareShipTab = () => {
-        // B7 (Sprint 1 P0) — chặn trộn manual + sàn (tab "Chờ bàn giao" cũng đẩy qua bulk-create).
-        const manualNoShip = selWithoutShipment.filter((o) => o.source === 'manual');
-        const channelNoShip = selWithoutShipment.filter((o) => o.source !== 'manual');
-        if (!assertHomogeneousSource(manualNoShip, channelNoShip, 'Lấy phiếu giao hàng')) return;
-        const neg = selWithoutShipment.filter((o) => o.source !== 'manual' && o.profit && o.profit.estimated_profit < 0);
-        const proceed = () => {
-            if (manualNoShip.length > 0) {
-                setCarrierPicker({ open: true, orderIds: manualNoShip.map((o) => o.id) });
-            } else {
-                runBulkPrepareShipTab();
-            }
-        };
-        if (neg.length > 0) {
-            Modal.confirm({
-                title: `${neg.length} đơn có lợi nhuận ước tính ÂM`,
-                content: 'Tổng tiền các đơn này không bù được phí sàn + giá vốn hàng. Vẫn tiếp tục lấy phiếu giao hàng?',
-                okText: 'Vẫn tiếp tục', okButtonProps: { danger: true }, cancelText: 'Để tôi xem lại',
                 onOk: proceed,
             });
         } else { proceed(); }
@@ -284,28 +266,32 @@ export function OrdersPage() {
         onError: (e) => message.error(errorMessage(e)),
     });
     const doRefetchSlip = () => runRefetchSlip(selWithShipment.map((o) => o.id));
-    const doBulkPack = () => {
-        const targets = selWithShipment;
+    // Thao tác đổi trạng thái dựa trên vận đơn (đóng gói / bàn giao). Key popup theo order.id; đơn chưa có vận
+    // đơn ⇒ bỏ qua; gọi backend theo shipment.id rồi map kết quả về order.id. Backend tự bỏ qua đơn đã xử lý.
+    const runShipmentAction = (title: string, mutate: (shipmentIds: number[]) => Promise<{ results: BulkActionResult[] }>) => {
+        const targets = selectedOrders;
         if (targets.length === 0) return;
         setSelectedKeys([]);
         void bulkProgress.start({
-            title: 'Đánh dấu sẵn sàng bàn giao',
-            items: targets.map((o) => ({ id: o.shipment!.id, label: String(o.order_number ?? o.external_order_id ?? o.id), sub: CHANNEL_META[o.source]?.name ?? o.source })),
-            runner: async (ids) => (await bulkPack.mutateAsync(ids)).results,
+            title,
+            items: targets.map((o) => ({ id: o.id, label: String(o.order_number ?? o.external_order_id ?? o.id), sub: CHANNEL_META[o.source]?.name ?? o.source })),
+            runner: async (orderIds) => {
+                const chunk = targets.filter((o) => orderIds.includes(o.id));
+                const skips: BulkActionResult[] = [];
+                const shToOrder = new Map<number, number>();
+                const shipmentIds: number[] = [];
+                for (const o of chunk) {
+                    if (o.shipment) { shipmentIds.push(o.shipment.id); shToOrder.set(o.shipment.id, o.id); }
+                    else skips.push({ id: o.id, status: 'skipped', reason: 'Chưa có phiếu giao hàng — bỏ qua.' });
+                }
+                const res = shipmentIds.length ? (await mutate(shipmentIds)).results : [];
+                const mapped = res.map((r) => ({ ...r, id: shToOrder.get(r.id) ?? r.id }));
+                return [...skips, ...mapped];
+            },
         });
     };
-    // "Bàn giao ĐVVC" hàng loạt ở tab "Chờ bàn giao": chạy qua popup tiến trình; server tự bỏ qua đơn không
-    // hợp lệ (đã bàn giao / huỷ / chưa có vận đơn). Trừ tồn ở bước này (xem ShipmentService::handover).
-    const doBulkHandover = () => {
-        const targets = selWithShipment;
-        if (targets.length === 0) return;
-        setSelectedKeys([]);
-        void bulkProgress.start({
-            title: 'Bàn giao ĐVVC',
-            items: targets.map((o) => ({ id: o.shipment!.id, label: String(o.order_number ?? o.external_order_id ?? o.id), sub: CHANNEL_META[o.source]?.name ?? o.source })),
-            runner: async (ids) => (await bulkHandover.mutateAsync(ids)).results,
-        });
-    };
+    const doBulkPack = () => runShipmentAction('Đánh dấu sẵn sàng bàn giao', (ids) => bulkPack.mutateAsync(ids));
+    const doBulkHandover = () => runShipmentAction('Bàn giao ĐVVC', (ids) => bulkHandover.mutateAsync(ids));
     // "In phiếu giao hàng": chỉ in được đơn đã có phiếu; đơn nào chưa có ⇒ popup hướng dẫn bấm "Nhận phiếu giao hàng".
     const doBulkPrintSlip = () => {
         const ready = selWithShipment.filter((o) => o.shipment!.has_label);
@@ -630,18 +616,12 @@ export function OrdersPage() {
             <Card style={{ marginTop: 12 }} styles={{ body: { padding: 16 } }}>
                 {selectedKeys.length > 0 && (canBulkWork ? (
                     <Space style={{ marginBottom: 12 }} wrap>
-                        {canShip && tabKey === 'pending' && <Button type="primary" loading={bulkPrepare.isPending} onClick={doBulkPrepare}>
+                        {canShip && <Button type="primary" loading={bulkProgress.running} onClick={doBulkPrepare}>
                             Chuẩn bị hàng ({selectedKeys.length}){negProfit.length > 0 && <WarningOutlined style={{ marginInlineStart: 4 }} />}
                         </Button>}
-                        {canShip && (isShipTab || isProcessingTab) && selWithoutShipment.length > 0 && <Button type="primary" icon={<FileTextOutlined />} loading={bulkPrepare.isPending} onClick={doBulkPrepareShipTab}>
-                            Lấy phiếu giao hàng ({selWithoutShipment.length})
-                        </Button>}
-                        {canShip && isProcessingTab && selWithShipment.length > 0 && <Button icon={<CheckCircleOutlined />} style={{ background: '#52c41a', borderColor: '#52c41a', color: '#fff' }} loading={bulkPack.isPending} onClick={doBulkPack}>Sẵn sàng bàn giao ({selWithShipment.length})</Button>}
-                        {canShip && isShipTab && selWithShipment.length > 0 && <Button type="primary" icon={<CheckCircleOutlined />} loading={bulkHandover.isPending} onClick={doBulkHandover}>Bàn giao ĐVVC ({selWithShipment.length})</Button>}
-                        {/* "Nhận lại phiếu" chỉ hiện khi user đang ở sub-tab "Nhận phiếu giao hàng" (`slip=failed`)
-                            — nơi vận đơn KHÔNG có tem và queue retry đã exhaust. Ở `printable` (đã có tem) /
-                            `loading` (queue đang retry) thì user không cần (in trực tiếp / chờ tự động). */}
-                        {canShip && (isProcessingTab || isShipTab) && selWithShipment.length > 0 && (!isProcessingTab || slipParam === 'failed' || slipParam === '') && <Button icon={<FileTextOutlined />} loading={refetchSlip.isPending} onClick={doRefetchSlip}>Nhận lại phiếu ({selWithShipment.length})</Button>}
+                        {canShip && <Button icon={<CheckCircleOutlined />} style={{ background: '#52c41a', borderColor: '#52c41a', color: '#fff' }} loading={bulkProgress.running} onClick={doBulkPack}>Sẵn sàng bàn giao ({selectedKeys.length})</Button>}
+                        {canShip && <Button type="primary" icon={<CheckCircleOutlined />} loading={bulkProgress.running} onClick={doBulkHandover}>Bàn giao ĐVVC ({selectedKeys.length})</Button>}
+                        {canShip && selWithShipment.length > 0 && <Button icon={<FileTextOutlined />} loading={refetchSlip.isPending} onClick={doRefetchSlip}>Nhận phiếu giao hàng ({selWithShipment.length})</Button>}
                         {canPrint && selWithShipment.length > 0 && <Button icon={<PrinterOutlined />} loading={createPrintJob.isPending} onClick={doBulkPrintSlip}>In phiếu giao hàng ({selWithShipment.length})</Button>}
                         <Button onClick={() => setSelectedKeys([])}>Bỏ chọn</Button>
                     </Space>
@@ -686,7 +666,7 @@ export function OrdersPage() {
                     return distinct.length === 1 ? distinct[0] : null;
                 })()}
                 onCancel={() => setCarrierPicker({ open: false, orderIds: [] })}
-                onConfirm={(cid) => runBulkPrepare(carrierPicker.orderIds, cid)}
+                onConfirm={(cid) => { setCarrierPicker({ open: false, orderIds: [] }); startPreparePopup(cid); }}
             />
             <TemplateAliasPicker
                 open={bulkLabelPicker.open}
