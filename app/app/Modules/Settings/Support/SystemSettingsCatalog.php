@@ -18,7 +18,7 @@ use InvalidArgumentException;
  *   - label: tiêu đề hiển thị UI
  *   - description?: hint hiển thị dưới label
  *
- * Tổng: 38 key — 7 branding, 9 marketplace (6 secret), 15 fulfillment (2 secret),
+ * Tổng: 39 key — 7 branding, 9 marketplace (6 secret), 16 fulfillment (2 secret),
  * 7 sync. ⇒ 8 secret.
  *
  * Key core KHÔNG cho vào catalog (giữ env tuyệt đối): APP_KEY, APP_ENV, DB_*,
@@ -125,6 +125,11 @@ class SystemSettingsCatalog
             'fulfillment.print_label_size' => [
                 'group' => 'fulfillment', 'type' => 'string', 'is_secret' => false,
                 'env' => 'PRINT_LABEL_SIZE', 'label' => 'Khổ tem in mặc định',
+            ],
+            'fulfillment.expose_technical_errors' => [
+                'group' => 'fulfillment', 'type' => 'bool', 'is_secret' => false,
+                'env' => 'FULFILLMENT_EXPOSE_TECHNICAL_ERRORS', 'label' => 'Hiện chi tiết lỗi kỹ thuật',
+                'description' => 'Bật để hiện thông tin lỗi kỹ thuật khi xử lý đơn (debug). Prod nên TẮT — chỉ hiện câu tiếng Việt.',
             ],
             'carriers.enabled_csv' => [
                 'group' => 'fulfillment', 'type' => 'string', 'is_secret' => false,
