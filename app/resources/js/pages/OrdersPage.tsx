@@ -623,6 +623,7 @@ export function OrdersPage() {
                         {canShip && <Button type="primary" icon={<CheckCircleOutlined />} loading={bulkProgress.running} onClick={doBulkHandover}>Bàn giao ĐVVC ({selectedKeys.length})</Button>}
                         {canShip && selWithShipment.length > 0 && <Button icon={<FileTextOutlined />} loading={refetchSlip.isPending} onClick={doRefetchSlip}>Nhận phiếu giao hàng ({selWithShipment.length})</Button>}
                         {canPrint && selWithShipment.length > 0 && <Button icon={<PrinterOutlined />} loading={createPrintJob.isPending} onClick={doBulkPrintSlip}>In phiếu giao hàng ({selWithShipment.length})</Button>}
+                        {canMap && <Button icon={<LinkOutlined />} onClick={() => setLinkModal({ open: true, orderIds: selectedKeys })}>Liên kết SKU ({selectedKeys.length})</Button>}
                         <Button onClick={() => setSelectedKeys([])}>Bỏ chọn</Button>
                     </Space>
                 ) : canMap ? (
