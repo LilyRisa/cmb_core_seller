@@ -265,7 +265,9 @@ class ShipmentController extends Controller
         $expose = (bool) system_setting('fulfillment.expose_technical_errors', (bool) config('app.debug'));
         $results = [];
         $ok = 0;
+        $found = [];
         foreach (Shipment::query()->whereIn('id', $shipmentIds)->get() as $shipment) {
+            $found[] = (int) $shipment->getKey();
             $row = ['id' => (int) $shipment->getKey()];
             try {
                 if ($run($shipment)) {
@@ -284,6 +286,11 @@ class ShipmentController extends Controller
                 }
             }
             $results[] = $row;
+        }
+        // Vận đơn không tìm thấy (đã xoá / khác tenant / id sai) ⇒ vẫn trả 1 dòng `skipped` để popup tiến trình
+        // FE không kẹt mãi ở "đang xử lý" (useBulkAction khớp kết quả theo id; thiếu id ⇒ dòng đó không cập nhật).
+        foreach (array_diff(array_map('intval', $shipmentIds), $found) as $missingId) {
+            $results[] = ['id' => $missingId, 'status' => 'skipped', 'reason' => 'Không tìm thấy vận đơn.'];
         }
 
         return [$results, $ok];

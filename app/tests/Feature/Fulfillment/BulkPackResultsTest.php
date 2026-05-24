@@ -64,11 +64,14 @@ class BulkPackResultsTest extends TestCase
         // pre-pack s2 so it becomes a skipped no-op on the second call
         $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/shipments/pack', ['shipment_ids' => [$s2->getKey()]])->assertOk();
 
-        $res = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/shipments/pack', ['shipment_ids' => [$s1->getKey(), $s2->getKey()]])->assertOk();
+        // include a non-existent shipment id (999999) → must still get a result row (skipped), not be dropped
+        $res = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/shipments/pack', ['shipment_ids' => [$s1->getKey(), $s2->getKey(), 999999]])->assertOk();
 
         $results = collect($res->json('data.results'));
         $this->assertSame('ok', $results->firstWhere('id', $s1->getKey())['status']);
         $this->assertSame('skipped', $results->firstWhere('id', $s2->getKey())['status']);
+        $this->assertSame('skipped', $results->firstWhere('id', 999999)['status']);
+        $this->assertSame('Không tìm thấy vận đơn.', $results->firstWhere('id', 999999)['reason']);
         $this->assertSame(1, $res->json('data.packed'));
     }
 
