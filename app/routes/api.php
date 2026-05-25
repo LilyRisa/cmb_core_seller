@@ -19,6 +19,7 @@ use CMBcoreSeller\Modules\Notifications\Http\Controllers\EmailVerificationContro
 use CMBcoreSeller\Modules\Notifications\Http\Controllers\PasswordResetController;
 use CMBcoreSeller\Modules\Orders\Http\Controllers\DashboardController;
 use CMBcoreSeller\Modules\Orders\Http\Controllers\OrderController;
+use CMBcoreSeller\Modules\Orders\Http\Controllers\ReturnController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ChannelListingController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ProductController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\AuthController;
@@ -116,6 +117,13 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::post('orders/{id}/cancel', [OrderController::class, 'cancel'])->whereNumber('id')->name('orders.cancel');
             Route::post('orders/{id}/tags', [OrderController::class, 'updateTags'])->whereNumber('id')->name('orders.tags');
             Route::patch('orders/{id}/note', [OrderController::class, 'updateNote'])->whereNumber('id')->name('orders.note');
+
+            // --- Đơn Hoàn & Hủy (after-sales) — SPEC 0025 ---
+            Route::get('returns/stats', [ReturnController::class, 'stats'])->name('returns.stats');
+            Route::get('returns', [ReturnController::class, 'index'])->name('returns.index');
+            Route::get('returns/{id}', [ReturnController::class, 'show'])->whereNumber('id')->name('returns.show');
+            Route::post('returns/{id}/approve', [ReturnController::class, 'approve'])->whereNumber('id')->name('returns.approve');
+            Route::post('returns/{id}/reject', [ReturnController::class, 'reject'])->whereNumber('id')->name('returns.reject');
             Route::get('orders/unmapped-skus', [SkuMappingController::class, 'unmappedFromOrders'])->name('orders.unmapped-skus');   // SPEC 0004
             Route::post('orders/link-skus', [SkuMappingController::class, 'linkFromOrders'])->name('orders.link-skus');
 

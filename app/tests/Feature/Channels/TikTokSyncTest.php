@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Channels;
 
+use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
+use CMBcoreSeller\Integrations\Channels\TikTok\TikTokWebhookVerifier;
 use CMBcoreSeller\Modules\Channels\Events\ChannelAccountNeedsReconnect;
 use CMBcoreSeller\Modules\Channels\Jobs\ProcessWebhookEvent;
 use CMBcoreSeller\Modules\Channels\Jobs\SyncOrdersForShop;
@@ -12,11 +14,13 @@ use CMBcoreSeller\Modules\Channels\Models\WebhookEvent;
 use CMBcoreSeller\Modules\Channels\Support\TokenRefresher;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Orders\Services\OrderUpsertService;
+use CMBcoreSeller\Modules\Settings\Services\SystemSettingService;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -96,7 +100,7 @@ class TikTokSyncTest extends TestCase
 
     public function test_process_webhook_event_refetches_order_and_upserts_idempotently(): void
     {
-        Http::fake(['*/order/202309/orders?*' => Http::response(F::orderDetail(F::ORDER_ID, 'AWAITING_COLLECTION'))]);
+        Http::fake(['*/order/202507/orders?*' => Http::response(F::orderDetail(F::ORDER_ID, 'AWAITING_COLLECTION'))]);
 
         $event = WebhookEvent::create([
             'provider' => 'tiktok', 'event_type' => 'order_status_update',
@@ -132,7 +136,7 @@ class TikTokSyncTest extends TestCase
             'has_issue' => false, 'tags' => [], 'source_updated_at' => now()->subHour(),
         ]);
         // Re-fetch fails (TikTok returns a non-zero code), but the push carried the new status.
-        Http::fake(['*/order/202309/orders?*' => Http::response(['code' => 5000, 'message' => 'temporary error', 'data' => [], 'request_id' => 'r'], 200)]);
+        Http::fake(['*/order/202507/orders?*' => Http::response(['code' => 5000, 'message' => 'temporary error', 'data' => [], 'request_id' => 'r'], 200)]);
 
         $event = WebhookEvent::create([
             'provider' => 'tiktok', 'event_type' => 'order_status_update', 'external_id' => F::ORDER_ID, 'external_shop_id' => F::SHOP_ID,
@@ -155,7 +159,7 @@ class TikTokSyncTest extends TestCase
 
     public function test_status_change_records_a_new_history_row(): void
     {
-        Http::fake(['*/order/202309/orders?*' => Http::sequence()
+        Http::fake(['*/order/202507/orders?*' => Http::sequence()
             ->push(F::orderDetail(F::ORDER_ID, 'AWAITING_SHIPMENT', updateTime: now()->subMinutes(20)->timestamp))
             ->push(F::orderDetail(F::ORDER_ID, 'IN_TRANSIT', updateTime: now()->subMinutes(5)->timestamp))]);
 
@@ -181,7 +185,10 @@ class TikTokSyncTest extends TestCase
         app(SyncOrdersForShop::class, ['channelAccountId' => (int) $this->account->getKey()])->handle(app(ChannelRegistry::class), app(OrderUpsertService::class));
 
         $this->assertCount(2, Order::withoutGlobalScope(TenantScope::class)->whereIn('external_order_id', ['ORD-1', 'ORD-2'])->get());
-        $this->assertNotNull($this->account->fresh()->last_synced_at);
+        // Phân trang chạy hết (1 trang) ⇒ watermark nhảy lên gần "bây giờ" (runStart - overlap).
+        $watermark = $this->account->fresh()->last_synced_at;
+        $this->assertNotNull($watermark);
+        $this->assertTrue(CarbonImmutable::parse($watermark)->gt(now()->subMinutes(30)));
         $run = SyncRun::withoutGlobalScope(TenantScope::class)->first();
         $this->assertSame('done', $run->status);
         $this->assertSame(2, $run->stats['fetched']);
@@ -205,5 +212,68 @@ class TikTokSyncTest extends TestCase
         $this->assertFalse(app(TokenRefresher::class)->refresh($this->account));
         $this->assertSame(ChannelAccount::STATUS_EXPIRED, $this->account->fresh()->status);
         Event::assertDispatched(ChannelAccountNeedsReconnect::class);
+    }
+
+    /** Build a signed TikTok webhook body for a given order status. */
+    private function signedWebhook(string $status, string $secret = F::APP_SECRET, string $orderId = F::ORDER_ID): array
+    {
+        $body = [
+            'type' => 1, 'tts_notification_id' => 'ntf-'.uniqid(), 'shop_id' => F::SHOP_ID, 'timestamp' => now()->timestamp,
+            'data' => ['order_id' => $orderId, 'order_status' => $status, 'update_time' => now()->timestamp],
+        ];
+        $raw = json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        return ['raw' => $raw, 'sig' => hash_hmac('sha256', F::APP_KEY.$raw, $secret)];
+    }
+
+    public function test_webhook_dedup_keeps_distinct_status_changes(): void
+    {
+        Queue::fake();
+
+        // First push (AWAITING_SHIPMENT) stored + processed.
+        $a = $this->signedWebhook('AWAITING_SHIPMENT');
+        $this->call('POST', '/webhook/tiktok', server: ['HTTP_AUTHORIZATION' => $a['sig'], 'CONTENT_TYPE' => 'application/json'], content: $a['raw'])->assertOk();
+        $this->assertSame(1, WebhookEvent::count());
+        WebhookEvent::query()->update(['status' => WebhookEvent::STATUS_PROCESSED]);
+
+        // A DIFFERENT status for the SAME order must NOT be deduped away.
+        $b = $this->signedWebhook('AWAITING_COLLECTION');
+        $this->call('POST', '/webhook/tiktok', server: ['HTTP_AUTHORIZATION' => $b['sig'], 'CONTENT_TYPE' => 'application/json'], content: $b['raw'])->assertOk();
+        $this->assertSame(2, WebhookEvent::count());
+
+        // A retry of the SAME status (different notification id) is still deduped.
+        $b2 = $this->signedWebhook('AWAITING_COLLECTION');
+        $this->call('POST', '/webhook/tiktok', server: ['HTTP_AUTHORIZATION' => $b2['sig'], 'CONTENT_TYPE' => 'application/json'], content: $b2['raw'])->assertOk();
+        $this->assertSame(2, WebhookEvent::count());
+    }
+
+    public function test_webhook_verifier_uses_rotated_secret_from_system_setting(): void
+    {
+        // Super-admin đổi secret nóng qua /admin/settings (lưu DB). Verifier PHẢI dùng secret động
+        // (system_setting) như TikTokClient — nếu chỉ đọc config tĩnh thì mọi webhook bị 401.
+        app(SystemSettingService::class)->set('marketplace.tiktok.app_secret', 'rotated_secret_xyz');
+
+        $wh = $this->signedWebhook('AWAITING_COLLECTION', secret: 'rotated_secret_xyz');
+        $request = Request::create('/webhook/tiktok', 'POST', server: ['HTTP_AUTHORIZATION' => $wh['sig']], content: $wh['raw']);
+
+        $this->assertTrue((new TikTokWebhookVerifier)->verify($request));
+    }
+
+    public function test_poll_resumes_watermark_when_page_cap_hit(): void
+    {
+        config(['integrations.sync.poll_max_pages' => 2]);
+        // Mỗi trang trả 1 đơn (update ~1h trước) và LUÔN có next_page_token ⇒ chạm trần 2 trang vẫn còn dữ liệu.
+        $updatedTs = now()->subHour()->timestamp;
+        Http::fake(['*/order/202309/orders/search*' => function () use ($updatedTs) {
+            return Http::response(F::ordersSearch([F::order('ORD-'.uniqid(), 'AWAITING_SHIPMENT', $updatedTs)], nextToken: 'NEXT'));
+        }]);
+
+        app(SyncOrdersForShop::class, ['channelAccountId' => (int) $this->account->getKey()])
+            ->handle(app(ChannelRegistry::class), app(OrderUpsertService::class));
+
+        $watermark = $this->account->fresh()->last_synced_at;
+        $this->assertNotNull($watermark);
+        // KHÔNG nhảy lên gần "bây giờ": resume từ update_time đơn đã xử lý (~1h trước) - overlap.
+        $this->assertTrue(CarbonImmutable::parse($watermark)->lt(now()->subMinutes(30)));
     }
 }

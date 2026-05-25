@@ -8,6 +8,7 @@ use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
 use CMBcoreSeller\Integrations\Channels\DTO\ChannelListingDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\OrderDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\Page;
+use CMBcoreSeller\Integrations\Channels\DTO\ReturnDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
@@ -64,7 +65,9 @@ class TikTokConnector implements ChannelConnector
             // Đối soát/Statements — Phase 6.2. Bật bằng INTEGRATIONS_TIKTOK_FINANCE=true sau khi đã đối chiếu
             // shape `/finance/202309/statements` với sandbox thực; mặc định off (TikTok finance API có thể đổi).
             'finance.settlements' => (bool) config('integrations.tiktok.finance_enabled', false),
-            'returns.fetch' => false,         // Phase 7
+            // After-sales (Hoàn & Hủy) — SPEC 0025. API return_refund 202309. Tắt bằng INTEGRATIONS_TIKTOK_RETURNS=false.
+            'returns.fetch' => (bool) config('integrations.tiktok.returns_enabled', true),
+            'returns.manage' => (bool) config('integrations.tiktok.returns_enabled', true),
         ];
     }
 
@@ -171,7 +174,8 @@ class TikTokConnector implements ChannelConnector
 
     public function fetchOrderDetail(AuthContext $auth, string $externalOrderId): OrderDTO
     {
-        $ver = $this->client->versionFor('order');
+        // Get Order Detail dùng generation riêng (mặc định 202507) — tách khỏi list (202309/orders/search).
+        $ver = $this->client->versionFor('order_detail');
         $data = $this->client->get("/order/{$ver}/orders", $auth, ['ids' => $externalOrderId]);
         $orders = (array) ($data['orders'] ?? []);
         if ($orders === []) {
@@ -355,28 +359,51 @@ class TikTokConnector implements ChannelConnector
         if ($packageId === '') {
             throw new \RuntimeException('Đơn TikTok chưa có package_id (TikTok tạo package sau khi đơn được thanh toán — thử "Đồng bộ đơn" lại).');
         }
+
+        // Idempotency: nếu package đã được ship trước đó (đã có tracking_number) ⇒ trả luôn, KHÔNG gọi
+        // `/ship` lại — re-call ship trên package đã ship sẽ lỗi. Cho phép "Nhận phiếu giao hàng" gọi lại
+        // arrange an toàn (tương tự `extractExistingShipmentFromDetail` của Lazada). SPEC 0014.
+        $existing = $this->packageTracking($auth, $packageId, $externalOrderId);
+        if ($existing['tracking_no'] !== null) {
+            return ['raw_status' => 'AWAITING_COLLECTION', 'tracking_no' => $existing['tracking_no'], 'carrier' => $existing['carrier'], 'package_id' => $packageId];
+        }
+
         $body = $this->chooseHandover($auth, $packageId, $externalOrderId, $params);
         $shipPath = $this->fulfillmentPath('ship_package', '/fulfillment/{version}/packages/{package_id}/ship', $packageId, $externalOrderId);
         $this->client->post($shipPath, $auth, $body);
 
-        $tracking = null;
-        $carrier = null;
-        try {
-            $detail = $this->client->get($this->fulfillmentPath('package_detail', '/fulfillment/{version}/packages/{package_id}', $packageId, $externalOrderId), $auth);
-            $tracking = data_get($detail, 'tracking_number') ?: data_get($detail, 'package.tracking_number');
-            $carrier = data_get($detail, 'shipping_provider_name') ?: data_get($detail, 'package.shipping_provider_name');
-        } catch (\Throwable $e) {
-            Log::warning('tiktok.get_package_detail_failed', ['package' => $packageId, 'error' => class_basename($e)]);
-        }
-
-        if ($tracking === null) {
+        $after = $this->packageTracking($auth, $packageId, $externalOrderId);
+        if ($after['tracking_no'] === null) {
             Log::warning('tiktok.arrange_shipment_no_tracking', [
                 'package' => $packageId, 'order' => $externalOrderId,
-                'note' => 'Ship POST thành công nhưng tracking_number chưa có — shipment sẽ thiếu mã vận đơn',
+                'note' => 'Ship POST thành công nhưng tracking_number chưa có — shipment sẽ thiếu mã vận đơn (BackfillChannelTracking sẽ kéo lại)',
             ]);
         }
 
-        return ['raw_status' => 'AWAITING_COLLECTION', 'tracking_no' => $tracking, 'carrier' => $carrier, 'package_id' => $packageId];
+        return ['raw_status' => 'AWAITING_COLLECTION', 'tracking_no' => $after['tracking_no'], 'carrier' => $after['carrier'], 'package_id' => $packageId];
+    }
+
+    /**
+     * `GET /fulfillment/{ver}/packages/{package_id}` → `['tracking_no'=>?string, 'carrier'=>?string]`.
+     * Tracking rỗng/chưa có hoặc gọi lỗi ⇒ `tracking_no=null` (đơn chưa ship hoặc sàn cấp trễ).
+     *
+     * @return array{tracking_no:?string,carrier:?string}
+     */
+    private function packageTracking(AuthContext $auth, string $packageId, string $externalOrderId): array
+    {
+        try {
+            $detail = $this->client->get($this->fulfillmentPath('package_detail', '/fulfillment/{version}/packages/{package_id}', $packageId, $externalOrderId), $auth);
+        } catch (\Throwable $e) {
+            Log::warning('tiktok.get_package_detail_failed', ['package' => $packageId, 'error' => class_basename($e)]);
+
+            return ['tracking_no' => null, 'carrier' => null];
+        }
+        $tracking = data_get($detail, 'tracking_number') ?: data_get($detail, 'package.tracking_number');
+
+        return [
+            'tracking_no' => ($tracking !== null && $tracking !== '') ? (string) $tracking : null,
+            'carrier' => data_get($detail, 'shipping_provider_name') ?: data_get($detail, 'package.shipping_provider_name'),
+        ];
     }
 
     /**
@@ -489,5 +516,90 @@ class TikTokConnector implements ChannelConnector
         } while ($cursor !== '' && count($allTx) < 2000);
 
         return $allTx;
+    }
+
+    // --- After-sales (Hoàn & Hủy) — SPEC 0025 --------------------------------
+
+    public function fetchReturns(AuthContext $auth, array $query = []): Page
+    {
+        return $this->searchAfterSales($auth, $query, ReturnDTO::KIND_RETURN);
+    }
+
+    public function fetchCancellations(AuthContext $auth, array $query = []): Page
+    {
+        return $this->searchAfterSales($auth, $query, ReturnDTO::KIND_CANCEL);
+    }
+
+    /**
+     * `POST /return_refund/{ver}/returns/search` | `.../cancellations/search` — paginate theo update_time ASC.
+     * Body lọc `update_time_ge` (window) + tùy chọn `return_status`/`cancel_status` (list). SDK returnRefundV202309.
+     *
+     * @param  array<string,mixed>  $query
+     */
+    private function searchAfterSales(AuthContext $auth, array $query, string $kind): Page
+    {
+        if (! config('integrations.tiktok.returns_enabled')) {
+            throw UnsupportedOperation::for($this->code(), $kind === 'cancel' ? 'fetchCancellations' : 'fetchReturns');
+        }
+        $isCancel = $kind === ReturnDTO::KIND_CANCEL;
+        $ver = $this->client->versionFor('return_refund') ?: '202309';
+        $path = $isCancel ? "/return_refund/{$ver}/cancellations/search" : "/return_refund/{$ver}/returns/search";
+
+        $q = [
+            'page_size' => (string) min(100, max(1, (int) ($query['pageSize'] ?? 50))),
+            'sort_field' => 'update_time',
+            'sort_order' => 'ASC',
+        ];
+        if (! empty($query['cursor'])) {
+            $q['page_token'] = (string) $query['cursor'];
+        }
+        $body = [];
+        if (! empty($query['updatedFrom'])) {
+            $body['update_time_ge'] = $query['updatedFrom']->getTimestamp();
+        }
+        if (! empty($query['statuses'])) {
+            $body[$isCancel ? 'cancel_status' : 'return_status'] = array_values(array_map('strval', (array) $query['statuses']));
+        }
+
+        $data = $this->client->post($path, $auth, $body, $q);
+        $listKey = $isCancel ? 'cancellations' : 'return_orders';
+        $items = array_values(array_map(
+            fn ($r) => TikTokMappers::returnRecord((array) $r, $kind),
+            (array) ($data[$listKey] ?? []),
+        ));
+        $next = $data['next_page_token'] ?? null;
+
+        return new Page(items: $items, nextCursor: $next ?: null, hasMore: ! empty($next));
+    }
+
+    public function decideReturn(AuthContext $auth, string $externalReturnId, string $action, array $params = []): array
+    {
+        return $this->decideAfterSales($auth, 'returns', $externalReturnId, $action, $params);
+    }
+
+    public function decideCancellation(AuthContext $auth, string $externalCancelId, string $action, array $params = []): array
+    {
+        return $this->decideAfterSales($auth, 'cancellations', $externalCancelId, $action, $params);
+    }
+
+    /**
+     * `POST /return_refund/{ver}/{returns|cancellations}/{id}/{approve|reject}`. `$action` ∈ approve|reject.
+     *
+     * @param  array<string,mixed>  $params
+     * @return array<string,mixed>
+     */
+    private function decideAfterSales(AuthContext $auth, string $resource, string $id, string $action, array $params): array
+    {
+        if (! config('integrations.tiktok.returns_enabled')) {
+            throw UnsupportedOperation::for($this->code(), $resource === 'cancellations' ? 'decideCancellation' : 'decideReturn');
+        }
+        $op = strtolower($action) === 'reject' ? 'reject' : 'approve';
+        $ver = $this->client->versionFor('return_refund') ?: '202309';
+        $body = array_filter([
+            'decision_role' => $params['decision_role'] ?? null,
+            'comment' => $params['comment'] ?? null,
+        ], fn ($v) => $v !== null && $v !== '');
+
+        return $this->client->post("/return_refund/{$ver}/{$resource}/{$id}/{$op}", $auth, $body);
     }
 }

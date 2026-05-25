@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Orders;
 
+use Carbon\Carbon;
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
@@ -51,7 +52,7 @@ class SlipSubtabTest extends TestCase
         return ['X-Tenant-Id' => (string) $this->tenant->getKey()];
     }
 
-    private function makeProcessingOrderWithShipment(string $extId, ?string $labelPath, ?\Carbon\Carbon $nextRetryAt): Order
+    private function makeProcessingOrderWithShipment(string $extId, ?string $labelPath, ?Carbon $nextRetryAt): Order
     {
         $order = Order::withoutGlobalScope(TenantScope::class)->create([
             'tenant_id' => $this->tenant->getKey(), 'source' => 'lazada',

@@ -2,6 +2,8 @@
 
 namespace CMBcoreSeller\Modules\Orders\Services;
 
+use CMBcoreSeller\Modules\Finance\Models\SettlementLine;
+use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
 use CMBcoreSeller\Modules\Inventory\Models\OrderCost;
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Orders\Models\Order;
@@ -83,7 +85,7 @@ class OrderProfitService
         if ($orderIds === []) {
             return [];
         }
-        $rows = \CMBcoreSeller\Modules\Fulfillment\Models\Shipment::withoutGlobalScope(TenantScope::class)
+        $rows = Shipment::withoutGlobalScope(TenantScope::class)
             ->whereIn('order_id', $orderIds)
             ->whereNotIn('status', ['cancelled'])
             ->selectRaw('order_id, COALESCE(SUM(fee), 0) AS fee')
@@ -112,10 +114,10 @@ class OrderProfitService
         if ($orderIds === []) {
             return [];
         }
-        if (! class_exists(\CMBcoreSeller\Modules\Finance\Models\SettlementLine::class)) {
+        if (! class_exists(SettlementLine::class)) {
             return [];   // module Finance chưa enable
         }
-        $rows = \CMBcoreSeller\Modules\Finance\Models\SettlementLine::withoutGlobalScope(TenantScope::class)
+        $rows = SettlementLine::withoutGlobalScope(TenantScope::class)
             ->whereIn('order_id', $orderIds)
             ->selectRaw('order_id, fee_type, SUM(amount) AS amount')
             ->groupBy('order_id', 'fee_type')->get();

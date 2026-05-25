@@ -2,9 +2,15 @@
 
 namespace Tests\Feature\Channels;
 
+use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
+use CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation;
+use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeApiException;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeConnector;
+use CMBcoreSeller\Support\Enums\AfterSalesStatus;
+use CMBcoreSeller\Support\Enums\StandardOrderStatus;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Tests\Fixtures\Channels\Shopee\ShopeeFixtures;
 use Tests\TestCase;
@@ -73,8 +79,8 @@ class ShopeeConnectorContractTest extends TestCase
         $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
 
         $page = $this->connector()->fetchOrders($auth, [
-            'updatedFrom' => \Carbon\CarbonImmutable::parse('2026-01-01T00:00:00Z'),
-            'updatedTo' => \Carbon\CarbonImmutable::parse('2026-01-10T00:00:00Z'),
+            'updatedFrom' => CarbonImmutable::parse('2026-01-01T00:00:00Z'),
+            'updatedTo' => CarbonImmutable::parse('2026-01-10T00:00:00Z'),
         ]);
 
         $this->assertCount(2, $page->items);
@@ -102,8 +108,8 @@ class ShopeeConnectorContractTest extends TestCase
         $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
 
         $page = $this->connector()->fetchOrders($auth, [
-            'updatedFrom' => \Carbon\CarbonImmutable::parse('2026-01-01T00:00:00Z'),
-            'updatedTo' => \Carbon\CarbonImmutable::parse('2026-02-15T00:00:00Z'), // 45 days -> needs >1 window
+            'updatedFrom' => CarbonImmutable::parse('2026-01-01T00:00:00Z'),
+            'updatedTo' => CarbonImmutable::parse('2026-02-15T00:00:00Z'), // 45 days -> needs >1 window
         ]);
 
         $this->assertTrue($page->hasMore);
@@ -130,21 +136,21 @@ class ShopeeConnectorContractTest extends TestCase
         $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
 
         $this->connector()->fetchOrders($auth, [
-            'updatedFrom' => \Carbon\CarbonImmutable::parse('2026-01-01T00:00:00Z'),
-            'updatedTo' => \Carbon\CarbonImmutable::parse('2026-01-05T00:00:00Z'),
+            'updatedFrom' => CarbonImmutable::parse('2026-01-01T00:00:00Z'),
+            'updatedTo' => CarbonImmutable::parse('2026-01-05T00:00:00Z'),
             'statuses' => ['READY_TO_SHIP'],
         ]);
 
         Http::assertSent(fn ($r) => str_contains($r->url(), '/api/v2/order/get_order_list') && str_contains($r->url(), 'order_status=READY_TO_SHIP'));
     }
 
-    private function signedPush(array $body): \Illuminate\Http\Request
+    private function signedPush(array $body): Request
     {
         $raw = json_encode($body, JSON_UNESCAPED_SLASHES);
         $pushUrl = 'https://app.cmbcore.com/webhook/shopee';
         config(['integrations.shopee.push_url' => $pushUrl]);
         $sign = hash_hmac('sha256', $pushUrl.'|'.$raw, 'PARTNER_KEY');
-        $req = \Illuminate\Http\Request::create($pushUrl, 'POST', content: $raw);
+        $req = Request::create($pushUrl, 'POST', content: $raw);
         $req->headers->set('Authorization', $sign);
 
         return $req;
@@ -156,7 +162,7 @@ class ShopeeConnectorContractTest extends TestCase
         $req = $this->signedPush(['code' => 3, 'shop_id' => 55, 'timestamp' => 1700000000, 'data' => json_encode(['ordersn' => 'SN_9', 'status' => 'READY_TO_SHIP'])]);
         $this->assertTrue($this->connector()->verifyWebhookSignature($req));
 
-        $bad = \Illuminate\Http\Request::create('https://app.cmbcore.com/webhook/shopee', 'POST', content: '{}');
+        $bad = Request::create('https://app.cmbcore.com/webhook/shopee', 'POST', content: '{}');
         $bad->headers->set('Authorization', 'deadbeef');
         $this->assertFalse($this->connector()->verifyWebhookSignature($bad));
     }
@@ -191,12 +197,12 @@ class ShopeeConnectorContractTest extends TestCase
         $raw = json_encode(['code' => 3, 'shop_id' => 55, 'timestamp' => 1700000000, 'data' => json_encode(['ordersn' => 'SN_9', 'status' => 'READY_TO_SHIP'])], JSON_UNESCAPED_SLASHES);
 
         // Ký bằng push partner key ⇒ verify OK.
-        $ok = \Illuminate\Http\Request::create($pushUrl, 'POST', content: $raw);
+        $ok = Request::create($pushUrl, 'POST', content: $raw);
         $ok->headers->set('Authorization', hash_hmac('sha256', $pushUrl.'|'.$raw, 'PUSH_KEY_TEST'));
         $this->assertTrue($c->verifyWebhookSignature($ok));
 
         // Ký bằng partner_key API (sai vì đã có push key riêng) ⇒ reject.
-        $bad = \Illuminate\Http\Request::create($pushUrl, 'POST', content: $raw);
+        $bad = Request::create($pushUrl, 'POST', content: $raw);
         $bad->headers->set('Authorization', hash_hmac('sha256', $pushUrl.'|'.$raw, 'PARTNER_KEY'));
         $this->assertFalse($c->verifyWebhookSignature($bad));
     }
@@ -206,7 +212,10 @@ class ShopeeConnectorContractTest extends TestCase
         Http::fake([
             '*/api/v2/logistics/get_shipping_parameter*' => Http::response(ShopeeFixtures::shippingParameter(), 200),
             '*/api/v2/logistics/ship_order*' => Http::response(ShopeeFixtures::shipOrder(), 200),
-            '*/api/v2/logistics/get_tracking_number*' => Http::response(ShopeeFixtures::trackingNumber(), 200),
+            // Đơn CHƯA ship: get_tracking_number trả rỗng (idempotency check) ⇒ tiến hành ship; SAU ship mới có tracking.
+            '*/api/v2/logistics/get_tracking_number*' => Http::sequence()
+                ->push(['error' => '', 'response' => ['tracking_number' => '']], 200)
+                ->push(ShopeeFixtures::trackingNumber(), 200),
         ]);
         $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
 
@@ -217,8 +226,25 @@ class ShopeeConnectorContractTest extends TestCase
             if (! str_contains($r->url(), '/api/v2/logistics/ship_order')) {
                 return false;
             }
+
             return array_key_exists('pickup', $r->data()) && ! array_key_exists('dropoff', $r->data());
         });
+    }
+
+    public function test_arrange_shipment_idempotent_when_already_shipped(): void
+    {
+        // Đơn đã ship (get_tracking_number đã có mã) ⇒ KHÔNG gọi ship_order lại (re-call sẽ lỗi "not ready to ship").
+        Http::fake([
+            '*/api/v2/logistics/get_shipping_parameter*' => Http::response(ShopeeFixtures::shippingParameter(), 200),
+            '*/api/v2/logistics/ship_order*' => Http::response(ShopeeFixtures::shipOrder(), 200),
+            '*/api/v2/logistics/get_tracking_number*' => Http::response(ShopeeFixtures::trackingNumber(), 200),
+        ]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        $res = $this->connector()->arrangeShipment($auth, 'SN_1', ['packages' => [['externalPackageId' => 'PKG_1']]]);
+
+        $this->assertSame('TRK123', $res['tracking_no']);
+        Http::assertNotSent(fn (\Illuminate\Http\Client\Request $r) => str_contains($r->url(), '/api/v2/logistics/ship_order'));
     }
 
     public function test_get_shipping_document_polls_then_downloads(): void
@@ -245,13 +271,13 @@ class ShopeeConnectorContractTest extends TestCase
         ]);
         $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
 
-        $this->expectException(\CMBcoreSeller\Integrations\Channels\Shopee\ShopeeApiException::class);
+        $this->expectException(ShopeeApiException::class);
         $this->connector()->getShippingDocument($auth, 'SN_1', ['externalPackageId' => 'PKG_1']);
     }
 
     public function test_push_ready_to_ship_unsupported(): void
     {
-        $this->expectException(\CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation::class);
+        $this->expectException(UnsupportedOperation::class);
         $this->connector()->pushReadyToShip(new AuthContext(1, 'shopee', '55', 'ACCESS_1'), 'SN_1');
     }
 
@@ -317,8 +343,8 @@ class ShopeeConnectorContractTest extends TestCase
         config(['integrations.shopee.finance_enabled' => true]);
 
         $page = $connector->fetchSettlements($auth, [
-            'from' => \Carbon\CarbonImmutable::parse('2026-01-01T00:00:00Z'),
-            'to' => \Carbon\CarbonImmutable::parse('2026-01-15T00:00:00Z'),
+            'from' => CarbonImmutable::parse('2026-01-01T00:00:00Z'),
+            'to' => CarbonImmutable::parse('2026-01-15T00:00:00Z'),
         ]);
         $this->assertCount(1, $page->items);
         $s = $page->items[0];
@@ -361,8 +387,8 @@ class ShopeeConnectorContractTest extends TestCase
         config(['integrations.shopee.finance_enabled' => true]);
 
         $connector->fetchSettlements($auth, [
-            'from' => \Carbon\CarbonImmutable::parse('2026-01-01T00:00:00Z'),
-            'to' => \Carbon\CarbonImmutable::parse('2026-01-15T00:00:00Z'),
+            'from' => CarbonImmutable::parse('2026-01-01T00:00:00Z'),
+            'to' => CarbonImmutable::parse('2026-01-15T00:00:00Z'),
         ]);
 
         // escrow_list must have been called at least twice (once per page)
@@ -377,16 +403,16 @@ class ShopeeConnectorContractTest extends TestCase
     {
         $c = $this->connector();
         $expected = [
-            'UNPAID' => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Unpaid,
-            'READY_TO_SHIP' => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Pending,
-            'PROCESSED' => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Processing,
-            'RETRY_SHIP' => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Processing,
-            'SHIPPED' => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Shipped,
-            'TO_CONFIRM_RECEIVE' => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Delivered,
-            'COMPLETED' => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Completed,
-            'IN_CANCEL' => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Processing,
-            'CANCELLED' => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Cancelled,
-            'TO_RETURN' => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Returning,
+            'UNPAID' => StandardOrderStatus::Unpaid,
+            'READY_TO_SHIP' => StandardOrderStatus::Pending,
+            'PROCESSED' => StandardOrderStatus::Processing,
+            'RETRY_SHIP' => StandardOrderStatus::Processing,
+            'SHIPPED' => StandardOrderStatus::Shipped,
+            'TO_CONFIRM_RECEIVE' => StandardOrderStatus::Delivered,
+            'COMPLETED' => StandardOrderStatus::Completed,
+            'IN_CANCEL' => StandardOrderStatus::Processing,
+            'CANCELLED' => StandardOrderStatus::Cancelled,
+            'TO_RETURN' => StandardOrderStatus::Returning,
         ];
         foreach ($expected as $raw => $std) {
             $this->assertSame($std, $c->mapStatus($raw), "status {$raw}");
@@ -398,7 +424,10 @@ class ShopeeConnectorContractTest extends TestCase
         Http::fake([
             '*/api/v2/logistics/get_shipping_parameter*' => Http::response(ShopeeFixtures::shippingParameterDropoff(), 200),
             '*/api/v2/logistics/ship_order*' => Http::response(ShopeeFixtures::shipOrder(), 200),
-            '*/api/v2/logistics/get_tracking_number*' => Http::response(ShopeeFixtures::trackingNumber(), 200),
+            // chưa ship ⇒ tracking rỗng (idempotency check), sau ship mới có TRK123
+            '*/api/v2/logistics/get_tracking_number*' => Http::sequence()
+                ->push(['error' => '', 'response' => ['tracking_number' => '']], 200)
+                ->push(ShopeeFixtures::trackingNumber(), 200),
         ]);
         $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
 
@@ -414,5 +443,35 @@ class ShopeeConnectorContractTest extends TestCase
 
             return array_key_exists('dropoff', $data);
         });
+    }
+
+    public function test_fetch_returns_maps_to_return_dto(): void
+    {
+        config(['integrations.shopee.returns_enabled' => true]);
+        Http::fake(['*/api/v2/returns/get_return_list*' => Http::response(['error' => '', 'response' => ['return' => [[
+            'return_sn' => 'RSN_1', 'order_sn' => 'SN_1', 'status' => 'REQUESTED', 'reason' => 'DEFECTIVE',
+            'refund_amount' => 50000, 'currency' => 'VND', 'create_time' => 1700000000, 'update_time' => 1700000100,
+            'item' => [['item_sku' => 'SKU-A', 'name' => 'Áo', 'amount' => 1]],
+        ]], 'more' => false]], 200)]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        $page = $this->connector()->fetchReturns($auth, ['updatedFrom' => CarbonImmutable::now()->subDay()]);
+
+        $this->assertCount(1, $page->items);
+        $this->assertSame('RSN_1', $page->items[0]->externalReturnId);
+        $this->assertSame('SN_1', $page->items[0]->externalOrderId);
+        $this->assertSame(AfterSalesStatus::Requested, $page->items[0]->status);
+        $this->assertSame(50000, $page->items[0]->refundAmount);
+    }
+
+    public function test_decide_return_calls_confirm_endpoint(): void
+    {
+        config(['integrations.shopee.returns_enabled' => true]);
+        Http::fake(['*/api/v2/returns/confirm*' => Http::response(['error' => '', 'response' => []], 200)]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        $this->connector()->decideReturn($auth, 'RSN_1', 'approve');
+
+        Http::assertSent(fn (\Illuminate\Http\Client\Request $r) => str_contains($r->url(), '/api/v2/returns/confirm'));
     }
 }

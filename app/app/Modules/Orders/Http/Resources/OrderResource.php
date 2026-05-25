@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Orders\Http\Resources;
 
 use CMBcoreSeller\Modules\Customers\Contracts\CustomerProfileContract;
+use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Orders\Models\OrderItem;
 use Illuminate\Http\Request;
@@ -90,7 +91,7 @@ class OrderResource extends JsonResource
                     'id' => $s->id, 'carrier' => $s->carrier, 'tracking_no' => $s->tracking_no,
                     'status' => $s->status,
                     // SPEC 0021 — nhãn tiếng Việt theo trạng thái vận đơn (vd `awaiting_pickup` → "Chờ lấy hàng").
-                    'status_label' => \CMBcoreSeller\Modules\Fulfillment\Models\Shipment::statusLabel((string) $s->status),
+                    'status_label' => Shipment::statusLabel((string) $s->status),
                     'label_url' => $s->label_url, 'has_label' => filled($s->label_path),
                     'print_count' => (int) $s->print_count, 'last_printed_at' => $s->last_printed_at?->toIso8601String(),
                     'packed_at' => $s->packed_at?->toIso8601String(),

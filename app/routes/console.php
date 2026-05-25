@@ -3,6 +3,7 @@
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Modules\Channels\Jobs\FetchChannelListings;
 use CMBcoreSeller\Modules\Channels\Jobs\SyncOrdersForShop;
+use CMBcoreSeller\Modules\Channels\Jobs\SyncReturnsForShop;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\SyncRun;
 use CMBcoreSeller\Modules\Fulfillment\Jobs\SyncShipmentTracking;
@@ -67,6 +68,15 @@ Schedule::call(function () {
         ->orderBy('id')
         ->each(fn ($a) => SyncOrdersForShop::dispatch((int) $a->getKey(), null, SyncRun::TYPE_UNPROCESSED));
 })->everyThirtyMinutes()->name('sync-unprocessed-orders')->onOneServer()->withoutOverlapping();
+
+// Every 15': sync đơn Hoàn & Hủy (after-sales) cho mỗi shop hỗ trợ — SPEC 0025. Job no-op nếu connector
+// chưa hỗ trợ `returns.fetch`. Webhook return/cancel cũng dispatch job này (poll là nguồn truth).
+Schedule::call(function () {
+    ChannelAccount::withoutGlobalScope(TenantScope::class)
+        ->where('status', ChannelAccount::STATUS_ACTIVE)
+        ->orderBy('id')
+        ->each(fn ($a) => SyncReturnsForShop::dispatch((int) $a->getKey()));
+})->everyFifteenMinutes()->name('sync-returns')->onOneServer()->withoutOverlapping();
 
 // Daily: refresh channel listings for shops that support it (then auto-match SKUs) — Phase 2 (SPEC 0003).
 Schedule::call(function () {

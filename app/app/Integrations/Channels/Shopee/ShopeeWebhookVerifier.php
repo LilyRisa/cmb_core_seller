@@ -29,7 +29,7 @@ class ShopeeWebhookVerifier
         $provided = trim((string) $request->headers->get('Authorization', ''));
         if ($pushKey === '' || $provided === '') {
             if ((string) ($cfg['webhook_verify_mode'] ?? 'strict') === 'lenient') {
-                \Illuminate\Support\Facades\Log::warning('shopee.webhook.signature_mismatch_but_accepted', ['mode' => 'lenient', 'has_header' => $provided !== '']);
+                Log::warning('shopee.webhook.signature_mismatch_but_accepted', ['mode' => 'lenient', 'has_header' => $provided !== '']);
 
                 return true;
             }
@@ -40,7 +40,7 @@ class ShopeeWebhookVerifier
         $expected = hash_hmac('sha256', $pushUrl.'|'.$raw, $pushKey);
         $ok = hash_equals($expected, strtolower($provided));
         if (! $ok && (string) ($cfg['webhook_verify_mode'] ?? 'strict') === 'lenient') {
-            \Illuminate\Support\Facades\Log::warning('shopee.webhook.signature_mismatch_but_accepted', ['mode' => 'lenient', 'has_header' => $provided !== '']);
+            Log::warning('shopee.webhook.signature_mismatch_but_accepted', ['mode' => 'lenient', 'has_header' => $provided !== '']);
 
             return true;
         }

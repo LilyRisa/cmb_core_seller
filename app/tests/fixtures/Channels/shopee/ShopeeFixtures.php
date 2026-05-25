@@ -30,6 +30,12 @@ final class ShopeeFixtures
                 'model_list' => '/api/v2/product/get_model_list', 'update_stock' => '/api/v2/product/update_stock',
                 'escrow_detail' => '/api/v2/payment/get_escrow_detail', 'escrow_list' => '/api/v2/payment/get_escrow_list',
                 'send_message' => '/api/v2/sellerchat/send_message',
+                'return_list' => '/api/v2/returns/get_return_list', 'return_detail' => '/api/v2/returns/get_return_detail',
+                'return_confirm' => '/api/v2/returns/confirm', 'return_dispute' => '/api/v2/returns/dispute',
+                'handle_cancellation' => '/api/v2/order/handle_buyer_cancellation',
+            ],
+            'integrations.shopee.return_status_map' => [
+                'REQUESTED' => 'requested', 'ACCEPTED' => 'approved', 'PROCESSING' => 'processing', 'JUDGING' => 'processing', 'CLOSED' => 'completed',
             ],
             'integrations.shopee.chat_push_codes' => [10],
         ]);

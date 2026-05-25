@@ -28,6 +28,12 @@ class TikTokWebhookVerifier
     public function __construct()
     {
         $this->cfg = (array) config('integrations.tiktok', []);
+
+        // Spec 2026-05-17 — super-admin đổi secrets nóng qua /admin/settings (lưu DB). PHẢI đọc cùng nguồn
+        // động như TikTokClient: nếu chỉ đọc config tĩnh, đổi/rotate secret trong DB ⇒ chữ ký webhook lệch
+        // ⇒ mọi push bị 401. DB rỗng → fallback config (env).
+        $this->cfg['app_key'] = system_setting('marketplace.tiktok.app_key', $this->cfg['app_key'] ?? null);
+        $this->cfg['app_secret'] = system_setting('marketplace.tiktok.app_secret', $this->cfg['app_secret'] ?? null);
     }
 
     public function verify(Request $request): bool

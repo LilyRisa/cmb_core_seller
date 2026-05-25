@@ -89,6 +89,16 @@ return [
         'poll_overlap_minutes' => (int) env('SYNC_POLL_OVERLAP_MINUTES', 5),
         'backfill_days' => (int) env('SYNC_BACKFILL_DAYS', 90),
         'reverse_stock_check' => (bool) env('SYNC_REVERSE_STOCK_CHECK', false),
+        // Trần số trang mỗi lần đồng bộ. Khi chạm trần mà sàn vẫn còn trang, watermark KHÔNG nhảy
+        // lên "bây giờ" mà dừng ở update_time đơn cuối đã xử lý (sort ASC) để lần poll sau tiếp tục
+        // — tránh bỏ sót đơn mới nhất khi backlog vượt trần. Xem SyncOrdersForShop.
+        'poll_max_pages' => (int) env('SYNC_POLL_MAX_PAGES', 50),
+        'backfill_max_pages' => (int) env('SYNC_BACKFILL_MAX_PAGES', 500),
+        'unprocessed_lookback_days' => (int) env('SYNC_UNPROCESSED_LOOKBACK_DAYS', 365),
+        'unprocessed_max_pages_per_status' => (int) env('SYNC_UNPROCESSED_MAX_PAGES_PER_STATUS', 200),
+        // After-sales (Hoàn & Hủy — SPEC 0025): cửa sổ poll theo update_time + trần trang.
+        'returns_lookback_days' => (int) env('SYNC_RETURNS_LOOKBACK_DAYS', 90),
+        'returns_max_pages' => (int) env('SYNC_RETURNS_MAX_PAGES', 50),
     ],
 
     /*
@@ -173,11 +183,42 @@ return [
 
         // API version paths.
         'version' => [
-            'order' => '202309',
+            'order' => '202309',              // Get Order List: POST /order/202309/orders/search
+            // Get Order Detail có generation mới hơn (docv2_page_get-order-detail-202507).
+            // Tách riêng để nâng độc lập với list — response 202507 là superset của 202309
+            // (cùng tên field payment/line_items/recipient_address) nên mapper không đổi.
+            'order_detail' => '202507',       // Get Order Detail: GET /order/202507/orders
             'authorization' => '202309',
             'event' => '202309',
             'product' => '202309',
             'fulfillment' => '202309',
+            'return_refund' => '202309',      // After-sales: /return_refund/202309/returns|cancellations/search
+        ],
+
+        // Đồng bộ Hoàn & Hủy (SPEC 0025). Bật mặc định (API return_refund 202309 ổn định). Tắt bằng
+        // INTEGRATIONS_TIKTOK_RETURNS=false. Gồm fetch (poll/webhook) + manage (duyệt/từ chối).
+        'returns_enabled' => (bool) env('INTEGRATIONS_TIKTOK_RETURNS', true),
+        // raw return/cancel status (TikTok) → AfterSalesStatus. Mở rộng khi gặp sample sandbox; mapper có fallback.
+        'return_status_map' => [
+            'RETURN_OR_REFUND_REQUEST_PENDING' => 'requested',
+            'AFTERSALE_APPLYING' => 'requested',
+            'CANCELLATION_REQUEST_PENDING' => 'requested',
+            'AGREE_REFUND' => 'approved',
+            'APPROVED' => 'approved',
+            'AWAITING_BUYER_SHIP' => 'processing',
+            'BUYER_SHIPPED' => 'processing',
+            'RETURNING' => 'processing',
+            'SELLER_RECEIVED_RETURN' => 'processing',
+            'RETURN_OR_REFUND_REQUEST_SUCCESS' => 'completed',
+            'CANCELLATION_REQUEST_SUCCESS' => 'completed',
+            'REQUEST_SUCCESS' => 'completed',
+            'COMPLETED' => 'completed',
+            'RETURN_OR_REFUND_REQUEST_REJECT' => 'rejected',
+            'CANCELLATION_REQUEST_REJECT' => 'rejected',
+            'REQUEST_REJECTED' => 'rejected',
+            'RETURN_OR_REFUND_CANCEL' => 'cancelled',
+            'CANCEL' => 'cancelled',
+            'CANCELLED' => 'cancelled',
         ],
 
         // "Luồng A" — khi "Chuẩn bị hàng": gọi API sàn arrange shipment (đẩy trạng thái "đã in đơn" lên sàn)
@@ -203,12 +244,21 @@ return [
             'retry_sleep_ms' => (int) env('TIKTOK_HTTP_RETRY_SLEEP_MS', 500),
         ],
 
+        // raw_status mà sàn KHÔNG cho "Chuẩn bị hàng" (arrange shipment). TikTok ON_HOLD: doc ghi rõ
+        // "ON_HOLD orders are NOT allowed to be fulfilled" + địa chỉ người nhận chưa có ⇒ chặn ở
+        // ShipmentService::createForOrder để khỏi gọi sàn lỗi / in tem khi sàn chưa cho.
+        'unfulfillable_raw_statuses' => ['ON_HOLD'],
+
         // raw_status (TikTok) -> StandardOrderStatus. The single source of truth;
         // see docs/03-domain/order-status-state-machine.md §4. Verify against the
         // Partner API "order status" list when wiring real sandbox data.
         'status_map' => [
             'UNPAID' => 'unpaid',
-            'ON_HOLD' => 'processing',
+            // ON_HOLD = đã nhận đơn, CHỜ fulfillment, buyer còn tự huỷ KHÔNG cần seller duyệt (doc get-order-list:
+            // "awaiting fulfillment. The buyer may still cancel without the seller's approval"). Chưa in/arrange
+            // phiếu ⇒ cùng nhóm "Chờ xử lý" với AWAITING_SHIPMENT = pending (KHÔNG để processing kẻo seller tưởng
+            // đã arrange). PRE_ORDER có thể ở ON_HOLD lâu — vẫn pull về để seller chuẩn bị.
+            'ON_HOLD' => 'pending',
             // AWAITING_SHIPMENT = đã xác nhận, CHƯA in/arrange phiếu giao hàng ⇒ tab "Chờ xử lý".
             'AWAITING_SHIPMENT' => 'pending',
             'PARTIALLY_SHIPPING' => 'processing',
@@ -218,7 +268,10 @@ return [
             'IN_TRANSIT' => 'shipped',
             'DELIVERED' => 'delivered',
             'COMPLETED' => 'completed',
+            // List/Detail trả "CANCELLED"; webhook order_status trả "CANCEL" (doc 1-order-status-change).
+            // Khai báo cả hai để raw_status nào cũng map tường minh (không phụ thuộc fallback chuỗi).
             'CANCELLED' => 'cancelled',
+            'CANCEL' => 'cancelled',
         ],
 
         // TikTok webhook "type" (integer) -> normalized WebhookEventDTO type.
@@ -318,6 +371,22 @@ return [
             ],
             // Finance (Phase 6.2 — SPEC 0016). Mặc định path tài liệu chính thức; đổi nếu app version khác.
             'transaction_details' => env('LAZADA_FINANCE_TRANSACTIONS_PATH', '/finance/transaction/details/get'),
+            // After-sales (SPEC 0025) — reverse order. Field/path đối chiếu doc reverse; verify sandbox.
+            'reverse_list' => env('LAZADA_REVERSE_LIST_PATH', '/reverse/getreverseordersforseller'),
+            'reverse_cancel_decide' => env('LAZADA_REVERSE_CANCEL_DECIDE_PATH', '/order/reverse/cancel/seller/decide'),
+            'reverse_refund_decide' => env('LAZADA_REVERSE_REFUND_DECIDE_PATH', '/order/reverse/onlyrefund/seller/decide'),
+        ],
+        // Hoàn & Hủy (SPEC 0025). Tắt bằng INTEGRATIONS_LAZADA_RETURNS=false.
+        'returns_enabled' => (bool) env('INTEGRATIONS_LAZADA_RETURNS', true),
+        'return_status_map' => [
+            'REQUEST_INITIATE' => 'requested',
+            'SELLER_AGREE_RETURN' => 'approved',
+            'BUYER_SHIP' => 'processing',
+            'RETURNING' => 'processing',
+            'REFUND_SUCCESS' => 'completed',
+            'REVERSE_SUCCESS' => 'completed',
+            'RETURN_CANCELED' => 'cancelled',
+            'SELLER_REJECT_RETURN' => 'rejected',
         ],
         // "Luồng A" master flag — bật `arrangeShipment` + `getShippingDocument`. Tắt bằng
         // `INTEGRATIONS_LAZADA_FULFILLMENT=false` nếu app chưa có permission "Fulfillment".
@@ -401,67 +470,82 @@ return [
     |
     */
     'shopee' => [
-        'partner_id'   => env('SHOPEE_PARTNER_ID'),            // int
-        'partner_key'  => env('SHOPEE_PARTNER_KEY'),           // bí mật — ký HMAC request API
+        'partner_id' => env('SHOPEE_PARTNER_ID'),            // int
+        'partner_key' => env('SHOPEE_PARTNER_KEY'),           // bí mật — ký HMAC request API
         // Shopee Push Mechanism cấp "Push Partner Key" RIÊNG (khác partner_key) để ký webhook push.
         // Để trống ⇒ verify push fallback về partner_key (khi sàn dùng chung 1 key). Bí mật.
         'push_partner_key' => env('SHOPEE_PUSH_PARTNER_KEY'),
-        'sandbox'      => (bool) env('SHOPEE_SANDBOX', true),
+        'sandbox' => (bool) env('SHOPEE_SANDBOX', true),
         // Production: https://partner.shopeemobile.com · Sandbox (VN/Global): https://openplatform.sandbox.test-stable.shopee.sg
         // (CN sandbox: ...shopee.cn). KHÔNG dùng partner.test-stable.shopeemobile.com (sai). Xem shopee_docs/02-*.md.
-        'base_url'     => env('SHOPEE_API_BASE_URL', 'https://partner.shopeemobile.com'),
+        'base_url' => env('SHOPEE_API_BASE_URL', 'https://partner.shopeemobile.com'),
         'redirect_uri' => env('SHOPEE_REDIRECT_URI'),          // default url('/oauth/shopee/callback')
-        'push_url'     => env('SHOPEE_PUSH_URL'),               // default url('/webhook/shopee') — để verify chữ ký push
-        'http'         => ['timeout' => (int) env('SHOPEE_HTTP_TIMEOUT', 20), 'retries' => (int) env('SHOPEE_HTTP_RETRIES', 2), 'retry_sleep_ms' => (int) env('SHOPEE_HTTP_RETRY_SLEEP_MS', 500)],
+        'push_url' => env('SHOPEE_PUSH_URL'),               // default url('/webhook/shopee') — để verify chữ ký push
+        'http' => ['timeout' => (int) env('SHOPEE_HTTP_TIMEOUT', 20), 'retries' => (int) env('SHOPEE_HTTP_RETRIES', 2), 'retry_sleep_ms' => (int) env('SHOPEE_HTTP_RETRY_SLEEP_MS', 500)],
         'webhook_verify_mode' => env('SHOPEE_WEBHOOK_VERIFY_MODE', 'strict'),
-        'order_window_days'   => 15,                            // max get_order_list window
+        'order_window_days' => 15,                            // max get_order_list window
         'fulfillment_enabled' => (bool) env('INTEGRATIONS_SHOPEE_FULFILLMENT', true),
-        'fulfillment_mode'    => env('SHOPEE_FULFILLMENT_MODE', 'auto'),  // 'auto' | 'refetch_only'
-        'ship_method'  => env('SHOPEE_SHIP_METHOD', 'auto'),  // 'auto' | 'dropoff' | 'pickup' — exact selection verify trên sandbox
-        'finance_enabled'     => (bool) env('INTEGRATIONS_SHOPEE_FINANCE', false),
+        'fulfillment_mode' => env('SHOPEE_FULFILLMENT_MODE', 'auto'),  // 'auto' | 'refetch_only'
+        'ship_method' => env('SHOPEE_SHIP_METHOD', 'auto'),  // 'auto' | 'dropoff' | 'pickup' — exact selection verify trên sandbox
+        'finance_enabled' => (bool) env('INTEGRATIONS_SHOPEE_FINANCE', false),
         'endpoints' => [
-            'auth_partner'              => '/api/v2/shop/auth_partner',
-            'token_get'                 => '/api/v2/auth/token/get',
-            'token_refresh'             => '/api/v2/auth/access_token/get',
-            'shop_info'                 => '/api/v2/shop/get_shop_info',
-            'order_list'                => '/api/v2/order/get_order_list',
-            'order_detail'              => '/api/v2/order/get_order_detail',
-            'shipping_parameter'        => '/api/v2/logistics/get_shipping_parameter',
-            'ship_order'                => '/api/v2/logistics/ship_order',
-            'tracking_number'           => '/api/v2/logistics/get_tracking_number',
-            'create_document'           => '/api/v2/logistics/create_shipping_document',
-            'get_document_result'       => '/api/v2/logistics/get_shipping_document_result',
-            'download_document'         => '/api/v2/logistics/download_shipping_document',
-            'item_list'                 => '/api/v2/product/get_item_list',
-            'item_base_info'            => '/api/v2/product/get_item_base_info',
-            'model_list'                => '/api/v2/product/get_model_list',
-            'update_stock'              => '/api/v2/product/update_stock',
-            'escrow_detail'             => '/api/v2/payment/get_escrow_detail',
-            'escrow_list'               => '/api/v2/payment/get_escrow_list',
-            'send_message'              => '/api/v2/sellerchat/send_message',
+            'auth_partner' => '/api/v2/shop/auth_partner',
+            'token_get' => '/api/v2/auth/token/get',
+            'token_refresh' => '/api/v2/auth/access_token/get',
+            'shop_info' => '/api/v2/shop/get_shop_info',
+            'order_list' => '/api/v2/order/get_order_list',
+            'order_detail' => '/api/v2/order/get_order_detail',
+            'shipping_parameter' => '/api/v2/logistics/get_shipping_parameter',
+            'ship_order' => '/api/v2/logistics/ship_order',
+            'tracking_number' => '/api/v2/logistics/get_tracking_number',
+            'create_document' => '/api/v2/logistics/create_shipping_document',
+            'get_document_result' => '/api/v2/logistics/get_shipping_document_result',
+            'download_document' => '/api/v2/logistics/download_shipping_document',
+            'item_list' => '/api/v2/product/get_item_list',
+            'item_base_info' => '/api/v2/product/get_item_base_info',
+            'model_list' => '/api/v2/product/get_model_list',
+            'update_stock' => '/api/v2/product/update_stock',
+            'escrow_detail' => '/api/v2/payment/get_escrow_detail',
+            'escrow_list' => '/api/v2/payment/get_escrow_list',
+            'send_message' => '/api/v2/sellerchat/send_message',
+            // After-sales (SPEC 0025) — doc 227-return-refund-management.
+            'return_list' => '/api/v2/returns/get_return_list',
+            'return_detail' => '/api/v2/returns/get_return_detail',
+            'return_confirm' => '/api/v2/returns/confirm',
+            'return_dispute' => '/api/v2/returns/dispute',
+            'handle_cancellation' => '/api/v2/order/handle_buyer_cancellation',
         ],
-        'document_type'        => env('SHOPEE_DOCUMENT_TYPE', 'NORMAL_AIR_WAYBILL'),
+        // Hoàn & Hủy (SPEC 0025). Tắt bằng INTEGRATIONS_SHOPEE_RETURNS=false. Field/endpoint cần đối chiếu sandbox.
+        'returns_enabled' => (bool) env('INTEGRATIONS_SHOPEE_RETURNS', true),
+        'return_status_map' => [
+            'REQUESTED' => 'requested',
+            'ACCEPTED' => 'approved',
+            'PROCESSING' => 'processing',
+            'JUDGING' => 'processing',
+            'CLOSED' => 'completed',
+        ],
+        'document_type' => env('SHOPEE_DOCUMENT_TYPE', 'NORMAL_AIR_WAYBILL'),
         'document_poll_attempts' => (int) env('SHOPEE_DOC_POLL_ATTEMPTS', 6),
         'document_poll_sleep_ms' => (int) env('SHOPEE_DOC_POLL_SLEEP_MS', 1000),
         'status_map' => [
-            'UNPAID'             => 'unpaid',
-            'READY_TO_SHIP'      => 'pending',
-            'PROCESSED'          => 'processing',
-            'RETRY_SHIP'         => 'processing',
-            'SHIPPED'            => 'shipped',
+            'UNPAID' => 'unpaid',
+            'READY_TO_SHIP' => 'pending',
+            'PROCESSED' => 'processing',
+            'RETRY_SHIP' => 'processing',
+            'SHIPPED' => 'shipped',
             'TO_CONFIRM_RECEIVE' => 'delivered',
-            'COMPLETED'          => 'completed',
-            'IN_CANCEL'          => 'processing',
-            'CANCELLED'          => 'cancelled',
-            'TO_RETURN'          => 'returning',
+            'COMPLETED' => 'completed',
+            'IN_CANCEL' => 'processing',
+            'CANCELLED' => 'cancelled',
+            'TO_RETURN' => 'returning',
         ],
         // Mã push CHÍNH THỨC (open.shopee.com/developer-guide/18 — xem shopee_docs/03-push-mechanism-webhook.md).
         'webhook_event_types' => [
-            1  => 'unknown',              // Shop Authorization GRANTED (KHÔNG phải deauth)
-            2  => 'shop_deauthorized',    // Shop Authorization Canceled (đây mới là huỷ quyền)
-            3  => 'order_status_update',  // Order Status Update (data.ordersn, data.status)
-            4  => 'order_status_update',  // Order TrackingNo Update → re-fetch đơn
-            6  => 'product_update',       // Banned Item
+            1 => 'unknown',              // Shop Authorization GRANTED (KHÔNG phải deauth)
+            2 => 'shop_deauthorized',    // Shop Authorization Canceled (đây mới là huỷ quyền)
+            3 => 'order_status_update',  // Order Status Update (data.ordersn, data.status)
+            4 => 'order_status_update',  // Order TrackingNo Update → re-fetch đơn
+            6 => 'product_update',       // Banned Item
             12 => 'unknown',              // Auth Expiry warning (7 ngày trước) — KHÔNG revoke sớm
             15 => 'unknown',              // Shipping Document Status (READY/FAILED)
             // 5,7,8,9,10,11,13: marketing/product/chat — chưa dùng cho connector đơn.

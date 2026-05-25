@@ -77,14 +77,18 @@ class ProcessWebhookEvent implements ShouldQueue
         try {
             match ($event->event_type) {
                 WebhookEventDTO::TYPE_ORDER_CREATED,
-                WebhookEventDTO::TYPE_ORDER_STATUS_UPDATE,
-                WebhookEventDTO::TYPE_ORDER_CANCEL => $this->handleOrderEvent($event, $account, $connector, $upsert, $tokens),
+                WebhookEventDTO::TYPE_ORDER_STATUS_UPDATE => $this->handleOrderEvent($event, $account, $connector, $upsert, $tokens),
+
+                // Hủy: cập nhật order (→ cancelled) NHƯNG cũng đồng bộ bản ghi hủy (after-sales). SPEC 0025.
+                WebhookEventDTO::TYPE_ORDER_CANCEL => $this->handleCancelEvent($event, $account, $connector, $upsert, $tokens),
+
+                // Hoàn/trả: webhook là tín hiệu ⇒ re-poll after-sales của shop (poll là nguồn truth). SPEC 0025.
+                WebhookEventDTO::TYPE_RETURN_UPDATE => $this->handleAfterSales($account, $connector),
 
                 WebhookEventDTO::TYPE_SHOP_DEAUTHORIZED => $this->handleDeauthorized($account),
 
                 WebhookEventDTO::TYPE_DATA_DELETION => DataDeletionRequested::dispatch($account), // Customers listens → anonymize buyer PII (SPEC 0002 §8)
 
-                WebhookEventDTO::TYPE_RETURN_UPDATE,
                 WebhookEventDTO::TYPE_SETTLEMENT_AVAILABLE,
                 WebhookEventDTO::TYPE_PRODUCT_UPDATE => Log::info('webhook.deferred', ['type' => $event->event_type, 'shop' => $account->external_shop_id]), // later phases
 
@@ -141,6 +145,21 @@ class ProcessWebhookEvent implements ShouldQueue
 
         $status = $connector->mapStatus($dto->rawStatus, $dto->raw);
         $upsert->upsertWithStatus($dto, (int) $account->tenant_id, (int) $account->getKey(), 'webhook', $status);
+    }
+
+    /** Hủy đơn: cập nhật trạng thái order (re-fetch) + đồng bộ bản ghi hủy (after-sales). SPEC 0025. */
+    private function handleCancelEvent(WebhookEvent $event, ChannelAccount $account, $connector, OrderUpsertService $upsert, TokenRefresher $tokens): void
+    {
+        $this->handleOrderEvent($event, $account, $connector, $upsert, $tokens);
+        $this->handleAfterSales($account, $connector);
+    }
+
+    /** Webhook hoàn/hủy là tín hiệu ⇒ dispatch SyncReturnsForShop (poll là nguồn truth). No-op nếu connector chưa hỗ trợ. */
+    private function handleAfterSales(ChannelAccount $account, $connector): void
+    {
+        if ($connector->supports('returns.fetch')) {
+            SyncReturnsForShop::dispatch((int) $account->getKey());
+        }
     }
 
     private function handleDeauthorized(ChannelAccount $account): void

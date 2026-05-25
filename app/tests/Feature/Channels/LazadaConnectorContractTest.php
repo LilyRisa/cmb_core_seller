@@ -10,6 +10,7 @@ use CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation;
 use CMBcoreSeller\Integrations\Channels\Lazada\LazadaApiException;
 use CMBcoreSeller\Integrations\Channels\Lazada\LazadaConnector;
 use CMBcoreSeller\Integrations\Channels\Lazada\LazadaSigner;
+use CMBcoreSeller\Support\Enums\AfterSalesStatus;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -415,7 +416,7 @@ class LazadaConnectorContractTest extends TestCase
 
     public function test_push_ready_to_ship_throws_when_tracking_or_provider_missing(): void
     {
-        $this->expectException(\CMBcoreSeller\Integrations\Channels\Lazada\LazadaApiException::class);
+        $this->expectException(LazadaApiException::class);
         $this->expectExceptionMessageMatches('/tracking_no|shipment_provider/i');
         $this->connector()->pushReadyToShip($this->auth(), '1001', ['external_item_ids' => [9001]]);
     }
@@ -604,6 +605,7 @@ class LazadaConnectorContractTest extends TestCase
                 return false;
             }
             parse_str((string) parse_url((string) $req->url(), PHP_URL_QUERY), $q);
+
             // `order_item_ids` PHẢI là JSON array (Lazada parse JSON, không phải CSV).
             return isset($q['order_item_ids'])
                 && json_decode((string) $q['order_item_ids'], true) === [525106347080318]
@@ -742,5 +744,33 @@ class LazadaConnectorContractTest extends TestCase
         $this->connector()->getShippingDocument($this->auth(), '1001', [
             'externalPackageId' => 'PKG-99', 'order_item_ids' => [9001],
         ]);
+    }
+
+    public function test_fetch_returns_maps_reverse_order(): void
+    {
+        config(['integrations.lazada.returns_enabled' => true]);
+        Http::fake(['*/reverse/getreverseordersforseller*' => Http::response($this->ok(['module' => [[
+            'reverse_order_id' => '5001', 'trade_order_id' => '1001', 'reverse_status' => 'REQUEST_INITIATE',
+            'reason_text' => 'Hàng lỗi', 'refund_amount' => '50000',
+            'create_time' => '2026-05-17 10:00:00 +0700', 'update_time' => '2026-05-17 11:00:00 +0700',
+        ]]]))]);
+
+        $page = $this->connector()->fetchReturns($this->auth(), ['updatedFrom' => now()->subDay()]);
+
+        $this->assertCount(1, $page->items);
+        $this->assertSame('5001', $page->items[0]->externalReturnId);
+        $this->assertSame('1001', $page->items[0]->externalOrderId);
+        $this->assertSame(AfterSalesStatus::Requested, $page->items[0]->status);
+        $this->assertSame(50000, $page->items[0]->refundAmount);
+    }
+
+    public function test_decide_return_calls_reverse_decide_endpoint(): void
+    {
+        config(['integrations.lazada.returns_enabled' => true]);
+        Http::fake(['*/order/reverse/onlyrefund/seller/decide*' => Http::response($this->ok([]))]);
+
+        $this->connector()->decideReturn($this->auth(), '5001', 'approve');
+
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/order/reverse/onlyrefund/seller/decide'));
     }
 }

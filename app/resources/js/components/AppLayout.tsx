@@ -17,6 +17,7 @@ import {
     MessageOutlined,
     PartitionOutlined,
     SettingOutlined,
+    RollbackOutlined,
     ShopOutlined,
     ShoppingCartOutlined,
     ShoppingOutlined,
@@ -39,6 +40,7 @@ function buildNav(): MenuProps['items'] {
         ] },
         { type: 'group', label: 'Bán hàng', children: [
             { key: '/orders', icon: <ShoppingOutlined />, label: <Link to="/orders">Đơn hàng</Link> },
+            { key: '/returns', icon: <RollbackOutlined />, label: <Link to="/returns">Hoàn & Hủy</Link> },
             { key: '/customers', icon: <TeamOutlined />, label: <Link to="/customers">Khách hàng</Link> },
             { key: 'messaging', icon: <MessageOutlined />, label: 'Tin nhắn', children: [
                 { key: '/messaging', label: <Link to="/messaging">Hộp thư</Link> },

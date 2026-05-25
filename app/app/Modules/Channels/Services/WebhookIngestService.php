@@ -41,9 +41,19 @@ class WebhookIngestService
 
         $dedupeKey = $event->externalOrderId ?: ($event->externalIds['notification_id'] ?? ($event->externalIds['return_id'] ?? null));
 
+        // Dedupe theo `(provider, event_type, external_id, shop, order_raw_status)` — order-sync-pipeline §2
+        // ("[, timestamp]"). external_id của order event = order_id, nên nếu CHỈ khử theo order_id thì mọi
+        // transition sau lần đầu (AWAITING_SHIPMENT → AWAITING_COLLECTION → IN_TRANSIT → CANCEL) bị coi là
+        // trùng và bỏ ⇒ webhook mất tác dụng real-time. Thêm raw_status để giữ các status khác nhau, vẫn
+        // khử retry cùng status. (status null — vd push không kèm trạng thái — khử theo null như cũ.)
         if ($dedupeKey !== null && WebhookEvent::query()
             ->where('provider', $provider)->where('event_type', $event->type)->where('external_id', $dedupeKey)
             ->where('external_shop_id', $event->externalShopId)
+            ->when(
+                $event->orderRawStatus !== null,
+                fn ($q) => $q->where('order_raw_status', $event->orderRawStatus),
+                fn ($q) => $q->whereNull('order_raw_status'),
+            )
             ->whereIn('status', [WebhookEvent::STATUS_PENDING, WebhookEvent::STATUS_PROCESSED])->exists()) {
             return ['status' => 200, 'body' => ['ok' => true, 'note' => 'duplicate']];
         }

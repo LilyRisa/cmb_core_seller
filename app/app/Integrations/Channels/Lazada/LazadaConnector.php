@@ -12,6 +12,7 @@ use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
 use CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
+use CMBcoreSeller\Support\GotenbergClient;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Request;
@@ -61,7 +62,9 @@ class LazadaConnector implements ChannelConnector
             // Đối soát/Settlement — Phase 6.2. Bật bằng INTEGRATIONS_LAZADA_FINANCE=true sau khi đối chiếu shape
             // `/finance/transaction/details/get` với sandbox thật. SPEC 0016.
             'finance.settlements' => (bool) config('integrations.lazada.finance_enabled', false),
-            'returns.fetch' => false,         // Phase 7
+            // After-sales (Hoàn & Hủy) — SPEC 0025. Tắt bằng INTEGRATIONS_LAZADA_RETURNS=false.
+            'returns.fetch' => (bool) config('integrations.lazada.returns_enabled', true),
+            'returns.manage' => (bool) config('integrations.lazada.returns_enabled', true),
         ];
     }
 
@@ -745,7 +748,7 @@ class LazadaConnector implements ChannelConnector
                 // Gotenberg defaults (A4, 0 margin) đủ cho tem AWB Lazada — HTML từ sàn đã có @page CSS riêng,
                 // override paperWidth/Height qua options sẽ require multipart shape khác (Gotenberg API). Giữ
                 // defaults để Gotenberg tự honor `@page` CSS trong HTML của Lazada.
-                $bytes = app(\CMBcoreSeller\Support\GotenbergClient::class)->htmlToPdf($bytes);
+                $bytes = app(GotenbergClient::class)->htmlToPdf($bytes);
                 Log::info('lazada.document_html_rendered_to_pdf', ['order' => $externalOrderId, 'html_size' => strlen($extracted['bytes']), 'pdf_size' => strlen($bytes)]);
             } catch (\Throwable $e) {
                 Log::warning('lazada.document_html_to_pdf_failed', ['order' => $externalOrderId, 'error' => $e->getMessage()]);
@@ -903,5 +906,63 @@ class LazadaConnector implements ChannelConnector
         $settlement = LazadaMappers::settlement($rows, $from, $to);
 
         return new Page(items: [$settlement], nextCursor: null, hasMore: false);
+    }
+
+    // --- After-sales (Hoàn & Hủy) — SPEC 0025. Reverse order; field/path verify sandbox. ---
+
+    public function fetchReturns(AuthContext $auth, array $query = []): Page
+    {
+        if (! config('integrations.lazada.returns_enabled')) {
+            throw UnsupportedOperation::for($this->code(), 'fetchReturns');
+        }
+        $limit = min(100, max(1, (int) ($query['pageSize'] ?? 50)));
+        $offset = (int) ($query['cursor'] ?? 0);
+        $params = ['limit' => $limit, 'offset' => $offset];
+        if (! empty($query['updatedFrom'])) {
+            $params['update_after'] = $query['updatedFrom']->toIso8601String();
+        }
+        $resp = $this->client->get((string) config('integrations.lazada.endpoints.reverse_list', '/reverse/getreverseordersforseller'), $auth, $params);
+
+        // Lazada reverse list shape khác nhau theo region: data.module | data.reverse_orders | data (list).
+        $rows = (array) (data_get($resp, 'module') ?? data_get($resp, 'reverse_orders') ?? (array_is_list((array) $resp) ? $resp : []));
+        $items = array_values(array_map(fn ($r) => LazadaMappers::reverseRecord((array) $r), array_values(array_filter($rows, 'is_array'))));
+        $hasMore = count($items) >= $limit;
+
+        return new Page($items, $hasMore ? (string) ($offset + $limit) : null, $hasMore);
+    }
+
+    public function fetchCancellations(AuthContext $auth, array $query = []): Page
+    {
+        // Lazada gộp hủy/hoàn trong reverse order list (kind suy từ reverse_status) ⇒ fetchReturns đã phủ.
+        // Trả Page rỗng để job after-sales không gọi trùng. SPEC 0025 §12.
+        return new Page([], null, false);
+    }
+
+    public function decideReturn(AuthContext $auth, string $externalReturnId, string $action, array $params = []): array
+    {
+        if (! config('integrations.lazada.returns_enabled')) {
+            throw UnsupportedOperation::for($this->code(), 'decideReturn');
+        }
+        $path = (string) config('integrations.lazada.endpoints.reverse_refund_decide', '/order/reverse/onlyrefund/seller/decide');
+
+        return $this->client->post($path, $auth, array_filter([
+            'reverse_order_id' => $externalReturnId,
+            'decision' => strtolower($action) === 'reject' ? 'REJECT' : 'AGREE',
+            'remark' => $params['comment'] ?? null,
+        ], fn ($v) => $v !== null && $v !== ''));
+    }
+
+    public function decideCancellation(AuthContext $auth, string $externalCancelId, string $action, array $params = []): array
+    {
+        if (! config('integrations.lazada.returns_enabled')) {
+            throw UnsupportedOperation::for($this->code(), 'decideCancellation');
+        }
+        $path = (string) config('integrations.lazada.endpoints.reverse_cancel_decide', '/order/reverse/cancel/seller/decide');
+
+        return $this->client->post($path, $auth, array_filter([
+            'reverse_order_id' => $externalCancelId,
+            'decision' => strtolower($action) === 'reject' ? 'REJECT' : 'AGREE',
+            'remark' => $params['comment'] ?? null,
+        ], fn ($v) => $v !== null && $v !== ''));
     }
 }

@@ -7,6 +7,7 @@ use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
 use CMBcoreSeller\Integrations\Channels\DTO\ChannelListingDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\OrderDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\Page;
+use CMBcoreSeller\Integrations\Channels\DTO\ReturnDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\SettlementDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
@@ -134,7 +135,7 @@ interface ChannelConnector
      * Đẩy đơn đã gói lên trạng thái "ready to ship" trên sàn — Lazada gọi `/order/rts`, TikTok / Shopee
      * KHÔNG có bước này (đơn đã ở `AWAITING_COLLECTION` sau arrange; "đóng gói" là thao tác nội bộ).
      *
-     * Connector chưa hỗ trợ ⇒ ném {@see \CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation}.
+     * Connector chưa hỗ trợ ⇒ ném {@see UnsupportedOperation}.
      * Capability `shipping.ready_to_ship` BẮT BUỘC check trước khi gọi — `ShipmentService::markPacked` chỉ
      * gọi method này khi capability=true để không phá luồng của connector khác (TikTok / Manual). Lazada
      * docs: paid → packed (`/order/fulfill/pack`) → ready_to_ship (`/order/rts`). Xem `lazada_order.md`.
@@ -167,4 +168,41 @@ interface ChannelConnector
      * @return Page<SettlementDTO>
      */
     public function fetchSettlements(AuthContext $auth, array $query = []): Page;
+
+    // --- After-sales (cancel / return / refund) — SPEC 0025 ---------------
+
+    /**
+     * Page through the shop's RETURN/REFUND records (after-sales). Connector chưa hỗ trợ ⇒ ném
+     * {@see UnsupportedOperation}; capability `returns.fetch`
+     * BẮT BUỘC kiểm trước khi gọi. `$query`: `statuses?` (list raw), `updatedFrom?`, `cursor?`, `pageSize?`.
+     *
+     * @param  array<string,mixed>  $query
+     * @return Page<ReturnDTO>
+     */
+    public function fetchReturns(AuthContext $auth, array $query = []): Page;
+
+    /**
+     * Page through the shop's CANCELLATION records (after-sales). Cùng hợp đồng với {@see fetchReturns}.
+     *
+     * @param  array<string,mixed>  $query
+     * @return Page<ReturnDTO>
+     */
+    public function fetchCancellations(AuthContext $auth, array $query = []): Page;
+
+    /**
+     * Seller duyệt/từ chối một yêu cầu RETURN/REFUND của buyer. `$action` ∈ `approve|reject`.
+     * Capability `returns.manage` BẮT BUỘC kiểm trước. Trả mảng kết quả thô của sàn.
+     *
+     * @param  array<string,mixed>  $params
+     * @return array<string,mixed>
+     */
+    public function decideReturn(AuthContext $auth, string $externalReturnId, string $action, array $params = []): array;
+
+    /**
+     * Seller duyệt/từ chối một yêu cầu HỦY của buyer. Cùng hợp đồng với {@see decideReturn}.
+     *
+     * @param  array<string,mixed>  $params
+     * @return array<string,mixed>
+     */
+    public function decideCancellation(AuthContext $auth, string $externalCancelId, string $action, array $params = []): array;
 }

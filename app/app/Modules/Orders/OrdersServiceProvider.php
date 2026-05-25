@@ -3,7 +3,9 @@
 namespace CMBcoreSeller\Modules\Orders;
 
 use CMBcoreSeller\Modules\Orders\Contracts\OrderUpsertContract;
+use CMBcoreSeller\Modules\Orders\Contracts\ReturnUpsertContract;
 use CMBcoreSeller\Modules\Orders\Services\OrderUpsertService;
+use CMBcoreSeller\Modules\Orders\Services\ReturnUpsertService;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -18,6 +20,8 @@ class OrdersServiceProvider extends ServiceProvider
     {
         // The Channels sync jobs push orders in via this contract (never via the Service directly).
         $this->app->bind(OrderUpsertContract::class, OrderUpsertService::class);
+        // After-sales (cancel/return/refund) upsert — SPEC 0025.
+        $this->app->bind(ReturnUpsertContract::class, ReturnUpsertService::class);
     }
 
     public function boot(): void

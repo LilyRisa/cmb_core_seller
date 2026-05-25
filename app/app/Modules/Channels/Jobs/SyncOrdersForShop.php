@@ -104,14 +104,22 @@ class SyncOrdersForShop implements ShouldBeUnique, ShouldQueue
                 : ($account->last_synced_at ? CarbonImmutable::parse($account->last_synced_at)->subMinutes($overlapMin) : $runStart->subDays(7)));
 
         $connector = $registry->for($account->provider);
-        $maxPages = $this->type === SyncRun::TYPE_BACKFILL ? 500 : 50;
-        $this->pageThrough($account, $connector, $upsert, $run, fn ($cursor) => $connector->fetchOrders($account->authContext(), [
+        $maxPages = $this->type === SyncRun::TYPE_BACKFILL
+            ? (int) config('integrations.sync.backfill_max_pages', 500)
+            : (int) config('integrations.sync.poll_max_pages', 50);
+        [$completed, $maxUpdatedAt] = $this->pageThrough($account, $connector, $upsert, $run, fn ($cursor) => $connector->fetchOrders($account->authContext(), [
             'updatedFrom' => $since, 'cursor' => $cursor, 'pageSize' => 50,
         ]), $maxPages);
 
-        // Advance the watermark to the run start (minus overlap) so updates during the run aren't missed.
-        // Chỉ áp cho time-window sync — unprocessed không update để khỏi nhiễu poll thường.
-        $account->forceFill(['last_synced_at' => $runStart->subMinutes($overlapMin)])->save();
+        // Advance the watermark. Phân trang chạy HẾT ⇒ tiến tới runStart (trừ overlap) để không bỏ lỡ update
+        // xảy ra trong lúc chạy. CHẠM TRẦN mà sàn còn trang (sort update_time ASC) ⇒ chỉ tiến tới update_time
+        // của đơn cuối đã xử lý (trừ overlap) để lần poll sau tiếp tục từ đó — KHÔNG nhảy lên runStart kẻo bỏ
+        // sót các đơn mới hơn nằm sau trần. Chỉ áp cho time-window sync (unprocessed không đụng watermark).
+        $watermark = $runStart->subMinutes($overlapMin);
+        if (! $completed && $maxUpdatedAt !== null && $maxUpdatedAt->lessThan($watermark)) {
+            $watermark = $maxUpdatedAt->subMinutes($overlapMin);
+        }
+        $account->forceFill(['last_synced_at' => $watermark])->save();
     }
 
     /**
@@ -142,10 +150,13 @@ class SyncOrdersForShop implements ShouldBeUnique, ShouldQueue
      * page → upsert từng order. Auto-refresh token khi gặp lỗi auth. Lỗi từng đơn không chặn batch.
      *
      * @param  callable(?string): Page  $fetch
+     * @return array{0: bool, 1: ?CarbonImmutable} [phân-trang-chạy-hết?, update_time lớn nhất đã xử lý]
      */
-    private function pageThrough(ChannelAccount $account, $connector, OrderUpsertService $upsert, SyncRun $run, callable $fetch, int $maxPages): void
+    private function pageThrough(ChannelAccount $account, $connector, OrderUpsertService $upsert, SyncRun $run, callable $fetch, int $maxPages): array
     {
         $cursor = null;
+        $completed = true;
+        $maxUpdatedAt = null;
         for ($page = 0; $page < $maxPages; $page++) {
             try {
                 $pageResult = $fetch($cursor);
@@ -168,6 +179,9 @@ class SyncOrdersForShop implements ShouldBeUnique, ShouldQueue
                     $run->bump(['fetched' => 1, 'errors' => 1]);
                     Log::warning('sync.upsert_failed', ['shop' => $account->external_shop_id, 'order' => $dto->externalOrderId, 'error' => $e->getMessage()]);
                 }
+                if ($dto->sourceUpdatedAt !== null && ($maxUpdatedAt === null || $dto->sourceUpdatedAt->greaterThan($maxUpdatedAt))) {
+                    $maxUpdatedAt = $dto->sourceUpdatedAt;
+                }
             }
             $run->cursor = $pageResult->nextCursor;
             $run->save();
@@ -176,7 +190,12 @@ class SyncOrdersForShop implements ShouldBeUnique, ShouldQueue
                 break;
             }
             $cursor = $pageResult->nextCursor;
+            if ($page === $maxPages - 1) {
+                $completed = false; // chạm trần nhưng sàn vẫn còn trang
+            }
         }
+
+        return [$completed, $maxUpdatedAt];
     }
 
     /** If the failure looks like an expired token, try refreshing once; on success return true to retry. */

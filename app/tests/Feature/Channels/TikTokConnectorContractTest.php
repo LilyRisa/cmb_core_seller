@@ -6,6 +6,7 @@ use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
 use CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation;
+use CMBcoreSeller\Support\Enums\AfterSalesStatus;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -76,9 +77,21 @@ class TikTokConnectorContractTest extends TestCase
         $this->assertSame(F::SHOP_CIPHER, $shop->raw['cipher']);
     }
 
+    public function test_fetch_order_detail_uses_configured_detail_version(): void
+    {
+        // Get Order Detail mới nhất là bản 202507 (docv2_page_get-order-detail-202507) —
+        // tách riêng version.order_detail khỏi version.order (list vẫn 202309/orders/search).
+        Http::fake(['*/order/202507/orders?*' => Http::response(F::orderDetail())]);
+
+        $dto = $this->connector()->fetchOrderDetail($this->auth(), F::ORDER_ID);
+
+        $this->assertSame(F::ORDER_ID, $dto->externalOrderId);
+        Http::assertSent(fn ($req) => str_contains((string) $req->url(), '/order/202507/orders'));
+    }
+
     public function test_fetch_order_detail_maps_to_order_dto(): void
     {
-        Http::fake(['*/order/202309/orders?*' => Http::response(F::orderDetail())]);
+        Http::fake(['*/order/202507/orders?*' => Http::response(F::orderDetail())]);
 
         $dto = $this->connector()->fetchOrderDetail($this->auth(), F::ORDER_ID);
 
@@ -126,10 +139,28 @@ class TikTokConnectorContractTest extends TestCase
         $this->assertFalse($page2->hasMore);
     }
 
+    public function test_arrange_shipment_idempotent_when_already_arranged(): void
+    {
+        // Package đã có tracking (đã ship trước đó) ⇒ KHÔNG gọi /ship lại (re-call sẽ lỗi), trả tracking cũ.
+        config(['integrations.tiktok.fulfillment_enabled' => true]);
+        Http::fake([
+            '*/fulfillment/202309/packages/*/ship*' => Http::response(F::envelope([])),
+            '*/fulfillment/202309/packages/*' => Http::response(F::envelope(['tracking_number' => 'TT-EXIST', 'shipping_provider_name' => 'GHN'])),
+        ]);
+
+        $r = $this->connector()->arrangeShipment($this->auth(), F::ORDER_ID, ['packages' => [['externalPackageId' => 'PKG1']]]);
+
+        $this->assertSame('TT-EXIST', $r['tracking_no']);
+        Http::assertNotSent(fn ($req) => str_contains((string) $req->url(), '/ship'));
+    }
+
     public function test_status_mapping(): void
     {
         $c = $this->connector();
         $this->assertSame(StandardOrderStatus::Unpaid, $c->mapStatus('UNPAID'));
+        // ON_HOLD = đã nhận đơn, CHỜ fulfillment, buyer còn tự huỷ được (chưa arrange) ⇒ "Chờ xử lý" = pending,
+        // cùng nhóm AWAITING_SHIPMENT (không phải processing — chưa in/arrange phiếu).
+        $this->assertSame(StandardOrderStatus::Pending, $c->mapStatus('ON_HOLD'));
         // SPEC 0013: AWAITING_SHIPMENT = chưa in/arrange phiếu ⇒ pending (kể cả khi đã có package).
         // AWAITING_COLLECTION = đã in/arrange phiếu (TikTok "đang chờ lấy hàng") ⇒ processing.
         $this->assertSame(StandardOrderStatus::Pending, $c->mapStatus('AWAITING_SHIPMENT'));
@@ -139,6 +170,8 @@ class TikTokConnectorContractTest extends TestCase
         $this->assertSame(StandardOrderStatus::Delivered, $c->mapStatus('DELIVERED'));
         $this->assertSame(StandardOrderStatus::Completed, $c->mapStatus('COMPLETED'));
         $this->assertSame(StandardOrderStatus::Cancelled, $c->mapStatus('CANCELLED'));
+        // Webhook order_status dùng "CANCEL" (doc 1-order-status-change), khác list/detail ("CANCELLED").
+        $this->assertSame(StandardOrderStatus::Cancelled, $c->mapStatus('CANCEL'));
         // unknown raw status -> conservative fallback, never throws
         $this->assertSame(StandardOrderStatus::Cancelled, $c->mapStatus('SOMETHING_CANCELLED_WEIRD'));
         $this->assertSame(StandardOrderStatus::Pending, $c->mapStatus('TOTALLY_NEW_STATUS'));
@@ -170,6 +203,54 @@ class TikTokConnectorContractTest extends TestCase
         $this->assertSame(WebhookEventDTO::TYPE_ORDER_STATUS_UPDATE, $event->type);
         $this->assertSame(F::SHOP_ID, $event->externalShopId);
         $this->assertSame(F::ORDER_ID, $event->externalOrderId);
+    }
+
+    public function test_fetch_returns_maps_to_return_dto(): void
+    {
+        config(['integrations.tiktok.returns_enabled' => true]);
+        Http::fake(['*/return_refund/202309/returns/search*' => Http::response(F::returnsSearch())]);
+
+        $page = $this->connector()->fetchReturns($this->auth(), ['updatedFrom' => now()->subDay()]);
+
+        $this->assertCount(1, $page->items);
+        $r = $page->items[0];
+        $this->assertSame('RET-1', $r->externalReturnId);
+        $this->assertSame(F::ORDER_ID, $r->externalOrderId);
+        $this->assertSame(AfterSalesStatus::Requested, $r->status);
+        $this->assertSame('return', $r->kind);
+        $this->assertSame(50000, $r->refundAmount);
+        $this->assertSame(1, count($r->items));
+    }
+
+    public function test_fetch_cancellations_maps_to_return_dto(): void
+    {
+        config(['integrations.tiktok.returns_enabled' => true]);
+        Http::fake(['*/return_refund/202309/cancellations/search*' => Http::response(F::cancellationsSearch())]);
+
+        $page = $this->connector()->fetchCancellations($this->auth(), ['updatedFrom' => now()->subDay()]);
+
+        $this->assertCount(1, $page->items);
+        $this->assertSame('CXL-1', $page->items[0]->externalReturnId);
+        $this->assertSame('cancel', $page->items[0]->kind);
+        $this->assertSame(AfterSalesStatus::Requested, $page->items[0]->status);
+        $this->assertSame(205000, $page->items[0]->refundAmount);
+    }
+
+    public function test_decide_return_calls_approve_endpoint(): void
+    {
+        config(['integrations.tiktok.returns_enabled' => true]);
+        Http::fake(['*/return_refund/202309/returns/RET-1/approve*' => Http::response(F::envelope([]))]);
+
+        $this->connector()->decideReturn($this->auth(), 'RET-1', 'approve');
+
+        Http::assertSent(fn ($r) => str_contains((string) $r->url(), '/return_refund/202309/returns/RET-1/approve') && $r->method() === 'POST');
+    }
+
+    public function test_returns_disabled_throws_unsupported(): void
+    {
+        config(['integrations.tiktok.returns_enabled' => false]);
+        $this->expectException(UnsupportedOperation::class);
+        $this->connector()->fetchReturns($this->auth());
     }
 
     public function test_unsupported_phase2plus_operations_throw(): void

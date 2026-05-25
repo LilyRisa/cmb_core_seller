@@ -8,6 +8,8 @@ use CMBcoreSeller\Integrations\Carriers\Support\CarrierUnsupportedException;
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Fulfillment\Events\ShipmentCreated;
+use CMBcoreSeller\Modules\Fulfillment\Jobs\BackfillChannelTracking;
+use CMBcoreSeller\Modules\Fulfillment\Jobs\FetchChannelLabel;
 use CMBcoreSeller\Modules\Fulfillment\Models\CarrierAccount;
 use CMBcoreSeller\Modules\Fulfillment\Models\PrintJob;
 use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
@@ -54,6 +56,7 @@ class ShipmentService
     {
         if ($order->channel_account_id) {
             Log::info('shipment.queue_delivery_slip_skipped_channel_order', ['order' => $order->getKey()]);
+
             return;
         }
         try {
@@ -139,6 +142,17 @@ class ShipmentService
      *
      * @return array{tracking_no:?string,carrier:?string,raw_status:?string,package_id:?string}|null
      */
+    /** Đơn sàn + connector hỗ trợ "luồng A" (shipping.arrange) ⇒ true. Dùng để quyết có enqueue backfill tracking không. */
+    private function channelSupportsArrange(Order $order): bool
+    {
+        if (! $order->channel_account_id) {
+            return false;
+        }
+        $account = ChannelAccount::query()->find($order->channel_account_id);
+
+        return $account && $this->channels->has($account->provider) && $this->channels->for($account->provider)->supports('shipping.arrange');
+    }
+
     private function arrangeOnChannel(Order $order): ?array
     {
         if (! $order->channel_account_id) {
@@ -238,12 +252,13 @@ class ShipmentService
             }
         }
         Log::info('shipment.fetch_channel_label_failed', ['shipment' => $shipment->getKey(), 'provider' => $account->provider, 'attempts' => $attempts, 'error' => $lastError?->getMessage()]);
-        // Sync retry exhausted ⇒ queue async retry (15s/30s/60s/120s/300s) — đặc biệt cho Lazada 3PL render
-        // PDF async 5–30s+ sau /order/rts. Khi job lấy được tem ⇒ đẩy R2 ⇒ list FE tự thấy `has_label=true`.
+        // Sync retry exhausted ⇒ queue async retry (15s/30s/60s/120s/300s). Tem sàn là tài sản BẮT BUỘC
+        // (không tự tạo được) ⇒ áp cho MỌI sàn, không chỉ Lazada: TikTok/Shopee fail tạm thời (sàn rate-limit,
+        // doc chưa render) cũng tự kéo lại đến khi được ⇒ list FE tự thấy `has_label=true`, không cần user bấm tay.
         // Skip nếu đang chạy từ job (Laravel queue tự retry theo backoff — tránh enqueue đệ quy).
-        if (! $skipAsyncRetry && $account->provider === 'lazada') {
+        if (! $skipAsyncRetry) {
             $delaySec = 15;
-            \CMBcoreSeller\Modules\Fulfillment\Jobs\FetchChannelLabel::dispatch((int) $shipment->getKey())
+            FetchChannelLabel::dispatch((int) $shipment->getKey())
                 ->onQueue('labels')->delay(now()->addSeconds($delaySec));
             // Đánh dấu vận đơn vào sub-tab "Đang tải lại" — `label_fetch_next_retry_at > NOW()` ⇒
             // OrderController::applySlipFilter() phân loại sang `loading` (không gộp vào `failed`/`Nhận phiếu`).
@@ -267,6 +282,61 @@ class ShipmentService
      * tạm. Gọi sàn lỗi / connector chưa hỗ trợ "luồng A" ⇒ vẫn tạo vận đơn cục bộ (mã có thể trống, gắn cờ
      * `has_issue` để hướng dẫn "Nhận phiếu giao hàng"). Đơn → `processing`. SPEC 0013/0014.
      */
+    /**
+     * Chặn "Chuẩn bị hàng" cho đơn sàn đang ở raw_status mà SÀN không cho fulfill (TikTok `ON_HOLD` —
+     * khách còn tự huỷ + chưa có địa chỉ giao). Danh sách cấu hình ở `integrations.{provider}.unfulfillable_raw_statuses`.
+     * Ném {@see RuntimeException} TRƯỚC khi gọi sàn để khỏi tạo vận đơn / gọi ship lỗi. SPEC 0013.
+     */
+    private function assertChannelOrderFulfillable(Order $order): void
+    {
+        $account = ChannelAccount::query()->find($order->channel_account_id);
+        if (! $account) {
+            return;
+        }
+        $blocked = array_map('strtoupper', (array) config("integrations.{$account->provider}.unfulfillable_raw_statuses", []));
+        $raw = strtoupper(trim((string) $order->raw_status));
+        if ($raw !== '' && in_array($raw, $blocked, true)) {
+            throw new RuntimeException("Đơn đang ở trạng thái chờ ({$raw}) — sàn chưa cho chuẩn bị hàng (khách còn có thể tự huỷ và chưa có địa chỉ giao). Đợi đơn chuyển sang trạng thái sẵn sàng giao rồi thử lại.");
+        }
+    }
+
+    /**
+     * Kéo lại mã vận đơn của sàn cho vận đơn chưa có tracking (TikTok cấp async). Gọi arrange idempotent
+     * (chỉ GET package detail, không ship lại) — có tracking ⇒ cập nhật shipment + clear cờ + lấy tem,
+     * trả true; chưa có ⇒ false (job retry). SPEC 0014.
+     */
+    public function backfillChannelTracking(Order $order, Shipment $shipment): bool
+    {
+        if (filled($shipment->tracking_no)) {
+            return true;
+        }
+        try {
+            $arr = $this->arrangeOnChannel($order);   // idempotent: chỉ GET detail, trả tracking nếu đã ship
+        } catch (\Throwable $e) {
+            Log::info('shipment.backfill_tracking_arrange_failed', ['shipment' => $shipment->getKey(), 'error' => $e->getMessage()]);
+
+            return false;
+        }
+        if (! is_array($arr) || blank($arr['tracking_no'] ?? null)) {
+            return false;
+        }
+        $patch = ['tracking_no' => (string) $arr['tracking_no']];
+        if (! empty($arr['package_id']) && blank($shipment->package_no)) {
+            $patch['package_no'] = (string) $arr['package_id'];
+        }
+        if (! empty($arr['carrier']) && blank($shipment->carrier)) {
+            $patch['carrier'] = (string) $arr['carrier'];
+        }
+        $shipment->forceFill($patch)->save();
+        if ($order->has_issue && str_contains((string) $order->issue_reason, 'mã vận đơn')) {
+            $order->forceFill(['has_issue' => false, 'issue_reason' => null])->save();
+        }
+        // Có tracking rồi ⇒ kéo tem luôn (justArranged: tem có thể chưa publish ngay).
+        $this->fetchAndStoreChannelLabel($order, $shipment, justArranged: true);
+
+        return true;
+    }
+
     private function prepareChannelOrder(Order $order, ?int $userId): Shipment
     {
         $tenantId = (int) $order->tenant_id;
@@ -328,6 +398,10 @@ class ShipmentService
         if ($shipment->tracking_no) {
             // justArranged=true ⇒ vừa /order/rts (Lazada) hoặc /packages/.../ship (TikTok) ⇒ retry tem cho Lazada (propagation 1–3s)
             $this->fetchAndStoreChannelLabel($order, $shipment, justArranged: true);
+        } elseif ($this->channelSupportsArrange($order)) {
+            // TikTok thường gán tracking async sau /ship ⇒ enqueue job kéo lại đến khi có (rồi tự lấy tem). SPEC 0014.
+            BackfillChannelTracking::dispatch((int) $shipment->getKey())
+                ->onQueue('labels')->delay(now()->addSeconds(30));
         }
         $this->orderStatus->apply($order, S::Processing, 'system', [S::Pending], $userId);
         $shipment->refresh();
@@ -411,6 +485,8 @@ class ShipmentService
         // Đơn sàn: dùng mã vận đơn / AWB của sàn (đồng bộ về hoặc "luồng A"), cập nhật trạng thái "đã in đơn"
         // lên sàn — không tự sinh mã vận đơn giả như đơn manual. SPEC 0013/0014.
         if ($order->channel_account_id) {
+            $this->assertChannelOrderFulfillable($order);
+
             return $this->prepareChannelOrder($order, $userId);
         }
 
@@ -650,6 +726,12 @@ class ShipmentService
         }
         if (in_array($shipment->status, Shipment::HANDED_OVER_STATUSES, true)) {
             return false; // already handed over — no-op (anti double-scan, rule 5)
+        }
+        // Đơn sàn PHẢI có tem/AWB thật của sàn trước khi bàn giao ĐVVC — bàn giao gói thiếu AWB ⇒ ĐVVC từ
+        // chối / sàn phạt. Tem không tự tạo được (rule cố định) ⇒ chặn + hướng dẫn "Nhận phiếu giao hàng". SPEC 0013.
+        $orderForGate = $this->orderFor($shipment);
+        if ($orderForGate && $orderForGate->channel_account_id && blank($shipment->label_path)) {
+            throw new RuntimeException('Đơn của sàn chưa có phiếu giao hàng (tem) thật từ sàn — chưa thể bàn giao ĐVVC. Bấm "Nhận phiếu giao hàng" để lấy tem từ sàn trước.');
         }
         DB::transaction(function () use ($shipment, $source, $userId, $eventCode) {
             $patch = ['status' => Shipment::STATUS_PICKED_UP, 'picked_up_at' => now()];

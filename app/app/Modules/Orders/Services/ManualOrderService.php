@@ -3,10 +3,12 @@
 namespace CMBcoreSeller\Modules\Orders\Services;
 
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
+use CMBcoreSeller\Modules\Inventory\Models\Warehouse;
 use CMBcoreSeller\Modules\Orders\Events\OrderUpserted;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Orders\Models\OrderItem;
 use CMBcoreSeller\Modules\Orders\Models\OrderStatusHistory;
+use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use Illuminate\Support\Facades\DB;
@@ -36,7 +38,7 @@ class ManualOrderService
         // Có thể giữ template biến `{{order_number}}`, `{{customer_name}}`, `{{cod_amount}}` để FE chèn động sau.
         $meta = (array) ($data['meta'] ?? []);
         if (empty($meta['print_note'])) {
-            $tenant = \CMBcoreSeller\Modules\Tenancy\Models\Tenant::query()->find($tenantId);
+            $tenant = Tenant::query()->find($tenantId);
             $default = (string) (data_get($tenant?->settings, 'print.default_note') ?: '');
             if ($default !== '') {
                 $meta['print_note'] = $default;
@@ -494,9 +496,9 @@ class ManualOrderService
     private function resolveWarehouseId(int $tenantId, mixed $requested): int
     {
         if ($requested === null || $requested === '') {
-            return \CMBcoreSeller\Modules\Inventory\Models\Warehouse::defaultFor($tenantId)->id;
+            return Warehouse::defaultFor($tenantId)->id;
         }
-        $exists = \CMBcoreSeller\Modules\Inventory\Models\Warehouse::query()
+        $exists = Warehouse::query()
             ->withoutGlobalScopes()
             ->where('tenant_id', $tenantId)->where('id', (int) $requested)->exists();
         if (! $exists) {

@@ -6,9 +6,11 @@ use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\DTO\ChannelListingDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\OrderDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\OrderItemDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\ReturnDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
+use CMBcoreSeller\Support\Enums\AfterSalesStatus;
 
 /**
  * Translates TikTok Shop Partner API (v202309) JSON into the standard DTOs.
@@ -344,6 +346,91 @@ final class TikTokMappers
             $t === 'order' || str_contains($t, 'sale') || str_contains($t, 'sku_amount') || str_contains($t, 'order_amount') => SettlementLineDTO::TYPE_REVENUE,
             default => SettlementLineDTO::TYPE_OTHER,
         };
+    }
+
+    /**
+     * Map one TikTok after-sales record (return_orders[] hoặc cancellations[]) → {@see ReturnDTO}.
+     *
+     * @param  array<string,mixed>  $r
+     * @param  string  $kind  ReturnDTO::KIND_RETURN | KIND_CANCEL
+     */
+    public static function returnRecord(array $r, string $kind): ReturnDTO
+    {
+        $isCancel = $kind === ReturnDTO::KIND_CANCEL;
+        $idKey = $isCancel ? 'cancel_id' : 'return_id';
+        $statusKey = $isCancel ? 'cancel_status' : 'return_status';
+        $reasonKey = $isCancel ? 'cancel_reason_text' : 'return_reason_text';
+        $reasonAlt = $isCancel ? 'cancel_reason' : 'return_reason';
+        $itemsKey = $isCancel ? 'cancel_line_items' : 'return_line_items';
+
+        $rawStatus = (string) data_get($r, $statusKey, '');
+        $refundTotal = data_get($r, 'refund_amount.refund_total') ?? data_get($r, 'refund_amount');
+        $ts = fn (string $k) => ($v = data_get($r, $k)) ? CarbonImmutable::createFromTimestamp((int) $v) : null;
+
+        // return_type RETURN_AND_REFUND ⇒ return; REFUND ⇒ refund. Cancel luôn kind=cancel.
+        $resolvedKind = $isCancel ? ReturnDTO::KIND_CANCEL
+            : (strtoupper((string) data_get($r, 'return_type', '')) === 'REFUND' ? ReturnDTO::KIND_REFUND : ReturnDTO::KIND_RETURN);
+
+        return new ReturnDTO(
+            externalReturnId: (string) data_get($r, $idKey, ''),
+            source: 'tiktok',
+            kind: $resolvedKind,
+            status: self::afterSalesStatus($rawStatus),
+            rawStatus: $rawStatus,
+            externalOrderId: ($o = data_get($r, 'order_id')) !== null ? (string) $o : null,
+            reason: data_get($r, $reasonKey) ?: (data_get($r, $reasonAlt) ? (string) data_get($r, $reasonAlt) : null),
+            refundAmount: self::money($refundTotal),
+            currency: (string) (data_get($r, 'refund_amount.currency') ?: 'VND'),
+            items: self::returnLineItems((array) data_get($r, $itemsKey, [])),
+            requestedAt: $ts('create_time'),
+            decidedAt: null,
+            sourceUpdatedAt: $ts('update_time') ?? CarbonImmutable::now(),
+            raw: $r,
+        );
+    }
+
+    /** raw return/cancel status (TikTok) → canonical {@see AfterSalesStatus}. Config map + fallback chuỗi. */
+    public static function afterSalesStatus(string $raw): AfterSalesStatus
+    {
+        $key = strtoupper(trim($raw));
+        $map = (array) config('integrations.tiktok.return_status_map', []);
+        if (isset($map[$key])) {
+            return AfterSalesStatus::tryFrom((string) $map[$key]) ?? AfterSalesStatus::Requested;
+        }
+
+        return match (true) {
+            str_contains($key, 'REJECT') => AfterSalesStatus::Rejected,
+            str_contains($key, 'SUCCESS') || str_contains($key, 'COMPLETE') || str_contains($key, 'REFUNDED') => AfterSalesStatus::Completed,
+            str_contains($key, 'CANCEL') => AfterSalesStatus::Cancelled,
+            str_contains($key, 'SHIP') || str_contains($key, 'RETURNING') || str_contains($key, 'RECEIV') => AfterSalesStatus::Processing,
+            str_contains($key, 'AGREE') || str_contains($key, 'APPROV') => AfterSalesStatus::Approved,
+            default => AfterSalesStatus::Requested,
+        };
+    }
+
+    /**
+     * @param  list<mixed>  $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function returnLineItems(array $rows): array
+    {
+        $out = [];
+        foreach ($rows as $li) {
+            if (! is_array($li)) {
+                continue;
+            }
+            $row = array_filter([
+                'sku_id' => data_get($li, 'sku_id'),
+                'seller_sku' => data_get($li, 'seller_sku'),
+                'name' => data_get($li, 'product_name') ?: data_get($li, 'sku_name'),
+                'quantity' => (int) (data_get($li, 'quantity') ?: 1),
+            ], fn ($v) => $v !== null && $v !== '');
+            if ($row !== []) {
+                $out[] = $row;
+            }
+        }
+
+        return $out;
     }
 
     /** TikTok money strings -> integer VND đồng. Defensive against currency symbols / thousands separators. */

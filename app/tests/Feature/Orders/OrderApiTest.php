@@ -187,7 +187,7 @@ class OrderApiTest extends TestCase
         $order = Order::withoutGlobalScope(TenantScope::class)->create([
             'tenant_id' => $this->tenant->getKey(), 'source' => 'manual', 'channel_account_id' => null,
             'external_order_id' => 'MAN-INV-1', 'order_number' => 'MAN-INV-1',
-            'status' => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Pending, 'raw_status' => 'pending', 'source_updated_at' => now(),
+            'status' => StandardOrderStatus::Pending, 'raw_status' => 'pending', 'source_updated_at' => now(),
             'grand_total' => 100000, 'item_total' => 100000, 'shipping_fee' => 0, 'currency' => 'VND',
         ]);
 

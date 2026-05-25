@@ -21,7 +21,7 @@ use Symfony\Component\HttpFoundation\Request;
  */
 class ShopeeConnector implements ChannelConnector
 {
-    public function __construct(private ShopeeClient $client, private ShopeeWebhookVerifier $verifier = new ShopeeWebhookVerifier()) {}
+    public function __construct(private ShopeeClient $client, private ShopeeWebhookVerifier $verifier = new ShopeeWebhookVerifier) {}
 
     public function code(): string
     {
@@ -47,7 +47,9 @@ class ShopeeConnector implements ChannelConnector
             'listings.fetch' => true, 'listings.publish' => false,
             'listings.updateStock' => true, 'listings.updatePrice' => false,
             'finance.settlements' => $finance,
-            'returns.fetch' => false,
+            // After-sales (Hoàn & Hủy) — SPEC 0025. Tắt bằng INTEGRATIONS_SHOPEE_RETURNS=false.
+            'returns.fetch' => (bool) config('integrations.shopee.returns_enabled', true),
+            'returns.manage' => (bool) config('integrations.shopee.returns_enabled', true),
         ];
     }
 
@@ -212,6 +214,14 @@ class ShopeeConnector implements ChannelConnector
         $cfg = $this->client->cfg();
         $packageNumber = (string) ($params['packages'][0]['externalPackageId'] ?? '');
 
+        // Idempotency: đơn đã ship (đã có tracking) ⇒ trả luôn, KHÔNG gọi ship_order lại — re-call ship_order
+        // trên đơn đã PROCESSED sẽ lỗi "logistic status not ready to ship". get_tracking_number trên đơn CHƯA
+        // ship trả rỗng/lỗi ⇒ coi như chưa ship, tiến hành ship bình thường.
+        $existingTrack = $this->safeTracking($auth, $externalOrderId, $packageNumber);
+        if ($existingTrack !== null) {
+            return ['tracking_no' => $existingTrack, 'carrier' => null, 'raw_status' => 'PROCESSED', 'package_id' => $packageNumber ?: $externalOrderId];
+        }
+
         if ((string) ($cfg['fulfillment_mode'] ?? 'auto') !== 'refetch_only') {
             $param = $this->client->shopGet($auth, $this->client->endpoint('shipping_parameter'), array_filter(['order_sn' => $externalOrderId, 'package_number' => $packageNumber ?: null]));
             $body = ['order_sn' => $externalOrderId];
@@ -246,6 +256,21 @@ class ShopeeConnector implements ChannelConnector
             'raw_status' => 'PROCESSED',
             'package_id' => $packageNumber ?: $externalOrderId,
         ];
+    }
+
+    /** get_tracking_number, nuốt lỗi + coi mã rỗng là "chưa ship" ⇒ trả null. Dùng cho idempotency arrange. */
+    private function safeTracking(AuthContext $auth, string $externalOrderId, string $packageNumber): ?string
+    {
+        try {
+            $track = $this->client->shopGet($auth, $this->client->endpoint('tracking_number'), array_filter([
+                'order_sn' => $externalOrderId, 'package_number' => $packageNumber ?: null,
+            ]));
+        } catch (\Throwable) {
+            return null;
+        }
+        $t = (string) ($track['tracking_number'] ?? '');
+
+        return $t !== '' ? $t : null;
     }
 
     public function pushReadyToShip(AuthContext $auth, string $externalOrderId, array $params = []): array
@@ -326,6 +351,57 @@ class ShopeeConnector implements ChannelConnector
         $settlement = ShopeeMappers::settlement($escrows, $from, $to);
 
         return new Page([$settlement], null, false);
+    }
+
+    // --- After-sales (Hoàn & Hủy) — SPEC 0025. Field/endpoint đối chiếu doc 227; verify sandbox. ---
+
+    public function fetchReturns(AuthContext $auth, array $query = []): Page
+    {
+        if (! $this->supports('returns.fetch')) {
+            throw UnsupportedOperation::for($this->code(), 'fetchReturns');
+        }
+        $pageSize = min(100, max(1, (int) ($query['pageSize'] ?? 50)));
+        $pageNo = (int) ($query['cursor'] ?? 0);   // get_return_list dùng page_no (0-based)
+        $params = ['page_no' => $pageNo, 'page_size' => $pageSize];
+        if (! empty($query['updatedFrom'])) {
+            $params['create_time_from'] = $query['updatedFrom']->getTimestamp();
+            $params['create_time_to'] = CarbonImmutable::now()->getTimestamp();
+        }
+        $res = $this->client->shopGet($auth, $this->client->endpoint('return_list'), $params);
+        $items = array_values(array_map(fn ($r) => ShopeeMappers::returnRecord((array) $r), (array) ($res['return'] ?? [])));
+        $more = (bool) ($res['more'] ?? false);
+
+        return new Page($items, $more ? (string) ($pageNo + 1) : null, $more);
+    }
+
+    public function fetchCancellations(AuthContext $auth, array $query = []): Page
+    {
+        // Shopee không có API "cancel list" riêng — hủy hiển thị qua order status (IN_CANCEL/CANCELLED) đã
+        // đồng bộ ở orders. Trả Page rỗng để job after-sales no-op cho nhánh cancel. SPEC 0025 §12.
+        return new Page([], null, false);
+    }
+
+    public function decideReturn(AuthContext $auth, string $externalReturnId, string $action, array $params = []): array
+    {
+        if (! $this->supports('returns.manage')) {
+            throw UnsupportedOperation::for($this->code(), 'decideReturn');
+        }
+        // confirm = đồng ý hoàn (Accepted); dispute = phản đối yêu cầu của buyer.
+        $endpoint = strtolower($action) === 'reject' ? 'return_dispute' : 'return_confirm';
+        $body = array_filter(['return_sn' => $externalReturnId, 'email' => $params['comment'] ?? null], fn ($v) => $v !== null && $v !== '');
+
+        return $this->client->shopPost($auth, $this->client->endpoint($endpoint), [], $body);
+    }
+
+    public function decideCancellation(AuthContext $auth, string $externalCancelId, string $action, array $params = []): array
+    {
+        if (! $this->supports('returns.manage')) {
+            throw UnsupportedOperation::for($this->code(), 'decideCancellation');
+        }
+        // handle_buyer_cancellation: ACCEPT (duyệt hủy) | REJECT. $externalCancelId = order_sn.
+        $operation = strtolower($action) === 'reject' ? 'REJECT' : 'ACCEPT';
+
+        return $this->client->shopPost($auth, $this->client->endpoint('handle_cancellation'), [], ['order_sn' => $externalCancelId, 'operation' => $operation]);
     }
 
     /**

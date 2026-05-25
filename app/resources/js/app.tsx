@@ -19,6 +19,7 @@ import { EmailVerifiedPage } from '@/pages/EmailVerifiedPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { OrdersPage } from '@/pages/OrdersPage';
 import { OrderDetailPage } from '@/pages/OrderDetailPage';
+import { ReturnsPage } from '@/pages/ReturnsPage';
 import { ChannelsPage } from '@/pages/ChannelsPage';
 import { SyncLogsPage } from '@/pages/SyncLogsPage';
 import { CustomersPage } from '@/pages/CustomersPage';
@@ -90,6 +91,7 @@ function Root() {
                 <Route path="orders/new" element={<CreateOrderPage />} />
                 <Route path="orders/:id/edit" element={<CreateOrderPage />} />
                 <Route path="orders/:id" element={<OrderDetailPage />} />
+                <Route path="returns" element={<ReturnsPage />} />               {/* Đơn Hoàn & Hủy — SPEC 0025 */}
                 <Route path="channels" element={<ChannelsPage />} />
                 <Route path="customers" element={<CustomersPage />} />
                 <Route path="customers/:id" element={<CustomerDetailPage />} />

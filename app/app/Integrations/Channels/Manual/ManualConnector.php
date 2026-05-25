@@ -134,4 +134,24 @@ class ManualConnector implements ChannelConnector
         // Đơn manual không có "đối soát sàn" — phí/doanh thu nhập tay từ sổ kế toán nội bộ.
         throw UnsupportedOperation::for($this->code(), 'fetchSettlements');
     }
+
+    public function fetchReturns(AuthContext $auth, array $query = []): Page
+    {
+        throw UnsupportedOperation::for($this->code(), 'fetchReturns');
+    }
+
+    public function fetchCancellations(AuthContext $auth, array $query = []): Page
+    {
+        throw UnsupportedOperation::for($this->code(), 'fetchCancellations');
+    }
+
+    public function decideReturn(AuthContext $auth, string $externalReturnId, string $action, array $params = []): array
+    {
+        throw UnsupportedOperation::for($this->code(), 'decideReturn');
+    }
+
+    public function decideCancellation(AuthContext $auth, string $externalCancelId, string $action, array $params = []): array
+    {
+        throw UnsupportedOperation::for($this->code(), 'decideCancellation');
+    }
 }

@@ -6,10 +6,12 @@ use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\DTO\ChannelListingDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\OrderDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\OrderItemDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\ReturnDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\SettlementDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
+use CMBcoreSeller\Support\Enums\AfterSalesStatus;
 
 /**
  * Translates Lazada Open Platform JSON into the standard DTOs. The ONLY place
@@ -505,5 +507,64 @@ final class LazadaMappers
         }
 
         return (int) round((float) $clean);
+    }
+
+    /**
+     * One Lazada reverse order → {@see ReturnDTO}. SPEC 0025. Field/shape verify sandbox.
+     *
+     * @param  array<string,mixed>  $r
+     */
+    public static function reverseRecord(array $r): ReturnDTO
+    {
+        $rawStatus = (string) (data_get($r, 'reverse_status') ?: data_get($r, 'ofc_status', ''));
+        $ts = fn (string $k) => ($v = data_get($r, $k)) ? self::timeOrNull((string) $v) : null;
+
+        return new ReturnDTO(
+            externalReturnId: (string) (data_get($r, 'reverse_order_id') ?: data_get($r, 'reverse_order_line_id', '')),
+            source: 'lazada',
+            kind: ReturnDTO::KIND_RETURN,
+            status: self::afterSalesStatus($rawStatus),
+            rawStatus: $rawStatus,
+            externalOrderId: ($o = data_get($r, 'trade_order_id')) !== null ? (string) $o : null,
+            reason: data_get($r, 'reason_text') ? (string) data_get($r, 'reason_text') : null,
+            refundAmount: self::money(data_get($r, 'refund_amount')),
+            currency: (string) (data_get($r, 'currency') ?: 'VND'),
+            items: [],
+            requestedAt: $ts('create_time') ?? $ts('gmt_create'),
+            sourceUpdatedAt: $ts('update_time') ?? $ts('gmt_modified') ?? CarbonImmutable::now(),
+            raw: $r,
+        );
+    }
+
+    /** Lazada reverse_status → canonical {@see AfterSalesStatus}. Config map + fallback. */
+    public static function afterSalesStatus(string $raw): AfterSalesStatus
+    {
+        $key = strtoupper(trim($raw));
+        $map = (array) config('integrations.lazada.return_status_map', []);
+        if (isset($map[$key])) {
+            return AfterSalesStatus::tryFrom((string) $map[$key]) ?? AfterSalesStatus::Requested;
+        }
+
+        return match (true) {
+            str_contains($key, 'INITIATE') || str_contains($key, 'REQUEST') || str_contains($key, 'APPLY') => AfterSalesStatus::Requested,
+            str_contains($key, 'AGREE') || str_contains($key, 'APPROV') => AfterSalesStatus::Approved,
+            str_contains($key, 'REJECT') => AfterSalesStatus::Rejected,
+            str_contains($key, 'CANCEL') => AfterSalesStatus::Cancelled,
+            str_contains($key, 'SUCCESS') || str_contains($key, 'REFUNDED') || str_contains($key, 'COMPLETE') => AfterSalesStatus::Completed,
+            default => AfterSalesStatus::Processing,
+        };
+    }
+
+    /** Parse Lazada time string ("2026-05-17 10:00:00 +0700" hoặc ISO) → CarbonImmutable, lỗi ⇒ null. */
+    private static function timeOrNull(string $v): ?CarbonImmutable
+    {
+        if (trim($v) === '') {
+            return null;
+        }
+        try {
+            return CarbonImmutable::parse($v);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 }

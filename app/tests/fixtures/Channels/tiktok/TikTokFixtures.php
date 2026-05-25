@@ -134,7 +134,7 @@ final class TikTokFixtures
         ];
     }
 
-    /** GET /order/202309/orders?ids=... -> { data: { orders: [...] } } */
+    /** GET /order/{version.order_detail}/orders?ids=... (mặc định 202507) -> { data: { orders: [...] } } */
     public static function orderDetail(string $id = self::ORDER_ID, string $status = 'AWAITING_SHIPMENT', ?int $updateTime = null): array
     {
         return self::envelope(['orders' => [self::order($id, $status, $updateTime)]]);
@@ -196,6 +196,32 @@ final class TikTokFixtures
         $sig = hash_hmac('sha256', self::APP_KEY.$raw, self::APP_SECRET);
 
         return ['body' => $body, 'raw' => $raw, 'signature' => $sig];
+    }
+
+    /** POST /return_refund/202309/returns/search -> { data: { return_orders, next_page_token, total_count } } */
+    public static function returnsSearch(?array $returns = null, ?string $nextToken = null): array
+    {
+        $returns ??= [[
+            'return_id' => 'RET-1', 'order_id' => self::ORDER_ID, 'return_status' => 'RETURN_OR_REFUND_REQUEST_PENDING',
+            'return_type' => 'RETURN_AND_REFUND', 'return_reason_text' => 'Hàng lỗi',
+            'refund_amount' => ['refund_total' => '50000', 'currency' => 'VND'],
+            'return_line_items' => [['sku_id' => 'sku-1', 'seller_sku' => 'AT-RED-M', 'product_name' => 'Áo thun', 'quantity' => 1]],
+            'create_time' => now()->subHours(3)->timestamp, 'update_time' => now()->subMinutes(10)->timestamp,
+        ]];
+
+        return self::envelope(['return_orders' => $returns, 'next_page_token' => $nextToken, 'total_count' => count($returns)]);
+    }
+
+    /** POST /return_refund/202309/cancellations/search -> { data: { cancellations, next_page_token, total_count } } */
+    public static function cancellationsSearch(?array $cancels = null, ?string $nextToken = null): array
+    {
+        $cancels ??= [[
+            'cancel_id' => 'CXL-1', 'order_id' => self::ORDER_ID, 'cancel_status' => 'CANCELLATION_REQUEST_PENDING',
+            'cancel_reason_text' => 'Đổi ý', 'refund_amount' => ['refund_total' => '205000', 'currency' => 'VND'],
+            'create_time' => now()->subHours(2)->timestamp, 'update_time' => now()->subMinutes(5)->timestamp,
+        ]];
+
+        return self::envelope(['cancellations' => $cancels, 'next_page_token' => $nextToken, 'total_count' => count($cancels)]);
     }
 
     /** Apply the test app_key/app_secret to config so the connector/verifier use these fixtures. */

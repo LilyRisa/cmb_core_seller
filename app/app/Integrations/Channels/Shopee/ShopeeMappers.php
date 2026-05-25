@@ -3,10 +3,15 @@
 namespace CMBcoreSeller\Integrations\Channels\Shopee;
 
 use Carbon\CarbonImmutable;
+use CMBcoreSeller\Integrations\Channels\DTO\ChannelListingDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\OrderDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\OrderItemDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\ReturnDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\SettlementDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\SettlementLineDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
+use CMBcoreSeller\Support\Enums\AfterSalesStatus;
 
 /** Shopee v2 JSON -> standard DTOs. The ONLY place Shopee field names live (besides StatusMap/Verifier). */
 final class ShopeeMappers
@@ -41,14 +46,14 @@ final class ShopeeMappers
     }
 
     /** @param array<string,mixed> $d a single get_order_detail order row */
-    public static function order(array $d): \CMBcoreSeller\Integrations\Channels\DTO\OrderDTO
+    public static function order(array $d): OrderDTO
     {
         $addr = (array) ($d['recipient_address'] ?? []);
         $items = [];
         foreach ((array) ($d['item_list'] ?? []) as $it) {
             $modelId = (string) ($it['model_id'] ?? '0');
             $itemId = (string) ($it['item_id'] ?? '');
-            $items[] = new \CMBcoreSeller\Integrations\Channels\DTO\OrderItemDTO(
+            $items[] = new OrderItemDTO(
                 externalItemId: $itemId.'-'.$modelId,
                 externalProductId: $itemId !== '' ? $itemId : null,
                 externalSkuId: ($modelId !== '' && $modelId !== '0') ? $modelId : ($itemId !== '' ? $itemId : null),
@@ -74,7 +79,7 @@ final class ShopeeMappers
         $isCod = (bool) ($d['cod'] ?? false);
         $grand = (int) round((float) ($d['total_amount'] ?? 0));
 
-        return new \CMBcoreSeller\Integrations\Channels\DTO\OrderDTO(
+        return new OrderDTO(
             externalOrderId: (string) ($d['order_sn'] ?? ''),
             source: 'shopee',
             rawStatus: (string) ($d['order_status'] ?? ''),
@@ -103,7 +108,7 @@ final class ShopeeMappers
     /**
      * @param  array<string,mixed>  $itemBase  one get_item_base_info item
      * @param  array<string,mixed>  $modelRes  get_model_list `response`
-     * @return list<\CMBcoreSeller\Integrations\Channels\DTO\ChannelListingDTO>
+     * @return list<ChannelListingDTO>
      */
     public static function listings(array $itemBase, array $modelRes): array
     {
@@ -114,7 +119,7 @@ final class ShopeeMappers
         $models = (array) ($modelRes['model'] ?? []);
         $out = [];
         if ($models === []) {
-            $out[] = new \CMBcoreSeller\Integrations\Channels\DTO\ChannelListingDTO(
+            $out[] = new ChannelListingDTO(
                 externalSkuId: $itemId, externalProductId: $itemId,
                 sellerSku: ($itemBase['item_sku'] ?? '') !== '' ? (string) $itemBase['item_sku'] : null,
                 title: $title, variation: null,
@@ -126,7 +131,7 @@ final class ShopeeMappers
         }
         foreach ($models as $m) {
             $modelId = (string) ($m['model_id'] ?? '0');
-            $out[] = new \CMBcoreSeller\Integrations\Channels\DTO\ChannelListingDTO(
+            $out[] = new ChannelListingDTO(
                 externalSkuId: ($modelId !== '' && $modelId !== '0') ? $modelId : $itemId,
                 externalProductId: $itemId,
                 sellerSku: ($m['model_sku'] ?? '') !== '' ? (string) $m['model_sku'] : (($itemBase['item_sku'] ?? '') !== '' ? (string) $itemBase['item_sku'] : null),
@@ -185,5 +190,62 @@ final class ShopeeMappers
             totalPayout: $payout, totalRevenue: $revenue, totalFee: $fee, totalShippingFee: $ship,
             lines: $lines, raw: ['escrows' => $escrows],
         );
+    }
+
+    /**
+     * One Shopee return (get_return_list -> response.return[]) → {@see ReturnDTO}. SPEC 0025.
+     *
+     * @param  array<string,mixed>  $r
+     */
+    public static function returnRecord(array $r): ReturnDTO
+    {
+        $rawStatus = (string) ($r['status'] ?? '');
+        $ts = fn (string $k) => isset($r[$k]) && (int) $r[$k] > 0 ? CarbonImmutable::createFromTimestamp((int) $r[$k]) : null;
+        $items = [];
+        foreach ((array) ($r['item'] ?? []) as $it) {
+            if (! is_array($it)) {
+                continue;
+            }
+            $items[] = array_filter([
+                'seller_sku' => $it['item_sku'] ?? null,
+                'name' => $it['name'] ?? null,
+                'quantity' => (int) ($it['amount'] ?? 1),
+            ], fn ($v) => $v !== null && $v !== '');
+        }
+
+        return new ReturnDTO(
+            externalReturnId: (string) ($r['return_sn'] ?? ''),
+            source: 'shopee',
+            kind: ReturnDTO::KIND_RETURN,
+            status: self::afterSalesStatus($rawStatus),
+            rawStatus: $rawStatus,
+            externalOrderId: ($o = $r['order_sn'] ?? null) !== null ? (string) $o : null,
+            reason: $r['reason'] ?? ($r['text_reason'] ?? null),
+            refundAmount: (int) round((float) ($r['refund_amount'] ?? 0)),
+            currency: (string) ($r['currency'] ?? 'VND'),
+            items: $items,
+            requestedAt: $ts('create_time'),
+            sourceUpdatedAt: $ts('update_time') ?? CarbonImmutable::now(),
+            raw: $r,
+        );
+    }
+
+    /** Shopee ReturnStatus → canonical {@see AfterSalesStatus}. Config map + fallback. */
+    public static function afterSalesStatus(string $raw): AfterSalesStatus
+    {
+        $key = strtoupper(trim($raw));
+        $map = (array) config('integrations.shopee.return_status_map', []);
+        if (isset($map[$key])) {
+            return AfterSalesStatus::tryFrom((string) $map[$key]) ?? AfterSalesStatus::Requested;
+        }
+
+        return match (true) {
+            str_contains($key, 'REQUEST') => AfterSalesStatus::Requested,
+            str_contains($key, 'ACCEPT') || str_contains($key, 'APPROV') => AfterSalesStatus::Approved,
+            str_contains($key, 'CLOSE') || str_contains($key, 'COMPLETE') || str_contains($key, 'SUCCESS') => AfterSalesStatus::Completed,
+            str_contains($key, 'CANCEL') => AfterSalesStatus::Cancelled,
+            str_contains($key, 'REJECT') => AfterSalesStatus::Rejected,
+            default => AfterSalesStatus::Processing,
+        };
     }
 }
