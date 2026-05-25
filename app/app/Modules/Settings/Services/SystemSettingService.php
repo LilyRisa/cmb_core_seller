@@ -46,40 +46,51 @@ class SystemSettingService
             return $this->memo;
         }
 
-        $this->memo = Cache::rememberForever(self::CACHE_KEY, function (): array {
-            // Migration pending / test boot ⇒ trả [] để fallback env, KHÔNG crash app.
-            try {
-                $rows = SystemSetting::query()->get();
-            } catch (Throwable $e) {
-                Log::warning('SystemSetting: read failed (table missing?), falling back to env', [
-                    'error' => $e->getMessage(),
-                ]);
-
-                return [];
-            }
-
-            return $rows->mapWithKeys(function (SystemSetting $s): array {
-                $plain = $s->value;
-                if ($s->is_secret && $plain !== null) {
-                    try {
-                        $plain = Crypt::decryptString($plain);
-                    } catch (Throwable $e) {
-                        Log::warning('SystemSetting: failed to decrypt secret', [
-                            'key' => $s->key, 'error' => $e->getMessage(),
-                        ]);
-                        $plain = null;
-                    }
-                }
-
-                return [$s->key => [
-                    'value' => $plain,
-                    'type' => $s->type,
-                    'is_secret' => (bool) $s->is_secret,
-                ]];
-            })->all();
-        });
+        // Cache backend chưa sẵn sàng (vd lúc build image: `composer dump-autoload` → `package:discover`
+        // chạy khi chưa có redis/DB) ⇒ fallback [] (dùng env), KHÔNG crash boot/build.
+        try {
+            $this->memo = Cache::rememberForever(self::CACHE_KEY, fn (): array => $this->loadFromDb());
+        } catch (Throwable $e) {
+            Log::warning('SystemSetting: cache backend unavailable, falling back to env', ['error' => $e->getMessage()]);
+            $this->memo = [];
+        }
 
         return $this->memo;
+    }
+
+    /** @return array<string, array{value:mixed, type:string, is_secret:bool}> */
+    private function loadFromDb(): array
+    {
+        // Migration pending / test boot ⇒ trả [] để fallback env, KHÔNG crash app.
+        try {
+            $rows = SystemSetting::query()->get();
+        } catch (Throwable $e) {
+            Log::warning('SystemSetting: read failed (table missing?), falling back to env', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
+
+        return $rows->mapWithKeys(function (SystemSetting $s): array {
+            $plain = $s->value;
+            if ($s->is_secret && $plain !== null) {
+                try {
+                    $plain = Crypt::decryptString($plain);
+                } catch (Throwable $e) {
+                    Log::warning('SystemSetting: failed to decrypt secret', [
+                        'key' => $s->key, 'error' => $e->getMessage(),
+                    ]);
+                    $plain = null;
+                }
+            }
+
+            return [$s->key => [
+                'value' => $plain,
+                'type' => $s->type,
+                'is_secret' => (bool) $s->is_secret,
+            ]];
+        })->all();
     }
 
     public function get(string $key, mixed $default = null): mixed
