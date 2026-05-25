@@ -110,7 +110,6 @@ export interface OrderFilters {
     placed_to?: string;
     has_issue?: boolean;
     out_of_stock?: boolean;
-    stage?: 'prepare' | 'pack' | 'handover';   // bước xử lý dựa trên vận đơn (SPEC 0013)
     slip?: 'printable' | 'loading' | 'failed';  // tình trạng phiếu giao hàng của đơn đã "Chuẩn bị hàng" (SPEC 0013)
     printed?: boolean;   // đã in phiếu (≥1 vận đơn open có print_count>0) — chỉ áp ở "Đang xử lý"
     sort?: string;

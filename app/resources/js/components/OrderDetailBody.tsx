@@ -9,7 +9,7 @@ import { LinkSkusModal } from '@/components/LinkSkusModal';
 import { PrintJobBar } from '@/components/OrderProcessing';
 import { Order, OrderItem, useOrderNote, useOrderTags } from '@/lib/orders';
 import { useCan } from '@/lib/tenant';
-import { useCreatePrintJob } from '@/lib/fulfillment';
+import { SHIPMENT_STATUS_LABEL, useCreatePrintJob } from '@/lib/fulfillment';
 
 function AmountRow({ label, value, currency, strong, negative }: { label: string; value: number; currency: string; strong?: boolean; negative?: boolean }) {
     if (!value && !strong) return null;
@@ -142,7 +142,7 @@ export function OrderDetailBody({ order }: { order: Order }) {
                     <Card title="Vận đơn" size="small" style={{ marginBottom: 16 }}>
                         {order.shipment ? (
                             <Space direction="vertical" size={2}>
-                                <span><b>{order.shipment.carrier.toUpperCase()}</b> · <Tag>{order.shipment.status}</Tag></span>
+                                <span><b>{order.shipment.carrier.toUpperCase()}</b> · <Tag>{SHIPMENT_STATUS_LABEL[order.shipment.status] ?? order.shipment.status}</Tag></span>
                                 <Typography.Text copyable={!!order.shipment.tracking_no}>{order.shipment.tracking_no ?? '(chưa có mã vận đơn)'}</Typography.Text>
                                 {order.shipment.label_url && <a href={order.shipment.label_url} target="_blank" rel="noreferrer">In tem vận đơn</a>}
                             </Space>

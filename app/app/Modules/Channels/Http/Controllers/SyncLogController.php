@@ -35,7 +35,7 @@ class SyncLogController extends Controller
             $query->where('channel_account_id', (int) $cid);
         }
         if ($type = $request->query('type')) {
-            $query->whereIn('type', $this->csv($type, [SyncRun::TYPE_POLL, SyncRun::TYPE_BACKFILL, SyncRun::TYPE_WEBHOOK]));
+            $query->whereIn('type', $this->csv($type, [SyncRun::TYPE_POLL, SyncRun::TYPE_BACKFILL, SyncRun::TYPE_WEBHOOK, SyncRun::TYPE_UNPROCESSED]));
         }
         if ($status = $request->query('status')) {
             $query->whereIn('status', $this->csv($status, [SyncRun::STATUS_RUNNING, SyncRun::STATUS_DONE, SyncRun::STATUS_FAILED]));

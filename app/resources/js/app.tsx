@@ -105,7 +105,7 @@ function Root() {
                 <Route path="inventory" element={<InventoryPage />} />
                 <Route path="inventory/skus/new" element={<CreateSkuPage />} />
                 <Route path="inventory/skus/:id/edit" element={<CreateSkuPage />} />
-                <Route path="fulfillment" element={<Navigate to="/orders?tab=prepare" replace />} />   {/* xử lý đơn nay là các tab trong /orders */}
+                <Route path="fulfillment" element={<Navigate to="/orders?tab=pending" replace />} />   {/* xử lý đơn nay là các tab trong /orders (tab "Chờ xử lý") */}
                 <Route path="procurement" element={<Navigate to="/procurement/suppliers" replace />} />
                 <Route path="procurement/suppliers" element={<SuppliersPage />} />
                 <Route path="procurement/purchase-orders" element={<PurchaseOrdersPage />} />

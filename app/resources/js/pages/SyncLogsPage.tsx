@@ -123,7 +123,7 @@ function SyncRunsTab({ canManage }: { canManage: boolean }) {
             <Space wrap style={{ marginBottom: 12 }}>
                 <Select allowClear placeholder="Tất cả gian hàng" style={{ width: 240 }} value={channelAccountId || undefined} onChange={(v) => set({ channel_account_id: v })} options={shopOptions} />
                 <Select allowClear placeholder="Tất cả loại" style={{ width: 170 }} value={type || undefined} onChange={(v) => set({ type: v })} options={[
-                    { value: 'poll', label: 'Định kỳ' }, { value: 'backfill', label: 'Lấy lại lịch sử' }, { value: 'webhook', label: 'Webhook' },
+                    { value: 'poll', label: 'Định kỳ' }, { value: 'backfill', label: 'Lấy lại lịch sử' }, { value: 'unprocessed', label: 'Quét đơn tồn đọng' }, { value: 'webhook', label: 'Webhook' },
                 ]} />
                 <Select allowClear placeholder="Tất cả trạng thái" style={{ width: 170 }} value={status || undefined} onChange={(v) => set({ status: v })} options={[
                     { value: 'running', label: 'Đang chạy' }, { value: 'done', label: 'Hoàn tất' }, { value: 'failed', label: 'Thất bại' },

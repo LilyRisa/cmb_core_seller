@@ -9,7 +9,7 @@ export interface SyncRun {
     channel_account_id: number;
     shop_name: string | null;
     provider: string | null;
-    type: 'poll' | 'backfill' | 'webhook';
+    type: 'poll' | 'backfill' | 'webhook' | 'unprocessed';
     status: 'running' | 'done' | 'failed';
     started_at: string | null;
     finished_at: string | null;
@@ -118,7 +118,7 @@ export function useRedriveSyncRun() {
 // --- display helpers --------------------------------------------------------
 
 export const SYNC_RUN_TYPE_LABEL: Record<string, string> = {
-    poll: 'Định kỳ', backfill: 'Lấy lại lịch sử', webhook: 'Webhook',
+    poll: 'Định kỳ', backfill: 'Lấy lại lịch sử', webhook: 'Webhook', unprocessed: 'Quét đơn tồn đọng',
 };
 
 export const SYNC_RUN_STATUS: Record<string, { label: string; color: string }> = {

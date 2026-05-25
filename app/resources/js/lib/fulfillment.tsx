@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { tenantApi } from './api';
 import { useCurrentTenantId } from './tenant';
-import type { Order, Paginated } from './orders';
+import type { Paginated } from './orders';
 
 export interface ShipmentEvent { id: number; code: string; description: string | null; status: string | null; source: string; occurred_at: string | null }
 
@@ -29,8 +29,6 @@ export interface Shipment {
     order?: { id: number; order_number: string | null; external_order_id: string | null; status: string; source: string; buyer_name: string | null; grand_total: number } | null;
     events?: ShipmentEvent[];
 }
-
-export type ProcessingStage = 'prepare' | 'pack' | 'handover';
 
 export interface CarrierAccount {
     id: number;
@@ -68,8 +66,6 @@ export const SHIPMENT_STATUS_LABEL: Record<string, string> = {
     delivered: 'Đã giao', failed: 'Giao thất bại', returned: 'Hoàn về', cancelled: 'Đã huỷ',
 };
 
-export const STAGE_LABEL: Record<ProcessingStage, string> = { prepare: 'Cần xử lý', pack: 'Chờ đóng gói', handover: 'Chờ bàn giao' };
-
 function useScopedApi() {
     const tenantId = useCurrentTenantId();
     return useMemo(() => (tenantId == null ? null : tenantApi(tenantId)), [tenantId]);
@@ -81,56 +77,6 @@ function useInvalidate(keys: unknown[][]) {
 }
 
 // ---- queries -----------------------------------------------------------------
-
-export interface ProcessingFilters { source?: string; carrier?: string; customer?: string; product?: string; channel_account_id?: number; page?: number; per_page?: number }
-
-/** The order-processing board (SPEC 0009) — one stage at a time, with the shared filters. */
-export function useProcessingBoard(stage: ProcessingStage, filters: ProcessingFilters) {
-    const api = useScopedApi();
-    const tenantId = useCurrentTenantId();
-    return useQuery({
-        queryKey: ['fulfillment-board', tenantId, stage, filters],
-        enabled: api != null,
-        placeholderData: (p) => p,
-        queryFn: async () => {
-            const params: Record<string, string | number> = { stage };
-            Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== '') params[k] = v as never; });
-            const { data } = await api!.get<Paginated<Order> & { meta: { stage: string } }>('/fulfillment/processing', { params });
-            return data;
-        },
-    });
-}
-
-export function useProcessingCounts(filters: Omit<ProcessingFilters, 'page' | 'per_page'>) {
-    const api = useScopedApi();
-    const tenantId = useCurrentTenantId();
-    return useQuery({
-        queryKey: ['fulfillment-board-counts', tenantId, filters],
-        enabled: api != null,
-        queryFn: async () => {
-            const params: Record<string, string | number> = {};
-            Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== '') params[k] = v as never; });
-            const { data } = await api!.get<{ data: Record<ProcessingStage, number> }>('/fulfillment/processing/counts', { params });
-            return data.data;
-        },
-    });
-}
-
-export function useReadyOrders(filters: { q?: string; channel_account_id?: number; source?: string; page?: number; per_page?: number }) {
-    const api = useScopedApi();
-    const tenantId = useCurrentTenantId();
-    return useQuery({
-        queryKey: ['fulfillment-ready', tenantId, filters],
-        enabled: api != null,
-        placeholderData: (p) => p,
-        queryFn: async () => {
-            const params: Record<string, string | number> = {};
-            Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== '') params[k] = v as never; });
-            const { data } = await api!.get<Paginated<Order>>('/fulfillment/ready', { params });
-            return data;
-        },
-    });
-}
 
 export function useShipments(filters: { status?: string; carrier?: string; order_id?: number; q?: string; page?: number; per_page?: number }) {
     const api = useScopedApi();
