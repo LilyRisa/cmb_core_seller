@@ -12,7 +12,9 @@ use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 
 /**
  * CRUD tài liệu AI training (RAG). SPEC-0024 §6.1.
@@ -28,7 +30,7 @@ class KnowledgeController extends Controller
     {
         Gate::authorize('messaging.view');
 
-        return \Illuminate\Http\Resources\Json\JsonResource::collection(
+        return JsonResource::collection(
             AiKnowledgeDocument::query()
                 ->orderByDesc('created_at')
                 ->paginate(min(100, max(1, (int) $request->query('per_page', 30))))
@@ -54,7 +56,9 @@ class KnowledgeController extends Controller
             'source' => ['required', 'in:inline,url,upload'],
             'inline_text' => ['required_if:source,inline', 'nullable', 'string', 'max:100000'],
             'url' => ['required_if:source,url', 'nullable', 'url', 'max:1024'],
-            'file' => ['required_if:source,upload', 'nullable', 'file', 'max:25600'], // 25MB
+            // 25MB; định dạng trích được text (xem DocumentTextExtractor).
+            'file' => ['required_if:source,upload', 'nullable', 'file', 'max:25600',
+                'extensions:txt,md,csv,tsv,docx,xlsx,pdf'],
         ]);
 
         $tenantId = app(CurrentTenant::class)->id();
@@ -63,7 +67,7 @@ class KnowledgeController extends Controller
         if ($data['source'] === AiKnowledgeDocument::SOURCE_UPLOAD && $request->hasFile('file')) {
             $file = $request->file('file');
             $ext = $file->getClientOriginalExtension() ?: 'bin';
-            $storagePath = "tenants/{$tenantId}/messaging/knowledge/".\Illuminate\Support\Str::uuid().'.'.$ext;
+            $storagePath = "tenants/{$tenantId}/messaging/knowledge/".Str::uuid().'.'.$ext;
             $stream = fopen($file->getRealPath(), 'rb');
             $this->storage->disk()->writeStream($storagePath, $stream);
             if (is_resource($stream)) {

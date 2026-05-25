@@ -131,22 +131,89 @@ class FacebookOAuthController extends Controller
     }
 
     /**
-     * GET /me/accounts — list pages user quản + page access token.
+     * Liệt kê page user có thể nối + page access token, gồm CẢ page thuộc Business
+     * Manager (tài khoản doanh nghiệp).
      *
-     * @return list<array{id:string, name?:string, access_token?:string}>
+     * `/me/accounts` chỉ trả page user là admin classic (gắn trực tiếp profile cá nhân).
+     * Page giao qua Business Manager là "business asset" ⇒ KHÔNG xuất hiện ở đây — phải
+     * duyệt `/me/businesses` rồi lấy `owned_pages` + `client_pages` từng business (cần
+     * scope `business_management`). Gộp + dedupe theo page id; edge business đôi khi
+     * không trả `access_token` ⇒ backfill `/{page-id}?fields=access_token`.
+     *
+     * @return list<array{id: string, name: string|null, access_token: string|null}>
      */
     private function fetchPages(string $userToken): array
     {
         $version = (string) config('integrations.messaging_facebook_page.graph_version', 'v19.0');
-        $res = Http::timeout(20)->get("https://graph.facebook.com/{$version}/me/accounts", [
-            'access_token' => $userToken,
-            'fields' => 'id,name,access_token',
-        ]);
+        $base = "https://graph.facebook.com/{$version}";
+        $pageFields = 'id,name,access_token';
 
-        if (! $res->successful()) {
-            return [];
+        /** @var array<string, array{id: string, name: string|null, access_token: string|null}> $pages */
+        $pages = [];
+
+        // (1) Page user là admin classic.
+        $this->mergePages($pages, $this->graphData("{$base}/me/accounts", [
+            'access_token' => $userToken, 'fields' => $pageFields, 'limit' => 200,
+        ]));
+
+        // (2) Page thuộc Business Manager — duyệt từng business (best-effort: thiếu
+        //     scope/biz ⇒ trả [] và bỏ qua, KHÔNG chặn page classic ở (1)).
+        foreach ($this->graphData("{$base}/me/businesses", ['access_token' => $userToken, 'limit' => 100]) as $biz) {
+            $bizId = $biz['id'] ?? null;
+            if (! $bizId) {
+                continue;
+            }
+            foreach (['owned_pages', 'client_pages'] as $edge) {
+                $this->mergePages($pages, $this->graphData("{$base}/{$bizId}/{$edge}", [
+                    'access_token' => $userToken, 'fields' => $pageFields, 'limit' => 200,
+                ]));
+            }
         }
 
-        return array_values((array) $res->json('data', []));
+        // Backfill page token còn thiếu (edge business hay thiếu access_token).
+        foreach ($pages as $id => $page) {
+            if (! empty($page['access_token'])) {
+                continue;
+            }
+            $res = Http::timeout(20)->get("{$base}/{$id}", ['access_token' => $userToken, 'fields' => 'access_token']);
+            if ($res->successful() && $res->json('access_token')) {
+                $pages[$id]['access_token'] = (string) $res->json('access_token');
+            }
+        }
+
+        return array_values($pages);
+    }
+
+    /**
+     * GET 1 edge Graph → mảng `data` (trang đầu, đủ cho danh sách page). Lỗi ⇒ [].
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function graphData(string $url, array $query): array
+    {
+        $res = Http::timeout(20)->get($url, $query);
+
+        return $res->successful() ? array_values((array) $res->json('data', [])) : [];
+    }
+
+    /**
+     * Gộp page vào accumulator (keyed by id) — dedupe; ưu tiên giữ bản có access_token.
+     *
+     * @param  array<string, array{id: string, name: string|null, access_token: string|null}>  $acc
+     * @param  list<array<string, mixed>>  $incoming
+     */
+    private function mergePages(array &$acc, array $incoming): void
+    {
+        foreach ($incoming as $p) {
+            $id = isset($p['id']) ? (string) $p['id'] : '';
+            if ($id === '') {
+                continue;
+            }
+            $name = isset($p['name']) ? (string) $p['name'] : null;
+            $token = isset($p['access_token']) ? (string) $p['access_token'] : null;
+            if (! isset($acc[$id]) || ($acc[$id]['access_token'] === null && $token !== null)) {
+                $acc[$id] = ['id' => $id, 'name' => $name, 'access_token' => $token];
+            }
+        }
     }
 }

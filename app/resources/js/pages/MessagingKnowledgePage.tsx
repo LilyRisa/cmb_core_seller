@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { App as AntApp, Button, Card, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag } from 'antd';
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { App as AntApp, Button, Card, Form, Input, Modal, Popconfirm, Segmented, Space, Table, Tag, Typography, Upload } from 'antd';
+import { DeleteOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { MessagingNav } from '@/components/MessagingNav';
@@ -22,12 +22,16 @@ export function MessagingKnowledgePage() {
     const create = useCreateKnowledge();
     const del = useDeleteKnowledge();
     const [open, setOpen] = useState(false);
+    const [file, setFile] = useState<File | null>(null);
     const [form] = Form.useForm();
-    const source = Form.useWatch('source', form) as 'inline' | 'url' | undefined;
+    const source = Form.useWatch('source', form) as 'inline' | 'url' | 'upload' | undefined;
+
+    const close = () => { setOpen(false); setFile(null); form.resetFields(); };
 
     const submit = () => form.validateFields().then((v) => {
-        create.mutate(v, {
-            onSuccess: () => { message.success('Đã thêm tài liệu — đang index'); setOpen(false); form.resetFields(); },
+        if (v.source === 'upload' && !file) { message.error('Chọn file để tải lên'); return; }
+        create.mutate({ title: v.title, source: v.source, inline_text: v.inline_text, url: v.url, file: file ?? undefined }, {
+            onSuccess: () => { message.success('Đã thêm tài liệu — đang index'); close(); },
             onError: (e) => message.error(errorMessage(e)),
         });
     });
@@ -54,16 +58,35 @@ export function MessagingKnowledgePage() {
                 <Table<KnowledgeDoc> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns} pagination={false} />
             </Card>
 
-            <Modal open={open} onCancel={() => setOpen(false)} onOk={submit} confirmLoading={create.isPending} title="Thêm tài liệu AI" okText="Thêm" cancelText="Huỷ">
+            <Modal open={open} onCancel={close} onOk={submit} confirmLoading={create.isPending} title="Thêm tài liệu AI" okText="Thêm" cancelText="Huỷ">
                 <Form form={form} layout="vertical" initialValues={{ source: 'inline' }}>
                     <Form.Item name="title" label="Tiêu đề" rules={[{ required: true }]}><Input /></Form.Item>
                     <Form.Item name="source" label="Nguồn" rules={[{ required: true }]}>
-                        <Select options={[{ value: 'inline', label: 'Gõ trực tiếp' }, { value: 'url', label: 'Từ URL' }]} />
+                        <Segmented block options={[
+                            { value: 'inline', label: 'Gõ trực tiếp' },
+                            { value: 'url', label: 'URL / Google Sheets' },
+                            { value: 'upload', label: 'Tải file' },
+                        ]} />
                     </Form.Item>
-                    {source === 'url'
-                        ? <Form.Item name="url" label="URL" rules={[{ required: true, type: 'url' }]}><Input placeholder="https://…" /></Form.Item>
-                        : <Form.Item name="inline_text" label="Nội dung" rules={[{ required: true }]}><Input.TextArea rows={6} placeholder="Chính sách đổi trả: ..." /></Form.Item>}
-                    <div style={{ color: '#94A3B8', fontSize: 12 }}>Upload file (PDF/DOCX) sẽ bổ sung sau — hiện hỗ trợ gõ trực tiếp & URL.</div>
+                    {source === 'url' && (
+                        <>
+                            <Form.Item name="url" label="URL" rules={[{ required: true, type: 'url' }]}><Input placeholder="https://…" /></Form.Item>
+                            <div style={{ color: '#94A3B8', fontSize: 12 }}>Trang web hoặc link Google Sheets (chia sẻ “Bất kỳ ai có liên kết”) sẽ được tải về & trích nội dung.</div>
+                        </>
+                    )}
+                    {source === 'upload' && (
+                        <Form.Item label="File">
+                            <Upload beforeUpload={(f) => { setFile(f as File); return false; }} onRemove={() => setFile(null)}
+                                maxCount={1} showUploadList={false} accept=".txt,.md,.csv,.tsv,.docx,.xlsx,.pdf">
+                                <Button icon={<UploadOutlined />}>Chọn file</Button>
+                            </Upload>
+                            {file && <Typography.Text style={{ marginLeft: 8 }}>{file.name}</Typography.Text>}
+                            <div style={{ color: '#94A3B8', fontSize: 12, marginTop: 4 }}>Hỗ trợ PDF, Word (.docx), Excel (.xlsx), CSV/TSV, văn bản (.txt/.md). Tối đa 25MB.</div>
+                        </Form.Item>
+                    )}
+                    {(source === 'inline' || source === undefined) && (
+                        <Form.Item name="inline_text" label="Nội dung" rules={[{ required: true }]}><Input.TextArea rows={6} placeholder="Chính sách đổi trả: ..." /></Form.Item>
+                    )}
                 </Form>
             </Modal>
         </div>

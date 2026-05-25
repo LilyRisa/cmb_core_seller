@@ -244,6 +244,17 @@ class FacebookPageConnectorTest extends TestCase
             && str_contains($r->url(), 'redirect_uri='.urlencode($expected)));
     }
 
+    public function test_authorization_url_requests_business_management_scope(): void
+    {
+        // Cần `business_management` để liệt kê page thuộc Business Manager (tài khoản doanh nghiệp).
+        $url = $this->connector()->buildAuthorizationUrl('state_1');
+        parse_str((string) parse_url($url, PHP_URL_QUERY), $q);
+        $scope = (string) ($q['scope'] ?? '');
+
+        $this->assertStringContainsString('business_management', $scope);
+        $this->assertStringContainsString('pages_show_list', $scope);
+    }
+
     public function test_send_text_posts_correct_shape(): void
     {
         Http::fake([

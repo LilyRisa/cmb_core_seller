@@ -128,12 +128,29 @@ export function useKnowledgeDocs() {
     });
 }
 
+export interface CreateKnowledgePayload {
+    title: string;
+    source: 'inline' | 'url' | 'upload';
+    inline_text?: string;
+    url?: string;
+    file?: File;
+}
+
 export function useCreateKnowledge() {
     const api = useScopedApi();
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: async (payload: { title: string; source: 'inline' | 'url'; inline_text?: string; url?: string }) =>
-            (await api!.post('/messaging/knowledge-docs', payload)).data,
+        mutationFn: async (payload: CreateKnowledgePayload) => {
+            // Upload file ⇒ multipart/form-data (axios tự set boundary từ FormData).
+            if (payload.source === 'upload' && payload.file) {
+                const fd = new FormData();
+                fd.append('title', payload.title);
+                fd.append('source', 'upload');
+                fd.append('file', payload.file);
+                return (await api!.post('/messaging/knowledge-docs', fd)).data;
+            }
+            return (await api!.post('/messaging/knowledge-docs', payload)).data;
+        },
         onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'knowledge'] }),
     });
 }

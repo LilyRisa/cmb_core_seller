@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Modules\Messaging\Jobs;
 
 use CMBcoreSeller\Modules\Messaging\Models\AiKnowledgeChunk;
 use CMBcoreSeller\Modules\Messaging\Models\AiKnowledgeDocument;
+use CMBcoreSeller\Modules\Messaging\Services\DocumentTextExtractor;
 use CMBcoreSeller\Modules\Messaging\Services\MediaStorage;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Bus\Queueable;
@@ -21,8 +22,9 @@ use Illuminate\Support\Facades\Http;
  * được cấu hình + Postgres pgvector bật, thêm bước embed mỗi chunk ở đây (đánh
  * dấu TODO) → cosine retrieval. Framework không đổi.
  *
- * Nguồn text: inline_text | url (fetch) | upload (chỉ text/* trong S6; PDF/DOCX
- * cần parser ⇒ đánh `failed` reason `binary_extraction_not_implemented`).
+ * Nguồn text: inline_text | url (fetch HTML, hoặc link Google Sheets công khai →
+ * export CSV) | upload (txt/md/csv/tsv/docx/xlsx/pdf qua DocumentTextExtractor;
+ * không trích được ⇒ đánh `failed` reason `binary_extraction_not_implemented`).
  *
  * Queue: `messaging-ai`. tries 2.
  */
@@ -37,7 +39,7 @@ class IndexKnowledgeDoc implements ShouldQueue
         $this->onQueue('messaging-ai');
     }
 
-    public function handle(MediaStorage $storage): void
+    public function handle(MediaStorage $storage, DocumentTextExtractor $extractor): void
     {
         $doc = AiKnowledgeDocument::withoutGlobalScope(TenantScope::class)->find($this->documentId);
         if (! $doc) {
@@ -45,7 +47,7 @@ class IndexKnowledgeDoc implements ShouldQueue
         }
 
         try {
-            $text = $this->extractText($doc, $storage);
+            $text = $this->extractText($doc, $storage, $extractor);
             if ($text === null) {
                 $doc->update(['status' => AiKnowledgeDocument::STATUS_FAILED, 'error' => 'binary_extraction_not_implemented']);
 
@@ -79,42 +81,47 @@ class IndexKnowledgeDoc implements ShouldQueue
         }
     }
 
-    private function extractText(AiKnowledgeDocument $doc, MediaStorage $storage): ?string
+    private function extractText(AiKnowledgeDocument $doc, MediaStorage $storage, DocumentTextExtractor $extractor): ?string
     {
         return match ($doc->source) {
             AiKnowledgeDocument::SOURCE_INLINE => (string) $doc->inline_text,
-            AiKnowledgeDocument::SOURCE_URL => $this->fetchUrl((string) $doc->url),
-            AiKnowledgeDocument::SOURCE_UPLOAD => $this->readUpload($doc, $storage),
+            AiKnowledgeDocument::SOURCE_URL => $this->fetchUrl((string) $doc->url, $extractor),
+            AiKnowledgeDocument::SOURCE_UPLOAD => $this->readUpload($doc, $storage, $extractor),
             default => null,
         };
     }
 
-    private function fetchUrl(string $url): ?string
+    private function fetchUrl(string $url, DocumentTextExtractor $extractor): ?string
     {
+        // Link Google Sheets công khai → export CSV → parse bảng (thay vì nuốt HTML app shell).
+        $sheetCsv = DocumentTextExtractor::googleSheetCsvUrl($url);
+        if ($sheetCsv !== null) {
+            $res = Http::timeout(20)->get($sheetCsv);
+
+            return $res->successful() ? $extractor->extract($res->body(), 'csv') : null;
+        }
+
         $res = Http::timeout(20)->get($url);
         if (! $res->successful()) {
             return null;
         }
+
         // Strip tags thô (HTML → text). Đủ cho keyword retrieval S6.
         return trim(html_entity_decode(strip_tags($res->body())));
     }
 
-    private function readUpload(AiKnowledgeDocument $doc, MediaStorage $storage): ?string
+    private function readUpload(AiKnowledgeDocument $doc, MediaStorage $storage, DocumentTextExtractor $extractor): ?string
     {
         if (! $doc->storage_path) {
             return null;
         }
-        // Chỉ text/* trong S6. Binary (pdf/docx) ⇒ null ⇒ caller mark failed.
         $contents = $storage->disk()->get($doc->storage_path);
         if ($contents === null) {
             return null;
         }
-        // Heuristic: nội dung không phải UTF-8 text ⇒ coi như binary.
-        if (! mb_check_encoding($contents, 'UTF-8')) {
-            return null;
-        }
 
-        return $contents;
+        // Trích theo phần mở rộng (txt/csv/docx/xlsx/pdf…); binary không hỗ trợ ⇒ null.
+        return $extractor->extract($contents, pathinfo($doc->storage_path, PATHINFO_EXTENSION));
     }
 
     /** @return list<string> */

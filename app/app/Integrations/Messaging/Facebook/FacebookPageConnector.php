@@ -85,7 +85,10 @@ class FacebookPageConnector implements MessagingConnector
     public function buildAuthorizationUrl(string $state, array $opts = []): string
     {
         $appId = (string) ($this->config['app_id'] ?? '');
-        $scope = 'pages_messaging,pages_manage_metadata,pages_read_engagement,pages_show_list,pages_read_user_content,pages_manage_engagement';
+        // `business_management` để liệt kê page thuộc Business Manager (business asset):
+        // `/me/accounts` chỉ trả page user là admin classic; page giao qua Business Manager
+        // phải duyệt `/me/businesses` → owned_pages/client_pages (xem FacebookOAuthController::fetchPages).
+        $scope = 'pages_messaging,pages_manage_metadata,pages_read_engagement,pages_show_list,pages_read_user_content,pages_manage_engagement,business_management';
 
         return 'https://www.facebook.com/'.$this->graphVersion().'/dialog/oauth?'.http_build_query([
             'client_id' => $appId,
