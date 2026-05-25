@@ -110,12 +110,15 @@ export function AppLayout() {
 
     return (
         <Layout style={{ minHeight: '100vh' }}>
-            <Sider theme="light" width={236} collapsedWidth={64} collapsible collapsed={collapsed} trigger={null} style={{ borderRight: '1px solid #f0f0f0' }}>
-                <div style={{ height: 56, display: 'flex', alignItems: 'center', gap: 10, padding: collapsed ? '0' : '0 18px', justifyContent: collapsed ? 'center' : 'flex-start', fontWeight: 600, fontSize: 16, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+            {/* Sider ghim theo viewport (sticky, cao 100vh); menu dài cuộn RIÊNG bên trong — không đẩy/tràn cả layout. */}
+            <Sider theme="light" width={236} collapsedWidth={64} collapsible collapsed={collapsed} trigger={null} style={{ borderRight: '1px solid #f0f0f0', height: '100vh', position: 'sticky', top: 0, overflow: 'hidden' }}>
+                <div style={{ height: 56, flex: 'none', display: 'flex', alignItems: 'center', gap: 10, padding: collapsed ? '0' : '0 18px', justifyContent: collapsed ? 'center' : 'flex-start', fontWeight: 600, fontSize: 16, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden' }}>
                     <img src="/images/logocmb.png" alt="CMB Core" style={{ width: 32, height: 32, objectFit: 'contain', flex: 'none' }} />
                     {!collapsed && <span>CMB Core</span>}
                 </div>
-                <Menu mode="inline" selectedKeys={[selectedKey]} defaultOpenKeys={['messaging']} inlineIndent={16} items={nav} style={{ borderInlineEnd: 'none' }} />
+                <div style={{ height: 'calc(100vh - 56px)', overflowY: 'auto', overflowX: 'hidden' }}>
+                    <Menu mode="inline" selectedKeys={[selectedKey]} defaultOpenKeys={['messaging']} inlineIndent={16} items={nav} style={{ borderInlineEnd: 'none' }} />
+                </div>
             </Sider>
             <Layout>
                 <Header style={{ background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px 0 8px', borderBottom: '1px solid #f0f0f0', height: 56, lineHeight: 'normal' }}>
