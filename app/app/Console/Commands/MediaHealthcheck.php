@@ -18,7 +18,7 @@ class MediaHealthcheck extends Command
 
     public function handle(): int
     {
-        $disk = (string) config('media.disk');
+        $disk = (string) system_setting('storage.media_disk', config('media.disk'));
         $this->line('media.disk = '.$disk);
         if ($disk === 'r2') {
             $this->line('R2: bucket='.(config('filesystems.disks.r2.bucket') ?: '(trống!)')

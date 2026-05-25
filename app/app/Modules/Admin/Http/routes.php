@@ -80,6 +80,7 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
 
         // --- Plan editor (SPEC 0023) ---
         Route::get('plans', [AdminPlanController::class, 'index'])->name('admin.plans.index');
+        Route::post('plans', [AdminPlanController::class, 'store'])->name('admin.plans.store');
         Route::get('plans/{id}', [AdminPlanController::class, 'show'])->whereNumber('id')->name('admin.plans.show');
         Route::patch('plans/{id}', [AdminPlanController::class, 'update'])->whereNumber('id')->name('admin.plans.update');
 

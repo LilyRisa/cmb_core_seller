@@ -17,7 +17,7 @@ class MediaUploader
     /** Configured media disk name — normalised (lowercase/trim) in config/media.php; validated here. */
     public function diskName(): string
     {
-        $name = (string) config('media.disk', 'public');
+        $name = (string) system_setting('storage.media_disk', config('media.disk', 'public'));
         if (! is_array(config("filesystems.disks.$name"))) {
             $known = implode(', ', array_keys((array) config('filesystems.disks', [])));
             throw new \RuntimeException("Disk lưu media [{$name}] chưa được khai trong config/filesystems.php (có: {$known}). Kiểm tra MEDIA_DISK / xem docs/07-infra/cloudflare-r2-uploads.md.");

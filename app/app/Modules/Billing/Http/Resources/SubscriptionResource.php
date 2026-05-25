@@ -39,7 +39,7 @@ class SubscriptionResource extends JsonResource
             // SPEC 0020 — FE banner: timer 2 ngày + locked flag.
             'over_quota_warned_at' => $this->over_quota_warned_at?->toIso8601String(),
             'over_quota_locked' => app(OverQuotaCheckService::class)->isPastGrace($this->resource),
-            'over_quota_grace_hours' => (int) config('billing.over_quota_grace_hours', 48),
+            'over_quota_grace_hours' => (int) system_setting('billing.over_quota_grace_hours', config('billing.over_quota_grace_hours', 48)),
         ];
     }
 }

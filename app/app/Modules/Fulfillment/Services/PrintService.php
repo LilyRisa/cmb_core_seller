@@ -94,7 +94,7 @@ class PrintService
         $tenant = Tenant::query()->find($tenantId);
         $size = $tenant ? data_get($tenant->settings, 'print.label_size') : null;
 
-        return (string) ($size ?: config('fulfillment.print.label_paper_size', 'A6'));
+        return (string) ($size ?: system_setting('fulfillment.print_label_size', config('fulfillment.print.label_paper_size', 'A6')));
     }
 
     /**

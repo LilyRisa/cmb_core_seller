@@ -252,7 +252,7 @@ class SkuController extends Controller
         abort_unless($request->user()?->can('products.manage'), 403, 'Bạn không có quyền sửa SKU.');
         $mimes = implode(',', (array) config('media.images.mimes', ['jpg', 'jpeg', 'png', 'webp']));
         $request->validate([
-            'image' => ['required', 'file', 'image', 'mimes:'.$mimes, 'max:'.(int) config('media.images.max_kb', 5120)],
+            'image' => ['required', 'file', 'image', 'mimes:'.$mimes, 'max:'.(int) system_setting('storage.media_image_max_kb', config('media.images.max_kb', 5120))],
         ]);
         $sku = Sku::query()->findOrFail($id);
         $old = $sku->image_path;

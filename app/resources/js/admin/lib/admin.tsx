@@ -397,6 +397,17 @@ export function useAdminUpdatePlan() {
     });
 }
 
+export function useAdminCreatePlan() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (vars: Partial<AdminPlan> & { code: string; name: string }) => {
+            const { data } = await api.post<{ data: AdminPlan }>('/admin/plans', vars);
+            return data.data;
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'plans'] }),
+    });
+}
+
 // SPEC 0023 — feature override
 export function useAdminFeatureOverrides() {
     const qc = useQueryClient();

@@ -86,7 +86,7 @@ class EnforcePlanQuotaLock
                     'resources' => $over,
                     'plan_code' => $sub->plan->code,
                     'warned_at' => $sub->over_quota_warned_at?->toIso8601String(),
-                    'grace_hours' => (int) config('billing.over_quota_grace_hours', 48),
+                    'grace_hours' => (int) system_setting('billing.over_quota_grace_hours', config('billing.over_quota_grace_hours', 48)),
                 ],
             ],
         ], 402);

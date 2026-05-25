@@ -102,7 +102,7 @@ class OverQuotaCheckService
         if ($sub->over_quota_warned_at === null) {
             return false;
         }
-        $graceHours = (int) config('billing.over_quota_grace_hours', 48);
+        $graceHours = (int) system_setting('billing.over_quota_grace_hours', config('billing.over_quota_grace_hours', 48));
         if ($graceHours <= 0) {
             return true; // test mode — khoá ngay
         }

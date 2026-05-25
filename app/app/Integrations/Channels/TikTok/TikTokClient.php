@@ -186,7 +186,7 @@ class TikTokClient
     /** Best-effort per-(provider, shop) rate limit so one shop can't starve the queue. */
     protected function throttle(AuthContext $auth): void
     {
-        $perMin = (int) config('integrations.throttle.tiktok', 600);
+        $perMin = (int) system_setting('throttle.tiktok_per_min', config('integrations.throttle.tiktok', 600));
         if ($perMin <= 0) {
             return;
         }

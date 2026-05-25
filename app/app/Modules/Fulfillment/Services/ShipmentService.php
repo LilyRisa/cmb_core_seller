@@ -946,7 +946,7 @@ class ShipmentService
         $items = OrderItem::withoutGlobalScope(TenantScope::class)->where('order_id', $order->getKey())->get(['sku_id', 'quantity']);
         $skuIds = $items->pluck('sku_id')->filter()->unique()->all();
         $weights = $skuIds ? Sku::withoutGlobalScope(TenantScope::class)->whereIn('id', $skuIds)->pluck('weight_grams', 'id') : collect();
-        $default = (int) config('fulfillment.default_weight_grams', 500);
+        $default = (int) system_setting('fulfillment.default_weight_grams', config('fulfillment.default_weight_grams', 500));
         $total = 0;
         foreach ($items as $it) {
             $w = ($it->sku_id && $weights->get($it->sku_id)) ? (int) $weights->get($it->sku_id) : $default;

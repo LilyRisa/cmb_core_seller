@@ -233,7 +233,7 @@ class LazadaClient
 
     protected function throttle(AuthContext $auth): void
     {
-        $perMin = (int) config('integrations.throttle.lazada', 600);
+        $perMin = (int) system_setting('throttle.lazada_per_min', config('integrations.throttle.lazada', 600));
         if ($perMin <= 0) {
             return;
         }

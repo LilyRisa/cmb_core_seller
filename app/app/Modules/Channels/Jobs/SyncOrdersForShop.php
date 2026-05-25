@@ -96,11 +96,11 @@ class SyncOrdersForShop implements ShouldBeUnique, ShouldQueue
     /** Original time-window pull (poll/backfill). */
     private function runTimeWindow(ChannelAccount $account, ChannelRegistry $registry, OrderUpsertService $upsert, SyncRun $run, CarbonImmutable $runStart): void
     {
-        $overlapMin = (int) config('integrations.sync.poll_overlap_minutes', 5);
+        $overlapMin = (int) system_setting('sync.poll_overlap_minutes', config('integrations.sync.poll_overlap_minutes', 5));
         $since = $this->sinceIso
             ? CarbonImmutable::parse($this->sinceIso)
             : ($this->type === SyncRun::TYPE_BACKFILL
-                ? $runStart->subDays((int) config('integrations.sync.backfill_days', 90))
+                ? $runStart->subDays((int) system_setting('sync.backfill_days', config('integrations.sync.backfill_days', 90)))
                 : ($account->last_synced_at ? CarbonImmutable::parse($account->last_synced_at)->subMinutes($overlapMin) : $runStart->subDays(7)));
 
         $connector = $registry->for($account->provider);
