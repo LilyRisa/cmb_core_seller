@@ -31,7 +31,6 @@ import {
     useUnblockConversation,
 } from '@/lib/messaging';
 import { useMessagingChannels, useTemplates, type MessageTemplate } from '@/lib/messagingConfig';
-import { useMessageNotifications } from '@/lib/useMessageNotifications';
 import { usePushNotifications } from '@/lib/usePushNotifications';
 import { MessagingNav } from '@/components/MessagingNav';
 import { TagManagerModal } from '@/components/TagManagerModal';
@@ -372,7 +371,7 @@ export function MessagingPage() {
     const privateReply = usePrivateReplyComment(activeId);
 
     const conversations = useMemo(() => list.data?.pages.flatMap((p) => p.data) ?? [], [list.data]);
-    useMessageNotifications(conversations); // toast + noti.wav khi tab mở; Web Push lo khi tab đóng
+    // Thông báo tin nhắn mới đã chuyển sang hook toàn cục ở AppLayout (mọi trang, không bắn lặp).
     const push = usePushNotifications();
     const handleConvScroll = useCallback((e: UIEvent<HTMLDivElement>) => {
         const el = e.currentTarget;

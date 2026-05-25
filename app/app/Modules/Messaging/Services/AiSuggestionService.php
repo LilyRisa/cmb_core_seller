@@ -197,7 +197,9 @@ class AiSuggestionService
     private function assertWithinMonthlyLimit(int $tenantId): void
     {
         $sub = $this->subscriptions->currentFor($tenantId) ?? $this->subscriptions->ensureTrialFallback($tenantId);
-        $limit = (int) ($sub?->plan?->limits['messaging_ai_replies_monthly'] ?? 0);
+        // Không có subscription/plan ⇒ KHÔNG giới hạn (nhất quán với EnforcePlanFeature/EnforcePlanLimit coi
+        // "không có sub ⇒ open"). Default 0 cũ khiến `0 >= 0` chặn MỌI request AI khi chưa seed gói/subscription.
+        $limit = (int) ($sub?->plan?->limits['messaging_ai_replies_monthly'] ?? -1);
 
         if ($limit < 0) {
             return; // không giới hạn

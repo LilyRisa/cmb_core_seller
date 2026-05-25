@@ -28,6 +28,8 @@ import {
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { getCurrentTenantId, setCurrentTenantId, useAuth, useLogout } from '@/lib/auth';
+import { useCan } from '@/lib/tenant';
+import { useGlobalMessageNotifications } from '@/lib/useMessageNotifications';
 import { OverQuotaBanner } from '@/components/OverQuotaBanner';
 
 const { Header, Sider, Content } = Layout;
@@ -95,6 +97,8 @@ export function AppLayout() {
 
     const currentTenantId = getCurrentTenantId() ?? user?.tenants[0]?.id ?? null;
     const currentTenant = user?.tenants.find((t) => t.id === currentTenantId) ?? user?.tenants[0];
+    // Thông báo tin nhắn mới toàn cục (mọi trang) — 1 lần tổng lúc vào, sau đó theo từng tin mới.
+    useGlobalMessageNotifications(useCan('messaging.view'));
     const nav = useMemo(() => buildNav(), []);
     const keys = BASE_KEYS;
 

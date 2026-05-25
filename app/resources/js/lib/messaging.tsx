@@ -136,6 +136,27 @@ export function useConversations(filters: ConversationFilters) {
     });
 }
 
+/**
+ * Nguồn poll NHẸ, KHÔNG lọc — dành riêng cho thông báo tin nhắn mới TOÀN CỤC (mount ở AppLayout).
+ * Trả 50 hội thoại chưa đọc mới nhất + tổng số chưa đọc (`meta.total`). Tách hẳn khỏi `useConversations`
+ * (infinite + theo bộ lọc/tab của trang Hộp thư) để đổi tab/nguồn/scroll KHÔNG làm sai việc đếm tin mới.
+ * Lỗi (vd tenant không có gói messaging_inbox → 402) ⇒ ngừng poll, không spam request.
+ */
+export function useUnreadConversations(enabled: boolean) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['messaging', 'unread-feed', tenantId],
+        enabled: enabled && api != null,
+        retry: false,
+        refetchInterval: (query) => (query.state.status === 'error' ? false : 20_000),
+        queryFn: async () => {
+            const { data } = await api!.get<Paginated<Conversation>>('/messaging/conversations', { params: { unread: true, per_page: 50 } });
+            return { items: data.data, total: data.meta.pagination.total };
+        },
+    });
+}
+
 export interface ThreadResult { conversation: Conversation; messages: Message[] }
 
 export function useConversationThread(id: number | null) {

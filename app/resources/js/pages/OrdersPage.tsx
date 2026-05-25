@@ -156,7 +156,13 @@ export function OrdersPage() {
     const syncPoll = useSyncPolling(() => { refetch(); refetchStats(); refetchTabStats(); }, { durationMs: 90_000 });
     // Theo dõi sync runs đang chạy để hiện thanh tiến trình (refetch 15s/lần qua hook).
     const runningSyncs = useSyncRuns({ status: 'running', per_page: 10 });
-    const runningSyncsList = runningSyncs.data?.data ?? [];
+    // Bỏ qua run "treo": job chết giữa chừng để lại sync_run ở `running` mãi (không có `finished_at`,
+    // stats đứng yên) ⇒ banner "đang đồng bộ" sẽ treo vô hạn. Một sync thật luôn xong trong vài phút
+    // (uniqueness lock 900s); coi run bắt đầu quá 1 giờ trước mà vẫn `running` là treo → không tính vào banner.
+    const STALE_RUNNING_MS = 60 * 60 * 1000;
+    const runningSyncsList = (runningSyncs.data?.data ?? []).filter(
+        (r) => !r.started_at || Date.now() - new Date(r.started_at).getTime() < STALE_RUNNING_MS,
+    );
     const showSyncBanner = syncPoll.isPolling || runningSyncsList.length > 0;
     // sub-tab "tình trạng phiếu giao hàng" chỉ hiện khi có ≥1 đơn "Chuẩn bị hàng" lỗi (SPEC 0013 — như ui_example)
     const showSlipTabs = isProcessingTab && (stats?.by_slip?.failed ?? 0) > 0;
