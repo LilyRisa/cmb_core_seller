@@ -47,7 +47,9 @@ class BillingController extends Controller
     public function plans(Request $request): JsonResponse
     {
         abort_unless($request->user()?->can('billing.view'), 403, 'Bạn không có quyền xem gói.');
-        $plans = Plan::query()->where('is_active', true)->orderBy('sort_order')->get();
+        // Chỉ liệt kê các gói chuẩn bán công khai (đồng bộ với checkout `in:CODES`). Gói nội bộ/test do
+        // super-admin tạo (vd `test_unlimited`) KHÔNG hiện ở đây và chỉ gán được qua /admin (changePlan).
+        $plans = Plan::query()->whereIn('code', Plan::CODES)->where('is_active', true)->orderBy('sort_order')->get();
 
         return response()->json(['data' => PlanResource::collection($plans)]);
     }

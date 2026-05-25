@@ -3,7 +3,7 @@ import { App, Button, Descriptions, Drawer, Empty, Form, Input, Modal, Radio, Sk
 import { DeleteOutlined, LockOutlined, ShopOutlined, SwapOutlined, UnlockOutlined, WarningOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
-    useAdminChangePlan, useAdminDeleteChannel, useAdminReactivateTenant, useAdminSuspendTenant,
+    useAdminChangePlan, useAdminDeleteChannel, useAdminPlans, useAdminReactivateTenant, useAdminSuspendTenant,
     useAdminTenant,
     type AdminChannelAccount,
 } from '@admin/lib/admin';
@@ -202,6 +202,10 @@ const PLAN_OPTIONS: Array<{ value: string; label: string }> = [
 
 function PlanTab({ tenantId, sub }: { tenantId: number; sub: import('@/lib/admin').AdminSubscription | null }) {
     const change = useAdminChangePlan();
+    // Danh sách gói lấy động từ DB (gồm cả gói nội bộ/test do super-admin seed, vd `test_unlimited`),
+    // thay cho danh sách cứng — admin gán được mọi gói đang active. Fallback PLAN_OPTIONS khi đang tải.
+    const allPlans = useAdminPlans().data as Array<{ code: string; name: string; is_active: boolean }> | undefined;
+    const planOptions = (allPlans ?? []).filter((p) => p.is_active).map((p) => ({ value: p.code, label: p.name }));
     const { message } = App.useApp();
     const [open, setOpen] = useState(false);
     const [planCode, setPlanCode] = useState<string>(sub?.plan_code ?? 'starter');
@@ -252,7 +256,7 @@ function PlanTab({ tenantId, sub }: { tenantId: number; sub: import('@/lib/admin
                 <Form layout="vertical">
                     <Form.Item label="Gói">
                         <Radio.Group value={planCode} onChange={(e) => setPlanCode(e.target.value)} optionType="button" buttonStyle="solid"
-                            options={PLAN_OPTIONS} />
+                            options={planOptions.length ? planOptions : PLAN_OPTIONS} />
                     </Form.Item>
                     <Form.Item label="Chu kỳ">
                         <Radio.Group value={cycle} onChange={(e) => setCycle(e.target.value)} optionType="button" buttonStyle="solid"
