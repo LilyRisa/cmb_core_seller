@@ -11,19 +11,19 @@ use InvalidArgumentException;
  * qua khi đọc (luôn trả default).
  *
  * Cấu trúc một entry:
- *   - group: 'branding' | 'marketplace' | 'fulfillment' | 'sync'
+ *   - group: 'branding' | 'mail' | 'marketplace' | 'fulfillment' | 'sync' | 'push'
  *   - type:  'string' | 'int' | 'bool' | 'float' | 'json'
  *   - is_secret: bool — true ⇒ encrypt khi store, mask khi GET, reveal có audit
  *   - env: tên biến .env tương ứng (dùng cho seed lần đầu)
  *   - label: tiêu đề hiển thị UI
  *   - description?: hint hiển thị dưới label
  *
- * Tổng: 39 key — 7 branding, 9 marketplace (6 secret), 16 fulfillment (2 secret),
- * 7 sync. ⇒ 8 secret.
+ * Nhóm: branding, mail (email/SMTP), marketplace, fulfillment, sync, push.
+ * Email (mail.*) được SettingsServiceProvider::boot() override vào config('mail.*') lúc boot (fallback env).
  *
  * Key core KHÔNG cho vào catalog (giữ env tuyệt đối): APP_KEY, APP_ENV, DB_*,
- * REDIS_*, SESSION_*, SANCTUM_STATEFUL_DOMAINS, BCRYPT_ROUNDS, MAIL_HOST/USER/
- * PASS/PORT/SCHEME, AWS_* (S3 internal), SENTRY_LARAVEL_DSN, BROADCAST/QUEUE/
+ * REDIS_*, SESSION_*, SANCTUM_STATEFUL_DOMAINS, BCRYPT_ROUNDS, MAIL_URL/
+ * MAIL_EHLO_DOMAIN, AWS_* (S3 internal), SENTRY_LARAVEL_DSN, BROADCAST/QUEUE/
  * CACHE drivers, INTEGRATIONS_CHANNELS.
  */
 class SystemSettingsCatalog
@@ -32,7 +32,7 @@ class SystemSettingsCatalog
     public static function all(): array
     {
         return [
-            // ── Branding (7) ────────────────────────────────────────────────
+            // ── Branding (5) ────────────────────────────────────────────────
             'notifications.brand_name' => [
                 'group' => 'branding', 'type' => 'string', 'is_secret' => false,
                 'env' => 'NOTIFICATIONS_BRAND_NAME', 'label' => 'Tên thương hiệu',
@@ -53,13 +53,43 @@ class SystemSettingsCatalog
                 'group' => 'branding', 'type' => 'string', 'is_secret' => false,
                 'env' => 'NOTIFICATIONS_ACCENT_COLOR', 'label' => 'Màu nhấn (hex)',
             ],
+
+            // ── Email / SMTP (8, 1 secret) ──────────────────────────────────
+            // Cấu hình email động: SettingsServiceProvider::boot() override config('mail.*') từ các key này
+            // (fallback env). Sai cấu hình ⇒ email KHÔNG gửi được (không làm hỏng app) — xoá setting để về env.
             'mail.from_address' => [
-                'group' => 'branding', 'type' => 'string', 'is_secret' => false,
-                'env' => 'MAIL_FROM_ADDRESS', 'label' => 'Email gửi từ',
+                'group' => 'mail', 'type' => 'string', 'is_secret' => false,
+                'env' => 'MAIL_FROM_ADDRESS', 'label' => 'Email gửi từ (from address)',
             ],
             'mail.from_name' => [
-                'group' => 'branding', 'type' => 'string', 'is_secret' => false,
-                'env' => 'MAIL_FROM_NAME', 'label' => 'Tên người gửi (mail)',
+                'group' => 'mail', 'type' => 'string', 'is_secret' => false,
+                'env' => 'MAIL_FROM_NAME', 'label' => 'Tên người gửi (from name)',
+            ],
+            'mail.mailer' => [
+                'group' => 'mail', 'type' => 'string', 'is_secret' => false,
+                'env' => 'MAIL_MAILER', 'label' => 'Mailer',
+                'description' => '`smtp` để gửi thật qua SMTP, `log` để chỉ ghi log (không gửi).',
+            ],
+            'mail.host' => [
+                'group' => 'mail', 'type' => 'string', 'is_secret' => false,
+                'env' => 'MAIL_HOST', 'label' => 'SMTP host',
+            ],
+            'mail.port' => [
+                'group' => 'mail', 'type' => 'int', 'is_secret' => false,
+                'env' => 'MAIL_PORT', 'label' => 'SMTP port',
+            ],
+            'mail.username' => [
+                'group' => 'mail', 'type' => 'string', 'is_secret' => false,
+                'env' => 'MAIL_USERNAME', 'label' => 'SMTP username',
+            ],
+            'mail.password' => [
+                'group' => 'mail', 'type' => 'string', 'is_secret' => true,
+                'env' => 'MAIL_PASSWORD', 'label' => 'SMTP password',
+            ],
+            'mail.scheme' => [
+                'group' => 'mail', 'type' => 'string', 'is_secret' => false,
+                'env' => 'MAIL_SCHEME', 'label' => 'SMTP scheme (tls/ssl)',
+                'description' => 'Để trống nếu không mã hoá tường minh; thường `tls` (587) hoặc `ssl` (465).',
             ],
 
             // ── Marketplace (11) ────────────────────────────────────────────

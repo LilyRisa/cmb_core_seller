@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
-export type SettingGroup = 'branding' | 'marketplace' | 'fulfillment' | 'sync' | 'push';
+export type SettingGroup = 'branding' | 'mail' | 'marketplace' | 'fulfillment' | 'sync' | 'push';
 
 export type SettingType = 'string' | 'int' | 'bool' | 'float' | 'json';
 

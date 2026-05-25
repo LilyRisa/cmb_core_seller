@@ -13,6 +13,7 @@ import { SettingRow } from '../../components/SettingRow';
 
 const GROUPS: { value: SettingGroup; label: string }[] = [
     { value: 'branding', label: 'Thương hiệu' },
+    { value: 'mail', label: 'Email' },
     { value: 'marketplace', label: 'Marketplace' },
     { value: 'fulfillment', label: 'Vận hành' },
     { value: 'sync', label: 'Đồng bộ' },
