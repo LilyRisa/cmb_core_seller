@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use CMBcoreSeller\Models\User;
+use CMBcoreSeller\Modules\Settings\Services\SystemSettingService;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
+use CMBcoreSeller\Support\MediaUploader;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -34,6 +36,17 @@ class MediaUploadTest extends TestCase
         // non-image rejected
         $this->actingAs($owner)->withHeaders(['X-Tenant-Id' => (string) $tenant->getKey()])
             ->postJson('/api/v1/media/image', ['image' => UploadedFile::fake()->create('x.pdf', 10, 'application/pdf')])->assertStatus(422);
+    }
+
+    public function test_disk_name_normalises_uppercase_value_from_db_setting(): void
+    {
+        // Regression: sau khi MEDIA_DISK chuyển sang DB (system_settings), giá trị admin/env
+        // nhập "R2" (hoa) phải vẫn phân giải về disk "r2" (chữ thường) trong filesystems.php.
+        // Trước fix: diskName() trả "R2" thô ⇒ ném RuntimeException "Disk lưu media [R2] chưa được khai".
+        Storage::fake('r2');
+        app(SystemSettingService::class)->set('storage.media_disk', 'R2');
+
+        $this->assertSame('r2', app(MediaUploader::class)->diskName());
     }
 
     public function test_viewer_cannot_upload(): void

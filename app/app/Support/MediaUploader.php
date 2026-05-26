@@ -14,10 +14,17 @@ use Illuminate\Support\Str;
  */
 class MediaUploader
 {
-    /** Configured media disk name — normalised (lowercase/trim) in config/media.php; validated here. */
+    /**
+     * Configured media disk name, normalised (lowercase/trim) + validated.
+     *
+     * Normalise here regardless of source: `config('media.disk')` is already
+     * normalised, but a value read from DB via `system_setting('storage.media_disk')`
+     * is NOT — e.g. admin/env "R2" must still resolve to the lowercase "r2" disk
+     * declared in config/filesystems.php (regression after moving config to DB).
+     */
     public function diskName(): string
     {
-        $name = (string) system_setting('storage.media_disk', config('media.disk', 'public'));
+        $name = strtolower(trim((string) system_setting('storage.media_disk', config('media.disk', 'public'))));
         if (! is_array(config("filesystems.disks.$name"))) {
             $known = implode(', ', array_keys((array) config('filesystems.disks', [])));
             throw new \RuntimeException("Disk lưu media [{$name}] chưa được khai trong config/filesystems.php (có: {$known}). Kiểm tra MEDIA_DISK / xem docs/07-infra/cloudflare-r2-uploads.md.");
