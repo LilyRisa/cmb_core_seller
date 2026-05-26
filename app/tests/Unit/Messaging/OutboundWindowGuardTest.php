@@ -205,12 +205,12 @@ class OutboundWindowGuardTest extends TestCase
                 throw new \RuntimeException('not supported');
             }
 
-            public function replyToComment(MessagingAuthContext $auth, string $commentId, string $message): string
+            public function replyToComment(MessagingAuthContext $auth, string $commentId, string $message, array $attachments = []): string
             {
                 throw new \RuntimeException('not supported');
             }
 
-            public function privateReplyToComment(MessagingAuthContext $auth, string $commentId, string $message): void
+            public function privateReplyToComment(MessagingAuthContext $auth, string $commentId, string $message, array $attachments = []): void
             {
                 throw new \RuntimeException('not supported');
             }

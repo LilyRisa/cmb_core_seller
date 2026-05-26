@@ -36,6 +36,8 @@ class AutoReplyEngine
         private OutboundMessageService $outbound,
         private TemplateResolver $resolver,
         private TemplateContextBuilder $contextBuilder,
+        private CommentReplyService $commentReply,
+        private AiSuggestionService $ai,
     ) {}
 
     /**
@@ -87,21 +89,14 @@ class AutoReplyEngine
                 continue;
             }
 
-            $body = $this->resolveAction($rule, $conv, $context);
-            if ($body === null || trim($body) === '') {
+            $resolved = $this->resolveAction($rule, $conv, $context);
+            if ($resolved === null || trim($resolved['body']) === '') {
                 $run->update(['status' => AutoReplyRun::STATUS_FAILED, 'error' => 'unresolved_action']);
 
                 continue;
             }
 
-            $message = $this->outbound->queueText($conv, [
-                'body' => $body,
-                'sent_by_user_id' => null,
-                'sent_by_ai' => true,
-                'auto_rule_id' => $rule->id,
-            ]);
-
-            $run->update(['message_id' => $message->id]);
+            $this->deliver($conv, $rule, $resolved, $run);
 
             return $run; // 1 auto-reply / trigger event
         }
@@ -178,26 +173,50 @@ class AutoReplyEngine
                 continue; // window đã fire (idempotency) ⇒ thử candidate tiếp
             }
 
-            $body = $this->resolveAction($rule, $conv, $context);
-            if ($body === null || trim($body) === '') {
+            $resolved = $this->resolveAction($rule, $conv, $context);
+            if ($resolved === null || trim($resolved['body']) === '') {
                 $run->update(['status' => AutoReplyRun::STATUS_FAILED, 'error' => 'unresolved_action']);
 
                 continue;
             }
 
-            $message = $this->outbound->queueText($conv, [
-                'body' => $body,
-                'sent_by_user_id' => null,
-                'sent_by_ai' => true,
-                'auto_rule_id' => $rule->id,
-            ]);
-
-            $run->update(['message_id' => $message->id]);
+            $this->deliver($conv, $rule, $resolved, $run);
 
             return $run;
         }
 
         return null;
+    }
+
+    /**
+     * Gửi auto-reply đã resolve. Comment thread → đường công khai/nhắn riêng
+     * (CommentReplyService); DM → OutboundMessageService::queueText. Provider khác
+     * biệt nằm trong connector (capability), engine không biết tên nền tảng.
+     *
+     * @param  array{body:string, ai_run_id:?int}  $resolved
+     */
+    private function deliver(Conversation $conv, AutoReplyRule $rule, array $resolved, AutoReplyRun $run): void
+    {
+        if ($conv->thread_type === Conversation::THREAD_COMMENT) {
+            $target = (array) (($rule->action ?? [])['comment_target'] ?? ['public' => true, 'private' => false]);
+            $this->commentReply->dispatch($conv, $resolved['body'], $target, [
+                'auto_rule_id' => $rule->id,
+                'ai_run_id' => $resolved['ai_run_id'],
+            ]);
+
+            // message_id link async (job ingest reply công khai) — run đã ghi `fired`.
+            return;
+        }
+
+        $message = $this->outbound->queueText($conv, [
+            'body' => $resolved['body'],
+            'sent_by_user_id' => null,
+            'sent_by_ai' => true,
+            'auto_rule_id' => $rule->id,
+            'ai_run_id' => $resolved['ai_run_id'],
+        ]);
+
+        $run->update(['message_id' => $message->id]);
     }
 
     /**
@@ -225,6 +244,18 @@ class AutoReplyEngine
 
         $providers = $filter['providers'] ?? [];
         if ($providers !== [] && ! in_array($conv->provider, $providers, true)) {
+            return false;
+        }
+
+        // thread_types: comment YÊU CẦU khai báo tường minh (chống rule DM cũ vô tình
+        // đăng công khai); DM giữ tương thích ngược (vắng = áp dụng).
+        $threadTypes = (array) ($filter['thread_types'] ?? []);
+        $convThread = $conv->thread_type ?: Conversation::THREAD_MESSAGE;
+        if ($convThread === Conversation::THREAD_COMMENT) {
+            if (! in_array(Conversation::THREAD_COMMENT, $threadTypes, true)) {
+                return false;
+            }
+        } elseif ($threadTypes !== [] && ! in_array(Conversation::THREAD_MESSAGE, $threadTypes, true)) {
             return false;
         }
 
@@ -256,6 +287,8 @@ class AutoReplyEngine
             AutoReplyRule::TRIGGER_ORDER_STATUS => ($cfg['order_status'] ?? null) === ($context['order_status'] ?? null),
             AutoReplyRule::TRIGGER_SCHEDULE => $this->inScheduleWindow($cfg, $now),
             AutoReplyRule::TRIGGER_AWAY_NO_RESPONSE => $this->awayThresholdMet($cfg, $conv, $now),
+            // comment_any: mọi bình luận mới (thread_type đã lọc ở matchesFilter).
+            AutoReplyRule::TRIGGER_COMMENT_ANY => $conv->thread_type === Conversation::THREAD_COMMENT,
             // keyword: matching đã xử lý riêng trong fireKeyword() — không vào đây.
             AutoReplyRule::TRIGGER_KEYWORD => false,
             default => false,
@@ -338,18 +371,26 @@ class AutoReplyEngine
             AutoReplyRule::TRIGGER_SCHEDULE => 'sched:'.$now->format('Y-m-d-H'),
             // keyword: idempotency per message (dùng hash body để tránh double fire cùng tin)
             AutoReplyRule::TRIGGER_KEYWORD => 'kw:'.md5((string) ($context['inbound_body'] ?? '')),
+            // comment_any: idempotency per comment (external_message_id), fallback message_id.
+            AutoReplyRule::TRIGGER_COMMENT_ANY => 'cmt:'.($context['external_message_id'] ?? $context['message_id'] ?? md5((string) ($context['inbound_body'] ?? ''))),
             default => $now->format('Y-m-d-H-i-s'),
         };
     }
 
-    /** @param array<string,mixed> $context */
-    private function resolveAction(AutoReplyRule $rule, Conversation $conv, array $context): ?string
+    /**
+     * Resolve nội dung gửi. Trả `['body' => ..., 'ai_run_id' => ?int]` hoặc null
+     * khi không resolve được / AI escalate.
+     *
+     * @param  array<string,mixed>  $context
+     * @return array{body:string, ai_run_id:?int}|null
+     */
+    private function resolveAction(AutoReplyRule $rule, Conversation $conv, array $context): ?array
     {
         $action = $rule->action ?? [];
         $kind = $action['kind'] ?? AutoReplyRule::ACTION_RAW;
 
         if ($kind === AutoReplyRule::ACTION_RAW) {
-            return (string) ($action['raw_text'] ?? '');
+            return ['body' => (string) ($action['raw_text'] ?? ''), 'ai_run_id' => null];
         }
 
         if ($kind === AutoReplyRule::ACTION_TEMPLATE) {
@@ -363,10 +404,29 @@ class AutoReplyEngine
             }
             $ctx = $this->contextBuilder->forConversation($conv, (array) ($action['vars'] ?? []));
 
-            return $this->resolver->resolve($template->body, $ctx)->text;
+            return ['body' => $this->resolver->resolve($template->body, $ctx)->text, 'ai_run_id' => null];
         }
 
-        // ACTION_AI_REPLY: auto-gửi AI là S7 (cần guardrail intent). S5 KHÔNG auto-send AI.
+        if ($kind === AutoReplyRule::ACTION_AI_REPLY) {
+            // AI tự sinh nội dung qua CÙNG guardrail intent với auto-mode DM. Escalate
+            // (complaint/refund/urgent/legal/abuse) ⇒ không gửi (để NV). Provider lỗi /
+            // hết hạn mức ⇒ skip im lặng (không spam, không ném).
+            $inbound = (string) ($context['inbound_body'] ?? '');
+            if (trim($inbound) === '') {
+                return null;
+            }
+            try {
+                $r = $this->ai->draftAutoReply($conv, $inbound);
+            } catch (\Throwable) {
+                return null;
+            }
+            if ($r['action'] !== 'generated' || ($r['body'] ?? '') === '') {
+                return null;
+            }
+
+            return ['body' => (string) $r['body'], 'ai_run_id' => $r['run_id'] ?? null];
+        }
+
         return null;
     }
 }

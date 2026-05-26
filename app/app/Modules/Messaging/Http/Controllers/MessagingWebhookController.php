@@ -6,6 +6,7 @@ use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Modules\Messaging\Services\MessagingWebhookIngestService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 
 /**
  * Một endpoint webhook chung cho mọi nền tảng messaging:
@@ -34,7 +35,7 @@ class MessagingWebhookController extends Controller
      * Facebook Messenger hub.challenge verify (GET với `hub.mode=subscribe`).
      * S2 sẽ implement đầy đủ; S1 chỉ stub trả 200 nếu verify_token match config.
      */
-    public function verify(Request $request, string $provider): JsonResponse|\Illuminate\Http\Response
+    public function verify(Request $request, string $provider): JsonResponse|Response
     {
         if ($provider !== 'facebook' && $provider !== 'facebook_page') {
             return response()->json(['error' => ['code' => 'UNSUPPORTED', 'message' => 'GET verify chỉ dùng cho Facebook.']], 400);

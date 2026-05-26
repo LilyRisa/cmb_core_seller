@@ -17,11 +17,15 @@ class AiKnowledgeDocument extends Model
     use BelongsToTenant, SoftDeletes;
 
     public const SOURCE_UPLOAD = 'upload';
+
     public const SOURCE_URL = 'url';
+
     public const SOURCE_INLINE = 'inline';
 
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_READY = 'ready';
+
     public const STATUS_FAILED = 'failed';
 
     protected $fillable = [

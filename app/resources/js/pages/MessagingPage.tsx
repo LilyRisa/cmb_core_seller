@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useRef, useState, useCallback, type CSSProperties, type ReactNode, type UIEvent } from 'react';
 import dayjs from 'dayjs';
 import { Link } from 'react-router-dom';
-import { App, Avatar, Badge, Button, Checkbox, Dropdown, Empty, Grid, Image, Input, List, Modal, Popconfirm, Popover, Radio, Segmented, Select, Space, Spin, Tag, Tooltip, Typography, Upload } from 'antd';
-import { BellFilled, BellOutlined, CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FileOutlined, FilterOutlined, MessageFilled, MessageOutlined, MoreOutlined, PaperClipOutlined, PhoneOutlined, PictureOutlined, RobotOutlined, SendOutlined, ShopOutlined, ShoppingOutlined, SmileOutlined, SoundOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
-import Picker from '@emoji-mart/react';
-import emojiData from '@emoji-mart/data';
+import { App, Avatar, Badge, Button, Checkbox, Dropdown, Empty, Grid, Image, Input, List, Popconfirm, Popover, Radio, Segmented, Select, Space, Spin, Tag, Tooltip, Typography } from 'antd';
+import { BellFilled, BellOutlined, CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FileOutlined, FilterOutlined, MessageOutlined, MoreOutlined, PhoneOutlined, PictureOutlined, ShopOutlined, ShoppingOutlined, SoundOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
 import {
     type Conversation,
@@ -30,11 +28,12 @@ import {
     useSetConversationTags,
     useUnblockConversation,
 } from '@/lib/messaging';
-import { useMessagingChannels, useTemplates, type MessageTemplate } from '@/lib/messagingConfig';
+import { useMessagingChannels, useTemplates } from '@/lib/messagingConfig';
 import { usePushNotifications } from '@/lib/usePushNotifications';
 import { MessagingNav } from '@/components/MessagingNav';
 import { TagManagerModal } from '@/components/TagManagerModal';
 import { ConversationOrderPanel } from '@/components/messaging/ConversationOrderPanel';
+import { MessageComposer, type ComposerSubmit } from '@/components/messaging/MessageComposer';
 
 const { Text } = Typography;
 
@@ -224,14 +223,6 @@ function isOutsideWindow(lastInboundAt: string | null): boolean {
     return dayjs().diff(dayjs(lastInboundAt), 'hour') >= 24;
 }
 
-/** Thẻ tin nhắn Facebook ngoài 24h (mặc định HUMAN_AGENT cho trả lời của nhân viên). */
-const FB_MESSAGE_TAGS: Array<{ label: string; value: string }> = [
-    { label: 'Nhân viên (7 ngày)', value: 'HUMAN_AGENT' },
-    { label: 'Xác nhận sự kiện', value: 'CONFIRMED_EVENT_UPDATE' },
-    { label: 'Sau mua hàng', value: 'POST_PURCHASE_UPDATE' },
-    { label: 'Cập nhật tài khoản', value: 'ACCOUNT_UPDATE' },
-];
-
 /**
  * Hộp thư hợp nhất 3 cột (SPEC-0024 §3.1): danh sách hội thoại | luồng tin +
  * ô soạn | panel thông tin. Realtime = polling fallback (Reverb là follow-up).
@@ -275,49 +266,12 @@ export function MessagingPage() {
 
     // ── Other state ───────────────────────────────────────────────────────────
     const [activeId, setActiveId] = useState<number | null>(null);
-    const [draft, setDraft] = useState('');
-    const [msgTag, setMsgTag] = useState<string>('HUMAN_AGENT');
-    const [emojiOpen, setEmojiOpen] = useState(false);
     const [tagPopoverConvId, setTagPopoverConvId] = useState<number | null>(null);
-
-    // ── Comment-specific state ────────────────────────────────────────────────
-    const [privateReplyOpen, setPrivateReplyOpen] = useState(false);
-    const [privateReplyDraft, setPrivateReplyDraft] = useState('');
     const [openingLink, setOpeningLink] = useState(false);
 
-    // ── Templates (for slash-command) ─────────────────────────────────────────
+    // ── Templates (mẫu nhanh — truyền vào composer dùng chung) ────────────────
     const templatesQuery = useTemplates();
-
-    /**
-     * Slash-command: draft bắt đầu bằng `/` (và chỉ `/...` — không có khoảng trắng ở đầu,
-     * không có ký tự xuống dòng) → hiện danh sách mẫu khớp với query.
-     * Regex: /^\/(\S*)$/ — neo đầu, phần query không chứa khoảng trắng.
-     */
-    const SLASH_RE = /^\/(\S*)$/;
-    const slashMatch = SLASH_RE.exec(draft);
-    const slashQuery = slashMatch ? slashMatch[1].toLowerCase() : null;
-    const slashOpen = slashQuery !== null;
-
-    const slashMatches = useMemo<MessageTemplate[]>(() => {
-        const templates = templatesQuery.data?.data ?? [];
-        if (slashQuery === null) return [];
-        const q = slashQuery;
-        if (q === '') return templates.filter((t) => t.enabled);
-        return templates.filter((t) => {
-            if (!t.enabled) return false;
-            // shortcut_key là ưu tiên (startsWith), sau đó name (includes, case-insensitive)
-            if (t.shortcut_key && t.shortcut_key.toLowerCase().startsWith(q)) return true;
-            return t.name.toLowerCase().includes(q);
-        });
-    }, [slashQuery, templatesQuery.data]);
-
-    const [slashHighlight, setSlashHighlight] = useState(0);
-    // Reset highlight mỗi khi danh sách thay đổi
-    useEffect(() => { setSlashHighlight(0); }, [slashMatches]);
-
-    const applySlashTemplate = useCallback((t: MessageTemplate) => {
-        setDraft(t.body);
-    }, []);
+    const templates = templatesQuery.data?.data ?? [];
 
     // ── Tags ──────────────────────────────────────────────────────────────────
     const tagsQuery = useMessagingTags();
@@ -415,56 +369,45 @@ export function MessagingPage() {
     }, [activeId]);
 
     // ── Helpers ───────────────────────────────────────────────────────────────
-    const handleSend = () => {
-        const body = draft.trim();
-        if (!body || !activeId) return;
-        sendText.mutate({ body, message_tag: needsTag ? msgTag : undefined }, {
-            onSuccess: () => setDraft(''),
-            onError: (e) => message.error(errorMessage(e, 'Không gửi được tin.')),
-        });
-    };
-
-    const handleAi = () => {
+    // Gửi DM: có ảnh/tệp → gửi media (kèm caption); chỉ text → gửi text. Ném lỗi
+    // lên composer để giữ ô soạn khi thất bại.
+    const handleDmSubmit = async (p: ComposerSubmit) => {
         if (!activeId) return;
-        aiSuggest.mutate(undefined, {
-            onSuccess: (d) => setDraft(d.draft_text),
-            onError: (e) => message.error(errorMessage(e, 'AI không phản hồi.')),
-        });
-    };
-
-    const handleMedia = (file: File, kind: 'image' | 'video' | 'file') => {
-        if (!activeId) return false;
-        sendMedia.mutate({ file, kind }, { onError: (e) => message.error(errorMessage(e, 'Không gửi được tệp.')) });
-        return false; // chặn antd Upload tự upload
-    };
-
-    const handleEmoji = (emoji: { native?: string }) => {
-        if (emoji.native) {
-            setDraft((d) => d + emoji.native);
-            setEmojiOpen(false);
+        try {
+            if (p.file && p.kind) {
+                await sendMedia.mutateAsync({ file: p.file, kind: p.kind, caption: p.text || undefined });
+            } else {
+                await sendText.mutateAsync({ body: p.text, message_tag: p.messageTag });
+            }
+        } catch (e) {
+            message.error(errorMessage(e, 'Không gửi được tin.'));
+            throw e;
         }
     };
 
-    const handleCommentReply = () => {
-        const body = draft.trim();
-        if (!body || !activeId) return;
-        replyComment.mutate(body, {
-            onSuccess: () => setDraft(''),
-            onError: (e) => message.error(errorMessage(e, 'Không gửi được trả lời.')),
-        });
+    // Gửi comment: theo đích (công khai / nhắn riêng / cả hai), kèm ảnh tuỳ chọn.
+    const handleCommentSubmit = async (p: ComposerSubmit) => {
+        if (!activeId) return;
+        const target = p.commentTarget ?? { public: true, private: false };
+        const image = p.kind === 'image' ? p.file : undefined;
+        try {
+            if (target.public) await replyComment.mutateAsync({ body: p.text, image });
+            if (target.private) await privateReply.mutateAsync({ body: p.text, image });
+            if (target.private && !target.public) message.success('Đã gửi tin nhắn riêng.');
+        } catch (e) {
+            message.error(errorMessage(e, 'Không gửi được trả lời.'));
+            throw e;
+        }
     };
 
-    const handlePrivateReplySend = () => {
-        const body = privateReplyDraft.trim();
-        if (!body || !activeId) return;
-        privateReply.mutate(body, {
-            onSuccess: () => {
-                setPrivateReplyDraft('');
-                setPrivateReplyOpen(false);
-                message.success('Đã gửi tin nhắn riêng.');
-            },
-            onError: (e) => message.error(errorMessage(e, 'Không gửi được tin nhắn riêng.')),
-        });
+    // AI gợi ý → trả text điền vào composer (lỗi báo + trả rỗng để không ghi đè).
+    const handleAiSuggest = async (): Promise<string> => {
+        try {
+            return (await aiSuggest.mutateAsync()).draft_text;
+        } catch (e) {
+            message.error(errorMessage(e, 'AI không phản hồi.'));
+            return '';
+        }
     };
 
     const handleAvatarClick = () => {
@@ -687,23 +630,6 @@ export function MessagingPage() {
         <div>
             <MessagingNav />
             <TagManagerModal open={tagModalOpen} onClose={() => setTagModalOpen(false)} />
-            {/* Private reply modal */}
-            <Modal
-                title="Nhắn riêng"
-                open={privateReplyOpen}
-                onCancel={() => { setPrivateReplyOpen(false); setPrivateReplyDraft(''); }}
-                footer={[
-                    <Button key="cancel" onClick={() => { setPrivateReplyOpen(false); setPrivateReplyDraft(''); }}>Huỷ</Button>,
-                    <Button key="send" type="primary" icon={<SendOutlined />} loading={privateReply.isPending} onClick={handlePrivateReplySend} disabled={!privateReplyDraft.trim()}>Gửi</Button>,
-                ]}
-            >
-                <Input.TextArea
-                    value={privateReplyDraft}
-                    onChange={(e) => setPrivateReplyDraft(e.target.value)}
-                    placeholder="Nội dung tin nhắn riêng…"
-                    autoSize={{ minRows: 3, maxRows: 8 }}
-                />
-            </Modal>
             <div style={{ display: 'flex', height: 'calc(100vh - 150px)', gap: 12, minWidth: 0 }}>
             {/* Cột trái — danh sách hội thoại */}
             <div style={{ flex: `0 0 ${screens.md ? 360 : 320}px`, minWidth: 320, maxWidth: 420, background: '#fff', borderRadius: 12, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
@@ -941,15 +867,6 @@ export function MessagingPage() {
                                                 />
                                             </Tooltip>
                                         </Popconfirm>
-                                        <Tooltip title={active.comment.private_replied ? 'Đã nhắn riêng — nhắn thêm' : 'Nhắn riêng (tin nhắn cá nhân)'}>
-                                            <Button
-                                                type="text"
-                                                size="small"
-                                                icon={active.comment.private_replied ? <MessageFilled style={{ color: '#16A34A' }} /> : <MessageOutlined />}
-                                                style={active.comment.private_replied ? { color: '#16A34A', fontWeight: 700 } : undefined}
-                                                onClick={() => setPrivateReplyOpen(true)}
-                                            />
-                                        </Tooltip>
                                     </Space>
                                 )}
                             </div>
@@ -1058,140 +975,26 @@ export function MessagingPage() {
                                 </Space>
                             </div>
                         ) : active?.thread_type === 'comment' ? (
-                        /* ── Comment composer: public reply only, no media ── */
-                        <div style={{ padding: 12, borderTop: '1px solid #F1F5F9' }}>
-                            <Input.TextArea
-                                value={draft}
-                                onChange={(e) => setDraft(e.target.value)}
-                                placeholder="Trả lời bình luận… (Enter để gửi, Shift+Enter xuống dòng)"
-                                autoSize={{ minRows: 3, maxRows: 10 }}
-                                onPressEnter={(e) => { if (!e.shiftKey) { e.preventDefault(); handleCommentReply(); } }}
-                            />
-                            <Space style={{ marginTop: 8, justifyContent: 'space-between', width: '100%' }}>
-                                <Space size={4}>
-                                    <Popover
-                                        open={emojiOpen}
-                                        onOpenChange={setEmojiOpen}
-                                        trigger="click"
-                                        content={<Picker data={emojiData} onEmojiSelect={(e: { native?: string }) => handleEmoji(e)} previewPosition="none" locale="vi" />}
-                                    >
-                                        <Button icon={<SmileOutlined />} title="Chèn emoji" />
-                                    </Popover>
-                                </Space>
-                                <Button type="primary" icon={<SendOutlined />} loading={replyComment.isPending} onClick={handleCommentReply} disabled={!draft.trim()}>Trả lời</Button>
-                            </Space>
-                        </div>
+                        <MessageComposer
+                            key={`cmt-${activeId}`}
+                            mode="comment"
+                            provider={active.provider}
+                            templates={templates}
+                            aiAvailable
+                            onAiSuggest={handleAiSuggest}
+                            onSubmit={handleCommentSubmit}
+                        />
                         ) : (
-                        /* ── Message composer (original) ── */
-                        <div style={{ padding: 12, borderTop: '1px solid #F1F5F9' }}>
-                            {needsTag && (
-                                <div style={{ marginBottom: 8 }}>
-                                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
-                                        Quá 24h từ tin cuối của khách — chọn loại thẻ tin nhắn để gửi (Facebook yêu cầu):
-                                    </Text>
-                                    <Radio.Group
-                                        size="small"
-                                        optionType="button"
-                                        buttonStyle="solid"
-                                        options={FB_MESSAGE_TAGS}
-                                        value={msgTag}
-                                        onChange={(e) => setMsgTag(e.target.value)}
-                                    />
-                                </div>
-                            )}
-                            <Popover
-                                open={slashOpen && (slashMatches.length > 0 || slashQuery !== null)}
-                                placement="topLeft"
-                                trigger={[]}
-                                arrow={false}
-                                overlayInnerStyle={{ padding: 4, minWidth: 280, maxWidth: 360 }}
-                                content={(
-                                    <div>
-                                        {slashMatches.length === 0 ? (
-                                            <div style={{ padding: '6px 10px', color: '#94A3B8', fontSize: 13 }}>Không có mẫu tin khớp</div>
-                                        ) : (
-                                            slashMatches.map((t, idx) => (
-                                                <div
-                                                    key={t.id}
-                                                    onClick={() => applySlashTemplate(t)}
-                                                    style={{
-                                                        padding: '6px 10px',
-                                                        borderRadius: 6,
-                                                        cursor: 'pointer',
-                                                        background: idx === slashHighlight ? '#EFF6FF' : undefined,
-                                                        display: 'flex',
-                                                        alignItems: 'baseline',
-                                                        gap: 8,
-                                                    }}
-                                                    onMouseEnter={() => setSlashHighlight(idx)}
-                                                >
-                                                    <span style={{ fontWeight: 600, fontSize: 13, flex: '0 0 auto' }}>{t.name}</span>
-                                                    {t.shortcut_key && (
-                                                        <Tag style={{ marginInlineEnd: 0, fontFamily: 'monospace', fontSize: 11 }}>/{t.shortcut_key}</Tag>
-                                                    )}
-                                                    <span style={{ color: '#64748B', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                                                        {t.body.length > 50 ? t.body.slice(0, 50) + '…' : t.body}
-                                                    </span>
-                                                </div>
-                                            ))
-                                        )}
-                                    </div>
-                                )}
-                            >
-                            <Input.TextArea
-                                value={draft}
-                                onChange={(e) => setDraft(e.target.value)}
-                                placeholder="Nhập tin nhắn… (Enter để gửi, Shift+Enter xuống dòng; /slug để chèn mẫu)"
-                                autoSize={{ minRows: 3, maxRows: 10 }}
-                                onPressEnter={(e) => {
-                                    if (e.shiftKey) return; // xuống dòng bình thường
-                                    if (slashOpen && slashMatches.length > 0) {
-                                        e.preventDefault();
-                                        applySlashTemplate(slashMatches[slashHighlight] ?? slashMatches[0]);
-                                        return;
-                                    }
-                                    e.preventDefault();
-                                    handleSend();
-                                }}
-                                onKeyDown={(e) => {
-                                    if (!slashOpen || slashMatches.length === 0) return;
-                                    if (e.key === 'ArrowDown') {
-                                        e.preventDefault();
-                                        setSlashHighlight((h) => Math.min(h + 1, slashMatches.length - 1));
-                                    } else if (e.key === 'ArrowUp') {
-                                        e.preventDefault();
-                                        setSlashHighlight((h) => Math.max(h - 1, 0));
-                                    } else if (e.key === 'Escape') {
-                                        e.preventDefault();
-                                        setDraft('');
-                                    }
-                                }}
-                            />
-                            </Popover>
-                            <Space style={{ marginTop: 8, justifyContent: 'space-between', width: '100%' }}>
-                                <Space size={4}>
-                                    <Upload showUploadList={false} accept="image/*" beforeUpload={(f) => handleMedia(f as File, 'image')}>
-                                        <Button icon={<PictureOutlined />} title="Gửi ảnh" />
-                                    </Upload>
-                                    <Upload showUploadList={false} accept="video/*" beforeUpload={(f) => handleMedia(f as File, 'video')}>
-                                        <Button icon={<VideoCameraOutlined />} title="Gửi video" />
-                                    </Upload>
-                                    <Upload showUploadList={false} beforeUpload={(f) => handleMedia(f as File, 'file')}>
-                                        <Button icon={<PaperClipOutlined />} title="Gửi tài liệu" />
-                                    </Upload>
-                                    <Popover
-                                        open={emojiOpen}
-                                        onOpenChange={setEmojiOpen}
-                                        trigger="click"
-                                        content={<Picker data={emojiData} onEmojiSelect={(e: { native?: string }) => handleEmoji(e)} previewPosition="none" locale="vi" />}
-                                    >
-                                        <Button icon={<SmileOutlined />} title="Chèn emoji" />
-                                    </Popover>
-                                    <Button icon={<RobotOutlined />} loading={aiSuggest.isPending} onClick={handleAi}>AI gợi ý</Button>
-                                </Space>
-                                <Button type="primary" icon={<SendOutlined />} loading={sendText.isPending} onClick={handleSend} disabled={!draft.trim()}>Gửi</Button>
-                            </Space>
-                        </div>
+                        <MessageComposer
+                            key={`dm-${activeId}`}
+                            mode="dm"
+                            provider={active?.provider ?? ''}
+                            templates={templates}
+                            needsTag={needsTag}
+                            aiAvailable
+                            onAiSuggest={handleAiSuggest}
+                            onSubmit={handleDmSubmit}
+                        />
                         )}
                     </>
                 )}

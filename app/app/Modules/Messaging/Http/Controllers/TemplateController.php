@@ -6,6 +6,7 @@ use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Modules\Messaging\Http\Resources\MessageTemplateResource;
 use CMBcoreSeller\Modules\Messaging\Models\MessageTemplate;
 use CMBcoreSeller\Modules\Messaging\Services\TemplateResolver;
+use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -44,6 +45,14 @@ class TemplateController extends Controller
                     ->orWhereJsonContains('scope->providers', $provider);
             });
         }
+        if ($threadType = $request->query('thread_type')) {
+            // scope.thread_types rỗng/không khai báo = áp cả tin nhắn lẫn bình luận.
+            $q->where(function ($qq) use ($threadType) {
+                $qq->whereNull('scope')
+                    ->orWhereJsonLength('scope->thread_types', 0)
+                    ->orWhereJsonContains('scope->thread_types', $threadType);
+            });
+        }
         if ($search = trim((string) $request->query('q', ''))) {
             $q->where(function ($qq) use ($search) {
                 $qq->where('name', 'like', "%{$search}%")
@@ -71,7 +80,7 @@ class TemplateController extends Controller
     {
         Gate::authorize('messaging.template.manage');
 
-        $tenantId = app(\CMBcoreSeller\Modules\Tenancy\CurrentTenant::class)->id();
+        $tenantId = app(CurrentTenant::class)->id();
 
         $data = $request->validate([
             'code' => [

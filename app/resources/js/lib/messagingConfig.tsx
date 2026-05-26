@@ -59,15 +59,33 @@ export function useDeleteTemplate() {
 
 // --- Auto-reply rules -------------------------------------------------------
 
-export type RuleTrigger = 'schedule' | 'order_status' | 'away_no_response' | 'first_message' | 'keyword';
+export type RuleTrigger = 'schedule' | 'order_status' | 'away_no_response' | 'first_message' | 'keyword' | 'comment_any';
+
+export type ThreadType = 'message' | 'comment';
+
+export interface RuleFilter {
+    providers?: string[];
+    keywords?: string[];
+    /** Loại hội thoại áp dụng. Vắng = cả tin nhắn lẫn bình luận. */
+    thread_types?: ThreadType[];
+    [k: string]: unknown;
+}
+
+export interface RuleAction {
+    kind: 'template' | 'raw' | 'ai_reply';
+    template_id?: number;
+    raw_text?: string;
+    /** Đích gửi khi áp cho bình luận: trả lời công khai và/hoặc nhắn riêng. */
+    comment_target?: { public?: boolean; private?: boolean };
+}
 
 export interface AutoReplyRule {
     id: number;
     name: string;
     trigger: RuleTrigger;
     trigger_config: Record<string, unknown>;
-    filter: Record<string, unknown>;
-    action: { kind: 'template' | 'raw' | 'ai_reply'; template_id?: number; raw_text?: string };
+    filter: RuleFilter;
+    action: RuleAction;
     cooldown_seconds: number;
     enabled: boolean;
     priority: number;

@@ -407,15 +407,21 @@ export function useDeleteComment() {
     });
 }
 
+/** Trả lời công khai comment — kèm ảnh tuỳ chọn (multipart khi có ảnh). */
 export function useReplyComment(conversationId: number | null) {
     const api = useScopedApi();
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: async (body: string) => {
-            const { data } = await api!.post<{ data: Message }>(
-                `/messaging/conversations/${conversationId}/comment/reply`,
-                { body },
-            );
+        mutationFn: async (input: { body: string; image?: File }) => {
+            let data;
+            if (input.image) {
+                const fd = new FormData();
+                fd.append('body', input.body);
+                fd.append('image', input.image);
+                ({ data } = await api!.post<{ data: Message }>(`/messaging/conversations/${conversationId}/comment/reply`, fd));
+            } else {
+                ({ data } = await api!.post<{ data: Message }>(`/messaging/conversations/${conversationId}/comment/reply`, { body: input.body }));
+            }
             return data.data;
         },
         onSuccess: () => {
@@ -425,15 +431,21 @@ export function useReplyComment(conversationId: number | null) {
     });
 }
 
+/** Nhắn riêng cho người comment (Facebook Private Reply) — kèm ảnh tuỳ chọn. */
 export function usePrivateReplyComment(conversationId: number | null) {
     const api = useScopedApi();
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: async (body: string) => {
-            const { data } = await api!.post<{ data: Message }>(
-                `/messaging/conversations/${conversationId}/comment/private-reply`,
-                { body },
-            );
+        mutationFn: async (input: { body: string; image?: File }) => {
+            let data;
+            if (input.image) {
+                const fd = new FormData();
+                fd.append('body', input.body);
+                fd.append('image', input.image);
+                ({ data } = await api!.post<{ data: Message }>(`/messaging/conversations/${conversationId}/comment/private-reply`, fd));
+            } else {
+                ({ data } = await api!.post<{ data: Message }>(`/messaging/conversations/${conversationId}/comment/private-reply`, { body: input.body }));
+            }
             return data.data;
         },
         onSuccess: () => {

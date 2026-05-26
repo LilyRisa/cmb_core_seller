@@ -14,13 +14,19 @@ class AiAssistantRun extends Model
     use BelongsToTenant;
 
     public const MODE_SUGGEST = 'suggest';
+
     public const MODE_AUTO = 'auto';
+
     public const MODE_INTENT = 'intent';
+
     public const MODE_RAG = 'rag';
 
     public const STATUS_SUCCESS = 'success';
+
     public const STATUS_ERROR = 'error';
+
     public const STATUS_TIMEOUT = 'timeout';
+
     public const STATUS_BLOCKED_BY_GUARDRAIL = 'blocked_by_guardrail';
 
     protected $fillable = [

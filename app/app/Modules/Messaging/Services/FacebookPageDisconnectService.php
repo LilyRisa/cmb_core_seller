@@ -3,8 +3,8 @@
 namespace CMBcoreSeller\Modules\Messaging\Services;
 
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
-use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\AutoReplyRun;
+use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Models\MessageAttachment;
 use CMBcoreSeller\Modules\Messaging\Models\MessageDraft;

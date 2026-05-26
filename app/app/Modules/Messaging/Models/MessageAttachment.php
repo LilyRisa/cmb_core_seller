@@ -18,12 +18,17 @@ class MessageAttachment extends Model
     use BelongsToTenant;
 
     public const KIND_IMAGE = 'image';
+
     public const KIND_VIDEO = 'video';
+
     public const KIND_FILE = 'file';
+
     public const KIND_AUDIO = 'audio';
 
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_DOWNLOADED = 'downloaded';
+
     public const STATUS_FAILED = 'failed';
 
     protected $fillable = [

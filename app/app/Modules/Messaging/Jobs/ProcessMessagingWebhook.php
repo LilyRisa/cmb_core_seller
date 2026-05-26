@@ -11,6 +11,7 @@ use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\WebhookEvent;
+use CMBcoreSeller\Modules\Messaging\Events\CommentReceived;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Services\CommentConversationUpserter;
@@ -141,6 +142,12 @@ class ProcessMessagingWebhook implements ShouldQueue
             isNewConversation: $result['conversation']->wasRecentlyCreated,
             fireInboundEvent: ! $isComment,
         );
+
+        // Comment inbound MỚI ⇒ phát CommentReceived (auto-reply comment đi đường
+        // riêng — đích công khai/nhắn riêng do rule cấu hình; KHÔNG dùng auto-mode DM).
+        if ($isComment && $result['created'] && $result['message']->isInbound()) {
+            CommentReceived::dispatch($result['message']->id, $result['conversation']->id);
+        }
 
         // Sync hồ sơ buyer (tên + avatar) cho DM còn thiếu — webhook tạo conversation
         // KHÔNG fetch profile (khác backfill). Job tự throttle 24h tránh spam Graph.

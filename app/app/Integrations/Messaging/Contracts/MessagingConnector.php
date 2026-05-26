@@ -185,13 +185,20 @@ interface MessagingConnector
 
     /**
      * Trả lời công khai 1 comment (tạo sub-comment). Trả về comment id mới.
-     * Connector không hỗ trợ ⇒ ném {@see UnsupportedOperation}.
+     * `$attachments` (tùy chọn) đính media — connector hỗ trợ `comment.media` mới
+     * dùng (mỗi item là {@see MediaRefDTO} có `externalUrl` signed). Connector
+     * không hỗ trợ ⇒ ném {@see UnsupportedOperation}.
+     *
+     * @param  list<MediaRefDTO>  $attachments
      */
-    public function replyToComment(MessagingAuthContext $auth, string $commentId, string $message): string;
+    public function replyToComment(MessagingAuthContext $auth, string $commentId, string $message, array $attachments = []): string;
 
     /**
      * Nhắn tin riêng tư cho người bình luận (Facebook Private Reply).
-     * Connector không hỗ trợ ⇒ ném {@see UnsupportedOperation}.
+     * `$attachments` như {@see replyToComment}. Connector không hỗ trợ ⇒ ném
+     * {@see UnsupportedOperation}.
+     *
+     * @param  list<MediaRefDTO>  $attachments
      */
-    public function privateReplyToComment(MessagingAuthContext $auth, string $commentId, string $message): void;
+    public function privateReplyToComment(MessagingAuthContext $auth, string $commentId, string $message, array $attachments = []): void;
 }

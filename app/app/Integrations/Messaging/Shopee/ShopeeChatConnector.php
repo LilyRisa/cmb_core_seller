@@ -267,12 +267,12 @@ class ShopeeChatConnector implements MessagingConnector
         throw UnsupportedOperation::for($this->code(), 'deleteComment');
     }
 
-    public function replyToComment(MessagingAuthContext $auth, string $commentId, string $message): string
+    public function replyToComment(MessagingAuthContext $auth, string $commentId, string $message, array $attachments = []): string
     {
         throw UnsupportedOperation::for($this->code(), 'replyToComment');
     }
 
-    public function privateReplyToComment(MessagingAuthContext $auth, string $commentId, string $message): void
+    public function privateReplyToComment(MessagingAuthContext $auth, string $commentId, string $message, array $attachments = []): void
     {
         throw UnsupportedOperation::for($this->code(), 'privateReplyToComment');
     }
