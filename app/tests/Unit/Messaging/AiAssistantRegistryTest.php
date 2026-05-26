@@ -36,6 +36,6 @@ class AiAssistantRegistryTest extends TestCase
     public function test_adapters_lists_registered_keys(): void
     {
         $reg = app(AiAssistantRegistry::class);
-        $this->assertEqualsCanonicalizing(['anthropic', 'openai_compatible', 'manual'], $reg->adapters());
+        $this->assertEqualsCanonicalizing(['anthropic', 'openai_compatible', 'custom_http', 'manual'], $reg->adapters());
     }
 }

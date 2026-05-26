@@ -2,9 +2,11 @@
 
 namespace Tests\Feature\Messaging;
 
+use CMBcoreSeller\Integrations\Ai\AiAssistantRegistry;
 use CMBcoreSeller\Integrations\Ai\Claude\ClaudeConnector;
 use CMBcoreSeller\Integrations\Ai\DTO\AiContext;
 use CMBcoreSeller\Integrations\Ai\DTO\ConversationSnapshot;
+use CMBcoreSeller\Integrations\Ai\Exceptions\ProviderNotConfigured;
 use CMBcoreSeller\Integrations\Ai\OpenAi\OpenAiConnector;
 use CMBcoreSeller\Modules\Messaging\Models\AiProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -131,5 +133,93 @@ class AiProviderHttpTest extends TestCase
         $this->assertSame(3, $embedding->dimension);
         $this->assertSame([0.1, 0.2, 0.3], $embedding->vector);
         $this->assertSame(5, $embedding->tokenCount);
+    }
+
+    private function customHttpProvider(): void
+    {
+        AiProvider::query()->create([
+            'code' => 'my-llm', 'adapter' => 'custom_http', 'is_active' => true,
+            'api_key' => 'secret-key', 'base_url' => 'https://llm.example.com/chat',
+            'default_model' => 'my-model',
+            'adapter_config' => [
+                'method' => 'POST',
+                'headers' => ['Authorization' => 'Bearer {{api_key}}'],
+                'request_template' => '{"model":"{{model}}","system":"{{system}}","messages":{{messages_json}}}',
+                'response_path' => 'data.reply.text',
+                'usage' => ['prompt_path' => 'usage.in', 'completion_path' => 'usage.out'],
+            ],
+            'pricing' => [
+                ['kind' => 'input_token', 'unit' => 1000, 'micro_vnd' => 100],
+                ['kind' => 'output_token', 'unit' => 1000, 'micro_vnd' => 500],
+            ],
+        ]);
+    }
+
+    public function test_custom_http_renders_template_and_parses_path(): void
+    {
+        Http::fake([
+            'llm.example.com/*' => Http::response([
+                'data' => ['reply' => ['text' => 'Dạ shop hỗ trợ anh/chị ngay ạ.']],
+                'usage' => ['in' => 12, 'out' => 8],
+            ], 200),
+        ]);
+        $this->customHttpProvider();
+
+        $reply = app(AiAssistantRegistry::class)->for('my-llm')->generateReply(
+            new AiContext(tenantId: 1, providerCode: 'my-llm'),
+            $this->snapshot(),
+            null,
+        );
+
+        $this->assertStringContainsString('hỗ trợ', $reply->body);
+        $this->assertSame(12, $reply->promptTokens);
+        $this->assertSame(8, $reply->completionTokens);
+        $this->assertSame(5, $reply->costMicroVnd); // round(12/1000*100)+round(8/1000*500)=1+4
+
+        Http::assertSent(function ($req) {
+            $body = $req->data();
+
+            return str_contains($req->url(), 'llm.example.com/chat')
+                && $req->hasHeader('Authorization', 'Bearer secret-key')
+                && $body['model'] === 'my-model'
+                && is_array($body['messages'])
+                && str_contains((string) $body['system'], 'CSKH');
+        });
+    }
+
+    public function test_custom_http_classify_returns_label(): void
+    {
+        Http::fake([
+            'llm.example.com/*' => Http::response(['data' => ['reply' => ['text' => 'refund']]], 200),
+        ]);
+        $this->customHttpProvider();
+
+        $intent = app(AiAssistantRegistry::class)->for('my-llm')
+            ->classifyIntent(new AiContext(tenantId: 1, providerCode: 'my-llm'), 'Cho em hoàn tiền đơn này');
+
+        $this->assertSame('refund', $intent->intent);
+    }
+
+    public function test_custom_http_supports_intent_classify_for_auto_mode(): void
+    {
+        $this->customHttpProvider();
+
+        // intent.classify=true là điều kiện để auto-mode không bị IntentClassifier escalate mặc định.
+        $this->assertTrue(app(AiAssistantRegistry::class)->for('my-llm')->supports('intent.classify'));
+    }
+
+    public function test_custom_http_missing_template_throws_not_configured(): void
+    {
+        AiProvider::query()->create([
+            'code' => 'broken-llm', 'adapter' => 'custom_http', 'is_active' => true,
+            'base_url' => 'https://llm.example.com/chat', // thiếu adapter_config.request_template/response_path
+        ]);
+
+        $this->expectException(ProviderNotConfigured::class);
+        app(AiAssistantRegistry::class)->for('broken-llm')->generateReply(
+            new AiContext(tenantId: 1, providerCode: 'broken-llm'),
+            $this->snapshot(),
+            null,
+        );
     }
 }

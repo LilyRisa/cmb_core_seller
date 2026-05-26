@@ -14,8 +14,8 @@ use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Services\AiSuggestionService;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
-use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
@@ -103,6 +103,39 @@ class MessagingAutoModeTest extends TestCase
 
         $meta = Conversation::withoutGlobalScopes()->find($this->conv->id)->meta;
         $this->assertTrue($meta['requires_human'] ?? false);
+    }
+
+    public function test_auto_responds_via_custom_http_provider(): void
+    {
+        // Chỉ custom_http active ⇒ resolveProviderCode chọn nó (chuỗi đầy đủ: classify → reply → queue).
+        AiProvider::query()->where('code', 'manual')->update(['is_active' => false]);
+        AiProvider::query()->create([
+            'code' => 'my-llm', 'adapter' => 'custom_http', 'is_active' => true,
+            'api_key' => 'secret-key', 'base_url' => 'https://llm.example.com/chat', 'default_model' => 'my-model',
+            'adapter_config' => [
+                'headers' => ['Authorization' => 'Bearer {{api_key}}'],
+                'request_template' => '{"model":"{{model}}","system":"{{system}}","messages":{{messages_json}}}',
+                'response_path' => 'data.reply.text',
+            ],
+        ]);
+
+        // 2 lần gọi cùng endpoint: classify trước (trả nhãn an toàn 'other'), rồi reply.
+        Http::fake(['llm.example.com/*' => Http::sequence()
+            ->push(['data' => ['reply' => ['text' => 'other']]], 200)
+            ->push(['data' => ['reply' => ['text' => 'Dạ shop hỗ trợ anh/chị ngay ạ.']]], 200)]);
+
+        $result = $this->service()->autoRespond($this->conv, 'Đơn của em bao giờ giao ạ?');
+
+        $this->assertSame('sent', $result['action']);
+        $this->assertSame(1, $this->outboundCount());
+
+        $run = AiAssistantRun::withoutGlobalScopes()->latest('id')->first();
+        $this->assertSame(AiAssistantRun::MODE_AUTO, $run->mode);
+        $this->assertSame(AiAssistantRun::STATUS_SUCCESS, $run->status);
+
+        // Chuỗi thực sự đi qua CustomHttpConnector (header api_key được nội suy thô).
+        Http::assertSent(fn ($req) => str_contains($req->url(), 'llm.example.com/chat')
+            && $req->hasHeader('Authorization', 'Bearer secret-key'));
     }
 
     public function test_settings_accepts_auto_mode(): void

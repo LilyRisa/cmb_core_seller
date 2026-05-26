@@ -4,12 +4,21 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
-export type AiAdapter = 'anthropic' | 'openai_compatible' | 'manual';
+export type AiAdapter = 'anthropic' | 'openai_compatible' | 'custom_http' | 'manual';
 
 export interface AiPreset {
     name: string;
     base_url: string | null;
     default_model: string | null;
+}
+
+/** Cấu hình HTTP tùy chỉnh (adapter custom_http — SPEC-0026). */
+export interface CustomHttpConfig {
+    method?: 'POST' | 'PUT' | 'GET';
+    headers?: Record<string, string>;
+    request_template?: string;
+    response_path?: string;
+    usage?: { prompt_path?: string; completion_path?: string };
 }
 
 export interface AiProviderRow {
@@ -20,6 +29,7 @@ export interface AiProviderRow {
     base_url: string | null;
     default_model: string | null;
     pricing: Array<{ kind: string; unit: number; micro_vnd: number }>;
+    adapter_config?: CustomHttpConfig | null;
     is_active: boolean;
     sort_order?: number;
     notes?: string | null;
@@ -35,6 +45,7 @@ export interface AiProviderPayload {
     base_url?: string | null;
     default_model?: string | null;
     pricing?: Array<{ kind: string; unit: number; micro_vnd: number }>;
+    adapter_config?: CustomHttpConfig | null;
     is_active?: boolean;
     sort_order?: number;
     notes?: string | null;

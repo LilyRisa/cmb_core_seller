@@ -17,6 +17,21 @@
 > không thể "claim" capability mà class chưa implement). Mọi điều khác trong ADR giữ
 > nguyên (trục #5, tenant chọn 1 provider active, cost tracking qua `ai_assistant_runs`).
 
+> **REVISION 2026-05-26 (SPEC-0026 — adapter `custom_http`):** Tách `code` (slug
+> instance tự do) khỏi `adapter` (loại API connector) đã làm 2026-05-21. Nay thêm
+> adapter thứ 4 **`custom_http`**: super-admin **khai báo** endpoint + headers +
+> body template (JSON, placeholder `{{model}}`/`{{system}}`/`{{messages_json}}`/
+> `{{last_user_message}}`/`{{api_key}}`) + `response_path` (JSON path lấy câu trả lời)
+> ngay trong `/admin/ai-providers`, **không cần viết connector PHP mới**. Cấu hình lưu
+> ở cột mới `ai_providers.adapter_config` (JSON); `AiProviderRuntimeConfig` thêm
+> `adapterConfig`. Connector `CustomHttpConnector` implement `generateReply` +
+> `classifyIntent` (gọi lại chính endpoint với prompt phân loại — **bắt buộc** để
+> auto-mode không bị `IntentClassifier` escalate-mặc-định); `embed` → `UnsupportedOperation`
+> (RAG dùng keyword fallback). Điều này **giảm nhẹ** điểm "Tiêu cực" bên dưới ("tenant
+> không thể dùng provider lạ"): super-admin giờ thêm được provider HTTP bất kỳ mà không
+> deploy. Mọi điều khác trong ADR giữ nguyên (core không biết tên/loại provider, chỉ
+> gọi qua `AiAssistantRegistry`).
+
 ## Bối cảnh
 
 SPEC-0024 đưa AI hỗ trợ trả lời (suggest + auto + RAG training). Câu hỏi kiến trúc: làm sao tích hợp LLM mà (a) không khoá vào 1 vendor, (b) không để tenant tự nhập API key (chi phí + bảo mật), (c) tách rõ tầng "messaging" và tầng "AI".

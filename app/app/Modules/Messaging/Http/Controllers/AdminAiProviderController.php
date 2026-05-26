@@ -44,6 +44,9 @@ class AdminAiProviderController extends Controller
         'anthropic' => [
             ['name' => 'Anthropic Claude', 'base_url' => 'https://api.anthropic.com', 'default_model' => 'claude-opus-4-7'],
         ],
+        'custom_http' => [
+            ['name' => 'Mẫu HTTP tùy chỉnh', 'base_url' => 'https://your-llm.example.com/v1/chat', 'default_model' => 'your-model'],
+        ],
         'manual' => [
             ['name' => 'Manual (test/dev)', 'base_url' => null, 'default_model' => null],
         ],
@@ -71,9 +74,11 @@ class AdminAiProviderController extends Controller
             'adapter' => ['required', 'string', Rule::in($this->registry->adapters())],
             'display_name' => ['nullable', 'string', 'max:120'],
             'api_key' => ['nullable', 'string', 'max:512'],
-            'base_url' => ['nullable', 'string', 'max:255', new SafeProviderUrl, 'required_if:adapter,openai_compatible'],
+            // base_url: endpoint cho openai_compatible (host) và custom_http (URL đầy đủ).
+            'base_url' => ['nullable', 'string', 'max:255', new SafeProviderUrl, 'required_if:adapter,openai_compatible,custom_http'],
             'default_model' => ['nullable', 'string', 'max:64', 'required_if:adapter,openai_compatible'],
             'pricing' => ['nullable', 'array'],
+            ...$this->adapterConfigRules(true),
             'is_active' => ['nullable', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:9999'],
             'notes' => ['nullable', 'string', 'max:255'],
@@ -98,6 +103,7 @@ class AdminAiProviderController extends Controller
             'base_url' => ['nullable', 'string', 'max:255', new SafeProviderUrl],
             'default_model' => ['nullable', 'string', 'max:64'],
             'pricing' => ['nullable', 'array'],
+            ...$this->adapterConfigRules(false),
             'is_active' => ['nullable', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:9999'],
             'notes' => ['nullable', 'string', 'max:255'],
@@ -163,6 +169,30 @@ class AdminAiProviderController extends Controller
         }
     }
 
+    /**
+     * Validation rules cho `adapter_config` (riêng adapter `custom_http`). `$onCreate`
+     * ép required_if khi tạo; khi update adapter immutable nên chỉ optional (gửi gì lưu nấy,
+     * không gửi = giữ nguyên vì validate() chỉ trả key có trong request).
+     *
+     * @return array<string, array<int, mixed>>
+     */
+    private function adapterConfigRules(bool $onCreate): array
+    {
+        $req = $onCreate ? ['required_if:adapter,custom_http'] : [];
+
+        return [
+            'adapter_config' => ['nullable', 'array', ...$req],
+            'adapter_config.method' => ['nullable', 'string', Rule::in(['POST', 'PUT', 'GET'])],
+            'adapter_config.headers' => ['nullable', 'array'],
+            'adapter_config.headers.*' => ['nullable', 'string', 'max:1000'],
+            'adapter_config.request_template' => ['nullable', 'string', 'max:8000', ...$req],
+            'adapter_config.response_path' => ['nullable', 'string', 'max:255', ...$req],
+            'adapter_config.usage' => ['nullable', 'array'],
+            'adapter_config.usage.prompt_path' => ['nullable', 'string', 'max:255'],
+            'adapter_config.usage.completion_path' => ['nullable', 'string', 'max:255'],
+        ];
+    }
+
     /** Response shape — KHÔNG bao giờ lộ api_key (chỉ cờ đã set). */
     private function present(AiProvider $p): array
     {
@@ -181,6 +211,7 @@ class AdminAiProviderController extends Controller
             'base_url' => $p->base_url,
             'default_model' => $p->default_model,
             'pricing' => $p->pricing ?? [],
+            'adapter_config' => $p->adapter_config,
             'is_active' => (bool) $p->is_active,
             'sort_order' => $p->sort_order,
             'notes' => $p->notes,

@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Integrations;
 
 use CMBcoreSeller\Integrations\Ai\AiAssistantRegistry;
 use CMBcoreSeller\Integrations\Ai\Claude\ClaudeConnector;
+use CMBcoreSeller\Integrations\Ai\CustomHttp\CustomHttpConnector;
 use CMBcoreSeller\Integrations\Ai\Manual\ManualAiAssistantConnector;
 use CMBcoreSeller\Integrations\Ai\OpenAi\OpenAiConnector;
 use CMBcoreSeller\Integrations\Carriers\CarrierRegistry;
@@ -103,6 +104,7 @@ class IntegrationsServiceProvider extends ServiceProvider
      * adapter:
      *   anthropic         → Claude (Messages API)
      *   openai_compatible → OpenAI/DeepSeek/Qwen/OpenRouter/Gemini (Chat Completions)
+     *   custom_http       → endpoint HTTP tuỳ chỉnh, super-admin khai báo template (SPEC-0026)
      *   manual            → deterministic stub (test/dev, free)
      *
      * Activation đọc từ bảng `ai_providers` (super-admin quản qua /admin/ai-providers).
@@ -112,6 +114,7 @@ class IntegrationsServiceProvider extends ServiceProvider
     protected array $aiAssistantConnectors = [
         'anthropic' => ClaudeConnector::class,
         'openai_compatible' => OpenAiConnector::class,
+        'custom_http' => CustomHttpConnector::class,
         'manual' => ManualAiAssistantConnector::class,
     ];
 

@@ -163,19 +163,22 @@ Mirror cùng pattern — `app/Integrations/Ai/`:
 - `Contracts/DTOs/`: `AiContext`, `ConversationSnapshot`, `KnowledgeBase`, `AiReplyDTO`, `IntentDTO`, `EmbeddingDTO`.
 - `AiAssistantRegistry.php` — singleton.
 
-Khác Messaging/Channels/Carriers/Payments: **config sống ở DB**, không phải `config/integrations.php`:
-- `system_settings` group `ai_providers.<code>` (key `is_active`, `api_key🔒`, `base_url`, `default_model`, `embedding_model?`, `pricing` jsonb micro_vnd/1k tokens, `capabilities` jsonb).
+Khác Messaging/Channels/Carriers/Payments: **config sống ở DB** (bảng riêng `ai_providers`, KHÔNG `system_settings`, KHÔNG `config/integrations.php` — ADR-0018 revision 2026-05-20):
+- Registry map **adapter → connector class** (`anthropic`, `openai_compatible`, `manual`, `custom_http`). 1 connector phục vụ NHIỀU instance: mỗi row `ai_providers` có `code` (slug tự do) + `adapter` + `api_key🔒` (encrypted) + `base_url` + `default_model` + `pricing` (json micro_vnd) + `adapter_config` (json, riêng `custom_http`) + `is_active` + `sort_order`.
+- `capabilities` **KHÔNG** lưu DB — luôn đọc từ connector class (super-admin không "claim" được capability class chưa implement).
 - Super-admin CRUD qua `/admin/ai-providers` (SPEC-0024 §6.1).
-- Tenant chọn 1: `tenant_settings.messaging.ai_provider_code` ∈ list `is_active=true`.
+- Tenant chọn 1: `messaging_settings.ai_provider_code` ∈ list `is_active=true`.
 
-Checklist thêm provider mới:
-1. Tạo `app/Integrations/Ai/<Name>/` với `XConnector` (implement `AiAssistantConnector`) + `XClient` (HTTP client).
-2. Contract test với mock LLM response (xác nhận DTO output đúng, error/timeout handling, redact PII trước khi gửi).
-3. Thêm `AiAssistantRegistry::register('<code>', XConnector::class)` trong service provider.
-4. Super-admin add provider vào `system_settings` (UI hoặc seeder dev).
-5. Tenant chọn ở `/settings/messaging`.
+Checklist thêm **adapter** mới (loại API mới, vd Cohere SDK riêng):
+1. Tạo `app/Integrations/Ai/<Name>/XConnector` (implement `AiAssistantConnector`); đọc credentials qua `AiProviderCredentials` (KHÔNG import model Module).
+2. Contract test với mock LLM response (`Http::fake`) — DTO output đúng, error/timeout, cost. PII đã redact ở core trước khi tới connector.
+3. Thêm `'<adapter>' => XConnector::class` vào `IntegrationsServiceProvider::$aiAssistantConnectors`.
+4. Thêm `<adapter>` vào `ADAPTERS`/`ADAPTER_LABEL` + (tuỳ chọn) `PRESETS` ở FE admin.
+5. Super-admin tạo 1+ instance (row) dùng adapter đó; tenant chọn ở `/settings/messaging`.
 
-**KHÔNG** sửa `AiReplyOrchestrator`/`IntentClassifier`/`KnowledgeIndexer` để thêm provider — chúng provider-agnostic.
+Thêm **provider HTTP bất kỳ KHÔNG cần code** (SPEC-0026): dùng adapter `custom_http` — super-admin khai báo endpoint/headers/body-template/`response_path` ngay trong `/admin/ai-providers` (cột `adapter_config`). Connector chung `CustomHttpConnector` render template + parse JSON path; `intent.classify` gọi lại cùng endpoint (để auto-mode không bị escalate-mặc-định); `embedding=false` (RAG keyword fallback). Chỉ JSON request/response (v1).
+
+**KHÔNG** sửa `AiSuggestionService`/`IntentClassifier`/`AiAutoModeOnInbound`/`KnowledgeIndexer` để thêm provider/adapter — chúng provider-agnostic qua `AiAssistantRegistry`. **Không** `if ($adapter === 'custom_http')` ở core.
 
 ## 7. Những điểm khác đã thiết kế để dễ mở rộng / bảo trì
 - **Trạng thái đơn**: state machine + bảng mapping config (không hard-code) — xem `03-domain/order-status-state-machine.md`.

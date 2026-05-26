@@ -184,6 +184,50 @@ class AdminAiProviderTest extends TestCase
         $this->assertDatabaseHas('ai_providers', ['code' => 'deepseek-prod', 'is_active' => false]);
     }
 
+    public function test_store_custom_http_requires_template_and_path(): void
+    {
+        $this->actingAdmin();
+
+        // custom_http thiếu request_template + response_path ⇒ 422 (envelope chuẩn error.details).
+        $res = $this->postJson('/api/v1/admin/ai-providers', [
+            'code' => 'my-llm', 'adapter' => 'custom_http',
+            'base_url' => 'https://llm.example.com/chat',
+        ])->assertStatus(422)->assertJsonPath('error.code', 'VALIDATION_FAILED');
+
+        $details = $res->json('error.details');
+        $this->assertArrayHasKey('adapter_config.request_template', $details);
+        $this->assertArrayHasKey('adapter_config.response_path', $details);
+    }
+
+    public function test_store_custom_http_creates_and_returns_config(): void
+    {
+        $this->actingAdmin();
+
+        $this->postJson('/api/v1/admin/ai-providers', [
+            'code' => 'my-llm', 'adapter' => 'custom_http',
+            'display_name' => 'LLM nội địa', 'api_key' => 'secret-key',
+            'base_url' => 'https://llm.example.com/chat',
+            'default_model' => 'my-model', 'is_active' => true,
+            'adapter_config' => [
+                'method' => 'POST',
+                'headers' => ['Authorization' => 'Bearer {{api_key}}'],
+                'request_template' => '{"model":"{{model}}","messages":{{messages_json}}}',
+                'response_path' => 'data.reply.text',
+                'usage' => ['prompt_path' => 'usage.in', 'completion_path' => 'usage.out'],
+            ],
+        ])
+            ->assertStatus(201)
+            ->assertJsonPath('data.adapter', 'custom_http')
+            ->assertJsonPath('data.has_api_key', true)
+            ->assertJsonMissingPath('data.api_key')
+            ->assertJsonPath('data.adapter_config.response_path', 'data.reply.text');
+
+        // capabilities đọc từ connector class: custom_http hỗ trợ intent.classify (cho auto-mode).
+        $row = collect($this->getJson('/api/v1/admin/ai-providers')->json('data'))->firstWhere('code', 'my-llm');
+        $this->assertTrue($row['capabilities']['intent.classify'] ?? false);
+        $this->assertFalse($row['capabilities']['embedding'] ?? true);
+    }
+
     public function test_test_endpoint_graceful_when_adapter_unregistered(): void
     {
         $this->actingAdmin();
