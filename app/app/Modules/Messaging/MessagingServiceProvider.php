@@ -8,11 +8,13 @@ use CMBcoreSeller\Modules\Messaging\Console\Commands\DetectConversationPhones;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\PruneAiSuggestionDrafts;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\PruneMessagingPayloads;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\PushNewMessageDigest;
-use CMBcoreSeller\Modules\Messaging\Console\Commands\ReconcileMessagingSync;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\RecomputeConversationPreviews;
+use CMBcoreSeller\Modules\Messaging\Console\Commands\ReconcileMessagingSync;
 use CMBcoreSeller\Modules\Messaging\Contracts\MessageInboxContract;
+use CMBcoreSeller\Modules\Messaging\Events\CommentReceived;
 use CMBcoreSeller\Modules\Messaging\Events\MessageReceived;
 use CMBcoreSeller\Modules\Messaging\Listeners\AiAutoModeOnInbound;
+use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnComment;
 use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnInbound;
 use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnOrderStatus;
 use CMBcoreSeller\Modules\Messaging\Services\DbAiProviderCredentials;
@@ -72,6 +74,10 @@ class MessagingServiceProvider extends ServiceProvider
 
         // AI auto-mode (S7): tự trả lời qua guardrail intent (gated auto_mode + Business).
         Event::listen(MessageReceived::class, AiAutoModeOnInbound::class);
+
+        // Auto-reply COMMENT: đường riêng (đích công khai/nhắn riêng theo rule;
+        // nội dung mẫu/text/AI). Comment KHÔNG dùng MessageReceived/auto-mode DM.
+        Event::listen(CommentReceived::class, RunAutoReplyOnComment::class);
 
         if ($this->app->runningInConsole()) {
             $this->commands([

@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Messaging\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 /**
  * Web Push subscription (1 trình duyệt/thiết bị của 1 user trong 1 tenant).
@@ -16,8 +17,8 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $endpoint
  * @property string $p256dh
  * @property string $auth
- * @property ?\Illuminate\Support\Carbon $last_seen_at
- * @property ?\Illuminate\Support\Carbon $last_notified_at
+ * @property ?Carbon $last_seen_at
+ * @property ?Carbon $last_notified_at
  */
 class PushSubscription extends Model
 {

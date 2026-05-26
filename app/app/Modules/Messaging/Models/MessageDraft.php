@@ -14,8 +14,11 @@ class MessageDraft extends Model
     use BelongsToTenant;
 
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_ACCEPTED = 'accepted';
+
     public const STATUS_REJECTED = 'rejected';
+
     public const STATUS_EXPIRED = 'expired';
 
     protected $fillable = [

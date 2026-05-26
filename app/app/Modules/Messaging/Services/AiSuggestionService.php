@@ -54,9 +54,36 @@ class AiSuggestionService
      * Vẫn đi qua đúng `OutboundMessageService` + ghi `ai_assistant_runs` (mode=auto)
      * — cùng pipeline với NV gửi tay (audit + window guard ở job).
      *
-     * @return array{action:string, intent:string, message?:\CMBcoreSeller\Modules\Messaging\Models\Message}
+     * @return array{action:string, intent:string, message?:Message}
      */
     public function autoRespond(Conversation $conv, string $inboundText): array
+    {
+        $draft = $this->draftAutoReply($conv, $inboundText);
+        if ($draft['action'] === 'escalated') {
+            return ['action' => 'escalated', 'intent' => $draft['intent']];
+        }
+
+        $message = $this->outbound->queueText($conv, [
+            'body' => (string) $draft['body'],
+            'sent_by_user_id' => null,
+            'sent_by_ai' => true,
+            'ai_run_id' => $draft['run_id'] ?? null,
+        ]);
+
+        return ['action' => 'sent', 'intent' => $draft['intent'], 'message' => $message];
+    }
+
+    /**
+     * Sinh nội dung auto-reply qua guardrail intent — DÙNG CHUNG cho auto-mode DM
+     * ({@see autoRespond}) lẫn auto-reply comment (AutoReplyEngine action `ai_reply`).
+     *
+     * Escalate (intent nhạy cảm) ⇒ `action='escalated'` + đánh `requires_human`,
+     * KHÔNG sinh body. Lỗi cứng (hết hạn mức / provider không khả dụng / sinh lỗi)
+     * ⇒ ném {@see AiSuggestionException} (caller tự xử lý: DM ném tiếp, comment skip).
+     *
+     * @return array{action:'escalated'|'generated', intent:string, body?:string, run_id?:int}
+     */
+    public function draftAutoReply(Conversation $conv, string $inboundText): array
     {
         $tenantId = (int) $conv->tenant_id;
         $providerCode = $this->resolveProviderCode($tenantId);
@@ -107,14 +134,7 @@ class AiSuggestionService
             'meta' => ['redacted_count' => $redactedCount, 'intent' => $intent->intent, 'kb_chunks' => count($kb->chunks)],
         ]);
 
-        $message = $this->outbound->queueText($conv, [
-            'body' => $body,
-            'sent_by_user_id' => null,
-            'sent_by_ai' => true,
-            'ai_run_id' => $run->id,
-        ]);
-
-        return ['action' => 'sent', 'intent' => $intent->intent, 'message' => $message];
+        return ['action' => 'generated', 'intent' => $intent->intent, 'body' => $body, 'run_id' => (int) $run->id];
     }
 
     public function suggest(Conversation $conv, ?int $userId = null): MessageDraft

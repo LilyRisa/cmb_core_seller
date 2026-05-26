@@ -72,6 +72,11 @@ class FacebookPageConnector implements MessagingConnector
             'outbound.template' => true,   // qua MESSAGE_TAG
             'read_receipt' => true,        // sender_action=mark_seen
             'typing' => true,              // sender_action=typing_on
+            'comment.list' => true,        // đọc comment bài viết (backfill)
+            'comment.reply_public' => true, // trả lời công khai dưới comment
+            'comment.reply_private' => true, // Private Reply (nhắn riêng cho người comment)
+            'comment.media' => true,       // đính ảnh vào reply công khai / nhắn riêng
+            'comment.webhook' => true,     // nhận comment qua webhook feed
         ];
     }
 
@@ -995,12 +1000,18 @@ class FacebookPageConnector implements MessagingConnector
         }
     }
 
-    public function replyToComment(MessagingAuthContext $auth, string $commentId, string $message): string
+    public function replyToComment(MessagingAuthContext $auth, string $commentId, string $message, array $attachments = []): string
     {
-        $res = Http::post($this->graphUrl($commentId.'/comments'), [
+        $params = [
             'message' => $message,
             'access_token' => $auth->accessToken,
-        ]);
+        ];
+        // Reply công khai kèm ảnh: Graph chấp nhận `attachment_url` (1 ảnh, URL public).
+        if (($imageUrl = $this->firstImageUrl($attachments)) !== null) {
+            $params['attachment_url'] = $imageUrl;
+        }
+
+        $res = Http::post($this->graphUrl($commentId.'/comments'), $params);
 
         if (! $res->successful()) {
             $this->throwGraphError($res, 'replyToComment');
@@ -1009,17 +1020,49 @@ class FacebookPageConnector implements MessagingConnector
         return (string) $res->json('id');
     }
 
-    public function privateReplyToComment(MessagingAuthContext $auth, string $commentId, string $message): void
+    public function privateReplyToComment(MessagingAuthContext $auth, string $commentId, string $message, array $attachments = []): void
+    {
+        // Send API: 1 message = 1 loại (text HOẶC attachment). Gửi text trước (nếu có)
+        // rồi ảnh (nếu có) — recipient là comment_id (Facebook Private Reply).
+        if (trim($message) !== '') {
+            $this->sendPrivateReply($auth, $commentId, ['text' => $message]);
+        }
+        if (($imageUrl = $this->firstImageUrl($attachments)) !== null) {
+            $this->sendPrivateReply($auth, $commentId, [
+                'attachment' => ['type' => 'image', 'payload' => ['url' => $imageUrl, 'is_reusable' => false]],
+            ]);
+        }
+    }
+
+    /** @param array<string,mixed> $message */
+    private function sendPrivateReply(MessagingAuthContext $auth, string $commentId, array $message): void
     {
         $res = Http::post($this->graphUrl('me/messages'), [
             'recipient' => ['comment_id' => $commentId],
-            'message' => ['text' => $message],
+            'message' => $message,
             'access_token' => $auth->accessToken,
         ]);
 
         if (! $res->successful()) {
             $this->throwGraphError($res, 'privateReplyToComment');
         }
+    }
+
+    /**
+     * URL ảnh đầu tiên (đã có externalUrl signed) trong danh sách attachment — dùng
+     * đính vào reply công khai / nhắn riêng. Null nếu không có ảnh.
+     *
+     * @param  list<MediaRefDTO>  $attachments
+     */
+    private function firstImageUrl(array $attachments): ?string
+    {
+        foreach ($attachments as $media) {
+            if ($media->kind === MessageKind::Image && $media->externalUrl !== null && $media->externalUrl !== '') {
+                return $media->externalUrl;
+            }
+        }
+
+        return null;
     }
 
     // --- Internals --------------------------------------------------------

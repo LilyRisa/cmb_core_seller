@@ -14,8 +14,11 @@ class AutoReplyRun extends Model
     use BelongsToTenant;
 
     public const STATUS_FIRED = 'fired';
+
     public const STATUS_SKIPPED_COOLDOWN = 'skipped_cooldown';
+
     public const STATUS_SKIPPED_FILTER = 'skipped_filter';
+
     public const STATUS_FAILED = 'failed';
 
     protected $fillable = [

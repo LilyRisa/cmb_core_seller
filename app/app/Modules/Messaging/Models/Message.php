@@ -44,19 +44,29 @@ class Message extends Model
     use BelongsToTenant;
 
     public const DIRECTION_INBOUND = 'inbound';
+
     public const DIRECTION_OUTBOUND = 'outbound';
 
     public const KIND_TEXT = 'text';
+
     public const KIND_IMAGE = 'image';
+
     public const KIND_VIDEO = 'video';
+
     public const KIND_FILE = 'file';
+
     public const KIND_TEMPLATE = 'template';
+
     public const KIND_SYSTEM = 'system';
 
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_SENT = 'sent';
+
     public const STATUS_DELIVERED = 'delivered';
+
     public const STATUS_READ = 'read';
+
     public const STATUS_FAILED = 'failed';
 
     protected $fillable = [

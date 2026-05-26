@@ -3,15 +3,19 @@
 namespace CMBcoreSeller\Modules\Messaging\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
+use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageDirection;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Messaging\Exceptions\AttachmentInvalid;
 use CMBcoreSeller\Modules\Messaging\Http\Resources\ConversationResource;
 use CMBcoreSeller\Modules\Messaging\Http\Resources\MessageResource;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
+use CMBcoreSeller\Modules\Messaging\Services\MediaRelayService;
+use CMBcoreSeller\Modules\Messaging\Services\MediaStorage;
 use CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use Illuminate\Http\JsonResponse;
@@ -31,6 +35,8 @@ class FacebookCommentController extends Controller
     public function __construct(
         private MessagingRegistry $registry,
         private MessageIngestionService $ingestion,
+        private MediaRelayService $media,
+        private MediaStorage $storage,
     ) {}
 
     /**
@@ -113,8 +119,16 @@ class FacebookCommentController extends Controller
         Gate::authorize('messaging.reply');
 
         $data = $request->validate([
-            'body' => ['required', 'string', 'max:5000'],
+            'body' => ['nullable', 'string', 'max:5000'],
+            'image' => ['nullable', 'file', 'image', 'max:25600'], // 25MB, gửi kèm ảnh
         ]);
+
+        $body = (string) ($data['body'] ?? '');
+        if (trim($body) === '' && ! $request->hasFile('image')) {
+            return response()->json([
+                'error' => ['code' => 'EMPTY_REPLY', 'message' => 'Cần nội dung hoặc ảnh để trả lời.'],
+            ], 422);
+        }
 
         $conv = Conversation::query()->findOrFail($id);
 
@@ -127,19 +141,26 @@ class FacebookCommentController extends Controller
         $auth = $this->buildAuth($conv, $account);
         $connector = $this->registry->for($conv->provider);
 
-        $newCommentId = $connector->replyToComment($auth, $commentId, $data['body']);
+        try {
+            $attachments = $this->buildImageAttachments($conv, $request);
+        } catch (AttachmentInvalid $e) {
+            return response()->json(['error' => ['code' => 'ATTACHMENT_INVALID', 'message' => $e->getMessage()]], 422);
+        }
+
+        $newCommentId = $connector->replyToComment($auth, $commentId, $body, $attachments);
 
         $result = $this->ingestion->ingest($account, new MessageDTO(
             externalConversationId: $conv->external_conversation_id,
             externalMessageId: $newCommentId,
             buyerExternalId: $conv->buyer_external_id,
             direction: MessageDirection::Outbound,
-            kind: MessageKind::Text,
-            body: $data['body'],
+            kind: $attachments !== [] ? MessageKind::Image : MessageKind::Text,
+            body: $body !== '' ? $body : null,
+            attachments: $attachments,
             sentAt: now()->toImmutable(),
         ));
 
-        return response()->json(['data' => (new MessageResource($result['message']))->toArray($request)]);
+        return response()->json(['data' => (new MessageResource($result['message']->load('attachments')))->toArray($request)]);
     }
 
     /**
@@ -152,8 +173,16 @@ class FacebookCommentController extends Controller
         Gate::authorize('messaging.reply');
 
         $data = $request->validate([
-            'body' => ['required', 'string', 'max:5000'],
+            'body' => ['nullable', 'string', 'max:5000'],
+            'image' => ['nullable', 'file', 'image', 'max:25600'],
         ]);
+
+        $body = (string) ($data['body'] ?? '');
+        if (trim($body) === '' && ! $request->hasFile('image')) {
+            return response()->json([
+                'error' => ['code' => 'EMPTY_REPLY', 'message' => 'Cần nội dung hoặc ảnh để nhắn riêng.'],
+            ], 422);
+        }
 
         $conv = Conversation::query()->findOrFail($id);
 
@@ -166,7 +195,13 @@ class FacebookCommentController extends Controller
         $auth = $this->buildAuth($conv, $account);
         $connector = $this->registry->for($conv->provider);
 
-        $connector->privateReplyToComment($auth, $commentId, $data['body']);
+        try {
+            $attachments = $this->buildImageAttachments($conv, $request);
+        } catch (AttachmentInvalid $e) {
+            return response()->json(['error' => ['code' => 'ATTACHMENT_INVALID', 'message' => $e->getMessage()]], 422);
+        }
+
+        $connector->privateReplyToComment($auth, $commentId, $body, $attachments);
 
         $meta = (array) ($conv->meta ?? []);
         $meta['private_replied_at'] = now()->toIso8601String();
@@ -205,5 +240,31 @@ class FacebookCommentController extends Controller
             accessToken: (string) ($account->access_token ?? ''),
             extra: (array) ($account->meta ?? []),
         );
+    }
+
+    /**
+     * Lưu ảnh upload (nếu có) → MediaRefDTO kèm signed URL để connector đính vào
+     * reply công khai / nhắn riêng. Lưu cả `storagePath` để ingest hiển thị trong thread.
+     *
+     * @return list<MediaRefDTO>
+     *
+     * @throws AttachmentInvalid
+     */
+    private function buildImageAttachments(Conversation $conv, Request $request): array
+    {
+        if (! $request->hasFile('image')) {
+            return [];
+        }
+
+        $stored = $this->media->storeUpload((int) $conv->tenant_id, (int) $conv->id, $request->file('image'), 'image');
+
+        return [new MediaRefDTO(
+            kind: MessageKind::Image,
+            mime: $stored['mime'],
+            sizeBytes: $stored['size_bytes'],
+            externalUrl: $this->storage->temporaryUrlForPath($stored['storage_path']),
+            storagePath: $stored['storage_path'],
+            filename: $stored['filename'],
+        )];
     }
 }

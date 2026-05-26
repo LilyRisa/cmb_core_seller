@@ -47,6 +47,9 @@ class AutoReplyRule extends Model
 
     public const TRIGGER_KEYWORD = 'keyword';
 
+    /** Mọi bình luận mới (chỉ áp cho thread_type=comment). */
+    public const TRIGGER_COMMENT_ANY = 'comment_any';
+
     public const ACTION_TEMPLATE = 'template';
 
     public const ACTION_RAW = 'raw';
