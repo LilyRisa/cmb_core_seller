@@ -19,6 +19,13 @@ use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnInbound;
 use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnOrderStatus;
 use CMBcoreSeller\Modules\Messaging\Services\DbAiProviderCredentials;
 use CMBcoreSeller\Modules\Messaging\Services\MessageInboxReader;
+use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\ConditionNodeExecutor;
+use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\EndNodeExecutor;
+use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\NodeExecutorRegistry;
+use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\SendCommentReplyNodeExecutor;
+use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\SendMessageNodeExecutor;
+use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\TriggerNodeExecutor;
+use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\WaitReplyNodeExecutor;
 use CMBcoreSeller\Modules\Orders\Events\OrderStatusChanged;
 use CMBcoreSeller\Support\Database\PartitionRegistry;
 use Illuminate\Support\Facades\Event;
@@ -54,6 +61,20 @@ class MessagingServiceProvider extends ServiceProvider
 
         // Per-module config (media disk, size limits, signed URL TTL).
         $this->mergeConfigFrom(__DIR__.'/../../../config/messaging.php', 'messaging');
+
+        // Flow builder: registry singleton wires all node executors so that
+        // app(FlowEngine::class) resolves with a fully-wired registry.
+        $this->app->singleton(NodeExecutorRegistry::class, function ($app) {
+            $registry = new NodeExecutorRegistry($app);
+            $registry->register('trigger', TriggerNodeExecutor::class);
+            $registry->register('send_message', SendMessageNodeExecutor::class);
+            $registry->register('send_comment_reply', SendCommentReplyNodeExecutor::class);
+            $registry->register('condition', ConditionNodeExecutor::class);
+            $registry->register('wait_reply', WaitReplyNodeExecutor::class);
+            $registry->register('end', EndNodeExecutor::class);
+
+            return $registry;
+        });
     }
 
     public function boot(): void
