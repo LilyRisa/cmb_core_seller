@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Mail\SentMessage;
 use Illuminate\Support\Facades\Mail;
 
 /**
@@ -21,7 +22,8 @@ class MailTest extends Command
 {
     protected $signature = 'mail:test
         {email : Địa chỉ nhận email test}
-        {--subject= : Tiêu đề (mặc định kèm timestamp)}';
+        {--subject= : Tiêu đề (mặc định kèm timestamp)}
+        {--debug : In toàn bộ phản hồi SMTP của máy chủ (để lấy queue-id Brevo)}';
 
     protected $description = 'Gửi email test đồng bộ (không qua queue) để chẩn đoán lỗi SMTP nhanh.';
 
@@ -61,7 +63,7 @@ class MailTest extends Command
 
         $start = microtime(true);
         try {
-            Mail::raw(
+            $sent = Mail::raw(
                 "Đây là email kiểm tra từ CMBcoreSeller.\nThời điểm: ".now()->toIso8601String(),
                 function ($message) use ($email, $subject) {
                     $message->to($email)->subject($subject);
@@ -81,6 +83,7 @@ class MailTest extends Command
 
         $ms = (int) ((microtime(true) - $start) * 1000);
         $this->info("✔ Gửi không lỗi trong {$ms}ms.");
+        $this->showServerResponse($sent);
         if ($mailer === 'log') {
             $this->warn('Vì driver là "log", hãy xem storage/logs/laravel.log — KHÔNG có mail thật.');
         } else {
@@ -88,6 +91,51 @@ class MailTest extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * In phản hồi máy chủ SMTP (chỉ các dòng server "<" — KHÔNG chứa credential).
+     * Dòng "queued as <id>" của Brevo chứng minh thư đã vào Brevo + cho queue-id để tra log.
+     */
+    private function showServerResponse(?SentMessage $sent): void
+    {
+        if ($sent === null) {
+            return;
+        }
+        try {
+            $debug = $sent->getSymfonySentMessage()->getDebug();
+        } catch (\Throwable) {
+            return;
+        }
+
+        $serverLines = array_values(array_filter(
+            preg_split('/\r?\n/', $debug) ?: [],
+            static fn (string $line) => str_starts_with(ltrim($line), '<'),
+        ));
+        if ($serverLines === []) {
+            return; // transport không phải SMTP (vd driver "log") — không có transcript
+        }
+
+        $accepted = '';
+        foreach ($serverLines as $line) {
+            if (preg_match('/\bqueued\b|\baccepted\b|2\.0\.0\s+ok|message\s+received/i', $line)) {
+                $accepted = trim($line);
+            }
+        }
+        if ($accepted !== '') {
+            $this->line('Phản hồi nhận thư của máy chủ: '.$accepted);
+            $this->line('  → Có mã này nghĩa là thư ĐÃ vào Brevo — tra id trong Brevo → Transactional → Logs (không phải Campaigns).');
+        } else {
+            $this->line('Không thấy dòng xác nhận nhận thư quen thuộc — chạy lại với --debug để xem toàn bộ phản hồi máy chủ.');
+        }
+
+        if ($this->option('debug')) {
+            $this->newLine();
+            $this->line('--- Phản hồi máy chủ SMTP ---');
+            foreach ($serverLines as $line) {
+                $this->line(trim($line));
+            }
+        }
     }
 
     /** Che bớt giá trị nhạy cảm (username/email) khi in ra console. */
