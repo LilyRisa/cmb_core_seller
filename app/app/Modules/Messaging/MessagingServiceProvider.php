@@ -17,6 +17,8 @@ use CMBcoreSeller\Modules\Messaging\Listeners\AiAutoModeOnInbound;
 use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnComment;
 use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnInbound;
 use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnOrderStatus;
+use CMBcoreSeller\Modules\Messaging\Listeners\StartFlowOnComment;
+use CMBcoreSeller\Modules\Messaging\Listeners\StartFlowOnInbound;
 use CMBcoreSeller\Modules\Messaging\Services\DbAiProviderCredentials;
 use CMBcoreSeller\Modules\Messaging\Services\MessageInboxReader;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\ConditionNodeExecutor;
@@ -99,6 +101,10 @@ class MessagingServiceProvider extends ServiceProvider
         // Auto-reply COMMENT: đường riêng (đích công khai/nhắn riêng theo rule;
         // nội dung mẫu/text/AI). Comment KHÔNG dùng MessageReceived/auto-mode DM.
         Event::listen(CommentReceived::class, RunAutoReplyOnComment::class);
+
+        // Flow Builder (S1): kịch bản đa bước, chạy song song auto-reply phẳng.
+        Event::listen(MessageReceived::class, StartFlowOnInbound::class);
+        Event::listen(CommentReceived::class, StartFlowOnComment::class);
 
         if ($this->app->runningInConsole()) {
             $this->commands([
