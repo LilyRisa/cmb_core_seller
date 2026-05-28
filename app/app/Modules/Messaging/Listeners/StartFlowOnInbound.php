@@ -31,6 +31,7 @@ class StartFlowOnInbound implements ShouldQueue
         $body = (string) (Message::withoutGlobalScope(TenantScope::class)->whereKey($event->messageId)->value('body') ?? '');
 
         $waiting = FlowRun::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $conv->tenant_id)
             ->where('conversation_id', $conv->id)->where('status', FlowRun::STATUS_WAITING)->first();
         if ($waiting) {
             $this->engine->resume($waiting, $conv, $body);

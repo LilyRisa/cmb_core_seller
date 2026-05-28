@@ -12,6 +12,15 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Chạy flow theo state máy. start() vào flow khi trigger khớp; đi qua các node
+ * "tức thì" cho tới khi gặp wait_reply ⇒ lưu state WAITING. resume() là nơi DUY
+ * NHẤT cho 1 run waiting đi tiếp (claim nguyên tử waiting→active chống 2 worker
+ * cùng chạy), tiếp tục từ node SAU wait với nội dung trả lời của khách.
+ *
+ * Idempotent: flow_runs unique partial (flow, conversation) WHERE active/waiting.
+ * Ngoài auth tenant (listener) ⇒ tenant từ conversation. MAX_STEPS chống vòng lặp.
+ */
 class FlowEngine
 {
     private const MAX_STEPS = 50;
@@ -21,6 +30,7 @@ class FlowEngine
     public function start(AutomationFlow $flow, Conversation $conv, ?string $inboundBody = null): FlowRun
     {
         $existing = FlowRun::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $conv->tenant_id)
             ->where('flow_id', $flow->id)->where('conversation_id', $conv->id)
             ->whereIn('status', [FlowRun::STATUS_ACTIVE, FlowRun::STATUS_WAITING])->first();
         if ($existing) {
@@ -38,6 +48,7 @@ class FlowEngine
             ]);
         } catch (QueryException) {
             return FlowRun::withoutGlobalScope(TenantScope::class)
+                ->where('tenant_id', $conv->tenant_id)
                 ->where('flow_id', $flow->id)->where('conversation_id', $conv->id)
                 ->whereIn('status', [FlowRun::STATUS_ACTIVE, FlowRun::STATUS_WAITING])->firstOrFail();
         }
@@ -50,9 +61,9 @@ class FlowEngine
             return $run;
         }
 
-        // Tin khởi động flow KHÔNG phải "trả lời" cho node wait ⇒ walk với inboundBody=null
-        // để wait_reply đầu tiên dừng lại đúng. ($inboundBody giữ cho tương lai/đối xứng API.)
-        return $this->walk($run, $conv, $graph, $trigger->id, null);
+        // Tin khởi động flow CÓ sẵn cho node tức thì (vd condition rẽ nhánh theo nội
+        // dung tin/bình luận đầu). wait_reply vẫn dừng vì wait luôn pause.
+        return $this->walk($run, $conv, $graph, $trigger->id, $inboundBody);
     }
 
     public function resume(FlowRun $run, Conversation $conv, ?string $inboundBody = null): FlowRun
@@ -60,6 +71,17 @@ class FlowEngine
         if ($run->status !== FlowRun::STATUS_WAITING || ! $run->current_node_id) {
             return $run;
         }
+
+        // Claim nguyên tử: chỉ worker chuyển được waiting→active mới chạy tiếp.
+        $claimed = FlowRun::withoutGlobalScope(TenantScope::class)
+            ->where('id', $run->id)
+            ->where('status', FlowRun::STATUS_WAITING)
+            ->update(['status' => FlowRun::STATUS_ACTIVE]);
+        if ($claimed === 0) {
+            return $run->fresh() ?? $run;
+        }
+        $run = $run->fresh() ?? $run;
+
         $flow = AutomationFlow::withoutGlobalScope(TenantScope::class)->find($run->flow_id);
         if (! $flow) {
             $run->update(['status' => FlowRun::STATUS_FAILED, 'error' => 'flow_missing']);
@@ -67,12 +89,20 @@ class FlowEngine
             return $run;
         }
 
-        return $this->walk($run, $conv, new FlowGraph((array) $flow->graph), $run->current_node_id, $inboundBody);
+        $graph = new FlowGraph((array) $flow->graph);
+        // Tin mới của khách là "trả lời" cho node wait ⇒ tiếp tục từ node SAU wait.
+        $resumeFrom = $graph->nextNodeId((string) $run->current_node_id, null);
+        if ($resumeFrom === null) {
+            $run->update(['status' => FlowRun::STATUS_ENDED, 'last_advanced_at' => Carbon::now()]);
+
+            return $run;
+        }
+
+        return $this->walk($run, $conv, $graph, $resumeFrom, $inboundBody);
     }
 
     private function walk(FlowRun $run, Conversation $conv, FlowGraph $graph, string $startNodeId, ?string $inboundBody): FlowRun
     {
-        $run->update(['status' => FlowRun::STATUS_ACTIVE]);
         $nodeId = $startNodeId;
 
         for ($step = 0; $step < self::MAX_STEPS; $step++) {

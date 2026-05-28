@@ -14,7 +14,7 @@ class WaitReplyNodeExecutor implements NodeExecutor
 
     public function execute(FlowNode $node, FlowContext $ctx): NodeResult
     {
-        // Có inbound mới (resume) ⇒ đi tiếp; chưa có ⇒ chờ.
-        return $ctx->inboundBody !== null ? NodeResult::advance() : NodeResult::wait();
+        // Luôn dừng để chờ tin kế của khách; resume() sẽ đi tiếp từ node sau.
+        return NodeResult::wait();
     }
 }

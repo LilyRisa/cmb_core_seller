@@ -34,7 +34,8 @@ final class FlowGraph
             $this->edges[] = [
                 'source' => (string) $e['source'],
                 'target' => (string) $e['target'],
-                'sourceHandle' => isset($e['sourceHandle']) ? (string) $e['sourceHandle'] : null,
+                'sourceHandle' => (isset($e['sourceHandle']) && $e['sourceHandle'] !== false && $e['sourceHandle'] !== 0 && $e['sourceHandle'] !== '')
+                    ? (string) $e['sourceHandle'] : null,
             ];
         }
     }
