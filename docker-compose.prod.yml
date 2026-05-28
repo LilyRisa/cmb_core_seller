@@ -92,15 +92,15 @@ x-app-env: &app-env
   FULFILLMENT_DEDUCT_ON: ${FULFILLMENT_DEDUCT_ON:-shipped}
   # Mail
   MAIL_MAILER: ${MAIL_MAILER:-smtp}
-  MAIL_HOST: ${MAIL_HOST:-smtp-relay.brevo.com}
-  MAIL_PORT: ${MAIL_PORT:-587}
-  MAIL_USERNAME: ${MAIL_USERNAME:-bvminh101299@gmail.com}
-  MAIL_PASSWORD: ${MAIL_PASSWORD:-bsk1iSshsVN1Bst}
+  MAIL_HOST: ${MAIL_HOST:-support.cmbcore.com}
+  MAIL_PORT: ${MAIL_PORT:-465}
+  MAIL_USERNAME: ${MAIL_USERNAME:-Laravel 11}
+  MAIL_PASSWORD: ${MAIL_PASSWORD:-1995OKlangtu@}
   # Symfony Mailer (Laravel 11) — scheme phải là `smtp` (port 587 + STARTTLS, mặc
   # định Brevo/Mailgun/SendGrid) hoặc `smtps` (port 465 + TLS full). KHÔNG phải `tls`.
   MAIL_SCHEME: ${MAIL_SCHEME:-smtp}
-  MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-seller@cmbcore.com}
-  MAIL_FROM_NAME: ${MAIL_FROM_NAME:-CMBCoreSeller}
+  MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-seller@support.cmbcore.com}
+  MAIL_FROM_NAME: ${MAIL_FROM_NAME:-CMB Core Seller Support}
   # Error monitoring
   SENTRY_LARAVEL_DSN: ${SENTRY_LARAVEL_DSN}
   # Marketplace integrations
