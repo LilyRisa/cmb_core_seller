@@ -106,13 +106,26 @@ export function RegisterPage() {
                         <Form.Item
                             name="password"
                             label="Mật khẩu"
-                            rules={[{ required: true, min: 8, message: 'Tối thiểu 8 ký tự' }]}
+                            extra="Tối thiểu 8 ký tự, gồm chữ cái, chữ số và ký tự đặc biệt."
+                            rules={[
+                                { required: true, message: 'Nhập mật khẩu' },
+                                () => ({
+                                    validator(_, value) {
+                                        if (!value) return Promise.resolve();
+                                        if (value.length < 8) return Promise.reject(new Error('Mật khẩu phải có ít nhất 8 ký tự'));
+                                        if (!/[A-Za-z]/.test(value)) return Promise.reject(new Error('Mật khẩu phải có ít nhất 1 chữ cái'));
+                                        if (!/[0-9]/.test(value)) return Promise.reject(new Error('Mật khẩu phải có ít nhất 1 chữ số'));
+                                        if (!/[^A-Za-z0-9]/.test(value)) return Promise.reject(new Error('Mật khẩu phải có ít nhất 1 ký tự đặc biệt'));
+                                        return Promise.resolve();
+                                    },
+                                }),
+                            ]}
                             hasFeedback
                         >
                             <Input.Password
                                 size="large"
                                 prefix={<LockOutlined style={{ color: '#9ca3af' }} />}
-                                placeholder="Tối thiểu 8 ký tự"
+                                placeholder="Ít nhất 8 ký tự, gồm chữ, số & ký tự đặc biệt"
                             />
                         </Form.Item>
 

@@ -18,8 +18,8 @@ class AuthTenantTest extends TestCase
         $response = $this->postJson('/api/v1/auth/register', [
             'name' => 'Nguyen Van A',
             'email' => 'a@example.com',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
+            'password' => 'Password123!',
+            'password_confirmation' => 'Password123!',
             'tenant_name' => 'Shop A',
         ]);
 
@@ -40,6 +40,29 @@ class AuthTenantTest extends TestCase
         $this->postJson('/api/v1/auth/register', [
             'name' => 'X', 'email' => 'dup@example.com', 'password' => 'short', 'password_confirmation' => 'short',
         ])->assertStatus(422);
+    }
+
+    public function test_register_requires_strong_password(): void
+    {
+        // Thiếu ký tự đặc biệt.
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'X', 'email' => 'p1@example.com', 'password' => 'Password123', 'password_confirmation' => 'Password123',
+        ])->assertStatus(422);
+
+        // Thiếu chữ số.
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'X', 'email' => 'p2@example.com', 'password' => 'Password!!', 'password_confirmation' => 'Password!!',
+        ])->assertStatus(422);
+
+        // Thiếu chữ cái.
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'X', 'email' => 'p3@example.com', 'password' => '12345678!', 'password_confirmation' => '12345678!',
+        ])->assertStatus(422);
+
+        // Đủ điều kiện: ≥8 ký tự + chữ + số + ký tự đặc biệt.
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'X', 'email' => 'ok@example.com', 'password' => 'Password123!', 'password_confirmation' => 'Password123!',
+        ])->assertCreated();
     }
 
     public function test_login_with_valid_and_invalid_credentials(): void
