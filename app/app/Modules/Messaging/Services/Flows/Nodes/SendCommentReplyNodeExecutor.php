@@ -14,7 +14,10 @@ class SendCommentReplyNodeExecutor implements NodeExecutor
 {
     public function __construct(private CommentReplyService $commentReply) {}
 
-    public function type(): string { return 'send_comment_reply'; }
+    public function type(): string
+    {
+        return 'send_comment_reply';
+    }
 
     public function execute(FlowNode $node, FlowContext $ctx): NodeResult
     {

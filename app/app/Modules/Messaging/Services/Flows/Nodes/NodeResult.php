@@ -31,8 +31,23 @@ final class NodeResult
         return new self('fail', error: $error);
     }
 
-    public function isAdvance(): bool { return $this->kind === 'advance'; }
-    public function isWait(): bool { return $this->kind === 'wait'; }
-    public function isEnd(): bool { return $this->kind === 'end'; }
-    public function isFail(): bool { return $this->kind === 'fail'; }
+    public function isAdvance(): bool
+    {
+        return $this->kind === 'advance';
+    }
+
+    public function isWait(): bool
+    {
+        return $this->kind === 'wait';
+    }
+
+    public function isEnd(): bool
+    {
+        return $this->kind === 'end';
+    }
+
+    public function isFail(): bool
+    {
+        return $this->kind === 'fail';
+    }
 }

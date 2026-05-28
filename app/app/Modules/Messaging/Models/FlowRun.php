@@ -23,9 +23,13 @@ class FlowRun extends Model
     use BelongsToTenant;
 
     public const STATUS_ACTIVE = 'active';
+
     public const STATUS_WAITING = 'waiting';
+
     public const STATUS_COMPLETED = 'completed';
+
     public const STATUS_ENDED = 'ended';
+
     public const STATUS_FAILED = 'failed';
 
     protected $fillable = [

@@ -12,7 +12,7 @@ class NodeExecutorRegistryTest extends TestCase
 {
     public function test_resolves_registered_executor_by_type(): void
     {
-        $registry = new NodeExecutorRegistry();
+        $registry = new NodeExecutorRegistry;
         $registry->register('end', EndNodeExecutor::class);
 
         $this->assertTrue($registry->has('end'));
@@ -22,7 +22,7 @@ class NodeExecutorRegistryTest extends TestCase
     public function test_unknown_type_throws(): void
     {
         $this->expectException(RuntimeException::class);
-        (new NodeExecutorRegistry())->for('does_not_exist');
+        (new NodeExecutorRegistry)->for('does_not_exist');
     }
 
     public function test_result_factories(): void

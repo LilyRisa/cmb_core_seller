@@ -7,7 +7,10 @@ use CMBcoreSeller\Modules\Messaging\Services\Flows\Graph\FlowNode;
 
 class WaitReplyNodeExecutor implements NodeExecutor
 {
-    public function type(): string { return 'wait_reply'; }
+    public function type(): string
+    {
+        return 'wait_reply';
+    }
 
     public function execute(FlowNode $node, FlowContext $ctx): NodeResult
     {

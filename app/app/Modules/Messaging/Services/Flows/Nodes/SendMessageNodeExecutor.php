@@ -14,7 +14,10 @@ class SendMessageNodeExecutor implements NodeExecutor
 {
     public function __construct(private OutboundMessageService $outbound) {}
 
-    public function type(): string { return 'send_message'; }
+    public function type(): string
+    {
+        return 'send_message';
+    }
 
     public function execute(FlowNode $node, FlowContext $ctx): NodeResult
     {

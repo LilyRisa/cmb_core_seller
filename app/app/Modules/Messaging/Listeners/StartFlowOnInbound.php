@@ -28,7 +28,7 @@ class StartFlowOnInbound implements ShouldQueue
         if (! $conv || $conv->thread_type !== Conversation::THREAD_MESSAGE) {
             return;
         }
-        $body = (string) (Message::withoutGlobalScope(TenantScope::class)->find($event->messageId)?->body ?? '');
+        $body = (string) (Message::withoutGlobalScope(TenantScope::class)->whereKey($event->messageId)->value('body') ?? '');
 
         $waiting = FlowRun::withoutGlobalScope(TenantScope::class)
             ->where('conversation_id', $conv->id)->where('status', FlowRun::STATUS_WAITING)->first();

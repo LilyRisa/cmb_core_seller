@@ -26,7 +26,7 @@ class StartFlowOnComment implements ShouldQueue
         if (! $conv || $conv->thread_type !== Conversation::THREAD_COMMENT) {
             return;
         }
-        $body = (string) (Message::withoutGlobalScope(TenantScope::class)->find($event->messageId)?->body ?? '');
+        $body = (string) (Message::withoutGlobalScope(TenantScope::class)->whereKey($event->messageId)->value('body') ?? '');
 
         $flows = $this->matcher->matching($conv, [
             AutomationFlow::TRIGGER_COMMENT_ON_POST,

@@ -20,7 +20,6 @@ use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnOrderStatus;
 use CMBcoreSeller\Modules\Messaging\Listeners\StartFlowOnComment;
 use CMBcoreSeller\Modules\Messaging\Listeners\StartFlowOnInbound;
 use CMBcoreSeller\Modules\Messaging\Services\DbAiProviderCredentials;
-use CMBcoreSeller\Modules\Messaging\Services\MessageInboxReader;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\ConditionNodeExecutor;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\EndNodeExecutor;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\NodeExecutorRegistry;
@@ -28,6 +27,7 @@ use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\SendCommentReplyNodeExe
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\SendMessageNodeExecutor;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\TriggerNodeExecutor;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\WaitReplyNodeExecutor;
+use CMBcoreSeller\Modules\Messaging\Services\MessageInboxReader;
 use CMBcoreSeller\Modules\Orders\Events\OrderStatusChanged;
 use CMBcoreSeller\Support\Database\PartitionRegistry;
 use Illuminate\Support\Facades\Event;

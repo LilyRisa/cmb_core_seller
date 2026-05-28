@@ -11,7 +11,10 @@ use CMBcoreSeller\Modules\Messaging\Services\Flows\Graph\FlowNode;
  */
 class ConditionNodeExecutor implements NodeExecutor
 {
-    public function type(): string { return 'condition'; }
+    public function type(): string
+    {
+        return 'condition';
+    }
 
     public function execute(FlowNode $node, FlowContext $ctx): NodeResult
     {

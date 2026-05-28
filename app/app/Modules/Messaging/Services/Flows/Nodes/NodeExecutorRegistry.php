@@ -34,6 +34,6 @@ class NodeExecutorRegistry
         }
         $class = $this->map[$type];
 
-        return $this->container ? $this->container->make($class) : new $class();
+        return $this->container ? $this->container->make($class) : new $class;
     }
 }

@@ -7,7 +7,10 @@ use CMBcoreSeller\Modules\Messaging\Services\Flows\Graph\FlowNode;
 
 class EndNodeExecutor implements NodeExecutor
 {
-    public function type(): string { return 'end'; }
+    public function type(): string
+    {
+        return 'end';
+    }
 
     public function execute(FlowNode $node, FlowContext $ctx): NodeResult
     {

@@ -24,14 +24,21 @@ class AutomationFlow extends Model
     use BelongsToTenant;
 
     public const STATUS_DRAFT = 'draft';
+
     public const STATUS_ACTIVE = 'active';
+
     public const STATUS_PAUSED = 'paused';
+
     public const STATUS_ARCHIVED = 'archived';
 
     public const TRIGGER_COMMENT_ON_POST = 'comment_on_post';
+
     public const TRIGGER_COMMENT_ANY = 'comment_any';
+
     public const TRIGGER_INBOX_FIRST_MESSAGE = 'inbox_first_message';
+
     public const TRIGGER_INBOX_KEYWORD = 'inbox_keyword';
+
     public const TRIGGER_INBOX_ANY = 'inbox_any';
 
     protected $fillable = [
