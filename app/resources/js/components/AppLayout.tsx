@@ -49,6 +49,7 @@ function buildNav(): MenuProps['items'] {
                 { key: '/messaging/channels', label: <Link to="/messaging/channels">Kết nối kênh</Link> },
                 { key: '/messaging/templates', label: <Link to="/messaging/templates">Mẫu tin</Link> },
                 { key: '/messaging/auto-rules', label: <Link to="/messaging/auto-rules">Tự động trả lời</Link> },
+                { key: '/messaging/flows', label: <Link to="/messaging/flows">Kịch bản tự động</Link> },
                 { key: '/messaging/knowledge', label: <Link to="/messaging/knowledge">AI training</Link> },
             ] },
             { key: '/channels', icon: <ShopOutlined />, label: <Link to="/channels">Gian hàng</Link> },
