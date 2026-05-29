@@ -67,7 +67,7 @@ class OutboundMessageService
      * file được upload lúc dựng kịch bản, runtime chỉ tạo Message + MessageAttachment
      * (status=downloaded) trỏ tới storage_path đó. SendMessage tự sinh signed URL.
      *
-     * @param  array{kind:string, storage_path:string, mime?:string, filename?:?string, size_bytes?:?int, width?:?int, height?:?int, duration_ms?:?int}  $media
+     * @param  array{kind:string, storage_path:string, mime?:?string, filename?:?string, size_bytes?:?int, width?:?int, height?:?int, duration_ms?:?int}  $media
      * @param  array{caption?:?string, sent_by_ai?:bool, message_tag?:?string, flow_id?:?int, flow_run_id?:?int, node_id?:?string}  $opts
      */
     public function queueMedia(Conversation $conv, array $media, array $opts = []): Message
