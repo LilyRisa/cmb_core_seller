@@ -169,6 +169,26 @@ class FlowGraphValidatorTest extends TestCase
         $this->assertSame([], $this->validator()->validate($this->flow($graph)));
     }
 
+    public function test_comment_on_post_requires_at_least_one_post(): void
+    {
+        $graph = [
+            'nodes' => [['id' => 't', 'type' => 'trigger', 'data' => []], ['id' => 'e', 'type' => 'end', 'data' => []]],
+            'edges' => [['source' => 't', 'target' => 'e', 'sourceHandle' => null]],
+        ];
+
+        $noPosts = new AutomationFlow([
+            'tenant_id' => 1, 'name' => 'F', 'provider' => 'facebook_page', 'status' => AutomationFlow::STATUS_DRAFT,
+            'trigger_type' => AutomationFlow::TRIGGER_COMMENT_ON_POST, 'trigger_config' => [], 'graph' => $graph,
+        ]);
+        $this->assertContains('no_post_selected', $this->codes($this->validator()->validate($noPosts)));
+
+        $withPosts = new AutomationFlow([
+            'tenant_id' => 1, 'name' => 'F', 'provider' => 'facebook_page', 'status' => AutomationFlow::STATUS_DRAFT,
+            'trigger_type' => AutomationFlow::TRIGGER_COMMENT_ON_POST, 'trigger_config' => ['post_ids' => ['PAGE_1_111']], 'graph' => $graph,
+        ]);
+        $this->assertNotContains('no_post_selected', $this->codes($this->validator()->validate($withPosts)));
+    }
+
     public function test_send_buttons_on_provider_without_capability(): void
     {
         $graph = [

@@ -130,6 +130,8 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
             ->name('messaging.channels.index');
         Route::post('channels/{id}/sync', [MessagingChannelController::class, 'sync'])
             ->whereNumber('id')->name('messaging.channels.sync');     // messaging.connect
+        Route::get('channels/{id}/posts', [MessagingChannelController::class, 'posts'])
+            ->whereNumber('id')->name('messaging.channels.posts');    // post picker (comment_on_post)
         Route::delete('channels/{id}', [MessagingChannelController::class, 'destroy'])
             ->whereNumber('id')->name('messaging.channels.destroy');
 

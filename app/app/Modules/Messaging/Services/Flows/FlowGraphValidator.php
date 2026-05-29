@@ -38,8 +38,16 @@ class FlowGraphValidator
 
         $errors = [];
 
+        // Trigger "Bình luận trên bài viết" phải chọn ≥1 bài (nếu không, không khớp gì).
+        if ($flow->trigger_type === AutomationFlow::TRIGGER_COMMENT_ON_POST) {
+            $postIds = array_filter((array) (($flow->trigger_config ?? [])['post_ids'] ?? []));
+            if ($postIds === []) {
+                $errors[] = ['code' => 'no_post_selected', 'message' => 'Trigger "Bình luận trên bài viết" cần chọn ít nhất 1 bài viết.'];
+            }
+        }
+
         if ($nodeById === []) {
-            return [['code' => 'empty', 'message' => 'Kịch bản chưa có bước nào.']];
+            return $errors === [] ? [['code' => 'empty', 'message' => 'Kịch bản chưa có bước nào.']] : $errors;
         }
 
         // 1) Đúng 1 node trigger.

@@ -3,6 +3,8 @@
 namespace CMBcoreSeller\Modules\Messaging\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
+use CMBcoreSeller\Integrations\Messaging\Contracts\ListsPostsConnector;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Jobs\BackfillFacebookComments;
@@ -13,6 +15,7 @@ use CMBcoreSeller\Modules\Messaging\Services\FacebookPageDisconnectService;
 use CMBcoreSeller\Modules\Messaging\Services\MediaStorage;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -100,6 +103,42 @@ class MessagingChannelController extends Controller
         AuditLog::record('messaging.facebook.sync.requested', null, ['external_shop_id' => $account->external_shop_id]);
 
         return response()->json(['data' => ['ok' => true]], 202);
+    }
+
+    /**
+     * GET /channels/{id}/posts — liệt kê bài đăng của page để chọn (post picker cho
+     * trigger comment_on_post). Connector phải có năng lực `post.list`
+     * ({@see ListsPostsConnector}) — kiểm theo tên năng lực, không phải tên sàn.
+     */
+    public function posts(int $id, MessagingRegistry $registry, Request $request): JsonResponse
+    {
+        Gate::authorize('messaging.view');
+
+        $account = ChannelAccount::query()->where('provider', 'facebook_page')->findOrFail($id);
+
+        $connector = $registry->has($account->provider) ? $registry->for($account->provider) : null;
+        if (! $connector instanceof ListsPostsConnector) {
+            return response()->json(['error' => ['code' => 'UNSUPPORTED', 'message' => 'Kênh này không hỗ trợ liệt kê bài đăng.']], 422);
+        }
+
+        $auth = new MessagingAuthContext(
+            channelAccountId: (int) $account->id,
+            provider: $account->provider,
+            externalShopId: (string) $account->external_shop_id,
+            accessToken: (string) ($account->access_token ?? ''),
+            extra: (array) ($account->meta ?? []),
+        );
+
+        $result = $connector->listPosts($auth, array_filter([
+            'cursor' => $request->query('cursor'),
+            'pageSize' => (int) $request->query('per_page', 25),
+        ]));
+
+        return response()->json(['data' => [
+            'items' => $result['items'],
+            'next_cursor' => $result['nextCursor'],
+            'has_more' => $result['hasMore'],
+        ]]);
     }
 
     /** GET /api/v1/messaging/capabilities — capability map của mọi messaging connector đang bật. */
