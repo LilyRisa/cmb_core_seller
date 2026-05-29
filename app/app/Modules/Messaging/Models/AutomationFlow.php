@@ -4,6 +4,8 @@ namespace CMBcoreSeller\Modules\Messaging\Models;
 
 use CMBcoreSeller\Modules\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
  * Kịch bản tự động (Flow Builder). `graph` = { nodes:[], edges:[] }.
@@ -18,10 +20,13 @@ use Illuminate\Database\Eloquent\Model;
  * @property ?array $graph
  * @property int $version
  * @property bool $enabled
+ * @property ?int $created_by
+ * @property ?Carbon $created_at
+ * @property ?Carbon $updated_at
  */
 class AutomationFlow extends Model
 {
-    use BelongsToTenant;
+    use BelongsToTenant, SoftDeletes;
 
     public const STATUS_DRAFT = 'draft';
 
