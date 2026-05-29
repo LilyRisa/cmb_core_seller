@@ -91,8 +91,11 @@ class ProcessMessagingWebhook implements ShouldQueue
         }
 
         // Re-parse từ payload đã lưu (Request không còn ở job time)
+        // CHỈ bắt buộc externalConversationId ở đây: postback có thể KHÔNG có mid
+        // (externalMessageId null) nhưng vẫn cần tiến luồng. Các nhánh cần mid
+        // (reaction qua applyReaction, message qua messagingDtoFromWebhook) tự kiểm lại.
         $dto = $this->rebuildDtoFromStoredPayload($event);
-        if (! $dto || ! $dto->externalConversationId || ! $dto->externalMessageId) {
+        if (! $dto || ! $dto->externalConversationId) {
             $event->markProcessed(WebhookEvent::STATUS_IGNORED);
 
             return;

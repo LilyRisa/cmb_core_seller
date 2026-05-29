@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes;
 
+use CMBcoreSeller\Integrations\Messaging\Contracts\InteractiveMessagingConnector;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\FlowContext;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\FlowPostbackPayload;
@@ -39,8 +40,11 @@ class SendInteractiveNodeExecutor implements NodeExecutor
             return NodeResult::wait();
         }
 
+        // Kiểm năng lực theo TÊN NĂNG LỰC (interface + capability map), KHÔNG phải tên
+        // sàn — connector phải vừa implement InteractiveMessagingConnector vừa bật cờ.
         $provider = $ctx->conversation->provider;
-        if (! $this->registry->has($provider) || ! $this->registry->for($provider)->supports('outbound.interactive')) {
+        $connector = $this->registry->has($provider) ? $this->registry->for($provider) : null;
+        if (! $connector instanceof InteractiveMessagingConnector || ! $connector->supports('outbound.interactive')) {
             Log::warning('flow.interactive_unsupported', ['provider' => $provider, 'flow_run' => $ctx->run->id]);
 
             return NodeResult::fail('interactive_unsupported');

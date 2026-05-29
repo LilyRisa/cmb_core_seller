@@ -97,6 +97,16 @@ class SendMessage implements ShouldQueue
             return;
         }
 
+        // Tin tương tác (nút bấm): chỉ connector có NĂNG LỰC này mới gửi được — kiểm
+        // theo TÊN NĂNG LỰC (interface + capability), KHÔNG phải tên sàn (luật vàng).
+        // Thiếu năng lực ⇒ fail VĨNH VIỄN (không retry — retry không đổi kết quả).
+        if ($message->kind === Message::KIND_INTERACTIVE
+            && ! ($connector instanceof InteractiveMessagingConnector && $connector->supports('outbound.interactive'))) {
+            $this->markFailed($message, 'interactive_unsupported');
+
+            return;
+        }
+
         $auth = new MessagingAuthContext(
             channelAccountId: $account->id,
             provider: $conversation->provider,
@@ -119,11 +129,9 @@ class SendMessage implements ShouldQueue
                     $opts,
                 ),
                 in_array($message->kind, [Message::KIND_IMAGE, Message::KIND_VIDEO, Message::KIND_FILE], true) => $this->sendMediaForMessage($connector, $auth, $conversation->external_conversation_id, $message, $opts),
-                // Tin tương tác (nút bấm): chỉ connector có NĂNG LỰC này (kiểm theo tên
-                // năng lực, KHÔNG phải tên sàn) mới gửi được — luật vàng extensibility.
-                $message->kind === Message::KIND_INTERACTIVE => $connector instanceof InteractiveMessagingConnector
-                    ? $connector->sendInteractive($auth, $conversation->external_conversation_id, (array) ($opts['interactive'] ?? []), $opts)
-                    : throw new \RuntimeException('interactive_unsupported'),
+                $message->kind === Message::KIND_INTERACTIVE && $connector instanceof InteractiveMessagingConnector => $connector->sendInteractive(
+                    $auth, $conversation->external_conversation_id, (array) ($opts['interactive'] ?? []), $opts
+                ),
                 default => throw new \RuntimeException("Kind [{$message->kind}] không hỗ trợ ở S1."),
             };
 

@@ -62,6 +62,34 @@ class PostbackWebhookTest extends TestCase
             ->where('conversation_id', $conversation->id)->count());
     }
 
+    public function test_postback_without_mid_still_dispatches_event(): void
+    {
+        // Messenger hiếm khi gửi postback thiếu `mid` — vẫn phải tiến luồng, không bị
+        // guard externalMessageId loại bỏ (ingest dùng dedupe key payload+ts fallback).
+        Event::fake([PostbackReceived::class]);
+        [, , $conversation] = $this->fixture();
+
+        $payload = json_encode([
+            'object' => 'page',
+            'entry' => [[
+                'id' => 'PAGE_FB',
+                'messaging' => [[
+                    'sender' => ['id' => 'PSID_1'],
+                    'recipient' => ['id' => 'PAGE_FB'],
+                    'timestamp' => time() * 1000,
+                    'postback' => ['title' => 'Mua hàng', 'payload' => '{"t":"flow","n":"ask","h":"b_buy"}'],
+                ]],
+            ]],
+        ]);
+        $this->postWebhook($payload)->assertOk()->assertJsonPath('stored', 1);
+
+        $this->runLatestPostbackJob();
+
+        Event::assertDispatched(PostbackReceived::class, fn (PostbackReceived $e) => $e->conversationId === (int) $conversation->id
+            && $e->payload === '{"t":"flow","n":"ask","h":"b_buy"}'
+            && $e->externalMessageId === null);
+    }
+
     public function test_postback_for_unknown_conversation_is_ignored_without_error(): void
     {
         Event::fake([PostbackReceived::class]);
