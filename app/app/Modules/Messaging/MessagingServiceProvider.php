@@ -13,6 +13,8 @@ use CMBcoreSeller\Modules\Messaging\Console\Commands\ReconcileMessagingSync;
 use CMBcoreSeller\Modules\Messaging\Contracts\MessageInboxContract;
 use CMBcoreSeller\Modules\Messaging\Events\CommentReceived;
 use CMBcoreSeller\Modules\Messaging\Events\MessageReceived;
+use CMBcoreSeller\Modules\Messaging\Events\PostbackReceived;
+use CMBcoreSeller\Modules\Messaging\Listeners\AdvanceFlowOnPostback;
 use CMBcoreSeller\Modules\Messaging\Listeners\AiAutoModeOnInbound;
 use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnComment;
 use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnInbound;
@@ -24,6 +26,7 @@ use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\ConditionNodeExecutor;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\EndNodeExecutor;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\NodeExecutorRegistry;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\SendCommentReplyNodeExecutor;
+use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\SendInteractiveNodeExecutor;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\SendMessageNodeExecutor;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\TriggerNodeExecutor;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\WaitReplyNodeExecutor;
@@ -70,6 +73,7 @@ class MessagingServiceProvider extends ServiceProvider
             $registry = new NodeExecutorRegistry($app);
             $registry->register('trigger', TriggerNodeExecutor::class);
             $registry->register('send_message', SendMessageNodeExecutor::class);
+            $registry->register('send_buttons', SendInteractiveNodeExecutor::class);
             $registry->register('send_comment_reply', SendCommentReplyNodeExecutor::class);
             $registry->register('condition', ConditionNodeExecutor::class);
             $registry->register('wait_reply', WaitReplyNodeExecutor::class);
@@ -105,6 +109,9 @@ class MessagingServiceProvider extends ServiceProvider
         // Flow Builder (S1): kịch bản đa bước, chạy song song auto-reply phẳng.
         Event::listen(MessageReceived::class, StartFlowOnInbound::class);
         Event::listen(CommentReceived::class, StartFlowOnComment::class);
+
+        // Flow Builder (S2): buyer bấm nút (postback) ⇒ tiến luồng theo nhánh nút.
+        Event::listen(PostbackReceived::class, AdvanceFlowOnPostback::class);
 
         if ($this->app->runningInConsole()) {
             $this->commands([
