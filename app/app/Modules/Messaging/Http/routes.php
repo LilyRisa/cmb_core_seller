@@ -2,6 +2,7 @@
 
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\AdminAiProviderController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\AiSuggestionController;
+use CMBcoreSeller\Modules\Messaging\Http\Controllers\AutomationFlowController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\AutoReplyRuleController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\ConversationController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\FacebookCommentController;
@@ -159,6 +160,27 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
             ->whereNumber('id')->name('messaging.rules.update');
         Route::delete('auto-reply-rules/{id}', [AutoReplyRuleController::class, 'destroy'])
             ->whereNumber('id')->name('messaging.rules.destroy');
+
+        // --- Automation flows (kịch bản tự động, Flow Builder S3) -----------
+        // RBAC dùng lại: đọc `messaging.view`, mutate `messaging.rule.manage`.
+        Route::get('automation-flows', [AutomationFlowController::class, 'index'])
+            ->name('messaging.flows.index');
+        Route::post('automation-flows', [AutomationFlowController::class, 'store'])
+            ->name('messaging.flows.store');
+        Route::get('automation-flows/{id}', [AutomationFlowController::class, 'show'])
+            ->whereNumber('id')->name('messaging.flows.show');
+        Route::patch('automation-flows/{id}', [AutomationFlowController::class, 'update'])
+            ->whereNumber('id')->name('messaging.flows.update');
+        Route::delete('automation-flows/{id}', [AutomationFlowController::class, 'destroy'])
+            ->whereNumber('id')->name('messaging.flows.destroy');
+        Route::post('automation-flows/{id}/validate', [AutomationFlowController::class, 'validateGraph'])
+            ->whereNumber('id')->name('messaging.flows.validate');
+        Route::post('automation-flows/{id}/publish', [AutomationFlowController::class, 'publish'])
+            ->whereNumber('id')->name('messaging.flows.publish');
+        Route::post('automation-flows/{id}/pause', [AutomationFlowController::class, 'pause'])
+            ->whereNumber('id')->name('messaging.flows.pause');
+        Route::post('automation-flows/{id}/duplicate', [AutomationFlowController::class, 'duplicate'])
+            ->whereNumber('id')->name('messaging.flows.duplicate');
     });
 
 /*
