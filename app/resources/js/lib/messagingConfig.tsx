@@ -182,6 +182,45 @@ export function useDeleteKnowledge() {
     });
 }
 
+/** Tải lại (re-index) 1 tài liệu — fetch lại nguồn url/Sheet/file khi có dữ liệu mới. */
+export function useReindexKnowledge() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: number) => (await api!.post(`/messaging/knowledge-docs/${id}/reindex`)).data,
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'knowledge'] }),
+    });
+}
+
+export interface KnowledgeChunk {
+    index: number;
+    text: string;
+    token_count: number;
+}
+
+export interface KnowledgeChunksResult {
+    id: number;
+    title: string;
+    source: 'inline' | 'url' | 'upload';
+    url: string | null;
+    status: 'pending' | 'ready' | 'failed';
+    error: string | null;
+    chunk_count: number;
+    indexed_at: string | null;
+    chunks: KnowledgeChunk[];
+}
+
+/** Xem nội dung đã trích (chunk) của 1 tài liệu — kiểm tra dữ liệu AI thực sự lấy được. */
+export function useKnowledgeChunks(id: number | null) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['messaging', 'knowledge', 'chunks', id, tenantId],
+        enabled: api != null && id != null,
+        queryFn: async () => (await api!.get<{ data: KnowledgeChunksResult }>(`/messaging/knowledge-docs/${id}/chunks`)).data.data,
+    });
+}
+
 // --- Tenant settings --------------------------------------------------------
 
 export interface MessagingSettings {
