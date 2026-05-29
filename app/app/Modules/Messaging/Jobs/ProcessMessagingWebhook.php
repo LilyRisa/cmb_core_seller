@@ -12,6 +12,7 @@ use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\WebhookEvent;
 use CMBcoreSeller\Modules\Messaging\Events\CommentReceived;
+use CMBcoreSeller\Modules\Messaging\Events\PostbackReceived;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Services\CommentConversationUpserter;
@@ -100,6 +101,31 @@ class ProcessMessagingWebhook implements ShouldQueue
         // ── Reaction event: update meta['reaction'] on the target message ────────
         if ($dto->type === MessagingWebhookEventDTO::TYPE_MESSAGE_REACTION) {
             $this->applyReaction($dto, $account);
+            $event->markProcessed(WebhookEvent::STATUS_PROCESSED);
+
+            return;
+        }
+
+        // ── Postback (bấm nút): KHÔNG ingest tin — chỉ tiến luồng. Tìm hội thoại DM
+        // theo (account, PSID) rồi phát PostbackReceived; listener flow giải mã payload.
+        if ($dto->type === MessagingWebhookEventDTO::TYPE_POSTBACK) {
+            // externalConversationId (PSID) đã được guard phía trên đảm bảo non-empty.
+            $payload = is_string($dto->meta['postback_payload'] ?? null) ? $dto->meta['postback_payload'] : '';
+            if ($payload !== '') {
+                $conversation = Conversation::withoutGlobalScope(TenantScope::class)
+                    ->where('channel_account_id', $account->getKey())
+                    ->where('external_conversation_id', $dto->externalConversationId)
+                    ->where('thread_type', Conversation::THREAD_MESSAGE)
+                    ->first();
+                if ($conversation) {
+                    PostbackReceived::dispatch((int) $conversation->id, $payload, $dto->externalMessageId);
+                } else {
+                    Log::info('messaging.postback.no_conversation', [
+                        'shop' => $shopId,
+                        'psid' => $dto->externalConversationId,
+                    ]);
+                }
+            }
             $event->markProcessed(WebhookEvent::STATUS_PROCESSED);
 
             return;

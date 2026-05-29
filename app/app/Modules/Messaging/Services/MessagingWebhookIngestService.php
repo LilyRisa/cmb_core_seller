@@ -76,6 +76,12 @@ class MessagingWebhookIngestService
                 $reactionData = is_array($event->raw['reaction'] ?? null) ? $event->raw['reaction'] : [];
                 $action = is_string($reactionData['action'] ?? null) ? $reactionData['action'] : 'react';
                 $dedupeKey = ($event->externalMessageId ?: 'noid').'@reaction@'.$action;
+            } elseif ($event->type === MessagingWebhookEventDTO::TYPE_POSTBACK) {
+                // Postback của Messenger có `mid` ⇒ dedupe theo mid (retry trùng mid; 2 lần
+                // bấm khác mid). Thiếu mid (hiếm) ⇒ rơi về payload+timestamp để tránh gộp nhầm.
+                $pl = is_string($event->meta['postback_payload'] ?? null) ? $event->meta['postback_payload'] : '';
+                $ts = $event->occurredAt?->getTimestampMs() ?? 0;
+                $dedupeKey = ($event->externalMessageId ?: ('noid@'.md5($pl).'@'.$ts)).'@postback';
             } else {
                 $dedupeKey = $event->externalMessageId
                     ?: ($event->externalConversationId.'@'.$event->type);
