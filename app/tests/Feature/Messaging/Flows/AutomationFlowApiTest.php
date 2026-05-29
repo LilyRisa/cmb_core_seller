@@ -11,6 +11,8 @@ use CMBcoreSeller\Modules\Messaging\Models\AutomationFlow;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -193,6 +195,38 @@ class AutomationFlowApiTest extends TestCase
             ->postJson("/api/v1/messaging/automation-flows/{$id}/pause")
             ->assertOk()
             ->assertJsonPath('data.status', 'paused');
+    }
+
+    public function test_owner_uploads_flow_media(): void
+    {
+        Storage::fake((string) config('messaging.media_disk'));
+        $id = $this->createFlow();
+
+        $res = $this->actingAs($this->owner)->withHeaders($this->h())
+            ->post("/api/v1/messaging/automation-flows/{$id}/media", [
+                'kind' => 'image',
+                'file' => UploadedFile::fake()->create('promo.jpg', 200, 'image/jpeg'),
+            ])
+            ->assertStatus(201)
+            ->assertJsonPath('data.kind', 'image')
+            ->assertJsonPath('data.mime', 'image/jpeg');
+
+        $this->assertNotEmpty($res->json('data.storage_path'));
+        Storage::disk((string) config('messaging.media_disk'))->assertExists((string) $res->json('data.storage_path'));
+    }
+
+    public function test_flow_media_rejects_disallowed_mime(): void
+    {
+        Storage::fake((string) config('messaging.media_disk'));
+        $id = $this->createFlow();
+
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->post("/api/v1/messaging/automation-flows/{$id}/media", [
+                'kind' => 'image',
+                'file' => UploadedFile::fake()->create('x.exe', 10, 'application/x-msdownload'),
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'ATTACHMENT_INVALID');
     }
 
     public function test_duplicate_creates_draft_copy(): void

@@ -3,8 +3,10 @@
 namespace CMBcoreSeller\Modules\Messaging\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
+use CMBcoreSeller\Modules\Messaging\Exceptions\AttachmentInvalid;
 use CMBcoreSeller\Modules\Messaging\Models\AutomationFlow;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\FlowGraphValidator;
+use CMBcoreSeller\Modules\Messaging\Services\MediaRelayService;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,7 +24,10 @@ use Illuminate\Support\Facades\Gate;
  */
 class AutomationFlowController extends Controller
 {
-    public function __construct(private FlowGraphValidator $validator) {}
+    public function __construct(
+        private FlowGraphValidator $validator,
+        private MediaRelayService $media,
+    ) {}
 
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -155,6 +160,36 @@ class AutomationFlowController extends Controller
         AuditLog::record('messaging.flow.duplicate', $copy, ['source_id' => $src->id]);
 
         return response()->json(['data' => $this->present($copy)], 201);
+    }
+
+    /**
+     * Upload media (ảnh/video/âm thanh/file) cho node "Gửi tin" lúc dựng kịch bản.
+     * Lưu vào object storage; trả descriptor để canvas nhúng vào node.data.attachments.
+     * Runtime (SendMessageNodeExecutor) tạo Message + MessageAttachment từ storage_path.
+     */
+    public function media(int $id, Request $request): JsonResponse
+    {
+        Gate::authorize('messaging.rule.manage');
+
+        $flow = AutomationFlow::query()->findOrFail($id);
+        $data = $request->validate([
+            'kind' => ['required', 'in:image,video,audio,file'],
+            'file' => ['required', 'file'],
+        ]);
+
+        try {
+            $stored = $this->media->storeUpload((int) $flow->tenant_id, (int) $flow->id, $request->file('file'), $data['kind']);
+        } catch (AttachmentInvalid $e) {
+            return response()->json(['error' => ['code' => 'ATTACHMENT_INVALID', 'message' => $e->getMessage()]], 422);
+        }
+
+        return response()->json(['data' => [
+            'kind' => $data['kind'],
+            'storage_path' => $stored['storage_path'],
+            'mime' => $stored['mime'],
+            'size_bytes' => $stored['size_bytes'],
+            'filename' => $stored['filename'],
+        ]], 201);
     }
 
     /** @return array<string,mixed> */

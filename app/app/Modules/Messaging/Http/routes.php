@@ -181,6 +181,8 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
             ->whereNumber('id')->name('messaging.flows.pause');
         Route::post('automation-flows/{id}/duplicate', [AutomationFlowController::class, 'duplicate'])
             ->whereNumber('id')->name('messaging.flows.duplicate');
+        Route::post('automation-flows/{id}/media', [AutomationFlowController::class, 'media'])
+            ->whereNumber('id')->name('messaging.flows.media');
     });
 
 /*
