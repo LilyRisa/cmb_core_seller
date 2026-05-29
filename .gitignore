@@ -15,6 +15,9 @@ desktop.ini
 .claude/settings.local.json
 .claude/projects/
 
+# Superpowers tooling state (transient brainstorm/worktree artifacts — never commit)
+.superpowers/
+
 # Logs / misc
 *.log
 
