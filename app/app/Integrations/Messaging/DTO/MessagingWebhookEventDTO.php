@@ -27,6 +27,8 @@ final readonly class MessagingWebhookEventDTO
 
     public const TYPE_MESSAGE_REACTION = 'message_reaction';
 
+    public const TYPE_POSTBACK = 'postback';
+
     public const TYPE_UNKNOWN = 'unknown';
 
     public function __construct(

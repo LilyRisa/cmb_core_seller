@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Integrations\Messaging\Facebook;
 
 use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
+use CMBcoreSeller\Integrations\Messaging\Contracts\InteractiveMessagingConnector;
 use CMBcoreSeller\Integrations\Messaging\Contracts\MessagingConnector;
 use CMBcoreSeller\Integrations\Messaging\DTO\ConversationDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
@@ -40,7 +41,7 @@ use Symfony\Component\HttpFoundation\Request;
  * Token: Page access token dài hạn ⇒ `refreshToken` ném UnsupportedOperation
  * (re-OAuth khi hết hạn). Polling: Messenger dựa webhook ⇒ `inbound.polling`=false.
  */
-class FacebookPageConnector implements MessagingConnector
+class FacebookPageConnector implements InteractiveMessagingConnector, MessagingConnector
 {
     /** @param array{verify_token?:?string, app_id?:?string, app_secret?:?string, graph_version?:string} $config */
     public function __construct(
@@ -70,6 +71,8 @@ class FacebookPageConnector implements MessagingConnector
             'outbound.video' => true,
             'outbound.file' => true,
             'outbound.template' => true,   // qua MESSAGE_TAG
+            'outbound.interactive' => true, // button/generic template (nút bấm / carousel)
+            'inbound.postback' => true,    // nhận sự kiện bấm nút (messaging_postbacks)
             'read_receipt' => true,        // sender_action=mark_seen
             'typing' => true,              // sender_action=typing_on
             'comment.list' => true,        // đọc comment bài viết (backfill)
@@ -397,6 +400,26 @@ class FacebookPageConnector implements MessagingConnector
         }
         if (isset($event['read'])) {
             return new MessagingWebhookEventDTO($this->code(), MessagingWebhookEventDTO::TYPE_MESSAGE_READ, $pageId, $senderId, null, $senderId, $occurredAt, $event);
+        }
+        if (isset($event['postback'])) {
+            // Buyer bấm nút (button template / persistent menu / get_started). PSID người
+            // gửi = conversation. `payload` do builder sinh (opaque); listener giải mã.
+            $pb = (array) $event['postback'];
+
+            return new MessagingWebhookEventDTO(
+                provider: $this->code(),
+                type: MessagingWebhookEventDTO::TYPE_POSTBACK,
+                externalShopId: $pageId,
+                externalConversationId: $senderId,
+                externalMessageId: isset($pb['mid']) ? (string) $pb['mid'] : null,
+                buyerExternalId: $senderId,
+                occurredAt: $occurredAt,
+                raw: $event,
+                meta: array_filter([
+                    'postback_payload' => isset($pb['payload']) ? (string) $pb['payload'] : null,
+                    'postback_title' => isset($pb['title']) ? (string) $pb['title'] : null,
+                ], fn ($v) => $v !== null && $v !== ''),
+            );
         }
 
         return new MessagingWebhookEventDTO($this->code(), MessagingWebhookEventDTO::TYPE_UNKNOWN, $pageId, $senderId, null, $senderId, $occurredAt, $event);
@@ -964,6 +987,50 @@ class FacebookPageConnector implements MessagingConnector
         $body = (string) ($vars['_resolved_body'] ?? $opts['body'] ?? '');
 
         return $this->sendText($auth, $externalConversationId, $body, $opts);
+    }
+
+    /**
+     * Gửi button template (Send API): text + tối đa 3 nút. Nút `postback` mang
+     * `payload` (engine bắt qua webhook messaging_postbacks); nút `url` → web_url.
+     * Không có nút hợp lệ ⇒ gửi như text (button template bắt buộc có ≥1 nút).
+     * Tôn trọng 24h window qua {@see send} (FB trả lỗi 10/200 ⇒ OutboundWindowClosed).
+     *
+     * @param  array{text?:string, buttons?:list<array<string,mixed>>}  $structure
+     * @param  array<string, mixed>  $opts
+     */
+    public function sendInteractive(MessagingAuthContext $auth, string $externalConversationId, array $structure, array $opts = []): SendResultDTO
+    {
+        $text = trim((string) ($structure['text'] ?? ''));
+
+        $fbButtons = [];
+        foreach (array_slice((array) ($structure['buttons'] ?? []), 0, 3) as $b) {
+            $b = (array) $b;
+            $title = (string) ($b['title'] ?? $b['label'] ?? '');
+            if ($title === '') {
+                continue;
+            }
+            if (((string) ($b['type'] ?? 'postback')) === 'url' && ! empty($b['url'])) {
+                $fbButtons[] = ['type' => 'web_url', 'title' => $title, 'url' => (string) $b['url']];
+            } else {
+                $fbButtons[] = ['type' => 'postback', 'title' => $title, 'payload' => (string) ($b['payload'] ?? $title)];
+            }
+        }
+
+        if ($fbButtons === []) {
+            return $this->sendText($auth, $externalConversationId, $text, $opts);
+        }
+
+        $tag = is_string($opts['message_tag'] ?? null) ? $opts['message_tag'] : null;
+
+        return $this->send($auth, [
+            'recipient' => ['id' => $externalConversationId],
+            'message' => ['attachment' => ['type' => 'template', 'payload' => [
+                'template_type' => 'button',
+                'text' => $text !== '' ? $text : '…',   // FB yêu cầu text non-empty
+                'buttons' => $fbButtons,
+            ]]],
+            'messaging_type' => $tag ? 'MESSAGE_TAG' : 'RESPONSE',
+        ] + ($tag ? ['tag' => $tag] : []));
     }
 
     public function outboundWindow(): OutboundWindowPolicyDTO

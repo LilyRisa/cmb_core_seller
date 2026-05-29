@@ -57,6 +57,8 @@ class Message extends Model
 
     public const KIND_TEMPLATE = 'template';
 
+    public const KIND_INTERACTIVE = 'interactive';
+
     public const KIND_SYSTEM = 'system';
 
     public const STATUS_PENDING = 'pending';

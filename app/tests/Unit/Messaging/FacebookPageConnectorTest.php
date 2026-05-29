@@ -322,4 +322,89 @@ class FacebookPageConnectorTest extends TestCase
         $this->expectException(OutboundWindowClosed::class);
         $this->connector()->sendText($auth, 'PSID_999', 'late message');
     }
+
+    public function test_capabilities_include_interactive_and_postback(): void
+    {
+        $c = $this->connector();
+        $this->assertTrue($c->supports('outbound.interactive'));
+        $this->assertTrue($c->supports('inbound.postback'));
+    }
+
+    public function test_parses_postback_webhook(): void
+    {
+        // Buyer bấm nút (messaging_postbacks) — payload do builder sinh.
+        $payload = json_encode([
+            'object' => 'page',
+            'entry' => [['id' => 'PAGE_123', 'messaging' => [[
+                'sender' => ['id' => 'PSID_9'],
+                'recipient' => ['id' => 'PAGE_123'],
+                'timestamp' => 1716200000000,
+                'postback' => ['mid' => 'm_pb_1', 'title' => 'Mua hàng', 'payload' => '{"t":"flow","n":"ask","h":"b_buy"}'],
+            ]]]],
+        ]);
+
+        $event = $this->connector()->parseWebhook($this->request($payload, null));
+
+        $this->assertSame(MessagingWebhookEventDTO::TYPE_POSTBACK, $event->type);
+        $this->assertSame('PSID_9', $event->externalConversationId, 'conversation = PSID người bấm');
+        $this->assertSame('m_pb_1', $event->externalMessageId);
+        $this->assertSame('{"t":"flow","n":"ask","h":"b_buy"}', $event->meta['postback_payload']);
+        $this->assertSame('Mua hàng', $event->meta['postback_title']);
+    }
+
+    public function test_send_interactive_posts_button_template_shape(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response(['recipient_id' => 'PSID_9', 'message_id' => 'mid.BTN_1'], 200),
+        ]);
+
+        $auth = new MessagingAuthContext(
+            channelAccountId: 1, provider: 'facebook_page',
+            externalShopId: 'PAGE_123', accessToken: 'PAGE_TOKEN',
+        );
+
+        $result = $this->connector()->sendInteractive($auth, 'PSID_9', [
+            'text' => 'Bạn cần gì ạ?',
+            'buttons' => [
+                ['type' => 'postback', 'title' => 'Mua hàng', 'payload' => 'PB_BUY'],
+                ['type' => 'url', 'title' => 'Xem web', 'url' => 'https://shop.vn'],
+                ['type' => 'postback', 'title' => 'Phí ship', 'payload' => 'PB_SHIP'],
+                ['type' => 'postback', 'title' => 'Nút thừa (bị cắt)', 'payload' => 'PB_X'],
+            ],
+        ]);
+
+        $this->assertSame('mid.BTN_1', $result->externalMessageId);
+
+        Http::assertSent(function ($request) {
+            $data = $request->data();
+            $payload = $data['message']['attachment']['payload'] ?? [];
+            $buttons = $payload['buttons'] ?? [];
+
+            return str_contains($request->url(), '/me/messages')
+                && ($data['message']['attachment']['type'] ?? null) === 'template'
+                && ($payload['template_type'] ?? null) === 'button'
+                && ($payload['text'] ?? null) === 'Bạn cần gì ạ?'
+                && count($buttons) === 3                                  // cắt còn 3 (giới hạn FB)
+                && ($buttons[0]['type'] ?? null) === 'postback'
+                && ($buttons[0]['payload'] ?? null) === 'PB_BUY'
+                && ($buttons[1]['type'] ?? null) === 'web_url'
+                && ($buttons[1]['url'] ?? null) === 'https://shop.vn';
+        });
+    }
+
+    public function test_send_interactive_without_buttons_falls_back_to_text(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response(['message_id' => 'mid.TXT_1'], 200),
+        ]);
+
+        $auth = new MessagingAuthContext(
+            channelAccountId: 1, provider: 'facebook_page',
+            externalShopId: 'PAGE_123', accessToken: 'PAGE_TOKEN',
+        );
+
+        $this->connector()->sendInteractive($auth, 'PSID_9', ['text' => 'Chỉ có text', 'buttons' => []]);
+
+        Http::assertSent(fn ($request) => ($request->data()['message']['text'] ?? null) === 'Chỉ có text');
+    }
 }

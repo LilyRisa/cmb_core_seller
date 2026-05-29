@@ -34,6 +34,8 @@ use Symfony\Component\HttpFoundation\Request;
  *   - 'outbound.video'       — gửi video
  *   - 'outbound.file'        — gửi file
  *   - 'outbound.template'    — gửi template tag (vd Facebook MESSAGE_TAG)
+ *   - 'outbound.interactive' — gửi tin có nút bấm / carousel (button/generic template)
+ *   - 'inbound.postback'     — nhận sự kiện bấm nút (postback)
  *   - 'read_receipt'         — mark read API
  *   - 'typing'               — typing indicator
  */
@@ -163,6 +165,11 @@ interface MessagingConnector
      * @param  array<string, mixed>  $opts
      */
     public function sendTemplate(MessagingAuthContext $auth, string $externalConversationId, string $templateKey, array $vars = [], array $opts = []): SendResultDTO;
+
+    // Gửi tin tương tác (nút bấm / carousel) KHÔNG ở interface chung — đây là năng
+    // lực riêng (v1 chỉ Facebook). Connector hỗ trợ implement {@see InteractiveMessagingConnector};
+    // core kiểm `supports('outbound.interactive')` + `instanceof InteractiveMessagingConnector`
+    // (tên năng lực, KHÔNG phải tên sàn) trước khi gọi. Sàn khác chừa sẵn (capability=false).
 
     // --- Policy ---------------------------------------------------------
 
