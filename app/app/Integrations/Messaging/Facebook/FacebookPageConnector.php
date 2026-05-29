@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Integrations\Messaging\Facebook;
 use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Messaging\Contracts\InteractiveMessagingConnector;
+use CMBcoreSeller\Integrations\Messaging\Contracts\ListsPostsConnector;
 use CMBcoreSeller\Integrations\Messaging\Contracts\MessagingConnector;
 use CMBcoreSeller\Integrations\Messaging\DTO\ConversationDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
@@ -41,7 +42,7 @@ use Symfony\Component\HttpFoundation\Request;
  * Token: Page access token dài hạn ⇒ `refreshToken` ném UnsupportedOperation
  * (re-OAuth khi hết hạn). Polling: Messenger dựa webhook ⇒ `inbound.polling`=false.
  */
-class FacebookPageConnector implements InteractiveMessagingConnector, MessagingConnector
+class FacebookPageConnector implements InteractiveMessagingConnector, ListsPostsConnector, MessagingConnector
 {
     /** @param array{verify_token?:?string, app_id?:?string, app_secret?:?string, graph_version?:string} $config */
     public function __construct(
@@ -77,6 +78,7 @@ class FacebookPageConnector implements InteractiveMessagingConnector, MessagingC
             'read_receipt' => true,        // sender_action=mark_seen
             'typing' => true,              // sender_action=typing_on
             'comment.list' => true,        // đọc comment bài viết (backfill)
+            'post.list' => true,           // liệt kê bài đăng (post picker cho comment_on_post)
             'comment.reply_public' => true, // trả lời công khai dưới comment
             'comment.reply_private' => true, // Private Reply (nhắn riêng cho người comment)
             'comment.media' => true,       // đính ảnh vào reply công khai / nhắn riêng
@@ -818,6 +820,51 @@ class FacebookPageConnector implements InteractiveMessagingConnector, MessagingC
         } catch (\Throwable) {
             return ['body' => null, 'buttons' => []];
         }
+    }
+
+    /**
+     * Liệt kê bài đăng đã xuất bản của trang (post picker cho trigger comment_on_post).
+     * `id` dạng `{pageId}_{postId}` — KHỚP với `post_id` của feed webhook ⇒ matcher
+     * so trực tiếp. `full_picture` là CDN hết hạn (chỉ để xem trước trong picker).
+     *
+     * @param  array{pageSize?:int, cursor?:string}  $query
+     * @return array{items: list<array{id:string, message:?string, permalink_url:?string, image_url:?string, created_time:?string}>, nextCursor:?string, hasMore:bool}
+     */
+    public function listPosts(MessagingAuthContext $auth, array $query = []): array
+    {
+        $params = [
+            'fields' => 'id,message,created_time,permalink_url,full_picture',
+            'limit' => (int) ($query['pageSize'] ?? 25),
+            'access_token' => $auth->accessToken,
+        ];
+        if (! empty($query['cursor'])) {
+            $params['after'] = (string) $query['cursor'];
+        }
+
+        $res = Http::timeout(30)->get($this->graphUrl($auth->externalShopId.'/published_posts'), $params);
+        if (! $res->successful()) {
+            $this->throwGraphError($res, 'listPosts');
+        }
+
+        $items = [];
+        foreach ((array) $res->json('data', []) as $post) {
+            $id = (string) ($post['id'] ?? '');
+            if ($id === '') {
+                continue;
+            }
+            $items[] = [
+                'id' => $id,
+                'message' => isset($post['message']) && (string) $post['message'] !== '' ? (string) $post['message'] : null,
+                'permalink_url' => isset($post['permalink_url']) && (string) $post['permalink_url'] !== '' ? (string) $post['permalink_url'] : null,
+                'image_url' => isset($post['full_picture']) && (string) $post['full_picture'] !== '' ? (string) $post['full_picture'] : null,
+                'created_time' => isset($post['created_time']) ? (string) $post['created_time'] : null,
+            ];
+        }
+
+        $after = $res->json('paging.cursors.after');
+        $hasMore = $res->json('paging.next') !== null;
+
+        return ['items' => $items, 'nextCursor' => $after !== null ? (string) $after : null, 'hasMore' => (bool) $hasMore];
     }
 
     /**

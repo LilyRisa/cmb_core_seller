@@ -333,6 +333,31 @@ class FacebookPageConnectorTest extends TestCase
         $this->assertTrue($c->supports('outbound.audio'));
     }
 
+    public function test_list_posts_maps_published_posts(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response([
+            'data' => [
+                ['id' => 'PAGE_1_111', 'message' => 'Sale 50%', 'created_time' => '2026-05-01T10:00:00+0000', 'permalink_url' => 'https://fb.com/1', 'full_picture' => 'https://cdn/1.jpg'],
+                ['id' => 'PAGE_1_222', 'created_time' => '2026-05-02T10:00:00+0000'],
+            ],
+            'paging' => ['cursors' => ['after' => 'CUR2'], 'next' => 'https://graph/next'],
+        ], 200)]);
+
+        $auth = new MessagingAuthContext(channelAccountId: 1, provider: 'facebook_page', externalShopId: 'PAGE_1', accessToken: 'TOK');
+        $out = $this->connector()->listPosts($auth, ['pageSize' => 10]);
+
+        $this->assertCount(2, $out['items']);
+        $this->assertSame('PAGE_1_111', $out['items'][0]['id']);
+        $this->assertSame('Sale 50%', $out['items'][0]['message']);
+        $this->assertSame('https://cdn/1.jpg', $out['items'][0]['image_url']);
+        $this->assertNull($out['items'][1]['message']);
+        $this->assertSame('CUR2', $out['nextCursor']);
+        $this->assertTrue($out['hasMore']);
+        $this->assertTrue($this->connector()->supports('post.list'));
+
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/PAGE_1/published_posts') && str_contains($r->url(), 'permalink_url'));
+    }
+
     public function test_send_media_audio_posts_audio_attachment_shape(): void
     {
         Http::fake(['graph.facebook.com/*' => Http::response(['message_id' => 'mid.AUD_1'], 200)]);
