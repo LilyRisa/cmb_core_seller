@@ -2,7 +2,9 @@
 
 namespace Tests\Unit\Messaging;
 
+use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageDirection;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\OutboundWindowClosed;
@@ -328,6 +330,28 @@ class FacebookPageConnectorTest extends TestCase
         $c = $this->connector();
         $this->assertTrue($c->supports('outbound.interactive'));
         $this->assertTrue($c->supports('inbound.postback'));
+        $this->assertTrue($c->supports('outbound.audio'));
+    }
+
+    public function test_send_media_audio_posts_audio_attachment_shape(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response(['message_id' => 'mid.AUD_1'], 200)]);
+
+        $auth = new MessagingAuthContext(
+            channelAccountId: 1, provider: 'facebook_page',
+            externalShopId: 'PAGE_123', accessToken: 'PAGE_TOKEN',
+        );
+        $media = new MediaRefDTO(kind: MessageKind::Audio, mime: 'audio/mpeg', externalUrl: 'https://cdn/x.mp3', filename: 'x.mp3');
+
+        $result = $this->connector()->sendMedia($auth, 'PSID_9', $media);
+        $this->assertSame('mid.AUD_1', $result->externalMessageId);
+
+        Http::assertSent(function ($request) {
+            $att = $request->data()['message']['attachment'] ?? [];
+
+            return ($att['type'] ?? null) === 'audio'
+                && ($att['payload']['url'] ?? null) === 'https://cdn/x.mp3';
+        });
     }
 
     public function test_parses_postback_webhook(): void

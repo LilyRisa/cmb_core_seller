@@ -69,6 +69,7 @@ class FacebookPageConnector implements InteractiveMessagingConnector, MessagingC
             'outbound.text' => true,
             'outbound.image' => true,
             'outbound.video' => true,
+            'outbound.audio' => true,
             'outbound.file' => true,
             'outbound.template' => true,   // qua MESSAGE_TAG
             'outbound.interactive' => true, // button/generic template (nút bấm / carousel)
@@ -970,6 +971,7 @@ class FacebookPageConnector implements InteractiveMessagingConnector, MessagingC
         $type = match ($media->kind->value) {
             'image' => 'image',
             'video' => 'video',
+            'audio' => 'audio',
             default => 'file',
         };
         $tag = is_string($opts['message_tag'] ?? null) ? $opts['message_tag'] : null;

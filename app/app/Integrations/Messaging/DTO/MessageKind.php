@@ -12,12 +12,13 @@ enum MessageKind: string
     case Text = 'text';
     case Image = 'image';
     case Video = 'video';
+    case Audio = 'audio';
     case File = 'file';
     case Template = 'template';
     case System = 'system';
 
     public function isMedia(): bool
     {
-        return in_array($this, [self::Image, self::Video, self::File], true);
+        return in_array($this, [self::Image, self::Video, self::Audio, self::File], true);
     }
 }

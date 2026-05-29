@@ -55,6 +55,8 @@ class Message extends Model
 
     public const KIND_VIDEO = 'video';
 
+    public const KIND_AUDIO = 'audio';
+
     public const KIND_FILE = 'file';
 
     public const KIND_TEMPLATE = 'template';

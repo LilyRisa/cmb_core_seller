@@ -128,7 +128,7 @@ class SendMessage implements ShouldQueue
                     (array) ($opts['vars'] ?? []),
                     $opts,
                 ),
-                in_array($message->kind, [Message::KIND_IMAGE, Message::KIND_VIDEO, Message::KIND_FILE], true) => $this->sendMediaForMessage($connector, $auth, $conversation->external_conversation_id, $message, $opts),
+                in_array($message->kind, [Message::KIND_IMAGE, Message::KIND_VIDEO, Message::KIND_AUDIO, Message::KIND_FILE], true) => $this->sendMediaForMessage($connector, $auth, $conversation->external_conversation_id, $message, $opts),
                 $message->kind === Message::KIND_INTERACTIVE && $connector instanceof InteractiveMessagingConnector => $connector->sendInteractive(
                     $auth, $conversation->external_conversation_id, (array) ($opts['interactive'] ?? []), $opts
                 ),
