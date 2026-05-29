@@ -106,14 +106,15 @@ export function RegisterPage() {
                         <Form.Item
                             name="password"
                             label="Mật khẩu"
-                            extra="Tối thiểu 8 ký tự, gồm chữ cái, chữ số và ký tự đặc biệt."
+                            extra="Tối thiểu 8 ký tự, gồm chữ hoa, chữ thường, chữ số và ký tự đặc biệt."
                             rules={[
                                 { required: true, message: 'Nhập mật khẩu' },
                                 () => ({
                                     validator(_, value) {
                                         if (!value) return Promise.resolve();
                                         if (value.length < 8) return Promise.reject(new Error('Mật khẩu phải có ít nhất 8 ký tự'));
-                                        if (!/[A-Za-z]/.test(value)) return Promise.reject(new Error('Mật khẩu phải có ít nhất 1 chữ cái'));
+                                        if (!/[A-Z]/.test(value)) return Promise.reject(new Error('Mật khẩu phải có ít nhất 1 chữ in hoa'));
+                                        if (!/[a-z]/.test(value)) return Promise.reject(new Error('Mật khẩu phải có ít nhất 1 chữ thường'));
                                         if (!/[0-9]/.test(value)) return Promise.reject(new Error('Mật khẩu phải có ít nhất 1 chữ số'));
                                         if (!/[^A-Za-z0-9]/.test(value)) return Promise.reject(new Error('Mật khẩu phải có ít nhất 1 ký tự đặc biệt'));
                                         return Promise.resolve();
@@ -125,7 +126,7 @@ export function RegisterPage() {
                             <Input.Password
                                 size="large"
                                 prefix={<LockOutlined style={{ color: '#9ca3af' }} />}
-                                placeholder="Ít nhất 8 ký tự, gồm chữ, số & ký tự đặc biệt"
+                                placeholder="≥8 ký tự, gồm chữ hoa, chữ thường, số & ký tự đặc biệt"
                             />
                         </Form.Item>
 
