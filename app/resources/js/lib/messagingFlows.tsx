@@ -24,7 +24,7 @@ export type FlowTriggerType =
     | 'inbox_keyword'
     | 'inbox_any';
 
-export type FlowNodeType = 'trigger' | 'send_message' | 'send_buttons' | 'wait_reply' | 'condition' | 'end';
+export type FlowNodeType = 'trigger' | 'send_message' | 'send_buttons' | 'wait_reply' | 'condition' | 'ai_reply' | 'end';
 
 export interface FlowButton {
     id: string;
@@ -33,8 +33,19 @@ export interface FlowButton {
     url?: string;
 }
 
+export type FlowMediaKind = 'image' | 'video' | 'audio' | 'file';
+
+export interface FlowAttachment {
+    kind: FlowMediaKind;
+    storage_path: string;
+    mime?: string;
+    filename?: string | null;
+    size_bytes?: number | null;
+}
+
 export interface FlowNodeData {
     text?: string;
+    attachments?: FlowAttachment[];
     buttons?: FlowButton[];
     keywords?: string[];
     match?: 'any' | 'all';
@@ -174,6 +185,27 @@ export function useValidateFlow() {
                 `/messaging/automation-flows/${id}/validate`,
             )).data.data,
     });
+}
+
+/** Upload media (ảnh/video/âm thanh/file) cho 1 node Gửi tin; trả descriptor nhúng vào node.data. */
+export function useUploadFlowMedia(flowId: number) {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async (input: { file: File; kind: FlowMediaKind }) => {
+            const form = new FormData();
+            form.append('file', input.file);
+            form.append('kind', input.kind);
+            return (await api!.post<{ data: FlowAttachment }>(`/messaging/automation-flows/${flowId}/media`, form)).data.data;
+        },
+    });
+}
+
+/** Suy ra loại media từ MIME của file (cho uploader). */
+export function mediaKindFromMime(mime: string): FlowMediaKind {
+    if (mime.startsWith('image/')) return 'image';
+    if (mime.startsWith('video/')) return 'video';
+    if (mime.startsWith('audio/')) return 'audio';
+    return 'file';
 }
 
 /** Nhãn tiếng Việt cho loại trigger (hiển thị danh sách + topbar). */

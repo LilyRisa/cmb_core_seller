@@ -1,10 +1,14 @@
 import { useEffect } from 'react';
-import { Alert, Button, Drawer, Form, Input, Radio, Select, Space, Typography } from 'antd';
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { Alert, App as AntApp, Button, Drawer, Form, Input, Radio, Select, Space, Tag, Typography, Upload } from 'antd';
+import { DeleteOutlined, PaperClipOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons';
+import type { RcFile } from 'antd/es/upload';
 import { nanoid } from 'nanoid';
 import type { Node } from '@xyflow/react';
-import type { FlowNodeData, FlowNodeType } from '@/lib/messagingFlows';
+import { errorMessage } from '@/lib/api';
+import { type FlowAttachment, type FlowNodeData, type FlowNodeType, mediaKindFromMime, useUploadFlowMedia } from '@/lib/messagingFlows';
 import { metaFor } from './nodes';
+
+const KIND_LABEL: Record<FlowAttachment['kind'], string> = { image: 'Ảnh', video: 'Video', audio: 'Âm thanh', file: 'Tệp' };
 
 /**
  * Drawer cấu hình node đang chọn — TOÀN FORM, không nhập JSON thô. Mỗi loại node
@@ -13,22 +17,27 @@ import { metaFor } from './nodes';
 export function NodeConfigDrawer({
     node,
     open,
+    flowId,
     onClose,
     onChange,
     readOnly,
 }: {
     node: Node | null;
     open: boolean;
+    flowId: number;
     onClose: () => void;
     onChange: (nodeId: string, data: FlowNodeData) => void;
     readOnly?: boolean;
 }) {
     const [form] = Form.useForm();
+    const { message } = AntApp.useApp();
+    const upload = useUploadFlowMedia(flowId);
     const type = node?.type as FlowNodeType | undefined;
+    const attachments: FlowAttachment[] = Form.useWatch('attachments', form) ?? [];
 
     useEffect(() => {
         if (node) {
-            form.setFieldsValue({ buttons: [], keywords: [], match: 'any', text: '', ...(node.data as FlowNodeData) });
+            form.setFieldsValue({ buttons: [], keywords: [], match: 'any', text: '', attachments: [], ...(node.data as FlowNodeData) });
         }
     }, [node, form]);
 
@@ -36,6 +45,24 @@ export function NodeConfigDrawer({
         if (node) {
             onChange(node.id, form.getFieldsValue(true) as FlowNodeData);
         }
+    };
+
+    const handleUpload = (file: RcFile) => {
+        const kind = mediaKindFromMime(file.type || '');
+        upload.mutate({ file, kind }, {
+            onSuccess: (att) => {
+                form.setFieldValue('attachments', [...(form.getFieldValue('attachments') ?? []), att]);
+                handleValues();
+                message.success(`Đã tải lên ${att.filename ?? KIND_LABEL[att.kind]}`);
+            },
+            onError: (e) => message.error(errorMessage(e)),
+        });
+        return false; // tự upload, không để AntD gửi
+    };
+
+    const removeAttachment = (idx: number) => {
+        form.setFieldValue('attachments', (form.getFieldValue('attachments') ?? []).filter((_: unknown, i: number) => i !== idx));
+        handleValues();
     };
 
     return (
@@ -55,9 +82,29 @@ export function NodeConfigDrawer({
                     )}
 
                     {type === 'send_message' && (
-                        <Form.Item name="text" label="Nội dung tin nhắn" rules={[{ required: true, message: 'Nhập nội dung' }]}>
-                            <Input.TextArea rows={5} maxLength={2000} placeholder="vd: Chào bạn, shop có thể giúp gì ạ?" />
-                        </Form.Item>
+                        <>
+                            <Form.Item name="text" label="Nội dung tin nhắn" extra="Có thể để trống nếu chỉ gửi tệp đính kèm.">
+                                <Input.TextArea rows={4} maxLength={2000} placeholder="vd: Chào bạn, shop có thể giúp gì ạ?" />
+                            </Form.Item>
+
+                            <Typography.Text strong>Đính kèm</Typography.Text>
+                            <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {attachments.map((a, idx) => (
+                                    <div key={`${a.storage_path}-${idx}`} style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid #f0f0f0', borderRadius: 6, padding: '4px 8px' }}>
+                                        <PaperClipOutlined />
+                                        <Tag>{KIND_LABEL[a.kind]}</Tag>
+                                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.filename ?? a.storage_path.split('/').pop()}</span>
+                                        {!readOnly && <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => removeAttachment(idx)} />}
+                                    </div>
+                                ))}
+                                {attachments.length === 0 && <Typography.Text type="secondary" style={{ fontSize: 12 }}>Chưa có tệp nào.</Typography.Text>}
+                                <Upload beforeUpload={handleUpload} showUploadList={false} multiple disabled={readOnly}
+                                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv">
+                                    <Button icon={<UploadOutlined />} loading={upload.isPending} disabled={readOnly}>Tải lên ảnh / video / âm thanh / tệp</Button>
+                                </Upload>
+                                <Typography.Text type="secondary" style={{ fontSize: 12 }}>Mỗi tệp được gửi thành một tin riêng theo thứ tự.</Typography.Text>
+                            </div>
+                        </>
                     )}
 
                     {type === 'send_buttons' && (
@@ -102,6 +149,10 @@ export function NodeConfigDrawer({
                             </Form.Item>
                             <Alert type="info" showIcon message="Nhánh “khớp” chạy khi điều kiện đúng; nhánh “không khớp” chạy khi sai." />
                         </>
+                    )}
+
+                    {type === 'ai_reply' && (
+                        <Alert type="info" showIcon message="AI tự soạn & gửi câu trả lời dựa trên kho tri thức + lịch sử hội thoại (chặn intent nhạy cảm, ẩn PII). Trả lời được ⇒ đi nhánh “đã trả lời”; gặp khiếu nại/hoàn tiền, hết hạn mức hoặc lỗi ⇒ đi nhánh “cần người”." />
                     )}
 
                     {type === 'wait_reply' && (

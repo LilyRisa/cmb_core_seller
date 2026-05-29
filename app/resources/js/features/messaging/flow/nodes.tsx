@@ -5,7 +5,9 @@ import {
     ClockCircleOutlined,
     FlagOutlined,
     MessageOutlined,
+    PaperClipOutlined,
     PlayCircleOutlined,
+    RobotOutlined,
 } from '@ant-design/icons';
 import type { ReactNode } from 'react';
 import type { FlowNodeData, FlowNodeType } from '@/lib/messagingFlows';
@@ -18,7 +20,7 @@ import type { FlowNodeData, FlowNodeType } from '@/lib/messagingFlows';
 export interface NodeMeta {
     type: FlowNodeType;
     label: string;
-    group: 'start' | 'send' | 'wait' | 'branch' | 'end';
+    group: 'start' | 'send' | 'wait' | 'branch' | 'ai' | 'end';
     icon: ReactNode;
     /** Có thể kéo từ palette vào canvas (trigger là entry, tạo sẵn — không kéo thêm). */
     draggable: boolean;
@@ -30,6 +32,7 @@ export const NODE_META: NodeMeta[] = [
     { type: 'send_buttons', label: 'Gửi tin có nút bấm', group: 'send', icon: <AppstoreOutlined />, draggable: true },
     { type: 'wait_reply', label: 'Chờ khách trả lời', group: 'wait', icon: <ClockCircleOutlined />, draggable: true },
     { type: 'condition', label: 'Rẽ nhánh theo từ khoá', group: 'branch', icon: <BranchesOutlined />, draggable: true },
+    { type: 'ai_reply', label: 'AI trả lời', group: 'ai', icon: <RobotOutlined />, draggable: true },
     { type: 'end', label: 'Kết thúc', group: 'end', icon: <FlagOutlined />, draggable: true },
 ];
 
@@ -38,6 +41,7 @@ export const GROUP_LABELS: Record<NodeMeta['group'], string> = {
     send: 'Gửi tin',
     wait: 'Hỏi / Chờ',
     branch: 'Rẽ nhánh',
+    ai: 'AI',
     end: 'Kết thúc',
 };
 
@@ -95,12 +99,39 @@ export function TriggerNode({ selected }: NodeProps) {
 }
 
 export function SendMessageNode({ data, selected }: NodeProps) {
-    const text = (data as FlowNodeData).text?.trim();
+    const d = data as FlowNodeData;
+    const text = d.text?.trim();
+    const atts = d.attachments ?? [];
     return (
         <>
             <Handle type="target" position={Position.Top} />
-            <Shell selected={selected} color="#1677ff" icon={<MessageOutlined />} title="Gửi tin nhắn">{text || empty}</Shell>
+            <Shell selected={selected} color="#1677ff" icon={<MessageOutlined />} title="Gửi tin nhắn">
+                <div>{text || (atts.length ? <span style={{ color: '#bfbfbf' }}>(không có chữ)</span> : empty)}</div>
+                {atts.length > 0 && (
+                    <div style={{ marginTop: 6, color: '#1677ff' }}>
+                        <PaperClipOutlined /> {atts.length} tệp đính kèm
+                    </div>
+                )}
+            </Shell>
             <Handle type="source" position={Position.Bottom} />
+        </>
+    );
+}
+
+export function AiReplyNode({ selected }: NodeProps) {
+    return (
+        <>
+            <Handle type="target" position={Position.Top} />
+            <Shell selected={selected} color="#eb2f96" icon={<RobotOutlined />} title="AI trả lời">
+                Sinh câu trả lời bằng AI (dùng kho tri thức + chặn intent nhạy cảm)
+                <div style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#8c8c8c' }}>
+                    <span>đã trả lời ↙</span>
+                    <span>↘ cần người</span>
+                </div>
+            </Shell>
+            {/* "đã trả lời" = nhánh mặc định (sourceHandle null, khớp engine advance(null)). */}
+            <Handle type="source" position={Position.Bottom} style={{ left: '25%', background: '#52c41a' }} />
+            <Handle id="handoff" type="source" position={Position.Bottom} style={{ left: '75%', background: '#fa8c16' }} />
         </>
     );
 }
@@ -181,5 +212,6 @@ export const nodeTypes = {
     send_buttons: SendButtonsNode,
     wait_reply: WaitReplyNode,
     condition: ConditionNode,
+    ai_reply: AiReplyNode,
     end: EndNode,
 };

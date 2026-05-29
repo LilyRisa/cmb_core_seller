@@ -187,7 +187,7 @@ function FlowEditor() {
                 {canManage && (
                     <div style={{ width: 200, borderRight: '1px solid #f0f0f0', padding: 12, overflowY: 'auto' }}>
                         <Typography.Text type="secondary" style={{ fontSize: 12 }}>Kéo bước vào sơ đồ</Typography.Text>
-                        {(['send', 'wait', 'branch', 'end'] as const).map((group) => (
+                        {(['send', 'wait', 'branch', 'ai', 'end'] as const).map((group) => (
                             <div key={group} style={{ marginTop: 12 }}>
                                 <Typography.Text strong style={{ fontSize: 12 }}>{GROUP_LABELS[group]}</Typography.Text>
                                 <Space direction="vertical" style={{ width: '100%', marginTop: 6 }}>
@@ -232,6 +232,7 @@ function FlowEditor() {
                 <NodeConfigDrawer
                     node={selectedNode}
                     open={selectedNode != null}
+                    flowId={flowId}
                     onClose={() => setSelectedId(null)}
                     onChange={updateNodeData}
                     readOnly={!canManage}
