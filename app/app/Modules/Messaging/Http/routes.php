@@ -106,6 +106,10 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
             ->name('messaging.knowledge.store');
         Route::delete('knowledge-docs/{id}', [KnowledgeController::class, 'destroy'])
             ->whereNumber('id')->name('messaging.knowledge.destroy');
+        Route::post('knowledge-docs/{id}/reindex', [KnowledgeController::class, 'reindex'])
+            ->whereNumber('id')->name('messaging.knowledge.reindex');
+        Route::get('knowledge-docs/{id}/chunks', [KnowledgeController::class, 'chunks'])
+            ->whereNumber('id')->name('messaging.knowledge.chunks');
 
         // --- Tenant messaging settings (S6) — chọn AI provider, away hours --
         Route::get('settings', [MessagingSettingsController::class, 'show'])

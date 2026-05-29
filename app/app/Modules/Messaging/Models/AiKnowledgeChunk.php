@@ -9,6 +9,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * 1 chunk text + embedding của 1 document. `embedding` JSON cho S1; S6 sẽ
  * migrate sang pgvector trên Postgres + HNSW index (filter `tenant_id` trước).
+ *
+ * @property int $id
+ * @property int $tenant_id
+ * @property int $document_id
+ * @property int $chunk_index
+ * @property string $chunk_text
+ * @property ?array $embedding
+ * @property int $token_count
  */
 class AiKnowledgeChunk extends Model
 {

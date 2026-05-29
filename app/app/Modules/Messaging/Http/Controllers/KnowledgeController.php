@@ -106,4 +106,53 @@ class KnowledgeController extends Controller
 
         return response()->json(['data' => ['ok' => true]]);
     }
+
+    /**
+     * Tải lại (re-index) tài liệu — fetch lại nguồn url/Google Sheet/file và chunk
+     * lại. Inline cũng index lại từ text hiện tại. Dùng khi nguồn có dữ liệu mới.
+     */
+    public function reindex(int $id): JsonResponse
+    {
+        Gate::authorize('messaging.ai.train');
+
+        $doc = AiKnowledgeDocument::query()->findOrFail($id);
+        $doc->update(['status' => AiKnowledgeDocument::STATUS_PENDING, 'error' => null]);
+
+        IndexKnowledgeDoc::dispatch($doc->id);
+
+        AuditLog::record('messaging.knowledge.reindex', $doc, ['title' => $doc->title, 'source' => $doc->source]);
+
+        return response()->json(['data' => ['id' => $doc->id, 'status' => $doc->status]]);
+    }
+
+    /**
+     * Xem nội dung ĐÃ TRÍCH (chunk) của tài liệu — để người dùng kiểm tra dữ liệu
+     * AI thực sự lấy được từ file/URL/Sheet. Trả meta + danh sách chunk theo thứ tự.
+     */
+    public function chunks(int $id): JsonResponse
+    {
+        Gate::authorize('messaging.view');
+
+        $doc = AiKnowledgeDocument::query()->findOrFail($id);
+        $chunks = AiKnowledgeChunk::query()
+            ->where('document_id', $doc->id)
+            ->orderBy('chunk_index')
+            ->get(['chunk_index', 'chunk_text', 'token_count']);
+
+        return response()->json(['data' => [
+            'id' => $doc->id,
+            'title' => $doc->title,
+            'source' => $doc->source,
+            'url' => $doc->url,
+            'status' => $doc->status,
+            'error' => $doc->error,
+            'chunk_count' => (int) $doc->chunk_count,
+            'indexed_at' => $doc->indexed_at?->toIso8601String(),
+            'chunks' => $chunks->map(fn (AiKnowledgeChunk $c) => [
+                'index' => (int) $c->chunk_index,
+                'text' => (string) $c->chunk_text,
+                'token_count' => (int) $c->token_count,
+            ])->all(),
+        ]]);
+    }
 }

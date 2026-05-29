@@ -6,11 +6,30 @@ use CMBcoreSeller\Modules\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
  * Tài liệu training cho AI (RAG). 3 source: upload (file vào MinIO), url
  * (fetch về index), inline (text gõ trực tiếp). `IndexKnowledgeDoc` job (S6)
  * chunk + embed → ghi `ai_knowledge_chunks`.
+ *
+ * @property int $id
+ * @property int $tenant_id
+ * @property string $title
+ * @property string $source
+ * @property ?string $storage_path
+ * @property ?string $url
+ * @property ?string $inline_text
+ * @property int $chunk_count
+ * @property ?string $embedding_provider_code
+ * @property ?string $embedding_model
+ * @property int $embedding_version
+ * @property ?Carbon $indexed_at
+ * @property string $status
+ * @property ?string $error
+ * @property ?int $created_by
+ * @property ?Carbon $created_at
+ * @property ?Carbon $updated_at
  */
 class AiKnowledgeDocument extends Model
 {

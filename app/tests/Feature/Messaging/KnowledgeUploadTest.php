@@ -54,6 +54,25 @@ class KnowledgeUploadTest extends TestCase
         return ['X-Tenant-Id' => (string) $this->tenant->getKey()];
     }
 
+    private function member(Role $role): User
+    {
+        $u = User::factory()->create(['email_verified_at' => now()]);
+        $this->tenant->users()->attach($u->getKey(), ['role' => $role->value]);
+
+        return $u;
+    }
+
+    /** Tạo 1 tài liệu inline qua API (queue sync ⇒ index xong ngay). */
+    private function createInline(string $text = 'Chính sách đổi trả trong 7 ngày.'): int
+    {
+        $res = $this->actingAs($this->owner)->withHeaders($this->h())
+            ->postJson('/api/v1/messaging/knowledge-docs', [
+                'title' => 'Doc', 'source' => 'inline', 'inline_text' => $text,
+            ])->assertStatus(201);
+
+        return (int) $res->json('data.id');
+    }
+
     public function test_uploads_csv_and_indexes_to_ready(): void
     {
         $file = UploadedFile::fake()->createWithContent(
@@ -75,6 +94,48 @@ class KnowledgeUploadTest extends TestCase
         $this->assertSame(AiKnowledgeDocument::STATUS_READY, $doc->status);
         $this->assertGreaterThan(0, $doc->chunk_count);
         $this->assertStringContainsString('Giờ mở cửa?', (string) $doc->chunks()->first()?->chunk_text);
+    }
+
+    public function test_view_chunks_returns_extracted_text(): void
+    {
+        $id = $this->createInline('Giờ mở cửa 8h-22h. Đổi trả trong 7 ngày.');
+
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->getJson("/api/v1/messaging/knowledge-docs/{$id}/chunks")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'ready')
+            ->assertJsonPath('data.chunks.0.index', 0);
+
+        $res = $this->actingAs($this->owner)->withHeaders($this->h())
+            ->getJson("/api/v1/messaging/knowledge-docs/{$id}/chunks")->json('data.chunks');
+        $this->assertStringContainsString('Đổi trả trong 7 ngày', collect($res)->pluck('text')->implode(' '));
+    }
+
+    public function test_reindex_reprocesses_document(): void
+    {
+        $id = $this->createInline();
+
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->postJson("/api/v1/messaging/knowledge-docs/{$id}/reindex")
+            ->assertOk()
+            ->assertJsonPath('data.id', $id);
+
+        // Queue sync ⇒ index lại xong: ready + có chunk.
+        $doc = AiKnowledgeDocument::query()->findOrFail($id);
+        $this->assertSame(AiKnowledgeDocument::STATUS_READY, $doc->status);
+        $this->assertGreaterThan(0, $doc->chunk_count);
+    }
+
+    public function test_staff_can_view_chunks_but_not_reindex(): void
+    {
+        $id = $this->createInline();
+        $staff = $this->member(Role::StaffOrder); // messaging.view, KHÔNG messaging.ai.train
+
+        $this->actingAs($staff)->withHeaders($this->h())
+            ->getJson("/api/v1/messaging/knowledge-docs/{$id}/chunks")->assertOk();
+
+        $this->actingAs($staff)->withHeaders($this->h())
+            ->postJson("/api/v1/messaging/knowledge-docs/{$id}/reindex")->assertStatus(403);
     }
 
     public function test_rejects_unsupported_extension(): void
