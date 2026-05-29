@@ -66,7 +66,12 @@ class FlowEngine
         return $this->walk($run, $conv, $graph, $trigger->id, $inboundBody);
     }
 
-    public function resume(FlowRun $run, Conversation $conv, ?string $inboundBody = null): FlowRun
+    /**
+     * Tiếp tục 1 run đang `waiting`. `$resumeHandle` chọn edge ra từ node đang chờ:
+     *   - null  ⇒ edge mặc định (tin text trả lời node wait_reply / fallback) — hành vi S1.
+     *   - !=null ⇒ edge theo handle nút bấm (postback) — node send_buttons nhiều nhánh.
+     */
+    public function resume(FlowRun $run, Conversation $conv, ?string $inboundBody = null, ?string $resumeHandle = null): FlowRun
     {
         if ($run->status !== FlowRun::STATUS_WAITING || ! $run->current_node_id) {
             return $run;
@@ -90,8 +95,9 @@ class FlowEngine
         }
 
         $graph = new FlowGraph((array) $flow->graph);
-        // Tin mới của khách là "trả lời" cho node wait ⇒ tiếp tục từ node SAU wait.
-        $resumeFrom = $graph->nextNodeId((string) $run->current_node_id, null);
+        // Tin mới / nút bấm của khách là "trả lời" cho node đang chờ ⇒ đi tiếp theo
+        // edge tương ứng (handle null = mặc định; handle nút bấm = nhánh postback).
+        $resumeFrom = $graph->nextNodeId((string) $run->current_node_id, $resumeHandle);
         if ($resumeFrom === null) {
             $run->update(['status' => FlowRun::STATUS_ENDED, 'last_advanced_at' => Carbon::now()]);
 

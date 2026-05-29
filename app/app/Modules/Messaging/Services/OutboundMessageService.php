@@ -59,4 +59,66 @@ class OutboundMessageService
 
         return $message;
     }
+
+    /**
+     * Ghi 1 outbound interactive message (tin có nút bấm) rồi dispatch SendMessage.
+     * `structure` = { text, buttons:[ {type, title|label, payload?, url?} ] } — lưu
+     * nguyên vào meta.interactive cho connector; meta.buttons chỉ giữ nhãn hiển thị
+     * (đồng bộ cách inbox render nút như tin echo/quick-reply). SendMessage gate qua
+     * InteractiveMessagingConnector + capability.
+     *
+     * @param  array{text?:string, buttons?:list<array<string,mixed>>}  $structure
+     * @param  array{sent_by_ai?:bool, message_tag?:?string, flow_id?:?int, flow_run_id?:?int, node_id?:?string}  $opts
+     */
+    public function queueInteractive(Conversation $conv, array $structure, array $opts = []): Message
+    {
+        $text = (string) ($structure['text'] ?? '');
+
+        $displayButtons = [];
+        foreach ((array) ($structure['buttons'] ?? []) as $b) {
+            $b = (array) $b;
+            $title = (string) ($b['label'] ?? $b['title'] ?? '');
+            if ($title === '') {
+                continue;
+            }
+            $displayButtons[] = array_filter([
+                'title' => $title,
+                'url' => isset($b['url']) ? (string) $b['url'] : null,
+            ], fn ($v) => $v !== null && $v !== '');
+        }
+
+        $message = DB::transaction(function () use ($conv, $opts, $text, $structure, $displayButtons) {
+            $message = Message::create([
+                'tenant_id' => $conv->tenant_id,
+                'conversation_id' => $conv->id,
+                'external_message_id' => null,
+                'direction' => Message::DIRECTION_OUTBOUND,
+                'kind' => Message::KIND_INTERACTIVE,
+                'body' => $text,
+                'sent_by_ai' => $opts['sent_by_ai'] ?? false,
+                'delivery_status' => Message::STATUS_PENDING,
+                'meta' => array_filter([
+                    'interactive' => $structure,
+                    'buttons' => $displayButtons,
+                    'message_tag' => $opts['message_tag'] ?? null,
+                    'flow_id' => $opts['flow_id'] ?? null,
+                    'flow_run_id' => $opts['flow_run_id'] ?? null,
+                    'node_id' => $opts['node_id'] ?? null,
+                ], fn ($v) => $v !== null && $v !== []),
+            ]);
+
+            $conv->update([
+                'last_message_at' => $message->created_at,
+                'last_outbound_at' => $message->created_at,
+                'last_message_preview' => Str::limit($text, 197),
+                'message_count' => $conv->message_count + 1,
+            ]);
+
+            return $message;
+        });
+
+        SendMessage::dispatch($message->id);
+
+        return $message;
+    }
 }

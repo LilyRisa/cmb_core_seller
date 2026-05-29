@@ -38,6 +38,8 @@ use Illuminate\Support\Carbon;
  * @property ?Carbon $read_at
  * @property ?array $raw_payload
  * @property ?array $meta
+ * @property ?Carbon $created_at
+ * @property ?Carbon $updated_at
  */
 class Message extends Model
 {

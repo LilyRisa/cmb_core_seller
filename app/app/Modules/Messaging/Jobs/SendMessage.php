@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Messaging\Jobs;
 
+use CMBcoreSeller\Integrations\Messaging\Contracts\InteractiveMessagingConnector;
 use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
@@ -118,6 +119,11 @@ class SendMessage implements ShouldQueue
                     $opts,
                 ),
                 in_array($message->kind, [Message::KIND_IMAGE, Message::KIND_VIDEO, Message::KIND_FILE], true) => $this->sendMediaForMessage($connector, $auth, $conversation->external_conversation_id, $message, $opts),
+                // Tin tương tác (nút bấm): chỉ connector có NĂNG LỰC này (kiểm theo tên
+                // năng lực, KHÔNG phải tên sàn) mới gửi được — luật vàng extensibility.
+                $message->kind === Message::KIND_INTERACTIVE => $connector instanceof InteractiveMessagingConnector
+                    ? $connector->sendInteractive($auth, $conversation->external_conversation_id, (array) ($opts['interactive'] ?? []), $opts)
+                    : throw new \RuntimeException('interactive_unsupported'),
                 default => throw new \RuntimeException("Kind [{$message->kind}] không hỗ trợ ở S1."),
             };
 
