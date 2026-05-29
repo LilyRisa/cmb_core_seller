@@ -24,7 +24,7 @@ export type FlowTriggerType =
     | 'inbox_keyword'
     | 'inbox_any';
 
-export type FlowNodeType = 'trigger' | 'send_message' | 'send_buttons' | 'wait_reply' | 'condition' | 'ai_reply' | 'end';
+export type FlowNodeType = 'trigger' | 'send_message' | 'send_buttons' | 'send_comment_reply' | 'wait_reply' | 'condition' | 'ai_reply' | 'end';
 
 export interface FlowButton {
     id: string;
@@ -49,6 +49,8 @@ export interface FlowNodeData {
     buttons?: FlowButton[];
     keywords?: string[];
     match?: 'any' | 'all';
+    /** send_comment_reply: trả lời công khai dưới bình luận và/hoặc nhắn riêng. */
+    target?: { public?: boolean; private?: boolean };
     [k: string]: unknown;
 }
 
@@ -206,6 +208,27 @@ export function mediaKindFromMime(mime: string): FlowMediaKind {
     if (mime.startsWith('video/')) return 'video';
     if (mime.startsWith('audio/')) return 'audio';
     return 'file';
+}
+
+export interface FbPost {
+    id: string;
+    message: string | null;
+    permalink_url: string | null;
+    image_url: string | null;
+    created_time: string | null;
+}
+
+/** Liệt kê bài đăng FB của 1 kênh để chọn (post picker cho trigger comment_on_post). */
+export function useChannelPosts(channelId: number | null) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['messaging', 'channel', channelId, 'posts', tenantId],
+        enabled: api != null && channelId != null,
+        queryFn: async () => (await api!.get<{ data: { items: FbPost[]; next_cursor: string | null; has_more: boolean } }>(
+            `/messaging/channels/${channelId}/posts`,
+        )).data.data,
+    });
 }
 
 /** Nhãn tiếng Việt cho loại trigger (hiển thị danh sách + topbar). */

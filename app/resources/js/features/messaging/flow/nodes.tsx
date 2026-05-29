@@ -3,6 +3,7 @@ import {
     AppstoreOutlined,
     BranchesOutlined,
     ClockCircleOutlined,
+    CommentOutlined,
     FlagOutlined,
     MessageOutlined,
     PaperClipOutlined,
@@ -30,6 +31,7 @@ export const NODE_META: NodeMeta[] = [
     { type: 'trigger', label: 'Bắt đầu', group: 'start', icon: <PlayCircleOutlined />, draggable: false },
     { type: 'send_message', label: 'Gửi tin nhắn', group: 'send', icon: <MessageOutlined />, draggable: true },
     { type: 'send_buttons', label: 'Gửi tin có nút bấm', group: 'send', icon: <AppstoreOutlined />, draggable: true },
+    { type: 'send_comment_reply', label: 'Trả lời bình luận', group: 'send', icon: <CommentOutlined />, draggable: true },
     { type: 'wait_reply', label: 'Chờ khách trả lời', group: 'wait', icon: <ClockCircleOutlined />, draggable: true },
     { type: 'condition', label: 'Rẽ nhánh theo từ khoá', group: 'branch', icon: <BranchesOutlined />, draggable: true },
     { type: 'ai_reply', label: 'AI trả lời', group: 'ai', icon: <RobotOutlined />, draggable: true },
@@ -56,6 +58,8 @@ export function defaultData(type: FlowNodeType): FlowNodeData {
             return { text: '' };
         case 'send_buttons':
             return { text: '', buttons: [] };
+        case 'send_comment_reply':
+            return { text: '', target: { public: true, private: false } };
         case 'condition':
             return { keywords: [], match: 'any' };
         default:
@@ -168,6 +172,25 @@ export function SendButtonsNode({ data, selected }: NodeProps) {
     );
 }
 
+export function SendCommentReplyNode({ data, selected }: NodeProps) {
+    const d = data as FlowNodeData;
+    const t = d.target ?? {};
+    return (
+        <>
+            <Handle type="target" position={Position.Top} />
+            <Shell selected={selected} color="#1677ff" icon={<CommentOutlined />} title="Trả lời bình luận">
+                <div>{d.text?.trim() || empty}</div>
+                <div style={{ marginTop: 6, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {t.public && <span style={{ fontSize: 11, background: '#e6f4ff', color: '#1677ff', borderRadius: 4, padding: '1px 6px' }}>Công khai</span>}
+                    {t.private && <span style={{ fontSize: 11, background: '#f9f0ff', color: '#722ed1', borderRadius: 4, padding: '1px 6px' }}>Nhắn riêng</span>}
+                    {!t.public && !t.private && <span style={{ color: '#ff4d4f', fontSize: 11 }}>Chưa chọn đích gửi</span>}
+                </div>
+            </Shell>
+            <Handle type="source" position={Position.Bottom} />
+        </>
+    );
+}
+
 export function WaitReplyNode({ selected }: NodeProps) {
     return (
         <>
@@ -210,6 +233,7 @@ export const nodeTypes = {
     trigger: TriggerNode,
     send_message: SendMessageNode,
     send_buttons: SendButtonsNode,
+    send_comment_reply: SendCommentReplyNode,
     wait_reply: WaitReplyNode,
     condition: ConditionNode,
     ai_reply: AiReplyNode,

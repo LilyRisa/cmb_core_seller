@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Alert, App as AntApp, Button, Drawer, Form, Input, Radio, Select, Space, Tag, Typography, Upload } from 'antd';
+import { Alert, App as AntApp, Button, Checkbox, Drawer, Form, Input, Radio, Select, Space, Tag, Typography, Upload } from 'antd';
 import { DeleteOutlined, PaperClipOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons';
 import type { RcFile } from 'antd/es/upload';
 import { nanoid } from 'nanoid';
@@ -133,6 +133,24 @@ export function NodeConfigDrawer({
                                     </div>
                                 )}
                             </Form.List>
+                        </>
+                    )}
+
+                    {type === 'send_comment_reply' && (
+                        <>
+                            <Form.Item name="text" label="Nội dung trả lời" rules={[{ required: true, message: 'Nhập nội dung' }]}>
+                                <Input.TextArea rows={4} maxLength={2000} placeholder="vd: Cảm ơn bạn đã quan tâm! Shop nhắn riêng cho bạn nhé." />
+                            </Form.Item>
+                            <Typography.Text strong>Gửi tới</Typography.Text>
+                            <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                <Form.Item name={['target', 'public']} valuePropName="checked" noStyle>
+                                    <Checkbox>Trả lời công khai dưới bình luận</Checkbox>
+                                </Form.Item>
+                                <Form.Item name={['target', 'private']} valuePropName="checked" noStyle>
+                                    <Checkbox>Nhắn tin riêng cho người bình luận</Checkbox>
+                                </Form.Item>
+                            </div>
+                            <Alert style={{ marginTop: 10 }} type="info" showIcon message="Nhắn riêng chỉ gửi được 1 lần/bình luận, trong vòng 7 ngày (giới hạn Facebook)." />
                         </>
                     )}
 

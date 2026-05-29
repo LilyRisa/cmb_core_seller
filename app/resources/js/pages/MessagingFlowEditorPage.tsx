@@ -16,7 +16,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { App as AntApp, Button, Input, Segmented, Select, Space, Spin, Tag, Tooltip, Typography } from 'antd';
-import { ArrowLeftOutlined, CloudUploadOutlined, PauseCircleOutlined, SaveOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, CloudUploadOutlined, FileImageOutlined, PauseCircleOutlined, SaveOutlined } from '@ant-design/icons';
 import { nanoid } from 'nanoid';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
@@ -34,6 +34,7 @@ import {
 } from '@/lib/messagingFlows';
 import { defaultData, GROUP_LABELS, NODE_META, nodeTypes } from '@/features/messaging/flow/nodes';
 import { NodeConfigDrawer } from '@/features/messaging/flow/NodeConfigDrawer';
+import { PostPicker } from '@/features/messaging/flow/PostPicker';
 
 const STATUS_COLOR: Record<FlowStatus, string> = { draft: 'default', active: 'green', paused: 'orange', archived: 'default' };
 const TRIGGER_OPTIONS: { label: string; value: FlowTriggerType; disabled?: boolean }[] = [
@@ -41,7 +42,7 @@ const TRIGGER_OPTIONS: { label: string; value: FlowTriggerType; disabled?: boole
     { label: TRIGGER_LABELS.inbox_keyword, value: 'inbox_keyword' },
     { label: TRIGGER_LABELS.inbox_any, value: 'inbox_any' },
     { label: TRIGGER_LABELS.comment_any, value: 'comment_any' },
-    { label: 'Bình luận trên bài viết (sắp có)', value: 'comment_on_post', disabled: true },
+    { label: TRIGGER_LABELS.comment_on_post, value: 'comment_on_post' },
 ];
 
 export function MessagingFlowEditorPage() {
@@ -71,6 +72,8 @@ function FlowEditor() {
     const [name, setName] = useState('');
     const [triggerType, setTriggerType] = useState<FlowTriggerType>('inbox_first_message');
     const [keywords, setKeywords] = useState<string[]>([]);
+    const [postIds, setPostIds] = useState<string[]>([]);
+    const [pickerOpen, setPickerOpen] = useState(false);
     const [status, setStatus] = useState<FlowStatus>('draft');
 
     useEffect(() => {
@@ -80,6 +83,7 @@ function FlowEditor() {
         setName(flow.name);
         setTriggerType(flow.trigger_type);
         setKeywords(Array.isArray((flow.trigger_config as { keywords?: string[] })?.keywords) ? ((flow.trigger_config as { keywords?: string[] }).keywords ?? []) : []);
+        setPostIds(Array.isArray((flow.trigger_config as { post_ids?: string[] })?.post_ids) ? ((flow.trigger_config as { post_ids?: string[] }).post_ids ?? []) : []);
         setStatus(flow.status);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [flow?.id]);
@@ -109,13 +113,19 @@ function FlowEditor() {
         edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle ?? null })),
     }), [nodes, edges]);
 
+    const triggerConfig = useCallback(() => {
+        if (triggerType === 'inbox_keyword') return { keywords };
+        if (triggerType === 'comment_on_post') return { post_ids: postIds };
+        return {};
+    }, [triggerType, keywords, postIds]);
+
     const payload = useCallback(() => ({
         id: flowId,
         name,
         trigger_type: triggerType,
-        trigger_config: triggerType === 'inbox_keyword' ? { keywords } : {},
+        trigger_config: triggerConfig(),
         graph: serialize(),
-    }), [flowId, name, triggerType, keywords, serialize]);
+    }), [flowId, name, triggerType, triggerConfig, serialize]);
 
     const onSaveDraft = () => save.mutate(payload(), {
         onSuccess: () => message.success('Đã lưu nháp'),
@@ -171,6 +181,11 @@ function FlowEditor() {
                 {triggerType === 'inbox_keyword' && (
                     <Select mode="tags" tokenSeparators={[',']} value={keywords} onChange={setKeywords} disabled={!canManage}
                         placeholder="Từ khoá kích hoạt" style={{ minWidth: 200 }} open={false} suffixIcon={null} />
+                )}
+                {triggerType === 'comment_on_post' && (
+                    <Button icon={<FileImageOutlined />} onClick={() => setPickerOpen(true)} disabled={!canManage}>
+                        {postIds.length > 0 ? `Đã chọn ${postIds.length} bài viết` : 'Chọn bài viết'}
+                    </Button>
                 )}
                 <div style={{ flex: 1 }} />
                 {canManage && <Button icon={<SaveOutlined />} loading={save.isPending} onClick={onSaveDraft}>Lưu nháp</Button>}
@@ -237,6 +252,8 @@ function FlowEditor() {
                     onChange={updateNodeData}
                     readOnly={!canManage}
                 />
+
+                <PostPicker open={pickerOpen} value={postIds} onClose={() => setPickerOpen(false)} onChange={setPostIds} />
             </div>
         </div>
     );
