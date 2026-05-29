@@ -96,9 +96,21 @@ class IndexKnowledgeDoc implements ShouldQueue
         // Link Google Sheets công khai → export CSV → parse bảng (thay vì nuốt HTML app shell).
         $sheetCsv = DocumentTextExtractor::googleSheetCsvUrl($url);
         if ($sheetCsv !== null) {
+            // Theo redirect (Google 307 sang googleusercontent) — Guzzle bật sẵn.
             $res = Http::timeout(20)->get($sheetCsv);
+            if (! $res->successful()) {
+                throw new \RuntimeException('Không tải được Google Sheet (HTTP '.$res->status().').');
+            }
 
-            return $res->successful() ? $extractor->extract($res->body(), 'csv') : null;
+            // Sheet KHÔNG chia sẻ công khai ⇒ Google trả TRANG HTML (đăng nhập/xin quyền)
+            // với status 200 ⇒ phải chặn, nếu không sẽ "nuốt" HTML thành CSV rác.
+            $contentType = strtolower((string) $res->header('Content-Type'));
+            $body = $res->body();
+            if (str_contains($contentType, 'text/html') || str_starts_with(ltrim($body), '<')) {
+                throw new \RuntimeException('Google Sheet chưa chia sẻ công khai. Hãy đặt quyền "Bất kỳ ai có liên kết → Người xem" rồi thử lại.');
+            }
+
+            return $extractor->extract($body, 'csv');
         }
 
         $res = Http::timeout(20)->get($url);
