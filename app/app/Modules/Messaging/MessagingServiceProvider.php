@@ -22,6 +22,7 @@ use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnOrderStatus;
 use CMBcoreSeller\Modules\Messaging\Listeners\StartFlowOnComment;
 use CMBcoreSeller\Modules\Messaging\Listeners\StartFlowOnInbound;
 use CMBcoreSeller\Modules\Messaging\Services\DbAiProviderCredentials;
+use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\AiReplyNodeExecutor;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\ConditionNodeExecutor;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\EndNodeExecutor;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\NodeExecutorRegistry;
@@ -76,6 +77,7 @@ class MessagingServiceProvider extends ServiceProvider
             $registry->register('send_buttons', SendInteractiveNodeExecutor::class);
             $registry->register('send_comment_reply', SendCommentReplyNodeExecutor::class);
             $registry->register('condition', ConditionNodeExecutor::class);
+            $registry->register('ai_reply', AiReplyNodeExecutor::class);
             $registry->register('wait_reply', WaitReplyNodeExecutor::class);
             $registry->register('end', EndNodeExecutor::class);
 
