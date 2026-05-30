@@ -47,10 +47,15 @@ class KnowledgeIndexingTest extends TestCase
 
         $doc->refresh();
         $this->assertSame(AiKnowledgeDocument::STATUS_READY, $doc->status);
-        $this->assertGreaterThan(0, $doc->chunk_count);
-        $text = AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)->where('document_id', $doc->id)->value('chunk_text');
-        $this->assertStringContainsString('30k toàn quốc', (string) $text);
-        $this->assertStringContainsString('miễn phí đơn >500k', (string) $text); // newline-in-cell giữ nguyên 1 dòng
+        // Mỗi HÀNG = 1 chunk: header + 1 sản phẩm = 2 chunk (không gộp/cắt mù).
+        $this->assertSame(2, $doc->chunk_count);
+        $chunks = AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)
+            ->where('document_id', $doc->id)->orderBy('chunk_index')->pluck('chunk_text')->all();
+        $this->assertSame('Câu hỏi | Trả lời', $chunks[0]);
+        // Hàng sản phẩm là MỘT chunk riêng, gồm cả mô tả nhiều dòng (newline-in-cell → space).
+        $this->assertStringContainsString('Giá ship?', $chunks[1]);
+        $this->assertStringContainsString('30k toàn quốc', $chunks[1]);
+        $this->assertStringContainsString('miễn phí đơn >500k', $chunks[1]);
         // Gọi gviz, KHÔNG cần CSV export.
         Http::assertSent(fn ($req) => str_contains($req->url(), '/gviz/tq?tqx=out:json'));
     }
@@ -68,8 +73,11 @@ class KnowledgeIndexingTest extends TestCase
 
         $doc->refresh();
         $this->assertSame(AiKnowledgeDocument::STATUS_READY, $doc->status);
-        $text = AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)->where('document_id', $doc->id)->value('chunk_text');
-        $this->assertStringContainsString('30k toàn quốc', (string) $text);
+        // Mỗi hàng 1 chunk: header + 1 sản phẩm = 2; chunk thứ 2 chứa dữ liệu.
+        $this->assertSame(2, $doc->chunk_count);
+        $second = AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)
+            ->where('document_id', $doc->id)->where('chunk_index', 1)->value('chunk_text');
+        $this->assertStringContainsString('30k toàn quốc', (string) $second);
         Http::assertSent(fn ($req) => str_contains($req->url(), '/export?format=csv'));
     }
 
@@ -85,5 +93,32 @@ class KnowledgeIndexingTest extends TestCase
         $this->assertSame(AiKnowledgeDocument::STATUS_FAILED, $doc->status);
         $this->assertStringContainsString('công khai', (string) $doc->error);
         $this->assertSame(0, AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)->where('document_id', $doc->id)->count());
+    }
+
+    public function test_each_sheet_row_is_its_own_chunk(): void
+    {
+        // 3 sản phẩm + header = mỗi hàng 1 chunk RIÊNG (không trộn sản phẩm vào chung 1 chunk).
+        $gviz = "/*O_o*/\n".'google.visualization.Query.setResponse({"status":"ok","table":{"cols":[],"rows":['
+            .'{"c":[{"v":"Sản phẩm"},{"v":"Giá"},{"v":"Mô tả"}]},'
+            .'{"c":[{"v":"Bộ chia AV"},{"v":"220k"},{"v":"Chia tín hiệu\nKhông cần điện"}]},'
+            .'{"c":[{"v":"ZK-MT21"},{"v":"360k"},{"v":"Chip TPA3116D2\nCông suất 200W"}]},'
+            .'{"c":[{"v":"Mạch karaoke D800"},{"v":"800k"},{"v":"2 cổng míc\nCông suất 200W"}]}'
+            .']}});';
+        Http::fake(['docs.google.com/*/gviz/*' => Http::response($gviz, 200, ['Content-Type' => 'application/javascript; charset=UTF-8'])]);
+
+        $doc = $this->urlDoc('https://docs.google.com/spreadsheets/d/MULTI/edit');
+        $this->runJob($doc);
+
+        $doc->refresh();
+        $this->assertSame(4, $doc->chunk_count); // header + 3 sản phẩm
+        $chunks = AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)
+            ->where('document_id', $doc->id)->orderBy('chunk_index')->pluck('chunk_text')->all();
+
+        // Mỗi sản phẩm gọn trong 1 chunk; KHÔNG dính sản phẩm khác.
+        $this->assertStringContainsString('Bộ chia AV', $chunks[1]);
+        $this->assertStringNotContainsString('ZK-MT21', $chunks[1]);
+        $this->assertStringContainsString('ZK-MT21', $chunks[2]);
+        $this->assertStringNotContainsString('Mạch karaoke', $chunks[2]);
+        $this->assertStringContainsString('Mạch karaoke D800', $chunks[3]);
     }
 }

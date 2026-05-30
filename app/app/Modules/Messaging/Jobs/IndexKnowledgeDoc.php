@@ -58,7 +58,9 @@ class IndexKnowledgeDoc implements ShouldQueue
             AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)
                 ->where('document_id', $doc->id)->delete();
 
-            $chunks = $this->chunk($text);
+            // Dữ liệu BẢNG (Google Sheet / CSV / TSV / XLSX): mỗi HÀNG = 1 chunk (mỗi sản phẩm
+            // một bản ghi riêng) ⇒ RAG khớp đúng sản phẩm, không trộn lẫn. Văn bản tự do: cắt theo độ dài.
+            $chunks = $this->isTabular($doc) ? $this->chunkByRow($text) : $this->chunk($text);
             foreach ($chunks as $i => $chunkText) {
                 AiKnowledgeChunk::create([
                     'tenant_id' => $doc->tenant_id,
@@ -180,6 +182,55 @@ class IndexKnowledgeDoc implements ShouldQueue
 
         // Trích theo phần mở rộng (txt/csv/docx/xlsx/pdf…); binary không hỗ trợ ⇒ null.
         return $extractor->extract($contents, pathinfo($doc->storage_path, PATHINFO_EXTENSION));
+    }
+
+    /**
+     * Nguồn có cấu trúc BẢNG không (mỗi hàng là 1 bản ghi)? → Google Sheet URL, hoặc
+     * upload csv/tsv/xlsx. `DocumentTextExtractor` đã chuẩn hoá: mỗi hàng = 1 dòng (ô nối ' | ').
+     */
+    private function isTabular(AiKnowledgeDocument $doc): bool
+    {
+        if ($doc->source === AiKnowledgeDocument::SOURCE_URL
+            && DocumentTextExtractor::googleSheetId((string) $doc->url) !== null) {
+            return true;
+        }
+        if ($doc->source === AiKnowledgeDocument::SOURCE_UPLOAD) {
+            $ext = strtolower(pathinfo((string) $doc->storage_path, PATHINFO_EXTENSION));
+
+            return in_array($ext, ['csv', 'tsv', 'xlsx'], true);
+        }
+
+        return false;
+    }
+
+    /**
+     * Mỗi DÒNG (hàng của bảng) = 1 chunk. Giữ nguyên ranh giới hàng, KHÔNG gộp \n thành
+     * space (như `chunk()`). Bỏ dòng rỗng. Hàng dài quá `$maxSize` (mô tả cực dài) → cắt
+     * mềm để không vượt giới hạn, nhưng vẫn theo từng hàng riêng.
+     *
+     * @return list<string>
+     */
+    private function chunkByRow(string $text, int $maxSize = 2000): array
+    {
+        $out = [];
+        foreach (preg_split('/\r\n|\r|\n/', $text) ?: [] as $row) {
+            $row = trim((string) $row);
+            if ($row === '') {
+                continue;
+            }
+            if (mb_strlen($row) <= $maxSize) {
+                $out[] = $row;
+
+                continue;
+            }
+            foreach (mb_str_split($row, $maxSize) as $part) {
+                if (trim($part) !== '') {
+                    $out[] = $part;
+                }
+            }
+        }
+
+        return $out;
     }
 
     /** @return list<string> */
