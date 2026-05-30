@@ -10,6 +10,7 @@ import { Space, Switch, Input, InputNumber, Button, Typography, Tag, App, Popcon
 import { errorMessage } from '@/lib/api';
 import { useUpdateSetting, useDeleteSetting, type SettingRow as SR } from '../lib/systemSettings';
 import { SecretInput } from './SecretInput';
+import { HelpProviderSelect } from './HelpProviderSelect';
 
 export function SettingRow({ row }: { row: SR }) {
     const update = useUpdateSetting();
@@ -33,7 +34,10 @@ export function SettingRow({ row }: { row: SR }) {
     }
 
     let control: React.ReactNode;
-    if (row.is_secret) {
+    if (row.key === 'help_assistant.provider_code') {
+        // Special-case: chọn provider Support từ danh sách thật thay vì gõ code tay.
+        control = <HelpProviderSelect value={(row.value as string) ?? null} onSave={save} />;
+    } else if (row.is_secret) {
         control = <SecretInput settingKey={row.key} hasValue={isPersisted} onSave={save} />;
     } else if (row.type === 'bool') {
         const b = row.value === true || row.value === '1' || row.value === 1;

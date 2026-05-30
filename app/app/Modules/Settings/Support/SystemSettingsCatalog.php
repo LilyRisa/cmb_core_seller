@@ -262,9 +262,10 @@ class SystemSettingsCatalog
             // Trợ lý trợ giúp sản phẩm (SPEC-0028) — AI provider RIÊNG (không dùng provider messaging của tenant).
             'help_assistant.provider_code' => [
                 'group' => 'ai', 'type' => 'string', 'is_secret' => false,
-                'env' => 'HELP_ASSISTANT_PROVIDER', 'label' => 'Trợ giúp (Hỏi AI) — code AI provider',
-                'description' => 'Code 1 nhà cung cấp AI (ở mục "Nhà cung cấp AI", adapter openai_compatible, CÓ embedding) '
-                    .'dùng cho trợ lý Hỏi AI + index tài liệu. Để trống ⇒ widget chạy bằng tìm kiếm từ khoá (keyword).',
+                'env' => 'HELP_ASSISTANT_PROVIDER', 'label' => 'Trợ giúp (Hỏi AI) — nhà cung cấp AI',
+                'description' => 'Chọn 1 nhà cung cấp AI RIÊNG cho trợ lý Hỏi AI + index tài liệu (tách hẳn provider trả lời '
+                    .'tin nhắn của tenant). Ưu tiên provider CÓ embedding (RAG); không có ⇒ rớt về tìm kiếm từ khoá. '
+                    .'Chọn "Tắt" ⇒ widget chạy bằng tìm kiếm từ khoá (keyword).',
             ],
             'help_assistant.embedding_model' => [
                 'group' => 'ai', 'type' => 'string', 'is_secret' => false,
