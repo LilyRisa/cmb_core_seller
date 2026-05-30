@@ -18,6 +18,7 @@ const GROUPS: { value: SettingGroup; label: string }[] = [
     { value: 'fulfillment', label: 'Vận hành' },
     { value: 'sync', label: 'Đồng bộ' },
     { value: 'push', label: 'Thông báo' },
+    { value: 'ai', label: 'AI' },
 ];
 
 export function SystemSettingsPage() {

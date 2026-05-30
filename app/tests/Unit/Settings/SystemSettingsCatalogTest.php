@@ -14,20 +14,20 @@ class SystemSettingsCatalogTest extends TestCase
         $this->assertNotEmpty($all);
         $groups = collect($all)->pluck('group')->unique()->values()->all();
         sort($groups);
-        $this->assertSame(['branding', 'fulfillment', 'marketplace', 'push', 'sync'], $groups);
+        $this->assertSame(['ai', 'branding', 'fulfillment', 'mail', 'marketplace', 'push', 'sync'], $groups);
     }
 
-    public function test_count_is_43(): void
+    public function test_count_is_51(): void
     {
-        // 40 + 3 push (VAPID public/private/subject).
-        $this->assertCount(43, SystemSettingsCatalog::all());
+        // branding 5 + mail 8 + marketplace 11 + fulfillment 16 + sync 7 + push 3 + ai 1.
+        $this->assertCount(51, SystemSettingsCatalog::all());
     }
 
-    public function test_secret_count_is_10(): void
+    public function test_secret_count_is_11(): void
     {
-        // 9 + push.vapid_private_key (secret).
+        // mail.password + tiktok×2 + lazada×2 + shopee×3 + r2×2 + push.vapid_private_key.
         $secrets = collect(SystemSettingsCatalog::all())->where('is_secret', true)->keys()->all();
-        $this->assertCount(10, $secrets);
+        $this->assertCount(11, $secrets);
     }
 
     public function test_require_throws_on_unknown(): void

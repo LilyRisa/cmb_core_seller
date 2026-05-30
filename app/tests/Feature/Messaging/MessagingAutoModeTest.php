@@ -12,6 +12,7 @@ use CMBcoreSeller\Modules\Messaging\Models\AiProvider;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Services\AiSuggestionService;
+use CMBcoreSeller\Modules\Settings\Services\SystemSettingService;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -136,6 +137,31 @@ class MessagingAutoModeTest extends TestCase
         // Chuỗi thực sự đi qua CustomHttpConnector (header api_key được nội suy thô).
         Http::assertSent(fn ($req) => str_contains($req->url(), 'llm.example.com/chat')
             && $req->hasHeader('Authorization', 'Bearer secret-key'));
+    }
+
+    public function test_global_system_prompt_is_injected_into_ai_reply(): void
+    {
+        // Prompt chung do super-admin đặt qua system_setting ⇒ ghép vào reply.
+        app(SystemSettingService::class)
+            ->set('messaging.ai.system_prompt', 'BẮT BUỘC kết thúc bằng "Cảm ơn quý khách!"', null);
+
+        AiProvider::query()->where('code', 'manual')->update(['is_active' => false]);
+        AiProvider::query()->create([
+            'code' => 'openai', 'adapter' => 'openai_compatible', 'is_active' => true,
+            'api_key' => 'sk-oai', 'default_model' => 'gpt-4o-mini',
+        ]);
+
+        Http::fake(['api.openai.com/*' => Http::response([
+            'choices' => [['message' => ['content' => 'Dạ shop hỗ trợ ạ. Cảm ơn quý khách!'], 'finish_reason' => 'stop']],
+            'usage' => ['prompt_tokens' => 3, 'completion_tokens' => 5],
+        ], 200)]);
+
+        $this->service()->suggest($this->conv);
+
+        Http::assertSent(fn ($req) => str_contains(
+            (string) ($req->data()['messages'][0]['content'] ?? ''),
+            'Cảm ơn quý khách!',
+        ));
     }
 
     public function test_settings_accepts_split_auto_mode(): void

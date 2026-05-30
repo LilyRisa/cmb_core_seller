@@ -87,7 +87,7 @@ class ClaudeConnector implements AiAssistantConnector
             ->post(rtrim($cfg->baseUrl ?: 'https://api.anthropic.com', '/').'/v1/messages', [
                 'model' => $model,
                 'max_tokens' => $maxTokens,
-                'system' => $this->buildSystem($conversation, $kb),
+                'system' => $this->buildSystem($conversation, $kb, $ctx->systemPromptExtra),
                 'messages' => $this->buildMessages($conversation),
             ]);
 
@@ -179,7 +179,7 @@ class ClaudeConnector implements AiAssistantConnector
      *
      * @return list<array<string,mixed>>
      */
-    private function buildSystem(ConversationSnapshot $c, ?KnowledgeBase $kb): array
+    private function buildSystem(ConversationSnapshot $c, ?KnowledgeBase $kb, ?string $extraSystem = null): array
     {
         $instructions = 'Bạn là nhân viên chăm sóc khách hàng của một shop bán hàng online tại Việt Nam. '
             .'Trả lời NGẮN GỌN, lịch sự, đúng trọng tâm, bằng tiếng Việt. Xưng "shop"/"em", gọi khách "anh/chị". '
@@ -187,6 +187,9 @@ class ClaudeConnector implements AiAssistantConnector
             .'TUYỆT ĐỐI không bịa thông tin đơn hàng, giá, hay tồn kho.';
         if ($c->buyerName) {
             $instructions .= ' Tên khách: '.$c->buyerName.'.';
+        }
+        if ($extraSystem !== null && trim($extraSystem) !== '') {
+            $instructions .= "\n\n".trim($extraSystem);
         }
 
         $system = [[

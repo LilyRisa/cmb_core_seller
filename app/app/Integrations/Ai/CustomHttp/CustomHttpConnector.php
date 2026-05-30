@@ -80,7 +80,7 @@ class CustomHttpConnector implements AiAssistantConnector
         $ac = $this->adapterConfig($cfg);
 
         $model = $ctx->model ?: ($cfg->defaultModel ?: '');
-        $system = $this->buildSystemText($conversation, $kb);
+        $system = $this->buildSystemText($conversation, $kb, $ctx->systemPromptExtra);
         $messages = $this->buildMessages($conversation);
         $lastUser = $this->lastUserText($conversation);
 
@@ -267,12 +267,15 @@ class CustomHttpConnector implements AiAssistantConnector
         return is_string($encoded) ? trim($encoded, '"') : '';
     }
 
-    private function buildSystemText(ConversationSnapshot $c, ?KnowledgeBase $kb): string
+    private function buildSystemText(ConversationSnapshot $c, ?KnowledgeBase $kb, ?string $extraSystem = null): string
     {
         $system = 'Bạn là nhân viên CSKH shop online tại Việt Nam. Trả lời ngắn gọn, lịch sự, tiếng Việt, '
             .'xưng "shop"/"em", gọi khách "anh/chị". Không bịa thông tin đơn/giá/tồn kho; không chắc thì đề nghị khách chờ NV.';
         if ($c->buyerName) {
             $system .= ' Tên khách: '.$c->buyerName.'.';
+        }
+        if ($extraSystem !== null && trim($extraSystem) !== '') {
+            $system .= "\n\n".trim($extraSystem);
         }
         if ($kb && $kb->chunks !== []) {
             $system .= "\n\nTài liệu tham khảo:\n";

@@ -81,12 +81,13 @@ export function SettingRow({ row }: { row: SR }) {
             </Space.Compact>
         );
     } else {
-        // string
+        // string — TextArea autosize: 1 dòng như input thường, tự giãn cho prompt dài.
         control = (
             <Space.Compact style={{ width: '100%' }}>
-                <Input
+                <Input.TextArea
                     value={(draft as string) ?? (row.value as string) ?? ''}
                     onChange={(e) => setDraft(e.target.value)}
+                    autoSize={{ minRows: 1, maxRows: 12 }}
                 />
                 <Button type="primary" onClick={() => save((draft as string) ?? '')}>Lưu</Button>
             </Space.Compact>

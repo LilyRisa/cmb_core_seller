@@ -108,7 +108,7 @@ class AiSuggestionService
         [$snapshot, $mapping, $redactedCount] = $this->buildSnapshot($conv, $tenantId);
         $kb = $this->retriever->retrieve($tenantId, $inboundText);
         $provider = AiProvider::query()->find($providerCode);
-        $ctx = new AiContext(tenantId: $tenantId, providerCode: $providerCode, model: $provider?->default_model, meta: ['mode' => 'auto']);
+        $ctx = new AiContext(tenantId: $tenantId, providerCode: $providerCode, model: $provider?->default_model, systemPromptExtra: $this->globalSystemPrompt(), meta: ['mode' => 'auto']);
 
         $startedAt = microtime(true);
         try {
@@ -158,6 +158,7 @@ class AiSuggestionService
             tenantId: $tenantId,
             providerCode: $providerCode,
             model: $provider?->default_model,
+            systemPromptExtra: $this->globalSystemPrompt(),
         );
 
         $startedAt = microtime(true);
@@ -212,6 +213,17 @@ class AiSuggestionService
         }
 
         throw AiSuggestionException::providerNotAvailable();
+    }
+
+    /**
+     * Prompt chung do super-admin cấu hình (system_setting), ghép vào system prompt
+     * khi sinh reply. Rỗng ⇒ null (connector bỏ qua). KHÔNG dùng cho classify intent.
+     */
+    private function globalSystemPrompt(): ?string
+    {
+        $prompt = trim((string) system_setting('messaging.ai.system_prompt', ''));
+
+        return $prompt !== '' ? $prompt : null;
     }
 
     private function assertWithinMonthlyLimit(int $tenantId): void

@@ -251,6 +251,14 @@ class SystemSettingsCatalog
                 'env' => 'VAPID_SUBJECT', 'label' => 'VAPID Subject',
                 'description' => 'mailto:admin@domain hoặc URL trang — định danh người gửi push.',
             ],
+
+            // ── AI (1) ──────────────────────────────────────────────────────
+            'messaging.ai.system_prompt' => [
+                'group' => 'ai', 'type' => 'string', 'is_secret' => false,
+                'env' => 'MESSAGING_AI_SYSTEM_PROMPT', 'label' => 'Prompt chung cho AI (chèn trước khi gửi)',
+                'description' => 'Chỉ dẫn bổ sung ghép vào SAU persona CSKH mặc định, áp cho MỌI AI provider khi sinh câu trả lời. '
+                    .'KHÔNG áp cho bước phân loại ý định (giữ guardrail). Giới hạn 4096 byte (~1.500 ký tự tiếng Việt).',
+            ],
         ];
     }
 

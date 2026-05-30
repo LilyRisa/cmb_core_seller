@@ -117,6 +117,58 @@ class AiProviderHttpTest extends TestCase
             && $req->data()['messages'][0]['role'] === 'system');
     }
 
+    public function test_openai_base_url_with_v1_suffix_is_not_doubled(): void
+    {
+        // base_url theo chuẩn OpenAI SDK gồm sẵn '/v1' ⇒ KHÔNG được nhân đôi thành /v1/v1.
+        Http::fake([
+            'llm.chiasegpu.vn/*' => Http::response([
+                'model' => 'gx/gpt-5.3-codex',
+                'choices' => [['message' => ['content' => 'Dạ shop hỗ trợ anh/chị ngay ạ.'], 'finish_reason' => 'stop']],
+                'usage' => ['prompt_tokens' => 5, 'completion_tokens' => 3],
+            ], 200),
+        ]);
+
+        AiProvider::query()->create([
+            'code' => 'openai', 'adapter' => 'openai_compatible', 'is_active' => true,
+            'api_key' => 'sk-x', 'default_model' => 'gx/gpt-5.3-codex',
+            'base_url' => 'https://llm.chiasegpu.vn/v1',
+        ]);
+
+        app(OpenAiConnector::class)->generateReply(
+            new AiContext(tenantId: 1, providerCode: 'openai'),
+            $this->snapshot(),
+            null,
+        );
+
+        Http::assertSent(fn ($req) => $req->url() === 'https://llm.chiasegpu.vn/v1/chat/completions');
+    }
+
+    public function test_openai_appends_global_system_prompt_to_reply_but_not_classify(): void
+    {
+        Http::fake([
+            'api.openai.com/*' => Http::response([
+                'model' => 'gpt-4o-mini',
+                'choices' => [['message' => ['content' => 'ok'], 'finish_reason' => 'stop']],
+                'usage' => ['prompt_tokens' => 1, 'completion_tokens' => 1],
+            ], 200),
+        ]);
+        AiProvider::query()->create([
+            'code' => 'openai', 'adapter' => 'openai_compatible', 'is_active' => true,
+            'api_key' => 'sk-oai', 'default_model' => 'gpt-4o-mini',
+        ]);
+
+        $ctx = new AiContext(tenantId: 1, providerCode: 'openai', systemPromptExtra: 'LUÔN giới thiệu shop ABC ở đầu.');
+        app(OpenAiConnector::class)->generateReply($ctx, $this->snapshot(), null);
+        app(OpenAiConnector::class)->classifyIntent($ctx, 'đơn của tôi đâu rồi');
+
+        // Reply (max_tokens mặc định 1024) PHẢI chèn prompt chung.
+        Http::assertSent(fn ($req) => ($req->data()['max_tokens'] ?? 0) === 1024
+            && str_contains((string) ($req->data()['messages'][0]['content'] ?? ''), 'shop ABC'));
+        // Classify (max_tokens 8) KHÔNG được chèn (giữ guardrail).
+        Http::assertSent(fn ($req) => ($req->data()['max_tokens'] ?? 0) === 8
+            && ! str_contains((string) ($req->data()['messages'][0]['content'] ?? ''), 'shop ABC'));
+    }
+
     public function test_openai_embed_returns_vector(): void
     {
         Http::fake([

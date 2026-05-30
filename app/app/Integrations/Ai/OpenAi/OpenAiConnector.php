@@ -77,7 +77,7 @@ class OpenAiConnector implements AiAssistantConnector
             ->post($this->base($cfg).'/v1/chat/completions', [
                 'model' => $model,
                 'max_tokens' => $ctx->maxTokens ?: 1024,
-                'messages' => $this->buildMessages($conversation, $kb),
+                'messages' => $this->buildMessages($conversation, $kb, $ctx->systemPromptExtra),
             ]);
 
         $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
@@ -178,16 +178,27 @@ class OpenAiConnector implements AiAssistantConnector
 
     private function base(AiProviderRuntimeConfig $cfg): string
     {
-        return rtrim($cfg->baseUrl ?: 'https://api.openai.com', '/');
+        $base = rtrim($cfg->baseUrl ?: 'https://api.openai.com', '/');
+
+        // Chuẩn OpenAI SDK: base_url thường đã gồm '/v1' (vd https://host/v1). Các
+        // call site tự thêm '/v1/...' ⇒ bỏ '/v1' ở đuôi để không nhân đôi (/v1/v1).
+        if (str_ends_with($base, '/v1')) {
+            $base = substr($base, 0, -3);
+        }
+
+        return $base;
     }
 
     /** @return list<array{role:string, content:string}> */
-    private function buildMessages(ConversationSnapshot $c, ?KnowledgeBase $kb): array
+    private function buildMessages(ConversationSnapshot $c, ?KnowledgeBase $kb, ?string $extraSystem = null): array
     {
         $system = 'Bạn là nhân viên CSKH shop online tại Việt Nam. Trả lời ngắn gọn, lịch sự, tiếng Việt, '
             .'xưng "shop"/"em", gọi khách "anh/chị". Không bịa thông tin đơn/giá/tồn kho; không chắc thì đề nghị khách chờ NV.';
         if ($c->buyerName) {
             $system .= ' Tên khách: '.$c->buyerName.'.';
+        }
+        if ($extraSystem !== null && trim($extraSystem) !== '') {
+            $system .= "\n\n".trim($extraSystem);
         }
         if ($kb && $kb->chunks !== []) {
             $system .= "\n\nTài liệu tham khảo:\n";

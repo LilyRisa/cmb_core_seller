@@ -16,6 +16,8 @@ final readonly class AiContext
         public ?float $temperature = null,
         public ?int $maxTokens = null,
         public string $languageHint = 'vi',
+        /** Prompt chung do super-admin cấu hình, ghép sau persona mặc định khi sinh reply (ADR-0022 / system_setting messaging.ai.system_prompt). null = không có. */
+        public ?string $systemPromptExtra = null,
         /** @var array<string, mixed> */
         public array $meta = [],
     ) {}
