@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback, type CSSProperties, type ReactNode, type UIEvent } from 'react';
 import dayjs from 'dayjs';
 import { Link } from 'react-router-dom';
-import { App, Avatar, Badge, Button, Checkbox, Dropdown, Empty, Grid, Image, Input, List, Popconfirm, Popover, Radio, Segmented, Select, Space, Spin, Tag, Tooltip, Typography } from 'antd';
+import { App, Avatar, Badge, Button, Checkbox, Divider, Dropdown, Empty, Grid, Image, Input, List, Popconfirm, Popover, Radio, Segmented, Select, Space, Spin, Tag, Tooltip, Typography } from 'antd';
 import { BellFilled, BellOutlined, CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FileOutlined, FilterOutlined, MessageOutlined, MoreOutlined, PhoneOutlined, PictureOutlined, ShopOutlined, ShoppingOutlined, SoundOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
 import {
@@ -33,6 +33,7 @@ import { usePushNotifications } from '@/lib/usePushNotifications';
 import { MessagingNav } from '@/components/MessagingNav';
 import { TagManagerModal } from '@/components/TagManagerModal';
 import { ConversationOrderPanel } from '@/components/messaging/ConversationOrderPanel';
+import { CommentPostCard } from '@/components/messaging/CommentPostCard';
 import { MessageComposer, type ComposerSubmit } from '@/components/messaging/MessageComposer';
 
 const { Text } = Typography;
@@ -870,38 +871,15 @@ export function MessagingPage() {
                                     </Space>
                                 )}
                             </div>
-                            {/* Row 2: post preview banner (comment threads only) */}
-                            {active?.thread_type === 'comment' && active.comment && (
-                                <div style={{
-                                    marginTop: 8,
-                                    padding: '6px 10px',
-                                    background: '#EFF6FF',
-                                    borderRadius: 6,
-                                    borderLeft: '3px solid #2563EB',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 8,
-                                    flexWrap: 'wrap',
-                                }}>
-                                    <Tag color="blue" style={{ marginInlineEnd: 0 }}>Bình luận</Tag>
-                                    {active.comment.post_message && (
-                                        <Text type="secondary" ellipsis style={{ flex: 1, minWidth: 0, fontSize: 12 }}>
-                                            {active.comment.post_message.length > 80
-                                                ? `${active.comment.post_message.slice(0, 80)}…`
-                                                : active.comment.post_message}
-                                        </Text>
-                                    )}
-                                    {active.comment.post_permalink && (
-                                        <a href={active.comment.post_permalink} target="_blank" rel="noreferrer" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
-                                            Xem bài viết
-                                        </a>
-                                    )}
-                                    {active.comment.hidden && <Tag color="orange" style={{ marginInlineEnd: 0 }}>Đã ẩn</Tag>}
-                                    {active.comment.private_replied && <Tag color="green" style={{ marginInlineEnd: 0 }}>Đã nhắn riêng</Tag>}
-                                </div>
-                            )}
                         </div>
                         <div style={{ flex: 1, overflowY: 'auto', padding: 16, background: '#F8FAFC' }}>
+                            {/* Post card bài viết (comment thread) — ghim đầu, cuộn cùng thread */}
+                            {active?.thread_type === 'comment' && active.comment && (
+                                <>
+                                    <CommentPostCard conversation={active} />
+                                    <Divider style={{ margin: '4px 0 12px', fontSize: 12, color: '#94A3B8' }}>Bình luận</Divider>
+                                </>
+                            )}
                             {thread.isLoading ? (
                                 <div style={{ textAlign: 'center', marginTop: 48 }}><Spin /></div>
                             ) : (

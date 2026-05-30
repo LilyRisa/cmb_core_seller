@@ -226,11 +226,14 @@ class BackfillFacebookComments implements ShouldBeUnique, ShouldQueue
             'occurred_at' => $createdTime,
         ]);
 
-        // Backfill also carries post_permalink + post_message in meta.
+        // Backfill also carries post_permalink + post_message + ảnh/giờ đăng trong meta
+        // (post card hộp thư hiển thị bài viết đầy đủ). `fb_post_picture` là CDN hết hạn.
         $existingMeta = (array) ($conv->meta ?? []);
         $conv->meta = array_merge($existingMeta, [
             'fb_post_permalink' => $thread['post_permalink'],
             'fb_post_message' => $thread['post_message'],
+            'fb_post_picture' => $thread['post_picture'] ?? null,
+            'fb_post_created_time' => $thread['post_created_time'] ?? null,
         ]);
         $conv->save();
 

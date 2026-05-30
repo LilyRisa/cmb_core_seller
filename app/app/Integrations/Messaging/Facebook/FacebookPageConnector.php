@@ -892,7 +892,7 @@ class FacebookPageConnector implements InteractiveMessagingConnector, ListsPosts
         $commentLimit = (int) ($query['commentLimit'] ?? 50);
 
         $params = [
-            'fields' => "id,message,permalink_url,created_time,comments.limit({$commentLimit}){id,message,created_time,from{id,name},parent}",
+            'fields' => "id,message,permalink_url,created_time,full_picture,comments.limit({$commentLimit}){id,message,created_time,from{id,name},parent}",
             'limit' => $postLimit,
             'access_token' => $auth->accessToken,
         ];
@@ -912,6 +912,9 @@ class FacebookPageConnector implements InteractiveMessagingConnector, ListsPosts
             $postId = (string) ($post['id'] ?? '');
             $postMessage = isset($post['message']) && (string) $post['message'] !== '' ? (string) $post['message'] : null;
             $postPermalink = isset($post['permalink_url']) && (string) $post['permalink_url'] !== '' ? (string) $post['permalink_url'] : null;
+            // `full_picture` là CDN hết hạn (chỉ để xem trước post card — refresh mỗi lần sync).
+            $postPicture = isset($post['full_picture']) && (string) $post['full_picture'] !== '' ? (string) $post['full_picture'] : null;
+            $postCreated = isset($post['created_time']) ? (string) $post['created_time'] : null;
 
             // index top-level comments keyed by id for reply grouping
             /** @var array<string, array<string,mixed>> $topLevel */
@@ -953,6 +956,8 @@ class FacebookPageConnector implements InteractiveMessagingConnector, ListsPosts
                     'post_id' => $postId,
                     'post_message' => $postMessage,
                     'post_permalink' => $postPermalink,
+                    'post_picture' => $postPicture,
+                    'post_created_time' => $postCreated,
                     'replies' => [],
                 ];
             }

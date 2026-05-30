@@ -352,7 +352,7 @@ Cấu hình động lưu trong DB (`system_settings`), ghi đè giá trị từ 
 
 **REST `/api/v1/messaging/*`** (Sanctum + tenant + permission gate):
 - `GET    /messaging/conversations` (`messaging.view`) — filter `provider`, `status`, `unread`, `assigned`, `customer_id`, `q`. Page-based 20/page.
-- `GET    /messaging/conversations/{id}` (`messaging.view`) — detail + last 50 messages (cursor `before_message_id`).
+- `GET    /messaging/conversations/{id}` (`messaging.view`) — detail + last 50 messages (cursor `before_message_id`). Với `thread_type='comment'`, `comment` gồm: `post_message`, `post_permalink`, `post_picture` (ảnh bài viết — CDN Facebook hết hạn, chỉ preview, refresh khi sync), `post_created_time` (ISO-8601), `hidden`, `private_replied`, `participants[]`. FE render Post Card bài viết ghim đầu luồng (thay banner cũ).
 - `POST   /messaging/conversations/{id}/messages` (`messaging.reply`) — `{kind:'text', body}`.
 - `POST   /messaging/conversations/{id}/messages/media` (`messaging.reply`) — multipart `{kind:'image|video|file', file}`.
 - `POST   /messaging/conversations/{id}/messages/template` (`messaging.reply`) — `{template_id, vars}`.

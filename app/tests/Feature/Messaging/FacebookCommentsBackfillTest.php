@@ -6,6 +6,7 @@ use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\Facebook\FacebookPageConnector;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Messaging\Http\Resources\ConversationResource;
 use CMBcoreSeller\Modules\Messaging\Jobs\BackfillFacebookComments;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
@@ -14,6 +15,7 @@ use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -67,6 +69,7 @@ class FacebookCommentsBackfillTest extends TestCase
                     'message' => 'Bài viết giảm giá',
                     'permalink_url' => 'https://fb.com/post/1',
                     'created_time' => '2026-05-20T10:00:00+0000',
+                    'full_picture' => 'https://cdn.fb/POST1.jpg',
                     'comments' => ['data' => [
                         // top-level comment từ khách
                         [
@@ -126,6 +129,8 @@ class FacebookCommentsBackfillTest extends TestCase
         $this->assertSame('POST_1', $item['post_id']);
         $this->assertSame('Bài viết giảm giá', $item['post_message']);
         $this->assertSame('https://fb.com/post/1', $item['post_permalink']);
+        $this->assertSame('https://cdn.fb/POST1.jpg', $item['post_picture']);
+        $this->assertSame('2026-05-20T10:00:00+0000', $item['post_created_time']);
 
         // Replies: 1 reply from page
         $this->assertCount(1, $item['replies']);
@@ -250,13 +255,15 @@ class FacebookCommentsBackfillTest extends TestCase
             'provider' => 'facebook_page', 'thread_type' => 'comment',
             'external_conversation_id' => 'CMT_R', 'buyer_external_id' => 'BUYER_1',
             'buyer_name' => 'Nguyễn Văn A', 'status' => 'open', 'last_message_at' => now(),
-            'meta' => ['comment_participants' => ['Nguyễn Văn A', 'Trần Văn B', 'Lê C', 'Phạm D']],
+            'meta' => ['comment_participants' => ['Nguyễn Văn A', 'Trần Văn B', 'Lê C', 'Phạm D'], 'fb_post_picture' => 'https://cdn.fb/POSTR.jpg', 'fb_post_created_time' => '2026-05-20T10:00:00+0000'],
         ]);
 
-        $data = (new \CMBcoreSeller\Modules\Messaging\Http\Resources\ConversationResource($conv))
-            ->toArray(\Illuminate\Http\Request::create('/'));
+        $data = (new ConversationResource($conv))
+            ->toArray(Request::create('/'));
 
         $this->assertSame(['Nguyễn Văn A', 'Trần Văn B', 'Lê C', 'Phạm D'], $data['comment']['participants']);
+        $this->assertSame('https://cdn.fb/POSTR.jpg', $data['comment']['post_picture']);
+        $this->assertSame('2026-05-20T10:00:00+00:00', $data['comment']['post_created_time']);
     }
 
     public function test_backfill_permission_error_sets_friendly_comment_error_and_does_not_touch_message_sync(): void

@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Messaging\Http\Resources;
 
+use Carbon\CarbonImmutable;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Services\MediaStorage;
 use Illuminate\Http\Request;
@@ -30,6 +31,11 @@ class ConversationResource extends JsonResource
             'comment' => $this->thread_type === 'comment' ? [
                 'post_message' => $this->meta['fb_post_message'] ?? null,
                 'post_permalink' => $this->meta['fb_post_permalink'] ?? null,
+                // Ảnh bài viết (CDN hết hạn — chỉ preview) + giờ đăng, cho post card hộp thư.
+                'post_picture' => $this->meta['fb_post_picture'] ?? null,
+                'post_created_time' => ! empty($this->meta['fb_post_created_time'])
+                    ? CarbonImmutable::parse((string) $this->meta['fb_post_created_time'])->toIso8601String()
+                    : null,
                 'hidden' => (bool) ($this->meta['comment_hidden'] ?? false),
                 'private_replied' => ! empty($this->meta['private_replied_at']),
                 // Người tham gia comment (commenter + người reply) — FE hiển thị "A, B +N người".

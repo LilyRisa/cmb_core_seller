@@ -1,5 +1,7 @@
 # SPEC 0024: Hộp thư hợp nhất đa nền tảng (Omnichannel Messaging) + AI hỗ trợ trả lời
 
+> **Cập nhật 2026-05-30 — Redesign UI bình luận Facebook:** bài viết gốc render dưới dạng **Post Card** nổi bật (avatar/tên page + thời gian đăng + nội dung đầy đủ có "Xem thêm" + ảnh + link) ghim đầu vùng cuộn cột giữa, bình luận hiển thị bên dưới — thay banner mỏng cắt 80 ký tự (dễ nhầm bài viết với tin nhắn). Bổ sung 2 meta key cho conversation comment: `fb_post_picture` (Graph `full_picture` lấy khi `fetchCommentThreads`/backfill) + `fb_post_created_time`; expose qua `ConversationResource.comment` thành `post_picture` / `post_created_time` (ISO-8601). `full_picture` là CDN hết hạn ⇒ chỉ preview, FE tự ẩn ảnh khi load lỗi; convo cũ hiện ảnh sau lần backfill kế tiếp. Component FE: `components/messaging/CommentPostCard.tsx`.
+
 - **Trạng thái:** Draft (chờ duyệt §11 trước khi → Reviewed)
 - **Phase đề xuất:** **7.x** (xem §0 — đẩy từ Phase 8+ backlog lên; cần roadmap update đồng thuận chủ dự án)
 - **Module backend liên quan:** **Messaging (mới)** · Channels · Orders · Customers · Settings · Notifications · Admin · Billing

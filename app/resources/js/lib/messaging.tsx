@@ -19,6 +19,10 @@ export type ChannelGroup = 'marketplace' | 'facebook' | 'internal';
 export interface ConversationComment {
     post_message: string | null;
     post_permalink: string | null;
+    /** Ảnh bài viết (CDN Facebook hết hạn — chỉ để preview trong post card). */
+    post_picture: string | null;
+    /** Thời gian đăng bài (ISO-8601) — hiển thị "x giờ trước". */
+    post_created_time: string | null;
     hidden: boolean;
     private_replied: boolean;
     /** Tên người tham gia comment (commenter + người reply) — hiển thị "A, B +N người". */
