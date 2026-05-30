@@ -68,7 +68,13 @@ export interface SupportRequestItem {
     created_at: string | null;
 }
 
-/** Lịch sử yêu cầu CSKH của tenant hiện tại (chỉ tải khi mở tab). */
+/**
+ * Lịch sử yêu cầu CSKH của tenant hiện tại (chỉ tải khi mở tab).
+ *
+ * Realtime = polling 8s KHI tab đang mở (codebase chưa có Reverb/Echo client; messaging
+ * cũng dùng polling fallback). Nhờ vậy CSKH trả lời từ admin sẽ tự hiện cho user mà
+ * không cần đóng/mở lại widget. Tab đóng (`enabled=false`) ⇒ ngừng poll.
+ */
 export function useSupportRequests(enabled: boolean) {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();
@@ -76,5 +82,7 @@ export function useSupportRequests(enabled: boolean) {
         queryKey: ['support', 'requests', tenantId],
         enabled: enabled && api != null,
         queryFn: async () => (await api!.get<{ data: SupportRequestItem[] }>('/support/requests')).data.data,
+        refetchInterval: enabled ? 8_000 : false,
+        refetchIntervalInBackground: false,
     });
 }

@@ -1,4 +1,4 @@
-# OmniSell / CMBcoreSeller
+# CMBcoreSeller
 
 SaaS quản lý bán hàng đa sàn cho thị trường Việt Nam — đồng bộ đơn, tồn kho, in vận đơn, đối soát… cho TikTok Shop (trước), rồi Shopee + Lazada. Modular monolith Laravel 11 + React (Vite) SPA nhúng cùng repo.
 

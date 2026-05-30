@@ -34,7 +34,7 @@ x-app-build: &app-build
 # Container env for app / worker / scheduler. In-cluster hostnames are fixed; everything
 # else comes from ${VAR} (set in ./.env for CLI, or in Portainer's env-vars UI).
 x-app-env: &app-env
-  APP_NAME: ${APP_NAME:-OmniSell}
+  APP_NAME: ${APP_NAME:-CMBcoreSeller}
   APP_ENV: production
   APP_DEBUG: "false"
   APP_KEY: ${APP_KEY}                         # required — `... run --rm app php artisan key:generate --show`

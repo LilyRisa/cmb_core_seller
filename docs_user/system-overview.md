@@ -1,4 +1,4 @@
-# Tổng quan hệ thống — OmniSell / CMBcoreSeller
+# Tổng quan hệ thống — CMBcoreSeller
 
 > Dành cho: khách hàng tra cứu, nhân viên hỗ trợ, Trợ lý AI, người mới onboard.
 > Góc nhìn: **người sử dụng phần mềm** (không đi vào chi tiết kỹ thuật). Khi chỉ đường, dùng **tên menu và nút tiếng Việt**.
@@ -7,7 +7,7 @@
 
 ## 1. Hệ thống là gì?
 
-**OmniSell** (tên tầm nhìn / marketing) — còn gọi **CMBcoreSeller** (tên thương hiệu trong sản phẩm & email) — là phần mềm **quản lý bán hàng đa sàn** cho thị trường Việt Nam.
+**CMBcoreSeller** (tên tầm nhìn / marketing) — còn gọi **CMBcoreSeller** (tên thương hiệu trong sản phẩm & email) — là phần mềm **quản lý bán hàng đa sàn** cho thị trường Việt Nam.
 
 Hệ thống giúp nhà bán **gom mọi việc về một nơi** thay vì phải đăng nhập từng gian hàng riêng: đồng bộ đơn hàng, quản lý tồn kho chung theo từng mã sản phẩm, in tem/phiếu giao hàng hàng loạt, đóng gói bằng quét mã, nhập hàng và tính giá vốn, đối soát tiền sàn trả về và tính lợi nhuận thật, hộp thư tin nhắn hợp nhất có AI trả lời, sổ sách kế toán theo chuẩn Việt Nam (Thông tư 133), và quản lý gói thuê bao.
 

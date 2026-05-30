@@ -254,7 +254,7 @@ export function HelpChatWidget() {
                 <div style={panelStyle}>
                     <div style={{ background: '#fff', borderRadius: 12, boxShadow: '0 8px 30px rgba(15,23,42,0.18)', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid #E2E8F0' }}>
                         <div style={{ background: '#2563EB', color: '#fff', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span style={{ fontWeight: 600 }}><CommentOutlined style={{ marginInlineEnd: 8 }} />Trợ giúp OmniSell</span>
+                            <span style={{ fontWeight: 600 }}><CommentOutlined style={{ marginInlineEnd: 8 }} />Trợ giúp CMBcoreSeller</span>
                             <Button type="text" size="small" icon={<CloseOutlined style={{ color: '#fff' }} />} onClick={() => setOpen(false)} />
                         </div>
                         <Tabs

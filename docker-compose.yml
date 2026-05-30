@@ -1,4 +1,4 @@
-# DEV base stack for OmniSell / CMBcoreSeller.
+# DEV base stack for CMBcoreSeller.
 #
 #   docker compose up -d --build        # dev — docker-compose.override.yml tự merge (bind mount ./app, publish port, vite HMR, mailpit)
 #
@@ -11,7 +11,7 @@
 # source, KHÔNG có vite/mailpit (override thêm các thứ đó cho dev).
 
 x-app-env: &app-env
-  APP_NAME: ${APP_NAME:-OmniSell}
+  APP_NAME: ${APP_NAME:-CMBcoreSeller}
   APP_ENV: production
   APP_DEBUG: "false"
   APP_KEY: ${APP_KEY}                         # required — `... run --rm app php artisan key:generate --show`
@@ -87,7 +87,7 @@ x-app-env: &app-env
   # `smtps` (port 465 + TLS full). KHÔNG phải `tls` (Laravel ≤10 cũ).
   MAIL_SCHEME: ${MAIL_SCHEME:-smtp}
   MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-no-reply@cmbcore.com}
-  MAIL_FROM_NAME: ${MAIL_FROM_NAME:-OmniSell}
+  MAIL_FROM_NAME: ${MAIL_FROM_NAME:-CMBcoreSeller}
   # Error monitoring
   SENTRY_LARAVEL_DSN: ${SENTRY_LARAVEL_DSN}
   # Marketplace integrations

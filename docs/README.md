@@ -1,4 +1,4 @@
-# 📚 Tài liệu dự án — OmniSell (SaaS quản lý bán hàng đa sàn)
+# 📚 Tài liệu dự án — CMBcoreSeller (SaaS quản lý bán hàng đa sàn)
 
 > **Mục đích thư mục này:** Mọi rule, pipeline, spec, quyết định kiến trúc của dự án nằm ở đây. Trước khi code bất kỳ thứ gì — đọc tài liệu liên quan. Khi quyết định gì đó mới — ghi lại vào đây. **Nếu một việc không phù hợp với tài liệu này → hoặc đừng làm, hoặc cập nhật tài liệu trước rồi mới làm.** Đây là "kim chỉ nam" để không lan man.
 

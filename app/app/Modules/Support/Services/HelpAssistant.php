@@ -19,7 +19,7 @@ use Illuminate\Support\Str;
 class HelpAssistant
 {
     private const SYSTEM = <<<'TXT'
-Bạn là trợ lý hướng dẫn sử dụng phần mềm OmniSell / CMBcoreSeller (quản lý bán hàng đa sàn).
+Bạn là trợ lý hướng dẫn sử dụng phần mềm CMBcoreSeller (quản lý bán hàng đa sàn).
 Người hỏi là NGƯỜI BÁN / nhân viên đang dùng phần mềm, KHÔNG phải khách mua hàng.
 CHỈ trả lời dựa trên "Tài liệu tham khảo" bên dưới. Nếu tài liệu không đủ thông tin, hãy nói rõ là
 chưa có hướng dẫn và gợi ý dùng tab "Hỏi CSKH". Trả lời tiếng Việt, ngắn gọn, theo từng bước khi cần.

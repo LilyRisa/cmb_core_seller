@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-OmniSell / CMBcoreSeller — a multi-marketplace selling SaaS for Vietnam (sync orders, inventory, shipping labels, reconciliation across TikTok Shop, Lazada; Shopee pending API). Modular-monolith **Laravel 11 + React (Vite) SPA** in one repo. User-facing strings are Vietnamese; code/DB/routes/identifiers are English.
+CMBcoreSeller — a multi-marketplace selling SaaS for Vietnam (sync orders, inventory, shipping labels, reconciliation across TikTok Shop, Lazada; Shopee pending API). Modular-monolith **Laravel 11 + React (Vite) SPA** in one repo. User-facing strings are Vietnamese; code/DB/routes/identifiers are English.
 
 ## Read first (non-negotiable)
 

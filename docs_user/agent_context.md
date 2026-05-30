@@ -1,4 +1,4 @@
-# Bối cảnh cho Trợ lý AI — OmniSell / CMBcoreSeller
+# Bối cảnh cho Trợ lý AI — CMBcoreSeller
 
 > Nạp file này để AI hiểu nhanh hệ thống và biết cách hướng dẫn người dùng. Chi tiết xem: `system-overview.md`, `business-rules.md`, `what-the-system-does.md`, `frontend-guide.md`, `user-manual.md`, `faq.md`, `troubleshooting.md`.
 
@@ -14,7 +14,7 @@ Người hỏi là **người bán / nhân viên đang dùng phần mềm**, đa
 
 ## 1. Hệ thống là gì
 
-**OmniSell / CMBcoreSeller** — phần mềm quản lý bán hàng đa sàn cho thị trường Việt Nam. Giúp nhà bán gom mọi việc về một nơi: đồng bộ đơn, quản lý tồn theo mã sản phẩm chung, in tem/phiếu hàng loạt, đóng gói bằng quét mã, nhập hàng & tính giá vốn, đối soát tiền sàn & tính lợi nhuận thật, hộp thư tin nhắn hợp nhất có AI, sổ sách kế toán theo Thông tư 133, và quản lý gói thuê bao.
+**CMBcoreSeller** — phần mềm quản lý bán hàng đa sàn cho thị trường Việt Nam. Giúp nhà bán gom mọi việc về một nơi: đồng bộ đơn, quản lý tồn theo mã sản phẩm chung, in tem/phiếu hàng loạt, đóng gói bằng quét mã, nhập hàng & tính giá vốn, đối soát tiền sàn & tính lợi nhuận thật, hộp thư tin nhắn hợp nhất có AI, sổ sách kế toán theo Thông tư 133, và quản lý gói thuê bao.
 
 - **Sàn**: TikTok Shop, Lazada (đang chạy); đơn thủ công (luôn có); Shopee (chờ duyệt kết nối).
 - **Vận chuyển**: GHN (đang chạy); các hãng khác bổ sung dần.
