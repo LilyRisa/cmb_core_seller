@@ -18,7 +18,9 @@ const ADAPTER_LABEL: Record<AiAdapter, string> = {
     manual: 'Manual (test/dev)',
 };
 
-const ADAPTERS: AiAdapter[] = ['anthropic', 'openai_compatible', 'custom_http', 'manual'];
+// Fallback khi API chưa trả; NGUỒN CHÍNH là data.adapters (registry BE) để FE
+// không lệch với adapter đã đăng ký ⇒ không chọn được adapter mà BE từ chối (422).
+const ADAPTERS_FALLBACK: AiAdapter[] = ['anthropic', 'openai_compatible', 'custom_http', 'manual'];
 
 export function AdminAiProvidersPage() {
     const { data, isLoading, refetch } = useAiProviders();
@@ -33,6 +35,9 @@ export function AdminAiProvidersPage() {
 
     const adapters = data?.adapters ?? [];
     const presetsFor = (a: AiAdapter): AiPreset[] => adapters.find((x) => x.adapter === a)?.presets ?? [];
+    // Chỉ hiển thị adapter mà BE thực sự đăng ký (registry) ⇒ FE luôn khớp BE,
+    // tránh chọn adapter không tồn tại khiến tạo provider bị 422.
+    const adapterChoices: AiAdapter[] = adapters.length ? adapters.map((x) => x.adapter) : ADAPTERS_FALLBACK;
 
     const openCreate = () => {
         setEditing(null);
@@ -154,8 +159,8 @@ export function AdminAiProvidersPage() {
                 <Form form={form} layout="vertical">
                     <Form.Item name="adapter" label="Loại API (adapter)" rules={[{ required: true }]}>
                         <Radio.Group disabled={!!editing} optionType="button" buttonStyle="solid">
-                            {ADAPTERS.map((a) => (
-                                <Radio.Button key={a} value={a}>{ADAPTER_LABEL[a]}</Radio.Button>
+                            {adapterChoices.map((a) => (
+                                <Radio.Button key={a} value={a}>{ADAPTER_LABEL[a] ?? a}</Radio.Button>
                             ))}
                         </Radio.Group>
                     </Form.Item>
@@ -187,11 +192,42 @@ export function AdminAiProvidersPage() {
                         <Input placeholder="vd: deepseek-prod" disabled={!!editing} />
                     </Form.Item>
                     <Form.Item name="display_name" label="Tên hiển thị"><Input placeholder="vd: DeepSeek (prod)" /></Form.Item>
-                    <Form.Item name="base_url" label="Base URL / Endpoint" rules={[{ type: 'url', message: 'URL không hợp lệ' }]}
-                        extra="Custom HTTP: nhập URL endpoint đầy đủ (vd https://llm.vn/v1/chat).">
-                        <Input placeholder="https://api.deepseek.com" />
+
+                    {/* base_url + default_model: required theo adapter (khớp validate BE).
+                        SafeProviderUrl bắt buộc HTTPS + host công khai (chặn http/localhost/LAN). */}
+                    <Form.Item shouldUpdate={(p, c) => p.adapter !== c.adapter} noStyle>
+                        {() => {
+                            const a = (editing?.adapter ?? form.getFieldValue('adapter')) as AiAdapter;
+                            const needsBaseUrl = a === 'openai_compatible' || a === 'custom_http';
+                            const needsModel = a === 'openai_compatible';
+                            return (
+                                <>
+                                    <Form.Item
+                                        name="base_url"
+                                        label="Base URL / Endpoint"
+                                        rules={[
+                                            { type: 'url', message: 'URL không hợp lệ' },
+                                            { required: needsBaseUrl, message: 'Nhập Base URL' },
+                                        ]}
+                                        extra={
+                                            a === 'custom_http'
+                                                ? 'Nhập URL endpoint ĐẦY ĐỦ (vd https://llm.vn/v1/chat). Phải HTTPS + host công khai.'
+                                                : 'Nhập GỐC host, KHÔNG kèm /v1 (connector tự thêm /v1/chat/completions hoặc /v1/messages). Vd: https://api.deepseek.com. Phải HTTPS + host công khai (không http/localhost/IP nội bộ).'
+                                        }
+                                    >
+                                        <Input placeholder="https://api.deepseek.com" />
+                                    </Form.Item>
+                                    <Form.Item
+                                        name="default_model"
+                                        label="Model mặc định"
+                                        rules={[{ required: needsModel, message: 'Nhập model mặc định' }]}
+                                    >
+                                        <Input placeholder="deepseek-chat" />
+                                    </Form.Item>
+                                </>
+                            );
+                        }}
                     </Form.Item>
-                    <Form.Item name="default_model" label="Model mặc định"><Input placeholder="deepseek-chat" /></Form.Item>
                     <Form.Item name="api_key" label="API key" extra={editing ? 'Để trống = giữ nguyên key cũ.' : undefined}>
                         <Input.Password placeholder="sk-..." />
                     </Form.Item>
