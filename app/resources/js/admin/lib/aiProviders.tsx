@@ -51,11 +51,22 @@ export interface AiProviderPayload {
     notes?: string | null;
 }
 
+export interface AiCapabilityResult {
+    ok: boolean;
+    sample?: string;
+    dimension?: number;
+    model?: string;
+    reason?: string;
+    message?: string;
+}
+
 export interface AiProviderTestResult {
     ok: boolean;
     reason?: string;
     sample?: string;
     message?: string;
+    /** Kết quả từng năng lực đã test (chat = sinh reply, embedding = vector RAG). */
+    results?: { chat?: AiCapabilityResult; embedding?: AiCapabilityResult };
 }
 
 export function useAiProviders() {

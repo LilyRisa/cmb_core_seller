@@ -104,10 +104,21 @@ TXT;
         return [$this->keywordSearch($question, $topK), 'keyword'];
     }
 
+    /** Code provider help — ưu tiên cấu hình admin (system_setting), fallback config/env. */
+    private function providerCode(): string
+    {
+        return (string) system_setting('help_assistant.provider_code', config('support.assistant.provider_code', ''));
+    }
+
+    private function embeddingModel(): string
+    {
+        return (string) system_setting('help_assistant.embedding_model', config('support.assistant.embedding_model', 'text-embedding-3-small'));
+    }
+
     /** Embed câu hỏi qua provider help. Null nếu không cấu hình / không hỗ trợ. */
     private function embed(string $text): ?array
     {
-        $code = (string) config('support.assistant.provider_code', '');
+        $code = $this->providerCode();
         if ($code === '') {
             return null;
         }
@@ -120,7 +131,7 @@ TXT;
             $ctx = new AiContext(
                 tenantId: 0,
                 providerCode: $code,
-                meta: ['embedding_model' => (string) config('support.assistant.embedding_model', 'text-embedding-3-small')],
+                meta: ['embedding_model' => $this->embeddingModel()],
             );
             $vec = $connector->embed($ctx, $text)->vector;
 
@@ -176,7 +187,7 @@ TXT;
     /** Gọi LLM sinh câu trả lời RAG. Null nếu không có provider chat / lỗi. */
     private function generate(string $question, array $history, array $chunks, ?int $tenantId): ?string
     {
-        $code = (string) config('support.assistant.provider_code', '');
+        $code = $this->providerCode();
         if ($code === '') {
             return null;
         }

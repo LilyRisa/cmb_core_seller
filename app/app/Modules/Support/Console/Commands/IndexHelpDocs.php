@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Support\Console\Commands;
 
 use CMBcoreSeller\Modules\Support\Services\HelpIndexer;
+use CMBcoreSeller\Modules\Support\Services\SupportProviderProvisioner;
 use Illuminate\Console\Command;
 
 /**
@@ -17,8 +18,16 @@ class IndexHelpDocs extends Command
 
     protected $description = 'Index tài liệu trợ giúp (docs_user/rag_chunks.jsonl) cho trợ lý hỏi-đáp';
 
-    public function handle(HelpIndexer $indexer): int
+    public function handle(HelpIndexer $indexer, SupportProviderProvisioner $provisioner): int
     {
+        // Tự tạo/cập nhật AI provider RIÊNG cho support từ env (nếu có HELP_ASSISTANT_API_KEY).
+        $prov = $provisioner->ensure();
+        if ($prov['provisioned']) {
+            $this->line("  Đã provision AI provider support: {$prov['code']} (từ env)");
+        } elseif (($prov['reason'] ?? '') === 'no_api_key') {
+            $this->line('  Bỏ qua provision provider (chưa đặt HELP_ASSISTANT_API_KEY) — sẽ index không vector.');
+        }
+
         try {
             $stats = $indexer->index((bool) $this->option('fresh'), fn (string $m) => $this->line('  '.$m));
         } catch (\Throwable $e) {

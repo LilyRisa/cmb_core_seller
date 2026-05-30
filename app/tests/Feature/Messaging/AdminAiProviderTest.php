@@ -116,6 +116,49 @@ class AdminAiProviderTest extends TestCase
             ->assertJsonPath('data.ok', true);
     }
 
+    /** Test phải kiểm CẢ embedding (provider có năng lực embedding) — không chỉ chat. */
+    public function test_test_endpoint_checks_embedding_capability(): void
+    {
+        Http::fake([
+            '*/v1/embeddings' => Http::response(['data' => [['embedding' => [0.1, 0.2, 0.3]]], 'usage' => ['total_tokens' => 3]], 200),
+            '*/v1/chat/completions' => Http::response(['choices' => [['message' => ['content' => 'hi'], 'finish_reason' => 'stop']], 'usage' => []], 200),
+        ]);
+        $this->actingAdmin();
+        AiProvider::query()->create([
+            'code' => 'openai', 'adapter' => 'openai_compatible', 'is_active' => true,
+            'base_url' => 'https://api.openai.com', 'default_model' => 'gpt-4o-mini', 'api_key' => 'sk-x',
+        ]);
+
+        $this->postJson('/api/v1/admin/ai-providers/openai/test')
+            ->assertOk()
+            ->assertJsonPath('data.ok', true)
+            ->assertJsonPath('data.results.chat.ok', true)
+            ->assertJsonPath('data.results.embedding.ok', true)
+            ->assertJsonPath('data.results.embedding.dimension', 3);
+
+        Http::assertSent(fn ($req) => str_contains($req->url(), '/v1/embeddings'));
+    }
+
+    /** Provider chat OK nhưng embedding LỖI ⇒ ok=false + chỉ rõ embedding hỏng (để cấu hình Support). */
+    public function test_test_endpoint_flags_broken_embedding(): void
+    {
+        Http::fake([
+            '*/v1/embeddings' => Http::response(['error' => ['message' => 'model not found']], 404),
+            '*/v1/chat/completions' => Http::response(['choices' => [['message' => ['content' => 'hi'], 'finish_reason' => 'stop']], 'usage' => []], 200),
+        ]);
+        $this->actingAdmin();
+        AiProvider::query()->create([
+            'code' => 'openai', 'adapter' => 'openai_compatible', 'is_active' => true,
+            'base_url' => 'https://api.openai.com', 'default_model' => 'gpt-4o-mini', 'api_key' => 'sk-x',
+        ]);
+
+        $this->postJson('/api/v1/admin/ai-providers/openai/test')
+            ->assertOk()
+            ->assertJsonPath('data.ok', false)
+            ->assertJsonPath('data.results.chat.ok', true)
+            ->assertJsonPath('data.results.embedding.ok', false);
+    }
+
     public function test_destroy_disables_provider(): void
     {
         $this->actingAdmin();
@@ -165,6 +208,7 @@ class AdminAiProviderTest extends TestCase
     {
         Http::fake(['*' => Http::response([
             'choices' => [['message' => ['content' => 'hi'], 'finish_reason' => 'stop']],
+            'data' => [['embedding' => [0.1, 0.2]]], // openai_compatible test cả embedding
             'usage' => [],
         ], 200)]);
         $this->actingAdmin();

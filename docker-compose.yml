@@ -63,10 +63,15 @@ x-app-env: &app-env
   R2_URL: ${R2_URL}
   R2_DEFAULT_REGION: ${R2_DEFAULT_REGION:-auto}
   R2_USE_PATH_STYLE_ENDPOINT: "${R2_USE_PATH_STYLE_ENDPOINT:-true}"
-  # Vector DB cho trợ lý trợ giúp sản phẩm (module Support — index docs_user). Tắt = QDRANT_URL rỗng ⇒ fallback keyword.
+  # Trợ lý trợ giúp sản phẩm (module Support — index docs_user). Qdrant BẬT MẶC ĐỊNH;
+  # provider AI RIÊNG cho support tự seed từ HELP_ASSISTANT_API_KEY (chỉ cần điền 1 key).
+  # Không có key ⇒ widget vẫn chạy bằng keyword (không lỗi).
   QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
   QDRANT_API_KEY: ${QDRANT_API_KEY:-}
-  HELP_ASSISTANT_PROVIDER: ${HELP_ASSISTANT_PROVIDER:-}
+  HELP_ASSISTANT_PROVIDER: ${HELP_ASSISTANT_PROVIDER:-support}
+  HELP_ASSISTANT_API_KEY: ${HELP_ASSISTANT_API_KEY:-}
+  HELP_ASSISTANT_BASE_URL: ${HELP_ASSISTANT_BASE_URL:-https://api.openai.com}
+  HELP_ASSISTANT_MODEL: ${HELP_ASSISTANT_MODEL:-gpt-4o-mini}
   HELP_ASSISTANT_EMBEDDING_MODEL: ${HELP_ASSISTANT_EMBEDDING_MODEL:-text-embedding-3-small}
   # PDF rendering (gotenberg service) + khổ phiếu in mặc định (tenant đè được trong UI: Cài đặt → Mẫu in)
   GOTENBERG_URL: http://gotenberg:3000

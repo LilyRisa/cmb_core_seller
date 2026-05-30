@@ -13,22 +13,30 @@ return [
     */
 
     'qdrant' => [
-        // Rỗng ⇒ tắt vector search, dùng fallback keyword.
-        'url' => env('QDRANT_URL', ''),
+        // BẬT MẶC ĐỊNH (trỏ service `qdrant` trong docker). Đặt rỗng để tắt vector search
+        // ⇒ fallback keyword. Qdrant không chạy ⇒ tự suy biến mượt (không lỗi).
+        'url' => env('QDRANT_URL', 'http://qdrant:6333'),
         'api_key' => env('QDRANT_API_KEY', ''),
         'collection' => env('QDRANT_HELP_COLLECTION', 'omnisell_help'),
         'timeout' => 10,
     ],
 
     'assistant' => [
-        // Code 1 row trong `ai_providers` (super-admin tạo) hỗ trợ embedding + chat.
-        // Rỗng ⇒ không gọi LLM, dùng fallback keyword + trả chunk khớp nhất.
-        'provider_code' => env('HELP_ASSISTANT_PROVIDER', ''),
+        // Code AI provider RIÊNG cho Support (tách hẳn provider messaging của tenant).
+        // BẬT MẶC ĐỊNH = 'support'; row `ai_providers` tương ứng được TỰ provision từ env
+        // bên dưới khi có `HELP_ASSISTANT_API_KEY` (xem SupportProviderProvisioner).
+        'provider_code' => env('HELP_ASSISTANT_PROVIDER', 'support'),
         'embedding_model' => env('HELP_ASSISTANT_EMBEDDING_MODEL', 'text-embedding-3-small'),
         // Dimension mặc định cho text-embedding-3-small (tạo collection khi chưa probe được).
         'embedding_dim' => (int) env('HELP_ASSISTANT_EMBEDDING_DIM', 1536),
         'top_k' => 5,
         'max_tokens' => 700,
+
+        // Credential cho provider Support tự provision (adapter openai_compatible).
+        // CHỈ tạo/cập nhật row khi `api_key` có giá trị — không thì widget chạy keyword.
+        'api_key' => env('HELP_ASSISTANT_API_KEY', ''),
+        'base_url' => env('HELP_ASSISTANT_BASE_URL', 'https://api.openai.com'),
+        'chat_model' => env('HELP_ASSISTANT_MODEL', 'gpt-4o-mini'),
     ],
 
     // Đường dẫn thư mục chứa rag_chunks.jsonl.

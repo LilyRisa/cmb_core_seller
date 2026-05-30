@@ -96,9 +96,15 @@ export function AdminAiProvidersPage() {
 
     const runTest = (code: string) =>
         test.mutate(code, {
-            onSuccess: (r) => r.ok
-                ? message.success(`Kết nối OK: ${r.sample ?? ''}`)
-                : message.warning(`Chưa OK (${r.reason}): ${r.message ?? ''}`),
+            onSuccess: (r) => {
+                // Tóm tắt từng năng lực: Chat / Embedding (embedding cần cho trợ lý Hỏi AI / Support).
+                const parts: string[] = [];
+                if (r.results?.chat) parts.push(`Chat: ${r.results.chat.ok ? 'OK' : `LỖI (${r.results.chat.reason ?? ''})`}`);
+                if (r.results?.embedding) parts.push(`Embedding: ${r.results.embedding.ok ? `OK (dim ${r.results.embedding.dimension ?? '?'})` : `LỖI (${r.results.embedding.reason ?? ''})`}`);
+                const detail = parts.join(' · ') || (r.message ?? '');
+                if (r.ok) message.success(`Kết nối OK — ${detail}`);
+                else message.warning(`Chưa OK — ${detail}`);
+            },
             onError: (e) => message.error(errorMessage(e)),
         });
 

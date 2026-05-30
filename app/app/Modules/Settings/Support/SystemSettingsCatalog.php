@@ -252,12 +252,24 @@ class SystemSettingsCatalog
                 'description' => 'mailto:admin@domain hoặc URL trang — định danh người gửi push.',
             ],
 
-            // ── AI (1) ──────────────────────────────────────────────────────
+            // ── AI (3) ──────────────────────────────────────────────────────
             'messaging.ai.system_prompt' => [
                 'group' => 'ai', 'type' => 'string', 'is_secret' => false,
                 'env' => 'MESSAGING_AI_SYSTEM_PROMPT', 'label' => 'Prompt chung cho AI (chèn trước khi gửi)',
                 'description' => 'Chỉ dẫn bổ sung ghép vào SAU persona CSKH mặc định, áp cho MỌI AI provider khi sinh câu trả lời. '
                     .'KHÔNG áp cho bước phân loại ý định (giữ guardrail). Giới hạn 4096 byte (~1.500 ký tự tiếng Việt).',
+            ],
+            // Trợ lý trợ giúp sản phẩm (SPEC-0028) — AI provider RIÊNG (không dùng provider messaging của tenant).
+            'help_assistant.provider_code' => [
+                'group' => 'ai', 'type' => 'string', 'is_secret' => false,
+                'env' => 'HELP_ASSISTANT_PROVIDER', 'label' => 'Trợ giúp (Hỏi AI) — code AI provider',
+                'description' => 'Code 1 nhà cung cấp AI (ở mục "Nhà cung cấp AI", adapter openai_compatible, CÓ embedding) '
+                    .'dùng cho trợ lý Hỏi AI + index tài liệu. Để trống ⇒ widget chạy bằng tìm kiếm từ khoá (keyword).',
+            ],
+            'help_assistant.embedding_model' => [
+                'group' => 'ai', 'type' => 'string', 'is_secret' => false,
+                'env' => 'HELP_ASSISTANT_EMBEDDING_MODEL', 'label' => 'Trợ giúp (Hỏi AI) — embedding model',
+                'description' => 'Model embedding của provider trên (vd text-embedding-3-small). Đổi model ⇒ chạy lại `php artisan help:index --fresh`.',
             ],
         ];
     }

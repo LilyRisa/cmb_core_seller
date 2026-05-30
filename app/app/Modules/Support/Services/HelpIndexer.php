@@ -44,7 +44,7 @@ class HelpIndexer
         }
 
         $connector = $this->embeddingConnector();
-        $embModel = (string) config('support.assistant.embedding_model', 'text-embedding-3-small');
+        $embModel = (string) system_setting('help_assistant.embedding_model', config('support.assistant.embedding_model', 'text-embedding-3-small'));
         $providerCode = $connector ? $connector->code() : null;
 
         // Tạo collection nếu có provider + Qdrant bật. `--fresh` ⇒ DROP + tạo lại để
@@ -113,7 +113,7 @@ class HelpIndexer
 
     private function embeddingConnector(): ?AiAssistantConnector
     {
-        $code = (string) config('support.assistant.provider_code', '');
+        $code = (string) system_setting('help_assistant.provider_code', config('support.assistant.provider_code', ''));
         if ($code === '') {
             return null;
         }

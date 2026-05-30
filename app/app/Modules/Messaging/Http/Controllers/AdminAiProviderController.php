@@ -135,9 +135,13 @@ class AdminAiProviderController extends Controller
     }
 
     /**
-     * Test connection: sinh 1 reply "hello". Connector chưa wire (stub) ⇒
-     * `UnsupportedOperation` ⇒ trả 200 `{ok:false, reason:'connector_not_implemented'}`
-     * (KHÔNG 500 — super-admin click thử provider mới không được crash).
+     * Test connection — kiểm TẤT CẢ năng lực provider KHAI BÁO (không chỉ chat):
+     *   - `reply.suggest` ⇒ thử sinh 1 reply "hello".
+     *   - `embedding`     ⇒ thử embed 1 đoạn text (QUAN TRỌNG cho trợ lý Support RAG —
+     *     provider chat OK nhưng embedding sai vẫn làm hỏng RAG; trước đây test bỏ sót).
+     *
+     * Trả `{ ok, results: { chat?: {...}, embedding?: {...} }, sample?, reason?, message? }`.
+     * `ok` = mọi năng lực đã thử đều pass. KHÔNG bao giờ 500 (mọi lỗi → ok:false có lý do).
      */
     public function test(string $code): JsonResponse
     {
@@ -148,24 +152,65 @@ class AdminAiProviderController extends Controller
 
         try {
             $connector = $this->registry->make($code); // resolve theo adapter, inject code
-            $reply = $connector->generateReply(
-                new AiContext(tenantId: 0, providerCode: $code),
-                new ConversationSnapshot(
-                    conversationId: 0,
-                    provider: 'admin_test',
-                    buyerName: 'Test',
-                    recentMessages: [['direction' => 'inbound', 'kind' => 'text', 'body' => 'hello', 'sent_at' => null]],
-                ),
-                null,
-            );
-
-            return response()->json(['data' => ['ok' => true, 'sample' => Str::limit($reply->body, 120)]]);
-        } catch (UnsupportedOperation $e) {
-            return response()->json(['data' => ['ok' => false, 'reason' => 'connector_not_implemented', 'message' => $e->getMessage()]]);
-        } catch (ProviderNotConfigured $e) {
-            return response()->json(['data' => ['ok' => false, 'reason' => 'not_configured', 'message' => $e->getMessage()]]);
         } catch (\Throwable $e) {
-            return response()->json(['data' => ['ok' => false, 'reason' => 'error', 'message' => Str::limit($e->getMessage(), 200)]]);
+            return response()->json(['data' => ['ok' => false, 'reason' => 'not_configured', 'message' => Str::limit($e->getMessage(), 200), 'results' => []]]);
+        }
+
+        $results = [];
+
+        if ($connector->supports('reply.suggest')) {
+            $results['chat'] = $this->probe(fn () => [
+                'ok' => true,
+                'sample' => Str::limit($connector->generateReply(
+                    new AiContext(tenantId: 0, providerCode: $code),
+                    new ConversationSnapshot(conversationId: 0, provider: 'admin_test', buyerName: 'Test',
+                        recentMessages: [['direction' => 'inbound', 'kind' => 'text', 'body' => 'hello', 'sent_at' => null]]),
+                    null,
+                )->body, 120),
+            ]);
+        }
+
+        if ($connector->supports('embedding')) {
+            $embModel = (string) system_setting('help_assistant.embedding_model', config('support.assistant.embedding_model', 'text-embedding-3-small'));
+            $results['embedding'] = $this->probe(function () use ($connector, $code, $embModel) {
+                $dto = $connector->embed(new AiContext(tenantId: 0, providerCode: $code, meta: ['embedding_model' => $embModel]), 'hello');
+
+                return $dto->dimension > 0
+                    ? ['ok' => true, 'dimension' => $dto->dimension, 'model' => $dto->model]
+                    : ['ok' => false, 'reason' => 'empty_vector', 'message' => 'Provider trả vector rỗng.'];
+            });
+        }
+
+        // ok = có ít nhất 1 năng lực thử được & không năng lực nào thất bại.
+        $ok = $results !== [] && ! collect($results)->contains(fn ($r) => ($r['ok'] ?? false) === false);
+        // Field phẳng cũ (giữ tương thích FE): ưu tiên chat, fallback embedding.
+        $primary = $results['chat'] ?? $results['embedding'] ?? ['reason' => 'no_capability', 'message' => 'Provider không có năng lực test được.'];
+
+        return response()->json(['data' => [
+            'ok' => $ok,
+            'sample' => $primary['sample'] ?? null,
+            'reason' => $primary['reason'] ?? null,
+            'message' => $primary['message'] ?? null,
+            'results' => $results,
+        ]]);
+    }
+
+    /**
+     * Chạy 1 phép thử năng lực, bắt mọi lỗi → mảng kết quả (không ném).
+     *
+     * @param  callable():array<string,mixed>  $fn
+     * @return array<string,mixed>
+     */
+    private function probe(callable $fn): array
+    {
+        try {
+            return $fn();
+        } catch (UnsupportedOperation $e) {
+            return ['ok' => false, 'reason' => 'connector_not_implemented', 'message' => $e->getMessage()];
+        } catch (ProviderNotConfigured $e) {
+            return ['ok' => false, 'reason' => 'not_configured', 'message' => $e->getMessage()];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'reason' => 'error', 'message' => Str::limit($e->getMessage(), 200)];
         }
     }
 
