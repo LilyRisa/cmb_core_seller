@@ -18,14 +18,23 @@ export const SUPPORT_KEYS = {
 
 export interface SupportAiConfig {
     chat_base_url: string;
-    chat_api_key_set: boolean;   // secret: chỉ biết đã đặt hay chưa
+    chat_api_key: string;        // trang admin: hiển thị thẳng key (reveal)
     chat_model: string;
     embedding_base_url: string;
-    embedding_api_key_set: boolean;
+    embedding_api_key: string;
     embedding_model: string;
 }
 
 interface RawSettingRow { key: string; value: unknown }
+
+async function reveal(key: string): Promise<string> {
+    try {
+        const r = await api.get<{ data: { value: string | null } }>(`/admin/system-settings/${encodeURIComponent(key)}/reveal`);
+        return r.data.data.value ?? '';
+    } catch {
+        return '';
+    }
+}
 
 export function useSupportAiConfig() {
     return useQuery({
@@ -36,14 +45,17 @@ export function useSupportAiConfig() {
                 const r = rows.find((x) => x.key === k);
                 return r && r.value != null ? String(r.value) : '';
             };
-            // Secret: backend mask thành '****' khi đã có giá trị.
-            const secretSet = (k: string) => str(k) === '****';
+            // api_key là secret (mask '****' nếu đã đặt) ⇒ reveal để hiển thị plaintext (trang admin).
+            const [chatKey, embKey] = await Promise.all([
+                str(SUPPORT_KEYS.chatApiKey) === '****' ? reveal(SUPPORT_KEYS.chatApiKey) : Promise.resolve(''),
+                str(SUPPORT_KEYS.embeddingApiKey) === '****' ? reveal(SUPPORT_KEYS.embeddingApiKey) : Promise.resolve(''),
+            ]);
             return {
                 chat_base_url: str(SUPPORT_KEYS.chatBaseUrl),
-                chat_api_key_set: secretSet(SUPPORT_KEYS.chatApiKey),
+                chat_api_key: chatKey,
                 chat_model: str(SUPPORT_KEYS.chatModel),
                 embedding_base_url: str(SUPPORT_KEYS.embeddingBaseUrl),
-                embedding_api_key_set: secretSet(SUPPORT_KEYS.embeddingApiKey),
+                embedding_api_key: embKey,
                 embedding_model: str(SUPPORT_KEYS.embeddingModel),
             };
         },

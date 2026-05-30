@@ -102,6 +102,45 @@ class DocumentTextExtractorTest extends TestCase
         $this->assertNull(DocumentTextExtractor::googleSheetCsvUrl('https://docs.google.com/document/d/ABC/edit'));
     }
 
+    public function test_google_sheet_id_and_gviz_url(): void
+    {
+        $this->assertSame('ABC123_-', DocumentTextExtractor::googleSheetId('https://docs.google.com/spreadsheets/d/ABC123_-/edit#gid=42'));
+        $this->assertNull(DocumentTextExtractor::googleSheetId('https://example.com/x'));
+
+        $this->assertSame(
+            'https://docs.google.com/spreadsheets/d/ABC/gviz/tq?tqx=out:json&gid=7',
+            DocumentTextExtractor::googleSheetGvizUrl('https://docs.google.com/spreadsheets/d/ABC/edit#gid=7'),
+        );
+        $this->assertSame(
+            'https://docs.google.com/spreadsheets/d/XYZ/gviz/tq?tqx=out:json',
+            DocumentTextExtractor::googleSheetGvizUrl('https://docs.google.com/spreadsheets/d/XYZ/edit'),
+        );
+    }
+
+    public function test_from_gviz_json_parses_rows_utf8(): void
+    {
+        $body = "/*O_o*/\n".'google.visualization.Query.setResponse({"version":"0.6","status":"ok","table":{"cols":[],"rows":['
+            .'{"c":[{"v":"Bộ chia AV"},{"v":"220k"},{"v":"Chia tín hiệu\nKhông cần điện"},{"v":"https://x.vn/a"}]},'
+            .'{"c":[{"v":"Nguồn 12V10A"},{"v":"200k"},{"v":"Điện áp ra 12V"},{"v":null}]},'
+            .'{"c":[{"v":null},{"v":null},{"v":null},{"v":null}]}'  // dòng rỗng → bỏ
+            .']}});';
+
+        $out = (new DocumentTextExtractor)->fromGvizJson($body);
+
+        $this->assertNotNull($out);
+        $lines = explode("\n", $out);
+        $this->assertCount(2, $lines); // dòng rỗng bị loại
+        $this->assertSame('Bộ chia AV | 220k | Chia tín hiệu Không cần điện | https://x.vn/a', $lines[0]);
+        $this->assertSame('Nguồn 12V10A | 200k | Điện áp ra 12V | ', $lines[1]); // ô null cuối → rỗng (join ' | ')
+        $this->assertTrue(mb_check_encoding($out, 'UTF-8'));
+    }
+
+    public function test_from_gviz_json_invalid_returns_null(): void
+    {
+        $this->assertNull((new DocumentTextExtractor)->fromGvizJson('not gviz at all'));
+        $this->assertNull((new DocumentTextExtractor)->fromGvizJson('setResponse({"table":{"rows":[]}});'));
+    }
+
     /** Dựng file zip (docx/xlsx) trong bộ nhớ từ các entry name→content. */
     private function zipBytes(array $entries): string
     {

@@ -52,7 +52,7 @@ export function AdminAiProvidersPage() {
         setEditing(row);
         form.setFieldsValue({
             ...row,
-            api_key: '',
+            api_key: row.api_key ?? '',   // trang admin: hiển thị thẳng key hiện có để xem/sửa
             headers_json: row.adapter_config?.headers ? JSON.stringify(row.adapter_config.headers, null, 2) : '',
         });
         setOpen(true);
@@ -241,8 +241,9 @@ export function AdminAiProvidersPage() {
                             );
                         }}
                     </Form.Item>
-                    <Form.Item name="api_key" label="API key" extra={editing ? 'Để trống = giữ nguyên key cũ.' : undefined}>
-                        <Input.Password placeholder="sk-..." />
+                    {/* Trang admin: hiện thẳng key (Input thường) để xem/sửa, không che. */}
+                    <Form.Item name="api_key" label="API key" extra={editing ? 'Key hiện tại đang hiển thị — sửa rồi lưu để đổi; để trống = giữ nguyên.' : undefined}>
+                        <Input placeholder="sk-..." autoComplete="off" />
                     </Form.Item>
 
                     {/* Cấu hình riêng adapter custom_http (SPEC-0026). */}

@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Integrations\Ai\Claude;
 
 use CMBcoreSeller\Integrations\Ai\Concerns\EstimatesAiCost;
+use CMBcoreSeller\Integrations\Ai\Concerns\ReplyPersona;
 use CMBcoreSeller\Integrations\Ai\Contracts\AiAssistantConnector;
 use CMBcoreSeller\Integrations\Ai\Contracts\AiProviderCredentials;
 use CMBcoreSeller\Integrations\Ai\DTO\AiContext;
@@ -181,28 +182,14 @@ class ClaudeConnector implements AiAssistantConnector
      */
     private function buildSystem(ConversationSnapshot $c, ?KnowledgeBase $kb, ?string $extraSystem = null): array
     {
-        $instructions = 'Bạn là nhân viên chăm sóc khách hàng của một shop bán hàng online tại Việt Nam. '
-            .'Trả lời NGẮN GỌN, lịch sự, đúng trọng tâm, bằng tiếng Việt. Xưng "shop"/"em", gọi khách "anh/chị". '
-            .'Chỉ trả lời dựa trên thông tin có sẵn; nếu không chắc, đề nghị khách chờ nhân viên xác nhận. '
-            .'TUYỆT ĐỐI không bịa thông tin đơn hàng, giá, hay tồn kho.';
-        if ($c->buyerName) {
-            $instructions .= ' Tên khách: '.$c->buyerName.'.';
-        }
-        if ($extraSystem !== null && trim($extraSystem) !== '') {
-            $instructions .= "\n\n".trim($extraSystem);
-        }
-
         $system = [[
             'type' => 'text',
-            'text' => $instructions,
+            'text' => ReplyPersona::instructions($c, $extraSystem),
             'cache_control' => ['type' => 'ephemeral'],
         ]];
 
-        if ($kb && $kb->chunks !== []) {
-            $kbText = "# Tài liệu tham khảo (FAQ / chính sách shop):\n";
-            foreach ($kb->chunks as $chunk) {
-                $kbText .= '- ['.($chunk['title'] ?? '').'] '.($chunk['chunk_text'] ?? '')."\n";
-            }
+        $kbText = ReplyPersona::knowledgeBlock($kb);
+        if ($kbText !== '') {
             $system[] = ['type' => 'text', 'text' => $kbText];
         }
 

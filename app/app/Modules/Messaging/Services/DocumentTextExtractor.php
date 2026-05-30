@@ -31,18 +31,87 @@ class DocumentTextExtractor
         };
     }
 
+    /** Trích spreadsheet ID từ link Google Sheets bất kỳ. Null nếu không phải Sheets. */
+    public static function googleSheetId(string $url): ?string
+    {
+        return preg_match('#^https?://docs\.google\.com/spreadsheets/d/([A-Za-z0-9_-]+)#', $url, $m)
+            ? $m[1]
+            : null;
+    }
+
+    /** gid (tab) từ link nếu có. */
+    private static function googleSheetGid(string $url): ?string
+    {
+        return preg_match('/[#?&]gid=([0-9]+)/', $url, $g) ? $g[1] : null;
+    }
+
     /**
-     * Link Google Sheets chia sẻ công khai → URL export CSV. Null nếu không phải Sheets.
-     * Vd `…/spreadsheets/d/<ID>/edit#gid=<GID>` → `…/spreadsheets/d/<ID>/export?format=csv&gid=<GID>`.
+     * Link Google Sheets công khai → URL gviz JSON (đầu ra UTF-8 chuẩn, structured —
+     * không lo CSV escaping / xuống dòng trong ô). Null nếu không phải Sheets.
+     * `…/spreadsheets/d/<ID>/gviz/tq?tqx=out:json[&gid=<GID>]`.
+     */
+    public static function googleSheetGvizUrl(string $url): ?string
+    {
+        $id = self::googleSheetId($url);
+        if ($id === null) {
+            return null;
+        }
+        $u = "https://docs.google.com/spreadsheets/d/{$id}/gviz/tq?tqx=out:json";
+
+        return ($gid = self::googleSheetGid($url)) !== null ? $u."&gid={$gid}" : $u;
+    }
+
+    /**
+     * Link Google Sheets công khai → URL export CSV (fallback khi gviz lỗi).
+     * `…/spreadsheets/d/<ID>/export?format=csv[&gid=<GID>]`.
      */
     public static function googleSheetCsvUrl(string $url): ?string
     {
-        if (! preg_match('#^https?://docs\.google\.com/spreadsheets/d/([A-Za-z0-9_-]+)#', $url, $m)) {
+        $id = self::googleSheetId($url);
+        if ($id === null) {
             return null;
         }
-        $export = "https://docs.google.com/spreadsheets/d/{$m[1]}/export?format=csv";
+        $export = "https://docs.google.com/spreadsheets/d/{$id}/export?format=csv";
 
-        return preg_match('/[#?&]gid=([0-9]+)/', $url, $g) ? $export."&gid={$g[1]}" : $export;
+        return ($gid = self::googleSheetGid($url)) !== null ? $export."&gid={$gid}" : $export;
+    }
+
+    /**
+     * Parse phản hồi gviz JSON của Google Sheets → bảng "ô | ô | ô" mỗi dòng (như CSV).
+     *
+     * Body gviz bọc trong `/*O_o*​/\ngoogle.visualization.Query.setResponse({...});` —
+     * bóc lớp vỏ rồi json_decode. Mỗi `row.c[].v` là giá trị ô (null = ô trống). JSON
+     * luôn UTF-8 nên tiếng Việt an toàn (không lo encoding/escaping như CSV). Null nếu
+     * không phải JSON gviz hợp lệ / không có dòng nào.
+     */
+    public function fromGvizJson(string $contents): ?string
+    {
+        $contents = $this->stripBom($contents);
+        // Bóc vỏ: lấy phần trong setResponse( ... ). Regex non-greedy tới dấu ) ; cuối.
+        if (! preg_match('/setResponse\((.*)\)\s*;?\s*$/s', trim($contents), $m)) {
+            return null;
+        }
+        $data = json_decode($m[1], true);
+        if (! is_array($data) || ! isset($data['table']['rows']) || ! is_array($data['table']['rows'])) {
+            return null;
+        }
+
+        $lines = [];
+        foreach ($data['table']['rows'] as $row) {
+            $cells = [];
+            foreach ((array) ($row['c'] ?? []) as $cell) {
+                // `v` có thể là string/number/bool/null. Lấy formatted `f` nếu có (số/ngày
+                // đã format theo locale), không thì `v`. Xuống dòng trong ô → khoảng trắng.
+                $val = $cell['f'] ?? $cell['v'] ?? '';
+                $cells[] = trim(str_replace(["\r\n", "\n", "\r"], ' ', (string) $val));
+            }
+            if (implode('', $cells) === '') {
+                continue; // bỏ dòng rỗng
+            }
+            $lines[] = implode(' | ', $cells);
+        }
+
+        return $lines === [] ? null : implode("\n", $lines);
     }
 
     private function fromPlainText(string $contents): ?string

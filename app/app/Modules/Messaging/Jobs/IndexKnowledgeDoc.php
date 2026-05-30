@@ -93,24 +93,10 @@ class IndexKnowledgeDoc implements ShouldQueue
 
     private function fetchUrl(string $url, DocumentTextExtractor $extractor): ?string
     {
-        // Link Google Sheets công khai → export CSV → parse bảng (thay vì nuốt HTML app shell).
-        $sheetCsv = DocumentTextExtractor::googleSheetCsvUrl($url);
-        if ($sheetCsv !== null) {
-            // Theo redirect (Google 307 sang googleusercontent) — Guzzle bật sẵn.
-            $res = Http::timeout(20)->get($sheetCsv);
-            if (! $res->successful()) {
-                throw new \RuntimeException('Không tải được Google Sheet (HTTP '.$res->status().').');
-            }
-
-            // Sheet KHÔNG chia sẻ công khai ⇒ Google trả TRANG HTML (đăng nhập/xin quyền)
-            // với status 200 ⇒ phải chặn, nếu không sẽ "nuốt" HTML thành CSV rác.
-            $contentType = strtolower((string) $res->header('Content-Type'));
-            $body = $res->body();
-            if (str_contains($contentType, 'text/html') || str_starts_with(ltrim($body), '<')) {
-                throw new \RuntimeException('Google Sheet chưa chia sẻ công khai. Hãy đặt quyền "Bất kỳ ai có liên kết → Người xem" rồi thử lại.');
-            }
-
-            return $extractor->extract($body, 'csv');
+        // Google Sheets công khai: ưu tiên gviz JSON (đầu ra UTF-8 structured — không lo
+        // CSV escaping / xuống dòng trong ô), fallback CSV export nếu gviz lỗi.
+        if (DocumentTextExtractor::googleSheetId($url) !== null) {
+            return $this->fetchGoogleSheet($url, $extractor);
         }
 
         $res = Http::timeout(20)->get($url);
@@ -120,6 +106,66 @@ class IndexKnowledgeDoc implements ShouldQueue
 
         // Strip tags thô (HTML → text). Đủ cho keyword retrieval S6.
         return trim(html_entity_decode(strip_tags($res->body())));
+    }
+
+    /**
+     * Tải Google Sheet công khai: gviz JSON trước (chính), CSV export sau (fallback).
+     * Cả hai ép UTF-8. Sheet chưa công khai ⇒ Google trả HTML 200 ⇒ ném lỗi rõ ràng.
+     */
+    private function fetchGoogleSheet(string $url, DocumentTextExtractor $extractor): ?string
+    {
+        $gviz = (string) DocumentTextExtractor::googleSheetGvizUrl($url);
+        $res = Http::timeout(20)->get($gviz);
+        if ($res->successful()) {
+            $body = $this->toUtf8($res->body(), (string) $res->header('Content-Type'));
+            $this->assertSheetIsPublic($body, (string) $res->header('Content-Type'));
+            $text = $extractor->fromGvizJson($body);
+            if ($text !== null) {
+                return $text;
+            }
+            // gviz trả 200 nhưng không parse được (format lạ) ⇒ thử CSV fallback bên dưới.
+        }
+
+        // Fallback CSV export.
+        $csvUrl = (string) DocumentTextExtractor::googleSheetCsvUrl($url);
+        $res = Http::timeout(20)->get($csvUrl);
+        if (! $res->successful()) {
+            throw new \RuntimeException('Không tải được Google Sheet (HTTP '.$res->status().').');
+        }
+        $body = $this->toUtf8($res->body(), (string) $res->header('Content-Type'));
+        $this->assertSheetIsPublic($body, (string) $res->header('Content-Type'));
+
+        return $extractor->extract($body, 'csv');
+    }
+
+    /** Sheet chưa chia sẻ công khai ⇒ Google trả TRANG HTML (200) ⇒ chặn để không nuốt HTML rác. */
+    private function assertSheetIsPublic(string $body, string $contentType): void
+    {
+        if (str_contains(strtolower($contentType), 'text/html') || str_starts_with(ltrim($body), '<')) {
+            throw new \RuntimeException('Google Sheet chưa chia sẻ công khai. Hãy đặt quyền "Bất kỳ ai có liên kết → Người xem" rồi thử lại.');
+        }
+    }
+
+    /**
+     * Ép body về UTF-8 (tránh lỗi tiếng Việt). Google trả UTF-8 cho gviz/CSV; nhưng nếu
+     * charset header khác (vd windows-1258) hoặc body không phải UTF-8 hợp lệ ⇒ convert.
+     */
+    private function toUtf8(string $body, string $contentType): string
+    {
+        if (preg_match('/charset=([\w-]+)/i', $contentType, $m) && strtoupper($m[1]) !== 'UTF-8') {
+            $converted = @mb_convert_encoding($body, 'UTF-8', $m[1]);
+            if (is_string($converted) && $converted !== '') {
+                return $converted;
+            }
+        }
+        if (! mb_check_encoding($body, 'UTF-8')) {
+            $converted = @mb_convert_encoding($body, 'UTF-8', 'UTF-8, ISO-8859-1, Windows-1252');
+            if (is_string($converted) && $converted !== '') {
+                return $converted;
+            }
+        }
+
+        return $body;
     }
 
     private function readUpload(AiKnowledgeDocument $doc, MediaStorage $storage, DocumentTextExtractor $extractor): ?string

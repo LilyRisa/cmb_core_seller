@@ -26,6 +26,8 @@ export interface AiProviderRow {
     adapter: AiAdapter;
     display_name: string | null;
     has_api_key: boolean;
+    /** Plaintext key (đã giải mã) — trang admin hiển thị thẳng trong form sửa. */
+    api_key: string | null;
     base_url: string | null;
     default_model: string | null;
     pricing: Array<{ kind: string; unit: number; micro_vnd: number }>;

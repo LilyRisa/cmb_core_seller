@@ -30,8 +30,9 @@ export function AdminAiSupportPage() {
             setChatModel(cfg.chat_model);
             setEmbBaseUrl(cfg.embedding_base_url);
             setEmbModel(cfg.embedding_model);
-            setChatKey('');
-            setEmbKey('');
+            // Trang admin: hiển thị thẳng key hiện có để xem/sửa.
+            setChatKey(cfg.chat_api_key);
+            setEmbKey(cfg.embedding_api_key);
         }
     }, [cfg]);
 
@@ -46,17 +47,15 @@ export function AdminAiSupportPage() {
     const saveChat = async () => {
         await saveOne(SUPPORT_KEYS.chatBaseUrl, chatBaseUrl.trim(), 'Chat Base URL');
         await saveOne(SUPPORT_KEYS.chatModel, chatModel.trim(), 'Chat Model');
-        if (chatKey !== '') await saveOne(SUPPORT_KEYS.chatApiKey, chatKey, 'Chat API key');
+        await saveOne(SUPPORT_KEYS.chatApiKey, chatKey.trim(), 'Chat API key');
     };
     const saveEmbedding = async () => {
         await saveOne(SUPPORT_KEYS.embeddingBaseUrl, embBaseUrl.trim(), 'Embedding Base URL');
         await saveOne(SUPPORT_KEYS.embeddingModel, embModel.trim(), 'Embedding Model');
-        if (embKey !== '') await saveOne(SUPPORT_KEYS.embeddingApiKey, embKey, 'Embedding API key');
+        await saveOne(SUPPORT_KEYS.embeddingApiKey, embKey.trim(), 'Embedding API key');
     };
 
     if (isLoading) return <Card><Spin /></Card>;
-
-    const keyPlaceholder = (isSet: boolean) => (isSet ? '•••••••• (để trống = giữ nguyên)' : 'Nhập API key');
 
     return (
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -81,7 +80,7 @@ export function AdminAiSupportPage() {
                     </div>
                     <div>
                         <Text strong>API key</Text>
-                        <Input.Password value={chatKey} onChange={(e) => setChatKey(e.target.value)} placeholder={keyPlaceholder(cfg!.chat_api_key_set)} />
+                        <Input value={chatKey} onChange={(e) => setChatKey(e.target.value)} placeholder="Nhập API key" autoComplete="off" />
                     </div>
                     <div>
                         <Text strong>Model</Text>
@@ -105,7 +104,7 @@ export function AdminAiSupportPage() {
                     </div>
                     <div>
                         <Text strong>API key</Text>
-                        <Input.Password value={embKey} onChange={(e) => setEmbKey(e.target.value)} placeholder={keyPlaceholder(cfg!.embedding_api_key_set)} />
+                        <Input value={embKey} onChange={(e) => setEmbKey(e.target.value)} placeholder="Nhập API key" autoComplete="off" />
                     </div>
                     <div>
                         <Text strong>Model</Text>

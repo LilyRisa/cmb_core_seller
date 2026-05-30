@@ -109,9 +109,14 @@ class AdminAiProviderController extends Controller
             'notes' => ['nullable', 'string', 'max:255'],
         ]);
 
-        // Không gửi api_key (hoặc rỗng) ⇒ không ghi đè key cũ.
-        if (! array_key_exists('api_key', $data) || $data['api_key'] === null || $data['api_key'] === '') {
-            unset($data['api_key']);
+        // PATCH = cập nhật MỘT PHẦN: field text gửi RỖNG ⇒ "giữ nguyên", KHÔNG ghi đè bằng rỗng.
+        // (FE gửi full form khi chỉ đổi 1 field — vd đổi api_key nhưng base_url/model về rỗng;
+        // trước đây fill() xoá trắng các field đó). Boolean/int (is_active/sort_order) giữ nguyên
+        // vì false/0 là giá trị hợp lệ. Muốn xoá hẳn 1 field dùng thao tác riêng (chưa cần).
+        foreach (['api_key', 'base_url', 'default_model', 'display_name', 'notes'] as $optional) {
+            if (! array_key_exists($optional, $data) || $data[$optional] === null || $data[$optional] === '') {
+                unset($data[$optional]);
+            }
         }
 
         $provider->fill($data)->save();
@@ -238,7 +243,11 @@ class AdminAiProviderController extends Controller
         ];
     }
 
-    /** Response shape — KHÔNG bao giờ lộ api_key (chỉ cờ đã set). */
+    /**
+     * Response shape. `api_key` trả PLAINTEXT (đã giải mã) — đây là trang super-admin
+     * (guard admin_web), cho phép xem & sửa key trực tiếp trong form. `has_api_key` giữ
+     * cho cột bảng. Lưu ý: key vẫn encrypted-at-rest trong DB; chỉ lộ qua API admin này.
+     */
     private function present(AiProvider $p): array
     {
         $capabilities = [];
@@ -253,6 +262,7 @@ class AdminAiProviderController extends Controller
             'adapter' => $p->adapter,
             'display_name' => $p->display_name,
             'has_api_key' => filled($p->getRawOriginal('api_key')),
+            'api_key' => $p->api_key,   // giải mã qua cast; super-admin xem/sửa trực tiếp
             'base_url' => $p->base_url,
             'default_model' => $p->default_model,
             'pricing' => $p->pricing ?? [],

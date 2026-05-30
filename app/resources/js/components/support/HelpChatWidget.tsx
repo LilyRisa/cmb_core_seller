@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
-import { App, Button, Empty, Input, Spin, Tabs, Tag, Typography } from 'antd';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { App, Button, Input, Spin, Tabs, Tag, Typography } from 'antd';
 import {
     CloseOutlined, CommentOutlined, CustomerServiceOutlined, RobotOutlined,
-    SendOutlined, SolutionOutlined,
+    SendOutlined, ClockCircleOutlined, CheckCircleFilled,
 } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
-import { type ChatTurn, type HelpSource, useAskAssistant, useCreateSupportRequest, useSupportRequests } from '@/lib/support';
+import { type ChatTurn, type HelpSource, type SupportRequestItem, useAskAssistant, useCreateSupportRequest, useSupportRequests } from '@/lib/support';
 
-const { Text, Paragraph } = Typography;
+const { Text } = Typography;
 
 const POS_KEY = 'omnisell.help-widget.pos';
 const BTN = 56;        // đường kính nút
@@ -128,13 +128,62 @@ function AiTab() {
     );
 }
 
-/** Tab "Hỏi CSKH" — gửi câu hỏi vào hàng đợi, báo phải chờ. */
+/** Giờ gọn cho bong bóng chat: hôm nay → HH:mm, khác ngày → DD/MM HH:mm. */
+function fmtTime(iso: string | null): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const now = new Date();
+    const hm = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    return d.toDateString() === now.toDateString() ? hm : `${d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })} ${hm}`;
+}
+
+/**
+ * Tab "Hỏi CSKH" — giao diện CHAT như app nhắn tin: câu hỏi của mình (phải, xanh),
+ * trả lời CSKH (trái, xám). Realtime qua polling (useSupportRequests). Khi có câu trả
+ * lời MỚI từ CSKH → phát âm thanh quick-ting.mp3.
+ *
+ * Mỗi support_request = 1 cặp (câu hỏi + trả lời). Hiển thị mọi request theo thứ tự
+ * thời gian thành luồng hội thoại liên tục.
+ */
 function CskhTab({ active }: { active: boolean }) {
     const { message } = App.useApp();
     const create = useCreateSupportRequest();
     const list = useSupportRequests(active);
     const [text, setText] = useState('');
-    const [sent, setSent] = useState(false);
+    const bottomRef = useRef<HTMLDivElement>(null);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    // Tập id các request ĐÃ có câu trả lời (lần trước) — để phát hiện phản hồi MỚI.
+    const answeredSeen = useRef<Set<number> | null>(null);
+
+    // Chuẩn bị âm thanh (lazy).
+    useEffect(() => {
+        if (audioRef.current === null && typeof Audio !== 'undefined') {
+            const a = new Audio('/quick-ting.mp3');
+            a.volume = 0.6;
+            audioRef.current = a;
+        }
+    }, []);
+
+    // useMemo để mảng ổn định giữa các render (tránh useEffect chạy thừa khi list chưa đổi).
+    const rows: SupportRequestItem[] = useMemo(() => list.data ?? [], [list.data]);
+
+    // Phát hiện câu trả lời mới → ping. Lần đầu chỉ ghi nhận (không kêu cho lịch sử cũ).
+    useEffect(() => {
+        const answeredIds = rows.filter((r) => r.answer && r.answer.trim() !== '').map((r) => r.id);
+        if (answeredSeen.current === null) {
+            answeredSeen.current = new Set(answeredIds); // baseline, không kêu
+            return;
+        }
+        const hasNew = answeredIds.some((id) => !answeredSeen.current!.has(id));
+        answeredSeen.current = new Set(answeredIds);
+        if (hasNew) {
+            audioRef.current?.play().catch(() => { /* autoplay bị chặn tới khi user tương tác */ });
+        }
+    }, [rows]);
+
+    // Tự cuộn xuống đáy khi có tin mới / mở tab.
+    useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [rows, active]);
 
     const submit = async () => {
         const q = text.trim();
@@ -142,7 +191,6 @@ function CskhTab({ active }: { active: boolean }) {
         try {
             await create.mutateAsync({ question: q });
             setText('');
-            setSent(true);
             void list.refetch();
         } catch (e) {
             message.error(errorMessage(e, 'Không gửi được yêu cầu, vui lòng thử lại.'));
@@ -151,34 +199,44 @@ function CskhTab({ active }: { active: boolean }) {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
-                <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
-                    <Text style={{ fontSize: 13 }}>
-                        <SolutionOutlined style={{ marginInlineEnd: 6, color: '#D97706' }} />
-                        Câu hỏi sẽ được gửi tới CSKH. <b>Vui lòng chờ</b> trong giờ làm việc — nhân viên sẽ phản hồi sớm nhất.
-                    </Text>
-                </div>
-                {sent && (
-                    <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
-                        <Text style={{ fontSize: 13, color: '#047857' }}>Đã gửi yêu cầu. Bạn vui lòng chờ CSKH phản hồi.</Text>
+            <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 4, background: '#F8FAFC' }}>
+                {rows.length === 0 && (
+                    <div style={{ margin: 'auto', textAlign: 'center', color: '#94A3B8', padding: 16 }}>
+                        <CustomerServiceOutlined style={{ fontSize: 32, marginBottom: 8 }} />
+                        <div>Gửi câu hỏi cho nhân viên CSKH</div>
+                        <div style={{ fontSize: 12, marginTop: 4 }}>Nhân viên sẽ phản hồi trong giờ làm việc.</div>
                     </div>
                 )}
-                {/* Lịch sử yêu cầu */}
-                {list.data && list.data.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {list.data.map((r) => (
-                            <div key={r.id} style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: 10 }}>
-                                <Paragraph style={{ marginBottom: 4 }} ellipsis={{ rows: 2 }}>{r.question}</Paragraph>
-                                <Tag color={r.status === 'pending' ? 'orange' : r.status === 'answered' ? 'green' : 'default'}>
-                                    {r.status === 'pending' ? 'Đang chờ' : r.status === 'answered' ? 'Đã trả lời' : 'Đã đóng'}
-                                </Tag>
-                                {r.answer && <Paragraph style={{ marginTop: 6, marginBottom: 0, fontSize: 13 }}>{r.answer}</Paragraph>}
+
+                {/* Mỗi request: bong bóng câu hỏi (phải) + bong bóng trả lời/đang chờ (trái). */}
+                {[...rows].reverse().map((r) => (
+                    <div key={r.id} style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+                        {/* Câu hỏi của mình */}
+                        <div style={{ alignSelf: 'flex-end', maxWidth: '85%' }}>
+                            <div style={{ background: '#2563EB', color: '#fff', padding: '8px 12px', borderRadius: '12px 12px 2px 12px', whiteSpace: 'pre-wrap' }}>{r.question}</div>
+                            <div style={{ fontSize: 10, color: '#94A3B8', textAlign: 'right', marginTop: 2 }}>{fmtTime(r.created_at)}</div>
+                        </div>
+                        {/* Trả lời CSKH (nếu có) hoặc trạng thái chờ */}
+                        {r.answer ? (
+                            <div style={{ alignSelf: 'flex-start', maxWidth: '85%' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#64748B', marginBottom: 2 }}>
+                                    <CustomerServiceOutlined /> Nhân viên CSKH
+                                </div>
+                                <div style={{ background: '#fff', color: '#0F172A', border: '1px solid #E2E8F0', padding: '8px 12px', borderRadius: '12px 12px 12px 2px', whiteSpace: 'pre-wrap' }}>{r.answer}</div>
+                                <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 2 }}>{fmtTime(r.answered_at)}</div>
                             </div>
-                        ))}
+                        ) : r.status !== 'closed' ? (
+                            <div style={{ alignSelf: 'flex-start', fontSize: 12, color: '#D97706', display: 'flex', alignItems: 'center', gap: 4, padding: '2px 4px' }}>
+                                <ClockCircleOutlined /> Đang chờ CSKH phản hồi…
+                            </div>
+                        ) : (
+                            <div style={{ alignSelf: 'flex-start', fontSize: 12, color: '#94A3B8', display: 'flex', alignItems: 'center', gap: 4, padding: '2px 4px' }}>
+                                <CheckCircleFilled /> Đã đóng
+                            </div>
+                        )}
                     </div>
-                ) : (
-                    !sent && <Empty description="Chưa có yêu cầu nào" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-                )}
+                ))}
+                <div ref={bottomRef} />
             </div>
             <div style={{ padding: 10, borderTop: '1px solid #F1F5F9', display: 'flex', gap: 8 }}>
                 <Input.TextArea

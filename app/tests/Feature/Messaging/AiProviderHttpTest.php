@@ -235,7 +235,8 @@ class AiProviderHttpTest extends TestCase
                 && $req->hasHeader('Authorization', 'Bearer secret-key')
                 && $body['model'] === 'my-model'
                 && is_array($body['messages'])
-                && str_contains((string) $body['system'], 'CSKH');
+                // Persona dùng chung (ReplyPersona) — kiểm quy tắc ưu tiên hội thoại.
+                && str_contains((string) $body['system'], 'ƯU TIÊN nội dung ĐOẠN HỘI THOẠI');
         });
     }
 

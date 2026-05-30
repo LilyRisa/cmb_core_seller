@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Integrations\Ai\CustomHttp;
 
 use CMBcoreSeller\Integrations\Ai\Concerns\EstimatesAiCost;
+use CMBcoreSeller\Integrations\Ai\Concerns\ReplyPersona;
 use CMBcoreSeller\Integrations\Ai\Contracts\AiAssistantConnector;
 use CMBcoreSeller\Integrations\Ai\Contracts\AiProviderCredentials;
 use CMBcoreSeller\Integrations\Ai\DTO\AiContext;
@@ -269,19 +270,10 @@ class CustomHttpConnector implements AiAssistantConnector
 
     private function buildSystemText(ConversationSnapshot $c, ?KnowledgeBase $kb, ?string $extraSystem = null): string
     {
-        $system = 'Bạn là nhân viên CSKH shop online tại Việt Nam. Trả lời ngắn gọn, lịch sự, tiếng Việt, '
-            .'xưng "shop"/"em", gọi khách "anh/chị". Không bịa thông tin đơn/giá/tồn kho; không chắc thì đề nghị khách chờ NV.';
-        if ($c->buyerName) {
-            $system .= ' Tên khách: '.$c->buyerName.'.';
-        }
-        if ($extraSystem !== null && trim($extraSystem) !== '') {
-            $system .= "\n\n".trim($extraSystem);
-        }
-        if ($kb && $kb->chunks !== []) {
-            $system .= "\n\nTài liệu tham khảo:\n";
-            foreach ($kb->chunks as $chunk) {
-                $system .= '- ['.$chunk['title'].'] '.$chunk['chunk_text']."\n";
-            }
+        $system = ReplyPersona::instructions($c, $extraSystem);
+        $kbText = ReplyPersona::knowledgeBlock($kb);
+        if ($kbText !== '') {
+            $system .= "\n\n".$kbText;
         }
 
         return $system;

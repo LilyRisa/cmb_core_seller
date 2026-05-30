@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Integrations\Ai\OpenAi;
 
 use CMBcoreSeller\Integrations\Ai\Concerns\EstimatesAiCost;
+use CMBcoreSeller\Integrations\Ai\Concerns\ReplyPersona;
 use CMBcoreSeller\Integrations\Ai\Contracts\AiAssistantConnector;
 use CMBcoreSeller\Integrations\Ai\Contracts\AiProviderCredentials;
 use CMBcoreSeller\Integrations\Ai\DTO\AiContext;
@@ -192,19 +193,10 @@ class OpenAiConnector implements AiAssistantConnector
     /** @return list<array{role:string, content:string}> */
     private function buildMessages(ConversationSnapshot $c, ?KnowledgeBase $kb, ?string $extraSystem = null): array
     {
-        $system = 'Bạn là nhân viên CSKH shop online tại Việt Nam. Trả lời ngắn gọn, lịch sự, tiếng Việt, '
-            .'xưng "shop"/"em", gọi khách "anh/chị". Không bịa thông tin đơn/giá/tồn kho; không chắc thì đề nghị khách chờ NV.';
-        if ($c->buyerName) {
-            $system .= ' Tên khách: '.$c->buyerName.'.';
-        }
-        if ($extraSystem !== null && trim($extraSystem) !== '') {
-            $system .= "\n\n".trim($extraSystem);
-        }
-        if ($kb && $kb->chunks !== []) {
-            $system .= "\n\nTài liệu tham khảo:\n";
-            foreach ($kb->chunks as $chunk) {
-                $system .= '- ['.($chunk['title'] ?? '').'] '.($chunk['chunk_text'] ?? '')."\n";
-            }
+        $system = ReplyPersona::instructions($c, $extraSystem);
+        $kbText = ReplyPersona::knowledgeBlock($kb);
+        if ($kbText !== '') {
+            $system .= "\n\n".$kbText;
         }
 
         $messages = [['role' => 'system', 'content' => $system]];

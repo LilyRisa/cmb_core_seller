@@ -39,7 +39,8 @@ class AdminAiProviderTest extends TestCase
             ->assertStatus(201)
             ->assertJsonPath('data.code', 'claude')
             ->assertJsonPath('data.has_api_key', true)
-            ->assertJsonMissingPath('data.api_key');
+            // Trang super-admin: api_key trả plaintext để xem/sửa trong form (vẫn encrypted-at-rest dưới DB).
+            ->assertJsonPath('data.api_key', 'sk-ant-secret-xxx');
 
         // Key encrypted at rest (raw column khác plaintext).
         $row = AiProvider::query()->find('claude');
@@ -204,6 +205,49 @@ class AdminAiProviderTest extends TestCase
         ])->assertStatus(422);
     }
 
+    public function test_update_does_not_wipe_other_fields_when_only_changing_api_key(): void
+    {
+        $this->actingAdmin();
+        $this->postJson('/api/v1/admin/ai-providers', [
+            'code' => 'ds', 'adapter' => 'openai_compatible',
+            'display_name' => 'DeepSeek', 'base_url' => 'https://api.deepseek.com',
+            'default_model' => 'deepseek-chat', 'api_key' => 'old-key', 'is_active' => true,
+        ])->assertStatus(201);
+
+        // FE gửi full form khi chỉ đổi api_key — các field text khác về RỖNG.
+        // KHÔNG được ghi đè base_url/default_model/display_name đã có bằng rỗng.
+        $this->patchJson('/api/v1/admin/ai-providers/ds', [
+            'api_key' => 'new-key',
+            'base_url' => '',
+            'default_model' => '',
+            'display_name' => '',
+        ])->assertOk();
+
+        $row = AiProvider::query()->find('ds');
+        $this->assertSame('https://api.deepseek.com', $row->base_url);
+        $this->assertSame('deepseek-chat', $row->default_model);
+        $this->assertSame('DeepSeek', $row->display_name);
+        $this->assertSame('new-key', $row->api_key); // api_key mới vẫn đổi
+    }
+
+    public function test_update_can_still_change_fields_to_new_values(): void
+    {
+        $this->actingAdmin();
+        $this->postJson('/api/v1/admin/ai-providers', [
+            'code' => 'ds2', 'adapter' => 'openai_compatible',
+            'base_url' => 'https://api.deepseek.com', 'default_model' => 'deepseek-chat',
+            'api_key' => 'k', 'is_active' => true,
+        ])->assertStatus(201);
+
+        $this->patchJson('/api/v1/admin/ai-providers/ds2', [
+            'base_url' => 'https://openrouter.ai/api', 'default_model' => 'openai/gpt-4o-mini',
+        ])->assertOk();
+
+        $row = AiProvider::query()->find('ds2');
+        $this->assertSame('https://openrouter.ai/api', $row->base_url);
+        $this->assertSame('openai/gpt-4o-mini', $row->default_model);
+    }
+
     public function test_hyphenated_code_is_editable_testable_deletable(): void
     {
         Http::fake(['*' => Http::response([
@@ -263,7 +307,7 @@ class AdminAiProviderTest extends TestCase
             ->assertStatus(201)
             ->assertJsonPath('data.adapter', 'custom_http')
             ->assertJsonPath('data.has_api_key', true)
-            ->assertJsonMissingPath('data.api_key')
+            ->assertJsonPath('data.api_key', 'secret-key')
             ->assertJsonPath('data.adapter_config.response_path', 'data.reply.text');
 
         // capabilities đọc từ connector class: custom_http hỗ trợ intent.classify (cho auto-mode).
