@@ -105,6 +105,49 @@ class AutoReplyEngine
     }
 
     /**
+     * Có rule enabled nào KHỚP `$trigger` cho conversation/message này không —
+     * KHÔNG fire, KHÔNG tính cooldown/idempotency. Dùng cho responder ưu tiên thấp
+     * hơn (AI auto-mode) biết có nên nhường Tầng 1 hay không (ADR-0022 §3).
+     *
+     * @param  array<string,mixed>  $context  cần `inbound_body` cho keyword.
+     */
+    public function matches(Conversation $conv, string $trigger, array $context = []): bool
+    {
+        $now = isset($context['now']) ? CarbonImmutable::parse($context['now']) : CarbonImmutable::now();
+
+        if ($trigger === AutoReplyRule::TRIGGER_KEYWORD) {
+            $haystack = mb_strtolower((string) ($context['inbound_body'] ?? $conv->last_message_preview ?? ''));
+            $rules = AutoReplyRule::withoutGlobalScope(TenantScope::class)
+                ->where('tenant_id', $conv->tenant_id)
+                ->where('trigger', AutoReplyRule::TRIGGER_KEYWORD)
+                ->where('enabled', true)
+                ->get();
+
+            foreach ($rules as $rule) {
+                if ($this->matchesFilter($rule, $conv, $context) && $this->countMatchedKeywords($rule, $haystack) > 0) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        $rules = AutoReplyRule::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $conv->tenant_id)
+            ->where('trigger', $trigger)
+            ->where('enabled', true)
+            ->get();
+
+        foreach ($rules as $rule) {
+            if ($this->matchesFilter($rule, $conv, $context) && $this->conditionMet($rule, $conv, $context, $now)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Feature G+H — fire keyword trigger.
      *
      * Chọn rule khớp nhiều từ khoá nhất (highest matched-keyword count); tie-break

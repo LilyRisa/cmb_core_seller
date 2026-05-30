@@ -8,6 +8,7 @@ use CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
 use CMBcoreSeller\Modules\Messaging\Models\AutomationFlow;
+use CMBcoreSeller\Modules\Messaging\Models\MessagingSetting;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -183,6 +184,26 @@ class AutomationFlowApiTest extends TestCase
             ->postJson("/api/v1/messaging/automation-flows/{$id}/publish")
             ->assertOk()
             ->assertJsonPath('data.status', 'active');
+    }
+
+    public function test_publishing_catch_all_flow_disables_facebook_ai(): void
+    {
+        // FB AI auto đang bật + xuất bản flow `inbox_any` FB ⇒ tự tắt AI (ADR-0022 §4).
+        MessagingSetting::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'ai_provider_code' => null, 'ai_enabled' => true,
+            'auto_mode_marketplace' => true, 'auto_mode_facebook' => true,
+        ]);
+        $id = $this->createFlow(['trigger_type' => 'inbox_any']);
+
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->postJson("/api/v1/messaging/automation-flows/{$id}/publish")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'active')
+            ->assertJsonPath('meta.disabled_facebook_ai', true);
+
+        $setting = MessagingSetting::query()->find($this->tenant->getKey());
+        $this->assertFalse((bool) $setting->auto_mode_facebook);
+        $this->assertTrue((bool) $setting->auto_mode_marketplace); // sàn không bị ảnh hưởng
     }
 
     public function test_pause_sets_paused(): void

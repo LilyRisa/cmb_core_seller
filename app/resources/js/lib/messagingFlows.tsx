@@ -153,15 +153,27 @@ export function useDuplicateFlow() {
     });
 }
 
+/** Kết quả xuất bản — `disabledFacebookAi`: AI tự động FB vừa bị tắt do loại trừ Tầng 2 (ADR-0022). */
+export interface PublishFlowResult {
+    flow: AutomationFlow;
+    disabledFacebookAi: boolean;
+}
+
 export function usePublishFlow() {
     const api = useScopedApi();
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: async (id: number) =>
-            (await api!.post<{ data: AutomationFlow }>(`/messaging/automation-flows/${id}/publish`)).data.data,
-        onSuccess: (flow) => {
+        mutationFn: async (id: number): Promise<PublishFlowResult> => {
+            const res = (await api!.post<{ data: AutomationFlow; meta?: { disabled_facebook_ai?: boolean } }>(
+                `/messaging/automation-flows/${id}/publish`,
+            )).data;
+            return { flow: res.data, disabledFacebookAi: res.meta?.disabled_facebook_ai ?? false };
+        },
+        onSuccess: ({ flow }) => {
             qc.invalidateQueries({ queryKey: ['messaging', KEY] });
             qc.invalidateQueries({ queryKey: ['messaging', 'flow', flow.id] });
+            // AI FB có thể vừa bị tắt ⇒ làm mới cài đặt để UI khác phản ánh đúng.
+            qc.invalidateQueries({ queryKey: ['messaging', 'settings'] });
         },
     });
 }

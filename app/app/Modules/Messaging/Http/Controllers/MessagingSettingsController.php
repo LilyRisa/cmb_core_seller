@@ -6,6 +6,7 @@ use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Integrations\Ai\AiAssistantRegistry;
 use CMBcoreSeller\Modules\Messaging\Models\AiProvider;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingSetting;
+use CMBcoreSeller\Modules\Messaging\Services\AiFlowExclusionService;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use Illuminate\Http\JsonResponse;
@@ -21,7 +22,10 @@ use Illuminate\Validation\Rule;
  */
 class MessagingSettingsController extends Controller
 {
-    public function __construct(private AiAssistantRegistry $registry) {}
+    public function __construct(
+        private AiAssistantRegistry $registry,
+        private AiFlowExclusionService $exclusion,
+    ) {}
 
     public function show(Request $request): JsonResponse
     {
@@ -33,8 +37,9 @@ class MessagingSettingsController extends Controller
         return response()->json([
             'data' => [
                 'ai_provider_code' => $setting?->ai_provider_code,
-                'ai_enabled' => (bool) ($setting?->ai_enabled ?? false),
-                'auto_mode' => (bool) ($setting?->auto_mode ?? false),
+                'ai_enabled' => (bool) $setting?->ai_enabled,
+                'auto_mode_marketplace' => (bool) $setting?->auto_mode_marketplace,
+                'auto_mode_facebook' => (bool) $setting?->auto_mode_facebook,
                 'away_hours' => $setting?->away_hours,
                 'fallback_template_id' => $setting?->fallback_template_id,
                 'available_providers' => $this->availableProviders(),
@@ -51,7 +56,8 @@ class MessagingSettingsController extends Controller
         $data = $request->validate([
             'ai_provider_code' => ['nullable', 'string', Rule::in($activeCodes)],
             'ai_enabled' => ['nullable', 'boolean'],
-            'auto_mode' => ['nullable', 'boolean'],
+            'auto_mode_marketplace' => ['nullable', 'boolean'],
+            'auto_mode_facebook' => ['nullable', 'boolean'],
             'away_hours' => ['nullable', 'array'],
             'fallback_template_id' => ['nullable', 'integer'],
         ]);
@@ -59,13 +65,30 @@ class MessagingSettingsController extends Controller
         $tenantId = app(CurrentTenant::class)->id();
 
         $setting = MessagingSetting::query()->firstOrNew(['tenant_id' => $tenantId]);
+        $facebookWasOn = (bool) $setting->auto_mode_facebook;
+
         $setting->fill($data);
         $setting->tenant_id = $tenantId;
+        // `auto_mode` cũ (deprecated) = OR 2 nhóm — giữ ý nghĩa cho consumer còn sót.
+        $setting->auto_mode = (bool) $setting->auto_mode_marketplace || (bool) $setting->auto_mode_facebook;
         $setting->save();
 
-        AuditLog::record('messaging.ai.config_change', null, ['fields' => array_keys($data)]);
+        // Loại trừ Tầng 2 (ADR-0022 §4): bật FB AI auto ⇒ pause flow `inbox_any` FB.
+        $pausedFlows = 0;
+        if (! $facebookWasOn && (bool) $setting->auto_mode_facebook) {
+            $pausedFlows = $this->exclusion->pauseFacebookCatchAllFlows($tenantId);
+        }
 
-        return $this->show($request);
+        AuditLog::record('messaging.ai.config_change', null, [
+            'fields' => array_keys($data),
+            'paused_catch_all_flows' => $pausedFlows,
+        ]);
+
+        $response = $this->show($request);
+        $payload = $response->getData(true);
+        $payload['meta'] = ['paused_catch_all_flows' => $pausedFlows];
+
+        return response()->json($payload);
     }
 
     /** @return list<array{code:string, name:string}> */

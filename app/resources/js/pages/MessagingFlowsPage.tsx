@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { App as AntApp, Button, Card, Form, Input, Modal, Popconfirm, Radio, Space, Table, Tag } from 'antd';
+import { App as AntApp, Alert, Button, Card, Form, Input, Modal, Popconfirm, Radio, Space, Table, Tag } from 'antd';
 import { CopyOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
+import { useMessagingSettings } from '@/lib/messagingConfig';
 import { MessagingNav } from '@/components/MessagingNav';
 import {
     type AutomationFlow,
@@ -32,6 +33,8 @@ export function MessagingFlowsPage() {
     const navigate = useNavigate();
     const canManage = useCan('messaging.rule.manage');
     const { data, isFetching } = useFlows();
+    const { data: settings } = useMessagingSettings();
+    const fbAiAutoOn = settings?.auto_mode_facebook ?? false;
     const save = useSaveFlow();
     const del = useDeleteFlow();
     const dup = useDuplicateFlow();
@@ -77,6 +80,14 @@ export function MessagingFlowsPage() {
             <PageHeader title="Kịch bản tự động" subtitle="Dựng luồng trả lời tự động cho tin nhắn & bình luận Facebook bằng sơ đồ kéo-thả."
                 extra={canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setCreateOpen(true); }}>Tạo kịch bản</Button>} />
             <MessagingNav />
+            <Alert type="info" showIcon style={{ marginBottom: 12 }}
+                message="Thứ tự ưu tiên"
+                description={'Tin nhắn đầu tiên và tin chứa từ khoá được xử lý trước. Luồng "Mọi tin nhắn" chỉ bắt các tin còn lại. Riêng Facebook: luồng "Mọi tin nhắn" và AI tự động trả lời không thể cùng chạy.'} />
+            {fbAiAutoOn && (
+                <Alert type="warning" showIcon style={{ marginBottom: 12 }}
+                    message="AI tự động Facebook đang bật"
+                    description={'Xuất bản một luồng "Mọi tin nhắn" cho Facebook sẽ tự tắt AI tự động trả lời Facebook (chỉ một trong hai được chạy).'} />
+            )}
             <Card>
                 <Table<AutomationFlow> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns} pagination={false} />
             </Card>
@@ -96,6 +107,12 @@ export function MessagingFlowsPage() {
                                 <Radio value="comment_any">{TRIGGER_LABELS.comment_any}</Radio>
                             </Space>
                         </Radio.Group>
+                    </Form.Item>
+                    <Form.Item noStyle shouldUpdate={(p, c) => p.trigger_type !== c.trigger_type}>
+                        {({ getFieldValue }) => getFieldValue('trigger_type') === 'inbox_any' && fbAiAutoOn && (
+                            <Alert type="warning" showIcon
+                                message='Khi xuất bản luồng "Mọi tin nhắn" này, AI tự động trả lời Facebook sẽ bị tắt (chỉ một trong hai được chạy).' />
+                        )}
                     </Form.Item>
                 </Form>
             </Modal>

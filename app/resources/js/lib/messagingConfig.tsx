@@ -226,7 +226,9 @@ export function useKnowledgeChunks(id: number | null) {
 export interface MessagingSettings {
     ai_provider_code: string | null;
     ai_enabled: boolean;
-    auto_mode: boolean;
+    /** AI tự gửi tất cả — tách theo nhóm kênh (ADR-0022). */
+    auto_mode_marketplace: boolean;
+    auto_mode_facebook: boolean;
     away_hours: Record<string, unknown> | null;
     fallback_template_id: number | null;
     available_providers: Array<{ code: string; name: string }>;
@@ -242,12 +244,19 @@ export function useMessagingSettings() {
     });
 }
 
+/** Phản hồi lưu cài đặt — `meta.paused_catch_all_flows`: số luồng "Mọi tin nhắn" bị tạm dừng do bật AI FB. */
+export interface SaveMessagingSettingsResult {
+    data: MessagingSettings;
+    meta?: { paused_catch_all_flows?: number };
+}
+
 export function useSaveMessagingSettings() {
     const api = useScopedApi();
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: async (s: Partial<Pick<MessagingSettings, 'ai_provider_code' | 'ai_enabled' | 'auto_mode' | 'fallback_template_id'>>) =>
-            (await api!.patch('/messaging/settings', s)).data,
+        mutationFn: async (
+            s: Partial<Pick<MessagingSettings, 'ai_provider_code' | 'ai_enabled' | 'auto_mode_marketplace' | 'auto_mode_facebook' | 'fallback_template_id'>>,
+        ): Promise<SaveMessagingSettingsResult> => (await api!.patch('/messaging/settings', s)).data,
         onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'settings'] }),
     });
 }

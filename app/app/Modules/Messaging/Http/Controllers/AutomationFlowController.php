@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Messaging\Http\Controllers;
 use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Modules\Messaging\Exceptions\AttachmentInvalid;
 use CMBcoreSeller\Modules\Messaging\Models\AutomationFlow;
+use CMBcoreSeller\Modules\Messaging\Services\AiFlowExclusionService;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\FlowGraphValidator;
 use CMBcoreSeller\Modules\Messaging\Services\MediaRelayService;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
@@ -27,6 +28,7 @@ class AutomationFlowController extends Controller
     public function __construct(
         private FlowGraphValidator $validator,
         private MediaRelayService $media,
+        private AiFlowExclusionService $exclusion,
     ) {}
 
     public function index(Request $request): AnonymousResourceCollection
@@ -81,7 +83,16 @@ class AutomationFlowController extends Controller
 
         AuditLog::record('messaging.flow.update', $flow, ['trigger_type' => $flow->trigger_type]);
 
-        return response()->json(['data' => $this->present($flow)]);
+        // Active sẵn rồi đổi trigger sang `inbox_any` (FB) ⇒ vẫn loại trừ AI (ADR-0022 §4).
+        $disabledAi = false;
+        if ($flow->status === AutomationFlow::STATUS_ACTIVE && $this->exclusion->isFacebookCatchAll($flow)) {
+            $disabledAi = $this->exclusion->disableFacebookAiAuto((int) $flow->tenant_id);
+        }
+
+        return response()->json([
+            'data' => $this->present($flow),
+            'meta' => ['disabled_facebook_ai' => $disabledAi],
+        ]);
     }
 
     public function destroy(int $id): JsonResponse
@@ -126,7 +137,16 @@ class AutomationFlowController extends Controller
         $flow->update(['status' => AutomationFlow::STATUS_ACTIVE]);
         AuditLog::record('messaging.flow.publish', $flow, ['status' => $flow->status]);
 
-        return response()->json(['data' => $this->present($flow)]);
+        // Loại trừ Tầng 2 (ADR-0022 §4): kích hoạt flow `inbox_any` FB ⇒ tắt FB AI auto.
+        $disabledAi = false;
+        if ($this->exclusion->isFacebookCatchAll($flow)) {
+            $disabledAi = $this->exclusion->disableFacebookAiAuto((int) $flow->tenant_id);
+        }
+
+        return response()->json([
+            'data' => $this->present($flow),
+            'meta' => ['disabled_facebook_ai' => $disabledAi],
+        ]);
     }
 
     public function pause(int $id): JsonResponse

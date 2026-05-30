@@ -135,10 +135,14 @@ function FlowEditor() {
     const onPublish = async () => {
         try {
             await save.mutateAsync(payload());
-            const f = await publish.mutateAsync(flowId);
+            const { flow: f, disabledFacebookAi } = await publish.mutateAsync(flowId);
             setInvalid(new Set());
             setStatus(f.status);
-            message.success('Đã xuất bản — kịch bản đang chạy.');
+            message.success(
+                disabledFacebookAi
+                    ? 'Đã xuất bản — kịch bản đang chạy. Đã tắt AI tự động trả lời Facebook (chỉ một trong hai được chạy).'
+                    : 'Đã xuất bản — kịch bản đang chạy.',
+            );
         } catch (e: unknown) {
             const errs = (e as { response?: { data?: { error?: { details?: { errors?: { node_id?: string }[] } } } } })?.response?.data?.error?.details?.errors;
             if (Array.isArray(errs)) {

@@ -4,10 +4,16 @@ namespace CMBcoreSeller\Modules\Messaging\Listeners;
 
 use CMBcoreSeller\Modules\Billing\Services\SubscriptionService;
 use CMBcoreSeller\Modules\Messaging\Events\MessageReceived;
+use CMBcoreSeller\Modules\Messaging\Models\AutomationFlow;
+use CMBcoreSeller\Modules\Messaging\Models\AutoReplyRule;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
+use CMBcoreSeller\Modules\Messaging\Models\FlowRun;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingSetting;
 use CMBcoreSeller\Modules\Messaging\Services\AiSuggestionService;
+use CMBcoreSeller\Modules\Messaging\Services\AutoReplyEngine;
+use CMBcoreSeller\Modules\Messaging\Services\Flows\FlowMatcher;
+use CMBcoreSeller\Modules\Messaging\Support\MessagingChannelGroup;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Facades\Log;
@@ -15,8 +21,14 @@ use Illuminate\Support\Facades\Log;
 /**
  * Auto-mode (S7): khi bật, AI tự trả lời inbound qua guardrail intent.
  *
- * Điều kiện: `messaging_settings.auto_mode=true` + `ai_enabled=true` + gói có
- * feature `messaging_ai` (Business). Bỏ qua spam / không phải inbound.
+ * Điều kiện (ADR-0022): công tắc "tự gửi tất cả" theo NHÓM KÊNH của conversation
+ * (`auto_mode_facebook` cho Facebook, `auto_mode_marketplace` cho sàn) + `ai_enabled`
+ * + gói có feature `messaging_ai` (Business). Bỏ qua spam / không phải inbound.
+ *
+ * AI là Tầng 2 (phương án cuối): NHƯỜNG Tầng 1 — nếu hội thoại đang giữa flow
+ * (run active/waiting), hoặc có flow/rule `first_message`/`keyword` KHỚP tin này
+ * thì KHÔNG dùng AI. Kiểm tra "có khớp" (tất định), không phải "đã trả lời" (race
+ * giữa các queue song song).
  *
  * ShouldQueue (queue messaging-ai): gọi LLM tốn thời gian — KHÔNG chặn webhook
  * ingest. Lỗi auto-mode nuốt (best-effort) — không làm hỏng luồng nhận tin.
@@ -28,6 +40,8 @@ class AiAutoModeOnInbound implements ShouldQueue
     public function __construct(
         private AiSuggestionService $suggestions,
         private SubscriptionService $subscriptions,
+        private FlowMatcher $flowMatcher,
+        private AutoReplyEngine $autoReply,
     ) {}
 
     public function handle(MessageReceived $event): void
@@ -43,11 +57,16 @@ class AiAutoModeOnInbound implements ShouldQueue
         }
 
         $setting = MessagingSetting::withoutGlobalScope(TenantScope::class)->find($conv->tenant_id);
-        if (! $setting || ! $setting->auto_mode || ! $setting->ai_enabled) {
+        if (! $setting || ! $setting->ai_enabled || ! $this->autoModeFor($conv, $setting)) {
             return;
         }
 
         if (! $this->hasAiFeature((int) $conv->tenant_id)) {
+            return;
+        }
+
+        // Nhường Tầng 1: tin đầu / từ khoá / flow đang chạy ⇒ không dùng AI (ADR-0022).
+        if ($this->higherPriorityClaims($conv, (string) $message->body)) {
             return;
         }
 
@@ -60,6 +79,43 @@ class AiAutoModeOnInbound implements ShouldQueue
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    /** Công tắc "AI tự gửi tất cả" cho nhóm kênh của conversation (ADR-0022). */
+    private function autoModeFor(Conversation $conv, MessagingSetting $setting): bool
+    {
+        return MessagingChannelGroup::isFacebook($conv->provider)
+            ? (bool) $setting->auto_mode_facebook
+            : (bool) $setting->auto_mode_marketplace;
+    }
+
+    /**
+     * Có handler Tầng 1 KHỚP tin này không (⇒ AI nhường). Tầng 1 = flow đang chạy
+     * (run active/waiting) + flow/rule `first_message`/`keyword` khớp.
+     */
+    private function higherPriorityClaims(Conversation $conv, string $body): bool
+    {
+        $activeRun = FlowRun::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $conv->tenant_id)
+            ->where('conversation_id', $conv->id)
+            ->whereIn('status', [FlowRun::STATUS_ACTIVE, FlowRun::STATUS_WAITING])
+            ->exists();
+        if ($activeRun) {
+            return true;
+        }
+
+        $flowMatch = $this->flowMatcher->matching($conv, [
+            AutomationFlow::TRIGGER_INBOX_FIRST_MESSAGE,
+            AutomationFlow::TRIGGER_INBOX_KEYWORD,
+        ], $body)->isNotEmpty();
+        if ($flowMatch) {
+            return true;
+        }
+
+        $ctx = ['inbound_body' => $body];
+
+        return $this->autoReply->matches($conv, AutoReplyRule::TRIGGER_FIRST_MESSAGE, $ctx)
+            || $this->autoReply->matches($conv, AutoReplyRule::TRIGGER_KEYWORD, $ctx);
     }
 
     private function hasAiFeature(int $tenantId): bool

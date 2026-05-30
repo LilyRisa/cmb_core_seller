@@ -138,14 +138,16 @@ class MessagingAutoModeTest extends TestCase
             && $req->hasHeader('Authorization', 'Bearer secret-key'));
     }
 
-    public function test_settings_accepts_auto_mode(): void
+    public function test_settings_accepts_split_auto_mode(): void
     {
         $this->actingAs($this->owner)->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
             ->patchJson('/api/v1/messaging/settings', [
-                'ai_provider_code' => 'manual', 'ai_enabled' => true, 'auto_mode' => true,
+                'ai_provider_code' => 'manual', 'ai_enabled' => true,
+                'auto_mode_marketplace' => true, 'auto_mode_facebook' => false,
             ])
             ->assertOk()
-            ->assertJsonPath('data.auto_mode', true)
+            ->assertJsonPath('data.auto_mode_marketplace', true)
+            ->assertJsonPath('data.auto_mode_facebook', false)
             ->assertJsonPath('data.ai_provider_code', 'manual');
     }
 }
