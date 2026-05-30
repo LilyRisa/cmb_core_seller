@@ -164,22 +164,21 @@ x-app-env: &app-env
   MESSAGING_MAX_VIDEO_MB: ${MESSAGING_MAX_VIDEO_MB:-100}
   MESSAGING_MAX_FILE_MB: ${MESSAGING_MAX_FILE_MB:-25}
   # --- Trợ lý trợ giúp sản phẩm (SPEC-0028) — RAG hỏi-đáp cách dùng + Hỏi CSKH ---
-  # Qdrant (service `qdrant`) + AI provider RIÊNG cho support BẬT MẶC ĐỊNH. Chỉ cần điền
-  # HELP_ASSISTANT_API_KEY (key OpenAI-compatible CÓ embedding) ⇒ row `ai_providers` code
-  # `support` tự seed khi chạy `php artisan help:index`. Bỏ trống key ⇒ widget chạy keyword.
-  # ⚠️ HELP_ASSISTANT_API_KEY là BÍ MẬT — nhập ở Portainer/.env, KHÔNG để default.
+  # Trợ lý "Hỏi AI" (module Support) — credentials RIÊNG, TỰ CHỨA (không dùng ai_providers).
+  # CHAT và EMBEDDING tách độc lập: chat có thể là OpenRouter (không có embeddings), embedding
+  # trỏ nguồn khác (OpenAI...). Có thể cấu hình ở /admin/ai-support thay cho env (DB ghi đè env).
+  # ⚠️ *_API_KEY là BÍ MẬT — nhập ở Portainer/.env, KHÔNG để default. Bỏ trống ⇒ keyword.
   # Sau deploy chạy 1 lần: docker compose -f docker-compose.prod.yml exec app php artisan help:index
   QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
   QDRANT_API_KEY: ${QDRANT_API_KEY:-}
-  HELP_ASSISTANT_PROVIDER: ${HELP_ASSISTANT_PROVIDER:-support}
+  # Chat (sinh câu trả lời) — base_url GỐC host, KHÔNG kèm /v1.
+  HELP_ASSISTANT_BASE_URL: ${HELP_ASSISTANT_BASE_URL:-}
   HELP_ASSISTANT_API_KEY: ${HELP_ASSISTANT_API_KEY:-}
-  HELP_ASSISTANT_BASE_URL: ${HELP_ASSISTANT_BASE_URL:-https://api.openai.com}
-  HELP_ASSISTANT_MODEL: ${HELP_ASSISTANT_MODEL:-gpt-4o-mini}
+  HELP_ASSISTANT_MODEL: ${HELP_ASSISTANT_MODEL:-}
+  # Embedding (tạo vector RAG) — bỏ trống base_url ⇒ tắt vector, chạy keyword.
+  HELP_ASSISTANT_EMBEDDING_BASE_URL: ${HELP_ASSISTANT_EMBEDDING_BASE_URL:-}
+  HELP_ASSISTANT_EMBEDDING_API_KEY: ${HELP_ASSISTANT_EMBEDDING_API_KEY:-}
   HELP_ASSISTANT_EMBEDDING_MODEL: ${HELP_ASSISTANT_EMBEDDING_MODEL:-text-embedding-3-small}
-  # Provider embedding RIÊNG (tùy chọn) — đặt khi provider chat KHÔNG có embeddings API
-  # (vd OpenRouter): chat dùng provider chính, embedding dùng code provider khác (đã tạo ở
-  # /admin/ai-providers). Bỏ trống ⇒ dùng chung provider chat. Cấu hình ở /admin/ai-support.
-  HELP_ASSISTANT_EMBEDDING_PROVIDER: ${HELP_ASSISTANT_EMBEDDING_PROVIDER:-}
 
 services:
   app:                                # php-fpm

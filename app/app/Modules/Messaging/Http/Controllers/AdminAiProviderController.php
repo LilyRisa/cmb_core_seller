@@ -171,7 +171,7 @@ class AdminAiProviderController extends Controller
         }
 
         if ($connector->supports('embedding')) {
-            $embModel = (string) system_setting('help_assistant.embedding_model', config('support.assistant.embedding_model', 'text-embedding-3-small'));
+            $embModel = (string) system_setting('help_assistant.embedding_model', config('support.assistant.embedding.model', 'text-embedding-3-small'));
             $results['embedding'] = $this->probe(function () use ($connector, $code, $embModel) {
                 $dto = $connector->embed(new AiContext(tenantId: 0, providerCode: $code, meta: ['embedding_model' => $embModel]), 'hello');
 

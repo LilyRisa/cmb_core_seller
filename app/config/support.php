@@ -22,24 +22,26 @@ return [
     ],
 
     'assistant' => [
-        // Code AI provider RIÊNG cho Support (tách hẳn provider messaging của tenant).
-        // BẬT MẶC ĐỊNH = 'support'; row `ai_providers` tương ứng được TỰ provision từ env
-        // bên dưới khi có `HELP_ASSISTANT_API_KEY` (xem SupportProviderProvisioner).
-        'provider_code' => env('HELP_ASSISTANT_PROVIDER', 'support'),
-        // Provider RIÊNG cho embedding (RAG). Rỗng ⇒ dùng chung `provider_code`.
-        // Cần khi provider chat không có embeddings API (vd OpenRouter).
-        'embedding_provider_code' => env('HELP_ASSISTANT_EMBEDDING_PROVIDER', ''),
-        'embedding_model' => env('HELP_ASSISTANT_EMBEDDING_MODEL', 'text-embedding-3-small'),
-        // Dimension mặc định cho text-embedding-3-small (tạo collection khi chưa probe được).
-        'embedding_dim' => (int) env('HELP_ASSISTANT_EMBEDDING_DIM', 1536),
         'top_k' => 5,
         'max_tokens' => 700,
+        // Dimension mặc định (tạo Qdrant collection khi chưa probe được vector thật).
+        'embedding_dim' => (int) env('HELP_ASSISTANT_EMBEDDING_DIM', 1536),
 
-        // Credential cho provider Support tự provision (adapter openai_compatible).
-        // CHỈ tạo/cập nhật row khi `api_key` có giá trị — không thì widget chạy keyword.
-        'api_key' => env('HELP_ASSISTANT_API_KEY', ''),
-        'base_url' => env('HELP_ASSISTANT_BASE_URL', 'https://api.openai.com'),
-        'chat_model' => env('HELP_ASSISTANT_MODEL', 'gpt-4o-mini'),
+        // Credentials RIÊNG cho Support — TỰ CHỨA, KHÔNG dùng bảng `ai_providers`/registry.
+        // CHAT (sinh câu trả lời) — OpenAI-compatible (OpenRouter/OpenAI/...).
+        //   base_url = GỐC host, KHÔNG kèm /v1 (client tự thêm /v1/chat/completions).
+        'chat' => [
+            'base_url' => env('HELP_ASSISTANT_BASE_URL', ''),
+            'api_key' => env('HELP_ASSISTANT_API_KEY', ''),
+            'model' => env('HELP_ASSISTANT_MODEL', ''),
+        ],
+        // EMBEDDING (tạo vector RAG) — TÁCH RIÊNG vì provider chat (vd OpenRouter)
+        //   thường KHÔNG có /v1/embeddings. Để trống ⇒ tắt vector, chạy keyword.
+        'embedding' => [
+            'base_url' => env('HELP_ASSISTANT_EMBEDDING_BASE_URL', ''),
+            'api_key' => env('HELP_ASSISTANT_EMBEDDING_API_KEY', ''),
+            'model' => env('HELP_ASSISTANT_EMBEDDING_MODEL', 'text-embedding-3-small'),
+        ],
     ],
 
     // Đường dẫn thư mục chứa rag_chunks.jsonl.

@@ -1,263 +1,261 @@
 # Quy tắc nghiệp vụ & Logic (Business Rules)
 
-> Mọi quy tắc dưới đây trích từ enum/spec/code thực tế. Tiền = **số nguyên VND**. Nhãn người dùng = tiếng Việt.
+> Giải thích cách hệ thống hoạt động bằng ngôn ngữ dễ hiểu. Tiền = **số nguyên đồng**. Nhãn hiển thị bằng tiếng Việt. Khi chỉ đường, dùng tên menu/nút (không dùng đường dẫn URL).
 
 ---
 
-## 1. Máy trạng thái đơn hàng (Order Status)
+## 1. Trạng thái đơn hàng
 
-Mỗi đơn lưu `status` (mã chuẩn tiếng Anh) + `raw_status` (chuỗi gốc của sàn). Mỗi lần đổi trạng thái ghi 1 dòng `order_status_history`.
+Mỗi đơn có một trạng thái (nhãn tiếng Việt) và giữ kèm trạng thái gốc của sàn để đối chiếu khi cần. Mỗi lần đổi trạng thái đều được ghi lại lịch sử.
 
-### Các trạng thái chuẩn
+### Các trạng thái
 
-| Mã | Nhãn | Ý nghĩa |
-|---|---|---|
-| `unpaid` | Chờ thanh toán | Đã tạo, chưa thanh toán (đơn online chờ trả tiền) |
-| `pending` | Chờ xử lý | Đã thanh toán / xác nhận COD, **chưa in/sắp tem**. Bấm "Chuẩn bị hàng" để lấy tem |
-| `processing` | Đang xử lý | **Đã tạo/in vận đơn** — đang đóng gói + quét nội bộ |
-| `ready_to_ship` | Chờ bàn giao | **Đã gói + quét** — chỉ đến được qua **thao tác nội bộ** (`markPacked`), không từ raw_status sàn |
-| `shipped` | Đang vận chuyển | Đã bàn giao ĐVVC / đang vận chuyển |
-| `delivered` | Đã giao | Đã giao tới người nhận |
-| `completed` | Hoàn tất | Qua hạn khiếu nại / đã đối soát. **Kết thúc** |
-| `delivery_failed` | Giao thất bại | Giao hỏng, chờ giao lại |
-| `returning` | Đang trả/hoàn | Đang xử lý trả/hoàn |
-| `returned_refunded` | Đã trả/hoàn | Đã hoàn tiền và/hoặc nhận lại hàng. **Kết thúc** |
-| `cancelled` | Đã huỷ | Huỷ trước khi giao. **Kết thúc** |
+| Nhãn | Ý nghĩa |
+|---|---|
+| Chờ thanh toán | Đã tạo, chưa thanh toán (đơn online chờ trả tiền) |
+| Chờ xử lý | Đã thanh toán / xác nhận COD, **chưa lấy tem**. Bấm **Chuẩn bị hàng** để lấy tem |
+| Đang xử lý | **Đã tạo/in vận đơn** — đang đóng gói + quét nội bộ |
+| Chờ bàn giao | **Đã gói + quét** — chỉ tới được qua thao tác nội bộ |
+| Đang vận chuyển | Đã bàn giao đơn vị vận chuyển / đang đi đường |
+| Đã giao | Đã giao tới người nhận |
+| Hoàn tất | Qua hạn khiếu nại / đã đối soát. **Kết thúc** |
+| Giao thất bại | Giao hỏng, chờ giao lại |
+| Đang trả/hoàn | Đang xử lý trả/hoàn |
+| Đã trả/hoàn | Đã hoàn tiền và/hoặc nhận lại hàng. **Kết thúc** |
+| Đã huỷ | Huỷ trước khi giao. **Kết thúc** |
 
-Cờ phụ ngoài chuỗi: `payment_status` (`unpaid/paid/refunded/partial_refund`), `is_split` (đơn tách nhiều kiện), `has_issue` (đơn có vấn đề).
+Cờ phụ: tình trạng thanh toán (chưa trả / đã trả / đã hoàn / hoàn một phần), đơn tách nhiều kiện, và **đơn có vấn đề**.
 
-### Chuyển trạng thái hợp lệ (người dùng)
+### Các bước chuyển hợp lệ (do người dùng)
 
 ```
-unpaid        → pending, cancelled
-pending       → processing, ready_to_ship, cancelled
-processing    → ready_to_ship, cancelled
-ready_to_ship → shipped, cancelled
-shipped       → delivered, delivery_failed, returning
-delivery_failed → shipped, returning, cancelled
-delivered     → completed, returning
-completed     → returning
-returning     → returned_refunded
-returned_refunded → (kết thúc)     cancelled → (kết thúc)
+Chờ thanh toán   → Chờ xử lý, Đã huỷ
+Chờ xử lý        → Đang xử lý, Chờ bàn giao, Đã huỷ
+Đang xử lý       → Chờ bàn giao, Đã huỷ
+Chờ bàn giao     → Đang vận chuyển, Đã huỷ
+Đang vận chuyển  → Đã giao, Giao thất bại, Đang trả/hoàn
+Giao thất bại    → Đang vận chuyển, Đang trả/hoàn, Đã huỷ
+Đã giao          → Hoàn tất, Đang trả/hoàn
+Hoàn tất         → Đang trả/hoàn
+Đang trả/hoàn    → Đã trả/hoàn
 ```
 
 ### Quy tắc
 
-- **Dữ liệu sàn là nguồn sự thật**: cập nhật từ sàn **không** bị chặn bởi luật chuyển; luôn được ghi nhận. Nếu sàn báo lùi bất thường (lùi ≥2 bậc, hoặc lùi khỏi trạng thái kết thúc, vd `completed → processing`) → set `has_issue`.
-- **Chuyển do người dùng** phải theo cạnh hợp lệ; sai → từ chối. Người dùng **không** tự đổi trạng thái lõi của đơn sàn (chỉ tag/note), trừ các bước sàn cho phép (xác nhận đơn, tạo vận đơn) — các bước này gọi API sàn trước.
-- **Idempotent**: đặt lại đúng trạng thái cũ = không làm gì (không thêm history).
-- `pending → processing` khi bấm **"Chuẩn bị hàng"** (tạo vận đơn / lấy tem) — **bị chặn nếu có SKU âm kho** (`∑on_hand − ∑reserved < 0`).
-- `processing → ready_to_ship` chỉ qua thao tác nội bộ "đã gói & quét đơn". `→ shipped` (trừ tồn) khi bàn giao thực / ĐVVC lấy hàng.
-- `completed` chỉ set khi sàn báo hoàn tất (hoặc theo ngưỡng thời gian) — không tự nhảy từ `delivered`.
-- Mỗi connector sàn có `XStatusMap` riêng — **nơi duy nhất** chứa chuỗi raw_status của sàn đó (vd TikTok `AWAITING_SHIPMENT → pending`, `AWAITING_COLLECTION → processing`, `IN_TRANSIT → shipped`).
+- **Dữ liệu sàn là nguồn chuẩn**: cập nhật từ sàn luôn được ghi nhận. Nếu sàn báo lùi trạng thái một cách bất thường (lùi nhiều bậc, hoặc lùi khỏi trạng thái đã kết thúc), đơn được gắn cờ **đơn có vấn đề** để bạn kiểm tra.
+- **Thao tác người dùng** phải theo bước hợp lệ. Người dùng **không** tự đổi trạng thái lõi của đơn sàn (chỉ gắn thẻ/ghi chú), trừ các bước sàn cho phép (xác nhận đơn, tạo vận đơn) — các bước này báo sàn trước.
+- Đặt lại đúng trạng thái cũ = không làm gì (không ghi lịch sử thừa).
+- **Chờ xử lý → Đang xử lý** khi bấm **Chuẩn bị hàng** — **bị chặn nếu có mã hàng âm kho**.
+- **Đang vận chuyển** (thời điểm trừ tồn) xảy ra khi bàn giao thực / đơn vị vận chuyển lấy hàng.
+- **Hoàn tất** chỉ đặt khi sàn báo hoàn tất — không tự nhảy từ Đã giao.
 
 ---
 
 ## 2. Tồn kho
 
-**Bất biến cốt lõi: SKU gốc là nguồn sự thật duy nhất của tồn.** Listing sàn chỉ "soi" SKU gốc đã ghép. Mỗi thay đổi tồn ghi 1 dòng `inventory_movements` bất biến. Đẩy tồn lên sàn là hệ quả tự động (debounce + lock).
+**Nguyên tắc cốt lõi: mã sản phẩm trong kho (SKU) là nguồn tồn chuẩn duy nhất.** Sản phẩm rao trên sàn chỉ "soi" theo mã đã ghép. Mỗi thay đổi tồn đều được ghi lại đầy đủ. Đẩy tồn lên sàn là hệ quả tự động.
 
 ### Khái niệm
 
-- **SKU gốc** (`skus`): đơn vị tồn nhỏ nhất, `sku_code` duy nhất theo tenant.
-- **Tồn theo kho** (`inventory_levels`, khoá `(sku_id, warehouse_id)`): `on_hand`, `reserved`, `safety_stock`; **`available = max(0, on_hand − reserved − safety_stock)`** — đây là số đẩy lên sàn.
-- **Ghép SKU** (`sku_mappings`): nối `channel_listing` ↔ một/nhiều SKU gốc với `quantity` + `type`:
-  - `single`: 1 listing ↔ 1 SKU (qty thường 1, N cho "lốc N").
-  - `bundle`/combo: 1 listing ↔ nhiều SKU; tồn listing = `min(floor(available(sku_i)/quantity_i))`.
-  - Một SKU gốc có thể đứng sau nhiều listing ⇒ đồng bộ chéo sàn.
+- **Mã sản phẩm (SKU)**: đơn vị tồn nhỏ nhất, mã duy nhất trong mỗi nhà bán.
+- **Tồn theo kho**: gồm **Tồn thực**, **Đang giữ** và **Tồn an toàn**; **Tồn khả dụng = Tồn thực − Đang giữ − Tồn an toàn** (không nhỏ hơn 0) — đây là số đẩy lên sàn.
+- **Ghép SKU**: nối sản phẩm trên sàn với một/nhiều mã trong kho kèm số lượng:
+  - **Ghép đơn**: 1 sản phẩm sàn ↔ 1 mã (số lượng thường 1, hoặc N cho "lốc N").
+  - **Combo**: 1 sản phẩm sàn ↔ nhiều mã; tồn của sản phẩm sàn = số combo đóng được ít nhất từ các thành phần.
+  - Một mã có thể đứng sau nhiều sản phẩm ⇒ đồng bộ tồn chéo các sàn.
 
 ### Tự khớp & chưa ghép
 
-- Listing đồng bộ về mà chưa ghép → "Chưa ghép SKU".
-- **Tự khớp**: nếu `channel_listing.seller_sku` = `skus.sku_code` (chuẩn hoá: trim/hoa/bỏ space) ⇒ gợi ý `single × 1`.
-- **Listing chưa ghép KHÔNG đẩy tồn**; đơn của listing chưa ghép có `order_item.sku_id = null` và bị `has_issue` ("đơn có SKU chưa ghép").
+- Sản phẩm sàn mới đồng bộ về mà chưa ghép → nhóm **Chưa ghép SKU**.
+- **Tự khớp**: nếu mã người bán đặt trên sàn trùng mã trong kho (sau khi chuẩn hoá) ⇒ gợi ý ghép đơn số lượng 1.
+- **Sản phẩm chưa ghép KHÔNG đẩy tồn**; đơn của nó bị gắn cờ **đơn có vấn đề** (có sản phẩm chưa ghép).
 
 ### Vòng đời biến động tồn
 
-| Sự kiện | Tác động (mỗi dòng đơn có sku_id) | Loại |
-|---|---|---|
-| Đơn vào `pending`/`processing` | `reserved += qty` | `order_reserve` |
-| `cancelled`/`returned_refunded` **trước** `shipped` | `reserved −= qty` | `order_release` |
-| Đơn vào `shipped` | `reserved −= qty`, `on_hand −= qty` | `order_ship` |
-| `returned_refunded` **sau** `shipped`, hàng về | `on_hand += qty` | `return_in` |
-| Nhận hàng PO | `on_hand += qty` (+ tạo `cost_layers`) | `goods_receipt` |
-| Chuyển kho | `−q` ở A, `+q` ở B | `transfer_out`/`transfer_in` |
-| Kiểm kê lệch | điều chỉnh về thực tế | `stocktake_adjust` |
-| Điều chỉnh tay | theo người dùng | `manual_adjust` |
+| Sự kiện | Tác động (mỗi dòng đơn có mã sản phẩm) |
+|---|---|
+| Đơn vào Chờ xử lý / Đang xử lý | Đang giữ tăng |
+| Huỷ / hoàn **trước** khi giao | Đang giữ giảm (nhả) |
+| Đơn vào Đang vận chuyển | Đang giữ giảm, Tồn thực giảm |
+| Hoàn **sau** khi giao, hàng về kho | Tồn thực tăng |
+| Nhận hàng từ nhà cung cấp | Tồn thực tăng + tạo lớp giá vốn |
+| Chuyển kho | Giảm ở kho đi, tăng ở kho đến |
+| Kiểm kê lệch | Điều chỉnh về thực tế |
+| Điều chỉnh tay | Theo người dùng |
 
-- **Chống bán âm**: đọc-sửa-ghi trong transaction + khoá dòng (hoặc lock phân tán theo `sku_id`). Nếu thiếu khi đặt giữ (oversold ở sàn), đơn vẫn được giữ (đơn thật), tồn có thể âm tạm thời, cảnh báo "âm kho", và **tồn đẩy lên sàn = 0**.
-- **Combo**: đặt giữ/xuất ảnh hưởng **mọi** SKU thành phần × quantity.
-- Mỗi biến động ghi `balance_after` để audit.
+- **Chống bán âm**: hệ thống khoá khi cập nhật để hai người thao tác cùng lúc không sai số. Nếu sàn lỡ bán quá tay (thiếu hàng), đơn vẫn được giữ (đơn thật), tồn có thể âm tạm thời kèm cảnh báo, và số đẩy lên sàn = 0.
+- **Combo**: giữ/xuất ảnh hưởng **mọi** mã thành phần theo số lượng.
+- Mỗi biến động đều lưu lại để tra cứu.
 
 ### Đẩy tồn lên sàn
 
-`InventoryChanged` → debounce `PushStockForSku` (~5–15s) → tính `channel_stock` mong muốn (single = `floor(available/qty)`; bundle = min thành phần) → nếu khác thì `PushStockToListing` (throttle theo provider+shop) gọi `connector.updateStock`. Trừ safety_stock trước khi đẩy; listing có thể "ghim" (không tự đẩy); reverse-sync định kỳ so tồn thực với sàn và **cảnh báo + đẩy lại nhưng không ghi đè SKU gốc**.
+Khi tồn đổi, hệ thống gom các thay đổi gần nhau (khoảng 5–15 giây) rồi tính tồn khả dụng và đẩy lên từng sản phẩm trên sàn (ghép đơn = chia theo số lượng; combo = số đóng được ít nhất). Tồn an toàn đã trừ trước khi đẩy. Có thể **ghim tồn** một sản phẩm để không tự đẩy. Định kỳ hệ thống đối chiếu tồn thực trên sàn, cảnh báo và đẩy lại khi lệch nhưng **không ghi đè kho** (kho luôn là chuẩn).
 
-### Giá vốn FIFO (COGS)
+### Giá vốn nhập trước xuất trước (FIFO)
 
-- Mỗi `goods_receipt` xác nhận tạo 1 `cost_layers` (idempotent).
-- Khi `order_ship`, tiêu thụ lớp FIFO (cũ nhất trước) và ghi 1 dòng `order_costs` **bất biến** (1-1 với `order_item`) gồm `cogs_total`, `cogs_unit_avg`, `layers_used`. Thiếu lớp FIFO ⇒ lớp tổng hợp dùng `Sku::effectiveCost()` (`average|latest`), gắn cờ `synthetic=true`.
-- Lợi nhuận đọc COGS từ `order_costs` cho đơn đã ship (`cost_source: fifo`); đơn chưa ship dùng ước tính (`cost_source: estimate`).
+- Mỗi lần nhận hàng tạo một **lớp giá vốn** (số lượng + giá nhập).
+- Khi đơn được giao, hệ thống tiêu thụ các lớp theo nhập trước xuất trước và **chốt** giá vốn vào đơn (cố định, không đổi về sau).
+- Thiếu lớp giá vốn ⇒ dùng giá vốn ước tính (bình quân hoặc mới nhất) và đánh dấu là ước tính.
+- Lợi nhuận của đơn đã giao dùng giá vốn thật đã chốt; đơn chưa giao dùng ước tính.
 
 ---
 
-## 3. Gói thuê bao (Billing)
+## 3. Gói thuê bao
 
-### 4 gói (giá VND; yearly = 10× monthly)
+### 4 gói (giá VND; năm = 10 tháng)
 
-| Gói | Tháng | Năm | Số gian hàng | Tính năng |
+| Gói | Tháng | Năm | Gian hàng | Tính năng |
 |---|---|---|---|---|
-| `trial` (Dùng thử) | 0 | 0 | 2 | 14 ngày, như starter |
-| `starter` | 99.000 | 990.000 | 2 | cơ bản |
-| `pro` | 199.000 | 1.990.000 | 5 | + procurement, fifo_cogs, profit_reports, finance_settlements, demand_planning, accounting_basic, messaging_inbox |
-| `business` | 399.000 | 3.990.000 | 10 | + mass_listing, automation_rules, accounting_advanced, messaging_ai, priority_support |
+| Dùng thử | 0 | 0 | 2 | 14 ngày, như Starter |
+| Starter | 99.000 | 990.000 | 2 | cơ bản |
+| Pro | 199.000 | 1.990.000 | 5 | + mua hàng, giá vốn FIFO, báo cáo lợi nhuận, đối soát, đề xuất nhập, kế toán cơ bản, hộp thư tin nhắn |
+| Business | 399.000 | 3.990.000 | 10 | + đăng bán hàng loạt, kịch bản tự động, kế toán nâng cao, AI tự trả lời, hỗ trợ ưu tiên |
 
-`max_channel_accounts = -1` ⇒ không giới hạn. **Không giới hạn số đơn** — gói chỉ khác ở số gian hàng + tính năng nâng cao. Enterprise (>10 shop) do admin tạo tay.
+**Không giới hạn số đơn** — gói chỉ khác ở số gian hàng + tính năng nâng cao. Khách cần hơn 10 gian hàng thì liên hệ CMBcoreSeller mở riêng.
 
-### Máy trạng thái subscription
+### Vòng đời gói
 
 ```
-trialing → active (đã trả) | expired (hết hạn dùng thử chưa trả)
-active   → past_due (hết kỳ chưa trả) | cancelled (user huỷ) | active (gia hạn)
-past_due → active (đã trả) | expired (sau 7 ngày grace)
-cancelled → expired (sau cancel_at)
-expired  → kết thúc — tự tạo subscription trial MỚI, active, vĩnh viễn
+Đang dùng thử → Đang hoạt động (đã trả) | Hết hạn (hết dùng thử chưa trả)
+Đang hoạt động → Quá hạn thanh toán | Đã huỷ | gia hạn tiếp
+Quá hạn        → Đang hoạt động (đã trả) | Hết hạn (sau 7 ngày gia hạn)
+Hết hạn        → tự về gói Dùng thử miễn phí vĩnh viễn
 ```
 
-- Tenant mới ⇒ `TenantCreated` ⇒ tạo `trialing`, `trial_ends_at = +14 ngày`.
-- **Grace = 7 ngày.** `past_due` quá 7 ngày ⇒ `expired` + tự rơi về trial miễn phí vĩnh viễn. **Dữ liệu không bao giờ bị khoá** — chỉ mất tính năng nâng cao + gian hàng dư.
-- **Huỷ**: `cancel_at = hết kỳ hiện tại` (dùng hết kỳ, không hoàn tiền).
-- **Nâng cấp giữa kỳ**: v1 không proration — hoá đơn full mới, sub cũ `cancel_at`. Hạ xuống gói trả phí thấp hơn ⇒ `422 DOWNGRADE_NOT_ALLOWED`. Đang ở gói cao hơn cùng chu kỳ ⇒ `422 ALREADY_ON_PLAN`.
+- Nhà bán mới tự có 14 ngày dùng thử.
+- **Gia hạn (grace) = 7 ngày.** Quá hạn quá 7 ngày ⇒ hết hạn + tự về dùng thử miễn phí vĩnh viễn. **Dữ liệu không bao giờ bị khoá** — chỉ mất tính năng nâng cao + gian hàng dư.
+- **Huỷ**: gói chạy hết kỳ hiện tại (không hoàn tiền).
+- **Nâng cấp giữa kỳ**: tạo hoá đơn mới, gói cũ chạy hết kỳ rồi đổi (chưa chia tiền theo ngày). Không hạ thẳng xuống gói trả phí thấp hơn; muốn xuống thì huỷ để về dùng thử.
 
-### Hạn mức & gating
+### Giới hạn
 
-- **Giới hạn gian hàng**: middleware chặn `POST .../connect` khi đủ hạn ⇒ `402 PLAN_LIMIT_REACHED`.
-- **Gating tính năng**: middleware trên route nâng cao ⇒ `402 PLAN_FEATURE_LOCKED`.
-- **Over-quota lock**: nếu vượt hạn gian hàng (vd hạ Pro→trial mà còn 5 shop), không tự ngắt; chỉ chặn kết nối mới + banner cảnh báo. Sau **2 ngày** vẫn vượt ⇒ `plan.over_quota_lock` chặn mọi POST/PATCH/DELETE (trừ `/billing`, `/auth`, và xoá gian hàng để thoát).
+- **Số gian hàng**: kết nối thêm khi đã đủ → hệ thống nhắc nâng gói.
+- **Tính năng nâng cao**: vào tính năng ngoài gói → nhắc nâng cấp.
+- **Vượt số gian hàng**: nếu sau khi hạ gói còn nhiều gian hàng hơn mức cho phép, hệ thống cho 2 ngày để gỡ bớt; quá hạn này thì tạm khoá các thao tác ghi (thêm/sửa/xoá) cho tới khi nâng gói hoặc bớt gian hàng — riêng thanh toán, đăng nhập và xoá gian hàng vẫn mở.
 
 ### Thanh toán
 
-Cổng: SePay (chuyển khoản qua webhook sao kê), VNPay (redirect + IPN HMAC-SHA512), MoMo (skeleton, ném `UnsupportedOperation`), manual. Idempotency: `payments` duy nhất `(gateway, external_ref)`; webhook khớp hoá đơn theo `reference = invoice.code`; trả thiếu ⇒ payment `succeeded` nhưng invoice vẫn `pending`; trả dư ⇒ ghi `payments.meta.overpay` (không tự hoàn). `InvoicePaid` ⇒ `ActivateSubscription`.
+Cổng: SePay (chuyển khoản qua VietQR), VNPay (chuyển hướng), MoMo (đang phát triển). Hệ thống nhận đúng hoá đơn theo nội dung chuyển khoản; trả thiếu thì hoá đơn chưa kích hoạt cho tới khi đủ; trả dư được ghi nhận, không tự hoàn. Trả đủ ⇒ kích hoạt gói.
 
 ---
 
-## 4. Hoàn & Hủy (Returns / After-sales)
+## 4. Hoàn & Hủy (sau bán)
 
-Yêu cầu sau bán là **resource riêng có trạng thái riêng**, không phải chuỗi trạng thái đơn. Lưu ở `order_returns`.
+Yêu cầu sau bán là mục **riêng có trạng thái riêng**, không phải trạng thái đơn.
 
-- **Trạng thái** (`AfterSalesStatus`): `requested` · `approved` · `rejected` · `processing` · `refunded` · `cancelled_request` · `closed`. `kind` ∈ `cancel | return | refund`.
-- **Đồng bộ kép**: poll (~15 phút, trạng thái mở, lookback mặc định 90 ngày) + webhook. **Webhook không bao giờ đủ** — luôn fetch lại chi tiết trước khi lưu.
-- **Dedupe**: duy nhất `(source, channel_account_id, external_return_id)`; bỏ qua nếu `source_updated_at` cũ hơn.
-- **Liên kết đơn**: khớp `order_id` theo `(source, channel_account_id, external_order_id)`; cho phép `order_id = null` nếu đơn gốc chưa đồng bộ (điền sau).
-- **Không** đụng tồn/tài chính trong spec này — chỉ lưu `refund_amount` để hiển thị và set cờ `has_return`/`has_issue`. Mặc định không đổi trạng thái đơn.
-- **Quyền**: xem = ai có quyền xem đơn; **Duyệt/Từ chối** = Owner/Admin/StaffOrder.
+- **Trạng thái**: chờ duyệt · đã duyệt · từ chối · đang xử lý · đã hoàn tiền · khách rút · đã đóng. Loại: hủy / trả hàng / hoàn tiền.
+- **Lấy dữ liệu hai chiều**: kiểm tra định kỳ (khoảng 15 phút, truy ngược 90 ngày) + tín hiệu từ sàn. Vì tín hiệu không đủ ⇒ luôn lấy lại chi tiết trước khi lưu.
+- **Không trùng**: mỗi yêu cầu nhận diện duy nhất; bỏ qua nếu bản cập nhật cũ hơn.
+- **Liên kết đơn**: nối với đơn gốc; cho phép để trống nếu đơn gốc chưa đồng bộ (nối sau).
+- **Hiện tại không tự đụng tồn/tài chính** — chỉ lưu số tiền hoàn để hiển thị và gắn cờ. Mặc định không đổi trạng thái đơn.
+- **Quyền**: xem = ai xem được đơn; **Duyệt/Từ chối** = Chủ sở hữu/Quản trị/NV xử lý đơn.
 
 ---
 
-## 5. Fulfillment (vận đơn, in, đóng gói)
+## 5. Xử lý & giao hàng
 
-### Trạng thái vận đơn (`shipments.status`)
+### Trạng thái vận đơn
 
-`pending → created (có tracking + label) → packed (đã gói) → picked_up (đã bàn giao) → in_transit → delivered | failed | returned | cancelled`.
+`chờ tạo → đã tạo (có mã + tem) → đã đóng gói → đã bàn giao → đang vận chuyển → đã giao | thất bại | đã trả | đã huỷ`.
 
-Đồng bộ ngược về đơn: `created`/`packed` ⇒ đơn `ready_to_ship`; `picked_up`/`in_transit` ⇒ `shipped`; `delivered` ⇒ `delivered`; `failed` ⇒ `delivery_failed`. **`packed` KHÔNG trừ tồn** (hàng còn trong kho) — trừ tồn ở bàn giao (`picked_up`, đơn `shipped`). Màn xử lý chia 3 chặng: `prepare` → `pack` → `handover`.
+Ảnh hưởng tới đơn: đã tạo/đã đóng gói ⇒ đơn Chờ bàn giao; đã bàn giao/đang vận chuyển ⇒ đơn Đang vận chuyển; đã giao ⇒ đơn Đã giao; thất bại ⇒ Giao thất bại. **"Đã đóng gói" KHÔNG trừ tồn** (hàng còn trong kho) — trừ tồn ở bàn giao. Màn xử lý chia 3 chặng: chuẩn bị → đóng gói → bàn giao.
 
-### Hai luồng giao hàng
+### Hai cách giao hàng
 
-- **A — Logistics sàn**: `getShippingOptions` → `arrangeShipment` → `getShippingDocument` (PDF tem → MinIO). Một đơn có thể tách nhiều kiện ⇒ nhiều shipment, `order.is_split = true`.
-- **B — ĐVVC riêng** (`CarrierConnector`): GHN, GHTK, J&T; đơn thủ công dùng luồng này.
+- **Dùng dịch vụ của sàn**: hệ thống lấy phương án vận chuyển và tem từ sàn. Một đơn có thể tách nhiều kiện.
+- **Dùng đơn vị vận chuyển riêng** (GHN, GHTK, J&T...): đơn thủ công dùng cách này.
 
 ### In ấn
 
-- **Tem**: không bao giờ vẽ lại tem của ĐVVC — dùng đúng PDF của họ (giữ nguyên barcode). In hàng loạt gộp PDF sắp theo carrier→đơn. A6 (nhiệt) / A4 (4-up).
-- **Phiếu lấy hàng** (gom **theo SKU** qua nhiều đơn) / **Phiếu đóng gói** (1 phiếu/đơn): tự render HTML → **Gotenberg** → PDF.
-- `print_count`/`last_printed_at` theo dõi in lại; từ lần in thứ 2 có popup xác nhận. File in giữ ~90 ngày, in lại trả **cùng file** qua signed URL.
+- **Tem**: không bao giờ vẽ lại tem của đơn vị vận chuyển — dùng đúng file gốc để giữ nguyên mã vạch. In hàng loạt gộp PDF sắp theo đơn vị vận chuyển → đơn. Khổ A6 (nhiệt) / A4 (4 tem/trang)...
+- **Phiếu lấy hàng** (gom theo mã sản phẩm qua nhiều đơn) / **Phiếu đóng gói** (mỗi đơn một phiếu): tự tạo file PDF.
+- Theo dõi số lần in; từ lần in thứ 2 có hỏi xác nhận. File in giữ ~90 ngày, in lại trả về **cùng file**.
 
-### Quét đóng gói / quét bàn giao
+### Quét đóng gói / bàn giao
 
-Quét barcode vận đơn → tìm shipment/đơn **trong tenant** → (tuỳ chọn) quét từng barcode SKU → đánh dấu `packed`/`picked_up`, đơn `→ shipped`, trừ tồm. Chặn nhầm tenant + quét trùng (quét lần 2 = no-op + thông báo). Điểm trừ tồn mặc định = khi `shipped`.
+Quét mã vạch vận đơn → tìm đúng đơn **trong nhà bán của bạn** → (tuỳ chọn) quét từng mã sản phẩm → đánh dấu đã gói/đã bàn giao. Chống nhầm nhà bán + chống quét trùng (quét lần 2 = bỏ qua + thông báo). Tồn bị trừ khi bàn giao (Đang vận chuyển).
 
 ### Cấu hình đáng chú ý
 
-- **Lazada `auto_rts_after_print`** (mỗi shop, mặc định tắt): khi đánh dấu in, tự gọi `markPacked` (đẩy `/order/rts`) → đơn sang `ready_to_ship` không cần bấm tay. Chỉ Lazada.
+- **Lazada — Tự động chuyển chờ bàn giao sau khi in** (mỗi shop, mặc định tắt): khi đánh dấu in, đơn tự sang Chờ bàn giao không cần bấm tay. Chỉ Lazada.
 
 ---
 
-## 6. Đối soát & Lợi nhuận (Finance)
+## 6. Đối soát & Lợi nhuận
 
-Thay % phí ước tính bằng **phí thực theo đơn** từ sao kê đối soát của sàn.
+Thay con số phí ước lượng bằng **phí thật theo từng đơn** từ bảng sao kê của sàn.
 
-- **10 loại phí chuẩn**: `revenue, commission, payment_fee, shipping_fee, shipping_subsidy, voucher_seller, voucher_platform, adjustment, refund, other`. Mỗi connector map mã phí thô của sàn về nhóm chuẩn.
-- **Quy ước dấu (góc người bán)**: dương = thu (revenue, shipping_subsidy, voucher_platform); âm = chi (commission, payment_fee, shipping_fee người bán chịu, voucher_seller).
-- **Kéo dữ liệu**: `fetchSettlements` (gated capability `finance.settlements`, feature-flag mặc định tắt; tắt ⇒ `422`). Upsert `settlements` + `settlement_lines`. **Idempotent**; `settlement_lines` bất biến.
-- **Đối soát**: khớp `settlement_lines.external_order_id → orders.external_order_id` trong cùng `(tenant, channel_account)` ⇒ điền `order_id`; settlement `reconciled` khi mọi dòng khớp.
-- **Lợi nhuận**: `grand_total − COGS(FIFO) − Σ phí đối soát − ship thực người bán chịu − giảm giá người bán − phí khác`. Đã đối soát dùng phí thực (`fee_source: settlement`); chưa thì ước tính. Gộp vào `profit_snapshots` (đơn/SKU/shop/ngày/tháng).
-- **Quyền**: `finance.view` + `finance.reconcile` = Owner/Admin/Accountant.
-
----
-
-## 7. Kế toán (Accounting — TT133)
-
-Sổ cái kép, hệ thống TK Việt Nam (DN nhỏ & vừa), **chỉ VND**, năm tài chính = năm dương lịch.
-
-- **Bất biến kép**: mỗi `journal_entries` có `Σ Nợ = Σ Có`, ≥2 dòng (ràng buộc DB); mỗi `journal_line` chỉ có 1 trong Nợ/Có > 0. Bút toán/dòng **bất biến** (không sửa/xoá — luật kế toán lưu 10 năm). Sửa = đảo + ghi lại.
-- **Hệ thống TK**: seed theo `ChartAccountsTT133Seeder` (~80 TK: 111/112, 131, 156, 331, 333/3331/33311, 511, 632, 642...). Tenant sửa tên/sắp xếp/active, thêm con; **không xoá** TK đã có phát sinh (`409 ACCOUNTING_ACCOUNT_IN_USE`).
-- **Khoá kỳ** (`fiscal_periods.status`): `open` → `closed` (ghi vào ⇒ `422 PERIOD_CLOSED`; đảo bút toán kỳ đã đóng nhảy sang kỳ mở kế) → `locked` (đã nộp/ký — không mở lại). Đóng kỳ chốt `account_balances` (số dư cuối → số dư đầu kỳ sau).
-- **Tự định khoản (listener)**: nhận hàng → Nợ 156/Có 331; chuyển kho → Nợ 156(đến)/Có 156(đi); kiểm kê thừa → Nợ 156/Có 711, thiếu → Nợ 811/Có 156. Quy tắc ở `accounting_post_rules` (tenant sửa được); đổi không ảnh hưởng bút toán đã ghi. **Idempotency** qua `idempotency_key`.
-- **Quyền**: `accounting.view`/`post`/`close_period`/`config`/`export`. Gói `accounting_basic` (Pro/Business).
+- **10 nhóm phí chuẩn**: doanh thu, hoa hồng sàn, phí thanh toán, phí vận chuyển, trợ giá vận chuyển, voucher người bán, voucher sàn, điều chỉnh, hoàn tiền, phí khác.
+- **Quy ước dấu (góc người bán)**: dương = thu; âm = chi.
+- **Kéo dữ liệu**: cần gói có đối soát; nếu chưa bật thì hệ thống báo chưa dùng được. Chi tiết phí được lưu cố định.
+- **Đối soát**: hệ thống khớp từng dòng sao kê với đơn tương ứng; kỳ thành **đã đối soát** khi mọi dòng khớp.
+- **Lợi nhuận**: doanh thu − giá vốn − tổng phí từ sao kê − ship thực người bán chịu − giảm giá người bán − phí khác. Đã đối soát dùng phí thật; chưa thì ước tính.
+- **Quyền**: Chủ sở hữu/Quản trị/Kế toán.
 
 ---
 
-## 8. Tin nhắn (Messaging)
+## 7. Kế toán (Thông tư 133)
 
-Hộp thư hợp nhất tin khách từ TikTok/Shopee/Lazada/Facebook. Inbound = webhook + polling dự phòng (~≤10s webhook / ≤5 phút poll).
+Sổ kép, hệ thống tài khoản Việt Nam (doanh nghiệp nhỏ & vừa), **chỉ VND**, năm tài chính = năm dương lịch.
 
-### Auto-reply (4 trigger)
-
-- `schedule` (vd 22:00–08:00, tz Asia/Ho_Chi_Minh), `order_status` (vd `delivered` → cảm ơn, có delay), `away_no_response` (NV chưa trả lời sau N phút), `first_message` (chào, 1 lần/hội thoại).
-- **Chống spam**: `cooldown_seconds`/hội thoại (mặc định 3600); không auto-reply tin do AI sinh; `first_message` chỉ khi `message_count === 1`; `away_no_response` bỏ qua nếu schedule đã trả lời. Idempotency: `auto_reply_runs` duy nhất `(rule_id, conversation_id, window_key)`.
-
-### AI assistant — gating & rào chắn
-
-- Mặc định **chế độ gợi ý** (NV duyệt nháp); **auto-mode** opt-in theo tenant.
-- Auto-mode: `IntentClassifier` chạy trước; intent ∈ `{complaint, refund, urgent, legal_threat, abuse}` ⇒ **không gửi**, chỉ báo người thật.
-- AI **không bao giờ** gửi ngoài `MessageSendService` (luôn qua audit + window guard). Prompt gửi LLM đều qua `PiiRedactor` (SĐT/email/STK → placeholder). Token log vào `ai_assistant_runs`.
-- Gating: gói `messaging_inbox` (Pro+), `messaging_ai` (Business). AI provider do **super-admin** thêm; tenant chọn 1.
-
-### Facebook — cửa sổ 24h & message tag
-
-- Nếu tin khách cuối > 24h, chỉ tin có `message_tag` (CONFIRMED_EVENT_UPDATE / POST_PURCHASE_UPDATE / ACCOUNT_UPDATE / HUMAN_AGENT) được gửi; vi phạm ⇒ `422 OUTBOUND_WINDOW_CLOSED`.
-
-### Facebook comment — nhắn riêng 1 lần (SPEC-0027)
-
-- Facebook chỉ cho **nhắn riêng 1 lần/comment** (qua bất kỳ công cụ nào). Xử lý **idempotent**: lỗi `(#10900) Activity already replied to` được coi là "đã nhắn", **không** ném 500. Các mã `[10900, 10, 200, 551]` + subcode `2018278` (cửa sổ đóng/bị chặn) → coi như best-effort, không ném; lỗi khác (token, rate-limit) vẫn ném.
-- 1 message = text **HOẶC** 1 đính kèm. Modal nhắn riêng nhiều phần: phần đầu qua `recipient:{comment_id}` (lấy PSID), phần sau qua `recipient:{id:PSID}` + `MESSAGE_TAG(HUMAN_AGENT)` (best-effort — FE báo "đã gửi X/Y phần").
-- Hành động per-comment (chỉ Facebook): **Thích** (`POST /{comment_id}/likes`, cần `pages_manage_engagement`), **Nhắn riêng** (modal), **Xoá**. Lõi kiểm `instanceof CommentEngagementConnector` (tên năng lực, không phải tên sàn) — connector sàn không bị đụng.
-- Xoá comment **gốc** ⇒ `status=spam`; xoá comment **con** truyền `comment_id`.
-
-### Trạng thái hội thoại & liên kết
-
-- Hội thoại: `open → snoozed → open`; `open → resolved` (tin mới mở lại); `open → spam`. Tin: `pending → sent → delivered → read`, hoặc `pending → failed`.
-- Inbound: liên kết `customers` (theo phone hash) + đoán đơn gần đây (30 ngày, ưu tiên processing/shipped). Không ghi đè `customer_id` có sẵn.
+- **Sổ kép**: mỗi bút toán có tổng Nợ = tổng Có, ít nhất 2 dòng. Bút toán **cố định** (không sửa/xoá — luật kế toán lưu 10 năm). Sửa = ghi đảo + ghi lại.
+- **Hệ thống tài khoản**: tạo sẵn theo Thông tư 133 (khoảng 80 tài khoản: tiền mặt/ngân hàng, phải thu, hàng hoá, phải trả, thuế, doanh thu, giá vốn, chi phí quản lý...). Bạn được đổi tên/sắp xếp/bật-tắt, thêm tài khoản con; **không xoá** tài khoản đã phát sinh số liệu.
+- **Khoá kỳ**: Đang mở → Đã đóng (ghi vào sẽ bị từ chối; bút toán đảo của kỳ đã đóng rơi sang kỳ mở kế tiếp) → Đã khoá (đã nộp/ký — không mở lại). Đóng kỳ chốt số dư (cuối kỳ → đầu kỳ sau).
+- **Tự lên sổ**: nhận hàng → Nợ hàng hoá/Có phải trả người bán; chuyển kho → giữa hai tài khoản hàng hoá; kiểm kê thừa/thiếu → với tài khoản thu nhập/chi phí khác. Quy tắc sửa được ở **Cài đặt → Quy tắc hạch toán**; đổi không ảnh hưởng bút toán đã ghi.
+- **Quyền & gói**: cần gói kế toán cơ bản (Pro/Business).
 
 ---
 
-## 9. Bất biến chung & Validation
+## 8. Tin nhắn
 
-### Bất biến chung
-- **Cô lập tenant**: mọi bảng có `tenant_id`, global scope tự set; không truy vấn xuyên tenant.
-- **Tiền = số nguyên VND**; pennies dư từ phân bổ % dồn vào dòng cuối.
-- **Thời gian** API = ISO-8601 UTC; FE hiển thị Asia/Ho_Chi_Minh.
-- **Trạng thái** trả `code` + `status_label` + `raw_status`.
-- **Webhook không tin tưởng** ⇒ verify chữ ký (sai ⇒ 401, không lưu) + luôn có polling; luôn fetch lại chi tiết trước khi lưu.
-- **Job idempotent** — dedupe khoá duy nhất: đơn `(source, channel_account_id, external_order_id)`, tin `(conversation_id, external_message_id)`, payment `(gateway, external_ref)`, return `(source, channel_account_id, external_return_id)`, bút toán `(tenant_id, idempotency_key)`.
+Hộp thư hợp nhất gom tin khách từ TikTok/Shopee/Lazada/Facebook. Tin về qua tín hiệu tức thời + kiểm tra định kỳ dự phòng.
 
-### Validation đáng chú ý
-- **Tạo đơn thủ công**: `status` (nếu gửi) ∈ `pending, processing`; `items` 1–200 dòng; mỗi dòng phải có `sku_id` **hoặc** `name` (hàng nhanh); `quantity` 1–99.999; `unit_price`/`discount` 0–999.999.999 (VND). Khách tuỳ chọn; chỉ tạo `customers` khi có cả tên + SĐT. Dòng "hàng nhanh" (không SKU) không theo dõi tồn và **không** bị cờ "chưa ghép SKU".
-- **Sửa đơn thủ công**: chỉnh mọi thứ khi chưa `shipped`; gửi `items[]` thay toàn bộ dòng (xoá+chèn) → tồn cân bằng lại.
-- **Chống đơn trùng**: cảnh báo nếu cùng SĐT + cùng SKU trong khoảng thời gian ngắn.
-- **SKU**: `sku_code` duy nhất/tenant; xoá SKU còn tồn ⇒ `409`.
-- **Bút toán tay**: `Σ Nợ = Σ Có`, ≥2 dòng, TK hạch toán được, kỳ mở ⇒ else `422`.
-- **Đính kèm tin nhắn**: ảnh ≤25MB, video ≤100MB, file ≤25MB, MIME whitelist ⇒ else `422 ATTACHMENT_INVALID`.
+### Tự động trả lời (4 kiểu)
 
-> Xem mã lỗi & API trong [api-reference.md](api-reference.md), cách xử lý lỗi trong [troubleshooting.md](troubleshooting.md).
+- **Theo lịch** (vd 22:00–08:00, giờ Việt Nam), **theo trạng thái đơn** (vd Đã giao → cảm ơn, có độ trễ), **chưa trả lời sau N phút**, **tin đầu tiên** (lời chào, 1 lần/hội thoại).
+- **Chống spam**: thời gian nghỉ giữa hai lần trả lời cho cùng hội thoại (mặc định 1 giờ); không tự trả lời lên tin do AI sinh; lời chào chỉ chạy đúng lần đầu; "chưa trả lời sau N phút" bỏ qua nếu quy tắc theo lịch đã trả lời. Không gửi trùng trong cùng khung thời gian.
+
+### AI — an toàn & rào chắn
+
+- Mặc định **chế độ gợi ý** (nhân viên duyệt nháp); **chế độ tự gửi** là tuỳ chọn theo nhà bán.
+- Chế độ tự gửi: trước mỗi tin, AI phân loại ý định; nếu là khiếu nại / hoàn tiền / việc gấp / đe doạ pháp lý / lời lẽ thô tục ⇒ **không tự gửi**, chuyển người thật.
+- AI **không bao giờ** gửi theo đường vòng (luôn qua quy trình gửi chuẩn có nhật ký + kiểm tra cửa sổ gửi). Mọi nội dung gửi AI đều che thông tin nhạy cảm (số điện thoại/email/số tài khoản).
+- **Gói**: hộp thư (Pro+), AI tự trả lời (Business). Nhà cung cấp AI do đội vận hành thêm; nhà bán chọn 1.
+
+### Facebook — cửa sổ 24 giờ & thẻ tin nhắn
+
+- Nếu tin khách cuối đã quá 24 giờ, chỉ tin có **thẻ tin nhắn** hợp lệ (Xác nhận sự kiện / Sau mua hàng / Cập nhật tài khoản / Nhân viên) được gửi; cố gửi tin thường sẽ báo **quá hạn cửa sổ gửi**.
+
+### Facebook — nhắn riêng bình luận 1 lần
+
+- Facebook chỉ cho **nhắn riêng 1 lần/bình luận**. Báo "đã nhắn rồi" được xử lý nhẹ nhàng (coi như đã nhắn, không báo lỗi đỏ). Các trường hợp cửa sổ đóng/bị chặn cũng xử lý nhẹ; chỉ lỗi thật (khoá kết nối, quá tần suất) mới báo.
+- Một lần gửi chỉ kèm chữ **hoặc** một tệp. Cửa sổ nhắn riêng nhiều phần: phần đầu chắc chắn gửi (nhắn riêng), phần sau cố gắng hết sức (báo "đã gửi X/Y phần").
+- Thao tác trên từng bình luận (chỉ Facebook): **Thích** (cần Trang được cấp quyền tương tác), **Nhắn riêng**, **Xoá**.
+- Xoá bình luận **gốc** ⇒ hội thoại thành thư rác; xoá bình luận **con** chỉ xoá bình luận đó.
+
+### Trạng thái hội thoại
+
+- Hội thoại: mở → tạm ẩn → mở; mở → đã xử lý (tin mới mở lại); mở → thư rác. Tin: chờ gửi → đã gửi → đã nhận → đã xem, hoặc gửi lỗi.
+- Tin vào được nối với khách (theo số điện thoại) và gợi ý đơn gần đây. Không ghi đè khách đã có.
+
+---
+
+## 9. Nguyên tắc chung & Điều kiện nhập liệu
+
+### Nguyên tắc chung
+- **Tách biệt dữ liệu**: mỗi nhà bán độc lập, không truy cập chéo.
+- **Tiền = số nguyên đồng**; phần lẻ khi chia % dồn vào dòng cuối.
+- **Giờ** hiển thị theo Việt Nam.
+- **Trạng thái** hiển thị nhãn tiếng Việt + trạng thái gốc của sàn để đối chiếu.
+- **Dữ liệu sàn**: xác minh tín hiệu (sai thì bỏ) + luôn có kiểm tra định kỳ; luôn lấy lại chi tiết trước khi lưu.
+- **An toàn khi chạy lại**: đồng bộ lại không nhân đôi dữ liệu.
+
+### Điều kiện nhập liệu đáng chú ý
+- **Tạo đơn thủ công**: trạng thái khởi tạo chỉ Chờ xử lý hoặc Đang xử lý; 1–200 dòng; mỗi dòng phải chọn mã sản phẩm **hoặc** nhập tên hàng nhanh; số lượng 1–99.999; đơn giá/giảm 0–gần 1 tỷ. Chỉ tạo hồ sơ khách khi có cả tên + số điện thoại. Hàng nhanh (không có mã) không theo dõi tồn và **không** bị cờ chưa ghép SKU.
+- **Sửa đơn thủ công**: sửa mọi thứ khi chưa Đang vận chuyển; gửi lại danh sách hàng thay toàn bộ dòng → tồn cân bằng lại.
+- **Chống đơn trùng**: cảnh báo nếu cùng số điện thoại + cùng sản phẩm trong thời gian ngắn.
+- **Mã sản phẩm**: duy nhất trong nhà bán; xoá mã còn tồn thì bị từ chối (đưa tồn về 0 trước).
+- **Bút toán tay**: tổng Nợ = tổng Có, ít nhất 2 dòng, tài khoản ghi sổ được, kỳ đang mở.
+- **Đính kèm tin nhắn**: ảnh ≤ 25MB, video ≤ 100MB, file ≤ 25MB, đúng định dạng cho phép.
+
+> Xem cách hiểu các thông báo lỗi trong [troubleshooting.md](troubleshooting.md). Danh mục năng lực trong [what-the-system-does.md](what-the-system-does.md).

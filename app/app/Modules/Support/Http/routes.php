@@ -1,5 +1,6 @@
 <?php
 
+use CMBcoreSeller\Modules\Support\Http\Controllers\AdminSupportRequestController;
 use CMBcoreSeller\Modules\Support\Http\Controllers\HelpAssistantController;
 use CMBcoreSeller\Modules\Support\Http\Controllers\SupportRequestController;
 use Illuminate\Support\Facades\Route;
@@ -23,4 +24,14 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
         Route::get('requests', [SupportRequestController::class, 'index'])->name('support.requests.index');
         Route::post('requests', [SupportRequestController::class, 'store'])
             ->middleware('throttle:10,1')->name('support.requests.store');
+    });
+
+// --- Admin: xem & trả lời yêu cầu CSKH XUYÊN tenant (guard admin_web) ---------
+Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
+    ->prefix('api/v1/admin/support-requests')->group(function () {
+        Route::get('/', [AdminSupportRequestController::class, 'index'])->name('admin.support-requests.index');
+        Route::post('{id}/answer', [AdminSupportRequestController::class, 'answer'])
+            ->whereNumber('id')->name('admin.support-requests.answer');
+        Route::post('{id}/close', [AdminSupportRequestController::class, 'close'])
+            ->whereNumber('id')->name('admin.support-requests.close');
     });

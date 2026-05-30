@@ -17,18 +17,20 @@ class SystemSettingsCatalogTest extends TestCase
         $this->assertSame(['ai', 'branding', 'fulfillment', 'mail', 'marketplace', 'push', 'sync'], $groups);
     }
 
-    public function test_count_is_54(): void
+    public function test_count_is_57(): void
     {
-        // branding 5 + mail 8 + marketplace 11 + fulfillment 16 + sync 7 + push 3 + ai 4.
-        // ai 4 = system_prompt + help provider_code + embedding_provider_code + embedding_model.
-        $this->assertCount(54, SystemSettingsCatalog::all());
+        // branding 5 + mail 8 + marketplace 11 + fulfillment 16 + sync 7 + push 3 + ai 7.
+        // ai 7 = messaging system_prompt + help_assistant chat(base_url/api_key/model)
+        //        + help_assistant embedding(base_url/api_key/model).
+        $this->assertCount(57, SystemSettingsCatalog::all());
     }
 
-    public function test_secret_count_is_11(): void
+    public function test_secret_count_is_13(): void
     {
-        // mail.password + tiktok×2 + lazada×2 + shopee×3 + r2×2 + push.vapid_private_key.
+        // mail.password + tiktok×2 + lazada×2 + shopee×3 + r2×2 + push.vapid_private_key
+        // + help_assistant chat_api_key + help_assistant embedding_api_key.
         $secrets = collect(SystemSettingsCatalog::all())->where('is_secret', true)->keys()->all();
-        $this->assertCount(11, $secrets);
+        $this->assertCount(13, $secrets);
     }
 
     public function test_require_throws_on_unknown(): void

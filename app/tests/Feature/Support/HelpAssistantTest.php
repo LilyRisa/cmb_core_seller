@@ -6,7 +6,6 @@ use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
-use CMBcoreSeller\Modules\Messaging\Models\AiProvider;
 use CMBcoreSeller\Modules\Support\Models\HelpChunk;
 use CMBcoreSeller\Modules\Support\Services\QdrantClient;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
@@ -58,7 +57,7 @@ class HelpAssistantTest extends TestCase
 
     public function test_keyword_fallback_when_no_ai_provider_configured(): void
     {
-        config(['support.assistant.provider_code' => '', 'support.qdrant.url' => '']);
+        config(['support.assistant.chat.base_url' => '', 'support.assistant.embedding.base_url' => '', 'support.qdrant.url' => '']);
 
         $this->actingAs($this->actor())->withHeaders($this->h())
             ->postJson('/api/v1/support/assistant/ask', ['question' => 'Kết nối gian hàng TikTok ở đâu?'])
@@ -70,14 +69,14 @@ class HelpAssistantTest extends TestCase
 
     public function test_rag_happy_path_with_vector_and_llm(): void
     {
-        AiProvider::query()->create([
-            'code' => 'help-ai', 'adapter' => 'openai_compatible', 'display_name' => 'Help AI',
-            'api_key' => 'sk-test', 'base_url' => 'https://api.test', 'default_model' => 'gpt-test',
-            'is_active' => true, 'sort_order' => 0,
-        ]);
+        // Credentials Support RIÊNG (tự chứa) — chat + embedding cấu hình độc lập.
         config([
-            'support.assistant.provider_code' => 'help-ai',
-            'support.assistant.embedding_model' => 'text-embedding-3-small',
+            'support.assistant.chat.base_url' => 'https://chat.test',
+            'support.assistant.chat.api_key' => 'sk-chat',
+            'support.assistant.chat.model' => 'gpt-test',
+            'support.assistant.embedding.base_url' => 'https://emb.test',
+            'support.assistant.embedding.api_key' => 'sk-emb',
+            'support.assistant.embedding.model' => 'text-embedding-3-small',
             'support.qdrant.url' => 'http://qdrant:6333',
         ]);
         $this->app->forgetInstance(QdrantClient::class); // re-đọc config qdrant.url
@@ -101,12 +100,24 @@ class HelpAssistantTest extends TestCase
         Http::assertSent(fn ($req) => str_contains($req->url(), '/v1/embeddings'));
         Http::assertSent(fn ($req) => str_contains($req->url(), 'qdrant'));
         Http::assertSent(fn ($req) => str_contains($req->url(), '/v1/chat/completions'));
+
+        // System prompt phải mang quy tắc danh tính + chống khai thác (gửi tới LLM).
+        Http::assertSent(function ($req) {
+            if (! str_contains($req->url(), '/v1/chat/completions')) {
+                return false;
+            }
+            $system = (string) ($req->data()['messages'][0]['content'] ?? '');
+
+            return str_contains($system, 'CMB AI SUPPORT V1')
+                && str_contains($system, 'CMB CORE TEAM')
+                && str_contains($system, 'chưa có thông tin cập nhật');
+        });
     }
 
     public function test_no_docs_indexed_returns_friendly_message_not_500(): void
     {
         HelpChunk::query()->delete();
-        config(['support.assistant.provider_code' => '', 'support.qdrant.url' => '']);
+        config(['support.assistant.chat.base_url' => '', 'support.assistant.embedding.base_url' => '', 'support.qdrant.url' => '']);
 
         $this->actingAs($this->actor())->withHeaders($this->h())
             ->postJson('/api/v1/support/assistant/ask', ['question' => 'câu hỏi không có tài liệu'])

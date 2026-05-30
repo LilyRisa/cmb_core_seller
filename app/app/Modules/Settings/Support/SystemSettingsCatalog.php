@@ -259,27 +259,40 @@ class SystemSettingsCatalog
                 'description' => 'Chỉ dẫn bổ sung ghép vào SAU persona CSKH mặc định, áp cho MỌI AI provider khi sinh câu trả lời. '
                     .'KHÔNG áp cho bước phân loại ý định (giữ guardrail). Giới hạn 4096 byte (~1.500 ký tự tiếng Việt).',
             ],
-            // Trợ lý trợ giúp sản phẩm (SPEC-0028) — AI provider RIÊNG (không dùng provider messaging của tenant).
-            'help_assistant.provider_code' => [
+            // ── Trợ lý Hỏi AI (Support, SPEC-0028) — credentials RIÊNG, TỰ CHỨA ─
+            // KHÔNG dùng bảng ai_providers/registry. CHAT (sinh câu trả lời) + EMBEDDING
+            // (tạo vector RAG) cấu hình độc lập → chat=OpenRouter, embedding=OpenAI được.
+            // Cấu hình ở /admin/ai-support.
+            'help_assistant.chat_base_url' => [
                 'group' => 'ai', 'type' => 'string', 'is_secret' => false,
-                'env' => 'HELP_ASSISTANT_PROVIDER', 'label' => 'Trợ giúp (Hỏi AI) — nhà cung cấp AI',
-                'description' => 'Chọn 1 nhà cung cấp AI RIÊNG cho trợ lý Hỏi AI + index tài liệu (tách hẳn provider trả lời '
-                    .'tin nhắn của tenant). Ưu tiên provider CÓ embedding (RAG); không có ⇒ rớt về tìm kiếm từ khoá. '
-                    .'Chọn "Tắt" ⇒ widget chạy bằng tìm kiếm từ khoá (keyword).',
+                'env' => 'HELP_ASSISTANT_BASE_URL', 'label' => 'Hỏi AI — Chat: Base URL',
+                'description' => 'GỐC host OpenAI-compatible cho CHAT (vd https://openrouter.ai/api). KHÔNG kèm /v1.',
+            ],
+            'help_assistant.chat_api_key' => [
+                'group' => 'ai', 'type' => 'string', 'is_secret' => true,
+                'env' => 'HELP_ASSISTANT_API_KEY', 'label' => 'Hỏi AI — Chat: API key',
+                'description' => 'API key cho provider chat (mã hoá khi lưu).',
+            ],
+            'help_assistant.chat_model' => [
+                'group' => 'ai', 'type' => 'string', 'is_secret' => false,
+                'env' => 'HELP_ASSISTANT_MODEL', 'label' => 'Hỏi AI — Chat: Model',
+                'description' => 'Model chat (vd google/gemini-2.0-flash-lite-001 cho OpenRouter).',
+            ],
+            'help_assistant.embedding_base_url' => [
+                'group' => 'ai', 'type' => 'string', 'is_secret' => false,
+                'env' => 'HELP_ASSISTANT_EMBEDDING_BASE_URL', 'label' => 'Hỏi AI — Embedding: Base URL',
+                'description' => 'GỐC host cho EMBEDDING (vd https://api.openai.com). Để trống ⇒ tắt vector, chạy keyword. '
+                    .'OpenRouter KHÔNG có embeddings ⇒ dùng nguồn khác (OpenAI…).',
+            ],
+            'help_assistant.embedding_api_key' => [
+                'group' => 'ai', 'type' => 'string', 'is_secret' => true,
+                'env' => 'HELP_ASSISTANT_EMBEDDING_API_KEY', 'label' => 'Hỏi AI — Embedding: API key',
+                'description' => 'API key cho provider embedding (mã hoá khi lưu).',
             ],
             'help_assistant.embedding_model' => [
                 'group' => 'ai', 'type' => 'string', 'is_secret' => false,
-                'env' => 'HELP_ASSISTANT_EMBEDDING_MODEL', 'label' => 'Trợ giúp (Hỏi AI) — embedding model',
-                'description' => 'Model embedding (vd text-embedding-3-small) của provider embedding bên dưới. Đổi model ⇒ chạy lại `php artisan help:index --fresh`.',
-            ],
-            // Provider embedding RIÊNG cho Support — tách khỏi provider chat. Cần khi provider
-            // chat KHÔNG có embeddings API (vd OpenRouter): chat dùng OpenRouter, embedding dùng
-            // nguồn khác (OpenAI text-embedding-*). Để trống ⇒ dùng chung provider chat ở trên.
-            'help_assistant.embedding_provider_code' => [
-                'group' => 'ai', 'type' => 'string', 'is_secret' => false,
-                'env' => 'HELP_ASSISTANT_EMBEDDING_PROVIDER', 'label' => 'Trợ giúp (Hỏi AI) — provider embedding (riêng)',
-                'description' => 'Code 1 nhà cung cấp AI CÓ embedding, dùng RIÊNG cho bước tạo vector (RAG). '
-                    .'Để trống ⇒ dùng chung provider chat. Đặt khi provider chat không hỗ trợ embedding (vd OpenRouter).',
+                'env' => 'HELP_ASSISTANT_EMBEDDING_MODEL', 'label' => 'Hỏi AI — Embedding: Model',
+                'description' => 'Model embedding (vd text-embedding-3-small). Đổi model ⇒ chạy lại `php artisan help:index --fresh`.',
             ],
         ];
     }

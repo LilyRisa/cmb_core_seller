@@ -9,8 +9,9 @@ use Illuminate\Support\ServiceProvider;
 /**
  * Module Support — trợ lý trợ giúp sản phẩm (RAG hỏi-đáp cách dùng) + yêu cầu CSKH.
  *
- * Tự chứa: không sửa lớp AI (chỉ gọi qua AiAssistantRegistry) và không phụ thuộc ruột
- * module khác. help_chunks là GLOBAL; support_requests theo tenant.
+ * Tự chứa: AI dùng SupportAiClient riêng (credentials Support — KHÔNG đụng bảng
+ * ai_providers/registry messaging) và không phụ thuộc ruột module khác.
+ * help_chunks là GLOBAL; support_requests theo tenant.
  */
 class SupportServiceProvider extends ServiceProvider
 {

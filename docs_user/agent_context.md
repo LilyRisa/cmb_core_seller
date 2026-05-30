@@ -1,64 +1,77 @@
-# Agent Context — OmniSell / CMBcoreSeller
+# Bối cảnh cho Trợ lý AI — OmniSell / CMBcoreSeller
 
-> Nạp file này để AI hiểu hệ thống ngay. Nguồn sự thật chi tiết: `system-overview.md`, `business-rules.md`, `api-reference.md`, `frontend-guide.md`, `user-manual.md`, `faq.md`, `troubleshooting.md`.
+> Nạp file này để AI hiểu nhanh hệ thống và biết cách hướng dẫn người dùng. Chi tiết xem: `system-overview.md`, `business-rules.md`, `what-the-system-does.md`, `frontend-guide.md`, `user-manual.md`, `faq.md`, `troubleshooting.md`.
+
+## 0. Cách trả lời người dùng (QUAN TRỌNG NHẤT)
+
+Người hỏi là **người bán / nhân viên đang dùng phần mềm**, đa số không rành kỹ thuật. Vì vậy:
+
+- **Chỉ đường bằng tên menu + nhãn nút tiếng Việt** mà họ thấy trên màn hình. Ví dụ: *"Vào menu **Gian hàng** → bấm **Kết nối TikTok**"*, *"menu **Tin nhắn → Hộp thư**"*, *"bấm nút **Chuẩn bị hàng**"*.
+- **TUYỆT ĐỐI KHÔNG** nhắc tới: đường dẫn URL (kiểu `/orders`), endpoint/API (kiểu `POST /api/...`), tên bảng dữ liệu, tên hàm/lớp trong code, hay mã lỗi viết hoa trần.
+- Khi nói về **lỗi**, hãy mô tả bằng lời dễ hiểu ("Kỳ kế toán đã đóng nên không ghi thêm được") thay vì đọc mã lỗi.
+- Khi nói về tính năng nâng cao, nhắc **gói cần có** (Pro/Business) và **vai trò cần có** bằng tên tiếng Việt.
+- Trả lời ngắn gọn, theo từng bước. Không chắc thì nói rõ chưa có hướng dẫn và mời dùng **Trợ giúp → Hỏi CSKH**. Không bịa.
 
 ## 1. Hệ thống là gì
-- **OmniSell / CMBcoreSeller** — SaaS quản lý bán hàng đa sàn cho thị trường Việt Nam. Đồng bộ đơn/tồn/tem, đối soát tiền sàn, hộp thư tin nhắn có AI, kế toán TT133, gói thuê bao 4 cấp.
-- **Sàn**: TikTok Shop, Lazada (live), Shopee (chờ duyệt API), `manual`. **ĐVVC**: GHN (live), GHTK/J&T (mẫu). **Thanh toán**: SePay, VNPay (MoMo skeleton). **Tin nhắn**: Facebook Page + chat Shopee/TikTok/Lazada. **AI**: Anthropic / OpenAI-compatible / custom HTTP / manual (super-admin quản, tenant chọn 1).
-- **Kỹ thuật**: Laravel 11 monolith module hoá + React SPA (Ant Design). Connector + Registry → **lõi không biết tên sàn**. Horizon (queue), Gotenberg (PDF), MinIO/S3 (file), Reverb (realtime), Sentry.
 
-## 2. Bất biến cốt lõi (luôn đúng)
-1. Mọi bảng có `tenant_id`; không truy vấn xuyên tenant (cô lập tenant).
-2. **Tồn = SKU gốc** là nguồn sự thật duy nhất. **Trạng thái đơn = máy trạng thái chuẩn**.
-3. Tiền = **số nguyên VND** (không float). Thời gian API = ISO-8601 UTC.
-4. Webhook không tin tưởng → verify chữ ký + luôn có polling; luôn fetch lại chi tiết trước khi lưu.
-5. Job đồng bộ **idempotent** (dedupe theo khoá duy nhất).
-6. Trạng thái trả về: `code` + `status_label` (VN) + `raw_status` (gốc sàn).
-7. Thêm sàn/ĐVVC/cổng = connector + 1 dòng đăng ký + config; không sửa lõi; không `if ($provider === 'tiktok')`.
+**OmniSell / CMBcoreSeller** — phần mềm quản lý bán hàng đa sàn cho thị trường Việt Nam. Giúp nhà bán gom mọi việc về một nơi: đồng bộ đơn, quản lý tồn theo mã sản phẩm chung, in tem/phiếu hàng loạt, đóng gói bằng quét mã, nhập hàng & tính giá vốn, đối soát tiền sàn & tính lợi nhuận thật, hộp thư tin nhắn hợp nhất có AI, sổ sách kế toán theo Thông tư 133, và quản lý gói thuê bao.
 
-## 3. Module
-Tenancy (nền: tenant/user/role/audit) · Channels (gian hàng, OAuth, webhook, sync) · Orders (đơn, máy trạng thái, đơn thủ công) · Customers (sổ khách theo phone hash, uy tín) · Inventory (SKU gốc, tồn, ghép SKU, đẩy tồn, FIFO) · Products (listing, mass listing) · Fulfillment (vận đơn, in, quét, lô lấy hàng) · Procurement (NCC, PO, nhận hàng, đề xuất nhập) · Finance (đối soát, lợi nhuận) · Reports (báo cáo, export) · Billing (gói, hoá đơn, thanh toán, gating) · Accounting (TT133, sổ kép, AR/AP, BCTC, MISA) · Settings (rule, thông báo, system_settings) · Messaging (hộp thư hợp nhất, auto-reply, AI/RAG) · Notifications (email thương hiệu).
+- **Sàn**: TikTok Shop, Lazada (đang chạy); đơn thủ công (luôn có); Shopee (chờ duyệt kết nối).
+- **Vận chuyển**: GHN (đang chạy); các hãng khác bổ sung dần.
+- **Thanh toán gói**: SePay (chuyển khoản), VNPay; MoMo đang phát triển.
+- **Tin nhắn**: Facebook và chat trong Shopee/TikTok/Lazada.
+- **AI**: do đội vận hành thiết lập; mỗi nhà bán chọn một nhà cung cấp đang bật.
 
-## 4. Vai trò (tenant RBAC)
-`owner` (toàn quyền + billing + xoá/chuyển tenant) · `admin` (toàn nghiệp vụ, không billing/xoá tenant) · `staff_order` (đơn + fulfillment + nhắn tin) · `staff_warehouse` (kho + nhận hàng + quét) · `staff_cs` (tin nhắn + xem đơn/khách) · `accountant` (đối soát + báo cáo + kế toán) · `viewer` (chỉ xem).
-Quyền dạng chuỗi: `orders.*`, `inventory.*`, `fulfillment.*`, `messaging.*`, `accounting.*`, `finance.*`, `billing.*`, `channels.*`, `procurement.*`, `customers.*`, `reports.*`, `tenant.*`, `dashboard.view`. **Super-admin** = guard `admin_web` riêng, xuyên tenant, không phải vai trò tenant.
+## 2. Nguyên tắc nền tảng (luôn đúng)
 
-## 5. Gói & gating
-| Gói | Tháng (VND) | Gian hàng | Tính năng thêm |
+1. Dữ liệu mỗi nhà bán tách biệt hoàn toàn — không ai thấy dữ liệu của nhà bán khác.
+2. **Tồn = theo mã sản phẩm trong kho** (nguồn chuẩn duy nhất). **Trạng thái đơn = bộ trạng thái chuẩn** thống nhất.
+3. Tiền = **số nguyên đồng** (không số lẻ). Giờ hiển thị theo Việt Nam.
+4. Dữ liệu sàn là nguồn chuẩn; hệ thống luôn xác minh tín hiệu và luôn lấy lại chi tiết trước khi lưu; luôn có lưới kiểm tra định kỳ dự phòng.
+5. Mọi việc đồng bộ an toàn khi chạy lại — không nhân đôi dữ liệu.
+6. Trạng thái hiển thị nhãn tiếng Việt, kèm trạng thái gốc của sàn khi cần đối chiếu.
+7. Thêm sàn/vận chuyển/thanh toán mới không phải sửa lõi → mở rộng nhanh, an toàn cho dữ liệu.
+
+## 3. Các khu vực chức năng
+
+Tài khoản & nhân sự · Gian hàng (kết nối sàn, đồng bộ) · Đơn hàng (trạng thái, đơn thủ công) · Hoàn & Hủy · Khách hàng (sổ khách, uy tín) · Tồn kho (mã sản phẩm, ghép SKU, đẩy tồn, giá vốn) · Sản phẩm & SKU · Xử lý & giao hàng (vận đơn, in, quét, lô lấy hàng) · Mua hàng (nhà cung cấp, đơn mua, nhận hàng, đề xuất nhập) · Đối soát & lợi nhuận · Báo cáo · Gói thuê bao & thanh toán · Kế toán (Thông tư 133) · Tin nhắn (hộp thư hợp nhất, tự động trả lời, AI) · Cài đặt.
+
+## 4. Vai trò trong gian hàng
+
+**Chủ sở hữu** (toàn quyền + thanh toán + xoá/chuyển gian hàng) · **Quản trị** (toàn nghiệp vụ, không thanh toán/xoá gian hàng) · **Nhân viên xử lý đơn** (đơn + giao hàng + nhắn tin) · **Nhân viên kho** (kho + nhận hàng + quét) · **Nhân viên chăm sóc khách** (tin nhắn + xem đơn/khách) · **Kế toán** (đối soát + báo cáo + sổ sách) · **Chỉ xem**. Giao diện tự ẩn nút khi thiếu quyền. Đội ngũ vận hành CMBcoreSeller là người ngoài gian hàng (không phải vai trò của bạn).
+
+## 5. Gói & giới hạn
+
+| Gói | Tháng | Gian hàng | Mở thêm |
 |---|---|---|---|
-| trial/starter | 0 / 99k | 2 | cơ bản |
-| pro | 199k | 5 | procurement, fifo_cogs, profit_reports, finance_settlements, demand_planning, accounting_basic, messaging_inbox |
-| business | 399k | 10 | + mass_listing, automation_rules, accounting_advanced, messaging_ai, priority_support |
-- Sub: `trialing→active→past_due→expired` + grace 7 ngày → trial vĩnh viễn. **Không khoá dữ liệu.** Không giới hạn số đơn.
-- Gating: `plan.limit:channel_accounts` → 402 PLAN_LIMIT_REACHED; `plan.feature:<f>` → 402 PLAN_FEATURE_LOCKED; over-quota >2 ngày → 402 PLAN_QUOTA_EXCEEDED.
+| Dùng thử / Starter | 0 / 99k | 2 | cơ bản |
+| Pro | 199k | 5 | mua hàng, giá vốn FIFO, báo cáo lợi nhuận, đối soát, đề xuất nhập, kế toán cơ bản, hộp thư tin nhắn |
+| Business | 399k | 10 | + đăng bán hàng loạt, kịch bản tự động, kế toán nâng cao, AI tự trả lời, hỗ trợ ưu tiên |
 
-## 6. Trạng thái đơn (mã → nhãn)
-`unpaid` Chờ thanh toán · `pending` Chờ xử lý · `processing` Đang xử lý · `ready_to_ship` Chờ bàn giao · `shipped` Đang vận chuyển · `delivered` Đã giao · `completed` Hoàn tất · `delivery_failed` Giao thất bại · `returning` Đang trả/hoàn · `returned_refunded` Đã trả/hoàn · `cancelled` Đã huỷ.
-Quy tắc: dữ liệu sàn là nguồn sự thật (không bị chặn transition; lùi bất thường → `has_issue`); thao tác người dùng theo cạnh hợp lệ; `ready_to_ship` chỉ qua thao tác nội bộ; trừ tồn khi `shipped`; "Chuẩn bị hàng" chặn nếu âm kho.
+- Trả theo năm = 10 tháng (tặng 2 tháng). **Không giới hạn số đơn.** Hết hạn → sau 7 ngày grace tự về dùng thử miễn phí vĩnh viễn. **Dữ liệu không bao giờ bị khoá.**
+- Đủ số gian hàng → nhắc nâng gói khi kết nối thêm. Vào tính năng ngoài gói → nhắc nâng cấp. Vượt số gian hàng quá 2 ngày sau khi hạ gói → tạm khoá thao tác ghi cho tới khi nâng gói/bớt gian hàng.
 
-## 7. Tồn kho (công thức quan trọng)
-`available = max(0, on_hand − reserved − safety_stock)` → số đẩy lên sàn.
-Vòng đời: pending/processing → reserve; cancel-trước-ship → release; ship → reserved−, on_hand−; refund-sau-ship hàng về → on_hand+; nhận PO → on_hand+ + tạo cost_layer. Listing chưa ghép không đẩy tồn + đơn `has_issue`. Combo = min(floor(available/qty)) thành phần. Đẩy tồn debounce 5–15s. COGS FIFO ghi bất biến vào `order_costs` khi ship.
+## 6. Trạng thái đơn
 
-## 8. Fulfillment & tin nhắn (điểm hay hỏi)
-- Vận đơn: `pending→created→packed→picked_up→in_transit→delivered|failed`. `packed` chưa trừ tồn; trừ ở handover (`shipped`). Luồng A (logistics sàn) / Luồng B (ĐVVC riêng). Tem: dùng đúng PDF của ĐVVC. Phiếu lấy hàng gom theo SKU; phiếu đóng gói theo đơn.
-- Facebook: cửa sổ 24h + message tag (`OUTBOUND_WINDOW_CLOSED` nếu vi phạm). Comment private reply **1 lần/comment** → lỗi 10900 xử lý idempotent. Modal nhắn riêng nhiều phần = best-effort (phần đầu private reply, phần sau qua PSID + HUMAN_AGENT). Like comment cần `pages_manage_engagement`.
-- Auto-reply 4 trigger: schedule / order_status / away_no_response / first_message; chống spam bằng cooldown + idempotent window. AI: gợi ý (mặc định) vs auto-mode (opt-in, intent-classify chặn complaint/refund/urgent/legal/abuse, PII redaction).
+Chờ thanh toán → Chờ xử lý → Đang xử lý → Chờ bàn giao → Đang vận chuyển → Đã giao → Hoàn tất. Nhánh phụ: Giao thất bại, Đang trả/hoàn, Đã trả/hoàn, Đã huỷ.
+Quy tắc: trạng thái đơn sàn do sàn quyết định; lùi bất thường → gắn cờ "có vấn đề". Bấm **Chuẩn bị hàng** để chuyển Chờ xử lý → Đang xử lý (chặn nếu có mã hàng âm kho). Trừ tồn khi đơn sang Đang vận chuyển.
+
+## 7. Tồn kho (công thức dễ hiểu)
+
+**Tồn khả dụng = Tồn thực − Đang giữ cho đơn − Tồn an toàn** → đây là số đẩy lên sàn.
+Diễn biến: vào Chờ xử lý/Đang xử lý → giữ tồn; huỷ trước khi giao → nhả; sang Đang vận chuyển → trừ tồn; hoàn sau giao và hàng về → cộng lại; nhận hàng → cộng tồn + tạo lớp giá vốn. Sản phẩm trên sàn chưa ghép SKU → không đẩy tồn + đơn bị "có vấn đề". Combo = số đóng được ít nhất từ các thành phần. Giá vốn theo nhập trước xuất trước, chốt khi giao.
+
+## 8. Giao hàng & tin nhắn (hay được hỏi)
+
+- Vận đơn: chờ tạo → đã tạo → đã đóng gói → đã bàn giao → đang vận chuyển → đã giao/thất bại. "Đã đóng gói" CHƯA trừ tồn; trừ ở bàn giao. Có thể giao bằng dịch vụ của sàn hoặc đơn vị vận chuyển riêng. Tem dùng đúng file gốc (không vẽ lại). Phiếu lấy hàng gom theo mã; phiếu đóng gói theo đơn.
+- Facebook: chỉ gửi tin tự do trong 24 giờ kể từ tin cuối của khách; quá hạn cần "thẻ tin nhắn". Nhắn riêng một bình luận chỉ **1 lần/bình luận** (báo "đã nhắn rồi" là bình thường). Nút Thích bình luận cần Trang được cấp quyền tương tác.
+- Tự động trả lời 4 kiểu: theo lịch / theo trạng thái đơn / chưa trả lời sau N phút / tin đầu tiên; có chống spam. AI mặc định gợi ý (nhân viên duyệt); chế độ tự gửi là tuỳ chọn và chặn các tin nhạy cảm (khiếu nại/hoàn tiền/gấp/pháp lý/thô tục).
 
 ## 9. Kế toán & tài chính
-- Sổ kép TT133, VND, năm dương lịch. Bút toán **bất biến** (sửa = đảo). Kỳ: open→closed→locked (ghi vào kỳ đóng → `PERIOD_CLOSED`). Tự định khoản: nhận hàng Nợ156/Có331; chuyển kho 156↔156; kiểm kê 156↔711/811. Idempotency_key.
-- Đối soát: phí thực theo đơn (10 loại chuẩn); lợi nhuận = doanh thu − COGS(FIFO) − phí − ship − giảm − khác.
 
-## 10. API & lỗi (tóm tắt cho agent)
-- Base `/api/v1`; Sanctum cookie + header `X-Tenant-Id`; envelope `{data,meta}` / `{error:{code,message,trace_id,details}}`.
-- Endpoint hay dùng: `GET /orders`, `POST /orders`, `POST /orders/{id}/ship`, `POST /shipments/{pack,handover}`, `GET /inventory/levels`, `POST /sku-mappings/auto-match`, `GET /settlements`, `POST /settlements/{id}/reconcile`, `POST /billing/checkout`, `GET /messaging/conversations`, `POST /messaging/conversations/{id}/messages`, `POST /accounting/setup`, `POST /accounting/periods/{code}/close`.
-- Mã lỗi: `EMAIL_NOT_VERIFIED`, `TENANT_REQUIRED/FORBIDDEN`, `PLAN_LIMIT_REACHED`, `PLAN_FEATURE_LOCKED`, `PLAN_QUOTA_EXCEEDED`, `DOWNGRADE_NOT_ALLOWED`, `ALREADY_ON_PLAN`, `OUTBOUND_WINDOW_CLOSED`, `ATTACHMENT_INVALID`, `PERIOD_CLOSED`, `ACCOUNTING_UNBALANCED`, `ACCOUNTING_ACCOUNT_IN_USE`, `SKU_CODE_TAKEN`, `UNKNOWN_PROVIDER`.
+- Sổ kép theo Thông tư 133, VND, năm dương lịch. Bút toán **cố định** (sửa = ghi đảo). Kỳ: mở → đóng → khoá (ghi vào kỳ đã đóng sẽ bị từ chối). Tự lên sổ: nhận hàng, chuyển kho, kiểm kê. Khởi tạo lần đầu bằng nút **Khởi tạo hệ thống tài khoản theo TT133**.
+- Đối soát: phí thật theo từng đơn (10 nhóm phí chuẩn). Lợi nhuận = doanh thu − giá vốn − phí − ship − giảm − khác.
 
-## 11. Thuật ngữ (glossary nhanh)
-SKU gốc (đơn vị tồn, nguồn sự thật) · listing (sản phẩm trên 1 shop) · ghép SKU (mapping listing↔SKU) · tồn khả dụng (available) · đặt giữ/nhả (reserve/release) · gian hàng (channel account) · vận đơn (shipment) · phiếu giao hàng (label) · đối soát (settlement) · giá vốn FIFO (COGS) · kỳ kế toán (fiscal period) · định khoản (journal entry) · hộp thư hợp nhất (unified inbox) · private reply / message tag · over-quota lock · raw_status (trạng thái gốc sàn).
+## 10. Thuật ngữ nhanh
 
-## 12. Cách trả lời người dùng (gợi ý cho agent)
-- Dùng nhãn tiếng Việt của màn hình/nút (vd "Chuẩn bị hàng", "Đối soát sàn", "Khởi tạo hệ thống tài khoản theo TT133").
-- Khi nói về tính năng nâng cao, nhắc gói yêu cầu (Pro/Business) và quyền cần có.
-- Khi lỗi, ánh xạ mã lỗi → nguyên nhân → cách xử lý (xem `troubleshooting.md`).
-- Khi không chắc, ưu tiên mô tả nghiệp vụ + trỏ tới file tài liệu liên quan, tránh bịa endpoint/route.
+Mã sản phẩm/SKU (đơn vị tồn, nguồn chuẩn) · sản phẩm trên sàn/listing · ghép SKU · tồn khả dụng · giữ/nhả tồn · gian hàng · vận đơn · tem/phiếu giao hàng · đối soát · giá vốn nhập trước xuất trước · kỳ kế toán · bút toán · hộp thư hợp nhất · nhắn riêng/thẻ tin nhắn · trạng thái gốc của sàn.

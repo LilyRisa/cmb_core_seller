@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Support;
 
-use CMBcoreSeller\Modules\Messaging\Models\AiProvider;
 use CMBcoreSeller\Modules\Support\Models\HelpChunk;
 use CMBcoreSeller\Modules\Support\Services\HelpIndexer;
 use CMBcoreSeller\Modules\Support\Services\QdrantClient;
@@ -36,9 +35,9 @@ class HelpIndexerTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_index_without_provider_stores_chunks_for_keyword_only(): void
+    public function test_index_without_embedding_config_stores_chunks_for_keyword_only(): void
     {
-        config(['support.assistant.provider_code' => '', 'support.qdrant.url' => '']);
+        config(['support.assistant.embedding.base_url' => '', 'support.qdrant.url' => '']);
 
         $stats = app(HelpIndexer::class)->index(false);
 
@@ -50,13 +49,11 @@ class HelpIndexerTest extends TestCase
 
     public function test_fresh_index_recreates_collection_and_upserts_vectors(): void
     {
-        AiProvider::query()->create([
-            'code' => 'help-ai', 'adapter' => 'openai_compatible', 'display_name' => 'Help AI',
-            'api_key' => 'sk-test', 'base_url' => 'https://api.test', 'default_model' => 'gpt-test',
-            'is_active' => true, 'sort_order' => 0,
-        ]);
+        // Credentials embedding RIÊNG của Support (tự chứa).
         config([
-            'support.assistant.provider_code' => 'help-ai',
+            'support.assistant.embedding.base_url' => 'https://emb.test',
+            'support.assistant.embedding.api_key' => 'sk-emb',
+            'support.assistant.embedding.model' => 'text-embedding-3-small',
             'support.qdrant.url' => 'http://qdrant:6333',
         ]);
         $this->app->forgetInstance(QdrantClient::class);
@@ -72,7 +69,6 @@ class HelpIndexerTest extends TestCase
         $this->assertSame(2, $stats['total']);
         $this->assertSame(2, $stats['embedded']);
         $this->assertTrue($stats['qdrant']);
-        $this->assertSame('help-ai', $stats['provider']);
 
         // --fresh ⇒ DROP rồi tạo lại collection, rồi upsert points.
         Http::assertSent(fn ($req) => $req->method() === 'DELETE' && str_contains($req->url(), '/collections/'));
@@ -81,32 +77,43 @@ class HelpIndexerTest extends TestCase
     }
 
     /**
-     * Provider chat KHÔNG có embedding (vd OpenRouter) nhưng đặt provider embedding RIÊNG
-     * ⇒ index vẫn tạo vector qua provider embedding. Đây là fix cho lỗi "0/N chunk có vector".
+     * Chat (OpenRouter) cấu hình nhưng EMBEDDING để trống ⇒ 0 vector (chạy keyword).
+     * Đây đúng case OpenRouter không có /v1/embeddings — chứng minh tách chat/embedding.
      */
-    public function test_index_uses_separate_embedding_provider_when_chat_provider_has_none(): void
+    public function test_chat_configured_but_no_embedding_yields_zero_vectors(): void
     {
-        // Provider chat: openrouter — giả lập KHÔNG có /v1/embeddings (trả 404).
-        AiProvider::query()->create([
-            'code' => 'openrouter', 'adapter' => 'openai_compatible', 'display_name' => 'OpenRouter',
-            'api_key' => 'sk-or', 'base_url' => 'https://openrouter.ai/api', 'default_model' => 'google/gemini-2.0-flash-lite-001',
-            'is_active' => true, 'sort_order' => 0,
-        ]);
-        // Provider embedding RIÊNG: openai — có /v1/embeddings.
-        AiProvider::query()->create([
-            'code' => 'openai-emb', 'adapter' => 'openai_compatible', 'display_name' => 'OpenAI Embed',
-            'api_key' => 'sk-oa', 'base_url' => 'https://api.openai.com', 'default_model' => 'gpt-4o-mini',
-            'is_active' => true, 'sort_order' => 1,
-        ]);
         config([
-            'support.assistant.provider_code' => 'openrouter',          // chat
-            'support.assistant.embedding_provider_code' => 'openai-emb', // embedding riêng
+            'support.assistant.chat.base_url' => 'https://openrouter.ai/api',
+            'support.assistant.chat.api_key' => 'sk-or',
+            'support.assistant.chat.model' => 'google/gemini-2.0-flash-lite-001',
+            'support.assistant.embedding.base_url' => '',  // chưa cấu hình embedding
+            'support.qdrant.url' => 'http://qdrant:6333',
+        ]);
+        $this->app->forgetInstance(QdrantClient::class);
+
+        $stats = app(HelpIndexer::class)->index(true);
+
+        $this->assertSame(2, $stats['total']);
+        $this->assertSame(0, $stats['embedded']);   // không có embedding ⇒ 0 vector
+        $this->assertFalse($stats['qdrant']);
+        $this->assertSame(2, HelpChunk::query()->count()); // vẫn lưu chunk cho keyword
+    }
+
+    /** Chat = OpenRouter, embedding = nguồn riêng ⇒ tạo được vector (case mong muốn). */
+    public function test_separate_chat_and_embedding_endpoints_create_vectors(): void
+    {
+        config([
+            'support.assistant.chat.base_url' => 'https://openrouter.ai/api',
+            'support.assistant.chat.api_key' => 'sk-or',
+            'support.assistant.chat.model' => 'google/gemini-2.0-flash-lite-001',
+            'support.assistant.embedding.base_url' => 'https://api.openai.com',
+            'support.assistant.embedding.api_key' => 'sk-oa',
+            'support.assistant.embedding.model' => 'text-embedding-3-small',
             'support.qdrant.url' => 'http://qdrant:6333',
         ]);
         $this->app->forgetInstance(QdrantClient::class);
 
         Http::fake([
-            // Chỉ openai mới trả vector; openrouter embeddings sẽ 404 (nhưng index KHÔNG gọi nó).
             'openai.com/v1/embeddings' => Http::response(['data' => [['embedding' => array_fill(0, 8, 0.2)]], 'usage' => ['total_tokens' => 2]]),
             'openrouter.ai/*' => Http::response(['error' => 'no embeddings'], 404),
             '*/collections/*/points*' => Http::response(['result' => ['status' => 'completed']]),
@@ -115,9 +122,8 @@ class HelpIndexerTest extends TestCase
 
         $stats = app(HelpIndexer::class)->index(true);
 
-        $this->assertSame(2, $stats['embedded']);          // tạo được vector
-        $this->assertSame('openai-emb', $stats['provider']); // qua provider embedding riêng
-        // Embedding gọi đúng endpoint openai, KHÔNG gọi openrouter cho embeddings.
+        $this->assertSame(2, $stats['embedded']);
+        // Embedding gọi đúng endpoint openai; KHÔNG gọi openrouter cho embeddings.
         Http::assertSent(fn ($req) => str_contains($req->url(), 'openai.com/v1/embeddings'));
         Http::assertNotSent(fn ($req) => str_contains($req->url(), 'openrouter.ai') && str_contains($req->url(), '/embeddings'));
     }

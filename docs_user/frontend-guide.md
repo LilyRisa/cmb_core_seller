@@ -1,212 +1,194 @@
 # Hướng dẫn giao diện (Frontend Guide)
 
-> Mô tả từng màn hình theo góc nhìn người dùng: mục đích, đường dẫn, quyền, thành phần giao diện, chức năng và **luồng thao tác**.
-> Quy ước: route **không** chặn theo quyền; trang **ẩn nút/cột** khi thiếu quyền (`useCan('<permission>')`). Gating theo gói (plan.feature) chặn ở backend — trang tự suy biến (ví dụ Dashboard ẩn khối kế toán nếu gói chưa bật).
+> Mô tả từng màn hình theo góc nhìn người dùng: mục đích, **cách vào** (menu/nút), ai dùng được, thành phần và **luồng thao tác**.
+> Quy ước: giao diện **tự ẩn nút/cột** khi vai trò của bạn không đủ quyền. Một số khối tự ẩn nếu gói chưa mở tính năng (ví dụ Bảng điều khiển ẩn khối kế toán khi chưa bật).
 
 ---
 
-## A. Xác thực & onboarding
+## A. Đăng nhập & bắt đầu
 
 ### Đăng nhập
-- **Mục đích**: vào hệ thống.
-- **Đường dẫn**: `/login` · **Quyền**: công khai.
-- **Thành phần**: form email + mật khẩu, checkbox "ghi nhớ", link sang Đăng ký / Quên mật khẩu.
-- **Luồng**: nhập email + mật khẩu → "Đăng nhập" → gọi `POST /auth/login` → thành công chuyển `/`.
+- **Mục đích**: vào hệ thống. **Cách vào**: trang Đăng nhập (công khai).
+- **Thành phần**: ô email + mật khẩu, ghi nhớ đăng nhập, liên kết sang Đăng ký / Quên mật khẩu.
+- **Luồng**: nhập email + mật khẩu → bấm **Đăng nhập** → vào Bảng điều khiển.
 
 ### Đăng ký
-- **Mục đích**: tạo tài khoản + workspace (tenant) mới; người tạo là `owner`.
-- **Đường dẫn**: `/register` · **Quyền**: công khai.
-- **Thành phần**: form Họ tên / Email / Mật khẩu.
-- **Luồng**: điền form → "Đăng ký" → `POST /auth/register` (tạo User + Tenant, gửi email xác thực, bắt đầu gói dùng thử 14 ngày) → vào `/` nhưng bị chặn cho tới khi xác thực email.
+- **Mục đích**: tạo tài khoản + gian hàng mới; người tạo là Chủ sở hữu. **Cách vào**: trang Đăng ký (công khai).
+- **Luồng**: điền Họ tên / Email / Mật khẩu → bấm **Đăng ký** → tạo tài khoản, gửi email xác thực, bắt đầu 14 ngày dùng thử → vào hệ thống nhưng bị chặn cho tới khi xác thực email.
 
 ### Xác thực email
 - **Mục đích**: bắt buộc xác thực trước khi dùng tính năng.
-- **Hiển thị**: không phải route riêng — `RequireAuth` render trang này khi `email_verified_at` rỗng.
-- **Thành phần**: hướng dẫn 4 bước (mở hộp thư → tìm email → kiểm tra Spam/Quảng cáo → bấm link), nút "Gửi lại email" (chờ 60s), nút làm mới, đăng xuất.
-- **Luồng**: bấm link trong email → `/email-verified?status=success` → tải lại `/auth/me` → vào hệ thống.
+- **Thành phần**: hướng dẫn 4 bước (mở hộp thư → tìm email → kiểm tra Spam/Quảng cáo → bấm liên kết), nút **Gửi lại email** (chờ 60 giây), nút làm mới, đăng xuất.
+- **Luồng**: bấm liên kết trong email → quay về với thông báo xác thực thành công → vào dùng được.
 
 ### Quên / Đặt lại mật khẩu
-- **Đường dẫn**: `/forgot-password`, `/password-reset` · **Quyền**: công khai.
-- **Luồng**: nhập email → nhận link → trang reset (đọc `token`+`email` từ URL) → nhập mật khẩu mới (≥8 ký tự, có hoa/thường/ký tự đặc biệt) → về đăng nhập.
+- **Cách vào**: trang Quên mật khẩu (công khai).
+- **Luồng**: nhập email → nhận liên kết → đặt mật khẩu mới (≥ 8 ký tự, có hoa/thường/ký tự đặc biệt) → về đăng nhập.
 
 ---
 
-## B. Bảng điều khiển (Dashboard)
+## B. Bảng điều khiển
 
-- **Mục đích**: tổng quan sức khoẻ kinh doanh + việc cần làm.
-- **Đường dẫn**: `/` · **Quyền**: `dashboard.view`. Chỉ đọc.
-- **Thành phần**: bộ chọn khoảng (7/30/90 ngày, lưu vào URL) + nút Làm mới; thẻ KPI (Doanh thu, Số đơn, Lợi nhuận ước tính, GMV TB/đơn) có sparkline + so sánh kỳ trước; biểu đồ cột doanh thu+lợi nhuận; danh sách **"Việc cần làm"** (đơn chờ xử lý/chờ bàn giao/chờ in/chưa ghép SKU/có vấn đề/gian hàng cần reconnect — mỗi mục dẫn vào Đơn hàng đã lọc); Top SKU; doanh thu theo kênh; khối **"Thống kê nhanh kế toán"** (ẩn nếu gói kế toán chưa bật hoặc chưa khởi tạo); cảnh báo khi chưa có gian hàng nào.
-- **Luồng**: mở Dashboard → đọc KPI → bấm mục trong "Việc cần làm" → nhảy vào danh sách đơn tương ứng để xử lý.
+- **Mục đích**: tổng quan tình hình kinh doanh + việc cần làm. **Cách vào**: menu **Bảng điều khiển**. Chỉ đọc.
+- **Thành phần**: bộ chọn khoảng (7/30/90 ngày) + Làm mới; thẻ chỉ số (Doanh thu, Số đơn, Lợi nhuận ước tính, Giá trị TB/đơn) có biểu đồ nhỏ + so kỳ trước; biểu đồ doanh thu+lợi nhuận; danh sách **Việc cần làm** (đơn chờ xử lý/chờ bàn giao/chờ in/chưa ghép SKU/có vấn đề/gian hàng cần kết nối lại — bấm vào mở thẳng danh sách đơn đã lọc); Top sản phẩm; doanh thu theo kênh; khối **Thống kê nhanh kế toán** (ẩn nếu chưa bật kế toán); nhắc kết nối khi chưa có gian hàng nào.
+- **Luồng**: mở Bảng điều khiển → đọc chỉ số → bấm mục trong **Việc cần làm** → nhảy vào danh sách đơn để xử lý.
 
 ---
 
 ## C. Đơn hàng & xử lý
 
-### Đơn hàng (màn hình trung tâm xử lý)
-- **Mục đích**: xem, lọc và xử lý đơn từ mọi nguồn (sàn + thủ công).
-- **Đường dẫn**: `/orders` · **Quyền**: `orders.view` (các nút khác cần `orders.create`, `fulfillment.ship/print`, `inventory.map`).
+### Đơn hàng (màn hình trung tâm)
+- **Mục đích**: xem, lọc, xử lý đơn từ mọi nguồn. **Cách vào**: menu **Đơn hàng**. Cần quyền xem đơn (các nút khác cần quyền tạo đơn / giao hàng / in / ghép SKU).
 - **Thành phần**:
-  - **Tab trạng thái** (Tất cả / Chờ xử lý / Đang xử lý / Chờ bàn giao…) + tab **Có vấn đề** + **Hết hàng** + **Vận đơn** (shipments).
-  - **Bộ lọc**: Select chọn trường tìm (mã đơn/người mua, SKU, tên SP) + ô tìm; dải chip lọc tầng Sàn TMĐT → Gian hàng → Vận chuyển, Phiếu in, Thời gian (preset + RangePicker); Select sắp xếp.
-  - **Bảng** có chọn nhiều dòng; **thanh hành động hàng loạt**: Chuẩn bị hàng, Sẵn sàng bàn giao, Bàn giao ĐVVC, Nhận phiếu giao hàng, In phiếu giao hàng, Liên kết SKU.
-  - **Nút đầu trang**: Tạo đơn, Quét đơn (modal), Đồng bộ đơn (chạy nền + banner tiến độ), Làm mới.
-  - **Modal/Drawer**: chọn ĐVVC (đơn thủ công), chọn mẫu tem, thanh in (`PrintJobBar`), tiến độ hàng loạt, liên kết SKU, chi tiết đơn nhanh, quét đơn.
-- **Luồng "Chuẩn bị hàng"**: chọn đơn ở tab "Chờ xử lý" → "Chuẩn bị hàng" → hệ thống gọi sàn tạo vận đơn + lấy tem → đơn sang "Đang xử lý". Có cảnh báo khi trộn đơn sàn với đơn thủ công, hoặc khi lợi nhuận âm / in lại.
+  - **Tab trạng thái** (Tất cả / Chờ xử lý / Đang xử lý / Chờ bàn giao…) + tab **Có vấn đề** + **Hết hàng** + **Vận đơn**.
+  - **Bộ lọc**: chọn trường tìm (mã đơn/người mua, SKU, tên SP) + ô tìm; dải lọc theo Sàn → Gian hàng → Vận chuyển, theo Phiếu in, theo Thời gian; sắp xếp.
+  - **Chọn nhiều dòng** + **thanh thao tác hàng loạt**: Chuẩn bị hàng, Sẵn sàng bàn giao, Bàn giao đơn vị vận chuyển, Nhận phiếu giao hàng, In phiếu giao hàng, Liên kết SKU.
+  - **Nút đầu trang**: **Tạo đơn**, **Quét đơn**, **Đồng bộ đơn**, Làm mới.
+- **Luồng "Chuẩn bị hàng"**: ở tab Chờ xử lý chọn đơn → bấm **Chuẩn bị hàng** → hệ thống tạo vận đơn + lấy tem → đơn sang Đang xử lý. Có cảnh báo khi trộn đơn sàn với đơn thủ công, hoặc khi lợi nhuận âm / in lại.
 
 ### Chi tiết đơn
-- **Đường dẫn**: `/orders/:id` · **Quyền**: `orders.view`.
-- **Thành phần**: header (badge sàn, tag gian hàng, trạng thái, COD); nút "Sửa đơn" **chỉ** với đơn thủ công chưa kết thúc (`orders.update`); thân = chi tiết sản phẩm + lịch sử trạng thái.
+- **Cách vào**: bấm vào một đơn trong danh sách.
+- **Thành phần**: phần đầu (sàn, gian hàng, trạng thái, COD); nút **Sửa đơn** chỉ hiện với đơn thủ công chưa kết thúc; thân = chi tiết sản phẩm + lịch sử trạng thái.
 
-### Tạo / Sửa đơn thủ công (kiểu POS)
-- **Đường dẫn**: `/orders/new`, `/orders/:id/edit` · **Quyền**: `orders.create` / `orders.update`.
-- **Thành phần**: khối sản phẩm có tìm nhanh + tab (Sản phẩm/Combo) + tuỳ chọn còn-hàng; tra cứu SĐT khách (cảnh báo khách quay lại / khách bị chặn); chọn địa chỉ (tỉnh/huyện/xã, autocomplete); nguồn phụ (Website/Facebook/Zalo/Hotline); ô thanh toán; đính kèm; tab ghi chú in; thanh dưới Lưu / Lưu & In. Có nháp lưu localStorage, hỗ trợ nhiều tab.
-- **Luồng**: chọn nguồn → nhập khách → "Tìm & thêm sản phẩm" (hoặc "Tạo sản phẩm nhanh" cho hàng không có SKU) → chỉnh SL/giá/giảm → "Lưu đơn" (tự đặt giữ tồn) → mở chi tiết (tuỳ chọn `?print=1`).
+### Tạo / Sửa đơn thủ công (kiểu bán tại quầy)
+- **Cách vào**: menu **Đơn hàng** → nút **Tạo đơn** (hoặc nút Sửa đơn trong đơn thủ công).
+- **Thành phần**: khối sản phẩm có tìm nhanh + tab Sản phẩm/Combo; tra số điện thoại khách (cảnh báo khách quen / khách bị chặn); chọn địa chỉ tỉnh/huyện/xã; nguồn phụ (Website/Facebook/Zalo/Hotline); ô thanh toán; đính kèm; ghi chú in; nút **Lưu đơn** / **Lưu & In**. Có lưu nháp tạm.
+- **Luồng**: chọn nguồn → nhập khách → **Tìm & thêm sản phẩm** (hoặc **Tạo sản phẩm nhanh** cho món không có sẵn) → chỉnh SL/giá/giảm → **Lưu đơn** (tự giữ tồn).
 
 ### Hoàn & Hủy
-- **Mục đích**: duyệt yêu cầu sau bán (hủy/hoàn/refund).
-- **Đường dẫn**: `/returns` · **Quyền**: xem = `orders.view`; Duyệt/Từ chối = `orders.update` (Owner/Admin/StaffOrder).
-- **Thành phần**: segmented (Chờ duyệt / Đang mở / Tất cả) + lọc loại; bảng (đơn, loại, trạng thái, lý do, hoàn tiền, thời gian); Duyệt/Từ chối qua Popconfirm.
+- **Mục đích**: duyệt yêu cầu sau bán. **Cách vào**: menu **Hoàn & Hủy**. Xem: ai xem được đơn; Duyệt/Từ chối: Chủ sở hữu/Quản trị/NV xử lý đơn.
+- **Thành phần**: tab (Chờ duyệt / Đang mở / Tất cả) + lọc loại; bảng (đơn, loại, trạng thái, lý do, hoàn tiền, thời gian); nút **Duyệt** / **Từ chối**.
 
 ---
 
-## D. Sản phẩm / Tồn kho / Kho
+## D. Sản phẩm / Tồn kho
 
 ### Tồn kho
-- **Đường dẫn**: `/inventory` (`/products` → redirect tới đây) · **Quyền**: `inventory.view`.
-- **Thành phần (tab)**:
-  - **Tồn theo SKU**: bảng tồn, toggle "Sắp hết ≤5", nút Điều chỉnh từng dòng (`inventory.adjust`).
-  - **Danh mục SKU**: danh sách SKU, tìm, Thêm SKU, điều chỉnh/đẩy tồn hàng loạt, xoá (`products.manage`/`inventory.adjust`).
-  - **Liên kết SKU (sàn)**: ghép listing sàn ↔ SKU gốc, tự khớp (`inventory.map`).
-  - **Phiếu kho**: phiếu nhập/xuất/điều chuyển/kiểm kê (WMS).
-- **Luồng ghép SKU**: tab "Liên kết SKU" → listing "Chưa ghép" → "Tự khớp" (gợi ý single×1 khi mã trùng) hoặc tạo combo (1 listing → nhiều SKU) → lưu → tồn được đẩy tự động.
+- **Cách vào**: menu **Tồn kho** (mục **Sản phẩm & SKU** cũng dẫn về đây). Cần quyền xem tồn.
+- **Thành phần (các tab)**:
+  - **Tồn theo SKU**: bảng tồn, lọc sắp hết, nút Điều chỉnh từng dòng.
+  - **Danh mục SKU**: danh sách mã sản phẩm, tìm, **Thêm SKU**, điều chỉnh/đẩy tồn hàng loạt, xoá.
+  - **Liên kết SKU**: ghép sản phẩm sàn ↔ mã trong kho, **Tự khớp**.
+  - **Phiếu kho**: nhập/chuyển kho/kiểm kê.
+- **Luồng ghép SKU**: tab **Liên kết SKU** → sản phẩm "Chưa ghép" → **Tự khớp** (gợi ý ghép đơn khi mã trùng) hoặc tạo combo → lưu → tồn được đẩy tự động.
 
-### Thêm / Sửa SKU
-- **Đường dẫn**: `/inventory/skus/new`, `/inventory/skus/:id/edit` · **Quyền**: `products.manage`.
-- **Thành phần**: upload ảnh, thông tin cơ bản (mã/SPU/tên/đơn vị), phương pháp giá vốn (bình quân/FIFO), giá vốn, trạng thái hoạt động.
+### Thêm / Sửa mã sản phẩm (SKU)
+- **Cách vào**: trong Tồn kho/Sản phẩm & SKU → **Thêm SKU**.
+- **Thành phần**: ảnh, thông tin cơ bản (mã/tên/đơn vị), phương pháp giá vốn (bình quân/FIFO), giá vốn, trạng thái hoạt động.
 
 ---
 
 ## E. Khách hàng
 
 ### Danh sách khách hàng
-- **Đường dẫn**: `/customers` · **Quyền**: `customers.view`.
-- **Thành phần**: tab theo uy tín + tìm + sắp xếp; bảng (tên/SĐT che, badge uy tín, nhãn, đơn hoàn tất/hủy, doanh thu, gần nhất). Dòng dẫn sang chi tiết.
+- **Cách vào**: menu **Khách hàng**. Cần quyền xem khách.
+- **Thành phần**: tab theo uy tín + tìm + sắp xếp; bảng (tên/SĐT che, điểm uy tín, nhãn, đơn hoàn tất/hủy, doanh thu, gần nhất).
 
 ### Chi tiết khách hàng
-- **Đường dẫn**: `/customers/:id` · **Quyền**: `customers.view` (ghi chú `customers.note`, chặn `customers.block`).
-- **Thành phần**: thông tin + thống kê vòng đời, badge uy tín, lịch sử đơn (dẫn sang đơn), dòng thời gian ghi chú + thêm ghi chú (mức info/warning/danger), nút chặn khách.
+- **Cách vào**: bấm một khách trong danh sách.
+- **Thành phần**: thông tin + thống kê vòng đời, điểm uy tín, lịch sử đơn, dòng thời gian ghi chú + thêm ghi chú (thông tin/cảnh báo/nguy hiểm), nút chặn khách.
 
 ---
 
-## F. Tin nhắn (Hộp thư hợp nhất)
+## F. Tin nhắn (Hộp thư hợp nhất) — cần gói có hộp thư (Pro trở lên)
 
 ### Hộp thư
-- **Mục đích**: hội thoại DM + bình luận từ mọi nền tảng trong một nơi.
-- **Đường dẫn**: `/messaging` · **Quyền**: `messaging.view` (trả lời `messaging.reply`). Cần gói có `messaging_inbox` (Pro+).
-- **Thành phần (3 cột)**: trái = danh sách hội thoại (lọc theo sàn/loại/đọc–chưa đọc/thẻ); giữa = luồng tin + ô soạn (text + ảnh/video/file, mẫu tin `/slash`, emoji, **AI gợi ý**), với bình luận Facebook có post card đầu luồng + nút trên từng comment (Thích/Nhắn riêng/Xoá) + modal nhắn riêng đầy đủ; phải = panel khách + đơn liên kết. Có đánh dấu đọc/chưa đọc, chặn/bỏ chặn, quản lý thẻ, push notification.
-- **Luồng**: chọn hội thoại → đọc → soạn (gõ `/` để chèn mẫu, hoặc "AI gợi ý") → Gửi. Với bình luận: bấm ✉️ trên comment khách → modal nhắn riêng (ảnh/video/file/mẫu tin) → Gửi.
+- **Cách vào**: menu **Tin nhắn → Hộp thư**. Xem: quyền xem tin nhắn; trả lời: quyền trả lời.
+- **Thành phần (3 cột)**: trái = danh sách hội thoại (lọc theo sàn/loại/đọc–chưa đọc/thẻ); giữa = nội dung + ô soạn (chữ + ảnh/video/file, gõ "/" để chèn mẫu tin, emoji, **AI gợi ý**), với bình luận Facebook có thẻ bài viết đầu luồng + nút trên từng bình luận (Thích/Nhắn riêng/Xoá); phải = thông tin khách + đơn liên quan.
+- **Luồng**: chọn hội thoại → đọc → soạn (gõ "/" chèn mẫu, hoặc **AI gợi ý**) → Gửi. Với bình luận: bấm nút Nhắn riêng trên bình luận khách → cửa sổ nhắn riêng → Gửi.
 
 ### Kết nối kênh (Facebook)
-- **Đường dẫn**: `/messaging/channels` · **Quyền**: `messaging.connect`.
-- **Luồng**: "Kết nối Facebook" → OAuth popup → chọn Page → đồng bộ; có resync, reconnect, ngắt kết nối.
+- **Cách vào**: menu **Tin nhắn → Kết nối kênh**.
+- **Luồng**: **Kết nối Facebook** → chọn Trang → đồng bộ; có làm mới, kết nối lại, ngắt kết nối.
 
 ### Mẫu tin
-- **Đường dẫn**: `/messaging/templates` · **Quyền**: `messaging.template.manage`.
-- **Thành phần**: bảng mẫu trả lời nhanh; modal thêm/sửa có chèn biến (`{{buyer.name}}`...), bật/tắt, xoá.
+- **Cách vào**: menu **Tin nhắn → Mẫu tin**.
+- **Thành phần**: bảng mẫu trả lời nhanh; thêm/sửa có chèn biến (tên người mua...), bật/tắt, xoá.
 
 ### Tự động trả lời
-- **Đường dẫn**: `/messaging/auto-rules` · **Quyền**: `messaging.rule.manage`.
-- **Thành phần**: bảng quy tắc; modal builder: trigger (tin đầu / lịch / theo trạng thái đơn / từ khoá / bình luận…), loại luồng (DM/bình luận/cả hai), đích (công khai/nhắn riêng), hành động (text/mẫu/AI).
+- **Cách vào**: menu **Tin nhắn → Tự động trả lời**.
+- **Thành phần**: bảng quy tắc; tạo quy tắc chọn loại kích hoạt (tin đầu / lịch / theo trạng thái đơn / chưa trả lời sau N phút / bình luận…), áp cho tin nhắn/bình luận/cả hai, trả công khai/nhắn riêng, nội dung (chữ/mẫu/AI).
 
-### Kịch bản tự động (Flow Builder)
-- **Đường dẫn**: `/messaging/flows`, `/messaging/flows/:id/edit` · **Quyền**: `messaging.rule.manage`.
-- **Thành phần**: danh sách flow (trạng thái draft/active/paused/archived); trình thiết kế trực quan (node/edge, MiniMap, palette node theo nhóm, drawer cấu hình node, post picker, chọn trigger), Lưu/Xuất bản/Tạm dừng.
+### Kịch bản tự động — gói Business
+- **Cách vào**: menu **Tin nhắn → Kịch bản tự động**.
+- **Thành phần**: danh sách kịch bản; trình thiết kế trực quan dạng sơ đồ; Lưu / Xuất bản / Tạm dừng.
 
-### AI training (RAG)
-- **Đường dẫn**: `/messaging/knowledge` · **Quyền**: `messaging.ai.train`.
-- **Thành phần**: bảng tài liệu (trạng thái pending/ready/failed, số chunk); thêm tài liệu (text/URL/upload), xem chunk, reindex, xoá.
+### AI training (tài liệu cho AI)
+- **Cách vào**: menu **Tin nhắn → AI training**.
+- **Thành phần**: bảng tài liệu; thêm tài liệu (chữ/đường dẫn/tải file), xem nội dung đã chia, làm mới, xoá.
 
----
-
-## G. Gian hàng (Channels)
-
-- **Mục đích**: kết nối & quản lý gian hàng sàn (TikTok/Lazada; Shopee chờ).
-- **Đường dẫn**: `/channels` · **Quyền**: `channels.manage` (xem `channels.view`).
-- **Thành phần**: kết nối qua OAuth popup (có hướng dẫn lỗi theo sàn: scope TikTok, whitelist IP/subscribe Lazada); mỗi gian hàng: đổi tên, đồng bộ lại (chạy nền), xoá (gõ đúng tên để xác nhận), bật/tắt tin nhắn, bật/tắt auto-RTS; modal "IP máy chủ" (copy IP để whitelist Lazada).
-- **Luồng kết nối**: "Kết nối [sàn]" → `POST /channel-accounts/{provider}/connect` trả `auth_url` → đăng nhập shop & cấp quyền → callback tạo gian hàng + đồng bộ 90 ngày đơn → quay lại "Kết nối thành công".
+### Cấu hình AI tin nhắn
+- **Cách vào**: trong khu vực **Tin nhắn → Cấu hình AI**.
+- **Thành phần**: chọn nhà cung cấp AI, bật AI + chế độ tự gửi (tách riêng sàn vs Facebook).
 
 ---
 
-## H. Mua hàng (Procurement)
+## G. Gian hàng
+
+- **Mục đích**: kết nối & quản lý gian hàng sàn. **Cách vào**: menu **Gian hàng**. Cần quyền quản lý gian hàng.
+- **Thành phần**: kết nối qua đăng nhập sàn (kèm hướng dẫn lỗi theo sàn); mỗi gian hàng: đổi tên, đồng bộ lại, xoá (gõ đúng tên để xác nhận), bật/tắt tin nhắn, bật/tắt tự động chuyển chờ bàn giao; mục **IP máy chủ** (sao chép IP để khai báo cho Lazada).
+- **Luồng kết nối**: bấm **Kết nối [sàn]** → đăng nhập shop & cấp quyền → quay về tạo gian hàng + đồng bộ 90 ngày đơn → thấy "Kết nối thành công".
+
+---
+
+## H. Mua hàng
 
 ### Nhà cung cấp
-- **Đường dẫn**: `/procurement/suppliers` · **Quyền**: `procurement.view`/`procurement.manage`.
-- **Thành phần**: bảng NCC (mã/tên/MST, liên hệ, điều khoản NET-x, số giá đã map, hoạt động) + drawer thêm/sửa; tab "Bảng giá nhập" (giá theo SKU).
+- **Cách vào**: menu **Nhà cung cấp**.
+- **Thành phần**: bảng nhà cung cấp (mã/tên/MST, liên hệ, điều khoản công nợ, số giá đã đặt) + thêm/sửa; tab Bảng giá nhập (giá theo mã sản phẩm).
 
 ### Đơn mua hàng
-- **Đường dẫn**: `/procurement/purchase-orders` · **Quyền**: `procurement.manage`/`procurement.receive`.
-- **Thành phần**: danh sách PO (draft/confirmed/partially_received/received/cancelled) + drawer tạo (chọn SKU, kho), drawer chi tiết, xác nhận, nhận hàng (→ phiếu nhập, cập nhật tồn/giá vốn), huỷ.
+- **Cách vào**: menu **Đơn mua hàng**.
+- **Thành phần**: danh sách đơn mua (nháp/đã xác nhận/nhận một phần/đã nhận/đã huỷ) + tạo (chọn mã sản phẩm, kho), chi tiết, xác nhận, nhận hàng (tăng tồn/giá vốn), huỷ.
 
-### Đề xuất nhập hàng
-- **Đường dẫn**: `/procurement/demand-planning` · **Quyền**: `procurement.manage` + gói `demand_planning`.
-- **Thành phần**: bảng (tốc độ bán, khả dụng, đang về, số ngày còn, mức khẩn, SL đề xuất, NCC); ô cửa sổ/lead-time; chọn nhiều dòng → tạo PO nháp tách theo NCC 1 cú bấm.
+### Đề xuất nhập hàng — cần tính năng tương ứng (Pro trở lên)
+- **Cách vào**: menu **Đề xuất nhập hàng**.
+- **Thành phần**: bảng (tốc độ bán, khả dụng, đang về, số ngày còn, mức khẩn, SL đề xuất, nhà cung cấp); ô khoảng thời gian/thời gian giao; chọn nhiều dòng → tạo đơn mua nháp tách theo nhà cung cấp một cú bấm.
 
 ---
 
 ## I. Báo cáo · Đối soát · Kế toán
 
 ### Báo cáo
-- **Đường dẫn**: `/reports` · **Quyền**: `reports.view` (export `reports.export`; lợi nhuận cần gói `profit_reports`).
-- **Thành phần**: tab Doanh thu / Lợi nhuận / Top sản phẩm; preset ngày + RangePicker + độ chi tiết + chip nguồn; biểu đồ/bảng; nút Export (CSV UTF-8 BOM).
+- **Cách vào**: menu **Báo cáo**. Xem: Chủ sở hữu/Quản trị/Kế toán; lợi nhuận cần gói Pro+.
+- **Thành phần**: tab Doanh thu / Lợi nhuận / Top sản phẩm; mốc thời gian + khoảng tuỳ ý + mức chi tiết + lọc nguồn; biểu đồ/bảng; nút **Xuất file**.
 
-### Đối soát sàn
-- **Đường dẫn**: `/finance/settlements` · **Quyền**: `finance.view`/`finance.reconcile`; gói `finance_settlements`.
-- **Thành phần**: bảng kỳ đối soát (gian hàng, kỳ, trạng thái pending/reconciled/error); modal kéo từ sàn; drawer chi tiết với phí theo dòng (chip màu theo loại phí); nút Đối soát.
+### Đối soát sàn — gói Pro+
+- **Cách vào**: menu **Đối soát sàn**.
+- **Thành phần**: bảng kỳ đối soát (gian hàng, kỳ, trạng thái chờ/đã đối soát/lỗi); kéo từ sàn; chi tiết phí theo dòng; nút **Đối soát**.
 
-### Kế toán (gói `accounting_basic` Pro+; nâng cao `accounting_advanced` Business)
-Mỗi trang hiện banner khởi tạo nếu chưa init.
-- **Sổ nhật ký** `/accounting/journals` — bảng bút toán (auto/đảo/điều chỉnh), lọc kỳ/nguồn, tìm; chi tiết; tạo bút toán tay (`accounting.post`); đảo bút toán.
-- **Hệ thống TK** `/accounting/chart-of-accounts` — cây TK, lọc loại, tạo/sửa/xoá TK (`accounting.config`).
-- **Kỳ kế toán** `/accounting/periods` — kỳ theo tháng/năm; đóng/mở/khoá (`accounting.close_period`); tạo kỳ cho năm (`accounting.config`).
-- **Cân đối phát sinh** `/accounting/balances` — trial balance theo kỳ; tính lại số dư (`accounting.config`).
-- **Công nợ phải thu** `/accounting/ar` — TK 131; tab Aging theo khách / Phiếu thu; tạo/xác nhận/huỷ phiếu thu.
-- **Công nợ phải trả** `/accounting/ap` — TK 331; tab Aging theo NCC / Hoá đơn NCC / Phiếu chi.
-- **Quỹ & Ngân hàng** `/accounting/cash` — TK tiền mặt/ngân hàng/ví/COD; tạo TK, ghi/nhập giao dịch.
-- **Báo cáo tài chính** `/accounting/reports` — Trial / P&L / Bảng cân đối / Sổ cái; export MISA (`accounting.export`).
+### Kế toán (gói kế toán Pro+; nâng cao Business)
+Mỗi trang hiện dải Khởi tạo nếu chưa khởi tạo.
+- **Sổ nhật ký** — bảng bút toán, lọc kỳ/nguồn, tìm; tạo bút toán tay; ghi bút toán đảo.
+- **Hệ thống TK** — cây tài khoản, tạo/sửa/xoá.
+- **Kỳ kế toán** — kỳ theo tháng/năm; đóng/mở/khoá; tạo kỳ cho năm.
+- **Cân đối phát sinh** — bảng cân đối theo kỳ; tính lại số dư.
+- **Công nợ phải thu** — theo dõi nợ khách; phiếu thu.
+- **Công nợ phải trả** — theo dõi nợ nhà cung cấp; hoá đơn NCC; phiếu chi.
+- **Quỹ & Ngân hàng** — tài khoản tiền mặt/ngân hàng/ví/COD; ghi giao dịch.
+- **Báo cáo tài chính** — Cân đối phát sinh / Kết quả kinh doanh / Bảng cân đối / Sổ cái; xuất MISA.
 
 ---
 
 ## J. Hệ thống & Cài đặt
 
 ### Nhật ký đồng bộ
-- **Đường dẫn**: `/sync-logs` · **Quyền**: `channels.view` (retry `channels.manage`).
-- **Thành phần**: tab Lần đồng bộ / Webhook; bảng trạng thái + nút redrive/retry.
+- **Cách vào**: menu **Nhật ký đồng bộ**.
+- **Thành phần**: tab Lần đồng bộ / Tín hiệu từ sàn; bảng trạng thái + nút chạy lại.
 
-### Cài đặt (shell `SettingsLayout`)
-- **Hồ sơ cá nhân** `/settings/profile` — sửa tên/email (đổi email cần mật khẩu hiện tại) + đổi mật khẩu.
-- **Thông tin gian hàng** `/settings/workspace` — tên/slug workspace (`tenant.settings`).
-- **Gói & nâng cấp** `/settings/plan` — gói hiện tại + hạn mức, lịch sử hoá đơn, so sánh 4 gói; modal nâng cấp (chu kỳ tháng/năm, cổng SePay/VNPay), huỷ gói (`billing.manage`, chỉ owner).
-- **Nhân viên & vai trò** `/settings/members` — bảng thành viên; thêm thành viên (email + vai trò). Chỉ owner/admin.
-- **Đơn vị vận chuyển** `/settings/carriers` — tài khoản ĐVVC (GHN live; khác "sắp có"); thêm/sửa (token API, chọn shop GHN, địa chỉ gửi tầng tỉnh/huyện/xã), xác minh, đặt mặc định (`fulfillment.carriers`).
-- **Cài đặt đơn hàng** `/settings/orders` — % phí sàn theo nền tảng (để ước tính lợi nhuận).
-- **Cấu hình AI tin nhắn** `/settings/messaging` — chọn nhà cung cấp AI, bật AI + auto-mode (tách riêng sàn vs Facebook) (`messaging.ai.config`).
-- **Mẫu in** `/settings/print` — khổ tem (A6/100×150/80mm/A5/A4) + ghi chú in mặc định.
-- **Mẫu phiếu giao hàng** `/settings/shipping-labels` + trình thiết kế kéo–thả `/settings/shipping-labels/new|:id`.
-- **Quy tắc hạch toán** `/settings/accounting/post-rules` — map sự kiện → TK Nợ/Có (`accounting.config`).
+### Cài đặt
+- **Hồ sơ cá nhân** — đổi tên/email (đổi email cần mật khẩu hiện tại) + đổi mật khẩu.
+- **Thông tin gian hàng** — tên/đường dẫn gian hàng.
+- **Gói & nâng cấp** — gói hiện tại + hạn mức, hoá đơn, so sánh 4 gói; nâng cấp (chu kỳ + cổng), huỷ (chỉ Chủ sở hữu).
+- **Nhân viên & vai trò** — bảng thành viên; thêm thành viên (email + vai trò). Chỉ Chủ sở hữu/Quản trị.
+- **Đơn vị vận chuyển** — tài khoản hãng vận chuyển (GHN); thêm/sửa (khoá kết nối, chọn shop, địa chỉ gửi), xác minh, đặt mặc định.
+- **Gian hàng & module phụ trợ** — bật/tắt kết nối phụ trợ.
+- **Cài đặt đơn hàng** — % phí sàn theo nền tảng (để ước tính lợi nhuận).
+- **Mẫu in** — khổ tem + ghi chú in mặc định.
+- **Mẫu phiếu giao hàng** — thiết kế bằng công cụ kéo–thả.
+- **Quy tắc hạch toán** — nối nghiệp vụ → tài khoản Nợ/Có.
+- **Nhật ký thao tác** — tra cứu ai làm gì.
 
 ---
 
-## K. Ứng dụng super-admin (`/admin/*`)
-
-- **Đăng nhập admin** `/admin/login` — username/password (guard riêng).
-- **Tổng quan** `/admin` — màn chào.
-- **Tenants** `/admin/tenants` — bảng nhà bán (over-quota/suspended), lọc + tìm, drawer quản lý.
-- **Người dùng** `/admin/users` — tab Admin / Tenant users; drawer admin & tenant user; suspend/reset password.
-- **Voucher** `/admin/vouchers` — bảng voucher (percent/fixed/free_days/plan_upgrade); tạo, cấp cho tenant, vô hiệu.
-- **Gói thuê bao** `/admin/plans` — bảng gói; tạo/sửa với toàn bộ cờ tính năng.
-- **Broadcast** `/admin/broadcasts` — gửi email broadcast (toàn bộ owner / admin+owner / tenant chỉ định); lịch sử.
-- **Hệ thống** `/admin/settings` — system_settings động, nhóm segmented; "Nạp từ env".
-- **Nhà cung cấp AI** `/admin/ai-providers` — bảng provider; thêm/sửa (adapter Anthropic/OpenAI-compatible/custom_http/manual), test kết nối.
-- **Nhật ký** `/admin/audit-logs` — bảng audit; lọc action/tenant/user/thời gian; chi tiết.
-
-> Xem thêm luồng đầy đủ trong [user-manual.md](user-manual.md) và quy tắc nghiệp vụ trong [business-rules.md](business-rules.md).
+> Xem thêm các bước cụ thể trong [user-manual.md](user-manual.md) và quy tắc nghiệp vụ trong [business-rules.md](business-rules.md).

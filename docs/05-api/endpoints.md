@@ -381,6 +381,10 @@ Cấu hình động lưu trong DB (`system_settings`), ghi đè giá trị từ 
 - `POST   /support/assistant/ask` — `{question, history?}` → `{answer, sources[], mode}` (RAG hỏi-đáp cách dùng; suy biến keyword khi chưa cấu hình Qdrant/AI, không bao giờ 500). Throttle 30/phút.
 - `POST   /support/requests` — `{question}` → tạo yêu cầu CSKH (chờ phản hồi). Throttle 10/phút.
 - `GET    /support/requests` — lịch sử yêu cầu CSKH của tenant hiện tại.
+- **Admin (guard `admin_web`)** — xem & trả lời yêu cầu CSKH XUYÊN tenant (SPEC-0028):
+  - `GET    /admin/support-requests` — filter `status` (pending|answered|closed), `tenant_id`, `q`; phân trang 50, kèm nhãn tenant + người gửi.
+  - `POST   /admin/support-requests/{id}/answer` — `{answer}` → set answer + status=answered (audit `support.request.answer`).
+  - `POST   /admin/support-requests/{id}/close` — đóng yêu cầu (audit `support.request.close`).
 
 **Admin SPA `/api/v1/admin/*`** (admin guard, không cần tenant):
 - `GET/POST/PATCH/DELETE /admin/ai-providers[/{code}]` — CRUD provider trong `system_settings.ai_providers.<code>`.
