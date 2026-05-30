@@ -346,4 +346,234 @@ class FacebookCommentModerationTest extends TestCase
             ->postJson("/api/v1/messaging/conversations/{$conv->id}/comment/private-reply", ['body' => 'hi'])
             ->assertStatus(403);
     }
+
+    // -----------------------------------------------------------------------
+    // private-reply idempotent với lỗi 10900 (Activity already replied to)
+    // -----------------------------------------------------------------------
+
+    public function test_private_reply_swallows_10900_already_replied(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response([
+                'error' => ['message' => '(#10900) Activity already replied to', 'code' => 10900],
+            ], 400),
+        ]);
+
+        $conv = $this->commentConv();
+
+        // Không ném 500 — coi như đã nhắn (idempotent).
+        $this->actingAs($this->actor())->withHeaders($this->h())
+            ->postJson("/api/v1/messaging/conversations/{$conv->id}/comment/private-reply", ['body' => 'Mời inbox'])
+            ->assertOk()
+            ->assertJsonPath('data.comment.private_replied', true);
+    }
+
+    // -----------------------------------------------------------------------
+    // like
+    // -----------------------------------------------------------------------
+
+    public function test_like_comment_posts_to_likes_endpoint(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response(['success' => true], 200),
+        ]);
+
+        $conv = $this->commentConv();
+
+        $this->actingAs($this->actor())->withHeaders($this->h())
+            ->postJson("/api/v1/messaging/conversations/{$conv->id}/comment/like", ['comment_id' => 'fb_reply_1', 'like' => true])
+            ->assertOk()
+            ->assertJsonPath('data.ok', true)
+            ->assertJsonPath('data.like', true);
+
+        Http::assertSent(function ($req) {
+            return str_contains($req->url(), 'graph.facebook.com') &&
+                $req->method() === 'POST' &&
+                str_contains($req->url(), 'fb_reply_1/likes');
+        });
+    }
+
+    public function test_unlike_comment_sends_delete_to_likes_endpoint(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response(['success' => true], 200),
+        ]);
+
+        $conv = $this->commentConv();
+
+        $this->actingAs($this->actor())->withHeaders($this->h())
+            ->postJson("/api/v1/messaging/conversations/{$conv->id}/comment/like", ['like' => false])
+            ->assertOk();
+
+        Http::assertSent(function ($req) {
+            return $req->method() === 'DELETE' && str_contains($req->url(), 'fb_comment_abc/likes');
+        });
+    }
+
+    public function test_viewer_cannot_like_comment(): void
+    {
+        Http::fake();
+
+        $conv = $this->commentConv();
+
+        $this->actingAs($this->actor(Role::Viewer))->withHeaders($this->h())
+            ->postJson("/api/v1/messaging/conversations/{$conv->id}/comment/like", ['like' => true])
+            ->assertStatus(403);
+    }
+
+    // -----------------------------------------------------------------------
+    // private-message (modal — nhiều phần, lưu PSID)
+    // -----------------------------------------------------------------------
+
+    public function test_private_message_sends_via_comment_id_and_stores_psid(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response(['recipient_id' => 'PSID_777', 'message_id' => 'mid.1'], 200),
+        ]);
+
+        $conv = $this->commentConv();
+
+        $this->actingAs($this->actor())->withHeaders($this->h())
+            ->postJson("/api/v1/messaging/conversations/{$conv->id}/comment/private-message", ['body' => 'Xin chào!'])
+            ->assertOk()
+            ->assertJsonPath('data.comment.private_replied', true);
+
+        $conv->refresh();
+        $this->assertSame('PSID_777', $conv->meta['fb_private_psid'] ?? null);
+        $this->assertNotEmpty($conv->meta['private_replied_at'] ?? null);
+
+        Http::assertSent(function ($req) {
+            return str_contains($req->url(), 'me/messages') &&
+                isset($req->data()['recipient']['comment_id']);
+        });
+    }
+
+    public function test_private_message_uses_stored_psid_when_present(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response(['recipient_id' => 'PSID_777', 'message_id' => 'mid.2'], 200),
+        ]);
+
+        $conv = $this->commentConv([
+            'meta' => [
+                'fb_comment_id' => 'fb_comment_abc',
+                'fb_post_id' => 'fb_post_xyz',
+                'fb_private_psid' => 'PSID_777',
+            ],
+        ]);
+
+        $this->actingAs($this->actor())->withHeaders($this->h())
+            ->postJson("/api/v1/messaging/conversations/{$conv->id}/comment/private-message", ['body' => 'Tin nhắn tiếp'])
+            ->assertOk();
+
+        // Đã có PSID ⇒ gửi thẳng recipient.id (không dùng comment_id, tránh 10900).
+        Http::assertSent(function ($req) {
+            return str_contains($req->url(), 'me/messages') &&
+                ($req->data()['recipient']['id'] ?? null) === 'PSID_777';
+        });
+    }
+
+    public function test_private_message_blocked_returns_422_when_nothing_delivered(): void
+    {
+        // Facebook trả 10900 "đã nhắn riêng" cho phần đầu (chưa có PSID) ⇒ delivered=0.
+        Http::fake([
+            'graph.facebook.com/*' => Http::response([
+                'error' => ['message' => '(#10900) Activity already replied to', 'code' => 10900],
+            ], 400),
+        ]);
+
+        $conv = $this->commentConv();
+
+        $this->actingAs($this->actor())->withHeaders($this->h())
+            ->postJson("/api/v1/messaging/conversations/{$conv->id}/comment/private-message", ['body' => 'Xin chào'])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'PRIVATE_REPLY_BLOCKED');
+    }
+
+    public function test_private_message_follow_up_uses_message_tag(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response(['recipient_id' => 'PSID_777', 'message_id' => 'mid'], 200),
+        ]);
+
+        $conv = $this->commentConv([
+            'meta' => ['fb_comment_id' => 'fb_comment_abc', 'fb_private_psid' => 'PSID_777'],
+        ]);
+
+        $this->actingAs($this->actor())->withHeaders($this->h())
+            ->postJson("/api/v1/messaging/conversations/{$conv->id}/comment/private-message", ['body' => 'Tin tiếp'])
+            ->assertOk();
+
+        // Gửi qua PSID đã lưu ⇒ phải kèm MESSAGE_TAG (private reply không mở cửa sổ 24h).
+        Http::assertSent(function ($req) {
+            return str_contains($req->url(), 'me/messages') &&
+                ($req->data()['messaging_type'] ?? null) === 'MESSAGE_TAG' &&
+                ($req->data()['tag'] ?? null) === 'HUMAN_AGENT';
+        });
+    }
+
+    public function test_like_permission_error_returns_422(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response([
+                'error' => ['message' => '(#200) Requires pages_manage_engagement permission', 'code' => 200],
+            ], 403),
+        ]);
+
+        $conv = $this->commentConv();
+
+        $this->actingAs($this->actor())->withHeaders($this->h())
+            ->postJson("/api/v1/messaging/conversations/{$conv->id}/comment/like", ['like' => true])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'ENGAGEMENT_PERMISSION');
+    }
+
+    public function test_private_message_empty_returns_422(): void
+    {
+        Http::fake();
+
+        $conv = $this->commentConv();
+
+        $this->actingAs($this->actor())->withHeaders($this->h())
+            ->postJson("/api/v1/messaging/conversations/{$conv->id}/comment/private-message", ['body' => ''])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'EMPTY_REPLY');
+    }
+
+    public function test_viewer_cannot_private_message(): void
+    {
+        Http::fake();
+
+        $conv = $this->commentConv();
+
+        $this->actingAs($this->actor(Role::Viewer))->withHeaders($this->h())
+            ->postJson("/api/v1/messaging/conversations/{$conv->id}/comment/private-message", ['body' => 'hi'])
+            ->assertStatus(403);
+    }
+
+    // -----------------------------------------------------------------------
+    // delete comment con (không spam cả hội thoại)
+    // -----------------------------------------------------------------------
+
+    public function test_delete_child_comment_keeps_conversation_open(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response(['success' => true], 200),
+        ]);
+
+        $conv = $this->commentConv();
+
+        $this->actingAs($this->actor())->withHeaders($this->h())
+            ->deleteJson("/api/v1/messaging/conversations/{$conv->id}/comment", ['comment_id' => 'fb_child_reply_9'])
+            ->assertOk()
+            ->assertJsonPath('data.ok', true);
+
+        $conv->refresh();
+        $this->assertSame(Conversation::STATUS_OPEN, $conv->status);
+        $this->assertArrayNotHasKey('comment_deleted', (array) $conv->meta);
+
+        Http::assertSent(function ($req) {
+            return $req->method() === 'DELETE' && str_contains($req->url(), 'fb_child_reply_9');
+        });
+    }
 }

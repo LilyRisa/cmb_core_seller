@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import dayjs from 'dayjs';
 import { Avatar, Button, Image, Space, Tag, Typography } from 'antd';
-import { EyeInvisibleOutlined, FacebookFilled, LinkOutlined, MessageOutlined } from '@ant-design/icons';
+import { EyeInvisibleOutlined, FacebookFilled, LinkOutlined, MessageOutlined, PlayCircleFilled } from '@ant-design/icons';
 import type { Conversation } from '@/lib/messaging';
 
 const { Text, Paragraph } = Typography;
@@ -88,16 +88,29 @@ export function CommentPostCard({ conversation }: { conversation: Conversation }
                 </div>
             )}
 
-            {/* Ảnh bài viết (ẩn nếu CDN hết hạn / lỗi tải) */}
+            {/* Ảnh bài viết / thumbnail video (ẩn nếu CDN hết hạn / lỗi tải) */}
             {hasImage && (
-                <Image
-                    src={c.post_picture!}
-                    alt="Ảnh bài viết"
-                    width="100%"
-                    style={{ maxHeight: 320, objectFit: 'cover', display: 'block' }}
-                    onError={() => setImgError(true)}
-                    preview={{ mask: 'Xem ảnh' }}
-                />
+                <div style={{ position: 'relative', lineHeight: 0 }}>
+                    <Image
+                        src={c.post_picture!}
+                        alt={c.post_is_video ? 'Ảnh xem trước video' : 'Ảnh bài viết'}
+                        width="100%"
+                        style={{ maxHeight: 320, objectFit: 'cover', display: 'block' }}
+                        onError={() => setImgError(true)}
+                        preview={{ mask: c.post_is_video ? 'Xem ảnh video' : 'Xem ảnh' }}
+                    />
+                    {/* Bài video: phủ icon ▶ giữa thumbnail (full_picture là ảnh xem trước) */}
+                    {c.post_is_video && (
+                        <div
+                            style={{
+                                position: 'absolute', inset: 0, display: 'flex',
+                                alignItems: 'center', justifyContent: 'center', pointerEvents: 'none',
+                            }}
+                        >
+                            <PlayCircleFilled style={{ fontSize: 56, color: 'rgba(255,255,255,0.92)', filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.5))' }} />
+                        </div>
+                    )}
+                </div>
             )}
 
             {/* Footer: link bài viết */}

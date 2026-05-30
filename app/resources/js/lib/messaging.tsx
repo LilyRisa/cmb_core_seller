@@ -21,6 +21,8 @@ export interface ConversationComment {
     post_permalink: string | null;
     /** Ảnh bài viết (CDN Facebook hết hạn — chỉ để preview trong post card). */
     post_picture: string | null;
+    /** Bài viết là video → phủ icon ▶ lên ảnh preview (full_picture = thumbnail). */
+    post_is_video: boolean;
     /** Thời gian đăng bài (ISO-8601) — hiển thị "x giờ trước". */
     post_created_time: string | null;
     hidden: boolean;
@@ -397,12 +399,56 @@ export function useHideComment() {
     });
 }
 
+/**
+ * Xoá bình luận. `commentId` rỗng ⇒ xoá comment gốc (spam cả hội thoại); có
+ * `commentId` con ⇒ chỉ xoá đúng comment đó (giữ hội thoại).
+ */
 export function useDeleteComment() {
     const api = useScopedApi();
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: async (conversationId: number) => {
-            await api!.delete(`/messaging/conversations/${conversationId}/comment`);
+        mutationFn: async (input: { conversationId: number; commentId?: string }) => {
+            await api!.delete(`/messaging/conversations/${input.conversationId}/comment`, {
+                data: input.commentId ? { comment_id: input.commentId } : {},
+            });
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['messaging', 'thread'] });
+            qc.invalidateQueries({ queryKey: ['messaging', 'conversations'] });
+        },
+    });
+}
+
+/** Thích / bỏ thích 1 comment (Page engagement — chỉ Facebook). */
+export function useLikeComment() {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async (input: { conversationId: number; commentId?: string; like: boolean }) => {
+            await api!.post(`/messaging/conversations/${input.conversationId}/comment/like`, {
+                comment_id: input.commentId,
+                like: input.like,
+            });
+        },
+    });
+}
+
+/**
+ * Nhắn riêng đầy đủ (modal): text + nhiều đính kèm (ảnh/video/file). Gửi multipart
+ * `files[]`. Trả conversation đã cập nhật (meta.private_replied + PSID).
+ */
+export function useSendCommentPrivateMessage(conversationId: number | null) {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (input: { body: string; commentId?: string; files: File[] }) => {
+            const fd = new FormData();
+            if (input.body) fd.append('body', input.body);
+            if (input.commentId) fd.append('comment_id', input.commentId);
+            input.files.forEach((f) => fd.append('files[]', f));
+            const { data } = await api!.post<{ data: Conversation; meta?: { delivered: number; total: number } }>(
+                `/messaging/conversations/${conversationId}/comment/private-message`, fd,
+            );
+            return { conversation: data.data, delivered: data.meta?.delivered ?? 0, total: data.meta?.total ?? 0 };
         },
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['messaging', 'thread'] });

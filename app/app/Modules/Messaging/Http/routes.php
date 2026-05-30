@@ -156,6 +156,12 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
             ->whereNumber('id')->name('messaging.comment.reply');
         Route::post('conversations/{id}/comment/private-reply', [FacebookCommentController::class, 'privateReply'])
             ->whereNumber('id')->name('messaging.comment.private_reply');
+        // Thích/bỏ thích 1 comment (Page engagement — chỉ Facebook).
+        Route::post('conversations/{id}/comment/like', [FacebookCommentController::class, 'like'])
+            ->whereNumber('id')->name('messaging.comment.like');
+        // Modal nhắn riêng đầy đủ (text + nhiều đính kèm ảnh/video/file).
+        Route::post('conversations/{id}/comment/private-message', [FacebookCommentController::class, 'privateMessage'])
+            ->whereNumber('id')->name('messaging.comment.private_message_modal');
 
         // --- Auto-reply rules (S5) -----------------------------------------
         Route::get('auto-reply-rules', [AutoReplyRuleController::class, 'index'])

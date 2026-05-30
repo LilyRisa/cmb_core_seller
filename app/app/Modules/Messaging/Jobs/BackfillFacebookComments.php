@@ -233,6 +233,7 @@ class BackfillFacebookComments implements ShouldBeUnique, ShouldQueue
             'fb_post_permalink' => $thread['post_permalink'],
             'fb_post_message' => $thread['post_message'],
             'fb_post_picture' => $thread['post_picture'] ?? null,
+            'fb_post_is_video' => (bool) ($thread['post_is_video'] ?? false),
             'fb_post_created_time' => $thread['post_created_time'] ?? null,
         ]);
         $conv->save();

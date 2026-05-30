@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Image, Input, Popover, Radio, Segmented, Space, Tag } from 'antd';
+import { Button, Image, Input, Popover, Radio, Space, Tag } from 'antd';
 import { CloseOutlined, FileOutlined, PaperClipOutlined, PictureOutlined, RobotOutlined, SendOutlined, SmileOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import Picker from '@emoji-mart/react';
 import emojiData from '@emoji-mart/data';
@@ -18,19 +18,12 @@ import type { MessageTemplate } from '@/lib/messagingConfig';
 
 export type ComposerMode = 'dm' | 'comment';
 
-export interface CommentTarget {
-    public: boolean;
-    private: boolean;
-}
-
 export interface ComposerSubmit {
     text: string;
     file?: File;
     kind?: 'image' | 'video' | 'file';
     /** DM ngoài cửa sổ 24h Facebook — message tag đã chọn. */
     messageTag?: string;
-    /** Mode comment — đích gửi (công khai / nhắn riêng / cả hai). */
-    commentTarget?: CommentTarget;
 }
 
 interface Props {
@@ -70,7 +63,6 @@ export function MessageComposer({ mode, provider, templates, needsTag, aiAvailab
     const [pending, setPending] = useState<{ file: File; kind: 'image' | 'video' | 'file'; previewUrl?: string } | null>(null);
     const [emojiOpen, setEmojiOpen] = useState(false);
     const [msgTag, setMsgTag] = useState('HUMAN_AGENT');
-    const [target, setTarget] = useState<'public' | 'private' | 'both'>('public');
     const [busy, setBusy] = useState(false);
     const [aiLoading, setAiLoading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -129,9 +121,6 @@ export function MessageComposer({ mode, provider, templates, needsTag, aiAvailab
         const payload: ComposerSubmit = { text: text.trim() };
         if (pending) { payload.file = pending.file; payload.kind = pending.kind; }
         if (mode === 'dm' && needsTag) payload.messageTag = msgTag;
-        if (mode === 'comment') {
-            payload.commentTarget = { public: target === 'public' || target === 'both', private: target === 'private' || target === 'both' };
-        }
         setBusy(true);
         try {
             await onSubmit(payload);
@@ -175,22 +164,6 @@ export function MessageComposer({ mode, provider, templates, needsTag, aiAvailab
                         Quá 24h từ tin cuối của khách — chọn loại thẻ tin nhắn để gửi (Facebook yêu cầu):
                     </span>
                     <Radio.Group size="small" optionType="button" buttonStyle="solid" options={FB_MESSAGE_TAGS} value={msgTag} onChange={(e) => setMsgTag(e.target.value)} />
-                </div>
-            )}
-
-            {/* Comment: chọn đích gửi (đồng bộ với cấu hình tự động trả lời) */}
-            {mode === 'comment' && (
-                <div style={{ marginBottom: 8 }}>
-                    <Segmented
-                        size="small"
-                        value={target}
-                        onChange={(v) => setTarget(v as 'public' | 'private' | 'both')}
-                        options={[
-                            { label: 'Trả lời công khai', value: 'public' },
-                            { label: 'Nhắn riêng', value: 'private' },
-                            { label: 'Cả hai', value: 'both' },
-                        ]}
-                    />
                 </div>
             )}
 

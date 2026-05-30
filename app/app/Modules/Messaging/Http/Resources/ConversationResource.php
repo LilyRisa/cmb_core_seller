@@ -33,6 +33,8 @@ class ConversationResource extends JsonResource
                 'post_permalink' => $this->meta['fb_post_permalink'] ?? null,
                 // Ảnh bài viết (CDN hết hạn — chỉ preview) + giờ đăng, cho post card hộp thư.
                 'post_picture' => $this->meta['fb_post_picture'] ?? null,
+                // Bài viết là video → FE phủ icon ▶ lên ảnh preview (full_picture = thumbnail).
+                'post_is_video' => (bool) ($this->meta['fb_post_is_video'] ?? false),
                 'post_created_time' => ! empty($this->meta['fb_post_created_time'])
                     ? CarbonImmutable::parse((string) $this->meta['fb_post_created_time'])->toIso8601String()
                     : null,

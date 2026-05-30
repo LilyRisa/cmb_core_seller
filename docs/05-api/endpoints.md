@@ -352,7 +352,7 @@ Cấu hình động lưu trong DB (`system_settings`), ghi đè giá trị từ 
 
 **REST `/api/v1/messaging/*`** (Sanctum + tenant + permission gate):
 - `GET    /messaging/conversations` (`messaging.view`) — filter `provider`, `status`, `unread`, `assigned`, `customer_id`, `q`. Page-based 20/page.
-- `GET    /messaging/conversations/{id}` (`messaging.view`) — detail + last 50 messages (cursor `before_message_id`). Với `thread_type='comment'`, `comment` gồm: `post_message`, `post_permalink`, `post_picture` (ảnh bài viết — CDN Facebook hết hạn, chỉ preview, refresh khi sync), `post_created_time` (ISO-8601), `hidden`, `private_replied`, `participants[]`. FE render Post Card bài viết ghim đầu luồng (thay banner cũ).
+- `GET    /messaging/conversations/{id}` (`messaging.view`) — detail + last 50 messages (cursor `before_message_id`). Với `thread_type='comment'`, `comment` gồm: `post_message`, `post_permalink`, `post_picture` (ảnh bài viết — CDN Facebook hết hạn, chỉ preview, refresh khi sync), `post_created_time` (ISO-8601), `hidden`, `private_replied`, `participants[]`, `post_is_video` (bài viết là video → FE phủ icon ▶ lên ảnh preview). FE render Post Card bài viết ghim đầu luồng (thay banner cũ).
 - `POST   /messaging/conversations/{id}/messages` (`messaging.reply`) — `{kind:'text', body}`.
 - `POST   /messaging/conversations/{id}/messages/media` (`messaging.reply`) — multipart `{kind:'image|video|file', file}`.
 - `POST   /messaging/conversations/{id}/messages/template` (`messaging.reply`) — `{template_id, vars}`.
@@ -361,6 +361,13 @@ Cấu hình động lưu trong DB (`system_settings`), ghi đè giá trị từ 
 - `POST   /messaging/conversations/{id}/ai-suggestion` (`messaging.reply` + `plan.feature:messaging_ai`) — dispatch + sync wait ≤30s → `{draft_id, draft_text, suggested_attachments}`.
 - `POST   /messaging/conversations/{id}/ai-suggestion/{draftId}/accept` — gửi draft.
 - `DELETE /messaging/conversations/{id}/ai-suggestion/{draftId}` — reject (audit).
+- **Kiểm duyệt comment Facebook** (`thread_type='comment'`, quyền `messaging.reply`):
+  - `POST   /messaging/conversations/{id}/comment/hide` — `{hidden:bool}` ẩn/hiện cả luồng.
+  - `DELETE /messaging/conversations/{id}/comment` — `{comment_id?}` rỗng ⇒ xoá comment gốc (spam hội thoại); có id con ⇒ chỉ xoá comment đó.
+  - `POST   /messaging/conversations/{id}/comment/reply` — multipart `{body?, image?}` trả lời CÔNG KHAI (tạo sub-comment).
+  - `POST   /messaging/conversations/{id}/comment/private-reply` — `{body?, image?}` nhắn riêng 1 phần (idempotent với lỗi FB 10900 "đã nhắn riêng").
+  - `POST   /messaging/conversations/{id}/comment/like` — `{comment_id?, like:bool}` Page thích/bỏ thích 1 comment (chỉ Facebook — `CommentEngagementConnector`).
+  - `POST   /messaging/conversations/{id}/comment/private-message` — multipart `{body?, comment_id?, files[]?}` modal nhắn riêng đầy đủ (text + nhiều đính kèm ảnh/video/file). Phần đầu qua `comment_id` (lấy PSID, lưu `meta.fb_private_psid`), phần sau qua PSID; idempotent 10900.
 - `GET/POST/PATCH/DELETE /messaging/templates[/{id}]` (`messaging.template.manage`).
 - `GET/POST/PATCH/DELETE /messaging/auto-reply-rules[/{id}]` (`messaging.rule.manage`).
 - `GET    /messaging/knowledge-docs` (`messaging.view`).

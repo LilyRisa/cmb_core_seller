@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback, type CSSProperties, 
 import dayjs from 'dayjs';
 import { Link } from 'react-router-dom';
 import { App, Avatar, Badge, Button, Checkbox, Divider, Dropdown, Empty, Grid, Image, Input, List, Popconfirm, Popover, Radio, Segmented, Select, Space, Spin, Tag, Tooltip, Typography } from 'antd';
-import { BellFilled, BellOutlined, CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FileOutlined, FilterOutlined, MessageOutlined, MoreOutlined, PhoneOutlined, PictureOutlined, ShopOutlined, ShoppingOutlined, SoundOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
+import { BellFilled, BellOutlined, CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FileOutlined, FilterOutlined, LikeFilled, LikeOutlined, MessageOutlined, MoreOutlined, PhoneOutlined, PictureOutlined, ShopOutlined, ShoppingOutlined, SoundOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
 import {
     type Conversation,
@@ -17,10 +17,10 @@ import {
     useConversationThread,
     useDeleteComment,
     useHideComment,
+    useLikeComment,
     useMarkRead,
     useMarkUnread,
     useMessagingTags,
-    usePrivateReplyComment,
     useReplyComment,
     useSendMedia,
     useSendText,
@@ -34,6 +34,7 @@ import { MessagingNav } from '@/components/MessagingNav';
 import { TagManagerModal } from '@/components/TagManagerModal';
 import { ConversationOrderPanel } from '@/components/messaging/ConversationOrderPanel';
 import { CommentPostCard } from '@/components/messaging/CommentPostCard';
+import { CommentPrivateMessageModal } from '@/components/messaging/CommentPrivateMessageModal';
 import { MessageComposer, type ComposerSubmit } from '@/components/messaging/MessageComposer';
 
 const { Text } = Typography;
@@ -323,7 +324,12 @@ export function MessagingPage() {
     const hideComment = useHideComment();
     const deleteComment = useDeleteComment();
     const replyComment = useReplyComment(activeId);
-    const privateReply = usePrivateReplyComment(activeId);
+    const likeComment = useLikeComment();
+
+    // Comment đang mở modal "Nhắn riêng" (id comment cụ thể được bấm).
+    const [privateMsgCommentId, setPrivateMsgCommentId] = useState<string | null>(null);
+    // Trạng thái "đã thích" optimistic theo phiên (Facebook không trả sẵn page-like per comment).
+    const [likedComments, setLikedComments] = useState<Set<string>>(new Set());
 
     const conversations = useMemo(() => list.data?.pages.flatMap((p) => p.data) ?? [], [list.data]);
     // Thông báo tin nhắn mới đã chuyển sang hook toàn cục ở AppLayout (mọi trang, không bắn lặp).
@@ -386,19 +392,57 @@ export function MessagingPage() {
         }
     };
 
-    // Gửi comment: theo đích (công khai / nhắn riêng / cả hai), kèm ảnh tuỳ chọn.
+    // Gửi trả lời CÔNG KHAI dưới comment, kèm ảnh tuỳ chọn. Nhắn riêng đã chuyển sang
+    // nút + modal trên từng bình luận (không dùng tab trong ô soạn).
     const handleCommentSubmit = async (p: ComposerSubmit) => {
         if (!activeId) return;
-        const target = p.commentTarget ?? { public: true, private: false };
         const image = p.kind === 'image' ? p.file : undefined;
         try {
-            if (target.public) await replyComment.mutateAsync({ body: p.text, image });
-            if (target.private) await privateReply.mutateAsync({ body: p.text, image });
-            if (target.private && !target.public) message.success('Đã gửi tin nhắn riêng.');
+            await replyComment.mutateAsync({ body: p.text, image });
         } catch (e) {
             message.error(errorMessage(e, 'Không gửi được trả lời.'));
             throw e;
         }
+    };
+
+    // Thích / bỏ thích 1 comment (optimistic, revert nếu lỗi).
+    const handleCommentLike = (commentId: string) => {
+        if (!activeId) return;
+        const liked = likedComments.has(commentId);
+        setLikedComments((prev) => {
+            const n = new Set(prev);
+            if (liked) n.delete(commentId); else n.add(commentId);
+            return n;
+        });
+        likeComment.mutate(
+            { conversationId: activeId, commentId, like: !liked },
+            {
+                onError: (e) => {
+                    setLikedComments((prev) => {
+                        const n = new Set(prev);
+                        if (liked) n.add(commentId); else n.delete(commentId);
+                        return n;
+                    });
+                    message.error(errorMessage(e, 'Không thực hiện được thao tác thích.'));
+                },
+            },
+        );
+    };
+
+    // Xoá 1 comment. Xoá comment gốc (== external_conversation_id) ⇒ đóng hội thoại.
+    const handleCommentDelete = (commentId: string) => {
+        if (!activeId) return;
+        const isRoot = commentId === active?.external_conversation_id;
+        deleteComment.mutate(
+            { conversationId: activeId, commentId },
+            {
+                onSuccess: () => {
+                    message.success('Đã xoá bình luận.');
+                    if (isRoot) setActiveId(null);
+                },
+                onError: (e) => message.error(errorMessage(e, 'Không xoá được bình luận.')),
+            },
+        );
     };
 
     // AI gợi ý → trả text điền vào composer (lỗi báo + trả rỗng để không ghi đè).
@@ -631,6 +675,15 @@ export function MessagingPage() {
         <div>
             <MessagingNav />
             <TagManagerModal open={tagModalOpen} onClose={() => setTagModalOpen(false)} />
+            {active?.thread_type === 'comment' && (
+                <CommentPrivateMessageModal
+                    open={privateMsgCommentId !== null}
+                    onClose={() => setPrivateMsgCommentId(null)}
+                    conversation={active}
+                    commentId={privateMsgCommentId ?? undefined}
+                    templates={templates}
+                />
+            )}
             <div style={{ display: 'flex', height: 'calc(100vh - 150px)', gap: 12, minWidth: 0 }}>
             {/* Cột trái — danh sách hội thoại */}
             <div style={{ flex: `0 0 ${screens.md ? 360 : 320}px`, minWidth: 320, maxWidth: 420, background: '#fff', borderRadius: 12, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
@@ -827,48 +880,23 @@ export function MessagingPage() {
                                         <Text type="secondary" style={{ marginInlineStart: 4 }}>· {active.channel_account_name}</Text>
                                     )}
                                 </div>
-                                {/* Comment action buttons — only for comment threads */}
+                                {/* Ẩn/hiện cả luồng bình luận — thao tác like/nhắn riêng/xoá nằm trên TỪNG comment bên dưới */}
                                 {active?.thread_type === 'comment' && active.comment && (
-                                    <Space size={4}>
-                                        <Tooltip title={active.comment.hidden ? 'Hiện bình luận' : 'Ẩn bình luận'}>
-                                            <Button
-                                                type="text"
-                                                size="small"
-                                                icon={active.comment.hidden ? <EyeOutlined /> : <EyeInvisibleOutlined />}
-                                                loading={hideComment.isPending}
-                                                onClick={() => {
-                                                    if (!active?.comment) return;
-                                                    hideComment.mutate(
-                                                        { conversationId: active.id, hidden: !active.comment.hidden },
-                                                        { onError: (e) => message.error(errorMessage(e, 'Không thực hiện được.')) },
-                                                    );
-                                                }}
-                                            />
-                                        </Tooltip>
-                                        <Popconfirm
-                                            title="Xoá bình luận này?"
-                                            description="Hành động này không thể hoàn tác."
-                                            okText="Xoá"
-                                            cancelText="Huỷ"
-                                            okButtonProps={{ danger: true }}
-                                            onConfirm={() => {
-                                                deleteComment.mutate(active.id, {
-                                                    onSuccess: () => { setActiveId(null); message.success('Đã xoá bình luận.'); },
-                                                    onError: (e) => message.error(errorMessage(e, 'Không xoá được.')),
-                                                });
+                                    <Tooltip title={active.comment.hidden ? 'Hiện bình luận' : 'Ẩn bình luận'}>
+                                        <Button
+                                            type="text"
+                                            size="small"
+                                            icon={active.comment.hidden ? <EyeOutlined /> : <EyeInvisibleOutlined />}
+                                            loading={hideComment.isPending}
+                                            onClick={() => {
+                                                if (!active?.comment) return;
+                                                hideComment.mutate(
+                                                    { conversationId: active.id, hidden: !active.comment.hidden },
+                                                    { onError: (e) => message.error(errorMessage(e, 'Không thực hiện được.')) },
+                                                );
                                             }}
-                                        >
-                                            <Tooltip title="Xoá bình luận">
-                                                <Button
-                                                    type="text"
-                                                    size="small"
-                                                    danger
-                                                    icon={<DeleteOutlined />}
-                                                    loading={deleteComment.isPending}
-                                                />
-                                            </Tooltip>
-                                        </Popconfirm>
-                                    </Space>
+                                        />
+                                    </Tooltip>
                                 )}
                             </div>
                         </div>
@@ -918,6 +946,41 @@ export function MessagingPage() {
                                                     )}
                                                 </div>
                                             </div>
+                                            {/* Hàng thao tác trên bình luận của khách: Thích · Nhắn riêng · Xoá */}
+                                            {active?.thread_type === 'comment' && !isOut && m.external_message_id && (
+                                                <Space size={2} style={{ marginTop: 2 }}>
+                                                    <Tooltip title={likedComments.has(m.external_message_id) ? 'Bỏ thích' : 'Thích bình luận'}>
+                                                        <Button
+                                                            type="text"
+                                                            size="small"
+                                                            icon={likedComments.has(m.external_message_id)
+                                                                ? <LikeFilled style={{ color: '#1677ff' }} />
+                                                                : <LikeOutlined />}
+                                                            onClick={() => handleCommentLike(m.external_message_id!)}
+                                                        />
+                                                    </Tooltip>
+                                                    <Tooltip title="Nhắn tin riêng">
+                                                        <Button
+                                                            type="text"
+                                                            size="small"
+                                                            icon={<MessageOutlined />}
+                                                            onClick={() => setPrivateMsgCommentId(m.external_message_id!)}
+                                                        />
+                                                    </Tooltip>
+                                                    <Popconfirm
+                                                        title="Xoá bình luận này?"
+                                                        description="Hành động này không thể hoàn tác."
+                                                        okText="Xoá"
+                                                        cancelText="Huỷ"
+                                                        okButtonProps={{ danger: true }}
+                                                        onConfirm={() => handleCommentDelete(m.external_message_id!)}
+                                                    >
+                                                        <Tooltip title="Xoá bình luận">
+                                                            <Button type="text" size="small" danger icon={<DeleteOutlined />} loading={deleteComment.isPending} />
+                                                        </Tooltip>
+                                                    </Popconfirm>
+                                                </Space>
+                                            )}
                                             {m.reaction && (
                                                 <div style={{
                                                     position: 'absolute',

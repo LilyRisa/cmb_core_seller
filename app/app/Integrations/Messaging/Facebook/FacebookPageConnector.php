@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Integrations\Messaging\Facebook;
 
 use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
+use CMBcoreSeller\Integrations\Messaging\Contracts\CommentEngagementConnector;
 use CMBcoreSeller\Integrations\Messaging\Contracts\InteractiveMessagingConnector;
 use CMBcoreSeller\Integrations\Messaging\Contracts\ListsPostsConnector;
 use CMBcoreSeller\Integrations\Messaging\Contracts\MessagingConnector;
@@ -42,7 +43,7 @@ use Symfony\Component\HttpFoundation\Request;
  * Token: Page access token dài hạn ⇒ `refreshToken` ném UnsupportedOperation
  * (re-OAuth khi hết hạn). Polling: Messenger dựa webhook ⇒ `inbound.polling`=false.
  */
-class FacebookPageConnector implements InteractiveMessagingConnector, ListsPostsConnector, MessagingConnector
+class FacebookPageConnector implements CommentEngagementConnector, InteractiveMessagingConnector, ListsPostsConnector, MessagingConnector
 {
     /** @param array{verify_token?:?string, app_id?:?string, app_secret?:?string, graph_version?:string} $config */
     public function __construct(
@@ -81,6 +82,7 @@ class FacebookPageConnector implements InteractiveMessagingConnector, ListsPosts
             'post.list' => true,           // liệt kê bài đăng (post picker cho comment_on_post)
             'comment.reply_public' => true, // trả lời công khai dưới comment
             'comment.reply_private' => true, // Private Reply (nhắn riêng cho người comment)
+            'comment.like' => true,        // Page thích / bỏ thích comment
             'comment.media' => true,       // đính ảnh vào reply công khai / nhắn riêng
             'comment.webhook' => true,     // nhận comment qua webhook feed
         ];
@@ -892,7 +894,7 @@ class FacebookPageConnector implements InteractiveMessagingConnector, ListsPosts
         $commentLimit = (int) ($query['commentLimit'] ?? 50);
 
         $params = [
-            'fields' => "id,message,permalink_url,created_time,full_picture,comments.limit({$commentLimit}){id,message,created_time,from{id,name},parent}",
+            'fields' => "id,message,permalink_url,created_time,full_picture,attachments{media_type},comments.limit({$commentLimit}){id,message,created_time,from{id,name},parent}",
             'limit' => $postLimit,
             'access_token' => $auth->accessToken,
         ];
@@ -913,8 +915,17 @@ class FacebookPageConnector implements InteractiveMessagingConnector, ListsPosts
             $postMessage = isset($post['message']) && (string) $post['message'] !== '' ? (string) $post['message'] : null;
             $postPermalink = isset($post['permalink_url']) && (string) $post['permalink_url'] !== '' ? (string) $post['permalink_url'] : null;
             // `full_picture` là CDN hết hạn (chỉ để xem trước post card — refresh mỗi lần sync).
+            // Với bài video, full_picture chính là ảnh thumbnail của video.
             $postPicture = isset($post['full_picture']) && (string) $post['full_picture'] !== '' ? (string) $post['full_picture'] : null;
             $postCreated = isset($post['created_time']) ? (string) $post['created_time'] : null;
+            // Loại media bài viết — để FE phủ icon ▶ lên ảnh preview khi là video.
+            $postIsVideo = false;
+            foreach ((array) ($post['attachments']['data'] ?? []) as $att) {
+                if (in_array((string) ($att['media_type'] ?? ''), ['video', 'video_inline', 'video_autoplay'], true)) {
+                    $postIsVideo = true;
+                    break;
+                }
+            }
 
             // index top-level comments keyed by id for reply grouping
             /** @var array<string, array<string,mixed>> $topLevel */
@@ -957,6 +968,7 @@ class FacebookPageConnector implements InteractiveMessagingConnector, ListsPosts
                     'post_message' => $postMessage,
                     'post_permalink' => $postPermalink,
                     'post_picture' => $postPicture,
+                    'post_is_video' => $postIsVideo,
                     'post_created_time' => $postCreated,
                     'replies' => [],
                 ];
@@ -1143,30 +1155,124 @@ class FacebookPageConnector implements InteractiveMessagingConnector, ListsPosts
 
     public function privateReplyToComment(MessagingAuthContext $auth, string $commentId, string $message, array $attachments = []): void
     {
-        // Send API: 1 message = 1 loại (text HOẶC attachment). Gửi text trước (nếu có)
-        // rồi ảnh (nếu có) — recipient là comment_id (Facebook Private Reply).
-        if (trim($message) !== '') {
-            $this->sendPrivateReply($auth, $commentId, ['text' => $message]);
-        }
-        if (($imageUrl = $this->firstImageUrl($attachments)) !== null) {
-            $this->sendPrivateReply($auth, $commentId, [
-                'attachment' => ['type' => 'image', 'payload' => ['url' => $imageUrl, 'is_reusable' => false]],
-            ]);
-        }
+        // Delegate sang sendCommentPrivateMessage (idempotent + lấy PSID) — giữ chữ ký
+        // void cho caller cũ (auto-reply job + endpoint private-reply). Bỏ qua kết quả.
+        $this->sendCommentPrivateMessage($auth, $commentId, null, $message, $attachments);
     }
 
-    /** @param array<string,mixed> $message */
-    private function sendPrivateReply(MessagingAuthContext $auth, string $commentId, array $message): void
+    public function likeComment(MessagingAuthContext $auth, string $commentId, bool $like): void
     {
-        $res = Http::post($this->graphUrl('me/messages'), [
-            'recipient' => ['comment_id' => $commentId],
+        $res = $like
+            ? Http::post($this->graphUrl($commentId.'/likes'), ['access_token' => $auth->accessToken])
+            : Http::delete($this->graphUrl($commentId.'/likes'), ['access_token' => $auth->accessToken]);
+
+        if ($res->successful()) {
+            return;
+        }
+
+        // Idempotent: thích cái đã thích / bỏ thích cái chưa thích ⇒ coi như xong.
+        $code = (int) ($res->json('error.code') ?? 0);
+        if (in_array($code, [3, 100], true) && str_contains((string) $res->json('error.message'), 'already')) {
+            return;
+        }
+
+        $this->throwGraphError($res, 'likeComment');
+    }
+
+    public function sendCommentPrivateMessage(MessagingAuthContext $auth, string $commentId, ?string $psid, string $message, array $attachments = []): array
+    {
+        // Facebook: 1 message = text HOẶC 1 attachment. Ghép thành danh sách phần,
+        // gửi TUẦN TỰ. Phần ĐẦU qua comment_id (Private Reply — chỉ 1 lần/comment, lấy
+        // PSID từ recipient_id, KHÔNG message tag). Các phần SAU qua PSID + MESSAGE_TAG
+        // (HUMAN_AGENT) vì private reply không tự mở cửa sổ 24h. Cửa sổ đóng / bị chặn /
+        // đã nhắn riêng ⇒ dừng êm (best-effort), KHÔNG ném — báo số phần đã gửi.
+        $parts = [];
+        if (trim($message) !== '') {
+            $parts[] = ['text' => $message];
+        }
+        foreach ($attachments as $media) {
+            if ($media->externalUrl === null || $media->externalUrl === '') {
+                continue;
+            }
+            $parts[] = ['attachment' => [
+                'type' => $this->sendAttachmentType($media->kind),
+                'payload' => ['url' => $media->externalUrl, 'is_reusable' => false],
+            ]];
+        }
+
+        $total = count($parts);
+        $delivered = 0;
+
+        foreach ($parts as $part) {
+            $result = $this->sendPrivatePart($auth, $commentId, $psid, $part);
+            if ($result['psid'] !== null) {
+                $psid = $result['psid'];
+            }
+            if ($result['ok']) {
+                $delivered++;
+
+                continue;
+            }
+            // Cửa sổ đóng / bị chặn / đã nhắn riêng mà chưa có PSID ⇒ các phần sau cũng
+            // hỏng tương tự — dừng để báo cáo phần đã gửi thay vì spam lỗi.
+            break;
+        }
+
+        return ['psid' => (string) $psid, 'delivered' => $delivered, 'total' => $total];
+    }
+
+    /**
+     * Gửi 1 phần tin riêng. Chưa có PSID ⇒ recipient {comment_id} (Private Reply, không
+     * tag); có PSID ⇒ recipient {id} + MESSAGE_TAG (HUMAN_AGENT). Trả
+     * `['ok'=>bool, 'psid'=>?string]`: bắt 10900 (đã nhắn riêng) + cửa sổ đóng
+     * (10/200/2018278) + bị chặn (551) ⇒ ok=false, KHÔNG ném. Lỗi khác ⇒ ném.
+     *
+     * @param  array<string,mixed>  $message
+     * @return array{ok: bool, psid: ?string}
+     */
+    private function sendPrivatePart(MessagingAuthContext $auth, string $commentId, ?string $psid, array $message): array
+    {
+        $hasPsid = $psid !== null && $psid !== '';
+        $body = [
+            'recipient' => $hasPsid ? ['id' => $psid] : ['comment_id' => $commentId],
             'message' => $message,
             'access_token' => $auth->accessToken,
-        ]);
-
-        if (! $res->successful()) {
-            $this->throwGraphError($res, 'privateReplyToComment');
+        ];
+        // Tin tiếp theo (đã có PSID) nằm ngoài cửa sổ chuẩn ⇒ phải gắn MESSAGE_TAG.
+        if ($hasPsid) {
+            $body['messaging_type'] = 'MESSAGE_TAG';
+            $body['tag'] = 'HUMAN_AGENT';
         }
+
+        $res = Http::post($this->graphUrl('me/messages'), $body);
+
+        if ($res->successful()) {
+            $recipientId = $res->json('recipient_id');
+
+            return ['ok' => true, 'psid' => $recipientId !== null && (string) $recipientId !== '' ? (string) $recipientId : null];
+        }
+
+        $code = (int) ($res->json('error.code') ?? 0);
+        $subcode = (int) ($res->json('error.error_subcode') ?? 0);
+
+        // Best-effort: đã nhắn riêng (10900) / cửa sổ đóng (10,200 / 2018278) / bị chặn (551)
+        // ⇒ không ném (caller dừng & báo cáo). Lỗi khác (token, rate-limit…) ⇒ ném.
+        if (in_array($code, [10900, 10, 200, 551], true) || $subcode === 2018278) {
+            return ['ok' => false, 'psid' => null];
+        }
+
+        $this->throwGraphError($res, 'privateReplyToComment');
+    }
+
+    /** Map kind nội bộ → loại attachment Send API. */
+    private function sendAttachmentType(MessageKind $kind): string
+    {
+        return match ($kind) {
+            MessageKind::Image => 'image',
+            MessageKind::Video => 'video',
+            MessageKind::Audio => 'audio',
+            default => 'file',
+        };
     }
 
     /**
