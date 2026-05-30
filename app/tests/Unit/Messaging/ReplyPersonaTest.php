@@ -26,6 +26,20 @@ class ReplyPersonaTest extends TestCase
         $this->assertStringContainsString('HỎI LẠI', $s);
     }
 
+    public function test_instructions_contain_order_closing_rules(): void
+    {
+        $s = ReplyPersona::instructions($this->snapshot());
+
+        $this->assertStringContainsString('QUY TẮC CHỐT ĐƠN', $s);
+        // A: kết thúc bằng mời để lại địa chỉ + SĐT để lên đơn.
+        $this->assertStringContainsString('để lại ĐỊA CHỈ và SỐ ĐIỆN THOẠI', $s);
+        // B: muốn tư vấn → xin SĐT để nhân viên gọi.
+        $this->assertStringContainsString('nhân viên gọi tư vấn', $s);
+        // C: khách đã gửi địa chỉ + SĐT + xác nhận → cảm ơn + báo 2-4 ngày.
+        $this->assertStringContainsString('2-4 ngày', $s);
+        $this->assertStringContainsString('CHÚ Ý ĐIỆN THOẠI', $s);
+    }
+
     public function test_instructions_append_buyer_name_and_extra(): void
     {
         $s = ReplyPersona::instructions($this->snapshot('Chị Lan'), 'Chỉ dẫn riêng tenant.');
