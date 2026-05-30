@@ -104,10 +104,21 @@ TXT;
         return [$this->keywordSearch($question, $topK), 'keyword'];
     }
 
-    /** Code provider help — ưu tiên cấu hình admin (system_setting), fallback config/env. */
+    /** Code provider help (CHAT) — ưu tiên cấu hình admin (system_setting), fallback config/env. */
     private function providerCode(): string
     {
         return (string) system_setting('help_assistant.provider_code', config('support.assistant.provider_code', ''));
+    }
+
+    /**
+     * Code provider EMBEDDING — riêng để bước tạo vector dùng nguồn có embeddings
+     * khi provider chat không hỗ trợ (vd OpenRouter). Rỗng ⇒ dùng chung provider chat.
+     */
+    private function embeddingProviderCode(): string
+    {
+        $code = (string) system_setting('help_assistant.embedding_provider_code', config('support.assistant.embedding_provider_code', ''));
+
+        return $code !== '' ? $code : $this->providerCode();
     }
 
     private function embeddingModel(): string
@@ -115,10 +126,10 @@ TXT;
         return (string) system_setting('help_assistant.embedding_model', config('support.assistant.embedding_model', 'text-embedding-3-small'));
     }
 
-    /** Embed câu hỏi qua provider help. Null nếu không cấu hình / không hỗ trợ. */
+    /** Embed câu hỏi qua provider EMBEDDING (riêng nếu có). Null nếu không cấu hình / không hỗ trợ. */
     private function embed(string $text): ?array
     {
-        $code = $this->providerCode();
+        $code = $this->embeddingProviderCode();
         if ($code === '') {
             return null;
         }

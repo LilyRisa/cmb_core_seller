@@ -26,6 +26,9 @@ return [
         // BẬT MẶC ĐỊNH = 'support'; row `ai_providers` tương ứng được TỰ provision từ env
         // bên dưới khi có `HELP_ASSISTANT_API_KEY` (xem SupportProviderProvisioner).
         'provider_code' => env('HELP_ASSISTANT_PROVIDER', 'support'),
+        // Provider RIÊNG cho embedding (RAG). Rỗng ⇒ dùng chung `provider_code`.
+        // Cần khi provider chat không có embeddings API (vd OpenRouter).
+        'embedding_provider_code' => env('HELP_ASSISTANT_EMBEDDING_PROVIDER', ''),
         'embedding_model' => env('HELP_ASSISTANT_EMBEDDING_MODEL', 'text-embedding-3-small'),
         // Dimension mặc định cho text-embedding-3-small (tạo collection khi chưa probe được).
         'embedding_dim' => (int) env('HELP_ASSISTANT_EMBEDDING_DIM', 1536),

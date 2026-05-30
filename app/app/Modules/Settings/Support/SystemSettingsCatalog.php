@@ -270,7 +270,16 @@ class SystemSettingsCatalog
             'help_assistant.embedding_model' => [
                 'group' => 'ai', 'type' => 'string', 'is_secret' => false,
                 'env' => 'HELP_ASSISTANT_EMBEDDING_MODEL', 'label' => 'Trợ giúp (Hỏi AI) — embedding model',
-                'description' => 'Model embedding của provider trên (vd text-embedding-3-small). Đổi model ⇒ chạy lại `php artisan help:index --fresh`.',
+                'description' => 'Model embedding (vd text-embedding-3-small) của provider embedding bên dưới. Đổi model ⇒ chạy lại `php artisan help:index --fresh`.',
+            ],
+            // Provider embedding RIÊNG cho Support — tách khỏi provider chat. Cần khi provider
+            // chat KHÔNG có embeddings API (vd OpenRouter): chat dùng OpenRouter, embedding dùng
+            // nguồn khác (OpenAI text-embedding-*). Để trống ⇒ dùng chung provider chat ở trên.
+            'help_assistant.embedding_provider_code' => [
+                'group' => 'ai', 'type' => 'string', 'is_secret' => false,
+                'env' => 'HELP_ASSISTANT_EMBEDDING_PROVIDER', 'label' => 'Trợ giúp (Hỏi AI) — provider embedding (riêng)',
+                'description' => 'Code 1 nhà cung cấp AI CÓ embedding, dùng RIÊNG cho bước tạo vector (RAG). '
+                    .'Để trống ⇒ dùng chung provider chat. Đặt khi provider chat không hỗ trợ embedding (vd OpenRouter).',
             ],
         ];
     }

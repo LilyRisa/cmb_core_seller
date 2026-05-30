@@ -32,6 +32,9 @@ export function AdminAiProvidersPage() {
     const [form] = Form.useForm();
     const [editing, setEditing] = useState<AiProviderRow | null>(null);
     const [open, setOpen] = useState(false);
+    // Code provider ĐANG test — để CHỈ nút của dòng đó quay spinner (test.isPending
+    // dùng chung mọi dòng ⇒ trước đây bấm 1 provider thì tất cả nút Test đều loading).
+    const [testingCode, setTestingCode] = useState<string | null>(null);
 
     const adapters = data?.adapters ?? [];
     const presetsFor = (a: AiAdapter): AiPreset[] => adapters.find((x) => x.adapter === a)?.presets ?? [];
@@ -94,19 +97,23 @@ export function AdminAiProvidersPage() {
         }
     };
 
-    const runTest = (code: string) =>
+    const runTest = (code: string) => {
+        setTestingCode(code);
         test.mutate(code, {
             onSuccess: (r) => {
                 // Tóm tắt từng năng lực: Chat / Embedding (embedding cần cho trợ lý Hỏi AI / Support).
                 const parts: string[] = [];
-                if (r.results?.chat) parts.push(`Chat: ${r.results.chat.ok ? 'OK' : `LỖI (${r.results.chat.reason ?? ''})`}`);
-                if (r.results?.embedding) parts.push(`Embedding: ${r.results.embedding.ok ? `OK (dim ${r.results.embedding.dimension ?? '?'})` : `LỖI (${r.results.embedding.reason ?? ''})`}`);
+                if (r.results?.chat) parts.push(`Chat: ${r.results.chat.ok ? 'OK' : `LỖI (${r.results.chat.reason ?? ''}${r.results.chat.message ? ' — ' + r.results.chat.message : ''})`}`);
+                if (r.results?.embedding) parts.push(`Embedding: ${r.results.embedding.ok ? `OK (dim ${r.results.embedding.dimension ?? '?'})` : `LỖI (${r.results.embedding.reason ?? ''}${r.results.embedding.message ? ' — ' + r.results.embedding.message : ''})`}`);
                 const detail = parts.join(' · ') || (r.message ?? '');
-                if (r.ok) message.success(`Kết nối OK — ${detail}`);
-                else message.warning(`Chưa OK — ${detail}`);
+                // Ghi RÕ provider nào để không nhầm khi có nhiều provider.
+                if (r.ok) message.success(`[${code}] Kết nối OK — ${detail}`);
+                else message.warning(`[${code}] Chưa OK — ${detail}`);
             },
-            onError: (e) => message.error(errorMessage(e)),
+            onError: (e) => message.error(`[${code}] ${errorMessage(e)}`),
+            onSettled: () => setTestingCode(null),
         });
+    };
 
     const columns = [
         { title: 'Mã', dataIndex: 'code', key: 'code', render: (c: string) => <Tag>{c}</Tag> },
@@ -126,7 +133,7 @@ export function AdminAiProvidersPage() {
             render: (_: unknown, row: AiProviderRow) => (
                 <Space>
                     <Button size="small" onClick={() => openEdit(row)}>Sửa</Button>
-                    <Button size="small" icon={<ThunderboltOutlined />} loading={test.isPending} onClick={() => runTest(row.code)}>Test</Button>
+                    <Button size="small" icon={<ThunderboltOutlined />} loading={testingCode === row.code} disabled={test.isPending && testingCode !== row.code} onClick={() => runTest(row.code)}>Test</Button>
                     <Button
                         size="small"
                         danger

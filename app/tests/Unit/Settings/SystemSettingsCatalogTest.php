@@ -17,10 +17,11 @@ class SystemSettingsCatalogTest extends TestCase
         $this->assertSame(['ai', 'branding', 'fulfillment', 'mail', 'marketplace', 'push', 'sync'], $groups);
     }
 
-    public function test_count_is_53(): void
+    public function test_count_is_54(): void
     {
-        // branding 5 + mail 8 + marketplace 11 + fulfillment 16 + sync 7 + push 3 + ai 3.
-        $this->assertCount(53, SystemSettingsCatalog::all());
+        // branding 5 + mail 8 + marketplace 11 + fulfillment 16 + sync 7 + push 3 + ai 4.
+        // ai 4 = system_prompt + help provider_code + embedding_provider_code + embedding_model.
+        $this->assertCount(54, SystemSettingsCatalog::all());
     }
 
     public function test_secret_count_is_11(): void

@@ -176,6 +176,10 @@ x-app-env: &app-env
   HELP_ASSISTANT_BASE_URL: ${HELP_ASSISTANT_BASE_URL:-https://api.openai.com}
   HELP_ASSISTANT_MODEL: ${HELP_ASSISTANT_MODEL:-gpt-4o-mini}
   HELP_ASSISTANT_EMBEDDING_MODEL: ${HELP_ASSISTANT_EMBEDDING_MODEL:-text-embedding-3-small}
+  # Provider embedding RIÊNG (tùy chọn) — đặt khi provider chat KHÔNG có embeddings API
+  # (vd OpenRouter): chat dùng provider chính, embedding dùng code provider khác (đã tạo ở
+  # /admin/ai-providers). Bỏ trống ⇒ dùng chung provider chat. Cấu hình ở /admin/ai-support.
+  HELP_ASSISTANT_EMBEDDING_PROVIDER: ${HELP_ASSISTANT_EMBEDDING_PROVIDER:-}
 
 services:
   app:                                # php-fpm

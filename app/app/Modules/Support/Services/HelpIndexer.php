@@ -113,7 +113,12 @@ class HelpIndexer
 
     private function embeddingConnector(): ?AiAssistantConnector
     {
-        $code = (string) system_setting('help_assistant.provider_code', config('support.assistant.provider_code', ''));
+        // Provider embedding RIÊNG nếu được đặt (vd chat=OpenRouter, embedding=OpenAI);
+        // rỗng ⇒ dùng chung provider chat.
+        $code = (string) system_setting('help_assistant.embedding_provider_code', config('support.assistant.embedding_provider_code', ''));
+        if ($code === '') {
+            $code = (string) system_setting('help_assistant.provider_code', config('support.assistant.provider_code', ''));
+        }
         if ($code === '') {
             return null;
         }
