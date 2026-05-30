@@ -178,6 +178,12 @@ class ProcessMessagingWebhook implements ShouldQueue
             CommentReceived::dispatch($result['message']->id, $result['conversation']->id);
         }
 
+        // Avatar tác giả comment (webhook không kèm ảnh) — fetch + relay async để FE
+        // chồng 2 avatar. external_message_id = id comment vừa về (commenter/replier).
+        if ($isComment && $result['message']->isInbound() && filled($dto->externalMessageId)) {
+            SyncCommentAvatars::dispatch((int) $result['conversation']->id, (string) $dto->externalMessageId);
+        }
+
         // Sync hồ sơ buyer (tên + avatar) cho DM còn thiếu — webhook tạo conversation
         // KHÔNG fetch profile (khác backfill). Job tự throttle 24h tránh spam Graph.
         if (! $isComment) {

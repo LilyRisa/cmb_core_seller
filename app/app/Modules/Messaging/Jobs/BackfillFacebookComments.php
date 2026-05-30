@@ -199,10 +199,14 @@ class BackfillFacebookComments implements ShouldBeUnique, ShouldQueue
             : null;
 
         // Người tham gia comment = commenter + người reply (KHÔNG tính page). Tên dùng để
-        // hiển thị "A, B +N người" ở comment thread.
+        // hiển thị "A, B +N người"; avatar (CDN, upserter relay) để chồng 2 avatar thread.
         $participantNames = [];
+        $participantAvatars = [];
         if ($commenterName !== null && $commenterName !== '') {
             $participantNames[] = $commenterName;
+        }
+        if (! empty($thread['commenter_avatar'])) {
+            $participantAvatars[] = ['name' => $commenterName, 'url' => (string) $thread['commenter_avatar']];
         }
         foreach ((array) ($thread['replies'] ?? []) as $reply) {
             if ((string) ($reply['from_id'] ?? '') === $auth->externalShopId) {
@@ -211,6 +215,9 @@ class BackfillFacebookComments implements ShouldBeUnique, ShouldQueue
             $rName = isset($reply['from_name']) ? (string) $reply['from_name'] : '';
             if ($rName !== '') {
                 $participantNames[] = $rName;
+            }
+            if (! empty($reply['from_avatar'])) {
+                $participantAvatars[] = ['name' => $rName !== '' ? $rName : null, 'url' => (string) $reply['from_avatar']];
             }
         }
 
@@ -221,6 +228,7 @@ class BackfillFacebookComments implements ShouldBeUnique, ShouldQueue
             'buyer_external_id' => $commenterId,
             'buyer_name' => $commenterName,
             'participant_names' => $participantNames,
+            'participant_avatars' => $participantAvatars,
             'fb_post_id' => (string) $thread['post_id'],
             'fb_comment_id' => $commentId,
             'occurred_at' => $createdTime,

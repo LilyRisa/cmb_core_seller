@@ -16,6 +16,7 @@ use CMBcoreSeller\Modules\Procurement\ProcurementServiceProvider;
 use CMBcoreSeller\Modules\Products\ProductsServiceProvider;
 use CMBcoreSeller\Modules\Reports\ReportsServiceProvider;
 use CMBcoreSeller\Modules\Settings\SettingsServiceProvider;
+use CMBcoreSeller\Modules\Support\SupportServiceProvider;
 use CMBcoreSeller\Modules\Tenancy\TenancyServiceProvider;
 use CMBcoreSeller\Providers\AppServiceProvider;
 use CMBcoreSeller\Providers\HorizonServiceProvider;
@@ -45,4 +46,6 @@ return [
     NotificationsServiceProvider::class,
     // SPEC-0024 (Phase 7.x đề xuất) — Omnichannel Messaging foundation (S1).
     MessagingServiceProvider::class,
+    // SPEC-0028 — Trợ lý trợ giúp sản phẩm (RAG help-bot) + yêu cầu CSKH.
+    SupportServiceProvider::class,
 ];

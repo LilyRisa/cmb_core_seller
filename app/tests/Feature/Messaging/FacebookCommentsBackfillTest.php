@@ -8,6 +8,7 @@ use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Http\Resources\ConversationResource;
 use CMBcoreSeller\Modules\Messaging\Jobs\BackfillFacebookComments;
+use CMBcoreSeller\Modules\Messaging\Jobs\SyncCommentAvatars;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta;
@@ -18,6 +19,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -264,6 +266,102 @@ class FacebookCommentsBackfillTest extends TestCase
         $this->assertSame(['Nguyễn Văn A', 'Trần Văn B', 'Lê C', 'Phạm D'], $data['comment']['participants']);
         $this->assertSame('https://cdn.fb/POSTR.jpg', $data['comment']['post_picture']);
         $this->assertSame('2026-05-20T10:00:00+00:00', $data['comment']['post_created_time']);
+    }
+
+    // -----------------------------------------------------------------------
+    // 4. Avatar người tham gia (chồng 2 avatar)
+    // -----------------------------------------------------------------------
+
+    public function test_fetch_comment_threads_captures_participant_avatars(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*/feed*' => Http::response([
+                'data' => [[
+                    'id' => 'POST_1', 'message' => 'Bài', 'permalink_url' => 'https://fb.com/p/1',
+                    'created_time' => '2026-05-20T10:00:00+0000',
+                    'comments' => ['data' => [
+                        ['id' => 'CMT_A', 'message' => 'hỏi', 'created_time' => '2026-05-20T11:00:00+0000',
+                            'from' => ['id' => 'BUYER_1', 'name' => 'A', 'picture' => ['data' => ['url' => 'https://cdn.fb/AV_A.jpg']]]],
+                        ['id' => 'REPLY_B', 'message' => 'reply', 'created_time' => '2026-05-20T11:05:00+0000',
+                            'from' => ['id' => 'BUYER_2', 'name' => 'B', 'picture' => ['data' => ['url' => 'https://cdn.fb/AV_B.jpg']]],
+                            'parent' => ['id' => 'CMT_A']],
+                    ]],
+                ]],
+                'paging' => ['cursors' => ['after' => null]],
+            ], 200),
+        ]);
+
+        $result = $this->makeConnector()->fetchCommentThreads(
+            new MessagingAuthContext(1, 'facebook_page', 'PAGE_TEST', 'TOKEN')
+        );
+
+        $item = $result['items'][0];
+        $this->assertSame('https://cdn.fb/AV_A.jpg', $item['commenter_avatar']);
+        $this->assertSame('https://cdn.fb/AV_B.jpg', $item['replies'][0]['from_avatar']);
+    }
+
+    public function test_backfill_relays_and_exposes_participant_avatars(): void
+    {
+        [$tenant, $account] = $this->fbAccount();
+        Storage::fake((string) config('messaging.media_disk'));
+
+        Http::fake([
+            'graph.facebook.com/*/feed*' => Http::response([
+                'data' => [[
+                    'id' => 'POST_1', 'message' => 'Bài', 'permalink_url' => 'https://fb.com/p/1',
+                    'created_time' => now()->subDay()->toIso8601String(),
+                    'comments' => ['data' => [
+                        ['id' => 'CMT_A', 'message' => 'hỏi', 'created_time' => now()->subHours(23)->toIso8601String(),
+                            'from' => ['id' => 'BUYER_1', 'name' => 'A', 'picture' => ['data' => ['url' => 'https://cdn.fb/AV_A.jpg']]]],
+                        ['id' => 'REPLY_B', 'message' => 'reply', 'created_time' => now()->subHours(22)->toIso8601String(),
+                            'from' => ['id' => 'BUYER_2', 'name' => 'B', 'picture' => ['data' => ['url' => 'https://cdn.fb/AV_B.jpg']]],
+                            'parent' => ['id' => 'CMT_A']],
+                    ]],
+                ]],
+                'paging' => ['cursors' => ['after' => null]],
+            ], 200),
+            'cdn.fb/*' => Http::response('FAKE_IMAGE_BYTES', 200),
+        ]);
+
+        BackfillFacebookComments::dispatchSync($account->id);
+
+        $conv = Conversation::withoutGlobalScope(TenantScope::class)
+            ->where('external_conversation_id', 'CMT_A')->first();
+        $avatars = $conv->meta['comment_participant_avatars'];
+        $this->assertCount(2, $avatars);            // commenter + 1 replier, cap 2
+        $this->assertSame('A', $avatars[0]['name']);
+        $this->assertNotNull($avatars[0]['path']);  // đã relay về storage
+
+        $data = (new ConversationResource($conv))->toArray(Request::create('/'));
+        $this->assertCount(2, $data['comment']['participant_avatars']);
+    }
+
+    public function test_sync_comment_avatars_job_fetches_and_stores_author_avatar(): void
+    {
+        [$tenant, $account] = $this->fbAccount();
+        Storage::fake((string) config('messaging.media_disk'));
+
+        $conv = Conversation::query()->create([
+            'tenant_id' => $tenant->getKey(), 'channel_account_id' => $account->id,
+            'provider' => 'facebook_page', 'thread_type' => 'comment',
+            'external_conversation_id' => 'CMT_W', 'buyer_external_id' => 'BUYER_9',
+            'status' => 'open', 'last_message_at' => now(), 'meta' => [],
+        ]);
+
+        Http::fake([
+            'graph.facebook.com/*' => Http::response([
+                'from' => ['id' => 'BUYER_9', 'name' => 'Z', 'picture' => ['data' => ['url' => 'https://cdn.fb/AV_Z.jpg']]],
+            ], 200),
+            'cdn.fb/*' => Http::response('IMG', 200),
+        ]);
+
+        SyncCommentAvatars::dispatchSync($conv->id, 'CMT_W');
+
+        $conv->refresh();
+        $avatars = $conv->meta['comment_participant_avatars'];
+        $this->assertCount(1, $avatars);
+        $this->assertSame('Z', $avatars[0]['name']);
+        $this->assertNotNull($avatars[0]['path']);
     }
 
     public function test_backfill_permission_error_sets_friendly_comment_error_and_does_not_touch_message_sync(): void

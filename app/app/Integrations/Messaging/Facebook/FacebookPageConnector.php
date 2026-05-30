@@ -894,7 +894,7 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
         $commentLimit = (int) ($query['commentLimit'] ?? 50);
 
         $params = [
-            'fields' => "id,message,permalink_url,created_time,full_picture,attachments{media_type},comments.limit({$commentLimit}){id,message,created_time,from{id,name},parent}",
+            'fields' => "id,message,permalink_url,created_time,full_picture,attachments{media_type},comments.limit({$commentLimit}){id,message,created_time,from{id,name,picture},parent}",
             'limit' => $postLimit,
             'access_token' => $auth->accessToken,
         ];
@@ -945,6 +945,8 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
                             'id' => $commentId,
                             'from_id' => $fromId,
                             'from_name' => $comment['from']['name'] ?? null,
+                            // Avatar người reply (CDN FB hết hạn ⇒ caller relay). Stack avatar comment thread.
+                            'from_avatar' => $comment['from']['picture']['data']['url'] ?? null,
                             'message' => isset($comment['message']) && (string) $comment['message'] !== '' ? (string) $comment['message'] : null,
                             'created_time' => $comment['created_time'] ?? null,
                         ];
@@ -962,6 +964,8 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
                     'comment_id' => $commentId,
                     'commenter_id' => $fromId,
                     'commenter_name' => $comment['from']['name'] ?? null,
+                    // Avatar người comment (CDN FB hết hạn ⇒ caller relay). Stack avatar comment thread.
+                    'commenter_avatar' => $comment['from']['picture']['data']['url'] ?? null,
                     'message' => isset($comment['message']) && (string) $comment['message'] !== '' ? (string) $comment['message'] : null,
                     'created_time' => $comment['created_time'] ?? null,
                     'post_id' => $postId,
@@ -988,6 +992,30 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
             'items' => $items,
             'nextCursor' => $nextCursor !== null ? (string) $nextCursor : null,
             'hasMore' => (bool) $hasMore,
+        ];
+    }
+
+    /**
+     * Lấy tên + avatar tác giả của 1 comment (path WEBHOOK realtime — feed webhook
+     * chỉ có from{id,name}, không kèm ảnh). `picture` là URL CDN hết hạn ⇒ caller relay.
+     * Best-effort: lỗi/thiếu quyền ⇒ trả null (FE fallback chữ cái đầu).
+     *
+     * @return array{name: ?string, avatar_url: ?string}
+     */
+    public function fetchCommentAuthorAvatar(MessagingAuthContext $auth, string $commentId): array
+    {
+        $res = Http::timeout(20)->get($this->graphUrl($commentId), [
+            'fields' => 'from{id,name,picture}',
+            'access_token' => $auth->accessToken,
+        ]);
+
+        if (! $res->successful()) {
+            return ['name' => null, 'avatar_url' => null];
+        }
+
+        return [
+            'name' => $res->json('from.name'),
+            'avatar_url' => $res->json('from.picture.data.url'),
         ];
     }
 

@@ -1,0 +1,36 @@
+<?php
+
+namespace CMBcoreSeller\Modules\Support;
+
+use CMBcoreSeller\Modules\Support\Console\Commands\IndexHelpDocs;
+use CMBcoreSeller\Modules\Support\Services\QdrantClient;
+use Illuminate\Support\ServiceProvider;
+
+/**
+ * Module Support — trợ lý trợ giúp sản phẩm (RAG hỏi-đáp cách dùng) + yêu cầu CSKH.
+ *
+ * Tự chứa: không sửa lớp AI (chỉ gọi qua AiAssistantRegistry) và không phụ thuộc ruột
+ * module khác. help_chunks là GLOBAL; support_requests theo tenant.
+ */
+class SupportServiceProvider extends ServiceProvider
+{
+    public function register(): void
+    {
+        $this->mergeConfigFrom(__DIR__.'/../../../config/support.php', 'support');
+
+        $this->app->singleton(QdrantClient::class, fn () => new QdrantClient);
+    }
+
+    public function boot(): void
+    {
+        $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
+
+        if (is_file(__DIR__.'/Http/routes.php')) {
+            $this->loadRoutesFrom(__DIR__.'/Http/routes.php');
+        }
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([IndexHelpDocs::class]);
+        }
+    }
+}

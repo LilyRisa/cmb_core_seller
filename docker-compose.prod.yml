@@ -163,6 +163,15 @@ x-app-env: &app-env
   MESSAGING_MAX_IMAGE_MB: ${MESSAGING_MAX_IMAGE_MB:-25}
   MESSAGING_MAX_VIDEO_MB: ${MESSAGING_MAX_VIDEO_MB:-100}
   MESSAGING_MAX_FILE_MB: ${MESSAGING_MAX_FILE_MB:-25}
+  # --- Trợ lý trợ giúp sản phẩm (SPEC-0028) — RAG hỏi-đáp cách dùng + Hỏi CSKH ---
+  # Qdrant = service `qdrant` trong stack này. HELP_ASSISTANT_PROVIDER = code 1 row
+  # `ai_providers` (super-admin tạo ở /admin/ai-providers, adapter openai_compatible, CÓ embedding).
+  # Để TRỐNG ⇒ widget vẫn chạy bằng tìm kiếm từ khoá (keyword), không cần Qdrant/AI.
+  # Sau deploy, chạy 1 lần: docker compose -f docker-compose.prod.yml exec app php artisan help:index
+  QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+  QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+  HELP_ASSISTANT_PROVIDER: ${HELP_ASSISTANT_PROVIDER:-}
+  HELP_ASSISTANT_EMBEDDING_MODEL: ${HELP_ASSISTANT_EMBEDDING_MODEL:-text-embedding-3-small}
 
 services:
   app:                                # php-fpm
@@ -296,10 +305,23 @@ services:
     restart: unless-stopped
     logging: *logging
 
+  qdrant:                             # Vector DB cho trợ lý trợ giúp (RAG help-bot, SPEC-0028)
+    image: qdrant/qdrant:latest
+    volumes:
+      - qdrantdata:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    logging: *logging
+
 volumes:
   pgdata:
   redisdata:
   miniodata:
+  qdrantdata:
 
 networks:
   proxy:

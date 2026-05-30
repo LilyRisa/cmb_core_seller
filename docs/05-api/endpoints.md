@@ -377,6 +377,11 @@ Cấu hình động lưu trong DB (`system_settings`), ghi đè giá trị từ 
 - `GET    /tenant/settings/messaging` (`messaging.ai.config`) — `{ai_provider_code?, available_providers:[{code,name}], away_hours, fallback_template_id?}`.
 - `PATCH  /tenant/settings/messaging` (`messaging.ai.config`).
 
+**Support — trợ lý trợ giúp sản phẩm + CSKH (SPEC-0028)** (`/api/v1/support/*`, auth + tenant, KHÔNG gate gói):
+- `POST   /support/assistant/ask` — `{question, history?}` → `{answer, sources[], mode}` (RAG hỏi-đáp cách dùng; suy biến keyword khi chưa cấu hình Qdrant/AI, không bao giờ 500). Throttle 30/phút.
+- `POST   /support/requests` — `{question}` → tạo yêu cầu CSKH (chờ phản hồi). Throttle 10/phút.
+- `GET    /support/requests` — lịch sử yêu cầu CSKH của tenant hiện tại.
+
 **Admin SPA `/api/v1/admin/*`** (admin guard, không cần tenant):
 - `GET/POST/PATCH/DELETE /admin/ai-providers[/{code}]` — CRUD provider trong `system_settings.ai_providers.<code>`.
 - `POST   /admin/ai-providers/{code}/test` — test connection (sinh 1 reply "hello").

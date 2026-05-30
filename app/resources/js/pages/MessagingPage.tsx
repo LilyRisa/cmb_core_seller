@@ -34,6 +34,7 @@ import { MessagingNav } from '@/components/MessagingNav';
 import { TagManagerModal } from '@/components/TagManagerModal';
 import { ConversationOrderPanel } from '@/components/messaging/ConversationOrderPanel';
 import { CommentPostCard } from '@/components/messaging/CommentPostCard';
+import { CommentAvatarStack } from '@/components/messaging/CommentAvatarStack';
 import { CommentPrivateMessageModal } from '@/components/messaging/CommentPrivateMessageModal';
 import { MessageComposer, type ComposerSubmit } from '@/components/messaging/MessageComposer';
 
@@ -772,7 +773,9 @@ export function MessagingPage() {
                                                     }
                                                     offset={[-4, 30]}
                                                 >
-                                                    <Avatar size={40} src={c.buyer_avatar_url ?? undefined} style={{ background: '#2563EB', flexShrink: 0 }}>{convDisplayName(c).slice(0, 1).toUpperCase()}</Avatar>
+                                                    {c.thread_type === 'comment'
+                                                        ? <CommentAvatarStack avatars={c.comment?.participant_avatars} names={c.comment?.participants} size={40} />
+                                                        : <Avatar size={40} src={c.buyer_avatar_url ?? undefined} style={{ background: '#2563EB', flexShrink: 0 }}>{convDisplayName(c).slice(0, 1).toUpperCase()}</Avatar>}
                                                 </Badge>
                                             )}
                                             title={(
@@ -860,14 +863,20 @@ export function MessagingPage() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <Tooltip title={active?.thread_type === 'comment' && active?.comment?.post_permalink ? 'Xem bài viết Facebook' : 'Không có link công khai'}>
                                     <Spin spinning={openingLink} size="small">
-                                        <Avatar
-                                            src={active?.buyer_avatar_url ?? undefined}
-                                            size={36}
-                                            style={{ cursor: 'pointer', background: '#2563EB', flexShrink: 0 }}
-                                            onClick={handleAvatarClick}
-                                        >
-                                            {(active ? convDisplayName(active) : '?').slice(0, 1).toUpperCase()}
-                                        </Avatar>
+                                        {active?.thread_type === 'comment' ? (
+                                            <span style={{ cursor: 'pointer', display: 'inline-flex' }} onClick={handleAvatarClick}>
+                                                <CommentAvatarStack avatars={active.comment?.participant_avatars} names={active.comment?.participants} size={36} />
+                                            </span>
+                                        ) : (
+                                            <Avatar
+                                                src={active?.buyer_avatar_url ?? undefined}
+                                                size={36}
+                                                style={{ cursor: 'pointer', background: '#2563EB', flexShrink: 0 }}
+                                                onClick={handleAvatarClick}
+                                            >
+                                                {(active ? convDisplayName(active) : '?').slice(0, 1).toUpperCase()}
+                                            </Avatar>
+                                        )}
                                     </Spin>
                                 </Tooltip>
                                 <div style={{ flex: 1 }}>

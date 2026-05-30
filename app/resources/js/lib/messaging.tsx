@@ -29,6 +29,8 @@ export interface ConversationComment {
     private_replied: boolean;
     /** Tên người tham gia comment (commenter + người reply) — hiển thị "A, B +N người". */
     participants: string[];
+    /** Avatar người tham gia (tối đa 2) — chồng 2 avatar như app nhắn tin. */
+    participant_avatars: string[];
 }
 
 export interface Conversation {

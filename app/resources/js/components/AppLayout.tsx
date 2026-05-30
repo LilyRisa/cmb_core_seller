@@ -31,6 +31,7 @@ import { getCurrentTenantId, setCurrentTenantId, useAuth, useLogout } from '@/li
 import { useCan } from '@/lib/tenant';
 import { useGlobalMessageNotifications } from '@/lib/useMessageNotifications';
 import { OverQuotaBanner } from '@/components/OverQuotaBanner';
+import { HelpChatWidget } from '@/components/support/HelpChatWidget';
 
 const { Header, Sider, Content } = Layout;
 
@@ -156,6 +157,8 @@ export function AppLayout() {
                     <Outlet context={{ tenantName: currentTenant?.name }} />
                 </Content>
             </Layout>
+            {/* Widget trợ giúp nổi (kéo–thả) — Hỏi AI (RAG) + Hỏi CSKH. Hiện mọi trang app người dùng. */}
+            <HelpChatWidget />
         </Layout>
     );
 }

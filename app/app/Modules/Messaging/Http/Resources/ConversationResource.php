@@ -45,6 +45,9 @@ class ConversationResource extends JsonResource
                     (array) ($this->meta['comment_participants'] ?? []),
                     fn ($n) => is_string($n) && $n !== '',
                 )),
+                // Avatar người tham gia (tối đa 2) — FE chồng 2 avatar như app nhắn tin.
+                // Ưu tiên signed URL storage (đã relay), fallback URL CDN gốc.
+                'participant_avatars' => self::commentParticipantAvatars($this->meta['comment_participant_avatars'] ?? []),
             ] : null,
             // Nguồn gốc hội thoại: nhóm kênh (marketplace/facebook/internal) + tên
             // shop/page cụ thể — FE tách "tin nhắn sàn" vs "tin nhắn Facebook" + hiện
@@ -82,6 +85,33 @@ class ConversationResource extends JsonResource
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * Map list avatar lưu trong meta → list URL hiển thị (tối đa 2). Mỗi phần tử ưu
+     * tiên signed URL từ path đã relay, fallback URL CDN gốc.
+     *
+     * @param  mixed  $raw
+     * @return list<string>
+     */
+    private static function commentParticipantAvatars($raw): array
+    {
+        $out = [];
+        foreach ((array) $raw as $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+            $url = self::mediaStorage()->temporaryUrlForPath($entry['path'] ?? null)
+                ?? ($entry['url'] ?? null);
+            if (is_string($url) && $url !== '') {
+                $out[] = $url;
+            }
+            if (count($out) >= 2) {
+                break;
+            }
+        }
+
+        return $out;
     }
 
     /** Nhóm nguồn để FE tách inbox: sàn TMĐT vs Facebook vs nội bộ. */
