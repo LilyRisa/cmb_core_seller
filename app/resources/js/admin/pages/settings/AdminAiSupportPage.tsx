@@ -1,7 +1,7 @@
 // /admin/ai-support — trang RIÊNG cấu hình trợ lý "Hỏi AI" (module Support).
 // TỰ CHỨA: credentials riêng (base_url + api_key + model), KHÔNG dùng chung bảng
 // "Nhà cung cấp AI" của messaging. Tách CHAT và EMBEDDING độc lập → chat dùng
-// OpenRouter (không có embeddings) còn embedding dùng nguồn khác (OpenAI...).
+// Có thể dùng cùng provider hay khác provider cho chat và embedding (tuỳ base_url/model).
 
 import { useEffect, useState } from 'react';
 import { App, Alert, Button, Card, Input, Space, Spin, Typography } from 'antd';
@@ -95,8 +95,8 @@ export function AdminAiSupportPage() {
             <Card size="small" title="2. Embedding — tạo vector cho tìm kiếm ngữ nghĩa (RAG)">
                 <Alert
                     type="info" showIcon style={{ marginBottom: 12 }}
-                    message="Tách riêng vì OpenRouter KHÔNG có endpoint embeddings"
-                    description="Nếu chat dùng OpenRouter, hãy đặt embedding sang nguồn có /v1/embeddings (vd OpenAI: https://api.openai.com, model text-embedding-3-small). Để TRỐNG Base URL ⇒ tắt vector, trợ lý chạy tìm kiếm từ khoá."
+                    message="Phải dùng MODEL embedding hợp lệ của provider"
+                    description="Có thể dùng cùng provider với chat hoặc provider khác. Quan trọng: Model phải là model EMBEDDING (vd openai/text-embedding-3-small trên OpenRouter, text-embedding-3-small trên OpenAI) — KHÔNG phải model chat. Để TRỐNG Base URL ⇒ tắt vector, trợ lý chạy tìm kiếm từ khoá."
                 />
                 <Space direction="vertical" size={10} style={{ width: '100%', maxWidth: 560 }}>
                     <div>

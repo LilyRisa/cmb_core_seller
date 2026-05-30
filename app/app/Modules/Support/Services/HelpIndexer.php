@@ -49,14 +49,23 @@ class HelpIndexer
         // Tạo collection nếu có cấu hình embedding + Qdrant bật. `--fresh` ⇒ DROP + tạo lại để
         // không còn point mồ côi (help_chunks đã xoá & cấp id mới).
         $qdrantReady = false;
-        if ($embConfigured && $this->qdrant->enabled()) {
-            $dim = $this->probeDimension() ?? (int) config('support.assistant.embedding_dim', 1536);
-            $qdrantReady = $fresh
-                ? $this->qdrant->recreateCollection($dim)
-                : $this->qdrant->ensureCollection($dim);
-            $log($qdrantReady ? "Qdrant collection sẵn sàng (dim={$dim})" : 'Qdrant không sẵn sàng — chỉ keyword');
+        if (! $embConfigured) {
+            $log('Chưa cấu hình embedding (thiếu base_url/api_key/model ở /admin/ai-support) — chỉ keyword');
+        } elseif (! $this->qdrant->enabled()) {
+            $log('Qdrant tắt (QDRANT_URL rỗng) — chỉ keyword');
         } else {
-            $log($embConfigured ? 'Qdrant tắt (QDRANT_URL rỗng) — chỉ keyword' : 'Chưa cấu hình embedding — chỉ keyword');
+            // Dò chiều vector = gọi thử embed("ping"). null ⇒ provider embedding KHÔNG hoạt động
+            // (sai key/model, hoặc base_url không có /v1/embeddings — vd OpenRouter). Dừng vector,
+            // KHÔNG tạo collection với dim đoán để tránh báo "sẵn sàng" gây hiểu lầm.
+            $probed = $this->probeDimension();
+            if ($probed === null) {
+                $log('Gọi embedding THẤT BẠI — provider không trả vector (sai api_key, sai tên model embedding, hoặc base_url sai). Xem log support.embed_failed để biết HTTP status + body. → chỉ keyword');
+            } else {
+                $qdrantReady = $fresh
+                    ? $this->qdrant->recreateCollection($probed)
+                    : $this->qdrant->ensureCollection($probed);
+                $log($qdrantReady ? "Qdrant collection sẵn sàng (dim={$probed})" : 'Qdrant không tạo được collection (kiểm QDRANT_URL/api_key) — chỉ keyword');
+            }
         }
 
         $embedded = 0;

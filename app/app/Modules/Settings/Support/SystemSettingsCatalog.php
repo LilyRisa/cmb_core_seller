@@ -281,8 +281,9 @@ class SystemSettingsCatalog
             'help_assistant.embedding_base_url' => [
                 'group' => 'ai', 'type' => 'string', 'is_secret' => false,
                 'env' => 'HELP_ASSISTANT_EMBEDDING_BASE_URL', 'label' => 'Hỏi AI — Embedding: Base URL',
-                'description' => 'GỐC host cho EMBEDDING (vd https://api.openai.com). Để trống ⇒ tắt vector, chạy keyword. '
-                    .'OpenRouter KHÔNG có embeddings ⇒ dùng nguồn khác (OpenAI…).',
+                'description' => 'GỐC host cho EMBEDDING (vd https://api.openai.com hoặc https://openrouter.ai/api). '
+                    .'Để trống ⇒ tắt vector, chạy keyword. Phải dùng MODEL embedding hợp lệ của provider đó '
+                    .'(vd openai/text-embedding-3-small trên OpenRouter, text-embedding-3-small trên OpenAI).',
             ],
             'help_assistant.embedding_api_key' => [
                 'group' => 'ai', 'type' => 'string', 'is_secret' => true,

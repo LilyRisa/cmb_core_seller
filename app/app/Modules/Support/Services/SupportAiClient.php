@@ -3,14 +3,15 @@
 namespace CMBcoreSeller\Modules\Support\Services;
 
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Client AI TỰ CHỨA cho module Support — KHÔNG dùng bảng `ai_providers` hay
  * `AiAssistantRegistry`. Gọi thẳng API OpenAI-compatible bằng Laravel Http.
  *
  * Credentials đọc qua `system_setting()` (admin /admin/ai-support) → fallback
- * `config/support.php` (env). CHAT và EMBEDDING cấu hình ĐỘC LẬP: cho phép chat =
- * OpenRouter (không có embeddings) còn embedding = OpenAI/khác.
+ * `config/support.php` (env). CHAT và EMBEDDING cấu hình ĐỘC LẬP: dùng cùng provider
+ * hay khác provider tuỳ ý (chỉ cần đặt đúng base_url + api_key + tên model embedding).
  *
  * Suy biến mượt: thiếu cấu hình ⇒ trả null (caller fallback keyword), KHÔNG ném.
  */
@@ -80,7 +81,7 @@ class SupportAiClient
 
     /**
      * Embed 1 đoạn text → vector. Trả list<float> hoặc null (chưa cấu hình / lỗi /
-     * provider không có /v1/embeddings — vd OpenRouter trả 404).
+     * sai api_key / sai tên model embedding / base_url sai — xem log support.embed_failed).
      *
      * @return list<float>|null
      */
@@ -91,17 +92,30 @@ class SupportAiClient
         }
         $c = $this->embeddingConfig();
 
+        $url = $c['base_url'].'/v1/embeddings';
         $res = Http::withToken($c['api_key'])
             ->timeout(30)->retry(2, 1000, throw: false)
-            ->post($c['base_url'].'/v1/embeddings', [
+            ->post($url, [
                 'model' => $c['model'],
                 'input' => $text,
             ]);
 
         if (! $res->successful()) {
+            // Lộ lỗi thật (status + đầu body) để chẩn đoán — provider sai key/model/endpoint
+            // hay không có /v1/embeddings (vd OpenRouter 404). KHÔNG ném (suy biến keyword).
+            Log::warning('support.embed_failed', [
+                'url' => $url,
+                'model' => $c['model'],
+                'status' => $res->status(),
+                'body' => mb_substr($res->body(), 0, 300),
+            ]);
+
             return null;
         }
         $vector = array_map('floatval', (array) $res->json('data.0.embedding', []));
+        if ($vector === []) {
+            Log::warning('support.embed_empty_vector', ['url' => $url, 'model' => $c['model'], 'body' => mb_substr($res->body(), 0, 300)]);
+        }
 
         return $vector !== [] ? $vector : null;
     }
