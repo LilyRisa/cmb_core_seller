@@ -104,6 +104,39 @@ export function useResendVerification() {
     });
 }
 
+/**
+ * SPEC 0022 — bước 1: yêu cầu gửi email đặt lại mật khẩu (`POST /auth/password/forgot`).
+ * BE luôn trả `{ sent: true }` generic (chống enumerate email). Throttle 5/15p.
+ */
+export function useForgotPassword() {
+    return useMutation<{ sent: boolean }, unknown, { email: string }>({
+        mutationFn: async (vars) => {
+            await ensureCsrf();
+            const { data } = await api.post<{ data: { sent: boolean } }>('/auth/password/forgot', vars);
+            return data.data;
+        },
+    });
+}
+
+/**
+ * SPEC 0022 — bước 2: đặt mật khẩu mới bằng token trong email (`POST /auth/password/reset`).
+ * Policy: ≥8 ký tự, có chữ hoa + chữ thường + ký tự đặc biệt. Throttle 30/giờ.
+ * Lỗi: `422 INVALID_RESET_TOKEN` (token sai/hết hạn) | `422 VALIDATION_FAILED`.
+ */
+export function useResetPassword() {
+    return useMutation<
+        { reset: boolean },
+        unknown,
+        { email: string; token: string; password: string; password_confirmation: string }
+    >({
+        mutationFn: async (vars) => {
+            await ensureCsrf();
+            const { data } = await api.post<{ data: { reset: boolean } }>('/auth/password/reset', vars);
+            return data.data;
+        },
+    });
+}
+
 export function useLogout() {
     const qc = useQueryClient();
     return useMutation({

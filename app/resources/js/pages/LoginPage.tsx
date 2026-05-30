@@ -80,11 +80,7 @@ export function LoginPage() {
 
                         <Form.Item
                             name="password"
-                            label={
-                                <div className="auth-divider-row" style={{ width: '100%' }}>
-                                    <span>Mật khẩu</span>
-                                </div>
-                            }
+                            label="Mật khẩu"
                             rules={[{ required: true, message: 'Nhập mật khẩu' }]}
                         >
                             <Input.Password
@@ -99,6 +95,7 @@ export function LoginPage() {
                                 <Form.Item name="remember" valuePropName="checked" noStyle>
                                     <Checkbox>Ghi nhớ đăng nhập</Checkbox>
                                 </Form.Item>
+                                <Link to="/forgot-password" style={{ fontWeight: 500 }}>Quên mật khẩu?</Link>
                             </div>
                         </Form.Item>
 

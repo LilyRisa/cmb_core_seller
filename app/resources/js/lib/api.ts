@@ -45,6 +45,11 @@ export function errorMessage(err: unknown, fallback = 'Đã có lỗi xảy ra.'
     return body?.message ?? e?.message ?? fallback;
 }
 
+/** Mã lỗi nghiệp vụ từ envelope `{ error: { code } }` (vd `INVALID_RESET_TOKEN`). */
+export function errorCode(err: unknown): string | null {
+    return (err as AxiosError<ApiErrorBody>)?.response?.data?.error?.code ?? null;
+}
+
 export function isUnauthenticated(err: unknown): boolean {
     return (err as AxiosError)?.response?.status === 401;
 }

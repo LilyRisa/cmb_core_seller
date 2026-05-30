@@ -22,7 +22,7 @@
 | GET | `/api/v1/auth/email/verify/{id}/{hash}` | signed URL | query `expires`, `signature` | `302` redirect `${FRONTEND_URL}/email-verified?status=success\|already\|invalid`. Hash sai / signature sai / hết hạn ⇒ `status=invalid`. Click 2 lần ⇒ `status=already`. (SPEC 0022) Throttle `6/1`. |
 | POST | `/api/v1/auth/email/verify/resend` | sanctum | — | `200 { data: { sent: true } }` — dispatch lại `VerifyEmailNotification`. Đã verified ⇒ `200 { data: { sent: false, reason: 'already_verified' } }`. Throttle `6/60`. (SPEC 0022) |
 | POST | `/api/v1/auth/password/forgot` | — | `{ email }` | `200 { data: { sent: true } }` (response generic — không xác nhận email có tồn tại không, chống enumerate). Dispatch `ResetPasswordNotification` qua queue `notifications` nếu email khớp. Throttle `5/15`. (SPEC 0022) |
-| POST | `/api/v1/auth/password/reset` | — | `{ email, token, password, password_confirmation }` | `200 { data: { reset: true } }`. Token sai/hết hạn ⇒ `422 INVALID_RESET_TOKEN`; password yếu/không khớp ⇒ `422 VALIDATION_FAILED`. Throttle `30/60`. (SPEC 0022) |
+| POST | `/api/v1/auth/password/reset` | — | `{ email, token, password, password_confirmation }` | `200 { data: { reset: true } }`. Token sai/hết hạn ⇒ `422 INVALID_RESET_TOKEN`; password không khớp / không đạt policy ⇒ `422 VALIDATION_FAILED`. **Password policy:** tối thiểu 8 ký tự, ít nhất 1 chữ hoa + 1 chữ thường + 1 ký tự đặc biệt (`min(8)->mixedCase()->symbols()`). Throttle `30/60`. (SPEC 0022) |
 
 ## Tenant (workspace)
 

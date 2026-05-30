@@ -59,11 +59,11 @@ class PasswordResetTest extends TestCase
         $this->postJson('/api/v1/auth/password/reset', [
             'email' => 'reset@example.com',
             'token' => $token,
-            'password' => 'new-password-99',
-            'password_confirmation' => 'new-password-99',
+            'password' => 'New-password-99',
+            'password_confirmation' => 'New-password-99',
         ])->assertOk()->assertJsonPath('data.reset', true);
 
-        $this->assertTrue(Hash::check('new-password-99', $user->fresh()->password));
+        $this->assertTrue(Hash::check('New-password-99', $user->fresh()->password));
     }
 
     public function test_reset_with_invalid_token_returns_error(): void
@@ -73,8 +73,8 @@ class PasswordResetTest extends TestCase
         $this->postJson('/api/v1/auth/password/reset', [
             'email' => 'reset2@example.com',
             'token' => 'not-a-real-token',
-            'password' => 'new-password-99',
-            'password_confirmation' => 'new-password-99',
+            'password' => 'New-password-99',
+            'password_confirmation' => 'New-password-99',
         ])->assertStatus(422)->assertJsonPath('error.code', 'INVALID_RESET_TOKEN');
     }
 
@@ -90,6 +90,35 @@ class PasswordResetTest extends TestCase
         ])->assertStatus(422)->assertJsonPath('error.code', 'VALIDATION_FAILED');
     }
 
+    /**
+     * Policy: ≥8 ký tự + chữ hoa + chữ thường + ký tự đặc biệt.
+     * Mật khẩu đủ dài nhưng toàn chữ thường (thiếu chữ hoa & ký tự đặc biệt) phải bị từ chối.
+     */
+    public function test_reset_rejects_password_missing_uppercase_and_symbol(): void
+    {
+        User::factory()->create(['email' => 'reset5@example.com']);
+
+        $this->postJson('/api/v1/auth/password/reset', [
+            'email' => 'reset5@example.com',
+            'token' => 'irrelevant',
+            'password' => 'lowercaseonly',
+            'password_confirmation' => 'lowercaseonly',
+        ])->assertStatus(422)->assertJsonPath('error.code', 'VALIDATION_FAILED');
+    }
+
+    /** Đủ dài + có ký tự đặc biệt nhưng thiếu chữ hoa cũng phải bị từ chối. */
+    public function test_reset_rejects_password_missing_uppercase(): void
+    {
+        User::factory()->create(['email' => 'reset6@example.com']);
+
+        $this->postJson('/api/v1/auth/password/reset', [
+            'email' => 'reset6@example.com',
+            'token' => 'irrelevant',
+            'password' => 'lowercase-99',
+            'password_confirmation' => 'lowercase-99',
+        ])->assertStatus(422)->assertJsonPath('error.code', 'VALIDATION_FAILED');
+    }
+
     public function test_reset_rejects_unconfirmed_password(): void
     {
         User::factory()->create(['email' => 'reset4@example.com']);
@@ -97,8 +126,8 @@ class PasswordResetTest extends TestCase
         $this->postJson('/api/v1/auth/password/reset', [
             'email' => 'reset4@example.com',
             'token' => 'irrelevant',
-            'password' => 'good-password-1',
-            'password_confirmation' => 'different-password-1',
+            'password' => 'Good-password-1',
+            'password_confirmation' => 'Different-password-1',
         ])->assertStatus(422)->assertJsonPath('error.code', 'VALIDATION_FAILED');
     }
 }
