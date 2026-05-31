@@ -764,6 +764,38 @@ class LazadaConnectorContractTest extends TestCase
         $this->assertSame(50000, $page->items[0]->refundAmount);
     }
 
+    public function test_fetch_returns_sends_mandatory_page_no_and_page_size(): void
+    {
+        // Endpoint reverse BẮT BUỘC page_no/page_size — thiếu page_no ⇒ Lazada MissingParameter.
+        config(['integrations.lazada.returns_enabled' => true]);
+        Http::fake(['*/reverse/getreverseordersforseller*' => Http::response($this->ok(['module' => []]))]);
+
+        $page = $this->connector()->fetchReturns($this->auth(), ['pageSize' => 50]);
+
+        Http::assertSent(function ($r) {
+            $url = urldecode($r->url());
+
+            return str_contains($url, '/reverse/getreverseordersforseller')
+                && str_contains($url, 'page_no=1')
+                && str_contains($url, 'page_size=50');
+        });
+        // Trang đầu rỗng ⇒ không còn trang sau.
+        $this->assertNull($page->nextCursor);
+    }
+
+    public function test_fetch_returns_cursor_advances_page_no(): void
+    {
+        config(['integrations.lazada.returns_enabled' => true]);
+        // Trả đủ pageSize item ⇒ hasMore ⇒ nextCursor = page kế.
+        $rows = array_fill(0, 50, ['reverse_order_id' => '5001', 'trade_order_id' => '1001', 'reverse_status' => 'REQUEST_INITIATE']);
+        Http::fake(['*/reverse/getreverseordersforseller*' => Http::response($this->ok(['module' => $rows]))]);
+
+        $page = $this->connector()->fetchReturns($this->auth(), ['cursor' => '2', 'pageSize' => 50]);
+
+        Http::assertSent(fn ($r) => str_contains(urldecode($r->url()), 'page_no=2'));
+        $this->assertSame('3', $page->nextCursor);
+    }
+
     public function test_decide_return_calls_reverse_decide_endpoint(): void
     {
         config(['integrations.lazada.returns_enabled' => true]);

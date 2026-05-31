@@ -67,7 +67,11 @@ return [
             'driver' => 'redis',
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
             'queue' => env('REDIS_QUEUE', 'default'),
-            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
+            // PHẢI lớn hơn `timeout` dài nhất của mọi supervisor Horizon (xem config/horizon.php —
+            // supervisor-messaging-bg timeout=600s cho backfill/sync). Nếu retry_after < timeout, job
+            // chạy lâu (vd backfill Facebook) bị queue RETRY khi CÒN đang chạy ⇒ 2 bản cùng uuid cùng
+            // fail ⇒ vi phạm unique `failed_jobs_uuid_unique`. 660 = 600 + buffer.
+            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 660),
             'block_for' => null,
             'after_commit' => false,
         ],

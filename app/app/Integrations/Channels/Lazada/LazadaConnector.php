@@ -915,9 +915,12 @@ class LazadaConnector implements ChannelConnector
         if (! config('integrations.lazada.returns_enabled')) {
             throw UnsupportedOperation::for($this->code(), 'fetchReturns');
         }
-        $limit = min(100, max(1, (int) ($query['pageSize'] ?? 50)));
-        $offset = (int) ($query['cursor'] ?? 0);
-        $params = ['limit' => $limit, 'offset' => $offset];
+        // Endpoint reverse dùng phân trang page_no/page_size (BẮT BUỘC), KHÁC các endpoint
+        // khác của Lazada (limit/offset) — thiếu page_no ⇒ Lazada trả MissingParameter.
+        // cursor = page_no (1-based); cursor chỉ dùng trong 1 lần chạy nên đổi nghĩa an toàn.
+        $pageSize = min(100, max(1, (int) ($query['pageSize'] ?? 50)));
+        $pageNo = max(1, (int) ($query['cursor'] ?? 1));
+        $params = ['page_no' => $pageNo, 'page_size' => $pageSize];
         if (! empty($query['updatedFrom'])) {
             $params['update_after'] = $query['updatedFrom']->toIso8601String();
         }
@@ -925,10 +928,10 @@ class LazadaConnector implements ChannelConnector
 
         // Lazada reverse list shape khác nhau theo region: data.module | data.reverse_orders | data (list).
         $rows = (array) (data_get($resp, 'module') ?? data_get($resp, 'reverse_orders') ?? (array_is_list((array) $resp) ? $resp : []));
-        $items = array_values(array_map(fn ($r) => LazadaMappers::reverseRecord((array) $r), array_values(array_filter($rows, 'is_array'))));
-        $hasMore = count($items) >= $limit;
+        $items = array_map(fn ($r) => LazadaMappers::reverseRecord((array) $r), array_values(array_filter($rows, 'is_array')));
+        $hasMore = count($items) >= $pageSize;
 
-        return new Page($items, $hasMore ? (string) ($offset + $limit) : null, $hasMore);
+        return new Page($items, $hasMore ? (string) ($pageNo + 1) : null, $hasMore);
     }
 
     public function fetchCancellations(AuthContext $auth, array $query = []): Page
