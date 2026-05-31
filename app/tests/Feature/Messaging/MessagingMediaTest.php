@@ -102,6 +102,79 @@ class MessagingMediaTest extends TestCase
         Queue::assertPushed(SendMessage::class);
     }
 
+    public function test_send_media_job_resolves_attachment_without_tenant_context(): void
+    {
+        // Regression: job SendMessage chạy KHÔNG có CurrentTenant ⇒ quan hệ attachments()
+        // bị TenantScope ràng tenant_id=0 ⇒ trước đây ném "Media message thiếu attachment.".
+        // Phải withoutGlobalScope để tìm thấy attachment (đã tạo cùng message, tenant_id thật).
+        $msg = Message::query()->create([
+            'tenant_id' => $this->tenant->getKey(),
+            'conversation_id' => $this->conv->id,
+            'direction' => Message::DIRECTION_OUTBOUND,
+            'kind' => Message::KIND_IMAGE,
+            'attachments_count' => 1,
+            'sent_by_user_id' => $this->owner->id,
+            'delivery_status' => Message::STATUS_PENDING,
+        ]);
+        MessageAttachment::query()->create([
+            'tenant_id' => $this->tenant->getKey(),
+            'message_id' => $msg->id,
+            'kind' => 'image',
+            'mime' => 'image/jpeg',
+            'size_bytes' => 1234,
+            'external_url' => 'https://cdn.example/x.jpg', // có sẵn URL ⇒ không phụ thuộc storage
+            'status' => MessageAttachment::STATUS_DOWNLOADED,
+        ]);
+
+        // Chạy đồng bộ trong ngữ cảnh KHÔNG có tenant (giống worker) — không được ném "thiếu attachment".
+        SendMessage::dispatchSync($msg->id);
+
+        $fresh = $msg->fresh();
+        $this->assertNotSame(Message::STATUS_FAILED, $fresh->delivery_status, 'không được fail vì không thấy attachment');
+        $this->assertNull($fresh->failure_code);
+    }
+
+    public function test_resend_failed_message_requeues_and_resets_status(): void
+    {
+        Queue::fake();
+        $msg = Message::query()->create([
+            'tenant_id' => $this->tenant->getKey(),
+            'conversation_id' => $this->conv->id,
+            'direction' => Message::DIRECTION_OUTBOUND,
+            'kind' => Message::KIND_TEXT,
+            'body' => 'hi',
+            'delivery_status' => Message::STATUS_FAILED,
+            'failure_code' => 'send_failed',
+            'sent_by_user_id' => $this->owner->id,
+        ]);
+
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->postJson("/api/v1/messaging/conversations/{$this->conv->id}/messages/{$msg->id}/resend")
+            ->assertStatus(202);
+
+        $fresh = $msg->fresh();
+        $this->assertSame(Message::STATUS_PENDING, $fresh->delivery_status);
+        $this->assertNull($fresh->failure_code);
+        Queue::assertPushed(SendMessage::class);
+    }
+
+    public function test_resend_rejects_message_not_failed(): void
+    {
+        $msg = Message::query()->create([
+            'tenant_id' => $this->tenant->getKey(),
+            'conversation_id' => $this->conv->id,
+            'direction' => Message::DIRECTION_OUTBOUND,
+            'kind' => Message::KIND_TEXT,
+            'body' => 'đã gửi',
+            'delivery_status' => Message::STATUS_SENT,
+            'sent_by_user_id' => $this->owner->id,
+        ]);
+
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->postJson("/api/v1/messaging/conversations/{$this->conv->id}/messages/{$msg->id}/resend")
+            ->assertStatus(422);
+    }
+
     public function test_reject_disallowed_mime(): void
     {
         Queue::fake();

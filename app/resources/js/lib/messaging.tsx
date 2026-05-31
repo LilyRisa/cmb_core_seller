@@ -199,6 +199,24 @@ export function useSendText(conversationId: number | null) {
     });
 }
 
+/** Gửi lại 1 tin outbound đang lỗi (reset pending + dispatch lại). */
+export function useResendMessage(conversationId: number | null) {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (messageId: number) => {
+            const { data } = await api!.post<{ data: Message }>(
+                `/messaging/conversations/${conversationId}/messages/${messageId}/resend`,
+            );
+            return data.data;
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['messaging', 'thread'] });
+            qc.invalidateQueries({ queryKey: ['messaging', 'conversations'] });
+        },
+    });
+}
+
 export function useMarkRead() {
     const api = useScopedApi();
     const qc = useQueryClient();

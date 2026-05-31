@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback, type CSSProperties, 
 import dayjs from 'dayjs';
 import { Link } from 'react-router-dom';
 import { App, Avatar, Badge, Button, Checkbox, Divider, Dropdown, Empty, Grid, Image, Input, List, Popconfirm, Popover, Radio, Segmented, Select, Space, Spin, Tag, Tooltip, Typography } from 'antd';
-import { BellFilled, BellOutlined, CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FileOutlined, FilterOutlined, LikeFilled, LikeOutlined, MessageOutlined, MoreOutlined, PhoneOutlined, PictureOutlined, ShopOutlined, ShoppingOutlined, SoundOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
+import { BellFilled, BellOutlined, CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FileOutlined, FilterOutlined, LikeFilled, LikeOutlined, MessageOutlined, MoreOutlined, PhoneOutlined, PictureOutlined, RedoOutlined, ShopOutlined, ShoppingOutlined, SoundOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
 import {
     type Conversation,
@@ -22,6 +22,7 @@ import {
     useMarkUnread,
     useMessagingTags,
     useReplyComment,
+    useResendMessage,
     useSendMedia,
     useSendText,
     useSaveTag,
@@ -325,6 +326,7 @@ export function MessagingPage() {
     const thread = useConversationThread(activeId);
     const sendText = useSendText(activeId);
     const sendMedia = useSendMedia(activeId);
+    const resend = useResendMessage(activeId);
     const markRead = useMarkRead();
     const markUnread = useMarkUnread();
     const block = useBlockConversation();
@@ -962,6 +964,16 @@ export function MessagingPage() {
                                                         <> · {m.delivery_status === 'failed' && m.failure_code
                                                             ? (FAILURE_LABEL[m.failure_code] ?? DELIVERY_STATUS_LABEL.failed)
                                                             : (DELIVERY_STATUS_LABEL[m.delivery_status ?? ''] ?? m.delivery_status)}</>
+                                                    )}
+                                                    {m.direction === 'outbound' && m.delivery_status === 'failed' && (
+                                                        <RedoOutlined
+                                                            role="button"
+                                                            aria-label="Gửi lại"
+                                                            title="Gửi lại"
+                                                            spin={resend.isPending && resend.variables === m.id}
+                                                            onClick={() => resend.mutate(m.id)}
+                                                            style={{ marginInlineStart: 6, cursor: 'pointer', color: '#cf1322' }}
+                                                        />
                                                     )}
                                                 </div>
                                             </div>

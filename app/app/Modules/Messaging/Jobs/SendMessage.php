@@ -169,7 +169,10 @@ class SendMessage implements ShouldQueue
 
     private function sendMediaForMessage($connector, MessagingAuthContext $auth, string $externalConvId, Message $message, array $opts)
     {
-        $attachment = $message->attachments()->first();
+        // withoutGlobalScope: job chạy KHÔNG có CurrentTenant ⇒ TenantScope sẽ ràng
+        // attachments về tenant_id=0 và không thấy gì (dù attachment đã tạo cùng message).
+        // Phải bỏ scope như cách job nạp Message/Conversation/ChannelAccount ở trên.
+        $attachment = $message->attachments()->withoutGlobalScope(TenantScope::class)->first();
         if (! $attachment) {
             throw new \RuntimeException('Media message thiếu attachment.');
         }

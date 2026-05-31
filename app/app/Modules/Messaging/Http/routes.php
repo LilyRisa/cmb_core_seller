@@ -74,6 +74,9 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
                 ->whereNumber('id')->name('messaging.messages.template');
             Route::post('conversations/{id}/messages/media', [MessageController::class, 'sendMedia'])
                 ->whereNumber('id')->name('messaging.messages.media');
+            // Gửi lại 1 tin outbound đang lỗi.
+            Route::post('conversations/{id}/messages/{messageId}/resend', [MessageController::class, 'resend'])
+                ->whereNumber('id')->whereNumber('messageId')->name('messaging.messages.resend');
 
             // --- AI suggestion (S6) — gate thêm plan.feature:messaging_ai (Business) ---
             // + rate-limit ai-suggestion theo tenant (20/phút, định nghĩa ở AppServiceProvider).

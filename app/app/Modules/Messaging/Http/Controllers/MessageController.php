@@ -237,6 +237,36 @@ class MessageController extends Controller
         ], 202);
     }
 
+    /**
+     * Gửi lại 1 tin outbound đang FAILED: reset về pending + dispatch lại SendMessage.
+     * Idempotent — chỉ áp dụng cho tin outbound đang lỗi (tránh gửi trùng tin đã sent).
+     */
+    public function resend(int $id, int $messageId, Request $request): JsonResponse
+    {
+        Gate::authorize('messaging.reply');
+
+        $conv = Conversation::query()->findOrFail($id);
+        if ($blocked = $this->assertNotBlocked($conv)) {
+            return $blocked;
+        }
+
+        $message = Message::query()->where('conversation_id', $conv->id)->findOrFail($messageId);
+
+        if ($message->direction !== Message::DIRECTION_OUTBOUND) {
+            return response()->json(['error' => ['code' => 'NOT_OUTBOUND', 'message' => 'Chỉ gửi lại được tin gửi đi.']], 422);
+        }
+        if ($message->delivery_status !== Message::STATUS_FAILED) {
+            return response()->json(['error' => ['code' => 'NOT_FAILED', 'message' => 'Chỉ gửi lại được tin đang lỗi.']], 422);
+        }
+
+        $message->forceFill(['delivery_status' => Message::STATUS_PENDING, 'failure_code' => null])->save();
+        SendMessage::dispatch($message->id);
+
+        return response()->json([
+            'data' => (new MessageResource($message->load('attachments')))->toArray($request),
+        ], 202);
+    }
+
     private function assertNotBlocked(Conversation $conv): ?JsonResponse
     {
         if ($conv->blocked_at !== null) {
