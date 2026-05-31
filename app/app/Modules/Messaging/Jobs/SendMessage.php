@@ -7,6 +7,7 @@ use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\ConversationClosed;
+use CMBcoreSeller\Integrations\Messaging\Exceptions\OutboundWindowClosed;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Events\MessageFailed;
@@ -30,8 +31,9 @@ use Throwable;
  * Queue: `messaging-outbound` (tries 4, backoff 5/30/120/600).
  * Tôn trọng 429/Retry-After ở connector level (S2+).
  *
- * Lỗi vĩnh viễn:
- *   - `ConversationClosed`: mark failed `conversation_closed`, không retry.
+ * Lỗi vĩnh viễn (KHÔNG retry — tránh treo ~12 phút theo backoff vô ích):
+ *   - `ConversationClosed`: mark failed `conversation_closed`.
+ *   - `OutboundWindowClosed`: ngoài cửa sổ 24h ⇒ mark failed `outbound_window_closed`.
  *   - exception khác: retry, hết tries ⇒ mark failed `send_failed`.
  */
 class SendMessage implements ShouldQueue
@@ -145,6 +147,11 @@ class SendMessage implements ShouldQueue
         } catch (ConversationClosed $e) {
             // Lỗi vĩnh viễn — không retry.
             $this->markFailed($message, 'conversation_closed');
+            $this->fail($e);
+        } catch (OutboundWindowClosed $e) {
+            // Ngoài cửa sổ 24h của Messenger: retry VÔ NGHĨA (chỉ mở lại khi buyer nhắn mới)
+            // ⇒ fail NGAY, không treo ~12 phút theo backoff. failure_code rõ để FE báo đúng.
+            $this->markFailed($message, 'outbound_window_closed');
             $this->fail($e);
         } catch (Throwable $e) {
             Log::warning('messaging.send.failed', [

@@ -244,6 +244,14 @@ export function MessagingPage() {
         failed: 'Gửi lỗi',
     };
 
+    // Lý do gửi lỗi cụ thể (failure_code) — hiển thị rõ thay vì "Gửi lỗi" chung chung.
+    const FAILURE_LABEL: Record<string, string> = {
+        outbound_window_closed: 'Ngoài cửa sổ 24h — khách cần nhắn lại',
+        conversation_closed: 'Khách đã chặn / đóng hội thoại',
+        interactive_unsupported: 'Kênh không hỗ trợ nút bấm',
+        channel_account_inactive: 'Kênh chưa kết nối/đã ngắt',
+    };
+
     // ── Kind label fallback (khi body=null và không có attachment) ────────────
     const KIND_LABEL: Record<string, string> = {
         text: 'Tin nhắn tự động trên Facebook',
@@ -951,7 +959,9 @@ export function MessagingPage() {
                                                 <div style={{ fontSize: 10, opacity: 0.6, textAlign: m.direction === 'outbound' ? 'right' : 'left', marginTop: 2 }}>
                                                     {fmtMsgTime(m.sent_at ?? m.created_at)}
                                                     {m.direction === 'outbound' && (
-                                                        <> · {DELIVERY_STATUS_LABEL[m.delivery_status ?? ''] ?? m.delivery_status}</>
+                                                        <> · {m.delivery_status === 'failed' && m.failure_code
+                                                            ? (FAILURE_LABEL[m.failure_code] ?? DELIVERY_STATUS_LABEL.failed)
+                                                            : (DELIVERY_STATUS_LABEL[m.delivery_status ?? ''] ?? m.delivery_status)}</>
                                                     )}
                                                 </div>
                                             </div>
