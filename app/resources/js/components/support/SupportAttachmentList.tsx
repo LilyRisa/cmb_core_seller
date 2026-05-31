@@ -1,3 +1,4 @@
+import { Image } from 'antd';
 import { FileOutlined, FileImageOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import type { SupportAttachment } from '@/lib/support';
 
@@ -44,23 +45,26 @@ export function SupportAttachmentList({ attachments }: { attachments?: SupportAt
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
-            {attachments.map((a) => {
-                if (a.kind === 'image' && a.download_url) {
-                    return (
-                        <a key={a.id} href={a.download_url} target="_blank" rel="noopener noreferrer">
-                            <img
+            {/* PreviewGroup: ấn 1 ảnh mở lightbox phóng to + lướt giữa các ảnh cùng tin (cả user & CSKH). */}
+            <Image.PreviewGroup>
+                {attachments.map((a) => {
+                    if (a.kind === 'image' && a.download_url) {
+                        return (
+                            <Image
+                                key={a.id}
                                 src={a.download_url}
                                 alt={a.filename ?? 'Ảnh đính kèm'}
-                                style={{ maxWidth: 200, maxHeight: 200, borderRadius: 8, display: 'block', objectFit: 'cover' }}
+                                width={180}
+                                style={{ maxHeight: 200, borderRadius: 8, objectFit: 'cover', cursor: 'zoom-in' }}
                             />
-                        </a>
-                    );
-                }
-                if (a.kind === 'video' && a.download_url) {
-                    return <video key={a.id} src={a.download_url} controls style={{ maxWidth: 240, borderRadius: 8 }} />;
-                }
-                return <FileChip key={a.id} a={a} />;
-            })}
+                        );
+                    }
+                    if (a.kind === 'video' && a.download_url) {
+                        return <video key={a.id} src={a.download_url} controls style={{ maxWidth: 240, borderRadius: 8 }} />;
+                    }
+                    return <FileChip key={a.id} a={a} />;
+                })}
+            </Image.PreviewGroup>
         </div>
     );
 }

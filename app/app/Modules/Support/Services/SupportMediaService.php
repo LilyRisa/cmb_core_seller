@@ -66,15 +66,24 @@ class SupportMediaService
     /**
      * Lưu file vào disk (giả định đã {@see validate}).
      *
+     * Đặt `ContentType` đúng MIME + `ContentDisposition: inline` cho ảnh/video để trên
+     * R2/S3 signed URL trả header cho browser XEM TRỰC TIẾP (không ép tải về). Disk local
+     * (dev) bỏ qua các option này.
+     *
      * @return array{storage_path:string, checksum:string, filename:string}
      */
-    public function store(int $tenantId, int $conversationId, UploadedFile $file): array
+    public function store(int $tenantId, int $conversationId, UploadedFile $file, string $mime, string $kind): array
     {
         $ext = $file->getClientOriginalExtension() ?: $file->extension() ?: 'bin';
         $path = $this->storage->buildPath($tenantId, $conversationId, $ext);
 
+        $options = ['ContentType' => $mime];
+        if (in_array($kind, ['image', 'video'], true)) {
+            $options['ContentDisposition'] = 'inline';
+        }
+
         $stream = fopen($file->getRealPath(), 'rb');
-        $this->storage->disk()->writeStream($path, $stream);
+        $this->storage->disk()->writeStream($path, $stream, $options);
         if (is_resource($stream)) {
             fclose($stream);
         }

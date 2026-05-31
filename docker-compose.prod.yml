@@ -179,6 +179,14 @@ x-app-env: &app-env
   HELP_ASSISTANT_EMBEDDING_BASE_URL: ${HELP_ASSISTANT_EMBEDDING_BASE_URL:-}
   HELP_ASSISTANT_EMBEDDING_API_KEY: ${HELP_ASSISTANT_EMBEDDING_API_KEY:-}
   HELP_ASSISTANT_EMBEDDING_MODEL: ${HELP_ASSISTANT_EMBEDDING_MODEL:-text-embedding-3-small}
+  # Đính kèm hội thoại CSKH (ảnh/video/tệp): dùng r2 (như media tin nhắn) để browser
+  # xem trực tiếp ảnh/video qua signed URL. TTL signed URL (giây) + giới hạn dung lượng (MB).
+  SUPPORT_MEDIA_DISK: ${SUPPORT_MEDIA_DISK:-r2}
+  SUPPORT_SIGNED_URL_TTL: ${SUPPORT_SIGNED_URL_TTL:-300}
+  SUPPORT_MAX_FILES: ${SUPPORT_MAX_FILES:-5}
+  SUPPORT_MAX_IMAGE_MB: ${SUPPORT_MAX_IMAGE_MB:-25}
+  SUPPORT_MAX_VIDEO_MB: ${SUPPORT_MAX_VIDEO_MB:-100}
+  SUPPORT_MAX_FILE_MB: ${SUPPORT_MAX_FILE_MB:-25}
 
 services:
   app:                                # php-fpm

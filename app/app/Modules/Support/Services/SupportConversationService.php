@@ -159,7 +159,7 @@ class SupportConversationService
         }
 
         foreach ($validated as $v) {
-            $stored = $this->media->store((int) $msg->tenant_id, (int) $msg->support_conversation_id, $v['file']);
+            $stored = $this->media->store((int) $msg->tenant_id, (int) $msg->support_conversation_id, $v['file'], $v['mime'], $v['kind']);
             SupportMessageAttachment::query()->create([
                 'tenant_id' => $msg->tenant_id,
                 'support_message_id' => $msg->getKey(),
