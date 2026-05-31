@@ -965,17 +965,20 @@ export function MessagingPage() {
                                                             ? (FAILURE_LABEL[m.failure_code] ?? DELIVERY_STATUS_LABEL.failed)
                                                             : (DELIVERY_STATUS_LABEL[m.delivery_status ?? ''] ?? m.delivery_status)}</>
                                                     )}
-                                                    {m.direction === 'outbound' && m.delivery_status === 'failed' && (
+                                                </div>
+                                                {/* Icon gửi lại — TÁCH khỏi div mờ (opacity 0.6) để hiện ĐỎ rõ. */}
+                                                {m.direction === 'outbound' && m.delivery_status === 'failed' && (
+                                                    <div style={{ textAlign: 'right', marginTop: 2 }}>
                                                         <RedoOutlined
                                                             role="button"
                                                             aria-label="Gửi lại"
                                                             title="Gửi lại"
                                                             spin={resend.isPending && resend.variables === m.id}
                                                             onClick={() => resend.mutate(m.id)}
-                                                            style={{ marginInlineStart: 6, cursor: 'pointer', color: '#cf1322' }}
+                                                            style={{ cursor: 'pointer', color: '#ff4d4f', fontSize: 14 }}
                                                         />
-                                                    )}
-                                                </div>
+                                                    </div>
+                                                )}
                                             </div>
                                             {/* Hàng thao tác trên bình luận của khách: Thích · Nhắn riêng · Xoá */}
                                             {active?.thread_type === 'comment' && !isOut && m.external_message_id && (
