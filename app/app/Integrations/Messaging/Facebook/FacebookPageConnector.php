@@ -23,6 +23,7 @@ use CMBcoreSeller\Integrations\Messaging\Exceptions\OutboundWindowClosed;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\UnsupportedOperation;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -207,6 +208,18 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
         ]);
 
         if (! $res->successful()) {
+            // Log để CHẨN ĐOÁN vì sao mất avatar (best-effort vẫn trả null, không chặn).
+            // Error #200/#10 / "permission" ⇒ app chưa có quyền User Profile cho PSID này.
+            $err = (array) $res->json('error');
+            Log::warning('facebook.fetchUserProfile thất bại', [
+                'page' => $auth->externalShopId,
+                'psid' => $psid,
+                'status' => $res->status(),
+                'error_code' => $err['code'] ?? null,
+                'error_subcode' => $err['error_subcode'] ?? null,
+                'error_message' => $err['message'] ?? null,
+            ]);
+
             return ['name' => null, 'avatar_url' => null];
         }
 
@@ -215,9 +228,21 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
             $name = trim(((string) $res->json('first_name')).' '.((string) $res->json('last_name'))) ?: null;
         }
 
+        $avatarUrl = $res->json('profile_pic');
+        if (blank($avatarUrl)) {
+            // Graph trả 200 nhưng KHÔNG có profile_pic ⇒ thiếu quyền: app chưa Live + chưa có
+            // Advanced Access `pages_messaging` (App Review "Business Asset User Profile Access"),
+            // HOẶC Dev Mode mà người nhắn KHÔNG phải vai trò app (Admin/Developer/Tester).
+            // KHÔNG phải lỗi OAuth scope ⇒ hủy/cấp lại quyền page KHÔNG khắc phục được.
+            Log::warning('facebook.fetchUserProfile: không có profile_pic (thiếu quyền User Profile — xem ghi chú)', [
+                'page' => $auth->externalShopId,
+                'psid' => $psid,
+            ]);
+        }
+
         return [
             'name' => $name,
-            'avatar_url' => $res->json('profile_pic'),
+            'avatar_url' => $avatarUrl,
         ];
     }
 

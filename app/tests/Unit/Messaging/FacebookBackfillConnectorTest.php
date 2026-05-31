@@ -6,6 +6,7 @@ use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\Facebook\FacebookPageConnector;
 use CMBcoreSeller\Integrations\Messaging\Facebook\FacebookSignatureVerifier;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 class FacebookBackfillConnectorTest extends TestCase
@@ -92,6 +93,33 @@ class FacebookBackfillConnectorTest extends TestCase
         $profile = $this->connector()->fetchUserProfile($this->auth(), 'PSID_X');
         $this->assertNull($profile['name']);
         $this->assertNull($profile['avatar_url']);
+    }
+
+    public function test_fetch_user_profile_logs_warning_on_graph_error(): void
+    {
+        // Lỗi Graph (vd thiếu quyền) ⇒ ghi log chẩn đoán để biết VÌ SAO mất avatar.
+        Log::spy();
+        Http::fake(['graph.facebook.com/*' => Http::response(['error' => ['code' => 200, 'message' => 'requires permission']], 403)]);
+
+        $this->connector()->fetchUserProfile($this->auth(), 'PSID_ERR');
+
+        Log::shouldHaveReceived('warning')->atLeast()->once();
+    }
+
+    public function test_fetch_user_profile_logs_warning_when_profile_pic_missing(): void
+    {
+        // 200 nhưng KHÔNG có profile_pic (app chưa Live / user không phải vai trò app ở Dev Mode)
+        // ⇒ vẫn lấy được tên, avatar null, và GHI LOG cảnh báo thiếu quyền.
+        Log::spy();
+        Http::fake(['graph.facebook.com/*' => Http::response([
+            'first_name' => 'Văn A', 'last_name' => 'Nguyễn', 'id' => 'PSID_NOPIC',
+        ], 200)]);
+
+        $profile = $this->connector()->fetchUserProfile($this->auth(), 'PSID_NOPIC');
+
+        $this->assertSame('Văn A Nguyễn', $profile['name']);
+        $this->assertNull($profile['avatar_url']);
+        Log::shouldHaveReceived('warning')->atLeast()->once();
     }
 
     public function test_fetch_conversations_maps_thread_and_psid(): void
