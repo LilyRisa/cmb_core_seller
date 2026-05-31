@@ -69,20 +69,22 @@ export interface SupportRequestItem {
 }
 
 /**
- * Lịch sử yêu cầu CSKH của tenant hiện tại (chỉ tải khi mở tab).
+ * Lịch sử yêu cầu CSKH của tenant hiện tại.
  *
- * Realtime = polling 8s KHI tab đang mở (codebase chưa có Reverb/Echo client; messaging
- * cũng dùng polling fallback). Nhờ vậy CSKH trả lời từ admin sẽ tự hiện cho user mà
- * không cần đóng/mở lại widget. Tab đóng (`enabled=false`) ⇒ ngừng poll.
+ * Realtime = polling KHI `enabled` (codebase chưa có Reverb/Echo client; messaging cũng
+ * dùng polling fallback). `intervalMs` cho phép caller chọn nhịp: widget luôn-mount poll
+ * nhẹ TOÀN CỤC (để báo trả lời mới ngay cả khi đóng), tab CSKH đang mở poll nhanh hơn.
+ * Cùng queryKey ⇒ React Query gộp observer, lấy interval nhỏ nhất. `enabled=false` ⇒ ngừng
+ * poll. Lỗi (vd 402/403) ⇒ không retry & ngừng poll để khỏi spam request.
  */
-export function useSupportRequests(enabled: boolean) {
+export function useSupportRequests(enabled: boolean, intervalMs = 8_000) {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();
     return useQuery({
         queryKey: ['support', 'requests', tenantId],
         enabled: enabled && api != null,
+        retry: false,
         queryFn: async () => (await api!.get<{ data: SupportRequestItem[] }>('/support/requests')).data.data,
-        refetchInterval: enabled ? 8_000 : false,
-        refetchIntervalInBackground: false,
+        refetchInterval: (query) => (!enabled || query.state.status === 'error' ? false : intervalMs),
     });
 }
