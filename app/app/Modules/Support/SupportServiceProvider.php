@@ -11,7 +11,7 @@ use Illuminate\Support\ServiceProvider;
  *
  * Tự chứa: AI dùng SupportAiClient riêng (credentials Support — KHÔNG đụng bảng
  * ai_providers/registry messaging) và không phụ thuộc ruột module khác.
- * help_chunks là GLOBAL; support_requests theo tenant.
+ * help_chunks là GLOBAL; hội thoại CSKH (support_conversations/messages/attachments) theo tenant.
  */
 class SupportServiceProvider extends ServiceProvider
 {

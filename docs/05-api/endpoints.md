@@ -379,12 +379,15 @@ Cấu hình động lưu trong DB (`system_settings`), ghi đè giá trị từ 
 
 **Support — trợ lý trợ giúp sản phẩm + CSKH (SPEC-0028)** (`/api/v1/support/*`, auth + tenant, KHÔNG gate gói):
 - `POST   /support/assistant/ask` — `{question, history?}` → `{answer, sources[], mode}` (RAG hỏi-đáp cách dùng; suy biến keyword khi chưa cấu hình Qdrant/AI, không bao giờ 500). Throttle 30/phút.
-- `POST   /support/requests` — `{question}` → tạo yêu cầu CSKH (chờ phản hồi). Throttle 10/phút.
-- `GET    /support/requests` — lịch sử yêu cầu CSKH của tenant hiện tại.
-- **Admin (guard `admin_web`)** — xem & trả lời yêu cầu CSKH XUYÊN tenant (SPEC-0028):
-  - `GET    /admin/support-requests` — filter `status` (pending|answered|closed), `tenant_id`, `q`; phân trang 50, kèm nhãn tenant + người gửi.
-  - `POST   /admin/support-requests/{id}/answer` — `{answer}` → set answer + status=answered (audit `support.request.answer`).
-  - `POST   /admin/support-requests/{id}/close` — đóng yêu cầu (audit `support.request.close`).
+- `GET    /support/conversations` — hội thoại CSKH của tenant (kèm `messages[]` + `attachments[]` download_url ký TTL ngắn).
+- `GET    /support/unread` — `{unread}` (tổng tin CSKH chưa đọc) — nguồn nhẹ cho badge widget.
+- `POST   /support/messages` — **multipart** `body?` + `files[]` (≤5, ảnh 25MB/video 100MB/file 25MB; sai MIME/size → 422 `ATTACHMENT_INVALID`) → gửi tin; tự mở cuộc mới nếu cuộc gần nhất đã đóng. Throttle 20/phút.
+- `POST   /support/conversations/{id}/read` — đánh dấu đã đọc (xoá unread phía user).
+- **Admin (guard `admin_web`)** — xem & nhắn nhiều tin + đóng hội thoại CSKH XUYÊN tenant (SPEC-0028):
+  - `GET    /admin/support-conversations` — filter `status` (open|closed), `awaiting` (đang chờ CSKH), `tenant_id`, `q` (nội dung tin); phân trang 50, kèm nhãn tenant/người gửi + preview.
+  - `GET    /admin/support-conversations/{id}` — thread đầy đủ (messages + attachments).
+  - `POST   /admin/support-conversations/{id}/messages` — **multipart** `body?` + `files[]` → CSKH nhắn (nhiều lần); cuộc đã đóng → 422 `CONVERSATION_CLOSED` (audit `support.conversation.message`).
+  - `POST   /admin/support-conversations/{id}/close` — đóng + chèn tin hệ thống + báo user (audit `support.conversation.close`).
 
 **Admin SPA `/api/v1/admin/*`** (admin guard, không cần tenant):
 - `GET/POST/PATCH/DELETE /admin/ai-providers[/{code}]` — CRUD provider trong `system_settings.ai_providers.<code>`.

@@ -44,6 +44,39 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Đính kèm tin nhắn CSKH (file/ảnh/video) — mô phỏng config/messaging.php
+    |--------------------------------------------------------------------------
+    |
+    | Lưu RIÊNG của module Support (không dùng MediaStorage/MediaRelayService của
+    | Messaging — luật module). Vi phạm MIME/size ⇒ 422 ATTACHMENT_INVALID.
+    */
+    'attachments' => [
+        // Disk lưu file (local dev; s3/minio prod). Mặc định theo FILESYSTEM_DISK.
+        'media_disk' => env('SUPPORT_MEDIA_DISK', env('FILESYSTEM_DISK', 'local')),
+        // TTL signed URL ngắn cho FE (giây). Local không hỗ trợ ⇒ fallback url().
+        'signed_url_ttl' => (int) env('SUPPORT_SIGNED_URL_TTL', 300),
+        // Số tệp tối đa mỗi tin nhắn.
+        'max_files' => (int) env('SUPPORT_MAX_FILES', 5),
+        'limits' => [
+            'image' => (int) env('SUPPORT_MAX_IMAGE_MB', 25) * 1024 * 1024,
+            'video' => (int) env('SUPPORT_MAX_VIDEO_MB', 100) * 1024 * 1024,
+            'file' => (int) env('SUPPORT_MAX_FILE_MB', 25) * 1024 * 1024,
+        ],
+        'allowed_mime' => [
+            'image' => ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+            'video' => ['video/mp4', 'video/quicktime', 'video/webm', 'video/3gpp'],
+            'file' => [
+                'application/pdf', 'application/msword',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'application/vnd.ms-excel',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'text/plain', 'text/csv',
+            ],
+        ],
+    ],
+
     // Đường dẫn thư mục chứa rag_chunks.jsonl.
     //  - Dev: docs_user/ ở gốc repo (nguồn sự thật, regenerate được) — nằm NGOÀI app/.
     //  - Prod: docs_user/ KHÔNG vào image (context build = ./app) ⇒ dùng bản ship sẵn

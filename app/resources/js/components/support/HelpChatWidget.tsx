@@ -1,12 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { App, Badge, Button, Input, Spin, Tabs, Tag, Typography } from 'antd';
-import {
-    CloseOutlined, CommentOutlined, CustomerServiceOutlined, RobotOutlined,
-    SendOutlined, ClockCircleOutlined, CheckCircleFilled,
-} from '@ant-design/icons';
+import { CloseOutlined, CommentOutlined, CustomerServiceOutlined, RobotOutlined, SendOutlined } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
-import { type ChatTurn, type HelpSource, type SupportRequestItem, useAskAssistant, useCreateSupportRequest, useSupportRequests } from '@/lib/support';
+import { type ChatTurn, type HelpSource, useAskAssistant, useSupportUnread } from '@/lib/support';
 import { useCurrentTenantId } from '@/lib/tenant';
+import { CskhTab } from './CskhTab';
 
 const { Text } = Typography;
 
@@ -17,27 +15,6 @@ const PANEL_H = 500;
 const DRAG_THRESHOLD = 5;
 
 interface Pos { x: number; y: number }
-
-/**
- * Mốc thông báo trả lời CSKH theo tenant — sống qua điều hướng (state) + reload (localStorage):
- *  - `notified`: id các yêu cầu ĐÃ được phát âm thanh (chống kêu lại khi reload / poll lại).
- *  - `unseen`:   id các trả lời mới CHƯA xem (driving badge trên nút nổi); về rỗng khi user mở tab CSKH.
- * Vắng key ⇒ chưa khởi tạo (lần đầu) ⇒ coi mọi trả lời hiện có là đã biết, không kêu cho lịch sử cũ.
- */
-interface NotifyState { notified: number[]; unseen: number[] }
-const notifyKey = (tid: number) => `support.cskh.notify:${tid}`;
-function loadNotify(tid: number): NotifyState | null {
-    try {
-        const raw = localStorage.getItem(notifyKey(tid));
-        if (!raw) return null;
-        const p = JSON.parse(raw) as NotifyState;
-        if (Array.isArray(p.notified) && Array.isArray(p.unseen)) return p;
-    } catch { /* ignore (private mode / quota / JSON hỏng) */ }
-    return null;
-}
-function saveNotify(tid: number, s: NotifyState): void {
-    try { localStorage.setItem(notifyKey(tid), JSON.stringify(s)); } catch { /* ignore */ }
-}
 
 /** Vị trí nút mặc định: góc dưới-phải. */
 function defaultPos(): Pos {
@@ -150,109 +127,13 @@ function AiTab() {
     );
 }
 
-/** Giờ gọn cho bong bóng chat: hôm nay → HH:mm, khác ngày → DD/MM HH:mm. */
-function fmtTime(iso: string | null): string {
-    if (!iso) return '';
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return '';
-    const now = new Date();
-    const hm = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-    return d.toDateString() === now.toDateString() ? hm : `${d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })} ${hm}`;
-}
-
 /**
- * Tab "Hỏi CSKH" — giao diện CHAT như app nhắn tin: câu hỏi của mình (phải, xanh),
- * trả lời CSKH (trái, xám). Realtime qua polling 8s khi tab mở (useSupportRequests).
+ * Widget Trợ giúp nổi — nút tròn KÉO–THẢ tự do (nhớ vị trí), bấm mở cửa sổ nhỏ gồm 2 tab:
+ * "Hỏi AI" (RAG) và "Hỏi CSKH" (hội thoại nhiều tin + đính kèm). Mount global ở AppLayout.
  *
- * Phát hiện trả lời mới + âm thanh + badge nằm ở `HelpChatWidget` (luôn mount toàn cục)
- * để báo NGAY cả khi widget đóng — KHÔNG đặt ở đây nữa (tab chỉ mount khi mở).
- *
- * Mỗi support_request = 1 cặp (câu hỏi + trả lời). Hiển thị mọi request theo thứ tự
- * thời gian thành luồng hội thoại liên tục.
- */
-function CskhTab({ active }: { active: boolean }) {
-    const { message } = App.useApp();
-    const create = useCreateSupportRequest();
-    const list = useSupportRequests(active);
-    const [text, setText] = useState('');
-    const bottomRef = useRef<HTMLDivElement>(null);
-
-    // useMemo để mảng ổn định giữa các render (tránh useEffect chạy thừa khi list chưa đổi).
-    const rows: SupportRequestItem[] = useMemo(() => list.data ?? [], [list.data]);
-
-    // Tự cuộn xuống đáy khi có tin mới / mở tab.
-    useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [rows, active]);
-
-    const submit = async () => {
-        const q = text.trim();
-        if (q === '' || create.isPending) return;
-        try {
-            await create.mutateAsync({ question: q });
-            setText('');
-            void list.refetch();
-        } catch (e) {
-            message.error(errorMessage(e, 'Không gửi được yêu cầu, vui lòng thử lại.'));
-        }
-    };
-
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 4, background: '#F8FAFC' }}>
-                {rows.length === 0 && (
-                    <div style={{ margin: 'auto', textAlign: 'center', color: '#94A3B8', padding: 16 }}>
-                        <CustomerServiceOutlined style={{ fontSize: 32, marginBottom: 8 }} />
-                        <div>Gửi câu hỏi cho nhân viên CSKH</div>
-                        <div style={{ fontSize: 12, marginTop: 4 }}>Nhân viên sẽ phản hồi trong giờ làm việc.</div>
-                    </div>
-                )}
-
-                {/* Mỗi request: bong bóng câu hỏi (phải) + bong bóng trả lời/đang chờ (trái). */}
-                {[...rows].reverse().map((r) => (
-                    <div key={r.id} style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
-                        {/* Câu hỏi của mình */}
-                        <div style={{ alignSelf: 'flex-end', maxWidth: '85%' }}>
-                            <div style={{ background: '#2563EB', color: '#fff', padding: '8px 12px', borderRadius: '12px 12px 2px 12px', whiteSpace: 'pre-wrap' }}>{r.question}</div>
-                            <div style={{ fontSize: 10, color: '#94A3B8', textAlign: 'right', marginTop: 2 }}>{fmtTime(r.created_at)}</div>
-                        </div>
-                        {/* Trả lời CSKH (nếu có) hoặc trạng thái chờ */}
-                        {r.answer ? (
-                            <div style={{ alignSelf: 'flex-start', maxWidth: '85%' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#64748B', marginBottom: 2 }}>
-                                    <CustomerServiceOutlined /> Nhân viên CSKH
-                                </div>
-                                <div style={{ background: '#fff', color: '#0F172A', border: '1px solid #E2E8F0', padding: '8px 12px', borderRadius: '12px 12px 12px 2px', whiteSpace: 'pre-wrap' }}>{r.answer}</div>
-                                <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 2 }}>{fmtTime(r.answered_at)}</div>
-                            </div>
-                        ) : r.status !== 'closed' ? (
-                            <div style={{ alignSelf: 'flex-start', fontSize: 12, color: '#D97706', display: 'flex', alignItems: 'center', gap: 4, padding: '2px 4px' }}>
-                                <ClockCircleOutlined /> Đang chờ CSKH phản hồi…
-                            </div>
-                        ) : (
-                            <div style={{ alignSelf: 'flex-start', fontSize: 12, color: '#94A3B8', display: 'flex', alignItems: 'center', gap: 4, padding: '2px 4px' }}>
-                                <CheckCircleFilled /> Đã đóng
-                            </div>
-                        )}
-                    </div>
-                ))}
-                <div ref={bottomRef} />
-            </div>
-            <div style={{ padding: 10, borderTop: '1px solid #F1F5F9', display: 'flex', gap: 8 }}>
-                <Input.TextArea
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    placeholder="Nhập câu hỏi gửi CSKH…"
-                    autoSize={{ minRows: 1, maxRows: 4 }}
-                    onPressEnter={(e) => { if (!e.shiftKey) { e.preventDefault(); void submit(); } }}
-                />
-                <Button type="primary" icon={<SendOutlined />} loading={create.isPending} onClick={() => void submit()} disabled={text.trim() === ''} />
-            </div>
-        </div>
-    );
-}
-
-/**
- * Widget Trợ giúp nổi — nút tròn KÉO–THẢ tự do (nhớ vị trí), bấm mở cửa sổ nhỏ
- * gồm 2 tab: "Hỏi AI" (RAG) và "Hỏi CSKH" (gửi yêu cầu, báo chờ). Mount global ở AppLayout.
+ * Badge + âm thanh TOÀN CỤC: poll nhẹ `GET /support/unread` (20s, kể cả khi đóng) → có tin
+ * CSKH chưa đọc thì hiện badge & kêu khi số tăng. Mở tab CSKH ⇒ CskhTab gọi read ⇒ badge về 0.
+ * Server-side unread nên không kêu lại khi reload / không kêu cho backlog lúc mở app.
  */
 export function HelpChatWidget() {
     const [pos, setPos] = useState<Pos>(loadPos);
@@ -260,20 +141,11 @@ export function HelpChatWidget() {
     const [tab, setTab] = useState('ai');
     const drag = useRef<{ active: boolean; moved: boolean; dx: number; dy: number }>({ active: false, moved: false, dx: 0, dy: 0 });
 
-    // --- Thông báo trả lời CSKH TOÀN CỤC (widget luôn mount ở AppLayout) ---
-    // Poll nhẹ 20s kể cả khi đóng → báo NGAY (badge + âm thanh) mà không cần mở widget.
-    // Cùng queryKey với CskhTab nên khi mở tab (poll 8s) React Query gộp observer, lấy nhịp nhanh hơn.
     const tenantId = useCurrentTenantId();
-    const supportList = useSupportRequests(tenantId != null, 20_000);
-    const dataLoaded = supportList.data !== undefined; // đã có lần tải THẬT đầu tiên chưa
-    const rows: SupportRequestItem[] = useMemo(() => supportList.data ?? [], [supportList.data]);
+    const unreadQuery = useSupportUnread(tenantId != null);
+    const unread = unreadQuery.data ?? 0;
     const audioRef = useRef<HTMLAudioElement | null>(null);
-    const notifyRef = useRef<NotifyState | null>(null);
-    const [unseen, setUnseen] = useState(0);
-    // Đang thực sự xem tab CSKH? Dùng ref để effect phát-hiện KHÔNG chạy lại khi mở/đổi tab (tránh kêu lại).
-    const viewing = open && tab === 'cskh';
-    const viewingRef = useRef(viewing);
-    viewingRef.current = viewing;
+    const prevUnreadRef = useRef<number | null>(null);
 
     // Chuẩn bị âm thanh (lazy).
     useEffect(() => {
@@ -284,46 +156,15 @@ export function HelpChatWidget() {
         }
     }, []);
 
-    // Phát hiện trả lời CSKH mới → kêu + cộng badge (nếu chưa xem). Deps CHỈ [rows, tenantId].
+    // Kêu khi số chưa đọc TĂNG. Lần tải đầu chỉ lập mốc (không kêu cho backlog).
     useEffect(() => {
-        // Chờ lần tải THẬT đầu tiên rồi mới lập baseline — tránh coi toàn bộ lịch sử là "mới" (rows=[] lúc đầu).
-        if (tenantId == null || !dataLoaded) return;
-        const answeredIds = rows.filter((r) => r.answer && r.answer.trim() !== '').map((r) => r.id);
-
-        // Khởi tạo mốc (1 lần / mount): lần đầu tiên (chưa có mốc) ⇒ coi mọi trả lời hiện có là đã biết.
-        if (notifyRef.current === null) {
-            const stored = loadNotify(tenantId);
-            if (stored === null) {
-                notifyRef.current = { notified: [...answeredIds], unseen: [] };
-                saveNotify(tenantId, notifyRef.current);
-                setUnseen(0);
-                return;
-            }
-            notifyRef.current = stored;
-            setUnseen(stored.unseen.length);
+        if (unreadQuery.data === undefined) return;
+        const prev = prevUnreadRef.current;
+        prevUnreadRef.current = unread;
+        if (prev !== null && unread > prev) {
+            audioRef.current?.play().catch(() => { /* autoplay bị chặn tới khi user tương tác */ });
         }
-
-        const notified = new Set(notifyRef.current.notified);
-        const fresh = answeredIds.filter((id) => !notified.has(id));
-        if (fresh.length === 0) return;
-
-        fresh.forEach((id) => notified.add(id));
-        const unseenSet = new Set(notifyRef.current.unseen);
-        if (!viewingRef.current) fresh.forEach((id) => unseenSet.add(id)); // đang xem ⇒ không cộng badge
-        notifyRef.current = { notified: [...notified], unseen: [...unseenSet] };
-        saveNotify(tenantId, notifyRef.current);
-        setUnseen(unseenSet.size);
-        audioRef.current?.play().catch(() => { /* autoplay bị chặn tới khi user tương tác */ });
-    }, [rows, tenantId, dataLoaded]);
-
-    // Mở tab CSKH ⇒ đánh dấu đã xem (badge về 0).
-    useEffect(() => {
-        if (!viewing || tenantId == null || notifyRef.current === null) return;
-        if (notifyRef.current.unseen.length === 0) return;
-        notifyRef.current = { ...notifyRef.current, unseen: [] };
-        saveNotify(tenantId, notifyRef.current);
-        setUnseen(0);
-    }, [viewing, tenantId, rows]);
+    }, [unread, unreadQuery.data]);
 
     // Giữ nút trong màn hình khi resize.
     useEffect(() => {
@@ -355,12 +196,12 @@ export function HelpChatWidget() {
             setPos((p) => { const c = clamp(p); try { localStorage.setItem(POS_KEY, JSON.stringify(c)); } catch { /* ignore */ } return c; });
         } else {
             setOpen((v) => {
-                // Mở widget mà đang có trả lời CSKH mới chưa xem ⇒ nhảy thẳng tab "Hỏi CSKH".
-                if (!v && unseen > 0) setTab('cskh');
+                // Mở widget mà đang có tin CSKH chưa đọc ⇒ nhảy thẳng tab "Hỏi CSKH".
+                if (!v && unread > 0) setTab('cskh');
                 return !v;
             });
         }
-    }, [unseen]);
+    }, [unread]);
 
     // Panel mở phía trên-trái nút, clamp trong viewport.
     const panelStyle: CSSProperties = (() => {
@@ -390,7 +231,11 @@ export function HelpChatWidget() {
                             tabBarStyle={{ marginBottom: 0, paddingInline: 12 }}
                             items={[
                                 { key: 'ai', label: <span><RobotOutlined /> Hỏi AI</span>, children: <div style={{ height: PANEL_H - 96 }}><AiTab /></div> },
-                                { key: 'cskh', label: <span><CustomerServiceOutlined /> Hỏi CSKH</span>, children: <div style={{ height: PANEL_H - 96 }}><CskhTab active={tab === 'cskh'} /></div> },
+                                {
+                                    key: 'cskh',
+                                    label: <span><Badge dot={unread > 0} offset={[6, 0]}><CustomerServiceOutlined /></Badge> Hỏi CSKH</span>,
+                                    children: <div style={{ height: PANEL_H - 96 }}><CskhTab active={tab === 'cskh'} /></div>,
+                                },
                             ]}
                         />
                     </div>
@@ -398,11 +243,11 @@ export function HelpChatWidget() {
             )}
 
             <div style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 1000, touchAction: 'none' }}>
-                <Badge count={unseen} size="default" overflowCount={9} offset={[-6, 6]}>
+                <Badge count={unread} size="default" overflowCount={9} offset={[-6, 6]}>
                     <div
                         role="button"
-                        aria-label={unseen > 0 ? `Trợ giúp — ${unseen} trả lời CSKH mới` : 'Trợ giúp'}
-                        title={unseen > 0 ? `${unseen} trả lời CSKH mới` : 'Trợ giúp'}
+                        aria-label={unread > 0 ? `Trợ giúp — ${unread} tin CSKH mới` : 'Trợ giúp'}
+                        title={unread > 0 ? `${unread} tin CSKH mới` : 'Trợ giúp'}
                         onPointerDown={onPointerDown}
                         onPointerMove={onPointerMove}
                         onPointerUp={onPointerUp}

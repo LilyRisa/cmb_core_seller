@@ -1,8 +1,8 @@
 <?php
 
-use CMBcoreSeller\Modules\Support\Http\Controllers\AdminSupportRequestController;
+use CMBcoreSeller\Modules\Support\Http\Controllers\AdminSupportConversationController;
 use CMBcoreSeller\Modules\Support\Http\Controllers\HelpAssistantController;
-use CMBcoreSeller\Modules\Support\Http\Controllers\SupportRequestController;
+use CMBcoreSeller\Modules\Support\Http\Controllers\SupportConversationController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Route;
  |--------------------------------------------------------------------------
  |
  | KHÔNG gate theo plan.feature — trợ giúp dùng được cho MỌI gói. Vẫn cần đăng
- | nhập + tenant để gắn cost AI / lưu yêu cầu CSKH theo tenant. Throttle nhẹ.
+ | nhập + tenant để gắn cost AI / lưu hội thoại CSKH theo tenant. Throttle nhẹ.
  */
 
 Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
@@ -20,18 +20,23 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
         Route::post('assistant/ask', [HelpAssistantController::class, 'ask'])
             ->middleware('throttle:30,1')->name('support.assistant.ask');
 
-        // Tab "Hỏi CSKH" — gửi câu hỏi vào hàng đợi chờ phản hồi.
-        Route::get('requests', [SupportRequestController::class, 'index'])->name('support.requests.index');
-        Route::post('requests', [SupportRequestController::class, 'store'])
-            ->middleware('throttle:10,1')->name('support.requests.store');
+        // Tab "Hỏi CSKH" — hội thoại nhiều tin + đính kèm (SPEC-0028).
+        Route::get('conversations', [SupportConversationController::class, 'index'])->name('support.conversations.index');
+        Route::get('unread', [SupportConversationController::class, 'unread'])->name('support.unread');
+        Route::post('messages', [SupportConversationController::class, 'store'])
+            ->middleware('throttle:20,1')->name('support.messages.store');
+        Route::post('conversations/{id}/read', [SupportConversationController::class, 'read'])
+            ->whereNumber('id')->name('support.conversations.read');
     });
 
-// --- Admin: xem & trả lời yêu cầu CSKH XUYÊN tenant (guard admin_web) ---------
+// --- Admin: xem & trả lời hội thoại CSKH XUYÊN tenant (guard admin_web) -------
 Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
-    ->prefix('api/v1/admin/support-requests')->group(function () {
-        Route::get('/', [AdminSupportRequestController::class, 'index'])->name('admin.support-requests.index');
-        Route::post('{id}/answer', [AdminSupportRequestController::class, 'answer'])
-            ->whereNumber('id')->name('admin.support-requests.answer');
-        Route::post('{id}/close', [AdminSupportRequestController::class, 'close'])
-            ->whereNumber('id')->name('admin.support-requests.close');
+    ->prefix('api/v1/admin/support-conversations')->group(function () {
+        Route::get('/', [AdminSupportConversationController::class, 'index'])->name('admin.support-conversations.index');
+        Route::get('{id}', [AdminSupportConversationController::class, 'show'])
+            ->whereNumber('id')->name('admin.support-conversations.show');
+        Route::post('{id}/messages', [AdminSupportConversationController::class, 'message'])
+            ->whereNumber('id')->name('admin.support-conversations.message');
+        Route::post('{id}/close', [AdminSupportConversationController::class, 'close'])
+            ->whereNumber('id')->name('admin.support-conversations.close');
     });
