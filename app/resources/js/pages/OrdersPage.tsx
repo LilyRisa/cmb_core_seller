@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Alert, App as AntApp, Avatar, Badge, Button, Card, DatePicker, Empty, Input, Modal, Radio, Select, Space, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
+import { Alert, App as AntApp, Badge, Button, Card, DatePicker, Empty, Input, Modal, Radio, Select, Space, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
 import { BarcodeOutlined, CheckCircleOutlined, FileTextOutlined, LinkOutlined, PrinterOutlined, ReloadOutlined, ScanOutlined, SearchOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
+import { HoverPreviewImage } from '@/components/HoverPreviewImage';
 import { StatusTag } from '@/components/StatusTag';
 import { ChannelBadge } from '@/components/ChannelBadge';
 import { ChannelLogo } from '@/components/ChannelLogo';
@@ -427,7 +428,7 @@ export function OrdersPage() {
             title: 'Sản phẩm', key: 'items',
             render: (_, o) => (
                 <Space>
-                    <Avatar shape="square" size={40} src={o.thumbnail ?? undefined} style={{ background: '#f0f0f0' }}>{o.thumbnail ? null : (o.items_count ?? 0)}</Avatar>
+                    <HoverPreviewImage src={o.thumbnail} size={40} fallback={o.thumbnail ? null : (o.items_count ?? 0)} alt={`Đơn ${o.order_number ?? o.id}`} />
                     <Typography.Text type="secondary">{o.items_count ?? 0} mặt hàng</Typography.Text>
                 </Space>
             ),
