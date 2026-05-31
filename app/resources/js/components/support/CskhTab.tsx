@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { App, Button, Input } from 'antd';
 import {
     CheckCircleFilled, ClockCircleOutlined, CloseOutlined,
-    CustomerServiceOutlined, PaperClipOutlined, SendOutlined,
+    CustomerServiceOutlined, LockOutlined, PaperClipOutlined, SendOutlined,
 } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
 import {
@@ -22,6 +22,13 @@ function fmtTime(iso: string | null): string {
     const now = new Date();
     const hm = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
     return d.toDateString() === now.toDateString() ? hm : `${d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })} ${hm}`;
+}
+
+/** Ngày + giờ đầy đủ (cho mốc đã đóng). */
+function fmtFull(iso: string | null): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('vi-VN');
 }
 
 function humanSize(bytes: number): string {
@@ -132,11 +139,23 @@ export function CskhTab({ active }: { active: boolean }) {
                 {conversations.map((conv, idx) => (
                     <Fragment key={conv.id}>
                         {idx > 0 && <div style={{ borderTop: '1px dashed #E2E8F0', margin: '8px 0' }} />}
-                        {conv.messages.map((m) => <MessageRow key={m.id} m={m} />)}
-                        {conv.status === 'open' && conv.last_sender === 'user' && (
-                            <div style={{ alignSelf: 'flex-start', fontSize: 12, color: '#D97706', display: 'flex', alignItems: 'center', gap: 4, padding: '2px 4px' }}>
-                                <ClockCircleOutlined /> Đang chờ CSKH phản hồi…
+                        {conv.status === 'closed' ? (
+                            // Đã đóng ⇒ KHÔNG hiện lại tin cũ, chỉ mã hội thoại + thời điểm đóng.
+                            <div style={{ alignSelf: 'center', textAlign: 'center', color: '#94A3B8', fontSize: 12, padding: '10px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <LockOutlined /> Đoạn hội thoại #{conv.id} đã đóng
+                                </span>
+                                {conv.closed_at && <span>lúc {fmtFull(conv.closed_at)}</span>}
                             </div>
+                        ) : (
+                            <>
+                                {conv.messages.map((m) => <MessageRow key={m.id} m={m} />)}
+                                {conv.last_sender === 'user' && (
+                                    <div style={{ alignSelf: 'flex-start', fontSize: 12, color: '#D97706', display: 'flex', alignItems: 'center', gap: 4, padding: '2px 4px' }}>
+                                        <ClockCircleOutlined /> Đang chờ CSKH phản hồi…
+                                    </div>
+                                )}
+                            </>
                         )}
                     </Fragment>
                 ))}
