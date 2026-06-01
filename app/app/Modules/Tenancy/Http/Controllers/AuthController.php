@@ -119,7 +119,7 @@ class AuthController extends Controller
             'name' => ['sometimes', 'string', 'max:255'],
             'email' => ['sometimes', 'email', 'max:255', 'unique:users,email,'.$user->getKey()],
             'current_password' => ['required_with:password,email', 'nullable', 'string'],
-            'password' => ['sometimes', 'confirmed', Password::min(8)],
+            'password' => ['sometimes', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()],
         ]);
         if ((isset($data['password']) || isset($data['email'])) && ! Hash::check((string) ($data['current_password'] ?? ''), (string) $user->password)) {
             return response()->json(['error' => ['code' => 'INVALID_PASSWORD', 'message' => 'Mật khẩu hiện tại không đúng.']], 422);

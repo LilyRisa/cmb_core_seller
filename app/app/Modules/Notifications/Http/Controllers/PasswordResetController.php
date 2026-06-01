@@ -38,8 +38,8 @@ class PasswordResetController extends Controller
         $data = $request->validate([
             'email' => ['required', 'email'],
             'token' => ['required', 'string'],
-            // Policy đồng bộ với /auth/register: ≥8 ký tự, có chữ hoa + chữ thường + ký tự đặc biệt.
-            'password' => ['required', 'confirmed', PasswordRule::min(8)->mixedCase()->symbols()],
+            // Policy đồng bộ với /auth/register: ≥8 ký tự, có chữ hoa + chữ thường + chữ số + ký tự đặc biệt.
+            'password' => ['required', 'confirmed', PasswordRule::min(8)->mixedCase()->numbers()->symbols()],
         ]);
 
         $status = Password::broker()->reset(

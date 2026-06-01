@@ -119,6 +119,19 @@ class PasswordResetTest extends TestCase
         ])->assertStatus(422)->assertJsonPath('error.code', 'VALIDATION_FAILED');
     }
 
+    /** Đủ dài + hoa/thường + ký tự đặc biệt nhưng thiếu chữ số cũng phải bị từ chối (đồng bộ /auth/register). */
+    public function test_reset_rejects_password_missing_number(): void
+    {
+        User::factory()->create(['email' => 'reset7@example.com']);
+
+        $this->postJson('/api/v1/auth/password/reset', [
+            'email' => 'reset7@example.com',
+            'token' => 'irrelevant',
+            'password' => 'Password!!',
+            'password_confirmation' => 'Password!!',
+        ])->assertStatus(422)->assertJsonPath('error.code', 'VALIDATION_FAILED');
+    }
+
     public function test_reset_rejects_unconfirmed_password(): void
     {
         User::factory()->create(['email' => 'reset4@example.com']);

@@ -41,7 +41,20 @@ export function SettingsProfilePage() {
             <Typography.Title level={5}>Đổi mật khẩu</Typography.Title>
             <Form form={pwForm} layout="vertical" style={{ maxWidth: 460 }}>
                 <Form.Item name="current_password" label="Mật khẩu hiện tại" rules={[{ required: true }]}><Input.Password autoComplete="current-password" /></Form.Item>
-                <Form.Item name="password" label="Mật khẩu mới" rules={[{ required: true, min: 8, message: 'Tối thiểu 8 ký tự' }]}><Input.Password autoComplete="new-password" /></Form.Item>
+                <Form.Item name="password" label="Mật khẩu mới" extra="Tối thiểu 8 ký tự, gồm chữ hoa, chữ thường, chữ số và ký tự đặc biệt." rules={[
+                    { required: true, message: 'Nhập mật khẩu mới' },
+                    () => ({
+                        validator(_, value) {
+                            if (!value) return Promise.resolve();
+                            if (value.length < 8) return Promise.reject(new Error('Mật khẩu phải có ít nhất 8 ký tự'));
+                            if (!/[A-Z]/.test(value)) return Promise.reject(new Error('Mật khẩu phải có ít nhất 1 chữ in hoa'));
+                            if (!/[a-z]/.test(value)) return Promise.reject(new Error('Mật khẩu phải có ít nhất 1 chữ thường'));
+                            if (!/[0-9]/.test(value)) return Promise.reject(new Error('Mật khẩu phải có ít nhất 1 chữ số'));
+                            if (!/[^A-Za-z0-9]/.test(value)) return Promise.reject(new Error('Mật khẩu phải có ít nhất 1 ký tự đặc biệt'));
+                            return Promise.resolve();
+                        },
+                    }),
+                ]}><Input.Password autoComplete="new-password" /></Form.Item>
                 <Form.Item name="password_confirmation" label="Nhập lại mật khẩu mới" dependencies={['password']} rules={[{ required: true }, ({ getFieldValue }) => ({ validator: (_, v) => (!v || v === getFieldValue('password') ? Promise.resolve() : Promise.reject('Mật khẩu nhập lại không khớp')) })]}><Input.Password autoComplete="new-password" /></Form.Item>
                 <Button loading={update.isPending} onClick={savePassword}>Đổi mật khẩu</Button>
             </Form>

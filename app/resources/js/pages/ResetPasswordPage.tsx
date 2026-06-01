@@ -19,7 +19,7 @@ import { errorMessage, errorCode } from '@/lib/api';
  *
  * BE gửi email với link `${FRONTEND_URL}/password-reset?token=…&email=…`.
  * Trang public này đọc `token` + `email` từ query, cho nhập mật khẩu mới
- * (policy: ≥8 ký tự, có chữ hoa + chữ thường + ký tự đặc biệt — khớp validate BE),
+ * (policy: ≥8 ký tự, có chữ hoa + chữ thường + chữ số + ký tự đặc biệt — khớp validate BE),
  * rồi gọi `POST /auth/password/reset`.
  */
 export function ResetPasswordPage() {
@@ -132,7 +132,7 @@ export function ResetPasswordPage() {
                         <Form.Item
                             name="password"
                             label="Mật khẩu mới"
-                            extra="Tối thiểu 8 ký tự, gồm chữ hoa, chữ thường và ký tự đặc biệt."
+                            extra="Tối thiểu 8 ký tự, gồm chữ hoa, chữ thường, chữ số và ký tự đặc biệt."
                             rules={[
                                 { required: true, message: 'Nhập mật khẩu mới' },
                                 () => ({
@@ -141,6 +141,7 @@ export function ResetPasswordPage() {
                                         if (value.length < 8) return Promise.reject(new Error('Mật khẩu phải có ít nhất 8 ký tự'));
                                         if (!/[A-Z]/.test(value)) return Promise.reject(new Error('Mật khẩu phải có ít nhất 1 chữ in hoa'));
                                         if (!/[a-z]/.test(value)) return Promise.reject(new Error('Mật khẩu phải có ít nhất 1 chữ thường'));
+                                        if (!/[0-9]/.test(value)) return Promise.reject(new Error('Mật khẩu phải có ít nhất 1 chữ số'));
                                         if (!/[^A-Za-z0-9]/.test(value)) return Promise.reject(new Error('Mật khẩu phải có ít nhất 1 ký tự đặc biệt'));
                                         return Promise.resolve();
                                     },
@@ -152,7 +153,7 @@ export function ResetPasswordPage() {
                                 autoFocus
                                 size="large"
                                 prefix={<LockOutlined style={{ color: '#9ca3af' }} />}
-                                placeholder="≥8 ký tự, gồm chữ hoa, chữ thường & ký tự đặc biệt"
+                                placeholder="≥8 ký tự, gồm chữ hoa, chữ thường, số & ký tự đặc biệt"
                             />
                         </Form.Item>
 

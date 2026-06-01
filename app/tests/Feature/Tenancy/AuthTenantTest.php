@@ -65,6 +65,28 @@ class AuthTenantTest extends TestCase
         ])->assertCreated();
     }
 
+    public function test_update_profile_password_requires_strong_policy(): void
+    {
+        [$user] = $this->userWithTenant();
+        $user->forceFill(['password' => Hash::make('Current-pass-1')])->save();
+
+        // Mật khẩu mới yếu (chỉ đủ dài) phải bị từ chối — đồng bộ chuẩn /auth/register.
+        $this->actingAs($user)->patchJson('/api/v1/auth/profile', [
+            'current_password' => 'Current-pass-1',
+            'password' => 'weakpassword',
+            'password_confirmation' => 'weakpassword',
+        ])->assertStatus(422)->assertJsonPath('error.code', 'VALIDATION_FAILED');
+
+        // Mật khẩu đủ mạnh (≥8 + hoa + thường + số + ký tự đặc biệt) được chấp nhận.
+        $this->actingAs($user)->patchJson('/api/v1/auth/profile', [
+            'current_password' => 'Current-pass-1',
+            'password' => 'New-strong-99',
+            'password_confirmation' => 'New-strong-99',
+        ])->assertOk();
+
+        $this->assertTrue(Hash::check('New-strong-99', $user->fresh()->password));
+    }
+
     public function test_login_with_valid_and_invalid_credentials(): void
     {
         User::factory()->create(['email' => 'b@example.com', 'password' => Hash::make('secret123')]);
