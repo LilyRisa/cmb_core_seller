@@ -11,8 +11,9 @@
 
 ## 2. Xác thực & tenant
 - Auth: **Sanctum SPA (cookie)**. Trước khi login, SPA gọi `GET /sanctum/csrf-cookie`. Các call sau gửi cookie + header `X-XSRF-TOKEN`.
+- **Token auth (mobile / 3rd-party client):** client không-SPA đăng nhập tại `POST /api/v1/auth/token` (body kèm `device_name`) để nhận **bearer token** (Sanctum personal access token, mặc định hết hạn 60 ngày — `config('sanctum.mobile_token_days')`). Các call sau gửi header `Authorization: Bearer <token>` — **không** cần CSRF cookie. Cùng guard `auth:sanctum` xác thực **cả** SPA cookie lẫn bearer token ⇒ token dùng được **mọi** endpoint nghiệp vụ hiện có; quy ước `X-Tenant-Id` áp dụng y hệt. Đăng xuất = `DELETE /api/v1/auth/token` (thu hồi token hiện tại); quản lý phiên đăng nhập theo thiết bị qua `/api/v1/auth/devices`. Đây là đường mở rộng chuẩn cho mọi client không-SPA về sau (SPEC `docs/superpowers/specs/2026-06-01-mobile-token-auth-design.md`).
 - Tenant hiện tại: header `X-Tenant-Id: <id>` (hoặc lưu trong session sau khi chọn). Middleware `tenant` set current tenant + kiểm user thuộc tenant đó. Thiếu/không hợp lệ ⇒ `403`.
-- Mọi endpoint nghiệp vụ yêu cầu `auth:sanctum` + `tenant`. Endpoint công khai: `/api/v1/auth/login|register|forgot-password`, `/api/v1/health`.
+- Mọi endpoint nghiệp vụ yêu cầu `auth:sanctum` + `tenant`. Endpoint công khai: `/api/v1/auth/login|register|token|forgot-password`, `/api/v1/health`.
 
 ## 3. Định dạng response (envelope thống nhất)
 Thành công:

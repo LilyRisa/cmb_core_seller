@@ -6,6 +6,7 @@ use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Events\TenantCreated;
+use CMBcoreSeller\Modules\Tenancy\Http\Controllers\Concerns\ResolvesAuthUserPayload;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
@@ -21,6 +22,8 @@ use Illuminate\Validation\Rules\Password;
  */
 class AuthController extends Controller
 {
+    use ResolvesAuthUserPayload;
+
     public function register(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -129,27 +132,5 @@ class AuthController extends Controller
         $user->forceFill($update)->save();
 
         return response()->json(['data' => $this->userPayload($user->fresh())]);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    protected function userPayload(User $user): array
-    {
-        $user->load('tenants');
-
-        return [
-            'id' => $user->getKey(),
-            'name' => $user->name,
-            'email' => $user->email,
-            'email_verified_at' => optional($user->email_verified_at)->toIso8601String(), // SPEC 0022 — FE hiện banner nếu null.
-            // Spec 2026-05-17 — super-admin đã tách bảng `admin_users`; user thường không bao giờ là super-admin.
-            'tenants' => $user->tenants->map(fn (Tenant $t) => [
-                'id' => $t->getKey(),
-                'name' => $t->name,
-                'slug' => $t->slug,
-                'role' => $t->pivot->role instanceof Role ? $t->pivot->role->value : $t->pivot->role,
-            ])->values(),
-        ];
     }
 }

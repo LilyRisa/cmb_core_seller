@@ -16,6 +16,11 @@
 |---|---|---|---|---|
 | POST | `/api/v1/auth/register` | — | `name`, `email`, `password`, `password_confirmation`, `tenant_name?` | `201` `{ data: { id, name, email, email_verified_at:null, tenants:[{id,name,slug,role}] } }` — tạo user + tenant mới (caller = `owner`) + đăng nhập phiên + dispatch `VerifyEmailNotification` qua queue `notifications` (SPEC 0022). Lỗi: `422 VALIDATION_FAILED` (email trùng, mật khẩu < 8…). |
 | POST | `/api/v1/auth/login` | — | `email`, `password`, `remember?` | `200` `{ data: {…user…} }`. Sai thông tin: `422 INVALID_CREDENTIALS`. |
+| POST | `/api/v1/auth/token` | — | `email`, `password`, `device_name` | `201` `{ data: { token, user:{…AuthUser…} } }` — **đăng nhập mobile/3rd-party**: cấp bearer token (Sanctum personal access token gắn tên thiết bị, hết hạn `config('sanctum.mobile_token_days')` = 60 ngày). Sai thông tin: `422 INVALID_CREDENTIALS`. Throttle `15/1`. (SPEC 2026-06-01) |
+| DELETE | `/api/v1/auth/token` | sanctum | — | `204` — **đăng xuất mobile**: thu hồi token bearer đang dùng. Khi xác thực bằng session SPA (không có token) ⇒ no-op, vẫn `204`. (SPEC 2026-06-01) |
+| GET | `/api/v1/auth/devices` | sanctum | — | `200` `{ data: [{ id, device_name, last_used_at, created_at, current }] }` — liệt kê phiên đăng nhập (token) theo thiết bị; `current=true` cho token đang dùng. (SPEC 2026-06-01) |
+| DELETE | `/api/v1/auth/devices/{id}` | sanctum | — | `204` — thu hồi 1 token theo id (chỉ token của chính user). Không thuộc user ⇒ `404 TOKEN_NOT_FOUND`. (SPEC 2026-06-01) |
+| DELETE | `/api/v1/auth/devices` | sanctum | — | `204` — thu hồi **mọi** token trừ token đang dùng ("đăng xuất các thiết bị khác"). (SPEC 2026-06-01) |
 | POST | `/api/v1/auth/logout` | sanctum | — | `204`. |
 | GET | `/api/v1/auth/me` | sanctum | — | `200` `{ data: {…user… với `email_verified_at: ISO\|null` & tenants[]} }`. Chưa đăng nhập: `401`. |
 | PATCH | `/api/v1/auth/profile` | sanctum | `name?`, `email?`, `current_password?`, `password?`, `password_confirmation?` | `200` `{ data: AuthUser }` — sửa hồ sơ. Đổi email/password cần `current_password` đúng (sai ⇒ `422 INVALID_PASSWORD`); email trùng / mật khẩu <8 ⇒ `422`. (SPEC 0011) |

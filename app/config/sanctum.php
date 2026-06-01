@@ -52,9 +52,25 @@ return [
     | considered expired. This will override any values set in the token's
     | "expires_at" attribute, but first-party sessions are not affected.
     |
+    | Default null ⇒ KHÔNG override hạn từng token, để per-token `expires_at`
+    | (vd token mobile 60 ngày, xem `mobile_token_days`) được tôn trọng.
+    |
     */
 
-    'expiration' => env('SANCTUM_EXPIRATION', 1440),
+    'expiration' => env('SANCTUM_EXPIRATION') !== null ? (int) env('SANCTUM_EXPIRATION') : null,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Mobile Token Lifetime (days)
+    |--------------------------------------------------------------------------
+    |
+    | Hạn (ngày) cho bearer token cấp tới app mobile / 3rd-party client tại
+    | `POST /api/v1/auth/token` (SPEC 2026-06-01). Đặt per-token `expires_at`;
+    | thu hồi sớm qua quản lý thiết bị (`/api/v1/auth/devices`).
+    |
+    */
+
+    'mobile_token_days' => (int) env('MOBILE_TOKEN_DAYS', 60),
 
     /*
     |--------------------------------------------------------------------------

@@ -42,6 +42,7 @@
 | 0019 | Messaging tái sử dụng `channel_accounts` cho 3 sàn + Facebook là provider `channel_account` mới (không bảng riêng) | Proposed | 2026-05-19 |
 | 0020 | Lưu trữ messaging — partition `messages` theo tháng; media relay vào MinIO; raw payload purge 30 ngày | Proposed | 2026-05-19 |
 | 0021 | Realtime messaging dùng Laravel Reverb; fallback polling khi Reverb chưa bật | Proposed | 2026-05-19 |
+| 0023 | Auth đa client — SPA cookie (web) + Sanctum bearer token (mobile / 3rd-party) | Accepted | 2026-06-01 |
 
 > 0001–0010 đã `Accepted`. 0017–0021 (mới — Proposed) đi cùng SPEC-0024 (Omnichannel Messaging) — sẽ chuyển `Accepted` khi spec → `Reviewed`. Khi thêm quyết định mới: tạo file theo mẫu trên, thêm dòng vào bảng, và (nếu cần) cập nhật `tech-stack.md`/`extensibility-rules.md`/doc liên quan.
 

@@ -8,8 +8,8 @@ use CMBcoreSeller\Modules\Customers\Http\Controllers\CustomerController;
 use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\CarrierAccountController;
 use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\MasterDataController;
 use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\PrintJobController;
-use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\ShippingLabelTemplateController;
 use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\ShipmentController;
+use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\ShippingLabelTemplateController;
 use CMBcoreSeller\Modules\Inventory\Http\Controllers\InventoryController;
 use CMBcoreSeller\Modules\Inventory\Http\Controllers\SkuController;
 use CMBcoreSeller\Modules\Inventory\Http\Controllers\SkuMappingController;
@@ -24,6 +24,7 @@ use CMBcoreSeller\Modules\Products\Http\Controllers\ChannelListingController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ProductController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\AuthController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\TenantController;
+use CMBcoreSeller\Modules\Tenancy\Http\Controllers\TokenAuthController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -44,6 +45,8 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
     Route::middleware('throttle:15,1')->group(function () {
         Route::post('auth/register', [AuthController::class, 'register'])->name('auth.register');
         Route::post('auth/login', [AuthController::class, 'login'])->name('auth.login');
+        // Mobile / 3rd-party client — cấp bearer token (SPEC 2026-06-01). Cùng throttle với login.
+        Route::post('auth/token', [TokenAuthController::class, 'token'])->name('auth.token');
     });
 
     // --- Email verification (SPEC 0022) — signed URL public; throttle chống brute hash ---
@@ -63,6 +66,12 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
         Route::post('auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
         Route::get('auth/me', [AuthController::class, 'me'])->name('auth.me');
         Route::patch('auth/profile', [AuthController::class, 'updateProfile'])->name('auth.profile.update');   // SPEC 0011
+
+        // Mobile token auth (SPEC 2026-06-01) — logout = thu hồi token hiện tại; quản lý thiết bị.
+        Route::delete('auth/token', [TokenAuthController::class, 'revoke'])->name('auth.token.revoke');
+        Route::get('auth/devices', [TokenAuthController::class, 'devices'])->name('auth.devices.index');
+        Route::delete('auth/devices', [TokenAuthController::class, 'revokeOthers'])->name('auth.devices.revoke-others');
+        Route::delete('auth/devices/{id}', [TokenAuthController::class, 'revokeDevice'])->whereNumber('id')->name('auth.devices.revoke');
 
         // SPEC 0022 — resend verification email cho user đã login nhưng chưa verify.
         Route::post('auth/email/verify/resend', [EmailVerificationController::class, 'resend'])

@@ -73,18 +73,6 @@ parameters:
 			path: app/Modules/Orders/Services/OrderStateMachine.php
 
 		-
-			message: '#^Access to an undefined property CMBcoreSeller\\Modules\\Tenancy\\Models\\Tenant\:\:\$pivot\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Modules/Tenancy/Http/Controllers/AuthController.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{id\: mixed, name\: string, slug\: string, role\: mixed\}, Closure\(CMBcoreSeller\\Modules\\Tenancy\\Models\\Tenant\)\: array\{id\: mixed, name\: string, slug\: string, role\: mixed\} given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Modules/Tenancy/Http/Controllers/AuthController.php
-
-		-
 			message: '#^Access to an undefined property CMBcoreSeller\\Models\\User\:\:\$pivot\.$#'
 			identifier: property.notFound
 			count: 3
