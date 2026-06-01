@@ -39,6 +39,21 @@ class ShopeeWebhookVerifier
         }
         $expected = hash_hmac('sha256', $pushUrl.'|'.$raw, $pushKey);
         $ok = hash_equals($expected, strtolower($provided));
+        if (! $ok) {
+            // TEMP DIAGNOSTIC (gỡ sau khi fix): chụp đầu vào HMAC khi lệch. KHÔNG log secret —
+            // key chỉ dưới dạng fingerprint+độ dài; provided/expected là MAC (không phải bí mật).
+            Log::warning('shopee.webhook.signature_debug', [
+                'push_url' => $pushUrl,
+                'push_url_len' => strlen($pushUrl),
+                'raw_len' => strlen($raw),
+                'raw_head' => substr($raw, 0, 80),
+                'raw_sha' => substr(hash('sha256', $raw), 0, 12),
+                'provided' => substr(strtolower($provided), 0, 24),
+                'expected' => substr($expected, 0, 24),
+                'key_fp' => substr(hash('sha256', $pushKey), 0, 12),
+                'key_len' => strlen($pushKey),
+            ]);
+        }
         if (! $ok && (string) ($cfg['webhook_verify_mode'] ?? 'strict') === 'lenient') {
             Log::warning('shopee.webhook.signature_mismatch_but_accepted', ['mode' => 'lenient', 'has_header' => $provided !== '']);
 
