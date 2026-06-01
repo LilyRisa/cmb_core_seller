@@ -137,6 +137,10 @@ x-app-env: &app-env
   INTEGRATIONS_SHOPEE_FULFILLMENT: "${INTEGRATIONS_SHOPEE_FULFILLMENT:-true}"
   INTEGRATIONS_SHOPEE_FINANCE: "${INTEGRATIONS_SHOPEE_FINANCE:-false}"
   SHOPEE_SHIP_METHOD: ${SHOPEE_SHIP_METHOD:-auto}
+  # URL callback dùng để VERIFY chữ ký webhook push (base-string = "URL|body" theo Shopee Open Platform,
+  # doc 18-push-mechanism-notifications). PHẢI khớp Y HỆT URL đã nhập ở Shopee Console → Push Mechanism.
+  # Không set ⇒ verifier fallback url('/webhook/shopee') (phụ thuộc proxy scheme → dễ ra http → sai chữ ký).
+  SHOPEE_PUSH_URL: ${SHOPEE_PUSH_URL:-https://app.cmbcore.com/webhook/shopee}
   # --- Hộp thư hợp nhất / Messaging (SPEC-0024) -------------------------------
   # Bật connector nào (CSV). 'manual' luôn có (test). Default đã bật chat 3 sàn
   # (tiktok_chat/lazada_chat/shopee_chat) — dùng chung credentials+OAuth với orders
