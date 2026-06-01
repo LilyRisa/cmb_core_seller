@@ -141,6 +141,10 @@ x-app-env: &app-env
   # doc 18-push-mechanism-notifications). PHẢI khớp Y HỆT URL đã nhập ở Shopee Console → Push Mechanism.
   # Không set ⇒ verifier fallback url('/webhook/shopee') (phụ thuộc proxy scheme → dễ ra http → sai chữ ký).
   SHOPEE_PUSH_URL: ${SHOPEE_PUSH_URL:-https://app.cmbcore.com/webhook/shopee}
+  # 'strict' (mặc định) = từ chối push sai chữ ký (401). 'lenient' = CHẤP NHẬN dù sai chữ ký (chỉ log
+  # cảnh báo). ⚠️ Chỉ dùng lenient tạm thời để gỡ kẹt verify — webhook nhận tin chat trực tiếp vào inbox,
+  # lenient ⇒ ai biết URL cũng chèn được tin/sự kiện giả. Tắt lại 'strict' ngay khi tìm ra key đúng.
+  SHOPEE_WEBHOOK_VERIFY_MODE: ${SHOPEE_WEBHOOK_VERIFY_MODE:-strict}
   # --- Hộp thư hợp nhất / Messaging (SPEC-0024) -------------------------------
   # Bật connector nào (CSV). 'manual' luôn có (test). Default đã bật chat 3 sàn
   # (tiktok_chat/lazada_chat/shopee_chat) — dùng chung credentials+OAuth với orders
