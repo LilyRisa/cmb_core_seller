@@ -65,3 +65,22 @@ Sau đó `POST /shipments/{id}/track` / job định kỳ ⇒ `in_transit/deliver
 
 ## 8. Triển khai
 Migration mới ⇒ prod chạy `php artisan migrate --force`. Không config/env mới. Horizon queue `labels` đã có. App/máy quét đơn dùng `POST /scan-pack` (đóng gói) và `POST /scan-handover` (bàn giao) — auth Sanctum + header `X-Tenant-Id` như mọi API; quyền `fulfillment.scan` (đóng gói) / `fulfillment.ship` (bàn giao).
+
+## 9. Cải tiến UI thao tác — thanh nút cố định + validate theo đơn (2026-06)
+**Vấn đề cũ:** thanh thao tác chỉ hiện khi đã chọn đơn; một số nút **ẩn** khi không đủ điều kiện (vd `selWithShipment.length>0`); nút màu mè; thao tác rải ở cột "Thao tác" từng dòng + **ẩn theo trạng thái** ⇒ đơn hoàn không thấy nút in dù đã có phiếu.
+
+**Thiết kế mới (chỉ FE + 1 chỉnh nhỏ resource, không đổi nghiệp vụ/endpoint):**
+- **Một thanh thao tác cố định NGAY DƯỚI phần lọc, LUÔN hiển thị** ở mọi tab trạng thái (`pages/OrdersPage.tsx`). Nút **phẳng, không màu** (AntD default, không primary/green). Bộ nút: `Chuẩn bị hàng` · `Nhận phiếu giao hàng` · `In phiếu giao hàng` · `Sẵn sàng bàn giao` · `Bàn giao ĐVVC` · `Liên kết SKU` (+ trạng thái chọn / `Bỏ chọn`).
+- **Validate theo TỪNG đơn đang chọn** (không ẩn nút — chỉ bật/tắt): nút bật khi lô chọn có **≥1 đơn hợp lệ** (nhãn kèm số đếm); đơn không hợp lệ trong lô bị **BỎ QUA + ghi lý do ở thanh tiến trình** (không chặn cả lô). Chưa chọn đơn ⇒ tất cả nút disabled + tooltip "Chọn đơn để thao tác". **Cho chọn mọi đơn** ở mọi trạng thái (gỡ khoá checkbox cũ) để in được đơn đã giao/hoàn.
+- **Ma trận điều kiện:**
+  | Nút | Đơn hợp lệ |
+  |---|---|
+  | Chuẩn bị hàng | đơn MỚI: status `pending`/`unpaid`/`processing`/`ready_to_ship`, **chưa có vận đơn**, không âm tồn. |
+  | Nhận phiếu giao hàng | đơn **đã có vận đơn nhưng CHƯA có phiếu** (`shipment && !has_label`). |
+  | **In phiếu giao hàng** | **MỌI đơn `has_label=true`** — kể cả `shipped`/`delivered`/`completed`/`returning`/`returned_refunded`/`cancelled`. |
+  | Sẵn sàng bàn giao | vận đơn `pending`/`created`. |
+  | Bàn giao ĐVVC | vận đơn `created`/`packed`. |
+  | Liên kết SKU | đơn cờ "SKU chưa ghép". |
+- **In tem giữ chặn cứng** khi lô lẫn **nhiều nền tảng / nhiều ĐVVC** (khổ tem khác nhau) — `Modal.warning`, không ghép. Đơn chưa có phiếu trong lô in ⇒ bỏ qua (`message.info`), vẫn in các đơn đã có phiếu.
+- **Cột "Thao tác" từng dòng** rút còn **"Xem chi tiết"** (mọi thao tác dồn lên thanh trên).
+- **Backend:** `OrderResource.shipment` ưu tiên vận đơn **đã có `label_path`** (rồi mới tới vận đơn chưa huỷ) ⇒ đơn ở mọi trạng thái (kể cả hoàn) lộ `has_label=true` để UI in lại. Đường in theo `shipment_ids` sẵn có không vướng scope `open()` nên không cần đổi `PrintService`.

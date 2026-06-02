@@ -43,6 +43,7 @@ Từ `escrow_detail.order_income` → map sang `feeType` chuẩn: `buyer_total_a
 
 ## 7. Lưu ý
 - Đơn nhiều kiện (`package_list`); SPX (Shopee Express) là ĐVVC mặc định nhiều đơn.
+- `package_number` chỉ dùng cho đơn ĐÃ tách (split, ≥2 kiện). `get_order_detail.package_list` vẫn trả `package_number` cho cả đơn 1 kiện (chưa tách), nhưng `ship_order` của đơn chưa tách **không được** gửi `package_number` (lỗi `logistics.ship_order_not_need_pacakge_number`) — `arrangeShipment` chỉ đính `package_number` khi `count(packages) > 1`.
 - COD (`cod: true`); document API trả PDF (download theo `package_number`).
 - `fetchOrders` window tối đa 15 ngày — cursor encode `"windowStart:innerCursor"` để chia nhỏ tự động.
 - `unprocessedRawStatuses()` = `['READY_TO_SHIP']` (đơn sàn `READY_TO_SHIP` cần xử lý fulfillment).

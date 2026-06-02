@@ -225,7 +225,11 @@ class ShopeeConnector implements ChannelConnector
         if ((string) ($cfg['fulfillment_mode'] ?? 'auto') !== 'refetch_only') {
             $param = $this->client->shopGet($auth, $this->client->endpoint('shipping_parameter'), array_filter(['order_sn' => $externalOrderId, 'package_number' => $packageNumber ?: null]));
             $body = ['order_sn' => $externalOrderId];
-            if ($packageNumber !== '') {
+            // Shopee chỉ chấp nhận package_number ở ship_order khi đơn ĐÃ được tách (split) thành ≥2 kiện.
+            // get_order_detail.package_list vẫn trả package_number cho cả đơn 1 kiện (chưa tách), nên phải xét
+            // SỐ KIỆN chứ không xét chuỗi rỗng — gửi package_number cho đơn chưa tách ⇒ lỗi
+            // `logistics.ship_order_not_need_pacakge_number`. Doc Shopee §8.3.2: ship_order chỉ cần order_sn.
+            if ($packageNumber !== '' && count((array) ($params['packages'] ?? [])) > 1) {
                 $body['package_number'] = $packageNumber;
             }
             $method = (string) ($cfg['ship_method'] ?? 'auto');

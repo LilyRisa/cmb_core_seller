@@ -445,6 +445,56 @@ class ShopeeConnectorContractTest extends TestCase
         });
     }
 
+    public function test_arrange_shipment_omits_package_number_for_unsplit_order(): void
+    {
+        // Shopee trả package_number trong package_list cho cả đơn 1 kiện (CHƯA tách). Gửi package_number ở
+        // ship_order cho đơn chưa tách ⇒ lỗi `logistics.ship_order_not_need_pacakge_number`. Đơn 1 kiện ⇒ KHÔNG gửi.
+        Http::fake([
+            '*/api/v2/logistics/get_shipping_parameter*' => Http::response(ShopeeFixtures::shippingParameter(), 200),
+            '*/api/v2/logistics/ship_order*' => Http::response(ShopeeFixtures::shipOrder(), 200),
+            '*/api/v2/logistics/get_tracking_number*' => Http::sequence()
+                ->push(['error' => '', 'response' => ['tracking_number' => '']], 200)
+                ->push(ShopeeFixtures::trackingNumber(), 200),
+        ]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        $this->connector()->arrangeShipment($auth, 'SN_1', ['packages' => [['externalPackageId' => 'PKG_1']]]);
+
+        Http::assertSent(function (\Illuminate\Http\Client\Request $r) {
+            if (! str_contains($r->url(), '/api/v2/logistics/ship_order')) {
+                return false;
+            }
+
+            return ! array_key_exists('package_number', $r->data());
+        });
+    }
+
+    public function test_arrange_shipment_sends_package_number_for_split_order(): void
+    {
+        // Đơn ĐÃ tách (≥2 kiện) ⇒ ship_order PHẢI kèm package_number để chỉ định kiện cần giao.
+        Http::fake([
+            '*/api/v2/logistics/get_shipping_parameter*' => Http::response(ShopeeFixtures::shippingParameter(), 200),
+            '*/api/v2/logistics/ship_order*' => Http::response(ShopeeFixtures::shipOrder(), 200),
+            '*/api/v2/logistics/get_tracking_number*' => Http::sequence()
+                ->push(['error' => '', 'response' => ['tracking_number' => '']], 200)
+                ->push(ShopeeFixtures::trackingNumber(), 200),
+        ]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        $this->connector()->arrangeShipment($auth, 'SN_1', ['packages' => [
+            ['externalPackageId' => 'PKG_1'],
+            ['externalPackageId' => 'PKG_2'],
+        ]]);
+
+        Http::assertSent(function (\Illuminate\Http\Client\Request $r) {
+            if (! str_contains($r->url(), '/api/v2/logistics/ship_order')) {
+                return false;
+            }
+
+            return ($r->data()['package_number'] ?? null) === 'PKG_1';
+        });
+    }
+
     public function test_fetch_returns_maps_to_return_dto(): void
     {
         config(['integrations.shopee.returns_enabled' => true]);

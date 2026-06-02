@@ -85,7 +85,11 @@ class OrderResource extends JsonResource
             'items' => OrderItemResource::collection($this->whenLoaded('items')),
             'status_history' => OrderStatusHistoryResource::collection($this->whenLoaded('statusHistory')),
             'shipment' => $this->whenLoaded('shipments', function () {
-                $s = $this->shipments->first(fn ($x) => $x->status !== 'cancelled') ?? $this->shipments->first();
+                // Ưu tiên vận đơn ĐÃ có phiếu/tem đã lưu (label_path) để đơn ở mọi trạng thái — kể cả đã giao /
+                // hoàn / huỷ — vẫn lộ has_label=true ⇒ UI in lại được phiếu. Sau đó mới tới vận đơn chưa huỷ.
+                $s = $this->shipments->first(fn ($x) => filled($x->label_path))
+                    ?? $this->shipments->first(fn ($x) => $x->status !== 'cancelled')
+                    ?? $this->shipments->first();
 
                 return $s ? [
                     'id' => $s->id, 'carrier' => $s->carrier, 'tracking_no' => $s->tracking_no,

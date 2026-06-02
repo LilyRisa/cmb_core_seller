@@ -14,7 +14,7 @@ import { MoneyText, DateText } from '@/components/MoneyText';
 import { FilterChipRow, type ChipItem } from '@/components/FilterChipRow';
 import { LinkSkusModal } from '@/components/LinkSkusModal';
 import { OrderDetailModal } from '@/components/OrderDetailModal';
-import { OrderActions, PrintCountBadge, PrintJobBar, ScanTab, ShipmentsTab } from '@/components/OrderProcessing';
+import { PrintCountBadge, PrintJobBar, ScanTab, ShipmentsTab } from '@/components/OrderProcessing';
 import { CarrierAccountPicker } from '@/components/CarrierAccountPicker';
 import { TemplateAliasPicker } from '@/components/shipping-labels/TemplateAliasPicker';
 import { errorMessage } from '@/lib/api';
@@ -187,8 +187,6 @@ export function OrdersPage() {
 
     // bulk actions: "Chuẩn bị hàng" + "In phiếu giao hàng" (tem của sàn) trên các đơn đã chọn
     const selectedOrders = (data?.data ?? []).filter((o) => selectedKeys.includes(o.id));
-    const selWithShipment = selectedOrders.filter((o) => o.shipment);
-    const negProfit = selectedOrders.filter((o) => o.profit && o.profit.estimated_profit < 0);
     // Phân loại đơn theo nguồn để áp đúng luồng (key truth = `source`):
     //   - manual (source='manual') → cần chọn ĐVVC qua CarrierAccountPicker, BE gọi GHN createOrder ngay.
     //   - sàn (source!='manual')    → BE tự gọi `prepareChannelOrder` lấy AWB/tem, KHÔNG cần chọn ĐVVC.
@@ -196,6 +194,22 @@ export function OrdersPage() {
     const selManual = selectedOrders.filter((o) => o.source === 'manual');
     // Trạng thái đơn còn "chuẩn bị hàng" được (chưa giao cho ĐVVC). Ngoài tập này ⇒ bỏ qua khi bấm Chuẩn bị hàng.
     const PREPARE_OK_STATUSES = ['pending', 'unpaid', 'processing', 'ready_to_ship'];
+    // ─── Validate thao tác theo TỪNG đơn đang chọn. Nút thao tác LUÔN hiển thị (thanh cố định dưới phần lọc);
+    //     chỉ BẬT khi trong lô chọn có ≥1 đơn hợp lệ. Đơn không hợp lệ trong lô sẽ bị BỎ QUA + ghi lý do ở thanh
+    //     tiến trình (không chặn cả lô). SPEC 0009 (bản cải tiến 2026-06).
+    const SHIP_PACK_STATUSES = ['pending', 'created'];      // vận đơn có thể đánh dấu "đã gói"
+    const SHIP_HANDOVER_STATUSES = ['created', 'packed'];   // vận đơn có thể bàn giao ĐVVC
+    // Chuẩn bị hàng: chỉ đơn MỚI (tiền-giao) CHƯA có vận đơn & không âm tồn. Đơn đã có phiếu / đang giao / đã
+    // giao / hoàn / huỷ ⇒ không chuẩn bị được.
+    const eliPrepare = selectedOrders.filter((o) => !o.shipment && PREPARE_OK_STATUSES.includes(o.status) && !o.out_of_stock);
+    // Nhận phiếu giao hàng: đơn ĐÃ có vận đơn nhưng CHƯA có phiếu (kéo lại tem/phiếu của sàn khi lần trước lỗi).
+    const eliGetSlip = selectedOrders.filter((o) => o.shipment && !o.shipment.has_label);
+    // In phiếu giao hàng: MỌI đơn ĐÃ có phiếu (has_label) — kể cả đang giao / đã giao / hoàn / huỷ.
+    const eliPrint = selectedOrders.filter((o) => o.shipment?.has_label);
+    const eliPack = selectedOrders.filter((o) => o.shipment && SHIP_PACK_STATUSES.includes(o.shipment.status));
+    const eliHandover = selectedOrders.filter((o) => o.shipment && SHIP_HANDOVER_STATUSES.includes(o.shipment.status));
+    const eliLink = selectedOrders.filter((o) => o.issue_reason === UNMAPPED_REASON);
+    const negPrepare = eliPrepare.filter((o) => o.profit && o.profit.estimated_profit < 0).length;
     // B7 fix (Sprint 1 P0) — helper chặn trộn manual + sàn cho mọi bulk action liên quan tạo vận đơn.
     // Đơn sàn (`prepareChannelOrder`) dùng AWB & tem của sàn; đơn manual (`createForOrder` qua connector ĐVVC)
     // cần user chọn ĐVVC qua picker. Hai luồng nhập đầu vào khác hẳn → không gộp 1 lượt.
@@ -272,7 +286,7 @@ export function OrdersPage() {
         },
         onError: (e) => message.error(errorMessage(e)),
     });
-    const doRefetchSlip = () => runRefetchSlip(selWithShipment.map((o) => o.id));
+    const doRefetchSlip = () => runRefetchSlip(eliGetSlip.map((o) => o.id));
     // Thao tác đổi trạng thái dựa trên vận đơn (đóng gói / bàn giao). Key popup theo order.id; đơn chưa có vận
     // đơn ⇒ bỏ qua; gọi backend theo shipment.id rồi map kết quả về order.id. Backend tự bỏ qua đơn đã xử lý.
     const runShipmentAction = (title: string, mutate: (shipmentIds: number[]) => Promise<{ results: BulkActionResult[] }>) => {
@@ -299,21 +313,13 @@ export function OrdersPage() {
     };
     const doBulkPack = () => runShipmentAction('Đánh dấu sẵn sàng bàn giao', (ids) => bulkPack.mutateAsync(ids));
     const doBulkHandover = () => runShipmentAction('Bàn giao ĐVVC', (ids) => bulkHandover.mutateAsync(ids));
-    // "In phiếu giao hàng": chỉ in được đơn đã có phiếu; đơn nào chưa có ⇒ popup hướng dẫn bấm "Nhận phiếu giao hàng".
+    // "In phiếu giao hàng": in cho MỌI đơn ĐÃ có phiếu (has_label) — kể cả đang giao / đã giao / hoàn. Đơn trong
+    // lô CHƯA có phiếu ⇒ BỎ QUA (báo nhẹ). CHẶN HẲN nếu lẫn nhiều nền tảng / nhiều ĐVVC (khổ tem khác nhau).
     const doBulkPrintSlip = () => {
-        const ready = selWithShipment.filter((o) => o.shipment!.has_label);
-        const notReady = selWithShipment.filter((o) => !o.shipment!.has_label);
-        if (notReady.length > 0) {
-            Modal.confirm({
-                title: `${notReady.length} đơn chưa có phiếu giao hàng`,
-                content: ready.length > 0
-                    ? `Trong ${selWithShipment.length} đơn đã chọn, ${notReady.length} đơn chưa có phiếu giao hàng để in. Bấm "Nhận phiếu giao hàng" để hệ thống tự tải phiếu về (sẽ có thanh tiến trình); khi xong bấm "Mở để in". Các đơn đã có phiếu vẫn in được sau khi tải xong.`
-                    : `Các đơn này chưa có phiếu giao hàng để in. Bấm "Nhận phiếu giao hàng" để hệ thống tự tải về — sẽ có thanh tiến trình; khi xong bấm "Mở để in".`,
-                okText: 'Nhận phiếu giao hàng', cancelText: 'Để sau',
-                onOk: () => runRefetchSlip(notReady.map((o) => o.id)),
-            });
-            return;
-        }
+        const ready = selectedOrders.filter((o) => o.shipment?.has_label);
+        const skipped = selectedOrders.length - ready.length;
+        const notifySkipped = () => { if (skipped > 0) message.info(`Đã bỏ qua ${skipped} đơn chưa có phiếu.`); };
+        if (ready.length === 0) { message.info('Không có đơn nào đã có phiếu để in — hãy bấm "Nhận phiếu giao hàng" trước.'); return; }
         // Quy tắc gom phiếu in: cùng 1 nền tảng + cùng 1 ĐVVC mới ghép chung được (khác nền tảng/ĐVVC ⇒ định
         // dạng tem khác nhau, không ghép vào 1 PDF được). Khác gian hàng trong CÙNG nền tảng thì vẫn in chung.
         const sources = Array.from(new Set(ready.map((o) => o.source)));
@@ -342,10 +348,10 @@ export function OrdersPage() {
         const allManual = ready.every((o) => o.source === 'manual');
         const reprinted = ready.filter((o) => (o.shipment!.print_count ?? 0) > 0);
         const runChannelPrint = () => createPrintJob.mutate({ type: 'label', shipment_ids: ready.map((o) => o.shipment!.id) }, {
-            onSuccess: (j) => { setPrintJobId(j.id); setSelectedKeys([]); },
+            onSuccess: (j) => { setPrintJobId(j.id); setSelectedKeys([]); notifySkipped(); },
             onError: (e) => Modal.warning({ title: 'Không in được tem', content: errorMessage(e), okText: 'Đã hiểu' }),
         });
-        const openManualPicker = () => setBulkLabelPicker({ open: true, orderIds: ready.map((o) => o.id) });
+        const openManualPicker = () => { setBulkLabelPicker({ open: true, orderIds: ready.map((o) => o.id) }); notifySkipped(); };
         const proceed = allManual ? openManualPicker : runChannelPrint;
         // Cảnh báo in lại: ≥1 đơn đã được in trước đó (`print_count > 0`) ⇒ tránh in trùng phiếu vận chuyển.
         if (reprinted.length > 0) {
@@ -470,13 +476,10 @@ export function OrdersPage() {
         { title: 'Trạng thái', dataIndex: 'status', key: 'status', width: 140, render: (v, o) => <StatusTag status={v} label={o.status_label} rawStatus={o.raw_status} /> },
         { title: 'Đặt lúc', dataIndex: 'placed_at', key: 'placed_at', width: 150, render: (v) => <DateText value={v} /> },
         {
-            title: 'Thao tác', key: 'action', width: 220,
-            render: (_, o) => (
-                <Space direction="vertical" size={2}>
-                    <OrderActions order={o} onPrint={setPrintJobId} />
-                    <Typography.Link onClick={() => setViewOrderId(o.id)}>Xem chi tiết</Typography.Link>
-                </Space>
-            ),
+            // Mọi thao tác fulfillment/in đã dồn lên thanh cố định dưới phần lọc (chọn đơn rồi bấm). Cột này chỉ
+            // còn "Xem chi tiết" để xem nhanh từng đơn.
+            title: 'Thao tác', key: 'action', width: 110,
+            render: (_, o) => <Typography.Link onClick={() => setViewOrderId(o.id)}>Xem chi tiết</Typography.Link>,
         },
     ];
 
@@ -612,6 +615,61 @@ export function OrdersPage() {
                 </div>
             </Card>
 
+            {/* Thanh thao tác cố định — LUÔN hiển thị ngay dưới phần lọc, áp cho MỌI tab trạng thái. Nút phẳng
+                (không màu mè); chỉ BẬT khi lô chọn có ≥1 đơn hợp lệ; đơn không hợp lệ sẽ bị bỏ qua + báo ở tiến trình. */}
+            {!isShipmentsTab && (canShip || canPrint || canMap) && (
+                <Card size="small" style={{ marginTop: 12 }} styles={{ body: { padding: '10px 12px' } }}>
+                    <Space wrap size={8} style={{ width: '100%' }}>
+                        {canShip && (
+                            <Tooltip title={selectedKeys.length === 0 ? 'Chọn đơn để thao tác' : 'Chỉ áp dụng cho đơn MỚI chưa có phiếu (Chờ thanh toán / Chờ xử lý / Đang xử lý / Chờ bàn giao). Đơn đã có phiếu, đang giao, đã giao, hoàn, huỷ sẽ bị bỏ qua.'}>
+                                <span><Button icon={<FileTextOutlined />} disabled={eliPrepare.length === 0} loading={bulkProgress.running} onClick={doBulkPrepare}>
+                                    Chuẩn bị hàng{eliPrepare.length > 0 ? ` (${eliPrepare.length})` : ''}{negPrepare > 0 && <WarningOutlined style={{ marginInlineStart: 4, color: '#faad14' }} />}
+                                </Button></span>
+                            </Tooltip>
+                        )}
+                        {canShip && (
+                            <Tooltip title={selectedKeys.length === 0 ? 'Chọn đơn để thao tác' : 'Kéo lại tem/phiếu của sàn cho đơn đã có vận đơn nhưng CHƯA có phiếu (lần trước lấy lỗi).'}>
+                                <span><Button icon={<ReloadOutlined />} disabled={eliGetSlip.length === 0} loading={refetchSlip.isPending} onClick={doRefetchSlip}>
+                                    Nhận phiếu giao hàng{eliGetSlip.length > 0 ? ` (${eliGetSlip.length})` : ''}
+                                </Button></span>
+                            </Tooltip>
+                        )}
+                        {canPrint && (
+                            <Tooltip title={selectedKeys.length === 0 ? 'Chọn đơn để thao tác' : 'In phiếu/tem cho MỌI đơn ĐÃ có phiếu — kể cả đang giao, đã giao, hoàn. Không in chung nhiều sàn / ĐVVC.'}>
+                                <span><Button icon={<PrinterOutlined />} disabled={eliPrint.length === 0} loading={createPrintJob.isPending} onClick={doBulkPrintSlip}>
+                                    In phiếu giao hàng{eliPrint.length > 0 ? ` (${eliPrint.length})` : ''}
+                                </Button></span>
+                            </Tooltip>
+                        )}
+                        {canShip && (
+                            <Tooltip title={selectedKeys.length === 0 ? 'Chọn đơn để thao tác' : 'Đánh dấu đã đóng gói cho đơn đã có vận đơn (chuyển sang chờ bàn giao ĐVVC).'}>
+                                <span><Button icon={<CheckCircleOutlined />} disabled={eliPack.length === 0} loading={bulkProgress.running} onClick={doBulkPack}>
+                                    Sẵn sàng bàn giao{eliPack.length > 0 ? ` (${eliPack.length})` : ''}
+                                </Button></span>
+                            </Tooltip>
+                        )}
+                        {canShip && (
+                            <Tooltip title={selectedKeys.length === 0 ? 'Chọn đơn để thao tác' : 'Bàn giao cho ĐVVC (đơn → đang vận chuyển, trừ tồn kho).'}>
+                                <span><Button icon={<BarcodeOutlined />} disabled={eliHandover.length === 0} loading={bulkProgress.running} onClick={doBulkHandover}>
+                                    Bàn giao ĐVVC{eliHandover.length > 0 ? ` (${eliHandover.length})` : ''}
+                                </Button></span>
+                            </Tooltip>
+                        )}
+                        {canMap && (
+                            <Tooltip title={selectedKeys.length === 0 ? 'Chọn đơn để thao tác' : 'Liên kết SKU cho các đơn chưa ghép trong lô chọn.'}>
+                                <span><Button icon={<LinkOutlined />} disabled={eliLink.length === 0} onClick={() => setLinkModal({ open: true, orderIds: eliLink.map((o) => o.id) })}>
+                                    Liên kết SKU{eliLink.length > 0 ? ` (${eliLink.length})` : ''}
+                                </Button></span>
+                            </Tooltip>
+                        )}
+                        <span style={{ marginInlineStart: 'auto', display: 'inline-flex', alignItems: 'center' }}>
+                            <Typography.Text type="secondary">{selectedKeys.length > 0 ? `Đã chọn ${selectedKeys.length} đơn` : 'Chưa chọn đơn'}</Typography.Text>
+                            {selectedKeys.length > 0 && <Button type="link" size="small" onClick={() => setSelectedKeys([])}>Bỏ chọn</Button>}
+                        </span>
+                    </Space>
+                </Card>
+            )}
+
             {canMap && (stats?.unmapped ?? 0) > 0 && (
                 <Alert
                     type="warning" showIcon style={{ marginTop: 12 }}
@@ -621,31 +679,12 @@ export function OrdersPage() {
             )}
 
             <Card style={{ marginTop: 12 }} styles={{ body: { padding: 16 } }}>
-                {selectedKeys.length > 0 && (canBulkWork ? (
-                    <Space style={{ marginBottom: 12 }} wrap>
-                        {canShip && <Button type="primary" loading={bulkProgress.running} onClick={doBulkPrepare}>
-                            Chuẩn bị hàng ({selectedKeys.length}){negProfit.length > 0 && <WarningOutlined style={{ marginInlineStart: 4 }} />}
-                        </Button>}
-                        {canShip && <Button icon={<CheckCircleOutlined />} style={{ background: '#52c41a', borderColor: '#52c41a', color: '#fff' }} loading={bulkProgress.running} onClick={doBulkPack}>Sẵn sàng bàn giao ({selectedKeys.length})</Button>}
-                        {canShip && <Button type="primary" icon={<CheckCircleOutlined />} loading={bulkProgress.running} onClick={doBulkHandover}>Bàn giao ĐVVC ({selectedKeys.length})</Button>}
-                        {canShip && selWithShipment.length > 0 && <Button icon={<FileTextOutlined />} loading={refetchSlip.isPending} onClick={doRefetchSlip}>Nhận phiếu giao hàng ({selWithShipment.length})</Button>}
-                        {canPrint && selWithShipment.length > 0 && <Button icon={<PrinterOutlined />} loading={createPrintJob.isPending} onClick={doBulkPrintSlip}>In phiếu giao hàng ({selWithShipment.length})</Button>}
-                        {canMap && <Button icon={<LinkOutlined />} onClick={() => setLinkModal({ open: true, orderIds: selectedKeys })}>Liên kết SKU ({selectedKeys.length})</Button>}
-                        <Button onClick={() => setSelectedKeys([])}>Bỏ chọn</Button>
-                    </Space>
-                ) : canMap ? (
-                    <Space style={{ marginBottom: 12 }}>
-                        <Button type="primary" icon={<LinkOutlined />} onClick={() => setLinkModal({ open: true, orderIds: selectedKeys })}>Liên kết SKU ({selectedKeys.length})</Button>
-                        <Button onClick={() => setSelectedKeys([])}>Bỏ chọn</Button>
-                    </Space>
-                ) : null)}
                 <Table<Order>
                     rowKey="id" size="middle" loading={isFetching}
                     dataSource={data?.data ?? []} columns={columns}
                     rowSelection={canBulkWork || canMap ? {
                         selectedRowKeys: selectedKeys,
                         onChange: (keys) => setSelectedKeys(keys as number[]),
-                        getCheckboxProps: (o) => ({ disabled: canBulkWork ? o.out_of_stock : o.issue_reason !== UNMAPPED_REASON }),
                     } : undefined}
                     locale={{ emptyText: <Empty description={isWorkTab ? 'Không có đơn nào.' : 'Chưa có đơn hàng. Kết nối gian hàng để đơn tự về, hoặc bấm “Đồng bộ đơn”.'} /> }}
                     rowClassName={(o) => (o.has_issue ? 'row-has-issue' : '')}
