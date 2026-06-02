@@ -46,4 +46,5 @@ Từ `escrow_detail.order_income` → map sang `feeType` chuẩn: `buyer_total_a
 - `package_number` chỉ dùng cho đơn ĐÃ tách (split, ≥2 kiện). `get_order_detail.package_list` vẫn trả `package_number` cho cả đơn 1 kiện (chưa tách), nhưng `ship_order` của đơn chưa tách **không được** gửi `package_number` (lỗi `logistics.ship_order_not_need_pacakge_number`) — `arrangeShipment` chỉ đính `package_number` khi `count(packages) > 1`.
 - COD (`cod: true`); document API trả PDF (download theo `package_number`).
 - `fetchOrders` window tối đa 15 ngày — cursor encode `"windowStart:innerCursor"` để chia nhỏ tự động.
+- `fetchReturns` (`get_return_list`) cũng giới hạn `create_time_from..create_time_to` ≤ 15 ngày — windowed y hệt `fetchOrders`, cursor encode `"windowStart:pageNo"` (page_no 0-based). `updatedFrom` xa hơn 15 ngày sẽ tự chia cửa sổ; nếu không windowed sẽ lỗi `error_param` "period ... must not more than 15 days".
 - `unprocessedRawStatuses()` = `['READY_TO_SHIP']` (đơn sàn `READY_TO_SHIP` cần xử lý fulfillment).

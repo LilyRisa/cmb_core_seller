@@ -174,6 +174,33 @@ export function useOrders(filters: OrderFilters) {
     });
 }
 
+/**
+ * Lấy TOÀN BỘ đơn khớp bộ lọc hiện tại (mọi trang) để hỗ trợ "chọn tất cả trang" — server phân trang nên
+ * checkbox header chỉ chọn được trang hiện tại. Lặp gọi `/orders` (per_page=100) tới khi đủ `max` hoặc hết
+ * trang. Trả cả `total` để UI biết có bị cắt theo `max` không. Bỏ qua page/per_page trong filter (tự set).
+ */
+export function useFetchAllOrders() {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async ({ filters, max = 500 }: { filters: OrderFilters; max?: number }): Promise<{ orders: Order[]; total: number }> => {
+            const base: Record<string, string | number | boolean> = {};
+            Object.entries(filters).forEach(([k, v]) => {
+                if (k === 'page' || k === 'per_page' || v === undefined || v === null || v === '') return;
+                base[k] = (v === true ? 1 : v === false ? 0 : v) as never;
+            });
+            const orders: Order[] = [];
+            let total = 0;
+            for (let page = 1; orders.length < max; page++) {
+                const { data } = await api!.get<Paginated<Order>>('/orders', { params: { ...base, page, per_page: 100 } });
+                total = data.meta.pagination.total;
+                orders.push(...data.data);
+                if (page >= data.meta.pagination.total_pages) break;
+            }
+            return { orders: orders.slice(0, max), total };
+        },
+    });
+}
+
 export function useOrderStats(filters: Omit<OrderFilters, 'page' | 'per_page'> = {}) {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();

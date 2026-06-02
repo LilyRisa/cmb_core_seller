@@ -19,7 +19,7 @@ import { CarrierAccountPicker } from '@/components/CarrierAccountPicker';
 import { TemplateAliasPicker } from '@/components/shipping-labels/TemplateAliasPicker';
 import { errorMessage } from '@/lib/api';
 import { CHANNEL_META, ORDER_STATUS_TABS } from '@/lib/format';
-import { Order, useOrders, useOrderStats, useSyncOrders } from '@/lib/orders';
+import { Order, useFetchAllOrders, useOrders, useOrderStats, useSyncOrders } from '@/lib/orders';
 import { useBulkCreateShipments, useBulkRefetchSlip, useCreatePrintJob, useHandoverShipments, usePackShipments, type BulkActionResult } from '@/lib/fulfillment';
 import { useChannelAccounts } from '@/lib/channels';
 import { useBulkAction } from '@/lib/useBulkAction';
@@ -67,11 +67,16 @@ export function OrdersPage() {
     const bulkHandover = useHandoverShipments();
     const refetchSlip = useBulkRefetchSlip();
     const createPrintJob = useCreatePrintJob();
+    const fetchAllOrders = useFetchAllOrders();
     const canCreate = useCan('orders.create');
     const canMap = useCan('inventory.map');
     const canShip = useCan('fulfillment.ship');
     const canPrint = useCan('fulfillment.print');
     const [selectedKeys, setSelectedKeys] = useState<number[]>([]);
+    // Cache đơn đã "thấy" (trang đang xem + đơn fetch khi "chọn tất cả trang") để bulk action lấy được object
+    // (source/shipment/status) cho cả đơn KHÔNG nằm ở trang hiện tại. Reset khi đổi bộ lọc/tab. SPEC 0009.
+    const [orderCache, setOrderCache] = useState<Map<number, Order>>(new Map());
+    const MAX_SELECT_ALL = 500; // giới hạn mỗi lượt "chọn tất cả trang" (khớp giới hạn bulk của backend)
     const [linkModal, setLinkModal] = useState<{ open: boolean; orderIds?: number[] }>({ open: false });
     const [viewOrderId, setViewOrderId] = useState<number | null>(null);
     // fulfillment: print-job progress bar + scan-to-pack/handover modal (BigSeller-style — thao tác ngay trên list)
@@ -185,8 +190,21 @@ export function OrdersPage() {
     const countForTab = (t: { statuses?: string[] }) => (t.statuses ?? []).reduce((s, st) => s + (tabStats?.by_status?.[st] ?? 0), 0);
     const shopName = (id: number) => accounts.find((a) => a.id === id)?.name ?? `#${id}`;
 
-    // bulk actions: "Chuẩn bị hàng" + "In phiếu giao hàng" (tem của sàn) trên các đơn đã chọn
-    const selectedOrders = (data?.data ?? []).filter((o) => selectedKeys.includes(o.id));
+    // Gộp đơn trang hiện tại vào cache (để chọn xuyên trang vẫn giữ object). react-query trả ref ổn định ⇒
+    // effect chỉ chạy khi đổi trang/đổi data, không lặp vô hạn.
+    useEffect(() => {
+        if (!data?.data?.length) return;
+        setOrderCache((prev) => { const m = new Map(prev); data.data.forEach((o) => m.set(o.id, o)); return m; });
+    }, [data]);
+    // Đổi bộ lọc / tab ⇒ selection cũ không còn ý nghĩa ⇒ xoá chọn (KHÔNG xoá khi chỉ đổi trang). Cache giữ
+    // nguyên (id đơn là duy nhất; xem lại trang sẽ ghi đè object mới nhất) — selection đã clear nên không lo stale.
+    useEffect(() => {
+        setSelectedKeys([]);
+    }, [effectiveStatus, q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo, tabKey, slipFilter, printedFilter]);
+
+    // bulk actions: "Chuẩn bị hàng" + "In phiếu giao hàng" (tem của sàn) trên các đơn đã chọn — lấy object từ
+    // cache để chọn-tất-cả-trang / chọn xuyên trang vẫn có đủ dữ liệu đơn.
+    const selectedOrders = selectedKeys.map((id) => orderCache.get(id)).filter((o): o is Order => Boolean(o));
     // Phân loại đơn theo nguồn để áp đúng luồng (key truth = `source`):
     //   - manual (source='manual') → cần chọn ĐVVC qua CarrierAccountPicker, BE gọi GHN createOrder ngay.
     //   - sàn (source!='manual')    → BE tự gọi `prepareChannelOrder` lấy AWB/tem, KHÔNG cần chọn ĐVVC.
@@ -210,6 +228,20 @@ export function OrdersPage() {
     const eliHandover = selectedOrders.filter((o) => o.shipment && SHIP_HANDOVER_STATUSES.includes(o.shipment.status));
     const eliLink = selectedOrders.filter((o) => o.issue_reason === UNMAPPED_REASON);
     const negPrepare = eliPrepare.filter((o) => o.profit && o.profit.estimated_profit < 0).length;
+    // "Chọn tất cả N đơn (mọi trang)" — fetch hết đơn khớp lọc, đưa vào cache + chọn. Giới hạn MAX_SELECT_ALL/lượt.
+    const selectAllPages = () => {
+        const hide = message.loading('Đang tải tất cả đơn để chọn…', 0);
+        fetchAllOrders.mutate({ filters, max: MAX_SELECT_ALL }, {
+            onSuccess: ({ orders, total }) => {
+                hide();
+                setOrderCache((prev) => { const m = new Map(prev); orders.forEach((o) => m.set(o.id, o)); return m; });
+                setSelectedKeys(orders.map((o) => o.id));
+                if (total > orders.length) message.warning(`Đã chọn ${orders.length}/${total} đơn (tối đa ${MAX_SELECT_ALL} mỗi lượt). Lọc hẹp hơn để xử lý các đơn còn lại.`);
+                else message.success(`Đã chọn ${orders.length} đơn (mọi trang).`);
+            },
+            onError: (e) => { hide(); message.error(errorMessage(e)); },
+        });
+    };
     // B7 fix (Sprint 1 P0) — helper chặn trộn manual + sàn cho mọi bulk action liên quan tạo vận đơn.
     // Đơn sàn (`prepareChannelOrder`) dùng AWB & tem của sàn; đơn manual (`createForOrder` qua connector ĐVVC)
     // cần user chọn ĐVVC qua picker. Hai luồng nhập đầu vào khác hẳn → không gộp 1 lượt.
@@ -684,7 +716,19 @@ export function OrdersPage() {
                     dataSource={data?.data ?? []} columns={columns}
                     rowSelection={canBulkWork || canMap ? {
                         selectedRowKeys: selectedKeys,
+                        preserveSelectedRowKeys: true, // giữ chọn xuyên trang (server phân trang) — bulk dùng orderCache
                         onChange: (keys) => setSelectedKeys(keys as number[]),
+                        selections: [
+                            { key: 'page', text: 'Chọn trang hiện tại', onSelect: () => setSelectedKeys((data?.data ?? []).map((o) => o.id)) },
+                            ...((data?.meta.pagination.total_pages ?? 1) > 1 ? [{
+                                key: 'all-pages',
+                                text: (data!.meta.pagination.total > MAX_SELECT_ALL)
+                                    ? `Chọn ${MAX_SELECT_ALL} đơn đầu (mọi trang)`
+                                    : `Chọn tất cả ${data!.meta.pagination.total} đơn (mọi trang)`,
+                                onSelect: selectAllPages,
+                            }] : []),
+                            Table.SELECTION_NONE,
+                        ],
                     } : undefined}
                     locale={{ emptyText: <Empty description={isWorkTab ? 'Không có đơn nào.' : 'Chưa có đơn hàng. Kết nối gian hàng để đơn tự về, hoặc bấm “Đồng bộ đơn”.'} /> }}
                     rowClassName={(o) => (o.has_issue ? 'row-has-issue' : '')}

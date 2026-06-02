@@ -364,18 +364,34 @@ class ShopeeConnector implements ChannelConnector
         if (! $this->supports('returns.fetch')) {
             throw UnsupportedOperation::for($this->code(), 'fetchReturns');
         }
+        $cfg = $this->client->cfg();
+        $windowDays = (int) ($cfg['order_window_days'] ?? 15);
         $pageSize = min(100, max(1, (int) ($query['pageSize'] ?? 50)));
-        $pageNo = (int) ($query['cursor'] ?? 0);   // get_return_list dùng page_no (0-based)
-        $params = ['page_no' => $pageNo, 'page_size' => $pageSize];
-        if (! empty($query['updatedFrom'])) {
-            $params['create_time_from'] = $query['updatedFrom']->getTimestamp();
-            $params['create_time_to'] = CarbonImmutable::now()->getTimestamp();
-        }
+        $from = $query['updatedFrom'] ?? CarbonImmutable::now()->subDays($windowDays);
+        $to = $query['updatedTo'] ?? CarbonImmutable::now();
+
+        // get_return_list giới hạn create_time_from..create_time_to ≤ 15 ngày ⇒ chia cửa sổ như fetchOrders.
+        // cursor mã hoá "windowStartUnix:pageNo" (page_no 0-based của get_return_list trong cùng cửa sổ).
+        [$winStart, $inner] = $this->decodeCursor((string) ($query['cursor'] ?? ''), $from);
+        $winEnd = min($to->getTimestamp(), $winStart + $windowDays * 86400);
+        $pageNo = $inner !== '' ? (int) $inner : 0;
+
+        $params = [
+            'page_no' => $pageNo, 'page_size' => $pageSize,
+            'create_time_from' => $winStart, 'create_time_to' => $winEnd,
+        ];
         $res = $this->client->shopGet($auth, $this->client->endpoint('return_list'), $params);
         $items = array_values(array_map(fn ($r) => ShopeeMappers::returnRecord((array) $r), (array) ($res['return'] ?? [])));
         $more = (bool) ($res['more'] ?? false);
 
-        return new Page($items, $more ? (string) ($pageNo + 1) : null, $more);
+        if ($more) {
+            return new Page($items, $winStart.':'.($pageNo + 1), true);   // còn trang trong cùng cửa sổ
+        }
+        if ($winEnd < $to->getTimestamp()) {
+            return new Page($items, ($winEnd + 1).':', true);             // sang cửa sổ kế (page_no reset về 0)
+        }
+
+        return new Page($items, null, false);
     }
 
     public function fetchCancellations(AuthContext $auth, array $query = []): Page

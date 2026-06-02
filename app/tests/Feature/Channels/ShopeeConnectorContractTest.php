@@ -514,6 +514,31 @@ class ShopeeConnectorContractTest extends TestCase
         $this->assertSame(50000, $page->items[0]->refundAmount);
     }
 
+    public function test_fetch_returns_splits_window_to_15_days(): void
+    {
+        // get_return_list giới hạn create_time_from..create_time_to ≤ 15 ngày. updatedFrom xa hơn 15 ngày ⇒
+        // connector PHẢI chia cửa sổ (mỗi request ≤ 15 ngày) + trả cursor để tiếp tục cửa sổ kế.
+        config(['integrations.shopee.returns_enabled' => true]);
+        Http::fake(['*/api/v2/returns/get_return_list*' => Http::response(['error' => '', 'response' => ['return' => [], 'more' => false]], 200)]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        $page = $this->connector()->fetchReturns($auth, ['updatedFrom' => CarbonImmutable::parse('2026-01-01T00:00:00Z')]);
+
+        $this->assertTrue($page->hasMore);
+        $this->assertNotNull($page->nextCursor);
+        $this->assertStringContainsString(':', $page->nextCursor); // "windowStart:pageNo"
+        Http::assertSent(function (\Illuminate\Http\Client\Request $r) {
+            if (! str_contains($r->url(), '/api/v2/returns/get_return_list')) {
+                return false;
+            }
+            parse_str((string) parse_url($r->url(), PHP_URL_QUERY), $qs);
+            $from = (int) ($qs['create_time_from'] ?? 0);
+            $to = (int) ($qs['create_time_to'] ?? 0);
+
+            return $from > 0 && $to > 0 && ($to - $from) <= 15 * 86400;
+        });
+    }
+
     public function test_decide_return_calls_confirm_endpoint(): void
     {
         config(['integrations.shopee.returns_enabled' => true]);
