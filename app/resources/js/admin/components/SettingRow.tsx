@@ -33,7 +33,7 @@ export function SettingRow({ row }: { row: SR }) {
 
     let control: React.ReactNode;
     if (row.is_secret) {
-        // Hiển thị giá trị hiệu lực (DB nếu đã đặt, ngược lại env) — không che.
+        // [TIKTOK-REVIEW-TEMP] Hiển thị giá trị hiệu lực (DB nếu đã đặt, ngược lại env) — không che.
         control = <SecretInput value={(row.value ?? row.env_fallback) as string | null} onSave={save} />;
     } else if (row.type === 'bool') {
         const b = row.value === true || row.value === '1' || row.value === 1;

@@ -7,7 +7,7 @@ import {
 import {
     ArrowLeftOutlined, BarcodeOutlined, CalendarOutlined, CheckCircleFilled, CloseCircleFilled,
     EnvironmentOutlined, FacebookFilled, LockOutlined, MoreOutlined, PaperClipOutlined,
-    PrinterOutlined, SaveOutlined, SearchOutlined, UpOutlined,
+    PrinterOutlined, SaveOutlined, SearchOutlined, UpOutlined, WarningOutlined,
 } from '@ant-design/icons';
 import type { RcFile } from 'antd/es/upload';
 import dayjs from 'dayjs';
@@ -219,7 +219,6 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
             surcharge: (o as unknown as { surcharge?: number }).surcharge ?? 0,
             free_shipping: !!meta.free_shipping,
             collect_fee_on_return_only: !!meta.collect_fee_on_return_only,
-            is_cod: !!o.is_cod,
             note_internal: o.note ?? undefined,
             note_print: (meta.print_note as string) ?? undefined,
         });
@@ -240,7 +239,9 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
         const totalBefore = itemTotal + shippingFee + surcharge;
         const afterDiscount = Math.max(0, totalBefore - orderDiscount);
         const needCollect = Math.max(0, afterDiscount - prepaid);
-        return { itemTotal, itemDiscount, orderDiscount, totalDiscount: itemDiscount + orderDiscount, shippingFee, surcharge, prepaid, afterDiscount, needCollect, freeShipping };
+        // Trả vượt giá trị đơn ⇒ "còn thiếu" âm ⇒ COD đẩy ĐVVC sẽ là 0đ (cảnh báo cho user).
+        const overpaid = afterDiscount - prepaid < 0;
+        return { itemTotal, itemDiscount, orderDiscount, totalDiscount: itemDiscount + orderDiscount, shippingFee, surcharge, prepaid, afterDiscount, needCollect, overpaid, freeShipping };
     }, [items, summary]);
 
     // ---- submit ----
@@ -253,7 +254,6 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
             image: l.sku_id ? undefined : (l.image || undefined),
             quantity: l.quantity, unit_price: l.unit_price, discount: l.discount,
         }));
-        const isCod = !!v.is_cod;
         return {
             sub_source: (v.sub_source as string) || undefined,
             status: 'processing' as const,
@@ -277,7 +277,8 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
             order_discount: (v.order_discount as number) ?? 0,
             prepaid_amount: (v.prepaid_amount as number) ?? 0,
             surcharge: (v.surcharge as number) ?? 0,
-            is_cod: isCod,
+            // COD = tiền còn thiếu; BE là nguồn sự thật (tự suy từ grand_total − prepaid). Gửi kèm để nhất quán.
+            is_cod: totals.needCollect > 0,
             warehouse_id: warehouseId ?? undefined,
             note: (v.note_internal as string) || undefined,
             tags,
@@ -458,7 +459,7 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
             )}
 
             <Form form={form} layout="vertical" initialValues={{
-                channel_mode: 'online', sub_source: undefined, is_cod: false, free_shipping: false, collect_fee_on_return_only: false,
+                channel_mode: 'online', sub_source: undefined, free_shipping: false, collect_fee_on_return_only: false,
                 shipping_fee: 0, order_discount: 0, prepaid_amount: 0, surcharge: 0,
             }}>
                 <Row gutter={16}>
@@ -777,15 +778,17 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                 Dùng <div style="inline-flex"> thay vì <span> để cho phép Form.Item làm child hợp lệ. */}
             <div className="ord-bottom-bar">
                 <Space size={28} align="center">
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        <span>Tiền cần thu:</span>
-                        <b className="ord-bottom-money">{vnd(totals.needCollect)} đ</b>
-                    </div>
+                    {/* COD đẩy ĐVVC = tiền CÒN THIẾU cuối cùng = grand_total − đã trả trước. Không còn checkbox
+                        riêng (BE tự suy từ prepaid) — tránh bẫy "quên tick" làm đơn đẩy GHN ra COD 0đ. */}
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                        <span>COD:</span>
-                        <Form.Item name="is_cod" valuePropName="checked" noStyle><Checkbox /></Form.Item>
-                        <b className={summary?.is_cod ? 'ord-bottom-money' : 'ord-bottom-money-muted'}>{vnd(summary?.is_cod ? totals.needCollect : 0)} đ</b>
+                        <span>COD (thu hộ):</span>
+                        <b className={totals.needCollect > 0 ? 'ord-bottom-money' : 'ord-bottom-money-muted'}>{vnd(totals.needCollect)} đ</b>
                     </div>
+                    {totals.overpaid && (
+                        <Typography.Text type="warning" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <WarningOutlined /> Đã trả trước vượt giá trị đơn — COD đẩy ĐVVC sẽ là 0đ.
+                        </Typography.Text>
+                    )}
                 </Space>
                 <Space>
                     <Button icon={<PrinterOutlined />} onClick={() => submit(true)} loading={submitting}>{isEdit ? 'Lưu & in' : 'In'} <kbd className="ord-kbd">F4</kbd></Button>

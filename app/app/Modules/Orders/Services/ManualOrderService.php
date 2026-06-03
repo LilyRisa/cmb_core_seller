@@ -52,21 +52,22 @@ class ManualOrderService
         $orderDiscount = max(0, (int) ($data['order_discount'] ?? 0));     // "Giảm giá đơn hàng"
         $prepaidAmount = max(0, (int) ($data['prepaid_amount'] ?? 0));     // Đã trả trước (CK)
         $surcharge = max(0, (int) ($data['surcharge'] ?? 0));              // Phụ thu
-        $isCod = (bool) ($data['is_cod'] ?? false);
         $itemTotal = array_sum(array_map(fn ($i) => $i['unit_price'] * $i['quantity'] - $i['discount'], $items));
         $sellerDiscount = array_sum(array_map(fn ($i) => $i['discount'], $items)) + $orderDiscount;
         // grand_total = (item_total + ship + tax + surcharge) − order_discount.
         $grandTotal = max(0, $itemTotal + $shippingFee + $tax + $surcharge - $orderDiscount);
-        // B1 fix (Sprint 1 P0): COD amount = số tiền cần thu hộ qua ĐVVC = grand_total − prepaid (clamp ≥ 0).
-        // FE chỉ truyền `cod_amount` khi muốn override (hiếm). Trước đây BE trừ prepaid LẦN NỮA sau khi FE
-        // đã trừ ⇒ COD ghi vào DB thiếu = (FE_needCollect − prepaid). Giờ BE TỰ tính chuẩn từ raw inputs.
-        $codAmount = $isCod ? max(0, ((int) ($data['cod_amount'] ?? ($grandTotal - $prepaidAmount)))) : 0;
-        // B5 fix (Sprint 1 P0): chỉ ghi 'paid' khi prepaid đủ phủ toàn bộ grand_total. Nếu trả 1 phần ⇒ 'partial'
-        // (thêm vào enum/notes, tạm dùng 'unpaid' với grand_total > prepaid > 0; chuẩn hoá khi có enum).
+        // Quy tắc COD (2026-06-03): COD = số tiền CÒN THIẾU cuối cùng = grand_total − prepaid (clamp ≥ 0).
+        // `is_cod` được TỰ SUY RA (còn thiếu > 0) — KHÔNG phụ thuộc checkbox FE. Trước đây checkbox `is_cod`
+        // default off ⇒ đơn lưu cod_amount=0 ⇒ đẩy GHN COD 0đ dù khách phải trả khi nhận. Nếu trả vượt
+        // (prepaid > grand_total) ⇒ còn thiếu âm ⇒ COD kẹp về 0 (đơn coi như đã thanh toán).
+        $needCollect = $grandTotal - $prepaidAmount;
+        $codAmount = max(0, $needCollect);
+        $isCod = $codAmount > 0;
+        // 'paid' khi prepaid phủ toàn bộ; 'partial' khi trả 1 phần; 'cod' khi còn thu hộ & chưa trả trước.
         $paymentStatus = match (true) {
-            $isCod => 'cod',
             $prepaidAmount >= $grandTotal && $grandTotal > 0 => 'paid',
             $prepaidAmount > 0 => 'partial',
+            $isCod => 'cod',
             default => 'unpaid',
         };
         $now = now();
@@ -237,7 +238,6 @@ class ManualOrderService
         $orderDiscountEff = $orderDiscount ?? 0;
         $surchargeEff = $surcharge ?? (int) ($order->surcharge ?? 0);
         $prepaidEff = $prepaidAmount ?? (int) ($order->prepaid_amount ?? 0);
-        $isCodEff = $isCodIn ?? (bool) $order->is_cod;
 
         // Recompute chỉ khi có ít nhất 1 field tiền OR items đổi.
         $shouldRecompute = $newItems !== null
@@ -245,11 +245,14 @@ class ManualOrderService
             || $prepaidAmount !== null || $surcharge !== null || $isCodIn !== null || $codAmountIn !== null;
         if ($shouldRecompute) {
             $grandTotal = max(0, $itemTotal + $shippingFeeEff + $taxEff + $surchargeEff - $orderDiscountEff);
-            $codAmount = $isCodEff ? max(0, $codAmountIn ?? ($grandTotal - $prepaidEff)) : 0;
+            // Quy tắc COD (2026-06-03): COD = tiền CÒN THIẾU = grand_total − prepaid (clamp ≥ 0); is_cod tự suy ra.
+            $needCollect = $grandTotal - $prepaidEff;
+            $codAmount = max(0, $needCollect);
+            $isCodEff = $codAmount > 0;
             $paymentStatus = match (true) {
-                $isCodEff => 'cod',
                 $prepaidEff >= $grandTotal && $grandTotal > 0 => 'paid',
                 $prepaidEff > 0 => 'partial',
+                $isCodEff => 'cod',
                 default => 'unpaid',
             };
             $fill['item_total'] = $itemTotal;

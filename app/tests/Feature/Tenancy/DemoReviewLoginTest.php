@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 /**
- * TẠM THỜI — cổng đăng nhập cho TikTok app review.
+ * TẠM THỜI [TIKTOK-REVIEW-TEMP] — cổng đăng nhập cho TikTok app review.
  *
  * Tài khoản demo `owner@demo.local` đăng nhập được bằng (1) mật khẩu đã lưu, HOẶC
  * (2) literal `password` (credential đã gửi trong bản phê duyệt, không sửa được).

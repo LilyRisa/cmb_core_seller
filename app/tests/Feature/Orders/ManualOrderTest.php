@@ -65,6 +65,54 @@ class ManualOrderTest extends TestCase
         $this->assertSame((int) $customer->getKey(), (int) Order::withoutGlobalScope(TenantScope::class)->find($orderId)->customer_id);
     }
 
+    /**
+     * Quy tắc COD (2026-06-03): COD = số tiền CÒN THIẾU cuối cùng = grand_total − prepaid.
+     * KHÔNG phụ thuộc checkbox `is_cod` (default off của checkbox từng làm đơn đẩy GHN ra COD 0đ).
+     */
+    public function test_manual_order_cod_equals_amount_owed_even_without_is_cod_flag(): void
+    {
+        // KHÔNG gửi is_cod — vẫn phải ra COD = tiền còn thiếu (grand_total).
+        $orderId = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/orders', [
+            'buyer' => ['name' => 'A', 'phone' => '0900000002'],
+            'items' => [['sku_id' => $this->sku->getKey(), 'name' => 'Áo', 'quantity' => 1, 'unit_price' => 100000]],
+            'shipping_fee' => 20000,
+        ])->assertCreated()->json('data.id');
+
+        $order = Order::withoutGlobalScope(TenantScope::class)->find($orderId);
+        $this->assertSame(120000, (int) $order->grand_total);
+        $this->assertTrue((bool) $order->is_cod, 'is_cod phải tự bật khi còn tiền cần thu');
+        $this->assertSame(120000, (int) $order->cod_amount);
+        $this->assertSame('cod', $order->payment_status);
+    }
+
+    public function test_manual_order_cod_is_grand_total_minus_prepaid(): void
+    {
+        $orderId = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/orders', [
+            'buyer' => ['name' => 'B', 'phone' => '0900000003'],
+            'items' => [['sku_id' => $this->sku->getKey(), 'name' => 'Áo', 'quantity' => 1, 'unit_price' => 100000]],
+            'shipping_fee' => 20000, 'prepaid_amount' => 50000,
+        ])->assertCreated()->json('data.id');
+
+        $order = Order::withoutGlobalScope(TenantScope::class)->find($orderId);
+        $this->assertSame(70000, (int) $order->cod_amount);   // 120000 − 50000
+        $this->assertTrue((bool) $order->is_cod);
+        $this->assertSame('partial', $order->payment_status);
+    }
+
+    public function test_manual_order_overpaid_clamps_cod_to_zero(): void
+    {
+        $orderId = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/orders', [
+            'buyer' => ['name' => 'C', 'phone' => '0900000004'],
+            'items' => [['sku_id' => $this->sku->getKey(), 'name' => 'Áo', 'quantity' => 1, 'unit_price' => 100000]],
+            'shipping_fee' => 0, 'prepaid_amount' => 200000,   // trả vượt → còn thiếu âm
+        ])->assertCreated()->json('data.id');
+
+        $order = Order::withoutGlobalScope(TenantScope::class)->find($orderId);
+        $this->assertSame(0, (int) $order->cod_amount);
+        $this->assertFalse((bool) $order->is_cod);
+        $this->assertSame('paid', $order->payment_status);
+    }
+
     public function test_cancel_manual_order_releases_stock(): void
     {
         $orderId = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/orders', [

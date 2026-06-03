@@ -13,7 +13,7 @@ use InvalidArgumentException;
  * Cấu trúc một entry:
  *   - group: 'branding' | 'mail' | 'marketplace' | 'fulfillment' | 'sync' | 'push'
  *   - type:  'string' | 'int' | 'bool' | 'float' | 'json'
- *   - is_secret: bool — true ⇒ encrypt khi store. (Admin index hiển thị clear, không che —
+ *   - is_secret: bool — true ⇒ encrypt khi store. ([TIKTOK-REVIEW-TEMP] Admin index hiển thị clear, không che —
  *     theo yêu cầu chủ dự án; reveal endpoint vẫn còn để truy vết audit khi cần.)
  *   - env: tên biến .env tương ứng (dùng cho seed lần đầu)
  *   - label: tiêu đề hiển thị UI

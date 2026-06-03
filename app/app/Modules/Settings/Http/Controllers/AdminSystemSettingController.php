@@ -46,7 +46,7 @@ class AdminSystemSettingController extends Controller
             $value = null;
 
             if ($row !== null) {
-                // Chủ dự án yêu cầu admin hiển thị MỌI giá trị (kể cả secret) không che để
+                // [TIKTOK-REVIEW-TEMP] Chủ dự án yêu cầu admin hiển thị MỌI giá trị (kể cả secret) không che để
                 // tiện đối chiếu/sửa cấu hình. Trang này chỉ super-admin (auth:admin_web) truy
                 // cập; reveal endpoint + audit vẫn giữ cho truy vết khi cần. Service cast đúng type.
                 $value = $this->svc->get($key);

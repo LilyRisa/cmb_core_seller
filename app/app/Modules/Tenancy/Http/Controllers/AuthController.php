@@ -85,7 +85,7 @@ class AuthController extends Controller
     }
 
     /**
-     * TẠM THỜI — cổng đăng nhập cho TikTok app review.
+     * TẠM THỜI [TIKTOK-REVIEW-TEMP] — cổng đăng nhập cho TikTok app review.
      *
      * Bản gửi phê duyệt chốt credential demo (owner@demo.local / "password") và KHÔNG
      * sửa được; cho phép literal password này đăng nhập ĐÚNG tài khoản demo dù hash đã

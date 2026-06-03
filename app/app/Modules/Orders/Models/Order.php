@@ -39,6 +39,8 @@ use Illuminate\Support\Carbon;
  * @property int $seller_discount
  * @property int $tax
  * @property int $cod_amount
+ * @property int $prepaid_amount
+ * @property int $surcharge
  * @property int $grand_total
  * @property bool $is_cod
  * @property string|null $fulfillment_type

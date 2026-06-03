@@ -1,6 +1,6 @@
 // Spec 2026-05-17 (cập nhật) — input cho secret setting (`is_secret=true`).
 //
-// Theo yêu cầu chủ dự án: KHÔNG che giá trị nữa — hiển thị thẳng giá trị rõ
+// [TIKTOK-REVIEW-TEMP] Theo yêu cầu chủ dự án: KHÔNG che giá trị nữa — hiển thị thẳng giá trị rõ
 // (backend index đã trả clear) để tiện đối chiếu/sửa. "Đặt giá trị" mở ô nhập
 // để ghi giá trị mới. (Trang admin chỉ super-admin truy cập.)
 

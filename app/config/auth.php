@@ -99,7 +99,7 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Demo review login (TẠM THỜI — TikTok app review)
+    | Demo review login (TẠM THỜI [TIKTOK-REVIEW-TEMP] — TikTok app review)
     |--------------------------------------------------------------------------
     | Cho phép reviewer đăng nhập tài khoản demo bằng literal password đã gửi trong
     | bản phê duyệt (không sửa được) NGOÀI mật khẩu đã lưu. Chặn cực hẹp: chỉ áp cho

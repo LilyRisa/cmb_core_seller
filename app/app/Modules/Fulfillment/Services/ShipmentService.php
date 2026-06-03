@@ -548,30 +548,23 @@ class ShipmentService
             ? (int) $opts['weight_grams']
             : $this->estimateWeight($order, $tenantId);
 
-        // COD priority logic (SPEC 2026-05-17):
-        //   1. Nếu FE truyền `cod_amount > 0` ⇒ override (user cố tình điều chỉnh).
-        //   2. Nếu order.is_cod = true ⇒ dùng `order.cod_amount` (fallback `grand_total` nếu cod_amount=0).
-        //   3. Else ⇒ 0 (đơn không COD).
-        //
-        // Trước đây dùng `isset()` ⇒ FE gửi `cod_amount: 0` (vô tình) đè COD của order về 0 ⇒ GHN nhận
-        // COD = 0đ dù order có COD > 0. Fix: bỏ qua giá trị 0 từ opts, ưu tiên order data.
+        // Quy tắc COD (2026-06-03): COD đẩy ĐVVC = số tiền CÒN THIẾU cuối cùng = grand_total − prepaid.
+        //   - FE truyền `cod_amount > 0` ⇒ override (user cố tình điều chỉnh COD lúc đẩy).
+        //   - Còn lại ⇒ tiền còn thiếu, kẹp ≥ 0. Nếu âm (đã trả vượt) ⇒ đẩy 0đ + log cảnh báo.
+        // Cố tình KHÔNG gate theo `order->is_cod`: is_cod chỉ là cờ suy ra; nguồn sự thật là grand_total/prepaid.
+        // Giá trị 0 vô tình từ opts bị bỏ qua (chỉ override khi > 0) — tránh đè COD của đơn về 0.
         $codFromOpts = isset($opts['cod_amount']) ? (int) $opts['cod_amount'] : 0;
+        $needCollect = (int) $order->grand_total - (int) ($order->prepaid_amount ?? 0);
         if ($codFromOpts > 0) {
             $cod = $codFromOpts;
-        } elseif ($order->is_cod) {
-            $cod = (int) ($order->cod_amount ?: ($order->grand_total - (int) ($order->prepaid_amount ?? 0)));
-            $cod = max(0, $cod);
-            if ($cod === 0) {
-                $cod = (int) $order->grand_total;     // last resort: full order value
-            }
-            if ($cod === 0) {
-                Log::warning('shipment.cod_zero_for_cod_order', [
-                    'order_id' => $order->getKey(), 'order_cod' => $order->cod_amount,
-                    'order_grand' => $order->grand_total, 'opts_cod' => $opts['cod_amount'] ?? 'unset',
+        } else {
+            $cod = max(0, $needCollect);
+            if ($needCollect < 0) {
+                Log::warning('shipment.cod_overpaid_clamped_to_zero', [
+                    'order_id' => $order->getKey(), 'order_grand' => $order->grand_total,
+                    'order_prepaid' => $order->prepaid_amount, 'need_collect' => $needCollect,
                 ]);
             }
-        } else {
-            $cod = 0;
         }
 
         $payload = $this->buildCreatePayload($order, $tenantId, $service, $weight, $cod, $opts, $accountArr);
