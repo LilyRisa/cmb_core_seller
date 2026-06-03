@@ -13,8 +13,10 @@ export interface OAuthPopupOutcome {
 }
 
 export function openOAuthPopup(authUrl: string): Promise<OAuthPopupOutcome> {
-    const width = 600;
-    const height = 720;
+    // Trang đăng nhập / đồng ý của sàn (đặc biệt Lazada) khá rộng — popup nhỏ ép người dùng phải cuộn
+    // ngang/dọc. Mở to (≈1100×820) nhưng clamp theo kích thước màn hình để không tràn ra ngoài / mở lệch.
+    const width = Math.min(1100, window.screen.availWidth - 80);
+    const height = Math.min(880, window.screen.availHeight - 120);
     const left = window.screenX + Math.max(0, (window.outerWidth - width) / 2);
     const top = window.screenY + Math.max(0, (window.outerHeight - height) / 2);
 
