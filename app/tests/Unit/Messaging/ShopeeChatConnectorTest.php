@@ -2,13 +2,18 @@
 
 namespace Tests\Unit\Messaging;
 
+use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeClient;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeWebhookVerifier;
+use CMBcoreSeller\Integrations\Messaging\DTO\ConversationDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageDirection;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\UnsupportedOperation;
+use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Integrations\Messaging\Shopee\ShopeeChatConnector;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -166,7 +171,7 @@ class ShopeeChatConnectorTest extends TestCase
 
         $event = $this->connector()->parseWebhook($req);
 
-        $this->assertSame(\CMBcoreSeller\Integrations\Messaging\DTO\MessageKind::Text, $event->kind);
+        $this->assertSame(MessageKind::Text, $event->kind);
         $this->assertSame('Còn hàng không shop?', $event->body);
         $this->assertSame([], $event->attachments);
     }
@@ -193,13 +198,13 @@ class ShopeeChatConnectorTest extends TestCase
 
         $event = $this->connector()->parseWebhook($req);
 
-        $this->assertSame(\CMBcoreSeller\Integrations\Messaging\DTO\MessageKind::Image, $event->kind);
+        $this->assertSame(MessageKind::Image, $event->kind);
         $this->assertNull($event->body);
         $this->assertCount(1, $event->attachments);
 
         $att = $event->attachments[0];
-        $this->assertInstanceOf(\CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO::class, $att);
-        $this->assertSame(\CMBcoreSeller\Integrations\Messaging\DTO\MessageKind::Image, $att->kind);
+        $this->assertInstanceOf(MediaRefDTO::class, $att);
+        $this->assertSame(MessageKind::Image, $att->kind);
         $this->assertSame('https://cf.shopee.vn/file/09591ecdc9f1dc7bd507817797d826fe_dynamic', $att->externalUrl);
         $this->assertSame(400, $att->width);
         $this->assertSame(711, $att->height);
@@ -227,12 +232,12 @@ class ShopeeChatConnectorTest extends TestCase
 
         $event = $this->connector()->parseWebhook($req);
 
-        $this->assertSame(\CMBcoreSeller\Integrations\Messaging\DTO\MessageKind::Video, $event->kind);
+        $this->assertSame(MessageKind::Video, $event->kind);
         $this->assertNull($event->body);
         $this->assertCount(1, $event->attachments);
 
         $att = $event->attachments[0];
-        $this->assertSame(\CMBcoreSeller\Integrations\Messaging\DTO\MessageKind::Video, $att->kind);
+        $this->assertSame(MessageKind::Video, $att->kind);
         $this->assertSame('cf03c9e1fe2c0992cdb51c3cb6eab2bd', $att->externalUrl);
         $this->assertSame(15000, $att->durationMs);
         $this->assertSame(399, $att->width);
@@ -255,7 +260,7 @@ class ShopeeChatConnectorTest extends TestCase
 
         $event = $this->connector()->parseWebhook($req);
 
-        $this->assertSame(\CMBcoreSeller\Integrations\Messaging\DTO\MessageKind::Text, $event->kind);
+        $this->assertSame(MessageKind::Text, $event->kind);
         $this->assertStringContainsString('9112503530', $event->body ?? '');
         $this->assertSame([], $event->attachments);
     }
@@ -274,10 +279,126 @@ class ShopeeChatConnectorTest extends TestCase
     {
         ShopeeFixtures::configure();
         config(['integrations.messaging' => ['shopee_chat']]);
-        $this->app->forgetInstance(\CMBcoreSeller\Integrations\Messaging\MessagingRegistry::class);
+        $this->app->forgetInstance(MessagingRegistry::class);
 
-        $registry = $this->app->make(\CMBcoreSeller\Integrations\Messaging\MessagingRegistry::class);
+        $registry = $this->app->make(MessagingRegistry::class);
         $this->assertTrue($registry->has('shopee_chat'));
         $this->assertInstanceOf(ShopeeChatConnector::class, $registry->for('shopee_chat'));
+    }
+
+    // --- Polling (backfill + lưới an toàn) — SHAPE-TESTED, verify sandbox -----
+
+    public function test_inbound_polling_capability_true_and_webhook_still_true(): void
+    {
+        $c = $this->connector();
+        // Shopee có CẢ webhook realtime (code 10) LẪN polling backfill — ingest idempotent nên không trùng.
+        $this->assertTrue($c->supports('inbound.polling'), 'inbound.polling phải true để job sync chạy cho Shopee');
+        $this->assertTrue($c->supports('inbound.webhook'), 'webhook vẫn là đường realtime chính');
+    }
+
+    public function test_fetch_conversations_parses_list_and_pagination(): void
+    {
+        Http::fake(['*/api/v2/sellerchat/get_conversation_list*' => Http::response(['error' => '', 'response' => [
+            'conversations' => [
+                ['conversation_id' => 'CONV_A', 'to_id' => 8740891, 'to_name' => 'Buyer A', 'to_avatar' => 'https://cf.shopee.vn/a.jpg',
+                    'unread_count' => 2, 'last_message_timestamp' => 1726044721000000, 'latest_message_content' => ['text' => 'Còn hàng không?']],
+                ['conversation_id' => 'CONV_B', 'to_id' => 8740892, 'to_name' => 'Buyer B', 'to_avatar' => '',
+                    'unread_count' => 0, 'last_message_timestamp' => 1726040000000000, 'latest_message_content' => ['text' => 'ok']],
+            ],
+            'page_result' => ['next_cursor' => '1726040000000000', 'has_next_page' => true],
+        ]], 200)]);
+
+        $auth = new MessagingAuthContext(channelAccountId: 1, provider: 'shopee', externalShopId: '55', accessToken: 'ACCESS_1');
+        $page = $this->connector()->fetchConversations($auth);
+
+        $this->assertCount(2, $page->items);
+        /** @var ConversationDTO $first */
+        $first = $page->items[0];
+        $this->assertSame('CONV_A', $first->externalConversationId);
+        $this->assertSame('8740891', $first->buyerExternalId);
+        $this->assertSame('Buyer A', $first->buyerName);
+        $this->assertSame('https://cf.shopee.vn/a.jpg', $first->buyerAvatarUrl);
+        $this->assertSame('Còn hàng không?', $first->lastMessagePreview);
+        $this->assertSame(2, $first->unreadCount);
+        $this->assertNotNull($first->lastMessageAt);
+        $this->assertNull($page->items[1]->buyerAvatarUrl);   // empty to_avatar → null
+
+        $this->assertTrue($page->hasMore);
+        $this->assertSame('1726040000000000', $page->nextCursor);
+
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/api/v2/sellerchat/get_conversation_list')
+            && str_contains($r->url(), 'sign=')
+            && str_contains($r->url(), 'access_token=ACCESS_1'));
+    }
+
+    public function test_fetch_messages_parses_direction_kind_and_attachment(): void
+    {
+        Http::fake(['*/api/v2/sellerchat/get_message*' => Http::response(['error' => '', 'response' => [
+            'messages' => [
+                // Buyer → seller (from_shop_id=0) ⇒ Inbound, text.
+                ['message_id' => 'M_TXT', 'message_type' => 'text', 'from_id' => 8740891, 'to_id' => 55,
+                    'from_shop_id' => 0, 'content' => ['text' => 'Bao giờ ship?'], 'created_timestamp' => 1726044721],
+                // Seller → buyer (from_shop_id=55 = shop) ⇒ Outbound, image.
+                ['message_id' => 'M_IMG', 'message_type' => 'image', 'from_id' => 55, 'to_id' => 8740891,
+                    'from_shop_id' => 55, 'content' => ['url' => 'https://cf.shopee.vn/img.jpg', 'thumb_width' => 400, 'thumb_height' => 711],
+                    'created_timestamp' => 1726044725],
+            ],
+            'page_result' => ['next_offset' => '', 'has_next_page' => false],
+        ]], 200)]);
+
+        $auth = new MessagingAuthContext(channelAccountId: 1, provider: 'shopee', externalShopId: '55', accessToken: 'ACCESS_1');
+        $page = $this->connector()->fetchMessages($auth, 'CONV_A');
+
+        $this->assertCount(2, $page->items);
+        /** @var MessageDTO $txt */
+        $txt = $page->items[0];
+        $this->assertSame('M_TXT', $txt->externalMessageId);
+        $this->assertSame('CONV_A', $txt->externalConversationId);
+        $this->assertSame(MessageKind::Text, $txt->kind);
+        $this->assertSame('Bao giờ ship?', $txt->body);
+        $this->assertSame(MessageDirection::Inbound, $txt->direction);
+        $this->assertSame('8740891', $txt->buyerExternalId);
+        $this->assertNotNull($txt->sentAt);
+
+        /** @var MessageDTO $img */
+        $img = $page->items[1];
+        $this->assertSame(MessageKind::Image, $img->kind);
+        $this->assertNull($img->body);
+        $this->assertSame(MessageDirection::Outbound, $img->direction);
+        $this->assertSame('8740891', $img->buyerExternalId);   // outbound ⇒ buyer = to_id
+        $this->assertCount(1, $img->attachments);
+        /** @var MediaRefDTO $att */
+        $att = $img->attachments[0];
+        $this->assertSame('https://cf.shopee.vn/img.jpg', $att->externalUrl);
+        $this->assertSame(400, $att->width);
+        $this->assertSame(711, $att->height);
+
+        $this->assertFalse($page->hasMore);
+        $this->assertNull($page->nextCursor);
+
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/api/v2/sellerchat/get_message')
+            && str_contains($r->url(), 'conversation_id=CONV_A')
+            && str_contains($r->url(), 'sign='));
+    }
+
+    public function test_fetch_conversations_filters_and_stops_at_since(): void
+    {
+        // Incremental: hội thoại cũ hơn `since` bị lọc bỏ ⇒ dừng phân trang (không quét lại lịch sử).
+        Http::fake(['*/api/v2/sellerchat/get_conversation_list*' => Http::response(['error' => '', 'response' => [
+            'conversations' => [
+                ['conversation_id' => 'CONV_NEW', 'to_id' => 1, 'last_message_timestamp' => 1726044721000000],  // > since
+                ['conversation_id' => 'CONV_OLD', 'to_id' => 2, 'last_message_timestamp' => 1726000000000000],  // < since
+            ],
+            'page_result' => ['next_cursor' => '1726000000000000', 'has_next_page' => true],
+        ]], 200)]);
+
+        $since = CarbonImmutable::createFromTimestamp(1726020000);
+        $auth = new MessagingAuthContext(channelAccountId: 1, provider: 'shopee', externalShopId: '55', accessToken: 'ACCESS_1');
+        $page = $this->connector()->fetchConversations($auth, ['since' => $since]);
+
+        $this->assertCount(1, $page->items);
+        $this->assertSame('CONV_NEW', $page->items[0]->externalConversationId);
+        $this->assertFalse($page->hasMore, 'gặp hội thoại cũ hơn since ⇒ dừng');
+        $this->assertNull($page->nextCursor);
     }
 }

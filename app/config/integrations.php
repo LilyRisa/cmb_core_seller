@@ -521,6 +521,10 @@ return [
             'escrow_detail' => '/api/v2/payment/get_escrow_detail',
             'escrow_list' => '/api/v2/payment/get_escrow_list',
             'send_message' => '/api/v2/sellerchat/send_message',
+            // Seller Chat polling (backfill + lưới an toàn cho webhook code 10). Endpoint cộng đồng —
+            // verify sandbox (shape get_* không có trong tài liệu chính thức Shopee).
+            'conversation_list' => '/api/v2/sellerchat/get_conversation_list',
+            'get_message' => '/api/v2/sellerchat/get_message',
             // After-sales (SPEC 0025) — doc 227-return-refund-management.
             'return_list' => '/api/v2/returns/get_return_list',
             'return_detail' => '/api/v2/returns/get_return_detail',

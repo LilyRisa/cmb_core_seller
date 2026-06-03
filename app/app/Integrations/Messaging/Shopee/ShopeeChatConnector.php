@@ -8,7 +8,10 @@ use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeClient;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeWebhookVerifier;
 use CMBcoreSeller\Integrations\Messaging\Contracts\MessagingConnector;
+use CMBcoreSeller\Integrations\Messaging\DTO\ConversationDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageDirection;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
@@ -58,7 +61,12 @@ class ShopeeChatConnector implements MessagingConnector
     {
         return [
             'inbound.webhook' => true,
-            'inbound.polling' => false,
+            // Bật polling LÀM BACKFILL + lưới an toàn cho webhook (Shopee push code 10 vẫn là đường
+            // realtime chính). Kéo hội thoại/tin qua `sellerchat/get_conversation_list` + `get_message`.
+            // Ingest idempotent theo (conversation, message_id) ⇒ webhook & poll trùng tin là vô hại.
+            // SPEC-0024 Phase C (Shopee follow-up). PHẢI verify sandbox thật — shape sellerchat get_* là
+            // endpoint cộng đồng (tài liệu chính thức không chi tiết), giống `send_message`.
+            'inbound.polling' => true,
             'outbound.text' => true,
             'outbound.image' => true,
             'outbound.video' => false,
@@ -145,50 +153,7 @@ class ShopeeChatConnector implements MessagingConnector
 
         if ($hasMessage) {
             $messageType = (string) ($content['message_type'] ?? 'text');
-            $msgContent = (array) ($content['content'] ?? []);
-
-            switch ($messageType) {
-                case 'text':
-                case 'faq_liveagent':
-                    $kind = MessageKind::Text;
-                    $parsedBody = isset($msgContent['text']) ? (string) $msgContent['text'] : null;
-                    break;
-
-                case 'image':
-                    $kind = MessageKind::Image;
-                    $attachments[] = new MediaRefDTO(
-                        kind: MessageKind::Image,
-                        mime: 'image/jpeg',
-                        externalUrl: isset($msgContent['url']) ? (string) $msgContent['url'] : null,
-                        width: isset($msgContent['thumb_width']) ? (int) $msgContent['thumb_width'] : null,
-                        height: isset($msgContent['thumb_height']) ? (int) $msgContent['thumb_height'] : null,
-                    );
-                    break;
-
-                case 'video':
-                    $kind = MessageKind::Video;
-                    $attachments[] = new MediaRefDTO(
-                        kind: MessageKind::Video,
-                        mime: 'video/mp4',
-                        externalUrl: isset($msgContent['video_url']) ? (string) $msgContent['video_url'] : null,
-                        durationMs: isset($msgContent['duration_seconds'])
-                            ? (int) ((float) $msgContent['duration_seconds'] * 1000)
-                            : null,
-                        width: isset($msgContent['thumb_width']) ? (int) $msgContent['thumb_width'] : null,
-                        height: isset($msgContent['thumb_height']) ? (int) $msgContent['thumb_height'] : null,
-                    );
-                    break;
-
-                case 'item':
-                    $kind = MessageKind::Text;
-                    $parsedBody = '[Sản phẩm] item_id='.($msgContent['item_id'] ?? '');
-                    break;
-
-                default:
-                    $kind = MessageKind::Text;
-                    $parsedBody = '['.$messageType.']';
-                    break;
-            }
+            [$kind, $parsedBody, $attachments] = $this->mapMessageContent($messageType, (array) ($content['content'] ?? []));
         }
 
         return [new MessagingWebhookEventDTO(
@@ -216,14 +181,205 @@ class ShopeeChatConnector implements MessagingConnector
         return ['name' => null, 'avatar_url' => null];
     }
 
+    /**
+     * Poll Shopee Seller Chat `GET /api/v2/sellerchat/get_conversation_list` → danh sách hội thoại.
+     *
+     * ⚠️ VERIFY SANDBOX: module sellerchat get_* là endpoint cộng đồng (tài liệu chính thức Shopee
+     * không nêu chi tiết — giống `send_message`). Parse phòng thủ + nhiều fallback field.
+     *
+     * Phân trang (khác Lazada): cursor = `page_result.next_cursor` (timestamp-nano), truyền lại làm
+     * `next_timestamp_nano`. `hasMore` = `page_result.has_next_page`. `since` chỉ để LỌC + DỪNG khi đã
+     * lùi tới hội thoại CŨ HƠN mốc sync (direction=latest ⇒ Shopee trả mới→cũ).
+     */
     public function fetchConversations(MessagingAuthContext $auth, array $query = []): Page
     {
-        throw UnsupportedOperation::for($this->code(), 'fetchConversations (Shopee dựa webhook; polling follow-up)');
+        $path = (string) (($this->config['endpoints'] ?? [])['conversation_list'] ?? '/api/v2/sellerchat/get_conversation_list');
+        $pageSize = min(25, max(1, (int) ($query['pageSize'] ?? 25)));
+        $since = $query['since'] ?? null;
+        $sinceMs = $since instanceof CarbonImmutable ? (int) $since->valueOf() : null;
+
+        $params = ['direction' => 'latest', 'type' => 'all', 'page_size' => $pageSize];
+        if (! empty($query['cursor'])) {
+            $params['next_timestamp_nano'] = (string) $query['cursor'];
+        }
+
+        $resp = $this->client->shopGet($this->authContext($auth), $path, $params);
+
+        $rows = (array) ($resp['conversations'] ?? $resp['conversation_list'] ?? []);
+        $items = array_values(array_map(function (array $c) {
+            $latest = $c['latest_message_content'] ?? null;
+            $preview = is_array($latest)
+                ? (isset($latest['text']) ? (string) $latest['text'] : null)
+                : (is_string($latest) && $latest !== '' ? $latest : null);
+
+            return new ConversationDTO(
+                externalConversationId: (string) ($c['conversation_id'] ?? ''),
+                buyerExternalId: (string) ($c['to_id'] ?? $c['to_user_id'] ?? ''),
+                buyerName: isset($c['to_name']) && $c['to_name'] !== '' ? (string) $c['to_name'] : null,
+                buyerAvatarUrl: isset($c['to_avatar']) && $c['to_avatar'] !== '' ? (string) $c['to_avatar'] : null,
+                lastMessageAt: $this->normalizeTimestamp($c['last_message_timestamp'] ?? $c['latest_message_timestamp'] ?? null),
+                lastMessagePreview: $preview,
+                unreadCount: isset($c['unread_count']) ? (int) $c['unread_count'] : null,
+                raw: $c,
+            );
+        }, array_filter($rows, 'is_array')));
+
+        $pageResult = (array) ($resp['page_result'] ?? []);
+        $hasMore = filter_var($pageResult['has_next_page'] ?? $pageResult['more'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $nextCursor = $hasMore ? (string) ($pageResult['next_cursor'] ?? $pageResult['next_timestamp_nano'] ?? '') : null;
+        if ($nextCursor === '') {
+            $nextCursor = null;
+            $hasMore = false;
+        }
+
+        if ($sinceMs !== null) {
+            $before = count($items);
+            $items = array_values(array_filter(
+                $items,
+                fn (ConversationDTO $c) => $c->lastMessageAt === null || $c->lastMessageAt->valueOf() >= $sinceMs,
+            ));
+            if (count($items) < $before) {
+                $hasMore = false;
+                $nextCursor = null;
+            }
+        }
+
+        return new Page(items: $items, nextCursor: $nextCursor, hasMore: $hasMore);
     }
 
+    /**
+     * Poll Shopee Seller Chat `GET /api/v2/sellerchat/get_message` → messages trong 1 hội thoại.
+     *
+     * ⚠️ VERIFY SANDBOX (như fetchConversations). Map `message_type` + `content` qua {@see mapMessageContent}
+     * (dùng chung với webhook push code 10). Direction: từ shop (outbound) khi `from_shop_id` = shop hiện
+     * tại; còn lại = buyer (inbound) — field `from_shop_id` theo webchat_push doc 2025-04-18.
+     * Phân trang: cursor = `page_result.next_offset` → `offset`. `since` để LỌC + DỪNG.
+     */
     public function fetchMessages(MessagingAuthContext $auth, string $externalConversationId, array $query = []): Page
     {
-        throw UnsupportedOperation::for($this->code(), 'fetchMessages');
+        $path = (string) (($this->config['endpoints'] ?? [])['get_message'] ?? '/api/v2/sellerchat/get_message');
+        $pageSize = min(60, max(1, (int) ($query['pageSize'] ?? 50)));
+        $shopId = (int) $auth->externalShopId;
+        $since = $query['since'] ?? null;
+        $sinceMs = $since instanceof CarbonImmutable ? (int) $since->valueOf() : null;
+
+        $params = ['conversation_id' => $externalConversationId, 'page_size' => $pageSize];
+        if (! empty($query['cursor'])) {
+            $params['offset'] = (string) $query['cursor'];
+        }
+
+        $resp = $this->client->shopGet($this->authContext($auth), $path, $params);
+
+        $rows = (array) ($resp['messages'] ?? $resp['message_list'] ?? []);
+        $items = array_values(array_map(function (array $m) use ($externalConversationId, $shopId) {
+            [$kind, $body, $attachments] = $this->mapMessageContent((string) ($m['message_type'] ?? 'text'), (array) ($m['content'] ?? []));
+
+            $fromShopId = (int) ($m['from_shop_id'] ?? 0);
+            $direction = ($shopId > 0 && $fromShopId === $shopId) ? MessageDirection::Outbound : MessageDirection::Inbound;
+            $buyerExternalId = $direction === MessageDirection::Inbound
+                ? (string) ($m['from_id'] ?? '')
+                : (string) ($m['to_id'] ?? '');
+
+            return new MessageDTO(
+                externalConversationId: $externalConversationId,
+                externalMessageId: (string) ($m['message_id'] ?? ''),
+                buyerExternalId: $buyerExternalId,
+                direction: $direction,
+                kind: $kind,
+                body: $body,
+                attachments: $attachments,
+                sentAt: $this->normalizeTimestamp($m['created_timestamp'] ?? null),
+                raw: $m,
+            );
+        }, array_filter($rows, 'is_array')));
+
+        $pageResult = (array) ($resp['page_result'] ?? []);
+        $hasMore = filter_var($pageResult['has_next_page'] ?? $pageResult['more'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $nextCursor = $hasMore ? (string) ($pageResult['next_offset'] ?? $pageResult['next_cursor'] ?? '') : null;
+        if ($nextCursor === '') {
+            $nextCursor = null;
+            $hasMore = false;
+        }
+
+        if ($sinceMs !== null) {
+            $before = count($items);
+            $items = array_values(array_filter(
+                $items,
+                fn (MessageDTO $m) => $m->sentAt === null || $m->sentAt->valueOf() >= $sinceMs,
+            ));
+            if (count($items) < $before) {
+                $hasMore = false;
+                $nextCursor = null;
+            }
+        }
+
+        return new Page(items: $items, nextCursor: $nextCursor, hasMore: $hasMore);
+    }
+
+    /**
+     * Map Shopee chat `message_type` + `content` object → [kind, body, attachments]. DÙNG CHUNG cho
+     * webhook push (code 10, `data.content.content`) lẫn polling get_message (`message.content`) — content
+     * shape giống nhau ⇒ 1 chỗ map, 2 path nhất quán.
+     *
+     * @param  array<string,mixed>  $msgContent
+     * @return array{0: MessageKind, 1: ?string, 2: list<MediaRefDTO>}
+     */
+    private function mapMessageContent(string $messageType, array $msgContent): array
+    {
+        switch ($messageType) {
+            case 'text':
+            case 'faq_liveagent':
+                return [MessageKind::Text, isset($msgContent['text']) ? (string) $msgContent['text'] : null, []];
+
+            case 'image':
+                return [MessageKind::Image, null, [new MediaRefDTO(
+                    kind: MessageKind::Image,
+                    mime: 'image/jpeg',
+                    externalUrl: isset($msgContent['url']) ? (string) $msgContent['url'] : null,
+                    width: isset($msgContent['thumb_width']) ? (int) $msgContent['thumb_width'] : null,
+                    height: isset($msgContent['thumb_height']) ? (int) $msgContent['thumb_height'] : null,
+                )]];
+
+            case 'video':
+                return [MessageKind::Video, null, [new MediaRefDTO(
+                    kind: MessageKind::Video,
+                    mime: 'video/mp4',
+                    externalUrl: isset($msgContent['video_url']) ? (string) $msgContent['video_url'] : null,
+                    durationMs: isset($msgContent['duration_seconds'])
+                        ? (int) ((float) $msgContent['duration_seconds'] * 1000)
+                        : null,
+                    width: isset($msgContent['thumb_width']) ? (int) $msgContent['thumb_width'] : null,
+                    height: isset($msgContent['thumb_height']) ? (int) $msgContent['thumb_height'] : null,
+                )]];
+
+            case 'item':
+                return [MessageKind::Text, '[Sản phẩm] item_id='.($msgContent['item_id'] ?? ''), []];
+
+            default:
+                return [MessageKind::Text, '['.$messageType.']', []];
+        }
+    }
+
+    /**
+     * Chuẩn hoá timestamp Shopee → CarbonImmutable. Shopee dùng đơn vị khác nhau tuỳ field
+     * (`created_timestamp` = giây theo webchat_push doc; vài field conversation dùng micro/nano).
+     * Suy đơn vị theo độ lớn để khỏi lệch khi so với `since`. Trả null nếu rỗng/không hợp lệ.
+     */
+    private function normalizeTimestamp(mixed $ts): ?CarbonImmutable
+    {
+        $n = (int) $ts;
+        if ($n <= 0) {
+            return null;
+        }
+        if ($n >= 1_000_000_000_000_000_000) {        // nano  → s
+            $n = intdiv($n, 1_000_000_000);
+        } elseif ($n >= 1_000_000_000_000_000) {      // micro → s
+            $n = intdiv($n, 1_000_000);
+        } elseif ($n >= 1_000_000_000_000) {          // milli → s
+            $n = intdiv($n, 1_000);
+        }
+
+        return CarbonImmutable::createFromTimestamp($n);
     }
 
     public function sendText(MessagingAuthContext $auth, string $externalConversationId, string $body, array $opts = []): SendResultDTO

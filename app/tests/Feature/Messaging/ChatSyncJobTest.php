@@ -19,9 +19,9 @@ use Tests\TestCase;
  * TDD — SyncConversationsForShop job (Phase C1).
  *
  * Covers:
- *  - Lazada: pages conversations + messages, ingests into DB, updates
+ *  - Lazada & Shopee: pages conversations + messages, ingests into DB, updates
  *    MessagingAccountMeta (sync_status='done', last_synced_at set).
- *  - Shopee (and any webhook-only connector): job is a no-op — no exception,
+ *  - A connector without polling yet (TikTok): job is a no-op — no exception,
  *    no conversations created, status row left untouched.
  */
 class ChatSyncJobTest extends TestCase
@@ -149,13 +149,42 @@ class ChatSyncJobTest extends TestCase
         $this->assertNotNull($meta->last_synced_at);
     }
 
-    /**
-     * Shopee (inbound.polling=false) → job returns early without any exception,
-     * no conversations are created, and no 'running' status is left dangling.
-     */
-    public function test_noop_when_connector_lacks_polling(): void
+    // -----------------------------------------------------------------------
+    // Helper: Shopee sellerchat get_conversation_list / get_message responses
+    // (ShopeeClient unwraps the `response` envelope). external_shop_id '55'.
+    // -----------------------------------------------------------------------
+    private static function shopeeConversationListPage(): array
     {
-        // Arrange — config Shopee
+        return ['error' => '', 'response' => [
+            'conversations' => [[
+                'conversation_id' => 'SC_1', 'to_id' => 987654, 'to_name' => 'Nguyễn Thị B',
+                'to_avatar' => 'https://cf.shopee.vn/b.jpg', 'unread_count' => 1,
+                'last_message_timestamp' => (int) (microtime(true) * 1_000_000),   // micro
+                'latest_message_content' => ['text' => 'Chào shop'],
+            ]],
+            'page_result' => ['has_next_page' => false, 'next_cursor' => ''],
+        ]];
+    }
+
+    private static function shopeeMessageListPage(): array
+    {
+        return ['error' => '', 'response' => [
+            'messages' => [[
+                'message_id' => 'SM_1', 'message_type' => 'text', 'from_id' => 987654, 'to_id' => 55,
+                'from_shop_id' => 0,   // buyer → inbound
+                'content' => ['text' => 'Cho mình hỏi còn hàng không?'],
+                'created_timestamp' => (int) microtime(true),   // seconds
+            ]],
+            'page_result' => ['has_next_page' => false, 'next_offset' => ''],
+        ]];
+    }
+
+    /**
+     * Happy path: Shopee account (polling backfill — SPEC-0024 Phase C follow-up) with 1 conversation
+     * + 1 inbound message → created in DB with provider='shopee_chat', meta sync_status='done'.
+     */
+    public function test_syncs_shopee_conversations_and_messages(): void
+    {
         ShopeeFixtures::configure();
         config(['integrations.messaging' => ['shopee_chat']]);
         $this->app->forgetInstance(MessagingRegistry::class);
@@ -163,8 +192,49 @@ class ChatSyncJobTest extends TestCase
         $acct = ChannelAccount::query()->create([
             'tenant_id' => $this->tenant->getKey(),
             'provider' => 'shopee',
-            'external_shop_id' => 'SHOPEE_SHOP_1',
+            'external_shop_id' => '55',
             'shop_name' => 'Shopee VN Test',
+            'status' => ChannelAccount::STATUS_ACTIVE,
+            'access_token' => 'T',
+            'messaging_enabled' => true,
+        ]);
+
+        Http::fake([
+            '*/api/v2/sellerchat/get_conversation_list*' => Http::response(self::shopeeConversationListPage(), 200),
+            '*/api/v2/sellerchat/get_message*' => Http::response(self::shopeeMessageListPage(), 200),
+        ]);
+
+        (new SyncConversationsForShop($acct->id))->handle(
+            app(MessagingRegistry::class),
+            app(MessageIngestionService::class),
+        );
+
+        $this->assertDatabaseHas('conversations', [
+            'channel_account_id' => $acct->id,
+            'provider' => 'shopee_chat',
+            'external_conversation_id' => 'SC_1',
+        ]);
+        $this->assertDatabaseHas('messages', ['external_message_id' => 'SM_1']);
+
+        $meta = MessagingAccountMeta::withoutGlobalScopes()->where('channel_account_id', $acct->id)->firstOrFail();
+        $this->assertSame('done', $meta->sync_status);
+        $this->assertNotNull($meta->last_synced_at);
+    }
+
+    /**
+     * A connector whose polling is not enabled yet (TikTok: inbound.polling=false) → job returns
+     * early without any exception, no conversations created, no 'running' status left dangling.
+     */
+    public function test_noop_when_connector_lacks_polling(): void
+    {
+        config(['integrations.messaging' => ['tiktok_chat']]);
+        $this->app->forgetInstance(MessagingRegistry::class);
+
+        $acct = ChannelAccount::query()->create([
+            'tenant_id' => $this->tenant->getKey(),
+            'provider' => 'tiktok',
+            'external_shop_id' => 'TIKTOK_SHOP_1',
+            'shop_name' => 'TikTok VN Test',
             'status' => ChannelAccount::STATUS_ACTIVE,
             'access_token' => 'T',
             'messaging_enabled' => true,

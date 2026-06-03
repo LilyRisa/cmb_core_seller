@@ -29,8 +29,23 @@ App → trang **Gian hàng** → shop Shopee → bật **"nhắn tin"**
 (`PATCH /api/v1/channel-accounts/{id}/messaging`).
 
 ## 4. Luồng (đã code)
-- Buyer nhắn → Shopee POST code 10 → `/webhook/shopee` → `ShopeeWebhookController`
-  demux → pipeline messaging → hộp thư (≤ vài giây).
+- **Realtime (chính):** Buyer nhắn → Shopee POST code 10 → `/webhook/shopee` →
+  `ShopeeWebhookController` demux → pipeline messaging → hộp thư (≤ vài giây).
+- **Polling (backfill + lưới an toàn):** job `SyncConversationsForShop` kéo qua
+  `sellerchat/get_conversation_list` + `get_message` — chạy tự động mỗi 5 phút cho
+  shop `active` + đã bật nhắn tin, và thủ công qua `POST /channel-accounts/{id}/resync-chat`.
+  Vá tin webhook lọt + lấy hội thoại cũ. Ingest idempotent theo `(conversation, message_id)`
+  ⇒ webhook & poll trùng tin là vô hại.
+  > ⚠️ Endpoint `get_*` của sellerchat là **endpoint cộng đồng** (tài liệu chính thức Shopee
+  > không nêu chi tiết — như `send_message`): parse phòng thủ, **PHẢI verify sandbox thật**.
+  > Thứ tự kiểm (quan trọng → ít):
+  > 1. **Tên trường timestamp hội thoại** (`last_message_timestamp`): nếu sai tên ⇒ mọi
+  >    `lastMessageAt = null` ⇒ since-stop KHÔNG kích hoạt ⇒ mỗi lần poll quét tới cap 50 trang
+  >    (~1250 hội thoại) trên cùng rate-bucket với đồng bộ đơn. Tốn (không vô hạn — có cap + ingest
+  >    idempotent) nhưng phải xác nhận TRƯỚC khi để scheduler chạy với shop nhiều hội thoại.
+  > 2. Shape phân trang `page_result` (`next_cursor`/`next_offset`/`has_next_page`).
+  > 3. Đơn vị timestamp (giây/mili/micro/nano — đã chuẩn hoá theo độ lớn).
+  > 4. Direction qua `from_shop_id` so với `shop_id`.
 - NV trả lời → `send_message` (`/api/v2/sellerchat/send_message`, ký HMAC shop).
 
 ## 5. Xử lý lỗi thường gặp
@@ -42,5 +57,6 @@ App → trang **Gian hàng** → shop Shopee → bật **"nhắn tin"**
 | Tin về nhưng không thấy shop | `channel_accounts` provider `shopee` với `external_shop_id` = shop_id chưa tồn tại (chưa OAuth đơn hàng). |
 
 ## 6. Giới hạn bản đầu (YAGNI)
-Gửi **text + ảnh**. Chưa có: item/order/sticker, read-receipt/typing, polling backup.
-Thêm sau theo cùng pattern (sửa connector, không đụng controller/pipeline — ADR-0017).
+Gửi **text + ảnh**. Nhận: webhook code 10 (realtime) **+ polling backfill** (mục 4).
+Chưa có: gửi item/order/sticker, read-receipt/typing. Thêm sau theo cùng pattern
+(sửa connector, không đụng controller/pipeline — ADR-0017).

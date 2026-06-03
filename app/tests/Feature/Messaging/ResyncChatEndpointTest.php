@@ -21,7 +21,8 @@ use Tests\TestCase;
  *
  * Scenarios:
  *  - Lazada shop (supports polling) + owner role → 200 queued, job dispatched.
- *  - Shopee shop (no polling) → 422.
+ *  - Shopee shop (polling backfill, SPEC-0024 Phase C follow-up) → 200 queued.
+ *  - TikTok shop (no polling yet) → 422.
  *  - User without messaging.connect permission → 403.
  */
 class ResyncChatEndpointTest extends TestCase
@@ -108,9 +109,9 @@ class ResyncChatEndpointTest extends TestCase
     }
 
     /**
-     * Shopee account (inbound.polling=false) → 422.
+     * Shopee account (polling backfill bật ở SPEC-0024 Phase C follow-up) → 200, job dispatched.
      */
-    public function test_shopee_returns_422_no_polling(): void
+    public function test_shopee_supports_polling_queues_job(): void
     {
         Queue::fake();
 
@@ -132,6 +133,35 @@ class ResyncChatEndpointTest extends TestCase
         $this->actingAs($this->owner)
             ->withHeaders($this->h())
             ->postJson("/api/v1/channel-accounts/{$shopeeAcct->id}/resync-chat")
+            ->assertOk()
+            ->assertJsonPath('data.queued', true);
+
+        Queue::assertPushed(SyncConversationsForShop::class, fn ($job) => $job->channelAccountId === (int) $shopeeAcct->id);
+    }
+
+    /**
+     * TikTok account (inbound.polling=false — chưa bật) → 422 (nhận chat qua webhook).
+     */
+    public function test_tiktok_returns_422_no_polling(): void
+    {
+        Queue::fake();
+
+        config(['integrations.messaging' => ['tiktok_chat']]);
+        $this->app->forgetInstance(MessagingRegistry::class);
+
+        $tiktokAcct = ChannelAccount::query()->create([
+            'tenant_id' => $this->tenant->getKey(),
+            'provider' => 'tiktok',
+            'external_shop_id' => 'TIKTOK_SHOP_1',
+            'shop_name' => 'TikTok VN',
+            'status' => ChannelAccount::STATUS_ACTIVE,
+            'access_token' => 'T',
+            'messaging_enabled' => true,
+        ]);
+
+        $this->actingAs($this->owner)
+            ->withHeaders($this->h())
+            ->postJson("/api/v1/channel-accounts/{$tiktokAcct->id}/resync-chat")
             ->assertStatus(422);
 
         Queue::assertNotPushed(SyncConversationsForShop::class);
