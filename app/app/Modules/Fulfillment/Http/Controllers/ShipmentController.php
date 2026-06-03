@@ -194,8 +194,10 @@ class ShipmentController extends Controller
             'value' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:999999999'],
             'recipient' => ['required', 'array'],
             'recipient.province' => ['required', 'string', 'max:120'],
-            'recipient.district' => ['required', 'string', 'max:120'],
-            'recipient.ward' => ['sometimes', 'nullable', 'string', 'max:120'],
+            // Địa chỉ 2 cấp (Tỉnh + Phường, sau cải cách 2025) không có quận/huyện ⇒ district nullable.
+            // GHTK nhận theo tên: cần Tỉnh + (Quận HOẶC Phường).
+            'recipient.district' => ['sometimes', 'nullable', 'string', 'max:120', 'required_without:recipient.ward'],
+            'recipient.ward' => ['sometimes', 'nullable', 'string', 'max:120', 'required_without:recipient.district'],
             'recipient.address' => ['sometimes', 'nullable', 'string', 'max:255'],
         ]);
 

@@ -265,7 +265,8 @@ export function useShippingQuote() {
             carrier_account_id?: number | null;
             weight_grams: number;
             value?: number;
-            recipient: { province: string; district: string; ward?: string; address?: string };
+            // province bắt buộc + (district HOẶC ward) — địa chỉ VN có thể 2 cấp (Tỉnh+Phường) hay 3 cấp.
+            recipient: { province?: string; district?: string; ward?: string; address?: string };
         }): Promise<ShippingQuote | null> => {
             const { data } = await api!.post<{ data: ShippingQuote | null }>('/fulfillment/quote', vars);
             return data.data;

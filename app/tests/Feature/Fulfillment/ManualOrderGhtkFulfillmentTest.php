@@ -135,6 +135,26 @@ class ManualOrderGhtkFulfillmentTest extends TestCase
         });
     }
 
+    public function test_prepare_works_with_two_tier_address_no_district(): void
+    {
+        // Địa chỉ "mới" (2 cấp): Tỉnh + Phường, KHÔNG có Quận/Huyện — format mặc định VN sau cải cách 2025.
+        $this->fakeGhtk('S1.A1.2T');
+        $orderId = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/orders', [
+            'buyer' => ['name' => 'Lê C', 'phone' => '0912345679', 'address' => 'Số 9', 'province' => 'Hà Nội'],
+            'items' => [['sku_id' => $this->sku->getKey(), 'name' => 'Áo', 'quantity' => 1, 'unit_price' => 100000]],
+        ])->assertCreated()->json('data.id');
+        $order = Order::withoutGlobalScope(TenantScope::class)->find($orderId);
+        $order->shipping_address = array_merge((array) $order->shipping_address, [
+            'province' => 'Hà Nội', 'ward' => 'Phường Cầu Giấy', 'district' => null,
+        ]);
+        $order->save();
+
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->postJson("/api/v1/orders/{$orderId}/ship", ['carrier_account_id' => $this->ghtkAccount->getKey()])
+            ->assertCreated()
+            ->assertJsonPath('data.carrier', 'manual_ghtk');
+    }
+
     public function test_label_pdf_stored_directly_without_gotenberg(): void
     {
         $this->fakeGhtk('S1.A1.002');

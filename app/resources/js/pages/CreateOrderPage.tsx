@@ -257,8 +257,8 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
         if (!ghtkAccount) {
             return;
         }
-        if (!shipAddress.province || !shipAddress.district) {
-            message.warning('Cần địa chỉ nhận (tỉnh + quận/huyện) để tính phí GHTK.');
+        if (!shipAddress.province || (!shipAddress.district && !shipAddress.ward)) {
+            message.warning('Cần địa chỉ nhận (tỉnh + quận/huyện hoặc phường/xã) để tính phí GHTK.');
             return;
         }
         const totalQty = items.reduce((s, l) => s + (l.quantity || 0), 0);
@@ -600,7 +600,7 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                                     {ghtkAccount && (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', margin: '-2px 0 8px' }}>
                                             <Button size="small" icon={<CalculatorOutlined />} loading={quoteFee.isPending}
-                                                disabled={!!summary?.free_shipping || !shipAddress.province || !shipAddress.district}
+                                                disabled={!!summary?.free_shipping || !shipAddress.province || (!shipAddress.district && !shipAddress.ward)}
                                                 onClick={onSuggestFee}>Gợi ý phí GHTK</Button>
                                             {feeSuggestion !== null && (
                                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>

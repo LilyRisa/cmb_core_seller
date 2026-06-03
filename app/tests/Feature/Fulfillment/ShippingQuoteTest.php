@@ -78,6 +78,23 @@ class ShippingQuoteTest extends TestCase
             && str_contains($req->url(), 'weight=500'));
     }
 
+    public function test_quote_works_with_two_tier_address_no_district(): void
+    {
+        Http::fake(['*/services/shipment/fee*' => Http::response([
+            'success' => true, 'fee' => ['name' => 'area1', 'fee' => 22000, 'insurance_fee' => 0],
+        ])]);
+        $acc = $this->ghtkAccount();
+
+        // 2 cấp: chỉ province + ward (không district) — không được trả 422.
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->postJson('/api/v1/fulfillment/quote', [
+                'carrier_account_id' => $acc->getKey(), 'weight_grams' => 500,
+                'recipient' => ['province' => 'Hà Nội', 'ward' => 'Phường Cầu Giấy'],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.fee', 22000);
+    }
+
     public function test_quote_returns_null_for_carrier_without_quote_capability(): void
     {
         $ghn = CarrierAccount::withoutGlobalScope(TenantScope::class)->create([

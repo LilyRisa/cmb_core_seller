@@ -48,15 +48,23 @@ class GhtkConnector extends AbstractCarrierConnector
         $r = (array) ($shipment['recipient'] ?? []);
         $s = (array) ($shipment['sender'] ?? []);
         $miss = [];
-        foreach (['name' => 'tên', 'phone' => 'SĐT', 'address' => 'địa chỉ', 'province' => 'tỉnh/thành', 'district' => 'quận/huyện'] as $k => $lbl) {
+        // Địa chỉ VN sau cải cách 2025 có thể 2 cấp (Tỉnh + Phường, KHÔNG Quận) hoặc 3 cấp (cũ). GHTK nhận
+        // theo TÊN ⇒ chỉ cần Tỉnh + (Quận HOẶC Phường) — không hard-require quận/huyện.
+        foreach (['name' => 'tên', 'phone' => 'SĐT', 'address' => 'địa chỉ', 'province' => 'tỉnh/thành'] as $k => $lbl) {
             if (empty($r[$k])) {
                 $miss[] = 'người nhận thiếu '.$lbl;
             }
         }
-        foreach (['name' => 'tên', 'phone' => 'SĐT', 'address' => 'địa chỉ', 'province_name' => 'tỉnh/thành', 'district_name' => 'quận/huyện'] as $k => $lbl) {
+        if (empty($r['district']) && empty($r['ward'])) {
+            $miss[] = 'người nhận thiếu quận/huyện hoặc phường/xã';
+        }
+        foreach (['name' => 'tên', 'phone' => 'SĐT', 'address' => 'địa chỉ', 'province_name' => 'tỉnh/thành'] as $k => $lbl) {
             if (empty($s[$k])) {
                 $miss[] = 'kho gửi thiếu '.$lbl;
             }
+        }
+        if (empty($s['district_name']) && empty($s['ward_name'])) {
+            $miss[] = 'kho gửi thiếu quận/huyện hoặc phường/xã';
         }
 
         return $miss === [] ? null : 'Thiếu thông tin GHTK: '.implode('; ', $miss).'.';
