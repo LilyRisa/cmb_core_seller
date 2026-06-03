@@ -17,10 +17,9 @@ export function SettingRow({ row }: { row: SR }) {
     const { message } = App.useApp();
     const [draft, setDraft] = useState<unknown>(row.value);
 
-    // Phân biệt "đã đặt qua admin" vs "đang lấy từ env":
-    //   - non-secret: value === null/undefined ⇒ chưa đặt
-    //   - secret: backend trả `"****"` khi đã đặt, `null` khi chưa
-    const isPersisted = row.is_secret ? row.value === '****' : row.value !== null && row.value !== undefined;
+    // Phân biệt "đã đặt qua admin" (có row DB) vs "đang lấy từ env":
+    // backend trả `value` clear khi có row DB (kể cả secret), `null` khi chưa.
+    const isPersisted = row.value !== null && row.value !== undefined;
 
     function save(nextValue: unknown) {
         update.mutate(
@@ -34,7 +33,8 @@ export function SettingRow({ row }: { row: SR }) {
 
     let control: React.ReactNode;
     if (row.is_secret) {
-        control = <SecretInput settingKey={row.key} hasValue={isPersisted} onSave={save} />;
+        // Hiển thị giá trị hiệu lực (DB nếu đã đặt, ngược lại env) — không che.
+        control = <SecretInput value={(row.value ?? row.env_fallback) as string | null} onSave={save} />;
     } else if (row.type === 'bool') {
         const b = row.value === true || row.value === '1' || row.value === 1;
         control = <Switch checked={b} onChange={(v) => save(v)} />;
@@ -107,6 +107,15 @@ export function SettingRow({ row }: { row: SR }) {
                 </Typography.Paragraph>
             )}
             <div>{control}</div>
+            {row.env_fallback !== null && row.env_fallback !== '' && (
+                <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
+                    Giá trị trong .env:{' '}
+                    <Typography.Text code copyable style={{ fontSize: 11 }}>
+                        {String(row.env_fallback)}
+                    </Typography.Text>
+                    {isPersisted && ' (đang bị giá trị admin/DB ở trên đè)'}
+                </Typography.Text>
+            )}
             {isPersisted && (
                 <Popconfirm
                     title="Khôi phục về giá trị env (xoá row DB)?"

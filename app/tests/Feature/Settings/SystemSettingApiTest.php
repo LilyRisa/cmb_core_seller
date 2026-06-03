@@ -35,13 +35,15 @@ class SystemSettingApiTest extends TestCase
         $this->assertSame('branding', $row['group']);
     }
 
-    public function test_secret_masked_on_index(): void
+    public function test_secret_value_shown_unmasked_on_index(): void
     {
+        // Chủ dự án yêu cầu admin hiển thị MỌI giá trị (kể cả secret) không che để tiện
+        // đối chiếu/sửa cấu hình (vd so sánh app_key Lazada với console). Admin-only.
         $this->bootstrap();
-        app(SystemSettingService::class)->set('marketplace.tiktok.app_secret', 'plain');
+        app(SystemSettingService::class)->set('marketplace.tiktok.app_secret', 'plain-secret-123');
         $r = $this->getJson('/api/v1/admin/system-settings?group=marketplace')->assertOk();
         $row = collect($r->json('data'))->firstWhere('key', 'marketplace.tiktok.app_secret');
-        $this->assertSame('****', $row['value']);
+        $this->assertSame('plain-secret-123', $row['value']);
         $this->assertTrue($row['is_secret']);
     }
 

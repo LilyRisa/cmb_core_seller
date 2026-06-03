@@ -1,50 +1,27 @@
-// Spec 2026-05-17 — input cho secret setting (`is_secret=true`).
+// Spec 2026-05-17 (cập nhật) — input cho secret setting (`is_secret=true`).
 //
-// Mặc định mask `••••••••`. Click "Hiện" gọi `/reveal` (audit log ghi) và hiển
-// thị plain trong 10s rồi tự ẩn (giảm cửa sổ leak qua shoulder-surfing). Đặt
-// giá trị mới mở Input.Password riêng — KHÔNG hiển thị giá trị cũ song song.
+// Theo yêu cầu chủ dự án: KHÔNG che giá trị nữa — hiển thị thẳng giá trị rõ
+// (backend index đã trả clear) để tiện đối chiếu/sửa. "Đặt giá trị" mở ô nhập
+// để ghi giá trị mới. (Trang admin chỉ super-admin truy cập.)
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button, Input, Space, App } from 'antd';
-import { EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
-import { errorMessage } from '@/lib/api';
-import { revealSetting } from '../lib/systemSettings';
-
-const REVEAL_TTL_MS = 10_000;
 
 export function SecretInput({
-    settingKey,
-    hasValue,
+    value,
     onSave,
 }: {
-    settingKey: string;
-    hasValue: boolean;
+    value: string | null;
     onSave: (newValue: string) => void;
 }) {
-    const [revealed, setRevealed] = useState<string | null>(null);
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState('');
     const { message } = App.useApp();
 
-    useEffect(() => {
-        if (revealed === null) return;
-        const t = setTimeout(() => setRevealed(null), REVEAL_TTL_MS);
-        return () => clearTimeout(t);
-    }, [revealed]);
-
-    async function doReveal() {
-        try {
-            const v = await revealSetting(settingKey);
-            setRevealed(v ?? '(rỗng)');
-        } catch (e) {
-            message.error(errorMessage(e, 'Reveal lỗi.'));
-        }
-    }
-
     if (editing) {
         return (
             <Space.Compact style={{ width: '100%' }}>
-                <Input.Password
+                <Input
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     autoFocus
@@ -71,13 +48,7 @@ export function SecretInput({
 
     return (
         <Space.Compact style={{ width: '100%' }}>
-            <Input value={revealed ?? (hasValue ? '••••••••' : '(chưa đặt)')} readOnly />
-            {hasValue && (
-                <Button
-                    icon={revealed ? <EyeInvisibleOutlined /> : <EyeOutlined />}
-                    onClick={revealed ? () => setRevealed(null) : doReveal}
-                />
-            )}
+            <Input value={value && value !== '' ? value : '(chưa đặt)'} readOnly />
             <Button onClick={() => setEditing(true)}>Đặt giá trị</Button>
         </Space.Compact>
     );

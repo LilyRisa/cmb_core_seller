@@ -14,7 +14,8 @@ use Illuminate\Support\Facades\Auth;
 /**
  * Spec 2026-05-17 — `/api/v1/admin/system-settings/*`.
  *
- * GET     /                      → list theo group (catalog + DB merge).
+ * GET     /                      → list theo group (catalog + DB merge); hiển thị value
+ *                                  KHÔNG che (kể cả secret) để super-admin đối chiếu/sửa.
  * GET     /{key}/reveal          → trả plain (audit `admin.setting.reveal`).
  * PATCH   /{key}                 → cập nhật value (validate type).
  * DELETE  /{key}                 → xoá row → fallback env.
@@ -45,12 +46,10 @@ class AdminSystemSettingController extends Controller
             $value = null;
 
             if ($row !== null) {
-                if ($meta['is_secret']) {
-                    $value = '****';
-                } else {
-                    // Đi qua service để cast đúng type.
-                    $value = $this->svc->get($key);
-                }
+                // Chủ dự án yêu cầu admin hiển thị MỌI giá trị (kể cả secret) không che để
+                // tiện đối chiếu/sửa cấu hình. Trang này chỉ super-admin (auth:admin_web) truy
+                // cập; reveal endpoint + audit vẫn giữ cho truy vết khi cần. Service cast đúng type.
+                $value = $this->svc->get($key);
             }
 
             return [
