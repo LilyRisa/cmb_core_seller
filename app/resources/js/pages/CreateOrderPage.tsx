@@ -5,7 +5,7 @@ import {
     Popover, Radio, Row, Segmented, Space, Tabs, Tag, Tooltip, Typography, Upload,
 } from 'antd';
 import {
-    ArrowLeftOutlined, BarcodeOutlined, CalendarOutlined, CheckCircleFilled, CloseCircleFilled,
+    ArrowLeftOutlined, BarcodeOutlined, CalculatorOutlined, CalendarOutlined, CheckCircleFilled, CloseCircleFilled,
     EnvironmentOutlined, FacebookFilled, LockOutlined, MoreOutlined, PaperClipOutlined,
     PrinterOutlined, SaveOutlined, SearchOutlined, UpOutlined, WarningOutlined,
 } from '@ant-design/icons';
@@ -18,6 +18,7 @@ import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import { errorMessage } from '@/lib/api';
 import { useCreateManualOrder, useUpdateManualOrder, useUploadImage, useWarehouses, type Sku } from '@/lib/inventory';
 import { useOrder } from '@/lib/orders';
+import { useCarrierAccounts, useShippingQuote } from '@/lib/fulfillment';
 import { useTenantMembers } from '@/lib/tenant';
 import { useAuth } from '@/lib/auth';
 import { useCustomerLookup, type CustomerLookupResult } from '@/lib/customers';
@@ -78,6 +79,12 @@ interface CreateOrderFormProps {
 
 export function CreateOrderForm({ active = true, onSaved, onDraftChange, initialDraft, embedded = false, compact = false }: CreateOrderFormProps) {
     const { message } = AntApp.useApp();
+    // Gợi ý phí GHTK (cô lập): chỉ bật khi tenant có tài khoản GHTK đang hoạt động. Carrier khác không
+    // hỗ trợ tính phí ⇒ không hiện nút. Gợi ý là ƯỚC TÍNH (KL mặc định) — user bấm "Áp dụng" mới ghi vào ô.
+    const { data: carrierAccounts } = useCarrierAccounts();
+    const ghtkAccount = useMemo(() => (carrierAccounts ?? []).find((a) => a.carrier === 'ghtk' && a.is_active), [carrierAccounts]);
+    const quoteFee = useShippingQuote();
+    const [feeSuggestion, setFeeSuggestion] = useState<number | null>(null);
     const navigate = useNavigate();
     const { id: editIdRaw } = useParams();
     const editId = editIdRaw ? Number(editIdRaw) : null;
@@ -243,6 +250,39 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
         const overpaid = afterDiscount - prepaid < 0;
         return { itemTotal, itemDiscount, orderDiscount, totalDiscount: itemDiscount + orderDiscount, shippingFee, surcharge, prepaid, afterDiscount, needCollect, overpaid, freeShipping };
     }, [items, summary]);
+
+    // Gợi ý phí GHTK: ước tính KL = tổng SL × 500g (mặc định, vì dòng hàng chưa mang KL). Lỗi/empty ⇒
+    // thông báo nhẹ, KHÔNG chặn. Không tự đè ô "Phí vận chuyển" — user bấm "Áp dụng".
+    const onSuggestFee = async () => {
+        if (!ghtkAccount) {
+            return;
+        }
+        if (!shipAddress.province || !shipAddress.district) {
+            message.warning('Cần địa chỉ nhận (tỉnh + quận/huyện) để tính phí GHTK.');
+            return;
+        }
+        const totalQty = items.reduce((s, l) => s + (l.quantity || 0), 0);
+        try {
+            const q = await quoteFee.mutateAsync({
+                carrier_account_id: ghtkAccount.id,
+                weight_grams: Math.max(100, totalQty * 500),
+                value: totals.itemTotal,
+                recipient: {
+                    province: shipAddress.province, district: shipAddress.district,
+                    ward: shipAddress.ward || undefined, address: (form.getFieldValue('recipient_address') as string) || undefined,
+                },
+            });
+            if (q) {
+                setFeeSuggestion(q.fee);
+            } else {
+                setFeeSuggestion(null);
+                message.info('GHTK chưa trả phí cho địa chỉ này.');
+            }
+        } catch {
+            setFeeSuggestion(null);
+            message.warning('Không lấy được phí GHTK, thử lại sau.');
+        }
+    };
 
     // ---- submit ----
     // B7 fix — refactor: tách buildPayload + sendOrder thành function declaration top-level closure.
@@ -557,6 +597,21 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                                         <Form.Item name="collect_fee_on_return_only" valuePropName="checked" noStyle><Checkbox>Chỉ thu phí nếu hoàn</Checkbox></Form.Item>
                                     </Space>
                                     <PayRow label="Phí vận chuyển" name="shipping_fee" disabled={!!summary?.free_shipping} />
+                                    {ghtkAccount && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', margin: '-2px 0 8px' }}>
+                                            <Button size="small" icon={<CalculatorOutlined />} loading={quoteFee.isPending}
+                                                disabled={!!summary?.free_shipping || !shipAddress.province || !shipAddress.district}
+                                                onClick={onSuggestFee}>Gợi ý phí GHTK</Button>
+                                            {feeSuggestion !== null && (
+                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                                    <Typography.Text type="secondary">GHTK (ước tính):</Typography.Text>
+                                                    <b>{vnd(feeSuggestion)} đ</b>
+                                                    <Button size="small" type="link" style={{ padding: 0 }}
+                                                        onClick={() => { form.setFieldValue('shipping_fee', feeSuggestion); message.success('Đã áp dụng phí GHTK.'); }}>Áp dụng</Button>
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
                                     <PayRow label="Giảm giá đơn hàng" name="order_discount" />
                                     <PayRow label="Tiền chuyển khoản" name="prepaid_amount" />
                                     <PayRow label="Phụ thu" name="surcharge" />

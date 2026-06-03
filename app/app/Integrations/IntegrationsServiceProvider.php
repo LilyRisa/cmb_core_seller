@@ -9,6 +9,7 @@ use CMBcoreSeller\Integrations\Ai\Manual\ManualAiAssistantConnector;
 use CMBcoreSeller\Integrations\Ai\OpenAi\OpenAiConnector;
 use CMBcoreSeller\Integrations\Carriers\CarrierRegistry;
 use CMBcoreSeller\Integrations\Carriers\Ghn\GhnConnector;
+use CMBcoreSeller\Integrations\Carriers\Ghtk\GhtkConnector;
 use CMBcoreSeller\Integrations\Carriers\Manual\ManualCarrierConnector;
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Integrations\Channels\Lazada\LazadaConnector;
@@ -62,7 +63,7 @@ class IntegrationsServiceProvider extends ServiceProvider
     protected array $carrierConnectors = [
         'manual' => ManualCarrierConnector::class,
         'ghn' => GhnConnector::class,
-        // 'ghtk' => \CMBcoreSeller\Integrations\Carriers\Ghtk\GhtkConnector::class,
+        'ghtk' => GhtkConnector::class,
         // 'jt'   => \CMBcoreSeller\Integrations\Carriers\JtExpress\JtExpressConnector::class,
     ];
 

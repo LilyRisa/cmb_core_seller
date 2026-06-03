@@ -503,6 +503,48 @@ class ShipmentService
     }
 
     /**
+     * Gợi ý phí ship (carrier-agnostic). Resolve carrier account → `connector->quote()`. Carrier không hỗ
+     * trợ quote (vd GHN) hoặc lỗi/không có account ⇒ trả null (FE tự ẩn, KHÔNG chặn tạo đơn). Core không
+     * biết tên carrier — chỉ qua registry + capability `quote`.
+     *
+     * @param  array{weight_grams?:int,value?:int|null,recipient?:array<string,mixed>}  $req
+     * @return array{carrier:string,carrier_name:string,fee:int,insurance_fee:int}|null
+     */
+    public function quoteShippingFee(int $tenantId, ?int $carrierAccountId, array $req): ?array
+    {
+        try {
+            $account = $this->resolveAccount($tenantId, $carrierAccountId);
+            if (! $account || ! $this->carriers->has($account->carrier)) {
+                return null;
+            }
+            $connector = $this->carriers->for($account->carrier);
+            if (! ($connector instanceof AbstractCarrierConnector) || ! $connector->supports('quote')) {
+                return null;
+            }
+            $quotes = $connector->quote($account->toConnectorArray(), [
+                'weight_grams' => (int) ($req['weight_grams'] ?? 0),
+                'value' => isset($req['value']) ? (int) $req['value'] : null,
+                'recipient' => (array) ($req['recipient'] ?? []),
+            ]);
+            $first = $quotes[0] ?? null;
+            if (! $first) {
+                return null;
+            }
+
+            return [
+                'carrier' => (string) ($first['carrier'] ?? $account->carrier),
+                'carrier_name' => $connector->displayName(),
+                'fee' => (int) ($first['fee'] ?? 0),
+                'insurance_fee' => (int) ($first['insurance_fee'] ?? 0),
+            ];
+        } catch (\Throwable $e) {
+            Log::warning('shipment.quote_failed', ['tenant' => $tenantId, 'error' => $e->getMessage()]);
+
+            return null;
+        }
+    }
+
+    /**
      * Create a shipment for an order (or return the existing open one — 1 order = 1 active shipment).
      *
      * @param  array<string,mixed>  $opts  tracking_no?, cod_amount?, weight_grams?, note?, required_note?

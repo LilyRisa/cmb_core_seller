@@ -2,13 +2,17 @@
 
 namespace CMBcoreSeller\Modules\Fulfillment\Http\Controllers;
 
+use Carbon\Carbon;
 use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Integrations\Carriers\CarrierRegistry;
 use CMBcoreSeller\Integrations\Carriers\Support\AbstractCarrierConnector;
 use CMBcoreSeller\Modules\Fulfillment\Models\CarrierAccount;
 use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
 use CMBcoreSeller\Modules\Fulfillment\Models\ShipmentEvent;
+use CMBcoreSeller\Modules\Fulfillment\Services\OrderStatusSync;
+use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -37,50 +41,27 @@ class CarrierWebhookController extends Controller
             return response()->json(['error' => ['code' => 'CARRIER_NO_WEBHOOK', 'message' => 'Carrier này chưa hỗ trợ webhook.']], 404);
         }
 
-        // Verify: tìm carrier_account trong tenant nào có credentials.token = header `Token` (GHN dùng
-        // header này). Khác carrier có thể đổi key — nâng cấp sau khi connector trả `webhookAuth()`.
-        $token = (string) $request->header('Token', '');
-        if ($token === '') {
-            return response()->json(['error' => ['code' => 'WEBHOOK_SIGNATURE_INVALID', 'message' => 'Thiếu token.']], 401);
-        }
-        $account = CarrierAccount::query()->withoutGlobalScope(TenantScope::class)
-            ->where('carrier', $carrier)->where('is_active', true)->get()
-            ->first(function (CarrierAccount $a) use ($token) {
-                $cred = $a->credentials ?? [];
-
-                return ($cred['token'] ?? null) === $token;
-            });
-        if (! $account) {
-            // Không match tenant ⇒ 401, KHÔNG lưu, KHÔNG xử lý.
-            return response()->json(['error' => ['code' => 'WEBHOOK_SIGNATURE_INVALID', 'message' => 'Token không khớp.']], 401);
-        }
-
-        // Parse payload chuẩn hoá qua connector.
+        // Parse payload chuẩn hoá qua connector trước (mọi mode đều cần tracking_no).
         $event = $connector->parseWebhook($request);
         $tracking = (string) ($event['tracking_no'] ?? '');
-        $newStatus = $event['status'] ?? null;
-        $rawStatus = (string) ($event['raw_status'] ?? '');
-        $occurredAt = isset($event['occurred_at']) ? \Carbon\Carbon::parse($event['occurred_at']) : now();
 
-        if ($tracking === '') {
-            Log::info('carrier.webhook.no_tracking', ['carrier' => $carrier, 'tenant' => $account->tenant_id]);
-
-            return response()->json(['data' => ['acknowledged' => true]]); // ack để ĐVVC không retry
+        // Connector tự khai báo cách xác thực + resolve tenant (core không hard-code tên carrier).
+        $signatureError = null;
+        $shipment = match ($connector->webhookAuthMode()) {
+            'tracking_lookup' => $this->resolveByTrackingLookup($request, $carrier, $tracking, $signatureError),
+            default => $this->resolveByTokenHeader($request, $carrier, $tracking, $signatureError),
+        };
+        if ($signatureError !== null) {
+            return response()->json(['error' => $signatureError], 401);
         }
-
-        // SPEC 0021 — đơn manual có carrier prefix 'manual_<code>' (vd 'manual_ghn'). Webhook URL chỉ có
-        // base code ⇒ match cả 2 dạng để không miss vận đơn của đơn tự tạo.
-        $shipment = Shipment::query()->withoutGlobalScope(TenantScope::class)
-            ->where('tenant_id', $account->tenant_id)
-            ->whereIn('carrier', [$carrier, 'manual_'.$carrier])
-            ->where('tracking_no', $tracking)
-            ->open()
-            ->first();
         if (! $shipment) {
-            Log::info('carrier.webhook.shipment_not_found', ['carrier' => $carrier, 'tracking' => $tracking, 'tenant' => $account->tenant_id]);
-
+            // Không tìm thấy vận đơn (hoặc thiếu tracking) ⇒ ack 200 để ĐVVC không retry storm.
             return response()->json(['data' => ['acknowledged' => true]]);
         }
+
+        $newStatus = $event['status'] ?? null;
+        $rawStatus = (string) ($event['raw_status'] ?? '');
+        $occurredAt = isset($event['occurred_at']) ? Carbon::parse($event['occurred_at']) : now();
 
         // Idempotent: dedupe theo (shipment_id, code, occurred_at).
         ShipmentEvent::query()->withoutGlobalScope(TenantScope::class)->firstOrCreate(
@@ -106,17 +87,97 @@ class CarrierWebhookController extends Controller
             }
             $shipment->forceFill($attrs)->save();
             // Sync order status qua service (reuse logic syncOrderToShipmentStatus đã có).
-            app(\CMBcoreSeller\Modules\Fulfillment\Services\OrderStatusSync::class);
+            app(OrderStatusSync::class);
             $this->syncOrderStatus($shipment, $newStatus);
         }
 
         return response()->json(['data' => ['acknowledged' => true, 'shipment_id' => $shipment->getKey(), 'status' => $newStatus]]);
     }
 
+    /**
+     * GHN-style auth: header `Token` khớp `credentials.token` của 1 tenant ⇒ tìm vận đơn trong tenant đó.
+     * Sai/thiếu token ⇒ gán $signatureError (caller trả 401). Trả Shipment|null.
+     *
+     * @param  array{code:string,message:string}|null  $signatureError
+     */
+    private function resolveByTokenHeader(Request $request, string $carrier, string $tracking, ?array &$signatureError): ?Shipment
+    {
+        $signatureError = null;
+        $token = (string) $request->header('Token', '');
+        if ($token === '') {
+            $signatureError = ['code' => 'WEBHOOK_SIGNATURE_INVALID', 'message' => 'Thiếu token.'];
+
+            return null;
+        }
+        $account = CarrierAccount::query()->withoutGlobalScope(TenantScope::class)
+            ->where('carrier', $carrier)->where('is_active', true)->get()
+            ->first(fn (CarrierAccount $a) => (($a->credentials ?? [])['token'] ?? null) === $token);
+        if (! $account) {
+            $signatureError = ['code' => 'WEBHOOK_SIGNATURE_INVALID', 'message' => 'Token không khớp.'];
+
+            return null;
+        }
+        if ($tracking === '') {
+            Log::info('carrier.webhook.no_tracking', ['carrier' => $carrier, 'tenant' => $account->tenant_id]);
+
+            return null;
+        }
+
+        return $this->findShipment($carrier, $tracking, (int) $account->tenant_id);
+    }
+
+    /**
+     * GHTK-style auth: webhook không có Token header. Resolve tenant theo tracking_no (label) đã lưu
+     * (label do GHTK cấp, duy nhất toàn hệ thống). Verify nhẹ header `X-Client-Source` nếu có; thiếu ⇒
+     * chấp nhận + log cảnh báo (hạn chế đã biết — xem spec GHTK §10).
+     *
+     * @param  array{code:string,message:string}|null  $signatureError
+     */
+    private function resolveByTrackingLookup(Request $request, string $carrier, string $tracking, ?array &$signatureError): ?Shipment
+    {
+        $signatureError = null;
+        if ($tracking === '') {
+            Log::info('carrier.webhook.no_tracking', ['carrier' => $carrier]);
+
+            return null;
+        }
+        $shipment = $this->findShipment($carrier, $tracking, null);
+        if (! $shipment) {
+            Log::info('carrier.webhook.shipment_not_found', ['carrier' => $carrier, 'tracking' => $tracking]);
+
+            return null;
+        }
+        $account = CarrierAccount::query()->withoutGlobalScope(TenantScope::class)
+            ->where('carrier', $carrier)->where('tenant_id', $shipment->tenant_id)->where('is_active', true)->first();
+        $clientSource = (string) $request->header('X-Client-Source', '');
+        $expected = $account ? (string) (($account->credentials ?? [])['client_source'] ?? '') : '';
+        if ($clientSource !== '' && $expected !== '' && $clientSource !== $expected) {
+            $signatureError = ['code' => 'WEBHOOK_SIGNATURE_INVALID', 'message' => 'X-Client-Source không khớp.'];
+
+            return null;
+        }
+        if ($clientSource === '') {
+            Log::warning('carrier.webhook.unverified', ['carrier' => $carrier, 'tracking' => $tracking, 'tenant' => $shipment->tenant_id]);
+        }
+
+        return $shipment;
+    }
+
+    /** SPEC 0021 — đơn manual có carrier prefix 'manual_<code>' ⇒ match cả 2 dạng. */
+    private function findShipment(string $carrier, string $tracking, ?int $tenantId): ?Shipment
+    {
+        return Shipment::query()->withoutGlobalScope(TenantScope::class)
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
+            ->whereIn('carrier', [$carrier, 'manual_'.$carrier])
+            ->where('tracking_no', $tracking)
+            ->open()
+            ->first();
+    }
+
     /** Reuse logic sync order status (lite version of ShipmentService::syncOrderToShipmentStatus). */
     private function syncOrderStatus(Shipment $shipment, string $shipmentStatus): void
     {
-        $order = \CMBcoreSeller\Modules\Orders\Models\Order::query()
+        $order = Order::query()
             ->withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $shipment->tenant_id)->whereNull('deleted_at')
             ->find($shipment->order_id);
@@ -124,15 +185,15 @@ class CarrierWebhookController extends Controller
             return;
         }
         $map = [
-            Shipment::STATUS_AWAITING_PICKUP => \CMBcoreSeller\Support\Enums\StandardOrderStatus::ReadyToShip,
-            Shipment::STATUS_PICKED_UP => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Shipped,
-            Shipment::STATUS_IN_TRANSIT => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Shipped,
-            Shipment::STATUS_DELIVERED => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Delivered,
-            Shipment::STATUS_FAILED => \CMBcoreSeller\Support\Enums\StandardOrderStatus::DeliveryFailed,
-            Shipment::STATUS_RETURNED => \CMBcoreSeller\Support\Enums\StandardOrderStatus::Returning,
+            Shipment::STATUS_AWAITING_PICKUP => StandardOrderStatus::ReadyToShip,
+            Shipment::STATUS_PICKED_UP => StandardOrderStatus::Shipped,
+            Shipment::STATUS_IN_TRANSIT => StandardOrderStatus::Shipped,
+            Shipment::STATUS_DELIVERED => StandardOrderStatus::Delivered,
+            Shipment::STATUS_FAILED => StandardOrderStatus::DeliveryFailed,
+            Shipment::STATUS_RETURNED => StandardOrderStatus::Returning,
         ];
         if ($to = $map[$shipmentStatus] ?? null) {
-            app(\CMBcoreSeller\Modules\Fulfillment\Services\OrderStatusSync::class)
+            app(OrderStatusSync::class)
                 ->apply($order, $to, 'carrier');
         }
     }

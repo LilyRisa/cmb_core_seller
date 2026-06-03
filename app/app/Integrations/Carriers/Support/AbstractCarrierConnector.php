@@ -56,6 +56,17 @@ abstract class AbstractCarrierConnector implements CarrierConnector
         return in_array($capability, $this->capabilities(), true);
     }
 
+    /**
+     * Cách CarrierWebhookController xác thực + resolve tenant từ webhook của carrier này:
+     *   - 'token_header'    : (mặc định, GHN) match `carrier_accounts.credentials.token` với header `Token`.
+     *   - 'tracking_lookup' : (GHTK) resolve theo tracking_no (label) đã lưu; verify nhẹ `X-Client-Source`.
+     * Core không hard-code tên carrier — chỉ đọc mode connector tự khai báo.
+     */
+    public function webhookAuthMode(): string
+    {
+        return 'token_header';
+    }
+
     /** @return list<string> e.g. ['createShipment', 'getLabel', 'getTracking', 'cancel', 'quote'] */
     abstract public function capabilities(): array;
 }

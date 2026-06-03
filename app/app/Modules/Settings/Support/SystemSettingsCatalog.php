@@ -174,6 +174,10 @@ class SystemSettingsCatalog
                 'group' => 'fulfillment', 'type' => 'string', 'is_secret' => false,
                 'env' => 'GHN_BASE_URL', 'label' => 'GHN base URL',
             ],
+            'carriers.ghtk.base_url' => [
+                'group' => 'fulfillment', 'type' => 'string', 'is_secret' => false,
+                'env' => 'GHTK_BASE_URL', 'label' => 'GHTK base URL',
+            ],
             'storage.media_disk' => [
                 'group' => 'fulfillment', 'type' => 'string', 'is_secret' => false,
                 'env' => 'MEDIA_DISK', 'label' => 'Disk media (public | r2)',

@@ -180,6 +180,28 @@ class ShipmentController extends Controller
         return response()->json(['data' => new ShipmentResource($shipment->load(['order', 'events']))], 201);
     }
 
+    /**
+     * POST /api/v1/fulfillment/quote — gợi ý phí ship (carrier-agnostic). Dùng ở màn tạo đơn.
+     * Trả `{ data: { carrier, carrier_name, fee, insurance_fee } }` hoặc `{ data: null }` nếu carrier
+     * không hỗ trợ tính phí / lỗi / chưa có tài khoản ĐVVC — FE tự ẩn gợi ý, không chặn tạo đơn.
+     */
+    public function quote(Request $request, CurrentTenant $tenant): JsonResponse
+    {
+        abort_unless($request->user()?->can('orders.create') || $request->user()?->can('fulfillment.ship'), 403, 'Bạn không có quyền.');
+        $data = $request->validate([
+            'carrier_account_id' => ['sometimes', 'nullable', 'integer'],
+            'weight_grams' => ['required', 'integer', 'min:1', 'max:1000000'],
+            'value' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:999999999'],
+            'recipient' => ['required', 'array'],
+            'recipient.province' => ['required', 'string', 'max:120'],
+            'recipient.district' => ['required', 'string', 'max:120'],
+            'recipient.ward' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'recipient.address' => ['sometimes', 'nullable', 'string', 'max:255'],
+        ]);
+
+        return response()->json(['data' => $this->service->quoteShippingFee((int) $tenant->id(), $data['carrier_account_id'] ?? null, $data)]);
+    }
+
     /** POST /api/v1/shipments/bulk-create */
     public function bulkCreate(Request $request, CurrentTenant $tenant): JsonResponse
     {
@@ -258,7 +280,7 @@ class ShipmentController extends Controller
      *
      * @param  list<int>  $shipmentIds
      * @param  callable(Shipment):bool  $run
-     * @return array{0: list<array<string,mixed>>, 1: int}  [results, successCount]
+     * @return array{0: list<array<string,mixed>>, 1: int} [results, successCount]
      */
     private function runBulkShipment(array $shipmentIds, callable $run): array
     {

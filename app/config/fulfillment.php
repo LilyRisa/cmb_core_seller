@@ -29,6 +29,11 @@ return [
     'ghn_base_url' => env('GHN_BASE_URL', 'https://online-gateway.ghn.vn'),
 
     /*
+    | GHTK API base URL (staging = https://services-staging.ghtklab.com).
+    */
+    'ghtk_base_url' => env('GHTK_BASE_URL', 'https://services.giaohangtietkiem.vn'),
+
+    /*
     | (SPEC 0021) Optional fallback GHN token cho master-data (provinces/districts/wards) khi
     | tenant chưa cấu hình GHN account. Master-data global — token nào hợp lệ cũng dùng được.
     */

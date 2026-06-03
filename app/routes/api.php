@@ -217,6 +217,7 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::get('fulfillment/ready', [ShipmentController::class, 'ready'])->name('fulfillment.ready');
             Route::get('fulfillment/processing', [ShipmentController::class, 'processing'])->name('fulfillment.processing');           // SPEC 0009 — màn xử lý đơn
             Route::get('fulfillment/processing/counts', [ShipmentController::class, 'processingCounts'])->name('fulfillment.processing.counts');
+            Route::post('fulfillment/quote', [ShipmentController::class, 'quote'])->name('fulfillment.quote');                          // gợi ý phí ship (carrier-agnostic)
             Route::post('orders/{id}/ship', [ShipmentController::class, 'createForOrder'])->whereNumber('id')->name('orders.ship');
             Route::get('shipments', [ShipmentController::class, 'index'])->name('shipments.index');
             Route::post('shipments/bulk-create', [ShipmentController::class, 'bulkCreate'])->name('shipments.bulk-create');

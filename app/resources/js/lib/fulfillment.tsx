@@ -252,6 +252,27 @@ export function useShipOrder() {
     });
 }
 
+export interface ShippingQuote { carrier: string; carrier_name: string; fee: number; insurance_fee: number }
+
+/**
+ * Gợi ý phí ship (carrier-agnostic). Trả null nếu ĐVVC không hỗ trợ tính phí / lỗi / chưa cấu hình —
+ * caller (màn tạo đơn) tự ẩn gợi ý, KHÔNG chặn tạo đơn. Hiện chỉ GHTK trả phí.
+ */
+export function useShippingQuote() {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async (vars: {
+            carrier_account_id?: number | null;
+            weight_grams: number;
+            value?: number;
+            recipient: { province: string; district: string; ward?: string; address?: string };
+        }): Promise<ShippingQuote | null> => {
+            const { data } = await api!.post<{ data: ShippingQuote | null }>('/fulfillment/quote', vars);
+            return data.data;
+        },
+    });
+}
+
 export function useBulkCreateShipments() {
     const api = useScopedApi();
     const invalidate = useFulfillmentInvalidate();
