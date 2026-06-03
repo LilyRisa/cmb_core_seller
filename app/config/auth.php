@@ -97,4 +97,20 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Demo review login (TẠM THỜI — TikTok app review)
+    |--------------------------------------------------------------------------
+    | Cho phép reviewer đăng nhập tài khoản demo bằng literal password đã gửi trong
+    | bản phê duyệt (không sửa được) NGOÀI mật khẩu đã lưu. Chặn cực hẹp: chỉ áp cho
+    | đúng `email` + đúng `password` literal dưới đây. LUÔN BẬT cho tài khoản demo
+    | (không cần cờ). Tắt tạm: để trống DEMO_REVIEW_EMAIL hoặc DEMO_REVIEW_PASSWORD.
+    | XOÁ khối này + AuthController::demoReviewBypass sau khi app được duyệt.
+    | Xem tests/Feature/Tenancy/DemoReviewLoginTest.php.
+    */
+    'demo_review' => [
+        'email' => env('DEMO_REVIEW_EMAIL', 'owner@demo.local'),
+        'password' => env('DEMO_REVIEW_PASSWORD', 'password'),
+    ],
+
 ];

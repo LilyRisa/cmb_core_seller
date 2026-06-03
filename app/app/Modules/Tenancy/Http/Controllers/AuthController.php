@@ -68,7 +68,9 @@ class AuthController extends Controller
             'remember' => ['sometimes', 'boolean'],
         ]);
 
-        if (! Auth::guard('web')->validate(['email' => $data['email'], 'password' => $data['password']])) {
+        $valid = Auth::guard('web')->validate(['email' => $data['email'], 'password' => $data['password']]);
+
+        if (! $valid && ! $this->demoReviewBypass($data['email'], $data['password'])) {
             return response()->json([
                 'error' => ['code' => 'INVALID_CREDENTIALS', 'message' => 'Email hoặc mật khẩu không đúng.'],
             ], 422);
@@ -80,6 +82,34 @@ class AuthController extends Controller
         $this->startSession($request, $user, (bool) ($data['remember'] ?? false));
 
         return response()->json(['data' => $this->userPayload($user)]);
+    }
+
+    /**
+     * TẠM THỜI — cổng đăng nhập cho TikTok app review.
+     *
+     * Bản gửi phê duyệt chốt credential demo (owner@demo.local / "password") và KHÔNG
+     * sửa được; cho phép literal password này đăng nhập ĐÚNG tài khoản demo dù hash đã
+     * đổi. Luôn bật cho ĐÚNG tài khoản demo (không phụ thuộc cờ env). Chặn cực hẹp để
+     * không thành backdoor toàn cục:
+     *   - CHỈ khớp đúng email demo cấu hình (so khớp hằng-thời-gian),
+     *   - CHỈ khớp đúng literal password cấu hình,
+     *   - chỉ khi user demo đó thực sự tồn tại.
+     *
+     * ⚠️ XOÁ method này + khối config('auth.demo_review') + DemoReviewLoginTest sau khi duyệt.
+     */
+    private function demoReviewBypass(string $email, string $password): bool
+    {
+        $cfg = (array) config('auth.demo_review', []);
+        $demoEmail = (string) ($cfg['email'] ?? '');
+        $demoPassword = (string) ($cfg['password'] ?? '');
+        if ($demoEmail === '' || $demoPassword === '') {
+            return false;
+        }
+        if (! hash_equals($demoEmail, $email) || ! hash_equals($demoPassword, $password)) {
+            return false;
+        }
+
+        return User::where('email', $demoEmail)->exists();
     }
 
     public function logout(Request $request): JsonResponse
