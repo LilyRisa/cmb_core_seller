@@ -6,6 +6,7 @@ use CMBcoreSeller\Integrations\Carriers\CarrierRegistry;
 use CMBcoreSeller\Integrations\Carriers\Support\AbstractCarrierConnector;
 use CMBcoreSeller\Integrations\Carriers\Support\CarrierUnsupportedException;
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
+use CMBcoreSeller\Integrations\Channels\Exceptions\ShippingDocumentUnavailable;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Fulfillment\Events\ShipmentCreated;
 use CMBcoreSeller\Modules\Fulfillment\Jobs\BackfillChannelTracking;
@@ -243,6 +244,13 @@ class ShipmentService
 
                 return;
             } catch (\Throwable $e) {
+                // Terminal: sàn KHÔNG bao giờ cấp tem cho đơn này (vd Lazada DBS/SOF — ĐVVC ngoài Lazada).
+                // Dừng ngay, đánh dấu + has_issue, KHÔNG enqueue async retry (retry vô ích).
+                if ($e instanceof ShippingDocumentUnavailable && $e->terminal) {
+                    $this->markLabelUnavailable($order, $shipment, $account->provider, $e);
+
+                    return;
+                }
                 $lastError = $e;
                 if ($i < $attempts) {
                     // Exponential: 1s, 2s, 4s, 8s — propagation window for 3PL async render
@@ -274,6 +282,30 @@ class ShipmentService
     public function retryChannelLabelFetch(Order $order, Shipment $shipment): void
     {
         $this->fetchAndStoreChannelLabel($order, $shipment, justArranged: false, skipAsyncRetry: true);
+    }
+
+    /**
+     * Đơn mà sàn KHÔNG bao giờ cấp tem/AWB qua API (terminal — vd Lazada DBS/SOF). Đánh dấu vào
+     * `shipment.raw.label_unavailable` (để {@see FetchChannelLabel} ngừng retry & gate bàn giao báo đúng lý do),
+     * clear marker "đang tải lại", gắn `has_issue` lên đơn. KHÔNG tự bỏ qua bàn giao (VN không có luồng seller
+     * tự giao — đây là đơn cá biệt cần xử lý theo luồng riêng của sàn). SPEC 0013.
+     */
+    private function markLabelUnavailable(Order $order, Shipment $shipment, string $provider, ShippingDocumentUnavailable $e): void
+    {
+        $raw = (array) $shipment->raw;
+        $raw['label_unavailable'] = [
+            'reason_code' => $e->reasonCode,
+            'message' => $e->getMessage(),
+            'at' => now()->toIso8601String(),
+        ];
+        $shipment->forceFill(['raw' => $raw, 'label_fetch_next_retry_at' => null])->save();
+        $order->forceFill([
+            'has_issue' => true,
+            'issue_reason' => Str::limit($e->getMessage(), 240),
+        ])->save();
+        Log::warning('shipment.channel_label_unavailable', [
+            'shipment' => $shipment->getKey(), 'provider' => $provider, 'reason_code' => $e->reasonCode,
+        ]);
     }
 
     /**
@@ -731,7 +763,13 @@ class ShipmentService
         // chối / sàn phạt. Tem không tự tạo được (rule cố định) ⇒ chặn + hướng dẫn "Nhận phiếu giao hàng". SPEC 0013.
         $orderForGate = $this->orderFor($shipment);
         if ($orderForGate && $orderForGate->channel_account_id && blank($shipment->label_path)) {
-            throw new RuntimeException('Đơn của sàn chưa có phiếu giao hàng (tem) thật từ sàn — chưa thể bàn giao ĐVVC. Bấm "Nhận phiếu giao hàng" để lấy tem từ sàn trước.');
+            // Đơn terminal-no-label (vd Lazada DBS/SOF): sàn không cấp AWB qua API ⇒ báo đúng lý do, KHÔNG
+            // bảo user "Nhận phiếu giao hàng" (sẽ retry vô ích). Vẫn chặn bàn giao ĐVVC tích hợp — đơn loại này
+            // phải xử lý theo luồng giao riêng của sàn (VN gần như không có; là đơn cá biệt).
+            $unavailable = (string) (data_get($shipment->raw, 'label_unavailable.message') ?? '');
+            throw new RuntimeException($unavailable !== ''
+                ? ($unavailable.' Đơn loại này không bàn giao qua ĐVVC tích hợp được — xử lý theo luồng giao của sàn.')
+                : 'Đơn của sàn chưa có phiếu giao hàng (tem) thật từ sàn — chưa thể bàn giao ĐVVC. Bấm "Nhận phiếu giao hàng" để lấy tem từ sàn trước.');
         }
         DB::transaction(function () use ($shipment, $source, $userId, $eventCode) {
             $patch = ['status' => Shipment::STATUS_PICKED_UP, 'picked_up_at' => now()];

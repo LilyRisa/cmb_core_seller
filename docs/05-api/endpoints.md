@@ -16,18 +16,27 @@
 |---|---|---|---|---|
 | POST | `/api/v1/auth/register` | — | `name`, `email`, `password`, `password_confirmation`, `tenant_name?` | `201` `{ data: { id, name, email, email_verified_at:null, tenants:[{id,name,slug,role}] } }` — tạo user + tenant mới (caller = `owner`) + đăng nhập phiên + dispatch `VerifyEmailNotification` qua queue `notifications` (SPEC 0022). Lỗi: `422 VALIDATION_FAILED` (email trùng, mật khẩu < 8…). |
 | POST | `/api/v1/auth/login` | — | `email`, `password`, `remember?` | `200` `{ data: {…user…} }`. Sai thông tin: `422 INVALID_CREDENTIALS`. |
-| POST | `/api/v1/auth/token` | — | `email`, `password`, `device_name` | `201` `{ data: { token, user:{…AuthUser…} } }` — **đăng nhập mobile/3rd-party**: cấp bearer token (Sanctum personal access token gắn tên thiết bị, hết hạn `config('sanctum.mobile_token_days')` = 60 ngày). Sai thông tin: `422 INVALID_CREDENTIALS`. Throttle `15/1`. (SPEC 2026-06-01) |
+| POST | `/api/v1/auth/token` | — | `email`, `password`, `device_name` | `201` `{ data: { token, user:{…AuthUser…} } }` — **đăng nhập mobile/3rd-party**: cấp bearer token (Sanctum personal access token gắn tên thiết bị, hết hạn `config('sanctum.mobile_token_days')` = 60 ngày). `user.tenants[]` mỗi phần tử gồm `{id,name,slug,role,permissions[]}` — `permissions` = ability strings của role (SPEC 0029; owner/admin ⇒ `["*"]`). Sai thông tin: `422 INVALID_CREDENTIALS`. Throttle `15/1`. (SPEC 2026-06-01) |
 | DELETE | `/api/v1/auth/token` | sanctum | — | `204` — **đăng xuất mobile**: thu hồi token bearer đang dùng. Khi xác thực bằng session SPA (không có token) ⇒ no-op, vẫn `204`. (SPEC 2026-06-01) |
 | GET | `/api/v1/auth/devices` | sanctum | — | `200` `{ data: [{ id, device_name, last_used_at, created_at, current }] }` — liệt kê phiên đăng nhập (token) theo thiết bị; `current=true` cho token đang dùng. (SPEC 2026-06-01) |
 | DELETE | `/api/v1/auth/devices/{id}` | sanctum | — | `204` — thu hồi 1 token theo id (chỉ token của chính user). Không thuộc user ⇒ `404 TOKEN_NOT_FOUND`. (SPEC 2026-06-01) |
 | DELETE | `/api/v1/auth/devices` | sanctum | — | `204` — thu hồi **mọi** token trừ token đang dùng ("đăng xuất các thiết bị khác"). (SPEC 2026-06-01) |
 | POST | `/api/v1/auth/logout` | sanctum | — | `204`. |
-| GET | `/api/v1/auth/me` | sanctum | — | `200` `{ data: {…user… với `email_verified_at: ISO\|null` & tenants[]} }`. Chưa đăng nhập: `401`. |
+| GET | `/api/v1/auth/me` | sanctum | — | `200` `{ data: {…user… với `email_verified_at: ISO\|null` & tenants[]} }`. Mỗi tenant: `{id,name,slug,role,permissions[]}` — `permissions` = ability strings của role trong tenant đó (SPEC 0029; owner/admin ⇒ `["*"]`). Chưa đăng nhập: `401`. |
 | PATCH | `/api/v1/auth/profile` | sanctum | `name?`, `email?`, `current_password?`, `password?`, `password_confirmation?` | `200` `{ data: AuthUser }` — sửa hồ sơ. Đổi email/password cần `current_password` đúng (sai ⇒ `422 INVALID_PASSWORD`); email trùng / mật khẩu <8 ⇒ `422`. (SPEC 0011) |
 | GET | `/api/v1/auth/email/verify/{id}/{hash}` | signed URL | query `expires`, `signature` | `302` redirect `${FRONTEND_URL}/email-verified?status=success\|already\|invalid`. Hash sai / signature sai / hết hạn ⇒ `status=invalid`. Click 2 lần ⇒ `status=already`. (SPEC 0022) Throttle `6/1`. |
 | POST | `/api/v1/auth/email/verify/resend` | sanctum | — | `200 { data: { sent: true } }` — dispatch lại `VerifyEmailNotification`. Đã verified ⇒ `200 { data: { sent: false, reason: 'already_verified' } }`. Throttle `6/60`. (SPEC 0022) |
 | POST | `/api/v1/auth/password/forgot` | — | `{ email }` | `200 { data: { sent: true } }` (response generic — không xác nhận email có tồn tại không, chống enumerate). Dispatch `ResetPasswordNotification` qua queue `notifications` nếu email khớp. Throttle `5/15`. (SPEC 0022) |
 | POST | `/api/v1/auth/password/reset` | — | `{ email, token, password, password_confirmation }` | `200 { data: { reset: true } }`. Token sai/hết hạn ⇒ `422 INVALID_RESET_TOKEN`; password không khớp / không đạt policy ⇒ `422 VALIDATION_FAILED`. **Password policy:** tối thiểu 8 ký tự, ít nhất 1 chữ hoa + 1 chữ thường + 1 ký tự đặc biệt (`min(8)->mixedCase()->symbols()`). Throttle `30/60`. (SPEC 0022) |
+
+## Thiết bị mobile — Expo Push (SPEC 0029)
+
+| Method | Path | Auth | Request | Response |
+|---|---|---|---|---|
+| POST | `/api/v1/me/devices` | sanctum + tenant | `{ expo_push_token, platform }` (`platform ∈ {ios,android}`) | `201` `{ data: { id, expo_push_token, platform } }` — **upsert** theo `expo_push_token` (gọi nhiều lần an toàn; lần đầu set baseline `last_notified_at=now` để không push dồn lịch sử). Riêng với Web Push VAPID (`/messaging/push/*`). |
+| DELETE | `/api/v1/me/devices/{id}` | sanctum + tenant | — | `204`. Không thuộc user + tenant hiện tại ⇒ `404 DEVICE_NOT_FOUND` (ownership-guarded). |
+
+> **Expo Push digest:** `messaging:push-digest` (cron 30') gửi Expo Push "Bạn có tin nhắn mới" cho thiết bị KHÔNG hoạt động có inbound mới — song song Web Push VAPID, gate độc lập bằng `services.expo.enabled`.
 
 ## Tenant (workspace)
 

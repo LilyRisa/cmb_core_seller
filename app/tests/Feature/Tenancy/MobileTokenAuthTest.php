@@ -64,6 +64,56 @@ class MobileTokenAuthTest extends TestCase
         $this->assertEqualsWithDelta(60, abs($token->expires_at->diffInDays(now())), 1);
     }
 
+    public function test_token_payload_includes_tenant_permissions_for_role(): void
+    {
+        // SPEC 0029 — mỗi tenant trong user payload phải kèm `permissions` (ability strings).
+        $user = User::factory()->create(['email' => 'wh@example.com', 'password' => Hash::make('secret123')]);
+        $tenant = Tenant::create(['name' => 'Warehouse Shop']);
+        $tenant->users()->attach($user->getKey(), ['role' => Role::StaffWarehouse->value]);
+
+        $response = $this->postJson('/api/v1/auth/token', [
+            'email' => 'wh@example.com',
+            'password' => 'secret123',
+            'device_name' => 'iPhone 15',
+        ])->assertCreated();
+
+        $perms = $response->json('data.user.tenants.0.permissions');
+        $this->assertIsArray($perms);
+        $this->assertContains('fulfillment.scan', $perms);
+        $this->assertContains('inventory.adjust', $perms);
+        // Quyền không thuộc role kho ⇒ không có.
+        $this->assertNotContains('billing.manage', $perms);
+    }
+
+    public function test_token_payload_permissions_wildcard_for_owner(): void
+    {
+        // Owner (Role::permissions() = ['*']) ⇒ permissions trả ['*'].
+        $user = User::factory()->create(['email' => 'own@example.com', 'password' => Hash::make('secret123')]);
+        $tenant = Tenant::create(['name' => 'Owner Shop']);
+        $tenant->users()->attach($user->getKey(), ['role' => Role::Owner->value]);
+
+        $this->postJson('/api/v1/auth/token', [
+            'email' => 'own@example.com',
+            'password' => 'secret123',
+            'device_name' => 'iPhone 15',
+        ])->assertCreated()
+            ->assertJsonPath('data.user.tenants.0.permissions', ['*']);
+    }
+
+    public function test_me_payload_includes_tenant_permissions(): void
+    {
+        // SPEC 0029 — flow tương tự cho GET /auth/me.
+        $user = User::factory()->create(['email_verified_at' => now()]);
+        $tenant = Tenant::create(['name' => 'CS Shop']);
+        $tenant->users()->attach($user->getKey(), ['role' => Role::StaffCs->value]);
+
+        $perms = $this->actingAs($user)->getJson('/api/v1/auth/me')
+            ->assertOk()
+            ->json('data.tenants.0.permissions');
+
+        $this->assertContains('messaging.reply', $perms);
+    }
+
     public function test_bearer_token_authenticates_existing_endpoints(): void
     {
         $user = User::factory()->create(['email' => 'm@example.com', 'password' => Hash::make('secret123')]);

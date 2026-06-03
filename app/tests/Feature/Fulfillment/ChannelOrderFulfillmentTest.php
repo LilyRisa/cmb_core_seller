@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Fulfillment;
 
+use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
+use CMBcoreSeller\Integrations\Channels\Lazada\LazadaConnector;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Fulfillment\Jobs\BackfillChannelTracking;
 use CMBcoreSeller\Modules\Fulfillment\Jobs\FetchChannelLabel;
@@ -171,6 +173,47 @@ class ChannelOrderFulfillmentTest extends TestCase
         $this->assertTrue($ok);
         $this->assertSame('TT-LATE', $shipment->fresh()->tracking_no);
         $this->assertFalse((bool) $order->fresh()->has_issue);
+    }
+
+    // --- B5: đơn sàn loại không có tem (Lazada DBS/SOF) — terminal, dừng retry, báo đúng lý do ---------
+
+    public function test_terminal_no_label_lazada_sof_marks_issue_and_blocks_handover_with_clear_reason(): void
+    {
+        // Lazada DBS/SOF: `/order/document/get` trả 50008 ⇒ connector ném ShippingDocumentUnavailable(terminal)
+        // ⇒ ShipmentService đánh dấu raw.label_unavailable + has_issue, KHÔNG retry. Bàn giao báo đúng lý do
+        // (KHÔNG bảo "Nhận phiếu giao hàng" vì sàn không bao giờ cấp tem cho loại đơn này).
+        app(ChannelRegistry::class)
+            ->register('lazada', LazadaConnector::class);
+        config(['integrations.lazada.app_key' => 'k', 'integrations.lazada.app_secret' => 's', 'integrations.lazada.fulfillment_enabled' => true]);
+        $lazada = ChannelAccount::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $this->tenant->getKey(), 'provider' => 'lazada', 'external_shop_id' => 'LZDSHOP',
+            'shop_name' => 'Lz', 'status' => ChannelAccount::STATUS_ACTIVE,
+            'access_token' => 'tk', 'refresh_token' => 'rk', 'token_expires_at' => now()->addDays(7),
+        ]);
+        $order = $this->channelOrder(['source' => 'lazada', 'channel_account_id' => $lazada->getKey(), 'raw_status' => 'ready_to_ship']);
+        $shipment = Shipment::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $this->tenant->getKey(), 'order_id' => $order->getKey(), 'carrier' => 'GHN',
+            'tracking_no' => 'LZD-TRACK', 'package_no' => 'PKG1', 'status' => Shipment::STATUS_PACKED,
+            'label_path' => null, 'raw' => ['external_item_ids' => [525769205080318]],
+        ]);
+        Http::fake([
+            '*/order/document/get*' => Http::response(['code' => '50008', 'type' => 'ISP', 'message' => 'not support operation for  sof order', 'request_id' => 'rq', 'data' => []]),
+        ]);
+
+        app(ShipmentService::class)->retryChannelLabelFetch($order, $shipment);
+
+        $shipment->refresh();
+        $this->assertSame('lazada_dbs_sof', data_get($shipment->raw, 'label_unavailable.reason_code'));
+        $this->assertTrue((bool) $order->fresh()->has_issue);
+        Bus::assertNotDispatched(FetchChannelLabel::class);
+
+        try {
+            app(ShipmentService::class)->handover($shipment);
+            $this->fail('Bàn giao phải bị chặn cho đơn DBS/SOF');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('DBS/SOF', $e->getMessage());
+            $this->assertStringNotContainsString('Nhận phiếu giao hàng', $e->getMessage());
+        }
     }
 
     public function test_handover_allowed_for_channel_order_with_label(): void

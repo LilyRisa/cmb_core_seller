@@ -6,6 +6,7 @@ use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Integrations\Channels\Contracts\ChannelConnector;
 use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
+use CMBcoreSeller\Integrations\Channels\Exceptions\ShippingDocumentUnavailable;
 use CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation;
 use CMBcoreSeller\Integrations\Channels\Lazada\LazadaApiException;
 use CMBcoreSeller\Integrations\Channels\Lazada\LazadaConnector;
@@ -747,6 +748,27 @@ class LazadaConnectorContractTest extends TestCase
         $this->connector()->getShippingDocument($this->auth(), '1001', [
             'externalPackageId' => 'PKG-99', 'order_item_ids' => [9001],
         ]);
+    }
+
+    public function test_get_shipping_document_throws_terminal_for_dbs_sof_order(): void
+    {
+        // Lazada DBS/SOF (Delivery By Seller / Seller Own Fleet — ĐVVC ngoài Lazada): `/order/document/get`
+        // trả `50008 not support operation for sof order` — sàn KHÔNG bao giờ cấp AWB. Connector phải báo
+        // terminal (ShipmentService dừng retry vô ích), KHÔNG thử print_awb (cũng không in được AWB cho SOF).
+        config(['integrations.lazada.endpoints.print_awb' => '/order/package/document/get']);
+        Http::fake([
+            '*/order/document/get*' => Http::response(['code' => '50008', 'type' => 'ISP', 'message' => 'not support operation for  sof order', 'request_id' => 'rq', 'data' => []]),
+            '*/order/package/document/get*' => Http::response($this->ok(['document' => ['file' => base64_encode('%PDF-x')]])),
+        ]);
+
+        try {
+            $this->connector()->getShippingDocument($this->auth(), '525769205080318', ['order_item_ids' => [525769205080318], 'externalPackageId' => 'PKG-SOF']);
+            $this->fail('Expected ShippingDocumentUnavailable');
+        } catch (ShippingDocumentUnavailable $e) {
+            $this->assertTrue($e->terminal, 'DBS/SOF là terminal — sàn không bao giờ cấp AWB.');
+            $this->assertSame('lazada_dbs_sof', $e->reasonCode);
+        }
+        Http::assertNotSent(fn ($r) => str_contains((string) $r->url(), '/order/package/document/get'));
     }
 
     public function test_fetch_returns_maps_reverse_order(): void

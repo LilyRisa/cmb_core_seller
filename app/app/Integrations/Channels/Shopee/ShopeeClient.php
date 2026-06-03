@@ -237,6 +237,10 @@ class ShopeeClient
         $requestId = (string) ($json['request_id'] ?? '');
         Log::warning('shopee.api.error', ['path' => $path, 'http' => $httpStatus, 'error' => $error, 'message_excerpt' => substr($message, 0, 200), 'request_id' => $requestId]);
 
-        throw new ShopeeApiException("Shopee API error on {$path}: [{$error}] {$message}".($requestId ? " (request_id={$requestId})" : ''), $error, $httpStatus);
+        // Giữ envelope (gồm `response.result_list`) để caller bóc lý do thật của batch error (vd
+        // create_shipping_document trả `common.batch_api_all_failed`, detail nằm trong result_list[].fail_*).
+        $response = is_array($json['response'] ?? null) ? (array) $json['response'] : $json;
+
+        throw new ShopeeApiException("Shopee API error on {$path}: [{$error}] {$message}".($requestId ? " (request_id={$requestId})" : ''), $error, $httpStatus, $response);
     }
 }

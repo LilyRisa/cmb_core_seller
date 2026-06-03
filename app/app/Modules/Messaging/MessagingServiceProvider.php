@@ -10,6 +10,7 @@ use CMBcoreSeller\Modules\Messaging\Console\Commands\PruneMessagingPayloads;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\PushNewMessageDigest;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\RecomputeConversationPreviews;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\ReconcileMessagingSync;
+use CMBcoreSeller\Modules\Messaging\Contracts\ExpoPushSenderContract;
 use CMBcoreSeller\Modules\Messaging\Contracts\MessageInboxContract;
 use CMBcoreSeller\Modules\Messaging\Events\CommentReceived;
 use CMBcoreSeller\Modules\Messaging\Events\MessageReceived;
@@ -22,6 +23,7 @@ use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnOrderStatus;
 use CMBcoreSeller\Modules\Messaging\Listeners\StartFlowOnComment;
 use CMBcoreSeller\Modules\Messaging\Listeners\StartFlowOnInbound;
 use CMBcoreSeller\Modules\Messaging\Services\DbAiProviderCredentials;
+use CMBcoreSeller\Modules\Messaging\Services\ExpoPushSender;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\AiReplyNodeExecutor;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\ConditionNodeExecutor;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\EndNodeExecutor;
@@ -57,6 +59,9 @@ class MessagingServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(MessageInboxContract::class, MessageInboxReader::class);
+
+        // SPEC 0029 — Expo Push sender (mobile push, tách khỏi Web Push VAPID).
+        $this->app->bind(ExpoPushSenderContract::class, ExpoPushSender::class);
 
         // AI provider credentials seam — connector (Integrations\Ai) đọc api_key/
         // model qua interface này thay vì import bảng ai_providers trực tiếp.

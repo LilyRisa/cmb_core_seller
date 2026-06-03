@@ -210,6 +210,7 @@ class ShopeeConnectorContractTest extends TestCase
     public function test_arrange_shipment_ships_and_returns_tracking(): void
     {
         Http::fake([
+            '*/api/v2/order/get_order_detail*' => Http::response(ShopeeFixtures::orderDetail(), 200),
             '*/api/v2/logistics/get_shipping_parameter*' => Http::response(ShopeeFixtures::shippingParameter(), 200),
             '*/api/v2/logistics/ship_order*' => Http::response(ShopeeFixtures::shipOrder(), 200),
             // Đơn CHƯA ship: get_tracking_number trả rỗng (idempotency check) ⇒ tiến hành ship; SAU ship mới có tracking.
@@ -235,6 +236,7 @@ class ShopeeConnectorContractTest extends TestCase
     {
         // Đơn đã ship (get_tracking_number đã có mã) ⇒ KHÔNG gọi ship_order lại (re-call sẽ lỗi "not ready to ship").
         Http::fake([
+            '*/api/v2/order/get_order_detail*' => Http::response(ShopeeFixtures::orderDetail(), 200),
             '*/api/v2/logistics/get_shipping_parameter*' => Http::response(ShopeeFixtures::shippingParameter(), 200),
             '*/api/v2/logistics/ship_order*' => Http::response(ShopeeFixtures::shipOrder(), 200),
             '*/api/v2/logistics/get_tracking_number*' => Http::response(ShopeeFixtures::trackingNumber(), 200),
@@ -245,6 +247,67 @@ class ShopeeConnectorContractTest extends TestCase
 
         $this->assertSame('TRK123', $res['tracking_no']);
         Http::assertNotSent(fn (\Illuminate\Http\Client\Request $r) => str_contains($r->url(), '/api/v2/logistics/ship_order'));
+    }
+
+    public function test_arrange_shipment_skips_ship_when_order_already_processed(): void
+    {
+        // Root cause `get_shipping_parameter [error_param] ... only ... when package is ready to be shipped`:
+        // đơn đã arrange trước đó (order_status = PROCESSED) nhưng Shopee chưa cấp tracking (async) ⇒
+        // get_tracking_number rỗng. KHÔNG được gọi lại get_shipping_parameter/ship_order — chỉ trả raw_status
+        // PROCESSED để app hiểu đơn đã xử lý (caller sẽ lấy tracking/label sau).
+        Http::fake([
+            '*/api/v2/order/get_order_detail*' => Http::response(['error' => '', 'response' => ['order_list' => [
+                ShopeeFixtures::orderRow('SN_7', 'PROCESSED'),
+            ]]], 200),
+            '*/api/v2/logistics/get_tracking_number*' => Http::response(['error' => '', 'response' => ['tracking_number' => '']], 200),
+            '*/api/v2/logistics/get_shipping_parameter*' => Http::response(ShopeeFixtures::shippingParameter(), 200),
+            '*/api/v2/logistics/ship_order*' => Http::response(ShopeeFixtures::shipOrder(), 200),
+        ]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        $res = $this->connector()->arrangeShipment($auth, 'SN_7', ['packages' => [['externalPackageId' => 'PKG_7']]]);
+
+        $this->assertSame('PROCESSED', $res['raw_status']);
+        Http::assertNotSent(fn (\Illuminate\Http\Client\Request $r) => str_contains($r->url(), '/api/v2/logistics/get_shipping_parameter'));
+        Http::assertNotSent(fn (\Illuminate\Http\Client\Request $r) => str_contains($r->url(), '/api/v2/logistics/ship_order'));
+    }
+
+    public function test_arrange_shipment_throws_when_order_not_ready_to_ship(): void
+    {
+        // Đơn UNPAID (chưa thanh toán) ⇒ không thể tạo phiếu giao hàng. Báo lỗi rõ ràng, KHÔNG gọi
+        // get_shipping_parameter (sẽ trả error_param khó hiểu cho user).
+        Http::fake([
+            '*/api/v2/order/get_order_detail*' => Http::response(['error' => '', 'response' => ['order_list' => [
+                ShopeeFixtures::orderRow('SN_8', 'UNPAID'),
+            ]]], 200),
+            '*/api/v2/logistics/get_tracking_number*' => Http::response(['error' => '', 'response' => ['tracking_number' => '']], 200),
+            '*/api/v2/logistics/get_shipping_parameter*' => Http::response(ShopeeFixtures::shippingParameter(), 200),
+        ]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        try {
+            $this->connector()->arrangeShipment($auth, 'SN_8', ['packages' => [['externalPackageId' => 'PKG_8']]]);
+            $this->fail('Mong đợi ShopeeApiException vì đơn UNPAID');
+        } catch (ShopeeApiException $e) {
+            $this->assertMatchesRegularExpression('/READY_TO_SHIP|UNPAID/', $e->getMessage());
+        }
+        Http::assertNotSent(fn (\Illuminate\Http\Client\Request $r) => str_contains($r->url(), '/api/v2/logistics/get_shipping_parameter'));
+    }
+
+    public function test_verify_webhook_signature_falls_back_to_request_url_when_push_url_misconfigured(): void
+    {
+        // Root cause `shopee.webhook.signature_mismatch`: sau reverse proxy, `push_url` cấu hình có thể lệch
+        // scheme/host so với URL công khai mà Shopee ký. Verifier phải thử cả URL của chính request.
+        $this->connector();
+        $raw = json_encode(['code' => 3, 'shop_id' => 55, 'timestamp' => 1700000000, 'data' => json_encode(['ordersn' => 'SN_9', 'status' => 'READY_TO_SHIP'])], JSON_UNESCAPED_SLASHES);
+        $requestUrl = 'https://app.cmbcore.com/webhook/shopee';
+        // push_url cấu hình SAI (vd host nội bộ) — Shopee ký bằng URL công khai = $requestUrl.
+        config(['integrations.shopee.push_url' => 'http://internal-host/webhook/shopee']);
+        $sign = hash_hmac('sha256', $requestUrl.'|'.$raw, 'PARTNER_KEY');
+        $req = Request::create($requestUrl, 'POST', content: $raw);
+        $req->headers->set('Authorization', $sign);
+
+        $this->assertTrue($this->connector()->verifyWebhookSignature($req));
     }
 
     public function test_get_shipping_document_polls_then_downloads(): void
@@ -260,6 +323,32 @@ class ShopeeConnectorContractTest extends TestCase
         $this->assertSame('application/pdf', $doc['mime']);
         $this->assertStringContainsString('%PDF', $doc['bytes']);
         $this->assertStringEndsWith('.pdf', $doc['filename']);
+    }
+
+    public function test_get_shipping_document_surfaces_batch_fail_reason(): void
+    {
+        // Shopee create_shipping_document trả `common.batch_api_all_failed` ở envelope, lý do THẬT nằm trong
+        // result_list[].fail_error/fail_message. Trước đây connector vứt bỏ detail ⇒ log vô dụng. Phải bóc ra.
+        Http::fake([
+            '*/api/v2/logistics/create_shipping_document*' => Http::response([
+                'error' => 'common.batch_api_all_failed',
+                'message' => 'All failed, please check result_list for detail',
+                'response' => ['result_list' => [[
+                    'order_sn' => 'SN_1', 'package_number' => 'PKG_1',
+                    'fail_error' => 'logistics.package_number_not_exist',
+                    'fail_message' => 'Package is not ready for document creation',
+                ]]],
+            ], 200),
+        ]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        try {
+            $this->connector()->getShippingDocument($auth, 'SN_1', ['externalPackageId' => 'PKG_1']);
+            $this->fail('Expected ShopeeApiException');
+        } catch (ShopeeApiException $e) {
+            $this->assertStringContainsString('Package is not ready for document creation', $e->getMessage());
+            $this->assertStringContainsString('logistics.package_number_not_exist', $e->getMessage());
+        }
     }
 
     public function test_get_shipping_document_failed_throws(): void
@@ -422,6 +511,7 @@ class ShopeeConnectorContractTest extends TestCase
     public function test_arrange_shipment_uses_dropoff_when_offered(): void
     {
         Http::fake([
+            '*/api/v2/order/get_order_detail*' => Http::response(ShopeeFixtures::orderDetail(), 200),
             '*/api/v2/logistics/get_shipping_parameter*' => Http::response(ShopeeFixtures::shippingParameterDropoff(), 200),
             '*/api/v2/logistics/ship_order*' => Http::response(ShopeeFixtures::shipOrder(), 200),
             // chưa ship ⇒ tracking rỗng (idempotency check), sau ship mới có TRK123
@@ -450,6 +540,7 @@ class ShopeeConnectorContractTest extends TestCase
         // Shopee trả package_number trong package_list cho cả đơn 1 kiện (CHƯA tách). Gửi package_number ở
         // ship_order cho đơn chưa tách ⇒ lỗi `logistics.ship_order_not_need_pacakge_number`. Đơn 1 kiện ⇒ KHÔNG gửi.
         Http::fake([
+            '*/api/v2/order/get_order_detail*' => Http::response(ShopeeFixtures::orderDetail(), 200),
             '*/api/v2/logistics/get_shipping_parameter*' => Http::response(ShopeeFixtures::shippingParameter(), 200),
             '*/api/v2/logistics/ship_order*' => Http::response(ShopeeFixtures::shipOrder(), 200),
             '*/api/v2/logistics/get_tracking_number*' => Http::sequence()
@@ -473,6 +564,7 @@ class ShopeeConnectorContractTest extends TestCase
     {
         // Đơn ĐÃ tách (≥2 kiện) ⇒ ship_order PHẢI kèm package_number để chỉ định kiện cần giao.
         Http::fake([
+            '*/api/v2/order/get_order_detail*' => Http::response(ShopeeFixtures::orderDetail(), 200),
             '*/api/v2/logistics/get_shipping_parameter*' => Http::response(ShopeeFixtures::shippingParameter(), 200),
             '*/api/v2/logistics/ship_order*' => Http::response(ShopeeFixtures::shipOrder(), 200),
             '*/api/v2/logistics/get_tracking_number*' => Http::sequence()

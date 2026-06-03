@@ -209,6 +209,12 @@ class ShopeeConnector implements ChannelConnector
         ]);
     }
 
+    /**
+     * Order status đã qua bước arrange (Shopee: get_shipping_parameter/ship_order chỉ hợp lệ ở READY_TO_SHIP;
+     * gọi ở các trạng thái này ⇒ `error_param "...only...when package is ready to be shipped"`).
+     */
+    private const ALREADY_ARRANGED_STATUSES = ['PROCESSED', 'RETRY_SHIP', 'SHIPPED', 'TO_CONFIRM_RECEIVE', 'COMPLETED'];
+
     public function arrangeShipment(AuthContext $auth, string $externalOrderId, array $params = []): array
     {
         $cfg = $this->client->cfg();
@@ -220,6 +226,23 @@ class ShopeeConnector implements ChannelConnector
         $existingTrack = $this->safeTracking($auth, $externalOrderId, $packageNumber);
         if ($existingTrack !== null) {
             return ['tracking_no' => $existingTrack, 'carrier' => null, 'raw_status' => 'PROCESSED', 'package_id' => $packageNumber ?: $externalOrderId];
+        }
+
+        // Precondition theo state machine Shopee (docs/04-channels/shopee.md §7): chỉ get_shipping_parameter/
+        // ship_order khi order_status = READY_TO_SHIP.
+        //  - Đã arrange trước đó (PROCESSED+) nhưng tracking chưa kịp cấp (async) ⇒ KHÔNG ship lại, trả raw_status
+        //    thật để caller lấy tracking/label sau (tránh `error_param ...ready to be shipped`).
+        //  - Chưa tới READY_TO_SHIP (UNPAID/IN_CANCEL/CANCELLED/TO_RETURN) ⇒ báo lỗi rõ ràng.
+        //  - status rỗng (đọc detail lỗi) ⇒ giữ luồng cũ (degrade an toàn, để API sàn tự quyết).
+        $status = $this->currentOrderStatus($auth, $externalOrderId);
+        if (in_array($status, self::ALREADY_ARRANGED_STATUSES, true)) {
+            return ['tracking_no' => null, 'carrier' => null, 'raw_status' => $status, 'package_id' => $packageNumber ?: $externalOrderId];
+        }
+        if ($status !== '' && $status !== 'READY_TO_SHIP') {
+            throw new ShopeeApiException(
+                "Shopee đơn {$externalOrderId} không ở trạng thái READY_TO_SHIP (hiện tại: {$status}) — chưa thể tạo phiếu giao hàng.",
+                'error_param',
+            );
         }
 
         if ((string) ($cfg['fulfillment_mode'] ?? 'auto') !== 'refetch_only') {
@@ -277,6 +300,30 @@ class ShopeeConnector implements ChannelConnector
         return $t !== '' ? $t : null;
     }
 
+    /**
+     * Đọc order_status hiện tại (UPPERCASE) qua get_order_detail. Tolerant: trả '' khi lỗi/không thấy đơn ⇒
+     * caller degrade an toàn (không chặn arrange). Match theo order_sn (response có thể chứa nhiều đơn).
+     */
+    private function currentOrderStatus(AuthContext $auth, string $externalOrderId): string
+    {
+        try {
+            $res = $this->client->shopGet($auth, $this->client->endpoint('order_detail'), [
+                'order_sn_list' => $externalOrderId,
+                'response_optional_fields' => 'order_status',
+            ]);
+        } catch (\Throwable) {
+            return '';
+        }
+        $rows = (array) ($res['order_list'] ?? []);
+        foreach ($rows as $row) {
+            if (is_array($row) && (string) ($row['order_sn'] ?? '') === $externalOrderId) {
+                return strtoupper((string) ($row['order_status'] ?? ''));
+            }
+        }
+
+        return strtoupper((string) (($rows[0]['order_status'] ?? '')));
+    }
+
     public function pushReadyToShip(AuthContext $auth, string $externalOrderId, array $params = []): array
     {
         throw UnsupportedOperation::for($this->code(), 'pushReadyToShip'); // Shopee has no separate RTS step
@@ -289,7 +336,17 @@ class ShopeeConnector implements ChannelConnector
         $docType = (string) ($cfg['document_type'] ?? 'NORMAL_AIR_WAYBILL');
         $orderEntry = array_filter(['order_sn' => $externalOrderId, 'package_number' => $packageNumber ?: null, 'shipping_document_type' => $docType]);
 
-        $this->client->shopPost($auth, $this->client->endpoint('create_document'), [], ['order_list' => [$orderEntry]]);
+        try {
+            $this->client->shopPost($auth, $this->client->endpoint('create_document'), [], ['order_list' => [$orderEntry]]);
+        } catch (ShopeeApiException $e) {
+            // `common.batch_api_all_failed` giấu lý do thật trong result_list[].fail_error/fail_message — bóc ra
+            // để log/báo cho user biết vì sao (vd package chưa sẵn sàng, sai shipping_document_type).
+            $reason = $this->batchFailReason($e->response);
+            if ($reason !== '') {
+                throw new ShopeeApiException("Shopee tạo tem thất bại cho đơn {$externalOrderId}: {$reason}", $e->shopeeError, $e->httpStatus, $e->response);
+            }
+            throw $e;
+        }
 
         $attempts = (int) ($cfg['document_poll_attempts'] ?? 6);
         $sleepMs = (int) ($cfg['document_poll_sleep_ms'] ?? 1000);
@@ -319,6 +376,28 @@ class ShopeeConnector implements ChannelConnector
         ]);
 
         return ['filename' => 'shopee-'.$externalOrderId.'.pdf', 'mime' => 'application/pdf', 'bytes' => $bytes];
+    }
+
+    /**
+     * Bóc lý do thật của batch error Shopee (`create_shipping_document` → `common.batch_api_all_failed`):
+     * lấy `fail_error`/`fail_message` của item đầu tiên trong `result_list`. Rỗng ⇒ caller giữ lỗi gốc.
+     *
+     * @param  array<string,mixed>|null  $response
+     */
+    private function batchFailReason(?array $response): string
+    {
+        foreach ((array) ($response['result_list'] ?? []) as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $err = trim((string) ($row['fail_error'] ?? ''));
+            $msg = trim((string) ($row['fail_message'] ?? ''));
+            if ($err !== '' || $msg !== '') {
+                return trim($err.($err !== '' && $msg !== '' ? ': ' : '').$msg);
+            }
+        }
+
+        return '';
     }
 
     public function fetchSettlements(AuthContext $auth, array $query = []): Page

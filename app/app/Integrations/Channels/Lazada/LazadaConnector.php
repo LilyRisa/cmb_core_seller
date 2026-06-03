@@ -10,6 +10,7 @@ use CMBcoreSeller\Integrations\Channels\DTO\Page;
 use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
+use CMBcoreSeller\Integrations\Channels\Exceptions\ShippingDocumentUnavailable;
 use CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use CMBcoreSeller\Support\GotenbergClient;
@@ -704,6 +705,14 @@ class LazadaConnector implements ChannelConnector
             ]);
             $extracted = $this->extractDocumentBytes($data);
         } catch (\Throwable $e) {
+            if ($this->isUnsupportedOrderTypeError($e)) {
+                // Lazada DBS/SOF (ĐVVC ngoài Lazada) ⇒ sàn KHÔNG cấp AWB. Terminal — KHÔNG thử print_awb
+                // (cũng không in được AWB cho SOF) và KHÔNG retry. Caller (ShipmentService) dừng vòng lặp.
+                throw ShippingDocumentUnavailable::terminal(
+                    'lazada_dbs_sof',
+                    "Đơn Lazada {$externalOrderId} là loại DBS/SOF (seller giao bằng ĐVVC ngoài Lazada) — sàn không cấp tem/AWB qua API.",
+                );
+            }
             $lastErr = $e;
             Log::info('lazada.document_get_failed', ['order' => $externalOrderId, 'item_count' => count($itemIds), 'error' => $e->getMessage()]);
         }
@@ -799,6 +808,19 @@ class LazadaConnector implements ChannelConnector
 
             return [];
         }
+    }
+
+    /**
+     * Lazada DBS/SOF order ⇒ `/order/document/get` trả code `50008` "not support operation for sof order"
+     * (seller dùng ĐVVC ngoài Lazada, sàn không cấp AWB). Nhận diện để báo terminal thay vì retry vô ích.
+     */
+    private function isUnsupportedOrderTypeError(\Throwable $e): bool
+    {
+        $code = $e instanceof LazadaApiException ? $e->lazadaCode : '';
+        $msg = strtolower($e->getMessage());
+        $mentionsSof = str_contains($msg, 'sof') || str_contains($msg, 'dbs');
+
+        return $mentionsSof && (str_contains($msg, 'not support operation') || $code === '50008');
     }
 
     /**

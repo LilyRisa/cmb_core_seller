@@ -50,6 +50,12 @@ class FetchChannelLabel implements ShouldQueue
         if (! $shipment->tracking_no) {
             return;   // chưa có tracking ⇒ chưa thể fetch tem
         }
+        if (data_get($shipment->raw, 'label_unavailable')) {
+            // Terminal: sàn không bao giờ cấp tem cho đơn này (vd Lazada DBS/SOF) ⇒ ngừng retry vĩnh viễn.
+            $shipment->forceFill(['label_fetch_next_retry_at' => null])->save();
+
+            return;
+        }
         $order = Order::withoutGlobalScope(TenantScope::class)->find($shipment->order_id);
         if (! $order) {
             return;

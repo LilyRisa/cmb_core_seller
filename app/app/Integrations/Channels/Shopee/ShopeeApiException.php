@@ -10,7 +10,8 @@ use RuntimeException;
  */
 class ShopeeApiException extends RuntimeException
 {
-    public function __construct(string $message, public readonly string $shopeeError = '', public readonly int $httpStatus = 0)
+    /** @param array<string,mixed>|null $response raw envelope (giữ result_list để bóc lý do batch error) */
+    public function __construct(string $message, public readonly string $shopeeError = '', public readonly int $httpStatus = 0, public readonly ?array $response = null)
     {
         parent::__construct($message);
     }

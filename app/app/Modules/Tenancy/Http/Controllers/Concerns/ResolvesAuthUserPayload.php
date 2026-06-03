@@ -25,14 +25,21 @@ trait ResolvesAuthUserPayload
 
         $tenants = $user->tenants->map(function (Model $tenant): array {
             $pivot = $tenant->getRelation('pivot');
-            $role = $pivot instanceof Model ? $pivot->getAttribute('role') : null;
+            $rawRole = $pivot instanceof Model ? $pivot->getAttribute('role') : null;
+
+            $role = $rawRole instanceof Role
+                ? $rawRole
+                : (is_string($rawRole) ? Role::tryFrom($rawRole) : null);
 
             return [
                 'id' => $tenant->getKey(),
                 'name' => $tenant->getAttribute('name'),
                 'slug' => $tenant->getAttribute('slug'),
                 // Spec 2026-05-17 — super-admin đã tách bảng `admin_users`; user thường không bao giờ là super-admin.
-                'role' => $role instanceof Role ? $role->value : $role,
+                'role' => $role instanceof Role ? $role->value : $rawRole,
+                // SPEC 0029 (mobile) — ability strings của role trong tenant này; mobile dùng
+                // để ẩn/hiện chức năng. Lấy từ Role::permissions() (1 nguồn — không hardcode).
+                'permissions' => $role instanceof Role ? $this->resolveTenantPermissions($role) : [],
             ];
         })->all();
 
@@ -43,5 +50,28 @@ trait ResolvesAuthUserPayload
             'email_verified_at' => optional($user->email_verified_at)->toIso8601String(), // SPEC 0022 — FE hiện banner nếu null.
             'tenants' => $tenants,
         ];
+    }
+
+    /**
+     * Ability strings cho 1 role, suy từ Role::permissions() (single source of truth).
+     *
+     * - Owner/Admin (chứa '*') ⇒ trả `['*']` (mobile hiểu là toàn quyền).
+     * - Role hạt mịn ⇒ trả danh sách quyền tường minh, BỎ chuỗi phủ định ('!...')
+     *   vì mobile chỉ cần các quyền được CẤP để bật/tắt UI.
+     *
+     * @return list<string>
+     */
+    private function resolveTenantPermissions(Role $role): array
+    {
+        $perms = $role->permissions();
+
+        if (in_array('*', $perms, true)) {
+            return ['*'];
+        }
+
+        return array_values(array_filter(
+            $perms,
+            static fn (string $p): bool => ! str_starts_with($p, '!'),
+        ));
     }
 }

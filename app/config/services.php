@@ -35,4 +35,20 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Expo Push (mobile notifications — SPEC 0029)
+    |--------------------------------------------------------------------------
+    |
+    | `enabled` gate toàn bộ luồng Expo push (digest tin nhắn mới). `access_token`
+    | chỉ cần khi bật "Enhanced Security for Push Notifications" trên Expo — để
+    | trống nếu không bật. `url` = batch endpoint của Expo Push HTTP API v2.
+    |
+    */
+    'expo' => [
+        'enabled' => (bool) env('EXPO_PUSH_ENABLED', false),
+        'access_token' => env('EXPO_ACCESS_TOKEN'),
+        'url' => env('EXPO_PUSH_URL', 'https://exp.host/--/api/v2/push/send'),
+    ],
+
 ];

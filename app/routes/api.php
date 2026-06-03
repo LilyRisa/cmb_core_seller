@@ -23,6 +23,7 @@ use CMBcoreSeller\Modules\Orders\Http\Controllers\ReturnController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ChannelListingController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ProductController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\AuthController;
+use CMBcoreSeller\Modules\Tenancy\Http\Controllers\MobileDeviceController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\TenantController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\TokenAuthController;
 use Illuminate\Support\Facades\Route;
@@ -86,6 +87,10 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
         // 2 ngày vượt hạn mức.
         Route::middleware(['verified', 'tenant', 'plan.over_quota_lock'])->group(function () {
             Route::post('media/image', [MediaController::class, 'upload'])->name('media.image.upload');   // generic image upload (e.g. quick-add order item)
+
+            // --- Mobile push device registry (SPEC 0029) — Expo push token ---
+            Route::post('me/devices', [MobileDeviceController::class, 'store'])->name('me.devices.store');
+            Route::delete('me/devices/{id}', [MobileDeviceController::class, 'destroy'])->whereNumber('id')->name('me.devices.destroy');
 
             Route::get('tenant', [TenantController::class, 'show'])->name('tenant.show');
             Route::patch('tenant', [TenantController::class, 'update'])->name('tenant.update');   // SPEC 0011 — workspace info
