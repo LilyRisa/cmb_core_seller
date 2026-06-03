@@ -220,23 +220,16 @@ class ShopeeConnector implements ChannelConnector
         $cfg = $this->client->cfg();
         $packageNumber = (string) ($params['packages'][0]['externalPackageId'] ?? '');
 
-        // Idempotency: đơn đã ship (đã có tracking) ⇒ trả luôn, KHÔNG gọi ship_order lại — re-call ship_order
-        // trên đơn đã PROCESSED sẽ lỗi "logistic status not ready to ship". get_tracking_number trên đơn CHƯA
-        // ship trả rỗng/lỗi ⇒ coi như chưa ship, tiến hành ship bình thường.
-        $existingTrack = $this->safeTracking($auth, $externalOrderId, $packageNumber);
-        if ($existingTrack !== null) {
-            return ['tracking_no' => $existingTrack, 'carrier' => null, 'raw_status' => 'PROCESSED', 'package_id' => $packageNumber ?: $externalOrderId];
-        }
-
-        // Precondition theo state machine Shopee (docs/04-channels/shopee.md §7): chỉ get_shipping_parameter/
-        // ship_order khi order_status = READY_TO_SHIP.
-        //  - Đã arrange trước đó (PROCESSED+) nhưng tracking chưa kịp cấp (async) ⇒ KHÔNG ship lại, trả raw_status
-        //    thật để caller lấy tracking/label sau (tránh `error_param ...ready to be shipped`).
-        //  - Chưa tới READY_TO_SHIP (UNPAID/IN_CANCEL/CANCELLED/TO_RETURN) ⇒ báo lỗi rõ ràng.
-        //  - status rỗng (đọc detail lỗi) ⇒ giữ luồng cũ (degrade an toàn, để API sàn tự quyết).
+        // Idempotency + precondition dựa trên ORDER_STATUS, KHÔNG dựa trên tracking. CỐT LÕI: Shopee
+        // **pre-assign `tracking_number` ngay ở READY_TO_SHIP** (trước khi seller ship_order) — nó nằm trong
+        // get_order_detail.package_list lẫn get_tracking_number. Nếu short-circuit theo tracking (như trước),
+        // đơn chưa thực sự arrange ⇒ `create_shipping_document` báo `logistics.tracking_number_invalid`. Vì vậy:
+        //  - PROCESSED+ (đã arrange thật): KHÔNG ship lại; trả tracking đang có (nếu Shopee đã cấp hợp lệ).
+        //  - chưa tới READY_TO_SHIP (UNPAID/IN_CANCEL/CANCELLED/TO_RETURN): báo lỗi rõ ràng.
+        //  - READY_TO_SHIP (hoặc '' do đọc detail lỗi → degrade): LUÔN ship_order (không tin tracking pre-assigned).
         $status = $this->currentOrderStatus($auth, $externalOrderId);
         if (in_array($status, self::ALREADY_ARRANGED_STATUSES, true)) {
-            return ['tracking_no' => null, 'carrier' => null, 'raw_status' => $status, 'package_id' => $packageNumber ?: $externalOrderId];
+            return ['tracking_no' => $this->safeTracking($auth, $externalOrderId, $packageNumber), 'carrier' => null, 'raw_status' => $status, 'package_id' => $packageNumber ?: $externalOrderId];
         }
         if ($status !== '' && $status !== 'READY_TO_SHIP') {
             throw new ShopeeApiException(

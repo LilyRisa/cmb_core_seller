@@ -16,6 +16,7 @@ use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
@@ -121,6 +122,24 @@ class ChannelOrderFulfillmentTest extends TestCase
         $this->assertSame('TT-TRACK', $shipment->tracking_no);
         $this->assertTrue(blank($shipment->fresh()->label_path));
         Bus::assertDispatched(FetchChannelLabel::class, fn (FetchChannelLabel $j) => $j->shipmentId === (int) $shipment->getKey());
+    }
+
+    // --- B1b: tracking pre-assigned (đã sync) KHÔNG được skip arrange ----------------
+
+    public function test_channel_order_with_preassigned_tracking_still_calls_arrange(): void
+    {
+        // Root cause Shopee `create_shipping_document → tracking_number_invalid`: Shopee pre-assign tracking ngay
+        // ở READY_TO_SHIP (sync vào order.packages[].trackingNo). KHÔNG được coi là "đã arrange" → prepareChannelOrder
+        // VẪN phải gọi sàn arrange (connector idempotent), dùng tracking từ arrange THẬT. (Mô phỏng bằng TikTok
+        // harness; cùng cơ chế cho Shopee.) Trước fix: pre-skip ⇒ shipment giữ tracking pre-assigned, không arrange.
+        $this->fakeTikTokArrange();
+        $order = $this->channelOrder(['packages' => [['externalPackageId' => 'PKG1', 'trackingNo' => 'PRE-ASSIGNED']]]);
+
+        $shipment = app(ShipmentService::class)->createForOrder($order, null, null);
+
+        // Arrange ĐÃ chạy ⇒ dùng tracking thật của sàn, KHÔNG giữ 'PRE-ASSIGNED' đã sync.
+        $this->assertSame('TT-TRACK', $shipment->tracking_no);
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), '/fulfillment/202309/packages/'));
     }
 
     // --- B2: chặn bàn giao khi đơn sàn chưa có tem --------------------------------

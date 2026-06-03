@@ -214,9 +214,9 @@ class ShopeeConnectorContractTest extends TestCase
             '*/api/v2/logistics/get_shipping_parameter*' => Http::response(ShopeeFixtures::shippingParameter(), 200),
             '*/api/v2/logistics/ship_order*' => Http::response(ShopeeFixtures::shipOrder(), 200),
             // Đơn CHƯA ship: get_tracking_number trả rỗng (idempotency check) ⇒ tiến hành ship; SAU ship mới có tracking.
-            '*/api/v2/logistics/get_tracking_number*' => Http::sequence()
-                ->push(['error' => '', 'response' => ['tracking_number' => '']], 200)
-                ->push(ShopeeFixtures::trackingNumber(), 200),
+            // Sau ship_order, get_tracking_number trả mã (chỉ gọi 1 lần — idempotency nay dựa trên order_status,
+            // KHÔNG còn dò tracking trước để short-circuit).
+            '*/api/v2/logistics/get_tracking_number*' => Http::response(ShopeeFixtures::trackingNumber(), 200),
         ]);
         $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
 
@@ -232,11 +232,14 @@ class ShopeeConnectorContractTest extends TestCase
         });
     }
 
-    public function test_arrange_shipment_idempotent_when_already_shipped(): void
+    public function test_arrange_shipment_idempotent_when_already_processed(): void
     {
-        // Đơn đã ship (get_tracking_number đã có mã) ⇒ KHÔNG gọi ship_order lại (re-call sẽ lỗi "not ready to ship").
+        // Đơn ĐÃ arrange thật (order_status = PROCESSED+) ⇒ KHÔNG gọi ship_order lại (re-call sẽ lỗi
+        // "not ready to ship"); trả tracking đang có. Idempotency dựa trên ORDER_STATUS, không dựa trên tracking.
         Http::fake([
-            '*/api/v2/order/get_order_detail*' => Http::response(ShopeeFixtures::orderDetail(), 200),
+            '*/api/v2/order/get_order_detail*' => Http::response(['error' => '', 'response' => ['order_list' => [
+                ShopeeFixtures::orderRow('SN_1', 'PROCESSED'),
+            ]]], 200),
             '*/api/v2/logistics/get_shipping_parameter*' => Http::response(ShopeeFixtures::shippingParameter(), 200),
             '*/api/v2/logistics/ship_order*' => Http::response(ShopeeFixtures::shipOrder(), 200),
             '*/api/v2/logistics/get_tracking_number*' => Http::response(ShopeeFixtures::trackingNumber(), 200),
@@ -247,6 +250,29 @@ class ShopeeConnectorContractTest extends TestCase
 
         $this->assertSame('TRK123', $res['tracking_no']);
         Http::assertNotSent(fn (\Illuminate\Http\Client\Request $r) => str_contains($r->url(), '/api/v2/logistics/ship_order'));
+    }
+
+    public function test_arrange_shipment_ships_even_when_tracking_preassigned_at_ready_to_ship(): void
+    {
+        // ROOT CAUSE `create_shipping_document → logistics.tracking_number_invalid`: Shopee PRE-ASSIGN tracking
+        // ngay ở READY_TO_SHIP (trước khi ship_order). KHÔNG được short-circuit theo tracking đó — phải ship_order
+        // thật, nếu không đơn chưa arrange ⇒ tạo tem báo tracking invalid. Đây là test mô phỏng đúng bug thật.
+        Http::fake([
+            '*/api/v2/order/get_order_detail*' => Http::response(['error' => '', 'response' => ['order_list' => [
+                ShopeeFixtures::orderRow('SN_1', 'READY_TO_SHIP'),
+            ]]], 200),
+            // tracking ĐÃ có sẵn (pre-assigned) ngay khi chưa ship — cũ sẽ short-circuit & skip ship (BUG).
+            '*/api/v2/logistics/get_tracking_number*' => Http::response(ShopeeFixtures::trackingNumber(), 200),
+            '*/api/v2/logistics/get_shipping_parameter*' => Http::response(ShopeeFixtures::shippingParameter(), 200),
+            '*/api/v2/logistics/ship_order*' => Http::response(ShopeeFixtures::shipOrder(), 200),
+        ]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        $res = $this->connector()->arrangeShipment($auth, 'SN_1', ['packages' => [['externalPackageId' => 'PKG_1']]]);
+
+        $this->assertSame('TRK123', $res['tracking_no']);
+        // BẮT BUỘC vẫn gọi ship_order dù tracking đã có sẵn ở READY_TO_SHIP.
+        Http::assertSent(fn (\Illuminate\Http\Client\Request $r) => str_contains($r->url(), '/api/v2/logistics/ship_order'));
     }
 
     public function test_arrange_shipment_skips_ship_when_order_already_processed(): void
@@ -515,9 +541,9 @@ class ShopeeConnectorContractTest extends TestCase
             '*/api/v2/logistics/get_shipping_parameter*' => Http::response(ShopeeFixtures::shippingParameterDropoff(), 200),
             '*/api/v2/logistics/ship_order*' => Http::response(ShopeeFixtures::shipOrder(), 200),
             // chưa ship ⇒ tracking rỗng (idempotency check), sau ship mới có TRK123
-            '*/api/v2/logistics/get_tracking_number*' => Http::sequence()
-                ->push(['error' => '', 'response' => ['tracking_number' => '']], 200)
-                ->push(ShopeeFixtures::trackingNumber(), 200),
+            // Sau ship_order, get_tracking_number trả mã (chỉ gọi 1 lần — idempotency nay dựa trên order_status,
+            // KHÔNG còn dò tracking trước để short-circuit).
+            '*/api/v2/logistics/get_tracking_number*' => Http::response(ShopeeFixtures::trackingNumber(), 200),
         ]);
         $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
 
@@ -543,9 +569,9 @@ class ShopeeConnectorContractTest extends TestCase
             '*/api/v2/order/get_order_detail*' => Http::response(ShopeeFixtures::orderDetail(), 200),
             '*/api/v2/logistics/get_shipping_parameter*' => Http::response(ShopeeFixtures::shippingParameter(), 200),
             '*/api/v2/logistics/ship_order*' => Http::response(ShopeeFixtures::shipOrder(), 200),
-            '*/api/v2/logistics/get_tracking_number*' => Http::sequence()
-                ->push(['error' => '', 'response' => ['tracking_number' => '']], 200)
-                ->push(ShopeeFixtures::trackingNumber(), 200),
+            // Sau ship_order, get_tracking_number trả mã (chỉ gọi 1 lần — idempotency nay dựa trên order_status,
+            // KHÔNG còn dò tracking trước để short-circuit).
+            '*/api/v2/logistics/get_tracking_number*' => Http::response(ShopeeFixtures::trackingNumber(), 200),
         ]);
         $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
 
@@ -567,9 +593,9 @@ class ShopeeConnectorContractTest extends TestCase
             '*/api/v2/order/get_order_detail*' => Http::response(ShopeeFixtures::orderDetail(), 200),
             '*/api/v2/logistics/get_shipping_parameter*' => Http::response(ShopeeFixtures::shippingParameter(), 200),
             '*/api/v2/logistics/ship_order*' => Http::response(ShopeeFixtures::shipOrder(), 200),
-            '*/api/v2/logistics/get_tracking_number*' => Http::sequence()
-                ->push(['error' => '', 'response' => ['tracking_number' => '']], 200)
-                ->push(ShopeeFixtures::trackingNumber(), 200),
+            // Sau ship_order, get_tracking_number trả mã (chỉ gọi 1 lần — idempotency nay dựa trên order_status,
+            // KHÔNG còn dò tracking trước để short-circuit).
+            '*/api/v2/logistics/get_tracking_number*' => Http::response(ShopeeFixtures::trackingNumber(), 200),
         ]);
         $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
 

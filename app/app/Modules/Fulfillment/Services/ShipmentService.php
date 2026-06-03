@@ -379,7 +379,13 @@ class ShipmentService
         $issue = null;
 
         $externalItemIds = [];
-        if ($tracking === null) {
+        // Đơn sàn (connector hỗ trợ shipping.arrange): LUÔN gọi sàn arrange (connector idempotent) — KHÔNG tin
+        // `packages[].trackingNo` ĐÃ SYNC làm "đã arrange". Shopee pre-assign tracking ngay ở READY_TO_SHIP
+        // TRƯỚC khi ship_order; nếu skip arrange theo tracking đó ⇒ đơn chưa thực sự arrange trên Shopee ⇒
+        // create_shipping_document lỗi `tracking_number_invalid`. TikTok/Lazada không pre-assign tracking lúc
+        // pending + arrange idempotent (short-circuit nếu đã arrange) nên KHÔNG bị ảnh hưởng. Đơn manual/self-ship
+        // (không hỗ trợ arrange) đã có tracking tự nhập ⇒ giữ nguyên, không gọi sàn.
+        if ($tracking === null || $this->channelSupportsArrange($order)) {
             try {
                 $arr = $this->arrangeOnChannel($order);   // null = kênh bán chưa hỗ trợ tự lấy phiếu; ném lỗi nếu gọi sàn lỗi
                 if ($arr === null) {
