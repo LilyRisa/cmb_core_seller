@@ -103,6 +103,24 @@ class SlipSubtabTest extends TestCase
             ->json('meta.pagination.total'));
     }
 
+    public function test_order_resource_exposes_slip_state_per_order(): void
+    {
+        // FE cần slip_state per-đơn để phân biệt "đang tải lại" vs "cần nhận phiếu" + retry_at để hiển thị.
+        $this->makeProcessingOrderWithShipment('LZ-PRINT', 'tenants/1/labels/print.pdf', null);
+        $this->makeProcessingOrderWithShipment('LZ-LOAD', null, now()->addMinutes(2));
+        $this->makeProcessingOrderWithShipment('LZ-FAIL', null, null);
+
+        $byExt = [];
+        foreach ($this->actingAs($this->user)->withHeaders($this->header())
+            ->getJson('/api/v1/orders?status=processing')->assertOk()->json('data') as $row) {
+            $byExt[$row['external_order_id']] = $row['shipment']['slip_state'] ?? null;
+        }
+
+        $this->assertSame('printable', $byExt['LZ-PRINT']);
+        $this->assertSame('loading', $byExt['LZ-LOAD']);
+        $this->assertSame('failed', $byExt['LZ-FAIL']);
+    }
+
     public function test_loading_subtab_excludes_orders_whose_next_retry_already_passed(): void
     {
         // Job dispatch với delay 15s nhưng đã quá thời điểm retry kế ⇒ phải rơi xuống `failed`

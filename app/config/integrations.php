@@ -99,6 +99,12 @@ return [
         // After-sales (Hoàn & Hủy — SPEC 0025): cửa sổ poll theo update_time + trần trang.
         'returns_lookback_days' => (int) env('SYNC_RETURNS_LOOKBACK_DAYS', 90),
         'returns_max_pages' => (int) env('SYNC_RETURNS_MAX_PAGES', 50),
+        // Giữ mô hình 2 bước nội bộ cho đơn sàn: "Chuẩn bị hàng" → Processing; chỉ thao tác "Đã gói & sẵn sàng
+        // bàn giao" (markPacked) mới đẩy ReadyToShip. Một số sàn (vd Lazada vài delivery_type) tự đẩy đơn lên
+        // ready_to_ship ngay sau /order/pack ⇒ đồng bộ ngược sẽ "tự nhảy" Processing→Chờ bàn giao phi lý.
+        // BẬT (mặc định) ⇒ KHÔNG auto-nhảy Processing→ReadyToShip từ sync (vẫn lưu raw_status thật). Tắt nếu
+        // muốn theo sát sàn tuyệt đối. Xem docs/03-domain/order-status-state-machine.md.
+        'hold_channel_ready_to_ship' => (bool) env('SYNC_HOLD_CHANNEL_READY_TO_SHIP', true),
     ],
 
     /*
@@ -376,6 +382,9 @@ return [
             'reverse_cancel_decide' => env('LAZADA_REVERSE_CANCEL_DECIDE_PATH', '/order/reverse/cancel/seller/decide'),
             'reverse_refund_decide' => env('LAZADA_REVERSE_REFUND_DECIDE_PATH', '/order/reverse/onlyrefund/seller/decide'),
         ],
+        // Khổ tem AWB khi Lazada trả HTML và HTML thiếu `@page { size }` — dùng để Gotenberg render đúng khổ
+        // (preferCssPageSize), tránh rơi về A4 (thừa vùng trắng). Mặc định 10×15cm. Đổi nếu shop dùng khổ khác.
+        'label_page_size' => env('LAZADA_LABEL_PAGE_SIZE', '100mm 150mm'),
         // Hoàn & Hủy (SPEC 0025). Tắt bằng INTEGRATIONS_LAZADA_RETURNS=false.
         'returns_enabled' => (bool) env('INTEGRATIONS_LAZADA_RETURNS', true),
         'return_status_map' => [

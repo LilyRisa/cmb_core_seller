@@ -754,10 +754,10 @@ class LazadaConnector implements ChannelConnector
         $mime = strtolower($extracted['mime']);
         if (str_contains($mime, 'html')) {
             try {
-                // Gotenberg defaults (A4, 0 margin) đủ cho tem AWB Lazada — HTML từ sàn đã có @page CSS riêng,
-                // override paperWidth/Height qua options sẽ require multipart shape khác (Gotenberg API). Giữ
-                // defaults để Gotenberg tự honor `@page` CSS trong HTML của Lazada.
-                $bytes = app(GotenbergClient::class)->htmlToPdf($bytes);
+                // PHẢI dùng htmlToLabelPdf (preferCssPageSize=true + margin 0): Gotenberg MẶC ĐỊNH bỏ qua
+                // `@page { size }` CSS và ép Letter/A4 + margin ~10mm ⇒ tem nhỏ nằm giữa A4, thừa vùng trắng.
+                // Nếu HTML Lazada thiếu @page, bơm khổ tem AWB chuẩn (config, mặc định 100×150mm) để khỏi rơi A4.
+                $bytes = app(GotenbergClient::class)->htmlToLabelPdf($this->ensureLabelPageSize($bytes));
                 Log::info('lazada.document_html_rendered_to_pdf', ['order' => $externalOrderId, 'html_size' => strlen($extracted['bytes']), 'pdf_size' => strlen($bytes)]);
             } catch (\Throwable $e) {
                 Log::warning('lazada.document_html_to_pdf_failed', ['order' => $externalOrderId, 'error' => $e->getMessage()]);
@@ -808,6 +808,24 @@ class LazadaConnector implements ChannelConnector
 
             return [];
         }
+    }
+
+    /**
+     * Đảm bảo HTML tem có `@page { size }` để Gotenberg (preferCssPageSize) render đúng khổ tem. Nếu HTML
+     * Lazada KHÔNG khai @page, bơm khổ tem AWB chuẩn (config `integrations.lazada.label_page_size`, mặc định
+     * `100mm 150mm` = 10×15cm) + reset margin/padding ⇒ tránh rơi về A4 (thừa vùng trắng). Có @page sẵn thì
+     * giữ nguyên (tôn trọng khổ gốc sàn).
+     */
+    private function ensureLabelPageSize(string $html): string
+    {
+        if (preg_match('/@page\b/i', $html) === 1) {
+            return $html;
+        }
+        $size = (string) (config('integrations.lazada.label_page_size') ?? '100mm 150mm');
+        $css = '<style>@page{size:'.$size.';margin:0}html,body{margin:0;padding:0}</style>';
+        $out = str_ireplace('</head>', $css.'</head>', $html, $count);
+
+        return $count > 0 ? $out : $css.$html;
     }
 
     /**

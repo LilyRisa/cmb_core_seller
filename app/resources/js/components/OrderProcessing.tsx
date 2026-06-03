@@ -214,7 +214,17 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
         }
     } else if (shOpen && ['pending', 'created'].includes(sh!.status)) {
         // Đã chuẩn bị / có vận đơn, chờ đóng gói + quét nội bộ.
-        if (canShip && (blockingIssue || !sh!.has_label)) actions.push(<a key="rs" style={{ color: blockingIssue ? '#cf1322' : undefined }} onClick={() => getSlip()}>Nhận phiếu giao hàng</a>);
+        // Tình trạng phiếu giao hàng (per-đơn):
+        //   - label_unavailable (vd Lazada DBS/SOF) ⇒ sàn không cấp tem, retry vô ích ⇒ chỉ báo, KHÔNG nút.
+        //   - slip_state==='loading' ⇒ job nền đang tự kéo ⇒ hiện spinner "Đang lấy phiếu", KHÔNG cho bấm.
+        //   - còn lại (failed / chưa có tem / có issue chặn) ⇒ cho bấm "Nhận phiếu giao hàng".
+        if (sh!.label_unavailable) {
+            actions.push(<Tooltip key="lblna" title="Sàn không cấp tem/AWB cho loại đơn này (vd DBS/SOF) — xử lý theo luồng giao của sàn."><Typography.Text type="warning"><WarningOutlined /> Sàn không cấp tem</Typography.Text></Tooltip>);
+        } else if (sh!.slip_state === 'loading') {
+            actions.push(<Typography.Text key="lblld" type="secondary"><Spin size="small" /> Đang lấy phiếu…</Typography.Text>);
+        } else if (canShip && (blockingIssue || !sh!.has_label)) {
+            actions.push(<a key="rs" style={{ color: blockingIssue ? '#cf1322' : undefined }} onClick={() => getSlip()}>Nhận phiếu giao hàng</a>);
+        }
         if (canShip) actions.push(<a key="ready" onClick={markReady}>Đã gói & sẵn sàng bàn giao</a>);
     } else if (shOpen && sh!.status === 'packed') {
         // Đã đóng gói, chờ bàn giao ĐVVC.

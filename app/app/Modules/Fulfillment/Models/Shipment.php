@@ -30,6 +30,7 @@ use Illuminate\Support\Carbon;
  * @property int $fee
  * @property string|null $label_url
  * @property string|null $label_path
+ * @property Carbon|null $label_fetch_next_retry_at
  * @property int $print_count
  * @property Carbon|null $last_printed_at
  * @property Carbon|null $picked_up_at

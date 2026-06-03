@@ -91,15 +91,28 @@ class OrderResource extends JsonResource
                     ?? $this->shipments->first(fn ($x) => $x->status !== 'cancelled')
                     ?? $this->shipments->first();
 
-                return $s ? [
+                if (! $s) {
+                    return null;
+                }
+                // Tình trạng phiếu giao hàng per-đơn (khớp OrderController::applySlipFilter):
+                //   printable = đã có tem (label_path) · loading = đang tự kéo lại (retry_at > now) · failed = cần bấm "Nhận phiếu".
+                // FE dùng để hiện đúng nhóm trong sub-tab "Tình trạng phiếu giao hàng" + bật retry đúng ngữ cảnh.
+                $slipState = filled($s->label_path)
+                    ? 'printable'
+                    : (($s->label_fetch_next_retry_at && $s->label_fetch_next_retry_at->isFuture()) ? 'loading' : 'failed');
+
+                return [
                     'id' => $s->id, 'carrier' => $s->carrier, 'tracking_no' => $s->tracking_no,
                     'status' => $s->status,
                     // SPEC 0021 — nhãn tiếng Việt theo trạng thái vận đơn (vd `awaiting_pickup` → "Chờ lấy hàng").
                     'status_label' => Shipment::statusLabel((string) $s->status),
                     'label_url' => $s->label_url, 'has_label' => filled($s->label_path),
+                    'slip_state' => $slipState,
+                    'label_fetch_next_retry_at' => $s->label_fetch_next_retry_at?->toIso8601String(),
+                    'label_unavailable' => (bool) data_get($s->raw, 'label_unavailable'),
                     'print_count' => (int) $s->print_count, 'last_printed_at' => $s->last_printed_at?->toIso8601String(),
                     'packed_at' => $s->packed_at?->toIso8601String(),
-                ] : null;
+                ];
             }),
             // SPEC 2026-05-17 — đơn đã đẩy lên ĐVVC: có shipment với carrier ≠ 'manual' và status ngoài
             // pending/cancelled. UI dùng cờ này để cảnh báo "đơn đã đẩy ĐVVC — sửa chỉ áp dụng local".

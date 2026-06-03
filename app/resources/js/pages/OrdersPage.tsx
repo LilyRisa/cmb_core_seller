@@ -170,20 +170,24 @@ export function OrdersPage() {
         (r) => !r.started_at || Date.now() - new Date(r.started_at).getTime() < STALE_RUNNING_MS,
     );
     const showSyncBanner = syncPoll.isPolling || runningSyncsList.length > 0;
-    // sub-tab "tình trạng phiếu giao hàng" chỉ hiện khi có ≥1 đơn "Chuẩn bị hàng" lỗi (SPEC 0013 — như ui_example)
-    const showSlipTabs = isProcessingTab && (stats?.by_slip?.failed ?? 0) > 0;
-    // Xử lý xong các đơn lỗi ⇒ sub-tab "Nhận phiếu giao hàng" biến mất; tự bỏ filter `slip=failed` còn sót lại
-    // để quay về bộ lọc gốc của "Đang xử lý" (không kẹt ở danh sách rỗng). Cũng dọn slip khi rời tab này.
+    // sub-tab "tình trạng phiếu giao hàng" hiện ở tab "Đang xử lý" khi có BẤT KỲ đơn nào thuộc 3 nhóm
+    // (có thể in / đang tải lại / nhận phiếu) — trước đây chỉ hiện khi có đơn `failed` nên nhóm "đang tải lại"
+    // và "có thể in" bị ẩn, user không thấy đơn nào đang tải lại. SPEC 0013.
+    const slipTotal = (stats?.by_slip?.printable ?? 0) + (stats?.by_slip?.loading ?? 0) + (stats?.by_slip?.failed ?? 0);
+    const showSlipTabs = isProcessingTab && slipTotal > 0;
+    // Tự bỏ filter `slip` còn sót khi rời tab "Đang xử lý" HOẶC khi nhóm slip đang chọn đã hết đơn (tránh kẹt
+    // danh sách rỗng). KHÔNG còn chỉ dọn riêng `failed` ⇒ `loading`/`printable` cũng được xử lý nhất quán.
     useEffect(() => {
         if (!slipParam) return;
-        const stuck = !isProcessingTab || (slipParam === 'failed' && (stats?.by_slip?.failed ?? 0) === 0);
+        const selectedCount = (stats?.by_slip as Record<string, number> | undefined)?.[slipParam];
+        const stuck = !isProcessingTab || (slipParam !== '' && selectedCount === 0);
         if (stuck) {
             const m = new URLSearchParams(params);
             m.delete('slip');
             setParams(m, { replace: true });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isProcessingTab, slipParam, stats?.by_slip?.failed]);
+    }, [isProcessingTab, slipParam, stats?.by_slip]);
 
     // Badge dùng `tabStats` (không filter) ⇒ luôn hiển thị tổng theo status, click sang tab khác luôn thấy
     // số đơn thật sự ở trạng thái đó dù trước đó user đang lọc source/carrier nào.
@@ -220,8 +224,12 @@ export function OrdersPage() {
     // Chuẩn bị hàng: chỉ đơn MỚI (tiền-giao) CHƯA có vận đơn & không âm tồn. Đơn đã có phiếu / đang giao / đã
     // giao / hoàn / huỷ ⇒ không chuẩn bị được.
     const eliPrepare = selectedOrders.filter((o) => !o.shipment && PREPARE_OK_STATUSES.includes(o.status) && !o.out_of_stock);
-    // Nhận phiếu giao hàng: đơn ĐÃ có vận đơn nhưng CHƯA có phiếu (kéo lại tem/phiếu của sàn khi lần trước lỗi).
-    const eliGetSlip = selectedOrders.filter((o) => o.shipment && !o.shipment.has_label);
+    // Nhận phiếu giao hàng: đơn ĐÃ có vận đơn nhưng CHƯA có phiếu VÀ KHÔNG đang tự tải lại (slip_state==='loading'
+    // ⇒ job nền đang kéo, không cần bấm tay) VÀ KHÔNG phải loại đơn sàn không cấp tem (label_unavailable — vd
+    // Lazada DBS/SOF; bấm lại cũng vô ích). slip_state thiếu (payload cũ) ⇒ giữ hành vi cũ (chỉ check has_label).
+    const eliGetSlip = selectedOrders.filter(
+        (o) => o.shipment && !o.shipment.has_label && o.shipment.slip_state !== 'loading' && !o.shipment.label_unavailable,
+    );
     // In phiếu giao hàng: MỌI đơn ĐÃ có phiếu (has_label) — kể cả đang giao / đã giao / hoàn / huỷ.
     const eliPrint = selectedOrders.filter((o) => o.shipment?.has_label);
     const eliPack = selectedOrders.filter((o) => o.shipment && SHIP_PACK_STATUSES.includes(o.shipment.status));

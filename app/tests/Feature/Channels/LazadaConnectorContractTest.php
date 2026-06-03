@@ -717,6 +717,56 @@ class LazadaConnectorContractTest extends TestCase
         });
     }
 
+    public function test_lazada_html_label_rendered_with_css_page_size_to_avoid_a4_whitespace(): void
+    {
+        // Fix "tem nhỏ + thừa vùng trắng": render HTML phải dùng htmlToLabelPdf (preferCssPageSize=true +
+        // margin 0). HTML thiếu @page ⇒ connector bơm @page khổ tem (mặc định 100mm 150mm) để khỏi rơi về A4.
+        $html = '<html><head><title>AWB</title></head><body>Label content</body></html>';   // KHÔNG có @page
+        Http::fake([
+            '*/order/document/get*' => Http::response($this->ok(['document' => ['file' => base64_encode($html), 'mime_type' => 'text/html']])),
+            '*/forms/chromium/convert/html' => Http::response('%PDF-1.4 rendered', 200),
+        ]);
+
+        $doc = $this->connector()->getShippingDocument($this->auth(), '1001', ['order_item_ids' => [9001]]);
+        $this->assertStringContainsString('%PDF', $doc['bytes']);
+
+        Http::assertSent(function ($req) {
+            if (! str_contains((string) $req->url(), '/forms/chromium/convert/html')) {
+                return false;
+            }
+            $body = (string) $req->body();
+
+            // preferCssPageSize + margin 0 (htmlToLabelPdf) và @page khổ tem được bơm vào HTML.
+            return str_contains($body, 'preferCssPageSize')
+                && str_contains($body, 'name="marginTop"')
+                && str_contains($body, '@page')
+                && str_contains($body, '100mm 150mm');
+        });
+    }
+
+    public function test_lazada_html_label_keeps_existing_page_size(): void
+    {
+        // HTML đã có @page riêng của Lazada ⇒ KHÔNG bơm thêm (tôn trọng khổ gốc), vẫn render qua htmlToLabelPdf.
+        $html = '<html><head><style>@page{size:80mm 120mm;margin:0}</style></head><body>X</body></html>';
+        Http::fake([
+            '*/order/document/get*' => Http::response($this->ok(['document' => ['file' => base64_encode($html), 'mime_type' => 'text/html']])),
+            '*/forms/chromium/convert/html' => Http::response('%PDF-ok', 200),
+        ]);
+
+        $this->connector()->getShippingDocument($this->auth(), '1001', ['order_item_ids' => [9001]]);
+
+        Http::assertSent(function ($req) {
+            if (! str_contains((string) $req->url(), '/forms/chromium/convert/html')) {
+                return false;
+            }
+            $body = (string) $req->body();
+
+            return str_contains($body, 'preferCssPageSize')
+                && str_contains($body, '80mm 120mm')
+                && ! str_contains($body, '100mm 150mm');   // không bơm khổ mặc định đè khổ gốc
+        });
+    }
+
     public function test_get_shipping_document_keeps_pdf_response_as_is_when_lazada_returns_binary(): void
     {
         // Một số region/sandbox trả PDF binary trực tiếp (mime=application/pdf hoặc file đã `%PDF` magic).
