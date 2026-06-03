@@ -152,21 +152,30 @@ class OrderUpsertService implements OrderUpsertContract
                 $issueReason = "Sàn báo lùi trạng thái bất thường: {$previousStatus->value} → {$status->value}";
             }
 
-            // Đơn sàn: giữ mô hình 2 bước nội bộ — "Chuẩn bị hàng" → Processing; chỉ thao tác "Đã gói & sẵn sàng
-            // bàn giao" (markPacked, đi qua OrderStatusSync::apply — KHÔNG qua doUpsert) mới đẩy ReadyToShip. Một
-            // số sàn (vd Lazada vài delivery_type) tự đẩy đơn lên ready_to_ship ngay sau /order/pack ⇒ đồng bộ
-            // ngược ghi đè Processing→ReadyToShip khiến đơn "tự nhảy" sang Chờ bàn giao phi lý. Giữ Processing ở
-            // ĐÚNG trường hợp này (vẫn lưu raw_status thật ở dưới). Đơn mới (created) hoặc tiến thật lên Shipped+
-            // KHÔNG bị ảnh hưởng. Tắt bằng SYNC_HOLD_CHANNEL_READY_TO_SHIP=false.
-            if (! $created
-                && $channelAccountId !== null
-                && $previousStatus === StandardOrderStatus::Processing
-                && $status === StandardOrderStatus::ReadyToShip
+            // "Sticky-forward" cho ĐƠN SÀN (tối ưu luồng chờ — độ trễ async của sàn): khi app đã "Chuẩn bị hàng"
+            // (local đã ở processing/ready_to_ship) thì đồng bộ ngược KHÔNG được kéo lùi trạng thái về
+            // pending/unpaid chỉ vì sàn CHƯA KỊP cập nhật (vd Shopee READY_TO_SHIP→PROCESSED bất đồng bộ;
+            // READY_TO_SHIP map ra `pending` ⇒ poll kéo đơn "nhảy" về Chờ xử lý). Cũng KHÔNG auto-nhảy
+            // Processing→ReadyToShip từ sync (chỉ markPacked nội bộ mới đẩy). Vẫn LƯU raw_status thật ở dưới.
+            // CHỈ giữ — không bao giờ chặn tiến thật (shipped/delivered/cancelled/returning đều đi qua bình
+            // thường). Đơn MỚI (created) không bị ảnh hưởng. Tắt bằng SYNC_HOLD_CHANNEL_READY_TO_SHIP=false.
+            if (! $created && $channelAccountId !== null
                 && (bool) config('integrations.sync.hold_channel_ready_to_ship', true)) {
-                Log::info('order.channel_ready_to_ship_held_at_processing', [
-                    'order_id' => $order->getKey(), 'source' => $dto->source, 'raw_status' => $dto->rawStatus,
-                ]);
-                $status = StandardOrderStatus::Processing;
+                $prepared = [StandardOrderStatus::Processing, StandardOrderStatus::ReadyToShip];
+                $prePrepare = [StandardOrderStatus::Unpaid, StandardOrderStatus::Pending];
+                $kept = null;
+                if (in_array($previousStatus, $prepared, true) && in_array($status, $prePrepare, true)) {
+                    $kept = $previousStatus;   // (1) không kéo lùi đơn đã chuẩn bị về Chờ xử lý/Chờ thanh toán
+                } elseif ($previousStatus === StandardOrderStatus::Processing && $status === StandardOrderStatus::ReadyToShip) {
+                    $kept = StandardOrderStatus::Processing;   // (2) không auto-nhảy lên Chờ bàn giao từ sync
+                }
+                if ($kept !== null) {
+                    Log::info('order.channel_status_held', [
+                        'order_id' => $order->getKey(), 'source' => $dto->source,
+                        'kept' => $kept->value, 'channel_mapped' => $status->value, 'raw_status' => $dto->rawStatus,
+                    ]);
+                    $status = $kept;
+                }
             }
 
             $attrs = [

@@ -121,6 +121,24 @@ class SlipSubtabTest extends TestCase
         $this->assertSame('failed', $byExt['LZ-FAIL']);
     }
 
+    public function test_slip_state_ignores_non_open_labelled_shipment(): void
+    {
+        // Đơn có 1 vận đơn ĐÃ HUỶ (có tem) + 1 vận đơn OPEN chưa tem ⇒ slip_state theo vận đơn OPEN ('failed'),
+        // KHÔNG báo 'printable' từ vận đơn huỷ. Khớp applySlipFilter (chỉ xét OPEN). (Trước fix: báo 'printable' sai.)
+        $order = $this->makeProcessingOrderWithShipment('LZ-2SH', null, null);   // open, no label → failed
+        Shipment::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $this->tenant->getKey(), 'order_id' => $order->getKey(),
+            'carrier' => 'LEX VN', 'tracking_no' => 'TRK-CANCELLED', 'status' => 'cancelled',
+            'cod_amount' => 0, 'label_path' => 'tenants/1/labels/old.pdf',
+        ]);
+
+        $rows = $this->actingAs($this->user)->withHeaders($this->header())
+            ->getJson('/api/v1/orders?status=processing')->assertOk()->json('data');
+        $row = collect($rows)->firstWhere('external_order_id', 'LZ-2SH');
+
+        $this->assertSame('failed', $row['shipment']['slip_state'], 'slip_state phải theo vận đơn OPEN, bỏ qua vận đơn huỷ có tem.');
+    }
+
     public function test_loading_subtab_excludes_orders_whose_next_retry_already_passed(): void
     {
         // Job dispatch với delay 15s nhưng đã quá thời điểm retry kế ⇒ phải rơi xuống `failed`

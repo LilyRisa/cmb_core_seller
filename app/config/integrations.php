@@ -496,6 +496,10 @@ return [
         'fulfillment_enabled' => (bool) env('INTEGRATIONS_SHOPEE_FULFILLMENT', true),
         'fulfillment_mode' => env('SHOPEE_FULFILLMENT_MODE', 'auto'),  // 'auto' | 'refetch_only'
         'ship_method' => env('SHOPEE_SHIP_METHOD', 'auto'),  // 'auto' | 'dropoff' | 'pickup' — exact selection verify trên sandbox
+        // Trạng thái sàn KHÔNG cho "Chuẩn bị hàng" — chặn SỚM + báo tiếng Việt rõ ràng, KHÔNG gọi API rồi lỗi
+        // khó hiểu (vd đơn UNPAID gọi get_shipping_parameter → error_param). UNPAID = chưa thanh toán;
+        // IN_CANCEL = buyer đang xin huỷ. CSV; đổi bằng SHOPEE_UNFULFILLABLE_RAW_STATUSES.
+        'unfulfillable_raw_statuses' => array_values(array_filter(array_map('trim', explode(',', (string) env('SHOPEE_UNFULFILLABLE_RAW_STATUSES', 'UNPAID,IN_CANCEL'))))),
         'finance_enabled' => (bool) env('INTEGRATIONS_SHOPEE_FINANCE', false),
         'endpoints' => [
             'auth_partner' => '/api/v2/shop/auth_partner',

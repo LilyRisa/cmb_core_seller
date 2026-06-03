@@ -52,6 +52,11 @@ Từ `escrow_detail.order_income` → map sang `feeType` chuẩn: `buyer_total_a
 - `fetchOrders` window tối đa 15 ngày — cursor encode `"windowStart:innerCursor"` để chia nhỏ tự động.
 - `fetchReturns` (`get_return_list`) cũng giới hạn `create_time_from..create_time_to` ≤ 15 ngày — windowed y hệt `fetchOrders`, cursor encode `"windowStart:pageNo"` (page_no 0-based). `updatedFrom` xa hơn 15 ngày sẽ tự chia cửa sổ; nếu không windowed sẽ lỗi `error_param` "period ... must not more than 15 days".
 - `unprocessedRawStatuses()` = `['READY_TO_SHIP']` (đơn sàn `READY_TO_SHIP` cần xử lý fulfillment).
+- **Ổn định hoá luồng xử lý (2026-06-03):**
+  - **Sticky-forward**: Shopee `READY_TO_SHIP→pending`, `PROCESSED→processing`; Shopee chuyển READY_TO_SHIP→PROCESSED **bất đồng bộ** nên sau "Chuẩn bị hàng" poll dễ kéo đơn lùi về Chờ xử lý. `OrderUpsertService` không cho sync kéo lùi đơn đã chuẩn bị về `pending`/`unpaid` (xem order-status-state-machine.md §3.7). Cờ `SYNC_HOLD_CHANNEL_READY_TO_SHIP`.
+  - **Gating "Chuẩn bị hàng"**: `integrations.shopee.unfulfillable_raw_statuses` (mặc định `UNPAID,IN_CANCEL`) — chặn SỚM + báo tiếng Việt rõ ràng, KHÔNG gọi API rồi lỗi khó hiểu. Đổi bằng `SHOPEE_UNFULFILLABLE_RAW_STATUSES`.
+  - **Thông báo lỗi**: lỗi pickup không có địa chỉ giờ là tiếng Việt, không lộ tên biến env.
+  - **Bộ lọc "Tình trạng phiếu"**: badge `by_slip` đếm trong phạm vi `processing` (khớp danh sách khi chọn sub-tab); `OrderResource.slip_state` tính trên vận đơn OPEN (khớp `applySlipFilter`, đúng cả khi đơn có ≥2 vận đơn).
 - **`arrangeShipment` precheck `order_status`** (fix `get_shipping_parameter [error_param] ...only...when package is ready to be shipped`, 2026-06-03): Shopee chỉ cho `get_shipping_parameter`/`ship_order` khi `order_status = READY_TO_SHIP`. Connector đọc `order_status` (get_order_detail) trước khi ship:
   - `PROCESSED`/`RETRY_SHIP`/`SHIPPED`/`TO_CONFIRM_RECEIVE`/`COMPLETED` (đã arrange trước đó, có thể chưa kịp cấp tracking vì Shopee cấp async) ⇒ KHÔNG ship lại, trả `raw_status` thật (caller lấy tracking/label sau).
   - `UNPAID`/`IN_CANCEL`/`CANCELLED`/`TO_RETURN` ⇒ `ShopeeApiException` báo rõ "chưa ở READY_TO_SHIP".

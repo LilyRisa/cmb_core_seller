@@ -294,11 +294,15 @@ class OrderController extends Controller
         $openNoLabelStuck = fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES)
             ->whereNull('label_path')
             ->where(fn (Builder $w) => $w->whereNull('label_fetch_next_retry_at')->orWhere('label_fetch_next_retry_at', '<=', now()));
+        // Sub-tab "Tình trạng phiếu" chỉ sống ở tab "Đang xử lý" — danh sách khi chọn sub-tab có sẵn
+        // `status=processing`. Vì vậy badge ĐẾM cũng phải bó trong phạm vi `processing` để KHỚP số đơn hiện ra
+        // (trước đây đếm trên mọi status ⇒ badge ≠ list). Đơn đã sang Chờ bàn giao/Shipped (có tem) thuộc tab khác.
+        $slipBase = (clone $statusBase)->where('status', StandardOrderStatus::Processing->value);
         $bySlip = [
-            'printable' => (clone $statusBase)->whereHas('shipments', $openLabelled)->count(),
-            'loading' => (clone $statusBase)->whereHas('shipments', $openNoLabelInQueue)
+            'printable' => (clone $slipBase)->whereHas('shipments', $openLabelled)->count(),
+            'loading' => (clone $slipBase)->whereHas('shipments', $openNoLabelInQueue)
                 ->whereDoesntHave('shipments', $openLabelled)->count(),
-            'failed' => (clone $statusBase)->whereHas('shipments', $openNoLabelStuck)
+            'failed' => (clone $slipBase)->whereHas('shipments', $openNoLabelStuck)
                 ->whereDoesntHave('shipments', $openLabelled)
                 ->whereDoesntHave('shipments', $openNoLabelInQueue)->count(),
         ];

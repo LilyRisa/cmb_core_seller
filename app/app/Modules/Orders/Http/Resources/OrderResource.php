@@ -94,12 +94,20 @@ class OrderResource extends JsonResource
                 if (! $s) {
                     return null;
                 }
-                // Tình trạng phiếu giao hàng per-đơn (khớp OrderController::applySlipFilter):
-                //   printable = đã có tem (label_path) · loading = đang tự kéo lại (retry_at > now) · failed = cần bấm "Nhận phiếu".
-                // FE dùng để hiện đúng nhóm trong sub-tab "Tình trạng phiếu giao hàng" + bật retry đúng ngữ cảnh.
-                $slipState = filled($s->label_path)
-                    ? 'printable'
-                    : (($s->label_fetch_next_retry_at && $s->label_fetch_next_retry_at->isFuture()) ? 'loading' : 'failed');
+                // Tình trạng phiếu giao hàng per-đơn — tính trên các vận đơn OPEN (KHỚP CHÍNH XÁC
+                // OrderController::applySlipFilter/by_slip; trước đây tính trên 1 vận đơn `$s` ưu tiên label_path
+                // nên đơn có ≥2 vận đơn (vd 1 huỷ có tem + 1 open chưa tem) báo nhóm SAI so với bộ lọc).
+                //   printable = có ≥1 vận đơn open đã có tem · loading = open chưa tem & đang queue (retry_at>now)
+                //   · failed = open chưa tem & hết/không queue · null = không còn vận đơn open (đã giao/huỷ...).
+                $open = $this->shipments->filter(fn ($x) => in_array((string) $x->status, Shipment::OPEN_STATUSES, true));
+                $slipState = null;
+                if ($open->isNotEmpty()) {
+                    $slipState = $open->first(fn ($x) => filled($x->label_path)) !== null
+                        ? 'printable'
+                        : ($open->first(fn ($x) => $x->label_fetch_next_retry_at && $x->label_fetch_next_retry_at->isFuture()) !== null
+                            ? 'loading'
+                            : 'failed');
+                }
 
                 return [
                     'id' => $s->id, 'carrier' => $s->carrier, 'tracking_no' => $s->tracking_no,

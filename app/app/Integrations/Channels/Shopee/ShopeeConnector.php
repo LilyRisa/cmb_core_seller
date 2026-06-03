@@ -260,7 +260,8 @@ class ShopeeConnector implements ChannelConnector
                     'pickup_time_id' => $addr['time_slot_list'][0]['pickup_time_id'] ?? null,
                 ]);
                 if (empty($body['pickup']['address_id'])) {
-                    throw new ShopeeApiException("Shopee get_shipping_parameter returned no pickup address for order {$externalOrderId}; set SHOPEE_SHIP_METHOD=dropoff or verify the shipping parameter response.", 'error_param');
+                    // Thông báo tiếng Việt, KHÔNG lộ tên biến env lên UI.
+                    throw new ShopeeApiException("Shopee chưa có địa chỉ lấy hàng (pickup) cho đơn {$externalOrderId}. Kiểm tra cấu hình lấy hàng/giao hàng trên Shopee Seller Center, hoặc chuyển sang gửi tại bưu cục.", 'error_param');
                 }
             }
             $this->client->shopPost($auth, $this->client->endpoint('ship_order'), [], $body);

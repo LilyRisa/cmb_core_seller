@@ -124,6 +124,31 @@ class ChannelOrderFulfillmentTest extends TestCase
         Bus::assertDispatched(FetchChannelLabel::class, fn (FetchChannelLabel $j) => $j->shipmentId === (int) $shipment->getKey());
     }
 
+    public function test_prepare_blocked_for_shopee_unpaid_order(): void
+    {
+        // Shopee UNPAID ⇒ chặn "Chuẩn bị hàng" với thông báo VN, KHÔNG gọi API sàn (trước đây gọi
+        // get_shipping_parameter rồi lỗi error_param khó hiểu → "vớ vẩn").
+        config(['integrations.shopee.unfulfillable_raw_statuses' => ['UNPAID', 'IN_CANCEL']]);
+        $shopee = ChannelAccount::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $this->tenant->getKey(), 'provider' => 'shopee', 'external_shop_id' => 'SP1',
+            'shop_name' => 'Shopee', 'status' => ChannelAccount::STATUS_ACTIVE,
+            'access_token' => 'tk', 'refresh_token' => 'rk', 'token_expires_at' => now()->addDays(7),
+        ]);
+        Http::fake();
+        $order = $this->channelOrder(['source' => 'shopee', 'channel_account_id' => $shopee->getKey(), 'raw_status' => 'UNPAID', 'status' => StandardOrderStatus::Unpaid]);
+
+        $message = null;
+        try {
+            app(ShipmentService::class)->createForOrder($order, null, null);
+        } catch (RuntimeException $e) {
+            $message = $e->getMessage();
+        }
+        $this->assertNotNull($message, 'Phải chặn đơn Shopee UNPAID');
+        $this->assertStringContainsString('UNPAID', $message);
+        $this->assertSame(0, Shipment::withoutGlobalScope(TenantScope::class)->where('order_id', $order->getKey())->count());
+        Http::assertNothingSent();
+    }
+
     // --- B1b: tracking pre-assigned (đã sync) KHÔNG được skip arrange ----------------
 
     public function test_channel_order_with_preassigned_tracking_still_calls_arrange(): void

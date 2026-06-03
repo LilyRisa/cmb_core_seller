@@ -90,4 +90,26 @@ class OrderUpsertReadyToShipHoldTest extends TestCase
         $after = $this->sync('LZ4', 'shipped', S::Shipped, CarbonImmutable::now());
         $this->assertSame(S::Shipped, $after->status, 'Tiến thật lên Shipped KHÔNG bị guard chặn.');
     }
+
+    public function test_prepared_order_not_regressed_to_pending_by_sync(): void
+    {
+        // Sticky-forward (fix gốc "nhảy lung tung"): đơn đã "Chuẩn bị hàng" (Processing) ⇒ sync KHÔNG kéo lùi
+        // về Pending dù sàn chưa kịp cập nhật (vd Shopee READY_TO_SHIP→pending trong lúc chờ chuyển PROCESSED).
+        $this->sync('LZ5', 'packed', S::Processing, CarbonImmutable::now()->subMinutes(10));
+        $after = $this->sync('LZ5', 'ready_to_ship', S::Pending, CarbonImmutable::now());
+
+        $this->assertSame(S::Processing, $after->status, 'Đơn đã chuẩn bị KHÔNG được kéo lùi về Chờ xử lý.');
+        $this->assertSame('ready_to_ship', $after->raw_status, 'Vẫn lưu raw_status thật của sàn.');
+    }
+
+    public function test_ready_to_ship_order_not_regressed_to_pending_by_sync(): void
+    {
+        // Đơn đã ở Chờ bàn giao (do markPacked nội bộ — set thẳng để mô phỏng) cũng không bị sync kéo lùi.
+        $order = $this->sync('LZ6', 'packed', S::Processing, CarbonImmutable::now()->subMinutes(20));
+        $order->forceFill(['status' => S::ReadyToShip])->save();   // mô phỏng markPacked (đi qua OrderStatusSync, không qua doUpsert)
+
+        $after = $this->sync('LZ6', 'pending', S::Pending, CarbonImmutable::now());
+
+        $this->assertSame(S::ReadyToShip, $after->status, 'Đơn Chờ bàn giao KHÔNG bị kéo lùi về Chờ xử lý.');
+    }
 }

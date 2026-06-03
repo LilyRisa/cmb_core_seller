@@ -328,7 +328,9 @@ class ShipmentService
         $blocked = array_map('strtoupper', (array) config("integrations.{$account->provider}.unfulfillable_raw_statuses", []));
         $raw = strtoupper(trim((string) $order->raw_status));
         if ($raw !== '' && in_array($raw, $blocked, true)) {
-            throw new RuntimeException("Đơn đang ở trạng thái chờ ({$raw}) — sàn chưa cho chuẩn bị hàng (khách còn có thể tự huỷ và chưa có địa chỉ giao). Đợi đơn chuyển sang trạng thái sẵn sàng giao rồi thử lại.");
+            // Thông báo VN gọn, đúng cho mọi sàn (UNPAID/ON_HOLD/IN_CANCEL...) — không gọi API sàn, không lộ
+            // lỗi kỹ thuật. Đợi đơn sang trạng thái sẵn sàng giao rồi thử lại.
+            throw new RuntimeException("Đơn đang ở trạng thái \"{$raw}\" — sàn chưa cho chuẩn bị hàng. Đợi đơn sẵn sàng giao (đã thanh toán & không còn yêu cầu huỷ) rồi thử lại.");
         }
     }
 
