@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { App as AntApp, Avatar, Button, Empty, Input, InputNumber, Popover, Space, Spin, Table, Typography, Upload } from 'antd';
 import type { RcFile } from 'antd/es/upload';
-import { DeleteOutlined, PictureOutlined, PlusOutlined, SearchOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { DeleteOutlined, PictureOutlined, PlusOutlined, SearchOutlined, ThunderboltOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { errorMessage } from '@/lib/api';
 import { useSkus, useUploadImage, type Sku } from '@/lib/inventory';
@@ -56,7 +56,7 @@ function PickerPanel({ onPickSku, onQuickCreate, taken }: { onPickSku: (s: Sku) 
                         <Avatar shape="square" size={40} src={s.image_url ?? undefined} icon={<PictureOutlined />} style={{ background: '#f5f5f5', color: '#bfbfbf', flex: 'none' }} />
                         <div style={{ minWidth: 0, flex: 'auto' }}>
                             <Typography.Text strong ellipsis={{ tooltip: s.name }} style={{ display: 'block' }}>{s.name}</Typography.Text>
-                            <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis>SKU: {s.sku_code} · Tồn khả dụng: {s.available_total ?? 0}{s.ref_sale_price != null ? ` · Giá TK: ${vnd(s.ref_sale_price)}` : ''}</Typography.Text>
+                            <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis>SKU: {s.sku_code} · Tồn khả dụng: <span style={{ color: (s.available_total ?? 0) <= 0 ? '#cf1322' : 'inherit', fontWeight: (s.available_total ?? 0) <= 0 ? 600 : 400 }}>{s.available_total ?? 0}</span>{(s.available_total ?? 0) < 0 ? ' (âm tồn)' : ''}{s.ref_sale_price != null ? ` · Giá TK: ${vnd(s.ref_sale_price)}` : ''}</Typography.Text>
                         </div>
                         {taken.has(s.id) ? <Typography.Text type="secondary" style={{ fontSize: 12, flex: 'none' }}>+1</Typography.Text> : <PlusOutlined style={{ color: '#1677ff', flex: 'none' }} />}
                     </div>
@@ -128,7 +128,10 @@ export function OrderItemsEditor({ value = [], onChange, renderTrigger, emptySta
                     {r.sku_id ? (
                         <>
                             <Typography.Text strong ellipsis={{ tooltip: r.name }} style={{ display: 'block', maxWidth: 300 }}>{r.name}</Typography.Text>
-                            <Typography.Text type="secondary" style={{ fontSize: 12 }}>SKU: {r.sku_code} · Tồn khả dụng: {r.available ?? 0}</Typography.Text>
+                            <Typography.Text type="secondary" style={{ fontSize: 12 }}>SKU: {r.sku_code} · Tồn khả dụng: <span style={{ color: (r.available ?? 0) < r.quantity ? '#cf1322' : 'inherit', fontWeight: (r.available ?? 0) < r.quantity ? 600 : 400 }}>{r.available ?? 0}</span></Typography.Text>
+                            {(r.available ?? 0) < r.quantity && (
+                                <div><Typography.Text style={{ fontSize: 11, color: '#cf1322' }}><WarningOutlined /> {(r.available ?? 0) < 0 ? 'Đang âm tồn — đơn sẽ không chuẩn bị hàng được' : 'Vượt tồn khả dụng — sẽ âm tồn, không chuẩn bị hàng được'}</Typography.Text></div>
+                            )}
                         </>
                     ) : (
                         <>

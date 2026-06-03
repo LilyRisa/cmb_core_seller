@@ -460,6 +460,7 @@ export function OrdersPage() {
                             </Tag>
                         )}
                         {o.is_cod && <Tag color="gold">COD</Tag>}
+                        {o.out_of_stock && <Tooltip title="Tồn kho đang âm — không thể chuẩn bị hàng / tạo vận đơn. Hãy nhập thêm hàng rồi thử lại."><Tag color="error" icon={<WarningOutlined />}>Âm tồn — không thao tác được</Tag></Tooltip>}
                         {o.issue_reason === UNMAPPED_REASON
                             // "SKU chưa ghép" KHÔNG còn chặn in / fulfillment — đơn vẫn xử lý bình thường, chỉ là
                             // không có dòng nào động vào tồn kho. Đổi sang warning (vàng) thay vì error (đỏ).

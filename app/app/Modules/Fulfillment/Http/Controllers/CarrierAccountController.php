@@ -123,7 +123,7 @@ class CarrierAccountController extends Controller
         return $result;
     }
 
-    public function update(Request $request, int $id): JsonResponse
+    public function update(Request $request, int $id, CarrierRegistry $registry): JsonResponse
     {
         abort_unless($request->user()?->can('fulfillment.carriers'), 403, 'Bạn không có quyền cấu hình ĐVVC.');
         $account = CarrierAccount::query()->findOrFail($id);
@@ -135,12 +135,28 @@ class CarrierAccountController extends Controller
             'is_active' => ['sometimes', 'boolean'],
             'meta' => ['sometimes', 'nullable', 'array'],
         ]);
-        DB::transaction(function () use ($account, $data) {
+        // Sửa từng phần: MERGE credentials/meta thay vì ghi đè — để trống credential ⇒ giữ giá trị cũ
+        // (FE không gửi lại secret); cập nhật `from_address` không làm mất `meta.last_verify_*`.
+        $credChanged = false;
+        DB::transaction(function () use ($account, &$data, &$credChanged) {
             if (array_key_exists('is_default', $data) && $data['is_default']) {
                 CarrierAccount::query()->where('id', '!=', $account->getKey())->update(['is_default' => false]);
             }
+            if (array_key_exists('credentials', $data)) {
+                $incoming = array_filter((array) ($data['credentials'] ?? []), fn ($v) => $v !== null && $v !== '');
+                $credChanged = $incoming !== [];
+                $data['credentials'] = array_merge((array) ($account->credentials ?? []), $incoming);
+            }
+            if (array_key_exists('meta', $data)) {
+                $data['meta'] = array_merge((array) ($account->meta ?? []), (array) ($data['meta'] ?? []));
+            }
             $account->forceFill($data)->save();
         });
+
+        // Credentials đổi ⇒ verify lại để cập nhật trạng thái kết nối (giống lúc tạo).
+        if ($credChanged) {
+            $this->runVerifyAndPersist($registry, $account->refresh());
+        }
 
         return response()->json(['data' => new CarrierAccountResource($account->refresh())]);
     }

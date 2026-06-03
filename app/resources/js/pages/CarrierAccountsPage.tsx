@@ -11,6 +11,7 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
+import { AddressPicker, type PickedAddress } from '@/components/AddressPicker';
 import { CarrierLogo, CARRIER_TAGLINE } from '@/components/CarrierLogo';
 import { CARRIER_META } from '@/components/CarrierBadge';
 import { errorMessage } from '@/lib/api';
@@ -27,10 +28,14 @@ const CRED_FIELDS: Record<string, Array<{ key: string; label: string; required?:
     ghn: [
         { key: 'token', label: 'API Token', required: true, placeholder: 'Token Production / Test từ GHN Dashboard' },
     ],
+    ghtk: [
+        { key: 'token', label: 'API Token', required: true, placeholder: 'Token từ GHTK (Cấu hình → API)' },
+        { key: 'client_source', label: 'Mã đối tác (X-Client-Source)', required: false, placeholder: 'Mã shop/đối tác GHTK (nếu có)' },
+    ],
 };
 
 // Carrier nào cần "địa chỉ kho hàng" để tạo vận đơn? GHN yêu cầu district_id của kho.
-const FROM_ADDRESS_REQUIRED: Record<string, boolean> = { ghn: true };
+const FROM_ADDRESS_REQUIRED: Record<string, boolean> = { ghn: true, ghtk: true };
 
 // Các field "tên người gửi / SĐT / địa chỉ" vẫn nhập tay — chỉ mã hành chính do GHN cung cấp được
 // load tự động qua cascading Select (xem `GhnFromAddressSection`). Form field names giữ nguyên prefix
@@ -43,7 +48,6 @@ const FROM_ADDRESS_BASIC_FIELDS: Array<{ key: string; label: string; required?: 
 
 // Danh sách ĐVVC "sắp có" — hiển thị dimmed-card để người dùng biết roadmap.
 const COMING_SOON: Array<{ code: string; name: string }> = [
-    { code: 'ghtk', name: 'GHTK' },
     { code: 'jt', name: 'J&T Express' },
     { code: 'viettelpost', name: 'Viettel Post' },
     { code: 'spx', name: 'SPX Express' },
@@ -51,7 +55,7 @@ const COMING_SOON: Array<{ code: string; name: string }> = [
     { code: 'ahamove', name: 'Ahamove' },
 ];
 
-interface AddState { open: boolean; carrier?: Carrier | null }
+interface AddState { open: boolean; carrier?: Carrier | null; edit?: CarrierAccount | null }
 
 export function CarrierAccountsPage() {
     const { message } = AntApp.useApp();
@@ -123,6 +127,7 @@ export function CarrierAccountsPage() {
                                 accounts={list}
                                 canManage={canManage}
                                 onAdd={() => setAdd({ open: true, carrier })}
+                                onEdit={(a) => setAdd({ open: true, carrier, edit: a })}
                                 onRename={(a) => { setRenaming(a); setAliasDraft(a.name); }}
                                 onUpdate={update}
                                 onDelete={del}
@@ -167,12 +172,13 @@ export function CarrierAccountsPage() {
 // ---- Carrier card ----------------------------------------------------------
 
 function CarrierCard({
-    carrier, accounts, canManage, onAdd, onRename, onUpdate, onDelete,
+    carrier, accounts, canManage, onAdd, onEdit, onRename, onUpdate, onDelete,
 }: {
     carrier: Carrier;
     accounts: CarrierAccount[];
     canManage: boolean;
     onAdd: () => void;
+    onEdit: (a: CarrierAccount) => void;
     onRename: (a: CarrierAccount) => void;
     onUpdate: ReturnType<typeof useUpdateCarrierAccount>;
     onDelete: ReturnType<typeof useDeleteCarrierAccount>;
@@ -230,6 +236,7 @@ function CarrierCard({
                     {visible.map((a) => (
                         <AccountRow
                             key={a.id} account={a} canManage={canManage}
+                            onEdit={() => onEdit(a)}
                             onRename={() => onRename(a)}
                             onToggle={(checked) => onUpdate.mutate({ id: a.id, is_active: checked })}
                             onSetDefault={() => onUpdate.mutate({ id: a.id, is_default: true })}
@@ -254,10 +261,11 @@ function CarrierCard({
 // ---- Account row inside card ----------------------------------------------
 
 function AccountRow({
-    account, canManage, onRename, onToggle, onSetDefault, onDelete, verify,
+    account, canManage, onEdit, onRename, onToggle, onSetDefault, onDelete, verify,
 }: {
     account: CarrierAccount;
     canManage: boolean;
+    onEdit: () => void;
     onRename: () => void;
     onToggle: (checked: boolean) => void;
     onSetDefault: () => void;
@@ -322,7 +330,8 @@ function AccountRow({
                     <Dropdown
                         trigger={['click']}
                         menu={{ items: [
-                            { key: 'rename', icon: <EditOutlined />, label: 'Đổi tên alias', onClick: onRename },
+                            { key: 'edit', icon: <EditOutlined />, label: 'Sửa thông tin / địa chỉ kho', onClick: onEdit },
+                            { key: 'rename', icon: <KeyOutlined />, label: 'Đổi tên alias', onClick: onRename },
                             { key: 'verify', icon: <ThunderboltOutlined />, label: 'Kiểm tra kết nối', onClick: onVerify, disabled: verify.isPending },
                             { key: 'default', icon: account.is_default ? <StarFilled /> : <StarOutlined />, label: account.is_default ? 'Đang là mặc định' : 'Đặt làm mặc định', onClick: onSetDefault, disabled: account.is_default },
                             { type: 'divider' },
@@ -393,11 +402,29 @@ function AddCarrierAccountModal({
 }: { state: AddState; onClose: () => void; onAddedMessage: (name: string) => void }) {
     const { message } = AntApp.useApp();
     const create = useCreateCarrierAccount();
+    const update = useUpdateCarrierAccount();
     const [form] = Form.useForm();
     const carrier = state.carrier;
     const code = carrier?.code ?? '';
+    const isEdit = !!state.edit;
+    const editFa = ((state.edit?.meta as Record<string, unknown> | undefined)?.from_address ?? {}) as Record<string, unknown>;
     const credFields = CRED_FIELDS[code] ?? (code && code !== 'manual' ? [{ key: 'token', label: 'API Token', required: true }] : []);
     const needsFromAddress = !!FROM_ADDRESS_REQUIRED[code];
+
+    // Edit mode: nạp sẵn giá trị hiện có. Credentials KHÔNG nạp (secret) — để trống = giữ nguyên.
+    useEffect(() => {
+        if (!state.open || !state.edit) return;
+        const fa = editFa;
+        form.setFieldsValue({
+            name: state.edit.name,
+            default_service: state.edit.default_service ?? undefined,
+            is_default: state.edit.is_default,
+            from_name: fa.name, from_phone: fa.phone, from_address: fa.address,
+            from_province_name: fa.province_name, from_district_name: fa.district_name, from_ward_name: fa.ward_name,
+            from_district_id: fa.district_id, from_ward_code: fa.ward_code,
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [state.open, state.edit]);
 
     const submit = () => form.validateFields().then((v) => {
         const credentials: Record<string, unknown> = {};
@@ -419,6 +446,21 @@ function AddCarrierAccountModal({
             });
             if (Object.keys(fromAddress).length > 0) meta.from_address = fromAddress;
         }
+        if (isEdit && state.edit) {
+            // Chỉ gửi credentials nếu user nhập mới (BE merge — để trống = giữ nguyên token cũ).
+            update.mutate({
+                id: state.edit.id,
+                name: v.name.trim(),
+                is_default: !!v.is_default,
+                default_service: v.default_service?.trim() || null,
+                ...(Object.keys(credentials).length > 0 ? { credentials } : {}),
+                ...(Object.keys(meta).length > 0 ? { meta } : {}),
+            }, {
+                onSuccess: () => { message.success('Đã cập nhật tài khoản'); form.resetFields(); onClose(); },
+                onError: (e) => message.error(errorMessage(e)),
+            });
+            return;
+        }
         create.mutate({
             carrier: code,
             name: v.name.trim(),
@@ -434,8 +476,8 @@ function AddCarrierAccountModal({
 
     return (
         <Modal
-            open={state.open} title={carrier ? (<Space size={10} align="center"><CarrierLogo code={carrier.code} size={28} /><span>Thêm tài khoản {CARRIER_META[carrier.code]?.name ?? carrier.name}</span></Space>) : 'Thêm tài khoản'}
-            onCancel={onClose} okText="Thêm tài khoản" confirmLoading={create.isPending} onOk={submit}
+            open={state.open} title={carrier ? (<Space size={10} align="center"><CarrierLogo code={carrier.code} size={28} /><span>{isEdit ? 'Sửa' : 'Thêm'} tài khoản {CARRIER_META[carrier.code]?.name ?? carrier.name}</span></Space>) : 'Thêm tài khoản'}
+            onCancel={onClose} okText={isEdit ? 'Lưu thay đổi' : 'Thêm tài khoản'} confirmLoading={create.isPending || update.isPending} onOk={submit}
             destroyOnClose width={560}
         >
             {carrier && (
@@ -453,8 +495,8 @@ function AddCarrierAccountModal({
                             <>
                                 <Typography.Title level={5} style={{ marginTop: 4, marginBottom: 8, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14 }}>Thông tin xác thực</Typography.Title>
                                 {credFields.map((f) => (
-                                    <Form.Item key={f.key} name={`cred_${f.key}`} label={f.label} rules={f.required ? [{ required: true, message: `Nhập ${f.label}` }] : []}>
-                                        <Input placeholder={f.placeholder} />
+                                    <Form.Item key={f.key} name={`cred_${f.key}`} label={f.label} rules={f.required && !isEdit ? [{ required: true, message: `Nhập ${f.label}` }] : []} extra={isEdit ? 'Để trống nếu không đổi' : undefined}>
+                                        <Input placeholder={isEdit ? '•••••• (giữ nguyên nếu để trống)' : f.placeholder} />
                                     </Form.Item>
                                 ))}
                                 {/* GHN: 1 token có thể có nhiều shop — Select tự load danh sách sau khi nhập token. */}
@@ -466,7 +508,9 @@ function AddCarrierAccountModal({
                             <>
                                 <Typography.Title level={5} style={{ marginTop: 8, marginBottom: 4, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14 }}>Địa chỉ kho hàng (người gửi)</Typography.Title>
                                 <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 12 }}>
-                                    Bắt buộc với GHN — dùng để tạo vận đơn. Mã quận/phường <b>tự động tải</b> từ GHN sau khi bạn nhập API Token.
+                                    {code === 'ghtk'
+                                        ? <>Bắt buộc với GHTK — dùng làm địa chỉ lấy hàng khi tạo vận đơn. GHTK nhận địa chỉ <b>theo tên</b> Tỉnh/Quận/Phường.</>
+                                        : <>Bắt buộc với GHN — dùng để tạo vận đơn. Mã quận/phường <b>tự động tải</b> từ GHN sau khi bạn nhập API Token.</>}
                                 </Typography.Paragraph>
                                 {FROM_ADDRESS_BASIC_FIELDS.map((f) => (
                                     <Form.Item key={f.key} name={`from_${f.key}`} label={f.label} rules={f.required ? [{ required: true, message: `Nhập ${f.label}` }] : []}>
@@ -474,6 +518,7 @@ function AddCarrierAccountModal({
                                     </Form.Item>
                                 ))}
                                 {code === 'ghn' && <GhnFromAddressSection form={form} />}
+                                {code === 'ghtk' && <GhtkFromAddressSection form={form} initial={isEdit ? { province: editFa.province_name as string | undefined, district: editFa.district_name as string | undefined, ward: editFa.ward_name as string | undefined } : undefined} />}
                             </>
                         )}
 
@@ -637,6 +682,35 @@ const GHN_SHOP_CSS = `
 `;
 
 // ---- GHN address picker (cascading Select, auto-load from API token) ------
+
+/**
+ * GHTK nhận địa chỉ theo TÊN (không cần ID/mã như GHN) ⇒ dùng AddressPicker hành chính VN (hỗ trợ cả
+ * địa chỉ 2 cấp Tỉnh+Phường lẫn 3 cấp). Tên Tỉnh/Quận/Phường ghi vào hidden field `from_*_name` để
+ * `AddCarrierAccountModal.submit()` đóng gói `meta.from_address` (map sang pick_* khi tạo vận đơn).
+ */
+function GhtkFromAddressSection({ form, initial }: { form: FormInstance; initial?: PickedAddress }) {
+    const [addr, setAddr] = useState<PickedAddress>(initial ?? {});
+
+    return (
+        <>
+            <Form.Item label="Khu vực kho gửi (Tỉnh / Quận / Phường)" required>
+                <AddressPicker value={addr} onPick={(p) => {
+                    setAddr(p);
+                    form.setFieldsValue({
+                        from_province_name: p.province ?? '',
+                        from_district_name: p.district ?? '',
+                        from_ward_name: p.ward ?? '',
+                    });
+                    form.validateFields(['from_province_name', 'from_ward_name']).catch(() => {});
+                }} />
+            </Form.Item>
+            {/* Hidden — set bởi AddressPicker; submit() gói vào meta.from_address. */}
+            <Form.Item name="from_province_name" hidden rules={[{ required: true, message: 'Chọn Tỉnh/Thành của kho gửi' }]}><Input /></Form.Item>
+            <Form.Item name="from_ward_name" hidden rules={[{ required: true, message: 'Chọn Phường/Xã của kho gửi' }]}><Input /></Form.Item>
+            <Form.Item name="from_district_name" hidden><Input /></Form.Item>
+        </>
+    );
+}
 
 /**
  * Khi user nhập API Token GHN, tự gọi BE proxy `/carrier-accounts/ghn/master-data` để cascading
