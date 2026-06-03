@@ -335,3 +335,25 @@ export function useDisconnectFacebookPage() {
         onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'channels'] }),
     });
 }
+
+/** Đồng bộ hàng loạt các Page đã tick chọn. */
+export function useBulkSyncChannels() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (ids: number[]) =>
+            (await api!.post<{ data: { ok: boolean; processed: number } }>('/messaging/channels/bulk-sync', { ids })).data.data,
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'channels'] }),
+    });
+}
+
+/** Ngắt kết nối hàng loạt các Page đã tick chọn (xoá hẳn + cascade hội thoại). */
+export function useBulkDisconnectChannels() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (ids: number[]) =>
+            (await api!.post<{ data: { ok: boolean; processed: number; conversations_deleted: number } }>('/messaging/channels/bulk-disconnect', { ids })).data.data,
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'channels'] }),
+    });
+}

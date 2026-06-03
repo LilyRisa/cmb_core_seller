@@ -382,6 +382,13 @@ Cấu hình động lưu trong DB (`system_settings`), ghi đè giá trị từ 
   - `POST   /messaging/conversations/{id}/comment/private-reply` — `{body?, image?}` nhắn riêng 1 phần (idempotent với lỗi FB 10900 "đã nhắn riêng").
   - `POST   /messaging/conversations/{id}/comment/like` — `{comment_id?, like:bool}` Page thích/bỏ thích 1 comment (chỉ Facebook — `CommentEngagementConnector`).
   - `POST   /messaging/conversations/{id}/comment/private-message` — multipart `{body?, comment_id?, files[]?}` modal nhắn riêng đầy đủ (text + nhiều đính kèm ảnh/video/file). Phần đầu qua `comment_id` (lấy PSID, lưu `meta.fb_private_psid`), phần sau qua PSID; idempotent 10900.
+- **Kết nối & quản lý kênh Facebook Page** (UI `/messaging/channels`):
+  - `GET    /messaging/channels` (`messaging.view`) — list page đã kết nối + trạng thái sync (không trả token).
+  - `POST   /messaging/channels/{id}/sync` (`messaging.connect`) — đồng bộ lại 1 page (`202`).
+  - `POST   /messaging/channels/bulk-sync` (`messaging.connect`) — `{ids:int[]}` đồng bộ lại nhiều page đã chọn; chỉ account `facebook_page` của tenant được xử lý, id lạ bị bỏ qua → `202 {ok, processed}`.
+  - `GET    /messaging/channels/{id}/posts` (`messaging.view`) — post picker (connector có `post.list`).
+  - `DELETE /messaging/channels/{id}` (`messaging.connect`) — ngắt kết nối 1 page (xoá hẳn + cascade hội thoại).
+  - `POST   /messaging/channels/bulk-disconnect` (`messaging.connect`) — `{ids:int[]}` ngắt kết nối nhiều page đã chọn → `{ok, processed, conversations_deleted}`.
 - `GET/POST/PATCH/DELETE /messaging/templates[/{id}]` (`messaging.template.manage`).
 - `GET/POST/PATCH/DELETE /messaging/auto-reply-rules[/{id}]` (`messaging.rule.manage`).
 - `GET    /messaging/knowledge-docs` (`messaging.view`).

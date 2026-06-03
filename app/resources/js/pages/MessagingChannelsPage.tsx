@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { App as AntApp, Avatar, Button, Card, Empty, Popconfirm, Progress, Result, Space, Spin, Tag, Tooltip, Typography } from 'antd';
+import { App as AntApp, Avatar, Button, Card, Checkbox, Empty, Popconfirm, Progress, Result, Space, Spin, Tag, Tooltip, Typography } from 'antd';
 import { DisconnectOutlined, FacebookFilled, KeyOutlined, SyncOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
@@ -9,7 +9,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { errorMessage } from '@/lib/api';
 import { openOAuthPopup } from '@/lib/oauthPopup';
 import { useCan } from '@/lib/tenant';
-import { useConnectFacebook, useDisconnectFacebookPage, useMessagingChannels, useSyncChannel } from '@/lib/messagingConfig';
+import { useBulkDisconnectChannels, useBulkSyncChannels, useConnectFacebook, useDisconnectFacebookPage, useMessagingChannels, useSyncChannel } from '@/lib/messagingConfig';
 
 const { Text } = Typography;
 
@@ -32,6 +32,9 @@ export function MessagingChannelsPage() {
     const disconnect = useDisconnectFacebookPage();
     const syncChannel = useSyncChannel();
     const [syncingId, setSyncingId] = useState<number | null>(null);
+    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+    const bulkSync = useBulkSyncChannels();
+    const bulkDisconnect = useBulkDisconnectChannels();
     const qc = useQueryClient();
 
     const handleSync = (id: number) => {
@@ -85,6 +88,26 @@ export function MessagingChannelsPage() {
     };
 
     const pages = channels ?? [];
+    // Chỉ giữ id còn tồn tại trong danh sách (page bị ngắt sẽ tự rụng khỏi selection).
+    const selectedCount = pages.reduce((n, p) => (selectedIds.has(p.id) ? n + 1 : n), 0);
+    const allSelected = pages.length > 0 && selectedCount === pages.length;
+    const bulkBusy = bulkSync.isPending || bulkDisconnect.isPending;
+
+    const toggleOne = (id: number, checked: boolean) => setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (checked) next.add(id); else next.delete(id);
+        return next;
+    });
+    const toggleAll = (checked: boolean) => setSelectedIds(checked ? new Set(pages.map((p) => p.id)) : new Set());
+
+    const handleBulkSync = () => bulkSync.mutate([...selectedIds], {
+        onSuccess: (d) => { setSelectedIds(new Set()); message.success(`Đã bắt đầu đồng bộ ${d.processed} Page.`); },
+        onError: (e) => message.error(errorMessage(e, 'Không bắt đầu được đồng bộ hàng loạt.')),
+    });
+    const handleBulkDisconnect = () => bulkDisconnect.mutate([...selectedIds], {
+        onSuccess: (d) => { setSelectedIds(new Set()); message.success(`Đã ngắt kết nối ${d.processed} Page.`); },
+        onError: (e) => message.error(errorMessage(e, 'Không ngắt kết nối được hàng loạt.')),
+    });
 
     if (isError) return <Result status="error" title="Không tải được danh sách kênh" subTitle={errorMessage(error)} />;
 
@@ -98,6 +121,27 @@ export function MessagingChannelsPage() {
                     <Button type="primary" icon={<FacebookFilled />} loading={connectFb.isPending} onClick={handleConnect} disabled={!canConnect}>
                         Kết nối Facebook Page
                     </Button>
+                    {canConnect && pages.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                            <Checkbox checked={allSelected} indeterminate={selectedCount > 0 && !allSelected} onChange={(e) => toggleAll(e.target.checked)}>
+                                Chọn tất cả
+                            </Checkbox>
+                            <Button size="small" icon={<SyncOutlined />} disabled={selectedCount === 0 || bulkBusy} loading={bulkSync.isPending} onClick={handleBulkSync}>
+                                Đồng bộ{selectedCount > 0 ? ` (${selectedCount})` : ''}
+                            </Button>
+                            <Popconfirm
+                                title="Ngắt kết nối các Page đã chọn?"
+                                description="Sẽ gỡ các Page và xoá toàn bộ hội thoại liên quan, không khôi phục được."
+                                okText="Ngắt kết nối" okButtonProps={{ danger: true, loading: bulkDisconnect.isPending }} cancelText="Huỷ"
+                                disabled={selectedCount === 0 || bulkBusy}
+                                onConfirm={handleBulkDisconnect}
+                            >
+                                <Button size="small" danger icon={<DisconnectOutlined />} disabled={selectedCount === 0 || bulkBusy} loading={bulkDisconnect.isPending}>
+                                    Ngắt kết nối{selectedCount > 0 ? ` (${selectedCount})` : ''}
+                                </Button>
+                            </Popconfirm>
+                        </div>
+                    )}
                     {isLoading ? (
                         <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>
                     ) : pages.length === 0 ? (
@@ -108,6 +152,9 @@ export function MessagingChannelsPage() {
                         <Card key={p.id} size="small" styles={{ body: { padding: 12 } }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
                                 <Space size={12} align="start">
+                                    {canConnect && (
+                                        <Checkbox checked={selectedIds.has(p.id)} onChange={(e) => toggleOne(p.id, e.target.checked)} style={{ marginTop: 12 }} />
+                                    )}
                                     <Avatar src={p.avatar_url ?? undefined} icon={<FacebookFilled />} size={40} style={{ background: p.avatar_url ? undefined : '#1877F2' }} />
                                     <Space direction="vertical" size={2}>
                                         <Space size={6}>

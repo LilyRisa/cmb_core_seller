@@ -133,6 +133,11 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
             ->name('messaging.channels.index');
         Route::post('channels/{id}/sync', [MessagingChannelController::class, 'sync'])
             ->whereNumber('id')->name('messaging.channels.sync');     // messaging.connect
+        // Hành động hàng loạt trên nhiều page đã chọn (body: { ids: int[] }).
+        Route::post('channels/bulk-sync', [MessagingChannelController::class, 'bulkSync'])
+            ->name('messaging.channels.bulk-sync');                   // messaging.connect
+        Route::post('channels/bulk-disconnect', [MessagingChannelController::class, 'bulkDisconnect'])
+            ->name('messaging.channels.bulk-disconnect');             // messaging.connect
         Route::get('channels/{id}/posts', [MessagingChannelController::class, 'posts'])
             ->whereNumber('id')->name('messaging.channels.posts');    // post picker (comment_on_post)
         Route::delete('channels/{id}', [MessagingChannelController::class, 'destroy'])

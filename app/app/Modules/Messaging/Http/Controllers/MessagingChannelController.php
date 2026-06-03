@@ -106,6 +106,38 @@ class MessagingChannelController extends Controller
     }
 
     /**
+     * POST /channels/bulk-sync — đồng bộ lại hàng loạt page đã chọn (body: { ids: int[] }).
+     * Chỉ thao tác trên account facebook_page của tenant (global scope tự lọc); id
+     * lạ / sàn khác bị bỏ qua. Ghi 1 audit log gộp cho cả lô.
+     */
+    public function bulkSync(Request $request): JsonResponse
+    {
+        Gate::authorize('messaging.connect');
+
+        $ids = $this->validatedIds($request);
+        $accounts = ChannelAccount::query()
+            ->where('provider', 'facebook_page')->whereIn('id', $ids)->get();
+
+        foreach ($accounts as $account) {
+            MessagingAccountMeta::query()->updateOrCreate(
+                ['channel_account_id' => $account->id],
+                ['tenant_id' => $account->tenant_id, 'sync_status' => MessagingAccountMeta::SYNC_QUEUED],
+            );
+            BackfillMessagingChannel::dispatch($account->id);
+            BackfillFacebookComments::dispatch($account->id);
+        }
+
+        if ($accounts->isNotEmpty()) {
+            AuditLog::record('messaging.facebook.bulk_sync', null, [
+                'external_shop_ids' => $accounts->pluck('external_shop_id')->all(),
+                'count' => $accounts->count(),
+            ]);
+        }
+
+        return response()->json(['data' => ['ok' => true, 'processed' => $accounts->count()]], 202);
+    }
+
+    /**
      * GET /channels/{id}/posts — liệt kê bài đăng của page để chọn (post picker cho
      * trigger comment_on_post). Connector phải có năng lực `post.list`
      * ({@see ListsPostsConnector}) — kiểm theo tên năng lực, không phải tên sàn.
@@ -170,5 +202,56 @@ class MessagingChannelController extends Controller
         ]);
 
         return response()->json(['data' => ['ok' => true, 'conversations_deleted' => $result['conversations']]]);
+    }
+
+    /**
+     * POST /channels/bulk-disconnect — ngắt kết nối hàng loạt page đã chọn (body:
+     * { ids: int[] }). Mỗi page xoá hẳn + cascade qua {@see FacebookPageDisconnectService}.
+     * Id lạ / sàn khác bị bỏ qua. Ghi 1 audit log gộp cho cả lô.
+     */
+    public function bulkDisconnect(Request $request, FacebookPageDisconnectService $service): JsonResponse
+    {
+        Gate::authorize('messaging.connect');
+
+        $ids = $this->validatedIds($request);
+        $accounts = ChannelAccount::query()
+            ->where('provider', 'facebook_page')->whereIn('id', $ids)->get();
+
+        $externalShopIds = [];
+        $conversationsDeleted = 0;
+        foreach ($accounts as $account) {
+            $externalShopIds[] = $account->external_shop_id;
+            $result = $service->disconnect($account);
+            $conversationsDeleted += $result['conversations'];
+        }
+
+        if ($accounts->isNotEmpty()) {
+            AuditLog::record('messaging.facebook.bulk_disconnected', null, [
+                'external_shop_ids' => $externalShopIds,
+                'count' => count($externalShopIds),
+                'conversations_deleted' => $conversationsDeleted,
+            ]);
+        }
+
+        return response()->json(['data' => [
+            'ok' => true,
+            'processed' => count($externalShopIds),
+            'conversations_deleted' => $conversationsDeleted,
+        ]]);
+    }
+
+    /**
+     * Validate + chuẩn hoá body `ids` cho các hành động hàng loạt.
+     *
+     * @return array<int, int>
+     */
+    private function validatedIds(Request $request): array
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer'],
+        ]);
+
+        return array_values(array_unique(array_map('intval', $data['ids'])));
     }
 }
