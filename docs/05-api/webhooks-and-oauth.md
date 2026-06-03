@@ -7,6 +7,7 @@
 ## 1. Webhook `/webhook/{provider}`
 
 - Route: `POST /webhook/{provider}` với `provider ∈ {tiktok, shopee, lazada, ...}` (và `/webhook/{carrier}` cho ĐVVC có webhook). **Không CSRF, không auth session.**
+- **Sàn dùng 1 push URL gánh cả đơn lẫn chat (TikTok, Shopee):** TikTok đẩy mọi webhook (đơn + tin nhắn CS) về **một** URL `/webhook/tiktok`; Shopee về `/webhook/shopee`. Controller riêng (`TikTokWebhookController`, `ShopeeWebhookController`) **demux** theo dấu hiệu loại push (TikTok: `type ∈ config('integrations.tiktok.chat_push_types')` = 13/14/33; Shopee: `code ∈ chat_push_codes` = 10) → tin chat đi vào pipeline **Messaging** (`MessagingWebhookIngestService::ingest('<provider>_chat')`), còn lại → pipeline đơn hàng (Channels). Mỗi pipeline tự verify chữ ký. Đây là ngoại lệ của "1 webhook controller chung" (ADR-0017) vì 1 URL gánh 2 domain. **Vì vậy `type` tin nhắn TikTok (13/14/33) KHÔNG được map trong `webhook_event_types` của pipeline đơn** — demux đã tách chúng trước; map nhầm `14 → shop_deauthorized` sẽ khiến tin nhắn buyer bị xử lý như huỷ uỷ quyền và revoke gian hàng.
 - Middleware `verify-webhook:{provider}` gọi `XWebhookVerifier` của connector (kiểm chữ ký bằng secret + raw body). Sai ⇒ `401`, **không ghi gì, không xử lý**.
 - Xử lý trong request (nhanh, < ~3s):
   1. Đọc raw body + headers.

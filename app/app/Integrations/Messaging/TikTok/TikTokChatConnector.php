@@ -112,7 +112,10 @@ class TikTokChatConnector implements MessagingConnector
         // data.content (JSON string).
         $conversationId = $data['conversation_id'] ?? null;
         $messageId = $data['message_id'] ?? null;
-        $senderId = $data['sender']['im_user_id'] ?? ($data['from_user_id'] ?? null);
+        // Type 14 (new message): sender.im_user_id. Type 33 (new message listener —
+        // creator → seller): sender.sender_im_user_id. Fallback from_user_id.
+        $senderId = $data['sender']['im_user_id']
+            ?? ($data['sender']['sender_im_user_id'] ?? ($data['from_user_id'] ?? null));
         $hasMessage = $conversationId !== null && $messageId !== null;
 
         // Echo guard: bỏ tin do shop/agent/system tự gửi (không phải buyer) — mirror Facebook is_echo.
@@ -136,20 +139,24 @@ class TikTokChatConnector implements MessagingConnector
         $attachments = [];
 
         if ($hasMessage) {
-            $messageType = strtoupper((string) ($data['type'] ?? 'TEXT'));
-            // data.content is a JSON-encoded string per docs: {"content":"text"} for TEXT,
+            // Type 14 dùng `type`; type 33 (new message listener) dùng `msg_type`.
+            $messageType = strtoupper((string) ($data['type'] ?? $data['msg_type'] ?? 'TEXT'));
+            // data.content thường là JSON-encoded string per docs: {"content":"text"} for TEXT,
             // {"url":"...","width":"304","height":"290"} for IMAGE,
             // {"url":"...","width":640,"height":360,"duration":"20.504",...} for VIDEO.
+            // Type 33 event example lại cho content là chuỗi thô ("Hello") — xử lý cả 2.
             $rawContent = $data['content'] ?? '';
-            $msgContent = is_string($rawContent)
-                ? (json_decode($rawContent, true) ?: [])
-                : (array) $rawContent;
+            $decoded = is_string($rawContent) ? json_decode($rawContent, true) : $rawContent;
+            $msgContent = is_array($decoded) ? $decoded : [];
 
             switch ($messageType) {
                 case 'TEXT':
                     $kind = MessageKind::Text;
                     // TEXT content: {"content": "simple text"} — key is "content" per docs.
-                    $parsedBody = isset($msgContent['content']) ? (string) $msgContent['content'] : null;
+                    // Fallback: content là chuỗi thô (type 33) ⇒ dùng trực tiếp.
+                    $parsedBody = isset($msgContent['content'])
+                        ? (string) $msgContent['content']
+                        : (is_string($rawContent) && $rawContent !== '' ? $rawContent : null);
                     break;
 
                 case 'IMAGE':

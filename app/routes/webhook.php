@@ -1,8 +1,9 @@
 <?php
 
 use CMBcoreSeller\Modules\Billing\Http\Controllers\PaymentWebhookController;
-use CMBcoreSeller\Modules\Channels\Http\Controllers\WebhookController;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\ShopeeWebhookController;
+use CMBcoreSeller\Modules\Channels\Http\Controllers\TikTokWebhookController;
+use CMBcoreSeller\Modules\Channels\Http\Controllers\WebhookController;
 use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\CarrierWebhookController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\MessagingWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -19,11 +20,13 @@ use Illuminate\Support\Facades\Route;
 | WebhookIngestService — the route + handler exist; the connector is pending.
 */
 
-foreach (['tiktok', 'lazada'] as $provider) {
-    Route::post($provider, [WebhookController::class, 'handle'])
-        ->defaults('provider', $provider)
-        ->name($provider);
-}
+// Lazada: webhook chung (chat Lazada đi qua polling, không webhook).
+Route::post('lazada', [WebhookController::class, 'handle'])
+    ->defaults('provider', 'lazada')
+    ->name('lazada');
+
+// TikTok: 1 push URL gánh cả đơn hàng lẫn tin nhắn CS (type 13/14/33) → controller riêng demux.
+Route::post('tiktok', [TikTokWebhookController::class, 'handle'])->name('tiktok');
 
 // Shopee: 1 push URL gánh cả đơn hàng lẫn chat (code 10) → controller riêng demux.
 Route::post('shopee', [ShopeeWebhookController::class, 'handle'])->name('shopee');

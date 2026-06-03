@@ -285,17 +285,27 @@ return [
         // NOTE: numbers here are best-effort and MUST be verified against the
         // Partner API webhook docs before relying on event-type routing — order
         // events are always re-fetched via fetchOrderDetail, polling is the safety net.
+        // Đối chiếu tài liệu Partner (tailieuapi.../tiktok/docv2_page_<type>-*.md).
+        // LƯU Ý: type tin nhắn CS 13 (new-conversation) / 14 (new-message) / 33
+        // (new-message-listener) KHÔNG được map ở đây — chúng đã được
+        // TikTokWebhookController demux sang pipeline messaging trước khi tới map này.
+        // (Trước đây map nhầm 13→return_update, 14→shop_deauthorized ⇒ tin buyer revoke shop.)
         'webhook_event_types' => [
-            1 => 'order_status_update',   // ORDER_STATUS_CHANGE
-            2 => 'return_update',         // REVERSE / RETURN status change
-            3 => 'order_status_update',   // RECIPIENT_ADDRESS_UPDATE -> re-fetch the order
-            4 => 'order_status_update',   // PACKAGE_UPDATE -> re-fetch the order
-            5 => 'product_update',        // PRODUCT_STATUS_CHANGE
-            6 => 'shop_deauthorized',     // SELLER_DEAUTHORIZATION
-            12 => 'order_cancel',         // CANCELLATION_STATUS_CHANGE
-            13 => 'return_update',        // RETURN_STATUS_CHANGE
-            14 => 'shop_deauthorized',    // AUTHORIZATION_REVOKE / SHOP update
+            1 => 'order_status_update',   // (1) order-status-change
+            2 => 'return_update',         // reverse / return status change
+            3 => 'order_status_update',   // (3) recipient-address-update -> re-fetch the order
+            4 => 'order_status_update',   // (4) package-update -> re-fetch the order
+            5 => 'product_update',        // (5) product-status-change
+            6 => 'shop_deauthorized',     // (6) seller-deauthorization
         ],
+
+        // Type push TikTok coi là tin nhắn CS (Webchat) — demux ở TikTokWebhookController
+        // sang pipeline messaging (tiktok_chat) thay vì pipeline đơn hàng. Đối chiếu docs:
+        // 13 = new-conversation, 14 = new-message, 33 = new-message-listener.
+        'chat_push_types' => array_values(array_filter(array_map(
+            'intval',
+            explode(',', (string) env('TIKTOK_CHAT_PUSH_TYPES', '13,14,33'))
+        ))),
 
         // Webhook event names we subscribe this shop to (best-effort; many apps
         // configure events in Partner Center instead).

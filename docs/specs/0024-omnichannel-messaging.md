@@ -430,6 +430,8 @@ expires_at                       -- tự xoá sau 1h
 
 Tất cả qua **một** `MessagingWebhookController@handle($provider)`, khác biệt nằm trong connector. Trả `200 {ok:true}` nhanh; dispatch `ProcessMessagingWebhook` lên queue `messaging-webhooks`.
 
+> **Cập nhật — TikTok & Shopee dùng 1 push URL/app (đơn + chat chung):** Partner console của TikTok/Shopee chỉ cho 1 callback URL nên **không** dùng `/webhook/messaging/{provider}` được. Tin chat về `/webhook/tiktok` (TikTok) / `/webhook/shopee` (Shopee) rồi `TikTokWebhookController`/`ShopeeWebhookController` **demux** sang `MessagingWebhookIngestService::ingest('tiktok_chat'|'shopee_chat')` theo `type ∈ chat_push_types` (TikTok: 13/14/33) / `code ∈ chat_push_codes` (Shopee: 10). `lazada_chat` không có webhook (polling). Hệ quả bắt buộc: các `type` tin nhắn TikTok (13/14/33) **không** được map trong `integrations.tiktok.webhook_event_types` của pipeline đơn — nếu map (vd `14 → shop_deauthorized`) thì tin buyer sẽ revoke gian hàng.
+
 **OAuth callback (Facebook chỉ; 3 sàn còn lại reuse `/oauth/{provider}/callback` hiện có):**
 | Method | Path |
 |---|---|

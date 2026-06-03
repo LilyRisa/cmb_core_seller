@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Messaging;
 
+use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Messaging\DTO\ConversationDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageDirection;
@@ -53,6 +54,51 @@ class TikTokLazadaChatConnectorTest extends TestCase
         $this->assertSame('CONV_1', $event->externalConversationId);
         $this->assertSame('MSG_1', $event->externalMessageId);
         $this->assertSame('BUYER_1', $event->buyerExternalId);
+    }
+
+    public function test_tiktok_parses_type_33_creator_message(): void
+    {
+        // Type 33 (new message listener) khác type 14: dùng `msg_type` (không phải `type`),
+        // sender qua `sender.sender_im_user_id` (không phải `im_user_id`). Doc docv2_page_33.
+        $body = json_encode([
+            'type' => 33, 'shop_id' => 'SHOP_1', 'timestamp' => 1716200000,
+            'data' => [
+                'conversation_id' => 'CONV_33',
+                'message_id' => 'MSG_33',
+                'msg_type' => 'TEXT',
+                'content' => json_encode(['content' => 'Hi from creator']),
+                'sender' => ['sender_im_user_id' => 'CREATOR_1'],
+            ],
+        ]);
+
+        $event = (new TikTokChatConnector)->parseWebhook($this->req($body));
+
+        $this->assertSame(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, $event->type);
+        $this->assertSame('CONV_33', $event->externalConversationId);
+        $this->assertSame('MSG_33', $event->externalMessageId);
+        $this->assertSame('CREATOR_1', $event->buyerExternalId);
+        $this->assertSame(MessageKind::Text, $event->kind);
+        $this->assertSame('Hi from creator', $event->body);
+    }
+
+    public function test_tiktok_parses_type_33_raw_string_content(): void
+    {
+        // Event example của doc type 33 cho content là chuỗi thô "Hello" (không bọc JSON).
+        $body = json_encode([
+            'type' => 33, 'shop_id' => 'SHOP_1', 'timestamp' => 1716200000,
+            'data' => [
+                'conversation_id' => 'CONV_33B',
+                'message_id' => 'MSG_33B',
+                'msg_type' => 'TEXT',
+                'content' => 'Hello',
+                'sender' => ['sender_im_user_id' => 'CREATOR_2'],
+            ],
+        ]);
+
+        $event = (new TikTokChatConnector)->parseWebhook($this->req($body));
+
+        $this->assertSame(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, $event->type);
+        $this->assertSame('Hello', $event->body);
     }
 
     // --- Phase 1: echo / own-message guard -----------------------------------
@@ -678,7 +724,7 @@ class TikTokLazadaChatConnectorTest extends TestCase
         ]]);
 
         $sinceMs = 1716100000000;                       // mốc last sync
-        $since = \Carbon\CarbonImmutable::createFromTimestampMs($sinceMs);
+        $since = CarbonImmutable::createFromTimestampMs($sinceMs);
 
         Http::fake(['api.lazada.vn/*' => Http::response(['code' => '0', 'data' => [
             'session_list' => [
@@ -716,7 +762,7 @@ class TikTokLazadaChatConnectorTest extends TestCase
         ]]);
 
         $sinceMs = 1716100000000;
-        $since = \Carbon\CarbonImmutable::createFromTimestampMs($sinceMs);
+        $since = CarbonImmutable::createFromTimestampMs($sinceMs);
 
         Http::fake(['api.lazada.vn/*' => Http::response(['code' => '0', 'data' => [
             'message_list' => [
