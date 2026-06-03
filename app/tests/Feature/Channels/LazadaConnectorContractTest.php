@@ -286,13 +286,16 @@ class LazadaConnectorContractTest extends TestCase
 
     public function test_webhook_verify_and_parse(): void
     {
+        // Lazada "Push Mechanism" (official): sign = lowercase hex HMAC-SHA256(key=app_secret,
+        // message = app_key . rawBody), carried in the `Authorization` header. See docs/04-channels/lazada.md §4
+        // and https://open.lazada.com/apps/doc/doc?nodeId=29526&docId=120168.
         $c = $this->connector();
         $body = json_encode(['message_type' => 0, 'timestamp' => 1778000000000, 'site' => 'lazada_vn', 'data' => ['trade_order_id' => '1001', 'trade_order_line_id' => '9001', 'order_item_status' => 'shipped', 'seller_id' => self::SHOP_ID]]);
-        $sig = strtoupper(hash_hmac('sha256', $body, self::APP_SECRET));
+        $sig = strtolower(hash_hmac('sha256', self::APP_KEY.$body, self::APP_SECRET));
 
-        $valid = Request::create('/webhook/lazada', 'POST', server: ['HTTP_X_LAZOP_SIGN' => $sig], content: $body);
+        $valid = Request::create('/webhook/lazada', 'POST', server: ['HTTP_AUTHORIZATION' => $sig], content: $body);
         $this->assertTrue($c->verifyWebhookSignature($valid));
-        $tampered = Request::create('/webhook/lazada', 'POST', server: ['HTTP_X_LAZOP_SIGN' => 'deadbeef'], content: $body);
+        $tampered = Request::create('/webhook/lazada', 'POST', server: ['HTTP_AUTHORIZATION' => 'deadbeef'], content: $body);
         $this->assertFalse($c->verifyWebhookSignature($tampered));
         $noSig = Request::create('/webhook/lazada', 'POST', content: $body);
         $this->assertFalse($c->verifyWebhookSignature($noSig));
