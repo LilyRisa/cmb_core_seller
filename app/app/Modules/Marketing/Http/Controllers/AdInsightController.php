@@ -7,6 +7,7 @@ use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
 use CMBcoreSeller\Modules\Marketing\Models\AdEntity;
 use CMBcoreSeller\Modules\Marketing\Models\AdInsightSnapshot;
 use CMBcoreSeller\Modules\Marketing\Services\AdReconciliationService;
+use CMBcoreSeller\Modules\Marketing\Services\AdsReportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 
@@ -61,6 +62,35 @@ class AdInsightController extends Controller
                     'insights' => $this->formatSnapshot($snaps->get($account->external_account_id)),
                 ],
                 'entities' => $entities,
+            ],
+        ]);
+    }
+
+    /**
+     * GET /api/v1/marketing/ad-accounts/{id}/report
+     * ?level=campaign|adset|ad&since=&until=&campaign_ids[]=&adset_ids[]=&q=&objective=&ad_id=
+     */
+    public function report(int $id): JsonResponse
+    {
+        Gate::authorize('marketing.view');
+        $account = AdAccount::query()->findOrFail($id);
+
+        $level = in_array(request('level'), ['campaign', 'adset', 'ad'], true) ? (string) request('level') : 'campaign';
+        $until = (string) (request('until') ?: now()->toDateString());
+        $since = (string) (request('since') ?: now()->subDays(6)->toDateString());
+        $filters = [
+            'campaign_ids' => array_values(array_filter((array) request('campaign_ids', []))),
+            'adset_ids' => array_values(array_filter((array) request('adset_ids', []))),
+            'q' => (string) request('q', ''),
+            'objective' => (string) request('objective', ''),
+            'id' => (string) request('ad_id', ''),
+        ];
+
+        return response()->json([
+            'data' => [
+                'level' => $level,
+                'currency' => $account->currency,
+                'rows' => app(AdsReportService::class)->report($account, $level, $since, $until, $filters),
             ],
         ]);
     }

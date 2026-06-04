@@ -37,6 +37,7 @@ class AdsSyncService
         $entity->name = $dto->name;
         $entity->status = $dto->status;
         $entity->effective_status = $dto->effectiveStatus;
+        $entity->objective = $dto->objective;
         $entity->daily_budget = $dto->dailyBudget;
         $entity->lifetime_budget = $dto->lifetimeBudget;
         $entity->save();

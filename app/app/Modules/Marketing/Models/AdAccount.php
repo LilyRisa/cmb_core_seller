@@ -15,6 +15,8 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $tenant_id
  * @property string $provider
+ * @property ?string $business_id
+ * @property ?string $business_name
  * @property string $external_account_id
  * @property ?string $name
  * @property ?string $currency
@@ -38,7 +40,7 @@ class AdAccount extends Model
     public const STATUS_REVOKED = 'revoked';
 
     protected $fillable = [
-        'tenant_id', 'provider', 'external_account_id', 'name', 'currency', 'status',
+        'tenant_id', 'provider', 'business_id', 'business_name', 'external_account_id', 'name', 'currency', 'status',
         'access_token', 'refresh_token', 'token_expires_at', 'last_synced_at', 'insights_synced_at',
         'meta', 'created_by',
     ];

@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property ?string $name
  * @property ?string $status
  * @property ?string $effective_status
+ * @property ?string $objective
  * @property ?int $daily_budget
  * @property ?int $lifetime_budget
  * @property ?array<string,mixed> $meta
@@ -36,7 +37,7 @@ class AdEntity extends Model
 
     protected $fillable = [
         'tenant_id', 'ad_account_id', 'level', 'external_id', 'parent_external_id', 'parent_id',
-        'name', 'status', 'effective_status', 'daily_budget', 'lifetime_budget', 'meta',
+        'name', 'status', 'effective_status', 'objective', 'daily_budget', 'lifetime_budget', 'meta',
     ];
 
     protected function casts(): array

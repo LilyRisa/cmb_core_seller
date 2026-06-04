@@ -77,6 +77,8 @@ class AdsOAuthController extends Controller
                     [
                         'name' => $dto->name,
                         'currency' => $dto->currency,
+                        'business_id' => $dto->businessId,
+                        'business_name' => $dto->businessName,
                         'access_token' => $token['access_token'],
                         'token_expires_at' => $token['expires_at'],
                         'status' => AdAccount::STATUS_ACTIVE,

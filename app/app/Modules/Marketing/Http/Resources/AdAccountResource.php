@@ -17,6 +17,8 @@ class AdAccountResource extends JsonResource
         return [
             'id' => $this->id,
             'provider' => $this->provider,
+            'business_id' => $this->business_id,
+            'business_name' => $this->business_name,
             'external_account_id' => $this->external_account_id,
             'name' => $this->name,
             'currency' => $this->currency,

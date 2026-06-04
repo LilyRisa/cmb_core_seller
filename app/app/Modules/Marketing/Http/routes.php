@@ -33,6 +33,9 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
         // Dashboard insights (account summary + entity tree with latest metrics).
         Route::get('ad-accounts/{id}/insights', [AdInsightController::class, 'index'])
             ->whereNumber('id')->name('marketing.ad-accounts.insights');
+        // Ads-Manager-style report (campaign/adset/ad × date range, drill-down, filters).
+        Route::get('ad-accounts/{id}/report', [AdInsightController::class, 'report'])
+            ->whereNumber('id')->name('marketing.ad-accounts.report');
         // Daily reconciliation: ad metrics vs manual orders.
         Route::get('ad-accounts/{id}/reconciliation', [AdInsightController::class, 'reconciliation'])
             ->whereNumber('id')->name('marketing.ad-accounts.reconciliation');
