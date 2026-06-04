@@ -100,8 +100,9 @@ final class FacebookObjectiveMap
             'cta_options' => ['MESSAGE_PAGE'],
         ],
         'engagement' => [
-            'objective' => 'OUTCOME_AWARENESS',
-            'optimization_goal' => 'REACH',
+            // Name matches objective: OUTCOME_ENGAGEMENT + POST_ENGAGEMENT (like/comment/share).
+            'objective' => 'OUTCOME_ENGAGEMENT',
+            'optimization_goal' => 'POST_ENGAGEMENT',
             'billing_event' => 'IMPRESSIONS',
             'destination_type' => null,
             'needs_promoted_object' => false,

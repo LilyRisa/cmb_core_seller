@@ -23,8 +23,10 @@ final class FacebookObjectiveMap
             'cta_options' => ['MESSAGE_PAGE'],
         ],
         'engagement' => [
-            'objective' => 'OUTCOME_AWARENESS',
-            'optimization_goal' => 'REACH',
+            // Tên "engagement" khớp đúng objective OUTCOME_ENGAGEMENT + tối ưu POST_ENGAGEMENT
+            // (like/comment/share), KHÔNG phải reach/awareness — tránh hiểu nhầm cho người dùng.
+            'objective' => 'OUTCOME_ENGAGEMENT',
+            'optimization_goal' => 'POST_ENGAGEMENT',
             'billing_event' => 'IMPRESSIONS',
             'destination_type' => null,
             'needs_promoted_object' => false,

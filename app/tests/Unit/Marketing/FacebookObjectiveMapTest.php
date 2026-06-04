@@ -29,6 +29,16 @@ class FacebookObjectiveMapTest extends TestCase
         $this->assertFalse($spec['needs_promoted_object']);
     }
 
+    public function test_engagement_objective_maps_to_post_engagement_spec(): void
+    {
+        $spec = FacebookObjectiveMap::spec('engagement');
+
+        $this->assertSame('OUTCOME_ENGAGEMENT', $spec['objective']);
+        $this->assertSame('POST_ENGAGEMENT', $spec['optimization_goal']);
+        $this->assertFalse($spec['needs_promoted_object']);
+        $this->assertNull($spec['destination_type']);
+    }
+
     public function test_unknown_objective_throws(): void
     {
         $this->expectException(UnsupportedOperation::class);
