@@ -2,8 +2,10 @@
 
 namespace CMBcoreSeller\Modules\Orders;
 
+use CMBcoreSeller\Modules\Orders\Contracts\ManualOrderDailyStats;
 use CMBcoreSeller\Modules\Orders\Contracts\OrderUpsertContract;
 use CMBcoreSeller\Modules\Orders\Contracts\ReturnUpsertContract;
+use CMBcoreSeller\Modules\Orders\Services\ManualOrderDailyStatsService;
 use CMBcoreSeller\Modules\Orders\Services\OrderUpsertService;
 use CMBcoreSeller\Modules\Orders\Services\ReturnUpsertService;
 use Illuminate\Support\ServiceProvider;
@@ -23,7 +25,7 @@ class OrdersServiceProvider extends ServiceProvider
         // After-sales (cancel/return/refund) upsert — SPEC 0025.
         $this->app->bind(ReturnUpsertContract::class, ReturnUpsertService::class);
         // Read-only manual-order daily stats — consumed by Marketing reconciliation (SPEC 2026-06-04).
-        $this->app->bind(\CMBcoreSeller\Modules\Orders\Contracts\ManualOrderDailyStats::class, \CMBcoreSeller\Modules\Orders\Services\ManualOrderDailyStatsService::class);
+        $this->app->bind(ManualOrderDailyStats::class, ManualOrderDailyStatsService::class);
     }
 
     public function boot(): void
