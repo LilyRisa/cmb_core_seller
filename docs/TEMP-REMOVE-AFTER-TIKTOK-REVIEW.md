@@ -9,30 +9,7 @@
 > grep -rn "TIKTOK-REVIEW-TEMP" app docs
 > ```
 
-Cập nhật: 2026-06-03.
-
----
-
-## 1. Cổng đăng nhập demo (backdoor literal "password")
-
-**Mục đích:** cho reviewer đăng nhập `owner@demo.local` bằng mật khẩu thật **hoặc** literal
-`password` (credential đã gửi trong bản phê duyệt, không sửa được). Luôn bật, chặn hẹp chỉ
-đúng email demo + đúng literal.
-
-**Xoá hẳn (3 chỗ):**
-
-| File | Việc cần làm |
-|---|---|
-| `app/app/Modules/Tenancy/Http/Controllers/AuthController.php` | Xoá method `demoReviewBypass()`; trong `login()` đưa về `if (! Auth::guard('web')->validate([...]))` (bỏ nhánh `\|\| $this->demoReviewBypass(...)`). |
-| `app/config/auth.php` | Xoá khối `'demo_review' => [...]`. |
-| `app/tests/Feature/Tenancy/DemoReviewLoginTest.php` | Xoá cả file. |
-| `app/.env` | Xoá đoạn chú thích `DEMO_REVIEW_*` (không còn biến nào để xoá; chỉ là comment). |
-
-**Tắt tạm không cần sửa code:** đặt `DEMO_REVIEW_EMAIL=` (rỗng) ở env prod (Portainer) — bypass sẽ không chạy.
-
-> Lưu ý prod: tính năng dùng default trong `config/auth.php` (`owner@demo.local` / `password`),
-> KHÔNG cần thêm gì vào `docker-compose.prod.yml`. Nhưng user `owner@demo.local` phải tồn tại
-> trong DB prod (seed).
+Cập nhật: 2026-06-04. (Mục 1 — cổng đăng nhập demo — đã gỡ.)
 
 ---
 
