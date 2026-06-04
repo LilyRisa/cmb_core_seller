@@ -1,6 +1,7 @@
 <?php
 
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdAccountController;
+use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdInsightController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdsOAuthController;
 use Illuminate\Support\Facades\Route;
 
@@ -26,4 +27,8 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
             ->whereNumber('id')->name('marketing.ad-accounts.destroy');
         Route::post('ad-accounts/{id}/refresh', [AdAccountController::class, 'refresh'])
             ->whereNumber('id')->name('marketing.ad-accounts.refresh');
+
+        // Dashboard insights (account summary + entity tree with latest metrics).
+        Route::get('ad-accounts/{id}/insights', [AdInsightController::class, 'index'])
+            ->whereNumber('id')->name('marketing.ad-accounts.insights');
     });
