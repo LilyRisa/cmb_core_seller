@@ -1,6 +1,7 @@
 <?php
 
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdAccountController;
+use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdDraftController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdForecastController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdInsightController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdminMarketingAiProviderController;
@@ -44,6 +45,13 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
             ->whereNumber('id')->name('marketing.ad-accounts.forecast.show');
         Route::post('ad-accounts/{id}/forecast', [AdForecastController::class, 'generate'])
             ->whereNumber('id')->name('marketing.ad-accounts.forecast.generate');
+
+        // Wizard drafts (CRUD + autosave). Write gated by marketing.ads.create.
+        Route::get('ad-drafts', [AdDraftController::class, 'index'])->name('marketing.ad-drafts.index');
+        Route::post('ad-drafts', [AdDraftController::class, 'store'])->name('marketing.ad-drafts.store');
+        Route::get('ad-drafts/{id}', [AdDraftController::class, 'show'])->whereNumber('id')->name('marketing.ad-drafts.show');
+        Route::patch('ad-drafts/{id}', [AdDraftController::class, 'update'])->whereNumber('id')->name('marketing.ad-drafts.update');
+        Route::delete('ad-drafts/{id}', [AdDraftController::class, 'destroy'])->whereNumber('id')->name('marketing.ad-drafts.destroy');
     });
 
 // Super-admin: dedicated marketing AI provider (separate from messaging ai-providers).
