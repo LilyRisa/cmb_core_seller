@@ -10,12 +10,19 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * Campaign / ad set / ad in an ad account's tree (self-nested via parent_id).
  *
+ * @property int $id
  * @property int $tenant_id
  * @property int $ad_account_id
  * @property string $level
  * @property string $external_id
  * @property ?string $parent_external_id
  * @property ?int $parent_id
+ * @property ?string $name
+ * @property ?string $status
+ * @property ?string $effective_status
+ * @property ?int $daily_budget
+ * @property ?int $lifetime_budget
+ * @property ?array<string,mixed> $meta
  */
 class AdEntity extends Model
 {

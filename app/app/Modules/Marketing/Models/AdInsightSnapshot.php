@@ -4,18 +4,33 @@ namespace CMBcoreSeller\Modules\Marketing\Models;
 
 use CMBcoreSeller\Modules\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 /**
  * Latest insight metrics per (entity, window, date range). Upserted in place by
  * SyncAdInsights. `is_finalizing` = within FB's 28-day re-attribution window.
  *
+ * @property int $id
  * @property int $tenant_id
  * @property int $ad_account_id
  * @property ?int $ad_entity_id
  * @property string $level
  * @property string $external_id
+ * @property string $date_start
+ * @property string $date_stop
  * @property string $window
  * @property bool $is_finalizing
+ * @property int $spend
+ * @property int $impressions
+ * @property int $clicks
+ * @property int $reach
+ * @property ?float $ctr
+ * @property ?int $cpc
+ * @property ?int $cpm
+ * @property ?float $frequency
+ * @property ?float $purchase_roas
+ * @property ?array<string,mixed> $metrics
+ * @property ?Carbon $fetched_at
  */
 class AdInsightSnapshot extends Model
 {
