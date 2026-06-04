@@ -86,18 +86,38 @@ Connector hiện gửi **text** (`template_id=1`, `txt`) và **image** (`templat
 
 ## 4. Biến môi trường
 
+> ⚠️ **Lazada Chat dùng APP RIÊNG, độc lập với app orders.** Lazada gate quyền IM theo
+> app nên KHÔNG dùng chung `app_key/app_secret` của app orders (`integrations.lazada` /
+> `LAZADA_APP_KEY`). Phải tạo app loại **IM ERP** riêng trên Lazada Open Platform, lấy
+> credential riêng của app đó điền vào `LAZADA_IM_*` (config `integrations.messaging_lazada_im`).
+> App IM có OAuth + access token riêng (ADR-0019 amendment 2026-06-04), lưu ở
+> `channel_accounts.provider = 'lazada_im'`.
+
 ```dotenv
 # Bật connector (CSV — thêm vào cùng các provider khác)
 INTEGRATIONS_MESSAGING=facebook_page,lazada_chat
 
-# Dùng chung credentials Lazada với orders (Channels) — super-admin nhập ở /admin/system-settings
-# marketplace.lazada.app_key / marketplace.lazada.app_secret, hoặc:
-LAZADA_APP_KEY=xxxxx
-LAZADA_APP_SECRET=xxxxxxxxxxxx
-# base_url theo vùng: VN https://api.lazada.vn/rest
+# Credentials của APP IM ERP RIÊNG (KHÁC app orders) — bắt buộc
+LAZADA_IM_APP_KEY=xxxxx
+LAZADA_IM_APP_SECRET=xxxxxxxxxxxx
+
+# Tùy chọn (đều có default):
+# LAZADA_IM_REDIRECT_URI=     # mặc định = <APP_URL>/oauth/lazada_im/callback
+# LAZADA_IM_API_BASE_URL=     # mặc định kế thừa LAZADA_API_BASE_URL (VN: https://api.lazada.vn/rest)
+# LAZADA_IM_AUTH_BASE_URL=    # mặc định kế thừa LAZADA_AUTH_BASE_URL (https://auth.lazada.com/rest)
+# LAZADA_IM_AUTHORIZE_URL=    # mặc định https://auth.lazada.com/oauth/authorize
 ```
 
-Access token IM = token Lazada orders đã có (ADR-0019) — không cần OAuth riêng.
+**Hai URL khai báo trên app IM ERP** (đừng nhầm — 2 chỗ khác nhau):
+
+| Mục trên Lazada Open Platform | URL |
+|---|---|
+| **Callback URL / Redirect** (OAuth cấp quyền) | `https://<APP_DOMAIN>/oauth/lazada_im/callback` |
+| **Push Mechanism → URL Call Back** (nhận tin) | `https://<APP_DOMAIN>/webhook/messaging/lazada_chat` |
+
+Access token IM = token RIÊNG lấy qua OAuth app IM ERP (`/oauth/lazada_im/callback`),
+KHÔNG dùng chung token orders. Seller bấm **"Kết nối Lazada IM Chat"** ở `/messaging/channels`
+để ủy quyền app IM ERP.
 
 ---
 
