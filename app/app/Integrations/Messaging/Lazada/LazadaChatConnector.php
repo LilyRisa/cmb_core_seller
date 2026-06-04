@@ -20,6 +20,7 @@ use CMBcoreSeller\Integrations\Messaging\DTO\SendResultDTO;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\UnsupportedOperation;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -30,7 +31,7 @@ use Symfony\Component\HttpFoundation\Request;
  * liệu nhưng PHẢI verify với sandbox thật trước khi bật production
  * (`INTEGRATIONS_MESSAGING` không gồm `lazada_chat` mặc định).
  *
- * Tái dùng hạ tầng Lazada của Channels: `config('integrations.lazada')`,
+ * Credential từ app "IM ERP" RIÊNG: `config('integrations.messaging_lazada_im')`,
  * verify webhook (header HMAC / body-sign), {@see LazadaSigner} (UPPERCASE hex).
  * OAuth dùng chung token với orders (ADR-0019).
  */
@@ -154,35 +155,86 @@ class LazadaChatConnector implements MessagingConnector
 
     public function verifyWebhookSignature(Request $request): bool
     {
-        $secret = (string) ($this->imConfig()['app_secret'] ?? '');
+        $cfg = $this->imConfig();
+        $secret = (string) ($cfg['app_secret'] ?? '');
         if ($secret === '') {
+            Log::warning('lazada_chat.verify.no_secret', ['hint' => 'LAZADA_IM_APP_SECRET trống']);
+
             return false;
         }
         $body = (string) $request->getContent();
 
-        // (A) header HMAC-SHA256(rawBody) hex.
+        // Chữ ký Lazada gửi tới — gom từ HEADER (vài tên khả dĩ) + field `sign` trong body.
+        /** @var array<string,string> $provided */
+        $provided = [];
         foreach (self::SIG_HEADERS as $h) {
-            $provided = strtolower(trim((string) $request->headers->get($h, '')));
-            if ($provided !== '' && hash_equals(strtolower(hash_hmac('sha256', $body, $secret)), $provided)) {
-                return true;
+            $v = trim((string) $request->headers->get($h, ''));
+            if ($v !== '') {
+                $provided['header:'.$h] = $v;
             }
         }
-
-        // (B) body có `sign`: ký trên các key còn lại sort & concat {k}{v}.
         $json = json_decode($body, true);
-        if (is_array($json) && isset($json['sign']) && is_string($json['sign'])) {
-            $provided = strtolower(trim($json['sign']));
-            unset($json['sign']);
-            ksort($json, SORT_STRING);
-            $str = '';
-            foreach ($json as $k => $v) {
-                $str .= $k.(is_scalar($v) ? (string) $v : (string) json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-            }
-
-            return hash_equals(strtolower(hash_hmac('sha256', $str, $secret)), $provided);
+        $json = is_array($json) ? $json : [];
+        if (isset($json['sign']) && is_string($json['sign'])) {
+            $provided['body:sign'] = trim($json['sign']);
         }
+
+        $candidates = $this->signatureCandidates($body, $json, $secret, (string) ($cfg['app_key'] ?? ''));
+
+        // So khớp KHÔNG phân biệt hoa/thường (Lazada dùng UPPERCASE hex; vài scheme dùng thường).
+        foreach ($provided as $sig) {
+            $low = strtolower($sig);
+            foreach ($candidates as $cand) {
+                if (hash_equals(strtolower($cand), $low)) {
+                    return true;
+                }
+            }
+        }
+
+        // CHẨN ĐOÁN: chưa khớp ⇒ log đủ để xác định scheme thật (che bớt, KHÔNG lộ secret/sign đầy đủ).
+        Log::warning('lazada_chat.verify.mismatch', [
+            'header_names' => array_keys($request->headers->all()),
+            'provided' => array_map(fn ($s) => substr($s, 0, 12).'…('.strlen($s).')', $provided),
+            'computed' => array_map(fn ($s) => substr($s, 0, 12).'…', $candidates),
+            'body_keys' => array_keys($json),
+            'body_len' => strlen($body),
+        ]);
 
         return false;
+    }
+
+    /**
+     * Các ứng viên chữ ký để so khớp push Lazada (chưa rõ scheme chính thức ⇒ thử nhiều).
+     *
+     * @param  array<string,mixed>  $json  body đã decode
+     * @return array<string,string> nhãn => hex digest
+     */
+    private function signatureCandidates(string $body, array $json, string $secret, string $appKey): array
+    {
+        $out = ['hmac_rawbody' => hash_hmac('sha256', $body, $secret)];
+
+        // Sorted concat {k}{v} của body (bỏ `sign`) — (B).
+        $noSign = $json;
+        unset($noSign['sign']);
+        ksort($noSign, SORT_STRING);
+        $concat = '';
+        foreach ($noSign as $k => $v) {
+            $concat .= $k.(is_scalar($v) ? (string) $v : (string) json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        }
+        $out['hmac_sorted_concat'] = hash_hmac('sha256', $concat, $secret);
+
+        // (C) Kiểu chữ ký CHÍNH THỨC Lazada (LazadaSigner: prepend path + sort, gồm app_key, UPPERCASE).
+        // Đoán path '/' cho push; nếu Lazada ký kiểu này thì khớp ở đây.
+        $signParams = $noSign;
+        if ($appKey !== '') {
+            $signParams['app_key'] = $appKey;
+        }
+        $out['lazada_signer'] = LazadaSigner::sign($secret, '/', array_map(
+            fn ($v) => is_scalar($v) ? (string) $v : (string) json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            $signParams,
+        ));
+
+        return $out;
     }
 
     public function parseWebhook(Request $request): MessagingWebhookEventDTO
