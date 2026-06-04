@@ -7,6 +7,7 @@ use CMBcoreSeller\Integrations\Ads\AdsRegistry;
 use CMBcoreSeller\Integrations\Ads\Contracts\AdsWriteConnector;
 use CMBcoreSeller\Integrations\Ads\DTO\PagePostDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\PageRefDTO;
+use CMBcoreSeller\Integrations\Ads\DTO\TargetingOptionDTO;
 use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -53,6 +54,36 @@ class AdAuthoringController extends Controller
         ], $connector->listPagePosts($page->accessToken, $pageId, $limit));
 
         return response()->json(['data' => $posts]);
+    }
+
+    /** GET ad-accounts/{id}/targeting-search?q=&type= */
+    public function targetingSearch(int $id, Request $request): JsonResponse
+    {
+        Gate::authorize('marketing.view');
+        [$account, $connector] = $this->resolve($id);
+
+        $type = (string) $request->input('type', 'adinterest');
+        $options = array_map(fn (TargetingOptionDTO $o) => [
+            'id' => $o->id, 'name' => $o->name, 'type' => $o->type, 'audience_size' => $o->audienceSize,
+        ], $connector->searchTargeting((string) $account->access_token, (string) $request->input('q', ''), $type));
+
+        return response()->json(['data' => $options]);
+    }
+
+    /** POST ad-accounts/{id}/audience-estimate { targeting, optimization_goal } */
+    public function audienceEstimate(int $id, Request $request): JsonResponse
+    {
+        Gate::authorize('marketing.view');
+        [$account, $connector] = $this->resolve($id);
+
+        $size = $connector->estimateAudience(
+            (string) $account->access_token,
+            $account->external_account_id,
+            (array) $request->input('targeting', []),
+            (string) $request->input('optimization_goal', 'REACH'),
+        );
+
+        return response()->json(['data' => ['lower_bound' => $size->lowerBound, 'upper_bound' => $size->upperBound]]);
     }
 
     /**
