@@ -195,10 +195,12 @@ export function useRefreshAdInsights() {
 }
 
 export interface ForecastStrategy { action: string; campaign: string | null; rationale: string; confidence: number | null }
+export interface CreativeReview { ref: string; name: string | null; verdict: string; issues: string[]; suggestions: string[] }
 export interface AdForecast {
     payload: {
         forecast?: { next_7d?: { conversations?: number; orders?: number; spend?: number; projected_cost_per_order?: number | null } };
         strategy?: ForecastStrategy[];
+        creative_review?: CreativeReview[];
     };
     provider_code: string | null;
     model: string | null;
@@ -221,7 +223,8 @@ export function useGenerateForecast() {
     const api = useScopedApi();
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: async (id: number) => (await api!.post<{ data: AdForecast }>(`/marketing/ad-accounts/${id}/forecast`)).data.data,
+        mutationFn: async (id: number) =>
+            (await api!.post<{ data: AdForecast | null; status?: string; queued?: boolean }>(`/marketing/ad-accounts/${id}/forecast`)).data,
         onSuccess: () => qc.invalidateQueries({ queryKey: ['marketing', 'forecast'] }),
     });
 }

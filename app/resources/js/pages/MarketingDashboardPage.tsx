@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { App as AntApp, Button, Card, Checkbox, Collapse, DatePicker, Dropdown, Empty, Input, List, Popconfirm, Result, Segmented, Select, Space, Spin, Statistic, Table, Tag, Tooltip, Typography } from 'antd';
-import { DisconnectOutlined, EditOutlined, FacebookFilled, FundOutlined, PlusOutlined, QuestionCircleOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
+import { BulbOutlined, DisconnectOutlined, EditOutlined, FacebookFilled, FundOutlined, PlusOutlined, QuestionCircleOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
 import { useAdDrafts, useDeleteDraft } from '@/lib/adWizard';
 import dayjs, { type Dayjs } from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
@@ -170,7 +170,15 @@ export function MarketingDashboardPage() {
         onSuccess: async (d) => { const r = await openOAuthPopup(d.authorize_url); if (r.status === 'done' && r.redirect) applyResult(new URL(r.redirect, window.location.origin).searchParams); },
         onError: (e) => message.error(errorMessage(e, 'Không khởi tạo được kết nối. Quản trị viên cần bật INTEGRATIONS_ADS + cấu hình app.')),
     });
-    const handleForecast = () => { if (selectedId != null) genForecast.mutate(selectedId, { onSuccess: () => message.success('Đã tạo dự báo.'), onError: (e) => message.error(errorMessage(e, 'Không tạo được dự báo (cooldown / chưa cấu hình provider AI marketing).')) }); };
+    const handleForecast = () => {
+        if (selectedId == null) return;
+        genForecast.mutate(selectedId, {
+            onSuccess: (res) => res.queued
+                ? message.info('Đang tạo báo cáo — hệ thống sẽ gửi email cho Quản trị khi xong.')
+                : message.success('Đã có báo cáo.'),
+            onError: (e) => message.error(errorMessage(e, 'Không tạo được dự báo (cooldown / chưa cấu hình provider AI marketing).')),
+        });
+    };
 
     // Table columns (filter by visible set; name always first).
     const fmtCol: Record<string, (r: ReportRow) => React.ReactNode> = {
@@ -329,11 +337,27 @@ export function MarketingDashboardPage() {
                                     <Space style={{ marginBottom: 8 }}><Text strong>Dự báo & chiến lược (AI)</Text>
                                         {canConnect && <Button size="small" type="primary" loading={genForecast.isPending} onClick={handleForecast}>Tạo dự báo</Button>}</Space>
                                     {forecast ? (
-                                        <Space size={32} wrap>
-                                            <Statistic title="Đơn (7 ngày tới)" value={forecast.payload.forecast?.next_7d?.orders ?? '—'} />
-                                            <Statistic title="Chi tiêu (7 ngày tới)" value={money(forecast.payload.forecast?.next_7d?.spend ?? null, currency)} />
-                                            <Statistic title="Cost/đơn dự báo" value={money(forecast.payload.forecast?.next_7d?.projected_cost_per_order ?? null, currency)} />
-                                            <div style={{ maxWidth: 480 }}>{(forecast.payload.strategy ?? []).map((s: ForecastStrategy, i: number) => <div key={i}><Tag>{s.action}</Tag>{s.rationale}</div>)}</div>
+                                        <Space direction="vertical" size={12} style={{ display: 'flex' }}>
+                                            <Space size={32} wrap>
+                                                <Statistic title="Đơn (7 ngày tới)" value={forecast.payload.forecast?.next_7d?.orders ?? '—'} />
+                                                <Statistic title="Chi tiêu (7 ngày tới)" value={money(forecast.payload.forecast?.next_7d?.spend ?? null, currency)} />
+                                                <Statistic title="Cost/đơn dự báo" value={money(forecast.payload.forecast?.next_7d?.projected_cost_per_order ?? null, currency)} />
+                                                <div style={{ maxWidth: 480 }}>{(forecast.payload.strategy ?? []).map((s: ForecastStrategy, i: number) => <div key={i}><Tag>{s.action}</Tag>{s.rationale}</div>)}</div>
+                                            </Space>
+                                            {(forecast?.payload.creative_review?.length ?? 0) > 0 && (
+                                                <div>
+                                                    <Text strong>Đánh giá nội dung quảng cáo</Text>
+                                                    {forecast!.payload.creative_review!.map((cr, i) => (
+                                                        <div key={i} style={{ marginTop: 6 }}>
+                                                            <Tag color={cr.verdict === 'tốt' ? 'green' : 'orange'}>{cr.verdict}</Tag>
+                                                            <Text>{cr.name ?? cr.ref}</Text>
+                                                            {cr.suggestions.map((s, j) => (
+                                                                <div key={j} style={{ marginLeft: 12, color: '#888', fontSize: 12 }}><BulbOutlined /> {s}</div>
+                                                            ))}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </Space>
                                     ) : <Text type="secondary">Chưa có dự báo — bấm "Tạo dự báo".</Text>}
                                 </div>
