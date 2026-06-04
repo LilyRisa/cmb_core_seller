@@ -6,6 +6,7 @@ use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
 use CMBcoreSeller\Modules\Marketing\Models\AdEntity;
 use CMBcoreSeller\Modules\Marketing\Models\AdInsightSnapshot;
+use CMBcoreSeller\Modules\Marketing\Services\AdReconciliationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 
@@ -74,7 +75,7 @@ class AdInsightController extends Controller
         return response()->json([
             'data' => [
                 'currency' => $account->currency,
-                'rows' => app(\CMBcoreSeller\Modules\Marketing\Services\AdReconciliationService::class)->reconcile($account, $days),
+                'rows' => app(AdReconciliationService::class)->reconcile($account, $days),
             ],
         ]);
     }

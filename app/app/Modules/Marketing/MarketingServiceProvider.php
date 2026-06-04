@@ -2,6 +2,8 @@
 
 namespace CMBcoreSeller\Modules\Marketing;
 
+use CMBcoreSeller\Modules\Marketing\Contracts\MarketingAnalysisClient;
+use CMBcoreSeller\Modules\Marketing\Services\LlmMarketingAnalysisClient;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -15,8 +17,8 @@ class MarketingServiceProvider extends ServiceProvider
     {
         // Marketing-owned AI client (isolated from Integrations/Ai messaging flow).
         $this->app->bind(
-            \CMBcoreSeller\Modules\Marketing\Contracts\MarketingAnalysisClient::class,
-            \CMBcoreSeller\Modules\Marketing\Services\LlmMarketingAnalysisClient::class,
+            MarketingAnalysisClient::class,
+            LlmMarketingAnalysisClient::class,
         );
     }
 

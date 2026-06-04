@@ -3,6 +3,7 @@
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdAccountController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdForecastController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdInsightController;
+use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdminMarketingAiProviderController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdsOAuthController;
 use Illuminate\Support\Facades\Route;
 
@@ -40,4 +41,16 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
             ->whereNumber('id')->name('marketing.ad-accounts.forecast.show');
         Route::post('ad-accounts/{id}/forecast', [AdForecastController::class, 'generate'])
             ->whereNumber('id')->name('marketing.ad-accounts.forecast.generate');
+    });
+
+// Super-admin: dedicated marketing AI provider (separate from messaging ai-providers).
+// Guard admin_web, no tenant — same stack as /admin/ai-providers.
+Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
+    ->prefix('api/v1/admin/marketing-ai-providers')->group(function () {
+        Route::get('/', [AdminMarketingAiProviderController::class, 'index'])->name('admin.marketing-ai-providers.index');
+        Route::post('/', [AdminMarketingAiProviderController::class, 'store'])->name('admin.marketing-ai-providers.store');
+        Route::patch('{code}', [AdminMarketingAiProviderController::class, 'update'])
+            ->where('code', '[a-z0-9][a-z0-9_-]*')->name('admin.marketing-ai-providers.update');
+        Route::delete('{code}', [AdminMarketingAiProviderController::class, 'destroy'])
+            ->where('code', '[a-z0-9][a-z0-9_-]*')->name('admin.marketing-ai-providers.destroy');
     });

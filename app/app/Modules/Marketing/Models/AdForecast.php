@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Modules\Marketing\Models;
 
 use CMBcoreSeller\Modules\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 /**
  * Cached AI forecast/strategy per ad account (one latest row). On-demand only.
@@ -14,7 +15,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property array<string,mixed> $payload
  * @property ?string $provider_code
  * @property ?string $model
- * @property \Illuminate\Support\Carbon $generated_at
+ * @property Carbon $generated_at
  */
 class AdForecast extends Model
 {

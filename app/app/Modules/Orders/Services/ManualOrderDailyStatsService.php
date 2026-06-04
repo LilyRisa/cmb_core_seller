@@ -21,7 +21,10 @@ class ManualOrderDailyStatsService implements ManualOrderDailyStats
 
         $out = [];
         foreach ($rows as $r) {
-            $out[(string) $r->d] = ['count' => (int) $r->c, 'revenue' => (int) $r->rev];
+            $out[(string) $r->getAttribute('d')] = [
+                'count' => (int) $r->getAttribute('c'),
+                'revenue' => (int) $r->getAttribute('rev'),
+            ];
         }
 
         return $out;
