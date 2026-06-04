@@ -314,7 +314,7 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
             'campaign_id' => $spec->campaignExternalId,
             'billing_event' => $map['billing_event'],
             'optimization_goal' => $map['optimization_goal'],
-            'targeting' => json_encode($spec->targeting),
+            'targeting' => json_encode($this->mergePlacements($spec->targeting, $spec->placementConfig)),
             'status' => $spec->status,
             'start_time' => $spec->startTime ?? now()->toIso8601String(),
             'access_token' => $accessToken,
@@ -338,6 +338,31 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
         }
 
         return (string) $res->json('id');
+    }
+
+    /**
+     * @param  array<string,mixed>  $targeting
+     * @param  array<string,mixed>|null  $pc
+     * @return array<string,mixed>
+     */
+    private function mergePlacements(array $targeting, ?array $pc): array
+    {
+        if ($pc === null || ! empty($pc['automatic'])) {
+            return $targeting;
+        }
+        foreach (['device_platforms', 'publisher_platforms'] as $k) {
+            if (! empty($pc[$k]) && is_array($pc[$k])) {
+                $targeting[$k] = array_values($pc[$k]);
+            }
+        }
+        foreach (['facebook', 'instagram', 'messenger', 'audience_network'] as $plat) {
+            $pos = $pc['positions'][$plat] ?? [];
+            if (! empty($pos) && is_array($pos)) {
+                $targeting["{$plat}_positions"] = array_values($pos);
+            }
+        }
+
+        return $targeting;
     }
 
     public function createAd(string $accessToken, string $externalAccountId, AdSpecDTO $spec): string

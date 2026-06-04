@@ -17,5 +17,7 @@ final readonly class AdSetSpecDTO
         public ?string $pageId = null,      // required when objective needs promoted_object
         public ?string $startTime = null,   // ISO-8601; null = now
         public string $status = 'PAUSED',
+        /** @var array<string,mixed>|null */
+        public ?array $placementConfig = null,
     ) {}
 }

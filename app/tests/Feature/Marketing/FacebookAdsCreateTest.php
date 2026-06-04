@@ -176,4 +176,42 @@ class FacebookAdsCreateTest extends TestCase
 
         Http::assertSent(fn ($r) => ! array_key_exists('daily_budget', $r->data()));
     }
+
+    public function test_create_adset_merges_manual_placements_into_targeting(): void
+    {
+        Http::fake(['graph.facebook.com/*/adsets' => Http::response(['id' => 'AS'], 200)]);
+
+        $this->connector()->createAdSet('tok', 'act_1', new AdSetSpecDTO(
+            name: 'Set', campaignExternalId: 'C1', objective: 'messages',
+            dailyBudgetMajor: 1000, currency: 'VND', targeting: ['geo_locations' => ['countries' => ['VN']]], pageId: '123',
+            placementConfig: ['automatic' => false, 'device_platforms' => ['mobile'], 'publisher_platforms' => ['facebook', 'instagram'], 'positions' => ['facebook' => ['feed', 'reels'], 'instagram' => ['story']]],
+        ));
+
+        Http::assertSent(function ($r) {
+            $t = json_decode($r->data()['targeting'], true);
+
+            return $t['geo_locations']['countries'] === ['VN']
+                && $t['device_platforms'] === ['mobile']
+                && $t['publisher_platforms'] === ['facebook', 'instagram']
+                && $t['facebook_positions'] === ['feed', 'reels']
+                && $t['instagram_positions'] === ['story'];
+        });
+    }
+
+    public function test_create_adset_automatic_placements_not_merged(): void
+    {
+        Http::fake(['graph.facebook.com/*/adsets' => Http::response(['id' => 'AS'], 200)]);
+
+        $this->connector()->createAdSet('tok', 'act_1', new AdSetSpecDTO(
+            name: 'Set', campaignExternalId: 'C1', objective: 'messages',
+            dailyBudgetMajor: 1000, currency: 'VND', targeting: [], pageId: '123',
+            placementConfig: ['automatic' => true, 'publisher_platforms' => ['facebook']],
+        ));
+
+        Http::assertSent(function ($r) {
+            $t = json_decode($r->data()['targeting'], true);
+
+            return ! array_key_exists('publisher_platforms', $t);
+        });
+    }
 }

@@ -78,6 +78,14 @@ class AdDraftSpecMapperTest extends TestCase
         $this->assertSame('123', $spec->pageId);  // from first ad's creative
     }
 
+    public function test_adset_passes_placement_config(): void
+    {
+        $draft = $this->draft([]);
+        $node = ['name' => 'N', 'placement_config' => ['automatic' => false, 'publisher_platforms' => ['facebook']], 'ads' => [['creative' => ['page_id' => '1']]]];
+        $spec = app(AdDraftSpecMapper::class)->adSet($draft, $node, 'C9', 'VND');
+        $this->assertSame(['automatic' => false, 'publisher_platforms' => ['facebook']], $spec->placementConfig);
+    }
+
     public function test_maps_ad_from_node(): void
     {
         $draft = $this->draft([]);
