@@ -29,6 +29,8 @@ use Illuminate\Support\Carbon;
  * @property ?int $cpm
  * @property ?float $frequency
  * @property ?float $purchase_roas
+ * @property int $messaging_conversations
+ * @property int $leads
  * @property ?array<string,mixed> $metrics
  * @property ?Carbon $fetched_at
  */
@@ -40,7 +42,7 @@ class AdInsightSnapshot extends Model
         'tenant_id', 'ad_account_id', 'ad_entity_id', 'level', 'external_id',
         'date_start', 'date_stop', 'window', 'is_finalizing',
         'spend', 'impressions', 'clicks', 'reach', 'ctr', 'cpc', 'cpm', 'frequency', 'purchase_roas',
-        'metrics', 'fetched_at',
+        'messaging_conversations', 'leads', 'metrics', 'fetched_at',
     ];
 
     protected function casts(): array
@@ -58,6 +60,8 @@ class AdInsightSnapshot extends Model
             'cpm' => 'integer',
             'frequency' => 'float',
             'purchase_roas' => 'float',
+            'messaging_conversations' => 'integer',
+            'leads' => 'integer',
             'metrics' => 'array',
             'fetched_at' => 'datetime',
         ];

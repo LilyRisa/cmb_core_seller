@@ -108,6 +108,8 @@ class SyncAdInsights implements ShouldBeUnique, ShouldQueue
                     'cpm' => $r->cpm,
                     'frequency' => $r->frequency,
                     'purchase_roas' => $r->purchaseRoas,
+                    'messaging_conversations' => $r->messagingConversations,
+                    'leads' => $r->leads,
                     'metrics' => $r->raw,
                     'fetched_at' => now(),
                 ],

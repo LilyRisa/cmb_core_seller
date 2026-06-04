@@ -19,6 +19,8 @@ final readonly class AdInsightDTO
         public ?int $cpm,
         public ?float $frequency,
         public ?float $purchaseRoas,
+        public int $messagingConversations = 0,   // click-to-Messenger conversations started
+        public int $leads = 0,                     // lead-ads leads
         public array $raw = [],
     ) {}
 }

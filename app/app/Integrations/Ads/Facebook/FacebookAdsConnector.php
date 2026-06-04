@@ -158,7 +158,7 @@ class FacebookAdsConnector implements AdsConnector
     public function fetchInsights(string $accessToken, string $externalId, string $level, array $query = [], ?AdInsightThrottleDTO &$throttleOut = null): array
     {
         $params = [
-            'fields' => 'spend,impressions,clicks,reach,ctr,cpc,cpm,frequency,purchase_roas',
+            'fields' => 'spend,impressions,clicks,reach,ctr,cpc,cpm,frequency,purchase_roas,actions',
             'level' => $level === 'account' ? 'account' : $level,
             'date_preset' => (string) ($query['date_preset'] ?? 'today'),
             'access_token' => $accessToken,
@@ -185,6 +185,9 @@ class FacebookAdsConnector implements AdsConnector
 
         return array_values(array_map(function (array $r) use ($level, $externalId) {
             $roas = isset($r['purchase_roas'][0]['value']) ? (float) $r['purchase_roas'][0]['value'] : null;
+            $actions = $this->indexActions($r['actions'] ?? []);
+            $conversations = (int) ($actions['onsite_conversion.messaging_conversation_started_7d'] ?? 0);
+            $leads = (int) (($actions['lead'] ?? 0) + ($actions['leadgen.other'] ?? 0) + ($actions['onsite_conversion.lead_grouped'] ?? 0));
 
             return new AdInsightDTO(
                 level: $level,
@@ -200,8 +203,28 @@ class FacebookAdsConnector implements AdsConnector
                 cpm: isset($r['cpm']) ? (int) round((float) $r['cpm']) : null,
                 frequency: isset($r['frequency']) ? (float) $r['frequency'] : null,
                 purchaseRoas: $roas,
+                messagingConversations: $conversations,
+                leads: $leads,
                 raw: $r,
             );
         }, array_filter((array) $res->json('data', []), 'is_array')));
+    }
+
+    /**
+     * Index a Graph `actions` array (`[{action_type, value}, …]`) by action_type → int value.
+     *
+     * @param  array<int,array<string,mixed>>  $actions
+     * @return array<string,int>
+     */
+    private function indexActions(array $actions): array
+    {
+        $out = [];
+        foreach ($actions as $a) {
+            if (isset($a['action_type'])) {
+                $out[(string) $a['action_type']] = (int) round((float) ($a['value'] ?? 0));
+            }
+        }
+
+        return $out;
     }
 }
