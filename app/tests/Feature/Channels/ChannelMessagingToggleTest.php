@@ -48,7 +48,7 @@ class ChannelMessagingToggleTest extends TestCase
 
     public function test_owner_enables_messaging_for_lazada(): void
     {
-        $a = $this->account('lazada');
+        $a = $this->account('lazada_im');
 
         $this->actingAs($this->userWithRole(Role::Owner))
             ->withHeaders($this->h())
@@ -62,7 +62,7 @@ class ChannelMessagingToggleTest extends TestCase
 
     public function test_owner_disables_messaging_for_lazada(): void
     {
-        $a = $this->account('lazada');
+        $a = $this->account('lazada_im');
         $a->forceFill(['messaging_enabled' => true])->save();
 
         $this->actingAs($this->userWithRole(Role::Owner))

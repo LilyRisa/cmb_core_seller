@@ -4,6 +4,7 @@ use CMBcoreSeller\Http\Controllers\AdminSpaController;
 use CMBcoreSeller\Http\Controllers\SpaController;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\OAuthCallbackController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\FacebookOAuthController;
+use CMBcoreSeller\Modules\Messaging\Http\Controllers\LazadaImOAuthController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -33,6 +34,10 @@ Route::get('oauth/{provider}/callback', OAuthCallbackController::class)
 // Facebook Page messaging OAuth (SPEC-0024) — MessagingConnector, flow riêng.
 Route::get('oauth/facebook_page/callback', [FacebookOAuthController::class, 'callback'])
     ->name('messaging.facebook.callback');
+
+// Lazada IM Chat OAuth (app "IM ERP" RIÊNG, ngoại lệ ADR-0019) — MessagingConnector, flow riêng.
+Route::get('oauth/lazada_im/callback', [LazadaImOAuthController::class, 'callback'])
+    ->name('messaging.lazada_im.callback');
 
 // --- Admin SPA shell (Spec 2026-05-17) ---
 // `/admin` và mọi sub-path serve Blade `admin.blade.php` nạp bundle `admin.tsx`.

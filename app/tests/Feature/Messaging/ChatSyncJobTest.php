@@ -95,17 +95,17 @@ class ChatSyncJobTest extends TestCase
         // Arrange — config Lazada
         config([
             'integrations.messaging' => ['lazada_chat'],
-            'integrations.lazada' => [
+            'integrations.messaging_lazada_im' => [
                 'app_key' => 'K',
                 'app_secret' => 'S',
-                'base_url' => 'https://api.lazada.vn/rest',
+                'api_base_url' => 'https://api.lazada.vn/rest',
             ],
         ]);
         $this->app->forgetInstance(MessagingRegistry::class);
 
         $acct = ChannelAccount::query()->create([
             'tenant_id' => $this->tenant->getKey(),
-            'provider' => 'lazada',
+            'provider' => 'lazada_im',
             'external_shop_id' => 'S1',
             'shop_name' => 'Lazada VN Test',
             'status' => ChannelAccount::STATUS_ACTIVE,

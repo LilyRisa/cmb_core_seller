@@ -79,7 +79,7 @@ class ResyncChatEndpointTest extends TestCase
     {
         return ChannelAccount::query()->create([
             'tenant_id' => $this->tenant->getKey(),
-            'provider' => 'lazada',
+            'provider' => 'lazada_im',
             'external_shop_id' => 'LAZ_SHOP_1',
             'shop_name' => 'Lazada VN',
             'status' => ChannelAccount::STATUS_ACTIVE,

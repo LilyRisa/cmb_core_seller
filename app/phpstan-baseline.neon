@@ -1,42 +1,6 @@
 parameters:
 	ignoreErrors:
 		-
-			message: '#^Access to an undefined property CMBcoreSeller\\Modules\\Channels\\Models\\OAuthState\:\:\$expires_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Modules/Channels/Models/OAuthState.php
-
-		-
-			message: '#^Access to an undefined property CMBcoreSeller\\Modules\\Channels\\Models\\OAuthState\:\:\$created_by\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Modules/Channels/Services/ChannelConnectionService.php
-
-		-
-			message: '#^Access to an undefined property CMBcoreSeller\\Modules\\Channels\\Models\\OAuthState\:\:\$provider\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Modules/Channels/Services/ChannelConnectionService.php
-
-		-
-			message: '#^Access to an undefined property CMBcoreSeller\\Modules\\Channels\\Models\\OAuthState\:\:\$redirect_after\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Modules/Channels/Services/ChannelConnectionService.php
-
-		-
-			message: '#^Access to an undefined property CMBcoreSeller\\Modules\\Channels\\Models\\OAuthState\:\:\$state\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Modules/Channels/Services/ChannelConnectionService.php
-
-		-
-			message: '#^Access to an undefined property CMBcoreSeller\\Modules\\Channels\\Models\\OAuthState\:\:\$tenant_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Modules/Channels/Services/ChannelConnectionService.php
-
-		-
 			message: '#^Access to an undefined property CMBcoreSeller\\Modules\\Orders\\Http\\Resources\\OrderStatusHistoryResource\:\:\$changed_at\.$#'
 			identifier: property.notFound
 			count: 1

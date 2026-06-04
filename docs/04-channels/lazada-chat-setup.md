@@ -23,10 +23,16 @@ Hướng dẫn bật tính năng nhắn tin (Instant Messaging) của Lazada tro
 |---|---|---|
 | `LazadaChatConnector` | `app/Integrations/Messaging/Lazada/` | verify webhook, parse, gửi tin (`/im/message/send`), ký `LazadaSigner` |
 | Webhook nhận | `POST /webhook/messaging/lazada_chat` | Lazada App Push đẩy tin → verify chữ ký → store → xử lý async |
-| OAuth | **dùng chung token với Lazada orders** (ADR-0019) — không OAuth riêng |
+| OAuth | **App "IM ERP" RIÊNG** — OAuth riêng (`/oauth/lazada_im/callback`), token riêng. KHÔNG dùng chung token orders (ADR-0019 amendment 2026-06-04). |
+| Provider account | `channel_accounts.provider = 'lazada_im'` (tách khỏi `lazada` của orders; 1 shop có thể có 2 row) |
 
 `external_conversation_id` = **session_id** (Lazada IM); `external_shop_id` = **seller_id**.
-Connector dùng `config('integrations.lazada')` (cùng app_key/app_secret với Channels orders).
+Connector dùng `config('integrations.messaging_lazada_im')` (app IM ERP riêng). Kết nối qua nút
+**"Kết nối Lazada IM Chat"** ở `/messaging/channels` (giống kết nối Facebook Page).
+
+> ⚠️ **Lazada gate quyền IM theo app.** Gọi IM bằng token app orders trả
+> `{"type":"ISV","code":"InsufficientPermission"}`. PHẢI tạo app loại **IM ERP** riêng trên
+> Lazada Open Platform (xác nhận với Lazada support) rồi seller ủy quyền app đó.
 
 ---
 

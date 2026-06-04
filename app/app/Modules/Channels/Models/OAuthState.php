@@ -5,12 +5,20 @@ namespace CMBcoreSeller\Modules\Channels\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Prunable;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 /**
  * Short-lived OAuth CSRF state. NOT tenant-scoped via global scope: the OAuth
  * callback has no trusted session, so this row is the link back to the tenant.
  * Pruned by `model:prune` (scheduled). See docs/05-api/webhooks-and-oauth.md §2 rule 2.
+ *
+ * @property string $state
+ * @property string $provider
+ * @property int $tenant_id
+ * @property int|null $created_by
+ * @property string|null $redirect_after
+ * @property Carbon|null $expires_at
  */
 class OAuthState extends Model
 {

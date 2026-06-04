@@ -86,3 +86,15 @@ Core module Orders/Inventory/Fulfillment chỉ liệt kê accounts `kind=marketp
 - Cập nhật `02-data-model/overview.md` mục Channels: "provider mở rộng cho social".
 - Cập nhật `glossary.md` định nghĩa "ChannelAccount" (đã không còn = shop sàn; = kết nối tới nền tảng ngoài).
 - Cập nhật UI `/channels` thêm tab/filter Marketplace/Social.
+
+## Amendment 2026-06-04 — Ngoại lệ Lazada IM (app "IM ERP" riêng)
+
+Giả định ở §Bối cảnh (Lazada IM **dùng chung** OAuth token với orders) **không còn đúng**. Thực tế kiểm chứng trên production: gọi `/im/session/list` bằng token app orders trả `{"type":"ISV","code":"InsufficientPermission"}`. Lazada Open Platform gate quyền IM **theo app** và yêu cầu **tạo app mới loại "IM ERP" riêng** — không thêm quyền IM vào app orders được.
+
+**Quyết định bổ sung:** Lazada IM theo **mô hình Facebook Page** (provider messaging độc lập), KHÔNG theo phương án B cho phần token:
+- Provider mới `channel_accounts.provider = 'lazada_im'` (tách khỏi `lazada` của orders) — 1 shop Lazada có thể có 2 row (`lazada` + `lazada_im`), liên kết qua `external_shop_id` (seller_id).
+- App IM ERP riêng: config `integrations.messaging_lazada_im` (`LAZADA_IM_APP_KEY/SECRET`), **OAuth + token riêng** (controller `LazadaImOAuthController`, route `/oauth/lazada_im/callback`).
+- `ChannelAccount::messagingConnectorCode()`: `'lazada_im' => 'lazada_chat'`; **bỏ** `'lazada' => 'lazada_chat'` (đường shared-app cũ vốn lỗi InsufficientPermission).
+- Connector `LazadaChatConnector` đọc `integrations.messaging_lazada_im` (không còn `integrations.lazada`).
+
+**Phạm vi ngoại lệ:** CHỈ Lazada. **TikTok** (scope Customer Service) và **Shopee** (whitelist Seller Chat) vẫn dùng chung app/token orders theo phương án B gốc. Chi tiết: `docs/superpowers/specs/2026-06-04-lazada-im-chat-separate-app-design.md`.

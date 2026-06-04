@@ -271,6 +271,15 @@ export function useConnectFacebook() {
     });
 }
 
+// Lazada IM Chat dùng app "IM ERP" RIÊNG (tách khỏi gian hàng) — OAuth flow riêng.
+export function useConnectLazadaIm() {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async () =>
+            (await api!.post<{ data: { authorize_url: string } }>('/messaging/lazada-im/connect')).data.data,
+    });
+}
+
 // --- Quản lý kênh Facebook Page (UI /messaging/channels) -------------------
 
 export interface ChannelSync {

@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Integrations\Messaging\Lazada;
 
 use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
+use CMBcoreSeller\Integrations\Channels\Lazada\LazadaMappers;
 use CMBcoreSeller\Integrations\Channels\Lazada\LazadaSigner;
 use CMBcoreSeller\Integrations\Messaging\Contracts\MessagingConnector;
 use CMBcoreSeller\Integrations\Messaging\DTO\ConversationDTO;
@@ -17,6 +18,7 @@ use CMBcoreSeller\Integrations\Messaging\DTO\OutboundWindowPolicyDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\Page;
 use CMBcoreSeller\Integrations\Messaging\DTO\SendResultDTO;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\UnsupportedOperation;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -66,19 +68,83 @@ class LazadaChatConnector implements MessagingConnector
         return (bool) ($this->capabilities()[$capability] ?? false);
     }
 
+    /** @return array<string,mixed> Config app "IM ERP" RIÊNG — tách khỏi orders `integrations.lazada` (ADR-0019 ngoại lệ). */
+    private function imConfig(): array
+    {
+        return (array) config('integrations.messaging_lazada_im', []);
+    }
+
+    /** Redirect URI OAuth IM — phải đăng ký y hệt trong console app IM ERP. Mặc định suy từ APP_URL. */
+    private function redirectUri(): string
+    {
+        $configured = (string) ($this->imConfig()['redirect_uri'] ?? '');
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        return rtrim((string) config('app.url'), '/').'/oauth/lazada_im/callback';
+    }
+
     public function buildAuthorizationUrl(string $state, array $opts = []): string
     {
-        throw UnsupportedOperation::for($this->code(), 'buildAuthorizationUrl (dùng chung OAuth Lazada orders — ADR-0019)');
+        $cfg = $this->imConfig();
+        $base = (string) ($cfg['authorize_url'] ?? 'https://auth.lazada.com/oauth/authorize');
+        $forceAuth = (bool) ($cfg['authorize_force_auth'] ?? true);
+        $country = trim((string) ($cfg['authorize_country'] ?? ''));
+
+        return $base.'?'.http_build_query(array_filter([
+            'response_type' => 'code',
+            'force_auth' => $forceAuth ? 'true' : null,
+            'redirect_uri' => $opts['redirect_uri'] ?? $this->redirectUri(),
+            'client_id' => (string) ($cfg['app_key'] ?? ''),
+            'state' => $state,
+            'country' => $country !== '' ? $country : null,
+        ], fn ($v) => $v !== null));
     }
 
     public function exchangeCodeForToken(string $code): TokenDTO
     {
-        throw UnsupportedOperation::for($this->code(), 'exchangeCodeForToken');
+        return LazadaMappers::token($this->authTokenCall('/auth/token/create', ['code' => $code]));
     }
 
     public function refreshToken(string $refreshToken): TokenDTO
     {
-        throw UnsupportedOperation::for($this->code(), 'refreshToken');
+        return LazadaMappers::token($this->authTokenCall('/auth/token/refresh', ['refresh_token' => $refreshToken]));
+    }
+
+    /**
+     * POST tới host auth Lazada (`/auth/token/create|refresh`) bằng credential app IM ERP.
+     * System params + sign ở query, business params ở body multipart — giống {@see LazadaClient::call}.
+     *
+     * @param  array<string,string>  $biz
+     * @return array<string,mixed> token data (access_token, refresh_token, expires_in, country_user_info_list, …)
+     */
+    private function authTokenCall(string $path, array $biz): array
+    {
+        $cfg = $this->imConfig();
+        $sys = [
+            'app_key' => (string) ($cfg['app_key'] ?? ''),
+            'timestamp' => (string) (int) (microtime(true) * 1000),
+            'sign_method' => 'sha256',
+            'partner_id' => (string) ($cfg['partner_id'] ?? 'lazop-sdk-php-20180422'),
+        ];
+        $sys['sign'] = LazadaSigner::sign((string) ($cfg['app_secret'] ?? ''), $path, array_merge($sys, $biz));
+
+        $base = rtrim((string) ($cfg['auth_base_url'] ?? 'https://auth.lazada.com/rest'), '/');
+        $url = $base.$path.'?'.http_build_query($sys, '', '&', PHP_QUERY_RFC1738);
+        $multipart = [];
+        foreach ($biz as $k => $v) {
+            $multipart[] = ['name' => (string) $k, 'contents' => (string) $v];
+        }
+
+        $resp = Http::timeout(30)->asMultipart()->post($url, $multipart);
+        $json = (array) ($resp->json() ?? []);
+        $rcode = (string) ($json['code'] ?? '');
+        if (! $resp->successful() || ($rcode !== '' && $rcode !== '0')) {
+            throw new \RuntimeException('Lazada IM token exchange failed: '.$resp->body());
+        }
+
+        return (array) ($json['data'] ?? $json);
     }
 
     public function registerWebhooks(MessagingAuthContext $auth): void
@@ -88,7 +154,7 @@ class LazadaChatConnector implements MessagingConnector
 
     public function verifyWebhookSignature(Request $request): bool
     {
-        $secret = (string) (config('integrations.lazada.app_secret') ?? '');
+        $secret = (string) ($this->imConfig()['app_secret'] ?? '');
         if ($secret === '') {
             return false;
         }
@@ -176,7 +242,7 @@ class LazadaChatConnector implements MessagingConnector
 
     public function fetchConversations(MessagingAuthContext $auth, array $query = []): Page
     {
-        $cfg = (array) config('integrations.lazada', []);
+        $cfg = $this->imConfig();
         $path = '/im/session/list';
 
         // start_time (doc /im/session/list): TRANG ĐẦU = current timestamp; TRANG SAU = next_start_time
@@ -184,9 +250,8 @@ class LazadaChatConnector implements MessagingConnector
         // quá khứ); truyền mốc cũ sẽ chỉ trả session CŨ HƠN ⇒ bỏ sót tin mới. `since` chỉ dùng để DỪNG.
         $startTime = (string) (int) (microtime(true) * 1000);
         $lastSessionId = null;
-        $sinceMs = (isset($query['since']) && $query['since'] instanceof CarbonImmutable)
-            ? (int) $query['since']->valueOf()
-            : null;
+        // `since` (nếu có) luôn là CarbonImmutable theo hợp đồng @param; isset đã loại null.
+        $sinceMs = isset($query['since']) ? (int) $query['since']->valueOf() : null;
 
         // cursor = "lastSessionId|nextStartTime"
         if (! empty($query['cursor']) && str_contains((string) $query['cursor'], '|')) {
@@ -212,6 +277,7 @@ class LazadaChatConnector implements MessagingConnector
 
         $base = rtrim((string) ($cfg['api_base_url'] ?? 'https://api.lazada.vn/rest'), '/');
         $response = Http::timeout(30)->retry(2, 500, throw: false)->get($base.$path, $params);
+        $this->assertLazadaOk($response, 'fetchConversations');
 
         $data = (array) ($response->json('data') ?? []);
         $sessionList = (array) ($data['session_list'] ?? []);
@@ -284,16 +350,15 @@ class LazadaChatConnector implements MessagingConnector
      */
     public function fetchMessages(MessagingAuthContext $auth, string $externalConversationId, array $query = []): Page
     {
-        $cfg = (array) config('integrations.lazada', []);
+        $cfg = $this->imConfig();
         $path = '/im/message/list';
 
         // start_time (doc /im/message/list): TRANG ĐẦU = current timestamp; KHÔNG dùng `since` làm
         // start_time (cận trên). `since` chỉ để DỪNG khi đã lùi quá mốc sync. cursor = "lastMessageId|nextStartTime".
         $startTime = (string) (int) (microtime(true) * 1000);
         $lastMessageId = null;
-        $sinceMs = (isset($query['since']) && $query['since'] instanceof CarbonImmutable)
-            ? (int) $query['since']->valueOf()
-            : null;
+        // `since` (nếu có) luôn là CarbonImmutable theo hợp đồng @param; isset đã loại null.
+        $sinceMs = isset($query['since']) ? (int) $query['since']->valueOf() : null;
         if (! empty($query['cursor']) && str_contains((string) $query['cursor'], '|')) {
             [$lastMessageId, $startTime] = explode('|', (string) $query['cursor'], 2);
         }
@@ -318,6 +383,7 @@ class LazadaChatConnector implements MessagingConnector
 
         $base = rtrim((string) ($cfg['api_base_url'] ?? 'https://api.lazada.vn/rest'), '/');
         $response = Http::timeout(30)->retry(2, 500, throw: false)->get($base.$path, $params);
+        $this->assertLazadaOk($response, 'fetchMessages');
 
         $data = (array) ($response->json('data') ?? []);
         $messageList = (array) ($data['message_list'] ?? []);
@@ -462,8 +528,8 @@ class LazadaChatConnector implements MessagingConnector
         }
         $bytes = $fetch->body();
 
-        $cfg = (array) config('integrations.lazada', []);
-        $base = rtrim((string) ($cfg['base_url'] ?? 'https://api.lazada.vn/rest'), '/');
+        $cfg = $this->imConfig();
+        $base = rtrim((string) ($cfg['api_base_url'] ?? 'https://api.lazada.vn/rest'), '/');
         $uploadPath = '/image/upload';
 
         $uploadSysParams = [
@@ -537,10 +603,26 @@ class LazadaChatConnector implements MessagingConnector
      *
      * @param  array<string,scalar>  $content  field nội dung theo template_id
      */
+    /**
+     * Ném lỗi khi Lazada trả non-2xx hoặc envelope lỗi (`code` khác '0'/rỗng) — để lỗi
+     * thật (vd `InsufficientPermission`, `IllegalAccessToken`, sai sign, rate-limit) HIỆN
+     * vào `messaging_account_meta.sync_error` thay vì âm thầm 0 hội thoại. Thành công của
+     * Lazada = `code` '0'/rỗng (giống {@see send}).
+     */
+    private function assertLazadaOk(Response $response, string $op): void
+    {
+        $code = $response->json('code');
+        if ($response->successful() && ($code === null || (string) $code === '0' || (string) $code === '')) {
+            return;
+        }
+
+        throw new \RuntimeException("Lazada IM {$op} failed: ".$response->body());
+    }
+
     private function send(MessagingAuthContext $auth, string $sessionId, int $templateId, array $content): SendResultDTO
     {
-        $cfg = (array) config('integrations.lazada', []);
-        $base = rtrim((string) ($cfg['base_url'] ?? 'https://api.lazada.vn/rest'), '/');
+        $cfg = $this->imConfig();
+        $base = rtrim((string) ($cfg['api_base_url'] ?? 'https://api.lazada.vn/rest'), '/');
         $path = '/im/message/send';
 
         $params = array_merge([

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { App as AntApp, Avatar, Button, Card, Checkbox, Empty, Popconfirm, Progress, Result, Space, Spin, Tag, Tooltip, Typography } from 'antd';
-import { DisconnectOutlined, FacebookFilled, KeyOutlined, SyncOutlined } from '@ant-design/icons';
+import { DisconnectOutlined, FacebookFilled, KeyOutlined, ShopOutlined, SyncOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { MessagingNav } from '@/components/MessagingNav';
@@ -9,7 +9,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { errorMessage } from '@/lib/api';
 import { openOAuthPopup } from '@/lib/oauthPopup';
 import { useCan } from '@/lib/tenant';
-import { useBulkDisconnectChannels, useBulkSyncChannels, useConnectFacebook, useDisconnectFacebookPage, useMessagingChannels, useSyncChannel } from '@/lib/messagingConfig';
+import { useBulkDisconnectChannels, useBulkSyncChannels, useConnectFacebook, useConnectLazadaIm, useDisconnectFacebookPage, useMessagingChannels, useSyncChannel } from '@/lib/messagingConfig';
 
 const { Text } = Typography;
 
@@ -20,12 +20,20 @@ const FB_ERRORS: Record<string, string> = {
     facebook_oauth_failed: 'Kết nối Facebook thất bại. Vui lòng thử lại sau.',
 };
 
+/** Thông điệp cho mã `?error=` từ callback Lazada IM (LazadaImOAuthController). */
+const LZ_ERRORS: Record<string, string> = {
+    lazada_im_oauth_state: 'Phiên kết nối đã hết hạn. Vui lòng thử lại.',
+    lazada_im_no_seller: 'Không lấy được thông tin gian hàng từ Lazada. Kiểm tra app đã được cấp quyền IM chưa.',
+    lazada_im_oauth_failed: 'Kết nối Lazada IM thất bại. Vui lòng thử lại sau.',
+};
+
 /** /messaging/channels — kết nối & quản lý Facebook Page (design 2026-05-20). */
 export function MessagingChannelsPage() {
     const { message } = AntApp.useApp();
     const [params, setParams] = useSearchParams();
     const canConnect = useCan('messaging.connect');
     const connectFb = useConnectFacebook();
+    const connectLazadaIm = useConnectLazadaIm();
     const { data: channels, isLoading, isError, error } = useMessagingChannels();
     const [reconnectingId, setReconnectingId] = useState<number | null>(null);
     const [disconnectingId, setDisconnectingId] = useState<number | null>(null);
@@ -58,8 +66,22 @@ export function MessagingChannelsPage() {
         }
     };
 
+    const applyLzResult = (p: URLSearchParams) => {
+        const connected = p.get('connected');
+        const err = p.get('error');
+        if (connected === 'lazada_im') {
+            message.success('Đã kết nối Lazada IM Chat!');
+            params.delete('connected'); setParams(params, { replace: true });
+            qc.invalidateQueries({ queryKey: ['messaging', 'channels'] });
+        } else if (err && err.startsWith('lazada_im')) {
+            message.error({ content: LZ_ERRORS[err] ?? 'Kết nối Lazada IM thất bại. Vui lòng thử lại.', duration: 12 });
+            params.delete('error'); setParams(params, { replace: true });
+        }
+    };
+
     useEffect(() => {
         applyFbResult(params);
+        applyLzResult(params);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -71,6 +93,16 @@ export function MessagingChannelsPage() {
             }
         },
         onError: (e) => message.error(errorMessage(e, 'Không khởi tạo được kết nối. Quản trị viên cần bật facebook_page.')),
+    });
+
+    const handleConnectLazadaIm = () => connectLazadaIm.mutate(undefined, {
+        onSuccess: async (d) => {
+            const res = await openOAuthPopup(d.authorize_url);
+            if (res.status === 'done' && res.redirect) {
+                applyLzResult(new URL(res.redirect, window.location.origin).searchParams);
+            }
+        },
+        onError: (e) => message.error(errorMessage(e, 'Không khởi tạo được kết nối. Quản trị viên cần bật lazada_chat.')),
     });
 
     const handleReconnect = (id: number) => {
@@ -114,7 +146,7 @@ export function MessagingChannelsPage() {
     return (
         <div>
             <MessagingNav />
-            <PageHeader title="Kết nối kênh" subtitle="Kết nối Facebook Page để nhận & trả lời tin nhắn Messenger ngay trong hộp thư." />
+            <PageHeader title="Kết nối kênh" subtitle="Kết nối Facebook Page và Lazada IM Chat để nhận & trả lời tin nhắn ngay trong hộp thư." />
 
             <Card title={<><FacebookFilled style={{ color: '#1877F2' }} /> Facebook Page</>} style={{ marginBottom: 16 }}>
                 <Space direction="vertical" size={12} style={{ display: 'flex' }}>
@@ -214,8 +246,19 @@ export function MessagingChannelsPage() {
                 </Space>
             </Card>
 
-            <Card title="Lazada / TikTok">
-                <Text type="secondary">Lazada/TikTok dùng chung kết nối với Gian hàng. Bật nhắn tin tại <Link to="/channels">trang Gian hàng</Link>.</Text>
+            <Card title={<><ShopOutlined style={{ color: '#0F146D' }} /> Lazada IM Chat</>} style={{ marginBottom: 16 }}>
+                <Space direction="vertical" size={8} style={{ display: 'flex' }}>
+                    <Text type="secondary">
+                        Lazada IM dùng <Text strong>app "IM ERP" riêng</Text> (tách khỏi Gian hàng). Kết nối để nhận & trả lời chat Lazada ngay trong hộp thư.
+                    </Text>
+                    <Button type="primary" icon={<ShopOutlined />} loading={connectLazadaIm.isPending} onClick={handleConnectLazadaIm} disabled={!canConnect}>
+                        Kết nối Lazada IM Chat
+                    </Button>
+                </Space>
+            </Card>
+
+            <Card title="TikTok">
+                <Text type="secondary">TikTok dùng chung kết nối với Gian hàng. Bật nhắn tin tại <Link to="/channels">trang Gian hàng</Link>.</Text>
             </Card>
         </div>
     );

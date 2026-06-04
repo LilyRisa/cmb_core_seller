@@ -8,6 +8,7 @@ use CMBcoreSeller\Modules\Messaging\Http\Controllers\ConversationController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\FacebookCommentController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\FacebookOAuthController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\KnowledgeController;
+use CMBcoreSeller\Modules\Messaging\Http\Controllers\LazadaImOAuthController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\MessageController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\MessagingChannelController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\MessagingSettingsController;
@@ -123,6 +124,10 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
         // --- Facebook Page OAuth connect (S2) — trả authorize URL ---
         Route::post('facebook/connect', [FacebookOAuthController::class, 'start'])
             ->name('messaging.facebook.connect');
+
+        // --- Lazada IM Chat OAuth connect (app IM ERP riêng) — trả authorize URL ---
+        Route::post('lazada-im/connect', [LazadaImOAuthController::class, 'start'])
+            ->name('messaging.lazada_im.connect');
 
         // --- Capabilities map — provider-agnostic (Phase A2) ---------------
         Route::get('capabilities', [MessagingChannelController::class, 'capabilities'])

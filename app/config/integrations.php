@@ -48,6 +48,29 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Lazada IM Chat — app "IM ERP" RIÊNG (tách khỏi orders)
+    |--------------------------------------------------------------------------
+    |
+    | Lazada gate quyền IM theo app ⇒ chat KHÔNG dùng chung app/token orders
+    | (`integrations.lazada`). App IM ERP có OAuth + token riêng, lưu ở
+    | `channel_accounts` provider `lazada_im`. Mặc định kế thừa host Lazada VN.
+    | Xem docs/superpowers/specs/2026-06-04-lazada-im-chat-separate-app-design.md.
+    |
+    */
+    'messaging_lazada_im' => [
+        'app_key' => env('LAZADA_IM_APP_KEY'),
+        'app_secret' => env('LAZADA_IM_APP_SECRET'),
+        'api_base_url' => env('LAZADA_IM_API_BASE_URL', env('LAZADA_API_BASE_URL', 'https://api.lazada.vn/rest')),
+        'auth_base_url' => env('LAZADA_IM_AUTH_BASE_URL', env('LAZADA_AUTH_BASE_URL', 'https://auth.lazada.com/rest')),
+        'authorize_url' => env('LAZADA_IM_AUTHORIZE_URL', env('LAZADA_AUTHORIZE_URL', 'https://auth.lazada.com/oauth/authorize')),
+        'redirect_uri' => env('LAZADA_IM_REDIRECT_URI'),   // mặc định suy từ APP_URL + /oauth/lazada_im/callback
+        'partner_id' => env('LAZADA_PARTNER_ID', 'lazop-sdk-php-20180422'),
+        'authorize_force_auth' => (bool) env('LAZADA_AUTHORIZE_FORCE_AUTH', true),
+        'authorize_country' => env('LAZADA_AUTHORIZE_COUNTRY', 'vn'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Enabled shipping carriers
     |--------------------------------------------------------------------------
     |

@@ -386,7 +386,7 @@ class TikTokLazadaChatConnectorTest extends TestCase
 
     public function test_lazada_verifies_header_signature(): void
     {
-        config(['integrations.lazada.app_secret' => 'LZSEC']);
+        config(['integrations.messaging_lazada_im.app_secret' => 'LZSEC']);
         $body = '{"message_type":1}';
         $sig = hash_hmac('sha256', $body, 'LZSEC');
 
@@ -410,7 +410,7 @@ class TikTokLazadaChatConnectorTest extends TestCase
 
     public function test_lazada_send_text_posts(): void
     {
-        config(['integrations.lazada.app_key' => 'LK', 'integrations.lazada.app_secret' => 'LZSEC', 'integrations.lazada.api_base_url' => 'https://api.lazada.vn/rest']);
+        config(['integrations.messaging_lazada_im.app_key' => 'LK', 'integrations.messaging_lazada_im.app_secret' => 'LZSEC', 'integrations.messaging_lazada_im.api_base_url' => 'https://api.lazada.vn/rest']);
         Http::fake(['api.lazada.vn/*' => Http::response(['code' => '0', 'data' => ['message_id' => 'LZ_OUT']], 200)]);
 
         $auth = new MessagingAuthContext(channelAccountId: 1, provider: 'lazada_chat', externalShopId: 'SELLER_1', accessToken: 'TOK');
@@ -434,7 +434,7 @@ class TikTokLazadaChatConnectorTest extends TestCase
         // Phase D: upload-first flow — fetch bytes from our signed URL, upload to Lazada CDN
         // via /image/upload (param `image` = binary stream; returns data.image.url), then send
         // with template_id=3 and the CDN url. Per official doc apps_doc_api_path_2Fimage_2Fupload.md.
-        config(['integrations.lazada.app_key' => 'LK', 'integrations.lazada.app_secret' => 'LZSEC', 'integrations.lazada.api_base_url' => 'https://api.lazada.vn/rest']);
+        config(['integrations.messaging_lazada_im.app_key' => 'LK', 'integrations.messaging_lazada_im.app_secret' => 'LZSEC', 'integrations.messaging_lazada_im.api_base_url' => 'https://api.lazada.vn/rest']);
 
         Http::fake([
             // Byte fetch from our signed storage URL.
@@ -509,7 +509,7 @@ class TikTokLazadaChatConnectorTest extends TestCase
 
     public function test_lazada_fetch_conversations_parses_sessions(): void
     {
-        config(['integrations.lazada' => [
+        config(['integrations.messaging_lazada_im' => [
             'app_key' => 'K',
             'app_secret' => 'S',
             'api_base_url' => 'https://api.lazada.vn/rest',
@@ -603,7 +603,7 @@ class TikTokLazadaChatConnectorTest extends TestCase
 
     public function test_lazada_fetch_messages_parses_text_and_image(): void
     {
-        config(['integrations.lazada' => [
+        config(['integrations.messaging_lazada_im' => [
             'app_key' => 'K',
             'app_secret' => 'S',
             'api_base_url' => 'https://api.lazada.vn/rest',
@@ -719,7 +719,7 @@ class TikTokLazadaChatConnectorTest extends TestCase
      */
     public function test_lazada_fetch_conversations_uses_now_start_time_and_stops_at_since(): void
     {
-        config(['integrations.lazada' => [
+        config(['integrations.messaging_lazada_im' => [
             'app_key' => 'K', 'app_secret' => 'S', 'api_base_url' => 'https://api.lazada.vn/rest',
         ]]);
 
@@ -757,7 +757,7 @@ class TikTokLazadaChatConnectorTest extends TestCase
     /** Regression song song cho messages: start_time = now, lọc + dừng theo `since`. */
     public function test_lazada_fetch_messages_uses_now_start_time_and_stops_at_since(): void
     {
-        config(['integrations.lazada' => [
+        config(['integrations.messaging_lazada_im' => [
             'app_key' => 'K', 'app_secret' => 'S', 'api_base_url' => 'https://api.lazada.vn/rest',
         ]]);
 

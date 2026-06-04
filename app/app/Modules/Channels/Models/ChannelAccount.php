@@ -69,7 +69,10 @@ class ChannelAccount extends Model
     public function messagingConnectorCode(): ?string
     {
         return match ($this->provider) {
-            'lazada' => 'lazada_chat',
+            // Lazada IM dùng app "IM ERP" RIÊNG (provider `lazada_im`, OAuth + token riêng) —
+            // KHÔNG dùng chung token orders (`lazada`) vì Lazada gate quyền IM theo app
+            // (xem docs/superpowers/specs/2026-06-04-lazada-im-chat-separate-app-design.md).
+            'lazada_im' => 'lazada_chat',
             'tiktok' => 'tiktok_chat',
             'shopee' => 'shopee_chat',
             'facebook_page' => 'facebook_page',
