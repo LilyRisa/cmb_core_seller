@@ -22,6 +22,8 @@ class OrdersServiceProvider extends ServiceProvider
         $this->app->bind(OrderUpsertContract::class, OrderUpsertService::class);
         // After-sales (cancel/return/refund) upsert — SPEC 0025.
         $this->app->bind(ReturnUpsertContract::class, ReturnUpsertService::class);
+        // Read-only manual-order daily stats — consumed by Marketing reconciliation (SPEC 2026-06-04).
+        $this->app->bind(\CMBcoreSeller\Modules\Orders\Contracts\ManualOrderDailyStats::class, \CMBcoreSeller\Modules\Orders\Services\ManualOrderDailyStatsService::class);
     }
 
     public function boot(): void
