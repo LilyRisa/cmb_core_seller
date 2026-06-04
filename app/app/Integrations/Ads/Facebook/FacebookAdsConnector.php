@@ -248,7 +248,20 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
 
     public function createCampaign(string $accessToken, string $externalAccountId, CampaignSpecDTO $spec): string
     {
-        return '';
+        $objective = FacebookObjectiveMap::spec($spec->objective)['objective'];
+
+        $res = Http::timeout(30)->asForm()->post($this->graphUrl($externalAccountId.'/campaigns'), [
+            'name' => $spec->name,
+            'objective' => $objective,
+            'status' => $spec->status,
+            'special_ad_categories' => json_encode($spec->specialAdCategories),
+            'access_token' => $accessToken,
+        ]);
+        if (! $res->successful()) {
+            throw new \RuntimeException('Facebook Ads createCampaign failed: '.$res->body());
+        }
+
+        return (string) $res->json('id');
     }
 
     public function createAdSet(string $accessToken, string $externalAccountId, AdSetSpecDTO $spec): string
