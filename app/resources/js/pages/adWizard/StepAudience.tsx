@@ -1,12 +1,18 @@
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Empty, Form, Select, Segmented, Slider, Space, Statistic, Typography } from 'antd';
+import { Alert, App, Button, Empty, Form, Input, Modal, Popconfirm, Select, Segmented, Slider, Space, Statistic, Typography } from 'antd';
 import type { SegmentedProps } from 'antd';
 import type { DefaultOptionType } from 'rc-select/lib/Select';
-import { TeamOutlined } from '@ant-design/icons';
+import { DeleteOutlined, SaveOutlined, TeamOutlined } from '@ant-design/icons';
 import { useDraftStore } from '@/lib/adWizard/draftStore';
 import { useTargetingSearch, useAudienceEstimate } from '@/lib/adWizard';
 import type { GeoItem } from '@/lib/adWizard';
+import {
+    useCreateExclusionTemplate,
+    useDeleteExclusionTemplate,
+    useExclusionTemplates,
+} from '@/lib/adWizard/exclusionTemplates';
+import { errorMessage } from '@/lib/api';
 
 const { Text } = Typography;
 
@@ -151,6 +157,39 @@ function AudienceForm({ adsetKey }: { adsetKey: string }) {
 
     const targetingSearch = useTargetingSearch();
     const audienceEstimate = useAudienceEstimate();
+
+    // Exclusion templates (save & apply)
+    const { message } = App.useApp();
+    const templates = useExclusionTemplates();
+    const createTpl = useCreateExclusionTemplate();
+    const deleteTpl = useDeleteExclusionTemplate();
+    const [saveOpen, setSaveOpen] = useState(false);
+    const [tplName, setTplName] = useState('');
+
+    function applyTemplate(id: number) {
+        const tpl = (templates.data ?? []).find((t) => t.id === id);
+        if (tpl == null) return;
+        setGeo((g) => {
+            const map = new Map(g.exclude.map((i) => [i.key, i]));
+            for (const it of tpl.payload) map.set(it.key, it);
+            return { ...g, exclude: [...map.values()] };
+        });
+        message.success('Đã áp mẫu loại trừ.');
+    }
+
+    function onSaveTemplate() {
+        createTpl.mutate(
+            { name: tplName.trim(), payload: geo.exclude },
+            {
+                onSuccess: () => {
+                    message.success('Đã lưu mẫu.');
+                    setSaveOpen(false);
+                    setTplName('');
+                },
+                onError: (e) => message.error(errorMessage(e)),
+            },
+        );
+    }
 
     // Debounce refs
     const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -321,6 +360,70 @@ function AudienceForm({ adsetKey }: { adsetKey: string }) {
                     style={{ maxWidth: 400 }}
                 />
             </Form.Item>
+
+            <Form.Item label="Mẫu loại trừ">
+                <Space direction="vertical" size={8} style={{ width: '100%', maxWidth: 400 }}>
+                    <Space wrap>
+                        <Select<number>
+                            style={{ width: 280 }}
+                            placeholder="Chọn mẫu để áp"
+                            value={undefined}
+                            loading={templates.isLoading}
+                            options={(templates.data ?? []).map((t) => ({ label: t.name, value: t.id }))}
+                            onChange={(id) => applyTemplate(id)}
+                        />
+                        <Button
+                            icon={<SaveOutlined />}
+                            onClick={() => setSaveOpen(true)}
+                            disabled={geo.exclude.length === 0}
+                        >
+                            Lưu thành mẫu
+                        </Button>
+                    </Space>
+
+                    {(templates.data ?? []).length === 0 ? (
+                        <Text type="secondary">Chưa có mẫu</Text>
+                    ) : (
+                        <Space direction="vertical" size={2} style={{ width: '100%' }}>
+                            {(templates.data ?? []).map((t) => (
+                                <Space key={t.id} size={4} style={{ width: '100%', justifyContent: 'space-between' }}>
+                                    <Text>{t.name}</Text>
+                                    <Popconfirm
+                                        title="Xoá mẫu này?"
+                                        okText="Xoá"
+                                        cancelText="Huỷ"
+                                        onConfirm={() =>
+                                            deleteTpl.mutate(t.id, {
+                                                onSuccess: () => message.success('Đã xoá mẫu.'),
+                                            })
+                                        }
+                                    >
+                                        <Button size="small" type="text" danger icon={<DeleteOutlined />} />
+                                    </Popconfirm>
+                                </Space>
+                            ))}
+                        </Space>
+                    )}
+                </Space>
+            </Form.Item>
+
+            <Modal
+                title="Lưu mẫu loại trừ"
+                open={saveOpen}
+                onOk={onSaveTemplate}
+                onCancel={() => setSaveOpen(false)}
+                confirmLoading={createTpl.isPending}
+                okText="Lưu"
+                cancelText="Huỷ"
+                okButtonProps={{ disabled: !tplName.trim() }}
+            >
+                <Input
+                    value={tplName}
+                    onChange={(e) => setTplName(e.target.value)}
+                    placeholder="Tên mẫu, vd: Loại trừ nội thành"
+                    maxLength={120}
+                />
+            </Modal>
 
             <Form.Item label="Độ tuổi">
                 <Space direction="vertical" size={4} style={{ width: '100%', maxWidth: 400 }}>
