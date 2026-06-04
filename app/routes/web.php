@@ -39,6 +39,10 @@ Route::get('oauth/facebook_page/callback', [FacebookOAuthController::class, 'cal
 Route::get('oauth/lazada_im/callback', [LazadaImOAuthController::class, 'callback'])
     ->name('messaging.lazada_im.callback');
 
+// Facebook Ads (Marketing API) OAuth — SPEC 2026-06-04, ads_read token riêng.
+Route::get('oauth/facebook_ads/callback', [\CMBcoreSeller\Modules\Marketing\Http\Controllers\AdsOAuthController::class, 'callback'])
+    ->name('marketing.facebook_ads.callback');
+
 // --- Admin SPA shell (Spec 2026-05-17) ---
 // `/admin` và mọi sub-path serve Blade `admin.blade.php` nạp bundle `admin.tsx`.
 // React Router xử lý routing client-side trong admin app.
