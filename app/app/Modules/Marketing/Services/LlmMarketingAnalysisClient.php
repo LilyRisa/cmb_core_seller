@@ -72,7 +72,8 @@ class LlmMarketingAnalysisClient implements MarketingAnalysisClient
     private function prompt(array $data, string $instruction): string
     {
         return $instruction."\n\nDỮ LIỆU (JSON):\n".json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
-            ."\n\nCHỈ trả về JSON đúng schema {forecast:{next_7d:{conversations,orders,spend,projected_cost_per_order}}, strategy:[{action,campaign,rationale,confidence}]}.";
+            ."\n\nCHỈ trả về JSON đúng schema {forecast:{next_7d:{conversations,orders,spend,projected_cost_per_order}}, strategy:[{action,campaign,rationale,confidence}], creative_review:[{ref,name,verdict,issues:[string],suggestions:[string]}]}. "
+            .'creative_review: với MỖI quảng cáo/bài post trong dữ liệu, đánh giá nội dung đã tối ưu chưa (dựa trên text + tương tác + hiệu suất), verdict "tốt" hoặc "cần cải thiện".';
     }
 
     /** @param array<string,mixed> $data @return array<string,mixed> */
@@ -104,6 +105,15 @@ class LlmMarketingAnalysisClient implements MarketingAnalysisClient
         $avgSpend = $sum('spend') / $n;
         $next7Orders = (int) round($avgOrders * 7);
 
+        $creatives = array_values(array_filter((array) ($data['creatives'] ?? []), 'is_array'));
+        $review = array_map(fn (array $c) => [
+            'ref' => (string) ($c['ad_id'] ?? $c['post_id'] ?? ''),
+            'name' => (string) ($c['name'] ?? ''),
+            'verdict' => 'cần xem xét',
+            'issues' => [],
+            'suggestions' => ['Thêm lời kêu gọi hành động rõ ràng và hình ảnh/đoạn mở đầu nổi bật.'],
+        ], $creatives);
+
         return [
             'forecast' => [
                 'next_7d' => [
@@ -119,6 +129,7 @@ class LlmMarketingAnalysisClient implements MarketingAnalysisClient
                 'rationale' => 'Dự báo deterministic từ trung bình '.$n.' ngày gần nhất (chưa cấu hình provider AI marketing).',
                 'confidence' => 0.4,
             ]],
+            'creative_review' => $review,
             'generated_by' => 'stub',
         ];
     }
