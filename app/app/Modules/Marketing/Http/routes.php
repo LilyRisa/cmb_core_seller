@@ -1,6 +1,7 @@
 <?php
 
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdAccountController;
+use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdForecastController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdInsightController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdsOAuthController;
 use Illuminate\Support\Facades\Route;
@@ -34,4 +35,9 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
         // Daily reconciliation: ad metrics vs manual orders.
         Route::get('ad-accounts/{id}/reconciliation', [AdInsightController::class, 'reconciliation'])
             ->whereNumber('id')->name('marketing.ad-accounts.reconciliation');
+        // AI strategic forecast (on-demand, cooldown-cached).
+        Route::get('ad-accounts/{id}/forecast', [AdForecastController::class, 'show'])
+            ->whereNumber('id')->name('marketing.ad-accounts.forecast.show');
+        Route::post('ad-accounts/{id}/forecast', [AdForecastController::class, 'generate'])
+            ->whereNumber('id')->name('marketing.ad-accounts.forecast.generate');
     });
