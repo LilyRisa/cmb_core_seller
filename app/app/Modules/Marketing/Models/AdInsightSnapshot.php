@@ -31,8 +31,8 @@ class AdInsightSnapshot extends Model
     protected function casts(): array
     {
         return [
-            'date_start' => 'date',
-            'date_stop' => 'date',
+            // Kept as Y-m-d strings (no datetime cast) so the upsert natural key in
+            // SyncAdInsights matches storage exactly (avoids '… 00:00:00' mismatch).
             'is_finalizing' => 'boolean',
             'spend' => 'integer',
             'impressions' => 'integer',
