@@ -50,8 +50,14 @@ class AdsReportService
         if ($level === 'adset' && ! empty($filters['campaign_ids'])) {
             $q->whereIn('parent_external_id', $filters['campaign_ids']);
         }
-        if ($level === 'ad' && ! empty($filters['adset_ids'])) {
-            $q->whereIn('parent_external_id', $filters['adset_ids']);
+        // Ad level: ticked adsets win (narrowest); otherwise fall back to the
+        // selected campaigns' adsets so the Ad tab stays scoped to the campaign.
+        if ($level === 'ad') {
+            if (! empty($filters['adset_ids'])) {
+                $q->whereIn('parent_external_id', $filters['adset_ids']);
+            } elseif (! empty($filters['campaign_ids'])) {
+                $q->whereIn('parent_external_id', $this->adsetIdsForCampaigns($account, $filters['campaign_ids']));
+            }
         }
         if (! empty($filters['q'])) {
             $q->where('name', 'like', '%'.$filters['q'].'%');
@@ -64,6 +70,22 @@ class AdsReportService
         }
 
         return $q->orderBy('name')->get();
+    }
+
+    /**
+     * External ids of the adsets belonging to the given campaigns (one level down).
+     *
+     * @param  list<string>  $campaignIds
+     * @return list<string>
+     */
+    private function adsetIdsForCampaigns(AdAccount $account, array $campaignIds): array
+    {
+        return AdEntity::withoutGlobalScope(TenantScope::class)
+            ->where('ad_account_id', $account->getKey())
+            ->where('level', 'adset')
+            ->whereIn('parent_external_id', $campaignIds)
+            ->pluck('external_id')
+            ->all();
     }
 
     /**

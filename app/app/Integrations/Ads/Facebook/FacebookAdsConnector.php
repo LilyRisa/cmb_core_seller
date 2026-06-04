@@ -160,8 +160,14 @@ class FacebookAdsConnector implements AdsConnector
 
     public function fetchInsights(string $accessToken, string $externalId, string $level, array $query = [], ?AdInsightThrottleDTO &$throttleOut = null): array
     {
+        // The breakdown id (campaign_id/adset_id/ad_id) MUST be requested explicitly:
+        // Graph v19+ dropped implicit fields, so without it the caller can't key rows
+        // back to the right entity (all rows would collapse onto the account id).
+        $idField = ['campaign' => 'campaign_id', 'adset' => 'adset_id', 'ad' => 'ad_id'][$level] ?? null;
+        $fields = 'spend,impressions,clicks,reach,ctr,cpc,cpm,frequency,purchase_roas,actions';
+
         $params = [
-            'fields' => 'spend,impressions,clicks,reach,ctr,cpc,cpm,frequency,purchase_roas,actions',
+            'fields' => $idField !== null ? $fields.','.$idField : $fields,
             'level' => $level === 'account' ? 'account' : $level,
             'date_preset' => (string) ($query['date_preset'] ?? 'today'),
             'access_token' => $accessToken,

@@ -32,6 +32,8 @@ class AdsReportServiceTest extends TestCase
         AdEntity::create(['ad_account_id' => $acc->id, 'level' => 'campaign', 'external_id' => 'C2', 'name' => 'Camp 2', 'status' => 'PAUSED', 'objective' => 'OUTCOME_LEADS']);
         AdEntity::create(['ad_account_id' => $acc->id, 'level' => 'adset', 'external_id' => 'AS1', 'parent_external_id' => 'C1', 'name' => 'Set 1', 'status' => 'ACTIVE']);
         AdEntity::create(['ad_account_id' => $acc->id, 'level' => 'adset', 'external_id' => 'AS2', 'parent_external_id' => 'C2', 'name' => 'Set 2', 'status' => 'ACTIVE']);
+        AdEntity::create(['ad_account_id' => $acc->id, 'level' => 'ad', 'external_id' => 'AD1', 'parent_external_id' => 'AS1', 'name' => 'Ad 1', 'status' => 'ACTIVE']);
+        AdEntity::create(['ad_account_id' => $acc->id, 'level' => 'ad', 'external_id' => 'AD2', 'parent_external_id' => 'AS2', 'name' => 'Ad 2', 'status' => 'ACTIVE']);
 
         return $acc;
     }
@@ -43,11 +45,14 @@ class AdsReportServiceTest extends TestCase
                 return Http::response([], 200);
             }
             $level = $request->data()['level'] ?? 'campaign';
-            $rows = $level === 'adset'
-                ? [['adset_id' => 'AS1', 'spend' => '10000', 'impressions' => '500', 'clicks' => '20', 'cpm' => '20000', 'cpc' => '500'],
-                    ['adset_id' => 'AS2', 'spend' => '20000', 'impressions' => '900', 'clicks' => '30']]
-                : [['campaign_id' => 'C1', 'spend' => '60000', 'impressions' => '2000', 'clicks' => '40', 'cpm' => '30000', 'cpc' => '1500'],
-                    ['campaign_id' => 'C2', 'spend' => '5000', 'impressions' => '100', 'clicks' => '2']];
+            $rows = match ($level) {
+                'ad' => [['ad_id' => 'AD1', 'spend' => '3000', 'impressions' => '100', 'clicks' => '5'],
+                    ['ad_id' => 'AD2', 'spend' => '4000', 'impressions' => '200', 'clicks' => '8']],
+                'adset' => [['adset_id' => 'AS1', 'spend' => '10000', 'impressions' => '500', 'clicks' => '20', 'cpm' => '20000', 'cpc' => '500'],
+                    ['adset_id' => 'AS2', 'spend' => '20000', 'impressions' => '900', 'clicks' => '30']],
+                default => [['campaign_id' => 'C1', 'spend' => '60000', 'impressions' => '2000', 'clicks' => '40', 'cpm' => '30000', 'cpc' => '1500'],
+                    ['campaign_id' => 'C2', 'spend' => '5000', 'impressions' => '100', 'clicks' => '2']],
+            };
 
             return Http::response(['data' => $rows], 200);
         });
@@ -79,5 +84,40 @@ class AdsReportServiceTest extends TestCase
         $this->assertCount(1, $rows);                       // only AS1 (belongs to C1)
         $this->assertSame('AS1', $rows[0]['external_id']);
         $this->assertSame(10000, $rows[0]['insights']['spend']);
+    }
+
+    public function test_report_ad_scopes_to_selected_campaign_when_no_adset_ticked(): void
+    {
+        $acc = $this->seedData();
+        $this->fakeInsights();
+
+        // Selected campaign C1, no adset ticked ⇒ all ads under C1's adsets (AD1 via AS1).
+        $rows = app(AdsReportService::class)->report($acc, 'ad', '2026-06-01', '2026-06-04', ['campaign_ids' => ['C1']]);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame('AD1', $rows[0]['external_id']);
+        $this->assertSame(3000, $rows[0]['insights']['spend']);
+    }
+
+    public function test_report_ad_adset_filter_takes_precedence_over_campaign(): void
+    {
+        $acc = $this->seedData();
+        $this->fakeInsights();
+
+        // Ticking adset AS2 narrows further, even though campaign C1 is also selected.
+        $rows = app(AdsReportService::class)->report($acc, 'ad', '2026-06-01', '2026-06-04', ['campaign_ids' => ['C1'], 'adset_ids' => ['AS2']]);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame('AD2', $rows[0]['external_id']);
+    }
+
+    public function test_report_ad_returns_all_when_no_filter(): void
+    {
+        $acc = $this->seedData();
+        $this->fakeInsights();
+
+        $rows = app(AdsReportService::class)->report($acc, 'ad', '2026-06-01', '2026-06-04');
+
+        $this->assertCount(2, $rows);                       // AD1 + AD2
     }
 }

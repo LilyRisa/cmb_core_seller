@@ -81,8 +81,19 @@ export function MarketingDashboardPage() {
 
     const since = range[0].format('YYYY-MM-DD');
     const until = range[1].format('YYYY-MM-DD');
+
+    // Quick date ranges (computed each render so "hôm nay" is always current).
+    const rangePresets: { label: string; value: [Dayjs, Dayjs] }[] = useMemo(() => [
+        { label: 'Hôm nay', value: [dayjs(), dayjs()] },
+        { label: 'Hôm qua', value: [dayjs().subtract(1, 'day'), dayjs().subtract(1, 'day')] },
+        { label: '7 ngày qua', value: [dayjs().subtract(6, 'day'), dayjs()] },
+        { label: '30 ngày qua', value: [dayjs().subtract(29, 'day'), dayjs()] },
+        { label: '90 ngày qua', value: [dayjs().subtract(89, 'day'), dayjs()] },
+    ], []);
     const filters = useMemo(() => ({
-        campaign_ids: level === 'adset' ? selCampaigns : undefined,
+        // Ad tab inherits the campaign scope (all ads of the campaign's adsets) and
+        // narrows further when specific adsets are ticked — see AdsReportService.
+        campaign_ids: level === 'adset' || level === 'ad' ? selCampaigns : undefined,
         adset_ids: level === 'ad' ? selAdsets : undefined,
         q: q || undefined, objective, ad_id: adId || undefined,
     }), [level, selCampaigns, selAdsets, q, objective, adId]);
@@ -187,12 +198,21 @@ export function MarketingDashboardPage() {
                             )}><Button size="small" icon={<SettingOutlined />}>Cột</Button></Dropdown>
                         }>
                         <Space wrap size={8} style={{ marginBottom: 12 }}>
-                            <DatePicker.RangePicker value={range} onChange={(v) => v && v[0] && v[1] && setRange([v[0], v[1]])} allowClear={false} format="DD/MM/YYYY" />
+                            <DatePicker.RangePicker value={range} onChange={(v) => v && v[0] && v[1] && setRange([v[0], v[1]])} allowClear={false} format="DD/MM/YYYY" presets={rangePresets} />
                             <Input.Search placeholder="Tên chiến dịch/nhóm/QC" allowClear value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 220 }} />
                             <Input placeholder="ID" allowClear value={adId} onChange={(e) => setAdId(e.target.value)} style={{ width: 160 }} />
                             <Select placeholder="Loại (objective)" allowClear value={objective} onChange={setObjective} options={objectiveOptions} style={{ minWidth: 180 }} />
                             <Button icon={<SyncOutlined spin={isFetching} />} onClick={() => selectedId != null && refresh.mutate(selectedId)}>Làm mới</Button>
-                            {level !== 'campaign' && selCampaigns.length === 0 && level === 'adset' && <Text type="secondary">Tích chiến dịch ở tab Chiến dịch để lọc nhóm.</Text>}
+                            {level === 'campaign' && selCampaigns.length > 0 && (
+                                <Tag color="blue" closable onClose={() => setSelCampaigns([])}>Đã chọn {selCampaigns.length} chiến dịch</Tag>
+                            )}
+                            {level === 'adset' && selAdsets.length > 0 && (
+                                <Tag color="blue" closable onClose={() => setSelAdsets([])}>Đã chọn {selAdsets.length} nhóm quảng cáo</Tag>
+                            )}
+                            {level === 'adset' && selCampaigns.length > 0 && (
+                                <Text type="secondary">Đang lọc theo {selCampaigns.length} chiến dịch đã tích.</Text>
+                            )}
+                            {level === 'adset' && selCampaigns.length === 0 && <Text type="secondary">Tích chiến dịch ở tab Chiến dịch để lọc nhóm.</Text>}
                         </Space>
                         <Table<ReportRow>
                             rowKey="external_id" size="small" scroll={{ x: 'max-content' }}
