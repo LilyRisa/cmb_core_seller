@@ -3,8 +3,7 @@
 Bộ bài viết hướng dẫn sử dụng cho người dùng cuối. Mỗi bài là một khu vực trong app,
 viết theo tên menu/nút tiếng Việt, từng bước, kèm ảnh chụp màn hình.
 
-> Quy tắc: không nhắc URL/endpoint/tên bảng/tên class/mã lỗi. Xem chi tiết trong
-> `docs/superpowers/specs/2026-06-04-user-doc-va-support-doc-design.md`.
+> Quy tắc viết: chỉ dùng tên menu/nút tiếng Việt; không nhắc đường dẫn kỹ thuật, tên bảng/mã lỗi; lỗi mô tả bằng lời.
 
 ## Mục lục
 

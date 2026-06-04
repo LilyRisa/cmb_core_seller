@@ -34,7 +34,7 @@ menu: "Nút Trợ giúp (góc màn hình)"
 ## Lỗi thường gặp & cách xử lý
 
 - **Đính kèm tệp bị từ chối:** Tệp quá lớn hoặc sai định dạng. Dùng ảnh/video/PDF/Word/Excel/CSV/TXT và thử lại.
-- **Widget che mất nội dung:** Kéo nút Trợ giúp sang chỗ khác, hoặc bấm dấu **X** để đóng cửa sổ.
+- **Nút/cửa sổ Trợ giúp che mất nội dung:** Kéo nút Trợ giúp sang chỗ khác, hoặc bấm dấu **X** để đóng cửa sổ.
 
 ## Xem thêm
 

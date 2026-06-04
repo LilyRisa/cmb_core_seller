@@ -31,7 +31,7 @@ roles: ["Chủ sở hữu", "Quản trị"]
 
 - Mỗi thẻ gian hàng có nhãn trạng thái: **Hoạt động** (đang chạy tốt), **Token hết hạn** (cần bấm **Cấp quyền lại**), **Đã ngắt kết nối**, **Tạm dừng**.
 - Đồng bộ chạy lại nhiều lần vẫn an toàn: đơn đã có chỉ được cập nhật trạng thái, không bị tạo trùng.
-- **Shopee** hiện đang chờ duyệt kết nối nên nút có thể chưa bấm được.
+- **Shopee**: tính năng **tự kết nối mới** đang chờ duyệt nên nút có thể chưa bấm được. Nếu gian hàng Shopee của bạn đã được kết nối sẵn thì đơn và tin nhắn Shopee vẫn về bình thường.
 
 ## Lỗi thường gặp & cách xử lý
 

@@ -7,7 +7,7 @@ roles: ["Kế toán", "Quản trị", "Chủ sở hữu"]
 
 # Báo cáo
 
-**Việc này giúp gì:** Xem nhanh doanh thu, lợi nhuận thực và mặt hàng bán chạy theo thời gian và theo sàn; có thể xuất ra file Excel.
+**Việc này giúp gì:** Xem nhanh doanh thu, lợi nhuận thực và mặt hàng bán chạy theo thời gian và theo sàn; có thể xuất ra file (mở được bằng Excel).
 
 ## Các bước
 

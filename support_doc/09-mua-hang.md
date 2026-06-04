@@ -20,7 +20,7 @@ roles: ["NV kho", "Quản trị", "Chủ sở hữu"]
 
 2. Hệ thống tự gợi ý số cần đặt dựa trên tốc độ bán + tồn khả dụng + hàng đang về. Mỗi mã được xếp mức: **Khẩn cấp**, **Sắp hết**, hoặc đủ hàng.
 3. Bấm **Tính lại** nếu muốn cập nhật theo số mới nhất.
-4. Tích chọn các mã cần mua → bấm **Tạo PO nháp** (hệ thống tự gom theo nhà cung cấp).
+4. Tích chọn các mã cần mua → bấm **Tạo PO nháp** (PO = đơn mua hàng; hệ thống tự gom theo nhà cung cấp).
 
 ## Nhà cung cấp
 

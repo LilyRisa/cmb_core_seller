@@ -20,7 +20,7 @@ menu: "Bán hàng → Hoàn & Hủy"
 
 3. Xem bảng yêu cầu với các cột: **Đơn**, **Loại**, **Trạng thái**, **Lý do**, **Hoàn tiền**, **Yêu cầu lúc**.
 
-4. Với yêu cầu đang **Chờ xử lý**, bấm **Duyệt** để chấp nhận hoặc **Từ chối** nếu không đồng ý.
+4. Với yêu cầu mới (đang **Chờ duyệt**), bấm **Duyệt** để chấp nhận hoặc **Từ chối** nếu không đồng ý.
 
 5. Bấm **Làm mới** để cập nhật yêu cầu mới nhất từ sàn.
 
