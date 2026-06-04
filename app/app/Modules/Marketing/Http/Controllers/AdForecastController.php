@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Marketing\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
+use CMBcoreSeller\Modules\Marketing\Jobs\GenerateAdForecast;
 use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
 use CMBcoreSeller\Modules\Marketing\Models\AdForecast;
 use CMBcoreSeller\Modules\Marketing\Services\AdsForecastService;
@@ -26,13 +27,21 @@ class AdForecastController extends Controller
         return response()->json(['data' => $this->format($this->service->cached($account))]);
     }
 
-    /** POST /api/v1/marketing/ad-accounts/{id}/forecast — generate (cooldown-guarded). */
+    /** POST /api/v1/marketing/ad-accounts/{id}/forecast — async generate (cooldown-gated). */
     public function generate(int $id): JsonResponse
     {
         Gate::authorize('marketing.view');
         $account = AdAccount::query()->findOrFail($id);
 
-        return response()->json(['data' => $this->format($this->service->generate($account))]);
+        $existing = $this->service->cached($account);
+        $cooldown = (int) config('marketing.forecast_cooldown_minutes', 360);
+        if ($existing !== null && $existing->generated_at->gt(now()->subMinutes($cooldown))) {
+            return response()->json(['data' => $this->format($existing), 'status' => 'cached', 'queued' => false]);
+        }
+
+        GenerateAdForecast::dispatch($account->id);
+
+        return response()->json(['data' => $this->format($existing), 'status' => 'generating', 'queued' => true]);
     }
 
     /** @return array<string,mixed>|null */
