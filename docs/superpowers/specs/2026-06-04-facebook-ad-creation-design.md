@@ -45,6 +45,12 @@ Thêm capability + method mới (provider thiếu ⇒ `UnsupportedOperation`):
 
 **Page lấy từ đâu:** Ads connector tự liệt kê Page bằng ads token (scope thêm `pages_show_list,pages_read_engagement`) — giữ tính năng Ads tự chứa, **không** import Messaging. (Ad account phải được liên kết Page để dùng `object_story_id`/CTA `MESSAGE_PAGE`.)
 
+**Bất biến objective ↔ creative (enforce ở Plan 4/wizard, KHÔNG ở connector):** connector cố tình objective-agnostic ở `createAd` (chỉ dựng đúng creative được yêu cầu). Quy tắc tương thích do orchestration layer giữ:
+- `messages` → CTA phải `MESSAGE_PAGE`; ad set cần `promoted_object.page_id` (đã guard trong `createAdSet`).
+- `engagement` (OUTCOME_ENGAGEMENT/POST_ENGAGEMENT) → **bắt buộc dùng bài Page có sẵn** (`pagePostId` → `object_story_id`); KHÔNG dùng `link_data` creative mới (Graph không tối ưu engagement cho link ad). Wizard chỉ cho chọn "bài có sẵn" khi mục tiêu là engagement.
+- `traffic` → cần `linkUrl`; CTA `LEARN_MORE`/`SHOP_NOW`.
+`cta_options` trong `FacebookObjectiveMap` là nguồn để wizard giới hạn CTA hợp lệ (sẽ tiêu thụ ở Plan 5).
+
 ## 5. Module Marketing — model / service / job / API
 **Model + migration `ad_drafts`** (BelongsToTenant): `tenant_id`, `ad_account_id`, `created_by`, `name`, `status` (`draft|publishing|published|failed`), `objective`, `payload` json (budget, schedule, targeting, placements, creative{mode,page_id,post_id,image_hash|video_id,primary_text,headline,cta}), `idempotency_key`, ngoại id sau publish (`campaign_external_id`,`adset_external_id`,`ad_external_id`), `last_error`, timestamps. 1 draft = 1 quảng cáo (v1).
 

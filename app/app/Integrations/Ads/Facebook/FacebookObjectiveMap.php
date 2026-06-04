@@ -12,7 +12,7 @@ use CMBcoreSeller\Integrations\Ads\Exceptions\UnsupportedOperation;
  */
 final class FacebookObjectiveMap
 {
-    /** @var array<string, array<string,mixed>> */
+    /** @var array<string, array{objective:string, optimization_goal:string, billing_event:string, destination_type:?string, needs_promoted_object:bool, cta_options:list<string>}> */
     private const MAP = [
         'messages' => [
             'objective' => 'OUTCOME_ENGAGEMENT',
@@ -42,7 +42,9 @@ final class FacebookObjectiveMap
         ],
     ];
 
-    /** @return array<string,mixed> */
+    /**
+     * @return array{objective:string, optimization_goal:string, billing_event:string, destination_type:?string, needs_promoted_object:bool, cta_options:list<string>}
+     */
     public static function spec(string $objective): array
     {
         return self::MAP[$objective] ?? throw UnsupportedOperation::for('facebook', "objective({$objective})");

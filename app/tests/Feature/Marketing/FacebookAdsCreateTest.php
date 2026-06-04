@@ -97,4 +97,47 @@ class FacebookAdsCreateTest extends TestCase
                 && ($spec['link_data']['call_to_action']['type'] ?? null) === 'SHOP_NOW';
         });
     }
+
+    public function test_create_campaign_throws_on_graph_error(): void
+    {
+        Http::fake(['graph.facebook.com/*/campaigns' => Http::response(['error' => ['message' => 'bad']], 400)]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('createCampaign failed');
+        $this->connector()->createCampaign('tok', 'act_1', new CampaignSpecDTO(objective: 'messages', name: 'Camp'));
+    }
+
+    public function test_create_adset_throws_on_graph_error(): void
+    {
+        Http::fake(['graph.facebook.com/*/adsets' => Http::response(['error' => ['message' => 'bad']], 400)]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('createAdSet failed');
+        $this->connector()->createAdSet('tok', 'act_1', new AdSetSpecDTO(
+            name: 'Set', campaignExternalId: 'C_NEW', objective: 'messages',
+            dailyBudgetMajor: 150000, currency: 'VND', targeting: [], pageId: '123',
+        ));
+    }
+
+    public function test_create_adset_throws_when_messaging_objective_missing_page_id(): void
+    {
+        // needs_promoted_object objectives require a pageId — guard before any HTTP call.
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('requires pageId');
+        $this->connector()->createAdSet('tok', 'act_1', new AdSetSpecDTO(
+            name: 'Set', campaignExternalId: 'C_NEW', objective: 'messages',
+            dailyBudgetMajor: 150000, currency: 'VND', targeting: [], pageId: null,
+        ));
+    }
+
+    public function test_create_ad_throws_on_graph_error(): void
+    {
+        Http::fake(['graph.facebook.com/*/ads' => Http::response(['error' => ['message' => 'bad']], 400)]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('createAd failed');
+        $this->connector()->createAd('tok', 'act_1', new AdSpecDTO(
+            name: 'Ad', adSetExternalId: 'AS_NEW', pageId: '123', pagePostId: '123_456',
+        ));
+    }
 }
