@@ -1,6 +1,7 @@
 <?php
 
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdAccountController;
+use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdAuthoringController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdDraftController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdForecastController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdInsightController;
@@ -45,6 +46,10 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
             ->whereNumber('id')->name('marketing.ad-accounts.forecast.show');
         Route::post('ad-accounts/{id}/forecast', [AdForecastController::class, 'generate'])
             ->whereNumber('id')->name('marketing.ad-accounts.forecast.generate');
+
+        // Wizard authoring reads (pages/posts/targeting/preview).
+        Route::get('ad-accounts/{id}/pages', [AdAuthoringController::class, 'pages'])->whereNumber('id')->name('marketing.authoring.pages');
+        Route::get('ad-accounts/{id}/pages/{pageId}/posts', [AdAuthoringController::class, 'pagePosts'])->whereNumber('id')->name('marketing.authoring.page-posts');
 
         // Wizard drafts (CRUD + autosave). Write gated by marketing.ads.create.
         Route::get('ad-drafts', [AdDraftController::class, 'index'])->name('marketing.ad-drafts.index');
