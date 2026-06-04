@@ -172,8 +172,10 @@ export function AdWizardPage() {
         switch (currentStep) {
             case 0: return objective != null;
             case 1: {
-                const adset = adsets.find((a) => a.key === selectedAdSetKey);
-                return (adset?.budget?.daily_major ?? 0) > 0;
+                const mode = payload.campaign?.budget_mode ?? 'adset';
+                if (mode === 'campaign') return (payload.campaign?.daily_budget_major ?? 0) > 0;
+                const sel = adsets.find((a) => a.key === selectedAdSetKey);
+                return (sel?.budget?.daily_major ?? 0) > 0;
             }
             case 4: {
                 return adsets.length > 0 && adsets.every(

@@ -59,6 +59,8 @@ type WizardActions = {
     addAd: (adsetKey: string) => void;
     removeAd: (adsetKey: string, adKey: string) => void;
     updateAd: (adsetKey: string, adKey: string, patch: Partial<AdNode>) => void;
+    setBudgetMode: (mode: 'campaign' | 'adset') => void;
+    setCampaignBudget: (major: number) => void;
     markSaved: () => void;
 };
 
@@ -96,5 +98,7 @@ export const useDraftStore = create<WizardState & WizardActions>()((set) => ({
     addAd: (adsetKey) => set((s) => mergeTree(s, s.adsets.map((a) => (a.key === adsetKey ? { ...a, ads: [...a.ads, { key: nextKey('ad'), name: `Quảng cáo ${a.ads.length + 1}`, external_id: null, creative: { mode: 'page_post' } }] } : a)))),
     removeAd: (adsetKey, adKey) => set((s) => mergeTree(s, s.adsets.map((a) => (a.key === adsetKey ? { ...a, ads: a.ads.filter((d) => d.key !== adKey) } : a)))),
     updateAd: (adsetKey, adKey, patch) => set((s) => mergeTree(s, s.adsets.map((a) => (a.key === adsetKey ? { ...a, ads: a.ads.map((d) => (d.key === adKey ? { ...d, ...patch } : d)) } : a)))),
+    setBudgetMode: (mode) => set((s) => ({ payload: { ...s.payload, campaign: { ...s.payload.campaign, budget_mode: mode } }, dirty: true })),
+    setCampaignBudget: (major) => set((s) => ({ payload: { ...s.payload, campaign: { ...s.payload.campaign, daily_budget_major: major } }, dirty: true })),
     markSaved: () => set({ dirty: false }),
 }));

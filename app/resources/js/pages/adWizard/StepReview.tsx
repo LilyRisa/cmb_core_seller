@@ -29,6 +29,7 @@ export function StepReview() {
     const name = useDraftStore((s) => s.name);
     const objective = useDraftStore((s) => s.objective);
     const adsets = useDraftStore((s) => s.adsets);
+    const payload = useDraftStore((s) => s.payload);
 
     const { data: draftData } = useAdDraft(draftId);
     const previewMutation = useAdPreviews();
@@ -36,12 +37,17 @@ export function StepReview() {
 
     const firstCreative = adsets[0]?.ads[0]?.creative;
 
+    const cbo = payload.campaign?.budget_mode === 'campaign';
+    const budgetOk = cbo
+        ? (payload.campaign?.daily_budget_major ?? 0) > 0
+        : adsets.every((as) => (as.budget?.daily_major ?? 0) > 0);
+
     const canPublish =
         objective != null &&
         adsets.length > 0 &&
+        budgetOk &&
         adsets.every(
             (as) =>
-                (as.budget?.daily_major ?? 0) > 0 &&
                 as.ads.length > 0 &&
                 as.ads.every(
                     (ad) =>
@@ -89,9 +95,15 @@ export function StepReview() {
                 </Descriptions.Item>
                 <Descriptions.Item label="Số nhóm">{adsets.length}</Descriptions.Item>
                 <Descriptions.Item label="Số quảng cáo">{totalAds}</Descriptions.Item>
-                <Descriptions.Item label="Ngân sách/ngày (tổng)">
-                    {formatBudget(totalBudget)}
-                </Descriptions.Item>
+                {cbo ? (
+                    <Descriptions.Item label="Ngân sách chiến dịch (CBO)">
+                        {formatBudget(payload.campaign?.daily_budget_major)}
+                    </Descriptions.Item>
+                ) : (
+                    <Descriptions.Item label="Ngân sách/ngày (tổng)">
+                        {formatBudget(totalBudget)}
+                    </Descriptions.Item>
+                )}
             </Descriptions>
 
             {draftData?.last_error != null && (

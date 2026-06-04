@@ -13,6 +13,7 @@ export type AdObjective = 'messages' | 'engagement' | 'traffic';
 export type DraftStatus = 'draft' | 'publishing' | 'published' | 'failed';
 
 export interface AdDraftPayload {
+    campaign?: { budget_mode?: 'campaign' | 'adset'; daily_budget_major?: number };
     budget?: { type?: 'daily'; daily_major?: number };
     schedule?: { start_time?: string | null };
     targeting?: Record<string, unknown>;
