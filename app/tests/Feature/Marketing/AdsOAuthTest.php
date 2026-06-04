@@ -3,9 +3,11 @@
 namespace Tests\Feature\Marketing;
 
 use CMBcoreSeller\Integrations\Ads\AdsRegistry;
+use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Channels\Models\OAuthState;
 use CMBcoreSeller\Modules\Marketing\Jobs\SyncAdAccountEntities;
 use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
+use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -50,6 +52,19 @@ class AdsOAuthTest extends TestCase
 
         Queue::assertPushed(SyncAdAccountEntities::class);
         $this->assertDatabaseMissing('oauth_states', ['state' => 'st_ads_1']);
+    }
+
+    public function test_connect_start_422_when_dedicated_ads_app_not_configured(): void
+    {
+        config(['integrations.ads' => ['facebook'], 'integrations.ads_facebook' => []]); // no app_id/secret
+        $this->app->forgetInstance(AdsRegistry::class);
+        $tenant = Tenant::create(['name' => 'T']);
+        $user = User::factory()->create(['email_verified_at' => now()]);
+        $tenant->users()->attach($user->getKey(), ['role' => Role::Owner->value]);
+
+        $this->actingAs($user)->withHeaders(['X-Tenant-Id' => (string) $tenant->id])
+            ->postJson('/api/v1/marketing/ads/connect')
+            ->assertStatus(422);
     }
 
     public function test_callback_rejects_invalid_state(): void

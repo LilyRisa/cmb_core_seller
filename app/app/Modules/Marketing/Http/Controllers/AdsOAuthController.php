@@ -34,6 +34,11 @@ class AdsOAuthController extends Controller
     {
         Gate::authorize('marketing.connect');
 
+        // Báo lỗi rõ ràng (422) thay vì 500 "not registered" khi chưa bật / chưa cấu hình app Ads RIÊNG.
+        abort_unless($this->registry->has(self::CONNECTOR), 422, 'Tính năng Quảng cáo chưa được bật. Thêm `facebook` vào INTEGRATIONS_ADS.');
+        $cfg = (array) config('integrations.ads_facebook', []);
+        abort_if(empty($cfg['app_id']) || empty($cfg['app_secret']), 422, 'Chưa cấu hình app Facebook Ads RIÊNG (FACEBOOK_ADS_APP_ID / FACEBOOK_ADS_APP_SECRET) — không dùng lại app Facebook Page.');
+
         $tenantId = app(CurrentTenant::class)->id();
         $state = OAuthState::issue(self::STATE_PROVIDER, (int) $tenantId, $request->user()?->id, '/marketing?connected=facebook_ads');
 
