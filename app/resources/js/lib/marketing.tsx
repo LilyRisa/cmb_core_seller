@@ -136,3 +136,35 @@ export function useRefreshAdInsights() {
         onSuccess: () => qc.invalidateQueries({ queryKey: ['marketing', 'insights'] }),
     });
 }
+
+export interface ForecastStrategy { action: string; campaign: string | null; rationale: string; confidence: number | null }
+export interface AdForecast {
+    payload: {
+        forecast?: { next_7d?: { conversations?: number; orders?: number; spend?: number; projected_cost_per_order?: number | null } };
+        strategy?: ForecastStrategy[];
+    };
+    provider_code: string | null;
+    model: string | null;
+    generated_at: string | null;
+}
+
+/** Cached forecast only — does NOT auto-call AI (quota saving). */
+export function useAdForecast(accountId: number | null) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['marketing', 'forecast', accountId, tenantId],
+        enabled: api != null && accountId != null,
+        queryFn: async () => (await api!.get<{ data: AdForecast | null }>(`/marketing/ad-accounts/${accountId}/forecast`)).data.data,
+    });
+}
+
+/** On-demand generate (cooldown-guarded server-side). */
+export function useGenerateForecast() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: number) => (await api!.post<{ data: AdForecast }>(`/marketing/ad-accounts/${id}/forecast`)).data.data,
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['marketing', 'forecast'] }),
+    });
+}

@@ -7,8 +7,8 @@ import { errorMessage } from '@/lib/api';
 import { openOAuthPopup } from '@/lib/oauthPopup';
 import { useCan } from '@/lib/tenant';
 import {
-    type AdEntityRow, type ReconRow,
-    useAdAccounts, useAdInsights, useAdReconciliation, useConnectFacebookAds, useDisconnectAdAccount, useRefreshAdInsights,
+    type AdEntityRow, type ForecastStrategy, type ReconRow,
+    useAdAccounts, useAdForecast, useAdInsights, useAdReconciliation, useConnectFacebookAds, useDisconnectAdAccount, useGenerateForecast, useRefreshAdInsights,
 } from '@/lib/marketing';
 
 const { Text } = Typography;
@@ -40,6 +40,8 @@ export function MarketingDashboardPage() {
     const selectedAccount = useMemo(() => accounts?.find((a) => a.id === selectedId) ?? null, [accounts, selectedId]);
     const { data: insights, isFetching } = useAdInsights(selectedId);
     const { data: recon } = useAdReconciliation(selectedId);
+    const { data: forecast } = useAdForecast(selectedId);
+    const genForecast = useGenerateForecast();
 
     const applyResult = (p: URLSearchParams) => {
         const connected = p.get('connected');
@@ -76,8 +78,17 @@ export function MarketingDashboardPage() {
         });
     };
 
+    const handleForecast = () => {
+        if (selectedId == null) return;
+        genForecast.mutate(selectedId, {
+            onSuccess: () => message.success('Đã tạo dự báo.'),
+            onError: (e) => message.error(errorMessage(e, 'Không tạo được dự báo. Có thể trong thời gian chờ (cooldown) hoặc chưa cấu hình provider AI marketing.')),
+        });
+    };
+
     const currency = selectedAccount?.currency ?? null;
     const acc = insights?.account.insights ?? null;
+    const fc = forecast?.payload.forecast?.next_7d ?? null;
 
     const columns = [
         { title: 'Tên', dataIndex: 'name', key: 'name', render: (v: string | null, r: AdEntityRow) => v ?? r.external_id },
@@ -184,6 +195,46 @@ export function MarketingDashboardPage() {
                                 { title: 'Hội thoại→đơn', dataIndex: 'conv_to_order_pct', key: 'cvr', render: (v: number | null) => v != null ? v.toFixed(1) + '%' : '—' },
                             ]}
                         />
+                    </Card>
+
+                    <Card
+                        title="Dự báo & Chiến lược (AI)"
+                        style={{ marginTop: 16 }}
+                        extra={canConnect && (
+                            <Button size="small" type="primary" loading={genForecast.isPending} onClick={handleForecast}>
+                                Tạo dự báo
+                            </Button>
+                        )}
+                    >
+                        {forecast ? (
+                            <Space direction="vertical" size={12} style={{ display: 'flex' }}>
+                                <Text type="secondary">
+                                    Cập nhật: {forecast.generated_at ? new Date(forecast.generated_at).toLocaleString('vi-VN') : '—'}
+                                    {forecast.provider_code ? ` · ${forecast.provider_code}` : ' · stub'}
+                                </Text>
+                                <Space size={48} wrap>
+                                    <Statistic title="Hội thoại (7 ngày tới)" value={fc?.conversations ?? '—'} />
+                                    <Statistic title="Đơn (7 ngày tới)" value={fc?.orders ?? '—'} />
+                                    <Statistic title="Chi tiêu (7 ngày tới)" value={money(fc?.spend ?? null, currency)} />
+                                    <Statistic title="Cost/đơn dự báo" value={money(fc?.projected_cost_per_order ?? null, currency)} />
+                                </Space>
+                                {(forecast.payload.strategy?.length ?? 0) > 0 && (
+                                    <div>
+                                        <Text strong>Chiến lược đề xuất</Text>
+                                        <ul style={{ marginTop: 8 }}>
+                                            {forecast.payload.strategy!.map((s: ForecastStrategy, i: number) => (
+                                                <li key={i}>
+                                                    <Tag>{s.action}</Tag> {s.rationale}
+                                                    {s.confidence != null ? ` (${Math.round(s.confidence * 100)}%)` : ''}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                            </Space>
+                        ) : (
+                            <Empty description="Chưa có dự báo — bấm 'Tạo dự báo' để AI phân tích & dự báo chiến lược." />
+                        )}
                     </Card>
                 </>
             )}
