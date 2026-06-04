@@ -34,7 +34,7 @@ Người hỏi là **người bán / nhân viên đang dùng phần mềm**, đa
 
 ## 3. Các khu vực chức năng
 
-Tài khoản & nhân sự · Gian hàng (kết nối sàn, đồng bộ) · Đơn hàng (trạng thái, đơn thủ công) · Hoàn & Hủy · Khách hàng (sổ khách, uy tín) · Tồn kho (mã sản phẩm, ghép SKU, đẩy tồn, giá vốn) · Sản phẩm & SKU · Xử lý & giao hàng (vận đơn, in, quét, lô lấy hàng) · Mua hàng (nhà cung cấp, đơn mua, nhận hàng, đề xuất nhập) · Đối soát & lợi nhuận · Báo cáo · Gói thuê bao & thanh toán · Kế toán (Thông tư 133) · Tin nhắn (hộp thư hợp nhất, tự động trả lời, AI) · Cài đặt.
+Tài khoản & nhân sự · Gian hàng (kết nối sàn, đồng bộ) · Đơn hàng (trạng thái, đơn thủ công) · Hoàn & Hủy · Khách hàng (sổ khách, uy tín) · Tồn kho (mã sản phẩm, ghép SKU, đẩy tồn, giá vốn) · Sản phẩm & SKU · Xử lý & giao hàng (vận đơn, in, quét, lô lấy hàng) · Mua hàng (nhà cung cấp, đơn mua, nhận hàng, đề xuất nhập) · Đối soát & lợi nhuận · Báo cáo · Quảng cáo (Facebook Ads — kết nối, báo cáo chi tiêu, tạo quảng cáo; đang hoàn thiện) · Gói thuê bao & thanh toán · Kế toán (Thông tư 133) · Tin nhắn (hộp thư hợp nhất, tự động trả lời, AI) · Cài đặt · Trợ giúp (Hỏi AI + Hỏi CSKH).
 
 ## 4. Vai trò trong gian hàng
 

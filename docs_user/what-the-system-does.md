@@ -124,7 +124,17 @@
 | Đặt % phí sàn để ước tính lợi nhuận tạm | Cài đặt → Cài đặt đơn hàng | |
 | Khởi tạo & làm sổ kế toán (Thông tư 133) | Sổ nhật ký, Kỳ kế toán, Hệ thống TK... | kế toán: Pro+; nâng cao: Business |
 
-## 12. Gói thuê bao & Thanh toán
+## 12. Quảng cáo (Facebook)
+
+| Việc | Vào đâu | Ghi chú |
+|---|---|---|
+| Kết nối tài khoản quảng cáo Facebook | Quảng cáo → Kết nối Facebook Ads | Chủ sở hữu / Quản trị |
+| Xem báo cáo chi tiêu kiểu Trình quản lý quảng cáo | Quảng cáo | Theo chiến dịch/nhóm/quảng cáo; tuỳ chỉnh cột; lọc ngày |
+| Tạo quảng cáo (Mục tiêu → Ngân sách → Đối tượng → Vị trí) | Quảng cáo → Tạo quảng cáo | Nội dung tự lưu; bước xuất bản đang được hoàn thiện |
+
+> Lưu ý: khu vực Quảng cáo đang được hoàn thiện dần.
+
+## 13. Gói thuê bao & Thanh toán
 
 | Việc | Vào đâu | Ai làm được |
 |---|---|---|
