@@ -280,7 +280,8 @@ return [
         // SPEC-0024 messaging: heavy/background (history backfill + media relay + AI index).
         'supervisor-messaging-bg' => [
             'connection' => 'redis',
-            'queue' => ['messaging-sync', 'messaging-media', 'messaging-ai'],
+            // marketing-sync: Facebook Ads entity/insights sync (SyncAdAccountEntities, SyncAdInsights).
+            'queue' => ['messaging-sync', 'messaging-media', 'messaging-ai', 'marketing-sync'],
             'balance' => 'auto',
             'autoScalingStrategy' => 'time',
             'maxProcesses' => 4,

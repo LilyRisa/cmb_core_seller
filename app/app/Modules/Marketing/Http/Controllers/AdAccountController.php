@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Modules\Marketing\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Modules\Marketing\Http\Resources\AdAccountResource;
+use CMBcoreSeller\Modules\Marketing\Jobs\SyncAdAccountEntities;
 use CMBcoreSeller\Modules\Marketing\Jobs\SyncAdInsights;
 use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
 use Illuminate\Http\JsonResponse;
@@ -39,6 +40,9 @@ class AdAccountController extends Controller
     {
         Gate::authorize('marketing.view');
         $account = AdAccount::query()->findOrFail($id);
+        // Re-sync cả cây entity (campaign/adset/ad) lẫn insights — để "Làm mới" repopulate
+        // campaign nếu lần sync lúc connect chưa chạy (vd queue marketing-sync chưa có worker).
+        SyncAdAccountEntities::dispatch((int) $account->getKey());
         SyncAdInsights::dispatch((int) $account->getKey());
 
         return response()->json(['data' => ['queued' => true, 'ad_account_id' => (int) $account->getKey()]]);
