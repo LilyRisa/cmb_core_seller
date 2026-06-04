@@ -2,15 +2,16 @@
 
 namespace Tests\Feature\Marketing;
 
+use CMBcoreSeller\Integrations\Ads\AdsRegistry;
 use CMBcoreSeller\Modules\Marketing\Contracts\MarketingAnalysisClient;
 use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
-use CMBcoreSeller\Modules\Marketing\Models\AdForecast;
 use CMBcoreSeller\Modules\Marketing\Models\AdInsightSnapshot;
 use CMBcoreSeller\Modules\Marketing\Services\AdsForecastService;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /** Counting fake — proves AI is called only when allowed (quota savings). */
@@ -65,5 +66,35 @@ class AdsForecastServiceTest extends TestCase
         $svc->generate($account, force: true);
         $this->assertSame(2, $fake->calls);
         $this->assertDatabaseCount('ad_forecasts', 1); // still one row (upsert per account)
+    }
+
+    public function test_generate_gathers_campaign_insights_and_creatives(): void
+    {
+        config(['integrations.ads' => ['facebook']]);
+        $this->app->forgetInstance(AdsRegistry::class);
+
+        $tenant = Tenant::create(['name' => 'T']);
+        app(CurrentTenant::class)->set($tenant);
+        $account = AdAccount::create([
+            'provider' => 'facebook', 'external_account_id' => 'act_1', 'currency' => 'VND',
+            'status' => 'active', 'access_token' => 'TOK',
+        ]);
+
+        Http::fake([
+            'graph.facebook.com/*/insights*' => Http::response(['data' => [
+                ['campaign_id' => 'C1', 'spend' => '1000', 'impressions' => '50', 'clicks' => '3'],
+            ]], 200),
+            'graph.facebook.com/*/ads*' => Http::response(['data' => [
+                ['id' => 'AD1', 'name' => 'QC', 'effective_status' => 'ACTIVE',
+                    'creative' => ['object_story_spec' => ['link_data' => ['message' => 'Mua ngay']]]],
+            ]], 200),
+        ]);
+
+        $forecast = app(AdsForecastService::class)->generate($account, true);
+
+        $this->assertNotNull($forecast->payload['creative_review'] ?? null);
+        $this->assertSame('AD1', $forecast->payload['creative_review'][0]['ref']);
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'act_1/ads'));
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/insights'));
     }
 }
