@@ -5,7 +5,7 @@
 // Ảnh trong bài viết dùng đường dẫn images/<tên>.png và được đổi sang CDN khi hiển thị
 // (xem HELP_IMAGE_BASE). Không cần backend — nội dung đóng gói vào bundle FE.
 
-export const HELP_IMAGE_BASE = 'https://static.cmbcore.com/help';
+export const HELP_IMAGE_BASE = 'https://static.cmbcore.com/static_root';
 
 export interface HelpArticle {
     /** slug = tên file không đuôi, ví dụ "01-bat-dau" */
