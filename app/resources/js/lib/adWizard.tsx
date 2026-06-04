@@ -46,9 +46,12 @@ export interface PlacementConfig {
     positions?: Record<string, string[]>;
 }
 
+export interface GeoItem { key: string; name: string; type: 'country' | 'region' | 'city'; country_code?: string }
+
 export interface AdSetNode {
     key: string;
     name: string;
+    geo?: { include: GeoItem[]; exclude: GeoItem[] };
     budget?: { daily_major?: number };
     targeting?: Record<string, unknown>;
     placements?: 'automatic' | 'manual';
