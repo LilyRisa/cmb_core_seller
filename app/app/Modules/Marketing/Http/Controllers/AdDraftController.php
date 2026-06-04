@@ -3,8 +3,11 @@
 namespace CMBcoreSeller\Modules\Marketing\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
+use CMBcoreSeller\Integrations\Ads\AdsRegistry;
+use CMBcoreSeller\Integrations\Ads\Contracts\AdsWriteConnector;
 use CMBcoreSeller\Modules\Marketing\Http\Requests\AdDraftRequest;
 use CMBcoreSeller\Modules\Marketing\Http\Resources\AdDraftResource;
+use CMBcoreSeller\Modules\Marketing\Jobs\PublishAdDraft;
 use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
 use CMBcoreSeller\Modules\Marketing\Models\AdDraft;
 use CMBcoreSeller\Modules\Marketing\Services\AdDraftService;
@@ -65,5 +68,25 @@ class AdDraftController extends Controller
         $draft->delete();
 
         return response()->json(['data' => ['deleted' => true]]);
+    }
+
+    /** POST ad-drafts/{id}/publish — enqueue create-on-Facebook (gated by ads.create capability). */
+    public function publish(int $id, AdsRegistry $registry): JsonResponse
+    {
+        Gate::authorize('marketing.ads.create');
+        $draft = AdDraft::query()->findOrFail($id);
+        $account = AdAccount::query()->findOrFail($draft->ad_account_id);
+
+        $connector = $registry->has($account->provider) ? $registry->for($account->provider) : null;
+        abort_unless(
+            $connector instanceof AdsWriteConnector && $connector->supports('ads.create'),
+            422,
+            'Tạo quảng cáo chưa được bật cho tài khoản này (cần quyền ads_management + Standard Access).',
+        );
+
+        PublishAdDraft::dispatch($draft->id);
+        $draft->forceFill(['status' => AdDraft::STATUS_PUBLISHING, 'last_error' => null])->save();
+
+        return response()->json(['data' => ['queued' => true, 'status' => 'publishing']]);
     }
 }

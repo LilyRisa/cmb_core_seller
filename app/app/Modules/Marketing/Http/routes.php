@@ -52,6 +52,7 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
         Route::get('ad-drafts/{id}', [AdDraftController::class, 'show'])->whereNumber('id')->name('marketing.ad-drafts.show');
         Route::patch('ad-drafts/{id}', [AdDraftController::class, 'update'])->whereNumber('id')->name('marketing.ad-drafts.update');
         Route::delete('ad-drafts/{id}', [AdDraftController::class, 'destroy'])->whereNumber('id')->name('marketing.ad-drafts.destroy');
+        Route::post('ad-drafts/{id}/publish', [AdDraftController::class, 'publish'])->whereNumber('id')->name('marketing.ad-drafts.publish');
     });
 
 // Super-admin: dedicated marketing AI provider (separate from messaging ai-providers).
