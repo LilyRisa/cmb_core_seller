@@ -124,6 +124,14 @@ Schedule::call(function () {
         ->each(fn ($a) => SyncConversationsForShop::dispatch((int) $a->getKey()));
 })->everyFiveMinutes()->name('messaging-chat-poll')->onOneServer()->withoutOverlapping();
 
+// Every 15': poll Facebook ad insights for active ad accounts (FB refreshes ~15').
+// SPEC 2026-06-04. ShouldBeUnique(900s) guards overlap; throttle pacing inside the job.
+Schedule::call(function () {
+    \CMBcoreSeller\Modules\Marketing\Models\AdAccount::withoutGlobalScope(\CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class)
+        ->where('status', 'active')->orderBy('id')
+        ->each(fn ($a) => \CMBcoreSeller\Modules\Marketing\Jobs\SyncAdInsights::dispatch((int) $a->id));
+})->everyFifteenMinutes()->name('ads-insights-poll')->onOneServer()->withoutOverlapping();
+
 // Prune old framework rows so the DB stays lean.
 Schedule::command('queue:prune-failed --hours=336')->daily()->onOneServer();      // keep 14d of failed jobs
 Schedule::command('queue:prune-batches --hours=72 --unfinished=72')->daily()->onOneServer();
