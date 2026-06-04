@@ -16,6 +16,7 @@ import {
     MenuUnfoldOutlined,
     MessageOutlined,
     PartitionOutlined,
+    ReadOutlined,
     SettingOutlined,
     RollbackOutlined,
     ShopOutlined,
@@ -77,6 +78,7 @@ function buildNav(): MenuProps['items'] {
         ] },
         { type: 'group', label: 'Hệ thống', children: [
             { key: '/sync-logs', icon: <SwapOutlined />, label: <Link to="/sync-logs">Nhật ký đồng bộ</Link> },
+            { key: '/support', icon: <ReadOutlined />, label: <Link to="/support">Trung tâm trợ giúp</Link> },
             { key: '/settings', icon: <SettingOutlined />, label: <Link to="/settings">Cài đặt</Link> },
         ] },
     ];
@@ -89,7 +91,7 @@ const BASE_KEYS = ['/', '/orders', '/customers', '/messaging', '/messaging/chann
     '/procurement/demand-planning', '/procurement/suppliers', '/procurement/purchase-orders',
     '/reports', '/marketing', '/finance/settlements',
     '/accounting/journals', '/accounting/chart-of-accounts', '/accounting/balances', '/accounting/ar', '/accounting/ap', '/accounting/cash', '/accounting/reports', '/accounting/periods',
-    '/sync-logs', '/settings'];
+    '/sync-logs', '/support', '/settings'];
 
 export function AppLayout() {
     const { data: user } = useAuth();

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { Link } from 'react-router-dom';
 import { App, Badge, Button, Input, Spin, Tabs, Tag, Typography } from 'antd';
 import { CloseOutlined, CommentOutlined, CustomerServiceOutlined, RobotOutlined, SendOutlined } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
@@ -98,6 +99,7 @@ function AiTab() {
                         <RobotOutlined style={{ fontSize: 32, marginBottom: 8 }} />
                         <div>Hỏi tôi về cách dùng hệ thống</div>
                         <div style={{ fontSize: 12, marginTop: 4 }}>VD: “Làm sao kết nối gian hàng?”, “Cách in tem hàng loạt?”</div>
+                        <div style={{ fontSize: 12, marginTop: 10 }}><Link to="/support">Xem tất cả bài hướng dẫn →</Link></div>
                     </div>
                 )}
                 {turns.map((t, i) => t.role === 'user' ? (

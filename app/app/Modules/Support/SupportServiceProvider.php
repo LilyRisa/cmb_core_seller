@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Support;
 
 use CMBcoreSeller\Modules\Support\Console\Commands\IndexHelpDocs;
+use CMBcoreSeller\Modules\Support\Console\Commands\PublishHelpImages;
 use CMBcoreSeller\Modules\Support\Services\QdrantClient;
 use Illuminate\Support\ServiceProvider;
 
@@ -31,7 +32,7 @@ class SupportServiceProvider extends ServiceProvider
         }
 
         if ($this->app->runningInConsole()) {
-            $this->commands([IndexHelpDocs::class]);
+            $this->commands([IndexHelpDocs::class, PublishHelpImages::class]);
         }
     }
 }

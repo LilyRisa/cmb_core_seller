@@ -24,6 +24,7 @@ import { OrderDetailPage } from '@/pages/OrderDetailPage';
 import { ReturnsPage } from '@/pages/ReturnsPage';
 import { ChannelsPage } from '@/pages/ChannelsPage';
 import { SyncLogsPage } from '@/pages/SyncLogsPage';
+import { SupportCenterPage } from '@/pages/SupportCenterPage';
 import { CustomersPage } from '@/pages/CustomersPage';
 import { CustomerDetailPage } from '@/pages/CustomerDetailPage';
 import { MessagingPage } from '@/pages/MessagingPage';
@@ -138,6 +139,7 @@ function Root() {
                 <Route path="accounting/cash" element={<CashPage />} />
                 <Route path="accounting/reports" element={<AccountingReportsPage />} />
                 <Route path="sync-logs" element={<SyncLogsPage />} />
+                <Route path="support" element={<SupportCenterPage />} />
                 {/* Spec 2026-05-17 — admin SPA tách bundle riêng tại `/admin/*` (server-side route). */}
                 <Route path="settings" element={<SettingsLayout />}>
                     <Route index element={<Navigate to="/settings/profile" replace />} />
