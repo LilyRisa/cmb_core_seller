@@ -11,6 +11,15 @@ use Illuminate\Support\ServiceProvider;
  */
 class MarketingServiceProvider extends ServiceProvider
 {
+    public function register(): void
+    {
+        // Marketing-owned AI client (isolated from Integrations/Ai messaging flow).
+        $this->app->bind(
+            \CMBcoreSeller\Modules\Marketing\Contracts\MarketingAnalysisClient::class,
+            \CMBcoreSeller\Modules\Marketing\Services\LlmMarketingAnalysisClient::class,
+        );
+    }
+
     public function boot(): void
     {
         $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
