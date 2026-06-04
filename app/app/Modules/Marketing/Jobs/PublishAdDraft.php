@@ -63,7 +63,7 @@ class PublishAdDraft implements ShouldBeUnique, ShouldQueue
 
         try {
             if (! $draft->campaign_external_id) {
-                $draft->campaign_external_id = $connector->createCampaign($token, $acc, $mapper->campaign($draft));
+                $draft->campaign_external_id = $connector->createCampaign($token, $acc, $mapper->campaign($draft, (string) $account->currency));
                 $draft->save();
             }
 

@@ -25,11 +25,27 @@ class AdDraftSpecMapperTest extends TestCase
 
     public function test_maps_campaign_with_none_special_category(): void
     {
-        $spec = app(AdDraftSpecMapper::class)->campaign($this->draft([]));
-
+        $spec = app(AdDraftSpecMapper::class)->campaign($this->draft([]), 'VND');
         $this->assertSame('messages', $spec->objective);
         $this->assertSame('Tết', $spec->name);
         $this->assertSame(['NONE'], $spec->specialAdCategories);
+        $this->assertNull($spec->dailyBudgetMajor);
+    }
+
+    public function test_maps_campaign_cbo_budget(): void
+    {
+        $draft = $this->draft(['campaign' => ['budget_mode' => 'campaign', 'daily_budget_major' => 500000]]);
+        $spec = app(AdDraftSpecMapper::class)->campaign($draft, 'VND');
+        $this->assertSame(500000, $spec->dailyBudgetMajor);
+        $this->assertSame('VND', $spec->currency);
+    }
+
+    public function test_adset_budget_zero_when_cbo(): void
+    {
+        $draft = $this->draft(['campaign' => ['budget_mode' => 'campaign']]);
+        $node = ['name' => 'N', 'budget' => ['daily_major' => 999999], 'ads' => [['creative' => ['page_id' => '1']]]];
+        $spec = app(AdDraftSpecMapper::class)->adSet($draft, $node, 'C9', 'VND');
+        $this->assertSame(0, $spec->dailyBudgetMajor);
     }
 
     public function test_adset_nodes_wrap_legacy_flat_payload(): void

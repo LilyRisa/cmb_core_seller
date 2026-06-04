@@ -15,12 +15,17 @@ use CMBcoreSeller\Modules\Marketing\Support\AdDraftTree;
  */
 class AdDraftSpecMapper
 {
-    public function campaign(AdDraft $draft): CampaignSpecDTO
+    public function campaign(AdDraft $draft, string $currency): CampaignSpecDTO
     {
+        $campaign = (array) (((array) ($draft->payload ?? []))['campaign'] ?? []);
+        $cbo = ($campaign['budget_mode'] ?? 'adset') === 'campaign';
+
         return new CampaignSpecDTO(
             objective: (string) ($draft->objective ?? 'traffic'),
             name: (string) ($draft->name ?? 'Chiến dịch'),
             specialAdCategories: ['NONE'],
+            dailyBudgetMajor: $cbo ? (int) ($campaign['daily_budget_major'] ?? 0) : null,
+            currency: $cbo ? $currency : null,
         );
     }
 
@@ -37,12 +42,14 @@ class AdDraftSpecMapper
         $schedule = (array) ($node['schedule'] ?? []);
         $firstAd = (array) ($node['ads'][0] ?? []);
         $firstCreative = (array) ($firstAd['creative'] ?? []);
+        $campaign = (array) (((array) ($draft->payload ?? []))['campaign'] ?? []);
+        $cbo = ($campaign['budget_mode'] ?? 'adset') === 'campaign';
 
         return new AdSetSpecDTO(
             name: (string) ($node['name'] ?? 'Nhóm'),
             campaignExternalId: $campaignExternalId,
             objective: (string) ($draft->objective ?? 'traffic'),
-            dailyBudgetMajor: (int) ($budget['daily_major'] ?? 0),
+            dailyBudgetMajor: $cbo ? 0 : (int) ($budget['daily_major'] ?? 0),
             currency: $currency,
             targeting: (array) ($node['targeting'] ?? []),
             pageId: isset($firstCreative['page_id']) ? (string) $firstCreative['page_id'] : null,
