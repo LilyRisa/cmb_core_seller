@@ -220,6 +220,14 @@ export function MarketingDashboardPage() {
         return [...s].map((o) => ({ label: objectiveVi(o), value: o }));
     }, [report]);
 
+    // "Đang chạy" = effective_status (ưu tiên) hoặc status === ACTIVE.
+    const isActiveRow = (r: ReportRow) => (r.effective_status ?? r.status) === 'ACTIVE';
+    // Đẩy hàng đang chạy lên đầu, giữ nguyên thứ tự cũ trong từng nhóm (sort ổn định).
+    const sortedRows = useMemo(
+        () => [...(report?.rows ?? [])].sort((a, b) => (isActiveRow(a) ? 0 : 1) - (isActiveRow(b) ? 0 : 1)),
+        [report],
+    );
+
     return (
         <div>
             <PageHeader title="Quảng cáo Facebook" subtitle="Báo cáo kiểu Ads Manager — lọc theo BM, ngày, 3 cấp; cột tuỳ chỉnh; drill-down." />
@@ -323,8 +331,9 @@ export function MarketingDashboardPage() {
                         </Space>
                         <Table<ReportRow>
                             rowKey="external_id" size="small" scroll={{ x: 'max-content' }}
-                            loading={isFetching} dataSource={report?.rows ?? []} columns={columns} rowSelection={rowSelection}
-                            pagination={{ pageSize: 50, showSizeChanger: true }}
+                            rowClassName={(r) => (isActiveRow(r) ? 'marketing-row-active' : '')}
+                            loading={isFetching} dataSource={sortedRows} columns={columns} rowSelection={rowSelection}
+                            pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ['20', '50', '100', '200'] }}
                             locale={{ emptyText: <Empty description="Không có dữ liệu cho bộ lọc/khoảng ngày này." /> }}
                         />
                     </Card>

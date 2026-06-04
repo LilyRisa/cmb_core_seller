@@ -1828,6 +1828,14 @@ pre::-webkit-scrollbar-track {
     }
 }
 
+/* Marketing report — highlight "đang chạy" (ACTIVE) campaigns/adsets/ads. */
+.marketing-row-active > td {
+    background: #f6ffed !important;
+}
+.marketing-row-active:hover > td {
+    background: #eaffd8 !important;
+}
+
 /* =============================================================================
    END OF MINIMAL ECOMMERCE THEME
    ============================================================================= */
