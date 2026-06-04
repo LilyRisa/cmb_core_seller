@@ -1,4 +1,4 @@
-import { Alert, Checkbox, Form, Segmented, Space, Typography } from 'antd';
+import { Alert, Checkbox, Empty, Form, Segmented, Space, Typography } from 'antd';
 import type { SegmentedProps } from 'antd';
 import { LayoutOutlined } from '@ant-design/icons';
 import { useDraftStore } from '@/lib/adWizard/draftStore';
@@ -25,18 +25,29 @@ const PLATFORM_OPTIONS: PlatformOption[] = [
 ];
 
 export function StepPlacements() {
-    const payload = useDraftStore((s) => s.payload);
-    const patchPayload = useDraftStore((s) => s.patchPayload);
+    const adsets = useDraftStore((s) => s.adsets);
+    const selectedAdSetKey = useDraftStore((s) => s.selectedAdSetKey);
+    const updateAdSet = useDraftStore((s) => s.updateAdSet);
 
-    const mode: PlacementMode = (payload.placements as PlacementMode | undefined) ?? 'automatic';
-    const platforms = (payload.placement_platforms as string[] | undefined) ?? [];
+    const adset = adsets.find((a) => a.key === selectedAdSetKey);
+
+    if (adset == null) {
+        return (
+            <Empty description="Chọn hoặc thêm một nhóm quảng cáo" style={{ padding: 32 }} />
+        );
+    }
+
+    const mode: PlacementMode = (adset.placements as PlacementMode | undefined) ?? 'automatic';
+    const platforms = adset.placement_platforms ?? [];
 
     function handleModeChange(v: string | number) {
-        patchPayload({ placements: v as PlacementMode });
+        if (selectedAdSetKey == null) return;
+        updateAdSet(selectedAdSetKey, { placements: v as PlacementMode });
     }
 
     function handlePlatformsChange(checked: string[]) {
-        patchPayload({ placement_platforms: checked });
+        if (selectedAdSetKey == null) return;
+        updateAdSet(selectedAdSetKey, { placement_platforms: checked });
     }
 
     return (

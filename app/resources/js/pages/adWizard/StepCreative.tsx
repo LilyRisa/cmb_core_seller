@@ -1,10 +1,26 @@
 import { useState, useEffect } from 'react';
-import { Alert, Button, Card, Form, Input, Space, Typography } from 'antd';
+import {
+    Alert,
+    Button,
+    Card,
+    Empty,
+    Form,
+    Input,
+    Space,
+    Tag,
+    Tooltip,
+    Typography,
+} from 'antd';
 import type { SegmentedProps } from 'antd';
 import { Segmented } from 'antd';
-import { PictureOutlined, SwapOutlined } from '@ant-design/icons';
+import {
+    CloseOutlined,
+    PictureOutlined,
+    PlusOutlined,
+    SwapOutlined,
+} from '@ant-design/icons';
 import { useDraftStore } from '@/lib/adWizard/draftStore';
-import type { AdObjective } from '@/lib/adWizard';
+import type { AdObjective, AdNode } from '@/lib/adWizard';
 import { PagePostPickerModal } from '@/pages/adWizard/PagePostPickerModal';
 
 const { Text, Paragraph } = Typography;
@@ -36,16 +52,20 @@ interface PickedPostSummary {
     message: string | null;
 }
 
-export function StepCreative() {
+interface AdEditorProps {
+    adsetKey: string;
+    ad: AdNode;
+}
+
+function AdEditor({ adsetKey, ad }: AdEditorProps) {
     const objective = useDraftStore((s) => s.objective);
-    const payload = useDraftStore((s) => s.payload);
     const accountId = useDraftStore((s) => s.accountId);
-    const patchCreative = useDraftStore((s) => s.patchCreative);
+    const updateAd = useDraftStore((s) => s.updateAd);
 
     const [modalOpen, setModalOpen] = useState(false);
     const [pickedSummary, setPickedSummary] = useState<PickedPostSummary | null>(null);
 
-    const creative = payload.creative;
+    const creative = ad.creative;
     const mode: ContentMode = (creative?.mode as ContentMode | undefined) ?? 'page_post';
 
     // When objective changes, reset CTA to the first valid option for the new objective
@@ -56,9 +76,9 @@ export function StepCreative() {
         const currentCta = creative?.cta;
         const isValid = currentCta != null && allowed.some((o) => o.value === currentCta);
         if (!isValid) {
-            patchCreative({ cta: allowed[0].value });
+            updateAd(adsetKey, ad.key, { creative: { ...creative, cta: allowed[0].value } });
         }
-    // Only run when objective changes — eslint-disable is intentional
+    // Only run when objective changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [objective]);
 
@@ -70,11 +90,11 @@ export function StepCreative() {
     const currentCta = creative?.cta ?? (ctaOptions[0] as { value: string } | undefined)?.value;
 
     function handleModeChange(v: string | number) {
-        patchCreative({ mode: v as ContentMode });
+        updateAd(adsetKey, ad.key, { creative: { ...creative, mode: v as ContentMode } });
     }
 
     function handleCtaChange(v: string | number) {
-        patchCreative({ cta: v as string });
+        updateAd(adsetKey, ad.key, { creative: { ...creative, cta: v as string } });
     }
 
     function handlePick(p: {
@@ -83,7 +103,9 @@ export function StepCreative() {
         image_url: string | null;
         message: string | null;
     }) {
-        patchCreative({ page_id: p.page_id, page_post_id: p.page_post_id });
+        updateAd(adsetKey, ad.key, {
+            creative: { ...creative, page_id: p.page_id, page_post_id: p.page_post_id },
+        });
         setPickedSummary({ image_url: p.image_url, message: p.message });
     }
 
@@ -115,7 +137,13 @@ export function StepCreative() {
                             <Card
                                 size="small"
                                 style={{ maxWidth: 400 }}
-                                styles={{ body: { display: 'flex', gap: 12, alignItems: 'flex-start' } }}
+                                styles={{
+                                    body: {
+                                        display: 'flex',
+                                        gap: 12,
+                                        alignItems: 'flex-start',
+                                    },
+                                }}
                             >
                                 {pickedSummary?.image_url != null && (
                                     <img
@@ -164,7 +192,11 @@ export function StepCreative() {
                         <Input.TextArea
                             rows={3}
                             value={creative?.primary_text ?? ''}
-                            onChange={(e) => patchCreative({ primary_text: e.target.value })}
+                            onChange={(e) =>
+                                updateAd(adsetKey, ad.key, {
+                                    creative: { ...creative, primary_text: e.target.value },
+                                })
+                            }
                             placeholder="Mô tả sản phẩm / dịch vụ..."
                             style={{ maxWidth: 520 }}
                         />
@@ -172,7 +204,11 @@ export function StepCreative() {
                     <Form.Item label="Tiêu đề">
                         <Input
                             value={creative?.headline ?? ''}
-                            onChange={(e) => patchCreative({ headline: e.target.value })}
+                            onChange={(e) =>
+                                updateAd(adsetKey, ad.key, {
+                                    creative: { ...creative, headline: e.target.value },
+                                })
+                            }
                             placeholder="Tiêu đề ngắn gọn"
                             style={{ maxWidth: 400 }}
                         />
@@ -180,7 +216,11 @@ export function StepCreative() {
                     <Form.Item label="Đường dẫn (URL)">
                         <Input
                             value={creative?.link_url ?? ''}
-                            onChange={(e) => patchCreative({ link_url: e.target.value })}
+                            onChange={(e) =>
+                                updateAd(adsetKey, ad.key, {
+                                    creative: { ...creative, link_url: e.target.value },
+                                })
+                            }
                             placeholder="https://example.com"
                             style={{ maxWidth: 400 }}
                         />
@@ -212,5 +252,116 @@ export function StepCreative() {
                 onClose={() => setModalOpen(false)}
             />
         </Form>
+    );
+}
+
+export function StepCreative() {
+    const adsets = useDraftStore((s) => s.adsets);
+    const selectedAdSetKey = useDraftStore((s) => s.selectedAdSetKey);
+    const addAd = useDraftStore((s) => s.addAd);
+    const removeAd = useDraftStore((s) => s.removeAd);
+
+    const adset = adsets.find((a) => a.key === selectedAdSetKey);
+
+    const [selectedAdKey, setSelectedAdKey] = useState<string | null>(null);
+
+    // When adset changes, default to first ad
+    useEffect(() => {
+        if (adset != null && adset.ads.length > 0) {
+            setSelectedAdKey((prev) => {
+                // Keep current selection if it still exists in this ad set
+                if (prev != null && adset.ads.some((d) => d.key === prev)) return prev;
+                return adset.ads[0].key;
+            });
+        }
+    }, [adset]);
+
+    if (adset == null) {
+        return (
+            <Empty description="Chọn hoặc thêm một nhóm quảng cáo" style={{ padding: 32 }} />
+        );
+    }
+
+    const ads = adset.ads;
+    const effectiveAdKey = selectedAdKey != null && ads.some((d) => d.key === selectedAdKey)
+        ? selectedAdKey
+        : (ads[0]?.key ?? null);
+
+    const selectedAd = ads.find((d) => d.key === effectiveAdKey) ?? null;
+
+    function handleAddAd() {
+        if (selectedAdSetKey == null) return;
+        addAd(selectedAdSetKey);
+        // Select the newly added ad — it will be the last one; effect handles it via "adset" change
+    }
+
+    function handleRemoveAd(adKey: string) {
+        if (selectedAdSetKey == null) return;
+        removeAd(selectedAdSetKey, adKey);
+        if (selectedAdKey === adKey) {
+            const remaining = ads.filter((d) => d.key !== adKey);
+            setSelectedAdKey(remaining[0]?.key ?? null);
+        }
+    }
+
+    return (
+        <div>
+            {/* Ad tabs row */}
+            <Space size={4} wrap style={{ marginBottom: 12 }}>
+                <Text type="secondary" style={{ fontSize: 12, marginRight: 4 }}>
+                    Quảng cáo:
+                </Text>
+                {ads.map((ad) => {
+                    const isSelected = ad.key === effectiveAdKey;
+                    return (
+                        <Tag
+                            key={ad.key}
+                            color={isSelected ? 'blue' : undefined}
+                            style={{
+                                cursor: 'pointer',
+                                userSelect: 'none',
+                                padding: '2px 8px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                            }}
+                            onClick={() => setSelectedAdKey(ad.key)}
+                        >
+                            {ad.name}
+                            {ads.length > 1 && (
+                                <Tooltip title="Xoá quảng cáo này">
+                                    <CloseOutlined
+                                        style={{ fontSize: 10, marginLeft: 2, color: '#999' }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleRemoveAd(ad.key);
+                                        }}
+                                    />
+                                </Tooltip>
+                            )}
+                        </Tag>
+                    );
+                })}
+                <Button
+                    size="small"
+                    icon={<PlusOutlined />}
+                    onClick={handleAddAd}
+                    style={{ height: 24, fontSize: 12 }}
+                >
+                    Thêm quảng cáo
+                </Button>
+            </Space>
+
+            {/* Ad editor */}
+            {selectedAd != null && selectedAdSetKey != null ? (
+                <AdEditor
+                    key={selectedAd.key}
+                    adsetKey={selectedAdSetKey}
+                    ad={selectedAd}
+                />
+            ) : (
+                <Empty description="Thêm quảng cáo để bắt đầu" style={{ padding: 32 }} />
+            )}
+        </div>
     );
 }

@@ -22,6 +22,7 @@ import { StepCreative } from '@/pages/adWizard/StepCreative';
 import { StepReview } from '@/pages/adWizard/StepReview';
 import { WizardTour } from '@/pages/adWizard/WizardTour';
 import { AiAssistantDrawer } from '@/pages/adWizard/AiAssistantDrawer';
+import { AdSetSelector } from '@/pages/adWizard/AdSetSelector';
 
 const STEP_LABELS = ['Mục tiêu', 'Ngân sách', 'Đối tượng', 'Vị trí', 'Nội dung', 'Xuất bản'];
 const STEP_ICONS = [
@@ -37,9 +38,9 @@ function renderStep(step: number): ReactNode {
     switch (step) {
         case 0: return <StepObjective />;
         case 1: return <StepBudget />;
-        case 2: return <StepAudience />;
-        case 3: return <StepPlacements />;
-        case 4: return <StepCreative />;
+        case 2: return <><AdSetSelector /><StepAudience /></>;
+        case 3: return <><AdSetSelector /><StepPlacements /></>;
+        case 4: return <><AdSetSelector /><StepCreative /></>;
         case 5: return <StepReview />;
         default: return <Empty description={STEP_LABELS[step]} />;
     }
@@ -68,6 +69,8 @@ export function AdWizardPage() {
     const load = useDraftStore((s) => s.load);
     const setStep = useDraftStore((s) => s.setStep);
     const markSaved = useDraftStore((s) => s.markSaved);
+    const adsets = useDraftStore((s) => s.adsets);
+    const selectedAdSetKey = useDraftStore((s) => s.selectedAdSetKey);
 
     // Mutations
     const createDraft = useCreateDraft();
@@ -170,10 +173,15 @@ export function AdWizardPage() {
             case 0: return objective != null;
             case 1: return (payload.budget?.daily_major ?? 0) > 0;
             case 4: {
-                const c = payload.creative;
-                const mode = c?.mode ?? 'page_post';
-                if (mode === 'page_post') return (c?.page_post_id ?? '') !== '';
-                return (c?.primary_text ?? '') !== '';
+                // Check the selected ad set has at least one ad with creative content
+                const adset = adsets.find((a) => a.key === selectedAdSetKey);
+                if (adset == null || adset.ads.length === 0) return false;
+                return adset.ads.some((ad) => {
+                    const c = ad.creative;
+                    const mode = c?.mode ?? 'page_post';
+                    if (mode === 'page_post') return (c?.page_post_id ?? '') !== '';
+                    return (c?.primary_text ?? '') !== '';
+                });
             }
             default: return true;
         }

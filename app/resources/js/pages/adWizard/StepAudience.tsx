@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Form, Select, Segmented, Slider, Space, Statistic, Typography } from 'antd';
+import { Alert, Empty, Form, Select, Segmented, Slider, Space, Statistic, Typography } from 'antd';
 import type { SegmentedProps } from 'antd';
 import type { DefaultOptionType } from 'rc-select/lib/Select';
 import { TeamOutlined } from '@ant-design/icons';
@@ -30,7 +30,7 @@ interface InterestItem {
     name: string;
 }
 
-/** Read initial targeting fields out of payload.targeting (best-effort). */
+/** Read initial targeting fields out of targeting spec (best-effort). */
 function initFromTargeting(targeting: Record<string, unknown> | undefined): {
     countries: string[];
     ageRange: [number, number];
@@ -101,12 +101,14 @@ function buildTargetingSpec(
     return spec;
 }
 
-export function StepAudience() {
-    const payload = useDraftStore((s) => s.payload);
+/** Inner form — rendered only when an ad set is selected. */
+function AudienceForm({ adsetKey }: { adsetKey: string }) {
+    const adsets = useDraftStore((s) => s.adsets);
     const accountId = useDraftStore((s) => s.accountId);
-    const patchPayload = useDraftStore((s) => s.patchPayload);
+    const updateAdSet = useDraftStore((s) => s.updateAdSet);
 
-    const init = initFromTargeting(payload.targeting);
+    const adset = adsets.find((a) => a.key === adsetKey);
+    const init = initFromTargeting(adset?.targeting);
 
     const [countries, setCountries] = useState<string[]>(init.countries);
     const [ageRange, setAgeRange] = useState<[number, number]>(init.ageRange);
@@ -119,21 +121,18 @@ export function StepAudience() {
     const targetingSearch = useTargetingSearch();
     const audienceEstimate = useAudienceEstimate();
 
-    // Debounce ref for interest search
+    // Debounce refs
     const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    // Debounce ref for audience estimate
     const estimateDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Track whether this is the first render so we don't patch on mount
-    // when the local state was already initialized from payload.targeting.
     const isFirstRenderRef = useRef(true);
 
     // Stable serialized keys to avoid object-identity issues in effect deps
     const countriesKey = countries.join(',');
     const interestsKey = interests.map((i) => i.id).join(',');
 
-    // Patch payload.targeting and debounce audience estimate whenever fields change
+    // Patch ad set targeting and debounce audience estimate whenever fields change
     useEffect(() => {
         if (isFirstRenderRef.current) {
             isFirstRenderRef.current = false;
@@ -141,7 +140,7 @@ export function StepAudience() {
         }
 
         const spec = buildTargetingSpec(countries, ageRange, gender, interests);
-        patchPayload({ targeting: spec });
+        updateAdSet(adsetKey, { targeting: spec });
 
         // Debounced estimate
         if (estimateDebounceRef.current != null) {
@@ -163,7 +162,7 @@ export function StepAudience() {
             }
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [countriesKey, ageRange[0], ageRange[1], gender, interestsKey]);
+    }, [countriesKey, ageRange[0], ageRange[1], gender, interestsKey, adsetKey]);
 
     function handleInterestSearch(q: string) {
         if (searchDebounceRef.current != null) {
@@ -190,9 +189,7 @@ export function StepAudience() {
         value: i.id,
     }));
 
-    function handleInterestChange(
-        selected: { label: string; value: string }[],
-    ) {
+    function handleInterestChange(selected: { label: string; value: string }[]) {
         setInterests(selected.map((s) => ({ id: s.value, name: s.label as string })));
     }
 
@@ -283,4 +280,18 @@ export function StepAudience() {
             </Form.Item>
         </Form>
     );
+}
+
+export function StepAudience() {
+    const selectedAdSetKey = useDraftStore((s) => s.selectedAdSetKey);
+    const adsets = useDraftStore((s) => s.adsets);
+    const adset = adsets.find((a) => a.key === selectedAdSetKey);
+
+    if (adset == null) {
+        return (
+            <Empty description="Chọn hoặc thêm một nhóm quảng cáo" style={{ padding: 32 }} />
+        );
+    }
+
+    return <AudienceForm key={adset.key} adsetKey={adset.key} />;
 }
