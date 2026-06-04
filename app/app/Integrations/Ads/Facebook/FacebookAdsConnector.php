@@ -11,6 +11,7 @@ use CMBcoreSeller\Integrations\Ads\DTO\AdInsightDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdInsightThrottleDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdSetSpecDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdSpecDTO;
+use CMBcoreSeller\Integrations\Ads\DTO\AudienceSizeDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\CampaignSpecDTO;
 use CMBcoreSeller\Integrations\Ads\Exceptions\UnsupportedOperation;
 use Illuminate\Support\Facades\Http;
@@ -326,5 +327,30 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
         }
 
         return (string) $res->json('id');
+    }
+
+    public function listPages(string $accessToken): array
+    {
+        return [];
+    }
+
+    public function listPagePosts(string $pageAccessToken, string $pageId, int $limit = 25): array
+    {
+        return [];
+    }
+
+    public function searchTargeting(string $accessToken, string $query, string $type = 'adinterest'): array
+    {
+        return [];
+    }
+
+    public function estimateAudience(string $accessToken, string $externalAccountId, array $targetingSpec, string $optimizationGoal): AudienceSizeDTO
+    {
+        return new AudienceSizeDTO(lowerBound: null, upperBound: null);
+    }
+
+    public function generatePreviews(string $accessToken, string $externalAccountId, array $creativeSpec, array $formats): array
+    {
+        return [];
     }
 }
