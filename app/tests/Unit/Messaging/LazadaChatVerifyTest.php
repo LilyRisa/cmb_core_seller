@@ -28,6 +28,22 @@ class LazadaChatVerifyTest extends TestCase
         ));
     }
 
+    public function test_accepts_authorization_header_signature(): void
+    {
+        config(['integrations.messaging_lazada_im.app_secret' => 'SEC']);
+        $body = '{"seller_id":"S","message_type":1,"data":{"x":1}}';
+        $sig = strtoupper(hash_hmac('sha256', $body, 'SEC'));
+
+        // Bare hex in Authorization
+        $this->assertTrue((new LazadaChatConnector)->verifyWebhookSignature(
+            $this->req($body, ['HTTP_AUTHORIZATION' => $sig]),
+        ));
+        // "Scheme <sig>" wrapped form
+        $this->assertTrue((new LazadaChatConnector)->verifyWebhookSignature(
+            $this->req($body, ['HTTP_AUTHORIZATION' => 'SIGN '.strtolower($sig)]),
+        ));
+    }
+
     public function test_rejects_wrong_signature(): void
     {
         config(['integrations.messaging_lazada_im.app_secret' => 'SEC']);

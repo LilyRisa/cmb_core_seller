@@ -37,7 +37,9 @@ use Symfony\Component\HttpFoundation\Request;
  */
 class LazadaChatConnector implements MessagingConnector
 {
-    private const SIG_HEADERS = ['X-Lazop-Sign', 'Lazop-Sign', 'X-Lzd-Sign', 'X-Signature'];
+    // Lazada push gửi chữ ký ở header `Authorization` (xác nhận qua log production 2026-06-04);
+    // giữ thêm vài tên khả dĩ khác cho chắc.
+    private const SIG_HEADERS = ['Authorization', 'X-Lazop-Sign', 'Lazop-Sign', 'X-Lzd-Sign', 'X-Signature'];
 
     public function code(): string
     {
@@ -169,8 +171,13 @@ class LazadaChatConnector implements MessagingConnector
         $provided = [];
         foreach (self::SIG_HEADERS as $h) {
             $v = trim((string) $request->headers->get($h, ''));
-            if ($v !== '') {
-                $provided['header:'.$h] = $v;
+            if ($v === '') {
+                continue;
+            }
+            $provided['header:'.$h] = $v;
+            // Một số scheme bọc "Scheme <sig>" (vd "Bearer <sig>") — thử cả token cuối.
+            if (str_contains($v, ' ')) {
+                $provided['header:'.$h.':token'] = trim((string) substr(strrchr($v, ' ') ?: '', 1));
             }
         }
         $json = json_decode($body, true);
