@@ -16,10 +16,11 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Publish one AdDraft to Facebook: create Campaign→AdSet→Ad (PAUSED), resume-first
- * (skip a level whose external id is already stored ⇒ idempotent on retry). On any
- * error the draft is marked `failed` with the message; partial ids are kept so a
- * re-publish resumes from the failed level. No auto-retry (`tries = 1`).
+ * Publish one AdDraft to Facebook: create Campaign → N ad sets → N ads (PAUSED),
+ * resume-first (skip any node whose external id is already stored in payload ⇒
+ * idempotent on retry). On any error the draft is marked `failed` with the message;
+ * partial ids are kept so a re-publish resumes from the failed node. No auto-retry
+ * (`tries = 1`).
  */
 class PublishAdDraft implements ShouldBeUnique, ShouldQueue
 {
@@ -65,14 +66,33 @@ class PublishAdDraft implements ShouldBeUnique, ShouldQueue
                 $draft->campaign_external_id = $connector->createCampaign($token, $acc, $mapper->campaign($draft));
                 $draft->save();
             }
-            if (! $draft->adset_external_id) {
-                $draft->adset_external_id = $connector->createAdSet($token, $acc, $mapper->adSet($draft, (string) $account->currency));
-                $draft->save();
+
+            // Normalize to the tree shape so per-node external ids can persist (resume).
+            $payload = (array) ($draft->payload ?? []);
+            $payload['adsets'] = $mapper->adsetNodes($draft);
+            $draft->payload = $payload;
+            $draft->save();
+
+            $currency = (string) $account->currency;
+            $campaignId = (string) $draft->campaign_external_id;
+
+            foreach ($payload['adsets'] as $i => $adsetNode) {
+                if (empty($payload['adsets'][$i]['external_id'])) {
+                    $payload['adsets'][$i]['external_id'] = $connector->createAdSet($token, $acc, $mapper->adSet($draft, $adsetNode, $campaignId, $currency));
+                    $draft->payload = $payload;
+                    $draft->save();
+                }
+                $adsetId = (string) $payload['adsets'][$i]['external_id'];
+
+                foreach ((array) ($adsetNode['ads'] ?? []) as $j => $adNode) {
+                    if (empty($payload['adsets'][$i]['ads'][$j]['external_id'])) {
+                        $payload['adsets'][$i]['ads'][$j]['external_id'] = $connector->createAd($token, $acc, $mapper->ad($draft, (array) $adNode, $adsetId));
+                        $draft->payload = $payload;
+                        $draft->save();
+                    }
+                }
             }
-            if (! $draft->ad_external_id) {
-                $draft->ad_external_id = $connector->createAd($token, $acc, $mapper->ad($draft));
-                $draft->save();
-            }
+
             $draft->forceFill(['status' => AdDraft::STATUS_PUBLISHED])->save();
         } catch (\Throwable $e) {
             $draft->forceFill(['status' => AdDraft::STATUS_FAILED, 'last_error' => $e->getMessage()])->save();
