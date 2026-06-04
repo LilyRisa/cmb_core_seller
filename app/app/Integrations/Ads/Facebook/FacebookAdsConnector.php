@@ -158,6 +158,51 @@ class FacebookAdsConnector implements AdsConnector
 
     public function fetchInsights(string $accessToken, string $externalId, string $level, array $query = [], ?AdInsightThrottleDTO &$throttleOut = null): array
     {
-        throw UnsupportedOperation::for($this->code(), 'fetchInsights');
+        $params = [
+            'fields' => 'spend,impressions,clicks,reach,ctr,cpc,cpm,frequency,purchase_roas',
+            'level' => $level === 'account' ? 'account' : $level,
+            'date_preset' => (string) ($query['date_preset'] ?? 'today'),
+            'access_token' => $accessToken,
+        ];
+        if (! empty($query['time_range'])) {
+            $params['time_range'] = is_string($query['time_range']) ? $query['time_range'] : (string) json_encode($query['time_range']);
+            unset($params['date_preset']);
+        }
+
+        $res = Http::timeout(40)->get($this->graphUrl($externalId.'/insights'), $params);
+
+        // Throttle header → adaptive pacing (best-effort).
+        $hdr = $res->header('x-fb-ads-insights-throttle');
+        $t = $hdr ? (array) json_decode($hdr, true) : [];
+        $throttleOut = new AdInsightThrottleDTO(
+            appUtilPct: (float) ($t['app_id_util_pct'] ?? 0),
+            accUtilPct: (float) ($t['acc_id_util_pct'] ?? 0),
+            accessTier: (string) ($t['ads_api_access_tier'] ?? 'development'),
+        );
+
+        if (! $res->successful()) {
+            throw new \RuntimeException("Facebook Ads fetchInsights({$level}) failed: ".$res->body());
+        }
+
+        return array_values(array_map(function (array $r) use ($level, $externalId) {
+            $roas = isset($r['purchase_roas'][0]['value']) ? (float) $r['purchase_roas'][0]['value'] : null;
+
+            return new AdInsightDTO(
+                level: $level,
+                externalId: $externalId,
+                dateStart: (string) ($r['date_start'] ?? ''),
+                dateStop: (string) ($r['date_stop'] ?? ''),
+                spend: (int) round((float) ($r['spend'] ?? 0)),
+                impressions: (int) ($r['impressions'] ?? 0),
+                clicks: (int) ($r['clicks'] ?? 0),
+                reach: (int) ($r['reach'] ?? 0),
+                ctr: isset($r['ctr']) ? (float) $r['ctr'] : null,
+                cpc: isset($r['cpc']) ? (int) round((float) $r['cpc']) : null,
+                cpm: isset($r['cpm']) ? (int) round((float) $r['cpm']) : null,
+                frequency: isset($r['frequency']) ? (float) $r['frequency'] : null,
+                purchaseRoas: $roas,
+                raw: $r,
+            );
+        }, array_filter((array) $res->json('data', []), 'is_array')));
     }
 }
