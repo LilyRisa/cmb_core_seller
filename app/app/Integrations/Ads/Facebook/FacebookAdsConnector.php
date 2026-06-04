@@ -15,6 +15,7 @@ use CMBcoreSeller\Integrations\Ads\DTO\AudienceSizeDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\CampaignSpecDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\PagePostDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\PageRefDTO;
+use CMBcoreSeller\Integrations\Ads\DTO\TargetingOptionDTO;
 use CMBcoreSeller\Integrations\Ads\Exceptions\UnsupportedOperation;
 use Illuminate\Support\Facades\Http;
 
@@ -383,12 +384,42 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
 
     public function searchTargeting(string $accessToken, string $query, string $type = 'adinterest'): array
     {
-        return [];
+        $res = Http::timeout(30)->get($this->graphUrl('search'), [
+            'type' => $type,
+            'q' => $query,
+            'limit' => 50,
+            'access_token' => $accessToken,
+        ]);
+        if (! $res->successful()) {
+            throw new \RuntimeException('Facebook Ads searchTargeting failed: '.$res->body());
+        }
+
+        return array_values(array_map(fn (array $o) => new TargetingOptionDTO(
+            id: (string) ($o['id'] ?? ''),
+            name: (string) ($o['name'] ?? ''),
+            type: 'interests',
+            audienceSize: isset($o['audience_size_lower_bound']) ? (int) $o['audience_size_lower_bound'] : null,
+            raw: $o,
+        ), array_filter((array) $res->json('data', []), 'is_array')));
     }
 
     public function estimateAudience(string $accessToken, string $externalAccountId, array $targetingSpec, string $optimizationGoal): AudienceSizeDTO
     {
-        return new AudienceSizeDTO(lowerBound: null, upperBound: null);
+        $res = Http::timeout(30)->get($this->graphUrl($externalAccountId.'/delivery_estimate'), [
+            'optimization_goal' => $optimizationGoal,
+            'targeting_spec' => json_encode($targetingSpec),
+            'access_token' => $accessToken,
+        ]);
+        if (! $res->successful()) {
+            throw new \RuntimeException('Facebook Ads estimateAudience failed: '.$res->body());
+        }
+        $row = (array) ($res->json('data.0') ?? []);
+
+        return new AudienceSizeDTO(
+            lowerBound: isset($row['estimate_mau_lower_bound']) ? (int) $row['estimate_mau_lower_bound'] : null,
+            upperBound: isset($row['estimate_mau_upper_bound']) ? (int) $row['estimate_mau_upper_bound'] : null,
+            raw: $row,
+        );
     }
 
     public function generatePreviews(string $accessToken, string $externalAccountId, array $creativeSpec, array $formats): array
