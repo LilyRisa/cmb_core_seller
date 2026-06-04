@@ -83,9 +83,10 @@ return [
     'ads' => array_filter(explode(',', (string) env('INTEGRATIONS_ADS', ''))),
 
     'ads_facebook' => [
-        // App Facebook Ads RIÊNG — KHÔNG dùng lại app Page/Messenger (MESSAGING_FACEBOOK_*).
-        'app_id' => env('FACEBOOK_ADS_APP_ID'),
-        'app_secret' => env('FACEBOOK_ADS_APP_SECRET'),
+        // Dùng lại app Facebook hiện có (Page/Messenger) cho Ads — KHÔNG cần app riêng.
+        // Mặc định fallback sang MESSAGING_FACEBOOK_*; chỉ set FACEBOOK_ADS_* nếu sau này tách app.
+        'app_id' => env('FACEBOOK_ADS_APP_ID', env('MESSAGING_FACEBOOK_APP_ID')),
+        'app_secret' => env('FACEBOOK_ADS_APP_SECRET', env('MESSAGING_FACEBOOK_APP_SECRET')),
         'graph_version' => env('FACEBOOK_ADS_GRAPH_VERSION', 'v19.0'),
         'redirect_uri' => env('FACEBOOK_ADS_REDIRECT_URI'), // mặc định APP_URL + /oauth/facebook_ads/callback
         'scopes' => env('FACEBOOK_ADS_SCOPES', 'ads_read,business_management'),

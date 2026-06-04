@@ -173,14 +173,14 @@ x-app-env: &app-env
   # Redirect URI OAuth — mặc định = APP_URL + /oauth/facebook_page/callback. Chỉ đặt khi
   # domain callback khác APP_URL. PHẢI đăng ký Y HỆT trong Meta → Facebook Login → Valid OAuth Redirect URIs.
   MESSAGING_FACEBOOK_REDIRECT_URI: ${MESSAGING_FACEBOOK_REDIRECT_URI:-}
-  # Facebook Ads (Marketing API) — app RIÊNG, KHÔNG dùng lại app Page ở trên. Xem
-  # docs/04-channels/facebook-ads-setup.md. Bật mặc định (connector chỉ nạp khi có trong
-  # INTEGRATIONS_ADS); nhập FACEBOOK_ADS_APP_ID/SECRET (app riêng) ở Portainer để kết nối.
-  # Redirect trống ⇒ connector tự suy <APP_URL>/oauth/facebook_ads/callback. KHÔNG khai
-  # GRAPH_VERSION/SCOPES ở đây để default áp đúng (chuỗi rỗng sẽ phá default).
+  # Facebook Ads (Marketing API) — DÙNG LẠI app Facebook hiện có (cùng app Page ở trên),
+  # KHÔNG cần app riêng. Xem docs/04-channels/facebook-ads-setup.md. APP_ID mặc định = app cũ;
+  # APP_SECRET tự fallback sang MESSAGING_FACEBOOK_APP_SECRET (không khai lại ở đây — chuỗi rỗng
+  # sẽ phá fallback). Redirect trống ⇒ connector tự suy <APP_URL>/oauth/facebook_ads/callback.
+  # ⚠️ App cũ PHẢI bật product "Marketing API" + scope ads_read,business_management trên Meta,
+  # và thêm redirect /oauth/facebook_ads/callback vào Facebook Login → Valid OAuth Redirect URIs.
   INTEGRATIONS_ADS: ${INTEGRATIONS_ADS:-facebook}
-  FACEBOOK_ADS_APP_ID: ${FACEBOOK_ADS_APP_ID:-}
-  FACEBOOK_ADS_APP_SECRET: ${FACEBOOK_ADS_APP_SECRET:-}
+  FACEBOOK_ADS_APP_ID: ${FACEBOOK_ADS_APP_ID:-3063164863879766}
   FACEBOOK_ADS_REDIRECT_URI: ${FACEBOOK_ADS_REDIRECT_URI:-}
   # Media tin nhắn: dùng r2 (public-CDN, browser fetch được qua signed URL). TTL signed URL (giây).
   MESSAGING_MEDIA_DISK: ${MESSAGING_MEDIA_DISK:-r2}
