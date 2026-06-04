@@ -64,6 +64,21 @@ class AdInsightController extends Controller
         ]);
     }
 
+    /** GET /api/v1/marketing/ad-accounts/{id}/reconciliation?days=14 */
+    public function reconciliation(int $id): JsonResponse
+    {
+        Gate::authorize('marketing.view');
+        $account = AdAccount::query()->findOrFail($id);
+        $days = max(1, min(90, (int) request('days', 14)));
+
+        return response()->json([
+            'data' => [
+                'currency' => $account->currency,
+                'rows' => app(\CMBcoreSeller\Modules\Marketing\Services\AdReconciliationService::class)->reconcile($account, $days),
+            ],
+        ]);
+    }
+
     /** @return array<string,mixed>|null */
     private function formatSnapshot(?AdInsightSnapshot $s): ?array
     {
