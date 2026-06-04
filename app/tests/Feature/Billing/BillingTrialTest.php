@@ -5,6 +5,7 @@ namespace Tests\Feature\Billing;
 use CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
+use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -32,7 +33,7 @@ class BillingTrialTest extends TestCase
             'tenant_name' => 'Trial Shop',
         ])->assertCreated();
 
-        $tenantId = \CMBcoreSeller\Modules\Tenancy\Models\Tenant::where('name', 'Trial Shop')->value('id');
+        $tenantId = Tenant::where('name', 'Trial Shop')->value('id');
         $this->assertNotNull($tenantId);
 
         // Bỏ TenantScope: test không có current tenant nên global scope sẽ filter sạch.

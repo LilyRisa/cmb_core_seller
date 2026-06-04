@@ -2,9 +2,12 @@
 
 namespace Tests\Feature\Accounting;
 
+use CMBcoreSeller\Modules\Accounting\Listeners\PostOnGoodsReceiptConfirmed;
 use CMBcoreSeller\Modules\Accounting\Models\JournalEntry;
 use CMBcoreSeller\Modules\Accounting\Models\JournalLine;
+use CMBcoreSeller\Modules\Inventory\Events\GoodsReceiptConfirmed;
 use CMBcoreSeller\Modules\Inventory\Jobs\PushStockForSku;
+use CMBcoreSeller\Modules\Inventory\Models\GoodsReceipt;
 use CMBcoreSeller\Modules\Inventory\Models\InventoryLevel;
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Inventory\Models\Warehouse;
@@ -103,9 +106,9 @@ class AccountingPostingTest extends TestCase
             ->postJson("/api/v1/warehouse-docs/goods-receipts/{$grId}/confirm")->assertOk();
 
         // Listener chạy 2 lần tay (replay) phải = no-op vì idempotency_key unique.
-        $listener = app(\CMBcoreSeller\Modules\Accounting\Listeners\PostOnGoodsReceiptConfirmed::class);
-        $event = new \CMBcoreSeller\Modules\Inventory\Events\GoodsReceiptConfirmed(
-            \CMBcoreSeller\Modules\Inventory\Models\GoodsReceipt::withoutGlobalScope(TenantScope::class)->find($grId)
+        $listener = app(PostOnGoodsReceiptConfirmed::class);
+        $event = new GoodsReceiptConfirmed(
+            GoodsReceipt::withoutGlobalScope(TenantScope::class)->find($grId)
         );
         $listener->handle($event);
         $listener->handle($event);

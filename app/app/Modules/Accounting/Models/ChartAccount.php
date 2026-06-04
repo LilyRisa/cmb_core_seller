@@ -20,9 +20,9 @@ use Illuminate\Support\Carbon;
  * @property int $tenant_id
  * @property string $code
  * @property string $name
- * @property string $type            // asset|liability|equity|revenue|expense|cogs|contra_revenue|contra_asset|clearing
+ * @property string $type // asset|liability|equity|revenue|expense|cogs|contra_revenue|contra_asset|clearing
  * @property int|null $parent_id
- * @property string $normal_balance  // debit|credit
+ * @property string $normal_balance // debit|credit
  * @property bool $is_postable
  * @property bool $is_active
  * @property string $vas_template
@@ -38,13 +38,21 @@ class ChartAccount extends Model
     use BelongsToTenant;
 
     public const TYPE_ASSET = 'asset';
+
     public const TYPE_LIABILITY = 'liability';
+
     public const TYPE_EQUITY = 'equity';
+
     public const TYPE_REVENUE = 'revenue';
+
     public const TYPE_EXPENSE = 'expense';
+
     public const TYPE_COGS = 'cogs';
+
     public const TYPE_CONTRA_REVENUE = 'contra_revenue';
+
     public const TYPE_CONTRA_ASSET = 'contra_asset';
+
     public const TYPE_CLEARING = 'clearing';
 
     public const TYPES = [
@@ -54,6 +62,7 @@ class ChartAccount extends Model
     ];
 
     public const NB_DEBIT = 'debit';
+
     public const NB_CREDIT = 'credit';
 
     protected $fillable = [

@@ -2,8 +2,6 @@
 
 namespace Tests\Feature\Accounting;
 
-use CMBcoreSeller\Models\User;
-use CMBcoreSeller\Modules\Accounting\Models\CustomerReceipt;
 use CMBcoreSeller\Modules\Accounting\Models\JournalEntry;
 use CMBcoreSeller\Modules\Accounting\Models\JournalLine;
 use CMBcoreSeller\Modules\Accounting\Services\AccountingSetupService;

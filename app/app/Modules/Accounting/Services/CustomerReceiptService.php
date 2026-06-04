@@ -69,7 +69,7 @@ class CustomerReceiptService
             throw AccountingException::accountNotPostable('debit/credit');
         }
 
-        return DB::transaction(function () use ($receipt, $rule, $debitAcc, $creditAcc, $userId, $tenantId) {
+        return DB::transaction(function () use ($receipt, $debitAcc, $creditAcc, $userId, $tenantId) {
             $partyOpts = $receipt->customer_id ? ['party_type' => 'customer', 'party_id' => (int) $receipt->customer_id] : [];
 
             $entry = $this->journals->post(new JournalEntryDTO(

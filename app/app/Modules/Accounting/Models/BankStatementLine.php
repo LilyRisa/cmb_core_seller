@@ -29,7 +29,9 @@ class BankStatementLine extends Model
     use BelongsToTenant;
 
     public const STATUS_UNMATCHED = 'unmatched';
+
     public const STATUS_MATCHED = 'matched';
+
     public const STATUS_IGNORED = 'ignored';
 
     protected $fillable = [

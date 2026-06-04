@@ -9,6 +9,7 @@ use CMBcoreSeller\Modules\Tenancy\Models\TenantUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 
 /**
@@ -126,7 +127,7 @@ class AdminUserController extends Controller
     }
 
     /** @return array<string, mixed> */
-    private function present(User $u, \Illuminate\Support\Collection $memberships, \Illuminate\Support\Collection $tenants): array
+    private function present(User $u, Collection $memberships, Collection $tenants): array
     {
         $userTenants = ($memberships->get($u->id) ?? collect())->map(function (TenantUser $m) use ($tenants) {
             $t = $tenants->get($m->tenant_id);

@@ -175,6 +175,7 @@ class SePayConnector implements PaymentGatewayConnector
     {
         unset($payload['subAccount']);     // mask: không lưu tài khoản nguồn
         unset($payload['accountNumber']);  // tài khoản nhận = của chúng ta, không cần lưu DB
+
         return $payload;
     }
 }

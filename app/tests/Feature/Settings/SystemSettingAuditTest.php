@@ -4,6 +4,7 @@ namespace Tests\Feature\Settings;
 
 use CMBcoreSeller\Models\AdminUser;
 use CMBcoreSeller\Modules\Settings\Services\SystemSettingService;
+use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -34,7 +35,7 @@ class SystemSettingAuditTest extends TestCase
 
         $this->assertSame(
             2,
-            \CMBcoreSeller\Modules\Tenancy\Models\AuditLog::query()
+            AuditLog::query()
                 ->where('action', 'admin.setting.update')
                 ->where('admin_user_id', $admin->id)
                 ->count(),

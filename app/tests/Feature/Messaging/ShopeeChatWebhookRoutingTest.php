@@ -2,12 +2,14 @@
 
 namespace Tests\Feature\Messaging;
 
+use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Jobs\ProcessWebhookEvent;
 use CMBcoreSeller\Modules\Channels\Models\WebhookEvent;
 use CMBcoreSeller\Modules\Messaging\Jobs\ProcessMessagingWebhook;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Testing\TestResponse;
 use Tests\Fixtures\Channels\Shopee\ShopeeFixtures;
 use Tests\TestCase;
 
@@ -32,10 +34,10 @@ class ShopeeChatWebhookRoutingTest extends TestCase
             'integrations.messaging' => ['shopee_chat'],
         ]);
         $this->app->forgetInstance(MessagingRegistry::class);
-        $this->app->forgetInstance(\CMBcoreSeller\Integrations\Channels\ChannelRegistry::class);
+        $this->app->forgetInstance(ChannelRegistry::class);
     }
 
-    private function postPush(array $body): \Illuminate\Testing\TestResponse
+    private function postPush(array $body): TestResponse
     {
         $raw = json_encode($body, JSON_UNESCAPED_SLASHES);
         $sign = hash_hmac('sha256', self::PUSH_URL.'|'.$raw, 'PARTNER_KEY');

@@ -38,7 +38,7 @@ return new class extends Migration
         $driver = DB::getDriverName();
         if (in_array($driver, ['pgsql', 'sqlite'], true)) {
             DB::statement(
-                "CREATE UNIQUE INDEX subscriptions_one_alive_per_tenant ON subscriptions (tenant_id) ".
+                'CREATE UNIQUE INDEX subscriptions_one_alive_per_tenant ON subscriptions (tenant_id) '.
                 "WHERE status IN ('trialing','active','past_due')"
             );
         } else {

@@ -29,6 +29,7 @@ class PaymentService
         // 1) Webhook báo failed ⇒ ghi log + bỏ qua (không insert payment).
         if (! $notification->isSucceeded()) {
             Log::warning('payments.webhook.non_succeeded', ['gateway' => $notification->gateway, 'ref' => $notification->reference]);
+
             return ['outcome' => 'failed', 'reason' => 'non_succeeded'];
         }
 
@@ -50,6 +51,7 @@ class PaymentService
             ->first();
         if ($invoice === null) {
             Log::warning('payments.webhook.orphan', ['ref' => $notification->reference, 'gateway' => $notification->gateway]);
+
             return ['outcome' => 'orphan', 'reason' => 'invoice_not_found'];
         }
 

@@ -3,8 +3,8 @@
 namespace CMBcoreSeller\Modules\Fulfillment\Services;
 
 use BaconQrCode\Renderer\GDLibRenderer;
-use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\Image\SvgImageBackEnd;
+use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
 use BaconQrCode\Writer;
 use Picqer\Barcode\BarcodeGeneratorPNG;
@@ -27,7 +27,7 @@ class BarcodeRenderer
             return '';
         }
         try {
-            $renderer = new ImageRenderer(new RendererStyle($sizePx), new SvgImageBackEnd());
+            $renderer = new ImageRenderer(new RendererStyle($sizePx), new SvgImageBackEnd);
             $svg = (new Writer($renderer))->writeString($data);
 
             return 'data:image/svg+xml;base64,'.base64_encode($svg);
@@ -62,7 +62,7 @@ class BarcodeRenderer
             return '';
         }
         try {
-            $g = new BarcodeGeneratorSVG();
+            $g = new BarcodeGeneratorSVG;
             $svg = $g->getBarcode($data, $g::TYPE_CODE_128, $widthFactor, $height, 'black');
 
             return 'data:image/svg+xml;base64,'.base64_encode($svg);
@@ -78,7 +78,7 @@ class BarcodeRenderer
             return '';
         }
         try {
-            $g = new BarcodeGeneratorPNG();
+            $g = new BarcodeGeneratorPNG;
             $bytes = $g->getBarcode($data, $g::TYPE_CODE_128, $widthFactor, $height);
 
             return 'data:image/png;base64,'.base64_encode($bytes);

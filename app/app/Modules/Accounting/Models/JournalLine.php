@@ -37,8 +37,11 @@ class JournalLine extends Model
     public $timestamps = false;
 
     public const PARTY_CUSTOMER = 'customer';
+
     public const PARTY_SUPPLIER = 'supplier';
+
     public const PARTY_STAFF = 'staff';
+
     public const PARTY_CHANNEL = 'channel';
 
     protected $fillable = [

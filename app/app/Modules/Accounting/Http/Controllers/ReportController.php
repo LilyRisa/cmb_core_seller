@@ -121,13 +121,14 @@ class ReportController extends Controller
 
         if (count($files) === 1) {
             $name = array_key_first($files);
+
             return response($files[$name], 200)
                 ->header('Content-Type', 'text/csv; charset=UTF-8')
                 ->header('Content-Disposition', 'attachment; filename="'.$name.'"');
         }
         // Gói thành ZIP cho UX gọn.
         $tmp = tempnam(sys_get_temp_dir(), 'misa').'.zip';
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         $zip->open($tmp, ZipArchive::CREATE | ZipArchive::OVERWRITE);
         foreach ($files as $name => $content) {
             $zip->addFromString($name, $content);

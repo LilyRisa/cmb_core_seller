@@ -10,6 +10,7 @@ use CMBcoreSeller\Modules\Billing\Models\Subscription;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
+use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Tests\TestCase;
@@ -84,7 +85,7 @@ class OverQuotaLockTest extends TestCase
 
         Artisan::call(CheckOverQuotaCommand::class);
 
-        $sub = Subscription::query()->withoutGlobalScope(\CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class)->where('tenant_id', $this->tenant->getKey())->first();
+        $sub = Subscription::query()->withoutGlobalScope(TenantScope::class)->where('tenant_id', $this->tenant->getKey())->first();
         $this->assertNotNull($sub->over_quota_warned_at, 'Should set over_quota_warned_at when over.');
     }
 
@@ -93,7 +94,7 @@ class OverQuotaLockTest extends TestCase
         $this->activateStarter();
         $this->addChannels(4);
         // Warn 12h ago — vẫn trong grace 48h.
-        $sub = Subscription::query()->withoutGlobalScope(\CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class)->where('tenant_id', $this->tenant->getKey())->first();
+        $sub = Subscription::query()->withoutGlobalScope(TenantScope::class)->where('tenant_id', $this->tenant->getKey())->first();
         $sub->forceFill(['over_quota_warned_at' => now()->subHours(12)])->save();
 
         // POST orders (write) — không bị chặn middleware over_quota.
@@ -106,7 +107,7 @@ class OverQuotaLockTest extends TestCase
     {
         $this->activateStarter();
         $ids = $this->addChannels(4);
-        $sub = Subscription::query()->withoutGlobalScope(\CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class)->where('tenant_id', $this->tenant->getKey())->first();
+        $sub = Subscription::query()->withoutGlobalScope(TenantScope::class)->where('tenant_id', $this->tenant->getKey())->first();
         // Quá grace 48h.
         $sub->forceFill(['over_quota_warned_at' => now()->subHours(72)])->save();
 
@@ -138,7 +139,7 @@ class OverQuotaLockTest extends TestCase
     {
         $this->activateStarter();
         $this->addChannels(1); // 1 < 2, OK
-        $sub = Subscription::query()->withoutGlobalScope(\CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class)->where('tenant_id', $this->tenant->getKey())->first();
+        $sub = Subscription::query()->withoutGlobalScope(TenantScope::class)->where('tenant_id', $this->tenant->getKey())->first();
         // Pre-existing timer (vd: trước đó từng over).
         $sub->forceFill(['over_quota_warned_at' => now()->subHours(72)])->save();
 

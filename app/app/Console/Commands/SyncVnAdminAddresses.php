@@ -2,9 +2,6 @@
 
 namespace CMBcoreSeller\Console\Commands;
 
-use CMBcoreSeller\Modules\Fulfillment\Models\AdminDistrict;
-use CMBcoreSeller\Modules\Fulfillment\Models\AdminProvince;
-use CMBcoreSeller\Modules\Fulfillment\Models\AdminWard;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;

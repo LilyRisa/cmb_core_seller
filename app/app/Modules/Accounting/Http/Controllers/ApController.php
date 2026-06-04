@@ -31,6 +31,7 @@ class ApController extends Controller
             : collect();
         $data = array_map(function ($r) use ($suppliers) {
             $s = $suppliers->get($r['supplier_id']);
+
             return array_merge($r, [
                 'supplier_name' => $s?->name,
                 'supplier_code' => $s?->code,

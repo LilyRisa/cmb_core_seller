@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Settings;
 
 use CMBcoreSeller\Modules\Settings\Services\SystemSettingService;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -29,7 +30,7 @@ class SettingsServiceProvider extends ServiceProvider
             $this->loadRoutesFrom(__DIR__.'/Http/routes.php');
         }
 
-        \Illuminate\Support\Facades\Event::listen(
+        Event::listen(
             Events\SystemSettingChanged::class,
             Listeners\LogSystemSettingChanged::class,
         );

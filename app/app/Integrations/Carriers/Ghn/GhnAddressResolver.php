@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Integrations\Carriers\Ghn;
 
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -119,7 +120,7 @@ class GhnAddressResolver
         });
     }
 
-    private function httpFromClient(): \Illuminate\Http\Client\PendingRequest
+    private function httpFromClient(): PendingRequest
     {
         // GhnClient::http() là private; reuse logic qua getProvinces (đã expose).
         $ref = new \ReflectionMethod($this->client, 'http');

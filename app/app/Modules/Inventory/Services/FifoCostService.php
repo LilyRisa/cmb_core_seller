@@ -8,6 +8,7 @@ use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * FIFO cost layers — chuẩn kế toán. SPEC 0014.
@@ -114,7 +115,7 @@ class FifoCostService
             if ($remaining > 0) {
                 $estUnit = $this->estimateUnitCost($tenantId, $skuId);
                 if ($estUnit === 0) {
-                    \Illuminate\Support\Facades\Log::warning('fifo.synthetic_cost_zero', [
+                    Log::warning('fifo.synthetic_cost_zero', [
                         'tenant_id' => $tenantId, 'sku_id' => $skuId, 'qty' => $remaining,
                         'note' => 'SKU chưa có giá nhập → COGS = 0, lợi nhuận báo cáo bị phồng',
                     ]);

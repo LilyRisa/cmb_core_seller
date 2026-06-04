@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Billing\Services;
 
+use Carbon\CarbonInterface;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
 
@@ -97,7 +98,7 @@ class OverQuotaCheckService
     /**
      * Đã quá grace period chưa? (true ⇒ middleware chặn write).
      */
-    public function isPastGrace(Subscription $sub, ?\Carbon\CarbonInterface $now = null): bool
+    public function isPastGrace(Subscription $sub, ?CarbonInterface $now = null): bool
     {
         if ($sub->over_quota_warned_at === null) {
             return false;

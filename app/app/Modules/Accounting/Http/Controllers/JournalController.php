@@ -137,6 +137,7 @@ class JournalController extends Controller
             ->findOrFail($id);
         $reversal = $this->service->reverse($entry, (int) $request->user()->getKey(), $request->input('reason'));
         $reversal->load(['period', 'lines.account']);
+
         // Trả 200 thay vì 201 — reverse là idempotent (gọi 2 lần trả entry cũ); semantically đây không
         // phải "create resource mới" từ phía API caller, mà là "get-or-create".
         return (new JournalEntryResource($reversal))->response()->setStatusCode(200);

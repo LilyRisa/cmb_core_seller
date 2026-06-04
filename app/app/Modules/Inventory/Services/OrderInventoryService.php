@@ -8,6 +8,7 @@ use CMBcoreSeller\Modules\Inventory\Support\SkuCodeNormalizer;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Orders\Models\OrderItem;
 use CMBcoreSeller\Modules\Products\Models\ChannelListing;
+use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use Illuminate\Support\Collection;
@@ -65,7 +66,7 @@ class OrderInventoryService
      * to avoid N+1 queries inside resolveComponents.
      *
      * @param  Collection<int, OrderItem>  $items
-     * @return array{listings:\Illuminate\Support\Collection<int,ChannelListing>, mappings:\Illuminate\Support\Collection, skus:\Illuminate\Support\Collection<int,Sku>}
+     * @return array{listings:Collection<int,ChannelListing>, mappings:Collection, skus:Collection<int,Sku>}
      */
     private function preloadForOrder(Order $order, Collection $items, int $tenantId): array
     {
@@ -108,7 +109,7 @@ class OrderInventoryService
     }
 
     /**
-     * @param  array{listings:\Illuminate\Support\Collection,mappings:\Illuminate\Support\Collection,skus:\Illuminate\Support\Collection}  $preloaded
+     * @param  array{listings:Collection,mappings:Collection,skus:Collection}  $preloaded
      * @return list<array{0:int,1:int}> list of [skuId, qtyPerUnitOfOrderLine]
      */
     private function resolveComponents(Order $order, OrderItem $item, int $tenantId, array $preloaded = []): array
@@ -227,7 +228,7 @@ class OrderInventoryService
      */
     private function costMethodFor(int $tenantId): string
     {
-        $tenant = \CMBcoreSeller\Modules\Tenancy\Models\Tenant::query()->find($tenantId);
+        $tenant = Tenant::query()->find($tenantId);
         $m = $tenant ? (string) data_get($tenant->settings, 'cost_method', 'fifo') : 'fifo';
 
         return in_array($m, ['fifo', 'average'], true) ? $m : 'fifo';

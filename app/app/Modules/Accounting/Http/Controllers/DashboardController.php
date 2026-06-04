@@ -49,14 +49,16 @@ class DashboardController extends Controller
         $cashAccounts = count($cashMap);
 
         $arRows = $this->ar->agingByCustomer($tenantId);
-        $arTotal = 0; $arOverdue = 0;
+        $arTotal = 0;
+        $arOverdue = 0;
         foreach ($arRows as $r) {
             $arTotal += $r['total'];
             $arOverdue += $r['b61_90'] + $r['b90p'];
         }
 
         $apRows = $this->ap->agingBySupplier($tenantId);
-        $apTotal = 0; $apOverdue = 0;
+        $apTotal = 0;
+        $apOverdue = 0;
         foreach ($apRows as $r) {
             $apTotal += $r['total'];
             $apOverdue += $r['b61_90'] + $r['b90p'];

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Settings;
 
 use CMBcoreSeller\Modules\Settings\Models\SystemSetting;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -36,7 +37,7 @@ class SystemSettingsTableTest extends TestCase
     public function test_key_is_unique(): void
     {
         SystemSetting::create(['key' => 'x.y', 'value' => 'a', 'type' => 'string', 'group' => 'sync', 'is_secret' => false]);
-        $this->expectException(\Illuminate\Database\QueryException::class);
+        $this->expectException(QueryException::class);
         SystemSetting::create(['key' => 'x.y', 'value' => 'b', 'type' => 'string', 'group' => 'sync', 'is_secret' => false]);
     }
 }

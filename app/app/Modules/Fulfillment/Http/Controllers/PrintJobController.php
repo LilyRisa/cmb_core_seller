@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Fulfillment\Http\Controllers;
 use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Modules\Fulfillment\Http\Resources\PrintJobResource;
 use CMBcoreSeller\Modules\Fulfillment\Models\PrintJob;
+use CMBcoreSeller\Modules\Fulfillment\Models\ShippingLabelTemplate;
 use CMBcoreSeller\Modules\Fulfillment\Services\PrintService;
 use CMBcoreSeller\Modules\Fulfillment\Services\ShipmentService;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
@@ -60,7 +61,7 @@ class PrintJobController extends Controller
             if ($data['type'] !== 'delivery') {
                 throw ValidationException::withMessages(['template_id' => 'template_id chỉ dùng cho type=delivery.']);
             }
-            $tpl = \CMBcoreSeller\Modules\Fulfillment\Models\ShippingLabelTemplate::query()
+            $tpl = ShippingLabelTemplate::query()
                 ->where('tenant_id', $tenant->id())->find((int) $data['template_id']);
             if (! $tpl) {
                 throw ValidationException::withMessages(['template_id' => 'Template không tồn tại.']);

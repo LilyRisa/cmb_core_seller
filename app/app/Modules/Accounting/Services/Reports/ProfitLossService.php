@@ -45,8 +45,15 @@ class ProfitLossService
             ->selectRaw('account_id, SUM(dr_amount) as dr, SUM(cr_amount) as cr')
             ->groupBy('account_id')->get()->keyBy('account_id');
 
-        $rev = 0; $deductions = 0; $cogs = 0; $opex = 0; $finExp = 0; $finInc = 0;
-        $otherInc = 0; $otherExp = 0; $tax = 0;
+        $rev = 0;
+        $deductions = 0;
+        $cogs = 0;
+        $opex = 0;
+        $finExp = 0;
+        $finInc = 0;
+        $otherInc = 0;
+        $otherExp = 0;
+        $tax = 0;
         $lines = [];
 
         foreach ($accounts as $acc) {
@@ -62,17 +69,40 @@ class ProfitLossService
             }
             // Phân nhóm theo prefix code
             $section = 'other';
-            if (str_starts_with($acc->code, '511')) { $rev += $val; $section = 'revenue'; }
-            elseif ($acc->code === '515') { $finInc += $val; $section = 'fin_income'; }
-            elseif (str_starts_with($acc->code, '521')) { $deductions += $val; $section = 'deductions'; }
-            elseif ($acc->code === '632') { $cogs += $val; $section = 'cogs'; }
-            elseif ($acc->code === '635') { $finExp += $val; $section = 'fin_expense'; }
-            elseif (str_starts_with($acc->code, '642')) { $opex += $val; $section = 'opex'; }
-            elseif ($acc->code === '711') { $otherInc += $val; $section = 'other_income'; }
-            elseif ($acc->code === '811') { $otherExp += $val; $section = 'other_expense'; }
-            elseif ($acc->code === '821') { $tax += $val; $section = 'tax'; }
-            elseif (str_starts_with($acc->code, '5')) { $rev += $val; $section = 'revenue'; }
-            elseif (str_starts_with($acc->code, '6') || str_starts_with($acc->code, '8')) { $opex += $val; $section = 'opex'; }
+            if (str_starts_with($acc->code, '511')) {
+                $rev += $val;
+                $section = 'revenue';
+            } elseif ($acc->code === '515') {
+                $finInc += $val;
+                $section = 'fin_income';
+            } elseif (str_starts_with($acc->code, '521')) {
+                $deductions += $val;
+                $section = 'deductions';
+            } elseif ($acc->code === '632') {
+                $cogs += $val;
+                $section = 'cogs';
+            } elseif ($acc->code === '635') {
+                $finExp += $val;
+                $section = 'fin_expense';
+            } elseif (str_starts_with($acc->code, '642')) {
+                $opex += $val;
+                $section = 'opex';
+            } elseif ($acc->code === '711') {
+                $otherInc += $val;
+                $section = 'other_income';
+            } elseif ($acc->code === '811') {
+                $otherExp += $val;
+                $section = 'other_expense';
+            } elseif ($acc->code === '821') {
+                $tax += $val;
+                $section = 'tax';
+            } elseif (str_starts_with($acc->code, '5')) {
+                $rev += $val;
+                $section = 'revenue';
+            } elseif (str_starts_with($acc->code, '6') || str_starts_with($acc->code, '8')) {
+                $opex += $val;
+                $section = 'opex';
+            }
             $lines[] = [
                 'section' => $section,
                 'code' => $acc->code,

@@ -5,6 +5,8 @@ namespace CMBcoreSeller\Modules\Fulfillment\Services;
 use CMBcoreSeller\Modules\Fulfillment\Jobs\RenderPrintJob;
 use CMBcoreSeller\Modules\Fulfillment\Models\PrintJob;
 use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
+use CMBcoreSeller\Modules\Fulfillment\Models\ShippingLabelTemplate;
+use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\LabelRenderer;
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Orders\Models\OrderItem;
@@ -346,9 +348,9 @@ class PrintService
 
         $templateId = (int) (data_get($job->meta, 'template_id') ?: 0);
         if ($templateId > 0) {
-            $tpl = \CMBcoreSeller\Modules\Fulfillment\Models\ShippingLabelTemplate::withoutGlobalScope(TenantScope::class)
+            $tpl = ShippingLabelTemplate::withoutGlobalScope(TenantScope::class)
                 ->withTrashed()->where('tenant_id', $tenantId)->findOrFail($templateId);
-            $renderer = app(\CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\LabelRenderer::class);
+            $renderer = app(LabelRenderer::class);
             $html = $renderer->renderBatch($orders, $tpl);
 
             return [$this->gotenberg->htmlToLabelPdf($html), ['orders' => $orders->count(), 'template_id' => $tpl->id, 'template_name' => $tpl->name, 'order_ids' => $orders->modelKeys()]];

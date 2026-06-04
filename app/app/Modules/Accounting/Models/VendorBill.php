@@ -33,8 +33,11 @@ class VendorBill extends Model
     use BelongsToTenant;
 
     public const STATUS_DRAFT = 'draft';
+
     public const STATUS_RECORDED = 'recorded';
+
     public const STATUS_PAID = 'paid';
+
     public const STATUS_VOID = 'void';
 
     protected $fillable = [

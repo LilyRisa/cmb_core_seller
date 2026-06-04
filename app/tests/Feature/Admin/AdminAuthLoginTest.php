@@ -4,6 +4,7 @@ namespace Tests\Feature\Admin;
 
 use CMBcoreSeller\Models\AdminUser;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class AdminAuthLoginTest extends TestCase
@@ -80,6 +81,6 @@ class AdminAuthLoginTest extends TestCase
             'password' => 'newpwd123',
         ])->assertOk();
 
-        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('newpwd123', $a->fresh()->password));
+        $this->assertTrue(Hash::check('newpwd123', $a->fresh()->password));
     }
 }

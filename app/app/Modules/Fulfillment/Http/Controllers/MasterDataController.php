@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Fulfillment\Http\Controllers;
 
+use CMBcoreSeller\Console\Commands\SyncVnAdminAddresses;
 use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Modules\Fulfillment\Models\AdminDistrict;
 use CMBcoreSeller\Modules\Fulfillment\Models\AdminProvince;
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\Cache;
  *
  * Đọc trực tiếp từ DB (bảng admin_provinces / admin_districts / admin_wards) — không gọi
  * external API mỗi request. DB được nạp qua `php artisan addresses:sync` (xem
- * {@see \CMBcoreSeller\Console\Commands\SyncVnAdminAddresses}).
+ * {@see SyncVnAdminAddresses}).
  *
  * Hỗ trợ 2 format song song:
  *  - `format=new` — chuẩn 2-cấp (AddressKit cas.so, sau 2025): Tỉnh → Phường/Xã.

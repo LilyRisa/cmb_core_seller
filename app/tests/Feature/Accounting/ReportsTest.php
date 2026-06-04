@@ -7,6 +7,7 @@ use CMBcoreSeller\Modules\Accounting\Services\AccountingSetupService;
 use CMBcoreSeller\Modules\Accounting\Services\Reports\BalanceSheetService;
 use CMBcoreSeller\Modules\Accounting\Services\Reports\ProfitLossService;
 use CMBcoreSeller\Modules\Accounting\Services\Reports\TrialBalanceService;
+use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -101,7 +102,7 @@ class ReportsTest extends TestCase
     public function test_misa_export_returns_zip(): void
     {
         // Phase 7.5 advanced ⇒ cần plan Business.
-        $this->activatePlan(\CMBcoreSeller\Modules\Billing\Models\Plan::CODE_BUSINESS);
+        $this->activatePlan(Plan::CODE_BUSINESS);
         $r = $this->actingAs($this->owner)->withHeaders($this->h())
             ->get('/api/v1/accounting/reports/export-misa?period=2026-05');
         $r->assertOk();

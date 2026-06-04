@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Channels\Http\Resources;
 
+use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -32,7 +33,7 @@ class ChannelAccountResource extends JsonResource
             'auto_rts_after_print' => (bool) $this->auto_rts_after_print,
             'auto_rts_available' => $this->provider === 'lazada',
             'messaging_available' => ($code = $this->resource->messagingConnectorCode()) !== null
-                && app(\CMBcoreSeller\Integrations\Messaging\MessagingRegistry::class)->has($code),
+                && app(MessagingRegistry::class)->has($code),
             // never expose tokens; expose only that a shop_cipher exists
             'has_shop_cipher' => ! empty($this->meta['shop_cipher'] ?? null),
         ];

@@ -6,6 +6,7 @@ use CMBcoreSeller\Modules\Accounting\DTO\JournalEntryDTO;
 use CMBcoreSeller\Modules\Accounting\DTO\JournalLineDTO;
 use CMBcoreSeller\Modules\Accounting\Exceptions\AccountingException;
 use CMBcoreSeller\Modules\Accounting\Models\ChartAccount;
+use CMBcoreSeller\Modules\Accounting\Models\JournalEntry;
 use CMBcoreSeller\Modules\Accounting\Services\AccountingSetupService;
 use CMBcoreSeller\Modules\Accounting\Services\JournalService;
 use CMBcoreSeller\Modules\Accounting\Services\PostRuleResolver;
@@ -221,7 +222,7 @@ class PostOnOrderShipped implements ShouldQueue
             sprintf('orders.%d.revenue', (int) $order->id),
             sprintf('orders.%d.cogs', (int) $order->id),
         ] as $key) {
-            $entry = \CMBcoreSeller\Modules\Accounting\Models\JournalEntry::query()
+            $entry = JournalEntry::query()
                 ->withoutGlobalScope(TenantScope::class)
                 ->where('tenant_id', $tenantId)
                 ->where('idempotency_key', $key)->first();

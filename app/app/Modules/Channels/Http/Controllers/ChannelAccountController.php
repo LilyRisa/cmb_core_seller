@@ -4,14 +4,14 @@ namespace CMBcoreSeller\Modules\Channels\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
+use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Http\Resources\ChannelAccountResource;
 use CMBcoreSeller\Modules\Channels\Jobs\FetchChannelListings;
 use CMBcoreSeller\Modules\Channels\Jobs\SyncOrdersForShop;
-use CMBcoreSeller\Modules\Messaging\Jobs\SyncConversationsForShop;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\SyncRun;
 use CMBcoreSeller\Modules\Channels\Services\ChannelConnectionService;
-use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
+use CMBcoreSeller\Modules\Messaging\Jobs\SyncConversationsForShop;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use Illuminate\Http\Client\ConnectionException;

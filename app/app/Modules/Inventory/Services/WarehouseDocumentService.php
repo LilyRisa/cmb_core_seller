@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Inventory\Services;
 use CMBcoreSeller\Modules\Inventory\Events\GoodsReceiptConfirmed;
 use CMBcoreSeller\Modules\Inventory\Events\StocktakeConfirmed;
 use CMBcoreSeller\Modules\Inventory\Events\StockTransferConfirmed;
+use CMBcoreSeller\Modules\Inventory\Models\CostLayer;
 use CMBcoreSeller\Modules\Inventory\Models\GoodsReceipt;
 use CMBcoreSeller\Modules\Inventory\Models\Stocktake;
 use CMBcoreSeller\Modules\Inventory\Models\StockTransfer;
@@ -44,7 +45,7 @@ class WarehouseDocumentService
                     $this->ledger->recordReceiptCost($tenantId, (int) $it->sku_id, $whId, (int) $it->qty, (int) $it->unit_cost);
                     // FIFO layer (chuẩn kế toán) — idempotent qua (goods_receipt, sku). SPEC 0014.
                     $this->fifo->recordReceiptLayer($tenantId, (int) $it->sku_id, $whId, (int) $it->qty, (int) $it->unit_cost,
-                        \CMBcoreSeller\Modules\Inventory\Models\CostLayer::SOURCE_GOODS_RECEIPT, (int) $doc->getKey());
+                        CostLayer::SOURCE_GOODS_RECEIPT, (int) $doc->getKey());
                 }
             }
             $doc->forceFill(['status' => GoodsReceipt::STATUS_CONFIRMED, 'confirmed_at' => now(), 'confirmed_by' => $userId,

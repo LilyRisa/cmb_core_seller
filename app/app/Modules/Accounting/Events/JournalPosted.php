@@ -3,11 +3,12 @@
 namespace CMBcoreSeller\Modules\Accounting\Events;
 
 use CMBcoreSeller\Modules\Accounting\Models\JournalEntry;
+use CMBcoreSeller\Modules\Accounting\Services\JournalService;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Phát sau khi {@see \CMBcoreSeller\Modules\Accounting\Services\JournalService::post} ghi
+ * Phát sau khi {@see JournalService::post} ghi
  * entry vào sổ. Các listener khác (Reports cache) có thể bám vào để recompute balances incremental.
  *
  * Phase 7.1 — SPEC 0019.

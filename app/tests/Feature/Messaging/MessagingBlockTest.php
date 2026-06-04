@@ -23,6 +23,7 @@ class MessagingBlockTest extends TestCase
     use RefreshDatabase;
 
     private Tenant $tenant;
+
     private ChannelAccount $account;
 
     protected function setUp(): void

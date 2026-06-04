@@ -3,8 +3,7 @@
 namespace Tests\Feature\Accounting;
 
 use CMBcoreSeller\Modules\Accounting\Models\JournalEntry;
-use CMBcoreSeller\Modules\Accounting\Models\VendorBill;
-use CMBcoreSeller\Modules\Accounting\Models\VendorPayment;
+use CMBcoreSeller\Modules\Accounting\Models\JournalLine;
 use CMBcoreSeller\Modules\Accounting\Services\AccountingSetupService;
 use CMBcoreSeller\Modules\Accounting\Services\ApService;
 use CMBcoreSeller\Modules\Procurement\Models\Supplier;
@@ -56,7 +55,7 @@ class ApPostingTest extends TestCase
             ->where('source_id', $bill->id)->first();
         $this->assertNotNull($entry);
         $this->assertSame(1_100_000, (int) $entry->total_debit);
-        $lines = \CMBcoreSeller\Modules\Accounting\Models\JournalLine::query()
+        $lines = JournalLine::query()
             ->withoutGlobalScope(TenantScope::class)
             ->where('entry_id', $entry->id)->get();
         $this->assertSame(1_000_000, (int) $lines->firstWhere('account_code', '1561')->dr_amount);

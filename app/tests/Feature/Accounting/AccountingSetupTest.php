@@ -2,10 +2,14 @@
 
 namespace Tests\Feature\Accounting;
 
+use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Accounting\Models\AccountingPostRule;
 use CMBcoreSeller\Modules\Accounting\Models\ChartAccount;
 use CMBcoreSeller\Modules\Accounting\Models\FiscalPeriod;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
+use CMBcoreSeller\Modules\Billing\Models\Subscription;
+use CMBcoreSeller\Modules\Tenancy\Enums\Role;
+use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -100,9 +104,9 @@ class AccountingSetupTest extends TestCase
         $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/accounting/setup', ['year' => 2026])->assertOk();
 
         // Tenant B onboard riêng.
-        $tenantB = \CMBcoreSeller\Modules\Tenancy\Models\Tenant::create(['name' => 'Other']);
-        $owner2 = \CMBcoreSeller\Models\User::factory()->create();
-        $tenantB->users()->attach($owner2->getKey(), ['role' => \CMBcoreSeller\Modules\Tenancy\Enums\Role::Owner->value]);
+        $tenantB = Tenant::create(['name' => 'Other']);
+        $owner2 = User::factory()->create();
+        $tenantB->users()->attach($owner2->getKey(), ['role' => Role::Owner->value]);
         $this->activatePlanFor($tenantB->getKey(), Plan::CODE_PRO);
 
         $this->actingAs($this->owner)->withHeaders(['X-Tenant-Id' => (string) $tenantB->getKey()])
@@ -117,15 +121,15 @@ class AccountingSetupTest extends TestCase
 
     private function activatePlanFor(int $tenantId, string $planCode): void
     {
-        \CMBcoreSeller\Modules\Billing\Models\Subscription::query()
+        Subscription::query()
             ->where('tenant_id', $tenantId)->delete();
         $plan = Plan::query()->where('code', $planCode)->firstOrFail();
         $now = now();
-        \CMBcoreSeller\Modules\Billing\Models\Subscription::query()->create([
+        Subscription::query()->create([
             'tenant_id' => $tenantId,
             'plan_id' => $plan->getKey(),
-            'status' => \CMBcoreSeller\Modules\Billing\Models\Subscription::STATUS_ACTIVE,
-            'billing_cycle' => \CMBcoreSeller\Modules\Billing\Models\Subscription::CYCLE_MONTHLY,
+            'status' => Subscription::STATUS_ACTIVE,
+            'billing_cycle' => Subscription::CYCLE_MONTHLY,
             'current_period_start' => $now,
             'current_period_end' => $now->copy()->addMonth(),
         ]);

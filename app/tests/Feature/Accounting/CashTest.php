@@ -2,9 +2,8 @@
 
 namespace Tests\Feature\Accounting;
 
-use CMBcoreSeller\Modules\Accounting\Models\BankStatement;
 use CMBcoreSeller\Modules\Accounting\Models\BankStatementLine;
-use CMBcoreSeller\Modules\Accounting\Models\CashAccount;
+use CMBcoreSeller\Modules\Accounting\Models\ChartAccount;
 use CMBcoreSeller\Modules\Accounting\Services\AccountingSetupService;
 use CMBcoreSeller\Modules\Accounting\Services\BankStatementService;
 use CMBcoreSeller\Modules\Accounting\Services\CashService;
@@ -36,7 +35,7 @@ class CashTest extends TestCase
             'bank_name' => 'Vietcombank',
             'account_no' => '0123456789',
         ]);
-        $gl = \CMBcoreSeller\Modules\Accounting\Models\ChartAccount::query()
+        $gl = ChartAccount::query()
             ->withoutGlobalScope(TenantScope::class)
             ->whereKey($cash->gl_account_id)->first();
         $this->assertSame('1121', $gl->code);

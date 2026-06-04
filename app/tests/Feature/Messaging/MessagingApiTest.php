@@ -7,11 +7,13 @@ use CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Messaging\Jobs\SendMessage;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 /**
@@ -276,7 +278,7 @@ class MessagingApiTest extends TestCase
 
     public function test_send_text_creates_message_pending(): void
     {
-        \Illuminate\Support\Facades\Queue::fake();
+        Queue::fake();
 
         $conv = $this->seedConversation();
 
@@ -292,7 +294,7 @@ class MessagingApiTest extends TestCase
             ->where('direction', Message::DIRECTION_OUTBOUND)
             ->count());
 
-        \Illuminate\Support\Facades\Queue::assertPushed(\CMBcoreSeller\Modules\Messaging\Jobs\SendMessage::class);
+        Queue::assertPushed(SendMessage::class);
     }
 
     public function test_filter_by_channel_account_id_returns_only_that_channel(): void

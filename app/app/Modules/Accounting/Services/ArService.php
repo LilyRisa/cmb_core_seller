@@ -100,7 +100,7 @@ class ArService
 
         return match ($driver) {
             'sqlite' => 'CAST(julianday(?) - julianday(posted_at) AS INTEGER)',
-            'pgsql' => "EXTRACT(DAY FROM (?::timestamp - posted_at))",
+            'pgsql' => 'EXTRACT(DAY FROM (?::timestamp - posted_at))',
             default => 'TIMESTAMPDIFF(DAY, posted_at, ?)',
         };
     }

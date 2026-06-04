@@ -27,8 +27,11 @@ class CashAccount extends Model
     use BelongsToTenant;
 
     public const KIND_CASH = 'cash';
+
     public const KIND_BANK = 'bank';
+
     public const KIND_EWALLET = 'ewallet';
+
     public const KIND_COD_INTRANSIT = 'cod_intransit';
 
     protected $fillable = [

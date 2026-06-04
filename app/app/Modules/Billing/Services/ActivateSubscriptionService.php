@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Billing\Services;
 use CMBcoreSeller\Modules\Billing\Models\Invoice;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
+use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -36,7 +37,7 @@ class ActivateSubscriptionService
 
         return DB::transaction(function () use ($invoice, $plan, $cycle): Subscription {
             // Đóng các subscription "alive" hiện tại của tenant.
-            Subscription::query()->withoutGlobalScope(\CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class)
+            Subscription::query()->withoutGlobalScope(TenantScope::class)
                 ->where('tenant_id', $invoice->tenant_id)
                 ->whereIn('status', Subscription::ALIVE_STATUSES)
                 ->update([

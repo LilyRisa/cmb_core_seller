@@ -42,6 +42,7 @@ class JournalEntry extends Model
     public const UPDATED_AT = null;
 
     public const SOURCE_MANUAL = 'manual';
+
     public const SOURCE_OPENING = 'opening';
 
     protected $fillable = [

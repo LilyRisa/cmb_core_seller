@@ -48,12 +48,14 @@ class ProcessPaymentWebhook implements ShouldQueue
         $event = WebhookEvent::query()->find($this->webhookEventId);
         if ($event === null) {
             Log::warning('payments.webhook.event_missing', ['id' => $this->webhookEventId]);
+
             return;
         }
 
         $gateway = str_replace('payments.', '', (string) $event->provider);
         if (! $registry->has($gateway)) {
             $event->forceFill(['status' => 'ignored', 'error' => "no connector for {$gateway}"])->save();
+
             return;
         }
 

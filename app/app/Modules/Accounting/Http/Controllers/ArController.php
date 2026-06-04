@@ -32,6 +32,7 @@ class ArController extends Controller
             : collect();
         $data = array_map(function ($r) use ($customers) {
             $c = $customers->get($r['customer_id']);
+
             return array_merge($r, [
                 'customer_name' => $c?->name,
                 'customer_phone' => null, // mask — phone không cần ở Aging list

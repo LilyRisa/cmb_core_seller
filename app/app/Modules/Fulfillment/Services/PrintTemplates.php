@@ -179,7 +179,7 @@ final class PrintTemplates
      */
     public static function deliverySlip(Collection $orders, string $shopName, string $paper = 'A6', array $skuById = []): string
     {
-        $br = new \CMBcoreSeller\Modules\Fulfillment\Services\BarcodeRenderer();
+        $br = new BarcodeRenderer;
         // SPEC 2026-05-17 — redesign theo chuẩn shipping-label (giống tem của các sàn TMĐT). KHÔNG dùng
         // format invoice (tên cửa hàng + bảng giá). Layout:
         //   ┌─────────────────────────────────────┐

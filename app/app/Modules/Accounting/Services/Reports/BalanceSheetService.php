@@ -34,7 +34,9 @@ class BalanceSheetService
             ->selectRaw('account_id, SUM(dr_amount) as dr, SUM(cr_amount) as cr')
             ->groupBy('account_id')->get()->keyBy('account_id');
 
-        $assets = 0; $liab = 0; $equity = 0;
+        $assets = 0;
+        $liab = 0;
+        $equity = 0;
         $lines = [];
         foreach ($accounts as $acc) {
             $s = $sums->get($acc->id);

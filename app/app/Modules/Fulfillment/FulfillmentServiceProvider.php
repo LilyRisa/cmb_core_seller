@@ -2,6 +2,14 @@
 
 namespace CMBcoreSeller\Modules\Fulfillment;
 
+use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields\BarcodeField;
+use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields\DataField;
+use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields\DividerField;
+use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields\ImageField;
+use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields\ItemsListField;
+use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields\QrField;
+use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields\RectangleField;
+use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields\TextField;
 use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\FieldTypeRegistry;
 use Illuminate\Support\ServiceProvider;
 
@@ -16,16 +24,16 @@ class FulfillmentServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(FieldTypeRegistry::class, function ($app) {
-            $r = new FieldTypeRegistry();
+            $r = new FieldTypeRegistry;
             foreach ([
-                \CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields\QrField::class,
-                \CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields\BarcodeField::class,
-                \CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields\TextField::class,
-                \CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields\ImageField::class,
-                \CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields\DataField::class,
-                \CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields\ItemsListField::class,
-                \CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields\DividerField::class,
-                \CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\Fields\RectangleField::class,
+                QrField::class,
+                BarcodeField::class,
+                TextField::class,
+                ImageField::class,
+                DataField::class,
+                ItemsListField::class,
+                DividerField::class,
+                RectangleField::class,
             ] as $cls) {
                 $r->register($app->make($cls));
             }

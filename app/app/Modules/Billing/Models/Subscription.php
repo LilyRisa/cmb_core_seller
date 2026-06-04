@@ -22,7 +22,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $cancel_at
  * @property Carbon|null $cancelled_at
  * @property Carbon|null $ended_at
- * @property Carbon|null $over_quota_warned_at  SPEC 0020 — mốc set khi phát hiện vượt hạn mức.
+ * @property Carbon|null $over_quota_warned_at SPEC 0020 — mốc set khi phát hiện vượt hạn mức.
  * @property array|null $meta
  * @property-read Plan|null $plan
  */

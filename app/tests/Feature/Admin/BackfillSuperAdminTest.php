@@ -3,10 +3,10 @@
 namespace Tests\Feature\Admin;
 
 use CMBcoreSeller\Models\AdminUser;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Schema\Blueprint;
 use Tests\TestCase;
 
 /**

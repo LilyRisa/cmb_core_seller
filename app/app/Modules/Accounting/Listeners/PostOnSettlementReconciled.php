@@ -94,6 +94,7 @@ class PostOnSettlementReconciled
             $creditAcc = $this->postable($tenantId, $rule['credit']);
             if (! $debitAcc || ! $creditAcc) {
                 Log::warning('Accounting: settlement post-rule missing account', ['rule' => $rule, 'event' => $eventKey, 'tenant' => $tenantId]);
+
                 continue;
             }
 
