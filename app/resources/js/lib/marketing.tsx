@@ -15,12 +15,69 @@ function useScopedApi() {
 export interface AdAccount {
     id: number;
     provider: string;
+    business_id: string | null;
+    business_name: string | null;
     external_account_id: string;
     name: string | null;
     currency: string | null;
     status: string;
     last_synced_at: string | null;
     insights_synced_at: string | null;
+}
+
+export type ReportLevel = 'campaign' | 'adset' | 'ad';
+
+export interface ReportMetrics {
+    spend: number;
+    impressions: number;
+    clicks: number;
+    reach: number;
+    ctr: number | null;
+    cpc: number | null;
+    cpm: number | null;
+    frequency: number | null;
+    purchase_roas: number | null;
+    messaging_conversations: number;
+    leads: number;
+}
+
+export interface ReportRow {
+    id: number;
+    external_id: string;
+    parent_id: string | null;
+    name: string | null;
+    status: string | null;
+    effective_status: string | null;
+    objective: string | null;
+    daily_budget: number | null;
+    lifetime_budget: number | null;
+    insights: ReportMetrics | null;
+}
+
+export interface ReportFilters {
+    campaign_ids?: string[];
+    adset_ids?: string[];
+    q?: string;
+    objective?: string;
+    ad_id?: string;
+}
+
+export function useAdReport(accountId: number | null, level: ReportLevel, since: string, until: string, filters: ReportFilters = {}) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['marketing', 'report', accountId, level, since, until, filters, tenantId],
+        enabled: api != null && accountId != null,
+        queryFn: async () => {
+            const p = new URLSearchParams({ level, since, until });
+            (filters.campaign_ids ?? []).forEach((v) => p.append('campaign_ids[]', v));
+            (filters.adset_ids ?? []).forEach((v) => p.append('adset_ids[]', v));
+            if (filters.q) p.set('q', filters.q);
+            if (filters.objective) p.set('objective', filters.objective);
+            if (filters.ad_id) p.set('ad_id', filters.ad_id);
+            return (await api!.get<{ data: { level: ReportLevel; currency: string | null; rows: ReportRow[] } }>(`/marketing/ad-accounts/${accountId}/report?${p.toString()}`)).data.data;
+        },
+    });
 }
 
 export interface AdInsight {
