@@ -6,6 +6,7 @@ use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Ads\Contracts\AdsConnector;
 use CMBcoreSeller\Integrations\Ads\Contracts\AdsWriteConnector;
 use CMBcoreSeller\Integrations\Ads\DTO\AdAccountDTO;
+use CMBcoreSeller\Integrations\Ads\DTO\AdCreativeDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdEntityDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdInsightDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdInsightThrottleDTO;
@@ -55,6 +56,7 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
             'actions.bid' => false,    // Phase 3
             'ads.create' => true,
             'creative.upload' => true,
+            'creatives.read' => true,
             'page.posts.read' => true,
             'preview.generate' => true,
             'targeting.search' => true,
@@ -229,6 +231,34 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
                 messagingConversations: $conversations,
                 leads: $leads,
                 raw: $r,
+            );
+        }, array_filter((array) $res->json('data', []), 'is_array')));
+    }
+
+    public function fetchAdCreatives(string $accessToken, string $externalAccountId): array
+    {
+        $res = Http::timeout(30)->get($this->graphUrl($externalAccountId.'/ads'), [
+            'fields' => 'id,name,effective_status,creative{body,title,effective_object_story_id,object_story_spec{link_data{message,name,call_to_action{type}}}}',
+            'access_token' => $accessToken,
+            'limit' => 200,
+        ]);
+        if (! $res->successful()) {
+            throw new \RuntimeException('Facebook Ads fetchAdCreatives failed: '.$res->body());
+        }
+
+        return array_values(array_map(function (array $a) {
+            $creative = (array) ($a['creative'] ?? []);
+            $linkData = (array) ($creative['object_story_spec']['link_data'] ?? []);
+
+            return new AdCreativeDTO(
+                adId: (string) ($a['id'] ?? ''),
+                adName: isset($a['name']) ? (string) $a['name'] : null,
+                effectiveStatus: isset($a['effective_status']) ? (string) $a['effective_status'] : null,
+                primaryText: isset($linkData['message']) ? (string) $linkData['message'] : (isset($creative['body']) ? (string) $creative['body'] : null),
+                headline: isset($linkData['name']) ? (string) $linkData['name'] : (isset($creative['title']) ? (string) $creative['title'] : null),
+                cta: isset($linkData['call_to_action']['type']) ? (string) $linkData['call_to_action']['type'] : null,
+                pagePostId: isset($creative['effective_object_story_id']) ? (string) $creative['effective_object_story_id'] : null,
+                raw: $a,
             );
         }, array_filter((array) $res->json('data', []), 'is_array')));
     }

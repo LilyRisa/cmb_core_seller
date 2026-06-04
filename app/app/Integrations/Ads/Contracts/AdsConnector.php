@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Integrations\Ads\Contracts;
 use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Ads\AdsRegistry;
 use CMBcoreSeller\Integrations\Ads\DTO\AdAccountDTO;
+use CMBcoreSeller\Integrations\Ads\DTO\AdCreativeDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdEntityDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdInsightDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdInsightThrottleDTO;
@@ -51,4 +52,11 @@ interface AdsConnector
      * @return list<AdInsightDTO>
      */
     public function fetchInsights(string $accessToken, string $externalId, string $level, array $query = [], ?AdInsightThrottleDTO &$throttleOut = null): array;
+
+    /**
+     * Read each ad's creative text (for content/quality analysis).
+     *
+     * @return list<AdCreativeDTO>
+     */
+    public function fetchAdCreatives(string $accessToken, string $externalAccountId): array;
 }
