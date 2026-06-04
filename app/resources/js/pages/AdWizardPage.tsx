@@ -17,6 +17,7 @@ import { StepObjective } from '@/pages/adWizard/StepObjective';
 import { StepBudget } from '@/pages/adWizard/StepBudget';
 import { StepAudience } from '@/pages/adWizard/StepAudience';
 import { StepPlacements } from '@/pages/adWizard/StepPlacements';
+import { StepCreative } from '@/pages/adWizard/StepCreative';
 
 const STEP_LABELS = ['Mục tiêu', 'Ngân sách', 'Đối tượng', 'Vị trí', 'Nội dung', 'Xuất bản'];
 const STEP_ICONS = [
@@ -34,6 +35,7 @@ function renderStep(step: number): ReactNode {
         case 1: return <StepBudget />;
         case 2: return <StepAudience />;
         case 3: return <StepPlacements />;
+        case 4: return <StepCreative />;
         default: return <Empty description={STEP_LABELS[step]} />;
     }
 }
@@ -151,6 +153,12 @@ export function AdWizardPage() {
         switch (currentStep) {
             case 0: return objective != null;
             case 1: return (payload.budget?.daily_major ?? 0) > 0;
+            case 4: {
+                const c = payload.creative;
+                const mode = c?.mode ?? 'page_post';
+                if (mode === 'page_post') return (c?.page_post_id ?? '') !== '';
+                return (c?.primary_text ?? '') !== '';
+            }
             default: return true;
         }
     }
