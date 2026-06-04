@@ -27,7 +27,27 @@ export interface AdDraftPayload {
         link_url?: string;
         cta?: string;
     };
+    adsets?: AdSetNode[];
     [k: string]: unknown;
+}
+
+export interface AdNode {
+    key: string;
+    name: string;
+    external_id?: string | null;
+    creative: NonNullable<AdDraftPayload['creative']>;
+}
+
+export interface AdSetNode {
+    key: string;
+    name: string;
+    budget?: { daily_major?: number };
+    targeting?: Record<string, unknown>;
+    placements?: 'automatic' | 'manual';
+    placement_platforms?: string[];
+    schedule?: { start_time?: string | null };
+    external_id?: string | null;
+    ads: AdNode[];
 }
 
 export interface AdDraft {
