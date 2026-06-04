@@ -29,6 +29,18 @@ class FacebookAdsTargetingTest extends TestCase
         Http::assertSent(fn ($r) => str_contains($r->url(), '/search') && $r->data()['type'] === 'adinterest' && $r->data()['q'] === 'thời trang');
     }
 
+    public function test_search_targeting_labels_behavior_type(): void
+    {
+        Http::fake(['graph.facebook.com/*/search*' => Http::response([
+            'data' => [['id' => '7001', 'name' => 'Người mua sắm online']],
+        ], 200)]);
+
+        $opts = $this->connector()->searchTargeting('TOK', 'mua sắm', 'adbehavior');
+
+        $this->assertSame('behaviors', $opts[0]->type);
+        Http::assertSent(fn ($r) => $r->data()['type'] === 'adbehavior');
+    }
+
     public function test_estimate_audience_maps_bounds(): void
     {
         Http::fake(['graph.facebook.com/*/delivery_estimate*' => Http::response([

@@ -395,10 +395,18 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
             throw new \RuntimeException('Facebook Ads searchTargeting failed: '.$res->body());
         }
 
+        // Label derived from the Graph search type so a 'adbehavior' search isn't
+        // mislabelled as 'interests' (the DTO type must reflect what was searched).
+        $typeLabel = match ($type) {
+            'adinterest' => 'interests',
+            'adbehavior' => 'behaviors',
+            default => $type,
+        };
+
         return array_values(array_map(fn (array $o) => new TargetingOptionDTO(
             id: (string) ($o['id'] ?? ''),
             name: (string) ($o['name'] ?? ''),
-            type: 'interests',
+            type: $typeLabel,
             audienceSize: isset($o['audience_size_lower_bound']) ? (int) $o['audience_size_lower_bound'] : null,
             raw: $o,
         ), array_filter((array) $res->json('data', []), 'is_array')));
