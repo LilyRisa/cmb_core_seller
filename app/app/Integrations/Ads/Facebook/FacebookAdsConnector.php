@@ -13,6 +13,8 @@ use CMBcoreSeller\Integrations\Ads\DTO\AdSetSpecDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdSpecDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AudienceSizeDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\CampaignSpecDTO;
+use CMBcoreSeller\Integrations\Ads\DTO\PagePostDTO;
+use CMBcoreSeller\Integrations\Ads\DTO\PageRefDTO;
 use CMBcoreSeller\Integrations\Ads\Exceptions\UnsupportedOperation;
 use Illuminate\Support\Facades\Http;
 
@@ -331,12 +333,52 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
 
     public function listPages(string $accessToken): array
     {
-        return [];
+        $res = Http::timeout(30)->get($this->graphUrl('me/accounts'), [
+            'fields' => 'id,name,access_token',
+            'access_token' => $accessToken,
+            'limit' => 200,
+        ]);
+        if (! $res->successful()) {
+            throw new \RuntimeException('Facebook Ads listPages failed: '.$res->body());
+        }
+
+        return array_values(array_map(fn (array $p) => new PageRefDTO(
+            id: (string) ($p['id'] ?? ''),
+            name: (string) ($p['name'] ?? ''),
+            accessToken: (string) ($p['access_token'] ?? ''),
+            raw: $p,
+        ), array_filter((array) $res->json('data', []), 'is_array')));
     }
 
     public function listPagePosts(string $pageAccessToken, string $pageId, int $limit = 25): array
     {
-        return [];
+        $res = Http::timeout(30)->get($this->graphUrl($pageId.'/published_posts'), [
+            'fields' => 'id,message,created_time,full_picture,attachments{media_type,media},'
+                .'likes.summary(true).limit(0),comments.summary(true).limit(0),shares',
+            'access_token' => $pageAccessToken,
+            'limit' => $limit,
+        ]);
+        if (! $res->successful()) {
+            throw new \RuntimeException('Facebook Ads listPagePosts failed: '.$res->body());
+        }
+
+        return array_values(array_map(function (array $p) {
+            $attachment = (array) ($p['attachments']['data'][0] ?? []);
+            $mediaType = (string) ($attachment['media_type'] ?? 'status');
+
+            return new PagePostDTO(
+                id: (string) ($p['id'] ?? ''),
+                message: isset($p['message']) ? (string) $p['message'] : null,
+                createdTime: (string) ($p['created_time'] ?? ''),
+                mediaType: $mediaType,
+                imageUrl: isset($p['full_picture']) ? (string) $p['full_picture'] : null,
+                videoId: null,
+                likes: (int) ($p['likes']['summary']['total_count'] ?? 0),
+                comments: (int) ($p['comments']['summary']['total_count'] ?? 0),
+                shares: (int) ($p['shares']['count'] ?? 0),
+                raw: $p,
+            );
+        }, array_filter((array) $res->json('data', []), 'is_array')));
     }
 
     public function searchTargeting(string $accessToken, string $query, string $type = 'adinterest'): array
