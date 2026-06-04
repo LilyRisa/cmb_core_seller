@@ -39,6 +39,13 @@ export interface AdNode {
     creative: NonNullable<AdDraftPayload['creative']>;
 }
 
+export interface PlacementConfig {
+    automatic: boolean;
+    device_platforms?: string[];
+    publisher_platforms?: string[];
+    positions?: Record<string, string[]>;
+}
+
 export interface AdSetNode {
     key: string;
     name: string;
@@ -46,6 +53,7 @@ export interface AdSetNode {
     targeting?: Record<string, unknown>;
     placements?: 'automatic' | 'manual';
     placement_platforms?: string[];
+    placement_config?: PlacementConfig;
     schedule?: { start_time?: string | null };
     external_id?: string | null;
     ads: AdNode[];
