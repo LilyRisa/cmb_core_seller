@@ -1,0 +1,51 @@
+<?php
+
+namespace CMBcoreSeller\Integrations\Ads\Contracts;
+
+use CMBcoreSeller\Integrations\Ads\DTO\AdAccountDTO;
+use CMBcoreSeller\Integrations\Ads\DTO\AdEntityDTO;
+use CMBcoreSeller\Integrations\Ads\DTO\AdInsightDTO;
+use CMBcoreSeller\Integrations\Ads\DTO\AdInsightThrottleDTO;
+
+/**
+ * Contract every ads provider implements (ADR-0017 — core/module never knows the
+ * provider name; resolve via {@see \CMBcoreSeller\Integrations\Ads\AdsRegistry}).
+ * Methods a provider lacks throw {@see \CMBcoreSeller\Integrations\Ads\Exceptions\UnsupportedOperation}.
+ */
+interface AdsConnector
+{
+    public function code(): string;
+
+    public function displayName(): string;
+
+    /** @return array<string,bool> */
+    public function capabilities(): array;
+
+    public function supports(string $capability): bool;
+
+    // --- OAuth ---
+    public function buildAuthorizationUrl(string $state, array $opts = []): string;
+
+    /** @return array{access_token:string, expires_at:?\Carbon\CarbonImmutable, raw:array<string,mixed>} */
+    public function exchangeCodeForToken(string $code): array;
+
+    // --- Read ---
+    /** @return list<AdAccountDTO> */
+    public function listAdAccounts(string $accessToken): array;
+
+    /**
+     * List entities of one level (campaign|adset|ad) for an account.
+     *
+     * @return list<AdEntityDTO>
+     */
+    public function listEntities(string $accessToken, string $externalAccountId, string $level): array;
+
+    /**
+     * Fetch insights for one object (account/campaign/adset/ad). The implementation
+     * writes the throttle header snapshot into `$throttleOut` (by ref) for pacing.
+     *
+     * @param  array<string,mixed>  $query
+     * @return list<AdInsightDTO>
+     */
+    public function fetchInsights(string $accessToken, string $externalId, string $level, array $query = [], ?AdInsightThrottleDTO &$throttleOut = null): array;
+}
