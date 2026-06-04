@@ -61,7 +61,9 @@ class AdsForecastService
     {
         $data = [
             'currency' => $account->currency,
-            'reconciliation' => $reconciliationRows,
+            // Key MUST be 'rows' — the deterministic stub (no-AI path) computes the
+            // 7-day forecast from $data['rows'] (LlmMarketingAnalysisClient::stub).
+            'rows' => $reconciliationRows,
             'campaigns_today' => [],
             'campaigns_14d' => [],
             'creatives' => [],

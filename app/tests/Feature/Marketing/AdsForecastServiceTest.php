@@ -97,4 +97,29 @@ class AdsForecastServiceTest extends TestCase
         Http::assertSent(fn ($r) => str_contains($r->url(), 'act_1/ads'));
         Http::assertSent(fn ($r) => str_contains($r->url(), '/insights'));
     }
+
+    public function test_reconciliation_passed_to_ai_under_rows_key_for_stub(): void
+    {
+        // The deterministic stub computes the 7-day forecast from $data['rows'].
+        // Regression: buildData must feed reconciliation under 'rows' (not 'reconciliation').
+        $captured = new \stdClass;
+        $captured->data = null;
+        $this->app->instance(MarketingAnalysisClient::class, new class($captured) implements MarketingAnalysisClient
+        {
+            public function __construct(private \stdClass $h) {}
+
+            public function analyze(array $data, string $instruction): array
+            {
+                $this->h->data = $data;
+
+                return ['payload' => ['forecast' => ['next_7d' => []], 'strategy' => []], 'provider_code' => null, 'model' => null];
+            }
+        });
+
+        $account = $this->seedAccount();
+        app(AdsForecastService::class)->generate($account, true);
+
+        $this->assertArrayHasKey('rows', $captured->data);
+        $this->assertArrayNotHasKey('reconciliation', $captured->data);
+    }
 }
