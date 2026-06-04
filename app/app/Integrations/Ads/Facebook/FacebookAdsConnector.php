@@ -285,13 +285,19 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
     {
         $objective = FacebookObjectiveMap::spec($spec->objective)['objective'];
 
-        $res = Http::timeout(30)->asForm()->post($this->graphUrl($externalAccountId.'/campaigns'), [
+        $params = [
             'name' => $spec->name,
             'objective' => $objective,
             'status' => $spec->status,
             'special_ad_categories' => json_encode($spec->specialAdCategories),
             'access_token' => $accessToken,
-        ]);
+        ];
+        if ($spec->dailyBudgetMajor !== null && $spec->dailyBudgetMajor > 0) {
+            $params['daily_budget'] = FacebookMoney::toMinorUnits($spec->dailyBudgetMajor, (string) ($spec->currency ?? 'VND'));
+            $params['bid_strategy'] = $spec->bidStrategy;
+        }
+
+        $res = Http::timeout(30)->asForm()->post($this->graphUrl($externalAccountId.'/campaigns'), $params);
         if (! $res->successful()) {
             throw new \RuntimeException('Facebook Ads createCampaign failed: '.$res->body());
         }
@@ -306,7 +312,6 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
         $params = [
             'name' => $spec->name,
             'campaign_id' => $spec->campaignExternalId,
-            'daily_budget' => FacebookMoney::toMinorUnits($spec->dailyBudgetMajor, $spec->currency),
             'billing_event' => $map['billing_event'],
             'optimization_goal' => $map['optimization_goal'],
             'targeting' => json_encode($spec->targeting),
@@ -314,6 +319,9 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
             'start_time' => $spec->startTime ?? now()->toIso8601String(),
             'access_token' => $accessToken,
         ];
+        if ($spec->dailyBudgetMajor > 0) {
+            $params['daily_budget'] = FacebookMoney::toMinorUnits($spec->dailyBudgetMajor, $spec->currency);
+        }
         if ($map['destination_type'] !== null) {
             $params['destination_type'] = $map['destination_type'];
         }

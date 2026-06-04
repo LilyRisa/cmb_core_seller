@@ -10,5 +10,8 @@ final readonly class CampaignSpecDTO
         public string $name,
         public string $status = 'PAUSED',
         public array $specialAdCategories = [], // Graph requires the key (default none)
+        public ?int $dailyBudgetMajor = null,   // set ⇒ CBO (campaign-level budget)
+        public ?string $currency = null,
+        public string $bidStrategy = 'LOWEST_COST_WITHOUT_CAP',
     ) {}
 }

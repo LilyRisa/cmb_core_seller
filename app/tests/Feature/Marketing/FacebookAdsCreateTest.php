@@ -140,4 +140,40 @@ class FacebookAdsCreateTest extends TestCase
             name: 'Ad', adSetExternalId: 'AS_NEW', pageId: '123', pagePostId: '123_456',
         ));
     }
+
+    public function test_create_campaign_with_cbo_sends_budget_and_bid_strategy(): void
+    {
+        Http::fake(['graph.facebook.com/*/campaigns' => Http::response(['id' => 'C_CBO'], 200)]);
+
+        $this->connector()->createCampaign('tok', 'act_1', new CampaignSpecDTO(
+            objective: 'messages', name: 'Camp', dailyBudgetMajor: 300000, currency: 'VND',
+        ));
+
+        Http::assertSent(function ($r) {
+            $d = $r->data();
+
+            return ($d['daily_budget'] ?? null) === '300000' && ($d['bid_strategy'] ?? null) === 'LOWEST_COST_WITHOUT_CAP';
+        });
+    }
+
+    public function test_create_campaign_without_budget_omits_it(): void
+    {
+        Http::fake(['graph.facebook.com/*/campaigns' => Http::response(['id' => 'C'], 200)]);
+
+        $this->connector()->createCampaign('tok', 'act_1', new CampaignSpecDTO(objective: 'messages', name: 'Camp'));
+
+        Http::assertSent(fn ($r) => ! array_key_exists('daily_budget', $r->data()));
+    }
+
+    public function test_create_adset_omits_daily_budget_when_zero_cbo(): void
+    {
+        Http::fake(['graph.facebook.com/*/adsets' => Http::response(['id' => 'AS'], 200)]);
+
+        $this->connector()->createAdSet('tok', 'act_1', new AdSetSpecDTO(
+            name: 'Set', campaignExternalId: 'C1', objective: 'messages',
+            dailyBudgetMajor: 0, currency: 'VND', targeting: [], pageId: '123',
+        ));
+
+        Http::assertSent(fn ($r) => ! array_key_exists('daily_budget', $r->data()));
+    }
 }
