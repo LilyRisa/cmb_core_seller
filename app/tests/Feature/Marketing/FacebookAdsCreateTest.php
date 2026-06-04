@@ -3,6 +3,7 @@
 namespace Tests\Feature\Marketing;
 
 use CMBcoreSeller\Integrations\Ads\DTO\AdSetSpecDTO;
+use CMBcoreSeller\Integrations\Ads\DTO\AdSpecDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\CampaignSpecDTO;
 use CMBcoreSeller\Integrations\Ads\Facebook\FacebookAdsConnector;
 use Illuminate\Support\Facades\Http;
@@ -55,6 +56,45 @@ class FacebookAdsCreateTest extends TestCase
                 && $d['billing_event'] === 'IMPRESSIONS'
                 && $d['destination_type'] === 'MESSENGER'
                 && ($promoted['page_id'] ?? null) === '123';
+        });
+    }
+
+    public function test_create_ad_from_existing_page_post_uses_object_story_id(): void
+    {
+        Http::fake(['graph.facebook.com/*/ads' => Http::response(['id' => 'AD_NEW'], 200)]);
+
+        $id = $this->connector()->createAd('tok', 'act_1', new AdSpecDTO(
+            name: 'Ad', adSetExternalId: 'AS_NEW', pageId: '123',
+            pagePostId: '123_456', cta: 'MESSAGE_PAGE',
+        ));
+
+        $this->assertSame('AD_NEW', $id);
+        Http::assertSent(function ($request) {
+            $d = $request->data();
+            $creative = json_decode($d['creative'] ?? '{}', true);
+
+            return str_contains($request->url(), 'act_1/ads')
+                && $d['adset_id'] === 'AS_NEW'
+                && ($creative['object_story_id'] ?? null) === '123_456';
+        });
+    }
+
+    public function test_create_ad_new_creative_uses_object_story_spec(): void
+    {
+        Http::fake(['graph.facebook.com/*/ads' => Http::response(['id' => 'AD_NEW2'], 200)]);
+
+        $this->connector()->createAd('tok', 'act_1', new AdSpecDTO(
+            name: 'Ad', adSetExternalId: 'AS_NEW', pageId: '123',
+            imageHash: 'HASH', primaryText: 'Mua ngay', headline: 'Sale', linkUrl: 'https://shop.vn', cta: 'SHOP_NOW',
+        ));
+
+        Http::assertSent(function ($request) {
+            $creative = json_decode($request->data()['creative'] ?? '{}', true);
+            $spec = $creative['object_story_spec'] ?? [];
+
+            return ($spec['page_id'] ?? null) === '123'
+                && ($spec['link_data']['image_hash'] ?? null) === 'HASH'
+                && ($spec['link_data']['call_to_action']['type'] ?? null) === 'SHOP_NOW';
         });
     }
 }

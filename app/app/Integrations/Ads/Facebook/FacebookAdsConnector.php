@@ -299,6 +299,32 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
 
     public function createAd(string $accessToken, string $externalAccountId, AdSpecDTO $spec): string
     {
-        return '';
+        // Existing page post keeps social proof (likes/comments/shares); else build a new creative.
+        if ($spec->pagePostId !== null) {
+            $creative = ['object_story_id' => $spec->pagePostId];
+        } else {
+            $linkData = array_filter([
+                'image_hash' => $spec->imageHash,
+                'video_id' => $spec->videoId,
+                'message' => $spec->primaryText,
+                'name' => $spec->headline,
+                'link' => $spec->linkUrl,
+                'call_to_action' => ['type' => $spec->cta],
+            ], fn ($v) => $v !== null);
+            $creative = ['object_story_spec' => ['page_id' => $spec->pageId, 'link_data' => $linkData]];
+        }
+
+        $res = Http::timeout(30)->asForm()->post($this->graphUrl($externalAccountId.'/ads'), [
+            'name' => $spec->name,
+            'adset_id' => $spec->adSetExternalId,
+            'creative' => json_encode($creative),
+            'status' => $spec->status,
+            'access_token' => $accessToken,
+        ]);
+        if (! $res->successful()) {
+            throw new \RuntimeException('Facebook Ads createAd failed: '.$res->body());
+        }
+
+        return (string) $res->json('id');
     }
 }
