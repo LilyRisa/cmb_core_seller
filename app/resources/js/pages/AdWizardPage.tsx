@@ -75,9 +75,12 @@ export function AdWizardPage() {
         }
     }, [draftId, draftData, load]);
 
-    // Bootstrap: create new draft when no draftId param but accountId is present
+    // Bootstrap: create new draft when no draftId param but accountId is present.
+    // Wrapped in a debounced timer so React 18 StrictMode's double-invoke (mount →
+    // cleanup → mount) cancels the first timer and fires the create exactly once.
     useEffect(() => {
-        if (draftId == null && accountId != null && !createFiredRef.current) {
+        if (draftId != null || accountId == null || createFiredRef.current) return;
+        const timer = setTimeout(() => {
             createFiredRef.current = true;
             createDraft.mutate(
                 { ad_account_id: accountId, payload: {} },
@@ -97,9 +100,11 @@ export function AdWizardPage() {
                     },
                 },
             );
-        }
+        }, 50);
+
+        return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [draftId, accountId]);
 
     // Autosave: debounce 800ms when dirty and draftId is known
     useEffect(() => {
