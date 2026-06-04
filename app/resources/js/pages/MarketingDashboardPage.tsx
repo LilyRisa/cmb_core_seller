@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { App as AntApp, Button, Card, Checkbox, Collapse, DatePicker, Dropdown, Empty, Input, List, Popconfirm, Result, Segmented, Select, Space, Spin, Statistic, Table, Tag, Typography } from 'antd';
-import { DisconnectOutlined, EditOutlined, FacebookFilled, FundOutlined, PlusOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
+import { App as AntApp, Button, Card, Checkbox, Collapse, DatePicker, Dropdown, Empty, Input, List, Popconfirm, Result, Segmented, Select, Space, Spin, Statistic, Table, Tag, Tooltip, Typography } from 'antd';
+import { DisconnectOutlined, EditOutlined, FacebookFilled, FundOutlined, PlusOutlined, QuestionCircleOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
 import { useAdDrafts, useDeleteDraft } from '@/lib/adWizard';
 import dayjs, { type Dayjs } from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
@@ -41,10 +41,57 @@ const ALL_COLUMNS = [
 ] as const;
 const DEFAULT_COLUMNS = ['external_id', 'status', 'objective', 'daily_budget', 'spend', 'impressions', 'clicks', 'ctr', 'cpc', 'cpm', 'purchase_roas'];
 const COL_TITLE: Record<string, string> = {
-    external_id: 'ID', status: 'Trạng thái', objective: 'Loại (objective)', daily_budget: 'NS/ngày', lifetime_budget: 'NS trọn đời',
+    external_id: 'ID', status: 'Trạng thái', objective: 'Mục tiêu', daily_budget: 'NS/ngày', lifetime_budget: 'NS trọn đời',
     spend: 'Chi tiêu', impressions: 'Hiển thị', reach: 'Tiếp cận', clicks: 'Click', ctr: 'CTR', cpc: 'CPC', cpm: 'CPM',
     frequency: 'Tần suất', purchase_roas: 'ROAS', messaging_conversations: 'Hội thoại', leads: 'Leads',
 };
+
+// Giải thích chỉ số (tooltip khi di chuột vào icon "?").
+const COL_HELP: Record<string, string> = {
+    objective: 'Mục tiêu tối ưu của chiến dịch — Facebook phân phối theo mục tiêu này.',
+    status: 'Trạng thái phân phối hiện tại của quảng cáo.',
+    daily_budget: 'Số tiền tối đa chi cho mỗi ngày.',
+    lifetime_budget: 'Số tiền tối đa cho toàn bộ thời gian chạy.',
+    spend: 'Tổng số tiền đã chi cho quảng cáo.',
+    impressions: 'Số lần quảng cáo được hiển thị (tính cả lặp lại).',
+    reach: 'Số người dùng (không trùng) đã nhìn thấy quảng cáo.',
+    clicks: 'Số lượt nhấp vào quảng cáo.',
+    ctr: 'Tỷ lệ nhấp = Click ÷ Hiển thị (%). Cao nghĩa là nội dung hấp dẫn.',
+    cpc: 'Chi phí trung bình mỗi lượt nhấp = Chi tiêu ÷ Click.',
+    cpm: 'Chi phí cho mỗi 1.000 lần hiển thị.',
+    frequency: 'Số lần trung bình một người nhìn thấy quảng cáo.',
+    purchase_roas: 'Lợi nhuận trên chi tiêu quảng cáo = Doanh thu ÷ Chi tiêu.',
+    messaging_conversations: 'Số cuộc hội thoại Messenger bắt đầu từ quảng cáo.',
+    leads: 'Số khách hàng tiềm năng (lead) thu được.',
+};
+
+// Chuẩn hoá mục tiêu Facebook (raw → tiếng Việt). Gồm cả mục tiêu ODAX mới lẫn mục tiêu cũ.
+const OBJECTIVE_VI: Record<string, string> = {
+    OUTCOME_SALES: 'Bán hàng', OUTCOME_LEADS: 'Khách hàng tiềm năng', OUTCOME_ENGAGEMENT: 'Tương tác',
+    OUTCOME_AWARENESS: 'Nhận diện thương hiệu', OUTCOME_TRAFFIC: 'Truy cập web', OUTCOME_APP_PROMOTION: 'Quảng bá ứng dụng',
+    LINK_CLICKS: 'Lượt truy cập', CONVERSIONS: 'Chuyển đổi', POST_ENGAGEMENT: 'Tương tác bài viết',
+    PAGE_LIKES: 'Thích Trang', MESSAGES: 'Tin nhắn', LEAD_GENERATION: 'Thu thập KH tiềm năng',
+    REACH: 'Tiếp cận', BRAND_AWARENESS: 'Nhận diện thương hiệu', VIDEO_VIEWS: 'Lượt xem video',
+    PRODUCT_CATALOG_SALES: 'Bán theo danh mục', STORE_VISITS: 'Ghé cửa hàng', APP_INSTALLS: 'Cài đặt ứng dụng',
+};
+const objectiveVi = (v: string | null) => (v ? OBJECTIVE_VI[v] ?? v : '—');
+
+// Chuẩn hoá trạng thái (raw → tiếng Việt + màu Tag).
+const STATUS_VI: Record<string, { label: string; color: string }> = {
+    ACTIVE: { label: 'Đang chạy', color: 'green' },
+    PAUSED: { label: 'Tạm dừng', color: 'default' },
+    CAMPAIGN_PAUSED: { label: 'Chiến dịch tạm dừng', color: 'default' },
+    ADSET_PAUSED: { label: 'Nhóm tạm dừng', color: 'default' },
+    DELETED: { label: 'Đã xoá', color: 'red' },
+    ARCHIVED: { label: 'Đã lưu trữ', color: 'default' },
+    PENDING_REVIEW: { label: 'Chờ duyệt', color: 'gold' },
+    IN_PROCESS: { label: 'Đang xử lý', color: 'blue' },
+    PREAPPROVED: { label: 'Đã duyệt sơ bộ', color: 'blue' },
+    DISAPPROVED: { label: 'Bị từ chối', color: 'red' },
+    WITH_ISSUES: { label: 'Có vấn đề', color: 'orange' },
+    PENDING_BILLING_INFO: { label: 'Chờ thông tin thanh toán', color: 'gold' },
+};
+const statusVi = (v: string | null) => (v ? STATUS_VI[v] ?? { label: v, color: 'default' } : { label: '—', color: 'default' });
 
 /** /marketing — báo cáo quảng cáo Facebook kiểu Ads Manager (BM, 3 tab, cột tuỳ chỉnh, drill-down). */
 export function MarketingDashboardPage() {
@@ -128,8 +175,8 @@ export function MarketingDashboardPage() {
     // Table columns (filter by visible set; name always first).
     const fmtCol: Record<string, (r: ReportRow) => React.ReactNode> = {
         external_id: (r) => <Text type="secondary" copyable={{ text: r.external_id }} style={{ fontSize: 12 }}>{r.external_id}</Text>,
-        status: (r) => <Tag color={r.status === 'ACTIVE' ? 'green' : 'default'}>{r.effective_status ?? r.status ?? '—'}</Tag>,
-        objective: (r) => r.objective ?? '—',
+        status: (r) => { const s = statusVi(r.effective_status ?? r.status ?? null); return <Tag color={s.color}>{s.label}</Tag>; },
+        objective: (r) => objectiveVi(r.objective),
         daily_budget: (r) => money(r.daily_budget, currency),
         lifetime_budget: (r) => money(r.lifetime_budget, currency),
         spend: (r) => money(r.insights?.spend, currency),
@@ -146,7 +193,13 @@ export function MarketingDashboardPage() {
     };
     const columns = [
         { title: 'Tên', dataIndex: 'name', key: 'name', fixed: 'left' as const, width: 220, render: (v: string | null, r: ReportRow) => v ?? r.external_id },
-        ...ALL_COLUMNS.filter((c) => cols.includes(c)).map((c) => ({ title: COL_TITLE[c], key: c, render: (_: unknown, r: ReportRow) => fmtCol[c](r) })),
+        ...ALL_COLUMNS.filter((c) => cols.includes(c)).map((c) => ({
+            title: COL_HELP[c]
+                ? <Space size={4}>{COL_TITLE[c]}<Tooltip title={COL_HELP[c]}><QuestionCircleOutlined style={{ color: '#aaa', fontSize: 12, cursor: 'help' }} /></Tooltip></Space>
+                : COL_TITLE[c],
+            key: c,
+            render: (_: unknown, r: ReportRow) => fmtCol[c](r),
+        })),
     ];
 
     const rowSelection = level !== 'ad' ? {
@@ -156,7 +209,7 @@ export function MarketingDashboardPage() {
 
     const objectiveOptions = useMemo(() => {
         const s = new Set((report?.rows ?? []).map((r) => r.objective).filter(Boolean) as string[]);
-        return [...s].map((o) => ({ label: o, value: o }));
+        return [...s].map((o) => ({ label: objectiveVi(o), value: o }));
     }, [report]);
 
     return (
