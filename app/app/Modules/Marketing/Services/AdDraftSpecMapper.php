@@ -6,11 +6,12 @@ use CMBcoreSeller\Integrations\Ads\DTO\AdSetSpecDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdSpecDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\CampaignSpecDTO;
 use CMBcoreSeller\Modules\Marketing\Models\AdDraft;
+use CMBcoreSeller\Modules\Marketing\Support\AdDraftTree;
 
 /**
- * Translates a wizard draft's payload into the connector spec DTOs. Pure (no I/O).
- * Defensive reads — drafts may be partial; Graph rejects truly invalid specs at
- * publish (surfaced as the draft's last_error).
+ * Translates a wizard draft's payload tree into the connector spec DTOs. Pure.
+ * Tree-aware: one campaign → N ad sets → N ads. Legacy flat drafts are normalized
+ * to a single ad set + ad by {@see AdDraftTree::normalize}. Defensive reads.
  */
 class AdDraftSpecMapper
 {
@@ -23,32 +24,40 @@ class AdDraftSpecMapper
         );
     }
 
-    public function adSet(AdDraft $draft, string $currency): AdSetSpecDTO
+    /** @return list<array<string,mixed>> ad set nodes (each with an `ads` list) */
+    public function adsetNodes(AdDraft $draft): array
     {
-        $p = (array) ($draft->payload ?? []);
-        $creative = (array) ($p['creative'] ?? []);
-        $budget = (array) ($p['budget'] ?? []);
-        $schedule = (array) ($p['schedule'] ?? []);
+        return AdDraftTree::normalize((array) ($draft->payload ?? []))['adsets'];
+    }
+
+    /** @param array<string,mixed> $node an ad set node */
+    public function adSet(AdDraft $draft, array $node, string $campaignExternalId, string $currency): AdSetSpecDTO
+    {
+        $budget = (array) ($node['budget'] ?? []);
+        $schedule = (array) ($node['schedule'] ?? []);
+        $firstAd = (array) ($node['ads'][0] ?? []);
+        $firstCreative = (array) ($firstAd['creative'] ?? []);
 
         return new AdSetSpecDTO(
-            name: (string) ($draft->name ?? 'Chiến dịch').' — nhóm',
-            campaignExternalId: (string) $draft->campaign_external_id,
+            name: (string) ($node['name'] ?? 'Nhóm'),
+            campaignExternalId: $campaignExternalId,
             objective: (string) ($draft->objective ?? 'traffic'),
             dailyBudgetMajor: (int) ($budget['daily_major'] ?? 0),
             currency: $currency,
-            targeting: (array) ($p['targeting'] ?? []),
-            pageId: isset($creative['page_id']) ? (string) $creative['page_id'] : null,
+            targeting: (array) ($node['targeting'] ?? []),
+            pageId: isset($firstCreative['page_id']) ? (string) $firstCreative['page_id'] : null,
             startTime: isset($schedule['start_time']) ? (string) $schedule['start_time'] : null,
         );
     }
 
-    public function ad(AdDraft $draft): AdSpecDTO
+    /** @param array<string,mixed> $node an ad node */
+    public function ad(AdDraft $draft, array $node, string $adSetExternalId): AdSpecDTO
     {
-        $c = (array) (((array) ($draft->payload ?? []))['creative'] ?? []);
+        $c = (array) ($node['creative'] ?? []);
 
         return new AdSpecDTO(
-            name: (string) ($draft->name ?? 'Chiến dịch').' — quảng cáo',
-            adSetExternalId: (string) $draft->adset_external_id,
+            name: (string) ($node['name'] ?? 'Quảng cáo'),
+            adSetExternalId: $adSetExternalId,
             pageId: (string) ($c['page_id'] ?? ''),
             pagePostId: isset($c['page_post_id']) ? (string) $c['page_post_id'] : null,
             imageHash: isset($c['image_hash']) ? (string) $c['image_hash'] : null,
