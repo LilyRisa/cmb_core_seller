@@ -1,5 +1,6 @@
 <?php
 
+use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdAccountController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdsOAuthController;
 use Illuminate\Support\Facades\Route;
 
@@ -17,4 +18,12 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
         // Facebook Ads OAuth connect — returns authorize URL for FE redirect.
         Route::post('ads/connect', [AdsOAuthController::class, 'start'])
             ->name('marketing.ads.connect');
+
+        // Ad accounts management.
+        Route::get('ad-accounts', [AdAccountController::class, 'index'])
+            ->name('marketing.ad-accounts.index');
+        Route::delete('ad-accounts/{id}', [AdAccountController::class, 'destroy'])
+            ->whereNumber('id')->name('marketing.ad-accounts.destroy');
+        Route::post('ad-accounts/{id}/refresh', [AdAccountController::class, 'refresh'])
+            ->whereNumber('id')->name('marketing.ad-accounts.refresh');
     });
