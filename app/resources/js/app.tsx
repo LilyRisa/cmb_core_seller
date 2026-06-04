@@ -35,6 +35,7 @@ import { MessagingKnowledgePage } from '@/pages/MessagingKnowledgePage';
 import { MessagingSettingsPage } from '@/pages/MessagingSettingsPage';
 import { MessagingChannelsPage } from '@/pages/MessagingChannelsPage';
 import { MarketingDashboardPage } from '@/pages/MarketingDashboardPage';
+import { AdWizardPage } from '@/pages/AdWizardPage';
 import { InventoryPage } from '@/pages/InventoryPage';
 import { CreateSkuPage } from '@/pages/CreateSkuPage';
 import { CreateOrderPage } from '@/pages/CreateOrderPage';
@@ -112,6 +113,8 @@ function Root() {
                 <Route path="messaging/flows/:id/edit" element={<MessagingFlowEditorPage />} />
                 <Route path="messaging/knowledge" element={<MessagingKnowledgePage />} />
                 <Route path="marketing" element={<MarketingDashboardPage />} />
+                <Route path="marketing/ads/new" element={<AdWizardPage />} />
+                <Route path="marketing/ads/:draftId/edit" element={<AdWizardPage />} />
                 <Route path="products" element={<Navigate to="/inventory?tab=skus" replace />} />
                 <Route path="inventory" element={<InventoryPage />} />
                 <Route path="inventory/skus/new" element={<CreateSkuPage />} />

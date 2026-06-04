@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { App as AntApp, Button, Card, Checkbox, Collapse, DatePicker, Dropdown, Empty, Input, Popconfirm, Result, Segmented, Select, Space, Spin, Statistic, Table, Tag, Typography } from 'antd';
-import { DisconnectOutlined, FacebookFilled, FundOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
+import { App as AntApp, Button, Card, Checkbox, Collapse, DatePicker, Dropdown, Empty, Input, List, Popconfirm, Result, Segmented, Select, Space, Spin, Statistic, Table, Tag, Typography } from 'antd';
+import { DisconnectOutlined, EditOutlined, FacebookFilled, FundOutlined, PlusOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
+import { useAdDrafts, useDeleteDraft } from '@/lib/adWizard';
 import dayjs, { type Dayjs } from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { errorMessage } from '@/lib/api';
@@ -48,8 +49,11 @@ const COL_TITLE: Record<string, string> = {
 /** /marketing — báo cáo quảng cáo Facebook kiểu Ads Manager (BM, 3 tab, cột tuỳ chỉnh, drill-down). */
 export function MarketingDashboardPage() {
     const { message } = AntApp.useApp();
+    const navigate = useNavigate();
     const [params, setParams] = useSearchParams();
     const canConnect = useCan('marketing.connect');
+    const { data: drafts } = useAdDrafts();
+    const deleteDraft = useDeleteDraft();
     const connect = useConnectFacebookAds();
     const disconnect = useDisconnectAdAccount();
     const refresh = useRefreshAdInsights();
@@ -162,6 +166,7 @@ export function MarketingDashboardPage() {
             <Card style={{ marginBottom: 16 }}>
                 <Space wrap size={12}>
                     <Button type="primary" icon={<FacebookFilled />} loading={connect.isPending} onClick={handleConnect} disabled={!canConnect}>Kết nối Facebook Ads</Button>
+                    <Button type="primary" icon={<PlusOutlined />} disabled={selectedId == null} onClick={() => navigate('/marketing/ads/new?accountId=' + selectedId)}>Tạo quảng cáo</Button>
                     {bmGroups.length > 0 && (
                         <Select style={{ minWidth: 200 }} value={bm ?? bmGroups[0]?.id} onChange={(v) => { setBm(v); setAccountId(null); }}
                             options={bmGroups.map((g) => ({ label: 'BM: ' + g.name, value: g.id }))} />
@@ -178,6 +183,47 @@ export function MarketingDashboardPage() {
                     )}
                 </Space>
             </Card>
+
+            {(drafts?.length ?? 0) > 0 && (
+                <Card title="Bản nháp của tôi" size="small" style={{ marginBottom: 16 }}>
+                    <List
+                        size="small"
+                        dataSource={drafts ?? []}
+                        renderItem={(d) => (
+                            <List.Item
+                                actions={[
+                                    <Button
+                                        key="edit"
+                                        type="link"
+                                        icon={<EditOutlined />}
+                                        size="small"
+                                        onClick={() => navigate('/marketing/ads/' + d.id + '/edit')}
+                                    >
+                                        Sửa
+                                    </Button>,
+                                    <Popconfirm
+                                        key="delete"
+                                        title="Xoá bản nháp?"
+                                        okText="Xoá"
+                                        okButtonProps={{ danger: true }}
+                                        cancelText="Huỷ"
+                                        onConfirm={() => deleteDraft.mutate(d.id, { onError: (e) => message.error(errorMessage(e)) })}
+                                    >
+                                        <Button type="link" danger size="small">Xoá</Button>
+                                    </Popconfirm>,
+                                ]}
+                            >
+                                <Space>
+                                    <Text>{d.name ?? 'Chưa đặt tên'}</Text>
+                                    <Tag color={d.status === 'published' ? 'green' : d.status === 'failed' ? 'red' : d.status === 'publishing' ? 'processing' : 'default'}>
+                                        {d.status === 'published' ? 'Đã xuất bản' : d.status === 'failed' ? 'Lỗi' : d.status === 'publishing' ? 'Đang xuất bản' : 'Nháp'}
+                                    </Tag>
+                                </Space>
+                            </List.Item>
+                        )}
+                    />
+                </Card>
+            )}
 
             {loadingAccounts ? (
                 <div style={{ textAlign: 'center', padding: 48 }}><Spin /></div>
