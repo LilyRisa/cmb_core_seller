@@ -15,6 +15,8 @@ import { useAdDraft, useCreateDraft, useUpdateDraft } from '@/lib/adWizard';
 import { PageHeader } from '@/components/PageHeader';
 import { StepObjective } from '@/pages/adWizard/StepObjective';
 import { StepBudget } from '@/pages/adWizard/StepBudget';
+import { StepAudience } from '@/pages/adWizard/StepAudience';
+import { StepPlacements } from '@/pages/adWizard/StepPlacements';
 
 const STEP_LABELS = ['Mục tiêu', 'Ngân sách', 'Đối tượng', 'Vị trí', 'Nội dung', 'Xuất bản'];
 const STEP_ICONS = [
@@ -30,6 +32,8 @@ function renderStep(step: number): ReactNode {
     switch (step) {
         case 0: return <StepObjective />;
         case 1: return <StepBudget />;
+        case 2: return <StepAudience />;
+        case 3: return <StepPlacements />;
         default: return <Empty description={STEP_LABELS[step]} />;
     }
 }
