@@ -4,10 +4,14 @@ namespace CMBcoreSeller\Integrations\Ads\Facebook;
 
 use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Ads\Contracts\AdsConnector;
+use CMBcoreSeller\Integrations\Ads\Contracts\AdsWriteConnector;
 use CMBcoreSeller\Integrations\Ads\DTO\AdAccountDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdEntityDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdInsightDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdInsightThrottleDTO;
+use CMBcoreSeller\Integrations\Ads\DTO\AdSetSpecDTO;
+use CMBcoreSeller\Integrations\Ads\DTO\AdSpecDTO;
+use CMBcoreSeller\Integrations\Ads\DTO\CampaignSpecDTO;
 use CMBcoreSeller\Integrations\Ads\Exceptions\UnsupportedOperation;
 use Illuminate\Support\Facades\Http;
 
@@ -20,7 +24,7 @@ use Illuminate\Support\Facades\Http;
  * scaling (×100 for 2-decimal currencies, keyed on ad_accounts.currency) is a
  * later-phase concern.
  */
-class FacebookAdsConnector implements AdsConnector
+class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
 {
     /** @param array<string,mixed> $config config('integrations.ads_facebook') */
     public function __construct(private array $config) {}
@@ -44,6 +48,11 @@ class FacebookAdsConnector implements AdsConnector
             'actions.budget' => false, // Phase 3
             'actions.status' => false, // Phase 3
             'actions.bid' => false,    // Phase 3
+            'ads.create' => true,
+            'creative.upload' => true,
+            'page.posts.read' => true,
+            'preview.generate' => true,
+            'targeting.search' => true,
         ];
     }
 
@@ -235,5 +244,20 @@ class FacebookAdsConnector implements AdsConnector
         }
 
         return $out;
+    }
+
+    public function createCampaign(string $accessToken, string $externalAccountId, CampaignSpecDTO $spec): string
+    {
+        return '';
+    }
+
+    public function createAdSet(string $accessToken, string $externalAccountId, AdSetSpecDTO $spec): string
+    {
+        return '';
+    }
+
+    public function createAd(string $accessToken, string $externalAccountId, AdSpecDTO $spec): string
+    {
+        return '';
     }
 }
