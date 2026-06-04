@@ -266,7 +266,35 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
 
     public function createAdSet(string $accessToken, string $externalAccountId, AdSetSpecDTO $spec): string
     {
-        return '';
+        $map = FacebookObjectiveMap::spec($spec->objective);
+
+        $params = [
+            'name' => $spec->name,
+            'campaign_id' => $spec->campaignExternalId,
+            'daily_budget' => FacebookMoney::toMinorUnits($spec->dailyBudgetMajor, $spec->currency),
+            'billing_event' => $map['billing_event'],
+            'optimization_goal' => $map['optimization_goal'],
+            'targeting' => json_encode($spec->targeting),
+            'status' => $spec->status,
+            'start_time' => $spec->startTime ?? now()->toIso8601String(),
+            'access_token' => $accessToken,
+        ];
+        if ($map['destination_type'] !== null) {
+            $params['destination_type'] = $map['destination_type'];
+        }
+        if ($map['needs_promoted_object']) {
+            if ($spec->pageId === null) {
+                throw new \RuntimeException("Facebook Ads createAdSet: objective '{$spec->objective}' requires pageId.");
+            }
+            $params['promoted_object'] = json_encode(['page_id' => $spec->pageId]);
+        }
+
+        $res = Http::timeout(30)->asForm()->post($this->graphUrl($externalAccountId.'/adsets'), $params);
+        if (! $res->successful()) {
+            throw new \RuntimeException('Facebook Ads createAdSet failed: '.$res->body());
+        }
+
+        return (string) $res->json('id');
     }
 
     public function createAd(string $accessToken, string $externalAccountId, AdSpecDTO $spec): string
