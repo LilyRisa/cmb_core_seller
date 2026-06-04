@@ -448,14 +448,30 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
 
     public function searchTargeting(string $accessToken, string $query, string $type = 'adinterest'): array
     {
-        $res = Http::timeout(30)->get($this->graphUrl('search'), [
+        $isGeo = $type === 'adgeolocation';
+        $params = [
             'type' => $type,
             'q' => $query,
             'limit' => 50,
             'access_token' => $accessToken,
-        ]);
+        ];
+        if ($isGeo) {
+            $params['location_types'] = json_encode(['country', 'region', 'city']);
+        }
+
+        $res = Http::timeout(30)->get($this->graphUrl('search'), $params);
         if (! $res->successful()) {
             throw new \RuntimeException('Facebook Ads searchTargeting failed: '.$res->body());
+        }
+
+        if ($isGeo) {
+            return array_values(array_map(fn (array $o) => new TargetingOptionDTO(
+                id: (string) ($o['key'] ?? ''),
+                name: $this->geoLabel($o),
+                type: (string) ($o['type'] ?? 'geo'),
+                audienceSize: null,
+                raw: $o,
+            ), array_filter((array) $res->json('data', []), 'is_array')));
         }
 
         // Label derived from the Graph search type so a 'adbehavior' search isn't
@@ -473,6 +489,18 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
             audienceSize: isset($o['audience_size_lower_bound']) ? (int) $o['audience_size_lower_bound'] : null,
             raw: $o,
         ), array_filter((array) $res->json('data', []), 'is_array')));
+    }
+
+    /** @param array<string,mixed> $o */
+    private function geoLabel(array $o): string
+    {
+        $name = (string) ($o['name'] ?? '');
+        $parts = array_values(array_filter([
+            is_string($o['region'] ?? null) ? $o['region'] : null,
+            is_string($o['country_name'] ?? null) ? $o['country_name'] : (is_string($o['country_code'] ?? null) ? $o['country_code'] : null),
+        ], fn ($p) => is_string($p) && $p !== '' && $p !== $name));
+
+        return $parts === [] ? $name : $name.' · '.implode(', ', $parts);
     }
 
     public function estimateAudience(string $accessToken, string $externalAccountId, array $targetingSpec, string $optimizationGoal): AudienceSizeDTO

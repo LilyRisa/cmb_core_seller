@@ -214,4 +214,40 @@ class FacebookAdsCreateTest extends TestCase
             return ! array_key_exists('publisher_platforms', $t);
         });
     }
+
+    public function test_search_targeting_geo_uses_adgeolocation_and_location_types(): void
+    {
+        Http::fake(['graph.facebook.com/*/search*' => Http::response(['data' => [
+            ['key' => 'VN', 'name' => 'Vietnam', 'type' => 'country'],
+            ['key' => '3658', 'name' => 'Hanoi', 'type' => 'region', 'country_code' => 'VN', 'country_name' => 'Vietnam'],
+            ['key' => '1006824', 'name' => 'Hanoi', 'type' => 'city', 'region' => 'Hanoi', 'country_code' => 'VN'],
+        ]], 200)]);
+
+        $out = $this->connector()->searchTargeting('tok', 'Hanoi', 'adgeolocation');
+
+        Http::assertSent(function ($r) {
+            return str_contains($r->url(), 'type=adgeolocation')
+                && str_contains(urldecode($r->url()), 'location_types');
+        });
+        $this->assertCount(3, $out);
+        $this->assertSame('VN', $out[0]->id);
+        $this->assertSame('country', $out[0]->type);
+        $this->assertSame('3658', $out[1]->id);
+        $this->assertSame('region', $out[1]->type);
+        $this->assertSame('1006824', $out[2]->id);
+        $this->assertSame('city', $out[2]->type);
+    }
+
+    public function test_search_targeting_interest_unchanged(): void
+    {
+        Http::fake(['graph.facebook.com/*/search*' => Http::response(['data' => [
+            ['id' => '123', 'name' => 'Coffee', 'audience_size_lower_bound' => 1000],
+        ]], 200)]);
+
+        $out = $this->connector()->searchTargeting('tok', 'coffee');
+
+        $this->assertSame('123', $out[0]->id);
+        $this->assertSame('interests', $out[0]->type);
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'type=adinterest'));
+    }
 }
