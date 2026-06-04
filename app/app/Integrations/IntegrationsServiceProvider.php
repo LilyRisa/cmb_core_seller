@@ -12,6 +12,8 @@ use CMBcoreSeller\Integrations\Carriers\Ghn\GhnConnector;
 use CMBcoreSeller\Integrations\Carriers\Ghtk\GhtkConnector;
 use CMBcoreSeller\Integrations\Carriers\Manual\ManualCarrierConnector;
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
+use CMBcoreSeller\Integrations\Ads\AdsRegistry;
+use CMBcoreSeller\Integrations\Ads\Facebook\FacebookAdsConnector;
 use CMBcoreSeller\Integrations\Channels\Lazada\LazadaConnector;
 use CMBcoreSeller\Integrations\Channels\Manual\ManualConnector;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeClient;
@@ -95,6 +97,15 @@ class IntegrationsServiceProvider extends ServiceProvider
         'tiktok_chat' => TikTokChatConnector::class,        // S4
         'lazada_chat' => LazadaChatConnector::class,        // S8 (best-effort, §11 Q3)
         'shopee_chat' => ShopeeChatConnector::class,        // SPEC-0024 (spec 2026-05-21)
+    ];
+
+    /**
+     * Ads providers (SPEC 2026-06-04). Loaded per `config('integrations.ads')`.
+     *
+     * @var array<string, class-string>
+     */
+    protected array $adsConnectors = [
+        'facebook' => FacebookAdsConnector::class,
     ];
 
     /**
@@ -199,6 +210,23 @@ class IntegrationsServiceProvider extends ServiceProvider
             }
 
             return $registry;
+        });
+
+        // Ads (SPEC 2026-06-04 — Facebook Ads). Mirror MessagingRegistry: only providers
+        // in `config('integrations.ads')` are registered (off by default ⇒ zero impact).
+        $this->app->singleton(AdsRegistry::class, function ($app) {
+            $registry = new AdsRegistry($app);
+            foreach (array_filter(array_map('trim', (array) config('integrations.ads', []))) as $code) {
+                if (isset($this->adsConnectors[$code])) {
+                    $registry->register($code, $this->adsConnectors[$code]);
+                }
+            }
+
+            return $registry;
+        });
+
+        $this->app->bind(FacebookAdsConnector::class, function () {
+            return new FacebookAdsConnector((array) config('integrations.ads_facebook', []));
         });
 
         // AI Assistant (SPEC-0024). Register adapter (anthropic/openai_compatible/

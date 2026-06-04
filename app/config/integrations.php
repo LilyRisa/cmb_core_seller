@@ -71,6 +71,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Facebook Ads (Marketing API) — near-real-time insights + AI optimization
+    |--------------------------------------------------------------------------
+    |
+    | `ads` = enabled providers CSV (INTEGRATIONS_ADS, vd `facebook`). Reuse the
+    | existing Meta app by default (Meta cho 1 app nhiều product/scope); override
+    | với FACEBOOK_ADS_* nếu dùng app riêng. ads_read cho Phase 1 (đọc); thêm
+    | ads_management ở Phase 3 (ghi). Xem docs/superpowers/specs/2026-06-04-...
+    |
+    */
+    'ads' => array_filter(explode(',', (string) env('INTEGRATIONS_ADS', ''))),
+
+    'ads_facebook' => [
+        'app_id' => env('FACEBOOK_ADS_APP_ID', env('MESSAGING_FACEBOOK_APP_ID')),
+        'app_secret' => env('FACEBOOK_ADS_APP_SECRET', env('MESSAGING_FACEBOOK_APP_SECRET')),
+        'graph_version' => env('FACEBOOK_ADS_GRAPH_VERSION', 'v19.0'),
+        'redirect_uri' => env('FACEBOOK_ADS_REDIRECT_URI'), // mặc định APP_URL + /oauth/facebook_ads/callback
+        'scopes' => env('FACEBOOK_ADS_SCOPES', 'ads_read,business_management'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Enabled shipping carriers
     |--------------------------------------------------------------------------
     |
