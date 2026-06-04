@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { App, Button, Card, Col, Empty, Row, Steps, Tag } from 'antd';
+import { App, Button, Card, Col, Empty, Row, Steps, Tag, Tooltip } from 'antd';
 import {
     AimOutlined,
     DollarOutlined,
@@ -13,6 +13,8 @@ import {
 import { useDraftStore } from '@/lib/adWizard/draftStore';
 import { useAdDraft, useCreateDraft, useUpdateDraft } from '@/lib/adWizard';
 import { PageHeader } from '@/components/PageHeader';
+import { StepObjective } from '@/pages/adWizard/StepObjective';
+import { StepBudget } from '@/pages/adWizard/StepBudget';
 
 const STEP_LABELS = ['Mục tiêu', 'Ngân sách', 'Đối tượng', 'Vị trí', 'Nội dung', 'Xuất bản'];
 const STEP_ICONS = [
@@ -25,7 +27,11 @@ const STEP_ICONS = [
 ];
 
 function renderStep(step: number): ReactNode {
-    return <Empty description={STEP_LABELS[step]} />;
+    switch (step) {
+        case 0: return <StepObjective />;
+        case 1: return <StepBudget />;
+        default: return <Empty description={STEP_LABELS[step]} />;
+    }
 }
 
 export function AdWizardPage() {
@@ -137,6 +143,14 @@ export function AdWizardPage() {
         );
     }
 
+    function canProceed(currentStep: number): boolean {
+        switch (currentStep) {
+            case 0: return objective != null;
+            case 1: return (payload.budget?.daily_major ?? 0) > 0;
+            default: return true;
+        }
+    }
+
     const autosaveIndicator = dirty
         ? <Tag color="processing">Đang lưu...</Tag>
         : <Tag color="success">Đã lưu</Tag>;
@@ -183,14 +197,18 @@ export function AdWizardPage() {
                             >
                                 Quay lại
                             </Button>,
-                            <Button
+                            <Tooltip
                                 key="next"
-                                type="primary"
-                                disabled={step === 5}
-                                onClick={() => setStep(step + 1)}
+                                title={!canProceed(step) ? 'Hãy hoàn tất bước này' : undefined}
                             >
-                                Tiếp tục
-                            </Button>,
+                                <Button
+                                    type="primary"
+                                    disabled={step === 5 || !canProceed(step)}
+                                    onClick={() => setStep(step + 1)}
+                                >
+                                    Tiếp tục
+                                </Button>
+                            </Tooltip>,
                         ]}
                     >
                         {renderStep(step)}
