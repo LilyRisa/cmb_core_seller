@@ -105,12 +105,55 @@ class FacebookAdsConnector implements AdsConnector
 
     public function listAdAccounts(string $accessToken): array
     {
-        throw UnsupportedOperation::for($this->code(), 'listAdAccounts');
+        $res = Http::timeout(30)->get($this->graphUrl('me/adaccounts'), [
+            'fields' => 'account_id,name,currency,account_status',
+            'access_token' => $accessToken, 'limit' => 200,
+        ]);
+        if (! $res->successful()) {
+            throw new \RuntimeException('Facebook Ads listAdAccounts failed: '.$res->body());
+        }
+
+        return array_values(array_map(fn (array $a) => new AdAccountDTO(
+            externalAccountId: (string) ($a['id'] ?? ('act_'.($a['account_id'] ?? ''))),
+            name: $a['name'] ?? null,
+            currency: $a['currency'] ?? null,
+            status: isset($a['account_status']) ? (string) $a['account_status'] : null,
+            raw: $a,
+        ), array_filter((array) $res->json('data', []), 'is_array')));
     }
 
     public function listEntities(string $accessToken, string $externalAccountId, string $level): array
     {
-        throw UnsupportedOperation::for($this->code(), 'listEntities');
+        $edge = match ($level) {
+            'campaign' => 'campaigns',
+            'adset' => 'adsets',
+            'ad' => 'ads',
+            default => throw UnsupportedOperation::for($this->code(), "listEntities({$level})"),
+        };
+        $fields = match ($level) {
+            'campaign' => 'id,name,status,effective_status,daily_budget,lifetime_budget',
+            'adset' => 'id,name,status,effective_status,daily_budget,lifetime_budget,campaign_id',
+            'ad' => 'id,name,status,effective_status,adset_id',
+            default => 'id,name,status',
+        };
+        $res = Http::timeout(30)->get($this->graphUrl($externalAccountId.'/'.$edge), [
+            'fields' => $fields, 'access_token' => $accessToken, 'limit' => 500,
+        ]);
+        if (! $res->successful()) {
+            throw new \RuntimeException("Facebook Ads listEntities({$level}) failed: ".$res->body());
+        }
+
+        return array_values(array_map(fn (array $e) => new AdEntityDTO(
+            level: $level,
+            externalId: (string) ($e['id'] ?? ''),
+            parentExternalId: isset($e['campaign_id']) ? (string) $e['campaign_id'] : (isset($e['adset_id']) ? (string) $e['adset_id'] : null),
+            name: $e['name'] ?? null,
+            status: $e['status'] ?? null,
+            effectiveStatus: $e['effective_status'] ?? null,
+            dailyBudget: isset($e['daily_budget']) ? (int) $e['daily_budget'] : null,
+            lifetimeBudget: isset($e['lifetime_budget']) ? (int) $e['lifetime_budget'] : null,
+            raw: $e,
+        ), array_filter((array) $res->json('data', []), 'is_array')));
     }
 
     public function fetchInsights(string $accessToken, string $externalId, string $level, array $query = [], ?AdInsightThrottleDTO &$throttleOut = null): array
