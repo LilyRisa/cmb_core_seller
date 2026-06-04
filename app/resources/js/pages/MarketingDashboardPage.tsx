@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { App as AntApp, Button, Card, Checkbox, Collapse, DatePicker, Dropdown, Empty, Input, Popconfirm, Result, Segmented, Select, Space, Spin, Statistic, Table, Tag, Typography } from 'antd';
 import { DisconnectOutlined, FacebookFilled, FundOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
@@ -90,9 +91,13 @@ export function MarketingDashboardPage() {
     const { data: forecast } = useAdForecast(selectedId);
     const genForecast = useGenerateForecast();
 
+    const qc = useQueryClient();
     const applyResult = (p: URLSearchParams) => {
-        if (p.get('connected') === 'facebook_ads') { message.success('Đã kết nối Facebook Ads!'); params.delete('connected'); setParams(params, { replace: true }); }
-        else { const e = p.get('error'); if (e?.startsWith('facebook_ads')) { message.error({ content: ADS_ERRORS[e] ?? 'Kết nối thất bại.', duration: 12 }); params.delete('error'); setParams(params, { replace: true }); } }
+        if (p.get('connected') === 'facebook_ads') {
+            message.success('Đã kết nối Facebook Ads!');
+            params.delete('connected'); setParams(params, { replace: true });
+            qc.invalidateQueries({ queryKey: ['marketing'] }); // refetch accounts/report ngay, không cần reload tay
+        } else { const e = p.get('error'); if (e?.startsWith('facebook_ads')) { message.error({ content: ADS_ERRORS[e] ?? 'Kết nối thất bại.', duration: 12 }); params.delete('error'); setParams(params, { replace: true }); } }
     };
     useEffect(() => {
         applyResult(params);
