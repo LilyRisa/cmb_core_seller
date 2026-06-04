@@ -10,6 +10,8 @@ final readonly class AdAccountDTO
         public ?string $name = null,
         public ?string $currency = null,
         public ?string $status = null,
+        public ?string $businessId = null,     // Business Manager id
+        public ?string $businessName = null,
         public array $raw = [],
     ) {}
 }

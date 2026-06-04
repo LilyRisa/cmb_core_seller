@@ -14,6 +14,7 @@ final readonly class AdEntityDTO
         public ?string $effectiveStatus,
         public ?int $dailyBudget,        // minor units
         public ?int $lifetimeBudget,
+        public ?string $objective = null,   // campaign objective (loại chiến dịch)
         public array $raw = [],
     ) {}
 }

@@ -106,7 +106,7 @@ class FacebookAdsConnector implements AdsConnector
     public function listAdAccounts(string $accessToken): array
     {
         $res = Http::timeout(30)->get($this->graphUrl('me/adaccounts'), [
-            'fields' => 'account_id,name,currency,account_status',
+            'fields' => 'account_id,name,currency,account_status,business{id,name}',
             'access_token' => $accessToken, 'limit' => 200,
         ]);
         if (! $res->successful()) {
@@ -118,6 +118,8 @@ class FacebookAdsConnector implements AdsConnector
             name: $a['name'] ?? null,
             currency: $a['currency'] ?? null,
             status: isset($a['account_status']) ? (string) $a['account_status'] : null,
+            businessId: isset($a['business']['id']) ? (string) $a['business']['id'] : null,
+            businessName: isset($a['business']['name']) ? (string) $a['business']['name'] : null,
             raw: $a,
         ), array_filter((array) $res->json('data', []), 'is_array')));
     }
@@ -131,8 +133,8 @@ class FacebookAdsConnector implements AdsConnector
             default => throw UnsupportedOperation::for($this->code(), "listEntities({$level})"),
         };
         $fields = [
-            'campaign' => 'id,name,status,effective_status,daily_budget,lifetime_budget',
-            'adset' => 'id,name,status,effective_status,daily_budget,lifetime_budget,campaign_id',
+            'campaign' => 'id,name,status,effective_status,daily_budget,lifetime_budget,objective',
+            'adset' => 'id,name,status,effective_status,daily_budget,lifetime_budget,campaign_id,optimization_goal,billing_event',
             'ad' => 'id,name,status,effective_status,adset_id',
         ][$level];
         $res = Http::timeout(30)->get($this->graphUrl($externalAccountId.'/'.$edge), [
@@ -151,6 +153,7 @@ class FacebookAdsConnector implements AdsConnector
             effectiveStatus: $e['effective_status'] ?? null,
             dailyBudget: isset($e['daily_budget']) ? (int) $e['daily_budget'] : null,
             lifetimeBudget: isset($e['lifetime_budget']) ? (int) $e['lifetime_budget'] : null,
+            objective: isset($e['objective']) ? (string) $e['objective'] : null,
             raw: $e,
         ), array_filter((array) $res->json('data', []), 'is_array')));
     }
