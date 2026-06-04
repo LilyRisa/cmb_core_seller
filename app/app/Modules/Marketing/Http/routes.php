@@ -7,6 +7,7 @@ use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdForecastController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdInsightController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdminMarketingAiProviderController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdsOAuthController;
+use CMBcoreSeller\Modules\Marketing\Http\Controllers\GeoExclusionTemplateController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -61,6 +62,11 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
         Route::patch('ad-drafts/{id}', [AdDraftController::class, 'update'])->whereNumber('id')->name('marketing.ad-drafts.update');
         Route::delete('ad-drafts/{id}', [AdDraftController::class, 'destroy'])->whereNumber('id')->name('marketing.ad-drafts.destroy');
         Route::post('ad-drafts/{id}/publish', [AdDraftController::class, 'publish'])->whereNumber('id')->name('marketing.ad-drafts.publish');
+
+        // Geo exclusion templates (tenant-scoped saved sets of excluded locations).
+        Route::get('exclusion-templates', [GeoExclusionTemplateController::class, 'index'])->name('marketing.exclusion-templates.index');
+        Route::post('exclusion-templates', [GeoExclusionTemplateController::class, 'store'])->name('marketing.exclusion-templates.store');
+        Route::delete('exclusion-templates/{template}', [GeoExclusionTemplateController::class, 'destroy'])->name('marketing.exclusion-templates.destroy');
     });
 
 // Super-admin: dedicated marketing AI provider (separate from messaging ai-providers).
