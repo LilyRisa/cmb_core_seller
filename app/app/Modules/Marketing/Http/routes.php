@@ -52,6 +52,7 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
         Route::get('ad-accounts/{id}/pages/{pageId}/posts', [AdAuthoringController::class, 'pagePosts'])->whereNumber('id')->name('marketing.authoring.page-posts');
         Route::get('ad-accounts/{id}/targeting-search', [AdAuthoringController::class, 'targetingSearch'])->whereNumber('id')->name('marketing.authoring.targeting-search');
         Route::post('ad-accounts/{id}/audience-estimate', [AdAuthoringController::class, 'audienceEstimate'])->whereNumber('id')->name('marketing.authoring.audience-estimate');
+        Route::post('ad-accounts/{id}/ad-previews', [AdAuthoringController::class, 'previews'])->whereNumber('id')->name('marketing.authoring.previews');
 
         // Wizard drafts (CRUD + autosave). Write gated by marketing.ads.create.
         Route::get('ad-drafts', [AdDraftController::class, 'index'])->name('marketing.ad-drafts.index');

@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Marketing\Http\Controllers;
 use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Integrations\Ads\AdsRegistry;
 use CMBcoreSeller\Integrations\Ads\Contracts\AdsWriteConnector;
+use CMBcoreSeller\Integrations\Ads\DTO\AdPreviewDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\PagePostDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\PageRefDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\TargetingOptionDTO;
@@ -84,6 +85,24 @@ class AdAuthoringController extends Controller
         );
 
         return response()->json(['data' => ['lower_bound' => $size->lowerBound, 'upper_bound' => $size->upperBound]]);
+    }
+
+    /** POST ad-accounts/{id}/ad-previews { creative, formats[] } */
+    public function previews(int $id, Request $request): JsonResponse
+    {
+        Gate::authorize('marketing.view');
+        [$account, $connector] = $this->resolve($id);
+
+        /** @var list<string> $formats */
+        $formats = array_values(array_filter((array) $request->input('formats', []), 'is_string'));
+        if ($formats === []) {
+            $formats = ['DESKTOP_FEED_STANDARD', 'MOBILE_FEED_STANDARD'];
+        }
+
+        $previews = array_map(fn (AdPreviewDTO $p) => ['format' => $p->format, 'body' => $p->body],
+            $connector->generatePreviews((string) $account->access_token, $account->external_account_id, (array) $request->input('creative', []), $formats));
+
+        return response()->json(['data' => $previews]);
     }
 
     /**
