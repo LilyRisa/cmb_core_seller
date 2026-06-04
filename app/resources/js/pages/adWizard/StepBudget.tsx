@@ -1,4 +1,4 @@
-import { DatePicker, Form, InputNumber, Segmented, Space, Typography } from 'antd';
+import { DatePicker, Empty, Form, InputNumber, Segmented, Space, Typography } from 'antd';
 import type { SegmentedProps } from 'antd';
 import dayjs from 'dayjs';
 import { useDraftStore } from '@/lib/adWizard/draftStore';
@@ -12,32 +12,41 @@ const BUDGET_TYPE_OPTIONS: SegmentedProps['options'] = [
 ];
 
 export function StepBudget() {
-    const payload = useDraftStore((s) => s.payload);
-    const patchPayload = useDraftStore((s) => s.patchPayload);
+    const adsets = useDraftStore((s) => s.adsets);
+    const selectedAdSetKey = useDraftStore((s) => s.selectedAdSetKey);
+    const updateAdSet = useDraftStore((s) => s.updateAdSet);
 
-    const budgetType: BudgetType = (payload.budget?.type as BudgetType | undefined) ?? 'daily';
-    const dailyMajor = payload.budget?.daily_major;
-    const startTime = payload.schedule?.start_time;
+    const adset = adsets.find((a) => a.key === selectedAdSetKey);
 
-    function handleBudgetTypeChange(value: string | number) {
-        patchPayload({ budget: { type: value as BudgetType, daily_major: dailyMajor ?? 0 } });
+    if (adset == null) {
+        return <Empty description="Chọn hoặc thêm một nhóm quảng cáo" />;
     }
 
+    const adsetKey = adset.key;
+    const adsetName = adset.name;
+    const dailyMajor = adset.budget?.daily_major;
+    const startTime = adset.schedule?.start_time;
+
     function handleDailyMajorChange(value: number | null) {
-        patchPayload({ budget: { type: budgetType, daily_major: Number(value) || 0 } });
+        updateAdSet(adsetKey, { budget: { daily_major: Number(value) || 0 } });
     }
 
     function handleStartTimeChange(d: dayjs.Dayjs | null) {
-        patchPayload({ schedule: { start_time: d != null ? d.toISOString() : null } });
+        updateAdSet(adsetKey, { schedule: { start_time: d != null ? d.toISOString() : null } });
     }
 
     return (
         <Form layout="vertical">
+            <Form.Item>
+                <Text type="secondary">
+                    Ngân sách áp dụng cho nhóm: <b>{adsetName}</b>.
+                </Text>
+            </Form.Item>
+
             <Form.Item label="Kiểu ngân sách">
                 <Segmented
                     options={BUDGET_TYPE_OPTIONS}
-                    value={budgetType}
-                    onChange={handleBudgetTypeChange}
+                    value={'daily' as BudgetType}
                 />
             </Form.Item>
 

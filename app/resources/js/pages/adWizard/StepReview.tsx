@@ -28,30 +28,38 @@ export function StepReview() {
     const accountId = useDraftStore((s) => s.accountId);
     const name = useDraftStore((s) => s.name);
     const objective = useDraftStore((s) => s.objective);
-    const payload = useDraftStore((s) => s.payload);
+    const adsets = useDraftStore((s) => s.adsets);
 
     const { data: draftData } = useAdDraft(draftId);
     const previewMutation = useAdPreviews();
     const publishMutation = usePublishDraft();
 
-    const creative = payload.creative;
-    const mode = creative?.mode ?? 'page_post';
-
-    const contentLabel = mode === 'page_post' ? 'Bài viết có sẵn' : 'Nội dung mới';
-    const ctaLabel = creative?.cta ?? '—';
+    const firstCreative = adsets[0]?.ads[0]?.creative;
 
     const canPublish =
         objective != null &&
-        (payload.budget?.daily_major ?? 0) > 0 &&
-        (mode === 'page_post' ? (creative?.page_post_id ?? '') !== '' : (creative?.primary_text ?? '') !== '');
+        adsets.length > 0 &&
+        adsets.every(
+            (as) =>
+                (as.budget?.daily_major ?? 0) > 0 &&
+                as.ads.length > 0 &&
+                as.ads.every(
+                    (ad) =>
+                        (ad.creative.page_post_id ?? '') !== '' ||
+                        (ad.creative.primary_text ?? '') !== '',
+                ),
+        );
+
+    const totalBudget = adsets.reduce((n, as) => n + (as.budget?.daily_major ?? 0), 0);
+    const totalAds = adsets.reduce((n, as) => n + as.ads.length, 0);
 
     function handlePreview() {
-        if (accountId == null) return;
+        if (accountId == null || firstCreative == null) return;
         const creativeSpec: Record<string, unknown> = {
-            page_id: creative?.page_id,
+            page_id: firstCreative.page_id,
             link_data: {
-                message: creative?.primary_text ?? name ?? 'Xem thêm',
-                call_to_action: creative?.cta ? { type: creative.cta } : undefined,
+                message: firstCreative.primary_text ?? name ?? 'Xem thêm',
+                call_to_action: firstCreative.cta ? { type: firstCreative.cta } : undefined,
             },
         };
         previewMutation.mutate(
@@ -79,11 +87,11 @@ export function StepReview() {
                 <Descriptions.Item label="Mục tiêu">
                     {objective != null ? OBJECTIVE_LABELS[objective] : '—'}
                 </Descriptions.Item>
-                <Descriptions.Item label="Ngân sách/ngày">
-                    {formatBudget(payload.budget?.daily_major)}
+                <Descriptions.Item label="Số nhóm">{adsets.length}</Descriptions.Item>
+                <Descriptions.Item label="Số quảng cáo">{totalAds}</Descriptions.Item>
+                <Descriptions.Item label="Ngân sách/ngày (tổng)">
+                    {formatBudget(totalBudget)}
                 </Descriptions.Item>
-                <Descriptions.Item label="Nội dung">{contentLabel}</Descriptions.Item>
-                <Descriptions.Item label="CTA">{ctaLabel}</Descriptions.Item>
             </Descriptions>
 
             {draftData?.last_error != null && (
@@ -99,7 +107,7 @@ export function StepReview() {
                 <Button
                     onClick={handlePreview}
                     loading={previewMutation.isPending}
-                    disabled={accountId == null}
+                    disabled={accountId == null || firstCreative == null}
                 >
                     Tạo xem trước
                 </Button>

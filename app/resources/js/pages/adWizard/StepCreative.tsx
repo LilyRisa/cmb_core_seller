@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
     Alert,
     Button,
@@ -264,16 +264,26 @@ export function StepCreative() {
     const adset = adsets.find((a) => a.key === selectedAdSetKey);
 
     const [selectedAdKey, setSelectedAdKey] = useState<string | null>(null);
+    const prevAdsLengthRef = useRef<number>(0);
 
-    // When adset changes, default to first ad
+    // When adset changes, default to first ad; when ads.length grows, select the last (newly added) ad
     useEffect(() => {
-        if (adset != null && adset.ads.length > 0) {
-            setSelectedAdKey((prev) => {
-                // Keep current selection if it still exists in this ad set
-                if (prev != null && adset.ads.some((d) => d.key === prev)) return prev;
-                return adset.ads[0].key;
-            });
+        if (adset == null || adset.ads.length === 0) {
+            prevAdsLengthRef.current = 0;
+            return;
         }
+        const prevLen = prevAdsLengthRef.current;
+        prevAdsLengthRef.current = adset.ads.length;
+        if (adset.ads.length > prevLen && prevLen > 0) {
+            // A new ad was added — select it
+            setSelectedAdKey(adset.ads[adset.ads.length - 1].key);
+            return;
+        }
+        setSelectedAdKey((prev) => {
+            // Keep current selection if it still exists in this ad set
+            if (prev != null && adset.ads.some((d) => d.key === prev)) return prev;
+            return adset.ads[0].key;
+        });
     }, [adset]);
 
     if (adset == null) {

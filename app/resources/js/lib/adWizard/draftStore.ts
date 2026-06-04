@@ -62,7 +62,9 @@ type WizardActions = {
     markSaved: () => void;
 };
 
-const withTree = (adsets: AdSetNode[]): Partial<WizardState> => ({ adsets, payload: { adsets } as AdDraftPayload, dirty: true });
+function mergeTree(s: WizardState, adsets: AdSetNode[]): Partial<WizardState> {
+    return { adsets, payload: { ...s.payload, adsets }, dirty: true };
+}
 
 export const useDraftStore = create<WizardState & WizardActions>()((set) => ({
     draftId: null, accountId: null, step: 0, name: '', objective: null, payload: {}, adsets: [], selectedAdSetKey: null, dirty: false,
@@ -83,15 +85,16 @@ export const useDraftStore = create<WizardState & WizardActions>()((set) => ({
     addAdSet: () => set((s) => {
         const node = emptyAdSet(s.adsets.length + 1);
         const adsets = [...s.adsets, node];
-        return { ...withTree(adsets), selectedAdSetKey: node.key };
+        return { ...mergeTree(s, adsets), selectedAdSetKey: node.key };
     }),
     removeAdSet: (key) => set((s) => {
-        const adsets = s.adsets.filter((a) => a.key !== key);
-        return { ...withTree(adsets.length ? adsets : [emptyAdSet(1)]), selectedAdSetKey: (adsets[0] ?? null)?.key ?? null };
+        const filtered = s.adsets.filter((a) => a.key !== key);
+        const next = filtered.length ? filtered : [emptyAdSet(1)];
+        return { ...mergeTree(s, next), selectedAdSetKey: next[0].key };
     }),
-    updateAdSet: (key, patch) => set((s) => withTree(s.adsets.map((a) => (a.key === key ? { ...a, ...patch } : a)))),
-    addAd: (adsetKey) => set((s) => withTree(s.adsets.map((a) => (a.key === adsetKey ? { ...a, ads: [...a.ads, { key: nextKey('ad'), name: `Quảng cáo ${a.ads.length + 1}`, external_id: null, creative: { mode: 'page_post' } }] } : a)))),
-    removeAd: (adsetKey, adKey) => set((s) => withTree(s.adsets.map((a) => (a.key === adsetKey ? { ...a, ads: a.ads.filter((d) => d.key !== adKey) } : a)))),
-    updateAd: (adsetKey, adKey, patch) => set((s) => withTree(s.adsets.map((a) => (a.key === adsetKey ? { ...a, ads: a.ads.map((d) => (d.key === adKey ? { ...d, ...patch } : d)) } : a)))),
+    updateAdSet: (key, patch) => set((s) => mergeTree(s, s.adsets.map((a) => (a.key === key ? { ...a, ...patch } : a)))),
+    addAd: (adsetKey) => set((s) => mergeTree(s, s.adsets.map((a) => (a.key === adsetKey ? { ...a, ads: [...a.ads, { key: nextKey('ad'), name: `Quảng cáo ${a.ads.length + 1}`, external_id: null, creative: { mode: 'page_post' } }] } : a)))),
+    removeAd: (adsetKey, adKey) => set((s) => mergeTree(s, s.adsets.map((a) => (a.key === adsetKey ? { ...a, ads: a.ads.filter((d) => d.key !== adKey) } : a)))),
+    updateAd: (adsetKey, adKey, patch) => set((s) => mergeTree(s, s.adsets.map((a) => (a.key === adsetKey ? { ...a, ads: a.ads.map((d) => (d.key === adKey ? { ...d, ...patch } : d)) } : a)))),
     markSaved: () => set({ dirty: false }),
 }));

@@ -37,7 +37,7 @@ const STEP_ICONS = [
 function renderStep(step: number): ReactNode {
     switch (step) {
         case 0: return <StepObjective />;
-        case 1: return <StepBudget />;
+        case 1: return <><AdSetSelector /><StepBudget /></>;
         case 2: return <><AdSetSelector /><StepAudience /></>;
         case 3: return <><AdSetSelector /><StepPlacements /></>;
         case 4: return <><AdSetSelector /><StepCreative /></>;
@@ -171,17 +171,16 @@ export function AdWizardPage() {
     function canProceed(currentStep: number): boolean {
         switch (currentStep) {
             case 0: return objective != null;
-            case 1: return (payload.budget?.daily_major ?? 0) > 0;
-            case 4: {
-                // Check the selected ad set has at least one ad with creative content
+            case 1: {
                 const adset = adsets.find((a) => a.key === selectedAdSetKey);
-                if (adset == null || adset.ads.length === 0) return false;
-                return adset.ads.some((ad) => {
-                    const c = ad.creative;
-                    const mode = c?.mode ?? 'page_post';
-                    if (mode === 'page_post') return (c?.page_post_id ?? '') !== '';
-                    return (c?.primary_text ?? '') !== '';
-                });
+                return (adset?.budget?.daily_major ?? 0) > 0;
+            }
+            case 4: {
+                return adsets.length > 0 && adsets.every(
+                    (as) => as.ads.length > 0 && as.ads.every(
+                        (ad) => (ad.creative.page_post_id ?? '') !== '' || (ad.creative.primary_text ?? '') !== '',
+                    ),
+                );
             }
             default: return true;
         }
