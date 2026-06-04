@@ -15,6 +15,7 @@ import { AdminBroadcastsPage } from './pages/tenants/AdminBroadcastsPage';
 import { AdminUsersPage } from './pages/users/AdminUsersPage';
 import { SystemSettingsPage } from './pages/settings/SystemSettingsPage';
 import { AdminAiProvidersPage } from './pages/settings/AdminAiProvidersPage';
+import { AdminMarketingAiProvidersPage } from './pages/settings/AdminMarketingAiProvidersPage';
 import { AdminAiSupportPage } from './pages/settings/AdminAiSupportPage';
 import { AdminSupportRequestsPage } from './pages/support/AdminSupportRequestsPage';
 
@@ -40,6 +41,7 @@ export function AdminApp() {
                     <Route path="users" element={<AdminUsersPage />} />
                     <Route path="settings" element={<SystemSettingsPage />} />
                     <Route path="ai-providers" element={<AdminAiProvidersPage />} />
+                    <Route path="marketing-ai-providers" element={<AdminMarketingAiProvidersPage />} />
                     <Route path="ai-support" element={<AdminAiSupportPage />} />
                     <Route path="support-requests" element={<AdminSupportRequestsPage />} />
                     <Route path="*" element={<Navigate to="/admin" replace />} />
