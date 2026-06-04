@@ -9,6 +9,7 @@ use CMBcoreSeller\Modules\Customers\CustomersServiceProvider;
 use CMBcoreSeller\Modules\Finance\FinanceServiceProvider;
 use CMBcoreSeller\Modules\Fulfillment\FulfillmentServiceProvider;
 use CMBcoreSeller\Modules\Inventory\InventoryServiceProvider;
+use CMBcoreSeller\Modules\Marketing\MarketingServiceProvider;
 use CMBcoreSeller\Modules\Messaging\MessagingServiceProvider;
 use CMBcoreSeller\Modules\Notifications\NotificationsServiceProvider;
 use CMBcoreSeller\Modules\Orders\OrdersServiceProvider;
@@ -48,4 +49,6 @@ return [
     MessagingServiceProvider::class,
     // SPEC-0028 — Trợ lý trợ giúp sản phẩm (RAG help-bot) + yêu cầu CSKH.
     SupportServiceProvider::class,
+    // SPEC 2026-06-04 — Facebook Ads near-real-time + AI optimization.
+    MarketingServiceProvider::class,
 ];
