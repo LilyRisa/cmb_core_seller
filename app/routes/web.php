@@ -3,6 +3,7 @@
 use CMBcoreSeller\Http\Controllers\AdminSpaController;
 use CMBcoreSeller\Http\Controllers\SpaController;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\OAuthCallbackController;
+use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdsOAuthController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\FacebookOAuthController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\LazadaImOAuthController;
 use Illuminate\Support\Facades\Route;
@@ -40,7 +41,7 @@ Route::get('oauth/lazada_im/callback', [LazadaImOAuthController::class, 'callbac
     ->name('messaging.lazada_im.callback');
 
 // Facebook Ads (Marketing API) OAuth — SPEC 2026-06-04, ads_read token riêng.
-Route::get('oauth/facebook_ads/callback', [\CMBcoreSeller\Modules\Marketing\Http\Controllers\AdsOAuthController::class, 'callback'])
+Route::get('oauth/facebook_ads/callback', [AdsOAuthController::class, 'callback'])
     ->name('marketing.facebook_ads.callback');
 
 // --- Admin SPA shell (Spec 2026-05-17) ---

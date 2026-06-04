@@ -7,6 +7,8 @@ use CMBcoreSeller\Modules\Channels\Jobs\SyncReturnsForShop;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\SyncRun;
 use CMBcoreSeller\Modules\Fulfillment\Jobs\SyncShipmentTracking;
+use CMBcoreSeller\Modules\Marketing\Jobs\SyncAdInsights;
+use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
 use CMBcoreSeller\Modules\Messaging\Jobs\SyncConversationsForShop;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Inspiring;
@@ -127,9 +129,9 @@ Schedule::call(function () {
 // Every 15': poll Facebook ad insights for active ad accounts (FB refreshes ~15').
 // SPEC 2026-06-04. ShouldBeUnique(900s) guards overlap; throttle pacing inside the job.
 Schedule::call(function () {
-    \CMBcoreSeller\Modules\Marketing\Models\AdAccount::withoutGlobalScope(\CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class)
+    AdAccount::withoutGlobalScope(TenantScope::class)
         ->where('status', 'active')->orderBy('id')
-        ->each(fn ($a) => \CMBcoreSeller\Modules\Marketing\Jobs\SyncAdInsights::dispatch((int) $a->id));
+        ->each(fn ($a) => SyncAdInsights::dispatch((int) $a->id));
 })->everyFifteenMinutes()->name('ads-insights-poll')->onOneServer()->withoutOverlapping();
 
 // Prune old framework rows so the DB stays lean.

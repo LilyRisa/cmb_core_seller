@@ -2,6 +2,8 @@
 
 namespace CMBcoreSeller\Integrations;
 
+use CMBcoreSeller\Integrations\Ads\AdsRegistry;
+use CMBcoreSeller\Integrations\Ads\Facebook\FacebookAdsConnector;
 use CMBcoreSeller\Integrations\Ai\AiAssistantRegistry;
 use CMBcoreSeller\Integrations\Ai\Claude\ClaudeConnector;
 use CMBcoreSeller\Integrations\Ai\CustomHttp\CustomHttpConnector;
@@ -12,8 +14,6 @@ use CMBcoreSeller\Integrations\Carriers\Ghn\GhnConnector;
 use CMBcoreSeller\Integrations\Carriers\Ghtk\GhtkConnector;
 use CMBcoreSeller\Integrations\Carriers\Manual\ManualCarrierConnector;
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
-use CMBcoreSeller\Integrations\Ads\AdsRegistry;
-use CMBcoreSeller\Integrations\Ads\Facebook\FacebookAdsConnector;
 use CMBcoreSeller\Integrations\Channels\Lazada\LazadaConnector;
 use CMBcoreSeller\Integrations\Channels\Manual\ManualConnector;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeClient;
