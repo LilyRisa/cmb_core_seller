@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { App, Button, Card, Col, Empty, Row, Steps, Tag, Tooltip } from 'antd';
 import {
@@ -7,6 +7,7 @@ import {
     LayoutOutlined,
     PictureOutlined,
     QuestionCircleOutlined,
+    RobotOutlined,
     RocketOutlined,
     TeamOutlined,
 } from '@ant-design/icons';
@@ -18,6 +19,9 @@ import { StepBudget } from '@/pages/adWizard/StepBudget';
 import { StepAudience } from '@/pages/adWizard/StepAudience';
 import { StepPlacements } from '@/pages/adWizard/StepPlacements';
 import { StepCreative } from '@/pages/adWizard/StepCreative';
+import { StepReview } from '@/pages/adWizard/StepReview';
+import { WizardTour } from '@/pages/adWizard/WizardTour';
+import { AiAssistantDrawer } from '@/pages/adWizard/AiAssistantDrawer';
 
 const STEP_LABELS = ['Mục tiêu', 'Ngân sách', 'Đối tượng', 'Vị trí', 'Nội dung', 'Xuất bản'];
 const STEP_ICONS = [
@@ -36,6 +40,7 @@ function renderStep(step: number): ReactNode {
         case 2: return <StepAudience />;
         case 3: return <StepPlacements />;
         case 4: return <StepCreative />;
+        case 5: return <StepReview />;
         default: return <Empty description={STEP_LABELS[step]} />;
     }
 }
@@ -45,6 +50,9 @@ export function AdWizardPage() {
     const { draftId: draftIdParam } = useParams<{ draftId?: string }>();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
+
+    const [tourOpen, setTourOpen] = useState(false);
+    const [aiOpen, setAiOpen] = useState(false);
 
     const draftId = draftIdParam != null ? Number(draftIdParam) : null;
     const accountIdFromParams = searchParams.get('accountId');
@@ -135,6 +143,14 @@ export function AdWizardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [dirty, storeDraftId, name, objective, payload]);
 
+    // Auto-open tour on first visit
+    useEffect(() => {
+        if (localStorage.getItem('adwizard.tour.seen') == null) {
+            setTourOpen(true);
+            localStorage.setItem('adwizard.tour.seen', '1');
+        }
+    }, []);
+
     // No accountId and no draftId — dead end
     if (draftId == null && accountId == null) {
         return (
@@ -178,7 +194,14 @@ export function AdWizardPage() {
                 title="Tạo quảng cáo Facebook"
                 subtitle={autosaveIndicator}
                 extra={
-                    <Button icon={<QuestionCircleOutlined />}>Hướng dẫn</Button>
+                    <>
+                        <Button icon={<QuestionCircleOutlined />} onClick={() => setTourOpen(true)}>
+                            Hướng dẫn
+                        </Button>
+                        <Button icon={<RobotOutlined />} onClick={() => setAiOpen(true)} style={{ marginLeft: 8 }}>
+                            Trợ lý AI
+                        </Button>
+                    </>
                 }
             />
 
@@ -234,6 +257,14 @@ export function AdWizardPage() {
                     </Card>
                 </Col>
             </Row>
+
+            <WizardTour open={tourOpen} onClose={() => setTourOpen(false)} />
+            <AiAssistantDrawer
+                open={aiOpen}
+                onClose={() => setAiOpen(false)}
+                step={step}
+                payload={payload}
+            />
         </div>
     );
 }
