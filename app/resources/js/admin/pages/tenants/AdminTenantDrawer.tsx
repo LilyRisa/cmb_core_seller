@@ -200,7 +200,7 @@ const PLAN_OPTIONS: Array<{ value: string; label: string }> = [
     { value: 'business', label: 'Business' },
 ];
 
-function PlanTab({ tenantId, sub }: { tenantId: number; sub: import('@/lib/admin').AdminSubscription | null }) {
+function PlanTab({ tenantId, sub }: { tenantId: number; sub: import('@admin/lib/admin').AdminSubscription | null }) {
     const change = useAdminChangePlan();
     // Danh sách gói lấy động từ DB (gồm cả gói nội bộ/test do super-admin seed, vd `test_unlimited`),
     // thay cho danh sách cứng — admin gán được mọi gói đang active. Fallback PLAN_OPTIONS khi đang tải.
@@ -282,7 +282,7 @@ function PlanTab({ tenantId, sub }: { tenantId: number; sub: import('@/lib/admin
 
 // -- Members tab -------------------------------------------------------------
 
-function MembersTab({ members }: { members: import('@/lib/admin').AdminMember[] }) {
+function MembersTab({ members }: { members: import('@admin/lib/admin').AdminMember[] }) {
     if (members.length === 0) return <Empty description="Chưa có thành viên." />;
 
     return (
@@ -302,7 +302,7 @@ function MembersTab({ members }: { members: import('@/lib/admin').AdminMember[] 
 
 // -- Audit tab ---------------------------------------------------------------
 
-function AuditTab({ entries }: { entries: import('@/lib/admin').AdminAuditEntry[] }) {
+function AuditTab({ entries }: { entries: import('@admin/lib/admin').AdminAuditEntry[] }) {
     if (entries.length === 0) return <Empty description="Chưa có thao tác admin nào trên tenant này." />;
 
     return (

@@ -37,7 +37,7 @@ function buildTree(rows: ChartAccount[]): TreeRow[] {
     // Bỏ children rỗng để Table không vẽ expand icon dư.
     const cleanup = (n: TreeRow): TreeRow => {
         if (!n.children || n.children.length === 0) {
-            const { children, ...rest } = n;
+            const { children: _children, ...rest } = n;
             return rest as TreeRow;
         }
         n.children = n.children.map(cleanup);

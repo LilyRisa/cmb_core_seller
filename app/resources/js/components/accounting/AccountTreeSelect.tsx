@@ -68,7 +68,7 @@ export function AccountTreeSelect({
         // Bỏ children rỗng để TreeSelect không hiển thị mũi tên trống.
         const cleanup = (n: TreeNode): TreeNode => {
             if (n.children && n.children.length === 0) {
-                const { children, ...rest } = n;
+                const { children: _children, ...rest } = n;
                 return rest;
             }
             if (n.children) {

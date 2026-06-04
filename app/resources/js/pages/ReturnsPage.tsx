@@ -96,7 +96,7 @@ export function ReturnsPage() {
                     />
                     <Segmented
                         value={params.get('kind') ?? 'all'}
-                        onChange={(v) => { const m = new URLSearchParams(params); v === 'all' ? m.delete('kind') : m.set('kind', String(v)); m.delete('page'); setParams(m, { replace: true }); }}
+                        onChange={(v) => { const m = new URLSearchParams(params); if (v === 'all') m.delete('kind'); else m.set('kind', String(v)); m.delete('page'); setParams(m, { replace: true }); }}
                         options={[{ label: 'Mọi loại', value: 'all' }, { label: 'Trả hàng', value: 'return' }, { label: 'Hoàn tiền', value: 'refund' }, { label: 'Hủy đơn', value: 'cancel' }]}
                     />
                 </Space>

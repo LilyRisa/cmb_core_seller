@@ -17,7 +17,8 @@
         "types": ["vite/client", "node"],
         "baseUrl": "resources/js",
         "paths": {
-            "@/*": ["*"]
+            "@/*": ["*"],
+            "@admin/*": ["admin/*"]
         }
     },
     "include": ["resources/js/**/*.ts", "resources/js/**/*.tsx", "vite.config.ts"]

@@ -227,7 +227,7 @@ function ImportStatementModal({ open, onClose, accounts }: { open: boolean; onCl
                 const cols = rows[i].split(',').map((c) => c.trim());
                 if (cols.length < 2) continue;
                 const date = cols[0];
-                const amount = Number(cols[1].replace(/[^\d\-]/g, ''));
+                const amount = Number(cols[1].replace(/[^\d-]/g, ''));
                 if (Number.isNaN(amount) || amount === 0) continue;
                 out.push({
                     txn_date: dayjs(date, ['YYYY-MM-DD', 'DD/MM/YYYY', 'YYYY-MM-DD HH:mm:ss']).format('YYYY-MM-DD HH:mm:ss'),
@@ -239,7 +239,7 @@ function ImportStatementModal({ open, onClose, accounts }: { open: boolean; onCl
             }
             setCsvLines(out);
             setParseErr(null);
-        } catch (e) {
+        } catch {
             setParseErr('Không đọc được CSV. Vui lòng kiểm tra định dạng (UTF-8).');
         }
         return false; // chặn upload tự động — chỉ parse client
