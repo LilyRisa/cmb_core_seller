@@ -121,6 +121,14 @@ x-app-env: &app-env
   LAZADA_APP_KEY: ${LAZADA_APP_KEY}
   LAZADA_APP_SECRET: ${LAZADA_APP_SECRET}
   LAZADA_SANDBOX: "${LAZADA_SANDBOX:-false}"
+  # Lazada IM Chat — app "IM ERP" RIÊNG (tách khỏi app orders; Lazada gate quyền IM theo app).
+  # Nhập 2 biến này ở Portainer để bật; để trống = chưa bật IM chat. `redirect_uri` trống ⇒ connector
+  # tự suy <APP_URL>/oauth/lazada_im/callback. Host API/auth/authorize KHÔNG khai ở đây để dùng default
+  # đúng (VN) — nếu cần đổi region, thêm LAZADA_IM_API_BASE_URL/AUTH_BASE_URL/AUTHORIZE_URL (giá trị
+  # KHÔNG để trống). Xem docs/04-channels/lazada-chat-setup.md.
+  LAZADA_IM_APP_KEY: ${LAZADA_IM_APP_KEY:-}
+  LAZADA_IM_APP_SECRET: ${LAZADA_IM_APP_SECRET:-}
+  LAZADA_IM_REDIRECT_URI: ${LAZADA_IM_REDIRECT_URI:-}
   # shopee — connector faithful theo Shopee Open Platform v2 (docs/04-channels/shopee.md). Build sẵn nhưng
   # CHƯA bật mặc định: thêm `shopee` vào INTEGRATIONS_CHANNELS SAU khi verify sandbox. PARTNER_KEY là BÍ MẬT
   # (ký HMAC request + verify webhook) — KHÔNG để default; nhập ở Portainer/.env. Super-admin cũng đặt được ở
