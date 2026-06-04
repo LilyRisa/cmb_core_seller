@@ -36,7 +36,7 @@ export function SettingsMembersPage() {
         <div>
             <Typography.Title level={3}>Thành viên & phân quyền</Typography.Title>
             <Typography.Paragraph type="secondary">
-                Workspace hiện tại: <b>{tenant?.name ?? '—'}</b>. Quy ước vai trò: xem <code>docs/01-architecture/multi-tenancy-and-rbac.md</code>.
+                Workspace hiện tại: <b>{tenant?.name ?? '—'}</b>.
             </Typography.Paragraph>
 
             {canManage && (

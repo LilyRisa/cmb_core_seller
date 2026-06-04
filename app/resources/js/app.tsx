@@ -79,7 +79,7 @@ function ComingSoon({ title, phase }: { title: string; phase?: string }) {
         <Result
             icon={<ToolOutlined style={{ fontSize: 48, color: '#2563EB' }} />}
             title={title}
-            subTitle={<Typography.Text type="secondary">Tính năng này sẽ được xây dựng theo roadmap{phase ? ` (${phase})` : ''} — xem <code>docs/00-overview/roadmap.md</code>.</Typography.Text>}
+            subTitle={<Typography.Text type="secondary">Tính năng này sẽ được xây dựng theo roadmap{phase ? ` (${phase})` : ''}.</Typography.Text>}
         />
     );
 }
