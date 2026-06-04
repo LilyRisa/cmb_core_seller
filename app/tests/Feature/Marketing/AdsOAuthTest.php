@@ -67,6 +67,38 @@ class AdsOAuthTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_callback_reconnects_after_disconnect_without_unique_violation(): void
+    {
+        Queue::fake();
+        Http::fake([
+            'graph.facebook.com/*oauth/access_token*' => Http::response(['access_token' => 'AT2', 'expires_in' => 5184000], 200),
+            'graph.facebook.com/*me/adaccounts*' => Http::response(['data' => [['id' => 'act_123', 'name' => 'Shop', 'currency' => 'VND', 'account_status' => 1]]], 200),
+        ]);
+        $tenant = Tenant::create(['name' => 'T']);
+        // Previously connected then disconnected (soft-deleted) — row still occupies the unique key.
+        $existing = AdAccount::withoutGlobalScopes()->create([
+            'tenant_id' => $tenant->id, 'provider' => 'facebook', 'external_account_id' => 'act_123',
+            'status' => 'active', 'access_token' => 'OLD',
+        ]);
+        $existing->delete();
+        $this->assertSoftDeleted('ad_accounts', ['id' => $existing->id]);
+
+        OAuthState::create([
+            'state' => 'st_re_1', 'provider' => 'facebook_ads', 'tenant_id' => $tenant->id,
+            'created_by' => null, 'redirect_after' => '/marketing?connected=facebook_ads', 'expires_at' => now()->addMinutes(10),
+        ]);
+
+        $this->get('/oauth/facebook_ads/callback?code=CODE&state=st_re_1')
+            ->assertOk()
+            ->assertViewHas('redirect', '/marketing?connected=facebook_ads'); // not the error redirect
+
+        // Restored (not trashed) + updated, still ONE row.
+        $this->assertSame(1, AdAccount::withoutGlobalScopes()->where('external_account_id', 'act_123')->count());
+        $row = AdAccount::withoutGlobalScopes()->where('external_account_id', 'act_123')->firstOrFail();
+        $this->assertNull($row->deleted_at);
+        $this->assertSame('AT2', $row->access_token);
+    }
+
     public function test_callback_rejects_invalid_state(): void
     {
         $this->get('/oauth/facebook_ads/callback?code=CODE&state=bogus')

@@ -72,19 +72,25 @@ class AdsOAuthController extends Controller
 
             $connected = 0;
             foreach ($accounts as $dto) {
-                $account = AdAccount::withoutGlobalScope(TenantScope::class)->updateOrCreate(
-                    ['tenant_id' => $state->tenant_id, 'provider' => self::CONNECTOR, 'external_account_id' => $dto->externalAccountId],
-                    [
-                        'name' => $dto->name,
-                        'currency' => $dto->currency,
-                        'business_id' => $dto->businessId,
-                        'business_name' => $dto->businessName,
-                        'access_token' => $token['access_token'],
-                        'token_expires_at' => $token['expires_at'],
-                        'status' => AdAccount::STATUS_ACTIVE,
-                        'created_by' => $state->created_by,
-                    ],
-                );
+                // withTrashed + restore: reconnect sau khi đã ngắt (soft-delete) phải KHÔI PHỤC
+                // hàng cũ, không INSERT mới (tránh đụng unique key tenant+provider+external_account_id).
+                $account = AdAccount::withoutGlobalScope(TenantScope::class)->withTrashed()->firstOrNew([
+                    'tenant_id' => $state->tenant_id,
+                    'provider' => self::CONNECTOR,
+                    'external_account_id' => $dto->externalAccountId,
+                ]);
+                $account->forceFill([
+                    'tenant_id' => $state->tenant_id,
+                    'name' => $dto->name,
+                    'currency' => $dto->currency,
+                    'business_id' => $dto->businessId,
+                    'business_name' => $dto->businessName,
+                    'access_token' => $token['access_token'],
+                    'token_expires_at' => $token['expires_at'],
+                    'status' => AdAccount::STATUS_ACTIVE,
+                    'created_by' => $account->created_by ?? $state->created_by,
+                    'deleted_at' => null,   // khôi phục nếu đang bị soft-delete
+                ])->save();
                 SyncAdAccountEntities::dispatch((int) $account->getKey());
                 $connected++;
             }

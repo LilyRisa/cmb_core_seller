@@ -80,16 +80,20 @@ class FacebookOAuthController extends Controller
 
             $connected = 0;
             foreach ($pages as $page) {
-                $account = ChannelAccount::withoutGlobalScope(TenantScope::class)->updateOrCreate(
-                    ['tenant_id' => $state->tenant_id, 'provider' => self::PROVIDER, 'external_shop_id' => (string) $page['id']],
-                    [
-                        'shop_name' => $page['name'] ?? null,
-                        'access_token' => $page['access_token'] ?? null,
-                        'status' => ChannelAccount::STATUS_ACTIVE,
-                        'messaging_enabled' => true,
-                        'created_by' => $state->created_by,
-                    ],
-                );
+                // withTrashed + restore: reconnect sau khi đã ngắt (soft-delete) phải KHÔI PHỤC
+                // hàng cũ, không INSERT mới (tránh đụng unique key tenant+provider+external_shop_id).
+                $account = ChannelAccount::withoutGlobalScope(TenantScope::class)->withTrashed()->firstOrNew([
+                    'tenant_id' => $state->tenant_id, 'provider' => self::PROVIDER, 'external_shop_id' => (string) $page['id'],
+                ]);
+                $account->forceFill([
+                    'tenant_id' => $state->tenant_id,
+                    'shop_name' => $page['name'] ?? null,
+                    'access_token' => $page['access_token'] ?? null,
+                    'status' => ChannelAccount::STATUS_ACTIVE,
+                    'messaging_enabled' => true,
+                    'created_by' => $account->created_by ?? $state->created_by,
+                    'deleted_at' => null,
+                ])->save();
 
                 // Subscribe page vào app (best-effort).
                 try {

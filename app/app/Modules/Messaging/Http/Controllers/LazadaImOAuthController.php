@@ -77,20 +77,23 @@ class LazadaImOAuthController extends Controller
                 return $this->finish('/messaging/channels?error=lazada_im_no_seller');
             }
 
-            $account = ChannelAccount::withoutGlobalScope(TenantScope::class)->updateOrCreate(
-                ['tenant_id' => $state->tenant_id, 'provider' => self::PROVIDER, 'external_shop_id' => $sellerId],
-                [
-                    'shop_name' => isset($raw['account']) && (string) $raw['account'] !== '' ? (string) $raw['account'] : null,
-                    'shop_region' => isset($userInfo['country']) && (string) $userInfo['country'] !== '' ? strtoupper((string) $userInfo['country']) : 'VN',
-                    'access_token' => $token->accessToken,
-                    'refresh_token' => $token->refreshToken,
-                    'token_expires_at' => $token->expiresAt,
-                    'refresh_token_expires_at' => $token->refreshExpiresAt,
-                    'status' => ChannelAccount::STATUS_ACTIVE,
-                    'messaging_enabled' => true,
-                    'created_by' => $state->created_by,
-                ],
-            );
+            // withTrashed + restore: reconnect sau khi đã ngắt (soft-delete) phải KHÔI PHỤC hàng cũ.
+            $account = ChannelAccount::withoutGlobalScope(TenantScope::class)->withTrashed()->firstOrNew([
+                'tenant_id' => $state->tenant_id, 'provider' => self::PROVIDER, 'external_shop_id' => $sellerId,
+            ]);
+            $account->forceFill([
+                'tenant_id' => $state->tenant_id,
+                'shop_name' => isset($raw['account']) && (string) $raw['account'] !== '' ? (string) $raw['account'] : null,
+                'shop_region' => isset($userInfo['country']) && (string) $userInfo['country'] !== '' ? strtoupper((string) $userInfo['country']) : 'VN',
+                'access_token' => $token->accessToken,
+                'refresh_token' => $token->refreshToken,
+                'token_expires_at' => $token->expiresAt,
+                'refresh_token_expires_at' => $token->refreshExpiresAt,
+                'status' => ChannelAccount::STATUS_ACTIVE,
+                'messaging_enabled' => true,
+                'created_by' => $account->created_by ?? $state->created_by,
+                'deleted_at' => null,
+            ])->save();
 
             MessagingAccountMeta::withoutGlobalScope(TenantScope::class)->updateOrCreate(
                 ['channel_account_id' => (int) $account->getKey()],
