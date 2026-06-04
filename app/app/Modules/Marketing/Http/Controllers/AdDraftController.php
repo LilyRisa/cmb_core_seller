@@ -13,8 +13,11 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
 
 /**
- * Wizard draft CRUD + autosave. Read = marketing.view; write = marketing.ads.create
- * (Owner/Admin). All lookups are tenant-scoped via the model global scope.
+ * Wizard draft CRUD + autosave. Read = marketing.view; write = marketing.ads.create.
+ * Marketing is intentionally Owner/Admin-only (they hold the `*` wildcard; no staff
+ * role lists any `marketing.*` permission) — same policy as the other Marketing
+ * controllers. All lookups are tenant-scoped via the model global scope (foreign
+ * ids ⇒ 404), so cross-tenant read/update/delete is impossible.
  */
 class AdDraftController extends Controller
 {
@@ -55,7 +58,11 @@ class AdDraftController extends Controller
     public function destroy(int $id): JsonResponse
     {
         Gate::authorize('marketing.ads.create');
-        AdDraft::query()->findOrFail($id)->delete();
+        $draft = AdDraft::query()->findOrFail($id);
+        // Don't delete a draft mid-publish — the PublishAdDraft job (Plan 4) still
+        // holds its id. A `failed` draft IS deletable (that's the rollback trigger).
+        abort_if($draft->status === AdDraft::STATUS_PUBLISHING, 422, 'Đang xuất bản — không thể xoá bản nháp lúc này.');
+        $draft->delete();
 
         return response()->json(['data' => ['deleted' => true]]);
     }

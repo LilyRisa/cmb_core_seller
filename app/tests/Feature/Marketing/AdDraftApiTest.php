@@ -112,4 +112,35 @@ class AdDraftApiTest extends TestCase
             ->assertOk();
         $this->assertDatabaseMissing('ad_drafts', ['id' => $draft->id]);
     }
+
+    public function test_foreign_draft_show_update_destroy_all_return_404(): void
+    {
+        // Draft belongs to ANOTHER tenant — the global scope must hide it from every verb.
+        $other = Tenant::create(['name' => 'Other']);
+        app(CurrentTenant::class)->set($other);
+        $foreignAcc = AdAccount::create(['provider' => 'facebook', 'external_account_id' => 'act_y', 'status' => 'active', 'access_token' => 'X']);
+        $foreignDraft = AdDraft::create(['ad_account_id' => $foreignAcc->id, 'name' => 'theirs', 'payload' => []]);
+
+        $owner = $this->user(Role::Owner);
+
+        $this->actingAs($owner)->withHeaders($this->h())
+            ->getJson("/api/v1/marketing/ad-drafts/{$foreignDraft->id}")->assertStatus(404);
+        $this->actingAs($owner)->withHeaders($this->h())
+            ->patchJson("/api/v1/marketing/ad-drafts/{$foreignDraft->id}", ['name' => 'hijack'])->assertStatus(404);
+        $this->actingAs($owner)->withHeaders($this->h())
+            ->deleteJson("/api/v1/marketing/ad-drafts/{$foreignDraft->id}")->assertStatus(404);
+
+        $this->assertDatabaseHas('ad_drafts', ['id' => $foreignDraft->id]); // untouched
+    }
+
+    public function test_cannot_delete_draft_mid_publish(): void
+    {
+        $acc = $this->account();
+        $draft = AdDraft::create(['ad_account_id' => $acc->id, 'name' => 'x', 'status' => 'publishing', 'payload' => []]);
+
+        $this->actingAs($this->user(Role::Owner))->withHeaders($this->h())
+            ->deleteJson("/api/v1/marketing/ad-drafts/{$draft->id}")
+            ->assertStatus(422);
+        $this->assertDatabaseHas('ad_drafts', ['id' => $draft->id]);
+    }
 }
