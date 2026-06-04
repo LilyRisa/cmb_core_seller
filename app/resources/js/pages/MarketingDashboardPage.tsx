@@ -7,8 +7,8 @@ import { errorMessage } from '@/lib/api';
 import { openOAuthPopup } from '@/lib/oauthPopup';
 import { useCan } from '@/lib/tenant';
 import {
-    type AdEntityRow,
-    useAdAccounts, useAdInsights, useConnectFacebookAds, useDisconnectAdAccount, useRefreshAdInsights,
+    type AdEntityRow, type ReconRow,
+    useAdAccounts, useAdInsights, useAdReconciliation, useConnectFacebookAds, useDisconnectAdAccount, useRefreshAdInsights,
 } from '@/lib/marketing';
 
 const { Text } = Typography;
@@ -39,6 +39,7 @@ export function MarketingDashboardPage() {
     const selectedId = accountId ?? accounts?.[0]?.id ?? null;
     const selectedAccount = useMemo(() => accounts?.find((a) => a.id === selectedId) ?? null, [accounts, selectedId]);
     const { data: insights, isFetching } = useAdInsights(selectedId);
+    const { data: recon } = useAdReconciliation(selectedId);
 
     const applyResult = (p: URLSearchParams) => {
         const connected = p.get('connected');
@@ -161,6 +162,27 @@ export function MarketingDashboardPage() {
                             columns={columns}
                             pagination={false}
                             locale={{ emptyText: <Empty description="Chưa có entity — đang đồng bộ." /> }}
+                        />
+                    </Card>
+
+                    <Card title="Đối soát quảng cáo ↔ đơn thủ công (theo ngày)" style={{ marginTop: 16 }}>
+                        <Table<ReconRow>
+                            rowKey="date"
+                            size="small"
+                            dataSource={(recon?.rows ?? []).slice().reverse()}
+                            pagination={false}
+                            locale={{ emptyText: <Empty description="Chưa có dữ liệu đối soát." /> }}
+                            columns={[
+                                { title: 'Ngày', dataIndex: 'date', key: 'date' },
+                                { title: 'Chi tiêu', dataIndex: 'spend', key: 'spend', render: (v: number) => money(v, currency) },
+                                { title: 'Hội thoại Mess', dataIndex: 'conversations', key: 'conv' },
+                                { title: 'Leads', dataIndex: 'leads', key: 'leads' },
+                                { title: 'Đơn thủ công', dataIndex: 'manual_orders', key: 'mo' },
+                                { title: 'DT đơn', dataIndex: 'manual_revenue', key: 'rev', render: (v: number) => money(v, currency) },
+                                { title: 'Cost/hội thoại', dataIndex: 'cost_per_conversation', key: 'cpc', render: (v: number | null) => money(v, currency) },
+                                { title: 'Cost/đơn', dataIndex: 'cost_per_order', key: 'cpo', render: (v: number | null) => money(v, currency) },
+                                { title: 'Hội thoại→đơn', dataIndex: 'conv_to_order_pct', key: 'cvr', render: (v: number | null) => v != null ? v.toFixed(1) + '%' : '—' },
+                            ]}
                         />
                     </Card>
                 </>

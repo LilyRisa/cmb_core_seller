@@ -104,6 +104,29 @@ export function useAdInsights(accountId: number | null) {
     });
 }
 
+export interface ReconRow {
+    date: string;
+    spend: number;
+    conversations: number;
+    leads: number;
+    manual_orders: number;
+    manual_revenue: number;
+    cost_per_conversation: number | null;
+    cost_per_order: number | null;
+    conv_to_order_pct: number | null;
+}
+
+export function useAdReconciliation(accountId: number | null, days = 14) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['marketing', 'reconciliation', accountId, days, tenantId],
+        enabled: api != null && accountId != null,
+        refetchInterval: 15 * 60 * 1000,
+        queryFn: async () => (await api!.get<{ data: { currency: string | null; rows: ReconRow[] } }>(`/marketing/ad-accounts/${accountId}/reconciliation?days=${days}`)).data.data,
+    });
+}
+
 export function useRefreshAdInsights() {
     const api = useScopedApi();
     const qc = useQueryClient();
