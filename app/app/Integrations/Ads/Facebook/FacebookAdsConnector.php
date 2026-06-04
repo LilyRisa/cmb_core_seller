@@ -9,6 +9,7 @@ use CMBcoreSeller\Integrations\Ads\DTO\AdAccountDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdEntityDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdInsightDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdInsightThrottleDTO;
+use CMBcoreSeller\Integrations\Ads\DTO\AdPreviewDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdSetSpecDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdSpecDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AudienceSizeDTO;
@@ -424,6 +425,23 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
 
     public function generatePreviews(string $accessToken, string $externalAccountId, array $creativeSpec, array $formats): array
     {
-        return [];
+        $out = [];
+        foreach ($formats as $format) {
+            $res = Http::timeout(30)->get($this->graphUrl($externalAccountId.'/generatepreviews'), [
+                'creative' => json_encode(['object_story_spec' => $creativeSpec]),
+                'ad_format' => $format,
+                'access_token' => $accessToken,
+            ]);
+            // Best-effort: a format Graph can't render is skipped, not fatal.
+            if (! $res->successful()) {
+                continue;
+            }
+            $body = $res->json('data.0.body');
+            if (is_string($body) && $body !== '') {
+                $out[] = new AdPreviewDTO(format: (string) $format, body: $body, raw: (array) ($res->json('data.0') ?? []));
+            }
+        }
+
+        return $out;
     }
 }
