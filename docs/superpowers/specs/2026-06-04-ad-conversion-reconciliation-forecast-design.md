@@ -22,12 +22,17 @@ Ràng buộc chủ sản phẩm: **additive, không đụng luồng khác** (ord
 - API `GET /api/v1/marketing/ad-accounts/{id}/reconciliation?days=14` (Gate `marketing.view`).
 - FE: bảng đối soát theo ngày trong `/marketing`.
 
-**2b:**
-- Migration `ad_forecasts` (tenant_id, ad_account_id, payload json, model_code, generated_at). 1 bản mới nhất/account.
-- `AiAssistantConnector` thêm `analyze(AiContext, array $data, string $instruction, array $schema): array` + capability `analysis.generate`. Implement ở Claude/OpenAi/CustomHttp (JSON output) + Manual (stub deterministic cho test/dev — free). **Thuần bổ sung method, không đổi hành vi generateReply/messaging.**
-- `AdsForecastService` (Marketing): gom chuỗi đối soát N ngày → `analyze()` → JSON `{forecast:{next_7d:{conversations,orders,spend,projected_cost_per_order}}, strategy:[{action,campaign?,rationale,confidence}]}` → lưu `ad_forecasts`.
-- **Tiết kiệm quota:** `POST /ad-accounts/{id}/forecast` mới gọi AI; **cooldown** (config `marketing.forecast_cooldown_minutes`, mặc định 360) — trong cooldown trả **bản cache**, KHÔNG gọi AI. `GET /ad-accounts/{id}/forecast` trả cache. KHÔNG gọi AI trong poll/scheduler/load dashboard.
-- FE: panel "Dự báo & Chiến lược" hiển thị cache + nút "Tạo dự báo" (disable trong cooldown) + `generated_at`.
+**2b (AI provider RIÊNG, tách hoàn toàn — chốt với chủ sản phẩm):**
+- **KHÔNG** dùng `ai_providers`/`AiAssistantConnector` của messaging. Marketing có **provider AI riêng** lưu DB, super-admin quản qua **màn hình admin riêng**.
+- Migration `marketing_ai_providers` (mirror `ai_providers` nhưng RIÊNG): `code` (pk), `display_name`, `adapter` (anthropic|openai_compatible|manual), `api_key` (encrypted), `base_url`, `default_model`, `is_active`, timestamps.
+- Migration `ad_forecasts` (tenant_id, ad_account_id, payload json, provider_code, model, generated_at). 1 bản mới nhất/account.
+- `MarketingAnalysisClient` (Marketing-owned, **không đụng Integrations/Ai**): đọc `marketing_ai_providers` active → gọi LLM theo adapter (anthropic Messages API / openai_compatible Chat Completions, JSON output) → trả array. Adapter `manual` hoặc chưa cấu hình → stub deterministic (dev/test, **0 quota**).
+- `AdsForecastService`: gom chuỗi đối soát N ngày → `MarketingAnalysisClient->analyze()` → JSON `{forecast:{next_7d:{conversations,orders,spend,projected_cost_per_order}}, strategy:[{action,campaign?,rationale,confidence}]}` → lưu `ad_forecasts`.
+- **Tiết kiệm quota:** `POST /ad-accounts/{id}/forecast` mới gọi AI; **cooldown** (config `marketing.forecast_cooldown_minutes`, mặc định 360) — trong cooldown trả **cache**, KHÔNG gọi AI. `GET /ad-accounts/{id}/forecast` trả cache. KHÔNG gọi AI trong poll/scheduler/load dashboard.
+- **Admin CRUD** `marketing_ai_providers`: API `/api/v1/admin/marketing-ai-providers` (super-admin) + màn hình admin riêng (bundle admin.tsx).
+- FE app: panel "Dự báo & Chiến lược" trên `/marketing` — cache + nút "Tạo dự báo" (disable trong cooldown) + `generated_at`.
+
+**Tách bạch:** module Marketing tự sở hữu provider + client AI; không import `Integrations/Ai`, không sửa `ai_providers`/connector messaging ⇒ luồng AI messaging tuyệt đối không đổi.
 
 ## 4. Không đụng luồng khác
 - Marketing additive; đọc Orders qua contract (Orders chỉ thêm 1 contract+impl, không sửa luồng tạo đơn). AI chỉ thêm method `analyze` (messaging generateReply không đổi). Insights enrich chỉ thêm cột + field — `fetchInsights` cũ vẫn chạy. Forecast off cho tới khi user bấm.
