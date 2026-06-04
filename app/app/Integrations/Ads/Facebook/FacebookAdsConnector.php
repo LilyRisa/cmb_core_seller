@@ -2,8 +2,8 @@
 
 namespace CMBcoreSeller\Integrations\Ads\Facebook;
 
-use CMBcoreSeller\Integrations\Ads\Contracts\AdsConnector;
 use Carbon\CarbonImmutable;
+use CMBcoreSeller\Integrations\Ads\Contracts\AdsConnector;
 use CMBcoreSeller\Integrations\Ads\DTO\AdAccountDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdEntityDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdInsightDTO;
@@ -130,12 +130,11 @@ class FacebookAdsConnector implements AdsConnector
             'ad' => 'ads',
             default => throw UnsupportedOperation::for($this->code(), "listEntities({$level})"),
         };
-        $fields = match ($level) {
+        $fields = [
             'campaign' => 'id,name,status,effective_status,daily_budget,lifetime_budget',
             'adset' => 'id,name,status,effective_status,daily_budget,lifetime_budget,campaign_id',
             'ad' => 'id,name,status,effective_status,adset_id',
-            default => 'id,name,status',
-        };
+        ][$level];
         $res = Http::timeout(30)->get($this->graphUrl($externalAccountId.'/'.$edge), [
             'fields' => $fields, 'access_token' => $accessToken, 'limit' => 500,
         ]);

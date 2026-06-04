@@ -2,15 +2,18 @@
 
 namespace CMBcoreSeller\Integrations\Ads\Contracts;
 
+use Carbon\CarbonImmutable;
+use CMBcoreSeller\Integrations\Ads\AdsRegistry;
 use CMBcoreSeller\Integrations\Ads\DTO\AdAccountDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdEntityDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdInsightDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdInsightThrottleDTO;
+use CMBcoreSeller\Integrations\Ads\Exceptions\UnsupportedOperation;
 
 /**
  * Contract every ads provider implements (ADR-0017 — core/module never knows the
- * provider name; resolve via {@see \CMBcoreSeller\Integrations\Ads\AdsRegistry}).
- * Methods a provider lacks throw {@see \CMBcoreSeller\Integrations\Ads\Exceptions\UnsupportedOperation}.
+ * provider name; resolve via {@see AdsRegistry}).
+ * Methods a provider lacks throw {@see UnsupportedOperation}.
  */
 interface AdsConnector
 {
@@ -26,7 +29,7 @@ interface AdsConnector
     // --- OAuth ---
     public function buildAuthorizationUrl(string $state, array $opts = []): string;
 
-    /** @return array{access_token:string, expires_at:?\Carbon\CarbonImmutable, raw:array<string,mixed>} */
+    /** @return array{access_token:string, expires_at:?CarbonImmutable, raw:array<string,mixed>} */
     public function exchangeCodeForToken(string $code): array;
 
     // --- Read ---

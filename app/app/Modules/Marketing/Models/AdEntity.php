@@ -41,13 +41,13 @@ class AdEntity extends Model
         ];
     }
 
-    /** @return BelongsTo<AdAccount, AdEntity> */
+    /** @return BelongsTo<AdAccount, $this> */
     public function account(): BelongsTo
     {
         return $this->belongsTo(AdAccount::class, 'ad_account_id');
     }
 
-    /** @return HasMany<AdInsightSnapshot> */
+    /** @return HasMany<AdInsightSnapshot, $this> */
     public function snapshots(): HasMany
     {
         return $this->hasMany(AdInsightSnapshot::class, 'ad_entity_id');

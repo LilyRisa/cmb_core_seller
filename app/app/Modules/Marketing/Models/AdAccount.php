@@ -48,7 +48,7 @@ class AdAccount extends Model
         ];
     }
 
-    /** @return HasMany<AdEntity> */
+    /** @return HasMany<AdEntity, $this> */
     public function entities(): HasMany
     {
         return $this->hasMany(AdEntity::class);
