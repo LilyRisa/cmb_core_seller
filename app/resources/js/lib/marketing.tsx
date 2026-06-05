@@ -421,7 +421,6 @@ export interface AdForecast {
         creative_review?: CreativeReview[];
     };
     provider_code: string | null;
-    model: string | null;
     generated_at: string | null;
 }
 
@@ -467,7 +466,6 @@ export interface CampaignAiInsight {
     };
     params: CampaignAiInsightParams;
     provider_code: string | null;
-    model: string | null;
     generated_at: string | null;
 }
 

@@ -154,7 +154,6 @@ export function CampaignAiInsightDrawer({ open, accountId, campaign, onClose }: 
                     <Space direction="vertical" size={12} style={{ display: 'flex' }}>
                         <Text type="secondary" style={{ fontSize: 12 }}>
                             Cập nhật: {insight.generated_at ? new Date(insight.generated_at).toLocaleString('vi-VN') : '—'}
-                            {insight.model ? ` · ${insight.model}` : ''}
                         </Text>
                         {insight.payload.summary && <Paragraph>{insight.payload.summary}</Paragraph>}
                         {insight.payload.assessment && <Alert type="info" message="Đánh giá" description={insight.payload.assessment} />}
@@ -214,7 +213,7 @@ export function CampaignAiInsightDrawer({ open, accountId, campaign, onClose }: 
                                             <Space direction="vertical" size={0}>
                                                 <Text style={{ fontSize: 12 }}>
                                                     {h.generated_at ? new Date(h.generated_at).toLocaleString('vi-VN') : '—'}
-                                                    {h.params?.days ? ` · ${h.params.days} ngày` : ''}{h.model ? ` · ${h.model}` : ''}
+                                                    {h.params?.days ? ` · ${h.params.days} ngày` : ''}
                                                 </Text>
                                                 <Text type="secondary" style={{ fontSize: 12 }} ellipsis>{h.payload.summary ?? ''}</Text>
                                             </Space>

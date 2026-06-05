@@ -84,7 +84,6 @@ class CampaignAiInsightController extends Controller
             'payload' => $i->payload,
             'params' => $i->params,
             'provider_code' => $i->provider_code,
-            'model' => $i->model,
             'generated_at' => $i->generated_at->toIso8601String(),
         ];
     }

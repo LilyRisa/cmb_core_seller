@@ -54,7 +54,6 @@ class AdForecastController extends Controller
         return [
             'payload' => $f->payload,
             'provider_code' => $f->provider_code,
-            'model' => $f->model,
             'generated_at' => $f->generated_at->toIso8601String(),
         ];
     }
