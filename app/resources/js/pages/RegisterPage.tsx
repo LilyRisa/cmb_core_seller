@@ -12,6 +12,7 @@ import {
 } from '@ant-design/icons';
 import { useRegister } from '@/lib/auth';
 import { errorMessage } from '@/lib/api';
+import { AuthBackdrop } from '@/components/AuthBackdrop';
 
 export function RegisterPage() {
     const register = useRegister();
@@ -21,6 +22,7 @@ export function RegisterPage() {
         <div className="auth-shell">
             <div className="auth-brand">
                 <div className="auth-scanline" />
+                <AuthBackdrop />
                 <div className="auth-brand-content">
                     <span className="auth-logo-mark"><img src="/images/logocmb.png" alt="CMB Core" /></span>
                     <h1>Bắt đầu hành trình<br />bán hàng đa kênh.</h1>

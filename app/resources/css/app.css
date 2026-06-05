@@ -338,6 +338,61 @@ body {
     pointer-events: none; z-index: 1;
 }
 
+/* Lớp "bán hàng" — biểu đồ tăng trưởng + hạt doanh thu bay lên (kết hợp với lưới công nghệ). */
+.auth-commerce {
+    position: absolute; inset: 0; z-index: 1;
+    pointer-events: none; overflow: hidden;
+}
+/* Hạt doanh thu trôi lên — gợi đơn/tiền tăng dần. */
+.auth-commerce::after {
+    content: "";
+    position: absolute; inset: -25% 0 0 0;
+    background-image:
+        radial-gradient(rgba(191, 219, 254, 0.55) 1.5px, transparent 2px),
+        radial-gradient(rgba(103, 232, 249, 0.40) 1.5px, transparent 2px);
+    background-size: 116px 116px, 74px 74px;
+    background-position: 0 0, 38px 26px;
+    mask-image: linear-gradient(to top, transparent 0%, #000 28%, #000 72%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to top, transparent 0%, #000 28%, #000 72%, transparent 100%);
+    animation: auth-rise 15s linear infinite;
+    opacity: 0.5;
+}
+/* Biểu đồ tăng trưởng góc dưới-phải, tự vẽ + trôi nhẹ. */
+.auth-chart {
+    position: absolute; right: 0; bottom: 0;
+    width: min(72%, 560px); height: auto;
+    opacity: 0.9;
+    filter: drop-shadow(0 6px 16px rgba(37, 99, 235, 0.25));
+    animation: auth-chart-float 9s ease-in-out infinite alternate;
+}
+.auth-chart-line {
+    fill: none; stroke: rgba(255, 255, 255, 0.72); stroke-width: 2.5;
+    stroke-linecap: round; stroke-linejoin: round;
+    stroke-dasharray: 900; stroke-dashoffset: 900;
+    animation: auth-chart-draw 4.6s cubic-bezier(0.65, 0, 0.35, 1) 0.4s forwards;
+}
+.auth-chart-area { opacity: 0; animation: auth-chart-fill 2.4s ease 2.6s forwards; }
+.auth-chart-dot {
+    fill: #fff; transform-box: fill-box; transform-origin: center;
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.9));
+    animation: auth-chart-pulse 2.6s ease-in-out 3.2s infinite;
+}
+
+@keyframes auth-rise {
+    from { background-position: 0 0, 38px 26px; }
+    to   { background-position: 0 -232px, 38px -222px; }
+}
+@keyframes auth-chart-draw { to { stroke-dashoffset: 0; } }
+@keyframes auth-chart-fill { to { opacity: 1; } }
+@keyframes auth-chart-pulse {
+    0%, 100% { transform: scale(0.7); opacity: 0.65; }
+    50%      { transform: scale(1.3); opacity: 1; }
+}
+@keyframes auth-chart-float {
+    from { transform: translateY(5px); }
+    to   { transform: translateY(-7px); }
+}
+
 @media (max-width: 960px) {
     .auth-shell { flex-direction: column; }
     .auth-brand { padding: 40px 28px; min-height: 240px; }
@@ -345,6 +400,15 @@ body {
     .auth-feature-list { display: none; }
     .auth-brand-footer { display: none; }
     .auth-form-panel { padding: 32px 20px 48px; }
+    .auth-commerce { display: none; }
+}
+
+/* Tôn trọng người dùng tắt hiệu ứng chuyển động. */
+@media (prefers-reduced-motion: reduce) {
+    .auth-brand::before, .auth-brand::after, .auth-scanline,
+    .auth-commerce::after, .auth-chart, .auth-chart-dot { animation: none; }
+    .auth-chart-line { stroke-dashoffset: 0; animation: none; }
+    .auth-chart-area { opacity: 1; animation: none; }
 }
 
 /* =============================================================================
