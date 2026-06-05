@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { App as AntApp, Button, Card, Checkbox, Collapse, DatePicker, Dropdown, Empty, Input, List, Popconfirm, Result, Segmented, Select, Space, Spin, Statistic, Table, Tag, Tooltip, Typography } from 'antd';
-import { BulbOutlined, DisconnectOutlined, EditOutlined, FacebookFilled, FundOutlined, PlusOutlined, QuestionCircleOutlined, RobotOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
+import { App as AntApp, Button, Card, Checkbox, Collapse, DatePicker, Dropdown, Empty, Input, InputNumber, List, Popconfirm, Result, Segmented, Select, Space, Spin, Statistic, Table, Tag, Tooltip, Typography } from 'antd';
+import { BulbOutlined, CheckOutlined, CloseOutlined, DisconnectOutlined, EditOutlined, FacebookFilled, FundOutlined, PauseCircleOutlined, PlayCircleOutlined, PlusOutlined, QuestionCircleOutlined, RobotOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
 import { useAdDrafts, useDeleteDraft } from '@/lib/adWizard';
 import dayjs, { type Dayjs } from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
@@ -13,8 +13,9 @@ import { openOAuthPopup } from '@/lib/oauthPopup';
 import { useCan } from '@/lib/tenant';
 import {
     type ForecastStrategy, type ReconRow, type ReportLevel, type ReportRow,
-    useAdAccounts, useAdForecast, useAdReconciliation, useAdReport, useConnectFacebookAds,
-    useDisconnectAdAccount, useGenerateForecast, useRefreshAdInsights,
+    useAdAccounts, useAdForecast, useAdReconciliation, useAdReport, useBulkDisconnectAccounts,
+    useConnectFacebookAds, useDisconnectAdAccount, useGenerateForecast, useRefreshAdInsights,
+    useUpdateAdEntity,
 } from '@/lib/marketing';
 
 const { Text } = Typography;
@@ -152,6 +153,38 @@ export function MarketingDashboardPage() {
     }), [level, selCampaigns, selAdsets, q, objective, adId]);
     const { data: report, isFetching } = useAdReport(selectedId, level, since, until, filters);
     const [aiCampaign, setAiCampaign] = useState<{ id: string; name: string | null } | null>(null);
+    const updateEntity = useUpdateAdEntity();
+    const bulkDisconnect = useBulkDisconnectAccounts();
+    // Inline edit: which cell is being edited + its draft value.
+    const [editing, setEditing] = useState<{ key: string; field: 'name' | 'budget'; value: string } | null>(null);
+
+    function saveEdit(r: ReportRow) {
+        if (selectedId == null || editing == null) return;
+        const patch = editing.field === 'name'
+            ? { name: editing.value.trim() }
+            : { daily_budget_major: Number(editing.value) || 0 };
+        if (editing.field === 'name' && patch.name === '') { setEditing(null); return; }
+        updateEntity.mutate(
+            { accountId: selectedId, externalId: r.external_id, level, ...patch },
+            {
+                onSuccess: () => { message.success('Đã cập nhật.'); setEditing(null); },
+                onError: (e) => message.error(errorMessage(e, 'Cập nhật thất bại.')),
+            },
+        );
+    }
+
+    function toggleStatus(r: ReportRow) {
+        if (selectedId == null) return;
+        const isActive = (r.effective_status ?? r.status) === 'ACTIVE';
+        updateEntity.mutate(
+            { accountId: selectedId, externalId: r.external_id, level, status: isActive ? 'PAUSED' : 'ACTIVE' },
+            {
+                onSuccess: () => message.success(isActive ? 'Đã tạm dừng.' : 'Đã chạy lại.'),
+                onError: (e) => message.error(errorMessage(e, 'Đổi trạng thái thất bại.')),
+            },
+        );
+    }
+
     const { data: recon } = useAdReconciliation(selectedId);
     const { data: forecast } = useAdForecast(selectedId);
     const genForecast = useGenerateForecast();
@@ -186,9 +219,64 @@ export function MarketingDashboardPage() {
     // Table columns (filter by visible set; name always first).
     const fmtCol: Record<string, (r: ReportRow) => React.ReactNode> = {
         external_id: (r) => <Text type="secondary" copyable={{ text: r.external_id }} style={{ fontSize: 12 }}>{r.external_id}</Text>,
-        status: (r) => { const s = statusVi(r.effective_status ?? r.status ?? null); return <Tag color={s.color}>{s.label}</Tag>; },
+        status: (r) => {
+            const s = statusVi(r.effective_status ?? r.status ?? null);
+            const isActive = (r.effective_status ?? r.status) === 'ACTIVE';
+            return (
+                <Space size={4}>
+                    <Tag color={s.color}>{s.label}</Tag>
+                    {canConnect && (
+                        <Tooltip title={isActive ? 'Tạm dừng' : 'Chạy lại'}>
+                            <Button
+                                type="text"
+                                size="small"
+                                icon={isActive ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
+                                onClick={() => toggleStatus(r)}
+                            />
+                        </Tooltip>
+                    )}
+                </Space>
+            );
+        },
         objective: (r) => objectiveVi(r.objective),
-        daily_budget: (r) => money(r.daily_budget, currency),
+        daily_budget: (r) => {
+            const isEditing = editing?.key === r.external_id && editing.field === 'budget';
+            if (isEditing) {
+                return (
+                    <Space size={2}>
+                        <InputNumber
+                            size="small"
+                            min={1000}
+                            step={10000}
+                            autoFocus
+                            style={{ width: 120 }}
+                            value={Number(editing.value) || undefined}
+                            onChange={(v) => setEditing({ key: r.external_id, field: 'budget', value: String(v ?? '') })}
+                            onPressEnter={() => saveEdit(r)}
+                            formatter={(v) => (v != null ? Number(v).toLocaleString('vi-VN') : '')}
+                            parser={(v) => (v != null ? Number(v.replace(/\./g, '')) : 0)}
+                        />
+                        <Button type="text" size="small" icon={<CheckOutlined />} loading={updateEntity.isPending} onClick={() => saveEdit(r)} />
+                        <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => setEditing(null)} />
+                    </Space>
+                );
+            }
+            return (
+                <Space size={2}>
+                    {money(r.daily_budget, currency)}
+                    {canConnect && r.daily_budget != null && (
+                        <Tooltip title="Sửa ngân sách">
+                            <Button
+                                type="text"
+                                size="small"
+                                icon={<EditOutlined />}
+                                onClick={() => setEditing({ key: r.external_id, field: 'budget', value: String(r.daily_budget ?? '') })}
+                            />
+                        </Tooltip>
+                    )}
+                </Space>
+            );
+        },
         lifetime_budget: (r) => money(r.lifetime_budget, currency),
         spend: (r) => money(r.insights?.spend, currency),
         impressions: (r) => num(r.insights?.impressions),
@@ -203,7 +291,43 @@ export function MarketingDashboardPage() {
         leads: (r) => num(r.insights?.leads),
     };
     const columns = [
-        { title: 'Tên', dataIndex: 'name', key: 'name', fixed: 'left' as const, width: 220, render: (v: string | null, r: ReportRow) => v ?? r.external_id },
+        {
+            title: 'Tên', dataIndex: 'name', key: 'name', fixed: 'left' as const, width: 240,
+            render: (v: string | null, r: ReportRow) => {
+                const isEditing = editing?.key === r.external_id && editing.field === 'name';
+                if (isEditing) {
+                    return (
+                        <Space size={2}>
+                            <Input
+                                size="small"
+                                autoFocus
+                                style={{ width: 150 }}
+                                value={editing.value}
+                                onChange={(e) => setEditing({ key: r.external_id, field: 'name', value: e.target.value })}
+                                onPressEnter={() => saveEdit(r)}
+                            />
+                            <Button type="text" size="small" icon={<CheckOutlined />} loading={updateEntity.isPending} onClick={() => saveEdit(r)} />
+                            <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => setEditing(null)} />
+                        </Space>
+                    );
+                }
+                return (
+                    <Space size={2}>
+                        <span>{v ?? r.external_id}</span>
+                        {canConnect && (
+                            <Tooltip title="Đổi tên">
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<EditOutlined />}
+                                    onClick={() => setEditing({ key: r.external_id, field: 'name', value: v ?? '' })}
+                                />
+                            </Tooltip>
+                        )}
+                    </Space>
+                );
+            },
+        },
         ...ALL_COLUMNS.filter((c) => cols.includes(c)).map((c) => ({
             title: COL_HELP[c]
                 ? <Space size={4}>{COL_TITLE[c]}<Tooltip title={COL_HELP[c]}><QuestionCircleOutlined style={{ color: '#aaa', fontSize: 12, cursor: 'help' }} /></Tooltip></Space>
@@ -261,6 +385,21 @@ export function MarketingDashboardPage() {
                         <Popconfirm title="Ngắt kết nối Ad Account?" okText="Ngắt" okButtonProps={{ danger: true }} cancelText="Huỷ"
                             onConfirm={() => disconnect.mutate(selectedId, { onSuccess: () => { setAccountId(null); message.success('Đã ngắt.'); }, onError: (e) => message.error(errorMessage(e)) })}>
                             <Button danger size="small" icon={<DisconnectOutlined />}>Ngắt</Button>
+                        </Popconfirm>
+                    )}
+                    {canConnect && (bm ?? bmGroups[0]?.id) != null && (bm ?? bmGroups[0]?.id) !== '_' && bmAccounts.length > 0 && (
+                        <Popconfirm
+                            title={`Ngắt toàn bộ ${bmAccounts.length} tài khoản trong BM này?`}
+                            okText="Ngắt cả BM" okButtonProps={{ danger: true }} cancelText="Huỷ"
+                            onConfirm={() => {
+                                const businessId = (bm ?? bmGroups[0]?.id) as string;
+                                bulkDisconnect.mutate({ business_id: businessId }, {
+                                    onSuccess: (d) => { setAccountId(null); setBm(null); message.success(`Đã ngắt ${d.deleted} tài khoản.`); },
+                                    onError: (e) => message.error(errorMessage(e)),
+                                });
+                            }}
+                        >
+                            <Button danger size="small" loading={bulkDisconnect.isPending} icon={<DisconnectOutlined />}>Ngắt cả BM</Button>
                         </Popconfirm>
                     )}
                 </Space>

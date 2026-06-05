@@ -3,6 +3,7 @@
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdAccountController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdAuthoringController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdDraftController;
+use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdEntityController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdForecastController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdInsightController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdminMarketingAiProviderController;
@@ -32,6 +33,8 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
             ->name('marketing.ad-accounts.index');
         Route::delete('ad-accounts/{id}', [AdAccountController::class, 'destroy'])
             ->whereNumber('id')->name('marketing.ad-accounts.destroy');
+        Route::post('ad-accounts/disconnect-bulk', [AdAccountController::class, 'disconnectBulk'])
+            ->name('marketing.ad-accounts.disconnect-bulk');
         Route::post('ad-accounts/{id}/refresh', [AdAccountController::class, 'refresh'])
             ->whereNumber('id')->name('marketing.ad-accounts.refresh');
 
@@ -44,6 +47,9 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
         // Daily reconciliation: ad metrics vs manual orders.
         Route::get('ad-accounts/{id}/reconciliation', [AdInsightController::class, 'reconciliation'])
             ->whereNumber('id')->name('marketing.ad-accounts.reconciliation');
+        // Live edit one entity (rename / daily budget / pause-resume).
+        Route::patch('ad-accounts/{id}/entities/{externalId}', [AdEntityController::class, 'update'])
+            ->whereNumber('id')->name('marketing.ad-accounts.entities.update');
         // AI strategic forecast (on-demand, cooldown-cached).
         Route::get('ad-accounts/{id}/forecast', [AdForecastController::class, 'show'])
             ->whereNumber('id')->name('marketing.ad-accounts.forecast.show');

@@ -52,8 +52,8 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
             'insights.read' => true,
             'insights.async' => true,
             'entities.list' => true,
-            'actions.budget' => false, // Phase 3
-            'actions.status' => false, // Phase 3
+            'actions.budget' => true,
+            'actions.status' => true,
             'actions.bid' => false,    // Phase 3
             'ads.create' => true,
             'creative.upload' => true,
@@ -442,6 +442,28 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
         }
 
         return (string) $res->json('id');
+    }
+
+    public function updateEntity(string $accessToken, string $level, string $externalId, array $fields, string $currency = 'VND'): void
+    {
+        $params = ['access_token' => $accessToken];
+        if (isset($fields['name']) && (string) $fields['name'] !== '') {
+            $params['name'] = (string) $fields['name'];
+        }
+        if (isset($fields['daily_budget_major'])) {
+            $params['daily_budget'] = FacebookMoney::toMinorUnits((int) $fields['daily_budget_major'], $currency);
+        }
+        if (isset($fields['status'])) {
+            $params['status'] = (string) $fields['status'];
+        }
+        if (count($params) === 1) {
+            return; // nothing but the token ⇒ no-op
+        }
+
+        $res = Http::timeout(30)->asForm()->post($this->graphUrl($externalId), $params);
+        if (! $res->successful()) {
+            throw new \RuntimeException('Facebook Ads updateEntity failed: '.$res->body());
+        }
     }
 
     public function listPages(string $accessToken): array

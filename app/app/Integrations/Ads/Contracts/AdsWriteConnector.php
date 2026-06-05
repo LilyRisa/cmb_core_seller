@@ -26,6 +26,14 @@ interface AdsWriteConnector
 
     public function createAd(string $accessToken, string $externalAccountId, AdSpecDTO $spec): string;
 
+    /**
+     * Update mutable fields of one entity (campaign/adset/ad) in place.
+     * Supported keys: name (string), daily_budget_major (int VND), status (ACTIVE|PAUSED).
+     *
+     * @param  array<string,mixed>  $fields
+     */
+    public function updateEntity(string $accessToken, string $level, string $externalId, array $fields, string $currency = 'VND'): void;
+
     /** @return list<PageRefDTO> */
     public function listPages(string $accessToken): array;
 

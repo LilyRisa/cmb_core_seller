@@ -149,6 +149,40 @@ export function useDisconnectAdAccount() {
     });
 }
 
+/** Disconnect many accounts at once — by ids and/or a whole BM (business_id). */
+export function useBulkDisconnectAccounts() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (body: { ids?: number[]; business_id?: string }) =>
+            (await api!.post<{ data: { deleted: number } }>('/marketing/ad-accounts/disconnect-bulk', body)).data.data,
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['marketing', 'ad-accounts'] }),
+    });
+}
+
+export type AdEntityLevel = 'campaign' | 'adset' | 'ad';
+export interface UpdateAdEntityVars {
+    accountId: number;
+    externalId: string;
+    level: AdEntityLevel;
+    name?: string;
+    daily_budget_major?: number;
+    status?: 'ACTIVE' | 'PAUSED';
+}
+
+/** Live-edit one entity: rename / daily budget / pause-resume. */
+export function useUpdateAdEntity() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ accountId, externalId, ...body }: UpdateAdEntityVars) =>
+            (await api!.patch<{ data: { updated: boolean } }>(
+                `/marketing/ad-accounts/${accountId}/entities/${externalId}`, body,
+            )).data.data,
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['marketing', 'report'] }),
+    });
+}
+
 /** Near-real-time: auto-refetch every 15' (FB refreshes ~15') + manual refresh. */
 export function useAdInsights(accountId: number | null) {
     const api = useScopedApi();
