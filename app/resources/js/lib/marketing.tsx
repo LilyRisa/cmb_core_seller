@@ -278,6 +278,42 @@ export function useDeleteMonitor() {
     });
 }
 
+export interface MonitorAction {
+    id: number;
+    target_level: 'campaign' | 'adset';
+    target_external_id: string;
+    target_name: string | null;
+    type: 'pause' | 'increase';
+    cpr: number | null;
+    spend: number | null;
+    results: number | null;
+    from_budget: number | null;
+    to_budget: number | null;
+    created_at: string | null;
+}
+
+export function useMonitorActions(accountId: number | null, targetExternalId?: string) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['marketing', 'monitor-actions', accountId, targetExternalId ?? null, tenantId],
+        enabled: api != null && accountId != null,
+        queryFn: async () => (await api!.get<{ data: MonitorAction[] }>(
+            `/marketing/ad-accounts/${accountId}/monitor-actions`,
+            { params: targetExternalId ? { target_external_id: targetExternalId } : {} },
+        )).data.data,
+    });
+}
+
+export function useDeleteMonitorAction() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (actionId: number) => { await api!.delete(`/marketing/monitor-actions/${actionId}`); },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['marketing', 'monitor-actions'] }),
+    });
+}
+
 export type AdEntityLevel = 'campaign' | 'adset' | 'ad';
 export interface UpdateAdEntityVars {
     accountId: number;
@@ -391,6 +427,7 @@ export type CampaignAiMetric = (typeof CAMPAIGN_AI_METRICS)[number];
 
 export interface CampaignAiInsightParams { days: number; metrics: string[]; include_engagement: boolean }
 export interface CampaignAiInsight {
+    id?: number;
     payload: {
         summary?: string;
         assessment?: string;
@@ -419,6 +456,28 @@ export function useCampaignAiInsight(
         queryFn: async () => (await api!.get<{ data: CampaignAiInsight | null }>(
             `/marketing/ad-accounts/${accountId}/campaigns/${campaignId}/ai-insight`,
         )).data.data,
+    });
+}
+
+/** Past analyses for a campaign (history). */
+export function useCampaignAiInsightHistory(accountId: number | null, campaignId: string | null, enabled: boolean) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['marketing', 'campaign-insight-history', accountId, campaignId, tenantId],
+        enabled: enabled && api != null && accountId != null && campaignId != null,
+        queryFn: async () => (await api!.get<{ data: CampaignAiInsight[] }>(
+            `/marketing/ad-accounts/${accountId}/campaigns/${campaignId}/ai-insight/history`,
+        )).data.data,
+    });
+}
+
+export function useDeleteCampaignInsight() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (insightId: number) => { await api!.delete(`/marketing/campaign-insights/${insightId}`); },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['marketing', 'campaign-insight'] }),
     });
 }
 

@@ -28,6 +28,32 @@ class CampaignAiInsightController extends Controller
         return response()->json(['data' => $this->format($this->service->cached($account, $campaignId))]);
     }
 
+    /** GET .../ai-insight/history — past analyses for this campaign. */
+    public function history(int $id, string $campaignId): JsonResponse
+    {
+        Gate::authorize('marketing.view');
+        $account = AdAccount::query()->findOrFail($id);
+
+        $rows = CampaignAiInsight::query()
+            ->where('ad_account_id', $account->getKey())
+            ->where('campaign_external_id', $campaignId)
+            ->latest('id')
+            ->limit(50)
+            ->get()
+            ->map(fn (CampaignAiInsight $i) => $this->format($i));
+
+        return response()->json(['data' => $rows]);
+    }
+
+    /** DELETE .../campaign-insights/{insight} — delete one history entry. */
+    public function destroy(int $insight): JsonResponse
+    {
+        Gate::authorize('marketing.ads.create');
+        CampaignAiInsight::query()->findOrFail($insight)->delete();
+
+        return response()->json(null, 204);
+    }
+
     /** POST /api/v1/marketing/ad-accounts/{id}/campaigns/{campaignId}/ai-insight */
     public function generate(int $id, string $campaignId, CampaignAiInsightRequest $request): JsonResponse
     {
@@ -54,6 +80,7 @@ class CampaignAiInsightController extends Controller
         }
 
         return [
+            'id' => $i->id,
             'payload' => $i->payload,
             'params' => $i->params,
             'provider_code' => $i->provider_code,

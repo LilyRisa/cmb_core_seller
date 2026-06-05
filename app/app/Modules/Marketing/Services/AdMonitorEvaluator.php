@@ -10,6 +10,7 @@ use CMBcoreSeller\Integrations\Ads\Facebook\FacebookMoney;
 use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
 use CMBcoreSeller\Modules\Marketing\Models\AdEntity;
 use CMBcoreSeller\Modules\Marketing\Models\AdMonitor;
+use CMBcoreSeller\Modules\Marketing\Models\AdMonitorAction;
 use CMBcoreSeller\Modules\Marketing\Notifications\AdMonitorActionNotification;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
@@ -108,6 +109,20 @@ class AdMonitorEvaluator
                 $m->last_action = (string) $action['type'];
                 $m->last_action_at = now();
                 $actions[] = $action + ['name' => $entity->name, 'level' => $m->target_level];
+                AdMonitorAction::withoutGlobalScope(TenantScope::class)->create([
+                    'tenant_id' => (int) $account->tenant_id,
+                    'ad_account_id' => (int) $account->getKey(),
+                    'ad_monitor_id' => (int) $m->id,
+                    'target_level' => $m->target_level,
+                    'target_external_id' => $m->target_external_id,
+                    'target_name' => $entity->name,
+                    'type' => (string) $action['type'],
+                    'cpr' => $action['cpr'] ?? null,
+                    'spend' => $action['spend'] ?? $dto->spend,
+                    'results' => $action['results'] ?? $results,
+                    'from_budget' => $action['from'] ?? null,
+                    'to_budget' => $action['to'] ?? null,
+                ]);
             }
             $m->save();
         }

@@ -59,6 +59,10 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
             ->whereNumber('id')->name('marketing.monitors.upsert');
         Route::delete('monitors/{monitor}', [AdMonitorController::class, 'destroy'])
             ->whereNumber('monitor')->name('marketing.monitors.destroy');
+        Route::get('ad-accounts/{id}/monitor-actions', [AdMonitorController::class, 'actions'])
+            ->whereNumber('id')->name('marketing.monitor-actions.index');
+        Route::delete('monitor-actions/{action}', [AdMonitorController::class, 'destroyAction'])
+            ->whereNumber('action')->name('marketing.monitor-actions.destroy');
         // Saved report snapshots (per filter run, reviewable over time).
         Route::get('ad-accounts/{id}/saved-reports', [SavedReportController::class, 'index'])
             ->whereNumber('id')->name('marketing.saved-reports.index');
@@ -78,6 +82,10 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
             ->whereNumber('id')->name('marketing.ad-accounts.campaign-insight.show');
         Route::post('ad-accounts/{id}/campaigns/{campaignId}/ai-insight', [CampaignAiInsightController::class, 'generate'])
             ->whereNumber('id')->name('marketing.ad-accounts.campaign-insight.generate');
+        Route::get('ad-accounts/{id}/campaigns/{campaignId}/ai-insight/history', [CampaignAiInsightController::class, 'history'])
+            ->whereNumber('id')->name('marketing.ad-accounts.campaign-insight.history');
+        Route::delete('campaign-insights/{insight}', [CampaignAiInsightController::class, 'destroy'])
+            ->whereNumber('insight')->name('marketing.campaign-insights.destroy');
 
         // Wizard authoring reads (pages/posts/targeting/preview).
         Route::get('ad-accounts/{id}/pages', [AdAuthoringController::class, 'pages'])->whereNumber('id')->name('marketing.authoring.pages');

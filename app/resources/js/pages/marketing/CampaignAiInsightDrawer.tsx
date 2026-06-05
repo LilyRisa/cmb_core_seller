@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-    App as AntApp, Alert, Button, Checkbox, Divider, Drawer, Empty, InputNumber,
-    Segmented, Space, Spin, Switch, Tag, Typography,
+    App as AntApp, Alert, Button, Checkbox, Collapse, Divider, Drawer, Empty, InputNumber, List,
+    Popconfirm, Segmented, Space, Spin, Switch, Tag, Typography,
 } from 'antd';
-import { BulbOutlined, RobotOutlined } from '@ant-design/icons';
+import { BulbOutlined, DeleteOutlined, RobotOutlined } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
 import {
     CAMPAIGN_AI_METRICS, type CampaignAiMetric,
-    useCampaignAiInsight, useGenerateCampaignAiInsight,
+    useCampaignAiInsight, useCampaignAiInsightHistory, useDeleteCampaignInsight, useGenerateCampaignAiInsight,
 } from '@/lib/marketing';
 
 const { Text, Paragraph } = Typography;
@@ -39,6 +39,8 @@ export function CampaignAiInsightDrawer({ open, accountId, campaign, onClose }: 
 
     const campaignId = campaign?.id ?? null;
     const { data: insight, isLoading } = useCampaignAiInsight(accountId, campaignId, { enabled: open, poll: polling });
+    const { data: history } = useCampaignAiInsightHistory(accountId, campaignId, open);
+    const deleteInsight = useDeleteCampaignInsight();
     const generate = useGenerateCampaignAiInsight();
 
     // Reset transient state whenever a different campaign drawer opens.
@@ -171,6 +173,46 @@ export function CampaignAiInsightDrawer({ open, accountId, campaign, onClose }: 
                             </div>
                         )}
                     </Space>
+                )}
+
+                {(history?.length ?? 0) > 1 && (
+                    <Collapse
+                        size="small"
+                        items={[{
+                            key: 'history',
+                            label: `Lịch sử phân tích (${history!.length})`,
+                            children: (
+                                <List
+                                    size="small"
+                                    dataSource={history ?? []}
+                                    renderItem={(h) => (
+                                        <List.Item
+                                            actions={[
+                                                h.id != null ? (
+                                                    <Popconfirm
+                                                        key="del"
+                                                        title="Xoá bản phân tích này?"
+                                                        okText="Xoá" cancelText="Huỷ"
+                                                        onConfirm={() => deleteInsight.mutate(h.id!, { onSuccess: () => message.success('Đã xoá.') })}
+                                                    >
+                                                        <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+                                                    </Popconfirm>
+                                                ) : <span key="x" />,
+                                            ]}
+                                        >
+                                            <Space direction="vertical" size={0}>
+                                                <Text style={{ fontSize: 12 }}>
+                                                    {h.generated_at ? new Date(h.generated_at).toLocaleString('vi-VN') : '—'}
+                                                    {h.params?.days ? ` · ${h.params.days} ngày` : ''}{h.model ? ` · ${h.model}` : ''}
+                                                </Text>
+                                                <Text type="secondary" style={{ fontSize: 12 }} ellipsis>{h.payload.summary ?? ''}</Text>
+                                            </Space>
+                                        </List.Item>
+                                    )}
+                                />
+                            ),
+                        }]}
+                    />
                 )}
             </Space>
         </Drawer>

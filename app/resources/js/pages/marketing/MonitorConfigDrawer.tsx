@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { App as AntApp, Alert, Button, Drawer, Divider, Form, InputNumber, Popconfirm, Space, Switch, Typography } from 'antd';
-import { AlertOutlined } from '@ant-design/icons';
-import { useAdMonitors, useDeleteMonitor, useUpsertMonitor, type AdMonitor } from '@/lib/marketing';
+import { App as AntApp, Alert, Button, Collapse, Drawer, Divider, Form, InputNumber, List, Popconfirm, Space, Switch, Tag, Typography } from 'antd';
+import { AlertOutlined, DeleteOutlined } from '@ant-design/icons';
+import { useAdMonitors, useDeleteMonitor, useDeleteMonitorAction, useMonitorActions, useUpsertMonitor, type AdMonitor } from '@/lib/marketing';
 import { errorMessage } from '@/lib/api';
 
 const { Text } = Typography;
@@ -27,6 +27,8 @@ const vnd = (v: number | null | undefined) => (v ?? undefined);
 export function MonitorConfigDrawer({ open, accountId, target, onClose }: Props) {
     const { message } = AntApp.useApp();
     const { data: monitors } = useAdMonitors(accountId);
+    const { data: actions } = useMonitorActions(accountId, target?.externalId);
+    const deleteAction = useDeleteMonitorAction();
     const upsert = useUpsertMonitor();
     const del = useDeleteMonitor();
 
@@ -159,11 +161,46 @@ export function MonitorConfigDrawer({ open, accountId, target, onClose }: Props)
                 <Text type="secondary" style={{ fontSize: 12 }}>
                     Hệ thống tự đánh giá & xử lý 30 phút/lần (dữ liệu hôm nay). Khi có hành động sẽ gửi email cho Quản trị.
                 </Text>
-                {existing?.last_action && (
-                    <Alert
-                        type="warning"
+                {(actions?.length ?? 0) > 0 && (
+                    <Collapse
+                        size="small"
                         style={{ marginTop: 12 }}
-                        message={`Hành động gần nhất: ${existing.last_action === 'pause' ? 'tạm dừng' : 'tăng ngân sách'}${existing.last_action_at ? ' lúc ' + new Date(existing.last_action_at).toLocaleString('vi-VN') : ''}`}
+                        items={[{
+                            key: 'history',
+                            label: `Lịch sử hành động (${actions!.length})`,
+                            children: (
+                                <List
+                                    size="small"
+                                    dataSource={actions ?? []}
+                                    renderItem={(a) => (
+                                        <List.Item
+                                            actions={[
+                                                <Popconfirm
+                                                    key="del"
+                                                    title="Xoá mục lịch sử này?"
+                                                    okText="Xoá" cancelText="Huỷ"
+                                                    onConfirm={() => deleteAction.mutate(a.id, { onSuccess: () => message.success('Đã xoá.') })}
+                                                >
+                                                    <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+                                                </Popconfirm>,
+                                            ]}
+                                        >
+                                            <Space direction="vertical" size={0}>
+                                                <Space size={6}>
+                                                    <Tag color={a.type === 'pause' ? 'red' : 'green'}>{a.type === 'pause' ? 'Tạm dừng' : 'Tăng ngân sách'}</Tag>
+                                                    <Text type="secondary" style={{ fontSize: 12 }}>{a.created_at ? new Date(a.created_at).toLocaleString('vi-VN') : ''}</Text>
+                                                </Space>
+                                                <Text type="secondary" style={{ fontSize: 12 }}>
+                                                    {a.type === 'increase'
+                                                        ? `${(a.from_budget ?? 0).toLocaleString('vi-VN')} → ${(a.to_budget ?? 0).toLocaleString('vi-VN')}đ`
+                                                        : (a.cpr != null ? `CP/Kết quả ${a.cpr.toLocaleString('vi-VN')}đ` : `Đã chi ${(a.spend ?? 0).toLocaleString('vi-VN')}đ, chưa có kết quả`)}
+                                                </Text>
+                                            </Space>
+                                        </List.Item>
+                                    )}
+                                />
+                            ),
+                        }]}
                     />
                 )}
             </Form>

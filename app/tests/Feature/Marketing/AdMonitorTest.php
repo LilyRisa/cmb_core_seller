@@ -7,6 +7,7 @@ use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
 use CMBcoreSeller\Modules\Marketing\Models\AdEntity;
 use CMBcoreSeller\Modules\Marketing\Models\AdMonitor;
+use CMBcoreSeller\Modules\Marketing\Models\AdMonitorAction;
 use CMBcoreSeller\Modules\Marketing\Notifications\AdMonitorActionNotification;
 use CMBcoreSeller\Modules\Marketing\Services\AdMonitorEvaluator;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
@@ -62,6 +63,27 @@ class AdMonitorTest extends TestCase
         $this->assertSame('pause', $actions[0]['type']);
         $this->assertSame('PAUSED', AdEntity::where('external_id', 'C1')->value('status'));
         Notification::assertSentTimes(AdMonitorActionNotification::class, 1);
+        // History row logged (viewable + deletable).
+        $this->assertDatabaseHas('ad_monitor_actions', ['ad_account_id' => $this->account->id, 'target_external_id' => 'C1', 'type' => 'pause']);
+    }
+
+    public function test_monitor_action_history_endpoint_and_delete(): void
+    {
+        $user = User::factory()->create(['email_verified_at' => now()]);
+        $this->tenant->users()->attach($user->getKey(), ['role' => Role::Owner->value]);
+        $h = ['X-Tenant-Id' => (string) $this->tenant->id];
+        AdMonitorAction::create([
+            'tenant_id' => $this->tenant->id, 'ad_account_id' => $this->account->id, 'target_level' => 'campaign',
+            'target_external_id' => 'C1', 'target_name' => 'CD', 'type' => 'increase', 'from_budget' => 100000, 'to_budget' => 150000,
+        ]);
+
+        $id = $this->actingAs($user)->withHeaders($h)
+            ->getJson("/api/v1/marketing/ad-accounts/{$this->account->id}/monitor-actions")
+            ->assertOk()->assertJsonPath('data.0.type', 'increase')->json('data.0.id');
+
+        $this->actingAs($user)->withHeaders($h)->deleteJson("/api/v1/marketing/monitor-actions/{$id}")->assertNoContent();
+        $this->actingAs($user)->withHeaders($h)
+            ->getJson("/api/v1/marketing/ad-accounts/{$this->account->id}/monitor-actions")->assertOk()->assertJsonCount(0, 'data');
     }
 
     public function test_pauses_when_zero_results_but_spend_reached_threshold(): void

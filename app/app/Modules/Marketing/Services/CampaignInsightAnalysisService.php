@@ -53,17 +53,17 @@ class CampaignInsightAnalysisService
         $data = $this->buildData($account, $campaignExternalId, $params);
         $result = $this->client->analyze($data, self::INSTRUCTION, self::SCHEMA, fn (array $d): array => $this->stub($d));
 
-        return CampaignAiInsight::withoutGlobalScope(TenantScope::class)->updateOrCreate(
-            ['ad_account_id' => (int) $account->getKey(), 'campaign_external_id' => $campaignExternalId],
-            [
-                'tenant_id' => (int) $account->tenant_id,
-                'payload' => $result['payload'],
-                'params' => $params,
-                'provider_code' => $result['provider_code'],
-                'model' => $result['model'],
-                'generated_at' => now(),
-            ],
-        );
+        // Insert a NEW row each time → full history (the latest is the cached one).
+        return CampaignAiInsight::withoutGlobalScope(TenantScope::class)->create([
+            'ad_account_id' => (int) $account->getKey(),
+            'campaign_external_id' => $campaignExternalId,
+            'tenant_id' => (int) $account->tenant_id,
+            'payload' => $result['payload'],
+            'params' => $params,
+            'provider_code' => $result['provider_code'],
+            'model' => $result['model'],
+            'generated_at' => now(),
+        ]);
     }
 
     public function cached(AdAccount $account, string $campaignExternalId): ?CampaignAiInsight
@@ -71,6 +71,7 @@ class CampaignInsightAnalysisService
         return CampaignAiInsight::query()
             ->where('ad_account_id', $account->getKey())
             ->where('campaign_external_id', $campaignExternalId)
+            ->latest('id')
             ->first();
     }
 

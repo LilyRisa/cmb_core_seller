@@ -130,6 +130,29 @@ class CampaignAiInsightApiTest extends TestCase
             ->assertJsonPath('data.params.days', 7);
     }
 
+    public function test_history_lists_past_analyses_and_can_delete(): void
+    {
+        foreach (['a', 'b', 'c'] as $s) {
+            CampaignAiInsight::create([
+                'ad_account_id' => $this->account->id, 'campaign_external_id' => 'c_h',
+                'payload' => ['summary' => $s], 'params' => ['days' => 7, 'metrics' => ['spend'], 'include_engagement' => false],
+                'provider_code' => 'openai', 'model' => 'gpt-4o', 'generated_at' => now(),
+            ]);
+        }
+
+        $res = $this->actingAs($this->user)->withHeaders($this->h())
+            ->getJson("/api/v1/marketing/ad-accounts/{$this->account->id}/campaigns/c_h/ai-insight/history")
+            ->assertOk()->assertJsonCount(3, 'data');
+        $id = $res->json('data.0.id'); // latest first
+
+        $this->actingAs($this->user)->withHeaders($this->h())
+            ->deleteJson("/api/v1/marketing/campaign-insights/{$id}")->assertNoContent();
+
+        $this->actingAs($this->user)->withHeaders($this->h())
+            ->getJson("/api/v1/marketing/ad-accounts/{$this->account->id}/campaigns/c_h/ai-insight/history")
+            ->assertOk()->assertJsonCount(2, 'data');
+    }
+
     public function test_other_tenant_cannot_see_insight(): void
     {
         CampaignAiInsight::create([
