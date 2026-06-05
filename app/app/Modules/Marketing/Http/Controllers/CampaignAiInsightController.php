@@ -3,11 +3,13 @@
 namespace CMBcoreSeller\Modules\Marketing\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
+use CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter;
 use CMBcoreSeller\Modules\Marketing\Http\Requests\CampaignAiInsightRequest;
 use CMBcoreSeller\Modules\Marketing\Jobs\GenerateCampaignAiInsight;
 use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
 use CMBcoreSeller\Modules\Marketing\Models\CampaignAiInsight;
 use CMBcoreSeller\Modules\Marketing\Services\CampaignInsightAnalysisService;
+use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 
@@ -65,6 +67,12 @@ class CampaignAiInsightController extends Controller
         $cooldown = (int) config('marketing.campaign_insight_cooldown_minutes', 60);
         if ($existing !== null && $existing->params === $params && $existing->generated_at->gt(now()->subMinutes($cooldown))) {
             return response()->json(['data' => $this->format($existing), 'status' => 'cached', 'queued' => false]);
+        }
+
+        // SPEC 0032 — tiêu thụ 1 lượt AI (ném 402 nếu gói không có AI / hết lượt). Chỉ trừ khi THỰC SỰ chạy AI.
+        $tenantId = app(CurrentTenant::class)->id();
+        if ($tenantId !== null) {
+            app(AiCreditMeter::class)->consume($tenantId, 1);
         }
 
         GenerateCampaignAiInsight::dispatch($account->id, $campaignId, $params);

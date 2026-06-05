@@ -2,6 +2,7 @@
 
 use CMBcoreSeller\Http\Middleware\AssignRequestId;
 use CMBcoreSeller\Modules\Accounting\Exceptions\AccountingException;
+use CMBcoreSeller\Modules\Billing\Exceptions\AiCreditException;
 use CMBcoreSeller\Modules\Billing\Http\Middleware\EnforcePlanFeature;
 use CMBcoreSeller\Modules\Billing\Http\Middleware\EnforcePlanLimit;
 use CMBcoreSeller\Modules\Billing\Http\Middleware\EnforcePlanQuotaLock;
@@ -91,6 +92,15 @@ return Application::configure(basePath: dirname(__DIR__))
         $envelope = function (Throwable $e, Request $request) {
             if (! ($request->is('api/*', 'webhook/*') || $request->expectsJson())) {
                 return null; // let the default (HTML / redirect) handler run for web routes
+            }
+
+            // SPEC 0032 — AiCreditException (không có gói AI / hết lượt) ⇒ 402.
+            if ($e instanceof AiCreditException) {
+                return response()->json(['error' => [
+                    'code' => $e->errorCode,
+                    'message' => $e->getMessage(),
+                    'trace_id' => $request->attributes->get('request_id'),
+                ]], 402);
             }
 
             // Phase 7 / SPEC 0019: AccountingException tự mang `errorCode` + `httpStatus` + `details`.

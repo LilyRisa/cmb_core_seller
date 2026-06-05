@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Billing\Services;
 
+use CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter;
 use CMBcoreSeller\Modules\Billing\Exceptions\AiCreditException;
 use CMBcoreSeller\Modules\Billing\Models\AiCreditWallet;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
@@ -17,7 +18,7 @@ use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
  * ⇒ không gọi được (credit mua vẫn giữ nguyên, dùng lại khi nâng cấp). Gói có `ai_credits_monthly = -1`
  * ⇒ không giới hạn.
  */
-class AiCreditService
+class AiCreditService implements AiCreditMeter
 {
     public function __construct(private SubscriptionService $subscriptions) {}
 

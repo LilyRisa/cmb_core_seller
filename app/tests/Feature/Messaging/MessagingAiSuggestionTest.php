@@ -148,7 +148,7 @@ class MessagingAiSuggestionTest extends TestCase
 
     public function test_non_business_plan_blocked_by_feature(): void
     {
-        $this->activate(Plan::CODE_PRO); // Pro không có feature messaging_ai
+        $this->activate(Plan::CODE_STARTER); // Starter không có feature messaging_ai (SPEC 0032)
 
         $this->actingAs($this->owner)->withHeaders($this->h())
             ->postJson("/api/v1/messaging/conversations/{$this->conv->id}/ai-suggestion")

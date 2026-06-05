@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Messaging\Http\Controllers;
 use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\OutboundWindowClosed;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
+use CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter;
 use CMBcoreSeller\Modules\Messaging\Exceptions\AiSuggestionException;
 use CMBcoreSeller\Modules\Messaging\Http\Resources\MessageResource;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
@@ -12,6 +13,7 @@ use CMBcoreSeller\Modules\Messaging\Models\MessageDraft;
 use CMBcoreSeller\Modules\Messaging\Services\AiSuggestionService;
 use CMBcoreSeller\Modules\Messaging\Services\OutboundMessageService;
 use CMBcoreSeller\Modules\Messaging\Services\OutboundWindowGuard;
+use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -40,6 +42,12 @@ class AiSuggestionController extends Controller
         Gate::authorize('messaging.reply');
 
         $conv = Conversation::query()->findOrFail($conversationId);
+
+        // SPEC 0032 — trừ 1 lượt AI (ném 402 nếu gói không có AI / hết lượt).
+        $tenantId = app(CurrentTenant::class)->id();
+        if ($tenantId !== null) {
+            app(AiCreditMeter::class)->consume($tenantId, 1);
+        }
 
         try {
             $draft = $this->suggestions->suggest($conv, $request->user()->id);

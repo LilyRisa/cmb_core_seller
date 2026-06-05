@@ -96,15 +96,26 @@ class MessagingApiTest extends TestCase
         ]);
     }
 
-    public function test_starter_plan_cannot_access_inbox(): void
+    public function test_trial_plan_cannot_access_inbox(): void
     {
-        $this->activateSubscription(Plan::CODE_STARTER);
+        // SPEC 0032 — trial không có nhắn tin; starter (90k) trở lên mới có messaging_inbox.
+        $this->activateSubscription(Plan::CODE_TRIAL);
 
         $this->actingAs($this->owner)
             ->withHeaders($this->h())
             ->getJson('/api/v1/messaging/conversations')
             ->assertStatus(402)
             ->assertJsonPath('error.code', 'PLAN_FEATURE_LOCKED');
+    }
+
+    public function test_starter_plan_can_access_inbox(): void
+    {
+        $this->activateSubscription(Plan::CODE_STARTER);
+
+        $this->actingAs($this->owner)
+            ->withHeaders($this->h())
+            ->getJson('/api/v1/messaging/conversations')
+            ->assertOk();
     }
 
     public function test_pro_plan_can_list_conversations(): void

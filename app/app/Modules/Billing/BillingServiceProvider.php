@@ -6,9 +6,11 @@ use CMBcoreSeller\Modules\Billing\Console\BetaModeCommand;
 use CMBcoreSeller\Modules\Billing\Console\CheckExpiringSubscriptionsCommand;
 use CMBcoreSeller\Modules\Billing\Console\CheckOverQuotaCommand;
 use CMBcoreSeller\Modules\Billing\Console\RecomputeUsageCommand;
+use CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter;
 use CMBcoreSeller\Modules\Billing\Events\InvoicePaid;
 use CMBcoreSeller\Modules\Billing\Listeners\ActivateSubscription;
 use CMBcoreSeller\Modules\Billing\Listeners\StartTrialSubscription;
+use CMBcoreSeller\Modules\Billing\Services\AiCreditService;
 use CMBcoreSeller\Modules\Tenancy\Events\TenantCreated;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -28,7 +30,11 @@ class BillingServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        // SPEC 0032 — module khác tiêu thụ lượt AI qua Contract (luật module).
+        $this->app->bind(
+            AiCreditMeter::class,
+            AiCreditService::class,
+        );
     }
 
     public function boot(): void

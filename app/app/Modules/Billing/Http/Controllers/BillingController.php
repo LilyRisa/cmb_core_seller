@@ -14,6 +14,7 @@ use CMBcoreSeller\Modules\Billing\Models\BillingProfile;
 use CMBcoreSeller\Modules\Billing\Models\Invoice;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
+use CMBcoreSeller\Modules\Billing\Services\AiCreditService;
 use CMBcoreSeller\Modules\Billing\Services\BillingService;
 use CMBcoreSeller\Modules\Billing\Services\SubscriptionService;
 use CMBcoreSeller\Modules\Billing\Services\UsageService;
@@ -41,6 +42,7 @@ class BillingController extends Controller
         protected CurrentTenant $tenant,
         protected PaymentRegistry $payments,
         protected VoucherService $vouchers,
+        protected AiCreditService $aiCredits,
     ) {}
 
     /** GET /billing/plans — catalogue gói (không tenant-scoped). */
@@ -276,7 +278,7 @@ class BillingController extends Controller
     }
 
     /**
-     * @return array<string, array{used:int,limit:int}|bool>
+     * @return array<string, mixed>
      */
     protected function buildUsage(int $tenantId, ?Plan $plan): array
     {
@@ -284,7 +286,9 @@ class BillingController extends Controller
             'channel_accounts' => [
                 'used' => $this->usage->channelAccounts($tenantId),
                 'limit' => $plan?->maxChannelAccounts() ?? 0,
+                'per_platform_limit' => $plan?->maxChannelAccountsPerPlatform() ?? -1,
             ],
+            'ai_credits' => $this->aiCredits->summary($tenantId),
             'features' => $plan !== null ? ($plan->features ?? []) : [],
         ];
     }

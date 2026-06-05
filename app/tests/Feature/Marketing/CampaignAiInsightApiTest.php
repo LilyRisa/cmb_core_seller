@@ -3,6 +3,9 @@
 namespace Tests\Feature\Marketing;
 
 use CMBcoreSeller\Models\User;
+use CMBcoreSeller\Modules\Billing\Database\Seeders\TestUnlimitedPlanSeeder;
+use CMBcoreSeller\Modules\Billing\Models\Plan;
+use CMBcoreSeller\Modules\Billing\Models\Subscription;
 use CMBcoreSeller\Modules\Marketing\Jobs\GenerateCampaignAiInsight;
 use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
 use CMBcoreSeller\Modules\Marketing\Models\CampaignAiInsight;
@@ -31,6 +34,15 @@ class CampaignAiInsightApiTest extends TestCase
         $this->account = AdAccount::create(['provider' => 'facebook', 'external_account_id' => 'act_1', 'currency' => 'VND', 'status' => 'active', 'access_token' => 'S']);
         $this->user = User::factory()->create(['email_verified_at' => now()]);
         $this->tenant->users()->attach($this->user->getKey(), ['role' => Role::Owner->value]);
+
+        // SPEC 0032 — AI insight cần gói có AI. Gói TEST không giới hạn ⇒ consume no-op.
+        $this->seed(TestUnlimitedPlanSeeder::class);
+        Subscription::create([
+            'tenant_id' => $this->tenant->getKey(),
+            'plan_id' => Plan::query()->where('code', 'test_unlimited')->value('id'),
+            'status' => 'active', 'billing_cycle' => 'monthly',
+            'current_period_start' => now(), 'current_period_end' => now()->addYears(50),
+        ]);
     }
 
     private function h(): array
