@@ -45,8 +45,19 @@ class FacebookObjectiveMapTest extends TestCase
         FacebookObjectiveMap::spec('sales');
     }
 
-    public function test_supported_lists_v1_objectives(): void
+    public function test_conversions_objective_uses_pixel_promoted_object(): void
     {
-        $this->assertSame(['messages', 'engagement', 'traffic'], FacebookObjectiveMap::supported());
+        $spec = FacebookObjectiveMap::spec('conversions');
+
+        $this->assertSame('OUTCOME_SALES', $spec['objective']);
+        $this->assertSame('OFFSITE_CONVERSIONS', $spec['optimization_goal']);
+        $this->assertTrue($spec['needs_promoted_object']);
+        $this->assertSame('pixel', $spec['promoted_object']);
+        $this->assertContains('SHOP_NOW', $spec['cta_options']);
+    }
+
+    public function test_supported_lists_objectives(): void
+    {
+        $this->assertSame(['messages', 'engagement', 'traffic', 'conversions'], FacebookObjectiveMap::supported());
     }
 }

@@ -22,31 +22,34 @@
 | I | Lịch chạy: thêm **ngày kết thúc** (end_time) | ✅ |
 | J | Nhắm mục tiêu **chi tiết** (sở thích/hành vi/nhân khẩu + thu hẹp + loại trừ) | ✅ |
 | K | **Advantage+** Audience (toggle) + Advantage+ Placements (nhãn) | ✅ |
-| L (v1) | **A/B test** cấp nhóm (clone theo 1 biến số + nhãn thử nghiệm; so sánh ở báo cáo) | ✅ |
+| L (v1) | **A/B test** cấp nhóm (clone theo 1 biến số + nhãn thử nghiệm) | ✅ |
+| D (pt.2) | **Pixel + sự kiện chuyển đổi** (objective Chuyển đổi, promoted_object pixel) | ✅ |
+| H+ | Clone phím tắt **cấp quảng cáo** (Ctrl+C/V/D ở bước Nội dung) | ✅ |
+| G+ | **Email** phân tích AI per-campaign cho Owner/Admin | ✅ |
+| J+ | **Mẫu đối tượng chi tiết** (lưu/áp include/narrow/exclude) | ✅ |
+| K+ | **Advantage+ creative** (standard enhancements) toggle | ✅ |
+| L+ | **So sánh A/B** ở báo cáo: gom [A]/[B], tuyên bố người thắng theo chỉ số | ✅ |
 
 Spec từng mục: `docs/superpowers/specs/2026-06-05-*.md`.
 
 ---
 
-## B. Follow-up còn lại (chưa làm)
+## B. Follow-up còn lại (subsystem lớn — chưa làm)
 
-### D (pt.2) — Pixel + sự kiện chuyển đổi
-- Pixel + conversion event đầy đủ cho mục tiêu chuyển đổi (ngoài phần hiển thị CTA hiện hữu đã làm ở pt.1).
+Chỉ còn 2 hạng mục thực sự là **hệ con lớn**, cần brainstorming + spec/plan riêng (đa ngày), không gộp vào cadence hiện tại; **không** ship bản nửa vời:
 
-### G+ — Email per-campaign + lịch sử nhiều bản phân tích
-- Hiện G chỉ giữ 1 bản phân tích mới nhất/chiến dịch, không gửi email (xem trực tiếp ở Drawer).
+### K++ — Advantage+ Shopping Campaign (ASC)
+- Loại **chiến dịch riêng** dựa trên **catalog sản phẩm** (cần tích hợp catalog/feed, objective & cấu trúc khác). Là một module bán hàng theo danh mục, không phải toggle.
 
-### J+ — Mẫu "đối tượng chi tiết" + nhiều nhóm thu hẹp (>2 flexible_spec)
-- Tái dùng cơ chế mẫu như F cho đối tượng chi tiết; hỗ trợ >1 nhóm thu hẹp.
+### L++ — A/B test chính thức qua Meta **ad_study** API
+- Tạo **study/experiment cells**, Meta điều phối chia ngân sách/đối tượng và **tuyên bố winner chính thức** (khác cách lightweight hiện tại = 2 nhóm [A]/[B] + so sánh chỉ số ở báo cáo). Gồm vòng đời study (tạo → chạy → poll kết quả) + A/B cấp **chiến dịch** & **quảng cáo (creative/danh mục)**.
 
-### K+ — Advantage+ Shopping Campaign + Advantage+ creative enhancements
-
-### L+ — A/B test chính thức qua Meta ad_study API
-- Tạo study/experiment cells, Meta điều phối ngân sách & tuyên bố winner; A/B cấp **chiến dịch** & **quảng cáo (creative/danh mục)**; bảng so sánh A/B gom theo `experiment.id`.
-
-### H+ — Clone cả chiến dịch + phím tắt cấp quảng cáo
+### Mảnh nhỏ còn để ngỏ (đủ dùng ở bản hiện tại)
+- J: **>2 nhóm thu hẹp** (danh sách động nhiều `flexible_spec`) — hiện 1 include + 1 narrow đủ cho đa số.
+- G: **lịch sử nhiều bản phân tích**/chiến dịch — hiện giữ 1 bản mới nhất.
 
 ---
 
 ## C. Trạng thái
-Tất cả hạng mục roadmap chính (Báo cáo AI · A · B · C · D pt.1 · E · F · G · H · I · J · K · L v1) **đã xong & merge `main`**. Phần còn lại ở §B là các follow-up nâng cao (pixel/conversion, ad_study API chính thức, mẫu đối tượng chi tiết, Advantage+ Shopping…), làm khi có nhu cầu — mỗi mục vẫn cần spec + plan trước khi code.
+Toàn bộ roadmap chính + các follow-up tractable **đã xong & merge `main`**: Báo cáo AI · A · B · C · D (pt.1+pt.2) · E · F · G(+) · H(+) · I · J(+) · K(+) · L(v1)(+).
+Chỉ còn **2 subsystem lớn** (Advantage+ Shopping Campaign theo catalog; ad_study split-test API chính thức) — mỗi cái cần spec/plan riêng trước khi code.
