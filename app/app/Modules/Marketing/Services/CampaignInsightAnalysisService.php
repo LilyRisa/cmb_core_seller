@@ -26,7 +26,7 @@ class CampaignInsightAnalysisService
         'purchase_roas' => 'purchaseRoas', 'messaging_conversations' => 'messagingConversations', 'leads' => 'leads',
     ];
 
-    private const INSTRUCTION = 'Bạn là chuyên gia tối ưu quảng cáo Facebook. Phân tích RIÊNG một chiến dịch dựa trên: chỉ số đã chọn trong N ngày, hiệu quả từng quảng cáo, nội dung creative/bài viết và tương tác (like/comment). Hãy: (1) đánh giá hiệu quả chiến dịch theo các chỉ số đó, (2) nhận xét nội dung & tương tác của từng bài/quảng cáo, (3) đề xuất hành động cụ thể (tăng/giảm ngân sách, tạm dừng, đổi tệp/nội dung) cho riêng chiến dịch này.';
+    private const INSTRUCTION = 'Bạn là chuyên gia tối ưu quảng cáo Facebook. Phân tích RIÊNG một chiến dịch dựa trên: chỉ số đã chọn trong N ngày, hiệu quả từng quảng cáo, nội dung creative/bài viết, tương tác (like/comment), và (nếu có) NỘI DUNG TRANG ĐÍCH (landing_pages: tiêu đề/heading/text/CTA/form/pixel) với chiến dịch chuyển đổi website. Hãy: (1) đánh giá hiệu quả chiến dịch theo các chỉ số đó, (2) nhận xét nội dung & tương tác của từng bài/quảng cáo, (3) nếu có trang đích: đánh giá mức độ khớp giữa quảng cáo và trang đích, trải nghiệm/tốc độ/CTA và việc gắn pixel; (4) đề xuất hành động cụ thể (tăng/giảm ngân sách, tạm dừng, đổi tệp/nội dung, tối ưu trang đích) cho riêng chiến dịch này.';
 
     /** Output schema the model must follow (matches what CampaignAiInsightDrawer renders). */
     private const SCHEMA = '{summary:string (tổng quan ngắn), assessment:string (đánh giá hiệu quả theo chỉ số), recommendations:[{action:string, rationale:string}], creative_review:[{ref:string, name:string, verdict:"tốt"|"cần cải thiện", issues:[string], suggestions:[string]}]}';
@@ -34,10 +34,11 @@ class CampaignInsightAnalysisService
     public function __construct(
         private MarketingAnalysisClient $client,
         private AdsRegistry $registry,
+        private LandingPageFetcher $landing,
     ) {}
 
     /**
-     * @param  array{days?:int, metrics?:list<string>, include_engagement?:bool}  $params
+     * @param  array{days?:int, metrics?:list<string>, include_engagement?:bool, include_landing?:bool}  $params
      */
     public function generate(AdAccount $account, string $campaignExternalId, array $params, bool $force = false): CampaignAiInsight
     {
@@ -76,8 +77,8 @@ class CampaignInsightAnalysisService
     }
 
     /**
-     * @param  array{days?:int, metrics?:list<string>, include_engagement?:bool}  $params
-     * @return array{days:int, metrics:list<string>, include_engagement:bool}
+     * @param  array{days?:int, metrics?:list<string>, include_engagement?:bool, include_landing?:bool}  $params
+     * @return array{days:int, metrics:list<string>, include_engagement:bool, include_landing:bool}
      */
     public function normalizeParams(array $params): array
     {
@@ -92,11 +93,12 @@ class CampaignInsightAnalysisService
             'days' => $days,
             'metrics' => $metrics,
             'include_engagement' => (bool) ($params['include_engagement'] ?? true),
+            'include_landing' => (bool) ($params['include_landing'] ?? true),
         ];
     }
 
     /**
-     * @param  array{days:int, metrics:list<string>, include_engagement:bool}  $params
+     * @param  array{days:int, metrics:list<string>, include_engagement:bool, include_landing:bool}  $params
      * @return array<string,mixed>
      */
     private function buildData(AdAccount $account, string $campaignExternalId, array $params): array
@@ -126,6 +128,7 @@ class CampaignInsightAnalysisService
             'ads' => [],
             'creatives' => [],
             'engagement' => [],
+            'landing_pages' => [],
         ];
 
         if (! $this->registry->has($account->provider)) {
@@ -159,11 +162,23 @@ class CampaignInsightAnalysisService
                 $data['creatives'] = array_map(fn ($c) => [
                     'ad_id' => $c->adId, 'name' => $c->adName, 'primary_text' => $c->primaryText,
                     'headline' => $c->headline, 'cta' => $c->cta, 'post_id' => $c->pagePostId,
+                    'link_url' => $c->linkUrl,
                 ], $creatives);
 
                 if ($params['include_engagement'] && $connector instanceof AdsWriteConnector) {
                     $postIds = array_values(array_unique(array_filter(array_map(fn ($c) => $c->pagePostId, $creatives))));
                     $data['engagement'] = $connector->fetchPostEngagement($token, $postIds);
+                }
+
+                // Website-conversion campaigns: fetch the landing page(s) for richer context.
+                if ($params['include_landing']) {
+                    $urls = array_values(array_unique(array_filter(array_map(fn ($c) => $c->linkUrl, $creatives))));
+                    foreach (array_slice($urls, 0, 3) as $url) { // cap at 3 distinct pages
+                        $page = $this->landing->fetch((string) $url);
+                        if ($page !== null) {
+                            $data['landing_pages'][] = $page;
+                        }
+                    }
                 }
             }
         } catch (\Throwable $e) {
@@ -231,6 +246,16 @@ class CampaignInsightAnalysisService
         }
         if ($recs === []) {
             $recs[] = ['action' => 'Tiếp tục theo dõi', 'rationale' => 'Chưa đủ tín hiệu để kết luận; theo dõi thêm vài ngày.'];
+        }
+        // Landing page hints (website-conversion campaigns).
+        $pages = array_values(array_filter((array) ($data['landing_pages'] ?? []), 'is_array'));
+        foreach ($pages as $p) {
+            if (empty($p['pixels'])) {
+                $recs[] = ['action' => 'Gắn Pixel cho trang đích', 'rationale' => 'Trang đích "'.((string) ($p['title'] ?? $p['url'] ?? '')).'" chưa phát hiện pixel theo dõi — khó tối ưu chuyển đổi.'];
+            }
+            if (empty($p['has_form']) && empty($p['ctas'])) {
+                $recs[] = ['action' => 'Bổ sung CTA/biểu mẫu trên trang đích', 'rationale' => 'Trang đích thiếu nút kêu gọi hành động/biểu mẫu rõ ràng.'];
+            }
         }
 
         $creatives = array_values(array_filter((array) ($data['creatives'] ?? []), 'is_array'));

@@ -313,7 +313,7 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
     public function fetchAdCreatives(string $accessToken, string $externalAccountId): array
     {
         $res = Http::timeout(30)->get($this->graphUrl($externalAccountId.'/ads'), [
-            'fields' => 'id,name,effective_status,creative{body,title,effective_object_story_id,object_story_spec{link_data{message,name,call_to_action{type}}}}',
+            'fields' => 'id,name,effective_status,creative{body,title,effective_object_story_id,object_story_spec{link_data{message,name,link,call_to_action{type,value}}}}',
             'access_token' => $accessToken,
             'limit' => 200,
         ]);
@@ -324,6 +324,7 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
         return array_values(array_map(function (array $a) {
             $creative = (array) ($a['creative'] ?? []);
             $linkData = (array) ($creative['object_story_spec']['link_data'] ?? []);
+            $linkUrl = $linkData['link'] ?? $linkData['call_to_action']['value']['link'] ?? null;
 
             return new AdCreativeDTO(
                 adId: (string) ($a['id'] ?? ''),
@@ -333,6 +334,7 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
                 headline: isset($linkData['name']) ? (string) $linkData['name'] : (isset($creative['title']) ? (string) $creative['title'] : null),
                 cta: isset($linkData['call_to_action']['type']) ? (string) $linkData['call_to_action']['type'] : null,
                 pagePostId: isset($creative['effective_object_story_id']) ? (string) $creative['effective_object_story_id'] : null,
+                linkUrl: $linkUrl !== null ? (string) $linkUrl : null,
                 raw: $a,
             );
         }, array_filter((array) $res->json('data', []), 'is_array')));

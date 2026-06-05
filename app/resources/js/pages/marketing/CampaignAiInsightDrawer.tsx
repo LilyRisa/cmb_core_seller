@@ -34,6 +34,7 @@ export function CampaignAiInsightDrawer({ open, accountId, campaign, onClose }: 
     const [days, setDays] = useState<number>(14);
     const [metrics, setMetrics] = useState<CampaignAiMetric[]>(DEFAULT_METRICS);
     const [includeEngagement, setIncludeEngagement] = useState(true);
+    const [includeLanding, setIncludeLanding] = useState(true);
     const [polling, setPolling] = useState(false);
     const [startedAt, setStartedAt] = useState<number | null>(null);
 
@@ -67,7 +68,7 @@ export function CampaignAiInsightDrawer({ open, accountId, campaign, onClose }: 
         if (accountId == null || campaignId == null) return;
         const triggeredAt = Date.now();
         generate.mutate(
-            { accountId, campaignId, params: { days, metrics, include_engagement: includeEngagement } },
+            { accountId, campaignId, params: { days, metrics, include_engagement: includeEngagement, include_landing: includeLanding } },
             {
                 onSuccess: (res) => {
                     if (res.queued) {
@@ -127,6 +128,16 @@ export function CampaignAiInsightDrawer({ open, accountId, campaign, onClose }: 
                 <Space>
                     <Switch checked={includeEngagement} onChange={setIncludeEngagement} />
                     <Text>Kèm nội dung bài viết + lượt like/comment</Text>
+                </Space>
+
+                <Space direction="vertical" size={0}>
+                    <Space>
+                        <Switch checked={includeLanding} onChange={setIncludeLanding} />
+                        <Text>Phân tích trang đích (website)</Text>
+                    </Space>
+                    <Text type="secondary" style={{ fontSize: 11 }}>
+                        Tự tải nội dung trang đích (tiêu đề, CTA, form, pixel) cho chiến dịch chuyển đổi website để AI phân tích sâu hơn.
+                    </Text>
                 </Space>
 
                 <Button type="primary" icon={<BulbOutlined />} loading={generate.isPending || polling} onClick={handleGenerate} disabled={accountId == null}>

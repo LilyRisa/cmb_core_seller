@@ -13,6 +13,7 @@ final readonly class AdCreativeDTO
         public ?string $headline,
         public ?string $cta,
         public ?string $pagePostId,
+        public ?string $linkUrl = null,   // landing page / destination URL (website ads)
         public array $raw = [],
     ) {}
 }

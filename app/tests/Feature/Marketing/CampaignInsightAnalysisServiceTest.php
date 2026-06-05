@@ -75,6 +75,55 @@ class CampaignInsightAnalysisServiceTest extends TestCase
         $this->assertSame(7, $data['engagement']['123_456']['comments']);
     }
 
+    public function test_fetches_landing_page_for_website_creative(): void
+    {
+        config(['integrations.ads' => ['facebook']]);
+        $this->app->forgetInstance(AdsRegistry::class);
+
+        $captured = new \stdClass;
+        $captured->data = null;
+        $this->app->instance(MarketingAnalysisClient::class, new class($captured) implements MarketingAnalysisClient
+        {
+            public function __construct(private \stdClass $h) {}
+
+            public function analyze(array $data, string $instruction, ?string $schema = null, ?\Closure $fallback = null): array
+            {
+                $this->h->data = $data;
+
+                return ['payload' => ['summary' => 'ok'], 'provider_code' => 'fake', 'model' => 'fake-1'];
+            }
+        });
+
+        $tenant = Tenant::create(['name' => 'T']);
+        app(CurrentTenant::class)->set($tenant);
+        $account = AdAccount::create(['provider' => 'facebook', 'external_account_id' => 'act_1', 'currency' => 'VND', 'status' => 'active', 'access_token' => 'TOK']);
+        AdEntity::create(['ad_account_id' => $account->id, 'level' => 'campaign', 'external_id' => 'C1', 'name' => 'CD web', 'objective' => 'OUTCOME_SALES']);
+
+        Http::fake([
+            'graph.facebook.com/*/C1/insights*' => Http::sequence()
+                ->push(['data' => [['campaign_id' => 'C1', 'spend' => '1000', 'clicks' => '5']]], 200)
+                ->push(['data' => [['ad_id' => 'AD1', 'spend' => '1000', 'clicks' => '5']]], 200),
+            'graph.facebook.com/*/ads*' => Http::response(['data' => [[
+                'id' => 'AD1', 'name' => 'QC web', 'effective_status' => 'ACTIVE',
+                'creative' => ['object_story_spec' => ['link_data' => ['message' => 'Mua ngay', 'link' => 'https://shop.example/sp']]],
+            ]]], 200),
+            'graph.facebook.com/v19.0/?ids=*' => Http::response([], 200),
+            'shop.example/*' => Http::response('<html><head><title>Sản phẩm hot</title><meta name="description" content="Mua ngay"></head><body><h1>Khuyến mãi</h1><script>fbq("init","1")</script><form></form></body></html>', 200),
+        ]);
+
+        app(CampaignInsightAnalysisService::class)->generate($account, 'C1', [
+            'days' => 7, 'metrics' => ['spend'], 'include_engagement' => false, 'include_landing' => true,
+        ], true);
+
+        $pages = $captured->data['landing_pages'];
+        $this->assertCount(1, $pages);
+        $this->assertSame('https://shop.example/sp', $pages[0]['url']);
+        $this->assertSame('Sản phẩm hot', $pages[0]['title']);
+        $this->assertContains('Khuyến mãi', $pages[0]['headings']);
+        $this->assertContains('facebook_pixel', $pages[0]['pixels']);
+        $this->assertTrue($pages[0]['has_form']);
+    }
+
     public function test_without_ai_provider_produces_drawer_shape(): void
     {
         // No marketing_ai_providers row ⇒ real LlmMarketingAnalysisClient falls back to

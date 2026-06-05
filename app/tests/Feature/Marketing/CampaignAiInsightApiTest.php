@@ -77,7 +77,7 @@ class CampaignAiInsightApiTest extends TestCase
             'ad_account_id' => $this->account->id,
             'campaign_external_id' => 'c_1',
             'payload' => ['summary' => 'ok'],
-            'params' => ['days' => 14, 'metrics' => ['spend', 'impressions', 'clicks', 'ctr', 'cpc', 'purchase_roas'], 'include_engagement' => true],
+            'params' => ['days' => 14, 'metrics' => ['spend', 'impressions', 'clicks', 'ctr', 'cpc', 'purchase_roas'], 'include_engagement' => true, 'include_landing' => true],
             'provider_code' => 'openai', 'model' => 'gpt-4o', 'generated_at' => now(),
         ]);
 

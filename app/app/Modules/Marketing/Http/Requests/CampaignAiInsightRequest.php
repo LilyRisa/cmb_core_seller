@@ -25,14 +25,15 @@ class CampaignAiInsightRequest extends FormRequest
             'metrics' => ['nullable', 'array'],
             'metrics.*' => ['string', Rule::in(array_keys(CampaignInsightAnalysisService::METRICS))],
             'include_engagement' => ['nullable', 'boolean'],
+            'include_landing' => ['nullable', 'boolean'],
         ];
     }
 
-    /** @return array{days?:int, metrics?:list<string>, include_engagement?:bool} */
+    /** @return array{days?:int, metrics?:list<string>, include_engagement?:bool, include_landing?:bool} */
     public function params(): array
     {
-        /** @var array{days?:int, metrics?:list<string>, include_engagement?:bool} $out */
-        $out = $this->only(['days', 'metrics', 'include_engagement']);
+        /** @var array{days?:int, metrics?:list<string>, include_engagement?:bool, include_landing?:bool} $out */
+        $out = $this->only(['days', 'metrics', 'include_engagement', 'include_landing']);
 
         return $out;
     }

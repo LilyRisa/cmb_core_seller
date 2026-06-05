@@ -455,7 +455,7 @@ export const CAMPAIGN_AI_METRICS = [
 ] as const;
 export type CampaignAiMetric = (typeof CAMPAIGN_AI_METRICS)[number];
 
-export interface CampaignAiInsightParams { days: number; metrics: string[]; include_engagement: boolean }
+export interface CampaignAiInsightParams { days: number; metrics: string[]; include_engagement: boolean; include_landing: boolean }
 export interface CampaignAiInsight {
     id?: number;
     payload: {
