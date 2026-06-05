@@ -198,6 +198,32 @@ class FacebookAdsCreateTest extends TestCase
         });
     }
 
+    public function test_create_adset_sends_end_time_when_set(): void
+    {
+        Http::fake(['graph.facebook.com/*/adsets' => Http::response(['id' => 'AS'], 200)]);
+
+        $this->connector()->createAdSet('tok', 'act_1', new AdSetSpecDTO(
+            name: 'Set', campaignExternalId: 'C1', objective: 'messages',
+            dailyBudgetMajor: 1000, currency: 'VND', targeting: [], pageId: '123',
+            startTime: '2026-07-01T00:00:00+00:00', endTime: '2026-07-10T00:00:00+00:00',
+        ));
+
+        Http::assertSent(fn ($r) => ($r->data()['end_time'] ?? null) === '2026-07-10T00:00:00+00:00'
+            && ($r->data()['start_time'] ?? null) === '2026-07-01T00:00:00+00:00');
+    }
+
+    public function test_create_adset_omits_end_time_when_null(): void
+    {
+        Http::fake(['graph.facebook.com/*/adsets' => Http::response(['id' => 'AS'], 200)]);
+
+        $this->connector()->createAdSet('tok', 'act_1', new AdSetSpecDTO(
+            name: 'Set', campaignExternalId: 'C1', objective: 'messages',
+            dailyBudgetMajor: 1000, currency: 'VND', targeting: [], pageId: '123',
+        ));
+
+        Http::assertSent(fn ($r) => ! array_key_exists('end_time', $r->data()));
+    }
+
     public function test_create_adset_automatic_placements_not_merged(): void
     {
         Http::fake(['graph.facebook.com/*/adsets' => Http::response(['id' => 'AS'], 200)]);

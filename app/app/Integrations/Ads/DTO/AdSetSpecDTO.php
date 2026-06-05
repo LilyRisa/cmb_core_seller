@@ -19,5 +19,6 @@ final readonly class AdSetSpecDTO
         public string $status = 'PAUSED',
         /** @var array<string,mixed>|null */
         public ?array $placementConfig = null,
+        public ?string $endTime = null,     // ISO-8601; null = runs until stopped
     ) {}
 }

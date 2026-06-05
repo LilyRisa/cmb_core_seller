@@ -86,6 +86,23 @@ class AdDraftSpecMapperTest extends TestCase
         $this->assertSame(['automatic' => false, 'publisher_platforms' => ['facebook']], $spec->placementConfig);
     }
 
+    public function test_adset_maps_start_and_end_time(): void
+    {
+        $draft = $this->draft([]);
+        $node = ['name' => 'N', 'schedule' => ['start_time' => '2026-07-01T00:00:00+00:00', 'end_time' => '2026-07-10T00:00:00+00:00'], 'ads' => [['creative' => ['page_id' => '1']]]];
+        $spec = app(AdDraftSpecMapper::class)->adSet($draft, $node, 'C9', 'VND');
+        $this->assertSame('2026-07-01T00:00:00+00:00', $spec->startTime);
+        $this->assertSame('2026-07-10T00:00:00+00:00', $spec->endTime);
+    }
+
+    public function test_adset_end_time_null_when_absent(): void
+    {
+        $draft = $this->draft([]);
+        $node = ['name' => 'N', 'schedule' => ['start_time' => null], 'ads' => [['creative' => ['page_id' => '1']]]];
+        $spec = app(AdDraftSpecMapper::class)->adSet($draft, $node, 'C9', 'VND');
+        $this->assertNull($spec->endTime);
+    }
+
     public function test_maps_ad_from_node(): void
     {
         $draft = $this->draft([]);

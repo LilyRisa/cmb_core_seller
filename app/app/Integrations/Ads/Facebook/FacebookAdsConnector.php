@@ -319,6 +319,9 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
             'start_time' => $spec->startTime ?? now()->toIso8601String(),
             'access_token' => $accessToken,
         ];
+        if ($spec->endTime !== null) {
+            $params['end_time'] = $spec->endTime;
+        }
         if ($spec->dailyBudgetMajor > 0) {
             $params['daily_budget'] = FacebookMoney::toMinorUnits($spec->dailyBudgetMajor, $spec->currency);
         }

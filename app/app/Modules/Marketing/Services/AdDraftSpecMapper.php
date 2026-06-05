@@ -55,6 +55,7 @@ class AdDraftSpecMapper
             pageId: isset($firstCreative['page_id']) ? (string) $firstCreative['page_id'] : null,
             startTime: isset($schedule['start_time']) ? (string) $schedule['start_time'] : null,
             placementConfig: isset($node['placement_config']) && is_array($node['placement_config']) ? $node['placement_config'] : null,
+            endTime: isset($schedule['end_time']) ? (string) $schedule['end_time'] : null,
         );
     }
 

@@ -33,8 +33,49 @@ export function StepBudget() {
         updateAdSet(adset.key, { budget: { daily_major: Number(value) || 0 } });
     }
 
+    function patchSchedule(adsetKey: string, patch: { start_time?: string | null; end_time?: string | null }) {
+        const current = adsets.find((a) => a.key === adsetKey)?.schedule ?? {};
+        updateAdSet(adsetKey, { schedule: { ...current, ...patch } });
+    }
+
     function handleStartTimeChange(d: dayjs.Dayjs | null, adsetKey: string) {
-        updateAdSet(adsetKey, { schedule: { start_time: d != null ? d.toISOString() : null } });
+        patchSchedule(adsetKey, { start_time: d != null ? d.toISOString() : null });
+    }
+
+    function handleEndTimeChange(d: dayjs.Dayjs | null, adsetKey: string) {
+        patchSchedule(adsetKey, { end_time: d != null ? d.toISOString() : null });
+    }
+
+    /** Lịch chạy: ngày bắt đầu (để trống = chạy ngay) + ngày kết thúc tuỳ chọn (phải sau bắt đầu). */
+    function renderSchedule(a: NonNullable<typeof adset>) {
+        const start = a.schedule?.start_time != null ? dayjs(a.schedule.start_time) : null;
+        return (
+            <>
+                <Form.Item label="Bắt đầu chạy">
+                    <Space direction="vertical" size={4}>
+                        <DatePicker
+                            showTime
+                            value={start}
+                            onChange={(d) => handleStartTimeChange(d, a.key)}
+                            placeholder="Chọn ngày giờ"
+                        />
+                        <Text type="secondary">Để trống = chạy ngay khi xuất bản.</Text>
+                    </Space>
+                </Form.Item>
+                <Form.Item label="Ngày kết thúc (tuỳ chọn)">
+                    <Space direction="vertical" size={4}>
+                        <DatePicker
+                            showTime
+                            value={a.schedule?.end_time != null ? dayjs(a.schedule.end_time) : null}
+                            onChange={(d) => handleEndTimeChange(d, a.key)}
+                            placeholder="Chọn ngày giờ kết thúc"
+                            disabledDate={(d) => start != null && d.isBefore(start, 'minute')}
+                        />
+                        <Text type="secondary">Để trống = chạy liên tục đến khi bạn dừng.</Text>
+                    </Space>
+                </Form.Item>
+            </>
+        );
     }
 
     function handleCampaignBudgetChange(value: number | null) {
@@ -78,19 +119,7 @@ export function StepBudget() {
                         </Space>
                     </Form.Item>
 
-                    {adset != null && (
-                        <Form.Item label="Bắt đầu chạy">
-                            <Space direction="vertical" size={4}>
-                                <DatePicker
-                                    showTime
-                                    value={adset.schedule?.start_time != null ? dayjs(adset.schedule.start_time) : null}
-                                    onChange={(d) => handleStartTimeChange(d, adset.key)}
-                                    placeholder="Chọn ngày giờ"
-                                />
-                                <Text type="secondary">Để trống = chạy ngay khi xuất bản.</Text>
-                            </Space>
-                        </Form.Item>
-                    )}
+                    {adset != null && renderSchedule(adset)}
                 </>
             ) : (
                 <>
@@ -134,17 +163,7 @@ export function StepBudget() {
                                 </Space>
                             </Form.Item>
 
-                            <Form.Item label="Bắt đầu chạy">
-                                <Space direction="vertical" size={4}>
-                                    <DatePicker
-                                        showTime
-                                        value={adset.schedule?.start_time != null ? dayjs(adset.schedule.start_time) : null}
-                                        onChange={(d) => handleStartTimeChange(d, adset.key)}
-                                        placeholder="Chọn ngày giờ"
-                                    />
-                                    <Text type="secondary">Để trống = chạy ngay khi xuất bản.</Text>
-                                </Space>
-                            </Form.Item>
+                            {renderSchedule(adset)}
                         </>
                     )}
                 </>
