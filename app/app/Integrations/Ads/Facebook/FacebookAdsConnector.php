@@ -370,6 +370,10 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
         if ($spec->dailyBudgetMajor !== null && $spec->dailyBudgetMajor > 0) {
             $params['daily_budget'] = FacebookMoney::toMinorUnits($spec->dailyBudgetMajor, (string) ($spec->currency ?? 'VND'));
             $params['bid_strategy'] = $spec->bidStrategy;
+        } else {
+            // No campaign budget (CBO off) ⇒ ad sets carry their own budget. Graph now
+            // REQUIRES this flag be set explicitly; false = ad sets don't share budget.
+            $params['is_adset_budget_sharing_enabled'] = 'false';
         }
 
         $res = Http::timeout(30)->asForm()->post($this->graphUrl($externalAccountId.'/campaigns'), $params);
@@ -744,10 +748,16 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
 
     public function generatePreviews(string $accessToken, string $externalAccountId, array $creativeSpec, array $formats): array
     {
+        // An existing page post previews via object_story_id; a new creative via
+        // object_story_spec.
+        $creative = isset($creativeSpec['object_story_id'])
+            ? ['object_story_id' => (string) $creativeSpec['object_story_id']]
+            : ['object_story_spec' => $creativeSpec];
+
         $out = [];
         foreach ($formats as $format) {
             $res = Http::timeout(30)->get($this->graphUrl($externalAccountId.'/generatepreviews'), [
-                'creative' => json_encode(['object_story_spec' => $creativeSpec]),
+                'creative' => json_encode($creative),
                 'ad_format' => $format,
                 'access_token' => $accessToken,
             ]);

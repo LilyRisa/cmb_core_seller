@@ -23,6 +23,7 @@ import { StepReview } from '@/pages/adWizard/StepReview';
 import { WizardTour } from '@/pages/adWizard/WizardTour';
 import { AiAssistantDrawer } from '@/pages/adWizard/AiAssistantDrawer';
 import { AdSetSelector } from '@/pages/adWizard/AdSetSelector';
+import { AdPreviewPanel } from '@/pages/adWizard/AdPreviewPanel';
 
 const STEP_LABELS = ['Mục tiêu', 'Ngân sách', 'Đối tượng', 'Vị trí', 'Nội dung', 'Xuất bản'];
 const STEP_ICONS = [
@@ -289,18 +290,21 @@ export function AdWizardPage() {
                             >
                                 Quay lại
                             </Button>,
-                            <Tooltip
-                                key="next"
-                                title={!canProceed(step) ? 'Hãy hoàn tất bước này' : undefined}
-                            >
-                                <Button
-                                    type="primary"
-                                    disabled={step === 5 || !canProceed(step)}
-                                    onClick={() => setStep(step + 1)}
+                            // Last step (Xuất bản) has its own publish button — no "Tiếp tục".
+                            ...(step < 5 ? [
+                                <Tooltip
+                                    key="next"
+                                    title={!canProceed(step) ? 'Hãy hoàn tất bước này' : undefined}
                                 >
-                                    Tiếp tục
-                                </Button>
-                            </Tooltip>,
+                                    <Button
+                                        type="primary"
+                                        disabled={!canProceed(step)}
+                                        onClick={() => setStep(step + 1)}
+                                    >
+                                        Tiếp tục
+                                    </Button>
+                                </Tooltip>,
+                            ] : []),
                         ]}
                     >
                         {renderStep(step)}
@@ -308,9 +312,9 @@ export function AdWizardPage() {
                 </Col>
 
                 {/* Right: preview */}
-                <Col flex="200px">
+                <Col flex="340px">
                     <Card title="Xem trước" styles={{ body: { minHeight: 200 } }}>
-                        <Empty description="Xem trước sẽ hiển thị ở đây" />
+                        <AdPreviewPanel />
                     </Card>
                 </Col>
             </Row>

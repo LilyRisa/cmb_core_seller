@@ -192,6 +192,27 @@ class FacebookAdsCreateTest extends TestCase
         Http::assertSent(fn ($r) => ! array_key_exists('daily_budget', $r->data()));
     }
 
+    public function test_create_campaign_without_budget_sets_adset_budget_sharing_flag(): void
+    {
+        // Graph requires is_adset_budget_sharing_enabled when there's no campaign budget.
+        Http::fake(['graph.facebook.com/*/campaigns' => Http::response(['id' => 'C'], 200)]);
+
+        $this->connector()->createCampaign('tok', 'act_1', new CampaignSpecDTO(objective: 'messages', name: 'Camp'));
+
+        Http::assertSent(fn ($r) => ($r->data()['is_adset_budget_sharing_enabled'] ?? null) === 'false');
+    }
+
+    public function test_create_campaign_with_cbo_omits_adset_budget_sharing_flag(): void
+    {
+        Http::fake(['graph.facebook.com/*/campaigns' => Http::response(['id' => 'C'], 200)]);
+
+        $this->connector()->createCampaign('tok', 'act_1', new CampaignSpecDTO(
+            objective: 'messages', name: 'Camp', dailyBudgetMajor: 300000, currency: 'VND',
+        ));
+
+        Http::assertSent(fn ($r) => ! array_key_exists('is_adset_budget_sharing_enabled', $r->data()));
+    }
+
     public function test_create_adset_omits_daily_budget_when_zero_cbo(): void
     {
         Http::fake(['graph.facebook.com/*/adsets' => Http::response(['id' => 'AS'], 200)]);
