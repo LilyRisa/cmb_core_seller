@@ -9,7 +9,7 @@ import { useCan } from '@/lib/tenant';
 import { errorMessage } from '@/lib/api';
 import {
     AFTER_SALES_STATUS_LABEL, AfterSalesStatus, KIND_LABEL, ReturnRecord,
-    useReturns, useReturnStats, useDecideReturn,
+    formatReturnReason, useReturns, useReturnStats, useDecideReturn,
 } from '@/lib/returns';
 
 const STATUS_COLOR: Record<AfterSalesStatus, string> = {
@@ -57,7 +57,7 @@ export function ReturnsPage() {
             title: 'Trạng thái', dataIndex: 'status', key: 'status',
             render: (s: AfterSalesStatus) => <Tag color={STATUS_COLOR[s] ?? 'default'}>{AFTER_SALES_STATUS_LABEL[s] ?? s}</Tag>,
         },
-        { title: 'Lý do', dataIndex: 'reason', key: 'reason', ellipsis: true, render: (v: string | null) => v || '—' },
+        { title: 'Lý do', dataIndex: 'reason', key: 'reason', ellipsis: true, render: (v: string | null) => formatReturnReason(v) },
         { title: 'Hoàn tiền', dataIndex: 'refund_amount', key: 'refund_amount', align: 'right', render: (v: number, r) => <MoneyText value={v} currency={r.currency} /> },
         { title: 'Yêu cầu lúc', dataIndex: 'requested_at', key: 'requested_at', render: (v: string | null) => <DateText value={v} /> },
         {
