@@ -7,6 +7,7 @@ import { useAdDrafts, useDeleteDraft } from '@/lib/adWizard';
 import dayjs, { type Dayjs } from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { CampaignAiInsightDrawer } from '@/pages/marketing/CampaignAiInsightDrawer';
+import { AbComparisonPanel } from '@/pages/marketing/AbComparisonPanel';
 import { errorMessage } from '@/lib/api';
 import { openOAuthPopup } from '@/lib/oauthPopup';
 import { useCan } from '@/lib/tenant';
@@ -349,6 +350,16 @@ export function MarketingDashboardPage() {
                             locale={{ emptyText: <Empty description="Không có dữ liệu cho bộ lọc/khoảng ngày này." /> }}
                         />
                     </Card>
+
+                    {level === 'adset' && (
+                        <Collapse
+                            style={{ marginBottom: 16 }}
+                            items={[{
+                                key: 'ab', label: 'So sánh A/B (biến thể nhóm quảng cáo)',
+                                children: <AbComparisonPanel rows={sortedRows} currency={currency} />,
+                            }]}
+                        />
+                    )}
 
                     <Collapse items={[{
                         key: 'extra', label: 'Đối soát đơn thủ công & Dự báo AI',
