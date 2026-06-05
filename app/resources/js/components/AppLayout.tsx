@@ -63,9 +63,11 @@ function buildNav(): MenuProps['items'] {
             { key: '/procurement/suppliers', icon: <ShopOutlined />, label: <Link to="/procurement/suppliers">Nhà cung cấp</Link> },
             { key: '/procurement/purchase-orders', icon: <ShoppingCartOutlined />, label: <Link to="/procurement/purchase-orders">Đơn mua hàng</Link> },
         ] },
+        { type: 'group', label: 'Marketing', children: [
+            { key: '/marketing', icon: <FundOutlined />, label: <Link to="/marketing">Quảng cáo Facebook</Link> },
+        ] },
         { type: 'group', label: 'Báo cáo & Kế toán', children: [
             { key: '/reports', icon: <BarChartOutlined />, label: <Link to="/reports">Báo cáo</Link> },
-            { key: '/marketing', icon: <FundOutlined />, label: <Link to="/marketing">Quảng cáo</Link> },
             { key: '/finance/settlements', icon: <FundOutlined />, label: <Link to="/finance/settlements">Đối soát sàn</Link> },
             { key: '/accounting/journals', icon: <BookOutlined />, label: <Link to="/accounting/journals">Sổ nhật ký</Link> },
             { key: '/accounting/chart-of-accounts', icon: <PartitionOutlined />, label: <Link to="/accounting/chart-of-accounts">Hệ thống TK</Link> },
