@@ -100,7 +100,8 @@ export function ConversationOrderPanel({ conversation }: { conversation: Convers
             placement: 'topRight',
         });
         // Gắn đơn vào hội thoại ⇒ icon đơn hiện ở danh sách tin nhắn.
-        link.mutate({ conversationId: conversation.id, orderId }, {
+        // SPEC 0031 — đơn tạo trong khung chat ⇒ tự gửi tin xác nhận (kèm link tra cứu) cho khách.
+        link.mutate({ conversationId: conversation.id, orderId, notifyCustomer: true }, {
             onSuccess: () => {
                 qc.invalidateQueries({ queryKey: ['customer-orders'] });
                 qc.invalidateQueries({ queryKey: ['customer-lookup'] });

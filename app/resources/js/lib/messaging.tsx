@@ -387,10 +387,11 @@ export function useLinkConversationOrder() {
     const api = useScopedApi();
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: async (input: { conversationId: number; orderId: number }) => {
+        mutationFn: async (input: { conversationId: number; orderId: number; notifyCustomer?: boolean }) => {
             const { data } = await api!.post<{ data: Conversation }>(
                 `/messaging/conversations/${input.conversationId}/link-order`,
-                { order_id: input.orderId },
+                // SPEC 0031 — đơn tạo trong khung chat ⇒ tự gửi tin xác nhận cho khách.
+                { order_id: input.orderId, ...(input.notifyCustomer ? { notify_customer: true } : {}) },
             );
             return data.data;
         },

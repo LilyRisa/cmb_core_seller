@@ -7,6 +7,7 @@ use CMBcoreSeller\Modules\Messaging\Http\Resources\ConversationResource;
 use CMBcoreSeller\Modules\Messaging\Http\Resources\MessageResource;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
+use CMBcoreSeller\Modules\Messaging\Services\OrderConfirmationNotifier;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use Illuminate\Http\JsonResponse;
@@ -251,6 +252,9 @@ class ConversationController extends Controller
 
         $data = $request->validate([
             'order_id' => ['required', 'integer'],
+            // SPEC 0031 — true khi đơn vừa được tạo TRONG khung chat ⇒ tự gửi tin xác nhận
+            // cho khách (kèm link tra cứu). Link đơn cũ thủ công không đặt cờ này.
+            'notify_customer' => ['sometimes', 'boolean'],
         ]);
 
         $conv = Conversation::query()->findOrFail($id);
@@ -267,6 +271,11 @@ class ConversationController extends Controller
             'conversation_id' => $conv->id,
             'order_id' => $order->getKey(),
         ]);
+
+        // SPEC 0031 — best-effort, không bao giờ làm hỏng link nếu gửi lỗi (notifier tự nuốt lỗi).
+        if ($request->boolean('notify_customer')) {
+            app(OrderConfirmationNotifier::class)->notify($conv->fresh(), $order);
+        }
 
         return response()->json(['data' => (new ConversationResource($conv->fresh()))->toArray($request)]);
     }

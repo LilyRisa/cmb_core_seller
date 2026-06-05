@@ -381,6 +381,7 @@ Cấu hình động lưu trong DB (`system_settings`), ghi đè giá trị từ 
 - `POST   /messaging/conversations/{id}/messages/template` (`messaging.reply`) — `{template_id, vars}`.
 - `POST   /messaging/conversations/{id}/read` (`messaging.view`) — reset unread.
 - `PATCH  /messaging/conversations/{id}` (`messaging.view`/`messaging.assign`) — `{status?, assigned_user_id?, tags?, snoozed_until?}`.
+- `POST   /messaging/conversations/{id}/link-order` (`messaging.view`) — `{order_id, notify_customer?:bool}` gắn đơn (vừa tạo từ khung chat) vào hội thoại. **SPEC 0031** — `notify_customer=true` (FE panel tạo-đơn-trong-chat đặt) ⇒ tự gửi 1 tin xác nhận đơn (kèm link tra cứu `/tracking?code=`, nút "Xem đơn hàng" nếu connector hỗ trợ interactive, tag `POST_PURCHASE_UPDATE`). Best-effort, idempotent per (conversation, order); chỉ DM (`thread_type='message'`) + đơn manual + kênh hỗ trợ `outbound.text`. Đơn tenant khác ⇒ `404`.
 - `POST   /messaging/conversations/{id}/ai-suggestion` (`messaging.reply` + `plan.feature:messaging_ai`) — dispatch + sync wait ≤30s → `{draft_id, draft_text, suggested_attachments}`.
 - `POST   /messaging/conversations/{id}/ai-suggestion/{draftId}/accept` — gửi draft.
 - `DELETE /messaging/conversations/{id}/ai-suggestion/{draftId}` — reject (audit).
