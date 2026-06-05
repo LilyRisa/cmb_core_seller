@@ -43,6 +43,19 @@ const dec = (v: number | null | undefined) => (v == null ? '—' : v.toFixed(2))
 
 const LABELS: Record<ReportLevel, string> = { campaign: 'Chiến dịch', adset: 'Nhóm quảng cáo', ad: 'Quảng cáo' };
 const COLS_KEY = 'marketing.report.columns';
+const RANGE_KEY = 'marketing.report.range';
+// Restore the last campaign date filter from localStorage; default to today.
+const loadRange = (): [Dayjs, Dayjs] => {
+    try {
+        const raw = JSON.parse(localStorage.getItem(RANGE_KEY) || '');
+        if (Array.isArray(raw) && raw.length === 2) {
+            const a = dayjs(raw[0]);
+            const b = dayjs(raw[1]);
+            if (a.isValid() && b.isValid()) return [a, b];
+        }
+    } catch { /* ignore malformed value */ }
+    return [dayjs(), dayjs()];
+};
 // All toggleable columns (name is always shown).
 const ALL_COLUMNS = [
     'external_id', 'status', 'objective', 'result', 'cpr', 'daily_budget', 'lifetime_budget',
@@ -124,7 +137,7 @@ export function MarketingDashboardPage() {
     const [accountId, setAccountId] = useState<number | null>(null);
     const [level, setLevel] = useState<ReportLevel>('campaign');
     const [reportView, setReportView] = useState<'tree' | 'flat'>('tree');
-    const [range, setRange] = useState<[Dayjs, Dayjs]>([dayjs().subtract(6, 'day'), dayjs()]);
+    const [range, setRange] = useState<[Dayjs, Dayjs]>(loadRange);
     const [q, setQ] = useState('');
     const [adId, setAdId] = useState('');
     const [objective, setObjective] = useState<string | undefined>(undefined);
@@ -134,6 +147,9 @@ export function MarketingDashboardPage() {
         try { return JSON.parse(localStorage.getItem(COLS_KEY) || '') ?? DEFAULT_COLUMNS; } catch { return DEFAULT_COLUMNS; }
     });
     useEffect(() => { localStorage.setItem(COLS_KEY, JSON.stringify(cols)); }, [cols]);
+    useEffect(() => {
+        localStorage.setItem(RANGE_KEY, JSON.stringify([range[0].format('YYYY-MM-DD'), range[1].format('YYYY-MM-DD')]));
+    }, [range]);
 
     // BM groups → accounts in selected BM.
     const bmGroups = useMemo(() => {
