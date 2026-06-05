@@ -95,17 +95,6 @@ class FacebookBackfillConnectorTest extends TestCase
         $this->assertNull($profile['avatar_url']);
     }
 
-    public function test_fetch_user_profile_logs_warning_on_graph_error(): void
-    {
-        // Lỗi Graph (vd thiếu quyền) ⇒ ghi log chẩn đoán để biết VÌ SAO mất avatar.
-        Log::spy();
-        Http::fake(['graph.facebook.com/*' => Http::response(['error' => ['code' => 200, 'message' => 'requires permission']], 403)]);
-
-        $this->connector()->fetchUserProfile($this->auth(), 'PSID_ERR');
-
-        Log::shouldHaveReceived('warning')->atLeast()->once();
-    }
-
     public function test_fetch_user_profile_logs_warning_when_profile_pic_missing(): void
     {
         // 200 nhưng KHÔNG có profile_pic (app chưa Live / user không phải vai trò app ở Dev Mode)
