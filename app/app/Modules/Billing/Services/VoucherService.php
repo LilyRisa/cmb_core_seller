@@ -243,6 +243,10 @@ class VoucherService
                     ],
                 ]);
                 $applied = ['kind' => 'plan_upgrade', 'plan_code' => $plan->code, 'days' => $days];
+            } elseif ($locked->kind === Voucher::KIND_AI_CREDITS) {
+                // SPEC 0032 — admin tặng lượt AI trực tiếp cho 1 cửa hàng.
+                $granted = $this->aiCredits->grantPurchase($tenantId, (int) $locked->value);
+                $applied = ['kind' => 'ai_credits', 'granted' => $granted];
             }
 
             $redemption = VoucherRedemption::query()->create([

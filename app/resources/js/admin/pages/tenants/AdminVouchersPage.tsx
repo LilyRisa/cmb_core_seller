@@ -6,7 +6,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import {
     GiftOutlined, PercentageOutlined, ClockCircleOutlined, RocketOutlined,
-    PlusOutlined, StopOutlined, SendOutlined, ReloadOutlined,
+    PlusOutlined, StopOutlined, SendOutlined, ReloadOutlined, ThunderboltOutlined,
 } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import {
@@ -22,6 +22,7 @@ const KIND_LABEL: Record<VoucherKind, string> = {
     fixed: 'Giảm VND',
     free_days: 'Tặng ngày',
     plan_upgrade: 'Tặng gói',
+    ai_credits: 'Tặng lượt AI',
 };
 
 const KIND_ICON: Record<VoucherKind, React.ReactNode> = {
@@ -29,6 +30,7 @@ const KIND_ICON: Record<VoucherKind, React.ReactNode> = {
     fixed: <GiftOutlined />,
     free_days: <ClockCircleOutlined />,
     plan_upgrade: <RocketOutlined />,
+    ai_credits: <ThunderboltOutlined />,
 };
 
 export function AdminVouchersPage() {
@@ -62,6 +64,7 @@ export function AdminVouchersPage() {
                 if (r.kind === 'percent') return `${v}%`;
                 if (r.kind === 'fixed') return new Intl.NumberFormat('vi-VN').format(v) + ' đ';
                 if (r.kind === 'free_days') return `${v} ngày`;
+                if (r.kind === 'ai_credits') return `${v} lượt AI`;
                 return `Plan #${v}`;
             },
         },
@@ -180,6 +183,7 @@ function CreateVoucherModal({ open, onClose }: { open: boolean; onClose: () => v
                         <Radio.Button value="fixed">Giảm VND</Radio.Button>
                         <Radio.Button value="free_days">Tặng ngày</Radio.Button>
                         <Radio.Button value="plan_upgrade">Tặng gói</Radio.Button>
+                        <Radio.Button value="ai_credits">Tặng lượt AI</Radio.Button>
                     </Radio.Group>
                 </Form.Item>
                 <Form.Item
@@ -188,6 +192,7 @@ function CreateVoucherModal({ open, onClose }: { open: boolean; onClose: () => v
                         kind === 'percent' ? 'Phần trăm (1-100)' :
                         kind === 'fixed' ? 'Số tiền giảm (VND)' :
                         kind === 'free_days' ? 'Số ngày tặng (1-365)' :
+                        kind === 'ai_credits' ? 'Số lượt AI tặng' :
                         'Plan ID (mục tiêu nâng gói)'
                     }
                     rules={[{ required: true, type: 'number', min: 1 }]}

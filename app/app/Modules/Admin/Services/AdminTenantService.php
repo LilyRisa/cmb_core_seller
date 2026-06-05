@@ -93,11 +93,14 @@ class AdminTenantService
         }
 
         $tenantId = (int) $tenant->getKey();
-        $days = match ($cycle) {
-            Subscription::CYCLE_YEARLY => 365,
-            Subscription::CYCLE_MONTHLY => 30,
-            default => max($plan->trial_days, 14),
-        };
+        // SPEC 0032 — gói TEST không giới hạn set thủ công ⇒ chu kỳ gần như vô hạn (không tự hết hạn).
+        $days = $plan->code === 'test_unlimited'
+            ? 365 * 50
+            : match ($cycle) {
+                Subscription::CYCLE_YEARLY => 365,
+                Subscription::CYCLE_MONTHLY => 30,
+                default => max($plan->trial_days, 14),
+            };
 
         return DB::transaction(function () use ($tenantId, $plan, $cycle, $days, $reason, $adminUserId) {
             $current = $this->subscriptions->currentFor($tenantId);

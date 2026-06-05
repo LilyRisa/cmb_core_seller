@@ -95,7 +95,7 @@ export interface AdminTenantDetail extends AdminTenantSummary {
     vouchers_redeemed: AdminVoucherRedemptionRow[];
 }
 
-export type VoucherKind = 'percent' | 'fixed' | 'free_days' | 'plan_upgrade';
+export type VoucherKind = 'percent' | 'fixed' | 'free_days' | 'plan_upgrade' | 'ai_credits';
 
 export interface AdminVoucher {
     id: number; code: string; name: string; description: string | null;
