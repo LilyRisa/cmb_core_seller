@@ -438,7 +438,7 @@ export function MarketingDashboardPage() {
 
     return (
         <div>
-            <PageHeader title="Quảng cáo Facebook" subtitle="Báo cáo kiểu Ads Manager — lọc theo BM, ngày, 3 cấp; cột tuỳ chỉnh; drill-down." />
+            <PageHeader title="Quảng cáo Facebook" subtitle="Báo cáo quảng cáo facebook, giám sát hiệu suất giải pháp tối ưu chiến dịch" />
 
             <Card style={{ marginBottom: 16 }}>
                 <Space wrap size={12}>
