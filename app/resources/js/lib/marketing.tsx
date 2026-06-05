@@ -228,3 +228,58 @@ export function useGenerateForecast() {
         onSuccess: () => qc.invalidateQueries({ queryKey: ['marketing', 'forecast'] }),
     });
 }
+
+// --- Per-campaign AI insight (sub-feature G) ---
+
+export const CAMPAIGN_AI_METRICS = [
+    'spend', 'impressions', 'clicks', 'reach', 'ctr', 'cpc', 'cpm', 'frequency',
+    'purchase_roas', 'messaging_conversations', 'leads',
+] as const;
+export type CampaignAiMetric = (typeof CAMPAIGN_AI_METRICS)[number];
+
+export interface CampaignAiInsightParams { days: number; metrics: string[]; include_engagement: boolean }
+export interface CampaignAiInsight {
+    payload: {
+        summary?: string;
+        assessment?: string;
+        recommendations?: Array<{ action?: string; rationale?: string } | string>;
+        creative_review?: CreativeReview[];
+        [k: string]: unknown;
+    };
+    params: CampaignAiInsightParams;
+    provider_code: string | null;
+    model: string | null;
+    generated_at: string | null;
+}
+
+/** Cached per-campaign insight; pass poll=true to refetch while generating. */
+export function useCampaignAiInsight(
+    accountId: number | null,
+    campaignId: string | null,
+    opts: { enabled: boolean; poll: boolean },
+) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['marketing', 'campaign-insight', accountId, campaignId, tenantId],
+        enabled: opts.enabled && api != null && accountId != null && campaignId != null,
+        refetchInterval: opts.poll ? 4000 : false,
+        queryFn: async () => (await api!.get<{ data: CampaignAiInsight | null }>(
+            `/marketing/ad-accounts/${accountId}/campaigns/${campaignId}/ai-insight`,
+        )).data.data,
+    });
+}
+
+/** On-demand generate for one campaign (cooldown + params-aware server-side). */
+export function useGenerateCampaignAiInsight() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (vars: { accountId: number; campaignId: string; params: CampaignAiInsightParams }) =>
+            (await api!.post<{ data: CampaignAiInsight | null; status?: string; queued?: boolean }>(
+                `/marketing/ad-accounts/${vars.accountId}/campaigns/${vars.campaignId}/ai-insight`,
+                vars.params,
+            )).data,
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['marketing', 'campaign-insight'] }),
+    });
+}

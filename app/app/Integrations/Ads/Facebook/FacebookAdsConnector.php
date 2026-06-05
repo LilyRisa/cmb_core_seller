@@ -456,6 +456,38 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
         }, array_filter((array) $res->json('data', []), 'is_array')));
     }
 
+    public function fetchPostEngagement(string $accessToken, array $postIds): array
+    {
+        $ids = array_values(array_filter(array_map('strval', $postIds), fn ($s) => $s !== ''));
+        if ($ids === []) {
+            return [];
+        }
+
+        $res = Http::timeout(30)->get($this->graphUrl(''), [
+            'ids' => implode(',', $ids),
+            'fields' => 'id,message,likes.summary(true).limit(0),comments.summary(true).limit(0),shares',
+            'access_token' => $accessToken,
+        ]);
+        if (! $res->successful()) {
+            throw new \RuntimeException('Facebook Ads fetchPostEngagement failed: '.$res->body());
+        }
+
+        $out = [];
+        foreach ((array) $res->json() as $id => $p) {
+            if (! is_string($id) || ! is_array($p)) {
+                continue;
+            }
+            $out[$id] = [
+                'likes' => (int) ($p['likes']['summary']['total_count'] ?? 0),
+                'comments' => (int) ($p['comments']['summary']['total_count'] ?? 0),
+                'shares' => (int) ($p['shares']['count'] ?? 0),
+                'message' => isset($p['message']) ? (string) $p['message'] : null,
+            ];
+        }
+
+        return $out;
+    }
+
     public function searchTargeting(string $accessToken, string $query, string $type = 'adinterest'): array
     {
         $isGeo = $type === 'adgeolocation';

@@ -31,6 +31,14 @@ interface AdsWriteConnector
     /** @return list<PagePostDTO> */
     public function listPagePosts(string $pageAccessToken, string $pageId, int $limit = 25): array;
 
+    /**
+     * Batch-read engagement (likes/comments/shares/message) for the given post ids.
+     *
+     * @param  list<string>  $postIds
+     * @return array<string, array{likes:int, comments:int, shares:int, message:?string}>
+     */
+    public function fetchPostEngagement(string $accessToken, array $postIds): array;
+
     /** @return list<TargetingOptionDTO> */
     public function searchTargeting(string $accessToken, string $query, string $type = 'adinterest'): array;
 

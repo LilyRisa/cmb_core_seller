@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { App as AntApp, Button, Card, Checkbox, Collapse, DatePicker, Dropdown, Empty, Input, List, Popconfirm, Result, Segmented, Select, Space, Spin, Statistic, Table, Tag, Tooltip, Typography } from 'antd';
-import { BulbOutlined, DisconnectOutlined, EditOutlined, FacebookFilled, FundOutlined, PlusOutlined, QuestionCircleOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
+import { BulbOutlined, DisconnectOutlined, EditOutlined, FacebookFilled, FundOutlined, PlusOutlined, QuestionCircleOutlined, RobotOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
 import { useAdDrafts, useDeleteDraft } from '@/lib/adWizard';
 import dayjs, { type Dayjs } from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
+import { CampaignAiInsightDrawer } from '@/pages/marketing/CampaignAiInsightDrawer';
 import { errorMessage } from '@/lib/api';
 import { openOAuthPopup } from '@/lib/oauthPopup';
 import { useCan } from '@/lib/tenant';
@@ -149,6 +150,7 @@ export function MarketingDashboardPage() {
         q: q || undefined, objective, ad_id: adId || undefined,
     }), [level, selCampaigns, selAdsets, q, objective, adId]);
     const { data: report, isFetching } = useAdReport(selectedId, level, since, until, filters);
+    const [aiCampaign, setAiCampaign] = useState<{ id: string; name: string | null } | null>(null);
     const { data: recon } = useAdReconciliation(selectedId);
     const { data: forecast } = useAdForecast(selectedId);
     const genForecast = useGenerateForecast();
@@ -208,6 +210,16 @@ export function MarketingDashboardPage() {
             key: c,
             render: (_: unknown, r: ReportRow) => fmtCol[c](r),
         })),
+        ...(level === 'campaign' ? [{
+            title: 'AI', key: 'ai_insight', fixed: 'right' as const, width: 110,
+            render: (_: unknown, r: ReportRow) => (
+                <Tooltip title="Phân tích AI cho riêng chiến dịch này">
+                    <Button size="small" icon={<RobotOutlined />} onClick={() => setAiCampaign({ id: r.external_id, name: r.name })}>
+                        Phân tích
+                    </Button>
+                </Tooltip>
+            ),
+        }] : []),
     ];
 
     const rowSelection = level !== 'ad' ? {
@@ -388,6 +400,13 @@ export function MarketingDashboardPage() {
                     }]} />
                 </>
             )}
+
+            <CampaignAiInsightDrawer
+                open={aiCampaign != null}
+                accountId={selectedId}
+                campaign={aiCampaign}
+                onClose={() => setAiCampaign(null)}
+            />
         </div>
     );
 }

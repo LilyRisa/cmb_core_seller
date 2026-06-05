@@ -7,6 +7,7 @@ use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdForecastController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdInsightController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdminMarketingAiProviderController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdsOAuthController;
+use CMBcoreSeller\Modules\Marketing\Http\Controllers\CampaignAiInsightController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\GeoExclusionTemplateController;
 use Illuminate\Support\Facades\Route;
 
@@ -47,6 +48,11 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
             ->whereNumber('id')->name('marketing.ad-accounts.forecast.show');
         Route::post('ad-accounts/{id}/forecast', [AdForecastController::class, 'generate'])
             ->whereNumber('id')->name('marketing.ad-accounts.forecast.generate');
+        // Per-campaign AI analysis (on-demand, cooldown-cached, params-aware).
+        Route::get('ad-accounts/{id}/campaigns/{campaignId}/ai-insight', [CampaignAiInsightController::class, 'show'])
+            ->whereNumber('id')->name('marketing.ad-accounts.campaign-insight.show');
+        Route::post('ad-accounts/{id}/campaigns/{campaignId}/ai-insight', [CampaignAiInsightController::class, 'generate'])
+            ->whereNumber('id')->name('marketing.ad-accounts.campaign-insight.generate');
 
         // Wizard authoring reads (pages/posts/targeting/preview).
         Route::get('ad-accounts/{id}/pages', [AdAuthoringController::class, 'pages'])->whereNumber('id')->name('marketing.authoring.pages');
