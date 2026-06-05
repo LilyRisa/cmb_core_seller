@@ -1,9 +1,16 @@
 import { useState } from 'react';
-import { Button, Input, Space, Tag, Tooltip, Typography } from 'antd';
-import { CloseOutlined, CopyOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
+import { Button, Dropdown, Input, Segmented, Space, Tag, Tooltip, Typography } from 'antd';
+import { CloseOutlined, CopyOutlined, EditOutlined, ExperimentOutlined, PlusOutlined } from '@ant-design/icons';
 import { useDraftStore } from '@/lib/adWizard/draftStore';
+import type { AbVariable } from '@/lib/adWizard';
 
 const { Text } = Typography;
+
+const AB_VARIABLE_LABEL: Record<AbVariable, string> = {
+    creative: 'Nội dung',
+    audience: 'Đối tượng',
+    placement: 'Vị trí',
+};
 
 export function AdSetSelector() {
     const adsets = useDraftStore((s) => s.adsets);
@@ -13,9 +20,12 @@ export function AdSetSelector() {
     const removeAdSet = useDraftStore((s) => s.removeAdSet);
     const updateAdSet = useDraftStore((s) => s.updateAdSet);
     const duplicateAdSet = useDraftStore((s) => s.duplicateAdSet);
+    const createAbTest = useDraftStore((s) => s.createAbTest);
 
     const [editingKey, setEditingKey] = useState<string | null>(null);
     const [editingName, setEditingName] = useState('');
+    const [abVariable, setAbVariable] = useState<AbVariable>('creative');
+    const [abOpen, setAbOpen] = useState(false);
 
     const selectedAdSet = adsets.find((a) => a.key === selectedAdSetKey);
 
@@ -77,6 +87,12 @@ export function AdSetSelector() {
                                 <span>{adset.name}</span>
                             )}
 
+                            {adset.experiment != null && !isEditing && (
+                                <Tooltip title={`A/B test theo ${AB_VARIABLE_LABEL[adset.experiment.variable]}`}>
+                                    <ExperimentOutlined style={{ fontSize: 11, color: '#722ed1' }} />
+                                </Tooltip>
+                            )}
+
                             {isSelected && !isEditing && (
                                 <Tooltip title="Đổi tên">
                                     <EditOutlined
@@ -121,6 +137,43 @@ export function AdSetSelector() {
                 >
                     Thêm nhóm
                 </Button>
+
+                {selectedAdSetKey != null && (
+                    <Dropdown
+                        open={abOpen}
+                        onOpenChange={setAbOpen}
+                        trigger={['click']}
+                        dropdownRender={() => (
+                            <div style={{ background: '#fff', padding: 12, borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.15)', width: 280 }}>
+                                <Text strong style={{ fontSize: 12 }}>Tạo A/B test — chọn biến số thử nghiệm</Text>
+                                <div style={{ margin: '8px 0' }}>
+                                    <Segmented
+                                        size="small"
+                                        value={abVariable}
+                                        onChange={(v) => setAbVariable(v as AbVariable)}
+                                        options={(Object.keys(AB_VARIABLE_LABEL) as AbVariable[]).map((v) => ({ label: AB_VARIABLE_LABEL[v], value: v }))}
+                                    />
+                                </div>
+                                <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>
+                                    Tạo 2 biến thể [A]/[B] từ nhóm đang chọn; chỉ khác nhau ở <b>{AB_VARIABLE_LABEL[abVariable]}</b>. So sánh chỉ số ở báo cáo sau khi chạy.
+                                </Text>
+                                <Button
+                                    type="primary"
+                                    size="small"
+                                    icon={<ExperimentOutlined />}
+                                    onClick={() => { createAbTest(selectedAdSetKey, abVariable); setAbOpen(false); }}
+                                    block
+                                >
+                                    Tạo biến thể A/B
+                                </Button>
+                            </div>
+                        )}
+                    >
+                        <Button size="small" icon={<ExperimentOutlined />} style={{ height: 24, fontSize: 12 }}>
+                            A/B Test
+                        </Button>
+                    </Dropdown>
+                )}
             </Space>
 
             {selectedAdSet != null && (

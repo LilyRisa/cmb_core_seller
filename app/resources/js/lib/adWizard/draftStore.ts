@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AdDraftPayload, AdNode, AdObjective, AdSetNode } from '@/lib/adWizard';
+import type { AbVariable, AdDraftPayload, AdNode, AdObjective, AdSetNode } from '@/lib/adWizard';
 
 // Monotonic key generator (no external dep). Each adset/ad gets a stable client key.
 let keySeq = 0;
@@ -89,6 +89,8 @@ type WizardActions = {
     copyAdSet: (key: string) => void;
     copyAd: (adsetKey: string, adKey: string) => void;
     pasteClipboard: (targetAdsetKey?: string) => void;
+    // A/B test — split the selected ad set into [A]/[B] variants tagged as one experiment.
+    createAbTest: (adsetKey: string, variable: AbVariable) => void;
     setBudgetMode: (mode: 'campaign' | 'adset') => void;
     setCampaignBudget: (major: number) => void;
     markSaved: () => void;
@@ -162,6 +164,17 @@ export const useDraftStore = create<WizardState & WizardActions>()((set) => ({
         if (destKey == null) return {};
         const clone = cloneAdNode(clip.node);
         return mergeTree(s, s.adsets.map((a) => (a.key === destKey ? { ...a, ads: [...a.ads, clone] } : a)));
+    }),
+    createAbTest: (adsetKey, variable) => set((s) => {
+        const idx = s.adsets.findIndex((a) => a.key === adsetKey);
+        const src = s.adsets[idx];
+        if (src == null) return {};
+        const experimentId = nextKey('exp');
+        const baseName = (src.name ?? 'Nhóm').replace(/\s*\[[AB]\]$/, '');
+        const a: AdSetNode = { ...src, name: `${baseName} [A]`, experiment: { id: experimentId, variable } };
+        const b: AdSetNode = { ...cloneAdSetNode(src, ''), name: `${baseName} [B]`, experiment: { id: experimentId, variable } };
+        const adsets = [...s.adsets.slice(0, idx), a, b, ...s.adsets.slice(idx + 1)];
+        return { ...mergeTree(s, adsets), selectedAdSetKey: b.key };
     }),
     setBudgetMode: (mode) => set((s) => ({ payload: { ...s.payload, campaign: { ...s.payload.campaign, budget_mode: mode } }, dirty: true })),
     setCampaignBudget: (major) => set((s) => ({ payload: { ...s.payload, campaign: { ...s.payload.campaign, daily_budget_major: major } }, dirty: true })),

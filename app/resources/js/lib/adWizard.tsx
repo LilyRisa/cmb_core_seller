@@ -58,9 +58,15 @@ export interface AdSetNode {
     placement_platforms?: string[];
     placement_config?: PlacementConfig;
     schedule?: { start_time?: string | null; end_time?: string | null };
+    experiment?: AbExperiment;
     external_id?: string | null;
     ads: AdNode[];
 }
+
+/** A/B test variable an experiment varies between its variants. */
+export type AbVariable = 'creative' | 'audience' | 'placement';
+/** Marks an ad set as part of an A/B experiment (FE metadata; not sent to Graph). */
+export interface AbExperiment { id: string; variable: AbVariable }
 
 export interface AdDraft {
     id: number;
