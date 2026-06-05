@@ -157,6 +157,26 @@ class AdMonitorTest extends TestCase
         $this->assertNotNull($adsetMon->refresh()->last_evaluated_at);
     }
 
+    public function test_only_automation_owner_runs_when_account_shared_across_tenants(): void
+    {
+        Notification::fake();
+        // The same FB account act_1 is connected by a SECOND tenant (later id ⇒ not owner).
+        $other = Tenant::create(['name' => 'Shop B']);
+        app(CurrentTenant::class)->set($other);
+        $bAccount = AdAccount::create(['provider' => 'facebook', 'external_account_id' => 'act_1', 'currency' => 'VND', 'status' => 'active', 'access_token' => 'TOKB']);
+        AdEntity::create(['ad_account_id' => $bAccount->id, 'level' => 'campaign', 'external_id' => 'C1', 'name' => 'CD', 'objective' => 'MESSAGES', 'status' => 'ACTIVE', 'daily_budget' => 100000]);
+        AdMonitor::create(['tenant_id' => $other->id, 'ad_account_id' => $bAccount->id, 'target_level' => 'campaign', 'target_external_id' => 'C1', 'enabled' => true, 'pause_enabled' => true, 'pause_above' => 1, 'min_results' => 1]);
+
+        // Shop B is NOT the owner (the setUp account in tenant T has the smaller id) ⇒ skip.
+        $actions = app(AdMonitorEvaluator::class)->evaluateAccount($bAccount->refresh());
+
+        $this->assertCount(0, $actions);
+        $this->assertSame('ACTIVE', AdEntity::where('ad_account_id', $bAccount->id)->where('external_id', 'C1')->value('status'));
+        $this->assertTrue($bAccount->sharedWithOtherTenants());
+        $this->assertFalse($bAccount->isAutomationOwner());
+        $this->assertTrue($this->account->fresh()->isAutomationOwner());
+    }
+
     public function test_upsert_and_list_via_api(): void
     {
         $user = User::factory()->create(['email_verified_at' => now()]);

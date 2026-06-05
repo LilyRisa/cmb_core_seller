@@ -48,6 +48,13 @@ class AdMonitorEvaluator
         if ($monitors->isEmpty() || ! $this->registry->has($account->provider)) {
             return [];
         }
+        // If this FB account is connected by several tenants, only the automation owner
+        // runs monitors — otherwise both would compound budgets / fight over pause.
+        if (! $account->isAutomationOwner()) {
+            Log::info('marketing.monitor.skipped_not_owner', ['account' => $account->getKey(), 'external' => $account->external_account_id]);
+
+            return [];
+        }
         $connector = $this->registry->for($account->provider);
         if (! ($connector instanceof AdsWriteConnector)) {
             return [];

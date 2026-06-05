@@ -26,6 +26,8 @@ export interface AdAccount {
     disable_reason: number | null;
     health: { label: string; severity: 'ok' | 'warning' | 'error'; ok: boolean } | null;
     health_checked_at: string | null;
+    shared_with_other_tenants: boolean;
+    is_automation_owner: boolean;
     last_synced_at: string | null;
     insights_synced_at: string | null;
 }

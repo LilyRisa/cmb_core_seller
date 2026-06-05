@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Marketing\Models;
 
 use CMBcoreSeller\Modules\Tenancy\Concerns\BelongsToTenant;
+use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -65,6 +66,33 @@ class AdAccount extends Model
             'disable_reason' => 'integer',
             'meta' => 'array',
         ];
+    }
+
+    /**
+     * The SAME Facebook ad account can be connected by more than one tenant (two
+     * shops both granted access). To avoid conflicting/compounding automation, ONE
+     * connection is the "automation owner" (the earliest = smallest id); only that
+     * one runs auto-monitors / writes. Soft-deleted (disconnected) rows don't count.
+     */
+    public function isAutomationOwner(): bool
+    {
+        $ownerId = static::withoutGlobalScope(TenantScope::class)
+            ->where('provider', $this->provider)
+            ->where('external_account_id', $this->external_account_id)
+            ->orderBy('id')
+            ->value('id');
+
+        return $ownerId === null || (int) $ownerId === (int) $this->getKey();
+    }
+
+    /** True if another tenant has this same FB ad account connected. */
+    public function sharedWithOtherTenants(): bool
+    {
+        return static::withoutGlobalScope(TenantScope::class)
+            ->where('provider', $this->provider)
+            ->where('external_account_id', $this->external_account_id)
+            ->where('tenant_id', '!=', $this->tenant_id)
+            ->exists();
     }
 
     /** @return HasMany<AdEntity, $this> */

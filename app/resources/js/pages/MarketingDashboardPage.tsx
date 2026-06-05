@@ -148,6 +148,8 @@ export function MarketingDashboardPage() {
     const currency = bmAccounts.find((a) => a.id === selectedId)?.currency ?? null;
     // Accounts with a Facebook health problem (disabled / payment / policy) across all BMs.
     const unhealthyAccounts = useMemo(() => (accounts ?? []).filter((a) => a.health != null && !a.health.ok), [accounts]);
+    const selectedAccount = (accounts ?? []).find((a) => a.id === selectedId) ?? null;
+    const sharedNotOwner = selectedAccount?.shared_with_other_tenants === true && selectedAccount?.is_automation_owner === false;
 
     const since = range[0].format('YYYY-MM-DD');
     const until = range[1].format('YYYY-MM-DD');
@@ -479,6 +481,16 @@ export function MarketingDashboardPage() {
                     )}
                 </Space>
             </Card>
+
+            {sharedNotOwner && (
+                <Alert
+                    type="warning"
+                    showIcon
+                    style={{ marginBottom: 16 }}
+                    message="Tài khoản quảng cáo này cũng được kết nối ở shop khác"
+                    description="Để tránh xung đột (giám sát tự động tăng/tạm dừng chồng nhau), chỉ shop kết nối ĐẦU TIÊN mới tự động hoá & chỉnh sửa. Ở shop này nên dùng để XEM báo cáo; giám sát/sửa sẽ không tự chạy."
+                />
+            )}
 
             {unhealthyAccounts.length > 0 && (
                 <Alert
