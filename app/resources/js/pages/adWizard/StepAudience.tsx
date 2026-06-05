@@ -12,6 +12,11 @@ import {
     useDeleteExclusionTemplate,
     useExclusionTemplates,
 } from '@/lib/adWizard/exclusionTemplates';
+import {
+    useAudienceTemplates,
+    useCreateAudienceTemplate,
+    useDeleteAudienceTemplate,
+} from '@/lib/adWizard/audienceTemplates';
 import { errorMessage } from '@/lib/api';
 
 const { Text } = Typography;
@@ -220,6 +225,44 @@ function AudienceForm({ adsetKey }: { adsetKey: string }) {
     const deleteTpl = useDeleteExclusionTemplate();
     const [saveOpen, setSaveOpen] = useState(false);
     const [tplName, setTplName] = useState('');
+
+    // Detailed-audience templates (save & apply include/narrow/exclude as a set)
+    const audTemplates = useAudienceTemplates();
+    const createAudTpl = useCreateAudienceTemplate();
+    const deleteAudTpl = useDeleteAudienceTemplate();
+    const [saveAudOpen, setSaveAudOpen] = useState(false);
+    const [audTplName, setAudTplName] = useState('');
+
+    const mergeDetailed = (base: DetailedItem[], add: DetailedItem[]): DetailedItem[] => {
+        const map = new Map(base.map((i) => [i.id, i]));
+        for (const it of add) map.set(it.id, { id: it.id, name: it.name, type: it.type });
+        return [...map.values()];
+    };
+
+    function applyAudienceTemplate(id: number) {
+        const tpl = (audTemplates.data ?? []).find((t) => t.id === id);
+        if (tpl == null) return;
+        setDetailedInclude((s) => mergeDetailed(s, tpl.payload.include ?? []));
+        setDetailedNarrow((s) => mergeDetailed(s, tpl.payload.narrow ?? []));
+        setDetailedExclude((s) => mergeDetailed(s, tpl.payload.exclude ?? []));
+        message.success('Đã áp mẫu đối tượng.');
+    }
+
+    function onSaveAudienceTemplate() {
+        createAudTpl.mutate(
+            { name: audTplName.trim(), payload: { include: detailedInclude, narrow: detailedNarrow, exclude: detailedExclude } },
+            {
+                onSuccess: () => {
+                    message.success('Đã lưu mẫu đối tượng.');
+                    setSaveAudOpen(false);
+                    setAudTplName('');
+                },
+                onError: (e) => message.error(errorMessage(e)),
+            },
+        );
+    }
+
+    const hasAnyDetailed = detailedInclude.length + detailedNarrow.length + detailedExclude.length > 0;
 
     function applyTemplate(id: number) {
         const tpl = (templates.data ?? []).find((t) => t.id === id);
@@ -578,6 +621,70 @@ function AudienceForm({ adsetKey }: { adsetKey: string }) {
                     style={{ maxWidth: 400 }}
                 />
             </Form.Item>
+
+            <Form.Item label="Mẫu đối tượng chi tiết">
+                <Space direction="vertical" size={8} style={{ width: '100%', maxWidth: 400 }}>
+                    <Space wrap>
+                        <Select<number>
+                            style={{ width: 280 }}
+                            placeholder="Chọn mẫu để áp"
+                            value={undefined}
+                            loading={audTemplates.isLoading}
+                            options={(audTemplates.data ?? []).map((t) => ({ label: t.name, value: t.id }))}
+                            onChange={(id) => applyAudienceTemplate(id)}
+                        />
+                        <Button
+                            icon={<SaveOutlined />}
+                            onClick={() => setSaveAudOpen(true)}
+                            disabled={!hasAnyDetailed}
+                        >
+                            Lưu thành mẫu
+                        </Button>
+                    </Space>
+
+                    {(audTemplates.data ?? []).length === 0 ? (
+                        <Text type="secondary">Chưa có mẫu</Text>
+                    ) : (
+                        <Space direction="vertical" size={2} style={{ width: '100%' }}>
+                            {(audTemplates.data ?? []).map((t) => (
+                                <Space key={t.id} size={4} style={{ width: '100%', justifyContent: 'space-between' }}>
+                                    <Text>{t.name}</Text>
+                                    <Popconfirm
+                                        title="Xoá mẫu này?"
+                                        okText="Xoá"
+                                        cancelText="Huỷ"
+                                        onConfirm={() =>
+                                            deleteAudTpl.mutate(t.id, {
+                                                onSuccess: () => message.success('Đã xoá mẫu.'),
+                                            })
+                                        }
+                                    >
+                                        <Button size="small" type="text" danger icon={<DeleteOutlined />} />
+                                    </Popconfirm>
+                                </Space>
+                            ))}
+                        </Space>
+                    )}
+                </Space>
+            </Form.Item>
+
+            <Modal
+                title="Lưu mẫu đối tượng chi tiết"
+                open={saveAudOpen}
+                onOk={onSaveAudienceTemplate}
+                onCancel={() => setSaveAudOpen(false)}
+                confirmLoading={createAudTpl.isPending}
+                okText="Lưu"
+                cancelText="Huỷ"
+                okButtonProps={{ disabled: !audTplName.trim() }}
+            >
+                <Input
+                    value={audTplName}
+                    onChange={(e) => setAudTplName(e.target.value)}
+                    placeholder="Tên mẫu, vd: Tệp mua sắm cao cấp"
+                    maxLength={120}
+                />
+            </Modal>
 
             <Form.Item>
                 <Space align="start" size={16}>
