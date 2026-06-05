@@ -141,5 +141,10 @@ class CampaignInsightAnalysisServiceTest extends TestCase
         $this->assertStringContainsString('Chiến dịch Tết', $insight->payload['summary']);
         $this->assertNotEmpty($insight->payload['recommendations']);
         $this->assertSame('stub', $insight->payload['generated_by']);
+        // Effectiveness score (0–100) the drawer renders as a gauge.
+        $this->assertArrayHasKey('score', $insight->payload);
+        $this->assertIsInt($insight->payload['score']);
+        $this->assertGreaterThanOrEqual(0, $insight->payload['score']);
+        $this->assertLessThanOrEqual(100, $insight->payload['score']);
     }
 }

@@ -26,10 +26,10 @@ class CampaignInsightAnalysisService
         'purchase_roas' => 'purchaseRoas', 'messaging_conversations' => 'messagingConversations', 'leads' => 'leads',
     ];
 
-    private const INSTRUCTION = 'Bạn là chuyên gia tối ưu quảng cáo Facebook. Phân tích RIÊNG một chiến dịch dựa trên: chỉ số đã chọn trong N ngày, hiệu quả từng quảng cáo, nội dung creative/bài viết, tương tác (like/comment), và (nếu có) NỘI DUNG TRANG ĐÍCH (landing_pages: tiêu đề/heading/text/CTA/form/pixel) với chiến dịch chuyển đổi website. Hãy: (1) đánh giá hiệu quả chiến dịch theo các chỉ số đó, (2) nhận xét nội dung & tương tác của từng bài/quảng cáo, (3) nếu có trang đích: đánh giá mức độ khớp giữa quảng cáo và trang đích, trải nghiệm/tốc độ/CTA và việc gắn pixel; (4) đề xuất hành động cụ thể (tăng/giảm ngân sách, tạm dừng, đổi tệp/nội dung, tối ưu trang đích) cho riêng chiến dịch này.';
+    private const INSTRUCTION = 'Bạn là chuyên gia tối ưu quảng cáo Facebook. Phân tích RIÊNG một chiến dịch dựa trên: chỉ số đã chọn trong N ngày, hiệu quả từng quảng cáo, nội dung creative/bài viết, tương tác (like/comment), và (nếu có) NỘI DUNG TRANG ĐÍCH (landing_pages: tiêu đề/heading/text/CTA/form/pixel) với chiến dịch chuyển đổi website. Hãy: (1) chấm điểm hiệu quả tổng thể của chiến dịch trên thang 0–100 (score: số nguyên) phản ánh mức độ hiệu quả dựa trên chỉ số, nội dung quảng cáo và trang đích, (2) đánh giá hiệu quả chiến dịch theo các chỉ số đó, (3) nhận xét nội dung & tương tác của từng bài/quảng cáo, (4) nếu có trang đích: đánh giá mức độ khớp giữa quảng cáo và trang đích, trải nghiệm/tốc độ/CTA và việc gắn pixel; (5) đề xuất hành động cụ thể (tăng/giảm ngân sách, tạm dừng, đổi tệp/nội dung, tối ưu trang đích) cho riêng chiến dịch này.';
 
     /** Output schema the model must follow (matches what CampaignAiInsightDrawer renders). */
-    private const SCHEMA = '{summary:string (tổng quan ngắn), assessment:string (đánh giá hiệu quả theo chỉ số), recommendations:[{action:string, rationale:string}], creative_review:[{ref:string, name:string, verdict:"tốt"|"cần cải thiện", issues:[string], suggestions:[string]}]}';
+    private const SCHEMA = '{score:number (0-100, điểm hiệu quả tổng thể), summary:string (tổng quan ngắn), assessment:string (đánh giá hiệu quả theo chỉ số), recommendations:[{action:string, rationale:string}], creative_review:[{ref:string, name:string, verdict:"tốt"|"cần cải thiện", issues:[string], suggestions:[string]}]}';
 
     public function __construct(
         private MarketingAnalysisClient $client,
@@ -279,6 +279,7 @@ class CampaignInsightAnalysisService
         }, $creatives);
 
         return [
+            'score' => $this->stubScore($m, $pages),
             'summary' => $summary,
             'assessment' => $parts === []
                 ? 'Chưa đủ dữ liệu để đánh giá hiệu quả trong khoảng thời gian đã chọn.'
@@ -287,5 +288,40 @@ class CampaignInsightAnalysisService
             'creative_review' => $review,
             'generated_by' => 'stub',
         ];
+    }
+
+    /**
+     * Deterministic 0–100 effectiveness score from the chosen metrics + landing pages.
+     * Baseline 60, nudged by CTR / clicks / ROAS and whether the landing page has a pixel.
+     *
+     * @param  array<string,mixed>  $m  campaign_metrics
+     * @param  array<int,array<string,mixed>>  $pages  landing_pages
+     */
+    private function stubScore(array $m, array $pages): int
+    {
+        if ($m === []) {
+            return 50; // no metrics selected/available ⇒ neutral.
+        }
+
+        $score = 60;
+        if (array_key_exists('ctr', $m) && $m['ctr'] !== null) {
+            $ctr = (float) $m['ctr'];
+            $score += $ctr >= 2 ? 20 : ($ctr >= 1 ? 10 : ($ctr > 0 ? 0 : -20));
+        }
+        if (array_key_exists('clicks', $m)) {
+            $score += ((int) $m['clicks']) > 0 ? 5 : -10;
+        }
+        if (array_key_exists('purchase_roas', $m) && $m['purchase_roas'] !== null) {
+            $roas = (float) $m['purchase_roas'];
+            $score += $roas >= 2 ? 15 : ($roas >= 1 ? 5 : 0);
+        }
+        foreach ($pages as $p) {
+            if (! empty($p['pixels'])) {
+                $score += 5;
+                break;
+            }
+        }
+
+        return max(0, min(100, $score));
     }
 }

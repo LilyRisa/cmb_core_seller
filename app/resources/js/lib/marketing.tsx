@@ -458,6 +458,7 @@ export interface CampaignAiInsightParams { days: number; metrics: string[]; incl
 export interface CampaignAiInsight {
     id?: number;
     payload: {
+        score?: number | null;
         summary?: string;
         assessment?: string;
         recommendations?: Array<{ action?: string; rationale?: string } | string>;
@@ -505,7 +506,10 @@ export function useDeleteCampaignInsight() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: async (insightId: number) => { await api!.delete(`/marketing/campaign-insights/${insightId}`); },
-        onSuccess: () => qc.invalidateQueries({ queryKey: ['marketing', 'campaign-insight'] }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['marketing', 'campaign-insight'] });
+            qc.invalidateQueries({ queryKey: ['marketing', 'campaign-insight-history'] });
+        },
     });
 }
 
@@ -519,6 +523,9 @@ export function useGenerateCampaignAiInsight() {
                 `/marketing/ad-accounts/${vars.accountId}/campaigns/${vars.campaignId}/ai-insight`,
                 vars.params,
             )).data,
-        onSuccess: () => qc.invalidateQueries({ queryKey: ['marketing', 'campaign-insight'] }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['marketing', 'campaign-insight'] });
+            qc.invalidateQueries({ queryKey: ['marketing', 'campaign-insight-history'] });
+        },
     });
 }
