@@ -38,6 +38,13 @@ interface AdsConnector
     public function listAdAccounts(string $accessToken): array;
 
     /**
+     * Read one ad account's health (disabled / payment / policy review).
+     *
+     * @return array{account_status:?int, disable_reason:?int}
+     */
+    public function fetchAccountStatus(string $accessToken, string $externalAccountId): array;
+
+    /**
      * List entities of one level (campaign|adset|ad) for an account.
      *
      * @return list<AdEntityDTO>

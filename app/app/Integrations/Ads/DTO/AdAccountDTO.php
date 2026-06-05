@@ -13,6 +13,8 @@ final readonly class AdAccountDTO
         public ?string $businessId = null,     // Business Manager id
         public ?string $businessName = null,
         public ?string $businessPictureUrl = null, // BM logo
+        public ?int $accountStatus = null,     // FB account_status code (health)
+        public ?int $disableReason = null,     // FB disable_reason code
         public array $raw = [],
     ) {}
 }

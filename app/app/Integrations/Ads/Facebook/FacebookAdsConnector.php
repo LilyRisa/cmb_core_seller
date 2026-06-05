@@ -123,7 +123,7 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
     public function listAdAccounts(string $accessToken): array
     {
         $res = Http::timeout(30)->get($this->graphUrl('me/adaccounts'), [
-            'fields' => 'account_id,name,currency,account_status,business{id,name,profile_picture_uri}',
+            'fields' => 'account_id,name,currency,account_status,disable_reason,business{id,name,profile_picture_uri}',
             'access_token' => $accessToken, 'limit' => 200,
         ]);
         if (! $res->successful()) {
@@ -138,8 +138,26 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
             businessId: isset($a['business']['id']) ? (string) $a['business']['id'] : null,
             businessName: isset($a['business']['name']) ? (string) $a['business']['name'] : null,
             businessPictureUrl: isset($a['business']['profile_picture_uri']) ? (string) $a['business']['profile_picture_uri'] : null,
+            accountStatus: isset($a['account_status']) ? (int) $a['account_status'] : null,
+            disableReason: isset($a['disable_reason']) ? (int) $a['disable_reason'] : null,
             raw: $a,
         ), array_filter((array) $res->json('data', []), 'is_array')));
+    }
+
+    public function fetchAccountStatus(string $accessToken, string $externalAccountId): array
+    {
+        $res = Http::timeout(20)->get($this->graphUrl($externalAccountId), [
+            'fields' => 'account_status,disable_reason',
+            'access_token' => $accessToken,
+        ]);
+        if (! $res->successful()) {
+            throw new \RuntimeException('Facebook Ads fetchAccountStatus failed: '.$res->body());
+        }
+
+        return [
+            'account_status' => $res->json('account_status') !== null ? (int) $res->json('account_status') : null,
+            'disable_reason' => $res->json('disable_reason') !== null ? (int) $res->json('disable_reason') : null,
+        ];
     }
 
     public function listEntities(string $accessToken, string $externalAccountId, string $level): array

@@ -18,6 +18,9 @@ use Illuminate\Support\Carbon;
  * @property ?string $business_id
  * @property ?string $business_name
  * @property ?string $business_picture_url
+ * @property ?int $fb_account_status
+ * @property ?int $disable_reason
+ * @property ?Carbon $health_checked_at
  * @property string $external_account_id
  * @property ?string $name
  * @property ?string $currency
@@ -42,6 +45,7 @@ class AdAccount extends Model
 
     protected $fillable = [
         'tenant_id', 'provider', 'business_id', 'business_name', 'business_picture_url', 'external_account_id', 'name', 'currency', 'status',
+        'fb_account_status', 'disable_reason', 'health_checked_at',
         'access_token', 'refresh_token', 'token_expires_at', 'last_synced_at', 'insights_synced_at',
         'meta', 'created_by',
     ];
@@ -56,6 +60,9 @@ class AdAccount extends Model
             'token_expires_at' => 'datetime',
             'last_synced_at' => 'datetime',
             'insights_synced_at' => 'datetime',
+            'health_checked_at' => 'datetime',
+            'fb_account_status' => 'integer',
+            'disable_reason' => 'integer',
             'meta' => 'array',
         ];
     }

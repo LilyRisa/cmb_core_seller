@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Marketing\Http\Resources;
 
 use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
+use CMBcoreSeller\Modules\Marketing\Support\AccountHealth;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -24,6 +25,10 @@ class AdAccountResource extends JsonResource
             'name' => $this->name,
             'currency' => $this->currency,
             'status' => $this->status,
+            'fb_account_status' => $this->fb_account_status,
+            'disable_reason' => $this->disable_reason,
+            'health' => AccountHealth::describe($this->fb_account_status, $this->disable_reason),
+            'health_checked_at' => $this->health_checked_at?->toIso8601String(),
             'last_synced_at' => $this->last_synced_at?->toIso8601String(),
             'insights_synced_at' => $this->insights_synced_at?->toIso8601String(),
             // NEVER expose access_token / refresh_token.

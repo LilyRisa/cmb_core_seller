@@ -22,6 +22,10 @@ export interface AdAccount {
     name: string | null;
     currency: string | null;
     status: string;
+    fb_account_status: number | null;
+    disable_reason: number | null;
+    health: { label: string; severity: 'ok' | 'warning' | 'error'; ok: boolean } | null;
+    health_checked_at: string | null;
     last_synced_at: string | null;
     insights_synced_at: string | null;
 }

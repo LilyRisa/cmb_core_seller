@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { App as AntApp, Avatar, Button, Card, Checkbox, Collapse, DatePicker, Dropdown, Empty, Input, InputNumber, List, Popconfirm, Result, Segmented, Select, Space, Spin, Table, Tag, Tooltip, Typography } from 'antd';
+import { Alert, App as AntApp, Avatar, Badge, Button, Card, Checkbox, Collapse, DatePicker, Dropdown, Empty, Input, InputNumber, List, Popconfirm, Result, Segmented, Select, Space, Spin, Table, Tag, Tooltip, Typography } from 'antd';
 import { AlertOutlined, ApiOutlined, CheckOutlined, CloseOutlined, DisconnectOutlined, EditOutlined, FacebookFilled, FileTextOutlined, FolderOpenOutlined, FundOutlined, PauseCircleOutlined, PlayCircleOutlined, PlusOutlined, QuestionCircleOutlined, RobotOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
 import { useAdDrafts, useDeleteDraft, useDuplicateDraft } from '@/lib/adWizard';
 import dayjs, { type Dayjs } from 'dayjs';
@@ -146,6 +146,8 @@ export function MarketingDashboardPage() {
     const bmAccounts = useMemo(() => (accounts ?? []).filter((a) => (a.business_id ?? '_') === (bm ?? bmGroups[0]?.id)), [accounts, bm, bmGroups]);
     const selectedId = accountId ?? bmAccounts[0]?.id ?? null;
     const currency = bmAccounts.find((a) => a.id === selectedId)?.currency ?? null;
+    // Accounts with a Facebook health problem (disabled / payment / policy) across all BMs.
+    const unhealthyAccounts = useMemo(() => (accounts ?? []).filter((a) => a.health != null && !a.health.ok), [accounts]);
 
     const since = range[0].format('YYYY-MM-DD');
     const until = range[1].format('YYYY-MM-DD');
@@ -457,7 +459,14 @@ export function MarketingDashboardPage() {
                                 label: a.name ?? a.external_account_id,
                                 element: (
                                     <Space direction="vertical" size={0}>
-                                        <span>{a.name ?? a.external_account_id}</span>
+                                        <Space size={6}>
+                                            {a.health != null && !a.health.ok && (
+                                                <Tooltip title={a.health.label}>
+                                                    <Badge status={a.health.severity === 'error' ? 'error' : 'warning'} />
+                                                </Tooltip>
+                                            )}
+                                            <span>{a.name ?? a.external_account_id}</span>
+                                        </Space>
                                         <Text type="secondary" style={{ fontSize: 11 }} copyable={{ text: a.external_account_id }}>{a.external_account_id}</Text>
                                     </Space>
                                 ),
@@ -470,6 +479,31 @@ export function MarketingDashboardPage() {
                     )}
                 </Space>
             </Card>
+
+            {unhealthyAccounts.length > 0 && (
+                <Alert
+                    type={unhealthyAccounts.some((a) => a.health?.severity === 'error') ? 'error' : 'warning'}
+                    showIcon
+                    style={{ marginBottom: 16 }}
+                    message="Tài khoản quảng cáo có vấn đề"
+                    description={
+                        <List
+                            size="small"
+                            dataSource={unhealthyAccounts}
+                            renderItem={(a) => (
+                                <List.Item style={{ padding: '4px 0' }}>
+                                    <Space wrap>
+                                        <Tag color={a.health?.severity === 'error' ? 'red' : 'orange'}>{a.health?.label}</Tag>
+                                        <Text strong>{a.name ?? a.external_account_id}</Text>
+                                        <Text type="secondary" style={{ fontSize: 12 }}>{a.external_account_id}</Text>
+                                        {a.business_name && <Text type="secondary" style={{ fontSize: 12 }}>· BM: {a.business_name}</Text>}
+                                    </Space>
+                                </List.Item>
+                            )}
+                        />
+                    }
+                />
+            )}
 
             {(drafts?.length ?? 0) > 0 && (
                 <Card title="Bản nháp của tôi" size="small" style={{ marginBottom: 16 }}>

@@ -56,6 +56,18 @@ class SyncAdInsights implements ShouldBeUnique, ShouldQueue
         $query = ['date_preset' => $this->window];
         $throttle = null;
 
+        // Refresh account health (disabled / payment / policy) — cheap single-node read.
+        try {
+            $health = $connector->fetchAccountStatus($token, $account->external_account_id);
+            $account->forceFill([
+                'fb_account_status' => $health['account_status'],
+                'disable_reason' => $health['disable_reason'],
+                'health_checked_at' => now(),
+            ])->save();
+        } catch (\Throwable $e) {
+            // Non-fatal — a disabled account may still report insights/no-op.
+        }
+
         // Account-level first, then the entity tree.
         if ($this->ingest($account, null, $account->external_account_id, 'account', $connector->fetchInsights($token, $account->external_account_id, 'account', $query, $throttle))
             && $this->paceIfHot($account, $throttle)) {
