@@ -18,6 +18,7 @@ import { RegisterPage } from '@/pages/RegisterPage';
 import { EmailVerifiedPage } from '@/pages/EmailVerifiedPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
+import { PublicTrackingPage } from '@/pages/PublicTrackingPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { OrdersPage } from '@/pages/OrdersPage';
 import { OrderDetailPage } from '@/pages/OrderDetailPage';
@@ -95,6 +96,8 @@ function Root() {
             {/* SPEC 0022 — luồng quên / đặt lại mật khẩu. Public (link đặt lại tới từ email). */}
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/password-reset" element={<ResetPasswordPage />} />
+            {/* SPEC 0030 — trang tra cứu đơn công khai (đơn tự tạo). Public, không cần đăng nhập. */}
+            <Route path="/tracking" element={<PublicTrackingPage />} />
             <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
                 <Route index element={<DashboardPage />} />
                 <Route path="orders" element={<OrdersPage />} />

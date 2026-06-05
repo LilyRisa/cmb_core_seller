@@ -29,6 +29,12 @@
 | POST | `/api/v1/auth/password/forgot` | — | `{ email }` | `200 { data: { sent: true } }` (response generic — không xác nhận email có tồn tại không, chống enumerate). Dispatch `ResetPasswordNotification` qua queue `notifications` nếu email khớp. Throttle `5/15`. (SPEC 0022) |
 | POST | `/api/v1/auth/password/reset` | — | `{ email, token, password, password_confirmation }` | `200 { data: { reset: true } }`. Token sai/hết hạn ⇒ `422 INVALID_RESET_TOKEN`; password không khớp / không đạt policy ⇒ `422 VALIDATION_FAILED`. **Password policy:** tối thiểu 8 ký tự, ít nhất 1 chữ hoa + 1 chữ thường + 1 ký tự đặc biệt (`min(8)->mixedCase()->symbols()`). Throttle `30/60`. (SPEC 0022) |
 
+## Tra cứu đơn công khai (Public — SPEC 0030)
+
+| Method | Path | Auth | Request | Response |
+|---|---|---|---|---|
+| GET | `/api/v1/public/track` | — | query `code` = `order_number` của **đơn tự tạo** (`source='manual'`) | `200 { data: { order_number, status, status_label, placed_at, delivered_at, carrier_name\|null, cod:{amount,is_cod}, recipient:{name,phone,area}, items:[{name,variation,qty,image}], steps:[{key,label,state}], timeline:[{at,label,source}] } }`. **PII đã mask** server-side: tên ẩn phần cuối, SĐT che giữa, địa chỉ chỉ còn xã/huyện/tỉnh; **không** trả giá/phí/grand_total/mã vận đơn. `timeline` ưu tiên scan ĐVVC (`ShipmentEvent`), fallback `OrderStatusHistory`. Code rỗng/không tồn tại/không phải manual/trùng nhiều tenant ⇒ `404 NOT_FOUND` (generic). Throttle `30/1`. Không tenant header. (SPEC 0030) |
+
 ## Thiết bị mobile — Expo Push (SPEC 0029)
 
 | Method | Path | Auth | Request | Response |

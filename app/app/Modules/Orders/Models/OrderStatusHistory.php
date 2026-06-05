@@ -5,9 +5,21 @@ namespace CMBcoreSeller\Modules\Orders\Models;
 use CMBcoreSeller\Modules\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Append-only; one row per status change. See docs/03-domain/order-status-state-machine.md §3.
+ *
+ * @property int $id
+ * @property int $tenant_id
+ * @property int $order_id
+ * @property string|null $from_status
+ * @property string $to_status
+ * @property string|null $raw_status
+ * @property string $source
+ * @property Carbon|null $changed_at
+ * @property array|null $payload
+ * @property Carbon|null $created_at
  */
 class OrderStatusHistory extends Model
 {
