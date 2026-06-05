@@ -59,9 +59,26 @@ export interface Subscription {
     over_quota_grace_hours?: number;
 }
 
+export interface AiCreditsSummary {
+    enabled: boolean;
+    unlimited: boolean;
+    monthly_allowance: number;
+    period_used: number;
+    purchased_balance: number;
+    available: number | null;
+}
+
 export interface BillingUsage {
-    channel_accounts: { used: number; limit: number };
+    channel_accounts: { used: number; limit: number; per_platform_limit?: number };
+    ai_credits?: AiCreditsSummary;
     features?: Partial<PlanFeatures>;
+}
+
+export interface VoucherPreview {
+    code: string;
+    valid: boolean;
+    discount_amount?: number;
+    message?: string;
 }
 
 export interface InvoiceLine {
@@ -154,12 +171,23 @@ export function useCheckout() {
     const qc = useQueryClient();
     const tenantId = useCurrentTenantId();
     return useMutation({
-        mutationFn: async (vars: { plan_code: PlanCode; cycle: 'monthly' | 'yearly'; gateway: 'sepay' | 'vnpay' | 'momo' }) => {
+        mutationFn: async (vars: { plan_code: PlanCode; cycle: 'monthly' | 'yearly'; gateway: 'sepay' | 'vnpay' | 'momo'; voucher_code?: string }) => {
             const { data } = await api!.post<{ data: CheckoutResult }>('/billing/checkout', vars);
             return data.data;
         },
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['billing', tenantId] });
+        },
+    });
+}
+
+/** Kiểm tra mã giảm giá (preview chiết khấu cho 1 gói/chu kỳ). */
+export function useValidateVoucher() {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async (vars: { code: string; plan_code?: PlanCode; cycle?: 'monthly' | 'yearly' }) => {
+            const { data } = await api!.post<{ data: VoucherPreview }>('/billing/vouchers/validate', vars);
+            return data.data;
         },
     });
 }

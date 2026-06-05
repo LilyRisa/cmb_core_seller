@@ -48,6 +48,7 @@ import { SettingsProfilePage } from '@/pages/SettingsProfilePage';
 import { SettingsWorkspacePage } from '@/pages/SettingsWorkspacePage';
 import { SettingsOrdersPage } from '@/pages/SettingsOrdersPage';
 import { SettingsPlanPage } from '@/pages/SettingsPlanPage';
+import { PlansPage } from '@/pages/PlansPage';
 import { SettingsPrintPage } from '@/pages/SettingsPrintPage';
 import { SuppliersPage } from '@/pages/SuppliersPage';
 import { PurchaseOrdersPage } from '@/pages/PurchaseOrdersPage';
@@ -98,6 +99,8 @@ function Root() {
             <Route path="/password-reset" element={<ResetPasswordPage />} />
             {/* SPEC 0030 — trang tra cứu đơn công khai (đơn tự tạo). Public, không cần đăng nhập. */}
             <Route path="/tracking" element={<PublicTrackingPage />} />
+            {/* SPEC 0032 — trang gói full-screen riêng (có nút back), tách khỏi sidebar. */}
+            <Route path="/plans" element={<RequireAuth><PlansPage /></RequireAuth>} />
             <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
                 <Route index element={<DashboardPage />} />
                 <Route path="orders" element={<OrdersPage />} />

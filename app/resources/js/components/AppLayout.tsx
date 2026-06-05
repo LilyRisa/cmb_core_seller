@@ -32,6 +32,7 @@ import { getCurrentTenantId, setCurrentTenantId, useAuth, useLogout } from '@/li
 import { useCan } from '@/lib/tenant';
 import { useGlobalMessageNotifications } from '@/lib/useMessageNotifications';
 import { OverQuotaBanner } from '@/components/OverQuotaBanner';
+import { HeaderBillingActions } from '@/components/HeaderBillingActions';
 import { HelpChatWidget } from '@/components/support/HelpChatWidget';
 
 const { Header, Sider, Content } = Layout;
@@ -140,6 +141,7 @@ export function AppLayout() {
                         />
                     </Space>
                     <Space size="middle">
+                        <HeaderBillingActions />
                         <Tooltip title="Thông báo (sắp có)"><Badge dot><Button type="text" icon={<BellOutlined />} /></Badge></Tooltip>
                         <Dropdown
                             menu={{ items: [

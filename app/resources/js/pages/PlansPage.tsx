@@ -1,0 +1,147 @@
+import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+    Alert, App as AntApp, Button, Card, Col, Input, Modal, Radio, Row, Segmented, Space, Tag, Typography,
+} from 'antd';
+import { ArrowLeftOutlined, CheckOutlined, CrownOutlined } from '@ant-design/icons';
+import { errorMessage } from '@/lib/api';
+import {
+    useCheckout, usePlans, useSubscription, useValidateVoucher, type Plan, type PlanCode, type VoucherPreview,
+} from '@/lib/billing';
+
+const { Title, Text, Paragraph } = Typography;
+
+const FEATURE_LABELS: Record<string, string> = {
+    messaging_inbox: 'Nhắn tin Facebook Page + sàn',
+    messaging_ai: 'AI hỗ trợ trả lời',
+    marketing_facebook: 'Quảng cáo Facebook',
+    accounting_basic: 'Kế toán',
+    accounting_advanced: 'Kế toán nâng cao',
+    procurement: 'Mua hàng & NCC',
+    fifo_cogs: 'Giá vốn FIFO',
+    profit_reports: 'Báo cáo lợi nhuận',
+    finance_settlements: 'Đối soát sàn',
+    demand_planning: 'Đề xuất nhập hàng',
+    mass_listing: 'Đăng bán đa sàn',
+    automation_rules: 'Tự động hoá',
+    priority_support: 'Hỗ trợ ưu tiên',
+    ai: 'Tính năng AI',
+};
+
+const vnd = (n: number) => n.toLocaleString('vi-VN') + 'đ';
+
+export function PlansPage() {
+    const { message } = AntApp.useApp();
+    const navigate = useNavigate();
+    const plans = usePlans();
+    const { data: sub } = useSubscription();
+    const checkout = useCheckout();
+    const validate = useValidateVoucher();
+
+    const [cycle, setCycle] = useState<'monthly' | 'yearly'>('monthly');
+    const [gateway, setGateway] = useState<'sepay' | 'vnpay'>('sepay');
+    const [code, setCode] = useState('');
+    const [voucher, setVoucher] = useState<VoucherPreview | null>(null);
+    const [pay, setPay] = useState<{ url?: string; qr?: string } | null>(null);
+
+    const currentCode = sub?.subscription?.plan_code ?? null;
+    const offered = useMemo(() => (plans.data ?? []).filter((p) => p.price_monthly > 0), [plans.data]);
+
+    const applyVoucher = () => {
+        const c = code.trim().toUpperCase();
+        if (!c) return;
+        validate.mutate({ code: c, cycle }, {
+            onSuccess: (v) => {
+                setVoucher(v);
+                message[v.valid ? 'success' : 'warning'](v.valid
+                    ? (v.discount_amount ? `Giảm ${vnd(v.discount_amount)}` : (v.message ?? 'Mã hợp lệ.'))
+                    : (v.message ?? 'Mã không hợp lệ.'));
+            },
+            onError: (e) => message.error(errorMessage(e, 'Không kiểm tra được mã.')),
+        });
+    };
+
+    const buy = (planCode: PlanCode) => {
+        checkout.mutate({ plan_code: planCode, cycle, gateway, ...(voucher?.valid ? { voucher_code: code.trim().toUpperCase() } : {}) }, {
+            onSuccess: (res) => {
+                const url = res.checkout?.redirect_url;
+                const qr = res.checkout?.qr_url;
+                if (url) { window.location.href = url; return; }
+                setPay({ url, qr });
+                message.success('Đã tạo hoá đơn — quét QR / chuyển khoản để hoàn tất.');
+            },
+            onError: (e) => message.error(errorMessage(e, 'Không tạo được thanh toán.')),
+        });
+    };
+
+    const price = (p: Plan) => (cycle === 'yearly' ? p.price_yearly : p.price_monthly);
+    const yearlySavingPct = (p: Plan) => {
+        const full = p.price_monthly * 12;
+        return full > 0 ? Math.round((1 - p.price_yearly / full) * 100) : 0;
+    };
+
+    return (
+        <div style={{ minHeight: '100vh', background: '#f5f6f8', padding: '16px 24px 48px' }}>
+            <Space style={{ marginBottom: 16 }}>
+                <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>Quay lại</Button>
+            </Space>
+
+            <div style={{ maxWidth: 1080, margin: '0 auto' }}>
+                <Title level={3}><CrownOutlined /> Gói dịch vụ</Title>
+                {currentCode && <Paragraph type="secondary">Gói hiện tại: <Tag color="blue">{currentCode}</Tag></Paragraph>}
+
+                <Card size="small" style={{ marginBottom: 16 }}>
+                    <Space wrap size={16}>
+                        <Segmented value={cycle} onChange={(v) => setCycle(v as 'monthly' | 'yearly')}
+                            options={[{ label: 'Hàng tháng', value: 'monthly' }, { label: 'Hàng năm (tiết kiệm hơn)', value: 'yearly' }]} />
+                        <Space>
+                            <Text>Cổng thanh toán:</Text>
+                            <Radio.Group value={gateway} onChange={(e) => setGateway(e.target.value)}
+                                options={[{ label: 'SePay (QR)', value: 'sepay' }, { label: 'VNPay', value: 'vnpay' }]} optionType="button" size="small" />
+                        </Space>
+                        <Space.Compact>
+                            <Input placeholder="Mã giảm giá" value={code} style={{ width: 160, textTransform: 'uppercase' }}
+                                onChange={(e) => { setCode(e.target.value); setVoucher(null); }} onPressEnter={applyVoucher} allowClear />
+                            <Button onClick={applyVoucher} loading={validate.isPending}>Áp dụng</Button>
+                        </Space.Compact>
+                        {voucher?.valid && <Tag color="green">Đã áp mã{voucher.discount_amount ? ` −${vnd(voucher.discount_amount)}` : ''}</Tag>}
+                    </Space>
+                </Card>
+
+                {plans.isError && <Alert type="error" showIcon message={errorMessage(plans.error, 'Không tải được gói.')} />}
+
+                <Row gutter={[16, 16]}>
+                    {offered.map((p) => {
+                        const isCurrent = p.code === currentCode;
+                        const feats = Object.entries(p.features ?? {}).filter(([, on]) => on).map(([k]) => FEATURE_LABELS[k] ?? k);
+                        return (
+                            <Col xs={24} md={12} lg={8} key={p.code}>
+                                <Card title={<Space><b>{p.name}</b>{isCurrent && <Tag color="blue">Đang dùng</Tag>}</Space>}
+                                    style={{ height: '100%' }}>
+                                    <Title level={3} style={{ margin: 0 }}>{vnd(price(p))}<Text type="secondary" style={{ fontSize: 14 }}>/{cycle === 'yearly' ? 'năm' : 'tháng'}</Text></Title>
+                                    {cycle === 'yearly' && yearlySavingPct(p) > 0 && <Tag color="green" style={{ marginTop: 4 }}>Tiết kiệm {yearlySavingPct(p)}%</Tag>}
+                                    <Paragraph type="secondary" style={{ marginTop: 8, minHeight: 44 }}>{p.description}</Paragraph>
+                                    <Space direction="vertical" size={4} style={{ display: 'flex', marginBottom: 12 }}>
+                                        {feats.length === 0
+                                            ? <Text type="secondary">Xử lý đơn + tồn kho cơ bản</Text>
+                                            : feats.map((f) => <Text key={f}><CheckOutlined style={{ color: '#52c41a' }} /> {f}</Text>)}
+                                    </Space>
+                                    <Button type="primary" block disabled={isCurrent} loading={checkout.isPending}
+                                        onClick={() => buy(p.code)}>
+                                        {isCurrent ? 'Gói hiện tại' : 'Chọn gói'}
+                                    </Button>
+                                </Card>
+                            </Col>
+                        );
+                    })}
+                </Row>
+            </div>
+
+            <Modal title="Thanh toán" open={pay !== null} onCancel={() => setPay(null)} footer={null}>
+                {pay?.qr
+                    ? <div style={{ textAlign: 'center' }}><img src={pay.qr} alt="QR thanh toán" style={{ maxWidth: 260 }} /><Paragraph type="secondary">Quét QR để thanh toán. Gói sẽ kích hoạt sau khi nhận được tiền.</Paragraph></div>
+                    : <Paragraph>Hoá đơn đã tạo. Vào <b>Cài đặt → Gói &amp; thanh toán</b> để xem trạng thái.</Paragraph>}
+            </Modal>
+        </div>
+    );
+}
