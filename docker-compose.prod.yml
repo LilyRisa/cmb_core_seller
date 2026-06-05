@@ -110,6 +110,9 @@ x-app-env: &app-env
   # thức fulfillment 202309). Bật mặc định; đặt =false nếu shop yêu cầu handover_method khác / lỗi gọi sàn
   # (lỗi vẫn được bắt & gắn cờ has_issue trên đơn, không chặn — vẫn tạo vận đơn cục bộ).
   INTEGRATIONS_TIKTOK_FULFILLMENT: "${INTEGRATIONS_TIKTOK_FULFILLMENT:-true}"
+  # Đối soát/Statements TikTok (SPEC 0016). Bật mặc định; tắt = đặt biến này "false" ở Portainer.
+  # KHÔNG để default rỗng (`:-`) — env="" ⇒ (bool)"" = false ⇒ tắt nhầm.
+  INTEGRATIONS_TIKTOK_FINANCE: "${INTEGRATIONS_TIKTOK_FINANCE:-true}"
   TIKTOK_SHIP_PACKAGE_PATH: ${TIKTOK_SHIP_PACKAGE_PATH:-}
   TIKTOK_PACKAGE_DETAIL_PATH: ${TIKTOK_PACKAGE_DETAIL_PATH:-}
   TIKTOK_SHIPPING_DOCS_PATH: ${TIKTOK_SHIPPING_DOCS_PATH:-}
@@ -121,6 +124,9 @@ x-app-env: &app-env
   LAZADA_APP_KEY: ${LAZADA_APP_KEY}
   LAZADA_APP_SECRET: ${LAZADA_APP_SECRET}
   LAZADA_SANDBOX: "${LAZADA_SANDBOX:-false}"
+  # Đối soát Lazada (SPEC 0016). Bật mặc định; app Lazada vẫn cần quyền nhóm Finance trên Open Platform.
+  # KHÔNG để default rỗng (`:-`) — env="" ⇒ (bool)"" = false ⇒ tắt nhầm.
+  INTEGRATIONS_LAZADA_FINANCE: "${INTEGRATIONS_LAZADA_FINANCE:-true}"
   # Lazada IM Chat — app "IM ERP" RIÊNG (tách khỏi app orders; Lazada gate quyền IM theo app).
   # Nhập 2 biến này ở Portainer để bật; để trống = chưa bật IM chat. `redirect_uri` trống ⇒ connector
   # tự suy <APP_URL>/oauth/lazada_im/callback. Host API/auth/authorize KHÔNG khai ở đây để dùng default
@@ -143,7 +149,8 @@ x-app-env: &app-env
   # PRODUCTION = https://partner.shopeemobile.com. (Đang để mặc định SANDBOX để test — đổi sang prod khi go-live.)
   SHOPEE_API_BASE_URL: ${SHOPEE_API_BASE_URL:-https://openplatform.sandbox.test-stable.shopee.sg}
   INTEGRATIONS_SHOPEE_FULFILLMENT: "${INTEGRATIONS_SHOPEE_FULFILLMENT:-true}"
-  INTEGRATIONS_SHOPEE_FINANCE: "${INTEGRATIONS_SHOPEE_FINANCE:-false}"
+  # Đối soát Shopee (SPEC 0016). Bật mặc định; cần scope tài chính khi cấp token. Đặt "false" ở Portainer để tắt.
+  INTEGRATIONS_SHOPEE_FINANCE: "${INTEGRATIONS_SHOPEE_FINANCE:-true}"
   SHOPEE_SHIP_METHOD: ${SHOPEE_SHIP_METHOD:-auto}
   # URL callback dùng để VERIFY chữ ký webhook push (base-string = "URL|body" theo Shopee Open Platform,
   # doc 18-push-mechanism-notifications). PHẢI khớp Y HỆT URL đã nhập ở Shopee Console → Push Mechanism.
