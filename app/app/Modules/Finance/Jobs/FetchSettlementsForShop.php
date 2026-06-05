@@ -28,7 +28,11 @@ class FetchSettlementsForShop implements ShouldQueue
 
     public int $backoff = 60;
 
-    public function __construct(public readonly int $channelAccountId, public readonly ?string $from = null, public readonly ?string $to = null) {}
+    public function __construct(public readonly int $channelAccountId, public readonly ?string $from = null, public readonly ?string $to = null)
+    {
+        // Horizon: supervisor-default xử lý queue `finance` (config/horizon.php).
+        $this->onQueue('finance');
+    }
 
     public function handle(SettlementService $service): void
     {

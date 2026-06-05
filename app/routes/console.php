@@ -104,6 +104,12 @@ Schedule::command('billing:recompute-usage')->hourly()->onOneServer()->withoutOv
 // SPEC 0020 — Mỗi giờ: phát hiện tenant vượt hạn mức + set timer ân hạn 2 ngày.
 Schedule::command('subscriptions:check-over-quota')->hourly()->onOneServer()->withoutOverlapping();
 
+// --- SPEC 0016: Đối soát sàn — kéo HẰNG NGÀY ---
+// 02:00 mỗi ngày: xếp job kéo đối soát cho mọi gian hàng (sàn đã bật finance), kéo lại 7 ngày
+// gần nhất để cập nhật trạng thái thanh toán statement đến muộn. Upsert idempotent ⇒ không trùng.
+// Job đẩy lên Horizon queue `finance`. Đổi cửa sổ bằng: settlements:fetch-daily --days=N.
+Schedule::command('settlements:fetch-daily')->dailyAt('02:00')->onOneServer()->withoutOverlapping();
+
 // --- SPEC-0024: Omnichannel Messaging (Phase 7.x đề xuất) ---
 // Mỗi phút: quét away_no_response auto-reply (các trigger khác fire theo event).
 Schedule::command('messaging:auto-reply-tick')->everyMinute()->onOneServer()->withoutOverlapping();
