@@ -313,7 +313,9 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
     public function fetchAdCreatives(string $accessToken, string $externalAccountId): array
     {
         $res = Http::timeout(30)->get($this->graphUrl($externalAccountId.'/ads'), [
-            'fields' => 'id,name,effective_status,creative{body,title,effective_object_story_id,object_story_spec{link_data{message,name,link,call_to_action{type,value}}}}',
+            'fields' => 'id,name,effective_status,creative{body,title,effective_object_story_id,'
+                .'object_story_spec{link_data{message,name,link,call_to_action{type,value}},video_data{message,title,call_to_action{type,value}}},'
+                .'asset_feed_spec{link_urls{website_url},bodies{text},titles{text},call_to_action_types}}',
             'access_token' => $accessToken,
             'limit' => 200,
         ]);
@@ -323,21 +325,59 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
 
         return array_values(array_map(function (array $a) {
             $creative = (array) ($a['creative'] ?? []);
-            $linkData = (array) ($creative['object_story_spec']['link_data'] ?? []);
-            $linkUrl = $linkData['link'] ?? $linkData['call_to_action']['value']['link'] ?? null;
+            $spec = (array) ($creative['object_story_spec'] ?? []);
+            $linkData = (array) ($spec['link_data'] ?? []);
+            $videoData = (array) ($spec['video_data'] ?? []);
+            $assetFeed = (array) ($creative['asset_feed_spec'] ?? []);
+
+            // Landing/destination URL across the common creative shapes: link ads
+            // (link_data), video ads (video_data CTA), and Advantage+/dynamic creative
+            // (asset_feed_spec.link_urls). Existing-post ads (effective_object_story_id
+            // only) carry no link in the spec, so linkUrl stays null for those.
+            $linkUrl = $linkData['link']
+                ?? $linkData['call_to_action']['value']['link']
+                ?? $videoData['call_to_action']['value']['link']
+                ?? $assetFeed['link_urls'][0]['website_url']
+                ?? null;
 
             return new AdCreativeDTO(
                 adId: (string) ($a['id'] ?? ''),
                 adName: isset($a['name']) ? (string) $a['name'] : null,
                 effectiveStatus: isset($a['effective_status']) ? (string) $a['effective_status'] : null,
-                primaryText: isset($linkData['message']) ? (string) $linkData['message'] : (isset($creative['body']) ? (string) $creative['body'] : null),
-                headline: isset($linkData['name']) ? (string) $linkData['name'] : (isset($creative['title']) ? (string) $creative['title'] : null),
-                cta: isset($linkData['call_to_action']['type']) ? (string) $linkData['call_to_action']['type'] : null,
+                primaryText: $this->firstString([
+                    $linkData['message'] ?? null, $videoData['message'] ?? null,
+                    $assetFeed['bodies'][0]['text'] ?? null, $creative['body'] ?? null,
+                ]),
+                headline: $this->firstString([
+                    $linkData['name'] ?? null, $videoData['title'] ?? null,
+                    $assetFeed['titles'][0]['text'] ?? null, $creative['title'] ?? null,
+                ]),
+                cta: $this->firstString([
+                    $linkData['call_to_action']['type'] ?? null,
+                    $videoData['call_to_action']['type'] ?? null,
+                    $assetFeed['call_to_action_types'][0] ?? null,
+                ]),
                 pagePostId: isset($creative['effective_object_story_id']) ? (string) $creative['effective_object_story_id'] : null,
                 linkUrl: $linkUrl !== null ? (string) $linkUrl : null,
                 raw: $a,
             );
         }, array_filter((array) $res->json('data', []), 'is_array')));
+    }
+
+    /**
+     * First non-empty scalar in the list, cast to string (or null if none).
+     *
+     * @param  array<int,mixed>  $values
+     */
+    private function firstString(array $values): ?string
+    {
+        foreach ($values as $v) {
+            if ($v !== null && $v !== '' && (is_string($v) || is_numeric($v))) {
+                return (string) $v;
+            }
+        }
+
+        return null;
     }
 
     /**
