@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder;
+use CMBcoreSeller\Modules\Billing\Database\Seeders\TestUnlimitedPlanSeeder;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use Illuminate\Database\Seeder;
@@ -21,6 +22,8 @@ class DatabaseSeeder extends Seeder
     {
         // Phase 6.4 — luôn seed các gói thuê bao (idempotent — chạy lại không trùng).
         $this->call(BillingPlanSeeder::class);
+        // SPEC 0032 — gói TEST không giới hạn cho chế độ beta (`billing:beta on`).
+        $this->call(TestUnlimitedPlanSeeder::class);
 
         // SPEC 0022 — demo users pre-verified để vào app ngay (hard gating `verified` ON).
         $owner = User::firstOrCreate(

@@ -36,6 +36,23 @@ class SubscriptionExpiryService
         $expired = 0;
         $fallback = 0;
 
+        // 0) Beta TẮT ⇒ hạ mọi subscription gói TEST không giới hạn về trial (SPEC 0032).
+        if (! $this->subscriptions->betaModeOn()) {
+            Subscription::query()->withoutGlobalScope(TenantScope::class)
+                ->whereIn('status', Subscription::ALIVE_STATUSES)
+                ->whereHas('plan', fn ($q) => $q->where('code', 'test_unlimited'))
+                ->orderBy('id')
+                ->each(function (Subscription $sub) use (&$expired, &$fallback) {
+                    DB::transaction(function () use ($sub, &$expired, &$fallback) {
+                        $sub->forceFill(['status' => Subscription::STATUS_EXPIRED, 'ended_at' => now()])->save();
+                        $expired++;
+                        if ($this->createTrialFallbackIfMissing((int) $sub->tenant_id)) {
+                            $fallback++;
+                        }
+                    });
+                });
+        }
+
         // 1) Trial hết hạn ⇒ expired ngay.
         Subscription::query()->withoutGlobalScope(TenantScope::class)
             ->where('status', Subscription::STATUS_TRIALING)

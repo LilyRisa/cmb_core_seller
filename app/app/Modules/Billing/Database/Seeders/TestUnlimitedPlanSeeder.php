@@ -37,11 +37,15 @@ class TestUnlimitedPlanSeeder extends Seeder
             'accounting_advanced' => true,
             'messaging_inbox' => true,
             'messaging_ai' => true,
+            'marketing_facebook' => true,
+            'ai' => true,
         ];
 
-        // -1 = không giới hạn (xem EnforcePlanLimit + Plan::maxChannelAccounts + assertWithinMonthlyLimit).
+        // -1 = không giới hạn. ai_credits_monthly=-1 ⇒ gọi AI không giới hạn (SPEC 0032).
         $limits = [
             'max_channel_accounts' => -1,
+            'max_channel_accounts_per_platform' => -1,
+            'ai_credits_monthly' => -1,
             'messaging_ai_replies_monthly' => -1,
             'messaging_media_mb_daily' => -1,
         ];

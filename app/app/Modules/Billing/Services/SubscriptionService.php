@@ -37,6 +37,16 @@ class SubscriptionService
                 return $existing;
             }
 
+            // SPEC 0032 — trong giai đoạn beta (`billing.beta_test_mode`), tenant mới được gán
+            // gói TEST không giới hạn (vô thời hạn, full tính năng + AI) thay cho trial 14 ngày.
+            // Khi admin tắt beta, các sub test sẽ được hạ về trial (SubscriptionExpiryService).
+            if ($this->betaModeOn()) {
+                $beta = $this->createBetaUnlimited($tenantId);
+                if ($beta !== null) {
+                    return $beta;
+                }
+            }
+
             $plan = Plan::query()->where('code', Plan::CODE_TRIAL)->first();
             if ($plan === null) {
                 return null;
@@ -54,6 +64,35 @@ class SubscriptionService
                 'current_period_end' => $endsAt,
             ]);
         });
+    }
+
+    /**
+     * Beta đang bật? = gói TEST `test_unlimited` đang active (admin "hủy kích hoạt gói test"
+     * ⇒ is_active=false ⇒ beta tắt). Gói chưa seed ⇒ tắt ⇒ tenant mới ra trial.
+     */
+    public function betaModeOn(): bool
+    {
+        return Plan::query()->where('code', 'test_unlimited')->where('is_active', true)->exists();
+    }
+
+    /** Tạo subscription gói TEST không giới hạn (vô thời hạn) cho tenant. Null nếu plan chưa active. */
+    public function createBetaUnlimited(int $tenantId): ?Subscription
+    {
+        $plan = Plan::query()->where('code', 'test_unlimited')->where('is_active', true)->first();
+        if ($plan === null) {
+            return null;
+        }
+        $now = now();
+
+        return Subscription::query()->create([
+            'tenant_id' => $tenantId,
+            'plan_id' => $plan->getKey(),
+            'status' => Subscription::STATUS_ACTIVE,
+            'billing_cycle' => Subscription::CYCLE_MONTHLY,
+            'current_period_start' => $now,
+            'current_period_end' => $now->copy()->addYears(50),
+            'meta' => ['beta' => true],
+        ]);
     }
 
     /**
