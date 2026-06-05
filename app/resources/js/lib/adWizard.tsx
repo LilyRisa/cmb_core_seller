@@ -146,6 +146,16 @@ export function usePublishDraft() {
     });
 }
 
+export function useDuplicateDraft() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: number) =>
+            (await api!.post<{ data: AdDraft }>(`/marketing/ad-drafts/${id}/duplicate`)).data.data,
+        onSuccess: () => qc.invalidateQueries({ queryKey: [KEY, 'drafts'] }),
+    });
+}
+
 export function useDeleteDraft() {
     const api = useScopedApi();
     const qc = useQueryClient();

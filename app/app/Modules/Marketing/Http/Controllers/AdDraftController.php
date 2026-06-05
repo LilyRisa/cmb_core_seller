@@ -58,6 +58,16 @@ class AdDraftController extends Controller
         return new AdDraftResource($this->service->update($draft, $request->validated()));
     }
 
+    /** POST ad-drafts/{id}/duplicate — clone into a new editable draft. */
+    public function duplicate(int $id): JsonResponse
+    {
+        Gate::authorize('marketing.ads.create');
+        $draft = AdDraft::query()->findOrFail($id);
+        $copy = $this->service->duplicate($draft, request()->user()?->id);
+
+        return (new AdDraftResource($copy))->response()->setStatusCode(201);
+    }
+
     public function destroy(int $id): JsonResponse
     {
         Gate::authorize('marketing.ads.create');

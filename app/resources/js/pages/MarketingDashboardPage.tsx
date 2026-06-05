@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { App as AntApp, Button, Card, Checkbox, Collapse, DatePicker, Dropdown, Empty, Input, InputNumber, List, Popconfirm, Result, Segmented, Select, Space, Spin, Statistic, Table, Tag, Tooltip, Typography } from 'antd';
 import { BulbOutlined, CheckOutlined, CloseOutlined, DisconnectOutlined, EditOutlined, FacebookFilled, FundOutlined, PauseCircleOutlined, PlayCircleOutlined, PlusOutlined, QuestionCircleOutlined, RobotOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
-import { useAdDrafts, useDeleteDraft } from '@/lib/adWizard';
+import { useAdDrafts, useDeleteDraft, useDuplicateDraft } from '@/lib/adWizard';
 import dayjs, { type Dayjs } from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { CampaignAiInsightDrawer } from '@/pages/marketing/CampaignAiInsightDrawer';
@@ -104,6 +104,7 @@ export function MarketingDashboardPage() {
     const canConnect = useCan('marketing.connect');
     const { data: drafts } = useAdDrafts();
     const deleteDraft = useDeleteDraft();
+    const duplicateDraft = useDuplicateDraft();
     const connect = useConnectFacebookAds();
     const disconnect = useDisconnectAdAccount();
     const refresh = useRefreshAdInsights();
@@ -374,12 +375,44 @@ export function MarketingDashboardPage() {
                     <Button type="primary" icon={<FacebookFilled />} loading={connect.isPending} onClick={handleConnect} disabled={!canConnect}>Kết nối Facebook Ads</Button>
                     <Button type="primary" icon={<PlusOutlined />} disabled={selectedId == null} onClick={() => navigate('/marketing/ads/new?accountId=' + selectedId)}>Tạo quảng cáo</Button>
                     {bmGroups.length > 0 && (
-                        <Select style={{ minWidth: 200 }} value={bm ?? bmGroups[0]?.id} onChange={(v) => { setBm(v); setAccountId(null); }}
-                            options={bmGroups.map((g) => ({ label: 'BM: ' + g.name, value: g.id }))} />
+                        <Select
+                            style={{ minWidth: 260 }}
+                            value={bm ?? bmGroups[0]?.id}
+                            onChange={(v) => { setBm(v); setAccountId(null); }}
+                            optionLabelProp="label"
+                            options={bmGroups.map((g) => ({
+                                value: g.id,
+                                label: 'BM: ' + g.name,
+                                title: g.id !== '_' ? `ID: ${g.id}` : undefined,
+                                element: (
+                                    <Space>
+                                        <FacebookFilled style={{ color: '#1877f2' }} />
+                                        <span>{g.name}</span>
+                                        {g.id !== '_' && <Text type="secondary" style={{ fontSize: 11 }}>#{g.id}</Text>}
+                                    </Space>
+                                ),
+                            }))}
+                            optionRender={(opt) => opt.data.element}
+                        />
                     )}
                     {bmAccounts.length > 0 && (
-                        <Select style={{ minWidth: 220 }} value={selectedId ?? undefined} onChange={(v) => setAccountId(Number(v))}
-                            options={bmAccounts.map((a) => ({ label: a.name ?? a.external_account_id, value: a.id }))} />
+                        <Select
+                            style={{ minWidth: 280 }}
+                            value={selectedId ?? undefined}
+                            onChange={(v) => setAccountId(Number(v))}
+                            optionLabelProp="label"
+                            options={bmAccounts.map((a) => ({
+                                value: a.id,
+                                label: a.name ?? a.external_account_id,
+                                element: (
+                                    <Space direction="vertical" size={0}>
+                                        <span>{a.name ?? a.external_account_id}</span>
+                                        <Text type="secondary" style={{ fontSize: 11 }} copyable={{ text: a.external_account_id }}>{a.external_account_id}</Text>
+                                    </Space>
+                                ),
+                            }))}
+                            optionRender={(opt) => opt.data.element}
+                        />
                     )}
                     {selectedId != null && canConnect && (
                         <Popconfirm title="Ngắt kết nối Ad Account?" okText="Ngắt" okButtonProps={{ danger: true }} cancelText="Huỷ"
@@ -421,6 +454,18 @@ export function MarketingDashboardPage() {
                                         onClick={() => navigate('/marketing/ads/' + d.id + '/edit')}
                                     >
                                         Sửa
+                                    </Button>,
+                                    <Button
+                                        key="duplicate"
+                                        type="link"
+                                        size="small"
+                                        loading={duplicateDraft.isPending}
+                                        onClick={() => duplicateDraft.mutate(d.id, {
+                                            onSuccess: (copy) => { message.success('Đã nhân bản — mở bản sao để sửa.'); navigate('/marketing/ads/' + copy.id + '/edit'); },
+                                            onError: (e) => message.error(errorMessage(e)),
+                                        })}
+                                    >
+                                        Nhân bản
                                     </Button>,
                                     <Popconfirm
                                         key="delete"

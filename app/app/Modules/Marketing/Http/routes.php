@@ -76,6 +76,7 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
         Route::patch('ad-drafts/{id}', [AdDraftController::class, 'update'])->whereNumber('id')->name('marketing.ad-drafts.update');
         Route::delete('ad-drafts/{id}', [AdDraftController::class, 'destroy'])->whereNumber('id')->name('marketing.ad-drafts.destroy');
         Route::post('ad-drafts/{id}/publish', [AdDraftController::class, 'publish'])->whereNumber('id')->name('marketing.ad-drafts.publish');
+        Route::post('ad-drafts/{id}/duplicate', [AdDraftController::class, 'duplicate'])->whereNumber('id')->name('marketing.ad-drafts.duplicate');
 
         // Geo exclusion templates (tenant-scoped saved sets of excluded locations).
         Route::get('exclusion-templates', [GeoExclusionTemplateController::class, 'index'])->name('marketing.exclusion-templates.index');
