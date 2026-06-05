@@ -44,6 +44,18 @@
 - BE: evaluator tăng ngân sách khi CPR rẻ; tạm dừng khi CPR đắt; bỏ qua adset khi campaign giám sát; min_results chặn; email gửi khi hành động. Controller upsert/list/destroy + tenant isolation. Http::fake cho connector.
 - FE: typecheck + lint + build.
 
+## 5b. Rà soát Graph API (đối chiếu tài liệu Facebook)
+Đã kiểm tra các call chính khớp tài liệu (06/2026):
+- **Insights** `GET /{id}/insights` (actions/level/date_preset/time_range): từ **10/06/2025** Meta **bỏ qua** `use_unified_attribution_setting`/`action_report_time` và **tự khớp Ads Manager** (attribution theo ad-set, action_report_time=mixed) ⇒ KHÔNG cần thêm tham số; số "Kết quả" lệch 0 là do thiếu action_type ⇒ đã mở rộng `primaryResult()`.
+- **Tạm dừng / sửa**: `POST /{id}` với `status` (ACTIVE/PAUSED/ARCHIVED) và `daily_budget` ⇒ đúng. Lưu ý: tạm dừng campaign **lan xuống** adset/ad (đồng bộ kế tiếp sẽ phản ánh ở bảng).
+- **Pixel**: `GET /{account}/adspixels?fields=id,name,last_fired_time,is_unavailable` (field hợp lệ); chia sẻ `POST /{pixel}/shared_accounts` tham số **`business`** + **`account_id`** (id số, bỏ `act_`) ⇒ đúng tên tham số.
+- **Tài khoản**: `me/adaccounts?fields=...,business{id,name,profile_picture_uri}` — `profile_picture_uri` là field hợp lệ của Business.
+Kết luận: không cần sửa endpoint; chỉ tinh chỉnh trích xuất `actions` (đã làm).
+
+## 5c. Sửa case kết quả = 0 (chi hết ngân sách)
+- Khi `results = 0`: KHÔNG chia (tránh /0). **Tạm dừng** nếu `spend >= pause_above` (đã chi tới ngưỡng mà chưa có kết quả ⇒ chi phí/kết quả coi như đã vượt). `min_results` chỉ chặn **tăng ngân sách**, KHÔNG chặn tạm dừng campaign đang đốt tiền.
+- Khi `results > 0`: tạm dừng nếu `spend/results > pause_above`; tăng nếu `>= min_results` và `spend/results < increase_below`.
+
 ## 6. Giới hạn / nối tiếp
 - Cửa sổ đánh giá cố định **today**; chọn khoảng (7/14 ngày) là follow-up.
 - Tăng ngân sách theo % (chưa hỗ trợ theo số tiền cố định) — follow-up.

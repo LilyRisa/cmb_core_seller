@@ -64,6 +64,40 @@ class AdMonitorTest extends TestCase
         Notification::assertSentTimes(AdMonitorActionNotification::class, 1);
     }
 
+    public function test_pauses_when_zero_results_but_spend_reached_threshold(): void
+    {
+        Notification::fake();
+        // Spent the full 100k with ZERO results, pause threshold 100k ⇒ must pause.
+        AdEntity::create(['ad_account_id' => $this->account->id, 'level' => 'campaign', 'external_id' => 'C1', 'name' => 'CD', 'objective' => 'OUTCOME_SALES', 'status' => 'ACTIVE', 'daily_budget' => 100000]);
+        AdMonitor::create(['tenant_id' => $this->tenant->id, 'ad_account_id' => $this->account->id, 'target_level' => 'campaign', 'target_external_id' => 'C1', 'enabled' => true, 'pause_enabled' => true, 'pause_above' => 100000, 'min_results' => 1]);
+        Http::fake(['graph.facebook.com/*/C1' => Http::response(['success' => true], 200)]);
+
+        // spend 100000, no actions ⇒ results 0; spend >= pause_above ⇒ pause
+        $this->fakeInsights(['campaign_id' => 'C1', 'spend' => '100000']);
+
+        $actions = app(AdMonitorEvaluator::class)->evaluateAccount($this->account->refresh());
+
+        $this->assertCount(1, $actions);
+        $this->assertSame('pause', $actions[0]['type']);
+        $this->assertNull($actions[0]['cpr']);
+        $this->assertSame('PAUSED', AdEntity::where('external_id', 'C1')->value('status'));
+    }
+
+    public function test_does_not_pause_zero_results_below_spend_threshold(): void
+    {
+        Notification::fake();
+        // 0 results but only spent 30k < 100k threshold ⇒ keep running (not yet wasteful).
+        AdEntity::create(['ad_account_id' => $this->account->id, 'level' => 'campaign', 'external_id' => 'C1', 'name' => 'CD', 'objective' => 'OUTCOME_SALES', 'status' => 'ACTIVE', 'daily_budget' => 100000]);
+        AdMonitor::create(['tenant_id' => $this->tenant->id, 'ad_account_id' => $this->account->id, 'target_level' => 'campaign', 'target_external_id' => 'C1', 'enabled' => true, 'pause_enabled' => true, 'pause_above' => 100000, 'min_results' => 1]);
+
+        $this->fakeInsights(['campaign_id' => 'C1', 'spend' => '30000']);
+
+        $actions = app(AdMonitorEvaluator::class)->evaluateAccount($this->account->refresh());
+
+        $this->assertCount(0, $actions);
+        $this->assertSame('ACTIVE', AdEntity::where('external_id', 'C1')->value('status'));
+    }
+
     public function test_raises_budget_when_cost_per_result_cheap(): void
     {
         Notification::fake();

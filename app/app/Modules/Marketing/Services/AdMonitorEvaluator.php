@@ -103,18 +103,11 @@ class AdMonitorEvaluator
                 : $entities->get((string) $entity->parent_external_id)?->objective;
 
             $results = $this->resultValue($objective, $dto);
-            if ($results < max(1, $m->min_results)) {
-                $m->save();
-
-                continue;
-            }
-            $cpr = (int) round($dto->spend / $results);
-
-            $action = $this->applyRules($connector, $token, $currency, $m, $entity, $cpr);
+            $action = $this->applyRules($connector, $token, $currency, $m, $entity, $dto->spend, $results);
             if ($action !== null) {
                 $m->last_action = (string) $action['type'];
                 $m->last_action_at = now();
-                $actions[] = $action + ['name' => $entity->name, 'level' => $m->target_level, 'cpr' => $cpr];
+                $actions[] = $action + ['name' => $entity->name, 'level' => $m->target_level];
             }
             $m->save();
         }
@@ -129,19 +122,31 @@ class AdMonitorEvaluator
     /**
      * @return array<string,mixed>|null
      */
-    private function applyRules(AdsWriteConnector $connector, string $token, string $currency, AdMonitor $m, AdEntity $entity, int $cpr): ?array
+    private function applyRules(AdsWriteConnector $connector, string $token, string $currency, AdMonitor $m, AdEntity $entity, int $spend, int $results): ?array
     {
-        // Pause takes precedence (safety) when both could apply / thresholds overlap.
-        if ($m->pause_enabled && $m->pause_above !== null && $cpr > $m->pause_above) {
-            $connector->updateEntity($token, $m->target_level, $m->target_external_id, ['status' => 'PAUSED'], $currency);
-            $entity->status = 'PAUSED';
-            $entity->effective_status = 'PAUSED';
-            $entity->save();
+        // Pause (precedence): too expensive per result, OR money already burned with
+        // ZERO results — with 0 results the effective cost/result is already ≥ the
+        // threshold once spend reaches it. The min_results guard does NOT gate pausing
+        // a money-burning campaign.
+        if ($m->pause_enabled && $m->pause_above !== null && $spend > 0) {
+            $exceeds = $results > 0
+                ? ((int) round($spend / $results)) > $m->pause_above
+                : $spend >= $m->pause_above;
+            if ($exceeds) {
+                $connector->updateEntity($token, $m->target_level, $m->target_external_id, ['status' => 'PAUSED'], $currency);
+                $entity->status = 'PAUSED';
+                $entity->effective_status = 'PAUSED';
+                $entity->save();
 
-            return ['type' => 'pause'];
+                return ['type' => 'pause', 'cpr' => $results > 0 ? (int) round($spend / $results) : null, 'spend' => $spend, 'results' => $results];
+            }
         }
 
-        if ($m->increase_enabled && $m->increase_below !== null && $cpr < $m->increase_below) {
+        // Increase: only on real, cheap results (respect min_results — don't scale on noise).
+        if ($m->increase_enabled && $m->increase_below !== null
+            && $results > 0 && $results >= max(1, $m->min_results)
+            && ((int) round($spend / $results)) < $m->increase_below) {
+            $cpr = (int) round($spend / $results);
             $currentMinor = (int) ($entity->daily_budget ?? 0);
             if ($currentMinor <= 0) {
                 return null; // no own budget (e.g. campaign on adset-budget) ⇒ nothing to raise
@@ -158,7 +163,7 @@ class AdMonitorEvaluator
             $entity->daily_budget = (int) FacebookMoney::toMinorUnits($newMajor, $currency);
             $entity->save();
 
-            return ['type' => 'increase', 'from' => $currentMajor, 'to' => $newMajor];
+            return ['type' => 'increase', 'from' => $currentMajor, 'to' => $newMajor, 'cpr' => $cpr];
         }
 
         return null;

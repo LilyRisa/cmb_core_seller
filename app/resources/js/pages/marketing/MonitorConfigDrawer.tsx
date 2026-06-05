@@ -146,6 +146,9 @@ export function MonitorConfigDrawer({ open, accountId, target, onClose }: Props)
                             <InputNumber min={1} step={1000} style={{ width: 200 }} value={pauseAbove} onChange={(v) => setPauseAbove(v ?? undefined)}
                                 formatter={(v) => (v != null ? Number(v).toLocaleString('vi-VN') : '')} parser={(v) => (v != null ? Number(v.replace(/\./g, '')) : 0)} />
                         </Form.Item>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                            Cũng tạm dừng khi <b>chưa có kết quả nào</b> mà đã chi tới mức này (chi phí/kết quả coi như đã vượt ngưỡng).
+                        </Text>
                     </div>
                 )}
 

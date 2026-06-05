@@ -10,7 +10,11 @@
         <li>
             <b>{{ $levelVi[$a['level']] ?? $a['level'] }}: {{ $a['name'] ?? $a['level'] }}</b> —
             @if(($a['type'] ?? '') === 'pause')
-                Đã <b>tạm dừng</b> (chi phí/kết quả {{ $fmt($a['cpr'] ?? 0) }}{{ $cur }} vượt ngưỡng).
+                @if(($a['cpr'] ?? null) !== null)
+                    Đã <b>tạm dừng</b> (chi phí/kết quả {{ $fmt($a['cpr']) }}{{ $cur }} vượt ngưỡng).
+                @else
+                    Đã <b>tạm dừng</b> (đã chi {{ $fmt($a['spend'] ?? 0) }}{{ $cur }} mà chưa có kết quả nào).
+                @endif
             @elseif(($a['type'] ?? '') === 'increase')
                 Đã <b>tăng ngân sách</b> {{ $fmt($a['from'] ?? 0) }}{{ $cur }} → {{ $fmt($a['to'] ?? 0) }}{{ $cur }}
                 (chi phí/kết quả {{ $fmt($a['cpr'] ?? 0) }}{{ $cur }} dưới ngưỡng).
