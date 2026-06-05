@@ -10,13 +10,16 @@ import { CampaignAiInsightDrawer } from '@/pages/marketing/CampaignAiInsightDraw
 import { AbComparisonPanel } from '@/pages/marketing/AbComparisonPanel';
 import { PixelManagerDrawer } from '@/pages/marketing/PixelManagerDrawer';
 import { SavedReportsDrawer } from '@/pages/marketing/SavedReportsDrawer';
+import { ReportTree } from '@/pages/marketing/ReportTree';
+import { ConnectionManagerDrawer } from '@/pages/marketing/ConnectionManagerDrawer';
+import { resultOf } from '@/lib/adReport';
 import { errorMessage } from '@/lib/api';
 import { openOAuthPopup } from '@/lib/oauthPopup';
 import { useCan } from '@/lib/tenant';
 import {
     type ForecastStrategy, type ReconRow, type ReportLevel, type ReportRow,
-    useAdAccounts, useAdForecast, useAdReconciliation, useAdReport, useBulkDisconnectAccounts,
-    useConnectFacebookAds, useDisconnectAdAccount, useGenerateForecast, useRefreshAdInsights,
+    useAdAccounts, useAdForecast, useAdReconciliation, useAdReport,
+    useConnectFacebookAds, useGenerateForecast, useRefreshAdInsights,
     useSaveReport, useUpdateAdEntity,
 } from '@/lib/marketing';
 
@@ -40,15 +43,15 @@ const LABELS: Record<ReportLevel, string> = { campaign: 'Chiến dịch', adset:
 const COLS_KEY = 'marketing.report.columns';
 // All toggleable columns (name is always shown).
 const ALL_COLUMNS = [
-    'external_id', 'status', 'objective', 'daily_budget', 'lifetime_budget',
+    'external_id', 'status', 'objective', 'result', 'daily_budget', 'lifetime_budget',
     'spend', 'impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'frequency',
-    'purchase_roas', 'messaging_conversations', 'leads',
+    'purchase_roas', 'messaging_conversations', 'leads', 'purchases',
 ] as const;
-const DEFAULT_COLUMNS = ['external_id', 'status', 'objective', 'daily_budget', 'spend', 'impressions', 'clicks', 'ctr', 'cpc', 'cpm', 'purchase_roas'];
+const DEFAULT_COLUMNS = ['status', 'objective', 'result', 'daily_budget', 'spend', 'impressions', 'clicks', 'ctr', 'cpc', 'purchase_roas'];
 const COL_TITLE: Record<string, string> = {
-    external_id: 'ID', status: 'Trạng thái', objective: 'Mục tiêu', daily_budget: 'NS/ngày', lifetime_budget: 'NS trọn đời',
+    external_id: 'ID', status: 'Trạng thái', objective: 'Mục tiêu', result: 'Kết quả', daily_budget: 'NS/ngày', lifetime_budget: 'NS trọn đời',
     spend: 'Chi tiêu', impressions: 'Hiển thị', reach: 'Tiếp cận', clicks: 'Click', ctr: 'CTR', cpc: 'CPC', cpm: 'CPM',
-    frequency: 'Tần suất', purchase_roas: 'ROAS', messaging_conversations: 'Hội thoại', leads: 'Leads',
+    frequency: 'Tần suất', purchase_roas: 'ROAS', messaging_conversations: 'Hội thoại', leads: 'Leads', purchases: 'Chuyển đổi',
 };
 
 // Giải thích chỉ số (tooltip khi di chuột vào icon "?").
@@ -68,6 +71,8 @@ const COL_HELP: Record<string, string> = {
     purchase_roas: 'Lợi nhuận trên chi tiêu quảng cáo = Doanh thu ÷ Chi tiêu.',
     messaging_conversations: 'Số cuộc hội thoại Messenger bắt đầu từ quảng cáo.',
     leads: 'Số khách hàng tiềm năng (lead) thu được.',
+    purchases: 'Số lượt mua hàng/chuyển đổi ghi nhận qua Pixel.',
+    result: 'Kết quả chính theo mục tiêu: tin nhắn (chiến dịch tin nhắn), chuyển đổi (chiến dịch chuyển đổi), hoặc khách tiềm năng.',
 };
 
 // Chuẩn hoá mục tiêu Facebook (raw → tiếng Việt). Gồm cả mục tiêu ODAX mới lẫn mục tiêu cũ.
@@ -108,13 +113,13 @@ export function MarketingDashboardPage() {
     const deleteDraft = useDeleteDraft();
     const duplicateDraft = useDuplicateDraft();
     const connect = useConnectFacebookAds();
-    const disconnect = useDisconnectAdAccount();
     const refresh = useRefreshAdInsights();
     const { data: accounts, isLoading: loadingAccounts } = useAdAccounts();
 
     const [bm, setBm] = useState<string | null>(null);
     const [accountId, setAccountId] = useState<number | null>(null);
     const [level, setLevel] = useState<ReportLevel>('campaign');
+    const [reportView, setReportView] = useState<'tree' | 'flat'>('tree');
     const [range, setRange] = useState<[Dayjs, Dayjs]>([dayjs().subtract(6, 'day'), dayjs()]);
     const [q, setQ] = useState('');
     const [adId, setAdId] = useState('');
@@ -161,9 +166,9 @@ export function MarketingDashboardPage() {
     const [aiCampaign, setAiCampaign] = useState<{ id: string; name: string | null } | null>(null);
     const [pixelOpen, setPixelOpen] = useState(false);
     const [savedOpen, setSavedOpen] = useState(false);
+    const [connOpen, setConnOpen] = useState(false);
     const saveReport = useSaveReport();
     const updateEntity = useUpdateAdEntity();
-    const bulkDisconnect = useBulkDisconnectAccounts();
     // Inline edit: which cell is being edited + its draft value.
     const [editing, setEditing] = useState<{ key: string; field: 'name' | 'budget'; value: string } | null>(null);
 
@@ -248,6 +253,16 @@ export function MarketingDashboardPage() {
             );
         },
         objective: (r) => objectiveVi(r.objective),
+        result: (r) => {
+            const res = resultOf(r.objective, r.insights);
+            return res == null ? '—' : (
+                <span>
+                    <Text strong style={{ color: res.color }}>{res.value.toLocaleString('vi-VN')}</Text>
+                    <Text type="secondary" style={{ fontSize: 11, marginLeft: 4 }}>{res.label}</Text>
+                </span>
+            );
+        },
+        purchases: (r) => num(r.insights?.purchases),
         daily_budget: (r) => {
             const isEditing = editing?.key === r.external_id && editing.field === 'budget';
             if (isEditing) {
@@ -425,26 +440,8 @@ export function MarketingDashboardPage() {
                             optionRender={(opt) => opt.data.element}
                         />
                     )}
-                    {selectedId != null && canConnect && (
-                        <Popconfirm title="Ngắt kết nối Ad Account?" okText="Ngắt" okButtonProps={{ danger: true }} cancelText="Huỷ"
-                            onConfirm={() => disconnect.mutate(selectedId, { onSuccess: () => { setAccountId(null); message.success('Đã ngắt.'); }, onError: (e) => message.error(errorMessage(e)) })}>
-                            <Button danger size="small" icon={<DisconnectOutlined />}>Ngắt</Button>
-                        </Popconfirm>
-                    )}
-                    {canConnect && (bm ?? bmGroups[0]?.id) != null && (bm ?? bmGroups[0]?.id) !== '_' && bmAccounts.length > 0 && (
-                        <Popconfirm
-                            title={`Ngắt toàn bộ ${bmAccounts.length} tài khoản trong BM này?`}
-                            okText="Ngắt cả BM" okButtonProps={{ danger: true }} cancelText="Huỷ"
-                            onConfirm={() => {
-                                const businessId = (bm ?? bmGroups[0]?.id) as string;
-                                bulkDisconnect.mutate({ business_id: businessId }, {
-                                    onSuccess: (d) => { setAccountId(null); setBm(null); message.success(`Đã ngắt ${d.deleted} tài khoản.`); },
-                                    onError: (e) => message.error(errorMessage(e)),
-                                });
-                            }}
-                        >
-                            <Button danger size="small" loading={bulkDisconnect.isPending} icon={<DisconnectOutlined />}>Ngắt cả BM</Button>
-                        </Popconfirm>
+                    {canConnect && (accounts?.length ?? 0) > 0 && (
+                        <Button danger size="small" icon={<DisconnectOutlined />} onClick={() => setConnOpen(true)}>Quản lý kết nối</Button>
                     )}
                 </Space>
             </Card>
@@ -509,8 +506,19 @@ export function MarketingDashboardPage() {
             ) : (
                 <>
                     <Card style={{ marginBottom: 16 }}
-                        title={<Segmented value={level} onChange={(v) => setLevel(v as ReportLevel)}
-                            options={(['campaign', 'adset', 'ad'] as ReportLevel[]).map((l) => ({ label: LABELS[l], value: l }))} />}
+                        title={
+                            <Space wrap>
+                                <Segmented
+                                    value={reportView}
+                                    onChange={(v) => setReportView(v as 'tree' | 'flat')}
+                                    options={[{ label: 'Cây phân cấp', value: 'tree' }, { label: 'Bảng phẳng', value: 'flat' }]}
+                                />
+                                {reportView === 'flat' && (
+                                    <Segmented value={level} onChange={(v) => setLevel(v as ReportLevel)}
+                                        options={(['campaign', 'adset', 'ad'] as ReportLevel[]).map((l) => ({ label: LABELS[l], value: l }))} />
+                                )}
+                            </Space>
+                        }
                         extra={
                             <Dropdown trigger={['click']} dropdownRender={() => (
                                 <Card size="small" styles={{ body: { maxHeight: 320, overflow: 'auto' } }}>
@@ -522,9 +530,11 @@ export function MarketingDashboardPage() {
                         }>
                         <Space wrap size={8} style={{ marginBottom: 12 }}>
                             <DatePicker.RangePicker value={range} onChange={(v) => v && v[0] && v[1] && setRange([v[0], v[1]])} allowClear={false} format="DD/MM/YYYY" presets={rangePresets} />
-                            <Input.Search placeholder="Tên chiến dịch/nhóm/QC" allowClear value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 220 }} />
-                            <Input placeholder="ID" allowClear value={adId} onChange={(e) => setAdId(e.target.value)} style={{ width: 160 }} />
-                            <Select placeholder="Loại (objective)" allowClear value={objective} onChange={setObjective} options={objectiveOptions} style={{ minWidth: 180 }} />
+                            {reportView === 'flat' && <>
+                                <Input.Search placeholder="Tên chiến dịch/nhóm/QC" allowClear value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 220 }} />
+                                <Input placeholder="ID" allowClear value={adId} onChange={(e) => setAdId(e.target.value)} style={{ width: 160 }} />
+                                <Select placeholder="Loại (objective)" allowClear value={objective} onChange={setObjective} options={objectiveOptions} style={{ minWidth: 180 }} />
+                            </>}
                             <Button icon={<SyncOutlined spin={isFetching} />} onClick={() => selectedId != null && refresh.mutate(selectedId)}>Làm mới</Button>
                             <Button
                                 icon={<FileTextOutlined />}
@@ -552,13 +562,17 @@ export function MarketingDashboardPage() {
                             )}
                             {level === 'adset' && selCampaigns.length === 0 && <Text type="secondary">Tích chiến dịch ở tab Chiến dịch để lọc nhóm.</Text>}
                         </Space>
-                        <Table<ReportRow>
-                            rowKey="external_id" size="small" scroll={{ x: 'max-content' }}
-                            rowClassName={(r) => (isActiveRow(r) ? 'marketing-row-active' : '')}
-                            loading={isFetching} dataSource={sortedRows} columns={columns} rowSelection={rowSelection}
-                            pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ['20', '50', '100', '200'] }}
-                            locale={{ emptyText: <Empty description="Không có dữ liệu cho bộ lọc/khoảng ngày này." /> }}
-                        />
+                        {reportView === 'tree' ? (
+                            <ReportTree accountId={selectedId} since={since} until={until} currency={currency} />
+                        ) : (
+                            <Table<ReportRow>
+                                rowKey="external_id" size="small" scroll={{ x: 'max-content' }}
+                                rowClassName={(r) => (isActiveRow(r) ? 'marketing-row-active' : '')}
+                                loading={isFetching} dataSource={sortedRows} columns={columns} rowSelection={rowSelection}
+                                pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ['20', '50', '100', '200'] }}
+                                locale={{ emptyText: <Empty description="Không có dữ liệu cho bộ lọc/khoảng ngày này." /> }}
+                            />
+                        )}
                     </Card>
 
                     {level === 'adset' && (
@@ -639,6 +653,12 @@ export function MarketingDashboardPage() {
                 open={savedOpen}
                 accountId={selectedId}
                 onClose={() => setSavedOpen(false)}
+            />
+
+            <ConnectionManagerDrawer
+                open={connOpen}
+                onClose={() => setConnOpen(false)}
+                onChanged={() => { setAccountId(null); setBm(null); }}
             />
         </div>
     );

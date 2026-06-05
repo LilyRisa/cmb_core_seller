@@ -89,7 +89,8 @@ return [
         'app_secret' => env('FACEBOOK_ADS_APP_SECRET', env('MESSAGING_FACEBOOK_APP_SECRET')),
         'graph_version' => env('FACEBOOK_ADS_GRAPH_VERSION', 'v19.0'),
         'redirect_uri' => env('FACEBOOK_ADS_REDIRECT_URI'), // mặc định APP_URL + /oauth/facebook_ads/callback
-        'scopes' => env('FACEBOOK_ADS_SCOPES', 'ads_read,business_management'),
+        // ads_management cần cho: tạo/sửa quảng cáo, sửa ngân sách/tạm dừng, đọc & chia sẻ Pixel.
+        'scopes' => env('FACEBOOK_ADS_SCOPES', 'ads_management,ads_read,business_management'),
     ],
 
     /*

@@ -135,6 +135,7 @@ class AdsReportService
             'purchase_roas' => $r->purchaseRoas,
             'messaging_conversations' => $r->messagingConversations,
             'leads' => $r->leads,
+            'purchases' => $r->purchases,
         ];
     }
 }

@@ -215,6 +215,11 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
             $actions = $this->indexActions($r['actions'] ?? []);
             $conversations = (int) ($actions['onsite_conversion.messaging_conversation_started_7d'] ?? 0);
             $leads = (int) (($actions['lead'] ?? 0) + ($actions['leadgen.other'] ?? 0) + ($actions['onsite_conversion.lead_grouped'] ?? 0));
+            // Conversions (purchases) — prefer the omni/unified count, fall back to pixel/standard.
+            $purchases = (int) ($actions['omni_purchase']
+                ?? $actions['offsite_conversion.fb_pixel_purchase']
+                ?? $actions['purchase']
+                ?? 0);
 
             return new AdInsightDTO(
                 level: $level,
@@ -232,6 +237,7 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
                 purchaseRoas: $roas,
                 messagingConversations: $conversations,
                 leads: $leads,
+                purchases: $purchases,
                 raw: $r,
             );
         }, array_filter((array) $res->json('data', []), 'is_array')));

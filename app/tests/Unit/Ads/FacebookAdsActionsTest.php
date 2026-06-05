@@ -23,6 +23,8 @@ class FacebookAdsActionsTest extends TestCase
                     ['action_type' => 'onsite_conversion.messaging_conversation_started_7d', 'value' => '12'],
                     ['action_type' => 'lead', 'value' => '5'],
                     ['action_type' => 'link_click', 'value' => '40'],
+                    ['action_type' => 'omni_purchase', 'value' => '8'],
+                    ['action_type' => 'offsite_conversion.fb_pixel_purchase', 'value' => '8'],
                 ],
             ]],
         ], 200)]);
@@ -31,6 +33,7 @@ class FacebookAdsActionsTest extends TestCase
 
         $this->assertSame(12, $rows[0]->messagingConversations);
         $this->assertSame(5, $rows[0]->leads);
+        $this->assertSame(8, $rows[0]->purchases); // omni_purchase preferred (not double-counted)
     }
 
     public function test_missing_actions_default_to_zero(): void

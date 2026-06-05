@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { App as AntApp, Button, Drawer, Empty, List, Select, Space, Spin, Tag, Typography } from 'antd';
+import { Alert, App as AntApp, Button, Drawer, Empty, List, Select, Space, Spin, Tag, Typography } from 'antd';
 import { ApiOutlined, ShareAltOutlined } from '@ant-design/icons';
 import { useAdPixels, useSharePixel } from '@/lib/adWizard';
 import { useAdAccounts } from '@/lib/marketing';
@@ -16,7 +16,7 @@ interface Props {
 /** Quản lý Pixel của tài khoản: xem chi tiết + chia sẻ Pixel sang tài khoản khác (cùng BM). */
 export function PixelManagerDrawer({ open, accountId, onClose }: Props) {
     const { message } = AntApp.useApp();
-    const { data: pixels, isLoading } = useAdPixels(accountId, open);
+    const { data: pixels, isLoading, isError } = useAdPixels(accountId, open);
     const { data: accounts } = useAdAccounts();
     const sharePixel = useSharePixel();
     // Per-pixel chosen target account id (external act_ id).
@@ -49,10 +49,17 @@ export function PixelManagerDrawer({ open, accountId, onClose }: Props) {
             title={<Space><ApiOutlined />Quản lý Pixel{current?.name ? ` — ${current.name}` : ''}</Space>}
             destroyOnClose
         >
-            {isLoading ? (
+            {isError ? (
+                <Alert
+                    type="warning"
+                    showIcon
+                    message="Không đọc được Pixel"
+                    description="Token hiện tại có thể thiếu quyền ads_management. Hãy bấm 'Kết nối Facebook Ads' để cấp lại quyền, rồi thử lại."
+                />
+            ) : isLoading ? (
                 <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>
             ) : pixels == null || pixels.length === 0 ? (
-                <Empty description="Tài khoản chưa có Pixel nào." />
+                <Empty description="Tài khoản chưa có Pixel nào (hoặc thiếu quyền ads_management — thử kết nối lại)." />
             ) : (
                 <List
                     dataSource={pixels}

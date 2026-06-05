@@ -40,6 +40,7 @@ export interface ReportMetrics {
     purchase_roas: number | null;
     messaging_conversations: number;
     leads: number;
+    purchases: number;
 }
 
 export interface ReportRow {
