@@ -38,6 +38,8 @@ class AdminPlanController extends Controller
             'trial_days' => ['sometimes', 'integer', 'min:0', 'max:365'],
             'limits' => ['sometimes', 'array'],
             'limits.max_channel_accounts' => ['nullable', 'integer', 'min:-1'],
+            'limits.max_channel_accounts_per_platform' => ['nullable', 'integer', 'min:-1'],
+            'limits.ai_credits_monthly' => ['nullable', 'integer', 'min:-1'],
             'limits.messaging_ai_replies_monthly' => ['nullable', 'integer', 'min:-1'],
             'limits.messaging_media_mb_daily' => ['nullable', 'integer', 'min:-1'],
             'features' => ['sometimes', 'array'],
@@ -96,6 +98,10 @@ class AdminPlanController extends Controller
             'trial_days' => ['sometimes', 'integer', 'min:0', 'max:365'],
             'limits' => ['sometimes', 'array'],
             'limits.max_channel_accounts' => ['nullable', 'integer', 'min:-1'],
+            'limits.max_channel_accounts_per_platform' => ['nullable', 'integer', 'min:-1'],
+            'limits.ai_credits_monthly' => ['nullable', 'integer', 'min:-1'],
+            'limits.messaging_ai_replies_monthly' => ['nullable', 'integer', 'min:-1'],
+            'limits.messaging_media_mb_daily' => ['nullable', 'integer', 'min:-1'],
             'features' => ['sometimes', 'array'],
         ]);
 
