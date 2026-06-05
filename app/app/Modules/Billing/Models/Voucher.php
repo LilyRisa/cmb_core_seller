@@ -36,7 +36,10 @@ class Voucher extends Model
 
     public const KIND_PLAN_UPGRADE = 'plan_upgrade';
 
-    public const KINDS = [self::KIND_PERCENT, self::KIND_FIXED, self::KIND_FREE_DAYS, self::KIND_PLAN_UPGRADE];
+    /** SPEC 0032 — tặng số lượt gọi AI (value = số lượt). User tự nhập mã để nhận. */
+    public const KIND_AI_CREDITS = 'ai_credits';
+
+    public const KINDS = [self::KIND_PERCENT, self::KIND_FIXED, self::KIND_FREE_DAYS, self::KIND_PLAN_UPGRADE, self::KIND_AI_CREDITS];
 
     protected $fillable = [
         'code', 'name', 'description', 'kind', 'value',

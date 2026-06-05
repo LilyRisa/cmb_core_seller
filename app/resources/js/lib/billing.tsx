@@ -195,6 +195,18 @@ export function useBuyAiCredits() {
     });
 }
 
+/** Nhập mã tặng lượt AI ⇒ cộng vào ví credit (SPEC 0032). */
+export function useRedeemVoucher() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    const tenantId = useCurrentTenantId();
+    return useMutation({
+        mutationFn: async (code: string) =>
+            (await api!.post<{ data: { granted: number; balance: number } }>('/billing/vouchers/redeem', { code })).data.data,
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['billing', tenantId] }),
+    });
+}
+
 /** Kiểm tra mã giảm giá (preview chiết khấu cho 1 gói/chu kỳ). */
 export function useValidateVoucher() {
     const api = useScopedApi();

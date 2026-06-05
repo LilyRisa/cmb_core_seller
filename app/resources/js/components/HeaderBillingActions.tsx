@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { App as AntApp, Button, Input, Modal, Space, Tag, Tooltip, Typography } from 'antd';
 import { CrownOutlined, GiftOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
-import { useSubscription, useValidateVoucher } from '@/lib/billing';
+import { useRedeemVoucher, useSubscription } from '@/lib/billing';
 
 const { Text } = Typography;
 
@@ -46,36 +46,32 @@ export function HeaderBillingActions() {
 
 function VoucherModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     const { message } = AntApp.useApp();
-    const validate = useValidateVoucher();
+    const redeem = useRedeemVoucher();
     const [code, setCode] = useState('');
 
-    const check = () => {
+    const submit = () => {
         const c = code.trim().toUpperCase();
         if (!c) return;
-        validate.mutate({ code: c }, {
-            onSuccess: (v) => {
-                if (v.valid) {
-                    message.success(v.discount_amount
-                        ? `Mã hợp lệ — giảm ${v.discount_amount.toLocaleString('vi-VN')}đ. Áp dụng khi thanh toán ở trang gói.`
-                        : (v.message ?? 'Mã hợp lệ. Áp dụng khi thanh toán ở trang gói.'));
-                } else {
-                    message.warning(v.message ?? 'Mã không hợp lệ hoặc đã hết lượt.');
-                }
+        redeem.mutate(c, {
+            onSuccess: (r) => {
+                message.success(`Đã nhận ${r.granted} lượt AI! (ví: ${r.balance} lượt đã mua/tặng)`);
+                setCode('');
+                onClose();
             },
-            onError: (e) => message.error(errorMessage(e, 'Không kiểm tra được mã.')),
+            onError: (e) => message.error(errorMessage(e, 'Mã không hợp lệ. Mã GIẢM GIÁ hãy áp ở trang gói khi thanh toán.')),
         });
     };
 
     return (
-        <Modal title="Nhập mã giảm giá" open={open} onCancel={onClose} okText="Kiểm tra"
-            confirmLoading={validate.isPending} onOk={check}>
-            <Text type="secondary">Nhập mã để kiểm tra ưu đãi. Mã sẽ được áp dụng khi thanh toán ở trang gói.</Text>
+        <Modal title="Nhập mã ưu đãi" open={open} onCancel={onClose} okText="Áp dụng"
+            confirmLoading={redeem.isPending} onOk={submit}>
+            <Text type="secondary">Nhập mã <b>tặng lượt AI</b> để cộng ngay vào ví. Mã giảm giá gói hãy áp ở trang gói khi thanh toán.</Text>
             <Input
                 style={{ marginTop: 12, textTransform: 'uppercase' }}
-                placeholder="VD: SALE50"
+                placeholder="VD: AI500"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                onPressEnter={check}
+                onPressEnter={submit}
                 allowClear
             />
         </Modal>

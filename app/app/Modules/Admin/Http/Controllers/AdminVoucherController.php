@@ -232,6 +232,9 @@ class AdminVoucherController extends Controller
             Voucher::KIND_PLAN_UPGRADE => Plan::query()->where('id', $value)->where('is_active', true)->exists()
                 ? null
                 : abort(response()->json(['error' => ['code' => 'INVALID_VALUE', 'message' => 'Plan ID không tồn tại.']], 422)),
+            Voucher::KIND_AI_CREDITS => $value < 1
+                ? abort(response()->json(['error' => ['code' => 'INVALID_VALUE', 'message' => 'Số lượt AI tặng phải > 0.']], 422))
+                : null,
             default => null,
         };
     }

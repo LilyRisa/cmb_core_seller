@@ -190,6 +190,16 @@ class BillingController extends Controller
         }
     }
 
+    /** POST /billing/vouchers/redeem — user nhập mã tặng lượt AI ⇒ cộng vào ví credit (SPEC 0032). */
+    public function redeemVoucher(Request $request): JsonResponse
+    {
+        $data = $request->validate(['code' => ['required', 'string', 'max:64']]);
+        $tenantId = (int) $this->tenant->id();
+        $result = $this->vouchers->redeemAiCredits(strtoupper(trim($data['code'])), $tenantId, (int) $request->user()->getKey());
+
+        return response()->json(['data' => $result]);
+    }
+
     /**
      * POST /billing/vouchers/validate — preview discount khi user gõ code ở /settings/plan.
      * Trả `{ valid, discount, total_after, code, name }` hoặc 422 với code envelope.

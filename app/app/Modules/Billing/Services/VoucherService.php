@@ -25,7 +25,51 @@ use Illuminate\Support\Facades\DB;
  */
 class VoucherService
 {
-    public function __construct(protected SubscriptionService $subscriptions) {}
+    public function __construct(
+        protected SubscriptionService $subscriptions,
+        protected AiCreditService $aiCredits,
+    ) {}
+
+    /**
+     * User tự nhập mã tặng lượt AI (KIND_AI_CREDITS) ⇒ cộng vào ví credit. Mỗi tenant chỉ nhận 1 lần/mã.
+     *
+     * @return array{granted:int, balance:int}
+     */
+    public function redeemAiCredits(string $code, int $tenantId, ?int $userId): array
+    {
+        $voucher = $this->validate($code);
+        if ($voucher->kind !== Voucher::KIND_AI_CREDITS) {
+            $this->fail('VOUCHER_KIND_MISMATCH', 'Mã này không phải mã tặng lượt AI.');
+        }
+
+        return DB::transaction(function () use ($voucher, $tenantId, $userId): array {
+            $locked = Voucher::query()->where('id', $voucher->id)->lockForUpdate()->first();
+            if ($locked === null || ! $locked->is_active || ! $locked->isInWindow()) {
+                $this->fail('VOUCHER_EXPIRED', 'Mã ưu đãi đã hết hạn.');
+            }
+            if ($locked->isExhausted()) {
+                $this->fail('VOUCHER_EXHAUSTED', 'Mã ưu đãi đã hết lượt sử dụng.');
+            }
+            $already = VoucherRedemption::query()
+                ->where('voucher_id', $locked->getKey())->where('tenant_id', $tenantId)->exists();
+            if ($already) {
+                $this->fail('VOUCHER_ALREADY_REDEEMED', 'Gian hàng đã dùng mã này rồi.');
+            }
+
+            $granted = $this->aiCredits->grantPurchase($tenantId, (int) $locked->value);
+            VoucherRedemption::query()->create([
+                'voucher_id' => $locked->getKey(),
+                'tenant_id' => $tenantId,
+                'user_id' => $userId,
+                'invoice_id' => null,
+                'discount_amount' => 0,
+                'granted_days' => 0,
+            ]);
+            $locked->increment('redemption_count');
+
+            return ['granted' => $granted, 'balance' => $this->aiCredits->wallet($tenantId)->purchased_balance];
+        });
+    }
 
     /**
      * Tìm + validate voucher theo code. Ném `ValidationException` với code envelope nếu hỏng.
