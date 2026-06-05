@@ -19,4 +19,12 @@ final class FacebookMoney
 
         return (string) ($majorAmount * $factor);
     }
+
+    /** Inverse of toMinorUnits — Graph minor-unit budget → core VND-major integer. */
+    public static function toMajorUnits(int $minorAmount, string $currency): int
+    {
+        $factor = in_array(strtoupper($currency), self::ZERO_DECIMAL, true) ? 1 : 100;
+
+        return (int) round($minorAmount / $factor);
+    }
 }

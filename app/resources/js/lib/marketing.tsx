@@ -213,6 +213,66 @@ export function useDeleteSavedReport() {
     });
 }
 
+// --- Auto-monitor rules ---
+export interface AdMonitor {
+    id: number;
+    target_level: 'campaign' | 'adset';
+    target_external_id: string;
+    enabled: boolean;
+    increase_enabled: boolean;
+    increase_below: number | null;
+    increase_step_pct: number;
+    max_daily_budget: number | null;
+    pause_enabled: boolean;
+    pause_above: number | null;
+    min_results: number;
+    last_action: string | null;
+    last_action_at: string | null;
+    last_evaluated_at: string | null;
+}
+export interface UpsertMonitorVars {
+    accountId: number;
+    target_level: 'campaign' | 'adset';
+    target_external_id: string;
+    enabled?: boolean;
+    increase_enabled?: boolean;
+    increase_below?: number | null;
+    increase_step_pct?: number;
+    max_daily_budget?: number | null;
+    pause_enabled?: boolean;
+    pause_above?: number | null;
+    min_results?: number;
+}
+
+export function useAdMonitors(accountId: number | null) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['marketing', 'monitors', accountId, tenantId],
+        enabled: api != null && accountId != null,
+        queryFn: async () => (await api!.get<{ data: AdMonitor[] }>(`/marketing/ad-accounts/${accountId}/monitors`)).data.data,
+    });
+}
+
+export function useUpsertMonitor() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ accountId, ...body }: UpsertMonitorVars) =>
+            (await api!.put<{ data: AdMonitor }>(`/marketing/ad-accounts/${accountId}/monitors`, body)).data.data,
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['marketing', 'monitors'] }),
+    });
+}
+
+export function useDeleteMonitor() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (monitorId: number) => { await api!.delete(`/marketing/monitors/${monitorId}`); },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['marketing', 'monitors'] }),
+    });
+}
+
 export type AdEntityLevel = 'campaign' | 'adset' | 'ad';
 export interface UpdateAdEntityVars {
     accountId: number;

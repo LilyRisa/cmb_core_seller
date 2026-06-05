@@ -213,7 +213,13 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
         return array_values(array_map(function (array $r) use ($level, $externalId) {
             $roas = isset($r['purchase_roas'][0]['value']) ? (float) $r['purchase_roas'][0]['value'] : null;
             $actions = $this->indexActions($r['actions'] ?? []);
-            $conversations = (int) ($actions['onsite_conversion.messaging_conversation_started_7d'] ?? 0);
+            // Messaging conversations come under different action types depending on the
+            // objective/optimisation — take the largest available so the result isn't 0.
+            $conversations = (int) max(
+                (int) ($actions['onsite_conversion.messaging_conversation_started_7d'] ?? 0),
+                (int) ($actions['onsite_conversion.total_messaging_connection'] ?? 0),
+                (int) ($actions['onsite_conversion.messaging_first_reply'] ?? 0),
+            );
             $leads = (int) (($actions['lead'] ?? 0) + ($actions['leadgen.other'] ?? 0) + ($actions['onsite_conversion.lead_grouped'] ?? 0));
             // Conversions (purchases) — prefer the omni/unified count, fall back to pixel/standard.
             $purchases = (int) ($actions['omni_purchase']

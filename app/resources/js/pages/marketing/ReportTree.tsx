@@ -1,7 +1,9 @@
 import { useMemo } from 'react';
-import { Empty, Spin, Table, Tag, Typography } from 'antd';
+import { Button, Empty, Spin, Table, Tag, Tooltip, Typography } from 'antd';
+import { AlertOutlined } from '@ant-design/icons';
 import { useAdReport, type ReportRow } from '@/lib/marketing';
-import { resultOf, sumInsights } from '@/lib/adReport';
+import { cprOf, resultOf, sumInsights } from '@/lib/adReport';
+import type { MonitorTarget } from '@/pages/marketing/MonitorConfigDrawer';
 
 const { Text } = Typography;
 
@@ -27,10 +29,14 @@ interface Props {
     since: string;
     until: string;
     currency: string | null;
+    monitoredCampaigns: Set<string>;
+    monitoredAdsets: Set<string>;
+    canMonitor: boolean;
+    onMonitor: (t: MonitorTarget) => void;
 }
 
 /** Cây Chiến dịch ▸ Nhóm QC ▸ Quảng cáo — cha hiện tổng, bấm để mở rộng xem con. */
-export function ReportTree({ accountId, since, until, currency }: Props) {
+export function ReportTree({ accountId, since, until, currency, monitoredCampaigns, monitoredAdsets, canMonitor, onMonitor }: Props) {
     const campaigns = useAdReport(accountId, 'campaign', since, until, {});
     const adsets = useAdReport(accountId, 'adset', since, until, {});
     const ads = useAdReport(accountId, 'ad', since, until, {});
@@ -88,13 +94,19 @@ export function ReportTree({ accountId, since, until, currency }: Props) {
             locale={{ emptyText: <Empty description="Không có dữ liệu cho khoảng ngày này." /> }}
             columns={[
                 {
-                    title: 'Tên', key: 'name', fixed: 'left', width: 280,
-                    render: (_: unknown, r: TreeRow) => (
-                        <span>
-                            <Tag color={LEVEL_TAG[r._level].color} style={{ marginInlineEnd: 6 }}>{LEVEL_TAG[r._level].label}</Tag>
-                            {r.name ?? r.external_id}
-                        </span>
-                    ),
+                    title: 'Tên', key: 'name', fixed: 'left', width: 300,
+                    render: (_: unknown, r: TreeRow) => {
+                        const monitored = r._level === 'campaign' ? monitoredCampaigns.has(r.external_id) : monitoredAdsets.has(r.external_id);
+                        const overridden = r._level === 'adset' && r.parent_id != null && monitoredCampaigns.has(r.parent_id);
+                        return (
+                            <span>
+                                <Tag color={LEVEL_TAG[r._level].color} style={{ marginInlineEnd: 6 }}>{LEVEL_TAG[r._level].label}</Tag>
+                                {r.name ?? r.external_id}
+                                {monitored && <Tooltip title="Đang giám sát tự động"><AlertOutlined style={{ color: '#fa8c16', marginLeft: 6 }} /></Tooltip>}
+                                {overridden && <Tooltip title="Bị giám sát của chiến dịch ghi đè"><Text type="secondary" style={{ fontSize: 11, marginLeft: 6 }}>(theo chiến dịch)</Text></Tooltip>}
+                            </span>
+                        );
+                    },
                 },
                 {
                     title: 'Kết quả', key: 'result', width: 150,
@@ -108,11 +120,26 @@ export function ReportTree({ accountId, since, until, currency }: Props) {
                         );
                     },
                 },
+                {
+                    title: 'CP/Kết quả', key: 'cpr',
+                    render: (_: unknown, r: TreeRow) => money(cprOf(r.objective, r.insights), currency),
+                },
                 { title: 'Chi tiêu', key: 'spend', render: (_: unknown, r: TreeRow) => money(r.insights?.spend, currency) },
                 { title: 'Hiển thị', key: 'impr', render: (_: unknown, r: TreeRow) => num(r.insights?.impressions) },
                 { title: 'Click', key: 'clicks', render: (_: unknown, r: TreeRow) => num(r.insights?.clicks) },
                 { title: 'CTR', key: 'ctr', render: (_: unknown, r: TreeRow) => (r.insights?.ctr == null ? '—' : r.insights.ctr.toFixed(2) + '%') },
                 { title: 'CPC', key: 'cpc', render: (_: unknown, r: TreeRow) => money(r.insights?.cpc, currency) },
+                ...(canMonitor ? [{
+                    title: 'Giám sát', key: 'monitor', fixed: 'right' as const, width: 120,
+                    render: (_: unknown, r: TreeRow) => (r._level === 'ad' ? null : (
+                        <Button
+                            size="small"
+                            type={(r._level === 'campaign' ? monitoredCampaigns : monitoredAdsets).has(r.external_id) ? 'primary' : 'default'}
+                            icon={<AlertOutlined />}
+                            onClick={() => onMonitor({ level: r._level as 'campaign' | 'adset', externalId: r.external_id, name: r.name, canIncrease: r.daily_budget != null })}
+                        />
+                    )),
+                }] : []),
             ]}
         />
     );

@@ -7,6 +7,7 @@ use CMBcoreSeller\Modules\Channels\Jobs\SyncReturnsForShop;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\SyncRun;
 use CMBcoreSeller\Modules\Fulfillment\Jobs\SyncShipmentTracking;
+use CMBcoreSeller\Modules\Marketing\Jobs\RunAdMonitors;
 use CMBcoreSeller\Modules\Marketing\Jobs\SyncAdInsights;
 use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
 use CMBcoreSeller\Modules\Messaging\Jobs\SyncConversationsForShop;
@@ -133,6 +134,10 @@ Schedule::call(function () {
         ->where('status', 'active')->orderBy('id')
         ->each(fn ($a) => SyncAdInsights::dispatch((int) $a->id));
 })->everyFifteenMinutes()->name('ads-insights-poll')->onOneServer()->withoutOverlapping();
+
+// Every 30': evaluate auto-monitors (raise budget / pause by cost-per-result) and
+// email Owner/Admin on any action. ShouldBeUnique guards overlap.
+Schedule::job(new RunAdMonitors)->everyThirtyMinutes()->name('ads-monitors-eval')->onOneServer()->withoutOverlapping();
 
 // Prune old framework rows so the DB stays lean.
 Schedule::command('queue:prune-failed --hours=336')->daily()->onOneServer();      // keep 14d of failed jobs

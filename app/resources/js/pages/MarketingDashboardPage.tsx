@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { App as AntApp, Avatar, Button, Card, Checkbox, Collapse, DatePicker, Dropdown, Empty, Input, InputNumber, List, Popconfirm, Result, Segmented, Select, Space, Spin, Statistic, Table, Tag, Tooltip, Typography } from 'antd';
-import { ApiOutlined, BulbOutlined, CheckOutlined, CloseOutlined, DisconnectOutlined, EditOutlined, FacebookFilled, FileTextOutlined, FolderOpenOutlined, FundOutlined, PauseCircleOutlined, PlayCircleOutlined, PlusOutlined, QuestionCircleOutlined, RobotOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
+import { App as AntApp, Avatar, Button, Card, Checkbox, Collapse, DatePicker, Dropdown, Empty, Input, InputNumber, List, Popconfirm, Result, Segmented, Select, Space, Spin, Table, Tag, Tooltip, Typography } from 'antd';
+import { AlertOutlined, ApiOutlined, CheckOutlined, CloseOutlined, DisconnectOutlined, EditOutlined, FacebookFilled, FileTextOutlined, FolderOpenOutlined, FundOutlined, PauseCircleOutlined, PlayCircleOutlined, PlusOutlined, QuestionCircleOutlined, RobotOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
 import { useAdDrafts, useDeleteDraft, useDuplicateDraft } from '@/lib/adWizard';
 import dayjs, { type Dayjs } from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
@@ -12,13 +12,15 @@ import { PixelManagerDrawer } from '@/pages/marketing/PixelManagerDrawer';
 import { SavedReportsDrawer } from '@/pages/marketing/SavedReportsDrawer';
 import { ReportTree } from '@/pages/marketing/ReportTree';
 import { ConnectionManagerDrawer } from '@/pages/marketing/ConnectionManagerDrawer';
-import { resultOf } from '@/lib/adReport';
+import { MonitorConfigDrawer, type MonitorTarget } from '@/pages/marketing/MonitorConfigDrawer';
+import { ForecastTree } from '@/pages/marketing/ForecastTree';
+import { cprOf, resultOf } from '@/lib/adReport';
 import { errorMessage } from '@/lib/api';
 import { openOAuthPopup } from '@/lib/oauthPopup';
 import { useCan } from '@/lib/tenant';
 import {
-    type ForecastStrategy, type ReconRow, type ReportLevel, type ReportRow,
-    useAdAccounts, useAdForecast, useAdReconciliation, useAdReport,
+    type ReconRow, type ReportLevel, type ReportRow,
+    useAdAccounts, useAdForecast, useAdMonitors, useAdReconciliation, useAdReport,
     useConnectFacebookAds, useGenerateForecast, useRefreshAdInsights,
     useSaveReport, useUpdateAdEntity,
 } from '@/lib/marketing';
@@ -43,13 +45,13 @@ const LABELS: Record<ReportLevel, string> = { campaign: 'Chiến dịch', adset:
 const COLS_KEY = 'marketing.report.columns';
 // All toggleable columns (name is always shown).
 const ALL_COLUMNS = [
-    'external_id', 'status', 'objective', 'result', 'daily_budget', 'lifetime_budget',
+    'external_id', 'status', 'objective', 'result', 'cpr', 'daily_budget', 'lifetime_budget',
     'spend', 'impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'frequency',
     'purchase_roas', 'messaging_conversations', 'leads', 'purchases',
 ] as const;
-const DEFAULT_COLUMNS = ['status', 'objective', 'result', 'daily_budget', 'spend', 'impressions', 'clicks', 'ctr', 'cpc', 'purchase_roas'];
+const DEFAULT_COLUMNS = ['status', 'objective', 'result', 'cpr', 'daily_budget', 'spend', 'impressions', 'clicks', 'ctr', 'cpc', 'purchase_roas'];
 const COL_TITLE: Record<string, string> = {
-    external_id: 'ID', status: 'Trạng thái', objective: 'Mục tiêu', result: 'Kết quả', daily_budget: 'NS/ngày', lifetime_budget: 'NS trọn đời',
+    external_id: 'ID', status: 'Trạng thái', objective: 'Mục tiêu', result: 'Kết quả', cpr: 'CP/Kết quả', daily_budget: 'NS/ngày', lifetime_budget: 'NS trọn đời',
     spend: 'Chi tiêu', impressions: 'Hiển thị', reach: 'Tiếp cận', clicks: 'Click', ctr: 'CTR', cpc: 'CPC', cpm: 'CPM',
     frequency: 'Tần suất', purchase_roas: 'ROAS', messaging_conversations: 'Hội thoại', leads: 'Leads', purchases: 'Chuyển đổi',
 };
@@ -73,6 +75,7 @@ const COL_HELP: Record<string, string> = {
     leads: 'Số khách hàng tiềm năng (lead) thu được.',
     purchases: 'Số lượt mua hàng/chuyển đổi ghi nhận qua Pixel.',
     result: 'Kết quả chính theo mục tiêu: tin nhắn (chiến dịch tin nhắn), chuyển đổi (chiến dịch chuyển đổi), hoặc khách tiềm năng.',
+    cpr: 'Chi phí trên mỗi kết quả = Chi tiêu ÷ Kết quả.',
 };
 
 // Chuẩn hoá mục tiêu Facebook (raw → tiếng Việt). Gồm cả mục tiêu ODAX mới lẫn mục tiêu cũ.
@@ -169,6 +172,12 @@ export function MarketingDashboardPage() {
     const [connOpen, setConnOpen] = useState(false);
     const saveReport = useSaveReport();
     const updateEntity = useUpdateAdEntity();
+    const [monitorTarget, setMonitorTarget] = useState<MonitorTarget | null>(null);
+    const { data: monitors } = useAdMonitors(selectedId);
+    // Sets of monitored external ids by level (for indicators + adset override note).
+    const monitoredCampaigns = useMemo(() => new Set((monitors ?? []).filter((m) => m.target_level === 'campaign' && m.enabled).map((m) => m.target_external_id)), [monitors]);
+    const monitoredAdsets = useMemo(() => new Set((monitors ?? []).filter((m) => m.target_level === 'adset' && m.enabled).map((m) => m.target_external_id)), [monitors]);
+    const isMonitored = (r: ReportRow) => monitoredCampaigns.has(r.external_id) || monitoredAdsets.has(r.external_id);
     // Inline edit: which cell is being edited + its draft value.
     const [editing, setEditing] = useState<{ key: string; field: 'name' | 'budget'; value: string } | null>(null);
 
@@ -263,6 +272,7 @@ export function MarketingDashboardPage() {
             );
         },
         purchases: (r) => num(r.insights?.purchases),
+        cpr: (r) => money(cprOf(r.objective, r.insights), currency),
         daily_budget: (r) => {
             const isEditing = editing?.key === r.external_id && editing.field === 'budget';
             if (isEditing) {
@@ -365,6 +375,21 @@ export function MarketingDashboardPage() {
                 <Tooltip title="Phân tích AI cho riêng chiến dịch này">
                     <Button size="small" icon={<RobotOutlined />} onClick={() => setAiCampaign({ id: r.external_id, name: r.name })}>
                         Phân tích
+                    </Button>
+                </Tooltip>
+            ),
+        }] : []),
+        ...(level !== 'ad' && canConnect ? [{
+            title: 'Giám sát', key: 'monitor', fixed: 'right' as const, width: 130,
+            render: (_: unknown, r: ReportRow) => (
+                <Tooltip title={r.daily_budget == null && level === 'campaign' ? 'Ngân sách theo nhóm — chỉ cài tạm dừng' : 'Tự tăng ngân sách / tạm dừng theo chi phí'}>
+                    <Button
+                        size="small"
+                        type={isMonitored(r) ? 'primary' : 'default'}
+                        icon={<AlertOutlined />}
+                        onClick={() => setMonitorTarget({ level: level as 'campaign' | 'adset', externalId: r.external_id, name: r.name, canIncrease: r.daily_budget != null })}
+                    >
+                        {isMonitored(r) ? 'Đang bật' : 'Giám sát'}
                     </Button>
                 </Tooltip>
             ),
@@ -563,7 +588,16 @@ export function MarketingDashboardPage() {
                             {level === 'adset' && selCampaigns.length === 0 && <Text type="secondary">Tích chiến dịch ở tab Chiến dịch để lọc nhóm.</Text>}
                         </Space>
                         {reportView === 'tree' ? (
-                            <ReportTree accountId={selectedId} since={since} until={until} currency={currency} />
+                            <ReportTree
+                                accountId={selectedId}
+                                since={since}
+                                until={until}
+                                currency={currency}
+                                monitoredCampaigns={monitoredCampaigns}
+                                monitoredAdsets={monitoredAdsets}
+                                canMonitor={canConnect}
+                                onMonitor={(t) => setMonitorTarget(t)}
+                            />
                         ) : (
                             <Table<ReportRow>
                                 rowKey="external_id" size="small" scroll={{ x: 'max-content' }}
@@ -593,28 +627,7 @@ export function MarketingDashboardPage() {
                                     <Space style={{ marginBottom: 8 }}><Text strong>Dự báo & chiến lược (AI)</Text>
                                         {canConnect && <Button size="small" type="primary" loading={genForecast.isPending} onClick={handleForecast}>Tạo dự báo</Button>}</Space>
                                     {forecast ? (
-                                        <Space direction="vertical" size={12} style={{ display: 'flex' }}>
-                                            <Space size={32} wrap>
-                                                <Statistic title="Đơn (7 ngày tới)" value={forecast.payload.forecast?.next_7d?.orders ?? '—'} />
-                                                <Statistic title="Chi tiêu (7 ngày tới)" value={money(forecast.payload.forecast?.next_7d?.spend ?? null, currency)} />
-                                                <Statistic title="Cost/đơn dự báo" value={money(forecast.payload.forecast?.next_7d?.projected_cost_per_order ?? null, currency)} />
-                                                <div style={{ maxWidth: 480 }}>{(forecast.payload.strategy ?? []).map((s: ForecastStrategy, i: number) => <div key={i}><Tag>{s.action}</Tag>{s.rationale}</div>)}</div>
-                                            </Space>
-                                            {(forecast?.payload.creative_review?.length ?? 0) > 0 && (
-                                                <div>
-                                                    <Text strong>Đánh giá nội dung quảng cáo</Text>
-                                                    {forecast!.payload.creative_review!.map((cr, i) => (
-                                                        <div key={i} style={{ marginTop: 6 }}>
-                                                            <Tag color={cr.verdict === 'tốt' ? 'green' : 'orange'}>{cr.verdict}</Tag>
-                                                            <Text>{cr.name ?? cr.ref}</Text>
-                                                            {cr.suggestions.map((s, j) => (
-                                                                <div key={j} style={{ marginLeft: 12, color: '#888', fontSize: 12 }}><BulbOutlined /> {s}</div>
-                                                            ))}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </Space>
+                                        <ForecastTree forecast={forecast} currency={currency} />
                                     ) : <Text type="secondary">Chưa có dự báo — bấm "Tạo dự báo".</Text>}
                                 </div>
                                 <Table<ReconRow>
@@ -659,6 +672,13 @@ export function MarketingDashboardPage() {
                 open={connOpen}
                 onClose={() => setConnOpen(false)}
                 onChanged={() => { setAccountId(null); setBm(null); }}
+            />
+
+            <MonitorConfigDrawer
+                open={monitorTarget != null}
+                accountId={selectedId}
+                target={monitorTarget}
+                onClose={() => setMonitorTarget(null)}
             />
         </div>
     );

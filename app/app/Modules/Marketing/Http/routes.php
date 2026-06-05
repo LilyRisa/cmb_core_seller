@@ -7,6 +7,7 @@ use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdEntityController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdForecastController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdInsightController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdminMarketingAiProviderController;
+use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdMonitorController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdsOAuthController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AudienceTemplateController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\CampaignAiInsightController;
@@ -51,6 +52,13 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
         // Live edit one entity (rename / daily budget / pause-resume).
         Route::patch('ad-accounts/{id}/entities/{externalId}', [AdEntityController::class, 'update'])
             ->whereNumber('id')->name('marketing.ad-accounts.entities.update');
+        // Auto-monitor rules (raise budget / pause by cost-per-result).
+        Route::get('ad-accounts/{id}/monitors', [AdMonitorController::class, 'index'])
+            ->whereNumber('id')->name('marketing.monitors.index');
+        Route::put('ad-accounts/{id}/monitors', [AdMonitorController::class, 'upsert'])
+            ->whereNumber('id')->name('marketing.monitors.upsert');
+        Route::delete('monitors/{monitor}', [AdMonitorController::class, 'destroy'])
+            ->whereNumber('monitor')->name('marketing.monitors.destroy');
         // Saved report snapshots (per filter run, reviewable over time).
         Route::get('ad-accounts/{id}/saved-reports', [SavedReportController::class, 'index'])
             ->whereNumber('id')->name('marketing.saved-reports.index');

@@ -38,6 +38,13 @@ export function resultOf(objective: string | null, insights: ReportMetrics | nul
     return null;
 }
 
+/** Cost per result = spend / results (null when no results). */
+export function cprOf(objective: string | null, insights: ReportMetrics | null): number | null {
+    const res = resultOf(objective, insights);
+    if (insights == null || res == null || res.value <= 0) return null;
+    return Math.round(insights.spend / res.value);
+}
+
 /** Aggregate child rows' summable metrics into a parent total (for tree rollups). */
 export function sumInsights(rows: ReportRow[]): ReportMetrics | null {
     const withData = rows.filter((r) => r.insights != null);
