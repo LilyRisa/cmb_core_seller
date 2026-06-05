@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { App as AntApp, Button, Card, DatePicker, Drawer, Empty, Modal, Radio, Space, Statistic, Switch, Table, Tag, Typography } from 'antd';
+import { App as AntApp, Button, Card, DatePicker, Drawer, Empty, Modal, Radio, Space, Statistic, Table, Tag, Typography } from 'antd';
 import { CheckCircleOutlined, CloudDownloadOutlined, DollarOutlined, ExclamationCircleOutlined, FundOutlined, ReloadOutlined, SyncOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
@@ -37,8 +37,16 @@ export function SettlementsPage() {
     const canReconcile = useCan('finance.reconcile');
     const [shopId, setShopId] = useState<number | undefined>();
     const [status, setStatus] = useState<string>('');
+    const [range, setRange] = useState<[Dayjs, Dayjs] | null>(null);
     const [page, setPage] = useState(1);
-    const { data, isFetching, refetch } = useSettlements({ channel_account_id: shopId, status: status || undefined, page, per_page: 20 });
+    const { data, isFetching, refetch } = useSettlements({
+        channel_account_id: shopId,
+        status: status || undefined,
+        from: range?.[0]?.format('YYYY-MM-DD'),
+        to: range?.[1]?.format('YYYY-MM-DD'),
+        page,
+        per_page: 20,
+    });
     const { data: shopsData } = useChannelAccounts();
     const fetchShop = useFetchSettlementsForShop();
     const [detailId, setDetailId] = useState<number | null>(null);
@@ -88,6 +96,14 @@ export function SettlementsPage() {
                         ]} />
                     <Radio.Group value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} optionType="button" buttonStyle="solid"
                         options={[{ value: '', label: 'Tất cả' }, { value: 'pending', label: 'Chờ đối chiếu' }, { value: 'reconciled', label: 'Đã đối chiếu' }, { value: 'error', label: 'Lỗi' }]} />
+                    {/* Lọc theo kỳ đối soát trên dữ liệu đã kéo về (SPEC 0016). */}
+                    <DatePicker.RangePicker
+                        value={range}
+                        onChange={(v) => { setRange(v && v[0] && v[1] ? [v[0], v[1]] : null); setPage(1); }}
+                        format="DD/MM/YYYY"
+                        allowClear
+                        placeholder={['Từ kỳ', 'Đến kỳ']}
+                    />
                 </Space>
                 <Table<Settlement> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns}
                     locale={{ emptyText: <Empty image={<FundOutlined style={{ fontSize: 32, color: '#bfbfbf' }} />}
@@ -111,10 +127,9 @@ export function SettlementsPage() {
 function FetchModal({ open, onClose, shops, onSubmit, loading }: { open: boolean; onClose: () => void; shops: Array<{ id: number; name: string; provider: string }>; onSubmit: (v: { channelAccountId: number; from?: string; to?: string; sync?: boolean }) => void; loading: boolean }) {
     const [shopId, setShopId] = useState<number | undefined>();
     const [range, setRange] = useState<[Dayjs, Dayjs]>([dayjs().subtract(30, 'day'), dayjs()]);
-    const [sync, setSync] = useState(false);
     return (
         <Modal title="Kéo đối soát từ sàn" open={open} onCancel={onClose} okText="Bắt đầu" confirmLoading={loading} width={520}
-            onOk={() => { if (!shopId) return; onSubmit({ channelAccountId: shopId, from: range[0].format('YYYY-MM-DD'), to: range[1].format('YYYY-MM-DD'), sync }); }}
+            onOk={() => { if (!shopId) return; onSubmit({ channelAccountId: shopId, from: range[0].format('YYYY-MM-DD'), to: range[1].format('YYYY-MM-DD') }); }}
             okButtonProps={{ disabled: !shopId }}>
             <Space direction="vertical" size={12} style={{ width: '100%' }}>
                 <div>
@@ -129,13 +144,6 @@ function FetchModal({ open, onClose, shops, onSubmit, loading }: { open: boolean
                     <Typography.Text type="secondary" style={{ fontSize: 13, display: 'block', marginBottom: 4 }}>Khoảng thời gian</Typography.Text>
                     <DatePicker.RangePicker value={range as [Dayjs, Dayjs]} onChange={(v) => { if (v?.[0] && v?.[1]) setRange([v[0], v[1]]); }} format="DD/MM/YYYY" allowClear={false} />
                 </div>
-                <Space>
-                    <Switch checked={sync} onChange={setSync} size="small" />
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>Kéo đồng bộ (chờ trong request — chỉ dùng cho sandbox/test, dữ liệu lớn nên để chạy nền)</Typography.Text>
-                </Space>
-                <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 0 }}>
-                    Lưu ý: tính năng đối soát theo sàn cần được BẬT trong cấu hình app (env <code>INTEGRATIONS_TIKTOK_FINANCE</code> hoặc <code>INTEGRATIONS_LAZADA_FINANCE</code>) sau khi đối chiếu shape với sandbox của sàn — nếu chưa bật, hệ thống sẽ báo "không hỗ trợ".
-                </Typography.Paragraph>
             </Space>
         </Modal>
     );
