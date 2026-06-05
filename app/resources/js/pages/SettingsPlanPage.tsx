@@ -39,7 +39,14 @@ const GATEWAY_OPTIONS = [
     { label: <span><QrcodeOutlined /> MoMo (sắp có)</span>, value: 'momo' as const, disabled: true },
 ];
 
+// Bảng so sánh đầy đủ — thứ tự cố định. Gói có → ✓ xanh; gói không có → ✗ xám + gạch ngang.
 const FEATURE_LABELS: Record<string, string> = {
+    messaging_inbox: 'Nhắn tin Facebook Page + sàn',
+    messaging_ai: 'AI hỗ trợ trả lời tin nhắn',
+    marketing_facebook: 'Quảng cáo Facebook',
+    ai: 'Trợ lý & phân tích AI',
+    accounting_basic: 'Kế toán cơ bản',
+    accounting_advanced: 'Kế toán nâng cao',
     procurement: 'Mua hàng & NCC',
     fifo_cogs: 'Giá vốn FIFO (chuẩn kế toán)',
     profit_reports: 'Báo cáo lợi nhuận thật',
@@ -49,6 +56,8 @@ const FEATURE_LABELS: Record<string, string> = {
     automation_rules: 'Tự động hoá (rules engine)',
     priority_support: 'Hỗ trợ ưu tiên (SLA)',
 };
+
+const limitText = (n: number | undefined, suffix = '') => (n == null ? '—' : n < 0 ? 'Không giới hạn' : `${n.toLocaleString('vi-VN')}${suffix}`);
 
 export function SettingsPlanPage() {
     const { message } = AntApp.useApp();
@@ -207,16 +216,21 @@ export function SettingsPlanPage() {
                                                 <Typography.Text type="secondary">hoặc <MoneyText value={plan.price_yearly} /> / năm</Typography.Text>
                                             )}
                                         </div>
-                                        <div>
-                                            <Tag color="blue">{plan.limits.max_channel_accounts < 0 ? 'Không giới hạn' : `${plan.limits.max_channel_accounts} gian hàng`}</Tag>
-                                        </div>
+                                        <Space size={[4, 4]} wrap>
+                                            <Tag color="blue">{limitText(plan.limits?.max_channel_accounts, ' gian hàng')}</Tag>
+                                            <Tag color="geekblue">{limitText(plan.limits?.max_channel_accounts_per_platform)} / nền tảng</Tag>
+                                            <Tag color="purple">{limitText(plan.limits?.ai_credits_monthly)} lượt AI/kỳ</Tag>
+                                        </Space>
                                         <Typography.Text type="secondary">{plan.description}</Typography.Text>
                                         <div style={{ marginTop: 8 }}>
                                             {Object.entries(FEATURE_LABELS).map(([k, label]) => {
                                                 const on = (features as Record<string, boolean>)[k] === true;
                                                 return (
                                                     <div key={k} style={{ color: on ? undefined : '#a3a3a3' }}>
-                                                        {on ? <CheckCircleOutlined style={{ color: '#52c41a' }} /> : <CloseCircleOutlined />} <span>{label}</span>
+                                                        {on
+                                                            ? <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                                                            : <CloseCircleOutlined style={{ color: '#bfbfbf' }} />}{' '}
+                                                        <span style={{ textDecoration: on ? undefined : 'line-through' }}>{label}</span>
                                                     </div>
                                                 );
                                             })}

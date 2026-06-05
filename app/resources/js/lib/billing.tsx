@@ -12,7 +12,11 @@ export type PlanCode = 'trial' | 'starter' | 'pro' | 'business';
 export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'cancelled' | 'expired';
 export type BillingCycle = 'monthly' | 'yearly' | 'trial';
 
-export interface PlanLimits { max_channel_accounts: number }
+export interface PlanLimits {
+    max_channel_accounts: number;
+    max_channel_accounts_per_platform?: number;
+    ai_credits_monthly?: number;
+}
 
 export interface PlanFeatures {
     procurement: boolean;
@@ -23,6 +27,12 @@ export interface PlanFeatures {
     mass_listing: boolean;
     automation_rules: boolean;
     priority_support: boolean;
+    messaging_inbox: boolean;
+    messaging_ai: boolean;
+    marketing_facebook: boolean;
+    accounting_basic: boolean;
+    accounting_advanced: boolean;
+    ai: boolean;
 }
 
 export interface Plan {

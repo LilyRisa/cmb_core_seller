@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    Alert, App as AntApp, Button, Card, Col, Input, InputNumber, Modal, Radio, Row, Segmented, Space, Tag, Typography,
+    Alert, App as AntApp, Badge, Button, Card, Col, Divider, Input, InputNumber, Modal, Radio, Row, Segmented, Space, Tag, Typography,
 } from 'antd';
-import { ArrowLeftOutlined, CheckOutlined, CrownOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, CheckOutlined, CloseOutlined, CrownOutlined, ShopOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import type { PlanFeatures } from '@/lib/billing';
 import { errorMessage } from '@/lib/api';
 import {
     useBuyAiCredits, useCheckout, usePlans, useSubscription, useValidateVoucher, type Plan, type PlanCode, type VoucherPreview,
@@ -11,24 +12,27 @@ import {
 
 const { Title, Text, Paragraph } = Typography;
 
-const FEATURE_LABELS: Record<string, string> = {
-    messaging_inbox: 'Nhắn tin Facebook Page + sàn',
-    messaging_ai: 'AI hỗ trợ trả lời',
-    marketing_facebook: 'Quảng cáo Facebook',
-    accounting_basic: 'Kế toán',
-    accounting_advanced: 'Kế toán nâng cao',
-    procurement: 'Mua hàng & NCC',
-    fifo_cogs: 'Giá vốn FIFO',
-    profit_reports: 'Báo cáo lợi nhuận',
-    finance_settlements: 'Đối soát sàn',
-    demand_planning: 'Đề xuất nhập hàng',
-    mass_listing: 'Đăng bán đa sàn',
-    automation_rules: 'Tự động hoá',
-    priority_support: 'Hỗ trợ ưu tiên',
-    ai: 'Tính năng AI',
-};
+// Toàn bộ tính năng hiển thị trong bảng so sánh (thứ tự cố định). Mọi gói render đủ list này:
+// có → ✓ xanh, không có → ✗ xám + gạch ngang.
+const FEATURE_ROWS: { key: keyof PlanFeatures; label: string }[] = [
+    { key: 'messaging_inbox', label: 'Nhắn tin Facebook Page + sàn' },
+    { key: 'messaging_ai', label: 'AI hỗ trợ trả lời tin nhắn' },
+    { key: 'marketing_facebook', label: 'Quảng cáo Facebook' },
+    { key: 'ai', label: 'Trợ lý & phân tích AI' },
+    { key: 'accounting_basic', label: 'Kế toán cơ bản' },
+    { key: 'accounting_advanced', label: 'Kế toán nâng cao' },
+    { key: 'procurement', label: 'Mua hàng & nhà cung cấp' },
+    { key: 'fifo_cogs', label: 'Giá vốn FIFO' },
+    { key: 'profit_reports', label: 'Báo cáo lợi nhuận' },
+    { key: 'finance_settlements', label: 'Đối soát sàn' },
+    { key: 'demand_planning', label: 'Đề xuất nhập hàng' },
+    { key: 'mass_listing', label: 'Đăng bán đa sàn' },
+    { key: 'automation_rules', label: 'Tự động hoá' },
+    { key: 'priority_support', label: 'Hỗ trợ ưu tiên' },
+];
 
 const vnd = (n: number) => n.toLocaleString('vi-VN') + 'đ';
+const limitText = (n: number | undefined, suffix = '') => (n == null ? '—' : n < 0 ? 'Không giới hạn' : `${n.toLocaleString('vi-VN')}${suffix}`);
 
 export function PlansPage() {
     const { message } = AntApp.useApp();
@@ -45,7 +49,8 @@ export function PlansPage() {
     const [pay, setPay] = useState<{ url?: string; qr?: string } | null>(null);
 
     const currentCode = sub?.subscription?.plan_code ?? null;
-    const offered = useMemo(() => (plans.data ?? []).filter((p) => p.price_monthly > 0), [plans.data]);
+    // Hiển thị đầy đủ mọi gói đang kích hoạt (kể cả gói miễn phí/dùng thử). Server đã lọc is_active + sort_order.
+    const offered = useMemo(() => plans.data ?? [], [plans.data]);
 
     const applyVoucher = () => {
         const c = code.trim().toUpperCase();
@@ -110,27 +115,57 @@ export function PlansPage() {
 
                 {plans.isError && <Alert type="error" showIcon message={errorMessage(plans.error, 'Không tải được gói.')} />}
 
-                <Row gutter={[16, 16]}>
+                <Row gutter={[16, 16]} align="stretch">
                     {offered.map((p) => {
                         const isCurrent = p.code === currentCode;
-                        const feats = Object.entries(p.features ?? {}).filter(([, on]) => on).map(([k]) => FEATURE_LABELS[k] ?? k);
+                        const isFree = p.price_monthly <= 0 && p.price_yearly <= 0;
+                        const card = (
+                            <Card
+                                title={<b style={{ fontSize: 16 }}>{p.name}</b>}
+                                style={{ height: '100%', borderColor: isCurrent ? '#1677ff' : undefined, borderWidth: isCurrent ? 2 : undefined }}
+                                styles={{ body: { display: 'flex', flexDirection: 'column', height: 'calc(100% - 57px)' } }}
+                            >
+                                <Title level={3} style={{ margin: 0 }}>
+                                    {isFree ? 'Miễn phí' : vnd(price(p))}
+                                    {!isFree && <Text type="secondary" style={{ fontSize: 14 }}>/{cycle === 'yearly' ? 'năm' : 'tháng'}</Text>}
+                                </Title>
+                                {!isFree && cycle === 'yearly' && yearlySavingPct(p) > 0 && <Tag color="green" style={{ marginTop: 4 }}>Tiết kiệm {yearlySavingPct(p)}%</Tag>}
+                                <Paragraph type="secondary" style={{ marginTop: 8, minHeight: 44 }}>{p.description}</Paragraph>
+
+                                <Space direction="vertical" size={2} style={{ display: 'flex', marginBottom: 8 }}>
+                                    <Text><ShopOutlined style={{ color: '#1677ff' }} /> Gian hàng: <b>{limitText(p.limits?.max_channel_accounts)}</b></Text>
+                                    <Text type="secondary" style={{ fontSize: 13, paddingLeft: 22 }}>
+                                        Mỗi nền tảng: {limitText(p.limits?.max_channel_accounts_per_platform)}
+                                    </Text>
+                                    <Text><ThunderboltOutlined style={{ color: '#722ed1' }} /> Lượt AI/kỳ: <b>{limitText(p.limits?.ai_credits_monthly)}</b></Text>
+                                </Space>
+
+                                <Divider style={{ margin: '8px 0' }} />
+
+                                <Space direction="vertical" size={4} style={{ display: 'flex', flex: 1, marginBottom: 12 }}>
+                                    {FEATURE_ROWS.map(({ key, label }) => {
+                                        const on = !!p.features?.[key];
+                                        return on ? (
+                                            <Text key={key}><CheckOutlined style={{ color: '#52c41a' }} /> {label}</Text>
+                                        ) : (
+                                            <Text key={key} delete type="secondary" style={{ opacity: 0.55 }}>
+                                                <CloseOutlined style={{ color: '#bfbfbf' }} /> {label}
+                                            </Text>
+                                        );
+                                    })}
+                                </Space>
+
+                                <Button type="primary" block disabled={isCurrent || isFree} loading={checkout.isPending}
+                                    onClick={() => buy(p.code)}>
+                                    {isCurrent ? 'Gói hiện tại' : isFree ? 'Gói mặc định' : 'Chọn gói'}
+                                </Button>
+                            </Card>
+                        );
                         return (
                             <Col xs={24} md={12} lg={8} key={p.code}>
-                                <Card title={<Space><b>{p.name}</b>{isCurrent && <Tag color="blue">Đang dùng</Tag>}</Space>}
-                                    style={{ height: '100%' }}>
-                                    <Title level={3} style={{ margin: 0 }}>{vnd(price(p))}<Text type="secondary" style={{ fontSize: 14 }}>/{cycle === 'yearly' ? 'năm' : 'tháng'}</Text></Title>
-                                    {cycle === 'yearly' && yearlySavingPct(p) > 0 && <Tag color="green" style={{ marginTop: 4 }}>Tiết kiệm {yearlySavingPct(p)}%</Tag>}
-                                    <Paragraph type="secondary" style={{ marginTop: 8, minHeight: 44 }}>{p.description}</Paragraph>
-                                    <Space direction="vertical" size={4} style={{ display: 'flex', marginBottom: 12 }}>
-                                        {feats.length === 0
-                                            ? <Text type="secondary">Xử lý đơn + tồn kho cơ bản</Text>
-                                            : feats.map((f) => <Text key={f}><CheckOutlined style={{ color: '#52c41a' }} /> {f}</Text>)}
-                                    </Space>
-                                    <Button type="primary" block disabled={isCurrent} loading={checkout.isPending}
-                                        onClick={() => buy(p.code)}>
-                                        {isCurrent ? 'Gói hiện tại' : 'Chọn gói'}
-                                    </Button>
-                                </Card>
+                                {isCurrent
+                                    ? <Badge.Ribbon text="Đang sử dụng" color="blue" style={{ height: '100%' }}>{card}</Badge.Ribbon>
+                                    : card}
                             </Col>
                         );
                     })}
