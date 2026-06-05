@@ -264,6 +264,23 @@ class FacebookAdsCreateTest extends TestCase
         $this->assertSame('city', $out[2]->type);
     }
 
+    public function test_search_targeting_detailed_uses_per_result_type(): void
+    {
+        Http::fake(['graph.facebook.com/*/search*' => Http::response(['data' => [
+            ['id' => '111', 'name' => 'Cà phê', 'type' => 'interests', 'audience_size_lower_bound' => 5000],
+            ['id' => '222', 'name' => 'Người đi du lịch thường xuyên', 'type' => 'behaviors'],
+            ['id' => '333', 'name' => 'Cha mẹ', 'type' => 'family_statuses'],
+        ]], 200)]);
+
+        $out = $this->connector()->searchTargeting('tok', 'x', 'adTargetingCategory');
+
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'type=adTargetingCategory'));
+        $this->assertSame('interests', $out[0]->type);
+        $this->assertSame('behaviors', $out[1]->type);
+        $this->assertSame('family_statuses', $out[2]->type);
+        $this->assertSame(5000, $out[0]->audienceSize);
+    }
+
     public function test_search_targeting_interest_unchanged(): void
     {
         Http::fake(['graph.facebook.com/*/search*' => Http::response(['data' => [

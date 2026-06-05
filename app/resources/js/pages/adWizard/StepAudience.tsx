@@ -24,9 +24,49 @@ const GENDER_OPTIONS: SegmentedProps['options'] = [
     { label: 'Nữ', value: 'female' },
 ];
 
-interface InterestItem {
+/** A detailed-targeting item: an interest/behaviour/demographic. `type` is the
+ *  Facebook flexible_spec/exclusions key (e.g. interests, behaviors, family_statuses). */
+interface DetailedItem {
     id: string;
     name: string;
+    type: string;
+}
+
+// Friendly Vietnamese labels for the common detailed-targeting category keys.
+const DETAILED_TYPE_LABEL: Record<string, string> = {
+    interests: 'Sở thích',
+    behaviors: 'Hành vi',
+    family_statuses: 'Tình trạng gia đình',
+    relationship_statuses: 'Tình trạng quan hệ',
+    life_events: 'Sự kiện trong đời',
+    industries: 'Ngành nghề',
+    income: 'Thu nhập',
+    education_statuses: 'Trình độ học vấn',
+    work_positions: 'Chức danh',
+    work_employers: 'Nơi làm việc',
+};
+const detailedLabel = (t: string) => DETAILED_TYPE_LABEL[t] ?? t;
+
+/** Group detailed items into a Graph flexible_spec/exclusions object keyed by type. */
+function groupDetailed(items: DetailedItem[]): Record<string, { id: string; name: string }[]> {
+    const out: Record<string, { id: string; name: string }[]> = {};
+    for (const it of items) {
+        (out[it.type] ??= []).push({ id: it.id, name: it.name });
+    }
+    return out;
+}
+
+/** Flatten a flexible_spec/exclusions group object back into detailed items. */
+function flattenGroup(group: unknown): DetailedItem[] {
+    if (group == null || typeof group !== 'object') return [];
+    const out: DetailedItem[] = [];
+    for (const [type, arr] of Object.entries(group as Record<string, unknown>)) {
+        if (!Array.isArray(arr)) continue;
+        for (const raw of arr as Array<{ id?: string; name?: string }>) {
+            if (raw?.id != null) out.push({ id: String(raw.id), name: String(raw.name ?? raw.id), type });
+        }
+    }
+    return out;
 }
 
 /** Read initial targeting fields out of targeting spec (best-effort). */
@@ -37,14 +77,18 @@ function initFromTargeting(
     geo: { include: GeoItem[]; exclude: GeoItem[] };
     ageRange: [number, number];
     gender: Gender;
-    interests: InterestItem[];
+    detailedInclude: DetailedItem[];
+    detailedNarrow: DetailedItem[];
+    detailedExclude: DetailedItem[];
 } {
     if (targeting == null) {
         return {
             geo: { include: [{ key: 'VN', name: 'Việt Nam', type: 'country' }], exclude: [] },
             ageRange: [18, 45],
             gender: 'all',
-            interests: [],
+            detailedInclude: [],
+            detailedNarrow: [],
+            detailedExclude: [],
         };
     }
 
@@ -74,21 +118,14 @@ function initFromTargeting(
         else if (gendersRaw.includes(2) && !gendersRaw.includes(1)) gender = 'female';
     }
 
-    // interests
+    // detailed targeting: flexible_spec[0] = include group, [1] = narrow group (AND);
+    // exclusions = excluded detailed targeting.
     const flexRaw = targeting.flexible_spec;
-    let interests: InterestItem[] = [];
-    if (Array.isArray(flexRaw) && flexRaw.length > 0) {
-        const firstSpec = flexRaw[0] as Record<string, unknown> | undefined;
-        const interestsRaw = firstSpec?.interests;
-        if (Array.isArray(interestsRaw)) {
-            interests = (interestsRaw as Array<{ id: string; name: string }>).map((i) => ({
-                id: i.id,
-                name: i.name,
-            }));
-        }
-    }
+    const detailedInclude = Array.isArray(flexRaw) ? flattenGroup(flexRaw[0]) : [];
+    const detailedNarrow = Array.isArray(flexRaw) ? flattenGroup(flexRaw[1]) : [];
+    const detailedExclude = flattenGroup(targeting.exclusions);
 
-    return { geo, ageRange: [ageMin, ageMax], gender, interests };
+    return { geo, ageRange: [ageMin, ageMax], gender, detailedInclude, detailedNarrow, detailedExclude };
 }
 
 /** Group geo items into FB geo_locations buckets by type. */
@@ -113,7 +150,9 @@ function buildTargetingSpec(
     geo: { include: GeoItem[]; exclude: GeoItem[] },
     ageRange: [number, number],
     gender: Gender,
-    interests: InterestItem[],
+    detailedInclude: DetailedItem[],
+    detailedNarrow: DetailedItem[],
+    detailedExclude: DetailedItem[],
 ): Record<string, unknown> {
     const inc = bucket(geo.include);
     const spec: Record<string, unknown> = {
@@ -126,11 +165,14 @@ function buildTargetingSpec(
     if (gender !== 'all') {
         spec.genders = gender === 'male' ? [1] : [2];
     }
-    if (interests.length > 0) {
-        spec.flexible_spec = [
-            { interests: interests.map((i) => ({ id: i.id, name: i.name })) },
-        ];
-    }
+    // flexible_spec: each group is an OR-set; multiple groups AND together (narrow).
+    const includeGroup = groupDetailed(detailedInclude);
+    const narrowGroup = groupDetailed(detailedNarrow);
+    const flexible = [includeGroup, narrowGroup].filter((g) => Object.keys(g).length > 0);
+    if (flexible.length > 0) spec.flexible_spec = flexible;
+    // exclusions: detailed targeting to exclude.
+    const exclusions = groupDetailed(detailedExclude);
+    if (Object.keys(exclusions).length > 0) spec.exclusions = exclusions;
     return spec;
 }
 
@@ -146,10 +188,13 @@ function AudienceForm({ adsetKey }: { adsetKey: string }) {
     const [geo, setGeo] = useState<{ include: GeoItem[]; exclude: GeoItem[] }>(init.geo);
     const [ageRange, setAgeRange] = useState<[number, number]>(init.ageRange);
     const [gender, setGender] = useState<Gender>(init.gender);
-    const [interests, setInterests] = useState<InterestItem[]>(init.interests);
+    const [detailedInclude, setDetailedInclude] = useState<DetailedItem[]>(init.detailedInclude);
+    const [detailedNarrow, setDetailedNarrow] = useState<DetailedItem[]>(init.detailedNarrow);
+    const [detailedExclude, setDetailedExclude] = useState<DetailedItem[]>(init.detailedExclude);
 
-    // Select options for interests (search results)
-    const [interestOptions, setInterestOptions] = useState<DefaultOptionType[]>([]);
+    // Detailed-targeting search results (shared by include/narrow/exclude pickers).
+    const [detailedOptions, setDetailedOptions] = useState<DefaultOptionType[]>([]);
+    const detailedItemMapRef = useRef<Record<string, DetailedItem>>({});
 
     // Geo search-result options + lookup map (shared by both geo pickers)
     const [geoOptions, setGeoOptions] = useState<DefaultOptionType[]>([]);
@@ -202,7 +247,10 @@ function AudienceForm({ adsetKey }: { adsetKey: string }) {
     // Stable serialized keys to avoid object-identity issues in effect deps
     const geoKey =
         geo.include.map((i) => i.key).join(',') + '|' + geo.exclude.map((i) => i.key).join(',');
-    const interestsKey = interests.map((i) => i.id).join(',');
+    const detailedKey =
+        detailedInclude.map((i) => i.id).join(',') + '|'
+        + detailedNarrow.map((i) => i.id).join(',') + '|'
+        + detailedExclude.map((i) => i.id).join(',');
 
     // Patch ad set targeting and debounce audience estimate whenever fields change
     useEffect(() => {
@@ -211,7 +259,7 @@ function AudienceForm({ adsetKey }: { adsetKey: string }) {
             return;
         }
 
-        const spec = buildTargetingSpec(geo, ageRange, gender, interests);
+        const spec = buildTargetingSpec(geo, ageRange, gender, detailedInclude, detailedNarrow, detailedExclude);
         updateAdSet(adsetKey, { targeting: spec, geo });
 
         // Debounced estimate
@@ -234,25 +282,37 @@ function AudienceForm({ adsetKey }: { adsetKey: string }) {
             }
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [geoKey, ageRange[0], ageRange[1], gender, interestsKey, adsetKey]);
+    }, [geoKey, ageRange[0], ageRange[1], gender, detailedKey, adsetKey]);
 
-    function handleInterestSearch(q: string) {
+    function handleDetailedSearch(q: string) {
         if (searchDebounceRef.current != null) {
             clearTimeout(searchDebounceRef.current);
         }
         if (!q || accountId == null) return;
         searchDebounceRef.current = setTimeout(() => {
             targetingSearch.mutate(
-                { accountId, q },
+                { accountId, q, type: 'adTargetingCategory' },
                 {
                     onSuccess: (results) => {
-                        setInterestOptions(
-                            results.map((o) => ({ label: o.name, value: o.id })),
+                        results.forEach((r) => {
+                            detailedItemMapRef.current[r.id] = { id: r.id, name: r.name, type: r.type };
+                        });
+                        setDetailedOptions(
+                            results.map((o) => ({
+                                label: `${o.name} · ${detailedLabel(o.type)}`,
+                                value: o.id,
+                            })),
                         );
                     },
                 },
             );
         }, 400);
+    }
+
+    function resolveDetailedItems(selected: { label: ReactNode; value: string }[]): DetailedItem[] {
+        return selected.map(
+            (s) => detailedItemMapRef.current[s.value] ?? { id: s.value, name: String(s.label), type: 'interests' },
+        );
     }
 
     function handleGeoSearch(q: string) {
@@ -298,15 +358,8 @@ function AudienceForm({ adsetKey }: { adsetKey: string }) {
         setGeo((g) => ({ ...g, exclude: resolveGeoItems(selected) }));
     }
 
-    // labelInValue interest values for the Select
-    const interestSelectValue: { label: string; value: string }[] = interests.map((i) => ({
-        label: i.name,
-        value: i.id,
-    }));
-
-    function handleInterestChange(selected: { label: string; value: string }[]) {
-        setInterests(selected.map((s) => ({ id: s.value, name: s.label as string })));
-    }
+    const detailedValue = (items: DetailedItem[]) =>
+        items.map((i) => ({ label: `${i.name} · ${detailedLabel(i.type)}`, value: i.id }));
 
     // Audience size display
     const lower = audienceEstimate.data?.lower_bound;
@@ -447,21 +500,62 @@ function AudienceForm({ adsetKey }: { adsetKey: string }) {
                 />
             </Form.Item>
 
-            <Form.Item label="Sở thích">
+            <Form.Item
+                label="Nhắm mục tiêu chi tiết"
+                tooltip="Tìm & thêm sở thích, hành vi, nhân khẩu học để thu hẹp đối tượng."
+            >
                 <Select
                     mode="multiple"
                     labelInValue
                     filterOption={false}
                     showSearch
-                    value={interestSelectValue}
-                    options={interestOptions}
-                    onSearch={handleInterestSearch}
-                    onChange={handleInterestChange}
+                    value={detailedValue(detailedInclude)}
+                    options={detailedOptions}
+                    onSearch={handleDetailedSearch}
+                    onChange={(sel) => setDetailedInclude(resolveDetailedItems(sel))}
                     loading={targetingSearch.isPending}
-                    placeholder="Tìm kiếm sở thích..."
-                    notFoundContent={
-                        targetingSearch.isPending ? 'Đang tìm...' : 'Nhập để tìm kiếm'
-                    }
+                    placeholder="Tìm sở thích / hành vi / nhân khẩu học…"
+                    notFoundContent={targetingSearch.isPending ? 'Đang tìm...' : 'Nhập để tìm kiếm'}
+                    style={{ maxWidth: 400 }}
+                />
+            </Form.Item>
+
+            <Form.Item
+                label="Thu hẹp đối tượng (VÀ)"
+                tooltip="Đối tượng phải khớp CẢ nhóm trên VÀ nhóm này (AND) — thu hẹp tệp."
+            >
+                <Select
+                    mode="multiple"
+                    labelInValue
+                    filterOption={false}
+                    showSearch
+                    value={detailedValue(detailedNarrow)}
+                    options={detailedOptions}
+                    onSearch={handleDetailedSearch}
+                    onChange={(sel) => setDetailedNarrow(resolveDetailedItems(sel))}
+                    loading={targetingSearch.isPending}
+                    placeholder="Thêm điều kiện thu hẹp (tuỳ chọn)…"
+                    notFoundContent={targetingSearch.isPending ? 'Đang tìm...' : 'Nhập để tìm kiếm'}
+                    style={{ maxWidth: 400 }}
+                />
+            </Form.Item>
+
+            <Form.Item
+                label="Loại trừ đối tượng"
+                tooltip="Không hiển thị cho người khớp các tiêu chí này."
+            >
+                <Select
+                    mode="multiple"
+                    labelInValue
+                    filterOption={false}
+                    showSearch
+                    value={detailedValue(detailedExclude)}
+                    options={detailedOptions}
+                    onSearch={handleDetailedSearch}
+                    onChange={(sel) => setDetailedExclude(resolveDetailedItems(sel))}
+                    loading={targetingSearch.isPending}
+                    placeholder="Loại trừ sở thích / hành vi (tuỳ chọn)…"
+                    notFoundContent={targetingSearch.isPending ? 'Đang tìm...' : 'Nhập để tìm kiếm'}
                     style={{ maxWidth: 400 }}
                 />
             </Form.Item>

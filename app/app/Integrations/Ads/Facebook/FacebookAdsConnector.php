@@ -519,6 +519,19 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
             ), array_filter((array) $res->json('data', []), 'is_array')));
         }
 
+        // Unified detailed-targeting search (interests + behaviors + demographics):
+        // each result carries its OWN flexible_spec key in the result's `type`
+        // field, so we surface that per-result (not the search type label).
+        if ($type === 'adTargetingCategory') {
+            return array_values(array_map(fn (array $o) => new TargetingOptionDTO(
+                id: (string) ($o['id'] ?? ''),
+                name: (string) ($o['name'] ?? ''),
+                type: (string) ($o['type'] ?? 'interests'),
+                audienceSize: isset($o['audience_size_lower_bound']) ? (int) $o['audience_size_lower_bound'] : null,
+                raw: $o,
+            ), array_filter((array) $res->json('data', []), 'is_array')));
+        }
+
         // Label derived from the Graph search type so a 'adbehavior' search isn't
         // mislabelled as 'interests' (the DTO type must reflect what was searched).
         $typeLabel = match ($type) {
