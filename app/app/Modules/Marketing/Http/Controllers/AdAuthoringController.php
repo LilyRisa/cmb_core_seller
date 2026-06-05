@@ -40,10 +40,29 @@ class AdAuthoringController extends Controller
         Gate::authorize('marketing.view');
         [$account, $connector] = $this->resolve($id);
 
-        $pixels = array_map(fn (AdPixelDTO $p) => ['id' => $p->id, 'name' => $p->name],
-            $connector->listPixels((string) $account->access_token, $account->external_account_id));
+        $pixels = array_map(fn (AdPixelDTO $p) => [
+            'id' => $p->id,
+            'name' => $p->name,
+            'last_fired_time' => $p->lastFiredTime,
+            'is_unavailable' => $p->isUnavailable,
+        ], $connector->listPixels((string) $account->access_token, $account->external_account_id));
 
         return response()->json(['data' => $pixels]);
+    }
+
+    /** POST ad-accounts/{id}/pixels/{pixelId}/share { target_account_id } — share to another account. */
+    public function sharePixel(int $id, string $pixelId, Request $request): JsonResponse
+    {
+        Gate::authorize('marketing.ads.create');
+        [$account, $connector] = $this->resolve($id);
+
+        $targetAccountId = (string) $request->input('target_account_id', '');
+        abort_if($targetAccountId === '', 422, 'Thiếu tài khoản quảng cáo đích.');
+        abort_if(($account->business_id ?? '') === '', 422, 'Pixel/tài khoản nguồn chưa thuộc Business Manager nào — không thể chia sẻ.');
+
+        $connector->sharePixel((string) $account->access_token, $pixelId, (string) $account->business_id, $targetAccountId);
+
+        return response()->json(['data' => ['shared' => true]]);
     }
 
     /** GET ad-accounts/{id}/pages/{pageId}/posts */

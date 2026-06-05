@@ -392,7 +392,7 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
     public function listPixels(string $accessToken, string $externalAccountId): array
     {
         $res = Http::timeout(30)->get($this->graphUrl($externalAccountId.'/adspixels'), [
-            'fields' => 'id,name',
+            'fields' => 'id,name,last_fired_time,is_unavailable',
             'access_token' => $accessToken,
             'limit' => 100,
         ]);
@@ -403,7 +403,28 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
         return array_values(array_map(fn (array $p) => new AdPixelDTO(
             id: (string) ($p['id'] ?? ''),
             name: isset($p['name']) ? (string) $p['name'] : (string) ($p['id'] ?? ''),
+            lastFiredTime: isset($p['last_fired_time']) ? (string) $p['last_fired_time'] : null,
+            isUnavailable: isset($p['is_unavailable']) ? (bool) $p['is_unavailable'] : null,
         ), array_filter((array) $res->json('data', []), 'is_array')));
+    }
+
+    /**
+     * Share a pixel with another ad account (Graph shared_accounts edge). The
+     * pixel's owning business + the target account's numeric id are required.
+     */
+    public function sharePixel(string $accessToken, string $pixelId, string $businessId, string $targetAccountId): void
+    {
+        // Graph wants the bare numeric account id (strip the act_ prefix if present).
+        $accountId = str_starts_with($targetAccountId, 'act_') ? substr($targetAccountId, 4) : $targetAccountId;
+
+        $res = Http::timeout(30)->asForm()->post($this->graphUrl($pixelId.'/shared_accounts'), [
+            'business' => $businessId,
+            'account_id' => $accountId,
+            'access_token' => $accessToken,
+        ]);
+        if (! $res->successful()) {
+            throw new \RuntimeException('Facebook Ads sharePixel failed: '.$res->body());
+        }
     }
 
     public function createAd(string $accessToken, string $externalAccountId, AdSpecDTO $spec): string

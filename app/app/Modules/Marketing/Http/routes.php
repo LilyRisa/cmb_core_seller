@@ -64,6 +64,7 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
         // Wizard authoring reads (pages/posts/targeting/preview).
         Route::get('ad-accounts/{id}/pages', [AdAuthoringController::class, 'pages'])->whereNumber('id')->name('marketing.authoring.pages');
         Route::get('ad-accounts/{id}/pixels', [AdAuthoringController::class, 'pixels'])->whereNumber('id')->name('marketing.authoring.pixels');
+        Route::post('ad-accounts/{id}/pixels/{pixelId}/share', [AdAuthoringController::class, 'sharePixel'])->whereNumber('id')->name('marketing.authoring.pixels.share');
         Route::get('ad-accounts/{id}/pages/{pageId}/posts', [AdAuthoringController::class, 'pagePosts'])->whereNumber('id')->name('marketing.authoring.page-posts');
         Route::get('ad-accounts/{id}/targeting-search', [AdAuthoringController::class, 'targetingSearch'])->whereNumber('id')->name('marketing.authoring.targeting-search');
         Route::post('ad-accounts/{id}/audience-estimate', [AdAuthoringController::class, 'audienceEstimate'])->whereNumber('id')->name('marketing.authoring.audience-estimate');

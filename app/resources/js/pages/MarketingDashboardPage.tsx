@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { App as AntApp, Button, Card, Checkbox, Collapse, DatePicker, Dropdown, Empty, Input, InputNumber, List, Popconfirm, Result, Segmented, Select, Space, Spin, Statistic, Table, Tag, Tooltip, Typography } from 'antd';
-import { BulbOutlined, CheckOutlined, CloseOutlined, DisconnectOutlined, EditOutlined, FacebookFilled, FundOutlined, PauseCircleOutlined, PlayCircleOutlined, PlusOutlined, QuestionCircleOutlined, RobotOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
+import { ApiOutlined, BulbOutlined, CheckOutlined, CloseOutlined, DisconnectOutlined, EditOutlined, FacebookFilled, FundOutlined, PauseCircleOutlined, PlayCircleOutlined, PlusOutlined, QuestionCircleOutlined, RobotOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
 import { useAdDrafts, useDeleteDraft, useDuplicateDraft } from '@/lib/adWizard';
 import dayjs, { type Dayjs } from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { CampaignAiInsightDrawer } from '@/pages/marketing/CampaignAiInsightDrawer';
 import { AbComparisonPanel } from '@/pages/marketing/AbComparisonPanel';
+import { PixelManagerDrawer } from '@/pages/marketing/PixelManagerDrawer';
 import { errorMessage } from '@/lib/api';
 import { openOAuthPopup } from '@/lib/oauthPopup';
 import { useCan } from '@/lib/tenant';
@@ -154,6 +155,7 @@ export function MarketingDashboardPage() {
     }), [level, selCampaigns, selAdsets, q, objective, adId]);
     const { data: report, isFetching } = useAdReport(selectedId, level, since, until, filters);
     const [aiCampaign, setAiCampaign] = useState<{ id: string; name: string | null } | null>(null);
+    const [pixelOpen, setPixelOpen] = useState(false);
     const updateEntity = useUpdateAdEntity();
     const bulkDisconnect = useBulkDisconnectAccounts();
     // Inline edit: which cell is being edited + its draft value.
@@ -374,6 +376,7 @@ export function MarketingDashboardPage() {
                 <Space wrap size={12}>
                     <Button type="primary" icon={<FacebookFilled />} loading={connect.isPending} onClick={handleConnect} disabled={!canConnect}>Kết nối Facebook Ads</Button>
                     <Button type="primary" icon={<PlusOutlined />} disabled={selectedId == null} onClick={() => navigate('/marketing/ads/new?accountId=' + selectedId)}>Tạo quảng cáo</Button>
+                    <Button icon={<ApiOutlined />} disabled={selectedId == null} onClick={() => setPixelOpen(true)}>Quản lý Pixel</Button>
                     {bmGroups.length > 0 && (
                         <Select
                             style={{ minWidth: 260 }}
@@ -601,6 +604,12 @@ export function MarketingDashboardPage() {
                 accountId={selectedId}
                 campaign={aiCampaign}
                 onClose={() => setAiCampaign(null)}
+            />
+
+            <PixelManagerDrawer
+                open={pixelOpen}
+                accountId={selectedId}
+                onClose={() => setPixelOpen(false)}
             />
         </div>
     );

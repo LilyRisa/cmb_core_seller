@@ -175,7 +175,12 @@ export function useAdPages(accountId: number | null) {
     });
 }
 
-export interface AdPixel { id: string; name: string }
+export interface AdPixel {
+    id: string;
+    name: string;
+    last_fired_time?: string | null;
+    is_unavailable?: boolean | null;
+}
 
 export function useAdPixels(accountId: number | null, enabled = true) {
     const api = useScopedApi();
@@ -184,6 +189,18 @@ export function useAdPixels(accountId: number | null, enabled = true) {
         queryKey: [KEY, 'pixels', accountId, tenantId],
         enabled: enabled && api != null && accountId != null,
         queryFn: async () => (await api!.get<{ data: AdPixel[] }>(`/marketing/ad-accounts/${accountId}/pixels`)).data.data,
+    });
+}
+
+/** Share a pixel from one ad account to another (same BM). */
+export function useSharePixel() {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async (vars: { accountId: number; pixelId: string; target_account_id: string }) =>
+            (await api!.post<{ data: { shared: boolean } }>(
+                `/marketing/ad-accounts/${vars.accountId}/pixels/${vars.pixelId}/share`,
+                { target_account_id: vars.target_account_id },
+            )).data.data,
     });
 }
 

@@ -40,6 +40,9 @@ interface AdsWriteConnector
     /** @return list<AdPixelDTO> */
     public function listPixels(string $accessToken, string $externalAccountId): array;
 
+    /** Share a pixel with another ad account (by the pixel's owning business + target account). */
+    public function sharePixel(string $accessToken, string $pixelId, string $businessId, string $targetAccountId): void;
+
     /** @return list<PagePostDTO> */
     public function listPagePosts(string $pageAccessToken, string $pageId, int $limit = 25): array;
 
