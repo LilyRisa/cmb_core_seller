@@ -34,6 +34,7 @@ class AdMonitorController extends Controller
     {
         Gate::authorize('marketing.ads.create');
         $account = AdAccount::query()->findOrFail($id);
+        $account->assertAutomationOwner();
         $data = $request->validated();
 
         $monitor = AdMonitor::query()->updateOrCreate(

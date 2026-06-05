@@ -86,6 +86,7 @@ class AdDraftController extends Controller
         Gate::authorize('marketing.ads.create');
         $draft = AdDraft::query()->findOrFail($id);
         $account = AdAccount::query()->findOrFail($draft->ad_account_id);
+        $account->assertAutomationOwner();
 
         $connector = $registry->has($account->provider) ? $registry->for($account->provider) : null;
         abort_unless(

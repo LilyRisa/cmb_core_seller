@@ -76,6 +76,19 @@ class AdAccount extends Model
      */
     public function isAutomationOwner(): bool
     {
+        // Explicit owner (after a take-over) wins — as long as that connection is
+        // still active; otherwise fall back to the earliest active connection.
+        $record = AdAccountAutomation::query()
+            ->where('provider', $this->provider)
+            ->where('external_account_id', $this->external_account_id)
+            ->first();
+        if ($record !== null) {
+            $ownerActive = static::withoutGlobalScope(TenantScope::class)->whereKey($record->owner_ad_account_id)->exists();
+            if ($ownerActive) {
+                return (int) $record->owner_ad_account_id === (int) $this->getKey();
+            }
+        }
+
         $ownerId = static::withoutGlobalScope(TenantScope::class)
             ->where('provider', $this->provider)
             ->where('external_account_id', $this->external_account_id)
@@ -83,6 +96,25 @@ class AdAccount extends Model
             ->value('id');
 
         return $ownerId === null || (int) $ownerId === (int) $this->getKey();
+    }
+
+    /** Transfer automation/write ownership of this FB account to this connection. */
+    public function claimAutomation(): void
+    {
+        AdAccountAutomation::query()->updateOrCreate(
+            ['provider' => $this->provider, 'external_account_id' => $this->external_account_id],
+            ['owner_ad_account_id' => (int) $this->getKey(), 'owner_tenant_id' => (int) $this->tenant_id],
+        );
+    }
+
+    /** 403 unless this connection owns automation/writes for the FB account. */
+    public function assertAutomationOwner(): void
+    {
+        abort_unless(
+            $this->isAutomationOwner(),
+            403,
+            'Tài khoản này đang được shop khác sở hữu tự động hoá/chỉnh sửa. Hãy "Tiếp quản quyền" trước khi sửa hoặc xuất bản.',
+        );
     }
 
     /** True if another tenant has this same FB ad account connected. */

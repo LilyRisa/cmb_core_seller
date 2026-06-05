@@ -56,6 +56,7 @@ class AdAuthoringController extends Controller
         Gate::authorize('marketing.ads.create');
         [$account, $connector] = $this->resolve($id);
 
+        $account->assertAutomationOwner();
         $targetAccountId = (string) $request->input('target_account_id', '');
         abort_if($targetAccountId === '', 422, 'Thiếu tài khoản quảng cáo đích.');
         abort_if(($account->business_id ?? '') === '', 422, 'Pixel/tài khoản nguồn chưa thuộc Business Manager nào — không thể chia sẻ.');

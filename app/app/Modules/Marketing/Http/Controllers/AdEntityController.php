@@ -39,6 +39,7 @@ class AdEntityController extends Controller
         $connector = $registry->has($account->provider) ? $registry->for($account->provider) : null;
         abort_unless($connector instanceof AdsWriteConnector, 422, 'Tính năng chỉnh sửa chưa được bật cho nhà cung cấp này.');
         abort_unless($connector->supports('actions.budget') || $connector->supports('actions.status'), 422, 'Nhà cung cấp không hỗ trợ chỉnh sửa.');
+        $account->assertAutomationOwner();
 
         $fields = array_intersect_key($validated, array_flip(['name', 'daily_budget_major', 'status']));
         abort_if($fields === [], 422, 'Không có trường nào để cập nhật.');

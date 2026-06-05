@@ -158,6 +158,17 @@ export function useDisconnectAdAccount() {
     });
 }
 
+/** Take over automation/write ownership of an ad account shared across tenants. */
+export function useClaimAutomation() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: number) =>
+            (await api!.post<{ data: { is_automation_owner: boolean } }>(`/marketing/ad-accounts/${id}/claim-automation`)).data.data,
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['marketing', 'ad-accounts'] }),
+    });
+}
+
 /** Disconnect many accounts at once — by ids and/or a whole BM (business_id). */
 export function useBulkDisconnectAccounts() {
     const api = useScopedApi();

@@ -76,6 +76,16 @@ class AdAccountController extends Controller
         return response()->json(['data' => ['deleted' => $count]]);
     }
 
+    /** POST /api/v1/marketing/ad-accounts/{id}/claim-automation — take over automation/write ownership. */
+    public function claimAutomation(int $id): JsonResponse
+    {
+        Gate::authorize('marketing.connect');
+        $account = AdAccount::query()->findOrFail($id);
+        $account->claimAutomation();
+
+        return response()->json(['data' => ['is_automation_owner' => true]]);
+    }
+
     /** POST /api/v1/marketing/ad-accounts/{id}/refresh — kick a near-real-time insights sync now. */
     public function refresh(int $id): JsonResponse
     {

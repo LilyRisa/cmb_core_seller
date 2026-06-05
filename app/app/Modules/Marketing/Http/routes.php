@@ -39,6 +39,8 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
             ->name('marketing.ad-accounts.disconnect-bulk');
         Route::post('ad-accounts/{id}/refresh', [AdAccountController::class, 'refresh'])
             ->whereNumber('id')->name('marketing.ad-accounts.refresh');
+        Route::post('ad-accounts/{id}/claim-automation', [AdAccountController::class, 'claimAutomation'])
+            ->whereNumber('id')->name('marketing.ad-accounts.claim-automation');
 
         // Dashboard insights (account summary + entity tree with latest metrics).
         Route::get('ad-accounts/{id}/insights', [AdInsightController::class, 'index'])

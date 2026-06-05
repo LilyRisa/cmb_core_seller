@@ -21,7 +21,7 @@ import { useCan } from '@/lib/tenant';
 import {
     type ReconRow, type ReportLevel, type ReportRow,
     useAdAccounts, useAdForecast, useAdMonitors, useAdReconciliation, useAdReport,
-    useConnectFacebookAds, useGenerateForecast, useRefreshAdInsights,
+    useClaimAutomation, useConnectFacebookAds, useGenerateForecast, useRefreshAdInsights,
     useSaveReport, useUpdateAdEntity,
 } from '@/lib/marketing';
 
@@ -176,6 +176,7 @@ export function MarketingDashboardPage() {
     const [connOpen, setConnOpen] = useState(false);
     const saveReport = useSaveReport();
     const updateEntity = useUpdateAdEntity();
+    const claimAutomation = useClaimAutomation();
     const [monitorTarget, setMonitorTarget] = useState<MonitorTarget | null>(null);
     const { data: monitors } = useAdMonitors(selectedId);
     // Sets of monitored external ids by level (for indicators + adset override note).
@@ -482,13 +483,26 @@ export function MarketingDashboardPage() {
                 </Space>
             </Card>
 
-            {sharedNotOwner && (
+            {sharedNotOwner && selectedId != null && (
                 <Alert
                     type="warning"
                     showIcon
                     style={{ marginBottom: 16 }}
                     message="Tài khoản quảng cáo này cũng được kết nối ở shop khác"
-                    description="Để tránh xung đột (giám sát tự động tăng/tạm dừng chồng nhau), chỉ shop kết nối ĐẦU TIÊN mới tự động hoá & chỉnh sửa. Ở shop này nên dùng để XEM báo cáo; giám sát/sửa sẽ không tự chạy."
+                    description="Để tránh xung đột (giám sát tự động tăng/tạm dừng chồng nhau), chỉ shop SỞ HỮU mới tự động hoá & chỉnh sửa/xuất bản. Ở shop này hiện chỉ XEM được; nếu muốn quản lý từ đây, hãy tiếp quản quyền."
+                    action={
+                        <Popconfirm
+                            title="Tiếp quản quyền tự động hoá?"
+                            description="Shop kia sẽ mất quyền tự động hoá/chỉnh sửa tài khoản này."
+                            okText="Tiếp quản" cancelText="Huỷ"
+                            onConfirm={() => claimAutomation.mutate(selectedId, {
+                                onSuccess: () => message.success('Đã tiếp quản quyền cho shop này.'),
+                                onError: (e) => message.error(errorMessage(e)),
+                            })}
+                        >
+                            <Button size="small" type="primary" loading={claimAutomation.isPending}>Tiếp quản quyền</Button>
+                        </Popconfirm>
+                    }
                 />
             )}
 
