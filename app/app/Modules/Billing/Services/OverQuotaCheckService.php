@@ -54,8 +54,9 @@ class OverQuotaCheckService
 
     /**
      * Tenant có vượt mức ở BẤT KỲ resource nào trong `config('billing.quota_resources')`?
+     * Bao gồm cả vượt hạn mức MỖI nền tảng sau khi hạ gói (SPEC 0032).
      *
-     * @return list<array{resource:string, used:int, limit:int, over:bool}>
+     * @return list<array{resource:string, used:int, limit:int, over:bool, provider?:string}>
      */
     public function overResources(Subscription $sub): array
     {
@@ -65,6 +66,19 @@ class OverQuotaCheckService
             $r = $this->checkResource($sub, (string) $resource);
             if ($r !== null && $r['over']) {
                 $over[] = $r;
+            }
+        }
+
+        // SPEC 0032 — hạ gói có thể khiến số gian hàng MỖI nền tảng vượt mức (vd starter cho 2/nền tảng,
+        // shop đang có 3 tiktok). Báo từng nền tảng vượt ⇒ EnforcePlanQuotaLock chặn xử lý đơn.
+        $plan = $sub->plan;
+        $perPlatform = $plan?->maxChannelAccountsPerPlatform() ?? -1;
+        if ($perPlatform >= 0) {
+            foreach (['tiktok', 'shopee', 'lazada'] as $provider) {
+                $used = $this->usage->channelAccountsForProvider((int) $sub->tenant_id, $provider);
+                if ($used > $perPlatform) {
+                    $over[] = ['resource' => 'channel_accounts', 'provider' => $provider, 'used' => $used, 'limit' => $perPlatform, 'over' => true];
+                }
             }
         }
 
