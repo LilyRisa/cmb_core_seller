@@ -924,6 +924,39 @@ body > #app > .ant-app > .ant-layout,
     display: none !important;
 }
 
+/* Submenu (vd "Tin nhắn"): tiêu đề CẤP CHA canh BẰNG các mục anh em (12px), mục
+   CẤP CON thụt VÀO trong. Trước đây bị NGƯỢC vì `.ant-menu-item` bị ép 12px còn
+   `.ant-menu-submenu-title` giữ inline-indent mặc định (sâu hơn). */
+.ant-layout-sider .ant-menu-inline .ant-menu-submenu-title {
+    color: var(--ink-700) !important;
+    border-radius: var(--radius-sm) !important;
+    margin: 2px 0 !important;
+    padding-inline: 12px !important;
+    height: 36px !important;
+    line-height: 36px !important;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+.ant-layout-sider .ant-menu-inline .ant-menu-submenu-title .anticon {
+    color: var(--ink-500) !important;
+    font-size: 15px !important;
+}
+.ant-layout-sider .ant-menu-inline .ant-menu-submenu-title:hover {
+    background: var(--blue-50) !important;
+    color: var(--blue-700) !important;
+}
+.ant-layout-sider .ant-menu-inline .ant-menu-submenu-title:hover .anticon {
+    color: var(--blue-600) !important;
+}
+.ant-layout-sider .ant-menu-inline .ant-menu-submenu-selected > .ant-menu-submenu-title,
+.ant-layout-sider .ant-menu-inline .ant-menu-submenu-selected > .ant-menu-submenu-title .anticon {
+    color: var(--blue-600) !important;
+}
+/* Mục cấp con của submenu — thụt VÀO so với tiêu đề cha (căn dưới chữ, qua khỏi icon).
+   Specificity cao hơn rule `.ant-menu-item { padding-inline:12px }` ở trên + !important. */
+.ant-layout-sider .ant-menu-inline .ant-menu-sub.ant-menu-inline .ant-menu-item {
+    padding-inline-start: 32px !important;
+}
+
 /* Collapsed sider */
 .ant-layout-sider-collapsed .ant-menu-inline-collapsed .ant-menu-item {
     padding-inline: 0 !important;
