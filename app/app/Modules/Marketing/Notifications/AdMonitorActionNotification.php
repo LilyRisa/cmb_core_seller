@@ -43,7 +43,7 @@ class AdMonitorActionNotification extends Notification implements ShouldQueue
 
         return (new MailMessage)
             ->subject("[{$brand}] Giám sát quảng cáo đã thực hiện ".count($this->actions).' hành động')
-            ->view(['notifications::marketing-monitor-action'], [
+            ->view('notifications::marketing-monitor-action', [
                 'account' => $this->account,
                 'actions' => $this->actions,
                 'currency' => $this->account->currency,

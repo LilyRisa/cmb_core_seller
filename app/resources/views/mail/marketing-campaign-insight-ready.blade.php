@@ -1,15 +1,22 @@
 @php
+    $score = $payload['score'] ?? null;
     $summary = $payload['summary'] ?? null;
     $assessment = $payload['assessment'] ?? null;
     $recs = $payload['recommendations'] ?? [];
     $review = $payload['creative_review'] ?? [];
     $days = $params['days'] ?? null;
+    // Build inline-conditional text here: Blade @directives glued to a preceding
+    // word char (e.g. "sàng@if") are NOT compiled, so we echo plain strings instead.
+    $when = trim(($generatedAt ? '(lúc ' . $generatedAt->format('H:i d/m/Y') . ')' : '') . ($days ? ' · ' . $days . ' ngày gần nhất' : ''));
 @endphp
 <h2>Phân tích AI chiến dịch — {{ $campaignName }}</h2>
 <p>
-    Phân tích AI cho chiến dịch của bạn đã sẵn sàng@if($generatedAt) (lúc {{ $generatedAt->format('H:i d/m/Y') }})@endif@if($days) · {{ $days }} ngày gần nhất@endif.
+    Phân tích AI cho chiến dịch của bạn đã sẵn sàng{{ $when ? ' ' . $when : '' }}.
     Tài khoản: <b>{{ $account->name ?? $account->external_account_id }}</b>.
 </p>
+@if($score !== null)
+    <p>Điểm hiệu quả tổng thể: <b>{{ $score }}/100</b>.</p>
+@endif
 
 @if($summary)
     <h3>Tổng quan</h3>

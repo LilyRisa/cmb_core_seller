@@ -42,7 +42,7 @@ class MarketingForecastReadyNotification extends Notification implements ShouldQ
 
         return (new MailMessage)
             ->subject("[{$brand}] Báo cáo quảng cáo đã sẵn sàng")
-            ->view(['notifications::marketing-forecast-ready'], [
+            ->view('notifications::marketing-forecast-ready', [
                 'account' => $this->account,
                 'payload' => (array) $this->forecast->payload,
                 'generatedAt' => $this->forecast->generated_at,

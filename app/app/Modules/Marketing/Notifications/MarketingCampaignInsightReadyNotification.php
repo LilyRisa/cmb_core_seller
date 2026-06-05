@@ -46,7 +46,7 @@ class MarketingCampaignInsightReadyNotification extends Notification implements 
 
         return (new MailMessage)
             ->subject("[{$brand}] Phân tích AI chiến dịch: {$label}")
-            ->view(['notifications::marketing-campaign-insight-ready'], [
+            ->view('notifications::marketing-campaign-insight-ready', [
                 'account' => $this->account,
                 'campaignName' => $label,
                 'payload' => (array) $this->insight->payload,

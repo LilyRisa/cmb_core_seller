@@ -3,9 +3,11 @@
     $strategy = $payload['strategy'] ?? [];
     $review = $payload['creative_review'] ?? [];
     $fmt = fn ($n) => number_format((int) $n, 0, ',', '.');
+    // Echo as a plain string: a Blade @if glued to "sàng" would not compile.
+    $when = $generatedAt ? ' (lúc ' . $generatedAt->format('H:i d/m/Y') . ')' : '';
 @endphp
 <h2>Báo cáo quảng cáo — {{ $account->name ?? $account->external_account_id }}</h2>
-<p>Báo cáo AI cho tài khoản quảng cáo của bạn đã sẵn sàng@if($generatedAt) (lúc {{ $generatedAt->format('H:i d/m/Y') }})@endif.</p>
+<p>Báo cáo AI cho tài khoản quảng cáo của bạn đã sẵn sàng{{ $when }}.</p>
 
 <h3>Dự báo 7 ngày tới</h3>
 <ul>

@@ -31,8 +31,14 @@ class MarketingForecastNotificationTest extends TestCase
         $mail = (new MarketingForecastReadyNotification($account, $forecast))->toMail(new \stdClass);
 
         $this->assertStringContainsString('Báo cáo quảng cáo', $mail->subject);
-        $this->assertSame('notifications::marketing-forecast-ready', $mail->view[0]);
+        // Must be a STRING view — a single-element array view ['x'] makes Laravel's
+        // Mailer::parseView() read $view[1] → "Undefined array key 1" and the mail never sends.
+        $this->assertIsString($mail->view);
+        $this->assertSame('notifications::marketing-forecast-ready', $mail->view);
         $this->assertSame($account->id, $mail->viewData['account']->id);
         $this->assertArrayHasKey('payload', $mail->viewData);
+        // Render to prove the template compiles with this data (end-to-end guard).
+        $html = view($mail->view, $mail->viewData)->render();
+        $this->assertStringContainsString('Dự báo 7 ngày', $html);
     }
 }
