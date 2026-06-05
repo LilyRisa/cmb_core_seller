@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    Alert, App as AntApp, Button, Card, Col, Input, Modal, Radio, Row, Segmented, Space, Tag, Typography,
+    Alert, App as AntApp, Button, Card, Col, Input, InputNumber, Modal, Radio, Row, Segmented, Space, Tag, Typography,
 } from 'antd';
-import { ArrowLeftOutlined, CheckOutlined, CrownOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, CheckOutlined, CrownOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
 import {
-    useCheckout, usePlans, useSubscription, useValidateVoucher, type Plan, type PlanCode, type VoucherPreview,
+    useBuyAiCredits, useCheckout, usePlans, useSubscription, useValidateVoucher, type Plan, type PlanCode, type VoucherPreview,
 } from '@/lib/billing';
 
 const { Title, Text, Paragraph } = Typography;
@@ -135,6 +135,8 @@ export function PlansPage() {
                         );
                     })}
                 </Row>
+
+                <AiCreditsBlock gateway={gateway} onPaid={(p) => setPay(p)} />
             </div>
 
             <Modal title="Thanh toán" open={pay !== null} onCancel={() => setPay(null)} footer={null}>
@@ -143,5 +145,52 @@ export function PlansPage() {
                     : <Paragraph>Hoá đơn đã tạo. Vào <b>Cài đặt → Gói &amp; thanh toán</b> để xem trạng thái.</Paragraph>}
             </Modal>
         </div>
+    );
+}
+
+function AiCreditsBlock({ gateway, onPaid }: { gateway: 'sepay' | 'vnpay'; onPaid: (p: { url?: string; qr?: string }) => void }) {
+    const { message } = AntApp.useApp();
+    const { data } = useSubscription();
+    const buy = useBuyAiCredits();
+    const ai = data?.usage?.ai_credits;
+    const [amount, setAmount] = useState(500);
+
+    if (!ai?.enabled || ai.unlimited) return null;
+
+    const remainingBuyable = Math.max(0, 5000 - ai.purchased_balance);
+    const price = amount * 100;
+
+    const doBuy = () => {
+        buy.mutate({ amount, gateway }, {
+            onSuccess: (res) => {
+                const url = res.checkout?.redirect_url;
+                if (url) { window.location.href = url; return; }
+                onPaid({ url, qr: res.checkout?.qr_url });
+                message.success('Đã tạo hoá đơn mua lượt AI — thanh toán để cộng lượt.');
+            },
+            onError: (e) => message.error(errorMessage(e, 'Không mua được lượt AI.')),
+        });
+    };
+
+    return (
+        <Card style={{ marginTop: 16 }} title={<Space><ThunderboltOutlined style={{ color: '#722ed1' }} />Mua thêm lượt gọi AI</Space>}>
+            <Paragraph type="secondary" style={{ marginBottom: 12 }}>
+                Lượt mua là vĩnh viễn, cộng dồn tối đa 5000 (đang có {ai.purchased_balance}). Giá 100đ/lượt.
+                Chỉ dùng được khi gói có AI còn hiệu lực.
+            </Paragraph>
+            {remainingBuyable === 0 ? (
+                <Alert type="info" showIcon message="Bạn đã đạt tối đa 5000 lượt đã mua." />
+            ) : (
+                <Space wrap size={12}>
+                    <InputNumber
+                        min={500} max={remainingBuyable} step={100} value={amount}
+                        onChange={(v) => setAmount(Math.max(500, Math.min(remainingBuyable, Math.round(Number(v ?? 500) / 100) * 100)))}
+                        addonAfter="lượt" style={{ width: 160 }}
+                    />
+                    <Text strong>= {price.toLocaleString('vi-VN')}đ</Text>
+                    <Button type="primary" loading={buy.isPending} onClick={doBuy}>Mua lượt AI</Button>
+                </Space>
+            )}
+        </Card>
     );
 }

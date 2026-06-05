@@ -19,6 +19,8 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])->prefix('api/v1
     Route::get('subscription', [BillingController::class, 'subscription'])->name('billing.subscription');
     Route::get('usage', [BillingController::class, 'usage'])->name('billing.usage');
     Route::post('checkout', [BillingController::class, 'checkout'])->middleware('throttle:10,1')->name('billing.checkout');
+    // SPEC 0032 — mua thêm lượt gọi AI.
+    Route::post('ai-credits/checkout', [BillingController::class, 'aiCreditsCheckout'])->middleware('throttle:10,1')->name('billing.ai-credits.checkout');
     // SPEC 0023 — user preview discount khi gõ mã ưu đãi ở /settings/plan.
     Route::post('vouchers/validate', [BillingController::class, 'validateVoucher'])
         ->middleware('throttle:30,1')->name('billing.vouchers.validate');

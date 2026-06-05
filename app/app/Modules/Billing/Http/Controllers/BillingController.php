@@ -155,6 +155,41 @@ class BillingController extends Controller
         }
     }
 
+    /** POST /billing/ai-credits/checkout — mua thêm lượt gọi AI (SPEC 0032). */
+    public function aiCreditsCheckout(Request $request): JsonResponse
+    {
+        abort_unless($request->user()?->can('billing.manage'), 403, 'Chỉ chủ shop được thanh toán.');
+        $data = $request->validate([
+            'amount' => ['required', 'integer', 'min:500', 'max:5000'],
+            'gateway' => ['required', 'string', 'in:sepay,vnpay,momo'],
+        ]);
+
+        if (! $this->payments->has($data['gateway'])) {
+            return response()->json(['error' => ['code' => 'GATEWAY_UNAVAILABLE', 'message' => 'Cổng thanh toán chưa được bật. Vui lòng chọn cổng khác.']], 422);
+        }
+
+        $tenantId = (int) $this->tenant->id();
+        $invoice = $this->billing->createAiCreditInvoice($tenantId, (int) $data['amount']);
+
+        try {
+            $session = $this->payments->for($data['gateway'])->checkout(new PaymentCheckoutRequest(
+                tenantId: $tenantId,
+                invoiceId: (int) $invoice->getKey(),
+                reference: $invoice->code,
+                amount: (int) $invoice->total,
+                description: "Mua {$data['amount']} lượt AI — {$invoice->code}",
+            ));
+
+            return response()->json(['data' => [
+                'invoice' => (new InvoiceResource($invoice->load('lines')))->toArray($request),
+                'gateway' => $data['gateway'],
+                'checkout' => $session->toArray(),
+            ]], 201);
+        } catch (GatewayNotConfigured|UnsupportedOperation $e) {
+            return response()->json(['error' => ['code' => 'GATEWAY_UNAVAILABLE', 'message' => $e->getMessage()]], 422);
+        }
+    }
+
     /**
      * POST /billing/vouchers/validate — preview discount khi user gõ code ở /settings/plan.
      * Trả `{ valid, discount, total_after, code, name }` hoặc 422 với code envelope.

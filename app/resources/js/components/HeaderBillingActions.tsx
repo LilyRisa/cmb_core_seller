@@ -15,17 +15,21 @@ export function HeaderBillingActions() {
 
     return (
         <Space size={8}>
-            {ai?.enabled && (
-                <Tooltip
-                    title={ai.unlimited
-                        ? 'Lượt gọi AI không giới hạn'
-                        : `Đã dùng ${ai.period_used}/${ai.monthly_allowance} lượt tặng${ai.purchased_balance > 0 ? ` · còn ${ai.purchased_balance} lượt đã mua` : ''}`}
-                >
-                    <Tag icon={<ThunderboltOutlined />} color="purple" style={{ margin: 0 }}>
-                        {ai.unlimited ? 'AI ∞' : `AI ${ai.period_used}/${ai.monthly_allowance}${ai.purchased_balance > 0 ? `+${ai.purchased_balance}` : ''}`}
-                    </Tag>
-                </Tooltip>
-            )}
+            {ai?.enabled && (() => {
+                const total = ai.monthly_allowance + ai.purchased_balance;
+                const used = Math.max(0, total - (ai.available ?? total));
+                return (
+                    <Tooltip
+                        title={ai.unlimited
+                            ? 'Lượt gọi AI không giới hạn'
+                            : `Đã gọi ${used}/${total} lượt AI kỳ này · tặng ${ai.monthly_allowance} + đã mua ${ai.purchased_balance} · còn ${ai.available ?? 0}`}
+                    >
+                        <Tag icon={<ThunderboltOutlined />} color="purple" style={{ margin: 0 }}>
+                            {ai.unlimited ? 'Lượt AI ∞' : `Lượt AI ${used}/${total}`}
+                        </Tag>
+                    </Tooltip>
+                );
+            })()}
 
             <Link to="/plans">
                 <Button size="small" type="primary" ghost icon={<CrownOutlined />}>Mua / Gia hạn gói</Button>

@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Billing\Services;
 use CMBcoreSeller\Modules\Billing\Models\Invoice;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
+// AiCreditService same module — used to credit AI-pack invoices on payment.
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Support\Facades\DB;
 
@@ -22,8 +23,23 @@ use Illuminate\Support\Facades\DB;
  */
 class ActivateSubscriptionService
 {
+    public function __construct(protected AiCreditService $aiCredits) {}
+
     public function activate(Invoice $invoice): ?Subscription
     {
+        // SPEC 0032 — hoá đơn MUA lượt AI ⇒ cộng credit (idempotent qua meta flag), KHÔNG đổi gói.
+        $creditAmount = (int) ($invoice->meta['ai_credits'] ?? 0);
+        if ($creditAmount > 0) {
+            if (empty($invoice->meta['ai_credits_granted_at'])) {
+                $this->aiCredits->grantPurchase((int) $invoice->tenant_id, $creditAmount);
+                $invoice->forceFill([
+                    'meta' => array_merge((array) $invoice->meta, ['ai_credits_granted_at' => now()->toIso8601String()]),
+                ])->save();
+            }
+
+            return null;
+        }
+
         $planCode = (string) ($invoice->meta['plan_code'] ?? '');
         $cycle = (string) ($invoice->meta['cycle'] ?? Subscription::CYCLE_MONTHLY);
         if ($planCode === '') {

@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Billing\Services;
 
+use CMBcoreSeller\Modules\Billing\Models\AiCreditWallet;
 use CMBcoreSeller\Modules\Billing\Models\Invoice;
 use CMBcoreSeller\Modules\Billing\Models\InvoiceLine;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
@@ -19,6 +20,7 @@ class BillingService
     public function __construct(
         protected SubscriptionService $subscriptions,
         protected VoucherService $vouchers,
+        protected AiCreditService $aiCredits,
     ) {}
 
     /**
@@ -144,6 +146,56 @@ class BillingService
                 $this->vouchers->redeemAtCheckout($voucher, $invoice, $userId);
                 $invoice->refresh();
             }
+
+            return $invoice->fresh(['lines']);
+        });
+    }
+
+    /**
+     * Hoá đơn MUA thêm lượt gọi AI (SPEC 0032): tối thiểu 500, bước 100, tổng đã mua ≤ 5000,
+     * 100đ/lượt. Cần đang dùng gói có AI. Khi paid ⇒ {@see ActivateSubscriptionService} cộng credit.
+     */
+    public function createAiCreditInvoice(int $tenantId, int $amount): Invoice
+    {
+        return DB::transaction(function () use ($tenantId, $amount): Invoice {
+            if (! $this->aiCredits->aiEnabled($tenantId)) {
+                throw ValidationException::withMessages(['amount' => 'Cần đang dùng gói trả phí có AI để mua thêm lượt.']);
+            }
+            if ($amount < AiCreditWallet::PURCHASE_MIN || $amount % AiCreditWallet::PURCHASE_STEP !== 0) {
+                throw ValidationException::withMessages(['amount' => 'Số lượt mua tối thiểu '.AiCreditWallet::PURCHASE_MIN.', bước '.AiCreditWallet::PURCHASE_STEP.'.']);
+            }
+            $balance = $this->aiCredits->wallet($tenantId)->purchased_balance;
+            if ($balance + $amount > AiCreditWallet::PURCHASE_MAX_BALANCE) {
+                throw ValidationException::withMessages(['amount' => 'Tổng lượt đã mua tối đa '.AiCreditWallet::PURCHASE_MAX_BALANCE.' (đang có '.$balance.').']);
+            }
+
+            $pricePerCredit = 100;
+            $subtotal = $amount * $pricePerCredit;
+            $now = now();
+
+            $invoice = Invoice::query()->create([
+                'tenant_id' => $tenantId,
+                'subscription_id' => $this->subscriptions->currentFor($tenantId)?->getKey() ?? 0,
+                'code' => Invoice::nextCode($tenantId),
+                'status' => Invoice::STATUS_PENDING,
+                'period_start' => $now->format('Y-m-d'),
+                'period_end' => $now->format('Y-m-d'),
+                'subtotal' => $subtotal,
+                'tax' => 0,
+                'total' => $subtotal,
+                'currency' => 'VND',
+                'due_at' => $now->copy()->addDays(7),
+                'meta' => ['ai_credits' => $amount],
+            ]);
+
+            InvoiceLine::query()->create([
+                'invoice_id' => $invoice->getKey(),
+                'kind' => InvoiceLine::KIND_ADDON,
+                'description' => "Mua {$amount} lượt gọi AI",
+                'quantity' => $amount,
+                'unit_price' => $pricePerCredit,
+                'amount' => $subtotal,
+            ]);
 
             return $invoice->fresh(['lines']);
         });

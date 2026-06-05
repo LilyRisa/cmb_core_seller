@@ -181,6 +181,20 @@ export function useCheckout() {
     });
 }
 
+/** Mua thêm lượt gọi AI (min 500, bước 100, tối đa 5000 tổng đã mua, 100đ/lượt). */
+export function useBuyAiCredits() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    const tenantId = useCurrentTenantId();
+    return useMutation({
+        mutationFn: async (vars: { amount: number; gateway: 'sepay' | 'vnpay' }) => {
+            const { data } = await api!.post<{ data: CheckoutResult }>('/billing/ai-credits/checkout', vars);
+            return data.data;
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['billing', tenantId] }),
+    });
+}
+
 /** Kiểm tra mã giảm giá (preview chiết khấu cho 1 gói/chu kỳ). */
 export function useValidateVoucher() {
     const api = useScopedApi();
