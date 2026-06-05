@@ -74,6 +74,8 @@ export function AdWizardPage() {
     const copyAdSet = useDraftStore((s) => s.copyAdSet);
     const pasteClipboard = useDraftStore((s) => s.pasteClipboard);
     const duplicateAdSet = useDraftStore((s) => s.duplicateAdSet);
+    const copyAd = useDraftStore((s) => s.copyAd);
+    const duplicateAd = useDraftStore((s) => s.duplicateAd);
 
     // Mutations
     const createDraft = useCreateDraft();
@@ -149,8 +151,9 @@ export function AdWizardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [dirty, storeDraftId, name, objective, payload]);
 
-    // Clone shortcuts: Ctrl/Cmd+C copy selected ad set, Ctrl/Cmd+V paste (clone),
-    // Ctrl/Cmd+D duplicate. Ignored while typing in a field or when text is selected.
+    // Clone shortcuts: Ctrl/Cmd+C copy, +V paste (clone), +D duplicate.
+    // On the Nội dung step (4) they target the focused AD; elsewhere the AD SET.
+    // Ignored while typing in a field or when text is selected.
     useEffect(() => {
         function onKey(e: KeyboardEvent) {
             if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
@@ -158,23 +161,38 @@ export function AdWizardPage() {
             if (t != null && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
             const k = e.key.toLowerCase();
             const hasTextSelection = (window.getSelection()?.toString() ?? '') !== '';
-            if (k === 'c' && !hasTextSelection && selectedAdSetKey != null) {
-                copyAdSet(selectedAdSetKey);
-                message.success('Đã sao chép nhóm quảng cáo — Ctrl+V để dán.');
-                e.preventDefault();
-            } else if (k === 'v' && useDraftStore.getState().clipboard != null) {
+            const { step: curStep, selectedAdKey, selectedAdSetKey: adsetKey, clipboard } = useDraftStore.getState();
+            const adMode = curStep === 4 && adsetKey != null && selectedAdKey != null;
+
+            if (k === 'c' && !hasTextSelection) {
+                if (adMode) {
+                    copyAd(adsetKey!, selectedAdKey!);
+                    message.success('Đã sao chép quảng cáo — Ctrl+V để dán.');
+                    e.preventDefault();
+                } else if (adsetKey != null) {
+                    copyAdSet(adsetKey);
+                    message.success('Đã sao chép nhóm quảng cáo — Ctrl+V để dán.');
+                    e.preventDefault();
+                }
+            } else if (k === 'v' && clipboard != null) {
                 pasteClipboard();
-                message.success('Đã dán bản sao nhóm quảng cáo.');
+                message.success(clipboard.kind === 'ad' ? 'Đã dán bản sao quảng cáo.' : 'Đã dán bản sao nhóm quảng cáo.');
                 e.preventDefault();
-            } else if (k === 'd' && selectedAdSetKey != null) {
-                duplicateAdSet(selectedAdSetKey);
-                message.success('Đã nhân bản nhóm quảng cáo.');
-                e.preventDefault();
+            } else if (k === 'd') {
+                if (adMode) {
+                    duplicateAd(adsetKey!, selectedAdKey!);
+                    message.success('Đã nhân bản quảng cáo.');
+                    e.preventDefault();
+                } else if (adsetKey != null) {
+                    duplicateAdSet(adsetKey);
+                    message.success('Đã nhân bản nhóm quảng cáo.');
+                    e.preventDefault();
+                }
             }
         }
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [selectedAdSetKey, copyAdSet, pasteClipboard, duplicateAdSet, message]);
+    }, [copyAdSet, pasteClipboard, duplicateAdSet, copyAd, duplicateAd, message]);
 
     // Auto-open tour on first visit
     useEffect(() => {

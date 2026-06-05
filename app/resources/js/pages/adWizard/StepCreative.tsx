@@ -313,6 +313,7 @@ export function StepCreative() {
     const addAd = useDraftStore((s) => s.addAd);
     const removeAd = useDraftStore((s) => s.removeAd);
     const duplicateAd = useDraftStore((s) => s.duplicateAd);
+    const selectAdInStore = useDraftStore((s) => s.selectAd);
 
     const adset = adsets.find((a) => a.key === selectedAdSetKey);
 
@@ -338,6 +339,19 @@ export function StepCreative() {
             return adset.ads[0].key;
         });
     }, [adset]);
+
+    // Mirror the focused ad into the store so wizard-level Ctrl+C/V/D can target it.
+    useEffect(() => {
+        if (adset == null || adset.ads.length === 0) {
+            selectAdInStore(null);
+            return;
+        }
+        const eff = selectedAdKey != null && adset.ads.some((d) => d.key === selectedAdKey)
+            ? selectedAdKey
+            : adset.ads[0].key;
+        selectAdInStore(eff);
+        return () => selectAdInStore(null);
+    }, [adset, selectedAdKey, selectAdInStore]);
 
     if (adset == null) {
         return (

@@ -63,6 +63,7 @@ type WizardState = {
     payload: AdDraftPayload;
     adsets: AdSetNode[];
     selectedAdSetKey: string | null;
+    selectedAdKey: string | null;
     clipboard: ClipboardItem | null;
     dirty: boolean;
 };
@@ -77,6 +78,7 @@ type WizardActions = {
     patchCreative: (patch: Partial<NonNullable<AdDraftPayload['creative']>>) => void;
     // Tree actions
     selectAdSet: (key: string) => void;
+    selectAd: (key: string | null) => void;
     addAdSet: () => void;
     removeAdSet: (key: string) => void;
     updateAdSet: (key: string, patch: Partial<AdSetNode>) => void;
@@ -101,7 +103,7 @@ function mergeTree(s: WizardState, adsets: AdSetNode[]): Partial<WizardState> {
 }
 
 export const useDraftStore = create<WizardState & WizardActions>()((set) => ({
-    draftId: null, accountId: null, step: 0, name: '', objective: null, payload: {}, adsets: [], selectedAdSetKey: null, clipboard: null, dirty: false,
+    draftId: null, accountId: null, step: 0, name: '', objective: null, payload: {}, adsets: [], selectedAdSetKey: null, selectedAdKey: null, clipboard: null, dirty: false,
     load: (d) => {
         const adsets = normalizeAdSets(d.payload ?? {});
         set({ draftId: d.id, accountId: d.accountId, name: d.name ?? '', objective: d.objective, payload: d.payload ?? {}, adsets, selectedAdSetKey: adsets[0]?.key ?? null, dirty: false, step: 0 });
@@ -116,6 +118,7 @@ export const useDraftStore = create<WizardState & WizardActions>()((set) => ({
     patchPayload: (patch) => set((s) => ({ payload: { ...s.payload, ...patch }, dirty: true })),
     patchCreative: (patch) => set((s) => ({ payload: { ...s.payload, creative: { ...s.payload.creative, ...patch } }, dirty: true })),
     selectAdSet: (key) => set({ selectedAdSetKey: key }),
+    selectAd: (key) => set({ selectedAdKey: key }),
     addAdSet: () => set((s) => {
         const node = emptyAdSet(s.adsets.length + 1);
         const adsets = [...s.adsets, node];
