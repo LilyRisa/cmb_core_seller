@@ -702,6 +702,63 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
         return $out;
     }
 
+    /**
+     * Resolve each existing-post ad's destination URL from the page-post call-to-action.
+     * The ad creative of a boosted/existing-post ad exposes no link (object_story_spec is
+     * empty), so the URL must be read from the post's `call_to_action.value.link` using a
+     * Page access token (needs pages_show_list + pages_read_engagement). Batched per page.
+     *
+     * @param  list<string>  $postIds  "<page_id>_<post_id>"
+     * @return array<string,string> postId => destination URL
+     */
+    public function fetchPostLinks(string $accessToken, array $postIds): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('strval', $postIds), fn ($s) => $s !== '')));
+        if ($ids === []) {
+            return [];
+        }
+
+        // page_id => page access token
+        $pageTokens = [];
+        foreach ($this->listPages($accessToken) as $page) {
+            if ($page->accessToken !== '') {
+                $pageTokens[$page->id] = $page->accessToken;
+            }
+        }
+
+        // Group posts by their owning page so each page token batches its own posts.
+        $byPage = [];
+        foreach ($ids as $postId) {
+            $pageId = explode('_', $postId)[0];
+            if (isset($pageTokens[$pageId])) {
+                $byPage[$pageId][] = $postId;
+            }
+        }
+
+        $out = [];
+        foreach ($byPage as $pageId => $posts) {
+            $res = Http::timeout(20)->get($this->graphUrl(''), [
+                'ids' => implode(',', $posts),
+                'fields' => 'call_to_action{type,value}',
+                'access_token' => $pageTokens[$pageId],
+            ]);
+            if (! $res->successful()) {
+                continue; // best-effort — skip pages we cannot read
+            }
+            foreach ((array) $res->json() as $postId => $p) {
+                if (! is_string($postId) || ! is_array($p)) {
+                    continue;
+                }
+                $link = $p['call_to_action']['value']['link'] ?? null;
+                if (is_string($link) && $link !== '') {
+                    $out[$postId] = $link;
+                }
+            }
+        }
+
+        return $out;
+    }
+
     public function searchTargeting(string $accessToken, string $query, string $type = 'adinterest'): array
     {
         $isGeo = $type === 'adgeolocation';

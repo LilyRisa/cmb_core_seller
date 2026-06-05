@@ -173,6 +173,17 @@ class CampaignInsightAnalysisService
                 // Website-conversion campaigns: fetch the landing page(s) for richer context.
                 if ($params['include_landing']) {
                     $urls = array_values(array_unique(array_filter(array_map(fn ($c) => $c->linkUrl, $creatives))));
+                    // Most VN ads are built from an existing page post: the creative carries no
+                    // link, the destination lives in the post's call-to-action. Resolve those.
+                    if ($connector instanceof AdsWriteConnector) {
+                        $postIds = array_values(array_unique(array_filter(array_map(
+                            fn ($c) => $c->linkUrl === null ? $c->pagePostId : null,
+                            $creatives,
+                        ))));
+                        if ($postIds !== []) {
+                            $urls = array_values(array_unique(array_merge($urls, array_values($connector->fetchPostLinks($token, $postIds)))));
+                        }
+                    }
                     foreach (array_slice($urls, 0, 3) as $url) { // cap at 3 distinct pages
                         $page = $this->landing->fetch((string) $url);
                         if ($page !== null) {

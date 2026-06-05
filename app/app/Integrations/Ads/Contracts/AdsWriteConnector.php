@@ -54,6 +54,16 @@ interface AdsWriteConnector
      */
     public function fetchPostEngagement(string $accessToken, array $postIds): array;
 
+    /**
+     * Resolve the destination URL of each post (effective_object_story_id) from its
+     * page-post call-to-action — for ads built from an existing post, whose creative
+     * carries no link of its own. Best-effort: unknown pages / errors are skipped.
+     *
+     * @param  list<string>  $postIds  "<page_id>_<post_id>" values
+     * @return array<string,string> postId => destination URL
+     */
+    public function fetchPostLinks(string $accessToken, array $postIds): array;
+
     /** @return list<TargetingOptionDTO> */
     public function searchTargeting(string $accessToken, string $query, string $type = 'adinterest'): array;
 
