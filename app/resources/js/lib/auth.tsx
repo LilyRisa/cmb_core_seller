@@ -5,13 +5,22 @@ export interface TenantSummary {
     id: number;
     name: string;
     slug: string;
-    role: string;
+    /** SPEC 0031 — 5-char shop code (used in sub-account usernames). */
+    code: string | null;
+    /** Legacy preset key, kept for compat; prefer role_id/role_name. */
+    role: string | null;
+    role_id: number | null;
+    role_name: string | null;
+    /** SPEC 0031 — granted ability strings in this tenant (owner ⇒ ['*']). */
+    permissions: string[];
 }
 
 export interface AuthUser {
     id: number;
     name: string;
-    email: string;
+    email: string | null;
+    /** SPEC 0031 — set for email-less sub-accounts ("{name}@{code}"). */
+    username: string | null;
     /** SPEC 0022 — ISO timestamp khi user verify email; `null` ⇒ FE chặn vào app. */
     email_verified_at: string | null;
     tenants: TenantSummary[];

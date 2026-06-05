@@ -7,7 +7,9 @@ use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Events\TenantCreated;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\Concerns\ResolvesAuthUserPayload;
+use CMBcoreSeller\Modules\Tenancy\Http\Controllers\Concerns\ResolvesLoginIdentifier;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
+use CMBcoreSeller\Modules\Tenancy\Services\TenantRoleProvisioner;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,7 +24,7 @@ use Illuminate\Validation\Rules\Password;
  */
 class AuthController extends Controller
 {
-    use ResolvesAuthUserPayload;
+    use ResolvesAuthUserPayload, ResolvesLoginIdentifier;
 
     public function register(Request $request): JsonResponse
     {
@@ -41,7 +43,11 @@ class AuthController extends Controller
             ]);
 
             $tenant = Tenant::create(['name' => $data['tenant_name'] ?? ($data['name'].' Shop')]);
-            $tenant->users()->attach($user->getKey(), ['role' => Role::Owner->value]);
+            $roles = app(TenantRoleProvisioner::class)->seedDefaults($tenant);
+            $tenant->users()->attach($user->getKey(), [
+                'role' => Role::Owner->value,
+                'role_id' => $roles[Role::Owner->value]->getKey(),
+            ]);
 
             return [$user, $tenant];
         });
@@ -62,20 +68,20 @@ class AuthController extends Controller
 
     public function login(Request $request): JsonResponse
     {
+        // `login` accepts an email or a sub-account username; `email` kept for back-compat.
         $data = $request->validate([
-            'email' => ['required', 'email'],
+            'login' => ['required_without:email', 'string', 'max:255'],
+            'email' => ['required_without:login', 'string', 'max:255'],
             'password' => ['required', 'string'],
             'remember' => ['sometimes', 'boolean'],
         ]);
 
-        if (! Auth::guard('web')->validate(['email' => $data['email'], 'password' => $data['password']])) {
+        $user = $this->resolveLoginUser((string) ($data['login'] ?? $data['email'] ?? ''));
+        if (! $user || ! Hash::check($data['password'], (string) $user->password)) {
             return response()->json([
-                'error' => ['code' => 'INVALID_CREDENTIALS', 'message' => 'Email hoặc mật khẩu không đúng.'],
+                'error' => ['code' => 'INVALID_CREDENTIALS', 'message' => 'Tài khoản hoặc mật khẩu không đúng.'],
             ], 422);
         }
-
-        /** @var User $user */
-        $user = User::where('email', $data['email'])->firstOrFail();
 
         $this->startSession($request, $user, (bool) ($data['remember'] ?? false));
 

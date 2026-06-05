@@ -4,6 +4,8 @@ namespace CMBcoreSeller\Modules\Tenancy\Http\Controllers\Concerns;
 
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
+use CMBcoreSeller\Modules\Tenancy\Models\TenantRole;
+use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -11,8 +13,8 @@ use Illuminate\Database\Eloquent\Model;
  * Dùng chung giữa AuthController (SPA) và TokenAuthController (mobile) — 1 nguồn
  * duy nhất cho shape `data.user`.
  *
- * Truy cập cột/pivot qua getAttribute/getRelation (trả mixed) thay vì property
- * động ($t->name, $t->pivot) để phpstan level 5 sạch — không cần baseline.
+ * SPEC 0031 — mỗi tenant trả thêm `code` (mã shop), `role_id`/`role_name` (custom
+ * role) và `permissions[]`. Giữ `role` (string preset key) để FE cũ không gãy.
  */
 trait ResolvesAuthUserPayload
 {
@@ -23,23 +25,35 @@ trait ResolvesAuthUserPayload
     {
         $user->load('tenants');
 
-        $tenants = $user->tenants->map(function (Model $tenant): array {
+        // Resolve membership roles in one cross-tenant query (no tenant scope).
+        $roleIds = $user->tenants
+            ->map(fn (Model $t) => ($p = $t->getRelation('pivot')) instanceof Model ? $p->getAttribute('role_id') : null)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+        $roles = TenantRole::withoutGlobalScope(TenantScope::class)->whereIn('id', $roleIds)->get()->keyBy('id');
+
+        $tenants = $user->tenants->map(function (Model $tenant) use ($roles): array {
             $pivot = $tenant->getRelation('pivot');
             $rawRole = $pivot instanceof Model ? $pivot->getAttribute('role') : null;
+            $roleId = $pivot instanceof Model ? $pivot->getAttribute('role_id') : null;
+            /** @var TenantRole|null $role */
+            $role = $roleId !== null ? $roles->get($roleId) : null;
 
-            $role = $rawRole instanceof Role
-                ? $rawRole
-                : (is_string($rawRole) ? Role::tryFrom($rawRole) : null);
+            // Fallback to the legacy enum when a membership has no mapped role_id yet.
+            $enum = $role === null && is_string($rawRole) ? Role::tryFrom($rawRole) : null;
 
             return [
                 'id' => $tenant->getKey(),
                 'name' => $tenant->getAttribute('name'),
                 'slug' => $tenant->getAttribute('slug'),
-                // Spec 2026-05-17 — super-admin đã tách bảng `admin_users`; user thường không bao giờ là super-admin.
-                'role' => $role instanceof Role ? $role->value : $rawRole,
-                // SPEC 0029 (mobile) — ability strings của role trong tenant này; mobile dùng
-                // để ẩn/hiện chức năng. Lấy từ Role::permissions() (1 nguồn — không hardcode).
-                'permissions' => $role instanceof Role ? $this->resolveTenantPermissions($role) : [],
+                'code' => $tenant->getAttribute('code'),
+                // Legacy preset key kept for backward-compat; prefer role_id/role_name.
+                'role' => $rawRole,
+                'role_id' => $role?->getKey(),
+                'role_name' => $role !== null ? $role->name : $enum?->label(),
+                'permissions' => $role !== null ? $this->rolePermissions($role) : $this->legacyPermissions($enum),
             ];
         })->all();
 
@@ -47,31 +61,44 @@ trait ResolvesAuthUserPayload
             'id' => $user->getKey(),
             'name' => $user->name,
             'email' => $user->email,
+            'username' => $user->getAttribute('username'),
             'email_verified_at' => optional($user->email_verified_at)->toIso8601String(), // SPEC 0022 — FE hiện banner nếu null.
             'tenants' => $tenants,
         ];
     }
 
     /**
-     * Ability strings cho 1 role, suy từ Role::permissions() (single source of truth).
-     *
-     * - Owner/Admin (chứa '*') ⇒ trả `['*']` (mobile hiểu là toàn quyền).
-     * - Role hạt mịn ⇒ trả danh sách quyền tường minh, BỎ chuỗi phủ định ('!...')
-     *   vì mobile chỉ cần các quyền được CẤP để bật/tắt UI.
+     * Ability strings a role grants. Owner ⇒ `['*']` (mobile hiểu là toàn quyền).
      *
      * @return list<string>
      */
-    private function resolveTenantPermissions(Role $role): array
+    private function rolePermissions(TenantRole $role): array
     {
-        $perms = $role->permissions();
+        if ($role->is_owner) {
+            return ['*'];
+        }
 
+        $perms = array_values(array_filter((array) $role->permissions, 'is_string'));
+
+        return in_array('*', $perms, true) ? ['*'] : $perms;
+    }
+
+    /**
+     * Legacy permission resolution from the Role enum (memberships without a role_id).
+     *
+     * @return list<string>
+     */
+    private function legacyPermissions(?Role $role): array
+    {
+        if ($role === null) {
+            return [];
+        }
+
+        $perms = $role->permissions();
         if (in_array('*', $perms, true)) {
             return ['*'];
         }
 
-        return array_values(array_filter(
-            $perms,
-            static fn (string $p): bool => ! str_starts_with($p, '!'),
-        ));
+        return array_values(array_filter($perms, static fn (string $p): bool => ! str_starts_with($p, '!')));
     }
 }

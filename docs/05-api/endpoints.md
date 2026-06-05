@@ -15,14 +15,14 @@
 | Method | Path | Auth | Request | Response |
 |---|---|---|---|---|
 | POST | `/api/v1/auth/register` | — | `name`, `email`, `password`, `password_confirmation`, `tenant_name?` | `201` `{ data: { id, name, email, email_verified_at:null, tenants:[{id,name,slug,role}] } }` — tạo user + tenant mới (caller = `owner`) + đăng nhập phiên + dispatch `VerifyEmailNotification` qua queue `notifications` (SPEC 0022). Lỗi: `422 VALIDATION_FAILED` (email trùng, mật khẩu < 8…). |
-| POST | `/api/v1/auth/login` | — | `email`, `password`, `remember?` | `200` `{ data: {…user…} }`. Sai thông tin: `422 INVALID_CREDENTIALS`. |
-| POST | `/api/v1/auth/token` | — | `email`, `password`, `device_name` | `201` `{ data: { token, user:{…AuthUser…} } }` — **đăng nhập mobile/3rd-party**: cấp bearer token (Sanctum personal access token gắn tên thiết bị, hết hạn `config('sanctum.mobile_token_days')` = 60 ngày). `user.tenants[]` mỗi phần tử gồm `{id,name,slug,role,permissions[]}` — `permissions` = ability strings của role (SPEC 0029; owner/admin ⇒ `["*"]`). Sai thông tin: `422 INVALID_CREDENTIALS`. Throttle `15/1`. (SPEC 2026-06-01) |
+| POST | `/api/v1/auth/login` | — | `login` (email **hoặc** username tài khoản phụ) hoặc `email`, `password`, `remember?` | `200` `{ data: {…user…} }`. Sai thông tin: `422 INVALID_CREDENTIALS`. (SPEC 0031 — chấp nhận username `{tên}@{mã shop}`) |
+| POST | `/api/v1/auth/token` | — | `login` (email **hoặc** username) hoặc `email`, `password`, `device_name` | `201` `{ data: { token, user:{…AuthUser…} } }` — **đăng nhập mobile/3rd-party**: cấp bearer token (Sanctum personal access token gắn tên thiết bị, hết hạn `config('sanctum.mobile_token_days')` = 60 ngày). `user.tenants[]` mỗi phần tử gồm `{id,name,slug,code,role,role_id,role_name,permissions[]}` — `permissions` = ability strings (owner ⇒ `["*"]`). Sai thông tin: `422 INVALID_CREDENTIALS`. Throttle `15/1`. (SPEC 2026-06-01, 0031) |
 | DELETE | `/api/v1/auth/token` | sanctum | — | `204` — **đăng xuất mobile**: thu hồi token bearer đang dùng. Khi xác thực bằng session SPA (không có token) ⇒ no-op, vẫn `204`. (SPEC 2026-06-01) |
 | GET | `/api/v1/auth/devices` | sanctum | — | `200` `{ data: [{ id, device_name, last_used_at, created_at, current }] }` — liệt kê phiên đăng nhập (token) theo thiết bị; `current=true` cho token đang dùng. (SPEC 2026-06-01) |
 | DELETE | `/api/v1/auth/devices/{id}` | sanctum | — | `204` — thu hồi 1 token theo id (chỉ token của chính user). Không thuộc user ⇒ `404 TOKEN_NOT_FOUND`. (SPEC 2026-06-01) |
 | DELETE | `/api/v1/auth/devices` | sanctum | — | `204` — thu hồi **mọi** token trừ token đang dùng ("đăng xuất các thiết bị khác"). (SPEC 2026-06-01) |
 | POST | `/api/v1/auth/logout` | sanctum | — | `204`. |
-| GET | `/api/v1/auth/me` | sanctum | — | `200` `{ data: {…user… với `email_verified_at: ISO\|null` & tenants[]} }`. Mỗi tenant: `{id,name,slug,role,permissions[]}` — `permissions` = ability strings của role trong tenant đó (SPEC 0029; owner/admin ⇒ `["*"]`). Chưa đăng nhập: `401`. |
+| GET | `/api/v1/auth/me` | sanctum | — | `200` `{ data: {id,name,email\|null,username\|null,email_verified_at,tenants[]} }`. Mỗi tenant: `{id,name,slug,code,role,role_id,role_name,permissions[]}` — `permissions` = ability strings trong tenant đó (owner ⇒ `["*"]`; SPEC 0029, 0031). Chưa đăng nhập: `401`. |
 | PATCH | `/api/v1/auth/profile` | sanctum | `name?`, `email?`, `current_password?`, `password?`, `password_confirmation?` | `200` `{ data: AuthUser }` — sửa hồ sơ. Đổi email/password cần `current_password` đúng (sai ⇒ `422 INVALID_PASSWORD`); email trùng / mật khẩu <8 ⇒ `422`. (SPEC 0011) |
 | GET | `/api/v1/auth/email/verify/{id}/{hash}` | signed URL | query `expires`, `signature` | `302` redirect `${FRONTEND_URL}/email-verified?status=success\|already\|invalid`. Hash sai / signature sai / hết hạn ⇒ `status=invalid`. Click 2 lần ⇒ `status=already`. (SPEC 0022) Throttle `6/1`. |
 | POST | `/api/v1/auth/email/verify/resend` | sanctum | — | `200 { data: { sent: true } }` — dispatch lại `VerifyEmailNotification`. Đã verified ⇒ `200 { data: { sent: false, reason: 'already_verified' } }`. Throttle `6/60`. (SPEC 0022) |
@@ -50,10 +50,18 @@
 |---|---|---|---|---|
 | GET | `/api/v1/tenants` | sanctum | — | `200` `{ data:[{id,name,slug,status,role}] }` — các tenant user thuộc về. |
 | POST | `/api/v1/tenants` | sanctum | `name` | `201` `{ data:{id,name,slug,role:'owner'} }` — tạo tenant mới, caller = owner. |
-| GET | `/api/v1/tenant` | sanctum + tenant | — | `200` `{ data:{id,name,slug,status,settings,current_role} }`. Thiếu header tenant: `400 TENANT_REQUIRED`. Không thuộc tenant: `403 TENANT_FORBIDDEN`. |
+| GET | `/api/v1/tenant` | sanctum + tenant | — | `200` `{ data:{id,name,slug,code,status,settings,current_role,current_role_id,can_manage_team} }`. Thiếu header tenant: `400 TENANT_REQUIRED`. Không thuộc tenant: `403 TENANT_FORBIDDEN`. |
 | PATCH | `/api/v1/tenant` | sanctum + tenant (`tenant.settings` ⇒ owner/admin) | `name?`, `slug?` (`[a-z0-9-]`, ≤60, unique), `settings?` (merge) | `200` `{ data:{…tenant…} }` — sửa thông tin gian hàng; ghi `audit_logs`. Vai trò khác ⇒ `403`; slug sai/trùng ⇒ `422`. (SPEC 0011) |
-| GET | `/api/v1/tenant/members` | sanctum + tenant (owner/admin) | — | `200` `{ data:[{id,name,email,role}] }`. Vai trò khác: `403`. |
-| POST | `/api/v1/tenant/members` | sanctum + tenant (owner/admin) | `email`, `role` (một trong `owner\|admin\|staff_order\|staff_warehouse\|accountant\|viewer`) | `201` `{ data:{id,name,email,role} }`. User chưa có tài khoản: `422 USER_NOT_FOUND` (luồng mời qua email bổ sung sau). Đã là thành viên: `409 ALREADY_MEMBER`. Ghi `audit_logs`. |
+| GET | `/api/v1/tenant/permissions` | sanctum + tenant | — | `200` `{ data:[{key,label,permissions:[{key,label,type:'view'\|'action'}]}] }` — catalog quyền gom theo tính năng. (SPEC 0031) |
+| GET | `/api/v1/tenant/roles` | sanctum + tenant (`team.manage`) | — | `200` `{ data:[{id,name,permissions,is_owner,is_system,members_count}] }`. (SPEC 0031) |
+| POST | `/api/v1/tenant/roles` | sanctum + tenant (`team.manage`) | `name`, `permissions[]` (∈ catalog, ≠ owner-only) | `201` `{ data:{…role…} }`. Quyền ngoài catalog/owner-only ⇒ `422`. |
+| PUT | `/api/v1/tenant/roles/{role}` | sanctum + tenant (`team.manage`) | `name`, `permissions[]` | `200`. Vai trò owner ⇒ `403`. |
+| DELETE | `/api/v1/tenant/roles/{role}` | sanctum + tenant (`team.manage`) | — | `204`. Owner ⇒ `403`; còn thành viên dùng ⇒ `409 ROLE_IN_USE`. |
+| GET | `/api/v1/tenant/members` | sanctum + tenant (`team.manage`) | — | `200` `{ data:[{id,name,email,username,is_sub_account,role_id,role_name}] }`. (SPEC 0031) |
+| POST | `/api/v1/tenant/members` | sanctum + tenant (`team.manage`) | `mode:'email'` → `email`,`role_id`; `mode:'sub'` → `name`,`password`,`role_id` | `201` `{ data:{…member…} }`. Sub-account sinh `username={tên}@{mã shop}`. `role_id` owner/không hợp lệ ⇒ `422`; user email chưa có ⇒ `422 USER_NOT_FOUND`; đã là thành viên ⇒ `409 ALREADY_MEMBER`. |
+| PUT | `/api/v1/tenant/members/{user}` | sanctum + tenant (`team.manage`) | `role_id` | `200`. Đổi vai trò owner ⇒ `403`; role_id owner/không hợp lệ ⇒ `422`. |
+| DELETE | `/api/v1/tenant/members/{user}` | sanctum + tenant (`team.manage`) | — | `204`. Gỡ owner ⇒ `403`. |
+| POST | `/api/v1/tenant/members/{user}/reset-password` | sanctum + tenant (`team.manage`) | `password` (≥6) | `204`. Chỉ tài khoản phụ; user thường ⇒ `422 NOT_SUB_ACCOUNT`. |
 
 ## Gian hàng (Channels — Phase 1)
 

@@ -1,6 +1,6 @@
 # SPEC 0031: Tài khoản phụ & phân quyền chi tiết (custom roles)
 
-- **Trạng thái:** Draft → chờ review
+- **Trạng thái:** Reviewed → Implemented
 - **Phase:** (bổ sung)
 - **Module backend liên quan:** Tenancy (chính), Models/User; ảnh hưởng gián tiếp mọi module qua `Gate`.
 - **Tác giả / Ngày:** Team · 2026-06-05

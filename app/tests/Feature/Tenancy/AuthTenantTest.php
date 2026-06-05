@@ -5,6 +5,7 @@ namespace Tests\Feature\Tenancy;
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
+use CMBcoreSeller\Modules\Tenancy\Services\TenantRoleProvisioner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -149,6 +150,9 @@ class AuthTenantTest extends TestCase
     public function test_member_management_respects_role(): void
     {
         [$owner, $tenant] = $this->userWithTenant(Role::Owner);
+        $roles = app(TenantRoleProvisioner::class)->seedDefaults($tenant);
+        $staffRoleId = $roles[Role::StaffOrder->value]->getKey();
+
         $viewer = User::factory()->create();
         $tenant->users()->attach($viewer->getKey(), ['role' => Role::Viewer->value]);
 
@@ -161,17 +165,17 @@ class AuthTenantTest extends TestCase
         $this->actingAs($viewer)->withHeader('X-Tenant-Id', (string) $tenant->getKey())
             ->getJson('/api/v1/tenant/members')->assertForbidden();
 
-        // Owner adds an existing user as staff_order.
+        // Owner adds an existing user with a role id (SPEC 0031).
         $newcomer = User::factory()->create(['email' => 'new@example.com']);
         $this->actingAs($owner)->withHeader('X-Tenant-Id', (string) $tenant->getKey())
-            ->postJson('/api/v1/tenant/members', ['email' => 'new@example.com', 'role' => 'staff_order'])
-            ->assertCreated()->assertJsonPath('data.role', 'staff_order');
+            ->postJson('/api/v1/tenant/members', ['email' => 'new@example.com', 'role_id' => $staffRoleId])
+            ->assertCreated()->assertJsonPath('data.role_id', $staffRoleId);
 
-        $this->assertDatabaseHas('tenant_user', ['user_id' => $newcomer->getKey(), 'role' => 'staff_order']);
+        $this->assertDatabaseHas('tenant_user', ['user_id' => $newcomer->getKey(), 'role_id' => $staffRoleId]);
 
         // Adding a non-existent user => 422.
         $this->actingAs($owner)->withHeader('X-Tenant-Id', (string) $tenant->getKey())
-            ->postJson('/api/v1/tenant/members', ['email' => 'ghost@example.com', 'role' => 'viewer'])
+            ->postJson('/api/v1/tenant/members', ['email' => 'ghost@example.com', 'role_id' => $staffRoleId])
             ->assertStatus(422)->assertJsonPath('error.code', 'USER_NOT_FOUND');
     }
 

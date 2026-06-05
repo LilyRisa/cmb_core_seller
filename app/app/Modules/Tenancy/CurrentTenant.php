@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Modules\Tenancy;
 
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
+use CMBcoreSeller\Modules\Tenancy\Models\TenantRole;
 use CMBcoreSeller\Modules\Tenancy\Models\TenantUser;
 use RuntimeException;
 
@@ -58,13 +59,31 @@ class CurrentTenant
         return $this->membership;
     }
 
+    /** The custom role granting the current member's permissions (SPEC 0031). */
+    public function roleModel(): ?TenantRole
+    {
+        return $this->membership?->tenantRole;
+    }
+
+    /**
+     * Legacy preset key as a Role enum, best-effort (display/compat only).
+     * Authorization goes through {@see can()} / {@see roleModel()}.
+     */
     public function role(): ?Role
     {
-        return $this->membership?->role;
+        $raw = $this->membership?->getAttribute('role');
+
+        return is_string($raw) ? Role::tryFrom($raw) : null;
     }
 
     public function can(string $permission): bool
     {
+        $role = $this->roleModel();
+        if ($role !== null) {
+            return $role->grants($permission);
+        }
+
+        // Fallback to the legacy enum (memberships not yet mapped to a role_id).
         return $this->role()?->can($permission) ?? false;
     }
 

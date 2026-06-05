@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Models;
 use CMBcoreSeller\Modules\Notifications\Notifications\ResetPasswordNotification;
 use CMBcoreSeller\Modules\Notifications\Notifications\VerifyEmailNotification;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
+use CMBcoreSeller\Modules\Tenancy\Models\TenantUser;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\CanResetPassword;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -32,8 +33,11 @@ class User extends Authenticatable implements CanResetPassword, MustVerifyEmail
     protected $fillable = [
         'name',
         'email',
+        'username',
         'password',
         'suspended_at',
+        'is_sub_account',
+        'created_by_user_id',
     ];
 
     /**
@@ -53,6 +57,7 @@ class User extends Authenticatable implements CanResetPassword, MustVerifyEmail
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'suspended_at' => 'datetime',
+            'is_sub_account' => 'boolean',
         ];
     }
 
@@ -60,7 +65,8 @@ class User extends Authenticatable implements CanResetPassword, MustVerifyEmail
     public function tenants(): BelongsToMany
     {
         return $this->belongsToMany(Tenant::class, 'tenant_user')
-            ->withPivot(['role', 'channel_account_scope'])
+            ->using(TenantUser::class)
+            ->withPivot(['role', 'role_id', 'channel_account_scope'])
             ->withTimestamps();
     }
 

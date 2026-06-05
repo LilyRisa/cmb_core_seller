@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { tenantApi } from './api';
 import { getCurrentTenantId, useAuth } from './auth';
 
-/** Roles understood by the backend (CMBcoreSeller\Modules\Tenancy\Enums\Role). */
+/** Legacy preset keys (kept for labels; roles are now custom — SPEC 0031). */
 export const ROLES = [
     { value: 'owner', label: 'Chủ sở hữu' },
     { value: 'admin', label: 'Quản trị' },
@@ -22,16 +22,34 @@ export interface TenantDetail {
     id: number;
     name: string;
     slug: string;
+    code: string | null;
     status: string;
     settings: Record<string, unknown> | null;
-    current_role: RoleValue | null;
+    current_role: string | null;
+    current_role_id: number | null;
+    can_manage_team: boolean;
 }
 
 export interface TenantMember {
     id: number;
     name: string;
-    email: string;
-    role: RoleValue;
+    email: string | null;
+    username: string | null;
+    is_sub_account: boolean;
+    role_id: number | null;
+    role_name: string | null;
+}
+
+export interface PermissionItem { key: string; label: string; type: 'view' | 'action' }
+export interface PermissionGroup { key: string; label: string; permissions: PermissionItem[] }
+
+export interface TenantRole {
+    id: number;
+    name: string;
+    permissions: string[];
+    is_owner: boolean;
+    is_system: boolean;
+    members_count: number;
 }
 
 /** The tenant id the UI is currently scoped to (chosen workspace, or the first one). */
@@ -58,7 +76,7 @@ export function useTenant() {
     });
 }
 
-/** Update workspace info (name / slug / settings). owner/admin only. */
+/** Update workspace info (name / slug / settings). */
 export function useUpdateTenant() {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();
@@ -71,6 +89,8 @@ export function useUpdateTenant() {
         onSuccess: () => { qc.invalidateQueries({ queryKey: ['tenant', tenantId] }); qc.invalidateQueries({ queryKey: ['me'] }); },
     });
 }
+
+// --- Members (SPEC 0031) ---------------------------------------------------
 
 export function useTenantMembers() {
     const api = useScopedApi();
@@ -85,45 +105,133 @@ export function useTenantMembers() {
     });
 }
 
-export function useAddMember() {
-    const api = useScopedApi();
-    const tenantId = useCurrentTenantId();
+function useInvalidateMembers() {
     const qc = useQueryClient();
+    const tenantId = useCurrentTenantId();
+    return () => qc.invalidateQueries({ queryKey: ['tenant', tenantId, 'members'] });
+}
+
+/** Add an existing email user as a member. */
+export function useAddExistingMember() {
+    const api = useScopedApi();
+    const invalidate = useInvalidateMembers();
     return useMutation({
-        mutationFn: async (vars: { email: string; role: RoleValue }) => {
-            const { data } = await api!.post<{ data: TenantMember }>('/tenant/members', vars);
-            return data.data;
-        },
-        onSuccess: () => qc.invalidateQueries({ queryKey: ['tenant', tenantId, 'members'] }),
+        mutationFn: async (vars: { email: string; role_id: number }) =>
+            (await api!.post<{ data: TenantMember }>('/tenant/members', { mode: 'email', ...vars })).data.data,
+        onSuccess: invalidate,
     });
 }
 
-const PERMS: Record<RoleValue, string[]> = {
-    // Owner: toàn quyền + `billing.manage` (SPEC 0018).
-    owner: ['*'],
-    // Admin: `*` nhưng phủ định `billing.manage` (chỉ owner đổi gói / thanh toán).
-    admin: ['*', '!billing.manage'],
-    staff_order: ['orders.view', 'orders.update', 'orders.create', 'orders.status', 'fulfillment.view', 'fulfillment.print', 'fulfillment.ship', 'products.view', 'inventory.view', 'channels.view', 'dashboard.view'],
-    staff_warehouse: ['inventory.view', 'inventory.adjust', 'inventory.transfer', 'inventory.stocktake', 'fulfillment.view', 'fulfillment.scan', 'fulfillment.print', 'orders.view', 'products.view', 'dashboard.view'],
-    accountant: [
-        'finance.view', 'finance.reconcile', 'reports.view', 'reports.export',
-        'orders.view', 'inventory.view', 'dashboard.view', 'billing.view',
-        // Phase 7 — module Kế toán (xem / post / đóng kỳ / export); accounting.config = chỉ owner/admin.
-        'accounting.view', 'accounting.post', 'accounting.close_period', 'accounting.export',
-    ],
-    viewer: ['orders.view', 'inventory.view', 'products.view', 'channels.view', 'dashboard.view'],
-};
+/** Create an email-less sub-account "{name}@{code}". */
+export function useCreateSubAccount() {
+    const api = useScopedApi();
+    const invalidate = useInvalidateMembers();
+    return useMutation({
+        mutationFn: async (vars: { name: string; password: string; role_id: number }) =>
+            (await api!.post<{ data: TenantMember }>('/tenant/members', { mode: 'sub', ...vars })).data.data,
+        onSuccess: invalidate,
+    });
+}
+
+export function useUpdateMemberRole() {
+    const api = useScopedApi();
+    const invalidate = useInvalidateMembers();
+    return useMutation({
+        mutationFn: async (vars: { userId: number; role_id: number }) =>
+            (await api!.put<{ data: TenantMember }>(`/tenant/members/${vars.userId}`, { role_id: vars.role_id })).data.data,
+        onSuccess: invalidate,
+    });
+}
+
+export function useRemoveMember() {
+    const api = useScopedApi();
+    const invalidate = useInvalidateMembers();
+    return useMutation({
+        mutationFn: async (userId: number) => { await api!.delete(`/tenant/members/${userId}`); },
+        onSuccess: invalidate,
+    });
+}
+
+export function useResetMemberPassword() {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async (vars: { userId: number; password: string }) => {
+            await api!.post(`/tenant/members/${vars.userId}/reset-password`, { password: vars.password });
+        },
+    });
+}
+
+// --- Roles & permission catalog (SPEC 0031) --------------------------------
+
+export function usePermissionCatalog() {
+    const api = useScopedApi();
+    return useQuery({
+        queryKey: ['tenant', 'permission-catalog'],
+        enabled: api != null,
+        staleTime: 5 * 60_000,
+        queryFn: async () => (await api!.get<{ data: PermissionGroup[] }>('/tenant/permissions')).data.data,
+    });
+}
+
+export function useRoles() {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['tenant', tenantId, 'roles'],
+        enabled: api != null,
+        queryFn: async () => (await api!.get<{ data: TenantRole[] }>('/tenant/roles')).data.data,
+    });
+}
+
+function useInvalidateRoles() {
+    const qc = useQueryClient();
+    const tenantId = useCurrentTenantId();
+    return () => qc.invalidateQueries({ queryKey: ['tenant', tenantId, 'roles'] });
+}
+
+export function useCreateRole() {
+    const api = useScopedApi();
+    const invalidate = useInvalidateRoles();
+    return useMutation({
+        mutationFn: async (vars: { name: string; permissions: string[] }) =>
+            (await api!.post<{ data: TenantRole }>('/tenant/roles', vars)).data.data,
+        onSuccess: invalidate,
+    });
+}
+
+export function useUpdateRole() {
+    const api = useScopedApi();
+    const invalidate = useInvalidateRoles();
+    return useMutation({
+        mutationFn: async (vars: { id: number; name: string; permissions: string[] }) =>
+            (await api!.put<{ data: TenantRole }>(`/tenant/roles/${vars.id}`, { name: vars.name, permissions: vars.permissions })).data.data,
+        onSuccess: invalidate,
+    });
+}
+
+export function useDeleteRole() {
+    const api = useScopedApi();
+    const invalidate = useInvalidateRoles();
+    return useMutation({
+        mutationFn: async (id: number) => { await api!.delete(`/tenant/roles/${id}`); },
+        onSuccess: invalidate,
+    });
+}
+
+// --- Permission gating -----------------------------------------------------
+
+/** Ability strings granted in the current tenant (from /me — owner ⇒ ['*']). */
+export function useTenantPermissions(): string[] {
+    const { data: user } = useAuth();
+    const tenantId = useCurrentTenantId();
+    return user?.tenants.find((t) => t.id === tenantId)?.permissions ?? [];
+}
 
 /**
- * Hide / disable UI by the current tenant role. Mirrors the backend permission
- * sets — but the backend Policy/Gate is the source of truth, never the client.
+ * Hide / disable UI by the current tenant's permissions. The backend Gate is the
+ * source of truth — this is UX only.
  */
 export function useCan(permission: string): boolean {
-    const { data: tenant } = useTenant();
-    const role = tenant?.current_role;
-    if (!role) return false;
-    const perms = PERMS[role] ?? [];
-    // Hỗ trợ phủ định `!permission` — khớp Role::can() backend (SPEC 0018: admin có `*` nhưng `!billing.manage`).
-    if (perms.includes('!' + permission)) return false;
+    const perms = useTenantPermissions();
     return perms.includes('*') || perms.includes(permission);
 }

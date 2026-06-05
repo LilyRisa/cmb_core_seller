@@ -105,7 +105,7 @@ class AdminTenantController extends Controller
                 'created_at' => $a->created_at?->toIso8601String(),
             ])->all(),
             'members' => $members->map(fn (TenantUser $m) => [
-                'user_id' => $m->user_id, 'role' => $m->role->value ?? $m->role,
+                'user_id' => $m->user_id, 'role' => $m->role,
                 'name' => $m->user->name ?? null, 'email' => $m->user->email ?? null,
             ])->all(),
             'recent_admin_actions' => $audits->map(fn (AuditLog $a) => [

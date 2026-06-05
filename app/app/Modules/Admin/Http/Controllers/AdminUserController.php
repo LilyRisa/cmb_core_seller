@@ -134,7 +134,7 @@ class AdminUserController extends Controller
 
             return $t ? [
                 'id' => $t->id, 'name' => $t->name, 'slug' => $t->slug,
-                'role' => $m->role->value ?? $m->role,
+                'role' => $m->role,
             ] : null;
         })->filter()->values()->all();
 

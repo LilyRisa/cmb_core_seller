@@ -1148,7 +1148,7 @@ function GenderDropdown({ value, onChange }: { value?: string; onChange?: (v: st
     );
 }
 
-function UserPicker({ value, onChange, members, placeholder }: { value?: number | null; onChange?: (v: number | null) => void; members: Array<{ id: number; name: string; email: string }>; placeholder: string }) {
+function UserPicker({ value, onChange, members, placeholder }: { value?: number | null; onChange?: (v: number | null) => void; members: Array<{ id: number; name: string; email: string | null }>; placeholder: string }) {
     const current = value ? members.find((m) => m.id === value) : null;
     return (
         <Popover trigger="click" placement="bottomRight" content={(
@@ -1158,7 +1158,7 @@ function UserPicker({ value, onChange, members, placeholder }: { value?: number 
                     {members.map((m) => (
                         <Radio key={m.id} value={m.id} style={{ display: 'flex', padding: '6px 8px' }}>
                             <Space size={8}>
-                                <Avatar size={22} style={{ background: '#9254de', fontSize: 12 }}>{(m.name || m.email).slice(0, 2).toUpperCase()}</Avatar>
+                                <Avatar size={22} style={{ background: '#9254de', fontSize: 12 }}>{(m.name || m.email || '?').slice(0, 2).toUpperCase()}</Avatar>
                                 <span>{m.name || m.email}</span>
                             </Space>
                         </Radio>
@@ -1169,7 +1169,7 @@ function UserPicker({ value, onChange, members, placeholder }: { value?: number 
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                 {current ? (
                     <>
-                        <Avatar size={20} style={{ background: '#9254de', fontSize: 11 }}>{(current.name || current.email).slice(0, 2).toUpperCase()}</Avatar>
+                        <Avatar size={20} style={{ background: '#9254de', fontSize: 11 }}>{(current.name || current.email || '?').slice(0, 2).toUpperCase()}</Avatar>
                         <Typography.Text style={{ fontSize: 13 }}>{current.name || current.email}</Typography.Text>
                     </>
                 ) : <Typography.Text type="secondary" style={{ fontSize: 13 }}>{placeholder}</Typography.Text>}

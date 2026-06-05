@@ -3,11 +3,11 @@
 namespace CMBcoreSeller\Modules\Tenancy\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
-use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\Concerns\ResolvesAuthUserPayload;
+use CMBcoreSeller\Modules\Tenancy\Http\Controllers\Concerns\ResolvesLoginIdentifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\PersonalAccessToken;
 
 /**
@@ -21,25 +21,25 @@ use Laravel\Sanctum\PersonalAccessToken;
  */
 class TokenAuthController extends Controller
 {
-    use ResolvesAuthUserPayload;
+    use ResolvesAuthUserPayload, ResolvesLoginIdentifier;
 
     /** Đăng nhập mobile: validate credentials → cấp bearer token gắn tên thiết bị. */
     public function token(Request $request): JsonResponse
     {
+        // `login` accepts an email or a sub-account username; `email` kept for back-compat.
         $data = $request->validate([
-            'email' => ['required', 'email'],
+            'login' => ['required_without:email', 'string', 'max:255'],
+            'email' => ['required_without:login', 'string', 'max:255'],
             'password' => ['required', 'string'],
             'device_name' => ['required', 'string', 'max:255'],
         ]);
 
-        if (! Auth::guard('web')->validate(['email' => $data['email'], 'password' => $data['password']])) {
+        $user = $this->resolveLoginUser((string) ($data['login'] ?? $data['email'] ?? ''));
+        if (! $user || ! Hash::check($data['password'], (string) $user->password)) {
             return response()->json([
-                'error' => ['code' => 'INVALID_CREDENTIALS', 'message' => 'Email hoặc mật khẩu không đúng.'],
+                'error' => ['code' => 'INVALID_CREDENTIALS', 'message' => 'Tài khoản hoặc mật khẩu không đúng.'],
             ], 422);
         }
-
-        /** @var User $user */
-        $user = User::where('email', $data['email'])->firstOrFail();
 
         $days = (int) config('sanctum.mobile_token_days', 60);
         $token = $user->createToken($data['device_name'], ['*'], now()->addDays($days));

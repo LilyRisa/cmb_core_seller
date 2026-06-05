@@ -23,7 +23,9 @@ use CMBcoreSeller\Modules\Orders\Http\Controllers\ReturnController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ChannelListingController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ProductController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\AuthController;
+use CMBcoreSeller\Modules\Tenancy\Http\Controllers\MemberController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\MobileDeviceController;
+use CMBcoreSeller\Modules\Tenancy\Http\Controllers\RoleController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\TenantController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\TokenAuthController;
 use Illuminate\Support\Facades\Route;
@@ -94,8 +96,20 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
 
             Route::get('tenant', [TenantController::class, 'show'])->name('tenant.show');
             Route::patch('tenant', [TenantController::class, 'update'])->name('tenant.update');   // SPEC 0011 — workspace info
-            Route::get('tenant/members', [TenantController::class, 'members'])->name('tenant.members');
-            Route::post('tenant/members', [TenantController::class, 'addMember'])->name('tenant.members.add');
+
+            // SPEC 0031 — sub-accounts & granular custom roles. Mutations gated by `team.manage`
+            // inside the controllers; the permission catalog is readable by any member.
+            Route::get('tenant/permissions', [RoleController::class, 'permissions'])->name('tenant.permissions');
+            Route::get('tenant/roles', [RoleController::class, 'index'])->name('tenant.roles.index');
+            Route::post('tenant/roles', [RoleController::class, 'store'])->name('tenant.roles.store');
+            Route::put('tenant/roles/{role}', [RoleController::class, 'update'])->whereNumber('role')->name('tenant.roles.update');
+            Route::delete('tenant/roles/{role}', [RoleController::class, 'destroy'])->whereNumber('role')->name('tenant.roles.destroy');
+
+            Route::get('tenant/members', [MemberController::class, 'index'])->name('tenant.members');
+            Route::post('tenant/members', [MemberController::class, 'store'])->name('tenant.members.add');
+            Route::put('tenant/members/{user}', [MemberController::class, 'update'])->whereNumber('user')->name('tenant.members.update');
+            Route::delete('tenant/members/{user}', [MemberController::class, 'destroy'])->whereNumber('user')->name('tenant.members.destroy');
+            Route::post('tenant/members/{user}/reset-password', [MemberController::class, 'resetPassword'])->whereNumber('user')->name('tenant.members.reset-password');
 
             // --- Channels (Phase 1) — connected shops & OAuth connect ---
             Route::get('channel-accounts', [ChannelAccountController::class, 'index'])->name('channel-accounts.index');

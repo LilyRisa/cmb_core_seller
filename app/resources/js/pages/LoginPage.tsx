@@ -67,14 +67,14 @@ export function LoginPage() {
                     >
                         <Form.Item
                             name="email"
-                            label="Email"
-                            rules={[{ required: true, type: 'email', message: 'Nhập email hợp lệ' }]}
+                            label="Email / Tên đăng nhập"
+                            rules={[{ required: true, message: 'Nhập email hoặc tên đăng nhập' }]}
                         >
                             <Input
                                 autoFocus
                                 size="large"
                                 prefix={<MailOutlined style={{ color: '#9ca3af' }} />}
-                                placeholder="email@vidu.com"
+                                placeholder="email@vidu.com hoặc ten@mãshop"
                             />
                         </Form.Item>
 
