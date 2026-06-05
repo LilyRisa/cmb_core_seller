@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { App as AntApp, Button, Card, Checkbox, Collapse, DatePicker, Dropdown, Empty, Input, InputNumber, List, Popconfirm, Result, Segmented, Select, Space, Spin, Statistic, Table, Tag, Tooltip, Typography } from 'antd';
-import { ApiOutlined, BulbOutlined, CheckOutlined, CloseOutlined, DisconnectOutlined, EditOutlined, FacebookFilled, FundOutlined, PauseCircleOutlined, PlayCircleOutlined, PlusOutlined, QuestionCircleOutlined, RobotOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
+import { ApiOutlined, BulbOutlined, CheckOutlined, CloseOutlined, DisconnectOutlined, EditOutlined, FacebookFilled, FileTextOutlined, FolderOpenOutlined, FundOutlined, PauseCircleOutlined, PlayCircleOutlined, PlusOutlined, QuestionCircleOutlined, RobotOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
 import { useAdDrafts, useDeleteDraft, useDuplicateDraft } from '@/lib/adWizard';
 import dayjs, { type Dayjs } from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { CampaignAiInsightDrawer } from '@/pages/marketing/CampaignAiInsightDrawer';
 import { AbComparisonPanel } from '@/pages/marketing/AbComparisonPanel';
 import { PixelManagerDrawer } from '@/pages/marketing/PixelManagerDrawer';
+import { SavedReportsDrawer } from '@/pages/marketing/SavedReportsDrawer';
 import { errorMessage } from '@/lib/api';
 import { openOAuthPopup } from '@/lib/oauthPopup';
 import { useCan } from '@/lib/tenant';
@@ -16,7 +17,7 @@ import {
     type ForecastStrategy, type ReconRow, type ReportLevel, type ReportRow,
     useAdAccounts, useAdForecast, useAdReconciliation, useAdReport, useBulkDisconnectAccounts,
     useConnectFacebookAds, useDisconnectAdAccount, useGenerateForecast, useRefreshAdInsights,
-    useUpdateAdEntity,
+    useSaveReport, useUpdateAdEntity,
 } from '@/lib/marketing';
 
 const { Text } = Typography;
@@ -156,6 +157,8 @@ export function MarketingDashboardPage() {
     const { data: report, isFetching } = useAdReport(selectedId, level, since, until, filters);
     const [aiCampaign, setAiCampaign] = useState<{ id: string; name: string | null } | null>(null);
     const [pixelOpen, setPixelOpen] = useState(false);
+    const [savedOpen, setSavedOpen] = useState(false);
+    const saveReport = useSaveReport();
     const updateEntity = useUpdateAdEntity();
     const bulkDisconnect = useBulkDisconnectAccounts();
     // Inline edit: which cell is being edited + its draft value.
@@ -518,6 +521,21 @@ export function MarketingDashboardPage() {
                             <Input placeholder="ID" allowClear value={adId} onChange={(e) => setAdId(e.target.value)} style={{ width: 160 }} />
                             <Select placeholder="Loại (objective)" allowClear value={objective} onChange={setObjective} options={objectiveOptions} style={{ minWidth: 180 }} />
                             <Button icon={<SyncOutlined spin={isFetching} />} onClick={() => selectedId != null && refresh.mutate(selectedId)}>Làm mới</Button>
+                            <Button
+                                icon={<FileTextOutlined />}
+                                loading={saveReport.isPending}
+                                disabled={selectedId == null}
+                                onClick={() => selectedId != null && saveReport.mutate(
+                                    { accountId: selectedId, level, since, until, filters },
+                                    {
+                                        onSuccess: (d) => message.success(`Đã lưu "${d.name}" (${d.row_count} dòng).`),
+                                        onError: (e) => message.error(errorMessage(e, 'Lưu báo cáo thất bại.')),
+                                    },
+                                )}
+                            >
+                                Lưu báo cáo
+                            </Button>
+                            <Button icon={<FolderOpenOutlined />} disabled={selectedId == null} onClick={() => setSavedOpen(true)}>Báo cáo đã lưu</Button>
                             {level === 'campaign' && selCampaigns.length > 0 && (
                                 <Tag color="blue" closable onClose={() => setSelCampaigns([])}>Đã chọn {selCampaigns.length} chiến dịch</Tag>
                             )}
@@ -610,6 +628,12 @@ export function MarketingDashboardPage() {
                 open={pixelOpen}
                 accountId={selectedId}
                 onClose={() => setPixelOpen(false)}
+            />
+
+            <SavedReportsDrawer
+                open={savedOpen}
+                accountId={selectedId}
+                onClose={() => setSavedOpen(false)}
             />
         </div>
     );

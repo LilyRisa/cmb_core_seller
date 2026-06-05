@@ -11,6 +11,7 @@ use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdsOAuthController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AudienceTemplateController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\CampaignAiInsightController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\GeoExclusionTemplateController;
+use CMBcoreSeller\Modules\Marketing\Http\Controllers\SavedReportController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -50,6 +51,15 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
         // Live edit one entity (rename / daily budget / pause-resume).
         Route::patch('ad-accounts/{id}/entities/{externalId}', [AdEntityController::class, 'update'])
             ->whereNumber('id')->name('marketing.ad-accounts.entities.update');
+        // Saved report snapshots (per filter run, reviewable over time).
+        Route::get('ad-accounts/{id}/saved-reports', [SavedReportController::class, 'index'])
+            ->whereNumber('id')->name('marketing.saved-reports.index');
+        Route::post('ad-accounts/{id}/saved-reports', [SavedReportController::class, 'store'])
+            ->whereNumber('id')->name('marketing.saved-reports.store');
+        Route::get('saved-reports/{report}', [SavedReportController::class, 'show'])
+            ->whereNumber('report')->name('marketing.saved-reports.show');
+        Route::delete('saved-reports/{report}', [SavedReportController::class, 'destroy'])
+            ->whereNumber('report')->name('marketing.saved-reports.destroy');
         // AI strategic forecast (on-demand, cooldown-cached).
         Route::get('ad-accounts/{id}/forecast', [AdForecastController::class, 'show'])
             ->whereNumber('id')->name('marketing.ad-accounts.forecast.show');

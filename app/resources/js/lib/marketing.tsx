@@ -160,6 +160,57 @@ export function useBulkDisconnectAccounts() {
     });
 }
 
+// --- Saved reports (snapshots per filter run) ---
+export interface SavedReportSummary {
+    id: number; name: string; level: ReportLevel;
+    since: string; until: string; filters: ReportFilters; row_count: number; created_at: string | null;
+}
+export interface SavedReportFull extends Omit<SavedReportSummary, 'row_count'> {
+    currency: string | null; rows: ReportRow[];
+}
+
+export function useSavedReports(accountId: number | null) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['marketing', 'saved-reports', accountId, tenantId],
+        enabled: api != null && accountId != null,
+        queryFn: async () => (await api!.get<{ data: SavedReportSummary[] }>(`/marketing/ad-accounts/${accountId}/saved-reports`)).data.data,
+    });
+}
+
+export function useSavedReport(reportId: number | null) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['marketing', 'saved-report', reportId, tenantId],
+        enabled: api != null && reportId != null,
+        queryFn: async () => (await api!.get<{ data: SavedReportFull }>(`/marketing/saved-reports/${reportId}`)).data.data,
+    });
+}
+
+export function useSaveReport() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (vars: { accountId: number; name?: string; level: ReportLevel; since: string; until: string; filters: ReportFilters }) =>
+            (await api!.post<{ data: { id: number; name: string; row_count: number } }>(
+                `/marketing/ad-accounts/${vars.accountId}/saved-reports`,
+                { name: vars.name, level: vars.level, since: vars.since, until: vars.until, filters: vars.filters },
+            )).data.data,
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['marketing', 'saved-reports'] }),
+    });
+}
+
+export function useDeleteSavedReport() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (reportId: number) => { await api!.delete(`/marketing/saved-reports/${reportId}`); },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['marketing', 'saved-reports'] }),
+    });
+}
+
 export type AdEntityLevel = 'campaign' | 'adset' | 'ad';
 export interface UpdateAdEntityVars {
     accountId: number;
