@@ -264,7 +264,7 @@ class OrderController extends Controller
         $this->authorizeView($request);
 
         // Base for the status tabs (everything except status/stage/slip/printed/has_issue/out_of_stock — those have their own tab counts).
-        $statusBase = $this->applyFilters($request, Order::query(), skip: ['status', 'stage', 'slip', 'printed', 'has_issue', 'out_of_stock']);
+        $statusBase = $this->applyFilters($request, Order::query(), skip: ['status', 'stage', 'slip', 'printed', 'has_issue', 'out_of_stock', 'has_return']);
         $counts = (clone $statusBase)->selectRaw('status, count(*) as c')->groupBy('status')->pluck('c', 'status');
         $byStatus = [];
         foreach (StandardOrderStatus::cases() as $s) {
@@ -333,6 +333,12 @@ class OrderController extends Controller
         return response()->json(['data' => [
             'total' => (clone $statusBase)->count(),
             'has_issue' => (clone $statusBase)->where('has_issue', true)->count(),
+            'has_return' => (function () use ($statusBase) {
+                $q = clone $statusBase;
+                $this->applyHasReturnFilter($q);
+
+                return $q->count();
+            })(),
             'unmapped' => (clone $statusBase)->where('has_issue', true)->where('issue_reason', 'SKU chưa ghép')->count(),
             'out_of_stock' => (clone $statusBase)->whereHas('items', fn (Builder $i) => $i->whereNotNull('sku_id')->whereIn('sku_id', $this->oversoldSkuSubquery()))->count(),
             'by_status' => $byStatus,
@@ -396,6 +402,17 @@ class OrderController extends Controller
      *                              status | stage | source | channel_account_id | carrier | has_issue | out_of_stock | q | sku | product | placed
      * @return Builder<Order>
      */
+    /** Ràng buộc đơn "Trả/hoàn": status returning/returned_refunded HOẶC có order_returns (kind return|refund). */
+    private function applyHasReturnFilter(Builder $query): void
+    {
+        $query->where(function (Builder $w) {
+            $w->whereIn('status', [StandardOrderStatus::Returning->value, StandardOrderStatus::ReturnedRefunded->value])
+                ->orWhereExists(fn ($sub) => $sub->selectRaw('1')->from('order_returns')
+                    ->whereColumn('order_returns.order_id', 'orders.id')
+                    ->whereIn('order_returns.kind', ['return', 'refund']));
+        });
+    }
+
     private function applyFilters(Request $request, Builder $query, array $skip = []): Builder
     {
         $use = fn (string $key) => ! in_array($key, $skip, true);
@@ -438,6 +455,12 @@ class OrderController extends Controller
         }
         if ($use('has_issue') && $request->boolean('has_issue', false)) {
             $query->where('has_issue', true);
+        }
+        // Tab "Trả/hoàn": orders.status hiếm khi thành returning/returned_refunded (sàn không map — SPEC 0025
+        // chỉ set cờ has_return + tạo order_returns). Nên lọc: status returning/returned_refunded HOẶC có ≥1
+        // bản ghi trả/hoàn (kind return|refund). Áp chung cho mọi sàn (TikTok/Shopee/Lazada).
+        if ($use('has_return') && $request->boolean('has_return', false)) {
+            $this->applyHasReturnFilter($query);
         }
         if ($use('out_of_stock') && $request->boolean('out_of_stock', false)) {
             $query->whereHas('items', fn (Builder $i) => $i->whereNotNull('sku_id')->whereIn('sku_id', $this->oversoldSkuSubquery()));

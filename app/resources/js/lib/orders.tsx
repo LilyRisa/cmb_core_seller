@@ -109,6 +109,7 @@ export interface OrderFilters {
     placed_from?: string;
     placed_to?: string;
     has_issue?: boolean;
+    has_return?: boolean;   // đơn có yêu cầu trả/hoàn (order_returns) HOẶC status returning/returned_refunded
     out_of_stock?: boolean;
     slip?: 'printable' | 'loading' | 'failed';  // tình trạng phiếu giao hàng của đơn đã "Chuẩn bị hàng" (SPEC 0013)
     printed?: boolean;   // đã in phiếu (≥1 vận đơn open có print_count>0) — chỉ áp ở "Đang xử lý"
@@ -137,6 +138,7 @@ export interface UnmappedSkuGroup {
 export interface OrderStats {
     total: number;
     has_issue: number;
+    has_return: number;   // số đơn có trả/hoàn — dùng cho tab "Trả/hoàn" (SPEC 0025)
     unmapped: number;
     out_of_stock: number;
     by_status: Record<string, number>;

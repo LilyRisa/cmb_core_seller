@@ -112,7 +112,7 @@ export function OrdersPage() {
     };
 
     const activeTab = ORDER_STATUS_TABS.find((t) => t.key === tabKey) ?? ORDER_STATUS_TABS[0];
-    const effectiveStatus = tabKey === 'issue' || tabKey === 'out_of_stock' ? '' : (statusParam || (activeTab.statuses ?? []).join(','));
+    const effectiveStatus = tabKey === 'issue' || tabKey === 'out_of_stock' || tabKey === 'returning' ? '' : (statusParam || (activeTab.statuses ?? []).join(','));
     const isProcessingTab = tabKey === 'processing';
     const slipFilter = isProcessingTab && (['printable', 'loading', 'failed'] as string[]).includes(slipParam) ? (slipParam as 'printable' | 'loading' | 'failed') : undefined;
     const printedFilter = isProcessingTab && (printedParam === '1' || printedParam === '0') ? printedParam === '1' : undefined;
@@ -125,6 +125,7 @@ export function OrdersPage() {
         carrier: carrier || undefined,
         placed_from: placedFrom || undefined, placed_to: placedTo || undefined,
         has_issue: tabKey === 'issue' || params.get('has_issue') === '1' ? true : undefined,
+        has_return: tabKey === 'returning' ? true : undefined,
         out_of_stock: tabKey === 'out_of_stock' ? true : undefined,
         slip: slipFilter,
         printed: printedFilter,
@@ -141,6 +142,7 @@ export function OrdersPage() {
         carrier: carrier || undefined,
         placed_from: placedFrom || undefined, placed_to: placedTo || undefined,
         has_issue: tabKey === 'issue' || params.get('has_issue') === '1' ? true : undefined,
+        has_return: tabKey === 'returning' ? true : undefined,
         out_of_stock: tabKey === 'out_of_stock' ? true : undefined,
         slip: slipFilter,
         printed: printedFilter,
@@ -191,7 +193,11 @@ export function OrdersPage() {
 
     // Badge dùng `tabStats` (không filter) ⇒ luôn hiển thị tổng theo status, click sang tab khác luôn thấy
     // số đơn thật sự ở trạng thái đó dù trước đó user đang lọc source/carrier nào.
-    const countForTab = (t: { statuses?: string[] }) => (t.statuses ?? []).reduce((s, st) => s + (tabStats?.by_status?.[st] ?? 0), 0);
+    const countForTab = (t: { key: string; statuses?: string[] }) => (
+        t.key === 'returning'
+            ? (tabStats?.has_return ?? 0)   // tab "Trả/hoàn" đếm theo đơn có trả/hoàn, không theo status (SPEC 0025)
+            : (t.statuses ?? []).reduce((s, st) => s + (tabStats?.by_status?.[st] ?? 0), 0)
+    );
     const shopName = (id: number) => accounts.find((a) => a.id === id)?.name ?? `#${id}`;
 
     // Gộp đơn trang hiện tại vào cache (để chọn xuyên trang vẫn giữ object). react-query trả ref ổn định ⇒
