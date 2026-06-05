@@ -37,6 +37,8 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
             ->whereNumber('id')->name('marketing.ad-accounts.destroy');
         Route::post('ad-accounts/disconnect-bulk', [AdAccountController::class, 'disconnectBulk'])
             ->name('marketing.ad-accounts.disconnect-bulk');
+        Route::post('ad-accounts/refresh-accounts', [AdAccountController::class, 'refreshAccounts'])
+            ->name('marketing.ad-accounts.refresh-accounts');
         Route::post('ad-accounts/{id}/refresh', [AdAccountController::class, 'refresh'])
             ->whereNumber('id')->name('marketing.ad-accounts.refresh');
         Route::post('ad-accounts/{id}/claim-automation', [AdAccountController::class, 'claimAutomation'])

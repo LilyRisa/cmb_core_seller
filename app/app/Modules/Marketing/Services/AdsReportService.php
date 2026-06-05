@@ -17,6 +17,18 @@ class AdsReportService
 {
     public function __construct(private AdsRegistry $registry) {}
 
+    private static function versionKey(int $accountId): string
+    {
+        return "ads.report.ver.{$accountId}";
+    }
+
+    /** Invalidate the on-demand report cache for an account (used by "Làm mới"). */
+    public static function bumpCache(int $accountId): void
+    {
+        $key = self::versionKey($accountId);
+        Cache::put($key, ((int) Cache::get($key, 0)) + 1, now()->addDays(30));
+    }
+
     /**
      * @param  array{campaign_ids?:list<string>, adset_ids?:list<string>, q?:string, objective?:string, id?:string}  $filters
      * @return list<array<string,mixed>>
@@ -99,7 +111,9 @@ class AdsReportService
             return [];
         }
 
-        $key = "ads.report.{$account->getKey()}.{$level}.{$since}.{$until}";
+        // Cache key carries a per-account version so "Làm mới" can bust it (bumpCache).
+        $ver = (int) Cache::get(self::versionKey((int) $account->getKey()), 0);
+        $key = "ads.report.{$account->getKey()}.v{$ver}.{$level}.{$since}.{$until}";
 
         return Cache::remember($key, 300, function () use ($account, $level, $since, $until) {
             $rows = $this->registry->for($account->provider)->fetchInsights(

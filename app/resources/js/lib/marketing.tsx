@@ -391,7 +391,22 @@ export function useRefreshAdInsights() {
     return useMutation({
         mutationFn: async (id: number) =>
             (await api!.post<{ data: { queued: boolean } }>(`/marketing/ad-accounts/${id}/refresh`)).data.data,
-        onSuccess: () => qc.invalidateQueries({ queryKey: ['marketing', 'insights'] }),
+        onSuccess: () => {
+            // Refetch BOTH the snapshot dashboard AND the report/tree view.
+            qc.invalidateQueries({ queryKey: ['marketing', 'insights'] });
+            qc.invalidateQueries({ queryKey: ['marketing', 'report'] });
+        },
+    });
+}
+
+/** Re-list ad accounts from Facebook — update name/BM/health + discover new accounts. */
+export function useRefreshAccounts() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async () =>
+            (await api!.post<{ data: { updated: number; created: number } }>('/marketing/ad-accounts/refresh-accounts')).data.data,
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['marketing', 'ad-accounts'] }),
     });
 }
 

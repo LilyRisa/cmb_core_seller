@@ -21,7 +21,7 @@ import { useCan } from '@/lib/tenant';
 import {
     type ReconRow, type ReportLevel, type ReportRow,
     useAdAccounts, useAdForecast, useAdMonitors, useAdReconciliation, useAdReport,
-    useClaimAutomation, useConnectFacebookAds, useGenerateForecast, useRefreshAdInsights,
+    useClaimAutomation, useConnectFacebookAds, useGenerateForecast, useRefreshAccounts, useRefreshAdInsights,
     useSaveReport, useUpdateAdEntity,
 } from '@/lib/marketing';
 
@@ -117,6 +117,7 @@ export function MarketingDashboardPage() {
     const duplicateDraft = useDuplicateDraft();
     const connect = useConnectFacebookAds();
     const refresh = useRefreshAdInsights();
+    const refreshAccounts = useRefreshAccounts();
     const { data: accounts, isLoading: loadingAccounts } = useAdAccounts();
 
     const [bm, setBm] = useState<string | null>(null);
@@ -426,6 +427,20 @@ export function MarketingDashboardPage() {
             <Card style={{ marginBottom: 16 }}>
                 <Space wrap size={12}>
                     <Button type="primary" icon={<FacebookFilled />} loading={connect.isPending} onClick={handleConnect} disabled={!canConnect}>Kết nối Facebook Ads</Button>
+                    {(accounts?.length ?? 0) > 0 && (
+                        <Tooltip title="Lấy trạng thái tài khoản / BM mới nhất từ Facebook và phát hiện tài khoản mới">
+                            <Button
+                                icon={<SyncOutlined spin={refreshAccounts.isPending} />}
+                                loading={refreshAccounts.isPending}
+                                onClick={() => refreshAccounts.mutate(undefined, {
+                                    onSuccess: (d) => message.success(`Đã cập nhật ${d.updated} tài khoản${d.created > 0 ? `, thêm ${d.created} mới` : ''}.`),
+                                    onError: (e) => message.error(errorMessage(e, 'Làm mới tài khoản thất bại.')),
+                                })}
+                            >
+                                Làm mới tài khoản
+                            </Button>
+                        </Tooltip>
+                    )}
                     <Button type="primary" icon={<PlusOutlined />} disabled={selectedId == null} onClick={() => navigate('/marketing/ads/new?accountId=' + selectedId)}>Tạo quảng cáo</Button>
                     <Button icon={<ApiOutlined />} disabled={selectedId == null} onClick={() => setPixelOpen(true)}>Quản lý Pixel</Button>
                     {bmGroups.length > 0 && (
@@ -620,7 +635,17 @@ export function MarketingDashboardPage() {
                                 <Input placeholder="ID" allowClear value={adId} onChange={(e) => setAdId(e.target.value)} style={{ width: 160 }} />
                                 <Select placeholder="Loại (objective)" allowClear value={objective} onChange={setObjective} options={objectiveOptions} style={{ minWidth: 180 }} />
                             </>}
-                            <Button icon={<SyncOutlined spin={isFetching} />} onClick={() => selectedId != null && refresh.mutate(selectedId)}>Làm mới</Button>
+                            <Button
+                                icon={<SyncOutlined spin={isFetching || refresh.isPending} />}
+                                loading={refresh.isPending}
+                                disabled={selectedId == null}
+                                onClick={() => selectedId != null && refresh.mutate(selectedId, {
+                                    onSuccess: () => message.success('Đang làm mới dữ liệu quảng cáo…'),
+                                    onError: (e) => message.error(errorMessage(e, 'Làm mới thất bại.')),
+                                })}
+                            >
+                                Làm mới
+                            </Button>
                             <Button
                                 icon={<FileTextOutlined />}
                                 loading={saveReport.isPending}
