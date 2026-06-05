@@ -34,6 +34,27 @@ class FacebookAdsActionsTest extends TestCase
         $this->assertSame(12, $rows[0]->messagingConversations);
         $this->assertSame(5, $rows[0]->leads);
         $this->assertSame(8, $rows[0]->purchases); // omni_purchase preferred (not double-counted)
+        $this->assertSame(8, $rows[0]->results);   // purchase wins the priority
+    }
+
+    public function test_result_falls_back_to_non_purchase_conversion(): void
+    {
+        // A conversion campaign optimising for Add to cart (no purchase) — Result must
+        // not be 0.
+        Http::fake(['graph.facebook.com/*C1/insights*' => Http::response([
+            'data' => [[
+                'date_start' => '2026-06-04', 'date_stop' => '2026-06-04', 'spend' => '90000',
+                'actions' => [
+                    ['action_type' => 'omni_add_to_cart', 'value' => '15'],
+                    ['action_type' => 'landing_page_view', 'value' => '120'],
+                ],
+            ]],
+        ], 200)]);
+
+        $rows = (new FacebookAdsConnector(['graph_version' => 'v19.0']))->fetchInsights('AT', 'C1', 'campaign');
+
+        $this->assertSame(0, $rows[0]->purchases);
+        $this->assertSame(15, $rows[0]->results); // add-to-cart used as the result
     }
 
     public function test_missing_actions_default_to_zero(): void

@@ -171,14 +171,14 @@ class AdMonitorEvaluator
             return $dto->messagingConversations;
         }
         if (in_array($objective, self::SALES, true)) {
-            return $dto->purchases;
+            return $dto->results;
         }
         if (in_array($objective, self::LEADS, true)) {
             return $dto->leads;
         }
 
-        // Unknown objective ⇒ first non-zero conversion metric.
-        return $dto->messagingConversations ?: ($dto->purchases ?: $dto->leads);
+        // Unknown objective ⇒ the connector's primary conversion result.
+        return $dto->results;
     }
 
     /**

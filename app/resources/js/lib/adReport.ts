@@ -23,19 +23,22 @@ const LEAD: ResultValue = { label: 'Khách tiềm năng', value: 0, color: '#fa8
 export function resultOf(objective: string | null, insights: ReportMetrics | null): ResultValue | null {
     if (insights == null) return null;
     const conv = insights.messaging_conversations ?? 0;
-    const purch = insights.purchases ?? 0;
     const leads = insights.leads ?? 0;
+    // `results` is the connector's primary conversion (purchase → lead → registration
+    // → add-to-cart → checkout → messaging), so conversion campaigns aren't shown as 0.
+    const results = insights.results ?? 0;
 
     if (objective != null) {
         if (MESSAGE_OBJECTIVES.has(objective)) return { ...MSG, value: conv };
-        if (SALES_OBJECTIVES.has(objective)) return { ...CONV, value: purch };
+        if (SALES_OBJECTIVES.has(objective)) return { ...CONV, value: results };
         if (LEAD_OBJECTIVES.has(objective)) return { ...LEAD, value: leads };
     }
-    // Unknown objective (adset/ad rows or OUTCOME_ENGAGEMENT) → first non-zero.
-    if (conv > 0) return { ...MSG, value: conv };
-    if (purch > 0) return { ...CONV, value: purch };
-    if (leads > 0) return { ...LEAD, value: leads };
-    return null;
+    // Unknown objective (adset/ad rows or OUTCOME_ENGAGEMENT) → label by the metric
+    // that matches the primary result.
+    if (results <= 0) return null;
+    if (conv === results) return { ...MSG, value: conv };
+    if (leads === results) return { ...LEAD, value: leads };
+    return { ...CONV, value: results };
 }
 
 /** Cost per result = spend / results (null when no results). */
@@ -51,12 +54,13 @@ export function sumInsights(rows: ReportRow[]): ReportMetrics | null {
     if (withData.length === 0) return null;
     const acc: ReportMetrics = {
         spend: 0, impressions: 0, clicks: 0, reach: 0, ctr: null, cpc: null, cpm: null,
-        frequency: null, purchase_roas: null, messaging_conversations: 0, leads: 0, purchases: 0,
+        frequency: null, purchase_roas: null, messaging_conversations: 0, leads: 0, purchases: 0, results: 0,
     };
     for (const r of withData) {
         const i = r.insights!;
         acc.spend += i.spend; acc.impressions += i.impressions; acc.clicks += i.clicks; acc.reach += i.reach;
         acc.messaging_conversations += i.messaging_conversations; acc.leads += i.leads; acc.purchases += i.purchases;
+        acc.results += i.results;
     }
     // Derive ratios from the summed totals.
     acc.ctr = acc.impressions > 0 ? (acc.clicks / acc.impressions) * 100 : null;

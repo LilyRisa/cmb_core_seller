@@ -41,6 +41,7 @@ export interface ReportMetrics {
     messaging_conversations: number;
     leads: number;
     purchases: number;
+    results: number;
 }
 
 export interface ReportRow {

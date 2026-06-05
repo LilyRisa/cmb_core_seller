@@ -221,11 +221,19 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
                 (int) ($actions['onsite_conversion.messaging_first_reply'] ?? 0),
             );
             $leads = (int) (($actions['lead'] ?? 0) + ($actions['leadgen.other'] ?? 0) + ($actions['onsite_conversion.lead_grouped'] ?? 0));
-            // Conversions (purchases) — prefer the omni/unified count, fall back to pixel/standard.
-            $purchases = (int) ($actions['omni_purchase']
-                ?? $actions['offsite_conversion.fb_pixel_purchase']
-                ?? $actions['purchase']
-                ?? 0);
+            // Purchases — the unified omni count, else the largest purchase variant.
+            $purchases = (int) max(
+                (int) ($actions['omni_purchase'] ?? 0),
+                (int) ($actions['offsite_conversion.fb_pixel_purchase'] ?? 0),
+                (int) ($actions['onsite_web_purchase'] ?? 0),
+                (int) ($actions['onsite_web_app_purchase'] ?? 0),
+                (int) ($actions['web_in_store_purchase'] ?? 0),
+                (int) ($actions['purchase'] ?? 0),
+            );
+            // Generic "Kết quả" = the deepest conversion the campaign actually drove
+            // (purchase → lead → registration → add-to-cart → checkout → messaging),
+            // so conversion campaigns optimising for non-purchase events aren't shown as 0.
+            $results = $this->primaryResult($actions, $purchases, $leads, $conversations);
 
             return new AdInsightDTO(
                 level: $level,
@@ -244,9 +252,44 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
                 messagingConversations: $conversations,
                 leads: $leads,
                 purchases: $purchases,
+                results: $results,
                 raw: $r,
             );
         }, array_filter((array) $res->json('data', []), 'is_array')));
+    }
+
+    /**
+     * The campaign's primary "Result" = the deepest conversion it actually drove.
+     * Priority purchase → lead → registration → add-to-cart → checkout → messaging
+     * → landing-page-view, so non-purchase conversion campaigns aren't shown as 0.
+     *
+     * @param  array<string,int>  $actions
+     */
+    private function primaryResult(array $actions, int $purchases, int $leads, int $conversations): int
+    {
+        if ($purchases > 0) {
+            return $purchases;
+        }
+        if ($leads > 0) {
+            return $leads;
+        }
+        $reg = (int) max((int) ($actions['complete_registration'] ?? 0), (int) ($actions['omni_complete_registration'] ?? 0), (int) ($actions['offsite_conversion.fb_pixel_complete_registration'] ?? 0));
+        if ($reg > 0) {
+            return $reg;
+        }
+        $cart = (int) max((int) ($actions['add_to_cart'] ?? 0), (int) ($actions['omni_add_to_cart'] ?? 0), (int) ($actions['offsite_conversion.fb_pixel_add_to_cart'] ?? 0));
+        if ($cart > 0) {
+            return $cart;
+        }
+        $checkout = (int) max((int) ($actions['initiate_checkout'] ?? 0), (int) ($actions['omni_initiated_checkout'] ?? 0), (int) ($actions['offsite_conversion.fb_pixel_initiate_checkout'] ?? 0));
+        if ($checkout > 0) {
+            return $checkout;
+        }
+        if ($conversations > 0) {
+            return $conversations;
+        }
+
+        return (int) max((int) ($actions['landing_page_view'] ?? 0), (int) ($actions['omni_view_content'] ?? 0));
     }
 
     public function fetchAdCreatives(string $accessToken, string $externalAccountId): array
