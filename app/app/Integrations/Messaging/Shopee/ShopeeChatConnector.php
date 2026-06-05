@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Integrations\Messaging\Shopee;
 use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
+use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeApiException;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeClient;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeWebhookVerifier;
 use CMBcoreSeller\Integrations\Messaging\Contracts\MessagingConnector;
@@ -20,6 +21,7 @@ use CMBcoreSeller\Integrations\Messaging\DTO\Page;
 use CMBcoreSeller\Integrations\Messaging\DTO\SendResultDTO;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\UnsupportedOperation;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\ShopeeWebhookController;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -203,7 +205,18 @@ class ShopeeChatConnector implements MessagingConnector
             $params['next_timestamp_nano'] = (string) $query['cursor'];
         }
 
-        $resp = $this->client->shopGet($this->authContext($auth), $path, $params);
+        try {
+            $resp = $this->client->shopGet($this->authContext($auth), $path, $params);
+        } catch (ShopeeApiException $e) {
+            // App type chưa được cấp quyền Seller Chat ⇒ coi như không có hội thoại
+            // (giống Lazada IM thiếu quyền) — không làm fail job poll.
+            if ($e->isPermissionError()) {
+                Log::info('shopee.chat.no_permission', ['shop' => $auth->externalShopId, 'error' => $e->shopeeError]);
+
+                return new Page(items: [], nextCursor: null, hasMore: false);
+            }
+            throw $e;
+        }
 
         $rows = (array) ($resp['conversations'] ?? $resp['conversation_list'] ?? []);
         $items = array_values(array_map(function (array $c) {

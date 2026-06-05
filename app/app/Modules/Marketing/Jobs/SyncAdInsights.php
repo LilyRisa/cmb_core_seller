@@ -57,13 +57,16 @@ class SyncAdInsights implements ShouldBeUnique, ShouldQueue
         $throttle = null;
 
         // Refresh account health (disabled / payment / policy) — cheap single-node read.
+        // Use a query-builder update (not the model) so a failure here (e.g. the
+        // health migration not yet run, or the node read failing) never dirties the
+        // model and so can't poison the insights save below.
         try {
             $health = $connector->fetchAccountStatus($token, $account->external_account_id);
-            $account->forceFill([
+            AdAccount::withoutGlobalScope(TenantScope::class)->whereKey($account->getKey())->update([
                 'fb_account_status' => $health['account_status'],
                 'disable_reason' => $health['disable_reason'],
                 'health_checked_at' => now(),
-            ])->save();
+            ]);
         } catch (\Throwable $e) {
             // Non-fatal — a disabled account may still report insights/no-op.
         }

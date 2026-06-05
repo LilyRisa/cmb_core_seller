@@ -43,6 +43,25 @@ class ShopeeChatConnectorTest extends TestCase
         );
     }
 
+    public function test_fetch_conversations_returns_empty_on_permission_error(): void
+    {
+        // App type chưa được cấp quyền Seller Chat → Shopee trả error_api_permission.
+        Http::fake(['*get_conversation_list*' => Http::response([
+            'error' => 'error_api_permission',
+            'message' => 'This app type has no permission to this API.',
+        ], 403)]);
+
+        $auth = new MessagingAuthContext(
+            channelAccountId: 1, provider: 'shopee', externalShopId: '123', accessToken: 'tok',
+        );
+
+        $page = $this->connector()->fetchConversations($auth);
+
+        $this->assertSame([], $page->items);
+        $this->assertFalse($page->hasMore);
+        $this->assertNull($page->nextCursor);
+    }
+
     private function signedPush(array $body): Request
     {
         $raw = json_encode($body, JSON_UNESCAPED_SLASHES);

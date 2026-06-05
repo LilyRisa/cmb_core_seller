@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Finance\Jobs;
 
 use Carbon\CarbonImmutable;
+use CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Finance\Services\SettlementService;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
@@ -40,6 +41,10 @@ class FetchSettlementsForShop implements ShouldQueue
         try {
             $r = $service->fetchForShop($account, $from, $to);
             Log::info('finance.settlement.fetched', ['shop' => $account->getKey(), 'fetched' => $r['fetched'], 'lines' => $r['lines']]);
+        } catch (UnsupportedOperation $e) {
+            // The channel (e.g. TikTok) has no settlements API — permanent, not an
+            // error to retry. Skip quietly.
+            Log::info('finance.settlement.unsupported', ['shop' => $account->getKey(), 'provider' => $account->provider]);
         } catch (\Throwable $e) {
             Log::warning('finance.settlement.fetch_failed', ['shop' => $account->getKey(), 'error' => $e->getMessage()]);
             throw $e;

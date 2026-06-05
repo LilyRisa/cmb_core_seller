@@ -28,4 +28,11 @@ class ShopeeApiException extends RuntimeException
     {
         return $this->httpStatus === 429 || in_array($this->shopeeError, ['error_busy', 'error_rate_limit'], true);
     }
+
+    /** App/shop lacks permission for this API (e.g. seller chat not granted to this app type). */
+    public function isPermissionError(): bool
+    {
+        return $this->httpStatus === 403
+            || in_array($this->shopeeError, ['error_api_permission', 'error_permission', 'no_permission'], true);
+    }
 }
