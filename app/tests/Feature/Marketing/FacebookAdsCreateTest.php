@@ -213,6 +213,18 @@ class FacebookAdsCreateTest extends TestCase
         Http::assertSent(fn ($r) => ! array_key_exists('is_adset_budget_sharing_enabled', $r->data()));
     }
 
+    public function test_create_adset_with_own_budget_sets_bid_strategy(): void
+    {
+        Http::fake(['graph.facebook.com/*/adsets' => Http::response(['id' => 'AS'], 200)]);
+
+        $this->connector()->createAdSet('tok', 'act_1', new AdSetSpecDTO(
+            name: 'Set', campaignExternalId: 'C1', objective: 'messages',
+            dailyBudgetMajor: 100000, currency: 'VND', targeting: [], pageId: '123',
+        ));
+
+        Http::assertSent(fn ($r) => ($r->data()['bid_strategy'] ?? null) === 'LOWEST_COST_WITHOUT_CAP');
+    }
+
     public function test_create_adset_omits_daily_budget_when_zero_cbo(): void
     {
         Http::fake(['graph.facebook.com/*/adsets' => Http::response(['id' => 'AS'], 200)]);

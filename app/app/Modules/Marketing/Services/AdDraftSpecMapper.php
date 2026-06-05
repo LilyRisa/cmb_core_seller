@@ -23,6 +23,7 @@ class AdDraftSpecMapper
         return new CampaignSpecDTO(
             objective: (string) ($draft->objective ?? 'traffic'),
             name: (string) ($draft->name ?? 'Chiến dịch'),
+            status: 'ACTIVE',
             specialAdCategories: ['NONE'],
             dailyBudgetMajor: $cbo ? (int) ($campaign['daily_budget_major'] ?? 0) : null,
             currency: $cbo ? $currency : null,
@@ -59,6 +60,7 @@ class AdDraftSpecMapper
             endTime: isset($schedule['end_time']) ? (string) $schedule['end_time'] : null,
             pixelId: isset($conversion['pixel_id']) ? (string) $conversion['pixel_id'] : null,
             conversionEvent: isset($conversion['custom_event_type']) ? (string) $conversion['custom_event_type'] : null,
+            status: 'ACTIVE',
         );
     }
 
@@ -79,6 +81,7 @@ class AdDraftSpecMapper
             linkUrl: isset($c['link_url']) ? (string) $c['link_url'] : null,
             cta: (string) ($c['cta'] ?? 'LEARN_MORE'),
             standardEnhancements: (bool) ($c['standard_enhancements'] ?? false),
+            status: 'ACTIVE',
         );
     }
 }

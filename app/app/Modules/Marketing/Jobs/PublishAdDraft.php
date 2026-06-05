@@ -16,7 +16,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Publish one AdDraft to Facebook: create Campaign → N ad sets → N ads (PAUSED),
+ * Publish one AdDraft to Facebook: create Campaign → N ad sets → N ads (ACTIVE),
  * resume-first (skip any node whose external id is already stored in payload ⇒
  * idempotent on retry). On any error the draft is marked `failed` with the message;
  * partial ids are kept so a re-publish resumes from the failed node. No auto-retry

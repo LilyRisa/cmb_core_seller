@@ -112,6 +112,16 @@ class AdDraftSpecMapperTest extends TestCase
         $this->assertSame('PURCHASE', $spec->conversionEvent);
     }
 
+    public function test_published_entities_default_to_active(): void
+    {
+        $draft = $this->draft([]);
+        $node = ['name' => 'N', 'budget' => ['daily_major' => 100000], 'ads' => [['name' => 'QC', 'creative' => ['page_id' => '1', 'page_post_id' => '1_2']]]];
+
+        $this->assertSame('ACTIVE', app(AdDraftSpecMapper::class)->campaign($draft, 'VND')->status);
+        $this->assertSame('ACTIVE', app(AdDraftSpecMapper::class)->adSet($draft, $node, 'C9', 'VND')->status);
+        $this->assertSame('ACTIVE', app(AdDraftSpecMapper::class)->ad($draft, $node['ads'][0], 'AS9')->status);
+    }
+
     public function test_maps_ad_from_node(): void
     {
         $draft = $this->draft([]);

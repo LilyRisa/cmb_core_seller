@@ -403,6 +403,9 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
         }
         if ($spec->dailyBudgetMajor > 0) {
             $params['daily_budget'] = FacebookMoney::toMinorUnits($spec->dailyBudgetMajor, $spec->currency);
+            // An ad-set budget (no CBO) must carry its own bid strategy — the campaign
+            // no longer defines one, and Graph rejects the ad set without it.
+            $params['bid_strategy'] = 'LOWEST_COST_WITHOUT_CAP';
         }
         if ($map['destination_type'] !== null) {
             $params['destination_type'] = $map['destination_type'];
