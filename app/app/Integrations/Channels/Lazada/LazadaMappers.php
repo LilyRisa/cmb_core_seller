@@ -99,7 +99,7 @@ final class LazadaMappers
         return new ShopInfoDTO(
             externalShopId: $shopId,
             name: $name,
-            region: $region ?: 'VN',
+            region: $region,   // match ở trên đã đảm bảo non-empty (default fallback 'VN')
             sellerType: $sellerData['seller_type'] ?? null,
             raw: ['seller' => $sellerData, 'token_country_user_info' => $userInfo],
         );
@@ -449,15 +449,45 @@ final class LazadaMappers
      * Lấy bộ giá trị đầu tiên không null. `tracking_number` rỗng / vắng ⇒ trả null (caller báo lỗi).
      *
      * @param  array<string,mixed>  $data
-     * @return array{tracking_no:?string,package_id:?string,shipment_provider:?string,purchase_order_id:?string,purchase_order_number:?string}
+     * @return array{tracking_no:?string,package_id:?string,shipment_provider:?string,purchase_order_id:?string,purchase_order_number:?string,item_err_code:?string,item_err_msg:?string}
      */
     public static function packResponse(array $data): array
     {
-        $candidates = [];
-        // Top-level
-        $candidates[] = $data;
-        // Nested order_items / orderItems
-        foreach ((array) ($data['order_items'] ?? $data['orderItems'] ?? []) as $oi) {
+        // `/order/fulfill/pack`: { [result =>] { data => { pack_order_list:[{ order_id, order_item_list:[{
+        //   order_item_id, item_err_code, msg, tracking_number, shipment_provider, package_id }] }] }, success,
+        //   error_code, error_msg } }. Legacy `/order/pack`: { order_items:[{...}] }. Hỗ trợ CẢ HAI.
+        $result = (array) ($data['result'] ?? $data);
+        $payload = (array) ($result['data'] ?? $result);
+
+        $candidates = [$data, $result, $payload];
+        $itemErrCode = null;
+        $itemErrMsg = null;
+        foreach ((array) ($payload['pack_order_list'] ?? []) as $po) {
+            if (! is_array($po)) {
+                continue;
+            }
+            $candidates[] = $po;   // order-level (order_id)
+            foreach ((array) ($po['order_item_list'] ?? []) as $oi) {
+                if (! is_array($oi)) {
+                    continue;
+                }
+                $candidates[] = $oi;
+                $ec = (string) ($oi['item_err_code'] ?? '');
+                if ($ec !== '' && $ec !== '0' && $itemErrCode === null) {
+                    $itemErrCode = $ec;
+                    $itemErrMsg = (string) ($oi['msg'] ?? $oi['message'] ?? '');
+                }
+            }
+        }
+        // Batch-level lỗi (success=false) — chỉ dùng khi không có lỗi item cụ thể.
+        $success = $result['success'] ?? $payload['success'] ?? null;
+        if ($itemErrCode === null && $success !== null && filter_var($success, FILTER_VALIDATE_BOOLEAN) === false) {
+            $ec = (string) ($result['error_code'] ?? $payload['error_code'] ?? '');
+            $itemErrCode = $ec !== '' ? $ec : 'PackFailed';
+            $itemErrMsg = (string) ($result['error_msg'] ?? $payload['error_msg'] ?? '');
+        }
+        // Legacy `/order/pack`: order_items / orderItems
+        foreach ((array) ($payload['order_items'] ?? $payload['orderItems'] ?? $data['order_items'] ?? $data['orderItems'] ?? []) as $oi) {
             if (is_array($oi)) {
                 $candidates[] = $oi;
             }
@@ -489,6 +519,8 @@ final class LazadaMappers
             'shipment_provider' => $provider,
             'purchase_order_id' => $poId,
             'purchase_order_number' => $poNum,
+            'item_err_code' => $itemErrCode,
+            'item_err_msg' => $itemErrMsg,
         ];
     }
 

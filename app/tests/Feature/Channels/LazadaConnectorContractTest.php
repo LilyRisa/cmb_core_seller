@@ -336,7 +336,7 @@ class LazadaConnectorContractTest extends TestCase
         $this->assertSame('GHN', $r['carrier']);
         $this->assertSame('PKG1', $r['package_id']);
 
-        Http::assertNotSent(fn ($req) => str_contains($req->url(), '/order/pack'));
+        Http::assertNotSent(fn ($req) => str_contains($req->url(), '/order/fulfill/pack'));
         Http::assertNotSent(fn ($req) => str_contains($req->url(), '/order/rts'));
         Http::assertNotSent(fn ($req) => str_contains($req->url(), '/shipment/providers/get'));
     }
@@ -362,12 +362,17 @@ class LazadaConnectorContractTest extends TestCase
                     ['name' => 'GHN', 'is_default' => true, 'delivery_type' => 'dropship'],
                 ],
             ])),
-            '*/order/pack*' => Http::response($this->ok([
-                'order_items' => [
-                    ['tracking_number' => 'TRK-LZD-NEW-1', 'package_id' => 'PKG-NEW', 'shipment_provider' => 'GHN', 'order_item_id' => 9001],
-                    ['tracking_number' => 'TRK-LZD-NEW-1', 'package_id' => 'PKG-NEW', 'shipment_provider' => 'GHN', 'order_item_id' => 9002],
-                ],
-            ])),
+            // /order/fulfill/pack — shape THẬT: result.data.pack_order_list[].order_item_list[] (item_err_code=0).
+            '*/order/fulfill/pack*' => Http::response([
+                'code' => '0', 'request_id' => 'rq',
+                'result' => ['success' => 'true', 'data' => ['pack_order_list' => [[
+                    'order_id' => 1001,
+                    'order_item_list' => [
+                        ['order_item_id' => 9001, 'item_err_code' => '0', 'tracking_number' => 'TRK-LZD-NEW-1', 'package_id' => 'PKG-NEW', 'shipment_provider' => 'GHN', 'retry' => false],
+                        ['order_item_id' => 9002, 'item_err_code' => '0', 'tracking_number' => 'TRK-LZD-NEW-1', 'package_id' => 'PKG-NEW', 'shipment_provider' => 'GHN', 'retry' => false],
+                    ],
+                ]]]],
+            ]),
             // /order/rts response — should NOT be hit at arrangeShipment.
             '*/order/rts*' => Http::response($this->ok([])),
         ]);
@@ -380,15 +385,41 @@ class LazadaConnectorContractTest extends TestCase
         $this->assertSame([9001, 9002], $r['external_item_ids'], 'order_item_ids returned so ShipmentService can persist on shipment.raw and pass to pushReadyToShip later.');
 
         Http::assertSent(function ($req) {
-            if (! str_contains($req->url(), '/order/pack')) {
+            if (! str_contains($req->url(), '/order/fulfill/pack')) {
                 return false;
             }
-            $body = (string) $req->body();
+            $body = (string) $req->body();   // packReq JSON (form-urlencoded)
 
-            return str_contains($body, 'dropship') && str_contains($body, 'GHN')
-                && str_contains($body, '9001') && str_contains($body, '9002');
+            return str_contains($body, 'pack_order_list') && str_contains($body, 'dropship')
+                && str_contains($body, 'TFS') && str_contains($body, '9001') && str_contains($body, '9002');
         });
         Http::assertNotSent(fn ($req) => str_contains($req->url(), '/order/rts'));
+        // TFS (local store): Lazada TỰ gán 3PL ⇒ KHÔNG cần resolve provider, KHÔNG gọi /shipment/providers/get.
+        Http::assertNotSent(fn ($req) => str_contains($req->url(), '/shipment/providers/get'));
+    }
+
+    public function test_arrange_shipment_already_packed_externally_short_circuits_on_item_error(): void
+    {
+        // fulfill/pack trả item_err_code=700000 (package status not allow) khi đơn đã pack/ship ngoài app ⇒
+        // connector re-fetch detail; nếu thấy tracking sẵn ⇒ trả về, không ném lỗi.
+        $addr = ['first_name' => 'A', 'last_name' => 'B', 'phone' => '0900000000', 'city' => 'Hà Nội', 'country' => 'Vietnam'];
+        $base = ['order_id' => 1001, 'price' => '100000.00', 'shipping_fee' => '0.00', 'payment_method' => 'COD', 'created_at' => '2026-05-17 10:00:00 +0700', 'updated_at' => '2026-05-17 11:00:00 +0700', 'address_shipping' => $addr];
+        Http::fake([
+            '*/order/get*' => Http::sequence()
+                ->push($this->ok($base + ['statuses' => ['pending']]))
+                ->push($this->ok($base + ['statuses' => ['packed']])),
+            '*/order/items/get*' => Http::sequence()
+                ->push($this->ok([['order_item_id' => 9001, 'sku' => 'X', 'name' => 'Áo', 'item_price' => 100000, 'status' => 'pending']]))
+                ->push($this->ok([['order_item_id' => 9001, 'sku' => 'X', 'name' => 'Áo', 'item_price' => 100000, 'status' => 'packed', 'tracking_code' => 'TRK-EXT-9', 'shipment_provider' => 'GHN', 'package_id' => 'PKGX']])),
+            '*/order/fulfill/pack*' => Http::response(['code' => '0', 'request_id' => 'rq', 'result' => ['success' => 'true', 'data' => ['pack_order_list' => [[
+                'order_id' => 1001,
+                'order_item_list' => [['order_item_id' => 9001, 'item_err_code' => '700000', 'msg' => 'current package status not allow to operation']],
+            ]]]]]),
+        ]);
+
+        $r = $this->connector()->arrangeShipment($this->auth(), '1001');
+        $this->assertSame('TRK-EXT-9', $r['tracking_no']);
+        $this->assertSame('GHN', $r['carrier']);
     }
 
     public function test_push_ready_to_ship_calls_rts_with_tracking_and_item_ids(): void
@@ -425,10 +456,13 @@ class LazadaConnectorContractTest extends TestCase
         $this->connector()->pushReadyToShip($this->auth(), '1001', ['external_item_ids' => [9001]]);
     }
 
-    public function test_arrange_shipment_uses_default_provider_from_config(): void
+    public function test_arrange_shipment_ntfs_uses_default_provider_code_from_config(): void
     {
-        // Config `default_shipment_provider` ⇒ bỏ qua /shipment/providers/get.
-        config(['integrations.lazada.default_shipment_provider' => 'Lazada Express VN']);
+        // Cross-border (NTFS): BẮT BUỘC shipment_provider_code; config default ⇒ bỏ qua /shipment/providers/get.
+        config([
+            'integrations.lazada.shipping_allocate_type' => 'NTFS',
+            'integrations.lazada.default_shipment_provider' => 'LEX_VN',
+        ]);
         Http::fake([
             '*/order/get*' => Http::response($this->ok([
                 'order_id' => 1002, 'price' => '100000.00', 'shipping_fee' => '0.00', 'payment_method' => 'COD',
@@ -438,9 +472,10 @@ class LazadaConnectorContractTest extends TestCase
             '*/order/items/get*' => Http::response($this->ok([
                 ['order_item_id' => 7001, 'sku' => 'X', 'name' => 'X', 'item_price' => 100000, 'status' => 'pending'],
             ])),
-            '*/order/pack*' => Http::response($this->ok([
-                'tracking_number' => 'TRK-X', 'package_id' => 'PKG-X', 'shipment_provider' => 'Lazada Express VN',
-            ])),
+            '*/order/fulfill/pack*' => Http::response(['code' => '0', 'request_id' => 'rq', 'result' => ['success' => 'true', 'data' => ['pack_order_list' => [[
+                'order_id' => 1002,
+                'order_item_list' => [['order_item_id' => 7001, 'item_err_code' => '0', 'tracking_number' => 'TRK-X', 'package_id' => 'PKG-X', 'shipment_provider' => 'Lazada Express VN']],
+            ]]]]]),
             '*/order/rts*' => Http::response($this->ok([])),
         ]);
 
@@ -448,6 +483,9 @@ class LazadaConnectorContractTest extends TestCase
         $this->assertSame('TRK-X', $r['tracking_no']);
         $this->assertSame('Lazada Express VN', $r['carrier']);
 
+        // NTFS ⇒ packReq mang shipment_provider_code = LEX_VN + shipping_allocate_type=NTFS.
+        Http::assertSent(fn ($req) => str_contains($req->url(), '/order/fulfill/pack')
+            && str_contains((string) $req->body(), 'LEX_VN') && str_contains((string) $req->body(), 'NTFS'));
         Http::assertNotSent(fn ($req) => str_contains($req->url(), '/shipment/providers/get'));
     }
 
@@ -484,7 +522,8 @@ class LazadaConnectorContractTest extends TestCase
             '*/order/items/get*' => Http::response($this->ok([
                 ['order_item_id' => 7001, 'sku' => 'X', 'name' => 'X', 'item_price' => 100000, 'status' => 'pending'],
             ])),
-            '*/order/pack*' => Http::response($this->ok(['order_items' => [['order_item_id' => 7001]]])),   // không có tracking
+            // fulfill/pack OK (item_err_code=0) nhưng KHÔNG có tracking_number ⇒ connector báo lỗi.
+            '*/order/fulfill/pack*' => Http::response(['code' => '0', 'request_id' => 'rq', 'result' => ['success' => 'true', 'data' => ['pack_order_list' => [['order_id' => 1004, 'order_item_list' => [['order_item_id' => 7001, 'item_err_code' => '0']]]]]]]),
         ]);
 
         $this->expectException(LazadaApiException::class);
@@ -508,9 +547,10 @@ class LazadaConnectorContractTest extends TestCase
                 ['order_item_id' => 8002, 'sku' => 'B', 'name' => 'B', 'item_price' => 100000, 'status' => 'canceled'],
                 ['order_item_id' => 8003, 'sku' => 'C', 'name' => 'C', 'item_price' => 100000, 'status' => 'unpaid'],
             ])),
-            '*/order/pack*' => Http::response($this->ok([
-                'order_items' => [['order_item_id' => 8001, 'tracking_number' => 'TRK-8001', 'package_id' => 'PKG-8001', 'shipment_provider' => 'GHN']],
-            ])),
+            '*/order/fulfill/pack*' => Http::response(['code' => '0', 'request_id' => 'rq', 'result' => ['success' => 'true', 'data' => ['pack_order_list' => [[
+                'order_id' => 1005,
+                'order_item_list' => [['order_item_id' => 8001, 'item_err_code' => '0', 'tracking_number' => 'TRK-8001', 'package_id' => 'PKG-8001', 'shipment_provider' => 'GHN']],
+            ]]]]]),
             '*/order/rts*' => Http::response($this->ok([])),
         ]);
 
@@ -519,7 +559,7 @@ class LazadaConnectorContractTest extends TestCase
 
         // Pack chỉ chứa 8001, KHÔNG có 8002/8003.
         Http::assertSent(function ($req) {
-            if (! str_contains($req->url(), '/order/pack')) {
+            if (! str_contains($req->url(), '/order/fulfill/pack')) {
                 return false;
             }
             $body = (string) $req->body();
@@ -554,7 +594,7 @@ class LazadaConnectorContractTest extends TestCase
             $this->assertMatchesRegularExpression('/shipped|canceled/u', $e->getMessage());
         }
 
-        Http::assertNotSent(fn ($req) => str_contains($req->url(), '/order/pack'));
+        Http::assertNotSent(fn ($req) => str_contains($req->url(), '/order/fulfill/pack'));
         Http::assertNotSent(fn ($req) => str_contains($req->url(), '/order/rts'));
     }
 

@@ -381,26 +381,37 @@ class LazadaConnector implements ChannelConnector
             );
         }
 
-        // (3) Resolve shipment_provider + delivery_type
+        // (3) delivery_type + shipping_allocate_type. Local store (TFS): Lazada TỰ gán 3PL, KHÔNG truyền
+        //     shipment_provider_code; cross-border (NTFS): BẮT BUỘC truyền. Theo doc /order/fulfill/pack.
         $deliveryType = (string) ($params['delivery_type'] ?? config('integrations.lazada.default_delivery_type') ?? 'dropship');
-        $shipmentProvider = (string) ($params['shipment_provider']
-            ?? config('integrations.lazada.default_shipment_provider')
-            ?? $this->pickDefaultShipmentProvider($auth, $deliveryType));
-        if ($shipmentProvider === '') {
-            throw new LazadaApiException(
-                'Lazada arrange shipment: chưa resolve được shipment_provider. Đặt LAZADA_DEFAULT_SHIPMENT_PROVIDER hoặc gọi /shipment/providers/get.',
-                'NoShipmentProvider', 422,
-            );
+        $allocateType = strtoupper((string) ($params['shipping_allocate_type'] ?? config('integrations.lazada.shipping_allocate_type') ?? 'TFS'));
+
+        $packReq = [
+            'pack_order_list' => [[
+                'order_id' => (int) $externalOrderId,
+                'order_item_list' => array_map('intval', $packableIds),
+            ]],
+            'delivery_type' => $deliveryType,
+            'shipping_allocate_type' => $allocateType,
+        ];
+        $shipmentProvider = '';
+        if ($allocateType !== 'TFS') {   // NTFS (cross-border) cần shipment_provider_code
+            $shipmentProvider = (string) ($params['shipment_provider']
+                ?? config('integrations.lazada.default_shipment_provider')
+                ?? $this->pickDefaultShipmentProvider($auth, $deliveryType));
+            if ($shipmentProvider === '') {
+                throw new LazadaApiException(
+                    'Lazada arrange shipment (NTFS): chưa resolve được shipment_provider_code. Đặt LAZADA_DEFAULT_SHIPMENT_PROVIDER hoặc gọi /shipment/providers/get.',
+                    'NoShipmentProvider', 422,
+                );
+            }
+            $packReq['shipment_provider_code'] = $shipmentProvider;
         }
 
-        // (4) /order/pack — Lazada gán tracking
-        $packPath = (string) (config('integrations.lazada.endpoints.order_pack') ?? '/order/pack');
+        // (4) /order/fulfill/pack — Lazada gán tracking. `packReq` là 1 JSON object (LazadaClient tự json_encode mảng).
+        $packPath = (string) (config('integrations.lazada.endpoints.order_pack') ?? '/order/fulfill/pack');
         try {
-            $packResp = $this->client->post($packPath, $auth, [
-                'delivery_type' => $deliveryType,
-                'shipment_provider' => $shipmentProvider,
-                'order_items' => json_encode($packableIds, JSON_UNESCAPED_SLASHES),
-            ]);
+            $packResp = $this->client->post($packPath, $auth, ['packReq' => json_encode($packReq, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)]);
         } catch (LazadaApiException $e) {
             if ($this->isInvalidItemIdError($e)) {
                 Log::info('lazada.pack_invalid_item_retry_refetch', ['order' => $externalOrderId, 'items' => $packableIds, 'code' => $e->lazadaCode]);
@@ -411,14 +422,31 @@ class LazadaConnector implements ChannelConnector
             }
             throw $e;
         }
+
         $pack = LazadaMappers::packResponse($packResp);
+
+        // fulfill/pack trả lỗi MỨC ITEM trong response HTTP 200 (item_err_code != 0 hoặc batch success=false).
+        if ($pack['tracking_no'] === null && (string) ($pack['item_err_code'] ?? '0') !== '0') {
+            $code = (string) $pack['item_err_code'];
+            $msg = (string) ($pack['item_err_msg'] ?? 'Lazada pack item error');
+            // 700000 = package status not allow (đã pack/ship/huỷ ở ngoài app) ⇒ refetch & short-circuit.
+            if (in_array($code, ['700000', '700013'], true) || str_contains(strtolower($msg), 'not allow')) {
+                Log::info('lazada.pack_item_not_allow_retry_refetch', ['order' => $externalOrderId, 'code' => $code]);
+                $retry = $this->extractExistingShipmentFromDetail($this->fetchOrderDetail($auth, $externalOrderId));
+                if ($retry !== null) {
+                    return $retry;
+                }
+            }
+            throw new LazadaApiException("Lazada /order/fulfill/pack lỗi item [{$code}]: {$msg} (đơn {$externalOrderId}).", $code, 422);
+        }
+
         $trackingNo = $pack['tracking_no'];
         $packageId = $pack['package_id'];
         $finalProvider = $pack['shipment_provider'] !== null && $pack['shipment_provider'] !== ''
-            ? $pack['shipment_provider'] : $shipmentProvider;
+            ? $pack['shipment_provider'] : ($shipmentProvider !== '' ? $shipmentProvider : null);
         if ($trackingNo === null) {
             throw new LazadaApiException(
-                "Lazada /order/pack không trả tracking_number cho đơn {$externalOrderId} — provider [{$shipmentProvider}] có thể chưa cấu hình cho shop.",
+                "Lazada /order/fulfill/pack không trả tracking_number cho đơn {$externalOrderId} (shipping_allocate_type={$allocateType}). 3PL của shop có thể chưa cấu hình.",
                 'PackNoTracking', 502,
             );
         }

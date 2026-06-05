@@ -424,7 +424,9 @@ return [
             //   - `/order/rts`   → push item sang ready_to_ship trên Lazada (bắt buộc sau pack)
             //   - `/order/document/get` → trả `data.document.file` (base64 PDF)
             'shipment_providers' => env('LAZADA_SHIPMENT_PROVIDERS_PATH', '/shipment/providers/get'),
-            'order_pack' => env('LAZADA_ORDER_PACK_PATH', '/order/pack'),
+            // Pack đơn JIT (Seller Fulfillment): API CHÍNH THỨC là `/order/fulfill/pack` (packReq.pack_order_list),
+            // KHÔNG phải `/order/pack` (legacy — trả "20 Invalid Order Item ID"). Xem lazada doc fulfill/pack.
+            'order_pack' => env('LAZADA_ORDER_PACK_PATH', '/order/fulfill/pack'),
             'order_rts' => env('LAZADA_ORDER_RTS_PATH', '/order/rts'),
             'document_get' => env('LAZADA_DOCUMENT_GET_PATH', '/order/document/get'),
             // PrintAWB (preferred VN) — lấy AWB PDF theo `package_id` thay vì `order_item_ids`; trả PDF ổn
@@ -473,6 +475,10 @@ return [
         // Lazada chỉ hỗ trợ `dropship` cho non-FBL (theo tài liệu chính thức). Để config-able phòng khi
         // sandbox shop có loại khác (`pickup` đã deprecate ở hầu hết region).
         'default_delivery_type' => env('LAZADA_DEFAULT_DELIVERY_TYPE', 'dropship'),
+        // shipping_allocate_type cho /order/fulfill/pack: `TFS` = local store (Lazada tự gán 3PL, KHÔNG truyền
+        // shipment_provider_code) | `NTFS` = cross-border (BẮT BUỘC shipment_provider_code). Lấy giá trị hợp lệ
+        // qua /shipment/providers/get. Đa số shop VN local ⇒ TFS.
+        'shipping_allocate_type' => env('LAZADA_SHIPPING_ALLOCATE_TYPE', 'TFS'),
         // (Tuỳ chọn) Tên `shipment_provider` mặc định — nếu set, bỏ qua bước resolve qua
         // `/shipment/providers/get`. Hữu ích khi shop chỉ dùng 1 ĐVVC cố định (ví dụ "Lazada Express VN").
         'default_shipment_provider' => env('LAZADA_DEFAULT_SHIPMENT_PROVIDER'),
