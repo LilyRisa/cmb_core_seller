@@ -98,6 +98,33 @@ class FacebookAdsCreateTest extends TestCase
         });
     }
 
+    public function test_create_ad_with_standard_enhancements_adds_degrees_of_freedom(): void
+    {
+        Http::fake(['graph.facebook.com/*/ads' => Http::response(['id' => 'AD_E'], 200)]);
+
+        $this->connector()->createAd('tok', 'act_1', new AdSpecDTO(
+            name: 'Ad', adSetExternalId: 'AS', pageId: '123', pagePostId: '123_456',
+            standardEnhancements: true,
+        ));
+
+        Http::assertSent(function ($r) {
+            $creative = json_decode($r->data()['creative'] ?? '{}', true);
+
+            return ($creative['degrees_of_freedom_spec']['creative_features_spec']['standard_enhancements']['enroll_status'] ?? null) === 'OPT_IN';
+        });
+    }
+
+    public function test_create_ad_without_enhancements_omits_degrees_of_freedom(): void
+    {
+        Http::fake(['graph.facebook.com/*/ads' => Http::response(['id' => 'AD_N'], 200)]);
+
+        $this->connector()->createAd('tok', 'act_1', new AdSpecDTO(
+            name: 'Ad', adSetExternalId: 'AS', pageId: '123', pagePostId: '123_456',
+        ));
+
+        Http::assertSent(fn ($r) => ! array_key_exists('degrees_of_freedom_spec', json_decode($r->data()['creative'], true)));
+    }
+
     public function test_create_campaign_throws_on_graph_error(): void
     {
         Http::fake(['graph.facebook.com/*/campaigns' => Http::response(['error' => ['message' => 'bad']], 400)]);

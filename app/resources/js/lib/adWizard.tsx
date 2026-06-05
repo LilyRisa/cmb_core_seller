@@ -27,6 +27,7 @@ export interface AdDraftPayload {
         headline?: string;
         link_url?: string;
         cta?: string;
+        standard_enhancements?: boolean;
     };
     adsets?: AdSetNode[];
     [k: string]: unknown;

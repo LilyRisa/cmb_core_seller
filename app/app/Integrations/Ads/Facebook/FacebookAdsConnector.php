@@ -423,6 +423,13 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
             $creative = ['object_story_spec' => ['page_id' => $spec->pageId, 'link_data' => $linkData]];
         }
 
+        // Advantage+ creative (standard enhancements): Meta auto-optimises the creative.
+        if ($spec->standardEnhancements) {
+            $creative['degrees_of_freedom_spec'] = [
+                'creative_features_spec' => ['standard_enhancements' => ['enroll_status' => 'OPT_IN']],
+            ];
+        }
+
         $res = Http::timeout(30)->asForm()->post($this->graphUrl($externalAccountId.'/ads'), [
             'name' => $spec->name,
             'adset_id' => $spec->adSetExternalId,

@@ -7,6 +7,7 @@ import {
     Form,
     Input,
     Space,
+    Switch,
     Tag,
     Tooltip,
     Typography,
@@ -296,6 +297,21 @@ function AdEditor({ adsetKey, ad }: AdEditorProps) {
                     />
                 </Form.Item>
             )}
+
+            {/* Advantage+ creative (standard enhancements) */}
+            <Form.Item label="Advantage+ — Tối ưu nội dung tự động" style={{ marginTop: 8 }}>
+                <Space direction="vertical" size={4}>
+                    <Switch
+                        checked={creative?.standard_enhancements ?? false}
+                        onChange={(v) =>
+                            updateAd(adsetKey, ad.key, { creative: { ...creative, standard_enhancements: v } })
+                        }
+                    />
+                    <Text type="secondary" style={{ maxWidth: 520, display: 'inline-block' }}>
+                        Cho phép Meta tự điều chỉnh nhẹ hình ảnh/văn bản (độ sáng, khung, biến thể chữ) để tăng hiệu quả.
+                    </Text>
+                </Space>
+            </Form.Item>
 
             <PagePostPickerModal
                 open={modalOpen}

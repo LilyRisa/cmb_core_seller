@@ -78,6 +78,7 @@ class AdDraftSpecMapper
             headline: isset($c['headline']) ? (string) $c['headline'] : null,
             linkUrl: isset($c['link_url']) ? (string) $c['link_url'] : null,
             cta: (string) ($c['cta'] ?? 'LEARN_MORE'),
+            standardEnhancements: (bool) ($c['standard_enhancements'] ?? false),
         );
     }
 }

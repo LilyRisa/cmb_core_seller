@@ -20,5 +20,6 @@ final readonly class AdSpecDTO
         public ?string $linkUrl = null,
         public string $cta = 'LEARN_MORE',
         public string $status = 'PAUSED',
+        public bool $standardEnhancements = false, // Advantage+ creative (standard enhancements)
     ) {}
 }
