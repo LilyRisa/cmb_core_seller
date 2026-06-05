@@ -293,8 +293,9 @@ return [
             'finance_statements' => env('TIKTOK_FINANCE_STATEMENTS_PATH', '/finance/{version}/statements'),
             'finance_statement_transactions' => env('TIKTOK_FINANCE_STATEMENT_TX_PATH', '/finance/{version}/statements/{statement_id}/statement_transactions'),
         ],
-        // Phase 6.2 — kéo đối soát/statement từ sàn. Off mặc định, bật bằng INTEGRATIONS_TIKTOK_FINANCE=true sau khi đối chiếu sandbox.
-        'finance_enabled' => (bool) env('INTEGRATIONS_TIKTOK_FINANCE', false),
+        // Phase 6.2 — kéo đối soát/statement từ sàn. Bật mặc định (đã đối chiếu tài liệu Finance
+        // API + SDK, xem tailieuapi_itiktok_shopee_lazada/tiktok/finance/). Tắt bằng INTEGRATIONS_TIKTOK_FINANCE=false.
+        'finance_enabled' => (bool) env('INTEGRATIONS_TIKTOK_FINANCE', true),
 
         'http' => [
             'timeout' => (int) env('TIKTOK_HTTP_TIMEOUT', 20),
@@ -477,8 +478,9 @@ return [
         'default_shipment_provider' => env('LAZADA_DEFAULT_SHIPMENT_PROVIDER'),
         // DEPRECATED — giữ làm legacy alias để env cũ không vỡ. Mode mới = `fulfillment_mode='auto'`.
         'fulfillment_auto_pack' => (bool) env('LAZADA_FULFILLMENT_AUTO_PACK', true),
-        // Phase 6.2 — kéo đối soát. Mặc định off, bật bằng INTEGRATIONS_LAZADA_FINANCE=true sau khi đối chiếu sandbox.
-        'finance_enabled' => (bool) env('INTEGRATIONS_LAZADA_FINANCE', false),
+        // Phase 6.2 — kéo đối soát. Bật mặc định. Tắt bằng INTEGRATIONS_LAZADA_FINANCE=false.
+        // Lưu ý: app Lazada vẫn cần quyền nhóm Finance trên Open Platform mới gọi được API.
+        'finance_enabled' => (bool) env('INTEGRATIONS_LAZADA_FINANCE', true),
 
         // Lazada raw (item-level + order-level) status → StandardOrderStatus. Source of truth duy nhất;
         // xem docs/03-domain/order-status-state-machine.md §4 + `lazada_order.md` (chuẩn hoá theo Lazada
@@ -562,7 +564,8 @@ return [
         // khó hiểu (vd đơn UNPAID gọi get_shipping_parameter → error_param). UNPAID = chưa thanh toán;
         // IN_CANCEL = buyer đang xin huỷ. CSV; đổi bằng SHOPEE_UNFULFILLABLE_RAW_STATUSES.
         'unfulfillable_raw_statuses' => array_values(array_filter(array_map('trim', explode(',', (string) env('SHOPEE_UNFULFILLABLE_RAW_STATUSES', 'UNPAID,IN_CANCEL'))))),
-        'finance_enabled' => (bool) env('INTEGRATIONS_SHOPEE_FINANCE', false),
+        // Phase 6.2 — kéo đối soát. Bật mặc định. Tắt bằng INTEGRATIONS_SHOPEE_FINANCE=false.
+        'finance_enabled' => (bool) env('INTEGRATIONS_SHOPEE_FINANCE', true),
         'endpoints' => [
             'auth_partner' => '/api/v2/shop/auth_partner',
             'token_get' => '/api/v2/auth/token/get',

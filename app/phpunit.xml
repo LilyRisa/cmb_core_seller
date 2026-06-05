@@ -30,6 +30,11 @@
         <env name="SESSION_DRIVER" value="array"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="INTEGRATIONS_TIKTOK_FULFILLMENT" value="false"/>
+        <!-- Đối soát sàn: production bật mặc định (config), nhưng test pin OFF để tất định —
+             test nào cần bật tự override config('integrations.<sàn>.finance_enabled'). SPEC 0016. -->
+        <env name="INTEGRATIONS_TIKTOK_FINANCE" value="false"/>
+        <env name="INTEGRATIONS_LAZADA_FINANCE" value="false"/>
+        <env name="INTEGRATIONS_SHOPEE_FINANCE" value="false"/>
         <!-- Billing PR2 — SePay test config (fake values, real env override in prod). SPEC 0018. -->
         <env name="INTEGRATIONS_PAYMENTS" value="sepay,vnpay,momo"/>
         <env name="SEPAY_ACCOUNT_NO" value="9999999999"/>
