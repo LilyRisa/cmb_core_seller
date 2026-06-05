@@ -52,6 +52,8 @@ class AdAuthoringController extends Controller
             'likes' => $p->likes,
             'comments' => $p->comments,
             'shares' => $p->shares,
+            'link_url' => $p->linkUrl,
+            'cta_type' => $p->ctaType,
         ], $connector->listPagePosts($page->accessToken, $pageId, $limit));
 
         return response()->json(['data' => $posts]);

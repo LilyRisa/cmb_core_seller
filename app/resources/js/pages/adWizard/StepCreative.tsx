@@ -15,6 +15,8 @@ import type { SegmentedProps } from 'antd';
 import { Segmented } from 'antd';
 import {
     CloseOutlined,
+    LinkOutlined,
+    MessageOutlined,
     PictureOutlined,
     PlusOutlined,
     SwapOutlined,
@@ -46,10 +48,12 @@ const CTA_BY_OBJECTIVE: Record<AdObjective, CtaOption[]> = {
     engagement: [{ label: 'Tìm hiểu thêm', value: 'LEARN_MORE' }],
 };
 
-// Local UI state for the picked post (image + message for preview, not stored in draft payload)
+// Local UI state for the picked post (image + message + existing CTA/link for preview, not stored in draft payload)
 interface PickedPostSummary {
     image_url: string | null;
     message: string | null;
+    link_url: string | null;
+    cta_type: string | null;
 }
 
 interface AdEditorProps {
@@ -102,12 +106,24 @@ function AdEditor({ adsetKey, ad }: AdEditorProps) {
         page_post_id: string;
         image_url: string | null;
         message: string | null;
+        link_url: string | null;
+        cta_type: string | null;
     }) {
         updateAd(adsetKey, ad.key, {
             creative: { ...creative, page_id: p.page_id, page_post_id: p.page_post_id },
         });
-        setPickedSummary({ image_url: p.image_url, message: p.message });
+        setPickedSummary({
+            image_url: p.image_url,
+            message: p.message,
+            link_url: p.link_url,
+            cta_type: p.cta_type,
+        });
     }
+
+    // The "đích" hiện hữu của bài: nút Gửi tin nhắn (messages objective hoặc post CTA messenger) hoặc đường dẫn đã gắn.
+    const showsMessenger =
+        pickedSummary?.cta_type === 'MESSAGE_PAGE' || objective === 'messages';
+    const existingLink = pickedSummary?.link_url ?? null;
 
     return (
         <Form layout="vertical">
@@ -171,6 +187,37 @@ function AdEditor({ adsetKey, ad }: AdEditorProps) {
                                             Post ID: {creative.page_post_id}
                                         </Text>
                                     )}
+                                    {showsMessenger ? (
+                                        <Tag
+                                            icon={<MessageOutlined />}
+                                            color="green"
+                                            style={{ marginInlineEnd: 0, maxWidth: '100%' }}
+                                        >
+                                            Hành động: Gửi tin nhắn
+                                        </Tag>
+                                    ) : existingLink != null ? (
+                                        <Tag
+                                            icon={<LinkOutlined />}
+                                            color="blue"
+                                            style={{ marginInlineEnd: 0, maxWidth: '100%' }}
+                                        >
+                                            <a
+                                                href={existingLink}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                style={{
+                                                    maxWidth: 240,
+                                                    display: 'inline-block',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis',
+                                                    whiteSpace: 'nowrap',
+                                                    verticalAlign: 'bottom',
+                                                }}
+                                            >
+                                                Đường dẫn: {existingLink}
+                                            </a>
+                                        </Tag>
+                                    ) : null}
                                     <Button
                                         size="small"
                                         icon={<SwapOutlined />}

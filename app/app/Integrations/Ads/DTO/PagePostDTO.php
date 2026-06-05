@@ -15,6 +15,8 @@ final readonly class PagePostDTO
         public int $likes,
         public int $comments,
         public int $shares,
+        public ?string $linkUrl = null,
+        public ?string $ctaType = null,
         public array $raw = [],
     ) {}
 }

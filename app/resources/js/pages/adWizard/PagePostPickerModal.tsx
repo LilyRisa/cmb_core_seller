@@ -16,6 +16,8 @@ interface PickResult {
     page_post_id: string;
     image_url: string | null;
     message: string | null;
+    link_url: string | null;
+    cta_type: string | null;
 }
 
 interface Props {
@@ -130,6 +132,8 @@ export function PagePostPickerModal({ open, accountId, onPick, onClose }: Props)
             page_post_id: post.id,
             image_url: post.image_url,
             message: post.message,
+            link_url: post.link_url ?? null,
+            cta_type: post.cta_type ?? null,
         });
         onClose();
     }

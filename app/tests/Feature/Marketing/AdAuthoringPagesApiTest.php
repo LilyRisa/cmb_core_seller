@@ -68,7 +68,8 @@ class AdAuthoringPagesApiTest extends TestCase
             'graph.facebook.com/*/me/accounts*' => Http::response(['data' => [['id' => '123', 'name' => 'Shop', 'access_token' => 'PAGETOK']]], 200),
             'graph.facebook.com/*/123/published_posts*' => Http::response(['data' => [[
                 'id' => '123_456', 'message' => 'Sale', 'created_time' => '2026-06-01T00:00:00+0000',
-                'full_picture' => 'https://img', 'attachments' => ['data' => [['media_type' => 'photo']]],
+                'full_picture' => 'https://img', 'attachments' => ['data' => [['media_type' => 'share', 'target' => ['url' => 'https://shop.example/sale']]]],
+                'call_to_action' => ['type' => 'SHOP_NOW', 'value' => ['link' => 'https://shop.example/sale']],
                 'likes' => ['summary' => ['total_count' => 1200]],
                 'comments' => ['summary' => ['total_count' => 89]],
                 'shares' => ['count' => 45],
@@ -83,8 +84,10 @@ class AdAuthoringPagesApiTest extends TestCase
             ->assertJsonPath('data.0.likes', 1200)
             ->assertJsonPath('data.0.comments', 89)
             ->assertJsonPath('data.0.shares', 45)
-            ->assertJsonPath('data.0.media_type', 'photo')
-            ->assertJsonPath('data.0.image_url', 'https://img');
+            ->assertJsonPath('data.0.media_type', 'share')
+            ->assertJsonPath('data.0.image_url', 'https://img')
+            ->assertJsonPath('data.0.link_url', 'https://shop.example/sale')
+            ->assertJsonPath('data.0.cta_type', 'SHOP_NOW');
     }
 
     public function test_page_posts_404_for_unknown_page(): void

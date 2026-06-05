@@ -82,6 +82,7 @@ export interface AdPagePost {
     id: string; message: string | null; created_time: string;
     media_type: string; image_url: string | null;
     likes: number; comments: number; shares: number;
+    link_url?: string | null; cta_type?: string | null;
 }
 export interface TargetingOption { id: string; name: string; type: string; audience_size: number | null }
 export interface AudienceSize { lower_bound: number | null; upper_bound: number | null }

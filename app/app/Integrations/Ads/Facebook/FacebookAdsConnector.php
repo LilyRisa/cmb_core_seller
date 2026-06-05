@@ -418,7 +418,9 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
     public function listPagePosts(string $pageAccessToken, string $pageId, int $limit = 25): array
     {
         $res = Http::timeout(30)->get($this->graphUrl($pageId.'/published_posts'), [
-            'fields' => 'id,message,created_time,full_picture,attachments{media_type,media},'
+            'fields' => 'id,message,created_time,full_picture,'
+                .'attachments{media_type,media,target,unshimmed_url,type,title},'
+                .'call_to_action{type,value},'
                 .'likes.summary(true).limit(0),comments.summary(true).limit(0),shares',
             'access_token' => $pageAccessToken,
             'limit' => $limit,
@@ -430,6 +432,12 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
         return array_values(array_map(function (array $p) {
             $attachment = (array) ($p['attachments']['data'][0] ?? []);
             $mediaType = (string) ($attachment['media_type'] ?? 'status');
+            $cta = (array) ($p['call_to_action'] ?? []);
+
+            $linkUrl = $cta['value']['link']
+                ?? $attachment['target']['url']
+                ?? $attachment['unshimmed_url']
+                ?? null;
 
             return new PagePostDTO(
                 id: (string) ($p['id'] ?? ''),
@@ -441,6 +449,8 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
                 likes: (int) ($p['likes']['summary']['total_count'] ?? 0),
                 comments: (int) ($p['comments']['summary']['total_count'] ?? 0),
                 shares: (int) ($p['shares']['count'] ?? 0),
+                linkUrl: $linkUrl !== null ? (string) $linkUrl : null,
+                ctaType: isset($cta['type']) ? (string) $cta['type'] : null,
                 raw: $p,
             );
         }, array_filter((array) $res->json('data', []), 'is_array')));

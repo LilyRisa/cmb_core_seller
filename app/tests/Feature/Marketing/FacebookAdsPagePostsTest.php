@@ -55,6 +55,56 @@ class FacebookAdsPagePostsTest extends TestCase
         $this->assertSame(45, $p->shares);
     }
 
+    public function test_list_page_posts_extracts_call_to_action_link_and_type(): void
+    {
+        Http::fake(['graph.facebook.com/*/123/published_posts*' => Http::response([
+            'data' => [[
+                'id' => '123_456',
+                'created_time' => '2026-06-01T00:00:00+0000',
+                'call_to_action' => ['type' => 'SHOP_NOW', 'value' => ['link' => 'https://shop.example/sale']],
+                'attachments' => ['data' => [['media_type' => 'share', 'target' => ['url' => 'https://ignored']]]],
+            ]],
+        ], 200)]);
+
+        $p = $this->connector()->listPagePosts('PAGETOK', '123')[0];
+
+        $this->assertSame('https://shop.example/sale', $p->linkUrl);
+        $this->assertSame('SHOP_NOW', $p->ctaType);
+    }
+
+    public function test_list_page_posts_falls_back_to_attachment_link(): void
+    {
+        Http::fake(['graph.facebook.com/*/123/published_posts*' => Http::response([
+            'data' => [[
+                'id' => '123_456',
+                'created_time' => '2026-06-01T00:00:00+0000',
+                'attachments' => ['data' => [['media_type' => 'share', 'target' => ['url' => 'https://blog.example/post']]]],
+            ]],
+        ], 200)]);
+
+        $p = $this->connector()->listPagePosts('PAGETOK', '123')[0];
+
+        $this->assertSame('https://blog.example/post', $p->linkUrl);
+        $this->assertNull($p->ctaType);
+    }
+
+    public function test_list_page_posts_photo_only_has_no_link_or_cta(): void
+    {
+        Http::fake(['graph.facebook.com/*/123/published_posts*' => Http::response([
+            'data' => [[
+                'id' => '123_456',
+                'created_time' => '2026-06-01T00:00:00+0000',
+                'full_picture' => 'https://img/p.jpg',
+                'attachments' => ['data' => [['media_type' => 'photo']]],
+            ]],
+        ], 200)]);
+
+        $p = $this->connector()->listPagePosts('PAGETOK', '123')[0];
+
+        $this->assertNull($p->linkUrl);
+        $this->assertNull($p->ctaType);
+    }
+
     public function test_list_page_posts_handles_missing_engagement_gracefully(): void
     {
         Http::fake(['graph.facebook.com/*/123/published_posts*' => Http::response([
