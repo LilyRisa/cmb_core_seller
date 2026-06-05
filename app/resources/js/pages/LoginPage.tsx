@@ -4,7 +4,9 @@ import {
     MailOutlined,
     LockOutlined,
     ThunderboltOutlined,
-    SafetyCertificateOutlined,
+    RiseOutlined,
+    RobotOutlined,
+    AccountBookOutlined,
     ClusterOutlined,
     ArrowRightOutlined,
 } from '@ant-design/icons';
@@ -21,23 +23,31 @@ export function LoginPage() {
                 <div className="auth-scanline" />
                 <div className="auth-brand-content">
                     <span className="auth-logo-mark"><img src="/images/logocmb.png" alt="CMB Core" /></span>
-                    <h1>Vận hành gian hàng,<br />tối ưu mỗi đơn hàng.</h1>
+                    <h1>Bán nhiều hơn,<br />làm ít việc tay hơn.</h1>
                     <p className="tagline">
-                        Nền tảng quản lý đơn – tồn kho – vận chuyển hợp nhất cho seller đa kênh.
-                        Đăng nhập để tiếp tục công việc của bạn.
+                        Một nền tảng lo trọn cho seller đa kênh: bán hàng, quảng cáo AI,
+                        chăm sóc khách và kế toán — không còn nhảy giữa chục công cụ.
                     </p>
                     <ul className="auth-feature-list">
                         <li>
+                            <span className="feat-icon"><RiseOutlined /></span>
+                            <span><b>Giám sát &amp; tối ưu quảng cáo bằng AI</b> — theo dõi Facebook Ads liên tục, cảnh báo và gợi ý để giảm chi phí, tăng đơn.</span>
+                        </li>
+                        <li>
+                            <span className="feat-icon"><RobotOutlined /></span>
+                            <span><b>Chốt sale tự động ngay trong khung chat</b> — nhắn tin chăm sóc đa kênh, luồng AI tự trả lời và lên đơn cho khách.</span>
+                        </li>
+                        <li>
+                            <span className="feat-icon"><AccountBookOutlined /></span>
+                            <span><b>Kế toán &amp; đối soát tự động</b> — khớp tiền sàn, soi lãi/lỗ từng đơn, sổ sách luôn sạch.</span>
+                        </li>
+                        <li>
                             <span className="feat-icon"><ThunderboltOutlined /></span>
-                            <span>Đồng bộ đơn hàng theo thời gian thực từ nhiều sàn TMĐT.</span>
+                            <span><b>Đồng bộ đa sàn thời gian thực</b> — đơn, tồn kho, vận chuyển TikTok Shop · Lazada gom về một nơi.</span>
                         </li>
                         <li>
                             <span className="feat-icon"><ClusterOutlined /></span>
-                            <span>Quản lý tồn kho nhiều kho, dự báo nhu cầu và lệnh nhập hàng.</span>
-                        </li>
-                        <li>
-                            <span className="feat-icon"><SafetyCertificateOutlined /></span>
-                            <span>Bảo mật cấp doanh nghiệp, phân quyền chi tiết theo vai trò.</span>
+                            <span><b>Tồn kho nhiều kho &amp; dự báo nhập hàng</b> — hết khi nào nhập khi đó, không lo tồn đọng.</span>
                         </li>
                     </ul>
                 </div>
