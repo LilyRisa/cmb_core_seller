@@ -55,21 +55,12 @@ class SubscriptionExpiryService
                 });
             });
 
-        // 2) Active quá hạn (chưa paid) ⇒ past_due.
+        // 2) Gói trả phí hết kỳ mà KHÔNG gia hạn ⇒ hạ về trial NGAY (SPEC 0032 — không grace
+        //    giữ tính năng trả phí). Đăng ký 13 → hết hạn 13 tháng sau → hạ trial.
         Subscription::query()->withoutGlobalScope(TenantScope::class)
-            ->where('status', Subscription::STATUS_ACTIVE)
+            ->whereIn('status', [Subscription::STATUS_ACTIVE, Subscription::STATUS_PAST_DUE])
+            ->where('billing_cycle', '!=', Subscription::CYCLE_TRIAL)
             ->where('current_period_end', '<', $now)
-            ->orderBy('id')
-            ->each(function (Subscription $sub) use (&$past) {
-                $sub->forceFill(['status' => Subscription::STATUS_PAST_DUE])->save();
-                $past++;
-            });
-
-        // 3) Past due quá 7 ngày ⇒ expired + fallback trial.
-        $graceDeadline = $now->copy()->subDays(7);
-        Subscription::query()->withoutGlobalScope(TenantScope::class)
-            ->where('status', Subscription::STATUS_PAST_DUE)
-            ->where('current_period_end', '<', $graceDeadline)
             ->orderBy('id')
             ->each(function (Subscription $sub) use (&$expired, &$fallback) {
                 DB::transaction(function () use ($sub, &$expired, &$fallback) {

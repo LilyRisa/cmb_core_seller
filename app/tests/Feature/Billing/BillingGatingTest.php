@@ -66,32 +66,32 @@ class BillingGatingTest extends TestCase
         }
     }
 
-    public function test_starter_plan_blocks_third_channel_account_connect(): void
+    public function test_starter_plan_blocks_third_channel_account_per_platform(): void
     {
+        // SPEC 0032 — starter cho tối đa 2 gian hàng MỖI nền tảng. Gian hàng tiktok thứ 3 ⇒ chặn.
         $this->activateSubscription(Plan::CODE_STARTER);
-        $this->preActiveChannelAccounts(2);
+        $this->preActiveChannelAccounts(2); // 2 gian hàng tiktok
 
         $resp = $this->actingAs($this->owner)->withHeaders($this->h())
             ->postJson('/api/v1/channel-accounts/tiktok/connect');
 
         $resp->assertStatus(402)
-            ->assertJsonPath('error.code', 'PLAN_LIMIT_REACHED')
-            ->assertJsonPath('error.details.resource', 'channel_accounts')
+            ->assertJsonPath('error.code', 'PLAN_PLATFORM_LIMIT_REACHED')
+            ->assertJsonPath('error.details.provider', 'tiktok')
             ->assertJsonPath('error.details.limit', 2)
             ->assertJsonPath('error.details.current', 2);
     }
 
-    public function test_pro_plan_allows_up_to_five_channel_accounts(): void
+    public function test_pro_plan_allows_unlimited_channel_accounts(): void
     {
         $this->activateSubscription(Plan::CODE_PRO);
         $this->preActiveChannelAccounts(4);
 
-        // Gọi đến route ⇒ middleware qua (current=4 < limit=5). Endpoint thật có thể fail vì shop chưa
-        // có TikTok credential — em chỉ kiểm middleware không trả 402.
+        // Pro không giới hạn (tổng & mỗi nền tảng) ⇒ middleware không chặn.
         $resp = $this->actingAs($this->owner)->withHeaders($this->h())
             ->postJson('/api/v1/channel-accounts/tiktok/connect');
 
-        $this->assertNotSame(402, $resp->status(), 'Middleware không được chặn khi current < limit.');
+        $this->assertNotSame(402, $resp->status(), 'Middleware không được chặn khi không giới hạn.');
     }
 
     public function test_starter_plan_blocks_finance_settlements_endpoint(): void

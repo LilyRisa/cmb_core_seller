@@ -53,32 +53,31 @@ class BillingTrialTest extends TestCase
     {
         $plans = Plan::query()->orderBy('sort_order')->get()->keyBy('code');
 
-        $this->assertSame(2, $plans[Plan::CODE_TRIAL]->maxChannelAccounts());
-        $this->assertSame(2, $plans[Plan::CODE_STARTER]->maxChannelAccounts());
-        $this->assertSame(5, $plans[Plan::CODE_PRO]->maxChannelAccounts());
-        $this->assertSame(10, $plans[Plan::CODE_BUSINESS]->maxChannelAccounts());
+        // SPEC 0032 — 3 gói: trial (3 gian hàng, 1/nền tảng), starter (90k, 2/nền tảng), pro (170k, không giới hạn).
+        $this->assertSame(3, $plans[Plan::CODE_TRIAL]->maxChannelAccounts());
+        $this->assertSame(1, $plans[Plan::CODE_TRIAL]->maxChannelAccountsPerPlatform());
+        $this->assertSame(2, $plans[Plan::CODE_STARTER]->maxChannelAccountsPerPlatform());
+        $this->assertSame(-1, $plans[Plan::CODE_PRO]->maxChannelAccounts());
+        $this->assertSame(-1, $plans[Plan::CODE_PRO]->maxChannelAccountsPerPlatform());
 
-        // Starter chỉ tính năng cơ bản.
-        $this->assertFalse($plans[Plan::CODE_STARTER]->hasFeature('finance_settlements'));
-        $this->assertFalse($plans[Plan::CODE_STARTER]->hasFeature('procurement'));
-        // Pro mở khoá nâng cao.
-        $this->assertTrue($plans[Plan::CODE_PRO]->hasFeature('finance_settlements'));
-        $this->assertTrue($plans[Plan::CODE_PRO]->hasFeature('procurement'));
-        $this->assertTrue($plans[Plan::CODE_PRO]->hasFeature('fifo_cogs'));
-        $this->assertTrue($plans[Plan::CODE_PRO]->hasFeature('demand_planning'));
-        $this->assertTrue($plans[Plan::CODE_PRO]->hasFeature('profit_reports'));
-        $this->assertFalse($plans[Plan::CODE_PRO]->hasFeature('mass_listing'));
-        // Business mở khoá tất cả.
-        $this->assertTrue($plans[Plan::CODE_BUSINESS]->hasFeature('mass_listing'));
-        $this->assertTrue($plans[Plan::CODE_BUSINESS]->hasFeature('automation_rules'));
+        // Trial: không tính năng nào.
+        $this->assertFalse($plans[Plan::CODE_TRIAL]->hasFeature('messaging_inbox'));
+        // Starter (90k): chỉ mở nhắn tin Facebook Page — KHÔNG AI / kế toán / marketing.
+        $this->assertTrue($plans[Plan::CODE_STARTER]->hasFeature('messaging_inbox'));
+        $this->assertFalse($plans[Plan::CODE_STARTER]->hasFeature('messaging_ai'));
+        $this->assertFalse($plans[Plan::CODE_STARTER]->hasFeature('accounting_basic'));
+        $this->assertFalse($plans[Plan::CODE_STARTER]->hasFeature('marketing_facebook'));
+        // Pro (170k): full + AI.
+        $this->assertTrue($plans[Plan::CODE_PRO]->hasFeature('messaging_ai'));
+        $this->assertTrue($plans[Plan::CODE_PRO]->hasFeature('marketing_facebook'));
+        $this->assertTrue($plans[Plan::CODE_PRO]->hasFeature('accounting_advanced'));
+        $this->assertTrue($plans[Plan::CODE_PRO]->hasFeature('ai'));
+        $this->assertSame(500, $plans[Plan::CODE_PRO]->aiCreditsMonthly());
 
         // Giá: VND đồng (bigint).
-        $this->assertSame(99_000, (int) $plans[Plan::CODE_STARTER]->price_monthly);
-        $this->assertSame(199_000, (int) $plans[Plan::CODE_PRO]->price_monthly);
-        $this->assertSame(399_000, (int) $plans[Plan::CODE_BUSINESS]->price_monthly);
-        // Yearly = giá 10 tháng (tặng 2 tháng).
-        $this->assertSame(99_000 * 10, (int) $plans[Plan::CODE_STARTER]->price_yearly);
-        $this->assertSame(199_000 * 10, (int) $plans[Plan::CODE_PRO]->price_yearly);
-        $this->assertSame(399_000 * 10, (int) $plans[Plan::CODE_BUSINESS]->price_yearly);
+        $this->assertSame(90_000, (int) $plans[Plan::CODE_STARTER]->price_monthly);
+        $this->assertSame(170_000, (int) $plans[Plan::CODE_PRO]->price_monthly);
+        $this->assertSame(900_000, (int) $plans[Plan::CODE_STARTER]->price_yearly);
+        $this->assertSame(1_700_000, (int) $plans[Plan::CODE_PRO]->price_yearly);
     }
 }

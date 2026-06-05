@@ -60,14 +60,10 @@ class EnforcePlanLimit
             return $next($request);
         }
 
-        // -1 = không giới hạn.
-        if ($limit < 0) {
-            return $next($request);
-        }
-
+        // -1 (tổng) = không giới hạn tổng, NHƯNG vẫn có thể có hạn mức theo nền tảng bên dưới.
         $current = $this->usage->count($tenantId, $resource);
 
-        if ($current >= $limit) {
+        if ($limit >= 0 && $current >= $limit) {
             return response()->json([
                 'error' => [
                     'code' => 'PLAN_LIMIT_REACHED',
@@ -83,6 +79,31 @@ class EnforcePlanLimit
             ], 402);
         }
 
+        // SPEC 0032 — per-platform cap on the marketplace connect route (has a {provider} param).
+        if ($resource === 'channel_accounts') {
+            $provider = $request->route('provider');
+            $perPlatform = $plan->maxChannelAccountsPerPlatform();
+            if (is_string($provider) && $perPlatform >= 0) {
+                $usedForProvider = $this->usage->channelAccountsForProvider($tenantId, $provider);
+                if ($usedForProvider >= $perPlatform) {
+                    return response()->json([
+                        'error' => [
+                            'code' => 'PLAN_PLATFORM_LIMIT_REACHED',
+                            'message' => "Gói hiện tại chỉ cho phép {$perPlatform} gian hàng cho mỗi nền tảng. Vui lòng nâng cấp để thêm.",
+                            'details' => [
+                                'resource' => 'channel_accounts',
+                                'provider' => $provider,
+                                'current' => $usedForProvider,
+                                'limit' => $perPlatform,
+                                'plan_code' => $plan->code,
+                                'upgrade_to' => $this->suggestUpgrade($plan->code),
+                            ],
+                        ],
+                    ], 402);
+                }
+            }
+        }
+
         return $next($request);
     }
 
@@ -90,9 +111,8 @@ class EnforcePlanLimit
     protected function suggestUpgrade(string $currentCode): string
     {
         return match ($currentCode) {
-            'trial', 'starter' => 'pro',
-            'pro' => 'business',
-            default => 'business',
+            'trial' => 'starter',
+            default => 'pro',
         };
     }
 }

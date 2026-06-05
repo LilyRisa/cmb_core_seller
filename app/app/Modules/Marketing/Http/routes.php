@@ -24,7 +24,8 @@ use Illuminate\Support\Facades\Route;
 | (Owner/Admin via wildcard). AdAccountController/AdInsightController added next.
 */
 
-Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])
+// SPEC 0032 — toàn bộ module Quảng cáo Facebook chỉ mở ở gói Pro (`marketing_facebook`).
+Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.feature:marketing_facebook'])
     ->prefix('api/v1/marketing')->group(function () {
         // Facebook Ads OAuth connect — returns authorize URL for FE redirect.
         Route::post('ads/connect', [AdsOAuthController::class, 'start'])

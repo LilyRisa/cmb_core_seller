@@ -42,7 +42,7 @@ class BillingApiTest extends TestCase
         $this->actingAs($this->owner)->withHeaders($this->h())
             ->getJson('/api/v1/billing/plans')
             ->assertOk()
-            ->assertJsonCount(4, 'data')
+            ->assertJsonCount(3, 'data')
             ->assertJsonPath('data.0.code', 'trial');
     }
 
@@ -54,7 +54,7 @@ class BillingApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.plan_code', Plan::CODE_TRIAL)
             ->assertJsonPath('meta.usage.channel_accounts.used', 0)
-            ->assertJsonPath('meta.usage.channel_accounts.limit', 2);
+            ->assertJsonPath('meta.usage.channel_accounts.limit', 3);
     }
 
     public function test_usage_endpoint_returns_channel_accounts_used_and_limit(): void
@@ -63,7 +63,7 @@ class BillingApiTest extends TestCase
             ->getJson('/api/v1/billing/usage')
             ->assertOk()
             ->assertJsonPath('data.channel_accounts.used', 0)
-            ->assertJsonPath('data.channel_accounts.limit', 2);
+            ->assertJsonPath('data.channel_accounts.limit', 3);
     }
 
     public function test_checkout_creates_pending_invoice_with_plan_line(): void
@@ -77,14 +77,14 @@ class BillingApiTest extends TestCase
 
         $resp->assertCreated()
             ->assertJsonPath('data.invoice.status', Invoice::STATUS_PENDING)
-            ->assertJsonPath('data.invoice.total', 199_000)
+            ->assertJsonPath('data.invoice.total', 170_000)
             ->assertJsonPath('data.invoice.currency', 'VND')
             ->assertJsonPath('data.gateway', 'sepay');
 
         $code = $resp->json('data.invoice.code');
         $this->assertMatchesRegularExpression('/^INV-\d{6}-\d{4}$/', $code);
-        $this->assertDatabaseHas('invoices', ['code' => $code, 'total' => 199_000, 'status' => 'pending']);
-        $this->assertDatabaseHas('invoice_lines', ['amount' => 199_000, 'quantity' => 1]);
+        $this->assertDatabaseHas('invoices', ['code' => $code, 'total' => 170_000, 'status' => 'pending']);
+        $this->assertDatabaseHas('invoice_lines', ['amount' => 170_000, 'quantity' => 1]);
     }
 
     public function test_checkout_yearly_uses_yearly_price(): void
@@ -95,7 +95,7 @@ class BillingApiTest extends TestCase
                 'cycle' => 'yearly',
                 'gateway' => 'sepay',
             ])->assertCreated()
-            ->assertJsonPath('data.invoice.total', 1_990_000);
+            ->assertJsonPath('data.invoice.total', 1_700_000);
     }
 
     public function test_checkout_rejects_trial_plan(): void
@@ -142,7 +142,7 @@ class BillingApiTest extends TestCase
             'status' => 'pending',
             'period_start' => now()->format('Y-m-d'),
             'period_end' => now()->addMonth()->format('Y-m-d'),
-            'subtotal' => 199_000, 'tax' => 0, 'total' => 199_000,
+            'subtotal' => 170_000, 'tax' => 0, 'total' => 170_000,
             'due_at' => now()->addDays(7),
         ]);
 

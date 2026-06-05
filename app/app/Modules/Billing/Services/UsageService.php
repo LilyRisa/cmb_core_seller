@@ -34,6 +34,16 @@ class UsageService
             ->count();
     }
 
+    /** Số gian hàng `status=active` của tenant theo một nền tảng cụ thể (SPEC 0032). */
+    public function channelAccountsForProvider(int $tenantId, string $provider): int
+    {
+        return ChannelAccount::query()->withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenantId)
+            ->where('provider', $provider)
+            ->where('status', ChannelAccount::STATUS_ACTIVE)
+            ->count();
+    }
+
     /**
      * Cập nhật `usage_counters` denormalized — gọi từ listener / scheduler.
      * Idempotent qua unique `(tenant, metric, period)` + `updateOrCreate`.

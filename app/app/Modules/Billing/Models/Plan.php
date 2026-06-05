@@ -54,10 +54,22 @@ class Plan extends Model
         ];
     }
 
-    /** Hạn mức số gian hàng. -1 = không giới hạn. */
+    /** Hạn mức tổng số gian hàng. -1 = không giới hạn. */
     public function maxChannelAccounts(): int
     {
         return (int) ($this->limits['max_channel_accounts'] ?? 0);
+    }
+
+    /** Hạn mức số gian hàng MỖI nền tảng (tiktok/shopee/lazada). -1 = không giới hạn. SPEC 0032. */
+    public function maxChannelAccountsPerPlatform(): int
+    {
+        return (int) ($this->limits['max_channel_accounts_per_platform'] ?? -1);
+    }
+
+    /** Số lượt gọi AI tặng kèm mỗi kỳ (reset mỗi chu kỳ thanh toán). SPEC 0032. */
+    public function aiCreditsMonthly(): int
+    {
+        return (int) ($this->limits['ai_credits_monthly'] ?? 0);
     }
 
     /** Plan có bật feature `$key` (mặc định false nếu thiếu key). */
