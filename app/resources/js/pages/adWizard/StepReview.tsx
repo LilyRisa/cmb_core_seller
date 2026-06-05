@@ -13,6 +13,7 @@ const OBJECTIVE_LABELS: Record<AdObjective, string> = {
     messages: 'Tin nhắn',
     engagement: 'Tương tác',
     traffic: 'Truy cập web',
+    conversions: 'Chuyển đổi',
 };
 
 function formatBudget(daily_major: number | undefined): string {

@@ -47,6 +47,10 @@ const CTA_BY_OBJECTIVE: Record<AdObjective, CtaOption[]> = {
         { label: 'Mua ngay', value: 'SHOP_NOW' },
     ],
     engagement: [{ label: 'Tìm hiểu thêm', value: 'LEARN_MORE' }],
+    conversions: [
+        { label: 'Mua ngay', value: 'SHOP_NOW' },
+        { label: 'Tìm hiểu thêm', value: 'LEARN_MORE' },
+    ],
 };
 
 // Local UI state for the picked post (image + message + existing CTA/link for preview, not stored in draft payload)

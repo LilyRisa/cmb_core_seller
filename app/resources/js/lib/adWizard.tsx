@@ -9,7 +9,7 @@ function useScopedApi() {
     return useMemo(() => (tenantId == null ? null : tenantApi(tenantId)), [tenantId]);
 }
 
-export type AdObjective = 'messages' | 'engagement' | 'traffic';
+export type AdObjective = 'messages' | 'engagement' | 'traffic' | 'conversions';
 export type DraftStatus = 'draft' | 'publishing' | 'published' | 'failed';
 
 export interface AdDraftPayload {
@@ -59,6 +59,7 @@ export interface AdSetNode {
     placement_config?: PlacementConfig;
     schedule?: { start_time?: string | null; end_time?: string | null };
     experiment?: AbExperiment;
+    conversion?: { pixel_id?: string; custom_event_type?: string };
     external_id?: string | null;
     ads: AdNode[];
 }
@@ -160,6 +161,18 @@ export function useAdPages(accountId: number | null) {
         queryKey: [KEY, 'pages', accountId, tenantId],
         enabled: api != null && accountId != null,
         queryFn: async () => (await api!.get<{ data: AdPage[] }>(`/marketing/ad-accounts/${accountId}/pages`)).data.data,
+    });
+}
+
+export interface AdPixel { id: string; name: string }
+
+export function useAdPixels(accountId: number | null, enabled = true) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: [KEY, 'pixels', accountId, tenantId],
+        enabled: enabled && api != null && accountId != null,
+        queryFn: async () => (await api!.get<{ data: AdPixel[] }>(`/marketing/ad-accounts/${accountId}/pixels`)).data.data,
     });
 }
 

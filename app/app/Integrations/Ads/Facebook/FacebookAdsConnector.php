@@ -10,6 +10,7 @@ use CMBcoreSeller\Integrations\Ads\DTO\AdCreativeDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdEntityDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdInsightDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdInsightThrottleDTO;
+use CMBcoreSeller\Integrations\Ads\DTO\AdPixelDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdPreviewDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdSetSpecDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdSpecDTO;
@@ -329,10 +330,7 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
             $params['destination_type'] = $map['destination_type'];
         }
         if ($map['needs_promoted_object']) {
-            if ($spec->pageId === null) {
-                throw new \RuntimeException("Facebook Ads createAdSet: objective '{$spec->objective}' requires pageId.");
-            }
-            $params['promoted_object'] = json_encode(['page_id' => $spec->pageId]);
+            $params['promoted_object'] = json_encode($this->buildPromotedObject($map['promoted_object'], $spec));
         }
 
         $res = Http::timeout(30)->asForm()->post($this->graphUrl($externalAccountId.'/adsets'), $params);
@@ -366,6 +364,46 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
         }
 
         return $targeting;
+    }
+
+    /**
+     * Build the promoted_object for an ad set based on the objective's kind.
+     * 'pixel' ⇒ conversions ({ pixel_id, custom_event_type }); else page ({ page_id }).
+     *
+     * @return array<string,string>
+     */
+    private function buildPromotedObject(?string $kind, AdSetSpecDTO $spec): array
+    {
+        if ($kind === 'pixel') {
+            if ($spec->pixelId === null) {
+                throw new \RuntimeException("Facebook Ads createAdSet: objective '{$spec->objective}' requires pixelId.");
+            }
+
+            return ['pixel_id' => $spec->pixelId, 'custom_event_type' => $spec->conversionEvent ?? 'PURCHASE'];
+        }
+
+        if ($spec->pageId === null) {
+            throw new \RuntimeException("Facebook Ads createAdSet: objective '{$spec->objective}' requires pageId.");
+        }
+
+        return ['page_id' => $spec->pageId];
+    }
+
+    public function listPixels(string $accessToken, string $externalAccountId): array
+    {
+        $res = Http::timeout(30)->get($this->graphUrl($externalAccountId.'/adspixels'), [
+            'fields' => 'id,name',
+            'access_token' => $accessToken,
+            'limit' => 100,
+        ]);
+        if (! $res->successful()) {
+            throw new \RuntimeException('Facebook Ads listPixels failed: '.$res->body());
+        }
+
+        return array_values(array_map(fn (array $p) => new AdPixelDTO(
+            id: (string) ($p['id'] ?? ''),
+            name: isset($p['name']) ? (string) $p['name'] : (string) ($p['id'] ?? ''),
+        ), array_filter((array) $res->json('data', []), 'is_array')));
     }
 
     public function createAd(string $accessToken, string $externalAccountId, AdSpecDTO $spec): string

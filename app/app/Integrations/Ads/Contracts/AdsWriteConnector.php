@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Integrations\Ads\Contracts;
 
+use CMBcoreSeller\Integrations\Ads\DTO\AdPixelDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdPreviewDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdSetSpecDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdSpecDTO;
@@ -27,6 +28,9 @@ interface AdsWriteConnector
 
     /** @return list<PageRefDTO> */
     public function listPages(string $accessToken): array;
+
+    /** @return list<AdPixelDTO> */
+    public function listPixels(string $accessToken, string $externalAccountId): array;
 
     /** @return list<PagePostDTO> */
     public function listPagePosts(string $pageAccessToken, string $pageId, int $limit = 25): array;

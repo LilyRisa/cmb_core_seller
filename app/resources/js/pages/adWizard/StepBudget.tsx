@@ -1,9 +1,20 @@
-import { DatePicker, Empty, Form, InputNumber, Segmented, Space, Typography } from 'antd';
+import { Alert, DatePicker, Empty, Form, InputNumber, Segmented, Select, Space, Typography } from 'antd';
 import type { SegmentedProps } from 'antd';
 import dayjs from 'dayjs';
 import { useDraftStore } from '@/lib/adWizard/draftStore';
+import { useAdPixels } from '@/lib/adWizard';
 
 const { Text } = Typography;
+
+// Sự kiện chuyển đổi phổ biến (custom_event_type của Pixel).
+const CONVERSION_EVENTS: { label: string; value: string }[] = [
+    { label: 'Mua hàng', value: 'PURCHASE' },
+    { label: 'Thêm vào giỏ', value: 'ADD_TO_CART' },
+    { label: 'Bắt đầu thanh toán', value: 'INITIATE_CHECKOUT' },
+    { label: 'Khách tiềm năng', value: 'LEAD' },
+    { label: 'Đăng ký', value: 'COMPLETE_REGISTRATION' },
+    { label: 'Xem nội dung', value: 'VIEW_CONTENT' },
+];
 
 type BudgetType = 'daily';
 
@@ -21,12 +32,61 @@ export function StepBudget() {
     const selectedAdSetKey = useDraftStore((s) => s.selectedAdSetKey);
     const updateAdSet = useDraftStore((s) => s.updateAdSet);
     const payload = useDraftStore((s) => s.payload);
+    const objective = useDraftStore((s) => s.objective);
+    const accountId = useDraftStore((s) => s.accountId);
     const setBudgetMode = useDraftStore((s) => s.setBudgetMode);
     const setCampaignBudget = useDraftStore((s) => s.setCampaignBudget);
 
     const budgetMode = payload.campaign?.budget_mode ?? 'adset';
 
     const adset = adsets.find((a) => a.key === selectedAdSetKey);
+    const isConversions = objective === 'conversions';
+    const { data: pixels, isLoading: pixelsLoading } = useAdPixels(accountId, isConversions);
+
+    function patchConversion(adsetKey: string, patch: { pixel_id?: string; custom_event_type?: string }) {
+        const current = adsets.find((a) => a.key === adsetKey)?.conversion ?? {};
+        updateAdSet(adsetKey, { conversion: { ...current, ...patch } });
+    }
+
+    /** Pixel + sự kiện chuyển đổi (chỉ cho mục tiêu Chuyển đổi). */
+    function renderConversion(a: NonNullable<typeof adset>) {
+        if (!isConversions) return null;
+        return (
+            <>
+                <Form.Item label="Pixel chuyển đổi">
+                    <Space direction="vertical" size={4} style={{ width: '100%', maxWidth: 400 }}>
+                        <Select
+                            showSearch
+                            optionFilterProp="label"
+                            style={{ width: '100%' }}
+                            loading={pixelsLoading}
+                            value={a.conversion?.pixel_id}
+                            onChange={(v) => patchConversion(a.key, { pixel_id: v })}
+                            placeholder="Chọn Pixel"
+                            options={(pixels ?? []).map((p) => ({ label: p.name, value: p.id }))}
+                            notFoundContent={pixelsLoading ? 'Đang tải...' : 'Tài khoản chưa có Pixel'}
+                        />
+                        <Text type="secondary">Pixel ghi nhận sự kiện trên website để tối ưu chuyển đổi.</Text>
+                    </Space>
+                </Form.Item>
+                <Form.Item label="Sự kiện tối ưu">
+                    <Segmented
+                        options={CONVERSION_EVENTS}
+                        value={a.conversion?.custom_event_type ?? 'PURCHASE'}
+                        onChange={(v) => patchConversion(a.key, { custom_event_type: String(v) })}
+                    />
+                </Form.Item>
+                {(a.conversion?.pixel_id ?? '') === '' && (
+                    <Alert
+                        type="warning"
+                        showIcon
+                        message="Hãy chọn Pixel để xuất bản quảng cáo chuyển đổi."
+                        style={{ maxWidth: 400, marginBottom: 16 }}
+                    />
+                )}
+            </>
+        );
+    }
 
     function handleDailyMajorChange(value: number | null) {
         if (adset == null) return;
@@ -120,6 +180,7 @@ export function StepBudget() {
                     </Form.Item>
 
                     {adset != null && renderSchedule(adset)}
+                    {adset != null && renderConversion(adset)}
                 </>
             ) : (
                 <>
@@ -164,6 +225,7 @@ export function StepBudget() {
                             </Form.Item>
 
                             {renderSchedule(adset)}
+                            {renderConversion(adset)}
                         </>
                     )}
                 </>

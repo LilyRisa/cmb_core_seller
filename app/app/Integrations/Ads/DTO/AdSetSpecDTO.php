@@ -20,5 +20,7 @@ final readonly class AdSetSpecDTO
         /** @var array<string,mixed>|null */
         public ?array $placementConfig = null,
         public ?string $endTime = null,     // ISO-8601; null = runs until stopped
+        public ?string $pixelId = null,         // conversions objective: promoted_object pixel
+        public ?string $conversionEvent = null, // conversions objective: custom_event_type (e.g. PURCHASE)
     ) {}
 }

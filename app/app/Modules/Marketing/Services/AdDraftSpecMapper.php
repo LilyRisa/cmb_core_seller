@@ -40,6 +40,7 @@ class AdDraftSpecMapper
     {
         $budget = (array) ($node['budget'] ?? []);
         $schedule = (array) ($node['schedule'] ?? []);
+        $conversion = (array) ($node['conversion'] ?? []);
         $firstAd = (array) ($node['ads'][0] ?? []);
         $firstCreative = (array) ($firstAd['creative'] ?? []);
         $campaign = (array) (((array) ($draft->payload ?? []))['campaign'] ?? []);
@@ -56,6 +57,8 @@ class AdDraftSpecMapper
             startTime: isset($schedule['start_time']) ? (string) $schedule['start_time'] : null,
             placementConfig: isset($node['placement_config']) && is_array($node['placement_config']) ? $node['placement_config'] : null,
             endTime: isset($schedule['end_time']) ? (string) $schedule['end_time'] : null,
+            pixelId: isset($conversion['pixel_id']) ? (string) $conversion['pixel_id'] : null,
+            conversionEvent: isset($conversion['custom_event_type']) ? (string) $conversion['custom_event_type'] : null,
         );
     }
 

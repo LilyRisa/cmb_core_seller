@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Marketing\Http\Controllers;
 use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Integrations\Ads\AdsRegistry;
 use CMBcoreSeller\Integrations\Ads\Contracts\AdsWriteConnector;
+use CMBcoreSeller\Integrations\Ads\DTO\AdPixelDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdPreviewDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\PagePostDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\PageRefDTO;
@@ -31,6 +32,18 @@ class AdAuthoringController extends Controller
             $connector->listPages((string) $account->access_token));
 
         return response()->json(['data' => $pages]);
+    }
+
+    /** GET ad-accounts/{id}/pixels — conversion pixels for the conversions objective. */
+    public function pixels(int $id): JsonResponse
+    {
+        Gate::authorize('marketing.view');
+        [$account, $connector] = $this->resolve($id);
+
+        $pixels = array_map(fn (AdPixelDTO $p) => ['id' => $p->id, 'name' => $p->name],
+            $connector->listPixels((string) $account->access_token, $account->external_account_id));
+
+        return response()->json(['data' => $pixels]);
     }
 
     /** GET ad-accounts/{id}/pages/{pageId}/posts */

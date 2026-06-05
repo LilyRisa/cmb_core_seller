@@ -198,6 +198,62 @@ class FacebookAdsCreateTest extends TestCase
         });
     }
 
+    public function test_create_adset_conversions_uses_pixel_promoted_object(): void
+    {
+        Http::fake(['graph.facebook.com/*/adsets' => Http::response(['id' => 'AS'], 200)]);
+
+        $this->connector()->createAdSet('tok', 'act_1', new AdSetSpecDTO(
+            name: 'Set', campaignExternalId: 'C1', objective: 'conversions',
+            dailyBudgetMajor: 1000, currency: 'VND', targeting: [],
+            pixelId: 'PX1', conversionEvent: 'PURCHASE',
+        ));
+
+        Http::assertSent(function ($r) {
+            $d = $r->data();
+            $po = json_decode($d['promoted_object'] ?? '{}', true);
+
+            return $d['optimization_goal'] === 'OFFSITE_CONVERSIONS'
+                && ($po['pixel_id'] ?? null) === 'PX1'
+                && ($po['custom_event_type'] ?? null) === 'PURCHASE';
+        });
+    }
+
+    public function test_create_adset_conversions_defaults_event_to_purchase(): void
+    {
+        Http::fake(['graph.facebook.com/*/adsets' => Http::response(['id' => 'AS'], 200)]);
+
+        $this->connector()->createAdSet('tok', 'act_1', new AdSetSpecDTO(
+            name: 'Set', campaignExternalId: 'C1', objective: 'conversions',
+            dailyBudgetMajor: 1000, currency: 'VND', targeting: [], pixelId: 'PX1',
+        ));
+
+        Http::assertSent(fn ($r) => (json_decode($r->data()['promoted_object'], true)['custom_event_type'] ?? null) === 'PURCHASE');
+    }
+
+    public function test_create_adset_conversions_throws_without_pixel(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('requires pixelId');
+        $this->connector()->createAdSet('tok', 'act_1', new AdSetSpecDTO(
+            name: 'Set', campaignExternalId: 'C1', objective: 'conversions',
+            dailyBudgetMajor: 1000, currency: 'VND', targeting: [], pixelId: null,
+        ));
+    }
+
+    public function test_list_pixels_maps_id_and_name(): void
+    {
+        Http::fake(['graph.facebook.com/*/act_1/adspixels*' => Http::response(['data' => [
+            ['id' => 'PX1', 'name' => 'Pixel chính'],
+            ['id' => 'PX2'],
+        ]], 200)]);
+
+        $out = $this->connector()->listPixels('tok', 'act_1');
+
+        $this->assertSame('PX1', $out[0]->id);
+        $this->assertSame('Pixel chính', $out[0]->name);
+        $this->assertSame('PX2', $out[1]->name); // falls back to id
+    }
+
     public function test_create_adset_sends_end_time_when_set(): void
     {
         Http::fake(['graph.facebook.com/*/adsets' => Http::response(['id' => 'AS'], 200)]);

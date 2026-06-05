@@ -12,7 +12,7 @@ use CMBcoreSeller\Integrations\Ads\Exceptions\UnsupportedOperation;
  */
 final class FacebookObjectiveMap
 {
-    /** @var array<string, array{objective:string, optimization_goal:string, billing_event:string, destination_type:?string, needs_promoted_object:bool, cta_options:list<string>}> */
+    /** @var array<string, array{objective:string, optimization_goal:string, billing_event:string, destination_type:?string, needs_promoted_object:bool, promoted_object:?string, cta_options:list<string>}> */
     private const MAP = [
         'messages' => [
             'objective' => 'OUTCOME_ENGAGEMENT',
@@ -20,6 +20,7 @@ final class FacebookObjectiveMap
             'billing_event' => 'IMPRESSIONS',
             'destination_type' => 'MESSENGER',
             'needs_promoted_object' => true,
+            'promoted_object' => 'page',   // promoted_object = { page_id }
             'cta_options' => ['MESSAGE_PAGE'],
         ],
         'engagement' => [
@@ -30,6 +31,7 @@ final class FacebookObjectiveMap
             'billing_event' => 'IMPRESSIONS',
             'destination_type' => null,
             'needs_promoted_object' => false,
+            'promoted_object' => null,
             'cta_options' => ['LEARN_MORE'],
         ],
         'traffic' => [
@@ -38,12 +40,23 @@ final class FacebookObjectiveMap
             'billing_event' => 'IMPRESSIONS',
             'destination_type' => null,
             'needs_promoted_object' => false,
+            'promoted_object' => null,
             'cta_options' => ['LEARN_MORE', 'SHOP_NOW'],
+        ],
+        'conversions' => [
+            // Bán hàng/chuyển đổi trên website — tối ưu theo sự kiện Pixel (offsite conversion).
+            'objective' => 'OUTCOME_SALES',
+            'optimization_goal' => 'OFFSITE_CONVERSIONS',
+            'billing_event' => 'IMPRESSIONS',
+            'destination_type' => null,
+            'needs_promoted_object' => true,
+            'promoted_object' => 'pixel',  // promoted_object = { pixel_id, custom_event_type }
+            'cta_options' => ['SHOP_NOW', 'LEARN_MORE'],
         ],
     ];
 
     /**
-     * @return array{objective:string, optimization_goal:string, billing_event:string, destination_type:?string, needs_promoted_object:bool, cta_options:list<string>}
+     * @return array{objective:string, optimization_goal:string, billing_event:string, destination_type:?string, needs_promoted_object:bool, promoted_object:?string, cta_options:list<string>}
      */
     public static function spec(string $objective): array
     {

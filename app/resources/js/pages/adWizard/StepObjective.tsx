@@ -1,5 +1,5 @@
 import { Alert, Card, Form, Input, Radio, Space, Typography } from 'antd';
-import { GlobalOutlined, LikeOutlined, MessageOutlined } from '@ant-design/icons';
+import { GlobalOutlined, LikeOutlined, MessageOutlined, ShoppingOutlined } from '@ant-design/icons';
 import type { RadioChangeEvent } from 'antd';
 import type { AdObjective } from '@/lib/adWizard';
 import { useDraftStore } from '@/lib/adWizard/draftStore';
@@ -32,6 +32,12 @@ const OBJECTIVE_OPTIONS: ObjectiveOption[] = [
         label: 'Truy cập web',
         hint: 'Kéo về website',
     },
+    {
+        value: 'conversions',
+        icon: <ShoppingOutlined style={{ fontSize: 20 }} />,
+        label: 'Chuyển đổi',
+        hint: 'Mua hàng / sự kiện Pixel',
+    },
 ];
 
 const OBJECTIVE_ALERTS: Record<AdObjective, string> = {
@@ -41,6 +47,8 @@ const OBJECTIVE_ALERTS: Record<AdObjective, string> = {
         'Tối ưu để tăng lượt thích, bình luận và chia sẻ cho bài viết hoặc Trang.',
     traffic:
         'Tối ưu để kéo người dùng truy cập website. Hãy điền URL đích ở bước Nội dung.',
+    conversions:
+        'Tối ưu theo sự kiện chuyển đổi (Pixel) như Mua hàng. Chọn Pixel và sự kiện ở bước Ngân sách, và điền URL đích ở bước Nội dung.',
 };
 
 export function StepObjective() {

@@ -103,6 +103,15 @@ class AdDraftSpecMapperTest extends TestCase
         $this->assertNull($spec->endTime);
     }
 
+    public function test_adset_maps_conversion_pixel_and_event(): void
+    {
+        $draft = $this->draft([]);
+        $node = ['name' => 'N', 'conversion' => ['pixel_id' => 'PX1', 'custom_event_type' => 'PURCHASE'], 'ads' => [['creative' => ['page_id' => '1']]]];
+        $spec = app(AdDraftSpecMapper::class)->adSet($draft, $node, 'C9', 'VND');
+        $this->assertSame('PX1', $spec->pixelId);
+        $this->assertSame('PURCHASE', $spec->conversionEvent);
+    }
+
     public function test_maps_ad_from_node(): void
     {
         $draft = $this->draft([]);
