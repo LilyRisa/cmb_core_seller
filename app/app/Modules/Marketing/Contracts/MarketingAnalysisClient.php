@@ -10,7 +10,12 @@ interface MarketingAnalysisClient
 {
     /**
      * @param  array<string,mixed>  $data  structured data to analyze
+     * @param  ?string  $schema  JSON schema hint the model must follow; null = the
+     *                           legacy forecast schema (back-compat for AdsForecastService)
+     * @param  ?\Closure(array<string,mixed>):array<string,mixed>  $fallback  deterministic
+     *                                                                        output when no AI provider is active / parsing fails;
+     *                                                                        null = the legacy forecast stub
      * @return array{payload:array<string,mixed>, provider_code:?string, model:?string}
      */
-    public function analyze(array $data, string $instruction): array;
+    public function analyze(array $data, string $instruction, ?string $schema = null, ?\Closure $fallback = null): array;
 }

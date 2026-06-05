@@ -15,31 +15,39 @@ use Illuminate\Support\Facades\Log;
  */
 class LlmMarketingAnalysisClient implements MarketingAnalysisClient
 {
-    public function analyze(array $data, string $instruction): array
+    /** Legacy forecast schema — used when the caller passes no schema. */
+    private const FORECAST_SCHEMA = '{forecast:{next_7d:{conversations,orders,spend,projected_cost_per_order}}, strategy:[{action,campaign,rationale,confidence}], creative_review:[{ref,name,verdict,issues:[string],suggestions:[string]}]}';
+
+    public function analyze(array $data, string $instruction, ?string $schema = null, ?\Closure $fallback = null): array
     {
+        $fb = $fallback ?? fn (array $d): array => $this->stub($d);
         $provider = MarketingAiProvider::query()->where('is_active', true)->first();
 
         if ($provider === null || $provider->adapter === 'manual') {
-            return ['payload' => $this->stub($data), 'provider_code' => $provider?->code, 'model' => $provider?->default_model];
+            return ['payload' => $fb($data), 'provider_code' => $provider?->code, 'model' => $provider?->default_model];
         }
 
         try {
             $payload = match ($provider->adapter) {
-                'anthropic' => $this->anthropic($provider, $data, $instruction),
-                'openai_compatible' => $this->openai($provider, $data, $instruction),
-                default => $this->stub($data),
+                'anthropic' => $this->anthropic($provider, $data, $instruction, $schema, $fb),
+                'openai_compatible' => $this->openai($provider, $data, $instruction, $schema, $fb),
+                default => $fb($data),
             };
 
             return ['payload' => $payload, 'provider_code' => $provider->code, 'model' => $provider->default_model];
         } catch (\Throwable $e) {
-            Log::warning('marketing.forecast.ai_failed', ['provider' => $provider->code, 'error' => $e->getMessage()]);
+            Log::warning('marketing.analysis.ai_failed', ['provider' => $provider->code, 'error' => $e->getMessage()]);
 
-            return ['payload' => $this->stub($data), 'provider_code' => $provider->code, 'model' => $provider->default_model];
+            return ['payload' => $fb($data), 'provider_code' => $provider->code, 'model' => $provider->default_model];
         }
     }
 
-    /** @param array<string,mixed> $data @return array<string,mixed> */
-    private function anthropic(MarketingAiProvider $p, array $data, string $instruction): array
+    /**
+     * @param  array<string,mixed>  $data
+     * @param  \Closure(array<string,mixed>):array<string,mixed>  $fb
+     * @return array<string,mixed>
+     */
+    private function anthropic(MarketingAiProvider $p, array $data, string $instruction, ?string $schema, \Closure $fb): array
     {
         $base = rtrim($p->base_url ?: 'https://api.anthropic.com', '/');
         $res = Http::timeout(60)->withHeaders([
@@ -47,46 +55,60 @@ class LlmMarketingAnalysisClient implements MarketingAnalysisClient
         ])->post($base.'/v1/messages', [
             'model' => $p->default_model ?: 'claude-3-5-sonnet-latest',
             'max_tokens' => 1024,
-            'messages' => [['role' => 'user', 'content' => $this->prompt($data, $instruction)]],
+            'messages' => [['role' => 'user', 'content' => $this->prompt($data, $instruction, $schema)]],
         ]);
         $text = (string) ($res->json('content.0.text') ?? '');
 
-        return $this->parseJson($text, $data);
+        return $this->parseJson($text, $data, $schema, $fb);
     }
 
-    /** @param array<string,mixed> $data @return array<string,mixed> */
-    private function openai(MarketingAiProvider $p, array $data, string $instruction): array
+    /**
+     * @param  array<string,mixed>  $data
+     * @param  \Closure(array<string,mixed>):array<string,mixed>  $fb
+     * @return array<string,mixed>
+     */
+    private function openai(MarketingAiProvider $p, array $data, string $instruction, ?string $schema, \Closure $fb): array
     {
         $base = rtrim($p->base_url ?: 'https://api.openai.com/v1', '/');
         $res = Http::timeout(60)->withToken((string) $p->api_key)->post($base.'/chat/completions', [
             'model' => $p->default_model ?: 'gpt-4o-mini',
             'response_format' => ['type' => 'json_object'],
-            'messages' => [['role' => 'user', 'content' => $this->prompt($data, $instruction)]],
+            'messages' => [['role' => 'user', 'content' => $this->prompt($data, $instruction, $schema)]],
         ]);
         $text = (string) ($res->json('choices.0.message.content') ?? '');
 
-        return $this->parseJson($text, $data);
+        return $this->parseJson($text, $data, $schema, $fb);
     }
 
     /** @param array<string,mixed> $data */
-    private function prompt(array $data, string $instruction): string
+    private function prompt(array $data, string $instruction, ?string $schema): string
     {
+        $isForecast = $schema === null;
+        $extra = $isForecast
+            ? ' creative_review: với MỖI quảng cáo/bài post trong dữ liệu, đánh giá nội dung đã tối ưu chưa (dựa trên text + tương tác + hiệu suất), verdict "tốt" hoặc "cần cải thiện".'
+            : '';
+
         return $instruction."\n\nDỮ LIỆU (JSON):\n".json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
-            ."\n\nCHỈ trả về JSON đúng schema {forecast:{next_7d:{conversations,orders,spend,projected_cost_per_order}}, strategy:[{action,campaign,rationale,confidence}], creative_review:[{ref,name,verdict,issues:[string],suggestions:[string]}]}. "
-            .'creative_review: với MỖI quảng cáo/bài post trong dữ liệu, đánh giá nội dung đã tối ưu chưa (dựa trên text + tương tác + hiệu suất), verdict "tốt" hoặc "cần cải thiện".';
+            ."\n\nCHỈ trả về JSON đúng schema ".($schema ?? self::FORECAST_SCHEMA).'.'.$extra;
     }
 
-    /** @param array<string,mixed> $data @return array<string,mixed> */
-    private function parseJson(string $text, array $data): array
+    /**
+     * @param  array<string,mixed>  $data
+     * @param  \Closure(array<string,mixed>):array<string,mixed>  $fb
+     * @return array<string,mixed>
+     */
+    private function parseJson(string $text, array $data, ?string $schema, \Closure $fb): array
     {
         if (preg_match('/\{.*\}/s', $text, $m)) {
             $json = json_decode($m[0], true);
-            if (is_array($json) && isset($json['forecast'])) {
+            // Legacy forecast path requires a forecast key; a custom schema accepts any
+            // non-empty JSON object.
+            if (is_array($json) && $json !== [] && ($schema !== null || isset($json['forecast']))) {
                 return $json;
             }
         }
 
-        return $this->stub($data);
+        return $fb($data);
     }
 
     /**

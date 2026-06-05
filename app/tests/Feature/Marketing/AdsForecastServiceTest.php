@@ -19,7 +19,7 @@ class CountingAnalysisClient implements MarketingAnalysisClient
 {
     public int $calls = 0;
 
-    public function analyze(array $data, string $instruction): array
+    public function analyze(array $data, string $instruction, ?string $schema = null, ?\Closure $fallback = null): array
     {
         $this->calls++;
 
@@ -108,7 +108,7 @@ class AdsForecastServiceTest extends TestCase
         {
             public function __construct(private \stdClass $h) {}
 
-            public function analyze(array $data, string $instruction): array
+            public function analyze(array $data, string $instruction, ?string $schema = null, ?\Closure $fallback = null): array
             {
                 $this->h->data = $data;
 

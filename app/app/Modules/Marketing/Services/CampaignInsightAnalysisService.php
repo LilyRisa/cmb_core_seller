@@ -28,6 +28,9 @@ class CampaignInsightAnalysisService
 
     private const INSTRUCTION = 'Bạn là chuyên gia tối ưu quảng cáo Facebook. Phân tích RIÊNG một chiến dịch dựa trên: chỉ số đã chọn trong N ngày, hiệu quả từng quảng cáo, nội dung creative/bài viết và tương tác (like/comment). Hãy: (1) đánh giá hiệu quả chiến dịch theo các chỉ số đó, (2) nhận xét nội dung & tương tác của từng bài/quảng cáo, (3) đề xuất hành động cụ thể (tăng/giảm ngân sách, tạm dừng, đổi tệp/nội dung) cho riêng chiến dịch này.';
 
+    /** Output schema the model must follow (matches what CampaignAiInsightDrawer renders). */
+    private const SCHEMA = '{summary:string (tổng quan ngắn), assessment:string (đánh giá hiệu quả theo chỉ số), recommendations:[{action:string, rationale:string}], creative_review:[{ref:string, name:string, verdict:"tốt"|"cần cải thiện", issues:[string], suggestions:[string]}]}';
+
     public function __construct(
         private MarketingAnalysisClient $client,
         private AdsRegistry $registry,
@@ -47,7 +50,8 @@ class CampaignInsightAnalysisService
             return $existing; // within cooldown AND same params ⇒ cached, NO AI call
         }
 
-        $result = $this->client->analyze($this->buildData($account, $campaignExternalId, $params), self::INSTRUCTION);
+        $data = $this->buildData($account, $campaignExternalId, $params);
+        $result = $this->client->analyze($data, self::INSTRUCTION, self::SCHEMA, fn (array $d): array => $this->stub($d));
 
         return CampaignAiInsight::withoutGlobalScope(TenantScope::class)->updateOrCreate(
             ['ad_account_id' => (int) $account->getKey(), 'campaign_external_id' => $campaignExternalId],
@@ -181,5 +185,81 @@ class CampaignInsightAnalysisService
         ];
 
         return array_intersect_key($all, array_flip($metrics));
+    }
+
+    /**
+     * Deterministic per-campaign analysis (no AI provider configured / parse fail).
+     * Produces the same shape the drawer renders so the feature works out of the box.
+     *
+     * @param  array<string,mixed>  $data
+     * @return array<string,mixed>
+     */
+    private function stub(array $data): array
+    {
+        $campaign = (array) ($data['campaign'] ?? []);
+        $name = (string) ($campaign['name'] ?? ($campaign['external_id'] ?? 'chiến dịch'));
+        $days = (int) ($data['days'] ?? 0);
+        $m = (array) ($data['campaign_metrics'] ?? []);
+        $fmt = fn ($n) => number_format((int) $n, 0, ',', '.');
+
+        $parts = [];
+        if (isset($m['spend'])) {
+            $parts[] = 'chi tiêu '.$fmt($m['spend']).'đ';
+        }
+        if (isset($m['impressions'])) {
+            $parts[] = $fmt($m['impressions']).' hiển thị';
+        }
+        if (isset($m['clicks'])) {
+            $parts[] = $fmt($m['clicks']).' click';
+        }
+        if (array_key_exists('ctr', $m) && $m['ctr'] !== null) {
+            $parts[] = 'CTR '.number_format((float) $m['ctr'], 2, ',', '.').'%';
+        }
+        $summary = 'Chiến dịch "'.$name.'"'.($days > 0 ? ' trong '.$days.' ngày gần nhất' : '')
+            .($parts === [] ? ' chưa có dữ liệu chỉ số trong khoảng này.' : ': '.implode(', ', $parts).'.');
+
+        $recs = [];
+        $ctr = array_key_exists('ctr', $m) ? $m['ctr'] : null;
+        if ($ctr !== null && (float) $ctr < 1.0) {
+            $recs[] = ['action' => 'Cải thiện nội dung/tệp', 'rationale' => 'CTR dưới 1% — thử đổi hình ảnh/tiêu đề hoặc thu hẹp đối tượng.'];
+        } elseif ($ctr !== null) {
+            $recs[] = ['action' => 'Giữ & cân nhắc tăng ngân sách', 'rationale' => 'CTR ở mức ổn — có thể mở rộng dần ngân sách để tăng kết quả.'];
+        }
+        if (($m['clicks'] ?? null) === 0) {
+            $recs[] = ['action' => 'Xem lại phân phối', 'rationale' => 'Chưa có click — kiểm tra trạng thái, ngân sách và đối tượng.'];
+        }
+        if ($recs === []) {
+            $recs[] = ['action' => 'Tiếp tục theo dõi', 'rationale' => 'Chưa đủ tín hiệu để kết luận; theo dõi thêm vài ngày.'];
+        }
+
+        $creatives = array_values(array_filter((array) ($data['creatives'] ?? []), 'is_array'));
+        $engagement = (array) ($data['engagement'] ?? []);
+        $review = array_map(function (array $c) use ($engagement) {
+            $postId = (string) ($c['post_id'] ?? '');
+            $eng = (array) ($engagement[$postId] ?? []);
+            $likes = (int) ($eng['likes'] ?? 0);
+            $comments = (int) ($eng['comments'] ?? 0);
+
+            return [
+                'ref' => (string) ($c['ad_id'] ?? $postId),
+                'name' => (string) ($c['name'] ?? ''),
+                'verdict' => 'cần xem xét',
+                'issues' => [],
+                'suggestions' => [
+                    'Tương tác bài: '.$likes.' like, '.$comments.' bình luận.',
+                    'Bổ sung lời kêu gọi hành động rõ ràng và hình/đoạn mở đầu nổi bật.',
+                ],
+            ];
+        }, $creatives);
+
+        return [
+            'summary' => $summary,
+            'assessment' => $parts === []
+                ? 'Chưa đủ dữ liệu để đánh giá hiệu quả trong khoảng thời gian đã chọn.'
+                : 'Đánh giá tự động (chưa cấu hình provider AI marketing) dựa trên các chỉ số đã chọn.',
+            'recommendations' => $recs,
+            'creative_review' => $review,
+            'generated_by' => 'stub',
+        ];
     }
 }

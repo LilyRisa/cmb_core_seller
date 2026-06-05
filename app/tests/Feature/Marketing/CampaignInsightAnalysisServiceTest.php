@@ -29,7 +29,7 @@ class CampaignInsightAnalysisServiceTest extends TestCase
         {
             public function __construct(private \stdClass $h) {}
 
-            public function analyze(array $data, string $instruction): array
+            public function analyze(array $data, string $instruction, ?string $schema = null, ?\Closure $fallback = null): array
             {
                 $this->h->data = $data;
 
@@ -73,5 +73,24 @@ class CampaignInsightAnalysisServiceTest extends TestCase
         // Engagement keyed by post id.
         $this->assertSame(100, $data['engagement']['123_456']['likes']);
         $this->assertSame(7, $data['engagement']['123_456']['comments']);
+    }
+
+    public function test_without_ai_provider_produces_drawer_shape(): void
+    {
+        // No marketing_ai_providers row ⇒ real LlmMarketingAnalysisClient falls back to
+        // the campaign stub, which MUST produce summary/recommendations the drawer renders.
+        $tenant = Tenant::create(['name' => 'T']);
+        app(CurrentTenant::class)->set($tenant);
+        $account = AdAccount::create(['provider' => 'facebook', 'external_account_id' => 'act_1', 'currency' => 'VND', 'status' => 'active', 'access_token' => 'TOK']);
+        AdEntity::create(['ad_account_id' => $account->id, 'level' => 'campaign', 'external_id' => 'C1', 'name' => 'Chiến dịch Tết', 'objective' => 'OUTCOME_SALES']);
+
+        $insight = app(CampaignInsightAnalysisService::class)->generate($account, 'C1', [
+            'days' => 14, 'metrics' => ['spend', 'clicks'], 'include_engagement' => false,
+        ], true);
+
+        $this->assertArrayHasKey('summary', $insight->payload);
+        $this->assertStringContainsString('Chiến dịch Tết', $insight->payload['summary']);
+        $this->assertNotEmpty($insight->payload['recommendations']);
+        $this->assertSame('stub', $insight->payload['generated_by']);
     }
 }
