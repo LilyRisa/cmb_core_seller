@@ -378,6 +378,46 @@ body {
     animation: auth-chart-pulse 2.6s ease-in-out 3.2s infinite;
 }
 
+/* Pipeline tự động hoá: 3 node (message → AI → ads) nối đường ống có dòng chạy. */
+.auth-flow {
+    position: absolute; top: 9%; right: 6%;
+    width: 200px; height: 240px; z-index: 1; pointer-events: none;
+    animation: auth-chart-float 11s ease-in-out infinite alternate;
+}
+.auth-flow-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.auth-flow-path {
+    fill: none; stroke: rgba(255, 255, 255, 0.32); stroke-width: 1.6;
+    stroke-linecap: round; stroke-dasharray: 6 8;
+    animation: auth-flow-dash 1.3s linear infinite;
+}
+.auth-flow-pulse { fill: #fff; filter: drop-shadow(0 0 6px rgba(191, 219, 254, 0.95)); }
+.auth-node {
+    position: absolute; width: 40px; height: 40px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 12px; color: #fff; font-size: 18px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow: 0 8px 20px rgba(8, 45, 142, 0.35);
+    -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+}
+.auth-node .anticon { position: relative; z-index: 2; }
+.auth-node-1 { left: 130px; top: 8px; animation: auth-node-bob 4s ease-in-out infinite; }
+.auth-node-2 { left: 30px; top: 100px; animation: auth-node-bob 4s ease-in-out 0.6s infinite; }
+.auth-node-3 { left: 130px; top: 192px; animation: auth-node-bob 4s ease-in-out 1.2s infinite; }
+.auth-node-ping {
+    position: absolute; inset: -1px; border-radius: 12px;
+    border: 1px solid rgba(147, 197, 253, 0.85);
+    animation: auth-node-ping 2.4s ease-out infinite;
+}
+.auth-node-2 .auth-node-ping { animation-delay: 0.8s; }
+.auth-node-3 .auth-node-ping { animation-delay: 1.6s; }
+@keyframes auth-flow-dash { to { stroke-dashoffset: -28; } }
+@keyframes auth-node-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes auth-node-ping {
+    0%        { transform: scale(1); opacity: 0.9; }
+    70%, 100% { transform: scale(1.7); opacity: 0; }
+}
+
 @keyframes auth-rise {
     from { background-position: 0 0, 38px 26px; }
     to   { background-position: 0 -232px, 38px -222px; }
@@ -403,10 +443,16 @@ body {
     .auth-commerce { display: none; }
 }
 
+/* Cột brand hẹp (laptop nhỏ) ⇒ ẩn pipeline để khỏi chạm chữ; giữ biểu đồ ở đáy. */
+@media (max-width: 1200px) {
+    .auth-flow { display: none; }
+}
+
 /* Tôn trọng người dùng tắt hiệu ứng chuyển động. */
 @media (prefers-reduced-motion: reduce) {
     .auth-brand::before, .auth-brand::after, .auth-scanline,
-    .auth-commerce::after, .auth-chart, .auth-chart-dot { animation: none; }
+    .auth-commerce::after, .auth-chart, .auth-chart-dot,
+    .auth-flow, .auth-flow-path, .auth-flow-pulse, .auth-node, .auth-node-ping { animation: none; }
     .auth-chart-line { stroke-dashoffset: 0; animation: none; }
     .auth-chart-area { opacity: 1; animation: none; }
 }
