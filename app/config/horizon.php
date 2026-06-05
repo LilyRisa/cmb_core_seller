@@ -281,7 +281,9 @@ return [
         'supervisor-messaging-bg' => [
             'connection' => 'redis',
             // marketing-sync: Facebook Ads entity/insights sync (SyncAdAccountEntities, SyncAdInsights).
-            'queue' => ['messaging-sync', 'messaging-media', 'messaging-ai', 'marketing-sync'],
+            // marketing-ai: AI forecast + per-campaign analysis (GenerateAdForecast, GenerateCampaignAiInsight).
+            // marketing-publish: publish a draft to Facebook (PublishAdDraft).
+            'queue' => ['messaging-sync', 'messaging-media', 'messaging-ai', 'marketing-sync', 'marketing-ai', 'marketing-publish'],
             'balance' => 'auto',
             'autoScalingStrategy' => 'time',
             'maxProcesses' => 4,
