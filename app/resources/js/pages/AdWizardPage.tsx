@@ -71,6 +71,9 @@ export function AdWizardPage() {
     const markSaved = useDraftStore((s) => s.markSaved);
     const adsets = useDraftStore((s) => s.adsets);
     const selectedAdSetKey = useDraftStore((s) => s.selectedAdSetKey);
+    const copyAdSet = useDraftStore((s) => s.copyAdSet);
+    const pasteClipboard = useDraftStore((s) => s.pasteClipboard);
+    const duplicateAdSet = useDraftStore((s) => s.duplicateAdSet);
 
     // Mutations
     const createDraft = useCreateDraft();
@@ -145,6 +148,33 @@ export function AdWizardPage() {
         return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [dirty, storeDraftId, name, objective, payload]);
+
+    // Clone shortcuts: Ctrl/Cmd+C copy selected ad set, Ctrl/Cmd+V paste (clone),
+    // Ctrl/Cmd+D duplicate. Ignored while typing in a field or when text is selected.
+    useEffect(() => {
+        function onKey(e: KeyboardEvent) {
+            if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+            const t = e.target as HTMLElement | null;
+            if (t != null && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+            const k = e.key.toLowerCase();
+            const hasTextSelection = (window.getSelection()?.toString() ?? '') !== '';
+            if (k === 'c' && !hasTextSelection && selectedAdSetKey != null) {
+                copyAdSet(selectedAdSetKey);
+                message.success('Đã sao chép nhóm quảng cáo — Ctrl+V để dán.');
+                e.preventDefault();
+            } else if (k === 'v' && useDraftStore.getState().clipboard != null) {
+                pasteClipboard();
+                message.success('Đã dán bản sao nhóm quảng cáo.');
+                e.preventDefault();
+            } else if (k === 'd' && selectedAdSetKey != null) {
+                duplicateAdSet(selectedAdSetKey);
+                message.success('Đã nhân bản nhóm quảng cáo.');
+                e.preventDefault();
+            }
+        }
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [selectedAdSetKey, copyAdSet, pasteClipboard, duplicateAdSet, message]);
 
     // Auto-open tour on first visit
     useEffect(() => {

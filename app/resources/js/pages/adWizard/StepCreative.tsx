@@ -15,6 +15,7 @@ import type { SegmentedProps } from 'antd';
 import { Segmented } from 'antd';
 import {
     CloseOutlined,
+    CopyOutlined,
     LinkOutlined,
     MessageOutlined,
     PictureOutlined,
@@ -307,6 +308,7 @@ export function StepCreative() {
     const selectedAdSetKey = useDraftStore((s) => s.selectedAdSetKey);
     const addAd = useDraftStore((s) => s.addAd);
     const removeAd = useDraftStore((s) => s.removeAd);
+    const duplicateAd = useDraftStore((s) => s.duplicateAd);
 
     const adset = adsets.find((a) => a.key === selectedAdSetKey);
 
@@ -385,6 +387,17 @@ export function StepCreative() {
                             onClick={() => setSelectedAdKey(ad.key)}
                         >
                             {ad.name}
+                            {selectedAdSetKey != null && (
+                                <Tooltip title="Nhân bản quảng cáo này">
+                                    <CopyOutlined
+                                        style={{ fontSize: 10, marginLeft: 2, color: '#1677ff' }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            duplicateAd(selectedAdSetKey, ad.key);
+                                        }}
+                                    />
+                                </Tooltip>
+                            )}
                             {ads.length > 1 && (
                                 <Tooltip title="Xoá quảng cáo này">
                                     <CloseOutlined

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button, Input, Space, Tag, Tooltip, Typography } from 'antd';
-import { CloseOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
+import { CloseOutlined, CopyOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { useDraftStore } from '@/lib/adWizard/draftStore';
 
 const { Text } = Typography;
@@ -12,6 +12,7 @@ export function AdSetSelector() {
     const addAdSet = useDraftStore((s) => s.addAdSet);
     const removeAdSet = useDraftStore((s) => s.removeAdSet);
     const updateAdSet = useDraftStore((s) => s.updateAdSet);
+    const duplicateAdSet = useDraftStore((s) => s.duplicateAdSet);
 
     const [editingKey, setEditingKey] = useState<string | null>(null);
     const [editingName, setEditingName] = useState('');
@@ -81,6 +82,18 @@ export function AdSetSelector() {
                                     <EditOutlined
                                         style={{ fontSize: 11, marginLeft: 2, color: '#1677ff' }}
                                         onClick={(e) => startEdit(adset.key, adset.name, e)}
+                                    />
+                                </Tooltip>
+                            )}
+
+                            {isSelected && !isEditing && (
+                                <Tooltip title="Nhân bản nhóm (Ctrl+C, Ctrl+V)">
+                                    <CopyOutlined
+                                        style={{ fontSize: 11, marginLeft: 2, color: '#1677ff' }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            duplicateAdSet(adset.key);
+                                        }}
                                     />
                                 </Tooltip>
                             )}
