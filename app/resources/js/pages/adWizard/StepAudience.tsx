@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, App, Button, Empty, Form, Input, Modal, Popconfirm, Select, Segmented, Slider, Space, Statistic, Typography } from 'antd';
+import { Alert, App, Button, Empty, Form, Input, Modal, Popconfirm, Select, Segmented, Slider, Space, Statistic, Switch, Typography } from 'antd';
 import type { SegmentedProps } from 'antd';
 import type { DefaultOptionType } from 'rc-select/lib/Select';
 import { DeleteOutlined, SaveOutlined, TeamOutlined } from '@ant-design/icons';
@@ -80,6 +80,7 @@ function initFromTargeting(
     detailedInclude: DetailedItem[];
     detailedNarrow: DetailedItem[];
     detailedExclude: DetailedItem[];
+    advantageAudience: boolean;
 } {
     if (targeting == null) {
         return {
@@ -89,6 +90,7 @@ function initFromTargeting(
             detailedInclude: [],
             detailedNarrow: [],
             detailedExclude: [],
+            advantageAudience: false,
         };
     }
 
@@ -125,7 +127,11 @@ function initFromTargeting(
     const detailedNarrow = Array.isArray(flexRaw) ? flattenGroup(flexRaw[1]) : [];
     const detailedExclude = flattenGroup(targeting.exclusions);
 
-    return { geo, ageRange: [ageMin, ageMax], gender, detailedInclude, detailedNarrow, detailedExclude };
+    // Advantage+ Audience: Meta auto-expands the audience when on.
+    const automation = targeting.targeting_automation as Record<string, unknown> | undefined;
+    const advantageAudience = Number(automation?.advantage_audience ?? 0) === 1;
+
+    return { geo, ageRange: [ageMin, ageMax], gender, detailedInclude, detailedNarrow, detailedExclude, advantageAudience };
 }
 
 /** Group geo items into FB geo_locations buckets by type. */
@@ -153,6 +159,7 @@ function buildTargetingSpec(
     detailedInclude: DetailedItem[],
     detailedNarrow: DetailedItem[],
     detailedExclude: DetailedItem[],
+    advantageAudience: boolean,
 ): Record<string, unknown> {
     const inc = bucket(geo.include);
     const spec: Record<string, unknown> = {
@@ -173,6 +180,8 @@ function buildTargetingSpec(
     // exclusions: detailed targeting to exclude.
     const exclusions = groupDetailed(detailedExclude);
     if (Object.keys(exclusions).length > 0) spec.exclusions = exclusions;
+    // Advantage+ Audience: let Meta expand beyond the manual inputs (used as a hint).
+    if (advantageAudience) spec.targeting_automation = { advantage_audience: 1 };
     return spec;
 }
 
@@ -191,6 +200,7 @@ function AudienceForm({ adsetKey }: { adsetKey: string }) {
     const [detailedInclude, setDetailedInclude] = useState<DetailedItem[]>(init.detailedInclude);
     const [detailedNarrow, setDetailedNarrow] = useState<DetailedItem[]>(init.detailedNarrow);
     const [detailedExclude, setDetailedExclude] = useState<DetailedItem[]>(init.detailedExclude);
+    const [advantageAudience, setAdvantageAudience] = useState<boolean>(init.advantageAudience);
 
     // Detailed-targeting search results (shared by include/narrow/exclude pickers).
     const [detailedOptions, setDetailedOptions] = useState<DefaultOptionType[]>([]);
@@ -259,7 +269,7 @@ function AudienceForm({ adsetKey }: { adsetKey: string }) {
             return;
         }
 
-        const spec = buildTargetingSpec(geo, ageRange, gender, detailedInclude, detailedNarrow, detailedExclude);
+        const spec = buildTargetingSpec(geo, ageRange, gender, detailedInclude, detailedNarrow, detailedExclude, advantageAudience);
         updateAdSet(adsetKey, { targeting: spec, geo });
 
         // Debounced estimate
@@ -282,7 +292,7 @@ function AudienceForm({ adsetKey }: { adsetKey: string }) {
             }
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [geoKey, ageRange[0], ageRange[1], gender, detailedKey, adsetKey]);
+    }, [geoKey, ageRange[0], ageRange[1], gender, detailedKey, advantageAudience, adsetKey]);
 
     function handleDetailedSearch(q: string) {
         if (searchDebounceRef.current != null) {
@@ -376,6 +386,15 @@ function AudienceForm({ adsetKey }: { adsetKey: string }) {
 
     return (
         <Form layout="vertical">
+            <Form.Item label="Advantage+ Audience (Meta tự mở rộng đối tượng)">
+                <Space direction="vertical" size={4}>
+                    <Switch checked={advantageAudience} onChange={setAdvantageAudience} />
+                    <Text type="secondary" style={{ maxWidth: 400, display: 'inline-block' }}>
+                        Khi bật, Meta dùng các tiêu chí bên dưới làm gợi ý và tự mở rộng để tìm thêm khách hàng tiềm năng. Vị trí, độ tuổi, giới tính vẫn được áp dụng.
+                    </Text>
+                </Space>
+            </Form.Item>
+
             <Form.Item label="Khu vực nhắm đến">
                 <Select
                     mode="multiple"

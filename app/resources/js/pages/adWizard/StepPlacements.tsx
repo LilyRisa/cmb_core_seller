@@ -7,7 +7,7 @@ import type { PlacementConfig } from '@/lib/adWizard';
 const { Text } = Typography;
 
 const PLACEMENT_MODE_OPTIONS: SegmentedProps['options'] = [
-    { label: 'Tự động (khuyến nghị)', value: 'automatic' },
+    { label: 'Advantage+ (tự động — khuyến nghị)', value: 'automatic' },
     { label: 'Thủ công', value: 'manual' },
 ];
 
