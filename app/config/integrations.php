@@ -246,6 +246,11 @@ return [
             'product' => '202309',
             'fulfillment' => '202309',
             'return_refund' => '202309',      // After-sales: /return_refund/202309/returns|cancellations/search
+            // Finance (SPEC 0016) — tách 2 đời vì khác nhau: bản LIST statements CHỈ tồn tại ở 202309
+            // (financeV202309Api), còn statement_transactions có cả 202309 (schema phẳng) lẫn 202501
+            // (schema breakdown). Mapper xử lý được cả hai. Xem tailieuapi_itiktok_shopee_lazada/tiktok/finance/.
+            'finance_statements' => env('TIKTOK_FINANCE_STATEMENTS_VERSION', '202309'),
+            'finance_transactions' => env('TIKTOK_FINANCE_TRANSACTIONS_VERSION', '202501'),
         ],
 
         // Đồng bộ Hoàn & Hủy (SPEC 0025). Bật mặc định (API return_refund 202309 ổn định). Tắt bằng

@@ -268,57 +268,55 @@ final class TikTokMappers
     /**
      * Build a {@see SettlementDTO} from a TikTok statement row + its transactions.
      *
-     * SDK ref: `sdk_tiktok_seller/api/financeV202309Api.ts` (`statements`, `statement_transactions`).
-     * Statement fields: `id, statement_time, settlement_amount, payment_status, currency`.
-     * Transaction line fields (đối chiếu sandbox): `order_id, type, sub_type, amount` (string), `time/create_time`.
+     * Đối chiếu tài liệu chính thức + SDK (`tailieuapi_itiktok_shopee_lazada/tiktok/finance/`,
+     * `sdk_tiktok_seller/model/finance/`). Hỗ trợ CẢ HAI schema statement_transactions:
+     *  - **202309** (phẳng): mỗi transaction là 1 đơn với các trường `*_amount` riêng
+     *    (`revenue_amount, fee_amount, shipping_fee_amount, adjustment_amount, settlement_amount`).
+     *  - **202501** (breakdown): top-level transaction có `revenue_amount, fee_tax_amount,
+     *    shipping_cost_amount, adjustment_amount, settlement_amount, type, order_id/adjustment_id`.
+     * Mỗi transaction được tách thành NHIỀU {@see SettlementLineDTO} theo từng cấu phần (doanh thu /
+     * phí&thuế / ship / điều chỉnh) để `SettlementService::aggregateFeesForOrders` cộng đúng nhóm.
+     *
+     * Statement fields (202309 list): `id, statement_time, settlement_amount, currency,
+     * revenue_amount, fee_amount, shipping_cost_amount, adjustment_amount, payment_status, payment_id, payment_time`.
      *
      * @param  array<string,mixed>  $st
      * @param  list<array<string,mixed>>  $transactions  raw từ `statement_transactions`
      */
     public static function settlement(array $st, array $transactions = []): \CMBcoreSeller\Integrations\Channels\DTO\SettlementDTO
     {
-        $startTs = (int) (data_get($st, 'statement_start_time') ?? data_get($st, 'period_start') ?? data_get($st, 'statement_time') ?? 0);
-        $endTs = (int) (data_get($st, 'statement_end_time') ?? data_get($st, 'period_end') ?? data_get($st, 'statement_time') ?? 0);
+        // Statement 202309 chỉ có `statement_time` (mốc đơn) — đại diện 1 ngày. 202501 by-statement có `create_time`.
+        $startTs = (int) (data_get($st, 'statement_start_time') ?? data_get($st, 'period_start') ?? data_get($st, 'create_time') ?? data_get($st, 'statement_time') ?? 0);
+        $endTs = (int) (data_get($st, 'statement_end_time') ?? data_get($st, 'period_end') ?? data_get($st, 'create_time') ?? data_get($st, 'statement_time') ?? 0);
         $periodStart = $startTs > 0 ? CarbonImmutable::createFromTimestamp($startTs) : CarbonImmutable::now();
         $periodEnd = $endTs > 0 ? CarbonImmutable::createFromTimestamp($endTs) : $periodStart;
-        $paidAt = self::tsOrNull(data_get($st, 'paid_time') ?? data_get($st, 'settlement_time'));
+        $paidAt = self::tsOrNull(data_get($st, 'paid_time') ?? data_get($st, 'payment_time') ?? data_get($st, 'settlement_time'));
 
-        // map transactions → SettlementLineDTO
+        // Tách mỗi transaction → các dòng cấu phần, đồng thời cộng tổng theo nhóm.
         $lines = [];
         $totalRev = 0;
         $totalFee = 0;
         $totalShip = 0;
         foreach ($transactions as $tx) {
-            $rawType = strtolower((string) (data_get($tx, 'sub_type') ?? data_get($tx, 'type') ?? 'other'));
-            $feeType = self::mapTikTokFeeType($rawType);
-            $amount = self::money(data_get($tx, 'amount'));
-            // Convention: phía seller — phí "âm", doanh thu "dương". TikTok có thể trả sẵn dấu — giữ nguyên.
-            $occurred = self::tsOrNull(data_get($tx, 'time') ?? data_get($tx, 'create_time') ?? data_get($tx, 'transaction_time'));
-            $lines[] = new SettlementLineDTO(
-                feeType: $feeType,
-                amount: $amount,
-                externalOrderId: ($oid = data_get($tx, 'order_id')) !== null ? (string) $oid : null,
-                externalLineId: ($txid = data_get($tx, 'id') ?? data_get($tx, 'transaction_id')) !== null ? (string) $txid : null,
-                occurredAt: $occurred,
-                description: data_get($tx, 'description') ? (string) data_get($tx, 'description') : null,
-                raw: $tx,
-            );
-            match ($feeType) {
-                SettlementLineDTO::TYPE_REVENUE => $totalRev += $amount,
-                SettlementLineDTO::TYPE_SHIPPING_FEE,
-                SettlementLineDTO::TYPE_SHIPPING_SUBSIDY => $totalShip += $amount,
-                SettlementLineDTO::TYPE_COMMISSION,
-                SettlementLineDTO::TYPE_PAYMENT_FEE,
-                SettlementLineDTO::TYPE_VOUCHER_SELLER => $totalFee += $amount,
-                default => null,
-            };
+            foreach (self::settlementLines((array) $tx) as $line) {
+                $lines[] = $line;
+                match ($line->feeType) {
+                    SettlementLineDTO::TYPE_REVENUE => $totalRev += $line->amount,
+                    SettlementLineDTO::TYPE_SHIPPING_FEE,
+                    SettlementLineDTO::TYPE_SHIPPING_SUBSIDY => $totalShip += $line->amount,
+                    SettlementLineDTO::TYPE_COMMISSION,
+                    SettlementLineDTO::TYPE_PAYMENT_FEE,
+                    SettlementLineDTO::TYPE_VOUCHER_SELLER => $totalFee += $line->amount,
+                    default => null,
+                };
+            }
         }
 
         return new \CMBcoreSeller\Integrations\Channels\DTO\SettlementDTO(
             externalId: ($id = data_get($st, 'id') ?? data_get($st, 'statement_id')) !== null ? (string) $id : null,
             periodStart: $periodStart,
             periodEnd: $periodEnd,
-            totalPayout: self::money(data_get($st, 'settlement_amount') ?? data_get($st, 'net_sales_amount') ?? data_get($st, 'payout_amount')),
+            totalPayout: self::money(data_get($st, 'settlement_amount') ?? data_get($st, 'total_settlement_amount') ?? data_get($st, 'payable_amount') ?? data_get($st, 'net_sales_amount') ?? data_get($st, 'payout_amount')),
             totalRevenue: $totalRev,
             totalFee: $totalFee,
             totalShippingFee: $totalShip,
@@ -327,6 +325,73 @@ final class TikTokMappers
             paidAt: $paidAt,
             raw: $st,
         );
+    }
+
+    /**
+     * Tách 1 transaction (202309 phẳng / 202501 breakdown) → nhiều {@see SettlementLineDTO} theo cấu phần.
+     * Dấu giữ nguyên theo TikTok (phí thường âm, doanh thu dương). Chỉ tạo dòng cho cấu phần khác 0.
+     *
+     * @param  array<string,mixed>  $tx
+     * @return list<SettlementLineDTO>
+     */
+    private static function settlementLines(array $tx): array
+    {
+        $type = strtoupper((string) (data_get($tx, 'type') ?? data_get($tx, 'sub_type') ?? 'ORDER'));
+        $orderId = ($o = data_get($tx, 'order_id') ?? data_get($tx, 'adjustment_order_id') ?? data_get($tx, 'associated_order_id')) !== null && (string) $o !== '' ? (string) $o : null;
+        $txId = ($t = data_get($tx, 'id') ?? data_get($tx, 'transaction_id') ?? data_get($tx, 'adjustment_id') ?? data_get($tx, 'reserve_id')) !== null && (string) $t !== '' ? (string) $t : null;
+        $occurred = self::tsOrNull(data_get($tx, 'order_create_time') ?? data_get($tx, 'statement_time') ?? data_get($tx, 'time') ?? data_get($tx, 'create_time') ?? data_get($tx, 'transaction_time'));
+        $fallbackDesc = data_get($tx, 'description') ? (string) data_get($tx, 'description') : null;
+
+        $mk = fn (string $feeType, mixed $amountRaw, ?string $label): SettlementLineDTO => new SettlementLineDTO(
+            feeType: $feeType,
+            amount: self::money($amountRaw),
+            externalOrderId: $orderId,
+            externalLineId: $txId,
+            occurredAt: $occurred,
+            description: $label ?? $fallbackDesc,
+            raw: $tx,
+        );
+
+        // Điều chỉnh (không phải ORDER/RESERVE): 1 dòng theo loại (xem Phụ lục B của tài liệu).
+        if ($type !== 'ORDER' && $type !== 'RESERVE') {
+            $amt = data_get($tx, 'adjustment_amount') ?? data_get($tx, 'settlement_amount') ?? data_get($tx, 'amount');
+
+            return self::money($amt) !== 0 ? [$mk(self::mapTikTokFeeType($type), $amt, 'adjustment:'.$type)] : [];
+        }
+
+        // Reserve (202501): giữ/release tiền — không phải phí, để TYPE_OTHER (gộp "fees" khi tổng hợp).
+        if ($type === 'RESERVE') {
+            $amt = data_get($tx, 'reserve_amount') ?? data_get($tx, 'amount');
+
+            return self::money($amt) !== 0 ? [$mk(SettlementLineDTO::TYPE_OTHER, $amt, 'reserve:'.(string) (data_get($tx, 'reserve_status') ?? ''))] : [];
+        }
+
+        // Đơn (ORDER): tách doanh thu / phí&thuế / ship / điều chỉnh từ trường top-level (cả 202309 & 202501).
+        $revenue = data_get($tx, 'revenue_amount');
+        $fee = data_get($tx, 'fee_tax_amount') ?? data_get($tx, 'fee_and_tax_amount') ?? data_get($tx, 'fee_amount');
+        $shipping = data_get($tx, 'shipping_cost_amount') ?? data_get($tx, 'shipping_fee_amount');
+        $adjust = data_get($tx, 'adjustment_amount');
+        $settlement = data_get($tx, 'settlement_amount');
+
+        $out = [];
+        if (self::money($revenue) !== 0) {
+            $out[] = $mk(SettlementLineDTO::TYPE_REVENUE, $revenue, 'revenue');
+        }
+        if (self::money($fee) !== 0) {
+            $out[] = $mk(SettlementLineDTO::TYPE_COMMISSION, $fee, 'fee_tax');
+        }
+        if (self::money($shipping) !== 0) {
+            $out[] = $mk(SettlementLineDTO::TYPE_SHIPPING_FEE, $shipping, 'shipping');
+        }
+        if (self::money($adjust) !== 0) {
+            $out[] = $mk(SettlementLineDTO::TYPE_ADJUSTMENT, $adjust, 'adjustment');
+        }
+        // Không tách được cấu phần nào nhưng có settlement_amount → 1 dòng tổng (fallback an toàn).
+        if ($out === [] && self::money($settlement) !== 0) {
+            $out[] = $mk(SettlementLineDTO::TYPE_OTHER, $settlement, 'settlement');
+        }
+
+        return $out;
     }
 
     /** Quy đổi sub_type/type của TikTok về `SettlementLineDTO::TYPES`. Mapping mở rộng được khi gặp sample sandbox. */

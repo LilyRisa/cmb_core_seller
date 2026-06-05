@@ -461,8 +461,9 @@ class TikTokConnector implements ChannelConnector
         if (! config('integrations.tiktok.finance_enabled')) {
             throw UnsupportedOperation::for($this->code(), 'fetchSettlements (đặt INTEGRATIONS_TIKTOK_FINANCE=true để bật)');
         }
-        $ver = $this->client->versionFor('finance') ?: '202309';
-        $statementsPath = (string) (config('integrations.tiktok.endpoints.finance_statements') ?? "/finance/{$ver}/statements");
+        $ver = $this->client->versionFor('finance_statements') ?: '202309';
+        // BUG-fix: thay {version} trong path (config trả về placeholder, trước đây bị bỏ sót ⇒ gọi sai path).
+        $statementsPath = str_replace('{version}', $ver, (string) (config('integrations.tiktok.endpoints.finance_statements') ?? '/finance/{version}/statements'));
         $params = [
             'page_size' => max(1, min(100, (int) ($query['pageSize'] ?? 50))),
             'sort_field' => 'statement_time', 'sort_order' => 'ASC',
@@ -493,14 +494,15 @@ class TikTokConnector implements ChannelConnector
         if ($statementId === '') {
             return [];
         }
-        $ver = $this->client->versionFor('finance') ?: '202309';
-        $path = (string) (config('integrations.tiktok.endpoints.finance_statement_transactions') ?? "/finance/{$ver}/statements/{$statementId}/statement_transactions");
-        $path = str_replace('{statement_id}', $statementId, $path);
+        $ver = $this->client->versionFor('finance_transactions') ?: '202309';
+        // BUG-fix: thay CẢ {version} lẫn {statement_id} (trước đây chỉ thay {statement_id} ⇒ kẹt literal {version}).
+        $path = str_replace(['{version}', '{statement_id}'], [$ver, $statementId], (string) (config('integrations.tiktok.endpoints.finance_statement_transactions') ?? '/finance/{version}/statements/{statement_id}/statement_transactions'));
 
         $allTx = [];
         $cursor = null;
         do {
-            $params = ['page_size' => 100];
+            // BUG-fix: `sort_field` là BẮT BUỘC (chỉ nhận `order_create_time`) — thiếu sẽ bị API từ chối.
+            $params = ['page_size' => 100, 'sort_field' => 'order_create_time', 'sort_order' => 'ASC'];
             if ($cursor !== null) {
                 $params['page_token'] = $cursor;
             }
