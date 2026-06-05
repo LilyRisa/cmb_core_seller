@@ -71,7 +71,7 @@ export function CampaignAiInsightDrawer({ open, accountId, campaign, onClose }: 
                     if (res.queued) {
                         setStartedAt(triggeredAt);
                         setPolling(true);
-                        message.info('Đang phân tích — sẽ hiển thị khi xong.');
+                        message.info('Đang phân tích — sẽ hiển thị khi xong và gửi email cho Quản trị.');
                     } else {
                         message.success('Đã có phân tích (dùng lại kết quả gần đây).');
                     }
