@@ -640,7 +640,7 @@ export function MarketingDashboardPage() {
                                 loading={refresh.isPending}
                                 disabled={selectedId == null}
                                 onClick={() => selectedId != null && refresh.mutate(selectedId, {
-                                    onSuccess: () => message.success('Đang làm mới dữ liệu quảng cáo…'),
+                                    onSuccess: () => message.success('Đã làm mới trạng thái & dữ liệu quảng cáo.'),
                                     onError: (e) => message.error(errorMessage(e, 'Làm mới thất bại.')),
                                 })}
                             >

@@ -392,9 +392,11 @@ export function useRefreshAdInsights() {
         mutationFn: async (id: number) =>
             (await api!.post<{ data: { queued: boolean } }>(`/marketing/ad-accounts/${id}/refresh`)).data.data,
         onSuccess: () => {
-            // Refetch BOTH the snapshot dashboard AND the report/tree view.
+            // The server synced the entity tree + health synchronously — refetch the
+            // report/tree, the snapshot dashboard, and the accounts (health/status).
             qc.invalidateQueries({ queryKey: ['marketing', 'insights'] });
             qc.invalidateQueries({ queryKey: ['marketing', 'report'] });
+            qc.invalidateQueries({ queryKey: ['marketing', 'ad-accounts'] });
         },
     });
 }

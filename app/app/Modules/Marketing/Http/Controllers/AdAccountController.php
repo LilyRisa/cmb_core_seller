@@ -159,18 +159,39 @@ class AdAccountController extends Controller
         return response()->json(['data' => ['updated' => $updated, 'created' => $created]]);
     }
 
-    /** POST /api/v1/marketing/ad-accounts/{id}/refresh — kick a near-real-time insights sync now. */
-    public function refresh(int $id): JsonResponse
+    /** POST /api/v1/marketing/ad-accounts/{id}/refresh — fetch the latest status NOW. */
+    public function refresh(int $id, AdsRegistry $registry): JsonResponse
     {
         Gate::authorize('marketing.view');
         $account = AdAccount::query()->findOrFail($id);
-        // Bust the on-demand report cache so the next /report returns fresh Graph data
-        // immediately (the table refetches client-side), then re-sync the entity tree +
-        // snapshots in the background (picks up new campaigns / latest metrics).
+
+        // Bust the on-demand report cache so the next /report returns fresh live insights.
         AdsReportService::bumpCache((int) $account->getKey());
-        SyncAdAccountEntities::dispatch((int) $account->getKey());
+
+        // Run the entity tree + account-health sync SYNCHRONOUSLY so the latest
+        // campaign/adset/ad status + budgets appear immediately — not dependent on a
+        // queue worker. Best-effort: a failure here doesn't fail the refresh.
+        try {
+            (new SyncAdAccountEntities((int) $account->getKey()))->handle($registry);
+        } catch (\Throwable $e) {
+            Log::warning('marketing.refresh.entities_failed', ['account' => $account->getKey(), 'error' => $e->getMessage()]);
+        }
+        try {
+            if ($registry->has($account->provider)) {
+                $health = $registry->for($account->provider)->fetchAccountStatus((string) $account->access_token, $account->external_account_id);
+                AdAccount::withoutGlobalScope(TenantScope::class)->whereKey($account->getKey())->update([
+                    'fb_account_status' => $health['account_status'],
+                    'disable_reason' => $health['disable_reason'],
+                    'health_checked_at' => now(),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('marketing.refresh.health_failed', ['account' => $account->getKey(), 'error' => $e->getMessage()]);
+        }
+
+        // Insight snapshots (for the /insights dashboard, not the live report) stay async.
         SyncAdInsights::dispatch((int) $account->getKey());
 
-        return response()->json(['data' => ['queued' => true, 'ad_account_id' => (int) $account->getKey()]]);
+        return response()->json(['data' => ['synced' => true, 'queued' => true, 'ad_account_id' => (int) $account->getKey()]]);
     }
 }
