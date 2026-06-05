@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { App as AntApp, Button, Card, Checkbox, Collapse, DatePicker, Dropdown, Empty, Input, InputNumber, List, Popconfirm, Result, Segmented, Select, Space, Spin, Statistic, Table, Tag, Tooltip, Typography } from 'antd';
+import { App as AntApp, Avatar, Button, Card, Checkbox, Collapse, DatePicker, Dropdown, Empty, Input, InputNumber, List, Popconfirm, Result, Segmented, Select, Space, Spin, Statistic, Table, Tag, Tooltip, Typography } from 'antd';
 import { ApiOutlined, BulbOutlined, CheckOutlined, CloseOutlined, DisconnectOutlined, EditOutlined, FacebookFilled, FileTextOutlined, FolderOpenOutlined, FundOutlined, PauseCircleOutlined, PlayCircleOutlined, PlusOutlined, QuestionCircleOutlined, RobotOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
 import { useAdDrafts, useDeleteDraft, useDuplicateDraft } from '@/lib/adWizard';
 import dayjs, { type Dayjs } from 'dayjs';
@@ -128,9 +128,12 @@ export function MarketingDashboardPage() {
 
     // BM groups → accounts in selected BM.
     const bmGroups = useMemo(() => {
-        const m = new Map<string, string>();
-        (accounts ?? []).forEach((a) => m.set(a.business_id ?? '_', a.business_name ?? 'Không thuộc BM'));
-        return [...m.entries()].map(([id, name]) => ({ id, name }));
+        const m = new Map<string, { name: string; picture: string | null }>();
+        (accounts ?? []).forEach((a) => {
+            const id = a.business_id ?? '_';
+            if (!m.has(id)) m.set(id, { name: a.business_name ?? 'Không thuộc BM', picture: a.business_picture_url ?? null });
+        });
+        return [...m.entries()].map(([id, info]) => ({ id, name: info.name, picture: info.picture }));
     }, [accounts]);
     const bmAccounts = useMemo(() => (accounts ?? []).filter((a) => (a.business_id ?? '_') === (bm ?? bmGroups[0]?.id)), [accounts, bm, bmGroups]);
     const selectedId = accountId ?? bmAccounts[0]?.id ?? null;
@@ -392,7 +395,9 @@ export function MarketingDashboardPage() {
                                 title: g.id !== '_' ? `ID: ${g.id}` : undefined,
                                 element: (
                                     <Space>
-                                        <FacebookFilled style={{ color: '#1877f2' }} />
+                                        {g.picture
+                                            ? <Avatar size={18} src={g.picture} shape="square" />
+                                            : <FacebookFilled style={{ color: '#1877f2' }} />}
                                         <span>{g.name}</span>
                                         {g.id !== '_' && <Text type="secondary" style={{ fontSize: 11 }}>#{g.id}</Text>}
                                     </Space>

@@ -12,6 +12,7 @@ final readonly class AdAccountDTO
         public ?string $status = null,
         public ?string $businessId = null,     // Business Manager id
         public ?string $businessName = null,
+        public ?string $businessPictureUrl = null, // BM logo
         public array $raw = [],
     ) {}
 }

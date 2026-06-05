@@ -123,7 +123,7 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
     public function listAdAccounts(string $accessToken): array
     {
         $res = Http::timeout(30)->get($this->graphUrl('me/adaccounts'), [
-            'fields' => 'account_id,name,currency,account_status,business{id,name}',
+            'fields' => 'account_id,name,currency,account_status,business{id,name,profile_picture_uri}',
             'access_token' => $accessToken, 'limit' => 200,
         ]);
         if (! $res->successful()) {
@@ -137,6 +137,7 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
             status: isset($a['account_status']) ? (string) $a['account_status'] : null,
             businessId: isset($a['business']['id']) ? (string) $a['business']['id'] : null,
             businessName: isset($a['business']['name']) ? (string) $a['business']['name'] : null,
+            businessPictureUrl: isset($a['business']['profile_picture_uri']) ? (string) $a['business']['profile_picture_uri'] : null,
             raw: $a,
         ), array_filter((array) $res->json('data', []), 'is_array')));
     }

@@ -13,6 +13,21 @@ class FacebookAdsPagePostsTest extends TestCase
         return new FacebookAdsConnector(['graph_version' => 'v19.0']);
     }
 
+    public function test_list_ad_accounts_maps_business_picture(): void
+    {
+        Http::fake(['graph.facebook.com/*/me/adaccounts*' => Http::response([
+            'data' => [[
+                'id' => 'act_1', 'name' => 'Shop', 'currency' => 'VND', 'account_status' => 1,
+                'business' => ['id' => 'BIZ1', 'name' => 'My BM', 'profile_picture_uri' => 'https://img/bm.png'],
+            ]],
+        ], 200)]);
+
+        $accounts = $this->connector()->listAdAccounts('USERTOK');
+
+        $this->assertSame('BIZ1', $accounts[0]->businessId);
+        $this->assertSame('https://img/bm.png', $accounts[0]->businessPictureUrl);
+    }
+
     public function test_list_pages_maps_id_name_token(): void
     {
         Http::fake(['graph.facebook.com/*/me/accounts*' => Http::response([

@@ -17,6 +17,7 @@ export interface AdAccount {
     provider: string;
     business_id: string | null;
     business_name: string | null;
+    business_picture_url: string | null;
     external_account_id: string;
     name: string | null;
     currency: string | null;
