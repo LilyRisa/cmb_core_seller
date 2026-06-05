@@ -208,18 +208,8 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
         ]);
 
         if (! $res->successful()) {
-            // Log để CHẨN ĐOÁN vì sao mất avatar (best-effort vẫn trả null, không chặn).
-            // Error #200/#10 / "permission" ⇒ app chưa có quyền User Profile cho PSID này.
-            $err = (array) $res->json('error');
-            Log::warning('facebook.fetchUserProfile thất bại', [
-                'page' => $auth->externalShopId,
-                'psid' => $psid,
-                'status' => $res->status(),
-                'error_code' => $err['code'] ?? null,
-                'error_subcode' => $err['error_subcode'] ?? null,
-                'error_message' => $err['message'] ?? null,
-            ]);
-
+            // Best-effort: PSID không lấy được profile (thường #100/#10/#200 — app chưa có
+            // Advanced Access User Profile cho PSID này). Trả null, KHÔNG log (nguyên nhân đã biết).
             return ['name' => null, 'avatar_url' => null];
         }
 
