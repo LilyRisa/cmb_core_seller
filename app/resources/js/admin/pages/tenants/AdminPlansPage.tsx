@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { App, Button, Card, Form, Input, InputNumber, Modal, Space, Switch, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { EditOutlined } from '@ant-design/icons';
@@ -81,14 +81,8 @@ export function AdminPlansPage() {
     );
 }
 
-function PlanModal({ open, plan, onClose }: { open: boolean; plan: AdminPlan | null; onClose: () => void }) {
-    const { message } = App.useApp();
-    const update = useAdminUpdatePlan();
-    const [form] = Form.useForm();
-
-    if (!plan) return null;
-
-    const initialValues = {
+function valuesFromPlan(plan: AdminPlan) {
+    return {
         name: plan.name, description: plan.description, is_active: plan.is_active, sort_order: plan.sort_order,
         price_monthly: plan.price_monthly, price_yearly: plan.price_yearly, trial_days: plan.trial_days,
         max_channel_accounts: plan.limits?.max_channel_accounts ?? 0,
@@ -98,6 +92,25 @@ function PlanModal({ open, plan, onClose }: { open: boolean; plan: AdminPlan | n
         messaging_media_mb_daily: plan.limits?.messaging_media_mb_daily ?? 0,
         features: KNOWN_FEATURES.reduce((acc, k) => { acc[k] = !!plan.features?.[k]; return acc; }, {} as Record<string, boolean>),
     };
+}
+
+function PlanModal({ open, plan, onClose }: { open: boolean; plan: AdminPlan | null; onClose: () => void }) {
+    const { message } = App.useApp();
+    const update = useAdminUpdatePlan();
+    const [form] = Form.useForm();
+
+    // `form` (từ useForm) tồn tại xuyên suốt giữa các lần mở modal, nên `initialValues`
+    // chỉ áp 1 lần → không cập nhật theo plan mới chọn. Chủ động nạp lại mỗi khi mở.
+    useEffect(() => {
+        if (open && plan) {
+            form.setFieldsValue(valuesFromPlan(plan));
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, plan?.id, form]);
+
+    if (!plan) return null;
+
+    const initialValues = valuesFromPlan(plan);
 
     const submit = (v: Record<string, unknown>) => {
         update.mutate({

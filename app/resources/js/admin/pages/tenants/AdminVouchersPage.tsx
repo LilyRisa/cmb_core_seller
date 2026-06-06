@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
     App, Button, Card, Drawer, Form, Input, InputNumber, Modal,
-    Radio, Space, Table, Tag, Typography,
+    Radio, Select, Space, Table, Tag, Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
@@ -11,7 +11,7 @@ import {
 import { PageHeader } from '@/components/PageHeader';
 import {
     useAdminVouchers, useAdminCreateVoucher, useAdminDisableVoucher,
-    useAdminGrantVoucher, useAdminVoucher,
+    useAdminGrantVoucher, useAdminVoucher, useAdminPlans,
     type AdminVoucher, type VoucherKind,
 } from '@admin/lib/admin';
 import { errorMessage } from '@/lib/api';
@@ -42,6 +42,12 @@ export function AdminVouchersPage() {
 
     const filters = useMemo(() => ({ q: q.trim() || undefined, page, per_page: 30 }), [q, page]);
     const { data, isFetching } = useAdminVouchers(filters);
+    const { data: plans } = useAdminPlans();
+    const planLabel = useMemo(() => {
+        const map = new Map<number, string>();
+        (plans ?? []).forEach((p) => map.set(p.id, `${p.name} (${p.code})`));
+        return map;
+    }, [plans]);
     const disable = useAdminDisableVoucher();
 
     const columns: ColumnsType<AdminVoucher> = [
@@ -65,7 +71,7 @@ export function AdminVouchersPage() {
                 if (r.kind === 'fixed') return new Intl.NumberFormat('vi-VN').format(v) + ' đ';
                 if (r.kind === 'free_days') return `${v} ngày`;
                 if (r.kind === 'ai_credits') return `${v} lượt AI`;
-                return `Plan #${v}`;
+                return planLabel.get(v) ?? `Plan #${v}`;
             },
         },
         {
@@ -146,6 +152,7 @@ export function AdminVouchersPage() {
 function CreateVoucherModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     const { message } = App.useApp();
     const create = useAdminCreateVoucher();
+    const { data: plans, isLoading: plansLoading } = useAdminPlans();
     const [form] = Form.useForm();
     const kind = Form.useWatch('kind', form) as VoucherKind | undefined;
 
@@ -186,19 +193,34 @@ function CreateVoucherModal({ open, onClose }: { open: boolean; onClose: () => v
                         <Radio.Button value="ai_credits">Tặng lượt AI</Radio.Button>
                     </Radio.Group>
                 </Form.Item>
-                <Form.Item
-                    name="value"
-                    label={
-                        kind === 'percent' ? 'Phần trăm (1-100)' :
-                        kind === 'fixed' ? 'Số tiền giảm (VND)' :
-                        kind === 'free_days' ? 'Số ngày tặng (1-365)' :
-                        kind === 'ai_credits' ? 'Số lượt AI tặng' :
-                        'Plan ID (mục tiêu nâng gói)'
-                    }
-                    rules={[{ required: true, type: 'number', min: 1 }]}
-                >
-                    <InputNumber style={{ width: '100%' }} />
-                </Form.Item>
+                {kind === 'plan_upgrade' ? (
+                    <Form.Item
+                        name="value"
+                        label="Gói mục tiêu (tặng/nâng lên)"
+                        rules={[{ required: true, message: 'Chọn gói để tặng.' }]}
+                    >
+                        <Select
+                            placeholder="Chọn gói"
+                            loading={plansLoading}
+                            options={(plans ?? [])
+                                .filter((p) => p.is_active && p.code !== 'trial')
+                                .map((p) => ({ value: p.id, label: `${p.name} (${p.code})` }))}
+                        />
+                    </Form.Item>
+                ) : (
+                    <Form.Item
+                        name="value"
+                        label={
+                            kind === 'percent' ? 'Phần trăm (1-100)' :
+                            kind === 'fixed' ? 'Số tiền giảm (VND)' :
+                            kind === 'free_days' ? 'Số ngày tặng (1-365)' :
+                            'Số lượt AI tặng'
+                        }
+                        rules={[{ required: true, type: 'number', min: 1 }]}
+                    >
+                        <InputNumber style={{ width: '100%' }} />
+                    </Form.Item>
+                )}
                 <Form.Item name="max_redemptions" label="Tối đa lượt dùng (−1 = không giới hạn)">
                     <InputNumber style={{ width: '100%' }} />
                 </Form.Item>
@@ -216,6 +238,7 @@ function CreateVoucherModal({ open, onClose }: { open: boolean; onClose: () => v
 function VoucherDetailDrawer({ voucherId, onClose }: { voucherId: number | null; onClose: () => void }) {
     const { message } = App.useApp();
     const { data, isLoading, refetch } = useAdminVoucher(voucherId);
+    const { data: plans } = useAdminPlans();
     const grant = useAdminGrantVoucher();
     const [grantForm] = Form.useForm();
     const [grantOpen, setGrantOpen] = useState(false);
@@ -237,7 +260,13 @@ function VoucherDetailDrawer({ voucherId, onClose }: { voucherId: number | null;
                         <Typography.Paragraph type="secondary">{data.description ?? 'Không có ghi chú.'}</Typography.Paragraph>
                         <Space>
                             <Tag>{KIND_LABEL[data.kind]}</Tag>
-                            <Typography.Text>Giá trị: <strong>{data.value}</strong></Typography.Text>
+                            <Typography.Text>Giá trị: <strong>{
+                                data.kind === 'plan_upgrade'
+                                    ? (plans?.find((p) => p.id === data.value)
+                                        ? `${plans.find((p) => p.id === data.value)!.name} (${plans.find((p) => p.id === data.value)!.code})`
+                                        : `Plan #${data.value}`)
+                                    : data.value
+                            }</strong></Typography.Text>
                             <Typography.Text>Đã dùng: <strong>{data.redemption_count}{data.max_redemptions >= 0 ? `/${data.max_redemptions}` : ''}</strong></Typography.Text>
                         </Space>
                     </Card>
