@@ -1,63 +1,21 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
     Alert, Anchor, App as AntApp, Avatar, Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber,
-    Radio, Row, Select, Skeleton, Space, Table, Tag, Typography, Upload,
+    List, Radio, Row, Select, Skeleton, Space, Table, Tag, Typography, Upload,
 } from 'antd';
 import type { RcFile } from 'antd/es/upload';
-import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined, ShopOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, DeleteOutlined, LinkOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { errorMessage } from '@/lib/api';
 import {
-    useChannelListings, useCreateSku, useDeleteSkuImage, useSku, useUpdateSku, useUploadSkuImage, useWarehouses,
-    type ChannelListing, type CreateSkuPayload, type Sku, type UpdateSkuPayload,
+    useCreateSku, useDeleteSkuImage, useSku, useUpdateSku, useUploadSkuImage, useWarehouses,
+    type CreateSkuPayload, type Sku, type UpdateSkuPayload,
 } from '@/lib/inventory';
 import { useChannelAccounts } from '@/lib/channels';
 import { ChannelLogo } from '@/components/ChannelLogo';
-
-/** Thông tin listing sàn đã chọn cho 1 dòng ghép nối — chỉ để hiển thị (tên/ảnh/biến thể), không gửi lên server. */
-interface PickedListing { external_sku_id: string; seller_sku: string | null; title: string | null; image: string | null; variation: string | null; channel_stock: number | null }
-
-/**
- * Picker chọn SKU gian hàng để ghép nối — tìm theo tên SP / mã SKU trong các listing đã đồng bộ của gian hàng,
- * hiện ảnh + tên + biến thể + tồn trên sàn. Cho phép gõ mã thủ công nếu listing chưa đồng bộ. SPEC 0005.
- * Form-controlled qua `value`/`onChange` (= external_sku_id); `onPick` để side-effect (điền seller_sku + hiện preview).
- */
-function ChannelListingPicker({ shopId, value, onChange, onPick }: { shopId?: number; value?: string; onChange?: (v?: string) => void; onPick?: (l: PickedListing | null) => void }) {
-    const [term, setTerm] = useState('');
-    const { data, isFetching } = useChannelListings({ channel_account_id: shopId, q: term || undefined, per_page: 20 });
-    const listings: ChannelListing[] = shopId ? (data?.data ?? []) : [];
-    const opts: Array<{ value: string; label: ReactNode; listing?: ChannelListing }> = listings.map((l) => ({
-        value: l.external_sku_id, listing: l,
-        label: (
-            <Space size={6}>
-                <Avatar shape="square" size={22} src={l.image ?? undefined}>{l.image ? null : '?'}</Avatar>
-                <span>{l.title ?? '(không tên)'}{l.variation ? ` — ${l.variation}` : ''}</span>
-                <Typography.Text type="secondary" style={{ fontSize: 11 }}>· {l.external_sku_id}{l.channel_stock != null ? ` · tồn ${l.channel_stock}` : ''}</Typography.Text>
-            </Space>
-        ),
-    }));
-    if (term.trim() && !listings.some((l) => l.external_sku_id === term.trim())) {
-        opts.push({ value: term.trim(), label: <span>Dùng mã sàn thủ công: <b>{term.trim()}</b></span> });
-    }
-    return (
-        <Select
-            showSearch filterOption={false} onSearch={setTerm} loading={isFetching} allowClear
-            disabled={!shopId} style={{ minWidth: 320, width: '100%' }}
-            placeholder={shopId ? 'Tìm sản phẩm trên sàn (tên / mã SKU)…' : 'Chọn gian hàng trước'}
-            value={value || undefined}
-            options={opts}
-            notFoundContent={!shopId ? null : isFetching ? 'Đang tìm…' : 'Không thấy listing — đồng bộ ở trang "Sản phẩm sàn", hoặc gõ mã SKU sàn rồi chọn "Dùng mã thủ công".'}
-            onChange={(v?: string) => {
-                onChange?.(v || undefined);
-                if (!v) { onPick?.(null); return; }
-                const o = opts.find((x) => x.value === v);
-                onPick?.({ external_sku_id: v, seller_sku: o?.listing?.seller_sku ?? null, title: o?.listing?.title ?? null, image: o?.listing?.image ?? null, variation: o?.listing?.variation ?? null, channel_stock: o?.listing?.channel_stock ?? null });
-            }}
-        />
-    );
-}
+import { ChannelLinkModal, type LinkRow } from '@/components/ChannelLinkModal';
 
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 const IMAGE_MAX_MB = 5;
@@ -82,7 +40,7 @@ interface BasicForm {
     width_cm?: number;
     height_cm?: number;
     is_active?: boolean;
-    mappings?: Array<{ channel_account_id?: number; external_sku_id?: string; seller_sku?: string; _listing?: PickedListing }>;
+    mappings?: LinkRow[];
 }
 
 interface WhRow { included: boolean; on_hand: number; cost_price: number }
@@ -106,10 +64,19 @@ export function CreateSkuPage() {
     const deleteImage = useDeleteSkuImage();
     const { data: warehouses } = useWarehouses();
     const { data: channelData } = useChannelAccounts();
-    const shopOptions = useMemo(() => (channelData?.data ?? []).map((s) => ({
-        value: s.id,
-        label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ChannelLogo provider={s.provider} size={14} />{s.name}</span>,
-    })), [channelData]);
+    const shops = useMemo(() => (channelData?.data ?? []).map((s) => ({ id: s.id, name: s.name, provider: s.provider })), [channelData]);
+    const shopById = useMemo(() => {
+        const m: Record<number, { id: number; name: string; provider: string }> = {};
+        shops.forEach((s) => { m[s.id] = s; });
+        return m;
+    }, [shops]);
+
+    // Liên kết sàn — quản lý qua modal 2 pane; `mappings` giữ trong form store (set/get trực tiếp).
+    const [linkOpen, setLinkOpen] = useState(false);
+    const mappings = (Form.useWatch('mappings', form) as LinkRow[] | undefined) ?? [];
+    const removeMapping = (m: LinkRow) => form.setFieldValue('mappings', mappings.filter(
+        (x) => !(x.channel_account_id === m.channel_account_id && x.external_sku_id === m.external_sku_id),
+    ));
 
     const skuQ = useSku(isEdit ? id : undefined);
     const editing: Sku | undefined = isEdit ? skuQ.data : undefined;
@@ -176,7 +143,7 @@ export function CreateSkuPage() {
             length_cm: v.length_cm ?? null,
             width_cm: v.width_cm ?? null,
             height_cm: v.height_cm ?? null,
-            mappings: cleanMappings(v.mappings),
+            mappings: cleanMappings(form.getFieldValue('mappings')),
             levels: (warehouses ?? []).filter((w) => whRow(w.id).included).map((w) => ({ warehouse_id: w.id, on_hand: whRow(w.id).on_hand || 0, cost_price: whRow(w.id).cost_price || 0 })),
         };
         create.mutate(payload, {
@@ -203,7 +170,7 @@ export function CreateSkuPage() {
             width_cm: v.width_cm ?? null,
             height_cm: v.height_cm ?? null,
             is_active: v.is_active !== false,
-            mappings: cleanMappings(v.mappings), // replaces the SKU's channel-SKU links
+            mappings: cleanMappings(form.getFieldValue('mappings')), // replaces the SKU's channel-SKU links
         };
         update.mutate({ id: editing!.id, patch }, {
             onSuccess: async () => { await applyImage(editing!.id); message.success('Đã lưu SKU'); navigate('/inventory?tab=skus'); },
@@ -320,54 +287,50 @@ export function CreateSkuPage() {
                             <Alert type="info" showIcon style={{ marginBottom: 12 }}
                                 message={isEdit ? 'Danh sách ghép nối ở đây là toàn bộ liên kết của SKU này — lưu lại sẽ thay thế các liên kết cũ.' : 'Ghép SKU hàng hoá này với SKU/biến thể trên gian hàng để giám sát & đồng bộ tồn kho.'}
                                 description="Một SKU hàng hoá có thể ghép với nhiều SKU sàn (từ nhiều gian hàng); mỗi SKU sàn chỉ thuộc đúng 1 SKU hàng hoá. Tồn của SKU này tự được đẩy lên các listing đã ghép — không cần nhập số tồn ở đây." />
-                            <Form.List name="mappings">
-                                {(fields, { add, remove }) => (
-                                    <>
-                                        {fields.length === 0 && <Typography.Text type="secondary">Chưa có ghép nối.</Typography.Text>}
-                                        {fields.map((f) => (
-                                            <Form.Item noStyle key={f.key} shouldUpdate>
-                                                {() => {
-                                                    const row = (form.getFieldValue(['mappings', f.name]) ?? {}) as NonNullable<BasicForm['mappings']>[number];
-                                                    const shopId = row.channel_account_id;
-                                                    const picked = row._listing;
-                                                    const shopLabel = shopOptions.find((o) => o.value === shopId)?.label;
-                                                    const setRow = (patch: Partial<NonNullable<BasicForm['mappings']>[number]>) =>
-                                                        Object.entries(patch).forEach(([k, v]) => form.setFieldValue(['mappings', f.name, k] as never, v));
-                                                    return (
-                                                        <div style={{ border: '1px solid #f0f0f0', borderRadius: 8, padding: 12, marginBottom: 10 }}>
-                                                            <Space align="start" wrap style={{ width: '100%' }}>
-                                                                <Form.Item {...f} name={[f.name, 'channel_account_id']} rules={[{ required: true, message: 'Chọn gian hàng' }]} style={{ marginBottom: 0, minWidth: 200 }}>
-                                                                    <Select showSearch optionFilterProp="label" placeholder="Gian hàng" suffixIcon={<ShopOutlined />} options={shopOptions}
-                                                                        onChange={() => setRow({ external_sku_id: undefined, seller_sku: undefined, _listing: undefined })} />
-                                                                </Form.Item>
-                                                                <Form.Item {...f} name={[f.name, 'external_sku_id']} rules={[{ required: true, message: 'Chọn SKU gian hàng' }, { max: 191 }]} style={{ marginBottom: 0, flex: 1, minWidth: 320 }}>
-                                                                    <ChannelListingPicker shopId={shopId} onPick={(l) => setRow({ seller_sku: l?.seller_sku ?? row.seller_sku, _listing: l ?? undefined })} />
-                                                                </Form.Item>
-                                                                <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(f.name)} />
-                                                            </Space>
-                                                            <Form.Item {...f} name={[f.name, 'seller_sku']} hidden><Input /></Form.Item>
-                                                            {picked ? (
-                                                                <Space size={10} style={{ marginTop: 10 }} align="start">
-                                                                    <Avatar shape="square" size={44} src={picked.image ?? undefined}>{picked.image ? null : '?'}</Avatar>
-                                                                    <div>
-                                                                        <div style={{ fontWeight: 500 }}>{picked.title ?? '(không tên)'}{picked.variation ? <Tag style={{ marginInlineStart: 6 }}>{picked.variation}</Tag> : null}</div>
-                                                                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>{shopLabel ? <>Gian hàng: {shopLabel} · </> : null}SKU sàn: {row.external_sku_id}{picked.seller_sku ? ` · Seller SKU: ${picked.seller_sku}` : ''}{picked.channel_stock != null ? ` · Tồn trên sàn: ${picked.channel_stock}` : ''}</Typography.Text>
-                                                                    </div>
-                                                                </Space>
-                                                            ) : row.external_sku_id ? (
-                                                                <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 8 }}>
-                                                                    SKU sàn: <b>{row.external_sku_id}</b>{shopLabel ? <> · Gian hàng: {shopLabel}</> : null} <Typography.Text type="warning">(listing chưa đồng bộ — chưa xem được tên/ảnh; bấm “Đồng bộ listing” ở trang Sản phẩm sàn)</Typography.Text>
-                                                                </Typography.Text>
-                                                            ) : null}
-                                                        </div>
-                                                    );
-                                                }}
-                                            </Form.Item>
-                                        ))}
-                                        <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({})} style={{ marginTop: 8 }}>Thêm ghép nối SKU gian hàng</Button>
-                                    </>
-                                )}
-                            </Form.List>
+                            {mappings.length === 0 ? (
+                                <Typography.Text type="secondary">Chưa có liên kết nào với SKU sàn.</Typography.Text>
+                            ) : (
+                                <List<LinkRow>
+                                    size="small"
+                                    dataSource={mappings}
+                                    rowKey={(m) => `${m.channel_account_id}-${m.external_sku_id}`}
+                                    renderItem={(m) => {
+                                        const shop = m.channel_account_id != null ? shopById[m.channel_account_id] : undefined;
+                                        const li = m._listing;
+                                        return (
+                                            <List.Item extra={<Button type="text" danger icon={<DeleteOutlined />} onClick={() => removeMapping(m)} />}>
+                                                <List.Item.Meta
+                                                    avatar={<Avatar shape="square" size={40} src={li?.image ?? undefined}>{li?.image ? null : '?'}</Avatar>}
+                                                    title={(
+                                                        <Space size={4} wrap>
+                                                            {shop ? <ChannelLogo provider={shop.provider} size={14} /> : null}
+                                                            <span>{li?.title ?? '(mã thủ công)'}</span>
+                                                            {li?.variation ? <Tag bordered={false}>{li.variation}</Tag> : null}
+                                                        </Space>
+                                                    )}
+                                                    description={(
+                                                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                                                            {shop ? `${shop.name} · ` : ''}SKU sàn: {m.external_sku_id}
+                                                            {li?.seller_sku ? ` · Seller SKU: ${li.seller_sku}` : ''}
+                                                            {li?.channel_stock != null ? ` · tồn ${li.channel_stock}` : ''}
+                                                        </Typography.Text>
+                                                    )}
+                                                />
+                                            </List.Item>
+                                        );
+                                    }}
+                                />
+                            )}
+                            <Button type="dashed" icon={<LinkOutlined />} onClick={() => setLinkOpen(true)} style={{ marginTop: 12 }}>
+                                Liên kết sàn
+                            </Button>
+                            <ChannelLinkModal
+                                open={linkOpen}
+                                onClose={() => setLinkOpen(false)}
+                                value={mappings}
+                                onChange={(rows) => form.setFieldValue('mappings', rows)}
+                                shops={shops}
+                            />
                         </Card>
 
                         <Card id="weight" title="Thông tin cân nặng" style={{ marginBottom: 16 }}>
