@@ -23,23 +23,9 @@ class TestUnlimitedPlanSeeder extends Seeder
 
     public function run(): void
     {
-        // Bật toàn bộ feature flags app kiểm tra (đồng bộ với BillingPlanSeeder).
-        $features = [
-            'procurement' => true,
-            'fifo_cogs' => true,
-            'profit_reports' => true,
-            'finance_settlements' => true,
-            'demand_planning' => true,
-            'mass_listing' => true,
-            'automation_rules' => true,
-            'priority_support' => true,
-            'accounting_basic' => true,
-            'accounting_advanced' => true,
-            'messaging_inbox' => true,
-            'messaging_ai' => true,
-            'marketing_facebook' => true,
-            'ai' => true,
-        ];
+        // Bật TOÀN BỘ feature — lấy từ nguồn duy nhất {@see BillingPlanSeeder::featureKeys()} để
+        // gói test luôn "full quyền", không bao giờ lệch khi thêm feature mới (vd shop_health_reports).
+        $features = array_fill_keys(BillingPlanSeeder::featureKeys(), true);
 
         // -1 = không giới hạn. ai_credits_monthly=-1 ⇒ gọi AI không giới hạn (SPEC 0032).
         $limits = [

@@ -15,25 +15,27 @@ use Illuminate\Database\Seeder;
  */
 class BillingPlanSeeder extends Seeder
 {
+    /**
+     * NGUỒN DUY NHẤT danh sách feature flag app kiểm tra (plan.feature middleware).
+     * Thêm feature mới CHỈ ở đây — Pro (gói gia hạn) tự bật tất, gói TEST tự full
+     * ({@see TestUnlimitedPlanSeeder}). Nhớ đồng bộ catalog FE (lib/billing.tsx,
+     * AdminPlansPage KNOWN_FEATURES, PlansPage FEATURE_ROWS).
+     *
+     * @return list<string>
+     */
+    public static function featureKeys(): array
+    {
+        return [
+            'procurement', 'fifo_cogs', 'profit_reports', 'finance_settlements',
+            'demand_planning', 'mass_listing', 'automation_rules', 'priority_support',
+            'accounting_basic', 'accounting_advanced', 'messaging_inbox', 'messaging_ai',
+            'marketing_facebook', 'shop_health_reports', 'ai',
+        ];
+    }
+
     public function run(): void
     {
-        $allOff = [
-            'procurement' => false,
-            'fifo_cogs' => false,
-            'profit_reports' => false,
-            'finance_settlements' => false,
-            'demand_planning' => false,
-            'mass_listing' => false,
-            'automation_rules' => false,
-            'priority_support' => false,
-            'accounting_basic' => false,
-            'accounting_advanced' => false,
-            'messaging_inbox' => false,
-            'messaging_ai' => false,
-            'marketing_facebook' => false,
-            'shop_health_reports' => false,
-            'ai' => false,
-        ];
+        $allOff = array_fill_keys(self::featureKeys(), false);
 
         // starter chỉ mở thêm hộp thư (nhắn tin Page Facebook) — KHÔNG AI, kế toán, marketing.
         $starter = array_merge($allOff, [
