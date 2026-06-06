@@ -13,6 +13,7 @@ import {
     type ShopMetric,
     type ShopReportEntry,
 } from '@/lib/shopReport';
+import { errorCode, errorMessage } from '@/lib/api';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -148,7 +149,9 @@ export function ShopReportPage() {
 
             {isLoading && <div style={{ textAlign: 'center', padding: 48 }}><Spin /></div>}
 
-            {error && <Alert type="error" showIcon message="Không tải được báo cáo sàn. Vui lòng thử lại." />}
+            {error && (errorCode(error) === 'PLAN_FEATURE_LOCKED'
+                ? <Alert type="warning" showIcon message={<span>Tính năng Báo cáo sàn có ở gói cao hơn. <Link to="/plans">Nâng cấp gói</Link> để xem.</span>} />
+                : <Alert type="error" showIcon message={errorMessage(error, 'Không tải được báo cáo sàn. Vui lòng thử lại.')} />)}
 
             {!isLoading && !error && (data?.length ?? 0) === 0 && (
                 <Empty description={<span>Chưa có gian hàng Lazada/Shopee/TikTok nào kết nối. <Link to="/channels">Kết nối gian hàng</Link></span>} />

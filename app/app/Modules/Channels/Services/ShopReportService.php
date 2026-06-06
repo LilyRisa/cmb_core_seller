@@ -59,15 +59,17 @@ class ShopReportService
         if (! $this->registry->has($account->provider)) {
             return $out;
         }
-        $connector = $this->registry->for($account->provider);
-        if (! $connector instanceof ShopReportConnector || ! $connector->supports('report.health')) {
-            $out['note'] = 'Sàn này chưa hỗ trợ báo cáo.';
 
-            return $out;
-        }
-
-        $auth = $account->authContext();
+        // Bọc TOÀN BỘ phần resolve connector + authContext() (giải mã token) + gọi API trong try —
+        // một gian hàng lỗi (token hỏng/thiếu quyền) chỉ làm CHÍNH nó available=false, KHÔNG 500 cả báo cáo.
         try {
+            $connector = $this->registry->for($account->provider);
+            if (! $connector instanceof ShopReportConnector || ! $connector->supports('report.health')) {
+                $out['note'] = 'Sàn này chưa hỗ trợ báo cáo.';
+
+                return $out;
+            }
+            $auth = $account->authContext();
             $health = $connector->fetchShopHealth($auth);
             $out['available'] = true;
             $out['kind'] = $health->kind;
