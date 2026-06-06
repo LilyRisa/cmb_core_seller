@@ -127,6 +127,7 @@ class ShopReportConnectorTest extends TestCase
         $this->assertCount(1, $health->metrics);                 // metric_id < 0 bị loại
         $this->assertTrue($health->metrics[0]->passed);          // 2.5 <= 5
         $this->assertSame('percent', $health->metrics[0]->unit);
+        $this->assertSame('Tỉ lệ giao hàng trễ', $health->metrics[0]->name);   // metric_id 1 → tiếng Việt
 
         $penalties = $c->fetchPenaltyPoints($auth);
         $this->assertSame(2, $penalties[0]->points);

@@ -20,6 +20,48 @@ final class ShopeeShopReport
 
     private const UNIT = [1 => 'number', 2 => 'percent', 3 => 'second', 4 => 'day', 5 => 'hour'];
 
+    /**
+     * Tên chỉ số tiếng Việt theo `metric_id` (Shopee trả `metric_name` mặc định tiếng Anh).
+     * Mã chưa có trong map → dùng `metric_name` của Shopee làm fallback.
+     */
+    private const METRIC_NAME = [
+        1 => 'Tỉ lệ giao hàng trễ',
+        3 => 'Tỉ lệ không hoàn tất đơn',
+        4 => 'Thời gian chuẩn bị hàng',
+        11 => 'Tỉ lệ phản hồi chat',
+        12 => '% sản phẩm đặt trước',
+        15 => 'Số ngày vi phạm hàng đặt trước',
+        21 => 'Thời gian phản hồi',
+        22 => 'Đánh giá shop',
+        23 => 'Số chat chưa phản hồi',
+        25 => 'Tỉ lệ bàn giao nhanh',
+        27 => 'Tỉ lệ lấy hàng trễ hẹn',
+        28 => 'Giá trị vi phạm lấy hàng trễ',
+        29 => 'Thời gian phản hồi trung bình',
+        42 => 'Tỉ lệ hủy đơn',
+        43 => 'Tỉ lệ trả hàng/hoàn tiền',
+        52 => 'Vi phạm sản phẩm nghiêm trọng',
+        53 => 'Vi phạm sản phẩm khác',
+        54 => 'Sản phẩm bị cấm',
+        55 => 'Hàng giả / vi phạm SHTT',
+        56 => 'Sản phẩm spam',
+        85 => 'Tỉ lệ giao trễ (giao hôm sau)',
+        88 => 'Tỉ lệ không hoàn tất (giao hôm sau)',
+        91 => 'Tỉ lệ hủy đơn (giao hôm sau)',
+        92 => 'Tỉ lệ trả/hoàn (giao hôm sau)',
+        95 => 'Mức độ hài lòng khách hàng',
+        96 => '% sản phẩm giao trong ngày',
+        97 => '% sản phẩm giao hôm sau',
+        2001 => 'Tỉ lệ bàn giao nhanh (SLS)',
+        2002 => 'Tỉ lệ bàn giao nhanh (FBS)',
+        2003 => 'Tỉ lệ bàn giao nhanh (3PF)',
+        2011 => 'Sản phẩm kém chất lượng',
+        2030 => '% sản phẩm giao hỏa tốc',
+        2031 => '% bật miễn phí ship hỏa tốc',
+        2032 => 'Giao hàng thứ Bảy',
+        2033 => 'Thời gian chuẩn bị (PS)',
+    ];
+
     /** Nhãn loại vi phạm (tiếng Việt) — các mã hay gặp; mã khác fallback "Vi phạm #". */
     private const VIOLATION = [
         5 => 'Tỉ lệ giao trễ cao', 6 => 'Tỉ lệ không hoàn tất đơn cao',
@@ -64,7 +106,7 @@ final class ShopeeShopReport
             $comparator = isset($target['comparator']) ? (string) $target['comparator'] : null;
             $metrics[] = new ShopMetricDTO(
                 key: 'metric_'.$metricId,
-                name: (string) ($m['metric_name'] ?? ('Chỉ số #'.$metricId)),
+                name: self::METRIC_NAME[$metricId] ?? (string) ($m['metric_name'] ?? ('Chỉ số #'.$metricId)),
                 group: self::METRIC_GROUP[(int) ($m['metric_type'] ?? 0)] ?? 'other',
                 value: $value,
                 unit: self::UNIT[(int) ($m['unit'] ?? 0)] ?? 'number',
