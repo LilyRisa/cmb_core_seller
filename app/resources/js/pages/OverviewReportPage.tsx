@@ -4,6 +4,7 @@ import { Alert, Card, Col, Empty, Row, Segmented, Space, Spin, Statistic, Table,
 import { BarChartOutlined, LockOutlined, SafetyCertificateOutlined, WalletOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
+import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from 'recharts';
 import { PageHeader } from '@/components/PageHeader';
 import { ChannelLogo } from '@/components/ChannelLogo';
 import { errorCode } from '@/lib/api';
@@ -59,6 +60,12 @@ export function OverviewReportPage() {
     const rev = revenueQ.data;
     const profit = profitQ.data;
     const settle = settleQ.data;
+
+    // Xu hướng theo ngày — doanh thu (luôn có) + lợi nhuận ròng (nếu gói cho phép).
+    const trend = useMemo(() => {
+        const profitBy = new Map((profit?.series ?? []).map((s) => [s.date, s.net_profit]));
+        return (rev?.series ?? []).map((s) => ({ date: s.date, revenue: s.revenue, net_profit: profitBy.get(s.date) ?? 0 }));
+    }, [rev, profit]);
 
     // --- Doanh thu theo sàn ---
     const bySourceCols: ColumnsType<{ source: string; orders: number; revenue: number }> = [
@@ -120,6 +127,23 @@ export function OverviewReportPage() {
                             </Card>
                         </Col>
                     </Row>
+
+                    {/* Xu hướng doanh thu & lợi nhuận */}
+                    {trend.length > 0 ? (
+                        <Card title="Xu hướng doanh thu & lợi nhuận" style={{ marginBottom: 16 }}>
+                            <ResponsiveContainer width="100%" height={260}>
+                                <AreaChart data={trend} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                                    <XAxis dataKey="date" tickFormatter={(v) => dayjs(v).format('DD/MM')} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                                    <YAxis tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={48} />
+                                    <RTooltip formatter={(v, name) => [vnd(Number(v)), name === 'revenue' ? 'Doanh thu' : 'Lợi nhuận ròng']} labelFormatter={(d) => dayjs(d as string).format('DD/MM/YYYY')} />
+                                    <Legend formatter={(v) => (v === 'revenue' ? 'Doanh thu' : 'Lợi nhuận ròng')} />
+                                    <Area type="monotone" dataKey="revenue" stroke="#1677ff" fill="#1677ff22" strokeWidth={2} dot={false} />
+                                    {!isLocked(profitQ.error) ? <Area type="monotone" dataKey="net_profit" stroke="#389e0d" fill="#389e0d22" strokeWidth={2} dot={false} /> : null}
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </Card>
+                    ) : null}
 
                     <Row gutter={16}>
                         <Col xs={24} lg={14}>
