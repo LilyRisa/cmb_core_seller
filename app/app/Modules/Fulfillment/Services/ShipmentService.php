@@ -732,9 +732,12 @@ class ShipmentService
 
     /**
      * Sau khi in tem (mark-printed) cho print job loại `label`: với mỗi shipment thuộc đơn Lazada
-     * mà gian hàng bật `auto_rts_after_print`, tự gọi markPacked (vốn đẩy /order/rts + chuyển
-     * trạng thái nội bộ sang "sẵn sàng bàn giao"). Bỏ qua êm nếu không đủ điều kiện; lỗi RTS không
-     * ném (markPacked tự gắn has_issue khi sàn flaky). Default tắt ⇒ không ảnh hưởng shop hiện có.
+     * mà gian hàng bật `auto_rts_after_print`, CHỈ đẩy `/order/rts` lên SÀN (Lazada `packed → ready_to_ship`).
+     * KHÔNG đụng trạng thái nội bộ: đơn giữ `processing`, vận đơn giữ `created` — để kho vẫn quét xác nhận
+     * đóng hàng (markPacked thủ công sau mới chuyển app sang "Chờ bàn giao"). Cài đặt này chỉ đồng bộ phía sàn.
+     * `pushReadyToShipOnChannel` idempotent (gắn cờ `raw.rts_pushed_at`) ⇒ lần quét sau không đẩy RTS lần 2.
+     * Bỏ qua êm nếu không đủ điều kiện; lỗi RTS không ném (tự gắn has_issue khi sàn flaky). Default tắt ⇒
+     * không ảnh hưởng shop hiện có.
      *
      * @param  list<int>  $shipmentIds
      */
@@ -749,15 +752,16 @@ class ShipmentService
             if (! $order || ! $order->channel_account_id) {
                 continue;
             }
+            if ($shipment->isCancelled()
+                || in_array($shipment->status, [Shipment::STATUS_PACKED, Shipment::STATUS_AWAITING_PICKUP, ...Shipment::HANDED_OVER_STATUSES], true)) {
+                continue; // đã đóng gói / bàn giao ⇒ không cần đẩy RTS nữa
+            }
             $account = ChannelAccount::query()->find($order->channel_account_id);
             if (! $account || $account->provider !== 'lazada' || ! $account->auto_rts_after_print) {
                 continue;
             }
-            try {
-                $this->markPacked($shipment, 'system', $userId); // idempotent: đã packed/handed ⇒ no-op
-            } catch (\Throwable $e) {
-                Log::warning('shipment.auto_rts_after_print_failed', ['shipment' => $shipment->getKey(), 'error' => $e->getMessage()]);
-            }
+            // CHỈ cập nhật phía sàn — KHÔNG flip shipment/order status (app giữ processing để kho quét đóng hàng).
+            $this->pushReadyToShipOnChannel($order, $shipment);
         }
     }
 
@@ -772,6 +776,11 @@ class ShipmentService
         if (! $order->channel_account_id || ! $shipment->tracking_no) {
             return;
         }
+        // Idempotent: RTS đã đẩy lên sàn (vd auto_rts_after_print lúc in) ⇒ không gọi lại — tránh lỗi
+        // "item đã ready_to_ship" khi kho quét đóng hàng sau đó (markPacked gọi lại hàm này).
+        if (data_get($shipment->raw, 'rts_pushed_at')) {
+            return;
+        }
         $account = ChannelAccount::query()->find($order->channel_account_id);
         if (! $account || ! $this->channels->has($account->provider) || ! $this->channels->for($account->provider)->supports('shipping.ready_to_ship')) {
             return;
@@ -784,6 +793,7 @@ class ShipmentService
                 'external_item_ids' => $rawItemIds,   // KHÁC order_id — Lazada /order/rts yêu cầu order_item_id đúng từng item
                 'packageId' => $shipment->package_no ? (string) $shipment->package_no : null,
             ]);
+            $shipment->forceFill(['raw' => array_merge((array) $shipment->raw, ['rts_pushed_at' => now()->toIso8601String()])])->save();
         } catch (\Throwable $e) {
             Log::warning('shipment.push_ready_to_ship_failed', ['order' => $order->getKey(), 'provider' => $account->provider, 'error' => $e->getMessage()]);
             $order->forceFill([

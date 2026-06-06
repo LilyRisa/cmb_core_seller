@@ -122,10 +122,14 @@ Mỗi gian hàng Lazada có toggle riêng **`auto_rts_after_print`** (boolean, m
 
 **Cách hoạt động khi bật:**
 1. Print job của đơn Lazada hoàn tất → FE gọi `POST /print-jobs/{id}/mark-printed`.
-2. Hệ thống phát hiện gian hàng có `auto_rts_after_print=true` → tự gọi `markPacked` (đẩy `/order/rts` lên Lazada).
-3. Đơn chuyển sang trạng thái **"Chờ bàn giao"** (`shipment → packed`, đơn `→ ready_to_ship`) mà không cần người bán bấm nút "Đã gói & Sẵn sàng bàn giao" thủ công.
+2. Hệ thống phát hiện gian hàng có `auto_rts_after_print=true` → **chỉ đẩy `/order/rts` lên Lazada** (`pushReadyToShipOnChannel`) để sàn chuyển `packed → ready_to_ship`. **KHÔNG** đụng trạng thái nội bộ.
+3. Phía app: đơn **giữ nguyên `processing` ("Đang xử lý")** và vận đơn **giữ `created`** — để kho vẫn quét xác nhận đóng hàng (scan-pack / "Sẵn sàng bàn giao") như bình thường. Chỉ khi NV bấm/quét đóng hàng (`markPacked`) thì app mới chuyển sang **"Chờ bàn giao"** (`ready_to_ship`).
 
-Khi tắt (mặc định): quy trình không thay đổi — người bán vẫn phải bấm thủ công sau khi in.
+> ⚠️ Cài đặt này **chỉ đồng bộ phía sàn** — không tự đẩy trạng thái nội bộ. Lý do: kho cần app ở `processing` để quét đối soát đóng hàng; nếu app tự nhảy "Chờ bàn giao" ngay sau in thì đơn biến mất khỏi luồng quét.
+>
+> **Idempotent:** lần đẩy RTS thành công gắn cờ `raw.rts_pushed_at` lên vận đơn; khi kho quét đóng hàng sau đó, `markPacked → pushReadyToShipOnChannel` **bỏ qua đẩy RTS lần 2** (tránh lỗi "item đã ready_to_ship" → `has_issue` giả). Poll ngược cũng không kéo `processing → ready_to_ship` nhờ guard `sync.hold_channel_ready_to_ship` (mặc định bật).
+
+Khi tắt (mặc định): quy trình không thay đổi — người bán vẫn phải bấm/quét đóng hàng thủ công sau khi in (`markPacked` đẩy `/order/rts` + chuyển app sang "Chờ bàn giao").
 
 API: `PATCH /api/v1/channel-accounts/{id}/auto-rts` body `{ auto_rts_after_print: boolean }`, perm `channels.manage`, chỉ Lazada (provider khác ⇒ `422`). Ghi `AuditLog`.
 
