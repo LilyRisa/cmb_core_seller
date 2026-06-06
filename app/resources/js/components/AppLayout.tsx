@@ -15,6 +15,7 @@ import {
     MenuFoldOutlined,
     MenuUnfoldOutlined,
     MessageOutlined,
+    MobileOutlined,
     PartitionOutlined,
     PieChartOutlined,
     ReadOutlined,
@@ -146,6 +147,9 @@ export function AppLayout() {
                     </Space>
                     <Space size="middle">
                         <HeaderBillingActions />
+                        <Tooltip title="Tải ứng dụng di động">
+                            <Button type="text" href="/download" target="_blank" icon={<MobileOutlined />} />
+                        </Tooltip>
                         <Tooltip title="Thông báo (sắp có)"><Badge dot><Button type="text" icon={<BellOutlined />} /></Badge></Tooltip>
                         <Dropdown
                             menu={{ items: [

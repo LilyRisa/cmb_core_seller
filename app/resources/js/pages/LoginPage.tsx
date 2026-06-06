@@ -9,6 +9,7 @@ import {
     AccountBookOutlined,
     ClusterOutlined,
     ArrowRightOutlined,
+    MobileOutlined,
 } from '@ant-design/icons';
 import { useLogin } from '@/lib/auth';
 import { errorMessage } from '@/lib/api';
@@ -126,6 +127,10 @@ export function LoginPage() {
                     <div className="auth-footer-row">
                         Chưa có tài khoản? <Link to="/register">Tạo tài khoản mới</Link>
                     </div>
+
+                    <Link to="/download" className="auth-app-link">
+                        <MobileOutlined /> Tải ứng dụng di động cho Android
+                    </Link>
                 </div>
             </div>
         </div>

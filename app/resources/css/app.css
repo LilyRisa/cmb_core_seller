@@ -313,6 +313,27 @@ body {
 }
 .auth-footer-row a:hover { color: var(--blue-700); }
 
+/* Link tải ứng dụng di động dưới form đăng nhập (→ /download) */
+.auth-app-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 16px;
+    padding: 11px;
+    border: 1px solid var(--line, #e2e8f0);
+    border-radius: 10px;
+    color: var(--ink-500);
+    font-size: 13.5px;
+    font-weight: 600;
+    transition: all 0.15s ease;
+}
+.auth-app-link:hover {
+    color: var(--blue-600);
+    border-color: var(--blue-600);
+    background: rgba(37, 99, 235, 0.04);
+}
+
 @keyframes auth-grid-pan {
     0%   { background-position: 0 0, 0 0; }
     100% { background-position: 48px 48px, 48px 48px; }

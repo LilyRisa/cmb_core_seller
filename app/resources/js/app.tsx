@@ -19,6 +19,7 @@ import { EmailVerifiedPage } from '@/pages/EmailVerifiedPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { PublicTrackingPage } from '@/pages/PublicTrackingPage';
+import { DownloadAppPage } from '@/pages/DownloadAppPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { OrdersPage } from '@/pages/OrdersPage';
 import { OrderDetailPage } from '@/pages/OrderDetailPage';
@@ -101,6 +102,8 @@ function Root() {
             <Route path="/password-reset" element={<ResetPasswordPage />} />
             {/* SPEC 0030 — trang tra cứu đơn công khai (đơn tự tạo). Public, không cần đăng nhập. */}
             <Route path="/tracking" element={<PublicTrackingPage />} />
+            {/* Trang tải ứng dụng di động. Public, không cần đăng nhập. */}
+            <Route path="/download" element={<DownloadAppPage />} />
             {/* SPEC 0032 — trang gói full-screen riêng (có nút back), tách khỏi sidebar. */}
             <Route path="/plans" element={<RequireAuth><PlansPage /></RequireAuth>} />
             <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
