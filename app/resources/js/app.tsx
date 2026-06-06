@@ -54,6 +54,7 @@ import { SuppliersPage } from '@/pages/SuppliersPage';
 import { PurchaseOrdersPage } from '@/pages/PurchaseOrdersPage';
 import { DemandPlanningPage } from '@/pages/DemandPlanningPage';
 import { ReportsPage } from '@/pages/ReportsPage';
+import { OverviewReportPage } from '@/pages/OverviewReportPage';
 import { ShopReportPage } from '@/pages/ShopReportPage';
 import { SettlementsPage } from '@/pages/SettlementsPage';
 import { JournalsPage } from '@/pages/accounting/JournalsPage';
@@ -132,6 +133,7 @@ function Root() {
                 <Route path="procurement/suppliers" element={<SuppliersPage />} />
                 <Route path="procurement/purchase-orders" element={<PurchaseOrdersPage />} />
                 <Route path="procurement/demand-planning" element={<DemandPlanningPage />} />
+                <Route path="reports/overview" element={<OverviewReportPage />} />
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="shop-report" element={<ShopReportPage />} />
                 <Route path="finance" element={<Navigate to="/finance/settlements" replace />} />

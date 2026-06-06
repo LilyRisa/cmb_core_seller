@@ -10,6 +10,7 @@ use CMBcoreSeller\Modules\Finance\Http\Resources\SettlementResource;
 use CMBcoreSeller\Modules\Finance\Jobs\FetchSettlementsForShop;
 use CMBcoreSeller\Modules\Finance\Models\Settlement;
 use CMBcoreSeller\Modules\Finance\Services\SettlementService;
+use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -46,6 +47,17 @@ class SettlementController extends Controller
             'data' => SettlementResource::collection($page->getCollection()),
             'meta' => ['pagination' => ['page' => $page->currentPage(), 'per_page' => $page->perPage(), 'total' => $page->total(), 'total_pages' => $page->lastPage()]],
         ]);
+    }
+
+    /** GET /api/v1/settlements/summary `{from?, to?, channel_account_id?}` — tổng hợp đối soát thực cho "Báo cáo tổng thể". */
+    public function summary(Request $request, CurrentTenant $tenant): JsonResponse
+    {
+        abort_unless($request->user()?->can('finance.view'), 403, 'Bạn không có quyền xem đối soát.');
+        $from = $request->query('from') ? CarbonImmutable::parse((string) $request->query('from')) : CarbonImmutable::now()->subDays(30);
+        $to = $request->query('to') ? CarbonImmutable::parse((string) $request->query('to')) : CarbonImmutable::now();
+        $cid = $request->query('channel_account_id') ? (int) $request->query('channel_account_id') : null;
+
+        return response()->json(['data' => $this->service->summary((int) $tenant->id(), $from, $to, $cid)]);
     }
 
     public function show(Request $request, int $id): JsonResponse

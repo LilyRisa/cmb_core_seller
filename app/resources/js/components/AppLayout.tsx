@@ -16,6 +16,7 @@ import {
     MenuUnfoldOutlined,
     MessageOutlined,
     PartitionOutlined,
+    PieChartOutlined,
     ReadOutlined,
     SafetyCertificateOutlined,
     SettingOutlined,
@@ -69,6 +70,7 @@ function buildNav(): MenuProps['items'] {
             { key: '/marketing', icon: <FundOutlined />, label: <Link to="/marketing">Quảng cáo Facebook</Link> },
         ] },
         { type: 'group', label: 'Báo cáo & Kế toán', children: [
+            { key: '/reports/overview', icon: <PieChartOutlined />, label: <Link to="/reports/overview">Báo cáo tổng thể</Link> },
             { key: '/reports', icon: <BarChartOutlined />, label: <Link to="/reports">Báo cáo</Link> },
             { key: '/shop-report', icon: <SafetyCertificateOutlined />, label: <Link to="/shop-report">Báo cáo sàn</Link> },
             { key: '/finance/settlements', icon: <FundOutlined />, label: <Link to="/finance/settlements">Đối soát sàn</Link> },
@@ -94,7 +96,7 @@ function buildNav(): MenuProps['items'] {
 // Flat key list for selected-key matching.
 const BASE_KEYS = ['/', '/orders', '/customers', '/messaging', '/messaging/channels', '/messaging/templates', '/messaging/auto-rules', '/messaging/knowledge', '/channels', '/products', '/inventory',
     '/procurement/demand-planning', '/procurement/suppliers', '/procurement/purchase-orders',
-    '/reports', '/shop-report', '/marketing', '/finance/settlements',
+    '/reports/overview', '/reports', '/shop-report', '/marketing', '/finance/settlements',
     '/accounting/journals', '/accounting/chart-of-accounts', '/accounting/balances', '/accounting/ar', '/accounting/ap', '/accounting/cash', '/accounting/reports', '/accounting/periods',
     '/sync-logs', '/support', '/settings'];
 

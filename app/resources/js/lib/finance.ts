@@ -66,6 +66,30 @@ export function useSettlements(filters: { channel_account_id?: number; status?: 
     });
 }
 
+export interface SettlementSummary {
+    from: string;
+    to: string;
+    totals: { settlements: number; reconciled: number; pending: number; error: number; payout: number; revenue: number; fee: number; shipping: number };
+    by_channel: Array<{ channel_account_id: number; settlements: number; payout: number; revenue: number; fee: number; shipping: number }>;
+}
+
+/** Tổng hợp đối soát thực trong kỳ (cho "Báo cáo tổng thể"). */
+export function useSettlementSummary(filters: { from?: string; to?: string; channel_account_id?: number } = {}) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['settlements/summary', tenantId, filters],
+        enabled: api != null,
+        retry: false,
+        queryFn: async () => {
+            const params: Record<string, string | number> = {};
+            Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== '') params[k] = v as never; });
+            const { data } = await api!.get<{ data: SettlementSummary }>('/settlements/summary', { params });
+            return data.data;
+        },
+    });
+}
+
 export function useSettlement(id: number | null | undefined) {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();

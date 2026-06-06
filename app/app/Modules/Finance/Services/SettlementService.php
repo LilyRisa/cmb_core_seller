@@ -62,6 +62,58 @@ class SettlementService
         return ['fetched' => $created, 'lines' => $upsertedLines];
     }
 
+    /**
+     * Tổng hợp đối soát THỰC trong kỳ — tiền sàn thực trả (payout), doanh thu, phí, ship + trạng thái
+     * đối chiếu. Lọc theo kỳ giao nhau với [from, to]. Dùng cho "Báo cáo tổng thể". SPEC 0016.
+     *
+     * @return array{from:string,to:string,totals:array<string,int>,by_channel:list<array<string,int>>}
+     */
+    public function summary(int $tenantId, CarbonImmutable $from, CarbonImmutable $to, ?int $channelAccountId = null): array
+    {
+        $q = Settlement::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenantId)
+            ->where('period_end', '>=', $from->startOfDay())
+            ->where('period_start', '<=', $to->endOfDay());
+        if ($channelAccountId !== null) {
+            $q->where('channel_account_id', $channelAccountId);
+        }
+
+        $totals = ['settlements' => 0, 'reconciled' => 0, 'pending' => 0, 'error' => 0,
+            'payout' => 0, 'revenue' => 0, 'fee' => 0, 'shipping' => 0];
+        $byChannel = [];
+
+        foreach ($q->get(['channel_account_id', 'status', 'total_payout', 'total_revenue', 'total_fee', 'total_shipping_fee']) as $r) {
+            $payout = (int) $r->total_payout;
+            $revenue = (int) $r->total_revenue;
+            $fee = (int) $r->total_fee;
+            $shipping = (int) $r->total_shipping_fee;
+            $totals['settlements']++;
+            $status = (string) $r->status;
+            if (array_key_exists($status, $totals)) {
+                $totals[$status]++;
+            }
+            $totals['payout'] += $payout;
+            $totals['revenue'] += $revenue;
+            $totals['fee'] += $fee;
+            $totals['shipping'] += $shipping;
+
+            $cid = (int) $r->channel_account_id;
+            $byChannel[$cid] ??= ['channel_account_id' => $cid, 'settlements' => 0, 'payout' => 0, 'revenue' => 0, 'fee' => 0, 'shipping' => 0];
+            $byChannel[$cid]['settlements']++;
+            $byChannel[$cid]['payout'] += $payout;
+            $byChannel[$cid]['revenue'] += $revenue;
+            $byChannel[$cid]['fee'] += $fee;
+            $byChannel[$cid]['shipping'] += $shipping;
+        }
+
+        return [
+            'from' => $from->toIso8601String(),
+            'to' => $to->toIso8601String(),
+            'totals' => $totals,
+            'by_channel' => array_values($byChannel),
+        ];
+    }
+
     private function upsertSettlement(ChannelAccount $account, SettlementDTO $dto): Settlement
     {
         $tenantId = (int) $account->tenant_id;
