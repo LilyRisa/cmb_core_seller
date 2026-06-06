@@ -3,10 +3,14 @@
 namespace CMBcoreSeller\Modules\Channels\Jobs;
 
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
+use CMBcoreSeller\Integrations\Channels\Contracts\PenaltyWebhookConnector;
+use CMBcoreSeller\Integrations\Channels\DTO\PenaltyEventDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
 use CMBcoreSeller\Modules\Channels\Events\ChannelAccountRevoked;
 use CMBcoreSeller\Modules\Channels\Events\DataDeletionRequested;
+use CMBcoreSeller\Modules\Channels\Events\ShopPenaltyDetected;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Channels\Models\ShopPenaltyEvent;
 use CMBcoreSeller\Modules\Channels\Models\WebhookEvent;
 use CMBcoreSeller\Modules\Channels\Support\TokenRefresher;
 use CMBcoreSeller\Modules\Orders\Services\OrderUpsertService;
@@ -89,6 +93,8 @@ class ProcessWebhookEvent implements ShouldQueue
 
                 WebhookEventDTO::TYPE_DATA_DELETION => DataDeletionRequested::dispatch($account), // Customers listens → anonymize buyer PII (SPEC 0002 §8)
 
+                WebhookEventDTO::TYPE_SHOP_PENALTY_UPDATE => $this->handlePenaltyUpdate($event, $account, $connector),
+
                 WebhookEventDTO::TYPE_SETTLEMENT_AVAILABLE,
                 WebhookEventDTO::TYPE_PRODUCT_UPDATE => Log::info('webhook.deferred', ['type' => $event->event_type, 'shop' => $account->external_shop_id]), // later phases
 
@@ -105,6 +111,45 @@ class ProcessWebhookEvent implements ShouldQueue
         if ($event->status !== WebhookEvent::STATUS_IGNORED) {
             $event->markProcessed();
         }
+    }
+
+    /**
+     * Điểm phạt/vi phạm (Shopee penalty/violation push): bóc qua connector (segregated capability),
+     * lưu {@see ShopPenaltyEvent} + phát {@see ShopPenaltyDetected} để cảnh báo. Core không biết shape sàn.
+     */
+    private function handlePenaltyUpdate(WebhookEvent $event, ChannelAccount $account, $connector): void
+    {
+        if (! $connector instanceof PenaltyWebhookConnector) {
+            $event->forceFill(['status' => WebhookEvent::STATUS_IGNORED])->save();
+
+            return;
+        }
+        $parsed = $connector->parsePenaltyWebhook((array) $event->payload);
+        if ($parsed === []) {
+            $event->forceFill(['status' => WebhookEvent::STATUS_IGNORED])->save();
+
+            return;
+        }
+        foreach ($parsed as $dto) {
+            /** @var PenaltyEventDTO $dto */
+            $row = ShopPenaltyEvent::create([
+                'tenant_id' => (int) $account->tenant_id,
+                'channel_account_id' => (int) $account->getKey(),
+                'provider' => $account->provider,
+                'kind' => $dto->kind,
+                'points' => $dto->points,
+                'violation_type' => $dto->violationType,
+                'violation_label' => $dto->violationLabel,
+                'tier' => $dto->tier,
+                'item_id' => $dto->itemId,
+                'item_name' => $dto->itemName,
+                'webhook_event_id' => (int) $event->getKey(),
+                'occurred_at' => $dto->occurredAt,
+                'raw' => $dto->raw ?: null,
+            ]);
+            ShopPenaltyDetected::dispatch($row, $account);
+        }
+        Log::info('webhook.shop_penalty_recorded', ['shop' => $account->external_shop_id, 'count' => count($parsed)]);
     }
 
     private function handleOrderEvent(WebhookEvent $event, ChannelAccount $account, $connector, OrderUpsertService $upsert, TokenRefresher $tokens): void

@@ -10,6 +10,7 @@ use CMBcoreSeller\Integrations\Channels\DTO\ShopHealthDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ShopMetricDTO;
 use CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Channels\Models\ShopPenaltyEvent;
 use Throwable;
 
 /**
@@ -52,6 +53,7 @@ class ShopReportService
             'penalties' => [],
             'punishments' => [],
             'supports_penalty' => false,
+            'recent_penalty_events' => $this->recentPenaltyEvents($account),
             'note' => null,
             'error' => null,
         ];
@@ -152,6 +154,28 @@ class ShopReportService
             'end_at' => $p->endAt?->toIso8601String(),
             'ongoing' => $p->ongoing,
         ];
+    }
+
+    /**
+     * Cảnh báo điểm phạt/vi phạm gần đây nhận qua webhook (real-time) — 10 sự kiện mới nhất.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function recentPenaltyEvents(ChannelAccount $account): array
+    {
+        return ShopPenaltyEvent::query()
+            ->where('channel_account_id', $account->getKey())
+            ->orderByDesc('occurred_at')->orderByDesc('id')
+            ->limit(10)
+            ->get(['kind', 'points', 'violation_label', 'tier', 'item_name', 'occurred_at'])
+            ->map(fn (ShopPenaltyEvent $e) => [
+                'kind' => $e->kind,
+                'points' => $e->points,
+                'violation_label' => $e->violation_label,
+                'tier' => $e->tier,
+                'item_name' => $e->item_name,
+                'occurred_at' => $e->occurred_at?->toIso8601String(),
+            ])->all();
     }
 
     private function friendlyError(string $provider, Throwable $e): string

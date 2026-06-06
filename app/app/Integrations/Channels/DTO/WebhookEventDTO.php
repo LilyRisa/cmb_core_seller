@@ -27,6 +27,8 @@ final readonly class WebhookEventDTO
 
     public const TYPE_DATA_DELETION = 'data_deletion';
 
+    public const TYPE_SHOP_PENALTY_UPDATE = 'shop_penalty_update';
+
     public const TYPE_UNKNOWN = 'unknown';
 
     public function __construct(

@@ -137,6 +137,12 @@ final class ShopeeShopReport
         return $out;
     }
 
+    /** Nhãn loại vi phạm (tiếng Việt) — public để webhook điểm phạt (code 28) dùng chung map. */
+    public static function violationLabel(?int $type): ?string
+    {
+        return $type === null ? null : (self::VIOLATION[$type] ?? ('Vi phạm #'.$type));
+    }
+
     /** So sánh value với target theo comparator Shopee (<, <=, >, >=, =). */
     private static function compare(?float $value, ?string $comparator, ?float $target): ?bool
     {

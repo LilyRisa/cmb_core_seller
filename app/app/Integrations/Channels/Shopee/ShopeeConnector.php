@@ -4,10 +4,12 @@ namespace CMBcoreSeller\Integrations\Channels\Shopee;
 
 use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\Contracts\ChannelConnector;
+use CMBcoreSeller\Integrations\Channels\Contracts\PenaltyWebhookConnector;
 use CMBcoreSeller\Integrations\Channels\Contracts\ShopReportConnector;
 use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
 use CMBcoreSeller\Integrations\Channels\DTO\OrderDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\Page;
+use CMBcoreSeller\Integrations\Channels\DTO\PenaltyEventDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ShopHealthDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
@@ -21,7 +23,7 @@ use Symfony\Component\HttpFoundation\Request;
  * Shopee Open Platform v2 connector. Mirrors Lazada/TikTok. See docs/04-channels/shopee.md
  * + spec docs/superpowers/specs/2026-05-20-shopee-channel-connector-design.md.
  */
-class ShopeeConnector implements ChannelConnector, ShopReportConnector
+class ShopeeConnector implements ChannelConnector, PenaltyWebhookConnector, ShopReportConnector
 {
     public function __construct(private ShopeeClient $client, private ShopeeWebhookVerifier $verifier = new ShopeeWebhookVerifier) {}
 
@@ -571,5 +573,57 @@ class ShopeeConnector implements ChannelConnector, ShopReportConnector
         ]);
 
         return ShopeeShopReport::punishments($res);
+    }
+
+    /**
+     * Bóc push điểm phạt Shopee → PenaltyEventDTO:
+     *  - code 28 `shop_penalty_update_push`: action 1=cấp điểm, 2=gỡ điểm, 3=đổi bậc phạt.
+     *  - code 16 `violation_item_push`: listing bị BANNED/deboost.
+     */
+    public function parsePenaltyWebhook(array $rawPush): array
+    {
+        $code = (int) ($rawPush['code'] ?? 0);
+        $data = (array) ($rawPush['data'] ?? []);
+        $at = isset($rawPush['timestamp']) ? CarbonImmutable::createFromTimestamp((int) $rawPush['timestamp']) : null;
+        $occurred = isset($data['update_time']) ? CarbonImmutable::createFromTimestamp((int) $data['update_time']) : $at;
+
+        if ($code === 28) {
+            $action = (int) ($data['action_type'] ?? 0);
+            if ($action === 1) {
+                $d = (array) ($data['points_issued_data'] ?? []);
+                $vt = isset($d['violation_type']) ? (int) $d['violation_type'] : null;
+
+                return [new PenaltyEventDTO(kind: 'penalty_issued', points: (int) ($d['issued_points'] ?? 0),
+                    violationType: $vt, violationLabel: ShopeeShopReport::violationLabel($vt), occurredAt: $occurred, raw: $data)];
+            }
+            if ($action === 2) {
+                $d = (array) ($data['points_removed_data'] ?? []);
+                $vt = isset($d['violation_type']) ? (int) $d['violation_type'] : null;
+
+                return [new PenaltyEventDTO(kind: 'penalty_removed', points: (int) ($d['removed_points'] ?? 0),
+                    violationType: $vt, violationLabel: ShopeeShopReport::violationLabel($vt), occurredAt: $occurred, raw: $data)];
+            }
+            if ($action === 3) {
+                $d = (array) ($data['tier_update_data'] ?? []);
+
+                return [new PenaltyEventDTO(kind: 'tier_update', tier: isset($d['new_tier']) ? (int) $d['new_tier'] : null,
+                    violationLabel: 'Cập nhật bậc phạt', occurredAt: $occurred, raw: $data)];
+            }
+
+            return [];
+        }
+
+        if ($code === 16) {
+            return [new PenaltyEventDTO(
+                kind: 'listing_violation',
+                violationLabel: (string) ($data['violation_reason'] ?? $data['violation_type'] ?? 'Vi phạm listing'),
+                itemId: isset($data['item_id']) ? (string) $data['item_id'] : null,
+                itemName: isset($data['item_name']) ? (string) $data['item_name'] : null,
+                occurredAt: $occurred,
+                raw: $data,
+            )];
+        }
+
+        return [];
     }
 }

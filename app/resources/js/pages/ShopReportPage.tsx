@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Alert, Card, Col, Empty, Row, Segmented, Space, Spin, Table, Tag, Typography } from 'antd';
 import { InfoCircleOutlined, SafetyCertificateOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+import dayjs from 'dayjs';
 import {
     formatMetric,
     PROVIDER_LABEL,
@@ -121,7 +122,28 @@ function ShopCard({ entry }: { entry: ShopReportEntry }) {
         );
     }
 
-    return <Card title={title} style={{ marginBottom: 16 }}>{body}</Card>;
+    const events = entry.recent_penalty_events ?? [];
+    return (
+        <Card title={title} style={{ marginBottom: 16 }}>
+            {body}
+            {events.length > 0 && (
+                <div style={{ marginTop: 12, borderTop: '1px solid #f0f0f0', paddingTop: 12 }}>
+                    <Space size={6} style={{ marginBottom: 6 }}><WarningOutlined style={{ color: '#fa8c16' }} /><Text strong>Cảnh báo gần đây (real-time)</Text></Space>
+                    {events.map((e, i) => (
+                        <div key={i} style={{ fontSize: 12 }}>
+                            <Tag color={e.kind === 'penalty_removed' ? 'green' : 'orange'} bordered={false}>
+                                {e.kind === 'penalty_issued' ? `+${e.points} điểm phạt`
+                                    : e.kind === 'penalty_removed' ? `-${e.points} điểm phạt (gỡ)`
+                                        : e.kind === 'tier_update' ? `Đổi bậc phạt${e.tier ? ` → bậc ${e.tier}` : ''}`
+                                            : 'Vi phạm listing'}
+                            </Tag>
+                            <Text type="secondary">{e.violation_label ?? e.item_name ?? ''}{e.occurred_at ? ` · ${dayjs(e.occurred_at).format('DD/MM HH:mm')}` : ''}</Text>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </Card>
+    );
 }
 
 export function ShopReportPage() {

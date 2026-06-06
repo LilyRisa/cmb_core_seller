@@ -34,6 +34,16 @@ export interface Punishment {
     ongoing: boolean;
 }
 
+/** Sự kiện điểm phạt/vi phạm real-time nhận qua webhook sàn. */
+export interface PenaltyEvent {
+    kind: 'penalty_issued' | 'penalty_removed' | 'tier_update' | 'listing_violation' | string;
+    points: number;
+    violation_label: string | null;
+    tier: number | null;
+    item_name: string | null;
+    occurred_at: string | null;
+}
+
 export interface ShopReportEntry {
     channel_account_id: number;
     provider: 'lazada' | 'shopee' | 'tiktok' | string;
@@ -46,6 +56,7 @@ export interface ShopReportEntry {
     penalties: PenaltyPoint[];
     punishments: Punishment[];
     supports_penalty: boolean;
+    recent_penalty_events: PenaltyEvent[];
     note: string | null;
     error: string | null;
     passed_count?: number;

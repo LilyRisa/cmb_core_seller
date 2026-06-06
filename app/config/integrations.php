@@ -636,6 +636,8 @@ return [
             6 => 'product_update',       // Banned Item
             12 => 'unknown',              // Auth Expiry warning (7 ngày trước) — KHÔNG revoke sớm
             15 => 'unknown',              // Shipping Document Status (READY/FAILED)
+            16 => 'shop_penalty_update',  // violation_item_push — listing bị BANNED/deboost
+            28 => 'shop_penalty_update',  // shop_penalty_update_push — điểm phạt/bậc phạt thay đổi ("sao quả tạ")
             // 5,7,8,9,10,11,13: marketing/product/chat — chưa dùng cho connector đơn.
         ],
         // Push code coi là tin chat (Webchat). Demux ở ShopeeWebhookController: code này → pipeline messaging.
