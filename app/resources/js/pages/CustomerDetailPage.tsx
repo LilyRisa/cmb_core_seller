@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { ReputationBadge } from '@/components/ReputationBadge';
 import { StatusTag } from '@/components/StatusTag';
 import { ChannelBadge } from '@/components/ChannelBadge';
+import { CustomerSourceBreakdown } from '@/components/CustomerSourceBreakdown';
 import { MoneyText, DateText } from '@/components/MoneyText';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
@@ -85,6 +86,10 @@ export function CustomerDetailPage() {
                             <Descriptions.Item label="Hoàn / giao hỏng">{s.orders_returned ?? 0} / {s.orders_delivery_failed ?? 0}</Descriptions.Item>
                             <Descriptions.Item label="Doanh thu (đã hoàn thành)"><MoneyText value={s.revenue_completed ?? 0} /></Descriptions.Item>
                         </Descriptions>
+                        <div style={{ margin: '4px 0 12px' }}>
+                            <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>Hay mua qua</Typography.Text>
+                            <CustomerSourceBreakdown ordersBySource={s.orders_by_source} />
+                        </div>
                         {(customer.addresses_meta ?? []).length > 0 && (
                             <>
                                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>Địa chỉ đã dùng</Typography.Text>

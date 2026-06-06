@@ -16,6 +16,8 @@ export interface LifetimeStats {
     revenue_completed?: number;
     last_order_id?: number;
     last_order_status?: string;
+    /** Đếm đơn theo nguồn (manual/tiktok/shopee/lazada) — dùng hiện "mua qua đơn thủ công / đơn sàn + nền tảng". */
+    orders_by_source?: Record<string, number>;
 }
 
 export interface CustomerNote {

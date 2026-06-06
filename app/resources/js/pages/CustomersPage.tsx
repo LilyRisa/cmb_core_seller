@@ -6,6 +6,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { ReputationBadge } from '@/components/ReputationBadge';
 import { MoneyText, DateText } from '@/components/MoneyText';
+import { CustomerSourceBadges } from '@/components/CustomerSourceBreakdown';
 import { Customer, REPUTATION_TABS, useCustomers } from '@/lib/customers';
 
 export function CustomersPage() {
@@ -44,6 +45,7 @@ export function CustomersPage() {
             const s = c.lifetime_stats;
             return <Typography.Text type="secondary" style={{ fontSize: 13 }}>{s.orders_total} đơn · {s.orders_completed} <CheckCircleOutlined style={{ color: '#52c41a' }} /> · {s.orders_cancelled} <CloseCircleOutlined style={{ color: '#cf1322' }} /></Typography.Text>;
         } },
+        { title: 'Nền tảng', key: 'sources', width: 150, render: (_, c) => <CustomerSourceBadges ordersBySource={c.lifetime_stats.orders_by_source} /> },
         { title: 'Doanh thu', key: 'revenue', width: 130, align: 'right', render: (_, c) => <MoneyText value={c.lifetime_stats.revenue_completed ?? 0} /> },
         { title: 'Gần nhất', dataIndex: 'last_seen_at', key: 'last_seen_at', width: 150, render: (v) => <DateText value={v} /> },
     ];
