@@ -14,7 +14,9 @@ final readonly class AdEntityDTO
         public ?string $effectiveStatus,
         public ?int $dailyBudget,        // minor units
         public ?int $lifetimeBudget,
-        public ?string $objective = null,   // campaign objective (loại chiến dịch)
+        public ?string $objective = null,        // campaign objective (loại chiến dịch)
+        public ?string $optimizationGoal = null, // adset: CONVERSATIONS | OFFSITE_CONVERSIONS | LINK_CLICKS | …
+        public ?string $customEventType = null,  // adset chuyển đổi: COMPLETE_REGISTRATION | PURCHASE | …
         public array $raw = [],
     ) {}
 }

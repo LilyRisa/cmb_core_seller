@@ -7,6 +7,7 @@ use CMBcoreSeller\Integrations\Ads\Contracts\AdsConnector;
 use CMBcoreSeller\Integrations\Ads\Contracts\AdsWriteConnector;
 use CMBcoreSeller\Integrations\Ads\DTO\AdInsightDTO;
 use CMBcoreSeller\Integrations\Ads\Facebook\FacebookMoney;
+use CMBcoreSeller\Integrations\Ads\Facebook\FacebookResultMap;
 use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
 use CMBcoreSeller\Modules\Marketing\Models\AdEntity;
 use CMBcoreSeller\Modules\Marketing\Models\AdMonitor;
@@ -15,6 +16,7 @@ use CMBcoreSeller\Modules\Marketing\Notifications\AdMonitorActionNotification;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 
@@ -25,10 +27,6 @@ use Illuminate\Support\Facades\Notification;
  */
 class AdMonitorEvaluator
 {
-    private const SALES = ['OUTCOME_SALES', 'CONVERSIONS', 'PRODUCT_CATALOG_SALES'];
-
-    private const LEADS = ['OUTCOME_LEADS', 'LEAD_GENERATION'];
-
     public function __construct(private AdsRegistry $registry) {}
 
     public function evaluateAll(): void
@@ -106,11 +104,7 @@ class AdMonitorEvaluator
                 continue;
             }
 
-            $objective = $m->target_level === AdMonitor::LEVEL_CAMPAIGN
-                ? $entity->objective
-                : $entities->get((string) $entity->parent_external_id)?->objective;
-
-            $results = $this->resultValue($objective, $dto);
+            $results = $this->resultValue($entity, $entities, $dto);
             $action = $this->applyRules($connector, $token, $currency, $m, $entity, $dto->spend, $results);
             if ($action !== null) {
                 $m->last_action = (string) $action['type'];
@@ -191,21 +185,34 @@ class AdMonitorEvaluator
         return null;
     }
 
-    /** Result count for the objective — mirrors the FE "Kết quả" column. */
-    private function resultValue(?string $objective, AdInsightDTO $dto): int
+    /**
+     * "Kết quả" theo đúng sự kiện tối ưu — dùng chung FacebookResultMap với cột báo cáo.
+     * adset: optimization_goal + custom_event_type ở meta của nó; campaign: suy từ adset con.
+     *
+     * @param  Collection<string,AdEntity>  $entities
+     */
+    private function resultValue(AdEntity $entity, $entities, AdInsightDTO $dto): int
     {
-        if ($objective === 'MESSAGES') {
-            return $dto->messagingConversations;
-        }
-        if (in_array($objective, self::SALES, true)) {
-            return $dto->results;
-        }
-        if (in_array($objective, self::LEADS, true)) {
-            return $dto->leads;
+        $objective = $entity->level === AdEntity::LEVEL_CAMPAIGN
+            ? $entity->objective
+            : $entities->get((string) $entity->parent_external_id)?->objective;
+
+        if ($entity->level === AdEntity::LEVEL_ADSET) {
+            $meta = (array) ($entity->meta ?? []);
+        } else {
+            // campaign: lấy meta đại diện từ adset con (ưu tiên adset có custom_event_type).
+            $adsets = $entities->filter(
+                fn (AdEntity $e) => $e->level === AdEntity::LEVEL_ADSET
+                    && (string) $e->parent_external_id === (string) $entity->external_id
+            );
+            $repr = $adsets->first(fn (AdEntity $e) => ! empty(((array) ($e->meta ?? []))['custom_event_type'])) ?? $adsets->first();
+            $meta = (array) ($repr->meta ?? []);
         }
 
-        // Unknown objective ⇒ the connector's primary conversion result.
-        return $dto->results;
+        $goal = $meta['optimization_goal'] ?? null;
+        $event = $meta['custom_event_type'] ?? null;
+
+        return FacebookResultMap::count($dto->actions, FacebookResultMap::resolveCode($objective, $goal, $event));
     }
 
     /**

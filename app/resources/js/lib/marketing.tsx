@@ -48,6 +48,11 @@ export interface ReportMetrics {
     leads: number;
     purchases: number;
     results: number;
+    // "Kết quả" do backend tính theo đúng sự kiện tối ưu (FacebookResultMap):
+    // result_type = mã sự kiện (messaging | complete_registration | purchase | lead | …),
+    // result_label = nhãn VN. Null ⇒ FE tự suy theo objective (dữ liệu cũ/rollup).
+    result_type?: string | null;
+    result_label?: string | null;
 }
 
 export interface ReportRow {

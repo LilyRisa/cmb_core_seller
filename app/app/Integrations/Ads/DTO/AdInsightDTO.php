@@ -22,7 +22,8 @@ final readonly class AdInsightDTO
         public int $messagingConversations = 0,   // click-to-Messenger conversations started
         public int $leads = 0,                     // lead-ads leads
         public int $purchases = 0,                 // pixel/offsite purchases (conversions)
-        public int $results = 0,                   // primary "Result" (deepest conversion the campaign drove)
+        public int $results = 0,                   // generic "Result" (deepest conversion) — fallback khi chưa biết sự kiện tối ưu
+        public array $actions = [],                // action_type ⇒ value (đã index) — để tính Kết quả theo sự kiện tối ưu
         public array $raw = [],
     ) {}
 }

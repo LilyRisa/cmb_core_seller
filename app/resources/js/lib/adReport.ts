@@ -7,7 +7,7 @@ export interface ResultValue {
     color: string;
 }
 
-const MESSAGE_OBJECTIVES = new Set(['MESSAGES']);
+const MESSAGE_OBJECTIVES = new Set(['MESSAGES', 'OUTCOME_ENGAGEMENT']);
 const SALES_OBJECTIVES = new Set(['OUTCOME_SALES', 'CONVERSIONS', 'PRODUCT_CATALOG_SALES']);
 const LEAD_OBJECTIVES = new Set(['OUTCOME_LEADS', 'LEAD_GENERATION']);
 
@@ -15,17 +15,42 @@ const MSG: ResultValue = { label: 'Tin nhắn', value: 0, color: '#52c41a' };
 const CONV: ResultValue = { label: 'Chuyển đổi', value: 0, color: '#722ed1' };
 const LEAD: ResultValue = { label: 'Khách tiềm năng', value: 0, color: '#fa8c16' };
 
+/** Màu nhãn "Kết quả" theo mã sự kiện (result_type) backend trả. */
+const RESULT_COLOR: Record<string, string> = {
+    messaging: '#52c41a',
+    complete_registration: '#13c2c2',
+    purchase: '#722ed1',
+    lead: '#fa8c16',
+    add_to_cart: '#722ed1',
+    initiate_checkout: '#722ed1',
+    view_content: '#1677ff',
+    search: '#1677ff',
+    add_to_wishlist: '#722ed1',
+    link_click: '#1677ff',
+    landing_page_view: '#1677ff',
+    post_engagement: '#52c41a',
+};
+
 /**
  * Pick the result count + label for a row, mirroring Ads Manager's "Kết quả" column.
- * Objective decides the type when known (campaign rows); otherwise the first
- * non-zero conversion metric wins (so adset/ad rows still show something useful).
+ * Ưu tiên giá trị backend đã tính theo đúng sự kiện tối ưu (result_label/result_type);
+ * chỉ suy theo objective khi thiếu (dữ liệu cache cũ / rollup cha không có nhãn).
  */
 export function resultOf(objective: string | null, insights: ReportMetrics | null): ResultValue | null {
     if (insights == null) return null;
+
+    // Nguồn chuẩn: backend (FacebookResultMap) đã chọn đúng sự kiện + nhãn.
+    if (insights.result_label != null) {
+        return {
+            label: insights.result_label,
+            value: insights.results ?? 0,
+            color: (insights.result_type && RESULT_COLOR[insights.result_type]) || CONV.color,
+        };
+    }
+
+    // Fallback (không có nhãn từ backend): suy theo objective như trước.
     const conv = insights.messaging_conversations ?? 0;
     const leads = insights.leads ?? 0;
-    // `results` is the connector's primary conversion (purchase → lead → registration
-    // → add-to-cart → checkout → messaging), so conversion campaigns aren't shown as 0.
     const results = insights.results ?? 0;
 
     if (objective != null) {
@@ -33,8 +58,6 @@ export function resultOf(objective: string | null, insights: ReportMetrics | nul
         if (SALES_OBJECTIVES.has(objective)) return { ...CONV, value: results };
         if (LEAD_OBJECTIVES.has(objective)) return { ...LEAD, value: leads };
     }
-    // Unknown objective (adset/ad rows or OUTCOME_ENGAGEMENT) → label by the metric
-    // that matches the primary result.
     if (results <= 0) return null;
     if (conv === results) return { ...MSG, value: conv };
     if (leads === results) return { ...LEAD, value: leads };
@@ -55,7 +78,14 @@ export function sumInsights(rows: ReportRow[]): ReportMetrics | null {
     const acc: ReportMetrics = {
         spend: 0, impressions: 0, clicks: 0, reach: 0, ctr: null, cpc: null, cpm: null,
         frequency: null, purchase_roas: null, messaging_conversations: 0, leads: 0, purchases: 0, results: 0,
+        result_type: null, result_label: null,
     };
+    // Nhãn "Kết quả" của cha = của con NẾU các con đồng nhất sự kiện; lệch nhau ⇒ null (FE suy theo objective).
+    const types = new Set(withData.map((r) => r.insights!.result_type ?? null));
+    if (types.size === 1) {
+        acc.result_type = withData[0].insights!.result_type ?? null;
+        acc.result_label = withData[0].insights!.result_label ?? null;
+    }
     for (const r of withData) {
         const i = r.insights!;
         acc.spend += i.spend; acc.impressions += i.impressions; acc.clicks += i.clicks; acc.reach += i.reach;

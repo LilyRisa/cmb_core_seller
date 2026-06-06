@@ -40,6 +40,17 @@ class AdsSyncService
         $entity->objective = $dto->objective;
         $entity->daily_budget = $dto->dailyBudget;
         $entity->lifetime_budget = $dto->lifetimeBudget;
+        // Lưu ngữ cảnh tối ưu (adset) để tính "Kết quả" đúng sự kiện ở AdsReportService.
+        // optimization_goal (CONVERSATIONS/OFFSITE_CONVERSIONS/…) + custom_event_type
+        // (COMPLETE_REGISTRATION/PURCHASE/…). Campaign không có ⇒ suy từ adset lúc báo cáo.
+        $meta = (array) ($entity->meta ?? []);
+        if ($dto->optimizationGoal !== null) {
+            $meta['optimization_goal'] = $dto->optimizationGoal;
+        }
+        if ($dto->customEventType !== null) {
+            $meta['custom_event_type'] = $dto->customEventType;
+        }
+        $entity->meta = $meta !== [] ? $meta : null;
         $entity->save();
 
         return $entity;
