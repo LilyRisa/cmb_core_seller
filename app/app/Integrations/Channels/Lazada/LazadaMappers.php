@@ -417,7 +417,10 @@ final class LazadaMappers
                 feeType: $feeType,
                 amount: $amount,
                 externalOrderId: $orderId ? (string) $orderId : null,
-                externalLineId: ($txid = data_get($r, 'lazada_id') ?? data_get($r, 'id')) !== null ? (string) $txid : null,
+                // Lazada `/finance/transaction/details/get` dùng `transaction_number` làm id giao dịch (doc thật);
+                // `lazada_id`/`id` KHÔNG có trong response ⇒ phải ưu tiên `transaction_number`, nếu không
+                // external_line_id luôn null ⇒ dedup ở upsertLines nuốt nhầm các dòng cùng (đơn, loại phí, tiền).
+                externalLineId: ($txid = data_get($r, 'transaction_number') ?? data_get($r, 'lazada_id') ?? data_get($r, 'id')) !== null ? (string) $txid : null,
                 occurredAt: $occurred,
                 description: data_get($r, 'fee_name') ? (string) data_get($r, 'fee_name') : null,
                 raw: $r,

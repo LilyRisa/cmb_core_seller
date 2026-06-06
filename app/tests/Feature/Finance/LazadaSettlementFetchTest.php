@@ -60,11 +60,12 @@ class LazadaSettlementFetchTest extends TestCase
         // Lazada trả 2 trang: vẫn dùng offset; sample data có lines
         Http::fake([
             '*/finance/transaction/details/get*' => Http::sequence()
+                // Field id giao dịch thật của Lazada là `transaction_number` (KHÔNG phải `lazada_id`/`id`).
                 ->push(['code' => '0', 'data' => [
-                    ['transaction_type' => 'Item Price Credit', 'amount' => '220000.00', 'order_no' => 'L-12345', 'lazada_id' => 'tx1', 'transaction_date' => '2026-05-10', 'currency' => 'VND', 'statement' => 'STM-202605-1'],
-                    ['transaction_type' => 'Commission', 'amount' => '-22000.00', 'order_no' => 'L-12345', 'lazada_id' => 'tx2', 'transaction_date' => '2026-05-10', 'currency' => 'VND'],
-                    ['transaction_type' => 'Payment Fee', 'amount' => '-4000.00', 'order_no' => 'L-12345', 'lazada_id' => 'tx3', 'transaction_date' => '2026-05-10', 'currency' => 'VND'],
-                    ['transaction_type' => 'Shipping Fee Paid by Customer', 'amount' => '25000.00', 'order_no' => 'L-12345', 'lazada_id' => 'tx4', 'transaction_date' => '2026-05-10', 'currency' => 'VND'],
+                    ['transaction_type' => 'Item Price Credit', 'amount' => '220000.00', 'order_no' => 'L-12345', 'transaction_number' => 'tx1', 'transaction_date' => '2026-05-10', 'currency' => 'VND', 'statement' => 'STM-202605-1'],
+                    ['transaction_type' => 'Commission', 'amount' => '-22000.00', 'order_no' => 'L-12345', 'transaction_number' => 'tx2', 'transaction_date' => '2026-05-10', 'currency' => 'VND'],
+                    ['transaction_type' => 'Payment Fee', 'amount' => '-4000.00', 'order_no' => 'L-12345', 'transaction_number' => 'tx3', 'transaction_date' => '2026-05-10', 'currency' => 'VND'],
+                    ['transaction_type' => 'Shipping Fee Paid by Customer', 'amount' => '25000.00', 'order_no' => 'L-12345', 'transaction_number' => 'tx4', 'transaction_date' => '2026-05-10', 'currency' => 'VND'],
                 ]])
                 ->push(['code' => '0', 'data' => []]),
         ]);
@@ -85,6 +86,8 @@ class LazadaSettlementFetchTest extends TestCase
         foreach ($lines as $l) {
             $this->assertSame((int) $order->getKey(), (int) $l->order_id);
         }
+        // external_line_id phải lấy từ `transaction_number` thật của Lazada (chống dedup nuốt dòng).
+        $this->assertEqualsCanonicalizing(['tx1', 'tx2', 'tx3', 'tx4'], $lines->pluck('external_line_id')->all());
 
         // OrderResource.profit dùng fee_source=settlement khi đã reconcile
         $detail = $this->actingAs($owner)->withHeaders(['X-Tenant-Id' => (string) $tenant->getKey()])->getJson("/api/v1/orders/{$order->getKey()}")->assertOk()->json('data.profit');
@@ -105,7 +108,7 @@ class LazadaSettlementFetchTest extends TestCase
 
         Http::fake([
             '*/finance/transaction/details/get*' => Http::response(['code' => '0', 'data' => [
-                ['transaction_type' => 'Item Price Credit', 'amount' => '100000.00', 'order_no' => 'X-1', 'lazada_id' => 't1', 'transaction_date' => '2026-05-01', 'currency' => 'VND', 'statement' => 'S-1'],
+                ['transaction_type' => 'Item Price Credit', 'amount' => '100000.00', 'order_no' => 'X-1', 'transaction_number' => 't1', 'transaction_date' => '2026-05-01', 'currency' => 'VND', 'statement' => 'S-1'],
             ]]),
         ]);
 
