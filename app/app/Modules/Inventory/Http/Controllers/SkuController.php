@@ -20,6 +20,7 @@ use CMBcoreSeller\Support\MediaUploader;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -59,7 +60,7 @@ class SkuController extends Controller
      * links (`mappings`) and opening stock per warehouse (`levels`) so the "Thêm SKU
      * đơn độc" form can do everything in one round-trip. See SPEC 0005 §5–§6.
      */
-    public function store(Request $request, InventoryLedgerService $ledger, SkuMappingService $mappingService, CurrentTenant $tenant): JsonResponse
+    public function store(Request $request, InventoryLedgerService $ledger, SkuMappingService $mappingService, CurrentTenant $tenant, MediaUploader $uploader): JsonResponse
     {
         abort_unless($request->user()?->can('products.manage'), 403, 'Bạn không có quyền tạo SKU.');
         $data = $request->validate([
@@ -158,6 +159,10 @@ class SkuController extends Controller
             return $sku;
         });
 
+        // Lấy ảnh sản phẩm từ listing sàn về (R2) nếu SKU chưa có ảnh — ngoài transaction (có gọi mạng).
+        // User up ảnh thủ công sau (qua /skus/{id}/image) sẽ ghi đè, nên không xung đột.
+        $this->backfillImageFromListings($sku, $tenantId, $data['mappings'] ?? [], $uploader);
+
         return response()->json(['data' => new SkuResource($sku->load('levels.warehouse', 'mappings.channelListing'))], 201);
     }
 
@@ -177,7 +182,7 @@ class SkuController extends Controller
      * channel-SKU links (firstOrCreate the listing, setMapping single×qty; drop links to listings not
      * in the list). Opening stock (`levels`) is not editable here — that's the inventory ledger. SPEC 0005.
      */
-    public function update(Request $request, int $id, SkuMappingService $mappingService): JsonResponse
+    public function update(Request $request, int $id, SkuMappingService $mappingService, MediaUploader $uploader): JsonResponse
     {
         abort_unless($request->user()?->can('products.manage'), 403, 'Bạn không có quyền sửa SKU.');
         $sku = Sku::query()->findOrFail($id);
@@ -243,7 +248,56 @@ class SkuController extends Controller
             }
         });
 
+        // Khi vừa ghép listing sàn mà SKU chưa có ảnh → lấy ảnh sản phẩm từ sàn về.
+        if ($hasMappings) {
+            $this->backfillImageFromListings($sku->refresh(), (int) $sku->tenant_id, $mappings, $uploader);
+        }
+
         return response()->json(['data' => new SkuResource($sku->fresh()?->load('levels.warehouse', 'mappings.sku', 'mappings.channelListing'))]);
+    }
+
+    /**
+     * Nếu SKU chưa có ảnh, lấy ảnh sản phẩm từ listing sàn đã ghép (channel_listings.image — đã được
+     * FetchChannelListings kéo về) và lưu vào kho media (R2). Best-effort: lỗi mạng/không phải ảnh ⇒ bỏ qua.
+     *
+     * @param  list<array<string,mixed>>  $mappings
+     */
+    private function backfillImageFromListings(Sku $sku, int $tenantId, array $mappings, MediaUploader $uploader): void
+    {
+        if (! empty($sku->image_url) || $mappings === []) {
+            return;
+        }
+        $pairs = [];
+        foreach ($mappings as $m) {
+            if (isset($m['channel_account_id'], $m['external_sku_id'])) {
+                $pairs[] = [(int) $m['channel_account_id'], (string) $m['external_sku_id']];
+            }
+        }
+        if ($pairs === []) {
+            return;
+        }
+
+        $listing = ChannelListing::query()
+            ->where('tenant_id', $tenantId)
+            ->where(function ($q) use ($pairs) {
+                foreach ($pairs as [$acc, $ext]) {
+                    $q->orWhere(fn ($qq) => $qq->where('channel_account_id', $acc)->where('external_sku_id', $ext));
+                }
+            })
+            ->whereNotNull('image')->where('image', '!=', '')
+            ->first();
+        if ($listing === null || ! $listing->image) {
+            return;
+        }
+
+        try {
+            $stored = $uploader->storeImageFromUrl((string) $listing->image, $tenantId, 'skus');
+            if ($stored !== null) {
+                $sku->forceFill(['image_url' => $stored['url'], 'image_path' => $stored['path']])->save();
+            }
+        } catch (\Throwable $e) {
+            Log::info('sku.image_backfill_failed', ['sku' => $sku->getKey(), 'error' => $e->getMessage()]);
+        }
     }
 
     /** POST /api/v1/skus/{id}/image — upload (replace) the SKU image to the media disk (R2). SPEC 0005 §7. */

@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Support;
 
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -70,6 +71,53 @@ class MediaUploader
         }
 
         return ['path' => $path, 'url' => $this->url($path)];
+    }
+
+    /**
+     * Fetch a remote image (e.g. a marketplace product image URL) and store it on the media
+     * disk — so the image lives in our storage (R2) instead of hot-linking a marketplace CDN
+     * that may expire or block. Best-effort: returns null on any failure (bad URL, non-image,
+     * network error, oversized) — callers degrade gracefully. The body is validated by magic
+     * bytes so an HTML error page is never stored as an image.
+     *
+     * @return array{path: string, url: string}|null
+     */
+    public function storeImageFromUrl(string $url, int $tenantId, string $folder): ?array
+    {
+        if (! preg_match('#^https?://#i', $url)) {
+            return null;
+        }
+        try {
+            $resp = Http::timeout(12)->connectTimeout(5)->retry(1, 300, throw: false)->get($url);
+        } catch (\Throwable) {
+            return null;
+        }
+        if (! $resp->successful()) {
+            return null;
+        }
+        $body = (string) $resp->body();
+        // Reject empty or oversized (>15MB) payloads.
+        if ($body === '' || strlen($body) > 15 * 1024 * 1024) {
+            return null;
+        }
+        $ext = self::sniffImageExtension($body);
+        if ($ext === null) {
+            return null;   // not a real image (magic bytes didn't match) — don't store
+        }
+
+        return $this->storeBytes($body, $tenantId, $folder, Str::ulid()->__toString(), $ext);
+    }
+
+    /** Detect image type from magic bytes; null if not a supported image. */
+    private static function sniffImageExtension(string $bytes): ?string
+    {
+        return match (true) {
+            str_starts_with($bytes, "\xFF\xD8\xFF") => 'jpg',
+            str_starts_with($bytes, "\x89PNG\x0D\x0A\x1A\x0A") => 'png',
+            str_starts_with($bytes, 'GIF87a') || str_starts_with($bytes, 'GIF89a') => 'gif',
+            str_starts_with($bytes, 'RIFF') && substr($bytes, 8, 4) === 'WEBP' => 'webp',
+            default => null,
+        };
     }
 
     /** Read raw bytes back from a stored object key (used to merge label PDFs). */
