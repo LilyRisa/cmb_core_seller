@@ -251,7 +251,24 @@ class TikTokConnector implements ChannelConnector, ShopReportConnector
 
         $items = [];
         foreach ((array) ($data['products'] ?? []) as $product) {
-            foreach (TikTokMappers::listings((array) $product) as $listing) {
+            $product = (array) $product;
+            // `products/search` KHÔNG trả ảnh (chỉ id/skus/price/inventory). Lấy `main_images` qua
+            // GetProduct detail để listing có ảnh sản phẩm. Best-effort: lỗi / không có ảnh → bỏ qua
+            // (image=null), KHÔNG chặn đồng bộ. Guard `empty(main_images)` để khỏi gọi thừa nếu đã có.
+            $pid = (string) ($product['id'] ?? '');
+            if ($pid !== '' && empty($product['main_images'])) {
+                try {
+                    $detailPath = (string) (config('integrations.tiktok.endpoints.product_detail') ?? "/product/{$version}/products/{$pid}");
+                    $detailPath = str_replace(['{version}', '{product_id}'], [$version, $pid], $detailPath);
+                    $detail = $this->client->get($detailPath, $auth);
+                    if (! empty($detail['main_images'])) {
+                        $product['main_images'] = $detail['main_images'];
+                    }
+                } catch (\Throwable $e) {
+                    Log::info('tiktok.listing_image_fetch_failed', ['product' => $pid, 'error' => class_basename($e)]);
+                }
+            }
+            foreach (TikTokMappers::listings($product) as $listing) {
                 $items[] = $listing;
             }
         }

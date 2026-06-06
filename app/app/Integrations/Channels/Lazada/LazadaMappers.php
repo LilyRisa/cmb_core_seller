@@ -279,6 +279,9 @@ final class LazadaMappers
         $itemId = (string) ($product['item_id'] ?? '');
         $attrs = (array) ($product['attributes'] ?? []);
         $title = isset($attrs['name']) ? (string) $attrs['name'] : null;
+        // Ảnh mức product (Lazada VN thường trả ở đây dưới dạng CHUỖI JSON, không phải mảng) — dùng làm
+        // fallback khi SKU không có `Images`. Đây là lý do listing TikTok/Lazada trước đây trống ảnh.
+        $productImage = self::firstProductImage($product);
         $out = [];
         foreach ((array) ($product['skus'] ?? []) as $sku) {
             $skuId = (string) ($sku['ShopSku'] ?? $sku['SkuId'] ?? $sku['shop_sku'] ?? $sku['sku_id'] ?? '');
@@ -312,13 +315,36 @@ final class LazadaMappers
                 price: $price !== null ? self::money($price) : null,
                 channelStock: isset($sku['quantity']) ? (int) $sku['quantity'] : (isset($sku['Available']) ? (int) $sku['Available'] : null),
                 currency: 'VND',
-                image: $image,
+                image: $image ?? $productImage,
                 isActive: $isActive,
                 raw: ['product' => array_diff_key($product, ['skus' => true]), 'sku' => $sku],
             );
         }
 
         return $out;
+    }
+
+    /**
+     * Ảnh đầu tiên ở mức product. Lazada trả `images`/`marketImages` có thể là CHUỖI JSON
+     * (vd `"[\"https://...jpg\"]"`) hoặc mảng — xử lý cả hai. Trả null nếu không có.
+     *
+     * @param  array<string,mixed>  $product
+     */
+    private static function firstProductImage(array $product): ?string
+    {
+        foreach (['images', 'marketImages'] as $key) {
+            $val = $product[$key] ?? null;
+            $list = is_string($val) ? json_decode($val, true) : $val;
+            if (is_array($list)) {
+                foreach ($list as $u) {
+                    if (is_string($u) && trim($u) !== '') {
+                        return $u;
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
