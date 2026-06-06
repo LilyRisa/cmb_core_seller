@@ -54,6 +54,7 @@ import { SuppliersPage } from '@/pages/SuppliersPage';
 import { PurchaseOrdersPage } from '@/pages/PurchaseOrdersPage';
 import { DemandPlanningPage } from '@/pages/DemandPlanningPage';
 import { ReportsPage } from '@/pages/ReportsPage';
+import { ShopReportPage } from '@/pages/ShopReportPage';
 import { SettlementsPage } from '@/pages/SettlementsPage';
 import { JournalsPage } from '@/pages/accounting/JournalsPage';
 import { ChartOfAccountsPage } from '@/pages/accounting/ChartOfAccountsPage';
@@ -132,6 +133,7 @@ function Root() {
                 <Route path="procurement/purchase-orders" element={<PurchaseOrdersPage />} />
                 <Route path="procurement/demand-planning" element={<DemandPlanningPage />} />
                 <Route path="reports" element={<ReportsPage />} />
+                <Route path="shop-report" element={<ShopReportPage />} />
                 <Route path="finance" element={<Navigate to="/finance/settlements" replace />} />
                 <Route path="finance/settlements" element={<SettlementsPage />} />
                 {/* Phase 7 — Module Kế toán đầy đủ (gated by plan.feature:accounting_basic ở BE). */}

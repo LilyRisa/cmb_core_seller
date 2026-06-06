@@ -4,9 +4,11 @@ namespace CMBcoreSeller\Integrations\Channels\Shopee;
 
 use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\Contracts\ChannelConnector;
+use CMBcoreSeller\Integrations\Channels\Contracts\ShopReportConnector;
 use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
 use CMBcoreSeller\Integrations\Channels\DTO\OrderDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\Page;
+use CMBcoreSeller\Integrations\Channels\DTO\ShopHealthDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
@@ -19,7 +21,7 @@ use Symfony\Component\HttpFoundation\Request;
  * Shopee Open Platform v2 connector. Mirrors Lazada/TikTok. See docs/04-channels/shopee.md
  * + spec docs/superpowers/specs/2026-05-20-shopee-channel-connector-design.md.
  */
-class ShopeeConnector implements ChannelConnector
+class ShopeeConnector implements ChannelConnector, ShopReportConnector
 {
     public function __construct(private ShopeeClient $client, private ShopeeWebhookVerifier $verifier = new ShopeeWebhookVerifier) {}
 
@@ -50,6 +52,10 @@ class ShopeeConnector implements ChannelConnector
             // After-sales (Hoàn & Hủy) — SPEC 0025. Tắt bằng INTEGRATIONS_SHOPEE_RETURNS=false.
             'returns.fetch' => (bool) config('integrations.shopee.returns_enabled', true),
             'returns.manage' => (bool) config('integrations.shopee.returns_enabled', true),
+            // Báo cáo sàn — AccountHealth (module 103): sức khỏe + điểm phạt + hình phạt.
+            // Cần Shopee cấp quyền module 103; nếu chưa, API trả error_api_permission (xử lý ở service).
+            'report.health' => true,
+            'report.penalty' => true,
         ];
     }
 
@@ -528,5 +534,36 @@ class ShopeeConnector implements ChannelConnector
         $parts = explode(':', $cursor, 2);
 
         return [(int) $parts[0], $parts[1] ?? ''];
+    }
+
+    // --- Báo cáo sàn (read-only) — AccountHealth module 103, SPEC 2026-06-06 ---
+
+    public function fetchShopHealth(AuthContext $auth): ShopHealthDTO
+    {
+        $res = $this->client->shopGet($auth, '/api/v2/account_health/get_shop_performance');
+
+        return ShopeeShopReport::health($res);
+    }
+
+    public function fetchPenaltyPoints(AuthContext $auth): array
+    {
+        $res = $this->client->shopGet($auth, '/api/v2/account_health/get_penalty_point_history', [
+            'page_no' => 1,
+            'page_size' => 100,
+        ]);
+
+        return ShopeeShopReport::penalties($res);
+    }
+
+    public function fetchPunishments(AuthContext $auth): array
+    {
+        // punishment_status = 1 (Ongoing): chỉ lấy hình phạt đang hiệu lực.
+        $res = $this->client->shopGet($auth, '/api/v2/account_health/get_punishment_history', [
+            'page_no' => 1,
+            'page_size' => 100,
+            'punishment_status' => 1,
+        ]);
+
+        return ShopeeShopReport::punishments($res);
     }
 }

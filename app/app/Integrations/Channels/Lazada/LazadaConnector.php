@@ -4,9 +4,11 @@ namespace CMBcoreSeller\Integrations\Channels\Lazada;
 
 use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\Contracts\ChannelConnector;
+use CMBcoreSeller\Integrations\Channels\Contracts\ShopReportConnector;
 use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
 use CMBcoreSeller\Integrations\Channels\DTO\OrderDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\Page;
+use CMBcoreSeller\Integrations\Channels\DTO\ShopHealthDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
@@ -25,7 +27,7 @@ use Symfony\Component\HttpFoundation\Request;
  * status & message maps, endpoints — live under app/Integrations/Channels/Lazada/ and
  * config('integrations.lazada'). See docs/04-channels/lazada.md, SPEC 0008.
  */
-class LazadaConnector implements ChannelConnector
+class LazadaConnector implements ChannelConnector, ShopReportConnector
 {
     public function __construct(
         protected LazadaClient $client,
@@ -66,6 +68,9 @@ class LazadaConnector implements ChannelConnector
             // After-sales (Hoàn & Hủy) — SPEC 0025. Tắt bằng INTEGRATIONS_LAZADA_RETURNS=false.
             'returns.fetch' => (bool) config('integrations.lazada.returns_enabled', true),
             'returns.manage' => (bool) config('integrations.lazada.returns_enabled', true),
+            // Báo cáo sàn — /seller/performance/get (scorecard). Lazada KHÔNG có API điểm phạt seller.
+            'report.health' => true,
+            'report.penalty' => false,
         ];
     }
 
@@ -1035,5 +1040,28 @@ class LazadaConnector implements ChannelConnector
             'decision' => strtolower($action) === 'reject' ? 'REJECT' : 'AGREE',
             'remark' => $params['comment'] ?? null,
         ], fn ($v) => $v !== null && $v !== ''));
+    }
+
+    // --- Báo cáo sàn (read-only) — SPEC 2026-06-06 ---------------------------
+
+    /**
+     * Sức khỏe shop Lazada — `/seller/performance/get` (scorecard: Positive Seller Rating,
+     * Ship On Time, Response Rate/Time... kèm target + đạt/không). `language=vi-VN` để tên/tip tiếng Việt.
+     */
+    public function fetchShopHealth(AuthContext $auth): ShopHealthDTO
+    {
+        $data = $this->client->get('/seller/performance/get', $auth, ['language' => 'vi-VN']);
+
+        return LazadaShopReport::health($data);
+    }
+
+    public function fetchPenaltyPoints(AuthContext $auth): array
+    {
+        throw UnsupportedOperation::for($this->code(), 'fetchPenaltyPoints');
+    }
+
+    public function fetchPunishments(AuthContext $auth): array
+    {
+        throw UnsupportedOperation::for($this->code(), 'fetchPunishments');
     }
 }

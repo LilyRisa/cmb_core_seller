@@ -31,6 +31,7 @@ class BillingPlanSeeder extends Seeder
             'messaging_inbox' => false,
             'messaging_ai' => false,
             'marketing_facebook' => false,
+            'shop_health_reports' => false,
             'ai' => false,
         ];
 

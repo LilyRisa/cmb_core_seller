@@ -3,6 +3,7 @@
 use CMBcoreSeller\Http\Controllers\HealthController;
 use CMBcoreSeller\Http\Controllers\MediaController;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\ChannelAccountController;
+use CMBcoreSeller\Modules\Channels\Http\Controllers\ShopReportController;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\SyncLogController;
 use CMBcoreSeller\Modules\Customers\Http\Controllers\CustomerController;
 use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\CarrierAccountController;
@@ -127,6 +128,11 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::post('channel-accounts/{id}/resync-unprocessed', [ChannelAccountController::class, 'resyncUnprocessed'])->whereNumber('id')->name('channel-accounts.resync-unprocessed');
             Route::post('channel-accounts/{id}/resync-listings', [ChannelAccountController::class, 'resyncListings'])->whereNumber('id')->name('channel-accounts.resync-listings');
             Route::post('channel-accounts/{id}/resync-chat', [ChannelAccountController::class, 'resyncChat'])->whereNumber('id')->name('channel-accounts.resync-chat');
+
+            // --- Báo cáo sàn (read-only) — sức khỏe/hiệu suất/điểm phạt theo gian hàng. SPEC 2026-06-06.
+            // Gated `shop_health_reports` (Pro). Mỗi sàn lộ dữ liệu khác nhau (capability per-sàn).
+            Route::get('channel-shop-report', [ShopReportController::class, 'index'])
+                ->middleware('plan.feature:shop_health_reports')->name('channel-shop-report.index');
 
             // --- Sync log (Phase 1) — webhook_events / sync_runs + re-drive ---
             Route::get('sync-runs', [SyncLogController::class, 'runs'])->name('sync-runs.index');

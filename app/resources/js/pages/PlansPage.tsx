@@ -18,6 +18,7 @@ const FEATURE_ROWS: { key: keyof PlanFeatures; label: string }[] = [
     { key: 'messaging_inbox', label: 'Nhắn tin Facebook Page + sàn' },
     { key: 'messaging_ai', label: 'AI hỗ trợ trả lời tin nhắn' },
     { key: 'marketing_facebook', label: 'Quảng cáo Facebook' },
+    { key: 'shop_health_reports', label: 'Báo cáo sàn (sức khỏe/điểm phạt)' },
     { key: 'ai', label: 'Trợ lý & phân tích AI' },
     { key: 'accounting_basic', label: 'Kế toán cơ bản' },
     { key: 'accounting_advanced', label: 'Kế toán nâng cao' },

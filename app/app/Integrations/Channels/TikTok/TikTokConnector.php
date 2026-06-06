@@ -4,11 +4,13 @@ namespace CMBcoreSeller\Integrations\Channels\TikTok;
 
 use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\Contracts\ChannelConnector;
+use CMBcoreSeller\Integrations\Channels\Contracts\ShopReportConnector;
 use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
 use CMBcoreSeller\Integrations\Channels\DTO\ChannelListingDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\OrderDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\Page;
 use CMBcoreSeller\Integrations\Channels\DTO\ReturnDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\ShopHealthDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
@@ -26,7 +28,7 @@ use Symfony\Component\HttpFoundation\Request;
  * status & event maps — live under app/Integrations/Channels/TikTok/ and
  * config('integrations.tiktok'). See docs/04-channels/tiktok-shop.md, SPEC 0001.
  */
-class TikTokConnector implements ChannelConnector
+class TikTokConnector implements ChannelConnector, ShopReportConnector
 {
     public function __construct(
         protected TikTokClient $client,
@@ -68,6 +70,10 @@ class TikTokConnector implements ChannelConnector
             // After-sales (Hoàn & Hủy) — SPEC 0025. API return_refund 202309. Tắt bằng INTEGRATIONS_TIKTOK_RETURNS=false.
             'returns.fetch' => (bool) config('integrations.tiktok.returns_enabled', true),
             'returns.manage' => (bool) config('integrations.tiktok.returns_enabled', true),
+            // Báo cáo sàn — chỉ HIỆU SUẤT (analytics shop performance). TikTok KHÔNG có API
+            // sức khỏe/điểm phạt (chỉ Seller Center UI) ⇒ report.penalty=false.
+            'report.health' => true,
+            'report.penalty' => false,
         ];
     }
 
@@ -603,5 +609,40 @@ class TikTokConnector implements ChannelConnector
         ], fn ($v) => $v !== null && $v !== '');
 
         return $this->client->post("/return_refund/{$ver}/{$resource}/{$id}/{$op}", $auth, $body);
+    }
+
+    // --- Báo cáo sàn (read-only) — Analytics shop performance, SPEC 2026-06-06 ---
+
+    /**
+     * Hiệu suất gian hàng TikTok — `/analytics/{ver}/shop/performance` (GMV, đơn, sản phẩm bán) cho
+     * 7 ngày gần nhất, gộp (granularity=ALL), tiền tệ LOCAL. shop_cipher đính qua shopScoped=true.
+     * Đây KHÔNG phải sức khỏe/điểm phạt (TikTok không có API cho phần đó).
+     */
+    public function fetchShopHealth(AuthContext $auth): ShopHealthDTO
+    {
+        $ver = (string) (config('integrations.tiktok.version.analytics') ?? '202509');
+        $end = CarbonImmutable::now()->addDay();          // end_date_lt là exclusive
+        $start = $end->subDays(8);
+        $startStr = $start->format('Y-m-d');
+        $endStr = $end->format('Y-m-d');
+
+        $data = $this->client->get("/analytics/{$ver}/shop/performance", $auth, [
+            'start_date_ge' => $startStr,
+            'end_date_lt' => $endStr,
+            'granularity' => 'ALL',
+            'currency' => 'LOCAL',
+        ]);
+
+        return TikTokShopReport::health($data, ['start_date' => $startStr, 'end_date' => $endStr]);
+    }
+
+    public function fetchPenaltyPoints(AuthContext $auth): array
+    {
+        throw UnsupportedOperation::for($this->code(), 'fetchPenaltyPoints');
+    }
+
+    public function fetchPunishments(AuthContext $auth): array
+    {
+        throw UnsupportedOperation::for($this->code(), 'fetchPunishments');
     }
 }
