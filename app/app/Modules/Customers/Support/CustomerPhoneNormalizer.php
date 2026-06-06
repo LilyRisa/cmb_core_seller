@@ -33,9 +33,13 @@ final class CustomerPhoneNormalizer
             return null;
         }
 
-        // +84xxxxxxxxx / 84xxxxxxxxx (11 digits) → 0xxxxxxxxx
+        // +84xxxxxxxxx / 84xxxxxxxxx (11 digits, mã nước 84 + số quốc gia 9 chữ số bỏ số 0) → 0xxxxxxxxx
         if (str_starts_with($digits, '84') && strlen($digits) === 11) {
             return '0'.substr($digits, 2);
+        }
+        // 840xxxxxxxxx (12 digits) — Lazada gửi mã nước 84 + số quốc gia GIỮ số 0 (0xxxxxxxxx). Bỏ "84".
+        if (str_starts_with($digits, '840') && strlen($digits) === 12) {
+            return substr($digits, 2);
         }
         // 0xxxxxxxxx (10 digits, VN canonical) → keep
         if (str_starts_with($digits, '0') && strlen($digits) === 10) {

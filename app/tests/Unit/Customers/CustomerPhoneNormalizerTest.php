@@ -22,6 +22,9 @@ class CustomerPhoneNormalizerTest extends TestCase
             'formatted +84' => ['(+84) 98-765-4321', '0987654321'],
             'spaced 0' => ['0987 654 321', '0987654321'],
             '84 prefix' => ['84987654321', '0987654321'],
+            // Lazada gửi SĐT VN dạng mã nước 84 + số quốc gia GIỮ số 0 (12 chữ số) — phải về 0xxxxxxxxx.
+            'lazada 84+0 form' => ['840987654321', '0987654321'],
+            '+84 keep leading 0' => ['+840987654321', '0987654321'],
             'already canonical' => ['0987654321', '0987654321'],
             'masked' => ['(+84) ****21', null],
             'masked x' => ['098765xxxx', null],
