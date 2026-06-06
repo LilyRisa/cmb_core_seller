@@ -7,6 +7,7 @@ import { errorMessage } from '@/lib/api';
 import {
     type Conversation,
     INBOX_GROUP_PROVIDERS,
+    MARKETPLACE_CHAT_ENABLED,
     type MessageAttachment,
     type MessageButton,
     type MessagingTag,
@@ -265,7 +266,7 @@ export function MessagingPage() {
     };
 
     // ── Filter state ──────────────────────────────────────────────────────────
-    const [board, setBoard] = useState<'marketplace' | 'facebook'>('marketplace');
+    const [board, setBoard] = useState<'marketplace' | 'facebook'>(MARKETPLACE_CHAT_ENABLED ? 'marketplace' : 'facebook');
     // Lọc loại hội thoại Facebook: tất cả / tin nhắn (DM) / bình luận.
     const [fbThreadType, setFbThreadType] = useState<'all' | 'message' | 'comment'>('all');
     const [readState, setReadState] = useState<'all' | 'read' | 'unread'>('all');
@@ -701,16 +702,21 @@ export function MessagingPage() {
                 <div style={{ padding: 12, borderBottom: '1px solid #F1F5F9', display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {/* 2 tab chính: Sàn / Facebook */}
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <Segmented
-                            block
-                            style={{ flex: 1 }}
-                            value={board}
-                            onChange={(v) => { setBoard(v as 'marketplace' | 'facebook'); setActiveId(null); setChannelAccountId([]); setFbThreadType('all'); }}
-                            options={[
-                                { label: 'Sàn', value: 'marketplace' },
-                                { label: 'Facebook', value: 'facebook' },
-                            ]}
-                        />
+                        {MARKETPLACE_CHAT_ENABLED ? (
+                            <Segmented
+                                block
+                                style={{ flex: 1 }}
+                                value={board}
+                                onChange={(v) => { setBoard(v as 'marketplace' | 'facebook'); setActiveId(null); setChannelAccountId([]); setFbThreadType('all'); }}
+                                options={[
+                                    { label: 'Sàn', value: 'marketplace' },
+                                    { label: 'Facebook', value: 'facebook' },
+                                ]}
+                            />
+                        ) : (
+                            // Tin nhắn sàn tắt tạm — chỉ còn Facebook.
+                            <div style={{ flex: 1, fontWeight: 600, padding: '4px 8px' }}>Tin nhắn Facebook</div>
+                        )}
                         <Popover
                             open={filterOpen}
                             onOpenChange={setFilterOpen}

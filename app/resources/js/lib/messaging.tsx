@@ -324,6 +324,12 @@ export const INBOX_GROUP_PROVIDERS: Record<InboxGroup, string | undefined> = {
     facebook: 'facebook_page',
 };
 
+/**
+ * TẮT TẠM tin nhắn sàn (TikTok/Shopee/Lazada chat) — chưa triển khai xong, mặc định chỉ Facebook.
+ * Bật lại bằng cách đổi thành `true` (ẩn/hiện tab "Sàn" ở hộp thư + thẻ kết nối kênh sàn).
+ */
+export const MARKETPLACE_CHAT_ENABLED = false;
+
 // ---------------------------------------------------------------------------
 // Messaging tags
 // ---------------------------------------------------------------------------

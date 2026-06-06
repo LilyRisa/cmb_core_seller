@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { errorMessage } from '@/lib/api';
 import { openOAuthPopup } from '@/lib/oauthPopup';
 import { useCan } from '@/lib/tenant';
+import { MARKETPLACE_CHAT_ENABLED } from '@/lib/messaging';
 import { useBulkDisconnectChannels, useBulkSyncChannels, useConnectFacebook, useConnectLazadaIm, useDisconnectFacebookPage, useMessagingChannels, useSyncChannel } from '@/lib/messagingConfig';
 
 const { Text } = Typography;
@@ -246,20 +247,25 @@ export function MessagingChannelsPage() {
                 </Space>
             </Card>
 
-            <Card title={<><ShopOutlined style={{ color: '#0F146D' }} /> Lazada IM Chat</>} style={{ marginBottom: 16 }}>
-                <Space direction="vertical" size={8} style={{ display: 'flex' }}>
-                    <Text type="secondary">
-                        Lazada IM dùng <Text strong>app "IM ERP" riêng</Text> (tách khỏi Gian hàng). Kết nối để nhận & trả lời chat Lazada ngay trong hộp thư.
-                    </Text>
-                    <Button type="primary" icon={<ShopOutlined />} loading={connectLazadaIm.isPending} onClick={handleConnectLazadaIm} disabled={!canConnect}>
-                        Kết nối Lazada IM Chat
-                    </Button>
-                </Space>
-            </Card>
+            {/* Tin nhắn sàn (Lazada IM / TikTok) tắt tạm — chưa triển khai xong; bật lại qua MARKETPLACE_CHAT_ENABLED. */}
+            {MARKETPLACE_CHAT_ENABLED && (
+                <>
+                    <Card title={<><ShopOutlined style={{ color: '#0F146D' }} /> Lazada IM Chat</>} style={{ marginBottom: 16 }}>
+                        <Space direction="vertical" size={8} style={{ display: 'flex' }}>
+                            <Text type="secondary">
+                                Lazada IM dùng <Text strong>app "IM ERP" riêng</Text> (tách khỏi Gian hàng). Kết nối để nhận & trả lời chat Lazada ngay trong hộp thư.
+                            </Text>
+                            <Button type="primary" icon={<ShopOutlined />} loading={connectLazadaIm.isPending} onClick={handleConnectLazadaIm} disabled={!canConnect}>
+                                Kết nối Lazada IM Chat
+                            </Button>
+                        </Space>
+                    </Card>
 
-            <Card title="TikTok">
-                <Text type="secondary">TikTok dùng chung kết nối với Gian hàng. Bật nhắn tin tại <Link to="/channels">trang Gian hàng</Link>.</Text>
-            </Card>
+                    <Card title="TikTok">
+                        <Text type="secondary">TikTok dùng chung kết nối với Gian hàng. Bật nhắn tin tại <Link to="/channels">trang Gian hàng</Link>.</Text>
+                    </Card>
+                </>
+            )}
         </div>
     );
 }
