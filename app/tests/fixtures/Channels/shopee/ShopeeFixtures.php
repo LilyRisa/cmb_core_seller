@@ -133,21 +133,25 @@ final class ShopeeFixtures
         ]]];
     }
 
+    // Shopee v2 get_escrow_list trả `response.escrow_list[]` — mỗi phần tử là object có `order_sn`
+    // (KHÔNG phải `order_sn_list[]` chuỗi phẳng). Fixtures phải khớp đúng shape thật của sàn.
     public static function escrowList(): array
     {
-        return ['error' => '', 'response' => ['order_sn_list' => ['SN_1'], 'more' => false]];
+        return ['error' => '', 'response' => ['escrow_list' => [
+            ['order_sn' => 'SN_1', 'payout_amount' => 210, 'escrow_release_time' => 1767225600],
+        ], 'more' => false]];
     }
 
     /** Page 1 of a multi-page escrow list (more=true). */
     public static function escrowListPage1(): array
     {
-        return ['error' => '', 'response' => ['order_sn_list' => ['SN_P1'], 'more' => true]];
+        return ['error' => '', 'response' => ['escrow_list' => [['order_sn' => 'SN_P1']], 'more' => true]];
     }
 
     /** Page 2 of a multi-page escrow list (more=false / last page). */
     public static function escrowListPage2(): array
     {
-        return ['error' => '', 'response' => ['order_sn_list' => ['SN_P2'], 'more' => false]];
+        return ['error' => '', 'response' => ['escrow_list' => [['order_sn' => 'SN_P2']], 'more' => false]];
     }
 
     /** shipping_parameter response where the platform offers a dropoff option. */

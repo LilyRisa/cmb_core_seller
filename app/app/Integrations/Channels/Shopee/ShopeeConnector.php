@@ -417,6 +417,12 @@ class ShopeeConnector implements ChannelConnector, ShopReportConnector
                 'release_time_from' => $from->getTimestamp(), 'release_time_to' => $to->getTimestamp(),
                 'page_size' => 100, 'page_no' => $pageNo,
             ]);
+            // Shopee v2 get_escrow_list trả `escrow_list[]` (mỗi item là object có `order_sn`),
+            // KHÔNG phải `order_sn_list[]`. Đọc sai field ⇒ 0 order_sn ⇒ settlement 0 line (bug đối soát).
+            // Vẫn nhận `order_sn_list`/chuỗi phẳng để an toàn ngược với mọi shape cũ.
+            foreach ((array) ($list['escrow_list'] ?? []) as $row) {
+                $sns[] = is_array($row) ? (string) ($row['order_sn'] ?? '') : (string) $row;
+            }
             foreach ((array) ($list['order_sn_list'] ?? []) as $sn) {
                 $sns[] = (string) $sn;
             }
