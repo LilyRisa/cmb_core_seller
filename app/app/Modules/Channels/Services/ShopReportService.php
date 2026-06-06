@@ -38,6 +38,18 @@ class ShopReportService
         return $accounts->map(fn (ChannelAccount $a) => $this->reportFor($a))->all();
     }
 
+    /** Báo cáo cho 1 gian hàng (theo id, scoped tenant hiện tại) — dùng cho phân tích AI. */
+    public function reportForAccountId(int $channelAccountId): ?array
+    {
+        $account = ChannelAccount::query()
+            ->whereKey($channelAccountId)
+            ->active()
+            ->whereIn('provider', self::PROVIDERS)
+            ->first();
+
+        return $account ? $this->reportFor($account) : null;
+    }
+
     /** @return array<string,mixed> */
     private function reportFor(ChannelAccount $account): array
     {

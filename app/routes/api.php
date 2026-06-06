@@ -133,6 +133,8 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             // Gated `shop_health_reports` (Pro). Mỗi sàn lộ dữ liệu khác nhau (capability per-sàn).
             Route::get('channel-shop-report', [ShopReportController::class, 'index'])
                 ->middleware('plan.feature:shop_health_reports')->name('channel-shop-report.index');
+            Route::post('channel-shop-report/{id}/ai-insight', [ShopReportController::class, 'aiInsight'])
+                ->whereNumber('id')->middleware('plan.feature:shop_health_reports')->name('channel-shop-report.ai-insight');
 
             // --- Sync log (Phase 1) — webhook_events / sync_runs + re-drive ---
             Route::get('sync-runs', [SyncLogController::class, 'runs'])->name('sync-runs.index');

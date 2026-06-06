@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { tenantApi } from './api';
 import { useCurrentTenantId } from './tenant';
@@ -80,6 +80,26 @@ export function useShopReport() {
         staleTime: 60_000,
         queryFn: async () => {
             const { data } = await api!.get<{ data: ShopReportEntry[] }>('/channel-shop-report');
+            return data.data;
+        },
+    });
+}
+
+export interface ShopAiInsight {
+    score: number;
+    label: string;
+    assessment: string;
+    recommendations: Array<{ action: string; rationale: string }>;
+    ai_narrative: string | null;
+    source: 'rule' | 'ai';
+}
+
+/** Phân tích AI sức khỏe cho 1 gian hàng (chấm điểm + khuyến nghị). */
+export function useShopAiInsight() {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async (channelAccountId: number) => {
+            const { data } = await api!.post<{ data: ShopAiInsight }>(`/channel-shop-report/${channelAccountId}/ai-insight`);
             return data.data;
         },
     });

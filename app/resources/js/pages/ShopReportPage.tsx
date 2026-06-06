@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Alert, Card, Col, Empty, Row, Segmented, Space, Spin, Table, Tag, Typography } from 'antd';
-import { InfoCircleOutlined, SafetyCertificateOutlined, WarningOutlined } from '@ant-design/icons';
+import { Alert, Button, Card, Col, Empty, List, Row, Segmented, Space, Spin, Table, Tag, Typography } from 'antd';
+import { InfoCircleOutlined, RobotOutlined, SafetyCertificateOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import {
@@ -9,6 +9,8 @@ import {
     PROVIDER_LABEL,
     RATING_COLOR,
     useShopReport,
+    useShopAiInsight,
+    type ShopAiInsight,
     type PenaltyPoint,
     type Punishment,
     type ShopMetric,
@@ -82,8 +84,34 @@ function PenaltyBlock({ penalties, punishments }: { penalties: PenaltyPoint[]; p
     );
 }
 
+function aiScoreColor(s: number): string {
+    return s >= 85 ? 'green' : s >= 60 ? 'blue' : s >= 40 ? 'orange' : 'red';
+}
+
+function AiInsightBlock({ data }: { data: ShopAiInsight }) {
+    return (
+        <div style={{ marginTop: 12, borderTop: '1px solid #f0f0f0', paddingTop: 12 }}>
+            <Space size={8} style={{ marginBottom: 6 }} wrap>
+                <RobotOutlined style={{ color: '#722ed1' }} />
+                <Text strong>Phân tích AI</Text>
+                <Tag color={aiScoreColor(data.score)}>{data.score}/100 · {data.label}</Tag>
+                {data.source === 'ai' ? <Tag color="purple">AI</Tag> : <Tag>Tự động</Tag>}
+            </Space>
+            <Paragraph style={{ marginBottom: 8 }}>{data.assessment}</Paragraph>
+            {data.ai_narrative ? <Alert type="info" style={{ marginBottom: 8 }} message={data.ai_narrative} /> : null}
+            <List
+                size="small"
+                dataSource={data.recommendations}
+                locale={{ emptyText: 'Không có khuyến nghị.' }}
+                renderItem={(r) => <List.Item><Text><b>{r.action}</b> — <Text type="secondary">{r.rationale}</Text></Text></List.Item>}
+            />
+        </div>
+    );
+}
+
 function ShopCard({ entry }: { entry: ShopReportEntry }) {
     const providerLabel = PROVIDER_LABEL[entry.provider] ?? entry.provider;
+    const ai = useShopAiInsight();
     const title = (
         <Space>
             <SafetyCertificateOutlined />
@@ -124,7 +152,15 @@ function ShopCard({ entry }: { entry: ShopReportEntry }) {
 
     const events = entry.recent_penalty_events ?? [];
     return (
-        <Card title={title} style={{ marginBottom: 16 }}>
+        <Card
+            title={title}
+            style={{ marginBottom: 16 }}
+            extra={entry.available ? (
+                <Button size="small" icon={<RobotOutlined />} loading={ai.isPending} onClick={() => ai.mutate(entry.channel_account_id)}>
+                    Phân tích AI
+                </Button>
+            ) : null}
+        >
             {body}
             {events.length > 0 && (
                 <div style={{ marginTop: 12, borderTop: '1px solid #f0f0f0', paddingTop: 12 }}>
@@ -142,6 +178,8 @@ function ShopCard({ entry }: { entry: ShopReportEntry }) {
                     ))}
                 </div>
             )}
+            {ai.data ? <AiInsightBlock data={ai.data} /> : null}
+            {ai.isError ? <Alert type="error" showIcon style={{ marginTop: 12 }} message="Phân tích AI thất bại. Vui lòng thử lại." /> : null}
         </Card>
     );
 }
