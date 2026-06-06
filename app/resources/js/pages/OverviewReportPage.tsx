@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Alert, Card, Col, Empty, Row, Segmented, Space, Spin, Statistic, Table, Tag, Typography } from 'antd';
-import { BarChartOutlined, LockOutlined, SafetyCertificateOutlined, WalletOutlined } from '@ant-design/icons';
+import { Alert, Button, Card, Col, DatePicker, Empty, Row, Segmented, Space, Spin, Statistic, Table, Tag, Typography } from 'antd';
+import { BarChartOutlined, DownloadOutlined, LockOutlined, SafetyCertificateOutlined, WalletOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import dayjs from 'dayjs';
+import dayjs, { type Dayjs } from 'dayjs';
 import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from 'recharts';
 import { PageHeader } from '@/components/PageHeader';
 import { ChannelLogo } from '@/components/ChannelLogo';
@@ -44,11 +44,12 @@ function LockedCard({ title, feature }: { title: string; feature: string }) {
 }
 
 export function OverviewReportPage() {
-    const [days, setDays] = useState(30);
-    const { from, to } = useMemo(() => {
-        const end = dayjs();
-        return { from: end.subtract(days - 1, 'day').format('YYYY-MM-DD'), to: end.format('YYYY-MM-DD') };
-    }, [days]);
+    const [range, setRange] = useState<[Dayjs, Dayjs]>(() => [dayjs().subtract(29, 'day'), dayjs()]);
+    const from = range[0].format('YYYY-MM-DD');
+    const to = range[1].format('YYYY-MM-DD');
+    // Preset 7/30/90 chỉ "sáng" khi range = N ngày tính tới hôm nay; chọn ngày tùy chỉnh thì bỏ sáng.
+    const presetDays = range[1].isSame(dayjs(), 'day') ? range[1].diff(range[0], 'day') + 1 : 0;
+    const presetValue = [7, 30, 90].includes(presetDays) ? presetDays : 0;
 
     const revenueQ = useRevenueReport({ from, to, granularity: 'day' });
     const profitQ = useProfitReport({ from, to, granularity: 'day' });
@@ -96,11 +97,71 @@ export function OverviewReportPage() {
         } },
     ];
 
+    // Xuất CSV (UTF-8 BOM để Excel mở đúng tiếng Việt) — gồm các mục đã tải được (tôn trọng khóa-gói).
+    const exportCsv = () => {
+        const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+        const L: string[] = [];
+        L.push(`Báo cáo tổng thể,${from} → ${to}`, '');
+        L.push('Chỉ tiêu,Giá trị');
+        L.push(`Doanh thu,${Math.round(rev?.totals.revenue ?? 0)}`);
+        L.push(`Đơn hàng,${rev?.totals.orders ?? 0}`);
+        L.push(`Giá trị TB/đơn,${Math.round(rev?.totals.avg_order_value ?? 0)}`);
+        if (!isLocked(profitQ.error) && profit) {
+            L.push(`Giá vốn,${Math.round(profit.totals.cogs)}`);
+            L.push(`Phí sàn (ước),${Math.round(profit.totals.fees)}`);
+            L.push(`Lợi nhuận ròng,${Math.round(profit.totals.net_profit)}`);
+            L.push(`Biên lợi nhuận %,${profit.totals.margin_pct}`);
+        }
+        L.push('', 'Doanh thu theo sàn', 'Sàn,Đơn,Doanh thu');
+        (rev?.by_source ?? []).forEach((s) => L.push(`${esc(PROVIDER_LABEL[s.source] ?? s.source)},${s.orders},${Math.round(s.revenue)}`));
+        if (!isLocked(settleQ.error) && settle) {
+            L.push('', 'Đối soát thực');
+            L.push(`Thực nhận (payout),${Math.round(settle.totals.payout)}`);
+            L.push(`Doanh thu đối soát,${Math.round(settle.totals.revenue)}`);
+            L.push(`Phí sàn,${Math.round(settle.totals.fee)}`);
+            L.push(`Số kỳ,${settle.totals.settlements}`, `Đã khớp,${settle.totals.reconciled}`, `Chờ khớp,${settle.totals.pending}`);
+            L.push('', 'Đối soát theo gian hàng', 'Gian hàng,Kỳ,Thực nhận,Phí sàn');
+            settle.by_channel.forEach((c) => L.push(`${esc(shopName(c.channel_account_id))},${c.settlements},${Math.round(c.payout)},${Math.round(c.fee)}`));
+        }
+        if (!isLocked(shopQ.error) && shopRows.length > 0) {
+            L.push('', 'Sức khoẻ gian hàng', 'Gian hàng,Sàn,Xếp hạng,Đạt mục tiêu,Điểm phạt');
+            shopRows.forEach((r) => {
+                const pen = (r.penalties ?? []).reduce((s, p) => s + (p.points || 0), 0);
+                const rank = r.overall_label ?? (r.kind === 'performance' ? 'Hiệu suất' : '—');
+                const goal = r.total_metrics ? `${r.passed_count ?? 0}/${r.total_metrics}` : '—';
+                L.push(`${esc(r.shop_name)},${esc(PROVIDER_LABEL[r.provider] ?? r.provider)},${esc(rank)},${esc(goal)},${pen}`);
+            });
+        }
+        const blob = new Blob(['﻿' + L.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `bao-cao-tong-the_${from}_${to}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     return (
         <div>
             <PageHeader
                 title={<Space><BarChartOutlined />Báo cáo tổng thể</Space>}
-                extra={<Segmented options={RANGE_OPTIONS} value={days} onChange={(v) => setDays(v as number)} />}
+                extra={(
+                    <Space wrap>
+                        <Segmented
+                            options={RANGE_OPTIONS}
+                            value={presetValue}
+                            onChange={(v) => { const d = v as number; setRange([dayjs().subtract(d - 1, 'day'), dayjs()]); }}
+                        />
+                        <DatePicker.RangePicker
+                            allowClear={false}
+                            value={range}
+                            format="DD/MM/YYYY"
+                            maxDate={dayjs()}
+                            onChange={(v) => { if (v && v[0] && v[1]) setRange([v[0], v[1]]); }}
+                        />
+                        <Button icon={<DownloadOutlined />} onClick={exportCsv} disabled={revenueQ.isLoading}>Xuất CSV</Button>
+                    </Space>
+                )}
             />
 
             {revenueQ.isLoading ? (
