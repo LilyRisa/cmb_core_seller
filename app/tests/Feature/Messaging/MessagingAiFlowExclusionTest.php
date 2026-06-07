@@ -3,8 +3,10 @@
 namespace Tests\Feature\Messaging;
 
 use CMBcoreSeller\Models\User;
+use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Models\AiProvider;
 use CMBcoreSeller\Modules\Messaging\Models\AutomationFlow;
+use CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingSetting;
 use CMBcoreSeller\Modules\Messaging\Services\AiFlowExclusionService;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
@@ -93,6 +95,38 @@ class MessagingAiFlowExclusionTest extends TestCase
         $this->assertFalse((bool) $setting->auto_mode_facebook);
         // Marketplace KHÔNG bị ảnh hưởng (chỉ tách nhóm Facebook).
         $this->assertTrue((bool) $setting->auto_mode_marketplace);
+    }
+
+    public function test_catch_all_flow_disables_ai_only_for_its_pages(): void
+    {
+        $pageA = ChannelAccount::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'provider' => 'facebook_page',
+            'external_shop_id' => 'pa', 'shop_name' => 'A', 'status' => 'active', 'messaging_enabled' => true,
+        ]);
+        $pageB = ChannelAccount::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'provider' => 'facebook_page',
+            'external_shop_id' => 'pb', 'shop_name' => 'B', 'status' => 'active', 'messaging_enabled' => true,
+        ]);
+        foreach ([$pageA, $pageB] as $p) {
+            MessagingAccountMeta::query()->create([
+                'channel_account_id' => $p->id, 'tenant_id' => $this->tenant->getKey(),
+                'messaging_enabled' => true, 'ai_auto_mode' => true,
+            ]);
+        }
+
+        $flow = AutomationFlow::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'name' => 'Mọi tin A', 'provider' => 'facebook_page',
+            'status' => AutomationFlow::STATUS_ACTIVE, 'trigger_type' => AutomationFlow::TRIGGER_INBOX_ANY,
+            'trigger_config' => [], 'enabled' => true, 'applies_all_pages' => false, 'version' => 1,
+            'graph' => ['nodes' => [['id' => 't', 'type' => 'trigger', 'data' => []]], 'edges' => []],
+        ]);
+        $flow->pages()->attach($pageA->getKey(), ['tenant_id' => $this->tenant->getKey()]);
+
+        $changed = app(AiFlowExclusionService::class)->disableFacebookAiAutoForFlow($flow);
+
+        $this->assertTrue($changed);
+        $this->assertFalse((bool) MessagingAccountMeta::withoutGlobalScopes()->find($pageA->id)->ai_auto_mode, 'page A tắt AI');
+        $this->assertTrue((bool) MessagingAccountMeta::withoutGlobalScopes()->find($pageB->id)->ai_auto_mode, 'page B không đổi');
     }
 
     public function test_disable_is_one_directional_no_auto_restore(): void

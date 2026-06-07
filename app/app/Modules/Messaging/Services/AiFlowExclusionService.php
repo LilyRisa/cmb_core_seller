@@ -2,9 +2,12 @@
 
 namespace CMBcoreSeller\Modules\Messaging\Services;
 
+use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Models\AutomationFlow;
+use CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingSetting;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Loại trừ lẫn nhau Tầng 2 (ADR-0022 §4): AI auto-reply-all (Facebook) XOR flow
@@ -45,6 +48,38 @@ class AiFlowExclusionService
         $setting->save();
 
         return true;
+    }
+
+    /**
+     * SPEC 0035 — kích hoạt catch-all flow ⇒ tắt AI auto theo ĐÚNG các page của flow
+     * (applies_all_pages ⇒ mọi FB page + cờ nhóm-tenant fallback; ngược lại ⇒ page đã gán).
+     * Trả true nếu có thay đổi (để FE cảnh báo). Tránh tắt AI toàn tenant khi flow chỉ 1 page.
+     */
+    public function disableFacebookAiAutoForFlow(AutomationFlow $flow): bool
+    {
+        $tenantId = (int) $flow->tenant_id;
+        $changed = false;
+
+        if ($flow->applies_all_pages) {
+            $pageIds = ChannelAccount::withoutGlobalScope(TenantScope::class)
+                ->where('tenant_id', $tenantId)->where('provider', 'facebook_page')->pluck('id');
+            // Cờ nhóm-tenant (fallback cho page chưa có meta).
+            $changed = $this->disableFacebookAiAuto($tenantId);
+        } else {
+            // Query pivot trực tiếp (tránh TenantScope của ChannelAccount khi không có tenant context).
+            $pageIds = DB::table('automation_flow_page')
+                ->where('automation_flow_id', $flow->id)->pluck('channel_account_id');
+        }
+
+        foreach ($pageIds as $pageId) {
+            $meta = MessagingAccountMeta::withoutGlobalScope(TenantScope::class)->find($pageId);
+            if ($meta !== null && $meta->ai_auto_mode) {
+                $meta->forceFill(['ai_auto_mode' => false])->save();
+                $changed = true;
+            }
+        }
+
+        return $changed;
     }
 
     /** Flow này có phải catch-all "Mọi tin nhắn" của Facebook không. */

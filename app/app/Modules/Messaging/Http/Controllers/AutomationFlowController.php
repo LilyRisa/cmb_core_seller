@@ -96,7 +96,7 @@ class AutomationFlowController extends Controller
         // Active sẵn rồi đổi trigger sang `inbox_any` (FB) ⇒ vẫn loại trừ AI (ADR-0022 §4).
         $disabledAi = false;
         if ($flow->status === AutomationFlow::STATUS_ACTIVE && $this->exclusion->isFacebookCatchAll($flow)) {
-            $disabledAi = $this->exclusion->disableFacebookAiAuto((int) $flow->tenant_id);
+            $disabledAi = $this->exclusion->disableFacebookAiAutoForFlow($flow);
         }
 
         return response()->json([
@@ -150,7 +150,7 @@ class AutomationFlowController extends Controller
         // Loại trừ Tầng 2 (ADR-0022 §4): kích hoạt flow `inbox_any` FB ⇒ tắt FB AI auto.
         $disabledAi = false;
         if ($this->exclusion->isFacebookCatchAll($flow)) {
-            $disabledAi = $this->exclusion->disableFacebookAiAuto((int) $flow->tenant_id);
+            $disabledAi = $this->exclusion->disableFacebookAiAutoForFlow($flow);
         }
 
         return response()->json([
