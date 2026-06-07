@@ -303,7 +303,7 @@ services:
         condition: service_healthy
     networks:
       - default
-      - proxy                          # NPM/Caddy route wss://<domain>/app + https /apps → cmb-reverb:8080
+      - proxy                          # NPM/Caddy route wss://<domain>/app → cmb-reverb:8080 (xem docs/07-infra/reverb-realtime-setup.md)
     expose:
       - "8080"
     healthcheck:
