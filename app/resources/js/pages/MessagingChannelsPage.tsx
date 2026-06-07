@@ -218,16 +218,18 @@ export function MessagingChannelsPage() {
                                         )}
                                     </Space>
                                 </Space>
-                                {canAi && (
-                                    <Tooltip title="AI tự trả lời tin nhắn cho riêng trang này">
-                                        <Space size={4} style={{ marginRight: 8 }}>
-                                            <RobotOutlined style={{ color: p.ai_auto_mode ? '#7C3AED' : '#94A3B8' }} />
-                                            <Switch size="small" checked={p.ai_auto_mode} loading={setAiMode.isPending}
-                                                onChange={(v) => setAiMode.mutate({ id: p.id, ai_auto_mode: v }, { onError: (e) => message.error(errorMessage(e)) })} />
-                                        </Space>
-                                    </Tooltip>
-                                )}
-                                {canConnect && (
+                                <Space size={12} align="center">
+                                    {canAi && (
+                                        <Tooltip title="AI tự trả lời tin nhắn cho riêng trang này">
+                                            <Space size={6} align="center">
+                                                <RobotOutlined style={{ color: p.ai_auto_mode ? '#7C3AED' : '#94A3B8' }} />
+                                                <Text type="secondary" style={{ fontSize: 12 }}>AI tự trả lời</Text>
+                                                <Switch size="small" checked={p.ai_auto_mode} loading={setAiMode.isPending}
+                                                    onChange={(v) => setAiMode.mutate({ id: p.id, ai_auto_mode: v }, { onError: (e) => message.error(errorMessage(e)) })} />
+                                            </Space>
+                                        </Tooltip>
+                                    )}
+                                    {canConnect && (
                                     <Space>
                                         <Button size="small" icon={<SyncOutlined spin={syncing} />} loading={syncingId === p.id} disabled={syncing} onClick={() => handleSync(p.id)}>
                                             Đồng bộ lại
@@ -250,7 +252,8 @@ export function MessagingChannelsPage() {
                                             <Button size="small" danger icon={<DisconnectOutlined />} loading={disconnectingId === p.id}>Ngắt kết nối</Button>
                                         </Popconfirm>
                                     </Space>
-                                )}
+                                    )}
+                                </Space>
                             </div>
                         </Card>
                         );
