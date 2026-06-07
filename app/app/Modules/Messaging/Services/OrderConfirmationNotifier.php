@@ -87,7 +87,7 @@ class OrderConfirmationNotifier
         );
 
         if ($template !== null) {
-            [$vars, $preview] = $this->resolveTemplate($template, $order, $url, $body);
+            [$vars, $preview] = $this->resolveTemplate($template, $conv, $order, $url, $body);
 
             return $this->outbound->queueUtilityTemplate($conv, (int) $template->getKey(), $vars, $preview);
         }
@@ -111,12 +111,9 @@ class OrderConfirmationNotifier
      *
      * @return array{0: list<string>, 1: string}
      */
-    private function resolveTemplate(UtilityTemplate $template, Order $order, string $url, string $fallbackPreview): array
+    private function resolveTemplate(UtilityTemplate $template, Conversation $conv, Order $order, string $url, string $fallbackPreview): array
     {
-        $data = [
-            'order_number' => (string) $order->order_number,
-            'tracking_url' => $url,
-        ];
+        $data = $this->resolveDataMap((string) ($conv->buyer_name ?? ''), (string) $order->order_number, $url);
 
         $names = array_values((array) ($template->variables ?? []));
         $vars = array_map(fn ($name): string => (string) ($data[$name] ?? ''), $names);
@@ -130,6 +127,27 @@ class OrderConfirmationNotifier
         }
 
         return [$vars, $preview];
+    }
+
+    /**
+     * Bảng nguồn dữ liệu điền tham số VỊ TRÍ ({{1}},{{2}}…) của mẫu tin tiện ích.
+     * Mẫu lưu `variables` = danh sách tên nguồn theo thứ tự; mỗi tên map vào 1 giá trị ở đây.
+     * `buyer.first_name` = chữ cuối của tên (tên gọi tiếng Việt).
+     *
+     * @return array<string,string>
+     */
+    private function resolveDataMap(string $buyerName, string $orderNumber, string $url): array
+    {
+        $buyerName = trim($buyerName);
+        $parts = $buyerName !== '' ? preg_split('/\s+/', $buyerName) : [];
+        $firstName = $parts !== [] && $parts !== false ? (string) end($parts) : '';
+
+        return [
+            'order_number' => $orderNumber,
+            'tracking_url' => $url,
+            'buyer.name' => $buyerName,
+            'buyer.first_name' => $firstName,
+        ];
     }
 
     private function withinFreeWindow(Conversation $conv): bool

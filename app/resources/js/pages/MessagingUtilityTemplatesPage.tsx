@@ -21,6 +21,8 @@ import {
 const SUPPORTED_VARIABLES: { name: string; label: string }[] = [
     { name: 'order_number', label: 'Mã đơn hàng' },
     { name: 'tracking_url', label: 'Link tra cứu đơn' },
+    { name: 'buyer.name', label: 'Tên khách' },
+    { name: 'buyer.first_name', label: 'Tên gọi khách (chữ cuối)' },
 ];
 
 const STATUS_META: Record<UtilityTemplateStatus, { color: string; label: string }> = {
@@ -178,12 +180,12 @@ export function MessagingUtilityTemplatesPage() {
                     <Form.Item name="name" label="Tên" rules={[{ required: true }]}><Input /></Form.Item>
                     <Form.Item name="language" label="Ngôn ngữ" rules={[{ required: true }]} initialValue="vi"><Input style={{ width: 120 }} /></Form.Item>
                     <Form.Item name="body" label="Nội dung" rules={[{ required: true }]}
-                        extra="Dùng {{1}}, {{2}}… cho biến. Vd: Đơn {{1}} đã xác nhận. Tra cứu: {{2}}">
-                        <Input.TextArea rows={4} placeholder="Đơn {{1}} đã xác nhận. Tra cứu: {{2}}" />
+                        extra="Facebook chỉ nhận biến theo VỊ TRÍ {{1}}, {{2}}… Gõ {{buyer.name}} trực tiếp sẽ KHÔNG được thay tên (và Meta có thể từ chối) — hãy đặt {{1}} rồi chọn nguồn 'Tên khách' ở ô Biến bên dưới. Vd: Chào {{1}}, đơn {{2}} đã xác nhận. Tra cứu: {{3}}">
+                        <Input.TextArea rows={4} placeholder="Chào {{1}}, đơn {{2}} đã xác nhận. Tra cứu: {{3}}" />
                     </Form.Item>
                     <Form.Item name="variables" label="Biến (theo thứ tự {{1}},{{2}}…)"
-                        extra={`Nhập tên nguồn, cách nhau bởi dấu phẩy. Hỗ trợ: ${SUPPORTED_VARIABLES.map((v) => v.name).join(', ')}.`}>
-                        <Input placeholder="order_number, tracking_url" />
+                        extra={`Nhập tên nguồn theo đúng thứ tự vị trí, cách nhau bởi dấu phẩy. Hỗ trợ: ${SUPPORTED_VARIABLES.map((v) => `${v.name} (${v.label})`).join(', ')}.`}>
+                        <Input placeholder="buyer.name, order_number, tracking_url" />
                     </Form.Item>
                 </Form>
             </Modal>
