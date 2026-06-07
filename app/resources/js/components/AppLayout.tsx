@@ -54,6 +54,7 @@ function buildNav(): MenuProps['items'] {
                 { key: '/messaging', label: <Link to="/messaging">Hộp thư</Link> },
                 { key: '/messaging/channels', label: <Link to="/messaging/channels">Kết nối kênh</Link> },
                 { key: '/messaging/templates', label: <Link to="/messaging/templates">Mẫu tin</Link> },
+                { key: '/messaging/utility-templates', label: <Link to="/messaging/utility-templates">Tin tiện ích</Link> },
                 { key: '/messaging/auto-rules', label: <Link to="/messaging/auto-rules">Tự động trả lời</Link> },
                 { key: '/messaging/flows', label: <Link to="/messaging/flows">Kịch bản tự động</Link> },
                 { key: '/messaging/knowledge', label: <Link to="/messaging/knowledge">AI training</Link> },
@@ -95,7 +96,7 @@ function buildNav(): MenuProps['items'] {
 }
 
 // Flat key list for selected-key matching.
-const BASE_KEYS = ['/', '/orders', '/customers', '/messaging', '/messaging/channels', '/messaging/templates', '/messaging/auto-rules', '/messaging/knowledge', '/channels', '/products', '/inventory',
+const BASE_KEYS = ['/', '/orders', '/customers', '/messaging', '/messaging/channels', '/messaging/templates', '/messaging/utility-templates', '/messaging/auto-rules', '/messaging/knowledge', '/channels', '/products', '/inventory',
     '/procurement/demand-planning', '/procurement/suppliers', '/procurement/purchase-orders',
     '/reports/overview', '/reports', '/shop-report', '/marketing', '/finance/settlements',
     '/accounting/journals', '/accounting/chart-of-accounts', '/accounting/balances', '/accounting/ar', '/accounting/ap', '/accounting/cash', '/accounting/reports', '/accounting/periods',
