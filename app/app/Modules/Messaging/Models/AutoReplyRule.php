@@ -2,8 +2,10 @@
 
 namespace CMBcoreSeller\Modules\Messaging\Models;
 
+use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
@@ -27,6 +29,7 @@ use Illuminate\Support\Carbon;
  * @property array $action
  * @property int $cooldown_seconds
  * @property bool $enabled
+ * @property bool $applies_all_pages
  * @property int $priority
  * @property ?int $created_by
  * @property ?Carbon $created_at
@@ -58,7 +61,7 @@ class AutoReplyRule extends Model
 
     protected $fillable = [
         'tenant_id', 'name', 'trigger', 'trigger_config',
-        'filter', 'action', 'cooldown_seconds', 'enabled', 'priority', 'created_by',
+        'filter', 'action', 'cooldown_seconds', 'enabled', 'applies_all_pages', 'priority', 'created_by',
     ];
 
     protected function casts(): array
@@ -70,6 +73,13 @@ class AutoReplyRule extends Model
             'cooldown_seconds' => 'integer',
             'priority' => 'integer',
             'enabled' => 'boolean',
+            'applies_all_pages' => 'boolean',
         ];
+    }
+
+    /** Các page (channel_account) rule này áp dụng — bỏ qua khi `applies_all_pages=true`. SPEC 0035. */
+    public function pages(): BelongsToMany
+    {
+        return $this->belongsToMany(ChannelAccount::class, 'auto_reply_rule_page');
     }
 }

@@ -9,6 +9,7 @@ use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Models\MessageTemplate;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
 
 /**
@@ -41,6 +42,31 @@ class AutoReplyEngine
     ) {}
 
     /**
+     * SPEC 0035 — lọc rule theo PAGE của conversation: chỉ rule `applies_all_pages`
+     * HOẶC có gán page `$conv->channel_account_id`. Ưu tiên rule gắn page cụ thể
+     * (applies_all_pages=false) đứng TRƯỚC rule "tất cả trang".
+     *
+     * @param  Builder<AutoReplyRule>  $query
+     * @return Builder<AutoReplyRule>
+     */
+    private function scopeToPage(Builder $query, Conversation $conv): Builder
+    {
+        $pageId = (int) $conv->channel_account_id;
+
+        // whereExists trên pivot trực tiếp (KHÔNG qua relation ChannelAccount) — tránh
+        // TenantScope của ChannelAccount lọc rỗng khi chạy trong job không có tenant context.
+        return $query
+            ->where(fn (Builder $q) => $q
+                ->where('applies_all_pages', true)
+                ->orWhereExists(fn ($sub) => $sub
+                    ->selectRaw('1')
+                    ->from('auto_reply_rule_page')
+                    ->whereColumn('auto_reply_rule_page.auto_reply_rule_id', 'auto_reply_rules.id')
+                    ->where('auto_reply_rule_page.channel_account_id', $pageId)))
+            ->orderByRaw('applies_all_pages asc');
+    }
+
+    /**
      * Fire rule ưu tiên cao nhất khớp `$trigger`. Trả `AutoReplyRun` đã fire, hoặc null.
      *
      * @param  array<string,mixed>  $context  trigger-specific: order_status, now, ...
@@ -54,10 +80,13 @@ class AutoReplyEngine
             return $this->fireKeyword($conv, $context, $now);
         }
 
-        $rules = AutoReplyRule::withoutGlobalScope(TenantScope::class)
-            ->where('tenant_id', $conv->tenant_id)
-            ->where('trigger', $trigger)
-            ->where('enabled', true)
+        $rules = $this->scopeToPage(
+            AutoReplyRule::withoutGlobalScope(TenantScope::class)
+                ->where('tenant_id', $conv->tenant_id)
+                ->where('trigger', $trigger)
+                ->where('enabled', true),
+            $conv,
+        )
             ->orderBy('priority')
             ->orderBy('id')
             ->get();
@@ -117,11 +146,13 @@ class AutoReplyEngine
 
         if ($trigger === AutoReplyRule::TRIGGER_KEYWORD) {
             $haystack = mb_strtolower((string) ($context['inbound_body'] ?? $conv->last_message_preview ?? ''));
-            $rules = AutoReplyRule::withoutGlobalScope(TenantScope::class)
-                ->where('tenant_id', $conv->tenant_id)
-                ->where('trigger', AutoReplyRule::TRIGGER_KEYWORD)
-                ->where('enabled', true)
-                ->get();
+            $rules = $this->scopeToPage(
+                AutoReplyRule::withoutGlobalScope(TenantScope::class)
+                    ->where('tenant_id', $conv->tenant_id)
+                    ->where('trigger', AutoReplyRule::TRIGGER_KEYWORD)
+                    ->where('enabled', true),
+                $conv,
+            )->get();
 
             foreach ($rules as $rule) {
                 if ($this->matchesFilter($rule, $conv, $context) && $this->countMatchedKeywords($rule, $haystack) > 0) {
@@ -132,11 +163,13 @@ class AutoReplyEngine
             return false;
         }
 
-        $rules = AutoReplyRule::withoutGlobalScope(TenantScope::class)
-            ->where('tenant_id', $conv->tenant_id)
-            ->where('trigger', $trigger)
-            ->where('enabled', true)
-            ->get();
+        $rules = $this->scopeToPage(
+            AutoReplyRule::withoutGlobalScope(TenantScope::class)
+                ->where('tenant_id', $conv->tenant_id)
+                ->where('trigger', $trigger)
+                ->where('enabled', true),
+            $conv,
+        )->get();
 
         foreach ($rules as $rule) {
             if ($this->matchesFilter($rule, $conv, $context) && $this->conditionMet($rule, $conv, $context, $now)) {
@@ -159,10 +192,13 @@ class AutoReplyEngine
     {
         $haystack = mb_strtolower((string) ($context['inbound_body'] ?? $conv->last_message_preview ?? ''));
 
-        $rules = AutoReplyRule::withoutGlobalScope(TenantScope::class)
-            ->where('tenant_id', $conv->tenant_id)
-            ->where('trigger', AutoReplyRule::TRIGGER_KEYWORD)
-            ->where('enabled', true)
+        $rules = $this->scopeToPage(
+            AutoReplyRule::withoutGlobalScope(TenantScope::class)
+                ->where('tenant_id', $conv->tenant_id)
+                ->where('trigger', AutoReplyRule::TRIGGER_KEYWORD)
+                ->where('enabled', true),
+            $conv,
+        )
             ->orderBy('priority')
             ->orderBy('id')
             ->get();
@@ -187,8 +223,12 @@ class AutoReplyEngine
             return null;
         }
 
-        // Sắp xếp: matched DESC, priority ASC, id ASC.
+        // Sắp xếp: page-specific TRƯỚC (SPEC 0035), rồi matched DESC, priority ASC, id ASC.
         usort($candidates, static function (array $a, array $b): int {
+            // applies_all_pages=false (page cụ thể) ưu tiên hơn =true (tất cả trang).
+            if ($a['rule']->applies_all_pages !== $b['rule']->applies_all_pages) {
+                return ($a['rule']->applies_all_pages ? 1 : 0) <=> ($b['rule']->applies_all_pages ? 1 : 0);
+            }
             if ($b['matched'] !== $a['matched']) {
                 return $b['matched'] <=> $a['matched'];
             }

@@ -67,6 +67,7 @@ class MessagingCommentAutoReplyTest extends TestCase
             'tenant_id' => $this->tenant->getKey(),
             'name' => 'r',
             'enabled' => true,
+            'applies_all_pages' => true,
             'cooldown_seconds' => 0,
             'priority' => 100,
         ], $attrs));

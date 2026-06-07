@@ -139,7 +139,7 @@ class MessagingAiPriorityGateTest extends TestCase
             'tenant_id' => $this->tenant->getKey(), 'name' => 'Giá', 'trigger' => AutoReplyRule::TRIGGER_KEYWORD,
             'trigger_config' => ['keywords' => ['giá']], 'filter' => [],
             'action' => ['kind' => AutoReplyRule::ACTION_RAW, 'raw_text' => 'Dạ giá là...'],
-            'cooldown_seconds' => 0, 'enabled' => true, 'priority' => 100,
+            'cooldown_seconds' => 0, 'enabled' => true, 'applies_all_pages' => true, 'priority' => 100,
         ]);
         $msg = $this->inbound($conv, 'cho hỏi GIÁ bao nhiêu');
 

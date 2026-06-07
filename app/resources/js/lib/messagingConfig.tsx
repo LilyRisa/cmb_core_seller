@@ -165,6 +165,9 @@ export interface AutoReplyRule {
     action: RuleAction;
     cooldown_seconds: number;
     enabled: boolean;
+    /** SPEC 0035 — true: áp mọi trang; false: chỉ channel_account_ids. */
+    applies_all_pages: boolean;
+    channel_account_ids: number[];
     priority: number;
 }
 

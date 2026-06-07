@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { MessagingNav } from '@/components/MessagingNav';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
-import { type AutoReplyRule, type RuleTrigger, type ThreadType, useAutoRules, useDeleteRule, useSaveRule, useTemplates } from '@/lib/messagingConfig';
+import { type AutoReplyRule, type RuleTrigger, type ThreadType, useAutoRules, useDeleteRule, useMessagingChannels, useSaveRule, useTemplates } from '@/lib/messagingConfig';
 
 const TRIGGER_LABELS: Record<RuleTrigger, string> = {
     first_message: 'Chào lần đầu / bình luận đầu',
@@ -56,7 +56,9 @@ export function MessagingAutoRulesPage() {
     const trigger = Form.useWatch('trigger', form) as RuleTrigger | undefined;
     const threadChoice = (Form.useWatch('thread_choice', form) as ThreadChoice | undefined) ?? 'message';
     const actionKind = (Form.useWatch('action_kind', form) as 'raw' | 'template' | 'ai_reply' | undefined) ?? 'raw';
+    const appliesAll = (Form.useWatch('applies_all_pages', form) as boolean | undefined) ?? false;
     const templates = useTemplates().data?.data ?? [];
+    const channels = useMessagingChannels().data ?? [];
 
     const openForm = (r?: AutoReplyRule) => {
         setEditing(r ?? null);
@@ -71,8 +73,10 @@ export function MessagingAutoRulesPage() {
                 minutes: r.trigger_config?.minutes,
                 order_status: r.trigger_config?.order_status,
                 keywords: Array.isArray(r.trigger_config?.keywords) ? r.trigger_config.keywords : [],
+                applies_all_pages: r.applies_all_pages,
+                channel_account_ids: r.channel_account_ids ?? [],
             }
-            : { enabled: true, trigger: 'first_message', cooldown_seconds: 3600, priority: 100, keywords: [], thread_choice: 'message', action_kind: 'raw', comment_target_choice: 'public' });
+            : { enabled: true, trigger: 'first_message', cooldown_seconds: 3600, priority: 100, keywords: [], thread_choice: 'message', action_kind: 'raw', comment_target_choice: 'public', applies_all_pages: false, channel_account_ids: [] });
         setOpen(true);
     };
 
@@ -100,6 +104,8 @@ export function MessagingAutoRulesPage() {
             trigger_config,
             filter: { thread_types: threadTypes },
             action,
+            applies_all_pages: !!v.applies_all_pages,
+            channel_account_ids: v.applies_all_pages ? [] : (v.channel_account_ids ?? []),
         };
         save.mutate(payload, {
             onSuccess: () => { message.success('Đã lưu quy tắc'); setOpen(false); },
@@ -114,6 +120,9 @@ export function MessagingAutoRulesPage() {
             const c = threadChoiceFrom(r.filter?.thread_types);
             return <Tag color={c === 'comment' ? 'gold' : c === 'both' ? 'geekblue' : 'green'}>{c === 'comment' ? 'Bình luận' : c === 'both' ? 'Cả hai' : 'Tin nhắn'}</Tag>;
         } },
+        { title: 'Phạm vi trang', width: 130, render: (_, r) => r.applies_all_pages
+            ? <Tag color="default">Tất cả trang</Tag>
+            : <Tag color="cyan">{(r.channel_account_ids ?? []).length} trang</Tag> },
         { title: 'Nội dung', render: (_, r) => {
             if (r.action?.kind === 'ai_reply') return <Tag color="purple">AI tự soạn</Tag>;
             if (r.action?.kind === 'template') return <span style={{ color: '#64748B' }}>Mẫu nhanh</span>;
@@ -155,6 +164,17 @@ export function MessagingAutoRulesPage() {
                             <Radio.Button value="both">Cả hai</Radio.Button>
                         </Radio.Group>
                     </Form.Item>
+                    <Form.Item name="applies_all_pages" label="Áp dụng cho trang" valuePropName="checked"
+                        extra="Bật = áp mọi trang. Tắt = chỉ các trang được chọn (ưu tiên hơn quy tắc 'tất cả trang').">
+                        <Switch checkedChildren="Tất cả trang" unCheckedChildren="Chọn trang" />
+                    </Form.Item>
+                    {!appliesAll && (
+                        <Form.Item name="channel_account_ids" label="Trang áp dụng"
+                            rules={[{ required: true, type: 'array', min: 1, message: 'Chọn ít nhất 1 trang hoặc bật "Tất cả trang"' }]}>
+                            <Select mode="multiple" optionFilterProp="label" placeholder="Chọn trang áp dụng"
+                                options={channels.map((c) => ({ value: c.id, label: c.name || c.shop_name || c.external_shop_id }))} />
+                        </Form.Item>
+                    )}
                     {(threadChoice === 'comment' || threadChoice === 'both') && (
                         <Form.Item name="comment_target_choice" label="Với bình luận, gửi" extra="Trả lời công khai dưới bình luận và/hoặc nhắn riêng cho người bình luận.">
                             <Radio.Group optionType="button" buttonStyle="solid">
