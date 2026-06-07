@@ -21,6 +21,7 @@ import {
     useLikeComment,
     useMarkRead,
     useMarkUnread,
+    useMessagingRealtime,
     useMessagingTags,
     useReplyComment,
     useResendMessage,
@@ -236,6 +237,9 @@ function isOutsideWindow(lastInboundAt: string | null): boolean {
 export function MessagingPage() {
     const { message } = App.useApp();
     const screens = Grid.useBreakpoint();
+
+    // Realtime inbox (Reverb) — đẩy tin/hội thoại mới tức thời; no-op khi Reverb tắt (polling fallback).
+    useMessagingRealtime();
 
     // ── Delivery status localisation ──────────────────────────────────────────
     const DELIVERY_STATUS_LABEL: Record<string, string> = {

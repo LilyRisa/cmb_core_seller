@@ -65,6 +65,20 @@ x-app-env: &app-env
   REDIS_PASSWORD: "null"
   CACHE_STORE: redis
   QUEUE_CONNECTION: redis
+  # --- Realtime inbox (Laravel Reverb / WebSocket) — ADR-0021 -----------------
+  # App/worker BẮN event tới reverb container qua Pusher HTTP API NỘI BỘ
+  # (http://reverb:8080) — KHÔNG đi qua proxy. Browser kết nối wss QUA proxy
+  # (xem service `reverb` + build-args VITE_REVERB_* của web). Đổi BROADCAST_CONNECTION
+  # về "log" nếu tạm tắt realtime (FE tự fallback polling).
+  BROADCAST_CONNECTION: ${BROADCAST_CONNECTION:-reverb}
+  REVERB_APP_ID: ${REVERB_APP_ID:-533057}
+  REVERB_APP_KEY: ${REVERB_APP_KEY:-iojmwem7osjrbryn67y4}
+  REVERB_APP_SECRET: ${REVERB_APP_SECRET:-wztxonql2rcfyrdjkk2g}
+  REVERB_HOST: reverb            # app→reverb nội bộ (service name)
+  REVERB_PORT: "8080"
+  REVERB_SCHEME: http
+  REVERB_SERVER_HOST: 0.0.0.0    # reverb bind mọi interface trong container
+  REVERB_SERVER_PORT: "8080"
   # Object storage (minio service)
   FILESYSTEM_DISK: s3
   AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}     # required (also the MinIO root user)
@@ -238,6 +252,14 @@ services:
     build:
       context: ./app
       dockerfile: docker/nginx/Dockerfile
+      args:
+        # Realtime (Reverb) — nhúng vào bundle FE lúc build (ADR-0021). HOST = domain
+        # CÔNG KHAI browser kết nối wss (qua proxy), KHÔNG phải service name nội bộ.
+        # Bỏ trống VITE_REVERB_APP_KEY ⇒ FE polling fallback (không bật realtime).
+        VITE_REVERB_APP_KEY: ${REVERB_APP_KEY:-iojmwem7osjrbryn67y4}
+        VITE_REVERB_HOST: ${VITE_REVERB_HOST:-app.cmbcore.com}
+        VITE_REVERB_PORT: ${VITE_REVERB_PORT:-443}
+        VITE_REVERB_SCHEME: ${VITE_REVERB_SCHEME:-https}
     image: cmbcoreseller-web:${APP_TAG:-latest}
     depends_on:
       - app
@@ -268,6 +290,27 @@ services:
       timeout: 10s
       retries: 3
     stop_grace_period: 30s
+    restart: unless-stopped
+    logging: *logging
+
+  reverb:                             # Laravel Reverb WebSocket server (realtime inbox — ADR-0021)
+    build: *app-build
+    image: cmbcoreseller-app:${APP_TAG:-latest}
+    command: ["php", "artisan", "reverb:start", "--host=0.0.0.0", "--port=8080"]
+    environment: *app-env
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - default
+      - proxy                          # NPM/Caddy route wss://<domain>/app + https /apps → cmb-reverb:8080
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/8080' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     restart: unless-stopped
     logging: *logging
 

@@ -1,7 +1,7 @@
 # ADR-0021: Realtime messaging dùng Laravel Reverb; fallback polling khi Reverb chưa bật
 
-- **Trạng thái:** Proposed
-- **Ngày:** 2026-05-19
+- **Trạng thái:** Accepted (triển khai 2026-06-08; cần verify WebSocket proxy trên staging trước go-live)
+- **Ngày:** 2026-05-19 (cập nhật 2026-06-08)
 - **Người quyết định:** Team (chờ duyệt SPEC-0024 + quyết định "kéo Reverb từ Phase 8 vào trước")
 - **Liên quan:** SPEC-0024, `tech-stack.md` (Realtime dự kiến: Reverb), `06-frontend/overview.md` §4.11
 
@@ -79,3 +79,13 @@ Authorization (private channel):
 - Cập nhật `06-frontend/overview.md` §4.11: realtime đã enabled — Reverb private channel pattern.
 - Cập nhật `roadmap.md` Phase 8+: chuyển "Reverb realtime" sang "Done (Phase 7.x cùng SPEC-0024)".
 - ADR-0007 ghi nhận: realtime FE qua Reverb không thay thế webhook+polling backend (vẫn áp).
+
+## Triển khai (2026-06-08)
+
+Code + cấu hình đã xong, đã test phần authz; **việc còn lại là verify WebSocket qua proxy trên staging.**
+
+- **Backend:** `laravel/reverb` đã cài. `config/reverb.php` + `config/broadcasting.php` (connection `reverb`). Events `MessageReceived`/`MessageSent`/`ConversationCreated` (đã có `ShouldBroadcast` + `BroadcastsOnTenantChannel`) broadcast lên `private-tenant.{id}.messaging`.
+- **Authz:** `routes/channels.php` → `MessagingChannelAuthorizer::canViewTenantMessaging()` (kiểm membership + `messaging.view`, set CurrentTenant vì `/broadcasting/auth` không qua EnsureTenant). Test `MessagingChannelAuthzTest` phủ member / non-member / **cross-tenant (bị chặn)** / tenant lạ.
+- **FE:** `laravel-echo` + `pusher-js`. `lib/echo.ts` (`getEcho()` lazy; null khi thiếu `VITE_REVERB_APP_KEY` ⇒ polling fallback; authorizer dùng axios `/broadcasting/auth` kèm cookie+CSRF). Hook `useMessagingRealtime()` (gọi ở `MessagingPage`) subscribe channel → invalidate query khi có event. **Polling (`refetchInterval`) giữ nguyên làm fallback.**
+- **Môi trường:** dev `.env` `BROADCAST_CONNECTION=log` (FE polling); `phpunit.xml` đặt `null` (test không bắn). Prod `docker-compose.prod.yml`: thêm service `reverb` (`reverb:start`, bind 8080, trên network `proxy`); app→reverb nội bộ `http://reverb:8080`; browser→reverb qua proxy. Web image nhận build-args `VITE_REVERB_*` (HOST = domain công khai).
+- **CẦN LÀM KHI DEPLOY (chưa verify được ngoài staging):** cấu hình reverse proxy (NPM/Caddy) route `wss://<domain>/app` **và** `https://<domain>/apps` → `cmb-reverb:8080` kèm header `Upgrade`/`Connection: upgrade`. Thiếu bước này realtime không chạy nhưng FE vẫn polling (không vỡ).

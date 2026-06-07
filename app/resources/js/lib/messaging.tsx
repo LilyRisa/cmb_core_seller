@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { tenantApi } from './api';
+import { getEcho } from './echo';
 import { useCurrentTenantId } from './tenant';
 import type { Paginated } from './orders';
 
@@ -118,6 +119,35 @@ export interface ConversationFilters {
 function useScopedApi() {
     const tenantId = useCurrentTenantId();
     return useMemo(() => (tenantId == null ? null : tenantApi(tenantId)), [tenantId]);
+}
+
+/**
+ * Realtime inbox (ADR-0021 — Reverb). Subscribe private channel
+ * `tenant.{id}.messaging`; khi có tin/hội thoại mới → invalidate cache để refetch
+ * NGAY (không đợi polling 10–20s). No-op khi Reverb tắt (getEcho()=null) ⇒ polling
+ * fallback vẫn chạy. Gọi 1 lần ở trang inbox.
+ */
+export function useMessagingRealtime(): void {
+    const tenantId = useCurrentTenantId();
+    const qc = useQueryClient();
+
+    useEffect(() => {
+        const echo = getEcho();
+        if (echo == null || tenantId == null) return;
+
+        const channelName = `tenant.${tenantId}.messaging`;
+        const channel = echo.private(channelName);
+        const refresh = () => {
+            qc.invalidateQueries({ queryKey: ['messaging', 'conversations'] });
+            qc.invalidateQueries({ queryKey: ['messaging', 'thread'] });
+            qc.invalidateQueries({ queryKey: ['messaging', 'unread-feed'] });
+        };
+        channel.listen('.message.received', refresh);
+        channel.listen('.message.sent', refresh);
+        channel.listen('.conversation.created', refresh);
+
+        return () => { echo.leave(channelName); };
+    }, [tenantId, qc]);
 }
 
 export function useConversations(filters: ConversationFilters) {
