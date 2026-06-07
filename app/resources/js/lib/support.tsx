@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { tenantApi } from './api';
+import { getEcho, realtimeEnabled } from './echo';
 import { useCurrentTenantId } from './tenant';
 
 /**
@@ -90,7 +91,7 @@ export interface SupportConversation {
  * Hội thoại CSKH của tenant (đầy đủ tin + đính kèm signed URL). Poll 8s KHI tab mở.
  * Cùng `queryKey` với widget badge ⇒ React Query gộp observer. Lỗi (vd 402) ⇒ ngừng poll.
  */
-export function useSupportConversations(enabled: boolean, intervalMs = 8_000) {
+export function useSupportConversations(enabled: boolean, intervalMs = realtimeEnabled() ? 60_000 : 8_000) {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();
     return useQuery({
@@ -106,7 +107,7 @@ export function useSupportConversations(enabled: boolean, intervalMs = 8_000) {
  * Nguồn NHẸ cho badge widget (tổng tin CSKH chưa đọc của tenant). Poll TOÀN CỤC 20s
  * (mount ở HelpChatWidget) — không cần tải cả thread.
  */
-export function useSupportUnread(enabled: boolean, intervalMs = 20_000) {
+export function useSupportUnread(enabled: boolean, intervalMs = realtimeEnabled() ? 60_000 : 20_000) {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();
     return useQuery({
@@ -116,6 +117,30 @@ export function useSupportUnread(enabled: boolean, intervalMs = 20_000) {
         refetchInterval: (query) => (!enabled || query.state.status === 'error' ? false : intervalMs),
         queryFn: async () => (await api!.get<{ data: { unread: number } }>('/support/unread')).data.data.unread,
     });
+}
+
+/**
+ * Realtime CSKH (ADR-0021 — Reverb). Subscribe private channel `tenant.{id}.support`; có tin mới
+ * (user/CSKH/đóng cuộc) → invalidate badge + hội thoại để cập nhật NGAY thay vì đợi poll. No-op khi
+ * Reverb tắt (getEcho()=null) ⇒ polling fallback vẫn chạy. Gọi 1 lần ở widget Support.
+ */
+export function useSupportRealtime(): void {
+    const tenantId = useCurrentTenantId();
+    const qc = useQueryClient();
+
+    useEffect(() => {
+        const echo = getEcho();
+        if (echo == null || tenantId == null) return;
+
+        const channelName = `tenant.${tenantId}.support`;
+        const refresh = () => {
+            void qc.invalidateQueries({ queryKey: ['support', 'unread', tenantId] });
+            void qc.invalidateQueries({ queryKey: ['support', 'conversations', tenantId] });
+        };
+        echo.private(channelName).listen('.support.message.created', refresh);
+
+        return () => { echo.leave(channelName); };
+    }, [tenantId, qc]);
 }
 
 /** Gửi tin CSKH (multipart body + files[]). Tự mở cuộc mới nếu cuộc gần nhất đã đóng. */

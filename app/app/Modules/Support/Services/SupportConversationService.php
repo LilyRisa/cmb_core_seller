@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Support\Services;
 
+use CMBcoreSeller\Modules\Support\Events\SupportMessageCreated;
 use CMBcoreSeller\Modules\Support\Models\SupportConversation;
 use CMBcoreSeller\Modules\Support\Models\SupportMessage;
 use CMBcoreSeller\Modules\Support\Models\SupportMessageAttachment;
@@ -30,7 +31,7 @@ class SupportConversationService
         // Validate đính kèm TRƯỚC (ném 422 trước khi ghi DB/disk — không tạo cuộc rác).
         $validated = $this->validateFiles($files);
 
-        return DB::transaction(function () use ($tenantId, $userId, $body, $validated) {
+        $conv = DB::transaction(function () use ($tenantId, $userId, $body, $validated) {
             $conv = SupportConversation::query()->latest('id')->first();
             if (! $conv || $conv->isClosed()) {
                 $conv = SupportConversation::query()->create([
@@ -57,6 +58,11 @@ class SupportConversationService
 
             return $conv;
         });
+
+        // Realtime (ADR-0021): báo các phiên khác của tenant cập nhật NGAY (no-op khi Reverb tắt).
+        SupportMessageCreated::dispatch((int) $conv->getKey(), $tenantId, SupportMessage::SENDER_USER);
+
+        return $conv;
     }
 
     /**
@@ -68,7 +74,7 @@ class SupportConversationService
     {
         $validated = $this->validateFiles($files);
 
-        return DB::transaction(function () use ($conv, $adminId, $body, $validated) {
+        $msg = DB::transaction(function () use ($conv, $adminId, $body, $validated) {
             $msg = SupportMessage::query()->create([
                 'tenant_id' => $conv->tenant_id,
                 'support_conversation_id' => $conv->getKey(),
@@ -87,6 +93,11 @@ class SupportConversationService
 
             return $msg;
         });
+
+        // Realtime: CSKH trả lời ⇒ widget của shop hiện NGAY (không đợi poll 20s).
+        SupportMessageCreated::dispatch((int) $conv->getKey(), (int) $conv->tenant_id, SupportMessage::SENDER_CSKH);
+
+        return $msg;
     }
 
     /**
@@ -99,7 +110,7 @@ class SupportConversationService
             return $conv;
         }
 
-        return DB::transaction(function () use ($conv, $adminId) {
+        $conv = DB::transaction(function () use ($conv, $adminId) {
             SupportMessage::query()->create([
                 'tenant_id' => $conv->tenant_id,
                 'support_conversation_id' => $conv->getKey(),
@@ -120,6 +131,11 @@ class SupportConversationService
 
             return $conv;
         });
+
+        // Realtime: đóng cuộc ⇒ widget shop cập nhật trạng thái + unread NGAY.
+        SupportMessageCreated::dispatch((int) $conv->getKey(), (int) $conv->tenant_id, SupportMessage::SENDER_CSKH);
+
+        return $conv;
     }
 
     /** User đã xem ⇒ xoá unread. */

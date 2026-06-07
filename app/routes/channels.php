@@ -1,6 +1,7 @@
 <?php
 
 use CMBcoreSeller\Modules\Messaging\Support\MessagingChannelAuthorizer;
+use CMBcoreSeller\Modules\Support\Support\SupportChannelAuthorizer;
 use Illuminate\Support\Facades\Broadcast;
 
 /**
@@ -16,4 +17,14 @@ use Illuminate\Support\Facades\Broadcast;
  */
 Broadcast::channel('tenant.{tenantId}.messaging', function ($user, int $tenantId): bool {
     return app(MessagingChannelAuthorizer::class)->canViewTenantMessaging($user, $tenantId);
+});
+
+/**
+ * Support/CSKH realtime: private channel `tenant.{tenantId}.support`. Event SupportMessageCreated
+ * broadcast lên đây (user gửi / CSKH trả lời / đóng cuộc). FE (lib/support.tsx useSupportRealtime)
+ * subscribe để cập nhật badge + hội thoại NGAY. Authz {@see SupportChannelAuthorizer}: chỉ cần là
+ * thành viên tenant (support không gate quyền riêng).
+ */
+Broadcast::channel('tenant.{tenantId}.support', function ($user, int $tenantId): bool {
+    return app(SupportChannelAuthorizer::class)->canViewTenantSupport($user, $tenantId);
 });

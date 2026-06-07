@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { App, Badge, Button, Input, Spin, Tabs, Tag, Typography } from 'antd';
 import { CloseOutlined, CommentOutlined, CustomerServiceOutlined, RobotOutlined, SendOutlined } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
-import { type ChatTurn, type HelpSource, useAskAssistant, useSupportUnread } from '@/lib/support';
+import { type ChatTurn, type HelpSource, useAskAssistant, useSupportRealtime, useSupportUnread } from '@/lib/support';
 import { useCurrentTenantId } from '@/lib/tenant';
 import { CskhTab } from './CskhTab';
 
@@ -144,6 +144,7 @@ export function HelpChatWidget() {
     const drag = useRef<{ active: boolean; moved: boolean; dx: number; dy: number }>({ active: false, moved: false, dx: 0, dy: 0 });
 
     const tenantId = useCurrentTenantId();
+    useSupportRealtime(); // realtime CSKH (Reverb) — cập nhật badge/hội thoại NGAY, polling chỉ là lưới an toàn
     const unreadQuery = useSupportUnread(tenantId != null);
     const unread = unreadQuery.data ?? 0;
     const audioRef = useRef<HTMLAudioElement | null>(null);
