@@ -448,6 +448,39 @@ class FacebookCommentModerationTest extends TestCase
         });
     }
 
+    public function test_private_message_creates_dm_thread_with_outbound_message(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response(['recipient_id' => 'PSID_777', 'message_id' => 'm_mid_1'], 200),
+        ]);
+
+        $conv = $this->commentConv(['buyer_name' => 'Khách A']);
+
+        $res = $this->actingAs($this->actor())->withHeaders($this->h())
+            ->postJson("/api/v1/messaging/conversations/{$conv->id}/comment/private-message", ['body' => 'Xin chào!'])
+            ->assertOk();
+
+        // Hộp thoại DM được tạo, keyed theo PSID, thread_type=message.
+        $dm = Conversation::query()
+            ->where('channel_account_id', $this->account->id)
+            ->where('external_conversation_id', 'PSID_777')
+            ->where('thread_type', 'message')
+            ->first();
+        $this->assertNotNull($dm, 'DM conversation phải được tạo sau khi nhắn riêng');
+        $this->assertSame('Khách A', $dm->buyer_name, 'kế thừa tên khách từ comment thread');
+
+        // Tin outbound được ghi vào DM thread (mid thật để echo webhook dedupe).
+        $this->assertDatabaseHas('messages', [
+            'conversation_id' => $dm->id,
+            'external_message_id' => 'm_mid_1',
+            'direction' => 'outbound',
+            'body' => 'Xin chào!',
+        ]);
+
+        // Response trả id DM để FE điều hướng.
+        $res->assertJsonPath('meta.dm_conversation_id', $dm->id);
+    }
+
     public function test_private_message_uses_stored_psid_when_present(): void
     {
         Http::fake([

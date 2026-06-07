@@ -32,7 +32,7 @@ interface CommentEngagementConnector
      * báo số phần đã gửi để caller phản hồi trung thực cho người dùng.
      *
      * @param  list<MediaRefDTO>  $attachments
-     * @return array{psid: string, delivered: int, total: int} PSID + số phần gửi được / tổng
+     * @return array{psid: string, message_id: ?string, delivered: int, total: int} PSID + mid phần đầu (để ghi tin outbound vào DM) + số phần gửi được / tổng
      */
     public function sendCommentPrivateMessage(MessagingAuthContext $auth, string $commentId, ?string $psid, string $message, array $attachments = []): array;
 }

@@ -472,10 +472,15 @@ export function useSendCommentPrivateMessage(conversationId: number | null) {
             if (input.body) fd.append('body', input.body);
             if (input.commentId) fd.append('comment_id', input.commentId);
             input.files.forEach((f) => fd.append('files[]', f));
-            const { data } = await api!.post<{ data: Conversation; meta?: { delivered: number; total: number } }>(
+            const { data } = await api!.post<{ data: Conversation; meta?: { delivered: number; total: number; dm_conversation_id?: number | null } }>(
                 `/messaging/conversations/${conversationId}/comment/private-message`, fd,
             );
-            return { conversation: data.data, delivered: data.meta?.delivered ?? 0, total: data.meta?.total ?? 0 };
+            return {
+                conversation: data.data,
+                delivered: data.meta?.delivered ?? 0,
+                total: data.meta?.total ?? 0,
+                dmConversationId: data.meta?.dm_conversation_id ?? null,
+            };
         },
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['messaging', 'thread'] });

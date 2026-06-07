@@ -244,18 +244,54 @@ class FacebookCommentController extends Controller
         $conv->meta = $meta;
         $conv->save();
 
+        // Tạo/đính HỘP THOẠI DM (thread_type=message) keyed theo PSID buyer + ghi tin
+        // outbound vừa gửi — để hộp thoại tin nhắn hiện NGAY trong inbox (trước đây chỉ
+        // xuất hiện khi khách trả lời qua webhook). ensureConversation mặc định thread
+        // 'message'; dùng mid Facebook làm external_message_id ⇒ echo webhook dedupe.
+        $dmConv = null;
+        $psidFinal = (string) $result['psid'];
+        if ($psidFinal !== '') {
+            $ingest = $this->ingestion->ingest($account, new MessageDTO(
+                externalConversationId: $psidFinal,
+                externalMessageId: ($result['message_id'] ?? null) !== null && (string) $result['message_id'] !== ''
+                    ? (string) $result['message_id']
+                    : 'private:'.$commentId.':'.now()->valueOf(),
+                buyerExternalId: $psidFinal,
+                direction: MessageDirection::Outbound,
+                kind: $attachments !== [] ? MessageKind::Image : MessageKind::Text,
+                body: $body !== '' ? $body : null,
+                attachments: $attachments,
+                sentAt: now()->toImmutable(),
+                raw: ['type' => 'private_reply', 'comment_id' => $commentId],
+            ));
+            $dmConv = $ingest['conversation'];
+
+            // Kế thừa tên khách từ comment thread (nếu có) khi DM chưa có tên.
+            if (blank($dmConv->buyer_name) && filled($conv->buyer_name)) {
+                $dmConv->forceFill(['buyer_name' => $conv->buyer_name])->save();
+            }
+
+            // Fire event (ConversationCreated khi mới) cho realtime inbox.
+            $this->ingestion->fireEventsForNewMessage($dmConv, $ingest['message'], $ingest['created']);
+        }
+
         AuditLog::record('messaging.comment.private_message', null, [
             'conversation_id' => $conv->id,
             'fb_comment_id' => $commentId,
             'delivered' => $result['delivered'],
             'total' => $result['total'],
+            'dm_conversation_id' => $dmConv?->id,
         ]);
 
         $conv->load('channelAccount');
 
         return response()->json([
             'data' => (new ConversationResource($conv))->toArray($request),
-            'meta' => ['delivered' => $result['delivered'], 'total' => $result['total']],
+            'meta' => [
+                'delivered' => $result['delivered'],
+                'total' => $result['total'],
+                'dm_conversation_id' => $dmConv?->id,
+            ],
         ]);
     }
 

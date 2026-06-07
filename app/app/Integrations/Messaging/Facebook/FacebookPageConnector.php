@@ -1382,6 +1382,7 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
 
         $total = count($parts);
         $delivered = 0;
+        $firstMessageId = null;
 
         foreach ($parts as $part) {
             $result = $this->sendPrivatePart($auth, $commentId, $psid, $part);
@@ -1390,6 +1391,11 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
             }
             if ($result['ok']) {
                 $delivered++;
+                // Giữ mid phần ĐẦU để caller ghi tin outbound vào hộp thoại DM với đúng id
+                // Facebook ⇒ webhook echo về sau dedupe (conversation_id + external_message_id).
+                if ($firstMessageId === null && ($result['message_id'] ?? null) !== null) {
+                    $firstMessageId = (string) $result['message_id'];
+                }
 
                 continue;
             }
@@ -1398,7 +1404,7 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
             break;
         }
 
-        return ['psid' => (string) $psid, 'delivered' => $delivered, 'total' => $total];
+        return ['psid' => (string) $psid, 'message_id' => $firstMessageId, 'delivered' => $delivered, 'total' => $total];
     }
 
     /**
@@ -1408,7 +1414,7 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
      * (10/200/2018278) + bị chặn (551) ⇒ ok=false, KHÔNG ném. Lỗi khác ⇒ ném.
      *
      * @param  array<string,mixed>  $message
-     * @return array{ok: bool, psid: ?string}
+     * @return array{ok: bool, psid: ?string, message_id: ?string}
      */
     private function sendPrivatePart(MessagingAuthContext $auth, string $commentId, ?string $psid, array $message): array
     {
@@ -1428,8 +1434,13 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
 
         if ($res->successful()) {
             $recipientId = $res->json('recipient_id');
+            $messageId = $res->json('message_id');
 
-            return ['ok' => true, 'psid' => $recipientId !== null && (string) $recipientId !== '' ? (string) $recipientId : null];
+            return [
+                'ok' => true,
+                'psid' => $recipientId !== null && (string) $recipientId !== '' ? (string) $recipientId : null,
+                'message_id' => $messageId !== null && (string) $messageId !== '' ? (string) $messageId : null,
+            ];
         }
 
         $code = (int) ($res->json('error.code') ?? 0);
@@ -1438,7 +1449,7 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
         // Best-effort: đã nhắn riêng (10900) / cửa sổ đóng (10,200 / 2018278) / bị chặn (551)
         // ⇒ không ném (caller dừng & báo cáo). Lỗi khác (token, rate-limit…) ⇒ ném.
         if (in_array($code, [10900, 10, 200, 551], true) || $subcode === 2018278) {
-            return ['ok' => false, 'psid' => null];
+            return ['ok' => false, 'psid' => null, 'message_id' => null];
         }
 
         $this->throwGraphError($res, 'privateReplyToComment');

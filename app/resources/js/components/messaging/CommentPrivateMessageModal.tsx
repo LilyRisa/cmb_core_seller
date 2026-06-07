@@ -32,6 +32,8 @@ interface Props {
     /** Comment cụ thể được bấm "Nhắn riêng" (rỗng ⇒ comment gốc). */
     commentId?: string;
     templates: MessageTemplate[];
+    /** Khi đã tạo hộp thoại DM (sau lần nhắn riêng đầu) — mở hộp thoại đó khi đóng modal. */
+    onDmCreated?: (dmConversationId: number) => void;
 }
 
 /**
@@ -41,12 +43,13 @@ interface Props {
  * Gửi 1 lần (BE gửi tuần tự: phần đầu qua comment_id lấy PSID, phần sau qua PSID —
  * Facebook chỉ cho nhắn riêng 1 lần/comment). Hiển thị các tin đã gửi trong phiên.
  */
-export function CommentPrivateMessageModal({ open, onClose, conversation, commentId, templates }: Props) {
+export function CommentPrivateMessageModal({ open, onClose, conversation, commentId, templates, onDmCreated }: Props) {
     const { message } = App.useApp();
     const [text, setText] = useState('');
     const [pending, setPending] = useState<Pending[]>([]);
     const [emojiOpen, setEmojiOpen] = useState(false);
     const [sent, setSent] = useState<SentItem[]>([]);
+    const [dmId, setDmId] = useState<number | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const pendingKindRef = useRef<Kind>('image');
 
@@ -58,8 +61,15 @@ export function CommentPrivateMessageModal({ open, onClose, conversation, commen
             setText('');
             setPending((prev) => { prev.forEach((p) => p.previewUrl && URL.revokeObjectURL(p.previewUrl)); return []; });
             setSent([]);
+            setDmId(null);
         }
     }, [open]);
+
+    // Đóng modal: nếu đã tạo hộp thoại DM thì mở hộp thoại đó để người dùng nhắn tiếp.
+    const handleClose = () => {
+        if (dmId !== null) onDmCreated?.(dmId);
+        onClose();
+    };
 
     const pickFile = (kind: Kind) => {
         pendingKindRef.current = kind;
@@ -96,7 +106,8 @@ export function CommentPrivateMessageModal({ open, onClose, conversation, commen
         const body = text.trim();
         const files = pending.map((p) => p.file);
         try {
-            const { delivered, total } = await send.mutateAsync({ body, commentId, files });
+            const { delivered, total, dmConversationId } = await send.mutateAsync({ body, commentId, files });
+            if (dmConversationId) setDmId(dmConversationId);
             // Báo cáo trung thực: Facebook chỉ chắc chắn nhận phần đầu (private reply);
             // phần sau cần khách mở hội thoại. Chỉ ghi log các phần thực sự đã gửi.
             const sentParts: { text: string; kind?: Kind }[] = [];
@@ -126,7 +137,7 @@ export function CommentPrivateMessageModal({ open, onClose, conversation, commen
     return (
         <Modal
             open={open}
-            onCancel={onClose}
+            onCancel={handleClose}
             title={<Space><MessageOutlined />Nhắn riêng cho {buyerName}</Space>}
             footer={null}
             destroyOnClose

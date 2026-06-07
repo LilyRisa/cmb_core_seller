@@ -694,6 +694,7 @@ export function MessagingPage() {
                     conversation={active}
                     commentId={privateMsgCommentId ?? undefined}
                     templates={templates}
+                    onDmCreated={(dmId) => { setBoard('facebook'); setFbThreadType('all'); setActiveId(dmId); }}
                 />
             )}
             <div style={{ display: 'flex', height: 'calc(100vh - 150px)', gap: 12, minWidth: 0 }}>
