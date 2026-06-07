@@ -49,6 +49,8 @@ class MessagingChannelController extends Controller
                     'external_shop_id' => $a->external_shop_id,
                     'status' => $a->status,
                     'messaging_enabled' => (bool) $a->messaging_enabled,
+                    // SPEC 0035 — AI tự trả lời theo từng page.
+                    'ai_auto_mode' => $meta !== null && $meta->ai_auto_mode,
                     'token_expired' => $a->status === ChannelAccount::STATUS_EXPIRED,
                     'connected_at' => $a->created_at?->toIso8601String(),
                     'avatar_url' => $this->media->temporaryUrlForPath($meta?->page_avatar_path),
@@ -85,6 +87,27 @@ class MessagingChannelController extends Controller
             });
 
         return response()->json(['data' => $pages]);
+    }
+
+    /** PATCH /channels/{id}/ai-mode — bật/tắt AI tự trả lời cho 1 page (SPEC 0035). Body { ai_auto_mode: bool }. */
+    public function aiMode(int $id, Request $request): JsonResponse
+    {
+        Gate::authorize('messaging.ai.config');
+
+        $data = $request->validate(['ai_auto_mode' => ['required', 'boolean']]);
+        $account = ChannelAccount::query()->where('provider', 'facebook_page')->findOrFail($id);
+
+        MessagingAccountMeta::query()->updateOrCreate(
+            ['channel_account_id' => $account->id],
+            ['tenant_id' => $account->tenant_id, 'ai_auto_mode' => (bool) $data['ai_auto_mode']],
+        );
+
+        AuditLog::record('messaging.facebook.ai_mode', null, [
+            'external_shop_id' => $account->external_shop_id,
+            'ai_auto_mode' => (bool) $data['ai_auto_mode'],
+        ]);
+
+        return response()->json(['data' => ['ok' => true, 'ai_auto_mode' => (bool) $data['ai_auto_mode']]]);
     }
 
     /** POST /channels/{id}/sync — đồng bộ lại lịch sử (manual backfill). */

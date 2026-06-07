@@ -2,8 +2,10 @@
 
 namespace CMBcoreSeller\Modules\Messaging\Models;
 
+use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
@@ -26,6 +28,7 @@ use Illuminate\Support\Carbon;
  * @property int $embedding_version
  * @property ?Carbon $indexed_at
  * @property string $status
+ * @property bool $applies_all_pages
  * @property ?string $error
  * @property ?int $created_by
  * @property ?Carbon $created_at
@@ -50,7 +53,7 @@ class AiKnowledgeDocument extends Model
     protected $fillable = [
         'tenant_id', 'title', 'source', 'storage_path', 'url', 'inline_text',
         'chunk_count', 'embedding_provider_code', 'embedding_model', 'embedding_version',
-        'indexed_at', 'status', 'error', 'created_by',
+        'indexed_at', 'status', 'applies_all_pages', 'error', 'created_by',
     ];
 
     protected function casts(): array
@@ -59,11 +62,18 @@ class AiKnowledgeDocument extends Model
             'chunk_count' => 'integer',
             'embedding_version' => 'integer',
             'indexed_at' => 'datetime',
+            'applies_all_pages' => 'boolean',
         ];
     }
 
     public function chunks(): HasMany
     {
         return $this->hasMany(AiKnowledgeChunk::class, 'document_id');
+    }
+
+    /** Các page (channel_account) tài liệu áp dụng — bỏ qua khi `applies_all_pages=true`. SPEC 0035. */
+    public function pages(): BelongsToMany
+    {
+        return $this->belongsToMany(ChannelAccount::class, 'ai_knowledge_document_page', 'ai_knowledge_document_id', 'channel_account_id');
     }
 }

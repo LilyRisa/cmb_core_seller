@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Messaging\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
+use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Jobs\IndexKnowledgeDoc;
 use CMBcoreSeller\Modules\Messaging\Models\AiKnowledgeChunk;
 use CMBcoreSeller\Modules\Messaging\Models\AiKnowledgeDocument;
@@ -40,6 +41,8 @@ class KnowledgeController extends Controller
                     'source' => $d->source,
                     'status' => $d->status,
                     'chunk_count' => (int) $d->chunk_count,
+                    'applies_all_pages' => (bool) $d->applies_all_pages,
+                    'channel_account_ids' => $d->pages()->pluck('channel_accounts.id')->all(),
                     'indexed_at' => $d->indexed_at?->toIso8601String(),
                     'error' => $d->error,
                     'created_at' => $d->created_at?->toIso8601String(),
@@ -59,6 +62,10 @@ class KnowledgeController extends Controller
             // 25MB; định dạng trích được text (xem DocumentTextExtractor).
             'file' => ['required_if:source,upload', 'nullable', 'file', 'max:25600',
                 'extensions:txt,md,csv,tsv,docx,xlsx,pdf'],
+            // SPEC 0035 — phạm vi page: áp mọi trang HOẶC gán danh sách page (nhiều page).
+            'applies_all_pages' => ['nullable', 'boolean'],
+            'channel_account_ids' => ['nullable', 'array'],
+            'channel_account_ids.*' => ['integer'],
         ]);
 
         $tenantId = app(CurrentTenant::class)->id();
@@ -84,14 +91,39 @@ class KnowledgeController extends Controller
             'storage_path' => $storagePath,
             'chunk_count' => 0,
             'status' => AiKnowledgeDocument::STATUS_PENDING,
+            'applies_all_pages' => (bool) ($data['applies_all_pages'] ?? false),
             'created_by' => $request->user()->id,
         ]);
+        $this->syncPages($doc, $data['channel_account_ids'] ?? []);
 
         IndexKnowledgeDoc::dispatch($doc->id);
 
         AuditLog::record('messaging.knowledge.upload', $doc, ['title' => $doc->title, 'source' => $doc->source]);
 
         return response()->json(['data' => ['id' => $doc->id, 'status' => $doc->status]], 201);
+    }
+
+    /**
+     * Đồng bộ pivot document↔page (lọc page thuộc tenant). `applies_all_pages=true` ⇒ xoá pivot.
+     *
+     * @param  list<int>  $pageIds
+     */
+    private function syncPages(AiKnowledgeDocument $doc, array $pageIds): void
+    {
+        if ($doc->applies_all_pages) {
+            $doc->pages()->sync([]);
+
+            return;
+        }
+
+        $ownIds = ChannelAccount::query()
+            ->where('tenant_id', $doc->tenant_id)
+            ->whereIn('id', array_map('intval', $pageIds))
+            ->pluck('id');
+
+        $doc->pages()->sync(
+            $ownIds->mapWithKeys(fn ($id) => [$id => ['tenant_id' => $doc->tenant_id]])->all()
+        );
     }
 
     public function destroy(int $id): JsonResponse

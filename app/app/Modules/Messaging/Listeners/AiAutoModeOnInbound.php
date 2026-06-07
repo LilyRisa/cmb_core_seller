@@ -9,6 +9,7 @@ use CMBcoreSeller\Modules\Messaging\Models\AutoReplyRule;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\FlowRun;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
+use CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingSetting;
 use CMBcoreSeller\Modules\Messaging\Services\AiSuggestionService;
 use CMBcoreSeller\Modules\Messaging\Services\AutoReplyEngine;
@@ -81,9 +82,17 @@ class AiAutoModeOnInbound implements ShouldQueue
         }
     }
 
-    /** Công tắc "AI tự gửi tất cả" cho nhóm kênh của conversation (ADR-0022). */
+    /**
+     * Công tắc "AI tự trả lời" — SPEC 0035: theo TỪNG PAGE (messaging_account_meta.ai_auto_mode).
+     * Page chưa có meta ⇒ fallback cờ nhóm-tenant (giai đoạn chuyển tiếp, ADR-0022).
+     */
     private function autoModeFor(Conversation $conv, MessagingSetting $setting): bool
     {
+        $meta = MessagingAccountMeta::withoutGlobalScope(TenantScope::class)->find($conv->channel_account_id);
+        if ($meta !== null) {
+            return (bool) $meta->ai_auto_mode;
+        }
+
         return MessagingChannelGroup::isFacebook($conv->provider)
             ? (bool) $setting->auto_mode_facebook
             : (bool) $setting->auto_mode_marketplace;

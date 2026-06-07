@@ -210,6 +210,9 @@ export interface KnowledgeDoc {
     source: 'inline' | 'url' | 'upload';
     status: 'pending' | 'ready' | 'failed';
     chunk_count: number;
+    /** SPEC 0035 — true: dùng cho mọi trang; false: chỉ channel_account_ids. */
+    applies_all_pages: boolean;
+    channel_account_ids: number[];
     indexed_at: string | null;
     error: string | null;
     created_at: string | null;
@@ -232,6 +235,8 @@ export interface CreateKnowledgePayload {
     inline_text?: string;
     url?: string;
     file?: File;
+    applies_all_pages?: boolean;
+    channel_account_ids?: number[];
 }
 
 export function useCreateKnowledge() {
@@ -245,6 +250,8 @@ export function useCreateKnowledge() {
                 fd.append('title', payload.title);
                 fd.append('source', 'upload');
                 fd.append('file', payload.file);
+                fd.append('applies_all_pages', payload.applies_all_pages ? '1' : '0');
+                (payload.channel_account_ids ?? []).forEach((id) => fd.append('channel_account_ids[]', String(id)));
                 return (await api!.post('/messaging/knowledge-docs', fd)).data;
             }
             return (await api!.post('/messaging/knowledge-docs', payload)).data;
@@ -387,6 +394,8 @@ export interface MessagingChannel {
     external_shop_id: string;
     status: string;
     messaging_enabled: boolean;
+    /** SPEC 0035 — AI tự trả lời bật cho page này. */
+    ai_auto_mode: boolean;
     token_expired: boolean;
     connected_at: string | null;
     avatar_url: string | null;
@@ -412,6 +421,18 @@ export function useSyncChannel() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: async (id: number) => { await api!.post(`/messaging/channels/${id}/sync`); },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'channels'] }),
+    });
+}
+
+/** SPEC 0035 — bật/tắt AI tự trả lời cho 1 page. */
+export function useSetChannelAiMode() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (input: { id: number; ai_auto_mode: boolean }) => {
+            await api!.patch(`/messaging/channels/${input.id}/ai-mode`, { ai_auto_mode: input.ai_auto_mode });
+        },
         onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'channels'] }),
     });
 }

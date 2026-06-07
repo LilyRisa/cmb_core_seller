@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { App as AntApp, Avatar, Button, Card, Checkbox, Empty, Popconfirm, Progress, Result, Space, Spin, Tag, Tooltip, Typography } from 'antd';
-import { DisconnectOutlined, FacebookFilled, KeyOutlined, ShopOutlined, SyncOutlined } from '@ant-design/icons';
+import { App as AntApp, Avatar, Button, Card, Checkbox, Empty, Popconfirm, Progress, Result, Space, Spin, Switch, Tag, Tooltip, Typography } from 'antd';
+import { DisconnectOutlined, FacebookFilled, KeyOutlined, RobotOutlined, ShopOutlined, SyncOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { MessagingNav } from '@/components/MessagingNav';
@@ -10,7 +10,7 @@ import { errorMessage } from '@/lib/api';
 import { openOAuthPopup } from '@/lib/oauthPopup';
 import { useCan } from '@/lib/tenant';
 import { MARKETPLACE_CHAT_ENABLED } from '@/lib/messaging';
-import { useBulkDisconnectChannels, useBulkSyncChannels, useConnectFacebook, useConnectLazadaIm, useDisconnectFacebookPage, useMessagingChannels, useSyncChannel } from '@/lib/messagingConfig';
+import { useBulkDisconnectChannels, useBulkSyncChannels, useConnectFacebook, useConnectLazadaIm, useDisconnectFacebookPage, useMessagingChannels, useSetChannelAiMode, useSyncChannel } from '@/lib/messagingConfig';
 
 const { Text } = Typography;
 
@@ -40,6 +40,8 @@ export function MessagingChannelsPage() {
     const [disconnectingId, setDisconnectingId] = useState<number | null>(null);
     const disconnect = useDisconnectFacebookPage();
     const syncChannel = useSyncChannel();
+    const setAiMode = useSetChannelAiMode();
+    const canAi = useCan('messaging.ai.config');
     const [syncingId, setSyncingId] = useState<number | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
     const bulkSync = useBulkSyncChannels();
@@ -216,6 +218,15 @@ export function MessagingChannelsPage() {
                                         )}
                                     </Space>
                                 </Space>
+                                {canAi && (
+                                    <Tooltip title="AI tự trả lời tin nhắn cho riêng trang này">
+                                        <Space size={4} style={{ marginRight: 8 }}>
+                                            <RobotOutlined style={{ color: p.ai_auto_mode ? '#7C3AED' : '#94A3B8' }} />
+                                            <Switch size="small" checked={p.ai_auto_mode} loading={setAiMode.isPending}
+                                                onChange={(v) => setAiMode.mutate({ id: p.id, ai_auto_mode: v }, { onError: (e) => message.error(errorMessage(e)) })} />
+                                        </Space>
+                                    </Tooltip>
+                                )}
                                 {canConnect && (
                                     <Space>
                                         <Button size="small" icon={<SyncOutlined spin={syncing} />} loading={syncingId === p.id} disabled={syncing} onClick={() => handleSync(p.id)}>

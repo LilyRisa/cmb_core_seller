@@ -18,7 +18,7 @@ use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
  */
 class KnowledgeRetriever
 {
-    public function retrieve(int $tenantId, string $query, int $topK = 4): KnowledgeBase
+    public function retrieve(int $tenantId, string $query, int $topK = 4, ?int $channelAccountId = null): KnowledgeBase
     {
         $tokens = $this->tokenize($query);
         if ($tokens === []) {
@@ -26,10 +26,23 @@ class KnowledgeRetriever
         }
 
         // Chỉ chunk thuộc document đã ready của tenant.
-        $readyDocIds = AiKnowledgeDocument::withoutGlobalScope(TenantScope::class)
+        $docQuery = AiKnowledgeDocument::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenantId)
-            ->where('status', AiKnowledgeDocument::STATUS_READY)
-            ->pluck('title', 'id');
+            ->where('status', AiKnowledgeDocument::STATUS_READY);
+
+        // SPEC 0035 — khi có page: chỉ tài liệu áp mọi trang HOẶC gán page này
+        // (whereExists pivot, tránh TenantScope của ChannelAccount). Null ⇒ lấy tất cả (vd trợ lý help).
+        if ($channelAccountId !== null) {
+            $docQuery->where(fn ($q) => $q
+                ->where('applies_all_pages', true)
+                ->orWhereExists(fn ($sub) => $sub
+                    ->selectRaw('1')
+                    ->from('ai_knowledge_document_page')
+                    ->whereColumn('ai_knowledge_document_page.ai_knowledge_document_id', 'ai_knowledge_documents.id')
+                    ->where('ai_knowledge_document_page.channel_account_id', $channelAccountId)));
+        }
+
+        $readyDocIds = $docQuery->pluck('title', 'id');
 
         if ($readyDocIds->isEmpty()) {
             return new KnowledgeBase(chunks: []);

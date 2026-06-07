@@ -156,6 +156,9 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
             ->name('messaging.channels.index');
         Route::post('channels/{id}/sync', [MessagingChannelController::class, 'sync'])
             ->whereNumber('id')->name('messaging.channels.sync');     // messaging.connect
+        // SPEC 0035 — bật/tắt AI tự trả lời theo từng page.
+        Route::patch('channels/{id}/ai-mode', [MessagingChannelController::class, 'aiMode'])
+            ->whereNumber('id')->name('messaging.channels.ai_mode');  // messaging.ai.config
         // Hành động hàng loạt trên nhiều page đã chọn (body: { ids: int[] }).
         Route::post('channels/bulk-sync', [MessagingChannelController::class, 'bulkSync'])
             ->name('messaging.channels.bulk-sync');                   // messaging.connect

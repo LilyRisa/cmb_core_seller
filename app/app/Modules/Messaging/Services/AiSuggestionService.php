@@ -106,7 +106,7 @@ class AiSuggestionService
         }
 
         [$snapshot, $mapping, $redactedCount] = $this->buildSnapshot($conv, $tenantId);
-        $kb = $this->retriever->retrieve($tenantId, $inboundText);
+        $kb = $this->retriever->retrieve($tenantId, $inboundText, channelAccountId: (int) $conv->channel_account_id);
         $provider = AiProvider::query()->find($providerCode);
         $ctx = new AiContext(tenantId: $tenantId, providerCode: $providerCode, model: $provider?->default_model, systemPromptExtra: $this->globalSystemPrompt(), meta: ['mode' => 'auto']);
 
@@ -151,7 +151,7 @@ class AiSuggestionService
         }
 
         [$snapshot, $mapping, $redactedCount] = $this->buildSnapshot($conv, $tenantId);
-        $kb = $this->retriever->retrieve($tenantId, $this->lastInboundBody($conv) ?? '');
+        $kb = $this->retriever->retrieve($tenantId, $this->lastInboundBody($conv) ?? '', channelAccountId: (int) $conv->channel_account_id);
 
         $provider = AiProvider::query()->find($providerCode);
         $ctx = new AiContext(
