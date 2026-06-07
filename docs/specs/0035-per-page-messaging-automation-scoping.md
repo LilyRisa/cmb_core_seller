@@ -1,6 +1,6 @@
 # SPEC 0035: Per-page scoping cho tự động trả lời, kịch bản tự động & AI (Messaging)
 
-- **Trạng thái:** Draft
+- **Trạng thái:** Implemented (Phase 1–3 + 4a · 2026-06-08). Phase 4b (gỡ fallback cờ nhóm-tenant) HOÃN tới sau khi prod ổn.
 - **Phase:** 7.x (Messaging) — mở rộng
 - **Module backend liên quan:** Messaging (chính). KHÔNG đụng Integrations/Messaging (connector) — scope bằng `channel_account_id`, provider-agnostic.
 - **Tác giả / Ngày:** Claude · 2026-06-08
