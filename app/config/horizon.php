@@ -283,7 +283,11 @@ return [
             // marketing-sync: Facebook Ads entity/insights sync (SyncAdAccountEntities, SyncAdInsights).
             // marketing-ai: AI forecast + per-campaign analysis (GenerateAdForecast, GenerateCampaignAiInsight).
             // marketing-publish: publish a draft to Facebook (PublishAdDraft).
-            'queue' => ['messaging-sync', 'messaging-media', 'messaging-ai', 'marketing-sync', 'marketing-ai', 'marketing-publish'],
+            // messaging: queued listeners của MessageReceived/CommentReceived/Postback — StartFlowOnInbound,
+            //   StartFlowOnComment, RunAutoReplyOnComment (auto-reply comment, có thể gọi AI), AdvanceFlowOnPostback.
+            //   Các listener này khai `public $queue='messaging'`; trước đây KHÔNG supervisor nào tiêu thụ ⇒ flow
+            //   tự động & auto-reply comment KHÔNG bao giờ chạy (job dồn vô hạn). Thêm vào đây để khắc phục.
+            'queue' => ['messaging-sync', 'messaging-media', 'messaging-ai', 'messaging', 'marketing-sync', 'marketing-ai', 'marketing-publish'],
             'balance' => 'auto',
             'autoScalingStrategy' => 'time',
             'maxProcesses' => 4,

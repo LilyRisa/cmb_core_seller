@@ -22,6 +22,7 @@
 | `messaging-media` *(Phase 7.x — SPEC-0024)* | `Messaging\Jobs\DownloadInboundMedia` (tries 3, backoff 30/120/600s) — tải ảnh/video/file từ URL sàn (TTL ngắn) về MinIO `tenants/{id}/messaging/...` | Trung bình; I/O nặng, tách queue |
 | `messaging-outbound` *(Phase 7.x — SPEC-0024)* | `Messaging\Jobs\SendMessage` (tries 4, backoff 5/30/120/600s — tôn trọng 429/Retry-After; check `OutboundWindowGuard` trước) | Cao (UX gửi tin) |
 | `messaging-ai` *(Phase 7.x — SPEC-0024)* | `Messaging\Jobs\GenerateAiSuggestion`, `ClassifyIntent`, `IndexKnowledgeDoc` (embedding) — timeout cứng 30s, retry 1 lần; ghi `ai_assistant_runs` cost | Trung bình; chi phí tiền (LLM) |
+| `messaging` *(Phase 7.x — SPEC-0024)* | Queued listener nền của `MessageReceived`/`CommentReceived`/postback: `StartFlowOnInbound`, `StartFlowOnComment`, `RunAutoReplyOnComment` (auto-reply comment, có thể gọi AI), `AdvanceFlowOnPostback`. **PHẢI nằm trong supervisor `messaging-bg`** — nếu thiếu, flow tự động & auto-reply comment không bao giờ chạy (job dồn vô hạn ở queue `messaging`). | Trung bình; automation/flow |
 | `webhooks` (shared) | *(Phase 6.4 — SPEC-0018, PR2/PR3)* `ProcessPaymentWebhook` cho payment gateway IPN (SePay/VNPay). Verify chữ ký ở controller → ghi `webhook_events` (provider=`payments.<gateway>`) → dispatch job. Dedupe unique `(gateway, external_ref)` trên `payments`. | Cao — chung supervisor `critical` với webhook sàn TMĐT |
 | `default` | còn lại | Trung bình |
 
