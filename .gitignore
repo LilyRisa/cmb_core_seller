@@ -18,6 +18,9 @@ desktop.ini
 # Superpowers tooling state (transient brainstorm/worktree artifacts — never commit)
 .superpowers/
 
+# Playwright MCP snapshots (transient browser page dumps — never commit)
+.playwright-mcp/
+
 # Logs / misc
 *.log
 
