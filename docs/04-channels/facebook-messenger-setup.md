@@ -208,3 +208,58 @@ Connector khác (TikTok/Lazada chat) cùng pattern `MessagingConnector`: chỉ k
 `verifyWebhookSignature` + `parseWebhookEvents` + endpoint Send. **Không sửa controller/
 pipeline** khi thêm sàn (ADR-0017). Thêm provider = 1 class + 1 dòng register + 1 mục
 `INTEGRATIONS_MESSAGING` + doc tương ứng (vd `lazada-chat-setup.md`).
+
+---
+
+## 11. Bình luận: giới hạn danh tính người bình luận (Meta) & đánh giá quy mô
+
+> Tổng hợp điều tra 2026-06-07 (verify trực tiếp trên prod + Graph API). Bối cảnh: comment
+> thread hiện hiển thị tên khách rỗng. **Đây là giới hạn nền tảng, KHÔNG phải lỗi code.**
+
+### 11.1 Vì sao bình luận không có tên khách
+
+Graph API **không trả `from{id,name}`** của người bình luận trên post của page đối với
+**khách thường** — cả khi truy vấn lồng `/{page}/feed?fields=comments{from{name}}` lẫn truy
+vấn trực tiếp `GET /{comment_id}?fields=from`. Chỉ comment của **chính page** có `from`.
+
+Đã xác minh: page có 242 bình luận thật → 100% `from` bị ẩn. Trường hợp đọc được tên
+("Tu Vu") là do tài khoản đó là **test user/role được thêm vào app** (toàn quyền dữ liệu
+public), KHÔNG đại diện khách thật.
+
+Code hiện tại **đã đúng & tương thích**: `fetchCommentThreads` (`FacebookPageConnector`) và
+`SyncCommentAvatars` đều request `from{id,name,picture}` và lưu lại **khi có**; khi Meta ẩn
+`from` thì fallback êm (không lỗi). **Không cần sửa code.**
+
+**Cách lấy được tên đầy đủ cho mọi khách:** xin **Page Public Content Access** qua **App
+Review** của Meta (app phải ở chế độ **Live** + business verification). Khi được duyệt, code
+hiện tại sẽ **tự động** điền tên cho bình luận mới — không cần thay đổi gì. (App đang trong
+quá trình xét duyệt tại thời điểm ghi chú này.)
+
+> Liên quan: giới hạn PII tương tự ở đơn sàn — xem `marketplace buyer PII masking`.
+
+### 11.2 Đánh giá phương pháp triển khai khi mở rộng quy mô
+
+Kiến trúc đồng bộ FB hiện tại (`ReconcileMessagingSync` hằng giờ → mỗi page dispatch
+`BackfillMessagingChannel` + `BackfillFacebookComments`; webhook xử lý realtime ≤2s; enrich
+qua `SyncConversationProfile`/`SyncCommentAvatars`). Các điểm cần lưu ý khi số page tăng
+(hiện ~36 page → mục tiêu hàng trăm):
+
+1. **`reconcile-sync` quét TẤT CẢ account mỗi giờ** bất kể hoạt động → ở quy mô lớn sinh
+   hàng trăm job/giờ, đa số fetch rỗng. *Đề xuất:* phân tầng nhịp theo `last_message_at`
+   (page hoạt động ≤7 ngày sync thường xuyên; page idle thưa hơn); `chunkById` thay `->each()`.
+2. **Bình luận phụ thuộc hoàn toàn backfill** vì webhook `feed` (comment) thực tế **không
+   về** dù đã subscribe (0 event `feed` trong `webhook_events` suốt 1 tuần, trong khi tin
+   nhắn DM về bình thường). *Đề xuất (đòn bẩy lớn nhất):* điều tra & khôi phục nhận `feed`
+   webhook → comment realtime + bỏ hẳn gánh backfill comment hằng giờ.
+3. **`SyncCommentAvatars` gọi Graph 1 lần/comment, không throttle** (khác `SyncConversation
+   Profile` đã throttle 24h). *Đề xuất:* throttle/gộp khi mở rộng. (Hiện chấp nhận được —
+   app đang App Review, call không tốn quota đáng kể.)
+4. **Backfill dùng chung supervisor `messaging-bg`** với listener flow/auto-reply
+   (latency-sensitive). *Đề xuất:* tách backfill sang queue riêng có giới hạn để không bỏ
+   đói flow/auto-reply khi backfill ồ ạt.
+5. **Rate limit Graph (BUC throttling)**: backfill đồng loạt nhiều page dễ chạm trần →
+   nhánh `FACEBOOK_RATE_LIMIT` release(120). *Đề xuất:* jitter/pace dispatch theo ngân
+   sách rate-limit từng page.
+
+Các đề xuất trên là tối ưu vận hành ở quy mô lớn (chưa triển khai); không ảnh hưởng tính
+đúng đắn hiện tại (backfill idempotent: `ShouldBeUnique` + dedup theo message id).
