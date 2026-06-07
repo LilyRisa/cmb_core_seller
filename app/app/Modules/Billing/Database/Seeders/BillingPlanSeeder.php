@@ -49,7 +49,7 @@ class BillingPlanSeeder extends Seeder
             [
                 'code' => Plan::CODE_TRIAL,
                 'name' => 'Dùng thử',
-                'description' => 'Miễn phí 14 ngày — xử lý đơn + tồn kho SKU + tạo đơn thủ công. Tối đa 3 gian hàng (mỗi nền tảng 1).',
+                'description' => 'Miễn phí trọn đời — xử lý đơn + tồn kho SKU + tạo đơn thủ công. Tối đa 3 gian hàng (mỗi nền tảng 1).',
                 'sort_order' => 0,
                 'price_monthly' => 0,
                 'price_yearly' => 0,
