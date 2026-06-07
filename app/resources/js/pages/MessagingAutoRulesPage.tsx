@@ -6,7 +6,8 @@ import { PageHeader } from '@/components/PageHeader';
 import { MessagingNav } from '@/components/MessagingNav';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
-import { type AutoReplyRule, type RuleTrigger, type ThreadType, useAutoRules, useDeleteRule, useMessagingChannels, useSaveRule, useTemplates } from '@/lib/messagingConfig';
+import { type AutoReplyRule, type RuleTrigger, type ThreadType, useAutoRules, useDeleteRule, useSaveRule, useTemplates } from '@/lib/messagingConfig';
+import { PageMultiSelect, PageScopeTags } from '@/components/messaging/PageScope';
 
 const TRIGGER_LABELS: Record<RuleTrigger, string> = {
     first_message: 'Chào lần đầu / bình luận đầu',
@@ -58,7 +59,6 @@ export function MessagingAutoRulesPage() {
     const actionKind = (Form.useWatch('action_kind', form) as 'raw' | 'template' | 'ai_reply' | undefined) ?? 'raw';
     const appliesAll = (Form.useWatch('applies_all_pages', form) as boolean | undefined) ?? false;
     const templates = useTemplates().data?.data ?? [];
-    const channels = useMessagingChannels().data ?? [];
 
     const openForm = (r?: AutoReplyRule) => {
         setEditing(r ?? null);
@@ -120,9 +120,9 @@ export function MessagingAutoRulesPage() {
             const c = threadChoiceFrom(r.filter?.thread_types);
             return <Tag color={c === 'comment' ? 'gold' : c === 'both' ? 'geekblue' : 'green'}>{c === 'comment' ? 'Bình luận' : c === 'both' ? 'Cả hai' : 'Tin nhắn'}</Tag>;
         } },
-        { title: 'Phạm vi trang', width: 130, render: (_, r) => r.applies_all_pages
-            ? <Tag color="default">Tất cả trang</Tag>
-            : <Tag color="cyan">{(r.channel_account_ids ?? []).length} trang</Tag> },
+        { title: 'Phạm vi trang', width: 200, render: (_, r) => (
+            <PageScopeTags appliesAllPages={r.applies_all_pages} channelAccountIds={r.channel_account_ids} />
+        ) },
         { title: 'Nội dung', render: (_, r) => {
             if (r.action?.kind === 'ai_reply') return <Tag color="purple">AI tự soạn</Tag>;
             if (r.action?.kind === 'template') return <span style={{ color: '#64748B' }}>Mẫu nhanh</span>;
@@ -171,8 +171,7 @@ export function MessagingAutoRulesPage() {
                     {!appliesAll && (
                         <Form.Item name="channel_account_ids" label="Trang áp dụng"
                             rules={[{ required: true, type: 'array', min: 1, message: 'Chọn ít nhất 1 trang hoặc bật "Tất cả trang"' }]}>
-                            <Select mode="multiple" optionFilterProp="label" placeholder="Chọn trang áp dụng"
-                                options={channels.map((c) => ({ value: c.id, label: c.name || c.shop_name || c.external_shop_id }))} />
+                            <PageMultiSelect />
                         </Form.Item>
                     )}
                     {(threadChoice === 'comment' || threadChoice === 'both') && (

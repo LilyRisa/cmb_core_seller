@@ -35,7 +35,7 @@ import {
 import { defaultData, GROUP_LABELS, NODE_META, nodeTypes } from '@/features/messaging/flow/nodes';
 import { NodeConfigDrawer } from '@/features/messaging/flow/NodeConfigDrawer';
 import { PostPicker } from '@/features/messaging/flow/PostPicker';
-import { useMessagingChannels } from '@/lib/messagingConfig';
+import { PageMultiSelect } from '@/components/messaging/PageScope';
 
 const STATUS_COLOR: Record<FlowStatus, string> = { draft: 'default', active: 'green', paused: 'orange', archived: 'default' };
 const TRIGGER_OPTIONS: { label: string; value: FlowTriggerType; disabled?: boolean }[] = [
@@ -78,7 +78,6 @@ function FlowEditor() {
     const [status, setStatus] = useState<FlowStatus>('draft');
     const [appliesAllPages, setAppliesAllPages] = useState(true);
     const [pageIds, setPageIds] = useState<number[]>([]);
-    const channels = useMessagingChannels().data ?? [];
 
     useEffect(() => {
         if (!flow) return;
@@ -208,9 +207,9 @@ function FlowEditor() {
                     />
                 </Tooltip>
                 {!appliesAllPages && (
-                    <Select mode="multiple" value={pageIds} onChange={setPageIds} disabled={!canManage}
-                        placeholder="Chọn trang" style={{ minWidth: 200 }} optionFilterProp="label" maxTagCount="responsive"
-                        options={channels.map((c) => ({ value: c.id, label: c.name || c.shop_name || c.external_shop_id }))} />
+                    <div style={{ minWidth: 220 }}>
+                        <PageMultiSelect value={pageIds} onChange={setPageIds} disabled={!canManage} placeholder="Chọn trang" />
+                    </div>
                 )}
                 <div style={{ flex: 1 }} />
                 {canManage && <Button icon={<SaveOutlined />} loading={save.isPending} onClick={onSaveDraft}>Lưu nháp</Button>}

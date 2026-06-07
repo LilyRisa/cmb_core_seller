@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { App as AntApp, Alert, Button, Card, Form, Input, Modal, Popconfirm, Radio, Space, Table, Tag } from 'antd';
+import { App as AntApp, Alert, Button, Card, Form, Input, Modal, Popconfirm, Radio, Space, Switch, Table, Tag } from 'antd';
 import { CopyOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
 import { useMessagingSettings } from '@/lib/messagingConfig';
+import { PageMultiSelect, PageScopeTags } from '@/components/messaging/PageScope';
 import { MessagingNav } from '@/components/MessagingNav';
 import {
     type AutomationFlow,
@@ -40,12 +41,15 @@ export function MessagingFlowsPage() {
     const dup = useDuplicateFlow();
     const [createOpen, setCreateOpen] = useState(false);
     const [form] = Form.useForm();
+    const appliesAll = (Form.useWatch('applies_all_pages', form) as boolean | undefined) ?? true;
 
-    const createFlow = () => form.validateFields().then((v: { name: string; trigger_type: FlowTriggerType }) => {
+    const createFlow = () => form.validateFields().then((v: { name: string; trigger_type: FlowTriggerType; applies_all_pages?: boolean; channel_account_ids?: number[] }) => {
         save.mutate(
             {
                 name: v.name,
                 trigger_type: v.trigger_type,
+                applies_all_pages: !!v.applies_all_pages,
+                channel_account_ids: v.applies_all_pages ? [] : (v.channel_account_ids ?? []),
                 graph: { nodes: [{ id: 'trigger-1', type: 'trigger', position: { x: 280, y: 40 }, data: {} }], edges: [] },
             },
             {
@@ -59,7 +63,10 @@ export function MessagingFlowsPage() {
         { title: 'Tên', dataIndex: 'name', render: (v: string, r) => (
             <Button type="link" style={{ padding: 0 }} onClick={() => navigate(`/messaging/flows/${r.id}/edit`)}>{v}</Button>
         ) },
-        { title: 'Kích hoạt khi', dataIndex: 'trigger_type', width: 200, render: (t: FlowTriggerType) => TRIGGER_LABELS[t] ?? t },
+        { title: 'Kích hoạt khi', dataIndex: 'trigger_type', width: 180, render: (t: FlowTriggerType) => TRIGGER_LABELS[t] ?? t },
+        { title: 'Phạm vi trang', width: 200, render: (_, r) => (
+            <PageScopeTags appliesAllPages={r.applies_all_pages} channelAccountIds={r.channel_account_ids} />
+        ) },
         { title: 'Trạng thái', dataIndex: 'status', width: 130, render: (s: FlowStatus) => <Tag color={STATUS_COLOR[s]}>{STATUS_LABELS[s] ?? s}</Tag> },
         { title: 'Cập nhật', dataIndex: 'updated_at', width: 170, render: (v: string | null) => (v ? new Date(v).toLocaleString('vi-VN') : '—') },
         ...(canManage ? [{ title: '', width: 130, render: (_: unknown, r: AutomationFlow) => (
@@ -94,10 +101,20 @@ export function MessagingFlowsPage() {
 
             <Modal open={createOpen} onCancel={() => setCreateOpen(false)} onOk={createFlow} confirmLoading={save.isPending}
                 title="Tạo kịch bản mới" okText="Tạo & mở trình dựng" cancelText="Huỷ">
-                <Form form={form} layout="vertical" initialValues={{ trigger_type: 'inbox_first_message' }}>
+                <Form form={form} layout="vertical" initialValues={{ trigger_type: 'inbox_first_message', applies_all_pages: true, channel_account_ids: [] }}>
                     <Form.Item name="name" label="Tên kịch bản" rules={[{ required: true, message: 'Nhập tên kịch bản' }]}>
                         <Input placeholder="vd: Chào khách & tư vấn" maxLength={160} />
                     </Form.Item>
+                    <Form.Item name="applies_all_pages" label="Áp dụng cho trang" valuePropName="checked"
+                        extra="Bật = áp mọi trang. Tắt = chỉ các trang được chọn (ưu tiên hơn kịch bản 'tất cả trang'). Có thể đổi sau trong trình dựng.">
+                        <Switch checkedChildren="Tất cả trang" unCheckedChildren="Chọn trang" />
+                    </Form.Item>
+                    {!appliesAll && (
+                        <Form.Item name="channel_account_ids" label="Trang áp dụng"
+                            rules={[{ required: true, type: 'array', min: 1, message: 'Chọn ít nhất 1 trang hoặc bật "Tất cả trang"' }]}>
+                            <PageMultiSelect />
+                        </Form.Item>
+                    )}
                     <Form.Item name="trigger_type" label="Kích hoạt khi">
                         <Radio.Group>
                             <Space direction="vertical">
