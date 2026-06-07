@@ -124,6 +124,48 @@ class OutboundMessageService
     }
 
     /**
+     * Ghi 1 outbound utility-template message (Messenger Utility Message — SPEC-0032)
+     * rồi dispatch SendMessage. `preview` = nội dung đã điền biến để hiển thị trong inbox;
+     * `utility_template_id` + `vars` (list giá trị {{1}},{{2}}…) lưu meta cho connector gửi.
+     *
+     * @param  list<string>  $vars
+     * @param  array{sent_by_ai?:bool, sent_by_user_id?:?int}  $opts
+     */
+    public function queueUtilityTemplate(Conversation $conv, int $utilityTemplateId, array $vars, string $preview, array $opts = []): Message
+    {
+        $message = DB::transaction(function () use ($conv, $utilityTemplateId, $vars, $preview, $opts) {
+            $message = Message::create([
+                'tenant_id' => $conv->tenant_id,
+                'conversation_id' => $conv->id,
+                'external_message_id' => null,
+                'direction' => Message::DIRECTION_OUTBOUND,
+                'kind' => Message::KIND_UTILITY_TEMPLATE,
+                'body' => $preview,
+                'sent_by_user_id' => $opts['sent_by_user_id'] ?? null,
+                'sent_by_ai' => $opts['sent_by_ai'] ?? false,
+                'delivery_status' => Message::STATUS_PENDING,
+                'meta' => [
+                    'utility_template_id' => $utilityTemplateId,
+                    'vars' => $vars,
+                ],
+            ]);
+
+            $conv->update([
+                'last_message_at' => $message->created_at,
+                'last_outbound_at' => $message->created_at,
+                'last_message_preview' => Str::limit($preview, 197),
+                'message_count' => $conv->message_count + 1,
+            ]);
+
+            return $message;
+        });
+
+        SendMessage::dispatch($message->id);
+
+        return $message;
+    }
+
+    /**
      * Ghi 1 outbound interactive message (tin có nút bấm) rồi dispatch SendMessage.
      * `structure` = { text, buttons:[ {type, title|label, payload?, url?} ] } — lưu
      * nguyên vào meta.interactive cho connector; meta.buttons chỉ giữ nhãn hiển thị

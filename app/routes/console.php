@@ -11,6 +11,7 @@ use CMBcoreSeller\Modules\Marketing\Jobs\RunAdMonitors;
 use CMBcoreSeller\Modules\Marketing\Jobs\SyncAdInsights;
 use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
 use CMBcoreSeller\Modules\Messaging\Jobs\SyncConversationsForShop;
+use CMBcoreSeller\Modules\Messaging\Jobs\SyncUtilityTemplateStatus;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -121,6 +122,8 @@ Schedule::command('messaging:prune-drafts')->dailyAt('03:10')->onOneServer();
 Schedule::command('messaging:reconcile-sync')->hourly()->onOneServer()->withoutOverlapping();
 // Mỗi 30 phút: gom tin nhắn mới → Web Push cho user không hoạt động (tab đóng/ẩn).
 Schedule::command('messaging:push-digest')->everyThirtyMinutes()->onOneServer()->withoutOverlapping();
+// SPEC-0032: mỗi 15 phút đồng bộ trạng thái duyệt utility template đang pending (Meta).
+Schedule::job(new SyncUtilityTemplateStatus)->everyFifteenMinutes()->name('utility-template-sync')->onOneServer()->withoutOverlapping();
 
 // Every 5': poll chat for shops with messaging enabled on connectors that support polling
 // (currently Lazada — has no webhook for buyer messages; Shopee/TikTok/Facebook are webhook-only).

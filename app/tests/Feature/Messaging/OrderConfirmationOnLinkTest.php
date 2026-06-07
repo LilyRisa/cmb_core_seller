@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Messaging;
 
+use Carbon\CarbonInterface;
 use CMBcoreSeller\Integrations\Messaging\Facebook\FacebookPageConnector;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Models\User;
@@ -12,6 +13,7 @@ use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Jobs\SendMessage;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
+use CMBcoreSeller\Modules\Messaging\Models\UtilityTemplate;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
@@ -70,7 +72,7 @@ class OrderConfirmationOnLinkTest extends TestCase
         ]);
     }
 
-    private function seedConversation(string $threadType = Conversation::THREAD_MESSAGE): Conversation
+    private function seedConversation(string $threadType = Conversation::THREAD_MESSAGE, ?CarbonInterface $lastInboundAt = null): Conversation
     {
         return Conversation::query()->create([
             'tenant_id' => $this->tenant->getKey(),
@@ -82,6 +84,24 @@ class OrderConfirmationOnLinkTest extends TestCase
             'buyer_name' => 'Chị Mua',
             'status' => Conversation::STATUS_OPEN,
             'last_message_at' => now(),
+            // Mặc định: khách vừa nhắn (còn trong cửa sổ 24h) ⇒ fallback gửi được.
+            'last_inbound_at' => $lastInboundAt ?? now(),
+        ]);
+    }
+
+    private function seedApprovedTemplate(): UtilityTemplate
+    {
+        return UtilityTemplate::query()->create([
+            'tenant_id' => $this->tenant->getKey(),
+            'channel_account_id' => $this->account->id,
+            'code' => 'order_confirmation',
+            'name' => 'Xác nhận đơn',
+            'language' => 'vi',
+            'body' => 'Đơn {{1}} đã xác nhận. Tra cứu: {{2}}',
+            'variables' => ['order_number', 'tracking_url'],
+            'external_template_id' => 'tpl_ext_1',
+            'status' => UtilityTemplate::STATUS_APPROVED,
+            'enabled' => true,
         ]);
     }
 
@@ -105,6 +125,8 @@ class OrderConfirmationOnLinkTest extends TestCase
 
     public function test_sends_confirmation_with_tracking_link_and_button(): void
     {
+        // Không có utility template approved + còn trong cửa sổ 24h ⇒ fallback gửi
+        // interactive text thường (RESPONSE), KHÔNG kèm message_tag (tag đã bị khai tử).
         Queue::fake();
         $conv = $this->seedConversation();
         $order = $this->seedOrder();
@@ -121,7 +143,8 @@ class OrderConfirmationOnLinkTest extends TestCase
         $this->assertSame(Message::KIND_INTERACTIVE, $msg->kind);
         $this->assertStringContainsString('Xác nhận đơn đặt hàng', (string) $msg->body);
         $this->assertStringContainsString('/tracking?code=M260605-CONFIRM', (string) $msg->body);
-        $this->assertSame('POST_PURCHASE_UPDATE', $msg->meta['message_tag'] ?? null);
+        // KHÔNG còn gắn message_tag chết.
+        $this->assertArrayNotHasKey('message_tag', (array) $msg->meta);
         $this->assertSame('order_confirmation', $msg->meta['system_kind'] ?? null);
         $this->assertSame($order->id, $msg->meta['order_id'] ?? null);
         // Nút web_url trỏ tới link tra cứu.
@@ -130,6 +153,44 @@ class OrderConfirmationOnLinkTest extends TestCase
         // Đánh dấu idempotency trên hội thoại + job gửi đã được đẩy.
         $this->assertContains($order->id, (array) ($conv->fresh()->meta['order_confirmation_order_ids'] ?? []));
         Queue::assertPushed(SendMessage::class);
+    }
+
+    public function test_sends_via_utility_template_when_approved(): void
+    {
+        // Có utility template approved ⇒ gửi qua template (đúng policy, gửi được mọi lúc).
+        Queue::fake();
+        $conv = $this->seedConversation();
+        $order = $this->seedOrder();
+        $template = $this->seedApprovedTemplate();
+
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->postJson("/api/v1/messaging/conversations/{$conv->id}/link-order", [
+                'order_id' => $order->id, 'notify_customer' => true,
+            ])->assertOk();
+
+        $msg = $this->outboundMessages($conv->id)->first();
+        $this->assertSame(Message::KIND_UTILITY_TEMPLATE, $msg->kind);
+        $this->assertSame($template->id, $msg->meta['utility_template_id'] ?? null);
+        // vars theo thứ tự variables: [order_number, tracking_url].
+        $this->assertSame('M260605-CONFIRM', $msg->meta['vars'][0] ?? null);
+        $this->assertStringContainsString('/tracking?code=M260605-CONFIRM', $msg->meta['vars'][1] ?? '');
+        $this->assertArrayNotHasKey('message_tag', (array) $msg->meta);
+        Queue::assertPushed(SendMessage::class);
+    }
+
+    public function test_skips_when_outside_window_and_no_template(): void
+    {
+        // Ngoài cửa sổ 24h + chưa có template approved ⇒ bỏ qua êm (không gắn tag chết).
+        Queue::fake();
+        $conv = $this->seedConversation(Conversation::THREAD_MESSAGE, now()->subHours(48));
+        $order = $this->seedOrder();
+
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->postJson("/api/v1/messaging/conversations/{$conv->id}/link-order", [
+                'order_id' => $order->id, 'notify_customer' => true,
+            ])->assertOk();
+
+        $this->assertCount(0, $this->outboundMessages($conv->id));
     }
 
     public function test_idempotent_on_repeated_link(): void

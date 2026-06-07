@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Image, Input, Popover, Radio, Space, Tag } from 'antd';
+import { Button, Image, Input, Popover, Space, Tag } from 'antd';
 import { CloseOutlined, FileOutlined, PaperClipOutlined, PictureOutlined, RobotOutlined, SendOutlined, SmileOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import Picker from '@emoji-mart/react';
 import emojiData from '@emoji-mart/data';
@@ -49,20 +49,16 @@ const MEDIA_CAPS: Record<string, { image: boolean; video: boolean; file: boolean
     manual: { image: true, video: true, file: true },
 };
 
-const FB_MESSAGE_TAGS: Array<{ label: string; value: string }> = [
-    { label: 'Nhân viên (7 ngày)', value: 'HUMAN_AGENT' },
-    { label: 'Xác nhận sự kiện', value: 'CONFIRMED_EVENT_UPDATE' },
-    { label: 'Sau mua hàng', value: 'POST_PURCHASE_UPDATE' },
-    { label: 'Cập nhật tài khoản', value: 'ACCOUNT_UPDATE' },
-];
-
 const SLASH_RE = /^\/(\S*)$/;
 
 export function MessageComposer({ mode, provider, templates, needsTag, aiAvailable, onAiSuggest, onSubmit }: Props) {
     const [text, setText] = useState('');
     const [pending, setPending] = useState<{ file: File; kind: 'image' | 'video' | 'file'; previewUrl?: string } | null>(null);
     const [emojiOpen, setEmojiOpen] = useState(false);
-    const [msgTag, setMsgTag] = useState('HUMAN_AGENT');
+    // Meta đã khai tử các message tag (POST_PURCHASE_UPDATE…). Tag DUY NHẤT còn hợp lệ
+    // là HUMAN_AGENT (tin nhân viên người thật, tới 7 ngày). Tin tự động/ngoài 7 ngày
+    // phải dùng utility template đã duyệt (SPEC-0033, trang "Tin tiện ích").
+    const msgTag = 'HUMAN_AGENT';
     const [busy, setBusy] = useState(false);
     const [aiLoading, setAiLoading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -157,13 +153,13 @@ export function MessageComposer({ mode, provider, templates, needsTag, aiAvailab
             {/* input file ẩn (1 cái cho mọi loại — accept set động) */}
             <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={onFileChosen} />
 
-            {/* DM Facebook quá 24h: chọn message tag */}
+            {/* DM Facebook quá 24h: tin nhân viên gửi dạng Human Agent (7 ngày). */}
             {mode === 'dm' && needsTag && (
                 <div style={{ marginBottom: 8 }}>
-                    <span style={{ fontSize: 12, color: '#64748B', display: 'block', marginBottom: 4 }}>
-                        Quá 24h từ tin cuối của khách — chọn loại thẻ tin nhắn để gửi (Facebook yêu cầu):
+                    <span style={{ fontSize: 12, color: '#64748B', display: 'block' }}>
+                        Quá 24h từ tin cuối của khách — tin sẽ gửi dạng <b>nhân viên hỗ trợ</b> (Facebook cho phép tới 7 ngày).
+                        Ngoài 7 ngày, dùng <b>mẫu tin tiện ích</b> đã duyệt.
                     </span>
-                    <Radio.Group size="small" optionType="button" buttonStyle="solid" options={FB_MESSAGE_TAGS} value={msgTag} onChange={(e) => setMsgTag(e.target.value)} />
                 </div>
             )}
 

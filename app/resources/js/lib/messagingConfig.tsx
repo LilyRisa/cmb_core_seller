@@ -57,6 +57,83 @@ export function useDeleteTemplate() {
     });
 }
 
+// --- Utility templates (Messenger Utility Messages — SPEC-0032) -------------
+
+export type UtilityTemplateStatus = 'draft' | 'pending' | 'approved' | 'rejected';
+
+export interface UtilityTemplate {
+    id: number;
+    channel_account_id: number;
+    code: string;
+    name: string;
+    language: string;
+    body: string;
+    buttons: Array<Record<string, unknown>>;
+    variables: string[];
+    external_template_id: string | null;
+    status: UtilityTemplateStatus;
+    reject_reason: string | null;
+    enabled: boolean;
+    created_at: string | null;
+    updated_at: string | null;
+}
+
+export function useUtilityTemplates(channelAccountId?: number | null) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['messaging', 'utility-templates', tenantId, channelAccountId ?? null],
+        enabled: api != null,
+        // Poll khi có template đang chờ Meta duyệt để trạng thái tự cập nhật.
+        refetchInterval: (q) => (q.state.data?.data?.some((t) => t.status === 'pending') ? 15_000 : false),
+        queryFn: async () => {
+            const qs = channelAccountId ? `?channel_account_id=${channelAccountId}` : '';
+            return (await api!.get<Paginated<UtilityTemplate>>(`/messaging/utility-templates${qs}`)).data;
+        },
+    });
+}
+
+export function useSaveUtilityTemplate() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (t: Partial<UtilityTemplate> & { id?: number }) => {
+            if (t.id) return (await api!.patch(`/messaging/utility-templates/${t.id}`, t)).data;
+            return (await api!.post('/messaging/utility-templates', t)).data;
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'utility-templates'] }),
+    });
+}
+
+export function useDeleteUtilityTemplate() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: number) => { await api!.delete(`/messaging/utility-templates/${id}`); },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'utility-templates'] }),
+    });
+}
+
+/** Gửi template lên Meta để duyệt (draft → pending). */
+export function useSubmitUtilityTemplate() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: number) => (await api!.post(`/messaging/utility-templates/${id}/submit`)).data,
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'utility-templates'] }),
+    });
+}
+
+/** Đồng bộ trạng thái duyệt từ Meta thủ công. */
+export function useSyncUtilityTemplate() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: number) => (await api!.post(`/messaging/utility-templates/${id}/sync`)).data,
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'utility-templates'] }),
+    });
+}
+
 // --- Auto-reply rules -------------------------------------------------------
 
 export type RuleTrigger = 'schedule' | 'order_status' | 'away_no_response' | 'first_message' | 'keyword' | 'comment_any';

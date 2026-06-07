@@ -8,6 +8,7 @@ use CMBcoreSeller\Integrations\Messaging\Contracts\CommentEngagementConnector;
 use CMBcoreSeller\Integrations\Messaging\Contracts\InteractiveMessagingConnector;
 use CMBcoreSeller\Integrations\Messaging\Contracts\ListsPostsConnector;
 use CMBcoreSeller\Integrations\Messaging\Contracts\MessagingConnector;
+use CMBcoreSeller\Integrations\Messaging\Contracts\UtilityTemplateConnector;
 use CMBcoreSeller\Integrations\Messaging\DTO\ConversationDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageDirection;
@@ -18,6 +19,9 @@ use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\OutboundWindowPolicyDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\Page;
 use CMBcoreSeller\Integrations\Messaging\DTO\SendResultDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\UtilityTemplateDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\UtilityTemplateRefDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\UtilityTemplateStatusDTO;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\ConversationClosed;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\OutboundWindowClosed;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\UnsupportedOperation;
@@ -44,7 +48,7 @@ use Symfony\Component\HttpFoundation\Request;
  * Token: Page access token dài hạn ⇒ `refreshToken` ném UnsupportedOperation
  * (re-OAuth khi hết hạn). Polling: Messenger dựa webhook ⇒ `inbound.polling`=false.
  */
-class FacebookPageConnector implements CommentEngagementConnector, InteractiveMessagingConnector, ListsPostsConnector, MessagingConnector
+class FacebookPageConnector implements CommentEngagementConnector, InteractiveMessagingConnector, ListsPostsConnector, MessagingConnector, UtilityTemplateConnector
 {
     /** @param array{verify_token?:?string, app_id?:?string, app_secret?:?string, graph_version?:string} $config */
     public function __construct(
@@ -76,6 +80,7 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
             'outbound.file' => true,
             'outbound.template' => true,   // qua MESSAGE_TAG
             'outbound.interactive' => true, // button/generic template (nút bấm / carousel)
+            'outbound.utility_template' => true, // gửi utility message qua template đã Meta duyệt (ngoài 24h)
             'inbound.postback' => true,    // nhận sự kiện bấm nút (messaging_postbacks)
             'read_receipt' => true,        // sender_action=mark_seen
             'typing' => true,              // sender_action=typing_on
@@ -102,7 +107,9 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
         // `business_management` để liệt kê page thuộc Business Manager (business asset):
         // `/me/accounts` chỉ trả page user là admin classic; page giao qua Business Manager
         // phải duyệt `/me/businesses` → owned_pages/client_pages (xem FacebookOAuthController::fetchPages).
-        $scope = 'pages_messaging,pages_manage_metadata,pages_read_engagement,pages_show_list,pages_read_user_content,pages_manage_engagement,business_management';
+        // `pages_utility_messaging`: gửi utility message qua template đã duyệt (thay
+        // message tag đã bị Meta khai tử) — cần App Review để dùng ngoài test user.
+        $scope = 'pages_messaging,pages_utility_messaging,pages_manage_metadata,pages_read_engagement,pages_show_list,pages_read_user_content,pages_manage_engagement,business_management';
 
         return 'https://www.facebook.com/'.$this->graphVersion().'/dialog/oauth?'.http_build_query([
             'client_id' => $appId,
@@ -1144,11 +1151,141 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
 
     public function outboundWindow(): OutboundWindowPolicyDTO
     {
+        // Meta đã KHAI TỬ message tag (POST_PURCHASE_UPDATE/CONFIRMED_EVENT_UPDATE/
+        // ACCOUNT_UPDATE → error_subcode 1893061). Chỉ còn `HUMAN_AGENT` (tin nhân
+        // viên người thật, 7 ngày). Ngoài cửa sổ ⇒ chỉ utility template đã duyệt.
         return new OutboundWindowPolicyDTO(
             freeWindowHours: 24,
             requiresTag: true,
-            allowedTags: ['HUMAN_AGENT', 'CONFIRMED_EVENT_UPDATE', 'POST_PURCHASE_UPDATE', 'ACCOUNT_UPDATE'],
+            allowedTags: ['HUMAN_AGENT'],
+            humanAgentWindowHours: 168,
+            templateOnlyOutsideWindow: true,
         );
+    }
+
+    // --- Utility Messages (template đã duyệt) -----------------------------
+
+    /**
+     * Tạo + submit utility template lên Meta để duyệt: `POST /{page_id}/message_templates`
+     * (category UTILITY). Body dùng `{{1}}…`; `examples` cung cấp giá trị mẫu (Meta bắt buộc).
+     *
+     * ⚠️ MỨC ĐỘ XÁC MINH: shape request map theo tài liệu Meta + test Http::fake. LIVE
+     * cần Page token thật + quyền `pages_utility_messaging` (App Review). Payload gửi/đăng ký
+     * cô lập tại đây — nếu Meta đổi field chỉ sửa 1 chỗ.
+     */
+    public function createUtilityTemplate(MessagingAuthContext $auth, UtilityTemplateDTO $template): UtilityTemplateRefDTO
+    {
+        $components = [[
+            'type' => 'BODY',
+            'text' => $template->body,
+        ]];
+        if ($template->examples !== []) {
+            $components[0]['example'] = ['body_text' => [$template->examples]];
+        }
+        if ($template->buttons !== []) {
+            $components[] = ['type' => 'BUTTONS', 'buttons' => $this->mapTemplateButtons($template->buttons)];
+        }
+
+        $res = Http::post($this->graphUrl($auth->externalShopId.'/message_templates'), [
+            'name' => $template->name,
+            'language' => $template->language,
+            'category' => 'UTILITY',
+            'components' => $components,
+            'access_token' => $auth->accessToken,
+        ]);
+
+        if (! $res->successful()) {
+            $this->throwGraphError($res, 'createUtilityTemplate');
+        }
+
+        return new UtilityTemplateRefDTO(
+            externalTemplateId: (string) ($res->json('id') ?? ''),
+            name: $template->name,
+            language: $template->language,
+            status: $this->mapTemplateStatus((string) ($res->json('status') ?? 'PENDING'))->status,
+        );
+    }
+
+    public function syncUtilityTemplateStatus(MessagingAuthContext $auth, string $externalTemplateId): UtilityTemplateStatusDTO
+    {
+        $res = Http::get($this->graphUrl($externalTemplateId), [
+            'fields' => 'status,quality_score,rejected_reason',
+            'access_token' => $auth->accessToken,
+        ]);
+
+        if (! $res->successful()) {
+            $this->throwGraphError($res, 'syncUtilityTemplateStatus');
+        }
+
+        return $this->mapTemplateStatus(
+            (string) ($res->json('status') ?? 'PENDING'),
+            $res->json('rejected_reason'),
+            (array) $res->json(),
+        );
+    }
+
+    /**
+     * Gửi utility template đã duyệt tới PSID. Tham chiếu template theo tên + ngôn ngữ;
+     * `$vars` thay `{{1}},{{2}}…` đúng thứ tự. `messaging_type=MESSAGE_TAG` không còn
+     * dùng — utility message tự được phép ngoài 24h khi template đã duyệt.
+     *
+     * @param  list<string>  $vars
+     * @param  array<string, mixed>  $opts
+     */
+    public function sendUtilityTemplate(MessagingAuthContext $auth, string $externalConversationId, UtilityTemplateRefDTO $template, array $vars = [], array $opts = []): SendResultDTO
+    {
+        $params = array_map(
+            fn (string $v): array => ['type' => 'text', 'text' => $v],
+            $vars,
+        );
+
+        return $this->send($auth, [
+            'recipient' => ['id' => $externalConversationId],
+            'messaging_type' => 'UPDATE',
+            'message' => ['attachment' => ['type' => 'template', 'payload' => [
+                'template_type' => 'utility_message',
+                'template_name' => $template->name,
+                'language' => $template->language,
+                'parameters' => $params,
+            ]]],
+        ]);
+    }
+
+    /**
+     * Map nút chuẩn hoá → component BUTTONS của Meta. URL → URL button; còn lại →
+     * QUICK_REPLY (postback). Tối đa Meta cho phép; cắt ở 3 cho an toàn.
+     *
+     * @param  list<array<string, mixed>>  $buttons  mỗi nút: {type, title, url?, payload?}
+     * @return list<array<string, mixed>>
+     */
+    private function mapTemplateButtons(array $buttons): array
+    {
+        $out = [];
+        foreach (array_slice($buttons, 0, 3) as $b) {
+            $title = (string) ($b['title'] ?? '');
+            if ($title === '') {
+                continue;
+            }
+            if (($b['type'] ?? 'postback') === 'url' && ! empty($b['url'])) {
+                $out[] = ['type' => 'URL', 'text' => $title, 'url' => (string) $b['url']];
+            } else {
+                $out[] = ['type' => 'QUICK_REPLY', 'text' => $title];
+            }
+        }
+
+        return $out;
+    }
+
+    /** Chuẩn hoá status Meta (APPROVED/PENDING/REJECTED/PAUSED/DISABLED…) → 3 giá trị. */
+    private function mapTemplateStatus(string $raw, ?string $reason = null, array $rawData = []): UtilityTemplateStatusDTO
+    {
+        $status = match (strtoupper($raw)) {
+            'APPROVED', 'ACTIVE' => UtilityTemplateStatusDTO::APPROVED,
+            'REJECTED', 'DISABLED', 'PAUSED', 'DELETED' => UtilityTemplateStatusDTO::REJECTED,
+            default => UtilityTemplateStatusDTO::PENDING,
+        };
+
+        return new UtilityTemplateStatusDTO($status, $reason, $rawData);
     }
 
     // --- Comment moderation -----------------------------------------------

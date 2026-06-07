@@ -31,6 +31,7 @@ import { CustomersPage } from '@/pages/CustomersPage';
 import { CustomerDetailPage } from '@/pages/CustomerDetailPage';
 import { MessagingPage } from '@/pages/MessagingPage';
 import { MessagingTemplatesPage } from '@/pages/MessagingTemplatesPage';
+import { MessagingUtilityTemplatesPage } from '@/pages/MessagingUtilityTemplatesPage';
 import { MessagingAutoRulesPage } from '@/pages/MessagingAutoRulesPage';
 import { MessagingFlowsPage } from '@/pages/MessagingFlowsPage';
 import { MessagingFlowEditorPage } from '@/pages/MessagingFlowEditorPage';
@@ -120,6 +121,7 @@ function Root() {
                 <Route path="messaging" element={<MessagingPage />} />
                 <Route path="messaging/channels" element={<MessagingChannelsPage />} />
                 <Route path="messaging/templates" element={<MessagingTemplatesPage />} />
+                <Route path="messaging/utility-templates" element={<MessagingUtilityTemplatesPage />} />
                 <Route path="messaging/auto-rules" element={<MessagingAutoRulesPage />} />
                 <Route path="messaging/flows" element={<MessagingFlowsPage />} />
                 <Route path="messaging/flows/:id/edit" element={<MessagingFlowEditorPage />} />

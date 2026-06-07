@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Messaging\Jobs;
 
 use CMBcoreSeller\Integrations\Messaging\Contracts\InteractiveMessagingConnector;
+use CMBcoreSeller\Integrations\Messaging\Contracts\UtilityTemplateConnector;
 use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
@@ -14,7 +15,9 @@ use CMBcoreSeller\Modules\Messaging\Events\MessageFailed;
 use CMBcoreSeller\Modules\Messaging\Events\MessageSent;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
+use CMBcoreSeller\Modules\Messaging\Models\UtilityTemplate;
 use CMBcoreSeller\Modules\Messaging\Services\MediaStorage;
+use CMBcoreSeller\Modules\Messaging\Services\UtilityTemplateService;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -109,6 +112,16 @@ class SendMessage implements ShouldQueue
             return;
         }
 
+        // Tin utility-template: chỉ connector có năng lực `outbound.utility_template`
+        // (Facebook Messenger Utility Messages) mới gửi được — gate theo NĂNG LỰC,
+        // không tên sàn. Thiếu ⇒ fail VĨNH VIỄN (retry không đổi kết quả).
+        if ($message->kind === Message::KIND_UTILITY_TEMPLATE
+            && ! ($connector instanceof UtilityTemplateConnector && $connector->supports('outbound.utility_template'))) {
+            $this->markFailed($message, 'utility_template_unsupported');
+
+            return;
+        }
+
         $auth = new MessagingAuthContext(
             channelAccountId: $account->id,
             provider: $conversation->provider,
@@ -133,6 +146,9 @@ class SendMessage implements ShouldQueue
                 in_array($message->kind, [Message::KIND_IMAGE, Message::KIND_VIDEO, Message::KIND_AUDIO, Message::KIND_FILE], true) => $this->sendMediaForMessage($connector, $auth, $conversation->external_conversation_id, $message, $opts),
                 $message->kind === Message::KIND_INTERACTIVE && $connector instanceof InteractiveMessagingConnector => $connector->sendInteractive(
                     $auth, $conversation->external_conversation_id, (array) ($opts['interactive'] ?? []), $opts
+                ),
+                $message->kind === Message::KIND_UTILITY_TEMPLATE && $connector instanceof UtilityTemplateConnector => $this->sendUtilityTemplateForMessage(
+                    $connector, $auth, $conversation->external_conversation_id, $message, $opts
                 ),
                 default => throw new \RuntimeException("Kind [{$message->kind}] không hỗ trợ ở S1."),
             };
@@ -197,6 +213,31 @@ class SendMessage implements ShouldQueue
         );
 
         return $connector->sendMedia($auth, $externalConvId, $media, $opts);
+    }
+
+    /**
+     * Gửi utility template: nạp `UtilityTemplate` theo meta, dựng ref + vars rồi gọi
+     * connector. Template không còn / chưa duyệt ⇒ ném (job mark failed `send_failed`).
+     *
+     * @param  array<string, mixed>  $opts
+     */
+    private function sendUtilityTemplateForMessage(UtilityTemplateConnector $connector, MessagingAuthContext $auth, string $externalConvId, Message $message, array $opts)
+    {
+        $templateId = (int) ($opts['utility_template_id'] ?? 0);
+        $template = UtilityTemplate::withoutGlobalScope(TenantScope::class)->find($templateId);
+        if (! $template || ! $template->isApproved() || ! $template->external_template_id) {
+            throw new \RuntimeException('Utility template không khả dụng (chưa duyệt / đã xoá).');
+        }
+
+        $vars = array_map('strval', array_values((array) ($opts['vars'] ?? [])));
+
+        return $connector->sendUtilityTemplate(
+            $auth,
+            $externalConvId,
+            app(UtilityTemplateService::class)->refFor($template),
+            $vars,
+            $opts,
+        );
     }
 
     private function markFailed(Message $message, string $code): void

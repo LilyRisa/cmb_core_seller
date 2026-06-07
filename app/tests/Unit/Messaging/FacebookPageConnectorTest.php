@@ -7,6 +7,9 @@ use CMBcoreSeller\Integrations\Messaging\DTO\MessageDirection;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\UtilityTemplateDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\UtilityTemplateRefDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\UtilityTemplateStatusDTO;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\OutboundWindowClosed;
 use CMBcoreSeller\Integrations\Messaging\Facebook\FacebookPageConnector;
 use CMBcoreSeller\Integrations\Messaging\Facebook\FacebookSignatureVerifier;
@@ -220,12 +223,17 @@ class FacebookPageConnectorTest extends TestCase
         $this->assertNull($event->body, 'sticker không được set body thành link');
     }
 
-    public function test_outbound_window_is_24h_with_tags(): void
+    public function test_outbound_window_is_24h_with_human_agent_only(): void
     {
+        // Meta đã khai tử POST_PURCHASE_UPDATE/CONFIRMED_EVENT_UPDATE/ACCOUNT_UPDATE
+        // (SPEC-0032). Chỉ còn HUMAN_AGENT (7 ngày); ngoài cửa sổ ⇒ utility template.
         $policy = $this->connector()->outboundWindow();
         $this->assertSame(24, $policy->freeWindowHours);
         $this->assertTrue($policy->requiresTag);
-        $this->assertContains('POST_PURCHASE_UPDATE', $policy->allowedTags);
+        $this->assertSame(['HUMAN_AGENT'], $policy->allowedTags);
+        $this->assertNotContains('POST_PURCHASE_UPDATE', $policy->allowedTags);
+        $this->assertSame(168, $policy->humanAgentWindowHours);
+        $this->assertTrue($policy->templateOnlyOutsideWindow);
     }
 
     public function test_oauth_dialog_and_token_exchange_use_same_redirect_uri(): void
@@ -279,6 +287,80 @@ class FacebookPageConnectorTest extends TestCase
                 && ($data['recipient']['id'] ?? null) === 'PSID_999'
                 && ($data['message']['text'] ?? null) === 'Còn hàng nhé anh/chị!'
                 && ($data['messaging_type'] ?? null) === 'RESPONSE';
+        });
+    }
+
+    public function test_create_utility_template_posts_utility_category(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response(['id' => 'tpl_123', 'status' => 'PENDING'], 200),
+        ]);
+
+        $auth = new MessagingAuthContext(
+            channelAccountId: 1, provider: 'facebook_page',
+            externalShopId: 'PAGE_123', accessToken: 'PAGE_TOKEN',
+        );
+
+        $ref = $this->connector()->createUtilityTemplate($auth, new UtilityTemplateDTO(
+            name: 'order_confirmation_vi',
+            language: 'vi',
+            body: 'Đơn {{1}} đã xác nhận. Tra cứu: {{2}}',
+            buttons: [['type' => 'url', 'title' => 'Xem đơn', 'url' => 'https://x/y']],
+            examples: ['M1', 'https://x/track'],
+        ));
+
+        $this->assertSame('tpl_123', $ref->externalTemplateId);
+        $this->assertSame(UtilityTemplateStatusDTO::PENDING, $ref->status);
+
+        Http::assertSent(function ($request) {
+            $data = $request->data();
+
+            return str_contains($request->url(), '/PAGE_123/message_templates')
+                && ($data['category'] ?? null) === 'UTILITY'
+                && ($data['language'] ?? null) === 'vi'
+                && ($data['components'][0]['type'] ?? null) === 'BODY'
+                && ($data['components'][0]['example']['body_text'][0] ?? null) === ['M1', 'https://x/track']
+                && ($data['components'][1]['type'] ?? null) === 'BUTTONS';
+        });
+    }
+
+    public function test_sync_utility_template_status_maps_meta_states(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response(['status' => 'APPROVED'], 200),
+        ]);
+
+        $auth = new MessagingAuthContext(channelAccountId: 1, provider: 'facebook_page', externalShopId: 'PAGE_1', accessToken: 'TOK');
+
+        $status = $this->connector()->syncUtilityTemplateStatus($auth, 'tpl_123');
+
+        $this->assertSame(UtilityTemplateStatusDTO::APPROVED, $status->status);
+    }
+
+    public function test_send_utility_template_posts_template_payload_without_dead_tag(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response(['message_id' => 'mid.UT_1'], 200),
+        ]);
+
+        $auth = new MessagingAuthContext(channelAccountId: 1, provider: 'facebook_page', externalShopId: 'PAGE_1', accessToken: 'TOK');
+        $ref = new UtilityTemplateRefDTO('tpl_123', 'order_confirmation_vi', 'vi', UtilityTemplateStatusDTO::APPROVED);
+
+        $result = $this->connector()->sendUtilityTemplate($auth, 'PSID_9', $ref, ['M1', 'https://x/track']);
+
+        $this->assertSame('mid.UT_1', $result->externalMessageId);
+
+        Http::assertSent(function ($request) {
+            $data = $request->data();
+            $payload = $data['message']['attachment']['payload'] ?? [];
+
+            return str_contains($request->url(), '/me/messages')
+                && ($data['recipient']['id'] ?? null) === 'PSID_9'
+                && ($payload['template_name'] ?? null) === 'order_confirmation_vi'
+                && ($payload['parameters'][0]['text'] ?? null) === 'M1'
+                && ($payload['parameters'][1]['text'] ?? null) === 'https://x/track'
+                // KHÔNG còn dùng message tag đã bị khai tử.
+                && ($data['tag'] ?? null) === null;
         });
     }
 

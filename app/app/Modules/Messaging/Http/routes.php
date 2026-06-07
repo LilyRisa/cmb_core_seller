@@ -15,6 +15,7 @@ use CMBcoreSeller\Modules\Messaging\Http\Controllers\MessagingSettingsController
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\PushSubscriptionController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\TagController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\TemplateController;
+use CMBcoreSeller\Modules\Messaging\Http\Controllers\UtilityTemplateController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -102,6 +103,23 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
             ->whereNumber('id')->name('messaging.templates.update');
         Route::delete('templates/{id}', [TemplateController::class, 'destroy'])
             ->whereNumber('id')->name('messaging.templates.destroy');
+
+        // --- Utility message templates (SPEC-0032) — Messenger Utility Messages ---
+        // Đọc `messaging.view`; mutate/submit/sync `messaging.template.manage`.
+        Route::get('utility-templates', [UtilityTemplateController::class, 'index'])
+            ->name('messaging.utility_templates.index');
+        Route::get('utility-templates/{id}', [UtilityTemplateController::class, 'show'])
+            ->whereNumber('id')->name('messaging.utility_templates.show');
+        Route::post('utility-templates', [UtilityTemplateController::class, 'store'])
+            ->name('messaging.utility_templates.store');
+        Route::patch('utility-templates/{id}', [UtilityTemplateController::class, 'update'])
+            ->whereNumber('id')->name('messaging.utility_templates.update');
+        Route::post('utility-templates/{id}/submit', [UtilityTemplateController::class, 'submit'])
+            ->whereNumber('id')->name('messaging.utility_templates.submit');
+        Route::post('utility-templates/{id}/sync', [UtilityTemplateController::class, 'sync'])
+            ->whereNumber('id')->name('messaging.utility_templates.sync');
+        Route::delete('utility-templates/{id}', [UtilityTemplateController::class, 'destroy'])
+            ->whereNumber('id')->name('messaging.utility_templates.destroy');
 
         // --- AI training knowledge docs (S6) -------------------------------
         Route::get('knowledge-docs', [KnowledgeController::class, 'index'])

@@ -410,6 +410,12 @@ Cấu hình động lưu trong DB (`system_settings`), ghi đè giá trị từ 
   - `DELETE /messaging/channels/{id}` (`messaging.connect`) — ngắt kết nối 1 page (xoá hẳn + cascade hội thoại).
   - `POST   /messaging/channels/bulk-disconnect` (`messaging.connect`) — `{ids:int[]}` ngắt kết nối nhiều page đã chọn → `{ok, processed, conversations_deleted}`.
 - `GET/POST/PATCH/DELETE /messaging/templates[/{id}]` (`messaging.template.manage`).
+- **Utility templates (SPEC-0032 — Messenger Utility Messages):** đọc `messaging.view`; mutate/submit/sync `messaging.template.manage`.
+  - `GET    /messaging/utility-templates` — lọc `?channel_account_id=&status=` (paginated).
+  - `POST   /messaging/utility-templates` — tạo `draft` (`channel_account_id`, `code`, `name`, `language`, `body` với `{{1}}…`, `variables[]`, `buttons[]?`).
+  - `GET    /messaging/utility-templates/{id}` · `PATCH /messaging/utility-templates/{id}` (chỉ khi `draft`/`rejected`) · `DELETE /messaging/utility-templates/{id}`.
+  - `POST   /messaging/utility-templates/{id}/submit` — gửi Meta duyệt (→ `pending`). Lỗi → 422 `UTILITY_TEMPLATE_SUBMIT_FAILED`.
+  - `POST   /messaging/utility-templates/{id}/sync` — đồng bộ trạng thái duyệt (`pending`→`approved`/`rejected`). Lỗi → 422 `UTILITY_TEMPLATE_SYNC_FAILED`.
 - `GET/POST/PATCH/DELETE /messaging/auto-reply-rules[/{id}]` (`messaging.rule.manage`).
 - `GET    /messaging/knowledge-docs` (`messaging.view`).
 - `POST   /messaging/knowledge-docs` (`messaging.ai.train`) — multipart/URL/inline, dispatch `IndexKnowledgeDoc`.

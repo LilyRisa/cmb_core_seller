@@ -63,6 +63,9 @@ class Message extends Model
 
     public const KIND_INTERACTIVE = 'interactive';
 
+    /** Tin nhắn tiện ích gửi qua utility template đã Meta duyệt (SPEC-0032). */
+    public const KIND_UTILITY_TEMPLATE = 'utility_template';
+
     public const KIND_SYSTEM = 'system';
 
     public const STATUS_PENDING = 'pending';
