@@ -15,6 +15,7 @@ use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -38,6 +39,27 @@ class DashboardController extends Controller
         if (! in_array($range, self::ALLOWED_RANGES, true)) {
             $range = 7;
         }
+
+        // Cache 3 phút theo (tenant, range). Dashboard poll mỗi 60s và mỗi lần dựng tốn
+        // ≥15 query aggregate/correlated subquery; dữ liệu tenant-scoped nên mọi user cùng
+        // gian hàng chia sẻ cache. Đổi độ trễ tối đa 3' lấy việc giảm tải DB. Kiểm tra quyền
+        // nằm NGOÀI cache — không bao giờ cache quyết định phân quyền.
+        $data = Cache::remember(
+            "dashboard:summary:{$tenantId}:{$range}",
+            180,
+            fn () => $this->buildSummary($tenantId, $range, $profit, $tenant),
+        );
+
+        return response()->json(['data' => $data]);
+    }
+
+    /**
+     * Dựng payload dashboard (chưa bọc envelope) — tách riêng để Cache::remember bao quanh.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildSummary(int $tenantId, int $range, OrderProfitService $profit, CurrentTenant $tenant): array
+    {
         $today = CarbonImmutable::now()->startOfDay();
         $now = CarbonImmutable::now();
         $from = $today->subDays($range - 1);
@@ -85,7 +107,7 @@ class DashboardController extends Controller
         // --- Top 5 SKUs theo doanh thu (kỳ này) ---
         $topSkus = $this->topSkus($tenantId, $from, $now, 5);
 
-        return response()->json(['data' => [
+        return [
             'range' => $range,
             'period' => ['from' => $from->toIso8601String(), 'to' => $now->toIso8601String()],
             'previous_period' => ['from' => $prevFrom->toIso8601String(), 'to' => $prevTo->toIso8601String()],
@@ -108,7 +130,7 @@ class DashboardController extends Controller
             'series' => $this->mergeSeries($from, $now, $curSeries, $profitSeries),
             'by_source' => $bySource,
             'top_skus' => $topSkus,
-        ]]);
+        ];
     }
 
     /**
