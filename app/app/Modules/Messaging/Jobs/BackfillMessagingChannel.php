@@ -12,7 +12,7 @@ use CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta;
 use CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
+use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -31,8 +31,14 @@ use Illuminate\Support\Facades\Log;
  *
  * $sinceIso: nếu set, dừng phân trang khi conversation updated_time < since (đối
  * soát incremental); nếu null, dùng cutoff cố định (messaging.backfill.days, mặc định 90).
+ *
+ * GIỚI HẠN (chống job chạy mãi → timeout 600s → kênh kẹt 'running'): backfill dừng khi tới
+ * mốc 90 ngày HOẶC đã đủ `max_conversations` (mặc định 500) — đủ 500 thì dừng, KHÔNG cần 90 ngày.
+ * Mỗi lần chạy chỉ xử lý tối đa `max_pages_per_run` trang rồi TỰ dispatch job kế (self-chain) để
+ * không vượt timeout; dùng ShouldBeUniqueUntilProcessing nên self-dispatch trong handle() chạy được
+ * (lock nhả khi job bắt đầu). `$processed` mang số hội thoại đã xử lý qua các mắt xích để đếm cap 500.
  */
-class BackfillMessagingChannel implements ShouldBeUnique, ShouldQueue
+class BackfillMessagingChannel implements ShouldBeUniqueUntilProcessing, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -40,8 +46,12 @@ class BackfillMessagingChannel implements ShouldBeUnique, ShouldQueue
 
     public int $uniqueFor = 900;
 
-    public function __construct(public int $channelAccountId, public ?string $sinceIso = null)
-    {
+    public function __construct(
+        public int $channelAccountId,
+        public ?string $sinceIso = null,
+        public int $processed = 0,
+        public bool $isContinuation = false,
+    ) {
         $this->onQueue('messaging-sync');
     }
 
@@ -72,6 +82,11 @@ class BackfillMessagingChannel implements ShouldBeUnique, ShouldQueue
         // (2) Full backfill (sinceIso === null) resets the stale cursor from any prior run.
         if ($this->sinceIso === null) {
             $meta->forceFill(['sync_cursor' => null])->save();
+        }
+        // Fresh backfill (KHÔNG phải mắt xích self-chain) ⇒ reset bộ đếm để cap 500 + hiển thị
+        // phản ánh đúng lần sync này (cũng dọn số đếm bị phồng từ các lần treo trước).
+        if (! $this->isContinuation) {
+            $meta->forceFill(['sync_done_conversations' => 0, 'sync_message_count' => 0])->save();
         }
 
         $auth = new MessagingAuthContext(
@@ -111,21 +126,34 @@ class BackfillMessagingChannel implements ShouldBeUnique, ShouldQueue
             : now()->subDays((int) config('messaging.backfill.days', 90));
         $perPage = (int) config('messaging.backfill.conversations_per_page', 25);
         $msgLimit = (int) config('messaging.backfill.messages_per_conversation', 50);
+        // Cap cứng: dừng khi đủ 500 hội thoại (KHÔNG cần tới mốc 90 ngày). Budget trang/run để 1 job
+        // không vượt timeout 600s — còn thì self-chain ở cuối.
+        $maxConversations = (int) config('messaging.backfill.max_conversations', 500);
+        $maxPagesPerRun = (int) config('messaging.backfill.max_pages_per_run', 5);
         $cursor = $meta->sync_cursor;
+        $processed = $this->processed;          // tổng hội thoại đã xử lý qua cả chuỗi self-chain
+        $reachedCutoff = false;
+        $reachedCap = false;
+        $pagesThisRun = 0;
 
         try {
             do {
                 $prevConvCursor = $cursor;
                 $page = $connector->fetchConversations($auth, ['cursor' => $cursor, 'pageSize' => $perPage]);
-                $reachedCutoff = false;
 
                 foreach ($page->items as $convDto) {
                     /** @var ConversationDTO $convDto */
+                    // Đủ 500 hội thoại ⇒ dừng hẳn (bỏ qua điều kiện 90 ngày).
+                    if ($processed >= $maxConversations) {
+                        $reachedCap = true;
+                        break;
+                    }
                     $updatedAt = $convDto->lastMessageAt;
                     if ($updatedAt !== null && $updatedAt->lt($cutoff)) {
                         $reachedCutoff = true;
                         break;
                     }
+                    $processed++;
 
                     $threadId = (string) ($convDto->raw['fb_thread_id'] ?? '');
                     $conversation = $this->upsertConversation($account, $convDto, $threadId);
@@ -167,14 +195,21 @@ class BackfillMessagingChannel implements ShouldBeUnique, ShouldQueue
                     $meta->forceFill(['sync_done_conversations' => $meta->sync_done_conversations + 1])->save();
                 }
 
-                // (4) Cursor-didn't-advance guard — prevents infinite page loop.
+                if ($reachedCap) {
+                    break;
+                }
+
+                // (4) Cursor-didn't-advance guard — prevents infinite page loop. Coi như hết trang.
                 if ($page->nextCursor !== null && $page->nextCursor === $prevConvCursor) {
+                    $cursor = null;
                     break;
                 }
 
                 $cursor = $page->nextCursor;
                 $meta->forceFill(['sync_cursor' => $cursor])->save();
-            } while (! $reachedCutoff && $cursor !== null && $page->hasMore);
+                $pagesThisRun++;
+                // $reachedCap đã break ở trên ⇒ không cần lặp lại trong điều kiện.
+            } while (! $reachedCutoff && $cursor !== null && $page->hasMore && $pagesThisRun < $maxPagesPerRun);
         } catch (\Throwable $e) {
             if (str_contains($e->getMessage(), 'FACEBOOK_RATE_LIMIT')) {
                 // (1) Set status to queued before releasing so the row is never stranded at 'running'.
@@ -188,6 +223,14 @@ class BackfillMessagingChannel implements ShouldBeUnique, ShouldQueue
                 'sync_error' => substr($e->getMessage(), 0, 250),
             ])->save();
             Log::warning('messaging.backfill.failed', ['account' => $account->id, 'error' => $e->getMessage()]);
+
+            return;
+        }
+
+        // Dừng vì hết budget trang nhưng CHƯA tới cutoff/cap & còn trang ⇒ tiếp tục ở job kế (self-chain)
+        // để không 1 job nào chạy quá timeout. Giữ trạng thái RUNNING + cursor đã lưu; mang theo $processed.
+        if (! $reachedCutoff && ! $reachedCap && $cursor !== null && $page->hasMore) {
+            static::dispatch($this->channelAccountId, $this->sinceIso, $processed, true);
 
             return;
         }
