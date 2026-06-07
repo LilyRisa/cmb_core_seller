@@ -24,7 +24,7 @@ class GenerateCampaignAiInsightTest extends TestCase
         // Stub the AI client so no real call is made.
         $this->app->instance(MarketingAnalysisClient::class, new class implements MarketingAnalysisClient
         {
-            public function analyze(array $data, string $instruction, ?string $schema = null, ?\Closure $fallback = null): array
+            public function analyze(array $data, string $instruction, ?string $schema = null, ?\Closure $fallback = null, ?int $tenantId = null): array
             {
                 return ['payload' => ['summary' => 'ổn'], 'provider_code' => 'fake', 'model' => 'fake-1'];
             }

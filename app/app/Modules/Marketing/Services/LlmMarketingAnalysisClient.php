@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Marketing\Services;
 
+use CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter;
 use CMBcoreSeller\Modules\Marketing\Contracts\MarketingAnalysisClient;
 use CMBcoreSeller\Modules\Marketing\Models\MarketingAiProvider;
 use Illuminate\Support\Facades\Http;
@@ -18,12 +19,20 @@ class LlmMarketingAnalysisClient implements MarketingAnalysisClient
     /** Legacy forecast schema — used when the caller passes no schema. */
     private const FORECAST_SCHEMA = '{forecast:{next_7d:{conversations,orders,spend,projected_cost_per_order}}, strategy:[{action,campaign,rationale,confidence}], creative_review:[{ref,name,verdict,issues:[string],suggestions:[string]}]}';
 
-    public function analyze(array $data, string $instruction, ?string $schema = null, ?\Closure $fallback = null): array
+    public function __construct(private AiCreditMeter $credits) {}
+
+    public function analyze(array $data, string $instruction, ?string $schema = null, ?\Closure $fallback = null, ?int $tenantId = null): array
     {
         $fb = $fallback ?? fn (array $d): array => $this->stub($d);
         $provider = MarketingAiProvider::query()->where('is_active', true)->first();
 
-        if ($provider === null || $provider->adapter === 'manual') {
+        // Không provider / adapter manual / HẾT hạn mức AI ⇒ stub deterministic (0 quota).
+        // SPEC 0032: out-of-credit ⇒ DEGRADE về stub (không chặn), chỉ chạy provider thật khi còn lượt.
+        $canRunReal = $provider !== null
+            && $provider->adapter !== 'manual'
+            && ($tenantId === null || $this->credits->canUse($tenantId, 1));
+
+        if (! $canRunReal) {
             return ['payload' => $fb($data), 'provider_code' => $provider?->code, 'model' => $provider?->default_model];
         }
 
@@ -33,6 +42,12 @@ class LlmMarketingAnalysisClient implements MarketingAnalysisClient
                 'openai_compatible' => $this->openai($provider, $data, $instruction, $schema, $fb),
                 default => $fb($data),
             };
+
+            // SPEC 0032 — 1 request provider THẬT trả kết quả = 1 lượt AI. KHÔNG tính khi
+            // rơi về stub (parse lỗi/fallback ⇒ payload có generated_by='stub').
+            if ($tenantId !== null && (($payload['generated_by'] ?? null) !== 'stub')) {
+                $this->credits->record($tenantId, 1);
+            }
 
             return ['payload' => $payload, 'provider_code' => $provider->code, 'model' => $provider->default_model];
         } catch (\Throwable $e) {

@@ -3,13 +3,11 @@
 namespace CMBcoreSeller\Modules\Marketing\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
-use CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter;
 use CMBcoreSeller\Modules\Marketing\Http\Requests\CampaignAiInsightRequest;
 use CMBcoreSeller\Modules\Marketing\Jobs\GenerateCampaignAiInsight;
 use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
 use CMBcoreSeller\Modules\Marketing\Models\CampaignAiInsight;
 use CMBcoreSeller\Modules\Marketing\Services\CampaignInsightAnalysisService;
-use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 
@@ -69,12 +67,8 @@ class CampaignAiInsightController extends Controller
             return response()->json(['data' => $this->format($existing), 'status' => 'cached', 'queued' => false]);
         }
 
-        // SPEC 0032 — tiêu thụ 1 lượt AI (ném 402 nếu gói không có AI / hết lượt). Chỉ trừ khi THỰC SỰ chạy AI.
-        $tenantId = app(CurrentTenant::class)->id();
-        if ($tenantId !== null) {
-            app(AiCreditMeter::class)->consume($tenantId, 1);
-        }
-
+        // SPEC 0032 — KHÔNG gate/trừ ở đây: LlmMarketingAnalysisClient tự DEGRADE về stub
+        // (0 quota) khi hết hạn mức, và ĐẾM 1 lượt trong job SAU khi provider THẬT trả kết quả.
         GenerateCampaignAiInsight::dispatch($account->id, $campaignId, $params);
 
         return response()->json(['data' => $this->format($existing), 'status' => 'generating', 'queued' => true]);

@@ -15,7 +15,9 @@ interface MarketingAnalysisClient
      * @param  ?\Closure(array<string,mixed>):array<string,mixed>  $fallback  deterministic
      *                                                                        output when no AI provider is active / parsing fails;
      *                                                                        null = the legacy forecast stub
+     * @param  ?int  $tenantId  khi != null: tính 1 lượt AI (SPEC 0032) CHỈ khi provider THẬT
+     *                          trả kết quả (không phải stub / no-provider / lỗi). null = không tính.
      * @return array{payload:array<string,mixed>, provider_code:?string, model:?string}
      */
-    public function analyze(array $data, string $instruction, ?string $schema = null, ?\Closure $fallback = null): array;
+    public function analyze(array $data, string $instruction, ?string $schema = null, ?\Closure $fallback = null, ?int $tenantId = null): array;
 }

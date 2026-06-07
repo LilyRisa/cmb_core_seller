@@ -52,7 +52,7 @@ class CampaignInsightAnalysisService
         }
 
         $data = $this->buildData($account, $campaignExternalId, $params);
-        $result = $this->client->analyze($data, self::INSTRUCTION, self::SCHEMA, fn (array $d): array => $this->stub($d));
+        $result = $this->client->analyze($data, self::INSTRUCTION, self::SCHEMA, fn (array $d): array => $this->stub($d), tenantId: (int) $account->tenant_id);
 
         // Insert a NEW row each time → full history (the latest is the cached one).
         return CampaignAiInsight::withoutGlobalScope(TenantScope::class)->create([

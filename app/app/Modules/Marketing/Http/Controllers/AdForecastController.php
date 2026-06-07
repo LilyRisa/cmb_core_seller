@@ -39,6 +39,8 @@ class AdForecastController extends Controller
             return response()->json(['data' => $this->format($existing), 'status' => 'cached', 'queued' => false]);
         }
 
+        // SPEC 0032 — KHÔNG gate ở đây: LlmMarketingAnalysisClient tự DEGRADE về stub
+        // (deterministic, 0 quota) khi hết hạn mức / không có AI; chỉ đếm 1 lượt khi chạy provider THẬT.
         GenerateAdForecast::dispatch($account->id);
 
         return response()->json(['data' => $this->format($existing), 'status' => 'generating', 'queued' => true]);

@@ -34,7 +34,7 @@ class AdsForecastService
         }
 
         $rows = $this->reconciliation->reconcile($account, 14);
-        $result = $this->client->analyze($this->buildData($account, $rows), self::INSTRUCTION);
+        $result = $this->client->analyze($this->buildData($account, $rows), self::INSTRUCTION, tenantId: (int) $account->tenant_id);
 
         return AdForecast::withoutGlobalScope(TenantScope::class)->updateOrCreate(
             ['ad_account_id' => (int) $account->getKey()],

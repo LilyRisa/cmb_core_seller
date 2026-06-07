@@ -29,7 +29,7 @@ class CampaignInsightAnalysisServiceTest extends TestCase
         {
             public function __construct(private \stdClass $h) {}
 
-            public function analyze(array $data, string $instruction, ?string $schema = null, ?\Closure $fallback = null): array
+            public function analyze(array $data, string $instruction, ?string $schema = null, ?\Closure $fallback = null, ?int $tenantId = null): array
             {
                 $this->h->data = $data;
 
@@ -86,7 +86,7 @@ class CampaignInsightAnalysisServiceTest extends TestCase
         {
             public function __construct(private \stdClass $h) {}
 
-            public function analyze(array $data, string $instruction, ?string $schema = null, ?\Closure $fallback = null): array
+            public function analyze(array $data, string $instruction, ?string $schema = null, ?\Closure $fallback = null, ?int $tenantId = null): array
             {
                 $this->h->data = $data;
 
@@ -137,7 +137,7 @@ class CampaignInsightAnalysisServiceTest extends TestCase
         {
             public function __construct(private \stdClass $h) {}
 
-            public function analyze(array $data, string $instruction, ?string $schema = null, ?\Closure $fallback = null): array
+            public function analyze(array $data, string $instruction, ?string $schema = null, ?\Closure $fallback = null, ?int $tenantId = null): array
             {
                 $this->h->data = $data;
 
