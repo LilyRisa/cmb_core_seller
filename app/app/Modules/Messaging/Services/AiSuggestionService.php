@@ -6,7 +6,7 @@ use CMBcoreSeller\Integrations\Ai\AiAssistantRegistry;
 use CMBcoreSeller\Integrations\Ai\DTO\AiContext;
 use CMBcoreSeller\Integrations\Ai\DTO\ConversationSnapshot;
 use CMBcoreSeller\Integrations\Ai\Exceptions\ProviderNotConfigured;
-use CMBcoreSeller\Modules\Billing\Services\SubscriptionService;
+use CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter;
 use CMBcoreSeller\Modules\Customers\Contracts\CustomerProfileContract;
 use CMBcoreSeller\Modules\Messaging\Exceptions\AiSuggestionException;
 use CMBcoreSeller\Modules\Messaging\Models\AiAssistantRun;
@@ -41,10 +41,23 @@ class AiSuggestionService
         private PiiRedactor $redactor,
         private KnowledgeRetriever $retriever,
         private CustomerProfileContract $customers,
-        private SubscriptionService $subscriptions,
         private IntentClassifier $intentClassifier,
         private OutboundMessageService $outbound,
+        private AiCreditMeter $credits,
     ) {}
+
+    /**
+     * Gate hạn mức AI (SPEC 0032): còn lượt mới cho gọi provider. Hết / gói không có AI
+     * ⇒ ném {@see AiSuggestionException::limitReached} (manual → 402; auto-mode → caller nuốt).
+     * Đếm thực tế dùng {@see AiCreditMeter::record} SAU mỗi response provider thành công.
+     */
+    private function assertHasCredit(int $tenantId): void
+    {
+        if (! $this->credits->canUse($tenantId, 1)) {
+            $s = $this->credits->summary($tenantId);
+            throw AiSuggestionException::limitReached((int) $s['period_used'], (int) $s['monthly_allowance']);
+        }
+    }
 
     /**
      * Auto-mode (S7): AI tự trả lời KHÔNG cần NV duyệt — nhưng qua guardrail
@@ -87,7 +100,7 @@ class AiSuggestionService
     {
         $tenantId = (int) $conv->tenant_id;
         $providerCode = $this->resolveProviderCode($tenantId);
-        $this->assertWithinMonthlyLimit($tenantId);
+        $this->assertHasCredit($tenantId);
 
         // Guardrail: phân loại intent trước khi cho AI tự gửi.
         $intent = $this->intentClassifier->classify($tenantId, $providerCode, $inboundText);
@@ -134,6 +147,9 @@ class AiSuggestionService
             'meta' => ['redacted_count' => $redactedCount, 'intent' => $intent->intent, 'kb_chunks' => count($kb->chunks)],
         ]);
 
+        // 1 response provider thành công = 1 lượt AI (classify đã đếm riêng trong IntentClassifier).
+        $this->credits->record($tenantId, 1);
+
         return ['action' => 'generated', 'intent' => $intent->intent, 'body' => $body, 'run_id' => (int) $run->id];
     }
 
@@ -142,7 +158,7 @@ class AiSuggestionService
         $tenantId = (int) $conv->tenant_id;
 
         $providerCode = $this->resolveProviderCode($tenantId);
-        $this->assertWithinMonthlyLimit($tenantId);
+        $this->assertHasCredit($tenantId);
 
         try {
             $connector = $this->registry->for($providerCode);
@@ -186,6 +202,9 @@ class AiSuggestionService
             'meta' => ['redacted_count' => $redactedCount, 'kb_chunks' => count($kb->chunks)],
         ]);
 
+        // 1 response provider thành công = 1 lượt AI (SPEC 0032).
+        $this->credits->record($tenantId, 1);
+
         return MessageDraft::create([
             'tenant_id' => $tenantId,
             'conversation_id' => $conv->id,
@@ -224,29 +243,6 @@ class AiSuggestionService
         $prompt = trim((string) system_setting('messaging.ai.system_prompt', ''));
 
         return $prompt !== '' ? $prompt : null;
-    }
-
-    private function assertWithinMonthlyLimit(int $tenantId): void
-    {
-        $sub = $this->subscriptions->currentFor($tenantId) ?? $this->subscriptions->ensureTrialFallback($tenantId);
-        // Không có subscription/plan ⇒ KHÔNG giới hạn (nhất quán với EnforcePlanFeature/EnforcePlanLimit coi
-        // "không có sub ⇒ open"). Default 0 cũ khiến `0 >= 0` chặn MỌI request AI khi chưa seed gói/subscription.
-        $limit = (int) ($sub?->plan?->limits['messaging_ai_replies_monthly'] ?? -1);
-
-        if ($limit < 0) {
-            return; // không giới hạn
-        }
-
-        $used = AiAssistantRun::withoutGlobalScope(TenantScope::class)
-            ->where('tenant_id', $tenantId)
-            ->whereIn('mode', [AiAssistantRun::MODE_SUGGEST, AiAssistantRun::MODE_AUTO])
-            ->where('status', AiAssistantRun::STATUS_SUCCESS)
-            ->where('created_at', '>=', now()->startOfMonth())
-            ->count();
-
-        if ($used >= $limit) {
-            throw AiSuggestionException::limitReached($used, $limit);
-        }
     }
 
     /**

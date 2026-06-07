@@ -158,9 +158,9 @@ class MessagingAiSuggestionTest extends TestCase
 
     public function test_monthly_limit_reached(): void
     {
-        // Đặt hạn mức Business = 1 reply/tháng.
+        // SPEC 0032 — hạn mức ví AI = 1 lượt/kỳ (đếm theo response provider thành công).
         $plan = Plan::query()->where('code', Plan::CODE_BUSINESS)->firstOrFail();
-        $plan->update(['limits' => array_merge($plan->limits, ['messaging_ai_replies_monthly' => 1])]);
+        $plan->update(['limits' => array_merge($plan->limits, ['ai_credits_monthly' => 1])]);
 
         // Lần 1 OK.
         $this->actingAs($this->owner)->withHeaders($this->h())
@@ -172,5 +172,19 @@ class MessagingAiSuggestionTest extends TestCase
             ->postJson("/api/v1/messaging/conversations/{$this->conv->id}/ai-suggestion")
             ->assertStatus(402)
             ->assertJsonPath('error.code', 'PLAN_LIMIT_REACHED');
+    }
+
+    public function test_successful_suggestion_records_one_credit(): void
+    {
+        /** @var \CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter $meter */
+        $meter = app(\CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter::class);
+        $this->assertSame(0, $meter->summary((int) $this->tenant->getKey())['period_used']);
+
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->postJson("/api/v1/messaging/conversations/{$this->conv->id}/ai-suggestion")
+            ->assertOk();
+
+        // 1 response provider thành công = 1 lượt (suggest chỉ gọi generateReply, không classify).
+        $this->assertSame(1, $meter->summary((int) $this->tenant->getKey())['period_used']);
     }
 }

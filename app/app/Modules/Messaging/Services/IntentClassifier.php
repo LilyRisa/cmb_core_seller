@@ -6,6 +6,7 @@ use CMBcoreSeller\Integrations\Ai\AiAssistantRegistry;
 use CMBcoreSeller\Integrations\Ai\DTO\AiContext;
 use CMBcoreSeller\Integrations\Ai\DTO\IntentDTO;
 use CMBcoreSeller\Integrations\Ai\Exceptions\ProviderNotConfigured;
+use CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -29,7 +30,7 @@ class IntentClassifier
     /** Ngưỡng lỗi liên tiếp để MỞ mạch (ngừng gọi provider chết). */
     private const FAIL_THRESHOLD = 5;
 
-    public function __construct(private AiAssistantRegistry $registry) {}
+    public function __construct(private AiAssistantRegistry $registry, private AiCreditMeter $credits) {}
 
     public function classify(int $tenantId, string $providerCode, string $text): IntentDTO
     {
@@ -48,6 +49,8 @@ class IntentClassifier
 
             $result = $connector->classifyIntent(new AiContext($tenantId, $providerCode), $text, self::ALL);
             Cache::forget($failKey); // thành công → reset bộ đếm
+            // 1 request provider trả thành công = 1 lượt AI (SPEC 0032).
+            $this->credits->record($tenantId, 1);
 
             return $result;
         } catch (ProviderNotConfigured) {

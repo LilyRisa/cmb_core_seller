@@ -114,6 +114,29 @@ class AiCreditService implements AiCreditMeter
         ])->save();
     }
 
+    /**
+     * Ghi nhận `n` lượt đã dùng SAU khi provider trả thành công (best-effort, KHÔNG ném).
+     * Trừ hạn mức tặng trước rồi credit mua; clamp ở 0 (không âm). Bỏ qua khi unlimited /
+     * gói không có AI. Khác {@see consume} (consume gate trước + ném khi hết).
+     */
+    public function record(int $tenantId, int $n = 1): void
+    {
+        if ($n <= 0 || ! $this->aiEnabled($tenantId) || $this->unlimited($tenantId)) {
+            return;
+        }
+        $w = $this->wallet($tenantId);
+        $allowanceLeft = max(0, $this->monthlyAllowance($tenantId) - $w->period_used);
+        $fromAllowance = min($n, $allowanceLeft);
+        $fromPurchase = min($n - $fromAllowance, $w->purchased_balance);
+        if ($fromAllowance === 0 && $fromPurchase === 0) {
+            return;
+        }
+        $w->forceFill([
+            'period_used' => $w->period_used + $fromAllowance,
+            'purchased_balance' => $w->purchased_balance - $fromPurchase,
+        ])->save();
+    }
+
     /** Cộng credit MUA (cộng dồn, chặn trên 5000). Trả số thực cộng được. */
     public function grantPurchase(int $tenantId, int $amount): int
     {
