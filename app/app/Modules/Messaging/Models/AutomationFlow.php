@@ -2,8 +2,10 @@
 
 namespace CMBcoreSeller\Modules\Messaging\Models;
 
+use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
@@ -20,6 +22,7 @@ use Illuminate\Support\Carbon;
  * @property ?array $graph
  * @property int $version
  * @property bool $enabled
+ * @property bool $applies_all_pages
  * @property ?int $created_by
  * @property ?Carbon $created_at
  * @property ?Carbon $updated_at
@@ -48,7 +51,7 @@ class AutomationFlow extends Model
 
     protected $fillable = [
         'tenant_id', 'name', 'provider', 'status', 'trigger_type',
-        'trigger_config', 'graph', 'version', 'enabled', 'created_by',
+        'trigger_config', 'graph', 'version', 'enabled', 'applies_all_pages', 'created_by',
     ];
 
     protected function casts(): array
@@ -58,6 +61,13 @@ class AutomationFlow extends Model
             'graph' => 'array',
             'version' => 'integer',
             'enabled' => 'boolean',
+            'applies_all_pages' => 'boolean',
         ];
+    }
+
+    /** Các page (channel_account) flow này áp dụng — bỏ qua khi `applies_all_pages=true`. SPEC 0035. */
+    public function pages(): BelongsToMany
+    {
+        return $this->belongsToMany(ChannelAccount::class, 'automation_flow_page');
     }
 }

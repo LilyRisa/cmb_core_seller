@@ -37,7 +37,7 @@ class FlowListenersTest extends TestCase
         AutomationFlow::create([
             'tenant_id' => 1, 'name' => 'Greeting', 'provider' => 'facebook_page',
             'status' => AutomationFlow::STATUS_ACTIVE, 'trigger_type' => AutomationFlow::TRIGGER_INBOX_FIRST_MESSAGE,
-            'enabled' => true,
+            'enabled' => true, 'applies_all_pages' => true,
             'graph' => [
                 'nodes' => [
                     ['id' => 't', 'type' => 'trigger', 'data' => []],
@@ -76,7 +76,7 @@ class FlowListenersTest extends TestCase
         AutomationFlow::create([
             'tenant_id' => 1, 'name' => 'Any', 'provider' => 'facebook_page',
             'status' => AutomationFlow::STATUS_ACTIVE, 'trigger_type' => AutomationFlow::TRIGGER_INBOX_ANY,
-            'enabled' => true,
+            'enabled' => true, 'applies_all_pages' => true,
             'graph' => [
                 'nodes' => [
                     ['id' => 't', 'type' => 'trigger', 'data' => []],
@@ -109,7 +109,7 @@ class FlowListenersTest extends TestCase
         $flow = AutomationFlow::create([
             'tenant_id' => 1, 'name' => 'Wait', 'provider' => 'facebook_page',
             'status' => AutomationFlow::STATUS_ACTIVE, 'trigger_type' => AutomationFlow::TRIGGER_INBOX_ANY,
-            'enabled' => true,
+            'enabled' => true, 'applies_all_pages' => true,
             'graph' => [
                 'nodes' => [
                     ['id' => 't', 'type' => 'trigger', 'data' => []],
@@ -152,7 +152,7 @@ class FlowListenersTest extends TestCase
         AutomationFlow::create([
             'tenant_id' => 1, 'name' => 'CommentPost', 'provider' => 'facebook_page',
             'status' => AutomationFlow::STATUS_ACTIVE, 'trigger_type' => AutomationFlow::TRIGGER_COMMENT_ON_POST,
-            'enabled' => true,
+            'enabled' => true, 'applies_all_pages' => true,
             'trigger_config' => ['post_ids' => ['post123']],
             'graph' => [
                 'nodes' => [
@@ -186,7 +186,7 @@ class FlowListenersTest extends TestCase
         AutomationFlow::create([
             'tenant_id' => 1, 'name' => 'CommentAny', 'provider' => 'facebook_page',
             'status' => AutomationFlow::STATUS_ACTIVE, 'trigger_type' => AutomationFlow::TRIGGER_COMMENT_ANY,
-            'enabled' => true,
+            'enabled' => true, 'applies_all_pages' => true,
             'graph' => [
                 'nodes' => [
                     ['id' => 't', 'type' => 'trigger', 'data' => []],

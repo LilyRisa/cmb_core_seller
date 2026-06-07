@@ -20,12 +20,25 @@ class FlowMatcher
      */
     public function matching(Conversation $conv, array $triggerTypes, ?string $inboundBody = null): Collection
     {
+        $pageId = (int) $conv->channel_account_id;
+
         $flows = AutomationFlow::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $conv->tenant_id)
             ->where('provider', $conv->provider)
             ->where('status', AutomationFlow::STATUS_ACTIVE)
             ->where('enabled', true)
             ->whereIn('trigger_type', $triggerTypes)
+            // SPEC 0035 — chỉ flow áp mọi trang HOẶC gán page này (whereExists pivot, tránh
+            // TenantScope của ChannelAccount khi chạy trong listener/job).
+            ->where(fn ($q) => $q
+                ->where('applies_all_pages', true)
+                ->orWhereExists(fn ($sub) => $sub
+                    ->selectRaw('1')
+                    ->from('automation_flow_page')
+                    ->whereColumn('automation_flow_page.automation_flow_id', 'automation_flows.id')
+                    ->where('automation_flow_page.channel_account_id', $pageId)))
+            // page-specific (false) trước "tất cả trang" (true) — sortBy bên dưới ổn định.
+            ->orderByRaw('applies_all_pages asc')
             ->orderBy('id')
             ->get()
             ->sortBy(fn (AutomationFlow $flow) => ($p = array_search($flow->trigger_type, $triggerTypes, true)) === false ? PHP_INT_MAX : $p)

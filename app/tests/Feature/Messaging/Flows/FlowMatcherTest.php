@@ -17,7 +17,7 @@ class FlowMatcherTest extends TestCase
         return AutomationFlow::create(array_merge([
             'tenant_id' => 1, 'name' => 'F', 'provider' => 'facebook_page',
             'status' => AutomationFlow::STATUS_ACTIVE, 'trigger_type' => $trigger,
-            'trigger_config' => $cfg, 'enabled' => true,
+            'trigger_config' => $cfg, 'enabled' => true, 'applies_all_pages' => true,
             'graph' => ['nodes' => [['id' => 't', 'type' => 'trigger', 'data' => []]], 'edges' => []],
         ], $over));
     }

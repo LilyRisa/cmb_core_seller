@@ -83,6 +83,9 @@ export interface AutomationFlow {
     graph: FlowGraph;
     version: number;
     enabled: boolean;
+    /** SPEC 0035 — true: áp mọi trang; false: chỉ channel_account_ids. */
+    applies_all_pages: boolean;
+    channel_account_ids: number[];
     created_at: string | null;
     updated_at: string | null;
 }

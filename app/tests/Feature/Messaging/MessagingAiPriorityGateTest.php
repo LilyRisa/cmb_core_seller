@@ -120,7 +120,7 @@ class MessagingAiPriorityGateTest extends TestCase
         AutomationFlow::query()->create([
             'tenant_id' => $this->tenant->getKey(), 'name' => 'Chào', 'provider' => 'manual',
             'status' => AutomationFlow::STATUS_ACTIVE, 'trigger_type' => AutomationFlow::TRIGGER_INBOX_FIRST_MESSAGE,
-            'trigger_config' => [], 'enabled' => true, 'version' => 1,
+            'trigger_config' => [], 'enabled' => true, 'applies_all_pages' => true, 'version' => 1,
             'graph' => ['nodes' => [['id' => 't', 'type' => 'trigger', 'data' => []]], 'edges' => []],
         ]);
         $msg = $this->inbound($conv, 'Xin chào shop');
@@ -156,7 +156,7 @@ class MessagingAiPriorityGateTest extends TestCase
         $flow = AutomationFlow::query()->create([
             'tenant_id' => $this->tenant->getKey(), 'name' => 'F', 'provider' => 'manual',
             'status' => AutomationFlow::STATUS_ACTIVE, 'trigger_type' => AutomationFlow::TRIGGER_INBOX_KEYWORD,
-            'trigger_config' => ['keywords' => ['zzz']], 'enabled' => true, 'version' => 1,
+            'trigger_config' => ['keywords' => ['zzz']], 'enabled' => true, 'applies_all_pages' => true, 'version' => 1,
             'graph' => ['nodes' => [['id' => 't', 'type' => 'trigger', 'data' => []]], 'edges' => []],
         ]);
         FlowRun::query()->create([

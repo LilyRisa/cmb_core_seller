@@ -35,6 +35,7 @@ import {
 import { defaultData, GROUP_LABELS, NODE_META, nodeTypes } from '@/features/messaging/flow/nodes';
 import { NodeConfigDrawer } from '@/features/messaging/flow/NodeConfigDrawer';
 import { PostPicker } from '@/features/messaging/flow/PostPicker';
+import { useMessagingChannels } from '@/lib/messagingConfig';
 
 const STATUS_COLOR: Record<FlowStatus, string> = { draft: 'default', active: 'green', paused: 'orange', archived: 'default' };
 const TRIGGER_OPTIONS: { label: string; value: FlowTriggerType; disabled?: boolean }[] = [
@@ -75,6 +76,9 @@ function FlowEditor() {
     const [postIds, setPostIds] = useState<string[]>([]);
     const [pickerOpen, setPickerOpen] = useState(false);
     const [status, setStatus] = useState<FlowStatus>('draft');
+    const [appliesAllPages, setAppliesAllPages] = useState(true);
+    const [pageIds, setPageIds] = useState<number[]>([]);
+    const channels = useMessagingChannels().data ?? [];
 
     useEffect(() => {
         if (!flow) return;
@@ -85,6 +89,8 @@ function FlowEditor() {
         setKeywords(Array.isArray((flow.trigger_config as { keywords?: string[] })?.keywords) ? ((flow.trigger_config as { keywords?: string[] }).keywords ?? []) : []);
         setPostIds(Array.isArray((flow.trigger_config as { post_ids?: string[] })?.post_ids) ? ((flow.trigger_config as { post_ids?: string[] }).post_ids ?? []) : []);
         setStatus(flow.status);
+        setAppliesAllPages(flow.applies_all_pages ?? true);
+        setPageIds(flow.channel_account_ids ?? []);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [flow?.id]);
 
@@ -125,7 +131,9 @@ function FlowEditor() {
         trigger_type: triggerType,
         trigger_config: triggerConfig(),
         graph: serialize(),
-    }), [flowId, name, triggerType, triggerConfig, serialize]);
+        applies_all_pages: appliesAllPages,
+        channel_account_ids: appliesAllPages ? [] : pageIds,
+    }), [flowId, name, triggerType, triggerConfig, serialize, appliesAllPages, pageIds]);
 
     const onSaveDraft = () => save.mutate(payload(), {
         onSuccess: () => message.success('Đã lưu nháp'),
@@ -190,6 +198,19 @@ function FlowEditor() {
                     <Button icon={<FileImageOutlined />} onClick={() => setPickerOpen(true)} disabled={!canManage}>
                         {postIds.length > 0 ? `Đã chọn ${postIds.length} bài viết` : 'Chọn bài viết'}
                     </Button>
+                )}
+                <Tooltip title="Phạm vi trang áp dụng kịch bản (SPEC 0035)">
+                    <Segmented
+                        value={appliesAllPages ? 'all' : 'pick'}
+                        onChange={(v) => setAppliesAllPages(v === 'all')}
+                        options={[{ label: 'Tất cả trang', value: 'all' }, { label: 'Chọn trang', value: 'pick' }]}
+                        disabled={!canManage}
+                    />
+                </Tooltip>
+                {!appliesAllPages && (
+                    <Select mode="multiple" value={pageIds} onChange={setPageIds} disabled={!canManage}
+                        placeholder="Chọn trang" style={{ minWidth: 200 }} optionFilterProp="label" maxTagCount="responsive"
+                        options={channels.map((c) => ({ value: c.id, label: c.name || c.shop_name || c.external_shop_id }))} />
                 )}
                 <div style={{ flex: 1 }} />
                 {canManage && <Button icon={<SaveOutlined />} loading={save.isPending} onClick={onSaveDraft}>Lưu nháp</Button>}

@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Messaging\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
+use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Exceptions\AttachmentInvalid;
 use CMBcoreSeller\Modules\Messaging\Models\AutomationFlow;
 use CMBcoreSeller\Modules\Messaging\Services\AiFlowExclusionService;
@@ -54,6 +55,8 @@ class AutomationFlowController extends Controller
         Gate::authorize('messaging.rule.manage');
 
         $data = $this->validatePayload($request, creating: true);
+        $pageIds = $data['channel_account_ids'] ?? [];
+        unset($data['channel_account_ids']);
         // Tạo luôn ở trạng thái nháp — xuất bản qua endpoint /publish sau khi validate.
         $flow = AutomationFlow::create($data + [
             'status' => AutomationFlow::STATUS_DRAFT,
@@ -61,6 +64,7 @@ class AutomationFlowController extends Controller
             'version' => 1,
             'created_by' => $request->user()?->id,
         ]);
+        $this->syncPages($flow, $pageIds);
 
         AuditLog::record('messaging.flow.create', $flow, ['trigger_type' => $flow->trigger_type]);
 
@@ -76,10 +80,16 @@ class AutomationFlowController extends Controller
         // Status KHÔNG sửa trực tiếp ở đây (qua publish/pause). Sửa flow đã active ⇒
         // bump version để phân biệt phiên bản (run mới đọc graph hiện tại).
         unset($data['status']);
+        $hasPages = array_key_exists('channel_account_ids', $data);
+        $pageIds = $data['channel_account_ids'] ?? [];
+        unset($data['channel_account_ids']);
         if (array_key_exists('graph', $data)) {
             $data['version'] = (int) $flow->version + 1;
         }
         $flow->fill($data)->save();
+        if ($hasPages || array_key_exists('applies_all_pages', $data)) {
+            $this->syncPages($flow, $pageIds);
+        }
 
         AuditLog::record('messaging.flow.update', $flow, ['trigger_type' => $flow->trigger_type]);
 
@@ -174,8 +184,14 @@ class AutomationFlowController extends Controller
             'graph' => $src->graph,
             'version' => 1,
             'enabled' => true,
+            'applies_all_pages' => $src->applies_all_pages,
             'created_by' => $request->user()?->id,
         ]);
+        // Sao chép phạm vi page (pivot) từ flow gốc.
+        $copy->pages()->sync(
+            $src->pages()->pluck('channel_accounts.id')
+                ->mapWithKeys(fn ($id) => [$id => ['tenant_id' => $copy->tenant_id]])->all()
+        );
 
         AuditLog::record('messaging.flow.duplicate', $copy, ['source_id' => $src->id]);
 
@@ -229,7 +245,35 @@ class AutomationFlowController extends Controller
             'graph.nodes' => ['nullable', 'array'],
             'graph.edges' => ['nullable', 'array'],
             'enabled' => ['nullable', 'boolean'],
+            // SPEC 0035 — phạm vi page.
+            'applies_all_pages' => ['nullable', 'boolean'],
+            'channel_account_ids' => ['nullable', 'array'],
+            'channel_account_ids.*' => ['integer'],
         ]);
+    }
+
+    /**
+     * Đồng bộ pivot flow↔page (lọc page thuộc tenant, chống cross-tenant).
+     * `applies_all_pages=true` ⇒ xoá pivot (áp mọi trang).
+     *
+     * @param  list<int>  $pageIds
+     */
+    private function syncPages(AutomationFlow $flow, array $pageIds): void
+    {
+        if ($flow->applies_all_pages) {
+            $flow->pages()->sync([]);
+
+            return;
+        }
+
+        $ownIds = ChannelAccount::query()
+            ->where('tenant_id', $flow->tenant_id)
+            ->whereIn('id', array_map('intval', $pageIds))
+            ->pluck('id');
+
+        $flow->pages()->sync(
+            $ownIds->mapWithKeys(fn ($id) => [$id => ['tenant_id' => $flow->tenant_id]])->all()
+        );
     }
 
     /** @return array<string,mixed> */
@@ -245,6 +289,8 @@ class AutomationFlowController extends Controller
             'graph' => $f->graph ?? ['nodes' => [], 'edges' => []],
             'version' => (int) $f->version,
             'enabled' => (bool) $f->enabled,
+            'applies_all_pages' => (bool) $f->applies_all_pages,
+            'channel_account_ids' => $f->pages()->pluck('channel_accounts.id')->all(),
             'created_at' => $f->created_at?->toIso8601String(),
             'updated_at' => $f->updated_at?->toIso8601String(),
         ];
