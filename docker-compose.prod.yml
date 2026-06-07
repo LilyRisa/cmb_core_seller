@@ -30,6 +30,14 @@ x-logging: &logging
 x-app-build: &app-build
   context: ./app
   dockerfile: docker/Dockerfile
+  args:
+    # Realtime (Reverb) — PHẢI giống build-args của service `web` để bundle do app image build
+    # (manifest @vite) khớp content-hash với static assets của web image (lệch ⇒ 404 asset), và để
+    # FE có VITE_REVERB_APP_KEY → bật realtime (thiếu ⇒ lib/echo.ts polling fallback). ADR-0021.
+    VITE_REVERB_APP_KEY: ${REVERB_APP_KEY:-iojmwem7osjrbryn67y4}
+    VITE_REVERB_HOST: ${VITE_REVERB_HOST:-app.cmbcore.com}
+    VITE_REVERB_PORT: ${VITE_REVERB_PORT:-443}
+    VITE_REVERB_SCHEME: ${VITE_REVERB_SCHEME:-https}
 
 # Container env for app / worker / scheduler. In-cluster hostnames are fixed; everything
 # else comes from ${VAR} (set in ./.env for CLI, or in Portainer's env-vars UI).

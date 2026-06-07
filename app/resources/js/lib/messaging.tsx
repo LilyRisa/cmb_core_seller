@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 import { tenantApi } from './api';
-import { getEcho } from './echo';
+import { getEcho, realtimeEnabled } from './echo';
 import { useCurrentTenantId } from './tenant';
 import type { Paginated } from './orders';
 
@@ -157,7 +157,8 @@ export function useConversations(filters: ConversationFilters) {
         queryKey: ['messaging', 'conversations', tenantId, filters],
         enabled: api != null,
         placeholderData: (prev) => prev,
-        refetchInterval: 15_000, // polling fallback tới khi Reverb bật
+        // Realtime bật (Reverb có key) ⇒ poll thưa 60s làm lưới an toàn (ws lo realtime); tắt ⇒ poll 15s.
+        refetchInterval: realtimeEnabled() ? 60_000 : 15_000,
         initialPageParam: 1,
         queryFn: async ({ pageParam }) => {
             const params: Record<string, string | number | boolean> = {};
@@ -187,7 +188,7 @@ export function useUnreadConversations(enabled: boolean) {
         queryKey: ['messaging', 'unread-feed', tenantId],
         enabled: enabled && api != null,
         retry: false,
-        refetchInterval: (query) => (query.state.status === 'error' ? false : 20_000),
+        refetchInterval: (query) => (query.state.status === 'error' ? false : (realtimeEnabled() ? 60_000 : 20_000)),
         queryFn: async () => {
             const { data } = await api!.get<Paginated<Conversation>>('/messaging/conversations', { params: { unread: true, per_page: 50 } });
             return { items: data.data, total: data.meta.pagination.total };
@@ -203,7 +204,7 @@ export function useConversationThread(id: number | null) {
     return useQuery({
         queryKey: ['messaging', 'thread', tenantId, id],
         enabled: api != null && id != null,
-        refetchInterval: 10_000,
+        refetchInterval: realtimeEnabled() ? 60_000 : 10_000,
         queryFn: async () => {
             const { data } = await api!.get<{ data: ThreadResult }>(`/messaging/conversations/${id}`);
             return data.data;

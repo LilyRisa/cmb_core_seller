@@ -15,6 +15,18 @@ WORKDIR /build
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+# Realtime (Reverb) — VITE_* được Vite nhúng vào bundle lúc build (ADR-0021). PHẢI khớp build-args
+# của web image (docker/nginx/Dockerfile) để manifest (app image) ↔ static assets (web image) trùng
+# content-hash (nếu lệch ⇒ 404 asset). Thiếu VITE_REVERB_APP_KEY ⇒ lib/echo.ts realtimeEnabled()=false
+# ⇒ FE polling fallback. HOST/PORT/SCHEME là endpoint công khai browser nối wss (qua proxy).
+ARG VITE_REVERB_APP_KEY=""
+ARG VITE_REVERB_HOST=""
+ARG VITE_REVERB_PORT="443"
+ARG VITE_REVERB_SCHEME="https"
+ENV VITE_REVERB_APP_KEY=$VITE_REVERB_APP_KEY \
+    VITE_REVERB_HOST=$VITE_REVERB_HOST \
+    VITE_REVERB_PORT=$VITE_REVERB_PORT \
+    VITE_REVERB_SCHEME=$VITE_REVERB_SCHEME
 RUN npm run build
 
 # ---------- 2. Composer dependencies ----------
