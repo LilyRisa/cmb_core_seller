@@ -25,12 +25,18 @@ class UsageService
         };
     }
 
-    /** Số `channel_accounts` `status=active` của tenant. */
+    /**
+     * Số GIAN HÀNG SÀN `status=active` của tenant — CHỈ đếm sàn đã kết nối, loại
+     * kênh nhắn tin (facebook_page/lazada_im) qua {@see ChannelAccount::scopeMarketplace}.
+     * Phải khớp với danh sách "Gian hàng" (ChannelAccountController@index) để hạn mức
+     * không lệch với số gian hàng người dùng thấy.
+     */
     public function channelAccounts(int $tenantId): int
     {
         return ChannelAccount::query()->withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenantId)
             ->where('status', ChannelAccount::STATUS_ACTIVE)
+            ->marketplace()
             ->count();
     }
 

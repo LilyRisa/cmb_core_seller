@@ -48,6 +48,13 @@ class ChannelAccount extends Model
 
     public const STATUS_DISABLED = 'disabled';   // paused by the user
 
+    /**
+     * Provider chỉ dùng để NHẮN TIN, KHÔNG phải gian hàng sàn TMĐT — loại khỏi
+     * danh sách "Gian hàng" và khỏi đếm hạn mức gói (chỉ đếm sàn đã kết nối).
+     * `facebook_page` (Messenger), `lazada_im` (Lazada IM ERP app riêng).
+     */
+    public const MESSAGING_ONLY_PROVIDERS = ['facebook_page', 'lazada_im'];
+
     protected $fillable = [
         'tenant_id', 'provider', 'external_shop_id', 'shop_name', 'display_name', 'shop_region', 'seller_type',
         'status', 'access_token', 'refresh_token', 'token_expires_at', 'refresh_token_expires_at',
@@ -98,6 +105,12 @@ class ChannelAccount extends Model
     public function scopeActive(Builder $q): Builder
     {
         return $q->where('status', self::STATUS_ACTIVE);
+    }
+
+    /** Chỉ gian hàng sàn TMĐT (loại kênh nhắn tin facebook_page/lazada_im). */
+    public function scopeMarketplace(Builder $q): Builder
+    {
+        return $q->whereNotIn('provider', self::MESSAGING_ONLY_PROVIDERS);
     }
 
     public function scopeForProvider(Builder $q, string $provider): Builder

@@ -33,7 +33,9 @@ class ChannelAccountController extends Controller
     {
         $this->authorizeView($request);
 
-        $accounts = ChannelAccount::query()->where('provider', '!=', 'facebook_page')->orderByDesc('created_at')->get();
+        // Chỉ gian hàng sàn TMĐT — loại kênh nhắn tin (facebook_page/lazada_im) để
+        // khớp với cách đếm hạn mức gói ({@see UsageService::channelAccounts}).
+        $accounts = ChannelAccount::query()->marketplace()->orderByDesc('created_at')->get();
         $connectable = collect($registry->providers())
             ->filter(fn ($p) => $p !== 'manual' && $registry->for($p)->supports('orders.fetch'))
             ->map(fn ($p) => ['code' => $p, 'name' => $registry->for($p)->displayName()])

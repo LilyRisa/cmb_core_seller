@@ -69,6 +69,15 @@ class ChannelAccountIndexExcludesFacebookTest extends TestCase
             'messaging_enabled' => true,
         ]);
 
+        // Lazada IM (app nhắn tin riêng) — cũng KHÔNG phải gian hàng sàn.
+        ChannelAccount::query()->create([
+            'tenant_id' => $this->tenant->getKey(),
+            'provider' => 'lazada_im',
+            'external_shop_id' => 'LZ_IM_1',
+            'shop_name' => 'Lazada IM',
+            'status' => 'active',
+        ]);
+
         // Gian hàng sàn TMĐT — phải xuất hiện.
         ChannelAccount::query()->create([
             'tenant_id' => $this->tenant->getKey(),
@@ -87,9 +96,10 @@ class ChannelAccountIndexExcludesFacebookTest extends TestCase
         $this->assertSame('tiktok', $res->json('data.0.provider'));
         $this->assertSame('TT_SHOP_1', $res->json('data.0.external_shop_id'));
 
-        // Đảm bảo facebook_page hoàn toàn vắng mặt trong response.
+        // Đảm bảo kênh nhắn tin (facebook_page/lazada_im) vắng mặt trong response.
         $providers = collect($res->json('data'))->pluck('provider')->all();
         $this->assertNotContains('facebook_page', $providers);
+        $this->assertNotContains('lazada_im', $providers);
     }
 
     public function test_only_facebook_page_accounts_returns_empty_data(): void
