@@ -6,6 +6,7 @@ use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Integrations\Carriers\CarrierRegistry;
 use CMBcoreSeller\Integrations\Carriers\Ghn\GhnClient;
 use CMBcoreSeller\Integrations\Carriers\Support\AbstractCarrierConnector;
+use CMBcoreSeller\Integrations\Carriers\ViettelPost\ViettelPostClient;
 use CMBcoreSeller\Modules\Fulfillment\Http\Resources\CarrierAccountResource;
 use CMBcoreSeller\Modules\Fulfillment\Models\CarrierAccount;
 use Illuminate\Http\JsonResponse;
@@ -276,5 +277,42 @@ class CarrierAccountController extends Controller
         }
 
         return response()->json(['data' => array_values((array) ($body['data'] ?? []))]);
+    }
+
+    /**
+     * POST /api/v1/carrier-accounts/viettelpost/master-data — proxy danh mục Tỉnh/Phường (đơn vị HC mới v3)
+     * của Viettel Post cho form chọn "địa chỉ kho hàng" (cascading). Danh mục VTP công khai (không cần token)
+     * ⇒ không nhận credentials. Cache 1 tiếng. SPEC 0034.
+     *
+     * Payload: { level: 'provinces'|'wards', province_id?: int }
+     */
+    public function viettelpostMasterData(Request $request): JsonResponse
+    {
+        abort_unless($request->user()?->can('fulfillment.carriers'), 403, 'Bạn không có quyền cấu hình ĐVVC.');
+        $data = $request->validate([
+            'level' => ['required', 'string', 'in:provinces,wards'],
+            'province_id' => ['required_if:level,wards', 'integer'],
+        ]);
+
+        $cacheKey = $data['level'] === 'provinces'
+            ? 'vtp.fe.provinces_new'
+            : "vtp.fe.wards_new.{$data['province_id']}";
+
+        try {
+            $rows = Cache::remember($cacheKey, 3600, function () use ($data) {
+                $client = new ViettelPostClient([]);   // danh mục không cần token
+
+                return $data['level'] === 'provinces'
+                    ? $client->listProvinceNew()
+                    : $client->listWardsNew((int) $data['province_id']);
+            });
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Không gọi được Viettel Post: '.$e->getMessage(),
+                'errors' => ['level' => ['Viettel Post không phản hồi danh mục địa danh.']],
+            ], 422);
+        }
+
+        return response()->json(['data' => $rows]);
     }
 }

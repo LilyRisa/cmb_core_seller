@@ -32,7 +32,8 @@
 5. carrier.getTracking(tracking_no) định kỳ HOẶC carrier.parseWebhook() nếu ĐVVC có webhook → cập nhật status
 6. carrier.cancel(tracking_no) khi hủy
 ```
-- `carrier_accounts` lưu credential ĐVVC (mã hoá) theo tenant. ĐVVC đợt 1: **GHN, GHTK, J&T Express**. Đợt 2: ViettelPost, NinjaVan, SPX/Shopee Express (nếu mở API), VNPost, Best Express, Ahamove/Grab (giao nhanh nội thành).
+- `carrier_accounts` lưu credential ĐVVC (mã hoá) theo tenant. ĐVVC đã tích hợp: **GHN, GHTK, Viettel Post (VTP)**. Roadmap: J&T Express, NinjaVan, SPX/Shopee Express (nếu mở API), VNPost, Best Express, Ahamove/Grab.
+  - **Viettel Post (SPEC 0034):** Open API mới (`partner.viettelpost.vn`). Xác thực 2 cách (username/password → `Login`+`ownerconnect`, hoặc token web → `LoginVTP`; partner token cache theo `exp` JWT). Địa chỉ **ID-based** (`ViettelPostAddressResolver` map tên → ID, ưu tiên đơn vị HC mới v3, fallback v2), tạo đơn `POST /v2/order/createOrder`. In tem qua `printing-code` → link `digitalize.viettelpost.vn` (HTML→Gotenberg / PDF). Hủy `UpdateOrder TYPE=4`. **Không** pull tracking (Open API set chưa có) ⇒ trạng thái dựa **webhook** (verify body `TOKEN` secret, mode `tracking_lookup`). **Sửa đơn chỉ tác động trong app, không đẩy ngược lên VTP.**
 - Mỗi ĐVVC = một `CarrierConnector` (xem `extensibility-rules.md`). Thêm ĐVVC không sửa core.
 
 ## 4. In ấn

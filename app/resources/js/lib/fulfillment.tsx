@@ -236,6 +236,27 @@ export function useGhnMasterData() {
     });
 }
 
+/** Viettel Post master-data (đơn vị HC mới v3) — schema từ /v3/categories/list*New. */
+export interface VtpProvince { PROVINCE_ID: number; PROVINCE_NAME?: string; WPROVINCE_NAME?: string; PROVINCE_CODE?: string }
+export interface VtpWard { WARDS_ID: number; WARDS_NAME: string; DISTRICT_ID?: number }
+
+/**
+ * Proxy gọi Viettel Post master-data (Tỉnh/Phường đơn vị HC mới) cho cascading chọn địa chỉ kho.
+ * Danh mục VTP công khai (không cần token) ⇒ payload không gửi credentials. Backend cache 1 giờ.
+ */
+export function useViettelPostMasterData() {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async (vars:
+            | { level: 'provinces' }
+            | { level: 'wards'; province_id: number }
+        ) => {
+            const { data } = await api!.post<{ data: VtpProvince[] | VtpWard[] }>('/carrier-accounts/viettelpost/master-data', vars);
+            return data.data;
+        },
+    });
+}
+
 function useFulfillmentInvalidate() {
     const tenantId = useCurrentTenantId();
     return useInvalidate([['fulfillment-ready', tenantId], ['shipments', tenantId], ['orders', tenantId], ['inventory-levels', tenantId]]);

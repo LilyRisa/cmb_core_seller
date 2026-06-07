@@ -235,6 +235,8 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::post('carrier-accounts/ghn/master-data', [CarrierAccountController::class, 'ghnMasterData'])->name('carrier-accounts.ghn.master-data');
             // Proxy GHN shop list — 1 token có thể có nhiều shop. Form pick 1 shop thay vì gõ ShopId.
             Route::post('carrier-accounts/ghn/shops', [CarrierAccountController::class, 'ghnShops'])->name('carrier-accounts.ghn.shops');
+            // Proxy Viettel Post master-data (Tỉnh/Phường đơn vị HC mới v3) cho form chọn địa chỉ kho. SPEC 0034.
+            Route::post('carrier-accounts/viettelpost/master-data', [CarrierAccountController::class, 'viettelpostMasterData'])->name('carrier-accounts.viettelpost.master-data');
 
             Route::get('fulfillment/ready', [ShipmentController::class, 'ready'])->name('fulfillment.ready');
             Route::get('fulfillment/processing', [ShipmentController::class, 'processing'])->name('fulfillment.processing');           // SPEC 0009 — màn xử lý đơn

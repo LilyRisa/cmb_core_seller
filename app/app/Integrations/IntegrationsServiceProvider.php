@@ -13,6 +13,7 @@ use CMBcoreSeller\Integrations\Carriers\CarrierRegistry;
 use CMBcoreSeller\Integrations\Carriers\Ghn\GhnConnector;
 use CMBcoreSeller\Integrations\Carriers\Ghtk\GhtkConnector;
 use CMBcoreSeller\Integrations\Carriers\Manual\ManualCarrierConnector;
+use CMBcoreSeller\Integrations\Carriers\ViettelPost\ViettelPostConnector;
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Integrations\Channels\Lazada\LazadaConnector;
 use CMBcoreSeller\Integrations\Channels\Manual\ManualConnector;
@@ -66,6 +67,7 @@ class IntegrationsServiceProvider extends ServiceProvider
         'manual' => ManualCarrierConnector::class,
         'ghn' => GhnConnector::class,
         'ghtk' => GhtkConnector::class,
+        'viettelpost' => ViettelPostConnector::class,
         // 'jt'   => \CMBcoreSeller\Integrations\Carriers\JtExpress\JtExpressConnector::class,
     ];
 

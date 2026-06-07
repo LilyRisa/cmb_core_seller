@@ -48,7 +48,7 @@ class CarrierWebhookController extends Controller
         // Connector tự khai báo cách xác thực + resolve tenant (core không hard-code tên carrier).
         $signatureError = null;
         $shipment = match ($connector->webhookAuthMode()) {
-            'tracking_lookup' => $this->resolveByTrackingLookup($request, $carrier, $tracking, $signatureError),
+            'tracking_lookup' => $this->resolveByTrackingLookup($request, $carrier, $tracking, $event, $signatureError),
             default => $this->resolveByTokenHeader($request, $carrier, $tracking, $signatureError),
         };
         if ($signatureError !== null) {
@@ -127,13 +127,17 @@ class CarrierWebhookController extends Controller
     }
 
     /**
-     * GHTK-style auth: webhook không có Token header. Resolve tenant theo tracking_no (label) đã lưu
-     * (label do GHTK cấp, duy nhất toàn hệ thống). Verify nhẹ header `X-Client-Source` nếu có; thiếu ⇒
-     * chấp nhận + log cảnh báo (hạn chế đã biết — xem spec GHTK §10).
+     * Tracking-lookup auth (GHTK, Viettel Post): webhook KHÔNG có Token header. Resolve tenant theo
+     * tracking_no (label/ORDER_NUMBER duy nhất toàn hệ thống). Verify secret theo cách generic — core
+     * KHÔNG hard-code tên carrier:
+     *   - expected = credentials.webhook_secret (VTP) ?? credentials.client_source (GHTK)
+     *   - incoming = $event['secret'] (connector parseWebhook trả, vd VTP body.TOKEN) ?? header X-Client-Source (GHTK)
+     * Cả 2 non-empty mà khác ⇒ 401. Incoming rỗng ⇒ chấp nhận + log cảnh báo (hạn chế đã biết — spec GHTK §10).
      *
+     * @param  array<string,mixed>  $event
      * @param  array{code:string,message:string}|null  $signatureError
      */
-    private function resolveByTrackingLookup(Request $request, string $carrier, string $tracking, ?array &$signatureError): ?Shipment
+    private function resolveByTrackingLookup(Request $request, string $carrier, string $tracking, array $event, ?array &$signatureError): ?Shipment
     {
         $signatureError = null;
         if ($tracking === '') {
@@ -149,14 +153,15 @@ class CarrierWebhookController extends Controller
         }
         $account = CarrierAccount::query()->withoutGlobalScope(TenantScope::class)
             ->where('carrier', $carrier)->where('tenant_id', $shipment->tenant_id)->where('is_active', true)->first();
-        $clientSource = (string) $request->header('X-Client-Source', '');
-        $expected = $account ? (string) (($account->credentials ?? [])['client_source'] ?? '') : '';
-        if ($clientSource !== '' && $expected !== '' && $clientSource !== $expected) {
-            $signatureError = ['code' => 'WEBHOOK_SIGNATURE_INVALID', 'message' => 'X-Client-Source không khớp.'];
+        $creds = $account ? (array) ($account->credentials ?? []) : [];
+        $expected = (string) ($creds['webhook_secret'] ?? $creds['client_source'] ?? '');
+        $incoming = (string) ($event['secret'] ?? $request->header('X-Client-Source', ''));
+        if ($incoming !== '' && $expected !== '' && $incoming !== $expected) {
+            $signatureError = ['code' => 'WEBHOOK_SIGNATURE_INVALID', 'message' => 'Chữ ký/secret webhook không khớp.'];
 
             return null;
         }
-        if ($clientSource === '') {
+        if ($incoming === '') {
             Log::warning('carrier.webhook.unverified', ['carrier' => $carrier, 'tracking' => $tracking, 'tenant' => $shipment->tenant_id]);
         }
 

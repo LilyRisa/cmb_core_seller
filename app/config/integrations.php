@@ -113,6 +113,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Viettel Post (VTP) Open API — SPEC 0034
+    |--------------------------------------------------------------------------
+    |
+    | Connector dùng base_url cho mọi API (login, danh mục, tạo đơn, hủy, in mã).
+    | Prod: https://partner.viettelpost.vn · Dev: https://partnerdev.viettelpost.vn.
+    | In nhãn dùng host RIÊNG (print_base_url): prod digitalize.viettelpost.vn,
+    | dev dev-release-print.viettelpost.vn. Credentials (username/password HOẶC
+    | token web VTP) lưu per-tenant ở carrier_accounts — KHÔNG ở đây.
+    |
+    */
+    'viettelpost' => [
+        'base_url' => env('VIETTELPOST_BASE_URL', 'https://partner.viettelpost.vn'),
+        'print_base_url' => env('VIETTELPOST_PRINT_BASE_URL', 'https://digitalize.viettelpost.vn'),
+        'http' => [
+            'timeout' => (int) env('VIETTELPOST_HTTP_TIMEOUT', 20),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Per-provider request throttling (calls per minute, per shop)
     |--------------------------------------------------------------------------
     |

@@ -18,8 +18,9 @@ import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
 import {
     type Carrier, type CarrierAccount, type GhnDistrict, type GhnProvince, type GhnShop, type GhnWard,
+    type VtpProvince, type VtpWard,
     useCarrierAccounts, useCarriers, useCreateCarrierAccount, useDeleteCarrierAccount,
-    useGhnMasterData, useGhnShops, useUpdateCarrierAccount, useVerifyCarrierAccount,
+    useGhnMasterData, useGhnShops, useUpdateCarrierAccount, useVerifyCarrierAccount, useViettelPostMasterData,
 } from '@/lib/fulfillment';
 
 // Trường thông tin xác thực (credentials) theo từng ĐVVC — v1: GHN; carrier khác fallback "token".
@@ -32,10 +33,17 @@ const CRED_FIELDS: Record<string, Array<{ key: string; label: string; required?:
         { key: 'token', label: 'API Token', required: true, placeholder: 'Token từ GHTK (Cấu hình → API)' },
         { key: 'client_source', label: 'Mã đối tác (X-Client-Source)', required: false, placeholder: 'Mã shop/đối tác GHTK (nếu có)' },
     ],
+    // VTP: nhập Username+Password HOẶC dán token web — không field nào hard-required (validate ở BE khi verify).
+    viettelpost: [
+        { key: 'username', label: 'Tài khoản (Username)', required: false, placeholder: 'SĐT/Tài khoản Partner Viettel Post' },
+        { key: 'password', label: 'Mật khẩu', required: false, placeholder: 'Mật khẩu tài khoản Partner' },
+        { key: 'token', label: 'Hoặc Token web VTP', required: false, placeholder: 'Token tạo trên viettelpost.vn (nếu không dùng user/mật khẩu)' },
+        { key: 'webhook_secret', label: 'Webhook secret (tuỳ chọn)', required: false, placeholder: 'Secret VTP gửi kèm webhook để xác thực' },
+    ],
 };
 
 // Carrier nào cần "địa chỉ kho hàng" để tạo vận đơn? GHN yêu cầu district_id của kho.
-const FROM_ADDRESS_REQUIRED: Record<string, boolean> = { ghn: true, ghtk: true };
+const FROM_ADDRESS_REQUIRED: Record<string, boolean> = { ghn: true, ghtk: true, viettelpost: true };
 
 // Các field "tên người gửi / SĐT / địa chỉ" vẫn nhập tay — chỉ mã hành chính do GHN cung cấp được
 // load tự động qua cascading Select (xem `GhnFromAddressSection`). Form field names giữ nguyên prefix
@@ -49,7 +57,6 @@ const FROM_ADDRESS_BASIC_FIELDS: Array<{ key: string; label: string; required?: 
 // Danh sách ĐVVC "sắp có" — hiển thị dimmed-card để người dùng biết roadmap.
 const COMING_SOON: Array<{ code: string; name: string }> = [
     { code: 'jt', name: 'J&T Express' },
-    { code: 'viettelpost', name: 'Viettel Post' },
     { code: 'spx', name: 'SPX Express' },
     { code: 'vnpost', name: 'VNPost' },
     { code: 'ahamove', name: 'Ahamove' },
@@ -422,6 +429,7 @@ function AddCarrierAccountModal({
             from_name: fa.name, from_phone: fa.phone, from_address: fa.address,
             from_province_name: fa.province_name, from_district_name: fa.district_name, from_ward_name: fa.ward_name,
             from_district_id: fa.district_id, from_ward_code: fa.ward_code,
+            from_province_id: fa.province_id, from_ward_id: fa.ward_id,
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [state.open, state.edit]);
@@ -436,6 +444,8 @@ function AddCarrierAccountModal({
                 { key: 'name' }, { key: 'phone' }, { key: 'address' },
                 { key: 'ward_name' }, { key: 'district_name' }, { key: 'province_name' },
                 { key: 'district_id', numeric: true }, { key: 'ward_code' },
+                // VTP: ID đơn vị HC mới (v3) — chỉ có khi carrier = viettelpost.
+                { key: 'province_id', numeric: true }, { key: 'ward_id', numeric: true },
             ];
             const fromAddress: Record<string, unknown> = {};
             fromKeys.forEach(({ key, numeric }) => {
@@ -494,6 +504,12 @@ function AddCarrierAccountModal({
                         {credFields.length > 0 && (
                             <>
                                 <Typography.Title level={5} style={{ marginTop: 4, marginBottom: 8, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14 }}>Thông tin xác thực</Typography.Title>
+                                {code === 'viettelpost' && (
+                                    <Alert
+                                        type="info" showIcon style={{ marginBottom: 12 }}
+                                        message={<>Nhập <b>Tài khoản + Mật khẩu</b> Partner Viettel Post, <b>hoặc</b> dán <b>Token</b> tạo trên viettelpost.vn. Chỉ cần 1 trong 2 cách.</>}
+                                    />
+                                )}
                                 {credFields.map((f) => (
                                     <Form.Item key={f.key} name={`cred_${f.key}`} label={f.label} rules={f.required && !isEdit ? [{ required: true, message: `Nhập ${f.label}` }] : []} extra={isEdit ? 'Để trống nếu không đổi' : undefined}>
                                         <Input placeholder={isEdit ? '•••••• (giữ nguyên nếu để trống)' : f.placeholder} />
@@ -510,7 +526,9 @@ function AddCarrierAccountModal({
                                 <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 12 }}>
                                     {code === 'ghtk'
                                         ? <>Bắt buộc với GHTK — dùng làm địa chỉ lấy hàng khi tạo vận đơn. GHTK nhận địa chỉ <b>theo tên</b> Tỉnh/Quận/Phường.</>
-                                        : <>Bắt buộc với GHN — dùng để tạo vận đơn. Mã quận/phường <b>tự động tải</b> từ GHN sau khi bạn nhập API Token.</>}
+                                        : code === 'viettelpost'
+                                            ? <>Bắt buộc với Viettel Post — dùng làm địa chỉ lấy hàng. Chọn Tỉnh/Phường (đơn vị hành chính mới) để lấy <b>mã VTP</b> tạo vận đơn.</>
+                                            : <>Bắt buộc với GHN — dùng để tạo vận đơn. Mã quận/phường <b>tự động tải</b> từ GHN sau khi bạn nhập API Token.</>}
                                 </Typography.Paragraph>
                                 {FROM_ADDRESS_BASIC_FIELDS.map((f) => (
                                     <Form.Item key={f.key} name={`from_${f.key}`} label={f.label} rules={f.required ? [{ required: true, message: `Nhập ${f.label}` }] : []}>
@@ -519,6 +537,7 @@ function AddCarrierAccountModal({
                                 ))}
                                 {code === 'ghn' && <GhnFromAddressSection form={form} />}
                                 {code === 'ghtk' && <GhtkFromAddressSection form={form} initial={isEdit ? { province: editFa.province_name as string | undefined, district: editFa.district_name as string | undefined, ward: editFa.ward_name as string | undefined } : undefined} />}
+                                {code === 'viettelpost' && <ViettelPostFromAddressSection form={form} initial={isEdit ? { province_id: editFa.province_id as number | undefined, province_name: editFa.province_name as string | undefined, ward_id: editFa.ward_id as number | undefined, ward_name: editFa.ward_name as string | undefined } : undefined} />}
                             </>
                         )}
 
@@ -708,6 +727,113 @@ function GhtkFromAddressSection({ form, initial }: { form: FormInstance; initial
             <Form.Item name="from_province_name" hidden rules={[{ required: true, message: 'Chọn Tỉnh/Thành của kho gửi' }]}><Input /></Form.Item>
             <Form.Item name="from_ward_name" hidden rules={[{ required: true, message: 'Chọn Phường/Xã của kho gửi' }]}><Input /></Form.Item>
             <Form.Item name="from_district_name" hidden><Input /></Form.Item>
+        </>
+    );
+}
+
+/**
+ * Viettel Post nhận địa chỉ bằng ID. Cascading Tỉnh → Phường theo đơn vị hành chính MỚI (v3) qua proxy
+ * `/carrier-accounts/viettelpost/master-data` (danh mục công khai, không cần token). Ghi mã VTP + tên vào
+ * hidden field `from_province_id/from_ward_id/from_district_id` (suy từ phường) + `from_*_name` để
+ * `AddCarrierAccountModal.submit()` đóng gói `meta.from_address`.
+ */
+function ViettelPostFromAddressSection({ form, initial }: {
+    form: FormInstance;
+    initial?: { province_id?: number; province_name?: string; ward_id?: number; ward_name?: string };
+}) {
+    const { message } = AntApp.useApp();
+    const masterData = useViettelPostMasterData();
+    const [provinces, setProvinces] = useState<VtpProvince[]>([]);
+    const [wards, setWards] = useState<VtpWard[]>([]);
+    const [loading, setLoading] = useState<null | 'provinces' | 'wards'>(null);
+    const [provinceId, setProvinceId] = useState<number | undefined>(initial?.province_id);
+    const [wardId, setWardId] = useState<number | undefined>(initial?.ward_id);
+    const loadedRef = useRef(false);
+
+    const provName = (p: VtpProvince) => p.PROVINCE_NAME ?? p.WPROVINCE_NAME ?? `#${p.PROVINCE_ID}`;
+
+    // Load tỉnh 1 lần khi mở; nếu edit có sẵn province_id thì load luôn phường.
+    useEffect(() => {
+        if (loadedRef.current) return;
+        loadedRef.current = true;
+        setLoading('provinces');
+        masterData.mutate({ level: 'provinces' }, {
+            onSuccess: (data) => {
+                setProvinces(data as VtpProvince[]);
+                if (initial?.province_id) loadWards(initial.province_id);
+            },
+            onError: (e) => message.error(errorMessage(e, 'Không tải được danh sách tỉnh từ Viettel Post.')),
+            onSettled: () => setLoading(null),
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const loadWards = (pid: number) => {
+        setLoading('wards');
+        masterData.mutate({ level: 'wards', province_id: pid }, {
+            onSuccess: (data) => setWards(data as VtpWard[]),
+            onError: (e) => message.error(errorMessage(e, 'Không tải được danh sách phường từ Viettel Post.')),
+            onSettled: () => setLoading(null),
+        });
+    };
+
+    const onPickProvince = (id: number) => {
+        const p = provinces.find((x) => x.PROVINCE_ID === id);
+        setProvinceId(id);
+        setWardId(undefined);
+        setWards([]);
+        form.setFieldsValue({
+            from_province_id: id, from_province_name: p ? provName(p) : '',
+            from_ward_id: undefined, from_ward_name: undefined, from_district_id: undefined,
+        });
+        loadWards(id);
+    };
+
+    const onPickWard = (id: number) => {
+        const w = wards.find((x) => x.WARDS_ID === id);
+        setWardId(id);
+        form.setFieldsValue({
+            from_ward_id: id, from_ward_name: w?.WARDS_NAME ?? '',
+            from_district_id: w?.DISTRICT_ID ?? undefined,
+        });
+    };
+
+    const provincesReady = provinces.length > 0;
+
+    return (
+        <>
+            <Form.Item label="Tỉnh / Thành phố (đơn vị hành chính mới)" required>
+                <Select
+                    showSearch
+                    placeholder={loading === 'provinces' ? 'Đang tải tỉnh từ Viettel Post…' : 'Chọn tỉnh / thành phố'}
+                    disabled={!provincesReady}
+                    loading={loading === 'provinces'}
+                    value={provinceId}
+                    onChange={onPickProvince}
+                    optionFilterProp="label"
+                    options={provinces.map((p) => ({ value: p.PROVINCE_ID, label: provName(p) }))}
+                    notFoundContent={loading === 'provinces' ? <Spin size="small" /> : 'Chưa có dữ liệu'}
+                />
+            </Form.Item>
+            <Form.Item label="Phường / Xã" required>
+                <Select
+                    showSearch
+                    placeholder={provinceId ? 'Chọn phường / xã' : 'Chọn tỉnh trước'}
+                    disabled={!provinceId || loading === 'wards'}
+                    loading={loading === 'wards'}
+                    value={wardId}
+                    onChange={onPickWard}
+                    optionFilterProp="label"
+                    options={wards.map((w) => ({ value: w.WARDS_ID, label: w.WARDS_NAME }))}
+                    notFoundContent={loading === 'wards' ? <Spin size="small" /> : 'Chưa có dữ liệu'}
+                />
+            </Form.Item>
+            {/* Hidden — set bởi cascading Select; submit() gói vào meta.from_address. */}
+            <Form.Item name="from_province_name" hidden><Input /></Form.Item>
+            <Form.Item name="from_ward_name" hidden><Input /></Form.Item>
+            <Form.Item name="from_district_id" hidden><Input /></Form.Item>
+            <Form.Item name="from_province_id" hidden rules={[{ required: true, message: 'Chọn Tỉnh/Thành của kho gửi.' }]}><Input /></Form.Item>
+            <Form.Item name="from_ward_id" hidden rules={[{ required: true, message: 'Chọn Phường/Xã của kho gửi.' }]}><Input /></Form.Item>
         </>
     );
 }
