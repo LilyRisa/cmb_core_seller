@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { App as AntApp, Alert, Button, Card, Empty, Form, Input, Modal, Popconfirm, Segmented, Space, Table, Tag, Tooltip, Typography } from 'antd';
-import { CloudUploadOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { App as AntApp, Alert, Avatar, Button, Card, Empty, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
+import { CloudUploadOutlined, DeleteOutlined, EditOutlined, FacebookFilled, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { MessagingNav } from '@/components/MessagingNav';
@@ -62,19 +62,29 @@ export function MessagingUtilityTemplatesPage() {
         form.setFieldsValue(
             t
                 ? { ...t, variables: (t.variables ?? []).join(', ') }
-                : { code: '', name: '', language: 'vi', body: '', variables: '' },
+                : { channel_account_id: accountId ?? undefined, code: '', name: '', language: 'vi', body: '', variables: '' },
         );
         setOpen(true);
     };
 
+    /** Option Page hiển thị avatar + tên + ID (dùng cho cả bộ lọc và form). */
+    const renderPageOptions = () => pages.map((p) => (
+        <Select.Option key={p.id} value={p.id} label={p.name || p.shop_name || p.external_shop_id}>
+            <Space>
+                <Avatar size={24} src={p.avatar_url || undefined} icon={<FacebookFilled />} style={{ background: p.avatar_url ? undefined : '#1877F2' }} />
+                <span>{p.name || p.shop_name || p.external_shop_id}</span>
+                <Typography.Text type="secondary" style={{ fontSize: 11 }}>· ID: {p.external_shop_id}</Typography.Text>
+            </Space>
+        </Select.Option>
+    ));
+
     const onSubmit = () => form.validateFields().then((v) => {
-        if (accountId == null) { message.error('Chưa chọn Trang Facebook'); return; }
         const variables = String(v.variables ?? '')
             .split(',')
             .map((s: string) => s.trim())
             .filter((s: string) => s !== '');
         save.mutate(
-            { ...(editing ? { id: editing.id } : { channel_account_id: accountId }), ...v, variables },
+            { ...(editing ? { id: editing.id } : {}), ...v, variables },
             {
                 onSuccess: () => { message.success('Đã lưu mẫu tin tiện ích'); setOpen(false); },
                 onError: (e) => message.error(errorMessage(e)),
@@ -136,14 +146,17 @@ export function MessagingUtilityTemplatesPage() {
                 <Card><Empty description="Chưa kết nối Trang Facebook nào. Vào 'Kết nối kênh' để thêm." /></Card>
             ) : (
                 <>
-                    {pages.length > 1 && (
-                        <Segmented<number>
-                            style={{ marginBottom: 16 }}
+                    <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Typography.Text type="secondary">Trang Facebook:</Typography.Text>
+                        <Select<number>
+                            style={{ minWidth: 320 }}
                             value={accountId ?? pages[0].id}
                             onChange={(v) => setAccountId(v)}
-                            options={pages.map((p) => ({ label: p.name || p.shop_name || p.external_shop_id, value: p.id }))}
-                        />
-                    )}
+                            optionLabelProp="label"
+                        >
+                            {renderPageOptions()}
+                        </Select>
+                    </div>
                     <Card>
                         <Table<UtilityTemplate> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns} pagination={false} />
                     </Card>
@@ -153,6 +166,11 @@ export function MessagingUtilityTemplatesPage() {
             <Modal open={open} onCancel={() => setOpen(false)} onOk={onSubmit} confirmLoading={save.isPending}
                 title={editing ? `Sửa mẫu — ${editing.code}` : 'Thêm mẫu tin tiện ích'} okText="Lưu" cancelText="Huỷ">
                 <Form form={form} layout="vertical">
+                    <Form.Item name="channel_account_id" label="Trang Facebook" rules={[{ required: true, message: 'Chọn Trang Facebook' }]}>
+                        <Select<number> optionLabelProp="label" disabled={!!editing} placeholder="Chọn Trang Facebook">
+                            {renderPageOptions()}
+                        </Select>
+                    </Form.Item>
                     <Form.Item name="code" label="Mã (slug)" rules={[{ required: true, pattern: /^[a-z0-9_-]+$/, message: 'Chỉ chữ thường, số, _ -' }]}
                         extra="Dùng 'order_confirmation' cho tin xác nhận đơn tự động.">
                         <Input placeholder="vd: order_confirmation" disabled={!!editing} />
