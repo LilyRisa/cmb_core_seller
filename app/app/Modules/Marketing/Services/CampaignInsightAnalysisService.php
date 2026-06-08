@@ -26,7 +26,7 @@ class CampaignInsightAnalysisService
         'purchase_roas' => 'purchaseRoas', 'messaging_conversations' => 'messagingConversations', 'leads' => 'leads',
     ];
 
-    private const INSTRUCTION = 'Bạn là chuyên gia tối ưu quảng cáo Facebook. Phân tích RIÊNG một chiến dịch dựa trên: chỉ số đã chọn trong N ngày, hiệu quả từng quảng cáo, nội dung creative/bài viết, tương tác (like/comment), và (nếu có) NỘI DUNG TRANG ĐÍCH (landing_pages: tiêu đề/heading/text/CTA/form/pixel) với chiến dịch chuyển đổi website. Hãy: (1) chấm điểm hiệu quả tổng thể của chiến dịch trên thang 0–100 (score: số nguyên) phản ánh mức độ hiệu quả dựa trên chỉ số, nội dung quảng cáo và trang đích, (2) đánh giá hiệu quả chiến dịch theo các chỉ số đó, (3) nhận xét nội dung & tương tác của từng bài/quảng cáo, (4) nếu có trang đích: đánh giá mức độ khớp giữa quảng cáo và trang đích, trải nghiệm/tốc độ/CTA và việc gắn pixel; (5) đề xuất hành động cụ thể (tăng/giảm ngân sách, tạm dừng, đổi tệp/nội dung, tối ưu trang đích) cho riêng chiến dịch này.';
+    private const INSTRUCTION = 'Bạn là chuyên gia tối ưu quảng cáo Facebook. Phân tích RIÊNG một chiến dịch dựa trên: chỉ số đã chọn trong N ngày, CẤU TRÚC chiến dịch (ad_sets = các nhóm quảng cáo, ads = các quảng cáo bên trong), hiệu quả từng nhóm/quảng cáo, nội dung creative/bài viết, tương tác (like/comment), và (nếu có) NỘI DUNG TRANG ĐÍCH (landing_pages: tiêu đề/heading/text/CTA/form/pixel) với chiến dịch chuyển đổi website. QUAN TRỌNG về dữ liệu đầu vào: (a) Ngân sách có thể đặt ở CẤP CHIẾN DỊCH (campaign.daily_budget/lifetime_budget — CBO) HOẶC ở TỪNG NHÓM (ad_sets[].daily_budget/lifetime_budget — ABO); nếu campaign không có ngân sách nhưng nhóm có thì KHÔNG kết luận "không có ngân sách". (b) Mảng ad_sets/ads liệt kê cấu trúc đã đồng bộ KỂ CẢ khi chỉ số rỗng (chưa phân phối/không có chi tiêu trong kỳ) — nếu ad_sets/ads KHÔNG rỗng thì TUYỆT ĐỐI không nói "chiến dịch không có nhóm/quảng cáo nào bên trong"; thay vào đó nêu rõ là chưa phân phối/chưa tiêu trong kỳ và đề xuất kiểm tra trạng thái/ngân sách/đối tượng. Hãy: (1) chấm điểm hiệu quả tổng thể của chiến dịch trên thang 0–100 (score: số nguyên) phản ánh mức độ hiệu quả dựa trên chỉ số, nội dung quảng cáo và trang đích, (2) đánh giá hiệu quả chiến dịch theo các chỉ số đó, (3) nhận xét nội dung & tương tác của từng bài/quảng cáo, (4) nếu có trang đích: đánh giá mức độ khớp giữa quảng cáo và trang đích, trải nghiệm/tốc độ/CTA và việc gắn pixel; (5) đề xuất hành động cụ thể (tăng/giảm ngân sách, tạm dừng, đổi tệp/nội dung, tối ưu trang đích) cho riêng chiến dịch này.';
 
     /** Output schema the model must follow (matches what CampaignAiInsightDrawer renders). */
     private const SCHEMA = '{score:number (0-100, điểm hiệu quả tổng thể), summary:string (tổng quan ngắn), assessment:string (đánh giá hiệu quả theo chỉ số), recommendations:[{action:string, rationale:string}], creative_review:[{ref:string, name:string, verdict:"tốt"|"cần cải thiện", issues:[string], suggestions:[string]}]}';
@@ -125,11 +125,52 @@ class CampaignInsightAnalysisService
                 'lifetime_budget' => $campaign->lifetime_budget,
             ],
             'campaign_metrics' => null,
+            'ad_sets' => [],
             'ads' => [],
             'creatives' => [],
             'engagement' => [],
             'landing_pages' => [],
         ];
+
+        // Structural tree from the SYNCED entities (no HTTP). Present even when the
+        // provider is unconfigured or insights return nothing (chưa phân phối trong kỳ),
+        // so the model never mistakes "chưa chạy" for "không có nhóm/quảng cáo". ABO
+        // budgets live on the ad sets here — campaign.daily_budget is null in ABO.
+        $syncedAdsets = AdEntity::withoutGlobalScope(TenantScope::class)
+            ->where('ad_account_id', $account->getKey())
+            ->where('level', AdEntity::LEVEL_ADSET)
+            ->where('parent_external_id', $campaignExternalId)
+            ->get();
+        $adsetIds = array_map('strval', $syncedAdsets->pluck('external_id')->all());
+        $syncedAds = $adsetIds === [] ? collect() : AdEntity::withoutGlobalScope(TenantScope::class)
+            ->where('ad_account_id', $account->getKey())
+            ->where('level', AdEntity::LEVEL_AD)
+            ->whereIn('parent_external_id', $adsetIds)
+            ->get();
+
+        // Keyed maps so metrics can merge onto the structure below.
+        $adsetById = [];
+        foreach ($syncedAdsets as $as) {
+            $adsetById[(string) $as->external_id] = [
+                'external_id' => (string) $as->external_id,
+                'name' => $as->name,
+                'status' => $as->effective_status ?? $as->status,
+                'daily_budget' => $as->daily_budget,
+                'lifetime_budget' => $as->lifetime_budget,
+                'optimization_goal' => is_array($as->meta) ? ($as->meta['optimization_goal'] ?? null) : null,
+            ];
+        }
+        $adById = [];
+        foreach ($syncedAds as $ad) {
+            $adById[(string) $ad->external_id] = [
+                'ad_id' => (string) $ad->external_id,
+                'name' => $ad->name,
+                'status' => $ad->effective_status ?? $ad->status,
+                'adset_id' => $ad->parent_external_id === null ? null : (string) $ad->parent_external_id,
+            ];
+        }
+        $data['ad_sets'] = array_values($adsetById);
+        $data['ads'] = array_values($adById);
 
         if (! $this->registry->has($account->provider)) {
             return $data;
@@ -143,16 +184,32 @@ class CampaignInsightAnalysisService
             $campaignRows = $connector->fetchInsights($token, $campaignExternalId, 'campaign', $range);
             $data['campaign_metrics'] = isset($campaignRows[0]) ? $this->pickMetrics($campaignRows[0], $params['metrics']) : null;
 
+            // Per-ad-set metrics (one call) — only when there are synced ad sets to key onto.
+            if ($adsetIds !== []) {
+                foreach ($connector->fetchInsights($token, $campaignExternalId, 'adset', $range) as $r) {
+                    $asId = isset($r->raw['adset_id']) ? (string) $r->raw['adset_id'] : null;
+                    if ($asId !== null && isset($adsetById[$asId])) {
+                        $adsetById[$asId] += $this->pickMetrics($r, $params['metrics']);
+                    }
+                }
+                $data['ad_sets'] = array_values($adsetById);
+            }
+
             $adRows = $connector->fetchInsights($token, $campaignExternalId, 'ad', $range);
             $adIds = [];
-            $data['ads'] = array_map(function (AdInsightDTO $r) use ($params, &$adIds) {
+            foreach ($adRows as $r) {
                 $adId = isset($r->raw['ad_id']) ? (string) $r->raw['ad_id'] : null;
-                if ($adId !== null) {
-                    $adIds[$adId] = true;
+                if ($adId === null) {
+                    continue;
                 }
-
-                return ['ad_id' => $adId] + $this->pickMetrics($r, $params['metrics']);
-            }, $adRows);
+                $adIds[$adId] = true;
+                // Merge metrics onto the synced structure; keep insight-only ads (sync lag).
+                $adById[$adId] = ($adById[$adId] ?? ['ad_id' => $adId]) + $this->pickMetrics($r, $params['metrics']);
+            }
+            foreach (array_keys($adById) as $adId) {
+                $adIds[$adId] = true; // synced ads count for creative filtering even without delivery
+            }
+            $data['ads'] = array_values($adById);
 
             if ($connector->supports('creatives.read')) {
                 $creatives = array_values(array_filter(

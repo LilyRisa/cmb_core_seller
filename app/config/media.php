@@ -27,4 +27,12 @@ return [
         'mimes' => ['jpg', 'jpeg', 'png', 'webp'],
     ],
 
+    /*
+    | Video upload constraints — nội dung announcement popup (SPEC 0037).
+    */
+    'video' => [
+        'max_kb' => (int) env('MEDIA_VIDEO_MAX_KB', 51200),  // 50 MB
+        'mimes' => ['mp4', 'webm'],
+    ],
+
 ];

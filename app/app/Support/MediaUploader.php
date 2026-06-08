@@ -59,6 +59,26 @@ class MediaUploader
     }
 
     /**
+     * Store a NON-tenant (system-wide) file under <folder>/<ulid>.<ext> — e.g. ảnh/video
+     * trong nội dung announcement do super-admin tạo (SPEC 0037). Public-read như media khác.
+     *
+     * @return array{path: string, url: string}
+     */
+    public function storePublic(UploadedFile $file, string $folder): array
+    {
+        $ext = strtolower($file->getClientOriginalExtension() ?: $file->guessExtension() ?: 'bin');
+        $name = Str::ulid().'.'.$ext;
+        $dir = preg_replace('/[^a-z0-9_-]/', '', strtolower($folder)) ?: 'misc';
+
+        $path = $this->disk()->putFileAs($dir, $file, $name);
+        if ($path === false) {
+            throw new \RuntimeException('Không lưu được tệp lên kho lưu trữ.');
+        }
+
+        return ['path' => $path, 'url' => $this->url($path)];
+    }
+
+    /**
      * Store raw bytes (e.g. a generated PDF) under tenants/<id>/<folder>/<name>.<ext>.
      *
      * @return array{path: string, url: string}

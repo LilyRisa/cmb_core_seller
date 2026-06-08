@@ -361,6 +361,19 @@ Cấu hình động lưu trong DB (`system_settings`), ghi đè giá trị từ 
 | POST | `/api/v1/admin/broadcasts` | web + `auth:admin_web` | `{ subject, body_markdown, audience:{kind:'all_owners'\|'all_admins_and_owners'\|'tenant_ids', tenant_ids?} }` — dispatch `BroadcastNotification` qua queue `notifications`. Limit 5000 recipients/lần ⇒ `BROADCAST_AUDIENCE_TOO_LARGE`. Tenant suspended bị skip. Audit `admin.broadcast.send`. |
 | GET | `/api/v1/admin/broadcasts/{id}` | web + `auth:admin_web` | Detail. |
 
+#### Popup thông báo (Announcements — SPEC 0037)
+
+Popup giữa màn hình cho mọi user (fix bug, tạm dừng dịch vụ…). Admin tạo bằng editor TipTap (chèn ảnh/video upload R2). KHÔNG tenant-scoped. `body_html` sanitize allowlist server-side. User nhớ-đã-xem theo **tab** (sessionStorage): 1 tab hiện 1 lần/popup; tab mới hiện lại.
+
+| Method | Path | Auth | Mô tả |
+|---|---|---|---|
+| GET | `/api/v1/admin/announcements` | web + `auth:admin_web` | Danh sách (phân trang). |
+| POST | `/api/v1/admin/announcements` | web + `auth:admin_web` | `{ title, body_html, is_active?, starts_at?, ends_at?, dismiss_label? }` — sanitize `body_html` trước khi lưu. |
+| PATCH | `/api/v1/admin/announcements/{id}` | web + `auth:admin_web` | Sửa (kể cả bật/tắt `is_active`). |
+| DELETE | `/api/v1/admin/announcements/{id}` | web + `auth:admin_web` | Xoá. |
+| POST | `/api/v1/admin/announcements/media` | web + `auth:admin_web` | multipart `file` (ảnh ≤ `media.images.max_kb` hoặc video mp4/webm ≤ `media.video.max_kb`) → R2 `announcements/` → `{ data:{ url } }`. |
+| GET | `/api/v1/announcements/active` | `auth:sanctum` + `verified` | `{ data:[{ id, title, body_html, dismiss_label }] }` — chỉ popup đang `is_active` + trong cửa sổ `starts_at`/`ends_at`. |
+
 **Codes lỗi đặc thù Admin/Over-quota:**
 - `ADMIN_AUTH_FAILED` (`401`) — login admin sai hoặc tài khoản đã bị vô hiệu hoá (Spec 2026-05-17).
 - `CANNOT_SELF_MUTATE` (`409`) — admin thao tác trên chính tài khoản của mình (suspend / reset password) (Spec 2026-05-17).

@@ -1,6 +1,7 @@
 <?php
 
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminAdminUserController;
+use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminAnnouncementController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminAuditLogController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminAuthController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminBroadcastController;
@@ -8,6 +9,7 @@ use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminPlanController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminTenantController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminUserController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminVoucherController;
+use CMBcoreSeller\Modules\Admin\Http\Controllers\AnnouncementController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -92,6 +94,13 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
         Route::post('broadcasts', [AdminBroadcastController::class, 'store'])->name('admin.broadcasts.store');
         Route::get('broadcasts/{id}', [AdminBroadcastController::class, 'show'])->whereNumber('id')->name('admin.broadcasts.show');
 
+        // --- Announcement popups (SPEC 0037) ---
+        Route::get('announcements', [AdminAnnouncementController::class, 'index'])->name('admin.announcements.index');
+        Route::post('announcements', [AdminAnnouncementController::class, 'store'])->name('admin.announcements.store');
+        Route::post('announcements/media', [AdminAnnouncementController::class, 'media'])->name('admin.announcements.media');
+        Route::patch('announcements/{id}', [AdminAnnouncementController::class, 'update'])->whereNumber('id')->name('admin.announcements.update');
+        Route::delete('announcements/{id}', [AdminAnnouncementController::class, 'destroy'])->whereNumber('id')->name('admin.announcements.destroy');
+
         // --- Tenant Users (SPEC 0020 + Spec 2026-05-17 mở rộng) ---
         Route::get('users', [AdminUserController::class, 'index'])->name('admin.users.index');
         Route::get('users/{id}', [AdminUserController::class, 'show'])
@@ -118,4 +127,16 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
             ->whereNumber('id')->name('admin.admin-users.suspend');
         Route::post('admin-users/{id}/reactivate', [AdminAdminUserController::class, 'reactivate'])
             ->whereNumber('id')->name('admin.admin-users.reactivate');
+    });
+
+/*
+ |--------------------------------------------------------------------------
+ | User-facing: popup announcement đang active (SPEC 0037) — /api/v1/announcements/active
+ |--------------------------------------------------------------------------
+ | Mọi user đăng nhập + verified đều đọc được (toàn hệ thống). FE nhớ-đã-xem theo tab.
+ */
+Route::middleware(['api', 'auth:sanctum', 'verified'])
+    ->prefix('api/v1')->group(function () {
+        Route::get('announcements/active', [AnnouncementController::class, 'active'])
+            ->middleware('throttle:60,1')->name('announcements.active');
     });

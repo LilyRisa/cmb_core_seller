@@ -179,6 +179,64 @@ class CampaignInsightAnalysisServiceTest extends TestCase
         $this->assertSame('D800', $pages[0]['title']);
     }
 
+    public function test_includes_ad_set_structure_and_budget_even_without_delivery(): void
+    {
+        // ABO campaign: NO campaign budget, budgets live on the 2 ad sets; each ad set
+        // has 1 ad. Insights return nothing (chưa phân phối trong kỳ). The payload MUST
+        // still carry the ad sets (with ABO budgets) + the ads from the synced tree, so
+        // the model never claims "không có ad / không có ngân sách".
+        config(['integrations.ads' => ['facebook']]);
+        $this->app->forgetInstance(AdsRegistry::class);
+
+        $captured = new \stdClass;
+        $captured->data = null;
+        $this->app->instance(MarketingAnalysisClient::class, new class($captured) implements MarketingAnalysisClient
+        {
+            public function __construct(private \stdClass $h) {}
+
+            public function analyze(array $data, string $instruction, ?string $schema = null, ?\Closure $fallback = null, ?int $tenantId = null): array
+            {
+                $this->h->data = $data;
+
+                return ['payload' => ['summary' => 'ok'], 'provider_code' => 'fake', 'model' => 'fake-1'];
+            }
+        });
+
+        $tenant = Tenant::create(['name' => 'T']);
+        app(CurrentTenant::class)->set($tenant);
+        $account = AdAccount::create(['provider' => 'facebook', 'external_account_id' => 'act_1', 'currency' => 'VND', 'status' => 'active', 'access_token' => 'TOK']);
+        AdEntity::create(['ad_account_id' => $account->id, 'level' => 'campaign', 'external_id' => 'C1', 'name' => 'CD ABO', 'objective' => 'OUTCOME_SALES']);
+        AdEntity::create(['ad_account_id' => $account->id, 'level' => 'adset', 'external_id' => 'AS1', 'parent_external_id' => 'C1', 'name' => 'Nhóm 1', 'status' => 'ACTIVE', 'daily_budget' => 50000, 'meta' => ['optimization_goal' => 'OFFSITE_CONVERSIONS']]);
+        AdEntity::create(['ad_account_id' => $account->id, 'level' => 'adset', 'external_id' => 'AS2', 'parent_external_id' => 'C1', 'name' => 'Nhóm 2', 'status' => 'ACTIVE', 'daily_budget' => 70000, 'meta' => ['optimization_goal' => 'LINK_CLICKS']]);
+        AdEntity::create(['ad_account_id' => $account->id, 'level' => 'ad', 'external_id' => 'AD1', 'parent_external_id' => 'AS1', 'name' => 'QC 1', 'status' => 'ACTIVE']);
+        AdEntity::create(['ad_account_id' => $account->id, 'level' => 'ad', 'external_id' => 'AD2', 'parent_external_id' => 'AS2', 'name' => 'QC 2', 'status' => 'ACTIVE']);
+
+        Http::fake([
+            // Every insights level returns empty (no delivery in the window).
+            'graph.facebook.com/*/C1/insights*' => Http::response(['data' => []], 200),
+            'graph.facebook.com/*/ads*' => Http::response(['data' => []], 200),
+            'graph.facebook.com/v19.0/?ids=*' => Http::response([], 200),
+        ]);
+
+        app(CampaignInsightAnalysisService::class)->generate($account, 'C1', [
+            'days' => 7, 'metrics' => ['spend', 'clicks'], 'include_engagement' => false, 'include_landing' => false,
+        ], true);
+
+        $data = $captured->data;
+        // The 2 ad sets are present with their ABO budgets, despite zero delivery.
+        $this->assertCount(2, $data['ad_sets']);
+        $byId = collect($data['ad_sets'])->keyBy('external_id');
+        $this->assertSame('Nhóm 1', $byId['AS1']['name']);
+        $this->assertSame(50000, $byId['AS1']['daily_budget']);
+        $this->assertSame(70000, $byId['AS2']['daily_budget']);
+        $this->assertSame('OFFSITE_CONVERSIONS', $byId['AS1']['optimization_goal']);
+        // Both ads are listed from the synced tree even though insights returned nothing.
+        $adIds = collect($data['ads'])->pluck('ad_id')->all();
+        $this->assertContains('AD1', $adIds);
+        $this->assertContains('AD2', $adIds);
+        $this->assertSame('AS1', collect($data['ads'])->firstWhere('ad_id', 'AD1')['adset_id']);
+    }
+
     public function test_without_ai_provider_produces_drawer_shape(): void
     {
         // No marketing_ai_providers row ⇒ real LlmMarketingAnalysisClient falls back to

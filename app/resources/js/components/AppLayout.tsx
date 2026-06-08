@@ -35,6 +35,7 @@ import { useCan } from '@/lib/tenant';
 import { useGlobalMessageNotifications } from '@/lib/useMessageNotifications';
 import { useNotificationsRealtime } from '@/lib/notifications';
 import { NotificationBell } from '@/components/NotificationBell';
+import { AnnouncementPopup } from '@/components/AnnouncementPopup';
 import { OverQuotaBanner } from '@/components/OverQuotaBanner';
 import { HeaderBillingActions } from '@/components/HeaderBillingActions';
 import { HelpChatWidget } from '@/components/support/HelpChatWidget';
@@ -178,6 +179,8 @@ export function AppLayout() {
             </Layout>
             {/* Widget trợ giúp nổi (kéo–thả) — Hỏi AI (RAG) + Hỏi CSKH. Hiện mọi trang app người dùng. */}
             <HelpChatWidget />
+            {/* SPEC 0037 — popup thông báo admin (giữa màn hình, 1 lần/tab). */}
+            <AnnouncementPopup />
         </Layout>
     );
 }
