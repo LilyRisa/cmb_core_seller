@@ -15,6 +15,7 @@ use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Models\MessageDraft;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingSetting;
+use CMBcoreSeller\Modules\Orders\Contracts\OrderLookupContract;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 
 /**
@@ -44,6 +45,7 @@ class AiSuggestionService
         private IntentClassifier $intentClassifier,
         private OutboundMessageService $outbound,
         private AiCreditMeter $credits,
+        private OrderLookupContract $orderLookup,
     ) {}
 
     /**
@@ -282,10 +284,28 @@ class AiSuggestionService
             ];
         }
 
+        // Ngữ cảnh khách + đơn lấy TRỰC TIẾP từ liên kết hội thoại (customer_id / order_id đã gắn)
+        // — KHÔNG tra số điện thoại. order_id đã gắn ⇒ resolve customer của đơn để lấy toàn bộ đơn của khách.
+        $linkedOrderId = $conv->order_id ? (int) $conv->order_id : null;
+        $linkedOrder = $linkedOrderId !== null ? $this->orderLookup->find($tenantId, $linkedOrderId) : null;
+        $customerId = $conv->customer_id ? (int) $conv->customer_id : ($linkedOrder?->customerId);
+
         $customerProfile = null;
-        if ($conv->customer_id) {
-            $p = $this->customers->findById($tenantId, (int) $conv->customer_id);
+        if ($customerId !== null) {
+            $p = $this->customers->findById($tenantId, $customerId);
             $customerProfile = $p ? ['name' => $p->name, 'reputation' => $p->reputationLabel] : null;
+        }
+
+        $orderContext = null;
+        if ($customerId !== null) {
+            $orders = $this->orderLookup->recentByCustomer($tenantId, $customerId, 5);
+            if ($orders !== []) {
+                $orderContext = ['orders' => array_map(fn ($o) => $o->toArray(), $orders)];
+            }
+        }
+        // Đơn thủ công gắn hội thoại nhưng chưa gắn customer ⇒ vẫn đưa đúng đơn đã gắn.
+        if ($orderContext === null && $linkedOrder !== null) {
+            $orderContext = ['orders' => [$linkedOrder->toArray()]];
         }
 
         $snapshot = new ConversationSnapshot(
@@ -294,6 +314,7 @@ class AiSuggestionService
             buyerName: $conv->buyer_name,
             recentMessages: $recent,
             customerProfile: $customerProfile,
+            orderContext: $orderContext,
         );
 
         return [$snapshot, $mapping, $redactedCount];

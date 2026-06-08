@@ -188,6 +188,11 @@ class ClaudeConnector implements AiAssistantConnector
             'cache_control' => ['type' => 'ephemeral'],
         ]];
 
+        $ctxText = ReplyPersona::contextBlock($c);
+        if ($ctxText !== '') {
+            $system[] = ['type' => 'text', 'text' => $ctxText];
+        }
+
         $kbText = ReplyPersona::knowledgeBlock($kb);
         if ($kbText !== '') {
             $system[] = ['type' => 'text', 'text' => $kbText];

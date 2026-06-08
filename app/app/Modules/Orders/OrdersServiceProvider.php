@@ -3,9 +3,11 @@
 namespace CMBcoreSeller\Modules\Orders;
 
 use CMBcoreSeller\Modules\Orders\Contracts\ManualOrderDailyStats;
+use CMBcoreSeller\Modules\Orders\Contracts\OrderLookupContract;
 use CMBcoreSeller\Modules\Orders\Contracts\OrderUpsertContract;
 use CMBcoreSeller\Modules\Orders\Contracts\ReturnUpsertContract;
 use CMBcoreSeller\Modules\Orders\Services\ManualOrderDailyStatsService;
+use CMBcoreSeller\Modules\Orders\Services\OrderLookupService;
 use CMBcoreSeller\Modules\Orders\Services\OrderUpsertService;
 use CMBcoreSeller\Modules\Orders\Services\ReturnUpsertService;
 use Illuminate\Support\ServiceProvider;
@@ -26,6 +28,8 @@ class OrdersServiceProvider extends ServiceProvider
         $this->app->bind(ReturnUpsertContract::class, ReturnUpsertService::class);
         // Read-only manual-order daily stats — consumed by Marketing reconciliation (SPEC 2026-06-04).
         $this->app->bind(ManualOrderDailyStats::class, ManualOrderDailyStatsService::class);
+        // Read-only order lookup — Messaging/AI đọc đơn đã gắn hội thoại để trả lời câu hỏi về đơn.
+        $this->app->bind(OrderLookupContract::class, OrderLookupService::class);
     }
 
     public function boot(): void

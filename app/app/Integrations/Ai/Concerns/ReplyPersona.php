@@ -67,4 +67,53 @@ TXT;
 
         return $text;
     }
+
+    /**
+     * Khối NGỮ CẢNH khách & đơn hàng — lấy TRỰC TIẾP từ liên kết hội thoại (đơn đã gắn /
+     * customer đã gắn), KHÔNG tra số điện thoại. Để AI trả lời "đơn tới đâu rồi?" chính xác
+     * thay vì đẩy cho nhân viên. Biến động theo hội thoại ⇒ block riêng (không nằm trong
+     * phần `instructions` được cache).
+     */
+    public static function contextBlock(ConversationSnapshot $c): string
+    {
+        $lines = [];
+
+        $profile = $c->customerProfile;
+        if (is_array($profile)) {
+            $bits = [];
+            if (! empty($profile['name'])) {
+                $bits[] = 'tên '.$profile['name'];
+            }
+            if (! empty($profile['reputation'])) {
+                $bits[] = 'uy tín: '.$profile['reputation'];
+            }
+            if ($bits !== []) {
+                $lines[] = '- Khách hàng: '.implode(', ', $bits).'.';
+            }
+        }
+
+        $orders = is_array($c->orderContext) ? ($c->orderContext['orders'] ?? []) : [];
+        if (is_array($orders) && $orders !== []) {
+            $lines[] = '- Đơn hàng của khách (CHỈ trả lời theo dữ liệu dưới đây, TUYỆT ĐỐI KHÔNG bịa; nếu khách hỏi đơn không có ở đây thì nói shop sẽ kiểm tra lại):';
+            foreach ($orders as $o) {
+                if (! is_array($o)) {
+                    continue;
+                }
+                $parts = array_filter([
+                    (string) ($o['number'] ?? ''),
+                    (string) ($o['status'] ?? ''),
+                    ! empty($o['items']) ? (string) $o['items'] : '',
+                    ! empty($o['total']) ? number_format((int) $o['total'], 0, ',', '.').'đ' : '',
+                    ! empty($o['date']) ? 'đặt '.substr((string) $o['date'], 0, 10) : '',
+                ]);
+                $lines[] = '  • '.implode(' — ', $parts);
+            }
+        }
+
+        if ($lines === []) {
+            return '';
+        }
+
+        return "# Ngữ cảnh khách & đơn hàng (đã xác thực qua hội thoại):\n".implode("\n", $lines)."\n";
+    }
 }

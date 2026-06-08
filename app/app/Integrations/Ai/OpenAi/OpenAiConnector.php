@@ -194,6 +194,10 @@ class OpenAiConnector implements AiAssistantConnector
     private function buildMessages(ConversationSnapshot $c, ?KnowledgeBase $kb, ?string $extraSystem = null): array
     {
         $system = ReplyPersona::instructions($c, $extraSystem);
+        $ctxText = ReplyPersona::contextBlock($c);
+        if ($ctxText !== '') {
+            $system .= "\n\n".$ctxText;
+        }
         $kbText = ReplyPersona::knowledgeBlock($kb);
         if ($kbText !== '') {
             $system .= "\n\n".$kbText;

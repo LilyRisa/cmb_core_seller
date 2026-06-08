@@ -271,6 +271,10 @@ class CustomHttpConnector implements AiAssistantConnector
     private function buildSystemText(ConversationSnapshot $c, ?KnowledgeBase $kb, ?string $extraSystem = null): string
     {
         $system = ReplyPersona::instructions($c, $extraSystem);
+        $ctxText = ReplyPersona::contextBlock($c);
+        if ($ctxText !== '') {
+            $system .= "\n\n".$ctxText;
+        }
         $kbText = ReplyPersona::knowledgeBlock($kb);
         if ($kbText !== '') {
             $system .= "\n\n".$kbText;
