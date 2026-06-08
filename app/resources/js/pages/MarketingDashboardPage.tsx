@@ -346,6 +346,36 @@ export function MarketingDashboardPage() {
         messaging_conversations: (r) => num(r.insights?.messaging_conversations),
         leads: (r) => num(r.insights?.leads),
     };
+
+    // Giá trị dùng để SẮP XẾP từng cột (số → so sánh số, chuỗi → so sánh theo tiếng Việt).
+    // null/không có dữ liệu xuống cuối khi tăng dần.
+    const sortVal: Record<string, (r: ReportRow) => number | string> = {
+        external_id: (r) => r.external_id,
+        status: (r) => statusVi(r.effective_status ?? r.status ?? null).label,
+        objective: (r) => objectiveVi(r.objective),
+        result: (r) => resultOf(r.objective, r.insights)?.value ?? -1,
+        cpr: (r) => cprOf(r.objective, r.insights) ?? -1,
+        daily_budget: (r) => r.daily_budget ?? -1,
+        lifetime_budget: (r) => r.lifetime_budget ?? -1,
+        spend: (r) => r.insights?.spend ?? -1,
+        impressions: (r) => r.insights?.impressions ?? -1,
+        reach: (r) => r.insights?.reach ?? -1,
+        clicks: (r) => r.insights?.clicks ?? -1,
+        ctr: (r) => r.insights?.ctr ?? -1,
+        cpc: (r) => r.insights?.cpc ?? -1,
+        cpm: (r) => r.insights?.cpm ?? -1,
+        frequency: (r) => r.insights?.frequency ?? -1,
+        purchase_roas: (r) => r.insights?.purchase_roas ?? -1,
+        messaging_conversations: (r) => r.insights?.messaging_conversations ?? -1,
+        leads: (r) => r.insights?.leads ?? -1,
+        purchases: (r) => r.insights?.purchases ?? -1,
+    };
+    const colSorter = (c: string) => (a: ReportRow, b: ReportRow) => {
+        const av = sortVal[c](a);
+        const bv = sortVal[c](b);
+        return typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av).localeCompare(String(bv), 'vi');
+    };
+
     const columns = [
         {
             title: 'Tên', dataIndex: 'name', key: 'name', fixed: 'left' as const, width: 240,
@@ -389,6 +419,7 @@ export function MarketingDashboardPage() {
                 ? <Space size={4}>{COL_TITLE[c]}<Tooltip title={COL_HELP[c]}><QuestionCircleOutlined style={{ color: '#aaa', fontSize: 12, cursor: 'help' }} /></Tooltip></Space>
                 : COL_TITLE[c],
             key: c,
+            sorter: colSorter(c),
             render: (_: unknown, r: ReportRow) => fmtCol[c](r),
         })),
         ...(level === 'campaign' ? [{
