@@ -136,7 +136,7 @@ export function MarketingDashboardPage() {
     const [bm, setBm] = useState<string | null>(null);
     const [accountId, setAccountId] = useState<number | null>(null);
     const [level, setLevel] = useState<ReportLevel>('campaign');
-    const [reportView, setReportView] = useState<'tree' | 'flat'>('tree');
+    const [reportView, setReportView] = useState<'tree' | 'flat'>('flat');
     const [range, setRange] = useState<[Dayjs, Dayjs]>(loadRange);
     const [q, setQ] = useState('');
     const [adId, setAdId] = useState('');
@@ -627,7 +627,7 @@ export function MarketingDashboardPage() {
                                 <Segmented
                                     value={reportView}
                                     onChange={(v) => setReportView(v as 'tree' | 'flat')}
-                                    options={[{ label: 'Cây phân cấp', value: 'tree' }, { label: 'Bảng phẳng', value: 'flat' }]}
+                                    options={[{ label: 'Bảng phẳng', value: 'flat' }, { label: 'Cây phân cấp', value: 'tree' }]}
                                 />
                                 {reportView === 'flat' && (
                                     <Segmented value={level} onChange={(v) => setLevel(v as ReportLevel)}
