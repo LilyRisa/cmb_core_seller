@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Marketing\Services;
 use CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter;
 use CMBcoreSeller\Modules\Marketing\Contracts\MarketingAnalysisClient;
 use CMBcoreSeller\Modules\Marketing\Models\MarketingAiProvider;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -65,7 +66,7 @@ class LlmMarketingAnalysisClient implements MarketingAnalysisClient
     private function anthropic(MarketingAiProvider $p, array $data, string $instruction, ?string $schema, \Closure $fb): array
     {
         $base = rtrim($p->base_url ?: 'https://api.anthropic.com', '/');
-        $res = Http::timeout(60)->withHeaders([
+        $res = $this->http()->withHeaders([
             'x-api-key' => (string) $p->api_key, 'anthropic-version' => '2023-06-01',
         ])->post($base.'/v1/messages', [
             'model' => $p->default_model ?: 'claude-3-5-sonnet-latest',
@@ -85,7 +86,7 @@ class LlmMarketingAnalysisClient implements MarketingAnalysisClient
     private function openai(MarketingAiProvider $p, array $data, string $instruction, ?string $schema, \Closure $fb): array
     {
         $base = rtrim($p->base_url ?: 'https://api.openai.com/v1', '/');
-        $res = Http::timeout(60)->withToken((string) $p->api_key)->post($base.'/chat/completions', [
+        $res = $this->http()->withToken((string) $p->api_key)->post($base.'/chat/completions', [
             'model' => $p->default_model ?: 'gpt-4o-mini',
             'response_format' => ['type' => 'json_object'],
             'messages' => [['role' => 'user', 'content' => $this->prompt($data, $instruction, $schema)]],
@@ -93,6 +94,24 @@ class LlmMarketingAnalysisClient implements MarketingAnalysisClient
         $text = (string) ($res->json('choices.0.message.content') ?? '');
 
         return $this->parseJson($text, $data, $schema, $fb);
+    }
+
+    /**
+     * HTTP client cho call LLM phân tích (chạy nền): timeout tổng LỚN (response dài,
+     * non-streaming) + connect timeout NGẮN (fail-fast khi provider chết) + retry transient
+     * (429/5xx/đứt kết nối). Cấu hình ở config/marketing.php → `ai.*`. throw:false để
+     * analyze() tự map về stub khi cạn retry.
+     */
+    private function http(): PendingRequest
+    {
+        // Laravel `retry($n)` = TỔNG số lần thử (không phải số lần thử LẠI) ⇒ 1 + retries.
+        return Http::connectTimeout((int) config('marketing.ai.http_connect_timeout', 10))
+            ->timeout((int) config('marketing.ai.http_timeout', 180))
+            ->retry(
+                1 + (int) config('marketing.ai.http_retries', 1),
+                (int) config('marketing.ai.http_retry_backoff_ms', 2000),
+                throw: false,
+            );
     }
 
     /** @param array<string,mixed> $data */

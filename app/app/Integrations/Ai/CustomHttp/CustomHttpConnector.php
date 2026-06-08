@@ -226,9 +226,12 @@ class CustomHttpConnector implements AiAssistantConnector
         $method = strtoupper((string) ($ac['method'] ?? 'POST'));
         $url = $this->interpolateRaw((string) $cfg->baseUrl, $cfg);
 
+        // Custom HTTP v1 non-streaming: timeout TỔNG đủ rộng (dùng reply_timeout làm trần
+        // chung cho cả reply & classify) + connect timeout ngắn (fail-fast) + retry transient.
         $request = Http::withHeaders($this->buildHeaders($ac, $cfg))
-            ->timeout(30)
-            ->retry(2, 1000, throw: false);
+            ->connectTimeout((int) config('ai.http.connect_timeout', 10))
+            ->timeout((int) config('ai.http.reply_timeout', 60))
+            ->retry(1 + (int) config('ai.http.retries', 1), (int) config('ai.http.retry_backoff_ms', 1000), throw: false);
 
         return match ($method) {
             'GET' => $request->get($url),

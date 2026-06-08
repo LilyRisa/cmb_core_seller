@@ -74,7 +74,9 @@ class OpenAiConnector implements AiAssistantConnector
 
         $startedAt = microtime(true);
         $response = Http::withToken($cfg->apiKey)
-            ->timeout(30)->retry(2, 1000, throw: false)
+            ->connectTimeout((int) config('ai.http.connect_timeout', 10))
+            ->timeout((int) config('ai.http.reply_timeout', 60))
+            ->retry(1 + (int) config('ai.http.retries', 1), (int) config('ai.http.retry_backoff_ms', 1000), throw: false)
             ->post($this->base($cfg).'/v1/chat/completions', [
                 'model' => $model,
                 'max_tokens' => $ctx->maxTokens ?: 1024,
@@ -114,7 +116,10 @@ class OpenAiConnector implements AiAssistantConnector
         $labels = $candidates !== [] ? $candidates
             : ['order_status', 'complaint', 'price', 'refund', 'urgent', 'smalltalk', 'other'];
 
-        $response = Http::withToken($cfg->apiKey)->timeout(20)->retry(2, 1000, throw: false)
+        $response = Http::withToken($cfg->apiKey)
+            ->connectTimeout((int) config('ai.http.connect_timeout', 10))
+            ->timeout((int) config('ai.http.classify_timeout', 30))
+            ->retry(1 + (int) config('ai.http.retries', 1), (int) config('ai.http.retry_backoff_ms', 1000), throw: false)
             ->post($this->base($cfg).'/v1/chat/completions', [
                 'model' => $model,
                 'max_tokens' => 8,
@@ -141,7 +146,10 @@ class OpenAiConnector implements AiAssistantConnector
         $cfg = $this->config();
         $model = (string) ($ctx->meta['embedding_model'] ?? 'text-embedding-3-small');
 
-        $response = Http::withToken($cfg->apiKey)->timeout(30)->retry(2, 1000, throw: false)
+        $response = Http::withToken($cfg->apiKey)
+            ->connectTimeout((int) config('ai.http.connect_timeout', 10))
+            ->timeout((int) config('ai.http.embed_timeout', 90))
+            ->retry(1 + (int) config('ai.http.retries', 1), (int) config('ai.http.retry_backoff_ms', 1000), throw: false)
             ->post($this->base($cfg).'/v1/embeddings', [
                 'model' => $model,
                 'input' => $text,

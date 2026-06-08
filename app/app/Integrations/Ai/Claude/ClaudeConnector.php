@@ -83,8 +83,10 @@ class ClaudeConnector implements AiAssistantConnector
             'anthropic-version' => self::API_VERSION,
             'content-type' => 'application/json',
         ])
-            ->timeout(30)
-            ->retry(2, 1000, throw: false) // 429/5xx → backoff; không tự ném để map lỗi bên dưới
+            ->connectTimeout((int) config('ai.http.connect_timeout', 10))
+            ->timeout((int) config('ai.http.reply_timeout', 60))
+            // retry chỉ kích hoạt trên ConnectionException (timeout/đứt) — KHÔNG tự ném để map lỗi bên dưới
+            ->retry(1 + (int) config('ai.http.retries', 1), (int) config('ai.http.retry_backoff_ms', 1000), throw: false)
             ->post(rtrim($cfg->baseUrl ?: 'https://api.anthropic.com', '/').'/v1/messages', [
                 'model' => $model,
                 'max_tokens' => $maxTokens,
@@ -134,7 +136,9 @@ class ClaudeConnector implements AiAssistantConnector
             'x-api-key' => $cfg->apiKey,
             'anthropic-version' => self::API_VERSION,
             'content-type' => 'application/json',
-        ])->timeout(20)->retry(2, 1000, throw: false)
+        ])->connectTimeout((int) config('ai.http.connect_timeout', 10))
+            ->timeout((int) config('ai.http.classify_timeout', 30))
+            ->retry(1 + (int) config('ai.http.retries', 1), (int) config('ai.http.retry_backoff_ms', 1000), throw: false)
             ->post(rtrim($cfg->baseUrl ?: 'https://api.anthropic.com', '/').'/v1/messages', [
                 'model' => $ctx->model ?: ($cfg->defaultModel ?: self::DEFAULT_MODEL),
                 'max_tokens' => 16,
