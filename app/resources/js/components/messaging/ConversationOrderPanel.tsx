@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { Conversation } from '@/lib/messaging';
 import { useLinkConversationOrder } from '@/lib/messaging';
 import { useCustomerLookup, useCustomerOrders } from '@/lib/customers';
+import { useOrder } from '@/lib/orders';
 import { CreateOrderForm, type OrderDraft } from '@/pages/CreateOrderPage';
 import { formatMoney } from '@/lib/format';
 
@@ -46,19 +47,26 @@ export function ConversationOrderPanel({ conversation }: { conversation: Convers
     // Lookup luôn chạy (nếu có SĐT) để lấy địa chỉ đã lưu bơm vào form (react-query dedupe).
     const byCustomer = useCustomerOrders(conversation.customer_id ?? undefined, { per_page: 20 });
     const lookup = useCustomerLookup(phone);
+    // Đơn đã gắn trực tiếp vào hội thoại (qua link-order). Luôn nạp để hiển thị kể cả khi
+    // hội thoại CHƯA dò được SĐT / chưa gắn customer (lúc đó 2 nguồn trên đều rỗng).
+    const linkedOrder = useOrder(conversation.order_id ?? undefined);
 
     const rows: OrderRow[] = useMemo(() => {
-        if (hasCustomer) {
-            return (byCustomer.data?.data ?? []).map((o) => ({
+        const base: OrderRow[] = hasCustomer
+            ? (byCustomer.data?.data ?? []).map((o) => ({
                 id: o.id, number: o.order_number ?? `#${o.id}`, status: o.status_label, total: o.grand_total, date: o.placed_at,
-            }));
+            }))
+            : ([...(lookup.data?.open_orders ?? []), ...(lookup.data?.returning_orders ?? [])].map((o) => ({
+                id: o.id, number: o.order_number ?? `#${o.id}`, status: o.status, total: o.grand_total, date: o.placed_at,
+            })));
+
+        // Đảm bảo đơn gắn hội thoại luôn xuất hiện (đầu danh sách) dù 2 nguồn trên chưa trả về.
+        const lo = linkedOrder.data;
+        if (conversation.order_id && lo && !base.some((o) => o.id === conversation.order_id)) {
+            base.unshift({ id: lo.id, number: lo.order_number ?? `#${lo.id}`, status: lo.status_label, total: lo.grand_total, date: lo.placed_at });
         }
-        const lk = lookup.data;
-        if (!lk) return [];
-        return [...lk.open_orders, ...lk.returning_orders].map((o) => ({
-            id: o.id, number: o.order_number ?? `#${o.id}`, status: o.status, total: o.grand_total, date: o.placed_at,
-        }));
-    }, [hasCustomer, byCustomer.data, lookup.data]);
+        return base;
+    }, [hasCustomer, byCustomer.data, lookup.data, conversation.order_id, linkedOrder.data]);
 
     const loading = hasCustomer ? byCustomer.isLoading : (phone.replace(/[^\d+]/g, '').length >= 9 && lookup.isLoading);
 

@@ -297,7 +297,7 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
         return {
             sub_source: (v.sub_source as string) || undefined,
             status: 'processing' as const,
-            buyer: { name: (v.buyer_name as string) || undefined, phone: phone || undefined },
+            buyer: { name: (v.buyer_name as string) || (v.recipient_name as string) || undefined, phone: phone || undefined },
             recipient: {
                 name: (v.recipient_name as string) || (v.buyer_name as string) || undefined,
                 phone: (v.recipient_phone as string) || phone || undefined,
@@ -474,6 +474,84 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
         : 'Đơn nguồn ngoài sàn (website / Facebook / Zalo / hotline) — trừ chung kho, vào cùng luồng xử lý';
     const pushedCarrierLabel = (editingOrder?.pushed_carrier ?? '').replace(/^manual_/, '').toUpperCase() || 'ĐVVC';
 
+    // Ô SĐT khách — suffix LUÔN là 1 node (span cố định) để AntD không chuyển <input> trần ↔
+    // affix-wrapper khi lookup bật ở ký tự thứ 9 (đổi cấu trúc DOM ⇒ remount input ⇒ MẤT focus).
+    const phoneField = (
+        <Input
+            value={phone}
+            onChange={(e) => handlePhoneChange(e.target.value)}
+            placeholder="SĐT" maxLength={32}
+            suffix={(
+                <span style={{ display: 'inline-flex', width: 14, justifyContent: 'center' }}>
+                    {lookup.isFetching ? '…' : (customerData?.customer ? <Tooltip title="Khách đã có trong sổ"><CheckCircleFilled style={{ color: '#52c41a' }} /></Tooltip> : null)}
+                </span>
+            )}
+        />
+    );
+
+    // Khối địa chỉ nhận (autocomplete + picker Tỉnh/Quận/Phường) — dùng chung cho cả card "Nhận hàng"
+    // (full) lẫn card gộp "Khách hàng / Nhận hàng" (compact, khung chat).
+    const addressBlock = (
+        <>
+            <Form.Item name="recipient_address" style={{ marginBottom: 8 }} rules={[{ required: true, message: 'Địa chỉ chi tiết' }]}>
+                <AddressAutocomplete
+                    format={shipAddress.format ?? 'new'}
+                    placeholder="Địa chỉ chi tiết — gõ cả tỉnh/quận/phường để được gợi ý (vd: 123 NTrai, Q.1, TP HCM)"
+                    onPick={(s) => { setShipAddress((cur) => ({ ...cur, ...s.address })); }}
+                />
+            </Form.Item>
+            <Popover trigger="click" open={addrPickerOpen} onOpenChange={setAddrPickerOpen} placement="bottomLeft" content={(
+                <AddressPicker value={shipAddress} oldAddresses={oldAddresses} onPick={(p) => {
+                    setShipAddress(p);
+                    if (p.name) form.setFieldsValue({ recipient_name: p.name });
+                    if (p.phone && !phone) { setPhone(p.phone); form.setFieldsValue({ recipient_phone: p.phone }); }
+                    if (p.address) form.setFieldsValue({ recipient_address: p.address });
+                    setAddrPickerOpen(false);
+                }} />
+            )}>
+                <Input
+                    readOnly
+                    placeholder={shipAddress.format === 'old' ? 'Tỉnh / Quận / Phường *' : 'Tỉnh / Phường (chuẩn mới) *'}
+                    value={[shipAddress.ward, shipAddress.district, shipAddress.province].filter(Boolean).join(', ')}
+                    suffix={(() => {
+                        const hasPick = !!(shipAddress.province || shipAddress.district || shipAddress.ward
+                            || shipAddress.province_code || shipAddress.district_code || shipAddress.ward_code);
+                        return (
+                            <Space size={6}>
+                                {hasPick && (
+                                    <CloseCircleFilled
+                                        aria-label="Xoá chọn tỉnh/quận/phường"
+                                        style={{ color: 'rgba(0,0,0,.25)', cursor: 'pointer', fontSize: 12 }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.color = 'rgba(0,0,0,.45)'; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(0,0,0,.25)'; }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShipAddress((cur) => ({
+                                                ...cur,
+                                                province: undefined, province_code: undefined,
+                                                district: undefined, district_code: undefined,
+                                                ward: undefined, ward_code: undefined,
+                                            }));
+                                        }}
+                                    />
+                                )}
+                                <EnvironmentOutlined style={{ color: '#bfbfbf' }} />
+                            </Space>
+                        );
+                    })()}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => setAddrPickerOpen(true)}
+                    status={(() => {
+                        if (!form.isFieldTouched('recipient_address')) return undefined;
+                        const old = shipAddress.format === 'old';
+                        const ok = !!shipAddress.province && (!old || !!shipAddress.district || !!shipAddress.district_code) && (!!shipAddress.ward || !!shipAddress.ward_code);
+                        return ok ? undefined : 'warning';
+                    })()}
+                />
+            </Popover>
+        </>
+    );
+
     return (
         <div className={`create-order-page${compact ? ' create-order-page--compact' : ''}`} style={{ paddingBottom: compact ? 0 : 88 }}>
             {!embedded && (
@@ -504,7 +582,7 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
             }}>
                 <Row gutter={16}>
                     {/* ========================= LEFT COLUMN ========================= */}
-                    <Col xs={24} lg={16}>
+                    <Col xs={24} lg={compact ? 24 : 16}>
                         {/* ---------- Sản phẩm ---------- */}
                         <Card
                             size="small"
@@ -588,7 +666,7 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
 
                         <Row gutter={16}>
                             {/* ---------- Thanh toán ---------- */}
-                            <Col xs={24} md={12}>
+                            <Col xs={24} md={compact ? 24 : 12}>
                                 <Card size="small" className="ord-card" style={{ marginBottom: 16 }}
                                     title={<span className="ord-card-title">Thanh toán</span>}
                                     extra={<Button type="text" size="small" icon={<MoreOutlined />} />}>
@@ -627,7 +705,8 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                                 </Card>
                             </Col>
 
-                            {/* ---------- Ghi chú ---------- */}
+                            {/* ---------- Ghi chú (ẩn ở khung chat — không cần cho đơn nhanh) ---------- */}
+                            {!compact && (
                             <Col xs={24} md={12}>
                                 <Card size="small" className="ord-card" style={{ marginBottom: 16 }}
                                     title={<span className="ord-card-title">Ghi chú</span>}>
@@ -649,12 +728,14 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                                     )}
                                 </Card>
                             </Col>
+                            )}
                         </Row>
                     </Col>
 
                     {/* ========================= RIGHT COLUMN ========================= */}
-                    <Col xs={24} lg={8}>
-                        {/* ---------- Thông tin ---------- */}
+                    <Col xs={24} lg={compact ? 24 : 8}>
+                        {/* ---------- Thông tin (ẩn ở khung chat — NV/marketer/thẻ không cần cho đơn nhanh) ---------- */}
+                        {!compact && (
                         <Card size="small" className="ord-card" style={{ marginBottom: 16 }}
                             title={<Space size={4}><span className="ord-card-title">Thông tin</span><UpOutlined rotate={thongTinCollapsed ? 180 : 0} style={{ fontSize: 10, color: '#8c8c8c', cursor: 'pointer' }} onClick={() => setThongTinCollapsed((c) => !c)} /></Space>}
                         >
@@ -690,135 +771,99 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                                 </>
                             )}
                         </Card>
+                        )}
 
-                        {/* ---------- Khách hàng ---------- */}
-                        <Card size="small" className="ord-card" style={{ marginBottom: 16 }}
-                            title={<span className="ord-card-title">Khách hàng</span>}
-                            extra={(
-                                <Space size={4}>
-                                    <Form.Item name="gender" noStyle>
-                                        <GenderDropdown />
+                        {compact ? (
+                            // ---------- Khách & nhận hàng — GỘP 1 card cho khung chat ----------
+                            <Card size="small" className="ord-card" style={{ marginBottom: 16 }}
+                                title={<span className="ord-card-title">Khách &amp; nhận hàng <span style={{ color: '#cf1322', marginInlineStart: 4 }}>*</span></span>}
+                            >
+                                {warehouses.length > 1 && (
+                                    <Form.Item label="Kho gửi" style={{ marginBottom: 8 }}>
+                                        <Radio.Group value={warehouseId} onChange={(e) => setWarehouseId(e.target.value as number)}>
+                                            {warehouses.map((w) => (
+                                                <Radio key={w.id} value={w.id}>{w.name}{w.is_default ? ' (mặc định)' : ''}</Radio>
+                                            ))}
+                                        </Radio.Group>
                                     </Form.Item>
-                                    <Button type="text" size="small" icon={<MoreOutlined />} />
-                                </Space>
-                            )}
-                        >
-                            <Row gutter={8}>
-                                <Col span={12}><Form.Item name="buyer_name" style={{ marginBottom: 8 }}>
-                                    <Input placeholder="Tên khách hàng" maxLength={255} />
-                                </Form.Item></Col>
-                                <Col span={12}><Form.Item style={{ marginBottom: 8 }}>
-                                    <Input
-                                        value={phone}
-                                        onChange={(e) => handlePhoneChange(e.target.value)}
-                                        placeholder="SĐT" maxLength={32}
-                                        suffix={lookup.isFetching ? <Typography.Text type="secondary" style={{ fontSize: 11 }}>…</Typography.Text> : (customerData?.customer ? <Tooltip title="Khách đã có trong sổ"><CheckCircleFilled style={{ color: '#52c41a' }} /></Tooltip> : null)}
-                                    />
-                                </Form.Item></Col>
-                                <Col span={12}><Form.Item name="email" rules={[{ type: 'email', message: 'Email không hợp lệ' }]} style={{ marginBottom: 8 }}>
-                                    <Input placeholder="Địa chỉ email" maxLength={255} />
-                                </Form.Item></Col>
-                                <Col span={12}><Form.Item name="dob" style={{ marginBottom: 8 }}>
-                                    <DatePicker style={{ width: '100%' }} placeholder="Ngày sinh" format="DD/MM/YYYY" />
-                                </Form.Item></Col>
-                            </Row>
-                            <CustomerWarning data={customerData} />
-                        </Card>
-
-                        {/* ---------- Nhận hàng ---------- */}
-                        <Card size="small" className="ord-card" style={{ marginBottom: 16 }}
-                            title={<span className="ord-card-title">Nhận hàng <span style={{ color: '#cf1322', marginInlineStart: 4 }}>*</span></span>}
-                        >
-                            {warehouses.length > 1 && (
-                                <Form.Item label="Kho gửi" style={{ marginBottom: 8 }}>
-                                    <Radio.Group value={warehouseId} onChange={(e) => setWarehouseId(e.target.value as number)}>
-                                        {warehouses.map((w) => (
-                                            <Radio key={w.id} value={w.id}>{w.name}{w.is_default ? ' (mặc định)' : ''}</Radio>
-                                        ))}
-                                    </Radio.Group>
+                                )}
+                                <Row gutter={8}>
+                                    <Col span={12}><Form.Item name="recipient_name" style={{ marginBottom: 8 }} rules={[{ required: true, message: 'Tên người nhận' }]}>
+                                        <Input placeholder="Tên khách / người nhận *" maxLength={255} />
+                                    </Form.Item></Col>
+                                    <Col span={12}><Form.Item style={{ marginBottom: 8 }}>
+                                        {phoneField}
+                                    </Form.Item></Col>
+                                </Row>
+                                <Form.Item name="expected_delivery_date" style={{ marginBottom: 8 }}>
+                                    <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" placeholder="Dự kiến nhận hàng" suffixIcon={<CalendarOutlined />} />
                                 </Form.Item>
-                            )}
-                            <Form.Item name="expected_delivery_date" style={{ marginBottom: 8 }}>
-                                <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" placeholder="Dự kiến nhận hàng" suffixIcon={<CalendarOutlined />} />
-                            </Form.Item>
-                            <Row gutter={8}>
-                                <Col span={12}><Form.Item name="recipient_name" style={{ marginBottom: 8 }} rules={[{ required: true, message: 'Tên người nhận' }]}>
-                                    <Input placeholder="Tên người nhận *" maxLength={255} />
-                                </Form.Item></Col>
-                                <Col span={12}><Form.Item name="recipient_phone" style={{ marginBottom: 8 }} rules={[
-                                    { required: true, message: 'SĐT người nhận' },
-                                    { pattern: /^(0|\+84)\d{9,10}$/, message: 'SĐT không đúng định dạng VN' },
-                                ]}>
-                                    {/* B4 fix — bỏ custom onChange (Form.Item sẽ override). Sync detect qua Form.useWatch + useEffect ở trên. */}
-                                    <Input placeholder="Số điện thoại *" maxLength={32} />
-                                </Form.Item></Col>
-                            </Row>
-                            {/* SPEC 0021 — Autocomplete: user gõ "123 NTrai, P. Bến Nghé, Q.1, TP HCM" ⇒ parse tail
-                                khớp Tỉnh→Quận→Phường, gợi ý dropdown. Click ⇒ fill `recipient_address` + `shipAddress`.
-                                Hỗ trợ không dấu ("ha noi" khớp "Hà Nội").
-                                B3 fix — KHÔNG truyền `value`/`onChange` ở đây: Form.Item tự inject. Trước đây custom
-                                value qua `form.getFieldValue` ⇒ snapshot, không reactive ⇒ gõ không update. */}
-                            <Form.Item name="recipient_address" style={{ marginBottom: 8 }} rules={[{ required: true, message: 'Địa chỉ chi tiết' }]}>
-                                <AddressAutocomplete
-                                    format={shipAddress.format ?? 'new'}
-                                    placeholder="Địa chỉ chi tiết — gõ cả tỉnh/quận/phường để được gợi ý (vd: 123 NTrai, Q.1, TP HCM)"
-                                    onPick={(s) => {
-                                        setShipAddress((cur) => ({ ...cur, ...s.address }));
-                                    }}
-                                />
-                            </Form.Item>
-                            {/* U3 (Sprint 2) — single AddressPicker (Tỉnh/Quận/Phường) - gộp 2 popover trùng lặp.
-                                Vẫn hỗ trợ "địa chỉ mới" (cascade GHN) + "địa chỉ cũ" (từ customer.addresses_meta). */}
-                            <Popover trigger="click" open={addrPickerOpen} onOpenChange={setAddrPickerOpen} placement="bottomLeft" content={(
-                                <AddressPicker value={shipAddress} oldAddresses={oldAddresses} onPick={(p) => {
-                                    setShipAddress(p);
-                                    if (p.name) form.setFieldsValue({ recipient_name: p.name });
-                                    if (p.phone && !phone) { setPhone(p.phone); form.setFieldsValue({ recipient_phone: p.phone }); }
-                                    if (p.address) form.setFieldsValue({ recipient_address: p.address });
-                                    setAddrPickerOpen(false);
-                                }} />
-                            )}>
-                                <Input
-                                    readOnly
-                                    placeholder={shipAddress.format === 'old' ? 'Tỉnh / Quận / Phường *' : 'Tỉnh / Phường (chuẩn mới) *'}
-                                    value={[shipAddress.ward, shipAddress.district, shipAddress.province].filter(Boolean).join(', ')}
-                                    suffix={(() => {
-                                        const hasPick = !!(shipAddress.province || shipAddress.district || shipAddress.ward
-                                            || shipAddress.province_code || shipAddress.district_code || shipAddress.ward_code);
-                                        return (
-                                            <Space size={6}>
-                                                {hasPick && (
-                                                    <CloseCircleFilled
-                                                        aria-label="Xoá chọn tỉnh/quận/phường"
-                                                        style={{ color: 'rgba(0,0,0,.25)', cursor: 'pointer', fontSize: 12 }}
-                                                        onMouseEnter={(e) => { e.currentTarget.style.color = 'rgba(0,0,0,.45)'; }}
-                                                        onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(0,0,0,.25)'; }}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setShipAddress((cur) => ({
-                                                                ...cur,
-                                                                province: undefined, province_code: undefined,
-                                                                district: undefined, district_code: undefined,
-                                                                ward: undefined, ward_code: undefined,
-                                                            }));
-                                                        }}
-                                                    />
-                                                )}
-                                                <EnvironmentOutlined style={{ color: '#bfbfbf' }} />
-                                            </Space>
-                                        );
-                                    })()}
-                                    style={{ cursor: 'pointer' }}
-                                    onClick={() => setAddrPickerOpen(true)}
-                                    status={(() => {
-                                        if (!form.isFieldTouched('recipient_address')) return undefined;
-                                        const old = shipAddress.format === 'old';
-                                        const ok = !!shipAddress.province && (!old || !!shipAddress.district || !!shipAddress.district_code) && (!!shipAddress.ward || !!shipAddress.ward_code);
-                                        return ok ? undefined : 'warning';
-                                    })()}
-                                />
-                            </Popover>
-                        </Card>
+                                {addressBlock}
+                                <CustomerWarning data={customerData} />
+                            </Card>
+                        ) : (
+                            <>
+                                {/* ---------- Khách hàng ---------- */}
+                                <Card size="small" className="ord-card" style={{ marginBottom: 16 }}
+                                    title={<span className="ord-card-title">Khách hàng</span>}
+                                    extra={(
+                                        <Space size={4}>
+                                            <Form.Item name="gender" noStyle>
+                                                <GenderDropdown />
+                                            </Form.Item>
+                                            <Button type="text" size="small" icon={<MoreOutlined />} />
+                                        </Space>
+                                    )}
+                                >
+                                    <Row gutter={8}>
+                                        <Col span={12}><Form.Item name="buyer_name" style={{ marginBottom: 8 }}>
+                                            <Input placeholder="Tên khách hàng" maxLength={255} />
+                                        </Form.Item></Col>
+                                        <Col span={12}><Form.Item style={{ marginBottom: 8 }}>
+                                            {phoneField}
+                                        </Form.Item></Col>
+                                        <Col span={12}><Form.Item name="email" rules={[{ type: 'email', message: 'Email không hợp lệ' }]} style={{ marginBottom: 8 }}>
+                                            <Input placeholder="Địa chỉ email" maxLength={255} />
+                                        </Form.Item></Col>
+                                        <Col span={12}><Form.Item name="dob" style={{ marginBottom: 8 }}>
+                                            <DatePicker style={{ width: '100%' }} placeholder="Ngày sinh" format="DD/MM/YYYY" />
+                                        </Form.Item></Col>
+                                    </Row>
+                                    <CustomerWarning data={customerData} />
+                                </Card>
+
+                                {/* ---------- Nhận hàng ---------- */}
+                                <Card size="small" className="ord-card" style={{ marginBottom: 16 }}
+                                    title={<span className="ord-card-title">Nhận hàng <span style={{ color: '#cf1322', marginInlineStart: 4 }}>*</span></span>}
+                                >
+                                    {warehouses.length > 1 && (
+                                        <Form.Item label="Kho gửi" style={{ marginBottom: 8 }}>
+                                            <Radio.Group value={warehouseId} onChange={(e) => setWarehouseId(e.target.value as number)}>
+                                                {warehouses.map((w) => (
+                                                    <Radio key={w.id} value={w.id}>{w.name}{w.is_default ? ' (mặc định)' : ''}</Radio>
+                                                ))}
+                                            </Radio.Group>
+                                        </Form.Item>
+                                    )}
+                                    <Form.Item name="expected_delivery_date" style={{ marginBottom: 8 }}>
+                                        <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" placeholder="Dự kiến nhận hàng" suffixIcon={<CalendarOutlined />} />
+                                    </Form.Item>
+                                    <Row gutter={8}>
+                                        <Col span={12}><Form.Item name="recipient_name" style={{ marginBottom: 8 }} rules={[{ required: true, message: 'Tên người nhận' }]}>
+                                            <Input placeholder="Tên người nhận *" maxLength={255} />
+                                        </Form.Item></Col>
+                                        <Col span={12}><Form.Item name="recipient_phone" style={{ marginBottom: 8 }} rules={[
+                                            { required: true, message: 'SĐT người nhận' },
+                                            { pattern: /^(0|\+84)\d{9,10}$/, message: 'SĐT không đúng định dạng VN' },
+                                        ]}>
+                                            {/* B4 fix — bỏ custom onChange (Form.Item sẽ override). Sync detect qua Form.useWatch + useEffect ở trên. */}
+                                            <Input placeholder="Số điện thoại *" maxLength={32} />
+                                        </Form.Item></Col>
+                                    </Row>
+                                    {addressBlock}
+                                </Card>
+                            </>
+                        )}
 
                         {/* B (Sprint 2) — bỏ Card "Vận chuyển" trong form tạo đơn:
                             - Đơn manual chọn ĐVVC ở bước "Chuẩn bị hàng" qua `CarrierAccountPicker` (đúng luồng GHN createOrder).
