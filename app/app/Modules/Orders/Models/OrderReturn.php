@@ -34,6 +34,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $decided_at
  * @property Carbon|null $source_updated_at
  * @property array|null $raw
+ * @property-read Order|null $order
  */
 class OrderReturn extends Model
 {

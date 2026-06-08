@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Avatar, Badge, Button, Dropdown, Layout, Menu, Select, Space, Tooltip, Typography } from 'antd';
+import { Avatar, Button, Dropdown, Layout, Menu, Select, Space, Tooltip, Typography } from 'antd';
 import {
     AppstoreOutlined,
     BarChartOutlined,
-    BellOutlined,
     BookOutlined,
     CalendarOutlined,
     ContainerOutlined,
@@ -34,6 +33,8 @@ import type { MenuProps } from 'antd';
 import { getCurrentTenantId, setCurrentTenantId, useAuth, useLogout } from '@/lib/auth';
 import { useCan } from '@/lib/tenant';
 import { useGlobalMessageNotifications } from '@/lib/useMessageNotifications';
+import { useNotificationsRealtime } from '@/lib/notifications';
+import { NotificationBell } from '@/components/NotificationBell';
 import { OverQuotaBanner } from '@/components/OverQuotaBanner';
 import { HeaderBillingActions } from '@/components/HeaderBillingActions';
 import { HelpChatWidget } from '@/components/support/HelpChatWidget';
@@ -113,6 +114,8 @@ export function AppLayout() {
     const currentTenant = user?.tenants.find((t) => t.id === currentTenantId) ?? user?.tenants[0];
     // Thông báo tin nhắn mới toàn cục (mọi trang) — 1 lần tổng lúc vào, sau đó theo từng tin mới.
     useGlobalMessageNotifications(useCan('messaging.view'));
+    // SPEC 0036 — realtime chuông thông báo in-app (no-op khi Reverb tắt; chuông vẫn poll).
+    useNotificationsRealtime();
     const nav = useMemo(() => buildNav(), []);
     const keys = BASE_KEYS;
 
@@ -151,7 +154,7 @@ export function AppLayout() {
                         <Tooltip title="Tải ứng dụng di động">
                             <Button type="text" href="/download" target="_blank" icon={<MobileOutlined />} />
                         </Tooltip>
-                        <Tooltip title="Thông báo (sắp có)"><Badge dot><Button type="text" icon={<BellOutlined />} /></Badge></Tooltip>
+                        <NotificationBell />
                         <Dropdown
                             menu={{ items: [
                                 { key: 'who', disabled: true, label: <span>{user?.name}<br /><Typography.Text type="secondary" style={{ fontSize: 12 }}>{user?.email}</Typography.Text></span> },

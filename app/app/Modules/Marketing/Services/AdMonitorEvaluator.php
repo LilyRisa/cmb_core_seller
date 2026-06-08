@@ -8,6 +8,8 @@ use CMBcoreSeller\Integrations\Ads\Contracts\AdsWriteConnector;
 use CMBcoreSeller\Integrations\Ads\DTO\AdInsightDTO;
 use CMBcoreSeller\Integrations\Ads\Facebook\FacebookMoney;
 use CMBcoreSeller\Integrations\Ads\Facebook\FacebookResultMap;
+use CMBcoreSeller\Modules\Marketing\Events\AdMonitorActionTaken;
+use CMBcoreSeller\Modules\Marketing\Events\AdMonitorThresholdApproaching;
 use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
 use CMBcoreSeller\Modules\Marketing\Models\AdEntity;
 use CMBcoreSeller\Modules\Marketing\Models\AdMonitor;
@@ -110,7 +112,7 @@ class AdMonitorEvaluator
                 $m->last_action = (string) $action['type'];
                 $m->last_action_at = now();
                 $actions[] = $action + ['name' => $entity->name, 'level' => $m->target_level];
-                AdMonitorAction::withoutGlobalScope(TenantScope::class)->create([
+                $actionRecord = AdMonitorAction::withoutGlobalScope(TenantScope::class)->create([
                     'tenant_id' => (int) $account->tenant_id,
                     'ad_account_id' => (int) $account->getKey(),
                     'ad_monitor_id' => (int) $m->id,
@@ -124,6 +126,8 @@ class AdMonitorEvaluator
                     'from_budget' => $action['from'] ?? null,
                     'to_budget' => $action['to'] ?? null,
                 ]);
+                // SPEC 0036 — thông báo in-app cho mọi thành viên (Notifications nghe event này).
+                AdMonitorActionTaken::dispatch((int) $account->tenant_id, (int) $actionRecord->getKey(), (string) $entity->name, (string) $action['type']);
             }
             $m->save();
         }
@@ -155,6 +159,19 @@ class AdMonitorEvaluator
                 $entity->save();
 
                 return ['type' => 'pause', 'cpr' => $results > 0 ? (int) round($spend / $results) : null, 'spend' => $spend, 'results' => $results];
+            }
+
+            // SPEC 0036 — chưa vượt nhưng đã TIẾN GẦN ngưỡng tắt ⇒ cảnh báo in-app (Notifications nghe event).
+            $metric = $results > 0 ? (int) round($spend / $results) : $spend;
+            if ($metric >= (int) ceil($m->pause_above * AdMonitor::APPROACHING_RATIO)) {
+                AdMonitorThresholdApproaching::dispatch(
+                    (int) $m->tenant_id,
+                    (int) $m->getKey(),
+                    (string) $entity->name,
+                    (string) $m->target_level,
+                    $results > 0 ? (int) round($spend / $results) : null,
+                    (int) $m->pause_above,
+                );
             }
         }
 

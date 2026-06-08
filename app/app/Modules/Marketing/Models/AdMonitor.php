@@ -36,6 +36,9 @@ class AdMonitor extends Model
 
     public const LEVEL_ADSET = 'adset';
 
+    /** SPEC 0036 — ngưỡng "sắp đạt mức cần tắt": chi phí/kết quả ≥ 80% pause_above ⇒ cảnh báo. */
+    public const APPROACHING_RATIO = 0.8;
+
     protected $fillable = [
         'tenant_id', 'ad_account_id', 'target_level', 'target_external_id', 'enabled',
         'increase_enabled', 'increase_below', 'increase_step_pct', 'max_daily_budget',

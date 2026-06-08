@@ -1,6 +1,7 @@
 <?php
 
 use CMBcoreSeller\Modules\Messaging\Support\MessagingChannelAuthorizer;
+use CMBcoreSeller\Modules\Notifications\Support\NotificationChannelAuthorizer;
 use CMBcoreSeller\Modules\Support\Support\SupportChannelAuthorizer;
 use Illuminate\Support\Facades\Broadcast;
 
@@ -27,4 +28,15 @@ Broadcast::channel('tenant.{tenantId}.messaging', function ($user, int $tenantId
  */
 Broadcast::channel('tenant.{tenantId}.support', function ($user, int $tenantId): bool {
     return app(SupportChannelAuthorizer::class)->canViewTenantSupport($user, $tenantId);
+});
+
+/**
+ * Thông báo in-app realtime (SPEC 0036): private channel RIÊNG từng user
+ * `tenant.{tenantId}.notifications.{userId}`. Event NotificationCreated broadcast lên đây;
+ * FE (lib/notifications useNotificationsRealtime) subscribe để cập nhật chuông NGAY. Authz
+ * {@see NotificationChannelAuthorizer}: user PHẢI là thành viên tenant + chỉ nghe channel
+ * của CHÍNH MÌNH (userId === auth id) — chống lộ chéo user/tenant.
+ */
+Broadcast::channel('tenant.{tenantId}.notifications.{userId}', function ($user, int $tenantId, int $userId): bool {
+    return app(NotificationChannelAuthorizer::class)->canListen($user, $tenantId, $userId);
 });

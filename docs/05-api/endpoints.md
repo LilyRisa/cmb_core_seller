@@ -171,6 +171,18 @@
 |---|---|---|---|
 | GET | `/api/v1/dashboard/summary` | sanctum + tenant (`dashboard.view`) | `{ data:{ channel_accounts:{total,active,needs_reconnect}, orders:{today,to_process,ready_to_ship,shipped,has_issue,total}, revenue_today } }`. |
 
+## Thông báo in-app (Notifications — SPEC 0036)
+
+`/api/v1/notifications/*` — `sanctum + verified + tenant`, KHÔNG gate gói. Chuông thông báo của user trong tenant hiện tại (1 dòng / 1 user; trạng thái đọc per-user). Realtime qua private channel RIÊNG user `tenant.{tenantId}.notifications.{userId}` (event `.notification.created`); Reverb tắt ⇒ FE poll fallback.
+
+| Method | Path | Auth | Response |
+|---|---|---|---|
+| GET | `/api/v1/notifications?status=unread&limit=30` | sanctum + tenant | `{ data:[{ id, type, level, title, body, action_url, data, is_read, read_at, created_at }], meta:{ unread_count } }`. `status=unread` lọc chưa đọc. |
+| POST | `/api/v1/notifications/{id}/read` | sanctum + tenant | `{ data:{ unread_count } }`. Đánh dấu đã đọc 1 (chỉ notif của chính mình; của user khác ⇒ 404). |
+| POST | `/api/v1/notifications/read-all` | sanctum + tenant | `{ data:{ unread_count: 0 } }`. |
+
+Loại (`type`) v1: `channel.reconnect_needed`, `order.negative_total`, `order.cancelled`, `order.return_new`, `ads.monitor_approaching`, `ads.monitor_action` — sinh tự động từ domain event (xem SPEC 0036 §4). `level ∈ {info,warning,critical}`.
+
 ## Webhook & OAuth (ngoài `/api`)
 
 Xem [`webhooks-and-oauth.md`](webhooks-and-oauth.md). `POST /webhook/tiktok` → `WebhookController@handle` (verify chữ ký → ghi `webhook_events` → 200 → `ProcessWebhookEvent`); sai chữ ký ⇒ `401`. `GET /oauth/tiktok/callback?app_key=&code=&state=` → `OAuthCallbackController` (đổi token, tạo `channel_account`, redirect `/channels?connected=tiktok` hoặc `?error=…`). `shopee`/`lazada`: route + handler tồn tại nhưng connector chưa có ⇒ `404 UNKNOWN_PROVIDER` (Phase 4).
