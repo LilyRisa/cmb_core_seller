@@ -10,13 +10,17 @@ import {
     ArrowRightOutlined,
     AppstoreOutlined,
 } from '@ant-design/icons';
+import { useState } from 'react';
 import { useRegister } from '@/lib/auth';
 import { errorMessage } from '@/lib/api';
 import { AuthBackdrop } from '@/components/AuthBackdrop';
+import { Captcha, useCaptchaConfig } from '@/lib/captcha';
 
 export function RegisterPage() {
     const register = useRegister();
     const navigate = useNavigate();
+    const { data: captcha } = useCaptchaConfig();
+    const [captchaToken, setCaptchaToken] = useState('');
 
     return (
         <div className="auth-shell">
@@ -66,7 +70,7 @@ export function RegisterPage() {
                     <Form
                         layout="vertical"
                         requiredMark={false}
-                        onFinish={(v) => register.mutate(v, { onSuccess: () => navigate('/') })}
+                        onFinish={(v) => register.mutate({ ...v, captcha_token: captchaToken }, { onSuccess: () => navigate('/') })}
                     >
                         <Form.Item
                             name="name"
@@ -154,11 +158,16 @@ export function RegisterPage() {
                             />
                         </Form.Item>
 
+                        {captcha?.enabled && captcha.site_key
+                            ? <Captcha siteKey={captcha.site_key} onVerify={setCaptchaToken} />
+                            : null}
+
                         <Button
                             type="primary"
                             htmlType="submit"
                             block
                             loading={register.isPending}
+                            disabled={!!captcha?.enabled && captchaToken === ''}
                             icon={!register.isPending ? <ArrowRightOutlined /> : undefined}
                             iconPosition="end"
                         >

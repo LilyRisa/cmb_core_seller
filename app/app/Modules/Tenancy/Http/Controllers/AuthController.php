@@ -9,6 +9,7 @@ use CMBcoreSeller\Modules\Tenancy\Events\TenantCreated;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\Concerns\ResolvesAuthUserPayload;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\Concerns\ResolvesLoginIdentifier;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
+use CMBcoreSeller\Modules\Tenancy\Rules\NotDisposableEmail;
 use CMBcoreSeller\Modules\Tenancy\Services\TenantRoleProvisioner;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
@@ -30,7 +31,7 @@ class AuthController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email', new NotDisposableEmail],
             'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->symbols()],
             'tenant_name' => ['nullable', 'string', 'max:255'],
         ]);
@@ -64,6 +65,16 @@ class AuthController extends Controller
         $this->startSession($request, $user);
 
         return response()->json(['data' => $this->userPayload($user)], 201);
+    }
+
+    /** [public] Cấu hình CAPTCHA cho FE render widget (site_key không nhạy cảm). */
+    public function captchaConfig(): JsonResponse
+    {
+        return response()->json(['data' => [
+            'enabled' => (bool) config('captcha.enabled', false),
+            'provider' => (string) config('captcha.provider', 'turnstile'),
+            'site_key' => (string) config('captcha.site_key', ''),
+        ]]);
     }
 
     public function login(Request $request): JsonResponse

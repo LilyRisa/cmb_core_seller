@@ -45,10 +45,14 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
     // --- Health (DB / cache / Redis / queue worker probe) ---
     Route::get('health', HealthController::class)->name('health');
 
+    // Site key CAPTCHA cho FE render widget (public, không nhạy cảm). SPEC 2026-06-10.
+    Route::get('auth/captcha-config', [AuthController::class, 'captchaConfig'])->name('auth.captcha-config');
+
     // --- Auth (public) — rate limit strictest to prevent brute force ---
     Route::middleware('throttle:15,1')->group(function () {
-        Route::post('auth/register', [AuthController::class, 'register'])->name('auth.register');
-        Route::post('auth/login', [AuthController::class, 'login'])->name('auth.login');
+        // `captcha` (SPEC 2026-06-10) chống bot/brute-force; pass-through khi CAPTCHA_ENABLED=false.
+        Route::post('auth/register', [AuthController::class, 'register'])->middleware('captcha')->name('auth.register');
+        Route::post('auth/login', [AuthController::class, 'login'])->middleware('captcha')->name('auth.login');
         // Mobile / 3rd-party client — cấp bearer token (SPEC 2026-06-01). Cùng throttle với login.
         Route::post('auth/token', [TokenAuthController::class, 'token'])->name('auth.token');
     });
@@ -61,7 +65,7 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
 
     // --- Password reset (SPEC 0022) — public, throttle anti-enumerate + anti-brute ---
     Route::post('auth/password/forgot', [PasswordResetController::class, 'forgot'])
-        ->middleware('throttle:5,15')->name('auth.password.forgot');
+        ->middleware(['throttle:5,15', 'captcha'])->name('auth.password.forgot');
     Route::post('auth/password/reset', [PasswordResetController::class, 'reset'])
         ->middleware('throttle:30,60')->name('auth.password.reset');
 

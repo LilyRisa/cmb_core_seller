@@ -215,6 +215,11 @@ x-app-env: &app-env
   TIKTOK_ADS_APP_ID: ${TIKTOK_ADS_APP_ID:-}
   TIKTOK_ADS_APP_SECRET: ${TIKTOK_ADS_APP_SECRET:-}
   TIKTOK_ADS_REDIRECT_URI: ${TIKTOK_ADS_REDIRECT_URI:-}
+  # CAPTCHA Cloudflare Turnstile (SPEC 2026-06-10) — chống bot/brute-force register/login/forgot.
+  # Bật bằng CAPTCHA_ENABLED=true + đặt TURNSTILE_SITE_KEY/SECRET ở Portainer. Chưa đặt ⇒ off (pass-through).
+  CAPTCHA_ENABLED: ${CAPTCHA_ENABLED:-false}
+  TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
+  TURNSTILE_SECRET: ${TURNSTILE_SECRET:-}
   # Media tin nhắn: dùng r2 (public-CDN, browser fetch được qua signed URL). TTL signed URL (giây).
   MESSAGING_MEDIA_DISK: ${MESSAGING_MEDIA_DISK:-r2}
   MESSAGING_SIGNED_URL_TTL: ${MESSAGING_SIGNED_URL_TTL:-300}

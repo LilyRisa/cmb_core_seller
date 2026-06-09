@@ -50,7 +50,7 @@ export function useAuth() {
 export function useLogin() {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: async (vars: { email: string; password: string; remember?: boolean }) => {
+        mutationFn: async (vars: { email: string; password: string; remember?: boolean; captcha_token?: string }) => {
             await ensureCsrf();
             const { data } = await api.post<{ data: AuthUser }>('/auth/login', vars);
             return data.data;
@@ -68,6 +68,7 @@ export function useRegister() {
             password: string;
             password_confirmation: string;
             tenant_name?: string;
+            captcha_token?: string;
         }) => {
             await ensureCsrf();
             const { data } = await api.post<{ data: AuthUser }>('/auth/register', vars);
@@ -118,7 +119,7 @@ export function useResendVerification() {
  * BE luôn trả `{ sent: true }` generic (chống enumerate email). Throttle 5/15p.
  */
 export function useForgotPassword() {
-    return useMutation<{ sent: boolean }, unknown, { email: string }>({
+    return useMutation<{ sent: boolean }, unknown, { email: string; captcha_token?: string }>({
         mutationFn: async (vars) => {
             await ensureCsrf();
             const { data } = await api.post<{ data: { sent: boolean } }>('/auth/password/forgot', vars);

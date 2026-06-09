@@ -154,3 +154,5 @@ Schedule::command('queue:prune-batches --hours=72 --unfinished=72')->daily()->on
 Schedule::command('model:prune')->hourly()->onOneServer();                        // expired oauth_states (OAuthState is Prunable)
 Schedule::command('sanctum:prune-expired --hours=24')->daily()->onOneServer();
 Schedule::command('auth:clear-resets')->daily()->onOneServer();
+// SPEC 2026-06-10 — dọn tài khoản đăng ký rồi KHÔNG xác minh email > 1 ngày (rác email giả/bot).
+Schedule::command('users:prune-unverified --days=1')->dailyAt('03:30')->onOneServer();

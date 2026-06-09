@@ -9,8 +9,10 @@ import {
     ArrowLeftOutlined,
     CheckCircleOutlined,
 } from '@ant-design/icons';
+import { useState } from 'react';
 import { useForgotPassword } from '@/lib/auth';
 import { errorMessage } from '@/lib/api';
+import { Captcha, useCaptchaConfig } from '@/lib/captcha';
 
 /**
  * SPEC 0022 — bước 1 của luồng quên mật khẩu: nhập email để nhận link đặt lại.
@@ -19,6 +21,8 @@ import { errorMessage } from '@/lib/api';
  */
 export function ForgotPasswordPage() {
     const forgot = useForgotPassword();
+    const { data: captcha } = useCaptchaConfig();
+    const [captchaToken, setCaptchaToken] = useState('');
 
     return (
         <div className="auth-shell">
@@ -78,7 +82,7 @@ export function ForgotPasswordPage() {
                             <Form
                                 layout="vertical"
                                 requiredMark={false}
-                                onFinish={(v) => forgot.mutate(v)}
+                                onFinish={(v) => forgot.mutate({ ...v, captcha_token: captchaToken })}
                             >
                                 <Form.Item
                                     name="email"
@@ -93,11 +97,16 @@ export function ForgotPasswordPage() {
                                     />
                                 </Form.Item>
 
+                                {captcha?.enabled && captcha.site_key
+                                    ? <Captcha siteKey={captcha.site_key} onVerify={setCaptchaToken} />
+                                    : null}
+
                                 <Button
                                     type="primary"
                                     htmlType="submit"
                                     block
                                     loading={forgot.isPending}
+                                    disabled={!!captcha?.enabled && captchaToken === ''}
                                     icon={!forgot.isPending ? <ArrowRightOutlined /> : undefined}
                                     iconPosition="end"
                                 >

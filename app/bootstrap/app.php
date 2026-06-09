@@ -7,6 +7,7 @@ use CMBcoreSeller\Modules\Billing\Http\Middleware\EnforcePlanFeature;
 use CMBcoreSeller\Modules\Billing\Http\Middleware\EnforcePlanLimit;
 use CMBcoreSeller\Modules\Billing\Http\Middleware\EnforcePlanQuotaLock;
 use CMBcoreSeller\Modules\Tenancy\Http\Middleware\EnsureTenant;
+use CMBcoreSeller\Modules\Tenancy\Http\Middleware\VerifyCaptcha;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -74,6 +75,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'plan.feature' => EnforcePlanFeature::class,
             // SPEC 0020 — sau 2 ngày vượt hạn mức ⇒ chặn write (whitelist nội bộ middleware).
             'plan.over_quota_lock' => EnforcePlanQuotaLock::class,
+            // SPEC 2026-06-10 — CAPTCHA chống bot/brute-force (register/login/forgot).
+            'captcha' => VerifyCaptcha::class,
             // Spec 2026-05-17 — `/api/v1/admin/*` dùng `auth:admin` (Sanctum guard
             // trỏ vào `admin_users`). Middleware `super_admin` cũ đã bỏ.
         ]);
