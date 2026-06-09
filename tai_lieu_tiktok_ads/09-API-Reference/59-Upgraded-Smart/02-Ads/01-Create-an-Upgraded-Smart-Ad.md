@@ -1,0 +1,587 @@
+---
+title: "Create an Upgraded Smart+ Ad"
+doc_id: 1843317390059522
+path: "API Reference / Upgraded Smart+ / Ads / Create an Upgraded Smart+ Ad"
+source: "https://business-api.tiktok.com/portal/docs (Marketing API v1.3)"
+---
+
+# Create an Upgraded Smart+ Ad
+
+Use this endpoint to create an Upgraded Smart+ Ad.
+
+Currently, you can only create a maximum of 30 ads within an Upgraded Smart+ Ad Group.
+
+
+> <span style="color:DarkRed">**Important**</span><br>
+> Creating non-Spark Ads using Custom Identities in ad groups that deliver to Automatic Placement or Select Placement when TikTok is included is no longer supported for existing ad accounts. All new ad accounts created on or after January 15, 2026 cannot create non-Spark Ads using Custom Identities for these placements. Existing ads remain unaffected and editable. Ad campaigns that deliver only to Pangle or Global App Bundle placements are not be affected by Custom Identity deprecation. Learn more [about changes coming to Custom Identity](https://ads.tiktok.com/help/article/about-changes-coming-to-custom-identity) and [migrate to Spark Ads](https://business-api.tiktok.com/portal/docs?id=1848048566169730).
+
+## Request
+**Endpoint** https://business-api.tiktok.com/open_api/v1.3/smart_plus/ad/create/
+
+
+**Method** POST
+
+**Header**
+
+```xtable
+|Field{35%}|Type{15%}|Description{50%}|
+|---|---|---|
+|Access-Token {Required}|string|Authorized access token. For details, see [Authentication](https://business-api.tiktok.com/portal/docs/marketing-api-authentication/v1.3).|
+|Content-Type {Required}|string|Request message type.<br>Allowed value: `application/json`.|
+```
+
+**Parameters**
+
+```xtable
+|Field{35%}|Data Type{15%}|Description{50%}|
+|---|---|---|
+|advertiser_id {Required}|string|Advertiser ID.|
+|adgroup_id {Required}|string|Ad group ID. <br><br>To obtain ad group IDs, use [/smart_plus/adgroup/get/](https://business-api.tiktok.com/portal/docs?id=1843314879617026).|
+|ad_name|string|Ad name.<br><br>To make the ad name automatically generated, set this field to `""`(empty string). The format of the auto-generated ad name is ad ID (`ad_id`).<br><br>Length limit: 512 and cannot contain emojis.<br>Each word in Chinese or Japanese counts as two characters, while each letter in English counts as one character.|
+|operation_status|string|The status of the ad when created. <br><br>Enum values:<ul><li>`ENABLE` : The ad is enabled when created.</li><li>`DISABLE` : The ad is disabled when created.</li></ul>Default value: `ENABLE`.|
+|creative_list {+Conditional}|object[]|<ul><li>Required for Single Video, Standard Carousel, and Catalog Carousel formats.</li></ul><ul><li>Not needed for the Multi-Show format.</li></ul><br>A list of creatives.<br><br>Size range: 1-50.|
+#|creative_info  {+Conditional}|object|Required when `creative_list` is specified.<br><br>Creative information.|
+##|ad_format  {+Conditional}|string|Required when `creative_info` is specified.<br><br>The ad format.<br><br>Enum values:<ul><li>`SINGLE_VIDEO`: Single Video.</li><ul><li>To use this format, specify any of the following:<ul><li>a video through `video_id` and a video cover through `web_uri`</li><li>a TikTok video post through `tiktok_item_id`.</li></ul></li></ul><li>`CAROUSEL_ADS`: Standard Carousel.</li><ul><li>To use this format, specify any of the following:<ul><li>carousel images through `web_uri` and a piece of music through `music_id`.</li><li>TikTok photo posts images through `tiktok_item_id`.</li></ul></li></ul><li>`CATALOG_CAROUSEL`: Catalog Carousel.<ul><li>To use this format in Upgraded Smart+ Web Catalog Carousel Ads, specify a piece of music through `music_id`.</li><li>To use this format in Upgraded Smart+ Automotive Catalog Carousel Ads, specify a piece of music through `music_id` and an end card through `web_uri`.</li></ul></li></ul>|
+##|video_info {+Conditional}|object|Required for the following types of ads:<br><br><ul><li>Non-Spark Ads Single Video ads. </li><li>Spark Ads Single Video ads through Spark Ads Push.</li></ul><br>Video information.|
+###|video_id {+Conditional}|string|Required when `video_info` is specified.<br><br>Video ID.<br><br>To upload a video and obtain the video ID, use [/file/video/ad/upload/](https://business-api.tiktok.com/portal/docs?id=1737587322856449).<br>To search for videos within your ad account, use [/file/video/ad/search/](https://business-api.tiktok.com/portal/docs?id=1740050472224769).|
+###|file_name|string|Video name.|
+##|image_info {+Conditional}|object[]|<ul><li>Required for the following types of ads:</li><ul><li>Non-Spark Ads Single Video ads. You need to specify a video cover.</li><li>Spark Ads Single Video ads through Spark Ads Push. You need to specify a video cover.</li><li>Non-Spark Ads Standard Carousel ads. You need to specify one to 35 carousel images.</li><li>Spark Ads Standard Carousel ads through Spark Ads Push. You need to specify one to 35 carousel images.</li><li>Catalog Carousel ads in [Upgraded Smart+ Automotive Ads](https://business-api.tiktok.com/portal/docs?id=1843324618421314). You need to specify one image as the end card image.</li></ul><li>Not supported for Catalog Carousel ads in Upgraded Smart+ Web Ads.</li></ul><br>Image information.|
+###|web_uri {+Conditional}|string|Required when `image_info` is specified.<br><br>Image ID.<br><br>To upload an image and obtain the image ID, use [/file/image/ad/upload/](https://business-api.tiktok.com/portal/docs?id=1739067433456642).<br>To search for images within your ad account, use [/file/image/ad/search/](https://business-api.tiktok.com/portal/docs?id=1740052016789506).|
+##|music_info {+Conditional}|object|Required for the following scenarios:<br><br><ul><li>When you create Standard Carousel Ads, including:</li><ul><li>Non-Spark Ads Standard Carousel ads</li><li>Spark Ads Standard Carousel ads through Spark Ads Push</li><li>Spark Ads Standard Carousel ads through Spark Ads Pull</li></ul><li>When `objective_type` is `WEB_CONVERSIONS` or `LEAD_GENERATION` and `catalog_creative_toggle` is `true`. The system will automatically generate catalog carousel ads.</li></ul><br>Music information.|
+###|music_id {+Conditional}|string|Required when `music_info` is specified.<br><br>The ID of the piece of music to use in the carousel ads.|
+##|aigc_disclosure_type|string|Valid only when `identity_type` within `ad_configuration` is `CUSTOMIZED_USER`.<br><br>Whether to turn on the AIGC (Artificial Intelligence Generated Content) self-disclosure toggle to indicate the ad contains AI-generated content. After the toggle is turned on, your ad will carry an "Advertiser labeled as Al-generated" label when viewed in full.<br><br>Enum values:<ul><li>`SELF_DISCLOSURE`: To turn on the toggle to declare that the ad contains AI-generated content.</li><li>`NOT_DECLARED`: To not declare that the ad contains AI-generated content.</li></ul>Default value: `NOT_DECLARED`.<br><br>To learn about the supported advertising objectives and ad formats for the toggle and the detailed steps for using the toggle, see [AIGC self-disclosure toggle](https://business-api.tiktok.com/portal/docs?id=1799186631031809).|
+##|tiktok_item_id {+Conditional}|string|<ul><li>Required when you create Spark Ads through Spark Ads Pull, including:</li><ul><li>Spark Ads Single Video ads through Spark Ads Pull. You need to specify a TikTok video post.</li><li>Spark Ads Standard Carousel ads through Spark Ads Pull. You need to specify a TikTok photo post.</li></ul><li>Not supported when `catalog_creative_toggle` is `true`.</li></ul><br>The ID of the TikTok post to be used as an ad (Spark Ads).<br><br>Pass in the `item_id` you get from the response of the [/tt_video/info/](https://business-api.tiktok.com/portal/docs?id=1738376324021250) and [/identity/video/get/](https://business-api.tiktok.com/portal/docs?id=1740218475032577) endpoints.<br><br>When you pass in `tiktok_item_id`, you don't need to pass in the objects `image_info`, `video_info`, and `title_list`.<br><br><p><span style="color:darkred"><b>Note</b></span>: By using Spark Ads, you confirm that you have the rights to use the music in the videos for commercial purposes.</p>|
+##|identity_type {+Conditional}|string|Required when you create Spark Ads without using catalog creatives.<br><br>Identity type.<br><br>Enum values: `AUTH_CODE`, `TT_USER`, `BC_AUTH_TT`.<br><br>For details about identities, see [Identities](https://business-api.tiktok.com/portal/docs?id=1738958351620097).<br><br><p><span style="color:darkred"><b>Note</b></span>: <ul><li>If you want to create Spark Ads using catalog creatives from an E-commerce catalog, specify the `identity_type` and `identity_id` within `ad_configuration`.</li><li>If this field is set to `TT_USER`, `BC_AUTH_TT`, or `AUTH_CODE` and the following conditions are both met, you need to specify a dynamic CTA via `call_to_action_id`.<ul><li>At the campaign level, `objective_type` is `APP_PROMOTION` or `WEB_CONVERSIONS`.</li><li>At the ad group level, `placement_type` is `PLACEMENT_TYPE_NORMAL` and `placements` includes `PLACEMENT_TIKTOK`, or `placement_type` is `PLACEMENT_TYPE_AUTOMATIC`.</li></ul></li></ul>|
+##|identity_id {+Conditional}|string|Required when you create Spark Ads without using catalog creatives.<br><br>Identity ID.<br><br><p><span style="color:darkred"><b>Note</b></span>: If you want to create Spark Ads using catalog creatives from an E-commerce catalog, specify the `identity_type` and `identity_id` within `ad_configuration`.</p>|
+##|identity_authorized_bc_id {+Conditional}|string|Required when `identity_type` within `creative_info` is `BC_AUTH_TT`.<br><br>ID of the Business Center that a TikTok Account User in Business Center identity is associated with.|
+|ad_text_list {+Conditional}|object[]|Required when `tiktok_item_id` is not specified.<br><br>List of ad texts.<br>Ad texts are shown to your audience as part of your ad creatives, to deliver the message you intend to communicate to them.<br><br>Max size: 5.|
+#|ad_text {+Conditional}|string|Required when `ad_text_list` is specified.<br><br>Ad text.|
+|auto_message_list {+Conditional}|object[]|Required when `promotion_type` is `LEAD_GEN_CLICK_TO_TT_DIRECT_MESSAGE` at the ad group level.<br><br>Details of the automatic message to use in a TikTok Direct Messaging Ad.<br><br>Max size: 1.|
+#|auto_message_id {+Conditional}|string|Required when `auto_message_list` is specified.<br><br>The ID of the automatic message to use in a TikTok Direct Messaging Ad.<br><br>Currently, the only supported automatic message type is welcome message.<ul><li>To obtain a list of welcome messages within your ad account, use [/creative/auto_message/get/](https://business-api.tiktok.com/portal/docs?id=1822106498804738).</li><li>To create a welcome message within your ad account, use [/creative/auto_message/create/](https://business-api.tiktok.com/portal/docs?id=1822106113771521).</li></ul><br>To learn more about how to create TikTok Direct Messaging Ads with welcome messages, see [Create an Upgraded Smart+ Lead Generation Campaign with optimization location as TikTok direct messages](https://business-api.tiktok.com/portal/docs?id=1847302969710913).|
+|call_to_action_list|object[]|Call-to-action list.<br><br>Max size: 3.<br><br><p><span style="color:darkred"><b>Note</b></span>: This field is not supported in any of the following scenarios and you need to use `call_to_action_id` instead.<ul><li>Scenario 1: <ul><li>At the campaign level, `objective_type` is `LEAD_GENERATION`.</li><li>At the ad group level, `placement_type` is `PLACEMENT_TYPE_NORMAL` and `placements` includes `PLACEMENT_TIKTOK`, or `placement_type` is `PLACEMENT_TYPE_AUTOMATIC`.</li></ul></li><li>Scenario 2: <ul><li>At the campaign level, `objective_type` is `APP_PROMOTION` or `WEB_CONVERSIONS`.</li><li>At the ad group level, `placement_type` is `PLACEMENT_TYPE_NORMAL` and `placements` includes `PLACEMENT_TIKTOK`, or `placement_type` is `PLACEMENT_TYPE_AUTOMATIC`.</li><li>At the ad level, `identity_type` within the `creative_info` object to `TT_USER`, `BC_AUTH_TT`, or `AUTH_CODE`.</li></ul></li></ul>|
+#|call_to_action {+Conditional}|string|Required when `call_to_action_list` is specified.<br><br>Call-to-action text.<br><br>For enum values, see [Enumeration - Call-to-action](https://business-api.tiktok.com/portal/docs?id=1737174886619138#item-link-Call-to-action).|
+|interactive_add_on_list|object[]|A list of interactive add-on (creative portfolio) IDs.<br><br>Size range: 0-1.|
+#|card_id|string|The ID of an interactive add-on.<br><br>Pass the ID of one of the following creative portfolio types:<ul><li>Display Card.</li><li>Countdown Sticker.</li><li>Gift Code Sticker.</li><li>Inventory Card (for [Upgraded Smart+ Automotive Ads](https://business-api.tiktok.com/portal/docs?id=1843324618421314)).</li></ul><br>To create a creative portfolio, use [/creative/portfolio/create/](https://business-api.tiktok.com/portal/docs?id=1739091950439426).<ul><li>To learn about how to get the ID of a Display Card or Inventory Card portfolio, see [Cards](https://business-api.tiktok.com/portal/docs?id=1749019652141058).</li><li>To learn about how to get the ID of a Countdown Sticker or Giftcode Sticker portfolio, see [Stickers](https://business-api.tiktok.com/portal/docs?id=1749019667506177).</li></ul>|
+|page_list|object[]|A list of pages.<br><br>Size range: 0-3.|
+#|page_id|string|Page ID.<br><br><ul><li>To obtain pages within your ad account, use [/page/get/](https://business-api.tiktok.com/portal/docs?id=1820826387779586).</li><li>To create instant pages, use [Instant Page Editor SDK](https://business-api.tiktok.com/portal/docs?id=1740307202170881).</li></ul>|
+|landing_page_url_list|object[]|Landing page URL list.<br><br>Size range: 0-1.|
+#|landing_page_url {+Conditional}|string|Required when `landing_page_url_list` is specified.<br><br>Landing page URL.|
+|custom_product_page_list|object[]|Valid only when the following conditions are all met:<ul><li>At the campaign level:<ul><li>`objective_type` is `APP_PROMOTION`.</li><li>`app_promotion_type` is `APP_RETARGETING`.</li></ul></li><li>At the ad group level:<ul><li>An iOS app is specified via `app_id`.</li></ul></li></ul><br>Details of the custom product page to use in the ad.<br><br>Size range: 0-1.|
+#|custom_product_page_url|string|The Custom Product Page (CPP) URL.<br><br>CPPs are product pages with customized screenshots, promotional text, and app previews that can be used to highlight specific content or features of the promoted app, or reach specific audiences. Only users with iOS 15+ will be able to open a custom product page.<br><br>The CPP URL must be consistent with the promoted app (`app_id`) at the ad group level.<br><br>Format: `https://apps.apple.com/&#123;region&#125;/app/&#123;app_name&#125;/id&#123;app_id&#125;?ppid=&#123;ppid&#125;`.<br><br>Length limit: 512 characters.<br><br>Example: `https://apps.apple.com/us/app/tiktok/id835599320?ppid=12345a6b-c789-12d3-e4f5-g6h78i91jk2l`.<br><br>To learn about how to create Custom Product Pages in the Apple App Store and obtain the corresponding CPP URLs, see [Custom product pages on the App Store](https://developer.apple.com/app-store/custom-product-pages/).|
+|deeplink_list|object[]|A list of deeplinks.<br><br>Size range: 0-1.|
+#|deeplink|string|Deeplink, the specific location where you want your audience to go if they have your app installed.|
+#|deeplink_type {+Conditional}|string|Required when `deeplink` is specified.<br><br>The deeplink type.<br><br>Enum value: `DEFERRED_DEEPLINK`, `NORMAL`.<br><br>If you pass this field, you should also provide the `deeplink` field.|
+| disclaimer | object | Valid only when the following conditions are both met:<ul><li>At the campaign level, `objective_type` is `APP_PROMOTION` or `WEB_CONVERSIONS`, or `objective_type` is `LEAD_GENERATION` and `catalog_enabled` is `false` or not specified.</li><li>At the ad group level, the TikTok placement is included. You can use any of the following configurations:<ul><li><b>Automatic Placement</b>: Leave `placement_type` and `placements` unspecified.</li><li><b>Select specific placements</b> with TikTok included: Set `placement_type` to `PLACEMENT_TYPE_NORMAL` and include `PLACEMENT_TIKTOK` in the value for `placements`.</li></ul></li></ul>Disclaimer information.<br><br><p><span style="color:darkred"><b>Note</b></span>: Once added to your ads, the disclaimer cannot be deleted.</p> |
+#| disclaimer_type {+Conditional} | string | Required when `disclaimer` is specified.<br><br>The type of disclaimer that you want to add to the ad. <br>You can add a disclaimer to ensure your ad remains compliant with local and regional policies.<br><br>Enum values: <ul><li>`TEXT_ONLY`: text-only disclaimer. </li><li>`TEXT_LINK`: clickable disclaimer.</li></ul><br>See [Include disclaimers in ads](https://business-api.tiktok.com/portal/docs?id=1739953274550273) to learn about how to configure disclaimer settings.<br><br><p><span style="color:darkred"><b>Note</b></span>: Once set, this field cannot be updated.</p> |
+#| disclaimer_text {+Conditional} | object | Required when `disclaimer_type` is `TEXT_ONLY`. <br><br>The text-only disclaimer in the ad. |
+##| text {+Conditional} | string | Required when `disclaimer_text` is specified.<br><br>The disclaimer text. <br><br>Length limit: 90 characters. |
+#| disclaimer_clickable_texts {+Conditional} | object[] | Required when `disclaimer_type` is `TEXT_LINK`. <br><br>The clickable disclaimer or clickable disclaimers that you want to add to the ad. <br><br>Max size: 3.<br><br>If you use multiple clickable disclaimers, both the overall length for all the texts you specify and the length of individual text need to be no more than 40 characters. |
+##| text {+Conditional} | string | Required when `disclaimer_clickable_texts` is specified.<br><br>The disclaimer text. <br><br>Length limit: 40 characters. |
+##| url {+Conditional} | string | Required when `disclaimer_clickable_texts` is specified.<br><br>The URL for the clickable disclaimer. <br>When users tap each text, they will be redirected to the URL and see more disclaimer details. |
+|ad_configuration|object|Additional configurations.|
+#|identity_type {+Conditional}|string|Required in any of the following scenarios:<ul><li>You are creating non-Spark Ads on non-TikTok placements. Non-Spark Ads on the TikTok placement are no longer supported.</li><li>You are creating Spark Ads using catalog creatives from an E-commerce catalog. Learn more about how you can create such ads in [Create Upgraded Smart+ E-commerce Catalog Ads](https://business-api.tiktok.com/portal/docs?id=1847302895272962).</li><li>You are creating Spark Ads with the Multi-Show format using catalog creatives from an entertainment catalog. Learn more about how you can create such ads in [Create Upgraded Smart+ Streaming Ads](https://business-api.tiktok.com/portal/docs/create-upgraded-smart-streaming-ads/v1.3).</li></ul><br>Identity type.<ul><li>Enum values for non-Spark Ads on non-TikTok placements: `CUSTOMIZED_USER`.</li><li>Enum values for Upgraded Smart+ E-commerce Catalog Spark Ads (with `catalog_creative_toggle` as `true`): `TT_USER`, `BC_AUTH_TT`.</li><li>Enum values for Upgraded Smart+ Streaming Spark Ads with the Multi-Show format (with `catalog_creative_toggle` as `true`): `TT_USER`, `BC_AUTH_TT`.</li></ul><br>For details about identities, see [Identities](https://business-api.tiktok.com/portal/docs?id=1738958351620097).|
+#|identity_id {+Conditional}|string|Required in any of the following scenarios:<ul><li>You are creating non-Spark Ads on non-TikTok placements. Non-Spark Ads on the TikTok placement are no longer supported.</li><li>You are creating Spark Ads using catalog creatives from an E-commerce catalog. Learn more about how you can create such ads in [Create Upgraded Smart+ E-commerce Catalog Ads](https://business-api.tiktok.com/portal/docs?id=1847302895272962).</li><li>You are creating Spark Ads with the Multi-Show format using catalog creatives from an entertainment catalog. Learn more about how you can create such ads in [Create Upgraded Smart+ Streaming Ads](https://business-api.tiktok.com/portal/docs/create-upgraded-smart-streaming-ads/v1.3).</li></ul><br>Identity ID.|
+#|identity_authorized_bc_id {+Conditional}|string|Required when `identity_type` within `ad_configuration` is `BC_AUTH_TT`.<br><br>ID of the Business Center that a TikTok Account User in Business Center identity is associated with.|
+#|dark_post_status|string|Valid only when you create Spark Ads through Spark Ads Push.<br><br>The status of the "Ads-only mode" for your creatives.<br><br>Enum values:<ul><li>`ON`: Enable the ads-only mode to limit your posts to paid traffic.</li><li>`OFF`: Disable the ads-only mode. The post will appear on your TikTok profile and will be eligible to receive organic traffic.</li></ul><br>Default value: `ON`.<br><br><p><span style="color:darkred"><b>Note</b></span>: <ul><li>You can set this to `OFF` only if both the identity's "Show through ads only" mode is disabled and the ad account does not have mandatory "Show through ads only" mode enabled. If the ad account enforces mandatory "Ads-only mode", you can only set this field to `ON` when creating Spark Ads using Spark Ads Push. This prevents the posts from appearing on your TikTok profile and gaining organic traffic, regardless of the identity's own `ads_only_mode` setting. It's a safeguard to ensure your Spark Ads Push content remains ads-only and avoids accidental profile posts.<ul><li>To confirm the "Show through ads only" mode status of an identity, use [/identity/info/](https://business-api.tiktok.com/portal/docs?id=1740218453385217) and check the returned `ads_only_mode`. </li><li>To confirm the mandatory "Show through ads only" mode status of an ad account, use [/advertiser/info/](https://business-api.tiktok.com/portal/docs?id=1739593083610113) and check the returned `ads_only_mode`.</li></ul></li><li>Mandatory "Show through ads only" mode for an ad account is currently an allowlist-only feature. If you would like to access it, please contact your TikTok representative. </li></ul></p> |
+#|product_specific_type {+Conditional}|string|Required when `catalog_enabled` is `true` at the campaign level.<br><br>Different dimensions to choose products.<br><br>Enum values:<ul><li>`ALL`: Allow TikTok to dynamically choose from all products.</li><li>`PRODUCT_SET`: Specify a product set. TikTok will dynamically choose products from this set.</li><li>`CUSTOMIZED_PRODUCTS`: Specify a customized number of products.</li></ul><br><ul><li>If this field is set to `ALL`, you don't need to input `product_set_id` and `product_ids`.</li><li>If this field is set to `PRODUCT_SET`, you need to pass in `product_set_id`.</li><li>If this field is set to `CUSTOMIZED_PRODUCTS`, `product_ids` is required.</li></ul>|
+#|product_set_id {+Conditional}|string|Required when `product_specific_type` is `PRODUCT_SET`.<br><br>The ID of a product set.<br><ul><li>To retrieve the product sets within your ad account, use [/catalog/set/get/](https://business-api.tiktok.com/portal/docs?id=1740570556295169).</li><li>To create a product set, use [/catalog/set/create/](https://business-api.tiktok.com/portal/docs?id=1740572891104257).</li></ul>|
+#|product_ids {+Conditional}|string[]|Required when `product_specific_type` is `CUSTOMIZED_PRODUCTS`.<br><br>The product IDs of the catalog products.<br><br>Max size: 20.<br><br>To retrieve the product ID (`product_id`) of each catalog product, use [/catalog/product/get/](https://business-api.tiktok.com/portal/docs?id=1740564136678402).|
+#|catalog_creative_toggle|boolean|Valid only when `catalog_enabled` is `true` at the campaign level.<br><br>Whether to enable auto-selection of creatives from your catalog.<br><br>Supported values: `true`, `false`.<br>Default value: `false`.<br><br><ul><li>If you set this field to `true` in Upgraded Smart+ Web Ads using the catalog carousel format, you need to provide a `creative_info` with only `music_info` in it to specify the music to be used in catalog carousel.</li><li>If you set this field to `true` in [Upgraded Smart+ Automotive Ads](https://business-api.tiktok.com/portal/docs?id=1843324618421314) using the catalog carousel format, you need to provide a `creative_info` with one image in `image_info` and `music_info` in it to specify the end card image and music to be used in catalog carousel.</li></ul>|
+#|catalog_creative_info|object|Valid only when the following conditions are met:<ul><li>The ad is an [Upgraded Smart+ E-commerce Catalog Ad](https://business-api.tiktok.com/portal/docs?id=1847302895272962) or [Upgraded Smart+ Streaming Ad](https://business-api.tiktok.com/portal/docs/create-upgraded-smart-streaming-ads/v1.3).</li><li>`catalog_creative_toggle` is `true`.</li></ul><br>Additional settings for catalog creatives to use in your ads.|
+##|catalog_media_settings|string[]|The types of creatives from your E-commerce or entertainment catalog to use in the ad.<br><br>Enum values for an [Upgraded Smart+ E-commerce Catalog Ad](https://business-api.tiktok.com/portal/docs?id=1847302895272962):<ul><li>`VIDEO`: Video.</li><li>`IMAGE`: Image.</li><li>`TEMPLATE_VIDEO`: Video templates. If you include this value in `catalog_media_settings`, you can optionally specify `catalog_template_video_id` at the same time.<ul><li>If `catalog_template_video_id` is not specified, all video templates and video URLs from your catalog will be used to generate the ad.</li><li>If `catalog_template_video_id` is specified, the selected video template will be used to generate the ad.</li></ul></li></ul><br>Enum values for an [Upgraded Smart+ Streaming Ad](https://business-api.tiktok.com/portal/docs/create-upgraded-smart-streaming-ads/v1.3):<ul><li>`VIDEO`: Video.</li><li>`TEMPLATE_VIDEO`: Video templates. If you include this value in `catalog_media_settings`, you can optionally specify `catalog_template_video_id` at the same time.<ul><li>If `catalog_template_video_id` is not specified, all video templates and video URLs from your catalog will be used to generate the ad.</li><li>If `catalog_template_video_id` is specified, the selected video template will be used to generate the ad.</li></ul></li><li>`MULTI_SHOW`: Multi-Show. Multi-Show Experience is an auto-play video carousel experience designed to drive user exploration and engagement across a breadth of personally-relevant title offerings within your content library. Multi-Show Experience consists of 4 video tiles delivered from your catalog. Each tile's clip plays sequentially (starting in the upper left-hand corner), and offers you the ability to assign a corresponding title-specific landing page.<ul><li>When you use this format, specify the identity details through the parameters `identity_type`, `identity_id`, and `identity_authorized_bc_id` within the object `ad_configuration`.</li></ul></li></ul><br><br><p><span style="color:darkred"><b>Note</b></span>: If you specify `catalog_media_settings`, you cannot subsequently update `catalog_creative_toggle` to `false` or update `catalog_media_settings` to an empty list (`[]`).</p>|
+##|catalog_template_video_id|string|Valid only when `TEMPLATE_VIDEO` is included in `catalog_media_settings`.<br><br>The ID of a video template in your catalog to use in the ad.<br><br>To obtain the IDs of video templates (video packages) in your catalog, use [/catalog/video_package/get/](https://business-api.tiktok.com/portal/docs?id=1740574099715073).<br>To learn about how to create video packages on TikTok Ads Manager, see [How to create video packages in a Catalog](https://ads.tiktok.com/help/article/how-to-create-video-packages-in-a-catalog).|
+#| creative_auto_add_toggle | boolean | Valid only in any of the following scenarios:<br><br><ul><li>Scenario 1:<ul><li>At the campaign level, `objective_type` is `WEB_CONVERSIONS` and `sales_destination` is `WEBSITE`.</li></ul></li><li>Scenario 2:<ul><li>At the campaign level, `objective_type` is `LEAD_GENERATION`.</li><li>At the ad group level, `promotion_type` is `LEAD_GENERATION` and `promotion_target_type` is `INSTANT_PAGE` or `EXTERNAL_WEBSITE`.</li></ul></li></ul><br>Whether to auto-add newly generated assets during delivery.<br>During your campaign, the system will generate new creative assets from your existing campaign assets and creative library. By using TikTok's latest trending elements (hooks, music, text, and more), you'll get high-quality, ready-to-use content that delivers alongside your other selected assets.<br>New assets will be added to your campaign automatically and won't appear on your TikTok profile. You can turn off this feature anytime.<br><br>Supported values: `true`, `false`.<br><br>The default value for this field is determined by your allowlist status for the "auto-adding newly generated assets during delivery by default" feature:<ul><li>If you are allowlisted, this field will default to `true`.</li><li>If you are not allowlisted, this field will default to `false`.</li></ul><br><p><span style="color:darkred"><b>Note</b></span>: Auto-adding newly generated assets during delivery is available to all advertisers. However, having it turned on by default is currently an allowlist-only feature. If you would like to access it, please contact your TikTok representative.</p>|
+#| creative_auto_enhancement_strategy_list | string[] | The list of automatic enhancement strategies to apply to your ads.<br>Automatic enhancements are real-time edits applied to your ads during your campaign. They can improve performance by creating more engaging and impactful visuals, sound, and more.<br>For best results, turn on all automatic enhancements to improve the overall quality of your ads without any extra work.<br><br>Enum values:<ul><li>`TRANSLATE_AND_DUB`: Translate and dub. Connect with global audiences by delivering your ad in 50+ languages.</li><li>`MUSIC_REFRESH`: Music refresh. Stay on-trend by swapping in music currently popular on TikTok.</li><li>`VIDEO_QUALITY`: Video quality. Improve overall visual quality with increased resolution and clarity.</li><li>`IMAGE_QUALITY`: Image quality. Improve overall visual quality with increased resolution and clarity.</li><li>`IMAGE_RESIZE`: Resize. Resize your image to take advantage of full-screen capabilities.</li></ul><br>The default value for this field is determined by your allowlist status for the "automatic enhancements enabled by default" feature:<ul><li>If you are allowlisted for certain strategies to be enabled by default, this field will default to a list of those strategies.<ul><li>For example, if you are allowlisted for all these strategies to be enabled by default, this field will default to `&#91;"TRANSLATE_AND_DUB","MUSIC_REFRESH","VIDEO_QUALITY","IMAGE_QUALITY","IMAGE_RESIZE"&#93;`. </li></ul></li><li>If you are not allowlisted for any strategies to be enabled by default, this field will default to an empty list (`&#91;&#93;`).</li></ul><br>To learn about the scenarios where you can enable this setting, see [Availability of Automatic Enhancements for Upgraded Smart+ Ads](https://business-api.tiktok.com/portal/docs?id=1855450880142402#item-link-For%20Upgraded%20Smart+%20Ads).<br><br><p><span style="color:darkred"><b>Note</b></span>: Automatic enhancements are available to all advertisers. However, having them turned on by default is currently a separate allowlist-only feature for each enhancement. If you would like to access it, please contact your TikTok representative. </p>|
+#|deeplink_utm_params|object[]|Valid only when the following conditions are all met:<ul><li>At the campaign level:<ul><li>`objective_type` is `WEB_CONVERSIONS`</li><li>`sales_destination` is `APP`.</li></ul></li><li>At the ad level:<ul><li>`deeplink` is specified.</li><li>`deeplink_type` is `DEFERRED_DEEPLINK`.</li></ul></li></ul><br>A list of deeplink URL parameters. URL parameters are snippets of code that can be added to the end of the URLs to help you track clicks across different channels and understand how visitors interact with a website through third-party analytics platforms. They consist of key-value pairs that are specified through `key` and `value`.<br><br>Max size: 14.<br><br><p><span style="color:darkred"><b>Note</b></span>: Deeplink URL parameters are currently an allowlist-only feature. If you would like to access it, please contact your TikTok representative.</p>|
+##|key|string|The deeplink URL parameter.<br><br>You can specify a custom parameter or a UTM parameter.<br><br>The supported UTM parameters are:<ul><li>`utm_source`: The app, site, etc., that brings traffic to your website. For example: TikTok.</li><li>`utm_medium`: The advertising or marketing medium. For example: cpm, cpc, banner, video.</li><li>`utm_content`: The creative content used for promotion. For example: ad name, CTA text, asset, color, etc.</li><li>`utm_campaign`: The individual campaign name, slogan, or promo code. For example: BlackFridayProm.</li></ul><br>Note that UTM parameters are case-sensitive.<br><br>Length limit when you specify a custom parameter: 100 characters.|
+##|value|string|The value of the deeplink URL parameter.<br><br>You can specify a custom value or the name of a macro.<br><br>The supported macros are:<ul><li>`__CAMPAIGN_NAME__`: This will be replaced by your campaign name.</li><li>`__CAMPAIGN_ID__`: This will be replaced by your campaign ID.</li><li>`__AID_NAME__`: This will be replaced by your ad group name.</li><li>`__AID__`: This will be replaced by your ad group ID.</li><li>`__CID_NAME__`: This will be replaced by your ad name.</li><li>`__CID__`: This will be replaced by your ad ID.</li><li>`__PLACEMENT__`: This will be replaced by your placement.</li></ul><br>Length limit when you specify a custom value: 600 characters.|
+#|end_card_cta {+Conditional}|string|Required when the following conditions are met:<ul><li>At the campaign level:</li><ul><li>`objective_type` is `LEAD_GENERATION`.</li><li>`catalog_enabled` is `true`.</li></ul><li>At the ad group level:</li><ul><li>An Auto-Inventory or Auto-Model catalog is specified through `catalog_id`.</li></ul><li>At the ad level:</li><ul><li>`catalog_creative_toggle` is `true`.</li></ul></ul><br>Call-to-action for the end card (`image_info`) of an Upgraded Smart+ [Automotive Carousel Ad for Inventory](https://business-api.tiktok.com/portal/docs?id=1843325008693250) or [Automotive Carousel Ad for Models](https://business-api.tiktok.com/portal/docs?id=1843325022799873), or [the catalog solution for Upgraded Smart+ TikTok Direct Messaging Ads](https://business-api.tiktok.com/portal/docs?id=1847302969710913#item-link-For%20the%20catalog%20solution).<br><br>Enum values:<ul><li>`SEARCH_INVENTORY` (Recommended): Search inventory.</li><li>`LEARN_MORE`: Learn more.</li><li>`SHOP_NOW`: Shop now.</li><li>`SIGN_UP`: Sign up.</li><li>`CONTACT_US`: Contact us.</li><li>`BOOK_NOW`: Book now.</li><li>`READ_MORE`: Read more.</li><li>`VIEW_MORE`: View now.</li><li>`ORDER_NOW`: Order now.<li>`SEND_MESSAGE`: Send message.<ul><li>This value is only available for [the catalog solution for Upgraded Smart+ TikTok Direct Messaging Ads](https://business-api.tiktok.com/portal/docs?id=1847302969710913#item-link-For%20the%20catalog%20solution).</li></ul></li></li></ul>|
+#|product_display_field_list|string[]|Valid only when the following conditions are all met:<br><br><ul><li>At the campaign level:</li><ul><li>`objective_type` is `LEAD_GENERATION`.</li><li>`catalog_enabled` is `true`.</li></ul><li>At the ad group level:</li><ul><li>An Auto-Inventory catalog is specified through `catalog_id`.</li></ul><li>At the ad level:</li><ul><li>`catalog_creative_toggle` is `true.`</li></ul></ul><br>A list of product details to display in your [Automotive Carousel Ad for Inventory](https://business-api.tiktok.com/portal/docs?id=1843325008693250).<br><br>Max size: 2.<br><br>Enum values:<ul><li>`DEALER_NAME`: the `dealer_name` field of vehicles.</li><li>`MAKE`: the `make` field of vehicles.</li><li>`MODEL`: the `model` field of vehicles.</li><li>`YEAR`: the `year` field of vehicles.</li><li>`MILEAGE`: the `mileage` field of vehicles.</li><li>`PRICE`: the `price` field of vehicles.</li><li>`SALE_PRICE`: the `sale_price` field of vehicles.</li><li>`EXTERIOR_COLOR`: the `exterior_color` field of vehicles.</li><li>`TRIM`: the `trim` field of vehicles.</li><li>`ADDRESS_CITY`: the `city` field of vehicles.</li><li>`VEHICLE_STATE`: the `state_of_vehicle` field of vehicles.</li></ul><br>The title of each vehicle is displayed automatically. For instance, if you set this field to `&#91;"MILEAGE","YEAR"&#93;`, the ad will display the `mileage`, `price` and `title` fields of each vehicle.<br>To retrieve the product detail fields of your vehicles in an Auto-Inventory catalog and check whether you need to update the details, use [/catalog/product/get/](https://business-api.tiktok.com/portal/docs?id=1740564136678402).<br><br><p><span style="color:darkred"><b>Note</b></span>: Once set, this field cannot be updated.</p>|
+#|auto_disclaimer_types|string[]|Valid only when the following conditions are met:<br><br><ul><li>At the campaign level:</li><ul><li>`objective_type` is `LEAD_GENERATION`.</li><li>`catalog_enabled` is `true`.</li></ul><li>At the ad group level:</li><ul><li>An Auto-Model catalog is specified through `catalog_id`.</li></ul><li>At the ad level:</li><ul><li>`catalog_creative_toggle` is `true.`</li></ul></ul><br>The type of disclaimer to show in the [Automotive Carousel Ad for Models](https://business-api.tiktok.com/portal/docs?id=1843325022799873).<br><br>Enum values:<ul><li>`EMISSION`: Emission disclaimer.</li><li>`DISCOUNT`: Discount or offer disclaimer.</li></ul><br>Max size: 1.<br><br><p><span style="color:darkred"><b>Note</b></span>: Before using any type of disclaimer, ensure that you have specified the necessary disclaimer details for each vehicle in the Auto-Model catalog.<br><ul><li>To use the emission disclaimer, ensure that you have provided the following details for each vehicle:</li><ul><li>`emission_disclaimer`</li><li>`emission_disclaimer_url`</li><li>`emission_overlay_disclaimer`</li><li>`emission_image_link`</li></ul><li>To use the discount or offer disclaimer, ensure that you have provided the following details for each vehicle:</li><ul><li>`offer_disclaimer`</li><li>`offer_disclaimer_url`</li></ul>To get the attributes of vehicles in an Auto-Model catalog, use [/catalog/product/get/](https://business-api.tiktok.com/portal/docs?id=1740564136678402).<br>To update the attributes of vehicles in an Auto-Model catalog, use [/catalog/product/update/](https://business-api.tiktok.com/portal/docs?id=1740562287852546).</p>|
+#|utm_params|object[]|Valid when `objective_type` is `WEB_CONVERSIONS` at the campaign level.<br><br>A list of URL parameters. URL parameters are snippets of code that can be added to the end of the URLs to help you track clicks across different channels and understand how visitors interact with a website through third-party analytics platforms. They consist of key-value pairs that are specified through `key` and `value`.<br><br>Max size : 14.<br><br>If you set `landing_page_url` to a URL that already includes URL parameters, you can optionally pass `utm_params` at the same time to store the URL parameters used in the URL. In such cases, you need to ensure that `utm_params` exactly matches the used URL parameters. The URL parameters will not be automatically appended to the `landing_page_url` upon ad delivery.|
+##|key|string|The supported UTM parameters are:<ul><li>`utm_source`: The app, site, etc., that brings traffic to your website. For example: TikTok.</li><li>`utm_medium`: The advertising or marketing medium. For example: cpm, cpc, banner, video.</li><li>`utm_content`: The creative content used for promotion. For example: ad name, CTA text, asset, color, etc.</li><li>`utm_campaign`: The individual campaign name, slogan, or promo code. For example: BlackFridayProm.</li></ul>Note that UTM parameters are case-sensitive.<br><br>Length limit when you specify a custom parameter: 100 characters.|
+##|value|string|The value of the URL parameter.<br><br>You can specify a custom value or the name of a macro.<br><br>The supported macros are:<ul><li>`__CAMPAIGN_NAME__`: This will be replaced by your campaign name.</li><li>`__CAMPAIGN_ID__`: This will be replaced by your campaign ID.</li><li>`__AID_NAME__`: This will be replaced by your ad group name.</li><li>`__AID__`: This will be replaced by your ad group ID.</li><li>`__CID_NAME__`: This will be replaced by your ad name.</li><li>`__CID__`: This will be replaced by your ad ID.</li><li>`__PLACEMENT__`: This will be replaced by your placement.</li></ul><br>Length limit when you specify a custom value: 600 characters.|
+#|fallback_type|string|Required when the following conditions are all met:<ul><li>At the ad group level:<ul><li>`promotion_type` is `LEAD_GEN_CLICK_TO_SOCIAL_MEDIA_APP_MESSAGE`.</li><li>`messaging_app_type` is `IM_URL`.</li></ul></li><li>At the ad level:<ul><li>A Custom URL scheme of an Instant messaging app is specified through deeplink.</li></ul></li></ul><br>Fallback type.<br>The destination when the user is unable to access the deeplink because the app has not been installed.<br><br>Enum value:<ul><li>`WEBSITE`: The promoted web page as fallback URL. You need to simultaneously specify the fallback URL through `landing_page_url_list`.</li></ul><br>To learn more about how to configure a fallback URL in TikTok Instant Messaging Ads, see [Create an Upgraded Smart+ Lead Generation Campaign with optimization location as instant messaging apps](https://business-api.tiktok.com/portal/docs?id=1847302988449921).|
+#| product_info | object | Product information.<br><br>This information will be used in different ad variations to create personalized ad delivery with the goal of improving ad performance. Based on past data, ads with complete information often have more clicks and conversions. Results may vary.<br><br>All fields within the `product_info` object are optional. The more detailed information you provide through the parameters, the better the generated ad variations will be.<br><br>To learn about the scenarios where you can use the parameters within this field, see [Available product information settings in Upgraded Smart+ Campaigns](https://business-api.tiktok.com/portal/docs?id=1860735968798721). |
+##| product_titles | string[] | A list of product names.<br><br>Size range: 0-1.<br><br>Length limit for each product name: 40 characters and cannot contain emoji. Each word in Chinese or Japanese counts as two characters, while each letter in English counts as one character.<br><br>If you don't provide a product name, a default name will be used so that the name won't appear blank. |
+##| product_image_list | object[] | A list of product images.<br><br>Size range: 0-10.<br><br>If you don't provide a product image, a generic image will be used so that the image won't appear blank. |
+###| web_uri | string | The image ID of a product image.<br><br>Specifications requirements:<ul><li>Image format: .jpg, .png, .jpeg, or .webp.</li><li>File size: no more than 5 MB</li><li>Image size: no limit.</li></ul>Recommend image resolution: 800 x 800 pixels.<br><br>To obtain the image ID, use the [/file/image/ad/search/](https://business-api.tiktok.com/portal/docs?id=1740052016789506) or [/file/image/ad/upload/](https://business-api.tiktok.com/portal/docs?id=1739067433456642) endpoint. |
+##| selling_points | string[] | A list of selling points.<br><br>Max size: 15.<br><br>Each selling point must be 1-25 characters long and cannot contain emoji.<br><br>Each word in Chinese or Japanese counts as two characters, while each letter in English counts as one character. |
+##| catalog_tag_list | string[] | Valid in any of the following scenarios:<ul><li>Scenario 1: At the campaign level `objective_type` is `WEB_CONVERSIONS` and `catalog_type` is `ECOMMERCE`.</li><li>Scenario 2: <ul><li>At the campaign level `objective_type` is `LEAD_GENERATION` and `catalog_enabled` is `true`.</li><li>At the ad group level an Auto-Inventory catalog is specified through `catalog_id`.</li></ul></li></ul>Details of the product information for catalog ads.<ul><li>For scenario 1, the specified product information will be automatically displayed from your catalog to drive results. The enum values are:<ul><li>`PRICE`: Price.</li><li>`STRIKETHROUGH_PRICE`: Strikethrough price.</li><li>`DISCOUNT`: Discount.</li><li>`FREE_SHIPPING`: Free shipping.</li></ul>Default value: `["PRICE", "STRIKETHROUGH_PRICE", "DISCOUNT", "FREE_SHIPPING"]`.<br><br>Max size: 4.</li><li>For scenario 2, the corresponding text for the specified product information will be displayed on the inventory card. The enum values are:<ul><li>`DEALER_NAME`: Dealer name.</li><li>`CURRENT_MILEAGE`: Current mileage.</li><li>`LEAD_PRICE`: Price.</li><li>`LEAD_SALE_PRICE`: Sale price.</li><li>`EXTERIOR_COLOR`: Exterior color.</li><li>`TRIM`: Trim.</li><li>`ADDRESS_CITY`: City.</li><li>`VEHICLE_STATE`: Vehicle state.</li></ul>Max size: 2 for primary catalog tags (`DEALER_NAME`,`CURRENT_MILEAGE`,`EXTERIOR_COLOR`,`TRIM`,`ADDRESS_CITY`,`VEHICLE_STATE`) and 2 for secondary catalog tags (`LEAD_PRICE`,`LEAD_SALE_PRICE`).</li></ul> |
+##| promo_info_list | object[] | Valid only for [regular Upgraded Smart+ Web Campaigns](https://business-api.tiktok.com/portal/docs?id=1847302878676994).<br><br>Details of promo codes and offers.<br><br>Your offer details for promo codes, offers, or events will be highlighted to boost engagement and ad performance. Promo codes require shoppers to enter a code at checkout. Offers apply automatically and no code is needed.<br><br>Max size: 10. |
+###| discount_type{+Conditional} | string | Required when `promo_info_list` is specified.<br><br>Discount type.<br><br>Enum values:<ul><li>`PERCENTAGE`: Percentage off discount.</li><li>`CASH`: Cash off discount.</li></ul> |
+###| discount_value{+Conditional} | float | Required when `promo_info_list` is specified.<br><br>Discount value.<ul><li>When `discount_type` is `PERCENTAGE`, specify an integer between 1-100.</li><li>When `discount_type` is `CASH`, specify a float greater than 0.</li></ul> |
+###| discount_currency{+Conditional} | string | Required when `discount_type` is `CASH`.<br><br>Discount currency.<br><br>For enum values, see <a href="#item-link-List of values for discount_currency or minimum_purchase_currency">List of values for `discount_currency` or `minimum_purchase_currency`</a>. |
+###| promo_code | string | The promo code.<ul><li>For promo codes that require shoppers to enter a code at checkout, specify the code through this field.</li><li>For offers that apply automatically, omit this field.</li></ul><br>Length limit: 30 characters long and cannot contain emoji. Each word in Chinese or Japanese counts as two characters, while each letter in English counts as one character.<br><br><font color="darkred"><b>Note</b></font>: Promo codes exclusive to TikTok often perform best. |
+###| minimum_purchase_type | string | Minimum purchase type.<br><br>Enum values:<ul><li>`QUANTITY`: Minimum quantity.</li><li>`SUBTOTAL`: Minimum subtotal.</li></ul> |
+###| minimum_purchase_value{+Conditional} | float | Required when `minimum_purchase_type` is specified.<br><br>Minimum purchase value.<ul><li>When `minimum_purchase_type` is `QUANTITY`, specify an integer that is 0 or greater.</li><li>When `minimum_purchase_type` is `SUBTOTAL`, specify a float greater than 0.</li></ul> |
+###| minimum_purchase_currency{+Conditional} | string | Required when `minimum_purchase_type` is `SUBTOTAL`.<br><br>Minimum purchase currency.<br><br>For enum values, see <a href="#item-link-List of values for discount_currency or minimum_purchase_currency">List of values for `discount_currency` or `minimum_purchase_currency`</a>. |
+###| valid_start_time | string | Valid start time (UTC+0) for the promo code or offer, in the format of `YYYY-MM-DD HH:MM:SS`. |
+###| valid_end_time | string | Valid end time (UTC+0) for the promo code or offer, in the format of `YYYY-MM-DD HH:MM:SS`.<ul><li>The `valid_end_time` should be later than the current time.</li><li>If you specify `valid_end_time`, provide `valid_start_time` at the same time.</li></ul> |
+#| product_info_enabled {+Conditional}| string | The product information mode.<br><br>Enum values:<ul><li>`UNSET`: To disable product information mode.</li><li>`NON_CATALOG`: To enable the non-catalog version of product information.</li><li>`CATALOG`: To enable the catalog version of product information.</li></ul><br>Default value: `UNSET`.<br><br>To learn about the scenarios where you need to set this parameter, see [Available product information settings in Upgraded Smart+ Campaigns](https://business-api.tiktok.com/portal/docs?id=1860735968798721).<br><br><font color="darkred"><b>Note</b></font>: <ul><li>This field will automatically be set to `CATALOG` when the following conditions are both met at the campaign level:<ul><li>`app_promotion_type` is `MINIS`.</li><li>`catalog_enabled` is `true`.</li></ul></li><li>This field can only be set to `UNSET` when an Inventory Card portfolio is specified through `card_id` in [Upgraded Smart+ Automotive Ads](https://business-api.tiktok.com/portal/docs?id=1843324618421314).</li></ul>|
+#|call_to_action_id{+Conditional}|string|Required in any of the following scenarios:<ul><li>Scenario 1: <ul><li>At the campaign level `objective_type` is `LEAD_GENERATION`.</li><li>At the ad group level, `placement_type` is `PLACEMENT_TYPE_NORMAL` and `placements` includes `PLACEMENT_TIKTOK`, or `placement_type` is `PLACEMENT_TYPE_AUTOMATIC`.</li></ul></li><li>Scenario 2: <ul><li>At the campaign level, `objective_type` is `APP_PROMOTION` or `WEB_CONVERSIONS`.</li><li>At the ad group level, `placement_type` is `PLACEMENT_TYPE_NORMAL` and `placements` includes `PLACEMENT_TIKTOK`, or `placement_type` is `PLACEMENT_TYPE_AUTOMATIC`.</li><li>At the ad level, `identity_type` within the `creative_info` object to `TT_USER`, `BC_AUTH_TT`, or `AUTH_CODE`.</li></ul></li></ul><br>The ID of the call-to-action (CTA) portfolio (also known as dynamic CTA) that you want to use in your ads. A CTA portfolio is a group of auto-optimized CTAs.<br><br>For details about auto-optimized CTAs, see [CTA recommendations > Dynamic CTAs](https://business-api.tiktok.com/portal/docs?id=1740307296329730#item-link-Dynamic%20CTAs%20).|
+#|phone_info {+Conditional}|object|Required when `promotion_type` is set to `LEAD_GEN_CLICK_TO_CALL` at the ad group level.<br><br>Details of the phone number that the ad audience can directly reach out to you (the advertiser) through when they click the call-to-action button within the ad.<br><br>Learn about how to [create an Upgraded Smart+ Lead Generation Campaign with optimization location as phone call](https://business-api.tiktok.com/portal/docs?id=1847302998941697).|
+##|phone_region_code {+Conditional}|string|Required when `phone_info` is specified.<br><br>The region code for the phone number that the audience can click on the ad to call.<br><br>Example: `US`.<br><br>To obtain the region code (`phone_region_code`) and region calling code (`phone_region_calling_code`) for the region that is associated with a specific phone number, use [/tool/phone_region_code/](https://business-api.tiktok.com/portal/docs?id=1774488637039618).|
+##|phone_region_calling_code {+Conditional}|string|Required when `phone_info` is specified.<br><br>The region calling code for the phone number that the audience can click on the ad to call.<br><br>Example: `+1`.<br><br>To obtain the region code (`phone_region_code`) and region calling code (`phone_region_calling_code`) for the region that is associated with a specific phone number, use [/tool/phone_region_code/](https://business-api.tiktok.com/portal/docs?id=1774488637039618).|
+##|phone_number {+Conditional}|string|Required when `phone_info` is specified.<br><br>The phone number that the audience can click on the ad to call.<br><br>Example: `12638282`.|
+#|tracking_info|object|Tracking information.|
+##|viewability_postbid_partner|string|Valid only in [regular Upgraded Smart+ Web Campaigns](https://business-api.tiktok.com/portal/docs/create-a-regular-upgraded-smart-web-campaign/v1.3) and [Upgraded Smart+ E-commerce Catalog Ads](https://business-api.tiktok.com/portal/docs/create-upgraded-smart-e-commerce-catalog-ads/v1.3).<br><br>Post-bid third-party viewability measurement partner.<br><br>Enum values: `DOUBLE_VERIFY`, `IAS`, `ZEFR`.<br><br><p><span style="color:darkred"><b>Note</b></span>:<ul><li>Post-bid third-party viewability measurement is currently an allowlist-only feature. If you would like to access it, please contact your TikTok representative.</li><li>See [Brand safety](https://business-api.tiktok.com/portal/docs?id=1739381752981505) to learn about the supported advertising objectives, supported markets, and the general introduction of post-bid measurement.</li><li>When you pass in both `brand_safety_postbid_partner` and `viewability_postbid_partner`:<ul><li>If you set either of these two fields as `IAS`, you need to specify both as `IAS`, and assign the same value (the wrapped VAST URL that you obtain from the measurement partner IAS) to `brand_safety_vast_url` and `viewability_vast_url`.</li><li>If you set either of these two fields as `ZEFR`, you need to specify both as `ZEFR`.</li><li>If you set two different post-bid measurement partners, only the post-bid brand safety measurement setting will become valid.</li></ul></li></ul>|
+##|viewability_vast_url {+Conditional}|string|Required when `viewability_postbid_partner` is `IAS`.<br><br>The wrapped VAST URL used by the post-bid third-party partner to measure viewability. You need to get the URL from the measurement partner IAS.<br><br><p><span style="color:darkred"><b>Note</b></span>:<ul><li>Post-bid third-party viewability measurement is currently an allowlist-only feature. If you would like to access it, please contact your TikTok representative.</li><li>When you set both `brand_safety_postbid_partner` and `viewability_postbid_partner` as IAS, `brand_safety_vast_url` should be the same as `viewability_vast_url`.</li></ul>|
+##|brand_safety_postbid_partner|string|Valid only in [regular Upgraded Smart+ Web Campaigns](https://business-api.tiktok.com/portal/docs/create-a-regular-upgraded-smart-web-campaign/v1.3) and [Upgraded Smart+ E-commerce Catalog Ads](https://business-api.tiktok.com/portal/docs/create-upgraded-smart-e-commerce-catalog-ads/v1.3).<br><br>Post-bid third-party brand safety measurement partner.<br><br>Enum values: `DOUBLE_VERIFY`, `IAS`, `ZEFR`.<br><br><p><span style="color:darkred"><b>Note</b></span>:<ul><li>Post-bid third-party brand safety measurement is currently an allowlist-only feature. If you would like to access it, please contact your TikTok representative.</li><li>See [Brand safety](https://business-api.tiktok.com/portal/docs?id=1739381752981505) to learn about the supported advertising objectives, supported markets, and the general introduction of post-bid measurement.</li><li>When you pass in both `brand_safety_postbid_partner` and `viewability_postbid_partner`:<ul><li>If you set either of these two fields as `IAS`, you need to specify both as `IAS`, and assign the same value (the wrapped VAST URL that you obtain from the measurement partner IAS) to `brand_safety_vast_url` and `viewability_vast_url`.</li><li>If you set two different post-bid measurement partners, only the post-bid brand safety measurement setting will become valid.</li></ul></li></ul>|
+##|brand_safety_vast_url {+Conditional}|string|Required when `brand_safety_postbid_partner` is `IAS`.<br><br>The wrapped VAST URL used by the post-bid third-party partner to measure brand safety. You need to get the URL from the measurement partner IAS.<br><br><p><span style="color:darkred"><b>Note</b></span>:<ul><li>Post-bid third-party brand safety measurement is currently an allowlist-only feature. If you would like to access it, please contact your TikTok representative.</li><li>When you set both `brand_safety_postbid_partner` and `viewability_postbid_partner` as IAS, `brand_safety_vast_url` should be the same as `viewability_vast_url`.</li></ul>|
+##|impression_tracking_url|string|Default Impression Tracking URL. <br><br>URL generated by your data partner to track impression events in your ads. Generally you can find and copy the URL from their platform.<br><ul><li>If the partner ID for the App (`app_id` specified at the ad group level ) that you want to track is `44` (TikTok Business SDK) or `49` (TikTok App API), you don't need to pass in this field. If you do, this field will be ignored. You can obtain the partner ID of an App through `partner_id` returned from [/app/list/](https://business-api.tiktok.com/portal/docs?id=1740859313270786) or [/app/info/](https://business-api.tiktok.com/portal/docs?id=1740859272887297).</li><li>If self-attribution has been enabled for the App (`app_id` specified at the ad group level ) that you want to track and the partner ID for the App is not `44` (TikTok Business SDK) or `49` (TikTok App API), you don't need to pass in this field because this field will default to the Default Impression Tracking URL you have configured for the App, and updates to the URL are not supported. You can check whether self-attribution has been enabled for the App through `self_attribution_enabled` returned from [/app/list/](https://business-api.tiktok.com/portal/docs?id=1740859313270786) or [/app/info/](https://business-api.tiktok.com/portal/docs?id=1740859272887297).</li></ul>|
+##|click_tracking_url|string|Click Tracking URL. <br><br>URL generated by your data partner to track click events in your ads. Generally you can find and copy the URL from their platform.<br><ul><li>If the partner ID for the App (`app_id` specified at the ad group level ) that you want to track is `44` (TikTok Business SDK) or `49` (TikTok App API), you don't need to pass in this field. If you do, this field will be ignored. You can obtain the partner ID of an App through `partner_id` returned from [/app/list/](https://business-api.tiktok.com/portal/docs?id=1740859313270786) or [/app/info/](https://business-api.tiktok.com/portal/docs?id=1740859272887297).</li><li>If self-attribution has been enabled for the App (`app_id` specified at the ad group level ) that you want to track and the partner ID for the App is not `44` (TikTok Business SDK) or `49` (TikTok App API), you don't need to pass in this field because this field will default to the Click Tracking URL you have configured for the App, and updates to the URL are not supported. You can check whether self-attribution has been enabled for the App through `self_attribution_enabled` returned from [/app/list/](https://business-api.tiktok.com/portal/docs?id=1740859313270786) or [/app/info/](https://business-api.tiktok.com/portal/docs?id=1740859272887297).</li></ul>Currently, Pangle does not support DCM, Sizmek or Flashtalking.|
+##|tracking_app_id|string|Valid when `objective_type` is `WEB_CONVERSIONS` or `LEAD_GENERATION`.<br><br>The ID of the App that you want to track. <br>You can use this field to track offsite app events.<br><br>If `app_id` is specified at the ad group level and you want to track offsite app events, then the application ID you pass via this field must be the same ID that you specified at the ad group level. Otherwise, you can pass in any application ID that you'd like to track via this field.<br><br>To get a list of App IDs, use [/app/list/](https://business-api.tiktok.com/portal/docs?id=1740859313270786).|
+##| tracking_pixel_id | string | Valid only when the following conditions are both met at the campaign level:<ul><li>`objective_type` is `APP_PROMOTION`.</li><li>`app_promotion_type` is `APP_INSTALL` or `APP_RETARGETING`.</li></ul><br>The ID of the pixel for tracking the actions people take on your website, such as page views, add to cart, purchases, and more.<br><br><ul><li>If `pixel_id` is already set at the ad group level, this `tracking_pixel_id` must match it for tracking website events.</li><li>If `pixel_id` is not set at the ad group level, you may specify any pixel ID for tracking website events.</li></ul> |
+##| tracking_offline_event_set_ids | string[] | Valid only when the following conditions are both met at the campaign level:<ul><li>`objective_type` is `APP_PROMOTION`.</li><li>`app_promotion_type` is `APP_INSTALL` or `APP_RETARGETING`.</li></ul><br>A list of Offline Event set IDs for tracking customer actions that happen in-person, such as in-store purchases or live event attendance.<br><br>Max size: 50.<br><br>See [here](https://business-api.tiktok.com/portal/docs/events-api-v1-offline-get-started/v1.3) to learn more about how to create and manage Offline Event sets.<br><br><p><span style="color:darkred"><b>Note</b></span>:<ul><li>For a new ad, existing auto-tracking Offline Event sets have to be tracked. You can choose to omit or provide this field.<ul><li>If you omit this field, it automatically includes all <b>existing</b> auto-tracking Offline Event set IDs within your ad account.</li><li>If you provide this field, you need to specify all <b>existing</b> auto-tracking Offline Event set IDs. Adding non-auto-tracking Offline Event set IDs is optional. To find existing auto-tracking Offline Event sets within an ad account, call [/offline/get/](https://business-api.tiktok.com/portal/docs/get-offline-event-sets/v1.3) and select sets where `auto_tracking` is `true`.</li></ul></li></ul> </p> |
+##|tracking_message_event_set_id|string|Valid when the following conditions are met:<ul><li>At the ad group level:<ul><li>`promotion_type` is `LEAD_GEN_CLICK_TO_SOCIAL_MEDIA_APP_MESSAGE`.</li><li>`optimization_goal` is `CLICK`.</li><li>`messaging_app_type` is `MESSENGER` or `WHATSAPP`.</li></ul></li><li>At the ad level:<ul><li>`page_list` is not specified.</li></ul></li></ul><br>The ID of the message event set that you want to measure in the Instant Messaging Ad. You can use this field to measure when users have started conversation in your instant messaging app.<br><br>To obtain the list of available message event sets, use [/ctm/message_event_set/get/](https://business-api.tiktok.com/portal/docs?id=1816979158055937).<br><br>To learn more about how to create TikTok Instant Messaging Ads, see [Create an Upgraded Smart+ Lead Generation Campaign with optimization location as instant messaging apps](https://business-api.tiktok.com/portal/docs?id=1847302988449921).<br><br><p><span style="color:darkred"><b>Note</b></span>: Once set, this field cannot be updated.</p>|
+##| app_tracking_info_list | object[] | Valid only when `sales_destination` is `WEB_AND_APP` at the campaign level.<br><br>Details of Third-party tracking settings.<br><br>Max size: 4. |
+###| app_type {+Conditional} | string | Required when `app_tracking_info_list` is specified.<br><br>App type.<br><br>Enum values:<ul><li>`APP_ANDROID`: Android App.</li><li>`APP_IOS`: iOS App.</li></ul> |
+###| app_id {+Conditional} | string | Required when `app_tracking_info_list` is specified.<br><br>The App ID of the App.<ul><li>When `app_type` is `APP_ANDROID`, specify the App ID for an Android App.</li><li>When `app_type` is `APP_IOS`, specify the App ID for an iOS App.</li></ul> |
+###| impression_tracking_url {+Conditional} | string | When `app_type` is specified, specify either `impression_tracking_url` or `click_tracking_url` or both.<br><br>Impression tracking URL.<ul><li>When `app_type` is `APP_ANDROID`, specify an impression tracking URL for Android.</li><li>When `app_type` is `APP_IOS`, specify an impression tracking URL for iOS.</li></ul> |
+###| click_tracking_url {+Conditional} | string | When `app_type` is specified, specify either `impression_tracking_url` or `click_tracking_url` or both.<br><br>Click tracking URL.<ul><li>When `app_type` is `APP_ANDROID`, specify a click tracking URL for Android.</li><li>When `app_type` is `APP_IOS`, specify a click tracking URL for iOS.</li></ul> |
+```
+
+### List of values for `discount_currency` or `minimum_purchase_currency`
+The following table lists the enum values for `discount_currency` or `minimum_purchase_currency`.
+```xtable
+|Value for discount_currency or minimum_purchase_currency {50%}|Currency{50%}|
+|---|---|
+|`AED`|UAE Dirham|
+|`ARS`|Argentine Peso|
+|`AUD`|Australian Dollar|
+|`BDT`|Bangladesh Taka|
+|`BHD`|Bahraini Dinar|
+|`BOB`|Bolivian Boliviano|
+|`BRL`|Brazilian Real|
+|`BYN`|Belarusian Ruble|
+|`CAD`|Canadian Dollar|
+|`CHF`|Swiss Franc|
+|`CLP`|Chilean Peso|
+|`CNY`|Chinese Yuan|
+|`COP`|Colombian Peso|
+|`CRC`|Costa Rican Colón|
+|`CZK`|Czech Republic Koruna|
+|`DKK`|Danish Krone|
+|`DZD`|Algerian Dinar|
+|`EGP`|Egyptian Pound|
+|`EUR`|Euro|
+|`GBP`|British Pound|
+|`GTQ`|Guatemalan Quetzal|
+|`HKD`|Hong Kong Dollar|
+|`HNL`|Honduran Lempira|
+|`HUF`|Hungarian Forint|
+|`IDR`|Indonesian Rupiah|
+|`ILS`|New Israeli Shekel|
+|`INR`|Indian Rupee|
+|`IQD`|Iraqi Dinar|
+|`ISK`|Icelandic Króna|
+|`JOD`|Jordanian Dinar|
+|`JPY`|Japanese Yen|
+|`KES`|Kenyan Shilling|
+|`KHR`|Cambodian Riel|
+|`KRW`|South Korean Won|
+|`KWD`|Kuwaiti Dinar|
+|`KZT`|Tenge|
+|`LBP`|Lebanese Pound|
+|`LKR`|Sri Lanka Rupee|
+|`MAD`|Moroccan Dirham|
+|`MOP`|Pataca|
+|`MXN`|Mexican Peso|
+|`MYR`|Malaysian Ringgit|
+|`NGN`|Nigerian Naira|
+|`NIO`|Nicaraguan Cordoba|
+|`NOK`|Norwegian Krone|
+|`NZD`|New Zealand Dollar|
+|`OMR`|Rial Omani|
+|`PEN`|Peruvian Sol|
+|`PHP`|Philippine Piso|
+|`PKR`|Pakistan Rupee|
+|`PLN`|Polish ZŁOty|
+|`PYG`|Paraguayan Guarani|
+|`QAR`|Qatari Rial|
+|`RON`|Romanian Leu|
+|`RSD`|Serbian Dinar|
+|`RUB`|Russian Ruble|
+|`SAR`|Saudi Riyal|
+|`SEK`|Krona|
+|`SGD`|Singapore Dollar|
+|`THB`|Thai Baht|
+|`TRY`|Turkish Lira|
+|`TWD`|New Taiwan Dollar|
+|`UAH`|Hryvnia|
+|`USD`|US Dollar|
+|`UYU`|Peso Uruguayo|
+|`VEF`|Venezuelan Bolívar|
+|`VND`|Vietnamese Dong|
+|`ZAR`|South African Rand|
+```
+
+### Example
+```xcodeblock
+(code curl http)
+curl --location --request POST 'https://business-api.tiktok.com/open_api/v1.3/smart_plus/ad/create/' \
+--header 'Access-Token: {{Access-Token}}' \
+--header 'Content-Type: application/json' \
+--data '{
+    "advertiser_id": "{{advertiser_id}}",
+    "adgroup_id": "{{adgroup_id}}",
+    "ad_name": "{{ad_name}}",
+    "landing_page_url_list": [
+        {
+            "landing_page_url": "{{landing_page_url}}"
+        }
+    ],
+    "creative_list": [
+        {
+            "creative_info": {
+                "ad_format":"CAROUSEL_ADS",
+                "image_info": [
+                    {
+                        "web_uri": "{{web_uri}}"
+                    }
+                ],
+                "music_info": {
+                    "music_id": "{{music_id}}"
+                },
+                "identity_type": "TT_USER",
+                "identity_id": "{{identity_id}}"
+            }
+        },
+        {
+            "creative_info": {
+                "ad_format":"SINGLE_VIDEO",
+                "video_info": {
+                    "video_id": "{{video_id}}"
+                },
+                "image_info": [
+                    {
+                        "web_uri": "{{web_uri}}"
+                    }
+                ],
+                "identity_type": "TT_USER",
+                "identity_id": "{{identity_id}}"
+            }
+        },
+        {
+            "creative_info": {
+                "ad_format":"SINGLE_VIDEO",
+                "tiktok_item_id": "{{tiktok_item_id}}",
+                "identity_type": "TT_USER",
+                "identity_id": "{{identity_id}}"
+            }
+        },
+        {
+            "creative_info": {
+                "ad_format":"SINGLE_VIDEO",
+                "tiktok_item_id": "{{tiktok_item_id}}",
+                "identity_type": "BC_AUTH_TT",
+                "identity_id": "{{identity_id}}",
+                "identity_authorized_bc_id": "{{identity_authorized_bc_id}}"
+            }
+        },
+        {
+            "creative_info": {
+                "ad_format":"SINGLE_VIDEO",
+                "tiktok_item_id": "{{tiktok_item_id}}",
+                "identity_type": "AUTH_CODE",
+                "identity_id": "{{identity_id}}"
+            }
+        }
+    ],
+    "ad_text_list": [
+        {
+            "ad_text": "{{ad_text}}"
+        },
+        {
+            "ad_text": "{{ad_text}}"
+        },
+        {
+            "ad_text": "{{ad_text}}"
+        },
+        {
+            "ad_text": "{{ad_text}}"
+        },
+        {
+            "ad_text": "{{ad_text}}"
+        }
+    ],
+    "ad_configuration": {
+        "utm_params": [
+            {
+                "key": "{{key}}",
+                "value": "{{value}}"
+            }
+        ],
+        "call_to_action_id": "{{call_to_action_id}}"
+    }
+}'
+(/code)
+```
+
+## Response
+
+```xtable
+|Field{30%}|Data Type{15%}|Description{55%}|
+|-|-|-|
+|code |number|Response code. For the complete list of response codes and descriptions, see [Appendix - Return Codes](https://business-api.tiktok.com/portal/docs/return-codes-appendix/v1.3).|
+|message |string|Response message. For details, see [Appendix - Return Codes](https://business-api.tiktok.com/portal/docs/return-codes-appendix/v1.3).|
+|request_id|string| The log ID of the request, which uniquely identifies a request.|
+|data|object|Returned data.|
+#|advertiser_id|string|Advertiser ID.|
+#|campaign_id|string|Campaign ID.|
+#|campaign_name|string|Campaign name.|
+#|adgroup_id|string|Ad group ID.|
+#|adgroup_name|string|Ad group name.|
+#|smart_plus_ad_id|string|Ad ID.|
+#|ad_name|string|Ad name.|
+#|operation_status|string|Operation status.<br><br>Enum values:<ul><li>`ENABLE` : The ad is enabled (in 'ON' status).</li><li>`DISABLE`: The ad is disabled (in 'OFF' status).</li><li>`FROZEN`: The ad is terminated and cannot be enabled.</li></ul>|
+#|secondary_status|string|Ad secondary status. <br><br>For enum values, see [Enumeration-Ad Status - Secondary Status](https://business-api.tiktok.com/portal/docs?id=1737174886619138#item-link-Ad%20status%20-%20secondary%20status).<br><br>The following secondary statuses are newly added for Upgraded Smart+ Ads:<ul><li>`AD_STATUS_DELIVERY_AND_REAUDIT`: Review of modifications in progress.</li><li>`AD_STATUS_DELIVERY_AND_TRANSCODING_FAIL`: Transcoding of the video or videos in the ad failed.</li><li>`AD_STATUS_REVIEW_PARTIALLY_APPROVED`: Ad in partial review and in delivery.</li><li>`AD_STATUS_COLLECTION_TOGGLED_OFF`: Lead collection has ended.</li><li>`AD_STATUS_PRIVACY_POLICY_REJECTED`: Ad rejected due to privacy policy violations.</li><li>`AD_STATUS_PRIVACY_POLICY_AUDIT`: Ad in review for privacy policy compliance.</li></ul>|
+#|create_time|string|The time when the ad was created, in the format of `YYYY-MM-DD HH:MM:SS` (UTC+0).<br><br>Example: `2025-01-01 00:00:01`.|
+#|modify_time|string|The time when the ad was last modified, in the format of `YYYY-MM-DD HH:MM:SS` (UTC+0).<br><br>Example: `2025-01-01 00:00:01`.|
+#|creative_list|object[]|A list of creatives.|
+##|ad_material_id|string|An ad-specific material ID generated when a particular creative is used in an ad. <br><br>This ID differs from the creative ID you receive when uploading the creative to your ad account’s Creative Library.|
+##|material_operation_status|string|The status of the creative. <br><br>Enum values: <ul><li>`ENABLE`: The creative is enabled (in 'ON' status).</li><li>`DISABLE`: The creative is disabled (in 'OFF' status).</li></ul>|
+##|creative_info|object|Creative information.|
+###|ad_format|string|The ad format.<br><br>Enum values: <ul><li>`SINGLE_VIDEO`: Single Video.</li><li>`CAROUSEL_ADS`: Standard Carousel.</li><li>`CATALOG_CAROUSEL`: Catalog Carousel.</li></ul>|
+###|material_name|string|Material name.|
+###|video_info|object|Video information.|
+####|video_id|string|Video ID.|
+####|file_name|string|Video name.|
+###|image_info|object[]|Image information.|
+####|web_uri|string|Image ID.|
+###|music_info|object|Music information.|
+####|music_id|string|The ID of the piece of music to use in the Carousel Ads.|
+###|aigc_disclosure_type|string|Whether to turn on the AIGC (Artificial Intelligence Generated Content) self-disclosure toggle to indicate the ad contains AI-generated content. After the toggle is turned on, your ad will carry an "Advertiser labeled as Al-generated" label when viewed in full.<br><br>Enum values:<ul><li>`SELF_DISCLOSURE`: To turn on the toggle to declare that the ad contains AI-generated content.</li><li>`NOT_DECLARED`: To not declare that the ad contains AI-generated content.</li></ul>|
+###|tiktok_item_id|string|The ID of the TikTok post to be used as an ad (Spark Ads).|
+###|identity_type|string|Returned for Spark Ads created without using catalog creatives.<br><br>Identity type.<br><br>Enum values: `AUTH_CODE`, `TT_USER`, `BC_AUTH_TT`.<br><br>For details about identities, see [Identities](https://business-api.tiktok.com/portal/docs?id=1738958351620097).|
+###|identity_id|string|Returned for Spark Ads created without using catalog creatives.<br><br>Identity ID.|
+###|identity_authorized_bc_id|string|Returned when `identity_type` within `creative_info` is `BC_AUTH_TT`.<br><br>The ID of the Business Center that a TikTok Account User in Business Center identity is associated with.|
+#|ad_text_list|object[]|A list of ad texts.<br><br>Ad texts are shown to your audience as part of your ad creatives, to deliver the message you intend to communicate to them.|
+##|ad_text|string|Ad text.|
+#|auto_message_list|object[]|Returned only when `promotion_type` is `LEAD_GEN_CLICK_TO_TT_DIRECT_MESSAGE` at the ad group level.<br><br>Details of the automatic message to use in a TikTok Direct Messaging Ad.|
+###|auto_message_id|string|Required when `auto_message_list` is specified.<br><br>The ID of the automatic message to use in a TikTok Direct Messaging Ad.<br><br>Currently, the only supported automatic message type is welcome message.<ul><li>To obtain a list of welcome messages within your ad account, use [/creative/auto_message/get/](https://business-api.tiktok.com/portal/docs?id=1822106498804738).</li><li>To create a welcome message within your ad account, use [/creative/auto_message/create/](https://business-api.tiktok.com/portal/docs?id=1822106113771521).</li></ul><br>To learn more about how to create TikTok Direct Messaging Ads with welcome messages, see [Create an Upgraded Smart+ Lead Generation Campaign with optimization location as TikTok direct messages](https://business-api.tiktok.com/portal/docs?id=1847302969710913).|
+#|call_to_action_list|object[]|Call-to-action list.|
+##|call_to_action|string|Call-to-action text.<br><br>For enum values, see [Enumeration - Call-to-action](https://business-api.tiktok.com/portal/docs?id=1737174886619138#item-link-Call-to-action).|
+#|interactive_add_on_list|object[]|A list of interactive add-on (creative portfolio) IDs.|
+##|card_id|string|The ID of an interactive add-on.|
+#|page_list|object[]|A list of pages.|
+##|page_id|string|Page ID.|
+#|landing_page_url_list|object[]|A list of landing page URLs.|
+##|landing_page_url|string|Landing page URL.|
+#|custom_product_page_list|object[]|Details of the custom product page to use in the ad.|
+##|custom_product_page_url|string|The Custom Product Page (CPP) URL.<br><br>CPPs are product pages with customized screenshots, promotional text, and app previews that can be used to highlight specific content or features of the promoted app, or reach specific audiences.<br><br>Example: `https://apps.apple.com/us/app/tiktok/id835599320?ppid=12345a6b-c789-12d3-e4f5-g6h78i91jk2l`.|
+#|deeplink_list|object[]|A list of deeplinks.|
+##|deeplink|string|Deeplink, the specific location where you want your audience to go if they have your app installed.|
+##|deeplink_type|string|The deeplink type. <br><br>Enum values:<ul><li>`NORMAL`: non-deferred deeplink.</li><li>`DEFERRED_DEEPLINK`: deferred deeplink.</li></ul>|
+#| disclaimer | object | Disclaimer information. |
+##| disclaimer_type | string | The type of disclaimer in the ad. <br><br>Enum values: <ul><li>`TEXT_ONLY`: text-only disclaimer.</li><li>`TEXT_LINK`: clickable disclaimer.</li></ul> |
+##| disclaimer_text | object | The text-only disclaimer in the ad. |
+###| text | string | The disclaimer text. |
+##| disclaimer_clickable_texts | object[] | The clickable disclaimer or clickable disclaimers in the ad. |
+###| text | string | The disclaimer text. |
+###| url | string | The URL for the clickable disclaimer. <br>When users tap each text, they will be redirected to the URL and see more disclaimer details. |
+#|ad_configuration|object|Additional configurations.|
+##|identity_type|string|Returned in any of the following scenarios:<ul><li>For non-Spark Ads on non-TikTok placements. Non-Spark Ads on the TikTok placement are no longer supported.</li><li>For Spark Ads created using catalog creatives from an E-commerce catalog. Learn more about how you can create such ads in [Create Upgraded Smart+ E-commerce Catalog Ads](https://business-api.tiktok.com/portal/docs?id=1847302895272962).</li></ul><br>Identity type.<ul><li>Enum values for non-Spark Ads on non-TikTok placements: `CUSTOMIZED_USER`.</li><li>Enum values for Upgraded Smart+ E-commerce Catalog Spark Ads (with `catalog_creative_toggle` as `true`): `TT_USER`, `BC_AUTH_TT`.</li></ul><br>For details about identities, see [Identities](https://business-api.tiktok.com/portal/docs?id=1738958351620097).|
+##|identity_id|string|Returned in any of the following scenarios:<ul><li>For non-Spark Ads on non-TikTok placements. Non-Spark Ads on the TikTok placement are no longer supported.</li><li>For Spark Ads created using catalog creatives from an E-commerce catalog. Learn more about how you can create such ads in [Create Upgraded Smart+ E-commerce Catalog Ads](https://business-api.tiktok.com/portal/docs?id=1847302895272962).</li></ul><br>Identity ID.|
+##|identity_authorized_bc_id|string|Returned when `identity_type` within `ad_configuration` is `BC_AUTH_TT`.<br><br>ID of the Business Center that a TikTok Account User in Business Center identity is associated with.|
+##|dark_post_status|string|The status of the "Ads-only mode" for your creatives.<br><br>Enum values:<ul><li>`ON`: Enable the ads-only mode to limit your posts to paid traffic.</li><li>`OFF`: Disable the ads-only mode. The post will appear on your TikTok profile and will be eligible to receive organic traffic.</li></ul>|
+##|product_specific_type|string|Different dimensions to choose products.<br><br>Enum values:<ul><li>`ALL`: Allow TikTok to dynamically choose from all products.</li><li>`PRODUCT_SET`: Specify a product set. TikTok will dynamically choose products from this set.</li><li>`CUSTOMIZED_PRODUCTS`: Specify a customized number of products.</li></ul>|
+##|product_set_id|string|The ID of a product set.|
+##|product_ids|string[]|The product IDs of catalog products.|
+##|catalog_creative_toggle|boolean|Whether to enable auto-selection of creatives from your catalog.<br><br>Supported values: `true`, `false`.|
+##|catalog_creative_info|object|Additional settings for catalog creatives to use in your ads.|
+###|catalog_media_settings|string[]|The types of creatives from your E-commerce or entertainment catalog to use in the ad.<br><br>Enum values for an [Upgraded Smart+ E-commerce Catalog Ad](https://business-api.tiktok.com/portal/docs?id=1847302895272962):<ul><li>`VIDEO`: Video.</li><li>`IMAGE`: Image.</li><li>`TEMPLATE_VIDEO`: Video templates.</li></ul><br>Enum values for an [Upgraded Smart+ Streaming Ad](https://business-api.tiktok.com/portal/docs/create-upgraded-smart-streaming-ads/v1.3): <ul><li>`VIDEO`: Video.</li><li>`TEMPLATE_VIDEO`: Video templates. </li><li>`MULTI_SHOW`: Multi-Show. Multi-Show Experience is an auto-play video carousel experience designed to drive user exploration and engagement across a breadth of personally-relevant title offerings within your content library. Multi-Show Experience consists of 4 video tiles delivered from your catalog. Each tile's clip plays sequentially (starting in the upper left-hand corner), and offers you the ability to assign a corresponding title-specific landing page.</li></ul>|
+###|catalog_template_video_id|string|The ID of a video template in your catalog to use in the ad.|
+##| creative_auto_add_toggle | boolean | Whether to auto-add newly generated assets during delivery.<br>During your campaign, the system will generate new creative assets from your existing campaign assets and creative library. By using TikTok's latest trending elements (hooks, music, text, and more), you'll get high-quality, ready-to-use content that delivers alongside your other selected assets.<br>New assets will be added to your campaign automatically and won't appear on your TikTok profile. You can turn off this feature anytime.<br><br>Supported values: `true`, `false`. |
+##| creative_auto_enhancement_strategy_list | string[] | The list of automatic enhancement strategies to apply to your ads.<br>Automatic enhancements are real-time edits applied to your ads during your campaign. They can improve performance by creating more engaging and impactful visuals, sound, and more.<br><br>Enum values:<ul><li>`TRANSLATE_AND_DUB`: Translate and dub. Connect with global audiences by delivering your ad in 50+ languages.</li><li>`MUSIC_REFRESH`: Music refresh. Stay on-trend by swapping in music currently popular on TikTok.</li><li>`VIDEO_QUALITY`: Video quality. Improve overall visual quality with increased resolution and clarity.</li><li>`IMAGE_QUALITY`: Image quality. Improve overall visual quality with increased resolution and clarity.</li><li>`IMAGE_RESIZE`: Resize. Resize your image to take advantage of full-screen capabilities.</li></ul> |
+##|deeplink_utm_params|object[]|A list of deeplink URL parameters. URL parameters are snippets of code that can be added to the end of the URLs to help you track clicks across different channels and understand how visitors interact with a website through third-party analytics platforms. They consist of key-value pairs that are specified through `key` and `value`.|
+###|key|string|The deeplink URL parameter.<br><br>It can be a custom parameter or a UTM parameter.<br><br>The supported UTM parameters are:<ul><li>`utm_source`: The app, site, etc., that brings traffic to your website. For example: TikTok.</li><li>`utm_medium`: The advertising or marketing medium. For example: cpm, cpc, banner, video.</li><li>`utm_content`: The creative content used for promotion. For example: ad name, CTA text, asset, color, etc.</li><li>`utm_campaign`: The individual campaign name, slogan, or promo code. For example: BlackFridayProm.</li></ul>|
+###|value|string|The value of the deeplink URL parameter.<br><br>It can be a custom value or the name of a macro.<br><br>The supported macros are:<ul><li>`__CAMPAIGN_NAME__`: This will be replaced by your campaign name.</li><li>`__CAMPAIGN_ID__`: This will be replaced by your campaign ID.</li><li>`__AID_NAME__`: This will be replaced by your ad group name.</li><li>`__AID__`: This will be replaced by your ad group ID.</li><li>`__CID_NAME__`: This will be replaced by your ad name.</li><li>`__CID__`: This will be replaced by your ad ID.</li><li>`__PLACEMENT__`: This will be replaced by your placement.</li></ul>|
+##|end_card_cta|string|Call-to-action for the end card (`image_ids`) of an [Automotive Carousel Ad for Inventory](https://business-api.tiktok.com/portal/docs?id=1843325008693250) or Upgraded Smart+ [Automotive Carousel Ad for Models](https://business-api.tiktok.com/portal/docs?id=1843325022799873), or [the catalog solution for Upgraded Smart+ TikTok Direct Messaging Ads](https://business-api.tiktok.com/portal/docs?id=1847302969710913#item-link-For%20the%20catalog%20solution).<br><br>Enum values:<ul><li>`SEARCH_INVENTORY` (Recommended): Search inventory.</li><li>`LEARN_MORE`: Learn more.</li><li>`SHOP_NOW`: Shop now.</li><li>`SIGN_UP`: Sign up.</li><li>`CONTACT_US`: Contact us.</li><li>`BOOK_NOW`: Book now.</li><li>`READ_MORE`: Read more.</li><li>`VIEW_MORE`: View now.</li><li>`ORDER_NOW`: Order now.</li><li>`SEND_MESSAGE`: Send message.<ul><li>This value is only available for [the catalog solution for Upgraded Smart+ TikTok Direct Messaging Ads](https://business-api.tiktok.com/portal/docs?id=1847302969710913#item-link-For%20the%20catalog%20solution).</li></ul></li></ul>|
+##|product_display_field_list|string[]|A list of product details to display in your [Automotive Carousel Ad for Inventory](https://business-api.tiktok.com/portal/docs?id=1843325008693250).<br><br>Enum values:<ul><li>`DEALER_NAME`: the `dealer_name` field of vehicles.</li><li>`MAKE`: the `make` field of vehicles.</li><li>`MODEL`: the `model` field of vehicles.</li><li>`YEAR`: the `year` field of vehicles.</li><li>`MILEAGE`: the `mileage` field of vehicles.</li><li>`PRICE`: the `price` field of vehicles.</li><li>`SALE_PRICE`: the `sale_price` field of vehicles.</li><li>`EXTERIOR_COLOR`: the `exterior_color` field of vehicles.</li><li>`TRIM`: the `trim` field of vehicles.</li><li>`ADDRESS_CITY`: the `city` field of vehicles.</li><li>`VEHICLE_STATE`: the `state_of_vehicle` field of vehicles.</li></ul><br>The title of each vehicle is displayed automatically. For instance, if you set this field to `&#91;"MILEAGE","YEAR"&#93;`, the ad will display the `mileage`, `price` and `title` fields of each vehicle.<br>To retrieve the product detail fields of your vehicles in an Auto-Inventory catalog and check whether you need to update the details, use [/catalog/product/get/](https://business-api.tiktok.com/portal/docs?id=1740564136678402).|
+##|auto_disclaimer_types|string[]|The type of disclaimer to show in the [Automotive Carousel Ad for Models](https://business-api.tiktok.com/portal/docs?id=1843325022799873).<br><br>Enum values:<ul><li>`EMISSION`: Emission disclaimer.</li><li>`DISCOUNT`: Discount or offer disclaimer.</li></ul>|
+##|utm_params|object[]|A list of URL parameters. <br><br>URL parameters are snippets of code that can be added to the end of the URLs to help you track clicks across different channels and understand how visitors interact with a website through third-party analytics platforms. They consist of key-value pairs that are specified through `key` and `value`.|
+###|key|string|The URL parameter.<br><br>The parameter can be a custom parameter or a UTM parameter.<br><br>The supported UTM parameters are:<ul><li>`utm_source`: The app, site, etc., that brings traffic to your website. For example: TikTok.</li><li>`utm_medium`: The advertising or marketing medium. For example: cpm, cpc, banner, video.</li><li>`utm_content`: The creative content used for promotion. For example: ad name, CTA text, asset, color, etc.</li><li>`utm_campaign`: The individual campaign name, slogan, or promo code. For example: BlackFridayProm.</li></ul>Note that UTM parameters are case-sensitive.|
+###|value|string|The value of the URL parameter.<br><br>The value can be a custom value or the name of a macro.<br><br>The supported macros are:<ul><li>`__CAMPAIGN_NAME__`: This will be replaced by your campaign name.</li><li>`__CAMPAIGN_ID__`: This will be replaced by your campaign ID.</li><li>`__AID_NAME__`: This will be replaced by your ad group name.</li><li>`__AID__`: This will be replaced by your ad group ID.</li><li>`__CID_NAME__`: This will be replaced by your ad name.</li><li>`__CID__`: This will be replaced by your ad ID.</li><li>`__PLACEMENT__`: This will be replaced by your placement.</li></ul>|
+##|fallback_type|string|Fallback type.<br><br>The destination when the user is unable to access the deeplink because the app has not been installed.<br><br>Enum value:<ul><li>`WEBSITE`: The promoted web page as fallback URL. You need to simultaneously specify the fallback URL through `landing_page_url_list`.</li></ul><br>To learn more about how to configure a fallback URL in TikTok Instant Messaging Ads, see [Create an Upgraded Smart+ Lead Generation Campaign with optimization location as instant messaging apps](https://business-api.tiktok.com/portal/docs?id=1847302988449921).|
+##|product_info|object|Product information.<br><br>This information will be used in different ad variations to create personalized ad delivery with the goal of improving ad performance. Based on past data, ads with complete information often have more clicks and conversions. Results may vary.|
+###| product_titles | string[] | A list of product names. |
+###| product_image_list | object[] | A list of product images. |
+####| web_uri | string | The image ID of a product image. |
+###| selling_points | string[] | A list of selling points. |
+###| catalog_tag_list | string[] | Returned in any of the following scenarios:<ul><li>Scenario 1: At the campaign level `objective_type` is `WEB_CONVERSIONS` and `catalog_type` is `ECOMMERCE`.</li><li>Scenario 2: <ul><li>At the campaign level, `objective_type` is `LEAD_GENERATION` and `catalog_enabled` is `true`.</li><li>At the ad group level, an Auto-Inventory catalog is specified through `catalog_id`.</li></ul></li></ul>Details of the product information for catalog ads.<ul><li>For scenario 1, the specified product information will be automatically displayed from your catalog to drive results. The enum values are:<ul><li>`PRICE`: Price.</li><li>`STRIKETHROUGH_PRICE`: Strikethrough price.</li><li>`DISCOUNT`: Discount.</li><li>`FREE_SHIPPING`: Free shipping.</li></ul></li><li>For scenario 2, the corresponding text for the specified product information will be displayed on the inventory card. The enum values are:<ul><li>`DEALER_NAME`: Dealer name.</li><li>`CURRENT_MILEAGE`: Current mileage.</li><li>`LEAD_PRICE`: Price.</li><li>`LEAD_SALE_PRICE`: Sale price.</li><li>`EXTERIOR_COLOR`: Exterior color.</li><li>`TRIM`: Trim.</li><li>`ADDRESS_CITY`: City.</li><li>`VEHICLE_STATE`: Vehicle state.</li></ul></li></ul> |
+###| promo_info_list | object[] | Returned only for [regular Upgraded Smart+ Web Campaigns](https://business-api.tiktok.com/portal/docs?id=1847302878676994).<br><br>Details of promo codes and offers.<br><br>Your offer details for promo codes, offers, or events will be highlighted to boost engagement and ad performance. Promo codes require shoppers to enter a code at checkout. Offers apply automatically and no code is needed. |
+####| discount_type | string | Returned only when `promo_info_list` is specified.<br><br>Discount type.<br><br>Enum values:<ul><li>`PERCENTAGE`: Percentage off discount.</li><li>`CASH`: Cash off discount.</li></ul> |
+####| discount_value | float | Returned when `promo_info_list` is specified.<br><br>Discount value.|
+####| discount_currency | string | Returned when `discount_type` is `CASH`.<br><br>Discount currency.<br><br>For enum values, see <a href="#item-link-List of values for discount_currency or minimum_purchase_currency">List of values for `discount_currency` or `minimum_purchase_currency`</a>. |
+####| promo_code | string | The promo code. |
+####| minimum_purchase_type | string | Minimum purchase type.<br><br>Enum values:<ul><li>`QUANTITY`: Minimum quantity.</li><li>`SUBTOTAL`: Minimum subtotal.</li></ul> |
+####| minimum_purchase_value | float | Returned only when `minimum_purchase_type` is specified.<br><br>Minimum purchase value. |
+####| minimum_purchase_currency | string | Returned only when `minimum_purchase_type` is `SUBTOTAL`.<br><br>Minimum purchase currency.<br><br>For enum values, see <a href="#item-link-List of values for discount_currency or minimum_purchase_currency">List of values for `discount_currency` or `minimum_purchase_currency`</a>. |
+####| valid_start_time | string | Valid start time (UTC+0) for the promo code or offer, in the format of `YYYY-MM-DD HH:MM:SS`. |
+####| valid_end_time | string | Valid end time (UTC+0) for the promo code or offer, in the format of `YYYY-MM-DD HH:MM:SS`. |
+##| product_info_enabled | string | The product information mode.<br><br>Enum values:<ul><li>`UNSET`: To disable product information mode.</li><li>`NON_CATALOG`: To enable the non-catalog version of product information.</li><li>`CATALOG`: To enable the catalog version of product information.</li></ul> |
+##|call_to_action_id|string|The ID of the call-to-action portfolio to use in your ad.|
+##|phone_info|object|Returned only when `promotion_type` is set to `LEAD_GEN_CLICK_TO_CALL` at the ad group level.<br><br>Details of the phone number that the ad audience can directly reach out to you (the advertiser) through when they click the call-to-action button within the ad.<br><br>Learn about how to [create an Upgraded Smart+ Lead Generation Campaign with optimization location as phone call](https://business-api.tiktok.com/portal/docs?id=1847302998941697).|
+###|phone_region_code|string|The region code for the phone number that the audience can click on the ad to call.<br><br>Example: `US`.|
+###|phone_region_calling_code|string|The region calling code for the phone number that the audience can click on the ad to call.<br><br>Example: `+1`.|
+###|phone_number|string|The phone number that the audience can click on the ad to call.<br><br>Example: `12638282`.|
+##|tracking_info|object|Tracking information.|
+###|viewability_postbid_partner|string|Post-bid third-party viewability measurement partner.<br><br>Enum values: `DOUBLE_VERIFY`, `IAS`, `ZEFR`.|
+###|viewability_vast_url|string|Returned when `viewability_postbid_partner` is `IAS`.<br><br>The wrapped VAST URL used by the post-bid third-party partner to measure viewability. You need to get the URL from the measurement partner IAS.|
+###|brand_safety_postbid_partner|string|Post-bid third-party brand safety measurement partner.<br><br>Enum values: `DOUBLE_VERIFY`, `IAS`, `ZEFR`.|
+###|brand_safety_vast_url|string|Returned when `brand_safety_postbid_partner` is `IAS`.<br><br>The wrapped VAST URL used by the post-bid third-party partner to measure brand safety. You need to get the URL from the measurement partner IAS.|
+###|impression_tracking_url|string|Default Impression Tracking URL.|
+###|click_tracking_url|string|Click Tracking URL.|
+###|tracking_app_id|string|The ID of the app that is measured.|
+###| tracking_pixel_id | string | The ID of the pixel for tracking the actions people take on your website, such as page views, add to cart, purchases, and more. |
+###| tracking_offline_event_set_ids | string[] | A list of Offline Event set IDs for tracking customer actions that happen in-person, such as in-store purchases or live event attendance. |
+###|tracking_message_event_set_id|string|The ID of the message event set that you want to measure in the Instant Messaging Ad.|
+###| app_tracking_info_list | object[] | Details of Third-party tracking settings. |
+####| app_type | string | Returned when `app_tracking_info_list` is specified.<br><br>App type.<br><br>Enum values:<ul><li>`APP_ANDROID`: Android App.</li><li>`APP_IOS`: iOS App.</li></ul> |
+####| app_id | string | Returned when `app_tracking_info_list` is specified.<br><br>The App ID of the App.<ul><li>When `app_type` is `APP_ANDROID`, this field represents the App ID for an Android App.</li><li>When `app_type` is `APP_IOS`, this field represents the App ID for an iOS App.</li></ul> |
+####| impression_tracking_url | string | Impression tracking URL.<ul><li>When `app_type` is `APP_ANDROID`, this field represents an impression tracking URL for Android.</li><li>When `app_type` is `APP_IOS`, this field represents an impression tracking URL for iOS.</li></ul> |
+####| click_tracking_url | string | Click tracking URL.<ul><li>When `app_type` is `APP_ANDROID`, this field represents a click tracking URL for Android.</li><li>When `app_type` is `APP_IOS`, this field represents a click tracking URL for iOS.</li></ul> |
+|page_info|object|Pagination information.|
+#|page|number|Current page number.|
+#|page_size|number|Page size.|
+#|total_number|number|Total number of results.|
+#|total_page|number|Total pages of results.|
+
+```
+### Example
+```xcodeblock
+(code curl http)
+{
+    "code": 0,
+    "message": "OK",
+    "request_id": "{{request_id}}",
+    "data": {
+        "ad_configuration": {
+            "call_to_action_id": "{{call_to_action_id}}",
+            "tracking_info": {},
+            "utm_params": [
+                {
+                    "key": "{{key}}",
+                    "value": "{{value}}"
+                }
+            ]
+        },
+        "ad_name": "{{ad_name}}",
+        "ad_text_list": [
+            {
+                "ad_text": "{{ad_text}}"
+            },
+            {
+                "ad_text": "{{ad_text}}"
+            },
+            {
+                "ad_text": "{{ad_text}}"
+            },
+            {
+                "ad_text": "{{ad_text}}"
+            },
+            {
+                "ad_text": "{{ad_text}}"
+            }
+        ],
+        "adgroup_id": "{{adgroup_id}}",
+        "adgroup_name": "{{adgroup_name}}",
+        "advertiser_id": "{{advertiser_id}}",
+        "call_to_action_list": [],
+        "campaign_id": "{{campaign_id}}",
+        "campaign_name": "{{campaign_name}}",
+        "create_time": "{{create_time}}",
+        "creative_list": [
+            {
+                "ad_material_id": "{{ad_material_id}}",
+                "creative_info": {
+                    "ad_format":"SINGLE_VIDEO",
+                    "identity_authorized_bc_id": "0",
+                    "identity_id": "{{identity_id}}",
+                    "identity_type": "TT_USER",
+                    "image_info": [
+                        {
+                            "web_uri": "{{web_uri}}"
+                        }
+                    ],
+                    "material_name": "",
+                    "video_info": {
+                        "file_name": "",
+                        "video_id": "{{video_id}}"
+                    }
+                },
+                "material_operation_status": "ENABLE"
+            },
+            {
+                "ad_material_id": "{{ad_material_id}}",
+                "creative_info": {
+                    "ad_format":"SINGLE_VIDEO",
+                    "identity_authorized_bc_id": "0",
+                    "identity_id": "{{identity_id}}",
+                    "identity_type": "TT_USER",
+                    "tiktok_item_id": "{{tiktok_item_id}}"
+                },
+                "material_operation_status": "ENABLE"
+            },
+            {
+                "ad_material_id": "{{ad_material_id}}",
+                "creative_info": {
+                    "ad_format":"SINGLE_VIDEO",
+                    "identity_authorized_bc_id": "{{identity_authorized_bc_id}}",
+                    "identity_id": "{{identity_id}}",
+                    "identity_type": "BC_AUTH_TT",
+                    "tiktok_item_id": "{{tiktok_item_id}}"
+                },
+                "material_operation_status": "ENABLE"
+            },
+            {
+                "ad_material_id": "{{ad_material_id}}",
+                "creative_info": {
+                    "ad_format":"CAROUSEL_ADS",
+                    "identity_authorized_bc_id": "0",
+                    "identity_id": "{{identity_id}}",
+                    "identity_type": "TT_USER",
+                    "image_info": [
+                        {
+                            "web_uri": "{{web_uri}}"
+                        }
+                    ],
+                    "material_name": "{{material_name}}",
+                    "music_info": {
+                        "music_id": "{{music_id}}"
+                    }
+                },
+                "material_operation_status": "ENABLE"
+            },
+            {
+                "ad_material_id": "{{ad_material_id}}",
+                "creative_info": {
+                    "ad_format":"SINGLE_VIDEO",
+                    "identity_authorized_bc_id": "0",
+                    "identity_id": "{{identity_id}}",
+                    "identity_type": "AUTH_CODE",
+                    "tiktok_item_id": "{{tiktok_item_id}}"
+                },
+                "material_operation_status": "ENABLE"
+            }
+        ],
+        "deeplink_list": [],
+        "interactive_add_on_list": [],
+        "landing_page_url_list": [
+            {
+                "landing_page_url": "{{landing_page_url}}"
+            }
+        ],
+        "modify_time": "{{modify_time}}",
+        "operation_status": "ENABLE",
+        "page_list": [],
+        "secondary_status": "AD_STATUS_AUDIT",
+        "smart_plus_ad_id": "{{smart_plus_ad_id}}"
+    }
+}
+(/code)
+```
+
+
