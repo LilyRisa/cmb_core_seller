@@ -52,7 +52,7 @@ class CampaignInsightAnalysisServiceTest extends TestCase
                     'creative' => ['effective_object_story_id' => '123_456', 'object_story_spec' => ['link_data' => ['message' => 'Mua ngay']]]],
                 ['id' => 'AD_OTHER', 'name' => 'Khác', 'creative' => ['effective_object_story_id' => '123_999']],
             ]], 200),
-            'graph.facebook.com/v19.0/?ids=*' => Http::response([
+            'graph.facebook.com/*?ids=*' => Http::response([
                 '123_456' => ['id' => '123_456', 'message' => 'Mua ngay', 'likes' => ['summary' => ['total_count' => 100]], 'comments' => ['summary' => ['total_count' => 7]]],
             ], 200),
         ]);
@@ -107,7 +107,7 @@ class CampaignInsightAnalysisServiceTest extends TestCase
                 'id' => 'AD1', 'name' => 'QC web', 'effective_status' => 'ACTIVE',
                 'creative' => ['object_story_spec' => ['link_data' => ['message' => 'Mua ngay', 'link' => 'https://shop.example/sp']]],
             ]]], 200),
-            'graph.facebook.com/v19.0/?ids=*' => Http::response([], 200),
+            'graph.facebook.com/*?ids=*' => Http::response([], 200),
             'shop.example/*' => Http::response('<html><head><title>Sản phẩm hot</title><meta name="description" content="Mua ngay"></head><body><h1>Khuyến mãi</h1><script>fbq("init","1")</script><form></form></body></html>', 200),
         ]);
 
@@ -163,7 +163,7 @@ class CampaignInsightAnalysisServiceTest extends TestCase
                 ['id' => '727', 'name' => 'Shop', 'access_token' => 'PAGE_A'],
             ]], 200),
             // Batched post CTA read with the page token → the real landing URL.
-            'graph.facebook.com/v19.0/?ids=*' => Http::response([
+            'graph.facebook.com/*?ids=*' => Http::response([
                 '727_111' => ['id' => '727_111', 'call_to_action' => ['type' => 'ORDER_NOW', 'value' => ['link' => 'https://shop.example/d800']]],
             ], 200),
             'shop.example/*' => Http::response('<html><head><title>D800</title></head><body><h1>Loa D800</h1><form></form></body></html>', 200),
@@ -215,7 +215,7 @@ class CampaignInsightAnalysisServiceTest extends TestCase
             // Every insights level returns empty (no delivery in the window).
             'graph.facebook.com/*/C1/insights*' => Http::response(['data' => []], 200),
             'graph.facebook.com/*/ads*' => Http::response(['data' => []], 200),
-            'graph.facebook.com/v19.0/?ids=*' => Http::response([], 200),
+            'graph.facebook.com/*?ids=*' => Http::response([], 200),
         ]);
 
         app(CampaignInsightAnalysisService::class)->generate($account, 'C1', [
