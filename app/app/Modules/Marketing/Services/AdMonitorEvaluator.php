@@ -144,6 +144,14 @@ class AdMonitorEvaluator
      */
     private function applyRules(AdsWriteConnector $connector, string $token, string $currency, AdMonitor $m, AdEntity $entity, int $spend, int $results): ?array
     {
+        // Entity đã tạm dừng (monitor tắt trước đó, hoặc user tự tắt) ⇒ KHÔNG xử lý/cảnh
+        // báo lại: không tăng/tạm dừng vô nghĩa, và quan trọng là KHÔNG re-pause mỗi 30'
+        // (mỗi lần re-pause tạo AdMonitorAction mới ⇒ thông báo "đã tạm dừng" lặp vô hạn vì
+        // dedup theo action_id luôn khác). SPEC 0036 — chống spam giám sát.
+        if ($this->isPaused($entity)) {
+            return null;
+        }
+
         // Pause (precedence): too expensive per result, OR money already burned with
         // ZERO results — with 0 results the effective cost/result is already ≥ the
         // threshold once spend reaches it. The min_results guard does NOT gate pausing
@@ -200,6 +208,13 @@ class AdMonitorEvaluator
         }
 
         return null;
+    }
+
+    /** Entity đang ở trạng thái tạm dừng (không phân phối) ⇒ monitor không tác động/cảnh báo. */
+    private function isPaused(AdEntity $entity): bool
+    {
+        return $entity->status === 'PAUSED'
+            || in_array((string) $entity->effective_status, ['PAUSED', 'CAMPAIGN_PAUSED', 'ADSET_PAUSED'], true);
     }
 
     /**

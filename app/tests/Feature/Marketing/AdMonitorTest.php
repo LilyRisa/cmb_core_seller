@@ -67,6 +67,23 @@ class AdMonitorTest extends TestCase
         $this->assertDatabaseHas('ad_monitor_actions', ['ad_account_id' => $this->account->id, 'target_external_id' => 'C1', 'type' => 'pause']);
     }
 
+    public function test_does_not_repause_already_paused_entity(): void
+    {
+        // Entity đã PAUSED (do monitor tắt trước đó) nhưng spend hôm nay vẫn vượt ngưỡng:
+        // KHÔNG được tạm dừng lại mỗi vòng → tránh spam action/thông báo (SPEC 0036 fix).
+        Notification::fake();
+        AdEntity::create(['ad_account_id' => $this->account->id, 'level' => 'campaign', 'external_id' => 'C1', 'name' => 'CD', 'objective' => 'MESSAGES', 'status' => 'PAUSED', 'effective_status' => 'PAUSED', 'daily_budget' => 100000]);
+        AdMonitor::create(['tenant_id' => $this->tenant->id, 'ad_account_id' => $this->account->id, 'target_level' => 'campaign', 'target_external_id' => 'C1', 'enabled' => true, 'pause_enabled' => true, 'pause_above' => 50000, 'min_results' => 1]);
+        Http::fake(['graph.facebook.com/*/C1' => Http::response(['success' => true], 200)]);
+        $this->fakeInsights(['campaign_id' => 'C1', 'spend' => '200000', 'actions' => [['action_type' => 'onsite_conversion.messaging_conversation_started_7d', 'value' => '2']]]);
+
+        $actions = app(AdMonitorEvaluator::class)->evaluateAccount($this->account->refresh());
+
+        $this->assertSame([], $actions); // không re-pause
+        $this->assertDatabaseMissing('ad_monitor_actions', ['ad_account_id' => $this->account->id, 'target_external_id' => 'C1']);
+        Notification::assertNothingSent();
+    }
+
     public function test_monitor_action_history_endpoint_and_delete(): void
     {
         $user = User::factory()->create(['email_verified_at' => now()]);
