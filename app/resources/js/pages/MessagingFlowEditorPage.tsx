@@ -15,7 +15,7 @@ import {
     useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { App as AntApp, Button, Input, Segmented, Select, Space, Spin, Tag, Tooltip, Typography } from 'antd';
+import { App as AntApp, Button, Checkbox, Input, Segmented, Select, Space, Spin, Tag, Tooltip, Typography } from 'antd';
 import { ArrowLeftOutlined, CloudUploadOutlined, FileImageOutlined, PauseCircleOutlined, SaveOutlined } from '@ant-design/icons';
 import { nanoid } from 'nanoid';
 import { errorMessage } from '@/lib/api';
@@ -74,6 +74,7 @@ function FlowEditor() {
     const [triggerType, setTriggerType] = useState<FlowTriggerType>('inbox_first_message');
     const [keywords, setKeywords] = useState<string[]>([]);
     const [postIds, setPostIds] = useState<string[]>([]);
+    const [limitByPost, setLimitByPost] = useState(false); // flow inbox giới hạn theo bài viết
     const [pickerOpen, setPickerOpen] = useState(false);
     const [status, setStatus] = useState<FlowStatus>('draft');
     const [appliesAllPages, setAppliesAllPages] = useState(true);
@@ -86,7 +87,10 @@ function FlowEditor() {
         setName(flow.name);
         setTriggerType(flow.trigger_type);
         setKeywords(Array.isArray((flow.trigger_config as { keywords?: string[] })?.keywords) ? ((flow.trigger_config as { keywords?: string[] }).keywords ?? []) : []);
-        setPostIds(Array.isArray((flow.trigger_config as { post_ids?: string[] })?.post_ids) ? ((flow.trigger_config as { post_ids?: string[] }).post_ids ?? []) : []);
+        const cfgPostIds = Array.isArray((flow.trigger_config as { post_ids?: string[] })?.post_ids) ? ((flow.trigger_config as { post_ids?: string[] }).post_ids ?? []) : [];
+        setPostIds(cfgPostIds);
+        // Flow inbox đã lưu post_ids ⇒ bật sẵn "giới hạn theo bài viết".
+        setLimitByPost(['inbox_first_message', 'inbox_keyword', 'inbox_any'].includes(flow.trigger_type) && cfgPostIds.length > 0);
         setStatus(flow.status);
         setAppliesAllPages(flow.applies_all_pages ?? true);
         setPageIds(flow.channel_account_ids ?? []);
@@ -118,11 +122,16 @@ function FlowEditor() {
         edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle ?? null })),
     }), [nodes, edges]);
 
+    const isInboxTrigger = triggerType === 'inbox_first_message' || triggerType === 'inbox_keyword' || triggerType === 'inbox_any';
     const triggerConfig = useCallback(() => {
-        if (triggerType === 'inbox_keyword') return { keywords };
         if (triggerType === 'comment_on_post') return { post_ids: postIds };
-        return {};
-    }, [triggerType, keywords, postIds]);
+        const cfg: Record<string, unknown> = {};
+        if (triggerType === 'inbox_keyword') cfg.keywords = keywords;
+        // Flow inbox tùy chọn giới hạn theo bài viết nguồn (chỉ chạy cho DM đến từ
+        // bình luận trên bài đã chọn) — SPEC 2026-06-09.
+        if (isInboxTrigger && limitByPost && postIds.length > 0) cfg.post_ids = postIds;
+        return cfg;
+    }, [triggerType, keywords, postIds, isInboxTrigger, limitByPost]);
 
     const payload = useCallback(() => ({
         id: flowId,
@@ -194,6 +203,18 @@ function FlowEditor() {
                         placeholder="Từ khoá kích hoạt" style={{ minWidth: 200 }} open={false} suffixIcon={null} />
                 )}
                 {triggerType === 'comment_on_post' && (
+                    <Button icon={<FileImageOutlined />} onClick={() => setPickerOpen(true)} disabled={!canManage}>
+                        {postIds.length > 0 ? `Đã chọn ${postIds.length} bài viết` : 'Chọn bài viết'}
+                    </Button>
+                )}
+                {isInboxTrigger && (
+                    <Tooltip title="Chỉ chạy cho tin nhắn đến từ bình luận trên bài viết đã chọn (khách bình luận → được nhắn riêng → trả lời trong Messenger). Bỏ trống = áp dụng mọi tin nhắn.">
+                        <Checkbox checked={limitByPost} onChange={(e) => setLimitByPost(e.target.checked)} disabled={!canManage}>
+                            Giới hạn theo bài viết
+                        </Checkbox>
+                    </Tooltip>
+                )}
+                {isInboxTrigger && limitByPost && (
                     <Button icon={<FileImageOutlined />} onClick={() => setPickerOpen(true)} disabled={!canManage}>
                         {postIds.length > 0 ? `Đã chọn ${postIds.length} bài viết` : 'Chọn bài viết'}
                     </Button>

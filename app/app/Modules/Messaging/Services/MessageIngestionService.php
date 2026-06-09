@@ -30,7 +30,7 @@ use Illuminate\Support\Str;
  */
 class MessageIngestionService
 {
-    public function __construct(private PhoneDetector $phones) {}
+    public function __construct(private PhoneDetector $phones, private CommentDmLinker $postLinker) {}
 
     /**
      * Upsert 1 inbound message vào DB. Tạo conversation nếu chưa có.
@@ -44,6 +44,11 @@ class MessageIngestionService
     {
         return DB::transaction(function () use ($channelAccount, $dto) {
             $conversation = $this->ensureConversation($channelAccount, $dto);
+
+            // Comment→DM: hội thoại DM bắt nguồn từ bình luận được gắn bài viết nguồn
+            // (first-touch) để FlowMatcher khớp flow inbox theo bài viết. No-op cho
+            // outbound / non-Facebook / đã có post (SPEC 2026-06-09).
+            $this->postLinker->stampInbound($channelAccount, $conversation, $dto);
 
             // Điền tên buyer từ DTO (vd `from.name` của tin inbound backfill) khi hội thoại
             // chưa có tên — webhook tạo conversation với buyer_name=null, nguồn này bù vào

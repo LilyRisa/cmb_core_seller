@@ -15,6 +15,7 @@ use CMBcoreSeller\Modules\Messaging\Exceptions\AttachmentInvalid;
 use CMBcoreSeller\Modules\Messaging\Http\Resources\ConversationResource;
 use CMBcoreSeller\Modules\Messaging\Http\Resources\MessageResource;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
+use CMBcoreSeller\Modules\Messaging\Services\CommentDmLinker;
 use CMBcoreSeller\Modules\Messaging\Services\MediaRelayService;
 use CMBcoreSeller\Modules\Messaging\Services\MediaStorage;
 use CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService;
@@ -38,6 +39,7 @@ class FacebookCommentController extends Controller
         private MessageIngestionService $ingestion,
         private MediaRelayService $media,
         private MediaStorage $storage,
+        private CommentDmLinker $postLinker,
     ) {}
 
     /**
@@ -269,6 +271,20 @@ class FacebookCommentController extends Controller
             // Kế thừa tên khách từ comment thread (nếu có) khi DM chưa có tên.
             if (blank($dmConv->buyer_name) && filled($conv->buyer_name)) {
                 $dmConv->forceFill(['buyer_name' => $conv->buyer_name])->save();
+            }
+
+            // Gắn bài viết nguồn cho hội thoại DM (first-touch) + map (page,psid)→post để
+            // flow inbox theo bài viết / funnel comment→DM khớp đúng (SPEC 2026-06-09).
+            $fbPostId = (string) (($conv->meta ?? [])['fb_post_id'] ?? '');
+            if ($fbPostId !== '') {
+                $this->postLinker->record((int) $conv->tenant_id, (int) $account->id, $psidFinal, $fbPostId, $commentId);
+                $dmMeta = (array) ($dmConv->meta ?? []);
+                if (($dmMeta['fb_post_id'] ?? '') === '') {
+                    $dmMeta['fb_post_id'] = $fbPostId;
+                    $dmMeta['fb_comment_id'] = $dmMeta['fb_comment_id'] ?? $commentId;
+                    $dmMeta['fb_post_source'] = 'comment_dm_link';
+                    $dmConv->forceFill(['meta' => $dmMeta])->save();
+                }
             }
 
             // Fire event (ConversationCreated khi mới) cho realtime inbox.

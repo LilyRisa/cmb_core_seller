@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Messaging\Jobs;
 
+use CMBcoreSeller\Integrations\Messaging\Contracts\CommentEngagementConnector;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageDirection;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
@@ -9,6 +10,7 @@ use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
+use CMBcoreSeller\Modules\Messaging\Services\CommentDmLinker;
 use CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Bus\Queueable;
@@ -46,7 +48,7 @@ class SendCommentReply implements ShouldQueue
         $this->onQueue('messaging-outbound');
     }
 
-    public function handle(MessagingRegistry $registry, MessageIngestionService $ingestion): void
+    public function handle(MessagingRegistry $registry, MessageIngestionService $ingestion, CommentDmLinker $linker): void
     {
         $conv = Conversation::withoutGlobalScope(TenantScope::class)->find($this->conversationId);
         if (! $conv || $conv->thread_type !== Conversation::THREAD_COMMENT) {
@@ -102,10 +104,33 @@ class SendCommentReply implements ShouldQueue
 
         if ($this->private && $connector->supports('comment.reply_private')) {
             try {
-                $connector->privateReplyToComment($auth, $commentId, $this->body);
+                // Dùng sendCommentPrivateMessage (lấy PSID người nhận) thay privateReplyToComment
+                // (void) để liên kết comment→DM theo bài viết (SPEC 2026-06-09). Connector cũ
+                // không hỗ trợ ⇒ fallback bản void, vẫn gửi bình thường.
+                $psid = '';
+                if ($connector instanceof CommentEngagementConnector) {
+                    $result = $connector->sendCommentPrivateMessage($auth, $commentId, null, $this->body);
+                    $psid = (string) $result['psid'];
+                } else {
+                    $connector->privateReplyToComment($auth, $commentId, $this->body);
+                }
+
                 $meta = (array) ($conv->meta ?? []);
                 $meta['private_replied_at'] = now()->toIso8601String();
+                if ($psid !== '') {
+                    $meta['fb_private_psid'] = $psid;
+                }
                 $conv->forceFill(['meta' => $meta])->save();
+
+                // Map (page, psid) → bài viết: khi khách trả lời trong Messenger, hội thoại DM
+                // được gắn bài viết nguồn ⇒ flow inbox theo bài viết / funnel comment→DM khớp đúng.
+                $linker->record(
+                    (int) $conv->tenant_id,
+                    (int) $conv->channel_account_id,
+                    $psid,
+                    (string) (($conv->meta ?? [])['fb_post_id'] ?? ''),
+                    $commentId,
+                );
             } catch (\Throwable $e) {
                 Log::warning('messaging.comment.auto_reply_private.failed', [
                     'conversation_id' => $conv->id,

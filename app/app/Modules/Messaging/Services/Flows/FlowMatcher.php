@@ -51,13 +51,42 @@ class FlowMatcher
     {
         $cfg = (array) $flow->trigger_config;
 
-        return match ($flow->trigger_type) {
+        $base = match ($flow->trigger_type) {
             AutomationFlow::TRIGGER_INBOX_FIRST_MESSAGE => (int) $conv->message_count <= 1,
             AutomationFlow::TRIGGER_INBOX_ANY, AutomationFlow::TRIGGER_COMMENT_ANY => true,
             AutomationFlow::TRIGGER_INBOX_KEYWORD => $this->keywordHit($cfg, $inboundBody),
             AutomationFlow::TRIGGER_COMMENT_ON_POST => $this->postMatches($cfg, $conv),
             default => false,
         };
+        if (! $base) {
+            return false;
+        }
+
+        // Lọc theo bài viết cho trigger INBOX (tùy chọn): chỉ chạy khi hội thoại DM bắt
+        // nguồn từ bình luận trên đúng bài viết (conv.meta.fb_post_id ∈ post_ids — được
+        // gắn bởi CommentDmLinker khi gửi tin riêng cho comment). `post_ids` rỗng ⇒ không
+        // giới hạn. `comment_on_post` đã tự lọc trong postMatches nên không áp lại.
+        if (in_array($flow->trigger_type, [
+            AutomationFlow::TRIGGER_INBOX_FIRST_MESSAGE,
+            AutomationFlow::TRIGGER_INBOX_KEYWORD,
+            AutomationFlow::TRIGGER_INBOX_ANY,
+        ], true)) {
+            return $this->inboxPostScopeOk($cfg, $conv);
+        }
+
+        return true;
+    }
+
+    /** Lọc theo bài viết cho trigger inbox: rỗng ⇒ true (không giới hạn). */
+    private function inboxPostScopeOk(array $cfg, Conversation $conv): bool
+    {
+        $postIds = array_map('strval', (array) ($cfg['post_ids'] ?? []));
+        if ($postIds === []) {
+            return true;
+        }
+        $convPost = (string) (($conv->meta ?? [])['fb_post_id'] ?? '');
+
+        return $convPost !== '' && in_array($convPost, $postIds, true);
     }
 
     private function keywordHit(array $cfg, ?string $inboundBody): bool
