@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Alert, App as AntApp, Avatar, Badge, Button, Card, Checkbox, Collapse, DatePicker, Dropdown, Empty, Input, InputNumber, List, Popconfirm, Result, Segmented, Select, Space, Spin, Table, Tag, Tooltip, Typography } from 'antd';
-import { AlertOutlined, ApiOutlined, CheckOutlined, CloseOutlined, DisconnectOutlined, EditOutlined, FacebookFilled, FileTextOutlined, FolderOpenOutlined, FundOutlined, PauseCircleOutlined, PlayCircleOutlined, PlusOutlined, QuestionCircleOutlined, RobotOutlined, SettingOutlined, SyncOutlined, TikTokOutlined } from '@ant-design/icons';
+import { AlertOutlined, ApiOutlined, CheckOutlined, CloseOutlined, DisconnectOutlined, EditOutlined, FacebookFilled, FileTextOutlined, FolderOpenOutlined, FundOutlined, PauseCircleOutlined, PlayCircleOutlined, PlusOutlined, QuestionCircleOutlined, RobotOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
 import { useAdDrafts, useDeleteDraft, useDuplicateDraft } from '@/lib/adWizard';
 import dayjs, { type Dayjs } from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
@@ -15,13 +15,14 @@ import { ConnectionManagerDrawer } from '@/pages/marketing/ConnectionManagerDraw
 import { MonitorConfigDrawer, type MonitorTarget } from '@/pages/marketing/MonitorConfigDrawer';
 import { ForecastTree } from '@/pages/marketing/ForecastTree';
 import { cprOf, resultOf } from '@/lib/adReport';
+import { ALL_COLUMNS, COL_HELP, COL_TITLE, DEFAULT_COLUMNS, dec, LABELS, money, num, objectiveVi, pct, statusVi } from '@/pages/marketing/format';
 import { errorMessage } from '@/lib/api';
 import { openOAuthPopup } from '@/lib/oauthPopup';
 import { useCan } from '@/lib/tenant';
 import {
     type ReconRow, type ReportLevel, type ReportRow,
     useAdAccounts, useAdForecast, useAdMonitors, useAdReconciliation, useAdReport,
-    useClaimAutomation, useConnectFacebookAds, useConnectTikTokAds, useGenerateForecast, useRefreshAccounts, useRefreshAdInsights,
+    useClaimAutomation, useConnectFacebookAds, useGenerateForecast, useRefreshAccounts, useRefreshAdInsights,
     useSaveReport, useUpdateAdEntity,
 } from '@/lib/marketing';
 
@@ -31,20 +32,8 @@ const ADS_ERRORS: Record<string, string> = {
     facebook_ads_no_accounts: 'Tài khoản chưa có Ad Account nào, hoặc chưa cấp quyền ads_read.',
     facebook_ads_oauth_state: 'Phiên kết nối đã hết hạn. Vui lòng thử lại.',
     facebook_ads_oauth_failed: 'Kết nối Facebook Ads thất bại.',
-    tiktok_marketing_no_accounts: 'Tài khoản chưa có Ad Account TikTok nào, hoặc chưa cấp quyền.',
-    tiktok_marketing_oauth_state: 'Phiên kết nối đã hết hạn. Vui lòng thử lại.',
-    tiktok_marketing_oauth_failed: 'Kết nối TikTok Ads thất bại.',
 };
 
-function money(v: number | null | undefined, currency: string | null): string {
-    if (v == null) return '—';
-    return v.toLocaleString('vi-VN') + (currency ? ' ' + currency : '');
-}
-const num = (v: number | null | undefined) => (v == null ? '—' : v.toLocaleString('vi-VN'));
-const pct = (v: number | null | undefined) => (v == null ? '—' : v.toFixed(2) + '%');
-const dec = (v: number | null | undefined) => (v == null ? '—' : v.toFixed(2));
-
-const LABELS: Record<ReportLevel, string> = { campaign: 'Chiến dịch', adset: 'Nhóm quảng cáo', ad: 'Quảng cáo' };
 const COLS_KEY = 'marketing.report.columns';
 const RANGE_KEY = 'marketing.report.range';
 // Restore the last campaign date filter from localStorage; default to today.
@@ -59,69 +48,6 @@ const loadRange = (): [Dayjs, Dayjs] => {
     } catch { /* ignore malformed value */ }
     return [dayjs(), dayjs()];
 };
-// All toggleable columns (name is always shown).
-const ALL_COLUMNS = [
-    'external_id', 'status', 'objective', 'result', 'cpr', 'daily_budget', 'lifetime_budget',
-    'spend', 'impressions', 'reach', 'clicks', 'ctr', 'cpc', 'cpm', 'frequency',
-    'purchase_roas', 'messaging_conversations', 'leads', 'purchases',
-] as const;
-const DEFAULT_COLUMNS = ['status', 'objective', 'result', 'cpr', 'daily_budget', 'spend', 'impressions', 'clicks', 'ctr', 'cpc', 'purchase_roas'];
-const COL_TITLE: Record<string, string> = {
-    external_id: 'ID', status: 'Trạng thái', objective: 'Mục tiêu', result: 'Kết quả', cpr: 'CP/Kết quả', daily_budget: 'NS/ngày', lifetime_budget: 'NS trọn đời',
-    spend: 'Chi tiêu', impressions: 'Hiển thị', reach: 'Tiếp cận', clicks: 'Click', ctr: 'CTR', cpc: 'CPC', cpm: 'CPM',
-    frequency: 'Tần suất', purchase_roas: 'ROAS', messaging_conversations: 'Hội thoại', leads: 'Leads', purchases: 'Chuyển đổi',
-};
-
-// Giải thích chỉ số (tooltip khi di chuột vào icon "?").
-const COL_HELP: Record<string, string> = {
-    objective: 'Mục tiêu tối ưu của chiến dịch — Facebook phân phối theo mục tiêu này.',
-    status: 'Trạng thái phân phối hiện tại của quảng cáo.',
-    daily_budget: 'Số tiền tối đa chi cho mỗi ngày.',
-    lifetime_budget: 'Số tiền tối đa cho toàn bộ thời gian chạy.',
-    spend: 'Tổng số tiền đã chi cho quảng cáo.',
-    impressions: 'Số lần quảng cáo được hiển thị (tính cả lặp lại).',
-    reach: 'Số người dùng (không trùng) đã nhìn thấy quảng cáo.',
-    clicks: 'Số lượt nhấp vào quảng cáo.',
-    ctr: 'Tỷ lệ nhấp = Click ÷ Hiển thị (%). Cao nghĩa là nội dung hấp dẫn.',
-    cpc: 'Chi phí trung bình mỗi lượt nhấp = Chi tiêu ÷ Click.',
-    cpm: 'Chi phí cho mỗi 1.000 lần hiển thị.',
-    frequency: 'Số lần trung bình một người nhìn thấy quảng cáo.',
-    purchase_roas: 'Lợi nhuận trên chi tiêu quảng cáo = Doanh thu ÷ Chi tiêu.',
-    messaging_conversations: 'Số cuộc hội thoại Messenger bắt đầu từ quảng cáo.',
-    leads: 'Số khách hàng tiềm năng (lead) thu được.',
-    purchases: 'Số lượt mua hàng/chuyển đổi ghi nhận qua Pixel.',
-    result: 'Kết quả chính theo mục tiêu: tin nhắn (chiến dịch tin nhắn), chuyển đổi (chiến dịch chuyển đổi), hoặc khách tiềm năng.',
-    cpr: 'Chi phí trên mỗi kết quả = Chi tiêu ÷ Kết quả.',
-};
-
-// Chuẩn hoá mục tiêu Facebook (raw → tiếng Việt). Gồm cả mục tiêu ODAX mới lẫn mục tiêu cũ.
-const OBJECTIVE_VI: Record<string, string> = {
-    OUTCOME_SALES: 'Bán hàng', OUTCOME_LEADS: 'Khách hàng tiềm năng', OUTCOME_ENGAGEMENT: 'Tương tác',
-    OUTCOME_AWARENESS: 'Nhận diện thương hiệu', OUTCOME_TRAFFIC: 'Truy cập web', OUTCOME_APP_PROMOTION: 'Quảng bá ứng dụng',
-    LINK_CLICKS: 'Lượt truy cập', CONVERSIONS: 'Chuyển đổi', POST_ENGAGEMENT: 'Tương tác bài viết',
-    PAGE_LIKES: 'Thích Trang', MESSAGES: 'Tin nhắn', LEAD_GENERATION: 'Thu thập KH tiềm năng',
-    REACH: 'Tiếp cận', BRAND_AWARENESS: 'Nhận diện thương hiệu', VIDEO_VIEWS: 'Lượt xem video',
-    PRODUCT_CATALOG_SALES: 'Bán theo danh mục', STORE_VISITS: 'Ghé cửa hàng', APP_INSTALLS: 'Cài đặt ứng dụng',
-};
-const objectiveVi = (v: string | null) => (v ? OBJECTIVE_VI[v] ?? v : '—');
-
-// Chuẩn hoá trạng thái (raw → tiếng Việt + màu Tag).
-const STATUS_VI: Record<string, { label: string; color: string }> = {
-    ACTIVE: { label: 'Đang chạy', color: 'green' },
-    PAUSED: { label: 'Tạm dừng', color: 'default' },
-    CAMPAIGN_PAUSED: { label: 'Chiến dịch tạm dừng', color: 'default' },
-    ADSET_PAUSED: { label: 'Nhóm tạm dừng', color: 'default' },
-    DELETED: { label: 'Đã xoá', color: 'red' },
-    ARCHIVED: { label: 'Đã lưu trữ', color: 'default' },
-    PENDING_REVIEW: { label: 'Chờ duyệt', color: 'gold' },
-    IN_PROCESS: { label: 'Đang xử lý', color: 'blue' },
-    PREAPPROVED: { label: 'Đã duyệt sơ bộ', color: 'blue' },
-    DISAPPROVED: { label: 'Bị từ chối', color: 'red' },
-    WITH_ISSUES: { label: 'Có vấn đề', color: 'orange' },
-    PENDING_BILLING_INFO: { label: 'Chờ thông tin thanh toán', color: 'gold' },
-};
-const statusVi = (v: string | null) => (v ? STATUS_VI[v] ?? { label: v, color: 'default' } : { label: '—', color: 'default' });
-
 /** /marketing — báo cáo quảng cáo Facebook kiểu Ads Manager (BM, 3 tab, cột tuỳ chỉnh, drill-down). */
 export function MarketingDashboardPage() {
     const { message } = AntApp.useApp();
@@ -132,10 +58,11 @@ export function MarketingDashboardPage() {
     const deleteDraft = useDeleteDraft();
     const duplicateDraft = useDuplicateDraft();
     const connect = useConnectFacebookAds();
-    const connectTikTok = useConnectTikTokAds();
     const refresh = useRefreshAdInsights();
     const refreshAccounts = useRefreshAccounts();
-    const { data: accounts, isLoading: loadingAccounts } = useAdAccounts();
+    const { data: allAccounts, isLoading: loadingAccounts } = useAdAccounts();
+    // Trang này CHỈ Facebook — TikTok có màn riêng (/marketing/tiktok).
+    const accounts = useMemo(() => (allAccounts ?? []).filter((a) => a.provider === 'facebook'), [allAccounts]);
 
     const [bm, setBm] = useState<string | null>(null);
     const [accountId, setAccountId] = useState<number | null>(null);
@@ -171,10 +98,6 @@ export function MarketingDashboardPage() {
     const unhealthyAccounts = useMemo(() => (accounts ?? []).filter((a) => a.health != null && !a.health.ok), [accounts]);
     const selectedAccount = (accounts ?? []).find((a) => a.id === selectedId) ?? null;
     const sharedNotOwner = selectedAccount?.shared_with_other_tenants === true && selectedAccount?.is_automation_owner === false;
-    // TikTok hiện read-only (Phase 1): ẩn các thao tác ghi inline (sửa tên/ngân sách,
-    // tạm dừng/chạy lại, luật tự động) vì connector chưa hỗ trợ write.
-    const readOnlyProvider = (selectedAccount?.provider ?? '') === 'tiktok';
-    const canEdit = canConnect && !readOnlyProvider;
 
     const since = range[0].format('YYYY-MM-DD');
     const until = range[1].format('YYYY-MM-DD');
@@ -244,12 +167,11 @@ export function MarketingDashboardPage() {
 
     const qc = useQueryClient();
     const applyResult = (p: URLSearchParams) => {
-        const connected = p.get('connected');
-        if (connected === 'facebook_ads' || connected === 'tiktok_marketing') {
-            message.success(connected === 'tiktok_marketing' ? 'Đã kết nối TikTok Ads!' : 'Đã kết nối Facebook Ads!');
+        if (p.get('connected') === 'facebook_ads') {
+            message.success('Đã kết nối Facebook Ads!');
             params.delete('connected'); setParams(params, { replace: true });
             qc.invalidateQueries({ queryKey: ['marketing'] }); // refetch accounts/report ngay, không cần reload tay
-        } else { const e = p.get('error'); if (e?.startsWith('facebook_ads') || e?.startsWith('tiktok_marketing')) { message.error({ content: ADS_ERRORS[e] ?? 'Kết nối thất bại.', duration: 12 }); params.delete('error'); setParams(params, { replace: true }); } }
+        } else { const e = p.get('error'); if (e?.startsWith('facebook_ads')) { message.error({ content: ADS_ERRORS[e] ?? 'Kết nối thất bại.', duration: 12 }); params.delete('error'); setParams(params, { replace: true }); } }
     };
     useEffect(() => {
         applyResult(params);
@@ -259,10 +181,6 @@ export function MarketingDashboardPage() {
     const handleConnect = () => connect.mutate(undefined, {
         onSuccess: async (d) => { const r = await openOAuthPopup(d.authorize_url); if (r.status === 'done' && r.redirect) applyResult(new URL(r.redirect, window.location.origin).searchParams); },
         onError: (e) => message.error(errorMessage(e, 'Không khởi tạo được kết nối. Quản trị viên cần bật INTEGRATIONS_ADS + cấu hình app.')),
-    });
-    const handleConnectTikTok = () => connectTikTok.mutate(undefined, {
-        onSuccess: async (d) => { const r = await openOAuthPopup(d.authorize_url); if (r.status === 'done' && r.redirect) applyResult(new URL(r.redirect, window.location.origin).searchParams); },
-        onError: (e) => message.error(errorMessage(e, 'Không khởi tạo được kết nối TikTok. Quản trị viên cần bật INTEGRATIONS_ADS=tiktok + cấu hình TIKTOK_ADS_*.')),
     });
     const handleForecast = () => {
         if (selectedId == null) return;
@@ -283,7 +201,7 @@ export function MarketingDashboardPage() {
             return (
                 <Space size={4}>
                     <Tag color={s.color}>{s.label}</Tag>
-                    {canEdit && (
+                    {canConnect && (
                         <Tooltip title={isActive ? 'Tạm dừng' : 'Chạy lại'}>
                             <Button
                                 type="text"
@@ -333,7 +251,7 @@ export function MarketingDashboardPage() {
             return (
                 <Space size={2}>
                     {money(r.daily_budget, currency)}
-                    {canEdit && r.daily_budget != null && (
+                    {canConnect && r.daily_budget != null && (
                         <Tooltip title="Sửa ngân sách">
                             <Button
                                 type="text"
@@ -413,7 +331,7 @@ export function MarketingDashboardPage() {
                 return (
                     <Space size={2}>
                         <span>{v ?? r.external_id}</span>
-                        {canEdit && (
+                        {canConnect && (
                             <Tooltip title="Đổi tên">
                                 <Button
                                     type="text"
@@ -445,7 +363,7 @@ export function MarketingDashboardPage() {
                 </Tooltip>
             ),
         }] : []),
-        ...(level !== 'ad' && canEdit ? [{
+        ...(level !== 'ad' && canConnect ? [{
             title: 'Giám sát', key: 'monitor', fixed: 'right' as const, width: 130,
             render: (_: unknown, r: ReportRow) => (
                 <Tooltip title={r.daily_budget == null && level === 'campaign' ? 'Ngân sách theo nhóm — chỉ cài tạm dừng' : 'Tự tăng ngân sách / tạm dừng theo chi phí'}>
@@ -482,12 +400,11 @@ export function MarketingDashboardPage() {
 
     return (
         <div>
-            <PageHeader title="Quảng cáo" subtitle="Báo cáo & giám sát hiệu suất quảng cáo Facebook và TikTok, giải pháp tối ưu chiến dịch" />
+            <PageHeader title="Quảng cáo Facebook" subtitle="Báo cáo quảng cáo facebook, giám sát hiệu suất giải pháp tối ưu chiến dịch" />
 
             <Card style={{ marginBottom: 16 }}>
                 <Space wrap size={12}>
                     <Button type="primary" icon={<FacebookFilled />} loading={connect.isPending} onClick={handleConnect} disabled={!canConnect}>Kết nối Facebook Ads</Button>
-                    <Button icon={<TikTokOutlined />} loading={connectTikTok.isPending} onClick={handleConnectTikTok} disabled={!canConnect}>Kết nối TikTok Ads</Button>
                     {(accounts?.length ?? 0) > 0 && (
                         <Tooltip title="Lấy trạng thái tài khoản / BM mới nhất từ Facebook và phát hiện tài khoản mới">
                             <Button
@@ -663,7 +580,7 @@ export function MarketingDashboardPage() {
             {loadingAccounts ? (
                 <div style={{ textAlign: 'center', padding: 48 }}><Spin /></div>
             ) : (accounts?.length ?? 0) === 0 ? (
-                <Card><Result icon={<FundOutlined />} title="Chưa kết nối tài khoản quảng cáo" subTitle="Bấm 'Kết nối Facebook Ads' hoặc 'Kết nối TikTok Ads' để bắt đầu." /></Card>
+                <Card><Result icon={<FundOutlined />} title="Chưa kết nối tài khoản quảng cáo" subTitle="Bấm 'Kết nối Facebook Ads' để bắt đầu." /></Card>
             ) : (
                 <>
                     <Card style={{ marginBottom: 16 }}
@@ -741,7 +658,7 @@ export function MarketingDashboardPage() {
                                 currency={currency}
                                 monitoredCampaigns={monitoredCampaigns}
                                 monitoredAdsets={monitoredAdsets}
-                                canMonitor={canEdit}
+                                canMonitor={canConnect}
                                 onMonitor={(t) => setMonitorTarget(t)}
                             />
                         ) : (
@@ -816,6 +733,7 @@ export function MarketingDashboardPage() {
 
             <ConnectionManagerDrawer
                 open={connOpen}
+                provider="facebook"
                 onClose={() => setConnOpen(false)}
                 onChanged={() => { setAccountId(null); setBm(null); }}
             />

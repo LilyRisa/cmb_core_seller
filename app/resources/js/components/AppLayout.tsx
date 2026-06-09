@@ -6,8 +6,10 @@ import {
     BarChartOutlined,
     BookOutlined,
     DashboardOutlined,
+    FacebookFilled,
     FundOutlined,
     InboxOutlined,
+    TikTokOutlined,
     LogoutOutlined,
     MenuFoldOutlined,
     MenuUnfoldOutlined,
@@ -67,8 +69,9 @@ function buildNav(): MenuProps['items'] {
             { key: '/procurement/suppliers', icon: <ShopOutlined />, label: <Link to="/procurement/suppliers">Nhà cung cấp</Link> },
             { key: '/procurement/purchase-orders', icon: <ShoppingCartOutlined />, label: <Link to="/procurement/purchase-orders">Đơn mua hàng</Link> },
         ] },
-        { type: 'group', label: 'Marketing', children: [
-            { key: '/marketing', icon: <FundOutlined />, label: <Link to="/marketing">Quảng cáo Facebook</Link> },
+        { type: 'group', label: 'Quảng cáo', children: [
+            { key: '/marketing', icon: <FacebookFilled />, label: <Link to="/marketing">Quảng cáo Facebook</Link> },
+            { key: '/marketing/tiktok', icon: <TikTokOutlined />, label: <Link to="/marketing/tiktok">Quảng cáo TikTok</Link> },
         ] },
         { type: 'group', label: 'Báo cáo', children: [
             { key: '/reports/overview', icon: <PieChartOutlined />, label: <Link to="/reports/overview">Báo cáo tổng thể</Link> },
@@ -104,7 +107,7 @@ function buildNav(): MenuProps['items'] {
 // Flat key list for selected-key matching.
 const BASE_KEYS = ['/', '/orders', '/customers', '/messaging', '/messaging/channels', '/messaging/templates', '/messaging/utility-templates', '/messaging/auto-rules', '/messaging/knowledge', '/channels', '/products', '/inventory',
     '/procurement/demand-planning', '/procurement/suppliers', '/procurement/purchase-orders',
-    '/reports/overview', '/reports', '/shop-report', '/marketing', '/finance/settlements',
+    '/reports/overview', '/reports', '/shop-report', '/marketing', '/marketing/tiktok', '/finance/settlements',
     '/accounting/dashboard', '/accounting/journals', '/accounting/chart-of-accounts', '/accounting/balances', '/accounting/ar', '/accounting/ap', '/accounting/cash', '/accounting/reports', '/accounting/periods',
     '/sync-logs', '/support', '/settings'];
 

@@ -12,18 +12,21 @@ interface Props {
     open: boolean;
     onClose: () => void;
     onChanged?: () => void;
+    /** Lọc theo provider quảng cáo (vd 'facebook' / 'tiktok'). Bỏ trống = tất cả. */
+    provider?: string;
 }
 
 /** Ngắt kết nối: tích chọn từng tài khoản hoặc cả BM rồi ngắt hàng loạt. */
-export function ConnectionManagerDrawer({ open, onClose, onChanged }: Props) {
+export function ConnectionManagerDrawer({ open, onClose, onChanged, provider }: Props) {
     const { message } = AntApp.useApp();
-    const { data: accounts } = useAdAccounts();
+    const { data: allAccounts } = useAdAccounts();
+    const accounts = useMemo(() => (allAccounts ?? []).filter((a) => provider == null || a.provider === provider), [allAccounts, provider]);
     const bulkDisconnect = useBulkDisconnectAccounts();
     const [checked, setChecked] = useState<Set<number>>(new Set());
 
     const groups = useMemo<BmGroup[]>(() => {
         const m = new Map<string, BmGroup>();
-        (accounts ?? []).forEach((a) => {
+        accounts.forEach((a) => {
             const id = a.business_id ?? '_';
             if (!m.has(id)) m.set(id, { id, name: a.business_name ?? 'Không thuộc BM', picture: a.business_picture_url ?? null, accounts: [] });
             m.get(id)!.accounts.push(a);
