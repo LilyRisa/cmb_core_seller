@@ -47,15 +47,15 @@ class KnowledgeIndexingTest extends TestCase
 
         $doc->refresh();
         $this->assertSame(AiKnowledgeDocument::STATUS_READY, $doc->status);
-        // Mỗi HÀNG = 1 chunk: header + 1 sản phẩm = 2 chunk (không gộp/cắt mù).
-        $this->assertSame(2, $doc->chunk_count);
+        // Mỗi HÀNG = 1 chunk, BỎ dòng tiêu đề khỏi RAG ⇒ chỉ còn 1 dòng dữ liệu.
+        $this->assertSame(1, $doc->chunk_count);
         $chunks = AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)
             ->where('document_id', $doc->id)->orderBy('chunk_index')->pluck('chunk_text')->all();
-        $this->assertSame('Câu hỏi | Trả lời', $chunks[0]);
+        $this->assertStringNotContainsString('Câu hỏi | Trả lời', implode("\n", $chunks)); // không còn tiêu đề
         // Hàng sản phẩm là MỘT chunk riêng, gồm cả mô tả nhiều dòng (newline-in-cell → space).
-        $this->assertStringContainsString('Giá ship?', $chunks[1]);
-        $this->assertStringContainsString('30k toàn quốc', $chunks[1]);
-        $this->assertStringContainsString('miễn phí đơn >500k', $chunks[1]);
+        $this->assertStringContainsString('Giá ship?', $chunks[0]);
+        $this->assertStringContainsString('30k toàn quốc', $chunks[0]);
+        $this->assertStringContainsString('miễn phí đơn >500k', $chunks[0]);
         // Gọi gviz, KHÔNG cần CSV export.
         Http::assertSent(fn ($req) => str_contains($req->url(), '/gviz/tq?tqx=out:json'));
     }
@@ -73,10 +73,10 @@ class KnowledgeIndexingTest extends TestCase
 
         $doc->refresh();
         $this->assertSame(AiKnowledgeDocument::STATUS_READY, $doc->status);
-        // Mỗi hàng 1 chunk: header + 1 sản phẩm = 2; chunk thứ 2 chứa dữ liệu.
-        $this->assertSame(2, $doc->chunk_count);
+        // Mỗi hàng 1 chunk, BỎ tiêu đề ⇒ chỉ 1 dòng dữ liệu (chunk_index 0).
+        $this->assertSame(1, $doc->chunk_count);
         $second = AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)
-            ->where('document_id', $doc->id)->where('chunk_index', 1)->value('chunk_text');
+            ->where('document_id', $doc->id)->where('chunk_index', 0)->value('chunk_text');
         $this->assertStringContainsString('30k toàn quốc', (string) $second);
         Http::assertSent(fn ($req) => str_contains($req->url(), '/export?format=csv'));
     }
@@ -110,15 +110,15 @@ class KnowledgeIndexingTest extends TestCase
         $this->runJob($doc);
 
         $doc->refresh();
-        $this->assertSame(4, $doc->chunk_count); // header + 3 sản phẩm
+        $this->assertSame(3, $doc->chunk_count); // 3 sản phẩm (BỎ dòng tiêu đề)
         $chunks = AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)
             ->where('document_id', $doc->id)->orderBy('chunk_index')->pluck('chunk_text')->all();
 
         // Mỗi sản phẩm gọn trong 1 chunk; KHÔNG dính sản phẩm khác.
-        $this->assertStringContainsString('Bộ chia AV', $chunks[1]);
-        $this->assertStringNotContainsString('ZK-MT21', $chunks[1]);
-        $this->assertStringContainsString('ZK-MT21', $chunks[2]);
-        $this->assertStringNotContainsString('Mạch karaoke', $chunks[2]);
-        $this->assertStringContainsString('Mạch karaoke D800', $chunks[3]);
+        $this->assertStringContainsString('Bộ chia AV', $chunks[0]);
+        $this->assertStringNotContainsString('ZK-MT21', $chunks[0]);
+        $this->assertStringContainsString('ZK-MT21', $chunks[1]);
+        $this->assertStringNotContainsString('Mạch karaoke', $chunks[1]);
+        $this->assertStringContainsString('Mạch karaoke D800', $chunks[2]);
     }
 }

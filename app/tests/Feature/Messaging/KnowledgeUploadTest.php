@@ -92,8 +92,11 @@ class KnowledgeUploadTest extends TestCase
 
         // Queue sync ⇒ đã index xong: ready + có ít nhất 1 chunk chứa nội dung CSV.
         $this->assertSame(AiKnowledgeDocument::STATUS_READY, $doc->status);
-        $this->assertGreaterThan(0, $doc->chunk_count);
-        $this->assertStringContainsString('Giờ mở cửa?', (string) $doc->chunks()->first()?->chunk_text);
+        // Dữ liệu bảng: MỖI HÀNG = 1 chunk, BỎ dòng tiêu đề cho sạch RAG ⇒ chỉ 2 dòng dữ liệu.
+        $this->assertSame(2, $doc->chunk_count);
+        $chunks = $doc->chunks()->orderBy('chunk_index')->pluck('chunk_text');
+        $this->assertStringContainsString('Giờ mở cửa?', (string) $chunks->first()); // chunk đầu = dòng dữ liệu đầu
+        $this->assertStringNotContainsString('câu hỏi | trả lời', $chunks->implode("\n")); // KHÔNG còn dòng tiêu đề
     }
 
     public function test_view_chunks_returns_extracted_text(): void

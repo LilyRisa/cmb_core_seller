@@ -193,7 +193,8 @@ class AutomationFlowApiTest extends TestCase
             'tenant_id' => $this->tenant->getKey(), 'ai_provider_code' => null, 'ai_enabled' => true,
             'auto_mode_marketplace' => true, 'auto_mode_facebook' => true,
         ]);
-        $id = $this->createFlow(['trigger_type' => 'inbox_any']);
+        // SPEC 0035: catch-all áp MỌI page (applies_all_pages) ⇒ tắt cờ FB AI nhóm-tenant.
+        $id = $this->createFlow(['trigger_type' => 'inbox_any', 'applies_all_pages' => true]);
 
         $this->actingAs($this->owner)->withHeaders($this->h())
             ->postJson("/api/v1/messaging/automation-flows/{$id}/publish")

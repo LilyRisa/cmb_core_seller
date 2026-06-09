@@ -205,17 +205,25 @@ class IndexKnowledgeDoc implements ShouldQueue
 
     /**
      * Mỗi DÒNG (hàng của bảng) = 1 chunk. Giữ nguyên ranh giới hàng, KHÔNG gộp \n thành
-     * space (như `chunk()`). Bỏ dòng rỗng. Hàng dài quá `$maxSize` (mô tả cực dài) → cắt
-     * mềm để không vượt giới hạn, nhưng vẫn theo từng hàng riêng.
+     * space (như `chunk()`). Bỏ dòng rỗng. BỎ luôn hàng ĐẦU (dòng tiêu đề/tên cột) khỏi RAG —
+     * là metadata, không phải tri thức (lưu ý: bảng KHÔNG có tiêu đề sẽ mất hàng đầu). Hàng
+     * dài quá `$maxSize` (mô tả cực dài) → cắt mềm để không vượt giới hạn, nhưng vẫn theo hàng riêng.
      *
      * @return list<string>
      */
     private function chunkByRow(string $text, int $maxSize = 2000): array
     {
         $out = [];
+        $headerSkipped = false;
         foreach (preg_split('/\r\n|\r|\n/', $text) ?: [] as $row) {
             $row = trim((string) $row);
             if ($row === '') {
+                continue;
+            }
+            // Bỏ DÒNG TIÊU ĐỀ (hàng đầu) khỏi RAG cho sạch — tên cột là metadata, không phải tri thức.
+            if (! $headerSkipped) {
+                $headerSkipped = true;
+
                 continue;
             }
             if (mb_strlen($row) <= $maxSize) {

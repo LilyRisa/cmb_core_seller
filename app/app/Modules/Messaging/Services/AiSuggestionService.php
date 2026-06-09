@@ -248,6 +248,42 @@ class AiSuggestionService
     }
 
     /**
+     * Text của 1 tin để đưa vào ngữ cảnh AI. Ngoài `body`, GỘP thêm text của NÚT BẤM
+     * Facebook (template/quick-reply ⇒ meta.buttons; khách bấm nút ⇒ meta.postback_title)
+     * — nếu không AI sẽ "mù" với các tin chỉ có nút (body rỗng). Rỗng hẳn ⇒ null.
+     */
+    public function snapshotMessageText(Message $m): ?string
+    {
+        $parts = [];
+        $body = trim((string) $m->body);
+        if ($body !== '') {
+            $parts[] = $body;
+        }
+
+        $meta = (array) ($m->meta ?? []);
+
+        // Khách BẤM NÚT (postback): tiêu đề nút = điều khách chọn.
+        $postbackTitle = trim((string) ($meta['postback_title'] ?? ''));
+        if ($postbackTitle !== '' && ! in_array($postbackTitle, $parts, true)) {
+            $parts[] = $postbackTitle;
+        }
+
+        // Tin CÓ NÚT (template/quick-reply): đưa tiêu đề các nút vào ngữ cảnh.
+        $titles = [];
+        foreach ((array) ($meta['buttons'] ?? []) as $b) {
+            $title = is_array($b) ? trim((string) ($b['title'] ?? '')) : '';
+            if ($title !== '') {
+                $titles[] = $title;
+            }
+        }
+        if ($titles !== []) {
+            $parts[] = '[Nút: '.implode(', ', $titles).']';
+        }
+
+        return $parts === [] ? null : implode("\n", $parts);
+    }
+
+    /**
      * @return array{0:ConversationSnapshot,1:array<string,string>,2:int}
      */
     private function buildSnapshot(Conversation $conv, int $tenantId): array
@@ -265,7 +301,7 @@ class AiSuggestionService
         $redactedCount = 0;
 
         foreach ($messages as $m) {
-            $body = $m->body;
+            $body = $this->snapshotMessageText($m);
             if ($body !== null && $body !== '') {
                 $r = $this->redactor->redact($body);
                 $body = $r->redacted;
