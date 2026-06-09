@@ -110,9 +110,15 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
         return rtrim((string) config('app.url'), '/').'/oauth/facebook_ads/callback';
     }
 
+    /**
+     * Phiên bản Graph API cố định trong code (KHÔNG qua env): đổi version BẮT BUỘC sửa code
+     * (enum/field theo version) nên env chỉ thừa. v25.0 — bản mới nhất (ra 2026-02-18).
+     */
+    private const GRAPH_VERSION = 'v25.0';
+
     private function graphVersion(): string
     {
-        return (string) ($this->config['graph_version'] ?? 'v19.0');
+        return self::GRAPH_VERSION;
     }
 
     private function graphUrl(string $path): string
@@ -440,14 +446,45 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
                 $targeting[$k] = array_values($pc[$k]);
             }
         }
+        $devices = (array) ($pc['device_platforms'] ?? []);
         foreach (['facebook', 'instagram', 'messenger', 'audience_network'] as $plat) {
             $pos = $pc['positions'][$plat] ?? [];
             if (! empty($pos) && is_array($pos)) {
-                $targeting["{$plat}_positions"] = array_values($pos);
+                $pos = $this->sanitizePositions($plat, $pos, $devices);
+                if ($pos !== []) {
+                    $targeting["{$plat}_positions"] = $pos;
+                }
             }
         }
 
         return $targeting;
+    }
+
+    /** Vị trí Facebook Meta đã KHAI TỬ ở Graph hiện tại (gửi lên ⇒ reject cả ad set). */
+    private const DEPRECATED_FB_POSITIONS = ['video_feeds'];
+
+    /** Vị trí CHỈ chạy desktop — gỡ khi quảng cáo không nhắm thiết bị desktop. */
+    private const DESKTOP_ONLY_FB_POSITIONS = ['right_hand_column'];
+
+    /**
+     * Lọc vị trí không hợp lệ trước khi gửi FB: bỏ vị trí khai tử + vị trí desktop-only
+     * khi không nhắm desktop. Một vị trí lỗi làm FB reject CẢ ad set (subcode 2490562).
+     *
+     * @param  list<string>  $positions
+     * @param  list<string>  $devices
+     * @return list<string>
+     */
+    private function sanitizePositions(string $platform, array $positions, array $devices): array
+    {
+        if ($platform !== 'facebook') {
+            return $positions;
+        }
+        $positions = array_filter($positions, fn ($p) => ! in_array($p, self::DEPRECATED_FB_POSITIONS, true));
+        if ($devices !== [] && ! in_array('desktop', $devices, true)) {
+            $positions = array_filter($positions, fn ($p) => ! in_array($p, self::DESKTOP_ONLY_FB_POSITIONS, true));
+        }
+
+        return array_values($positions);
     }
 
     /**

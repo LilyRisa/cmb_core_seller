@@ -33,6 +33,14 @@ class FacebookAdsCreateTest extends TestCase
         });
     }
 
+    public function test_uses_latest_graph_version_regardless_of_config(): void
+    {
+        // Version cố định trong code (không qua env) — luôn gọi bản mới nhất.
+        Http::fake(['graph.facebook.com/*' => Http::response(['id' => 'C'], 200)]);
+        $this->connector()->createCampaign('tok', 'act_1', new CampaignSpecDTO(objective: 'traffic', name: 'X'));
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'graph.facebook.com/v25.0/'));
+    }
+
     public function test_create_adset_scales_budget_and_sets_messaging_spec(): void
     {
         Http::fake(['graph.facebook.com/*/adsets' => Http::response(['id' => 'AS_NEW'], 200)]);
@@ -56,6 +64,58 @@ class FacebookAdsCreateTest extends TestCase
                 && $d['billing_event'] === 'IMPRESSIONS'
                 && $d['destination_type'] === 'MESSENGER'
                 && ($promoted['page_id'] ?? null) === '123';
+        });
+    }
+
+    public function test_create_adset_strips_deprecated_video_feeds_position(): void
+    {
+        // Meta khai tử vị trí `video_feeds` ở Graph v19 ⇒ gửi lên là cả ad set bị reject
+        // (code 100/subcode 2490562). Connector phải tự gỡ vị trí khai tử.
+        Http::fake(['graph.facebook.com/*/adsets' => Http::response(['id' => 'AS_VF'], 200)]);
+
+        $this->connector()->createAdSet('tok', 'act_1', new AdSetSpecDTO(
+            name: 'Set', campaignExternalId: 'C', objective: 'traffic',
+            dailyBudgetMajor: 100000, currency: 'VND',
+            targeting: ['geo_locations' => ['countries' => ['VN']]],
+            pageId: '123', startTime: null,
+            placementConfig: [
+                'automatic' => false,
+                'publisher_platforms' => ['facebook'],
+                'positions' => ['facebook' => ['feed', 'video_feeds', 'story']],
+            ],
+        ));
+
+        Http::assertSent(function ($r) {
+            $fb = json_decode($r->data()['targeting'], true)['facebook_positions'] ?? [];
+
+            return ! in_array('video_feeds', $fb, true)
+                && in_array('feed', $fb, true)
+                && in_array('story', $fb, true);
+        });
+    }
+
+    public function test_create_adset_drops_desktop_only_position_when_mobile_only(): void
+    {
+        // `right_hand_column` chỉ chạy desktop — nếu device_platforms chỉ mobile, FB reject.
+        Http::fake(['graph.facebook.com/*/adsets' => Http::response(['id' => 'AS_RHC'], 200)]);
+
+        $this->connector()->createAdSet('tok', 'act_1', new AdSetSpecDTO(
+            name: 'Set', campaignExternalId: 'C', objective: 'traffic',
+            dailyBudgetMajor: 100000, currency: 'VND',
+            targeting: ['geo_locations' => ['countries' => ['VN']]],
+            pageId: '123', startTime: null,
+            placementConfig: [
+                'automatic' => false,
+                'device_platforms' => ['mobile'],
+                'publisher_platforms' => ['facebook'],
+                'positions' => ['facebook' => ['feed', 'right_hand_column']],
+            ],
+        ));
+
+        Http::assertSent(function ($r) {
+            $fb = json_decode($r->data()['targeting'], true)['facebook_positions'] ?? [];
+
+            return ! in_array('right_hand_column', $fb, true) && in_array('feed', $fb, true);
         });
     }
 

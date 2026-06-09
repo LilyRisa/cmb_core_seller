@@ -87,7 +87,7 @@ return [
         // Mặc định fallback sang MESSAGING_FACEBOOK_*; chỉ set FACEBOOK_ADS_* nếu sau này tách app.
         'app_id' => env('FACEBOOK_ADS_APP_ID', env('MESSAGING_FACEBOOK_APP_ID')),
         'app_secret' => env('FACEBOOK_ADS_APP_SECRET', env('MESSAGING_FACEBOOK_APP_SECRET')),
-        'graph_version' => env('FACEBOOK_ADS_GRAPH_VERSION', 'v19.0'),
+        // graph_version cố định ở FacebookAdsConnector::GRAPH_VERSION (đổi version phải sửa code → env thừa).
         'redirect_uri' => env('FACEBOOK_ADS_REDIRECT_URI'), // mặc định APP_URL + /oauth/facebook_ads/callback
         // ads_management cần cho: tạo/sửa quảng cáo, sửa ngân sách/tạm dừng, đọc & chia sẻ Pixel.
         'scopes' => env('FACEBOOK_ADS_SCOPES', 'ads_management,ads_read,business_management'),

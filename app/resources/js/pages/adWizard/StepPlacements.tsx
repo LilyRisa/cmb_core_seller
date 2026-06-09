@@ -39,7 +39,6 @@ const POSITION_OPTIONS: Record<string, CheckboxOption[]> = {
     facebook: [
         { label: 'Bảng tin', value: 'feed' },
         { label: 'Marketplace', value: 'marketplace' },
-        { label: 'Video feeds', value: 'video_feeds' },
         { label: 'Tin', value: 'story' },
         { label: 'Reels', value: 'facebook_reels' },
         { label: 'Cột phải', value: 'right_hand_column' },
