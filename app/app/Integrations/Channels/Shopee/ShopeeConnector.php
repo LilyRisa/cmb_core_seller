@@ -117,7 +117,10 @@ class ShopeeConnector implements ChannelConnector, PenaltyWebhookConnector, Shop
 
         // cursor encodes "windowStartUnix:innerCursor"; first call has no cursor.
         [$winStart, $inner] = $this->decodeCursor((string) ($query['cursor'] ?? ''), $from);
-        $winEnd = min($to->getTimestamp(), $winStart + $windowDays * 86400);
+        $winEnd = $this->shopeeWindowEnd($winStart, $to->getTimestamp(), $windowDays);
+        if ($winEnd <= $winStart) {
+            return new Page([], null, false); // cửa sổ rỗng (winStart ≥ to) — Shopee từ chối khi time_from ≥ time_to
+        }
 
         $params = [
             'time_range_field' => 'update_time', 'time_from' => $winStart, 'time_to' => $winEnd,
@@ -460,7 +463,10 @@ class ShopeeConnector implements ChannelConnector, PenaltyWebhookConnector, Shop
         // get_return_list giới hạn create_time_from..create_time_to ≤ 15 ngày ⇒ chia cửa sổ như fetchOrders.
         // cursor mã hoá "windowStartUnix:pageNo" (page_no 0-based của get_return_list trong cùng cửa sổ).
         [$winStart, $inner] = $this->decodeCursor((string) ($query['cursor'] ?? ''), $from);
-        $winEnd = min($to->getTimestamp(), $winStart + $windowDays * 86400);
+        $winEnd = $this->shopeeWindowEnd($winStart, $to->getTimestamp(), $windowDays);
+        if ($winEnd <= $winStart) {
+            return new Page([], null, false); // cửa sổ rỗng — tránh create_time_from ≥ create_time_to
+        }
         $pageNo = $inner !== '' ? (int) $inner : 0;
 
         $params = [
@@ -542,6 +548,21 @@ class ShopeeConnector implements ChannelConnector, PenaltyWebhookConnector, Shop
         $parts = explode(':', $cursor, 2);
 
         return [(int) $parts[0], $parts[1] ?? ''];
+    }
+
+    /**
+     * Span tối đa (giây) cho một cửa sổ `get_order_list` / `get_return_list`: Shopee chặn
+     * `order.order_list_invalid_time` khi `time_to − time_from` ≥ 15 ngày. Để margin 1s để
+     * span LUÔN < 15 ngày, tránh bị từ chối ngay ở biên (đúng 15×86400).
+     */
+    private const SHOPEE_MAX_WINDOW_SECONDS = 15 * 86400 - 1;
+
+    /** Cận trên (unix) an toàn của cửa sổ: không vượt $toTs và span < 15 ngày kể từ $winStart. */
+    private function shopeeWindowEnd(int $winStart, int $toTs, int $windowDays): int
+    {
+        $span = min(max(1, $windowDays) * 86400, self::SHOPEE_MAX_WINDOW_SECONDS);
+
+        return min($toTs, $winStart + $span);
     }
 
     // --- Báo cáo sàn (read-only) — AccountHealth module 103, SPEC 2026-06-06 ---
