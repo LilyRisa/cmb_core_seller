@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
-import { App, Button, Card, DatePicker, Form, Input, Modal, Radio, Select, Space, Statistic, Table, Tag, Tooltip, Typography, Upload } from 'antd';
+import { App, Badge, Button, Card, DatePicker, Drawer, Form, Input, Modal, Radio, Segmented, Select, Space, Statistic, Table, Tag, Tooltip, Typography, Upload } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { BankOutlined, FileExcelOutlined, PlusOutlined, ReloadOutlined, WalletOutlined } from '@ant-design/icons';
+import { BankOutlined, CheckCircleOutlined, FileExcelOutlined, PlusOutlined, ReloadOutlined, StopOutlined, SwapOutlined, WalletOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { formatAmount } from '@/lib/accounting';
+import { BankStatement, BankStatementLine, formatAmount, useBankStatementDetail, useBankStatements, useIgnoreBankLine, useMatchBankLine } from '@/lib/accounting';
+import { useReceipts } from '@/lib/accountingAr';
+import { useVendorPayments } from '@/lib/accountingAp';
 import { useAuth, getCurrentTenantId } from '@/lib/auth';
 import { useCan } from '@/lib/tenant';
 import { errorMessage } from '@/lib/api';
@@ -37,6 +39,7 @@ export function CashPage() {
     const api = useScopedApi();
     const [createOpen, setCreateOpen] = useState(false);
     const [importOpen, setImportOpen] = useState(false);
+    const [reconcileId, setReconcileId] = useState<number | null>(null);
     const canConfig = useCan('accounting.config');
     const canPost = useCan('accounting.post');
 
@@ -127,9 +130,213 @@ export function CashPage() {
                 />
             </Card>
 
+            <BankStatementsCard accounts={accounts} onReconcile={(id) => setReconcileId(id)} />
+
             <CreateCashAccountModal open={createOpen} onClose={() => setCreateOpen(false)} />
             <ImportStatementModal open={importOpen} onClose={() => setImportOpen(false)} accounts={accounts} />
+            <ReconcileDrawer statementId={reconcileId} onClose={() => setReconcileId(null)} canPost={canPost} accounts={accounts} />
         </div>
+    );
+}
+
+/** Danh sách sao kê đã import + nút vào màn hình đối chiếu. */
+function BankStatementsCard({ accounts, onReconcile }: { accounts: CashAccount[]; onReconcile: (id: number) => void }) {
+    const { data: statements = [], isFetching, error } = useBankStatements();
+    const acctMap = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts]);
+
+    // Gói chưa bật accounting_advanced ⇒ 402 ⇒ ẩn card (đối chiếu là tính năng nâng cao).
+    const status = (error as { response?: { status?: number } })?.response?.status;
+    if (status === 402) {
+        return (
+            <Card style={{ marginTop: 16 }} title={<Typography.Title level={5} style={{ margin: 0 }}>Sao kê & đối chiếu ngân hàng</Typography.Title>}>
+                <Typography.Paragraph type="warning" style={{ margin: 0 }}>Tính năng đối chiếu ngân hàng thuộc gói nâng cao (accounting_advanced). Nâng gói để sử dụng.</Typography.Paragraph>
+            </Card>
+        );
+    }
+
+    const columns: ColumnsType<BankStatement> = [
+        { title: 'Tài khoản', dataIndex: 'cash_account_id', render: (id: number) => { const a = acctMap.get(id); return a ? <Space size={4}><Tag style={{ marginInlineEnd: 0, fontFamily: 'ui-monospace, monospace' }}>{a.code}</Tag><Typography.Text>{a.name}</Typography.Text></Space> : `#${id}`; } },
+        { title: 'Kỳ sao kê', width: 220, render: (_, r) => `${dayjs(r.period_start).format('DD/MM/YYYY')} — ${dayjs(r.period_end).format('DD/MM/YYYY')}` },
+        { title: 'Số dòng', dataIndex: 'lines_count', width: 90, align: 'right' },
+        { title: 'Tiền vào', dataIndex: 'total_in', width: 140, align: 'right', render: (v: number) => <Typography.Text style={{ color: '#3f8600' }}>{formatAmount(v)}</Typography.Text> },
+        { title: 'Tiền ra', dataIndex: 'total_out', width: 140, align: 'right', render: (v: number) => <Typography.Text style={{ color: '#cf1322' }}>{formatAmount(v)}</Typography.Text> },
+        { title: 'Nguồn', dataIndex: 'imported_from', width: 110, render: (s: string) => <Tag>{s}</Tag> },
+        { title: 'Thao tác', width: 130, align: 'right', render: (_, r) => <Button size="small" type="link" icon={<SwapOutlined />} onClick={() => onReconcile(r.id)}>Đối chiếu</Button> },
+    ];
+
+    return (
+        <Card style={{ marginTop: 16 }} title={<Typography.Title level={5} style={{ margin: 0 }}>Sao kê & đối chiếu ngân hàng</Typography.Title>} styles={{ body: { padding: 0 } }}>
+            <Table<BankStatement>
+                rowKey="id"
+                dataSource={statements}
+                columns={columns}
+                loading={isFetching}
+                pagination={false}
+                size="middle"
+                scroll={{ x: 900 }}
+                locale={{ emptyText: 'Chưa có sao kê nào — bấm "Import sao kê" ở trên để tải lên.' }}
+            />
+        </Card>
+    );
+}
+
+const LINE_STATUS_META: Record<BankStatementLine['status'], { color: string; label: string }> = {
+    unmatched: { color: 'gold', label: 'Chưa khớp' },
+    matched: { color: 'green', label: 'Đã khớp' },
+    ignored: { color: 'default', label: 'Bỏ qua' },
+};
+
+/** Drawer đối chiếu: từng dòng sao kê → khớp với phiếu thu/chi/bút toán, hoặc bỏ qua. */
+function ReconcileDrawer({ statementId, onClose, canPost, accounts }: { statementId: number | null; onClose: () => void; canPost: boolean; accounts: CashAccount[] }) {
+    const { data, isLoading } = useBankStatementDetail(statementId);
+    const acct = accounts.find((a) => a.id === data?.cash_account_id);
+    const lines = data?.lines ?? [];
+    const matched = lines.filter((l) => l.status === 'matched').length;
+    const ignored = lines.filter((l) => l.status === 'ignored').length;
+    const pending = lines.length - matched - ignored;
+
+    return (
+        <Drawer
+            open={statementId != null}
+            onClose={onClose}
+            width={920}
+            destroyOnClose
+            title={data ? `Đối chiếu sao kê — ${acct ? acct.name : '#' + data.cash_account_id}` : 'Đối chiếu sao kê'}
+        >
+            {isLoading && <Typography.Text type="secondary">Đang tải…</Typography.Text>}
+            {data && (
+                <>
+                    <Space size={16} wrap style={{ marginBottom: 16 }}>
+                        <Badge color="green" text={`Đã khớp: ${matched}`} />
+                        <Badge color="gold" text={`Chưa khớp: ${pending}`} />
+                        <Badge color="default" text={`Bỏ qua: ${ignored}`} />
+                        <Typography.Text type="secondary">Kỳ {dayjs(data.period_start).format('DD/MM/YYYY')} — {dayjs(data.period_end).format('DD/MM/YYYY')}</Typography.Text>
+                    </Space>
+                    <Table<BankStatementLine>
+                        rowKey="id"
+                        dataSource={lines}
+                        pagination={false}
+                        size="small"
+                        scroll={{ x: 820 }}
+                        columns={[
+                            { title: 'Ngày', dataIndex: 'txn_date', width: 100, render: (d: string) => dayjs(d).format('DD/MM/YYYY') },
+                            { title: 'Đối tác / Nội dung', render: (_, r) => (<Space direction="vertical" size={0}><Typography.Text>{r.counter_party ?? '—'}</Typography.Text>{r.memo && <Typography.Text type="secondary" style={{ fontSize: 12 }}>{r.memo}</Typography.Text>}</Space>) },
+                            { title: 'Số tiền', dataIndex: 'amount', width: 140, align: 'right', render: (v: number) => <Typography.Text strong style={{ color: v >= 0 ? '#3f8600' : '#cf1322' }}>{v >= 0 ? '+' : ''}{formatAmount(v)}</Typography.Text> },
+                            { title: 'Trạng thái', dataIndex: 'status', width: 110, render: (s: BankStatementLine['status']) => <Tag color={LINE_STATUS_META[s].color}>{LINE_STATUS_META[s].label}</Tag> },
+                            { title: 'Đối chiếu', width: 240, render: (_, r) => <MatchControl line={r} canPost={canPost} /> },
+                        ]}
+                    />
+                </>
+            )}
+        </Drawer>
+    );
+}
+
+/** Điều khiển khớp 1 dòng: chọn loại chứng từ + chứng từ ứng viên (ưu tiên trùng số tiền), hoặc bỏ qua. */
+function MatchControl({ line, canPost }: { line: BankStatementLine; canPost: boolean }) {
+    const match = useMatchBankLine();
+    const ignore = useIgnoreBankLine();
+    const { message } = App.useApp();
+    const [open, setOpen] = useState(false);
+
+    if (line.status === 'matched') {
+        return <Typography.Text type="success">Khớp: {line.matched_ref_type === 'customer_receipt' ? 'Phiếu thu' : line.matched_ref_type === 'vendor_payment' ? 'Phiếu chi' : 'Bút toán'} #{line.matched_ref_id}</Typography.Text>;
+    }
+    if (line.status === 'ignored') {
+        return <Typography.Text type="secondary">Đã bỏ qua</Typography.Text>;
+    }
+    if (!canPost) return <Typography.Text type="secondary">—</Typography.Text>;
+
+    return (
+        <Space size={4}>
+            <Button size="small" type="primary" ghost icon={<CheckCircleOutlined />} onClick={() => setOpen(true)}>Khớp</Button>
+            <Tooltip title="Bỏ qua dòng này">
+                <Button size="small" type="text" icon={<StopOutlined />} loading={ignore.isPending}
+                    onClick={async () => { try { await ignore.mutateAsync(line.id); message.success('Đã bỏ qua dòng.'); } catch (e) { message.error(errorMessage(e)); } }}
+                />
+            </Tooltip>
+            <MatchModal line={line} open={open} onClose={() => setOpen(false)} onMatch={match} />
+        </Space>
+    );
+}
+
+function MatchModal({ line, open, onClose, onMatch }: { line: BankStatementLine; open: boolean; onClose: () => void; onMatch: ReturnType<typeof useMatchBankLine> }) {
+    const { message } = App.useApp();
+    // amount > 0 (tiền vào) ⇒ ưu tiên phiếu thu; < 0 (tiền ra) ⇒ phiếu chi.
+    const isInflow = line.amount >= 0;
+    const [refType, setRefType] = useState<'customer_receipt' | 'vendor_payment' | 'journal_entry'>(isInflow ? 'customer_receipt' : 'vendor_payment');
+    const [refId, setRefId] = useState<number | undefined>();
+
+    const receipts = useReceipts({ status: 'confirmed', per_page: 100 });
+    const payments = useVendorPayments({ status: 'confirmed', per_page: 100 });
+
+    const abs = Math.abs(line.amount);
+    const options = useMemo(() => {
+        if (refType === 'customer_receipt') {
+            return (receipts.data?.data ?? []).map((r) => ({ value: r.id, label: `${r.code} · ${formatAmount(r.amount)} ₫`, exact: r.amount === abs }));
+        }
+        if (refType === 'vendor_payment') {
+            return (payments.data?.data ?? []).map((p) => ({ value: p.id, label: `${p.code} · ${formatAmount(p.amount)} ₫`, exact: p.amount === abs }));
+        }
+        return [];
+    }, [refType, receipts.data, payments.data, abs]);
+
+    // Sắp xếp ứng viên trùng số tiền lên đầu.
+    const sortedOptions = useMemo(() => [...options].sort((a, b) => Number(b.exact) - Number(a.exact)).map((o) => ({ value: o.value, label: o.exact ? `(Trùng số tiền) ${o.label}` : o.label })), [options]);
+
+    return (
+        <Modal
+            open={open}
+            onCancel={onClose}
+            title="Khớp dòng sao kê với chứng từ"
+            okText="Khớp"
+            cancelText="Huỷ"
+            destroyOnClose
+            okButtonProps={{ disabled: refType === 'journal_entry' ? !refId : !refId, loading: onMatch.isPending }}
+            onOk={async () => {
+                if (!refId) return;
+                try {
+                    await onMatch.mutateAsync({ id: line.id, ref_type: refType, ref_id: refId, journal_entry_id: refType === 'journal_entry' ? refId : undefined });
+                    message.success('Đã khớp dòng sao kê.');
+                    onClose();
+                } catch (e) { message.error(errorMessage(e)); }
+            }}
+        >
+            <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                <div>
+                    <Typography.Text type="secondary">Dòng sao kê: </Typography.Text>
+                    <Typography.Text strong style={{ color: isInflow ? '#3f8600' : '#cf1322' }}>{isInflow ? '+' : ''}{formatAmount(line.amount)} ₫</Typography.Text>
+                    {line.memo && <Typography.Text type="secondary"> · {line.memo}</Typography.Text>}
+                </div>
+                <Segmented<typeof refType>
+                    value={refType}
+                    onChange={(v) => { setRefType(v as typeof refType); setRefId(undefined); }}
+                    options={[
+                        { value: 'customer_receipt', label: 'Phiếu thu' },
+                        { value: 'vendor_payment', label: 'Phiếu chi' },
+                        { value: 'journal_entry', label: 'Bút toán (ID)' },
+                    ]}
+                />
+                {refType === 'journal_entry' ? (
+                    <Input
+                        type="number"
+                        placeholder="Nhập ID bút toán cần khớp"
+                        onChange={(e) => setRefId(Number(e.target.value) || undefined)}
+                    />
+                ) : (
+                    <Select
+                        showSearch
+                        value={refId}
+                        placeholder={`Chọn ${refType === 'customer_receipt' ? 'phiếu thu' : 'phiếu chi'} (ưu tiên trùng số tiền)`}
+                        style={{ width: '100%' }}
+                        optionFilterProp="label"
+                        options={sortedOptions}
+                        onChange={(v) => setRefId(v as number)}
+                        notFoundContent="Không có chứng từ phù hợp"
+                    />
+                )}
+            </Space>
+        </Modal>
     );
 }
 

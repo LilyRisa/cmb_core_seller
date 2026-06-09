@@ -1,10 +1,13 @@
-import { useState } from 'react';
-import { App, Button, Card, DatePicker, Form, Input, InputNumber, Modal, Popconfirm, Radio, Space, Statistic, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
+import { useMemo, useState } from 'react';
+import { Alert, App, Button, Card, DatePicker, Empty, Form, Input, InputNumber, Modal, Popconfirm, Radio, Space, Statistic, Switch, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { CheckCircleOutlined, CloseCircleOutlined, DollarOutlined, PlusOutlined, ReloadOutlined, TeamOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { formatAmount } from '@/lib/accounting';
+import { formatAmount, usePartiesByIds } from '@/lib/accounting';
 import { AgingRow, CustomerReceipt, useArAging, useCancelReceipt, useConfirmReceipt, useCreateReceipt, useReceipts } from '@/lib/accountingAr';
+import { useCustomerOrders } from '@/lib/customers';
+import type { Order } from '@/lib/orders';
+import { PartyPicker } from '@/components/accounting/PartyPicker';
 import { AccountingSetupBanner } from './AccountingSetupBanner';
 import { useCan } from '@/lib/tenant';
 import { errorMessage } from '@/lib/api';
@@ -114,10 +117,14 @@ function ReceiptsTab() {
     const cancelM = useCancelReceipt();
     const { message } = App.useApp();
 
+    const custIds = useMemo(() => Array.from(new Set((data?.data ?? []).map((r) => r.customer_id).filter((x): x is number => x != null))), [data]);
+    const { data: parties = [] } = usePartiesByIds('customer', custIds);
+    const nameMap = useMemo(() => new Map(parties.map((p) => [p.id, p.label])), [parties]);
+
     const columns: ColumnsType<CustomerReceipt> = [
         { title: 'Mã phiếu', dataIndex: 'code', width: 140, render: (c: string) => <Typography.Text strong style={{ fontFamily: 'ui-monospace, monospace' }}>{c}</Typography.Text> },
         { title: 'Ngày thu', dataIndex: 'received_at', width: 130, render: (d: string) => dayjs(d).format('DD/MM/YYYY') },
-        { title: 'Khách', dataIndex: 'customer_id', width: 100, render: (id: number | null) => id ? <Tag color="blue">#{id}</Tag> : '—' },
+        { title: 'Khách', dataIndex: 'customer_id', width: 180, render: (id: number | null) => id ? <Typography.Text>{nameMap.get(id) ?? `Khách #${id}`}</Typography.Text> : <Typography.Text type="secondary">Thu chung</Typography.Text> },
         { title: 'Số tiền', dataIndex: 'amount', width: 150, align: 'right', render: (v: number) => <Typography.Text strong>{formatAmount(v)} ₫</Typography.Text> },
         { title: 'Phương thức', dataIndex: 'payment_method', width: 130, render: (m: string) => <Tag>{m === 'cash' ? 'Tiền mặt' : m === 'bank' ? 'Chuyển khoản' : 'Ví điện tử'}</Tag> },
         { title: 'Diễn giải', dataIndex: 'memo', ellipsis: true, render: (n: string | null) => n ?? '—' },
@@ -183,54 +190,77 @@ function CreateReceiptModal({ open, onClose, presetCustomerId }: { open: boolean
     const create = useCreateReceipt();
     const confirmM = useConfirmReceipt();
     const { message } = App.useApp();
+    const [allocate, setAllocate] = useState(false);
+    const [alloc, setAlloc] = useState<Record<number, number>>({});
+
+    const customerId = Form.useWatch('customer_id', form) as number | undefined;
+    const amount = (Form.useWatch('amount', form) as number | undefined) ?? 0;
+    const allocTotal = Object.values(alloc).reduce((s, v) => s + (Number(v) || 0), 0);
+
+    const reset = () => { form.resetFields(); setAlloc({}); setAllocate(false); };
+
+    const submit = async (confirm: boolean) => {
+        try {
+            const v = await form.validateFields();
+            const appliedOrders = allocate
+                ? Object.entries(alloc).filter(([, amt]) => Number(amt) > 0).map(([oid, amt]) => ({ order_id: Number(oid), applied_amount: Number(amt) }))
+                : undefined;
+            const created = await create.mutateAsync({
+                customer_id: v.customer_id || undefined,
+                received_at: v.received_at.format('YYYY-MM-DDTHH:mm:ss'),
+                amount: v.amount,
+                payment_method: v.payment_method,
+                applied_orders: appliedOrders,
+                memo: v.memo,
+            });
+            if (confirm) {
+                await confirmM.mutateAsync(created.id);
+                message.success(`Đã tạo & xác nhận phiếu thu ${created.code}.`);
+            } else {
+                message.success(`Đã lưu nháp phiếu thu ${created.code}.`);
+            }
+            reset();
+            onClose();
+        } catch (e) {
+            if ((e as { errorFields?: unknown }).errorFields) return;
+            message.error(errorMessage(e));
+        }
+    };
+
+    const busy = create.isPending || confirmM.isPending;
 
     return (
         <Modal
             open={open}
-            onCancel={onClose}
+            onCancel={() => { reset(); onClose(); }}
             title="Tạo phiếu thu"
-            okText="Tạo & xác nhận"
-            cancelText="Huỷ"
+            width={720}
             destroyOnClose
-            confirmLoading={create.isPending || confirmM.isPending}
-            onOk={async () => {
-                try {
-                    const v = await form.validateFields();
-                    const created = await create.mutateAsync({
-                        customer_id: v.customer_id || undefined,
-                        received_at: v.received_at.format('YYYY-MM-DDTHH:mm:ss'),
-                        amount: v.amount,
-                        payment_method: v.payment_method,
-                        memo: v.memo,
-                    });
-                    // Auto-confirm theo UX phổ biến — kế toán có thể tạo draft riêng nếu cần.
-                    await confirmM.mutateAsync(created.id);
-                    message.success(`Đã tạo & xác nhận ${created.code}.`);
-                    form.resetFields();
-                    onClose();
-                } catch (e) {
-                    if ((e as { errorFields?: unknown }).errorFields) return;
-                    message.error(errorMessage(e));
-                }
-            }}
+            footer={[
+                <Button key="cancel" onClick={() => { reset(); onClose(); }}>Huỷ</Button>,
+                <Button key="draft" loading={busy} onClick={() => submit(false)}>Lưu nháp</Button>,
+                <Button key="confirm" type="primary" loading={busy} onClick={() => submit(true)}>Tạo & xác nhận (ghi sổ)</Button>,
+            ]}
         >
             <Form form={form} layout="vertical" initialValues={{
                 received_at: dayjs(),
                 payment_method: 'cash',
                 customer_id: presetCustomerId,
             }} preserve={false} key={String(presetCustomerId ?? 'new')}>
-                <Form.Item label="Khách hàng (ID)" name="customer_id" tooltip="Bỏ trống nếu thu chung không gắn khách">
-                    <InputNumber min={1} style={{ width: '100%' }} placeholder="ID khách" />
+                <Form.Item label="Khách hàng" name="customer_id" tooltip="Bỏ trống nếu thu chung, không gắn công nợ khách cụ thể.">
+                    <PartyPicker type="customer" placeholder="Tìm khách theo tên / SĐT… (bỏ trống = thu chung)" />
                 </Form.Item>
-                <Form.Item label="Ngày thu" name="received_at" rules={[{ required: true }]}>
-                    <DatePicker showTime={{ format: 'HH:mm' }} format="DD/MM/YYYY HH:mm" style={{ width: '100%' }} />
-                </Form.Item>
-                <Form.Item label="Số tiền (VND)" name="amount" rules={[{ required: true, type: 'number', min: 1 }]}>
-                    <InputNumber<number> min={1} step={1000} style={{ width: '100%' }}
-                        formatter={(v) => (v ? formatAmount(Number(v)) : '') as `${number}`}
-                        parser={(v) => Number((v ?? '').replace(/\D/g, '')) as 0}
-                    />
-                </Form.Item>
+                <Space size={12} style={{ width: '100%' }} align="start">
+                    <Form.Item label="Ngày thu" name="received_at" rules={[{ required: true }]} style={{ flex: 1, minWidth: 200 }}>
+                        <DatePicker showTime={{ format: 'HH:mm' }} format="DD/MM/YYYY HH:mm" style={{ width: '100%' }} />
+                    </Form.Item>
+                    <Form.Item label="Số tiền (VND)" name="amount" rules={[{ required: true, type: 'number', min: 1 }]} style={{ flex: 1, minWidth: 200 }}>
+                        <InputNumber<number> min={1} step={1000} style={{ width: '100%' }}
+                            formatter={(v) => (v ? formatAmount(Number(v)) : '') as `${number}`}
+                            parser={(v) => Number((v ?? '').replace(/\D/g, '')) as 0}
+                        />
+                    </Form.Item>
+                </Space>
                 <Form.Item label="Phương thức" name="payment_method" rules={[{ required: true }]}>
                     <Radio.Group optionType="button" buttonStyle="solid">
                         <Radio.Button value="cash">Tiền mặt (1111)</Radio.Button>
@@ -238,10 +268,76 @@ function CreateReceiptModal({ open, onClose, presetCustomerId }: { open: boolean
                         <Radio.Button value="ewallet">Ví điện tử (1121)</Radio.Button>
                     </Radio.Group>
                 </Form.Item>
+
+                <Form.Item label={<Space><span>Cấn trừ theo đơn hàng</span><Switch size="small" checked={allocate} onChange={setAllocate} disabled={!customerId} /></Space>}
+                    tooltip="Phân bổ số tiền thu vào từng đơn hàng để theo dõi công nợ chi tiết.">
+                    {allocate && customerId && (
+                        <AllocateOrders customerId={customerId} value={alloc} onChange={setAlloc} receiptAmount={amount} allocated={allocTotal} />
+                    )}
+                    {allocate && !customerId && <Typography.Text type="secondary">Chọn khách hàng trước để cấn trừ theo đơn.</Typography.Text>}
+                </Form.Item>
+
                 <Form.Item label="Diễn giải" name="memo">
                     <Input.TextArea rows={2} maxLength={500} placeholder="vd: Thu nợ đơn ORD-001 và ORD-002" />
                 </Form.Item>
             </Form>
         </Modal>
+    );
+}
+
+/** Bảng phân bổ số tiền thu vào từng đơn hàng của khách (applied_orders). */
+function AllocateOrders({ customerId, value, onChange, receiptAmount, allocated }: {
+    customerId: number;
+    value: Record<number, number>;
+    onChange: (v: Record<number, number>) => void;
+    receiptAmount: number;
+    allocated: number;
+}) {
+    const { data, isFetching } = useCustomerOrders(customerId, { per_page: 50 });
+    const orders = data?.data ?? [];
+    const remaining = receiptAmount - allocated;
+
+    if (isFetching) return <Typography.Text type="secondary">Đang tải đơn hàng…</Typography.Text>;
+    if (orders.length === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Khách chưa có đơn hàng" />;
+
+    return (
+        <div>
+            <Space style={{ marginBottom: 8 }} size={16} wrap>
+                <Typography.Text>Đã phân bổ: <Typography.Text strong>{formatAmount(allocated)} ₫</Typography.Text></Typography.Text>
+                <Typography.Text type={remaining < 0 ? 'danger' : 'secondary'}>Còn lại: {formatAmount(remaining)} ₫</Typography.Text>
+            </Space>
+            {remaining < 0 && <Alert type="warning" showIcon style={{ marginBottom: 8 }} message="Tổng phân bổ vượt quá số tiền thu." />}
+            <Table<Order>
+                rowKey="id"
+                dataSource={orders}
+                pagination={false}
+                size="small"
+                scroll={{ y: 220 }}
+                columns={[
+                    { title: 'Đơn', dataIndex: 'order_number', render: (n: string | null, o) => n ?? `#${o.id}` },
+                    { title: 'Giá trị', dataIndex: 'grand_total', width: 130, align: 'right', render: (v: number) => formatAmount(v ?? 0) },
+                    {
+                        title: 'Cấn trừ (₫)',
+                        width: 170,
+                        render: (_, o) => (
+                            <Space size={4}>
+                                <InputNumber<number>
+                                    min={0}
+                                    step={1000}
+                                    value={value[o.id] ?? 0}
+                                    style={{ width: 120 }}
+                                    formatter={(v) => (v ? formatAmount(Number(v)) : '') as `${number}`}
+                                    parser={(v) => Number((v ?? '').replace(/\D/g, '')) as 0}
+                                    onChange={(amt) => onChange({ ...value, [o.id]: Number(amt) || 0 })}
+                                />
+                                <Tooltip title="Cấn trừ toàn bộ giá trị đơn">
+                                    <Button size="small" type="link" onClick={() => onChange({ ...value, [o.id]: Number(o.grand_total) || 0 })}>Hết</Button>
+                                </Tooltip>
+                            </Space>
+                        ),
+                    },
+                ]}
+            />
+        </div>
     );
 }

@@ -475,6 +475,214 @@ export function useUpdatePostRule() {
 }
 
 /* ============================================================================
+ * Parties (khách hàng / nhà cung cấp) — cho PartyPicker
+ * ========================================================================== */
+
+export type PartyType = 'customer' | 'supplier';
+
+export interface Party {
+    id: number;
+    type: PartyType;
+    label: string;
+    secondary: string | null;
+}
+
+/** Tìm khách/NCC theo từ khoá (debounce ở component). */
+export function useParties(type: PartyType, q: string) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['accounting', tenantId, 'parties', type, q],
+        enabled: api != null,
+        staleTime: 30_000,
+        placeholderData: (prev) => prev,
+        queryFn: async () => {
+            const { data } = await api!.get<{ data: Party[] }>('/accounting/parties', { params: { type, q: q || undefined } });
+            return data.data;
+        },
+    });
+}
+
+/** Resolve nhãn cho các id đã chọn sẵn (preset) — dùng để hiển thị giá trị ban đầu của picker. */
+export function usePartiesByIds(type: PartyType, ids: number[]) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    const key = ids.slice().sort((a, b) => a - b).join(',');
+    return useQuery({
+        queryKey: ['accounting', tenantId, 'parties-by-ids', type, key],
+        enabled: api != null && ids.length > 0,
+        staleTime: 5 * 60_000,
+        queryFn: async () => {
+            const { data } = await api!.get<{ data: Party[] }>('/accounting/parties', { params: { type, ids: key } });
+            return data.data;
+        },
+    });
+}
+
+/* ============================================================================
+ * Cash accounts & Bank reconciliation (Phase 7.4)
+ * ========================================================================== */
+
+export type CashKind = 'cash' | 'bank' | 'ewallet' | 'cod_intransit';
+
+export interface CashAccount {
+    id: number;
+    code: string;
+    name: string;
+    kind: CashKind;
+    bank_name: string | null;
+    account_no: string | null;
+    account_holder: string | null;
+    currency: string;
+    gl_account_id: number;
+    gl_account_code?: string;
+    is_active: boolean;
+    description: string | null;
+    balance: number;
+}
+
+export interface BankStatement {
+    id: number;
+    cash_account_id: number;
+    period_start: string;
+    period_end: string;
+    imported_from: string;
+    lines_count: number;
+    total_in: number;
+    total_out: number;
+    status: string;
+    created_at: string | null;
+}
+
+export type BankLineStatus = 'unmatched' | 'matched' | 'ignored';
+
+export interface BankStatementLine {
+    id: number;
+    bank_statement_id: number;
+    txn_date: string;
+    amount: number;
+    counter_party: string | null;
+    memo: string | null;
+    external_ref: string | null;
+    status: BankLineStatus;
+    matched_ref_type: string | null;
+    matched_ref_id: number | null;
+    matched_journal_entry_id: number | null;
+}
+
+export function useCashAccounts() {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['accounting', tenantId, 'cash-accounts'],
+        enabled: api != null,
+        queryFn: async () => {
+            const { data } = await api!.get<{ data: CashAccount[] }>('/accounting/cash-accounts');
+            return data.data;
+        },
+    });
+}
+
+export function useBankStatements(cashAccountId?: number) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['accounting', tenantId, 'bank-statements', cashAccountId ?? null],
+        enabled: api != null,
+        retry: (n, err) => {
+            const s = (err as { response?: { status?: number } })?.response?.status;
+            return s !== 402 && s !== 403 && n < 1;
+        },
+        queryFn: async () => {
+            const params: Record<string, number> = {};
+            if (cashAccountId) params.cash_account_id = cashAccountId;
+            const { data } = await api!.get<{ data: BankStatement[]; meta: unknown }>('/accounting/bank-statements', { params });
+            return data.data;
+        },
+    });
+}
+
+export function useBankStatementDetail(id: number | null) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['accounting', tenantId, 'bank-statement', id],
+        enabled: api != null && id != null,
+        queryFn: async () => {
+            const { data } = await api!.get<{ data: BankStatement & { lines: BankStatementLine[] } }>(`/accounting/bank-statements/${id}`);
+            return data.data;
+        },
+    });
+}
+
+export function useMatchBankLine() {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (vars: { id: number; ref_type: 'customer_receipt' | 'vendor_payment' | 'journal_entry'; ref_id: number; journal_entry_id?: number }) => {
+            const { id, ...payload } = vars;
+            const { data } = await api!.post<{ data: BankStatementLine }>(`/accounting/bank-statement-lines/${id}/match`, payload);
+            return data.data;
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['accounting', tenantId] }),
+    });
+}
+
+export function useIgnoreBankLine() {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (id: number) => {
+            const { data } = await api!.post<{ data: BankStatementLine }>(`/accounting/bank-statement-lines/${id}/ignore`);
+            return data.data;
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['accounting', tenantId] }),
+    });
+}
+
+/* ============================================================================
+ * VAT / Tờ khai thuế (Phase 7.5)
+ * ========================================================================== */
+
+export interface VatAggregate {
+    output_vat: number;
+    input_vat: number;
+    net_payable: number;
+}
+
+export function useVatReport(period: string | undefined) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['accounting', tenantId, 'vat', period],
+        enabled: api != null && !!period,
+        retry: (n, err) => {
+            const s = (err as { response?: { status?: number } })?.response?.status;
+            return s !== 402 && s !== 403 && n < 1;
+        },
+        queryFn: async () => {
+            const { data } = await api!.get<{ data: VatAggregate; meta: { period: string } }>('/accounting/reports/vat', { params: { period } });
+            return data.data;
+        },
+    });
+}
+
+export function useCreateTaxFiling() {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (period: string) => {
+            const { data } = await api!.post<{ data: unknown }>('/accounting/tax-filings', { period });
+            return data.data;
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['accounting', tenantId, 'vat'] }),
+    });
+}
+
+/* ============================================================================
  * Helpers
  * ========================================================================== */
 

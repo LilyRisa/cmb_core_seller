@@ -1,13 +1,18 @@
 import { useState } from 'react';
-import { App, Badge, Button, Card, DatePicker, Drawer, Form, Input, InputNumber, Modal, Popconfirm, Segmented, Space, Table, Tag, Tooltip, Typography } from 'antd';
+import { App, Badge, Button, Card, DatePicker, Drawer, Form, Input, InputNumber, Modal, Segmented, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
+import type { FormInstance } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { FileTextOutlined, FilterOutlined, PlusOutlined, ReloadOutlined, RollbackOutlined, SearchOutlined } from '@ant-design/icons';
+import { CheckCircleFilled, FileTextOutlined, FilterOutlined, PlusOutlined, ReloadOutlined, RollbackOutlined, SearchOutlined, WarningFilled } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { CreateJournalPayload, formatAmount, JournalEntry, JournalLine, useCreateJournal, useFiscalPeriods, useJournalDetail, useJournals, useReverseJournal } from '@/lib/accounting';
+import { CreateJournalPayload, formatAmount, JournalEntry, JournalLine, useCreateJournal, useJournalDetail, useJournals, useReverseJournal } from '@/lib/accounting';
 import { AccountTreeSelect } from '@/components/accounting/AccountTreeSelect';
+import { PartyPicker } from '@/components/accounting/PartyPicker';
+import { PeriodSelect } from '@/components/accounting/PeriodSelect';
 import { AccountingSetupBanner } from './AccountingSetupBanner';
 import { useCan } from '@/lib/tenant';
 import { errorMessage } from '@/lib/api';
+
+type PartyType = 'customer' | 'supplier';
 
 type SourceFilter = 'all' | 'auto' | 'manual';
 
@@ -20,7 +25,6 @@ export function JournalsPage() {
     const [showId, setShowId] = useState<number | null>(null);
     const [createOpen, setCreateOpen] = useState(false);
 
-    const { data: periods = [] } = useFiscalPeriods({ kind: 'month' });
     const { data: journals, isFetching, refetch } = useJournals({
         period: periodCode,
         source_module: source === 'all' ? undefined : source,
@@ -142,13 +146,11 @@ export function JournalsPage() {
                     </Space>
                     <Space size={6}>
                         <span style={{ color: 'rgba(0,0,0,0.55)' }}>Kỳ</span>
-                        <Segmented
-                            value={periodCode ?? 'all'}
-                            onChange={(v) => { setPeriodCode(v === 'all' ? undefined : (v as string)); setPage(1); }}
-                            options={[
-                                { value: 'all', label: 'Tất cả' },
-                                ...periods.slice(0, 6).map((p) => ({ value: p.code, label: p.code })),
-                            ]}
+                        <PeriodSelect
+                            value={periodCode}
+                            onChange={(v) => { setPeriodCode(v || undefined); setPage(1); }}
+                            allowClear
+                            style={{ minWidth: 170 }}
                         />
                     </Space>
                     <Input
@@ -190,22 +192,46 @@ export function JournalsPage() {
 function ReverseButton({ entry }: { entry: JournalEntry }) {
     const rev = useReverseJournal();
     const { message } = App.useApp();
+    const [open, setOpen] = useState(false);
+    const [reason, setReason] = useState('');
+
     return (
-        <Popconfirm
-            title={`Đảo bút toán ${entry.code}?`}
-            description="Hệ thống tạo bút toán đảo (swap Nợ/Có). Hành động idempotent."
-            okText="Đảo"
-            cancelText="Huỷ"
-            okButtonProps={{ loading: rev.isPending }}
-            onConfirm={async () => {
-                try {
-                    const r = await rev.mutateAsync({ id: entry.id, reason: '' });
-                    message.success(`Đã đảo — tạo ${r.code}.`);
-                } catch (e) { message.error(errorMessage(e)); }
-            }}
-        >
-            <Tooltip title="Đảo bút toán"><Button size="small" type="text" icon={<RollbackOutlined />} /></Tooltip>
-        </Popconfirm>
+        <>
+            <Tooltip title="Đảo bút toán">
+                <Button size="small" type="text" icon={<RollbackOutlined />} onClick={() => { setReason(''); setOpen(true); }} />
+            </Tooltip>
+            <Modal
+                open={open}
+                onCancel={() => setOpen(false)}
+                title={`Đảo bút toán ${entry.code}`}
+                okText="Đảo bút toán"
+                cancelText="Huỷ"
+                okButtonProps={{ loading: rev.isPending, danger: true, disabled: reason.trim().length === 0 }}
+                destroyOnClose
+                onOk={async () => {
+                    try {
+                        const r = await rev.mutateAsync({ id: entry.id, reason: reason.trim() });
+                        message.success(`Đã đảo — tạo bút toán ${r.code}.`);
+                        setOpen(false);
+                    } catch (e) { message.error(errorMessage(e)); }
+                }}
+            >
+                <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+                    Hệ thống tạo một bút toán đảo (hoán đổi Nợ ↔ Có). Bút toán gốc giữ nguyên (bất biến). Nếu kỳ gốc đã đóng,
+                    bút toán đảo sẽ được ghi vào kỳ mở kế tiếp.
+                </Typography.Paragraph>
+                <Typography.Text>Lý do đảo <Typography.Text type="danger">*</Typography.Text></Typography.Text>
+                <Input.TextArea
+                    rows={3}
+                    maxLength={500}
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    placeholder="vd: Ghi nhầm số tiền / sai tài khoản đối ứng…"
+                    style={{ marginTop: 4 }}
+                    autoFocus
+                />
+            </Modal>
+        </>
     );
 }
 
@@ -251,9 +277,14 @@ function JournalDetailDrawer({ id, onClose }: { id: number | null; onClose: () =
                                 dataIndex: 'account_code',
                                 width: 240,
                                 render: (code, r) => (
-                                    <Space size={4}>
+                                    <Space size={4} wrap>
                                         <Typography.Text strong style={{ fontFamily: 'ui-monospace, monospace' }}>{code}</Typography.Text>
                                         {r.account_name && <Typography.Text type="secondary" style={{ fontSize: 12 }}>· {r.account_name}</Typography.Text>}
+                                        {r.party_id != null && (
+                                            <Tag color={r.party_type === 'customer' ? 'blue' : 'gold'} style={{ marginInlineEnd: 0, fontSize: 11 }}>
+                                                {r.party_type === 'customer' ? 'KH' : r.party_type === 'supplier' ? 'NCC' : 'ĐT'} #{r.party_id}
+                                            </Tag>
+                                        )}
                                     </Space>
                                 ),
                             },
@@ -301,7 +332,35 @@ interface LineFormRow {
     account_code?: string;
     dr_amount?: number;
     cr_amount?: number;
+    party_type?: PartyType;
+    party_id?: number;
     memo?: string;
+}
+
+const LINE_GRID = '32px minmax(170px, 1.1fr) 120px 120px minmax(210px, 1fr) minmax(150px, 0.9fr) 44px';
+
+/** Ô chọn đối tượng (khách/NCC) cho 1 dòng bút toán — gắn công nợ chi tiết khi nhập tay. */
+function LinePartyCell({ form, name }: { form: FormInstance; name: number }) {
+    const partyType = Form.useWatch(['lines', name, 'party_type'], form) as PartyType | undefined;
+    return (
+        <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Form.Item name={[name, 'party_type']} style={{ marginBottom: 0 }}>
+                <Select
+                    allowClear
+                    size="small"
+                    placeholder="Loại đối tượng"
+                    options={[{ value: 'customer', label: 'Khách hàng' }, { value: 'supplier', label: 'Nhà cung cấp' }]}
+                    onChange={() => form.setFieldValue(['lines', name, 'party_id'], undefined)}
+                    style={{ width: '100%' }}
+                />
+            </Form.Item>
+            {partyType && (
+                <Form.Item name={[name, 'party_id']} style={{ marginBottom: 0 }}>
+                    <PartyPicker type={partyType} />
+                </Form.Item>
+            )}
+        </Space>
+    );
 }
 
 function CreateJournalModal({ open, onClose }: { open: boolean; onClose: () => void; defaultPeriod?: string }) {
@@ -318,7 +377,7 @@ function CreateJournalModal({ open, onClose }: { open: boolean; onClose: () => v
             open={open}
             onCancel={onClose}
             title="Tạo bút toán tay"
-            width={920}
+            width={1080}
             okText="Lưu bút toán"
             cancelText="Huỷ"
             destroyOnClose
@@ -334,6 +393,8 @@ function CreateJournalModal({ open, onClose }: { open: boolean; onClose: () => v
                             account_code: l.account_code!,
                             dr_amount: Number(l.dr_amount) || 0,
                             cr_amount: Number(l.cr_amount) || 0,
+                            party_type: l.party_type ?? null,
+                            party_id: l.party_id ?? null,
                             memo: l.memo,
                         })),
                     };
@@ -379,12 +440,12 @@ function CreateJournalModal({ open, onClose }: { open: boolean; onClose: () => v
                         <>
                             <Typography.Title level={5} style={{ marginTop: 16, marginBottom: 8 }}>Dòng bút toán</Typography.Title>
                             <div style={{ border: '1px solid #f0f0f0', borderRadius: 6 }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr 130px 130px 200px 60px', gap: 8, padding: '8px 10px', background: '#fafafa', borderBottom: '1px solid #f0f0f0', fontSize: 12, color: 'rgba(0,0,0,0.55)' }}>
-                                    <span>#</span><span>Tài khoản</span><span style={{ textAlign: 'right' }}>Nợ (₫)</span><span style={{ textAlign: 'right' }}>Có (₫)</span><span>Diễn giải dòng</span><span></span>
+                                <div style={{ display: 'grid', gridTemplateColumns: LINE_GRID, gap: 8, padding: '8px 10px', background: '#fafafa', borderBottom: '1px solid #f0f0f0', fontSize: 12, color: 'rgba(0,0,0,0.55)' }}>
+                                    <span>#</span><span>Tài khoản</span><span style={{ textAlign: 'right' }}>Nợ (₫)</span><span style={{ textAlign: 'right' }}>Có (₫)</span><span>Đối tượng (công nợ)</span><span>Diễn giải dòng</span><span></span>
                                 </div>
                                 {fields.map((field, idx) => (
-                                    <div key={field.key} style={{ display: 'grid', gridTemplateColumns: '40px 1fr 130px 130px 200px 60px', gap: 8, padding: '8px 10px', borderBottom: '1px solid #fafafa', alignItems: 'flex-start' }}>
-                                        <Typography.Text>{idx + 1}</Typography.Text>
+                                    <div key={field.key} style={{ display: 'grid', gridTemplateColumns: LINE_GRID, gap: 8, padding: '8px 10px', borderBottom: '1px solid #fafafa', alignItems: 'flex-start' }}>
+                                        <Typography.Text style={{ paddingTop: 6 }}>{idx + 1}</Typography.Text>
                                         <Form.Item name={[field.name, 'account_code']} rules={[{ required: true, message: 'Chọn TK' }]} style={{ marginBottom: 0 }}>
                                             <AccountTreeSelect onlyPostable placeholder="Chọn TK…" />
                                         </Form.Item>
@@ -394,21 +455,22 @@ function CreateJournalModal({ open, onClose }: { open: boolean; onClose: () => v
                                         <Form.Item name={[field.name, 'cr_amount']} style={{ marginBottom: 0 }}>
                                             <InputNumber<number> min={0} step={1000} style={{ width: '100%' }} formatter={(v) => (v ? formatAmount(Number(v)) : '') as `${number}`} parser={(v) => Number((v ?? '').replace(/\D/g, '')) as 0} />
                                         </Form.Item>
+                                        <LinePartyCell form={form} name={field.name} />
                                         <Form.Item name={[field.name, 'memo']} style={{ marginBottom: 0 }}>
                                             <Input placeholder="Diễn giải dòng" maxLength={200} />
                                         </Form.Item>
-                                        <Button type="text" danger size="small" onClick={() => remove(field.name)} disabled={fields.length <= 2}>Xoá</Button>
+                                        <Button type="text" danger size="small" style={{ marginTop: 2 }} onClick={() => remove(field.name)} disabled={fields.length <= 2}>Xoá</Button>
                                     </div>
                                 ))}
-                                <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr 130px 130px 200px 60px', gap: 8, padding: '10px 10px', background: '#fafafa', alignItems: 'center', borderTop: '1px solid #f0f0f0' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: LINE_GRID, gap: 8, padding: '10px 10px', background: '#fafafa', alignItems: 'center', borderTop: '1px solid #f0f0f0' }}>
                                     <span></span>
                                     <Typography.Text strong>Tổng</Typography.Text>
                                     <Typography.Text strong style={{ textAlign: 'right' }}>{formatAmount(totalDr)}</Typography.Text>
                                     <Typography.Text strong style={{ textAlign: 'right' }}>{formatAmount(totalCr)}</Typography.Text>
-                                    <Tag color={isBalanced ? 'green' : 'red'} style={{ marginInlineEnd: 0, alignSelf: 'center' }}>
-                                        {isBalanced ? `Cân ✓` : `Lệch ${formatAmount(Math.abs(totalDr - totalCr))} ₫`}
+                                    <Tag color={isBalanced ? 'green' : 'red'} icon={isBalanced ? <CheckCircleFilled /> : <WarningFilled />} style={{ marginInlineEnd: 0, alignSelf: 'center' }}>
+                                        {isBalanced ? 'Đã cân Nợ/Có' : `Lệch ${formatAmount(Math.abs(totalDr - totalCr))} ₫`}
                                     </Tag>
-                                    <span />
+                                    <span /><span />
                                 </div>
                             </div>
                             <Form.ErrorList errors={errors} />

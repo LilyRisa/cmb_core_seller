@@ -4,6 +4,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { AccountBalance, AccountType, ACCOUNT_TYPE_COLOR, ACCOUNT_TYPE_LABEL, ChartAccount, formatAmount, useBalances, useChartAccounts, useFiscalPeriods, useRecomputeBalances } from '@/lib/accounting';
+import { PeriodSelect } from '@/components/accounting/PeriodSelect';
 import { AccountingSetupBanner } from './AccountingSetupBanner';
 import { useCan } from '@/lib/tenant';
 import { errorMessage } from '@/lib/api';
@@ -132,11 +133,7 @@ export function BalancesPage() {
                 <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                     <Space size={6}>
                         <span style={{ color: 'rgba(0,0,0,0.55)' }}>Kỳ</span>
-                        <Segmented<string>
-                            value={period}
-                            onChange={(v) => setPeriod(v as string)}
-                            options={periods.slice(0, 12).map((p) => ({ value: p.code, label: p.code }))}
-                        />
+                        <PeriodSelect value={period} onChange={setPeriod} style={{ minWidth: 150 }} />
                     </Space>
                     <Space size={6}>
                         <span style={{ color: 'rgba(0,0,0,0.55)' }}>Loại</span>

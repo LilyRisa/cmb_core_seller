@@ -150,7 +150,7 @@ export function useCreatePayment() {
     const tenantId = useCurrentTenantId();
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: async (vars: { supplier_id?: number; paid_at: string; amount: number; payment_method: 'cash' | 'bank' | 'ewallet'; memo?: string }) => {
+        mutationFn: async (vars: { supplier_id?: number; paid_at: string; amount: number; payment_method: 'cash' | 'bank' | 'ewallet'; applied_bills?: Array<{ vendor_bill_id: number; applied_amount: number }>; memo?: string }) => {
             const { data } = await api!.post<{ data: VendorPayment }>('/accounting/vendor-payments', vars);
             return data.data;
         },

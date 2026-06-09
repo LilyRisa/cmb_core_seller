@@ -8,6 +8,7 @@ use CMBcoreSeller\Modules\Accounting\Http\Controllers\ChartAccountController;
 use CMBcoreSeller\Modules\Accounting\Http\Controllers\DashboardController;
 use CMBcoreSeller\Modules\Accounting\Http\Controllers\FiscalPeriodController;
 use CMBcoreSeller\Modules\Accounting\Http\Controllers\JournalController;
+use CMBcoreSeller\Modules\Accounting\Http\Controllers\PartyController;
 use CMBcoreSeller\Modules\Accounting\Http\Controllers\PostRuleController;
 use CMBcoreSeller\Modules\Accounting\Http\Controllers\ReportController;
 use CMBcoreSeller\Modules\Accounting\Http\Controllers\SetupController;
@@ -32,6 +33,10 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.feature:ac
         // Dashboard summary (thống kê nhanh — gộp setup status + cash + AR/AP + P&L kỳ hiện tại).
         Route::get('dashboard-summary', [DashboardController::class, 'summary'])
             ->middleware('can:accounting.view')->name('accounting.dashboard-summary');
+
+        // Party lookup (khách/NCC) cho các bộ chọn trong phiếu thu/chi/hoá đơn/bút toán tay.
+        Route::get('parties', [PartyController::class, 'index'])
+            ->middleware('can:accounting.view')->name('accounting.parties.index');
 
         // Setup (idempotent).
         Route::get('setup/status', [SetupController::class, 'status'])->name('accounting.setup.status');

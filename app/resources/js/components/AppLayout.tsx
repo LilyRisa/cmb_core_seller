@@ -5,8 +5,6 @@ import {
     AppstoreOutlined,
     BarChartOutlined,
     BookOutlined,
-    CalendarOutlined,
-    ContainerOutlined,
     DashboardOutlined,
     FundOutlined,
     InboxOutlined,
@@ -15,7 +13,6 @@ import {
     MenuUnfoldOutlined,
     MessageOutlined,
     MobileOutlined,
-    PartitionOutlined,
     PieChartOutlined,
     ReadOutlined,
     SafetyCertificateOutlined,
@@ -73,19 +70,26 @@ function buildNav(): MenuProps['items'] {
         { type: 'group', label: 'Marketing', children: [
             { key: '/marketing', icon: <FundOutlined />, label: <Link to="/marketing">Quảng cáo Facebook</Link> },
         ] },
-        { type: 'group', label: 'Báo cáo & Kế toán', children: [
+        { type: 'group', label: 'Báo cáo', children: [
             { key: '/reports/overview', icon: <PieChartOutlined />, label: <Link to="/reports/overview">Báo cáo tổng thể</Link> },
-            { key: '/reports', icon: <BarChartOutlined />, label: <Link to="/reports">Báo cáo</Link> },
+            { key: '/reports', icon: <BarChartOutlined />, label: <Link to="/reports">Báo cáo bán hàng</Link> },
             { key: '/shop-report', icon: <SafetyCertificateOutlined />, label: <Link to="/shop-report">Báo cáo sàn</Link> },
             { key: '/finance/settlements', icon: <FundOutlined />, label: <Link to="/finance/settlements">Đối soát sàn</Link> },
-            { key: '/accounting/journals', icon: <BookOutlined />, label: <Link to="/accounting/journals">Sổ nhật ký</Link> },
-            { key: '/accounting/chart-of-accounts', icon: <PartitionOutlined />, label: <Link to="/accounting/chart-of-accounts">Hệ thống TK</Link> },
-            { key: '/accounting/balances', icon: <ContainerOutlined />, label: <Link to="/accounting/balances">Cân đối phát sinh</Link> },
-            { key: '/accounting/ar', icon: <TeamOutlined />, label: <Link to="/accounting/ar">Công nợ phải thu</Link> },
-            { key: '/accounting/ap', icon: <ShopOutlined />, label: <Link to="/accounting/ap">Công nợ phải trả</Link> },
-            { key: '/accounting/cash', icon: <WalletOutlined />, label: <Link to="/accounting/cash">Quỹ & Ngân hàng</Link> },
-            { key: '/accounting/reports', icon: <BarChartOutlined />, label: <Link to="/accounting/reports">Báo cáo tài chính</Link> },
-            { key: '/accounting/periods', icon: <CalendarOutlined />, label: <Link to="/accounting/periods">Kỳ kế toán</Link> },
+        ] },
+        { type: 'group', label: 'Kế toán', children: [
+            { key: '/accounting/dashboard', icon: <DashboardOutlined />, label: <Link to="/accounting/dashboard">Tổng quan kế toán</Link> },
+            { key: 'acc-books', icon: <BookOutlined />, label: 'Sổ sách', children: [
+                { key: '/accounting/journals', label: <Link to="/accounting/journals">Sổ nhật ký chung</Link> },
+                { key: '/accounting/chart-of-accounts', label: <Link to="/accounting/chart-of-accounts">Hệ thống tài khoản</Link> },
+                { key: '/accounting/balances', label: <Link to="/accounting/balances">Cân đối phát sinh</Link> },
+                { key: '/accounting/periods', label: <Link to="/accounting/periods">Kỳ kế toán</Link> },
+            ] },
+            { key: 'acc-money', icon: <WalletOutlined />, label: 'Công nợ & Tiền', children: [
+                { key: '/accounting/ar', label: <Link to="/accounting/ar">Công nợ phải thu</Link> },
+                { key: '/accounting/ap', label: <Link to="/accounting/ap">Công nợ phải trả</Link> },
+                { key: '/accounting/cash', label: <Link to="/accounting/cash">Quỹ & Ngân hàng</Link> },
+            ] },
+            { key: '/accounting/reports', icon: <BarChartOutlined />, label: <Link to="/accounting/reports">Báo cáo tài chính & Thuế</Link> },
         ] },
         { type: 'group', label: 'Hệ thống', children: [
             { key: '/sync-logs', icon: <SwapOutlined />, label: <Link to="/sync-logs">Nhật ký đồng bộ</Link> },
@@ -101,7 +105,7 @@ function buildNav(): MenuProps['items'] {
 const BASE_KEYS = ['/', '/orders', '/customers', '/messaging', '/messaging/channels', '/messaging/templates', '/messaging/utility-templates', '/messaging/auto-rules', '/messaging/knowledge', '/channels', '/products', '/inventory',
     '/procurement/demand-planning', '/procurement/suppliers', '/procurement/purchase-orders',
     '/reports/overview', '/reports', '/shop-report', '/marketing', '/finance/settlements',
-    '/accounting/journals', '/accounting/chart-of-accounts', '/accounting/balances', '/accounting/ar', '/accounting/ap', '/accounting/cash', '/accounting/reports', '/accounting/periods',
+    '/accounting/dashboard', '/accounting/journals', '/accounting/chart-of-accounts', '/accounting/balances', '/accounting/ar', '/accounting/ap', '/accounting/cash', '/accounting/reports', '/accounting/periods',
     '/sync-logs', '/support', '/settings'];
 
 export function AppLayout() {
@@ -135,7 +139,7 @@ export function AppLayout() {
                     {!collapsed && <span>CMB Core</span>}
                 </div>
                 <div style={{ height: 'calc(100vh - 56px)', overflowY: 'auto', overflowX: 'hidden' }}>
-                    <Menu mode="inline" selectedKeys={[selectedKey]} defaultOpenKeys={['messaging']} inlineIndent={16} items={nav} style={{ borderInlineEnd: 'none' }} />
+                    <Menu mode="inline" selectedKeys={[selectedKey]} defaultOpenKeys={['messaging', 'acc-books', 'acc-money']} inlineIndent={16} items={nav} style={{ borderInlineEnd: 'none' }} />
                 </div>
             </Sider>
             <Layout>

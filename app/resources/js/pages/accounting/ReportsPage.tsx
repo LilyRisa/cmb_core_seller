@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { App, Button, Card, Segmented, Space, Statistic, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
+import { App, Button, Card, Popconfirm, Space, Statistic, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons';
+import { CheckCircleFilled, DownloadOutlined, ReloadOutlined, WarningFilled } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { ACCOUNT_TYPE_COLOR, ACCOUNT_TYPE_LABEL, AccountType, formatAmount, useFiscalPeriods } from '@/lib/accounting';
-import { useMemo as useMemo2 } from 'react';
+import { ACCOUNT_TYPE_COLOR, ACCOUNT_TYPE_LABEL, AccountType, formatAmount, useCreateTaxFiling, useFiscalPeriods, useVatReport } from '@/lib/accounting';
 import { useAuth, getCurrentTenantId } from '@/lib/auth';
 import { tenantApi } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { AccountingSetupBanner } from './AccountingSetupBanner';
 import { AccountTreeSelect } from '@/components/accounting/AccountTreeSelect';
+import { PeriodSelect } from '@/components/accounting/PeriodSelect';
 import { useCan } from '@/lib/tenant';
 import { errorMessage } from '@/lib/api';
 
@@ -27,11 +27,11 @@ interface LedgerResp { data: { account_code: string; account_name: string; openi
 
 export function AccountingReportsPage() {
     const { data: periods = [] } = useFiscalPeriods({ kind: 'month' });
-    const defaultPeriod = useMemo2(() => periods.find((p) => p.code === dayjs().format('YYYY-MM'))?.code ?? periods[0]?.code, [periods]);
+    const defaultPeriod = useMemo(() => periods.find((p) => p.code === dayjs().format('YYYY-MM'))?.code ?? periods[0]?.code, [periods]);
     const [period, setPeriod] = useState<string | undefined>();
     useEffect(() => { if (!period && defaultPeriod) setPeriod(defaultPeriod); }, [defaultPeriod, period]);
 
-    const [tab, setTab] = useState<'trial' | 'pnl' | 'bs' | 'ledger'>('trial');
+    const [tab, setTab] = useState<'trial' | 'pnl' | 'bs' | 'ledger' | 'vat'>('trial');
     const canExport = useCan('accounting.export');
 
     return (
@@ -42,11 +42,7 @@ export function AccountingReportsPage() {
                 extra={
                     <Space>
                         <span style={{ color: 'rgba(0,0,0,0.55)' }}>Kỳ</span>
-                        <Segmented<string>
-                            value={period}
-                            onChange={(v) => setPeriod(v as string)}
-                            options={periods.slice(0, 12).map((p) => ({ value: p.code, label: p.code }))}
-                        />
+                        <PeriodSelect value={period} onChange={setPeriod} style={{ minWidth: 160 }} />
                         {canExport && period && <ExportMisaButton period={period} />}
                     </Space>
                 }
@@ -61,6 +57,7 @@ export function AccountingReportsPage() {
                         { key: 'pnl', label: 'Kết quả kinh doanh (B02)', children: <PnlTab period={period} /> },
                         { key: 'bs', label: 'Cân đối kế toán (B01)', children: <BsTab period={period} /> },
                         { key: 'ledger', label: 'Sổ chi tiết TK', children: <LedgerTab period={period} /> },
+                        { key: 'vat', label: 'Thuế GTGT (01/GTGT)', children: <VatTab period={period} canExport={canExport} /> },
                     ]}
                 />
             </Card>
@@ -120,7 +117,7 @@ function TrialBalanceTab({ period }: { period: string | undefined }) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 16 }}>
                 <Statistic title="Tổng PS Nợ" value={data?.meta.total_debit ?? 0} suffix="₫" formatter={(v) => formatAmount(Number(v))} />
                 <Statistic title="Tổng PS Có" value={data?.meta.total_credit ?? 0} suffix="₫" formatter={(v) => formatAmount(Number(v))} />
-                <Statistic title="Kiểm cân bằng" value={data?.meta.balanced ? 'Cân ✓' : 'Lệch ✗'} valueStyle={{ color: data?.meta.balanced ? '#3f8600' : '#cf1322' }} />
+                <Statistic title="Kiểm cân bằng" value={data?.meta.balanced ? 'Cân khớp' : 'Lệch'} prefix={data?.meta.balanced ? <CheckCircleFilled /> : <WarningFilled />} valueStyle={{ color: data?.meta.balanced ? '#3f8600' : '#cf1322' }} />
             </div>
             <Table<TrialRow>
                 rowKey={(r) => r.account_code}
@@ -207,7 +204,7 @@ function BsTab({ period }: { period: string | undefined }) {
                 <Statistic title="Tổng tài sản" value={r.assets} suffix="₫" formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#2563EB' }} />
                 <Statistic title="Tổng nợ phải trả" value={r.liabilities} suffix="₫" formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#fa541c' }} />
                 <Statistic title="Vốn chủ sở hữu" value={r.equity} suffix="₫" formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#722ed1' }} />
-                <Statistic title="Cân đối" value={r.balanced ? 'Cân ✓' : 'Lệch ✗'} valueStyle={{ color: r.balanced ? '#3f8600' : '#cf1322' }} />
+                <Statistic title="Cân đối" value={r.balanced ? 'Cân khớp' : 'Lệch'} prefix={r.balanced ? <CheckCircleFilled /> : <WarningFilled />} valueStyle={{ color: r.balanced ? '#3f8600' : '#cf1322' }} />
                 <Statistic title="LNST năm nay" value={r.retained_earnings_net} suffix="₫" formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: r.retained_earnings_net >= 0 ? '#3f8600' : '#cf1322' }} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -296,6 +293,68 @@ function LedgerTab({ period }: { period: string | undefined }) {
                     />
                 </>
             )}
+        </div>
+    );
+}
+
+function VatTab({ period, canExport }: { period: string | undefined; canExport: boolean }) {
+    const { data, isFetching, error } = useVatReport(period);
+    const createFiling = useCreateTaxFiling();
+    const canPost = useCan('accounting.post');
+    const { message } = App.useApp();
+
+    const status = (error as { response?: { status?: number } })?.response?.status;
+    if (status === 402) {
+        return <Typography.Paragraph type="warning">Báo cáo thuế GTGT thuộc gói nâng cao (accounting_advanced). Vui lòng nâng gói để sử dụng.</Typography.Paragraph>;
+    }
+    if (isFetching || !data) return <Typography.Text type="secondary">Đang tải…</Typography.Text>;
+
+    const rows: Array<{ key: string; code: string; name: string; amount: number; strong?: boolean }> = [
+        { key: 'out', code: '[33311]', name: 'Thuế GTGT đầu ra (của hàng hoá, dịch vụ bán ra)', amount: data.output_vat },
+        { key: 'in', code: '[1331]', name: 'Thuế GTGT đầu vào được khấu trừ (mua vào)', amount: data.input_vat },
+        { key: 'net', code: '[40]', name: 'Thuế GTGT còn phải nộp trong kỳ', amount: data.net_payable, strong: true },
+    ];
+
+    return (
+        <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, flex: 1 }}>
+                    <Statistic title="VAT đầu ra (33311)" value={data.output_vat} suffix="₫" formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#fa541c' }} />
+                    <Statistic title="VAT đầu vào (1331)" value={data.input_vat} suffix="₫" formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: '#2563EB' }} />
+                    <Statistic title="Còn phải nộp" value={data.net_payable} suffix="₫" formatter={(v) => formatAmount(Number(v))} valueStyle={{ color: data.net_payable > 0 ? '#cf1322' : '#3f8600' }} />
+                </div>
+                {(canPost || canExport) && period && (
+                    <Popconfirm
+                        title="Lập tờ khai 01/GTGT?"
+                        description={`Lưu tờ khai thuế GTGT kỳ ${period} để theo dõi & đối chiếu. Có thể lập lại để cập nhật số liệu.`}
+                        okText="Lập tờ khai"
+                        cancelText="Huỷ"
+                        onConfirm={async () => {
+                            try { await createFiling.mutateAsync(period); message.success(`Đã lập tờ khai 01/GTGT-${period}.`); }
+                            catch (e) { message.error(errorMessage(e)); }
+                        }}
+                    >
+                        <Button type="primary" loading={createFiling.isPending}>Lập tờ khai 01/GTGT</Button>
+                    </Popconfirm>
+                )}
+            </div>
+            <Card type="inner" title={<Typography.Text strong>TỜ KHAI THUẾ GTGT — Mẫu 01/GTGT (kỳ {period})</Typography.Text>}>
+                <Table
+                    dataSource={rows}
+                    pagination={false}
+                    size="small"
+                    bordered
+                    columns={[
+                        { title: 'Chỉ tiêu', dataIndex: 'code', width: 110, render: (c: string) => <Typography.Text strong style={{ fontFamily: 'ui-monospace, monospace' }}>{c}</Typography.Text> },
+                        { title: 'Nội dung', dataIndex: 'name', render: (n: string, r) => r.strong ? <Typography.Text strong>{n}</Typography.Text> : n },
+                        { title: 'Số tiền (₫)', dataIndex: 'amount', width: 200, align: 'right', render: (v: number, r) => <Typography.Text strong={r.strong} style={{ color: r.strong ? (v > 0 ? '#cf1322' : '#3f8600') : undefined }}>{formatAmount(v)}</Typography.Text> },
+                    ]}
+                />
+                <Typography.Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0, fontSize: 12 }}>
+                    Số liệu tổng hợp tự động từ các bút toán TK 33311 (đầu ra) và TK 1331 (đầu vào) trong kỳ. Đây là số liệu tham chiếu;
+                    cần đối chiếu với hoá đơn thực tế trước khi nộp tờ khai chính thức trên HTKK/eTax.
+                </Typography.Paragraph>
+            </Card>
         </div>
     );
 }

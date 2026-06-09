@@ -59,6 +59,7 @@ import { ReportsPage } from '@/pages/ReportsPage';
 import { OverviewReportPage } from '@/pages/OverviewReportPage';
 import { ShopReportPage } from '@/pages/ShopReportPage';
 import { SettlementsPage } from '@/pages/SettlementsPage';
+import { AccountingDashboardPage } from '@/pages/accounting/AccountingDashboardPage';
 import { JournalsPage } from '@/pages/accounting/JournalsPage';
 import { ChartOfAccountsPage } from '@/pages/accounting/ChartOfAccountsPage';
 import { PeriodsPage } from '@/pages/accounting/PeriodsPage';
@@ -144,7 +145,8 @@ function Root() {
                 <Route path="finance" element={<Navigate to="/finance/settlements" replace />} />
                 <Route path="finance/settlements" element={<SettlementsPage />} />
                 {/* Phase 7 — Module Kế toán đầy đủ (gated by plan.feature:accounting_basic ở BE). */}
-                <Route path="accounting" element={<Navigate to="/accounting/journals" replace />} />
+                <Route path="accounting" element={<Navigate to="/accounting/dashboard" replace />} />
+                <Route path="accounting/dashboard" element={<AccountingDashboardPage />} />
                 <Route path="accounting/journals" element={<JournalsPage />} />
                 <Route path="accounting/chart-of-accounts" element={<ChartOfAccountsPage />} />
                 <Route path="accounting/periods" element={<PeriodsPage />} />
