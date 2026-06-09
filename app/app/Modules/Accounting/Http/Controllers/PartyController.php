@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Accounting\Http\Controllers;
 
 use CMBcoreSeller\Modules\Customers\Models\Customer;
+use CMBcoreSeller\Modules\Customers\Support\CustomerPhoneNormalizer;
 use CMBcoreSeller\Modules\Procurement\Models\Supplier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -53,7 +54,14 @@ class PartyController extends Controller
         if ($ids) {
             $q->whereIn('id', $ids);
         } elseif ($term !== '') {
-            $q->where(fn ($w) => $w->where('name', 'like', "%{$term}%")->orWhere('phone', 'like', "%{$term}%"));
+            // `phone` mã hoá at rest ⇒ không LIKE được; nếu term là SĐT thì tra theo phone_hash
+            // (mirror CustomerController::applyFilters), còn lại tìm theo tên.
+            $hash = CustomerPhoneNormalizer::normalizeAndHash($term);
+            if ($hash !== null) {
+                $q->where('phone_hash', $hash);
+            } else {
+                $q->where('name', 'like', "%{$term}%");
+            }
         }
         $rows = $q->orderByDesc('last_seen_at')->limit(20)->get();
 

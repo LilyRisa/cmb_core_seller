@@ -33,7 +33,7 @@ function readThreeDigits(n: number, full: boolean): string {
 export function readVND(amount: number): string {
     const value = Math.abs(Math.round(amount));
     if (value === 0) return 'Không đồng';
-    const units = ['', ' nghìn', ' triệu', ' tỷ'];
+    const units = ['', ' nghìn', ' triệu', ' tỷ', ' nghìn tỷ', ' triệu tỷ'];
     const groups: number[] = [];
     let rest = value;
     while (rest > 0) {
@@ -44,7 +44,7 @@ export function readVND(amount: number): string {
     for (let i = groups.length - 1; i >= 0; i--) {
         if (groups[i] === 0) continue;
         const full = i !== groups.length - 1; // nhóm sau nhóm cao nhất ⇒ đọc đủ 3 chữ số
-        chunks.push(readThreeDigits(groups[i], full) + units[i]);
+        chunks.push(readThreeDigits(groups[i], full) + (units[i] ?? ''));
     }
     const text = chunks.join(' ').replace(/\s+/g, ' ').trim();
     const capitalized = text.charAt(0).toUpperCase() + text.slice(1);
