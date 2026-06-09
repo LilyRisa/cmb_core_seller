@@ -133,6 +133,21 @@ class PublishAdDraftTest extends TestCase
         $this->assertNull($sets[1]['external_id'] ?? null);          // 2nd not created
     }
 
+    public function test_empty_adsets_fails_without_creating_campaign(): void
+    {
+        $this->fakeGraph();
+        // payload không có adsets & không phải legacy-flat ⇒ normalize ra [] ⇒ chỉ campaign nếu không chặn.
+        $draft = $this->makeDraft(['campaign' => ['budget_mode' => 'adset']]);
+
+        $this->dispatch($draft);
+        $draft->refresh();
+
+        $this->assertSame('failed', $draft->status);
+        $this->assertNotNull($draft->last_error);
+        $this->assertNull($draft->campaign_external_id);
+        Http::assertNotSent(fn ($r) => str_contains($r->url(), '/campaigns'));
+    }
+
     public function test_legacy_flat_payload_publishes_as_one_adset_one_ad(): void
     {
         $this->fakeGraph();

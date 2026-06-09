@@ -460,15 +460,9 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
         return $targeting;
     }
 
-    /** Vị trí Facebook Meta đã KHAI TỬ ở Graph hiện tại (gửi lên ⇒ reject cả ad set). */
-    private const DEPRECATED_FB_POSITIONS = ['video_feeds'];
-
-    /** Vị trí CHỈ chạy desktop — gỡ khi quảng cáo không nhắm thiết bị desktop. */
-    private const DESKTOP_ONLY_FB_POSITIONS = ['right_hand_column'];
-
     /**
-     * Lọc vị trí không hợp lệ trước khi gửi FB: bỏ vị trí khai tử + vị trí desktop-only
-     * khi không nhắm desktop. Một vị trí lỗi làm FB reject CẢ ad set (subcode 2490562).
+     * Lọc vị trí không hợp lệ trước khi gửi FB — uỷ quyền {@see FacebookAdsCatalog}
+     * (nguồn sự thật duy nhất: vị trí khai tử + desktop-only).
      *
      * @param  list<string>  $positions
      * @param  list<string>  $devices
@@ -476,15 +470,7 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
      */
     private function sanitizePositions(string $platform, array $positions, array $devices): array
     {
-        if ($platform !== 'facebook') {
-            return $positions;
-        }
-        $positions = array_filter($positions, fn ($p) => ! in_array($p, self::DEPRECATED_FB_POSITIONS, true));
-        if ($devices !== [] && ! in_array('desktop', $devices, true)) {
-            $positions = array_filter($positions, fn ($p) => ! in_array($p, self::DESKTOP_ONLY_FB_POSITIONS, true));
-        }
-
-        return array_values($positions);
+        return FacebookAdsCatalog::sanitizePlacements($platform, $positions, $devices);
     }
 
     /**

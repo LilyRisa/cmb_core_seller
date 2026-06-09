@@ -62,16 +62,26 @@ class PublishAdDraft implements ShouldBeUnique, ShouldQueue
         $draft->forceFill(['status' => AdDraft::STATUS_PUBLISHING, 'last_error' => null])->save();
 
         try {
-            if (! $draft->campaign_external_id) {
-                $draft->campaign_external_id = $connector->createCampaign($token, $acc, $mapper->campaign($draft, (string) $account->currency));
-                $draft->save();
-            }
-
             // Normalize to the tree shape so per-node external ids can persist (resume).
             $payload = (array) ($draft->payload ?? []);
             $payload['adsets'] = $mapper->adsetNodes($draft);
             $draft->payload = $payload;
             $draft->save();
+
+            // Guard: không có nhóm/quảng cáo ⇒ fail RÕ trước khi tạo campaign (tránh campaign mồ côi).
+            if ($payload['adsets'] === []) {
+                $draft->forceFill([
+                    'status' => AdDraft::STATUS_FAILED,
+                    'last_error' => 'Bản nháp chưa có nhóm quảng cáo/quảng cáo — vui lòng thêm trước khi xuất bản.',
+                ])->save();
+
+                return;
+            }
+
+            if (! $draft->campaign_external_id) {
+                $draft->campaign_external_id = $connector->createCampaign($token, $acc, $mapper->campaign($draft, (string) $account->currency));
+                $draft->save();
+            }
 
             $currency = (string) $account->currency;
             $campaignId = (string) $draft->campaign_external_id;
