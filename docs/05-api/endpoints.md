@@ -183,9 +183,20 @@
 
 Loại (`type`) v1: `channel.reconnect_needed`, `order.negative_total`, `order.cancelled`, `order.return_new`, `ads.monitor_approaching`, `ads.monitor_action` — sinh tự động từ domain event (xem SPEC 0036 §4). `level ∈ {info,warning,critical}`.
 
+## Quảng cáo (Marketing/Ads — SPEC 2026-06-04 FB, SPEC 2026-06-09 TikTok)
+
+`/api/v1/marketing/*` — `sanctum + verified + tenant`, gate gói. Trục `Ads` provider-agnostic (FB + TikTok). OAuth callback nằm ngoài `/api` (xem dưới). Chi tiết: [ADR-0024](../01-architecture/adr/0024-ads-connector-registry.md), [ADR-0025](../01-architecture/adr/0025-ads-tiktok-integration.md).
+
+| Method | Path | Auth | Response |
+|---|---|---|---|
+| POST | `/api/v1/marketing/ads/connect` | sanctum + tenant + `plan.feature:marketing_facebook` (`marketing.connect`) | `{ data:{ authorize_url } }` — FB Ads OAuth, FE redirect/popup. Chưa bật/cấu hình ⇒ `422`. |
+| POST | `/api/v1/marketing/ads/connect-tiktok` | sanctum + tenant + `plan.feature:marketing_tiktok` (`marketing.connect`) | `{ data:{ authorize_url } }` — TikTok Marketing OAuth (advertiser authorization URL). Chưa bật `INTEGRATIONS_ADS=tiktok` / chưa cấu hình `TIKTOK_ADS_*` ⇒ `422`. |
+
+Các route đọc dùng chung (`/marketing/ad-accounts*`, `/insights`, `/report`, `/reconciliation`…) gate any-of `marketing_facebook|marketing_tiktok`; resolve provider động theo `ad_accounts.provider`. Account TikTok là **read-only** (FE ẩn thao tác sửa/tạm dừng inline).
+
 ## Webhook & OAuth (ngoài `/api`)
 
-Xem [`webhooks-and-oauth.md`](webhooks-and-oauth.md). `POST /webhook/tiktok` → `WebhookController@handle` (verify chữ ký → ghi `webhook_events` → 200 → `ProcessWebhookEvent`); sai chữ ký ⇒ `401`. `GET /oauth/tiktok/callback?app_key=&code=&state=` → `OAuthCallbackController` (đổi token, tạo `channel_account`, redirect `/channels?connected=tiktok` hoặc `?error=…`). `shopee`/`lazada`: route + handler tồn tại nhưng connector chưa có ⇒ `404 UNKNOWN_PROVIDER` (Phase 4).
+Xem [`webhooks-and-oauth.md`](webhooks-and-oauth.md). `POST /webhook/tiktok` → `WebhookController@handle` (verify chữ ký → ghi `webhook_events` → 200 → `ProcessWebhookEvent`); sai chữ ký ⇒ `401`. `GET /oauth/tiktok/callback?app_key=&code=&state=` → `OAuthCallbackController` (đổi token, tạo `channel_account`, redirect `/channels?connected=tiktok` hoặc `?error=…`). `shopee`/`lazada`: route + handler tồn tại nhưng connector chưa có ⇒ `404 UNKNOWN_PROVIDER` (Phase 4). `GET /oauth/facebook_ads/callback` → `AdsOAuthController@callback` (FB Ads). `GET /oauth/tiktok_marketing/redirect?auth_code=&state=` → `TikTokAdsOAuthController@callback` (TikTok Marketing: đổi `auth_code` → token vô hạn, tạo `ad_accounts` provider=tiktok, dispatch sync; redirect `/marketing?connected=tiktok_marketing` hoặc `?error=…`).
 
 **Carrier webhooks (SPEC 0021):** `POST /webhook/carriers/{carrier}` (`ghn|ghtk|jt|viettelpost`) → `CarrierWebhookController@handle`. Core không hard-code tên carrier — connector khai báo `webhookAuthMode()`: `token_header` (**GHN** — verify header `Token` ↔ `credentials.token`, sai ⇒ `401`) hoặc `tracking_lookup` (**GHTK** — webhook không có Token; resolve tenant theo `label_id` đã lưu, verify nhẹ header `X-Client-Source` nếu có, thiếu ⇒ chấp nhận + log). Idempotent qua `(shipment_id, code, occurred_at)`; trả `200` kể cả khi không khớp vận đơn (tránh ĐVVC retry storm); cập nhật trạng thái qua `*StatusMap` + đồng bộ đơn.
 

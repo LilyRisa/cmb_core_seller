@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Alert, App as AntApp, Avatar, Badge, Button, Card, Checkbox, Collapse, DatePicker, Dropdown, Empty, Input, InputNumber, List, Popconfirm, Result, Segmented, Select, Space, Spin, Table, Tag, Tooltip, Typography } from 'antd';
-import { AlertOutlined, ApiOutlined, CheckOutlined, CloseOutlined, DisconnectOutlined, EditOutlined, FacebookFilled, FileTextOutlined, FolderOpenOutlined, FundOutlined, PauseCircleOutlined, PlayCircleOutlined, PlusOutlined, QuestionCircleOutlined, RobotOutlined, SettingOutlined, SyncOutlined } from '@ant-design/icons';
+import { AlertOutlined, ApiOutlined, CheckOutlined, CloseOutlined, DisconnectOutlined, EditOutlined, FacebookFilled, FileTextOutlined, FolderOpenOutlined, FundOutlined, PauseCircleOutlined, PlayCircleOutlined, PlusOutlined, QuestionCircleOutlined, RobotOutlined, SettingOutlined, SyncOutlined, TikTokOutlined } from '@ant-design/icons';
 import { useAdDrafts, useDeleteDraft, useDuplicateDraft } from '@/lib/adWizard';
 import dayjs, { type Dayjs } from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
@@ -21,7 +21,7 @@ import { useCan } from '@/lib/tenant';
 import {
     type ReconRow, type ReportLevel, type ReportRow,
     useAdAccounts, useAdForecast, useAdMonitors, useAdReconciliation, useAdReport,
-    useClaimAutomation, useConnectFacebookAds, useGenerateForecast, useRefreshAccounts, useRefreshAdInsights,
+    useClaimAutomation, useConnectFacebookAds, useConnectTikTokAds, useGenerateForecast, useRefreshAccounts, useRefreshAdInsights,
     useSaveReport, useUpdateAdEntity,
 } from '@/lib/marketing';
 
@@ -31,6 +31,9 @@ const ADS_ERRORS: Record<string, string> = {
     facebook_ads_no_accounts: 'Tài khoản chưa có Ad Account nào, hoặc chưa cấp quyền ads_read.',
     facebook_ads_oauth_state: 'Phiên kết nối đã hết hạn. Vui lòng thử lại.',
     facebook_ads_oauth_failed: 'Kết nối Facebook Ads thất bại.',
+    tiktok_marketing_no_accounts: 'Tài khoản chưa có Ad Account TikTok nào, hoặc chưa cấp quyền.',
+    tiktok_marketing_oauth_state: 'Phiên kết nối đã hết hạn. Vui lòng thử lại.',
+    tiktok_marketing_oauth_failed: 'Kết nối TikTok Ads thất bại.',
 };
 
 function money(v: number | null | undefined, currency: string | null): string {
@@ -129,6 +132,7 @@ export function MarketingDashboardPage() {
     const deleteDraft = useDeleteDraft();
     const duplicateDraft = useDuplicateDraft();
     const connect = useConnectFacebookAds();
+    const connectTikTok = useConnectTikTokAds();
     const refresh = useRefreshAdInsights();
     const refreshAccounts = useRefreshAccounts();
     const { data: accounts, isLoading: loadingAccounts } = useAdAccounts();
@@ -167,6 +171,10 @@ export function MarketingDashboardPage() {
     const unhealthyAccounts = useMemo(() => (accounts ?? []).filter((a) => a.health != null && !a.health.ok), [accounts]);
     const selectedAccount = (accounts ?? []).find((a) => a.id === selectedId) ?? null;
     const sharedNotOwner = selectedAccount?.shared_with_other_tenants === true && selectedAccount?.is_automation_owner === false;
+    // TikTok hiện read-only (Phase 1): ẩn các thao tác ghi inline (sửa tên/ngân sách,
+    // tạm dừng/chạy lại, luật tự động) vì connector chưa hỗ trợ write.
+    const readOnlyProvider = (selectedAccount?.provider ?? '') === 'tiktok';
+    const canEdit = canConnect && !readOnlyProvider;
 
     const since = range[0].format('YYYY-MM-DD');
     const until = range[1].format('YYYY-MM-DD');
@@ -236,11 +244,12 @@ export function MarketingDashboardPage() {
 
     const qc = useQueryClient();
     const applyResult = (p: URLSearchParams) => {
-        if (p.get('connected') === 'facebook_ads') {
-            message.success('Đã kết nối Facebook Ads!');
+        const connected = p.get('connected');
+        if (connected === 'facebook_ads' || connected === 'tiktok_marketing') {
+            message.success(connected === 'tiktok_marketing' ? 'Đã kết nối TikTok Ads!' : 'Đã kết nối Facebook Ads!');
             params.delete('connected'); setParams(params, { replace: true });
             qc.invalidateQueries({ queryKey: ['marketing'] }); // refetch accounts/report ngay, không cần reload tay
-        } else { const e = p.get('error'); if (e?.startsWith('facebook_ads')) { message.error({ content: ADS_ERRORS[e] ?? 'Kết nối thất bại.', duration: 12 }); params.delete('error'); setParams(params, { replace: true }); } }
+        } else { const e = p.get('error'); if (e?.startsWith('facebook_ads') || e?.startsWith('tiktok_marketing')) { message.error({ content: ADS_ERRORS[e] ?? 'Kết nối thất bại.', duration: 12 }); params.delete('error'); setParams(params, { replace: true }); } }
     };
     useEffect(() => {
         applyResult(params);
@@ -250,6 +259,10 @@ export function MarketingDashboardPage() {
     const handleConnect = () => connect.mutate(undefined, {
         onSuccess: async (d) => { const r = await openOAuthPopup(d.authorize_url); if (r.status === 'done' && r.redirect) applyResult(new URL(r.redirect, window.location.origin).searchParams); },
         onError: (e) => message.error(errorMessage(e, 'Không khởi tạo được kết nối. Quản trị viên cần bật INTEGRATIONS_ADS + cấu hình app.')),
+    });
+    const handleConnectTikTok = () => connectTikTok.mutate(undefined, {
+        onSuccess: async (d) => { const r = await openOAuthPopup(d.authorize_url); if (r.status === 'done' && r.redirect) applyResult(new URL(r.redirect, window.location.origin).searchParams); },
+        onError: (e) => message.error(errorMessage(e, 'Không khởi tạo được kết nối TikTok. Quản trị viên cần bật INTEGRATIONS_ADS=tiktok + cấu hình TIKTOK_ADS_*.')),
     });
     const handleForecast = () => {
         if (selectedId == null) return;
@@ -270,7 +283,7 @@ export function MarketingDashboardPage() {
             return (
                 <Space size={4}>
                     <Tag color={s.color}>{s.label}</Tag>
-                    {canConnect && (
+                    {canEdit && (
                         <Tooltip title={isActive ? 'Tạm dừng' : 'Chạy lại'}>
                             <Button
                                 type="text"
@@ -320,7 +333,7 @@ export function MarketingDashboardPage() {
             return (
                 <Space size={2}>
                     {money(r.daily_budget, currency)}
-                    {canConnect && r.daily_budget != null && (
+                    {canEdit && r.daily_budget != null && (
                         <Tooltip title="Sửa ngân sách">
                             <Button
                                 type="text"
@@ -400,7 +413,7 @@ export function MarketingDashboardPage() {
                 return (
                     <Space size={2}>
                         <span>{v ?? r.external_id}</span>
-                        {canConnect && (
+                        {canEdit && (
                             <Tooltip title="Đổi tên">
                                 <Button
                                     type="text"
@@ -432,7 +445,7 @@ export function MarketingDashboardPage() {
                 </Tooltip>
             ),
         }] : []),
-        ...(level !== 'ad' && canConnect ? [{
+        ...(level !== 'ad' && canEdit ? [{
             title: 'Giám sát', key: 'monitor', fixed: 'right' as const, width: 130,
             render: (_: unknown, r: ReportRow) => (
                 <Tooltip title={r.daily_budget == null && level === 'campaign' ? 'Ngân sách theo nhóm — chỉ cài tạm dừng' : 'Tự tăng ngân sách / tạm dừng theo chi phí'}>
@@ -469,11 +482,12 @@ export function MarketingDashboardPage() {
 
     return (
         <div>
-            <PageHeader title="Quảng cáo Facebook" subtitle="Báo cáo quảng cáo facebook, giám sát hiệu suất giải pháp tối ưu chiến dịch" />
+            <PageHeader title="Quảng cáo" subtitle="Báo cáo & giám sát hiệu suất quảng cáo Facebook và TikTok, giải pháp tối ưu chiến dịch" />
 
             <Card style={{ marginBottom: 16 }}>
                 <Space wrap size={12}>
                     <Button type="primary" icon={<FacebookFilled />} loading={connect.isPending} onClick={handleConnect} disabled={!canConnect}>Kết nối Facebook Ads</Button>
+                    <Button icon={<TikTokOutlined />} loading={connectTikTok.isPending} onClick={handleConnectTikTok} disabled={!canConnect}>Kết nối TikTok Ads</Button>
                     {(accounts?.length ?? 0) > 0 && (
                         <Tooltip title="Lấy trạng thái tài khoản / BM mới nhất từ Facebook và phát hiện tài khoản mới">
                             <Button
@@ -649,7 +663,7 @@ export function MarketingDashboardPage() {
             {loadingAccounts ? (
                 <div style={{ textAlign: 'center', padding: 48 }}><Spin /></div>
             ) : (accounts?.length ?? 0) === 0 ? (
-                <Card><Result icon={<FundOutlined />} title="Chưa kết nối tài khoản quảng cáo" subTitle="Bấm 'Kết nối Facebook Ads' để bắt đầu." /></Card>
+                <Card><Result icon={<FundOutlined />} title="Chưa kết nối tài khoản quảng cáo" subTitle="Bấm 'Kết nối Facebook Ads' hoặc 'Kết nối TikTok Ads' để bắt đầu." /></Card>
             ) : (
                 <>
                     <Card style={{ marginBottom: 16 }}
@@ -727,7 +741,7 @@ export function MarketingDashboardPage() {
                                 currency={currency}
                                 monitoredCampaigns={monitoredCampaigns}
                                 monitoredAdsets={monitoredAdsets}
-                                canMonitor={canConnect}
+                                canMonitor={canEdit}
                                 onMonitor={(t) => setMonitorTarget(t)}
                             />
                         ) : (

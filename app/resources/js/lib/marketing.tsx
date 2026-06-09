@@ -154,6 +154,14 @@ export function useConnectFacebookAds() {
     });
 }
 
+export function useConnectTikTokAds() {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async () =>
+            (await api!.post<{ data: { authorize_url: string } }>('/marketing/ads/connect-tiktok')).data.data,
+    });
+}
+
 export function useDisconnectAdAccount() {
     const api = useScopedApi();
     const qc = useQueryClient();

@@ -29,7 +29,7 @@ class BillingPlanSeeder extends Seeder
             'procurement', 'fifo_cogs', 'profit_reports', 'finance_settlements',
             'demand_planning', 'mass_listing', 'automation_rules', 'priority_support',
             'accounting_basic', 'accounting_advanced', 'messaging_inbox', 'messaging_ai',
-            'marketing_facebook', 'shop_health_reports', 'ai',
+            'marketing_facebook', 'marketing_tiktok', 'shop_health_reports', 'ai',
         ];
     }
 

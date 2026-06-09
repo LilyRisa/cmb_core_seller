@@ -93,6 +93,17 @@ return [
         'scopes' => env('FACEBOOK_ADS_SCOPES', 'ads_management,ads_read,business_management'),
     ],
 
+    // TikTok Marketing API (Ads) — ADR-0025, read-only Phase 1. App RIÊNG (KHÔNG dùng
+    // lại TIKTOK_APP_KEY của TikTok Shop). Token dài hạn không hết hạn; redirect đã
+    // cấu hình trên TikTok portal. Xem docs/04-channels/tiktok-ads-setup.md.
+    'ads_tiktok' => [
+        'app_id' => env('TIKTOK_ADS_APP_ID'),
+        'app_secret' => env('TIKTOK_ADS_APP_SECRET'),
+        'base_url' => env('TIKTOK_ADS_BASE_URL', 'https://business-api.tiktok.com/open_api/v1.3'),
+        'auth_url' => env('TIKTOK_ADS_AUTH_URL', 'https://business-api.tiktok.com/portal/auth'),
+        'redirect_uri' => env('TIKTOK_ADS_REDIRECT_URI'), // mặc định APP_URL + /oauth/tiktok_marketing/redirect
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Enabled shipping carriers

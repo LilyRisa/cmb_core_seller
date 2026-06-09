@@ -13,6 +13,7 @@ use CMBcoreSeller\Modules\Marketing\Http\Controllers\AudienceTemplateController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\CampaignAiInsightController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\GeoExclusionTemplateController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\SavedReportController;
+use CMBcoreSeller\Modules\Marketing\Http\Controllers\TikTokAdsOAuthController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -24,12 +25,20 @@ use Illuminate\Support\Facades\Route;
 | (Owner/Admin via wildcard). AdAccountController/AdInsightController added next.
 */
 
-// SPEC 0032 — toàn bộ module Quảng cáo Facebook chỉ mở ở gói Pro (`marketing_facebook`).
-Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.feature:marketing_facebook'])
+// SPEC 0032/2026-06-09 — module Quảng cáo mở ở gói có Facebook HOẶC TikTok (any-of).
+// Route đọc dùng chung resolve provider động theo ad_accounts.provider; route connect
+// của mỗi provider override gate bằng feature key riêng của provider đó.
+Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.feature:marketing_facebook|marketing_tiktok'])
     ->prefix('api/v1/marketing')->group(function () {
         // Facebook Ads OAuth connect — returns authorize URL for FE redirect.
         Route::post('ads/connect', [AdsOAuthController::class, 'start'])
+            ->middleware('plan.feature:marketing_facebook')
             ->name('marketing.ads.connect');
+
+        // TikTok Marketing (Ads) OAuth connect — returns authorize URL for FE redirect.
+        Route::post('ads/connect-tiktok', [TikTokAdsOAuthController::class, 'start'])
+            ->middleware('plan.feature:marketing_tiktok')
+            ->name('marketing.ads.connect-tiktok');
 
         // Ad accounts management.
         Route::get('ad-accounts', [AdAccountController::class, 'index'])

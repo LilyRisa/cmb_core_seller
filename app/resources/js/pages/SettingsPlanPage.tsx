@@ -44,6 +44,7 @@ const FEATURE_LABELS: Record<string, string> = {
     messaging_inbox: 'Nhắn tin Facebook Page + sàn',
     messaging_ai: 'AI hỗ trợ trả lời tin nhắn',
     marketing_facebook: 'Quảng cáo Facebook',
+    marketing_tiktok: 'Quảng cáo TikTok',
     ai: 'Trợ lý & phân tích AI',
     accounting_basic: 'Kế toán cơ bản',
     accounting_advanced: 'Kế toán nâng cao',

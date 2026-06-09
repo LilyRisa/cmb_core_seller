@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { App as AntApp, Avatar, Button, Checkbox, Drawer, Empty, Popconfirm, Space, Tag, Typography } from 'antd';
-import { DisconnectOutlined, FacebookFilled } from '@ant-design/icons';
+import { DisconnectOutlined, FacebookFilled, TikTokOutlined } from '@ant-design/icons';
 import { useAdAccounts, useBulkDisconnectAccounts, type AdAccount } from '@/lib/marketing';
 import { errorMessage } from '@/lib/api';
 
@@ -106,6 +106,9 @@ export function ConnectionManagerDrawer({ open, onClose, onChanged }: Props) {
                                     <Space direction="vertical" size={4} style={{ width: '100%' }}>
                                         {g.accounts.map((a) => (
                                             <Checkbox key={a.id} checked={checked.has(a.id)} onChange={(e) => toggle(a.id, e.target.checked)}>
+                                                {a.provider === 'tiktok'
+                                                    ? <TikTokOutlined style={{ marginRight: 6 }} />
+                                                    : <FacebookFilled style={{ color: '#1877f2', marginRight: 6 }} />}
                                                 {a.name ?? a.external_account_id}
                                                 <Text type="secondary" style={{ fontSize: 11, marginLeft: 6 }}>{a.external_account_id}</Text>
                                                 {a.status !== 'active' && <Tag style={{ marginLeft: 6 }}>{a.status}</Tag>}

@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Modules\Marketing\Jobs;
 
 use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Ads\AdsRegistry;
+use CMBcoreSeller\Integrations\Ads\Contracts\AdsConnector;
 use CMBcoreSeller\Integrations\Ads\DTO\AdInsightDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdInsightThrottleDTO;
 use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
@@ -77,17 +78,57 @@ class SyncAdInsights implements ShouldBeUnique, ShouldQueue
             return;
         }
 
-        foreach (AdEntity::withoutGlobalScope(TenantScope::class)->where('ad_account_id', $account->getKey())->get() as $entity) {
-            $rows = $connector->fetchInsights($token, $entity->external_id, $entity->level, $query, $throttle);
-            $this->ingest($account, (int) $entity->id, $entity->external_id, $entity->level, $rows);
-            if ($this->paceIfHot($account, $throttle)) {
-                return;
+        // Provider có báo cáo advertiser-scoped (vd TikTok /report/integrated/get/) ⇒ gộp
+        // 1 call/level cho cả account (3 call) thay vì N+1 per-entity. FB không khai
+        // capability này nên rớt xuống nhánh per-entity cũ (hành vi không đổi).
+        if ($connector->supports('insights.account_report')) {
+            $this->syncAccountScoped($account, $connector, $token, $query);
+        } else {
+            foreach (AdEntity::withoutGlobalScope(TenantScope::class)->where('ad_account_id', $account->getKey())->get() as $entity) {
+                $rows = $connector->fetchInsights($token, $entity->external_id, $entity->level, $query, $throttle);
+                $this->ingest($account, (int) $entity->id, $entity->external_id, $entity->level, $rows);
+                if ($this->paceIfHot($account, $throttle)) {
+                    return;
+                }
             }
         }
 
         $meta = (array) ($account->meta ?? []);
         $meta['insights_throttled'] = false;
         $account->forceFill(['meta' => $meta, 'insights_synced_at' => now()])->save();
+    }
+
+    /**
+     * Advertiser-scoped sync: 1 report call per level for the whole account, then
+     * map each returned row to its AdEntity (by external_id) and ingest. Used by
+     * providers exposing `insights.account_report` (vd TikTok).
+     *
+     * @param  array<string,mixed>  $query
+     */
+    private function syncAccountScoped(AdAccount $account, AdsConnector $connector, string $token, array $query): void
+    {
+        // external_id => entity id, keyed by level.
+        $entities = AdEntity::withoutGlobalScope(TenantScope::class)
+            ->where('ad_account_id', $account->getKey())->get(['id', 'level', 'external_id']);
+        /** @var array<string,array<string,int>> $byLevel */
+        $byLevel = [];
+        foreach ($entities as $e) {
+            $byLevel[(string) $e->level][(string) $e->external_id] = (int) $e->id;
+        }
+
+        foreach (['campaign', 'adset', 'ad'] as $level) {
+            if (empty($byLevel[$level])) {
+                continue;
+            }
+            $rows = $connector->fetchInsights($token, $account->external_account_id, $level, $query);
+            foreach ($rows as $r) {
+                $entityId = $byLevel[$level][$r->externalId] ?? null;
+                if ($entityId === null) {
+                    continue; // entity chưa đồng bộ — bỏ qua, lần sync entity sau sẽ có
+                }
+                $this->ingest($account, $entityId, $r->externalId, $level, [$r]);
+            }
+        }
     }
 
     /**

@@ -30,6 +30,7 @@ export interface PlanFeatures {
     messaging_inbox: boolean;
     messaging_ai: boolean;
     marketing_facebook: boolean;
+    marketing_tiktok: boolean;
     shop_health_reports: boolean;
     accounting_basic: boolean;
     accounting_advanced: boolean;

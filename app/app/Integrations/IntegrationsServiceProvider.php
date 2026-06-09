@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Integrations;
 
 use CMBcoreSeller\Integrations\Ads\AdsRegistry;
 use CMBcoreSeller\Integrations\Ads\Facebook\FacebookAdsConnector;
+use CMBcoreSeller\Integrations\Ads\TikTok\TikTokAdsConnector;
 use CMBcoreSeller\Integrations\Ai\AiAssistantRegistry;
 use CMBcoreSeller\Integrations\Ai\Claude\ClaudeConnector;
 use CMBcoreSeller\Integrations\Ai\CustomHttp\CustomHttpConnector;
@@ -108,6 +109,7 @@ class IntegrationsServiceProvider extends ServiceProvider
      */
     protected array $adsConnectors = [
         'facebook' => FacebookAdsConnector::class,
+        'tiktok' => TikTokAdsConnector::class,
     ];
 
     /**
@@ -229,6 +231,10 @@ class IntegrationsServiceProvider extends ServiceProvider
 
         $this->app->bind(FacebookAdsConnector::class, function () {
             return new FacebookAdsConnector((array) config('integrations.ads_facebook', []));
+        });
+
+        $this->app->bind(TikTokAdsConnector::class, function () {
+            return new TikTokAdsConnector((array) config('integrations.ads_tiktok', []));
         });
 
         // AI Assistant (SPEC-0024). Register adapter (anthropic/openai_compatible/

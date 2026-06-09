@@ -4,6 +4,7 @@ use CMBcoreSeller\Http\Controllers\AdminSpaController;
 use CMBcoreSeller\Http\Controllers\SpaController;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\OAuthCallbackController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdsOAuthController;
+use CMBcoreSeller\Modules\Marketing\Http\Controllers\TikTokAdsOAuthController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\FacebookOAuthController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\LazadaImOAuthController;
 use Illuminate\Support\Facades\Route;
@@ -43,6 +44,11 @@ Route::get('oauth/lazada_im/callback', [LazadaImOAuthController::class, 'callbac
 // Facebook Ads (Marketing API) OAuth — SPEC 2026-06-04, ads_read token riêng.
 Route::get('oauth/facebook_ads/callback', [AdsOAuthController::class, 'callback'])
     ->name('marketing.facebook_ads.callback');
+
+// TikTok Marketing (Ads) OAuth callback — redirect đã cấu hình trên TikTok portal:
+// https://<APP_URL host>/oauth/tiktok_marketing/redirect (TikTok trả `auth_code`).
+Route::get('oauth/tiktok_marketing/redirect', [TikTokAdsOAuthController::class, 'callback'])
+    ->name('marketing.tiktok_ads.callback');
 
 // --- Admin SPA shell (Spec 2026-05-17) ---
 // `/admin` và mọi sub-path serve Blade `admin.blade.php` nạp bundle `admin.tsx`.
