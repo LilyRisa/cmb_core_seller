@@ -420,6 +420,7 @@ export function MarketingDashboardPage() {
                         </Tooltip>
                     )}
                     <Button type="primary" icon={<PlusOutlined />} disabled={selectedId == null} onClick={() => navigate('/marketing/ads/new?accountId=' + selectedId)}>Tạo quảng cáo</Button>
+                    <Button icon={<RobotOutlined />} disabled={selectedId == null} onClick={() => navigate('/marketing/ads/ai?accountId=' + selectedId)}>Tạo bằng AI</Button>
                     <Button icon={<ApiOutlined />} disabled={selectedId == null} onClick={() => setPixelOpen(true)}>Quản lý Pixel</Button>
                     {bmGroups.length > 0 && (
                         <Select

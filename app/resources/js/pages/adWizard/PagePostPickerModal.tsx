@@ -11,13 +11,16 @@ import { useAdPages, usePagePosts, type AdPagePost } from '@/lib/adWizard';
 
 const { Text, Paragraph } = Typography;
 
-interface PickResult {
+export interface PickResult {
     page_id: string;
     page_post_id: string;
     image_url: string | null;
     message: string | null;
     link_url: string | null;
     cta_type: string | null;
+    likes: number;
+    comments: number;
+    shares: number;
 }
 
 interface Props {
@@ -134,6 +137,9 @@ export function PagePostPickerModal({ open, accountId, onPick, onClose }: Props)
             message: post.message,
             link_url: post.link_url ?? null,
             cta_type: post.cta_type ?? null,
+            likes: post.likes,
+            comments: post.comments,
+            shares: post.shares,
         });
         onClose();
     }

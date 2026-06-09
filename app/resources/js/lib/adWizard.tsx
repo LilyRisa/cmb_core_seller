@@ -222,6 +222,47 @@ export function useTargetingSearch() {
     });
 }
 
+export interface AiCampaignInput {
+    accountId: number;
+    page_id: string;
+    page_post_id: string;
+    objective: AdObjective;
+    mode: 'test' | 'scale';
+    placement_mode: 'advantage_plus' | 'manual';
+    prompt?: string;
+    caption?: string | null;
+    likes?: number;
+    comments?: number;
+    shares?: number;
+    link_url?: string | null;
+    landing_url?: string | null;
+    cta_type?: string | null;
+    pixel_id?: string | null;
+    conversion_event?: string | null;
+    start_time?: string | null;
+}
+
+export interface AiCampaignResult {
+    draft: AdDraft;
+    recommendations: string[];
+}
+
+/** AI tạo chiến dịch từ một bài viết → trả draft + đề xuất của AI. */
+export function useGenerateAiCampaign() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ accountId, ...body }: AiCampaignInput): Promise<AiCampaignResult> => {
+            const res = (await api!.post<{ data: AdDraft; meta?: { recommendations?: string[] } }>(
+                `/marketing/ad-accounts/${accountId}/ai-campaign`,
+                body,
+            )).data;
+            return { draft: res.data, recommendations: res.meta?.recommendations ?? [] };
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: [KEY, 'drafts'] }),
+    });
+}
+
 export function useAudienceEstimate() {
     const api = useScopedApi();
     return useMutation({

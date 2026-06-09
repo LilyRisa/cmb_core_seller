@@ -41,6 +41,7 @@ import { MessagingChannelsPage } from '@/pages/MessagingChannelsPage';
 import { MarketingDashboardPage } from '@/pages/MarketingDashboardPage';
 import { TikTokAdsDashboardPage } from '@/pages/TikTokAdsDashboardPage';
 import { AdWizardPage } from '@/pages/AdWizardPage';
+import { AiCampaignPage } from '@/pages/AiCampaignPage';
 import { InventoryPage } from '@/pages/InventoryPage';
 import { CreateSkuPage } from '@/pages/CreateSkuPage';
 import { CreateOrderPage } from '@/pages/CreateOrderPage';
@@ -131,6 +132,7 @@ function Root() {
                 <Route path="marketing" element={<MarketingDashboardPage />} />
                 <Route path="marketing/tiktok" element={<TikTokAdsDashboardPage />} />
                 <Route path="marketing/ads/new" element={<AdWizardPage />} />
+                <Route path="marketing/ads/ai" element={<AiCampaignPage />} />
                 <Route path="marketing/ads/:draftId/edit" element={<AdWizardPage />} />
                 <Route path="products" element={<Navigate to="/inventory?tab=skus" replace />} />
                 <Route path="inventory" element={<InventoryPage />} />
