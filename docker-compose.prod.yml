@@ -207,7 +207,14 @@ x-app-env: &app-env
   # KHÔNG khai FACEBOOK_ADS_* ở đây (thừa). Redirect tự suy <APP_URL>/oauth/facebook_ads/callback.
   # ⚠️ App cũ PHẢI bật product "Marketing API" + scope ads_read,business_management trên Meta,
   # và thêm redirect /oauth/facebook_ads/callback vào Facebook Login → Valid OAuth Redirect URIs.
-  INTEGRATIONS_ADS: ${INTEGRATIONS_ADS:-facebook}
+  INTEGRATIONS_ADS: ${INTEGRATIONS_ADS:-facebook,tiktok}
+  # TikTok Marketing API (Ads) — ADR-0025, read-only. App RIÊNG, KHÁC TIKTOK_APP_KEY (TikTok Shop):
+  # KHÔNG fallback. Đặt App ID/Secret ở Portainer (TikTok API for Business → My Apps → Basic Information).
+  # Redirect tự suy <APP_URL>/oauth/tiktok_marketing/redirect (đã đăng ký trên TikTok portal) — chỉ
+  # đặt TIKTOK_ADS_REDIRECT_URI khi domain callback khác APP_URL. Chưa đặt creds ⇒ nút kết nối báo 422.
+  TIKTOK_ADS_APP_ID: ${TIKTOK_ADS_APP_ID:-}
+  TIKTOK_ADS_APP_SECRET: ${TIKTOK_ADS_APP_SECRET:-}
+  TIKTOK_ADS_REDIRECT_URI: ${TIKTOK_ADS_REDIRECT_URI:-}
   # Media tin nhắn: dùng r2 (public-CDN, browser fetch được qua signed URL). TTL signed URL (giây).
   MESSAGING_MEDIA_DISK: ${MESSAGING_MEDIA_DISK:-r2}
   MESSAGING_SIGNED_URL_TTL: ${MESSAGING_SIGNED_URL_TTL:-300}
