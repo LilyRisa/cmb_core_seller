@@ -100,7 +100,6 @@ final class FacebookAdsCatalog
                                     'age_min' => ['type' => 'integer', 'minimum' => 13, 'maximum' => 65],
                                     'age_max' => ['type' => 'integer', 'minimum' => 13, 'maximum' => 65],
                                     'genders' => ['type' => 'array', 'items' => ['type' => 'integer', 'enum' => [1, 2]], 'description' => '1=nam,2=nữ; bỏ trống=tất cả'],
-                                    'interests' => ['type' => 'array', 'items' => ['type' => 'object'], 'description' => 'sở thích {id,name} nếu có'],
                                 ],
                             ],
                             'placement_config' => [

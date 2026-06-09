@@ -87,10 +87,10 @@ final class AiCampaignGenerator
      */
     private function buildAdSet(AiCampaignRequest $req, array $as, int $idx, string $budgetMode, string $startIso): array
     {
-        $targeting = (array) ($as['targeting'] ?? []);
-        if (empty($targeting['geo_locations'])) {
-            $targeting['geo_locations'] = ['countries' => ['VN']];
-        }
+        // CHỈ giữ targeting tất định (geo/tuổi/giới tính). BỎ interests/behaviors do LLM không
+        // thể biết id targeting hợp lệ của FB ⇒ tránh lỗi "must be a valid interest id".
+        // Advantage+ tự mở rộng đối tượng; sở thích gợi ý ở recommendations (thêm tay qua wizard).
+        $targeting = $this->safeTargeting((array) ($as['targeting'] ?? []));
 
         // Advantage+ = Meta tự tối ưu TOÀN BỘ ⇒ vị trí tự động + tăng cường sáng tạo
         // (standard enhancements); thủ công ⇒ dùng cấu hình AI (sanitize sau).
@@ -133,6 +133,33 @@ final class AiCampaignGenerator
         }
 
         return $node;
+    }
+
+    /**
+     * Lọc targeting chỉ giữ trường tất định (geo/tuổi/giới tính) — bỏ interests/behaviors AI
+     * tự bịa id (FB reject). Giới tính chỉ nhận 1=nam, 2=nữ.
+     *
+     * @param  array<string,mixed>  $t
+     * @return array<string,mixed>
+     */
+    private function safeTargeting(array $t): array
+    {
+        $out = ['geo_locations' => ! empty($t['geo_locations']) ? $t['geo_locations'] : ['countries' => ['VN']]];
+
+        foreach (['age_min', 'age_max'] as $k) {
+            if (isset($t[$k]) && is_numeric($t[$k])) {
+                $out[$k] = max(13, min(65, (int) $t[$k]));
+            }
+        }
+
+        if (! empty($t['genders']) && is_array($t['genders'])) {
+            $genders = array_values(array_filter(array_map('intval', $t['genders']), fn ($g) => in_array($g, [1, 2], true)));
+            if ($genders !== []) {
+                $out['genders'] = $genders;
+            }
+        }
+
+        return $out;
     }
 
     private function campaignName(AiCampaignRequest $req): string
@@ -197,8 +224,10 @@ final class AiCampaignGenerator
           hơn, audience đã/đang hiệu quả, có thể nhiều nhóm để test biến thể.
         - Ngân sách/ngày PHẢI nằm trong khoảng budget_guardrail (min..max), ưu tiên gần
           'recommended'. Đừng đề xuất quá nhỏ (FB từ chối) hay quá lớn (đốt tiền).
-        - Nhắm mục tiêu: luôn có geo_locations (mặc định {"countries":["VN"]}); chọn age/gender
-          hợp sản phẩm dựa trên caption + engagement.
+        - Nhắm mục tiêu: CHỈ dùng geo_locations (mặc định {"countries":["VN"]}) + age_min/age_max +
+          genders (1=nam,2=nữ). TUYỆT ĐỐI KHÔNG tự bịa id sở thích/hành vi (interests) — bạn không
+          biết id targeting hợp lệ của Facebook, gửi sai làm hỏng cả nhóm. Muốn gợi ý sở thích thì
+          ghi TÊN trong recommendations để người dùng tự thêm.
         - Cách tối ưu (optimization_mode): nếu = advantage_plus → Meta TỰ TỐI ƯU TOÀN BỘ:
           để placement_config.automatic=true, audience RỘNG (Advantage+ Audience, để Meta mở
           rộng), bật tăng cường sáng tạo. Nếu = manual → tự đề xuất vị trí/nhắm mục tiêu cụ thể.

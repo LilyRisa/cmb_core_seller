@@ -75,6 +75,28 @@ class AiCampaignGeneratorTest extends TestCase
         $this->assertContains('Theo dõi CPM 3 ngày rồi scale', $res['recommendations']);
     }
 
+    public function test_strips_ai_invented_interest_ids(): void
+    {
+        $this->bindAi([
+            'campaign' => ['budget_mode' => 'adset'],
+            'adsets' => [[
+                'name' => 'N', 'budget' => ['daily_major' => 150000],
+                'targeting' => ['geo_locations' => ['countries' => ['VN']], 'age_min' => 25, 'age_max' => 40, 'genders' => [2], 'interests' => [['id' => 'fake123', 'name' => 'Áo thun']]],
+                'ads' => [['name' => 'A', 'creative' => ['cta' => 'MESSAGE_PAGE']]],
+            ]],
+            'recommendations' => [],
+        ]);
+        $acc = $this->account();
+
+        $res = app(AiCampaignGenerator::class)->generate($this->request($acc));
+
+        $t = $res['draft']->payload['adsets'][0]['targeting'];
+        $this->assertArrayNotHasKey('interests', $t);   // id sở thích AI tự bịa bị loại
+        $this->assertSame(25, $t['age_min']);
+        $this->assertSame([2], $t['genders']);
+        $this->assertSame(['countries' => ['VN']], $t['geo_locations']);
+    }
+
     public function test_conversions_objective_sets_pixel_and_link(): void
     {
         $this->bindAi([
