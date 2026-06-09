@@ -47,7 +47,8 @@ x-app-env: &app-env
   APP_DEBUG: "false"
   APP_KEY: ${APP_KEY}                         # required — `... run --rm app php artisan key:generate --show`
   APP_URL: ${APP_URL:-https://app.cmbcore.com}
-  APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
+  APP_TIMEZONE: ${APP_TIMEZONE:-UTC}                          # storage/transport = UTC (chuẩn hóa 2026-06-10)
+  APP_DISPLAY_TIMEZONE: ${APP_DISPLAY_TIMEZONE:-Asia/Ho_Chi_Minh}  # hiển thị & xử lý nghiệp vụ = UTC+7
   APP_LOCALE: vi
   TRUSTED_PROXIES: "*"                        # behind NPM — bootstrap/app.php reads this
   LOG_CHANNEL: stack
