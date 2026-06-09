@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import dayjs from 'dayjs';
 import { App, Button, Input } from 'antd';
 import {
     CheckCircleFilled, ClockCircleOutlined, CloseOutlined,
@@ -9,26 +10,25 @@ import {
     type SupportConversation, type SupportMessage,
     useMarkSupportRead, useSendSupportMessage, useSupportConversations,
 } from '@/lib/support';
+import { DISPLAY_TZ, formatDate } from '@/lib/format';
 import { SupportAttachmentList } from './SupportAttachmentList';
 
 const MAX_FILES = 5;
 const ACCEPT = 'image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt';
 
-/** Giờ gọn: hôm nay → HH:mm, khác ngày → DD/MM HH:mm. */
+/** Giờ gọn theo giờ VN: hôm nay → HH:mm, khác ngày → DD/MM HH:mm. */
 function fmtTime(iso: string | null): string {
     if (!iso) return '';
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return '';
-    const now = new Date();
-    const hm = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-    return d.toDateString() === now.toDateString() ? hm : `${d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })} ${hm}`;
+    const d = dayjs(iso).tz(DISPLAY_TZ);
+    if (!d.isValid()) return '';
+    const now = dayjs().tz(DISPLAY_TZ);
+    return d.isSame(now, 'day') ? d.format('HH:mm') : d.format('DD/MM HH:mm');
 }
 
-/** Ngày + giờ đầy đủ (cho mốc đã đóng). */
+/** Ngày + giờ đầy đủ (cho mốc đã đóng), theo giờ VN. */
 function fmtFull(iso: string | null): string {
     if (!iso) return '';
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('vi-VN');
+    return formatDate(iso);
 }
 
 function humanSize(bytes: number): string {

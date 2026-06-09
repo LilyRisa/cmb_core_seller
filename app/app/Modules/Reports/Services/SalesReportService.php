@@ -38,7 +38,7 @@ class SalesReportService
     {
         $granularity = in_array($granularity, self::GRANULARITIES, true) ? $granularity : 'day';
         $base = Order::withoutGlobalScope(TenantScope::class)->where('tenant_id', $tenantId)
-            ->whereNull('deleted_at')->whereBetween('placed_at', [$from, $to])
+            ->whereNull('deleted_at')->whereBetween('placed_at', [$from->utc(), $to->utc()])
             ->whereNotIn('status', self::EXCLUDED_STATUSES);
         $this->applyFilters($base, $filters);
 
@@ -86,7 +86,7 @@ class SalesReportService
             ->join('orders', 'orders.id', '=', 'order_costs.order_id')
             ->join('order_items', 'order_items.id', '=', 'order_costs.order_item_id')
             ->where('order_costs.tenant_id', $tenantId)
-            ->whereBetween('order_costs.shipped_at', [$from, $to])
+            ->whereBetween('order_costs.shipped_at', [$from->utc(), $to->utc()])
             ->whereNull('orders.deleted_at')
             ->whereNotIn('orders.status', self::EXCLUDED_STATUSES);
         $this->applyFiltersJoined($base, $filters);
@@ -222,7 +222,7 @@ class SalesReportService
             ->where('orders.tenant_id', $tenantId)
             ->whereNull('orders.deleted_at')
             ->whereNotIn('orders.status', self::EXCLUDED_STATUSES)
-            ->whereBetween('orders.placed_at', [$from, $to])
+            ->whereBetween('orders.placed_at', [$from->utc(), $to->utc()])
             ->whereNotNull('order_items.sku_id');
         if (! empty($filters['source'])) {
             $rows->where('orders.source', $filters['source']);
@@ -281,19 +281,25 @@ class SalesReportService
         }
     }
 
-    /** DATE_TRUNC tương đương: postgres dùng `DATE_TRUNC('day', col)`, sqlite dùng `strftime('%Y-%m-%d', col)`. */
+    /**
+     * DATE_TRUNC tương đương, gom theo NGÀY VIỆT NAM (display tz): cột lưu UTC nên dịch sang display
+     * tz trước khi truncate. postgres: `(col AT TIME ZONE 'UTC') AT TIME ZONE '<tz>'`; sqlite (test):
+     * cộng offset display tz vào `strftime`.
+     */
     private function truncDateSql(string $col, string $granularity): string
     {
+        $tz = app_display_tz();
         $driver = DB::connection()->getDriverName();
         if ($driver === 'pgsql') {
-            return "DATE_TRUNC('{$granularity}', {$col})";
+            return "DATE_TRUNC('{$granularity}', ({$col} AT TIME ZONE 'UTC') AT TIME ZONE '{$tz}')";
         }
         // sqlite (test) + mysql fallback — group by `Y-m-d` cho day; tuần/tháng dùng strftime.
         $fmt = match ($granularity) {
             'week' => '%Y-%W', 'month' => '%Y-%m', default => '%Y-%m-%d',
         };
+        $offsetHours = (int) (CarbonImmutable::now($tz)->getOffset() / 3600);
 
-        return "strftime('{$fmt}', {$col})";
+        return "strftime('{$fmt}', {$col}, '{$offsetHours} hours')";
     }
 
     /** @param  list<array<string,mixed>>  $rows  data rows; first row used to detect headers. */

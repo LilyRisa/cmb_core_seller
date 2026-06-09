@@ -15,6 +15,7 @@ import { AddressPicker, type PickedAddress } from '@/components/AddressPicker';
 import { CarrierLogo, CARRIER_TAGLINE } from '@/components/CarrierLogo';
 import { CARRIER_META } from '@/components/CarrierBadge';
 import { errorMessage } from '@/lib/api';
+import { formatDateShort } from '@/lib/format';
 import { useCan } from '@/lib/tenant';
 import {
     type Carrier, type CarrierAccount, type GhnDistrict, type GhnProvince, type GhnShop, type GhnWard,
@@ -306,7 +307,7 @@ function AccountRow({
         : ok ? 'Kết nối tốt'
         : (error ?? 'Lỗi xác thực');
 
-    const lastCheckText = verifiedAt ? `Kiểm tra ${dayjs(verifiedAt).format('HH:mm DD/MM')}` : null;
+    const lastCheckText = verifiedAt ? `Kiểm tra ${formatDateShort(verifiedAt)}` : null;
 
     return (
         <div className={`acct-row ${account.is_active ? '' : 'is-off'}`}>

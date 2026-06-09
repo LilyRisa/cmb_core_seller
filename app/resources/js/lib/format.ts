@@ -1,11 +1,20 @@
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import timezone from 'dayjs/plugin/timezone';
 import utc from 'dayjs/plugin/utc';
 import 'dayjs/locale/vi';
 
 dayjs.extend(relativeTime);
 dayjs.extend(utc);
+dayjs.extend(timezone);
 dayjs.locale('vi');
+
+/**
+ * Display timezone (UTC+7). Storage & transport are always UTC; every user-facing
+ * date/time renders in Vietnam time regardless of the viewer's browser timezone.
+ * Mirrors the backend `app_display_tz()` helper / `config('app.display_timezone')`.
+ */
+export const DISPLAY_TZ = 'Asia/Ho_Chi_Minh';
 
 /** Money is integer VND đồng from the API — format with a thousands separator. */
 export function formatMoney(value: number | null | undefined, currency = 'VND'): string {
@@ -14,11 +23,33 @@ export function formatMoney(value: number | null | undefined, currency = 'VND'):
     return currency === 'VND' ? `${n} ₫` : `${n} ${currency}`;
 }
 
-/** ISO-8601 UTC -> Asia/Ho_Chi_Minh display. */
+/** ISO-8601 (instant) -> Asia/Ho_Chi_Minh display. Use for timestamps (created_at, sent_at, …). */
 export function formatDate(iso: string | null | undefined, withTime = true): string {
     if (!iso) return '—';
-    const d = dayjs(iso);
+    const d = dayjs(iso).tz(DISPLAY_TZ);
     return withTime ? d.format('DD/MM/YYYY HH:mm') : d.format('DD/MM/YYYY');
+}
+
+/** Same as {@link formatDate} but keeps seconds — for audit/log views. */
+export function formatDateTimeSeconds(iso: string | null | undefined): string {
+    if (!iso) return '—';
+    return dayjs(iso).tz(DISPLAY_TZ).format('DD/MM/YYYY HH:mm:ss');
+}
+
+/** Compact day + time (no year), Asia/Ho_Chi_Minh — for dense tables/tooltips. */
+export function formatDateShort(iso: string | null | undefined): string {
+    if (!iso) return '—';
+    return dayjs(iso).tz(DISPLAY_TZ).format('DD/MM HH:mm');
+}
+
+/**
+ * Calendar-date display, NO timezone conversion — for pure date values (bill_date,
+ * due_date, accounting periods…) where there is no instant to localize and converting
+ * would risk shifting across midnight.
+ */
+export function formatDateOnly(iso: string | null | undefined): string {
+    if (!iso) return '—';
+    return dayjs(iso).format('DD/MM/YYYY');
 }
 
 export function fromNow(iso: string | null | undefined): string {

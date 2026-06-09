@@ -11,6 +11,7 @@ import { BulkProgressModal } from '@/components/BulkProgressModal';
 import { useBulkAction } from '@/lib/useBulkAction';
 import { MoneyText, DateText } from '@/components/MoneyText';
 import { errorMessage } from '@/lib/api';
+import { formatDate } from '@/lib/format';
 import { useCan } from '@/lib/tenant';
 import type { Order } from '@/lib/orders';
 import {
@@ -27,7 +28,7 @@ function ShipmentStatusTag({ status }: { status: string }) {
 /** "Đơn đã in" chip — hiện ở danh sách đơn để biết đơn đã in & in bao nhiêu lần (SPEC 0013 — domain doc §1). */
 export function PrintCountBadge({ n, at }: { n: number; at?: string | null }) {
     if (!n) return null;
-    return <Tooltip title={`Đã in ${n} lần${at ? ' · gần nhất ' + new Date(at).toLocaleString('vi-VN') : ''}`}><Tag icon={<PrinterOutlined />} color={n > 1 ? 'orange' : 'green'} style={{ marginInlineEnd: 0 }}>{n}×</Tag></Tooltip>;
+    return <Tooltip title={`Đã in ${n} lần${at ? ' · gần nhất ' + formatDate(at) : ''}`}><Tag icon={<PrinterOutlined />} color={n > 1 ? 'orange' : 'green'} style={{ marginInlineEnd: 0 }}>{n}×</Tag></Tooltip>;
 }
 
 const PRINT_TYPE_LABEL: Record<PrintJob['type'], string> = { label: 'tem sàn', delivery: 'phiếu giao hàng', packing: 'phiếu đóng gói', picking: 'phiếu soạn hàng', invoice: 'hoá đơn' };

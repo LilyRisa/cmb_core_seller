@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useShippingLabelTemplates, useDeleteShippingLabelTemplate, useSetDefaultShippingLabelTemplate, useDuplicateShippingLabelTemplate } from '@/lib/shippingLabels';
 import { useCan } from '@/lib/tenant';
 import { errorMessage } from '@/lib/api';
+import { formatDate } from '@/lib/format';
 import type { Template } from '@/lib/shippingLabelTypes';
 
 export function SettingsShippingLabelsPage() {
@@ -34,7 +35,7 @@ export function SettingsShippingLabelsPage() {
             </Space>
         ) },
         { title: 'Khổ giấy', dataIndex: 'paper', render: (p: string, t: Template) => `${p} (${t.paper_w_mm}×${t.paper_h_mm || 'auto'}mm)` },
-        { title: 'Cập nhật', dataIndex: 'updated_at', render: (v: string) => new Date(v).toLocaleString('vi-VN') },
+        { title: 'Cập nhật', dataIndex: 'updated_at', render: (v: string) => formatDate(v) },
         { title: '', key: 'actions', width: 180, render: (_: unknown, t: Template) => (
             <Space size={2}>
                 <Tooltip title="Sửa"><Button type="text" icon={<EditOutlined />} onClick={() => navigate(`/settings/shipping-labels/${t.id}`)} /></Tooltip>

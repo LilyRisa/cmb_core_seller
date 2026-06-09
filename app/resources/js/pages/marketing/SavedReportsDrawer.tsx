@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { App as AntApp, Button, Drawer, Empty, List, Popconfirm, Space, Spin, Table, Tag, Typography } from 'antd';
 import { ArrowLeftOutlined, DeleteOutlined, FileTextOutlined } from '@ant-design/icons';
 import { useDeleteSavedReport, useSavedReport, useSavedReports, type ReportRow } from '@/lib/marketing';
+import { formatDate } from '@/lib/format';
 
 const { Text } = Typography;
 
@@ -51,7 +52,7 @@ export function SavedReportsDrawer({ open, accountId, onClose }: Props) {
                         <Space wrap style={{ marginBottom: 12 }}>
                             <Tag>{LEVEL_VI[detail.level] ?? detail.level}</Tag>
                             <Text type="secondary">{detail.since} → {detail.until}</Text>
-                            {detail.created_at && <Text type="secondary">· lưu {new Date(detail.created_at).toLocaleString('vi-VN')}</Text>}
+                            {detail.created_at && <Text type="secondary">· lưu {formatDate(detail.created_at)}</Text>}
                         </Space>
                         <Table<ReportRow>
                             rowKey="external_id"
@@ -100,7 +101,7 @@ export function SavedReportsDrawer({ open, accountId, onClose }: Props) {
                                         <Tag>{LEVEL_VI[r.level] ?? r.level}</Tag>
                                         <Text type="secondary">{r.since} → {r.until}</Text>
                                         <Text type="secondary">· {r.row_count} dòng</Text>
-                                        {r.created_at && <Text type="secondary">· {new Date(r.created_at).toLocaleString('vi-VN')}</Text>}
+                                        {r.created_at && <Text type="secondary">· {formatDate(r.created_at)}</Text>}
                                     </Space>
                                 }
                             />

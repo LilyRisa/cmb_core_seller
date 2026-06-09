@@ -6,6 +6,7 @@ import {
 import { BulbOutlined, CheckCircleOutlined, DeleteOutlined, RobotOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { errorMessage } from '@/lib/api';
+import { formatDate } from '@/lib/format';
 import {
     CAMPAIGN_AI_METRICS, type CampaignAiInsight, type CampaignAiMetric,
     useCampaignAiInsight, useCampaignAiInsightHistory, useDeleteCampaignInsight, useGenerateCampaignAiInsight,
@@ -269,7 +270,7 @@ export function CampaignAiInsightDrawer({ open, accountId, campaign, onClose }: 
                                             ? <Tag color={scoreColor(score)} style={{ margin: 0, fontWeight: 600 }}>{score}</Tag>
                                             : <Tag style={{ margin: 0 }}>—</Tag>}
                                         <Text style={{ fontSize: 13 }}>
-                                            {h.generated_at ? new Date(h.generated_at).toLocaleString('vi-VN') : '—'}
+                                            {formatDate(h.generated_at)}
                                         </Text>
                                         {idx === 0 && <Tag color="blue" style={{ margin: 0 }}>Mới nhất</Tag>}
                                         {h.params?.days ? <Text type="secondary" style={{ fontSize: 12 }}>{h.params.days} ngày</Text> : null}

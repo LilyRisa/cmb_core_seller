@@ -3,6 +3,7 @@ import { App as AntApp, Alert, Button, Collapse, Drawer, Divider, Form, InputNum
 import { AlertOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useAdMonitors, useDeleteMonitor, useDeleteMonitorAction, useMonitorActions, useUpsertMonitor, type AdMonitor } from '@/lib/marketing';
 import { errorMessage } from '@/lib/api';
+import { formatDate } from '@/lib/format';
 
 const { Text } = Typography;
 
@@ -188,7 +189,7 @@ export function MonitorConfigDrawer({ open, accountId, target, onClose }: Props)
                                             <Space direction="vertical" size={0}>
                                                 <Space size={6}>
                                                     <Tag color={a.type === 'pause' ? 'red' : 'green'}>{a.type === 'pause' ? 'Tạm dừng' : 'Tăng ngân sách'}</Tag>
-                                                    <Text type="secondary" style={{ fontSize: 12 }}>{a.created_at ? new Date(a.created_at).toLocaleString('vi-VN') : ''}</Text>
+                                                    <Text type="secondary" style={{ fontSize: 12 }}>{a.created_at ? formatDate(a.created_at) : ''}</Text>
                                                 </Space>
                                                 <Text type="secondary" style={{ fontSize: 12 }}>
                                                     {a.type === 'increase'

@@ -1,7 +1,6 @@
 import { type ReactNode, useState } from 'react';
 import { App, Button, Descriptions, Drawer, Empty, Form, Input, Modal, Radio, Skeleton, Space, Table, Tabs, Tag, Typography } from 'antd';
 import { DeleteOutlined, FacebookFilled, FundOutlined, LockOutlined, ShopOutlined, SwapOutlined, TikTokOutlined, UnlockOutlined, WarningOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
 import {
     useAdminChangePlan, useAdminDeleteChannel, useAdminPlans, useAdminReactivateTenant, useAdminSuspendTenant,
     useAdminTenant,
@@ -9,7 +8,7 @@ import {
 } from '@admin/lib/admin';
 import { errorMessage } from '@/lib/api';
 import { ChannelLogo } from '@/components/ChannelLogo';
-import { CHANNEL_META } from '@/lib/format';
+import { CHANNEL_META, formatDate, formatDateShort, formatDateTimeSeconds } from '@/lib/format';
 
 /**
  * Drawer chi tiết 1 tenant cho super-admin. SPEC 0020 §3.3–3.5.
@@ -85,7 +84,7 @@ export function AdminTenantDrawer({ tenantId, onClose }: { tenantId: number | nu
                 <>
                     <Descriptions size="small" column={2} bordered style={{ marginBottom: 16 }}>
                         <Descriptions.Item label="Slug">{t.slug}</Descriptions.Item>
-                        <Descriptions.Item label="Tạo lúc">{t.created_at ? dayjs(t.created_at).format('DD/MM/YYYY HH:mm') : '—'}</Descriptions.Item>
+                        <Descriptions.Item label="Tạo lúc">{formatDate(t.created_at)}</Descriptions.Item>
                         <Descriptions.Item label="Chủ sở hữu" span={2}>
                             {t.owner ? `${t.owner.name} <${t.owner.email}>` : '—'}
                         </Descriptions.Item>
@@ -177,7 +176,7 @@ function ChannelsTab({ tenantId, accounts }: { tenantId: number; accounts: Admin
                 { title: 'Trạng thái', dataIndex: 'status', key: 'status', width: 110,
                     render: (v: string) => <Tag color={v === 'active' ? 'green' : v === 'revoked' ? 'red' : 'orange'}>{v}</Tag> },
                 { title: 'Đồng bộ gần nhất', dataIndex: 'last_synced_at', key: 'last_synced_at', width: 160,
-                    render: (v: string | null) => v ? dayjs(v).format('DD/MM HH:mm') : '—' },
+                    render: (v: string | null) => formatDateShort(v) },
                 { title: '', key: 'actions', width: 90,
                     render: (_v, r) => (
                         <Button danger size="small" icon={<DeleteOutlined />}
@@ -232,11 +231,11 @@ function PlanTab({ tenantId, sub }: { tenantId: number; sub: import('@admin/lib/
                     <Descriptions.Item label="Gói">{(sub.plan_code ?? '—').toUpperCase()}</Descriptions.Item>
                     <Descriptions.Item label="Trạng thái">{sub.status}</Descriptions.Item>
                     <Descriptions.Item label="Chu kỳ">{sub.billing_cycle}</Descriptions.Item>
-                    <Descriptions.Item label="Hết hạn">{sub.current_period_end ? dayjs(sub.current_period_end).format('DD/MM/YYYY') : '—'}</Descriptions.Item>
+                    <Descriptions.Item label="Hết hạn">{formatDate(sub.current_period_end, false)}</Descriptions.Item>
                     {sub.over_quota_warned_at && (
                         <Descriptions.Item label="Cảnh báo vượt mức" span={2}>
                             <Space>
-                                <Typography.Text>{dayjs(sub.over_quota_warned_at).format('DD/MM/YYYY HH:mm')}</Typography.Text>
+                                <Typography.Text>{formatDate(sub.over_quota_warned_at)}</Typography.Text>
                                 <Tag color={sub.over_quota_locked ? 'red' : 'orange'}>
                                     {sub.over_quota_locked ? 'Đã quá 48h — đang khoá' : 'Còn trong 48h ân hạn'}
                                 </Tag>
@@ -328,7 +327,7 @@ function AdAccountsTab({ accounts }: { accounts: import('@admin/lib/admin').Admi
                             { title: 'Tiền tệ', dataIndex: 'currency', key: 'cur', width: 90, render: (v: string | null) => v ?? '—' },
                             { title: 'Trạng thái', dataIndex: 'status', key: 'st', width: 110, render: (v: string) => <Tag>{v}</Tag> },
                             { title: 'Đồng bộ gần nhất', dataIndex: 'last_synced_at', key: 'sync', width: 150,
-                                render: (v: string | null) => (v ? dayjs(v).format('DD/MM HH:mm') : '—') },
+                                render: (v: string | null) => formatDateShort(v) },
                         ]}
                     />
                 </div>
@@ -347,7 +346,7 @@ function AuditTab({ entries }: { entries: import('@admin/lib/admin').AdminAuditE
             dataSource={entries}
             columns={[
                 { title: 'Thời gian', dataIndex: 'created_at', key: 'created_at', width: 160,
-                    render: (v: string | null) => v ? dayjs(v).format('DD/MM HH:mm:ss') : '—' },
+                    render: (v: string | null) => formatDateTimeSeconds(v) },
                 { title: 'Hành động', dataIndex: 'action', key: 'action', width: 220,
                     render: (v: string) => <Tag>{v}</Tag> },
                 { title: 'Admin', dataIndex: 'user_id', key: 'user_id', width: 80 },

@@ -4,6 +4,7 @@ import { ApiOutlined, ShareAltOutlined } from '@ant-design/icons';
 import { useAdPixels, useSharePixel } from '@/lib/adWizard';
 import { useAdAccounts } from '@/lib/marketing';
 import { errorMessage } from '@/lib/api';
+import { formatDate } from '@/lib/format';
 
 const { Text } = Typography;
 
@@ -72,7 +73,7 @@ export function PixelManagerDrawer({ open, accountId, onClose }: Props) {
                                     {p.is_unavailable ? <Tag color="red">Không khả dụng</Tag> : <Tag color="green">Hoạt động</Tag>}
                                 </Space>
                                 <Text type="secondary" style={{ fontSize: 12 }}>
-                                    Lần kích hoạt gần nhất: {p.last_fired_time ? new Date(p.last_fired_time).toLocaleString('vi-VN') : '—'}
+                                    Lần kích hoạt gần nhất: {formatDate(p.last_fired_time)}
                                 </Text>
                                 <Space wrap>
                                     <Select

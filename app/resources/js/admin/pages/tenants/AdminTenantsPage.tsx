@@ -5,7 +5,7 @@ import { LockOutlined, SearchOutlined, WarningOutlined } from '@ant-design/icons
 import { PageHeader } from '@/components/PageHeader';
 import { useAdminTenants, type AdminTenantSummary } from '@admin/lib/admin';
 import { AdminTenantDrawer } from './AdminTenantDrawer';
-import dayjs from 'dayjs';
+import { formatDate, formatDateShort } from '@/lib/format';
 
 type FilterKind = 'all' | 'over_quota' | 'suspended';
 
@@ -37,7 +37,7 @@ export function AdminTenantsPage() {
                 <Space direction="vertical" size={0}>
                     <Typography.Text strong>{r.name}</Typography.Text>
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                        {r.slug} · từ {r.created_at ? dayjs(r.created_at).format('DD/MM/YYYY') : '—'}
+                        {r.slug} · từ {formatDate(r.created_at, false)}
                     </Typography.Text>
                 </Space>
             ),
@@ -84,7 +84,7 @@ export function AdminTenantsPage() {
                         {r.status === 'suspended' ? 'Tạm khoá' : 'Hoạt động'}
                     </Tag>
                     {r.subscription?.over_quota_warned_at && (
-                        <Tooltip title={`Cảnh báo từ ${dayjs(r.subscription.over_quota_warned_at).format('DD/MM HH:mm')}`}>
+                        <Tooltip title={`Cảnh báo từ ${formatDateShort(r.subscription.over_quota_warned_at)}`}>
                             <Tag color={r.subscription.over_quota_locked ? 'red' : 'orange'}
                                 icon={r.subscription.over_quota_locked ? <LockOutlined /> : <WarningOutlined />}>
                                 {r.subscription.over_quota_locked ? 'Đã khoá' : 'Đếm 48h'}

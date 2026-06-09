@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Card, Tabs, Input, Space, Table, Tag, Button, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { SearchOutlined, PlusOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
+import { formatDate } from '@/lib/format';
 import { useAdminUsersList, type AdminRow } from '../../lib/adminUsers';
 import { useTenantUsers, type TenantUserRow } from '../../lib/tenantUsers';
 import { AdminUserFormDrawer } from './AdminUserFormDrawer';
@@ -45,7 +45,7 @@ export function AdminUsersPage() {
             title: 'Login gần nhất',
             dataIndex: 'last_login_at',
             width: 160,
-            render: (v: string | null) => (v ? dayjs(v).format('DD/MM/YYYY HH:mm') : '—'),
+            render: (v: string | null) => formatDate(v),
         },
     ];
 
@@ -87,7 +87,7 @@ export function AdminUsersPage() {
             title: 'Tạo lúc',
             dataIndex: 'created_at',
             width: 130,
-            render: (v: string | null) => (v ? dayjs(v).format('DD/MM/YYYY') : '—'),
+            render: (v: string | null) => formatDate(v, false),
         },
     ];
 

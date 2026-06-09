@@ -35,7 +35,7 @@ Artisan::command('inspire', function () {
 Schedule::command('horizon:snapshot')->everyFiveMinutes()->onOneServer();
 
 // Roll monthly partitions forward before any writer hits a missing partition.
-Schedule::command('db:partitions:ensure')->dailyAt('00:30')->onOneServer()->withoutOverlapping();
+Schedule::command('db:partitions:ensure')->dailyAt('00:30')->timezone(app_display_tz())->onOneServer()->withoutOverlapping();
 
 // --- Phase 1: marketplace order sync (see docs/03-domain/order-sync-pipeline.md) ---
 // Polling backup: every ~10' dispatch SyncOrdersForShop for each active channel account
@@ -61,7 +61,7 @@ Schedule::call(function () {
         ->where('status', ChannelAccount::STATUS_ACTIVE)
         ->orderBy('id')
         ->each(fn ($a) => SyncOrdersForShop::dispatch((int) $a->getKey(), now()->subDays(3)->toIso8601String(), 'poll'));
-})->dailyAt('02:00')->name('backfill-recent-orders')->onOneServer();
+})->dailyAt('02:00')->timezone(app_display_tz())->name('backfill-recent-orders')->onOneServer();
 
 // Every 30': pull unprocessed orders (carrier-not-yet-handed: pending / ready_to_ship / packed) by
 // STATUS, ignoring time window. Catches old open orders that fall outside the 10-min time-poll
@@ -92,14 +92,14 @@ Schedule::call(function () {
                 FetchChannelListings::dispatch((int) $a->getKey());
             }
         });
-})->dailyAt('03:30')->name('fetch-channel-listings')->onOneServer();
+})->dailyAt('03:30')->timezone(app_display_tz())->name('fetch-channel-listings')->onOneServer();
 
 // Every 30': poll carriers for tracking updates on in-flight shipments — Phase 3 (SPEC 0006).
 Schedule::job(new SyncShipmentTracking)->everyThirtyMinutes()->name('sync-shipment-tracking')->onOneServer()->withoutOverlapping();
 
 // --- Phase 6.4: Billing SaaS (SPEC 0018) ---
 // Mỗi ngày 04:00: áp luật hết hạn / grace 7 ngày / fallback trial cho subscriptions.
-Schedule::command('subscriptions:check-expiring')->dailyAt('04:00')->onOneServer()->withoutOverlapping();
+Schedule::command('subscriptions:check-expiring')->dailyAt('04:00')->timezone(app_display_tz())->onOneServer()->withoutOverlapping();
 // Mỗi giờ: lưới an toàn — recompute usage_counters cho mọi tenant (phòng listener miss).
 Schedule::command('billing:recompute-usage')->hourly()->onOneServer()->withoutOverlapping();
 // SPEC 0020 — Mỗi giờ: phát hiện tenant vượt hạn mức + set timer ân hạn 2 ngày.
@@ -109,15 +109,15 @@ Schedule::command('subscriptions:check-over-quota')->hourly()->onOneServer()->wi
 // 02:00 mỗi ngày: xếp job kéo đối soát cho mọi gian hàng (sàn đã bật finance), kéo lại 7 ngày
 // gần nhất để cập nhật trạng thái thanh toán statement đến muộn. Upsert idempotent ⇒ không trùng.
 // Job đẩy lên Horizon queue `finance`. Đổi cửa sổ bằng: settlements:fetch-daily --days=N.
-Schedule::command('settlements:fetch-daily')->dailyAt('02:00')->onOneServer()->withoutOverlapping();
+Schedule::command('settlements:fetch-daily')->dailyAt('02:00')->timezone(app_display_tz())->onOneServer()->withoutOverlapping();
 
 // --- SPEC-0024: Omnichannel Messaging (Phase 7.x đề xuất) ---
 // Mỗi phút: quét away_no_response auto-reply (các trigger khác fire theo event).
 Schedule::command('messaging:auto-reply-tick')->everyMinute()->onOneServer()->withoutOverlapping();
 // Hằng ngày 03:00: null hoá raw_payload tin nhắn > 30 ngày (PII hygiene §6b).
-Schedule::command('messaging:prune-payloads')->dailyAt('03:00')->onOneServer();
+Schedule::command('messaging:prune-payloads')->dailyAt('03:00')->timezone(app_display_tz())->onOneServer();
 // Hằng ngày: expire + dọn AI suggestion drafts quá hạn.
-Schedule::command('messaging:prune-drafts')->dailyAt('03:10')->onOneServer();
+Schedule::command('messaging:prune-drafts')->dailyAt('03:10')->timezone(app_display_tz())->onOneServer();
 // SPEC 2026-05-21: hằng giờ đối soát backfill Facebook (incremental) — webhook lo realtime.
 Schedule::command('messaging:reconcile-sync')->hourly()->onOneServer()->withoutOverlapping();
 // Mỗi 30 phút: gom tin nhắn mới → Web Push cho user không hoạt động (tab đóng/ẩn).
@@ -155,4 +155,4 @@ Schedule::command('model:prune')->hourly()->onOneServer();                      
 Schedule::command('sanctum:prune-expired --hours=24')->daily()->onOneServer();
 Schedule::command('auth:clear-resets')->daily()->onOneServer();
 // SPEC 2026-06-10 — dọn tài khoản đăng ký rồi KHÔNG xác minh email > 1 ngày (rác email giả/bot).
-Schedule::command('users:prune-unverified --days=1')->dailyAt('03:30')->onOneServer();
+Schedule::command('users:prune-unverified --days=1')->dailyAt('03:30')->timezone(app_display_tz())->onOneServer();

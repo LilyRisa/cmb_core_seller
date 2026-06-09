@@ -69,6 +69,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Display Timezone
+    |--------------------------------------------------------------------------
+    |
+    | Storage & transport are always UTC (see `timezone` above). This is the
+    | timezone every user-facing date is rendered in, and the timezone used to
+    | compute business-day boundaries (reports, dashboards) and the task
+    | scheduler. Vietnam (UTC+7) by default. Use the `app_display_tz()` helper
+    | on the backend and the `DISPLAY_TZ` constant on the frontend.
+    |
+    */
+
+    'display_timezone' => env('APP_DISPLAY_TIMEZONE', 'Asia/Ho_Chi_Minh'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------
     |

@@ -329,7 +329,7 @@ class ViettelPostConnector extends AbstractCarrierConnector
         return $note === '' ? null : mb_substr($note, 0, 150);
     }
 
-    /** ORDER_STATUSDATE dạng "d/m/Y H:i:s" (vd "10/11/2025 11:07:16"). Fallback Carbon::parse. */
+    /** ORDER_STATUSDATE dạng "d/m/Y H:i:s" (vd "10/11/2025 11:07:16") — giờ VN (GMT+7). Fallback Carbon::parse. */
     private function parseTime(?string $v): string
     {
         if (! $v) {
@@ -338,13 +338,13 @@ class ViettelPostConnector extends AbstractCarrierConnector
         $v = trim((string) $v);
         foreach (['d/m/Y H:i:s', 'd/m/Y H: i: s'] as $fmt) {
             try {
-                return Carbon::createFromFormat($fmt, $v)->toIso8601String();
+                return Carbon::createFromFormat($fmt, $v, app_display_tz())->toIso8601String();
             } catch (\Throwable) {
                 // thử format kế tiếp
             }
         }
         try {
-            return Carbon::parse($v)->toIso8601String();
+            return Carbon::parse($v, app_display_tz())->toIso8601String();
         } catch (\Throwable) {
             return now()->toIso8601String();
         }

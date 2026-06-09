@@ -87,12 +87,15 @@ class ReportController extends Controller
     /** @return array{0:CarbonImmutable,1:CarbonImmutable,2:string,3:array<string,mixed>} */
     private function parseFilters(Request $request): array
     {
+        // Date filters are Vietnam calendar days (display tz); the service converts to UTC for
+        // queries on the UTC-stored columns and buckets by the Vietnam day.
+        $tz = app_display_tz();
         $from = $request->query('from')
-            ? CarbonImmutable::parse((string) $request->query('from'))->startOfDay()
-            : CarbonImmutable::now()->subDays(30)->startOfDay();
+            ? CarbonImmutable::parse((string) $request->query('from'), $tz)->startOfDay()
+            : CarbonImmutable::now($tz)->subDays(30)->startOfDay();
         $to = $request->query('to')
-            ? CarbonImmutable::parse((string) $request->query('to'))->endOfDay()
-            : CarbonImmutable::now()->endOfDay();
+            ? CarbonImmutable::parse((string) $request->query('to'), $tz)->endOfDay()
+            : CarbonImmutable::now($tz)->endOfDay();
         $granularity = (string) $request->query('granularity', 'day');
         $filters = array_filter([
             'source' => $request->query('source'),

@@ -1,8 +1,8 @@
 import { App, Button, Card, Form, Input, Radio, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { SendOutlined, NotificationOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
+import { formatDate } from '@/lib/format';
 import { useAdminBroadcasts, useAdminCreateBroadcast, type AdminBroadcastRow } from '@admin/lib/admin';
 import { errorMessage } from '@/lib/api';
 
@@ -29,7 +29,7 @@ export function AdminBroadcastsPage() {
         },
         {
             title: 'Lúc', dataIndex: 'sent_at',
-            render: (v: string | null) => v ? dayjs(v).format('DD/MM/YYYY HH:mm') : '—',
+            render: (v: string | null) => formatDate(v),
         },
     ];
 

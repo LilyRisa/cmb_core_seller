@@ -5,6 +5,7 @@ import { DeleteOutlined, EditOutlined, NotificationOutlined, PlusOutlined } from
 import dayjs, { type Dayjs } from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { errorMessage } from '@/lib/api';
+import { formatDateShort } from '@/lib/format';
 import { RichTextEditor } from '@admin/components/RichTextEditor';
 import {
     useAdminAnnouncements,
@@ -83,7 +84,7 @@ export function AdminAnnouncementsPage() {
         {
             title: 'Lịch chiếu', key: 'window', width: 220,
             render: (_, r) => (r.starts_at || r.ends_at)
-                ? `${r.starts_at ? dayjs(r.starts_at).format('DD/MM HH:mm') : '—'} → ${r.ends_at ? dayjs(r.ends_at).format('DD/MM HH:mm') : '—'}`
+                ? `${formatDateShort(r.starts_at)} → ${formatDateShort(r.ends_at)}`
                 : 'Luôn hiện',
         },
         {

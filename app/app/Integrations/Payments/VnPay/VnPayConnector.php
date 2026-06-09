@@ -77,7 +77,9 @@ class VnPayConnector implements PaymentGatewayConnector
     {
         $this->assertConfigured();
 
-        $now = now();
+        // VNPay timestamps (vnp_CreateDate/vnp_ExpireDate/vnp_PayDate) are GMT+7 — emit the
+        // Vietnam wall-clock regardless of the app (UTC) timezone.
+        $now = now()->setTimezone(app_display_tz());
         $params = [
             'vnp_Version' => (string) ($this->config['version'] ?? '2.1.0'),
             'vnp_Command' => 'pay',
@@ -132,7 +134,7 @@ class VnPayConnector implements PaymentGatewayConnector
         $txnStatus = (string) ($payload['vnp_TransactionStatus'] ?? $responseCode);
 
         $occurredAt = isset($payload['vnp_PayDate']) && $payload['vnp_PayDate']
-            ? CarbonImmutable::createFromFormat('YmdHis', (string) $payload['vnp_PayDate'])
+            ? CarbonImmutable::createFromFormat('YmdHis', (string) $payload['vnp_PayDate'], app_display_tz())
             : CarbonImmutable::now();
         if ($occurredAt === false) {
             $occurredAt = CarbonImmutable::now();

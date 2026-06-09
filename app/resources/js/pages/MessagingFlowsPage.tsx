@@ -5,6 +5,7 @@ import { CopyOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-d
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { errorMessage } from '@/lib/api';
+import { formatDate } from '@/lib/format';
 import { useCan } from '@/lib/tenant';
 import { useMessagingSettings } from '@/lib/messagingConfig';
 import { PageMultiSelect, PageScopeTags } from '@/components/messaging/PageScope';
@@ -68,7 +69,7 @@ export function MessagingFlowsPage() {
             <PageScopeTags appliesAllPages={r.applies_all_pages} channelAccountIds={r.channel_account_ids} />
         ) },
         { title: 'Trạng thái', dataIndex: 'status', width: 130, render: (s: FlowStatus) => <Tag color={STATUS_COLOR[s]}>{STATUS_LABELS[s] ?? s}</Tag> },
-        { title: 'Cập nhật', dataIndex: 'updated_at', width: 170, render: (v: string | null) => (v ? new Date(v).toLocaleString('vi-VN') : '—') },
+        { title: 'Cập nhật', dataIndex: 'updated_at', width: 170, render: (v: string | null) => formatDate(v) },
         ...(canManage ? [{ title: '', width: 130, render: (_: unknown, r: AutomationFlow) => (
             <Space size={2}>
                 <Button size="small" type="text" icon={<EditOutlined />} onClick={() => navigate(`/messaging/flows/${r.id}/edit`)} />

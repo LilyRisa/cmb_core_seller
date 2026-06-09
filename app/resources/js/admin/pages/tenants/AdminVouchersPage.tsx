@@ -15,7 +15,7 @@ import {
     type AdminVoucher, type VoucherKind,
 } from '@admin/lib/admin';
 import { errorMessage } from '@/lib/api';
-import dayjs from 'dayjs';
+import { formatDate } from '@/lib/format';
 
 const KIND_LABEL: Record<VoucherKind, string> = {
     percent: '% Giảm giá',
@@ -80,7 +80,7 @@ export function AdminVouchersPage() {
         },
         {
             title: 'Hết hạn', dataIndex: 'expires_at', key: 'expires_at',
-            render: (v: string | null) => v ? dayjs(v).format('DD/MM/YYYY HH:mm') : '—',
+            render: (v: string | null) => formatDate(v),
         },
         {
             title: 'Trạng thái', key: 'status',
@@ -290,7 +290,7 @@ function VoucherDetailDrawer({ voucherId, onClose }: { voucherId: number | null;
                                         title: 'Discount/Days', key: 'eff',
                                         render: (_, r) => (r.discount_amount > 0 ? `${new Intl.NumberFormat('vi-VN').format(r.discount_amount)} đ` : `${r.granted_days} ngày`),
                                     },
-                                    { title: 'Lúc', dataIndex: 'created_at', render: (v) => v ? dayjs(v).format('DD/MM/YYYY HH:mm') : '—' },
+                                    { title: 'Lúc', dataIndex: 'created_at', render: (v) => formatDate(v) },
                                 ]}
                                 dataSource={data.recent_redemptions}
                             />

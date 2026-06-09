@@ -3,6 +3,7 @@ import { Card, DatePicker, Drawer, Input, Space, Table, Tag, Typography } from '
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
+import { formatDateTimeSeconds } from '@/lib/format';
 import { useAdminAuditLogs, type AdminAuditLogRow } from '@admin/lib/admin';
 
 const { RangePicker } = DatePicker;
@@ -29,7 +30,7 @@ export function AdminAuditLogsPage() {
     const columns: ColumnsType<AdminAuditLogRow> = [
         {
             title: 'Thời gian', dataIndex: 'created_at', width: 160,
-            render: (v: string | null) => v ? dayjs(v).format('DD/MM/YYYY HH:mm:ss') : '—',
+            render: (v: string | null) => formatDateTimeSeconds(v),
         },
         {
             title: 'Action', dataIndex: 'action',
@@ -89,7 +90,7 @@ export function AdminAuditLogsPage() {
                         <Typography.Paragraph><strong>Tenant:</strong> {openRow.tenant ? `#${openRow.tenant.id} · ${openRow.tenant.name}` : '—'}</Typography.Paragraph>
                         <Typography.Paragraph><strong>User:</strong> {openRow.user ? `${openRow.user.name} (${openRow.user.email})` : '—'}</Typography.Paragraph>
                         <Typography.Paragraph><strong>IP:</strong> {openRow.ip ?? '—'}</Typography.Paragraph>
-                        <Typography.Paragraph><strong>Created at:</strong> {openRow.created_at ? dayjs(openRow.created_at).format('DD/MM/YYYY HH:mm:ss') : '—'}</Typography.Paragraph>
+                        <Typography.Paragraph><strong>Created at:</strong> {formatDateTimeSeconds(openRow.created_at)}</Typography.Paragraph>
                         <Typography.Title level={5}>Changes</Typography.Title>
                         <pre style={{ background: '#0F172A', color: '#E2E8F0', padding: 12, borderRadius: 6, overflow: 'auto', maxHeight: 400 }}>
                             {JSON.stringify(openRow.changes, null, 2)}

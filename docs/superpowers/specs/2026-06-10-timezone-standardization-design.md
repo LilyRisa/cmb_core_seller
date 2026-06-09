@@ -155,3 +155,19 @@ store-UTC/display-HCM rule as every other timestamp. No data is mutated.
   `.tz`.
 - Prod `./.env` and cached config must be updated/refreshed at deploy or prod will keep the
   HCM app tz.
+
+## Implementation notes (2026-06-10)
+
+Implemented and verified (FE build, `php artisan test --filter=Report|Dashboard|Sales|VnPay|ViettelPost`
+= 59 passed; pint clean on changed files; phpstan error count unchanged at 251 baseline).
+
+Deliberately **left as-is** (calendar-period domains; low blast-radius edge cases only, high risk to
+change; dates still render correctly via the FE fix):
+- Accounting period/ledger boundaries (`LedgerService`, `BalanceService`, `ClosingEntryService`,
+  `TrialBalanceService`, `ProfitLossService`, `BalanceSheetService`, `TaxService`, `MisaExportService`,
+  `JournalController` filters) — bounded by monthly `period->start_date/end_date`.
+- Finance settlement filters (`SettlementController`/`SettlementService`) — coarse statement periods.
+- Billing AI-credit `period_anchor` (`AiCreditService`) — quota window anchor.
+
+Prod follow-up (cannot edit gitignored `./.env` from here): set `APP_TIMEZONE=UTC` +
+`APP_DISPLAY_TIMEZONE=Asia/Ho_Chi_Minh` and refresh cached config (`config:cache`).

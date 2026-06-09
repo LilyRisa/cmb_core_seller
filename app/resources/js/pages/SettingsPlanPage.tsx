@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import { MoneyText } from '@/components/MoneyText';
 import { errorMessage } from '@/lib/api';
+import { formatDate } from '@/lib/format';
 import {
     useCancelSubscription, useCheckout, useInvoices, usePlans, useSubscription,
     type Plan,
@@ -276,7 +277,7 @@ export function SettingsPlanPage() {
                                     <Space split="·">
                                         <span><MoneyText value={inv.total} /></span>
                                         <span>Kỳ: {inv.period_start ?? '—'} → {inv.period_end ?? '—'}</span>
-                                        {inv.paid_at ? <span>Thanh toán: {new Date(inv.paid_at).toLocaleDateString('vi-VN')}</span> : null}
+                                        {inv.paid_at ? <span>Thanh toán: {formatDate(inv.paid_at, false)}</span> : null}
                                     </Space>
                                 }
                             />

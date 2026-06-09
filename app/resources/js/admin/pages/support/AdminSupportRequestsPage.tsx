@@ -8,6 +8,7 @@ import {
     ReloadOutlined, SendOutlined,
 } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
+import { formatDate } from '@/lib/format';
 import { SupportAttachmentList } from '@/components/support/SupportAttachmentList';
 import type { SupportMessage } from '@/lib/support';
 import {
@@ -28,8 +29,7 @@ const FILTERS = [
 
 function fmt(iso: string | null): string {
     if (!iso) return '';
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('vi-VN');
+    return formatDate(iso);
 }
 
 /** 1 tin trong thread (góc nhìn admin: CSKH = phải/xanh, người dùng = trái/xám, hệ thống = giữa). */

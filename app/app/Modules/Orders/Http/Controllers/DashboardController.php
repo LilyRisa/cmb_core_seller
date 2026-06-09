@@ -60,8 +60,10 @@ class DashboardController extends Controller
      */
     private function buildSummary(int $tenantId, int $range, OrderProfitService $profit, CurrentTenant $tenant): array
     {
-        $today = CarbonImmutable::now()->startOfDay();
-        $now = CarbonImmutable::now();
+        // Boundaries are anchored to the Vietnam day (display tz) for labels/buckets; each
+        // query binding below converts to UTC (->utc()) since the columns are stored UTC.
+        $today = CarbonImmutable::now(app_display_tz())->startOfDay();
+        $now = CarbonImmutable::now(app_display_tz());
         $from = $today->subDays($range - 1);
         $prevTo = $from->subSecond();
         $prevFrom = $from->subDays($range);
@@ -79,7 +81,7 @@ class DashboardController extends Controller
             'needs_reconnect' => ChannelAccount::query()->where('status', ChannelAccount::STATUS_EXPIRED)->count(),
         ];
         $orderCounts = [
-            'today' => Order::query()->where('placed_at', '>=', $today)->count(),
+            'today' => Order::query()->where('placed_at', '>=', $today->utc())->count(),
             'to_process' => Order::query()->statusIn($preShipment)->count(),
             'ready_to_ship' => Order::query()->where('status', StandardOrderStatus::ReadyToShip->value)->count(),
             'shipped' => Order::query()->where('status', StandardOrderStatus::Shipped->value)->count(),
@@ -97,7 +99,7 @@ class DashboardController extends Controller
         [$profitPrev] = $this->profitWindow($tenantId, $prevFrom, $prevTo);
 
         // --- Breakdown theo sàn (revenue + orders, kỳ này) ---
-        $bySource = Order::query()->where('placed_at', '>=', $from)->where('placed_at', '<=', $now)
+        $bySource = Order::query()->where('placed_at', '>=', $from->utc())->where('placed_at', '<=', $now->utc())
             ->whereNotIn('status', ['cancelled'])
             ->selectRaw('source, COUNT(*) AS orders, COALESCE(SUM(grand_total),0) AS revenue')
             ->groupBy('source')->orderByDesc(DB::raw('SUM(grand_total)'))->get()
@@ -114,7 +116,7 @@ class DashboardController extends Controller
             'channel_accounts' => $accounts,
             'orders' => $orderCounts,
             'revenue_today' => (int) Order::query()
-                ->where('placed_at', '>=', $today)
+                ->where('placed_at', '>=', $today->utc())
                 ->whereNotIn('status', [StandardOrderStatus::Cancelled->value])
                 ->sum('grand_total'),
             // Khối KPI có delta (so kỳ trước cùng độ dài) cho 4 thẻ đầu dashboard.
@@ -138,7 +140,7 @@ class DashboardController extends Controller
      */
     private function revenueWindow(int $tenantId, CarbonImmutable $from, CarbonImmutable $to, int $rangeDays, OrderProfitService $profit, ?array $tenantSettings): array
     {
-        $base = Order::query()->where('placed_at', '>=', $from)->where('placed_at', '<=', $to)
+        $base = Order::query()->where('placed_at', '>=', $from->utc())->where('placed_at', '<=', $to->utc())
             ->whereNotIn('status', ['cancelled']);
 
         $totalsRow = (clone $base)->selectRaw('COUNT(*) AS orders, COALESCE(SUM(grand_total),0) AS revenue, COALESCE(AVG(grand_total),0) AS aov')->first();
@@ -152,7 +154,7 @@ class DashboardController extends Controller
         $estimatedTotal = 0;
         $byDay = [];   // YYYY-MM-DD => ['orders'=>n,'revenue'=>n,'estimated_profit'=>n]
         foreach ($orderRows as $o) {
-            $day = $o->placed_at?->copy()->setTimezone(config('app.timezone', 'UTC'))->format('Y-m-d') ?? '';
+            $day = $o->placed_at?->copy()->setTimezone(app_display_tz())->format('Y-m-d') ?? '';
             $est = (int) (($o->getAttribute('_profit') ?? [])['estimated_profit'] ?? 0);
             $estimatedTotal += $est;
             $byDay[$day] ??= ['orders' => 0, 'revenue' => 0, 'estimated_profit' => 0];
@@ -176,11 +178,19 @@ class DashboardController extends Controller
         $base = OrderCost::withoutGlobalScope(TenantScope::class)
             ->join('orders', 'orders.id', '=', 'order_costs.order_id')
             ->where('order_costs.tenant_id', $tenantId)
-            ->whereBetween('order_costs.shipped_at', [$from, $to])
+            ->whereBetween('order_costs.shipped_at', [$from->utc(), $to->utc()])
             ->whereNull('orders.deleted_at');
 
+        // Bucket by the Vietnam calendar day (columns are stored UTC). pgsql: shift UTC→display
+        // tz before truncating; sqlite (dev/test): apply the fixed display-tz offset.
+        $tz = app_display_tz();
         $driver = DB::connection()->getDriverName();
-        $trunc = $driver === 'pgsql' ? "DATE_TRUNC('day', order_costs.shipped_at)" : "strftime('%Y-%m-%d', order_costs.shipped_at)";
+        if ($driver === 'pgsql') {
+            $trunc = "DATE_TRUNC('day', (order_costs.shipped_at AT TIME ZONE 'UTC') AT TIME ZONE '{$tz}')";
+        } else {
+            $offsetHours = (int) (CarbonImmutable::now($tz)->getOffset() / 3600);
+            $trunc = "strftime('%Y-%m-%d', order_costs.shipped_at, '{$offsetHours} hours')";
+        }
         $rows = (clone $base)->selectRaw("{$trunc} AS bucket, SUM(order_costs.qty * (SELECT oi.unit_price FROM order_items oi WHERE oi.id = order_costs.order_item_id)) AS revenue, SUM(order_costs.cogs_total) AS cogs")
             ->groupBy(DB::raw($trunc))->orderBy(DB::raw($trunc))->get();
 
@@ -244,7 +254,7 @@ class DashboardController extends Controller
             ->where('orders.tenant_id', $tenantId)
             ->whereNull('orders.deleted_at')
             ->whereNotIn('orders.status', ['cancelled'])
-            ->whereBetween('orders.placed_at', [$from, $to])
+            ->whereBetween('orders.placed_at', [$from->utc(), $to->utc()])
             ->whereNotNull('order_items.sku_id')
             ->groupBy('order_items.sku_id')
             ->orderByDesc(DB::raw('SUM(order_items.subtotal)'))
