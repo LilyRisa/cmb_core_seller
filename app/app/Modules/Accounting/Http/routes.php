@@ -64,6 +64,8 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.feature:ac
             ->middleware('can:accounting.close_period')->name('accounting.periods.reopen');
         Route::post('periods/{code}/lock', [FiscalPeriodController::class, 'lock'])
             ->middleware('can:accounting.close_period')->name('accounting.periods.lock');
+        Route::post('periods/{code}/carry-forward', [FiscalPeriodController::class, 'carryForward'])
+            ->middleware('can:accounting.close_period')->name('accounting.periods.carry-forward');
 
         // Journal entries.
         Route::get('journals', [JournalController::class, 'index'])

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Alert, App, Button, Card, DatePicker, Empty, Form, Input, InputNumber, Modal, Popconfirm, Radio, Space, Statistic, Switch, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { CheckCircleOutlined, CloseCircleOutlined, DollarOutlined, PlusOutlined, ReloadOutlined, TeamOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, CloseCircleOutlined, DollarOutlined, PlusOutlined, PrinterOutlined, ReloadOutlined, TeamOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { formatAmount, usePartiesByIds } from '@/lib/accounting';
 import { AgingRow, CustomerReceipt, useArAging, useCancelReceipt, useConfirmReceipt, useCreateReceipt, useReceipts } from '@/lib/accountingAr';
@@ -10,7 +10,11 @@ import type { Order } from '@/lib/orders';
 import { PartyPicker } from '@/components/accounting/PartyPicker';
 import { AccountingSetupBanner } from './AccountingSetupBanner';
 import { useCan } from '@/lib/tenant';
+import { useTenantName } from '@/lib/accountingPrint';
+import { printVoucher } from '@/lib/printVoucher';
 import { errorMessage } from '@/lib/api';
+
+const PAY_METHOD_LABEL: Record<string, string> = { cash: 'Tiền mặt', bank: 'Chuyển khoản', ewallet: 'Ví điện tử' };
 
 export function ArPage() {
     const [tab, setTab] = useState<'aging' | 'receipts'>('aging');
@@ -120,6 +124,20 @@ function ReceiptsTab() {
     const custIds = useMemo(() => Array.from(new Set((data?.data ?? []).map((r) => r.customer_id).filter((x): x is number => x != null))), [data]);
     const { data: parties = [] } = usePartiesByIds('customer', custIds);
     const nameMap = useMemo(() => new Map(parties.map((p) => [p.id, p.label])), [parties]);
+    const tenantName = useTenantName();
+
+    const onPrint = (r: CustomerReceipt) => printVoucher({
+        docTitle: 'PHIẾU THU',
+        tenantName,
+        code: r.code,
+        dateText: dayjs(r.received_at).format('DD/MM/YYYY'),
+        partyLabel: 'Người nộp tiền',
+        partyName: r.customer_id ? (nameMap.get(r.customer_id) ?? `Khách #${r.customer_id}`) : 'Thu chung',
+        reason: r.memo ?? 'Thu tiền khách hàng',
+        amount: r.amount,
+        fields: [{ label: 'Hình thức', value: PAY_METHOD_LABEL[r.payment_method] ?? r.payment_method }],
+        signers: ['Người lập phiếu', 'Người nộp tiền', 'Thủ quỹ', 'Kế toán trưởng'],
+    });
 
     const columns: ColumnsType<CustomerReceipt> = [
         { title: 'Mã phiếu', dataIndex: 'code', width: 140, render: (c: string) => <Typography.Text strong style={{ fontFamily: 'ui-monospace, monospace' }}>{c}</Typography.Text> },
@@ -131,36 +149,41 @@ function ReceiptsTab() {
         { title: 'Trạng thái', dataIndex: 'status', width: 120, render: (s: string, r) => <Tag color={s === 'confirmed' ? 'green' : s === 'cancelled' ? 'default' : 'gold'}>{r.status_label}</Tag> },
         {
             title: 'Thao tác',
-            width: 200,
+            width: 240,
             align: 'right',
-            render: (_, r) => canPost && r.status === 'draft' ? (
+            render: (_, r) => (
                 <Space size={4}>
-                    <Popconfirm
-                        title="Xác nhận phiếu thu?"
-                        description="Hệ thống ghi sổ Dr 1111/1121 / Cr 131 — cấn trừ công nợ khách."
-                        okText="Xác nhận"
-                        cancelText="Huỷ"
-                        onConfirm={async () => {
-                            try { await confirmM.mutateAsync(r.id); message.success(`Đã xác nhận ${r.code}.`); }
-                            catch (e) { message.error(errorMessage(e)); }
-                        }}
-                    >
-                        <Button size="small" type="primary" ghost icon={<CheckCircleOutlined />}>Xác nhận</Button>
-                    </Popconfirm>
-                    <Popconfirm
-                        title="Huỷ phiếu thu?"
-                        okText="Huỷ"
-                        cancelText="Đóng"
-                        okButtonProps={{ danger: true }}
-                        onConfirm={async () => {
-                            try { await cancelM.mutateAsync(r.id); message.success('Đã huỷ.'); }
-                            catch (e) { message.error(errorMessage(e)); }
-                        }}
-                    >
-                        <Button size="small" type="text" icon={<CloseCircleOutlined />} danger />
-                    </Popconfirm>
+                    <Tooltip title="In phiếu thu"><Button size="small" type="text" icon={<PrinterOutlined />} onClick={() => onPrint(r)} /></Tooltip>
+                    {canPost && r.status === 'draft' && (
+                        <>
+                            <Popconfirm
+                                title="Xác nhận phiếu thu?"
+                                description="Hệ thống ghi sổ Dr 1111/1121 / Cr 131 — cấn trừ công nợ khách."
+                                okText="Xác nhận"
+                                cancelText="Huỷ"
+                                onConfirm={async () => {
+                                    try { await confirmM.mutateAsync(r.id); message.success(`Đã xác nhận ${r.code}.`); }
+                                    catch (e) { message.error(errorMessage(e)); }
+                                }}
+                            >
+                                <Button size="small" type="primary" ghost icon={<CheckCircleOutlined />}>Xác nhận</Button>
+                            </Popconfirm>
+                            <Popconfirm
+                                title="Huỷ phiếu thu?"
+                                okText="Huỷ"
+                                cancelText="Đóng"
+                                okButtonProps={{ danger: true }}
+                                onConfirm={async () => {
+                                    try { await cancelM.mutateAsync(r.id); message.success('Đã huỷ.'); }
+                                    catch (e) { message.error(errorMessage(e)); }
+                                }}
+                            >
+                                <Button size="small" type="text" icon={<CloseCircleOutlined />} danger />
+                            </Popconfirm>
+                        </>
+                    )}
                 </Space>
-            ) : null,
+            ),
         },
     ];
 

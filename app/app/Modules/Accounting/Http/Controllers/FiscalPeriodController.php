@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Modules\Accounting\Http\Controllers;
 
 use CMBcoreSeller\Modules\Accounting\Http\Resources\FiscalPeriodResource;
 use CMBcoreSeller\Modules\Accounting\Models\FiscalPeriod;
+use CMBcoreSeller\Modules\Accounting\Services\ClosingEntryService;
 use CMBcoreSeller\Modules\Accounting\Services\PeriodService;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
@@ -16,6 +17,7 @@ class FiscalPeriodController extends Controller
     public function __construct(
         private readonly CurrentTenant $tenant,
         private readonly PeriodService $service,
+        private readonly ClosingEntryService $closing,
     ) {}
 
     public function index(Request $request): AnonymousResourceCollection
@@ -65,6 +67,19 @@ class FiscalPeriodController extends Controller
         $period = $this->service->lock($period, (int) $request->user()->getKey());
 
         return new FiscalPeriodResource($period);
+    }
+
+    /** POST /accounting/periods/{code}/carry-forward — kết chuyển cuối kỳ (xác định KQKD). */
+    public function carryForward(Request $request, string $code): JsonResponse
+    {
+        $period = $this->find($code);
+        $result = $this->closing->carryForward((int) $this->tenant->id(), $period, (int) $request->user()->getKey());
+
+        return response()->json(['data' => [
+            'already' => $result['already'],
+            'net_income' => $result['net_income'],
+            'entries' => array_map(fn ($e) => ['id' => $e->id, 'code' => $e->code], $result['entries']),
+        ]]);
     }
 
     private function find(string $code): FiscalPeriod

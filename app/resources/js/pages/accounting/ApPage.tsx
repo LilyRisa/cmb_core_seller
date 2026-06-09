@@ -1,14 +1,18 @@
 import { useMemo, useState } from 'react';
 import { Alert, App, Button, Card, DatePicker, Empty, Form, Input, InputNumber, Modal, Popconfirm, Radio, Space, Statistic, Switch, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { BankOutlined, CheckCircleOutlined, DollarOutlined, FileTextOutlined, ReloadOutlined, ShopOutlined } from '@ant-design/icons';
+import { BankOutlined, CheckCircleOutlined, DollarOutlined, FileTextOutlined, PrinterOutlined, ReloadOutlined, ShopOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { formatAmount, usePartiesByIds } from '@/lib/accounting';
 import { ApAgingRow, useApAging, useConfirmPayment, useCreateBill, useCreatePayment, useRecordBill, useVendorBills, useVendorPayments, VendorBill, VendorPayment } from '@/lib/accountingAp';
 import { PartyPicker } from '@/components/accounting/PartyPicker';
 import { AccountingSetupBanner } from './AccountingSetupBanner';
 import { useCan } from '@/lib/tenant';
+import { useTenantName } from '@/lib/accountingPrint';
+import { printVoucher } from '@/lib/printVoucher';
 import { errorMessage } from '@/lib/api';
+
+const PAY_METHOD_LABEL: Record<string, string> = { cash: 'Tiền mặt', bank: 'Chuyển khoản', ewallet: 'Ví điện tử' };
 
 export function ApPage() {
     const [tab, setTab] = useState<'aging' | 'bills' | 'payments'>('aging');
@@ -114,6 +118,25 @@ function BillsTab() {
     const { data: parties = [] } = usePartiesByIds('supplier', supIds);
     const nameMap = useMemo(() => new Map(parties.map((p) => [p.id, p.label])), [parties]);
 
+    const tenantName = useTenantName();
+    const onPrint = (r: VendorBill) => printVoucher({
+        docTitle: 'CHỨNG TỪ HOÁ ĐƠN NCC',
+        tenantName,
+        code: r.code,
+        dateText: dayjs(r.bill_date).format('DD/MM/YYYY'),
+        partyLabel: 'Nhà cung cấp',
+        partyName: r.supplier_id ? (nameMap.get(r.supplier_id) ?? `NCC #${r.supplier_id}`) : '—',
+        reason: r.memo ?? 'Mua hàng hoá/dịch vụ',
+        amount: r.total,
+        fields: [
+            { label: 'Số HĐ NCC', value: r.bill_no ?? '—' },
+            { label: 'Tiền hàng', value: `${formatAmount(r.subtotal)} ₫` },
+            { label: 'Thuế VAT', value: `${formatAmount(r.tax)} ₫` },
+            { label: 'Hạn thanh toán', value: r.due_date ? dayjs(r.due_date).format('DD/MM/YYYY') : '—' },
+        ],
+        signers: ['Người lập', 'Kế toán', 'Thủ trưởng đơn vị'],
+    });
+
     const columns: ColumnsType<VendorBill> = [
         { title: 'Mã HĐ', dataIndex: 'code', width: 150, render: (c: string) => <Typography.Text strong style={{ fontFamily: 'ui-monospace, monospace' }}>{c}</Typography.Text> },
         { title: 'Số HĐ NCC', dataIndex: 'bill_no', width: 140, render: (n: string | null) => n ?? '—' },
@@ -126,20 +149,25 @@ function BillsTab() {
         { title: 'Trạng thái', dataIndex: 'status', width: 120, render: (s: string, r) => <Tag color={s === 'recorded' ? 'green' : s === 'paid' ? 'blue' : s === 'void' ? 'default' : 'gold'}>{r.status_label}</Tag> },
         {
             title: 'Thao tác',
-            width: 130,
+            width: 170,
             align: 'right',
-            render: (_, r) => canPost && r.status === 'draft' ? (
-                <Popconfirm
-                    title="Ghi sổ hoá đơn?"
-                    description="Hệ thống ghi Dr 1561 (+1331) / Cr 331."
-                    onConfirm={async () => {
-                        try { await record.mutateAsync(r.id); message.success(`Đã ghi sổ ${r.code}.`); }
-                        catch (e) { message.error(errorMessage(e)); }
-                    }}
-                >
-                    <Button size="small" type="primary" ghost icon={<CheckCircleOutlined />}>Ghi sổ</Button>
-                </Popconfirm>
-            ) : null,
+            render: (_, r) => (
+                <Space size={4}>
+                    <Tooltip title="In chứng từ"><Button size="small" type="text" icon={<PrinterOutlined />} onClick={() => onPrint(r)} /></Tooltip>
+                    {canPost && r.status === 'draft' && (
+                        <Popconfirm
+                            title="Ghi sổ hoá đơn?"
+                            description="Hệ thống ghi Dr 1561 (+1331) / Cr 331."
+                            onConfirm={async () => {
+                                try { await record.mutateAsync(r.id); message.success(`Đã ghi sổ ${r.code}.`); }
+                                catch (e) { message.error(errorMessage(e)); }
+                            }}
+                        >
+                            <Button size="small" type="primary" ghost icon={<CheckCircleOutlined />}>Ghi sổ</Button>
+                        </Popconfirm>
+                    )}
+                </Space>
+            ),
         },
     ];
 
@@ -168,6 +196,20 @@ function PaymentsTab() {
     const { data: parties = [] } = usePartiesByIds('supplier', supIds);
     const nameMap = useMemo(() => new Map(parties.map((p) => [p.id, p.label])), [parties]);
 
+    const tenantName = useTenantName();
+    const onPrint = (r: VendorPayment) => printVoucher({
+        docTitle: 'PHIẾU CHI',
+        tenantName,
+        code: r.code,
+        dateText: dayjs(r.paid_at).format('DD/MM/YYYY'),
+        partyLabel: 'Người nhận tiền',
+        partyName: r.supplier_id ? (nameMap.get(r.supplier_id) ?? `NCC #${r.supplier_id}`) : '—',
+        reason: r.memo ?? 'Chi trả nhà cung cấp',
+        amount: r.amount,
+        fields: [{ label: 'Hình thức', value: PAY_METHOD_LABEL[r.payment_method] ?? r.payment_method }],
+        signers: ['Người lập phiếu', 'Người nhận tiền', 'Thủ quỹ', 'Kế toán trưởng'],
+    });
+
     const columns: ColumnsType<VendorPayment> = [
         { title: 'Mã phiếu', dataIndex: 'code', width: 140, render: (c: string) => <Typography.Text strong style={{ fontFamily: 'ui-monospace, monospace' }}>{c}</Typography.Text> },
         { title: 'Ngày chi', dataIndex: 'paid_at', width: 130, render: (d: string) => dayjs(d).format('DD/MM/YYYY') },
@@ -178,20 +220,25 @@ function PaymentsTab() {
         { title: 'Trạng thái', dataIndex: 'status', width: 120, render: (s: string, r) => <Tag color={s === 'confirmed' ? 'green' : s === 'cancelled' ? 'default' : 'gold'}>{r.status_label}</Tag> },
         {
             title: 'Thao tác',
-            width: 130,
+            width: 180,
             align: 'right',
-            render: (_, r) => canPost && r.status === 'draft' ? (
-                <Popconfirm
-                    title="Xác nhận phiếu chi?"
-                    description="Hệ thống ghi Dr 331 / Cr 1111|1121."
-                    onConfirm={async () => {
-                        try { await confirmM.mutateAsync(r.id); message.success(`Đã chi ${r.code}.`); }
-                        catch (e) { message.error(errorMessage(e)); }
-                    }}
-                >
-                    <Button size="small" type="primary" ghost icon={<CheckCircleOutlined />}>Xác nhận</Button>
-                </Popconfirm>
-            ) : null,
+            render: (_, r) => (
+                <Space size={4}>
+                    <Tooltip title="In phiếu chi"><Button size="small" type="text" icon={<PrinterOutlined />} onClick={() => onPrint(r)} /></Tooltip>
+                    {canPost && r.status === 'draft' && (
+                        <Popconfirm
+                            title="Xác nhận phiếu chi?"
+                            description="Hệ thống ghi Dr 331 / Cr 1111|1121."
+                            onConfirm={async () => {
+                                try { await confirmM.mutateAsync(r.id); message.success(`Đã chi ${r.code}.`); }
+                                catch (e) { message.error(errorMessage(e)); }
+                            }}
+                        >
+                            <Button size="small" type="primary" ghost icon={<CheckCircleOutlined />}>Xác nhận</Button>
+                        </Popconfirm>
+                    )}
+                </Space>
+            ),
         },
     ];
 

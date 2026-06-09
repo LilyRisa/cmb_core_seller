@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { App, Button, Card, Input, Modal, Popconfirm, Segmented, Space, Table, Tag, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { CalendarOutlined, CheckOutlined, LockOutlined, PlusOutlined, UnlockOutlined } from '@ant-design/icons';
+import { CalculatorOutlined, CalendarOutlined, CheckOutlined, LockOutlined, PlusOutlined, UnlockOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { FiscalPeriod, PERIOD_STATUS_COLOR, PeriodKind, useEnsureYearPeriods, useFiscalPeriods, usePeriodAction } from '@/lib/accounting';
+import { FiscalPeriod, formatAmount, PERIOD_STATUS_COLOR, PeriodKind, useEnsureYearPeriods, useFiscalPeriods, usePeriodAction, usePeriodCarryForward } from '@/lib/accounting';
 import { AccountingSetupBanner } from './AccountingSetupBanner';
 import { useCan } from '@/lib/tenant';
 import { errorMessage } from '@/lib/api';
@@ -65,6 +65,9 @@ export function PeriodsPage() {
             align: 'right',
             render: (_, r) => (
                 <Space size={4}>
+                    {r.status === 'open' && r.kind === 'month' && canClose && (
+                        <CarryForwardButton period={r} />
+                    )}
                     {r.status === 'open' && canClose && (
                         <Button size="small" type="primary" ghost icon={<CheckOutlined />} onClick={() => setCloseTarget(r)}>Đóng kỳ</Button>
                     )}
@@ -213,5 +216,40 @@ export function PeriodsPage() {
                 </Space>
             </Modal>
         </div>
+    );
+}
+
+/** Nút kết chuyển cuối kỳ — tạo bút toán xác định KQKD (511/632/642… → 911 → 4211). */
+function CarryForwardButton({ period }: { period: FiscalPeriod }) {
+    const carry = usePeriodCarryForward();
+    const { message } = App.useApp();
+    return (
+        <Popconfirm
+            title={`Kết chuyển cuối kỳ ${period.code}?`}
+            description={(
+                <div style={{ maxWidth: 360 }}>
+                    Hệ thống tạo bút toán kết chuyển doanh thu &amp; chi phí về TK 911, rồi kết chuyển lãi/lỗ sang TK 4211.
+                    Thao tác idempotent (gọi lại không nhân đôi). Nên kết chuyển trước khi đóng kỳ.
+                </div>
+            )}
+            okText="Kết chuyển"
+            cancelText="Huỷ"
+            okButtonProps={{ loading: carry.isPending }}
+            onConfirm={async () => {
+                try {
+                    const r = await carry.mutateAsync(period.code);
+                    if (r.already) {
+                        message.info('Kỳ này đã được kết chuyển trước đó.');
+                    } else if (r.entries.length === 0) {
+                        message.info('Kỳ không có phát sinh doanh thu/chi phí để kết chuyển.');
+                    } else {
+                        const kind = r.net_income > 0 ? 'Lãi' : r.net_income < 0 ? 'Lỗ' : 'Hoà vốn';
+                        message.success(`Đã kết chuyển — ${kind} ${formatAmount(Math.abs(r.net_income))} ₫ (${r.entries.map((e) => e.code).join(', ')}).`);
+                    }
+                } catch (e) { message.error(errorMessage(e)); }
+            }}
+        >
+            <Button size="small" icon={<CalculatorOutlined />}>Kết chuyển</Button>
+        </Popconfirm>
     );
 }

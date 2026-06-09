@@ -299,6 +299,26 @@ export function usePeriodAction() {
     });
 }
 
+export interface CarryForwardResult {
+    already: boolean;
+    net_income: number;
+    entries: Array<{ id: number; code: string }>;
+}
+
+/** Kết chuyển cuối kỳ (xác định KQKD): doanh thu/chi phí → 911 → 4211. */
+export function usePeriodCarryForward() {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (code: string) => {
+            const { data } = await api!.post<{ data: CarryForwardResult }>(`/accounting/periods/${code}/carry-forward`, {});
+            return data.data;
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['accounting', tenantId] }),
+    });
+}
+
 export function useEnsureYearPeriods() {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();
