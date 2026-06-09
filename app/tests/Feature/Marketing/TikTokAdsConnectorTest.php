@@ -163,4 +163,36 @@ class TikTokAdsConnectorTest extends TestCase
         $this->assertStringContainsString('app_id=A', $url);
         $this->assertStringContainsString('state=STATE123', $url);
     }
+
+    public function test_update_entity_pauses_campaign_via_status_update(): void
+    {
+        Http::fake(['business-api.tiktok.com/*' => Http::response(['code' => 0, 'data' => []], 200)]);
+
+        $this->connector()->updateEntity('AT', 'campaign', 'c1', ['status' => 'PAUSED', '_advertiser_id' => '123']);
+
+        Http::assertSent(fn ($req) => str_contains($req->url(), '/campaign/status/update/')
+            && $req['operation_status'] === 'DISABLE' && $req['campaign_ids'] === ['c1'] && $req['advertiser_id'] === '123');
+    }
+
+    public function test_update_entity_updates_adgroup_budget(): void
+    {
+        Http::fake(['business-api.tiktok.com/*' => Http::response(['code' => 0, 'data' => []], 200)]);
+
+        $this->connector()->updateEntity('AT', 'adset', 'a1', ['daily_budget_major' => 300000, '_advertiser_id' => '123']);
+
+        Http::assertSent(function ($req) {
+            return str_contains($req->url(), '/adgroup/budget/update/')
+                && $req['budgets'][0]['adgroup_id'] === 'a1'
+                && (int) $req['budgets'][0]['budget'] === 300000
+                && $req['budgets'][0]['budget_mode'] === 'BUDGET_MODE_DAY';
+        });
+    }
+
+    public function test_update_entity_requires_advertiser_id(): void
+    {
+        Http::fake(['business-api.tiktok.com/*' => Http::response(['code' => 0], 200)]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->connector()->updateEntity('AT', 'campaign', 'c1', ['status' => 'PAUSED']); // thiếu _advertiser_id
+    }
 }

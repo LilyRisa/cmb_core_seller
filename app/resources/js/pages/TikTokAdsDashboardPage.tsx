@@ -1,19 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Alert, App as AntApp, Button, Card, Collapse, DatePicker, Result, Segmented, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
-import { DisconnectOutlined, FundOutlined, SyncOutlined, TikTokOutlined } from '@ant-design/icons';
+import { Alert, App as AntApp, Button, Card, Collapse, DatePicker, Input, Result, Segmented, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
+import { AlertOutlined, DisconnectOutlined, FundOutlined, RobotOutlined, SyncOutlined, TikTokOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { ReportTree } from '@/pages/marketing/ReportTree';
 import { ConnectionManagerDrawer } from '@/pages/marketing/ConnectionManagerDrawer';
+import { MonitorConfigDrawer, type MonitorTarget } from '@/pages/marketing/MonitorConfigDrawer';
+import { CampaignAiInsightDrawer } from '@/pages/marketing/CampaignAiInsightDrawer';
+import { ForecastTree } from '@/pages/marketing/ForecastTree';
 import { LABELS, dec, money, num, objectiveVi, pct, statusVi } from '@/pages/marketing/format';
 import { errorMessage } from '@/lib/api';
 import { openOAuthPopup } from '@/lib/oauthPopup';
 import { useCan } from '@/lib/tenant';
 import {
     type ReconRow, type ReportLevel, type ReportRow,
-    useAdAccounts, useAdReconciliation, useAdReport, useConnectTikTokAds, useRefreshAdInsights,
+    useAdAccounts, useAdForecast, useAdMonitors, useAdReconciliation, useAdReport,
+    useConnectTikTokAds, useGenerateForecast, useRefreshAdInsights,
 } from '@/lib/marketing';
 
 const { Text } = Typography;
@@ -38,10 +42,10 @@ const loadRange = (): [Dayjs, Dayjs] => {
 };
 
 /**
- * /marketing/tiktok — báo cáo quảng cáo TikTok (read-only). Màn RIÊNG với Facebook
- * (tách theo yêu cầu, dễ mở rộng). Tái dùng component trung tính: ReportTree +
- * formatter dùng chung (pages/marketing/format). Connector TikTok hiện read-only nên
- * KHÔNG có sửa inline / giám sát / drafts.
+ * /marketing/tiktok — báo cáo + giám sát + phân tích AI quảng cáo TikTok. Màn RIÊNG
+ * với Facebook (dễ mở rộng). Tái dùng component trung tính (ReportTree, MonitorConfigDrawer,
+ * CampaignAiInsightDrawer, ForecastTree) + service dùng chung (AdsReportService, AdMonitor,
+ * AI credit). Giám sát tự-động dùng TikTok write tối thiểu (pause/budget) ở evaluator nền.
  */
 export function TikTokAdsDashboardPage() {
     const { message } = AntApp.useApp();
@@ -58,6 +62,9 @@ export function TikTokAdsDashboardPage() {
     const [reportView, setReportView] = useState<'tree' | 'flat'>('flat');
     const [range, setRange] = useState<[Dayjs, Dayjs]>(loadRange);
     const [connOpen, setConnOpen] = useState(false);
+    const [q, setQ] = useState('');
+    const [monitorTarget, setMonitorTarget] = useState<MonitorTarget | null>(null);
+    const [aiCampaign, setAiCampaign] = useState<{ id: string; name: string | null } | null>(null);
 
     useEffect(() => {
         localStorage.setItem(RANGE_KEY, JSON.stringify([range[0].format('YYYY-MM-DD'), range[1].format('YYYY-MM-DD')]));
@@ -80,8 +87,27 @@ export function TikTokAdsDashboardPage() {
         { label: '90 ngày qua', value: [dayjs().subtract(89, 'day'), dayjs()] },
     ], []);
 
-    const { data: report, isFetching } = useAdReport(selectedId, level, since, until, {});
+    const filters = useMemo(() => ({ q: q || undefined }), [q]);
+    const { data: report, isFetching } = useAdReport(selectedId, level, since, until, filters);
     const { data: recon } = useAdReconciliation(selectedId);
+    const { data: forecast } = useAdForecast(selectedId);
+    const genForecast = useGenerateForecast();
+
+    // Giám sát: tập id đang được giám sát (để hiện chỉ báo + ưu tiên cảnh báo theo cấp).
+    const { data: monitors } = useAdMonitors(selectedId);
+    const monitoredCampaigns = useMemo(() => new Set((monitors ?? []).filter((m) => m.target_level === 'campaign' && m.enabled).map((m) => m.target_external_id)), [monitors]);
+    const monitoredAdsets = useMemo(() => new Set((monitors ?? []).filter((m) => m.target_level === 'adset' && m.enabled).map((m) => m.target_external_id)), [monitors]);
+    const isMonitored = (r: ReportRow) => monitoredCampaigns.has(r.external_id) || monitoredAdsets.has(r.external_id);
+
+    const handleForecast = () => {
+        if (selectedId == null) return;
+        genForecast.mutate(selectedId, {
+            onSuccess: (res) => res.queued
+                ? message.info('Đang tạo dự báo — hệ thống sẽ gửi email cho Quản trị khi xong.')
+                : message.success('Đã có dự báo.'),
+            onError: (e) => message.error(errorMessage(e, 'Không tạo được dự báo (cooldown / chưa cấu hình provider AI marketing).')),
+        });
+    };
 
     // Account vừa kết nối: SyncAdAccountEntities chạy BẤT ĐỒNG BỘ (queue marketing-sync)
     // nên campaign vào DB sau vài giây. Trong lúc account chưa đồng bộ xong
@@ -123,25 +149,55 @@ export function TikTokAdsDashboardPage() {
         return res > 0 ? Math.round((r.insights?.spend ?? 0) / res) : null;
     };
 
+    const nameOf = (r: ReportRow) => r.name ?? r.external_id;
+    const mnum = (r: ReportRow, k: 'spend' | 'impressions' | 'reach' | 'clicks' | 'ctr' | 'cpc' | 'cpm' | 'frequency') => r.insights?.[k] ?? 0;
+
     const columns = [
         { title: LABELS[level], dataIndex: 'name', key: 'name', fixed: 'left' as const, width: 240,
-            render: (_: unknown, r: ReportRow) => <Text>{r.name ?? r.external_id}</Text> },
-        { title: 'Trạng thái', key: 'status', width: 130, render: (_: unknown, r: ReportRow) => {
-            const s = statusVi(r.effective_status ?? r.status ?? null);
-            return <Tag color={s.color}>{s.label}</Tag>;
-        } },
-        { title: 'Mục tiêu', key: 'objective', width: 130, render: (_: unknown, r: ReportRow) => objectiveVi(r.objective ?? null) },
-        { title: 'Kết quả', key: 'result', align: 'right' as const, render: (_: unknown, r: ReportRow) => num(resultValue(r)) },
-        { title: 'CP/Kết quả', key: 'cpr', align: 'right' as const, render: (_: unknown, r: ReportRow) => money(cprValue(r), currency) },
-        { title: 'NS/ngày', key: 'daily_budget', align: 'right' as const, render: (_: unknown, r: ReportRow) => money(r.daily_budget, currency) },
-        { title: 'Chi tiêu', key: 'spend', align: 'right' as const, render: (_: unknown, r: ReportRow) => money(r.insights?.spend, currency) },
-        { title: 'Hiển thị', key: 'impressions', align: 'right' as const, render: (_: unknown, r: ReportRow) => num(r.insights?.impressions) },
-        { title: 'Tiếp cận', key: 'reach', align: 'right' as const, render: (_: unknown, r: ReportRow) => num(r.insights?.reach) },
-        { title: 'Click', key: 'clicks', align: 'right' as const, render: (_: unknown, r: ReportRow) => num(r.insights?.clicks) },
-        { title: 'CTR', key: 'ctr', align: 'right' as const, render: (_: unknown, r: ReportRow) => pct(r.insights?.ctr) },
-        { title: 'CPC', key: 'cpc', align: 'right' as const, render: (_: unknown, r: ReportRow) => money(r.insights?.cpc, currency) },
-        { title: 'CPM', key: 'cpm', align: 'right' as const, render: (_: unknown, r: ReportRow) => money(r.insights?.cpm, currency) },
-        { title: 'Tần suất', key: 'frequency', align: 'right' as const, render: (_: unknown, r: ReportRow) => dec(r.insights?.frequency) },
+            sorter: (a: ReportRow, b: ReportRow) => nameOf(a).localeCompare(nameOf(b)),
+            render: (_: unknown, r: ReportRow) => <Text>{nameOf(r)}</Text> },
+        { title: 'Trạng thái', key: 'status', width: 130,
+            sorter: (a: ReportRow, b: ReportRow) => statusVi(a.effective_status ?? a.status ?? null).label.localeCompare(statusVi(b.effective_status ?? b.status ?? null).label),
+            render: (_: unknown, r: ReportRow) => {
+                const s = statusVi(r.effective_status ?? r.status ?? null);
+                return <Tag color={s.color}>{s.label}</Tag>;
+            } },
+        { title: 'Mục tiêu', key: 'objective', width: 130,
+            sorter: (a: ReportRow, b: ReportRow) => objectiveVi(a.objective ?? null).localeCompare(objectiveVi(b.objective ?? null)),
+            render: (_: unknown, r: ReportRow) => objectiveVi(r.objective ?? null) },
+        { title: 'Kết quả', key: 'result', align: 'right' as const, sorter: (a: ReportRow, b: ReportRow) => resultValue(a) - resultValue(b), render: (_: unknown, r: ReportRow) => num(resultValue(r)) },
+        { title: 'CP/Kết quả', key: 'cpr', align: 'right' as const, sorter: (a: ReportRow, b: ReportRow) => (cprValue(a) ?? Infinity) - (cprValue(b) ?? Infinity), render: (_: unknown, r: ReportRow) => money(cprValue(r), currency) },
+        { title: 'NS/ngày', key: 'daily_budget', align: 'right' as const, sorter: (a: ReportRow, b: ReportRow) => (a.daily_budget ?? 0) - (b.daily_budget ?? 0), render: (_: unknown, r: ReportRow) => money(r.daily_budget, currency) },
+        { title: 'Chi tiêu', key: 'spend', align: 'right' as const, defaultSortOrder: 'descend' as const, sorter: (a: ReportRow, b: ReportRow) => mnum(a, 'spend') - mnum(b, 'spend'), render: (_: unknown, r: ReportRow) => money(r.insights?.spend, currency) },
+        { title: 'Hiển thị', key: 'impressions', align: 'right' as const, sorter: (a: ReportRow, b: ReportRow) => mnum(a, 'impressions') - mnum(b, 'impressions'), render: (_: unknown, r: ReportRow) => num(r.insights?.impressions) },
+        { title: 'Tiếp cận', key: 'reach', align: 'right' as const, sorter: (a: ReportRow, b: ReportRow) => mnum(a, 'reach') - mnum(b, 'reach'), render: (_: unknown, r: ReportRow) => num(r.insights?.reach) },
+        { title: 'Click', key: 'clicks', align: 'right' as const, sorter: (a: ReportRow, b: ReportRow) => mnum(a, 'clicks') - mnum(b, 'clicks'), render: (_: unknown, r: ReportRow) => num(r.insights?.clicks) },
+        { title: 'CTR', key: 'ctr', align: 'right' as const, sorter: (a: ReportRow, b: ReportRow) => mnum(a, 'ctr') - mnum(b, 'ctr'), render: (_: unknown, r: ReportRow) => pct(r.insights?.ctr) },
+        { title: 'CPC', key: 'cpc', align: 'right' as const, sorter: (a: ReportRow, b: ReportRow) => mnum(a, 'cpc') - mnum(b, 'cpc'), render: (_: unknown, r: ReportRow) => money(r.insights?.cpc, currency) },
+        { title: 'CPM', key: 'cpm', align: 'right' as const, sorter: (a: ReportRow, b: ReportRow) => mnum(a, 'cpm') - mnum(b, 'cpm'), render: (_: unknown, r: ReportRow) => money(r.insights?.cpm, currency) },
+        { title: 'Tần suất', key: 'frequency', align: 'right' as const, sorter: (a: ReportRow, b: ReportRow) => mnum(a, 'frequency') - mnum(b, 'frequency'), render: (_: unknown, r: ReportRow) => dec(r.insights?.frequency) },
+        ...(canConnect ? [{
+            title: 'Thao tác', key: 'actions', fixed: 'right' as const, width: 130,
+            render: (_: unknown, r: ReportRow) => (
+                <Space size={4}>
+                    {level === 'campaign' && (
+                        <Tooltip title="Phân tích AI chiến dịch">
+                            <Button size="small" icon={<RobotOutlined />} onClick={() => setAiCampaign({ id: r.external_id, name: r.name })} />
+                        </Tooltip>
+                    )}
+                    {level !== 'ad' && (
+                        <Tooltip title="Giám sát: tự tạm dừng / tăng ngân sách theo chi phí/kết quả">
+                            <Button
+                                size="small"
+                                type={isMonitored(r) ? 'primary' : 'default'}
+                                icon={<AlertOutlined />}
+                                onClick={() => setMonitorTarget({ level: level as 'campaign' | 'adset', externalId: r.external_id, name: r.name, canIncrease: r.daily_budget != null })}
+                            />
+                        </Tooltip>
+                    )}
+                </Space>
+            ),
+        }] : []),
     ];
 
     const reconColumns = [
@@ -216,6 +272,7 @@ export function TikTokAdsDashboardPage() {
                                     onChange={(v) => setReportView(v as 'tree' | 'flat')}
                                     options={[{ label: 'Bảng phẳng', value: 'flat' }, { label: 'Cây phân cấp', value: 'tree' }]}
                                 />
+                                <Input allowClear placeholder="Tìm theo tên…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 200 }} />
                             </Space>
                         }
                         extra={
@@ -233,10 +290,10 @@ export function TikTokAdsDashboardPage() {
                                 since={since}
                                 until={until}
                                 currency={currency}
-                                monitoredCampaigns={new Set()}
-                                monitoredAdsets={new Set()}
-                                canMonitor={false}
-                                onMonitor={() => { /* read-only */ }}
+                                monitoredCampaigns={monitoredCampaigns}
+                                monitoredAdsets={monitoredAdsets}
+                                canMonitor={canConnect}
+                                onMonitor={(t) => setMonitorTarget(t)}
                             />
                         ) : (
                             <Table<ReportRow>
@@ -252,19 +309,29 @@ export function TikTokAdsDashboardPage() {
                     </Card>
 
                     <Collapse
-                        items={[{
-                            key: 'recon',
-                            label: 'Đối soát chi tiêu vs đơn thủ công (14 ngày)',
-                            children: (
-                                <Table<ReconRow>
-                                    rowKey="date"
-                                    size="small"
-                                    columns={reconColumns}
-                                    dataSource={recon?.rows ?? []}
-                                    pagination={false}
-                                />
-                            ),
-                        }]}
+                        items={[
+                            {
+                                key: 'forecast',
+                                label: 'Dự báo & khuyến nghị AI (toàn tài khoản)',
+                                extra: canConnect ? <Button size="small" type="primary" loading={genForecast.isPending} onClick={(e) => { e.stopPropagation(); handleForecast(); }}>Tạo dự báo</Button> : undefined,
+                                children: forecast
+                                    ? <ForecastTree forecast={forecast} currency={currency} />
+                                    : <Text type="secondary">Chưa có dự báo — bấm "Tạo dự báo".</Text>,
+                            },
+                            {
+                                key: 'recon',
+                                label: 'Đối soát chi tiêu vs đơn thủ công (14 ngày)',
+                                children: (
+                                    <Table<ReconRow>
+                                        rowKey="date"
+                                        size="small"
+                                        columns={reconColumns}
+                                        dataSource={recon?.rows ?? []}
+                                        pagination={false}
+                                    />
+                                ),
+                            },
+                        ]}
                     />
                 </>
             )}
@@ -274,6 +341,18 @@ export function TikTokAdsDashboardPage() {
                 provider="tiktok"
                 onClose={() => setConnOpen(false)}
                 onChanged={() => setAccountId(null)}
+            />
+            <MonitorConfigDrawer
+                open={monitorTarget != null}
+                accountId={selectedId}
+                target={monitorTarget}
+                onClose={() => setMonitorTarget(null)}
+            />
+            <CampaignAiInsightDrawer
+                open={aiCampaign != null}
+                accountId={selectedId}
+                campaign={aiCampaign}
+                onClose={() => setAiCampaign(null)}
             />
         </div>
     );

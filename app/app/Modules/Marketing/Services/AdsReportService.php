@@ -74,6 +74,16 @@ class AdsReportService
         $actions = (array) ($metrics['actions'] ?? []);
         unset($metrics['actions']);
 
+        // Provider KHÔNG có breakdown `actions` (vd TikTok) ⇒ FacebookResultMap không áp dụng;
+        // dùng `results` connector đã tính sẵn (vd conversion). FB luôn có actions nên không vào nhánh này.
+        if ($actions === []) {
+            $metrics['results'] = (int) ($metrics['results'] ?? 0);
+            $metrics['result_type'] = null;
+            $metrics['result_label'] = null;
+
+            return $metrics;
+        }
+
         $code = FacebookResultMap::resolveCode($ctx['objective'] ?? null, $ctx['goal'] ?? null, $ctx['event'] ?? null);
         if ($code === 'result') {
             // Chưa biết sự kiện ⇒ lấy "chuyển đổi sâu nhất" và gắn nhãn theo đúng loại tìm được.

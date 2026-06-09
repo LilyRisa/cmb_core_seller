@@ -107,7 +107,7 @@ class AdMonitorEvaluator
             }
 
             $results = $this->resultValue($entity, $entities, $dto);
-            $action = $this->applyRules($connector, $token, $currency, $m, $entity, $dto->spend, $results);
+            $action = $this->applyRules($connector, $token, $currency, $m, $entity, $dto->spend, $results, (string) $account->external_account_id);
             if ($action !== null) {
                 $m->last_action = (string) $action['type'];
                 $m->last_action_at = now();
@@ -142,7 +142,7 @@ class AdMonitorEvaluator
     /**
      * @return array<string,mixed>|null
      */
-    private function applyRules(AdsWriteConnector $connector, string $token, string $currency, AdMonitor $m, AdEntity $entity, int $spend, int $results): ?array
+    private function applyRules(AdsWriteConnector $connector, string $token, string $currency, AdMonitor $m, AdEntity $entity, int $spend, int $results, string $advertiserId = ''): ?array
     {
         // Entity đã tạm dừng (monitor tắt trước đó, hoặc user tự tắt) ⇒ KHÔNG xử lý/cảnh
         // báo lại: không tăng/tạm dừng vô nghĩa, và quan trọng là KHÔNG re-pause mỗi 30'
@@ -161,7 +161,7 @@ class AdMonitorEvaluator
                 ? ((int) round($spend / $results)) > $m->pause_above
                 : $spend >= $m->pause_above;
             if ($exceeds) {
-                $connector->updateEntity($token, $m->target_level, $m->target_external_id, ['status' => 'PAUSED'], $currency);
+                $connector->updateEntity($token, $m->target_level, $m->target_external_id, ['status' => 'PAUSED', '_advertiser_id' => $advertiserId], $currency);
                 $entity->status = 'PAUSED';
                 $entity->effective_status = 'PAUSED';
                 $entity->save();
@@ -200,7 +200,7 @@ class AdMonitorEvaluator
             if ($newMajor <= $currentMajor) {
                 return null; // already at cap
             }
-            $connector->updateEntity($token, $m->target_level, $m->target_external_id, ['daily_budget_major' => $newMajor], $currency);
+            $connector->updateEntity($token, $m->target_level, $m->target_external_id, ['daily_budget_major' => $newMajor, '_advertiser_id' => $advertiserId], $currency);
             $entity->daily_budget = (int) FacebookMoney::toMinorUnits($newMajor, $currency);
             $entity->save();
 
@@ -225,6 +225,11 @@ class AdMonitorEvaluator
      */
     private function resultValue(AdEntity $entity, $entities, AdInsightDTO $dto): int
     {
+        // Provider không có breakdown `actions` (vd TikTok) ⇒ connector đã tính sẵn `results`.
+        if ($dto->actions === []) {
+            return $dto->results;
+        }
+
         $objective = $entity->level === AdEntity::LEVEL_CAMPAIGN
             ? $entity->objective
             : $entities->get((string) $entity->parent_external_id)?->objective;

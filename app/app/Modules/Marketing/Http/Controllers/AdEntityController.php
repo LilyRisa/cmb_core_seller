@@ -44,7 +44,9 @@ class AdEntityController extends Controller
         $fields = array_intersect_key($validated, array_flip(['name', 'daily_budget_major', 'status']));
         abort_if($fields === [], 422, 'Không có trường nào để cập nhật.');
 
-        $connector->updateEntity((string) $account->access_token, (string) $validated['level'], $externalId, $fields, (string) ($account->currency ?? 'VND'));
+        // Một số provider (TikTok) cần advertiser_id cho write — truyền qua khóa dành riêng (FB bỏ qua).
+        $writeFields = $fields + ['_advertiser_id' => (string) $account->external_account_id];
+        $connector->updateEntity((string) $account->access_token, (string) $validated['level'], $externalId, $writeFields, (string) ($account->currency ?? 'VND'));
 
         // Mirror onto the local entity row so the report updates without a full re-sync.
         $entity = AdEntity::withoutGlobalScope(TenantScope::class)

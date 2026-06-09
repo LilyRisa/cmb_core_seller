@@ -83,4 +83,32 @@ export const STATUS_VI: Record<string, { label: string; color: string }> = {
     ENABLE: { label: 'Đang chạy', color: 'green' },
     DISABLE: { label: 'Tạm dừng', color: 'default' },
 };
-export const statusVi = (v: string | null) => (v ? STATUS_VI[v] ?? { label: v, color: 'default' } : { label: '—', color: 'default' });
+// TikTok secondary_status: dạng <CAMPAIGN|ADGROUP|AD>_STATUS_<TOKEN>. Map theo TOKEN cuối
+// (vd ADGROUP_STATUS_DISABLE → "Tạm dừng") để không hiển thị enum thô.
+const TIKTOK_SECONDARY: Record<string, { label: string; color: string }> = {
+    DELIVERY_OK: { label: 'Đang chạy', color: 'green' },
+    LIVE_OK: { label: 'Đang chạy', color: 'green' },
+    ENABLE: { label: 'Đang chạy', color: 'green' },
+    DISABLE: { label: 'Tạm dừng', color: 'default' },
+    CAMPAIGN_DISABLE: { label: 'Chiến dịch tạm dừng', color: 'default' },
+    ADGROUP_DISABLE: { label: 'Nhóm tạm dừng', color: 'default' },
+    DELETE: { label: 'Đã xoá', color: 'red' },
+    NOT_START: { label: 'Chưa chạy', color: 'default' },
+    TIME_DONE: { label: 'Đã kết thúc', color: 'default' },
+    NO_DELIVERY: { label: 'Không phân phối', color: 'orange' },
+    AUDIT: { label: 'Chờ duyệt', color: 'gold' },
+    REAUDIT: { label: 'Đang duyệt lại', color: 'gold' },
+    AUDIT_DENY: { label: 'Bị từ chối', color: 'red' },
+    REJECT: { label: 'Bị từ chối', color: 'red' },
+    BUDGET_EXCEED: { label: 'Hết ngân sách', color: 'orange' },
+    BALANCE_EXCEED: { label: 'Hết số dư', color: 'orange' },
+    FROZEN: { label: 'Bị đóng băng', color: 'red' },
+};
+
+export const statusVi = (v: string | null): { label: string; color: string } => {
+    if (!v) return { label: '—', color: 'default' };
+    if (STATUS_VI[v]) return STATUS_VI[v];
+    const m = v.match(/^(?:CAMPAIGN|ADGROUP|AD)_STATUS_(.+)$/);
+    if (m && TIKTOK_SECONDARY[m[1]]) return TIKTOK_SECONDARY[m[1]];
+    return { label: v, color: 'default' };
+};

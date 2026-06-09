@@ -4,13 +4,19 @@ namespace CMBcoreSeller\Integrations\Ads\TikTok;
 
 use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Ads\Contracts\AdsConnector;
+use CMBcoreSeller\Integrations\Ads\Contracts\AdsWriteConnector;
 use CMBcoreSeller\Integrations\Ads\DTO\AdAccountDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdEntityDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdInsightDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdInsightThrottleDTO;
+use CMBcoreSeller\Integrations\Ads\DTO\AdSetSpecDTO;
+use CMBcoreSeller\Integrations\Ads\DTO\AdSpecDTO;
+use CMBcoreSeller\Integrations\Ads\DTO\AudienceSizeDTO;
+use CMBcoreSeller\Integrations\Ads\DTO\CampaignSpecDTO;
 use CMBcoreSeller\Integrations\Ads\Exceptions\UnsupportedOperation;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * TikTok Marketing API (Ads) connector — ADR-0025, read-only (Phase 1). Nguồn:
@@ -29,7 +35,7 @@ use Illuminate\Support\Facades\Http;
  * MONEY: report trả số tiền theo currency account, KHÔNG số thập phân với VND ⇒
  * (int) round() chính xác. Đa tiền tệ minor-unit là việc của phase sau.
  */
-class TikTokAdsConnector implements AdsConnector
+class TikTokAdsConnector implements AdsConnector, AdsWriteConnector
 {
     /** @param array<string,mixed> $config config('integrations.ads_tiktok') */
     public function __construct(private array $config) {}
@@ -51,10 +57,11 @@ class TikTokAdsConnector implements AdsConnector
             'entities.list' => true,
             // Báo cáo advertiser-scoped: SyncAdInsights gộp 3 call/level thay vì N+1.
             'insights.account_report' => true,
-            // Read-only Phase 1 — mọi thao tác ghi/nâng cao chưa hỗ trợ.
+            // Write tối thiểu: đổi trạng thái (campaign/adgroup) + ngân sách (adgroup) —
+            // đủ cho giám sát tự-động (AdMonitor). Tạo quảng cáo chưa hỗ trợ.
+            'actions.status' => true,
+            'actions.budget' => true,
             'insights.async' => false,
-            'actions.budget' => false,
-            'actions.status' => false,
             'actions.bid' => false,
             'ads.create' => false,
             'creative.upload' => false,
@@ -263,7 +270,120 @@ class TikTokAdsConnector implements AdsConnector
         throw UnsupportedOperation::for($this->code(), 'fetchAdCreatives');
     }
 
+    // --- Write (AdsWriteConnector) — tối thiểu cho giám sát ------------------
+
+    /**
+     * Đổi trạng thái (ENABLE/DISABLE) và/hoặc ngân sách ngày. TikTok cần advertiser_id
+     * (không có trong chữ ký interface) ⇒ caller truyền qua `$fields['_advertiser_id']`.
+     *
+     * @param  array<string,mixed>  $fields  name?/status?(ACTIVE|PAUSED)/daily_budget_major?/_advertiser_id
+     */
+    public function updateEntity(string $accessToken, string $level, string $externalId, array $fields, string $currency = 'VND'): void
+    {
+        $advertiserId = (string) ($fields['_advertiser_id'] ?? '');
+        if ($advertiserId === '') {
+            throw new \RuntimeException('TikTok updateEntity thiếu _advertiser_id (advertiser id) trong $fields.');
+        }
+
+        // Trạng thái: ACTIVE→ENABLE, PAUSED→DISABLE. ad-level không dùng cho giám sát.
+        if (isset($fields['status'])) {
+            $op = ((string) $fields['status'] === 'ACTIVE') ? 'ENABLE' : 'DISABLE';
+            if ($level === 'campaign') {
+                $this->writePost($accessToken, 'campaign/status/update/', ['advertiser_id' => $advertiserId, 'campaign_ids' => [$externalId], 'operation_status' => $op]);
+            } elseif ($level === 'adset') {
+                $this->writePost($accessToken, 'adgroup/status/update/', ['advertiser_id' => $advertiserId, 'adgroup_ids' => [$externalId], 'operation_status' => $op]);
+            } else {
+                throw UnsupportedOperation::for($this->code(), "updateEntity status({$level})");
+            }
+        }
+
+        // Ngân sách ngày: chỉ adgroup. Campaign CBO cần full /campaign/update/ ⇒ bỏ qua (log).
+        if (isset($fields['daily_budget_major'])) {
+            $budget = (int) $fields['daily_budget_major'];
+            if ($level === 'adset') {
+                $this->writePost($accessToken, 'adgroup/budget/update/', [
+                    'advertiser_id' => $advertiserId,
+                    'budgets' => [['adgroup_id' => $externalId, 'budget' => $budget, 'budget_mode' => 'BUDGET_MODE_DAY']],
+                ]);
+            } else {
+                Log::info('tiktok.updateEntity.campaign_budget_unsupported', ['campaign' => $externalId]);
+            }
+        }
+        // name: TikTok cần /campaign|adgroup/update/ (full) — chưa hỗ trợ ở giám sát; bỏ qua êm.
+    }
+
+    public function createCampaign(string $accessToken, string $externalAccountId, CampaignSpecDTO $spec): string
+    {
+        throw UnsupportedOperation::for($this->code(), 'createCampaign');
+    }
+
+    public function createAdSet(string $accessToken, string $externalAccountId, AdSetSpecDTO $spec): string
+    {
+        throw UnsupportedOperation::for($this->code(), 'createAdSet');
+    }
+
+    public function createAd(string $accessToken, string $externalAccountId, AdSpecDTO $spec): string
+    {
+        throw UnsupportedOperation::for($this->code(), 'createAd');
+    }
+
+    public function listPages(string $accessToken): array
+    {
+        throw UnsupportedOperation::for($this->code(), 'listPages');
+    }
+
+    public function listPixels(string $accessToken, string $externalAccountId): array
+    {
+        throw UnsupportedOperation::for($this->code(), 'listPixels');
+    }
+
+    public function sharePixel(string $accessToken, string $pixelId, string $businessId, string $targetAccountId): void
+    {
+        throw UnsupportedOperation::for($this->code(), 'sharePixel');
+    }
+
+    public function listPagePosts(string $pageAccessToken, string $pageId, int $limit = 25): array
+    {
+        throw UnsupportedOperation::for($this->code(), 'listPagePosts');
+    }
+
+    public function fetchPostEngagement(string $accessToken, array $postIds): array
+    {
+        throw UnsupportedOperation::for($this->code(), 'fetchPostEngagement');
+    }
+
+    public function fetchPostLinks(string $accessToken, array $postIds): array
+    {
+        throw UnsupportedOperation::for($this->code(), 'fetchPostLinks');
+    }
+
+    public function searchTargeting(string $accessToken, string $query, string $type = 'adinterest'): array
+    {
+        throw UnsupportedOperation::for($this->code(), 'searchTargeting');
+    }
+
+    public function estimateAudience(string $accessToken, string $externalAccountId, array $targetingSpec, string $optimizationGoal): AudienceSizeDTO
+    {
+        throw UnsupportedOperation::for($this->code(), 'estimateAudience');
+    }
+
+    public function generatePreviews(string $accessToken, string $externalAccountId, array $creativeSpec, array $formats): array
+    {
+        throw UnsupportedOperation::for($this->code(), 'generatePreviews');
+    }
+
     // --- Helpers -------------------------------------------------------------
+
+    /**
+     * POST JSON tới endpoint write (header Access-Token); ném khi transport lỗi hoặc code != 0.
+     *
+     * @param  array<string,mixed>  $body
+     */
+    private function writePost(string $accessToken, string $path, array $body): void
+    {
+        $res = Http::timeout(30)->withHeaders(['Access-Token' => $accessToken])->asJson()->post($this->apiUrl($path), $body);
+        $this->unwrap($res, $path);
+    }
 
     /** @return array{0:string} [endpoint path] */
     private function levelEndpoint(string $level): array
