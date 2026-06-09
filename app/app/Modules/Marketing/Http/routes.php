@@ -9,6 +9,7 @@ use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdInsightController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdminMarketingAiProviderController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdMonitorController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdsOAuthController;
+use CMBcoreSeller\Modules\Marketing\Http\Controllers\AiCampaignController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AudienceTemplateController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\CampaignAiInsightController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\GeoExclusionTemplateController;
@@ -100,6 +101,11 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.feature:ma
             ->whereNumber('id')->name('marketing.ad-accounts.campaign-insight.history');
         Route::delete('campaign-insights/{insight}', [CampaignAiInsightController::class, 'destroy'])
             ->whereNumber('insight')->name('marketing.campaign-insights.destroy');
+
+        // AI tạo chiến dịch từ một bài viết page (tối ưu ngân sách + lịch) — tạo AdDraft.
+        Route::post('ad-accounts/{id}/ai-campaign', [AiCampaignController::class, 'generate'])
+            ->whereNumber('id')->middleware('plan.feature:marketing_facebook')
+            ->name('marketing.ad-accounts.ai-campaign');
 
         // Wizard authoring reads (pages/posts/targeting/preview).
         Route::get('ad-accounts/{id}/pages', [AdAuthoringController::class, 'pages'])->whereNumber('id')->name('marketing.authoring.pages');
