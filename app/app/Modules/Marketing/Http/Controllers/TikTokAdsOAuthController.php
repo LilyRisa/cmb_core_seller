@@ -42,7 +42,7 @@ class TikTokAdsOAuthController extends Controller
         abort_if(empty($cfg['app_id']) || empty($cfg['app_secret']), 422, 'Chưa cấu hình app TikTok Ads (TIKTOK_ADS_APP_ID / TIKTOK_ADS_APP_SECRET).');
 
         $tenantId = app(CurrentTenant::class)->id();
-        $state = OAuthState::issue(self::STATE_PROVIDER, (int) $tenantId, $request->user()?->id, '/marketing?connected=tiktok_marketing');
+        $state = OAuthState::issue(self::STATE_PROVIDER, (int) $tenantId, $request->user()?->id, '/marketing/tiktok?connected=tiktok_marketing');
 
         $url = $this->registry->for(self::CONNECTOR)->buildAuthorizationUrl($state->state);
 
@@ -57,12 +57,12 @@ class TikTokAdsOAuthController extends Controller
         $stateToken = (string) $request->query('state', '');
 
         if ($request->query('error') || $code === '' || $stateToken === '') {
-            return $this->finish('/marketing?error=tiktok_marketing_oauth_'.preg_replace('/[^a-z0-9_]/i', '_', strtolower((string) $request->query('error', 'missing_params'))));
+            return $this->finish('/marketing/tiktok?error=tiktok_marketing_oauth_'.preg_replace('/[^a-z0-9_]/i', '_', strtolower((string) $request->query('error', 'missing_params'))));
         }
 
         $state = OAuthState::query()->where('state', $stateToken)->where('provider', self::STATE_PROVIDER)->first();
         if (! $state || $state->isExpired()) {
-            return $this->finish('/marketing?error=tiktok_marketing_oauth_state');
+            return $this->finish('/marketing/tiktok?error=tiktok_marketing_oauth_state');
         }
 
         try {
@@ -70,7 +70,7 @@ class TikTokAdsOAuthController extends Controller
             $token = $connector->exchangeCodeForToken($code);
             $accounts = $connector->listAdAccounts($token['access_token']);
             if ($accounts === []) {
-                return $this->finish('/marketing?error=tiktok_marketing_no_accounts');
+                return $this->finish('/marketing/tiktok?error=tiktok_marketing_no_accounts');
             }
 
             $connected = 0;
@@ -111,10 +111,10 @@ class TikTokAdsOAuthController extends Controller
         } catch (\Throwable $e) {
             Log::warning('marketing.tiktok_ads.oauth_failed', ['error' => $e->getMessage()]);
 
-            return $this->finish('/marketing?error=tiktok_marketing_oauth_failed');
+            return $this->finish('/marketing/tiktok?error=tiktok_marketing_oauth_failed');
         }
 
-        return $this->finish($state->redirect_after ?: '/marketing?connected=tiktok_marketing');
+        return $this->finish($state->redirect_after ?: '/marketing/tiktok?connected=tiktok_marketing');
     }
 
     private function finish(string $redirect): Response

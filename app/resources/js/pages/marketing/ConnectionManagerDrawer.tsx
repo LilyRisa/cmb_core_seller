@@ -24,15 +24,19 @@ export function ConnectionManagerDrawer({ open, onClose, onChanged, provider }: 
     const bulkDisconnect = useBulkDisconnectAccounts();
     const [checked, setChecked] = useState<Set<number>>(new Set());
 
+    // FB nhóm theo Business Manager (BM); TikTok theo Business Center (BC).
+    const isTikTok = provider === 'tiktok';
+    const groupTerm = isTikTok ? 'BC' : 'BM';
+
     const groups = useMemo<BmGroup[]>(() => {
         const m = new Map<string, BmGroup>();
         accounts.forEach((a) => {
             const id = a.business_id ?? '_';
-            if (!m.has(id)) m.set(id, { id, name: a.business_name ?? 'Không thuộc BM', picture: a.business_picture_url ?? null, accounts: [] });
+            if (!m.has(id)) m.set(id, { id, name: a.business_name ?? `Không thuộc ${groupTerm}`, picture: a.business_picture_url ?? null, accounts: [] });
             m.get(id)!.accounts.push(a);
         });
         return [...m.values()];
-    }, [accounts]);
+    }, [accounts, groupTerm]);
 
     function toggle(id: number, on: boolean) {
         setChecked((s) => { const n = new Set(s); if (on) n.add(id); else n.delete(id); return n; });
@@ -87,21 +91,21 @@ export function ConnectionManagerDrawer({ open, onClose, onChanged, provider }: 
                                         onChange={(e) => toggleBm(g, e.target.checked)}
                                     >
                                         <Space>
-                                            {g.picture ? <Avatar size={18} src={g.picture} shape="square" /> : <FacebookFilled style={{ color: '#1877f2' }} />}
+                                            {g.picture ? <Avatar size={18} src={g.picture} shape="square" /> : (isTikTok ? <TikTokOutlined /> : <FacebookFilled style={{ color: '#1877f2' }} />)}
                                             <Text strong>{g.name}</Text>
                                             {g.id !== '_' && <Text type="secondary" style={{ fontSize: 11 }}>#{g.id}</Text>}
                                         </Space>
                                     </Checkbox>
                                     {g.id !== '_' && (
                                         <Popconfirm
-                                            title={`Ngắt cả BM (${g.accounts.length} tài khoản)?`}
-                                            okText="Ngắt cả BM" okButtonProps={{ danger: true }} cancelText="Huỷ"
+                                            title={`Ngắt cả ${groupTerm} (${g.accounts.length} tài khoản)?`}
+                                            okText={`Ngắt cả ${groupTerm}`} okButtonProps={{ danger: true }} cancelText="Huỷ"
                                             onConfirm={() => bulkDisconnect.mutate({ business_id: g.id }, {
                                                 onSuccess: (d) => { message.success(`Đã ngắt ${d.deleted} tài khoản.`); onChanged?.(); },
                                                 onError: (e) => message.error(errorMessage(e)),
                                             })}
                                         >
-                                            <Button size="small" danger type="text">Ngắt cả BM</Button>
+                                            <Button size="small" danger type="text">Ngắt cả {groupTerm}</Button>
                                         </Popconfirm>
                                     )}
                                 </Space>

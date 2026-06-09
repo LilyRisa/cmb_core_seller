@@ -79,6 +79,23 @@ export function TikTokAdsDashboardPage() {
     const { data: report, isFetching } = useAdReport(selectedId, level, since, until, {});
     const { data: recon } = useAdReconciliation(selectedId);
 
+    // Account vừa kết nối: SyncAdAccountEntities chạy BẤT ĐỒNG BỘ (queue marketing-sync)
+    // nên campaign vào DB sau vài giây. Poll lại report tới khi có dữ liệu (tối đa ~30s)
+    // để campaign tự hiện sau khi cấp quyền, KHÔNG cần reload trang thủ công.
+    const reportRowCount = report?.rows?.length ?? 0;
+    useEffect(() => {
+        if (selectedId == null || reportRowCount > 0) return;
+        let n = 0;
+        const t = window.setInterval(() => {
+            n += 1;
+            qc.invalidateQueries({ queryKey: ['marketing', 'report', selectedId] });
+            qc.invalidateQueries({ queryKey: ['marketing', 'ad-accounts'] });
+            if (n >= 6) window.clearInterval(t);
+        }, 5000);
+
+        return () => window.clearInterval(t);
+    }, [selectedId, reportRowCount, qc]);
+
     const applyResult = (p: URLSearchParams) => {
         if (p.get('connected') === 'tiktok_marketing') {
             message.success('Đã kết nối TikTok Ads!');
@@ -137,7 +154,13 @@ export function TikTokAdsDashboardPage() {
 
             <Card style={{ marginBottom: 16 }}>
                 <Space wrap size={12}>
-                    <Button type="primary" icon={<TikTokOutlined />} loading={connect.isPending} onClick={handleConnect} disabled={!canConnect}>Kết nối TikTok Ads</Button>
+                    <Button
+                        icon={<TikTokOutlined />}
+                        loading={connect.isPending}
+                        onClick={handleConnect}
+                        disabled={!canConnect}
+                        style={canConnect ? { background: '#000', borderColor: '#000', color: '#fff' } : undefined}
+                    >Kết nối TikTok Ads</Button>
                     {accounts.length > 0 && (
                         <>
                             <Select

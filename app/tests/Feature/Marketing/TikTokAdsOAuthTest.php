@@ -56,12 +56,12 @@ class TikTokAdsOAuthTest extends TestCase
         $tenant = Tenant::create(['name' => 'T']);
         OAuthState::create([
             'state' => 'st_tt_1', 'provider' => 'tiktok_marketing', 'tenant_id' => $tenant->id,
-            'created_by' => null, 'redirect_after' => '/marketing?connected=tiktok_marketing', 'expires_at' => now()->addMinutes(10),
+            'created_by' => null, 'redirect_after' => '/marketing/tiktok?connected=tiktok_marketing', 'expires_at' => now()->addMinutes(10),
         ]);
 
         $this->get('/oauth/tiktok_marketing/redirect?auth_code=CODE&state=st_tt_1')
             ->assertOk()->assertViewIs('oauth-callback')
-            ->assertViewHas('redirect', '/marketing?connected=tiktok_marketing');
+            ->assertViewHas('redirect', '/marketing/tiktok?connected=tiktok_marketing');
 
         $this->assertDatabaseHas('ad_accounts', ['tenant_id' => $tenant->id, 'provider' => 'tiktok', 'external_account_id' => '123']);
         $acct = AdAccount::withoutGlobalScopes()->where('external_account_id', '123')->firstOrFail();
@@ -80,7 +80,7 @@ class TikTokAdsOAuthTest extends TestCase
         $tenant = Tenant::create(['name' => 'T']);
         OAuthState::create([
             'state' => 'st_tt_2', 'provider' => 'tiktok_marketing', 'tenant_id' => $tenant->id,
-            'created_by' => null, 'redirect_after' => '/marketing?connected=tiktok_marketing', 'expires_at' => now()->addMinutes(10),
+            'created_by' => null, 'redirect_after' => '/marketing/tiktok?connected=tiktok_marketing', 'expires_at' => now()->addMinutes(10),
         ]);
 
         $this->get('/oauth/tiktok_marketing/redirect?auth_code=THECODE&state=st_tt_2')->assertOk();
@@ -92,7 +92,7 @@ class TikTokAdsOAuthTest extends TestCase
     public function test_callback_invalid_state_redirects_error(): void
     {
         $this->get('/oauth/tiktok_marketing/redirect?auth_code=CODE&state=nope')
-            ->assertOk()->assertViewHas('redirect', '/marketing?error=tiktok_marketing_oauth_state');
+            ->assertOk()->assertViewHas('redirect', '/marketing/tiktok?error=tiktok_marketing_oauth_state');
     }
 
     public function test_start_422_when_app_not_configured(): void
