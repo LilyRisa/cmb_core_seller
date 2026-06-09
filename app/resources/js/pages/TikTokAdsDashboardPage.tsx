@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { App as AntApp, Button, Card, Collapse, DatePicker, Result, Segmented, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
+import { Alert, App as AntApp, Button, Card, Collapse, DatePicker, Result, Segmented, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
 import { DisconnectOutlined, FundOutlined, SyncOutlined, TikTokOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
@@ -64,7 +64,11 @@ export function TikTokAdsDashboardPage() {
     }, [range]);
 
     const selectedId = accountId ?? accounts[0]?.id ?? null;
-    const currency = accounts.find((a) => a.id === selectedId)?.currency ?? null;
+    const selectedAccount = accounts.find((a) => a.id === selectedId) ?? null;
+    const currency = selectedAccount?.currency ?? null;
+    // Account chưa từng đồng bộ (last_synced_at null) ⇒ job SyncAdAccountEntities còn
+    // đang chạy trong queue → hiện thông báo "đang đồng bộ" + poll tới khi xong.
+    const syncing = selectedAccount != null && selectedAccount.last_synced_at == null;
     const since = range[0].format('YYYY-MM-DD');
     const until = range[1].format('YYYY-MM-DD');
 
@@ -80,21 +84,21 @@ export function TikTokAdsDashboardPage() {
     const { data: recon } = useAdReconciliation(selectedId);
 
     // Account vừa kết nối: SyncAdAccountEntities chạy BẤT ĐỒNG BỘ (queue marketing-sync)
-    // nên campaign vào DB sau vài giây. Poll lại report tới khi có dữ liệu (tối đa ~30s)
-    // để campaign tự hiện sau khi cấp quyền, KHÔNG cần reload trang thủ công.
-    const reportRowCount = report?.rows?.length ?? 0;
+    // nên campaign vào DB sau vài giây. Trong lúc account chưa đồng bộ xong
+    // (last_synced_at null), poll lại accounts + report (~5s, tối đa ~60s) để dữ liệu
+    // tự hiện sau khi cấp quyền — KHÔNG cần reload trang thủ công.
     useEffect(() => {
-        if (selectedId == null || reportRowCount > 0) return;
+        if (selectedId == null || !syncing) return;
         let n = 0;
         const t = window.setInterval(() => {
             n += 1;
-            qc.invalidateQueries({ queryKey: ['marketing', 'report', selectedId] });
             qc.invalidateQueries({ queryKey: ['marketing', 'ad-accounts'] });
-            if (n >= 6) window.clearInterval(t);
+            qc.invalidateQueries({ queryKey: ['marketing', 'report', selectedId] });
+            if (n >= 12) window.clearInterval(t);
         }, 5000);
 
         return () => window.clearInterval(t);
-    }, [selectedId, reportRowCount, qc]);
+    }, [selectedId, syncing, qc]);
 
     const applyResult = (p: URLSearchParams) => {
         if (p.get('connected') === 'tiktok_marketing') {
@@ -184,6 +188,16 @@ export function TikTokAdsDashboardPage() {
                 <Card><Result icon={<FundOutlined />} title="Chưa kết nối tài khoản quảng cáo TikTok" subTitle="Bấm 'Kết nối TikTok Ads' để bắt đầu." /></Card>
             ) : (
                 <>
+                    {syncing && (
+                        <Alert
+                            type="info"
+                            showIcon
+                            icon={<SyncOutlined spin />}
+                            style={{ marginBottom: 16 }}
+                            message="Đang đồng bộ chiến dịch từ TikTok…"
+                            description="Hệ thống đang kéo dữ liệu chiến dịch/nhóm/quảng cáo về (chạy nền qua hàng đợi). Dữ liệu sẽ tự hiển thị khi xong, thường mất vài giây — bạn không cần tải lại trang."
+                        />
+                    )}
                     <Card
                         style={{ marginBottom: 16 }}
                         title={
