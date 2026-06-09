@@ -9,6 +9,7 @@ final readonly class PageRefDTO
         public string $id,
         public string $name,
         public string $accessToken,
+        public ?string $pictureUrl = null,
         public array $raw = [],
     ) {}
 }

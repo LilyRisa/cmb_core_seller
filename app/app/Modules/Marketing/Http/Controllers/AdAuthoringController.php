@@ -28,7 +28,7 @@ class AdAuthoringController extends Controller
         Gate::authorize('marketing.view');
         [$account, $connector] = $this->resolve($id);
 
-        $pages = array_map(fn (PageRefDTO $p) => ['id' => $p->id, 'name' => $p->name],
+        $pages = array_map(fn (PageRefDTO $p) => ['id' => $p->id, 'name' => $p->name, 'picture_url' => $p->pictureUrl],
             $connector->listPages((string) $account->access_token));
 
         return response()->json(['data' => $pages]);

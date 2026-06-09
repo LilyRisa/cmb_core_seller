@@ -41,7 +41,7 @@ class AiCampaignController extends Controller
             userId: $request->user()?->id,
             objective: (string) $v['objective'],
             mode: (string) $v['mode'],
-            placementMode: (string) $v['placement_mode'],
+            optimizationMode: (string) $v['optimization_mode'],
             pageId: (string) $v['page_id'],
             pagePostId: (string) $v['page_post_id'],
             caption: $v['caption'] ?? null,

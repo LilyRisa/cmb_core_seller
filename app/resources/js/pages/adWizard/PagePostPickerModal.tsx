@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Card, Col, Empty, Modal, Row, Select, Spin, Space, Typography } from 'antd';
+import { Avatar, Card, Col, Empty, Modal, Row, Select, Spin, Space, Typography } from 'antd';
 import {
     FileTextOutlined,
     LikeOutlined,
@@ -126,7 +126,16 @@ export function PagePostPickerModal({ open, accountId, onPick, onClose }: Props)
     const { data: posts, isLoading: postsLoading } = usePagePosts(accountId, pageId);
 
     const pageOptions =
-        pages?.map((p) => ({ label: p.name, value: p.id })) ?? [];
+        pages?.map((p) => ({
+            value: p.id,
+            label: (
+                <Space size={8}>
+                    <Avatar size={20} src={p.picture_url ?? undefined}>{p.name.charAt(0)}</Avatar>
+                    <span>{p.name}</span>
+                    <Text type="secondary" style={{ fontSize: 12 }}>#{p.id}</Text>
+                </Space>
+            ),
+        })) ?? [];
 
     function handlePick(post: AdPagePost) {
         if (pageId == null) return;

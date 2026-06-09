@@ -78,34 +78,81 @@ class PublishAdDraft implements ShouldBeUnique, ShouldQueue
                 return;
             }
 
-            if (! $draft->campaign_external_id) {
-                $draft->campaign_external_id = $connector->createCampaign($token, $acc, $mapper->campaign($draft, (string) $account->currency));
-                $draft->save();
-            }
+            // Resume-first; nếu campaign cũ bị ARCHIVED/DELETED (re-publish bản nháp đã từng
+            // tạo campaign mồ côi rồi bị lưu trữ) ⇒ tạo lại campaign + reset id 1 lần rồi thử lại.
+            for ($attempt = 0; $attempt < 2; $attempt++) {
+                try {
+                    $this->createTree($draft, $connector, $mapper, $token, $acc, (string) $account->currency);
+                    $draft->forceFill(['status' => AdDraft::STATUS_PUBLISHED])->save();
 
-            $currency = (string) $account->currency;
-            $campaignId = (string) $draft->campaign_external_id;
+                    return;
+                } catch (\Throwable $e) {
+                    if ($attempt === 0 && $this->isStaleCampaignError($e)) {
+                        $this->resetForRecreate($draft);
 
-            foreach ($payload['adsets'] as $i => $adsetNode) {
-                if (empty($payload['adsets'][$i]['external_id'])) {
-                    $payload['adsets'][$i]['external_id'] = $connector->createAdSet($token, $acc, $mapper->adSet($draft, $adsetNode, $campaignId, $currency));
-                    $draft->payload = $payload;
-                    $draft->save();
-                }
-                $adsetId = (string) $payload['adsets'][$i]['external_id'];
-
-                foreach ((array) ($adsetNode['ads'] ?? []) as $j => $adNode) {
-                    if (empty($payload['adsets'][$i]['ads'][$j]['external_id'])) {
-                        $payload['adsets'][$i]['ads'][$j]['external_id'] = $connector->createAd($token, $acc, $mapper->ad($draft, (array) $adNode, $adsetId));
-                        $draft->payload = $payload;
-                        $draft->save();
+                        continue;
                     }
+                    throw $e;
                 }
             }
-
-            $draft->forceFill(['status' => AdDraft::STATUS_PUBLISHED])->save();
         } catch (\Throwable $e) {
             $draft->forceFill(['status' => AdDraft::STATUS_FAILED, 'last_error' => $e->getMessage()])->save();
         }
+    }
+
+    /** Tạo campaign (nếu chưa có) → các ad set → các ad. Resume theo external_id đã lưu. */
+    private function createTree(AdDraft $draft, AdsWriteConnector $connector, AdDraftSpecMapper $mapper, string $token, string $acc, string $currency): void
+    {
+        if (! $draft->campaign_external_id) {
+            $draft->campaign_external_id = $connector->createCampaign($token, $acc, $mapper->campaign($draft, $currency));
+            $draft->save();
+        }
+        $campaignId = (string) $draft->campaign_external_id;
+        $payload = (array) $draft->payload;
+
+        foreach ((array) ($payload['adsets'] ?? []) as $i => $adsetNode) {
+            if (empty($payload['adsets'][$i]['external_id'])) {
+                $payload['adsets'][$i]['external_id'] = $connector->createAdSet($token, $acc, $mapper->adSet($draft, (array) $adsetNode, $campaignId, $currency));
+                $draft->payload = $payload;
+                $draft->save();
+            }
+            $adsetId = (string) $payload['adsets'][$i]['external_id'];
+
+            foreach ((array) ($adsetNode['ads'] ?? []) as $j => $adNode) {
+                if (empty($payload['adsets'][$i]['ads'][$j]['external_id'])) {
+                    $payload['adsets'][$i]['ads'][$j]['external_id'] = $connector->createAd($token, $acc, $mapper->ad($draft, (array) $adNode, $adsetId));
+                    $draft->payload = $payload;
+                    $draft->save();
+                }
+            }
+        }
+    }
+
+    /** Lỗi FB cho biết campaign đã lưu trữ/xoá (không thể gắn ad set) ⇒ cần tạo campaign mới. */
+    private function isStaleCampaignError(\Throwable $e): bool
+    {
+        $m = mb_strtolower($e->getMessage());
+
+        return str_contains($m, '1487866')      // archived campaign
+            || str_contains($m, 'lưu trữ')
+            || str_contains($m, 'archived')
+            || str_contains($m, 'deleted')
+            || str_contains($m, 'does not exist')
+            || str_contains($m, 'không tồn tại');
+    }
+
+    /** Xoá campaign + mọi external_id trong payload để publish lại tạo cây mới. */
+    private function resetForRecreate(AdDraft $draft): void
+    {
+        $payload = (array) $draft->payload;
+        foreach ((array) ($payload['adsets'] ?? []) as $i => $as) {
+            $payload['adsets'][$i]['external_id'] = null;
+            foreach ((array) ($as['ads'] ?? []) as $j => $ad) {
+                $payload['adsets'][$i]['ads'][$j]['external_id'] = null;
+            }
+        }
+        $draft->payload = $payload;
+        $draft->campaign_external_id = null;
+        $draft->save();
     }
 }

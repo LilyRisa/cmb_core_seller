@@ -597,7 +597,7 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
     public function listPages(string $accessToken): array
     {
         $res = Http::timeout(30)->get($this->graphUrl('me/accounts'), [
-            'fields' => 'id,name,access_token',
+            'fields' => 'id,name,access_token,picture{url}',
             'access_token' => $accessToken,
             'limit' => 200,
         ]);
@@ -609,6 +609,7 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
             id: (string) ($p['id'] ?? ''),
             name: (string) ($p['name'] ?? ''),
             accessToken: (string) ($p['access_token'] ?? ''),
+            pictureUrl: isset($p['picture']['data']['url']) ? (string) $p['picture']['data']['url'] : null,
             raw: $p,
         ), array_filter((array) $res->json('data', []), 'is_array')));
     }

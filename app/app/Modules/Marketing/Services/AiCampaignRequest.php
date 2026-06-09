@@ -14,7 +14,7 @@ final readonly class AiCampaignRequest
         public ?int $userId,
         public string $objective,       // messages|engagement|traffic|conversions
         public string $mode,            // test|scale
-        public string $placementMode,   // advantage_plus|manual
+        public string $optimizationMode, // advantage_plus (Meta tự tối ưu toàn bộ) | manual
         public string $pageId,
         public string $pagePostId,
         public ?string $caption,

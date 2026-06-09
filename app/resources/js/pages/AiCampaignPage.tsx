@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Alert, Button, Card, DatePicker, Empty, Input, Modal, Radio, Space, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, DatePicker, Empty, Input, Modal, Radio, Select, Space, Tag, Typography, message } from 'antd';
 import {
     LikeOutlined,
     LinkOutlined,
@@ -10,7 +10,8 @@ import {
 } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { PagePostPickerModal, type PickResult } from '@/pages/adWizard/PagePostPickerModal';
-import { useGenerateAiCampaign, type AdObjective } from '@/lib/adWizard';
+import { useAdPixels, useGenerateAiCampaign, type AdObjective } from '@/lib/adWizard';
+import { CONVERSION_EVENTS, ctaLabel } from '@/lib/adLabels';
 
 const { Title, Paragraph, Text } = Typography;
 const { TextArea } = Input;
@@ -19,7 +20,7 @@ const OBJECTIVES: { value: AdObjective; label: string }[] = [
     { value: 'messages', label: 'Tin nhắn' },
     { value: 'engagement', label: 'Tương tác' },
     { value: 'traffic', label: 'Truy cập web' },
-    { value: 'conversions', label: 'Chuyển đổi (đăng ký form)' },
+    { value: 'conversions', label: 'Chuyển đổi' },
 ];
 
 function nf(n: number): string {
@@ -35,23 +36,24 @@ export function AiCampaignPage() {
     const [post, setPost] = useState<PickResult | null>(null);
     const [objective, setObjective] = useState<AdObjective>('messages');
     const [mode, setMode] = useState<'test' | 'scale'>('test');
-    const [placement, setPlacement] = useState<'advantage_plus' | 'manual'>('advantage_plus');
+    const [optimization, setOptimization] = useState<'advantage_plus' | 'manual'>('advantage_plus');
     const [start, setStart] = useState<Dayjs | null>(null);
     const [prompt, setPrompt] = useState('');
-    const [pixelId, setPixelId] = useState('');
+    const [pixelId, setPixelId] = useState<string | undefined>(undefined);
     const [conversionEvent, setConversionEvent] = useState('COMPLETE_REGISTRATION');
     const [linkUrl, setLinkUrl] = useState('');
 
     const gen = useGenerateAiCampaign();
     const isConversions = objective === 'conversions';
+    const pixels = useAdPixels(accountId, isConversions);
     const postLink = post?.link_url ?? null;
     const needsLinkInput = isConversions && postLink == null;
 
     function submit() {
         if (accountId == null) return message.error('Thiếu tài khoản quảng cáo.');
         if (post == null) return message.error('Hãy chọn một bài viết.');
-        if (isConversions && (pixelId.trim() === '' || conversionEvent.trim() === '')) {
-            return message.error('Mục tiêu chuyển đổi cần Pixel ID và sự kiện chuyển đổi.');
+        if (isConversions && (pixelId == null || pixelId === '' || conversionEvent === '')) {
+            return message.error('Mục tiêu chuyển đổi cần chọn Pixel và sự kiện chuyển đổi.');
         }
         if (needsLinkInput && linkUrl.trim() === '') {
             return message.error('Bài viết chưa có link — hãy nhập link đích (landing) cho mục tiêu chuyển đổi.');
@@ -64,7 +66,7 @@ export function AiCampaignPage() {
                 page_post_id: post.page_post_id,
                 objective,
                 mode,
-                placement_mode: placement,
+                optimization_mode: optimization,
                 prompt: prompt.trim() === '' ? undefined : prompt,
                 caption: post.message,
                 likes: post.likes,
@@ -73,7 +75,7 @@ export function AiCampaignPage() {
                 link_url: postLink ?? (linkUrl.trim() === '' ? null : linkUrl),
                 landing_url: (linkUrl.trim() === '' ? postLink : linkUrl),
                 cta_type: post.cta_type,
-                pixel_id: isConversions ? pixelId : null,
+                pixel_id: isConversions ? (pixelId ?? null) : null,
                 conversion_event: isConversions ? conversionEvent : null,
                 start_time: start != null ? start.toISOString() : null,
             },
@@ -139,12 +141,17 @@ export function AiCampaignPage() {
                                         <span><ShareAltOutlined /> {nf(post.shares)}</span>
                                     </Space>
                                     <div style={{ marginTop: 6 }}>
-                                        {postLink != null ? (
-                                            <Tag icon={<LinkOutlined />} color="blue">{post.cta_type ?? 'Có link'}</Tag>
-                                        ) : (
-                                            <Tag>Chưa có nút/link</Tag>
-                                        )}
-                                        <Button type="link" size="small" onClick={() => setPickerOpen(true)}>Đổi bài</Button>
+                                        <Space size={6} wrap>
+                                            {post.cta_type != null && <Tag color="blue">{ctaLabel(post.cta_type)}</Tag>}
+                                            {postLink != null ? (
+                                                <a href={postLink} target="_blank" rel="noreferrer">
+                                                    <LinkOutlined /> {postLink}
+                                                </a>
+                                            ) : (
+                                                <Tag>Chưa có nút/link</Tag>
+                                            )}
+                                            <Button type="link" size="small" onClick={() => setPickerOpen(true)}>Đổi bài</Button>
+                                        </Space>
                                     </div>
                                 </div>
                             </Space>
@@ -167,8 +174,22 @@ export function AiCampaignPage() {
                     <div>
                         <Title level={5}>Cấu hình chuyển đổi</Title>
                         <Space direction="vertical" style={{ width: '100%' }}>
-                            <Input addonBefore="Pixel ID" value={pixelId} onChange={(e) => setPixelId(e.target.value)} placeholder="VD 9955679..." />
-                            <Input addonBefore="Sự kiện" value={conversionEvent} onChange={(e) => setConversionEvent(e.target.value)} placeholder="COMPLETE_REGISTRATION" />
+                            <Select
+                                style={{ width: '100%' }}
+                                placeholder="Chọn Pixel chuyển đổi"
+                                loading={pixels.isLoading}
+                                value={pixelId}
+                                onChange={setPixelId}
+                                options={(pixels.data ?? []).map((p) => ({ value: p.id, label: `${p.name} (#${p.id})` }))}
+                                notFoundContent={pixels.isLoading ? 'Đang tải…' : 'Tài khoản chưa có Pixel'}
+                            />
+                            <Select
+                                style={{ width: '100%' }}
+                                placeholder="Sự kiện chuyển đổi"
+                                value={conversionEvent}
+                                onChange={setConversionEvent}
+                                options={CONVERSION_EVENTS}
+                            />
                             {needsLinkInput && (
                                 <Input addonBefore="Link đích" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://… (form đăng ký)" />
                             )}
@@ -185,11 +206,12 @@ export function AiCampaignPage() {
                 </div>
 
                 <div>
-                    <Title level={5}>4. Vị trí quảng cáo</Title>
-                    <Radio.Group optionType="button" buttonStyle="solid" value={placement} onChange={(e) => setPlacement(e.target.value)}>
-                        <Radio.Button value="advantage_plus">Advantage+ (tự động)</Radio.Button>
+                    <Title level={5}>4. Cách tối ưu</Title>
+                    <Radio.Group optionType="button" buttonStyle="solid" value={optimization} onChange={(e) => setOptimization(e.target.value)}>
+                        <Radio.Button value="advantage_plus">Advantage+ (Meta tự tối ưu toàn bộ)</Radio.Button>
                         <Radio.Button value="manual">Thủ công</Radio.Button>
                     </Radio.Group>
+                    <div><Text type="secondary">Advantage+ = Meta tự chọn vị trí, mở rộng đối tượng & tăng cường sáng tạo.</Text></div>
                 </div>
 
                 <div>

@@ -85,7 +85,7 @@ export interface AdDraft {
     updated_at: string | null;
 }
 
-export interface AdPage { id: string; name: string }
+export interface AdPage { id: string; name: string; picture_url?: string | null }
 export interface AdPagePost {
     id: string; message: string | null; created_time: string;
     media_type: string; image_url: string | null;
@@ -228,7 +228,7 @@ export interface AiCampaignInput {
     page_post_id: string;
     objective: AdObjective;
     mode: 'test' | 'scale';
-    placement_mode: 'advantage_plus' | 'manual';
+    optimization_mode: 'advantage_plus' | 'manual';
     prompt?: string;
     caption?: string | null;
     likes?: number;

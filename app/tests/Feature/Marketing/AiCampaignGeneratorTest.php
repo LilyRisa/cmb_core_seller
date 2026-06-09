@@ -39,7 +39,7 @@ class AiCampaignGeneratorTest extends TestCase
     {
         return new AiCampaignRequest(...array_merge([
             'adAccountId' => $acc->id, 'tenantId' => $acc->tenant_id, 'userId' => null,
-            'objective' => 'messages', 'mode' => 'test', 'placementMode' => 'advantage_plus',
+            'objective' => 'messages', 'mode' => 'test', 'optimizationMode' => 'advantage_plus',
             'pageId' => '655064411022030', 'pagePostId' => '655064411022030_122',
             'caption' => 'Sale lớn', 'likes' => 10, 'comments' => 2, 'shares' => 1,
             'linkUrl' => null, 'ctaType' => 'MESSAGE_PAGE', 'landingText' => null,

@@ -133,6 +133,41 @@ class PublishAdDraftTest extends TestCase
         $this->assertNull($sets[1]['external_id'] ?? null);          // 2nd not created
     }
 
+    public function test_recreates_campaign_when_old_is_archived(): void
+    {
+        $asCall = 0;
+        Http::fake(function ($request) use (&$asCall) {
+            $u = $request->url();
+            if (str_contains($u, '/campaigns')) {
+                return Http::response(['id' => 'CNEW'], 200);
+            }
+            if (str_contains($u, '/adsets')) {
+                $asCall++;
+                if ($asCall === 1) {
+                    return Http::response(['error' => ['message' => 'Invalid parameter', 'code' => 100, 'error_subcode' => 1487866, 'error_user_msg' => 'Không thể thêm nhóm quảng cáo vào chiến dịch đã lưu trữ.']], 400);
+                }
+
+                return Http::response(['id' => "AS{$asCall}"], 200);
+            }
+            if (str_contains($u, '/ads')) {
+                return Http::response(['id' => 'AD1'], 200);
+            }
+
+            return Http::response([], 200);
+        });
+        // 1 nhóm cho gọn; campaign cũ (CARCHIVED) đã bị lưu trữ.
+        $payload = $this->treePayload();
+        $payload['adsets'] = [$payload['adsets'][0]];
+        $draft = $this->makeDraft($payload, ['campaign_external_id' => 'CARCHIVED']);
+
+        $this->dispatch($draft);
+        $draft->refresh();
+
+        $this->assertSame('published', $draft->status);
+        $this->assertSame('CNEW', $draft->campaign_external_id);            // tạo campaign mới
+        $this->assertSame('AS2', $draft->payload['adsets'][0]['external_id']); // adset tạo lại OK
+    }
+
     public function test_empty_adsets_fails_without_creating_campaign(): void
     {
         $this->fakeGraph();

@@ -71,7 +71,7 @@ class AiCampaignApiTest extends TestCase
         $this->actingAs($this->user(Role::Owner))->withHeaders($this->h())
             ->postJson("/api/v1/marketing/ad-accounts/{$acc->id}/ai-campaign", [
                 'page_id' => '655064411022030', 'page_post_id' => '655064411022030_122',
-                'objective' => 'messages', 'mode' => 'test', 'placement_mode' => 'advantage_plus',
+                'objective' => 'messages', 'mode' => 'test', 'optimization_mode' => 'advantage_plus',
                 'prompt' => 'Chạy test bài này', 'caption' => 'Sale lớn', 'likes' => 12, 'comments' => 3, 'shares' => 1,
             ])
             ->assertStatus(201)
@@ -87,7 +87,7 @@ class AiCampaignApiTest extends TestCase
         $this->actingAs($this->user(Role::StaffOrder))->withHeaders($this->h())
             ->postJson("/api/v1/marketing/ad-accounts/{$acc->id}/ai-campaign", [
                 'page_id' => 'P', 'page_post_id' => 'P_1', 'objective' => 'messages',
-                'mode' => 'test', 'placement_mode' => 'advantage_plus',
+                'mode' => 'test', 'optimization_mode' => 'advantage_plus',
             ])
             ->assertForbidden();
     }
@@ -99,7 +99,7 @@ class AiCampaignApiTest extends TestCase
         $this->actingAs($this->user(Role::Owner))->withHeaders($this->h())
             ->postJson("/api/v1/marketing/ad-accounts/{$acc->id}/ai-campaign", [
                 'page_id' => 'P', 'page_post_id' => 'P_1', 'objective' => 'conversions',
-                'mode' => 'test', 'placement_mode' => 'advantage_plus',
+                'mode' => 'test', 'optimization_mode' => 'advantage_plus',
                 // thiếu pixel_id + conversion_event ⇒ 422 validate
             ])
             ->assertStatus(422);

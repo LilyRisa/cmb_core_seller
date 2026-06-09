@@ -21,7 +21,7 @@ class AiCampaignGenerateRequest extends FormRequest
             'page_post_id' => ['required', 'string', 'max:128'],
             'objective' => ['required', 'string', Rule::in(FacebookAdsCatalog::objectives())],
             'mode' => ['required', 'string', Rule::in(['test', 'scale'])],
-            'placement_mode' => ['required', 'string', Rule::in(['advantage_plus', 'manual'])],
+            'optimization_mode' => ['required', 'string', Rule::in(['advantage_plus', 'manual'])],
             'prompt' => ['nullable', 'string', 'max:2000'],
             'caption' => ['nullable', 'string', 'max:5000'],
             'likes' => ['nullable', 'integer', 'min:0'],

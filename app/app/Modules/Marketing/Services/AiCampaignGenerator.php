@@ -92,8 +92,10 @@ final class AiCampaignGenerator
             $targeting['geo_locations'] = ['countries' => ['VN']];
         }
 
-        // Advantage+ ⇒ vị trí tự động; thủ công ⇒ dùng cấu hình AI (sẽ được sanitize sau).
-        $placement = $req->placementMode === 'advantage_plus'
+        // Advantage+ = Meta tự tối ưu TOÀN BỘ ⇒ vị trí tự động + tăng cường sáng tạo
+        // (standard enhancements); thủ công ⇒ dùng cấu hình AI (sanitize sau).
+        $advantage = $req->optimizationMode === 'advantage_plus';
+        $placement = $advantage
             ? ['automatic' => true]
             : (array) ($as['placement_config'] ?? ['automatic' => true]);
 
@@ -102,6 +104,7 @@ final class AiCampaignGenerator
             'page_id' => $req->pageId,
             'page_post_id' => $req->pagePostId,
             'cta' => (string) ($as['ads'][0]['creative']['cta'] ?? $req->ctaType ?? 'LEARN_MORE'),
+            'standard_enhancements' => $advantage,
         ];
         if ($req->linkUrl !== null && $req->linkUrl !== '') {
             $creative['link_url'] = $req->linkUrl;
@@ -158,7 +161,7 @@ final class AiCampaignGenerator
         return [
             'objective' => $req->objective,
             'mode' => $req->mode,
-            'placement_mode' => $req->placementMode,
+            'optimization_mode' => $req->optimizationMode,
             'currency' => $req->currency,
             'timezone' => $req->timezone,
             'now_local' => CarbonImmutable::now()->setTimezone($req->timezone)->toIso8601String(),
@@ -196,8 +199,10 @@ final class AiCampaignGenerator
           'recommended'. Đừng đề xuất quá nhỏ (FB từ chối) hay quá lớn (đốt tiền).
         - Nhắm mục tiêu: luôn có geo_locations (mặc định {"countries":["VN"]}); chọn age/gender
           hợp sản phẩm dựa trên caption + engagement.
-        - Vị trí: nếu placement_mode=advantage_plus → để placement_config.automatic=true. KHÔNG
-          BAO GIỜ dùng vị trí đã ngừng hoạt động. Nếu chỉ nhắm mobile thì KHÔNG chọn vị trí
+        - Cách tối ưu (optimization_mode): nếu = advantage_plus → Meta TỰ TỐI ƯU TOÀN BỘ:
+          để placement_config.automatic=true, audience RỘNG (Advantage+ Audience, để Meta mở
+          rộng), bật tăng cường sáng tạo. Nếu = manual → tự đề xuất vị trí/nhắm mục tiêu cụ thể.
+          KHÔNG BAO GIỜ dùng vị trí đã ngừng hoạt động; chỉ nhắm mobile thì KHÔNG chọn vị trí
           desktop-only (right_hand_column).
         - Lịch: KHÔNG đặt bắt đầu sát nửa đêm (ngân sách ngày reset lúc 00:00 giờ tài khoản →
           dễ đốt hết trong ít giờ). Dựa vào now_local để chọn giờ bắt đầu hợp lý.
