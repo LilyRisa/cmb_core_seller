@@ -33,6 +33,8 @@ use Illuminate\Support\Carbon;
  * @property ?Carbon $insights_synced_at
  * @property ?array<string,mixed> $meta
  * @property ?int $created_by
+ * @property ?Carbon $created_at
+ * @property ?Carbon $updated_at
  */
 class AdAccount extends Model
 {

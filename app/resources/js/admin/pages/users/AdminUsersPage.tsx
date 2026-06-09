@@ -57,6 +57,22 @@ export function AdminUsersPage() {
         },
         { title: 'Email', dataIndex: 'email' },
         {
+            title: 'Xác minh email',
+            dataIndex: 'email_verified_at',
+            width: 130,
+            render: (v: string | null) => (v
+                ? <Tag color="green">Đã xác minh</Tag>
+                : <Tag color="red">Chưa xác minh</Tag>),
+        },
+        {
+            title: 'Trạng thái',
+            dataIndex: 'suspended_at',
+            width: 110,
+            render: (v: string | null) => (v
+                ? <Tag color="default">Đã khoá</Tag>
+                : <Tag color="blue">Hoạt động</Tag>),
+        },
+        {
             title: 'Tenant',
             dataIndex: 'tenants',
             render: (ts: TenantUserRow['tenants']) => (

@@ -7,6 +7,8 @@ export type TenantUserRow = {
     id: number;
     name: string;
     email: string;
+    email_verified_at: string | null;
+    suspended_at: string | null;
     tenants: { id: number; name: string; role: string }[];
     created_at: string | null;
 };

@@ -12,6 +12,7 @@ use CMBcoreSeller\Modules\Billing\Services\OverQuotaCheckService;
 use CMBcoreSeller\Modules\Billing\Services\SubscriptionService;
 use CMBcoreSeller\Modules\Billing\Services\UsageService;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Models\TenantUser;
@@ -77,9 +78,12 @@ class AdminTenantController extends Controller
 
         $channels = ChannelAccount::query()->withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenant->getKey())->orderBy('id')->get();
+        // Tài khoản quảng cáo đã liên kết (Facebook/TikTok) — trục Ads, scope tenant tường minh.
+        $adAccounts = AdAccount::query()->withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenant->getKey())->orderBy('id')->get();
         $members = TenantUser::query()
             ->where('tenant_id', $tenant->getKey())
-            ->with('user:id,name,email')->get();
+            ->with('user:id,name,email,email_verified_at')->get();
         $audits = AuditLog::query()->withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenant->getKey())
             ->where('action', 'like', 'admin.%')
@@ -104,9 +108,20 @@ class AdminTenantController extends Controller
                 'last_synced_at' => optional($a->last_synced_at)->toIso8601String(),
                 'created_at' => $a->created_at?->toIso8601String(),
             ])->all(),
+            // Tài khoản quảng cáo đã liên kết — FE tách theo provider (facebook/tiktok).
+            'ad_accounts' => $adAccounts->map(fn (AdAccount $a) => [
+                'id' => $a->id, 'provider' => $a->provider,
+                'name' => $a->name, 'external_account_id' => $a->external_account_id,
+                'currency' => $a->currency, 'status' => $a->status,
+                'business_name' => $a->business_name,
+                'last_synced_at' => optional($a->last_synced_at)->toIso8601String(),
+                'created_at' => $a->created_at?->toIso8601String(),
+            ])->all(),
             'members' => $members->map(fn (TenantUser $m) => [
                 'user_id' => $m->user_id, 'role' => $m->role,
                 'name' => $m->user->name ?? null, 'email' => $m->user->email ?? null,
+                // null ⇒ chưa xác minh email.
+                'email_verified_at' => optional($m->user?->email_verified_at)->toIso8601String(),
             ])->all(),
             'recent_admin_actions' => $audits->map(fn (AuditLog $a) => [
                 'id' => $a->id, 'action' => $a->action, 'user_id' => $a->user_id,

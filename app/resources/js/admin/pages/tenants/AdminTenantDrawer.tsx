@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { App, Button, Descriptions, Drawer, Empty, Form, Input, Modal, Radio, Skeleton, Space, Table, Tabs, Tag, Typography } from 'antd';
-import { DeleteOutlined, LockOutlined, ShopOutlined, SwapOutlined, UnlockOutlined, WarningOutlined } from '@ant-design/icons';
+import { DeleteOutlined, FacebookFilled, FundOutlined, LockOutlined, ShopOutlined, SwapOutlined, TikTokOutlined, UnlockOutlined, WarningOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
     useAdminChangePlan, useAdminDeleteChannel, useAdminPlans, useAdminReactivateTenant, useAdminSuspendTenant,
@@ -107,6 +107,7 @@ export function AdminTenantDrawer({ tenantId, onClose }: { tenantId: number | nu
                     <Tabs
                         items={[
                             { key: 'channels', label: <Space><ShopOutlined /> Gian hàng ({t.channel_accounts.length})</Space>, children: <ChannelsTab tenantId={t.id} accounts={t.channel_accounts} /> },
+                            { key: 'ads', label: <Space><FundOutlined /> Tài khoản quảng cáo ({t.ad_accounts?.length ?? 0})</Space>, children: <AdAccountsTab accounts={t.ad_accounts ?? []} /> },
                             { key: 'plan', label: <Space><SwapOutlined /> Gói thuê bao</Space>, children: <PlanTab tenantId={t.id} sub={t.subscription} /> },
                             { key: 'members', label: `Thành viên (${t.members.length})`, children: <MembersTab members={t.members} /> },
                             { key: 'audit', label: 'Audit log gần đây', children: <AuditTab entries={t.recent_admin_actions} /> },
@@ -293,10 +294,46 @@ function MembersTab({ members }: { members: import('@admin/lib/admin').AdminMemb
                 { title: 'Email', dataIndex: 'email', key: 'email', render: (v) => v ?? '—' },
                 { title: 'Vai trò', dataIndex: 'role', key: 'role', width: 140,
                     render: (v: string) => <Tag>{v}</Tag> },
+                { title: 'Xác minh email', dataIndex: 'email_verified_at', key: 'verified', width: 130,
+                    render: (v: string | null | undefined) => (v ? <Tag color="green">Đã xác minh</Tag> : <Tag color="red">Chưa xác minh</Tag>) },
                 { title: 'Super admin', dataIndex: 'is_super_admin', key: 'sa', width: 110,
                     render: (v: boolean) => v ? <Tag color="purple">Có</Tag> : <Tag>—</Tag> },
             ]}
         />
+    );
+}
+
+// -- Ad accounts tab (Quảng cáo) — tách Facebook / TikTok --------------------
+
+function AdAccountsTab({ accounts }: { accounts: import('@admin/lib/admin').AdminAdAccount[] }) {
+    if (accounts.length === 0) return <Empty description="Tenant chưa liên kết tài khoản quảng cáo nào." />;
+
+    const groups: { key: string; label: ReactNode; rows: typeof accounts }[] = [
+        { key: 'facebook', label: <Space><FacebookFilled style={{ color: '#1877f2' }} /> Facebook Ads</Space>, rows: accounts.filter((a) => a.provider === 'facebook') },
+        { key: 'tiktok', label: <Space><TikTokOutlined /> TikTok Ads</Space>, rows: accounts.filter((a) => a.provider === 'tiktok') },
+    ];
+
+    return (
+        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+            {groups.filter((g) => g.rows.length > 0).map((g) => (
+                <div key={g.key}>
+                    <Typography.Text strong>{g.label} ({g.rows.length})</Typography.Text>
+                    <Table size="small" rowKey="id" pagination={false} style={{ marginTop: 8 }}
+                        dataSource={g.rows}
+                        columns={[
+                            { title: 'Tên', dataIndex: 'name', key: 'name', render: (v: string | null, r) => v ?? r.external_account_id },
+                            { title: 'ID', dataIndex: 'external_account_id', key: 'eid', width: 160,
+                                render: (v: string) => <Typography.Text copyable={{ text: v }} style={{ fontSize: 12 }}>{v}</Typography.Text> },
+                            { title: 'BC/BM', dataIndex: 'business_name', key: 'bn', render: (v: string | null) => v ?? '—' },
+                            { title: 'Tiền tệ', dataIndex: 'currency', key: 'cur', width: 90, render: (v: string | null) => v ?? '—' },
+                            { title: 'Trạng thái', dataIndex: 'status', key: 'st', width: 110, render: (v: string) => <Tag>{v}</Tag> },
+                            { title: 'Đồng bộ gần nhất', dataIndex: 'last_synced_at', key: 'sync', width: 150,
+                                render: (v: string | null) => (v ? dayjs(v).format('DD/MM HH:mm') : '—') },
+                        ]}
+                    />
+                </div>
+            ))}
+        </Space>
     );
 }
 

@@ -53,7 +53,20 @@ export interface AdminMember {
     role: string;
     name: string | null;
     email: string | null;
+    email_verified_at?: string | null;
     is_super_admin: boolean;
+}
+
+export interface AdminAdAccount {
+    id: number;
+    provider: string; // facebook | tiktok
+    name: string | null;
+    external_account_id: string;
+    currency: string | null;
+    status: string;
+    business_name: string | null;
+    last_synced_at: string | null;
+    created_at: string | null;
 }
 
 export interface AdminAuditEntry {
@@ -88,6 +101,7 @@ export interface AdminVoucherRedemptionRow {
 
 export interface AdminTenantDetail extends AdminTenantSummary {
     channel_accounts: AdminChannelAccount[];
+    ad_accounts: AdminAdAccount[];
     members: AdminMember[];
     recent_admin_actions: AdminAuditEntry[];
     invoices: AdminInvoice[];

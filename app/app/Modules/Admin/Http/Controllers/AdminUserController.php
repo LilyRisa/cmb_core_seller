@@ -142,6 +142,9 @@ class AdminUserController extends Controller
             'id' => $u->id,
             'name' => $u->name,
             'email' => $u->email,
+            // Xác minh email: null ⇒ CHƯA xác minh (đăng ký không bắt buộc xác minh để dùng app).
+            'email_verified_at' => optional($u->email_verified_at)->toIso8601String(),
+            'suspended_at' => optional($u->suspended_at)->toIso8601String(),
             'tenants' => $userTenants,
             'created_at' => $u->created_at?->toIso8601String(),
         ];
