@@ -8,6 +8,7 @@ use CMBcoreSeller\Integrations\Ai\DTO\IntentDTO;
 use CMBcoreSeller\Integrations\Ai\Exceptions\ProviderNotConfigured;
 use CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Guardrail cho auto-mode (SPEC-0024 §4.6): phân loại intent tin nhắn để quyết
@@ -38,13 +39,13 @@ class IntentClassifier
 
         // Circuit MỞ: bỏ qua gọi provider, escalate an toàn (tránh hammer provider chết).
         if ((int) Cache::get($failKey, 0) >= self::FAIL_THRESHOLD) {
-            return new IntentDTO(intent: 'urgent', confidence: 0.0);
+            return $this->escalateOnFailure($providerCode, 'circuit_open');
         }
 
         try {
             $connector = $this->registry->for($providerCode);
             if (! $connector->supports('intent.classify')) {
-                return new IntentDTO(intent: 'urgent', confidence: 0.0); // escalate by default
+                return $this->escalateOnFailure($providerCode, 'unsupported');
             }
 
             $result = $connector->classifyIntent(new AiContext($tenantId, $providerCode), $text, self::ALL);
@@ -53,16 +54,32 @@ class IntentClassifier
             $this->credits->record($tenantId, 1);
 
             return $result;
-        } catch (ProviderNotConfigured) {
+        } catch (ProviderNotConfigured $e) {
             // Lỗi cấu hình: escalate, KHÔNG đếm (không phải provider chết).
-            return new IntentDTO(intent: 'urgent', confidence: 0.0);
-        } catch (\Throwable) {
+            return $this->escalateOnFailure($providerCode, 'provider_not_configured', $e);
+        } catch (\Throwable $e) {
             // Lỗi tạm (timeout/5xx): đếm; mở mạch 2 phút khi đạt ngưỡng.
             $count = (int) Cache::get($failKey, 0) + 1;
             Cache::put($failKey, $count, now()->addMinutes(2));
 
-            return new IntentDTO(intent: 'urgent', confidence: 0.0);
+            return $this->escalateOnFailure($providerCode, 'exception', $e);
         }
+    }
+
+    /**
+     * AN TOÀN MẶC ĐỊNH: escalate "urgent" khi không phân loại được — và GHI LOG để lỗi
+     * provider không còn vô hình (escalate ngầm trông giống khách khẩn cấp thật). confidence=0.0
+     * là dấu hiệu fallback (phân loại thật luôn > 0).
+     */
+    private function escalateOnFailure(string $providerCode, string $reason, ?\Throwable $e = null): IntentDTO
+    {
+        Log::warning('messaging.intent.classify_failed', [
+            'provider' => $providerCode,
+            'reason' => $reason,
+            'error' => $e?->getMessage(),
+        ]);
+
+        return new IntentDTO(intent: 'urgent', confidence: 0.0);
     }
 
     public function shouldEscalate(IntentDTO $intent): bool

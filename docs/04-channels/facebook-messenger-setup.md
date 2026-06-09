@@ -263,3 +263,18 @@ qua `SyncConversationProfile`/`SyncCommentAvatars`). Các điểm cần lưu ý 
 
 Các đề xuất trên là tối ưu vận hành ở quy mô lớn (chưa triển khai); không ảnh hưởng tính
 đúng đắn hiện tại (backfill idempotent: `ShouldBeUnique` + dedup theo message id).
+
+### 11.3 Lưới an toàn auto-reply khi webhook FB rớt
+
+`BackfillMessagingChannel` ở chế độ **đối soát INCREMENTAL** (`sinceIso != null`, do
+`ReconcileMessagingSync` hằng giờ dispatch) nay **fire `MessageReceived`** cho tin inbound
+**mới** mà webhook lọt ⇒ AI/flow/auto-reply vẫn chạy khi webhook FB tạm dừng giao (vd Meta
+chuyển sang mô hình Use Cases). Chốt an toàn để KHÔNG trả lời tin cũ:
+
+- **Chỉ incremental** — backfill lịch sử đầy đủ (`sinceIso === null`, lần connect) vẫn im.
+- **Chỉ tin MỚI** — fire khi `sent_at ≥ max(last_synced_at, now − messaging.reconcile.autoreply_max_age_minutes)` (mặc định 60'); tin cũ hơn ⇒ im.
+- **Chống trùng** — bỏ qua nếu hội thoại đã có tin OUTBOUND sau tin đó (người/AI/tool đã trả lời).
+- Dedup `ingest()` (`created`) đảm bảo tin webhook đã xử lý KHÔNG bị fire lại — chỉ tin webhook **lọt** mới kích hoạt.
+
+Webhook real-time vẫn là đường chính (≤2s); lưới này chỉ vá khi webhook gián đoạn, trễ tối đa
+bằng nhịp `reconcile-sync` (hằng giờ).

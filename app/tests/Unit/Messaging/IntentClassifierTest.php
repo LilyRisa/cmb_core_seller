@@ -4,6 +4,7 @@ namespace Tests\Unit\Messaging;
 
 use CMBcoreSeller\Integrations\Ai\AiAssistantRegistry;
 use CMBcoreSeller\Integrations\Ai\DTO\IntentDTO;
+use CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter;
 use CMBcoreSeller\Modules\Messaging\Models\AiProvider;
 use CMBcoreSeller\Modules\Messaging\Services\IntentClassifier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -20,7 +21,7 @@ class IntentClassifierTest extends TestCase
 
     private function classifier(): IntentClassifier
     {
-        return new IntentClassifier(app(AiAssistantRegistry::class));
+        return new IntentClassifier(app(AiAssistantRegistry::class), app(AiCreditMeter::class));
     }
 
     public function test_escalates_sensitive_intents(): void

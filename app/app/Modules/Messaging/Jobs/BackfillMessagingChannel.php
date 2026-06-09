@@ -7,6 +7,7 @@ use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
+use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Models\MessageAttachment;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta;
 use CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService;
@@ -180,10 +181,18 @@ class BackfillMessagingChannel implements ShouldBeUniqueUntilProcessing, ShouldQ
                         $result = $ingestion->ingest($account, $msgDto);
                         if ($result['created']) {
                             $meta->forceFill(['sync_message_count' => $meta->sync_message_count + 1])->save();
-                            // Relay media inbound — KHÔNG fire MessageReceived (không auto-reply tin cũ).
-                            if ($result['message']->isInbound() && $result['message']->attachments_count > 0) {
+                            $msg = $result['message'];
+                            if ($msg->isInbound() && $this->shouldAutoReply($msg)) {
+                                // Lưới an toàn: đối soát INCREMENTAL fire MessageReceived cho tin
+                                // MỚI của khách mà webhook lọt ⇒ AI vẫn auto-reply. fireEventsForNewMessage
+                                // tự lo cả relay media nên không cần block media riêng ở nhánh này.
+                                $ingestion->fireEventsForNewMessage(
+                                    $result['conversation'], $msg, $result['conversation']->wasRecentlyCreated, true,
+                                );
+                            } elseif ($msg->isInbound() && $msg->attachments_count > 0) {
+                                // Tin cũ / backfill lịch sử: CHỈ relay media, KHÔNG auto-reply.
                                 /** @var Collection<int, MessageAttachment> $pending */
-                                $pending = $result['message']->attachments()
+                                $pending = $msg->attachments()
                                     ->withoutGlobalScope(TenantScope::class)
                                     ->where('status', MessageAttachment::STATUS_PENDING)
                                     ->get();
@@ -253,6 +262,40 @@ class BackfillMessagingChannel implements ShouldBeUniqueUntilProcessing, ShouldQ
         if ($meta && in_array($meta->sync_status, [MessagingAccountMeta::SYNC_RUNNING, MessagingAccountMeta::SYNC_QUEUED], true)) {
             $meta->forceFill(['sync_status' => MessagingAccountMeta::SYNC_FAILED, 'sync_error' => substr($e->getMessage(), 0, 250)])->save();
         }
+    }
+
+    /**
+     * Tin inbound này có được fire MessageReceived (⇒ auto-reply) không. Lưới an toàn chỉ
+     * dùng cho đối soát INCREMENTAL vá webhook lọt — và CHỈ với tin MỚI, không trả lời tin cũ:
+     *   - sinceIso === null (backfill lịch sử đầy đủ) ⇒ im;
+     *   - tin tới TRƯỚC mốc đối soát trước (last_synced_at) hoặc cũ hơn trần an toàn ⇒ im;
+     *   - hội thoại đã có OUTBOUND sau tin này (người/AI/tool đã trả lời) ⇒ im (chống trùng).
+     */
+    private function shouldAutoReply(Message $message): bool
+    {
+        if ($this->sinceIso === null) {
+            return false;
+        }
+
+        $sentAt = $message->sent_at ?? $message->created_at;
+        if ($sentAt === null) {
+            return false;
+        }
+
+        // floor = max(mốc đối soát trước, now - trần) ⇒ chỉ tin thực sự MỚI, không ồ ạt tin cũ.
+        $maxAge = (int) config('messaging.reconcile.autoreply_max_age_minutes', 60);
+        $since = Carbon::parse($this->sinceIso);
+        $ceiling = now()->subMinutes($maxAge);
+        $floor = $since->greaterThan($ceiling) ? $since : $ceiling;
+        if ($sentAt->lessThan($floor)) {
+            return false;
+        }
+
+        return ! Message::withoutGlobalScope(TenantScope::class)
+            ->where('conversation_id', $message->conversation_id)
+            ->where('direction', Message::DIRECTION_OUTBOUND)
+            ->where('sent_at', '>=', $sentAt)
+            ->exists();
     }
 
     private function upsertConversation(ChannelAccount $account, ConversationDTO $dto, string $threadId): Conversation
