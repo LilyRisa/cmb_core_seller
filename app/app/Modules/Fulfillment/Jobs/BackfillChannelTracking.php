@@ -53,7 +53,13 @@ class BackfillChannelTracking implements ShouldQueue
 
             return;
         }
-        // Chưa có tracking ⇒ để Laravel queue retry theo backoff.
-        throw new \RuntimeException('Sàn chưa cấp mã vận đơn — sẽ retry theo backoff.');
+        // Còn lượt retry ⇒ ném để Laravel queue chờ theo backoff.
+        if ($this->attempts() < $this->tries) {
+            throw new \RuntimeException('Sàn chưa cấp mã vận đơn — sẽ retry theo backoff.');
+        }
+        // Hết lượt mà vẫn rỗng: KHÔNG phải lỗi hệ thống. Theo doc Shopee get_tracking_number, mã vận đơn
+        // phụ thuộc 3PL nên có thể rỗng nhiều phút; kênh non_integrated thì seller tự nhập mã (API không trả).
+        // Chỉ cảnh báo — mã sẽ về sau qua order_trackingno_push (code 4) / lần đồng bộ đơn kế tiếp.
+        Log::warning('shipment.backfill_tracking_pending', ['shipment' => $shipment->getKey(), 'order' => $order->getKey(), 'attempts' => $this->attempts()]);
     }
 }

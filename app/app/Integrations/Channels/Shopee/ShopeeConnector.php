@@ -278,31 +278,42 @@ class ShopeeConnector implements ChannelConnector, PenaltyWebhookConnector, Shop
             $this->client->shopPost($auth, $this->client->endpoint('ship_order'), [], $body);
         }
 
-        $track = $this->client->shopGet($auth, $this->client->endpoint('tracking_number'), array_filter([
-            'order_sn' => $externalOrderId, 'package_number' => $packageNumber ?: null,
-        ]));
-
         return [
-            'tracking_no' => ($track['tracking_number'] ?? null) ? (string) $track['tracking_number'] : null,
+            'tracking_no' => $this->safeTracking($auth, $externalOrderId, $packageNumber),
             'carrier' => null,
             'raw_status' => 'PROCESSED',
             'package_id' => $packageNumber ?: $externalOrderId,
         ];
     }
 
-    /** get_tracking_number, nuốt lỗi + coi mã rỗng là "chưa ship" ⇒ trả null. Dùng cho idempotency arrange. */
+    /**
+     * Đọc mã vận đơn qua get_tracking_number (doc v2.logistics.get_tracking_number). Nuốt lỗi + coi mã rỗng
+     * là "chưa cấp" ⇒ trả null (3PL cấp trễ — doc cho phép poll trong ~5'; backfill job retry tiếp).
+     *
+     * `response_optional_fields`: BẮT BUỘC để lấy first_mile/last_mile/plp — đơn Cross-Border KHÔNG có
+     * `tracking_number` mà mã nằm ở `first_mile_tracking_number` (doc FAQ order-management §8 + response spec).
+     */
     private function safeTracking(AuthContext $auth, string $externalOrderId, string $packageNumber): ?string
     {
         try {
             $track = $this->client->shopGet($auth, $this->client->endpoint('tracking_number'), array_filter([
-                'order_sn' => $externalOrderId, 'package_number' => $packageNumber ?: null,
+                'order_sn' => $externalOrderId,
+                'package_number' => $packageNumber ?: null,
+                'response_optional_fields' => 'first_mile_tracking_number,last_mile_tracking_number,plp_number',
             ]));
         } catch (\Throwable) {
             return null;
         }
-        $t = (string) ($track['tracking_number'] ?? '');
 
-        return $t !== '' ? $t : null;
+        // Ưu tiên tracking_number; fallback các trường Cross-Border. (hint giải thích vì sao rỗng, vd CVS đóng.)
+        foreach (['tracking_number', 'first_mile_tracking_number', 'last_mile_tracking_number', 'plp_number'] as $field) {
+            $v = trim((string) ($track[$field] ?? ''));
+            if ($v !== '') {
+                return $v;
+            }
+        }
+
+        return null;
     }
 
     /**
