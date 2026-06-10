@@ -24,13 +24,17 @@ class FetchChannelLabel implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    /** Retry sau 15s, 30s, 60s, 120s, 300s ⇒ tổng ~8' đợi 3PL render. */
-    public int $tries = 5;
+    /**
+     * Kiên nhẫn ~50': tem/AWB render async sau khi sàn gán mã vận đơn — Shopee có cửa sổ propagation (vừa gán
+     * tracking thì create_shipping_document báo `tracking_number_invalid`/`package_can_not_print` vài phút).
+     * Dùng release() (không ném lỗi) nên KHÔNG đếm là job failed & không log ERROR khi đang chờ render.
+     */
+    public int $tries = 10;
 
-    /** @return list<int> */
+    /** @return list<int> Delay giữa các lượt (giây) — tổng ~50'. */
     public function backoff(): array
     {
-        return [15, 30, 60, 120, 300];
+        return [15, 30, 60, 120, 300, 300, 600, 600, 900, 900];
     }
 
     public function __construct(public readonly int $shipmentId) {}
@@ -66,17 +70,23 @@ class FetchChannelLabel implements ShouldQueue
         $service->retryChannelLabelFetch($order, $shipment);
         $shipment->refresh();
         if (blank($shipment->label_path)) {
-            // Vẫn rỗng ⇒ để Laravel queue retry theo backoff. Cập nhật `label_fetch_next_retry_at` về thời
-            // điểm retry kế (nếu còn tries) HOẶC clear (nếu hết tries ⇒ vận đơn rơi vào "Nhận phiếu giao
-            // hàng" để user retry thủ công). Backoff: [15, 30, 60, 120, 300] ⇒ retry kế = backoff[$attempt].
+            // Vẫn rỗng ⇒ release retry theo backoff (KHÔNG ném lỗi → không log ERROR giả; tem render async là
+            // bình thường). `label_fetch_next_retry_at` để UI xếp vào "Đang tải lại". Hết lượt ⇒ clear marker ⇒
+            // vận đơn rơi sang "Nhận phiếu giao hàng" cho user retry tay.
             $backoff = $this->backoff();
             $attempt = $this->attempts();
-            $nextRetry = $attempt < $this->tries && isset($backoff[$attempt])
-                ? now()->addSeconds((int) $backoff[$attempt])
-                : null;
-            $shipment->forceFill(['label_fetch_next_retry_at' => $nextRetry])->save();
-            Log::info('shipment.fetch_channel_label_async_pending', ['shipment' => $shipment->getKey(), 'attempt' => $attempt, 'next_retry_at' => $nextRetry?->toIso8601String()]);
-            throw new \RuntimeException('Sàn chưa render xong tem — sẽ retry theo backoff.');
+            if ($attempt < $this->tries) {
+                $delay = (int) ($backoff[$attempt - 1] ?? 900);
+                $shipment->forceFill(['label_fetch_next_retry_at' => now()->addSeconds($delay)])->save();
+                Log::info('shipment.fetch_channel_label_async_pending', ['shipment' => $shipment->getKey(), 'attempt' => $attempt]);
+                $this->release($delay);
+
+                return;
+            }
+            $shipment->forceFill(['label_fetch_next_retry_at' => null])->save();
+            Log::warning('shipment.fetch_channel_label_async_exhausted', ['shipment' => $shipment->getKey(), 'attempts' => $attempt]);
+
+            return;
         }
         // Lấy thành công ⇒ retryChannelLabelFetch đã clear `label_fetch_next_retry_at` qua
         // `ShipmentService::fetchAndStoreChannelLabel` (forceFill khi save label_path).
