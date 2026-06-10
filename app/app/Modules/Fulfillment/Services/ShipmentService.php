@@ -151,6 +151,12 @@ class ShipmentService
      *
      * @return array{tracking_no:?string,carrier:?string,raw_status:?string,package_id:?string}|null
      */
+    /** Sàn của đơn cấp AWB/tem ĐỘC LẬP với mã vận đơn (Shopee) ⇒ lấy được tem dù chưa có tracking. */
+    public function channelLabelBeforeTracking(Order $order): bool
+    {
+        return $this->channelSupports($order, 'shipping.document_before_tracking');
+    }
+
     /** Đơn sàn + connector của sàn khai `$capability` ⇒ true. Provider-agnostic (không nhúng tên sàn vào core). */
     private function channelSupports(Order $order, string $capability): bool
     {

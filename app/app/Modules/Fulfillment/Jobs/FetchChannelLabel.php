@@ -47,9 +47,6 @@ class FetchChannelLabel implements ShouldQueue
 
             return;
         }
-        if (! $shipment->tracking_no) {
-            return;   // chưa có tracking ⇒ chưa thể fetch tem
-        }
         if (data_get($shipment->raw, 'label_unavailable')) {
             // Terminal: sàn không bao giờ cấp tem cho đơn này (vd Lazada DBS/SOF) ⇒ ngừng retry vĩnh viễn.
             $shipment->forceFill(['label_fetch_next_retry_at' => null])->save();
@@ -58,6 +55,12 @@ class FetchChannelLabel implements ShouldQueue
         }
         $order = Order::withoutGlobalScope(TenantScope::class)->find($shipment->order_id);
         if (! $order) {
+            return;
+        }
+        // Chưa có tracking: hầu hết sàn (TikTok/Lazada) chưa thể lấy tem ⇒ dừng (giữ NGUYÊN luồng cũ). RIÊNG
+        // sàn cấp AWB ĐỘC LẬP với mã vận đơn (Shopee — capability shipping.document_before_tracking) thì vẫn
+        // lấy được tem khi đã arrange ⇒ tiếp tục, không để đơn kẹt thiếu tem chờ tracking async.
+        if (! $shipment->tracking_no && ! $service->channelLabelBeforeTracking($order)) {
             return;
         }
         $service->retryChannelLabelFetch($order, $shipment);
