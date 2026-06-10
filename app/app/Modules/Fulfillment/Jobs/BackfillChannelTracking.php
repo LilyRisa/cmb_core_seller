@@ -24,13 +24,16 @@ class BackfillChannelTracking implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    /** Retry sau 30s, 60s, 120s, 300s, 600s ⇒ tổng ~18' chờ sàn cấp tracking. */
-    public int $tries = 5;
+    /**
+     * Kiên nhẫn ~90': sàn gán mã vận đơn ASYNC, có thể TRỄ 10–30'+ sau arrange (Shopee SPX live cấp muộn hơn
+     * cửa sổ 18' cũ ⇒ đơn kẹt không có tem). Dùng release() (không ném lỗi) nên KHÔNG đếm là job failed.
+     */
+    public int $tries = 12;
 
-    /** @return list<int> */
+    /** @return list<int> Delay giữa các lượt (giây) — tổng ~90'. */
     public function backoff(): array
     {
-        return [30, 60, 120, 300, 600];
+        return [30, 60, 120, 300, 600, 600, 900, 900, 900, 1200, 1800];
     }
 
     public function __construct(public readonly int $shipmentId) {}
@@ -53,13 +56,16 @@ class BackfillChannelTracking implements ShouldQueue
 
             return;
         }
-        // Còn lượt retry ⇒ ném để Laravel queue chờ theo backoff.
+        // Còn lượt ⇒ release (KHÔNG ném lỗi → không log ERROR giả mỗi lần chờ; chờ mã vận đơn là bình thường,
+        // sàn cấp ASYNC phụ thuộc 3PL). backoff theo attempt hiện tại; rỗng thì dùng 1800s.
+        $backoff = $this->backoff();
         if ($this->attempts() < $this->tries) {
-            throw new \RuntimeException('Sàn chưa cấp mã vận đơn — sẽ retry theo backoff.');
+            $this->release($backoff[$this->attempts() - 1] ?? 1800);
+
+            return;
         }
-        // Hết lượt mà vẫn rỗng: KHÔNG phải lỗi hệ thống. Theo doc Shopee get_tracking_number, mã vận đơn
-        // phụ thuộc 3PL nên có thể rỗng nhiều phút; kênh non_integrated thì seller tự nhập mã (API không trả).
-        // Chỉ cảnh báo — mã sẽ về sau qua order_trackingno_push (code 4) / lần đồng bộ đơn kế tiếp.
+        // Hết lượt mà vẫn rỗng: KHÔNG phải lỗi hệ thống. Kênh non_integrated seller tự nhập mã (API không trả),
+        // hoặc 3PL cấp rất trễ. Chỉ cảnh báo — mã còn về qua order_trackingno_push (code 4) / đồng bộ đơn / "Nhận phiếu".
         Log::warning('shipment.backfill_tracking_pending', ['shipment' => $shipment->getKey(), 'order' => $order->getKey(), 'attempts' => $this->attempts()]);
     }
 }
