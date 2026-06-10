@@ -41,6 +41,13 @@ const loadRange = (): [Dayjs, Dayjs] => {
     return [dayjs(), dayjs()];
 };
 
+// Ghi nhớ tài khoản quảng cáo đã chọn để khỏi phải chọn lại sau khi tải lại trang.
+const ACCOUNT_KEY = 'tiktok-ads.report.account';
+const loadAccount = (): number | null => {
+    const raw = Number(localStorage.getItem(ACCOUNT_KEY));
+    return Number.isInteger(raw) && raw > 0 ? raw : null;
+};
+
 /**
  * /marketing/tiktok — báo cáo + giám sát + phân tích AI quảng cáo TikTok. Màn RIÊNG
  * với Facebook (dễ mở rộng). Tái dùng component trung tính (ReportTree, MonitorConfigDrawer,
@@ -57,7 +64,7 @@ export function TikTokAdsDashboardPage() {
     const { data: allAccounts, isLoading: loadingAccounts } = useAdAccounts();
     const accounts = useMemo(() => (allAccounts ?? []).filter((a) => a.provider === 'tiktok'), [allAccounts]);
 
-    const [accountId, setAccountId] = useState<number | null>(null);
+    const [accountId, setAccountId] = useState<number | null>(loadAccount);
     const [level, setLevel] = useState<ReportLevel>('campaign');
     const [reportView, setReportView] = useState<'tree' | 'flat'>('flat');
     const [range, setRange] = useState<[Dayjs, Dayjs]>(loadRange);
@@ -70,8 +77,16 @@ export function TikTokAdsDashboardPage() {
         localStorage.setItem(RANGE_KEY, JSON.stringify([range[0].format('YYYY-MM-DD'), range[1].format('YYYY-MM-DD')]));
     }, [range]);
 
-    const selectedId = accountId ?? accounts[0]?.id ?? null;
+    // Dùng id đã chọn nếu nó vẫn còn trong danh sách (tránh id cũ của tài khoản đã ngắt kết nối),
+    // nếu không thì rơi về tài khoản đầu tiên.
+    const selectedId = (accountId != null && accounts.some((a) => a.id === accountId))
+        ? accountId
+        : (accounts[0]?.id ?? null);
     const selectedAccount = accounts.find((a) => a.id === selectedId) ?? null;
+
+    useEffect(() => {
+        if (selectedId != null) localStorage.setItem(ACCOUNT_KEY, String(selectedId));
+    }, [selectedId]);
     const currency = selectedAccount?.currency ?? null;
     // Account chưa từng đồng bộ (last_synced_at null) ⇒ job SyncAdAccountEntities còn
     // đang chạy trong queue → hiện thông báo "đang đồng bộ" + poll tới khi xong.

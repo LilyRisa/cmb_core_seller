@@ -26,7 +26,24 @@ class CampaignInsightAnalysisService
         'purchase_roas' => 'purchaseRoas', 'messaging_conversations' => 'messagingConversations', 'leads' => 'leads',
     ];
 
-    private const INSTRUCTION = 'Bạn là chuyên gia tối ưu quảng cáo Facebook. Phân tích RIÊNG một chiến dịch dựa trên: chỉ số đã chọn trong N ngày, CẤU TRÚC chiến dịch (ad_sets = các nhóm quảng cáo, ads = các quảng cáo bên trong), hiệu quả từng nhóm/quảng cáo, nội dung creative/bài viết, tương tác (like/comment), và (nếu có) NỘI DUNG TRANG ĐÍCH (landing_pages: tiêu đề/heading/text/CTA/form/pixel) với chiến dịch chuyển đổi website. QUAN TRỌNG về dữ liệu đầu vào: (a) Ngân sách có thể đặt ở CẤP CHIẾN DỊCH (campaign.daily_budget/lifetime_budget — CBO) HOẶC ở TỪNG NHÓM (ad_sets[].daily_budget/lifetime_budget — ABO); nếu campaign không có ngân sách nhưng nhóm có thì KHÔNG kết luận "không có ngân sách". (b) Mảng ad_sets/ads liệt kê cấu trúc đã đồng bộ KỂ CẢ khi chỉ số rỗng (chưa phân phối/không có chi tiêu trong kỳ) — nếu ad_sets/ads KHÔNG rỗng thì TUYỆT ĐỐI không nói "chiến dịch không có nhóm/quảng cáo nào bên trong"; thay vào đó nêu rõ là chưa phân phối/chưa tiêu trong kỳ và đề xuất kiểm tra trạng thái/ngân sách/đối tượng. Hãy: (1) chấm điểm hiệu quả tổng thể của chiến dịch trên thang 0–100 (score: số nguyên) phản ánh mức độ hiệu quả dựa trên chỉ số, nội dung quảng cáo và trang đích, (2) đánh giá hiệu quả chiến dịch theo các chỉ số đó, (3) nhận xét nội dung & tương tác của từng bài/quảng cáo, (4) nếu có trang đích: đánh giá mức độ khớp giữa quảng cáo và trang đích, trải nghiệm/tốc độ/CTA và việc gắn pixel; (5) đề xuất hành động cụ thể (tăng/giảm ngân sách, tạm dừng, đổi tệp/nội dung, tối ưu trang đích) cho riêng chiến dịch này.';
+    /**
+     * Analysis instruction. The like/comment engagement clause is included ONLY when
+     * we actually fetched post engagement (Facebook). Providers without it (TikTok is
+     * read-only — `creatives.read`/`fetchPostEngagement` unsupported) leave `engagement`
+     * empty; telling the model to analyse "tương tác (like/comment)" then just invites it
+     * to invent like/comment/share numbers that were never sent. So we drop that clause
+     * and explicitly forbid fabricating engagement when none is present.
+     */
+    private function instruction(bool $hasEngagement): string
+    {
+        $engInput = $hasEngagement ? ', tương tác (like/comment)' : '';
+        $engReview = $hasEngagement ? ' & tương tác' : '';
+        $engGuard = $hasEngagement
+            ? ''
+            : ' (c) KHÔNG có dữ liệu tương tác (like/comment/share) cho chiến dịch này — TUYỆT ĐỐI không nhận xét, suy đoán hay bịa số liệu like/comment/share.';
+
+        return 'Bạn là chuyên gia tối ưu quảng cáo. Phân tích RIÊNG một chiến dịch dựa trên: chỉ số đã chọn trong N ngày, CẤU TRÚC chiến dịch (ad_sets = các nhóm quảng cáo, ads = các quảng cáo bên trong), hiệu quả từng nhóm/quảng cáo, nội dung creative/bài viết'.$engInput.', và (nếu có) NỘI DUNG TRANG ĐÍCH (landing_pages: tiêu đề/heading/text/CTA/form/pixel) với chiến dịch chuyển đổi website. QUAN TRỌNG về dữ liệu đầu vào: (a) Ngân sách có thể đặt ở CẤP CHIẾN DỊCH (campaign.daily_budget/lifetime_budget — CBO) HOẶC ở TỪNG NHÓM (ad_sets[].daily_budget/lifetime_budget — ABO); nếu campaign không có ngân sách nhưng nhóm có thì KHÔNG kết luận "không có ngân sách". (b) Mảng ad_sets/ads liệt kê cấu trúc đã đồng bộ KỂ CẢ khi chỉ số rỗng (chưa phân phối/không có chi tiêu trong kỳ) — nếu ad_sets/ads KHÔNG rỗng thì TUYỆT ĐỐI không nói "chiến dịch không có nhóm/quảng cáo nào bên trong"; thay vào đó nêu rõ là chưa phân phối/chưa tiêu trong kỳ và đề xuất kiểm tra trạng thái/ngân sách/đối tượng.'.$engGuard.' Hãy: (1) chấm điểm hiệu quả tổng thể của chiến dịch trên thang 0–100 (score: số nguyên) phản ánh mức độ hiệu quả dựa trên chỉ số, nội dung quảng cáo và trang đích, (2) đánh giá hiệu quả chiến dịch theo các chỉ số đó, (3) nhận xét nội dung'.$engReview.' của từng bài/quảng cáo, (4) nếu có trang đích: đánh giá mức độ khớp giữa quảng cáo và trang đích, trải nghiệm/tốc độ/CTA và việc gắn pixel; (5) đề xuất hành động cụ thể (tăng/giảm ngân sách, tạm dừng, đổi tệp/nội dung, tối ưu trang đích) cho riêng chiến dịch này.';
+    }
 
     /** Output schema the model must follow (matches what CampaignAiInsightDrawer renders). */
     private const SCHEMA = '{score:number (0-100, điểm hiệu quả tổng thể), summary:string (tổng quan ngắn), assessment:string (đánh giá hiệu quả theo chỉ số), recommendations:[{action:string, rationale:string}], creative_review:[{ref:string, name:string, verdict:"tốt"|"cần cải thiện", issues:[string], suggestions:[string]}]}';
@@ -52,7 +69,8 @@ class CampaignInsightAnalysisService
         }
 
         $data = $this->buildData($account, $campaignExternalId, $params);
-        $result = $this->client->analyze($data, self::INSTRUCTION, self::SCHEMA, fn (array $d): array => $this->stub($d), tenantId: (int) $account->tenant_id);
+        $instruction = $this->instruction($data['engagement'] !== []);
+        $result = $this->client->analyze($data, $instruction, self::SCHEMA, fn (array $d): array => $this->stub($d), tenantId: (int) $account->tenant_id);
 
         // Insert a NEW row each time → full history (the latest is the cached one).
         return CampaignAiInsight::withoutGlobalScope(TenantScope::class)->create([
@@ -331,18 +349,20 @@ class CampaignInsightAnalysisService
         $review = array_map(function (array $c) use ($engagement) {
             $postId = (string) ($c['post_id'] ?? '');
             $eng = (array) ($engagement[$postId] ?? []);
-            $likes = (int) ($eng['likes'] ?? 0);
-            $comments = (int) ($eng['comments'] ?? 0);
+            $suggestions = [];
+            // Only surface engagement when it was actually fetched (Facebook). Without it
+            // (TikTok), don't print a bogus "0 like, 0 bình luận".
+            if ($eng !== []) {
+                $suggestions[] = 'Tương tác bài: '.(int) ($eng['likes'] ?? 0).' like, '.(int) ($eng['comments'] ?? 0).' bình luận.';
+            }
+            $suggestions[] = 'Bổ sung lời kêu gọi hành động rõ ràng và hình/đoạn mở đầu nổi bật.';
 
             return [
                 'ref' => (string) ($c['ad_id'] ?? $postId),
                 'name' => (string) ($c['name'] ?? ''),
                 'verdict' => 'cần xem xét',
                 'issues' => [],
-                'suggestions' => [
-                    'Tương tác bài: '.$likes.' like, '.$comments.' bình luận.',
-                    'Bổ sung lời kêu gọi hành động rõ ràng và hình/đoạn mở đầu nổi bật.',
-                ],
+                'suggestions' => $suggestions,
             ];
         }, $creatives);
 
