@@ -586,12 +586,10 @@ return [
         // Để trống ⇒ verify push fallback về partner_key (khi sàn dùng chung 1 key). Bí mật.
         'push_partner_key' => env('SHOPEE_PUSH_PARTNER_KEY'),
         'sandbox' => (bool) env('SHOPEE_SANDBOX', true),
-        // base_url tự switch theo cờ sandbox — KHÔNG còn env SHOPEE_API_BASE_URL (tránh lệch host/sai).
-        // Sandbox (VN/Global): https://openplatform.sandbox.test-stable.shopee.sg · Production: https://partner.shopeemobile.com
+        // base_url KHÔNG cấu hình ở đây (đã bỏ env SHOPEE_API_BASE_URL): ShopeeClient::baseUrl() tự switch theo
+        // cờ `sandbox` ĐÃ RESOLVE (env SHOPEE_SANDBOX + đè bằng DB system_setting marketplace.shopee.sandbox).
+        // Sandbox (VN/Global): https://openplatform.sandbox.test-stable.shopee.sg · Production: https://partner.shopeemobile.com.
         // (CN sandbox: ...shopee.cn). KHÔNG dùng partner.test-stable.shopeemobile.com (sai). Xem shopee_docs/02-*.md.
-        'base_url' => (bool) env('SHOPEE_SANDBOX', true)
-            ? 'https://openplatform.sandbox.test-stable.shopee.sg'
-            : 'https://partner.shopeemobile.com',
         'redirect_uri' => env('SHOPEE_REDIRECT_URI'),          // default url('/oauth/shopee/callback')
         'push_url' => env('SHOPEE_PUSH_URL'),               // default url('/webhook/shopee') — để verify chữ ký push
         'http' => ['timeout' => (int) env('SHOPEE_HTTP_TIMEOUT', 20), 'retries' => (int) env('SHOPEE_HTTP_RETRIES', 2), 'retry_sleep_ms' => (int) env('SHOPEE_HTTP_RETRY_SLEEP_MS', 500)],

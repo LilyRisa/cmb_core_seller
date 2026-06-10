@@ -14,7 +14,7 @@ use RuntimeException;
  *
  * Common params live in the QUERY string: partner_id, timestamp, sign (+ access_token, shop_id for
  * shop calls). POST bodies are JSON. Envelope carries `error` (string) — non-empty => ShopeeApiException.
- * Sandbox vs prod = config (`integrations.shopee.base_url`). Never logs secrets. See docs/04-channels/shopee.md.
+ * Sandbox vs prod = cờ `sandbox` (env SHOPEE_SANDBOX + DB system_setting) → baseUrl() switch host. Never logs secrets. See docs/04-channels/shopee.md.
  */
 class ShopeeClient
 {
@@ -192,13 +192,23 @@ class ShopeeClient
     }
 
     /**
-     * Host tự switch theo cờ `sandbox` (config integrations.shopee.base_url):
-     * Prod: https://partner.shopeemobile.com · Sandbox (VN/Global): https://openplatform.sandbox.test-stable.shopee.sg
+     * Host tự switch theo cờ `sandbox` ĐÃ RESOLVE (env SHOPEE_SANDBOX + đè bằng DB
+     * system_setting marketplace.shopee.sandbox — xem constructor). Sandbox (VN/Global):
+     * https://openplatform.sandbox.test-stable.shopee.sg · Prod: https://partner.shopeemobile.com.
      * (KHÔNG dùng partner.test-stable.shopeemobile.com — sai host.)
+     *
+     * Một base_url tường minh (chỉ test set qua config) vẫn được ưu tiên để Http::fake host cố định.
      */
     protected function baseUrl(): string
     {
-        return (string) ($this->cfg['base_url'] ?? 'https://partner.shopeemobile.com');
+        $explicit = (string) ($this->cfg['base_url'] ?? '');
+        if ($explicit !== '') {
+            return $explicit;
+        }
+
+        return ($this->cfg['sandbox'] ?? false)
+            ? 'https://openplatform.sandbox.test-stable.shopee.sg'
+            : 'https://partner.shopeemobile.com';
     }
 
     protected function http(): PendingRequest
