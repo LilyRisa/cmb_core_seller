@@ -48,6 +48,15 @@ const loadRange = (): [Dayjs, Dayjs] => {
     } catch { /* ignore malformed value */ }
     return [dayjs(), dayjs()];
 };
+
+// Ghi nhớ lựa chọn 2 cấp BM + tài khoản quảng cáo để khỏi phải chọn lại sau khi tải lại trang.
+const BM_KEY = 'marketing.report.bm';
+const ACCOUNT_KEY = 'marketing.report.account';
+const loadBm = (): string | null => localStorage.getItem(BM_KEY) || null;
+const loadAccount = (): number | null => {
+    const raw = Number(localStorage.getItem(ACCOUNT_KEY));
+    return Number.isInteger(raw) && raw > 0 ? raw : null;
+};
 /** /marketing — báo cáo quảng cáo Facebook kiểu Ads Manager (BM, 3 tab, cột tuỳ chỉnh, drill-down). */
 export function MarketingDashboardPage() {
     const { message } = AntApp.useApp();
@@ -64,8 +73,8 @@ export function MarketingDashboardPage() {
     // Trang này CHỈ Facebook — TikTok có màn riêng (/marketing/tiktok).
     const accounts = useMemo(() => (allAccounts ?? []).filter((a) => a.provider === 'facebook'), [allAccounts]);
 
-    const [bm, setBm] = useState<string | null>(null);
-    const [accountId, setAccountId] = useState<number | null>(null);
+    const [bm, setBm] = useState<string | null>(loadBm);
+    const [accountId, setAccountId] = useState<number | null>(loadAccount);
     const [level, setLevel] = useState<ReportLevel>('campaign');
     const [reportView, setReportView] = useState<'tree' | 'flat'>('flat');
     const [range, setRange] = useState<[Dayjs, Dayjs]>(loadRange);
@@ -91,9 +100,21 @@ export function MarketingDashboardPage() {
         });
         return [...m.entries()].map(([id, info]) => ({ id, name: info.name, picture: info.picture }));
     }, [accounts]);
-    const bmAccounts = useMemo(() => (accounts ?? []).filter((a) => (a.business_id ?? '_') === (bm ?? bmGroups[0]?.id)), [accounts, bm, bmGroups]);
-    const selectedId = accountId ?? bmAccounts[0]?.id ?? null;
+    // BM đã chọn nếu còn tồn tại (tránh BM cũ đã ngắt kết nối), nếu không thì BM đầu tiên.
+    const effectiveBm = (bm != null && bmGroups.some((g) => g.id === bm)) ? bm : (bmGroups[0]?.id ?? null);
+    const bmAccounts = useMemo(() => (accounts ?? []).filter((a) => (a.business_id ?? '_') === effectiveBm), [accounts, effectiveBm]);
+    // Tài khoản đã chọn nếu còn nằm trong BM hiện tại, nếu không thì tài khoản đầu tiên của BM.
+    const selectedId = (accountId != null && bmAccounts.some((a) => a.id === accountId))
+        ? accountId
+        : (bmAccounts[0]?.id ?? null);
     const currency = bmAccounts.find((a) => a.id === selectedId)?.currency ?? null;
+
+    useEffect(() => {
+        if (effectiveBm != null) localStorage.setItem(BM_KEY, effectiveBm);
+    }, [effectiveBm]);
+    useEffect(() => {
+        if (selectedId != null) localStorage.setItem(ACCOUNT_KEY, String(selectedId));
+    }, [selectedId]);
     // Accounts with a Facebook health problem (disabled / payment / policy) across all BMs.
     const unhealthyAccounts = useMemo(() => (accounts ?? []).filter((a) => a.health != null && !a.health.ok), [accounts]);
     const selectedAccount = (accounts ?? []).find((a) => a.id === selectedId) ?? null;
@@ -425,7 +446,7 @@ export function MarketingDashboardPage() {
                     {bmGroups.length > 0 && (
                         <Select
                             style={{ minWidth: 260 }}
-                            value={bm ?? bmGroups[0]?.id}
+                            value={effectiveBm ?? undefined}
                             onChange={(v) => { setBm(v); setAccountId(null); }}
                             optionLabelProp="label"
                             options={bmGroups.map((g) => ({
