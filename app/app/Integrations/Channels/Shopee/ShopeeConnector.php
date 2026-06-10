@@ -48,6 +48,10 @@ class ShopeeConnector implements ChannelConnector, PenaltyWebhookConnector, Shop
             'orders.fetch' => true, 'orders.webhook' => true, 'orders.confirm' => false,
             'shipping.arrange' => $fulfill, 'shipping.ready_to_ship' => false,
             'shipping.document' => $fulfill, 'shipping.tracking' => true,
+            // Shopee cấp mã vận đơn ASYNC (3PL), nhưng AWB/tem là bước create_shipping_document ĐỘC LẬP, lấy
+            // được ngay khi đơn đã arrange (doc order-management §8) ⇒ KHÔNG chờ tracking mới kéo tem. TikTok/
+            // Lazada KHÔNG khai cờ này (giữ luồng cũ: chỉ lấy tem sau khi đã có tracking).
+            'shipping.document_before_tracking' => $fulfill,
             'listings.fetch' => true, 'listings.publish' => false,
             'listings.updateStock' => true, 'listings.updatePrice' => false,
             'finance.settlements' => $finance,

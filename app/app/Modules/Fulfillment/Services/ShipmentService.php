@@ -95,9 +95,13 @@ class ShipmentService
             || str_contains($reason, 'in đơn')
         );
         $justArranged = false;
+        // Đơn đã được sàn xác nhận arrange (vừa ship hoặc đã PROCESSED — arrangeOnChannel idempotent trả mảng).
+        // Tách khỏi tracking: tem/AWB là bước ĐỘC LẬP sau arrange, KHÔNG cần mã vận đơn trước (xem dưới).
+        $arrangedOnChannel = false;
         if ($order->channel_account_id && $issueAboutChannel) {
             try {
                 $arr = $this->arrangeOnChannel($order);
+                $arrangedOnChannel = is_array($arr);
                 $justArranged = is_array($arr) && ! empty($arr['tracking_no']);
                 if (is_array($arr)) {
                     $patch = [];
@@ -122,8 +126,12 @@ class ShipmentService
             }
             $shipment->refresh();
         }
-        // (a) kéo tem thật của sàn nếu có thể — retry chỉ khi vừa arrange xong (propagation Lazada)
-        if (blank($shipment->label_path) && $shipment->tracking_no) {
+        // (a) kéo tem thật của sàn nếu có thể. Mặc định chờ tracking (giữ NGUYÊN luồng TikTok/Lazada đã ổn định).
+        // RIÊNG sàn khai `shipping.document_before_tracking` (Shopee): AWB là bước create_shipping_document ĐỘC
+        // LẬP sau arrange (doc order-management §8), tracking do 3PL cấp async ⇒ lấy tem ngay khi đã arrange,
+        // không để đơn kẹt "đang xử lý" mà thiếu tem. Lỗi tạm tự retry async; terminal thì đánh dấu (xem hàm).
+        $labelBeforeTracking = $arrangedOnChannel && $this->channelSupports($order, 'shipping.document_before_tracking');
+        if (blank($shipment->label_path) && ($shipment->tracking_no || $labelBeforeTracking)) {
             $this->fetchAndStoreChannelLabel($order, $shipment, justArranged: $justArranged);
             $shipment->refresh();
         }
@@ -143,15 +151,21 @@ class ShipmentService
      *
      * @return array{tracking_no:?string,carrier:?string,raw_status:?string,package_id:?string}|null
      */
-    /** Đơn sàn + connector hỗ trợ "luồng A" (shipping.arrange) ⇒ true. Dùng để quyết có enqueue backfill tracking không. */
-    private function channelSupportsArrange(Order $order): bool
+    /** Đơn sàn + connector của sàn khai `$capability` ⇒ true. Provider-agnostic (không nhúng tên sàn vào core). */
+    private function channelSupports(Order $order, string $capability): bool
     {
         if (! $order->channel_account_id) {
             return false;
         }
         $account = ChannelAccount::query()->find($order->channel_account_id);
 
-        return $account && $this->channels->has($account->provider) && $this->channels->for($account->provider)->supports('shipping.arrange');
+        return $account && $this->channels->has($account->provider) && $this->channels->for($account->provider)->supports($capability);
+    }
+
+    /** Đơn sàn + connector hỗ trợ "luồng A" (shipping.arrange) ⇒ true. Dùng để quyết có enqueue backfill tracking không. */
+    private function channelSupportsArrange(Order $order): bool
+    {
+        return $this->channelSupports($order, 'shipping.arrange');
     }
 
     private function arrangeOnChannel(Order $order): ?array
@@ -381,6 +395,7 @@ class ShipmentService
         $issue = null;
 
         $externalItemIds = [];
+        $arrangedOk = false;   // sàn đã xác nhận arrange (kể cả khi tracking chưa cấp) ⇒ đủ điều kiện kéo tem/AWB.
         // Đơn sàn (connector hỗ trợ shipping.arrange): LUÔN gọi sàn arrange (connector idempotent) — KHÔNG tin
         // `packages[].trackingNo` ĐÃ SYNC làm "đã arrange". Shopee pre-assign tracking ngay ở READY_TO_SHIP
         // TRƯỚC khi ship_order; nếu skip arrange theo tracking đó ⇒ đơn chưa thực sự arrange trên Shopee ⇒
@@ -393,6 +408,7 @@ class ShipmentService
                 if ($arr === null) {
                     $issue = 'Kênh bán này chưa hỗ trợ tự lấy phiếu giao hàng tự động — bấm "Nhận phiếu giao hàng" để thử lại sau.';
                 } else {
+                    $arrangedOk = true;
                     $tracking = $arr['tracking_no'];
                     $carrier = $arr['carrier'] ?: $carrier;
                     $packageId = $arr['package_id'] ?: $packageId;
@@ -435,11 +451,17 @@ class ShipmentService
 
             return $sh;
         });
-        if ($shipment->tracking_no) {
-            // justArranged=true ⇒ vừa /order/rts (Lazada) hoặc /packages/.../ship (TikTok) ⇒ retry tem cho Lazada (propagation 1–3s)
+        // Lấy tem khi đã có tracking; HOẶC khi đã arrange và sàn cho phép lấy AWB trước tracking (Shopee) — để đơn
+        // không kẹt "đang xử lý" mà thiếu tem. TikTok/Lazada KHÔNG khai cờ ⇒ $labelBeforeTracking=false ⇒ giữ
+        // NGUYÊN luồng cũ (chỉ lấy tem khi có tracking, còn lại enqueue backfill).
+        $labelBeforeTracking = $arrangedOk && $this->channelSupports($order, 'shipping.document_before_tracking');
+        if ($shipment->tracking_no || $labelBeforeTracking) {
+            // justArranged=true ⇒ vừa /order/rts (Lazada) / /packages/.../ship (TikTok) / ship_order (Shopee) ⇒ tem có thể chưa render ⇒ retry.
             $this->fetchAndStoreChannelLabel($order, $shipment, justArranged: true);
-        } elseif ($this->channelSupportsArrange($order)) {
-            // TikTok thường gán tracking async sau /ship ⇒ enqueue job kéo lại đến khi có (rồi tự lấy tem). SPEC 0014.
+            $shipment->refresh();
+        }
+        if (blank($shipment->tracking_no) && $this->channelSupportsArrange($order)) {
+            // Sàn gán tracking async sau ship (TikTok/Shopee) ⇒ enqueue job kéo mã vận đơn đến khi có. SPEC 0014.
             BackfillChannelTracking::dispatch((int) $shipment->getKey())
                 ->onQueue('labels')->delay(now()->addSeconds(30));
         }

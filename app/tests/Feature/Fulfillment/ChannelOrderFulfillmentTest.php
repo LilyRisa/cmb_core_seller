@@ -4,6 +4,7 @@ namespace Tests\Feature\Fulfillment;
 
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Integrations\Channels\Lazada\LazadaConnector;
+use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeConnector;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Fulfillment\Jobs\BackfillChannelTracking;
 use CMBcoreSeller\Modules\Fulfillment\Jobs\FetchChannelLabel;
@@ -20,6 +21,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
+use Tests\Fixtures\Channels\Shopee\ShopeeFixtures as ShopeeFx;
 use Tests\Fixtures\Channels\tiktok\TikTokFixtures as F;
 use Tests\TestCase;
 
@@ -217,6 +219,46 @@ class ChannelOrderFulfillmentTest extends TestCase
         $this->assertTrue($ok);
         $this->assertSame('TT-LATE', $shipment->fresh()->tracking_no);
         $this->assertFalse((bool) $order->fresh()->has_issue);
+    }
+
+    // --- B4b: Shopee lấy tem TRƯỚC khi có tracking (capability shipping.document_before_tracking) --------
+
+    public function test_shopee_fetches_label_before_tracking_when_arranged(): void
+    {
+        // Shopee cấp mã vận đơn ASYNC (3PL) nhưng AWB là bước create_shipping_document ĐỘC LẬP sau arrange.
+        // Đơn đã arrange dù CHƯA có tracking vẫn phải thử kéo tem ngay (không kẹt "đang xử lý" thiếu tem) +
+        // vẫn enqueue backfill mã vận đơn. TikTok/Lazada KHÔNG khai cờ ⇒ giữ luồng cũ (test ngay trên).
+        app(ChannelRegistry::class)->register('shopee', ShopeeConnector::class);
+        ShopeeFx::configure();
+        config(['integrations.shopee.document_poll_attempts' => 1, 'integrations.shopee.document_poll_sleep_ms' => 0]);
+        $shopee = ChannelAccount::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $this->tenant->getKey(), 'provider' => 'shopee', 'external_shop_id' => '55',
+            'shop_name' => 'SP', 'status' => ChannelAccount::STATUS_ACTIVE,
+            'access_token' => 'ACCESS_1', 'refresh_token' => 'rk', 'token_expires_at' => now()->addDays(7),
+        ]);
+        $order = $this->channelOrder([
+            'source' => 'shopee', 'channel_account_id' => $shopee->getKey(),
+            'raw_status' => 'READY_TO_SHIP', 'external_order_id' => 'SN_1',
+            'packages' => [['externalPackageId' => 'PKG_1']],
+        ]);
+        Http::fake([
+            '*/api/v2/order/get_order_detail*' => Http::response(ShopeeFx::orderDetail(), 200),
+            '*/api/v2/logistics/get_shipping_parameter*' => Http::response(ShopeeFx::shippingParameter(), 200),
+            '*/api/v2/logistics/ship_order*' => Http::response(ShopeeFx::shipOrder(), 200),
+            // Sàn CHƯA cấp mã vận đơn (3PL trễ).
+            '*/api/v2/logistics/get_tracking_number*' => Http::response(['error' => '', 'response' => ['tracking_number' => '']], 200),
+            '*/api/v2/logistics/create_shipping_document*' => Http::response(ShopeeFx::createDocument(), 200),
+            // Tem chưa render ⇒ getShippingDocument timeout ⇒ enqueue async retry (không cần media store ở test).
+            '*/api/v2/logistics/get_shipping_document_result*' => Http::response(ShopeeFx::documentResult('PROCESSING'), 200),
+        ]);
+
+        $shipment = app(ShipmentService::class)->createForOrder($order, null, null);
+
+        $this->assertTrue(blank($shipment->tracking_no), 'Sàn chưa cấp mã vận đơn ⇒ tracking rỗng.');
+        // ĐIỂM CỐT LÕI: đã thử kéo tem dù CHƯA có tracking (khác TikTok/Lazada — chỉ kéo sau khi có tracking).
+        Http::assertSent(fn (Request $r) => str_contains($r->url(), '/api/v2/logistics/create_shipping_document'));
+        // Vẫn enqueue backfill để cập nhật mã vận đơn khi sàn cấp.
+        Bus::assertDispatched(BackfillChannelTracking::class, fn (BackfillChannelTracking $j) => $j->shipmentId === (int) $shipment->getKey());
     }
 
     // --- B5: đơn sàn loại không có tem (Lazada DBS/SOF) — terminal, dừng retry, báo đúng lý do ---------
