@@ -167,10 +167,10 @@ x-app-env: &app-env
   # Push Partner Key RIÊNG (Shopee console → Push Mechanism) để verify chữ ký webhook push. Để trống ⇒
   # fallback dùng PARTNER_KEY. Bí mật — nhập ở Portainer/.env, hoặc /admin/system-settings (marketplace.shopee.push_partner_key).
   SHOPEE_PUSH_PARTNER_KEY: ${SHOPEE_PUSH_PARTNER_KEY:-}
+  # base_url tự switch theo cờ này (KHÔNG còn SHOPEE_API_BASE_URL): true → SANDBOX VN/Global
+  # https://openplatform.sandbox.test-stable.shopee.sg ; false → PRODUCTION https://partner.shopeemobile.com.
+  # (Đang để mặc định SANDBOX để test — đổi SHOPEE_SANDBOX=false khi go-live.)
   SHOPEE_SANDBOX: "${SHOPEE_SANDBOX:-true}"
-  # Host API (CHÍNH THỨC theo open.shopee.com): SANDBOX VN/Global = https://openplatform.sandbox.test-stable.shopee.sg ;
-  # PRODUCTION = https://partner.shopeemobile.com. (Đang để mặc định SANDBOX để test — đổi sang prod khi go-live.)
-  SHOPEE_API_BASE_URL: ${SHOPEE_API_BASE_URL:-https://openplatform.sandbox.test-stable.shopee.sg}
   INTEGRATIONS_SHOPEE_FULFILLMENT: "${INTEGRATIONS_SHOPEE_FULFILLMENT:-true}"
   # Đối soát Shopee (SPEC 0016). Bật mặc định; cần scope tài chính khi cấp token. Đặt "false" ở Portainer để tắt.
   INTEGRATIONS_SHOPEE_FINANCE: "${INTEGRATIONS_SHOPEE_FINANCE:-true}"
