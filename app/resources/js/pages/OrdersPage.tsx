@@ -19,6 +19,7 @@ import { CarrierAccountPicker } from '@/components/CarrierAccountPicker';
 import { TemplateAliasPicker } from '@/components/shipping-labels/TemplateAliasPicker';
 import { errorMessage } from '@/lib/api';
 import { CHANNEL_META, ORDER_STATUS_TABS } from '@/lib/format';
+import { withShopeePrintNotice } from '@/lib/shopeePrintNotice';
 import { Order, useFetchAllOrders, useOrders, useOrderStats, useSyncOrders } from '@/lib/orders';
 import { useBulkCreateShipments, useBulkRefetchSlip, useCreatePrintJob, useHandoverShipments, usePackShipments, type BulkActionResult } from '@/lib/fulfillment';
 import { useChannelAccounts } from '@/lib/channels';
@@ -400,25 +401,29 @@ export function OrdersPage() {
         const openManualPicker = () => { setBulkLabelPicker({ open: true, orderIds: ready.map((o) => o.id) }); notifySkipped(); };
         const proceed = allManual ? openManualPicker : runChannelPrint;
         // Cảnh báo in lại: ≥1 đơn đã được in trước đó (`print_count > 0`) ⇒ tránh in trùng phiếu vận chuyển.
-        if (reprinted.length > 0) {
-            Modal.confirm({
-                title: `${reprinted.length} đơn đã từng in phiếu — vẫn in tiếp?`,
-                width: 540,
-                content: (
-                    <div>
-                        <p style={{ marginTop: 0 }}>Trong <b>{ready.length}</b> đơn sắp in, <b>{reprinted.length}</b> đơn đã được in phiếu giao hàng trước đó. In lại có thể tạo trùng phiếu vận chuyển — kiểm tra trước khi giao cho đơn vị vận chuyển.</p>
-                        <p style={{ marginBottom: 4 }}>Danh sách đơn đã in:</p>
-                        <ul style={{ margin: 0, paddingInlineStart: 18, maxHeight: 220, overflowY: 'auto' }}>
-                            {reprinted.map((o) => <li key={o.id}>{o.order_number ?? o.external_order_id ?? `#${o.id}`} — đã in <b>{o.shipment!.print_count}</b> lần</li>)}
-                        </ul>
-                    </div>
-                ),
-                okText: 'Vẫn in', okButtonProps: { danger: true }, cancelText: 'Huỷ',
-                onOk: proceed,
-            });
-            return;
-        }
-        proceed();
+        const proceedWithReprintCheck = () => {
+            if (reprinted.length > 0) {
+                Modal.confirm({
+                    title: `${reprinted.length} đơn đã từng in phiếu — vẫn in tiếp?`,
+                    width: 540,
+                    content: (
+                        <div>
+                            <p style={{ marginTop: 0 }}>Trong <b>{ready.length}</b> đơn sắp in, <b>{reprinted.length}</b> đơn đã được in phiếu giao hàng trước đó. In lại có thể tạo trùng phiếu vận chuyển — kiểm tra trước khi giao cho đơn vị vận chuyển.</p>
+                            <p style={{ marginBottom: 4 }}>Danh sách đơn đã in:</p>
+                            <ul style={{ margin: 0, paddingInlineStart: 18, maxHeight: 220, overflowY: 'auto' }}>
+                                {reprinted.map((o) => <li key={o.id}>{o.order_number ?? o.external_order_id ?? `#${o.id}`} — đã in <b>{o.shipment!.print_count}</b> lần</li>)}
+                            </ul>
+                        </div>
+                    ),
+                    okText: 'Vẫn in', okButtonProps: { danger: true }, cancelText: 'Huỷ',
+                    onOk: proceed,
+                });
+                return;
+            }
+            proceed();
+        };
+        // Đơn Shopee: nhắc bật in nhiệt (khổ tem do cài đặt shop trên Shopee quyết định) trước khi mở tab in.
+        withShopeePrintNotice(ready.some((o) => o.source === 'shopee'), proceedWithReprintCheck);
     };
 
     // chip-row items — kèm logo gian hàng để nhận diện trực quan (logo sàn cho cả "Sàn TMĐT" lẫn "Gian hàng")

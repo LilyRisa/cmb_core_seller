@@ -12,6 +12,7 @@ import { useBulkAction } from '@/lib/useBulkAction';
 import { MoneyText, DateText } from '@/components/MoneyText';
 import { errorMessage } from '@/lib/api';
 import { formatDate } from '@/lib/format';
+import { withShopeePrintNotice } from '@/lib/shopeePrintNotice';
 import { useCan } from '@/lib/tenant';
 import type { Order } from '@/lib/orders';
 import {
@@ -133,7 +134,7 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
     });
     const runPrintLabel = () => createPrint.mutate({ type: 'label', shipment_ids: [sh!.id] }, { onSuccess: (j) => onPrint(j.id), onError: err });
     // Cảnh báo in lại: vận đơn đã in ≥1 lần ⇒ confirm để tránh tạo trùng phiếu vận chuyển.
-    const printLabelBundle = () => {
+    const printLabelBundle = () => withShopeePrintNotice(order.source === 'shopee', () => {
         if (sh && (sh.print_count ?? 0) > 0) {
             const code = order.order_number ?? order.external_order_id ?? `#${order.id}`;
             Modal.confirm({
@@ -145,7 +146,7 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
             return;
         }
         runPrintLabel();
-    };
+    });
     // "In phiếu giao hàng":
     //   - Đơn manual ⇒ LUÔN mở TemplateAliasPicker (cho phép chọn template tự thiết kế hoặc fallback hệ thống).
     //     SPEC 0021 auto-render slip mặc định nên has_label=true; cần override bằng template do shop tạo.
@@ -398,7 +399,8 @@ export function ShipmentsTab({ onPrint }: { onPrint: (id: number) => void }) {
                         onError: (e) => Modal.warning({ title: 'Không in được tem', content: errorMessage(e), okText: 'Đã hiểu' }),
                     });
                     const reprinted = items.filter((s) => (s.print_count ?? 0) > 0);
-                    if (reprinted.length > 0) {
+                    const proceed = () => {
+                        if (reprinted.length === 0) { runPrint(); return; }
                         Modal.confirm({
                             title: `${reprinted.length} vận đơn đã từng in tem — vẫn in tiếp?`,
                             width: 540,
@@ -414,9 +416,9 @@ export function ShipmentsTab({ onPrint }: { onPrint: (id: number) => void }) {
                             okText: 'Vẫn in', okButtonProps: { danger: true }, cancelText: 'Huỷ',
                             onOk: runPrint,
                         });
-                        return;
-                    }
-                    runPrint();
+                    };
+                    // Đơn Shopee: nhắc bật in nhiệt trước khi mở tab in (khổ tem do cài đặt shop trên Shopee).
+                    withShopeePrintNotice(sources.includes('shopee'), proceed);
                 }}>In tem ({sel.length})</Button>}
             </Space>
             <Table<Shipment> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns}
