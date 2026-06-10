@@ -252,6 +252,9 @@ class ShipmentService
                 $doc = $this->channels->for($account->provider)->getShippingDocument($account->authContext(), (string) $order->external_order_id, [
                     'type' => 'SHIPPING_LABEL_AND_PACKING_SLIP',
                     'externalPackageId' => (string) $shipment->package_no,
+                    // Shopee create_shipping_document cần tracking_number (kênh tích hợp) — truyền sẵn để khỏi
+                    // gọi lại get_tracking_number; rỗng thì connector tự lấy.
+                    'tracking_no' => (string) $shipment->tracking_no,
                     'order_item_ids' => $itemIds,
                 ]);
                 $bytes = (string) $doc['bytes'];

@@ -339,16 +339,28 @@ class ShopeeConnectorContractTest extends TestCase
     public function test_get_shipping_document_polls_then_downloads(): void
     {
         Http::fake([
+            '*/api/v2/logistics/get_shipping_document_parameter*' => Http::response(ShopeeFixtures::documentParameter('THERMAL_AIR_WAYBILL'), 200),
             '*/api/v2/logistics/create_shipping_document*' => Http::response(ShopeeFixtures::createDocument(), 200),
             '*/api/v2/logistics/get_shipping_document_result*' => Http::response(ShopeeFixtures::documentResult('READY'), 200),
             '*/api/v2/logistics/download_shipping_document*' => Http::response('%PDF-1.4 fake', 200, ['Content-Type' => 'application/pdf']),
         ]);
         $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
 
-        $doc = $this->connector()->getShippingDocument($auth, 'SN_1', ['externalPackageId' => 'PKG_1']);
+        $doc = $this->connector()->getShippingDocument($auth, 'SN_1', ['externalPackageId' => 'PKG_1', 'tracking_no' => 'SPXVN123']);
         $this->assertSame('application/pdf', $doc['mime']);
         $this->assertStringContainsString('%PDF', $doc['bytes']);
         $this->assertStringEndsWith('.pdf', $doc['filename']);
+        // create_shipping_document PHẢI gửi tracking_number (thiếu ⇒ logistics.tracking_number_invalid: Shopee 0 tem)
+        // + loại tem gợi ý từ get_shipping_document_parameter (THERMAL cho SPX).
+        Http::assertSent(function (\Illuminate\Http\Client\Request $r) {
+            if (! str_contains($r->url(), '/api/v2/logistics/create_shipping_document')) {
+                return false;
+            }
+            $entry = ($r->data()['order_list'][0] ?? []);
+
+            return ($entry['tracking_number'] ?? null) === 'SPXVN123'
+                && ($entry['shipping_document_type'] ?? null) === 'THERMAL_AIR_WAYBILL';
+        });
     }
 
     public function test_get_shipping_document_surfaces_batch_fail_reason(): void

@@ -353,8 +353,26 @@ class ShopeeConnector implements ChannelConnector, PenaltyWebhookConnector, Shop
     {
         $cfg = $this->client->cfg();
         $packageNumber = (string) ($query['externalPackageId'] ?? '');
-        $docType = (string) ($cfg['document_type'] ?? 'NORMAL_AIR_WAYBILL');
-        $orderEntry = array_filter(['order_sn' => $externalOrderId, 'package_number' => $packageNumber ?: null, 'shipping_document_type' => $docType]);
+
+        // create_shipping_document YÊU CẦU `tracking_number` cho kênh tích hợp (SPX...) — THIẾU ⇒
+        // `logistics.tracking_number_invalid` (chính là lý do tem Shopee không bao giờ lấy được). Ưu tiên mã
+        // do caller (shipment) truyền vào; fallback get_tracking_number. Doc v2.logistics.create_shipping_document.
+        $trackingNo = trim((string) ($query['tracking_no'] ?? ''));
+        if ($trackingNo === '') {
+            $trackingNo = (string) ($this->safeTracking($auth, $externalOrderId, $packageNumber) ?? '');
+        }
+
+        // Loại tem theo kênh: suggest_shipping_document_type (vd SPX gợi ý THERMAL_AIR_WAYBILL; có kênh chỉ cho
+        // THERMAL). create/result/download PHẢI cùng MỘT loại. Fallback config nếu không lấy được.
+        $docType = $this->resolveDocumentType($auth, $externalOrderId, $packageNumber)
+            ?: (string) ($cfg['document_type'] ?? 'NORMAL_AIR_WAYBILL');
+
+        $orderEntry = array_filter([
+            'order_sn' => $externalOrderId,
+            'package_number' => $packageNumber ?: null,
+            'tracking_number' => $trackingNo ?: null,
+            'shipping_document_type' => $docType,
+        ]);
 
         try {
             $this->client->shopPost($auth, $this->client->endpoint('create_document'), [], ['order_list' => [$orderEntry]]);
@@ -373,7 +391,7 @@ class ShopeeConnector implements ChannelConnector, PenaltyWebhookConnector, Shop
         $ready = false;
         for ($i = 0; $i < $attempts; $i++) {
             $res = $this->client->shopPost($auth, $this->client->endpoint('get_document_result'), [], [
-                'order_list' => [array_filter(['order_sn' => $externalOrderId, 'package_number' => $packageNumber ?: null])],
+                'order_list' => [array_filter(['order_sn' => $externalOrderId, 'package_number' => $packageNumber ?: null, 'shipping_document_type' => $docType])],
             ]);
             $status = (string) ($res['result_list'][0]['status'] ?? 'PROCESSING');
             if ($status === 'READY') {
@@ -396,6 +414,24 @@ class ShopeeConnector implements ChannelConnector, PenaltyWebhookConnector, Shop
         ]);
 
         return ['filename' => 'shopee-'.$externalOrderId.'.pdf', 'mime' => 'application/pdf', 'bytes' => $bytes];
+    }
+
+    /**
+     * Loại tem sàn gợi ý cho đơn (get_shipping_document_parameter → suggest_shipping_document_type).
+     * Null nếu không lấy được (endpoint chưa cấu hình / lỗi) ⇒ caller fallback config.document_type.
+     */
+    private function resolveDocumentType(AuthContext $auth, string $externalOrderId, string $packageNumber): ?string
+    {
+        try {
+            $r = $this->client->shopPost($auth, $this->client->endpoint('document_parameter'), [], [
+                'order_list' => [array_filter(['order_sn' => $externalOrderId, 'package_number' => $packageNumber ?: null])],
+            ]);
+            $suggest = trim((string) ($r['result_list'][0]['suggest_shipping_document_type'] ?? ''));
+
+            return $suggest !== '' ? $suggest : null;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**

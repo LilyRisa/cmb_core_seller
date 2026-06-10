@@ -614,6 +614,7 @@ return [
             'shipping_parameter' => '/api/v2/logistics/get_shipping_parameter',
             'ship_order' => '/api/v2/logistics/ship_order',
             'tracking_number' => '/api/v2/logistics/get_tracking_number',
+            'document_parameter' => '/api/v2/logistics/get_shipping_document_parameter',
             'create_document' => '/api/v2/logistics/create_shipping_document',
             'get_document_result' => '/api/v2/logistics/get_shipping_document_result',
             'download_document' => '/api/v2/logistics/download_shipping_document',

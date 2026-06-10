@@ -24,7 +24,8 @@ final class ShopeeFixtures
                 'token_refresh' => '/api/v2/auth/access_token/get', 'shop_info' => '/api/v2/shop/get_shop_info',
                 'order_list' => '/api/v2/order/get_order_list', 'order_detail' => '/api/v2/order/get_order_detail',
                 'shipping_parameter' => '/api/v2/logistics/get_shipping_parameter', 'ship_order' => '/api/v2/logistics/ship_order',
-                'tracking_number' => '/api/v2/logistics/get_tracking_number', 'create_document' => '/api/v2/logistics/create_shipping_document',
+                'tracking_number' => '/api/v2/logistics/get_tracking_number', 'document_parameter' => '/api/v2/logistics/get_shipping_document_parameter',
+                'create_document' => '/api/v2/logistics/create_shipping_document',
                 'get_document_result' => '/api/v2/logistics/get_shipping_document_result', 'download_document' => '/api/v2/logistics/download_shipping_document',
                 'item_list' => '/api/v2/product/get_item_list', 'item_base_info' => '/api/v2/product/get_item_base_info',
                 'model_list' => '/api/v2/product/get_model_list', 'update_stock' => '/api/v2/product/update_stock',
@@ -101,6 +102,15 @@ final class ShopeeFixtures
     public static function trackingNumber(): array
     {
         return ['error' => '', 'response' => ['tracking_number' => 'TRK123', 'first_mile_tracking_number' => null]];
+    }
+
+    public static function documentParameter(string $suggest = 'THERMAL_AIR_WAYBILL'): array
+    {
+        return ['error' => '', 'response' => ['result_list' => [[
+            'order_sn' => 'SN_1', 'package_number' => 'PKG_1',
+            'suggest_shipping_document_type' => $suggest,
+            'selectable_shipping_document_type' => ['NORMAL_AIR_WAYBILL', $suggest],
+        ]]]];
     }
 
     public static function createDocument(): array

@@ -152,7 +152,7 @@ interface ChannelConnector
     /**
      * Fetch the shipping document (label PDF, packing slip, ...) bytes.
      *
-     * @param  array{type?:string,format?:string,externalPackageId?:string}  $query
+     * @param  array{type?:string,format?:string,externalPackageId?:string,tracking_no?:string,order_item_ids?:list<int>}  $query
      * @return array{filename:string,mime:string,bytes:string}
      */
     public function getShippingDocument(AuthContext $auth, string $externalOrderId, array $query = []): array;
