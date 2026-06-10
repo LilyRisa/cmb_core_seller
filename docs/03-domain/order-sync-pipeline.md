@@ -76,7 +76,7 @@ Ba mode `sync_runs.type` (đều dùng cùng job `SyncOrdersForShop`):
 3. Upsert đơn + cập nhật tồn nằm trong **một transaction**; phát domain event **sau commit** (`afterCommit`).
 4. Job có `tries` + backoff (exponential, có jitter) + `retryUntil`; quá hạn → vào "dead letter" (đánh dấu `webhook_events.status=failed`, `sync_runs` lỗi) + cảnh báo, có UI re-drive.
 5. Rate-limit per `(provider, shop)` bằng Redis limiter; tôn trọng `Retry-After` / mã 429 của sàn.
-6. Token hết hạn giữa chừng → connector tự thử `refreshToken`; nếu không được → đánh dấu `channel_account.status=expired`, dừng sync shop đó, thông báo user re-connect.
+6. Token hết hạn giữa chừng → connector tự thử `refreshToken`. **Chỉ đánh dấu `channel_account.status=expired`** (dừng sync + báo user re-connect) khi refresh **bị sàn từ chối thật sự** (connector `isAuthError()` — refresh_token sai/đã thu hồi) **hoặc** `refresh_token_expires_at` đã quá hạn. Lỗi tạm thời (network/5xx/rate-limit/sign/đua xoay-vòng refresh_token) **giữ nguyên `active`** — access_token hiện tại thường còn hạn (Shopee: 4h) nên sync vẫn chạy, lần refresh theo lịch kế tiếp thử lại. (Trước đây expire ngay lần lỗi đầu khiến shop Shopee "rớt sau vài tiếng" dù refresh_token còn 30 ngày.) Refresh được **khoá theo từng account** (`Cache::lock`) + đọc lại token mới nhất vì Shopee/Lazada **xoay-vòng refresh_token mỗi lần refresh** — hai job refresh trùng token sẽ làm job thua cuộc nhận lỗi auth giả. Lịch `channels:refresh-expiring-tokens --within=7200` chạy mỗi 30' (refresh khi còn ~2h, không refresh lại mỗi tick).
 7. Một shop lỗi **không** được làm dừng sync các shop khác (cô lập theo job/queue).
 
 ## 5. Quan sát & vận hành

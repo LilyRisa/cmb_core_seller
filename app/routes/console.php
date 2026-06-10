@@ -47,8 +47,10 @@ Schedule::call(function () {
         ->each(fn ($a) => SyncOrdersForShop::dispatch((int) $a->getKey()));
 })->everyTenMinutes()->name('dispatch-order-sync')->onOneServer()->withoutOverlapping();
 
-// Refresh tokens that expire soon (a stalled token kills sync).
-Schedule::command('channels:refresh-expiring-tokens')->everyThirtyMinutes()->onOneServer();
+// Refresh tokens that expire soon (a stalled token kills sync). Window = 2h so a short-lived token
+// (Shopee access token lives only 4h) is refreshed when ~2h remain — ~4 retry chances at the 30' cadence
+// before it lapses — instead of being re-refreshed on every tick, which multiplied the rotation-race surface.
+Schedule::command('channels:refresh-expiring-tokens --within=7200')->everyThirtyMinutes()->onOneServer();
 
 // --- Phase 2: customer registry (SPEC 0002) ---
 // Eventual-consistency safety net: recompute customers whose orders changed in the

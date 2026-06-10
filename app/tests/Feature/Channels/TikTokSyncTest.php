@@ -214,6 +214,20 @@ class TikTokSyncTest extends TestCase
         Event::assertDispatched(ChannelAccountNeedsReconnect::class);
     }
 
+    public function test_transient_refresh_failure_keeps_account_active(): void
+    {
+        // A transient failure (5xx / network blip) must NOT expire the shop while the refresh token is still
+        // valid — the current access token keeps sync alive and the next scheduled run retries. This is what
+        // stopped Shopee shops from "dropping after a few hours" on a single refresh hiccup.
+        Event::fake([ChannelAccountNeedsReconnect::class]);
+        $this->account->forceFill(['refresh_token_expires_at' => now()->addDays(20)])->save();
+        Http::fake(['*/api/v2/token/refresh*' => Http::response(['message' => 'internal error'], 500)]);
+
+        $this->assertFalse(app(TokenRefresher::class)->refresh($this->account));
+        $this->assertSame(ChannelAccount::STATUS_ACTIVE, $this->account->fresh()->status);
+        Event::assertNotDispatched(ChannelAccountNeedsReconnect::class);
+    }
+
     /** Build a signed TikTok webhook body for a given order status. */
     private function signedWebhook(string $status, string $secret = F::APP_SECRET, string $orderId = F::ORDER_ID): array
     {
