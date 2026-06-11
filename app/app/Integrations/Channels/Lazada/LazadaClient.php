@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Integrations\Channels\Lazada;
 
 use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
@@ -121,43 +122,7 @@ class LazadaClient
             $this->throttle($auth);
         }
 
-        // System params — khớp đúng `LazopClient::execute()` (SDK chính thức `sdk_lazada_php`). `partner_id`
-        // BẮT BUỘC nằm trong tập tham số ký để một số endpoint (đặc biệt `/auth/token/create|refresh` ở host
-        // auth.lazada.com) chấp nhận — thiếu nó thường bị trả "tham số không hợp lệ" / sai sign.
-        $sysParams = [
-            'app_key' => $this->appKey(),
-            'timestamp' => (string) (now()->getTimestampMs()),
-            'sign_method' => 'sha256',
-            'partner_id' => (string) ($this->cfg['partner_id'] ?? 'cmb-core-seller-php-1.0'),
-        ];
-        if ($auth && $auth->accessToken !== '') {
-            $sysParams['access_token'] = $auth->accessToken;
-        }
-        // string-ify business params; drop nulls
-        $biz = [];
-        foreach ($params as $k => $v) {
-            if ($v === null) {
-                continue;
-            }
-            $biz[$k] = is_array($v) ? (string) json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : (string) $v;
-        }
-        $all = array_merge($sysParams, $biz);
-        $sign = LazadaSigner::sign($this->appSecret(), $apiPath, $all);
-        $sysParams['sign'] = $sign;
-
-        $base = $authHost
-            ? rtrim((string) ($this->cfg['auth_base_url'] ?? 'https://auth.lazada.com/rest'), '/')
-            : rtrim((string) ($this->cfg['api_base_url'] ?? 'https://api.lazada.vn/rest'), '/');
-        $url = $base.$apiPath;
-
-        // Trace nhẹ — chỉ tên path + tên tham số (không log giá trị secret / token / code). Bật bằng
-        // `LAZADA_LOG_REQUESTS=true` khi cần soi luồng cấp quyền không hoạt động.
-        if ((bool) ($this->cfg['log_requests'] ?? false)) {
-            Log::info('lazada.api.request', [
-                'method' => strtoupper($method), 'path' => $apiPath, 'auth_host' => $authHost,
-                'sys_keys' => array_keys($sysParams), 'biz_keys' => array_keys($biz),
-            ]);
-        }
+        [$url, $sysParams, $biz] = $this->buildSignedRequest($method, $apiPath, $auth, $params, $authHost);
 
         // Retry tự động khi Lazada trả `SellerCallLimit` / `ApiCallLimit` / `SystemBusy` — message thường
         // ghi "ban will last N seconds"; ta sleep ~1.2× số đó rồi thử lại tối đa 2 lần. (HTTP 429 hiếm gặp
@@ -165,18 +130,7 @@ class LazadaClient
         $maxRetries = 2;
         $attempt = 0;
         while (true) {
-            $req = $this->http();
-            if (strtoupper($method) === 'GET') {
-                $resp = $req->get($url, array_merge($sysParams, $biz));   // sys + biz + sign cùng query string
-            } else {
-                // POST: system params + sign trong query string; business params trong body **multipart/form-data**.
-                $urlWithSys = $url.'?'.http_build_query($sysParams, '', '&', PHP_QUERY_RFC1738);
-                $multipart = [];
-                foreach ($biz as $k => $v) {
-                    $multipart[] = ['name' => (string) $k, 'contents' => (string) $v];
-                }
-                $resp = $req->asMultipart()->post($urlWithSys, $multipart);
-            }
+            $resp = $this->send($method, $url, $sysParams, $biz);
 
             $json = $resp->json() ?? [];
             $code = (string) ($json['code'] ?? '');
@@ -207,6 +161,26 @@ class LazadaClient
         }
     }
 
+    /**
+     * Send a signed request and return the **full decoded envelope** (`{code,type,message,
+     * request_id,data}`) WITHOUT unwrapping `data` or throwing on `code != "0"`.
+     *
+     * Used by the product-publishing connector ({@see LazadaPublisher}) which needs to inspect
+     * the envelope `code` itself and raise a provider-agnostic {@see MarketplaceApiException}.
+     * Reuses the same signing/transport as {@see self::call()} (single attempt, no rate-limit loop).
+     *
+     * @param  array<string, mixed>  $params  business params (arrays are JSON-encoded; merged with system params + signed)
+     * @return array<string, mixed> the full envelope returned by the gateway
+     */
+    public function callRaw(string $apiPath, AuthContext $auth, array $params = [], string $method = 'POST'): array
+    {
+        $this->throttle($auth);
+
+        [$url, $sysParams, $biz] = $this->buildSignedRequest($method, $apiPath, $auth, $params, false);
+
+        return (array) ($this->send($method, $url, $sysParams, $biz)->json() ?? []);
+    }
+
     /** @param array<string,scalar|null> $params @return array<string,mixed> */
     public function get(string $apiPath, AuthContext $auth, array $params = []): array
     {
@@ -217,6 +191,76 @@ class LazadaClient
     public function post(string $apiPath, AuthContext $auth, array $params = []): array
     {
         return $this->call('POST', $apiPath, $auth, $params);
+    }
+
+    /**
+     * Assemble system + business params, sign, and resolve the gateway URL.
+     *
+     * @param  array<string, mixed>  $params
+     * @return array{0:string,1:array<string,string>,2:array<string,string>} [url, sysParams(+sign), biz]
+     */
+    private function buildSignedRequest(string $method, string $apiPath, ?AuthContext $auth, array $params, bool $authHost): array
+    {
+        // System params — khớp đúng `LazopClient::execute()` (SDK chính thức `sdk_lazada_php`). `partner_id`
+        // BẮT BUỘC nằm trong tập tham số ký để một số endpoint (đặc biệt `/auth/token/create|refresh` ở host
+        // auth.lazada.com) chấp nhận — thiếu nó thường bị trả "tham số không hợp lệ" / sai sign.
+        $sysParams = [
+            'app_key' => $this->appKey(),
+            'timestamp' => (string) (now()->getTimestampMs()),
+            'sign_method' => 'sha256',
+            'partner_id' => (string) ($this->cfg['partner_id'] ?? 'cmb-core-seller-php-1.0'),
+        ];
+        if ($auth && $auth->accessToken !== '') {
+            $sysParams['access_token'] = $auth->accessToken;
+        }
+        // string-ify business params; drop nulls
+        $biz = [];
+        foreach ($params as $k => $v) {
+            if ($v === null) {
+                continue;
+            }
+            $biz[$k] = is_array($v) ? (string) json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) : (string) $v;
+        }
+        $sysParams['sign'] = LazadaSigner::sign($this->appSecret(), $apiPath, array_merge($sysParams, $biz));
+
+        $base = $authHost
+            ? rtrim((string) ($this->cfg['auth_base_url'] ?? 'https://auth.lazada.com/rest'), '/')
+            : rtrim((string) ($this->cfg['api_base_url'] ?? 'https://api.lazada.vn/rest'), '/');
+
+        // Trace nhẹ — chỉ tên path + tên tham số (không log giá trị secret / token / code). Bật bằng
+        // `LAZADA_LOG_REQUESTS=true` khi cần soi luồng cấp quyền không hoạt động.
+        if ((bool) ($this->cfg['log_requests'] ?? false)) {
+            Log::info('lazada.api.request', [
+                'method' => strtoupper($method), 'path' => $apiPath, 'auth_host' => $authHost,
+                'sys_keys' => array_keys($sysParams), 'biz_keys' => array_keys($biz),
+            ]);
+        }
+
+        return [$base.$apiPath, $sysParams, $biz];
+    }
+
+    /**
+     * Perform one signed HTTP round trip (GET: all params in query; POST: system+sign in query,
+     * business params in multipart body — mirrors the official SDK gateway contract).
+     *
+     * @param  array<string,string>  $sysParams
+     * @param  array<string,string>  $biz
+     */
+    private function send(string $method, string $url, array $sysParams, array $biz): Response
+    {
+        $req = $this->http();
+        if (strtoupper($method) === 'GET') {
+            return $req->get($url, array_merge($sysParams, $biz));   // sys + biz + sign cùng query string
+        }
+
+        // POST: system params + sign trong query string; business params trong body **multipart/form-data**.
+        $urlWithSys = $url.'?'.http_build_query($sysParams, '', '&', PHP_QUERY_RFC1738);
+        $multipart = [];
+        foreach ($biz as $k => $v) {
+            $multipart[] = ['name' => (string) $k, 'contents' => (string) $v];
+        }
+
+        return $req->asMultipart()->post($urlWithSys, $multipart);
     }
 
     // --- internals -----------------------------------------------------------
