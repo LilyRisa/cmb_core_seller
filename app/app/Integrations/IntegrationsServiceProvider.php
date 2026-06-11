@@ -24,6 +24,7 @@ use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeClient;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeConnector;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeWebhookVerifier;
 use CMBcoreSeller\Integrations\Channels\TikTok\TikTokConnector;
+use CMBcoreSeller\Integrations\Channels\TikTok\TikTokPublisher;
 use CMBcoreSeller\Integrations\Messaging\Facebook\FacebookPageConnector;
 use CMBcoreSeller\Integrations\Messaging\Facebook\FacebookSignatureVerifier;
 use CMBcoreSeller\Integrations\Messaging\Lazada\LazadaChatConnector;
@@ -154,7 +155,7 @@ class IntegrationsServiceProvider extends ServiceProvider
         $this->app->singleton(PublisherRegistry::class, function ($app) {
             $r = new PublisherRegistry($app);
             $r->register('lazada', LazadaPublisher::class);
-            // tiktok/shopee added in later tasks
+            $r->register('tiktok', TikTokPublisher::class);
 
             return $r;
         });
