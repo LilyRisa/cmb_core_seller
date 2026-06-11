@@ -23,6 +23,7 @@ use CMBcoreSeller\Modules\Orders\Http\Controllers\OrderController;
 use CMBcoreSeller\Modules\Orders\Http\Controllers\ReturnController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ChannelListingController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ExtensionTokenController;
+use CMBcoreSeller\Modules\Products\Http\Controllers\ListingTaxonomyController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ProductController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\AuthController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\MemberController;
@@ -219,6 +220,12 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::post('sku-mappings', [SkuMappingController::class, 'store'])->name('sku-mappings.store');
             Route::post('sku-mappings/auto-match', [SkuMappingController::class, 'autoMatch'])->name('sku-mappings.auto-match');
             Route::delete('sku-mappings/{id}', [SkuMappingController::class, 'destroy'])->whereNumber('id')->name('sku-mappings.destroy');
+
+            // --- Listing taxonomy proxy (SPEC marketplace product publishing) — cached read-through
+            // over a provider's category tree / attributes / brands for a connected shop.
+            Route::get('channels/{provider}/categories', [ListingTaxonomyController::class, 'categories'])->name('channels.categories');
+            Route::get('channels/{provider}/attributes', [ListingTaxonomyController::class, 'attributes'])->name('channels.attributes');
+            Route::get('channels/{provider}/brands', [ListingTaxonomyController::class, 'brands'])->name('channels.brands');
 
             // --- Customers (Phase 2 / SPEC 0002) — internal buyer registry & reputation ---
             Route::post('customers/merge', [CustomerController::class, 'merge'])->name('customers.merge');
