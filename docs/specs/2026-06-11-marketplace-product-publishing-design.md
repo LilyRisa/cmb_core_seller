@@ -40,7 +40,7 @@ Tài liệu nghiên cứu chính thức (req #8) cho kết luận then chốt: *
 
 ### 3.1 Module & layer (theo luật modular-monolith + extensibility)
 
-- **Module mới `Catalog`** (`app/app/Modules/Catalog/`): sở hữu `MasterProduct`, `ChannelListing`, push orchestration, push progress. Phụ thuộc `Channels` (shop đã kết nối) và `Tenancy` qua **Contracts/events**, gọi Integration layer qua interface — không `use` nội bộ module khác.
+- **Module mới `Catalog`** (`app/app/Modules/Catalog/`): sở hữu `MasterProduct`, `ListingDraft`, push orchestration, push progress. Phụ thuộc `Channels` (shop đã kết nối) và `Tenancy` qua **Contracts/events**, gọi Integration layer qua interface — không `use` nội bộ module khác.
 - **Integration layer** (`app/app/Integrations/Channels/<Provider>/`): mở rộng connector với năng lực publish sản phẩm. **Core không bao giờ biết tên sàn** — thêm sàn = thêm connector + 1 dòng `register()` + block `config/integrations.php`, validate theo capability map; method chưa hỗ trợ ném `UnsupportedOperation`.
 
 ## 4. Mô hình dữ liệu
@@ -57,7 +57,7 @@ Tất cả bảng có `tenant_id` + trait `BelongsToTenant`.
 - **`push_jobs`** — `id, push_batch_id, channel_listing_id, status('queued'|'running'|'success'|'failed'), step_label, progress, error(json), timestamps`. **Đây là nguồn cho progress modal.**
 - **Token extension:** dùng bảng Sanctum `personal_access_tokens` với `abilities=['copy-product:push']`, `expires_at=null`. UI admin để cấp/thu hồi.
 
-State machine `ChannelListing`: `draft → (qua validator đủ field bắt buộc) → ready → (push) → pushing → live | failed`. `failed` quay lại `draft` để sửa.
+State machine `ListingDraft`: `draft → (qua validator đủ field bắt buộc) → ready → (push) → pushing → live | failed`. `failed` quay lại `draft` để sửa.
 
 ## 5. Integration layer — năng lực mới của connector
 
@@ -79,7 +79,7 @@ DTO chuẩn ở `Integrations/Contracts` / `Support/DTO`. Mỗi provider có **v
 
 - `GET /master-products` (filter status), `GET/PUT /master-products/{id}`
 - Đường push của extension: `POST /master-products` (token `copy-product:push`) — thay/đặt cạnh `/draft-products` hiện tại.
-- `POST /master-products/{id}/listings` — tạo `ChannelListing` draft cho 1 shop; trả về **schema field bắt buộc + thuộc tính danh mục** để render form.
+- `POST /master-products/{id}/listings` — tạo `ListingDraft` draft cho 1 shop; trả về **schema field bắt buộc + thuộc tính danh mục** để render form.
 - `GET /listings/{id}` (kèm trạng thái validate), `PUT /listings/{id}` (user sửa danh mục/attr/brand/giá/logistics).
 - `POST /listings/{id}/push` → enqueue → trả `push_batch_id`.
 - `POST /listings/bulk-push`, `POST /listings/{id}/clone` (GĐ2).
@@ -123,7 +123,7 @@ Tài liệu yêu cầu sàn (đã có).
 
 ### GĐ3 — Kéo & đồng bộ chéo sàn (req #7) (spec/plan riêng)
 - `listListings` (get_item_list) trên shop đã OAuth → tạo `MasterProduct`.
-- Copy chéo sàn theo **edit-gate**: khác nền tảng → `ChannelListing` draft mới cần hoàn thiện; cùng nền tảng (shop khác) → vẫn bắt buộc 1 thao tác sửa trước khi push.
+- Copy chéo sàn theo **edit-gate**: khác nền tảng → `ListingDraft` draft mới cần hoàn thiện; cùng nền tảng (shop khác) → vẫn bắt buộc 1 thao tác sửa trước khi push.
   - *Phân biệt với req #2:* #2 áp cho listing **do hệ thống tự đẩy** (đã có payload validate đầy đủ → clone trực tiếp); #7 cùng nền tảng áp cho listing **kéo về từ sàn** (chưa map đủ ID nội bộ → cần 1 lần sửa).
 
 ## 11. Rủi ro / lưu ý
