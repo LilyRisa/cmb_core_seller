@@ -25,6 +25,7 @@ import { OrdersPage } from '@/pages/OrdersPage';
 import { OrderDetailPage } from '@/pages/OrderDetailPage';
 import { ReturnsPage } from '@/pages/ReturnsPage';
 import { ChannelsPage } from '@/pages/ChannelsPage';
+import { ProductsPublishPage } from '@/pages/ProductsPublishPage';
 import { SyncLogsPage } from '@/pages/SyncLogsPage';
 import { SupportCenterPage } from '@/pages/SupportCenterPage';
 import { CustomersPage } from '@/pages/CustomersPage';
@@ -118,6 +119,7 @@ function Root() {
                 <Route path="orders/:id" element={<OrderDetailPage />} />
                 <Route path="returns" element={<ReturnsPage />} />               {/* Đơn Hoàn & Hủy — SPEC 0025 */}
                 <Route path="channels" element={<ChannelsPage />} />
+                <Route path="listings" element={<ProductsPublishPage />} />   {/* Đăng sản phẩm lên sàn — /products đã dùng cho redirect inventory */}
                 <Route path="customers" element={<CustomersPage />} />
                 <Route path="customers/:id" element={<CustomerDetailPage />} />
                 {/* SPEC-0024 — Hộp thư hợp nhất + trang quản lý. */}
