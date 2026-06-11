@@ -59,7 +59,10 @@ class LazadaConnector implements ChannelConnector, ShopReportConnector
             'shipping.document' => (bool) config('integrations.lazada.fulfillment_enabled', true),
             'shipping.tracking' => false,     // Phase 4 fulfillment
             'listings.fetch' => true,
-            'listings.publish' => false,      // Phase 5
+            'listings.publish' => true,
+            'listings.taxonomy' => true,
+            'listings.media' => true,
+            'listings.statusRead' => true,
             'listings.updateStock' => true,
             'listings.updatePrice' => false,  // Phase 5
             // Đối soát/Settlement — Phase 6.2. Bật bằng INTEGRATIONS_LAZADA_FINANCE=true sau khi đối chiếu shape

@@ -17,7 +17,9 @@ use CMBcoreSeller\Integrations\Carriers\Manual\ManualCarrierConnector;
 use CMBcoreSeller\Integrations\Carriers\ViettelPost\ViettelPostConnector;
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Integrations\Channels\Lazada\LazadaConnector;
+use CMBcoreSeller\Integrations\Channels\Lazada\LazadaPublisher;
 use CMBcoreSeller\Integrations\Channels\Manual\ManualConnector;
+use CMBcoreSeller\Integrations\Channels\PublisherRegistry;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeClient;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeConnector;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeWebhookVerifier;
@@ -147,6 +149,14 @@ class IntegrationsServiceProvider extends ServiceProvider
             }
 
             return $registry;
+        });
+
+        $this->app->singleton(PublisherRegistry::class, function ($app) {
+            $r = new PublisherRegistry($app);
+            $r->register('lazada', LazadaPublisher::class);
+            // tiktok/shopee added in later tasks
+
+            return $r;
         });
 
         $this->app->singleton(CarrierRegistry::class, function ($app) {
