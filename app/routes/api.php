@@ -23,6 +23,7 @@ use CMBcoreSeller\Modules\Orders\Http\Controllers\OrderController;
 use CMBcoreSeller\Modules\Orders\Http\Controllers\ReturnController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ChannelListingController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ExtensionTokenController;
+use CMBcoreSeller\Modules\Products\Http\Controllers\ListingDraftController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ListingTaxonomyController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ProductController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\AuthController;
@@ -226,6 +227,12 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::get('channels/{provider}/categories', [ListingTaxonomyController::class, 'categories'])->name('channels.categories');
             Route::get('channels/{provider}/attributes', [ListingTaxonomyController::class, 'attributes'])->name('channels.attributes');
             Route::get('channels/{provider}/brands', [ListingTaxonomyController::class, 'brands'])->name('channels.brands');
+
+            // --- Listing drafts (SPEC marketplace product publishing) — seed a publishing
+            // draft from a master product, edit per-provider fields, revalidate to READY.
+            Route::post('products/{productId}/listings', [ListingDraftController::class, 'store'])->whereNumber('productId')->name('listing-drafts.store');
+            Route::get('listings/{id}', [ListingDraftController::class, 'show'])->whereNumber('id')->name('listing-drafts.show');
+            Route::put('listings/{id}', [ListingDraftController::class, 'update'])->whereNumber('id')->name('listing-drafts.update');
 
             // --- Customers (Phase 2 / SPEC 0002) — internal buyer registry & reputation ---
             Route::post('customers/merge', [CustomerController::class, 'merge'])->name('customers.merge');
