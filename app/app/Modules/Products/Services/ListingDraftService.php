@@ -118,6 +118,29 @@ final class ListingDraftService
      */
     public function revalidate(ListingDraft $draft): ListingDraft
     {
+        $dto = $this->toDraftDTO($draft);
+
+        $errors = $this->validatorFor($draft->provider)->validate($dto);
+
+        if ($errors === []) {
+            $draft->status = ListingDraft::STATUS_READY;
+            $draft->validation_errors = null;
+        } else {
+            $draft->status = ListingDraft::STATUS_DRAFT;
+            $draft->validation_errors = $errors;
+        }
+        $draft->save();
+
+        return $draft->load('skus');
+    }
+
+    /**
+     * Map a {@see ListingDraft} (and its SKUs) onto a normalized
+     * {@see ListingDraftDTO}. Single source of truth for draft → DTO mapping,
+     * shared by {@see self::revalidate()} and the publish job.
+     */
+    public function toDraftDTO(ListingDraft $draft): ListingDraftDTO
+    {
         $product = Product::findOrFail($draft->product_id);
         $title = (string) $product->name;
 
@@ -140,7 +163,7 @@ final class ListingDraftService
             'warehouse_id' => $logistics['warehouse_id'] ?? null,
         ])->all();
 
-        $dto = new ListingDraftDTO(
+        return new ListingDraftDTO(
             title: $title,
             description: (string) ($draft->attributes['description'] ?? ''),
             categoryId: (string) ($draft->category_id ?? ''),
@@ -150,19 +173,6 @@ final class ListingDraftService
             skus: $skus,
             logistics: $logistics,
         );
-
-        $errors = $this->validatorFor($draft->provider)->validate($dto);
-
-        if ($errors === []) {
-            $draft->status = ListingDraft::STATUS_READY;
-            $draft->validation_errors = null;
-        } else {
-            $draft->status = ListingDraft::STATUS_DRAFT;
-            $draft->validation_errors = $errors;
-        }
-        $draft->save();
-
-        return $draft->load('skus');
     }
 
     private function validatorFor(string $provider): ListingValidator

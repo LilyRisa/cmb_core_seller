@@ -24,6 +24,7 @@ use CMBcoreSeller\Modules\Orders\Http\Controllers\ReturnController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ChannelListingController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ExtensionTokenController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ListingDraftController;
+use CMBcoreSeller\Modules\Products\Http\Controllers\ListingPushController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ListingTaxonomyController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ProductController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\AuthController;
@@ -233,6 +234,12 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::post('products/{productId}/listings', [ListingDraftController::class, 'store'])->whereNumber('productId')->name('listing-drafts.store');
             Route::get('listings/{id}', [ListingDraftController::class, 'show'])->whereNumber('id')->name('listing-drafts.show');
             Route::put('listings/{id}', [ListingDraftController::class, 'update'])->whereNumber('id')->name('listing-drafts.update');
+
+            // --- Listing publish (SPEC marketplace product publishing — Task E4) — push a
+            // READY draft to its marketplace via a tracked ProductPushBatch on the `listings` queue.
+            Route::post('listings/bulk-push', [ListingPushController::class, 'bulkPush'])->name('listings.bulk-push');
+            Route::post('listings/{id}/push', [ListingPushController::class, 'push'])->whereNumber('id')->name('listings.push');
+            Route::get('push-batches/{id}', [ListingPushController::class, 'batch'])->whereNumber('id')->name('push-batches.show');
 
             // --- Customers (Phase 2 / SPEC 0002) — internal buyer registry & reputation ---
             Route::post('customers/merge', [CustomerController::class, 'merge'])->name('customers.merge');
