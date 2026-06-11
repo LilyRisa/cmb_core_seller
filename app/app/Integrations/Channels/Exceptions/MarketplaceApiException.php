@@ -41,6 +41,16 @@ final class MarketplaceApiException extends RuntimeException
         return new self((string) ($resp['message'] ?? ($code !== '' ? $code : 'Lazada API error')), 'lazada', ['response' => $resp], $retry);
     }
 
+    /** @param array<string,mixed> $resp */
+    public static function fromTikTok(array $resp): self
+    {
+        $code = (int) ($resp['code'] ?? -1);
+        // retry only on transport/throttle/system errors, not business validation
+        $retry = in_array($code, [11000000 /* system */, 11001000 /* rate limit */], true);
+
+        return new self((string) ($resp['message'] ?? 'TikTok API error'), 'tiktok', ['response' => $resp], $retry);
+    }
+
     public function isRetryable(): bool
     {
         return $this->retryable;

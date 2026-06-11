@@ -1,0 +1,176 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CMBcoreSeller\Integrations\Channels\TikTok;
+
+use CMBcoreSeller\Integrations\Channels\Contracts\ProductPublishingConnector;
+use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
+use CMBcoreSeller\Integrations\Channels\DTO\BrandDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\CategoryNodeDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\ListingAttributeDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\ListingDraftDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\ListingResultDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\ListingStatusDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\MediaRefDTO;
+use CMBcoreSeller\Integrations\Channels\Exceptions\MarketplaceApiException;
+
+/**
+ * TikTok Shop product-publishing connector (Create Product 202309 + taxonomy + media + status).
+ *
+ * Implements {@see ProductPublishingConnector}: validates a draft
+ * ({@see TikTokListingValidator}), builds the Create Product body
+ * ({@see TikTokProductPayload}), and talks to the TikTok Shop Partner Open API via
+ * {@see TikTokClient::requestRaw()} so it can inspect the envelope `code` itself and
+ * raise a provider-agnostic {@see MarketplaceApiException} on error.
+ *
+ * Taxonomy/media/status reads use defensive mappings — response shapes are sourced from
+ * the TikTok Shop Open Platform docs (category_version=v2) and verified against the
+ * sandbox later.
+ */
+final class TikTokPublisher implements ProductPublishingConnector
+{
+    public function __construct(
+        private readonly TikTokClient $client,
+        private readonly TikTokListingValidator $validator,
+    ) {}
+
+    public function createListing(AuthContext $auth, ListingDraftDTO $draft): ListingResultDTO
+    {
+        $errors = $this->validator->validate($draft);
+        if ($errors !== []) {
+            throw MarketplaceApiException::validation('tiktok', $errors);
+        }
+
+        $resp = $this->client->requestRaw('POST', '/product/202309/products', $auth, [], TikTokProductPayload::toBody($draft));
+        if (($resp['code'] ?? -1) !== 0) {
+            throw MarketplaceApiException::fromTikTok($resp);
+        }
+
+        $skuMap = [];
+        foreach ((array) ($resp['data']['skus'] ?? []) as $sku) {
+            if (! is_array($sku)) {
+                continue;
+            }
+            $sellerSku = (string) ($sku['seller_sku'] ?? '');
+            if ($sellerSku !== '') {
+                $skuMap[$sellerSku] = (string) ($sku['id'] ?? '');
+            }
+        }
+
+        return new ListingResultDTO((string) ($resp['data']['product_id'] ?? ''), $skuMap, 'PENDING', $resp);
+    }
+
+    /** @return CategoryNodeDTO[] */
+    public function getCategoryTree(AuthContext $auth, ?string $parentId = null): array
+    {
+        $data = $this->client->request('GET', '/product/202309/categories', $auth, ['category_version' => 'v2']);
+
+        $out = [];
+        foreach ((array) ($data['categories'] ?? []) as $node) {
+            if (! is_array($node)) {
+                continue;
+            }
+            $parent = (string) ($node['parent_id'] ?? '');
+            $out[] = new CategoryNodeDTO(
+                id: (string) ($node['id'] ?? ''),
+                parentId: $parent !== '' ? $parent : null,
+                name: (string) ($node['local_name'] ?? ''),
+                isLeaf: (bool) ($node['is_leaf'] ?? false),
+                raw: $node,
+            );
+        }
+
+        return $out;
+    }
+
+    /** @return ListingAttributeDTO[] */
+    public function getCategoryAttributes(AuthContext $auth, string $categoryId): array
+    {
+        $data = $this->client->request('GET', "/product/202309/categories/{$categoryId}/attributes", $auth, ['category_version' => 'v2']);
+
+        $out = [];
+        foreach ((array) ($data['attributes'] ?? []) as $attr) {
+            if (! is_array($attr)) {
+                continue;
+            }
+            // Doc has a typo: the field is documented as both `is_required` and `is_requried`.
+            $required = (bool) ($attr['is_required'] ?? ($attr['is_requried'] ?? false));
+            $out[] = new ListingAttributeDTO(
+                id: (string) ($attr['id'] ?? ''),
+                name: (string) ($attr['name'] ?? ''),
+                required: $required,
+                isSaleProp: false,
+                inputType: (string) ($attr['type'] ?? ''),
+                values: (array) ($attr['values'] ?? []),
+                raw: $attr,
+            );
+        }
+
+        return $out;
+    }
+
+    /** @return BrandDTO[] */
+    public function getBrands(AuthContext $auth, string $categoryId): array
+    {
+        $data = $this->client->request('GET', '/product/202309/brands', $auth, ['category_id' => $categoryId]);
+
+        $out = [];
+        foreach ((array) ($data['brands'] ?? []) as $brand) {
+            if (! is_array($brand)) {
+                continue;
+            }
+            $out[] = new BrandDTO(
+                id: (string) ($brand['id'] ?? ''),
+                name: (string) ($brand['name'] ?? ''),
+                mandatory: false,
+                raw: $brand,
+            );
+        }
+
+        return $out;
+    }
+
+    public function uploadMedia(AuthContext $auth, string $imageUrlOrPath, string $useCase = 'main'): MediaRefDTO
+    {
+        $resp = $this->client->uploadMultipart(
+            '/product/202309/images/upload',
+            $auth,
+            'data',
+            $imageUrlOrPath,
+            ['use_case' => $useCase === 'main' ? 'MAIN_IMAGE' : 'DESCRIPTION_IMAGE'],
+        );
+
+        if (($resp['code'] ?? -1) !== 0) {
+            throw MarketplaceApiException::fromTikTok($resp);
+        }
+
+        return new MediaRefDTO((string) ($resp['data']['uri'] ?? ''), 'uri', $resp);
+    }
+
+    public function getListingStatus(AuthContext $auth, string $externalItemId): ListingStatusDTO
+    {
+        $data = $this->client->request('GET', "/product/202309/products/{$externalItemId}", $auth);
+
+        $rawStatus = (string) ($data['status'] ?? '');
+
+        return new ListingStatusDTO(
+            externalItemId: $externalItemId,
+            rawStatus: $rawStatus,
+            normalized: $this->normalizeStatus($rawStatus),
+            reason: null,
+            raw: $data,
+        );
+    }
+
+    private function normalizeStatus(string $rawStatus): string
+    {
+        return match (strtoupper($rawStatus)) {
+            'DRAFT' => 'draft',
+            'PENDING' => 'pending',
+            'ACTIVATE' => 'live',
+            'FAILED' => 'failed',
+            default => strtolower($rawStatus),
+        };
+    }
+}
