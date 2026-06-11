@@ -122,6 +122,56 @@ class ShopeeClient
         return $this->send('POST', $path, $this->shopParams($auth, $path) + $this->stringify($query), $body, $auth);
     }
 
+    /**
+     * Like {@see shopGet} but returns the FULL decoded envelope (`{error, message, response, ...}`)
+     * WITHOUT throwing on a non-empty `error` and WITHOUT unwrapping `response`. Callers that need
+     * to inspect/branch on the Shopee `error` field themselves (e.g. product publishing) use this.
+     *
+     * @param  array<string,scalar|null>  $query
+     * @return array<string,mixed>
+     */
+    public function shopGetEnvelope(AuthContext $auth, string $path, array $query = []): array
+    {
+        return $this->sendEnvelope('GET', $path, $this->shopParams($auth, $path) + $this->stringify($query), null, $auth);
+    }
+
+    /**
+     * Like {@see shopPost} but returns the FULL decoded envelope without throwing/unwrapping.
+     *
+     * @param  array<string,scalar|null>  $query
+     * @param  array<string,mixed>  $body
+     * @return array<string,mixed>
+     */
+    public function shopPostEnvelope(AuthContext $auth, string $path, array $query = [], array $body = []): array
+    {
+        return $this->sendEnvelope('POST', $path, $this->shopParams($auth, $path) + $this->stringify($query), $body, $auth);
+    }
+
+    /**
+     * Upload an image to Shopee media_space (multipart) and return the full envelope.
+     * $imageUrlOrPath may be a remote URL (fetched) or a local file path. $scene is 'normal'|'desc'.
+     *
+     * @return array<string,mixed>
+     */
+    public function uploadImage(AuthContext $auth, string $imageUrlOrPath, string $scene = 'normal'): array
+    {
+        $path = '/api/v2/media_space/upload_image';
+        $this->throttle($auth);
+        $url = rtrim($this->baseUrl(), '/').$path.'?'.http_build_query($this->shopParams($auth, $path));
+
+        $contents = str_contains($imageUrlOrPath, '://')
+            ? (string) file_get_contents($imageUrlOrPath)
+            : (string) @file_get_contents($imageUrlOrPath);
+        $filename = basename(parse_url($imageUrlOrPath, PHP_URL_PATH) ?: 'image.jpg') ?: 'image.jpg';
+
+        $resp = $this->http()
+            ->asMultipart()
+            ->attach('image', $contents, $filename)
+            ->post($url, ['scene' => $scene]);
+
+        return $resp->json() ?? [];
+    }
+
     /** Raw bytes (e.g. download_shipping_document) — returns the response body string. */
     public function shopPostRaw(AuthContext $auth, string $path, array $body = []): string
     {
@@ -189,6 +239,27 @@ class ShopeeClient
 
         // Token endpoints (publicPost) put data at the root (no `response` key); shop endpoints wrap in `response`.
         return array_key_exists('response', $json) ? (array) ($json['response'] ?? []) : $json;
+    }
+
+    /**
+     * Transport twin of {@see send} that returns the FULL decoded JSON envelope and does NOT
+     * throw on a non-empty `error` nor unwrap `response`. Reuses the same signing/transport.
+     *
+     * @param  array<string,scalar>  $query
+     * @param  array<string,mixed>|null  $body
+     * @return array<string,mixed>
+     */
+    protected function sendEnvelope(string $method, string $path, array $query, ?array $body, ?AuthContext $auth): array
+    {
+        if ($auth) {
+            $this->throttle($auth);
+        }
+        $url = rtrim($this->baseUrl(), '/').$path.'?'.http_build_query($query);
+        $resp = strtoupper($method) === 'GET'
+            ? $this->http()->get($url)
+            : $this->http()->post($url, $body ?? []);
+
+        return $resp->json() ?? [];
     }
 
     /**

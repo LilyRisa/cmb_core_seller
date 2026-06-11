@@ -51,6 +51,15 @@ final class MarketplaceApiException extends RuntimeException
         return new self((string) ($resp['message'] ?? 'TikTok API error'), 'tiktok', ['response' => $resp], $retry);
     }
 
+    /** @param array<string,mixed> $resp */
+    public static function fromShopee(array $resp): self
+    {
+        $err = (string) ($resp['error'] ?? '');
+        $retry = in_array($err, ['error_auth', 'error_server', 'error_busy'], true);
+
+        return new self((string) ($resp['message'] ?? ($err !== '' ? $err : 'Shopee API error')), 'shopee', ['response' => $resp], $retry);
+    }
+
     public function isRetryable(): bool
     {
         return $this->retryable;
