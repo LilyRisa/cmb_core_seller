@@ -61,8 +61,11 @@ class TikTokConnector implements ChannelConnector, ShopReportConnector
             'shipping.document' => (bool) config('integrations.tiktok.fulfillment_enabled', true),
             'shipping.tracking' => false,     // Phase 3
             'listings.fetch' => true,         // Phase 2 — SPEC 0003 (fetchListings → channel_listings)
-            'listings.publish' => false,      // Phase 5
+            'listings.publish' => true,
             'listings.updateStock' => true,   // Phase 2 — SPEC 0003
+            'listings.taxonomy' => true,
+            'listings.media' => true,
+            'listings.statusRead' => true,
             'listings.updatePrice' => false,  // Phase 5
             // Đối soát/Statements — Phase 6.2. Bật bằng INTEGRATIONS_TIKTOK_FINANCE=true sau khi đã đối chiếu
             // shape `/finance/202309/statements` với sandbox thực; mặc định off (TikTok finance API có thể đổi).

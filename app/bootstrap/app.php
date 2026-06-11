@@ -17,6 +17,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
+use Laravel\Sanctum\Http\Middleware\CheckAbilities;
 use Sentry\Laravel\Integration;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
@@ -77,6 +78,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'plan.over_quota_lock' => EnforcePlanQuotaLock::class,
             // SPEC 2026-06-10 — CAPTCHA chống bot/brute-force (register/login/forgot).
             'captcha' => VerifyCaptcha::class,
+            // Sanctum scoped tokens — `abilities:a,b` yêu cầu token có TẤT CẢ ability.
+            // SPA cookie (TransientToken) & token `*` luôn pass; chỉ token hẹp mới bị chặn (403).
+            // Dùng để khoá extension token (`copy-product:push`) chỉ gọi được route tạo SP.
+            'abilities' => CheckAbilities::class,
             // Spec 2026-05-17 — `/api/v1/admin/*` dùng `auth:admin` (Sanctum guard
             // trỏ vào `admin_users`). Middleware `super_admin` cũ đã bỏ.
         ]);

@@ -4,7 +4,7 @@
 
 **Goal:** Cho phép user quản lý sản phẩm hệ thống và **đẩy listing lên Lazada, TikTok Shop, Shopee** qua Open Platform API ở backend, với trạng thái nháp cần sửa, token extension scope hẹp, và popup tiến trình.
 
-**Architecture:** Mở rộng module `Products` (cmb_core_seller) với `ChannelListing` (phép chiếu sản phẩm → 1 shop sàn) + state machine `draft→ready→pushing→live/failed`. Thêm interface `ProductPublishingConnector` cho 3 connector hiện có (tái dùng signer/client/token sẵn có), validate field bắt buộc theo [tài liệu nghiên cứu](./marketplace-product-listing-api-requirements.md) trước khi gọi API. Push chạy qua job hàng đợi `listings` (đã có Horizon supervisor) cập nhật bảng progress; SPA poll modal tiến trình.
+**Architecture:** Mở rộng module `Products` (cmb_core_seller) với `ListingDraft` (phép chiếu sản phẩm → 1 shop sàn) + state machine `draft→ready→pushing→live/failed`. Thêm interface `ProductPublishingConnector` cho 3 connector hiện có (tái dùng signer/client/token sẵn có), validate field bắt buộc theo [tài liệu nghiên cứu](./marketplace-product-listing-api-requirements.md) trước khi gọi API. Push chạy qua job hàng đợi `listings` (đã có Horizon supervisor) cập nhật bảng progress; SPA poll modal tiến trình.
 
 **Tech Stack:** Laravel 11 (PHP 8.3), Pest/PHPUnit, Sanctum PAT abilities, Horizon/Redis, React 18 + Ant Design + TanStack Query, Chrome MV3 (vanilla JS).
 
@@ -26,13 +26,13 @@
 - Sửa `IntegrationsServiceProvider.php` — bind publisher per provider; sửa mỗi connector `capabilities()` bật cờ `listings.*`.
 
 **Module `Products` — `app/app/Modules/Products/`**
-- `Models/ChannelListing.php`, `Models/ChannelListingSku.php`, `Models/ProductPushBatch.php`, `Models/ProductPushJob.php`.
-- `Database/Migrations/*_create_channel_listings_table.php`, `*_create_channel_listing_skus_table.php`, `*_create_product_push_batches_table.php`, `*_create_product_push_jobs_table.php`.
+- `Models/ListingDraft.php`, `Models/ListingDraftSku.php`, `Models/ProductPushBatch.php`, `Models/ProductPushJob.php`.
+- `Database/Migrations/*_create_listing_drafts_table.php`, `*_create_listing_draft_skus_table.php`, `*_create_product_push_batches_table.php`, `*_create_product_push_jobs_table.php`.
 - `Services/ListingDraftService.php` (tạo/cập nhật nháp + chạy validator), `Services/ListingTaxonomyService.php` (proxy danh mục/attr/brand có cache), `Services/ListingPushService.php` (tạo batch + dispatch job), `Services/MediaPrepService.php` (resize/upload ảnh lên CDN sàn).
 - `Jobs/PushListingJob.php` (1 listing/1 job, cập nhật progress).
-- `Http/Controllers/ChannelListingController.php`, `ListingPushController.php`, `ListingTaxonomyController.php`, `ExtensionTokenController.php`.
+- `Http/Controllers/ListingDraftController.php`, `ListingPushController.php`, `ListingTaxonomyController.php`, `ExtensionTokenController.php`.
 - `Http/Requests/*`, `Http/Resources/*`, `Http/routes.php` (load qua ProductsServiceProvider).
-- `Policies/ChannelListingPolicy.php`.
+- `Policies/ListingDraftPolicy.php`.
 
 **Auth/PAT — `app/`**
 - `app/Modules/Auth/...` hoặc `Products/Http/Controllers/ExtensionTokenController.php` cấp PAT ability `copy-product:push`; route push của extension thêm middleware `abilities:copy-product:push`.
@@ -47,32 +47,32 @@
 
 ## Phần A — Nền tảng (foundation)
 
-### Task A1: Migration + model `ChannelListing` & `ChannelListingSku`
+### Task A1: Migration + model `ListingDraft` & `ListingDraftSku`
 
 **Files:**
-- Create: `app/app/Modules/Products/Database/Migrations/2026_06_11_100001_create_channel_listings_table.php`
-- Create: `app/app/Modules/Products/Database/Migrations/2026_06_11_100002_create_channel_listing_skus_table.php`
-- Create: `app/app/Modules/Products/Models/ChannelListing.php`
-- Create: `app/app/Modules/Products/Models/ChannelListingSku.php`
-- Test: `app/tests/Feature/Products/ChannelListingModelTest.php`
+- Create: `app/app/Modules/Products/Database/Migrations/2026_06_11_100001_create_listing_drafts_table.php`
+- Create: `app/app/Modules/Products/Database/Migrations/2026_06_11_100002_create_listing_draft_skus_table.php`
+- Create: `app/app/Modules/Products/Models/ListingDraft.php`
+- Create: `app/app/Modules/Products/Models/ListingDraftSku.php`
+- Test: `app/tests/Feature/Products/ListingDraftModelTest.php`
 
 - [ ] **Step 1: Viết test thất bại**
 
 ```php
-// tests/Feature/Products/ChannelListingModelTest.php
-use CMBcoreSeller\Modules\Products\Models\ChannelListing;
-use CMBcoreSeller\Modules\Products\Models\ChannelListingSku;
+// tests/Feature/Products/ListingDraftModelTest.php
+use CMBcoreSeller\Modules\Products\Models\ListingDraft;
+use CMBcoreSeller\Modules\Products\Models\ListingDraftSku;
 
 it('creates a draft listing scoped to tenant with skus', function () {
     $tenant = \CMBcoreSeller\Modules\Tenancy\Models\Tenant::factory()->create();
     test()->actingAsTenant($tenant); // helper hiện có; nếu chưa, set app('currentTenant')
 
-    $listing = ChannelListing::create([
+    $listing = ListingDraft::create([
         'tenant_id' => $tenant->id,
         'product_id' => 1,
         'channel_account_id' => 1,
         'provider' => 'lazada',
-        'status' => ChannelListing::STATUS_DRAFT,
+        'status' => ListingDraft::STATUS_DRAFT,
         'attributes' => ['brand_id' => '40516'],
     ]);
     $listing->skus()->create([
@@ -93,16 +93,16 @@ it('creates a draft listing scoped to tenant with skus', function () {
 
 - [ ] **Step 2: Chạy test để xác nhận FAIL**
 
-Run: `php artisan test --filter=ChannelListingModelTest`
+Run: `php artisan test --filter=ListingDraftModelTest`
 Expected: FAIL — class/table không tồn tại.
 
-- [ ] **Step 3: Viết migration `channel_listings`**
+- [ ] **Step 3: Viết migration `listing_drafts`**
 
 ```php
-// ..._create_channel_listings_table.php
+// ..._create_listing_drafts_table.php
 return new class extends Migration {
     public function up(): void {
-        Schema::create('channel_listings', function (Blueprint $table) {
+        Schema::create('listing_drafts', function (Blueprint $table) {
             $table->id();
             $table->foreignId('tenant_id')->index();
             $table->foreignId('product_id')->index();              // master product
@@ -126,17 +126,17 @@ return new class extends Migration {
             $table->index(['tenant_id', 'provider', 'status']);
         });
     }
-    public function down(): void { Schema::dropIfExists('channel_listings'); }
+    public function down(): void { Schema::dropIfExists('listing_drafts'); }
 };
 ```
 
-- [ ] **Step 4: Viết migration `channel_listing_skus`**
+- [ ] **Step 4: Viết migration `listing_draft_skus`**
 
 ```php
-Schema::create('channel_listing_skus', function (Blueprint $table) {
+Schema::create('listing_draft_skus', function (Blueprint $table) {
     $table->id();
     $table->foreignId('tenant_id')->index();
-    $table->foreignId('channel_listing_id')->index();
+    $table->foreignId('listing_draft_id')->index();
     $table->foreignId('master_variant_id')->nullable();
     $table->string('seller_sku');                  // immutable trên Lazada → giữ ổn định
     $table->json('sale_props')->nullable();        // {color_family, size,...}
@@ -147,15 +147,15 @@ Schema::create('channel_listing_skus', function (Blueprint $table) {
     $table->string('external_sku_id')->nullable();
     $table->string('image_ref')->nullable();
     $table->timestamps();
-    $table->unique(['channel_listing_id', 'seller_sku'], 'uq_listing_seller_sku');
+    $table->unique(['listing_draft_id', 'seller_sku'], 'uq_listing_seller_sku');
 });
 ```
 
 - [ ] **Step 5: Viết model (BelongsToTenant + constants + casts)**
 
 ```php
-// Models/ChannelListing.php
-class ChannelListing extends Model {
+// Models/ListingDraft.php
+class ListingDraft extends Model {
     use BelongsToTenant, SoftDeletes;
     public const STATUS_DRAFT = 'draft';
     public const STATUS_READY = 'ready';
@@ -167,27 +167,27 @@ class ChannelListing extends Model {
         return ['attributes'=>'array','media_refs'=>'array','logistics'=>'array',
                 'validation_errors'=>'array','last_error'=>'array','pushed_at'=>'datetime'];
     }
-    public function skus() { return $this->hasMany(ChannelListingSku::class); }
+    public function skus() { return $this->hasMany(ListingDraftSku::class); }
 }
-// Models/ChannelListingSku.php
-class ChannelListingSku extends Model {
+// Models/ListingDraftSku.php
+class ListingDraftSku extends Model {
     use BelongsToTenant;
     protected $guarded = [];
     protected function casts(): array { return ['sale_props'=>'array','package_dims'=>'array','price'=>'integer','stock'=>'integer']; }
-    public function listing() { return $this->belongsTo(ChannelListing::class, 'channel_listing_id'); }
+    public function listing() { return $this->belongsTo(ListingDraft::class, 'listing_draft_id'); }
 }
 ```
 
 - [ ] **Step 6: Migrate + chạy test PASS**
 
-Run: `php artisan migrate && php artisan test --filter=ChannelListingModelTest`
+Run: `php artisan migrate && php artisan test --filter=ListingDraftModelTest`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add app/app/Modules/Products/Database/Migrations app/app/Modules/Products/Models app/tests/Feature/Products/ChannelListingModelTest.php
-git commit -m "feat(products): channel_listings + skus model (tenant-scoped)"
+git add app/app/Modules/Products/Database/Migrations app/app/Modules/Products/Models app/tests/Feature/Products/ListingDraftModelTest.php
+git commit -m "feat(products): listing_drafts + skus model (tenant-scoped)"
 ```
 
 ---
@@ -204,8 +204,8 @@ git commit -m "feat(products): channel_listings + skus model (tenant-scoped)"
 ```php
 it('aggregates job progress into batch counters', function () {
     $batch = ProductPushBatch::create(['tenant_id'=>1,'type'=>'push','total'=>2,'status'=>'running','created_by'=>1]);
-    $batch->jobs()->create(['tenant_id'=>1,'channel_listing_id'=>1,'status'=>'success','step_label'=>'done','progress'=>100]);
-    $batch->jobs()->create(['tenant_id'=>1,'channel_listing_id'=>2,'status'=>'failed','error'=>['msg'=>'x'],'progress'=>100]);
+    $batch->jobs()->create(['tenant_id'=>1,'listing_draft_id'=>1,'status'=>'success','step_label'=>'done','progress'=>100]);
+    $batch->jobs()->create(['tenant_id'=>1,'listing_draft_id'=>2,'status'=>'failed','error'=>['msg'=>'x'],'progress'=>100]);
     $batch->recountAndFinish();
     expect($batch->fresh()->succeeded)->toBe(1)->and($batch->fresh()->failed)->toBe(1)->and($batch->fresh()->status)->toBe('done');
 });
@@ -231,7 +231,7 @@ Schema::create('product_push_batches', function (Blueprint $t) {
 Schema::create('product_push_jobs', function (Blueprint $t) {
     $t->id(); $t->foreignId('tenant_id')->index();
     $t->foreignId('product_push_batch_id')->index();
-    $t->foreignId('channel_listing_id')->index();
+    $t->foreignId('listing_draft_id')->index();
     $t->string('status', 16)->default('queued');   // queued|running|success|failed
     $t->string('step_label')->nullable();
     $t->unsignedTinyInteger('progress')->default(0);
@@ -290,7 +290,7 @@ it('builds a listing draft dto immutably', function () {
 
 - [ ] **Step 2: Run → FAIL.**
 
-- [ ] **Step 3: Tạo DTO (readonly, mirror `ChannelListingDTO` style)**
+- [ ] **Step 3: Tạo DTO (readonly constructor promotion, theo style các DTO sẵn có trong `app/app/Integrations/Channels/DTO/`, vd `ChannelListingDTO`)**
 
 ```php
 final readonly class MediaRefDTO { public function __construct(public string $ref, public string $kind, public array $raw=[]) {} } // kind: cdn_url|image_id|uri
@@ -1059,7 +1059,7 @@ it('returns leaf categories for a connected shop and caches them', function () {
 
 ### Task E3: `ListingDraftService` + controller (tạo/sửa nháp, chạy validator → ready)
 
-**Files:** Create `Services/ListingDraftService.php`, `Http/Controllers/ChannelListingController.php`, `Http/Requests/*`, `Http/Resources/ChannelListingResource.php`, routes. Test feature.
+**Files:** Create `Services/ListingDraftService.php`, `Http/Controllers/ListingDraftController.php`, `Http/Requests/*`, `Http/Resources/ListingDraftResource.php`, routes. Test feature.
 
 - [ ] **Step 1: Test thất bại**
 
@@ -1080,7 +1080,7 @@ it('moves draft to ready only when validator passes', function () {
 
 - [ ] **Step 2: Run → FAIL.**
 
-- [ ] **Step 3: Service** — `createDraft(productId, channelAccountId, provider)` map master → `ChannelListing(draft)` + skus (sinh `seller_sku` ổn định, vd `MP{product}-{variant}`). `update(listingId, data)` lưu field; build `ListingDraftDTO` từ listing; chạy `ListingValidator` của provider; rỗng → `status=ready`, ngược lại `status=draft` + lưu `validation_errors`. Controller thin.
+- [ ] **Step 3: Service** — `createDraft(productId, channelAccountId, provider)` map master → `ListingDraft(draft)` + skus (sinh `seller_sku` ổn định, vd `MP{product}-{variant}`). `update(listingId, data)` lưu field; build `ListingDraftDTO` từ listing; chạy `ListingValidator` của provider; rỗng → `status=ready`, ngược lại `status=draft` + lưu `validation_errors`. Controller thin.
 
 - [ ] **Step 4: Run → PASS. Commit** — `git commit -am "feat(products): listing draft service + editor endpoints"`
 
@@ -1105,7 +1105,7 @@ it('enqueues a push batch and pushes a ready listing to live', function () {
 it('job pushes via publisher, stores external_item_id, marks success + progress', function () {
     // fake PublisherRegistry.for('lazada')->createListing → ListingResultDTO(item_id)
     (new PushListingJob($jobRowId))->handle(app(PublisherRegistry::class), app(MediaPrepService::class));
-    $listing=ChannelListing::find(1);
+    $listing=ListingDraft::find(1);
     expect($listing->status)->toBe('live')->and($listing->external_item_id)->not->toBeNull();
     expect(ProductPushJob::first()->status)->toBe('success');
 });
@@ -1113,7 +1113,7 @@ it('job pushes via publisher, stores external_item_id, marks success + progress'
 it('job marks failed + last_error on api exception, does not throw', function () {
     // fake createListing ném MarketplaceApiException
     (new PushListingJob($jobRowId))->handle(...);
-    expect(ChannelListing::find(1)->status)->toBe('failed')->and(ProductPushJob::first()->status)->toBe('failed');
+    expect(ListingDraft::find(1)->status)->toBe('failed')->and(ProductPushJob::first()->status)->toBe('failed');
 });
 ```
 
@@ -1126,10 +1126,10 @@ it('job marks failed + last_error on api exception, does not throw', function ()
 public function push(array $listingIds, int $userId, string $type='push'): ProductPushBatch {
     $batch=ProductPushBatch::create(['tenant_id'=>app('currentTenant')->id,'type'=>$type,'total'=>count($listingIds),'status'=>'running','created_by'=>$userId]);
     foreach ($listingIds as $lid) {
-        $listing=ChannelListing::findOrFail($lid);
+        $listing=ListingDraft::findOrFail($lid);
         abort_unless($listing->status==='ready', 422, "Listing $lid chưa ready");
         $listing->update(['status'=>'pushing']);
-        $row=$batch->jobs()->create(['tenant_id'=>$batch->tenant_id,'channel_listing_id'=>$lid,'status'=>'queued','progress'=>0]);
+        $row=$batch->jobs()->create(['tenant_id'=>$batch->tenant_id,'listing_draft_id'=>$lid,'status'=>'queued','progress'=>0]);
         PushListingJob::dispatch($row->id)->onQueue('listings');
     }
     return $batch;
@@ -1144,7 +1144,7 @@ class PushListingJob implements ShouldQueue {
     public function __construct(public int $jobRowId) { $this->onQueue('listings'); }
     public function handle(PublisherRegistry $pubs, MediaPrepService $media): void {
         $row=ProductPushJob::findOrFail($this->jobRowId);
-        $listing=ChannelListing::with('skus')->findOrFail($row->channel_listing_id);
+        $listing=ListingDraft::with('skus')->findOrFail($row->listing_draft_id);
         try {
             $row->mark('running','Đang chuẩn bị ảnh',10);
             $auth=ChannelAccount::findOrFail($listing->channel_account_id)->authContext();
@@ -1192,7 +1192,7 @@ class PushListingJob implements ShouldQueue {
 
 - [ ] **Step 1:** `PushProgressModal` — `Modal` AntD, `Progress` tổng (`succeeded+failed)/total*100`), `List` từng listing với icon trạng thái (`@ant-design/icons` — KHÔNG emoji), `step_label`, lỗi đỏ. Đóng disabled khi `status!=='done'`.
 
-- [ ] **Step 2:** `ProductListPage` — `Table` sản phẩm hệ thống + lọc trạng thái; cột "Sàn" hiển thị các `ChannelListing` (badge draft/ready/live/failed); nút "Tạo nháp sàn" mở `ListingEditorDrawer`; chọn nhiều → "Đẩy hàng loạt" (Phần G). Toolbar luôn hiện, validate-by-disable (theo memory UI).
+- [ ] **Step 2:** `ProductListPage` — `Table` sản phẩm hệ thống + lọc trạng thái; cột "Sàn" hiển thị các `ListingDraft` (badge draft/ready/live/failed); nút "Tạo nháp sàn" mở `ListingEditorDrawer`; chọn nhiều → "Đẩy hàng loạt" (Phần G). Toolbar luôn hiện, validate-by-disable (theo memory UI).
 
 - [ ] **Step 3:** typecheck/lint PASS. **Commit** — `git commit -am "feat(spa): push progress modal + product list"`
 
@@ -1236,7 +1236,7 @@ class PushListingJob implements ShouldQueue {
 
 ## Self-Review (đã rà soát plan ↔ spec)
 
-- **req #1 (2 trạng thái):** Task A1 (ChannelListing state machine) + E3 (draft→ready). ✔
+- **req #1 (2 trạng thái):** Task A1 (ListingDraft state machine) + E3 (draft→ready). ✔
 - **req #3 (token scope không hết hạn):** Task A5 + G1. ✔
 - **req #4 (popup tiến trình):** A2/E4 (progress model+endpoint) + F2 (modal) + G2 (extension popup). ✔
 - **req #8 (tài liệu):** đã có file riêng. ✔
@@ -1244,7 +1244,7 @@ class PushListingJob implements ShouldQueue {
 - **req #2 clone / #5 bulk-edit / #7 kéo-đồng-bộ:** **KHÔNG** trong plan này — tách plan kế tiếp (Phần "Out of scope"). Bulk push (đẩy hàng loạt) đã có hạ tầng ở E4 (`bulk-push`), nhưng **bulk EDIT** (sửa hàng loạt) thuộc plan sau.
 
 ## Out of scope (plan kế tiếp — `...-publishing-phase2-plan.md`)
-1. **Bulk edit (req #5):** multi-select ChannelListing(draft) → áp thay đổi hàng loạt (danh mục/giá/template ship) → bulk-push (đã có endpoint).
+1. **Bulk edit (req #5):** multi-select ListingDraft(draft) → áp thay đổi hàng loạt (danh mục/giá/template ship) → bulk-push (đã có endpoint).
 2. **Clone cùng nền tảng (req #2):** từ listing `live` → tạo nhanh listing shop khác cùng provider, tái dùng category/attr/brand đã validate.
 3. **Kéo & đồng bộ chéo sàn (req #7):** `listListings` (get_item_list) → MasterProduct; copy chéo theo edit-gate. Cần bổ sung capability `listings.list` cho 3 publisher.
 

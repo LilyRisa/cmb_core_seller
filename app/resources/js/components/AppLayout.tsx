@@ -5,6 +5,7 @@ import {
     AppstoreOutlined,
     BarChartOutlined,
     BookOutlined,
+    CloudUploadOutlined,
     DashboardOutlined,
     FacebookFilled,
     FundOutlined,
@@ -61,6 +62,7 @@ function buildNav(): MenuProps['items'] {
                 { key: '/messaging/knowledge', label: <Link to="/messaging/knowledge">AI training</Link> },
             ] },
             { key: '/channels', icon: <ShopOutlined />, label: <Link to="/channels">Gian hàng</Link> },
+            { key: '/listings', icon: <CloudUploadOutlined />, label: <Link to="/listings">Đăng bán sàn</Link> },
             { key: '/products', icon: <AppstoreOutlined />, label: <Link to="/products">Sản phẩm & SKU</Link> },
         ] },
         { type: 'group', label: 'Kho & Mua hàng', children: [
@@ -105,7 +107,7 @@ function buildNav(): MenuProps['items'] {
 }
 
 // Flat key list for selected-key matching.
-const BASE_KEYS = ['/', '/orders', '/customers', '/messaging', '/messaging/channels', '/messaging/templates', '/messaging/utility-templates', '/messaging/auto-rules', '/messaging/knowledge', '/channels', '/products', '/inventory',
+const BASE_KEYS = ['/', '/orders', '/customers', '/messaging', '/messaging/channels', '/messaging/templates', '/messaging/utility-templates', '/messaging/auto-rules', '/messaging/knowledge', '/channels', '/listings', '/products', '/inventory',
     '/procurement/demand-planning', '/procurement/suppliers', '/procurement/purchase-orders',
     '/reports/overview', '/reports', '/shop-report', '/marketing', '/marketing/tiktok', '/finance/settlements',
     '/accounting/dashboard', '/accounting/journals', '/accounting/chart-of-accounts', '/accounting/balances', '/accounting/ar', '/accounting/ap', '/accounting/cash', '/accounting/reports', '/accounting/periods',

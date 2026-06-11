@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Integrations\Channels\TikTok;
 
 use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
+use CMBcoreSeller\Integrations\Channels\Exceptions\MarketplaceApiException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -115,16 +116,32 @@ class TikTokClient
      */
     public function request(string $method, string $path, AuthContext $auth, array $query = [], ?array $body = null, bool $shopScoped = true): array
     {
+        $json = $this->requestRaw($method, $path, $auth, $query, $body, $shopScoped);
+        if (($json['code'] ?? -1) !== 0) {
+            $this->fail($path, $json, (int) ($json['__http_status'] ?? 0));
+        }
+
+        return (array) ($json['data'] ?? []);
+    }
+
+    /**
+     * Same signed call as {@see request()} but returns the FULL decoded envelope
+     * `{code,message,data,request_id}` WITHOUT throwing on `code != 0`. Lets a caller
+     * (e.g. the product-publishing connector) inspect the envelope and raise a
+     * provider-agnostic {@see MarketplaceApiException}.
+     * The `__http_status` key carries the HTTP status for callers that need it.
+     *
+     * @param  array<string, scalar|null>  $query
+     * @param  array<string, mixed>|null  $body
+     * @return array<string, mixed>
+     */
+    public function requestRaw(string $method, string $path, AuthContext $auth, array $query = [], ?array $body = null, bool $shopScoped = true): array
+    {
         $this->throttle($auth);
 
         $bodyJson = $body === null ? '' : (string) json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
-        $query = array_merge($query, ['app_key' => $this->appKey(), 'timestamp' => (string) now()->timestamp]);
-        if ($shopScoped && isset($auth->extra['shop_cipher'])) {
-            $query['shop_cipher'] = $auth->extra['shop_cipher'];
-        }
-        $query = array_map(fn ($v) => is_array($v) ? implode(',', $v) : $v, $query);
-        $query['sign'] = TikTokSigner::sign($this->appSecret(), $path, $query, $bodyJson);
+        $query = $this->signedQuery($path, $auth, $query, $bodyJson, $shopScoped);
 
         $url = rtrim((string) ($this->cfg['base_url'] ?? 'https://open-api.tiktokglobalshop.com'), '/').$path;
 
@@ -139,12 +156,66 @@ class TikTokClient
             default => $req->withBody($bodyJson, 'application/json')->post($url),
         };
 
-        $json = $resp->json() ?? [];
-        if (! $resp->successful() || ($json['code'] ?? -1) !== 0) {
-            $this->fail($path, $json, $resp->status());
+        $json = (array) ($resp->json() ?? []);
+        $json['__http_status'] = $resp->status();
+
+        return $json;
+    }
+
+    /**
+     * Multipart upload (e.g. product image upload). Downloads $imageUrlOrPath (URL) or
+     * reads a local path into a temp file and POSTs it as multipart under $fileField,
+     * reusing the exact signing logic — signing for multipart EXCLUDES the body
+     * ({@see TikTokSigner::sign()} `multipart: true`). Returns the FULL envelope (no throw).
+     *
+     * @param  array<string, scalar|null>  $extra  extra form fields (e.g. use_case)
+     * @return array<string, mixed>
+     */
+    public function uploadMultipart(string $path, AuthContext $auth, string $fileField, string $imageUrlOrPath, array $extra = [], bool $shopScoped = false): array
+    {
+        $this->throttle($auth);
+
+        $binary = str_starts_with($imageUrlOrPath, 'http://') || str_starts_with($imageUrlOrPath, 'https://')
+            ? (string) Http::timeout(20)->get($imageUrlOrPath)->body()
+            : (string) file_get_contents($imageUrlOrPath);
+
+        // Form fields participate in the signature like query params do; the binary body does not.
+        $query = $this->signedQuery($path, $auth, $extra, '', $shopScoped, multipart: true);
+
+        $url = rtrim((string) ($this->cfg['base_url'] ?? 'https://open-api.tiktokglobalshop.com'), '/').$path;
+
+        $req = $this->http()
+            ->withQueryParameters($query)
+            ->withHeaders(array_filter(['x-tts-access-token' => $auth->accessToken ?: null]))
+            ->attach($fileField, $binary, 'upload.jpg');
+        foreach ($extra as $k => $v) {
+            $req = $req->attach((string) $k, (string) $v);
         }
 
-        return (array) ($json['data'] ?? []);
+        $resp = $req->post($url);
+
+        $json = (array) ($resp->json() ?? []);
+        $json['__http_status'] = $resp->status();
+
+        return $json;
+    }
+
+    /**
+     * Build the common signed query (app_key + timestamp [+ shop_cipher] + sign).
+     *
+     * @param  array<string, scalar|null>  $query
+     * @return array<string, scalar|null>
+     */
+    protected function signedQuery(string $path, AuthContext $auth, array $query, string $bodyJson, bool $shopScoped, bool $multipart = false): array
+    {
+        $query = array_merge($query, ['app_key' => $this->appKey(), 'timestamp' => (string) now()->timestamp]);
+        if ($shopScoped && isset($auth->extra['shop_cipher'])) {
+            $query['shop_cipher'] = $auth->extra['shop_cipher'];
+        }
+        $query = array_map(fn ($v) => is_array($v) ? implode(',', $v) : $v, $query);
+        $query['sign'] = TikTokSigner::sign($this->appSecret(), $path, $query, $bodyJson, $multipart);
+
+        return $query;
     }
 
     /** @param array<string,scalar|null> $query @return array<string,mixed> */

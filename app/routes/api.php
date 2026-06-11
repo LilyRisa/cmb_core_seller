@@ -22,6 +22,10 @@ use CMBcoreSeller\Modules\Orders\Http\Controllers\DashboardController;
 use CMBcoreSeller\Modules\Orders\Http\Controllers\OrderController;
 use CMBcoreSeller\Modules\Orders\Http\Controllers\ReturnController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ChannelListingController;
+use CMBcoreSeller\Modules\Products\Http\Controllers\ExtensionTokenController;
+use CMBcoreSeller\Modules\Products\Http\Controllers\ListingDraftController;
+use CMBcoreSeller\Modules\Products\Http\Controllers\ListingPushController;
+use CMBcoreSeller\Modules\Products\Http\Controllers\ListingTaxonomyController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ProductController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\AuthController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\MemberController;
@@ -149,7 +153,9 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             // --- Orders (Phase 1 + manual orders Phase 2) ---
             Route::get('orders/stats', [OrderController::class, 'stats'])->name('orders.stats');
             Route::post('orders/sync', [OrderController::class, 'sync'])->name('orders.sync');             // resync all active shops
-            Route::get('orders', [OrderController::class, 'index'])->name('orders.index');
+            // `abilities:orders:read` — extension token (chỉ `copy-product:push`) bị chặn 403 khỏi
+            // dữ liệu đơn. SPA cookie & token `*` thoả mãn mọi ability nên không ảnh hưởng (A5).
+            Route::get('orders', [OrderController::class, 'index'])->middleware('abilities:orders:read')->name('orders.index');
             // S4 (Sprint 3) — throttle riêng cho POST /orders chống spam tạo đơn manual (reserve stock).
             Route::post('orders', [OrderController::class, 'store'])->middleware('throttle:30,1')->name('orders.store');
             Route::get('orders/{id}', [OrderController::class, 'show'])->whereNumber('id')->name('orders.show');
@@ -168,8 +174,17 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::post('orders/link-skus', [SkuMappingController::class, 'linkFromOrders'])->name('orders.link-skus');
 
             // --- Products / SKUs / Inventory / Listings & SKU mapping (Phase 2 / SPEC 0003 + 0004) ---
+            // Token cho Chrome Extension "copy sản phẩm" (A5) — chỉ ability `copy-product:push`,
+            // không hết hạn (config('sanctum.expiration') = null). Cấp/thu hồi bằng SPA session.
+            Route::post('extension-tokens', [ExtensionTokenController::class, 'store'])->name('extension-tokens.store');
+            Route::delete('extension-tokens/{id}', [ExtensionTokenController::class, 'destroy'])->whereNumber('id')->name('extension-tokens.destroy');
+
             Route::get('products', [ProductController::class, 'index'])->name('products.index');
-            Route::post('products', [ProductController::class, 'store'])->name('products.store');
+            // Route extension dùng để đẩy sản phẩm — gate `copy-product:push` để extension token
+            // (ability hẹp) chỉ gọi được đúng route này; throttle chống spam tạo SP. SPA `*` vẫn pass.
+            Route::post('products', [ProductController::class, 'store'])
+                ->middleware(['abilities:copy-product:push', 'throttle:60,1'])
+                ->name('products.store');
             Route::get('products/{id}', [ProductController::class, 'show'])->whereNumber('id')->name('products.show');
             Route::patch('products/{id}', [ProductController::class, 'update'])->whereNumber('id')->name('products.update');
             Route::delete('products/{id}', [ProductController::class, 'destroy'])->whereNumber('id')->name('products.destroy');
@@ -207,6 +222,24 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::post('sku-mappings', [SkuMappingController::class, 'store'])->name('sku-mappings.store');
             Route::post('sku-mappings/auto-match', [SkuMappingController::class, 'autoMatch'])->name('sku-mappings.auto-match');
             Route::delete('sku-mappings/{id}', [SkuMappingController::class, 'destroy'])->whereNumber('id')->name('sku-mappings.destroy');
+
+            // --- Listing taxonomy proxy (SPEC marketplace product publishing) — cached read-through
+            // over a provider's category tree / attributes / brands for a connected shop.
+            Route::get('channels/{provider}/categories', [ListingTaxonomyController::class, 'categories'])->name('channels.categories');
+            Route::get('channels/{provider}/attributes', [ListingTaxonomyController::class, 'attributes'])->name('channels.attributes');
+            Route::get('channels/{provider}/brands', [ListingTaxonomyController::class, 'brands'])->name('channels.brands');
+
+            // --- Listing drafts (SPEC marketplace product publishing) — seed a publishing
+            // draft from a master product, edit per-provider fields, revalidate to READY.
+            Route::post('products/{productId}/listings', [ListingDraftController::class, 'store'])->whereNumber('productId')->name('listing-drafts.store');
+            Route::get('listings/{id}', [ListingDraftController::class, 'show'])->whereNumber('id')->name('listing-drafts.show');
+            Route::put('listings/{id}', [ListingDraftController::class, 'update'])->whereNumber('id')->name('listing-drafts.update');
+
+            // --- Listing publish (SPEC marketplace product publishing — Task E4) — push a
+            // READY draft to its marketplace via a tracked ProductPushBatch on the `listings` queue.
+            Route::post('listings/bulk-push', [ListingPushController::class, 'bulkPush'])->name('listings.bulk-push');
+            Route::post('listings/{id}/push', [ListingPushController::class, 'push'])->whereNumber('id')->name('listings.push');
+            Route::get('push-batches/{id}', [ListingPushController::class, 'batch'])->whereNumber('id')->name('push-batches.show');
 
             // --- Customers (Phase 2 / SPEC 0002) — internal buyer registry & reputation ---
             Route::post('customers/merge', [CustomerController::class, 'merge'])->name('customers.merge');
