@@ -35,7 +35,7 @@ final class LazadaListingValidator implements ListingValidator
             $e['categoryId'] = 'Phải chọn danh mục lá';
         }
 
-        if (! $d->brandId) {
+        if ($d->brandId === null || $d->brandId === '') {
             $e['brandId'] = 'brand_id bắt buộc (dùng id No Brand nếu không có)';
         }
 

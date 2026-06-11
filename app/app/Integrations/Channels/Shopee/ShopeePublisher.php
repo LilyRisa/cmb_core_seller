@@ -52,7 +52,18 @@ final class ShopeePublisher implements ProductPublishingConnector
             Sleep::for(5)->seconds();
             $tv = $this->client->shopPostEnvelope($auth, '/api/v2/product/init_tier_variation', [], ShopeeProductPayload::tierVariation($itemId, $draft));
             if ((string) ($tv['error'] ?? '') !== '') {
-                throw MarketplaceApiException::fromShopee($tv);
+                // NOTE (known limitation, S-R2): add_item already created the item on
+                // Shopee but WITHOUT variations. We surface external_item_id in the
+                // exception context so it is recorded for manual recovery. A naive
+                // re-push would call add_item again and DUPLICATE the item — a full
+                // resume requires splitting create/variation into separate steps.
+                // Shopee stays sandbox-gated (S-R1) before prod use.
+                throw new MarketplaceApiException(
+                    'Shopee: tạo biến thể thất bại sau khi tạo sản phẩm (item_id='.$itemId.')',
+                    'shopee',
+                    ['response' => $tv, 'external_item_id' => (string) $itemId],
+                    false,
+                );
             }
             $raw['tier'] = $tv;
         }

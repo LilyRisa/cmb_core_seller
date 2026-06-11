@@ -46,6 +46,17 @@ class PushListingJob implements ShouldQueue
         $listing = ListingDraft::with('skus')->findOrFail($row->listing_draft_id);
 
         try {
+            // Idempotency guard: if this draft already has a marketplace item id,
+            // a previous run already created it. Do NOT call createListing again
+            // (that would create a duplicate listing on the marketplace) — just
+            // confirm it live and finish.
+            if (! empty($listing->external_item_id)) {
+                $listing->update(['status' => ListingDraft::STATUS_LIVE, 'last_error' => null]);
+                $row->mark('success', 'Đã tồn tại trên sàn', 100);
+
+                return;
+            }
+
             $row->mark('running', 'Đang chuẩn bị ảnh', 10);
             $auth = ChannelAccount::findOrFail($listing->channel_account_id)->authContext();
 

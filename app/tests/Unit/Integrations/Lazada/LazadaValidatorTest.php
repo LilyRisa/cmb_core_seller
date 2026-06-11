@@ -64,4 +64,29 @@ class LazadaValidatorTest extends TestCase
 
         $this->assertSame([], $errors);
     }
+
+    public function test_accepts_brand_id_zero_as_no_brand(): void
+    {
+        $draft = new ListingDraftDTO(
+            title: 'Áo',
+            description: '<p>x</p>',
+            categoryId: '3',
+            brandId: '0',
+            attributes: ['warranty_type' => 'No Warranty'],
+            media: [new MediaRefDTO('https://my-live-02.slatic.net/p/a.jpg', 'cdn_url')],
+            skus: [[
+                'seller_sku' => 'S1',
+                'price' => 35000,
+                'stock' => 3,
+                'sale_props' => [],
+                'package_weight' => 0.5,
+                'package_dims' => ['length' => 10, 'width' => 10, 'height' => 10],
+            ]],
+            logistics: [],
+        );
+
+        $errors = (new LazadaListingValidator)->validate($draft);
+
+        $this->assertArrayNotHasKey('brandId', $errors);
+    }
 }

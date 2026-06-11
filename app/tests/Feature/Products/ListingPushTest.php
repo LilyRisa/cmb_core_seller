@@ -164,6 +164,30 @@ class ListingPushTest extends TestCase
 
         $this->assertSame('failed', $row->fresh()->status);
     }
+
+    public function test_job_is_idempotent_when_external_item_id_present(): void
+    {
+        // A publisher that throws if createListing is ever called — proving the
+        // idempotency guard skips re-creation when the item already exists.
+        $this->bindPublisher(new FakePushPublisher(null, new \RuntimeException('createListing must not be called')));
+
+        $this->draft->update(['external_item_id' => 'EXISTING-1']);
+
+        Queue::fake();
+        $batch = app(ListingPushService::class)->push([(int) $this->draft->getKey()], (int) $this->owner->getKey());
+        $row = $batch->jobs()->first();
+
+        (new PushListingJob((int) $row->getKey()))->handle(
+            app(PublisherRegistry::class),
+            app(MediaPrepService::class),
+            app(ListingDraftService::class),
+        );
+
+        $fresh = $this->draft->fresh();
+        $this->assertSame(ListingDraft::STATUS_LIVE, $fresh->status);
+        $this->assertSame('EXISTING-1', $fresh->external_item_id);
+        $this->assertSame('success', $row->fresh()->status);
+    }
 }
 
 final class FakePushPublisher implements ProductPublishingConnector

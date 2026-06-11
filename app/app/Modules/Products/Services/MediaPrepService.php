@@ -46,6 +46,12 @@ final class MediaPrepService
             $prepared = $this->fetchAndConstrain($provider, $url);
             $ref = $this->publishers->for($provider)->uploadMedia($auth, $prepared, $useCase);
 
+            // Clean up the temp file produced by fetchAndConstrain (it returns the
+            // original URL untouched when no resize was needed).
+            if ($prepared !== $url) {
+                @unlink($prepared);
+            }
+
             Cache::put($cacheKey, $ref, now()->addHours(12));
             $refs[] = $ref;
         }
