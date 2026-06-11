@@ -9,6 +9,7 @@ use CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation;
 use CMBcoreSeller\Integrations\Channels\Lazada\LazadaConnector;
 use CMBcoreSeller\Integrations\Channels\Lazada\LazadaPublisher;
 use CMBcoreSeller\Integrations\Channels\PublisherRegistry;
+use CMBcoreSeller\Integrations\Channels\Shopee\ShopeePublisher;
 use CMBcoreSeller\Integrations\Channels\TikTok\TikTokPublisher;
 use Tests\TestCase;
 
@@ -43,10 +44,16 @@ class PublisherResolutionTest extends TestCase
         $this->assertInstanceOf(TikTokPublisher::class, $publisher);
     }
 
-    public function test_throws_unsupported_operation_resolving_shopee_publisher(): void
+    public function test_resolves_a_shopee_publisher(): void
+    {
+        $publisher = app(PublisherRegistry::class)->for('shopee');
+        $this->assertInstanceOf(ShopeePublisher::class, $publisher);
+    }
+
+    public function test_throws_unsupported_operation_for_unknown_provider(): void
     {
         $this->expectException(UnsupportedOperation::class);
 
-        app(PublisherRegistry::class)->for('shopee');
+        app(PublisherRegistry::class)->for('manual');
     }
 }

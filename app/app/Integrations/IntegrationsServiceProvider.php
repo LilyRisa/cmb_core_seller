@@ -22,6 +22,7 @@ use CMBcoreSeller\Integrations\Channels\Manual\ManualConnector;
 use CMBcoreSeller\Integrations\Channels\PublisherRegistry;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeClient;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeConnector;
+use CMBcoreSeller\Integrations\Channels\Shopee\ShopeePublisher;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeWebhookVerifier;
 use CMBcoreSeller\Integrations\Channels\TikTok\TikTokConnector;
 use CMBcoreSeller\Integrations\Channels\TikTok\TikTokPublisher;
@@ -156,6 +157,7 @@ class IntegrationsServiceProvider extends ServiceProvider
             $r = new PublisherRegistry($app);
             $r->register('lazada', LazadaPublisher::class);
             $r->register('tiktok', TikTokPublisher::class);
+            $r->register('shopee', ShopeePublisher::class);
 
             return $r;
         });
