@@ -50,7 +50,7 @@ function buildNav(): MenuProps['items'] {
             { key: '/', icon: <DashboardOutlined />, label: <Link to="/">Bảng điều khiển</Link> },
         ] },
         { type: 'group', label: 'Bán hàng', children: [
-            { key: '/orders', icon: <ShoppingOutlined />, label: <Link to="/orders">Đơn hàng</Link> },
+            { key: '/orders', icon: <ShoppingOutlined />, label: <Link to="/orders?tab=pending">Đơn hàng</Link> },
             { key: '/returns', icon: <RollbackOutlined />, label: <Link to="/returns">Hoàn & Hủy</Link> },
             { key: '/customers', icon: <TeamOutlined />, label: <Link to="/customers">Khách hàng</Link> },
             { key: 'messaging', icon: <MessageOutlined />, label: 'Tin nhắn', children: [
