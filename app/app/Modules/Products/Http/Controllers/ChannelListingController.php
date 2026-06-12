@@ -6,8 +6,10 @@ use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Modules\Channels\Jobs\FetchChannelListings;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Products\Http\Requests\UpdateMarketplaceListingRequest;
 use CMBcoreSeller\Modules\Products\Http\Resources\ChannelListingResource;
 use CMBcoreSeller\Modules\Products\Models\ChannelListing;
+use CMBcoreSeller\Modules\Products\Services\MarketplaceListingEditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -64,5 +66,28 @@ class ChannelListingController extends Controller
         $listing->forceFill($data)->save();
 
         return response()->json(['data' => new ChannelListingResource($listing->loadCount('mappings')->load('mappings.sku'))]);
+    }
+
+    /**
+     * GET /api/v1/channel-listings/{id}/marketplace-detail — full editable content
+     * (title/description/images/per-SKU price) fetched live from the marketplace.
+     */
+    public function marketplaceDetail(Request $request, int $id, MarketplaceListingEditService $svc): JsonResponse
+    {
+        abort_unless($request->user()?->can('products.manage'), 403, 'Bạn không có quyền sửa sản phẩm.');
+        $listing = ChannelListing::query()->findOrFail($id);
+
+        return response()->json(['data' => $svc->detail($listing)]);
+    }
+
+    /**
+     * PUT /api/v1/channel-listings/{id}/marketplace — push title/description/images/
+     * per-SKU price back to the marketplace (stock excluded — pushed via SKU sync).
+     */
+    public function marketplaceUpdate(UpdateMarketplaceListingRequest $request, int $id, MarketplaceListingEditService $svc): JsonResponse
+    {
+        $listing = ChannelListing::query()->findOrFail($id);
+
+        return response()->json(['data' => $svc->update($listing, $request->validated())]);
     }
 }

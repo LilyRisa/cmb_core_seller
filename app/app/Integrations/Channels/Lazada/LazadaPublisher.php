@@ -9,7 +9,9 @@ use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
 use CMBcoreSeller\Integrations\Channels\DTO\BrandDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\CategoryNodeDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingAttributeDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\ListingDetailDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingDraftDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\ListingEditDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingResultDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingStatusDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\MediaRefDTO;
@@ -140,6 +142,121 @@ final class LazadaPublisher implements ProductPublishingConnector
             reason: null,
             raw: $data,
         );
+    }
+
+    public function getListingDetail(AuthContext $auth, string $externalProductId): ListingDetailDTO
+    {
+        $data = $this->client->callRaw('/product/item/get', $auth, ['item_id' => $externalProductId], 'GET');
+        if ((string) ($data['code'] ?? '') !== '0') {
+            throw MarketplaceApiException::fromLazada($data);
+        }
+
+        $item = (array) ($data['data'] ?? []);
+        $attrs = (array) ($item['attributes'] ?? []);
+
+        $skus = [];
+        foreach ((array) ($item['skus'] ?? []) as $sku) {
+            if (! is_array($sku)) {
+                continue;
+            }
+            $skus[] = [
+                'external_sku_id' => (string) ($sku['SkuId'] ?? ''),
+                'seller_sku' => (string) ($sku['SellerSku'] ?? ''),
+                'price' => (int) round((float) ($sku['price'] ?? 0)),
+            ];
+        }
+
+        return new ListingDetailDTO(
+            externalProductId: $externalProductId,
+            title: (string) ($attrs['name'] ?? ''),
+            description: (string) ($attrs['description'] ?? ''),
+            images: array_values(array_filter(array_map('strval', (array) ($item['images'] ?? [])))),
+            skus: $skus,
+            raw: $data,
+        );
+    }
+
+    public function updateListing(AuthContext $auth, string $externalProductId, ListingEditDTO $edit): ListingResultDTO
+    {
+        if ($edit->hasInfo()) {
+            // Lazada attaches images at the SKU level — resolve current SkuIds, then
+            // migrate the source URLs to Lazada CDN and apply to every SKU.
+            $skuIds = array_values(array_filter(array_map(
+                fn ($s) => (string) $s['external_sku_id'],
+                $this->getListingDetail($auth, $externalProductId)->skus,
+            )));
+            $imageUrls = array_map(fn ($u) => $this->uploadMedia($auth, (string) $u)->ref, $edit->images ?? []);
+
+            $resp = $this->client->callRaw('/product/update', $auth, [
+                'payload' => $this->buildUpdateXml($externalProductId, $edit, $skuIds, $imageUrls),
+            ]);
+            if ((string) ($resp['code'] ?? '') !== '0') {
+                throw MarketplaceApiException::fromLazada($resp);
+            }
+        }
+
+        if ($edit->hasPrices()) {
+            $resp = $this->client->callRaw('/product/price_quantity/update', $auth, [
+                'payload' => $this->buildPriceXml($externalProductId, $edit->prices ?? []),
+            ]);
+            if ((string) ($resp['code'] ?? '') !== '0') {
+                throw MarketplaceApiException::fromLazada($resp);
+            }
+        }
+
+        return new ListingResultDTO($externalProductId, [], 'live');
+    }
+
+    /**
+     * Build the `/product/update` XML for title/description + (optionally) images.
+     * Images, when given, are written to every SKU (Lazada has no product-level image slot).
+     *
+     * @param  string[]  $skuIds
+     * @param  string[]  $imageUrls
+     */
+    private function buildUpdateXml(string $itemId, ListingEditDTO $edit, array $skuIds, array $imageUrls): string
+    {
+        $esc = fn (string $s) => htmlspecialchars($s, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+
+        $attrs = '';
+        if ($edit->title !== null) {
+            $attrs .= '<name>'.$esc($edit->title).'</name>';
+        }
+        if ($edit->description !== null) {
+            $attrs .= '<description>'.$esc($edit->description).'</description>';
+        }
+
+        $skusXml = '';
+        if ($imageUrls !== [] && $skuIds !== []) {
+            $imagesXml = '<Images>'.implode('', array_map(fn ($u) => '<Image>'.$esc($u).'</Image>', $imageUrls)).'</Images>';
+            foreach ($skuIds as $skuId) {
+                $skusXml .= '<Sku><SkuId>'.$esc($skuId).'</SkuId>'.$imagesXml.'</Sku>';
+            }
+        }
+
+        return '<Request><Product><ItemId>'.$esc($itemId).'</ItemId>'
+            .($attrs !== '' ? '<Attributes>'.$attrs.'</Attributes>' : '')
+            .($skusXml !== '' ? '<Skus>'.$skusXml.'</Skus>' : '')
+            .'</Product></Request>';
+    }
+
+    /**
+     * Build the `/product/price_quantity/update` XML for per-SKU price.
+     *
+     * @param  array<int,array{external_sku_id:string,price:int}>  $prices
+     */
+    private function buildPriceXml(string $itemId, array $prices): string
+    {
+        $esc = fn (string $s) => htmlspecialchars($s, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+
+        $skus = '';
+        foreach ($prices as $p) {
+            $skus .= '<Sku><ItemId>'.$esc($itemId).'</ItemId>'
+                .'<SkuId>'.$esc((string) $p['external_sku_id']).'</SkuId>'
+                .'<Price>'.(int) $p['price'].'</Price></Sku>';
+        }
+
+        return '<Request><Product><Skus>'.$skus.'</Skus></Product></Request>';
     }
 
     /**

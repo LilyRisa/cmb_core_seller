@@ -9,7 +9,9 @@ use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
 use CMBcoreSeller\Integrations\Channels\DTO\BrandDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\CategoryNodeDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingAttributeDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\ListingDetailDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingDraftDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\ListingEditDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingResultDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingStatusDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\MediaRefDTO;
@@ -161,6 +163,79 @@ final class TikTokPublisher implements ProductPublishingConnector
             reason: null,
             raw: $data,
         );
+    }
+
+    public function getListingDetail(AuthContext $auth, string $externalProductId): ListingDetailDTO
+    {
+        $data = $this->client->request('GET', "/product/202309/products/{$externalProductId}", $auth);
+
+        $images = [];
+        foreach ((array) ($data['main_images'] ?? []) as $img) {
+            if (! is_array($img)) {
+                continue;
+            }
+            $url = (string) (($img['url_list'][0] ?? '') ?: ($img['uri'] ?? ''));
+            if ($url !== '') {
+                $images[] = $url;
+            }
+        }
+
+        $skus = [];
+        foreach ((array) ($data['skus'] ?? []) as $sku) {
+            if (! is_array($sku)) {
+                continue;
+            }
+            $price = (array) ($sku['price'] ?? []);
+            $skus[] = [
+                'external_sku_id' => (string) ($sku['id'] ?? ''),
+                'seller_sku' => (string) ($sku['seller_sku'] ?? ''),
+                'price' => (int) round((float) ($price['sale_price'] ?? ($price['tax_exclusive_price'] ?? 0))),
+            ];
+        }
+
+        return new ListingDetailDTO(
+            externalProductId: $externalProductId,
+            title: (string) ($data['title'] ?? ''),
+            description: (string) ($data['description'] ?? ''),
+            images: $images,
+            skus: $skus,
+            raw: $data,
+        );
+    }
+
+    public function updateListing(AuthContext $auth, string $externalProductId, ListingEditDTO $edit): ListingResultDTO
+    {
+        if ($edit->hasInfo()) {
+            $body = [];
+            if ($edit->title !== null) {
+                $body['title'] = $edit->title;
+            }
+            if ($edit->description !== null) {
+                $body['description'] = $edit->description;
+            }
+            if ($edit->images !== null) {
+                // TikTok references images by uploaded uri.
+                $body['main_images'] = array_map(fn ($u) => ['uri' => $this->uploadMedia($auth, (string) $u)->ref], $edit->images);
+            }
+            $resp = $this->client->requestRaw('POST', "/product/202309/products/{$externalProductId}/partial_edit", $auth, [], $body);
+            if (($resp['code'] ?? -1) !== 0) {
+                throw MarketplaceApiException::fromTikTok($resp);
+            }
+        }
+
+        if ($edit->hasPrices()) {
+            $skus = array_map(fn ($p) => [
+                'id' => (string) $p['external_sku_id'],
+                'price' => ['amount' => (string) (int) $p['price'], 'currency' => 'VND'],
+            ], $edit->prices ?? []);
+
+            $resp = $this->client->requestRaw('POST', "/product/202309/products/{$externalProductId}/prices/update", $auth, [], ['skus' => $skus]);
+            if (($resp['code'] ?? -1) !== 0) {
+                throw MarketplaceApiException::fromTikTok($resp);
+            }
+        }
+
+        return new ListingResultDTO($externalProductId, [], 'live');
     }
 
     private function normalizeStatus(string $rawStatus): string

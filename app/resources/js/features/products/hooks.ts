@@ -10,11 +10,14 @@ import {
     getBrands,
     getCategories,
     getListing,
+    getMarketplaceDetail,
     getPushBatch,
     listMasterProducts,
     pushListing,
     updateListing,
+    updateMarketplaceListing,
     type ListingDraft,
+    type MarketplaceEditPayload,
     type PushBatch,
     type UpdateListingPayload,
 } from './api';
@@ -125,6 +128,30 @@ export function useUpdateListing() {
         onSuccess: (draft: ListingDraft) => {
             qc.setQueryData(['listing', tenantId, draft.id], draft);
             qc.invalidateQueries({ queryKey: ['products', 'master', tenantId] });
+        },
+    });
+}
+
+export function useMarketplaceDetail(id: number | null) {
+    const client = useScopedApi();
+    const tenantId = useTenantId();
+    return useQuery({
+        queryKey: ['marketplace-detail', tenantId, id],
+        enabled: client != null && id != null,
+        queryFn: () => getMarketplaceDetail(client!, id!),
+        staleTime: 0,
+    });
+}
+
+export function useUpdateMarketplaceListing() {
+    const client = useScopedApi();
+    const qc = useQueryClient();
+    const tenantId = useTenantId();
+    return useMutation({
+        mutationFn: (vars: { id: number; payload: MarketplaceEditPayload }) =>
+            updateMarketplaceListing(client!, vars.id, vars.payload),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['channel-listings', tenantId] });
         },
     });
 }

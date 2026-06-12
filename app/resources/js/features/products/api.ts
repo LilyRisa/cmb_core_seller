@@ -167,6 +167,39 @@ export async function getPushBatch(client: AxiosInstance, id: number): Promise<P
     return data.data;
 }
 
+/* ============================================================================
+ * Sửa sản phẩm đã có trên sàn (ChannelListing) — đẩy tiêu đề/mô tả/ảnh/giá lên sàn
+ * ========================================================================== */
+
+export interface MarketplaceListingDetail {
+    external_product_id: string;
+    title: string;
+    description: string;
+    images: string[];
+    skus: { external_sku_id: string; seller_sku: string; price: number }[];
+}
+
+export interface MarketplaceEditPayload {
+    title?: string;
+    description?: string;
+    images?: string[];
+    prices?: { external_sku_id: string; price: number }[];
+}
+
+export async function getMarketplaceDetail(client: AxiosInstance, id: number): Promise<MarketplaceListingDetail> {
+    const { data } = await client.get<{ data: MarketplaceListingDetail }>(`/channel-listings/${id}/marketplace-detail`);
+    return data.data;
+}
+
+export async function updateMarketplaceListing(
+    client: AxiosInstance,
+    id: number,
+    payload: MarketplaceEditPayload,
+): Promise<MarketplaceListingDetail> {
+    const { data } = await client.put<{ data: MarketplaceListingDetail }>(`/channel-listings/${id}/marketplace`, payload);
+    return data.data;
+}
+
 export async function getCategories(
     client: AxiosInstance,
     provider: string,

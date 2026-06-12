@@ -218,6 +218,9 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
 
             Route::get('channel-listings', [ChannelListingController::class, 'index'])->name('channel-listings.index');
             Route::post('channel-listings/sync', [ChannelListingController::class, 'sync'])->name('channel-listings.sync');
+            // Sửa sản phẩm đã có trên sàn (tiêu đề/mô tả/ảnh/giá đẩy lên sàn). Tồn KHÔNG sửa ở đây.
+            Route::get('channel-listings/{id}/marketplace-detail', [ChannelListingController::class, 'marketplaceDetail'])->whereNumber('id')->name('channel-listings.marketplace-detail');
+            Route::put('channel-listings/{id}/marketplace', [ChannelListingController::class, 'marketplaceUpdate'])->whereNumber('id')->name('channel-listings.marketplace-update');
             Route::patch('channel-listings/{id}', [ChannelListingController::class, 'update'])->whereNumber('id')->name('channel-listings.update');
             Route::post('sku-mappings', [SkuMappingController::class, 'store'])->name('sku-mappings.store');
             Route::post('sku-mappings/auto-match', [SkuMappingController::class, 'autoMatch'])->name('sku-mappings.auto-match');

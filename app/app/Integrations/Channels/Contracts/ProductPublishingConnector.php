@@ -8,7 +8,9 @@ use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
 use CMBcoreSeller\Integrations\Channels\DTO\BrandDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\CategoryNodeDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingAttributeDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\ListingDetailDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingDraftDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\ListingEditDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingResultDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingStatusDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\MediaRefDTO;
@@ -58,4 +60,16 @@ interface ProductPublishingConnector
      * Fetch the current publish status of an existing listing by its external item id.
      */
     public function getListingStatus(AuthContext $auth, string $externalItemId): ListingStatusDTO;
+
+    /**
+     * Fetch the full editable content (title, description, images, per-SKU price)
+     * of an existing product on the marketplace, for the edit form.
+     */
+    public function getListingDetail(AuthContext $auth, string $externalProductId): ListingDetailDTO;
+
+    /**
+     * Push edits (title / description / images / per-SKU price) of an existing
+     * product back to the marketplace. Stock is out of scope (pushed via SKU sync).
+     */
+    public function updateListing(AuthContext $auth, string $externalProductId, ListingEditDTO $edit): ListingResultDTO;
 }

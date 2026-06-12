@@ -30,7 +30,7 @@ Product publishing is its own sidebar group **"Đăng bán sàn"**, split into t
 
 1. **Sản phẩm copy** (`/marketplace/products`) — master products (mostly copied via the Chrome extension). Action: "Tạo nháp sàn" → pick a shop → opens the editor drawer.
 2. **Chờ đẩy lên sàn** (`/marketplace/to-push`) — listing drafts with status `ready` / `draft` / `failed`. Push (single + bulk), edit, and copy.
-3. **Đã có trên sàn** (`/marketplace/on-channel`) — listing drafts with status `live` / `pushing`. Edit, copy to another shop, and refresh status.
+3. **Đã có trên sàn** (`/marketplace/on-channel`) — real `ChannelListing`s synced from the shops (sync + display + edit title/description/images/price back to the marketplace). See `2026-06-12-marketplace-listing-edit-design.md`.
 
 Pages 2 and 3 share one component (`ListingDraftsTable`) that flattens `product.listings[]`, filters by status, and hosts the editor drawer, the copy modal, and the push-progress modal.
 

@@ -9,7 +9,9 @@ use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
 use CMBcoreSeller\Integrations\Channels\DTO\BrandDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\CategoryNodeDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingAttributeDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\ListingDetailDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingDraftDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\ListingEditDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingResultDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingStatusDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\MediaRefDTO;
@@ -170,6 +172,101 @@ final class ShopeePublisher implements ProductPublishingConnector
             reason: null,
             raw: $resp,
         );
+    }
+
+    public function getListingDetail(AuthContext $auth, string $externalProductId): ListingDetailDTO
+    {
+        $resp = $this->client->shopGetEnvelope($auth, '/api/v2/product/get_item_base_info', [
+            'item_id_list' => $externalProductId,
+        ]);
+        if ((string) ($resp['error'] ?? '') !== '') {
+            throw MarketplaceApiException::fromShopee($resp);
+        }
+
+        $item = (array) (($resp['response']['item_list'][0] ?? []));
+        $hasModel = (bool) ($item['has_model'] ?? false);
+
+        $skus = [];
+        if ($hasModel) {
+            $models = $this->client->shopGetEnvelope($auth, '/api/v2/product/get_model_list', ['item_id' => $externalProductId]);
+            foreach ((array) ($models['response']['model'] ?? []) as $m) {
+                if (! is_array($m)) {
+                    continue;
+                }
+                $skus[] = [
+                    'external_sku_id' => (string) ($m['model_id'] ?? ''),
+                    'seller_sku' => (string) ($m['model_sku'] ?? ''),
+                    'price' => $this->currentPrice($m['price_info'] ?? []),
+                ];
+            }
+        } else {
+            $skus[] = [
+                'external_sku_id' => $externalProductId,
+                'seller_sku' => (string) ($item['item_sku'] ?? ''),
+                'price' => $this->currentPrice($item['price_info'] ?? []),
+            ];
+        }
+
+        return new ListingDetailDTO(
+            externalProductId: $externalProductId,
+            title: (string) ($item['item_name'] ?? ''),
+            description: (string) ($item['description'] ?? ''),
+            images: array_values(array_filter(array_map('strval', (array) ($item['image']['image_url_list'] ?? [])))),
+            skus: $skus,
+            raw: $resp,
+        );
+    }
+
+    public function updateListing(AuthContext $auth, string $externalProductId, ListingEditDTO $edit): ListingResultDTO
+    {
+        if ($edit->hasInfo()) {
+            $body = ['item_id' => (int) $externalProductId];
+            if ($edit->title !== null) {
+                $body['item_name'] = $edit->title;
+            }
+            if ($edit->description !== null) {
+                $body['description'] = $edit->description;
+            }
+            if ($edit->images !== null) {
+                // Shopee references images by uploaded image_id, not URL.
+                $body['image'] = ['image_id_list' => array_map(fn ($u) => $this->uploadMedia($auth, (string) $u)->ref, $edit->images)];
+            }
+            $resp = $this->client->shopPostEnvelope($auth, '/api/v2/product/update_item', [], $body);
+            if ((string) ($resp['error'] ?? '') !== '') {
+                throw MarketplaceApiException::fromShopee($resp);
+            }
+        }
+
+        if ($edit->hasPrices()) {
+            $priceList = [];
+            foreach ($edit->prices ?? [] as $p) {
+                $sku = (string) $p['external_sku_id'];
+                $entry = ['original_price' => (int) $p['price']];
+                if ($sku !== '' && $sku !== $externalProductId) {
+                    $entry['model_id'] = (int) $sku;   // has-variant item: price is per model
+                }
+                $priceList[] = $entry;
+            }
+            $resp = $this->client->shopPostEnvelope($auth, '/api/v2/product/update_price', [], [
+                'item_id' => (int) $externalProductId,
+                'price_list' => $priceList,
+            ]);
+            if ((string) ($resp['error'] ?? '') !== '') {
+                throw MarketplaceApiException::fromShopee($resp);
+            }
+        }
+
+        return new ListingResultDTO($externalProductId, [], 'live');
+    }
+
+    /**
+     * Pull the current price (integer VND) from a Shopee price_info block.
+     */
+    private function currentPrice(mixed $priceInfo): int
+    {
+        $first = is_array($priceInfo) ? (array) ($priceInfo[0] ?? []) : [];
+
+        return (int) round((float) ($first['current_price'] ?? ($first['original_price'] ?? 0)));
     }
 
     private function normalizeStatus(string $rawStatus): string

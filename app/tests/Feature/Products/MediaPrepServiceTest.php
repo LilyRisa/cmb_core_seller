@@ -6,7 +6,9 @@ namespace Tests\Feature\Products;
 
 use CMBcoreSeller\Integrations\Channels\Contracts\ProductPublishingConnector;
 use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
+use CMBcoreSeller\Integrations\Channels\DTO\ListingDetailDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingDraftDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\ListingEditDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingResultDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingStatusDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\MediaRefDTO;
@@ -122,6 +124,16 @@ class FakeMediaPublisher implements ProductPublishingConnector
     }
 
     public function getListingStatus(AuthContext $auth, string $externalItemId): ListingStatusDTO
+    {
+        throw new \RuntimeException('not used');
+    }
+
+    public function getListingDetail(AuthContext $auth, string $externalProductId): ListingDetailDTO
+    {
+        throw new \RuntimeException('not used');
+    }
+
+    public function updateListing(AuthContext $auth, string $externalProductId, ListingEditDTO $edit): ListingResultDTO
     {
         throw new \RuntimeException('not used');
     }
