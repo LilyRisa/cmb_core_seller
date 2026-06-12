@@ -140,6 +140,9 @@ export function useMarketplaceDetail(id: number | null) {
         enabled: client != null && id != null,
         queryFn: () => getMarketplaceDetail(client!, id!),
         staleTime: 0,
+        // Gọi live API sàn (có thể chậm/lỗi token) — KHÔNG retry để hỏng nhanh,
+        // tránh người dùng nhìn loading lâu. Trang vẫn dùng được nhờ dữ liệu listing.
+        retry: false,
     });
 }
 

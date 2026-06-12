@@ -120,7 +120,7 @@ export function OnChannelPage() {
             key: 'actions',
             width: 130,
             render: (_, r) => (
-                <Button size="small" icon={<EditOutlined />} onClick={() => navigate(`/marketplace/on-channel/${r.id}/edit`)}>
+                <Button size="small" icon={<EditOutlined />} onClick={() => navigate(`/marketplace/on-channel/${r.id}/edit`, { state: { listing: r } })}>
                     Sửa trên sàn
                 </Button>
             ),
