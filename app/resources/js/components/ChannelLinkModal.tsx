@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Avatar, Button, Empty, Input, List, Modal, Segmented, Space, Tag, Typography } from 'antd';
+import { Avatar, Button, Empty, Input, List, Modal, Select, Space, Tag, Typography } from 'antd';
 import { CheckCircleFilled, DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useChannelListings, type ChannelListing } from '@/lib/inventory';
 import { ChannelLogo } from '@/components/ChannelLogo';
@@ -117,10 +117,11 @@ function ChannelLinkBody({ onClose, value, onChange, shops }: {
     const confirm = () => { onChange(working); onClose(); };
 
     const shopOptions = [
-        { label: 'Tất cả', value: 'all' as const },
+        { label: 'Tất cả gian hàng', value: 'all' as const, name: 'tất cả' },
         ...shops.map((s) => ({
             label: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ChannelLogo provider={s.provider} size={14} />{s.name}</span>,
             value: s.id,
+            name: s.name,
         })),
     ];
 
@@ -130,11 +131,14 @@ function ChannelLinkBody({ onClose, value, onChange, shops }: {
                 {/* TRÁI: duyệt listing sàn */}
                 <div style={{ flex: 1.3, minWidth: 0 }}>
                     <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                        <Segmented<number | 'all'>
+                        <Select<number | 'all'>
                             options={shopOptions}
                             value={shopFilter}
                             onChange={(v) => setShopFilter(v)}
-                            style={{ maxWidth: '100%', overflowX: 'auto' }}
+                            showSearch
+                            filterOption={(input, option) => String(option?.name ?? '').toLowerCase().includes(input.toLowerCase())}
+                            style={{ width: '100%' }}
+                            placeholder="Chọn gian hàng"
                         />
                         <Input
                             allowClear
