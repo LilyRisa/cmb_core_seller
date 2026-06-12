@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { App as AntApp, Button, Empty, Image, Modal, Popconfirm, Radio, Result, Space, Table, Tag, Typography } from 'antd';
+import { App as AntApp, Button, Checkbox, Empty, Image, Modal, Popconfirm, Result, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { DeleteOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
@@ -47,29 +47,42 @@ export function CopiedProductsPage() {
     const deleteProduct = useDeleteMasterProduct();
 
     const [createForProduct, setCreateForProduct] = useState<MasterProduct | null>(null);
-    const [targetShopId, setTargetShopId] = useState<number | null>(null);
+    const [targetShopIds, setTargetShopIds] = useState<number[]>([]);
 
     const accounts = channelData?.data ?? [];
 
     const openCreateModal = (product: MasterProduct) => {
         setCreateForProduct(product);
-        setTargetShopId(accounts[0]?.id ?? null);
+        setTargetShopIds(accounts[0] ? [accounts[0].id] : []);
     };
 
-    const handleCreate = () => {
+    // Tạo một bản nháp cho MỖI gian hàng đã chọn (import vào nhiều shop).
+    const handleCreate = async () => {
         const product = createForProduct;
-        const shop = accounts.find((a) => a.id === targetShopId);
-        if (!product || !shop) return;
-        createListing.mutate(
-            { productId: product.id, channelAccountId: shop.id, provider: shop.provider },
-            {
-                onSuccess: (draft) => {
-                    setCreateForProduct(null);
-                    navigate(`/marketplace/listings/${draft.id}/edit`);
-                },
-                onError: (e) => message.error(errorMessage(e)),
-            },
+        if (!product || targetShopIds.length === 0) return;
+        const shops = accounts.filter((a) => targetShopIds.includes(a.id));
+
+        const createdIds: number[] = [];
+        let failed = 0;
+        await Promise.all(
+            shops.map(async (shop) => {
+                try {
+                    const draft = await createListing.mutateAsync({ productId: product.id, channelAccountId: shop.id, provider: shop.provider });
+                    createdIds.push(draft.id);
+                } catch (e) {
+                    failed += 1;
+                    message.error(`${shop.name}: ${errorMessage(e)}`);
+                }
+            }),
         );
+
+        setCreateForProduct(null);
+        if (createdIds.length === 1 && failed === 0) {
+            navigate(`/marketplace/listings/${createdIds[0]}/edit`);
+        } else if (createdIds.length > 0) {
+            message.success(`Đã tạo ${createdIds.length} bản nháp${failed ? `, ${failed} lỗi` : ''}. Soạn nốt ở mục "Chờ đẩy lên sàn".`);
+            navigate('/marketplace/to-push');
+        }
     };
 
     const columns: ColumnsType<MasterProduct> = [
@@ -165,27 +178,27 @@ export function CopiedProductsPage() {
                 title="Tạo bản nháp đăng sàn"
                 open={createForProduct !== null}
                 onCancel={() => setCreateForProduct(null)}
-                okText="Tạo & soạn nháp"
-                okButtonProps={{ disabled: targetShopId == null, loading: createListing.isPending }}
+                okText={targetShopIds.length > 1 ? `Tạo ${targetShopIds.length} nháp` : 'Tạo & soạn nháp'}
+                okButtonProps={{ disabled: targetShopIds.length === 0, loading: createListing.isPending }}
                 onOk={handleCreate}
             >
                 <Typography.Paragraph>
                     Sản phẩm: <b>{createForProduct?.name}</b>
                 </Typography.Paragraph>
-                <Typography.Text type="secondary">Chọn gian hàng đích</Typography.Text>
+                <Typography.Text type="secondary">Chọn gian hàng đích (có thể chọn nhiều)</Typography.Text>
                 <div style={{ marginTop: 8 }}>
                     {accounts.length === 0 ? (
                         <Empty description="Chưa kết nối gian hàng nào. Vào Gian hàng để kết nối." />
                     ) : (
-                        <Radio.Group value={targetShopId ?? undefined} onChange={(e) => setTargetShopId(e.target.value)}>
+                        <Checkbox.Group value={targetShopIds} onChange={(v) => setTargetShopIds(v as number[])}>
                             <Space direction="vertical">
                                 {accounts.map((a) => (
-                                    <Radio key={a.id} value={a.id}>
+                                    <Checkbox key={a.id} value={a.id}>
                                         {a.name} <Tag>{a.provider}</Tag>
-                                    </Radio>
+                                    </Checkbox>
                                 ))}
                             </Space>
-                        </Radio.Group>
+                        </Checkbox.Group>
                     )}
                 </div>
             </Modal>
