@@ -51,4 +51,6 @@ Money = integer VND. Giá là per-SKU (Lazada SkuId, Shopee model_id, TikTok sku
 
 ## UI
 
-Trang `/marketplace/on-channel` ("Đã có trên sàn"): nút **Đồng bộ sản phẩm**, lọc theo gian hàng + tìm kiếm, bảng listing, nút **Sửa trên sàn** mở `MarketplaceEditDrawer` (tiêu đề, mô tả, ảnh, giá theo SKU). Tồn hiển thị read-only kèm ghi chú đẩy theo SKU.
+Trang `/marketplace/on-channel` ("Đã có trên sàn"): nút **Đồng bộ sản phẩm**, **multi-select gian hàng có logo + tên** (`ChannelLogo`; lọc nhiều shop qua `channel_account_ids` CSV) + tìm kiếm, bảng listing. Nút **Sửa trên sàn** điều hướng sang **trang riêng** `/marketplace/on-channel/{id}/edit`.
+
+Trang sửa (`MarketplaceEditPage`): có nút **Quay lại**, bố cục Card chuẩn (Thông tin / Hình ảnh / Giá theo SKU), nút **Lưu & đẩy lên sàn** (chỉ bật khi có thay đổi). Phần Hình ảnh kèm **trình resize ảnh** (`ImageResizer`): chọn ảnh từ máy → resize bằng canvas (preset vuông 1:1 / dọc 3:4 / gốc-theo-chiều-rộng, vẽ "cover" giữ tâm) → upload `/media/image` → thêm URL vào danh sách ảnh. Tồn hiển thị read-only kèm ghi chú đẩy theo SKU.

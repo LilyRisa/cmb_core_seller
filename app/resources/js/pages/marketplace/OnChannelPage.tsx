@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
-import { App as AntApp, Avatar, Button, Card, Empty, Input, Radio, Space, Table, Tag, Typography } from 'antd';
+import { useNavigate } from 'react-router-dom';
+import { App as AntApp, Avatar, Button, Card, Empty, Input, Select, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { CloudDownloadOutlined, EditOutlined, PictureOutlined, SearchOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { MoneyText } from '@/components/MoneyText';
+import { ChannelLogo } from '@/components/ChannelLogo';
 import { errorMessage } from '@/lib/api';
 import { useChannelAccounts } from '@/lib/channels';
 import { useSyncPolling } from '@/lib/syncPolling';
 import { type ChannelListing, useChannelListings, useSyncChannelListings } from '@/lib/inventory';
-import { MarketplaceEditDrawer } from '@/features/products/MarketplaceEditDrawer';
 
 const SYNC_TAG: Record<string, { color: string; label: string }> = {
     ok: { color: 'green', label: 'Đã đồng bộ' },
@@ -23,15 +24,20 @@ const SYNC_TAG: Record<string, { color: string; label: string }> = {
  */
 export function OnChannelPage() {
     const { message } = AntApp.useApp();
+    const navigate = useNavigate();
     const { data: channelData } = useChannelAccounts();
     const accounts = useMemo(() => channelData?.data ?? [], [channelData]);
 
-    const [shopId, setShopId] = useState<number | undefined>(undefined);
+    const [shopIds, setShopIds] = useState<number[]>([]);
     const [q, setQ] = useState('');
     const [page, setPage] = useState(1);
-    const [editFor, setEditFor] = useState<ChannelListing | null>(null);
 
-    const { data, isFetching, refetch } = useChannelListings({ page, per_page: 20, q: q || undefined, channel_account_id: shopId });
+    const { data, isFetching, refetch } = useChannelListings({
+        page,
+        per_page: 20,
+        q: q || undefined,
+        channel_account_ids: shopIds.length ? shopIds.join(',') : undefined,
+    });
     const syncListings = useSyncChannelListings();
     const syncPoll = useSyncPolling(() => refetch(), { durationMs: 90_000 });
 
@@ -114,7 +120,7 @@ export function OnChannelPage() {
             key: 'actions',
             width: 130,
             render: (_, r) => (
-                <Button size="small" icon={<EditOutlined />} onClick={() => setEditFor(r)}>
+                <Button size="small" icon={<EditOutlined />} onClick={() => navigate(`/marketplace/on-channel/${r.id}/edit`)}>
                     Sửa trên sàn
                 </Button>
             ),
@@ -140,16 +146,26 @@ export function OnChannelPage() {
 
             <Card styles={{ body: { padding: 16 } }}>
                 <Space style={{ marginBottom: 12 }} wrap>
-                    <Radio.Group
-                        optionType="button"
-                        value={shopId ?? 0}
-                        onChange={(e) => { setShopId(e.target.value === 0 ? undefined : e.target.value); setPage(1); }}
-                    >
-                        <Radio.Button value={0}>Tất cả gian hàng</Radio.Button>
-                        {accounts.map((a) => (
-                            <Radio.Button key={a.id} value={a.id}>{a.name}</Radio.Button>
-                        ))}
-                    </Radio.Group>
+                    <Select
+                        mode="multiple"
+                        allowClear
+                        style={{ minWidth: 300 }}
+                        placeholder="Lọc theo gian hàng"
+                        value={shopIds}
+                        onChange={(v) => { setShopIds(v as number[]); setPage(1); }}
+                        optionFilterProp="title"
+                        maxTagCount="responsive"
+                        options={accounts.map((a) => ({
+                            value: a.id,
+                            title: a.name,
+                            label: (
+                                <Space size={6}>
+                                    <ChannelLogo provider={a.provider} size={16} />
+                                    <span>{a.name}</span>
+                                </Space>
+                            ),
+                        }))}
+                    />
                     <Input
                         allowClear
                         prefix={<SearchOutlined />}
@@ -176,15 +192,6 @@ export function OnChannelPage() {
                     }}
                 />
             </Card>
-
-            <MarketplaceEditDrawer
-                listing={editFor}
-                open={editFor !== null}
-                onClose={(changed) => {
-                    setEditFor(null);
-                    if (changed) refetch();
-                }}
-            />
         </div>
     );
 }

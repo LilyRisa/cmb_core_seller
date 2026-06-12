@@ -27,6 +27,7 @@ import { ReturnsPage } from '@/pages/ReturnsPage';
 import { ChannelsPage } from '@/pages/ChannelsPage';
 import { CopiedProductsPage } from '@/pages/marketplace/CopiedProductsPage';
 import { OnChannelPage } from '@/pages/marketplace/OnChannelPage';
+import { MarketplaceEditPage } from '@/pages/marketplace/MarketplaceEditPage';
 import { PublishablePage } from '@/pages/marketplace/PublishablePage';
 import { SyncLogsPage } from '@/pages/SyncLogsPage';
 import { SupportCenterPage } from '@/pages/SupportCenterPage';
@@ -126,6 +127,7 @@ function Root() {
                 <Route path="marketplace" element={<Navigate to="/marketplace/products" replace />} />
                 <Route path="marketplace/products" element={<CopiedProductsPage />} />
                 <Route path="marketplace/on-channel" element={<OnChannelPage />} />
+                <Route path="marketplace/on-channel/:id/edit" element={<MarketplaceEditPage />} />
                 <Route path="marketplace/to-push" element={<PublishablePage />} />
                 <Route path="customers" element={<CustomersPage />} />
                 <Route path="customers/:id" element={<CustomerDetailPage />} />

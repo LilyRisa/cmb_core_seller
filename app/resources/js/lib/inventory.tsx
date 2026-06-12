@@ -216,7 +216,7 @@ export function useProducts(filters: { q?: string; page?: number; per_page?: num
     });
 }
 
-export function useChannelListings(filters: { channel_account_id?: number; mapped?: 0 | 1; sync_status?: string; q?: string; page?: number; per_page?: number }) {
+export function useChannelListings(filters: { channel_account_id?: number; channel_account_ids?: string; mapped?: 0 | 1; sync_status?: string; q?: string; page?: number; per_page?: number }) {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();
     return useQuery({

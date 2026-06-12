@@ -23,6 +23,13 @@ class ChannelListingController extends Controller
         if ($cid = $request->query('channel_account_id')) {
             $q->where('channel_account_id', (int) $cid);
         }
+        // Lọc nhiều gian hàng (multi-select) — CSV id; bỏ qua nếu rỗng.
+        if ($ids = $request->query('channel_account_ids')) {
+            $list = array_values(array_filter(array_map('intval', explode(',', (string) $ids))));
+            if ($list !== []) {
+                $q->whereIn('channel_account_id', $list);
+            }
+        }
         if ($status = $request->query('sync_status')) {
             $q->where('sync_status', (string) $status);
         }
