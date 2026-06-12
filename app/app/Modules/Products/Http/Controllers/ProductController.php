@@ -37,10 +37,65 @@ class ProductController extends Controller
             'brand' => ['sometimes', 'nullable', 'string', 'max:255'],
             'category' => ['sometimes', 'nullable', 'string', 'max:255'],
             'meta' => ['sometimes', 'array'],
+            // Các field "giàu" do extension copy sản phẩm gửi (Shopee/Lazada/TikTok/AliExpress).
+            // Product không có cột riêng cho chúng ⇒ gộp vào `meta` (cột JSON) để KHÔNG mất dữ liệu.
+            // Tất cả optional+nullable nên KHÔNG ảnh hưởng luồng tạo product của SPA (chỉ gửi name/image/brand/category/meta).
+            'description' => ['sometimes', 'nullable', 'string'],
+            'unit_price' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'unit' => ['sometimes', 'nullable', 'string', 'max:50'],
+            'thumbnail_img' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            'image_links' => ['sometimes', 'array'],
+            'image_links.*' => ['string', 'max:1000'],
+            'video_url' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            'source' => ['sometimes', 'nullable', 'string', 'max:50'],
+            'source_url' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            'variants' => ['sometimes', 'array'],
+            'variants.*.name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'variants.*.price' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'variants.*.stock' => ['sometimes', 'nullable', 'integer', 'min:0'],
+            'variants.*.sku' => ['sometimes', 'nullable', 'string', 'max:191'],
+            'variants.*.image' => ['sometimes', 'nullable', 'string', 'max:1000'],
         ]);
-        $product = Product::query()->create($data);
+        $product = Product::query()->create($this->productAttributes($data));
 
         return response()->json(['data' => new ProductResource($product->loadCount('skus'))], 201);
+    }
+
+    /**
+     * Map payload về cột của Product. `name/image/brand/category` giữ nguyên;
+     * mọi field "giàu" từ extension copy được gộp vào `meta` (cột JSON) để không
+     * mất dữ liệu. Thiếu `image` mà có `thumbnail_img` thì dùng thumbnail làm ảnh
+     * đại diện. Luồng SPA (không gửi field giàu) ⇒ `meta` giữ nguyên như cũ.
+     *
+     * @param  array<string,mixed>  $data
+     * @return array<string,mixed>
+     */
+    private function productAttributes(array $data): array
+    {
+        $richKeys = ['description', 'unit_price', 'unit', 'thumbnail_img', 'image_links', 'video_url', 'source', 'source_url', 'variants'];
+
+        /** @var array<string,mixed> $meta */
+        $meta = $data['meta'] ?? [];
+        foreach ($richKeys as $key) {
+            if (array_key_exists($key, $data)) {
+                $meta[$key] = $data[$key];
+            }
+        }
+
+        $attrs = ['name' => $data['name']];
+        foreach (['image', 'brand', 'category'] as $key) {
+            if (array_key_exists($key, $data)) {
+                $attrs[$key] = $data[$key];
+            }
+        }
+        if (empty($attrs['image']) && ! empty($data['thumbnail_img'])) {
+            $attrs['image'] = $data['thumbnail_img'];
+        }
+        if ($meta !== []) {
+            $attrs['meta'] = $meta;
+        }
+
+        return $attrs;
     }
 
     public function show(Request $request, int $id): JsonResponse
