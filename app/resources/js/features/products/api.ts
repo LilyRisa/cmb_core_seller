@@ -204,6 +204,33 @@ export async function updateMarketplaceListing(
     return data.data;
 }
 
+/* ============================================================================
+ * Tùy chọn vận chuyển của shop (cho trang soạn nháp đăng sàn)
+ * ========================================================================== */
+
+export interface ShippingOptions {
+    mode: 'channels' | 'warehouse_delivery' | 'package';
+    /** Shopee: kênh vận chuyển bật được. */
+    channels?: { id: string; name: string; fee_type: string }[];
+    /** TikTok: kho. */
+    warehouses?: { id: string; name: string; is_default: boolean }[];
+    /** TikTok: phương thức giao hàng. */
+    delivery_options?: { id: string; name: string }[];
+    /** Lazada: ghi chú (vận chuyển theo kiện). */
+    notes?: string;
+}
+
+export async function getShippingOptions(
+    client: AxiosInstance,
+    provider: string,
+    channelAccountId: number,
+): Promise<ShippingOptions> {
+    const { data } = await client.get<{ data: ShippingOptions }>(`/channels/${provider}/shipping-options`, {
+        params: { channel_account_id: channelAccountId },
+    });
+    return data.data;
+}
+
 export async function getCategories(
     client: AxiosInstance,
     provider: string,

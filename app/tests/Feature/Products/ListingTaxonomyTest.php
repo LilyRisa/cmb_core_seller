@@ -79,6 +79,11 @@ class FakeTaxPublisher implements ProductPublishingConnector
     {
         throw new \RuntimeException('not used');
     }
+
+    public function getShippingOptions(AuthContext $auth): array
+    {
+        return ['mode' => 'channels', 'channels' => [['id' => '80101', 'name' => 'SPX Express', 'fee_type' => 'SIZE_INPUT']]];
+    }
 }
 
 class ListingTaxonomyTest extends TestCase
@@ -130,6 +135,19 @@ class ListingTaxonomyTest extends TestCase
         $res->assertOk();
         $res->assertJsonCount(2, 'data');
         $this->assertTrue($res->json('data.1.is_leaf'));
+    }
+
+    public function test_returns_shipping_options_for_a_shop(): void
+    {
+        Cache::flush();
+
+        $res = $this->actingAs($this->owner)
+            ->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
+            ->getJson("/api/v1/channels/lazada/shipping-options?channel_account_id={$this->accountId}");
+
+        $res->assertOk();
+        $this->assertSame('channels', $res->json('data.mode'));
+        $this->assertSame('80101', $res->json('data.channels.0.id'));
     }
 
     public function test_caches_categories(): void

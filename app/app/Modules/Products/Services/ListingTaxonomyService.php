@@ -76,6 +76,20 @@ final class ListingTaxonomyService
         ));
     }
 
+    /**
+     * Tùy chọn vận chuyển của shop (Shopee kênh / TikTok kho+delivery / Lazada package).
+     * Cache 30' (thay đổi chậm hơn đơn nhưng nhanh hơn taxonomy).
+     *
+     * @return array<string,mixed>
+     */
+    public function shippingOptions(int $channelAccountId, string $provider): array
+    {
+        $auth = $this->authFor($channelAccountId, $provider);
+        $key = "listing_ship:$provider:$channelAccountId";
+
+        return Cache::remember($key, now()->addMinutes(30), fn () => $this->publishers->for($provider)->getShippingOptions($auth));
+    }
+
     private function authFor(int $channelAccountId, string $provider): AuthContext
     {
         /** @var ChannelAccount $account */

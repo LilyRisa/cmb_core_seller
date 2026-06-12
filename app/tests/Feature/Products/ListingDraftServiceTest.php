@@ -7,6 +7,7 @@ use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Products\Models\ListingDraft;
 use CMBcoreSeller\Modules\Products\Models\Product;
+use CMBcoreSeller\Modules\Products\Services\ListingDraftService;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
@@ -85,6 +86,21 @@ class ListingDraftServiceTest extends TestCase
             'listing_draft_id' => $draftId,
         ]);
         $this->assertNotEmpty($res->json('data.skus'));
+    }
+
+    public function test_creating_a_draft_seeds_images_from_product_data(): void
+    {
+        $p = Product::create([
+            'tenant_id' => $this->tenant->getKey(),
+            'name' => 'SP có ảnh',
+            'image' => 'https://cdn/main.jpg',
+            'meta' => ['image_links' => ['https://cdn/a.jpg', 'https://cdn/b.jpg', 'https://cdn/main.jpg']],
+        ]);
+
+        $draft = app(ListingDraftService::class)->createDraft((int) $p->getKey(), $this->accountId, 'lazada');
+
+        // Ảnh đại diện đứng đầu + image_links, khử trùng lặp (main.jpg chỉ 1 lần).
+        $this->assertSame(['https://cdn/main.jpg', 'https://cdn/a.jpg', 'https://cdn/b.jpg'], $draft->media_refs);
     }
 
     public function test_update_keeps_draft_when_validation_fails_then_ready_when_passes(): void

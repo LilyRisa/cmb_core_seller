@@ -137,4 +137,9 @@ class FakeMediaPublisher implements ProductPublishingConnector
     {
         throw new \RuntimeException('not used');
     }
+
+    public function getShippingOptions(AuthContext $auth): array
+    {
+        return [];
+    }
 }

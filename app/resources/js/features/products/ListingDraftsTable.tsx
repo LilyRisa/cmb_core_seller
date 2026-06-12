@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { App as AntApp, Button, Empty, Image, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { CloudUploadOutlined, CopyOutlined, EditOutlined } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
 import { useChannelAccounts } from '@/lib/channels';
-import { ListingEditorDrawer } from './ListingEditorDrawer';
 import { CloneListingModal } from './CloneListingModal';
 import { PushProgressModal } from './PushProgressModal';
 import { useBulkPush, useMasterProducts, usePushListing } from './hooks';
@@ -49,9 +49,8 @@ export function ListingDraftsTable({
     const pushListing = usePushListing();
     const bulkPush = useBulkPush();
 
+    const navigate = useNavigate();
     const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
-    const [editorListingId, setEditorListingId] = useState<number | null>(null);
-    const [editorOpen, setEditorOpen] = useState(false);
     const [cloneFor, setCloneFor] = useState<ListingRow | null>(null);
     const [batchId, setBatchId] = useState<number | null>(null);
     const [pushModalOpen, setPushModalOpen] = useState(false);
@@ -76,10 +75,7 @@ export function ListingDraftsTable({
         [rows, selectedRowKeys],
     );
 
-    const openEditor = (listingId: number) => {
-        setEditorListingId(listingId);
-        setEditorOpen(true);
-    };
+    const openEditor = (listingId: number) => navigate(`/marketplace/listings/${listingId}/edit`);
 
     const handlePush = (id: number) => {
         pushListing.mutate(id, {
@@ -198,15 +194,6 @@ export function ListingDraftsTable({
                         : undefined
                 }
                 pagination={{ pageSize: 20, showSizeChanger: false }}
-            />
-
-            <ListingEditorDrawer
-                listingId={editorListingId}
-                open={editorOpen}
-                onClose={() => {
-                    setEditorOpen(false);
-                    refetch();
-                }}
             />
 
             <CloneListingModal

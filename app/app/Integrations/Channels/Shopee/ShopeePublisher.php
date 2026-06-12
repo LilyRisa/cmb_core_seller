@@ -259,6 +259,28 @@ final class ShopeePublisher implements ProductPublishingConnector
         return new ListingResultDTO($externalProductId, [], 'live');
     }
 
+    public function getShippingOptions(AuthContext $auth): array
+    {
+        $resp = $this->client->shopGetEnvelope($auth, '/api/v2/logistics/get_channel_list', []);
+
+        $channels = [];
+        foreach ((array) ($resp['response']['logistics_channel_list'] ?? []) as $c) {
+            if (! is_array($c)) {
+                continue;
+            }
+            // Chỉ kênh đang bật & dùng được để tạo SP (mask_channel_id=0). Doc 209/211.
+            if (($c['enabled'] ?? false) && (int) ($c['mask_channel_id'] ?? 0) === 0) {
+                $channels[] = [
+                    'id' => (string) ($c['logistics_channel_id'] ?? ''),
+                    'name' => (string) ($c['logistics_channel_name'] ?? ($c['name'] ?? '')),
+                    'fee_type' => (string) ($c['fee_type'] ?? ''),
+                ];
+            }
+        }
+
+        return ['mode' => 'channels', 'channels' => $channels];
+    }
+
     /**
      * Pull the current price (integer VND) from a Shopee price_info block.
      */

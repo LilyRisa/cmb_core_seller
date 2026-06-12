@@ -422,6 +422,7 @@ Popup giữa màn hình cho mọi user (fix bug, tạm dừng dịch vụ…). A
 | GET | `/api/v1/channels/{provider}/categories` | sanctum + tenant | query `channel_account_id`, `parent_id?` | Danh mục theo tầng từ connector publish, cache 12h. |
 | GET | `/api/v1/channels/{provider}/attributes` | sanctum + tenant | query `channel_account_id`, `category_id` | Thuộc tính theo danh mục lá. |
 | GET | `/api/v1/channels/{provider}/brands` | sanctum + tenant | query `channel_account_id`, `category_id` | Danh sách brand theo danh mục. |
+| GET | `/api/v1/channels/{provider}/shipping-options` | sanctum + tenant | query `channel_account_id` | Tùy chọn vận chuyển của shop cho trang soạn nháp (cache 30'). `{ mode:'channels'\|'warehouse_delivery'\|'package', channels?[], warehouses?[], delivery_options?[], notes? }`. Shopee=`get_channel_list`; TikTok=warehouses+delivery_options; Lazada=package-based. |
 | POST | `/api/v1/products/{productId}/listings` | sanctum + tenant | `{ channel_account_id, provider }` | Tạo hoặc trả về nháp listing cho một sản phẩm gốc trên một gian hàng. |
 | GET | `/api/v1/listings/{id}` | sanctum + tenant | — | Chi tiết nháp listing + SKU. |
 | PUT | `/api/v1/listings/{id}` | sanctum + tenant | category/brand/attributes/media/logistics/skus | Lưu nháp và validate lại; đủ field thì `ready`, thiếu thì `draft` + `validation_errors`. |

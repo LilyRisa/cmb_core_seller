@@ -188,4 +188,9 @@ final class FakeEditPublisher implements ProductPublishingConnector
     {
         return new MediaRefDTO($imageUrlOrPath, 'cdn_url');
     }
+
+    public function getShippingOptions(AuthContext $auth): array
+    {
+        return [];
+    }
 }

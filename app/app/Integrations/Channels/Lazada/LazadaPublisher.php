@@ -259,6 +259,16 @@ final class LazadaPublisher implements ProductPublishingConnector
         return '<Request><Product><Skus>'.$skus.'</Skus></Product></Request>';
     }
 
+    public function getShippingOptions(AuthContext $auth): array
+    {
+        // Lazada không chọn kênh lúc tạo SP: vận chuyển dựa trên KL/kích thước kiện ở
+        // cấp SKU; tuỳ chọn `delivery_option_sof` (giao bởi người bán). Doc /product/create.
+        return [
+            'mode' => 'package',
+            'notes' => 'Lazada tính vận chuyển theo khối lượng/kích thước kiện (nhập ở từng SKU). Bật "Giao bởi người bán (SOF)" nếu tự giao.',
+        ];
+    }
+
     /**
      * Recursively flatten a Lazada category tree into CategoryNodeDTO[]. Each node carries
      * `category_id` / `name` / `children[]`; a node is a leaf when it has no children.

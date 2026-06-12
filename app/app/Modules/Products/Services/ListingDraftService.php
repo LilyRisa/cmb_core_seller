@@ -52,6 +52,8 @@ final class ListingDraftService
             $draft->provider = $provider;
             $draft->status = ListingDraft::STATUS_DRAFT;
             $draft->created_by = auth()->id();
+            // Lấy ảnh từ chính dữ liệu đã copy về: ảnh đại diện + meta.image_links (extension đẩy lên).
+            $draft->media_refs = $this->seedImagesFromProduct($product);
             $draft->save();
 
             foreach ($product->skus as $i => $sku) {
@@ -273,6 +275,28 @@ final class ListingDraftService
             skus: $skus,
             logistics: $logistics,
         );
+    }
+
+    /**
+     * Ảnh khởi tạo cho nháp đăng sàn: ảnh đại diện + `meta.image_links` (extension
+     * copy đẩy lên). Trả về danh sách URL (đã khử trùng lặp).
+     *
+     * @return string[]
+     */
+    private function seedImagesFromProduct(Product $product): array
+    {
+        $images = [];
+        if (! empty($product->image)) {
+            $images[] = (string) $product->image;
+        }
+        foreach ((array) (($product->meta ?? [])['image_links'] ?? []) as $u) {
+            $u = is_string($u) ? trim($u) : '';
+            if ($u !== '' && ! in_array($u, $images, true)) {
+                $images[] = $u;
+            }
+        }
+
+        return $images;
     }
 
     private function validatorFor(string $provider): ListingValidator

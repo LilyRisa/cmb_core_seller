@@ -231,6 +231,7 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::get('channels/{provider}/categories', [ListingTaxonomyController::class, 'categories'])->name('channels.categories');
             Route::get('channels/{provider}/attributes', [ListingTaxonomyController::class, 'attributes'])->name('channels.attributes');
             Route::get('channels/{provider}/brands', [ListingTaxonomyController::class, 'brands'])->name('channels.brands');
+            Route::get('channels/{provider}/shipping-options', [ListingTaxonomyController::class, 'shippingOptions'])->name('channels.shipping-options');
 
             // --- Listing drafts (SPEC marketplace product publishing) — seed a publishing
             // draft from a master product, edit per-provider fields, revalidate to READY.

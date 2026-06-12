@@ -72,4 +72,18 @@ interface ProductPublishingConnector
      * product back to the marketplace. Stock is out of scope (pushed via SKU sync).
      */
     public function updateListing(AuthContext $auth, string $externalProductId, ListingEditDTO $edit): ListingResultDTO;
+
+    /**
+     * Fetch the shop's available shipping options for the listing editor.
+     *
+     * Returns a normalized, provider-shaped array:
+     *  - mode: 'channels' (Shopee) | 'warehouse_delivery' (TikTok) | 'package' (Lazada)
+     *  - channels?:        array<int,array{id:string,name:string,fee_type:string}>  (Shopee)
+     *  - warehouses?:      array<int,array{id:string,name:string,is_default:bool}>   (TikTok)
+     *  - delivery_options?:array<int,array{id:string,name:string}>                   (TikTok)
+     *  - notes?: string                                                              (Lazada — package-based)
+     *
+     * @return array<string,mixed>
+     */
+    public function getShippingOptions(AuthContext $auth): array;
 }

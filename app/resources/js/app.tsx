@@ -28,6 +28,7 @@ import { ChannelsPage } from '@/pages/ChannelsPage';
 import { CopiedProductsPage } from '@/pages/marketplace/CopiedProductsPage';
 import { OnChannelPage } from '@/pages/marketplace/OnChannelPage';
 import { MarketplaceEditPage } from '@/pages/marketplace/MarketplaceEditPage';
+import { ListingDraftEditorPage } from '@/pages/marketplace/ListingDraftEditorPage';
 import { PublishablePage } from '@/pages/marketplace/PublishablePage';
 import { SyncLogsPage } from '@/pages/SyncLogsPage';
 import { SupportCenterPage } from '@/pages/SupportCenterPage';
@@ -129,6 +130,7 @@ function Root() {
                 <Route path="marketplace/on-channel" element={<OnChannelPage />} />
                 <Route path="marketplace/on-channel/:id/edit" element={<MarketplaceEditPage />} />
                 <Route path="marketplace/to-push" element={<PublishablePage />} />
+                <Route path="marketplace/listings/:id/edit" element={<ListingDraftEditorPage />} />
                 <Route path="customers" element={<CustomersPage />} />
                 <Route path="customers/:id" element={<CustomerDetailPage />} />
                 {/* SPEC-0024 — Hộp thư hợp nhất + trang quản lý. */}

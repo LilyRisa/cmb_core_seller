@@ -1,11 +1,11 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { App as AntApp, Button, Empty, Image, Modal, Popconfirm, Radio, Result, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { DeleteOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { errorMessage } from '@/lib/api';
 import { useChannelAccounts } from '@/lib/channels';
-import { ListingEditorDrawer } from '@/features/products/ListingEditorDrawer';
 import { useCreateListing, useDeleteMasterProduct, useMasterProducts } from '@/features/products/hooks';
 import type { ListingDraftSummary, MasterProduct } from '@/features/products/api';
 
@@ -42,11 +42,10 @@ export function CopiedProductsPage() {
     const { message } = AntApp.useApp();
     const { data: products, isLoading, isError, error, refetch } = useMasterProducts();
     const { data: channelData } = useChannelAccounts();
+    const navigate = useNavigate();
     const createListing = useCreateListing();
     const deleteProduct = useDeleteMasterProduct();
 
-    const [editorListingId, setEditorListingId] = useState<number | null>(null);
-    const [editorOpen, setEditorOpen] = useState(false);
     const [createForProduct, setCreateForProduct] = useState<MasterProduct | null>(null);
     const [targetShopId, setTargetShopId] = useState<number | null>(null);
 
@@ -66,8 +65,7 @@ export function CopiedProductsPage() {
             {
                 onSuccess: (draft) => {
                     setCreateForProduct(null);
-                    setEditorListingId(draft.id);
-                    setEditorOpen(true);
+                    navigate(`/marketplace/listings/${draft.id}/edit`);
                 },
                 onError: (e) => message.error(errorMessage(e)),
             },
@@ -191,15 +189,6 @@ export function CopiedProductsPage() {
                     )}
                 </div>
             </Modal>
-
-            <ListingEditorDrawer
-                listingId={editorListingId}
-                open={editorOpen}
-                onClose={() => {
-                    setEditorOpen(false);
-                    refetch();
-                }}
-            />
         </div>
     );
 }

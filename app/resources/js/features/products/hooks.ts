@@ -13,6 +13,7 @@ import {
     getListing,
     getMarketplaceDetail,
     getPushBatch,
+    getShippingOptions,
     listMasterProducts,
     pushListing,
     updateListing,
@@ -92,6 +93,17 @@ export function useAttributes(provider: string | null, channelAccountId: number 
         queryKey: ['channel-attributes', tenantId, provider, channelAccountId, categoryId],
         enabled: client != null && !!provider && channelAccountId != null && !!categoryId,
         queryFn: () => getAttributes(client!, provider!, channelAccountId!, categoryId!),
+        staleTime: 10 * 60 * 1000,
+    });
+}
+
+export function useShippingOptions(provider: string | null, channelAccountId: number | null) {
+    const client = useScopedApi();
+    const tenantId = useTenantId();
+    return useQuery({
+        queryKey: ['channel-shipping', tenantId, provider, channelAccountId],
+        enabled: client != null && !!provider && channelAccountId != null,
+        queryFn: () => getShippingOptions(client!, provider!, channelAccountId!),
         staleTime: 10 * 60 * 1000,
     });
 }

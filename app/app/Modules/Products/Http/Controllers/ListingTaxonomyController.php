@@ -50,4 +50,11 @@ final class ListingTaxonomyController extends Controller
             ),
         ]);
     }
+
+    public function shippingOptions(Request $r, string $provider): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->svc->shippingOptions((int) $r->query('channel_account_id'), $provider),
+        ]);
+    }
 }

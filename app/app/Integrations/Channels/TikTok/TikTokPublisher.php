@@ -238,6 +238,45 @@ final class TikTokPublisher implements ProductPublishingConnector
         return new ListingResultDTO($externalProductId, [], 'live');
     }
 
+    public function getShippingOptions(AuthContext $auth): array
+    {
+        $wh = $this->client->request('GET', '/logistics/202309/warehouses', $auth);
+        $warehouses = [];
+        foreach ((array) ($wh['warehouses'] ?? []) as $w) {
+            if (! is_array($w)) {
+                continue;
+            }
+            $warehouses[] = [
+                'id' => (string) ($w['id'] ?? ''),
+                'name' => (string) ($w['name'] ?? ''),
+                'is_default' => (bool) ($w['is_default'] ?? false),
+            ];
+        }
+
+        // Delivery options gắn theo warehouse — lấy theo kho mặc định (hoặc kho đầu).
+        $primary = null;
+        foreach ($warehouses as $w) {
+            if ($w['is_default']) {
+                $primary = $w['id'];
+                break;
+            }
+        }
+        $primary ??= $warehouses[0]['id'] ?? null;
+
+        $deliveryOptions = [];
+        if ($primary !== null && $primary !== '') {
+            $do = $this->client->request('GET', "/logistics/202309/warehouses/{$primary}/delivery_options", $auth, ['scope' => 'PRODUCT']);
+            foreach ((array) ($do['delivery_options'] ?? []) as $d) {
+                if (! is_array($d)) {
+                    continue;
+                }
+                $deliveryOptions[] = ['id' => (string) ($d['id'] ?? ''), 'name' => (string) ($d['name'] ?? '')];
+            }
+        }
+
+        return ['mode' => 'warehouse_delivery', 'warehouses' => $warehouses, 'delivery_options' => $deliveryOptions];
+    }
+
     private function normalizeStatus(string $rawStatus): string
     {
         return match (strtoupper($rawStatus)) {
