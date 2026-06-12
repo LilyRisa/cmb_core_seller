@@ -30,7 +30,7 @@ class SkuController extends Controller
     public function index(Request $request): JsonResponse
     {
         abort_unless($request->user()?->can('inventory.view'), 403, 'Bạn không có quyền xem SKU.');
-        $q = Sku::query()->with('levels');
+        $q = Sku::query()->with('levels')->withCount('mappings');
         if ($term = trim((string) $request->query('q', ''))) {
             $q->search($term);
         }

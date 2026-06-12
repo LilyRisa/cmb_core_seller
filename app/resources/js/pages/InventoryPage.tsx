@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { App as AntApp, Avatar, Button, Card, Empty, Form, Input, InputNumber, Modal, Popconfirm, Radio, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
-import { CloudDownloadOutlined, CloudUploadOutlined, DeleteOutlined, EditOutlined, ImportOutlined, PictureOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, ShopOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { App as AntApp, Avatar, Button, Card, Empty, Form, Input, InputNumber, Modal, Popconfirm, Radio, Select, Skeleton, Space, Table, Tabs, Tag, Typography } from 'antd';
+import { CloudDownloadOutlined, CloudUploadOutlined, DeleteOutlined, EditOutlined, ImportOutlined, LinkOutlined, PictureOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, ShopOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { MoneyText } from '@/components/MoneyText';
@@ -14,7 +14,7 @@ import { useChannelAccounts } from '@/lib/channels';
 import { useSyncPolling } from '@/lib/syncPolling';
 import {
     ChannelListing, InventoryLevel, Sku,
-    useAdjustStock, useAutoMatchSkus, useBulkAdjustStock, useBulkPushStock, useChannelListings, useCreateSku, useDeleteSku, useInventoryLevels, useSetSkuMapping, useSkus, useSyncChannelListings, useWarehouses,
+    useAdjustStock, useAutoMatchSkus, useBulkAdjustStock, useBulkPushStock, useChannelListings, useCreateSku, useDeleteSku, useInventoryLevels, useSetSkuMapping, useSku, useSkus, useSyncChannelListings, useWarehouses,
 } from '@/lib/inventory';
 
 function StockBadge({ available }: { available: number }) {
@@ -111,6 +111,7 @@ function SkusTab() {
     const canMap = useCan('inventory.map');
     const [bulkOpen, setBulkOpen] = useState(false);
     const [selectedKeys, setSelectedKeys] = useState<number[]>([]);
+    const [linkFor, setLinkFor] = useState<Sku | null>(null);
     const [bulkForm] = Form.useForm();
 
     const columns: ColumnsType<Sku> = [
@@ -122,6 +123,9 @@ function SkusTab() {
         { title: 'LN/đv', key: 'profit', width: 130, align: 'right', render: (_, r) => (r.ref_profit_per_unit == null ? '—' : <Typography.Text style={{ color: r.ref_profit_per_unit >= 0 ? '#389e0d' : '#cf1322' }}><MoneyText value={r.ref_profit_per_unit} />{r.ref_margin_percent != null ? ` · ${r.ref_margin_percent}%` : ''}</Typography.Text>) },
         { title: 'Thực có', dataIndex: 'on_hand_total', key: 'oh', width: 90, align: 'right', render: (v) => v ?? 0 },
         { title: 'Khả dụng', dataIndex: 'available_total', key: 'av', width: 100, align: 'right', render: (v) => <StockBadge available={v ?? 0} /> },
+        { title: 'Liên kết sàn', key: 'links', width: 120, align: 'center', render: (_, r) => ((r.mappings_count ?? 0) > 0
+            ? <Button size="small" type="link" style={{ padding: 0 }} icon={<LinkOutlined />} onClick={() => setLinkFor(r)}>{r.mappings_count} sàn</Button>
+            : <Typography.Text type="secondary">—</Typography.Text>) },
         ...(canManage ? [{ title: '', key: 'act', width: 90, render: (_: unknown, r: Sku) => (
             <Space size={2}>
                 <Button size="small" type="text" icon={<EditOutlined />} onClick={() => navigate(`/inventory/skus/${r.id}/edit`)} title="Sửa SKU" />
@@ -181,7 +185,46 @@ function SkusTab() {
                     </Form.List>
                 </Form>
             </Modal>
+
+            {linkFor && <LinkedListingsModal sku={linkFor} onClose={() => setLinkFor(null)} />}
         </>
+    );
+}
+
+/** Modal liệt kê các SKU sàn đã liên kết với một master SKU — nạp chi tiết qua GET /skus/{id}. */
+function LinkedListingsModal({ sku, onClose }: { sku: Sku; onClose: () => void }) {
+    const navigate = useNavigate();
+    const { data, isLoading } = useSku(sku.id);
+    const { data: accounts } = useChannelAccounts();
+    const shopOf = (id: number) => (accounts?.data ?? []).find((a) => a.id === id);
+    const maps = (data?.mappings ?? []).filter((m) => m.channel_listing);
+
+    return (
+        <Modal open title={`Liên kết SKU sàn — ${sku.sku_code}`} onCancel={onClose} width={560}
+            footer={<Space><Button onClick={onClose}>Đóng</Button><Button type="primary" icon={<EditOutlined />} onClick={() => { onClose(); navigate(`/inventory/skus/${sku.id}/edit`); }}>Sửa liên kết</Button></Space>}>
+            {isLoading ? <Skeleton active paragraph={{ rows: 3 }} />
+                : maps.length === 0 ? <Empty description="Chưa có liên kết SKU sàn." />
+                    : <Space direction="vertical" style={{ width: '100%' }} size={8}>
+                        {maps.map((m) => {
+                            const cl = m.channel_listing!;
+                            const shop = shopOf(cl.channel_account_id);
+                            const meta = [shop?.name, `SKU sàn: ${cl.seller_sku || cl.external_sku_id}`, cl.variation || null].filter(Boolean).join(' · ');
+                            return (
+                                <Card key={m.id} size="small" styles={{ body: { padding: 10 } }}>
+                                    <Space align="start" style={{ width: '100%' }}>
+                                        {shop && <ChannelLogo provider={shop.provider} size={18} />}
+                                        <Avatar shape="square" size={40} src={cl.image ?? undefined} style={{ background: '#f5f5f5', color: '#bfbfbf' }} icon={<PictureOutlined />} />
+                                        <Space direction="vertical" size={0} style={{ minWidth: 0 }}>
+                                            <Typography.Text strong ellipsis={{ tooltip: cl.title ?? undefined }} style={{ maxWidth: 380 }}>{cl.title ?? '(không tên)'}</Typography.Text>
+                                            <Typography.Text type="secondary" style={{ fontSize: 12 }}>{meta}</Typography.Text>
+                                            {cl.channel_stock != null && <Typography.Text type="secondary" style={{ fontSize: 12 }}>Tồn trên sàn: {cl.channel_stock}</Typography.Text>}
+                                        </Space>
+                                    </Space>
+                                </Card>
+                            );
+                        })}
+                    </Space>}
+        </Modal>
     );
 }
 

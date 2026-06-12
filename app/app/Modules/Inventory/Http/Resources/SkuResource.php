@@ -43,6 +43,7 @@ class SkuResource extends JsonResource
             'reserved_total' => $this->whenLoaded('levels', fn () => (int) $this->levels->sum('reserved')),
             'available_total' => $this->whenLoaded('levels', fn () => (int) $this->levels->sum('available_cached')),
             'levels' => InventoryLevelResource::collection($this->whenLoaded('levels')),
+            'mappings_count' => $this->whenCounted('mappings'),
             'mappings' => SkuMappingResource::collection($this->whenLoaded('mappings')),
             'created_at' => $this->created_at?->toIso8601String(),
         ];
