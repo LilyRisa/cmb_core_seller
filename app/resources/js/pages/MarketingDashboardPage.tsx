@@ -35,19 +35,8 @@ const ADS_ERRORS: Record<string, string> = {
 };
 
 const COLS_KEY = 'marketing.report.columns';
-const RANGE_KEY = 'marketing.report.range';
-// Restore the last campaign date filter from localStorage; default to today.
-const loadRange = (): [Dayjs, Dayjs] => {
-    try {
-        const raw = JSON.parse(localStorage.getItem(RANGE_KEY) || '');
-        if (Array.isArray(raw) && raw.length === 2) {
-            const a = dayjs(raw[0]);
-            const b = dayjs(raw[1]);
-            if (a.isValid() && b.isValid()) return [a, b];
-        }
-    } catch { /* ignore malformed value */ }
-    return [dayjs(), dayjs()];
-};
+// Bộ lọc thời gian luôn mở ở "Hôm nay" mỗi lần vào trang (không lưu lại lựa chọn cũ).
+const todayRange = (): [Dayjs, Dayjs] => [dayjs(), dayjs()];
 
 // Ghi nhớ lựa chọn 2 cấp BM + tài khoản quảng cáo để khỏi phải chọn lại sau khi tải lại trang.
 const BM_KEY = 'marketing.report.bm';
@@ -77,7 +66,7 @@ export function MarketingDashboardPage() {
     const [accountId, setAccountId] = useState<number | null>(loadAccount);
     const [level, setLevel] = useState<ReportLevel>('campaign');
     const [reportView, setReportView] = useState<'tree' | 'flat'>('flat');
-    const [range, setRange] = useState<[Dayjs, Dayjs]>(loadRange);
+    const [range, setRange] = useState<[Dayjs, Dayjs]>(todayRange);
     const [q, setQ] = useState('');
     const [adId, setAdId] = useState('');
     const [objective, setObjective] = useState<string | undefined>(undefined);
@@ -87,9 +76,6 @@ export function MarketingDashboardPage() {
         try { return JSON.parse(localStorage.getItem(COLS_KEY) || '') ?? DEFAULT_COLUMNS; } catch { return DEFAULT_COLUMNS; }
     });
     useEffect(() => { localStorage.setItem(COLS_KEY, JSON.stringify(cols)); }, [cols]);
-    useEffect(() => {
-        localStorage.setItem(RANGE_KEY, JSON.stringify([range[0].format('YYYY-MM-DD'), range[1].format('YYYY-MM-DD')]));
-    }, [range]);
 
     // BM groups → accounts in selected BM.
     const bmGroups = useMemo(() => {
@@ -130,6 +116,8 @@ export function MarketingDashboardPage() {
         { label: '7 ngày qua', value: [dayjs().subtract(6, 'day'), dayjs()] },
         { label: '30 ngày qua', value: [dayjs().subtract(29, 'day'), dayjs()] },
         { label: '90 ngày qua', value: [dayjs().subtract(89, 'day'), dayjs()] },
+        // Tối đa: Facebook Ads Insights chỉ lưu dữ liệu 37 tháng (date_preset=maximum).
+        { label: 'Tối đa (37 tháng)', value: [dayjs().subtract(37, 'month'), dayjs()] },
     ], []);
     const filters = useMemo(() => ({
         // Ad tab inherits the campaign scope (all ads of the campaign's adsets) and

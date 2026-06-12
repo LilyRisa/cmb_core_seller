@@ -28,18 +28,8 @@ const ADS_ERRORS: Record<string, string> = {
     tiktok_marketing_oauth_failed: 'Kết nối TikTok Ads thất bại.',
 };
 
-const RANGE_KEY = 'tiktok-ads.report.range';
-const loadRange = (): [Dayjs, Dayjs] => {
-    try {
-        const raw = JSON.parse(localStorage.getItem(RANGE_KEY) || '');
-        if (Array.isArray(raw) && raw.length === 2) {
-            const a = dayjs(raw[0]);
-            const b = dayjs(raw[1]);
-            if (a.isValid() && b.isValid()) return [a, b];
-        }
-    } catch { /* ignore */ }
-    return [dayjs(), dayjs()];
-};
+// Bộ lọc thời gian luôn mở ở "Hôm nay" mỗi lần vào trang (không lưu lại lựa chọn cũ).
+const todayRange = (): [Dayjs, Dayjs] => [dayjs(), dayjs()];
 
 // Ghi nhớ tài khoản quảng cáo đã chọn để khỏi phải chọn lại sau khi tải lại trang.
 const ACCOUNT_KEY = 'tiktok-ads.report.account';
@@ -67,15 +57,11 @@ export function TikTokAdsDashboardPage() {
     const [accountId, setAccountId] = useState<number | null>(loadAccount);
     const [level, setLevel] = useState<ReportLevel>('campaign');
     const [reportView, setReportView] = useState<'tree' | 'flat'>('flat');
-    const [range, setRange] = useState<[Dayjs, Dayjs]>(loadRange);
+    const [range, setRange] = useState<[Dayjs, Dayjs]>(todayRange);
     const [connOpen, setConnOpen] = useState(false);
     const [q, setQ] = useState('');
     const [monitorTarget, setMonitorTarget] = useState<MonitorTarget | null>(null);
     const [aiCampaign, setAiCampaign] = useState<{ id: string; name: string | null } | null>(null);
-
-    useEffect(() => {
-        localStorage.setItem(RANGE_KEY, JSON.stringify([range[0].format('YYYY-MM-DD'), range[1].format('YYYY-MM-DD')]));
-    }, [range]);
 
     // Dùng id đã chọn nếu nó vẫn còn trong danh sách (tránh id cũ của tài khoản đã ngắt kết nối),
     // nếu không thì rơi về tài khoản đầu tiên.
@@ -100,6 +86,8 @@ export function TikTokAdsDashboardPage() {
         { label: '7 ngày qua', value: [dayjs().subtract(6, 'day'), dayjs()] },
         { label: '30 ngày qua', value: [dayjs().subtract(29, 'day'), dayjs()] },
         { label: '90 ngày qua', value: [dayjs().subtract(89, 'day'), dayjs()] },
+        // Tối đa: report TikTok (BASIC, không breakdown theo ngày) cho phép tối đa 365 ngày.
+        { label: 'Tối đa (365 ngày)', value: [dayjs().subtract(364, 'day'), dayjs()] },
     ], []);
 
     const filters = useMemo(() => ({ q: q || undefined }), [q]);
