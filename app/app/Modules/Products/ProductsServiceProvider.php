@@ -2,6 +2,9 @@
 
 namespace CMBcoreSeller\Modules\Products;
 
+use CMBcoreSeller\Modules\Channels\Events\MarketplaceProductUpdated;
+use CMBcoreSeller\Modules\Products\Listeners\OnMarketplaceProductUpdated;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -24,5 +27,8 @@ class ProductsServiceProvider extends ServiceProvider
         if (is_file(__DIR__.'/Http/routes.php')) {
             $this->loadRoutesFrom(__DIR__.'/Http/routes.php');
         }
+
+        // Webhook product_update (Channels) → re-check trạng thái xét duyệt listing.
+        Event::listen(MarketplaceProductUpdated::class, OnMarketplaceProductUpdated::class);
     }
 }

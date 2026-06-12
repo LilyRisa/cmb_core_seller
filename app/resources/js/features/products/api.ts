@@ -21,7 +21,7 @@ export interface ListingDraftSummary {
     status: ListingStatus;
 }
 
-export type ListingStatus = 'draft' | 'ready' | 'pushing' | 'published' | 'failed';
+export type ListingStatus = 'draft' | 'ready' | 'pushing' | 'reviewing' | 'live' | 'published' | 'failed';
 
 export interface ListingDraftSku {
     id: number;

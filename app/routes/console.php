@@ -12,6 +12,8 @@ use CMBcoreSeller\Modules\Marketing\Jobs\SyncAdInsights;
 use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
 use CMBcoreSeller\Modules\Messaging\Jobs\SyncConversationsForShop;
 use CMBcoreSeller\Modules\Messaging\Jobs\SyncUtilityTemplateStatus;
+use CMBcoreSeller\Modules\Products\Jobs\RefreshListingQcStatus;
+use CMBcoreSeller\Modules\Products\Models\ListingDraft;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -137,6 +139,17 @@ Schedule::call(function () {
         ->orderBy('id')
         ->each(fn ($a) => SyncConversationsForShop::dispatch((int) $a->getKey()));
 })->everyFiveMinutes()->name('messaging-chat-poll')->onOneServer()->withoutOverlapping();
+
+// Every 30': re-check QC status of pushed-but-under-review listings — poll backup cho
+// webhook product_update (webhook untrusted ⇒ luôn có poll). Chỉ shop có nháp đang duyệt.
+Schedule::call(function () {
+    ListingDraft::withoutGlobalScope(TenantScope::class)
+        ->where('status', ListingDraft::STATUS_REVIEWING)
+        ->whereNotNull('external_item_id')
+        ->distinct()
+        ->pluck('channel_account_id')
+        ->each(fn ($id) => RefreshListingQcStatus::dispatch((int) $id));
+})->everyThirtyMinutes()->name('listing-qc-poll')->onOneServer()->withoutOverlapping();
 
 // Every 15': poll Facebook ad insights for active ad accounts (FB refreshes ~15').
 // SPEC 2026-06-04. ShouldBeUnique(900s) guards overlap; throttle pacing inside the job.

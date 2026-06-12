@@ -16,6 +16,7 @@ use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Products\Jobs\PushListingJob;
+use CMBcoreSeller\Modules\Products\Jobs\RefreshListingQcStatus;
 use CMBcoreSeller\Modules\Products\Models\ListingDraft;
 use CMBcoreSeller\Modules\Products\Models\Product;
 use CMBcoreSeller\Modules\Products\Models\ProductPushBatch;
@@ -136,14 +137,31 @@ class ListingPushTest extends TestCase
             app(ListingDraftService::class),
         );
 
+        // Sàn xét duyệt: rawStatus 'PENDING' ⇒ nháp ở trạng thái 'reviewing' (chưa live).
         $fresh = $this->draft->fresh();
-        $this->assertSame(ListingDraft::STATUS_LIVE, $fresh->status);
+        $this->assertSame(ListingDraft::STATUS_REVIEWING, $fresh->status);
         $this->assertSame('LZ-999', $fresh->external_item_id);
+        $this->assertSame('PENDING', $fresh->raw_qc_status);
 
         $this->assertSame('success', $row->fresh()->status);
         $batch->refresh();
         $this->assertSame(1, (int) $batch->succeeded);
         $this->assertSame('done', $batch->status);
+    }
+
+    public function test_refresh_qc_status_moves_reviewing_draft_to_live(): void
+    {
+        // FakePushPublisher::getListingStatus trả 'live' ⇒ nháp đang duyệt → live.
+        $this->bindPublisher(new FakePushPublisher(new ListingResultDTO('LZ-1', [], 'PENDING')));
+        $this->draft->update([
+            'status' => ListingDraft::STATUS_REVIEWING,
+            'external_item_id' => 'LZ-1',
+            'raw_qc_status' => 'PENDING',
+        ]);
+
+        (new RefreshListingQcStatus($this->accountId))->handle(app(PublisherRegistry::class));
+
+        $this->assertSame(ListingDraft::STATUS_LIVE, $this->draft->fresh()->status);
     }
 
     public function test_job_marks_failed_on_api_exception_without_throwing(): void

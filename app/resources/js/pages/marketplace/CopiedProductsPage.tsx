@@ -13,6 +13,7 @@ const STATUS_TAG: Record<string, { color: string; label: string }> = {
     draft: { color: 'default', label: 'Nháp' },
     ready: { color: 'green', label: 'Sẵn sàng' },
     pushing: { color: 'blue', label: 'Đang đẩy' },
+    reviewing: { color: 'gold', label: 'Đang duyệt' },
     live: { color: 'success', label: 'Đã đăng' },
     published: { color: 'success', label: 'Đã đăng' },
     failed: { color: 'red', label: 'Lỗi' },

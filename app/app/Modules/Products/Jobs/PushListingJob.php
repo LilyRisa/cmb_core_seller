@@ -73,14 +73,17 @@ class PushListingJob implements ShouldQueue
             $dto = $drafts->toDraftDTO($listing);
             $result = $pubs->for($listing->provider)->createListing($auth, $dto);
 
+            // Sàn luôn xét duyệt: map raw QC → reviewing/live/failed (KHÔNG mặc định live).
+            // Trạng thái cuối cập nhật qua webhook/poll product_update (RefreshListingQcStatus).
+            $status = ListingDraftService::statusFromRaw($result->rawStatus);
             $listing->update([
-                'status' => ListingDraft::STATUS_LIVE,
+                'status' => $status,
                 'external_item_id' => $result->externalItemId,
                 'raw_qc_status' => $result->rawStatus,
                 'pushed_at' => now(),
                 'last_error' => null,
             ]);
-            $row->mark('success', 'Hoàn tất', 100);
+            $row->mark('success', $status === ListingDraft::STATUS_REVIEWING ? 'Đã đẩy — chờ sàn duyệt' : 'Hoàn tất', 100);
         } catch (\Throwable $e) {
             $listing->update([
                 'status' => ListingDraft::STATUS_FAILED,

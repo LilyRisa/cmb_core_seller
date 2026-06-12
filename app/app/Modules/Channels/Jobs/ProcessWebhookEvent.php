@@ -8,6 +8,7 @@ use CMBcoreSeller\Integrations\Channels\DTO\PenaltyEventDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
 use CMBcoreSeller\Modules\Channels\Events\ChannelAccountRevoked;
 use CMBcoreSeller\Modules\Channels\Events\DataDeletionRequested;
+use CMBcoreSeller\Modules\Channels\Events\MarketplaceProductUpdated;
 use CMBcoreSeller\Modules\Channels\Events\ShopPenaltyDetected;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\ShopPenaltyEvent;
@@ -95,8 +96,11 @@ class ProcessWebhookEvent implements ShouldQueue
 
                 WebhookEventDTO::TYPE_SHOP_PENALTY_UPDATE => $this->handlePenaltyUpdate($event, $account, $connector),
 
-                WebhookEventDTO::TYPE_SETTLEMENT_AVAILABLE,
-                WebhookEventDTO::TYPE_PRODUCT_UPDATE => Log::info('webhook.deferred', ['type' => $event->event_type, 'shop' => $account->external_shop_id]), // later phases
+                // Sản phẩm đổi (kết thúc xét duyệt QC / bị cấm) ⇒ Products re-check trạng thái
+                // các nháp đang chờ duyệt trên shop (webhook = tín hiệu, poll lại là nguồn truth).
+                WebhookEventDTO::TYPE_PRODUCT_UPDATE => MarketplaceProductUpdated::dispatch($account),
+
+                WebhookEventDTO::TYPE_SETTLEMENT_AVAILABLE => Log::info('webhook.deferred', ['type' => $event->event_type, 'shop' => $account->external_shop_id]), // later phases
 
                 default => $event->forceFill(['status' => WebhookEvent::STATUS_IGNORED])->save(),
             };

@@ -28,7 +28,7 @@ export function PublishablePage() {
                 }
             />
             <ListingDraftsTable
-                statuses={['ready', 'draft', 'failed']}
+                statuses={['ready', 'draft', 'failed', 'pushing', 'reviewing']}
                 showPush
                 emptyText="Chưa có bản nháp nào. Tạo nháp từ mục “Sản phẩm sao chép”."
             />

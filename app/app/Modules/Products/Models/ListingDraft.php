@@ -50,6 +50,9 @@ class ListingDraft extends Model
 
     public const STATUS_PUSHING = 'pushing';
 
+    /** Đã đẩy lên sàn, đang chờ sàn xét duyệt (QC). Cập nhật qua webhook/poll product_update. */
+    public const STATUS_REVIEWING = 'reviewing';
+
     public const STATUS_LIVE = 'live';
 
     public const STATUS_FAILED = 'failed';

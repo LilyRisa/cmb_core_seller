@@ -29,6 +29,20 @@ use Illuminate\Support\Facades\DB;
 final class ListingDraftService
 {
     /**
+     * Map a marketplace QC/publish raw status (từ create result hoặc getListingStatus)
+     * về trạng thái {@see ListingDraft}: chờ duyệt → REVIEWING, duyệt xong → LIVE,
+     * bị từ chối → FAILED. Mặc định coi như đang duyệt (an toàn — sàn luôn xét duyệt).
+     */
+    public static function statusFromRaw(string $rawStatus): string
+    {
+        return match (strtoupper(trim($rawStatus))) {
+            'APPROVED', 'LIVE', 'NORMAL', 'ACTIVATE', 'ACTIVE', 'SUCCESS', 'PUBLISHED' => ListingDraft::STATUS_LIVE,
+            'REJECTED', 'FAILED', 'BANNED', 'DELETED', 'FROZEN', 'FREEZE' => ListingDraft::STATUS_FAILED,
+            default => ListingDraft::STATUS_REVIEWING, // PENDING / AUDITING / PENDING QC / '' …
+        };
+    }
+
+    /**
      * Create (or return the existing) draft for a master product on a channel.
      * Enforces the unique (tenant, product, channel_account) tuple — repeat calls
      * are idempotent and return the same draft.
