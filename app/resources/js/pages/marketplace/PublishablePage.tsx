@@ -30,7 +30,7 @@ export function PublishablePage() {
             <ListingDraftsTable
                 statuses={['ready', 'draft', 'failed']}
                 showPush
-                emptyText="Chưa có bản nháp nào. Tạo nháp từ mục “Sản phẩm copy”."
+                emptyText="Chưa có bản nháp nào. Tạo nháp từ mục “Sản phẩm sao chép”."
             />
         </div>
     );

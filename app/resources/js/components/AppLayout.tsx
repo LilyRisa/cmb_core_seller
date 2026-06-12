@@ -66,7 +66,7 @@ function buildNav(): MenuProps['items'] {
             { key: '/products', icon: <AppstoreOutlined />, label: <Link to="/products">Sản phẩm & SKU</Link> },
         ] },
         { type: 'group', label: 'Đăng bán sàn', children: [
-            { key: '/marketplace/products', icon: <CopyOutlined />, label: <Link to="/marketplace/products">Sản phẩm copy</Link> },
+            { key: '/marketplace/products', icon: <CopyOutlined />, label: <Link to="/marketplace/products">Sao chép sản phẩm</Link> },
             { key: '/marketplace/to-push', icon: <CloudUploadOutlined />, label: <Link to="/marketplace/to-push">Chờ đẩy lên sàn</Link> },
             { key: '/marketplace/on-channel', icon: <ShopOutlined />, label: <Link to="/marketplace/on-channel">Đã có trên sàn</Link> },
         ] },
