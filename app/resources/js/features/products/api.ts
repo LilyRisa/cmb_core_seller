@@ -112,6 +112,10 @@ export async function listMasterProducts(client: AxiosInstance, status?: string)
     return data.data;
 }
 
+export async function deleteMasterProduct(client: AxiosInstance, id: number): Promise<void> {
+    await client.delete(`/products/${id}`);
+}
+
 export async function getListing(client: AxiosInstance, id: number): Promise<ListingDraft> {
     const { data } = await client.get<{ data: ListingDraft }>(`/listings/${id}`);
     return data.data;

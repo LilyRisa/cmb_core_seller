@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { App as AntApp, Button, Empty, Image, Modal, Radio, Result, Space, Table, Tag, Typography } from 'antd';
+import { App as AntApp, Button, Empty, Image, Modal, Popconfirm, Radio, Result, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { DeleteOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { errorMessage } from '@/lib/api';
 import { useChannelAccounts } from '@/lib/channels';
 import { ListingEditorDrawer } from '@/features/products/ListingEditorDrawer';
-import { useCreateListing, useMasterProducts } from '@/features/products/hooks';
+import { useCreateListing, useDeleteMasterProduct, useMasterProducts } from '@/features/products/hooks';
 import type { ListingDraftSummary, MasterProduct } from '@/features/products/api';
 
 const STATUS_TAG: Record<string, { color: string; label: string }> = {
@@ -43,6 +43,7 @@ export function CopiedProductsPage() {
     const { data: products, isLoading, isError, error, refetch } = useMasterProducts();
     const { data: channelData } = useChannelAccounts();
     const createListing = useCreateListing();
+    const deleteProduct = useDeleteMasterProduct();
 
     const [editorListingId, setEditorListingId] = useState<number | null>(null);
     const [editorOpen, setEditorOpen] = useState(false);
@@ -104,11 +105,28 @@ export function CopiedProductsPage() {
         {
             title: '',
             key: 'actions',
-            width: 150,
+            width: 230,
             render: (_, r) => (
-                <Button size="small" icon={<PlusOutlined />} onClick={() => openCreateModal(r)}>
-                    Tạo nháp sàn
-                </Button>
+                <Space>
+                    <Button size="small" icon={<PlusOutlined />} onClick={() => openCreateModal(r)}>
+                        Tạo nháp sàn
+                    </Button>
+                    <Popconfirm
+                        title="Xóa sản phẩm copy?"
+                        description="Gỡ sản phẩm này (và bản nháp sàn của nó) khỏi hệ thống. Không ảnh hưởng listing đã đăng trên sàn."
+                        okText="Xóa"
+                        cancelText="Hủy"
+                        okButtonProps={{ danger: true }}
+                        onConfirm={() =>
+                            deleteProduct.mutate(r.id, {
+                                onSuccess: () => message.success('Đã xóa sản phẩm.'),
+                                onError: (e) => message.error(errorMessage(e)),
+                            })
+                        }
+                    >
+                        <Button size="small" danger icon={<DeleteOutlined />} />
+                    </Popconfirm>
+                </Space>
             ),
         },
     ];

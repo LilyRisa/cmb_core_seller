@@ -6,6 +6,7 @@ import {
     bulkPush,
     cloneListing,
     createListing,
+    deleteMasterProduct,
     getAttributes,
     getBrands,
     getCategories,
@@ -109,6 +110,18 @@ export function useBrands(provider: string | null, channelAccountId: number | nu
 /* ============================================================================
  * Mutations
  * ========================================================================== */
+
+export function useDeleteMasterProduct() {
+    const client = useScopedApi();
+    const qc = useQueryClient();
+    const tenantId = useTenantId();
+    return useMutation({
+        mutationFn: (id: number) => deleteMasterProduct(client!, id),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['products', 'master', tenantId] });
+        },
+    });
+}
 
 export function useCreateListing() {
     const client = useScopedApi();
