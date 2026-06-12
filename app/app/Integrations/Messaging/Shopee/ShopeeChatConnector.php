@@ -63,12 +63,11 @@ class ShopeeChatConnector implements MessagingConnector
     {
         return [
             'inbound.webhook' => true,
-            // Bật polling LÀM BACKFILL + lưới an toàn cho webhook (Shopee push code 10 vẫn là đường
-            // realtime chính). Kéo hội thoại/tin qua `sellerchat/get_conversation_list` + `get_message`.
-            // Ingest idempotent theo (conversation, message_id) ⇒ webhook & poll trùng tin là vô hại.
-            // SPEC-0024 Phase C (Shopee follow-up). PHẢI verify sandbox thật — shape sellerchat get_* là
-            // endpoint cộng đồng (tài liệu chính thức không chi tiết), giống `send_message`.
-            'inbound.polling' => true,
+            // TẮT polling: `sellerchat/get_conversation_list` + `get_message` là endpoint cộng đồng
+            // (tài liệu chính thức không chi tiết, chưa verify sandbox) ⇒ poll mỗi 5' làm tỷ lệ gọi API
+            // fail cao. Shopee push code 10 (Webchat) đã là đường realtime qua webhook nên KHÔNG cần poll;
+            // tắt để dừng luồng gọi chat Shopee ra ngoài. Bật lại sau khi verify sandbox shape get_*.
+            'inbound.polling' => false,
             'outbound.text' => true,
             'outbound.image' => true,
             'outbound.video' => false,

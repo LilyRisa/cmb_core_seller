@@ -3,6 +3,7 @@
 namespace Tests\Feature\Messaging;
 
 use CMBcoreSeller\Models\User;
+use CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter;
 use CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
@@ -176,8 +177,8 @@ class MessagingAiSuggestionTest extends TestCase
 
     public function test_successful_suggestion_records_one_credit(): void
     {
-        /** @var \CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter $meter */
-        $meter = app(\CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter::class);
+        /** @var AiCreditMeter $meter */
+        $meter = app(AiCreditMeter::class);
         $this->assertSame(0, $meter->summary((int) $this->tenant->getKey())['period_used']);
 
         $this->actingAs($this->owner)->withHeaders($this->h())

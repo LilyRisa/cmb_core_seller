@@ -180,10 +180,10 @@ class ChatSyncJobTest extends TestCase
     }
 
     /**
-     * Happy path: Shopee account (polling backfill — SPEC-0024 Phase C follow-up) with 1 conversation
-     * + 1 inbound message → created in DB with provider='shopee_chat', meta sync_status='done'.
+     * Shopee chat là webhook-only: `inbound.polling=false` (tắt để tránh gọi
+     * `sellerchat/get_*` fail) ⇒ job no-op, KHÔNG gọi API sellerchat, không tạo hội thoại.
      */
-    public function test_syncs_shopee_conversations_and_messages(): void
+    public function test_shopee_polling_disabled_is_a_noop(): void
     {
         ShopeeFixtures::configure();
         config(['integrations.messaging' => ['shopee_chat']]);
@@ -199,26 +199,16 @@ class ChatSyncJobTest extends TestCase
             'messaging_enabled' => true,
         ]);
 
-        Http::fake([
-            '*/api/v2/sellerchat/get_conversation_list*' => Http::response(self::shopeeConversationListPage(), 200),
-            '*/api/v2/sellerchat/get_message*' => Http::response(self::shopeeMessageListPage(), 200),
-        ]);
+        Http::fake();
 
         (new SyncConversationsForShop($acct->id))->handle(
             app(MessagingRegistry::class),
             app(MessageIngestionService::class),
         );
 
-        $this->assertDatabaseHas('conversations', [
-            'channel_account_id' => $acct->id,
-            'provider' => 'shopee_chat',
-            'external_conversation_id' => 'SC_1',
-        ]);
-        $this->assertDatabaseHas('messages', ['external_message_id' => 'SM_1']);
-
-        $meta = MessagingAccountMeta::withoutGlobalScopes()->where('channel_account_id', $acct->id)->firstOrFail();
-        $this->assertSame('done', $meta->sync_status);
-        $this->assertNotNull($meta->last_synced_at);
+        // Không gọi API chat Shopee, không tạo hội thoại nào.
+        Http::assertNothingSent();
+        $this->assertDatabaseMissing('conversations', ['channel_account_id' => $acct->id]);
     }
 
     /**

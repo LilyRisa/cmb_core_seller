@@ -109,9 +109,10 @@ class ResyncChatEndpointTest extends TestCase
     }
 
     /**
-     * Shopee account (polling backfill bật ở SPEC-0024 Phase C follow-up) → 200, job dispatched.
+     * Shopee chat là webhook-only (polling TẮT để tránh gọi `sellerchat/get_*` fail) →
+     * resync-chat trả 422, KHÔNG dispatch job.
      */
-    public function test_shopee_supports_polling_queues_job(): void
+    public function test_shopee_is_webhook_only_resync_chat_returns_422(): void
     {
         Queue::fake();
 
@@ -133,10 +134,9 @@ class ResyncChatEndpointTest extends TestCase
         $this->actingAs($this->owner)
             ->withHeaders($this->h())
             ->postJson("/api/v1/channel-accounts/{$shopeeAcct->id}/resync-chat")
-            ->assertOk()
-            ->assertJsonPath('data.queued', true);
+            ->assertStatus(422);
 
-        Queue::assertPushed(SyncConversationsForShop::class, fn ($job) => $job->channelAccountId === (int) $shopeeAcct->id);
+        Queue::assertNotPushed(SyncConversationsForShop::class);
     }
 
     /**

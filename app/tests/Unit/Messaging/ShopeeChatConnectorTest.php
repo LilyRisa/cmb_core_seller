@@ -305,13 +305,14 @@ class ShopeeChatConnectorTest extends TestCase
         $this->assertInstanceOf(ShopeeChatConnector::class, $registry->for('shopee_chat'));
     }
 
-    // --- Polling (backfill + lưới an toàn) — SHAPE-TESTED, verify sandbox -----
+    // --- Webhook-only: polling TẮT (tránh gọi sellerchat/get_* fail) ----------
 
-    public function test_inbound_polling_capability_true_and_webhook_still_true(): void
+    public function test_inbound_polling_disabled_webhook_still_true(): void
     {
         $c = $this->connector();
-        // Shopee có CẢ webhook realtime (code 10) LẪN polling backfill — ingest idempotent nên không trùng.
-        $this->assertTrue($c->supports('inbound.polling'), 'inbound.polling phải true để job sync chạy cho Shopee');
+        // Polling tắt: `sellerchat/get_*` là endpoint cộng đồng chưa verify ⇒ poll fail nhiều.
+        // Shopee nhận chat realtime qua webhook (push code 10) nên không cần poll.
+        $this->assertFalse($c->supports('inbound.polling'), 'inbound.polling phải false — Shopee chat webhook-only');
         $this->assertTrue($c->supports('inbound.webhook'), 'webhook vẫn là đường realtime chính');
     }
 
