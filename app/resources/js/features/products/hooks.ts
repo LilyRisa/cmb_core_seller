@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getCurrentTenantId } from '@/lib/auth';
 import { tenantApi } from '@/lib/api';
+import { useCurrentTenantId } from '@/lib/tenant';
 import {
     bulkPush,
     cloneListing,
@@ -22,14 +22,19 @@ import {
     type UpdateListingPayload,
 } from './api';
 
-/** Tenant-scoped axios client, resolved internally (giống các lib khác). */
+/**
+ * Tenant-scoped axios client. Dùng `useCurrentTenantId()` (có fallback về tenant
+ * đầu của user) — KHÔNG dùng `getCurrentTenantId()` thuần (đọc localStorage, trả
+ * null khi user chưa từng bấm đổi gian hàng) ⇒ tránh client null làm danh sách
+ * sản phẩm trống và nút "Làm mới" (refetch bỏ qua `enabled`) crash `null.get`.
+ */
 function useScopedApi() {
-    const tenantId = getCurrentTenantId();
+    const tenantId = useCurrentTenantId();
     return useMemo(() => (tenantId == null ? null : tenantApi(tenantId)), [tenantId]);
 }
 
 function useTenantId() {
-    return getCurrentTenantId();
+    return useCurrentTenantId();
 }
 
 /* ============================================================================

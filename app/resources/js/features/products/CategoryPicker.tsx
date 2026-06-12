@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Cascader } from 'antd';
-import { getCurrentTenantId } from '@/lib/auth';
 import { tenantApi } from '@/lib/api';
+import { useCurrentTenantId } from '@/lib/tenant';
 import { getCategories, type CategoryNode } from './api';
 
 interface Option {
@@ -30,10 +30,8 @@ export function CategoryPicker({
     onChange?: (categoryId: string | null) => void;
     disabled?: boolean;
 }) {
-    const client = useMemo(() => {
-        const tid = getCurrentTenantId();
-        return tid == null ? null : tenantApi(tid);
-    }, []);
+    const tenantId = useCurrentTenantId();
+    const client = useMemo(() => (tenantId == null ? null : tenantApi(tenantId)), [tenantId]);
     const [options, setOptions] = useState<Option[]>([]);
     const [loaded, setLoaded] = useState(false);
 

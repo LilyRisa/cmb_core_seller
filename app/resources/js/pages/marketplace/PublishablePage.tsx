@@ -2,7 +2,7 @@ import { Button } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { PageHeader } from '@/components/PageHeader';
-import { getCurrentTenantId } from '@/lib/auth';
+import { useCurrentTenantId } from '@/lib/tenant';
 import { ListingDraftsTable } from '@/features/products/ListingDraftsTable';
 
 /**
@@ -11,7 +11,7 @@ import { ListingDraftsTable } from '@/features/products/ListingDraftsTable';
  */
 export function PublishablePage() {
     const qc = useQueryClient();
-    const tenantId = getCurrentTenantId();
+    const tenantId = useCurrentTenantId();
 
     return (
         <div>
