@@ -11,7 +11,7 @@ import { api } from '@/lib/api';
  * Mọi mutation invalidate `['admin', 'tenants']` để list/detail tự refetch.
  */
 
-export interface AdminOwner { id: number; name: string; email: string }
+export interface AdminOwner { id: number; name: string; email: string; email_verified_at?: string | null }
 
 export interface AdminSubscription {
     id: number;

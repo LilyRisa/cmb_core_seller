@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Card, Input, Radio, Space, Table, Tag, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { LockOutlined, SearchOutlined, WarningOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, ExclamationCircleOutlined, LockOutlined, SearchOutlined, WarningOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { useAdminTenants, type AdminTenantSummary } from '@admin/lib/admin';
 import { AdminTenantDrawer } from './AdminTenantDrawer';
@@ -50,6 +50,19 @@ export function AdminTenantsPage() {
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>{r.owner.email}</Typography.Text>
                 </Space>
             ) : <Typography.Text type="secondary">—</Typography.Text>,
+        },
+        {
+            title: 'Xác minh email', key: 'email_verified', width: 150,
+            render: (_v, r) => {
+                if (!r.owner) return <Typography.Text type="secondary">—</Typography.Text>;
+                return r.owner.email_verified_at ? (
+                    <Tooltip title={`Xác minh ${formatDateShort(r.owner.email_verified_at)}`}>
+                        <Tag color="green" icon={<CheckCircleOutlined />}>Đã xác minh</Tag>
+                    </Tooltip>
+                ) : (
+                    <Tag color="orange" icon={<ExclamationCircleOutlined />}>Chưa xác minh</Tag>
+                );
+            },
         },
         {
             title: 'Gói', key: 'plan', width: 180,

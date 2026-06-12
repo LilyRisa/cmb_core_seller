@@ -281,7 +281,7 @@ class AdminTenantController extends Controller
         $sub = $this->subscriptions->currentFor((int) $tenant->getKey());
         $owner = TenantUser::query()
             ->where('tenant_id', $tenant->getKey())
-            ->where('role', 'owner')->with('user:id,name,email')->first();
+            ->where('role', 'owner')->with('user:id,name,email,email_verified_at')->first();
 
         $used = $this->usage->channelAccounts((int) $tenant->getKey());
         $limit = $sub?->plan?->maxChannelAccounts();
@@ -294,6 +294,8 @@ class AdminTenantController extends Controller
             'created_at' => $tenant->created_at?->toIso8601String(),
             'owner' => $owner && $owner->user ? [
                 'id' => $owner->user->id, 'name' => $owner->user->name, 'email' => $owner->user->email,
+                // null ⇒ chủ shop chưa xác minh email.
+                'email_verified_at' => optional($owner->user->email_verified_at)->toIso8601String(),
             ] : null,
             'subscription' => $sub ? $this->subscriptionResource($sub) : null,
             'usage' => [
