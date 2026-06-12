@@ -71,10 +71,12 @@ export function CreateSkuPage() {
         return m;
     }, [shops]);
 
-    // Liên kết sàn — quản lý qua modal 2 pane; `mappings` giữ trong form store (set/get trực tiếp).
+    // Liên kết sàn — nguồn sự thật là local state (Form.useWatch không phản ánh setFieldsValue cho field
+    // không có <Form.Item>); đồng bộ ngược vào form store để submit đọc qua getFieldValue.
     const [linkOpen, setLinkOpen] = useState(false);
-    const mappings = (Form.useWatch('mappings', form) as LinkRow[] | undefined) ?? [];
-    const removeMapping = (m: LinkRow) => form.setFieldValue('mappings', mappings.filter(
+    const [mappings, setMappingsState] = useState<LinkRow[]>([]);
+    const setMappings = (rows: LinkRow[]) => { setMappingsState(rows); form.setFieldValue('mappings', rows); };
+    const removeMapping = (m: LinkRow) => setMappings(mappings.filter(
         (x) => !(x.channel_account_id === m.channel_account_id && x.external_sku_id === m.external_sku_id),
     ));
 
@@ -104,6 +106,14 @@ export function CreateSkuPage() {
     // Prefill on edit when the SKU loads.
     useEffect(() => {
         if (!editing) return;
+        const rows: LinkRow[] = (editing.mappings ?? [])
+            .filter((m) => m.channel_listing)
+            .map((m) => ({
+                channel_account_id: m.channel_listing!.channel_account_id, external_sku_id: m.channel_listing!.external_sku_id,
+                seller_sku: m.channel_listing!.seller_sku ?? undefined,
+                _listing: { external_sku_id: m.channel_listing!.external_sku_id, seller_sku: m.channel_listing!.seller_sku, title: m.channel_listing!.title, image: m.channel_listing!.image, variation: m.channel_listing!.variation, channel_stock: m.channel_listing!.channel_stock },
+            }));
+        setMappingsState(rows);
         form.setFieldsValue({
             sku_code: editing.sku_code, name: editing.name, spu_code: editing.spu_code ?? undefined, category: editing.category ?? undefined,
             gtins: editing.gtins ?? [], base_unit: editing.base_unit, cost_price: editing.cost_price ?? 0, cost_method: editing.cost_method ?? 'average', ref_sale_price: editing.ref_sale_price ?? undefined,
@@ -113,13 +123,7 @@ export function CreateSkuPage() {
             width_cm: editing.width_cm != null ? Number(editing.width_cm) : undefined,
             height_cm: editing.height_cm != null ? Number(editing.height_cm) : undefined,
             is_active: editing.is_active,
-            mappings: (editing.mappings ?? [])
-                .filter((m) => m.channel_listing)
-                .map((m) => ({
-                    channel_account_id: m.channel_listing!.channel_account_id, external_sku_id: m.channel_listing!.external_sku_id,
-                    seller_sku: m.channel_listing!.seller_sku ?? undefined,
-                    _listing: { external_sku_id: m.channel_listing!.external_sku_id, seller_sku: m.channel_listing!.seller_sku, title: m.channel_listing!.title, image: m.channel_listing!.image, variation: m.channel_listing!.variation, channel_stock: m.channel_listing!.channel_stock },
-                })),
+            mappings: rows,
         });
         setImageFile(null); setImageDeleted(false);
         setImagePreview(editing.image_url ?? undefined);
@@ -328,7 +332,7 @@ export function CreateSkuPage() {
                                 open={linkOpen}
                                 onClose={() => setLinkOpen(false)}
                                 value={mappings}
-                                onChange={(rows) => form.setFieldValue('mappings', rows)}
+                                onChange={(rows) => setMappings(rows)}
                                 shops={shops}
                             />
                         </Card>
