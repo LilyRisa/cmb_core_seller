@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { App as AntApp, Avatar, Button, Card, Empty, Input, Select, Space, Table, Tag, Typography } from 'antd';
+import { App as AntApp, Avatar, Button, Card, Checkbox, Empty, Input, Modal, Select, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { CloudDownloadOutlined, EditOutlined, PictureOutlined, SearchOutlined } from '@ant-design/icons';
+import { CloudDownloadOutlined, CopyOutlined, EditOutlined, PictureOutlined, SearchOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { MoneyText } from '@/components/MoneyText';
 import { ChannelLogo } from '@/components/ChannelLogo';
@@ -10,6 +10,7 @@ import { errorMessage } from '@/lib/api';
 import { useChannelAccounts } from '@/lib/channels';
 import { useSyncPolling } from '@/lib/syncPolling';
 import { type ChannelListing, useChannelListings, useSyncChannelListings } from '@/lib/inventory';
+import { useCloneChannelListingToShops } from '@/features/products/hooks';
 
 const SYNC_TAG: Record<string, { color: string; label: string }> = {
     ok: { color: 'green', label: 'Đã đồng bộ' },
@@ -31,6 +32,8 @@ export function OnChannelPage() {
     const [shopIds, setShopIds] = useState<number[]>([]);
     const [q, setQ] = useState('');
     const [page, setPage] = useState(1);
+    const [cloneFor, setCloneFor] = useState<ChannelListing | null>(null);
+    const [cloneShopIds, setCloneShopIds] = useState<number[]>([]);
 
     const { data, isFetching, refetch } = useChannelListings({
         page,
@@ -40,6 +43,34 @@ export function OnChannelPage() {
     });
     const syncListings = useSyncChannelListings();
     const syncPoll = useSyncPolling(() => refetch(), { durationMs: 90_000 });
+    const clone = useCloneChannelListingToShops();
+
+    // Gian hàng đích = mọi shop trừ shop nguồn của listing đang sao chép.
+    const cloneTargets = useMemo(
+        () => (cloneFor ? accounts.filter((a) => a.id !== cloneFor.channel_account_id) : []),
+        [accounts, cloneFor],
+    );
+
+    const openClone = (listing: ChannelListing) => {
+        setCloneFor(listing);
+        setCloneShopIds([]);
+    };
+
+    const handleClone = () => {
+        if (!cloneFor || cloneShopIds.length === 0) return;
+        clone.mutate(
+            { id: cloneFor.id, channelAccountIds: cloneShopIds },
+            {
+                onSuccess: (created) => {
+                    setCloneFor(null);
+                    const ready = created.filter((c) => c.status === 'ready').length;
+                    message.success(`Đã sao chép sang ${created.length} gian hàng (${ready} sẵn sàng đẩy). Hoàn tất ở "Chờ đẩy lên sàn".`);
+                    navigate('/marketplace/to-push');
+                },
+                onError: (e) => message.error(errorMessage(e)),
+            },
+        );
+    };
 
     const shopName = (id: number) => accounts.find((a) => a.id === id)?.name ?? `#${id}`;
     const shopProvider = (id: number) => accounts.find((a) => a.id === id)?.provider ?? '';
@@ -118,11 +149,16 @@ export function OnChannelPage() {
         {
             title: '',
             key: 'actions',
-            width: 130,
+            width: 240,
             render: (_, r) => (
-                <Button size="small" icon={<EditOutlined />} onClick={() => navigate(`/marketplace/on-channel/${r.id}/edit`, { state: { listing: r } })}>
-                    Sửa trên sàn
-                </Button>
+                <Space>
+                    <Button size="small" icon={<EditOutlined />} onClick={() => navigate(`/marketplace/on-channel/${r.id}/edit`, { state: { listing: r } })}>
+                        Sửa trên sàn
+                    </Button>
+                    <Button size="small" icon={<CopyOutlined />} onClick={() => openClone(r)}>
+                        Sao chép sàn
+                    </Button>
+                </Space>
             ),
         },
     ];
@@ -192,6 +228,37 @@ export function OnChannelPage() {
                     }}
                 />
             </Card>
+
+            <Modal
+                title="Sao chép sang gian hàng khác"
+                open={cloneFor !== null}
+                onCancel={() => setCloneFor(null)}
+                okText={cloneShopIds.length > 1 ? `Sao chép ${cloneShopIds.length} sàn` : 'Sao chép'}
+                okButtonProps={{ disabled: cloneShopIds.length === 0, loading: clone.isPending }}
+                onOk={handleClone}
+            >
+                <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
+                    Cùng nền tảng sẽ đủ dữ liệu để đẩy luôn (sẵn sàng); khác nền tảng tạo bản nháp cần soạn lại
+                    ngành hàng/thuộc tính. Tất cả đưa vào “Chờ đẩy lên sàn”.
+                </Typography.Paragraph>
+                {cloneTargets.length === 0 ? (
+                    <Empty description="Không có gian hàng đích nào khác." />
+                ) : (
+                    <Checkbox.Group value={cloneShopIds} onChange={(v) => setCloneShopIds(v as number[])}>
+                        <Space direction="vertical">
+                            {cloneTargets.map((a) => (
+                                <Checkbox key={a.id} value={a.id}>
+                                    <Space size={6}>
+                                        <ChannelLogo provider={a.provider} size={16} />
+                                        <span>{a.name}</span>
+                                        <Tag>{a.provider}</Tag>
+                                    </Space>
+                                </Checkbox>
+                            ))}
+                        </Space>
+                    </Checkbox.Group>
+                )}
+            </Modal>
         </div>
     );
 }

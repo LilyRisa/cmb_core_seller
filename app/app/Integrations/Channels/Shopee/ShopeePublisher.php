@@ -214,6 +214,9 @@ final class ShopeePublisher implements ProductPublishingConnector
             images: array_values(array_filter(array_map('strval', (array) ($item['image']['image_url_list'] ?? [])))),
             skus: $skus,
             raw: $resp,
+            categoryId: ($cat = (string) ($item['category_id'] ?? '')) !== '' ? $cat : null,
+            brandId: ($b = (string) ($item['brand']['brand_id'] ?? '')) !== '' && $b !== '0' ? $b : null,
+            attributes: is_array($item['attribute_list'] ?? null) ? $item['attribute_list'] : [],
         );
     }
 

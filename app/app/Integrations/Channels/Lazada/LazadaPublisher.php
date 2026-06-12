@@ -166,6 +166,11 @@ final class LazadaPublisher implements ProductPublishingConnector
             ];
         }
 
+        $cat = (string) ($item['primary_category'] ?? '');
+        // Thuộc tính ngành hàng (bỏ name/description/brand đã tách riêng) — để clone cùng nền tảng tái dùng.
+        $attrMap = $attrs;
+        unset($attrMap['name'], $attrMap['description'], $attrMap['short_description']);
+
         return new ListingDetailDTO(
             externalProductId: $externalProductId,
             title: (string) ($attrs['name'] ?? ''),
@@ -173,6 +178,9 @@ final class LazadaPublisher implements ProductPublishingConnector
             images: array_values(array_filter(array_map('strval', (array) ($item['images'] ?? [])))),
             skus: $skus,
             raw: $data,
+            categoryId: $cat !== '' ? $cat : null,
+            brandId: ($b = (string) ($attrs['brand'] ?? '')) !== '' ? $b : null,
+            attributes: $attrMap,
         );
     }
 

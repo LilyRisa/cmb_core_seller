@@ -193,6 +193,19 @@ final class TikTokPublisher implements ProductPublishingConnector
             ];
         }
 
+        // Category leaf = phần tử cuối của category_chains (is_leaf).
+        $chains = (array) ($data['category_chains'] ?? []);
+        $leaf = '';
+        foreach ($chains as $c) {
+            if (is_array($c) && ($c['is_leaf'] ?? false)) {
+                $leaf = (string) ($c['id'] ?? '');
+            }
+        }
+        if ($leaf === '' && $chains !== []) {
+            $last = end($chains);
+            $leaf = is_array($last) ? (string) ($last['id'] ?? '') : '';
+        }
+
         return new ListingDetailDTO(
             externalProductId: $externalProductId,
             title: (string) ($data['title'] ?? ''),
@@ -200,6 +213,9 @@ final class TikTokPublisher implements ProductPublishingConnector
             images: $images,
             skus: $skus,
             raw: $data,
+            categoryId: $leaf !== '' ? $leaf : null,
+            brandId: ($b = (string) ($data['brand']['id'] ?? '')) !== '' ? $b : null,
+            attributes: is_array($data['product_attributes'] ?? null) ? $data['product_attributes'] : [],
         );
     }
 

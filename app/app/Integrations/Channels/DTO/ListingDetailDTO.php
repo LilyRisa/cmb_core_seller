@@ -17,6 +17,7 @@ final readonly class ListingDetailDTO
     /**
      * @param  string[]  $images  main image URLs in display order
      * @param  array<int,array{external_sku_id:string,seller_sku:string,price:int}>  $skus
+     * @param  array<string,mixed>  $attributes  thuộc tính ngành hàng (để clone cùng nền tảng tái dùng)
      * @param  array<string,mixed>  $raw
      */
     public function __construct(
@@ -26,5 +27,8 @@ final readonly class ListingDetailDTO
         public array $images,
         public array $skus,
         public array $raw = [],
+        public ?string $categoryId = null,
+        public ?string $brandId = null,
+        public array $attributes = [],
     ) {}
 }

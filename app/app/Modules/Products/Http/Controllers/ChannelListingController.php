@@ -9,6 +9,7 @@ use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Products\Http\Requests\UpdateMarketplaceListingRequest;
 use CMBcoreSeller\Modules\Products\Http\Resources\ChannelListingResource;
 use CMBcoreSeller\Modules\Products\Models\ChannelListing;
+use CMBcoreSeller\Modules\Products\Services\MarketplaceCloneService;
 use CMBcoreSeller\Modules\Products\Services\MarketplaceListingEditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -96,5 +97,20 @@ class ChannelListingController extends Controller
         $listing = ChannelListing::query()->findOrFail($id);
 
         return response()->json(['data' => $svc->update($listing, $request->validated())]);
+    }
+
+    /**
+     * POST /api/v1/channel-listings/{id}/clone-to-shops — sao chép sản phẩm đã có trên
+     * sàn sang nhiều shop. Cùng nền tảng ⇒ nháp READY (đẩy được luôn); khác ⇒ DRAFT (cần sửa).
+     */
+    public function cloneToShops(Request $request, int $id, MarketplaceCloneService $svc): JsonResponse
+    {
+        abort_unless($request->user()?->can('products.manage'), 403, 'Bạn không có quyền sao chép sản phẩm.');
+        $data = $request->validate([
+            'channel_account_ids' => ['required', 'array', 'min:1', 'max:50'],
+            'channel_account_ids.*' => ['integer'],
+        ]);
+
+        return response()->json(['data' => $svc->cloneToShops($id, $data['channel_account_ids'])], 201);
     }
 }

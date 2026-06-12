@@ -4,6 +4,7 @@ import { tenantApi } from '@/lib/api';
 import { useCurrentTenantId } from '@/lib/tenant';
 import {
     bulkPush,
+    cloneChannelListingToShops,
     cloneListing,
     createListing,
     deleteMasterProduct,
@@ -185,6 +186,19 @@ export function useUpdateMarketplaceListing() {
             updateMarketplaceListing(client!, vars.id, vars.payload),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['channel-listings', tenantId] });
+        },
+    });
+}
+
+export function useCloneChannelListingToShops() {
+    const client = useScopedApi();
+    const qc = useQueryClient();
+    const tenantId = useTenantId();
+    return useMutation({
+        mutationFn: (vars: { id: number; channelAccountIds: number[] }) =>
+            cloneChannelListingToShops(client!, vars.id, vars.channelAccountIds),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['products', 'master', tenantId] });
         },
     });
 }

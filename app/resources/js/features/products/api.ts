@@ -190,6 +190,24 @@ export interface MarketplaceEditPayload {
     prices?: { external_sku_id: string; price: number }[];
 }
 
+export interface CloneToShopsResult {
+    id: number;
+    provider: string;
+    status: string;
+}
+
+/** Sao chép một sản phẩm đã có trên sàn sang nhiều shop → tạo nháp (ready nếu cùng nền tảng). */
+export async function cloneChannelListingToShops(
+    client: AxiosInstance,
+    channelListingId: number,
+    channelAccountIds: number[],
+): Promise<CloneToShopsResult[]> {
+    const { data } = await client.post<{ data: CloneToShopsResult[] }>(`/channel-listings/${channelListingId}/clone-to-shops`, {
+        channel_account_ids: channelAccountIds,
+    });
+    return data.data;
+}
+
 export async function getMarketplaceDetail(client: AxiosInstance, id: number): Promise<MarketplaceListingDetail> {
     const { data } = await client.get<{ data: MarketplaceListingDetail }>(`/channel-listings/${id}/marketplace-detail`);
     return data.data;
