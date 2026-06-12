@@ -11,6 +11,7 @@ use CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation;
 use CMBcoreSeller\Integrations\Channels\Lazada\LazadaListingValidator;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeListingValidator;
 use CMBcoreSeller\Integrations\Channels\TikTok\TikTokListingValidator;
+use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Products\Models\ListingDraft;
 use CMBcoreSeller\Modules\Products\Models\ListingDraftSku;
 use CMBcoreSeller\Modules\Products\Models\Product;
@@ -80,15 +81,26 @@ final class ListingDraftService
         $draft = ListingDraft::with('skus')->findOrFail($listingId);
 
         DB::transaction(function () use ($draft, $data) {
+            if (array_key_exists('description', $data)) {
+                $attrs = $draft->attributes ?? [];
+                $attrs['description'] = $data['description'];
+                $draft->attributes = $attrs;
+            }
+
             foreach (['category_id', 'brand_id', 'attributes', 'media_refs', 'logistics'] as $key) {
                 if (array_key_exists($key, $data)) {
-                    $draft->{$key} = $data[$key];
+                    if ($key === 'attributes') {
+                        $draft->attributes = array_merge($draft->attributes ?? [], $data[$key] ?? []);
+                    } else {
+                        $draft->{$key} = $data[$key];
+                    }
                 }
             }
             $draft->save();
 
             if (array_key_exists('skus', $data) && is_array($data['skus'])) {
                 $existing = $draft->skus()->get();
+                $firstWarehouseId = null;
                 foreach (array_values($data['skus']) as $i => $row) {
                     $model = $existing->get($i);
                     $fill = [];
@@ -96,6 +108,9 @@ final class ListingDraftService
                         if (array_key_exists($f, $row)) {
                             $fill[$f] = $row[$f];
                         }
+                    }
+                    if ($firstWarehouseId === null && ! empty($row['warehouse_id'])) {
+                        $firstWarehouseId = (string) $row['warehouse_id'];
                     }
 
                     if ($model) {
@@ -105,10 +120,95 @@ final class ListingDraftService
                         $draft->skus()->create($fill);
                     }
                 }
+                if ($firstWarehouseId !== null) {
+                    $logistics = $draft->logistics ?? [];
+                    $logistics['warehouse_id'] = $firstWarehouseId;
+                    $draft->logistics = $logistics;
+                    $draft->save();
+                }
             }
         });
 
         return $this->revalidate($draft->fresh(['skus']));
+    }
+
+    /**
+     * Copy an existing listing draft/live listing to another connected shop.
+     *
+     * Same-provider copies reuse validated marketplace fields. Cross-provider
+     * copies keep only portable content and remain behind the edit gate.
+     */
+    public function cloneToChannel(int $sourceListingId, int $targetChannelAccountId): ListingDraft
+    {
+        return DB::transaction(function () use ($sourceListingId, $targetChannelAccountId) {
+            $source = ListingDraft::with('skus')->findOrFail($sourceListingId);
+            $targetAccount = ChannelAccount::query()->active()->findOrFail($targetChannelAccountId);
+
+            abort_if((int) $source->channel_account_id === (int) $targetAccount->getKey(), 422, 'Chọn một gian hàng đích khác gian hàng nguồn.');
+
+            $target = ListingDraft::with('skus')
+                ->where('product_id', $source->product_id)
+                ->where('channel_account_id', $targetAccount->getKey())
+                ->first();
+
+            if ($target && $target->external_item_id && $target->status === ListingDraft::STATUS_LIVE) {
+                abort(409, 'Gian hàng đích đã có listing live cho sản phẩm này.');
+            }
+
+            if (! $target) {
+                $target = new ListingDraft;
+                $target->product_id = $source->product_id;
+                $target->channel_account_id = (int) $targetAccount->getKey();
+                $target->created_by = auth()->id();
+            }
+
+            $sameProvider = $source->provider === $targetAccount->provider;
+            $sourceAttributes = $source->attributes ?? [];
+
+            $target->provider = $targetAccount->provider;
+            $target->external_item_id = null;
+            $target->raw_qc_status = null;
+            $target->last_error = null;
+            $target->pushed_at = null;
+
+            if ($sameProvider) {
+                $target->category_id = $source->category_id;
+                $target->brand_id = $source->brand_id;
+                $target->attributes = $sourceAttributes;
+                $target->media_refs = $source->media_refs ?? [];
+                $target->logistics = $source->logistics ?? [];
+            } else {
+                $target->category_id = null;
+                $target->brand_id = null;
+                $target->attributes = array_filter([
+                    'description' => $sourceAttributes['description'] ?? null,
+                    'source_provider' => $source->provider,
+                    'source_listing_id' => $source->getKey(),
+                ], fn ($v) => $v !== null && $v !== '');
+                $target->media_refs = $source->media_refs ?? [];
+                $target->logistics = [];
+            }
+
+            $target->status = ListingDraft::STATUS_DRAFT;
+            $target->validation_errors = null;
+            $target->save();
+
+            $target->skus()->delete();
+            foreach ($source->skus as $sku) {
+                $target->skus()->create([
+                    'master_variant_id' => $sku->master_variant_id,
+                    'seller_sku' => $sku->seller_sku,
+                    'sale_props' => $sameProvider ? ($sku->sale_props ?? []) : [],
+                    'price' => $sku->price,
+                    'stock' => $sku->stock,
+                    'package_weight' => $sku->package_weight,
+                    'package_dims' => $sku->package_dims ?? [],
+                    'image_ref' => $sku->image_ref,
+                ]);
+            }
+
+            return $this->revalidate($target->fresh(['skus']));
+        });
     }
 
     /**
@@ -165,7 +265,7 @@ final class ListingDraftService
 
         return new ListingDraftDTO(
             title: $title,
-            description: (string) ($draft->attributes['description'] ?? ''),
+            description: (string) (($draft->attributes ?? [])['description'] ?? ''),
             categoryId: (string) ($draft->category_id ?? ''),
             brandId: $draft->brand_id,
             attributes: $draft->attributes ?? [],

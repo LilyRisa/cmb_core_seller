@@ -20,6 +20,7 @@ class UpdateListingDraftRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'description' => ['sometimes', 'nullable', 'string'],
             'category_id' => ['sometimes', 'nullable', 'string'],
             'brand_id' => ['sometimes', 'nullable', 'string'],
             'attributes' => ['sometimes', 'array'],

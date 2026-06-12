@@ -411,6 +411,23 @@ Popup giữa màn hình cho mọi user (fix bug, tạm dừng dịch vụ…). A
 
 `/webhook/payments/{sepay,vnpay,momo}` + CheckoutSession thật (Phase 6.4 — PR2 SePay, PR3 VNPay) · `/api/v1/automation-rules` (Phase 6.5) · `/api/v1/notifications` + channels Zalo/Email (Phase 6.5) … — thêm vào đây khi xây.
 
+## Đăng sản phẩm lên sàn
+
+| Method | Path | Auth | Request | Response |
+|---|---|---|---|---|
+| POST | `/api/v1/extension-tokens` | sanctum + tenant | `{ name? }` | Cấp PAT không hết hạn với ability `copy-product:push` cho extension copy sản phẩm. |
+| DELETE | `/api/v1/extension-tokens/{id}` | sanctum + tenant | — | Thu hồi token extension của chính user. |
+| GET | `/api/v1/channels/{provider}/categories` | sanctum + tenant | query `channel_account_id`, `parent_id?` | Danh mục theo tầng từ connector publish, cache 12h. |
+| GET | `/api/v1/channels/{provider}/attributes` | sanctum + tenant | query `channel_account_id`, `category_id` | Thuộc tính theo danh mục lá. |
+| GET | `/api/v1/channels/{provider}/brands` | sanctum + tenant | query `channel_account_id`, `category_id` | Danh sách brand theo danh mục. |
+| POST | `/api/v1/products/{productId}/listings` | sanctum + tenant | `{ channel_account_id, provider }` | Tạo hoặc trả về nháp listing cho một sản phẩm gốc trên một gian hàng. |
+| GET | `/api/v1/listings/{id}` | sanctum + tenant | — | Chi tiết nháp listing + SKU. |
+| PUT | `/api/v1/listings/{id}` | sanctum + tenant | category/brand/attributes/media/logistics/skus | Lưu nháp và validate lại; đủ field thì `ready`, thiếu thì `draft` + `validation_errors`. |
+| POST | `/api/v1/listings/{id}/clone` | sanctum + tenant | `{ channel_account_id }` | Copy listing sang shop khác. Cùng nền tảng copy dữ liệu đã validate; khác nền tảng chỉ copy nội dung dùng chung và giữ nháp cần sửa. |
+| POST | `/api/v1/listings/{id}/push` | sanctum + tenant | — | Enqueue push 1 listing, trả `batch_id`. |
+| POST | `/api/v1/listings/bulk-push` | sanctum + tenant | `{ listing_ids: int[] }` | Enqueue push nhiều listing `ready`, trả `batch_id`. |
+| GET | `/api/v1/push-batches/{id}` | sanctum + tenant | — | Progress batch: tổng, thành công/thất bại, từng job. |
+
 ### Phase 7.x đề xuất — Messaging (SPEC-0024 Draft, ADR-0017..0021)
 
 > Spec & ADR đã viết, **chưa code**. Endpoints liệt kê dưới đây là kế hoạch — chỉ thêm chính thức vào table trên khi PR foundation merge.

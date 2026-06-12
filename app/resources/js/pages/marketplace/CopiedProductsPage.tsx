@@ -1,37 +1,25 @@
-import { useMemo, useState } from 'react';
-import {
-    App as AntApp,
-    Button,
-    Empty,
-    Image,
-    Modal,
-    Radio,
-    Result,
-    Space,
-    Table,
-    Tag,
-    Typography,
-} from 'antd';
+import { useState } from 'react';
+import { App as AntApp, Button, Empty, Image, Modal, Radio, Result, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { CloudUploadOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { errorMessage } from '@/lib/api';
 import { useChannelAccounts } from '@/lib/channels';
 import { ListingEditorDrawer } from '@/features/products/ListingEditorDrawer';
-import { PushProgressModal } from '@/features/products/PushProgressModal';
-import { useBulkPush, useCreateListing, useMasterProducts } from '@/features/products/hooks';
+import { useCreateListing, useMasterProducts } from '@/features/products/hooks';
 import type { ListingDraftSummary, MasterProduct } from '@/features/products/api';
 
 const STATUS_TAG: Record<string, { color: string; label: string }> = {
     draft: { color: 'default', label: 'Nháp' },
     ready: { color: 'green', label: 'Sẵn sàng' },
     pushing: { color: 'blue', label: 'Đang đẩy' },
+    live: { color: 'success', label: 'Đã đăng' },
     published: { color: 'success', label: 'Đã đăng' },
     failed: { color: 'red', label: 'Lỗi' },
 };
 
 function ListingTags({ listings }: { listings?: ListingDraftSummary[] }) {
-    if (!listings || listings.length === 0) return <Typography.Text type="secondary">—</Typography.Text>;
+    if (!listings || listings.length === 0) return <Typography.Text type="secondary">Chưa đăng sàn nào</Typography.Text>;
     return (
         <Space size={4} wrap>
             {listings.map((l) => {
@@ -46,39 +34,22 @@ function ListingTags({ listings }: { listings?: ListingDraftSummary[] }) {
     );
 }
 
-export function ProductsPublishPage() {
+/**
+ * Trang 1 — "Sản phẩm copy": danh sách sản phẩm gốc (nguồn chủ yếu từ Chrome
+ * extension copy sản phẩm). Từ đây tạo bản nháp đăng sàn cho một gian hàng rồi soạn.
+ */
+export function CopiedProductsPage() {
     const { message } = AntApp.useApp();
     const { data: products, isLoading, isError, error, refetch } = useMasterProducts();
     const { data: channelData } = useChannelAccounts();
     const createListing = useCreateListing();
-    const bulkPush = useBulkPush();
 
-    const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
     const [editorListingId, setEditorListingId] = useState<number | null>(null);
     const [editorOpen, setEditorOpen] = useState(false);
-
-    // Modal "Tạo nháp sàn"
     const [createForProduct, setCreateForProduct] = useState<MasterProduct | null>(null);
     const [targetShopId, setTargetShopId] = useState<number | null>(null);
 
-    // Bulk push progress
-    const [bulkBatchId, setBulkBatchId] = useState<number | null>(null);
-    const [bulkModalOpen, setBulkModalOpen] = useState(false);
-
     const accounts = channelData?.data ?? [];
-
-    // Tập hợp listing nháp đang ở trạng thái 'ready' để bật nút "Đẩy hàng loạt".
-    const readyListingIds = useMemo(() => {
-        const set = new Map<number, ListingDraftSummary>();
-        for (const p of products ?? []) {
-            if (selectedRowKeys.includes(p.id)) {
-                for (const l of p.listings ?? []) {
-                    if (l.status === 'ready') set.set(l.id, l);
-                }
-            }
-        }
-        return [...set.keys()];
-    }, [products, selectedRowKeys]);
 
     const openCreateModal = (product: MasterProduct) => {
         setCreateForProduct(product);
@@ -100,17 +71,6 @@ export function ProductsPublishPage() {
                 onError: (e) => message.error(errorMessage(e)),
             },
         );
-    };
-
-    const handleBulkPush = () => {
-        if (readyListingIds.length === 0) return;
-        bulkPush.mutate(readyListingIds, {
-            onSuccess: ({ batch_id }) => {
-                setBulkBatchId(batch_id);
-                setBulkModalOpen(true);
-            },
-            onError: (e) => message.error(errorMessage(e)),
-        });
     };
 
     const columns: ColumnsType<MasterProduct> = [
@@ -137,15 +97,15 @@ export function ProductsPublishPage() {
             render: (v: string | null) => v ?? <Typography.Text type="secondary">—</Typography.Text>,
         },
         {
-            title: 'Sàn',
+            title: 'Đăng sàn',
             key: 'listings',
-            render: (_: unknown, r) => <ListingTags listings={r.listings} />,
+            render: (_, r) => <ListingTags listings={r.listings} />,
         },
         {
             title: '',
             key: 'actions',
-            width: 130,
-            render: (_: unknown, r) => (
+            width: 150,
+            render: (_, r) => (
                 <Button size="small" icon={<PlusOutlined />} onClick={() => openCreateModal(r)}>
                     Tạo nháp sàn
                 </Button>
@@ -167,8 +127,8 @@ export function ProductsPublishPage() {
     return (
         <div>
             <PageHeader
-                title="Đăng sản phẩm lên sàn"
-                subtitle="Tạo bản nháp listing từ sản phẩm gốc rồi đẩy lên các gian hàng đã kết nối"
+                title="Sản phẩm copy"
+                subtitle="Sản phẩm gốc đã copy về (từ Chrome extension hoặc tạo tay) — tạo bản nháp để đăng lên gian hàng"
                 extra={
                     <Button icon={<ReloadOutlined />} onClick={() => refetch()} loading={isLoading}>
                         Làm mới
@@ -176,36 +136,15 @@ export function ProductsPublishPage() {
                 }
             />
 
-            {/* Thanh công cụ luôn hiển thị (validate-by-disable, không ẩn) */}
-            <Space style={{ marginBottom: 12 }}>
-                <Button
-                    type="primary"
-                    icon={<CloudUploadOutlined />}
-                    disabled={readyListingIds.length === 0}
-                    loading={bulkPush.isPending}
-                    onClick={handleBulkPush}
-                >
-                    Đẩy hàng loạt{readyListingIds.length ? ` (${readyListingIds.length})` : ''}
-                </Button>
-                <Typography.Text type="secondary">
-                    Chọn sản phẩm có bản nháp “Sẵn sàng” để đẩy cùng lúc.
-                </Typography.Text>
-            </Space>
-
             <Table
                 rowKey="id"
                 loading={isLoading}
                 dataSource={products ?? []}
                 columns={columns}
                 locale={{ emptyText: <Empty description="Chưa có sản phẩm gốc nào." /> }}
-                rowSelection={{
-                    selectedRowKeys,
-                    onChange: (keys) => setSelectedRowKeys(keys as number[]),
-                }}
                 pagination={{ pageSize: 20, showSizeChanger: false }}
             />
 
-            {/* Modal chọn gian hàng đích để tạo nháp */}
             <Modal
                 title="Tạo bản nháp đăng sàn"
                 open={createForProduct !== null}
@@ -222,10 +161,7 @@ export function ProductsPublishPage() {
                     {accounts.length === 0 ? (
                         <Empty description="Chưa kết nối gian hàng nào. Vào Gian hàng để kết nối." />
                     ) : (
-                        <Radio.Group
-                            value={targetShopId ?? undefined}
-                            onChange={(e) => setTargetShopId(e.target.value)}
-                        >
+                        <Radio.Group value={targetShopId ?? undefined} onChange={(e) => setTargetShopId(e.target.value)}>
                             <Space direction="vertical">
                                 {accounts.map((a) => (
                                     <Radio key={a.id} value={a.id}>
@@ -243,16 +179,6 @@ export function ProductsPublishPage() {
                 open={editorOpen}
                 onClose={() => {
                     setEditorOpen(false);
-                    refetch();
-                }}
-            />
-
-            <PushProgressModal
-                batchId={bulkBatchId}
-                open={bulkModalOpen}
-                onClose={() => {
-                    setBulkModalOpen(false);
-                    setSelectedRowKeys([]);
                     refetch();
                 }}
             />

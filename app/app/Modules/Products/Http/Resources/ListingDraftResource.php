@@ -18,6 +18,8 @@ class ListingDraftResource extends JsonResource
             'channel_account_id' => $this->channel_account_id,
             'provider' => $this->provider,
             'status' => $this->status,
+            'name' => $this->whenLoaded('product', fn () => $this->product?->name),
+            'description' => $this->attributes['description'] ?? null,
             'category_id' => $this->category_id,
             'brand_id' => $this->brand_id,
             'attributes' => $this->attributes ?? [],
@@ -34,6 +36,7 @@ class ListingDraftResource extends JsonResource
                 'stock' => $s->stock,
                 'package_weight' => $s->package_weight,
                 'package_dims' => $s->package_dims ?? [],
+                'warehouse_id' => $this->logistics['warehouse_id'] ?? null,
             ])->values()->all()),
         ];
     }

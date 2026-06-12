@@ -6,6 +6,7 @@ import {
     BarChartOutlined,
     BookOutlined,
     CloudUploadOutlined,
+    CopyOutlined,
     DashboardOutlined,
     FacebookFilled,
     FundOutlined,
@@ -62,8 +63,12 @@ function buildNav(): MenuProps['items'] {
                 { key: '/messaging/knowledge', label: <Link to="/messaging/knowledge">AI training</Link> },
             ] },
             { key: '/channels', icon: <ShopOutlined />, label: <Link to="/channels">Gian hàng</Link> },
-            { key: '/listings', icon: <CloudUploadOutlined />, label: <Link to="/listings">Đăng bán sàn</Link> },
             { key: '/products', icon: <AppstoreOutlined />, label: <Link to="/products">Sản phẩm & SKU</Link> },
+        ] },
+        { type: 'group', label: 'Đăng bán sàn', children: [
+            { key: '/marketplace/products', icon: <CopyOutlined />, label: <Link to="/marketplace/products">Sản phẩm copy</Link> },
+            { key: '/marketplace/to-push', icon: <CloudUploadOutlined />, label: <Link to="/marketplace/to-push">Chờ đẩy lên sàn</Link> },
+            { key: '/marketplace/on-channel', icon: <ShopOutlined />, label: <Link to="/marketplace/on-channel">Đã có trên sàn</Link> },
         ] },
         { type: 'group', label: 'Kho & Mua hàng', children: [
             { key: '/inventory', icon: <InboxOutlined />, label: <Link to="/inventory">Tồn kho</Link> },
@@ -107,7 +112,7 @@ function buildNav(): MenuProps['items'] {
 }
 
 // Flat key list for selected-key matching.
-const BASE_KEYS = ['/', '/orders', '/customers', '/messaging', '/messaging/channels', '/messaging/templates', '/messaging/utility-templates', '/messaging/auto-rules', '/messaging/knowledge', '/channels', '/listings', '/products', '/inventory',
+const BASE_KEYS = ['/', '/orders', '/customers', '/messaging', '/messaging/channels', '/messaging/templates', '/messaging/utility-templates', '/messaging/auto-rules', '/messaging/knowledge', '/channels', '/products', '/marketplace/products', '/marketplace/to-push', '/marketplace/on-channel', '/inventory',
     '/procurement/demand-planning', '/procurement/suppliers', '/procurement/purchase-orders',
     '/reports/overview', '/reports', '/shop-report', '/marketing', '/marketing/tiktok', '/finance/settlements',
     '/accounting/dashboard', '/accounting/journals', '/accounting/chart-of-accounts', '/accounting/balances', '/accounting/ar', '/accounting/ap', '/accounting/cash', '/accounting/reports', '/accounting/periods',

@@ -139,6 +139,17 @@ export async function updateListing(
     return data.data;
 }
 
+export async function cloneListing(
+    client: AxiosInstance,
+    id: number,
+    channelAccountId: number,
+): Promise<ListingDraft> {
+    const { data } = await client.post<{ data: ListingDraft }>(`/listings/${id}/clone`, {
+        channel_account_id: channelAccountId,
+    });
+    return data.data;
+}
+
 export async function pushListing(client: AxiosInstance, id: number): Promise<{ batch_id: number }> {
     const { data } = await client.post<{ data: { batch_id: number } }>(`/listings/${id}/push`);
     return data.data;

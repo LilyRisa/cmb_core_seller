@@ -4,6 +4,7 @@ import { getCurrentTenantId } from '@/lib/auth';
 import { tenantApi } from '@/lib/api';
 import {
     bulkPush,
+    cloneListing,
     createListing,
     getAttributes,
     getBrands,
@@ -121,6 +122,20 @@ export function useUpdateListing() {
     return useMutation({
         mutationFn: (vars: { id: number; payload: UpdateListingPayload }) =>
             updateListing(client!, vars.id, vars.payload),
+        onSuccess: (draft: ListingDraft) => {
+            qc.setQueryData(['listing', tenantId, draft.id], draft);
+            qc.invalidateQueries({ queryKey: ['products', 'master', tenantId] });
+        },
+    });
+}
+
+export function useCloneListing() {
+    const client = useScopedApi();
+    const qc = useQueryClient();
+    const tenantId = useTenantId();
+    return useMutation({
+        mutationFn: (vars: { id: number; channelAccountId: number }) =>
+            cloneListing(client!, vars.id, vars.channelAccountId),
         onSuccess: (draft: ListingDraft) => {
             qc.setQueryData(['listing', tenantId, draft.id], draft);
             qc.invalidateQueries({ queryKey: ['products', 'master', tenantId] });

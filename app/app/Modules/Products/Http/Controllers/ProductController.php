@@ -14,7 +14,7 @@ class ProductController extends Controller
     public function index(Request $request): JsonResponse
     {
         abort_unless($request->user()?->can('products.view'), 403, 'Bạn không có quyền xem sản phẩm.');
-        $q = Product::query()->withCount('skus');
+        $q = Product::query()->withCount('skus')->with('listingDrafts');
         if ($term = trim((string) $request->query('q', ''))) {
             $q->where(fn ($w) => $w->where('name', 'like', "%{$term}%")->orWhere('brand', 'like', "%{$term}%"));
         }
@@ -47,7 +47,7 @@ class ProductController extends Controller
     {
         abort_unless($request->user()?->can('products.view'), 403, 'Bạn không có quyền xem sản phẩm.');
 
-        return response()->json(['data' => new ProductResource(Product::query()->withCount('skus')->findOrFail($id))]);
+        return response()->json(['data' => new ProductResource(Product::query()->withCount('skus')->with('listingDrafts')->findOrFail($id))]);
     }
 
     public function update(Request $request, int $id): JsonResponse

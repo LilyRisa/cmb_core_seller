@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Products\Models;
 use CMBcoreSeller\Modules\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
@@ -37,6 +38,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
  * @property-read Collection<int, ListingDraftSku> $skus
+ * @property-read Product|null $product
  */
 class ListingDraft extends Model
 {
@@ -69,5 +71,10 @@ class ListingDraft extends Model
     public function skus(): HasMany
     {
         return $this->hasMany(ListingDraftSku::class);
+    }
+
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
     }
 }

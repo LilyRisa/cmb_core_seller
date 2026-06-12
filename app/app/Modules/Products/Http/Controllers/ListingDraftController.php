@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CMBcoreSeller\Modules\Products\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
+use CMBcoreSeller\Modules\Products\Http\Requests\CloneListingDraftRequest;
 use CMBcoreSeller\Modules\Products\Http\Requests\StoreListingDraftRequest;
 use CMBcoreSeller\Modules\Products\Http\Requests\UpdateListingDraftRequest;
 use CMBcoreSeller\Modules\Products\Http\Resources\ListingDraftResource;
@@ -33,7 +34,7 @@ final class ListingDraftController extends Controller
 
     public function show(int $id): ListingDraftResource
     {
-        $draft = ListingDraft::with('skus')->findOrFail($id);
+        $draft = ListingDraft::with(['product', 'skus'])->findOrFail($id);
 
         return new ListingDraftResource($draft);
     }
@@ -43,5 +44,15 @@ final class ListingDraftController extends Controller
         $draft = $this->svc->update($id, $request->validated());
 
         return new ListingDraftResource($draft);
+    }
+
+    public function cloneTo(CloneListingDraftRequest $request, int $id): JsonResponse
+    {
+        $draft = $this->svc->cloneToChannel(
+            $id,
+            (int) $request->validated('channel_account_id'),
+        );
+
+        return (new ListingDraftResource($draft))->response()->setStatusCode(201);
     }
 }

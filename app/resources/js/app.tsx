@@ -25,7 +25,9 @@ import { OrdersPage } from '@/pages/OrdersPage';
 import { OrderDetailPage } from '@/pages/OrderDetailPage';
 import { ReturnsPage } from '@/pages/ReturnsPage';
 import { ChannelsPage } from '@/pages/ChannelsPage';
-import { ProductsPublishPage } from '@/pages/ProductsPublishPage';
+import { CopiedProductsPage } from '@/pages/marketplace/CopiedProductsPage';
+import { OnChannelPage } from '@/pages/marketplace/OnChannelPage';
+import { PublishablePage } from '@/pages/marketplace/PublishablePage';
 import { SyncLogsPage } from '@/pages/SyncLogsPage';
 import { SupportCenterPage } from '@/pages/SupportCenterPage';
 import { CustomersPage } from '@/pages/CustomersPage';
@@ -119,7 +121,12 @@ function Root() {
                 <Route path="orders/:id" element={<OrderDetailPage />} />
                 <Route path="returns" element={<ReturnsPage />} />               {/* Đơn Hoàn & Hủy — SPEC 0025 */}
                 <Route path="channels" element={<ChannelsPage />} />
-                <Route path="listings" element={<ProductsPublishPage />} />   {/* Đăng sản phẩm lên sàn — /products đã dùng cho redirect inventory */}
+                {/* Đăng & sao chép sản phẩm lên sàn — nhóm riêng (3 bước: copy → chờ đẩy → đã trên sàn) */}
+                <Route path="listings" element={<Navigate to="/marketplace/products" replace />} />
+                <Route path="marketplace" element={<Navigate to="/marketplace/products" replace />} />
+                <Route path="marketplace/products" element={<CopiedProductsPage />} />
+                <Route path="marketplace/on-channel" element={<OnChannelPage />} />
+                <Route path="marketplace/to-push" element={<PublishablePage />} />
                 <Route path="customers" element={<CustomersPage />} />
                 <Route path="customers/:id" element={<CustomerDetailPage />} />
                 {/* SPEC-0024 — Hộp thư hợp nhất + trang quản lý. */}

@@ -25,6 +25,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
  * @property-read Collection<int, Sku> $skus
+ * @property-read Collection<int, ListingDraft> $listingDrafts
  */
 class Product extends Model
 {
@@ -41,5 +42,11 @@ class Product extends Model
     public function skus(): HasMany
     {
         return $this->hasMany(Sku::class);
+    }
+
+    /** Marketplace publishing drafts/live listings created from this product. */
+    public function listingDrafts(): HasMany
+    {
+        return $this->hasMany(ListingDraft::class);
     }
 }
