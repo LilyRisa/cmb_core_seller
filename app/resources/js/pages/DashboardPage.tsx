@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Alert, Avatar, Badge, Button, Card, Col, Empty, List, Progress, Radio, Row, Skeleton, Space, Tag, Tooltip, Typography } from 'antd';
+import { Alert, Avatar, Badge, Button, Card, Col, Empty, List, Progress, Radio, Row, Segmented, Skeleton, Space, Tag, Tooltip, Typography } from 'antd';
 import {
     ArrowDownOutlined, ArrowUpOutlined, AuditOutlined, BankOutlined, CarOutlined, CreditCardOutlined,
     DollarOutlined, ExclamationCircleOutlined, FallOutlined, FundOutlined, LinkOutlined, PictureOutlined,
@@ -8,7 +8,7 @@ import {
     ThunderboltOutlined, TrophyOutlined, WalletOutlined, WarningOutlined,
 } from '@ant-design/icons';
 import {
-    Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer,
+    Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer,
     Tooltip as ReTooltip, XAxis, YAxis,
 } from 'recharts';
 import dayjs from 'dayjs';
@@ -37,11 +37,23 @@ const RANGE_OPTIONS: Array<{ value: DashboardRange; label: string }> = [
     { value: 90, label: '90 ngày' },
 ];
 
+const CHART_TYPE_KEY = 'dashboard.revenueChartType';
+type RevenueChartType = 'bar' | 'multiline';
+
 export function DashboardPage() {
     const { data: user } = useAuth();
     const [range, setRange] = useRange();
     const { data, isLoading, isFetching, refetch } = useDashboardSummary(range);
     const acct = useAccountingDashboardSummary();
+
+    // Loại biểu đồ doanh thu/LN — nhớ lựa chọn ở localStorage.
+    const [chartType, setChartType] = useState<RevenueChartType>(
+        () => (localStorage.getItem(CHART_TYPE_KEY) === 'multiline' ? 'multiline' : 'bar'),
+    );
+    const setChart = (t: RevenueChartType) => {
+        setChartType(t);
+        localStorage.setItem(CHART_TYPE_KEY, t);
+    };
 
     const todoBuckets = useMemo(() => makeTodoBuckets(data), [data]);
     const noChannel = !isLoading && (data?.channel_accounts.total ?? 0) === 0;
@@ -104,9 +116,19 @@ export function DashboardPage() {
             <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
                 <Col xs={24} xl={16}>
                     <Card title={<Space><FundOutlined /> Doanh thu & lợi nhuận theo ngày</Space>}
-                        extra={<Typography.Text type="secondary" style={{ fontSize: 12 }}>{data ? `${dayjs(data.period.from).format('DD/MM')} – ${dayjs(data.period.to).format('DD/MM/YYYY')}` : '—'}</Typography.Text>}
+                        extra={
+                            <Space size={12} wrap>
+                                <Segmented
+                                    size="small"
+                                    value={chartType}
+                                    onChange={(v) => setChart(v as RevenueChartType)}
+                                    options={[{ label: 'Cột', value: 'bar' }, { label: 'Đường', value: 'multiline' }]}
+                                />
+                                <Typography.Text type="secondary" style={{ fontSize: 12 }}>{data ? `${dayjs(data.period.from).format('DD/MM')} – ${dayjs(data.period.to).format('DD/MM/YYYY')}` : '—'}</Typography.Text>
+                            </Space>
+                        }
                         loading={isLoading} styles={{ body: { paddingTop: 8 } }}>
-                        <RevenueProfitChart data={data?.series ?? []} />
+                        <RevenueProfitChart data={data?.series ?? []} type={chartType} />
                     </Card>
                 </Col>
                 <Col xs={24} xl={8}>
@@ -273,9 +295,24 @@ const fmtAxisVnd = (n: number) => {
 };
 const fmtFullVnd = (n: number) => `${n.toLocaleString('vi-VN')} ₫`;
 
-function RevenueProfitChart({ data }: { data: DashboardSummary['series'] }) {
+function RevenueProfitChart({ data, type }: { data: DashboardSummary['series']; type: 'bar' | 'multiline' }) {
     if (data.length === 0) {
         return <div style={{ padding: 32 }}><Empty description="Chưa có dữ liệu trong khoảng này" /></div>;
+    }
+    if (type === 'multiline') {
+        return (
+            <ResponsiveContainer width="100%" height={320}>
+                <LineChart data={data} margin={{ top: 12, right: 16, bottom: 0, left: 0 }}>
+                    <CartesianGrid stroke="#f0f0f0" vertical={false} />
+                    <XAxis dataKey="date" tickFormatter={(v) => dayjs(v).format('DD/MM')} tick={{ fontSize: 11, fill: COLOR.muted }} axisLine={false} tickLine={false} />
+                    <YAxis tickFormatter={fmtAxisVnd} tick={{ fontSize: 11, fill: COLOR.muted }} axisLine={false} tickLine={false} width={50} />
+                    <ReTooltip content={<RevTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Line type="monotone" dataKey="revenue" name="Doanh thu" stroke={COLOR.revenue} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+                    <Line type="monotone" dataKey="estimated_profit" name="LN ước tính" stroke={COLOR.estProfit} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+                </LineChart>
+            </ResponsiveContainer>
+        );
     }
     return (
         <ResponsiveContainer width="100%" height={320}>
