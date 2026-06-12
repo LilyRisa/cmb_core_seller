@@ -1,6 +1,7 @@
 <?php
 
 use CMBcoreSeller\Http\Controllers\AdminSpaController;
+use CMBcoreSeller\Http\Controllers\ExtensionConnectController;
 use CMBcoreSeller\Http\Controllers\SpaController;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\OAuthCallbackController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdsOAuthController;
@@ -49,6 +50,14 @@ Route::get('oauth/facebook_ads/callback', [AdsOAuthController::class, 'callback'
 // https://<APP_URL host>/oauth/tiktok_marketing/redirect (TikTok trả `auth_code`).
 Route::get('oauth/tiktok_marketing/redirect', [TikTokAdsOAuthController::class, 'callback'])
     ->name('marketing.tiktok_ads.callback');
+
+// --- Chrome Extension login qua redirect OAuth (EXTENSION_OAUTH_LOGIN_CONTRACT) ---
+// Web guard + session: đọc user đang login trên web → mint token `copy-product:push`
+// → 302 token ở fragment về callback `*.chromiumapp.org`. Tự xử lý redirect login +
+// gate verify email bên trong controller (KHÔNG bọc middleware `auth`). Đặt TRƯỚC
+// catch-all SPA để khớp đường này thay vì rơi vào SPA.
+Route::get('extension/connect', [ExtensionConnectController::class, 'connect'])
+    ->middleware('web')->name('extension.connect');
 
 // --- Admin SPA shell (Spec 2026-05-17) ---
 // `/admin` và mọi sub-path serve Blade `admin.blade.php` nạp bundle `admin.tsx`.

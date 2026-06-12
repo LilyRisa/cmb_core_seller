@@ -677,4 +677,18 @@ return [
         'chat_push_codes' => [10],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Chrome Extension login (EXTENSION_OAUTH_LOGIN_CONTRACT)
+    |--------------------------------------------------------------------------
+    |
+    | `/extension/connect` chỉ cho callback `https://<id>.chromiumapp.org/` (Chrome
+    | Identity). Bản dev/test có ID khác có thể thêm URI cố định qua CSV — KHÔNG nới
+    | lỏng regex chung ở controller.
+    |
+    */
+    'extension' => [
+        'dev_redirect_uris' => array_values(array_filter(array_map('trim', explode(',', (string) env('EXTENSION_DEV_REDIRECT_URIS', ''))))),
+    ],
+
 ];

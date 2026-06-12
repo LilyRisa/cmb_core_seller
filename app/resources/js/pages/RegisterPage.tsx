@@ -10,17 +10,22 @@ import {
     ArrowRightOutlined,
     AppstoreOutlined,
 } from '@ant-design/icons';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRegister } from '@/lib/auth';
 import { errorMessage } from '@/lib/api';
 import { AuthBackdrop } from '@/components/AuthBackdrop';
 import { Captcha, useCaptchaConfig } from '@/lib/captcha';
+import { captureExtRedirect } from '@/lib/extRedirect';
 
 export function RegisterPage() {
     const register = useRegister();
     const navigate = useNavigate();
     const { data: captcha } = useCaptchaConfig();
     const [captchaToken, setCaptchaToken] = useState('');
+
+    // Giữ luồng: đăng ký xong phải verify email rồi mới chuyển hướng về extension.
+    // Lưu đường quay lại ở đây; RequireAuth chỉ tiêu thụ khi user đã verify.
+    useEffect(() => captureExtRedirect(window.location.search), []);
 
     return (
         <div className="auth-shell">

@@ -1,7 +1,8 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { Spin } from 'antd';
 import { useAuth } from '@/lib/auth';
+import { captureExtRedirect, takeExtRedirect } from '@/lib/extRedirect';
 import { VerifyEmailPage } from '@/pages/VerifyEmailPage';
 
 /**
@@ -14,6 +15,19 @@ import { VerifyEmailPage } from '@/pages/VerifyEmailPage';
 export function RequireAuth({ children }: { children: ReactNode }) {
     const { data: user, isLoading } = useAuth();
     const location = useLocation();
+
+    // Đăng nhập extension: CHỈ khi đã đăng nhập & verify email mới quay lại
+    // `/extension/connect` (mint token). Chưa verify thì màn VerifyEmailPage dưới
+    // vẫn chặn — đúng luật "đăng ký xong verify mail rồi mới chuyển hướng".
+    // Bắt `?redirect=/extension/connect...` khi BE đưa user (chưa verify) về root.
+    useEffect(() => captureExtRedirect(window.location.search), []);
+
+    const verified = !!user?.email_verified_at;
+    useEffect(() => {
+        if (!verified) return;
+        const back = takeExtRedirect();
+        if (back) window.location.href = back;
+    }, [verified]);
 
     if (isLoading) {
         return (

@@ -11,17 +11,22 @@ import {
     ArrowRightOutlined,
     MobileOutlined,
 } from '@ant-design/icons';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLogin } from '@/lib/auth';
 import { errorMessage } from '@/lib/api';
 import { AuthBackdrop } from '@/components/AuthBackdrop';
 import { Captcha, useCaptchaConfig } from '@/lib/captcha';
+import { captureExtRedirect } from '@/lib/extRedirect';
 
 export function LoginPage() {
     const login = useLogin();
     const navigate = useNavigate();
     const { data: captcha } = useCaptchaConfig();
     const [captchaToken, setCaptchaToken] = useState('');
+
+    // Đăng nhập extension: lưu đường quay lại `/extension/connect` (nếu có) để
+    // chuyển hướng sau khi đã đăng nhập & verify email (tiêu thụ ở RequireAuth).
+    useEffect(() => captureExtRedirect(window.location.search), []);
 
     return (
         <div className="auth-shell">
