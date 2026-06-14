@@ -42,6 +42,8 @@ export interface ListingDraftSku {
     package_dims: { length?: number; width?: number; height?: number } | null;
     /** TikTok: kho xuất hàng cho từng SKU. */
     warehouse_id?: string | null;
+    /** Ảnh riêng của phân loại/SKU (đẩy lên sàn theo biến thể). */
+    image_ref?: string | null;
     /** Master SKU đã liên kết thủ công (để đồng bộ tồn kho sau khi đẩy); null = chưa liên kết. */
     master_variant_id?: number | null;
     master_sku?: MasterSkuRef | null;

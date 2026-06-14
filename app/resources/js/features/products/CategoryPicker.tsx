@@ -95,19 +95,29 @@ export function CategoryPicker({
         }, 350);
     };
 
+    // Hiển thị nhãn theo ĐƯỜNG DẪN (không phải id số): luôn kèm option của giá trị
+    // đang chọn để ô input hiện "A › B › C" thay vì con số.
+    const selectOptions = [
+        ...(value && !searchHits.some((h) => h.id === value)
+            ? [{ value, label: selectedPath ?? value }]
+            : []),
+        ...searchHits.map((h) => ({ value: h.id, label: h.path || h.name })),
+    ];
+
     return (
         <Space direction="vertical" style={{ width: '100%' }} size={6}>
             <Select
                 style={{ width: '100%' }}
                 showSearch
                 disabled={disabled}
+                allowClear
                 placeholder="Tìm nhanh ngành hàng (gõ từ khóa)…"
                 filterOption={false}
                 notFoundContent={searching ? <Spin size="small" /> : null}
                 onSearch={runSearch}
-                value={null}
-                onChange={(v) => v && onChange?.(String(v))}
-                options={searchHits.map((h) => ({ value: h.id, label: h.path || h.name }))}
+                value={value ?? undefined}
+                onChange={(v) => onChange?.(v == null ? null : String(v))}
+                options={selectOptions}
             />
             <Cascader
                 style={{ width: '100%' }}
@@ -115,14 +125,14 @@ export function CategoryPicker({
                 disabled={disabled}
                 options={options}
                 changeOnSelect={false}
-                value={value ? [value] : undefined}
+                value={undefined}
                 loadData={loadData as never}
                 onDropdownVisibleChange={(o) => {
                     if (o) void loadRoot();
                 }}
                 onChange={(vals) => {
                     const leaf = Array.isArray(vals) && vals.length ? String(vals[vals.length - 1]) : null;
-                    onChange?.(leaf);
+                    if (leaf) onChange?.(leaf);
                 }}
             />
             {value && (

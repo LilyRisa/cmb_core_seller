@@ -162,6 +162,20 @@ class ListingDraftServiceTest extends TestCase
         ]);
     }
 
+    public function test_recreating_draft_after_soft_delete_does_not_violate_unique(): void
+    {
+        $svc = app(ListingDraftService::class);
+        $first = $svc->createDraft((int) $this->product->getKey(), $this->accountId, 'lazada');
+        $first->skus()->delete();
+        $first->delete();
+
+        // Import lại cùng sản phẩm vào cùng shop — KHÔNG được vỡ unique uq_draft_product_shop.
+        $second = $svc->createDraft((int) $this->product->getKey(), $this->accountId, 'lazada');
+
+        $this->assertNotNull($second->getKey());
+        $this->assertNotSame($first->getKey(), $second->getKey());
+    }
+
     public function test_draft_can_be_deleted(): void
     {
         $draft = app(ListingDraftService::class)->createDraft((int) $this->product->getKey(), $this->accountId, 'lazada');

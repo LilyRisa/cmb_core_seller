@@ -91,7 +91,7 @@ export function ListingDraftEditorPage() {
         skus: skus.map((s) => ({
             id: s.id, seller_sku: s.seller_sku, sale_props: s.sale_props, price: s.price, stock: s.stock,
             package_weight: s.package_weight, package_dims: s.package_dims, warehouse_id: s.warehouse_id,
-            master_variant_id: s.master_variant_id ?? null,
+            master_variant_id: s.master_variant_id ?? null, image_ref: s.image_ref ?? null,
         })),
     });
 
@@ -168,6 +168,7 @@ export function ListingDraftEditorPage() {
 
     const skuColumns: ColumnsType<ListingDraftSku> = useMemo(() => {
         const cols: ColumnsType<ListingDraftSku> = [
+            { title: 'Ảnh', key: 'image', width: 76, render: (_: unknown, r) => <SkuImageCell url={r.image_ref ?? null} onChange={(u) => updateSku(r.id, { image_ref: u })} /> },
             { title: 'SKU người bán', dataIndex: 'seller_sku', render: (v: string, r) => <Input size="small" value={v} onChange={(e) => updateSku(r.id, { seller_sku: e.target.value })} /> },
             {
                 title: 'Phân loại', dataIndex: 'sale_props',
@@ -331,6 +332,46 @@ export function ListingDraftEditorPage() {
     );
 }
 
+/** Ô ảnh cho từng SKU/phân loại: xem + tải ảnh thay thế (vuông). */
+function SkuImageCell({ url, onChange }: { url: string | null; onChange: (url: string | null) => void }) {
+    const tenantId = useCurrentTenantId();
+    const client = useMemo(() => (tenantId == null ? null : tenantApi(tenantId)), [tenantId]);
+    const { message } = AntApp.useApp();
+    const [busy, setBusy] = useState(false);
+
+    const upload = async (file: File) => {
+        if (!client) return false;
+        setBusy(true);
+        try {
+            const form = new FormData();
+            form.append('image', file);
+            form.append('folder', 'listings');
+            const { data } = await client.post<{ data: { url: string } }>('/media/image', form);
+            onChange(data.data.url);
+        } catch (e) {
+            message.error(errorMessage(e));
+        } finally {
+            setBusy(false);
+        }
+        return false;
+    };
+
+    return (
+        <Space direction="vertical" size={2} align="center">
+            <Upload accept="image/*" showUploadList={false} beforeUpload={(f) => upload(f as unknown as File)}>
+                {url ? (
+                    <Image src={url} width={48} height={48} preview={false} style={{ objectFit: 'cover', borderRadius: 6, border: '1px solid #f0f0f0', cursor: 'pointer' }} />
+                ) : (
+                    <div style={{ width: 48, height: 48, border: '1px dashed #d9d9d9', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8c8c8c' }}>
+                        {busy ? <Spin size="small" /> : <PictureOutlined />}
+                    </div>
+                )}
+            </Upload>
+            {url && <Button type="link" size="small" danger style={{ padding: 0, height: 'auto', fontSize: 11 }} onClick={() => onChange(null)}>Xóa</Button>}
+        </Space>
+    );
+}
+
 /** Ô tìm & liên kết một dòng SKU nháp với master SKU có sẵn (thủ công, không auto-tạo). */
 function SkuLinkSelect({ sku, onLink }: { sku: ListingDraftSku; onLink: (masterVariantId: number | null) => void }) {
     const tenantId = useCurrentTenantId();
@@ -393,7 +434,7 @@ function ShippingSection({
 
     if (opts.mode === 'channels') return <ShopeeShipping opts={opts} value={value} onChange={onChange} />;
     if (opts.mode === 'warehouse_delivery') return <TikTokShipping opts={opts} value={value} onChange={onChange} onApplyWarehouse={onApplyWarehouse} />;
-    return <LazadaShipping notes={opts.notes} value={value} onChange={onChange} />;
+    return <LazadaShipping notes={opts.notes} />;
 }
 
 function ShopeeShipping({ opts, value, onChange }: { opts: ShippingOptions; value: Record<string, unknown>; onChange: (v: Record<string, unknown>) => void }) {
@@ -464,16 +505,16 @@ function TikTokShipping({
     );
 }
 
-function LazadaShipping({ notes, value, onChange }: { notes?: string; value: Record<string, unknown>; onChange: (v: Record<string, unknown>) => void }) {
-    const sof = value.delivery_option_sof === 'Yes';
+function LazadaShipping({ notes }: { notes?: string }) {
+    // Lazada VN: KHÔNG có hình thức người bán tự vận chuyển (SOF) — đơn dùng vận chuyển của sàn.
     return (
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
             {notes && <Typography.Text type="secondary">{notes}</Typography.Text>}
-            <Space>
-                <Typography.Text>Giao bởi người bán (SOF)</Typography.Text>
-                <Radio.Group optionType="button" size="small" value={sof ? 'on' : 'off'} onChange={(e) => onChange({ ...value, delivery_option_sof: e.target.value === 'on' ? 'Yes' : 'No' })}
-                    options={[{ value: 'on', label: 'Bật' }, { value: 'off', label: 'Tắt' }]} />
-            </Space>
+            <Alert
+                type="info"
+                showIcon
+                message="Lazada Việt Nam dùng vận chuyển của sàn — không có tùy chọn người bán tự giao (SOF). Không cần cấu hình thêm ở đây."
+            />
         </Space>
     );
 }

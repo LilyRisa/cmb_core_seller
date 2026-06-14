@@ -60,6 +60,14 @@ final class ListingDraftService
                 return $existing->load('skus');
             }
 
+            // Nháp đã XÓA MỀM vẫn giữ unique key (tenant, product, shop) — không dọn thì
+            // import lại cùng sản phẩm vào cùng shop sẽ vỡ "duplicate key uq_draft_product_shop".
+            // Xóa hẳn dòng cũ để tạo nháp mới sạch. Xem [[softdelete-updateorcreate-unique-violation]].
+            ListingDraft::onlyTrashed()
+                ->where('product_id', $productId)
+                ->where('channel_account_id', $channelAccountId)
+                ->forceDelete();
+
             $draft = new ListingDraft;
             $draft->product_id = $product->getKey();
             $draft->channel_account_id = $channelAccountId;
@@ -121,7 +129,7 @@ final class ListingDraftService
                 foreach (array_values($data['skus']) as $i => $row) {
                     $model = $existing->get($i);
                     $fill = [];
-                    foreach (['seller_sku', 'price', 'stock', 'sale_props', 'package_weight', 'package_dims', 'master_variant_id'] as $f) {
+                    foreach (['seller_sku', 'price', 'stock', 'sale_props', 'package_weight', 'package_dims', 'master_variant_id', 'image_ref'] as $f) {
                         if (array_key_exists($f, $row)) {
                             $fill[$f] = $row[$f];
                         }
@@ -173,6 +181,12 @@ final class ListingDraftService
             }
 
             if (! $target) {
+                // Dọn nháp đã xóa mềm giữ cùng unique key (tránh duplicate key uq_draft_product_shop).
+                ListingDraft::onlyTrashed()
+                    ->where('product_id', $source->product_id)
+                    ->where('channel_account_id', $targetAccount->getKey())
+                    ->forceDelete();
+
                 $target = new ListingDraft;
                 $target->product_id = $source->product_id;
                 $target->channel_account_id = (int) $targetAccount->getKey();
