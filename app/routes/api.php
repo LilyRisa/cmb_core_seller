@@ -230,6 +230,8 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             // --- Listing taxonomy proxy (SPEC marketplace product publishing) — cached read-through
             // over a provider's category tree / attributes / brands for a connected shop.
             Route::get('channels/{provider}/categories', [ListingTaxonomyController::class, 'categories'])->name('channels.categories');
+            Route::get('channels/{provider}/categories/search', [ListingTaxonomyController::class, 'searchCategories'])->name('channels.categories.search');
+            Route::get('channels/{provider}/category-path', [ListingTaxonomyController::class, 'categoryPath'])->name('channels.category-path');
             Route::get('channels/{provider}/attributes', [ListingTaxonomyController::class, 'attributes'])->name('channels.attributes');
             Route::get('channels/{provider}/brands', [ListingTaxonomyController::class, 'brands'])->name('channels.brands');
             Route::get('channels/{provider}/shipping-options', [ListingTaxonomyController::class, 'shippingOptions'])->name('channels.shipping-options');

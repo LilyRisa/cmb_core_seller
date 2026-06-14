@@ -124,7 +124,7 @@ class ListingTaxonomyTest extends TestCase
         $this->app->bind(FakeTaxPublisher::class, fn () => new FakeTaxPublisher);
     }
 
-    public function test_returns_categories_for_a_shop(): void
+    public function test_root_returns_only_top_level_categories(): void
     {
         Cache::flush();
 
@@ -133,8 +133,38 @@ class ListingTaxonomyTest extends TestCase
             ->getJson("/api/v1/channels/lazada/categories?channel_account_id={$this->accountId}");
 
         $res->assertOk();
-        $res->assertJsonCount(2, 'data');
-        $this->assertTrue($res->json('data.1.is_leaf'));
+        // Chỉ node gốc (parent '0' → null), KHÔNG đổ cả node con ra cấp gốc.
+        $res->assertJsonCount(1, 'data');
+        $this->assertSame('100', $res->json('data.0.id'));
+        $this->assertFalse($res->json('data.0.is_leaf'));
+    }
+
+    public function test_children_are_filtered_by_parent(): void
+    {
+        Cache::flush();
+
+        $res = $this->actingAs($this->owner)
+            ->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
+            ->getJson("/api/v1/channels/lazada/categories?channel_account_id={$this->accountId}&parent_id=100");
+
+        $res->assertOk();
+        $res->assertJsonCount(1, 'data');
+        $this->assertSame('1001', $res->json('data.0.id'));
+        $this->assertTrue($res->json('data.0.is_leaf'));
+    }
+
+    public function test_search_returns_leaf_with_breadcrumb_path(): void
+    {
+        Cache::flush();
+
+        $res = $this->actingAs($this->owner)
+            ->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
+            ->getJson("/api/v1/channels/lazada/categories/search?channel_account_id={$this->accountId}&q=áo");
+
+        $res->assertOk();
+        $res->assertJsonCount(1, 'data');
+        $this->assertSame('1001', $res->json('data.0.id'));
+        $this->assertSame('Thời trang › Áo', $res->json('data.0.path'));
     }
 
     public function test_returns_shipping_options_for_a_shop(): void

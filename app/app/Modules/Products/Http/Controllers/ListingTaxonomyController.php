@@ -29,6 +29,28 @@ final class ListingTaxonomyController extends Controller
         ]);
     }
 
+    public function searchCategories(Request $r, string $provider): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->svc->searchCategories(
+                (int) $r->query('channel_account_id'),
+                $provider,
+                (string) $r->query('q', ''),
+            ),
+        ]);
+    }
+
+    public function categoryPath(Request $r, string $provider): JsonResponse
+    {
+        return response()->json([
+            'data' => $this->svc->categoryPath(
+                (int) $r->query('channel_account_id'),
+                $provider,
+                (string) $r->query('category_id'),
+            ),
+        ]);
+    }
+
     public function attributes(Request $r, string $provider): JsonResponse
     {
         return response()->json([

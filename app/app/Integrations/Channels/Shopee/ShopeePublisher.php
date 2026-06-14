@@ -91,9 +91,10 @@ final class ShopeePublisher implements ProductPublishingConnector
             if (! is_array($node)) {
                 continue;
             }
+            $parent = (string) ($node['parent_category_id'] ?? '');
             $out[] = new CategoryNodeDTO(
                 id: (string) ($node['category_id'] ?? ''),
-                parentId: (string) ($node['parent_category_id'] ?? ''),
+                parentId: ($parent === '' || $parent === '0') ? null : $parent,
                 name: (string) ($node['display_category_name'] ?? ''),
                 isLeaf: ! ($node['has_children'] ?? false),
                 raw: $node,

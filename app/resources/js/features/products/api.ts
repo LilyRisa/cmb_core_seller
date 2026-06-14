@@ -261,6 +261,38 @@ export async function getCategories(
     return data.data;
 }
 
+export interface CategorySearchHit {
+    id: string;
+    name: string;
+    is_leaf: boolean;
+    /** Đường dẫn breadcrumb "A › B › C" để chọn trực tiếp. */
+    path: string;
+}
+
+export async function searchCategories(
+    client: AxiosInstance,
+    provider: string,
+    channelAccountId: number,
+    q: string,
+): Promise<CategorySearchHit[]> {
+    const { data } = await client.get<{ data: CategorySearchHit[] }>(`/channels/${provider}/categories/search`, {
+        params: { channel_account_id: channelAccountId, q },
+    });
+    return data.data;
+}
+
+export async function getCategoryPath(
+    client: AxiosInstance,
+    provider: string,
+    channelAccountId: number,
+    categoryId: string,
+): Promise<CategorySearchHit> {
+    const { data } = await client.get<{ data: CategorySearchHit }>(`/channels/${provider}/category-path`, {
+        params: { channel_account_id: channelAccountId, category_id: categoryId },
+    });
+    return data.data;
+}
+
 export async function getAttributes(
     client: AxiosInstance,
     provider: string,

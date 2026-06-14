@@ -19,22 +19,127 @@ final class ListingTaxonomyService
     public function __construct(private PublisherRegistry $publishers) {}
 
     /**
+     * Direct children of $parentId (root level when null/empty). Providers return
+     * the WHOLE flat tree in one call, so we cache the full tree once and filter
+     * here — không đổ cả cây ra cấp gốc nữa.
+     *
      * @return array<int,array<string,mixed>>
      */
     public function categories(int $channelAccountId, string $provider, ?string $parentId = null): array
     {
-        $auth = $this->authFor($channelAccountId, $provider);
-        $key = "listing_tax:cat:$provider:$channelAccountId:".($parentId ?? 'root');
+        $parent = self::normalizeParent($parentId);
 
-        return Cache::remember($key, now()->addHours(12), fn () => array_map(
-            fn ($c) => [
-                'id' => $c->id,
-                'parent_id' => $c->parentId,
-                'name' => $c->name,
-                'is_leaf' => $c->isLeaf,
-            ],
-            $this->publishers->for($provider)->getCategoryTree($auth, $parentId),
+        return array_values(array_filter(
+            $this->fullTree($channelAccountId, $provider),
+            fn ($c) => ($c['parent_id'] ?? null) === $parent,
         ));
+    }
+
+    /**
+     * Advanced category search: leaf categories whose name contains the query,
+     * each annotated with its full breadcrumb path so the seller can pick directly.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function searchCategories(int $channelAccountId, string $provider, string $query, int $limit = 50): array
+    {
+        $q = trim($query);
+        if ($q === '') {
+            return [];
+        }
+
+        $all = $this->fullTree($channelAccountId, $provider);
+        $byId = [];
+        foreach ($all as $c) {
+            $byId[$c['id']] = $c;
+        }
+
+        $out = [];
+        foreach ($all as $c) {
+            if (! ($c['is_leaf'] ?? false) || mb_stripos($c['name'], $q) === false) {
+                continue;
+            }
+            $out[] = ['id' => $c['id'], 'name' => $c['name'], 'is_leaf' => true, 'path' => self::pathLabel((string) $c['id'], $byId)];
+            if (count($out) >= $limit) {
+                break;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Breadcrumb path for one category id (để hiển thị ngành hàng đang chọn).
+     *
+     * @return array<string,mixed>
+     */
+    public function categoryPath(int $channelAccountId, string $provider, string $categoryId): array
+    {
+        $all = $this->fullTree($channelAccountId, $provider);
+        $byId = [];
+        foreach ($all as $c) {
+            $byId[$c['id']] = $c;
+        }
+        $node = $byId[$categoryId] ?? null;
+
+        return [
+            'id' => $categoryId,
+            'name' => $node['name'] ?? $categoryId,
+            'is_leaf' => $node['is_leaf'] ?? true,
+            'path' => $node ? self::pathLabel($categoryId, $byId) : $categoryId,
+        ];
+    }
+
+    /**
+     * Full flat category tree for a shop, cached 6h. Skips nodes with blank id/name
+     * and normalizes the root parent ('0'/'' → null) so root filtering works across
+     * providers (Shopee dùng parent_category_id=0 cho gốc).
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    private function fullTree(int $channelAccountId, string $provider): array
+    {
+        $auth = $this->authFor($channelAccountId, $provider);
+        $key = "listing_tax:tree:$provider:$channelAccountId";
+
+        return Cache::remember($key, now()->addHours(6), function () use ($provider, $auth) {
+            $out = [];
+            foreach ($this->publishers->for($provider)->getCategoryTree($auth) as $c) {
+                if ((string) $c->id === '' || trim($c->name) === '') {
+                    continue;
+                }
+                $out[] = [
+                    'id' => $c->id,
+                    'parent_id' => self::normalizeParent($c->parentId),
+                    'name' => $c->name,
+                    'is_leaf' => $c->isLeaf,
+                ];
+            }
+
+            return $out;
+        });
+    }
+
+    private static function normalizeParent(?string $parentId): ?string
+    {
+        return ($parentId === null || $parentId === '' || $parentId === '0') ? null : $parentId;
+    }
+
+    /**
+     * @param  array<string,array<string,mixed>>  $byId
+     */
+    private static function pathLabel(string $id, array $byId): string
+    {
+        $parts = [];
+        $cur = $byId[$id] ?? null;
+        $guard = 0;
+        while ($cur && $guard++ < 20) {
+            array_unshift($parts, (string) $cur['name']);
+            $pid = $cur['parent_id'] ?? null;
+            $cur = $pid !== null ? ($byId[$pid] ?? null) : null;
+        }
+
+        return implode(' › ', $parts);
     }
 
     /**
