@@ -53,6 +53,7 @@ export interface ListingDraft {
     status: ListingStatus;
     name?: string;
     description?: string | null;
+    video_url?: string | null;
     category_id: string | null;
     brand_id: string | null;
     attributes: Record<string, unknown>;
@@ -64,6 +65,7 @@ export interface ListingDraft {
 
 export interface UpdateListingPayload {
     description?: string | null;
+    video_url?: string | null;
     category_id?: string | null;
     brand_id?: string | null;
     attributes?: Record<string, unknown>;
@@ -124,6 +126,24 @@ export async function listMasterProducts(client: AxiosInstance, status?: string)
 
 export async function deleteMasterProduct(client: AxiosInstance, id: number): Promise<void> {
     await client.delete(`/products/${id}`);
+}
+
+export interface ListingLimits {
+    max_images: number;
+    max_videos: number;
+}
+
+export async function getListingLimits(client: AxiosInstance, provider: string): Promise<ListingLimits> {
+    const { data } = await client.get<{ data: ListingLimits }>(`/channels/${provider}/listing-limits`);
+    return data.data;
+}
+
+/** Upload video cho nháp đăng sàn → trả URL (đẩy lên sàn ở bước sau). */
+export async function uploadListingVideo(client: AxiosInstance, file: File): Promise<{ url: string }> {
+    const form = new FormData();
+    form.append('video', file);
+    const { data } = await client.post<{ data: { url: string } }>('/media/video', form);
+    return data.data;
 }
 
 /** Tìm master SKU có sẵn để liên kết thủ công với SKU nháp đăng sàn. */

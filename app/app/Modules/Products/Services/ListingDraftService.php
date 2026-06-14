@@ -98,6 +98,12 @@ final class ListingDraftService
                 $draft->attributes = $attrs;
             }
 
+            if (array_key_exists('video_url', $data)) {
+                $attrs = $draft->attributes ?? [];
+                $attrs['video_url'] = ($data['video_url'] ?? '') !== '' ? $data['video_url'] : null;
+                $draft->attributes = $attrs;
+            }
+
             foreach (['category_id', 'brand_id', 'attributes', 'media_refs', 'logistics'] as $key) {
                 if (array_key_exists($key, $data)) {
                     if ($key === 'attributes') {
@@ -283,6 +289,7 @@ final class ListingDraftService
             media: $media,
             skus: $skus,
             logistics: $logistics,
+            videoRef: (($draft->attributes ?? [])['video_url'] ?? null) ?: null,
         );
     }
 

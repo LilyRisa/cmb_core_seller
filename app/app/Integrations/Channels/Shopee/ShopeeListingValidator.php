@@ -34,8 +34,11 @@ final class ShopeeListingValidator implements ListingValidator
             $e['categoryId'] = 'Phải chọn danh mục lá';
         }
 
+        $maxImages = (int) config('integrations.listing_limits.shopee.max_images', 9);
         if (count($d->media) === 0) {
             $e['media'] = 'Cần ≥1 image_id (đã upload_image)';
+        } elseif (count($d->media) > $maxImages) {
+            $e['media'] = "Tối đa $maxImages ảnh";
         }
 
         $channels = $d->logistics['channels'] ?? [];

@@ -45,11 +45,12 @@ final class TikTokListingValidator implements ListingValidator
             $errors['categoryId'] = 'Phải chọn danh mục lá (category_version=v2)';
         }
 
+        $maxImages = (int) config('integrations.listing_limits.tiktok.max_images', 9);
         $mediaCount = count($draft->media);
         if ($mediaCount === 0) {
             $errors['media'] = 'Cần ≥1 ảnh (uri)';
-        } elseif ($mediaCount > 9) {
-            $errors['media'] = 'Tối đa 9 ảnh';
+        } elseif ($mediaCount > $maxImages) {
+            $errors['media'] = "Tối đa $maxImages ảnh";
         }
 
         if (count($draft->skus) > 100) {

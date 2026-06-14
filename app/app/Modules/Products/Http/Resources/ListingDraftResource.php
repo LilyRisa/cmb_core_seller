@@ -20,6 +20,7 @@ class ListingDraftResource extends JsonResource
             'status' => $this->status,
             'name' => $this->whenLoaded('product', fn () => $this->product?->name),
             'description' => $this->attributes['description'] ?? null,
+            'video_url' => $this->attributes['video_url'] ?? null,
             'category_id' => $this->category_id,
             'brand_id' => $this->brand_id,
             'attributes' => $this->attributes ?? [],

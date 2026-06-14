@@ -12,6 +12,7 @@ import {
     getBrands,
     getCategories,
     getListing,
+    getListingLimits,
     getMarketplaceDetail,
     getPushBatch,
     getShippingOptions,
@@ -95,6 +96,17 @@ export function useAttributes(provider: string | null, channelAccountId: number 
         enabled: client != null && !!provider && channelAccountId != null && !!categoryId,
         queryFn: () => getAttributes(client!, provider!, channelAccountId!, categoryId!),
         staleTime: 10 * 60 * 1000,
+    });
+}
+
+export function useListingLimits(provider: string | null) {
+    const client = useScopedApi();
+    const tenantId = useTenantId();
+    return useQuery({
+        queryKey: ['listing-limits', tenantId, provider],
+        enabled: client != null && !!provider,
+        queryFn: () => getListingLimits(client!, provider!),
+        staleTime: 60 * 60 * 1000,
     });
 }
 

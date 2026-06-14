@@ -5,7 +5,7 @@ namespace Tests\Unit\Integrations\Lazada;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingDraftDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\MediaRefDTO;
 use CMBcoreSeller\Integrations\Channels\Lazada\LazadaListingValidator;
-use PHPUnit\Framework\TestCase;
+use Tests\TestCase;
 
 class LazadaValidatorTest extends TestCase
 {

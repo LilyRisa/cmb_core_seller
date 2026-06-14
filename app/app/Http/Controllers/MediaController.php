@@ -32,4 +32,17 @@ class MediaController extends Controller
 
         return response()->json(['data' => $stored]);
     }
+
+    /** Video upload — POST /api/v1/media/video (multipart `video`). Dùng cho nháp đăng sàn. */
+    public function uploadVideo(Request $request, MediaUploader $uploader, CurrentTenant $tenant): JsonResponse
+    {
+        abort_unless($request->user()?->can('products.manage'), 403, 'Bạn không có quyền tải video.');
+        $mimes = implode(',', (array) config('media.video.mimes', ['mp4', 'webm']));
+        $request->validate([
+            'video' => ['required', 'file', 'mimetypes:video/mp4,video/webm', 'mimes:'.$mimes, 'max:'.(int) config('media.video.max_kb', 51200)],
+        ]);
+        $stored = $uploader->storeImage($request->file('video'), (int) $tenant->id(), 'listing-videos');
+
+        return response()->json(['data' => $stored]);
+    }
 }

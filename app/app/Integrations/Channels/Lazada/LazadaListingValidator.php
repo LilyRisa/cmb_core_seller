@@ -39,8 +39,11 @@ final class LazadaListingValidator implements ListingValidator
             $e['brandId'] = 'brand_id bắt buộc (dùng id No Brand nếu không có)';
         }
 
+        $maxImages = (int) config('integrations.listing_limits.lazada.max_images', 8);
         if (count($d->media) === 0) {
             $e['media'] = 'Cần ít nhất 1 ảnh đã upload lên CDN Lazada';
+        } elseif (count($d->media) > $maxImages) {
+            $e['media'] = "Tối đa $maxImages ảnh";
         }
 
         if (count($d->skus) > 1) {

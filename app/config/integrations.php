@@ -197,6 +197,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Per-marketplace listing media limits (product publishing)
+    |--------------------------------------------------------------------------
+    |
+    | Số ảnh / video tối đa mỗi listing theo từng sàn — dùng cho cả validator
+    | (backend) lẫn UI soạn nháp (chặn upload vượt mức). Đối chiếu tài liệu sàn;
+    | đổi qua env khi sàn nới/siết hạn mức.
+    |
+    */
+    'listing_limits' => [
+        'shopee' => ['max_images' => (int) env('SHOPEE_MAX_IMAGES', 9), 'max_videos' => (int) env('SHOPEE_MAX_VIDEOS', 1)],
+        'tiktok' => ['max_images' => (int) env('TIKTOK_MAX_IMAGES', 9), 'max_videos' => (int) env('TIKTOK_MAX_VIDEOS', 1)],
+        'lazada' => ['max_images' => (int) env('LAZADA_MAX_IMAGES', 8), 'max_videos' => (int) env('LAZADA_MAX_VIDEOS', 1)],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Payment gateways (SPEC 0018 — Billing SaaS, Phase 6.4)
     |--------------------------------------------------------------------------
     |

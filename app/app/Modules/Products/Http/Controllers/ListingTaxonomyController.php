@@ -51,6 +51,18 @@ final class ListingTaxonomyController extends Controller
         ]);
     }
 
+    public function listingLimits(Request $r, string $provider): JsonResponse
+    {
+        $limits = (array) config("integrations.listing_limits.$provider", []);
+
+        return response()->json([
+            'data' => [
+                'max_images' => (int) ($limits['max_images'] ?? 9),
+                'max_videos' => (int) ($limits['max_videos'] ?? 1),
+            ],
+        ]);
+    }
+
     public function attributes(Request $r, string $provider): JsonResponse
     {
         return response()->json([

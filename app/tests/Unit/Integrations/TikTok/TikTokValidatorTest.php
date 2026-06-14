@@ -7,7 +7,7 @@ namespace Tests\Unit\Integrations\TikTok;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingDraftDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\MediaRefDTO;
 use CMBcoreSeller\Integrations\Channels\TikTok\TikTokListingValidator;
-use PHPUnit\Framework\TestCase;
+use Tests\TestCase;
 
 class TikTokValidatorTest extends TestCase
 {

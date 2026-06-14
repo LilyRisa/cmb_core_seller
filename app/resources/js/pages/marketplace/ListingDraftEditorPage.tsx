@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-    Alert, App as AntApp, Button, Card, Checkbox, Image, Input, InputNumber, List, Radio, Result, Select, Space, Spin, Switch, Table, Tag, Typography,
+    Alert, App as AntApp, Button, Card, Checkbox, Image, Input, InputNumber, List, Radio, Result, Select, Space, Spin, Switch, Table, Tag, Typography, Upload,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { ArrowLeftOutlined, CloudUploadOutlined, DeleteOutlined, PictureOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, CloudUploadOutlined, DeleteOutlined, PictureOutlined, PlusOutlined, SaveOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { ImageResizer } from '@/components/ImageResizer';
 import { errorMessage, tenantApi } from '@/lib/api';
@@ -12,8 +12,8 @@ import { useCurrentTenantId } from '@/lib/tenant';
 import { CategoryPicker } from '@/features/products/CategoryPicker';
 import { AttributeForm } from '@/features/products/AttributeForm';
 import { PushProgressModal } from '@/features/products/PushProgressModal';
-import { useBrands, useListing, usePushListing, useShippingOptions, useUpdateListing } from '@/features/products/hooks';
-import { searchMasterSkus } from '@/features/products/api';
+import { useBrands, useListing, useListingLimits, usePushListing, useShippingOptions, useUpdateListing } from '@/features/products/hooks';
+import { searchMasterSkus, uploadListingVideo } from '@/features/products/api';
 import type { ListingDraftSku, MasterSkuRef, ShippingOptions, UpdateListingPayload } from '@/features/products/api';
 
 const STATUS_TAG: Record<string, { color: string; label: string }> = {
@@ -36,6 +36,7 @@ export function ListingDraftEditorPage() {
     const listingId = Number(id);
     const navigate = useNavigate();
     const { message } = AntApp.useApp();
+    const tenantId = useCurrentTenantId();
 
     const { data: listing, isLoading, isError, error } = useListing(Number.isFinite(listingId) ? listingId : null);
     const updateListing = useUpdateListing();
@@ -48,7 +49,8 @@ export function ListingDraftEditorPage() {
     const [mediaRefs, setMediaRefs] = useState<string[]>([]);
     const [logistics, setLogistics] = useState<Record<string, unknown>>({});
     const [skus, setSkus] = useState<ListingDraftSku[]>([]);
-    const [newImageUrl, setNewImageUrl] = useState('');
+    const [videoUrl, setVideoUrl] = useState<string | null>(null);
+    const [videoUploading, setVideoUploading] = useState(false);
     const [resizerOpen, setResizerOpen] = useState(false);
     const [pushBatchId, setPushBatchId] = useState<number | null>(null);
     const [pushModalOpen, setPushModalOpen] = useState(false);
@@ -62,9 +64,14 @@ export function ListingDraftEditorPage() {
         setMediaRefs(listing.media_refs ?? []);
         setLogistics(listing.logistics ?? {});
         setSkus(listing.skus ?? []);
+        setVideoUrl(listing.video_url ?? null);
     }, [listing]);
 
     const provider = listing?.provider ?? '';
+    const uploadClient = useMemo(() => (tenantId == null ? null : tenantApi(tenantId)), [tenantId]);
+    const { data: limits } = useListingLimits(provider || null);
+    const maxImages = limits?.max_images ?? 9;
+    const maxVideos = limits?.max_videos ?? 1;
     const channelAccountId = listing?.channel_account_id ?? null;
     const { data: brands } = useBrands(provider || null, channelAccountId, categoryId);
 
@@ -73,6 +80,7 @@ export function ListingDraftEditorPage() {
 
     const buildPayload = (): UpdateListingPayload => ({
         description,
+        video_url: videoUrl,
         category_id: categoryId,
         brand_id: brandId,
         attributes,
@@ -108,6 +116,39 @@ export function ListingDraftEditorPage() {
     const addImage = (url: string) => {
         const u = url.trim();
         if (u) setMediaRefs((prev) => (prev.includes(u) ? prev : [...prev, u]));
+    };
+
+    // Upload ảnh trực tiếp (square tile). Trả false để chặn antd tự upload.
+    const uploadImageFile = async (file: File) => {
+        if (!uploadClient) return false;
+        if (mediaRefs.length >= maxImages) {
+            message.warning(`Tối đa ${maxImages} ảnh cho sàn này.`);
+            return false;
+        }
+        try {
+            const form = new FormData();
+            form.append('image', file);
+            form.append('folder', 'listings');
+            const { data } = await uploadClient.post<{ data: { url: string } }>('/media/image', form);
+            addImage(data.data.url);
+        } catch (e) {
+            message.error(errorMessage(e));
+        }
+        return false;
+    };
+
+    const uploadVideoFile = async (file: File) => {
+        if (!uploadClient) return false;
+        setVideoUploading(true);
+        try {
+            const { url } = await uploadListingVideo(uploadClient, file);
+            setVideoUrl(url);
+        } catch (e) {
+            message.error(errorMessage(e));
+        } finally {
+            setVideoUploading(false);
+        }
+        return false;
     };
 
     const back = () => navigate('/marketplace/products');
@@ -194,21 +235,54 @@ export function ListingDraftEditorPage() {
                 </div>
             </Card>
 
-            <Card title="Hình ảnh" style={{ marginBottom: 16 }} extra={<Button icon={<PictureOutlined />} onClick={() => setResizerOpen(true)}>Tải & resize ảnh</Button>}>
+            <Card
+                title="Hình ảnh"
+                style={{ marginBottom: 16 }}
+                extra={(
+                    <Space>
+                        <Typography.Text type={mediaRefs.length >= maxImages ? 'danger' : 'secondary'}>{mediaRefs.length}/{maxImages} ảnh</Typography.Text>
+                        <Button icon={<PictureOutlined />} disabled={mediaRefs.length >= maxImages} onClick={() => setResizerOpen(true)}>Tải & resize ảnh</Button>
+                    </Space>
+                )}
+            >
                 <Space wrap size={12}>
                     {mediaRefs.map((url, idx) => (
-                        <div key={`${url}-${idx}`} style={{ position: 'relative', width: 100, height: 100 }}>
-                            <Image src={url} width={100} height={100} style={{ objectFit: 'cover', borderRadius: 8 }} />
+                        <div key={`${url}-${idx}`} style={{ position: 'relative', width: 104, height: 104 }}>
+                            <Image src={url} width={104} height={104} style={{ objectFit: 'cover', borderRadius: 8, border: '1px solid #f0f0f0' }} />
                             <Button size="small" danger type="primary" shape="circle" icon={<DeleteOutlined />} style={{ position: 'absolute', top: -8, right: -8 }} onClick={() => setMediaRefs((prev) => prev.filter((_, i) => i !== idx))} />
                         </div>
                     ))}
-                    {mediaRefs.length === 0 && <Typography.Text type="secondary">Chưa có ảnh</Typography.Text>}
+                    {mediaRefs.length < maxImages && (
+                        <Upload accept="image/*" showUploadList={false} multiple beforeUpload={(file) => uploadImageFile(file as unknown as File)}>
+                            <div style={{ width: 104, height: 104, border: '1px dashed #d9d9d9', borderRadius: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#8c8c8c', background: '#fafafa' }}>
+                                <PlusOutlined style={{ fontSize: 20 }} />
+                                <span style={{ fontSize: 12, marginTop: 4 }}>Tải ảnh</span>
+                            </div>
+                        </Upload>
+                    )}
                 </Space>
-                <Space.Compact style={{ width: '100%', maxWidth: 520, marginTop: 16 }}>
-                    <Input placeholder="Hoặc dán URL ảnh rồi bấm Thêm" value={newImageUrl} onChange={(e) => setNewImageUrl(e.target.value)} onPressEnter={() => { addImage(newImageUrl); setNewImageUrl(''); }} />
-                    <Button icon={<PlusOutlined />} onClick={() => { addImage(newImageUrl); setNewImageUrl(''); }}>Thêm</Button>
-                </Space.Compact>
+                <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 12, marginBottom: 0 }}>
+                    Ảnh nên vuông (1:1). Dùng “Tải & resize ảnh” để cắt vuông trước khi đăng.
+                </Typography.Paragraph>
             </Card>
+
+            {maxVideos > 0 && (
+                <Card title="Video" style={{ marginBottom: 16 }}>
+                    {videoUrl ? (
+                        <Space direction="vertical">
+                            <video src={videoUrl} controls style={{ width: 280, maxWidth: '100%', borderRadius: 8, background: '#000' }} />
+                            <Button danger size="small" icon={<DeleteOutlined />} onClick={() => setVideoUrl(null)}>Xóa video</Button>
+                        </Space>
+                    ) : (
+                        <Upload accept="video/mp4,video/webm" showUploadList={false} beforeUpload={(file) => uploadVideoFile(file as unknown as File)}>
+                            <Button icon={<VideoCameraOutlined />} loading={videoUploading}>Thêm video</Button>
+                        </Upload>
+                    )}
+                    <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
+                        MP4/WebM, tối đa 50MB. Video sẽ được đẩy lên sàn ở bước sau.
+                    </Typography.Paragraph>
+                </Card>
+            )}
 
             <Card title="Thuộc tính ngành hàng" style={{ marginBottom: 16 }}>
                 {channelAccountId != null && <AttributeForm provider={provider} channelAccountId={channelAccountId} categoryId={categoryId} value={attributes} onChange={setAttributes} />}

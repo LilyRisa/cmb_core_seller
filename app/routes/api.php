@@ -98,6 +98,7 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
         // 2 ngày vượt hạn mức.
         Route::middleware(['verified', 'tenant', 'plan.over_quota_lock'])->group(function () {
             Route::post('media/image', [MediaController::class, 'upload'])->name('media.image.upload');   // generic image upload (e.g. quick-add order item)
+            Route::post('media/video', [MediaController::class, 'uploadVideo'])->name('media.video.upload');   // listing draft video
 
             // --- Mobile push device registry (SPEC 0029) — Expo push token ---
             Route::post('me/devices', [MobileDeviceController::class, 'store'])->name('me.devices.store');
@@ -232,6 +233,7 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::get('channels/{provider}/categories', [ListingTaxonomyController::class, 'categories'])->name('channels.categories');
             Route::get('channels/{provider}/categories/search', [ListingTaxonomyController::class, 'searchCategories'])->name('channels.categories.search');
             Route::get('channels/{provider}/category-path', [ListingTaxonomyController::class, 'categoryPath'])->name('channels.category-path');
+            Route::get('channels/{provider}/listing-limits', [ListingTaxonomyController::class, 'listingLimits'])->name('channels.listing-limits');
             Route::get('channels/{provider}/attributes', [ListingTaxonomyController::class, 'attributes'])->name('channels.attributes');
             Route::get('channels/{provider}/brands', [ListingTaxonomyController::class, 'brands'])->name('channels.brands');
             Route::get('channels/{provider}/shipping-options', [ListingTaxonomyController::class, 'shippingOptions'])->name('channels.shipping-options');
