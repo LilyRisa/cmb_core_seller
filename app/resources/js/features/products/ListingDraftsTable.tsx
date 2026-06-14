@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { App as AntApp, Button, Empty, Image, Space, Table, Tag, Typography } from 'antd';
+import { App as AntApp, Button, Empty, Image, Popconfirm, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { CloudUploadOutlined, CopyOutlined, EditOutlined } from '@ant-design/icons';
+import { CloudUploadOutlined, CopyOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
 import { useChannelAccounts } from '@/lib/channels';
 import { CloneListingModal } from './CloneListingModal';
 import { PushProgressModal } from './PushProgressModal';
-import { useBulkPush, useMasterProducts, usePushListing } from './hooks';
+import { useBulkPush, useDeleteListing, useMasterProducts, usePushListing } from './hooks';
 import type { ListingDraftSummary, MasterProduct } from './api';
 
 const STATUS_TAG: Record<string, { color: string; label: string }> = {
@@ -37,11 +37,14 @@ interface ListingRow extends ListingDraftSummary {
 export function ListingDraftsTable({
     statuses,
     showPush = false,
+    history = false,
     emptyText,
 }: {
     statuses: string[];
     /** Hiện nút "Đẩy" mỗi dòng (ready) + "Đẩy hàng loạt" — chỉ màn "Chờ đẩy". */
     showPush?: boolean;
+    /** Chế độ lịch sử (đã đẩy): thêm cột thời gian đẩy, ẩn nút đẩy. */
+    history?: boolean;
     emptyText: string;
 }) {
     const { message } = AntApp.useApp();
@@ -49,6 +52,7 @@ export function ListingDraftsTable({
     const { data: channelData } = useChannelAccounts();
     const pushListing = usePushListing();
     const bulkPush = useBulkPush();
+    const deleteListing = useDeleteListing();
 
     const navigate = useNavigate();
     const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
@@ -84,6 +88,13 @@ export function ListingDraftsTable({
                 setBatchId(batch_id);
                 setPushModalOpen(true);
             },
+            onError: (e) => message.error(errorMessage(e)),
+        });
+    };
+
+    const handleDelete = (id: number) => {
+        deleteListing.mutate(id, {
+            onSuccess: () => message.success('Đã xóa bản nháp.'),
             onError: (e) => message.error(errorMessage(e)),
         });
     };
@@ -133,6 +144,14 @@ export function ListingDraftsTable({
                 return <Tag color={meta.color}>{meta.label}</Tag>;
             },
         },
+        ...(history
+            ? [{
+                title: 'Đã đẩy lúc',
+                key: 'pushed_at',
+                width: 170,
+                render: (_: unknown, r: ListingRow) => (r.pushed_at ? new Date(r.pushed_at).toLocaleString('vi-VN') : '—'),
+            } as ColumnsType<ListingRow>[number]]
+            : []),
         {
             title: '',
             key: 'actions',
@@ -157,6 +176,16 @@ export function ListingDraftsTable({
                     <Button size="small" icon={<CopyOutlined />} onClick={() => setCloneFor(r)}>
                         Sao chép
                     </Button>
+                    <Popconfirm
+                        title={history ? 'Xóa khỏi lịch sử?' : 'Xóa bản nháp này?'}
+                        description={history ? 'Chỉ gỡ khỏi danh sách trong app, KHÔNG gỡ sản phẩm đã đăng trên sàn.' : 'Bản nháp sẽ bị xóa khỏi danh sách chờ đẩy.'}
+                        okText="Xóa"
+                        cancelText="Hủy"
+                        okButtonProps={{ danger: true }}
+                        onConfirm={() => handleDelete(r.id)}
+                    >
+                        <Button size="small" danger icon={<DeleteOutlined />} />
+                    </Popconfirm>
                 </Space>
             ),
         },

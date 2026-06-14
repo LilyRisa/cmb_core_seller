@@ -46,6 +46,15 @@ final class ListingDraftController extends Controller
         return new ListingDraftResource($draft);
     }
 
+    public function destroy(int $id): JsonResponse
+    {
+        $draft = ListingDraft::findOrFail($id);
+        $draft->skus()->delete();
+        $draft->delete();
+
+        return response()->json(['data' => ['deleted' => true]]);
+    }
+
     public function cloneTo(CloneListingDraftRequest $request, int $id): JsonResponse
     {
         $draft = $this->svc->cloneToChannel(

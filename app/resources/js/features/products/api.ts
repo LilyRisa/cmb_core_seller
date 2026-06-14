@@ -19,6 +19,8 @@ export interface ListingDraftSummary {
     provider: string;
     channel_account_id: number;
     status: ListingStatus;
+    external_item_id?: string | null;
+    pushed_at?: string | null;
 }
 
 export type ListingStatus = 'draft' | 'ready' | 'pushing' | 'reviewing' | 'live' | 'published' | 'failed';
@@ -157,6 +159,10 @@ export async function searchMasterSkus(client: AxiosInstance, q: string): Promis
 export async function getListing(client: AxiosInstance, id: number): Promise<ListingDraft> {
     const { data } = await client.get<{ data: ListingDraft }>(`/listings/${id}`);
     return data.data;
+}
+
+export async function deleteListing(client: AxiosInstance, id: number): Promise<void> {
+    await client.delete(`/listings/${id}`);
 }
 
 export async function createListing(

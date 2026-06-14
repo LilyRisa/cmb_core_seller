@@ -26,6 +26,7 @@ class ProductResource extends JsonResource
                 'status' => $l->status,
                 'external_item_id' => $l->external_item_id,
                 'raw_qc_status' => $l->raw_qc_status,
+                'pushed_at' => $l->pushed_at?->toIso8601String(),
             ])->values()->all()),
             'created_at' => $this->created_at?->toIso8601String(),
         ];

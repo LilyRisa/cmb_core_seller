@@ -7,6 +7,7 @@ import {
     cloneChannelListingToShops,
     cloneListing,
     createListing,
+    deleteListing,
     deleteMasterProduct,
     getAttributes,
     getBrands,
@@ -142,6 +143,18 @@ export function useDeleteMasterProduct() {
     const tenantId = useTenantId();
     return useMutation({
         mutationFn: (id: number) => deleteMasterProduct(client!, id),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['products', 'master', tenantId] });
+        },
+    });
+}
+
+export function useDeleteListing() {
+    const client = useScopedApi();
+    const qc = useQueryClient();
+    const tenantId = useTenantId();
+    return useMutation({
+        mutationFn: (id: number) => deleteListing(client!, id),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['products', 'master', tenantId] });
         },

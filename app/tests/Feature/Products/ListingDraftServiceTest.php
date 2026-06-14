@@ -162,6 +162,20 @@ class ListingDraftServiceTest extends TestCase
         ]);
     }
 
+    public function test_draft_can_be_deleted(): void
+    {
+        $draft = app(ListingDraftService::class)->createDraft((int) $this->product->getKey(), $this->accountId, 'lazada');
+        $id = (int) $draft->getKey();
+
+        $this->actingAs($this->owner)
+            ->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
+            ->deleteJson("/api/v1/listings/{$id}")
+            ->assertOk()
+            ->assertJsonPath('data.deleted', true);
+
+        $this->assertSoftDeleted('listing_drafts', ['id' => $id]);
+    }
+
     public function test_update_keeps_draft_when_validation_fails_then_ready_when_passes(): void
     {
         $created = $this->actingAs($this->owner)
