@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-    Alert, App as AntApp, Button, Card, Checkbox, Image, Input, InputNumber, List, Radio, Result, Select, Space, Spin, Switch, Table, Tag, Typography, Upload,
+    Alert, App as AntApp, Button, Card, Checkbox, Image, Input, InputNumber, List, Modal, Radio, Result, Select, Space, Spin, Switch, Table, Tag, Typography, Upload,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { ArrowLeftOutlined, CloudUploadOutlined, DeleteOutlined, PictureOutlined, PlusOutlined, SaveOutlined, VideoCameraOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, CloudUploadOutlined, DeleteOutlined, PictureOutlined, PlusOutlined, RobotOutlined, SaveOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { ImageResizer } from '@/components/ImageResizer';
 import { errorMessage, tenantApi } from '@/lib/api';
@@ -12,7 +12,7 @@ import { useCurrentTenantId } from '@/lib/tenant';
 import { CategoryPicker } from '@/features/products/CategoryPicker';
 import { AttributeForm } from '@/features/products/AttributeForm';
 import { PushProgressModal } from '@/features/products/PushProgressModal';
-import { useBrands, useListing, useListingLimits, usePushListing, useShippingOptions, useUpdateListing } from '@/features/products/hooks';
+import { useAiSuggestDescription, useBrands, useListing, useListingLimits, usePushListing, useShippingOptions, useUpdateListing } from '@/features/products/hooks';
 import { searchMasterSkus, uploadListingVideo } from '@/features/products/api';
 import type { ListingDraftSku, MasterSkuRef, ShippingOptions, UpdateListingPayload } from '@/features/products/api';
 
@@ -41,6 +41,8 @@ export function ListingDraftEditorPage() {
     const { data: listing, isLoading, isError, error } = useListing(Number.isFinite(listingId) ? listingId : null);
     const updateListing = useUpdateListing();
     const pushListing = usePushListing();
+    const aiDescribe = useAiSuggestDescription();
+    const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
 
     const [description, setDescription] = useState('');
     const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -109,6 +111,14 @@ export function ListingDraftEditorPage() {
         if (!listing) return;
         pushListing.mutate(listing.id, {
             onSuccess: ({ batch_id }) => { setPushBatchId(batch_id); setPushModalOpen(true); },
+            onError: (e) => message.error(errorMessage(e)),
+        });
+    };
+
+    const handleAiSuggest = () => {
+        if (!listing) return;
+        aiDescribe.mutate(listing.id, {
+            onSuccess: (r) => setAiSuggestion(r.description),
             onError: (e) => message.error(errorMessage(e)),
         });
     };
@@ -222,7 +232,10 @@ export function ListingDraftEditorPage() {
             <Card title="Thông tin" style={{ marginBottom: 16 }}>
                 <Typography.Text type="secondary">Tên sản phẩm</Typography.Text>
                 <Input style={{ marginTop: 4, marginBottom: 12 }} value={listing.name ?? ''} disabled />
-                <Typography.Text type="secondary">Mô tả</Typography.Text>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Typography.Text type="secondary">Mô tả</Typography.Text>
+                    <Button size="small" icon={<RobotOutlined />} loading={aiDescribe.isPending} onClick={handleAiSuggest}>AI gợi ý mô tả</Button>
+                </div>
                 <Input.TextArea style={{ marginTop: 4, marginBottom: 12 }} rows={5} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Mô tả sản phẩm hiển thị trên sàn" />
                 <Typography.Text type="secondary">Ngành hàng</Typography.Text>
                 <div style={{ marginTop: 4, marginBottom: 12 }}>
@@ -298,6 +311,19 @@ export function ListingDraftEditorPage() {
                 <ShippingSection provider={provider} channelAccountId={channelAccountId} value={logistics} onChange={setLogistics}
                     onApplyWarehouse={(wid) => setSkus((prev) => prev.map((s) => ({ ...s, warehouse_id: wid })))} />
             </Card>
+
+            <Modal
+                title="Mô tả do AI gợi ý"
+                open={aiSuggestion !== null}
+                onCancel={() => setAiSuggestion(null)}
+                okText="Chấp nhận & thay thế"
+                cancelText="Bỏ"
+                onOk={() => { if (aiSuggestion !== null) setDescription(aiSuggestion); setAiSuggestion(null); }}
+                width={640}
+            >
+                <Typography.Paragraph type="secondary">Xem trước nội dung AI gợi ý. Chấp nhận sẽ thay thế mô tả hiện tại (nhớ bấm “Lưu nháp”).</Typography.Paragraph>
+                <Input.TextArea rows={12} value={aiSuggestion ?? ''} onChange={(e) => setAiSuggestion(e.target.value)} />
+            </Modal>
 
             <ImageResizer open={resizerOpen} onClose={() => setResizerOpen(false)} onUploaded={(url) => addImage(url)} />
             <PushProgressModal batchId={pushBatchId} open={pushModalOpen} onClose={() => { setPushModalOpen(false); back(); }} />

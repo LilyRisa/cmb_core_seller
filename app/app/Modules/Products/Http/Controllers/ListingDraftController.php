@@ -11,6 +11,7 @@ use CMBcoreSeller\Modules\Products\Http\Requests\UpdateListingDraftRequest;
 use CMBcoreSeller\Modules\Products\Http\Resources\ListingDraftResource;
 use CMBcoreSeller\Modules\Products\Models\ListingDraft;
 use CMBcoreSeller\Modules\Products\Services\ListingDraftService;
+use CMBcoreSeller\Modules\Products\Services\ProductDescriptionService;
 use Illuminate\Http\JsonResponse;
 
 /**
@@ -44,6 +45,13 @@ final class ListingDraftController extends Controller
         $draft = $this->svc->update($id, $request->validated());
 
         return new ListingDraftResource($draft);
+    }
+
+    public function aiDescription(int $id, ProductDescriptionService $ai): JsonResponse
+    {
+        $draft = ListingDraft::findOrFail($id);
+
+        return response()->json(['data' => $ai->suggest($draft)]);
     }
 
     public function destroy(int $id): JsonResponse

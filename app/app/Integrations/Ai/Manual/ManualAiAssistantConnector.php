@@ -40,6 +40,7 @@ class ManualAiAssistantConnector implements AiAssistantConnector
             'reply.suggest' => true,
             'reply.auto' => false,    // không dùng cho auto-mode (response không thông minh)
             'intent.classify' => true,
+            'text.generate' => true,
             'rag.training' => false,
             'embedding' => false,
         ];
@@ -63,6 +64,21 @@ class ManualAiAssistantConnector implements AiAssistantConnector
         $body = $lastInbound && ! empty($lastInbound['body'])
             ? 'Cảm ơn anh/chị đã liên hệ. Em đã nhận tin nhắn và sẽ phản hồi sớm.'
             : 'Em chào anh/chị, em có thể hỗ trợ gì ạ?';
+
+        return new AiReplyDTO(
+            body: $body,
+            promptTokens: 0,
+            completionTokens: mb_strlen($body),
+            costMicroVnd: 0,
+            durationMs: 0,
+            raw: ['provider' => 'manual', 'deterministic' => true],
+        );
+    }
+
+    public function generateText(AiContext $ctx, string $prompt, ?string $system = null): AiReplyDTO
+    {
+        // Deterministic stub — không gọi LLM thật. Đủ để test luồng gợi ý mô tả.
+        $body = "Sản phẩm chất lượng, phù hợp nhu cầu sử dụng hằng ngày.\n\n(Bản nháp mô tả mẫu — provider AI thật sẽ sinh nội dung chi tiết hơn.)";
 
         return new AiReplyDTO(
             body: $body,

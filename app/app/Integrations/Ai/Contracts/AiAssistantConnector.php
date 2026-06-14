@@ -48,6 +48,13 @@ interface AiAssistantConnector
     public function generateReply(AiContext $ctx, ConversationSnapshot $conversation, ?KnowledgeBase $kb = null): AiReplyDTO;
 
     /**
+     * Sinh văn bản tự do từ 1 prompt (KHÔNG dùng persona CSKH) — dùng cho gợi ý mô tả
+     * sản phẩm, tiêu đề… Capability 'text.generate'. Provider không support ⇒
+     * {@see UnsupportedOperation}.
+     */
+    public function generateText(AiContext $ctx, string $prompt, ?string $system = null): AiReplyDTO;
+
+    /**
      * Classify intent — `$candidates` là tập intent core muốn (mặc định
      * `['order_status','complaint','price','refund','urgent','smalltalk','other']`).
      * Provider không support ⇒ ném `UnsupportedOperation`.

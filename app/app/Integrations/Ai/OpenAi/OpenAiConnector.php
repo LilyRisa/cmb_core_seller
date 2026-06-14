@@ -54,6 +54,7 @@ class OpenAiConnector implements AiAssistantConnector
             'reply.suggest' => true,
             'reply.auto' => true,
             'intent.classify' => true,
+            'text.generate' => true,
             'rag.training' => true,
             'embedding' => true,
         ];
@@ -102,6 +103,52 @@ class OpenAiConnector implements AiAssistantConnector
             costMicroVnd: $this->estimateCostMicroVnd($cfg->pricing, $promptTokens, $completionTokens),
             durationMs: $durationMs,
             raw: ['model' => $response->json('model'), 'finish_reason' => $response->json('choices.0.finish_reason'), 'usage' => $usage],
+        );
+    }
+
+    public function generateText(AiContext $ctx, string $prompt, ?string $system = null): AiReplyDTO
+    {
+        $cfg = $this->config();
+        $model = $ctx->model ?: $cfg->defaultModel;
+        if (! $model) {
+            throw new ProviderNotConfigured('OpenAI provider cần default_model.');
+        }
+
+        $messages = [];
+        if ($system !== null && trim($system) !== '') {
+            $messages[] = ['role' => 'system', 'content' => $system];
+        }
+        $messages[] = ['role' => 'user', 'content' => $prompt];
+
+        $startedAt = microtime(true);
+        $response = Http::withToken($cfg->apiKey)
+            ->connectTimeout((int) config('ai.http.connect_timeout', 10))
+            ->timeout((int) config('ai.http.reply_timeout', 60))
+            ->retry(1 + (int) config('ai.http.retries', 1), (int) config('ai.http.retry_backoff_ms', 1000), throw: false)
+            ->post($this->base($cfg).'/v1/chat/completions', [
+                'model' => $model,
+                'max_tokens' => $ctx->maxTokens ?: 1024,
+                'messages' => $messages,
+            ]);
+
+        $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
+
+        if (! $response->successful()) {
+            $error = (array) $response->json('error');
+            throw new \RuntimeException('OpenAI API '.$response->status().': '.($error['message'] ?? $response->body()));
+        }
+
+        $usage = (array) $response->json('usage', []);
+        $promptTokens = (int) ($usage['prompt_tokens'] ?? 0);
+        $completionTokens = (int) ($usage['completion_tokens'] ?? 0);
+
+        return new AiReplyDTO(
+            body: trim((string) $response->json('choices.0.message.content', '')),
+            promptTokens: $promptTokens,
+            completionTokens: $completionTokens,
+            costMicroVnd: $this->estimateCostMicroVnd($cfg->pricing, $promptTokens, $completionTokens),
+            durationMs: $durationMs,
+            raw: ['model' => $response->json('model'), 'usage' => $usage],
         );
     }
 

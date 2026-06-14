@@ -245,6 +245,7 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::put('listings/{id}', [ListingDraftController::class, 'update'])->whereNumber('id')->name('listing-drafts.update');
             Route::delete('listings/{id}', [ListingDraftController::class, 'destroy'])->whereNumber('id')->name('listing-drafts.destroy');
             Route::post('listings/{id}/clone', [ListingDraftController::class, 'cloneTo'])->whereNumber('id')->name('listing-drafts.clone');
+            Route::post('listings/{id}/ai-description', [ListingDraftController::class, 'aiDescription'])->whereNumber('id')->name('listing-drafts.ai-description');
 
             // --- Listing publish (SPEC marketplace product publishing — Task E4) — push a
             // READY draft to its marketplace via a tracked ProductPushBatch on the `listings` queue.

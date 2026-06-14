@@ -187,6 +187,11 @@ export async function updateListing(
     return data.data;
 }
 
+export async function aiSuggestDescription(client: AxiosInstance, id: number): Promise<{ description: string; provider: string }> {
+    const { data } = await client.post<{ data: { description: string; provider: string } }>(`/listings/${id}/ai-description`);
+    return data.data;
+}
+
 export async function cloneListing(
     client: AxiosInstance,
     id: number,

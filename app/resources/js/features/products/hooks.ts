@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { tenantApi } from '@/lib/api';
 import { useCurrentTenantId } from '@/lib/tenant';
 import {
+    aiSuggestDescription,
     bulkPush,
     cloneChannelListingToShops,
     cloneListing,
@@ -146,6 +147,13 @@ export function useDeleteMasterProduct() {
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['products', 'master', tenantId] });
         },
+    });
+}
+
+export function useAiSuggestDescription() {
+    const client = useScopedApi();
+    return useMutation({
+        mutationFn: (id: number) => aiSuggestDescription(client!, id),
     });
 }
 

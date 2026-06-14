@@ -57,6 +57,7 @@ class ClaudeConnector implements AiAssistantConnector
             'reply.suggest' => true,
             'reply.auto' => true,
             'intent.classify' => true,
+            'text.generate' => true,
             'rag.training' => false,   // không có embedding API riêng
             'embedding' => false,
         ];
@@ -119,6 +120,57 @@ class ClaudeConnector implements AiAssistantConnector
             costMicroVnd: $this->estimateCostMicroVnd($cfg->pricing, $promptTokens, $completionTokens),
             durationMs: $durationMs,
             raw: ['model' => $response->json('model'), 'stop_reason' => $response->json('stop_reason'), 'usage' => $usage],
+        );
+    }
+
+    public function generateText(AiContext $ctx, string $prompt, ?string $system = null): AiReplyDTO
+    {
+        $cfg = $this->credentials->resolve($this->code());
+        if (! $cfg || ! $cfg->apiKey) {
+            throw new ProviderNotConfigured('Claude provider chưa cấu hình api_key.');
+        }
+
+        $startedAt = microtime(true);
+        $response = Http::withHeaders([
+            'x-api-key' => $cfg->apiKey,
+            'anthropic-version' => self::API_VERSION,
+            'content-type' => 'application/json',
+        ])
+            ->connectTimeout((int) config('ai.http.connect_timeout', 10))
+            ->timeout((int) config('ai.http.reply_timeout', 60))
+            ->retry(1 + (int) config('ai.http.retries', 1), (int) config('ai.http.retry_backoff_ms', 1000), throw: false)
+            ->post(rtrim($cfg->baseUrl ?: 'https://api.anthropic.com', '/').'/v1/messages', [
+                'model' => $ctx->model ?: ($cfg->defaultModel ?: self::DEFAULT_MODEL),
+                'max_tokens' => $ctx->maxTokens ?: 1024,
+                'system' => [['type' => 'text', 'text' => $system ?: 'Bạn là trợ lý viết nội dung thương mại điện tử bằng tiếng Việt.']],
+                'messages' => [['role' => 'user', 'content' => $prompt]],
+            ]);
+
+        $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
+
+        if (! $response->successful()) {
+            $error = (array) $response->json('error');
+            throw new \RuntimeException('Claude API '.$response->status().': '.($error['message'] ?? $response->body()));
+        }
+
+        $text = '';
+        foreach ((array) $response->json('content', []) as $block) {
+            if (($block['type'] ?? null) === 'text') {
+                $text .= (string) ($block['text'] ?? '');
+            }
+        }
+
+        $usage = (array) $response->json('usage', []);
+        $promptTokens = (int) ($usage['input_tokens'] ?? 0);
+        $completionTokens = (int) ($usage['output_tokens'] ?? 0);
+
+        return new AiReplyDTO(
+            body: trim($text),
+            promptTokens: $promptTokens,
+            completionTokens: $completionTokens,
+            costMicroVnd: $this->estimateCostMicroVnd($cfg->pricing, $promptTokens, $completionTokens),
+            durationMs: $durationMs,
+            raw: ['model' => $response->json('model'), 'usage' => $usage],
         );
     }
 

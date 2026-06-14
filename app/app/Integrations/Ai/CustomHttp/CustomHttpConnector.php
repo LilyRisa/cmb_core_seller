@@ -65,6 +65,7 @@ class CustomHttpConnector implements AiAssistantConnector
             'reply.suggest' => true,
             'reply.auto' => true,
             'intent.classify' => true,
+            'text.generate' => true,
             'rag.training' => false,
             'embedding' => false,
         ];
@@ -86,6 +87,44 @@ class CustomHttpConnector implements AiAssistantConnector
         $lastUser = $this->lastUserText($conversation);
 
         $body = $this->renderBody($ac, $this->bodyReplacements($model, $system, $messages, $lastUser, $conversation->buyerName ?? '', $cfg->apiKey));
+
+        $startedAt = microtime(true);
+        $response = $this->send($cfg, $ac, $body);
+        $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
+
+        if (! $response->successful()) {
+            throw new \RuntimeException('Custom HTTP AI '.$response->status().': '.Str::limit($response->body(), 200));
+        }
+
+        $json = (array) $response->json();
+        $text = trim((string) data_get($json, (string) $ac['response_path'], ''));
+        if ($text === '') {
+            throw new \RuntimeException('Custom HTTP AI: không tìm thấy nội dung tại response_path ['.$ac['response_path'].'].');
+        }
+
+        $promptTokens = (int) data_get($json, (string) data_get($ac, 'usage.prompt_path', ''), 0);
+        $completionTokens = (int) data_get($json, (string) data_get($ac, 'usage.completion_path', ''), 0);
+
+        return new AiReplyDTO(
+            body: $text,
+            promptTokens: $promptTokens,
+            completionTokens: $completionTokens,
+            costMicroVnd: $this->estimateCostMicroVnd($cfg->pricing, $promptTokens, $completionTokens),
+            durationMs: $durationMs,
+            raw: ['status' => $response->status()],
+        );
+    }
+
+    public function generateText(AiContext $ctx, string $prompt, ?string $system = null): AiReplyDTO
+    {
+        $cfg = $this->config();
+        $ac = $this->adapterConfig($cfg);
+
+        $model = $ctx->model ?: ($cfg->defaultModel ?: '');
+        $sys = $system ?? 'Bạn là trợ lý viết nội dung thương mại điện tử bằng tiếng Việt.';
+        $messages = [['role' => 'system', 'content' => $sys], ['role' => 'user', 'content' => $prompt]];
+
+        $body = $this->renderBody($ac, $this->bodyReplacements($model, $sys, $messages, $prompt, '', $cfg->apiKey));
 
         $startedAt = microtime(true);
         $response = $this->send($cfg, $ac, $body);
