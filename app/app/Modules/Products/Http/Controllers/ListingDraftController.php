@@ -34,7 +34,7 @@ final class ListingDraftController extends Controller
 
     public function show(int $id): ListingDraftResource
     {
-        $draft = ListingDraft::with(['product', 'skus'])->findOrFail($id);
+        $draft = ListingDraft::with(['product', 'skus.masterSku'])->findOrFail($id);
 
         return new ListingDraftResource($draft);
     }

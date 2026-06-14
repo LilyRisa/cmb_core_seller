@@ -76,18 +76,7 @@ final class ListingDraftService
             }
             $draft->save();
 
-            foreach ($product->skus as $i => $sku) {
-                $draft->skus()->create([
-                    'master_variant_id' => $sku->getKey(),
-                    'seller_sku' => $sku->sku_code !== ''
-                        ? $sku->sku_code
-                        : 'MP'.$productId.'-'.$i,
-                    'sale_props' => is_array($sku->attributes) ? $sku->attributes : [],
-                    'price' => (int) ($sku->ref_sale_price ?? 0),
-                    'stock' => $sku->availableTotal(),
-                    'image_ref' => $sku->image_url,
-                ]);
-            }
+            $this->seedDraftSkus($draft, $product);
 
             return $draft->load('skus');
         });
@@ -126,7 +115,7 @@ final class ListingDraftService
                 foreach (array_values($data['skus']) as $i => $row) {
                     $model = $existing->get($i);
                     $fill = [];
-                    foreach (['seller_sku', 'price', 'stock', 'sale_props', 'package_weight', 'package_dims'] as $f) {
+                    foreach (['seller_sku', 'price', 'stock', 'sale_props', 'package_weight', 'package_dims', 'master_variant_id'] as $f) {
                         if (array_key_exists($f, $row)) {
                             $fill[$f] = $row[$f];
                         }
@@ -295,6 +284,67 @@ final class ListingDraftService
             skus: $skus,
             logistics: $logistics,
         );
+    }
+
+    /**
+     * Seed SKU nháp đăng sàn. Ưu tiên biến thể copy thô (`product.meta.variants`)
+     * để "Phân loại" có dữ liệu mà KHÔNG đẻ master SKU dư thừa — các SKU này để
+     * `master_variant_id = null` (liên kết tồn kho là thao tác thủ công sau).
+     * Sản phẩm tạo trong app (đã có master SKU thật) thì seed từ master SKU và gán
+     * liên kết luôn (không tạo SKU mới).
+     */
+    private function seedDraftSkus(ListingDraft $draft, Product $product): void
+    {
+        $variants = is_array(($product->meta ?? [])['variants'] ?? null) ? $product->meta['variants'] : [];
+
+        if ($variants !== []) {
+            foreach (array_values($variants) as $i => $v) {
+                if (! is_array($v)) {
+                    continue;
+                }
+                $name = trim((string) ($v['name'] ?? ''));
+                $draft->skus()->create([
+                    'master_variant_id' => null,
+                    'seller_sku' => ($v['sku'] ?? '') !== '' ? (string) $v['sku'] : 'MP'.$product->getKey().'-'.($i + 1),
+                    'sale_props' => $name !== '' ? ['Phân loại' => $name] : [],
+                    'price' => (int) round((float) ($v['price'] ?? 0)),
+                    'stock' => (int) ($v['stock'] ?? 0),
+                    'image_ref' => ($v['image'] ?? null) ?: $product->image,
+                ]);
+            }
+
+            return;
+        }
+
+        foreach ($product->skus as $i => $sku) {
+            $draft->skus()->create([
+                'master_variant_id' => $sku->getKey(),
+                'seller_sku' => $sku->sku_code !== '' ? $sku->sku_code : 'MP'.$product->getKey().'-'.$i,
+                'sale_props' => self::salePropsFromAttributes(is_array($sku->attributes) ? $sku->attributes : []),
+                'price' => (int) ($sku->ref_sale_price ?? 0),
+                'stock' => $sku->availableTotal(),
+                'image_ref' => $sku->image_url,
+            ]);
+        }
+    }
+
+    /**
+     * Chuyển attributes của master SKU thành sale_props sạch: gộp chuỗi biến thể vào
+     * một tier "Phân loại", bỏ khóa nghiệp vụ (source_sku).
+     *
+     * @param  array<string,mixed>  $attrs
+     * @return array<string,mixed>
+     */
+    private static function salePropsFromAttributes(array $attrs): array
+    {
+        $variant = trim((string) ($attrs['variant'] ?? ''));
+        if ($variant !== '') {
+            return ['Phân loại' => $variant];
+        }
+
+        unset($attrs['variant'], $attrs['source_sku']);
+
+        return $attrs;
     }
 
     /**

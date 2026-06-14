@@ -23,16 +23,26 @@ export interface ListingDraftSummary {
 
 export type ListingStatus = 'draft' | 'ready' | 'pushing' | 'reviewing' | 'live' | 'published' | 'failed';
 
+export interface MasterSkuRef {
+    id: number;
+    sku_code: string;
+    name: string;
+}
+
 export interface ListingDraftSku {
     id: number;
     seller_sku: string;
     sale_props: Record<string, string>;
     price: number;
+    /** Tồn khởi tạo đẩy lên sàn (KHÔNG phải tồn kho master SKU của app). */
     stock: number;
     package_weight: number | null;
     package_dims: { length?: number; width?: number; height?: number } | null;
     /** TikTok: kho xuất hàng cho từng SKU. */
     warehouse_id?: string | null;
+    /** Master SKU đã liên kết thủ công (để đồng bộ tồn kho sau khi đẩy); null = chưa liên kết. */
+    master_variant_id?: number | null;
+    master_sku?: MasterSkuRef | null;
 }
 
 export interface ListingDraft {
@@ -114,6 +124,14 @@ export async function listMasterProducts(client: AxiosInstance, status?: string)
 
 export async function deleteMasterProduct(client: AxiosInstance, id: number): Promise<void> {
     await client.delete(`/products/${id}`);
+}
+
+/** Tìm master SKU có sẵn để liên kết thủ công với SKU nháp đăng sàn. */
+export async function searchMasterSkus(client: AxiosInstance, q: string): Promise<MasterSkuRef[]> {
+    const { data } = await client.get<{ data: Array<{ id: number; sku_code: string; name: string }> }>('/skus', {
+        params: { q, per_page: 20 },
+    });
+    return data.data.map((s) => ({ id: s.id, sku_code: s.sku_code, name: s.name }));
 }
 
 export async function getListing(client: AxiosInstance, id: number): Promise<ListingDraft> {

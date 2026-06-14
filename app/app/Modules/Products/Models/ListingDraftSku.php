@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Products\Models;
 
+use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Tenancy\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -21,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property array|null $package_dims
  * @property string|null $external_sku_id
  * @property string|null $image_ref
+ * @property-read \CMBcoreSeller\Modules\Inventory\Models\Sku|null $masterSku
  */
 class ListingDraftSku extends Model
 {
@@ -41,5 +43,11 @@ class ListingDraftSku extends Model
     public function listing(): BelongsTo
     {
         return $this->belongsTo(ListingDraft::class, 'listing_draft_id');
+    }
+
+    /** Master SKU đã liên kết thủ công (để đồng bộ tồn kho sau khi đẩy). */
+    public function masterSku(): BelongsTo
+    {
+        return $this->belongsTo(Sku::class, 'master_variant_id');
     }
 }

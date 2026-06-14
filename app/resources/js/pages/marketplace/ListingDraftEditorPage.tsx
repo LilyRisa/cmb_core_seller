@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
     Alert, App as AntApp, Button, Card, Checkbox, Image, Input, InputNumber, List, Radio, Result, Select, Space, Spin, Switch, Table, Tag, Typography,
@@ -7,12 +7,14 @@ import type { ColumnsType } from 'antd/es/table';
 import { ArrowLeftOutlined, CloudUploadOutlined, DeleteOutlined, PictureOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { ImageResizer } from '@/components/ImageResizer';
-import { errorMessage } from '@/lib/api';
+import { errorMessage, tenantApi } from '@/lib/api';
+import { useCurrentTenantId } from '@/lib/tenant';
 import { CategoryPicker } from '@/features/products/CategoryPicker';
 import { AttributeForm } from '@/features/products/AttributeForm';
 import { PushProgressModal } from '@/features/products/PushProgressModal';
 import { useBrands, useListing, usePushListing, useShippingOptions, useUpdateListing } from '@/features/products/hooks';
-import type { ListingDraftSku, ShippingOptions, UpdateListingPayload } from '@/features/products/api';
+import { searchMasterSkus } from '@/features/products/api';
+import type { ListingDraftSku, MasterSkuRef, ShippingOptions, UpdateListingPayload } from '@/features/products/api';
 
 const STATUS_TAG: Record<string, { color: string; label: string }> = {
     draft: { color: 'default', label: 'Nháp' },
@@ -79,6 +81,7 @@ export function ListingDraftEditorPage() {
         skus: skus.map((s) => ({
             id: s.id, seller_sku: s.seller_sku, sale_props: s.sale_props, price: s.price, stock: s.stock,
             package_weight: s.package_weight, package_dims: s.package_dims, warehouse_id: s.warehouse_id,
+            master_variant_id: s.master_variant_id ?? null,
         })),
     });
 
@@ -122,7 +125,11 @@ export function ListingDraftEditorPage() {
                     : <Typography.Text type="secondary">—</Typography.Text>,
             },
             { title: 'Giá (VND)', dataIndex: 'price', width: 120, render: (v: number, r) => <InputNumber size="small" style={{ width: '100%' }} min={0} value={v} onChange={(val) => updateSku(r.id, { price: Number(val ?? 0) })} /> },
-            { title: 'Tồn', dataIndex: 'stock', width: 90, render: (v: number, r) => <InputNumber size="small" style={{ width: '100%' }} min={0} value={v} onChange={(val) => updateSku(r.id, { stock: Number(val ?? 0) })} /> },
+            { title: 'Tồn đẩy sàn', dataIndex: 'stock', width: 110, render: (v: number, r) => <InputNumber size="small" style={{ width: '100%' }} min={0} value={v} onChange={(val) => updateSku(r.id, { stock: Number(val ?? 0) })} /> },
+            {
+                title: 'Liên kết tồn kho (master SKU)', key: 'link', width: 240,
+                render: (_: unknown, r) => <SkuLinkSelect sku={r} onLink={(mid) => updateSku(r.id, { master_variant_id: mid })} />,
+            },
             { title: 'KL (g)', dataIndex: 'package_weight', width: 90, render: (v: number | null, r) => <InputNumber size="small" style={{ width: '100%' }} min={0} value={v ?? undefined} onChange={(val) => updateSku(r.id, { package_weight: val == null ? null : Number(val) })} /> },
             {
                 title: 'KT D×R×C (cm)', key: 'dims', width: 190,
@@ -208,6 +215,8 @@ export function ListingDraftEditorPage() {
             </Card>
 
             <Card title="Phân loại & tồn kho (SKU)" style={{ marginBottom: 16 }}>
+                <Alert type="info" showIcon style={{ marginBottom: 12 }}
+                    message="Ô “Tồn đẩy sàn” là số lượng khởi tạo đẩy lên sàn, không phải tồn kho của app. Muốn đồng bộ tồn kho về sau, hãy liên kết mỗi dòng với một master SKU có sẵn." />
                 <Table size="small" rowKey="id" dataSource={skus} columns={skuColumns} pagination={false} scroll={{ x: true }} />
             </Card>
 
@@ -219,6 +228,51 @@ export function ListingDraftEditorPage() {
             <ImageResizer open={resizerOpen} onClose={() => setResizerOpen(false)} onUploaded={(url) => addImage(url)} />
             <PushProgressModal batchId={pushBatchId} open={pushModalOpen} onClose={() => { setPushModalOpen(false); back(); }} />
         </div>
+    );
+}
+
+/** Ô tìm & liên kết một dòng SKU nháp với master SKU có sẵn (thủ công, không auto-tạo). */
+function SkuLinkSelect({ sku, onLink }: { sku: ListingDraftSku; onLink: (masterVariantId: number | null) => void }) {
+    const tenantId = useCurrentTenantId();
+    const client = useMemo(() => (tenantId == null ? null : tenantApi(tenantId)), [tenantId]);
+    const [hits, setHits] = useState<MasterSkuRef[]>([]);
+    const [loading, setLoading] = useState(false);
+    const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const initial = sku.master_sku ? [{ value: sku.master_sku.id, label: `${sku.master_sku.sku_code} — ${sku.master_sku.name}` }] : [];
+    const options = hits.length ? hits.map((h) => ({ value: h.id, label: `${h.sku_code} — ${h.name}` })) : initial;
+
+    const run = (term: string) => {
+        if (debounce.current) clearTimeout(debounce.current);
+        const q = term.trim();
+        if (!client || q.length < 1) {
+            setHits([]);
+            return;
+        }
+        debounce.current = setTimeout(async () => {
+            setLoading(true);
+            try {
+                setHits(await searchMasterSkus(client, q));
+            } finally {
+                setLoading(false);
+            }
+        }, 350);
+    };
+
+    return (
+        <Select
+            size="small"
+            style={{ width: '100%' }}
+            showSearch
+            allowClear
+            filterOption={false}
+            placeholder="Tìm & liên kết master SKU"
+            notFoundContent={loading ? <Spin size="small" /> : null}
+            value={sku.master_variant_id ?? undefined}
+            onSearch={run}
+            onChange={(v) => onLink(v == null ? null : Number(v))}
+            options={options}
+        />
     );
 }
 

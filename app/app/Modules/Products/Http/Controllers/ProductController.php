@@ -3,12 +3,10 @@
 namespace CMBcoreSeller\Modules\Products\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
-use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Products\Http\Resources\ProductResource;
 use CMBcoreSeller\Modules\Products\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 /** /api/v1/products — base products. SKUs (Inventory module) reference these. See SPEC 0003 §6. */
 class ProductController extends Controller
@@ -58,59 +56,12 @@ class ProductController extends Controller
             'variants.*.sku' => ['sometimes', 'nullable', 'string', 'max:191'],
             'variants.*.image' => ['sometimes', 'nullable', 'string', 'max:1000'],
         ]);
-        $product = DB::transaction(function () use ($data) {
-            $product = Product::query()->create($this->productAttributes($data));
-            $this->seedSkusFromVariants($product, $data);
-
-            return $product;
-        });
+        // Biến thể copy được giữ trong `meta.variants` (xem productAttributes) — KHÔNG
+        // tự tạo master SKU ở đây để tránh đẻ SKU inventory dư thừa. SKU nháp đăng sàn
+        // seed thẳng từ meta.variants; liên kết với master SKU là thao tác thủ công.
+        $product = Product::query()->create($this->productAttributes($data));
 
         return response()->json(['data' => new ProductResource($product->loadCount('skus'))], 201);
-    }
-
-    /**
-     * Tạo master SKU từ các biến thể extension copy gửi lên (`variants[]`), để sản
-     * phẩm sao chép có giá/biến thể thật → "Tạo nháp sàn" có dữ liệu để đẩy sàn.
-     * Không có `variants` nhưng có `unit_price` ⇒ tạo 1 SKU đơn. Luồng SPA (không
-     * gửi variants/unit_price) ⇒ không tạo SKU nào (giữ nguyên hành vi cũ).
-     *
-     * `sku_code` sinh tự động `CP{productId}-{i}` (tenant-unique, tránh đụng khi copy
-     * lại cùng sản phẩm); mã SKU gốc của sàn lưu trong `attributes.source_sku`.
-     *
-     * @param  array<string,mixed>  $data
-     */
-    private function seedSkusFromVariants(Product $product, array $data): void
-    {
-        $variants = is_array($data['variants'] ?? null) ? $data['variants'] : [];
-        if ($variants === [] && ! empty($data['unit_price'])) {
-            $variants = [['name' => null, 'price' => $data['unit_price']]];
-        }
-        if ($variants === []) {
-            return;
-        }
-
-        $unit = trim((string) ($data['unit'] ?? '')) ?: 'cái';
-        foreach (array_values($variants) as $i => $v) {
-            if (! is_array($v)) {
-                continue;
-            }
-            $variantName = trim((string) ($v['name'] ?? ''));
-            $product->skus()->create([
-                'tenant_id' => $product->tenant_id,
-                'sku_code' => 'CP'.$product->getKey().'-'.($i + 1),
-                'name' => $variantName !== '' ? $product->name.' - '.$variantName : (string) $product->name,
-                'base_unit' => mb_substr($unit, 0, 50),
-                'cost_price' => 0,
-                'cost_method' => Sku::COST_AVERAGE,
-                'ref_sale_price' => (int) round((float) ($v['price'] ?? 0)),
-                'image_url' => ($v['image'] ?? null) ?: $product->image,
-                'attributes' => array_filter([
-                    'variant' => $variantName !== '' ? $variantName : null,
-                    'source_sku' => ($v['sku'] ?? null) ?: null,
-                ], fn ($x) => $x !== null),
-                'is_active' => true,
-            ]);
-        }
     }
 
     /**

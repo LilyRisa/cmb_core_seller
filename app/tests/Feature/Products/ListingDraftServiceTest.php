@@ -116,6 +116,52 @@ class ListingDraftServiceTest extends TestCase
         $this->assertSame('<p>Mô tả copy từ sàn nguồn</p>', $draft->attributes['description'] ?? null);
     }
 
+    public function test_draft_skus_are_seeded_from_copied_variants_unlinked_with_clean_sale_props(): void
+    {
+        $p = Product::create([
+            'tenant_id' => $this->tenant->getKey(),
+            'name' => 'Ốp lưng',
+            'meta' => ['variants' => [
+                ['name' => 'Trắng Mờ / IP 13', 'price' => 32000, 'stock' => 7, 'sku' => '254160406625'],
+                ['name' => 'Hồng Mờ / IP 16', 'price' => 33000, 'stock' => 0, 'sku' => '254160406655'],
+            ]],
+        ]);
+
+        $draft = app(ListingDraftService::class)->createDraft((int) $p->getKey(), $this->accountId, 'lazada');
+        $skus = $draft->skus;
+
+        $this->assertCount(2, $skus);
+        $this->assertSame(['Phân loại' => 'Trắng Mờ / IP 13'], $skus[0]->sale_props);
+        $this->assertSame('254160406625', $skus[0]->seller_sku);
+        $this->assertSame(32000, $skus[0]->price);
+        $this->assertSame(7, $skus[0]->stock);
+        // Không tự liên kết master SKU (liên kết thủ công sau).
+        $this->assertNull($skus[0]->master_variant_id);
+    }
+
+    public function test_manual_sku_link_is_persisted_on_update(): void
+    {
+        $master = $this->product->skus()->first();
+        $p = Product::create([
+            'tenant_id' => $this->tenant->getKey(),
+            'name' => 'SP copy',
+            'meta' => ['variants' => [['name' => 'Đỏ', 'price' => 1000, 'stock' => 1, 'sku' => 'V1']]],
+        ]);
+        $draft = app(ListingDraftService::class)->createDraft((int) $p->getKey(), $this->accountId, 'lazada');
+        $skuId = (int) $draft->skus->first()->getKey();
+
+        $this->actingAs($this->owner)
+            ->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
+            ->putJson("/api/v1/listings/{$draft->getKey()}", [
+                'skus' => [['id' => $skuId, 'master_variant_id' => $master->getKey()]],
+            ])->assertOk();
+
+        $this->assertDatabaseHas('listing_draft_skus', [
+            'id' => $skuId,
+            'master_variant_id' => $master->getKey(),
+        ]);
+    }
+
     public function test_update_keeps_draft_when_validation_fails_then_ready_when_passes(): void
     {
         $created = $this->actingAs($this->owner)

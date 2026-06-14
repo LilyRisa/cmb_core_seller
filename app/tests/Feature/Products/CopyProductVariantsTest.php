@@ -40,7 +40,7 @@ class CopyProductVariantsTest extends TestCase
             ->postJson('/api/v1/products', $body);
     }
 
-    public function test_copy_with_variants_creates_a_sku_per_variant(): void
+    public function test_copy_with_variants_does_not_create_redundant_master_skus(): void
     {
         $res = $this->postProduct([
             'name' => 'Máy cạo râu mini coclear CS007',
@@ -53,33 +53,13 @@ class CopyProductVariantsTest extends TestCase
         ]);
 
         $res->assertCreated();
-        $this->assertSame(2, $res->json('data.skus_count'));
+        // Phương án A: KHÔNG tự tạo master SKU (tránh SKU dư thừa).
+        $this->assertSame(0, $res->json('data.skus_count'));
+        $this->assertSame(0, Sku::where('product_id', (int) $res->json('data.id'))->count());
 
-        $productId = (int) $res->json('data.id');
-        $this->assertDatabaseHas('skus', [
-            'product_id' => $productId,
-            'sku_code' => 'CP'.$productId.'-1',
-            'ref_sale_price' => 249000,
-        ]);
-        $this->assertDatabaseHas('skus', [
-            'product_id' => $productId,
-            'sku_code' => 'CP'.$productId.'-2',
-            'ref_sale_price' => 308000,
-        ]);
-
-        // Mã SKU gốc của sàn được giữ trong attributes.source_sku.
-        $sku = Sku::where('product_id', $productId)->orderBy('id')->first();
-        $this->assertSame('237535767487', $sku->attributes['source_sku'] ?? null);
-        $this->assertSame('Cam Hermes', $sku->attributes['variant'] ?? null);
-    }
-
-    public function test_copy_without_variants_but_unit_price_creates_one_sku(): void
-    {
-        $res = $this->postProduct(['name' => 'Sản phẩm đơn', 'unit_price' => 150000]);
-
-        $res->assertCreated();
-        $this->assertSame(1, $res->json('data.skus_count'));
-        $this->assertDatabaseHas('skus', ['product_id' => (int) $res->json('data.id'), 'ref_sale_price' => 150000]);
+        // Biến thể thô được giữ trong meta để SKU nháp đăng sàn seed từ đó.
+        $res->assertJsonPath('data.meta.variants.0.name', 'Cam Hermes');
+        $res->assertJsonPath('data.meta.variants.1.price', 308000);
     }
 
     public function test_plain_product_without_variants_creates_no_sku(): void

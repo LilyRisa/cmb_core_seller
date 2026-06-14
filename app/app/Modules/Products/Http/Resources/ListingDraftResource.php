@@ -37,6 +37,10 @@ class ListingDraftResource extends JsonResource
                 'package_weight' => $s->package_weight,
                 'package_dims' => $s->package_dims ?? [],
                 'warehouse_id' => $this->logistics['warehouse_id'] ?? null,
+                'master_variant_id' => $s->master_variant_id,
+                'master_sku' => $s->relationLoaded('masterSku') && $s->masterSku
+                    ? ['id' => $s->masterSku->id, 'sku_code' => $s->masterSku->sku_code, 'name' => $s->masterSku->name]
+                    : null,
             ])->values()->all()),
         ];
     }
