@@ -48,6 +48,33 @@ class ShopeePayloadTest extends TestCase
         $this->assertSame(5, $body['normal_stock']);
     }
 
+    public function test_omits_pre_order_when_not_enabled(): void
+    {
+        $body = ShopeeProductPayload::addItem($this->makeDraft([
+            ['seller_sku' => 'S1', 'price' => 10000, 'stock' => 5, 'sale_props' => []],
+        ]));
+
+        $this->assertArrayNotHasKey('pre_order', $body);
+    }
+
+    public function test_includes_pre_order_when_enabled(): void
+    {
+        $draft = new ListingDraftDTO(
+            title: 'Áo', description: 'x', categoryId: '100012', brandId: null,
+            attributes: [], media: [new MediaRefDTO('img-1', 'image_id')],
+            skus: [['seller_sku' => 'S1', 'price' => 10000, 'stock' => 5, 'sale_props' => []]],
+            logistics: [
+                'channels' => [['logistics_channel_id' => 1, 'enabled' => true, 'fee_type' => 'FIXED_DEFAULT_PRICE']],
+                'pre_order' => ['is_pre_order' => true, 'days_to_ship' => 12],
+            ],
+        );
+
+        $body = ShopeeProductPayload::addItem($draft);
+
+        $this->assertTrue($body['pre_order']['is_pre_order']);
+        $this->assertSame(12, $body['pre_order']['days_to_ship']);
+    }
+
     public function test_builds_tier_variation_two_skus(): void
     {
         $draft = $this->makeDraft([

@@ -16,6 +16,7 @@ use CMBcoreSeller\Integrations\Channels\DTO\ListingDraftDTO;
  * - ≥1 image_id (already uploaded via upload_image)
  * - logistic_info needs ≥1 channel with enabled=true
  * - weight required when any chosen channel has fee_type === 'SIZE_INPUT'
+ * - days_to_ship in 7..30 when pre-order (hàng đặt trước) is enabled
  * - price > 0 per SKU
  */
 final class ShopeeListingValidator implements ListingValidator
@@ -47,6 +48,15 @@ final class ShopeeListingValidator implements ListingValidator
 
         if ($needsSize && ($d->logistics['weight'] ?? null) === null) {
             $e['logistics.weight'] = 'weight bắt buộc với SIZE_INPUT';
+        }
+
+        $preOrder = $d->logistics['pre_order'] ?? null;
+
+        if (is_array($preOrder) && ! empty($preOrder['is_pre_order'])) {
+            $days = (int) ($preOrder['days_to_ship'] ?? 0);
+            if ($days < 7 || $days > 30) {
+                $e['logistics.pre_order.days_to_ship'] = 'Hàng đặt trước: số ngày chuẩn bị phải từ 7–30';
+            }
         }
 
         foreach ($d->skus as $i => $s) {

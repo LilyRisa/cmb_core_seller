@@ -54,6 +54,16 @@ final class ShopeeProductPayload
             $body['dimension'] = $d->logistics['dimension'];
         }
 
+        // Hàng đặt trước (pre-order): chỉ gửi khi người bán bật — giữ nguyên payload
+        // hàng có sẵn. days_to_ship = số ngày chuẩn bị hàng (Shopee VN: 7–30).
+        $preOrder = $d->logistics['pre_order'] ?? null;
+        if (is_array($preOrder) && ! empty($preOrder['is_pre_order'])) {
+            $body['pre_order'] = [
+                'is_pre_order' => true,
+                'days_to_ship' => (int) ($preOrder['days_to_ship'] ?? 0),
+            ];
+        }
+
         if (count($d->skus) === 1) {
             $body['original_price'] = $first['price'];
             $body['normal_stock'] = (int) $first['stock'];

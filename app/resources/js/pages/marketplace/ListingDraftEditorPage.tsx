@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-    Alert, App as AntApp, Button, Card, Checkbox, Image, Input, InputNumber, List, Radio, Result, Select, Space, Spin, Table, Tag, Typography,
+    Alert, App as AntApp, Button, Card, Checkbox, Image, Input, InputNumber, List, Radio, Result, Select, Space, Spin, Switch, Table, Tag, Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { ArrowLeftOutlined, CloudUploadOutlined, DeleteOutlined, PictureOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
@@ -247,6 +247,11 @@ function ShopeeShipping({ opts, value, onChange }: { opts: ShippingOptions; valu
     const selectedIds = channels.map((c) => c.logistics_channel_id);
     const setSelected = (ids: string[]) => onChange({ ...value, channels: ids.map((logistics_channel_id) => ({ logistics_channel_id, enabled: true, is_free: false })) });
 
+    const preOrder = (value.pre_order as { is_pre_order?: boolean; days_to_ship?: number } | undefined) ?? {};
+    const isPreOrder = !!preOrder.is_pre_order;
+    const setPreOrder = (patch: { is_pre_order?: boolean; days_to_ship?: number }) =>
+        onChange({ ...value, pre_order: { ...preOrder, ...patch } });
+
     return (
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
             <div>
@@ -258,6 +263,17 @@ function ShopeeShipping({ opts, value, onChange }: { opts: ShippingOptions; valu
             <Space>
                 <Typography.Text>Khối lượng kiện (g)</Typography.Text>
                 <InputNumber min={0} value={value.weight as number | undefined} onChange={(v) => onChange({ ...value, weight: v == null ? undefined : Number(v) })} />
+            </Space>
+            <Space wrap>
+                <Typography.Text>Hàng đặt trước</Typography.Text>
+                <Switch checked={isPreOrder} onChange={(checked) => setPreOrder({ is_pre_order: checked, days_to_ship: checked ? (preOrder.days_to_ship ?? 7) : undefined })} />
+                {isPreOrder && (
+                    <>
+                        <Typography.Text>Số ngày chuẩn bị hàng</Typography.Text>
+                        <InputNumber min={7} max={30} value={preOrder.days_to_ship ?? 7} onChange={(v) => setPreOrder({ days_to_ship: v == null ? undefined : Number(v) })} />
+                        <Typography.Text type="secondary">(7–30 ngày)</Typography.Text>
+                    </>
+                )}
             </Space>
         </Space>
     );
