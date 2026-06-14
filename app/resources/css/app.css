@@ -118,6 +118,13 @@ body {
 .row-has-issue > td { background: var(--danger-50) !important; }
 .row-has-issue:hover > td { background: #FEE5E0 !important; }
 
+/* Mọi bảng: khi chọn dòng CHỈ tô nền, bỏ mọi đường viền/khung cho gọn mắt (toàn app). */
+.ant-table-row-selected > .ant-table-cell,
+.ant-table-tbody > tr.ant-table-row-selected:hover > .ant-table-cell {
+    border-color: transparent !important;
+    box-shadow: none !important;
+}
+
 /* =============================================================================
    AUTH PAGES (LoginPage / RegisterPage) — split-shell, blue mesh + white form
    ============================================================================= */
