@@ -302,7 +302,7 @@ export function ListingDraftEditorPage() {
                         </Upload>
                     )}
                     <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
-                        MP4/WebM, tối đa 50MB. Video sẽ được đẩy lên sàn ở bước sau.
+                        MP4/WebM, tối đa 50MB. Shopee sẽ đẩy video lên sàn khi đăng (TikTok/Lazada sẽ bổ sung sau).
                     </Typography.Paragraph>
                 </Card>
             )}

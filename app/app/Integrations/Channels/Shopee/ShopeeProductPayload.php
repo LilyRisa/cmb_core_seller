@@ -19,9 +19,10 @@ final class ShopeeProductPayload
     /**
      * Build the body for the add_item API call.
      *
+     * @param  string|null  $videoUploadId  media_space video id (đã transcode xong), nếu có.
      * @return array<string,mixed>
      */
-    public static function addItem(ListingDraftDTO $d): array
+    public static function addItem(ListingDraftDTO $d, ?string $videoUploadId = null): array
     {
         $first = $d->skus[0];
 
@@ -62,6 +63,10 @@ final class ShopeeProductPayload
                 'is_pre_order' => true,
                 'days_to_ship' => (int) ($preOrder['days_to_ship'] ?? 0),
             ];
+        }
+
+        if ($videoUploadId !== null && $videoUploadId !== '') {
+            $body['video_upload_id'] = [$videoUploadId];
         }
 
         if (count($d->skus) === 1) {

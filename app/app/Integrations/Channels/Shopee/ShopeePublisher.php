@@ -42,7 +42,14 @@ final class ShopeePublisher implements ProductPublishingConnector
             throw MarketplaceApiException::validation('shopee', $errors);
         }
 
-        $resp = $this->client->shopPostEnvelope($auth, '/api/v2/product/add_item', [], ShopeeProductPayload::addItem($draft));
+        // Hàng đặt trước/ảnh xong — nếu có video thì upload lên media_space trước để lấy
+        // video_upload_id (transcode xong) rồi gắn vào add_item.
+        $videoUploadId = null;
+        if ($draft->videoRef !== null && $draft->videoRef !== '') {
+            $videoUploadId = $this->client->uploadVideo($auth, $draft->videoRef);
+        }
+
+        $resp = $this->client->shopPostEnvelope($auth, '/api/v2/product/add_item', [], ShopeeProductPayload::addItem($draft, $videoUploadId));
         if ((string) ($resp['error'] ?? '') !== '') {
             throw MarketplaceApiException::fromShopee($resp);
         }

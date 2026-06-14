@@ -7,6 +7,7 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Sleep;
 use RuntimeException;
 
 /**
@@ -170,6 +171,96 @@ class ShopeeClient
             ->post($url, ['scene' => $scene]);
 
         return $resp->json() ?? [];
+    }
+
+    /**
+     * Upload a video to Shopee media_space and return the `video_upload_id` once
+     * transcoding SUCCEEDED. Flow: init → upload 4MB parts → complete → poll result.
+     * The id is then passed to add_item's `video_upload_id`. $videoUrlOrPath = remote
+     * URL (fetched) or local path. Throws on any step error / timeout.
+     */
+    public function uploadVideo(AuthContext $auth, string $videoUrlOrPath): string
+    {
+        if (str_contains($videoUrlOrPath, '://')) {
+            try {
+                $contents = (string) Http::get($videoUrlOrPath)->body();
+            } catch (\Throwable) {
+                $contents = '';
+            }
+        } else {
+            $contents = (string) @file_get_contents($videoUrlOrPath);
+        }
+        if ($contents === '') {
+            throw new RuntimeException('Shopee: không tải được tệp video để upload.');
+        }
+
+        $init = $this->shopPostEnvelope($auth, '/api/v2/media_space/init_video_upload', [], [
+            'file_md5' => md5($contents),
+            'file_size' => strlen($contents),
+        ]);
+        if ((string) ($init['error'] ?? '') !== '') {
+            $this->fail('/api/v2/media_space/init_video_upload', $init, 200);
+        }
+        $videoUploadId = (string) ($init['response']['video_upload_id'] ?? '');
+        if ($videoUploadId === '') {
+            throw new RuntimeException('Shopee: init_video_upload không trả video_upload_id.');
+        }
+
+        // Upload từng phần 4MB (Shopee yêu cầu part_size = 4MB, phần cuối có thể nhỏ hơn).
+        $partSeqList = [];
+        $startedMs = (int) round(microtime(true) * 1000);
+        foreach (str_split($contents, 4 * 1024 * 1024) as $seq => $part) {
+            $this->uploadVideoPart($auth, $videoUploadId, (int) $seq, $part);
+            $partSeqList[] = (int) $seq;
+        }
+        $uploadCost = max(1, (int) round(microtime(true) * 1000) - $startedMs);
+
+        $complete = $this->shopPostEnvelope($auth, '/api/v2/media_space/complete_video_upload', [], [
+            'video_upload_id' => $videoUploadId,
+            'part_seq_list' => $partSeqList,
+            'report_data' => ['upload_cost' => $uploadCost],
+        ]);
+        if ((string) ($complete['error'] ?? '') !== '') {
+            $this->fail('/api/v2/media_space/complete_video_upload', $complete, 200);
+        }
+
+        // Shopee transcode bất đồng bộ — chờ tới khi SUCCEEDED mới dùng được trong add_item.
+        $attempts = (int) ($this->cfg['video_poll_attempts'] ?? 10);
+        $sleepMs = (int) ($this->cfg['video_poll_sleep_ms'] ?? 2000);
+        for ($i = 0; $i < $attempts; $i++) {
+            $result = $this->shopGetEnvelope($auth, '/api/v2/media_space/get_video_upload_result', ['video_upload_id' => $videoUploadId]);
+            $status = strtoupper((string) ($result['response']['status'] ?? ''));
+            if ($status === 'SUCCEEDED') {
+                return $videoUploadId;
+            }
+            if ($status === 'FAILED') {
+                throw new RuntimeException('Shopee: xử lý video thất bại (transcode FAILED).');
+            }
+            Sleep::for($sleepMs)->milliseconds();
+        }
+
+        throw new RuntimeException('Shopee: video chưa xử lý xong sau '.$attempts.' lần kiểm tra.');
+    }
+
+    private function uploadVideoPart(AuthContext $auth, string $videoUploadId, int $seq, string $part): void
+    {
+        $path = '/api/v2/media_space/upload_video_part';
+        $this->throttle($auth);
+        $url = rtrim($this->baseUrl(), '/').$path.'?'.http_build_query($this->shopParams($auth, $path));
+
+        $resp = $this->http()
+            ->asMultipart()
+            ->attach('part_content', $part, 'part'.$seq.'.mp4')
+            ->post($url, [
+                'video_upload_id' => $videoUploadId,
+                'part_seq' => $seq,
+                'content_md5' => md5($part),
+            ]);
+
+        $json = $resp->json() ?? [];
+        if (! $resp->successful() || (string) (is_array($json) ? ($json['error'] ?? '') : '') !== '') {
+            $this->fail($path, is_array($json) ? $json : [], $resp->status());
+        }
     }
 
     /** Raw bytes (e.g. download_shipping_document) — returns the response body string. */

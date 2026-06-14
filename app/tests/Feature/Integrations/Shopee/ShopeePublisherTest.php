@@ -80,6 +80,33 @@ class ShopeePublisherTest extends TestCase
         $this->assertArrayHasKey('tier', $result->raw);
     }
 
+    public function test_uploads_video_then_attaches_video_upload_id_to_add_item(): void
+    {
+        Sleep::fake();
+        Http::fake([
+            'cdn.example/*' => Http::response('FAKE-VIDEO-BYTES'),
+            '*/media_space/init_video_upload*' => Http::response(['response' => ['video_upload_id' => 'vid-1']]),
+            '*/media_space/upload_video_part*' => Http::response(['response' => []]),
+            '*/media_space/complete_video_upload*' => Http::response(['response' => []]),
+            '*/media_space/get_video_upload_result*' => Http::response(['response' => ['status' => 'SUCCEEDED']]),
+            '*/product/add_item*' => Http::response(['item_id' => 777, 'response' => ['item_id' => 777]]),
+        ]);
+
+        $draft = new ListingDraftDTO(
+            title: 'Áo', description: 'Mô tả dài đủ chuẩn', categoryId: '100182', brandId: null, attributes: [],
+            media: [new MediaRefDTO('img-1', 'image_id')],
+            skus: [['price' => 100000, 'stock' => 5, 'seller_sku' => 'S1', 'sale_props' => []]],
+            logistics: ['weight' => 0.3, 'channels' => [['logistics_channel_id' => 88001, 'enabled' => true, 'fee_type' => 'FIXED_DEFAULT_PRICE']]],
+            videoRef: 'https://cdn.example/video.mp4',
+        );
+
+        $result = app(ShopeePublisher::class)->createListing($this->auth(), $draft);
+
+        $this->assertSame('777', $result->externalItemId);
+        Http::assertSent(fn ($req) => str_contains($req->url(), '/product/add_item')
+            && (($req->data()['video_upload_id'][0] ?? null) === 'vid-1'));
+    }
+
     public function test_throws_on_error_envelope(): void
     {
         Http::fake([

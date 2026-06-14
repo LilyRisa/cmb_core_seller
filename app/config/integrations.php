@@ -664,6 +664,9 @@ return [
         'document_type' => env('SHOPEE_DOCUMENT_TYPE', 'NORMAL_AIR_WAYBILL'),
         'document_poll_attempts' => (int) env('SHOPEE_DOC_POLL_ATTEMPTS', 6),
         'document_poll_sleep_ms' => (int) env('SHOPEE_DOC_POLL_SLEEP_MS', 1000),
+        // Upload video listing (media_space) — chờ transcode xong mới dùng được trong add_item.
+        'video_poll_attempts' => (int) env('SHOPEE_VIDEO_POLL_ATTEMPTS', 15),
+        'video_poll_sleep_ms' => (int) env('SHOPEE_VIDEO_POLL_SLEEP_MS', 3000),
         'status_map' => [
             'UNPAID' => 'unpaid',
             'READY_TO_SHIP' => 'pending',
