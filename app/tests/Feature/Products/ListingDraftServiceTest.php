@@ -103,6 +103,19 @@ class ListingDraftServiceTest extends TestCase
         $this->assertSame(['https://cdn/main.jpg', 'https://cdn/a.jpg', 'https://cdn/b.jpg'], $draft->media_refs);
     }
 
+    public function test_creating_a_draft_seeds_description_from_copied_product_meta(): void
+    {
+        $p = Product::create([
+            'tenant_id' => $this->tenant->getKey(),
+            'name' => 'SP copy có mô tả',
+            'meta' => ['description' => '<p>Mô tả copy từ sàn nguồn</p>'],
+        ]);
+
+        $draft = app(ListingDraftService::class)->createDraft((int) $p->getKey(), $this->accountId, 'lazada');
+
+        $this->assertSame('<p>Mô tả copy từ sàn nguồn</p>', $draft->attributes['description'] ?? null);
+    }
+
     public function test_update_keeps_draft_when_validation_fails_then_ready_when_passes(): void
     {
         $created = $this->actingAs($this->owner)

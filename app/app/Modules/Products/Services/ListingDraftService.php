@@ -68,6 +68,12 @@ final class ListingDraftService
             $draft->created_by = auth()->id();
             // Lấy ảnh từ chính dữ liệu đã copy về: ảnh đại diện + meta.image_links (extension đẩy lên).
             $draft->media_refs = $this->seedImagesFromProduct($product);
+            // Mang mô tả đã copy (extension lưu trong product.meta.description) vào nháp để
+            // người dùng không phải nhập lại — KHÔNG có thì để trống, soạn ở trang chỉnh sửa.
+            $description = trim((string) (($product->meta ?? [])['description'] ?? ''));
+            if ($description !== '') {
+                $draft->attributes = ['description' => $description];
+            }
             $draft->save();
 
             foreach ($product->skus as $i => $sku) {
