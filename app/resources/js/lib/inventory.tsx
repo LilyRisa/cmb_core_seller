@@ -284,6 +284,46 @@ export function useBulkPushStock() {
     });
 }
 
+export interface StockPushLog {
+    id: number;
+    status: 'ok' | 'failed';
+    desired_qty: number;
+    seller_sku: string | null;
+    external_sku_id: string | null;
+    error: string | null;
+    channel_account_id: number | null;
+    channel_listing_id: number | null;
+    shop_name?: string | null;
+    provider?: string | null;
+    created_at: string | null;
+}
+
+export function useStockPushLogs(filters: { status?: string; channel_account_id?: number; q?: string; page?: number; per_page?: number }) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['stock-push-logs', tenantId, filters],
+        enabled: api != null,
+        placeholderData: (p) => p,
+        queryFn: async () => {
+            const params: Record<string, string | number> = {};
+            Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== '') params[k] = v as never; });
+            const { data } = await api!.get<Paginated<StockPushLog>>('/inventory/stock-push-logs', { params });
+            return data;
+        },
+    });
+}
+
+export function useRetryStockPush() {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    const invalidate = useInvalidate([['stock-push-logs', tenantId], ['channel-listings', tenantId]]);
+    return useMutation({
+        mutationFn: async (logId: number) => { const { data } = await api!.post<{ data: { queued: boolean } }>(`/inventory/stock-push-logs/${logId}/retry`); return data.data; },
+        onSuccess: invalidate,
+    });
+}
+
 export function useCreateProduct() {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();

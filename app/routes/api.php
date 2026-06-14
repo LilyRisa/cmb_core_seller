@@ -215,6 +215,8 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::post('inventory/adjust', [InventoryController::class, 'adjust'])->name('inventory.adjust');
             Route::post('inventory/bulk-adjust', [InventoryController::class, 'bulkAdjust'])->name('inventory.bulk-adjust');     // SPEC 0004
             Route::post('inventory/push-stock', [InventoryController::class, 'pushStock'])->name('inventory.push-stock');       // SPEC 0004
+            Route::get('inventory/stock-push-logs', [InventoryController::class, 'stockPushLogs'])->name('inventory.stock-push-logs');
+            Route::post('inventory/stock-push-logs/{id}/retry', [InventoryController::class, 'retryStockPush'])->whereNumber('id')->name('inventory.stock-push-logs.retry');
             Route::get('inventory/movements', [InventoryController::class, 'movements'])->name('inventory.movements');
 
             Route::get('channel-listings', [ChannelListingController::class, 'index'])->name('channel-listings.index');

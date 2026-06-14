@@ -4,8 +4,10 @@ namespace CMBcoreSeller\Modules\Inventory;
 
 use CMBcoreSeller\Modules\Inventory\Console\ResyncOrderSkus;
 use CMBcoreSeller\Modules\Inventory\Events\InventoryChanged;
+use CMBcoreSeller\Modules\Inventory\Events\StockPushed;
 use CMBcoreSeller\Modules\Inventory\Listeners\ApplyOrderInventoryEffects;
 use CMBcoreSeller\Modules\Inventory\Listeners\PushStockOnInventoryChange;
+use CMBcoreSeller\Modules\Inventory\Listeners\RecordStockPushLog;
 use CMBcoreSeller\Modules\Orders\Events\OrderUpserted;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -31,6 +33,8 @@ class InventoryServiceProvider extends ServiceProvider
         Event::listen(OrderUpserted::class, ApplyOrderInventoryEffects::class);
         // Stock change → debounced push to linked channel listings.
         Event::listen(InventoryChanged::class, PushStockOnInventoryChange::class);
+        // Mỗi lần đẩy tồn (ok/failed) → ghi 1 dòng lịch sử để xem lại + thử lại.
+        Event::listen(StockPushed::class, RecordStockPushLog::class);
 
         if ($this->app->runningInConsole()) {
             $this->commands([ResyncOrderSkus::class]);

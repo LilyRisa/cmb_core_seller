@@ -13,8 +13,8 @@ import { useCan } from '@/lib/tenant';
 import { useChannelAccounts } from '@/lib/channels';
 import { useSyncPolling } from '@/lib/syncPolling';
 import {
-    ChannelListing, InventoryLevel, Sku,
-    useAdjustStock, useAutoMatchSkus, useBulkAdjustStock, useBulkPushStock, useChannelListings, useCreateSku, useDeleteSku, useInventoryLevels, useSetSkuMapping, useSku, useSkus, useSyncChannelListings, useWarehouses,
+    ChannelListing, InventoryLevel, Sku, StockPushLog,
+    useAdjustStock, useAutoMatchSkus, useBulkAdjustStock, useBulkPushStock, useChannelListings, useCreateSku, useDeleteSku, useInventoryLevels, useRetryStockPush, useSetSkuMapping, useSku, useSkus, useStockPushLogs, useSyncChannelListings, useWarehouses,
 } from '@/lib/inventory';
 
 function StockBadge({ available }: { available: number }) {
@@ -34,6 +34,7 @@ export function InventoryPage() {
                     { key: 'levels', label: 'Tồn theo SKU' },
                     { key: 'skus', label: 'Danh mục SKU' },
                     { key: 'listings', label: 'Liên kết SKU (sàn)' },
+                    { key: 'push-logs', label: 'Lịch sử đẩy tồn' },
                     { key: 'docs', label: 'Phiếu kho' },
                 ]} />
             </Card>
@@ -41,6 +42,7 @@ export function InventoryPage() {
                 {tab === 'levels' && <LevelsTab />}
                 {tab === 'skus' && <SkusTab />}
                 {tab === 'listings' && <ListingsTab />}
+                {tab === 'push-logs' && <StockPushLogsTab />}
                 {tab === 'docs' && <WarehouseDocsTab />}
             </Card>
         </div>
@@ -89,6 +91,43 @@ function LevelsTab() {
                     <Form.Item name="note" label="Ghi chú"><Input maxLength={255} /></Form.Item>
                 </Form>
             </Modal>
+        </>
+    );
+}
+
+function StockPushLogsTab() {
+    const { message } = AntApp.useApp();
+    const [status, setStatus] = useState<'all' | 'failed' | 'ok'>('failed');
+    const [page, setPage] = useState(1);
+    const { data, isFetching, refetch } = useStockPushLogs({ status: status === 'all' ? undefined : status, page, per_page: 20 });
+    const retry = useRetryStockPush();
+    const canMap = useCan('inventory.map');
+
+    const columns: ColumnsType<StockPushLog> = [
+        { title: 'Thời gian', key: 't', width: 160, render: (_, r) => (r.created_at ? new Date(r.created_at).toLocaleString('vi-VN') : '—') },
+        { title: 'Gian hàng', key: 'shop', width: 170, render: (_, r) => <Space size={4}><span>{r.shop_name ?? `#${r.channel_account_id}`}</span>{r.provider && <Tag>{r.provider}</Tag>}</Space> },
+        { title: 'SKU sàn', key: 'sku', render: (_, r) => r.seller_sku ?? r.external_sku_id ?? '—' },
+        { title: 'SL đẩy', dataIndex: 'desired_qty', key: 'q', width: 80, align: 'right' },
+        { title: 'Trạng thái', dataIndex: 'status', key: 's', width: 110, render: (v: string) => (v === 'ok' ? <Tag color="green">Thành công</Tag> : <Tag color="red">Thất bại</Tag>) },
+        { title: 'Lỗi', dataIndex: 'error', key: 'e', render: (v: string | null) => (v ? <Typography.Text type="danger" ellipsis={{ tooltip: v }} style={{ display: 'block', maxWidth: 360 }}>{v}</Typography.Text> : '—') },
+        ...(canMap ? [{
+            title: '', key: 'a', width: 90,
+            render: (_: unknown, r: StockPushLog) => (r.status === 'failed' && r.channel_listing_id
+                ? <Button size="small" loading={retry.isPending} onClick={() => retry.mutate(r.id, { onSuccess: () => { message.success('Đã yêu cầu đẩy lại — chờ sàn xác nhận'); refetch(); }, onError: (e) => message.error(errorMessage(e)) })}>Thử lại</Button>
+                : null),
+        }] : []),
+    ];
+
+    return (
+        <>
+            <Space style={{ marginBottom: 12 }}>
+                <Radio.Group value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} optionType="button" buttonStyle="solid" size="small"
+                    options={[{ value: 'failed', label: 'Thất bại' }, { value: 'ok', label: 'Thành công' }, { value: 'all', label: 'Tất cả' }]} />
+                <Button size="small" icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching}>Làm mới</Button>
+            </Space>
+            <Table<StockPushLog> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns}
+                locale={{ emptyText: <Empty description="Chưa có lịch sử đẩy tồn." /> }}
+                pagination={{ current: data?.meta.pagination.page ?? page, pageSize: 20, total: data?.meta.pagination.total ?? 0, onChange: setPage, showTotal: (t) => `${t} dòng` }} />
         </>
     );
 }

@@ -5,10 +5,13 @@ namespace CMBcoreSeller\Modules\Inventory\Http\Controllers;
 use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Modules\Inventory\Http\Resources\InventoryLevelResource;
 use CMBcoreSeller\Modules\Inventory\Http\Resources\InventoryMovementResource;
+use CMBcoreSeller\Modules\Inventory\Http\Resources\StockPushLogResource;
 use CMBcoreSeller\Modules\Inventory\Jobs\PushStockForSku;
+use CMBcoreSeller\Modules\Inventory\Jobs\PushStockToListing;
 use CMBcoreSeller\Modules\Inventory\Models\InventoryLevel;
 use CMBcoreSeller\Modules\Inventory\Models\InventoryMovement;
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
+use CMBcoreSeller\Modules\Inventory\Models\StockPushLog;
 use CMBcoreSeller\Modules\Inventory\Services\InventoryLedgerService;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
@@ -121,6 +124,45 @@ class InventoryController extends Controller
         }
 
         return response()->json(['data' => ['queued' => $ids->count()]]);
+    }
+
+    /** GET /api/v1/inventory/stock-push-logs — lịch sử đẩy tồn (lọc status=failed để xem lỗi). */
+    public function stockPushLogs(Request $request): JsonResponse
+    {
+        abort_unless($request->user()?->can('inventory.view'), 403, 'Bạn không có quyền xem lịch sử đẩy tồn.');
+
+        $q = StockPushLog::query()->with('channelAccount');
+        if (($status = (string) $request->query('status', '')) !== '') {
+            $q->where('status', $status);
+        }
+        if ($accId = $request->query('channel_account_id')) {
+            $q->where('channel_account_id', (int) $accId);
+        }
+        if (($term = trim((string) $request->query('q', ''))) !== '') {
+            $q->where(fn ($w) => $w->where('seller_sku', 'like', "%{$term}%")->orWhere('external_sku_id', 'like', "%{$term}%"));
+        }
+        $q->orderByDesc('id');
+
+        $perPage = min(100, max(1, (int) $request->query('per_page', 20)));
+        $page = $q->paginate($perPage)->appends($request->query());
+
+        return response()->json([
+            'data' => StockPushLogResource::collection($page->getCollection()),
+            'meta' => ['pagination' => ['page' => $page->currentPage(), 'per_page' => $page->perPage(), 'total' => $page->total(), 'total_pages' => $page->lastPage()]],
+        ]);
+    }
+
+    /** POST /api/v1/inventory/stock-push-logs/{id}/retry — đẩy lại tồn cho listing của dòng log lỗi. */
+    public function retryStockPush(Request $request, int $id): JsonResponse
+    {
+        abort_unless($request->user()?->can('inventory.map'), 403, 'Bạn không có quyền đẩy tồn.');
+
+        $log = StockPushLog::query()->findOrFail($id);
+        abort_if($log->channel_listing_id === null, 422, 'Dòng lịch sử này không gắn listing để thử lại.');
+
+        PushStockToListing::dispatch((int) $log->channel_listing_id, (int) $log->desired_qty);
+
+        return response()->json(['data' => ['queued' => true]]);
     }
 
     /** GET /api/v1/inventory/movements */
