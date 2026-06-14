@@ -181,6 +181,28 @@ class LazadaClient
         return (array) ($this->send($method, $url, $sysParams, $biz)->json() ?? []);
     }
 
+    /**
+     * Upload one binary file block (signed-multipart). The file is attached separately
+     * and is NOT part of the signature (mirrors the official SDK file-param contract) —
+     * dùng cho `/media/video/block/upload`.
+     *
+     * @param  array<string,mixed>  $params  business params (đã ký, KHÔNG gồm file)
+     * @return array<string,mixed>
+     */
+    public function callUpload(string $apiPath, AuthContext $auth, array $params, string $fileField, string $fileContents, string $fileName = 'video.mp4'): array
+    {
+        $this->throttle($auth);
+
+        [$url, $sysParams, $biz] = $this->buildSignedRequest('POST', $apiPath, $auth, $params, false);
+        $urlWithSys = $url.'?'.http_build_query($sysParams, '', '&', PHP_QUERY_RFC1738);
+
+        $resp = $this->http()
+            ->attach($fileField, $fileContents, $fileName)
+            ->post($urlWithSys, $biz);
+
+        return (array) ($resp->json() ?? []);
+    }
+
     /** @param array<string,scalar|null> $params @return array<string,mixed> */
     public function get(string $apiPath, AuthContext $auth, array $params = []): array
     {

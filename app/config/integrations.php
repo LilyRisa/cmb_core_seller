@@ -522,6 +522,9 @@ return [
         // Lazada chỉ hỗ trợ `dropship` cho non-FBL (theo tài liệu chính thức). Để config-able phòng khi
         // sandbox shop có loại khác (`pickup` đã deprecate ở hầu hết region).
         'default_delivery_type' => env('LAZADA_DEFAULT_DELIVERY_TYPE', 'dropship'),
+        // Upload video sản phẩm (media/video/block) — chờ kiểm duyệt AUDIT_SUCCESS mới gắn được.
+        'video_poll_attempts' => (int) env('LAZADA_VIDEO_POLL_ATTEMPTS', 8),
+        'video_poll_sleep_ms' => (int) env('LAZADA_VIDEO_POLL_SLEEP_MS', 3000),
         // shipping_allocate_type cho /order/fulfill/pack: `TFS` = local store (Lazada tự gán 3PL, KHÔNG truyền
         // shipment_provider_code) | `NTFS` = cross-border (BẮT BUỘC shipment_provider_code). Lấy giá trị hợp lệ
         // qua /shipment/providers/get. Đa số shop VN local ⇒ TFS.

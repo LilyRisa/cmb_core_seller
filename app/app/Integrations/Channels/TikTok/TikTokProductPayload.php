@@ -22,7 +22,7 @@ final class TikTokProductPayload
     /**
      * @return array<string,mixed>
      */
-    public static function toBody(ListingDraftDTO $d, string $saveMode = 'LISTING'): array
+    public static function toBody(ListingDraftDTO $d, string $saveMode = 'LISTING', ?string $videoId = null): array
     {
         $body = [
             'title' => $d->title,
@@ -58,6 +58,10 @@ final class TikTokProductPayload
 
         if ($d->brandId !== null) {
             $body['brand_id'] = $d->brandId;
+        }
+
+        if ($videoId !== null && $videoId !== '') {
+            $body['video'] = ['id' => $videoId];
         }
 
         return $body;

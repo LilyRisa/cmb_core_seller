@@ -44,7 +44,12 @@ final class TikTokPublisher implements ProductPublishingConnector
             throw MarketplaceApiException::validation('tiktok', $errors);
         }
 
-        $resp = $this->client->requestRaw('POST', '/product/202309/products', $auth, [], TikTokProductPayload::toBody($draft));
+        $videoId = null;
+        if ($draft->videoRef !== null && $draft->videoRef !== '') {
+            $videoId = $this->uploadVideo($auth, $draft->videoRef);
+        }
+
+        $resp = $this->client->requestRaw('POST', '/product/202309/products', $auth, [], TikTokProductPayload::toBody($draft, 'LISTING', $videoId));
         if (($resp['code'] ?? -1) !== 0) {
             throw MarketplaceApiException::fromTikTok($resp);
         }
@@ -131,6 +136,21 @@ final class TikTokPublisher implements ProductPublishingConnector
         }
 
         return $out;
+    }
+
+    /**
+     * Upload a product video (non-image file) to TikTok Shop and return its file id,
+     * used as `video.id` in create/edit product. Endpoint: upload-product-file-202309.
+     */
+    public function uploadVideo(AuthContext $auth, string $videoUrlOrPath): string
+    {
+        $name = basename((string) (parse_url($videoUrlOrPath, PHP_URL_PATH) ?: 'video.mp4')) ?: 'video.mp4';
+        $resp = $this->client->uploadMultipart('/product/202309/files/upload', $auth, 'data', $videoUrlOrPath, ['name' => $name]);
+        if (($resp['code'] ?? -1) !== 0) {
+            throw MarketplaceApiException::fromTikTok($resp);
+        }
+
+        return (string) ($resp['data']['id'] ?? '');
     }
 
     public function uploadMedia(AuthContext $auth, string $imageUrlOrPath, string $useCase = 'main'): MediaRefDTO

@@ -50,6 +50,29 @@ class TikTokPublisherTest extends TestCase
         $this->assertSame('PENDING', $result->rawStatus);
     }
 
+    public function test_uploads_video_then_attaches_to_product(): void
+    {
+        Http::fake([
+            'cdn.example/*' => Http::response('FAKE-VIDEO-BYTES'),
+            '*/product/202309/files/upload*' => Http::response(['code' => 0, 'data' => ['id' => 'v-77', 'url' => 'https://tt/v']]),
+            '*/product/202309/products*' => Http::response(['code' => 0, 'data' => ['product_id' => 'p-1', 'skus' => [['id' => 's1', 'seller_sku' => 'S1']]]]),
+        ]);
+
+        $draft = new ListingDraftDTO(
+            title: 'Áo thun cotton cao cấp form rộng unisex', description: 'Mô tả', categoryId: '600001', brandId: null,
+            attributes: [], media: [new MediaRefDTO('tos://img-uri-1', 'uri')],
+            skus: [['seller_sku' => 'S1', 'price' => 199000, 'stock' => 10, 'warehouse_id' => 'WH1', 'sale_props' => []]],
+            logistics: ['package_weight' => 0.3],
+            videoRef: 'https://cdn.example/v.mp4',
+        );
+
+        $result = app(TikTokPublisher::class)->createListing($this->auth(), $draft);
+
+        $this->assertSame('p-1', $result->externalItemId);
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/product/202309/products')
+            && (($r->data()['video']['id'] ?? null) === 'v-77'));
+    }
+
     public function test_throws_on_non_zero_code(): void
     {
         Http::fake([

@@ -16,6 +16,9 @@ use CMBcoreSeller\Integrations\Channels\DTO\ListingResultDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingStatusDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\MediaRefDTO;
 use CMBcoreSeller\Integrations\Channels\Exceptions\MarketplaceApiException;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Sleep;
 
 /**
  * Lazada product-publishing connector (CreateProduct + taxonomy + media + status).
@@ -42,7 +45,19 @@ final class LazadaPublisher implements ProductPublishingConnector
             throw MarketplaceApiException::validation('lazada', $errors);
         }
 
-        $payload = LazadaProductPayload::toXml($draft);
+        // Video best-effort: upload + chờ kiểm duyệt; nếu chưa AUDIT_SUCCESS hoặc lỗi thì
+        // tạo sản phẩm KHÔNG kèm video (không chặn listing) — Lazada bắt buộc video phải
+        // AUDIT_SUCCESS mới gắn được, mà kiểm duyệt là bất đồng bộ.
+        $videoId = null;
+        if ($draft->videoRef !== null && $draft->videoRef !== '') {
+            try {
+                $videoId = $this->uploadVideo($auth, $draft->videoRef, (string) ($draft->media[0]->ref ?? ''), $draft->title);
+            } catch (\Throwable $e) {
+                Log::warning('lazada.video.upload_failed', ['message' => $e->getMessage()]);
+            }
+        }
+
+        $payload = LazadaProductPayload::toXml($draft, $videoId);
         $resp = $this->client->callRaw('/product/create', $auth, ['payload' => $payload]);
 
         if ((string) ($resp['code'] ?? '') !== '0') {
@@ -125,6 +140,71 @@ final class LazadaPublisher implements ProductPublishingConnector
         $resp = $this->client->callRaw('/image/migrate', $auth, ['url' => $imageUrlOrPath]);
 
         return new MediaRefDTO((string) ($resp['data']['image']['url'] ?? ''), 'cdn_url', $resp);
+    }
+
+    /**
+     * Upload a product video via Lazada media block flow (create → upload blocks →
+     * commit → poll get). Returns the video_id ONLY when state = AUDIT_SUCCESS (Lazada
+     * yêu cầu duyệt xong mới gắn vào sản phẩm); null nếu chưa sẵn sàng. Cần `$coverUrl`
+     * (ảnh bìa, dùng ảnh đầu của sản phẩm). Field response theo doc Lazada — verify sandbox.
+     */
+    public function uploadVideo(AuthContext $auth, string $videoUrlOrPath, string $coverUrl, string $title): ?string
+    {
+        $bytes = str_contains($videoUrlOrPath, '://')
+            ? (string) Http::get($videoUrlOrPath)->body()
+            : (string) @file_get_contents($videoUrlOrPath);
+        if ($bytes === '') {
+            return null;
+        }
+        $fileName = basename((string) (parse_url($videoUrlOrPath, PHP_URL_PATH) ?: 'video.mp4')) ?: 'video.mp4';
+
+        $init = $this->client->callRaw('/media/video/block/create', $auth, ['fileName' => $fileName, 'fileBytes' => strlen($bytes)]);
+        $uploadId = (string) ($init['upload_id'] ?? $init['data']['upload_id'] ?? '');
+        if ($uploadId === '') {
+            return null;
+        }
+
+        $blocks = str_split($bytes, 5 * 1024 * 1024);
+        $count = count($blocks);
+        $parts = [];
+        foreach ($blocks as $no => $block) {
+            $up = $this->client->callUpload('/media/video/block/upload', $auth, [
+                'uploadId' => $uploadId, 'blockNo' => (string) $no, 'blockCount' => (string) $count,
+            ], 'file', $block, $fileName);
+            $etag = (string) ($up['e_tag'] ?? $up['data']['e_tag'] ?? '');
+            if ($etag === '') {
+                return null;
+            }
+            $parts[] = ['blockNo' => $no, 'eTag' => $etag];
+        }
+
+        $commit = $this->client->callRaw('/media/video/block/commit', $auth, [
+            'uploadId' => $uploadId,
+            'parts' => json_encode($parts, JSON_UNESCAPED_SLASHES),
+            'title' => mb_substr($title, 0, 100),
+            'coverUrl' => $coverUrl,
+            'videoUsage' => 'pro_main_video',
+        ]);
+        $videoId = (string) ($commit['video_id'] ?? $commit['data']['video_id'] ?? '');
+        if ($videoId === '') {
+            return null;
+        }
+
+        $attempts = (int) config('integrations.lazada.video_poll_attempts', 8);
+        $sleepMs = (int) config('integrations.lazada.video_poll_sleep_ms', 3000);
+        for ($i = 0; $i < $attempts; $i++) {
+            $g = $this->client->callRaw('/media/video/get', $auth, ['videoId' => $videoId], 'GET');
+            $state = strtoupper((string) ($g['state'] ?? $g['data']['state'] ?? ''));
+            if ($state === 'AUDIT_SUCCESS') {
+                return $videoId;
+            }
+            if (in_array($state, ['TRANSCODE_FAILED', 'AUDIT_FAILED', 'DELETED'], true)) {
+                return null;
+            }
+            Sleep::for($sleepMs)->milliseconds();
+        }
+
+        return null;
     }
 
     public function getListingStatus(AuthContext $auth, string $externalItemId): ListingStatusDTO

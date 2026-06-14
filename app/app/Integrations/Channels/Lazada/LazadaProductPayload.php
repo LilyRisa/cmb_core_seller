@@ -19,7 +19,7 @@ use CMBcoreSeller\Integrations\Channels\DTO\ListingDraftDTO;
  */
 final class LazadaProductPayload
 {
-    public static function toXml(ListingDraftDTO $d): string
+    public static function toXml(ListingDraftDTO $d, ?string $videoId = null): string
     {
         $dom = new \DOMDocument('1.0', 'UTF-8');
         $dom->formatOutput = false;
@@ -48,7 +48,14 @@ final class LazadaProductPayload
             self::child($dom, $attr, 'short_description', $d->shortDescription);
         }
         self::child($dom, $attr, 'brand_id', (string) $d->brandId);
+        if ($videoId !== null && $videoId !== '') {
+            self::child($dom, $attr, 'video', $videoId);
+        }
         foreach ($d->attributes as $k => $v) {
+            // Bỏ khóa nghiệp vụ nội bộ (đã xử lý riêng / không phải attribute của sàn).
+            if (in_array($k, ['description', 'video_url'], true) || is_array($v)) {
+                continue;
+            }
             self::child($dom, $attr, $k, (string) $v);
         }
         $p->appendChild($attr);
