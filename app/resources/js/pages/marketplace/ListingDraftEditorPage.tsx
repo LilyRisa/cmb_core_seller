@@ -4,7 +4,7 @@ import {
     Alert, App as AntApp, Button, Card, Checkbox, Image, Input, InputNumber, List, Modal, Radio, Result, Select, Space, Spin, Switch, Table, Tag, Typography, Upload,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { ArrowLeftOutlined, CloudUploadOutlined, DeleteOutlined, PictureOutlined, PlusOutlined, RobotOutlined, SaveOutlined, VideoCameraOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, CloudUploadOutlined, DeleteOutlined, EditOutlined, PictureOutlined, PlusOutlined, RobotOutlined, SaveOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { ImageResizer } from '@/components/ImageResizer';
 import { errorMessage, tenantApi } from '@/lib/api';
@@ -263,6 +263,15 @@ export function ListingDraftEditorPage() {
                     {mediaRefs.map((url, idx) => (
                         <div key={`${url}-${idx}`} style={{ position: 'relative', width: 104, height: 104 }}>
                             <Image src={url} width={104} height={104} style={{ objectFit: 'cover', borderRadius: 8, border: '1px solid #f0f0f0' }} />
+                            <Button
+                                size="small"
+                                type="primary"
+                                shape="circle"
+                                icon={<EditOutlined />}
+                                title="Sửa ảnh nâng cao"
+                                style={{ position: 'absolute', top: -8, left: -8 }}
+                                onClick={() => handleSave(() => navigate(`/marketplace/listings/${listing.id}/images/edit?url=${encodeURIComponent(url)}`))}
+                            />
                             <Button size="small" danger type="primary" shape="circle" icon={<DeleteOutlined />} style={{ position: 'absolute', top: -8, right: -8 }} onClick={() => setMediaRefs((prev) => prev.filter((_, i) => i !== idx))} />
                         </div>
                     ))}

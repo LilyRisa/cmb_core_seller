@@ -30,6 +30,8 @@ import { OnChannelPage } from '@/pages/marketplace/OnChannelPage';
 import { MarketplaceEditPage } from '@/pages/marketplace/MarketplaceEditPage';
 import { ListingDraftEditorPage } from '@/pages/marketplace/ListingDraftEditorPage';
 import { PublishablePage } from '@/pages/marketplace/PublishablePage';
+// Lazy: trình sửa ảnh nâng cao kéo theo thư viện nặng — chỉ tải khi mở trang.
+const AdvancedImageEditorPage = React.lazy(() => import('@/pages/marketplace/AdvancedImageEditorPage'));
 import { SyncLogsPage } from '@/pages/SyncLogsPage';
 import { SupportCenterPage } from '@/pages/SupportCenterPage';
 import { CustomersPage } from '@/pages/CustomersPage';
@@ -131,6 +133,14 @@ function Root() {
                 <Route path="marketplace/on-channel/:id/edit" element={<MarketplaceEditPage />} />
                 <Route path="marketplace/to-push" element={<PublishablePage />} />
                 <Route path="marketplace/listings/:id/edit" element={<ListingDraftEditorPage />} />
+                <Route
+                    path="marketplace/listings/:id/images/edit"
+                    element={(
+                        <React.Suspense fallback={<div style={{ padding: 48, textAlign: 'center' }}>Đang tải trình sửa ảnh…</div>}>
+                            <AdvancedImageEditorPage />
+                        </React.Suspense>
+                    )}
+                />
                 <Route path="customers" element={<CustomersPage />} />
                 <Route path="customers/:id" element={<CustomerDetailPage />} />
                 {/* SPEC-0024 — Hộp thư hợp nhất + trang quản lý. */}
