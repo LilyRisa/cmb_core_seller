@@ -15,6 +15,7 @@ use CMBcoreSeller\Integrations\Channels\PublisherRegistry;
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
+use CMBcoreSeller\Modules\Products\Jobs\PrepareListingVideoJob;
 use CMBcoreSeller\Modules\Products\Jobs\PushListingJob;
 use CMBcoreSeller\Modules\Products\Jobs\RefreshListingQcStatus;
 use CMBcoreSeller\Modules\Products\Models\ListingDraft;
@@ -185,6 +186,26 @@ class ListingPushTest extends TestCase
         $this->assertSame('failed', $row->fresh()->status);
     }
 
+    public function test_prepare_video_job_resolves_id_then_dispatches_push(): void
+    {
+        $this->bindPublisher(new FakePushPublisher(new ListingResultDTO('LZ-1', [], 'PENDING')));
+        $this->draft->update(['attributes' => array_merge($this->draft->attributes ?? [], ['video_url' => 'https://cdn/v.mp4'])]);
+
+        Queue::fake();
+        $batch = app(ListingPushService::class)->push([(int) $this->draft->getKey()], (int) $this->owner->getKey());
+        $row = $batch->jobs()->first();
+
+        $job = new PrepareListingVideoJob((int) $row->getKey());
+        // Nhịp 1: upload xong → lưu pending, release để poll (release no-op khi gọi handle trực tiếp).
+        $job->handle(app(PublisherRegistry::class), app(ListingDraftService::class));
+        $this->assertSame('V1', $this->draft->fresh()->attributes['video_pending_id'] ?? null);
+        // Nhịp 2: trạng thái 'ready' → lưu video_external_id + dispatch đăng thật.
+        $job->handle(app(PublisherRegistry::class), app(ListingDraftService::class));
+
+        $this->assertSame('V1', $this->draft->fresh()->attributes['video_external_id'] ?? null);
+        Queue::assertPushed(PushListingJob::class);
+    }
+
     public function test_job_is_idempotent_when_external_item_id_present(): void
     {
         // A publisher that throws if createListing is ever called — proving the
@@ -264,5 +285,15 @@ final class FakePushPublisher implements ProductPublishingConnector
     public function getShippingOptions(AuthContext $auth): array
     {
         return [];
+    }
+
+    public function startVideoUpload(AuthContext $auth, ListingDraftDTO $draft): string
+    {
+        return 'V1';
+    }
+
+    public function videoUploadStatus(AuthContext $auth, string $videoId): string
+    {
+        return 'ready';
     }
 }

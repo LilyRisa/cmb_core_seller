@@ -59,6 +59,9 @@ Schedule::command('channels:refresh-expiring-tokens --within=7200')->everyThirty
 // last couple of hours, in case the OrderUpserted listener failed.
 Schedule::command('customers:recompute-stale --hours=2')->hourly()->onOneServer()->withoutOverlapping();
 
+// Dọn lịch sử đẩy tồn cũ (giữ 7 ngày) để bảng stock_push_logs không phình.
+Schedule::command('inventory:prune-stock-push-logs --days=7')->dailyAt('03:10')->timezone(app_display_tz())->onOneServer();
+
 // Daily safety-net backfill: re-sync the last few days for every active shop.
 Schedule::call(function () {
     ChannelAccount::withoutGlobalScope(TenantScope::class)

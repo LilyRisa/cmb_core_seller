@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Inventory;
 
+use CMBcoreSeller\Modules\Inventory\Console\PruneStockPushLogs;
 use CMBcoreSeller\Modules\Inventory\Console\ResyncOrderSkus;
 use CMBcoreSeller\Modules\Inventory\Events\InventoryChanged;
 use CMBcoreSeller\Modules\Inventory\Events\StockPushed;
@@ -37,7 +38,7 @@ class InventoryServiceProvider extends ServiceProvider
         Event::listen(StockPushed::class, RecordStockPushLog::class);
 
         if ($this->app->runningInConsole()) {
-            $this->commands([ResyncOrderSkus::class]);
+            $this->commands([ResyncOrderSkus::class, PruneStockPushLogs::class]);
         }
 
         if (is_file(__DIR__.'/Http/routes.php')) {

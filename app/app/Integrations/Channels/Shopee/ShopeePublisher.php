@@ -42,14 +42,9 @@ final class ShopeePublisher implements ProductPublishingConnector
             throw MarketplaceApiException::validation('shopee', $errors);
         }
 
-        // Hàng đặt trước/ảnh xong — nếu có video thì upload lên media_space trước để lấy
-        // video_upload_id (transcode xong) rồi gắn vào add_item.
-        $videoUploadId = null;
-        if ($draft->videoRef !== null && $draft->videoRef !== '') {
-            $videoUploadId = $this->client->uploadVideo($auth, $draft->videoRef);
-        }
-
-        $resp = $this->client->shopPostEnvelope($auth, '/api/v2/product/add_item', [], ShopeeProductPayload::addItem($draft, $videoUploadId));
+        // Video đã được job chuẩn bị trước (upload + chờ transcode qua re-queue) và truyền
+        // vào DTO dưới dạng videoExternalId — gắn thẳng vào add_item, KHÔNG upload đồng bộ ở đây.
+        $resp = $this->client->shopPostEnvelope($auth, '/api/v2/product/add_item', [], ShopeeProductPayload::addItem($draft, $draft->videoExternalId));
         if ((string) ($resp['error'] ?? '') !== '') {
             throw MarketplaceApiException::fromShopee($resp);
         }
@@ -78,6 +73,18 @@ final class ShopeePublisher implements ProductPublishingConnector
         }
 
         return new ListingResultDTO((string) $itemId, [], 'NORMAL', $raw);
+    }
+
+    /** Bắt đầu upload video (không chờ transcode) → trả video_upload_id. Job sẽ poll trạng thái. */
+    public function startVideoUpload(AuthContext $auth, ListingDraftDTO $draft): string
+    {
+        return $this->client->startVideoUpload($auth, (string) $draft->videoRef);
+    }
+
+    /** Trạng thái video: 'ready' | 'processing' | 'failed'. */
+    public function videoUploadStatus(AuthContext $auth, string $videoId): string
+    {
+        return $this->client->videoUploadStatus($auth, $videoId);
     }
 
     public function uploadMedia(AuthContext $auth, string $imageUrlOrPath, string $useCase = 'main'): MediaRefDTO

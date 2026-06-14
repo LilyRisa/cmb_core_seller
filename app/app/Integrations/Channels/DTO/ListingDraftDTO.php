@@ -25,6 +25,9 @@ final readonly class ListingDraftDTO
         public array $skus,
         public array $logistics,
         public ?string $shortDescription = null,
+        /** Nguồn video (URL/đường dẫn) để upload lên sàn. */
         public ?string $videoRef = null,
+        /** Id video ĐÃ sẵn sàng trên sàn (do job chuẩn bị trước qua start/status) — gắn thẳng vào payload. */
+        public ?string $videoExternalId = null,
     ) {}
 }

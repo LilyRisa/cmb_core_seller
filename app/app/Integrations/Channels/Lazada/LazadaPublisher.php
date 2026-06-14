@@ -17,8 +17,6 @@ use CMBcoreSeller\Integrations\Channels\DTO\ListingStatusDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\MediaRefDTO;
 use CMBcoreSeller\Integrations\Channels\Exceptions\MarketplaceApiException;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Sleep;
 
 /**
  * Lazada product-publishing connector (CreateProduct + taxonomy + media + status).
@@ -45,19 +43,9 @@ final class LazadaPublisher implements ProductPublishingConnector
             throw MarketplaceApiException::validation('lazada', $errors);
         }
 
-        // Video best-effort: upload + chờ kiểm duyệt; nếu chưa AUDIT_SUCCESS hoặc lỗi thì
-        // tạo sản phẩm KHÔNG kèm video (không chặn listing) — Lazada bắt buộc video phải
-        // AUDIT_SUCCESS mới gắn được, mà kiểm duyệt là bất đồng bộ.
-        $videoId = null;
-        if ($draft->videoRef !== null && $draft->videoRef !== '') {
-            try {
-                $videoId = $this->uploadVideo($auth, $draft->videoRef, (string) ($draft->media[0]->ref ?? ''), $draft->title);
-            } catch (\Throwable $e) {
-                Log::warning('lazada.video.upload_failed', ['message' => $e->getMessage()]);
-            }
-        }
-
-        $payload = LazadaProductPayload::toXml($draft, $videoId);
+        // Video do job chuẩn bị trước (upload + chờ AUDIT_SUCCESS qua re-queue), truyền qua
+        // DTO.videoExternalId. Chưa duyệt xong/không có → tạo sản phẩm không kèm video.
+        $payload = LazadaProductPayload::toXml($draft, $draft->videoExternalId);
         $resp = $this->client->callRaw('/product/create', $auth, ['payload' => $payload]);
 
         if ((string) ($resp['code'] ?? '') !== '0') {
@@ -143,25 +131,25 @@ final class LazadaPublisher implements ProductPublishingConnector
     }
 
     /**
-     * Upload a product video via Lazada media block flow (create → upload blocks →
-     * commit → poll get). Returns the video_id ONLY when state = AUDIT_SUCCESS (Lazada
-     * yêu cầu duyệt xong mới gắn vào sản phẩm); null nếu chưa sẵn sàng. Cần `$coverUrl`
-     * (ảnh bìa, dùng ảnh đầu của sản phẩm). Field response theo doc Lazada — verify sandbox.
+     * Bắt đầu upload video qua Lazada media block (create → upload blocks → commit) và
+     * trả `video_id` — KHÔNG chờ kiểm duyệt. Job poll {@see videoUploadStatus()} tới
+     * AUDIT_SUCCESS mới gắn vào sản phẩm. Cover = ảnh đầu của sản phẩm; title = tên SP.
      */
-    public function uploadVideo(AuthContext $auth, string $videoUrlOrPath, string $coverUrl, string $title): ?string
+    public function startVideoUpload(AuthContext $auth, ListingDraftDTO $draft): string
     {
+        $videoUrlOrPath = (string) $draft->videoRef;
         $bytes = str_contains($videoUrlOrPath, '://')
             ? (string) Http::get($videoUrlOrPath)->body()
             : (string) @file_get_contents($videoUrlOrPath);
         if ($bytes === '') {
-            return null;
+            throw new \RuntimeException('Lazada: không tải được tệp video.');
         }
         $fileName = basename((string) (parse_url($videoUrlOrPath, PHP_URL_PATH) ?: 'video.mp4')) ?: 'video.mp4';
 
         $init = $this->client->callRaw('/media/video/block/create', $auth, ['fileName' => $fileName, 'fileBytes' => strlen($bytes)]);
         $uploadId = (string) ($init['upload_id'] ?? $init['data']['upload_id'] ?? '');
         if ($uploadId === '') {
-            return null;
+            throw new \RuntimeException('Lazada: media/video/block/create không trả upload_id.');
         }
 
         $blocks = str_split($bytes, 5 * 1024 * 1024);
@@ -173,7 +161,7 @@ final class LazadaPublisher implements ProductPublishingConnector
             ], 'file', $block, $fileName);
             $etag = (string) ($up['e_tag'] ?? $up['data']['e_tag'] ?? '');
             if ($etag === '') {
-                return null;
+                throw new \RuntimeException('Lazada: upload block video thất bại (thiếu e_tag).');
             }
             $parts[] = ['blockNo' => $no, 'eTag' => $etag];
         }
@@ -181,30 +169,29 @@ final class LazadaPublisher implements ProductPublishingConnector
         $commit = $this->client->callRaw('/media/video/block/commit', $auth, [
             'uploadId' => $uploadId,
             'parts' => json_encode($parts, JSON_UNESCAPED_SLASHES),
-            'title' => mb_substr($title, 0, 100),
-            'coverUrl' => $coverUrl,
+            'title' => mb_substr($draft->title, 0, 100),
+            'coverUrl' => (string) ($draft->media[0]->ref ?? ''),
             'videoUsage' => 'pro_main_video',
         ]);
         $videoId = (string) ($commit['video_id'] ?? $commit['data']['video_id'] ?? '');
         if ($videoId === '') {
-            return null;
+            throw new \RuntimeException('Lazada: commit video không trả video_id.');
         }
 
-        $attempts = (int) config('integrations.lazada.video_poll_attempts', 8);
-        $sleepMs = (int) config('integrations.lazada.video_poll_sleep_ms', 3000);
-        for ($i = 0; $i < $attempts; $i++) {
-            $g = $this->client->callRaw('/media/video/get', $auth, ['videoId' => $videoId], 'GET');
-            $state = strtoupper((string) ($g['state'] ?? $g['data']['state'] ?? ''));
-            if ($state === 'AUDIT_SUCCESS') {
-                return $videoId;
-            }
-            if (in_array($state, ['TRANSCODE_FAILED', 'AUDIT_FAILED', 'DELETED'], true)) {
-                return null;
-            }
-            Sleep::for($sleepMs)->milliseconds();
-        }
+        return $videoId;
+    }
 
-        return null;
+    /** Trạng thái kiểm duyệt video Lazada: 'ready' (AUDIT_SUCCESS) | 'failed' | 'processing'. */
+    public function videoUploadStatus(AuthContext $auth, string $videoId): string
+    {
+        $g = $this->client->callRaw('/media/video/get', $auth, ['videoId' => $videoId], 'GET');
+        $state = strtoupper((string) ($g['state'] ?? $g['data']['state'] ?? ''));
+
+        return match (true) {
+            $state === 'AUDIT_SUCCESS' => 'ready',
+            in_array($state, ['TRANSCODE_FAILED', 'AUDIT_FAILED', 'DELETED'], true) => 'failed',
+            default => 'processing',
+        };
     }
 
     public function getListingStatus(AuthContext $auth, string $externalItemId): ListingStatusDTO

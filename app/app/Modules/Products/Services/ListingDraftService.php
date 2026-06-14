@@ -304,6 +304,7 @@ final class ListingDraftService
             skus: $skus,
             logistics: $logistics,
             videoRef: (($draft->attributes ?? [])['video_url'] ?? null) ?: null,
+            videoExternalId: (($draft->attributes ?? [])['video_external_id'] ?? null) ?: null,
         );
     }
 

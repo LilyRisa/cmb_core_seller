@@ -44,12 +44,8 @@ final class TikTokPublisher implements ProductPublishingConnector
             throw MarketplaceApiException::validation('tiktok', $errors);
         }
 
-        $videoId = null;
-        if ($draft->videoRef !== null && $draft->videoRef !== '') {
-            $videoId = $this->uploadVideo($auth, $draft->videoRef);
-        }
-
-        $resp = $this->client->requestRaw('POST', '/product/202309/products', $auth, [], TikTokProductPayload::toBody($draft, 'LISTING', $videoId));
+        // Video do job chuẩn bị trước (upload) và truyền qua DTO.videoExternalId.
+        $resp = $this->client->requestRaw('POST', '/product/202309/products', $auth, [], TikTokProductPayload::toBody($draft, 'LISTING', $draft->videoExternalId));
         if (($resp['code'] ?? -1) !== 0) {
             throw MarketplaceApiException::fromTikTok($resp);
         }
@@ -136,6 +132,18 @@ final class TikTokPublisher implements ProductPublishingConnector
         }
 
         return $out;
+    }
+
+    /** Bắt đầu (và hoàn tất) upload video → trả file id. TikTok dùng được ngay (không transcode async). */
+    public function startVideoUpload(AuthContext $auth, ListingDraftDTO $draft): string
+    {
+        return $this->uploadVideo($auth, (string) $draft->videoRef);
+    }
+
+    /** TikTok không có bước transcode bất đồng bộ — id dùng được ngay. */
+    public function videoUploadStatus(AuthContext $auth, string $videoId): string
+    {
+        return 'ready';
     }
 
     /**

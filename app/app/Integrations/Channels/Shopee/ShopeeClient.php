@@ -7,7 +7,6 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Sleep;
 use RuntimeException;
 
 /**
@@ -174,12 +173,12 @@ class ShopeeClient
     }
 
     /**
-     * Upload a video to Shopee media_space and return the `video_upload_id` once
-     * transcoding SUCCEEDED. Flow: init → upload 4MB parts → complete → poll result.
-     * The id is then passed to add_item's `video_upload_id`. $videoUrlOrPath = remote
-     * URL (fetched) or local path. Throws on any step error / timeout.
+     * Start a Shopee media_space video upload (init → upload 4MB parts → complete) and
+     * return the `video_upload_id`. Does NOT wait for transcoding — caller polls
+     * {@see videoUploadStatus()} (job re-queue) before using the id in add_item.
+     * $videoUrlOrPath = remote URL (fetched) or local path.
      */
-    public function uploadVideo(AuthContext $auth, string $videoUrlOrPath): string
+    public function startVideoUpload(AuthContext $auth, string $videoUrlOrPath): string
     {
         if (str_contains($videoUrlOrPath, '://')) {
             try {
@@ -224,22 +223,23 @@ class ShopeeClient
             $this->fail('/api/v2/media_space/complete_video_upload', $complete, 200);
         }
 
-        // Shopee transcode bất đồng bộ — chờ tới khi SUCCEEDED mới dùng được trong add_item.
-        $attempts = (int) ($this->cfg['video_poll_attempts'] ?? 10);
-        $sleepMs = (int) ($this->cfg['video_poll_sleep_ms'] ?? 2000);
-        for ($i = 0; $i < $attempts; $i++) {
-            $result = $this->shopGetEnvelope($auth, '/api/v2/media_space/get_video_upload_result', ['video_upload_id' => $videoUploadId]);
-            $status = strtoupper((string) ($result['response']['status'] ?? ''));
-            if ($status === 'SUCCEEDED') {
-                return $videoUploadId;
-            }
-            if ($status === 'FAILED') {
-                throw new RuntimeException('Shopee: xử lý video thất bại (transcode FAILED).');
-            }
-            Sleep::for($sleepMs)->milliseconds();
-        }
+        return $videoUploadId;
+    }
 
-        throw new RuntimeException('Shopee: video chưa xử lý xong sau '.$attempts.' lần kiểm tra.');
+    /**
+     * Trạng thái transcode của 1 video media_space: 'ready' (SUCCEEDED) | 'failed'
+     * (FAILED) | 'processing' (đang xử lý). Dùng cho poll re-queue ở job.
+     */
+    public function videoUploadStatus(AuthContext $auth, string $videoUploadId): string
+    {
+        $result = $this->shopGetEnvelope($auth, '/api/v2/media_space/get_video_upload_result', ['video_upload_id' => $videoUploadId]);
+        $status = strtoupper((string) ($result['response']['status'] ?? ''));
+
+        return match ($status) {
+            'SUCCEEDED' => 'ready',
+            'FAILED' => 'failed',
+            default => 'processing',
+        };
     }
 
     private function uploadVideoPart(AuthContext $auth, string $videoUploadId, int $seq, string $part): void

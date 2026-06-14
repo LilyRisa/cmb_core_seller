@@ -57,6 +57,16 @@ class PushListingJob implements ShouldQueue
                 return;
             }
 
+            // Video: chuẩn bị TRƯỚC ở job riêng (upload + chờ sàn xử lý qua re-queue, KHÔNG giữ
+            // worker). Khi xong (có video_external_id) / bỏ qua (video_skipped) nó dispatch lại
+            // PushListingJob để đăng thật.
+            $attrs = $listing->attributes ?? [];
+            if (! empty($attrs['video_url']) && empty($attrs['video_external_id']) && empty($attrs['video_skipped'])) {
+                PrepareListingVideoJob::dispatch($this->jobRowId)->onQueue('listings');
+
+                return;
+            }
+
             $row->mark('running', 'Đang chuẩn bị ảnh', 10);
             $auth = ChannelAccount::findOrFail($listing->channel_account_id)->authContext();
 
