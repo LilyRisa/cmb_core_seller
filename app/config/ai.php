@@ -32,19 +32,23 @@ return [
     |--------------------------------------------------------------------------
     |
     | Chỉ adapter có vision (Claude/OpenAI) + model trong `models` mới đính ảnh vào
-    | request; model khác giữ placeholder text. `inline_base64`=false ⇒ gửi LINK signed
-    | (prod R2/S3 ra Internet); =true ⇒ nhúng base64 (dev/local khi storage không reachable).
+    | request; model khác giữ placeholder text.
+    |
+    | `inline_base64` MẶC ĐỊNH true ⇒ nhúng base64 ảnh (Claude + OpenAI đều hiểu). Lý do:
+    | nhiều cổng OpenAI-compatible (vd vilao.ai) KHÔNG tự tải ảnh từ URL → model báo
+    | "chưa thấy ảnh". Base64 chạy với mọi provider. Đặt =false nếu provider tự fetch URL
+    | tốt và muốn giảm payload (OpenAI/Anthropic chính chủ). Có giới hạn `inline_max_kb`.
     */
     'vision' => [
         'enabled' => (bool) env('AI_VISION_ENABLED', true),
-        // Substring (lowercase) khớp tên model có khả năng vision.
+        // Substring (lowercase) khớp tên model có khả năng vision. 'gpt-5' khớp cả ts/gpt-5.x.
         'models' => array_values(array_filter(array_map('trim', explode(',', (string) env(
             'AI_VISION_MODELS',
-            'claude-3,claude-haiku,claude-sonnet,claude-opus,claude-4,gpt-4o,gpt-4.1,gpt-4-vision,gpt-5,o4-mini,gemini',
+            'claude-3,claude-haiku,claude-sonnet,claude-opus,claude-4,gpt-4o,gpt-4.1,gpt-4-vision,gpt-5,o4,gemini',
         ))))),
         'max_images_per_message' => (int) env('AI_VISION_MAX_IMAGES_PER_MESSAGE', 3),
-        // Nhúng base64 thay vì link (cho môi trường storage không ra Internet).
-        'inline_base64' => (bool) env('AI_VISION_INLINE_BASE64', false),
+        // Nhúng base64 thay vì link — mặc định BẬT (cổng OpenAI-compatible thường không fetch URL).
+        'inline_base64' => filter_var(env('AI_VISION_INLINE_BASE64', true), FILTER_VALIDATE_BOOLEAN),
         // Bỏ qua ảnh > ngưỡng khi nhúng base64 (KB) để tránh phình request.
         'inline_max_kb' => (int) env('AI_VISION_INLINE_MAX_KB', 4096),
     ],
