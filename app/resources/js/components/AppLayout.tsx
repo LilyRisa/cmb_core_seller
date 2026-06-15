@@ -5,6 +5,7 @@ import {
     AppstoreOutlined,
     BarChartOutlined,
     BookOutlined,
+    ChromeOutlined,
     CloudUploadOutlined,
     CopyOutlined,
     DashboardOutlined,
@@ -40,6 +41,7 @@ import { AnnouncementPopup } from '@/components/AnnouncementPopup';
 import { OverQuotaBanner } from '@/components/OverQuotaBanner';
 import { HeaderBillingActions } from '@/components/HeaderBillingActions';
 import { HelpChatWidget } from '@/components/support/HelpChatWidget';
+import { CHROME_EXTENSION_URL } from '@/lib/extension';
 
 const { Header, Sider, Content } = Layout;
 
@@ -166,6 +168,9 @@ export function AppLayout() {
                     </Space>
                     <Space size="middle">
                         <HeaderBillingActions />
+                        <Tooltip title="Cài tiện ích Chrome để sao chép sản phẩm">
+                            <Button type="text" href={CHROME_EXTENSION_URL} target="_blank" icon={<ChromeOutlined />} />
+                        </Tooltip>
                         <Tooltip title="Tải ứng dụng di động">
                             <Button type="text" href="/download" target="_blank" icon={<MobileOutlined />} />
                         </Tooltip>

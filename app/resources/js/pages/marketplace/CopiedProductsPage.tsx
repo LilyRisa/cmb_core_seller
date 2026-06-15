@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { App as AntApp, Button, Checkbox, Empty, Image, Modal, Popconfirm, Result, Space, Table, Tag, Typography } from 'antd';
+import { Alert, App as AntApp, Button, Checkbox, Empty, Image, Modal, Popconfirm, Result, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { DeleteOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { ChromeOutlined, DeleteOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
+import { CHROME_EXTENSION_NAME, CHROME_EXTENSION_URL } from '@/lib/extension';
 import { errorMessage } from '@/lib/api';
 import { useChannelAccounts } from '@/lib/channels';
 import { useCreateListing, useDeleteMasterProduct, useMasterProducts } from '@/features/products/hooks';
@@ -49,6 +50,8 @@ export function CopiedProductsPage() {
 
     const [createForProduct, setCreateForProduct] = useState<MasterProduct | null>(null);
     const [targetShopIds, setTargetShopIds] = useState<number[]>([]);
+    // Nhắc cài tiện ích — ẩn được (lưu localStorage) để người đã cài không bị làm phiền.
+    const [extNoticeDismissed, setExtNoticeDismissed] = useState(() => localStorage.getItem('copy_ext_notice_dismissed') === '1');
 
     const accounts = channelData?.data ?? [];
 
@@ -165,6 +168,32 @@ export function CopiedProductsPage() {
                     </Button>
                 }
             />
+
+            {!extNoticeDismissed && (
+                <Alert
+                    type="info"
+                    showIcon
+                    icon={<ChromeOutlined />}
+                    closable
+                    onClose={() => {
+                        localStorage.setItem('copy_ext_notice_dismissed', '1');
+                        setExtNoticeDismissed(true);
+                    }}
+                    style={{ marginBottom: 16 }}
+                    message="Cần cài tiện ích Chrome để sao chép sản phẩm"
+                    description={
+                        <>
+                            Để sao chép sản phẩm từ các sàn về đây, bạn cần cài tiện ích <b>{CHROME_EXTENSION_NAME}</b> cho
+                            trình duyệt Chrome.
+                        </>
+                    }
+                    action={
+                        <Button type="primary" size="small" icon={<ChromeOutlined />} href={CHROME_EXTENSION_URL} target="_blank">
+                            Cài đặt tiện ích
+                        </Button>
+                    }
+                />
+            )}
 
             <Table
                 rowKey="id"
