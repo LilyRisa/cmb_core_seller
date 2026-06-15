@@ -119,11 +119,31 @@ export function OnChannelPage() {
             ),
         },
         {
-            title: 'Giá',
-            dataIndex: 'price',
+            title: 'Giá gốc',
+            dataIndex: 'original_price',
             width: 120,
             align: 'right',
-            render: (v: number | null, r) => (v == null ? <Typography.Text type="secondary">—</Typography.Text> : <MoneyText value={v} currency={r.currency} />),
+            render: (v: number | null, r) => {
+                const base = v ?? r.price;
+                return base == null ? <Typography.Text type="secondary">—</Typography.Text> : <MoneyText value={base} currency={r.currency} />;
+            },
+        },
+        {
+            title: 'Giá sau giảm',
+            dataIndex: 'price',
+            width: 150,
+            align: 'right',
+            render: (v: number | null, r) => {
+                if (v == null) return <Typography.Text type="secondary">—</Typography.Text>;
+                const base = r.original_price ?? null;
+                const off = base != null && base > v ? Math.round(((base - v) / base) * 100) : 0;
+                return (
+                    <Space size={4}>
+                        <MoneyText value={v} currency={r.currency} />
+                        {off > 0 && <Tag color="volcano">-{off}%</Tag>}
+                    </Space>
+                );
+            },
         },
         {
             title: 'Tồn sàn',

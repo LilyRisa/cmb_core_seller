@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Alert, App as AntApp, Button, Card, Image, Input, InputNumber, Modal, Result, Space, Spin, Table, Tag, Typography, Upload } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import { Alert, App as AntApp, Button, Card, Image, Input, Modal, Result, Space, Spin, Tag, Typography, Upload } from 'antd';
 import { CloudUploadOutlined, DeleteOutlined, EditOutlined, PictureOutlined, PlusOutlined, RobotOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { ImageResizer } from '@/components/ImageResizer';
@@ -11,7 +10,7 @@ import { useChannelAccounts } from '@/lib/channels';
 import type { ChannelListing } from '@/lib/inventory';
 import { useAiSuggestMarketplaceDescription, useListingLimits, useMarketplaceDetail, useUpdateMarketplaceListing } from '@/features/products/hooks';
 import type { MarketplaceEditPayload } from '@/features/products/api';
-import { useMarketplaceEditStore, type MarketplaceEditDraft, type MarketplacePriceRow } from '@/lib/marketplace/editStore';
+import { useMarketplaceEditStore, type MarketplaceEditDraft } from '@/lib/marketplace/editStore';
 
 /**
  * Trang sửa một sản phẩm ĐÃ có trên sàn — bố cục & trải nghiệm giống trang soạn nháp,
@@ -89,13 +88,7 @@ export function MarketplaceEditPage() {
         if (draft.title !== storeBaseline.title) p.title = draft.title;
         if (draft.description !== storeBaseline.description) p.description = draft.description;
         if (JSON.stringify(draft.images) !== JSON.stringify(storeBaseline.images)) p.images = draft.images;
-        const changed = draft.prices
-            .filter((row) => {
-                const orig = storeBaseline.prices.find((s) => s.external_sku_id === row.external_sku_id);
-                return orig && orig.price !== row.price;
-            })
-            .map((row) => ({ external_sku_id: row.external_sku_id, price: row.price }));
-        if (changed.length) p.prices = changed;
+        // Giá KHÔNG sửa trực tiếp ở đây — quản lý giá qua "Chiến dịch giảm giá".
         return p;
     }, [draft, storeBaseline]);
 
@@ -112,11 +105,6 @@ export function MarketplaceEditPage() {
     const removeImage = (idx: number) => {
         if (!draft) return;
         patch({ images: draft.images.filter((_, i) => i !== idx) });
-    };
-
-    const setPrice = (skuId: string, price: number) => {
-        if (!draft) return;
-        patch({ prices: draft.prices.map((r) => (r.external_sku_id === skuId ? { ...r, price } : r)) });
     };
 
     // Upload ảnh trực tiếp (square tile). Trả false để chặn antd tự upload.
@@ -160,38 +148,10 @@ export function MarketplaceEditPage() {
         );
     };
 
-    const priceColumns: ColumnsType<MarketplacePriceRow> = [
-        {
-            title: 'SKU',
-            key: 'sku',
-            render: (_, r) => (
-                <Space size={4}>
-                    <span>{r.seller_sku || r.external_sku_id}</span>
-                    {!r.seller_sku && <Tag>{r.external_sku_id}</Tag>}
-                </Space>
-            ),
-        },
-        {
-            title: 'Giá (VND)',
-            key: 'price',
-            width: 220,
-            render: (_, r) => (
-                <InputNumber
-                    style={{ width: '100%' }}
-                    min={0}
-                    value={r.price}
-                    formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}
-                    parser={(v) => Number((v ?? '').replace(/\./g, ''))}
-                    onChange={(v) => setPrice(r.external_sku_id, Number(v ?? 0))}
-                />
-            ),
-        },
-    ];
-
     const header = (
         <PageHeader
             title={<Space><Button onClick={back}>Quay lại</Button><span>Sửa sản phẩm trên sàn</span>{provider && <Tag>{provider}</Tag>}</Space>}
-            subtitle="Sửa tiêu đề / mô tả / ảnh / giá rồi đẩy theo loạt lên sàn. Tồn kho đẩy theo master SKU ở mục Tồn kho."
+            subtitle="Sửa tiêu đề / mô tả / ảnh rồi đẩy theo loạt lên sàn. Giá quản lý qua Chiến dịch giảm giá; tồn theo master SKU."
             extra={
                 <Button type="primary" icon={<CloudUploadOutlined />} disabled={!hasChanges} loading={update.isPending} onClick={handlePush}>
                     Đẩy thay đổi lên sàn
@@ -226,7 +186,7 @@ export function MarketplaceEditPage() {
                     type="warning"
                     showIcon
                     message="Không tải được chi tiết đầy đủ từ sàn"
-                    description="Bạn vẫn sửa được tiêu đề, ảnh và giá cơ bản. Mô tả và các SKU khác (nếu có) tạm thời không hiển thị — cân nhắc tải lại trước khi sửa ảnh để tránh thiếu ảnh."
+                    description="Bạn vẫn sửa được tiêu đề và ảnh cơ bản. Mô tả tạm thời không hiển thị — cân nhắc tải lại trước khi sửa ảnh để tránh thiếu ảnh."
                 />
             )}
 
@@ -279,11 +239,6 @@ export function MarketplaceEditPage() {
                 <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginTop: 12, marginBottom: 0 }}>
                     Ảnh nên vuông (1:1). Dùng nút sửa ảnh (góc trái) để cắt/chỉnh nâng cao ở trang riêng.
                 </Typography.Paragraph>
-            </Card>
-
-            <Card title="Giá theo SKU">
-                <Alert type="info" showIcon style={{ marginBottom: 12 }} message="Tồn kho không chỉnh ở đây — tồn đẩy theo master SKU (mục Tồn kho). Trang này chỉ sửa giá." />
-                <Table<MarketplacePriceRow> rowKey="external_sku_id" size="small" dataSource={draft.prices} columns={priceColumns} pagination={false} />
             </Card>
 
             <Modal
