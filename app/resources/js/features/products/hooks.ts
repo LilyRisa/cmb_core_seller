@@ -4,6 +4,7 @@ import { tenantApi } from '@/lib/api';
 import { useCurrentTenantId } from '@/lib/tenant';
 import {
     aiSuggestDescription,
+    aiSuggestMarketplaceDescription,
     bulkPush,
     cloneChannelListingToShops,
     cloneListing,
@@ -154,6 +155,14 @@ export function useAiSuggestDescription() {
     const client = useScopedApi();
     return useMutation({
         mutationFn: (id: number) => aiSuggestDescription(client!, id),
+    });
+}
+
+export function useAiSuggestMarketplaceDescription() {
+    const client = useScopedApi();
+    return useMutation({
+        mutationFn: (vars: { id: number; description?: string }) =>
+            aiSuggestMarketplaceDescription(client!, vars.id, vars.description),
     });
 }
 

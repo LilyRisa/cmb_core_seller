@@ -11,6 +11,7 @@ use CMBcoreSeller\Modules\Products\Http\Resources\ChannelListingResource;
 use CMBcoreSeller\Modules\Products\Models\ChannelListing;
 use CMBcoreSeller\Modules\Products\Services\MarketplaceCloneService;
 use CMBcoreSeller\Modules\Products\Services\MarketplaceListingEditService;
+use CMBcoreSeller\Modules\Products\Services\ProductDescriptionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -97,6 +98,19 @@ class ChannelListingController extends Controller
         $listing = ChannelListing::query()->findOrFail($id);
 
         return response()->json(['data' => $svc->update($listing, $request->validated())]);
+    }
+
+    /**
+     * POST /api/v1/channel-listings/{id}/ai-description — gợi ý mô tả bằng AI cho sản phẩm
+     * đã có trên sàn. Nhận `description` tùy chọn (mô tả đang soạn) để AI cải thiện.
+     */
+    public function aiDescription(Request $request, int $id, ProductDescriptionService $ai): JsonResponse
+    {
+        abort_unless($request->user()?->can('products.manage'), 403, 'Bạn không có quyền sửa sản phẩm.');
+        $listing = ChannelListing::query()->findOrFail($id);
+        $current = $request->input('description');
+
+        return response()->json(['data' => $ai->suggestForListing($listing, is_string($current) ? $current : null)]);
     }
 
     /**

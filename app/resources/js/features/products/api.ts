@@ -194,6 +194,19 @@ export async function aiSuggestDescription(client: AxiosInstance, id: number): P
     return data.data;
 }
 
+/** AI gợi ý mô tả cho sản phẩm ĐÃ có trên sàn; gửi mô tả đang soạn để AI cải thiện. */
+export async function aiSuggestMarketplaceDescription(
+    client: AxiosInstance,
+    id: number,
+    currentDescription?: string,
+): Promise<{ description: string; provider: string }> {
+    const { data } = await client.post<{ data: { description: string; provider: string } }>(
+        `/channel-listings/${id}/ai-description`,
+        { description: currentDescription ?? '' },
+    );
+    return data.data;
+}
+
 export async function cloneListing(
     client: AxiosInstance,
     id: number,

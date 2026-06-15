@@ -32,6 +32,7 @@ import { ListingDraftEditorPage } from '@/pages/marketplace/ListingDraftEditorPa
 import { PublishablePage } from '@/pages/marketplace/PublishablePage';
 // Lazy: trình sửa ảnh nâng cao kéo theo thư viện nặng — chỉ tải khi mở trang.
 const AdvancedImageEditorPage = React.lazy(() => import('@/pages/marketplace/AdvancedImageEditorPage'));
+const MarketplaceImageEditorPage = React.lazy(() => import('@/pages/marketplace/MarketplaceImageEditorPage'));
 import { SyncLogsPage } from '@/pages/SyncLogsPage';
 import { SupportCenterPage } from '@/pages/SupportCenterPage';
 import { CustomersPage } from '@/pages/CustomersPage';
@@ -131,6 +132,14 @@ function Root() {
                 <Route path="marketplace/products" element={<CopiedProductsPage />} />
                 <Route path="marketplace/on-channel" element={<OnChannelPage />} />
                 <Route path="marketplace/on-channel/:id/edit" element={<MarketplaceEditPage />} />
+                <Route
+                    path="marketplace/on-channel/:id/images/edit"
+                    element={(
+                        <React.Suspense fallback={<div style={{ padding: 48, textAlign: 'center' }}>Đang tải trình sửa ảnh…</div>}>
+                            <MarketplaceImageEditorPage />
+                        </React.Suspense>
+                    )}
+                />
                 <Route path="marketplace/to-push" element={<PublishablePage />} />
                 <Route path="marketplace/listings/:id/edit" element={<ListingDraftEditorPage />} />
                 <Route
