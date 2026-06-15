@@ -133,12 +133,35 @@ final class ShopeePublisher implements ProductPublishingConnector
             if (! is_array($attr)) {
                 continue;
             }
+            // input_type Shopee là SỐ: 1 SINGLE_DROP_DOWN, 2 SINGLE_COMBO_BOX, 3 FREE_TEXT_FILED,
+            // 4 MULTI_DROP_DOWN, 5 MULTI_COMBO_BOX. FREE_TEXT → number nếu validation INT(1)/FLOAT(3).
+            $it = (int) ($attr['input_type'] ?? 0);
+            $validation = (int) ($attr['input_validation_type'] ?? 0);
+            $inputType = match ($it) {
+                4, 5 => ListingAttributeDTO::INPUT_MULTI_SELECT,
+                1, 2 => ListingAttributeDTO::INPUT_SELECT,
+                3 => in_array($validation, [1, 3], true) ? ListingAttributeDTO::INPUT_NUMBER : ListingAttributeDTO::INPUT_TEXT,
+                default => ListingAttributeDTO::INPUT_TEXT,
+            };
+
+            $values = [];
+            foreach ((array) ($attr['attribute_value_list'] ?? []) as $v) {
+                if (! is_array($v)) {
+                    continue;
+                }
+                $values[] = [
+                    'id' => (string) ($v['value_id'] ?? ''),
+                    'name' => (string) ($v['display_value_name'] ?? ($v['original_value_name'] ?? '')),
+                ];
+            }
+
             $out[] = new ListingAttributeDTO(
                 id: (string) ($attr['attribute_id'] ?? ''),
-                name: (string) ($attr['original_attribute_name'] ?? ''),
+                name: (string) ($attr['display_attribute_name'] ?? ($attr['original_attribute_name'] ?? '')),
                 required: (bool) ($attr['mandatory'] ?? false),
                 isSaleProp: false,
-                inputType: (string) ($attr['input_type'] ?? ''),
+                inputType: $inputType,
+                values: $values,
                 raw: $attr,
             );
         }

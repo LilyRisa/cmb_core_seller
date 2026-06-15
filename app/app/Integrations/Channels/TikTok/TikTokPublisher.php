@@ -99,13 +99,33 @@ final class TikTokPublisher implements ProductPublishingConnector
             }
             // Doc has a typo: the field is documented as both `is_required` and `is_requried`.
             $required = (bool) ($attr['is_required'] ?? ($attr['is_requried'] ?? false));
+
+            // `type` = phân lớp thuộc tính (SALES_PROPERTY = phân loại biến thể / PRODUCT_PROPERTY),
+            // KHÔNG phải kiểu nhập. Kiểu nhập suy ra: có values? đa chọn? định dạng số tự do?
+            $values = [];
+            foreach ((array) ($attr['values'] ?? []) as $v) {
+                if (! is_array($v)) {
+                    continue;
+                }
+                $values[] = ['id' => (string) ($v['id'] ?? ''), 'name' => (string) ($v['name'] ?? '')];
+            }
+            if ($values !== []) {
+                $inputType = ((bool) ($attr['is_multiple_selection'] ?? false))
+                    ? ListingAttributeDTO::INPUT_MULTI_SELECT
+                    : ListingAttributeDTO::INPUT_SELECT;
+            } elseif (($attr['value_data_format'] ?? '') === 'POSITIVE_INT_OR_DECIMAL') {
+                $inputType = ListingAttributeDTO::INPUT_NUMBER;
+            } else {
+                $inputType = ListingAttributeDTO::INPUT_TEXT;
+            }
+
             $out[] = new ListingAttributeDTO(
                 id: (string) ($attr['id'] ?? ''),
                 name: (string) ($attr['name'] ?? ''),
                 required: $required,
-                isSaleProp: false,
-                inputType: (string) ($attr['type'] ?? ''),
-                values: (array) ($attr['values'] ?? []),
+                isSaleProp: (string) ($attr['type'] ?? '') === 'SALES_PROPERTY',
+                inputType: $inputType,
+                values: $values,
                 raw: $attr,
             );
         }

@@ -88,13 +88,33 @@ final class LazadaPublisher implements ProductPublishingConnector
             if (! is_array($attr)) {
                 continue;
             }
+            // input_type Lazada: text/rich text/numeric/date/img/singleSelect/multiSelect/
+            // enumInput/multiEnumInput → ánh xạ về tập chuẩn.
+            $raw = strtolower(trim((string) ($attr['input_type'] ?? '')));
+            $inputType = match ($raw) {
+                'numeric' => ListingAttributeDTO::INPUT_NUMBER,
+                'multiselect', 'multienuminput' => ListingAttributeDTO::INPUT_MULTI_SELECT,
+                'singleselect', 'enuminput' => ListingAttributeDTO::INPUT_SELECT,
+                default => ListingAttributeDTO::INPUT_TEXT, // text, rich text, date, img...
+            };
+
+            $values = [];
+            foreach ((array) ($attr['options'] ?? []) as $o) {
+                if (! is_array($o)) {
+                    continue;
+                }
+                $values[] = ['id' => (string) ($o['id'] ?? ($o['name'] ?? '')), 'name' => (string) ($o['name'] ?? '')];
+            }
+
             $out[] = new ListingAttributeDTO(
-                id: (string) ($attr['id'] ?? ($attr['name'] ?? '')),
-                name: (string) ($attr['name'] ?? ''),
-                required: (bool) ($attr['is_mandatory'] ?? false),
-                isSaleProp: (bool) ($attr['is_sale_prop'] ?? false),
-                inputType: (string) ($attr['input_type'] ?? ''),
-                values: (array) ($attr['options'] ?? []),
+                // Khoá thuộc tính Lazada khi tạo SP là `name`; `label` chỉ để hiển thị.
+                id: (string) ($attr['name'] ?? ''),
+                name: (string) ($attr['label'] ?? ($attr['name'] ?? '')),
+                // is_mandatory/is_sale_prop trả chuỗi "0"/"1" ⇒ (bool)"0" === true (sai), phải so '1'.
+                required: in_array((string) ($attr['is_mandatory'] ?? ''), ['1', 'true'], true),
+                isSaleProp: in_array((string) ($attr['is_sale_prop'] ?? ''), ['1', 'true'], true),
+                inputType: $inputType,
+                values: $values,
                 raw: $attr,
             );
         }
