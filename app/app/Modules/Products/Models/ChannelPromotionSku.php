@@ -54,4 +54,10 @@ class ChannelPromotionSku extends Model
     {
         return $this->belongsTo(ChannelPromotion::class, 'promotion_id');
     }
+
+    /** @return BelongsTo<ChannelListing, $this> */
+    public function channelListing(): BelongsTo
+    {
+        return $this->belongsTo(ChannelListing::class, 'channel_listing_id');
+    }
 }

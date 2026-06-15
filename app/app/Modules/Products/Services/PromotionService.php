@@ -15,6 +15,7 @@ use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Products\Models\ChannelPromotion;
 use CMBcoreSeller\Modules\Products\Models\ChannelPromotionSku;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -144,7 +145,8 @@ final class PromotionService
      */
     public function busySkuIds(int $channelAccountId, ?int $exceptPromotionId = null): array
     {
-        $q = ChannelPromotionSku::query()
+        // 1) Từ DB: SKU thuộc chiến dịch app đang chiếm (draft/pushing/live).
+        $db = ChannelPromotionSku::query()
             ->whereHas('promotion', function ($p) use ($channelAccountId, $exceptPromotionId) {
                 $p->where('channel_account_id', $channelAccountId)
                     ->whereIn('status', [ChannelPromotion::STATUS_DRAFT, ChannelPromotion::STATUS_PUSHING, ChannelPromotion::STATUS_LIVE]);
@@ -152,9 +154,44 @@ final class PromotionService
                     $p->where('id', '!=', $exceptPromotionId);
                 }
             })
-            ->whereNotNull('external_sku_id');
+            ->whereNotNull('external_sku_id')
+            ->pluck('external_sku_id')->all();
 
-        return array_values(array_unique($q->pluck('external_sku_id')->all()));
+        // 2) Từ SÀN: chiến dịch đang chạy ngoài app (đồng bộ trạng thái thật, giống trên sàn).
+        return array_values(array_unique(array_merge($db, $this->channelBusySkuIds($channelAccountId))));
+    }
+
+    /**
+     * SKU đang trong chương trình ĐANG/SẮP chạy TRÊN SÀN (best-effort, cache 60s).
+     * Sàn không có đối tượng chương trình (Lazada) ⇒ []. Lỗi token/API ⇒ [] (không chặn UI).
+     *
+     * @return list<string>
+     */
+    private function channelBusySkuIds(int $channelAccountId): array
+    {
+        return Cache::remember("promo_busy_san:$channelAccountId", now()->addSeconds(60), function () use ($channelAccountId) {
+            try {
+                $account = ChannelAccount::query()->find($channelAccountId);
+                if (! $account) {
+                    return [];
+                }
+                $ids = [];
+                foreach ($this->connector($account->provider)->listPromotions($account->authContext()) as $p) {
+                    if ($p->status === 'ended') {
+                        continue;
+                    }
+                    foreach ($p->items as $it) {
+                        if (! empty($it['external_sku_id'])) {
+                            $ids[] = (string) $it['external_sku_id'];
+                        }
+                    }
+                }
+
+                return array_values(array_unique($ids));
+            } catch (\Throwable) {
+                return [];
+            }
+        });
     }
 
     /** Kiểm tra chồng lấn trước khi đẩy; trả danh sách external_sku_id bị trùng (rỗng = OK). @return list<string> */

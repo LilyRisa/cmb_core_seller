@@ -44,7 +44,7 @@ final class PromotionController extends Controller
     public function show(Request $r, int $id): JsonResponse
     {
         abort_unless($r->user()?->can('products.view'), 403, 'Bạn không có quyền xem chiến dịch.');
-        $promo = ChannelPromotion::query()->with('skus')->findOrFail($id);
+        $promo = ChannelPromotion::query()->with(['skus.channelListing'])->findOrFail($id);
 
         return response()->json(['data' => new ChannelPromotionResource($promo)]);
     }
@@ -71,7 +71,7 @@ final class PromotionController extends Controller
         $promo = ChannelPromotion::query()->findOrFail($id);
         $promo = $this->svc->setSkus($promo, (array) $r->validated('skus'));
 
-        return response()->json(['data' => new ChannelPromotionResource($promo->load('skus'))]);
+        return response()->json(['data' => new ChannelPromotionResource($promo->load(['skus.channelListing']))]);
     }
 
     public function push(Request $r, int $id): JsonResponse

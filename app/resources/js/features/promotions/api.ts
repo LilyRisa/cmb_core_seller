@@ -17,6 +17,8 @@ export interface PromotionSku {
     external_product_id?: string | null;
     external_sku_id?: string | null;
     seller_sku?: string | null;
+    image?: string | null;
+    title?: string | null;
     base_price: number;
     discount_value: number;
     sale_price?: number;

@@ -35,6 +35,8 @@ class ChannelPromotionResource extends JsonResource
                 'external_product_id' => $s->external_product_id,
                 'external_sku_id' => $s->external_sku_id,
                 'seller_sku' => $s->seller_sku,
+                'image' => $s->relationLoaded('channelListing') ? $s->channelListing?->image : null,
+                'title' => $s->relationLoaded('channelListing') ? $s->channelListing?->title : null,
                 'base_price' => (int) $s->base_price,
                 'discount_value' => (int) $s->discount_value,
                 'sale_price' => (int) $s->sale_price,

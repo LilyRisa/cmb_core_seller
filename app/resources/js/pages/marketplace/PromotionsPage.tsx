@@ -196,7 +196,8 @@ function CreatePromotionModal({
 
     const provider = shopId != null ? shopProvider(shopId) : null;
     const { data: caps } = usePromotionCapabilities(provider);
-    const supportsPercent = caps?.supports_percent ?? false;
+    // % chọn được cho MỌI sàn — sàn không hỗ trợ % gốc thì hệ thống tự quy đổi sang giá sau giảm.
+    const nativePercent = caps?.supports_percent ?? false;
     const withTime = caps?.supports_time_of_day ?? true;
 
     const submit = () => {
@@ -208,7 +209,7 @@ function CreatePromotionModal({
             {
                 channel_account_id: shopId,
                 title: title.trim(),
-                discount_type: supportsPercent ? discountType : 'fixed',
+                discount_type: discountType,
                 starts_at: range[0].toISOString(),
                 ends_at: range[1].toISOString(),
             },
@@ -236,11 +237,14 @@ function CreatePromotionModal({
                 <div>
                     <Typography.Text type="secondary">Kiểu giảm giá</Typography.Text>
                     <div style={{ marginTop: 4 }}>
-                        <Radio.Group value={supportsPercent ? discountType : 'fixed'} onChange={(e) => setDiscountType(e.target.value)}>
+                        <Radio.Group value={discountType} onChange={(e) => setDiscountType(e.target.value)}>
                             <Radio value="fixed">Giá cố định</Radio>
-                            <Radio value="percent" disabled={!supportsPercent}>Theo %{!supportsPercent && ' (sàn không hỗ trợ)'}</Radio>
+                            <Radio value="percent">Theo %</Radio>
                         </Radio.Group>
                     </div>
+                    {discountType === 'percent' && !nativePercent && (
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>Sàn này dùng giá sau giảm — hệ thống tự quy đổi từ %.</Typography.Text>
+                    )}
                 </div>
                 <div>
                     <Typography.Text type="secondary">Thời gian{!withTime && ' (sàn này chỉ theo ngày)'}</Typography.Text>

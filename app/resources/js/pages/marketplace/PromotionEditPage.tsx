@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Alert, App as AntApp, Button, Card, DatePicker, Empty, Input, InputNumber, Radio, Result, Space, Spin, Table, Tag, Typography } from 'antd';
+import { Alert, App as AntApp, Avatar, Button, Card, DatePicker, Empty, Input, InputNumber, Radio, Result, Space, Spin, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { ArrowLeftOutlined, CloudUploadOutlined, DeleteOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, CloudUploadOutlined, DeleteOutlined, PictureOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { MoneyText } from '@/components/MoneyText';
@@ -21,6 +21,7 @@ interface Row {
     external_sku_id: string;
     seller_sku: string;
     title?: string;
+    image?: string | null;
     base_price: number;
     discount_value: number;
 }
@@ -46,7 +47,8 @@ export function PromotionEditPage() {
 
     const provider = promo?.provider ?? null;
     const { data: caps } = usePromotionCapabilities(provider);
-    const supportsPercent = caps?.supports_percent ?? false;
+    // % chọn được cho MỌI sàn (sàn không hỗ trợ % gốc ⇒ tự quy đổi sang giá sau giảm).
+    const nativePercent = caps?.supports_percent ?? false;
     const withTime = caps?.supports_time_of_day ?? true;
 
     const { data: busySkuIds } = useBusySkuIds(promo?.channel_account_id ?? null, promotionId);
@@ -67,6 +69,8 @@ export function PromotionEditPage() {
             external_product_id: s.external_product_id ?? '',
             external_sku_id: s.external_sku_id ?? '',
             seller_sku: s.seller_sku ?? '',
+            title: s.title ?? undefined,
+            image: s.image ?? undefined,
             base_price: s.base_price,
             discount_value: s.discount_value,
         })));
@@ -89,6 +93,7 @@ export function PromotionEditPage() {
                     external_sku_id: l.external_sku_id ?? '',
                     seller_sku: l.seller_sku ?? '',
                     title: l.title ?? undefined,
+                    image: l.image ?? undefined,
                     base_price: l.price ?? 0,
                     discount_value: 0,
                 }));
@@ -116,7 +121,7 @@ export function PromotionEditPage() {
             return false;
         }
         try {
-            await update.mutateAsync({ id: promo.id, payload: { title, discount_type: supportsPercent ? discountType : 'fixed', starts_at: range[0].toISOString(), ends_at: range[1].toISOString() } });
+            await update.mutateAsync({ id: promo.id, payload: { title, discount_type: discountType, starts_at: range[0].toISOString(), ends_at: range[1].toISOString() } });
             await setSkus.mutateAsync({ id: promo.id, skus: buildSkus() });
             return true;
         } catch (e) {
@@ -142,9 +147,12 @@ export function PromotionEditPage() {
         {
             title: 'SKU', key: 'sku',
             render: (_, r) => (
-                <Space direction="vertical" size={0}>
-                    <Typography.Text>{r.title ?? r.external_sku_id}</Typography.Text>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>{r.seller_sku || r.external_sku_id}</Typography.Text>
+                <Space>
+                    <Avatar shape="square" size={40} src={r.image ?? undefined} icon={<PictureOutlined />} style={{ background: '#f5f5f5', flex: 'none' }} />
+                    <Space direction="vertical" size={0}>
+                        <Typography.Text>{r.title ?? r.external_sku_id}</Typography.Text>
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>{r.seller_sku || r.external_sku_id}</Typography.Text>
+                    </Space>
                 </Space>
             ),
         },
@@ -198,10 +206,13 @@ export function PromotionEditPage() {
                         <div>
                             <Typography.Text type="secondary">Kiểu giảm giá</Typography.Text>
                             <div style={{ marginTop: 4 }}>
-                                <Radio.Group value={supportsPercent ? discountType : 'fixed'} disabled={!editable} onChange={(e) => setDiscountType(e.target.value)}>
+                                <Radio.Group value={discountType} disabled={!editable} onChange={(e) => setDiscountType(e.target.value)}>
                                     <Radio value="fixed">Giá cố định</Radio>
-                                    <Radio value="percent" disabled={!supportsPercent}>Theo %</Radio>
+                                    <Radio value="percent">Theo %</Radio>
                                 </Radio.Group>
+                                {discountType === 'percent' && !nativePercent && (
+                                    <div><Typography.Text type="secondary" style={{ fontSize: 12 }}>Sàn này dùng giá sau giảm — tự quy đổi từ %.</Typography.Text></div>
+                                )}
                             </div>
                         </div>
                         <div>
