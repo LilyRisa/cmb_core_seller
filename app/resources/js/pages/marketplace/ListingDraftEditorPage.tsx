@@ -44,6 +44,7 @@ export function ListingDraftEditorPage() {
     const aiDescribe = useAiSuggestDescription();
     const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
 
+    const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [categoryId, setCategoryId] = useState<string | null>(null);
     const [brandId, setBrandId] = useState<string | null>(null);
@@ -59,6 +60,7 @@ export function ListingDraftEditorPage() {
 
     useEffect(() => {
         if (!listing) return;
+        setName(listing.name ?? '');
         setDescription(listing.description ?? '');
         setCategoryId(listing.category_id);
         setBrandId(listing.brand_id);
@@ -81,6 +83,7 @@ export function ListingDraftEditorPage() {
         setSkus((prev) => prev.map((s) => (s.id === sid ? { ...s, ...patch } : s)));
 
     const buildPayload = (): UpdateListingPayload => ({
+        name,
         description,
         video_url: videoUrl,
         category_id: categoryId,
@@ -231,8 +234,15 @@ export function ListingDraftEditorPage() {
             )}
 
             <Card title="Thông tin" style={{ marginBottom: 16 }}>
-                <Typography.Text type="secondary">Tên sản phẩm</Typography.Text>
-                <Input style={{ marginTop: 4, marginBottom: 12 }} value={listing.name ?? ''} disabled />
+                <Typography.Text type="secondary">Tên sản phẩm (tiêu đề đăng sàn)</Typography.Text>
+                <Input
+                    style={{ marginTop: 4, marginBottom: 12 }}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    maxLength={255}
+                    showCount
+                    placeholder="Tiêu đề hiển thị trên sàn"
+                />
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <Typography.Text type="secondary">Mô tả</Typography.Text>
                     <Button size="small" icon={<RobotOutlined />} loading={aiDescribe.isPending} onClick={handleAiSuggest}>AI gợi ý mô tả</Button>

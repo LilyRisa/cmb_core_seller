@@ -162,6 +162,31 @@ class ListingDraftServiceTest extends TestCase
         ]);
     }
 
+    public function test_listing_title_override_is_saved_and_used_for_publish_title(): void
+    {
+        $draft = app(ListingDraftService::class)->createDraft((int) $this->product->getKey(), $this->accountId, 'lazada');
+
+        // Mặc định: tiêu đề = tên sản phẩm gốc.
+        $this->assertSame('Áo thun cotton', app(ListingDraftService::class)->toDraftDTO($draft->fresh())->title);
+
+        // Sửa tiêu đề riêng cho listing.
+        $this->actingAs($this->owner)
+            ->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
+            ->putJson("/api/v1/listings/{$draft->getKey()}", ['name' => 'Áo thun cotton cao cấp (Shopee)'])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Áo thun cotton cao cấp (Shopee)');
+
+        // Override được dùng làm title khi đẩy lên sàn.
+        $this->assertSame('Áo thun cotton cao cấp (Shopee)', app(ListingDraftService::class)->toDraftDTO($draft->fresh())->title);
+
+        // Xoá trắng tiêu đề ⇒ quay về tên sản phẩm gốc.
+        $this->actingAs($this->owner)
+            ->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
+            ->putJson("/api/v1/listings/{$draft->getKey()}", ['name' => ''])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Áo thun cotton');
+    }
+
     public function test_recreating_draft_after_soft_delete_does_not_violate_unique(): void
     {
         $svc = app(ListingDraftService::class);

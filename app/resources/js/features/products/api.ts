@@ -68,6 +68,7 @@ export interface ListingDraft {
 }
 
 export interface UpdateListingPayload {
+    name?: string | null;
     description?: string | null;
     video_url?: string | null;
     category_id?: string | null;

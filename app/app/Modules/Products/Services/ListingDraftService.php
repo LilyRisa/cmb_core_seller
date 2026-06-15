@@ -100,6 +100,14 @@ final class ListingDraftService
         $draft = ListingDraft::with('skus')->findOrFail($listingId);
 
         DB::transaction(function () use ($draft, $data) {
+            // Tiêu đề riêng cho listing (override tên SP gốc) — lưu trong attributes['name'].
+            // Rỗng ⇒ null để resource fallback về product->name.
+            if (array_key_exists('name', $data)) {
+                $attrs = $draft->attributes ?? [];
+                $attrs['name'] = (trim((string) ($data['name'] ?? '')) !== '') ? trim((string) $data['name']) : null;
+                $draft->attributes = $attrs;
+            }
+
             if (array_key_exists('description', $data)) {
                 $attrs = $draft->attributes ?? [];
                 $attrs['description'] = $data['description'];
@@ -154,7 +162,8 @@ final class ListingDraftService
             }
         });
 
-        return $this->revalidate($draft->fresh(['skus']));
+        // Nạp cả product để resource fallback tiêu đề (attributes['name'] rỗng ⇒ product->name).
+        return $this->revalidate($draft->fresh(['skus', 'product']));
     }
 
     /**
@@ -273,7 +282,8 @@ final class ListingDraftService
     public function toDraftDTO(ListingDraft $draft): ListingDraftDTO
     {
         $product = Product::findOrFail($draft->product_id);
-        $title = (string) $product->name;
+        // Tiêu đề riêng của listing (nếu seller đã sửa) ưu tiên hơn tên SP gốc.
+        $title = (string) (($draft->attributes ?? [])['name'] ?? '') ?: (string) $product->name;
 
         $media = array_map(
             fn ($m) => is_array($m)

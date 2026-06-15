@@ -1,4 +1,4 @@
-import { Alert, Divider, Empty, Input, InputNumber, Radio, Select, Space, Spin, Typography } from 'antd';
+import { Alert, Col, Divider, Empty, Input, InputNumber, Radio, Row, Select, Space, Spin, Typography } from 'antd';
 import { useAttributes } from './hooks';
 import type { ListingAttribute } from './api';
 
@@ -48,11 +48,11 @@ function AttributeField({
             />
         );
     }
-    // single select — Radio cho danh sách nhỏ, Select cho danh sách lớn
+    // single select — Radio cho danh sách nhỏ (gói gọn theo hàng ngang), Select cho danh sách lớn
     if (attr.values.length <= RADIO_MAX) {
         return (
             <Radio.Group value={value} onChange={(e) => onChange(e.target.value)}>
-                <Space direction="vertical">
+                <Space wrap size={[12, 4]}>
                     {attr.values.map((o) => (
                         <Radio key={o.id} value={o.id}>
                             {o.name}
@@ -139,9 +139,13 @@ export function AttributeForm({
                     <Divider orientation="left" plain style={{ marginTop: 0 }}>
                         Thuộc tính phân loại (biến thể)
                     </Divider>
-                    {saleProps.map((attr) => (
-                        <FieldRow key={attr.id} attr={attr} value={value[attr.id]} onChange={(v) => setOne(attr.id, v)} />
-                    ))}
+                    <Row gutter={[16, 0]}>
+                        {saleProps.map((attr) => (
+                            <Col xs={24} sm={12} lg={8} key={attr.id}>
+                                <FieldRow attr={attr} value={value[attr.id]} onChange={(v) => setOne(attr.id, v)} />
+                            </Col>
+                        ))}
+                    </Row>
                 </>
             )}
             {normalAttrs.length > 0 && (
@@ -149,9 +153,13 @@ export function AttributeForm({
                     <Divider orientation="left" plain>
                         Thông tin sản phẩm
                     </Divider>
-                    {normalAttrs.map((attr) => (
-                        <FieldRow key={attr.id} attr={attr} value={value[attr.id]} onChange={(v) => setOne(attr.id, v)} />
-                    ))}
+                    <Row gutter={[16, 0]}>
+                        {normalAttrs.map((attr) => (
+                            <Col xs={24} sm={12} lg={8} key={attr.id}>
+                                <FieldRow attr={attr} value={value[attr.id]} onChange={(v) => setOne(attr.id, v)} />
+                            </Col>
+                        ))}
+                    </Row>
                 </>
             )}
         </div>

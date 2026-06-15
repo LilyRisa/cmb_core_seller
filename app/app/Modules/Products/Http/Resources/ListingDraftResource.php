@@ -18,7 +18,8 @@ class ListingDraftResource extends JsonResource
             'channel_account_id' => $this->channel_account_id,
             'provider' => $this->provider,
             'status' => $this->status,
-            'name' => $this->whenLoaded('product', fn () => $this->product?->name),
+            // Tiêu đề riêng của listing (attributes['name']) override tên SP gốc; rỗng ⇒ tên SP.
+            'name' => ($this->attributes['name'] ?? null) ?: $this->whenLoaded('product', fn () => $this->product?->name),
             'description' => $this->attributes['description'] ?? null,
             'video_url' => $this->attributes['video_url'] ?? null,
             'category_id' => $this->category_id,
