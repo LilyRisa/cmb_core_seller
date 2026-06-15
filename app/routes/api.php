@@ -26,6 +26,7 @@ use CMBcoreSeller\Modules\Products\Http\Controllers\ExtensionTokenController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ListingDraftController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ListingPushController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ListingTaxonomyController;
+use CMBcoreSeller\Modules\Products\Http\Controllers\PromotionController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ProductController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\AuthController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\MemberController;
@@ -226,6 +227,19 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::put('channel-listings/{id}/marketplace', [ChannelListingController::class, 'marketplaceUpdate'])->whereNumber('id')->name('channel-listings.marketplace-update');
             Route::post('channel-listings/{id}/clone-to-shops', [ChannelListingController::class, 'cloneToShops'])->whereNumber('id')->name('channel-listings.clone-to-shops');
             Route::post('channel-listings/{id}/ai-description', [ChannelListingController::class, 'aiDescription'])->whereNumber('id')->name('channel-listings.ai-description');
+
+            // Chiến dịch giảm giá nhiều SKU (Shopee/Lazada/TikTok). Route tĩnh trước {id}.
+            Route::get('channel-promotions', [PromotionController::class, 'index'])->name('channel-promotions.index');
+            Route::get('channel-promotions/busy-skus', [PromotionController::class, 'busySkus'])->name('channel-promotions.busy-skus');
+            Route::get('channel-promotions/capabilities', [PromotionController::class, 'capabilities'])->name('channel-promotions.capabilities');
+            Route::post('channel-promotions/sync', [PromotionController::class, 'sync'])->name('channel-promotions.sync');
+            Route::post('channel-promotions', [PromotionController::class, 'store'])->name('channel-promotions.store');
+            Route::get('channel-promotions/{id}', [PromotionController::class, 'show'])->whereNumber('id')->name('channel-promotions.show');
+            Route::patch('channel-promotions/{id}', [PromotionController::class, 'update'])->whereNumber('id')->name('channel-promotions.update');
+            Route::post('channel-promotions/{id}/skus', [PromotionController::class, 'setSkus'])->whereNumber('id')->name('channel-promotions.skus');
+            Route::post('channel-promotions/{id}/push', [PromotionController::class, 'push'])->whereNumber('id')->name('channel-promotions.push');
+            Route::post('channel-promotions/{id}/end', [PromotionController::class, 'end'])->whereNumber('id')->name('channel-promotions.end');
+            Route::delete('channel-promotions/{id}', [PromotionController::class, 'destroy'])->whereNumber('id')->name('channel-promotions.destroy');
             Route::patch('channel-listings/{id}', [ChannelListingController::class, 'update'])->whereNumber('id')->name('channel-listings.update');
             Route::post('sku-mappings', [SkuMappingController::class, 'store'])->name('sku-mappings.store');
             Route::post('sku-mappings/auto-match', [SkuMappingController::class, 'autoMatch'])->name('sku-mappings.auto-match');

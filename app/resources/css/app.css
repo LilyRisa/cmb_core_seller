@@ -2010,3 +2010,7 @@ pre::-webkit-scrollbar-track {
 /* =============================================================================
    END OF MINIMAL ECOMMERCE THEME
    ============================================================================= */
+
+/* SKU đã có chương trình giảm giá — tô xám, khoá chọn trong picker */
+.promo-row-locked { opacity: .55; background: #fafafa; }
+.promo-row-locked:hover td { background: #f5f5f5 !important; }

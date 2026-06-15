@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace CMBcoreSeller\Integrations\Channels\TikTok;
 
+use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\Contracts\ProductPublishingConnector;
+use CMBcoreSeller\Integrations\Channels\Contracts\PromotionConnector;
 use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
 use CMBcoreSeller\Integrations\Channels\DTO\BrandDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\CategoryNodeDTO;
@@ -15,6 +17,9 @@ use CMBcoreSeller\Integrations\Channels\DTO\ListingEditDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingResultDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingStatusDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\MediaRefDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\PromotionDraftDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\PromotionResultDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\PromotionSyncDTO;
 use CMBcoreSeller\Integrations\Channels\Exceptions\MarketplaceApiException;
 
 /**
@@ -30,7 +35,7 @@ use CMBcoreSeller\Integrations\Channels\Exceptions\MarketplaceApiException;
  * the TikTok Shop Open Platform docs (category_version=v2) and verified against the
  * sandbox later.
  */
-final class TikTokPublisher implements ProductPublishingConnector
+final class TikTokPublisher implements ProductPublishingConnector, PromotionConnector
 {
     public function __construct(
         private readonly TikTokClient $client,
@@ -350,5 +355,140 @@ final class TikTokPublisher implements ProductPublishingConnector
             'FAILED' => 'failed',
             default => strtolower($rawStatus),
         };
+    }
+
+    public function promotionCapabilities(): array
+    {
+        return [
+            'max_items_per_call' => 300,
+            'supports_percent' => true,
+            'has_program_object' => true,
+            'supports_time_of_day' => true,
+        ];
+    }
+
+    public function createPromotion(AuthContext $auth, PromotionDraftDTO $draft): PromotionResultDTO
+    {
+        $body = [
+            'title' => $draft->title,
+            'activity_type' => $draft->discountType === 'percent' ? 'DIRECT_DISCOUNT' : 'FIXED_PRICE',
+            'product_level' => 'VARIATION',
+            'duration_type' => 'NORMAL',
+            'begin_time' => $draft->startAt->getTimestamp(),
+            'end_time' => $draft->endAt->getTimestamp(),
+        ];
+
+        $data = $this->client->post('/promotion/202309/activities', $auth, $body);
+
+        return new PromotionResultDTO(
+            (string) ($data['activity_id'] ?? ''),
+            (string) ($data['status'] ?? ''),
+        );
+    }
+
+    public function putPromotionItems(AuthContext $auth, ?string $externalPromotionId, PromotionDraftDTO $campaign, array $itemsBatch): void
+    {
+        if ($externalPromotionId === null || $externalPromotionId === '') {
+            return;
+        }
+
+        // Gom theo external product id → mỗi product có nhiều sku.
+        $byProduct = [];
+        foreach ($itemsBatch as $item) {
+            $sku = ['id' => $item->externalSkuId];
+            if ($campaign->discountType === 'percent') {
+                $sku['discount'] = (string) $item->discountValue;
+            } else {
+                $sku['activity_price_amount'] = (string) $item->salePrice;
+            }
+            $byProduct[$item->externalProductId][] = $sku;
+        }
+
+        $products = [];
+        foreach ($byProduct as $productId => $skus) {
+            $products[] = ['id' => (string) $productId, 'skus' => $skus];
+        }
+
+        $this->client->request('PUT', "/promotion/202309/activities/{$externalPromotionId}/products", $auth, [], ['products' => $products]);
+    }
+
+    public function endPromotion(AuthContext $auth, ?string $externalPromotionId, PromotionDraftDTO $campaign, array $items = []): void
+    {
+        if ($externalPromotionId === null || $externalPromotionId === '') {
+            return;
+        }
+
+        $this->client->request('DELETE', "/promotion/202309/activities/{$externalPromotionId}", $auth);
+    }
+
+    public function listPromotions(AuthContext $auth): array
+    {
+        $out = [];
+
+        try {
+            $activities = [];
+            // TikTok lọc theo 1 trạng thái/lần — gộp ongoing + chưa bắt đầu.
+            foreach (['ONGOING', 'NOT_START'] as $status) {
+                $data = $this->client->request('GET', '/promotion/202309/activities', $auth, ['status' => $status]);
+                foreach ((array) ($data['activities'] ?? []) as $a) {
+                    if (! is_array($a)) {
+                        continue;
+                    }
+                    $id = (string) ($a['id'] ?? ($a['activity_id'] ?? ''));
+                    if ($id !== '') {
+                        $activities[$id] = $a;
+                    }
+                }
+            }
+
+            foreach (array_slice($activities, 0, 50, true) as $id => $a) {
+                try {
+                    $detail = $this->client->request('GET', "/promotion/202309/activities/{$id}", $auth);
+                } catch (\Throwable) {
+                    $detail = $a;
+                }
+
+                $rawStatus = strtoupper((string) ($detail['status'] ?? ($a['status'] ?? '')));
+                $normalized = match ($rawStatus) {
+                    'ONGOING' => 'ongoing',
+                    'NOT_START' => 'upcoming',
+                    default => 'ended',
+                };
+
+                $begin = $detail['begin_time'] ?? ($a['begin_time'] ?? null);
+                $end = $detail['end_time'] ?? ($a['end_time'] ?? null);
+
+                $items = [];
+                foreach ((array) ($detail['products'] ?? []) as $product) {
+                    if (! is_array($product)) {
+                        continue;
+                    }
+                    $productId = (string) ($product['id'] ?? '');
+                    foreach ((array) ($product['skus'] ?? []) as $sku) {
+                        if (! is_array($sku)) {
+                            continue;
+                        }
+                        $items[] = [
+                            'external_product_id' => $productId,
+                            'external_sku_id' => (string) ($sku['id'] ?? ''),
+                            'sale_price' => isset($sku['activity_price_amount']) ? (int) $sku['activity_price_amount'] : 0,
+                        ];
+                    }
+                }
+
+                $out[] = new PromotionSyncDTO(
+                    externalPromotionId: (string) $id,
+                    title: (string) ($detail['title'] ?? ($a['title'] ?? '')),
+                    status: $normalized,
+                    startAt: $begin !== null ? CarbonImmutable::createFromTimestamp((int) $begin) : null,
+                    endAt: $end !== null ? CarbonImmutable::createFromTimestamp((int) $end) : null,
+                    items: $items,
+                );
+            }
+        } catch (\Throwable) {
+            return [];
+        }
+
+        return $out;
     }
 }

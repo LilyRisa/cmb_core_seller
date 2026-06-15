@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CMBcoreSeller\Integrations\Channels\Lazada;
 
 use CMBcoreSeller\Integrations\Channels\Contracts\ProductPublishingConnector;
+use CMBcoreSeller\Integrations\Channels\Contracts\PromotionConnector;
 use CMBcoreSeller\Integrations\Channels\DTO\AuthContext;
 use CMBcoreSeller\Integrations\Channels\DTO\BrandDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\CategoryNodeDTO;
@@ -15,6 +16,10 @@ use CMBcoreSeller\Integrations\Channels\DTO\ListingEditDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingResultDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ListingStatusDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\MediaRefDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\PromotionDraftDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\PromotionItemDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\PromotionResultDTO;
+use CMBcoreSeller\Integrations\Channels\DTO\PromotionSyncDTO;
 use CMBcoreSeller\Integrations\Channels\Exceptions\MarketplaceApiException;
 use Illuminate\Support\Facades\Http;
 
@@ -29,7 +34,7 @@ use Illuminate\Support\Facades\Http;
  * Taxonomy/media/status reads are best-effort defensive mappings (`?? []` / `?? ''`) —
  * the doc-derived response shapes are verified against the Lazada sandbox later.
  */
-final class LazadaPublisher implements ProductPublishingConnector
+final class LazadaPublisher implements ProductPublishingConnector, PromotionConnector
 {
     public function __construct(
         private readonly LazadaClient $client,
@@ -400,5 +405,113 @@ final class LazadaPublisher implements ProductPublishingConnector
             'REJECTED' => 'failed',
             default => strtolower($rawStatus),
         };
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * Lazada KHÔNG có đối tượng "chương trình": giảm giá là set SalePrice theo từng SKU
+     * qua /product/price_quantity/update (tối đa ~50 SKU/call, khuyến nghị 20).
+     *
+     * @return array{max_items_per_call:int, supports_percent:bool, has_program_object:bool, supports_time_of_day:bool}
+     */
+    public function promotionCapabilities(): array
+    {
+        return [
+            'max_items_per_call' => 20,
+            'supports_percent' => false,
+            'has_program_object' => false,
+            'supports_time_of_day' => false,
+        ];
+    }
+
+    /**
+     * No-op: Lazada không có đối tượng chương trình ⇒ trả `externalPromotionId = null`,
+     * core tự quản chiến dịch ở DB và đẩy giá qua {@see putPromotionItems()}.
+     */
+    public function createPromotion(AuthContext $auth, PromotionDraftDTO $draft): PromotionResultDTO
+    {
+        return new PromotionResultDTO(null, 'virtual');
+    }
+
+    /**
+     * Đẩy giảm giá cho 1 batch SKU: set SalePrice + cửa sổ ngày (SaleStartDate/SaleEndDate)
+     * qua /product/price_quantity/update (payload XML). Ngày lấy từ chiến dịch (Y-m-d).
+     *
+     * @param  list<PromotionItemDTO>  $itemsBatch
+     */
+    public function putPromotionItems(AuthContext $auth, ?string $externalPromotionId, PromotionDraftDTO $campaign, array $itemsBatch): void
+    {
+        if ($itemsBatch === []) {
+            return;
+        }
+
+        $esc = fn (string $s) => htmlspecialchars($s, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+        $startDate = $campaign->startAt->format('Y-m-d');
+        $endDate = $campaign->endAt->format('Y-m-d');
+
+        $skus = '';
+        foreach ($itemsBatch as $item) {
+            $skus .= '<Sku>'
+                .'<SkuId>'.$esc($item->externalSkuId).'</SkuId>'
+                .'<SellerSku>'.$esc($item->sellerSku).'</SellerSku>'
+                .'<Price>'.$item->basePrice.'</Price>'
+                .'<SalePrice>'.$item->salePrice.'</SalePrice>'
+                .'<SaleStartDate>'.$esc($startDate).'</SaleStartDate>'
+                .'<SaleEndDate>'.$esc($endDate).'</SaleEndDate>'
+                .'</Sku>';
+        }
+
+        $xml = '<Request><Product><Skus>'.$skus.'</Skus></Product></Request>';
+
+        $resp = $this->client->callRaw('/product/price_quantity/update', $auth, ['payload' => $xml], 'POST');
+        if ((string) ($resp['code'] ?? '') !== '0') {
+            throw MarketplaceApiException::fromLazada($resp);
+        }
+    }
+
+    /**
+     * Kết thúc giảm giá (best-effort): đặt lại SalePrice = basePrice cho từng SKU để gỡ
+     * giảm giá, KHÔNG kèm SaleStartDate/SaleEndDate.
+     *
+     * // TODO xác minh cơ chế clear special price Lazada.
+     *
+     * @param  list<PromotionItemDTO>  $items
+     */
+    public function endPromotion(AuthContext $auth, ?string $externalPromotionId, PromotionDraftDTO $campaign, array $items = []): void
+    {
+        if ($items === []) {
+            return;
+        }
+
+        $esc = fn (string $s) => htmlspecialchars($s, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+
+        $skus = '';
+        foreach ($items as $item) {
+            $skus .= '<Sku>'
+                .'<SkuId>'.$esc($item->externalSkuId).'</SkuId>'
+                .'<SellerSku>'.$esc($item->sellerSku).'</SellerSku>'
+                .'<Price>'.$item->basePrice.'</Price>'
+                .'<SalePrice>'.$item->basePrice.'</SalePrice>'
+                .'</Sku>';
+        }
+
+        $xml = '<Request><Product><Skus>'.$skus.'</Skus></Product></Request>';
+
+        $resp = $this->client->callRaw('/product/price_quantity/update', $auth, ['payload' => $xml], 'POST');
+        if ((string) ($resp['code'] ?? '') !== '0') {
+            throw MarketplaceApiException::fromLazada($resp);
+        }
+    }
+
+    /**
+     * Lazada KHÔNG có đối tượng chương trình để liệt kê (giảm giá nằm rải ở SalePrice từng
+     * SKU) ⇒ trả [] theo hợp đồng {@see PromotionConnector::listPromotions()}.
+     *
+     * @return list<PromotionSyncDTO>
+     */
+    public function listPromotions(AuthContext $auth): array
+    {
+        return [];
     }
 }

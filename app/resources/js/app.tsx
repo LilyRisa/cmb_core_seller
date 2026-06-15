@@ -30,6 +30,8 @@ import { OnChannelPage } from '@/pages/marketplace/OnChannelPage';
 import { MarketplaceEditPage } from '@/pages/marketplace/MarketplaceEditPage';
 import { ListingDraftEditorPage } from '@/pages/marketplace/ListingDraftEditorPage';
 import { PublishablePage } from '@/pages/marketplace/PublishablePage';
+import { PromotionsPage } from '@/pages/marketplace/PromotionsPage';
+import { PromotionEditPage } from '@/pages/marketplace/PromotionEditPage';
 // Lazy: trình sửa ảnh nâng cao kéo theo thư viện nặng — chỉ tải khi mở trang.
 const AdvancedImageEditorPage = React.lazy(() => import('@/pages/marketplace/AdvancedImageEditorPage'));
 const MarketplaceImageEditorPage = React.lazy(() => import('@/pages/marketplace/MarketplaceImageEditorPage'));
@@ -141,6 +143,8 @@ function Root() {
                     )}
                 />
                 <Route path="marketplace/to-push" element={<PublishablePage />} />
+                <Route path="marketplace/promotions" element={<PromotionsPage />} />
+                <Route path="marketplace/promotions/:id/edit" element={<PromotionEditPage />} />
                 <Route path="marketplace/listings/:id/edit" element={<ListingDraftEditorPage />} />
                 <Route
                     path="marketplace/listings/:id/images/edit"
