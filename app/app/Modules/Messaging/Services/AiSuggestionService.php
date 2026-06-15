@@ -13,6 +13,7 @@ use CMBcoreSeller\Modules\Messaging\Models\AiAssistantRun;
 use CMBcoreSeller\Modules\Messaging\Models\AiProvider;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
+use CMBcoreSeller\Modules\Messaging\Models\MessageAttachment;
 use CMBcoreSeller\Modules\Messaging\Models\MessageDraft;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingSetting;
 use CMBcoreSeller\Modules\Orders\Contracts\OrderLookupContract;
@@ -46,6 +47,7 @@ class AiSuggestionService
         private OutboundMessageService $outbound,
         private AiCreditMeter $credits,
         private OrderLookupContract $orderLookup,
+        private MediaStorage $media,
     ) {}
 
     /**
@@ -312,12 +314,20 @@ class AiSuggestionService
                     }
                 }
             }
-            $recent[] = [
+            $entry = [
                 'direction' => $m->direction,
                 'kind' => $m->kind,
                 'body' => $body,
                 'sent_at' => $m->created_at?->toIso8601String(),
             ];
+            // Vision: đính link ảnh khách gửi (chỉ tin INBOUND) để AI phân tích.
+            if ($m->direction === Message::DIRECTION_INBOUND) {
+                $imageUrls = $this->imageUrlsFor($m);
+                if ($imageUrls !== []) {
+                    $entry['image_urls'] = $imageUrls;
+                }
+            }
+            $recent[] = $entry;
         }
 
         // Ngữ cảnh khách + đơn lấy TRỰC TIẾP từ liên kết hội thoại (customer_id / order_id đã gắn)
@@ -354,6 +364,39 @@ class AiSuggestionService
         );
 
         return [$snapshot, $mapping, $redactedCount];
+    }
+
+    /**
+     * Link (hoặc data-URI) ảnh đã relay của 1 tin, để gửi cho AI vision.
+     * Ưu tiên signed URL; `ai.vision.inline_base64`=true ⇒ nhúng base64 (dev/local).
+     *
+     * @return list<string>
+     */
+    private function imageUrlsFor(Message $m): array
+    {
+        if (! (bool) config('ai.vision.enabled', true) || (int) $m->attachments_count < 1) {
+            return [];
+        }
+        $inline = (bool) config('ai.vision.inline_base64', false);
+        $max = max(1, (int) config('ai.vision.max_images_per_message', 3));
+        $maxKb = (int) config('ai.vision.inline_max_kb', 4096);
+
+        $atts = MessageAttachment::withoutGlobalScope(TenantScope::class)
+            ->where('message_id', $m->id)
+            ->where('kind', MessageAttachment::KIND_IMAGE)
+            ->where('status', MessageAttachment::STATUS_DOWNLOADED)
+            ->limit($max)
+            ->get();
+
+        $urls = [];
+        foreach ($atts as $att) {
+            $u = $inline ? $this->media->imageDataUrl($att, $maxKb) : $this->media->temporaryUrl($att);
+            if (is_string($u) && $u !== '') {
+                $urls[] = $u;
+            }
+        }
+
+        return $urls;
     }
 
     private function lastInboundBody(Conversation $conv): ?string

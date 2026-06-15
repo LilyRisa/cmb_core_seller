@@ -25,4 +25,27 @@ return [
         'retries' => (int) env('AI_HTTP_RETRIES', 1),
         'retry_backoff_ms' => (int) env('AI_HTTP_RETRY_BACKOFF_MS', 1000),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Vision (đa phương thức) — gửi ảnh khách kèm tin lên AI để phân tích
+    |--------------------------------------------------------------------------
+    |
+    | Chỉ adapter có vision (Claude/OpenAI) + model trong `models` mới đính ảnh vào
+    | request; model khác giữ placeholder text. `inline_base64`=false ⇒ gửi LINK signed
+    | (prod R2/S3 ra Internet); =true ⇒ nhúng base64 (dev/local khi storage không reachable).
+    */
+    'vision' => [
+        'enabled' => (bool) env('AI_VISION_ENABLED', true),
+        // Substring (lowercase) khớp tên model có khả năng vision.
+        'models' => array_values(array_filter(array_map('trim', explode(',', (string) env(
+            'AI_VISION_MODELS',
+            'claude-3,claude-haiku,claude-sonnet,claude-opus,claude-4,gpt-4o,gpt-4.1,gpt-4-vision,gpt-5,o4-mini,gemini',
+        ))))),
+        'max_images_per_message' => (int) env('AI_VISION_MAX_IMAGES_PER_MESSAGE', 3),
+        // Nhúng base64 thay vì link (cho môi trường storage không ra Internet).
+        'inline_base64' => (bool) env('AI_VISION_INLINE_BASE64', false),
+        // Bỏ qua ảnh > ngưỡng khi nhúng base64 (KB) để tránh phình request.
+        'inline_max_kb' => (int) env('AI_VISION_INLINE_MAX_KB', 4096),
+    ],
 ];

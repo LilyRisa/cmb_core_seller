@@ -92,7 +92,7 @@ class ClaudeConnector implements AiAssistantConnector
                 'model' => $model,
                 'max_tokens' => $maxTokens,
                 'system' => $this->buildSystem($conversation, $kb, $ctx->systemPromptExtra),
-                'messages' => $this->buildMessages($conversation),
+                'messages' => $this->buildMessages($conversation, $this->visionEnabled($model)),
             ]);
 
         $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
@@ -261,14 +261,32 @@ class ClaudeConnector implements AiAssistantConnector
      * Map recentMessages → Anthropic messages[]. inbound→user, outbound→assistant.
      * Đảm bảo bắt đầu bằng `user` (API yêu cầu); bỏ assistant dẫn đầu.
      *
-     * @return list<array{role:string, content:string}>
+     * Khi `$vision` và tin có `image_urls`, gửi content dạng block (text + image) để
+     * model nhìn ảnh; ngược lại gửi content string như cũ.
+     *
+     * @return list<array{role:string, content:string|list<array<string,mixed>>}>
      */
-    private function buildMessages(ConversationSnapshot $c): array
+    private function buildMessages(ConversationSnapshot $c, bool $vision = false): array
     {
         $messages = [];
         foreach ($c->recentMessages as $m) {
             $role = ($m['direction'] ?? '') === 'outbound' ? 'assistant' : 'user';
             $body = trim((string) ($m['body'] ?? ''));
+            $images = $vision ? array_values(array_filter((array) ($m['image_urls'] ?? []), 'is_string')) : [];
+
+            if ($images !== []) {
+                $content = [];
+                if ($body !== '') {
+                    $content[] = ['type' => 'text', 'text' => $body];
+                }
+                foreach ($images as $url) {
+                    $content[] = ['type' => 'image', 'source' => $this->imageSource((string) $url)];
+                }
+                $messages[] = ['role' => $role, 'content' => $content];
+
+                continue;
+            }
+
             if ($body === '') {
                 $body = '['.($m['kind'] ?? 'media').']';
             }
@@ -284,5 +302,36 @@ class ClaudeConnector implements AiAssistantConnector
         }
 
         return $messages;
+    }
+
+    /**
+     * Source ảnh cho Anthropic: `https://…` → type=url; `data:…;base64,…` → type=base64.
+     *
+     * @return array<string,mixed>
+     */
+    private function imageSource(string $url): array
+    {
+        if (str_starts_with($url, 'data:') && preg_match('#^data:([^;]+);base64,(.*)$#s', $url, $mm) === 1) {
+            return ['type' => 'base64', 'media_type' => $mm[1] !== '' ? $mm[1] : 'image/jpeg', 'data' => $mm[2]];
+        }
+
+        return ['type' => 'url', 'url' => $url];
+    }
+
+    /** Model hiện tại có khả năng vision (theo `config('ai.vision')`)? */
+    private function visionEnabled(string $model): bool
+    {
+        if (! (bool) config('ai.vision.enabled', true)) {
+            return false;
+        }
+        $m = strtolower($model);
+        foreach ((array) config('ai.vision.models', []) as $needle) {
+            $n = strtolower(trim((string) $needle));
+            if ($n !== '' && str_contains($m, $n)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -12,7 +12,11 @@ final readonly class ConversationSnapshot
         public int $conversationId,
         public string $provider,
         public ?string $buyerName = null,
-        /** @var list<array{direction:string, kind:string, body:?string, sent_at:?string}> */
+        /**
+         * `image_urls`: link/data-URI ảnh khách gửi (vision) — chỉ adapter có vision dùng.
+         *
+         * @var list<array{direction:string, kind:string, body:?string, sent_at:?string, image_urls?:list<string>}>
+         */
         public array $recentMessages = [],
         /** @var array<string, mixed>|null */
         public ?array $customerProfile = null,

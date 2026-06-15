@@ -67,6 +67,36 @@ class MediaStorage
     }
 
     /**
+     * Data-URI base64 của 1 attachment đã downloaded (dùng cho vision khi storage KHÔNG ra
+     * Internet — vd disk local). Trả null nếu chưa có file hoặc vượt `$maxKb`.
+     */
+    public function imageDataUrl(MessageAttachment $attachment, int $maxKb = 4096): ?string
+    {
+        if ($attachment->status !== MessageAttachment::STATUS_DOWNLOADED || ! $attachment->storage_path) {
+            return null;
+        }
+        $disk = $this->disk();
+        try {
+            if (! $disk->exists($attachment->storage_path)) {
+                return null;
+            }
+            $size = (int) $disk->size($attachment->storage_path);
+            if ($maxKb > 0 && $size > $maxKb * 1024) {
+                return null;
+            }
+            $raw = $disk->get($attachment->storage_path);
+            if ($raw === null) {
+                return null;
+            }
+        } catch (\Throwable) {
+            return null;
+        }
+        $mime = $attachment->mime ?: 'image/jpeg';
+
+        return 'data:'.$mime.';base64,'.base64_encode($raw);
+    }
+
+    /**
      * Signed URL TTL ngắn cho 1 storage_path bất kỳ (avatar). Null nếu path rỗng.
      * Disk local không hỗ trợ temporaryUrl ⇒ fallback url().
      */

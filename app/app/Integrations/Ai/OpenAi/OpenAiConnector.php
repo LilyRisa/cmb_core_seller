@@ -81,7 +81,7 @@ class OpenAiConnector implements AiAssistantConnector
             ->post($this->base($cfg).'/v1/chat/completions', [
                 'model' => $model,
                 'max_tokens' => $ctx->maxTokens ?: 1024,
-                'messages' => $this->buildMessages($conversation, $kb, $ctx->systemPromptExtra),
+                'messages' => $this->buildMessages($conversation, $kb, $ctx->systemPromptExtra, $this->visionEnabled($model)),
             ]);
 
         $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
@@ -245,8 +245,8 @@ class OpenAiConnector implements AiAssistantConnector
         return $base;
     }
 
-    /** @return list<array{role:string, content:string}> */
-    private function buildMessages(ConversationSnapshot $c, ?KnowledgeBase $kb, ?string $extraSystem = null): array
+    /** @return list<array{role:string, content:string|list<array<string,mixed>>}> */
+    private function buildMessages(ConversationSnapshot $c, ?KnowledgeBase $kb, ?string $extraSystem = null, bool $vision = false): array
     {
         $system = ReplyPersona::instructions($c, $extraSystem);
         $ctxText = ReplyPersona::contextBlock($c);
@@ -261,6 +261,23 @@ class OpenAiConnector implements AiAssistantConnector
         $messages = [['role' => 'system', 'content' => $system]];
         foreach ($c->recentMessages as $m) {
             $role = ($m['direction'] ?? '') === 'outbound' ? 'assistant' : 'user';
+            $images = $vision ? array_values(array_filter((array) ($m['image_urls'] ?? []), 'is_string')) : [];
+
+            if ($images !== []) {
+                $body = trim((string) ($m['body'] ?? ''));
+                $content = [];
+                if ($body !== '') {
+                    $content[] = ['type' => 'text', 'text' => $body];
+                }
+                foreach ($images as $url) {
+                    // OpenAI nhận cả https lẫn data-URI ở image_url.url.
+                    $content[] = ['type' => 'image_url', 'image_url' => ['url' => (string) $url]];
+                }
+                $messages[] = ['role' => $role, 'content' => $content];
+
+                continue;
+            }
+
             $body = trim((string) ($m['body'] ?? '')) ?: '['.($m['kind'] ?? 'media').']';
             $messages[] = ['role' => $role, 'content' => $body];
         }
@@ -269,5 +286,22 @@ class OpenAiConnector implements AiAssistantConnector
         }
 
         return $messages;
+    }
+
+    /** Model hiện tại có khả năng vision (theo `config('ai.vision')`)? */
+    private function visionEnabled(string $model): bool
+    {
+        if (! (bool) config('ai.vision.enabled', true)) {
+            return false;
+        }
+        $m = strtolower($model);
+        foreach ((array) config('ai.vision.models', []) as $needle) {
+            $n = strtolower(trim((string) $needle));
+            if ($n !== '' && str_contains($m, $n)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -12,6 +12,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * Inbound: `external_url` từ sàn TTL ngắn ⇒ `DownloadInboundMedia` job relay
  * vào MinIO → set `storage_path` + `status='downloaded'`.
+ *
+ * @property int $id
+ * @property int $tenant_id
+ * @property int $message_id
+ * @property string $kind
+ * @property string|null $mime
+ * @property int|null $size_bytes
+ * @property string|null $storage_path
+ * @property string|null $external_url
+ * @property string $status
  */
 class MessageAttachment extends Model
 {
