@@ -31,6 +31,10 @@ function computeSale(base: number, type: DiscountType, value: number): number {
     return Math.max(0, value);
 }
 
+/** Format/parse tiền có dấu chấm ngăn nghìn cho InputNumber (giá cố định). */
+const fmtThousand = (v?: number | string) => `${v ?? ''}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+const parseThousand = (v?: string) => Number((v ?? '').replace(/\./g, '')) || 0;
+
 export function PromotionEditPage() {
     const { id } = useParams();
     const promotionId = Number(id);
@@ -164,7 +168,8 @@ export function PromotionEditPage() {
                 <InputNumber
                     style={{ width: '100%' }} min={0} max={discountType === 'percent' ? 99 : undefined} disabled={!editable}
                     value={r.discount_value} onChange={(v) => setRowValue(r.external_sku_id, Number(v ?? 0))}
-                    addonAfter={discountType === 'percent' ? '%' : undefined}
+                    formatter={discountType === 'fixed' ? fmtThousand : undefined}
+                    parser={discountType === 'fixed' ? parseThousand : undefined}
                 />
             ),
         },
@@ -235,11 +240,9 @@ export function PromotionEditPage() {
             <Card
                 title={`SKU áp dụng (${rows.length})`}
                 extra={editable && (
-                    <Space>
-                        {discountType === 'percent'
-                            ? <ApplyAll label="Áp % cho tất cả" suffix="%" onApply={applyToAll} />
-                            : <ApplyAll label="Áp giá cho tất cả" onApply={applyToAll} />}
-                        <Button icon={<PlusOutlined />} onClick={() => setPickerOpen(true)}>Thêm SKU</Button>
+                    <Space wrap>
+                        <ApplyAll percent={discountType === 'percent'} onApply={applyToAll} />
+                        <Button type="primary" icon={<PlusOutlined />} onClick={() => setPickerOpen(true)}>Thêm SKU</Button>
                     </Space>
                 )}
             >
@@ -259,13 +262,22 @@ export function PromotionEditPage() {
     );
 }
 
-/** Ô nhập + nút áp 1 mức giảm cho toàn bộ SKU (thao tác nhanh). */
-function ApplyAll({ label, suffix, onApply }: { label: string; suffix?: string; onApply: (v: number) => void }) {
+/** Ô nhập + nút áp 1 mức giảm cho toàn bộ SKU (thao tác nhanh). Đơn vị thể hiện qua placeholder. */
+function ApplyAll({ percent, onApply }: { percent: boolean; onApply: (v: number) => void }) {
     const [v, setV] = useState<number | null>(null);
     return (
         <Space.Compact>
-            <InputNumber min={0} placeholder={label} style={{ width: 150 }} value={v ?? undefined} addonAfter={suffix} onChange={(x) => setV(x as number | null)} />
-            <Button onClick={() => v != null && onApply(v)}>Áp dụng</Button>
+            <InputNumber
+                min={0}
+                max={percent ? 99 : undefined}
+                placeholder={percent ? 'Áp % cho tất cả' : 'Áp giá cho tất cả'}
+                style={{ width: 180 }}
+                value={v ?? undefined}
+                formatter={percent ? undefined : fmtThousand}
+                parser={percent ? undefined : parseThousand}
+                onChange={(x) => setV(x as number | null)}
+            />
+            <Button onClick={() => v != null && onApply(v)}>Áp</Button>
         </Space.Compact>
     );
 }
