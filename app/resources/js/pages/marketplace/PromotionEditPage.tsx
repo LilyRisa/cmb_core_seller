@@ -94,7 +94,8 @@ export function PromotionEditPage() {
                     seller_sku: l.seller_sku ?? '',
                     title: l.title ?? undefined,
                     image: l.image ?? undefined,
-                    base_price: l.price ?? 0,
+                    // Base = GIÁ GỐC (chưa giảm), KHÔNG dùng price hiện tại (có thể đã giảm).
+                    base_price: l.original_price ?? l.price ?? 0,
                     discount_value: 0,
                 }));
             return [...prev, ...add];

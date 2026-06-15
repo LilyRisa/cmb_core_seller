@@ -23,6 +23,8 @@ final readonly class ChannelListingDTO
         public string $currency = 'VND',
         public ?string $image = null,
         public bool $isActive = true,
+        // Giá GỐC (chưa giảm) nếu sàn trả; `price` là giá hiện tại (có thể đã giảm).
+        public ?int $originalPrice = null,
         public array $raw = [],
     ) {}
 }

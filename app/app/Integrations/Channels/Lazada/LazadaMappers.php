@@ -291,6 +291,7 @@ final class LazadaMappers
             $status = strtolower((string) ($sku['Status'] ?? $sku['status'] ?? 'active'));
             $isActive = ! in_array($status, ['inactive', 'deleted', 'suspended', 'rejected'], true);
             $price = $sku['special_price'] ?? $sku['price'] ?? null;
+            $originalPrice = $sku['price'] ?? $price; // `price` Lazada là giá gốc; special_price là giá giảm.
             $image = null;
             foreach ((array) ($sku['Images'] ?? $sku['images'] ?? []) as $img) {
                 $u = is_array($img) ? ($img['url'] ?? null) : $img;
@@ -317,6 +318,7 @@ final class LazadaMappers
                 currency: 'VND',
                 image: $image ?? $productImage,
                 isActive: $isActive,
+                originalPrice: $originalPrice !== null ? self::money($originalPrice) : null,
                 raw: ['product' => array_diff_key($product, ['skus' => true]), 'sku' => $sku],
             );
         }

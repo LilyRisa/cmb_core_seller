@@ -124,7 +124,9 @@ final class ShopeeMappers
                 sellerSku: ($itemBase['item_sku'] ?? '') !== '' ? (string) $itemBase['item_sku'] : null,
                 title: $title, variation: null,
                 price: (int) round((float) ($itemBase['price_info'][0]['current_price'] ?? 0)),
-                channelStock: null, image: $image, isActive: $active, raw: $itemBase,
+                channelStock: null, image: $image, isActive: $active,
+                originalPrice: (int) round((float) ($itemBase['price_info'][0]['original_price'] ?? $itemBase['price_info'][0]['current_price'] ?? 0)),
+                raw: $itemBase,
             );
 
             return $out;
@@ -139,7 +141,9 @@ final class ShopeeMappers
                 variation: ($m['model_name'] ?? '') !== '' ? (string) $m['model_name'] : null,
                 price: (int) round((float) ($m['price_info'][0]['current_price'] ?? 0)),
                 channelStock: isset($m['stock_info_v2']['summary_info']['total_available_stock']) ? (int) $m['stock_info_v2']['summary_info']['total_available_stock'] : null,
-                image: $image, isActive: $active, raw: $m,
+                image: $image, isActive: $active,
+                originalPrice: (int) round((float) ($m['price_info'][0]['original_price'] ?? $m['price_info'][0]['current_price'] ?? 0)),
+                raw: $m,
             );
         }
 

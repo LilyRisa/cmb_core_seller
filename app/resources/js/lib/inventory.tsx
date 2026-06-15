@@ -134,6 +134,7 @@ export interface ChannelListing {
     title: string | null;
     variation: string | null;
     price: number | null;
+    original_price: number | null;
     channel_stock: number | null;
     currency: string;
     image: string | null;

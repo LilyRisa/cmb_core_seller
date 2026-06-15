@@ -71,7 +71,7 @@ export function SkuPickerModal({
                 </Space>
             ),
         },
-        { title: 'Giá', dataIndex: 'price', width: 120, align: 'right', render: (v: number | null, r) => (v == null ? '—' : <MoneyText value={v} currency={r.currency} />) },
+        { title: 'Giá gốc', key: 'price', width: 120, align: 'right', render: (_, r) => { const p = r.original_price ?? r.price; return p == null ? '—' : <MoneyText value={p} currency={r.currency} />; } },
         {
             title: 'Trạng thái', key: 'st', width: 140,
             render: (_, r) => (isLocked(r) ? <Tag color="orange">Đang giảm giá</Tag> : <Tag color="green">Chọn được</Tag>),

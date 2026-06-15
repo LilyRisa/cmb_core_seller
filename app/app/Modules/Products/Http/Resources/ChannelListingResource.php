@@ -20,6 +20,7 @@ class ChannelListingResource extends JsonResource
             'title' => $this->title,
             'variation' => $this->variation,
             'price' => $this->price,
+            'original_price' => $this->original_price,
             'channel_stock' => $this->channel_stock,
             'currency' => $this->currency,
             'image' => $this->image,

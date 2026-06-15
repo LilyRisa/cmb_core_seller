@@ -95,6 +95,7 @@ class FetchChannelListings implements ShouldBeUnique, ShouldQueue
                         'title' => $dto->title,
                         'variation' => $dto->variation,
                         'price' => $dto->price,
+                        'original_price' => $dto->originalPrice ?? $dto->price,
                         'channel_stock' => $dto->channelStock,
                         'currency' => $dto->currency ?: 'VND',
                         'image' => $dto->image,

@@ -102,6 +102,7 @@ final class TikTokMappers
             $price = $sku['price'] ?? [];
             $currency = (string) ($price['currency'] ?? 'VND');
             $priceVal = $price['sale_price'] ?? $price['tax_exclusive_price'] ?? $price['original_price'] ?? null;
+            $originalVal = $price['original_price'] ?? $priceVal;
             $stock = null;
             foreach ((array) ($sku['inventory'] ?? []) as $inv) {
                 $stock = (int) ($stock ?? 0) + (int) ($inv['quantity'] ?? 0);
@@ -121,6 +122,7 @@ final class TikTokMappers
                 currency: $currency ?: 'VND',
                 image: $image,
                 isActive: $isActive,
+                originalPrice: $originalVal !== null ? self::money($originalVal) : null,
                 raw: ['product' => array_diff_key($product, ['skus' => true]), 'sku' => $sku],
             );
         }
