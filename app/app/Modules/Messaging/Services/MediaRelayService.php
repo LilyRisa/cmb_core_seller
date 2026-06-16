@@ -93,7 +93,9 @@ class MediaRelayService
             }
 
             $ext = pathinfo((string) parse_url($attachment->external_url, PHP_URL_PATH), PATHINFO_EXTENSION) ?: 'bin';
-            $path = $this->storage->buildPath((int) $attachment->tenant_id, (int) $attachment->message->conversation_id, $ext);
+            // null-safe: message có thể null (TenantScope/đã xoá) — KHÔNG được crash làm hỏng tải ảnh.
+            $conversationId = (int) ($attachment->message?->conversation_id ?? 0);
+            $path = $this->storage->buildPath((int) $attachment->tenant_id, $conversationId, $ext);
 
             $this->storage->disk()->put($path, $body);
 

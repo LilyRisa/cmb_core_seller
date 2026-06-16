@@ -36,8 +36,11 @@ class DownloadInboundMedia implements ShouldQueue
 
     public function handle(MediaRelayService $relay): void
     {
+        // Eager-load message PHẢI bỏ TenantScope: job chạy không có tenant context ⇒
+        // `->with('message')` thường sẽ áp TenantScope của Message ⇒ message=null ⇒
+        // relayInbound đọc `$attachment->message->conversation_id` trên null (ảnh không tải được).
         $attachment = MessageAttachment::withoutGlobalScope(TenantScope::class)
-            ->with('message')
+            ->with(['message' => fn ($q) => $q->withoutGlobalScope(TenantScope::class)])
             ->find($this->attachmentId);
 
         if (! $attachment) {
