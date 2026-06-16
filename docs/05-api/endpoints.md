@@ -513,7 +513,7 @@ Popup giữa màn hình cho mọi user (fix bug, tạm dừng dịch vụ…). A
 
 ## Visual search — Sản phẩm AI training (SPEC 2026-06-16)
 
-Prefix `/api/v1/visual-search` · middleware `auth:sanctum + verified + tenant + plan.over_quota_lock + plan.feature:messaging_visual_search`. Quyền: đọc `messaging.view`, mutate `messaging.ai.train` (đây là AI training).
+Prefix `/api/v1/visual-search` · middleware `auth:sanctum + verified + tenant + plan.over_quota_lock + plan.feature:messaging_ai` (là MỘT PHẦN của AI tự động trả lời — KHÔNG feature gói riêng). Quyền: đọc `messaging.view`, mutate `messaging.ai.train`.
 
 - `GET    /visual-search/items` — danh sách item (phân trang `per_page`, kèm `image_count`, `primary_image_id`).
 - `POST   /visual-search/items` — tạo item `{ name, description?, attributes?{}, ref_code?, applies_all_pages?, channel_account_ids?[] }`.
@@ -525,4 +525,4 @@ Prefix `/api/v1/visual-search` · middleware `auth:sanctum + verified + tenant +
 - `POST   /visual-search/items/{itemId}/images/{imageId}/primary` — đặt ảnh đại diện.
 - `POST   /visual-search/lookup` — **multipart** `image` + `rerank?` + `channel_account_id?` → `{ data: { status: matched|ambiguous|not_found, stage, item?{item_id,name,description,attributes,confidence}, candidates[] } }`. Rate-limit 30/phút.
 
-**Mã lỗi:** `PLAN_FEATURE_LOCKED` (`402`) khi gói không có `messaging_visual_search`.
+**Mã lỗi:** `PLAN_FEATURE_LOCKED` (`402`) khi gói không có `messaging_ai`.

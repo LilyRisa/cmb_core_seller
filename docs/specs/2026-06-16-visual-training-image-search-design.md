@@ -215,7 +215,7 @@ Ngưỡng `recall_floor`/`match_min`/`ambiguous_delta`/`topKImages`/`topNItems`/
 
 - `config/integrations.php`: khối `vector` (qdrant) + `image_embedding` (clip), bật/tắt qua `INTEGRATIONS_VECTOR`/`INTEGRATIONS_IMAGE_EMBEDDING`.
 - `config/visual_search.php`: ngưỡng match, topK/topN, aggregate, media_disk, giới hạn ảnh, active embedder code, collection prefix, rerank default.
-- **Feature-key plan-gate** `messaging_visual_search` (khai đủ 4 nơi như chuẩn plan-gate). Tenant không có feature ⇒ ẩn UI + API 403 + lookup trong AiSuggestion bỏ qua.
+- **Plan-gate dùng CHUNG `messaging_ai`** — đây là MỘT PHẦN của AI tự động trả lời, KHÔNG tách feature gói riêng. Route + lookup trong AiSuggestion đều gate qua `messaging_ai`. Tenant không có AI ⇒ API 402 + lookup bỏ qua.
 
 ## Tách biệt & degrade an toàn (lỗi)
 

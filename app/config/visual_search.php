@@ -13,8 +13,9 @@ return [
     |
     */
 
-    // Feature key plan-gate (khai đồng bộ ở Billing plan + admin + FE).
-    'feature' => 'messaging_visual_search',
+    // Là MỘT PHẦN của AI tự động trả lời — dùng chung feature gói `messaging_ai`
+    // (KHÔNG tách feature riêng). Route + tiêu thụ đều gate qua messaging_ai.
+    'feature' => 'messaging_ai',
 
     // Disk lưu ảnh training (mặc định theo messaging media / filesystem).
     'media_disk' => env('VISUAL_SEARCH_MEDIA_DISK', env('MESSAGING_MEDIA_DISK', env('FILESYSTEM_DISK', 'local'))),

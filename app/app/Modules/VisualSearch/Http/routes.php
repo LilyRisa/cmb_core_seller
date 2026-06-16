@@ -11,12 +11,12 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 |
 | Middleware: Sanctum + verified + tenant + plan.over_quota_lock +
-| plan.feature:messaging_visual_search. Quyền: đọc `messaging.view`,
-| mutate `messaging.ai.train` (đây là AI training).
+| plan.feature:messaging_ai (là MỘT PHẦN của AI tự động trả lời — KHÔNG tách
+| feature gói riêng). Quyền: đọc `messaging.view`, mutate `messaging.ai.train`.
 |
 */
 
-Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota_lock', 'plan.feature:messaging_visual_search'])
+Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota_lock', 'plan.feature:messaging_ai'])
     ->prefix('api/v1/visual-search')->group(function () {
         // CRUD item AI training
         Route::get('items', [TrainingItemController::class, 'index'])->name('visual-search.items.index');

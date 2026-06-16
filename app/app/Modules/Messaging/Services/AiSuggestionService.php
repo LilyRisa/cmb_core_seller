@@ -7,7 +7,6 @@ use CMBcoreSeller\Integrations\Ai\DTO\AiContext;
 use CMBcoreSeller\Integrations\Ai\DTO\ConversationSnapshot;
 use CMBcoreSeller\Integrations\Ai\Exceptions\ProviderNotConfigured;
 use CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter;
-use CMBcoreSeller\Modules\Billing\Services\SubscriptionService;
 use CMBcoreSeller\Modules\Customers\Contracts\CustomerProfileContract;
 use CMBcoreSeller\Modules\Messaging\Exceptions\AiSuggestionException;
 use CMBcoreSeller\Modules\Messaging\Models\AiAssistantRun;
@@ -55,7 +54,6 @@ class AiSuggestionService
         private OrderLookupContract $orderLookup,
         private MediaStorage $media,
         private VisualItemSearch $visualSearch,
-        private SubscriptionService $subscriptions,
     ) {}
 
     /**
@@ -274,12 +272,9 @@ class AiSuggestionService
 
     private function visualTrainingContext(Conversation $conv, int $tenantId, string $providerCode, ?string $model): ?string
     {
+        // KHÔNG gate feature riêng — đây là 1 phần của AI tự động trả lời (đã qua gate
+        // messaging_ai ở route suggest / AiAutoModeOnInbound). Không ảnh/không khớp/lỗi ⇒ null.
         try {
-            $sub = $this->subscriptions->currentFor($tenantId) ?? $this->subscriptions->ensureTrialFallback($tenantId);
-            if (! (bool) $sub?->plan?->hasFeature('messaging_visual_search')) {
-                return null;
-            }
-
             $input = $this->latestInboundImage($conv);
             if ($input === null) {
                 return null;

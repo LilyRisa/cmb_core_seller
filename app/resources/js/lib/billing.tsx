@@ -29,7 +29,6 @@ export interface PlanFeatures {
     priority_support: boolean;
     messaging_inbox: boolean;
     messaging_ai: boolean;
-    messaging_visual_search: boolean;
     marketing_facebook: boolean;
     marketing_tiktok: boolean;
     shop_health_reports: boolean;
