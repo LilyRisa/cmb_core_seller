@@ -63,9 +63,10 @@ x-app-env: &app-env
   SESSION_LIFETIME: ${SESSION_LIFETIME:-120}
   # Database (postgres service)
   DB_CONNECTION: pgsql
-  # Mặc định nối thẳng postgres. Để bật PgBouncer (pooling): set trên Portainer
-  # DB_HOST=pgbouncer + DB_PORT=6432 (xem service `pgbouncer` + ghi chú bên dưới).
-  DB_HOST: ${DB_HOST:-postgres}
+  # Mặc định đi QUA PgBouncer (pooling) — PgBouncer lắng nghe 5432 (khác host service postgres:5432).
+  # Đã verify trên prod: scram-sha-256 + transaction + max_prepared_statements=256 → query OK.
+  # Rollback về Postgres trực tiếp: set Portainer DB_HOST=postgres rồi redeploy.
+  DB_HOST: ${DB_HOST:-pgbouncer}
   DB_PORT: "${DB_PORT:-5432}"
   DB_DATABASE: ${DB_DATABASE:-cmbcoreseller}
   DB_USERNAME: ${DB_USERNAME:-cmbcoreseller}
@@ -270,6 +271,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
       redis:
         condition: service_healthy
     expose:
@@ -316,6 +319,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
@@ -360,6 +365,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
       redis:
         condition: service_healthy
     restart: unless-stopped
@@ -383,13 +390,11 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # PgBouncer — gom kết nối DB (transaction pooling). OPT-IN: app vẫn nối thẳng postgres
-  # cho tới khi bạn set DB_HOST=pgbouncer + DB_PORT=6432 trên Portainer rồi redeploy.
-  # LƯU Ý tương thích Laravel + transaction pooling:
-  #   - Cần PgBouncer >= 1.21 (image edoburu mới) để hỗ trợ prepared statements; nếu gặp
-  #     lỗi "prepared statement ... already exists" → đặt POOL_MODE=session (an toàn, pooling ít hơn).
-  #   - KHÔNG dùng advisory lock giữ qua nhiều transaction / LISTEN-NOTIFY qua pooler.
-  # Rollback: bỏ DB_HOST/DB_PORT env (về postgres:5432) rồi redeploy.
+  # PgBouncer — gom kết nối DB (transaction pooling), MẶC ĐỊNH BẬT (x-app-env DB_HOST=pgbouncer).
+  # Lắng nghe 5432. ĐÃ VERIFY trên prod (2026-06-16): scram-sha-256 khớp Postgres 15,
+  # max_prepared_statements=256 (PgBouncer 1.25) ⇒ tương thích prepared statements của Laravel.
+  # Nếu sau này gặp lỗi liên quan prepared statement → đặt POOL_MODE=session. KHÔNG giữ advisory
+  # lock qua nhiều transaction / LISTEN-NOTIFY qua pooler. Rollback DB trực tiếp: DB_HOST=postgres.
   pgbouncer:
     image: edoburu/pgbouncer:latest
     environment:
@@ -398,8 +403,9 @@ services:
       DB_USER: ${DB_USERNAME:-cmbcoreseller}
       DB_PASSWORD: ${DB_PASSWORD:-1995oklangtu}
       DB_NAME: ${DB_DATABASE:-cmbcoreseller}
-      AUTH_TYPE: md5
+      AUTH_TYPE: scram-sha-256          # khớp Postgres 15 (md5 ⇒ "wrong password type")
       POOL_MODE: transaction
+      MAX_PREPARED_STATEMENTS: "256"     # cần cho Laravel PDO + transaction pooling
       MAX_CLIENT_CONN: "4000"
       DEFAULT_POOL_SIZE: "40"
       MIN_POOL_SIZE: "10"
@@ -410,12 +416,13 @@ services:
       postgres:
         condition: service_healthy
     expose:
-      - "6432"
+      - "5432"
     healthcheck:
-      test: ["CMD-SHELL", "PGPASSWORD=${DB_PASSWORD:-1995oklangtu} psql -h 127.0.0.1 -p 6432 -U ${DB_USERNAME:-cmbcoreseller} -d pgbouncer -tAc 'SHOW LISTS;' >/dev/null 2>&1 || pg_isready -h 127.0.0.1 -p 6432"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
+      start_period: 20s
     ulimits:
       nofile: { soft: 65535, hard: 65535 }
     restart: unless-stopped
