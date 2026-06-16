@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\VisualSearch;
 
+use CMBcoreSeller\Modules\VisualSearch\Console\Commands\ReindexVisualTraining;
 use CMBcoreSeller\Modules\VisualSearch\Contracts\VisualItemSearch;
 use CMBcoreSeller\Modules\VisualSearch\Services\VisualMatcher;
 use Illuminate\Support\ServiceProvider;
@@ -23,5 +24,9 @@ class VisualSearchServiceProvider extends ServiceProvider
     {
         $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
         $this->loadRoutesFrom(__DIR__.'/Http/routes.php');
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([ReindexVisualTraining::class]);
+        }
     }
 }

@@ -73,6 +73,11 @@ x-app-env: &app-env
   HELP_ASSISTANT_BASE_URL: ${HELP_ASSISTANT_BASE_URL:-https://api.openai.com}
   HELP_ASSISTANT_MODEL: ${HELP_ASSISTANT_MODEL:-gpt-4o-mini}
   HELP_ASSISTANT_EMBEDDING_MODEL: ${HELP_ASSISTANT_EMBEDDING_MODEL:-text-embedding-3-small}
+  # Visual search (SPEC 2026-06-16) — embedding ẢNH qua CLIP sidecar + collection Qdrant
+  # RIÊNG (visual_training__*, không đụng help-bot). URL trống ⇒ tính năng tự suy biến.
+  IMAGE_EMBEDDING_URL: ${IMAGE_EMBEDDING_URL:-http://clip:8000}
+  IMAGE_EMBEDDING_MODEL: ${IMAGE_EMBEDDING_MODEL:-clip_vit_b32}
+  IMAGE_EMBEDDING_DIM: ${IMAGE_EMBEDDING_DIM:-512}
   # PDF rendering (gotenberg service) + khổ phiếu in mặc định (tenant đè được trong UI: Cài đặt → Mẫu in)
   GOTENBERG_URL: http://gotenberg:3000
   PRINT_LABEL_SIZE: ${PRINT_LABEL_SIZE:-A6}
@@ -198,7 +203,7 @@ services:
     container_name: cmb-gotenberg
     command: ["gotenberg", "--api-timeout=60s"]
 
-  qdrant:                           # Vector DB cho trợ lý trợ giúp (RAG help-bot)
+  qdrant:                           # Vector DB cho trợ lý trợ giúp (RAG help-bot) + visual search
     image: qdrant/qdrant:latest
     container_name: cmb-qdrant
     volumes:
@@ -208,6 +213,19 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
+
+  clip:                             # CLIP sidecar — embedding ẢNH cho visual search (SPEC 2026-06-16)
+    build: ./docker/clip
+    container_name: cmb-clip
+    environment:
+      CLIP_MODEL: ${CLIP_MODEL:-clip-ViT-B-32}
+      CLIP_MODEL_KEY: ${IMAGE_EMBEDDING_MODEL:-clip_vit_b32}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').status==200 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s   # tải model lần đầu
 
 volumes:
   redisdata:
