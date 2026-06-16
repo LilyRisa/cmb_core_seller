@@ -510,3 +510,19 @@ Popup giữa màn hình cho mọi user (fix bug, tạm dừng dịch vụ…). A
 - `MESSAGING_RATE_LIMIT` (`429`) — vượt 60 msg/phút/shop hoặc 30/phút/user.
 - `PLAN_FEATURE_LOCKED` (`402`) — `messaging_inbox` hoặc `messaging_ai` không có trong gói.
 - `PLAN_LIMIT_REACHED` (`402`) — vượt `messaging_ai_replies_monthly` hoặc `messaging_media_mb_daily`.
+
+## Visual search — Sản phẩm AI training (SPEC 2026-06-16)
+
+Prefix `/api/v1/visual-search` · middleware `auth:sanctum + verified + tenant + plan.over_quota_lock + plan.feature:messaging_visual_search`. Quyền: đọc `messaging.view`, mutate `messaging.ai.train` (đây là AI training).
+
+- `GET    /visual-search/items` — danh sách item (phân trang `per_page`, kèm `image_count`, `primary_image_id`).
+- `POST   /visual-search/items` — tạo item `{ name, description?, attributes?{}, ref_code?, applies_all_pages?, channel_account_ids?[] }`.
+- `GET    /visual-search/items/{id}` — chi tiết + danh sách ảnh + `channel_account_ids`.
+- `PATCH  /visual-search/items/{id}` — sửa (các field như tạo, đều optional).
+- `DELETE /visual-search/items/{id}` — xoá item + ảnh + vector (job `RemoveTrainingImageVector`).
+- `POST   /visual-search/items/{itemId}/images` — **multipart** `images[]` (jpeg/png/webp, ≤ `visual_search.image.max_size_kb`); dedupe theo hash; ảnh đầu → ảnh đại diện; dispatch embed.
+- `DELETE /visual-search/items/{itemId}/images/{imageId}` — xoá 1 ảnh (+ vector); tự đổi ảnh đại diện.
+- `POST   /visual-search/items/{itemId}/images/{imageId}/primary` — đặt ảnh đại diện.
+- `POST   /visual-search/lookup` — **multipart** `image` + `rerank?` + `channel_account_id?` → `{ data: { status: matched|ambiguous|not_found, stage, item?{item_id,name,description,attributes,confidence}, candidates[] } }`. Rate-limit 30/phút.
+
+**Mã lỗi:** `PLAN_FEATURE_LOCKED` (`402`) khi gói không có `messaging_visual_search`.
