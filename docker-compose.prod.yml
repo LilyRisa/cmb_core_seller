@@ -390,11 +390,12 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # PgBouncer — gom kết nối DB (transaction pooling), MẶC ĐỊNH BẬT (x-app-env DB_HOST=pgbouncer).
-  # Lắng nghe 5432. ĐÃ VERIFY trên prod (2026-06-16): scram-sha-256 khớp Postgres 15,
-  # max_prepared_statements=256 (PgBouncer 1.25) ⇒ tương thích prepared statements của Laravel.
-  # Nếu sau này gặp lỗi liên quan prepared statement → đặt POOL_MODE=session. KHÔNG giữ advisory
-  # lock qua nhiều transaction / LISTEN-NOTIFY qua pooler. Rollback DB trực tiếp: DB_HOST=postgres.
+  # PgBouncer — pooling DB, MẶC ĐỊNH BẬT (x-app-env DB_HOST=pgbouncer). Lắng nghe 5432.
+  # POOL_MODE=session (KHÔNG transaction): transaction-mode gây "SQLSTATE[25P02] transaction
+  # aborted" hàng loạt với Laravel PDO prepared statements (đã gặp prod 2026-06-16). Session
+  # mode tương thích 100% + vẫn pool (đủ ở quy mô hiện tại). Muốn transaction-mode để multiplex
+  # khi scale-out app: phải set PDO::ATTR_EMULATE_PREPARES=true trong config/database.php, test kỹ.
+  # Rollback DB trực tiếp: Portainer DB_HOST=postgres.
   pgbouncer:
     image: edoburu/pgbouncer:latest
     environment:
@@ -404,8 +405,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-1995oklangtu}
       DB_NAME: ${DB_DATABASE:-cmbcoreseller}
       AUTH_TYPE: scram-sha-256          # khớp Postgres 15 (md5 ⇒ "wrong password type")
-      POOL_MODE: transaction
-      MAX_PREPARED_STATEMENTS: "256"     # cần cho Laravel PDO + transaction pooling
+      POOL_MODE: session                # transaction-mode ⇒ 25P02 với Laravel PDO prepared statements
       MAX_CLIENT_CONN: "4000"
       DEFAULT_POOL_SIZE: "40"
       MIN_POOL_SIZE: "10"
