@@ -298,7 +298,8 @@ services:
       - default
       - proxy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/api/v1/health"]
+      # 127.0.0.1 (KHÔNG 'localhost') — busybox wget gọi localhost ra IPv6 ::1, nginx chỉ nghe IPv4 ⇒ false-unhealthy.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/api/v1/health"]
       interval: 30s
       timeout: 5s
       retries: 3
