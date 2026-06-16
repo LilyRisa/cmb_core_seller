@@ -26,10 +26,13 @@ class HealthController extends Controller
         $checks = [
             'database' => $this->check('database', fn () => DB::connection()->select('select 1'), critical: true),
             'cache' => $this->check('cache', function () {
+                // Token CHUỖI (non-numeric) — RedisStore trả số nguyên về dạng chuỗi ("1")
+                // nên so sánh strict `=== 1` luôn fail dù cache OK. Chuỗi round-trip đúng mọi store.
                 $key = 'health:'.uniqid('', true);
-                Cache::put($key, 1, 5);
+                $token = bin2hex(random_bytes(8));
+                Cache::put($key, $token, 5);
 
-                return Cache::get($key) === 1 ?: throw new \RuntimeException('cache round-trip failed');
+                return Cache::get($key) === $token ?: throw new \RuntimeException('cache round-trip failed');
             }),
             'redis' => $this->redisCheck(),
             'queue' => $this->queueCheck(),
