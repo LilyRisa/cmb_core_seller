@@ -188,6 +188,11 @@ class CustomHttpConnector implements AiAssistantConnector
         throw UnsupportedOperation::for($this->code(), 'embed (custom_http chưa hỗ trợ embedding)');
     }
 
+    public function analyzeImages(AiContext $ctx, array $images, string $instruction): string
+    {
+        throw UnsupportedOperation::for($this->code(), 'analyzeImages (custom_http chưa hỗ trợ vision)');
+    }
+
     public function pricing(): array
     {
         $cfg = $this->credentials->resolve($this->code());

@@ -14,6 +14,7 @@ use CMBcoreSeller\Integrations\Ai\DTO\EmbeddingDTO;
 use CMBcoreSeller\Integrations\Ai\DTO\IntentDTO;
 use CMBcoreSeller\Integrations\Ai\DTO\KnowledgeBase;
 use CMBcoreSeller\Integrations\Ai\Exceptions\ProviderNotConfigured;
+use CMBcoreSeller\Integrations\Ai\Exceptions\UnsupportedOperation;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -57,6 +58,7 @@ class OpenAiConnector implements AiAssistantConnector
             'text.generate' => true,
             'rag.training' => true,
             'embedding' => true,
+            'vision.analyze' => true,  // re-rank visual search (model vision)
         ];
     }
 
@@ -215,6 +217,40 @@ class OpenAiConnector implements AiAssistantConnector
             model: $model,
             tokenCount: $tokens,
         );
+    }
+
+    public function analyzeImages(AiContext $ctx, array $images, string $instruction): string
+    {
+        $cfg = $this->config();
+        $model = $ctx->model ?: $cfg->defaultModel;
+        if (! $model) {
+            throw new ProviderNotConfigured('OpenAI provider cần default_model.');
+        }
+        if (! $this->visionEnabled($model)) {
+            throw UnsupportedOperation::for($this->code(), 'analyzeImages (model không vision)');
+        }
+
+        $parts = [['type' => 'text', 'text' => $instruction]];
+        foreach (array_values(array_filter($images, 'is_string')) as $img) {
+            // OpenAI nhận cả https lẫn data-URI ở image_url.url.
+            $parts[] = ['type' => 'image_url', 'image_url' => ['url' => (string) $img]];
+        }
+
+        $response = Http::withToken($cfg->apiKey)
+            ->connectTimeout((int) config('ai.http.connect_timeout', 10))
+            ->timeout((int) config('ai.http.reply_timeout', 60))
+            ->retry(1 + (int) config('ai.http.retries', 1), (int) config('ai.http.retry_backoff_ms', 1000), throw: false)
+            ->post($this->base($cfg).'/v1/chat/completions', [
+                'model' => $model,
+                'max_tokens' => 300,
+                'messages' => [['role' => 'user', 'content' => $parts]],
+            ]);
+
+        if (! $response->successful()) {
+            throw new \RuntimeException('OpenAI analyzeImages '.$response->status());
+        }
+
+        return trim((string) $response->json('choices.0.message.content', ''));
     }
 
     public function pricing(): array

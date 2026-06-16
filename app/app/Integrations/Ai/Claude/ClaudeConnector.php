@@ -60,6 +60,7 @@ class ClaudeConnector implements AiAssistantConnector
             'text.generate' => true,
             'rag.training' => false,   // không có embedding API riêng
             'embedding' => false,
+            'vision.analyze' => true,  // re-rank visual search (model vision)
         ];
     }
 
@@ -223,6 +224,50 @@ class ClaudeConnector implements AiAssistantConnector
     public function embed(AiContext $ctx, string $text): EmbeddingDTO
     {
         throw UnsupportedOperation::for($this->code(), 'embed (Claude không có embedding API)');
+    }
+
+    public function analyzeImages(AiContext $ctx, array $images, string $instruction): string
+    {
+        $cfg = $this->credentials->resolve($this->code());
+        if (! $cfg || ! $cfg->apiKey) {
+            throw new ProviderNotConfigured('Claude provider chưa cấu hình api_key.');
+        }
+        $model = $ctx->model ?: ($cfg->defaultModel ?: self::DEFAULT_MODEL);
+        if (! $this->visionEnabled($model)) {
+            throw UnsupportedOperation::for($this->code(), 'analyzeImages (model không vision)');
+        }
+
+        $content = [['type' => 'text', 'text' => $instruction]];
+        foreach (array_values(array_filter($images, 'is_string')) as $img) {
+            $content[] = ['type' => 'image', 'source' => $this->imageSource((string) $img)];
+        }
+
+        $response = Http::withHeaders([
+            'x-api-key' => $cfg->apiKey,
+            'anthropic-version' => self::API_VERSION,
+            'content-type' => 'application/json',
+        ])
+            ->connectTimeout((int) config('ai.http.connect_timeout', 10))
+            ->timeout((int) config('ai.http.reply_timeout', 60))
+            ->retry(1 + (int) config('ai.http.retries', 1), (int) config('ai.http.retry_backoff_ms', 1000), throw: false)
+            ->post(rtrim($cfg->baseUrl ?: 'https://api.anthropic.com', '/').'/v1/messages', [
+                'model' => $model,
+                'max_tokens' => 300,
+                'messages' => [['role' => 'user', 'content' => $content]],
+            ]);
+
+        if (! $response->successful()) {
+            throw new \RuntimeException('Claude analyzeImages '.$response->status());
+        }
+
+        $text = '';
+        foreach ((array) $response->json('content', []) as $block) {
+            if (($block['type'] ?? null) === 'text') {
+                $text .= (string) ($block['text'] ?? '');
+            }
+        }
+
+        return trim($text);
     }
 
     public function pricing(): array

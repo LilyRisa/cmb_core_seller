@@ -23,6 +23,7 @@ use CMBcoreSeller\Integrations\Ai\Exceptions\UnsupportedOperation;
  *   - 'intent.classify'  — classify intent (guardrail cho auto-mode)
  *   - 'rag.training'     — index document (cần embedding)
  *   - 'embedding'        — sinh vector embedding cho RAG
+ *   - 'vision.analyze'   — phân tích/đối chiếu ảnh (re-rank visual search)
  *
  * Provider không hỗ trợ ⇒ {@see UnsupportedOperation}.
  *
@@ -69,6 +70,17 @@ interface AiAssistantConnector
      * khi Claude không có).
      */
     public function embed(AiContext $ctx, string $text): EmbeddingDTO;
+
+    /**
+     * Phân tích/đối chiếu một tập ẢNH theo `$instruction` (vd: chọn item khớp trong
+     * re-rank visual search). `$images` = list URL `https://…` hoặc data-URI
+     * `data:<mime>;base64,…` (giống `recentMessages[].image_urls`). Trả text thô (do
+     * caller quy định định dạng, vd JSON). Provider không vision ⇒ {@see UnsupportedOperation}.
+     * Capability 'vision.analyze'.
+     *
+     * @param  list<string>  $images
+     */
+    public function analyzeImages(AiContext $ctx, array $images, string $instruction): string;
 
     /**
      * Pricing snapshot — `cost_micro_vnd` per unit, để tính `ai_assistant_runs.cost_micro_vnd`.

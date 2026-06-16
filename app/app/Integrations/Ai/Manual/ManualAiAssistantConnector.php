@@ -110,6 +110,11 @@ class ManualAiAssistantConnector implements AiAssistantConnector
         throw UnsupportedOperation::for($this->code(), 'embed');
     }
 
+    public function analyzeImages(AiContext $ctx, array $images, string $instruction): string
+    {
+        throw UnsupportedOperation::for($this->code(), 'analyzeImages');
+    }
+
     public function pricing(): array
     {
         return [];   // free
