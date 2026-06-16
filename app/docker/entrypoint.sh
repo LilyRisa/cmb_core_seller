@@ -34,4 +34,29 @@ else
   php artisan config:clear >/dev/null 2>&1 || true
 fi
 
+# --- PHP-FPM pool sizing (env-tunable) -----------------------------------------
+# Mặc định php:fpm-alpine chỉ cho pm.max_children=5 (5 request PHP đồng thời!) — quá thấp.
+# Mỗi child ~50-70MB ⇒ đặt PHP_FPM_MAX_CHILDREN ≈ RAM_dành_cho_PHP(GB) / 0.06. Chỉ container
+# php-fpm đọc file này; worker/scheduler bỏ qua (vô hại). zz- nạp sau www.conf nên ghi đè [www].
+: "${PHP_FPM_MAX_CHILDREN:=40}"
+: "${PHP_FPM_MAX_REQUESTS:=500}"
+_fpm_start=$(( PHP_FPM_MAX_CHILDREN / 4 )); [ "$_fpm_start" -ge 2 ] || _fpm_start=2
+_fpm_min=$(( PHP_FPM_MAX_CHILDREN / 8 )); [ "$_fpm_min" -ge 1 ] || _fpm_min=1
+_fpm_max=$(( PHP_FPM_MAX_CHILDREN / 2 )); [ "$_fpm_max" -ge 3 ] || _fpm_max=3
+cat > /usr/local/etc/php-fpm.d/zz-pool.conf <<EOF
+[www]
+pm = dynamic
+pm.max_children = ${PHP_FPM_MAX_CHILDREN}
+pm.start_servers = ${_fpm_start}
+pm.min_spare_servers = ${_fpm_min}
+pm.max_spare_servers = ${_fpm_max}
+pm.max_requests = ${PHP_FPM_MAX_REQUESTS}
+pm.process_idle_timeout = 10s
+EOF
+
+# --- Prod OPcache: code baked, không đổi lúc chạy ⇒ tắt validate (nhanh hơn). Dev giữ =1. ---
+if [ "${APP_ENV:-local}" != "local" ]; then
+  printf 'opcache.validate_timestamps=0\nopcache.revalidate_freq=0\n' > /usr/local/etc/php/conf.d/zz-prod-opcache.ini
+fi
+
 exec "$@"

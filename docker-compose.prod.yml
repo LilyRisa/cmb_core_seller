@@ -63,8 +63,10 @@ x-app-env: &app-env
   SESSION_LIFETIME: ${SESSION_LIFETIME:-120}
   # Database (postgres service)
   DB_CONNECTION: pgsql
-  DB_HOST: postgres
-  DB_PORT: "5432"
+  # Mặc định nối thẳng postgres. Để bật PgBouncer (pooling): set trên Portainer
+  # DB_HOST=pgbouncer + DB_PORT=6432 (xem service `pgbouncer` + ghi chú bên dưới).
+  DB_HOST: ${DB_HOST:-postgres}
+  DB_PORT: "${DB_PORT:-5432}"
   DB_DATABASE: ${DB_DATABASE:-cmbcoreseller}
   DB_USERNAME: ${DB_USERNAME:-cmbcoreseller}
   DB_PASSWORD: ${DB_PASSWORD:-1995oklangtu}                 # required
@@ -272,6 +274,8 @@ services:
         condition: service_healthy
     expose:
       - "9000"
+    ulimits:
+      nofile: { soft: 65535, hard: 65535 }
     restart: unless-stopped
     logging: *logging
 
@@ -298,6 +302,8 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    ulimits:
+      nofile: { soft: 65535, hard: 65535 }
     restart: unless-stopped
     logging: *logging
 
@@ -317,6 +323,8 @@ services:
       timeout: 10s
       retries: 3
     stop_grace_period: 30s
+    ulimits:
+      nofile: { soft: 65535, hard: 65535 }
     restart: unless-stopped
     logging: *logging
 
@@ -338,6 +346,8 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    ulimits:
+      nofile: { soft: 65535, hard: 65535 }
     restart: unless-stopped
     logging: *logging
 
@@ -372,6 +382,44 @@ services:
     restart: unless-stopped
     logging: *logging
 
+  # PgBouncer — gom kết nối DB (transaction pooling). OPT-IN: app vẫn nối thẳng postgres
+  # cho tới khi bạn set DB_HOST=pgbouncer + DB_PORT=6432 trên Portainer rồi redeploy.
+  # LƯU Ý tương thích Laravel + transaction pooling:
+  #   - Cần PgBouncer >= 1.21 (image edoburu mới) để hỗ trợ prepared statements; nếu gặp
+  #     lỗi "prepared statement ... already exists" → đặt POOL_MODE=session (an toàn, pooling ít hơn).
+  #   - KHÔNG dùng advisory lock giữ qua nhiều transaction / LISTEN-NOTIFY qua pooler.
+  # Rollback: bỏ DB_HOST/DB_PORT env (về postgres:5432) rồi redeploy.
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: ${DB_USERNAME:-cmbcoreseller}
+      DB_PASSWORD: ${DB_PASSWORD:-1995oklangtu}
+      DB_NAME: ${DB_DATABASE:-cmbcoreseller}
+      AUTH_TYPE: md5
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "4000"
+      DEFAULT_POOL_SIZE: "40"
+      MIN_POOL_SIZE: "10"
+      RESERVE_POOL_SIZE: "10"
+      RESERVE_POOL_TIMEOUT: "3"
+      SERVER_IDLE_TIMEOUT: "60"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose:
+      - "6432"
+    healthcheck:
+      test: ["CMD-SHELL", "PGPASSWORD=${DB_PASSWORD:-1995oklangtu} psql -h 127.0.0.1 -p 6432 -U ${DB_USERNAME:-cmbcoreseller} -d pgbouncer -tAc 'SHOW LISTS;' >/dev/null 2>&1 || pg_isready -h 127.0.0.1 -p 6432"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    ulimits:
+      nofile: { soft: 65535, hard: 65535 }
+    restart: unless-stopped
+    logging: *logging
+
   redis:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
@@ -382,6 +430,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 30s          # chừa thời gian nạp AOF khi data lớn (khỏi unhealthy oan)
+    ulimits:
+      nofile: { soft: 65535, hard: 65535 }
     restart: unless-stopped
     logging: *logging
 

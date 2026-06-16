@@ -29,5 +29,6 @@ RUN npm run build
 
 # --- Stage 2: nginx + public/ (static + built assets) ---
 FROM nginx:1.27-alpine
+COPY docker/nginx-main.conf /etc/nginx/nginx.conf
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=assets /app/public /var/www/html/public
