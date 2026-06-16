@@ -28,6 +28,8 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
         // Ảnh của item
         Route::post('items/{itemId}/images', [TrainingImageController::class, 'store'])
             ->whereNumber('itemId')->name('visual-search.images.store');
+        Route::get('items/{itemId}/images/{imageId}/raw', [TrainingImageController::class, 'raw'])
+            ->whereNumber('itemId')->whereNumber('imageId')->name('visual-search.images.raw');
         Route::delete('items/{itemId}/images/{imageId}', [TrainingImageController::class, 'destroy'])
             ->whereNumber('itemId')->whereNumber('imageId')->name('visual-search.images.destroy');
         Route::post('items/{itemId}/images/{imageId}/primary', [TrainingImageController::class, 'setPrimary'])

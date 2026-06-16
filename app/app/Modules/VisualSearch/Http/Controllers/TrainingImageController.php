@@ -9,7 +9,9 @@ use CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem;
 use CMBcoreSeller\Modules\VisualSearch\Services\TrainingImageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
 
 /** Upload/xoá ảnh + đặt ảnh đại diện cho item. Mutate cần `messaging.ai.train`. */
 class TrainingImageController extends Controller
@@ -56,6 +58,21 @@ class TrainingImageController extends Controller
         $this->images->deleteImage($image);
 
         return response()->json(['data' => ['ok' => true]]);
+    }
+
+    /** Phục vụ bytes ảnh (tenant-scoped) cho thumbnail FE. Đọc `messaging.view`. */
+    public function raw(int $itemId, int $imageId): Response
+    {
+        Gate::authorize('messaging.view');
+
+        $image = VisualTrainingImage::query()->where('item_id', $itemId)->findOrFail($imageId);
+        $disk = Storage::disk($image->storage_disk);
+        abort_unless($disk->exists($image->storage_path), 404);
+
+        return response($disk->get($image->storage_path), 200, [
+            'Content-Type' => $image->mime_type,
+            'Cache-Control' => 'private, max-age=300',
+        ]);
     }
 
     public function setPrimary(int $itemId, int $imageId): JsonResponse

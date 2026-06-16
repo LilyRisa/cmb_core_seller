@@ -17,6 +17,7 @@ const { Title, Text, Paragraph } = Typography;
 const FEATURE_ROWS: { key: keyof PlanFeatures; label: string }[] = [
     { key: 'messaging_inbox', label: 'Nhắn tin Facebook Page + sàn' },
     { key: 'messaging_ai', label: 'AI hỗ trợ trả lời tin nhắn' },
+    { key: 'messaging_visual_search', label: 'Tìm sản phẩm bằng ảnh (AI training)' },
     { key: 'marketing_facebook', label: 'Quảng cáo Facebook' },
     { key: 'marketing_tiktok', label: 'Quảng cáo TikTok' },
     { key: 'shop_health_reports', label: 'Báo cáo sàn (sức khỏe/điểm phạt)' },
