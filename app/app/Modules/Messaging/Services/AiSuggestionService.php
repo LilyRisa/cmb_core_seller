@@ -7,6 +7,7 @@ use CMBcoreSeller\Integrations\Ai\DTO\AiContext;
 use CMBcoreSeller\Integrations\Ai\DTO\ConversationSnapshot;
 use CMBcoreSeller\Integrations\Ai\Exceptions\ProviderNotConfigured;
 use CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter;
+use CMBcoreSeller\Modules\Billing\Services\SubscriptionService;
 use CMBcoreSeller\Modules\Customers\Contracts\CustomerProfileContract;
 use CMBcoreSeller\Modules\Messaging\Exceptions\AiSuggestionException;
 use CMBcoreSeller\Modules\Messaging\Models\AiAssistantRun;
@@ -18,6 +19,11 @@ use CMBcoreSeller\Modules\Messaging\Models\MessageDraft;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingSetting;
 use CMBcoreSeller\Modules\Orders\Contracts\OrderLookupContract;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use CMBcoreSeller\Modules\VisualSearch\Contracts\VisualItemSearch;
+use CMBcoreSeller\Modules\VisualSearch\DTO\VisualImageInput;
+use CMBcoreSeller\Modules\VisualSearch\DTO\VisualItemCandidate;
+use CMBcoreSeller\Modules\VisualSearch\DTO\VisualLookupOptions;
+use CMBcoreSeller\Modules\VisualSearch\DTO\VisualMatchResult;
 
 /**
  * Orchestrate AI suggestion (suggest-mode mặc định — SPEC-0024 §4.6).
@@ -48,6 +54,8 @@ class AiSuggestionService
         private AiCreditMeter $credits,
         private OrderLookupContract $orderLookup,
         private MediaStorage $media,
+        private VisualItemSearch $visualSearch,
+        private SubscriptionService $subscriptions,
     ) {}
 
     /**
@@ -125,7 +133,8 @@ class AiSuggestionService
         [$snapshot, $mapping, $redactedCount] = $this->buildSnapshot($conv, $tenantId);
         $kb = $this->retriever->retrieve($tenantId, $inboundText, channelAccountId: (int) $conv->channel_account_id);
         $provider = AiProvider::query()->find($providerCode);
-        $ctx = new AiContext(tenantId: $tenantId, providerCode: $providerCode, model: $provider?->default_model, systemPromptExtra: $this->globalSystemPrompt(), meta: ['mode' => 'auto']);
+        $extra = $this->withVisualContext($this->globalSystemPrompt(), $conv, $tenantId, $providerCode, $provider?->default_model);
+        $ctx = new AiContext(tenantId: $tenantId, providerCode: $providerCode, model: $provider?->default_model, systemPromptExtra: $extra, meta: ['mode' => 'auto']);
 
         $startedAt = microtime(true);
         try {
@@ -178,7 +187,7 @@ class AiSuggestionService
             tenantId: $tenantId,
             providerCode: $providerCode,
             model: $provider?->default_model,
-            systemPromptExtra: $this->globalSystemPrompt(),
+            systemPromptExtra: $this->withVisualContext($this->globalSystemPrompt(), $conv, $tenantId, $providerCode, $provider?->default_model),
         );
 
         $startedAt = microtime(true);
@@ -247,6 +256,113 @@ class AiSuggestionService
         $prompt = trim((string) system_setting('messaging.ai.system_prompt', ''));
 
         return $prompt !== '' ? $prompt : null;
+    }
+
+    /**
+     * (Visual search 2026-06-16) Ghép khối "sản phẩm nhận diện từ ảnh" vào systemPromptExtra.
+     * TÁCH BIỆT: tắt feature / không có ảnh / lỗi ⇒ trả nguyên `$base` (luồng tối ưu bất biến).
+     */
+    private function withVisualContext(?string $base, Conversation $conv, int $tenantId, string $providerCode, ?string $model): ?string
+    {
+        $visual = $this->visualTrainingContext($conv, $tenantId, $providerCode, $model);
+        if ($visual === null) {
+            return $base;
+        }
+
+        return trim(($base !== null ? $base."\n\n" : '').$visual);
+    }
+
+    private function visualTrainingContext(Conversation $conv, int $tenantId, string $providerCode, ?string $model): ?string
+    {
+        try {
+            $sub = $this->subscriptions->currentFor($tenantId) ?? $this->subscriptions->ensureTrialFallback($tenantId);
+            if (! (bool) $sub?->plan?->hasFeature('messaging_visual_search')) {
+                return null;
+            }
+
+            $input = $this->latestInboundImage($conv);
+            if ($input === null) {
+                return null;
+            }
+
+            $opts = new VisualLookupOptions(
+                channelAccountId: (int) $conv->channel_account_id,
+                rerank: (bool) config('visual_search.rerank.enabled', true),
+                providerCode: $providerCode,
+                aiContext: new AiContext(tenantId: $tenantId, providerCode: $providerCode, model: $model, meta: ['mode' => 'visual_rerank']),
+            );
+
+            $result = $this->visualSearch->lookup($tenantId, $input, $opts);
+
+            if ($result->status === VisualMatchResult::STATUS_MATCHED && $result->item !== null) {
+                return $this->renderMatchedItem($result->item);
+            }
+            if ($result->status === VisualMatchResult::STATUS_AMBIGUOUS && $result->candidates !== []) {
+                $names = implode(', ', array_map(fn (VisualItemCandidate $c) => $c->name, $result->candidates));
+
+                return "Khách vừa gửi ảnh. Hệ thống nhận diện CÓ THỂ là một trong các sản phẩm: {$names}. "
+                    .'Hãy HỎI LẠI khách để xác nhận đúng sản phẩm trước khi tư vấn (đừng tự ý chọn).';
+            }
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return null;
+    }
+
+    private function renderMatchedItem(VisualItemCandidate $item): string
+    {
+        $lines = ["Sản phẩm khách đang hỏi (nhận diện từ ảnh khách gửi): {$item->name}."];
+        if ($item->description !== null && $item->description !== '') {
+            $lines[] = 'Mô tả: '.$item->description;
+        }
+        $attrs = [];
+        foreach ($item->attributes as $k => $v) {
+            if (is_scalar($v)) {
+                $attrs[] = "{$k}: {$v}";
+            }
+        }
+        if ($attrs !== []) {
+            $lines[] = 'Đặc điểm: '.implode('; ', $attrs);
+        }
+        $lines[] = 'Hãy dùng ĐÚNG sản phẩm này để tư vấn (không nhầm sang sản phẩm khác).';
+
+        return implode("\n", $lines);
+    }
+
+    /** Ảnh inbound (downloaded) gần nhất của hội thoại → VisualImageInput; không có ⇒ null. */
+    private function latestInboundImage(Conversation $conv): ?VisualImageInput
+    {
+        $msgIds = Message::withoutGlobalScope(TenantScope::class)
+            ->where('conversation_id', $conv->id)
+            ->where('direction', Message::DIRECTION_INBOUND)
+            ->orderByDesc('created_at')
+            ->limit(3)
+            ->pluck('id');
+        if ($msgIds->isEmpty()) {
+            return null;
+        }
+
+        $att = MessageAttachment::withoutGlobalScope(TenantScope::class)
+            ->whereIn('message_id', $msgIds->all())
+            ->where('kind', MessageAttachment::KIND_IMAGE)
+            ->where('status', MessageAttachment::STATUS_DOWNLOADED)
+            ->orderByDesc('id')
+            ->first();
+        if ($att === null || ! $att->storage_path) {
+            return null;
+        }
+
+        try {
+            $bytes = (string) $this->media->disk()->get($att->storage_path);
+        } catch (\Throwable) {
+            return null;
+        }
+        if ($bytes === '') {
+            return null;
+        }
+
+        return VisualImageInput::fromBinary($bytes, (string) ($att->mime ?: 'image/jpeg'));
     }
 
     /**
