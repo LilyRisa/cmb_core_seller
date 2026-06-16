@@ -2,8 +2,6 @@ import { useState } from 'react';
 import { App as AntApp, Button, Card, Drawer, Empty, Form, Input, Modal, Popconfirm, Segmented, Space, Spin, Switch, Table, Tag, Tooltip, Typography, Upload } from 'antd';
 import { DeleteOutlined, EyeOutlined, PlusOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { PageHeader } from '@/components/PageHeader';
-import { MessagingNav } from '@/components/MessagingNav';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
 import { type KnowledgeDoc, useCreateKnowledge, useDeleteKnowledge, useKnowledgeChunks, useKnowledgeDocs, useReindexKnowledge } from '@/lib/messagingConfig';
@@ -15,8 +13,8 @@ const STATUS: Record<KnowledgeDoc['status'], { color: string; label: string }> =
     failed: { color: 'red', label: 'Lỗi' },
 };
 
-/** /messaging/knowledge — tài liệu AI training (RAG). SPEC-0024 §6.2. */
-export function MessagingKnowledgePage() {
+/** Panel "Tài liệu (chữ)" trong trang AI training (RAG). SPEC-0024 §6.2. */
+export function KnowledgeDocsPanel() {
     const { message } = AntApp.useApp();
     const canManage = useCan('messaging.ai.train');
     const { data, isFetching } = useKnowledgeDocs();
@@ -77,10 +75,10 @@ export function MessagingKnowledgePage() {
 
     return (
         <div>
-            <PageHeader title="AI training (tài liệu)" subtitle="Thêm FAQ / chính sách / mô tả SP để AI tham chiếu khi gợi ý trả lời (RAG)."
-                extra={canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>Thêm tài liệu</Button>} />
-            <MessagingNav />
-            <Card>
+            <Card
+                title="Tài liệu (chữ) — FAQ / chính sách / mô tả SP để AI tham chiếu (RAG)"
+                extra={canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>Thêm tài liệu</Button>}
+            >
                 <Table<KnowledgeDoc> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns} pagination={false} />
             </Card>
 

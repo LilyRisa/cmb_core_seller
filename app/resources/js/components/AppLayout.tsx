@@ -64,7 +64,6 @@ function buildNav(): MenuProps['items'] {
                 { key: '/messaging/auto-rules', label: <Link to="/messaging/auto-rules">Tự động trả lời</Link> },
                 { key: '/messaging/flows', label: <Link to="/messaging/flows">Kịch bản tự động</Link> },
                 { key: '/messaging/knowledge', label: <Link to="/messaging/knowledge">AI training</Link> },
-                { key: '/messaging/visual-search', label: <Link to="/messaging/visual-search">Sản phẩm AI training</Link> },
             ] },
             { key: '/channels', icon: <ShopOutlined />, label: <Link to="/channels">Gian hàng</Link> },
             { key: '/products', icon: <AppstoreOutlined />, label: <Link to="/products">Sản phẩm & SKU</Link> },
@@ -117,7 +116,7 @@ function buildNav(): MenuProps['items'] {
 }
 
 // Flat key list for selected-key matching.
-const BASE_KEYS = ['/', '/orders', '/customers', '/messaging', '/messaging/channels', '/messaging/templates', '/messaging/utility-templates', '/messaging/auto-rules', '/messaging/knowledge', '/messaging/visual-search', '/channels', '/products', '/marketplace/products', '/marketplace/to-push', '/marketplace/on-channel', '/marketplace/promotions', '/inventory',
+const BASE_KEYS = ['/', '/orders', '/customers', '/messaging', '/messaging/channels', '/messaging/templates', '/messaging/utility-templates', '/messaging/auto-rules', '/messaging/knowledge', '/channels', '/products', '/marketplace/products', '/marketplace/to-push', '/marketplace/on-channel', '/marketplace/promotions', '/inventory',
     '/procurement/demand-planning', '/procurement/suppliers', '/procurement/purchase-orders',
     '/reports/overview', '/reports', '/shop-report', '/marketing', '/marketing/tiktok', '/finance/settlements',
     '/accounting/dashboard', '/accounting/journals', '/accounting/chart-of-accounts', '/accounting/balances', '/accounting/ar', '/accounting/ap', '/accounting/cash', '/accounting/reports', '/accounting/periods',

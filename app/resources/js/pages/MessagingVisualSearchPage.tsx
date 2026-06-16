@@ -170,7 +170,7 @@ function LookupModal({ onClose }: { onClose: () => void }) {
     );
 }
 
-export function MessagingVisualSearchPage() {
+export function VisualTrainingPanel() {
     const { message } = AntApp.useApp();
     const canManage = useCan('messaging.ai.train');
     const { data: items, isLoading } = useVisualItems();
@@ -234,7 +234,7 @@ export function MessagingVisualSearchPage() {
 
     return (
         <Card
-            title={<Space><PictureOutlined /> Sản phẩm AI training (nhận diện bằng ảnh)</Space>}
+            title={<Space><PictureOutlined /> Sản phẩm để AI nhận diện bằng ảnh</Space>}
             extra={
                 <Space>
                     <Button icon={<SearchOutlined />} onClick={() => setLookupOpen(true)}>Tìm bằng ảnh</Button>
@@ -270,5 +270,3 @@ export function MessagingVisualSearchPage() {
         </Card>
     );
 }
-
-export default MessagingVisualSearchPage;

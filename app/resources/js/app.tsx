@@ -45,9 +45,8 @@ import { MessagingUtilityTemplatesPage } from '@/pages/MessagingUtilityTemplates
 import { MessagingAutoRulesPage } from '@/pages/MessagingAutoRulesPage';
 import { MessagingFlowsPage } from '@/pages/MessagingFlowsPage';
 import { MessagingFlowEditorPage } from '@/pages/MessagingFlowEditorPage';
-import { MessagingKnowledgePage } from '@/pages/MessagingKnowledgePage';
+import { MessagingAiTrainingPage } from '@/pages/MessagingAiTrainingPage';
 import { MessagingSettingsPage } from '@/pages/MessagingSettingsPage';
-import { MessagingVisualSearchPage } from '@/pages/MessagingVisualSearchPage';
 import { MessagingChannelsPage } from '@/pages/MessagingChannelsPage';
 import { MarketingDashboardPage } from '@/pages/MarketingDashboardPage';
 import { TikTokAdsDashboardPage } from '@/pages/TikTokAdsDashboardPage';
@@ -165,8 +164,7 @@ function Root() {
                 <Route path="messaging/auto-rules" element={<MessagingAutoRulesPage />} />
                 <Route path="messaging/flows" element={<MessagingFlowsPage />} />
                 <Route path="messaging/flows/:id/edit" element={<MessagingFlowEditorPage />} />
-                <Route path="messaging/knowledge" element={<MessagingKnowledgePage />} />
-                <Route path="messaging/visual-search" element={<MessagingVisualSearchPage />} />
+                <Route path="messaging/knowledge" element={<MessagingAiTrainingPage />} />
                 <Route path="marketing" element={<MarketingDashboardPage />} />
                 <Route path="marketing/tiktok" element={<TikTokAdsDashboardPage />} />
                 <Route path="marketing/ads/new" element={<AdWizardPage />} />
