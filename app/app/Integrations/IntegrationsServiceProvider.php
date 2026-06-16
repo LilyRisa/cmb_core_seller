@@ -33,10 +33,16 @@ use CMBcoreSeller\Integrations\Messaging\Manual\ManualMessagingConnector;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Integrations\Messaging\Shopee\ShopeeChatConnector;
 use CMBcoreSeller\Integrations\Messaging\TikTok\TikTokChatConnector;
+use CMBcoreSeller\Integrations\Embedding\Image\Clip\ClipEmbedder;
+use CMBcoreSeller\Integrations\Embedding\Image\Contracts\ImageEmbedder;
+use CMBcoreSeller\Integrations\Embedding\Image\ImageEmbedderRegistry;
 use CMBcoreSeller\Integrations\Payments\Momo\MomoConnector;
 use CMBcoreSeller\Integrations\Payments\PaymentRegistry;
 use CMBcoreSeller\Integrations\Payments\SePay\SePayConnector;
 use CMBcoreSeller\Integrations\Payments\VnPay\VnPayConnector;
+use CMBcoreSeller\Integrations\Vector\Contracts\VectorStore;
+use CMBcoreSeller\Integrations\Vector\Qdrant\QdrantStore;
+use CMBcoreSeller\Integrations\Vector\VectorStoreRegistry;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -272,6 +278,24 @@ class IntegrationsServiceProvider extends ServiceProvider
         $this->app->bind(MomoConnector::class, fn () => new MomoConnector(
             (array) config('integrations.payments.momo', [])
         ));
+
+        // Visual search (2026-06-16) — trục Vector + Image Embedding (vendor-agnostic).
+        // Tách RIÊNG Qdrant help-bot (Support); core không biết tên vendor.
+        $this->app->singleton(VectorStoreRegistry::class, function ($app) {
+            $registry = new VectorStoreRegistry($app);
+            $registry->register('qdrant', QdrantStore::class);
+
+            return $registry;
+        });
+        $this->app->bind(VectorStore::class, fn ($app) => $app->make(VectorStoreRegistry::class)->default());
+
+        $this->app->singleton(ImageEmbedderRegistry::class, function ($app) {
+            $registry = new ImageEmbedderRegistry($app);
+            $registry->register('clip', ClipEmbedder::class);
+
+            return $registry;
+        });
+        $this->app->bind(ImageEmbedder::class, fn ($app) => $app->make(ImageEmbedderRegistry::class)->default());
     }
 
     public function boot(): void

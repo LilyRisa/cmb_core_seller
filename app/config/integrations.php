@@ -713,4 +713,43 @@ return [
         'dev_redirect_uris' => array_values(array_filter(array_map('trim', explode(',', (string) env('EXTENSION_DEV_REDIRECT_URIS', ''))))),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Vector store (visual search — 2026-06-16)
+    |--------------------------------------------------------------------------
+    |
+    | Tách RIÊNG Qdrant help-bot (config/support.php) — visual search dùng
+    | collection `visual_training__*`, không đụng `omnisell_help`. Driver mặc
+    | định qdrant; thêm driver khác = 1 connector + 1 dòng register.
+    |
+    */
+    'vector' => [
+        'driver' => env('VECTOR_DRIVER', 'qdrant'),
+        'qdrant' => [
+            'url' => env('VECTOR_QDRANT_URL', env('QDRANT_URL', 'http://qdrant:6333')),
+            'api_key' => env('VECTOR_QDRANT_API_KEY', env('QDRANT_API_KEY', '')),
+            'timeout' => (int) env('VECTOR_QDRANT_TIMEOUT', 10),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Image embedding (CLIP/SigLIP sidecar — 2026-06-16)
+    |--------------------------------------------------------------------------
+    |
+    | Recall của visual search = embedding ẢNH. Self-host CLIP sidecar (container
+    | `clip`). `model` định danh collection + cột `model` ⇒ đổi/chạy song song
+    | nhiều model không phá schema. URL trống ⇒ tính năng tự suy biến (not_found).
+    |
+    */
+    'image_embedding' => [
+        'driver' => env('IMAGE_EMBEDDING_DRIVER', 'clip'),
+        'clip' => [
+            'url' => env('IMAGE_EMBEDDING_URL', ''),
+            'model' => env('IMAGE_EMBEDDING_MODEL', 'clip_vit_b32'),
+            'dim' => (int) env('IMAGE_EMBEDDING_DIM', 512),
+            'timeout' => (int) env('IMAGE_EMBEDDING_TIMEOUT', 30),
+        ],
+    ],
+
 ];
