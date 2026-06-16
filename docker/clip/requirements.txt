@@ -1,3 +1,5 @@
+# numpy<2 BẮT BUỘC: torch 2.2.2 build cho numpy 1.x; numpy 2.x ⇒ "RuntimeError: Numpy is not available".
+numpy==1.26.4
 fastapi==0.111.0
 uvicorn[standard]==0.30.1
 sentence-transformers==3.0.1
