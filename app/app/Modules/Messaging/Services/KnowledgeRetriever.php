@@ -6,32 +6,51 @@ use CMBcoreSeller\Integrations\Ai\DTO\KnowledgeBase;
 use CMBcoreSeller\Modules\Messaging\Models\AiKnowledgeChunk;
 use CMBcoreSeller\Modules\Messaging\Models\AiKnowledgeDocument;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use Illuminate\Support\Collection;
 
 /**
  * Lấy top-K chunk knowledge liên quan câu hỏi để stitch vào prompt AI (RAG).
  *
- * S6 = KEYWORD-OVERLAP fallback (chạy trên SQLite/Postgres, không cần vector):
- * đếm số token câu hỏi xuất hiện trong chunk. Khi 1 connector hỗ trợ `embedding`
- * được cấu hình + Postgres pgvector bật, nâng lên cosine-similarity + HNSW index
- * (lọc tenant_id trước) — xem ADR-0020. Framework retrieval giữ nguyên; chỉ đổi
- * hàm scoring.
+ * Ưu tiên **vector (Qdrant)** — lọc theo NGỮ NGHĨA ({@see KnowledgeVectorIndexer}):
+ * embed câu hỏi → Qdrant search filter `tenant_id` → lọc phạm vi page/ready ở PHP.
+ * Provider không hỗ trợ embed / Qdrant tắt / không có kết quả ⇒ rơi về **keyword-
+ * overlap** (đếm token trùng — chạy trên SQLite/Postgres, không cần vector).
+ *
+ * Dù dùng đường nào cũng chỉ trả top-K chunk (KHÔNG nhồi hết tài liệu vào prompt).
  */
 class KnowledgeRetriever
 {
+    public function __construct(private KnowledgeVectorIndexer $vector) {}
+
     public function retrieve(int $tenantId, string $query, int $topK = 4, ?int $channelAccountId = null): KnowledgeBase
     {
-        $tokens = $this->tokenize($query);
-        if ($tokens === []) {
+        $readyDocIds = $this->readyDocumentTitles($tenantId, $channelAccountId);
+        if ($readyDocIds->isEmpty()) {
             return new KnowledgeBase(chunks: []);
         }
 
-        // Chỉ chunk thuộc document đã ready của tenant.
+        // 1. Vector (ngữ nghĩa). Null ⇒ vector không khả dụng/không có kết quả ⇒ fallback.
+        $viaVector = $this->retrieveByVector($tenantId, $query, $topK, $readyDocIds);
+        if ($viaVector !== null) {
+            return $viaVector;
+        }
+
+        // 2. Fallback keyword-overlap.
+        return $this->retrieveByKeyword($tenantId, $query, $topK, $readyDocIds);
+    }
+
+    /**
+     * Document READY thuộc tenant (+ phạm vi page SPEC 0035). Trả map id ⇒ title.
+     *
+     * @return Collection<int,string>
+     */
+    private function readyDocumentTitles(int $tenantId, ?int $channelAccountId): Collection
+    {
         $docQuery = AiKnowledgeDocument::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenantId)
             ->where('status', AiKnowledgeDocument::STATUS_READY);
 
-        // SPEC 0035 — khi có page: chỉ tài liệu áp mọi trang HOẶC gán page này
-        // (whereExists pivot, tránh TenantScope của ChannelAccount). Null ⇒ lấy tất cả (vd trợ lý help).
+        // SPEC 0035 — có page: chỉ tài liệu áp mọi trang HOẶC gán page này (pivot, tránh TenantScope).
         if ($channelAccountId !== null) {
             $docQuery->where(fn ($q) => $q
                 ->where('applies_all_pages', true)
@@ -42,9 +61,50 @@ class KnowledgeRetriever
                     ->where('ai_knowledge_document_page.channel_account_id', $channelAccountId)));
         }
 
-        $readyDocIds = $docQuery->pluck('title', 'id');
+        return $docQuery->pluck('title', 'id');
+    }
 
-        if ($readyDocIds->isEmpty()) {
+    /**
+     * @param  Collection<int,string>  $readyDocIds
+     */
+    private function retrieveByVector(int $tenantId, string $query, int $topK, Collection $readyDocIds): ?KnowledgeBase
+    {
+        // Lấy rộng hơn topK (×5) rồi lọc theo phạm vi page/ready để vẫn đủ kết quả.
+        $scores = $this->vector->searchChunkScores($tenantId, $query, $topK * 5);
+        if ($scores === null || $scores === []) {
+            return null;
+        }
+
+        $chunks = AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenantId)
+            ->whereIn('id', array_keys($scores))
+            ->whereIn('document_id', $readyDocIds->keys())
+            ->get(['id', 'document_id', 'chunk_text']);
+        if ($chunks->isEmpty()) {
+            return null;   // vector không có chunk thuộc phạm vi ⇒ thử keyword
+        }
+
+        $out = [];
+        foreach ($chunks as $chunk) {
+            $out[] = [
+                'document_id' => (int) $chunk->document_id,
+                'title' => (string) ($readyDocIds[$chunk->document_id] ?? ''),
+                'chunk_text' => (string) $chunk->chunk_text,
+                'score' => $scores[(int) $chunk->id] ?? 0.0,
+            ];
+        }
+        usort($out, fn ($a, $b) => $b['score'] <=> $a['score']);
+
+        return new KnowledgeBase(chunks: array_slice($out, 0, $topK));
+    }
+
+    /**
+     * @param  Collection<int,string>  $readyDocIds
+     */
+    private function retrieveByKeyword(int $tenantId, string $query, int $topK, Collection $readyDocIds): KnowledgeBase
+    {
+        $tokens = $this->tokenize($query);
+        if ($tokens === []) {
             return new KnowledgeBase(chunks: []);
         }
 

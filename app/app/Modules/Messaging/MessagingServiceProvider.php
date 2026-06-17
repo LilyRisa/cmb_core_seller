@@ -10,6 +10,7 @@ use CMBcoreSeller\Modules\Messaging\Console\Commands\PruneMessagingPayloads;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\PushNewMessageDigest;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\RecomputeConversationPreviews;
 use CMBcoreSeller\Modules\Messaging\Console\Commands\ReconcileMessagingSync;
+use CMBcoreSeller\Modules\Messaging\Console\Commands\ReindexKnowledge;
 use CMBcoreSeller\Modules\Messaging\Contracts\ExpoPushSenderContract;
 use CMBcoreSeller\Modules\Messaging\Contracts\MessageInboxContract;
 use CMBcoreSeller\Modules\Messaging\Events\CommentReceived;
@@ -129,6 +130,7 @@ class MessagingServiceProvider extends ServiceProvider
                 DetectConversationPhones::class,
                 RecomputeConversationPreviews::class,
                 PushNewMessageDigest::class,
+                ReindexKnowledge::class,
             ]);
         }
     }

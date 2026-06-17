@@ -60,5 +60,10 @@ return [
     */
     'ai' => [
         'auto_reply_debounce_seconds' => (int) env('MESSAGING_AI_DEBOUNCE_SECONDS', 4),
+
+        // RAG vector (Qdrant): model embed dùng cho cả index chunk lẫn câu hỏi. Phải là
+        // model embedding hợp lệ của provider AI tenant (OpenAI/custom_http). Provider không
+        // hỗ trợ embed / Qdrant tắt ⇒ RAG tự rơi về keyword. Đổi model ⇒ `messaging:kb-reindex --fresh`.
+        'embedding_model' => env('MESSAGING_AI_EMBEDDING_MODEL', 'text-embedding-3-small'),
     ],
 ];

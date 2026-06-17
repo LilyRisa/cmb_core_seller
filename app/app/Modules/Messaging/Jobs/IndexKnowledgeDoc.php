@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Messaging\Jobs;
 use CMBcoreSeller\Modules\Messaging\Models\AiKnowledgeChunk;
 use CMBcoreSeller\Modules\Messaging\Models\AiKnowledgeDocument;
 use CMBcoreSeller\Modules\Messaging\Services\DocumentTextExtractor;
+use CMBcoreSeller\Modules\Messaging\Services\KnowledgeVectorIndexer;
 use CMBcoreSeller\Modules\Messaging\Services\MediaStorage;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Bus\Queueable;
@@ -39,7 +40,7 @@ class IndexKnowledgeDoc implements ShouldQueue
         $this->onQueue('messaging-ai');
     }
 
-    public function handle(MediaStorage $storage, DocumentTextExtractor $extractor): void
+    public function handle(MediaStorage $storage, DocumentTextExtractor $extractor, KnowledgeVectorIndexer $vectorIndexer): void
     {
         $doc = AiKnowledgeDocument::withoutGlobalScope(TenantScope::class)->find($this->documentId);
         if (! $doc) {
@@ -54,20 +55,24 @@ class IndexKnowledgeDoc implements ShouldQueue
                 return;
             }
 
-            // Xoá chunk cũ (re-index idempotent).
+            // Xoá chunk cũ (re-index idempotent) + xoá point Qdrant tương ứng (tránh rác).
+            $oldIds = AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)
+                ->where('document_id', $doc->id)->pluck('id')->all();
+            $vectorIndexer->forget($oldIds);
             AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)
                 ->where('document_id', $doc->id)->delete();
 
             // Dữ liệu BẢNG (Google Sheet / CSV / TSV / XLSX): mỗi HÀNG = 1 chunk (mỗi sản phẩm
             // một bản ghi riêng) ⇒ RAG khớp đúng sản phẩm, không trộn lẫn. Văn bản tự do: cắt theo độ dài.
             $chunks = $this->isTabular($doc) ? $this->chunkByRow($text) : $this->chunk($text);
+            $created = [];
             foreach ($chunks as $i => $chunkText) {
-                AiKnowledgeChunk::create([
+                $created[] = AiKnowledgeChunk::create([
                     'tenant_id' => $doc->tenant_id,
                     'document_id' => $doc->id,
                     'chunk_index' => $i,
                     'chunk_text' => $chunkText,
-                    'embedding' => null, // TODO(S6.1): embed nếu provider hỗ trợ `embedding`
+                    'embedding' => null,
                     'token_count' => (int) ceil(mb_strlen($chunkText) / 4),
                 ]);
             }
@@ -78,6 +83,10 @@ class IndexKnowledgeDoc implements ShouldQueue
                 'indexed_at' => now(),
                 'error' => null,
             ]);
+
+            // RAG vector: embed + upsert Qdrant (fail-soft — provider không embed/Qdrant tắt ⇒ bỏ qua,
+            // retrieval tự rơi về keyword).
+            $vectorIndexer->indexChunks($doc, $created);
         } catch (\Throwable $e) {
             $doc->update(['status' => AiKnowledgeDocument::STATUS_FAILED, 'error' => substr($e->getMessage(), 0, 250)]);
         }

@@ -6,6 +6,7 @@ use CMBcoreSeller\Modules\Messaging\Jobs\IndexKnowledgeDoc;
 use CMBcoreSeller\Modules\Messaging\Models\AiKnowledgeChunk;
 use CMBcoreSeller\Modules\Messaging\Models\AiKnowledgeDocument;
 use CMBcoreSeller\Modules\Messaging\Services\DocumentTextExtractor;
+use CMBcoreSeller\Modules\Messaging\Services\KnowledgeVectorIndexer;
 use CMBcoreSeller\Modules\Messaging\Services\MediaStorage;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -30,7 +31,7 @@ class KnowledgeIndexingTest extends TestCase
 
     private function runJob(AiKnowledgeDocument $doc): void
     {
-        (new IndexKnowledgeDoc($doc->id))->handle(app(MediaStorage::class), app(DocumentTextExtractor::class));
+        (new IndexKnowledgeDoc($doc->id))->handle(app(MediaStorage::class), app(DocumentTextExtractor::class), app(KnowledgeVectorIndexer::class));
     }
 
     public function test_public_google_sheet_indexes_via_gviz_json(): void
