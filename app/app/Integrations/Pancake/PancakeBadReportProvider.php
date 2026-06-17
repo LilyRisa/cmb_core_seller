@@ -41,8 +41,10 @@ class PancakeBadReportProvider implements CustomerBadReportProvider
 
         try {
             $base = rtrim((string) ($this->config['api_base_url'] ?? 'https://pos.pancake.vn/api/v1'), '/');
+            // Pancake POS xác thực bằng query `api_key` (KHÔNG phải `access_token` — token gửi qua
+            // access_token bị từ chối error_code 102). Đã verify thực tế shop 1720000852.
             $resp = $this->http()->get($base.'/shops/'.rawurlencode($shopId).'/orders/bad_report_info', [
-                'access_token' => $token,
+                'api_key' => $token,
                 'phone_number' => $queryPhone,
             ]);
 

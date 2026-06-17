@@ -56,7 +56,7 @@ class PancakeBadReportProviderTest extends TestCase
         // reported_by / page_id / id KHÔNG được giữ
         $this->assertSame(['reason', 'reported_at'], array_keys($data->warnings[0]));
 
-        Http::assertSent(fn ($req) => $req['phone_number'] === '+84395151515' && $req['access_token'] === 'tok'
+        Http::assertSent(fn ($req) => $req['phone_number'] === '+84395151515' && $req['api_key'] === 'tok'
             && str_contains($req->url(), '/shops/1720000852/orders/bad_report_info'));
     }
 

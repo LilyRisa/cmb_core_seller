@@ -153,8 +153,8 @@ class SystemSettingsCatalog
             ],
             'integrations.pancake.access_token' => [
                 'group' => 'marketplace', 'type' => 'string', 'is_secret' => false,
-                'env' => 'PANCAKE_ACCESS_TOKEN', 'label' => 'Pancake POS — Access Token',
-                'description' => 'Access token API Pancake POS.',
+                'env' => 'PANCAKE_ACCESS_TOKEN', 'label' => 'Pancake POS — API Key',
+                'description' => 'API key của shop trên Pancake POS (gửi qua query api_key — KHÔNG phải access_token).',
             ],
 
             // ── Fulfillment & storage (15) ──────────────────────────────────
