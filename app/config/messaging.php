@@ -61,9 +61,15 @@ return [
     'ai' => [
         'auto_reply_debounce_seconds' => (int) env('MESSAGING_AI_DEBOUNCE_SECONDS', 4),
 
-        // RAG vector (Qdrant): model embed dùng cho cả index chunk lẫn câu hỏi. Phải là
-        // model embedding hợp lệ của provider AI tenant (OpenAI/custom_http). Provider không
-        // hỗ trợ embed / Qdrant tắt ⇒ RAG tự rơi về keyword. Đổi model ⇒ `messaging:kb-reindex --fresh`.
-        'embedding_model' => env('MESSAGING_AI_EMBEDDING_MODEL', 'text-embedding-3-small'),
+        // RAG vector (Qdrant) — cấu hình EMBEDDING. Mặc định TÁI DÙNG endpoint embedding của
+        // "Hỏi AI" (HELP_ASSISTANT_EMBEDDING_*) — TÁCH khỏi provider CHAT của tenant (tránh 403
+        // khi cổng chat không phục vụ /v1/embeddings). Có base_url+api_key ⇒ embed qua endpoint
+        // này; trống ⇒ thử embed qua provider chat của tenant; lỗi ⇒ rơi về keyword. Đổi model
+        // ⇒ `messaging:kb-reindex --fresh`.
+        'embedding' => [
+            'base_url' => env('MESSAGING_AI_EMBEDDING_BASE_URL', env('HELP_ASSISTANT_EMBEDDING_BASE_URL', '')),
+            'api_key' => env('MESSAGING_AI_EMBEDDING_API_KEY', env('HELP_ASSISTANT_EMBEDDING_API_KEY', '')),
+            'model' => env('MESSAGING_AI_EMBEDDING_MODEL', env('HELP_ASSISTANT_EMBEDDING_MODEL', 'text-embedding-3-small')),
+        ],
     ],
 ];

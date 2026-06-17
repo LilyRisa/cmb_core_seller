@@ -9,6 +9,7 @@ use CMBcoreSeller\Modules\Messaging\Models\AiKnowledgeChunk;
 use CMBcoreSeller\Modules\Messaging\Models\AiKnowledgeDocument;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingSetting;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -30,15 +31,15 @@ class KnowledgeVectorIndexer
         private VectorStore $store,
     ) {}
 
-    /** Vector RAG khả dụng cho tenant? (Qdrant bật + provider có embed). */
+    /** Vector RAG khả dụng cho tenant? (Qdrant bật + có endpoint embed chuyên dụng HOẶC provider chat có embed). */
     public function enabled(int $tenantId): bool
     {
-        return $this->store->enabled() && $this->providerCode($tenantId) !== null;
+        return $this->store->enabled() && ($this->embeddingConfigured() || $this->providerCode($tenantId) !== null);
     }
 
     public function model(): string
     {
-        return (string) config('messaging.ai.embedding_model', 'text-embedding-3-small');
+        return $this->embeddingConfig()['model'];
     }
 
     public function collection(): string
@@ -48,18 +49,71 @@ class KnowledgeVectorIndexer
         return 'messaging_kb__'.trim($slug, '_');
     }
 
-    /** Embed 1 đoạn text qua provider tenant. Lỗi/không hỗ trợ ⇒ null (fail-soft). */
+    /** Embed 1 đoạn text. Lỗi/không hỗ trợ ⇒ null (fail-soft). */
     public function embed(int $tenantId, string $text): ?array
     {
         $text = trim($text);
         if ($text === '') {
             return null;
         }
+
+        // Ưu tiên endpoint embedding CHUYÊN DỤNG (tái dùng cấu hình Hỏi AI / HELP_ASSISTANT_*) —
+        // tách khỏi provider chat (tránh 403 khi cổng chat không phục vụ /v1/embeddings).
+        if ($this->embeddingConfigured()) {
+            return $this->embedViaDedicated($text);
+        }
+
+        // Fallback: provider chat của tenant (nếu hỗ trợ embed).
+        return $this->embedViaProvider($tenantId, $text);
+    }
+
+    /** @return array{base_url:string,api_key:string,model:string} mặc định tái dùng Hỏi AI. */
+    private function embeddingConfig(): array
+    {
+        return [
+            'base_url' => rtrim((string) system_setting('help_assistant.embedding_base_url', config('messaging.ai.embedding.base_url', '')), '/'),
+            'api_key' => (string) system_setting('help_assistant.embedding_api_key', config('messaging.ai.embedding.api_key', '')),
+            'model' => (string) system_setting('help_assistant.embedding_model', config('messaging.ai.embedding.model', 'text-embedding-3-small')),
+        ];
+    }
+
+    private function embeddingConfigured(): bool
+    {
+        $c = $this->embeddingConfig();
+
+        return $c['base_url'] !== '' && $c['api_key'] !== '';
+    }
+
+    /** Embed qua endpoint OpenAI-compatible chuyên dụng (giống SupportAiClient). Lỗi ⇒ null. */
+    private function embedViaDedicated(string $text): ?array
+    {
+        $c = $this->embeddingConfig();
+        try {
+            $res = Http::withToken($c['api_key'])
+                ->timeout((int) config('ai.http.embed_timeout', 90))
+                ->retry(1 + (int) config('ai.http.retries', 1), (int) config('ai.http.retry_backoff_ms', 1000), throw: false)
+                ->post($c['base_url'].'/v1/embeddings', ['model' => $c['model'], 'input' => $text]);
+            if (! $res->successful()) {
+                Log::warning('messaging.kb.embed_failed', ['source' => 'dedicated', 'status' => $res->status()]);
+
+                return null;
+            }
+            $vector = array_map('floatval', (array) $res->json('data.0.embedding', []));
+
+            return $vector !== [] ? $vector : null;
+        } catch (\Throwable $e) {
+            Log::warning('messaging.kb.embed_failed', ['source' => 'dedicated', 'error' => substr($e->getMessage(), 0, 200)]);
+
+            return null;
+        }
+    }
+
+    private function embedViaProvider(int $tenantId, string $text): ?array
+    {
         $code = $this->providerCode($tenantId);
         if ($code === null) {
             return null;
         }
-
         try {
             $connector = $this->registry->for($code);
             $dto = $connector->embed(
@@ -69,7 +123,7 @@ class KnowledgeVectorIndexer
 
             return $dto->vector !== [] ? $dto->vector : null;
         } catch (\Throwable $e) {
-            Log::warning('messaging.kb.embed_failed', ['tenant_id' => $tenantId, 'error' => substr($e->getMessage(), 0, 200)]);
+            Log::warning('messaging.kb.embed_failed', ['source' => 'provider', 'tenant_id' => $tenantId, 'error' => substr($e->getMessage(), 0, 200)]);
 
             return null;
         }

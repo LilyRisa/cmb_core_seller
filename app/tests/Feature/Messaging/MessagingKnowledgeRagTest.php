@@ -30,7 +30,10 @@ class MessagingKnowledgeRagTest extends TestCase
             'integrations.vector.qdrant.url' => 'http://qdrant.test:6333',
             'integrations.vector.qdrant.api_key' => '',
             'integrations.vector.qdrant.timeout' => 5,
-            'messaging.ai.embedding_model' => 'text-embedding-3-small',
+            // Mặc định KHÔNG có endpoint embed chuyên dụng ⇒ test đi qua provider chat.
+            'messaging.ai.embedding.base_url' => '',
+            'messaging.ai.embedding.api_key' => '',
+            'messaging.ai.embedding.model' => 'text-embedding-3-small',
         ]);
     }
 
@@ -99,6 +102,29 @@ class MessagingKnowledgeRagTest extends TestCase
         $this->assertSame($hit->id, AiKnowledgeChunk::withoutGlobalScopes()->where('chunk_text', $kb->chunks[0]['chunk_text'])->value('id'));
         $this->assertSame('Chính sách bảo hành 12 tháng', $kb->chunks[0]['chunk_text']);
         Http::assertSent(fn ($req) => str_contains($req->url(), '/points/search'));
+    }
+
+    public function test_embeds_via_dedicated_endpoint_without_chat_provider(): void
+    {
+        // Endpoint embedding chuyên dụng (tái dùng Hỏi AI) ⇒ KHÔNG cần provider chat, không đụng 403.
+        config([
+            'messaging.ai.embedding.base_url' => 'http://emb.test',
+            'messaging.ai.embedding.api_key' => 'ek',
+            'messaging.ai.embedding.model' => 'text-embedding-3-small',
+        ]);
+        $doc = $this->document();
+        $c1 = $this->chunk($doc, 0, 'Sản phẩm A giá 100k');
+
+        Http::fake([
+            'emb.test/v1/embeddings' => Http::response(['data' => [['embedding' => [0.5, 0.6]]]], 200),
+            'qdrant.test:6333/collections/*' => Http::response(['result' => true], 200),
+        ]);
+
+        $embedded = app(KnowledgeVectorIndexer::class)->indexChunks($doc, [$c1]);
+
+        $this->assertSame(1, $embedded);
+        $this->assertSame([0.5, 0.6], $c1->fresh()->embedding);
+        Http::assertSent(fn ($req) => str_contains($req->url(), 'emb.test/v1/embeddings'));
     }
 
     public function test_falls_back_to_keyword_without_embedding_provider(): void
