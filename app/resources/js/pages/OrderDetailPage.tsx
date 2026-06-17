@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { App, Button, Card, Result, Skeleton, Space, Tag, Tooltip } from 'antd';
-import { ArrowLeftOutlined, EditOutlined, LinkOutlined } from '@ant-design/icons';
+import { App, Button, Card, Input, Modal, Result, Skeleton, Space, Tag, Tooltip, Typography } from 'antd';
+import { ArrowLeftOutlined, EditOutlined, LinkOutlined, WarningOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusTag } from '@/components/StatusTag';
 import { ChannelBadge } from '@/components/ChannelBadge';
@@ -8,7 +9,8 @@ import { ChannelLogo } from '@/components/ChannelLogo';
 import { DateText } from '@/components/MoneyText';
 import { OrderDetailBody } from '@/components/OrderDetailBody';
 import { errorMessage } from '@/lib/api';
-import { useOrder } from '@/lib/orders';
+import { useOrder, type Order } from '@/lib/orders';
+import { useReportBadOrder } from '@/lib/customers';
 import { useCan } from '@/lib/tenant';
 import { publicTrackingUrl } from '@/lib/publicTracking';
 
@@ -54,8 +56,9 @@ export function OrderDetailPage() {
                     {order.is_cod && <Tag color="gold">COD</Tag>}
                 </Space>}
                 subtitle={<>Đặt lúc <DateText value={order.placed_at} /> · cập nhật <DateText value={order.created_at} /></>}
-                extra={(trackable || canEdit) ? (
+                extra={(trackable || canEdit || order.can_bad_report) ? (
                     <Space>
+                        <BadReportButton order={order} />
                         {trackable && (
                             <Tooltip title="Copy link công khai để khách tự tra cứu hành trình (đã ẩn SĐT & địa chỉ chi tiết)">
                                 <Button icon={<LinkOutlined />} onClick={copyTrackingLink}>Link tra cứu</Button>
@@ -73,5 +76,59 @@ export function OrderDetailPage() {
             />
             <OrderDetailBody order={order} />
         </div>
+    );
+}
+
+/**
+ * SPEC 0038 v2 — nút "Báo cáo bom hàng" trên đơn thủ công đã hoàn/thất bại. Nhập lý do →
+ * tạo report (theo SĐT khách). Mỗi đơn chỉ báo 1 lần ⇒ đã báo thì khoá nút.
+ */
+function BadReportButton({ order }: { order: Order }) {
+    const canReport = useCan('customers.note');
+    const { message } = App.useApp();
+    const [open, setOpen] = useState(false);
+    const [reason, setReason] = useState('');
+    const report = useReportBadOrder();
+
+    if (!order.can_bad_report || !canReport) return null;
+    if (order.bad_reported) {
+        return (
+            <Tooltip title="Đơn này đã được báo cáo bom hàng">
+                <Button icon={<WarningOutlined />} disabled>Đã báo cáo</Button>
+            </Tooltip>
+        );
+    }
+
+    const submit = async () => {
+        const r = reason.trim();
+        if (!r) { message.warning('Nhập lý do bom hàng.'); return; }
+        try {
+            await report.mutateAsync({ order_id: order.id, reason: r });
+            message.success('Đã tạo báo cáo bom hàng.');
+            setOpen(false);
+            setReason('');
+        } catch (e) {
+            message.error(errorMessage(e));
+        }
+    };
+
+    return (
+        <>
+            <Tooltip title="Báo cáo khách bom hàng cho đơn này">
+                <Button danger icon={<WarningOutlined />} onClick={() => setOpen(true)}>Báo cáo bom hàng</Button>
+            </Tooltip>
+            <Modal
+                title="Báo cáo bom hàng" open={open} onCancel={() => setOpen(false)} onOk={submit}
+                confirmLoading={report.isPending} okText="Tạo báo cáo" okButtonProps={{ danger: true }}
+            >
+                <Typography.Paragraph type="secondary" style={{ fontSize: 13 }}>
+                    Đơn {order.order_number ?? `#${order.id}`} — tạo cảnh báo bom hàng theo số điện thoại khách. Mỗi đơn chỉ báo 1 lần.
+                </Typography.Paragraph>
+                <Input.TextArea
+                    value={reason} onChange={(e) => setReason(e.target.value)} rows={3} maxLength={255}
+                    placeholder="Lý do (vd: hẹn giao nhiều lần không nhận, bom hàng…)"
+                />
+            </Modal>
+        </>
     );
 }

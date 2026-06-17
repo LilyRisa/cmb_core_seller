@@ -7,10 +7,12 @@ use CMBcoreSeller\Modules\Channels\Events\DataDeletionRequested;
 use CMBcoreSeller\Modules\Customers\Console\BackfillCustomers;
 use CMBcoreSeller\Modules\Customers\Console\RecomputeStaleCustomers;
 use CMBcoreSeller\Modules\Customers\Contracts\CustomerProfileContract;
+use CMBcoreSeller\Modules\Customers\Contracts\CustomerReportContract;
 use CMBcoreSeller\Modules\Customers\Listeners\LinkOrderToCustomer;
 use CMBcoreSeller\Modules\Customers\Listeners\OnChannelAccountRevoked;
 use CMBcoreSeller\Modules\Customers\Listeners\OnDataDeletionRequested;
 use CMBcoreSeller\Modules\Customers\Services\CustomerProfileResolver;
+use CMBcoreSeller\Modules\Customers\Services\CustomerReportService;
 use CMBcoreSeller\Modules\Orders\Events\OrderUpserted;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -28,6 +30,8 @@ class CustomersServiceProvider extends ServiceProvider
         // config/customers.php is auto-loaded by the framework.
         // The only way other modules read the registry:
         $this->app->bind(CustomerProfileContract::class, CustomerProfileResolver::class);
+        // Orders hỏi trạng thái report "bom hàng" của đơn qua contract này (SPEC 0038 v2).
+        $this->app->bind(CustomerReportContract::class, CustomerReportService::class);
     }
 
     public function boot(): void

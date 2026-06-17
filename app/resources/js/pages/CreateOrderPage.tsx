@@ -21,7 +21,7 @@ import { useOrder } from '@/lib/orders';
 import { useCarrierAccounts, useShippingQuote } from '@/lib/fulfillment';
 import { useTenantMembers } from '@/lib/tenant';
 import { useAuth } from '@/lib/auth';
-import { useCustomerLookup, type CustomerLookupResult } from '@/lib/customers';
+import { useCustomerLookup, type BadReportWarning, type CustomerLookupResult } from '@/lib/customers';
 
 // ============================================================================
 //  Tạo đơn thủ công — match taodon.png / taodon2.png (BigSeller-inspired POS)
@@ -1241,79 +1241,74 @@ function NoteTabs() {
     );
 }
 
+// SPEC 0038 v2 — thanh tỷ lệ đơn thành công (xanh, trái) / hoàn (đỏ, phải) + nút icon
+// cảnh báo (sáng nền khi có cảnh báo) mở popover danh sách cảnh báo (read-only). Việc TẠO
+// report nằm ở nút trên đơn hoàn (OrderDetailPage), không ở màn đang tạo đơn.
 function CustomerWarning({ data }: { data: CustomerLookupResult | undefined }) {
     if (!data) return null;
-    // `bad_report` (Pancake — SPEC 0038) hiển thị CẢ khi khách chưa tồn tại (đơn thủ công khách mới).
+    const br = data.bad_report;
     const open = data.customer ? (data.open_orders ?? []) : [];
-    const returning = data.customer ? (data.returning_orders ?? []) : [];
-    const isBlocked = data.customer?.is_blocked ?? false;
-    const bad = data.bad_report?.has_data ? data.bad_report : null;
-    if (open.length === 0 && returning.length === 0 && !isBlocked && !bad) return null;
-    const badDanger = bad != null && (bad.order_fail > 0 || bad.warning_count > 0);
-    const danger = returning.length > 0 || isBlocked || badDanger;
+    if (!br && open.length === 0) return null;
+
+    const success = br?.success_count ?? 0;
+    const fail = br?.fail_count ?? 0;
+    const total = success + fail;
+    const hasWarning = !!br?.has_warning;
+    const warnings = br?.warnings ?? [];
+
     return (
-        <Alert
-            style={{ marginTop: 10, borderRadius: 6 }}
-            type={danger ? 'warning' : 'info'}
-            showIcon
-            message={(
-                <Space direction="vertical" size={4} style={{ width: '100%' }}>
-                    {isBlocked && (
-                        <Typography.Text strong style={{ color: '#cf1322' }}>Khách đang bị chặn — kiểm tra trước khi tạo đơn.</Typography.Text>
-                    )}
-                    {open.length > 0 && (
-                        <div>
-                            <Typography.Text strong style={{ fontSize: 13 }}>Đang có {open.length} đơn chưa hoàn thành</Typography.Text>
-                            <div style={{ marginTop: 4 }}>
-                                {open.slice(0, 10).map((o) => <OrderIdTag key={o.id} order={o} />)}
-                                {open.length > 10 && <Typography.Text type="secondary">+{open.length - 10}</Typography.Text>}
-                            </div>
-                        </div>
-                    )}
-                    {returning.length > 0 && (
-                        <div>
-                            <Typography.Text strong style={{ color: '#cf1322', fontSize: 13 }}>{returning.length} đơn đang/đã hoàn</Typography.Text>
-                            <div style={{ marginTop: 4 }}>
-                                {returning.slice(0, 10).map((o) => <OrderIdTag key={o.id} order={o} danger />)}
-                                {returning.length > 10 && <Typography.Text type="secondary">+{returning.length - 10}</Typography.Text>}
-                            </div>
-                        </div>
-                    )}
-                    {bad && (
-                        <div>
-                            <Typography.Text strong style={{ color: badDanger ? '#cf1322' : undefined, fontSize: 13 }}>
-                                <WarningOutlined style={{ marginInlineEnd: 4 }} />
-                                Pancake: {bad.order_fail} đơn fail · {bad.order_success} thành công · {bad.warning_count} lần bị cảnh báo
-                            </Typography.Text>
-                            {bad.warnings.length > 0 && (
-                                <div style={{ marginTop: 4 }}>
-                                    {bad.warnings.slice(0, 5).map((w, i) => (
-                                        <div key={i}>
-                                            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                                                • {w.reason}{w.reported_at ? ` (${dayjs(w.reported_at).format('DD/MM/YYYY')})` : ''}
-                                            </Typography.Text>
-                                        </div>
-                                    ))}
-                                    {bad.warnings.length > 5 && (
-                                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>+{bad.warnings.length - 5} báo cáo khác</Typography.Text>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </Space>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+            {total > 0 ? (
+                <Tooltip title={(
+                    <div style={{ fontSize: 12 }}>
+                        <div><CheckCircleFilled style={{ color: '#52c41a', marginInlineEnd: 4 }} />Thành công: {success}</div>
+                        <div><CloseCircleFilled style={{ color: '#cf1322', marginInlineEnd: 4 }} />Hoàn: {fail}</div>
+                        {open.length > 0 && <div style={{ marginTop: 2 }}>Đang xử lý: {open.length}</div>}
+                    </div>
+                )}>
+                    <div style={{ flex: 1, display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: '#f0f0f0' }}>
+                        <div style={{ width: `${(success / total) * 100}%`, background: '#52c41a' }} />
+                        <div style={{ width: `${(fail / total) * 100}%`, background: '#cf1322' }} />
+                    </div>
+                </Tooltip>
+            ) : (
+                <Typography.Text type="secondary" style={{ flex: 1, fontSize: 12 }}>
+                    {open.length > 0 ? `Đang có ${open.length} đơn chưa hoàn thành` : 'Chưa có dữ liệu đơn'}
+                </Typography.Text>
             )}
-        />
+            <Popover trigger="click" placement="bottomRight" title="Cảnh báo khách hàng" content={<WarningList warnings={warnings} />}>
+                <Tooltip title="Xem cảnh báo">
+                    <Button size="small" type={hasWarning ? 'primary' : 'default'} danger={hasWarning} icon={<WarningOutlined />} />
+                </Tooltip>
+            </Popover>
+        </div>
     );
 }
 
-function OrderIdTag({ order, danger }: { order: { id: number; order_number: string | null; status: string }; danger?: boolean }) {
+const WARNING_SOURCE_LABEL: Record<string, { label: string; color: string }> = {
+    internal: { label: 'Nội bộ', color: 'blue' },
+    pancake: { label: 'Pancake', color: 'orange' },
+    blocked: { label: 'Bị chặn', color: 'red' },
+};
+
+function WarningList({ warnings }: { warnings: BadReportWarning[] }) {
+    if (warnings.length === 0) {
+        return <Typography.Text type="secondary" style={{ fontSize: 12 }}>Không có cảnh báo.</Typography.Text>;
+    }
     return (
-        <Link to={`/orders/${order.id}`} target="_blank" style={{ marginInlineEnd: 4 }}>
-            <Tag color={danger ? 'red' : 'blue'} style={{ marginBottom: 4, cursor: 'pointer' }}>
-                <BarcodeOutlined style={{ marginInlineEnd: 4 }} />
-                {order.order_number ?? `#${order.id}`}
-            </Tag>
-        </Link>
+        <div style={{ width: 280, maxHeight: 260, overflowY: 'auto' }}>
+            {warnings.map((w, i) => {
+                const meta = WARNING_SOURCE_LABEL[w.source] ?? { label: w.source, color: 'default' };
+                return (
+                    <div key={i} style={{ padding: '4px 0', borderBottom: i < warnings.length - 1 ? '1px solid #f0f0f0' : undefined }}>
+                        <div style={{ fontSize: 13 }}>{w.reason}</div>
+                        <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
+                            <Tag color={meta.color} style={{ marginInlineEnd: 4, lineHeight: '16px' }}>{meta.label}</Tag>
+                            {w.reported_at ? dayjs(w.reported_at).format('DD/MM/YYYY') : ''}
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
     );
 }

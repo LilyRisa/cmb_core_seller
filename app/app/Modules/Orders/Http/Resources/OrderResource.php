@@ -3,9 +3,11 @@
 namespace CMBcoreSeller\Modules\Orders\Http\Resources;
 
 use CMBcoreSeller\Modules\Customers\Contracts\CustomerProfileContract;
+use CMBcoreSeller\Modules\Customers\Contracts\CustomerReportContract;
 use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Orders\Models\OrderItem;
+use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -70,6 +72,11 @@ class OrderResource extends JsonResource
             'items_count' => $itemsCount,
             'has_issue' => $this->has_issue,
             'issue_reason' => $this->issue_reason,
+            // SPEC 0038 v2 — báo cáo "bom hàng": chỉ đơn thủ công đã hoàn/thất bại; `bad_reported`
+            // chỉ query khi đủ điều kiện (tránh N+1 trên list).
+            'can_bad_report' => $this->canBadReport(),
+            'bad_reported' => $this->canBadReport()
+                && app(CustomerReportContract::class)->isOrderReported((int) $this->tenant_id, (int) $this->id),
             'tags' => $this->tags ?? [],
             'note' => $this->note,
             'packages' => $this->packages ?? [],
@@ -140,6 +147,16 @@ class OrderResource extends JsonResource
                 return $s ? (string) $s->carrier : null;
             }),
         ];
+    }
+
+    /** Đơn thủ công đang ở trạng thái hoàn/thất bại ⇒ cho phép báo cáo "bom hàng". */
+    private function canBadReport(): bool
+    {
+        return $this->source === 'manual' && in_array($this->status, [
+            StandardOrderStatus::DeliveryFailed,
+            StandardOrderStatus::Returning,
+            StandardOrderStatus::ReturnedRefunded,
+        ], true);
     }
 
     /**

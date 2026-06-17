@@ -170,3 +170,24 @@ Trong `app/resources/js/pages/CreateOrderPage.tsx`, type `CustomerLookupResult` 
 7. FE: type + `useCustomerLookup` + `CustomerWarning` khối Pancake.
 8. Tests (unit + feature).
 9. Cập nhật `docs/05-api/endpoints.md` (đổi response `customers/lookup`).
+
+## Revision v2 (2026-06-17) — report nội bộ + UI thanh tỷ lệ
+
+Mở rộng/điều chỉnh theo yêu cầu chủ dự án:
+
+**A. Pancake gọi 1 lần (bỏ TTL).** Pancake chỉ được gọi khi DB **chưa có dữ liệu nào** cho số đó — tức không có report nội bộ **và** chưa có dòng `customer_bad_reports`. Đã có ⇒ không gọi lại (bỏ `cache_ttl_minutes`). `CustomerBadReportService::fetchOnce()` trả DTO từ cache nếu có dòng (kể cả "sạch"); chỉ gọi provider khi chưa có dòng, lỗi ⇒ không ghi (lần sau thử lại).
+
+**B. Report nội bộ (`customer_reports`).** Người bán tự báo "bom hàng" cho **đơn thủ công bị hoàn**:
+- Bảng `customer_reports`: `tenant_id, phone_hash, order_id (unique), order_number, reason, reported_by_user_id, reported_at`. **Mỗi đơn 1 report** (unique order_id).
+- `POST /api/v1/customers/reports` `{ order_id, reason }` (perm `customers.note`): đơn phải `source=manual` & trạng thái hoàn/thất bại (`delivery_failed|returning|returned_refunded`); idempotent (đã báo ⇒ 422). `phone_hash` lấy từ khách đã liên kết, thiếu thì từ `buyer_phone`.
+- `OrderResource` thêm `can_bad_report` (thuần source+status) và `bad_reported` (qua `CustomerReportContract::isOrderReported`, chỉ query khi `can_bad_report`).
+- **Nút "Báo cáo bom hàng"** trên màn chi tiết đơn (đơn hoàn manual) → nhập lý do → tạo report; đã báo ⇒ nút khoá.
+
+**C. Ưu tiên nội bộ, thiếu mới Pancake.** `CustomerWarningService::buildSummary($customer,$hash,$phone)`:
+- Có dữ liệu nội bộ (`customer != null` hoặc có report) ⇒ `source=internal`: `success_count=lifetime.orders_completed`, `fail_count=orders_returned+orders_delivery_failed`, `warnings` = report nội bộ + (khách bị chặn). KHÔNG gọi Pancake.
+- Không có ⇒ `source=pancake`: dùng `fetchOnce()` (gọi 1 lần). `warnings` = cảnh báo Pancake.
+- Chỉ trả khi có tín hiệu (`success+fail>0` hoặc có warning), ngược lại `null`.
+
+**D. Đổi payload `bad_report`** (thay shape cũ): `{ source, success_count, fail_count, warnings:[{reason, reported_at, source}], has_warning }`.
+
+**E. UI màn tạo đơn (thay khối Alert cũ).** Phần khách hàng: **thanh progress tỷ lệ** thành công (xanh, trái) / hoàn (đỏ, phải), hover xem chi tiết số đơn (+ đơn đang xử lý). Cạnh đó **nút icon cảnh báo**, **sáng nền** khi `has_warning`; bấm mở popover **danh sách cảnh báo** (read-only: lý do + ngày + nguồn). **Không** có tạo cảnh báo ở màn đang tạo đơn (việc tạo nằm ở nút trên đơn hoàn).

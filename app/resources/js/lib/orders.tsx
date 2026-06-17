@@ -75,6 +75,9 @@ export interface Order {
     items_count: number | null;
     has_issue: boolean;
     issue_reason: string | null;
+    /** SPEC 0038 v2 — báo cáo "bom hàng": đơn thủ công đã hoàn/thất bại mới cho báo; `bad_reported` = đã báo. */
+    can_bad_report?: boolean;
+    bad_reported?: boolean;
     tags: string[];
     note: string | null;
     /** Meta tự do của đơn — manual order hay dùng `preferred_carrier_account_id` (hint ĐVVC user đã chọn). */

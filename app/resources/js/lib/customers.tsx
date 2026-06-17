@@ -84,9 +84,10 @@ function useScopedApi() {
 /** SPEC 0021 — tra cứu nhanh khách theo SĐT lúc tạo đơn thủ công (taodon.png). Trả khách + địa chỉ cũ + đơn đang xử lý + đơn đang/đã hoàn (FE hiện cảnh báo). */
 export interface CustomerAddress { name?: string | null; phone?: string | null; address?: string | null; detail?: string | null; ward?: string | null; ward_code?: string | null; district?: string | null; district_id?: number | null; province?: string | null; city?: string | null; province_id?: number | null }
 export interface CustomerLookupOrder { id: number; order_number: string | null; status: string; placed_at: string | null; grand_total: number; source: string }
-/** SPEC 0038 — báo cáo "bom hàng" Pancake POS (bù đắp khi nội bộ thiếu dữ liệu). Chỉ lý do + ngày báo cáo. */
-export interface BadReportWarning { reason: string; reported_at: string | null }
-export interface BadReport { order_fail: number; order_success: number; warning_count: number; warnings: BadReportWarning[]; has_data: boolean }
+/** SPEC 0038 v2 — tỷ lệ đơn thành công/hoàn (Pancake baseline cộng dồn nội bộ) + danh sách cảnh báo. */
+export type BadReportSource = 'internal' | 'pancake' | 'blocked';
+export interface BadReportWarning { reason: string; reported_at: string | null; source: BadReportSource }
+export interface BadReport { success_count: number; fail_count: number; warnings: BadReportWarning[]; has_warning: boolean }
 export interface CustomerLookupResult { customer: Customer | null; addresses: CustomerAddress[]; open_orders: CustomerLookupOrder[]; returning_orders: CustomerLookupOrder[]; bad_report: BadReport | null }
 
 export function useCustomerLookup(phone: string | undefined | null) {
@@ -101,6 +102,23 @@ export function useCustomerLookup(phone: string | undefined | null) {
         queryFn: async () => {
             const { data } = await api!.get<{ data: CustomerLookupResult }>('/customers/lookup', { params: { phone: normalized } });
             return data.data;
+        },
+    });
+}
+
+/** SPEC 0038 v2 — báo cáo "bom hàng" cho 1 đơn thủ công đã hoàn (mỗi đơn 1 lần). */
+export function useReportBadOrder() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    const tenantId = useCurrentTenantId();
+    return useMutation({
+        mutationFn: async (vars: { order_id: number; reason: string }) => {
+            const { data } = await api!.post<{ data: { id: number; order_id: number; reason: string; reported_at: string | null } }>('/customers/reports', vars);
+            return data.data;
+        },
+        onSuccess: (_d, vars) => {
+            qc.invalidateQueries({ queryKey: ['order', tenantId, vars.order_id] });
+            qc.invalidateQueries({ queryKey: ['order', tenantId, String(vars.order_id)] });
         },
     });
 }

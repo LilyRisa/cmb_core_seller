@@ -272,6 +272,8 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
 
             // --- Customers (Phase 2 / SPEC 0002) — internal buyer registry & reputation ---
             Route::post('customers/merge', [CustomerController::class, 'merge'])->name('customers.merge');
+            // SPEC 0038 v2 — báo cáo "bom hàng" cho 1 đơn thủ công đã hoàn (idempotent/đơn).
+            Route::post('customers/reports', [CustomerController::class, 'storeReport'])->name('customers.reports.store');
             // SPEC 0021 — tra cứu nhanh theo SĐT (UI tạo đơn). Phải đặt TRƯỚC route `{id}` để khớp đường.
             // S1 (Sprint 3) — throttle 20/phút chống brute-force enumerate phone hash.
             Route::get('customers/lookup', [CustomerController::class, 'lookup'])->middleware('throttle:20,1')->name('customers.lookup');
