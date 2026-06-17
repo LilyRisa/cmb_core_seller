@@ -466,7 +466,7 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
         const t = setTimeout(() => setDebouncedName(nameSearch.trim()), 300);
         return () => clearTimeout(t);
     }, [nameSearch]);
-    const nameSuggest = useCustomers(debouncedName.length >= 2 ? { q: debouncedName, per_page: 8 } : {});
+    const nameSuggest = useCustomers({ q: debouncedName, per_page: 8 }, debouncedName.length >= 2);
     const nameOptions = (debouncedName.length >= 2 ? (nameSuggest.data?.data ?? []) : []).map((c) => ({
         key: String(c.id),
         value: c.name ?? '',

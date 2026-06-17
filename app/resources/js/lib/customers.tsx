@@ -128,12 +128,12 @@ export function useReportBadOrder() {
     });
 }
 
-export function useCustomers(filters: CustomerFilters) {
+export function useCustomers(filters: CustomerFilters, enabled = true) {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();
     return useQuery({
         queryKey: ['customers', tenantId, filters],
-        enabled: api != null,
+        enabled: api != null && enabled,
         placeholderData: (prev) => prev,
         queryFn: async () => {
             const params: Record<string, string | number | boolean> = {};
