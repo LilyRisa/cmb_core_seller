@@ -275,9 +275,8 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             // SPEC 0038 v2 — báo cáo "bom hàng" cho 1 đơn thủ công đã hoàn (idempotent/đơn).
             Route::post('customers/reports', [CustomerController::class, 'storeReport'])->name('customers.reports.store');
             // SPEC 0021 — tra cứu nhanh theo SĐT (UI tạo đơn). Phải đặt TRƯỚC route `{id}` để khớp đường.
-            // Throttle 60/phút: vẫn chặn brute-force enumerate phone hash (đã auth + tenant + quyền +
-            // Pancake cache-1-lần) nhưng đủ cho UX tạo đơn (gõ SĐT + chọn gợi ý tên đều gọi lookup).
-            Route::get('customers/lookup', [CustomerController::class, 'lookup'])->middleware('throttle:60,1')->name('customers.lookup');
+            // Không throttle riêng (theo yêu cầu — bỏ chống dò phone); chỉ chịu giới hạn chung của group (120/phút).
+            Route::get('customers/lookup', [CustomerController::class, 'lookup'])->name('customers.lookup');
             Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');
             Route::get('customers/{id}', [CustomerController::class, 'show'])->whereNumber('id')->name('customers.show');
             Route::get('customers/{id}/orders', [CustomerController::class, 'orders'])->whereNumber('id')->name('customers.orders');
