@@ -8,6 +8,7 @@ use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Events\MessageReceived;
+use CMBcoreSeller\Modules\Messaging\Jobs\RespondWithAiAutoReply;
 use CMBcoreSeller\Modules\Messaging\Listeners\AiAutoModeOnInbound;
 use CMBcoreSeller\Modules\Messaging\Models\AiProvider;
 use CMBcoreSeller\Modules\Messaging\Models\AutomationFlow;
@@ -93,6 +94,8 @@ class MessagingAiPriorityGateTest extends TestCase
     private function runListener(Conversation $conv, Message $msg): void
     {
         app(AiAutoModeOnInbound::class)->handle(new MessageReceived($msg->id, $conv->id));
+        // Listener chỉ HẸN job debounce (Queue::fake) — chạy nó để hiện thực hoá trả lời (latest-wins).
+        Queue::pushed(RespondWithAiAutoReply::class)->each(fn (RespondWithAiAutoReply $job) => $job->handle(app(\CMBcoreSeller\Modules\Messaging\Services\AiSuggestionService::class)));
     }
 
     private function outboundCount(Conversation $conv): int

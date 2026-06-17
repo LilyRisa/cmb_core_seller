@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Modules\Messaging\Listeners;
 
 use CMBcoreSeller\Modules\Billing\Services\SubscriptionService;
 use CMBcoreSeller\Modules\Messaging\Events\MessageReceived;
+use CMBcoreSeller\Modules\Messaging\Jobs\RespondWithAiAutoReply;
 use CMBcoreSeller\Modules\Messaging\Models\AutomationFlow;
 use CMBcoreSeller\Modules\Messaging\Models\AutoReplyRule;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
@@ -11,13 +12,11 @@ use CMBcoreSeller\Modules\Messaging\Models\FlowRun;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingSetting;
-use CMBcoreSeller\Modules\Messaging\Services\AiSuggestionService;
 use CMBcoreSeller\Modules\Messaging\Services\AutoReplyEngine;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\FlowMatcher;
 use CMBcoreSeller\Modules\Messaging\Support\MessagingChannelGroup;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Auto-mode (S7): khi bật, AI tự trả lời inbound qua guardrail intent.
@@ -39,7 +38,6 @@ class AiAutoModeOnInbound implements ShouldQueue
     public string $queue = 'messaging-ai';
 
     public function __construct(
-        private AiSuggestionService $suggestions,
         private SubscriptionService $subscriptions,
         private FlowMatcher $flowMatcher,
         private AutoReplyEngine $autoReply,
@@ -71,15 +69,11 @@ class AiAutoModeOnInbound implements ShouldQueue
             return;
         }
 
-        try {
-            $this->suggestions->autoRespond($conv, (string) $message->body);
-        } catch (\Throwable $e) {
-            // Auto-mode best-effort — escalate ngầm cho NV bằng cách log; không ném.
-            Log::warning('messaging.auto_mode.failed', [
-                'conversation_id' => $conv->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        // Debounce: hẹn job trễ; chỉ tin INBOUND mới nhất mới thực sự trả lời (latest-wins)
+        // ⇒ gộp burst (3 text rời / text+ảnh tách event) thành 1 reply. SPEC-0024 §4.6.
+        $delay = (int) config('messaging.ai.auto_reply_debounce_seconds', 4);
+        RespondWithAiAutoReply::dispatch((int) $conv->id, (int) $message->id)
+            ->delay($delay > 0 ? now()->addSeconds($delay) : null);
     }
 
     /**

@@ -79,6 +79,25 @@ class AiSuggestionService
      *
      * @return array{action:string, intent:string, message?:Message}
      */
+    /**
+     * Chỉ dẫn luôn đính vào system prompt: gộp burst + tập trung tin mới nhất.
+     * Khách hay gửi nhiều tin liên tiếp (3 text rời / text + ảnh) ⇒ AI trả lời 1 lần.
+     */
+    private const REPLY_FOCUS_DIRECTIVE = 'Khách có thể gửi NHIỀU tin liên tiếp (text rời nhau hoặc kèm ảnh) — '
+        .'hãy coi đó là MỘT yêu cầu và trả lời DUY NHẤT 1 lần, tự nhiên, KHÔNG lặp lại. '
+        .'Tập trung vào Ý ĐỊNH MỚI NHẤT của khách; các tin trước chỉ là ngữ cảnh.';
+
+    /**
+     * Auto-mode cho LƯỢT mới nhất của khách (gộp các tin inbound chưa được trả lời).
+     * Dùng bởi {@see \CMBcoreSeller\Modules\Messaging\Jobs\RespondWithAiAutoReply} sau debounce.
+     *
+     * @return array{action:string, intent:string, message?:Message}
+     */
+    public function autoRespondToLatestTurn(Conversation $conv): array
+    {
+        return $this->autoRespond($conv, $this->currentTurnText($conv));
+    }
+
     public function autoRespond(Conversation $conv, string $inboundText): array
     {
         $draft = $this->draftAutoReply($conv, $inboundText);
@@ -131,7 +150,7 @@ class AiSuggestionService
         [$snapshot, $mapping, $redactedCount] = $this->buildSnapshot($conv, $tenantId);
         $kb = $this->retriever->retrieve($tenantId, $inboundText, channelAccountId: (int) $conv->channel_account_id);
         $provider = AiProvider::query()->find($providerCode);
-        $extra = $this->withVisualContext($this->globalSystemPrompt(), $conv, $tenantId, $providerCode, $provider?->default_model);
+        $extra = $this->withVisualContext($this->baseSystemExtra(), $conv, $tenantId, $providerCode, $provider?->default_model);
         $ctx = new AiContext(tenantId: $tenantId, providerCode: $providerCode, model: $provider?->default_model, systemPromptExtra: $extra, meta: ['mode' => 'auto']);
 
         $startedAt = microtime(true);
@@ -185,7 +204,7 @@ class AiSuggestionService
             tenantId: $tenantId,
             providerCode: $providerCode,
             model: $provider?->default_model,
-            systemPromptExtra: $this->withVisualContext($this->globalSystemPrompt(), $conv, $tenantId, $providerCode, $provider?->default_model),
+            systemPromptExtra: $this->withVisualContext($this->baseSystemExtra(), $conv, $tenantId, $providerCode, $provider?->default_model),
         );
 
         $startedAt = microtime(true);
@@ -517,6 +536,48 @@ class AiSuggestionService
             ->where('direction', Message::DIRECTION_INBOUND)
             ->orderByDesc('created_at')
             ->value('body');
+    }
+
+    /**
+     * Text của LƯỢT khách hiện tại (các tin inbound chưa được trả lời = sau outbound gần
+     * nhất), gộp lại để classify intent + truy hồi KB. Tập trung lượt mới nhất; ảnh được
+     * xử lý riêng qua snapshot/visual context. Rỗng (vd chỉ có ảnh) ⇒ ''.
+     */
+    private function currentTurnText(Conversation $conv): string
+    {
+        $lastOutboundId = (int) Message::withoutGlobalScope(TenantScope::class)
+            ->where('conversation_id', $conv->id)
+            ->where('direction', Message::DIRECTION_OUTBOUND)
+            ->max('id');
+
+        $messages = Message::withoutGlobalScope(TenantScope::class)
+            ->where('conversation_id', $conv->id)
+            ->where('direction', Message::DIRECTION_INBOUND)
+            ->when($lastOutboundId > 0, fn ($q) => $q->where('id', '>', $lastOutboundId))
+            ->orderByDesc('id')
+            ->limit(6)
+            ->get()
+            ->reverse();
+
+        $parts = [];
+        foreach ($messages as $m) {
+            $t = $this->snapshotMessageText($m);
+            if ($t !== null && $t !== '') {
+                $parts[] = $t;
+            }
+        }
+
+        return implode("\n", $parts);
+    }
+
+    /** Chỉ dẫn cơ sở (focus lượt mới nhất) + prompt chung super-admin ⇒ systemPromptExtra. */
+    private function baseSystemExtra(): string
+    {
+        $global = $this->globalSystemPrompt();
+
+        return $global !== null && $global !== ''
+            ? self::REPLY_FOCUS_DIRECTIVE."\n\n".$global
+            : self::REPLY_FOCUS_DIRECTIVE;
     }
 
     /**

@@ -46,4 +46,19 @@ return [
             'text/plain', 'text/csv',
         ],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | AI auto-reply (SPEC-0024 §4.6)
+    |--------------------------------------------------------------------------
+    |
+    | `auto_reply_debounce_seconds` — gộp các tin khách gửi LIÊN TIẾP (text rời,
+    | hoặc Facebook tách text + ảnh thành nhiều event) thành MỘT lượt trả lời.
+    | Mỗi inbound hẹn 1 job trễ; chỉ tin INBOUND mới nhất mới được trả lời
+    | (latest-wins) ⇒ 1 reply / burst. 0 = trả lời ngay (không gộp).
+    |
+    */
+    'ai' => [
+        'auto_reply_debounce_seconds' => (int) env('MESSAGING_AI_DEBOUNCE_SECONDS', 4),
+    ],
 ];
