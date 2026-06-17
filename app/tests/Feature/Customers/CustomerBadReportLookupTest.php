@@ -161,6 +161,23 @@ class CustomerBadReportLookupTest extends TestCase
         Http::assertNothingSent();   // đã có baseline ⇒ không gọi lại Pancake
     }
 
+    /** Regression: khách có addresses_meta ⇒ lookup KHÔNG 500 (Collection::filter('is_array') bug). */
+    public function test_lookup_with_addresses_meta_does_not_error(): void
+    {
+        Customer::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $this->tenant->getKey(), 'phone_hash' => CustomerPhoneNormalizer::hash(self::PHONE),
+            'phone' => self::PHONE, 'name' => 'K',
+            'addresses_meta' => [['name' => 'K', 'phone' => self::PHONE, 'address' => '1 Lê Lợi']],
+            'lifetime_stats' => ['orders_total' => 1, 'orders_completed' => 1, 'orders_cancelled' => 0, 'orders_returned' => 0, 'orders_delivery_failed' => 0],
+            'reputation_score' => 100, 'reputation_label' => 'ok', 'tags' => [],
+            'first_seen_at' => now(), 'last_seen_at' => now(),
+        ]);
+        Http::fake();
+
+        $this->lookup()->assertOk()->assertJsonCount(1, 'data.addresses');
+        Http::assertNothingSent();
+    }
+
     public function test_internal_warnings_include_reports_and_blocked(): void
     {
         $this->makeCustomer(['orders_completed' => 1], blocked: true);

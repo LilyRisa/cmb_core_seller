@@ -863,6 +863,7 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                                     title={<span className="ord-card-title">Khách hàng</span>}
                                     extra={(
                                         <Space size={4}>
+                                            <CustomerWarning data={customerData} />
                                             <Form.Item name="gender" noStyle>
                                                 <GenderDropdown />
                                             </Form.Item>
@@ -891,7 +892,6 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                                             <Input placeholder="Địa chỉ email" maxLength={255} />
                                         </Form.Item></Col>
                                     </Row>
-                                    <CustomerWarning data={customerData} />
                                     <CustomerInfoModal open={infoModalOpen} onClose={() => setInfoModalOpen(false)} form={form} upload={upload} message={message} />
                                 </Card>
 
@@ -1365,21 +1365,19 @@ function NoteTabs() {
 // SPEC 0038 v2 — thanh tỷ lệ đơn thành công (xanh, trái) / hoàn (đỏ, phải) + nút icon
 // cảnh báo (sáng nền khi có cảnh báo) mở popover danh sách cảnh báo (read-only). Việc TẠO
 // report nằm ở nút trên đơn hoàn (OrderDetailPage), không ở màn đang tạo đơn.
+// Widget gọn đặt cạnh Giới tính: thanh tỷ lệ ngắn (~½ ô SĐT) + nút icon cảnh báo (sáng nền khi có).
 function CustomerWarning({ data }: { data: CustomerLookupResult | undefined }) {
-    if (!data) return null;
+    if (!data?.bad_report) return null;
     const br = data.bad_report;
     const open = data.customer ? (data.open_orders ?? []) : [];
-    if (!br && open.length === 0) return null;
-
-    const success = br?.success_count ?? 0;
-    const fail = br?.fail_count ?? 0;
+    const success = br.success_count;
+    const fail = br.fail_count;
     const total = success + fail;
-    const hasWarning = !!br?.has_warning;
-    const warnings = br?.warnings ?? [];
+    const hasWarning = br.has_warning;
 
     return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
-            {total > 0 ? (
+        <Space size={4}>
+            {total > 0 && (
                 <Tooltip title={(
                     <div style={{ fontSize: 12 }}>
                         <div><CheckCircleFilled style={{ color: '#52c41a', marginInlineEnd: 4 }} />Thành công: {success}</div>
@@ -1387,49 +1385,33 @@ function CustomerWarning({ data }: { data: CustomerLookupResult | undefined }) {
                         {open.length > 0 && <div style={{ marginTop: 2 }}>Đang xử lý: {open.length}</div>}
                     </div>
                 )}>
-                    <div style={{ flex: 1, display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: '#f0f0f0' }}>
+                    <div style={{ width: 72, display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: '#f0f0f0' }}>
                         <div style={{ width: `${(success / total) * 100}%`, background: '#52c41a' }} />
                         <div style={{ width: `${(fail / total) * 100}%`, background: '#cf1322' }} />
                     </div>
                 </Tooltip>
-            ) : (
-                <Typography.Text type="secondary" style={{ flex: 1, fontSize: 12 }}>
-                    {open.length > 0 ? `Đang có ${open.length} đơn chưa hoàn thành` : 'Chưa có dữ liệu đơn'}
-                </Typography.Text>
             )}
-            <Popover trigger="click" placement="bottomRight" title="Cảnh báo khách hàng" content={<WarningList warnings={warnings} />}>
+            <Popover trigger="click" placement="bottomRight" title="Cảnh báo khách hàng" content={<WarningList warnings={br.warnings} />}>
                 <Tooltip title="Xem cảnh báo">
-                    <Button size="small" type={hasWarning ? 'primary' : 'default'} danger={hasWarning} icon={<WarningOutlined />} />
+                    <Button size="small" type={hasWarning ? 'primary' : 'text'} danger={hasWarning} icon={<WarningOutlined />} />
                 </Tooltip>
             </Popover>
-        </div>
+        </Space>
     );
 }
-
-const WARNING_SOURCE_LABEL: Record<string, { label: string; color: string }> = {
-    internal: { label: 'Nội bộ', color: 'blue' },
-    pancake: { label: 'Pancake', color: 'orange' },
-    blocked: { label: 'Bị chặn', color: 'red' },
-};
 
 function WarningList({ warnings }: { warnings: BadReportWarning[] }) {
     if (warnings.length === 0) {
         return <Typography.Text type="secondary" style={{ fontSize: 12 }}>Không có cảnh báo.</Typography.Text>;
     }
     return (
-        <div style={{ width: 280, maxHeight: 260, overflowY: 'auto' }}>
-            {warnings.map((w, i) => {
-                const meta = WARNING_SOURCE_LABEL[w.source] ?? { label: w.source, color: 'default' };
-                return (
-                    <div key={i} style={{ padding: '4px 0', borderBottom: i < warnings.length - 1 ? '1px solid #f0f0f0' : undefined }}>
-                        <div style={{ fontSize: 13 }}>{w.reason}</div>
-                        <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
-                            <Tag color={meta.color} style={{ marginInlineEnd: 4, lineHeight: '16px' }}>{meta.label}</Tag>
-                            {w.reported_at ? dayjs(w.reported_at).format('DD/MM/YYYY') : ''}
-                        </div>
-                    </div>
-                );
-            })}
+        <div style={{ width: 260, maxHeight: 260, overflowY: 'auto' }}>
+            {warnings.map((w, i) => (
+                <div key={i} style={{ padding: '4px 0', borderBottom: i < warnings.length - 1 ? '1px solid #f0f0f0' : undefined }}>
+                    <div style={{ fontSize: 13 }}>{w.reason}</div>
+                    {w.reported_at && <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{dayjs(w.reported_at).format('DD/MM/YYYY')}</div>}
+                </div>
+            ))}
         </div>
     );
 }

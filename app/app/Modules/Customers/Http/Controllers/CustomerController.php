@@ -133,7 +133,7 @@ class CustomerController extends Controller
             return substr($digits, 0, 3).str_repeat('*', max(0, $len - 5)).substr($digits, -2);
         };
         $addresses = collect($customer->addresses_meta ?? [])
-            ->filter('is_array')
+            ->filter(fn ($a) => is_array($a))   // Collection::filter truyền (value,key) ⇒ không dùng 'is_array' chuỗi
             ->map(function (array $a) use ($canViewPhone, $maskPhone) {
                 if (! $canViewPhone && array_key_exists('phone', $a)) {
                     $a['phone'] = $maskPhone($a['phone']);
