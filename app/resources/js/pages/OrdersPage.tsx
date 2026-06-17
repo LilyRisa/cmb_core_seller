@@ -154,6 +154,7 @@ export function OrdersPage() {
     }), [effectiveStatus, q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo, tabKey, slipFilter, printedFilter, params]);
 
     const isShipmentsTab = tabKey === 'shipments';
+    const isCancelledTab = tabKey === 'cancelled';   // nút Xoá đơn chỉ ở tab Đã huỷ (đơn khác không xoá được)
     // tab làm việc: "Chờ xử lý" / "Đang xử lý" / "Chờ bàn giao" — cho chọn nhiều đơn + bulk actions
     const isWorkTab = tabKey === 'pending' || tabKey === 'processing' || tabKey === 'ready_to_ship';
     const canBulkWork = !isShipmentsTab && (canShip || canPrint);
@@ -761,8 +762,8 @@ export function OrdersPage() {
                                 </Button></span>
                             </Tooltip>
                         )}
-                        {canDelete && (
-                            <Tooltip title={selectedKeys.length === 0 ? 'Chọn đơn để thao tác' : 'Xoá đơn — chỉ áp dụng đơn ĐÃ huỷ (xoá mềm). Đơn chưa huỷ sẽ bị bỏ qua.'}>
+                        {canDelete && isCancelledTab && (
+                            <Tooltip title={selectedKeys.length === 0 ? 'Chọn đơn để thao tác' : 'Xoá đơn đã huỷ khỏi danh sách (xoá mềm).'}>
                                 <span><Button danger icon={<DeleteOutlined />} disabled={eliDelete.length === 0} loading={bulkDelete.isPending} onClick={doBulkDelete}>
                                     Xoá đơn{eliDelete.length > 0 ? ` (${eliDelete.length})` : ''}
                                 </Button></span>
