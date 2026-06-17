@@ -84,7 +84,10 @@ function useScopedApi() {
 /** SPEC 0021 — tra cứu nhanh khách theo SĐT lúc tạo đơn thủ công (taodon.png). Trả khách + địa chỉ cũ + đơn đang xử lý + đơn đang/đã hoàn (FE hiện cảnh báo). */
 export interface CustomerAddress { name?: string | null; phone?: string | null; address?: string | null; detail?: string | null; ward?: string | null; ward_code?: string | null; district?: string | null; district_id?: number | null; province?: string | null; city?: string | null; province_id?: number | null }
 export interface CustomerLookupOrder { id: number; order_number: string | null; status: string; placed_at: string | null; grand_total: number; source: string }
-export interface CustomerLookupResult { customer: Customer | null; addresses: CustomerAddress[]; open_orders: CustomerLookupOrder[]; returning_orders: CustomerLookupOrder[] }
+/** SPEC 0038 — báo cáo "bom hàng" Pancake POS (bù đắp khi nội bộ thiếu dữ liệu). Chỉ lý do + ngày báo cáo. */
+export interface BadReportWarning { reason: string; reported_at: string | null }
+export interface BadReport { order_fail: number; order_success: number; warning_count: number; warnings: BadReportWarning[]; has_data: boolean }
+export interface CustomerLookupResult { customer: Customer | null; addresses: CustomerAddress[]; open_orders: CustomerLookupOrder[]; returning_orders: CustomerLookupOrder[]; bad_report: BadReport | null }
 
 export function useCustomerLookup(phone: string | undefined | null) {
     const api = useScopedApi();

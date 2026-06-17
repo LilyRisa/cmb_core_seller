@@ -139,6 +139,24 @@ class SystemSettingsCatalog
                 'env' => 'SHOPEE_SANDBOX', 'label' => 'Shopee Sandbox',
             ],
 
+            // ── Pancake POS — báo cáo "bom hàng" (SPEC 0038) ────────────────
+            // Cấu hình GLOBAL dùng chung để bù đắp dữ liệu khách khi tạo đơn thủ công.
+            'integrations.pancake.enabled' => [
+                'group' => 'marketplace', 'type' => 'bool', 'is_secret' => false,
+                'env' => 'PANCAKE_ENABLED', 'label' => 'Pancake POS — Bật tra cứu bom hàng',
+                'description' => 'Bật để khi tạo đơn thủ công tự tra số điện thoại khách qua Pancake POS (cảnh báo bom hàng).',
+            ],
+            'integrations.pancake.shop_id' => [
+                'group' => 'marketplace', 'type' => 'string', 'is_secret' => false,
+                'env' => 'PANCAKE_SHOP_ID', 'label' => 'Pancake POS — Shop ID',
+                'description' => 'Mã shop trên Pancake POS (vd 1720000852).',
+            ],
+            'integrations.pancake.access_token' => [
+                'group' => 'marketplace', 'type' => 'string', 'is_secret' => false,
+                'env' => 'PANCAKE_ACCESS_TOKEN', 'label' => 'Pancake POS — Access Token',
+                'description' => 'Access token API Pancake POS.',
+            ],
+
             // ── Fulfillment & storage (15) ──────────────────────────────────
             'fulfillment.deduct_on' => [
                 'group' => 'fulfillment', 'type' => 'string', 'is_secret' => false,

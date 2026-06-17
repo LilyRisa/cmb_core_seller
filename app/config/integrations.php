@@ -752,4 +752,30 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Pancake POS — báo cáo "bom hàng" (SPEC 0038)
+    |--------------------------------------------------------------------------
+    |
+    | Bù đắp khi nội bộ thiếu dữ liệu khách: lúc tạo đơn THỦ CÔNG, tra số điện
+    | thoại qua Pancake `bad_report_info` rồi cache vào `customer_bad_reports`.
+    | Cấu hình GLOBAL (1 tài khoản dùng chung): `shop_id` + `access_token`
+    | super-admin khai ở /admin/settings (system_setting `integrations.pancake.*`),
+    | các giá trị dưới chỉ là fallback env. Tắt mặc định ⇒ zero impact.
+    |
+    */
+    'pancake' => [
+        'enabled' => (bool) env('PANCAKE_ENABLED', false),
+        'shop_id' => env('PANCAKE_SHOP_ID', ''),
+        'access_token' => env('PANCAKE_ACCESS_TOKEN', ''),
+        'api_base_url' => env('PANCAKE_API_BASE_URL', 'https://pos.pancake.vn/api/v1'),
+        'cache_ttl_minutes' => (int) env('PANCAKE_CACHE_TTL_MIN', 1440), // 24h
+        'http' => [
+            'timeout' => (int) env('PANCAKE_HTTP_TIMEOUT', 15),
+            'connect_timeout' => (int) env('PANCAKE_HTTP_CONNECT_TIMEOUT', 8),
+            'retries' => (int) env('PANCAKE_HTTP_RETRIES', 1),
+            'retry_sleep_ms' => (int) env('PANCAKE_HTTP_RETRY_SLEEP_MS', 500),
+        ],
+    ],
+
 ];

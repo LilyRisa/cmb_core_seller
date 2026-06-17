@@ -3,10 +3,12 @@
 namespace CMBcoreSeller\Modules\Customers\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
+use CMBcoreSeller\Modules\Customers\Http\Resources\BadReportResource;
 use CMBcoreSeller\Modules\Customers\Http\Resources\CustomerNoteResource;
 use CMBcoreSeller\Modules\Customers\Http\Resources\CustomerResource;
 use CMBcoreSeller\Modules\Customers\Models\Customer;
 use CMBcoreSeller\Modules\Customers\Models\CustomerNote;
+use CMBcoreSeller\Modules\Customers\Services\CustomerBadReportService;
 use CMBcoreSeller\Modules\Customers\Services\CustomerMergeService;
 use CMBcoreSeller\Modules\Customers\Services\CustomerService;
 use CMBcoreSeller\Modules\Customers\Support\CustomerPhoneNormalizer;
@@ -74,18 +76,26 @@ class CustomerController extends Controller
      *  - Không khớp ⇒ trả `{ customer: null }`.
      *
      * Không ném 404 nếu không khớp — đây là endpoint tra cứu nhanh, không phải get-by-id.
+     *
+     * `bad_report` (SPEC 0038): bù đắp khi nội bộ thiếu dữ liệu — tra "bom hàng" từ
+     * Pancake POS (cache 24h), trả CẢ khi customer chưa tồn tại. Fail-soft: null nếu tắt/lỗi.
      */
-    public function lookup(Request $request): JsonResponse
+    public function lookup(Request $request, CustomerBadReportService $badReports): JsonResponse
     {
         $this->authorizeView($request);
         $phone = (string) $request->query('phone', '');
-        $hash = CustomerPhoneNormalizer::normalizeAndHash($phone);
+        $normalized = CustomerPhoneNormalizer::normalize($phone);
+        $hash = $normalized === null ? null : CustomerPhoneNormalizer::hash($normalized);
         if ($hash === null) {
-            return response()->json(['data' => ['customer' => null, 'addresses' => [], 'open_orders' => [], 'returning_orders' => []]]);
+            return response()->json(['data' => ['customer' => null, 'addresses' => [], 'open_orders' => [], 'returning_orders' => [], 'bad_report' => null]]);
         }
+
+        $badReport = $badReports->fetch($hash, $normalized);
+        $badReportPayload = $badReport !== null ? new BadReportResource($badReport) : null;
+
         $customer = Customer::query()->where('phone_hash', $hash)->first();
         if (! $customer) {
-            return response()->json(['data' => ['customer' => null, 'addresses' => [], 'open_orders' => [], 'returning_orders' => []]]);
+            return response()->json(['data' => ['customer' => null, 'addresses' => [], 'open_orders' => [], 'returning_orders' => [], 'bad_report' => $badReportPayload]]);
         }
 
         // Lấy đơn của customer này — bỏ TenantScope vì global scope đã filter bởi current tenant.
@@ -139,6 +149,7 @@ class CustomerController extends Controller
                 ->values()->map($mapOrder)->all(),
             'returning_orders' => $orders->filter(fn ($o) => in_array($statusValue($o), $returningStatuses, true))
                 ->values()->map($mapOrder)->all(),
+            'bad_report' => $badReportPayload,
         ]]);
     }
 

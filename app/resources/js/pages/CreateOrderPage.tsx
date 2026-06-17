@@ -1242,11 +1242,15 @@ function NoteTabs() {
 }
 
 function CustomerWarning({ data }: { data: CustomerLookupResult | undefined }) {
-    if (!data?.customer) return null;
-    const open = data.open_orders ?? [];
-    const returning = data.returning_orders ?? [];
-    if (open.length === 0 && returning.length === 0 && !data.customer.is_blocked) return null;
-    const danger = returning.length > 0 || data.customer.is_blocked;
+    if (!data) return null;
+    // `bad_report` (Pancake — SPEC 0038) hiển thị CẢ khi khách chưa tồn tại (đơn thủ công khách mới).
+    const open = data.customer ? (data.open_orders ?? []) : [];
+    const returning = data.customer ? (data.returning_orders ?? []) : [];
+    const isBlocked = data.customer?.is_blocked ?? false;
+    const bad = data.bad_report?.has_data ? data.bad_report : null;
+    if (open.length === 0 && returning.length === 0 && !isBlocked && !bad) return null;
+    const badDanger = bad != null && (bad.order_fail > 0 || bad.warning_count > 0);
+    const danger = returning.length > 0 || isBlocked || badDanger;
     return (
         <Alert
             style={{ marginTop: 10, borderRadius: 6 }}
@@ -1254,7 +1258,7 @@ function CustomerWarning({ data }: { data: CustomerLookupResult | undefined }) {
             showIcon
             message={(
                 <Space direction="vertical" size={4} style={{ width: '100%' }}>
-                    {data.customer.is_blocked && (
+                    {isBlocked && (
                         <Typography.Text strong style={{ color: '#cf1322' }}>Khách đang bị chặn — kiểm tra trước khi tạo đơn.</Typography.Text>
                     )}
                     {open.length > 0 && (
@@ -1273,6 +1277,28 @@ function CustomerWarning({ data }: { data: CustomerLookupResult | undefined }) {
                                 {returning.slice(0, 10).map((o) => <OrderIdTag key={o.id} order={o} danger />)}
                                 {returning.length > 10 && <Typography.Text type="secondary">+{returning.length - 10}</Typography.Text>}
                             </div>
+                        </div>
+                    )}
+                    {bad && (
+                        <div>
+                            <Typography.Text strong style={{ color: badDanger ? '#cf1322' : undefined, fontSize: 13 }}>
+                                <WarningOutlined style={{ marginInlineEnd: 4 }} />
+                                Pancake: {bad.order_fail} đơn fail · {bad.order_success} thành công · {bad.warning_count} lần bị cảnh báo
+                            </Typography.Text>
+                            {bad.warnings.length > 0 && (
+                                <div style={{ marginTop: 4 }}>
+                                    {bad.warnings.slice(0, 5).map((w, i) => (
+                                        <div key={i}>
+                                            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                                                • {w.reason}{w.reported_at ? ` (${dayjs(w.reported_at).format('DD/MM/YYYY')})` : ''}
+                                            </Typography.Text>
+                                        </div>
+                                    ))}
+                                    {bad.warnings.length > 5 && (
+                                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>+{bad.warnings.length - 5} báo cáo khác</Typography.Text>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
                 </Space>

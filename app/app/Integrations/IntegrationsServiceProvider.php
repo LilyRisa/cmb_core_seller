@@ -26,6 +26,9 @@ use CMBcoreSeller\Integrations\Channels\Shopee\ShopeePublisher;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeWebhookVerifier;
 use CMBcoreSeller\Integrations\Channels\TikTok\TikTokConnector;
 use CMBcoreSeller\Integrations\Channels\TikTok\TikTokPublisher;
+use CMBcoreSeller\Integrations\Embedding\Image\Clip\ClipEmbedder;
+use CMBcoreSeller\Integrations\Embedding\Image\Contracts\ImageEmbedder;
+use CMBcoreSeller\Integrations\Embedding\Image\ImageEmbedderRegistry;
 use CMBcoreSeller\Integrations\Messaging\Facebook\FacebookPageConnector;
 use CMBcoreSeller\Integrations\Messaging\Facebook\FacebookSignatureVerifier;
 use CMBcoreSeller\Integrations\Messaging\Lazada\LazadaChatConnector;
@@ -33,9 +36,7 @@ use CMBcoreSeller\Integrations\Messaging\Manual\ManualMessagingConnector;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Integrations\Messaging\Shopee\ShopeeChatConnector;
 use CMBcoreSeller\Integrations\Messaging\TikTok\TikTokChatConnector;
-use CMBcoreSeller\Integrations\Embedding\Image\Clip\ClipEmbedder;
-use CMBcoreSeller\Integrations\Embedding\Image\Contracts\ImageEmbedder;
-use CMBcoreSeller\Integrations\Embedding\Image\ImageEmbedderRegistry;
+use CMBcoreSeller\Integrations\Pancake\PancakeBadReportProvider;
 use CMBcoreSeller\Integrations\Payments\Momo\MomoConnector;
 use CMBcoreSeller\Integrations\Payments\PaymentRegistry;
 use CMBcoreSeller\Integrations\Payments\SePay\SePayConnector;
@@ -43,6 +44,7 @@ use CMBcoreSeller\Integrations\Payments\VnPay\VnPayConnector;
 use CMBcoreSeller\Integrations\Vector\Contracts\VectorStore;
 use CMBcoreSeller\Integrations\Vector\Qdrant\QdrantStore;
 use CMBcoreSeller\Integrations\Vector\VectorStoreRegistry;
+use CMBcoreSeller\Modules\Customers\Contracts\CustomerBadReportProvider;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -296,6 +298,13 @@ class IntegrationsServiceProvider extends ServiceProvider
             return $registry;
         });
         $this->app->bind(ImageEmbedder::class, fn ($app) => $app->make(ImageEmbedderRegistry::class)->default());
+
+        // Pancake POS — báo cáo "bom hàng" cho đơn thủ công (SPEC 0038). Cấu hình GLOBAL
+        // (system_setting `integrations.pancake.*`), fallback config/env. Provider fail-soft.
+        $this->app->bind(
+            CustomerBadReportProvider::class,
+            fn () => new PancakeBadReportProvider((array) config('integrations.pancake', [])),
+        );
     }
 
     public function boot(): void
