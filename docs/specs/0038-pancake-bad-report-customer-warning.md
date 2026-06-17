@@ -191,3 +191,8 @@ Mở rộng/điều chỉnh theo yêu cầu chủ dự án:
 **D. Đổi payload `bad_report`** (thay shape cũ): `{ source, success_count, fail_count, warnings:[{reason, reported_at, source}], has_warning }`.
 
 **E. UI màn tạo đơn (thay khối Alert cũ).** Phần khách hàng: **thanh progress tỷ lệ** thành công (xanh, trái) / hoàn (đỏ, phải), hover xem chi tiết số đơn (+ đơn đang xử lý). Cạnh đó **nút icon cảnh báo**, **sáng nền** khi `has_warning`; bấm mở popover **danh sách cảnh báo** (read-only: lý do + ngày + nguồn). **Không** có tạo cảnh báo ở màn đang tạo đơn (việc tạo nằm ở nút trên đơn hoàn).
+
+**F. Hồ sơ khách + gợi ý tên (UI tạo đơn).** Customers thêm cột `avatar_url, source, dob, address` (persist từ `order.meta` qua `CustomerLinkingService` khi link đơn — bền vững). Màn tạo đơn:
+- Nút **3 chấm** mở modal "Thông tin khách hàng": avatar (upload `customer-avatars`), tên, ngày sinh/tuổi, địa chỉ, nguồn khách hàng. Dùng chung `form` → đẩy vào `order.meta`.
+- Ô **Tên khách hàng** = AutoComplete: gõ ≥2 ký tự gợi ý (tên · SĐT · số đơn), chọn → điền tên + SĐT (kích hoạt lookup). Tìm kiếm **scope theo tenant** (đã sẵn, không dùng chung).
+- Tên khách → **tự điền Tên người nhận** (cùng cơ chế SĐT). **Bỏ** field "Dự kiến nhận hàng".

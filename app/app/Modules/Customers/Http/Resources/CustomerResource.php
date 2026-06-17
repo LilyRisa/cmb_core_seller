@@ -32,6 +32,11 @@ class CustomerResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $anonymized ? null : $this->name,
+            // Hồ sơ nhập tay (SPEC 0038 v2) — prefill modal + gợi ý tên khi tạo đơn.
+            'avatar_url' => $anonymized ? null : $this->avatar_url,
+            'source' => $anonymized ? null : $this->source,
+            'dob' => $anonymized ? null : $this->dob?->format('Y-m-d'),
+            'address' => $anonymized ? null : $this->address,
             'phone_masked' => $anonymized ? null : $this->maskedPhone(),
             'phone' => ($canViewPhone && ! $anonymized) ? $this->phone : null,
             'reputation' => ['score' => (int) $this->reputation_score, 'label' => $this->reputation_label],

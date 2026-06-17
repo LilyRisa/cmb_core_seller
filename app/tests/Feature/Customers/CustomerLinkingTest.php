@@ -61,6 +61,29 @@ class CustomerLinkingTest extends TestCase
         $this->assertSame('ok', $customer->reputation_label);
     }
 
+    /** SPEC 0038 v2 — modal "Thông tin khách hàng": avatar/nguồn/ngày sinh/địa chỉ persist từ order.meta. */
+    public function test_manual_order_persists_profile_fields_from_meta(): void
+    {
+        $order = Order::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $this->tenant->getKey(), 'source' => 'manual', 'channel_account_id' => null,
+            'external_order_id' => null, 'order_number' => 'M1', 'status' => StandardOrderStatus::Pending, 'raw_status' => 'X',
+            'buyer_name' => 'Trần B', 'buyer_phone' => '0912345678',
+            'shipping_address' => ['phone' => '0912345678', 'name' => 'Trần B', 'address' => 'Số 2'],
+            'currency' => 'VND', 'grand_total' => 100000, 'item_total' => 100000, 'placed_at' => now(),
+            'has_issue' => false, 'tags' => [],
+            'meta' => ['avatar_url' => 'https://cdn/x.jpg', 'customer_source' => 'facebook', 'customer_address' => '123 Lê Lợi', 'dob' => '1995-06-15'],
+            'source_updated_at' => now(),
+        ]);
+        $this->fire($order);
+
+        $c = Customer::withoutGlobalScope(TenantScope::class)->where('phone_hash', hash('sha256', '0912345678'))->first();
+        $this->assertNotNull($c);
+        $this->assertSame('https://cdn/x.jpg', $c->avatar_url);
+        $this->assertSame('facebook', $c->source);
+        $this->assertSame('123 Lê Lợi', $c->address);
+        $this->assertSame('1995-06-15', $c->dob?->format('Y-m-d'));
+    }
+
     public function test_orders_with_different_phone_formats_match_the_same_customer(): void
     {
         $this->fire($this->makeOrder($this->tenant, 'O1', '+84987654321', StandardOrderStatus::Completed, 100000));

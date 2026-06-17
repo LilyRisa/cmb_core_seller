@@ -55,6 +55,11 @@ export interface CustomerCard {
 
 export interface Customer extends CustomerCard {
     phone: string | null;            // only when caller has customers.view_phone
+    /** Hồ sơ nhập tay (SPEC 0038 v2) — modal "Thông tin khách hàng". */
+    avatar_url?: string | null;
+    source?: string | null;
+    dob?: string | null;             // YYYY-MM-DD
+    address?: string | null;
     block_reason: string | null;
     blocked_at: string | null;
     addresses_meta: Array<Record<string, unknown>>;

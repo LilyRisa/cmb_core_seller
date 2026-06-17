@@ -18,6 +18,10 @@ use Illuminate\Support\Carbon;
  * @property string $phone_hash
  * @property string|null $phone
  * @property string|null $name
+ * @property string|null $avatar_url
+ * @property string|null $source
+ * @property Carbon|null $dob
+ * @property string|null $address
  * @property string|null $email
  * @property string|null $email_hash
  * @property array|null $addresses_meta
@@ -51,7 +55,8 @@ class Customer extends Model
     public const LABEL_BLOCKED = 'blocked';
 
     protected $fillable = [
-        'tenant_id', 'phone_hash', 'phone', 'name', 'email', 'email_hash', 'addresses_meta',
+        'tenant_id', 'phone_hash', 'phone', 'name', 'avatar_url', 'source', 'dob', 'address',
+        'email', 'email_hash', 'addresses_meta',
         'lifetime_stats', 'reputation_score', 'reputation_label', 'tags', 'is_blocked',
         'blocked_at', 'blocked_by_user_id', 'block_reason', 'manual_note',
         'first_seen_at', 'last_seen_at', 'merged_into_customer_id', 'pii_anonymized_at',
@@ -69,6 +74,7 @@ class Customer extends Model
         return [
             'phone' => 'encrypted',
             'email' => 'encrypted',
+            'dob' => 'date',
             'addresses_meta' => 'array',
             'lifetime_stats' => 'array',
             'tags' => 'array',

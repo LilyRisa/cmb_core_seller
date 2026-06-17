@@ -66,15 +66,17 @@ class CustomerLinkingService
                     'reputation_label' => Customer::LABEL_OK,
                     'first_seen_at' => $placedAt,
                     'last_seen_at' => $placedAt,
-                ])->save();
+                ] + $this->profileFromMeta($order))->save();
                 $created = true;
             } else {
+                // Hồ sơ nhập tay (avatar/nguồn/ngày sinh/địa chỉ) ghi đè khi user cung cấp; bỏ qua nếu đã ẩn danh.
+                $profile = $customer->isAnonymized() ? [] : $this->profileFromMeta($order);
                 $customer->forceFill([
                     'last_seen_at' => $customer->last_seen_at->gt($placedAt) ? $customer->last_seen_at : $placedAt,
                     'name' => $customer->name ?: ($order->buyer_name ?: null),
                     'phone' => $customer->isAnonymized() ? $customer->phone : $phone,
                     'addresses_meta' => $customer->isAnonymized() ? $customer->addresses_meta : $this->mergeAddresses($customer->addresses_meta ?? [], $order->shipping_address),
-                ])->save();
+                ] + $profile)->save();
             }
 
             // Link the order back (only if not already linked to someone).
@@ -227,6 +229,27 @@ class CustomerLinkingService
         if (($cfg['vip_at'] ?? 10) > 0 && $completed >= ($cfg['vip_at'] ?? 10)) {
             $add('auto.vip', CustomerNote::SEV_INFO, "Khách VIP — đã đặt {$completed} đơn thành công.", 'vip');
         }
+    }
+
+    /**
+     * Hồ sơ khách nhập tay từ form tạo đơn (modal "Thông tin khách hàng" — SPEC 0038 v2),
+     * lưu trong `order.meta`. Chỉ lấy field user thực sự cung cấp ⇒ không xoá dữ liệu cũ.
+     *
+     * @return array<string,string>
+     */
+    private function profileFromMeta(Order $order): array
+    {
+        $meta = (array) ($order->meta ?? []);
+        $map = ['avatar_url' => 'avatar_url', 'customer_source' => 'source', 'customer_address' => 'address', 'dob' => 'dob'];
+        $out = [];
+        foreach ($map as $metaKey => $col) {
+            $v = $meta[$metaKey] ?? null;
+            if (is_string($v) && trim($v) !== '') {
+                $out[$col] = trim($v);
+            }
+        }
+
+        return $out;
     }
 
     /**

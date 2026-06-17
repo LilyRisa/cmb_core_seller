@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
-    Alert, App as AntApp, Avatar, Badge, Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber, Modal,
+    Alert, AutoComplete, App as AntApp, Avatar, Badge, Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber, Modal,
     Popover, Radio, Row, Segmented, Space, Tabs, Tag, Tooltip, Typography, Upload,
 } from 'antd';
 import {
-    ArrowLeftOutlined, BarcodeOutlined, CalculatorOutlined, CalendarOutlined, CheckCircleFilled, CloseCircleFilled,
+    ArrowLeftOutlined, BarcodeOutlined, CalculatorOutlined, CheckCircleFilled, CloseCircleFilled,
     EnvironmentOutlined, FacebookFilled, LockOutlined, MoreOutlined, PaperClipOutlined,
-    PrinterOutlined, SaveOutlined, SearchOutlined, UpOutlined, WarningOutlined,
+    PrinterOutlined, SaveOutlined, SearchOutlined, UpOutlined, UserOutlined, WarningOutlined,
 } from '@ant-design/icons';
 import type { RcFile } from 'antd/es/upload';
+import type { FormInstance } from 'antd';
 import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { OrderItemsEditor, PickerTrigger, type OrderLineInput } from '@/components/OrderItemsEditor';
@@ -21,7 +22,7 @@ import { useOrder } from '@/lib/orders';
 import { useCarrierAccounts, useShippingQuote } from '@/lib/fulfillment';
 import { useTenantMembers } from '@/lib/tenant';
 import { useAuth } from '@/lib/auth';
-import { useCustomerLookup, type BadReportWarning, type CustomerLookupResult } from '@/lib/customers';
+import { useCustomerLookup, useCustomers, type BadReportWarning, type Customer, type CustomerLookupResult } from '@/lib/customers';
 
 // ============================================================================
 //  Tạo đơn thủ công — match taodon.png / taodon2.png (BigSeller-inspired POS)
@@ -116,6 +117,10 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
     const [items, setItems] = useState<OrderLineInput[]>([]);
     const [phone, setPhone] = useState('');
     const [recipientPhoneSynced, setRecipientPhoneSynced] = useState(true);
+    const [recipientNameSynced, setRecipientNameSynced] = useState(true);
+    const [infoModalOpen, setInfoModalOpen] = useState(false);
+    const [nameSearch, setNameSearch] = useState('');
+    const [debouncedName, setDebouncedName] = useState('');
     const [shipAddress, setShipAddress] = useState<PickedAddress>({});
     const [addrPickerOpen, setAddrPickerOpen] = useState(false);
     const [tags, setTags] = useState<string[]>([]);
@@ -138,9 +143,17 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
 
     // ---- effects ----
     useEffect(() => {
-        if (!customerData?.customer) return;
-        const cur = form.getFieldsValue(['buyer_name']);
-        if (!cur.buyer_name && customerData.customer.name) form.setFieldsValue({ buyer_name: customerData.customer.name });
+        const c = customerData?.customer;
+        if (!c) return;
+        const cur = form.getFieldsValue(['buyer_name', 'customer_source', 'customer_address', 'avatar_url', 'dob']);
+        // Prefill hồ sơ khách (SPEC 0038 v2) khi tra theo SĐT — chỉ điền field đang trống để không đè user.
+        const patch: Record<string, unknown> = {};
+        if (!cur.buyer_name && c.name) patch.buyer_name = c.name;
+        if (!cur.customer_source && c.source) patch.customer_source = c.source;
+        if (!cur.customer_address && c.address) patch.customer_address = c.address;
+        if (!cur.avatar_url && c.avatar_url) patch.avatar_url = c.avatar_url;
+        if (!cur.dob && c.dob) patch.dob = dayjs(c.dob);
+        if (Object.keys(patch).length) form.setFieldsValue(patch);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [customerData?.customer?.id, form]);
 
@@ -213,7 +226,9 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
             email: meta.email ?? undefined,
             dob: meta.dob ? dayjs(meta.dob as string) : undefined,
             gender: meta.gender ?? undefined,
-            expected_delivery_date: meta.expected_delivery_date ? dayjs(meta.expected_delivery_date as string) : undefined,
+            avatar_url: meta.avatar_url ?? undefined,
+            customer_source: meta.customer_source ?? undefined,
+            customer_address: meta.customer_address ?? undefined,
             recipient_name: addr.name ?? o.buyer_name ?? undefined,
             recipient_phone: addr.phone ?? ph ?? undefined,
             recipient_address: addr.address ?? undefined,
@@ -309,7 +324,6 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                 district_code: shipAddress.district_code || undefined,
                 ward: shipAddress.ward || undefined,
                 ward_code: shipAddress.ward_code || undefined,
-                expected_at: v.expected_delivery_date ? dayjs(v.expected_delivery_date as string).toISOString() : undefined,
             },
             items: lines,
             free_shipping: !!v.free_shipping,
@@ -326,10 +340,13 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                 assignee_user_id: (v.assignee_user_id as number) || undefined,
                 care_user_id: (v.care_user_id as number) || undefined,
                 marketer_user_id: (v.marketer_user_id as number) || undefined,
-                expected_delivery_date: v.expected_delivery_date ? dayjs(v.expected_delivery_date as string).format('YYYY-MM-DD') : undefined,
                 gender: (v.gender as string) || undefined,
                 dob: v.dob ? dayjs(v.dob as string).format('YYYY-MM-DD') : undefined,
                 email: (v.email as string) || undefined,
+                // Hồ sơ khách nhập tay (SPEC 0038 v2) — persist vào hồ sơ khách khi link đơn.
+                avatar_url: (v.avatar_url as string) || undefined,
+                customer_source: (v.customer_source as string) || undefined,
+                customer_address: (v.customer_address as string) || undefined,
                 print_note: (v.note_print as string) || undefined,
                 collect_fee_on_return_only: !!v.collect_fee_on_return_only,
                 attachments: attachments.length > 0 ? attachments : undefined,
@@ -430,6 +447,47 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
         if (rp === '') { setRecipientPhoneSynced(true); return; }
         if (rp !== phone) setRecipientPhoneSynced(false);
     }, [watchedRecipientPhone, phone]);
+
+    // Tên khách → tự điền Tên người nhận (cùng cơ chế SĐT): chỉ copy khi user chưa tự gõ Nhận hàng.
+    const watchedBuyerName = Form.useWatch('buyer_name', form) as string | undefined;
+    useEffect(() => {
+        if (recipientNameSynced) form.setFieldsValue({ recipient_name: watchedBuyerName ?? '' });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [watchedBuyerName]);
+    const watchedRecipientName = Form.useWatch('recipient_name', form) as string | undefined;
+    useEffect(() => {
+        const rn = (watchedRecipientName ?? '').toString();
+        if (rn === '') { setRecipientNameSynced(true); return; }
+        if (rn !== (watchedBuyerName ?? '')) setRecipientNameSynced(false);
+    }, [watchedRecipientName, watchedBuyerName]);
+
+    // Gợi ý khách theo TÊN (debounce 300ms) — chỉ trong tenant hiện tại (useCustomers đã scope).
+    useEffect(() => {
+        const t = setTimeout(() => setDebouncedName(nameSearch.trim()), 300);
+        return () => clearTimeout(t);
+    }, [nameSearch]);
+    const nameSuggest = useCustomers(debouncedName.length >= 2 ? { q: debouncedName, per_page: 8 } : {});
+    const nameOptions = (debouncedName.length >= 2 ? (nameSuggest.data?.data ?? []) : []).map((c) => ({
+        key: String(c.id),
+        value: c.name ?? '',
+        customer: c,
+        label: (
+            <Space size={8} style={{ width: '100%' }}>
+                <Avatar size={24} src={c.avatar_url || undefined} icon={<UserOutlined />} />
+                <span style={{ flex: 1 }}>{c.name ?? '—'}</span>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>{c.phone_masked ?? ''}</Typography.Text>
+                <Tag color="blue" style={{ marginInlineEnd: 0 }}>{c.lifetime_stats?.orders_total ?? 0} đơn</Tag>
+            </Space>
+        ),
+    }));
+    const onPickSuggestion = (_v: string, opt: { customer?: Customer }) => {
+        const c = opt.customer;
+        if (!c) return;
+        form.setFieldsValue({ buyer_name: c.name ?? '' });
+        setNameSearch('');   // đóng gợi ý
+        if (c.phone) handlePhoneChange(c.phone);   // điền + sync SĐT ⇒ kích hoạt lookup
+        if (recipientNameSynced) form.setFieldsValue({ recipient_name: c.name ?? '' });
+    };
 
     // Báo nháp lên parent (debounce). "Đang tạo dở" = đã nhập SĐT khách HOẶC người nhận mà
     // chưa lưu ⇒ parent lưu localStorage + cảnh báo khi thoát. Sạch ⇒ báo null. `summary` (watch
@@ -795,9 +853,6 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                                         {phoneField}
                                     </Form.Item></Col>
                                 </Row>
-                                <Form.Item name="expected_delivery_date" style={{ marginBottom: 8 }}>
-                                    <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" placeholder="Dự kiến nhận hàng" suffixIcon={<CalendarOutlined />} />
-                                </Form.Item>
                                 {addressBlock}
                                 <CustomerWarning data={customerData} />
                             </Card>
@@ -811,25 +866,33 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                                             <Form.Item name="gender" noStyle>
                                                 <GenderDropdown />
                                             </Form.Item>
-                                            <Button type="text" size="small" icon={<MoreOutlined />} />
+                                            <Tooltip title="Thông tin khách hàng">
+                                                <Button type="text" size="small" icon={<MoreOutlined />} onClick={() => setInfoModalOpen(true)} />
+                                            </Tooltip>
                                         </Space>
                                     )}
                                 >
                                     <Row gutter={8}>
                                         <Col span={12}><Form.Item name="buyer_name" style={{ marginBottom: 8 }}>
-                                            <Input placeholder="Tên khách hàng" maxLength={255} />
+                                            <AutoComplete
+                                                options={nameOptions}
+                                                onSearch={setNameSearch}
+                                                onSelect={onPickSuggestion}
+                                                filterOption={false}
+                                                popupMatchSelectWidth={320}
+                                            >
+                                                <Input placeholder="Tên khách hàng" maxLength={255} />
+                                            </AutoComplete>
                                         </Form.Item></Col>
                                         <Col span={12}><Form.Item style={{ marginBottom: 8 }}>
                                             {phoneField}
                                         </Form.Item></Col>
-                                        <Col span={12}><Form.Item name="email" rules={[{ type: 'email', message: 'Email không hợp lệ' }]} style={{ marginBottom: 8 }}>
+                                        <Col span={24}><Form.Item name="email" rules={[{ type: 'email', message: 'Email không hợp lệ' }]} style={{ marginBottom: 8 }}>
                                             <Input placeholder="Địa chỉ email" maxLength={255} />
-                                        </Form.Item></Col>
-                                        <Col span={12}><Form.Item name="dob" style={{ marginBottom: 8 }}>
-                                            <DatePicker style={{ width: '100%' }} placeholder="Ngày sinh" format="DD/MM/YYYY" />
                                         </Form.Item></Col>
                                     </Row>
                                     <CustomerWarning data={customerData} />
+                                    <CustomerInfoModal open={infoModalOpen} onClose={() => setInfoModalOpen(false)} form={form} upload={upload} message={message} />
                                 </Card>
 
                                 {/* ---------- Nhận hàng ---------- */}
@@ -845,9 +908,6 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                                             </Radio.Group>
                                         </Form.Item>
                                     )}
-                                    <Form.Item name="expected_delivery_date" style={{ marginBottom: 8 }}>
-                                        <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" placeholder="Dự kiến nhận hàng" suffixIcon={<CalendarOutlined />} />
-                                    </Form.Item>
                                     <Row gutter={8}>
                                         <Col span={12}><Form.Item name="recipient_name" style={{ marginBottom: 8 }} rules={[{ required: true, message: 'Tên người nhận' }]}>
                                             <Input placeholder="Tên người nhận *" maxLength={255} />
@@ -1170,6 +1230,67 @@ function KvRow({ label, children }: { label: string; children: React.ReactNode }
             <Col span={10}><Typography.Text type="secondary" style={{ fontSize: 13 }}>{label}</Typography.Text></Col>
             <Col span={14} style={{ display: 'flex', justifyContent: 'flex-end' }}>{children}</Col>
         </Row>
+    );
+}
+
+const CUSTOMER_SOURCES = [
+    { label: 'Facebook', value: 'facebook' },
+    { label: 'Zalo', value: 'zalo' },
+    { label: 'Website', value: 'website' },
+    { label: 'Shopee', value: 'shopee' },
+    { label: 'TikTok', value: 'tiktok' },
+    { label: 'Hotline', value: 'hotline' },
+    { label: 'Giới thiệu', value: 'referral' },
+    { label: 'Khác', value: 'other' },
+];
+
+// SPEC 0038 v2 — modal "Thông tin khách hàng" (nút 3 chấm): avatar, tên, ngày sinh/tuổi,
+// địa chỉ, nguồn khách. Form.Items dùng chung `form` của trang ⇒ buildPayload đẩy vào
+// order.meta → persist bền vững vào hồ sơ khách khi link đơn. forceRender để field luôn đăng ký.
+function CustomerInfoModal({ open, onClose, form, upload, message }: {
+    open: boolean;
+    onClose: () => void;
+    form: FormInstance;
+    upload: ReturnType<typeof useUploadImage>;
+    message: ReturnType<typeof AntApp.useApp>['message'];
+}) {
+    const avatarUrl = Form.useWatch('avatar_url', form) as string | undefined;
+    const onAvatar = (file: RcFile) => {
+        if (file.size / 1024 / 1024 > 5) { message.error('Ảnh đại diện tối đa 5MB.'); return Upload.LIST_IGNORE; }
+        upload.mutate({ file, folder: 'customer-avatars' }, {
+            onSuccess: (r) => form.setFieldsValue({ avatar_url: r.url }),
+            onError: (e) => message.error(errorMessage(e)),
+        });
+        return false;
+    };
+    return (
+        <Modal title="Thông tin khách hàng" open={open} onCancel={onClose} onOk={onClose} okText="Xong" forceRender>
+            <Form.Item name="avatar_url" hidden><Input /></Form.Item>
+            <div style={{ textAlign: 'center', marginBottom: 12 }}>
+                <Upload showUploadList={false} beforeUpload={onAvatar} accept="image/*">
+                    <Avatar size={72} src={avatarUrl || undefined} icon={<UserOutlined />} style={{ cursor: 'pointer' }} />
+                    <div><Button type="link" size="small" loading={upload.isPending}>{avatarUrl ? 'Đổi ảnh đại diện' : 'Thêm ảnh đại diện'}</Button></div>
+                </Upload>
+            </div>
+            <Form.Item name="buyer_name" label="Tên khách hàng" style={{ marginBottom: 12 }}>
+                <Input maxLength={255} placeholder="Tên khách hàng" />
+            </Form.Item>
+            <Row gutter={12}>
+                <Col span={12}>
+                    <Form.Item name="dob" label="Ngày sinh / tuổi" style={{ marginBottom: 12 }}>
+                        <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" placeholder="Ngày sinh" />
+                    </Form.Item>
+                </Col>
+                <Col span={12}>
+                    <Form.Item name="customer_address" label="Địa chỉ" style={{ marginBottom: 12 }}>
+                        <Input maxLength={255} placeholder="Địa chỉ khách hàng" />
+                    </Form.Item>
+                </Col>
+            </Row>
+            <Form.Item name="customer_source" label="Nguồn khách hàng" style={{ marginBottom: 0 }}>
+                <Radio.Group options={CUSTOMER_SOURCES} optionType="button" buttonStyle="solid" size="small" />
+            </Form.Item>
+        </Modal>
     );
 }
 
