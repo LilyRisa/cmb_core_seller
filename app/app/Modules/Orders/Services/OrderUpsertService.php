@@ -144,6 +144,12 @@ class OrderUpsertService implements OrderUpsertContract
                 return [$order, false, false, $order->status];
             }
 
+            // "Ngừng theo dõi" (user huỷ hàng loạt local — cờ meta.tracking_stopped): KHÔNG đồng bộ ngược
+            // (không hồi sinh đơn). Surgical — chỉ áp cho đơn có cờ, không đụng luồng sync thường.
+            if (! $created && data_get($order->getAttribute('meta'), 'tracking_stopped')) {
+                return [$order, false, false, $order->status];
+            }
+
             $previousStatus = $created ? null : $order->status;
             $hasIssue = $created ? false : (bool) $order->has_issue;
             $issueReason = $created ? null : $order->issue_reason;

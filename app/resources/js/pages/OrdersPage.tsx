@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Alert, App as AntApp, Badge, Button, Card, DatePicker, Empty, Input, Modal, Radio, Select, Space, Table, Tabs, Tag, Tooltip, Typography } from 'antd';
-import { BarcodeOutlined, CheckCircleOutlined, FileTextOutlined, LinkOutlined, PrinterOutlined, ReloadOutlined, ScanOutlined, SearchOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons';
+import { BarcodeOutlined, CheckCircleOutlined, CloseCircleOutlined, DeleteOutlined, FileTextOutlined, LinkOutlined, PrinterOutlined, ReloadOutlined, ScanOutlined, SearchOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
@@ -20,7 +20,7 @@ import { TemplateAliasPicker } from '@/components/shipping-labels/TemplateAliasP
 import { errorMessage } from '@/lib/api';
 import { CHANNEL_META, ORDER_STATUS_TABS } from '@/lib/format';
 import { withShopeePrintNotice } from '@/lib/shopeePrintNotice';
-import { Order, useFetchAllOrders, useOrders, useOrderStats, useSyncOrders } from '@/lib/orders';
+import { Order, useBulkCancelOrders, useBulkDeleteOrders, useFetchAllOrders, useOrders, useOrderStats, useSyncOrders } from '@/lib/orders';
 import { useBulkCreateShipments, useBulkRefetchSlip, useCreatePrintJob, useHandoverShipments, usePackShipments, type BulkActionResult } from '@/lib/fulfillment';
 import { useChannelAccounts } from '@/lib/channels';
 import { useBulkAction } from '@/lib/useBulkAction';
@@ -73,6 +73,10 @@ export function OrdersPage() {
     const canMap = useCan('inventory.map');
     const canShip = useCan('fulfillment.ship');
     const canPrint = useCan('fulfillment.print');
+    const canCancel = useCan('orders.update');
+    const canDelete = useCan('orders.delete');
+    const bulkCancel = useBulkCancelOrders();
+    const bulkDelete = useBulkDeleteOrders();
     const [selectedKeys, setSelectedKeys] = useState<number[]>([]);
     // Cache đơn đã "thấy" (trang đang xem + đơn fetch khi "chọn tất cả trang") để bulk action lấy được object
     // (source/shipment/status) cho cả đơn KHÔNG nằm ở trang hiện tại. Reset khi đổi bộ lọc/tab. SPEC 0009.
@@ -242,6 +246,9 @@ export function OrdersPage() {
     const eliPack = selectedOrders.filter((o) => o.shipment && SHIP_PACK_STATUSES.includes(o.shipment.status));
     const eliHandover = selectedOrders.filter((o) => o.shipment && SHIP_HANDOVER_STATUSES.includes(o.shipment.status));
     const eliLink = selectedOrders.filter((o) => o.issue_reason === UNMAPPED_REASON);
+    // Huỷ hàng loạt (local "ngừng theo dõi"): mọi đơn CHƯA huỷ. Xoá: chỉ đơn ĐÃ huỷ.
+    const eliCancel = selectedOrders.filter((o) => o.status !== 'cancelled');
+    const eliDelete = selectedOrders.filter((o) => o.status === 'cancelled');
     const negPrepare = eliPrepare.filter((o) => o.profit && o.profit.estimated_profit < 0).length;
     // "Chọn tất cả N đơn (mọi trang)" — fetch hết đơn khớp lọc, đưa vào cache + chọn. Giới hạn MAX_SELECT_ALL/lượt.
     const selectAllPages = () => {
@@ -360,6 +367,39 @@ export function OrdersPage() {
     };
     const doBulkPack = () => runShipmentAction('Đánh dấu sẵn sàng bàn giao', (ids) => bulkPack.mutateAsync(ids));
     const doBulkHandover = () => runShipmentAction('Bàn giao ĐVVC', (ids) => bulkHandover.mutateAsync(ids));
+
+    const doBulkCancel = () => {
+        const ids = eliCancel.map((o) => o.id);
+        if (ids.length === 0) return;
+        Modal.confirm({
+            title: `Huỷ ${ids.length} đơn?`,
+            content: 'Đẩy trạng thái về Đã huỷ TRONG APP và ngừng theo dõi — KHÔNG đẩy thao tác huỷ lên sàn / ĐVVC. Đơn đã huỷ sẽ bị bỏ qua.',
+            okText: 'Huỷ đơn', okButtonProps: { danger: true }, cancelText: 'Đóng',
+            onOk: async () => {
+                try {
+                    const r = await bulkCancel.mutateAsync({ ids });
+                    message.success(`Đã huỷ ${r.cancelled} đơn${r.skipped > 0 ? `, bỏ qua ${r.skipped}` : ''}.`);
+                    setSelectedKeys([]);
+                } catch (e) { message.error(errorMessage(e)); }
+            },
+        });
+    };
+    const doBulkDelete = () => {
+        const ids = eliDelete.map((o) => o.id);
+        if (ids.length === 0) return;
+        Modal.confirm({
+            title: `Xoá ${ids.length} đơn đã huỷ?`,
+            content: 'Đơn đã huỷ sẽ bị xoá khỏi danh sách (xoá mềm). Chỉ áp dụng đơn ĐÃ huỷ.',
+            okText: 'Xoá đơn', okButtonProps: { danger: true }, cancelText: 'Đóng',
+            onOk: async () => {
+                try {
+                    const r = await bulkDelete.mutateAsync({ ids });
+                    message.success(`Đã xoá ${r.deleted} đơn${r.skipped > 0 ? `, bỏ qua ${r.skipped}` : ''}.`);
+                    setSelectedKeys([]);
+                } catch (e) { message.error(errorMessage(e)); }
+            },
+        });
+    };
     // "In phiếu giao hàng": in cho MỌI đơn ĐÃ có phiếu (has_label) — kể cả đang giao / đã giao / hoàn. Đơn trong
     // lô CHƯA có phiếu ⇒ BỎ QUA (báo nhẹ). CHẶN HẲN nếu lẫn nhiều nền tảng / nhiều ĐVVC (khổ tem khác nhau).
     const doBulkPrintSlip = () => {
@@ -669,7 +709,7 @@ export function OrdersPage() {
 
             {/* Thanh thao tác cố định — LUÔN hiển thị ngay dưới phần lọc, áp cho MỌI tab trạng thái. Nút phẳng
                 (không màu mè); chỉ BẬT khi lô chọn có ≥1 đơn hợp lệ; đơn không hợp lệ sẽ bị bỏ qua + báo ở tiến trình. */}
-            {!isShipmentsTab && (canShip || canPrint || canMap) && (
+            {!isShipmentsTab && (canShip || canPrint || canMap || canCancel || canDelete) && (
                 <Card size="small" style={{ marginTop: 12 }} styles={{ body: { padding: '10px 12px' } }}>
                     <Space wrap size={8} style={{ width: '100%' }}>
                         {canShip && (
@@ -714,6 +754,20 @@ export function OrdersPage() {
                                 </Button></span>
                             </Tooltip>
                         )}
+                        {canCancel && (
+                            <Tooltip title={selectedKeys.length === 0 ? 'Chọn đơn để thao tác' : 'Huỷ đơn (đẩy về Đã huỷ) — CHỈ trong app, không đẩy thao tác huỷ lên sàn/ĐVVC. Đơn đã huỷ sẽ bị bỏ qua.'}>
+                                <span><Button danger icon={<CloseCircleOutlined />} disabled={eliCancel.length === 0} loading={bulkCancel.isPending} onClick={doBulkCancel}>
+                                    Huỷ đơn{eliCancel.length > 0 ? ` (${eliCancel.length})` : ''}
+                                </Button></span>
+                            </Tooltip>
+                        )}
+                        {canDelete && (
+                            <Tooltip title={selectedKeys.length === 0 ? 'Chọn đơn để thao tác' : 'Xoá đơn — chỉ áp dụng đơn ĐÃ huỷ (xoá mềm). Đơn chưa huỷ sẽ bị bỏ qua.'}>
+                                <span><Button danger icon={<DeleteOutlined />} disabled={eliDelete.length === 0} loading={bulkDelete.isPending} onClick={doBulkDelete}>
+                                    Xoá đơn{eliDelete.length > 0 ? ` (${eliDelete.length})` : ''}
+                                </Button></span>
+                            </Tooltip>
+                        )}
                         <span style={{ marginInlineStart: 'auto', display: 'inline-flex', alignItems: 'center' }}>
                             <Typography.Text type="secondary">{selectedKeys.length > 0 ? `Đã chọn ${selectedKeys.length} đơn` : 'Chưa chọn đơn'}</Typography.Text>
                             {selectedKeys.length > 0 && <Button type="link" size="small" onClick={() => setSelectedKeys([])}>Bỏ chọn</Button>}
@@ -734,7 +788,7 @@ export function OrdersPage() {
                 <Table<Order>
                     rowKey="id" size="middle" loading={isFetching}
                     dataSource={data?.data ?? []} columns={columns}
-                    rowSelection={canBulkWork || canMap ? {
+                    rowSelection={canBulkWork || canMap || canCancel || canDelete ? {
                         selectedRowKeys: selectedKeys,
                         preserveSelectedRowKeys: true, // giữ chọn xuyên trang (server phân trang) — bulk dùng orderCache
                         onChange: (keys) => setSelectedKeys(keys as number[]),

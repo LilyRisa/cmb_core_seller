@@ -13,6 +13,7 @@ use CMBcoreSeller\Modules\Orders\Http\Resources\OrderResource;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Orders\Models\OrderItem;
 use CMBcoreSeller\Modules\Orders\Services\ManualOrderService;
+use CMBcoreSeller\Modules\Orders\Services\OrderBulkActionService;
 use CMBcoreSeller\Modules\Orders\Services\OrderProfitService;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
@@ -237,6 +238,50 @@ class OrderController extends Controller
         $order = $service->cancel($order, $request->user()->getKey(), $data['reason'] ?? null);
 
         return response()->json(['data' => new OrderResource($order->load(['items', 'statusHistory']))]);
+    }
+
+    /**
+     * POST /api/v1/orders/bulk-cancel — huỷ HÀNG LOẠT (local "ngừng theo dõi").
+     * Đẩy trạng thái về Đã huỷ trong app cho mọi nguồn (sàn / thủ công có-mã-vận-đơn);
+     * KHÔNG đẩy thao tác huỷ lên sàn/ĐVVC. Đơn đã huỷ ⇒ bỏ qua.
+     */
+    public function bulkCancel(Request $request, OrderBulkActionService $service): JsonResponse
+    {
+        abort_unless($request->user()?->can('orders.update'), 403, 'Bạn không có quyền huỷ đơn.');
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'max:500'],
+            'ids.*' => ['integer'],
+            'reason' => ['sometimes', 'nullable', 'string', 'max:255'],
+        ]);
+
+        $cancelled = 0;
+        $skipped = 0;
+        Order::query()->whereIn('id', $data['ids'])->get()->each(function (Order $order) use ($service, $request, $data, &$cancelled, &$skipped) {
+            $service->cancelLocally($order, $request->user()->getKey(), $data['reason'] ?? null) ? $cancelled++ : $skipped++;
+        });
+
+        return response()->json(['data' => ['cancelled' => $cancelled, 'skipped' => $skipped]]);
+    }
+
+    /**
+     * POST /api/v1/orders/bulk-delete — xoá mềm HÀNG LOẠT. CHỈ đơn đã huỷ
+     * (luồng: huỷ rồi mới xoá); đơn chưa huỷ bị bỏ qua.
+     */
+    public function bulkDelete(Request $request, OrderBulkActionService $service): JsonResponse
+    {
+        abort_unless($request->user()?->can('orders.delete'), 403, 'Bạn không có quyền xoá đơn.');
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'max:500'],
+            'ids.*' => ['integer'],
+        ]);
+
+        $deleted = 0;
+        $skipped = 0;
+        Order::query()->whereIn('id', $data['ids'])->get()->each(function (Order $order) use ($service, &$deleted, &$skipped) {
+            $service->softDelete($order) ? $deleted++ : $skipped++;
+        });
+
+        return response()->json(['data' => ['deleted' => $deleted, 'skipped' => $skipped]]);
     }
 
     /** GET /api/v1/orders/{id} */

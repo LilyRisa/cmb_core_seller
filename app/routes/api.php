@@ -163,6 +163,9 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::get('orders/{id}', [OrderController::class, 'show'])->whereNumber('id')->name('orders.show');
             Route::patch('orders/{id}', [OrderController::class, 'update'])->whereNumber('id')->name('orders.update');   // manual order edit
             Route::post('orders/{id}/cancel', [OrderController::class, 'cancel'])->whereNumber('id')->name('orders.cancel');
+            // Thao tác hàng loạt: huỷ (local, ngừng theo dõi) + xoá mềm đơn đã huỷ.
+            Route::post('orders/bulk-cancel', [OrderController::class, 'bulkCancel'])->name('orders.bulk-cancel');
+            Route::post('orders/bulk-delete', [OrderController::class, 'bulkDelete'])->name('orders.bulk-delete');
             Route::post('orders/{id}/tags', [OrderController::class, 'updateTags'])->whereNumber('id')->name('orders.tags');
             Route::patch('orders/{id}/note', [OrderController::class, 'updateNote'])->whereNumber('id')->name('orders.note');
 

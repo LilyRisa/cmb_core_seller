@@ -32,6 +32,7 @@ final class PermissionCatalog
                 ['key' => 'orders.create', 'label' => 'Tạo đơn', 'type' => 'action'],
                 ['key' => 'orders.update', 'label' => 'Sửa đơn (tag/ghi chú)', 'type' => 'action'],
                 ['key' => 'orders.status', 'label' => 'Đổi trạng thái đơn', 'type' => 'action'],
+                ['key' => 'orders.delete', 'label' => 'Xoá đơn (đã huỷ)', 'type' => 'action'],
             ]],
             ['key' => 'products', 'label' => 'Sản phẩm', 'permissions' => [
                 ['key' => 'products.view', 'label' => 'Xem sản phẩm', 'type' => 'view'],

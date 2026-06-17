@@ -231,6 +231,34 @@ export function useSyncOrders() {
     });
 }
 
+/** Huỷ hàng loạt (local "ngừng theo dõi") — không đẩy lên sàn/ĐVVC. */
+export function useBulkCancelOrders() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    const tenantId = useCurrentTenantId();
+    return useMutation({
+        mutationFn: async (vars: { ids: number[]; reason?: string }) => {
+            const { data } = await api!.post<{ data: { cancelled: number; skipped: number } }>('/orders/bulk-cancel', vars);
+            return data.data;
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['orders', tenantId] }),
+    });
+}
+
+/** Xoá mềm hàng loạt — chỉ đơn đã huỷ. */
+export function useBulkDeleteOrders() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    const tenantId = useCurrentTenantId();
+    return useMutation({
+        mutationFn: async (vars: { ids: number[] }) => {
+            const { data } = await api!.post<{ data: { deleted: number; skipped: number } }>('/orders/bulk-delete', vars);
+            return data.data;
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['orders', tenantId] }),
+    });
+}
+
 /** Distinct channel SKUs (merged) across orders whose lines are still unmapped. orderIds empty/undefined = all unmapped orders. */
 export function useUnmappedSkus(orderIds: number[] | undefined, enabled = true) {
     const api = useScopedApi();
