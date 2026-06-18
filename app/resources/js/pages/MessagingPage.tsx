@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback, type CSSProperties, type ReactNode, type UIEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, type CSSProperties, type ReactNode, type UIEvent } from 'react';
 import dayjs from 'dayjs';
 import { Link } from 'react-router-dom';
 import { App, Avatar, Badge, Button, Checkbox, Divider, Dropdown, Empty, Grid, Image, Input, List, Popconfirm, Popover, Radio, Segmented, Select, Space, Spin, Tag, Tooltip, Typography } from 'antd';
@@ -8,6 +8,7 @@ import {
     type Conversation,
     INBOX_GROUP_PROVIDERS,
     MARKETPLACE_CHAT_ENABLED,
+    type Message,
     type MessageAttachment,
     type MessageButton,
     type MessagingTag,
@@ -357,18 +358,81 @@ export function MessagingPage() {
             void list.fetchNextPage();
         }
     }, [list]);
+    // Hội thoại của luồng nằm ở MỌI trang (page đầu = mới nhất) — lấy page[0].
+    const threadConversation = thread.data?.pages[0]?.conversation;
     const active = useMemo(
-        () => conversations.find((c) => c.id === activeId) ?? thread.data?.conversation,
-        [conversations, activeId, thread.data],
+        () => conversations.find((c) => c.id === activeId) ?? threadConversation,
+        [conversations, activeId, threadConversation],
     );
+
+    // Gộp tin từ các trang lazy-load thành 1 mảng CŨ→MỚI. page[0]=mới nhất, trang
+    // sau = cũ hơn ⇒ duyệt ngược. Khử trùng theo id (đề phòng chồng lấn khi refetch)
+    // rồi sắp theo thời gian thật (sent_at fallback created_at), id tie-break.
+    const messages = useMemo<Message[]>(() => {
+        const pages = thread.data?.pages ?? [];
+        const seen = new Set<number>();
+        const out: Message[] = [];
+        for (let p = pages.length - 1; p >= 0; p--) {
+            for (const m of pages[p].messages) {
+                if (!seen.has(m.id)) { seen.add(m.id); out.push(m); }
+            }
+        }
+        out.sort((a, b) => {
+            const ta = Date.parse(a.sent_at ?? a.created_at ?? '') || 0;
+            const tb = Date.parse(b.sent_at ?? b.created_at ?? '') || 0;
+            return ta - tb || a.id - b.id;
+        });
+        return out;
+    }, [thread.data]);
 
     const needsTag = active?.provider === 'facebook_page'
         && active?.thread_type === 'message'
         && !active?.blocked_at
         && isOutsideWindow(active?.last_inbound_at ?? null);
 
-    const bottomRef = useRef<HTMLDivElement>(null);
-    useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [thread.data?.messages.length]);
+    // ── Cuộn luồng tin ────────────────────────────────────────────────────────
+    const scrollRef = useRef<HTMLDivElement>(null);
+    // Mốc chiều cao trước khi prepend tin cũ — để giữ NGUYÊN vị trí (không nhảy).
+    const prependAnchorRef = useRef<number | null>(null);
+    // User đang ở gần đáy? (quyết định có tự cuộn xuống khi có tin mới qua polling).
+    const nearBottomRef = useRef(true);
+    // Theo dõi để biết khi nào nên cuộn xuống đáy (mở hội thoại mới / có tin mới).
+    const lastNewestIdRef = useRef<number | null>(null);
+    const lastActiveIdRef = useRef<number | null>(null);
+
+    // Kéo lên gần đỉnh ⇒ lazy load tin CŨ hơn (ghi mốc để giữ vị trí sau khi chèn).
+    const handleThreadScroll = useCallback((e: UIEvent<HTMLDivElement>) => {
+        const el = e.currentTarget;
+        nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+        if (el.scrollTop < 80 && thread.hasNextPage && !thread.isFetchingNextPage) {
+            prependAnchorRef.current = el.scrollHeight;
+            void thread.fetchNextPage();
+        }
+    }, [thread]);
+
+    useLayoutEffect(() => {
+        const el = scrollRef.current;
+        if (!el) return;
+        const newestId = messages.length ? messages[messages.length - 1].id : null;
+
+        // 1) Vừa prepend tin cũ ⇒ bù phần chiều cao mới thêm ở trên, giữ nguyên view.
+        if (prependAnchorRef.current != null) {
+            el.scrollTop = el.scrollHeight - prependAnchorRef.current + el.scrollTop;
+            prependAnchorRef.current = null;
+            lastNewestIdRef.current = newestId;
+            return;
+        }
+
+        // 2) Mở hội thoại khác / lần đầu có tin / có tin mới khi đang ở gần đáy ⇒ xuống đáy.
+        const switchedConv = lastActiveIdRef.current !== activeId;
+        const gotNewer = newestId != null && lastNewestIdRef.current != null && newestId !== lastNewestIdRef.current;
+        if (switchedConv || lastNewestIdRef.current == null || (gotNewer && nearBottomRef.current)) {
+            el.scrollTop = el.scrollHeight;
+            nearBottomRef.current = true;
+        }
+        lastActiveIdRef.current = activeId;
+        lastNewestIdRef.current = newestId;
+    }, [messages, activeId]);
 
     // Popover gắn thẻ dùng trigger={[]} (điều khiển hoàn toàn) nên antd KHÔNG tự đóng khi
     // click ra ngoài. Tự đóng khi mousedown ngoài nội dung popover (.tag-attach-popover).
@@ -930,7 +994,15 @@ export function MessagingPage() {
                                 )}
                             </div>
                         </div>
-                        <div style={{ flex: 1, overflowY: 'auto', padding: 16, background: '#F8FAFC' }}>
+                        <div ref={scrollRef} onScroll={handleThreadScroll} style={{ flex: 1, overflowY: 'auto', padding: 16, background: '#F8FAFC' }}>
+                            {/* Spinner tải tin CŨ hơn khi kéo lên (lazy load) */}
+                            {thread.isFetchingNextPage && (
+                                <div style={{ textAlign: 'center', marginBottom: 8 }}><Spin size="small" /></div>
+                            )}
+                            {/* Hết tin cũ — chỉ báo khi luồng tin (không áp dụng cho comment) */}
+                            {!thread.hasNextPage && !thread.isLoading && active?.thread_type !== 'comment' && messages.length >= 50 && (
+                                <Divider style={{ margin: '0 0 12px', fontSize: 12, color: '#94A3B8' }}>Đầu cuộc trò chuyện</Divider>
+                            )}
                             {/* Post card bài viết (comment thread) — ghim đầu, cuộn cùng thread */}
                             {active?.thread_type === 'comment' && active.comment && (
                                 <>
@@ -941,7 +1013,7 @@ export function MessagingPage() {
                             {thread.isLoading ? (
                                 <div style={{ textAlign: 'center', marginTop: 48 }}><Spin /></div>
                             ) : (
-                                (thread.data?.messages ?? []).map((m, i, arr) => {
+                                messages.map((m, i, arr) => {
                                     const isOut = m.direction === 'outbound';
                                     const showAvatar = arr[i + 1]?.direction !== m.direction; // tin cuối 1 cụm cùng chiều
                                     return (
@@ -1051,7 +1123,6 @@ export function MessagingPage() {
                                     );
                                 })
                             )}
-                            <div ref={bottomRef} />
                         </div>
                         {active?.blocked_at ? (
                             <div style={{ padding: 16, borderTop: '1px solid #F1F5F9', textAlign: 'center' }}>

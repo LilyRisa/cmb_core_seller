@@ -198,17 +198,33 @@ export function useUnreadConversations(enabled: boolean) {
 
 export interface ThreadResult { conversation: Conversation; messages: Message[] }
 
+/** Số tin mỗi trang — khớp `limit(50)` của backend (ConversationController::show). */
+export const THREAD_PAGE_SIZE = 50;
+
+/**
+ * Luồng tin của 1 hội thoại — chỉ tải 50 tin MỚI nhất, kéo lên thì lazy load
+ * dần tin cũ hơn (infinite query theo cursor `before_message_id`). Trang đầu (không
+ * cursor) refetch theo polling/realtime nên tin mới vẫn xuất hiện ở đáy. Mỗi trang
+ * trả tin theo thứ tự cũ→mới; gộp ở UI (xem `MessagingPage`).
+ */
 export function useConversationThread(id: number | null) {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();
-    return useQuery({
+    return useInfiniteQuery({
         queryKey: ['messaging', 'thread', tenantId, id],
         enabled: api != null && id != null,
         refetchInterval: realtimeEnabled() ? 60_000 : 10_000,
-        queryFn: async () => {
-            const { data } = await api!.get<{ data: ThreadResult }>(`/messaging/conversations/${id}`);
+        initialPageParam: null as number | null,
+        queryFn: async ({ pageParam }) => {
+            const params: Record<string, number> = {};
+            if (pageParam != null) params.before_message_id = pageParam;
+            const { data } = await api!.get<{ data: ThreadResult }>(`/messaging/conversations/${id}`, { params });
             return data.data;
         },
+        // "Trang kế" = tin CŨ hơn: cursor = id tin cũ nhất (messages[0]) của trang vừa tải.
+        // Trang trả < PAGE_SIZE ⇒ đã hết tin cũ.
+        getNextPageParam: (lastPage: ThreadResult) =>
+            lastPage.messages.length < THREAD_PAGE_SIZE ? undefined : (lastPage.messages[0]?.id ?? undefined),
     });
 }
 
