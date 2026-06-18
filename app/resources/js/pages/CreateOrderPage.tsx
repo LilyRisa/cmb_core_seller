@@ -959,24 +959,37 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
             {/* ---------- Scoped styles ---------- */}
             <style>{`
                 .create-order-page .ord-card { border-radius: 8px; }
-                .create-order-page .ord-card .ant-card-head { min-height: 40px; padding: 0 14px; border-bottom: 1px solid #f0f0f0; }
-                .create-order-page .ord-card-title { font-size: 14px; font-weight: 600; color: #262626; }
-                .create-order-page .ord-card .ant-card-body { padding: 12px 14px; }
+                .create-order-page .ord-card .ant-card-head { min-height: 44px; padding: 0 16px; border-bottom: 1px solid #f0f0f0; }
+                .create-order-page .ord-card-title { font-size: 15px; font-weight: 600; color: #262626; }
+                .create-order-page .ord-card .ant-card-body { padding: 14px 16px; }
+                /* To hơn 1 chút: ô nhập/chọn cao & rõ hơn (mặc định 32px → 38px) — không đổi layout. */
+                .create-order-page .ant-input,
+                .create-order-page .ant-input-affix-wrapper,
+                .create-order-page .ant-input-number,
+                .create-order-page .ant-picker { min-height: 38px; font-size: 14px; }
+                .create-order-page .ant-input-affix-wrapper { padding-top: 3px; padding-bottom: 3px; }
+                .create-order-page .ant-input-affix-wrapper > input.ant-input { min-height: 30px; }
+                .create-order-page .ant-input-number .ant-input-number-input { height: 36px; }
+                .create-order-page textarea.ant-input { min-height: 64px; }
+                .create-order-page .ant-select-single { height: 38px; }
+                .create-order-page .ant-select-single .ant-select-selector { height: 38px; padding-top: 3px; padding-bottom: 3px; }
+                .create-order-page .ant-select-single .ant-select-selection-item,
+                .create-order-page .ant-select-single .ant-select-selection-placeholder { line-height: 30px; }
                 .create-order-page .ord-pill-btn { border-radius: 16px; height: 28px; padding: 0 12px; background: #fff; border-color: #d9d9d9; }
                 .create-order-page .ord-pill-btn:hover { border-color: #1677ff; color: #1677ff; }
                 .create-order-page .ord-product-search { display: flex; align-items: center; gap: 8px; }
                 .create-order-page .ord-search-input.ant-input-affix-wrapper { border-radius: 6px; }
-                .create-order-page .ord-search-check { font-size: 12px; color: #595959; }
-                .create-order-page .ord-scan-btn { padding: 0 6px; height: 22px; font-size: 11px; color: #8c8c8c; background: #f5f5f5; border-radius: 4px; }
+                .create-order-page .ord-search-check { font-size: 13px; color: #595959; }
+                .create-order-page .ord-scan-btn { padding: 0 8px; height: 26px; font-size: 12px; color: #8c8c8c; background: #f5f5f5; border-radius: 4px; }
                 .create-order-page .ord-empty-cart { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 28px 0; }
                 .create-order-page .ord-empty-icon { position: relative; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; font-size: 44px; color: #d9d9d9; }
                 .create-order-page .ord-empty-icon .ord-empty-bubble { position: absolute; top: -6px; right: -8px; background: #f0f0f0; color: #8c8c8c; border-radius: 999px; padding: 2px 8px; font-size: 12px; line-height: 1; }
                 .create-order-page .ord-summary-list { margin-top: 12px; padding-top: 10px; border-top: 1px dashed #eaeaea; display: flex; flex-direction: column; gap: 4px; }
-                .create-order-page .ord-pay-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
-                .create-order-page .ord-pay-row label { flex: 1; color: #595959; font-size: 13px; }
-                .create-order-page .ord-pay-input.ant-input-number { width: 180px; }
+                .create-order-page .ord-pay-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
+                .create-order-page .ord-pay-row label { flex: 1; color: #595959; font-size: 14px; }
+                .create-order-page .ord-pay-input.ant-input-number { width: 200px; }
                 .create-order-page .ord-pay-input .ant-input-number-input { text-align: right; }
-                .create-order-page .ord-readonly { color: #262626; font-size: 13px; }
+                .create-order-page .ord-readonly { color: #262626; font-size: 14px; }
                 .create-order-page .ord-add-tag { cursor: pointer; background: #fafafa; border-style: dashed; color: #8c8c8c; }
                 .create-order-page .ord-add-tag:hover { color: #1677ff; border-color: #1677ff; }
                 .create-order-page .ord-upload-box { width: 100%; height: 64px; border: 1px dashed #d9d9d9; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; background: #fafafa; margin-top: 8px; }
@@ -1218,16 +1231,16 @@ function SummaryRow({ label, value, tone, strong }: { label: string; value: stri
     const color = tone === 'g' ? '#389e0d' : tone === 'r' ? '#cf1322' : tone === 'mute' ? '#bfbfbf' : '#262626';
     return (
         <Row justify="space-between" align="middle">
-            <Typography.Text type="secondary" style={{ fontSize: 13 }}>{label}</Typography.Text>
-            <Typography.Text style={{ color, fontSize: 13, fontWeight: strong ? 600 : 400 }}>{value} <span style={{ textDecoration: 'underline', textDecorationStyle: 'dotted' }}>đ</span></Typography.Text>
+            <Typography.Text type="secondary" style={{ fontSize: 14 }}>{label}</Typography.Text>
+            <Typography.Text style={{ color, fontSize: 14, fontWeight: strong ? 600 : 400 }}>{value} <span style={{ textDecoration: 'underline', textDecorationStyle: 'dotted' }}>đ</span></Typography.Text>
         </Row>
     );
 }
 
 function KvRow({ label, children }: { label: string; children: React.ReactNode }) {
     return (
-        <Row align="middle" style={{ marginBottom: 8 }}>
-            <Col span={10}><Typography.Text type="secondary" style={{ fontSize: 13 }}>{label}</Typography.Text></Col>
+        <Row align="middle" style={{ marginBottom: 10 }}>
+            <Col span={10}><Typography.Text type="secondary" style={{ fontSize: 14 }}>{label}</Typography.Text></Col>
             <Col span={14} style={{ display: 'flex', justifyContent: 'flex-end' }}>{children}</Col>
         </Row>
     );
@@ -1335,10 +1348,10 @@ function UserPicker({ value, onChange, members, placeholder }: { value?: number 
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                 {current ? (
                     <>
-                        <Avatar size={20} style={{ background: '#9254de', fontSize: 11 }}>{(current.name || current.email || '?').slice(0, 2).toUpperCase()}</Avatar>
-                        <Typography.Text style={{ fontSize: 13 }}>{current.name || current.email}</Typography.Text>
+                        <Avatar size={22} style={{ background: '#9254de', fontSize: 12 }}>{(current.name || current.email || '?').slice(0, 2).toUpperCase()}</Avatar>
+                        <Typography.Text style={{ fontSize: 14 }}>{current.name || current.email}</Typography.Text>
                     </>
-                ) : <Typography.Text type="secondary" style={{ fontSize: 13 }}>{placeholder}</Typography.Text>}
+                ) : <Typography.Text type="secondary" style={{ fontSize: 14 }}>{placeholder}</Typography.Text>}
                 <UpOutlined rotate={180} style={{ fontSize: 10, color: '#bfbfbf' }} />
             </div>
         </Popover>
