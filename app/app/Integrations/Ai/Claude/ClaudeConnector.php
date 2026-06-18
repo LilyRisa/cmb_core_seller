@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Integrations\Ai\Claude;
 
 use CMBcoreSeller\Integrations\Ai\Concerns\EstimatesAiCost;
 use CMBcoreSeller\Integrations\Ai\Concerns\ReplyPersona;
+use CMBcoreSeller\Integrations\Ai\Concerns\SanitizesReasoning;
 use CMBcoreSeller\Integrations\Ai\Contracts\AiAssistantConnector;
 use CMBcoreSeller\Integrations\Ai\Contracts\AiProviderCredentials;
 use CMBcoreSeller\Integrations\Ai\DTO\AiContext;
@@ -34,6 +35,7 @@ use Illuminate\Support\Facades\Http;
 class ClaudeConnector implements AiAssistantConnector
 {
     use EstimatesAiCost;
+    use SanitizesReasoning;
 
     private const API_VERSION = '2023-06-01';
 
@@ -115,7 +117,7 @@ class ClaudeConnector implements AiAssistantConnector
         $completionTokens = (int) ($usage['output_tokens'] ?? 0);
 
         return new AiReplyDTO(
-            body: trim($text),
+            body: $this->stripReasoning($text),
             promptTokens: $promptTokens,
             completionTokens: $completionTokens,
             costMicroVnd: $this->estimateCostMicroVnd($cfg->pricing, $promptTokens, $completionTokens),
@@ -166,7 +168,7 @@ class ClaudeConnector implements AiAssistantConnector
         $completionTokens = (int) ($usage['output_tokens'] ?? 0);
 
         return new AiReplyDTO(
-            body: trim($text),
+            body: $this->stripReasoning($text),
             promptTokens: $promptTokens,
             completionTokens: $completionTokens,
             costMicroVnd: $this->estimateCostMicroVnd($cfg->pricing, $promptTokens, $completionTokens),
@@ -213,7 +215,7 @@ class ClaudeConnector implements AiAssistantConnector
                 $out .= (string) ($block['text'] ?? '');
             }
         }
-        $intent = strtolower(trim($out));
+        $intent = strtolower($this->stripReasoning($out));
         if (! in_array($intent, $labels, true)) {
             $intent = 'other';
         }
@@ -267,7 +269,7 @@ class ClaudeConnector implements AiAssistantConnector
             }
         }
 
-        return trim($text);
+        return $this->stripReasoning($text);
     }
 
     public function pricing(): array

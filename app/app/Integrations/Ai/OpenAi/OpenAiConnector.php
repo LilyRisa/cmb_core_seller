@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Integrations\Ai\OpenAi;
 
 use CMBcoreSeller\Integrations\Ai\Concerns\EstimatesAiCost;
 use CMBcoreSeller\Integrations\Ai\Concerns\ReplyPersona;
+use CMBcoreSeller\Integrations\Ai\Concerns\SanitizesReasoning;
 use CMBcoreSeller\Integrations\Ai\Contracts\AiAssistantConnector;
 use CMBcoreSeller\Integrations\Ai\Contracts\AiProviderCredentials;
 use CMBcoreSeller\Integrations\Ai\DTO\AiContext;
@@ -36,6 +37,7 @@ use Illuminate\Support\Facades\Http;
 class OpenAiConnector implements AiAssistantConnector
 {
     use EstimatesAiCost;
+    use SanitizesReasoning;
 
     public function __construct(private AiProviderCredentials $credentials, private string $code = 'openai') {}
 
@@ -99,7 +101,7 @@ class OpenAiConnector implements AiAssistantConnector
         $completionTokens = (int) ($usage['completion_tokens'] ?? 0);
 
         return new AiReplyDTO(
-            body: trim($text),
+            body: $this->stripReasoning($text),
             promptTokens: $promptTokens,
             completionTokens: $completionTokens,
             costMicroVnd: $this->estimateCostMicroVnd($cfg->pricing, $promptTokens, $completionTokens),
@@ -145,7 +147,7 @@ class OpenAiConnector implements AiAssistantConnector
         $completionTokens = (int) ($usage['completion_tokens'] ?? 0);
 
         return new AiReplyDTO(
-            body: trim((string) $response->json('choices.0.message.content', '')),
+            body: $this->stripReasoning((string) $response->json('choices.0.message.content', '')),
             promptTokens: $promptTokens,
             completionTokens: $completionTokens,
             costMicroVnd: $this->estimateCostMicroVnd($cfg->pricing, $promptTokens, $completionTokens),
@@ -182,7 +184,7 @@ class OpenAiConnector implements AiAssistantConnector
             throw new \RuntimeException('OpenAI classify '.$response->status());
         }
 
-        $intent = strtolower(trim((string) $response->json('choices.0.message.content', 'other')));
+        $intent = strtolower($this->stripReasoning((string) $response->json('choices.0.message.content', 'other')));
         if (! in_array($intent, $labels, true)) {
             $intent = 'other';
         }
@@ -250,7 +252,7 @@ class OpenAiConnector implements AiAssistantConnector
             throw new \RuntimeException('OpenAI analyzeImages '.$response->status());
         }
 
-        return trim((string) $response->json('choices.0.message.content', ''));
+        return $this->stripReasoning((string) $response->json('choices.0.message.content', ''));
     }
 
     public function pricing(): array

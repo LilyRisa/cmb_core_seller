@@ -117,6 +117,81 @@ class AiProviderHttpTest extends TestCase
             && $req->data()['messages'][0]['role'] === 'system');
     }
 
+    public function test_openai_strips_think_reasoning_block_from_reply(): void
+    {
+        // Model reasoning (DeepSeek-R1, Qwen-thinking…) chèn <think>…</think> vào content.
+        Http::fake([
+            'api.openai.com/*' => Http::response([
+                'model' => 'deepseek-reasoner',
+                'choices' => [['message' => [
+                    'content' => "<think>Khách hỏi thời gian giao, mình nên trấn an...</think>\n\nDạ đơn của anh/chị giao trong 2-3 ngày ạ.",
+                ], 'finish_reason' => 'stop']],
+                'usage' => ['prompt_tokens' => 20, 'completion_tokens' => 10],
+            ], 200),
+        ]);
+
+        AiProvider::query()->create([
+            'code' => 'openai', 'adapter' => 'openai_compatible', 'is_active' => true,
+            'api_key' => 'sk-oai', 'default_model' => 'deepseek-reasoner',
+        ]);
+
+        $reply = app(OpenAiConnector::class)->generateReply(
+            new AiContext(tenantId: 1, providerCode: 'openai'),
+            $this->snapshot(),
+            null,
+        );
+
+        $this->assertStringNotContainsString('<think>', $reply->body);
+        $this->assertStringNotContainsString('trấn an', $reply->body);
+        $this->assertSame('Dạ đơn của anh/chị giao trong 2-3 ngày ạ.', $reply->body);
+    }
+
+    public function test_openai_strips_dangling_closing_think_tag(): void
+    {
+        // Template chat tự chèn thẻ mở ⇒ model chỉ sinh "suy luận…</think>câu trả lời".
+        Http::fake([
+            'api.openai.com/*' => Http::response([
+                'model' => 'qwen-thinking',
+                'choices' => [['message' => [
+                    'content' => 'Khách đang sốt ruột, mình xác nhận lịch giao.</think>Dạ shop giao trong 2-3 ngày ạ.',
+                ], 'finish_reason' => 'stop']],
+                'usage' => ['prompt_tokens' => 5, 'completion_tokens' => 3],
+            ], 200),
+        ]);
+
+        AiProvider::query()->create([
+            'code' => 'openai', 'adapter' => 'openai_compatible', 'is_active' => true,
+            'api_key' => 'sk-oai', 'default_model' => 'qwen-thinking',
+        ]);
+
+        $reply = app(OpenAiConnector::class)->generateReply(
+            new AiContext(tenantId: 1, providerCode: 'openai'),
+            $this->snapshot(),
+            null,
+        );
+
+        $this->assertSame('Dạ shop giao trong 2-3 ngày ạ.', $reply->body);
+    }
+
+    public function test_custom_http_strips_reasoning_block(): void
+    {
+        Http::fake([
+            'llm.example.com/*' => Http::response([
+                'data' => ['reply' => ['text' => '<thinking>nội bộ</thinking>Dạ shop hỗ trợ anh/chị ngay ạ.']],
+                'usage' => ['in' => 1, 'out' => 1],
+            ], 200),
+        ]);
+        $this->customHttpProvider();
+
+        $reply = app(AiAssistantRegistry::class)->for('my-llm')->generateReply(
+            new AiContext(tenantId: 1, providerCode: 'my-llm'),
+            $this->snapshot(),
+            null,
+        );
+
+        $this->assertSame('Dạ shop hỗ trợ anh/chị ngay ạ.', $reply->body);
+    }
+
     public function test_openai_base_url_with_v1_suffix_is_not_doubled(): void
     {
         // base_url theo chuẩn OpenAI SDK gồm sẵn '/v1' ⇒ KHÔNG được nhân đôi thành /v1/v1.

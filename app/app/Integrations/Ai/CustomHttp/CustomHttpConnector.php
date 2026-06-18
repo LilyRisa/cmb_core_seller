@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Integrations\Ai\CustomHttp;
 
 use CMBcoreSeller\Integrations\Ai\Concerns\EstimatesAiCost;
 use CMBcoreSeller\Integrations\Ai\Concerns\ReplyPersona;
+use CMBcoreSeller\Integrations\Ai\Concerns\SanitizesReasoning;
 use CMBcoreSeller\Integrations\Ai\Contracts\AiAssistantConnector;
 use CMBcoreSeller\Integrations\Ai\Contracts\AiProviderCredentials;
 use CMBcoreSeller\Integrations\Ai\DTO\AiContext;
@@ -43,6 +44,7 @@ use Illuminate\Support\Str;
 class CustomHttpConnector implements AiAssistantConnector
 {
     use EstimatesAiCost;
+    use SanitizesReasoning;
 
     /** @var list<string> */
     private const DEFAULT_LABELS = ['order_status', 'complaint', 'price', 'refund', 'urgent', 'smalltalk', 'other'];
@@ -97,7 +99,7 @@ class CustomHttpConnector implements AiAssistantConnector
         }
 
         $json = (array) $response->json();
-        $text = trim((string) data_get($json, (string) $ac['response_path'], ''));
+        $text = $this->stripReasoning((string) data_get($json, (string) $ac['response_path'], ''));
         if ($text === '') {
             throw new \RuntimeException('Custom HTTP AI: không tìm thấy nội dung tại response_path ['.$ac['response_path'].'].');
         }
@@ -135,7 +137,7 @@ class CustomHttpConnector implements AiAssistantConnector
         }
 
         $json = (array) $response->json();
-        $text = trim((string) data_get($json, (string) $ac['response_path'], ''));
+        $text = $this->stripReasoning((string) data_get($json, (string) $ac['response_path'], ''));
         if ($text === '') {
             throw new \RuntimeException('Custom HTTP AI: không tìm thấy nội dung tại response_path ['.$ac['response_path'].'].');
         }
@@ -171,7 +173,7 @@ class CustomHttpConnector implements AiAssistantConnector
             throw new \RuntimeException('Custom HTTP classify '.$response->status());
         }
 
-        $out = strtolower(trim((string) data_get((array) $response->json(), (string) $ac['response_path'], '')));
+        $out = strtolower($this->stripReasoning((string) data_get((array) $response->json(), (string) $ac['response_path'], '')));
         $intent = 'other';
         foreach ($labels as $label) {
             if ($out === $label || str_contains($out, (string) $label)) {
