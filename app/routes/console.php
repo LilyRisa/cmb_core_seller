@@ -6,6 +6,7 @@ use CMBcoreSeller\Modules\Channels\Jobs\SyncOrdersForShop;
 use CMBcoreSeller\Modules\Channels\Jobs\SyncReturnsForShop;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\SyncRun;
+use CMBcoreSeller\Modules\Fulfillment\Jobs\BackfillChannelLabels;
 use CMBcoreSeller\Modules\Fulfillment\Jobs\SyncShipmentTracking;
 use CMBcoreSeller\Modules\Marketing\Jobs\RunAdMonitors;
 use CMBcoreSeller\Modules\Marketing\Jobs\SyncAdInsights;
@@ -103,6 +104,10 @@ Schedule::call(function () {
 
 // Every 30': poll carriers for tracking updates on in-flight shipments — Phase 3 (SPEC 0006).
 Schedule::job(new SyncShipmentTracking)->everyThirtyMinutes()->name('sync-shipment-tracking')->onOneServer()->withoutOverlapping();
+
+// Every 15': kéo lại tem/AWB của SÀN cho đơn sàn còn xử lý mà tem về muộn (sau khi FetchChannelLabel hết
+// lượt retry ~50'). Bù gap: Shopee/3PL cấp AWB trễ hàng giờ ⇒ đơn kẹt "chưa có tem" dù tem đã sẵn. SPEC 0013.
+Schedule::job(new BackfillChannelLabels)->everyFifteenMinutes()->name('backfill-channel-labels')->onOneServer()->withoutOverlapping();
 
 // --- Phase 6.4: Billing SaaS (SPEC 0018) ---
 // Mỗi ngày 04:00: áp luật hết hạn / grace 7 ngày / fallback trial cho subscriptions.
