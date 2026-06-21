@@ -4,6 +4,7 @@ import { Alert, App as AntApp, Button, Card, Image, Input, Modal, Result, Space,
 import { CloudUploadOutlined, DeleteOutlined, EditOutlined, PictureOutlined, PlusOutlined, RobotOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { ImageResizer } from '@/components/ImageResizer';
+import { RichTextEditor } from '@/components/RichTextEditor';
 import { errorMessage, tenantApi } from '@/lib/api';
 import { useCurrentTenantId } from '@/lib/tenant';
 import { useChannelAccounts } from '@/lib/channels';
@@ -38,6 +39,10 @@ export function MarketplaceEditPage() {
     const provider = seed ? (accounts.find((a) => a.id === seed.channel_account_id)?.provider ?? null) : null;
     const { data: limits } = useListingLimits(provider);
     const maxImages = limits?.max_images ?? 9;
+
+    // Sàn dùng mô tả HTML (TikTok, Lazada) ⇒ trình soạn thảo (đậm/nghiêng/chèn ảnh…).
+    // Shopee chỉ nhận text thuần ⇒ giữ ô nhập thường để tránh đẩy thẻ HTML lên sàn.
+    const richDescription = provider === 'tiktok' || provider === 'lazada';
 
     const uploadClient = useMemo(() => (tenantId == null ? null : tenantApi(tenantId)), [tenantId]);
 
@@ -126,6 +131,21 @@ export function MarketplaceEditPage() {
         return false;
     };
 
+    // Tải 1 ảnh để CHÈN VÀO MÔ TẢ (TikTok/Lazada) — trả URL cho trình soạn thảo nhúng vào HTML.
+    const uploadDescriptionImage = async (file: File): Promise<string> => {
+        if (!uploadClient) throw new Error('Chưa sẵn sàng tải ảnh.');
+        try {
+            const form = new FormData();
+            form.append('image', file);
+            form.append('folder', 'listings');
+            const { data } = await uploadClient.post<{ data: { url: string } }>('/media/image', form);
+            return data.data.url;
+        } catch (e) {
+            message.error(errorMessage(e));
+            throw e;
+        }
+    };
+
     const handleAiSuggest = () => {
         ai.mutate(
             { id: listingId, description: draft?.description },
@@ -198,7 +218,18 @@ export function MarketplaceEditPage() {
                     <Typography.Text type="secondary">Mô tả</Typography.Text>
                     <Button size="small" icon={<RobotOutlined />} loading={ai.isPending} onClick={handleAiSuggest}>AI gợi ý mô tả</Button>
                 </div>
-                <Input.TextArea style={{ marginTop: 4 }} rows={6} value={draft.description} onChange={(e) => patch({ description: e.target.value })} placeholder="Mô tả sản phẩm hiển thị trên sàn" />
+                <div style={{ marginTop: 4 }}>
+                    {richDescription ? (
+                        <RichTextEditor
+                            value={draft.description}
+                            onChange={(html) => patch({ description: html })}
+                            uploadImage={uploadDescriptionImage}
+                            placeholder="Mô tả sản phẩm hiển thị trên sàn"
+                        />
+                    ) : (
+                        <Input.TextArea rows={6} value={draft.description} onChange={(e) => patch({ description: e.target.value })} placeholder="Mô tả sản phẩm hiển thị trên sàn" />
+                    )}
+                </div>
             </Card>
 
             <Card
