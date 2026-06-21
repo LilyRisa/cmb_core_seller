@@ -196,6 +196,33 @@ class SlipSubtabTest extends TestCase
             ->getJson('/api/v1/orders?status=processing&printed=0')->assertOk()->json('meta.pagination.total'));
     }
 
+    public function test_parent_chips_stay_visible_when_a_print_subfilter_is_active(): void
+    {
+        // Chip Sàn / Gian hàng / ĐVVC PHẢI luôn hiện theo tab + cascade, KHÔNG biến mất khi chọn sub-filter
+        // "Đã in phiếu" / "Có thể in". Regression: trước đây sourceBase/shopBase/carrierBase áp luôn slip/printed
+        // ⇒ chọn "Đã in phiếu" (0 đơn lazada processing đã in) làm mất sạch chip Gian hàng/ĐVVC dù badge có số.
+        // SPEC 0013 §10b.
+        $this->makeProcessingOrderWithShipment('LZ-A', null, null);   // lazada, processing, chưa in
+        $this->makeProcessingOrderWithShipment('LZ-B', null, null);
+
+        $stats = $this->actingAs($this->user)->withHeaders($this->header())
+            ->getJson('/api/v1/orders/stats?status=processing&source=lazada&printed=1')->assertOk();
+
+        $this->assertSame(0, $stats->json('data.by_printed.yes'), 'Không đơn nào đã in ⇒ badge "Đã in phiếu" = 0 (nhất quán list).');
+
+        $bySource = collect($stats->json('data.by_source'));
+        $byShop = collect($stats->json('data.by_shop'));
+        $this->assertTrue(
+            $bySource->contains(fn ($r) => $r['source'] === 'lazada' && $r['count'] === 2),
+            'Chip Sàn "lazada" (=2) phải vẫn hiện dù đang lọc "Đã in phiếu".'
+        );
+        $this->assertTrue(
+            $byShop->contains(fn ($r) => $r['channel_account_id'] === $this->account->getKey() && $r['count'] === 2),
+            'Chip Gian hàng lazada (=2) phải vẫn hiện.'
+        );
+        $this->assertNotEmpty($stats->json('data.by_carrier'), 'Chip ĐVVC phải vẫn hiện (effective carrier "LEX VN").');
+    }
+
     public function test_printable_takes_precedence_when_order_has_both_labelled_and_unlabelled_shipments(): void
     {
         // Edge case: 1 đơn có 2 vận đơn open — 1 có label, 1 đang loading. Đơn vào "printable" (vì có ≥1 tem

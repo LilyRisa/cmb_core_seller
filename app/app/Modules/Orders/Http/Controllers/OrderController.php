@@ -366,10 +366,14 @@ class OrderController extends Controller
         // Chip rows cascade theo cây: source (gốc) → channel_account_id → carrier.
         // Mỗi facet "cởi" filter của chính nó + các filter con (để cha chuyển đổi tự do mà không bị kẹt
         // bởi giá trị con đã chọn lúc trước — FE đồng thời clear các con khi đổi cha).
-        // slip/printed/out_of_stock are NOT skipped so chip counts respect those active sub-filters.
-        $sourceBase = $this->applyFilters($request, Order::query(), skip: ['source', 'channel_account_id', 'carrier', 'stage']);
-        $shopBase = $this->applyFilters($request, Order::query(), skip: ['channel_account_id', 'carrier', 'stage']);
-        $carrierBase = $this->applyFilters($request, Order::query(), skip: ['carrier', 'stage']);
+        // CŨNG bỏ qua `slip`/`printed` (sub-filter "tình trạng phiếu"/"đã in") — nếu áp, các hàng chip
+        // Sàn/Gian hàng/ĐVVC sẽ co về rỗng khi user chọn 1 nhóm phiếu (vd "Đã in phiếu" lazada = 0 đơn ở
+        // tab Đang xử lý ⇒ mất sạch chip Gian hàng/ĐVVC dù badge "Đã in phiếu" có số). Chip cha phải LUÔN
+        // hiện theo tab + cây cascade, không biến mất theo sub-filter phiếu. (out_of_stock là TAB riêng,
+        // không phải sub-filter của Đang xử lý nên giữ nguyên.)
+        $sourceBase = $this->applyFilters($request, Order::query(), skip: ['source', 'channel_account_id', 'carrier', 'stage', 'slip', 'printed']);
+        $shopBase = $this->applyFilters($request, Order::query(), skip: ['channel_account_id', 'carrier', 'stage', 'slip', 'printed']);
+        $carrierBase = $this->applyFilters($request, Order::query(), skip: ['carrier', 'stage', 'slip', 'printed']);
         $bySource = (clone $sourceBase)->selectRaw('source, count(*) as c')->groupBy('source')->orderByDesc('c')
             ->pluck('c', 'source')->map(fn ($n, $src) => ['source' => (string) $src, 'count' => (int) $n])->values()->all();
         $byShop = (clone $shopBase)->whereNotNull('channel_account_id')->selectRaw('channel_account_id, count(*) as c')->groupBy('channel_account_id')->orderByDesc('c')
