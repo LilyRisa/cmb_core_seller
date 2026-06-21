@@ -27,6 +27,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $variation
  * @property int|null $price
  * @property int|null $original_price
+ * @property int|null $special_price
  * @property int|null $channel_stock
  * @property string $currency
  * @property string|null $image

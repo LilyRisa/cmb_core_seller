@@ -3,7 +3,9 @@
 namespace CMBcoreSeller\Modules\Channels\Jobs;
 
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
+use CMBcoreSeller\Integrations\Channels\Contracts\PromotionConnector;
 use CMBcoreSeller\Integrations\Channels\DTO\ChannelListingDTO;
+use CMBcoreSeller\Integrations\Channels\PublisherRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Support\TokenRefresher;
 use CMBcoreSeller\Modules\Inventory\Services\SkuMappingService;
@@ -115,9 +117,62 @@ class FetchChannelListings implements ShouldBeUnique, ShouldQueue
             $cursor = $pageResult->nextCursor;
         }
 
+        // Lưu giá KM đang chạy trên sàn vào special_price (sàn có API liệt kê chương trình).
+        $this->overlayChannelPromotions($account, $accountId);
+
         // Link new listings whose seller_sku matches an existing master SKU.
         $matched = $mappings->autoMatchUnmapped($tenantId);
 
         Log::info('listings.fetched', ['channel_account_id' => $accountId, 'upserted' => $upserted, 'auto_matched' => $matched]);
+    }
+
+    /**
+     * Phủ giá khuyến mãi ĐANG CHẠY trên sàn vào `special_price` cho provider CÓ API liệt kê chương
+     * trình (has_program_object: TikTok/Shopee). Persist để: (1) hiển thị giá sau giảm ở "đã có trên
+     * sàn", (2) lọc SKU bận trong picker chiến dịch dựa trên DB, không phụ thuộc gọi API trực tiếp mỗi
+     * lần (dễ fail → tô xám sai). Lazada has_program_object=false (special_price do mapper listing set)
+     * ⇒ BỎ QUA để không xoá nhầm. Lỗi API ⇒ giữ nguyên special_price cũ, không phá sync.
+     */
+    private function overlayChannelPromotions(ChannelAccount $account, int $accountId): void
+    {
+        $registry = app(PublisherRegistry::class);
+        if (! $registry->has($account->provider)) {
+            return;
+        }
+        $conn = $registry->for($account->provider);
+        if (! $conn instanceof PromotionConnector || ! $conn->promotionCapabilities()['has_program_object']) {
+            return;
+        }
+
+        try {
+            $prices = [];
+            foreach ($conn->listPromotions($account->authContext()) as $promo) {
+                if ($promo->status === 'ended') {
+                    continue;
+                }
+                foreach ($promo->items as $it) {
+                    $key = ! empty($it['external_sku_id']) ? (string) $it['external_sku_id'] : (string) $it['external_product_id'];
+                    $price = (int) $it['sale_price'];
+                    if ($key !== '' && $price > 0) {
+                        $prices[$key] = $price;
+                    }
+                }
+            }
+        } catch (Throwable $e) {
+            Log::warning('listings.promo_overlay_failed', ['channel_account_id' => $accountId, 'error' => $e->getMessage()]);
+
+            return;
+        }
+
+        ChannelListing::withoutGlobalScope(TenantScope::class)
+            ->where('channel_account_id', $accountId)
+            ->select(['id', 'external_sku_id', 'external_product_id', 'special_price'])
+            ->each(function (ChannelListing $l) use ($prices): void {
+                $want = $prices[(string) $l->external_sku_id] ?? $prices[(string) $l->external_product_id] ?? null;
+                $current = $l->special_price !== null ? (int) $l->special_price : null;
+                if ($want !== $current) {
+                    $l->forceFill(['special_price' => $want])->save();
+                }
+            });
     }
 }

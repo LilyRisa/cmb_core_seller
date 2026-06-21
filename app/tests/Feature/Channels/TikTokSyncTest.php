@@ -6,14 +6,17 @@ use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Integrations\Channels\TikTok\TikTokWebhookVerifier;
 use CMBcoreSeller\Modules\Channels\Events\ChannelAccountNeedsReconnect;
+use CMBcoreSeller\Modules\Channels\Jobs\FetchChannelListings;
 use CMBcoreSeller\Modules\Channels\Jobs\ProcessWebhookEvent;
 use CMBcoreSeller\Modules\Channels\Jobs\SyncOrdersForShop;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\SyncRun;
 use CMBcoreSeller\Modules\Channels\Models\WebhookEvent;
 use CMBcoreSeller\Modules\Channels\Support\TokenRefresher;
+use CMBcoreSeller\Modules\Inventory\Services\SkuMappingService;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Orders\Services\OrderUpsertService;
+use CMBcoreSeller\Modules\Products\Models\ChannelListing;
 use CMBcoreSeller\Modules\Settings\Services\SystemSettingService;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
@@ -193,6 +196,34 @@ class TikTokSyncTest extends TestCase
         $this->assertSame('done', $run->status);
         $this->assertSame(2, $run->stats['fetched']);
         $this->assertSame(2, $run->stats['created']);
+    }
+
+    public function test_fetch_listings_overlays_active_promotion_into_special_price(): void
+    {
+        // products/search: 2 SKU (S1 đang KM, S2 không). activities: 1 chương trình FIXED_PRICE chứa S1@520000.
+        Http::fake([
+            '*/product/*/products/search*' => Http::response(['code' => 0, 'data' => ['products' => [
+                ['id' => 'P1', 'title' => 'SP1', 'status' => 'ACTIVATE', 'main_images' => [['thumb_urls' => ['http://img/1']]],
+                    'skus' => [['id' => 'S1', 'seller_sku' => 'SK1', 'price' => ['currency' => 'VND', 'sale_price' => '650000'], 'inventory' => [['quantity' => 5]]]]],
+                ['id' => 'P2', 'title' => 'SP2', 'status' => 'ACTIVATE', 'main_images' => [['thumb_urls' => ['http://img/2']]],
+                    'skus' => [['id' => 'S2', 'seller_sku' => 'SK2', 'price' => ['currency' => 'VND', 'sale_price' => '100000'], 'inventory' => [['quantity' => 9]]]]],
+            ], 'next_page_token' => '']]),
+            '*/promotion/202309/activities/search*' => Http::response(['code' => 0, 'data' => ['activities' => [['id' => 'ACT1', 'status' => 'ONGOING']]]]),
+            '*/promotion/202309/activities/*' => Http::response(['code' => 0, 'data' => [
+                'activity_id' => 'ACT1', 'status' => 'ONGOING', 'title' => 'KM', 'product_level' => 'VARIATION', 'activity_type' => 'FIXED_PRICE',
+                'products' => [['id' => 'P1', 'skus' => [['id' => 'S1', 'activity_price' => ['amount' => '520000', 'currency' => 'VND']]]]],
+            ]]),
+        ]);
+
+        app(FetchChannelListings::class, ['channelAccountId' => (int) $this->account->getKey()])
+            ->handle(app(ChannelRegistry::class), app(SkuMappingService::class), app(TokenRefresher::class));
+
+        $s1 = ChannelListing::withoutGlobalScope(TenantScope::class)->where('external_sku_id', 'S1')->first();
+        $s2 = ChannelListing::withoutGlobalScope(TenantScope::class)->where('external_sku_id', 'S2')->first();
+        $this->assertNotNull($s1);
+        $this->assertSame(650000, (int) $s1->price, 'Giá thường = sale_price từ listing.');
+        $this->assertSame(520000, (int) $s1->special_price, 'SKU đang KM ⇒ special_price = giá hoạt động.');
+        $this->assertNull($s2->special_price, 'SKU KHÔNG KM ⇒ special_price null.');
     }
 
     public function test_token_refresh_updates_token_then_marks_expired_on_failure(): void

@@ -130,16 +130,18 @@ export function OnChannelPage() {
         },
         {
             title: 'Giá sau giảm',
-            dataIndex: 'price',
+            key: 'sale_price',
             width: 150,
             align: 'right',
-            render: (v: number | null, r) => {
-                if (v == null) return <Typography.Text type="secondary">—</Typography.Text>;
+            // Giá đang bán = special_price (KM đang chạy trên sàn) nếu có, ngược lại giá thường.
+            render: (_, r) => {
+                const sale = r.special_price ?? r.price;
+                if (sale == null) return <Typography.Text type="secondary">—</Typography.Text>;
                 const base = r.original_price ?? null;
-                const off = base != null && base > v ? Math.round(((base - v) / base) * 100) : 0;
+                const off = base != null && base > sale ? Math.round(((base - sale) / base) * 100) : 0;
                 return (
                     <Space size={4}>
-                        <MoneyText value={v} currency={r.currency} />
+                        <MoneyText value={sale} currency={r.currency} />
                         {off > 0 && <Tag color="volcano">-{off}%</Tag>}
                     </Space>
                 );
