@@ -96,6 +96,7 @@ class FetchChannelListings implements ShouldBeUnique, ShouldQueue
                         'variation' => $dto->variation,
                         'price' => $dto->price,
                         'original_price' => $dto->originalPrice ?? $dto->price,
+                        'special_price' => $dto->specialPrice,   // giá giảm đang chạy (Lazada SalePrice); NULL = không KM
                         'channel_stock' => $dto->channelStock,
                         'currency' => $dto->currency ?: 'VND',
                         'image' => $dto->image,

@@ -25,6 +25,9 @@ final readonly class ChannelListingDTO
         public bool $isActive = true,
         // Giá GỐC (chưa giảm) nếu sàn trả; `price` là giá hiện tại (có thể đã giảm).
         public ?int $originalPrice = null,
+        // Giá GIẢM đang chạy (special/sale price) — CHỈ set khi có khuyến mãi thật (< giá gốc). NULL = không.
+        // Lazada set SalePrice theo từng SKU (không có đối tượng chương trình) ⇒ dùng phát hiện SKU đã có KM.
+        public ?int $specialPrice = null,
         public array $raw = [],
     ) {}
 }

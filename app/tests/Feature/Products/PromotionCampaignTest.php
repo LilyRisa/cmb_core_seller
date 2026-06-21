@@ -7,7 +7,9 @@ namespace Tests\Feature\Products;
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Products\Jobs\PushPromotionJob;
+use CMBcoreSeller\Modules\Products\Models\ChannelListing;
 use CMBcoreSeller\Modules\Products\Models\ChannelPromotion;
+use CMBcoreSeller\Modules\Products\Services\PromotionService;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
@@ -144,5 +146,32 @@ class PromotionCampaignTest extends TestCase
         $this->actingAs($this->owner)->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
             ->getJson("/api/v1/channel-promotions?channel_account_id={$this->accountId}&tab=pushed")
             ->assertOk()->assertJsonCount(1, 'data');
+    }
+
+    public function test_lazada_listing_special_price_marks_sku_busy_with_discount(): void
+    {
+        // Lazada không có API liệt kê chương trình ⇒ phát hiện qua channel_listings.special_price (đồng bộ từ sàn).
+        ChannelListing::create([
+            'tenant_id' => $this->tenant->getKey(), 'channel_account_id' => $this->accountId,
+            'external_product_id' => 'P1', 'external_sku_id' => 'SKU-DISC', 'title' => 'Có giảm',
+            'price' => 60000, 'original_price' => 119000, 'special_price' => 60000, 'currency' => 'VND',
+        ]);
+        ChannelListing::create([
+            'tenant_id' => $this->tenant->getKey(), 'channel_account_id' => $this->accountId,
+            'external_product_id' => 'P2', 'external_sku_id' => 'SKU-FULL', 'title' => 'Giá thường',
+            'price' => 100000, 'original_price' => 100000, 'special_price' => null, 'currency' => 'VND',
+        ]);
+
+        $svc = app(PromotionService::class);
+        $prices = $svc->busyPromoPrices($this->accountId);
+
+        $this->assertSame(60000, $prices['SKU-DISC'] ?? null, 'SKU có special_price ⇒ bận + giá giảm.');
+        $this->assertArrayNotHasKey('SKU-FULL', $prices, 'SKU giá thường KHÔNG bận.');
+        $this->assertContains('SKU-DISC', $svc->busySkuIds($this->accountId));
+
+        // Endpoint trả prices cho FE tô xám + hiện giá.
+        $res = $this->actingAs($this->owner)->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
+            ->getJson("/api/v1/channel-promotions/busy-skus?channel_account_id={$this->accountId}")->assertOk();
+        $this->assertSame(60000, $res->json('data.prices.SKU-DISC'));
     }
 }

@@ -292,6 +292,12 @@ final class LazadaMappers
             $isActive = ! in_array($status, ['inactive', 'deleted', 'suspended', 'rejected'], true);
             $price = $sku['special_price'] ?? $sku['price'] ?? null;
             $originalPrice = $sku['price'] ?? $price; // `price` Lazada là giá gốc; special_price là giá giảm.
+            // Giá giảm ĐANG CHẠY = special_price NHỎ HƠN giá gốc (Lazada set SalePrice theo SKU, không có đối
+            // tượng chương trình) ⇒ dùng phát hiện SKU đã có khuyến mãi khi tạo chiến dịch.
+            $rawSpecial = $sku['special_price'] ?? null;
+            $rawRegular = $sku['price'] ?? null;
+            $specialPrice = ($rawSpecial !== null && $rawRegular !== null && (float) $rawSpecial < (float) $rawRegular)
+                ? self::money($rawSpecial) : null;
             $image = null;
             foreach ((array) ($sku['Images'] ?? $sku['images'] ?? []) as $img) {
                 $u = is_array($img) ? ($img['url'] ?? null) : $img;
@@ -319,6 +325,7 @@ final class LazadaMappers
                 image: $image ?? $productImage,
                 isActive: $isActive,
                 originalPrice: $originalPrice !== null ? self::money($originalPrice) : null,
+                specialPrice: $specialPrice,
                 raw: ['product' => array_diff_key($product, ['skus' => true]), 'sku' => $sku],
             );
         }

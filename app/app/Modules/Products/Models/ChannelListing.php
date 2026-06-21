@@ -54,7 +54,7 @@ class ChannelListing extends Model
 
     protected $fillable = [
         'tenant_id', 'channel_account_id', 'external_product_id', 'external_sku_id', 'seller_sku',
-        'title', 'variation', 'price', 'original_price', 'channel_stock', 'currency', 'image', 'is_active', 'is_stock_locked',
+        'title', 'variation', 'price', 'original_price', 'special_price', 'channel_stock', 'currency', 'image', 'is_active', 'is_stock_locked',
         'sync_status', 'sync_error', 'last_pushed_at', 'last_fetched_at', 'meta',
     ];
 
@@ -63,6 +63,7 @@ class ChannelListing extends Model
         return [
             'price' => 'integer',
             'original_price' => 'integer',
+            'special_price' => 'integer',
             'channel_stock' => 'integer',
             'is_active' => 'boolean',
             'is_stock_locked' => 'boolean',

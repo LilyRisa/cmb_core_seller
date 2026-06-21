@@ -12,6 +12,7 @@ use CMBcoreSeller\Integrations\Channels\DTO\PromotionItemDTO;
 use CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation;
 use CMBcoreSeller\Integrations\Channels\PublisherRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Products\Models\ChannelListing;
 use CMBcoreSeller\Modules\Products\Models\ChannelPromotion;
 use CMBcoreSeller\Modules\Products\Models\ChannelPromotionSku;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
@@ -174,10 +175,24 @@ final class PromotionService
             $map[(string) $row->external_sku_id] = (int) $row->sale_price;
         }
 
-        // 2) SÀN: chương trình ngoài app (giá thật đang chạy — ưu tiên ghi đè).
+        // 2) SÀN: chương trình ngoài app (giá thật đang chạy — ưu tiên ghi đè). Shopee/TikTok có API liệt kê.
         foreach ($this->channelBusyPromos($channelAccountId) as $key => $price) {
             $map[$key] = $price;
         }
+
+        // 3) Giá giảm lưu trên listing — Lazada KHÔNG có API liệt kê chương trình; SalePrice nằm theo từng SKU
+        // (đồng bộ vào channel_listings.special_price khi fetch). Shopee/TikTok không set cột này (null) ⇒ chỉ
+        // tác động Lazada. Không ghi đè giá từ chương trình thật (sàn) đã có ở bước 2.
+        ChannelListing::query()
+            ->where('channel_account_id', $channelAccountId)
+            ->whereNotNull('special_price')
+            ->get(['external_sku_id', 'external_product_id', 'special_price'])
+            ->each(function (ChannelListing $l) use (&$map) {
+                $key = $l->external_sku_id ?: (string) $l->external_product_id;
+                if ($key !== '' && ! isset($map[$key])) {
+                    $map[$key] = (int) $l->special_price;
+                }
+            });
 
         return $map;
     }
