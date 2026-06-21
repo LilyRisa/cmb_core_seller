@@ -21,18 +21,25 @@ export function BulkProgressModal({ title, open, items, running, onRetry, onClos
     const errors = items.filter((i) => i.status === 'error').length;
     const pct = items.length ? Math.round((done / items.length) * 100) : 0;
 
+    // Cho phép ẩn cửa sổ KỂ CẢ khi đang chạy — quá trình chạy nền (hook useBulkAction không phụ thuộc trạng
+    // thái mở modal), danh sách tự cập nhật khi xong ⇒ user không bị kẹt, tiếp tục thao tác/quét đơn khác được.
     return (
-        <Modal title={`${title} — ${done}/${items.length}`} open={open} onCancel={running ? undefined : onClose}
-            maskClosable={!running} closable={!running} width={640}
+        <Modal title={`${title} — ${done}/${items.length}`} open={open} onCancel={onClose}
+            maskClosable closable width={640}
             footer={[
                 <Space key="sum" style={{ marginRight: 'auto' }}>
                     <Tag color="success">Thành công {ok}</Tag>
                     <Tag color="warning">Bỏ qua {skipped}</Tag>
                     <Tag color="error">Lỗi {errors}</Tag>
                 </Space>,
-                <Button key="retry" onClick={onRetry} disabled={running || errors === 0}>Thử lại đơn lỗi</Button>,
-                <Button key="close" type="primary" onClick={onClose} disabled={running}>Đóng</Button>,
+                ...(running
+                    ? [<Button key="hide" onClick={onClose}>Ẩn — tiếp tục chạy nền</Button>]
+                    : [
+                        <Button key="retry" onClick={onRetry} disabled={errors === 0}>Thử lại đơn lỗi</Button>,
+                        <Button key="close" type="primary" onClick={onClose}>Đóng</Button>,
+                    ]),
             ]}>
+            {running && <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8, fontSize: 12 }}>Có thể ẩn cửa sổ này để tiếp tục thao tác — quá trình vẫn chạy nền, danh sách tự cập nhật khi xong.</Typography.Text>}
             <Progress percent={pct} status={running ? 'active' : errors ? 'exception' : 'success'} />
             <List size="small" style={{ maxHeight: 360, overflow: 'auto', marginTop: 12 }} dataSource={items}
                 renderItem={(it) => (
