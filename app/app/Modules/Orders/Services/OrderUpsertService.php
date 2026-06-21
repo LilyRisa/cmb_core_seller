@@ -12,6 +12,7 @@ use CMBcoreSeller\Modules\Orders\Models\OrderItem;
 use CMBcoreSeller\Modules\Orders\Models\OrderStatusHistory;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -115,13 +116,12 @@ class OrderUpsertService implements OrderUpsertContract
 
     private function doUpsert(OrderDTO $dto, int $tenantId, ?int $channelAccountId, string $historySource, StandardOrderStatus $status): Order
     {
-        [$order, $created, $statusChanged, $from] = DB::transaction(function () use ($dto, $tenantId, $channelAccountId, $historySource, $status) {
-            // CHỐT: phải `withTrashed()` ⇒ bắt cả row đã soft-delete. DB unique index
-            // `orders_source_account_external_unique` (source, channel_account_id, external_order_id) KHÔNG có
-            // partial predicate `WHERE deleted_at IS NULL` ⇒ row đã soft-delete vẫn chiếm key. Nếu chỉ query
-            // active rồi INSERT lại sẽ throw `SQLSTATE[23505]` → sync crash cả page. Sàn re-push đơn (vd sau
-            // khi user xoá kết nối rồi reconnect, hoặc xoá đơn nhầm) ⇒ restore + update lại, không tạo mới.
-            // Xem `bba66d3` (xoá kết nối ⇒ soft-delete đơn) và docs/03-domain/order-sync-pipeline.md §4.1.
+        $txn = function () use ($dto, $tenantId, $channelAccountId, $historySource, $status) {
+            // CHỐT: phải `withTrashed()` ⇒ bắt cả row đã soft-delete. Index `orders_source_account_external_unique`
+            // là PARTIAL (`WHERE deleted_at IS NULL`) nên row soft-delete KHÔNG chiếm key — nhưng nếu chỉ query
+            // active rồi INSERT, ta sẽ tạo đơn ACTIVE thứ 2 trùng (sàn re-push sau khi user xoá đơn / xoá kết nối
+            // rồi reconnect) thay vì hồi sinh row cũ ⇒ mất lịch sử/liên kết. Vì vậy: thấy row trashed ⇒ restore +
+            // update lại, không tạo mới. Xem `bba66d3` & docs/03-domain/order-sync-pipeline.md §4.1.
             /** @var Order|null $order */
             $order = Order::withoutGlobalScope(TenantScope::class)
                 ->withTrashed()
@@ -275,7 +275,24 @@ class OrderUpsertService implements OrderUpsertContract
 
             // Keep wasRecentlyCreated intact for the caller (no refresh()).
             return [$order, $created, $statusChanged, $previousStatus];
-        });
+        };
+
+        // Race-safe: `lockForUpdate()` KHÔNG khoá được row CHƯA tồn tại (đơn mới) ⇒ webhook + polling (hoặc 2
+        // lần webhook) cùng SELECT…FOR UPDATE đều thấy null → cùng INSERT → 1 thắng, 1 dính 23505
+        // (`orders_source_account_external_unique`). Bắt UniqueConstraintViolation rồi thử lại transaction:
+        // lần sau SELECT thấy row đã commit ⇒ đi nhánh update (thường là no-op out-of-order vì cùng
+        // source_updated_at). Giữ bất biến "mọi sync job idempotent". SPEC docs/03-domain/order-sync-pipeline.md §4.
+        $attempt = 0;
+        while (true) {
+            try {
+                [$order, $created, $statusChanged, $from] = DB::transaction($txn);
+                break;
+            } catch (UniqueConstraintViolationException $e) {
+                if (++$attempt >= 3) {
+                    throw $e;
+                }
+            }
+        }
 
         OrderUpserted::dispatch($order, $created);
         if ($statusChanged) {
