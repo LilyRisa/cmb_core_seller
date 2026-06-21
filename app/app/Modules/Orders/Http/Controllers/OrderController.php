@@ -472,6 +472,14 @@ class OrderController extends Controller
     {
         $use = fn (string $key) => ! in_array($key, $skip, true);
 
+        // Đơn của gian hàng ĐÃ HỦY KẾT NỐI (status=revoked) coi như đã xóa — KHÔNG hiện & KHÔNG đếm ở bất kỳ
+        // facet/list nào (số liệu nhất quán). Đơn manual (channel_account_id null) + gian hàng đang kết nối vẫn
+        // giữ. Reconnect ⇒ account active lại ⇒ đơn tự hiện lại (không xóa dữ liệu — finance/báo cáo giữ nguyên).
+        // KHÔNG skippable. (Trước đây đơn của shop revoked vd sandbox vẫn cộng vào → lệch số nguồn/gian hàng.)
+        $query->whereNotExists(fn ($sub) => $sub->selectRaw('1')->from('channel_accounts')
+            ->whereColumn('channel_accounts.id', 'orders.channel_account_id')
+            ->where('channel_accounts.status', ChannelAccount::STATUS_REVOKED));
+
         if ($use('status') && $status = $request->query('status')) {
             $values = array_values(array_filter(array_map('trim', explode(',', (string) $status))));
             $valid = array_intersect($values, array_map(fn ($s) => $s->value, StandardOrderStatus::cases()));
