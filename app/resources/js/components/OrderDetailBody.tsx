@@ -57,10 +57,10 @@ export function OrderDetailBody({ order }: { order: Order }) {
         { title: 'Thành tiền', dataIndex: 'subtotal', key: 'subtotal', width: 130, align: 'right', render: (v) => <MoneyText value={v} currency={order.currency} strong /> },
     ];
 
-    // SPEC 2026-05-17 — đơn đã đẩy lên ĐVVC: cảnh báo user rằng mọi thay đổi (sản phẩm, địa chỉ,
-    // tiền…) chỉ áp dụng trên hệ thống này, KHÔNG can thiệp vào vận đơn đã tạo ở ĐVVC. User cần
-    // gọi/báo trực tiếp ĐVVC nếu muốn sửa thông tin giao hàng thực tế.
-    const isPushed = order.is_pushed_to_carrier === true;
+    // SPEC 2026-05-17 — đơn THỦ CÔNG đã đẩy lên ĐVVC: cảnh báo mọi thay đổi chỉ áp local, KHÔNG can thiệp
+    // vận đơn ở ĐVVC (cần huỷ AWB rồi đẩy đơn mới). CHỈ áp đơn manual — đơn SÀN do sàn quản lý vận đơn,
+    // không có khái niệm "đẩy lại đơn mới", nên KHÔNG hiện cảnh báo này.
+    const isPushed = order.is_pushed_to_carrier === true && !order.channel_account_id;
     const pushedCarrierLabel = (order.pushed_carrier ?? '').replace(/^manual_/, '').toUpperCase() || 'ĐVVC';
 
     return (
@@ -93,10 +93,20 @@ export function OrderDetailBody({ order }: { order: Order }) {
             <Row gutter={16}>
                 <Col xs={24} lg={16}>
                     <Card title="Sản phẩm" style={{ marginBottom: 16 }}
-                        extra={canPrint && <Button icon={<PrinterOutlined />} loading={createPrintJob.isPending}
-                            onClick={() => createPrintJob.mutate({ type: 'invoice', order_ids: [order.id] }, {
-                                onSuccess: (j) => setPrintJobId(j.id), onError: () => message.error('Không tạo được phiếu in'),
-                            })}>In hoá đơn</Button>}>
+                        extra={canPrint && (order.channel_account_id
+                            // Đơn SÀN: "hoá đơn" = TEM SÀN. Tem đã lưu R2 (label_url) ⇒ mở THẲNG từ R2 (không
+                            // gọi lại sàn); chưa có tem ⇒ tạo print job `label` để kéo/ghép tem. Không có vận đơn ⇒ ẩn.
+                            ? (order.shipment && (order.shipment.has_label && order.shipment.label_url
+                                ? <Button icon={<PrinterOutlined />} href={order.shipment.label_url} target="_blank" rel="noreferrer">In tem sàn</Button>
+                                : <Button icon={<PrinterOutlined />} loading={createPrintJob.isPending}
+                                    onClick={() => createPrintJob.mutate({ type: 'label', shipment_ids: [order.shipment!.id] }, {
+                                        onSuccess: (j) => setPrintJobId(j.id), onError: () => message.error('Không tạo được tem — bấm "Nhận phiếu giao hàng" để kéo tem từ sàn trước.'),
+                                    })}>In tem sàn</Button>))
+                            // Đơn THỦ CÔNG: hoá đơn nội bộ tự sinh.
+                            : <Button icon={<PrinterOutlined />} loading={createPrintJob.isPending}
+                                onClick={() => createPrintJob.mutate({ type: 'invoice', order_ids: [order.id] }, {
+                                    onSuccess: (j) => setPrintJobId(j.id), onError: () => message.error('Không tạo được phiếu in'),
+                                })}>In hoá đơn</Button>)}>
                         <Table<OrderItem> rowKey="id" size="small" pagination={false} dataSource={order.items ?? []} columns={itemColumns} locale={{ emptyText: <Empty /> }} />
                         <Divider />
                         <div style={{ maxWidth: 360, marginLeft: 'auto' }}>
