@@ -196,6 +196,37 @@ class SlipSubtabTest extends TestCase
             ->getJson('/api/v1/orders?status=processing&printed=0')->assertOk()->json('meta.pagination.total'));
     }
 
+    public function test_chua_in_phieu_includes_processing_orders_without_a_shipment(): void
+    {
+        // Đơn sàn (Lazada/Shopee) đồng bộ ở `processing` (packed/ready_to_ship) nhưng CHƯA "Chuẩn bị hàng"
+        // tạo vận đơn ⇒ vẫn phải tính "Chưa in phiếu", KHÔNG được rớt khỏi cả 2 nhóm. Regression: "no" trước
+        // yêu cầu có vận đơn open ⇒ đơn này chỉ hiện ở "Tất cả" (Đã in + Chưa in < tổng). SPEC 0013.
+        $this->makeProcessingOrderWithShipment('HAS-SHIP', null, null);   // có vận đơn open chưa in → no
+        Order::withoutGlobalScope(TenantScope::class)->create([           // processing KHÔNG có vận đơn → no
+            'tenant_id' => $this->tenant->getKey(), 'source' => 'lazada',
+            'channel_account_id' => $this->account->getKey(),
+            'external_order_id' => 'NO-SHIP', 'order_number' => 'NO-SHIP',
+            'status' => StandardOrderStatus::Processing, 'raw_status' => 'packed',
+            'currency' => 'VND', 'grand_total' => 100000, 'item_total' => 100000,
+            'placed_at' => now()->subHours(1), 'tags' => [], 'carrier' => 'LEX VN',
+            'source_updated_at' => now()->subHours(1),
+        ]);
+
+        $byPrinted = $this->actingAs($this->user)->withHeaders($this->header())
+            ->getJson('/api/v1/orders/stats?status=processing')->assertOk()->json('data.by_printed');
+        $this->assertSame(0, $byPrinted['yes']);
+        $this->assertSame(2, $byPrinted['no'], '"Chưa in phiếu" phải gồm cả đơn chưa có vận đơn.');
+
+        // Đã in + Chưa in = TỔNG đơn processing (không sót đơn ở "Tất cả").
+        $total = $this->actingAs($this->user)->withHeaders($this->header())
+            ->getJson('/api/v1/orders?status=processing')->assertOk()->json('meta.pagination.total');
+        $this->assertSame($total, $byPrinted['yes'] + $byPrinted['no']);
+
+        // Bấm "Chưa in phiếu" thấy cả 2 đơn (gồm đơn không vận đơn).
+        $this->assertSame(2, $this->actingAs($this->user)->withHeaders($this->header())
+            ->getJson('/api/v1/orders?status=processing&printed=0')->assertOk()->json('meta.pagination.total'));
+    }
+
     public function test_parent_chips_stay_visible_when_a_print_subfilter_is_active(): void
     {
         // Chip Sàn / Gian hàng / ĐVVC PHẢI luôn hiện theo tab + cascade, KHÔNG biến mất khi chọn sub-filter

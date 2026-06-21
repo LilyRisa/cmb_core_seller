@@ -178,24 +178,20 @@ export function OrdersPage() {
         (r) => !r.started_at || Date.now() - new Date(r.started_at).getTime() < STALE_RUNNING_MS,
     );
     const showSyncBanner = syncPoll.isPolling || runningSyncsList.length > 0;
-    // sub-tab "tình trạng phiếu giao hàng" hiện ở tab "Đang xử lý" khi có BẤT KỲ đơn nào thuộc 3 nhóm
-    // (có thể in / đang tải lại / nhận phiếu) — trước đây chỉ hiện khi có đơn `failed` nên nhóm "đang tải lại"
-    // và "có thể in" bị ẩn, user không thấy đơn nào đang tải lại. SPEC 0013.
-    const slipTotal = (stats?.by_slip?.printable ?? 0) + (stats?.by_slip?.loading ?? 0) + (stats?.by_slip?.failed ?? 0);
-    const showSlipTabs = isProcessingTab && slipTotal > 0;
-    // Tự bỏ filter `slip` còn sót khi rời tab "Đang xử lý" HOẶC khi nhóm slip đang chọn đã hết đơn (tránh kẹt
-    // danh sách rỗng). KHÔNG còn chỉ dọn riêng `failed` ⇒ `loading`/`printable` cũng được xử lý nhất quán.
+    // sub-tab "tình trạng phiếu giao hàng" LUÔN hiện ở tab "Đang xử lý" để user lọc theo trạng thái phiếu kể
+    // cả khi một nhóm = 0 (trường hợp không cần tải lại phiếu thì vẫn phải thấy bộ lọc). Trước đây gate theo
+    // slipTotal>0 nên với đơn sàn chưa có vận đơn (by_slip toàn 0) hàng này biến mất. SPEC 0013.
+    const showSlipTabs = isProcessingTab;
+    // Chỉ tự bỏ filter `slip` khi RỜI tab "Đang xử lý" (slip không áp ở tab khác). KHÔNG bỏ khi nhóm đang chọn
+    // = 0 — nhất quán "hiện tất cả chip kể cả rỗng" (bấm vào nhóm rỗng vẫn ở đó, không bị bật về Tất cả).
     useEffect(() => {
-        if (!slipParam) return;
-        const selectedCount = (stats?.by_slip as Record<string, number> | undefined)?.[slipParam];
-        const stuck = !isProcessingTab || (slipParam !== '' && selectedCount === 0);
-        if (stuck) {
+        if (slipParam && !isProcessingTab) {
             const m = new URLSearchParams(params);
             m.delete('slip');
             setParams(m, { replace: true });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isProcessingTab, slipParam, stats?.by_slip]);
+    }, [isProcessingTab, slipParam]);
 
     // Badge dùng `tabStats` (không filter) ⇒ luôn hiển thị tổng theo status, click sang tab khác luôn thấy
     // số đơn thật sự ở trạng thái đó dù trước đó user đang lọc source/carrier nào.
