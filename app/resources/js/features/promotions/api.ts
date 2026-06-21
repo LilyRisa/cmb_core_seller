@@ -92,11 +92,14 @@ export async function deletePromotion(client: AxiosInstance, id: number): Promis
     await client.delete(`/channel-promotions/${id}`);
 }
 
-export async function getBusySkuIds(client: AxiosInstance, channelAccountId: number, exceptPromotionId?: number): Promise<string[]> {
-    const { data } = await client.get<{ data: { external_sku_ids: string[] } }>('/channel-promotions/busy-skus', {
+/** Khoá-bận (external_sku_id hoặc external_product_id cho item no-variant) + giá giảm đang chạy trên sàn. */
+export interface BusyPromos { ids: string[]; prices: Record<string, number> }
+
+export async function getBusyPromos(client: AxiosInstance, channelAccountId: number, exceptPromotionId?: number): Promise<BusyPromos> {
+    const { data } = await client.get<{ data: { external_sku_ids: string[]; prices?: Record<string, number> } }>('/channel-promotions/busy-skus', {
         params: { channel_account_id: channelAccountId, except: exceptPromotionId },
     });
-    return data.data.external_sku_ids;
+    return { ids: data.data.external_sku_ids ?? [], prices: data.data.prices ?? {} };
 }
 
 export async function syncPromotions(client: AxiosInstance, channelAccountId: number): Promise<number> {

@@ -13,14 +13,14 @@ import { type ChannelListing, useChannelListings } from '@/lib/inventory';
 export function SkuPickerModal({
     open,
     channelAccountId,
-    busySkuIds,
+    busyPromos,
     selectedSkuIds,
     onClose,
     onConfirm,
 }: {
     open: boolean;
     channelAccountId: number | null;
-    busySkuIds: string[];
+    busyPromos?: { ids: string[]; prices: Record<string, number> };
     selectedSkuIds: string[];
     onClose: () => void;
     onConfirm: (rows: ChannelListing[]) => void;
@@ -30,7 +30,9 @@ export function SkuPickerModal({
     const [hideBusy, setHideBusy] = useState(true);
     const [picked, setPicked] = useState<Record<string, ChannelListing>>({});
 
-    const busy = useMemo(() => new Set(busySkuIds), [busySkuIds]);
+    // Khoá-bận = sku_id HOẶC product_id (item Shopee no-variant giảm theo item_id). prices: khoá → giá giảm.
+    const busy = useMemo(() => new Set(busyPromos?.ids ?? []), [busyPromos]);
+    const prices = busyPromos?.prices ?? {};
     const already = useMemo(() => new Set(selectedSkuIds), [selectedSkuIds]);
 
     const { data, isFetching } = useChannelListings({
@@ -42,8 +44,10 @@ export function SkuPickerModal({
 
     const isLocked = (r: ChannelListing) => {
         const sid = r.external_sku_id ?? '';
-        return busy.has(sid) || already.has(sid);
+        const pid = r.external_product_id ?? '';
+        return busy.has(sid) || (pid !== '' && busy.has(pid)) || already.has(sid);
     };
+    const busyPrice = (r: ChannelListing): number | undefined => prices[r.external_sku_id ?? ''] ?? prices[r.external_product_id ?? ''];
 
     const rows = useMemo(() => {
         const all = data?.data ?? [];
@@ -73,8 +77,19 @@ export function SkuPickerModal({
         },
         { title: 'Giá gốc', key: 'price', width: 120, align: 'right', render: (_, r) => { const p = r.original_price ?? r.price; return p == null ? '—' : <MoneyText value={p} currency={r.currency} />; } },
         {
-            title: 'Trạng thái', key: 'st', width: 140,
-            render: (_, r) => (isLocked(r) ? <Tag color="orange">Đang giảm giá</Tag> : <Tag color="green">Chọn được</Tag>),
+            title: 'Trạng thái', key: 'st', width: 170,
+            render: (_, r) => {
+                if (!isLocked(r)) {
+                    return <Tag color="green">Chọn được</Tag>;
+                }
+                const bp = busyPrice(r);
+                return (
+                    <Space direction="vertical" size={0}>
+                        <Tag color="orange" style={{ marginInlineEnd: 0 }}>Đang giảm giá</Tag>
+                        {bp != null && bp > 0 && <Typography.Text type="success" style={{ fontSize: 12 }}>còn <MoneyText value={bp} currency={r.currency} /></Typography.Text>}
+                    </Space>
+                );
+            },
         },
     ];
 

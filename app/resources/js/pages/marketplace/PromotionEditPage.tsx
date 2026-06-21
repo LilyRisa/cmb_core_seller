@@ -11,7 +11,7 @@ import { useChannelAccounts } from '@/lib/channels';
 import type { ChannelListing } from '@/lib/inventory';
 import { SkuPickerModal } from '@/features/promotions/SkuPickerModal';
 import {
-    useBusySkuIds, usePromotion, usePromotionCapabilities, usePushPromotion, useSetPromotionSkus, useUpdatePromotion,
+    useBusyPromos, usePromotion, usePromotionCapabilities, usePushPromotion, useSetPromotionSkus, useUpdatePromotion,
 } from '@/features/promotions/hooks';
 import type { DiscountType, PromotionSku } from '@/features/promotions/api';
 
@@ -55,7 +55,7 @@ export function PromotionEditPage() {
     const nativePercent = caps?.supports_percent ?? false;
     const withTime = caps?.supports_time_of_day ?? true;
 
-    const { data: busySkuIds } = useBusySkuIds(promo?.channel_account_id ?? null, promotionId);
+    const { data: busyPromos } = useBusyPromos(promo?.channel_account_id ?? null, promotionId);
 
     const [title, setTitle] = useState('');
     const [discountType, setDiscountType] = useState<DiscountType>('fixed');
@@ -253,7 +253,7 @@ export function PromotionEditPage() {
             <SkuPickerModal
                 open={pickerOpen}
                 channelAccountId={promo.channel_account_id}
-                busySkuIds={busySkuIds ?? []}
+                busyPromos={busyPromos}
                 selectedSkuIds={selectedSkuIds}
                 onClose={() => setPickerOpen(false)}
                 onConfirm={addRows}

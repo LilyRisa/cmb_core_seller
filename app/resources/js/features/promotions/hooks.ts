@@ -6,7 +6,7 @@ import {
     createPromotion,
     deletePromotion,
     endPromotion,
-    getBusySkuIds,
+    getBusyPromos,
     getPromotion,
     getPromotionCapabilities,
     listPromotions,
@@ -57,13 +57,13 @@ export function usePromotionCapabilities(provider: string | null) {
     });
 }
 
-export function useBusySkuIds(channelAccountId: number | null, exceptPromotionId?: number) {
+export function useBusyPromos(channelAccountId: number | null, exceptPromotionId?: number) {
     const client = useScopedApi();
     const tenantId = useCurrentTenantId();
     return useQuery({
         queryKey: ['promotion-busy', tenantId, channelAccountId, exceptPromotionId],
         enabled: client != null && channelAccountId != null,
-        queryFn: () => getBusySkuIds(client!, channelAccountId!, exceptPromotionId),
+        queryFn: () => getBusyPromos(client!, channelAccountId!, exceptPromotionId),
     });
 }
 

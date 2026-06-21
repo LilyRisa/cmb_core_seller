@@ -108,14 +108,16 @@ final class PromotionController extends Controller
         return response()->json(['data' => ['deleted' => true]]);
     }
 
-    /** SKU đang bận (đã có chương trình đang/sắp chạy) trong gian hàng — để FE tô xám. */
+    /** SKU/sản phẩm đang bận (đã có chương trình đang/sắp chạy) trong gian hàng — FE tô xám + hiện giá giảm. */
     public function busySkus(Request $r): JsonResponse
     {
         abort_unless($r->user()?->can('products.view'), 403, 'Bạn không có quyền.');
         $cid = (int) $r->query('channel_account_id');
         $except = $r->query('except') !== null ? (int) $r->query('except') : null;
+        // `prices`: khoá (external_sku_id hoặc external_product_id cho item no-variant) → giá giảm đang chạy (VND).
+        $prices = $this->svc->busyPromoPrices($cid, $except);
 
-        return response()->json(['data' => ['external_sku_ids' => $this->svc->busySkuIds($cid, $except)]]);
+        return response()->json(['data' => ['external_sku_ids' => array_keys($prices), 'prices' => (object) $prices]]);
     }
 
     /** Đồng bộ chiến dịch đang có trên sàn về app (tab "đã đẩy"). */

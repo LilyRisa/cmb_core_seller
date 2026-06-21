@@ -145,7 +145,21 @@ final class PromotionService
      */
     public function busySkuIds(int $channelAccountId, ?int $exceptPromotionId = null): array
     {
-        // 1) Từ DB: SKU thuộc chiến dịch app đang chiếm (draft/pushing/live).
+        return array_keys($this->busyPromoPrices($channelAccountId, $exceptPromotionId));
+    }
+
+    /**
+     * Map khoá-BẬN → giá giảm (VND) cho các SKU/sản phẩm đang trong chương trình. KHOÁ = external_sku_id nếu
+     * có, NGƯỢC lại external_product_id (item Shopee KHÔNG biến thể: giảm giá nằm ở item_id, model rỗng — trước
+     * đây bị bỏ sót nên đơn hiện ra hết). Gộp: (1) chiến dịch app đang chiếm + (2) chương trình ĐANG/SẮP chạy
+     * trên sàn (giá thật ưu tiên). FE tô xám + hiện giá theo khoá này.
+     *
+     * @return array<string,int>
+     */
+    public function busyPromoPrices(int $channelAccountId, ?int $exceptPromotionId = null): array
+    {
+        // 1) DB: SKU thuộc chiến dịch app đang chiếm (draft/pushing/live).
+        $map = [];
         $db = ChannelPromotionSku::query()
             ->whereHas('promotion', function ($p) use ($channelAccountId, $exceptPromotionId) {
                 $p->where('channel_account_id', $channelAccountId)
@@ -155,19 +169,26 @@ final class PromotionService
                 }
             })
             ->whereNotNull('external_sku_id')
-            ->pluck('external_sku_id')->all();
+            ->get(['external_sku_id', 'sale_price']);
+        foreach ($db as $row) {
+            $map[(string) $row->external_sku_id] = (int) $row->sale_price;
+        }
 
-        // 2) Từ SÀN: chiến dịch đang chạy ngoài app (đồng bộ trạng thái thật, giống trên sàn).
-        return array_values(array_unique(array_merge($db, $this->channelBusySkuIds($channelAccountId))));
+        // 2) SÀN: chương trình ngoài app (giá thật đang chạy — ưu tiên ghi đè).
+        foreach ($this->channelBusyPromos($channelAccountId) as $key => $price) {
+            $map[$key] = $price;
+        }
+
+        return $map;
     }
 
     /**
-     * SKU đang trong chương trình ĐANG/SẮP chạy TRÊN SÀN (best-effort, cache 60s).
-     * Sàn không có đối tượng chương trình (Lazada) ⇒ []. Lỗi token/API ⇒ [] (không chặn UI).
+     * Khoá-bận → giá giảm cho chương trình ĐANG/SẮP chạy TRÊN SÀN (best-effort, cache 60s). Khoá = sku_id ||
+     * product_id. Sàn không liệt kê được chương trình (Lazada) ⇒ []. Lỗi token/API ⇒ [] (không chặn UI).
      *
-     * @return list<string>
+     * @return array<string,int>
      */
-    private function channelBusySkuIds(int $channelAccountId): array
+    private function channelBusyPromos(int $channelAccountId): array
     {
         return Cache::remember("promo_busy_san:$channelAccountId", now()->addSeconds(60), function () use ($channelAccountId) {
             try {
@@ -175,19 +196,20 @@ final class PromotionService
                 if (! $account) {
                     return [];
                 }
-                $ids = [];
+                $map = [];
                 foreach ($this->connector($account->provider)->listPromotions($account->authContext()) as $p) {
                     if ($p->status === 'ended') {
                         continue;
                     }
                     foreach ($p->items as $it) {
-                        if (! empty($it['external_sku_id'])) {
-                            $ids[] = (string) $it['external_sku_id'];
+                        $key = ! empty($it['external_sku_id']) ? (string) $it['external_sku_id'] : (string) ($it['external_product_id'] ?? '');
+                        if ($key !== '') {
+                            $map[$key] = (int) ($it['sale_price'] ?? 0);
                         }
                     }
                 }
 
-                return array_values(array_unique($ids));
+                return $map;
             } catch (\Throwable) {
                 return [];
             }

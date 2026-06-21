@@ -427,9 +427,10 @@ final class TikTokPublisher implements ProductPublishingConnector, PromotionConn
 
         try {
             $activities = [];
-            // TikTok lọc theo 1 trạng thái/lần — gộp ongoing + chưa bắt đầu.
+            // TikTok lọc theo 1 trạng thái/lần — gộp ongoing + chưa bắt đầu. Liệt kê hoạt động qua POST
+            // /activities/search (doc 202309 — GET /activities trả HTTP 405). Body: {status, page_size}.
             foreach (['ONGOING', 'NOT_START'] as $status) {
-                $data = $this->client->request('GET', '/promotion/202309/activities', $auth, ['status' => $status]);
+                $data = $this->client->request('POST', '/promotion/202309/activities/search', $auth, [], ['status' => $status, 'page_size' => 100]);
                 foreach ((array) ($data['activities'] ?? []) as $a) {
                     if (! is_array($a)) {
                         continue;
