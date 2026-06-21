@@ -734,12 +734,14 @@ class ShipmentService
         if ($shipment->isCancelled()) {
             throw new RuntimeException('Vận đơn đã huỷ.');
         }
+        $this->assertNotPostDispatch($shipment);   // chặn quét đơn đã giao-thất-bại / hoàn (xem helper)
         if (in_array($shipment->status, [Shipment::STATUS_PACKED, Shipment::STATUS_AWAITING_PICKUP, ...Shipment::HANDED_OVER_STATUSES], true)) {
             return false; // already packed/awaiting_pickup/handed over — no-op (anti double-scan, rule 5)
         }
         $order = $this->orderFor($shipment);
-        // Push lên sàn TRƯỚC khi flip shipment.status — nếu sàn reject (vd Lazada item bị buyer huỷ), giữ
-        // shipment ở `created` để user retry, không bị mất sync giữa app & sàn.
+        // Đẩy trạng thái "sẵn sàng bàn giao" lên sàn (Lazada /order/rts) TRƯỚC khi flip — gọi NGOÀI transaction
+        // để không giữ lock DB trong lúc chờ HTTP. KHÔNG chặn: `pushReadyToShipOnChannel` nuốt lỗi, chỉ gắn cờ
+        // `has_issue` cho user "Nhận lại phiếu"; ta VẪN đóng gói cục bộ để kho không bị kẹt khi sàn flaky.
         if ($order) {
             $this->pushReadyToShipOnChannel($order, $shipment);
         }
@@ -752,13 +754,39 @@ class ShipmentService
             && $this->carriers->for($baseCarrier)->supports('awaiting_pickup_flow');
         $newStatus = $useAwaitingPickup ? Shipment::STATUS_AWAITING_PICKUP : Shipment::STATUS_PACKED;
         $eventDesc = $useAwaitingPickup ? 'Đã sẵn sàng bàn giao — chờ ĐVVC tới lấy hàng' : 'Đã đóng gói & quét đơn';
-        $shipment->forceFill(['status' => $newStatus, 'packed_at' => now()])->save();
-        $this->recordEvent($shipment, 'packed', $eventDesc, $newStatus, $source, null, $userId);
-        if ($order) {
-            $this->orderStatus->apply($order, S::ReadyToShip, $source, [S::Pending, S::Processing], $userId);
-        }
 
-        return true;
+        // Gom 3 thao tác ghi (flip shipment + ghi event + đổi trạng thái đơn) vào MỘT transaction để không
+        // lệch nhau khi lỗi giữa chừng; khoá hàng vận đơn (lockForUpdate) + đọc lại trạng thái trong khoá ⇒
+        // 2 lượt quét gần đồng thời được tuần tự hoá (lượt sau thấy đã packed ⇒ no-op, không ghi event lần 2).
+        return DB::transaction(function () use ($shipment, $order, $newStatus, $eventDesc, $source, $userId) {
+            $locked = Shipment::query()->whereKey($shipment->getKey())->lockForUpdate()->first();
+            if (! $locked || in_array($locked->status, [Shipment::STATUS_PACKED, Shipment::STATUS_AWAITING_PICKUP, ...Shipment::HANDED_OVER_STATUSES], true)) {
+                return false; // lượt quét khác đã đóng gói trước (race) ⇒ no-op idempotent
+            }
+            $locked->forceFill(['status' => $newStatus, 'packed_at' => now()])->save();
+            $this->recordEvent($locked, 'packed', $eventDesc, $newStatus, $source, null, $userId);
+            if ($order) {
+                $this->orderStatus->apply($order, S::ReadyToShip, $source, [S::Pending, S::Processing], $userId);
+            }
+
+            return true;
+        });
+    }
+
+    /**
+     * Chặn quét đóng gói / bàn giao trên vận đơn đã rời tay ta theo hướng KHÔNG quay lại quy trình đóng gói:
+     * `failed` (giao thất bại) / `returned` (hoàn về người gửi). `findByScanCode` dùng scope `open()` (gồm cả
+     * 2 trạng thái này để giữ ràng buộc "1 vận đơn active / đơn") nên vẫn tìm thấy chúng — nhưng nếu cho quét
+     * sẽ "hồi sinh" về `packed`/`picked_up`, đẩy đơn → `shipped` và TRỪ TỒN SAI. Ném lỗi rõ ràng để bulk
+     * handler phân loại + scan controller trả 409.
+     */
+    private function assertNotPostDispatch(Shipment $shipment): void
+    {
+        if (in_array($shipment->status, [Shipment::STATUS_FAILED, Shipment::STATUS_RETURNED], true)) {
+            throw new RuntimeException($shipment->status === Shipment::STATUS_FAILED
+                ? 'Vận đơn đã giao thất bại — không thể đóng gói/bàn giao. Xử lý theo luồng trả/hoàn.'
+                : 'Vận đơn đã hoàn trả — không thể đóng gói/bàn giao.');
+        }
     }
 
     /**
@@ -840,6 +868,7 @@ class ShipmentService
         if ($shipment->isCancelled()) {
             throw new RuntimeException('Vận đơn đã huỷ.');
         }
+        $this->assertNotPostDispatch($shipment);   // chặn quét bàn giao đơn đã giao-thất-bại / hoàn
         if (in_array($shipment->status, Shipment::HANDED_OVER_STATUSES, true)) {
             return false; // already handed over — no-op (anti double-scan, rule 5)
         }
@@ -855,19 +884,28 @@ class ShipmentService
                 ? ($unavailable.' Đơn loại này không bàn giao qua ĐVVC tích hợp được — xử lý theo luồng giao của sàn.')
                 : 'Đơn của sàn chưa có phiếu giao hàng (tem) thật từ sàn — chưa thể bàn giao ĐVVC. Bấm "Nhận phiếu giao hàng" để lấy tem từ sàn trước.');
         }
-        DB::transaction(function () use ($shipment, $source, $userId, $eventCode) {
+
+        // Gom flip shipment + ghi event + đổi trạng thái đơn (trừ tồn ở `shipped`) vào MỘT transaction để
+        // không lệch nhau khi lỗi giữa chừng; lockForUpdate + đọc lại trạng thái trong khoá ⇒ chống quét trùng
+        // (lượt sau thấy đã bàn giao ⇒ no-op). Đẩy stock/sự kiện theo OrderUpserted (listener ShouldQueue,
+        // afterCommit) nên an toàn bên trong transaction.
+        return DB::transaction(function () use ($shipment, $source, $userId, $eventCode) {
+            $locked = Shipment::query()->whereKey($shipment->getKey())->lockForUpdate()->first();
+            if (! $locked || in_array($locked->status, Shipment::HANDED_OVER_STATUSES, true)) {
+                return false; // lượt quét khác đã bàn giao trước (race) ⇒ no-op idempotent
+            }
             $patch = ['status' => Shipment::STATUS_PICKED_UP, 'picked_up_at' => now()];
-            if ($shipment->packed_at === null) {
+            if ($locked->packed_at === null) {
                 $patch['packed_at'] = now();   // handing over without an explicit "pack" step
             }
-            $shipment->forceFill($patch)->save();
-            $this->recordEvent($shipment, $eventCode, $eventCode === 'packed_scanned' ? 'Đã quét bàn giao' : 'Đã bàn giao ĐVVC', Shipment::STATUS_PICKED_UP, $source, null, $userId);
-        });
-        if ($order = $this->orderFor($shipment)) {
-            $this->orderStatus->apply($order, S::Shipped, $source, [S::Pending, S::Processing, S::ReadyToShip], $userId);
-        }
+            $locked->forceFill($patch)->save();
+            $this->recordEvent($locked, $eventCode, $eventCode === 'packed_scanned' ? 'Đã quét bàn giao' : 'Đã bàn giao ĐVVC', Shipment::STATUS_PICKED_UP, $source, null, $userId);
+            if ($order = $this->orderFor($locked)) {
+                $this->orderStatus->apply($order, S::Shipped, $source, [S::Pending, S::Processing, S::ReadyToShip], $userId);
+            }
 
-        return true;
+            return true;
+        });
     }
 
     public function cancel(Shipment $shipment, ?int $userId = null): void

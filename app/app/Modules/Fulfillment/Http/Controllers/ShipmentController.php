@@ -391,6 +391,13 @@ class ShipmentController extends Controller
         if ($shipment->isCancelled()) {
             abort(409, 'Vận đơn đã huỷ.');
         }
+        // Vận đơn đã giao-thất-bại / hoàn về (findByScanCode dùng open() nên vẫn tìm thấy) KHÔNG được quét
+        // đóng gói/bàn giao — nếu không sẽ "hồi sinh" về picked_up/packed, đẩy đơn → Shipped & trừ tồn sai.
+        if (in_array($shipment->status, [Shipment::STATUS_FAILED, Shipment::STATUS_RETURNED], true)) {
+            abort(409, $shipment->status === Shipment::STATUS_FAILED
+                ? 'Vận đơn đã giao thất bại — không thể quét. Xử lý theo luồng trả/hoàn.'
+                : 'Vận đơn đã hoàn trả — không thể quét.');
+        }
         $userId = $request->user()->getKey();
         if ($action === 'handover') {
             if (in_array($shipment->status, Shipment::HANDED_OVER_STATUSES, true)) {

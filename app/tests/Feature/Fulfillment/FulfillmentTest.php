@@ -168,6 +168,32 @@ class FulfillmentTest extends TestCase
         $this->assertSame('processing', Order::withoutGlobalScope(TenantScope::class)->find($o3)->status->value);
     }
 
+    public function test_scanning_a_failed_or_returned_shipment_does_not_revive_it(): void
+    {
+        // Bug nghiêm trọng: findByScanCode dùng scope open() (gồm cả failed/returned) và guard chỉ chặn
+        // HANDED_OVER_STATUSES (picked_up/in_transit/delivered) ⇒ quét một đơn đã giao-thất-bại/hoàn sẽ lật
+        // vận đơn về picked_up/packed, đẩy order → Shipped và TRỪ TỒN SAI. Quét 2 trạng thái này phải 409.
+        foreach (['failed' => Shipment::STATUS_FAILED, 'returned' => Shipment::STATUS_RETURNED] as $tag => $state) {
+            $orderId = $this->createOrder();
+            $shipmentId = $this->actingAs($this->owner)->withHeaders($this->h())
+                ->postJson("/api/v1/orders/{$orderId}/ship", ['tracking_no' => "TN-$tag"])->assertCreated()->json('data.id');
+            // Ép vận đơn về trạng thái hậu-giao (carrier báo thất bại / hoàn về người gửi).
+            Shipment::withoutGlobalScope(TenantScope::class)->whereKey($shipmentId)->update(['status' => $state]);
+            $onHandBefore = $this->level()->on_hand;
+
+            $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/scan-pack', ['code' => "TN-$tag"])->assertStatus(409);
+            $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/scan-handover', ['code' => "TN-$tag"])->assertStatus(409);
+
+            $this->assertSame($state, Shipment::withoutGlobalScope(TenantScope::class)->find($shipmentId)->status, "Vận đơn $tag không được đổi trạng thái khi quét.");
+            $this->assertNotSame('shipped', Order::withoutGlobalScope(TenantScope::class)->find($orderId)->status->value, "Đơn $tag không được đẩy sang Shipped khi quét.");
+            $this->assertFalse(
+                InventoryMovement::withoutGlobalScope(TenantScope::class)->where('sku_id', $this->sku->getKey())->where('type', 'order_ship')->exists(),
+                "Quét đơn $tag không được trừ tồn (order_ship)."
+            );
+            $this->assertSame($onHandBefore, $this->level()->on_hand);
+        }
+    }
+
     public function test_out_of_stock_blocks_prepare_and_is_flagged(): void
     {
         $a = $this->createOrder();                                                   // reserves 2 (on_hand 20 ⇒ available 18)
