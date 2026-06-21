@@ -18,6 +18,7 @@ use CMBcoreSeller\Modules\Messaging\Events\MessageReceived;
 use CMBcoreSeller\Modules\Messaging\Events\PostbackReceived;
 use CMBcoreSeller\Modules\Messaging\Listeners\AdvanceFlowOnPostback;
 use CMBcoreSeller\Modules\Messaging\Listeners\AiAutoModeOnInbound;
+use CMBcoreSeller\Modules\Messaging\Listeners\PushWebOnNewMessage;
 use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnComment;
 use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnInbound;
 use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnOrderStatus;
@@ -102,6 +103,10 @@ class MessagingServiceProvider extends ServiceProvider
         // Pre-register partition target. Phase sau nâng partition không cần đổi
         // gọi `db:partitions:ensure` — registry đã có.
         PartitionRegistry::register('messages', 'created_at');
+
+        // Web Push tức thì khi có tin nhắn inbound mới (event-driven) — bù cho digest 30'. Gửi cho sub
+        // KHÔNG hoạt động (tab đóng/ẩn); queued trên messaging-bg. SPEC 0029.
+        Event::listen(MessageReceived::class, PushWebOnNewMessage::class);
 
         // Auto-reply (S5): trigger theo event. away_no_response sweep qua command.
         Event::listen(MessageReceived::class, RunAutoReplyOnInbound::class);

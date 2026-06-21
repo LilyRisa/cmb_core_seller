@@ -30,6 +30,7 @@ Hook `useMessageNotifications(conversations)`:
 - **API** (nhóm messaging auth): `POST /messaging/push/subscribe`, `POST /messaging/push/heartbeat`, `DELETE /messaging/push/subscribe`. `GET /messaging/push/public-key` (trả VAPID public để FE subscribe).
 - **Service** `WebPushSender`: bọc minishlink/web-push, gửi 1 push; 404/410 → xoá subscription.
 - **Command** `messaging:push-digest` (scheduler **mỗi 30 phút**): với subscription **không hoạt động** (`last_seen_at` cũ hơn ~5 phút ⇒ tab đóng/away): đếm hội thoại có `last_inbound_at > last_notified_at` trong tenant đó; nếu ≥1 → gửi push "**N người nhắn tin mới**", set `last_notified_at = now`.
+- **Push TỨC THÌ (bổ sung 2026-06-21):** listener `PushWebOnNewMessage` trên `MessageReceived` (queued `messaging-bg`) gửi web push NGAY khi có tin nhắn inbound — không chờ digest 30'. Chỉ gửi cho sub **không hoạt động** (`last_seen_at` cũ hơn ~90s ⇒ tab đóng/ẩn, user đang mở tab đã thấy in-app qua Reverb), throttle ~20s/sub chống spam; cập nhật `last_notified_at` ⇒ digest không báo trùng. Digest giữ vai trò lưới an toàn. Body = "{tên khách} vừa nhắn tin".
 
 ## Thành phần & ranh giới
 - FE: `tagAttachContent` (sửa) · `useMessageNotifications` (mới) · `usePushNotifications` (mới) · `public/sw.js` · `SystemSettingsPage`/catalog group `push`.
