@@ -30,15 +30,22 @@ final class LazadaStatusMap
             return StandardOrderStatus::tryFrom($mapped) ?? StandardOrderStatus::Pending;
         }
 
+        // Fallback phòng thủ (status không có trong config map) — THỨ TỰ khớp quan trọng: nhánh reverse/lost
+        // phải xét TRƯỚC 'shipped'/'delivered' vì mã reverse chứa cả 'shipped' (shipped_back) / 'delivered'
+        // (failed_delivered). Đối chiếu sơ đồ Order Status Flow chính chủ Lazada.
         return match (true) {
             str_contains($key, 'cancel') => StandardOrderStatus::Cancelled,
-            str_contains($key, 'return') || str_contains($key, 'refund') => StandardOrderStatus::Returning,
-            str_contains($key, 'failed') && str_contains($key, 'delivery') => StandardOrderStatus::DeliveryFailed,
+            str_contains($key, 'scrapped') => StandardOrderStatus::ReturnedRefunded,            // package_scrapped — chốt trả/hoàn
+            str_contains($key, 'shipped_back') || str_contains($key, 'return') || str_contains($key, 'refund') || str_contains($key, 'rtm') => StandardOrderStatus::Returning,
+            str_contains($key, 'lost') || str_contains($key, 'damaged') => StandardOrderStatus::DeliveryFailed,   // lost_by_3pl / damaged_by_3pl
+            str_contains($key, 'failed') => StandardOrderStatus::DeliveryFailed,                // failed_delivery / failed_delivered
             str_contains($key, 'delivered') => StandardOrderStatus::Delivered,
             str_contains($key, 'shipped') || str_contains($key, 'transit') => StandardOrderStatus::Shipped,
-            str_contains($key, 'ready_to_ship') || str_contains($key, 'packed') => StandardOrderStatus::ReadyToShip,
-            str_contains($key, 'unpaid') || str_contains($key, 'pending') => StandardOrderStatus::Pending,
-            default => StandardOrderStatus::Pending,
+            str_contains($key, 'ready_to_ship') || str_contains($key, 'toship') => StandardOrderStatus::ReadyToShip,
+            str_contains($key, 'repack') || str_contains($key, 'packed') => StandardOrderStatus::Processing,   // packed/repacked → Đang xử lý (KHÔNG ready_to_ship)
+            str_contains($key, 'confirmed') => StandardOrderStatus::Completed,
+            str_contains($key, 'unpaid') => StandardOrderStatus::Unpaid,
+            default => StandardOrderStatus::Pending,                                            // pending/paid/topack/...
         };
     }
 
@@ -63,18 +70,19 @@ final class LazadaStatusMap
         $rank = [
             'unpaid' => 0,
             'paid' => 1, 'pending' => 1, 'topack' => 1,
-            'packed' => 2,
+            'packed' => 2, 'repacked' => 2,
             'ready_to_ship' => 3, 'ready_to_ship_pending' => 3, 'toship' => 3,
             'shipped' => 4,
             'delivered' => 5,
             'confirmed' => 6,
-            'failed' => 4, 'failed_delivered' => 4, 'lost' => 4, 'damaged' => 4,
+            'failed' => 4, 'failed_delivered' => 4, 'failed_delivery' => 4,
+            'lost' => 4, 'lost_by_3pl' => 4, 'damaged' => 4, 'damaged_by_3pl' => 4,
             'shipped_back' => 7, 'shipped_back_failed' => 7,
-            'returned' => 8, 'return_to_seller' => 8, 'rtm_init' => 8,
+            'returned' => 8, 'return_to_seller' => 8, 'rtm_init' => 8, 'shipped_back_success' => 8, 'package_scrapped' => 8,
             'canceled' => 9, 'cancelled' => 9,
         ];
         $norm = fn ($s) => strtolower(str_replace([' ', '-'], '_', $s));
-        $reverse = ['canceled', 'returned', 'shipped_back', 'shipped_back_failed'];
+        $reverse = ['canceled', 'returned', 'shipped_back', 'shipped_back_failed', 'shipped_back_success', 'package_scrapped'];
         $allReverse = array_diff(array_map($norm, $statuses), $reverse) === [];
         if ($allReverse) {
             // most "final" reverse status

@@ -554,6 +554,7 @@ return [
             // packed = đã /order/fulfill/pack, có tracking_number nhưng chưa /order/rts ⇒ "Đang xử lý" (chờ user
             // bấm "Đã gói & sẵn sàng bàn giao" để app gọi /order/rts đẩy lên Lazada).
             'packed' => 'processing',
+            'repacked' => 'processing',   // doc Lazada: pending|repacked mới gọi /order/fulfill/pack được — đang chuẩn bị lại
             // ready_to_ship = đã /order/rts, Lazada chờ 3PL pickup ⇒ "Chờ bàn giao". `toship` là alias.
             'ready_to_ship' => 'ready_to_ship',
             'ready_to_ship_pending' => 'ready_to_ship',
@@ -561,12 +562,17 @@ return [
             'shipped' => 'shipped',
             'shipped_back' => 'returning',
             'shipped_back_failed' => 'returning',
+            'shipped_back_success' => 'returned_refunded',   // gói đã về tới người gửi ⇒ Trả/hoàn (trước thiếu → khớp 'shipped' → map nhầm Đang vận chuyển)
             'delivered' => 'delivered',
             'confirmed' => 'completed',
             'failed' => 'delivery_failed',
             'failed_delivered' => 'delivery_failed',
+            'failed_delivery' => 'delivery_failed',         // tên thật trong sơ đồ Lazada
             'lost' => 'delivery_failed',
+            'lost_by_3pl' => 'delivery_failed',             // tên thật (trước thiếu → fallback về Pending → lùi trạng thái)
             'damaged' => 'delivery_failed',
+            'damaged_by_3pl' => 'delivery_failed',          // tên thật (trước thiếu → Pending)
+            'package_scrapped' => 'returned_refunded',      // gói bị huỷ sau khi trả về — chốt ở Trả/hoàn
             'returned' => 'returned_refunded',
             'return_to_seller' => 'returning',
             'rtm_init' => 'returning',
