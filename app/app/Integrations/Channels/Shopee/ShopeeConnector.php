@@ -264,21 +264,45 @@ class ShopeeConnector implements ChannelConnector, PenaltyWebhookConnector, Shop
             if ($packageNumber !== '' && count((array) ($params['packages'] ?? [])) > 1) {
                 $body['package_number'] = $packageNumber;
             }
-            $method = (string) ($cfg['ship_method'] ?? 'auto');
-            // 'auto': ưu tiên dropoff khi sàn có khai báo dropoff cho đơn này; else pickup. Verify trên sandbox.
-            $useDropoff = $method === 'dropoff' || ($method === 'auto' && array_key_exists('dropoff', $param) && $param['dropoff'] !== null && $param['dropoff'] !== []);
-            if ($useDropoff) {
-                $body['dropoff'] = (object) [];
-            } else {
-                $addr = (array) ($param['pickup']['address_list'][0] ?? []);
-                $body['pickup'] = array_filter([
-                    'address_id' => $addr['address_id'] ?? null,
-                    'pickup_time_id' => $addr['time_slot_list'][0]['pickup_time_id'] ?? null,
-                ]);
-                if (empty($body['pickup']['address_id'])) {
+            // CHỌN MODE THEO `info_needed` (doc v2.logistics.get_shipping_parameter/ship_order) — KHÔNG đoán theo
+            // sự hiện diện của object `dropoff` (response LUÔN kèm cả `pickup` & `dropoff` object để LIỆT KÊ lựa
+            // chọn; chỉ `info_needed` mới cho biết sàn YÊU CẦU mode nào). ship_order chỉ gửi field pickup/dropoff/
+            // non_integrated khi info_needed trả về field đó, nếu không ⇒ `logistics.error_param`. VN SPX thực tế:
+            // info_needed = {"dropoff":[], "pickup":["address_id","pickup_time_id"]} ⇒ PICKUP. (Bug cũ: đoán
+            // dropoff ⇒ gửi dropoff:{} cho đơn cần pickup ⇒ ship_order lỗi cao.)
+            $info = (array) ($param['info_needed'] ?? []);
+            $pickupNeeded = (array) ($info['pickup'] ?? []);
+            $dropoffNeeded = $info['dropoff'] ?? null;
+            $method = (string) ($cfg['ship_method'] ?? 'auto');   // 'auto' | 'pickup' | 'dropoff' — ép thủ công nếu cần
+            $mode = match (true) {
+                in_array($method, ['pickup', 'dropoff'], true) => $method,
+                $pickupNeeded !== [] => 'pickup',                                  // info_needed.pickup có field ⇒ pickup
+                is_array($dropoffNeeded) && $dropoffNeeded !== [] => 'dropoff',    // info_needed.dropoff có field ⇒ dropoff
+                array_key_exists('non_integrated', $info) => 'non_integrated',
+                array_key_exists('pickup', $info) => 'pickup',                     // cả 2 rỗng ⇒ ưu tiên pickup (tích hợp)
+                array_key_exists('dropoff', $info) => 'dropoff',
+                default => 'pickup',
+            };
+
+            if ($mode === 'dropoff') {
+                // info_needed.dropoff có 'branch_id' ⇒ chọn 1 branch; rỗng ⇒ vẫn PHẢI gửi field `dropoff` rỗng (doc).
+                $branchId = data_get($param, 'dropoff.branch_list.0.branch_id');
+                $body['dropoff'] = (in_array('branch_id', (array) $dropoffNeeded, true) && $branchId)
+                    ? ['branch_id' => (int) $branchId]
+                    : (object) [];
+            } elseif ($mode === 'non_integrated') {
+                $body['non_integrated'] = (object) [];
+            } else { // pickup
+                $addr = $this->pickPickupAddress((array) ($param['pickup']['address_list'] ?? []));
+                if (empty($addr['address_id'])) {
                     // Thông báo tiếng Việt, KHÔNG lộ tên biến env lên UI.
                     throw new ShopeeApiException("Shopee chưa có địa chỉ lấy hàng (pickup) cho đơn {$externalOrderId}. Kiểm tra cấu hình lấy hàng/giao hàng trên Shopee Seller Center, hoặc chuyển sang gửi tại bưu cục.", 'error_param');
                 }
+                // pickup_time_id OPTIONAL: nhiều kênh không trả time slot ⇒ bỏ trống, Shopee tự xếp lịch (doc).
+                $body['pickup'] = array_filter([
+                    'address_id' => $addr['address_id'],
+                    'pickup_time_id' => $addr['time_slot_list'][0]['pickup_time_id'] ?? null,
+                ]);
             }
             $this->client->shopPost($auth, $this->client->endpoint('ship_order'), [], $body);
         }
@@ -289,6 +313,26 @@ class ShopeeConnector implements ChannelConnector, PenaltyWebhookConnector, Shop
             'raw_status' => 'PROCESSED',
             'package_id' => $packageNumber ?: $externalOrderId,
         ];
+    }
+
+    /**
+     * Chọn địa chỉ lấy hàng cho pickup: ưu tiên địa chỉ gắn cờ `pickup_address` rồi `default_address`
+     * (doc get_shipping_parameter: `address_flag`), fallback phần tử đầu. Tránh lấy nhầm địa chỉ trả hàng.
+     *
+     * @param  array<int,mixed>  $addressList
+     * @return array<string,mixed>
+     */
+    private function pickPickupAddress(array $addressList): array
+    {
+        foreach (['pickup_address', 'default_address'] as $flag) {
+            foreach ($addressList as $a) {
+                if (is_array($a) && in_array($flag, (array) ($a['address_flag'] ?? []), true)) {
+                    return $a;
+                }
+            }
+        }
+
+        return (array) ($addressList[0] ?? []);
     }
 
     /**

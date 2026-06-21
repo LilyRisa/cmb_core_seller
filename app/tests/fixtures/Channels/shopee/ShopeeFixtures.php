@@ -89,9 +89,17 @@ final class ShopeeFixtures
         ];
     }
 
+    /**
+     * Response thật của VN SPX: `info_needed.pickup` có field ⇒ phải PICKUP; nhưng sàn VẪN kèm object
+     * `dropoff` (liệt kê branch như lựa chọn) — connector phải theo `info_needed`, KHÔNG đoán theo object dropoff.
+     */
     public static function shippingParameter(): array
     {
-        return ['error' => '', 'response' => ['dropoff' => [], 'pickup' => ['address_list' => [['address_id' => 9, 'time_slot_list' => [['pickup_time_id' => 'T1']]]]]]];
+        return ['error' => '', 'response' => [
+            'info_needed' => ['dropoff' => [], 'pickup' => ['address_id', 'pickup_time_id']],
+            'dropoff' => ['branch_list' => [['branch_id' => 7, 'region' => 'VN']]],
+            'pickup' => ['address_list' => [['address_id' => 9, 'address_flag' => ['pickup_address'], 'time_slot_list' => [['pickup_time_id' => 'T1']]]]],
+        ]];
     }
 
     public static function shipOrder(): array
@@ -164,10 +172,14 @@ final class ShopeeFixtures
         return ['error' => '', 'response' => ['escrow_list' => [['order_sn' => 'SN_P2']], 'more' => false]];
     }
 
-    /** shipping_parameter response where the platform offers a dropoff option. */
+    /** shipping_parameter response where `info_needed` requires DROPOFF (with a branch to pick). */
     public static function shippingParameterDropoff(): array
     {
-        return ['error' => '', 'response' => ['dropoff' => ['branch_list' => [['branch_id' => 7]]], 'pickup' => []]];
+        return ['error' => '', 'response' => [
+            'info_needed' => ['pickup' => [], 'dropoff' => ['branch_id']],
+            'dropoff' => ['branch_list' => [['branch_id' => 7]]],
+            'pickup' => [],
+        ]];
     }
 
     public static function escrowDetail(): array
