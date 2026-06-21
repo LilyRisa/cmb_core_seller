@@ -65,6 +65,31 @@ final class OrderStateMachine
         return self::RANK[$to->value] < self::RANK[$from->value];
     }
 
+    /**
+     * Chống kéo lùi khi đồng bộ ngược từ sàn (webhook/poll đến TRỄ hoặc ĐẢO thứ tự). Trả về trạng thái NÊN
+     * giữ cho đơn: tiến/bằng rank ⇒ áp dụng `$incoming`; lùi qua mốc lớn ⇒ GIỮ `$current`. Vd Shopee gửi
+     * CANCELLED rồi 3s sau gửi IN_CANCEL (→processing) ⇒ guard giữ `cancelled`, không "hồi sinh" đơn đã huỷ.
+     * Vẫn cho lùi NHẸ hợp lệ (ready_to_ship→processing). Nhánh cancel/return/refund rank cao ⇒ luôn áp dụng
+     * (không bị chặn). docs/03-domain/order-status-state-machine.md §3.
+     */
+    public function holdAgainstRegression(S $current, S $incoming): S
+    {
+        if (self::RANK[$incoming->value] >= self::RANK[$current->value]) {
+            return $incoming; // tiến hoặc bằng — áp dụng bình thường
+        }
+        if ($current->isTerminal()) {
+            return $current; // (1) huỷ/hoàn-tất/đã-trả-hoàn là CHỐT — update trễ không kéo về trạng thái thấp
+        }
+        if (self::RANK[$current->value] >= self::RANK[S::Shipped->value] && self::RANK[$incoming->value] <= self::RANK[S::ReadyToShip->value]) {
+            return $current; // (3) đã giao/vận chuyển/trả-hoàn không quay về trước-giao-hàng
+        }
+        if (in_array($current, [S::Processing, S::ReadyToShip], true) && in_array($incoming, [S::Unpaid, S::Pending], true)) {
+            return $current; // đã chuẩn bị hàng không về Chờ xử lý (sticky-forward)
+        }
+
+        return $incoming; // lùi nhẹ hợp lệ (vd ready_to_ship→processing)
+    }
+
     /** A regression of 2+ ranks, or any regression out of a terminal status. */
     public function isAbnormalBackwardJump(S $from, S $to): bool
     {

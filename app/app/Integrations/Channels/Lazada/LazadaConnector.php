@@ -504,15 +504,15 @@ class LazadaConnector implements ChannelConnector, ShopReportConnector
                 'MissingRtsParams', 422,
             );
         }
-        // Fallback: nếu caller chưa lưu order_item_ids ⇒ re-fetch detail để lấy items packed/pending hiện tại.
+        // Fallback: caller chưa lưu order_item_ids ⇒ re-fetch detail lấy item ĐANG `packed`. Doc Lazada:
+        // CHỈ item trạng thái `packed` mới gọi được /order/package/rts (gửi pending/topack ⇒ sàn từ chối).
         if ($itemIds === []) {
             $detail = $this->fetchOrderDetail($auth, $externalOrderId);
             foreach ((array) ($detail->raw['items'] ?? []) as $it) {
                 if (! is_array($it)) {
                     continue;
                 }
-                $status = strtolower(trim((string) ($it['status'] ?? '')));
-                if (in_array($status, ['packed', 'pending', 'topack'], true)) {
+                if (strtolower(trim((string) ($it['status'] ?? ''))) === 'packed') {
                     $id = (int) ($it['order_item_id'] ?? 0);
                     if ($id > 0) {
                         $itemIds[] = $id;
@@ -521,10 +521,11 @@ class LazadaConnector implements ChannelConnector, ShopReportConnector
             }
             $itemIds = array_values(array_unique($itemIds));
             if ($itemIds === []) {
-                throw new LazadaApiException(
-                    "Lazada pushReadyToShip: không tìm thấy order_item_id packed/pending cho đơn {$externalOrderId}.",
-                    'NoItemsForRts', 422,
-                );
+                // Không còn item `packed` ⇒ đơn đã RTS rồi hoặc đã đi qua giai đoạn này (đã shipped / đang trả
+                // về / item bị huỷ). KHÔNG ném lỗi (tránh has_issue nhiễu) — coi như đã xong; caller idempotent.
+                Log::info('lazada.push_rts_skip_no_packed_items', ['order' => $externalOrderId, 'tracking_no' => $trackingNo]);
+
+                return ['raw_status' => 'ready_to_ship', 'carrier' => $shipmentProvider ?: null, 'tracking_no' => $trackingNo ?: null, 'package_id' => (string) ($params['packageId'] ?? '') ?: null];
             }
         }
 

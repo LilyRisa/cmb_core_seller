@@ -112,4 +112,34 @@ class OrderUpsertReadyToShipHoldTest extends TestCase
 
         $this->assertSame(S::ReadyToShip, $after->status, 'Đơn Chờ bàn giao KHÔNG bị kéo lùi về Chờ xử lý.');
     }
+
+    public function test_terminal_cancelled_not_revived_by_lower_status(): void
+    {
+        // Đơn đã HUỶ (terminal) ⇒ update trễ map về processing (vd Shopee IN_CANCEL) KHÔNG được hồi sinh.
+        $this->sync('LZ7', 'canceled', S::Cancelled, CarbonImmutable::now()->subMinutes(10));
+        $after = $this->sync('LZ7', 'in_cancel', S::Processing, CarbonImmutable::now());
+
+        $this->assertSame(S::Cancelled, $after->status, 'Đơn đã huỷ KHÔNG bị kéo về Đang xử lý.');
+        $this->assertFalse((bool) $after->has_issue, 'Lùi-được-giữ KHÔNG gắn cờ has_issue (hết cảnh báo nhiễu).');
+    }
+
+    public function test_webhook_does_not_revive_cancelled_order(): void
+    {
+        // Ca thật: Shopee gửi CANCELLED rồi 3s sau gửi IN_CANCEL (→processing) qua webhook.
+        $this->sync('LZ8', 'canceled', S::Cancelled, CarbonImmutable::now()->subMinutes(10));
+        $after = $this->upsert->applyStatusFromWebhook(
+            (int) $this->tenant->getKey(), (int) $this->account->getKey(), 'lazada', 'LZ8', S::Processing, 'IN_CANCEL',
+        );
+
+        $this->assertSame(S::Cancelled, $after->status, 'Webhook trễ KHÔNG hồi sinh đơn đã huỷ.');
+        $this->assertSame('IN_CANCEL', $after->raw_status, 'Vẫn lưu raw_status thật của sàn.');
+    }
+
+    public function test_shipped_not_regressed_to_pre_shipment(): void
+    {
+        $this->sync('LZ9', 'shipped', S::Shipped, CarbonImmutable::now()->subMinutes(10));
+        $after = $this->sync('LZ9', 'ready_to_ship', S::ReadyToShip, CarbonImmutable::now());
+
+        $this->assertSame(S::Shipped, $after->status, 'Đơn đã giao cho ĐVVC KHÔNG quay về trước-giao-hàng.');
+    }
 }

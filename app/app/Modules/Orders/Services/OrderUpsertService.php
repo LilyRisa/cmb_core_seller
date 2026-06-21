@@ -70,6 +70,9 @@ class OrderUpsertService implements OrderUpsertContract
                 $order->restore();
             }
             $previous = $order->status;
+            // Chống kéo lùi: webhook đến TRỄ/ĐẢO thứ tự không được kéo đơn về trạng thái thấp hơn (vd Shopee gửi
+            // CANCELLED rồi 3s sau gửi IN_CANCEL→processing). Giữ raw_status thật ở nhánh no-op bên dưới.
+            $status = $this->stateMachine->holdAgainstRegression($previous, $status);
             if ($previous === $status) {
                 $order->forceFill(['raw_status' => $rawStatus, 'last_synced_at' => now()])->save();
 
@@ -153,6 +156,12 @@ class OrderUpsertService implements OrderUpsertContract
             $previousStatus = $created ? null : $order->status;
             $hasIssue = $created ? false : (bool) $order->has_issue;
             $issueReason = $created ? null : $order->issue_reason;
+            // Chống kéo lùi (poll đến trễ/đảo thứ tự) TRƯỚC khi xét cờ bất thường — giữ trạng thái cao, KHÔNG
+            // gắn has_issue cho lùi-được-giữ (vd cancelled giữ nguyên khi sàn báo lại processing). Đặt trước
+            // sticky-forward bên dưới (vẫn xử lý forward Processing→ReadyToShip riêng).
+            if (! $created) {
+                $status = $this->stateMachine->holdAgainstRegression($previousStatus, $status);
+            }
             if (! $created && $previousStatus !== $status && $this->stateMachine->isAbnormalBackwardJump($previousStatus, $status)) {
                 $hasIssue = true;
                 $issueReason = "Sàn báo lùi trạng thái bất thường: {$previousStatus->value} → {$status->value}";
