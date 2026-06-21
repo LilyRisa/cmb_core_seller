@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Orders;
 
+use CMBcoreSeller\Modules\Orders\Console\RemapOrderStatus;
 use CMBcoreSeller\Modules\Orders\Contracts\ManualOrderDailyStats;
 use CMBcoreSeller\Modules\Orders\Contracts\OrderLookupContract;
 use CMBcoreSeller\Modules\Orders\Contracts\OrderUpsertContract;
@@ -38,6 +39,10 @@ class OrdersServiceProvider extends ServiceProvider
 
         if (is_file(__DIR__.'/Http/routes.php')) {
             $this->loadRoutesFrom(__DIR__.'/Http/routes.php');
+        }
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([RemapOrderStatus::class]);
         }
     }
 }
