@@ -351,12 +351,16 @@ class OrderController extends Controller
                 ->whereDoesntHave('shipments', $openLabelled)
                 ->whereDoesntHave('shipments', $openNoLabelInQueue)->count(),
         ];
-        // "Đã in phiếu / Chưa in phiếu" — đếm trên đơn có vận đơn open (SPEC 0013).
+        // "Đã in phiếu / Chưa in phiếu" — đếm trên đơn có vận đơn open (SPEC 0013). Chip + filter `printed`
+        // CHỈ sống ở tab "Đang xử lý" (FE: `isProcessingTab`) và list khi bấm vào luôn kèm `status=processing`.
+        // ⇒ badge cũng phải bó trong `processing` (dùng `$slipBase` như `by_slip`) để KHỚP số đơn list. Trước
+        // đây đếm trên `$statusBase` (mọi status) ⇒ badge gồm cả đơn shipped/ready_to_ship còn vận đơn open đã
+        // in → bấm "Đã in phiếu (N)" ra danh sách rỗng (badge ≠ list).
         $openPrinted = fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES)->where('print_count', '>', 0);
         $hasOpenShipment = fn (Builder $q) => $q->whereHas('shipments', fn (Builder $s) => $s->whereIn('status', Shipment::OPEN_STATUSES));
         $byPrinted = [
-            'yes' => (clone $statusBase)->whereHas('shipments', $openPrinted)->count(),
-            'no' => $hasOpenShipment(clone $statusBase)->whereDoesntHave('shipments', $openPrinted)->count(),
+            'yes' => (clone $slipBase)->whereHas('shipments', $openPrinted)->count(),
+            'no' => $hasOpenShipment(clone $slipBase)->whereDoesntHave('shipments', $openPrinted)->count(),
         ];
 
         // Chip rows cascade theo cây: source (gốc) → channel_account_id → carrier.

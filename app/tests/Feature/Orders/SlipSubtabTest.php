@@ -150,6 +150,52 @@ class SlipSubtabTest extends TestCase
         $this->assertSame(1, $stats->json('data.by_slip.failed'));
     }
 
+    /** Tạo đơn ở status bất kỳ kèm 1 vận đơn open có print_count cho test "Đã in / Chưa in phiếu". */
+    private function makeOrderWithPrintedShipment(string $extId, StandardOrderStatus $status, int $printCount): Order
+    {
+        $order = Order::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $this->tenant->getKey(), 'source' => 'lazada',
+            'channel_account_id' => $this->account->getKey(),
+            'external_order_id' => $extId, 'order_number' => $extId,
+            'status' => $status, 'raw_status' => 'packed',
+            'currency' => 'VND', 'grand_total' => 100000, 'item_total' => 100000,
+            'placed_at' => now()->subHours(1), 'tags' => [], 'carrier' => 'LEX VN',
+            'source_updated_at' => now()->subHours(1),
+        ]);
+        Shipment::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $this->tenant->getKey(), 'order_id' => $order->getKey(),
+            'carrier' => 'LEX VN', 'tracking_no' => 'TRK-'.$extId,
+            'status' => Shipment::STATUS_CREATED, 'cod_amount' => 0,
+            'label_path' => 'tenants/1/labels/'.$extId.'.pdf', 'print_count' => $printCount,
+        ]);
+
+        return $order;
+    }
+
+    public function test_by_printed_counts_are_scoped_to_processing_and_match_the_list(): void
+    {
+        // Chip "Phiếu in" (Đã in / Chưa in) CHỈ hiện & lọc ở tab "Đang xử lý" (FE: `isProcessingTab`), và list
+        // khi bấm vào luôn kèm `status=processing`. ⇒ badge `by_printed` PHẢI đếm trong phạm vi processing.
+        // Regression: trước đây by_printed đếm trên MỌI status ⇒ badge "Đã in phiếu (N)" gồm cả đơn đã
+        // shipped/ready_to_ship (vận đơn open đã in) → bấm vào ra danh sách RỖNG (badge ≠ list). SPEC 0013.
+        $this->makeOrderWithPrintedShipment('PR-PRINTED', StandardOrderStatus::Processing, 1);    // processing, đã in → yes
+        $this->makeProcessingOrderWithShipment('PR-UNPRINTED', null, null);                       // processing, chưa in → no
+        $this->makeOrderWithPrintedShipment('SHIP-PRINTED', StandardOrderStatus::Shipped, 2);     // shipped, đã in → KHÔNG đếm
+        $this->makeOrderWithPrintedShipment('RTS-PRINTED', StandardOrderStatus::ReadyToShip, 1);  // ready_to_ship, đã in → KHÔNG đếm
+
+        $byPrinted = $this->actingAs($this->user)->withHeaders($this->header())
+            ->getJson('/api/v1/orders/stats?status=processing')->assertOk()->json('data.by_printed');
+
+        $this->assertSame(1, $byPrinted['yes'], '"Đã in phiếu" chỉ đếm đơn processing đã in (không gồm shipped/ready_to_ship).');
+        $this->assertSame(1, $byPrinted['no'], '"Chưa in phiếu" chỉ đếm đơn processing có vận đơn open chưa in.');
+
+        // Bất biến: badge == số đơn list trả về khi bấm chip.
+        $this->assertSame($byPrinted['yes'], $this->actingAs($this->user)->withHeaders($this->header())
+            ->getJson('/api/v1/orders?status=processing&printed=1')->assertOk()->json('meta.pagination.total'));
+        $this->assertSame($byPrinted['no'], $this->actingAs($this->user)->withHeaders($this->header())
+            ->getJson('/api/v1/orders?status=processing&printed=0')->assertOk()->json('meta.pagination.total'));
+    }
+
     public function test_printable_takes_precedence_when_order_has_both_labelled_and_unlabelled_shipments(): void
     {
         // Edge case: 1 đơn có 2 vận đơn open — 1 có label, 1 đang loading. Đơn vào "printable" (vì có ≥1 tem
