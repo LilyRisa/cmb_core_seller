@@ -218,12 +218,14 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
         // Đã chuẩn bị / có vận đơn, chờ đóng gói + quét nội bộ.
         // Tình trạng phiếu giao hàng (per-đơn):
         //   - label_unavailable (vd Lazada DBS/SOF) ⇒ sàn không cấp tem, retry vô ích ⇒ chỉ báo, KHÔNG nút.
-        //   - slip_state==='loading' ⇒ job nền đang tự kéo ⇒ hiện spinner "Đang lấy phiếu", KHÔNG cho bấm.
+        //   - slip_state==='loading' ⇒ job nền đang tự kéo ⇒ hiện spinner; VẪN cho "Nhận phiếu ngay" để user
+        //     chủ động retry thay vì chờ tới ~15' (tránh cảm giác treo không thao tác được). getSlip idempotent.
         //   - còn lại (failed / chưa có tem / có issue chặn) ⇒ cho bấm "Nhận phiếu giao hàng".
         if (sh!.label_unavailable) {
             actions.push(<Tooltip key="lblna" title="Sàn không cấp tem/AWB cho loại đơn này (vd DBS/SOF) — xử lý theo luồng giao của sàn."><Typography.Text type="warning"><WarningOutlined /> Sàn không cấp tem</Typography.Text></Tooltip>);
         } else if (sh!.slip_state === 'loading') {
             actions.push(<Typography.Text key="lblld" type="secondary"><Spin size="small" /> Đang lấy phiếu…</Typography.Text>);
+            if (canShip) actions.push(<a key="rsnow" onClick={() => getSlip()}>Nhận phiếu ngay</a>);
         } else if (canShip && (blockingIssue || !sh!.has_label)) {
             actions.push(<a key="rs" style={{ color: blockingIssue ? '#cf1322' : undefined }} onClick={() => getSlip()}>Nhận phiếu giao hàng</a>);
         }
