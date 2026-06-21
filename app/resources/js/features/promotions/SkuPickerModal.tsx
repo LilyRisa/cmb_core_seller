@@ -1,20 +1,21 @@
 import { useMemo, useState } from 'react';
-import { Avatar, Checkbox, Input, Modal, Space, Table, Tag, Typography } from 'antd';
+import { App, Avatar, Button, Checkbox, Input, Modal, Space, Table, Tag, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { PictureOutlined, SearchOutlined } from '@ant-design/icons';
+import { PictureOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { MoneyText } from '@/components/MoneyText';
-import { type ChannelListing, useChannelListings } from '@/lib/inventory';
+import { type ChannelListing, useChannelListings, useSyncChannelListings } from '@/lib/inventory';
 
 /**
- * Chọn nhiều SKU cho chiến dịch giảm giá. SKU đã thuộc chương trình đang/sắp chạy
- * (busySkuIds) bị TÔ XÁM + không cho chọn (giống trên sàn). Có ô lọc theo tên/SKU và
- * toggle ẩn SKU không chọn được. SKU đã thêm vào chiến dịch (selectedSkuIds) cũng khoá.
+ * Chọn nhiều SKU cho chiến dịch giảm giá. SKU đã thuộc chương trình đang/sắp chạy bị TÔ XÁM + không cho chọn
+ * (giống trên sàn) + hiện giá giảm. Toggle "Chỉ hiện SKU chọn được" lọc SERVER-SIDE (exclude_busy) để đúng qua
+ * mọi trang. Nút "Đồng bộ từ sàn" kéo lại listing+giá giảm mới nhất (endpoint /channel-listings chỉ đọc DB).
  */
 export function SkuPickerModal({
     open,
     channelAccountId,
     busyPromos,
     selectedSkuIds,
+    exceptPromotionId,
     onClose,
     onConfirm,
 }: {
@@ -22,9 +23,11 @@ export function SkuPickerModal({
     channelAccountId: number | null;
     busyPromos?: { ids: string[]; prices: Record<string, number> };
     selectedSkuIds: string[];
+    exceptPromotionId?: number;
     onClose: () => void;
     onConfirm: (rows: ChannelListing[]) => void;
 }) {
+    const { message } = App.useApp();
     const [q, setQ] = useState('');
     const [page, setPage] = useState(1);
     const [hideBusy, setHideBusy] = useState(true);
@@ -34,12 +37,16 @@ export function SkuPickerModal({
     const busy = useMemo(() => new Set(busyPromos?.ids ?? []), [busyPromos]);
     const prices = busyPromos?.prices ?? {};
     const already = useMemo(() => new Set(selectedSkuIds), [selectedSkuIds]);
+    const syncListings = useSyncChannelListings();
 
+    // `exclude_busy` lọc SKU bận ở SERVER (qua mọi trang); khi tắt toggle ⇒ hiện hết, tô xám SKU bận client-side.
     const { data, isFetching } = useChannelListings({
         channel_account_id: channelAccountId ?? undefined,
         q: q || undefined,
         page,
         per_page: 20,
+        exclude_busy: hideBusy ? 1 : 0,
+        except: exceptPromotionId,
     });
 
     const isLocked = (r: ChannelListing) => {
@@ -49,11 +56,11 @@ export function SkuPickerModal({
     };
     const busyPrice = (r: ChannelListing): number | undefined => prices[r.external_sku_id ?? ''] ?? prices[r.external_product_id ?? ''];
 
+    // Server đã loại SKU bận khi `hideBusy`; chỉ cần lọc thêm SKU đã thêm vào chiến dịch này (client).
     const rows = useMemo(() => {
         const all = data?.data ?? [];
-        return hideBusy ? all.filter((r) => !isLocked(r)) : all;
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [data, hideBusy, busy, already]);
+        return hideBusy ? all.filter((r) => !already.has(r.external_sku_id ?? '')) : all;
+    }, [data, hideBusy, already]);
 
     const reset = () => { setPicked({}); setQ(''); setPage(1); };
 
@@ -105,11 +112,20 @@ export function SkuPickerModal({
             destroyOnClose
         >
             <Space style={{ marginBottom: 12, width: '100%', justifyContent: 'space-between' }}>
-                <Input
-                    allowClear prefix={<SearchOutlined />} placeholder="Lọc theo tên / SKU sàn" style={{ width: 320 }}
-                    value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }}
-                />
-                <Checkbox checked={hideBusy} onChange={(e) => setHideBusy(e.target.checked)}>Chỉ hiện SKU chọn được</Checkbox>
+                <Space>
+                    <Input
+                        allowClear prefix={<SearchOutlined />} placeholder="Lọc theo tên / SKU sàn" style={{ width: 280 }}
+                        value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }}
+                    />
+                    <Tooltip title="Kéo lại sản phẩm + giá giảm mới nhất từ sàn (danh sách đang xem là dữ liệu đã đồng bộ trước đó).">
+                        <Button icon={<ReloadOutlined />} loading={syncListings.isPending}
+                            onClick={() => syncListings.mutate(undefined, {
+                                onSuccess: (r) => message.success(`Đã yêu cầu đồng bộ ${r.queued} gian hàng — làm mới sau ít phút để thấy SKU + giá giảm mới.`),
+                                onError: () => message.error('Không đồng bộ được sản phẩm.'),
+                            })}>Đồng bộ từ sàn</Button>
+                    </Tooltip>
+                </Space>
+                <Checkbox checked={hideBusy} onChange={(e) => { setHideBusy(e.target.checked); setPage(1); }}>Chỉ hiện SKU chọn được</Checkbox>
             </Space>
 
             <Table<ChannelListing>

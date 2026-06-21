@@ -12,18 +12,30 @@ use CMBcoreSeller\Modules\Products\Models\ChannelListing;
 use CMBcoreSeller\Modules\Products\Services\MarketplaceCloneService;
 use CMBcoreSeller\Modules\Products\Services\MarketplaceListingEditService;
 use CMBcoreSeller\Modules\Products\Services\ProductDescriptionService;
+use CMBcoreSeller\Modules\Products\Services\PromotionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /** /api/v1/channel-listings — products/variants on connected shops + their SKU mappings. See SPEC 0003 §6. */
 class ChannelListingController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, PromotionService $promotions): JsonResponse
     {
         abort_unless($request->user()?->can('products.view'), 403, 'Bạn không có quyền xem listing.');
         $q = ChannelListing::query()->withCount('mappings')->with('mappings.sku');
         if ($cid = $request->query('channel_account_id')) {
             $q->where('channel_account_id', (int) $cid);
+        }
+        // Lọc bỏ SKU đang BẬN (đã có khuyến mãi đang/sắp chạy) — SERVER-SIDE để "Chỉ hiện SKU chọn được" của
+        // picker chiến dịch giảm giá đúng qua mọi trang (trước lọc client-side trên từng trang ⇒ sai). Cần 1
+        // gian hàng cụ thể; `except` = chiến dịch đang sửa (không tự loại SKU của nó).
+        if ($request->boolean('exclude_busy') && $cid) {
+            $except = $request->query('except') !== null ? (int) $request->query('except') : null;
+            $busy = array_keys($promotions->busyPromoPrices((int) $cid, $except));
+            if ($busy !== []) {
+                $q->whereNotIn('external_sku_id', $busy)
+                    ->where(fn ($x) => $x->whereNotIn('external_product_id', $busy)->orWhereNull('external_product_id'));
+            }
         }
         // Lọc nhiều gian hàng (multi-select) — CSV id; bỏ qua nếu rỗng.
         if ($ids = $request->query('channel_account_ids')) {

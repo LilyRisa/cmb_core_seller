@@ -255,6 +255,7 @@ export function PromotionEditPage() {
                 channelAccountId={promo.channel_account_id}
                 busyPromos={busyPromos}
                 selectedSkuIds={selectedSkuIds}
+                exceptPromotionId={promotionId}
                 onClose={() => setPickerOpen(false)}
                 onConfirm={addRows}
             />
