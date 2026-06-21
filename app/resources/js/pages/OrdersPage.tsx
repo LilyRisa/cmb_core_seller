@@ -481,10 +481,13 @@ export function OrdersPage() {
         const label = parsed.isManual && parsed.base !== 'manual' ? `${name} (Tự tạo)` : name;
         return { value: c.carrier, label, count: c.count };
     });
+    // Chỉ hiện lựa chọn có đơn (count>0) — tránh bấm trúng chip 0 đơn rồi ra danh sách RỖNG. Giữ chip đang
+    // chọn (kể cả vừa tụt về 0) để user còn bấm bỏ chọn. Nhất quán với chip Sàn/Gian hàng/ĐVVC (chỉ liệt kê
+    // giá trị thực có trong stats).
     const printedChips: ChipItem[] = [
         { value: '1', label: 'Đã in phiếu', count: stats?.by_printed?.yes ?? 0 },
         { value: '0', label: 'Chưa in phiếu', count: stats?.by_printed?.no ?? 0 },
-    ];
+    ].filter((c) => (c.count ?? 0) > 0 || c.value === printedParam);
     const timeChips: ChipItem[] = TIME_PRESETS.map((p) => ({ value: p.key, label: p.label }));
 
     const activeTimePreset = useMemo(() => {
@@ -645,7 +648,11 @@ export function OrdersPage() {
                             size="small" optionType="button" buttonStyle="solid"
                             value={slipParam}
                             onChange={(e) => { setSelectedKeys([]); set({ slip: e.target.value || undefined }); }}
-                            options={SLIP_TABS.map((t) => ({ value: t.key, label: `${t.label}${t.key && stats?.by_slip ? ' ' + (stats.by_slip[t.key as 'printable' | 'loading' | 'failed'] ?? 0) : ''}` }))}
+                            // Chỉ hiện nhóm có đơn (count>0) — bấm trúng nhóm 0 đơn (vd "Có thể in" của shop chưa
+                            // có tem) sẽ ra danh sách rỗng. Luôn giữ "Tất cả" + nhóm đang chọn (để bỏ chọn được).
+                            options={SLIP_TABS
+                                .filter((t) => t.key === '' || t.key === slipParam || (stats?.by_slip?.[t.key as 'printable' | 'loading' | 'failed'] ?? 0) > 0)
+                                .map((t) => ({ value: t.key, label: `${t.label}${t.key && stats?.by_slip ? ' ' + (stats.by_slip[t.key as 'printable' | 'loading' | 'failed'] ?? 0) : ''}` }))}
                         />
                         <Tooltip title="Làm mới"><Button size="small" type="text" icon={<ReloadOutlined />} onClick={() => refetch()} loading={isFetching} /></Tooltip>
                     </Space>
