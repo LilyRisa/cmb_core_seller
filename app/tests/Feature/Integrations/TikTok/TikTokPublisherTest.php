@@ -105,6 +105,35 @@ class TikTokPublisherTest extends TestCase
         }
     }
 
+    public function test_list_promotions_parses_sku_and_product_level_activity_prices(): void
+    {
+        Http::fake([
+            // Liệt kê hoạt động qua POST /activities/search (GET trả 405). Search chạy 2 lần (ONGOING+NOT_START).
+            '*/promotion/202309/activities/search*' => Http::response(['code' => 0, 'data' => [
+                'activities' => [['id' => 'ACT1', 'status' => 'ONGOING']],
+            ]]),
+            // Chi tiết hoạt động — giá KM nằm ở activity_price.amount (chuỗi), KHÔNG phải activity_price_amount.
+            '*/promotion/202309/activities/*' => Http::response(['code' => 0, 'data' => [
+                'activity_id' => 'ACT1', 'status' => 'ONGOING', 'title' => 'Sale 6.6',
+                'begin_time' => 1_700_000_000, 'end_time' => 1_700_100_000,
+                'products' => [
+                    // Cấp VARIATION: có mảng skus.
+                    ['id' => 'P1', 'skus' => [['id' => 'SK1', 'activity_price' => ['amount' => '79000', 'currency' => 'VND']]]],
+                    // Cấp PRODUCT: KHÔNG có skus ⇒ khóa theo product_id.
+                    ['id' => 'P2', 'activity_price' => ['amount' => '50000', 'currency' => 'VND']],
+                ],
+            ]]),
+        ]);
+
+        $promos = app(TikTokPublisher::class)->listPromotions($this->auth());
+
+        $this->assertCount(1, $promos);
+        $this->assertSame('ongoing', $promos[0]->status);
+        $items = $promos[0]->items;
+        $this->assertSame(['external_product_id' => 'P1', 'external_sku_id' => 'SK1', 'sale_price' => 79000], $items[0]);
+        $this->assertSame(['external_product_id' => 'P2', 'external_sku_id' => '', 'sale_price' => 50000], $items[1]);
+    }
+
     private function auth(): AuthContext
     {
         return new AuthContext(

@@ -465,14 +465,27 @@ final class TikTokPublisher implements ProductPublishingConnector, PromotionConn
                         continue;
                     }
                     $productId = (string) ($product['id'] ?? '');
-                    foreach ((array) ($product['skus'] ?? []) as $sku) {
+                    $skus = (array) ($product['skus'] ?? []);
+                    // Khuyến mãi cấp SẢN PHẨM (product_level=PRODUCT) KHÔNG có mảng skus ⇒ khóa theo product_id.
+                    if ($skus === []) {
+                        $items[] = [
+                            'external_product_id' => $productId,
+                            'external_sku_id' => '',
+                            'sale_price' => TikTokMappers::money(data_get($product, 'activity_price.amount')),
+                        ];
+
+                        continue;
+                    }
+                    foreach ($skus as $sku) {
                         if (! is_array($sku)) {
                             continue;
                         }
                         $items[] = [
                             'external_product_id' => $productId,
                             'external_sku_id' => (string) ($sku['id'] ?? ''),
-                            'sale_price' => isset($sku['activity_price_amount']) ? (int) $sku['activity_price_amount'] : 0,
+                            // Giá KM nằm ở activity_price.amount (chuỗi) cho FIXED_PRICE/FLASHSALE; DIRECT_DISCOUNT
+                            // chỉ có % (trường discount) ⇒ không có giá tuyệt đối ⇒ 0 (vẫn tô xám "bận").
+                            'sale_price' => TikTokMappers::money(data_get($sku, 'activity_price.amount')),
                         ];
                     }
                 }
