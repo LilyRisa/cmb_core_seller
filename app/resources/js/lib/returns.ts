@@ -73,17 +73,38 @@ export const RETURN_REASON_LABEL: Record<string, string> = {
     PRICING_ERROR: 'Lỗi giá', WRONG_ADDRESS: 'Sai địa chỉ', ADDRESS_ISSUE: 'Lỗi địa chỉ',
     UNDELIVERABLE_AREA: 'Khu vực không giao được', COD_NOT_SUPPORTED: 'Không hỗ trợ COD',
     CANNOT_SHIP: 'Không thể vận chuyển', LOGISTICS_NOT_AVAILABLE: 'Không thể vận chuyển',
+    CHANGE_OF_MIND: 'Khách đổi ý',
+    // --- Lý do dạng CÂU tiếng Anh (TikTok trả reason text, không phải mã) — chuẩn hoá UPPER_SNAKE để khớp ---
+    NO_LONGER_NEEDED_ITEM_MUST_BE_IN_SEALED_ORIGINAL_CONDITION: 'Không còn nhu cầu',
+    PACKAGE_DELIVERY_FAILED: 'Giao hàng thất bại',
+    AUTOMATICALLY_CANCELED_DUE_TO_COLLECTION_TIME_OUT: 'Tự huỷ do quá hạn lấy hàng',
+    BETTER_PRICE_AVAILABLE: 'Tìm được giá tốt hơn',
+    NEED_TO_CHANGE_PAYMENT_METHOD: 'Cần đổi phương thức thanh toán',
+    NEED_TO_CHANGE_SHIPPING_ADDRESS: 'Cần đổi địa chỉ giao hàng',
+    HIGH_DELIVERY_COSTS: 'Phí giao hàng quá cao',
+    PRODUCT_IS_DEFECTIVE_OR_DOESN_T_WORK: 'Sản phẩm lỗi/không hoạt động',
+    PRODUCT_DOESN_T_WORK: 'Sản phẩm không hoạt động',
+    CUSTOMER_OVERDUE_TO_PAY: 'Khách quá hạn thanh toán',
+    RECEIVED_PARCEL_BUT_SOME_ITEMS_WERE_MISSING: 'Nhận hàng nhưng thiếu món',
+    SELLER_NOT_RESPONSIVE_TO_INQUIRIES: 'Người bán không phản hồi',
+    SELLER_REQUESTING_ORDER_CANCELLATION: 'Người bán yêu cầu huỷ',
+    PRODUCT_DOESN_T_MATCH_DESCRIPTION: 'Hàng không đúng mô tả',
+    PAYMENT_PROBLEM: 'Vấn đề thanh toán',
     // --- Khác ---
     OTHERS: 'Lý do khác', OTHER: 'Lý do khác', NONE: 'Không rõ lý do',
 };
 
-/** Hiển thị lý do hoàn/hủy: tra map (chuẩn hoá UPPER_SNAKE) → humanize mã lạ → giữ nguyên text. */
+/**
+ * Hiển thị lý do hoàn/hủy bằng TIẾNG VIỆT: chuẩn hoá (UPPER_SNAKE, bỏ dấu câu/nháy) → tra map (gồm cả câu
+ * tiếng Anh của TikTok) → humanize mã lạ → giữ nguyên text tự do. Sàn trả mã (Shopee) hoặc câu (TikTok).
+ */
 export function formatReturnReason(raw: string | null | undefined): string {
     const v = (raw ?? '').trim();
     if (v === '') return '—';
-    const key = v.toUpperCase().replace(/[\s-]+/g, '_');
+    // Bỏ MỌI ký tự không phải chữ/số (gồm dấu nháy của "doesn't", dấu phẩy) ⇒ '_' để khớp cả câu tiếng Anh.
+    const key = v.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
     if (RETURN_REASON_LABEL[key]) return RETURN_REASON_LABEL[key];
-    // Mã dạng CODE (chỉ chữ/số/gạch dưới, không khoảng trắng) ⇒ humanize; còn lại là text ⇒ giữ nguyên.
+    // Mã CODE thuần (1 chuỗi UPPER_SNAKE, không khoảng trắng) ⇒ humanize; câu/text tự do ⇒ giữ nguyên.
     if (/^[A-Za-z0-9_]+$/.test(v)) {
         const t = v.replace(/_/g, ' ').toLowerCase();
         return t.charAt(0).toUpperCase() + t.slice(1);

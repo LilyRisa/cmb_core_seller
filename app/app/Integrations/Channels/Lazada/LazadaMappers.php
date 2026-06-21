@@ -585,7 +585,7 @@ final class LazadaMappers
         return new ReturnDTO(
             externalReturnId: (string) (data_get($r, 'reverse_order_id') ?: data_get($r, 'reverse_order_line_id', '')),
             source: 'lazada',
-            kind: ReturnDTO::KIND_RETURN,
+            kind: self::reverseKind($r, $rawStatus),
             status: self::afterSalesStatus($rawStatus),
             rawStatus: $rawStatus,
             externalOrderId: ($o = data_get($r, 'trade_order_id')) !== null ? (string) $o : null,
@@ -597,6 +597,28 @@ final class LazadaMappers
             sourceUpdatedAt: $ts('update_time') ?? $ts('gmt_modified') ?? CarbonImmutable::now(),
             raw: $r,
         );
+    }
+
+    /**
+     * Suy loại sau-bán Lazada (huỷ / hoàn-trả / chỉ-hoàn-tiền) — Lazada gộp tất cả vào "reverse order".
+     * Trước đây hardcode KIND_RETURN nên đơn HUỶ Lazada bị xếp nhầm vào "Trả hàng". Suy từ `reverse_type`/
+     * `refund_type` (nếu sàn trả) rồi tới từ khoá trong reverse_status. Best-effort — verify thêm trên sandbox.
+     *
+     * @param  array<string,mixed>  $r
+     */
+    private static function reverseKind(array $r, string $rawStatus): string
+    {
+        $type = strtoupper((string) (data_get($r, 'reverse_type') ?? data_get($r, 'refund_type') ?? data_get($r, 'request_type') ?? ''));
+        $s = strtoupper($rawStatus);
+        // Chỉ-hoàn-tiền (không trả hàng): có flag refund-only hoặc type=REFUND mà không phải RETURN.
+        if (data_get($r, 'only_refund') || data_get($r, 'is_only_refund') || ($type === 'REFUND') || str_contains($type, 'ONLY_REFUND')) {
+            return ReturnDTO::KIND_REFUND;
+        }
+        if (str_contains($type, 'CANCEL') || str_contains($s, 'CANCEL')) {
+            return ReturnDTO::KIND_CANCEL;
+        }
+
+        return ReturnDTO::KIND_RETURN;
     }
 
     /** Lazada reverse_status → canonical {@see AfterSalesStatus}. Config map + fallback. */
