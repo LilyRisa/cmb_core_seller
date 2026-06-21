@@ -8,7 +8,7 @@ import { useLinkConversationOrder } from '@/lib/messaging';
 import { useCustomerLookup, useCustomerOrders } from '@/lib/customers';
 import { useOrder } from '@/lib/orders';
 import { CreateOrderForm, type OrderDraft } from '@/pages/CreateOrderPage';
-import { formatMoney } from '@/lib/format';
+import { formatMoney, orderStatusText } from '@/lib/format';
 
 const { Text } = Typography;
 
@@ -57,7 +57,7 @@ export function ConversationOrderPanel({ conversation }: { conversation: Convers
                 id: o.id, number: o.order_number ?? `#${o.id}`, status: o.status_label, total: o.grand_total, date: o.placed_at,
             }))
             : ([...(lookup.data?.open_orders ?? []), ...(lookup.data?.returning_orders ?? [])].map((o) => ({
-                id: o.id, number: o.order_number ?? `#${o.id}`, status: o.status, total: o.grand_total, date: o.placed_at,
+                id: o.id, number: o.order_number ?? `#${o.id}`, status: orderStatusText(o.status), total: o.grand_total, date: o.placed_at,
             })));
 
         // Đảm bảo đơn gắn hội thoại luôn xuất hiện (đầu danh sách) dù 2 nguồn trên chưa trả về.

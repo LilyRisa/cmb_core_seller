@@ -8,6 +8,7 @@ import { CustomerSummaryCard } from '@/components/CustomerSummaryCard';
 import { LinkSkusModal } from '@/components/LinkSkusModal';
 import { PrintJobBar } from '@/components/OrderProcessing';
 import { Order, OrderItem, useOrderNote, useOrderTags } from '@/lib/orders';
+import { orderStatusText } from '@/lib/format';
 import { useCan } from '@/lib/tenant';
 import { SHIPMENT_STATUS_LABEL, useCreatePrintJob } from '@/lib/fulfillment';
 
@@ -127,8 +128,8 @@ export function OrderDetailBody({ order }: { order: Order }) {
                             <Timeline
                                 items={(order.status_history ?? []).map((h) => ({
                                     children: <Space direction="vertical" size={0}>
-                                        <span><b>{h.to_status_label}</b> {h.from_status ? <Typography.Text type="secondary">(từ {h.from_status})</Typography.Text> : null}</span>
-                                        <Typography.Text type="secondary" style={{ fontSize: 12 }}><DateText value={h.changed_at} /> · nguồn: {h.source}{h.raw_status ? ` · raw: ${h.raw_status}` : ''}</Typography.Text>
+                                        <span><b>{orderStatusText(h.to_status, h.to_status_label)}</b> {h.from_status ? <Typography.Text type="secondary">(từ {orderStatusText(h.from_status)})</Typography.Text> : null}</span>
+                                        <Typography.Text type="secondary" style={{ fontSize: 12 }}><DateText value={h.changed_at} /> · nguồn: {h.source}</Typography.Text>
                                     </Space>,
                                 }))}
                             />
@@ -166,7 +167,6 @@ export function OrderDetailBody({ order }: { order: Order }) {
                                 <div key={i} style={{ padding: '4px 0' }}>
                                     <Typography.Text>{p.trackingNo ?? '(chưa có mã vận đơn)'}</Typography.Text>
                                     {p.carrier && <Tag style={{ marginLeft: 8 }}>{p.carrier}</Tag>}
-                                    {p.status && <Tag color="processing" style={{ marginLeft: 4 }}>{p.status}</Tag>}
                                 </div>
                             ))}
                         </Card>

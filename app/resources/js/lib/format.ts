@@ -85,6 +85,20 @@ export const ORDER_STATUS_LABEL: Record<string, string> = {
     cancelled: 'Đã huỷ',
 };
 
+/**
+ * Nhãn tiếng Việt cho MỌI mã trạng thái đơn — KHÔNG bao giờ hiển thị raw. Ưu tiên `label` của BE (đã chuẩn
+ * hoá), rồi map chuẩn (`processing`), rồi thử lowercase cho mã raw sàn dạng IN HOA (`READY_TO_SHIP` →
+ * `ready_to_ship`, `UNPAID` → `unpaid`). Cuối cùng "humanize" (bỏ `_`, viết hoa đầu) để dù mã lạ cũng không
+ * lộ SCREAMING_CASE. Dùng cho status_history.from_status, panel hội thoại, v.v.
+ */
+export function orderStatusText(code?: string | null, label?: string | null): string {
+    if (label) return label;
+    if (!code) return '—';
+    return ORDER_STATUS_LABEL[code]
+        ?? ORDER_STATUS_LABEL[code.toLowerCase()]
+        ?? code.replace(/_/g, ' ').toLowerCase().replace(/^./, (c) => c.toUpperCase());
+}
+
 export type FulfillmentStage = 'prepare' | 'pack' | 'handover';
 
 /**
