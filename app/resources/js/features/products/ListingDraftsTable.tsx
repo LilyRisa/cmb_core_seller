@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { App as AntApp, Button, Empty, Image, Popconfirm, Space, Table, Tag, Typography } from 'antd';
+import { App as AntApp, Badge, Button, Empty, Image, Popconfirm, Space, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { CloudUploadOutlined, CopyOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
+import { CloudUploadOutlined, CopyOutlined, DeleteOutlined, EditOutlined, LoadingOutlined } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
 import { useChannelAccounts } from '@/lib/channels';
 import { CloneListingModal } from './CloneListingModal';
 import { PushProgressModal } from './PushProgressModal';
-import { useBulkPush, useDeleteListing, useMasterProducts, usePushListing } from './hooks';
+import { useBulkPush, useDeleteListing, useMasterProducts, usePushBatch, usePushListing } from './hooks';
 import type { ListingDraftSummary, MasterProduct } from './api';
 
 const STATUS_TAG: Record<string, { color: string; label: string }> = {
@@ -59,6 +59,12 @@ export function ListingDraftsTable({
     const [cloneFor, setCloneFor] = useState<ListingRow | null>(null);
     const [batchId, setBatchId] = useState<number | null>(null);
     const [pushModalOpen, setPushModalOpen] = useState(false);
+
+    // Poll ở cấp trang (không phụ thuộc modal mở/đóng) để chỉ báo thu nhỏ luôn cập
+    // nhật khi người dùng đã ẩn cửa sổ — việc đẩy chạy nền ở worker.
+    const { data: pushBatch } = usePushBatch(batchId);
+    const pushDone = pushBatch?.status === 'done';
+    const pushFinished = (pushBatch?.succeeded ?? 0) + (pushBatch?.failed ?? 0);
 
     const accounts = channelData?.data ?? [];
     const shopName = (id: number) => accounts.find((a) => a.id === id)?.name ?? `#${id}`;
@@ -239,14 +245,40 @@ export function ListingDraftsTable({
             />
 
             <PushProgressModal
-                batchId={batchId}
+                batch={pushBatch}
                 open={pushModalOpen}
+                onHide={() => {
+                    // Ẩn nhưng giữ batchId → chỉ báo thu nhỏ vẫn hiện, đẩy vẫn chạy nền.
+                    setPushModalOpen(false);
+                    refetch();
+                }}
                 onClose={() => {
                     setPushModalOpen(false);
+                    setBatchId(null);
                     setSelectedRowKeys([]);
                     refetch();
                 }}
             />
+
+            {/* Chỉ báo thu nhỏ: hiện khi đã ẩn cửa sổ mà tiến trình còn theo dõi được.
+                Bấm để mở lại xem log trạng thái đẩy. */}
+            {batchId != null && !pushModalOpen && (
+                <Button
+                    type={pushDone ? 'default' : 'primary'}
+                    icon={pushDone ? <CloudUploadOutlined /> : <LoadingOutlined />}
+                    style={{ position: 'fixed', right: 24, bottom: 24, zIndex: 1000, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}
+                    onClick={() => setPushModalOpen(true)}
+                >
+                    <Badge
+                        status={pushDone ? (pushBatch?.failed ? 'error' : 'success') : 'processing'}
+                        text={
+                            pushDone
+                                ? `Đẩy xong: ${pushBatch?.succeeded ?? 0}/${pushBatch?.total ?? 0}`
+                                : `Đang đẩy ${pushFinished}/${pushBatch?.total ?? 0}…`
+                        }
+                    />
+                </Button>
+            )}
         </div>
     );
 }

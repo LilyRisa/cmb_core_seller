@@ -13,7 +13,7 @@ import { useCurrentTenantId } from '@/lib/tenant';
 import { CategoryPicker } from '@/features/products/CategoryPicker';
 import { AttributeForm } from '@/features/products/AttributeForm';
 import { PushProgressModal } from '@/features/products/PushProgressModal';
-import { useAiSuggestDescription, useBrands, useListing, useListingLimits, usePushListing, useShippingOptions, useUpdateListing } from '@/features/products/hooks';
+import { useAiSuggestDescription, useBrands, useListing, useListingLimits, usePushBatch, usePushListing, useShippingOptions, useUpdateListing } from '@/features/products/hooks';
 import { searchMasterSkus, uploadListingVideo } from '@/features/products/api';
 import type { ListingDraftSku, MasterSkuRef, ShippingOptions, UpdateListingPayload } from '@/features/products/api';
 
@@ -58,6 +58,7 @@ export function ListingDraftEditorPage() {
     const [resizerOpen, setResizerOpen] = useState(false);
     const [pushBatchId, setPushBatchId] = useState<number | null>(null);
     const [pushModalOpen, setPushModalOpen] = useState(false);
+    const { data: pushBatch } = usePushBatch(pushBatchId);
 
     useEffect(() => {
         if (!listing) return;
@@ -397,7 +398,12 @@ export function ListingDraftEditorPage() {
             </Modal>
 
             <ImageResizer open={resizerOpen} onClose={() => setResizerOpen(false)} onUploaded={(url) => addImage(url)} />
-            <PushProgressModal batchId={pushBatchId} open={pushModalOpen} onClose={() => { setPushModalOpen(false); back(); }} />
+            <PushProgressModal
+                batch={pushBatch}
+                open={pushModalOpen}
+                onHide={() => { setPushModalOpen(false); back(); }}
+                onClose={() => { setPushModalOpen(false); back(); }}
+            />
         </div>
     );
 }

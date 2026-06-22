@@ -136,6 +136,7 @@ class ListingPushTest extends TestCase
             app(PublisherRegistry::class),
             app(MediaPrepService::class),
             app(ListingDraftService::class),
+            app(CurrentTenant::class),
         );
 
         // Sàn xét duyệt: rawStatus 'PENDING' ⇒ nháp ở trạng thái 'reviewing' (chưa live).
@@ -177,6 +178,7 @@ class ListingPushTest extends TestCase
             app(PublisherRegistry::class),
             app(MediaPrepService::class),
             app(ListingDraftService::class),
+            app(CurrentTenant::class),
         );
 
         $fresh = $this->draft->fresh();
@@ -197,13 +199,64 @@ class ListingPushTest extends TestCase
 
         $job = new PrepareListingVideoJob((int) $row->getKey());
         // Nhịp 1: upload xong → lưu pending, release để poll (release no-op khi gọi handle trực tiếp).
-        $job->handle(app(PublisherRegistry::class), app(ListingDraftService::class));
+        $job->handle(app(PublisherRegistry::class), app(ListingDraftService::class), app(CurrentTenant::class));
         $this->assertSame('V1', $this->draft->fresh()->attributes['video_pending_id'] ?? null);
         // Nhịp 2: trạng thái 'ready' → lưu video_external_id + dispatch đăng thật.
-        $job->handle(app(PublisherRegistry::class), app(ListingDraftService::class));
+        $job->handle(app(PublisherRegistry::class), app(ListingDraftService::class), app(CurrentTenant::class));
 
         $this->assertSame('V1', $this->draft->fresh()->attributes['video_external_id'] ?? null);
         Queue::assertPushed(PushListingJob::class);
+    }
+
+    public function test_push_job_succeeds_when_worker_has_no_current_tenant(): void
+    {
+        // Reproduces the production failure: the queue worker runs the job WITHOUT a
+        // request-bound tenant, so the global TenantScope hid the ProductPushJob row
+        // (tenant_id=0) and findOrFail threw ModelNotFoundException → instant FAIL.
+        $this->bindPublisher(new FakePushPublisher(new ListingResultDTO('LZ-777', [], 'PENDING')));
+
+        Queue::fake();
+        $batch = app(ListingPushService::class)->push([(int) $this->draft->getKey()], (int) $this->owner->getKey());
+        $row = $batch->jobs()->first();
+
+        // Simulate the worker: clear the tenant the HTTP request had set.
+        app(CurrentTenant::class)->clear();
+
+        (new PushListingJob((int) $row->getKey()))->handle(
+            app(PublisherRegistry::class),
+            app(MediaPrepService::class),
+            app(ListingDraftService::class),
+            app(CurrentTenant::class),
+        );
+
+        // The job must restore "no tenant" after running (runAs restores previous).
+        $this->assertNull(app(CurrentTenant::class)->id());
+
+        // Re-establish tenant context to read the results back.
+        app(CurrentTenant::class)->set($this->tenant);
+        $this->assertSame('success', $row->fresh()->status);
+        $this->assertSame('LZ-777', $this->draft->fresh()->external_item_id);
+        $this->assertSame(ListingDraft::STATUS_REVIEWING, $this->draft->fresh()->status);
+    }
+
+    public function test_prepare_video_job_resolves_tenant_when_worker_has_no_current_tenant(): void
+    {
+        $this->bindPublisher(new FakePushPublisher(new ListingResultDTO('LZ-1', [], 'PENDING')));
+        $this->draft->update(['attributes' => array_merge($this->draft->attributes ?? [], ['video_url' => 'https://cdn/v.mp4'])]);
+
+        Queue::fake();
+        $batch = app(ListingPushService::class)->push([(int) $this->draft->getKey()], (int) $this->owner->getKey());
+        $row = $batch->jobs()->first();
+
+        app(CurrentTenant::class)->clear();
+
+        $job = new PrepareListingVideoJob((int) $row->getKey());
+        $job->handle(app(PublisherRegistry::class), app(ListingDraftService::class), app(CurrentTenant::class));
+
+        $this->assertNull(app(CurrentTenant::class)->id());
+
+        app(CurrentTenant::class)->set($this->tenant);
+        $this->assertSame('V1', $this->draft->fresh()->attributes['video_pending_id'] ?? null);
     }
 
     public function test_job_is_idempotent_when_external_item_id_present(): void
@@ -222,6 +275,7 @@ class ListingPushTest extends TestCase
             app(PublisherRegistry::class),
             app(MediaPrepService::class),
             app(ListingDraftService::class),
+            app(CurrentTenant::class),
         );
 
         $fresh = $this->draft->fresh();

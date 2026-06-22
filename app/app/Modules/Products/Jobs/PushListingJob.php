@@ -11,6 +11,9 @@ use CMBcoreSeller\Modules\Products\Models\ProductPushBatch;
 use CMBcoreSeller\Modules\Products\Models\ProductPushJob;
 use CMBcoreSeller\Modules\Products\Services\ListingDraftService;
 use CMBcoreSeller\Modules\Products\Services\MediaPrepService;
+use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
+use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
+use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -40,9 +43,27 @@ class PushListingJob implements ShouldQueue
         $this->onQueue('listings');
     }
 
-    public function handle(PublisherRegistry $pubs, MediaPrepService $media, ListingDraftService $drafts): void
+    public function handle(PublisherRegistry $pubs, MediaPrepService $media, ListingDraftService $drafts, CurrentTenant $tenant): void
     {
-        $row = ProductPushJob::findOrFail($this->jobRowId);
+        // The queue worker runs without a request-bound tenant, so the global
+        // TenantScope would constrain every query to tenant_id=0 and hide the row.
+        // Load the job past the scope to discover its tenant, then run the whole push
+        // AS that tenant so the tenant-scoped reads below (ListingDraft, ChannelAccount,
+        // ProductPushBatch, …) all resolve correctly. Mirrors RenderPrintJob.
+        $row = ProductPushJob::withoutGlobalScope(TenantScope::class)->find($this->jobRowId);
+        if ($row === null) {
+            return;
+        }
+        $shop = Tenant::query()->find($row->tenant_id);
+        if ($shop === null) {
+            return;
+        }
+
+        $tenant->runAs($shop, fn () => $this->push($pubs, $media, $drafts, $row));
+    }
+
+    private function push(PublisherRegistry $pubs, MediaPrepService $media, ListingDraftService $drafts, ProductPushJob $row): void
+    {
         $listing = ListingDraft::with('skus')->findOrFail($row->listing_draft_id);
 
         try {

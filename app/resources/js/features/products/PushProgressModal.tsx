@@ -1,12 +1,12 @@
-import { List, Modal, Progress, Tag, Typography } from 'antd';
+import { Button, List, Modal, Progress, Tag, Typography } from 'antd';
 import {
     CheckCircleTwoTone,
     ClockCircleOutlined,
     CloseCircleTwoTone,
     LoadingOutlined,
+    MinusOutlined,
 } from '@ant-design/icons';
-import { usePushBatch } from './hooks';
-import type { PushJob } from './api';
+import type { PushBatch, PushJob } from './api';
 
 function JobStatusIcon({ status }: { status: PushJob['status'] }) {
     switch (status) {
@@ -28,17 +28,25 @@ const STATUS_LABEL: Record<PushJob['status'], string> = {
     failed: 'Thất bại',
 };
 
+/**
+ * Tiến trình đẩy sản phẩm lên sàn. Việc đẩy chạy nền ở worker nên cửa sổ này CÓ THỂ
+ * ẩn (`onHide`) bất cứ lúc nào — đẩy vẫn tiếp tục, người dùng mở lại để xem log trạng
+ * thái. Khi xong mới `onClose` (xác nhận, dọn trạng thái). Component thuần hiển thị:
+ * dữ liệu batch + polling do trang cha quản lý để chỉ báo thu nhỏ luôn cập nhật.
+ */
 export function PushProgressModal({
-    batchId,
+    batch,
     open,
+    onHide,
     onClose,
 }: {
-    batchId: number | null;
+    batch: PushBatch | undefined;
     open: boolean;
+    /** Ẩn cửa sổ nhưng GIỮ tiến trình (worker vẫn chạy). */
+    onHide: () => void;
+    /** Đóng hẳn: tiến trình đã xong / người dùng xác nhận xong. */
     onClose: () => void;
 }) {
-    const { data: batch } = usePushBatch(open ? batchId : null);
-
     const done = batch?.status === 'done';
     const total = batch?.total ?? 0;
     const finished = (batch?.succeeded ?? 0) + (batch?.failed ?? 0);
@@ -48,11 +56,22 @@ export function PushProgressModal({
         <Modal
             title="Đẩy sản phẩm lên sàn"
             open={open}
-            onCancel={done ? onClose : undefined}
-            maskClosable={done}
-            closable={done}
-            keyboard={done}
-            footer={null}
+            // X / nền: khi chưa xong thì ẩn (không hủy), khi xong thì đóng hẳn.
+            onCancel={done ? onClose : onHide}
+            maskClosable
+            closable
+            keyboard
+            footer={
+                done ? (
+                    <Button type="primary" onClick={onClose}>
+                        Đóng
+                    </Button>
+                ) : (
+                    <Button icon={<MinusOutlined />} onClick={onHide}>
+                        Ẩn cửa sổ
+                    </Button>
+                )
+            }
         >
             <Progress
                 percent={percent}
@@ -61,7 +80,7 @@ export function PushProgressModal({
             <Typography.Paragraph type="secondary" style={{ marginTop: 8 }}>
                 {done
                     ? `Hoàn tất: ${batch?.succeeded ?? 0} thành công, ${batch?.failed ?? 0} lỗi.`
-                    : `Đang xử lý ${finished}/${total}… vui lòng không đóng cửa sổ.`}
+                    : `Đang xử lý ${finished}/${total}… Bạn có thể ẩn cửa sổ — hệ thống vẫn tiếp tục đẩy ở chế độ nền.`}
             </Typography.Paragraph>
 
             <List

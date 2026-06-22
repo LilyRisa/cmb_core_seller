@@ -9,6 +9,9 @@ use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Products\Models\ListingDraft;
 use CMBcoreSeller\Modules\Products\Models\ProductPushJob;
 use CMBcoreSeller\Modules\Products\Services\ListingDraftService;
+use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
+use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
+use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -40,12 +43,25 @@ class PrepareListingVideoJob implements ShouldQueue
         $this->onQueue('listings');
     }
 
-    public function handle(PublisherRegistry $pubs, ListingDraftService $drafts): void
+    public function handle(PublisherRegistry $pubs, ListingDraftService $drafts, CurrentTenant $tenant): void
     {
-        $row = ProductPushJob::find($this->jobRowId);
+        // Runs in a worker with no request-bound tenant — load the row past the global
+        // TenantScope (else it resolves to tenant_id=0) and run AS its tenant so the
+        // tenant-scoped reads below resolve correctly. Mirrors PushListingJob.
+        $row = ProductPushJob::withoutGlobalScope(TenantScope::class)->find($this->jobRowId);
         if (! $row) {
             return;
         }
+        $shop = Tenant::query()->find($row->tenant_id);
+        if (! $shop) {
+            return;
+        }
+
+        $tenant->runAs($shop, fn () => $this->prepare($pubs, $drafts, $row));
+    }
+
+    private function prepare(PublisherRegistry $pubs, ListingDraftService $drafts, ProductPushJob $row): void
+    {
         $listing = ListingDraft::find($row->listing_draft_id);
         if (! $listing) {
             return;
