@@ -186,15 +186,23 @@ final class ShopeePublisher implements ProductPublishingConnector, PromotionConn
         ]);
 
         $out = [];
+        $hasNoBrand = false;
         foreach ((array) ($resp['response']['brand_list'] ?? []) as $brand) {
             if (! is_array($brand)) {
                 continue;
             }
-            $out[] = new BrandDTO(
-                id: (string) ($brand['brand_id'] ?? ''),
-                name: (string) ($brand['original_brand_name'] ?? ''),
-                raw: $brand,
-            );
+            $id = (string) ($brand['brand_id'] ?? '');
+            $name = (string) ($brand['original_brand_name'] ?? '');
+            if ($id === '0' || mb_stripos($name, 'no brand') !== false) {
+                $hasNoBrand = true;
+            }
+            $out[] = new BrandDTO(id: $id, name: $name, raw: $brand);
+        }
+
+        // Shopee không luôn trả mục "No Brand" trong danh sách, nhưng chấp nhận brand_id=0
+        // cho hàng không thương hiệu. Bơm option này lên đầu để người bán luôn chọn được.
+        if (! $hasNoBrand) {
+            array_unshift($out, new BrandDTO(id: '0', name: 'No Brand', raw: ['brand_id' => 0]));
         }
 
         return $out;

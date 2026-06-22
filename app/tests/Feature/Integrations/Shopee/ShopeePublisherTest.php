@@ -139,4 +139,35 @@ class ShopeePublisherTest extends TestCase
             $this->assertSame('shopee', $e->provider);
         }
     }
+
+    public function test_injects_no_brand_when_brand_list_has_none(): void
+    {
+        Http::fake([
+            '*/product/get_brand_list*' => Http::response(['response' => ['brand_list' => [
+                ['brand_id' => 1001, 'original_brand_name' => 'Nike'],
+            ]]]),
+        ]);
+
+        $brands = app(ShopeePublisher::class)->getBrands($this->auth(), '100182');
+
+        // "No Brand" (id 0) được bơm lên đầu khi sàn không trả mục không-thương-hiệu.
+        $this->assertSame('0', $brands[0]->id);
+        $this->assertSame('No Brand', $brands[0]->name);
+        $this->assertSame('1001', $brands[1]->id);
+    }
+
+    public function test_does_not_duplicate_no_brand_when_present(): void
+    {
+        Http::fake([
+            '*/product/get_brand_list*' => Http::response(['response' => ['brand_list' => [
+                ['brand_id' => 0, 'original_brand_name' => 'No Brand'],
+                ['brand_id' => 1001, 'original_brand_name' => 'Nike'],
+            ]]]),
+        ]);
+
+        $brands = app(ShopeePublisher::class)->getBrands($this->auth(), '100182');
+
+        $this->assertCount(2, $brands);
+        $this->assertSame('0', $brands[0]->id);
+    }
 }
