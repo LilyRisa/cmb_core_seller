@@ -41,8 +41,8 @@ export function PromotionsPage() {
     const [tab, setTab] = useState<'pushed' | 'draft'>('pushed');
     const [createOpen, setCreateOpen] = useState(false);
 
-    const activeShop = shopId ?? campaignAccounts[0]?.id ?? null;
-    const { data: promotions, isFetching } = usePromotions(activeShop, tab);
+    // MẶC ĐỊNH shopId=null ⇒ hiện chiến dịch của TẤT CẢ gian hàng; chọn sàn chỉ là bộ lọc phụ.
+    const { data: promotions, isFetching } = usePromotions(shopId, tab);
     const sync = useSyncPromotions();
     const endPromo = useEndPromotion();
     const deletePromo = useDeletePromotion();
@@ -50,12 +50,16 @@ export function PromotionsPage() {
     const shopName = (id: number) => accounts.find((a) => a.id === id)?.name ?? `#${id}`;
     const shopProvider = (id: number) => accounts.find((a) => a.id === id)?.provider ?? '';
 
-    const handleSync = () => {
-        if (activeShop == null) return;
-        sync.mutate(activeShop, {
-            onSuccess: (n) => message.success(`Đã đồng bộ ${n} chiến dịch từ sàn.`),
-            onError: (e) => message.error(errorMessage(e)),
-        });
+    // Chưa chọn sàn ⇒ đồng bộ MỌI gian hàng hỗ trợ chiến dịch; đã chọn ⇒ chỉ sàn đó.
+    const handleSync = async () => {
+        const targets = shopId != null ? [shopId] : campaignAccounts.map((a) => a.id);
+        if (targets.length === 0) return;
+        try {
+            const counts = await Promise.all(targets.map((id) => sync.mutateAsync(id)));
+            message.success(`Đã đồng bộ ${counts.reduce((a, b) => a + b, 0)} chiến dịch từ sàn.`);
+        } catch (e) {
+            message.error(errorMessage(e));
+        }
     };
 
     const columns: ColumnsType<Promotion> = [
@@ -132,7 +136,7 @@ export function PromotionsPage() {
                 extra={
                     <Space>
                         {tab === 'pushed' && (
-                            <Button icon={<CloudDownloadOutlined />} loading={sync.isPending} onClick={handleSync} disabled={activeShop == null}>Đồng bộ từ sàn</Button>
+                            <Button icon={<CloudDownloadOutlined />} loading={sync.isPending} onClick={handleSync} disabled={campaignAccounts.length === 0}>Đồng bộ từ sàn</Button>
                         )}
                         <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)} disabled={campaignAccounts.length === 0}>Tạo chiến dịch</Button>
                     </Space>
@@ -140,10 +144,11 @@ export function PromotionsPage() {
             />
 
             <Card styles={{ body: { padding: 16 } }}>
-                <Space style={{ marginBottom: 12 }} wrap>
+                <Space style={{ marginBottom: 12 }} wrap size={8}>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>Lọc theo gian hàng:</Typography.Text>
                     <Select
-                        style={{ minWidth: 260 }} placeholder="Chọn gian hàng" value={activeShop ?? undefined}
-                        onChange={(v) => setShopId(v)} optionFilterProp="title"
+                        style={{ minWidth: 260 }} placeholder="Tất cả gian hàng" value={shopId ?? undefined} allowClear
+                        onChange={(v) => setShopId(v ?? null)} optionFilterProp="title"
                         options={campaignAccounts.map((a) => ({ value: a.id, title: a.name, label: <Space size={6}><ChannelLogo provider={a.provider} size={16} /><span>{a.name}</span></Space> }))}
                     />
                 </Space>
@@ -171,7 +176,7 @@ export function PromotionsPage() {
             <CreatePromotionModal
                 open={createOpen}
                 accounts={campaignAccounts}
-                defaultShopId={activeShop}
+                defaultShopId={shopId ?? campaignAccounts[0]?.id ?? null}
                 shopProvider={shopProvider}
                 onClose={() => setCreateOpen(false)}
             />

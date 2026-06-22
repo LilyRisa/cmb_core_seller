@@ -29,9 +29,10 @@ export function usePromotions(channelAccountId: number | null, tab: 'pushed' | '
     const client = useScopedApi();
     const tenantId = useCurrentTenantId();
     return useQuery({
+        // channelAccountId null = TẤT CẢ gian hàng (mặc định); chỉ cần client sẵn sàng là chạy.
         queryKey: ['promotions', tenantId, channelAccountId, tab],
-        enabled: client != null && channelAccountId != null,
-        queryFn: () => listPromotions(client!, channelAccountId!, tab),
+        enabled: client != null,
+        queryFn: () => listPromotions(client!, channelAccountId, tab),
     });
 }
 

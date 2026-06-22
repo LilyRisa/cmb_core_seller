@@ -54,8 +54,11 @@ export interface CreatePromotionPayload {
 
 export type UpdatePromotionPayload = Partial<Omit<CreatePromotionPayload, 'channel_account_id'>>;
 
-export async function listPromotions(client: AxiosInstance, channelAccountId: number, tab: 'pushed' | 'draft'): Promise<Promotion[]> {
-    const { data } = await client.get<{ data: Promotion[] }>('/channel-promotions', { params: { channel_account_id: channelAccountId, tab } });
+export async function listPromotions(client: AxiosInstance, channelAccountId: number | null, tab: 'pushed' | 'draft'): Promise<Promotion[]> {
+    // channelAccountId null ⇒ KHÔNG gửi param ⇒ backend trả chiến dịch của MỌI gian hàng (lọc theo sàn là phụ).
+    const params: Record<string, unknown> = { tab };
+    if (channelAccountId != null) params.channel_account_id = channelAccountId;
+    const { data } = await client.get<{ data: Promotion[] }>('/channel-promotions', { params });
     return data.data;
 }
 
