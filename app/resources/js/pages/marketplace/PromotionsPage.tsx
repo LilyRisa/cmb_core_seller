@@ -9,7 +9,7 @@ import { ChannelLogo } from '@/components/ChannelLogo';
 import { errorMessage } from '@/lib/api';
 import { useChannelAccounts } from '@/lib/channels';
 import {
-    useCreatePromotion, useDeletePromotion, useEndPromotion, usePromotionCapabilities, usePromotions, useSyncPromotions,
+    useCampaignProviders, useCreatePromotion, useDeletePromotion, useEndPromotion, usePromotionCapabilities, usePromotions, useSyncPromotions,
 } from '@/features/promotions/hooks';
 import type { DiscountType, Promotion } from '@/features/promotions/api';
 
@@ -32,12 +32,16 @@ export function PromotionsPage() {
     const navigate = useNavigate();
     const { data: channelData } = useChannelAccounts();
     const accounts = useMemo(() => channelData?.data ?? [], [channelData]);
+    // Chỉ gian hàng thuộc sàn có "chiến dịch" riêng (Shopee/TikTok). Lazada giảm giá trực tiếp trên SKU ⇒ loại,
+    // lọc theo năng lực sàn (has_program_object) chứ không hardcode tên sàn.
+    const { capable } = useCampaignProviders(useMemo(() => accounts.map((a) => a.provider), [accounts]));
+    const campaignAccounts = useMemo(() => accounts.filter((a) => capable.has(a.provider)), [accounts, capable]);
 
     const [shopId, setShopId] = useState<number | null>(null);
     const [tab, setTab] = useState<'pushed' | 'draft'>('pushed');
     const [createOpen, setCreateOpen] = useState(false);
 
-    const activeShop = shopId ?? accounts[0]?.id ?? null;
+    const activeShop = shopId ?? campaignAccounts[0]?.id ?? null;
     const { data: promotions, isFetching } = usePromotions(activeShop, tab);
     const sync = useSyncPromotions();
     const endPromo = useEndPromotion();
@@ -130,7 +134,7 @@ export function PromotionsPage() {
                         {tab === 'pushed' && (
                             <Button icon={<CloudDownloadOutlined />} loading={sync.isPending} onClick={handleSync} disabled={activeShop == null}>Đồng bộ từ sàn</Button>
                         )}
-                        <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)} disabled={accounts.length === 0}>Tạo chiến dịch</Button>
+                        <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)} disabled={campaignAccounts.length === 0}>Tạo chiến dịch</Button>
                     </Space>
                 }
             />
@@ -140,7 +144,7 @@ export function PromotionsPage() {
                     <Select
                         style={{ minWidth: 260 }} placeholder="Chọn gian hàng" value={activeShop ?? undefined}
                         onChange={(v) => setShopId(v)} optionFilterProp="title"
-                        options={accounts.map((a) => ({ value: a.id, title: a.name, label: <Space size={6}><ChannelLogo provider={a.provider} size={16} /><span>{a.name}</span></Space> }))}
+                        options={campaignAccounts.map((a) => ({ value: a.id, title: a.name, label: <Space size={6}><ChannelLogo provider={a.provider} size={16} /><span>{a.name}</span></Space> }))}
                     />
                 </Space>
 
@@ -166,7 +170,7 @@ export function PromotionsPage() {
 
             <CreatePromotionModal
                 open={createOpen}
-                accounts={accounts}
+                accounts={campaignAccounts}
                 defaultShopId={activeShop}
                 shopProvider={shopProvider}
                 onClose={() => setCreateOpen(false)}

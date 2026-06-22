@@ -61,7 +61,10 @@ final class PromotionService
     public function createDraft(int $channelAccountId, array $data, ?int $userId = null): ChannelPromotion
     {
         $account = ChannelAccount::query()->findOrFail($channelAccountId);
-        $this->connector($account->provider); // chặn sớm nếu sàn không hỗ trợ
+        // Chỉ sàn có ĐỐI TƯỢNG chương trình (has_program_object) mới tạo "chiến dịch" riêng được.
+        // Sàn giảm giá trực tiếp trên từng SKU (Lazada: SalePrice) ⇒ không có chiến dịch — sửa giá ở listing.
+        $caps = $this->connector($account->provider)->promotionCapabilities();
+        abort_unless($caps['has_program_object'], 422, 'Sàn này giảm giá trực tiếp trên từng SKU, không tạo chiến dịch riêng. Hãy sửa giá khuyến mãi ngay ở “Sản phẩm đã có trên sàn”.');
 
         return ChannelPromotion::query()->create([
             'tenant_id' => (int) $account->tenant_id,

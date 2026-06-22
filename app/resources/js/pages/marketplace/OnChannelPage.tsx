@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { App as AntApp, Avatar, Button, Card, Checkbox, Empty, Input, Modal, Select, Space, Table, Tag, Typography } from 'antd';
+import { App as AntApp, Avatar, Button, Card, Checkbox, Empty, Input, Modal, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { CloudDownloadOutlined, CopyOutlined, EditOutlined, PictureOutlined, SearchOutlined } from '@ant-design/icons';
+import { CloudDownloadOutlined, CopyOutlined, EditOutlined, PictureOutlined, QuestionCircleOutlined, SearchOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { MoneyText } from '@/components/MoneyText';
+import { ChannelBadge } from '@/components/ChannelBadge';
 import { ChannelLogo } from '@/components/ChannelLogo';
 import { errorMessage } from '@/lib/api';
 import { useChannelAccounts } from '@/lib/channels';
@@ -110,13 +111,19 @@ export function OnChannelPage() {
         {
             title: 'Gian hàng',
             key: 'shop',
-            width: 180,
-            render: (_, r) => (
-                <Space size={4}>
-                    <span>{shopName(r.channel_account_id)}</span>
-                    <Tag>{shopProvider(r.channel_account_id)}</Tag>
-                </Space>
-            ),
+            width: 220,
+            render: (_, r) => {
+                const provider = shopProvider(r.channel_account_id);
+                return (
+                    <Space size={4} wrap>
+                        <ChannelBadge provider={provider} />
+                        <Tag style={{ display: 'inline-flex', alignItems: 'center', gap: 4, paddingInline: 6 }}>
+                            <ChannelLogo provider={provider} size={12} />
+                            <span>{shopName(r.channel_account_id)}</span>
+                        </Tag>
+                    </Space>
+                );
+            },
         },
         {
             title: 'Giá gốc',
@@ -141,8 +148,12 @@ export function OnChannelPage() {
                 const off = base != null && base > sale ? Math.round(((base - sale) / base) * 100) : 0;
                 return (
                     <Space size={4}>
-                        <MoneyText value={sale} currency={r.currency} />
-                        {off > 0 && <Tag color="volcano">-{off}%</Tag>}
+                        <MoneyText value={sale} currency={r.currency} strong />
+                        {off > 0 && (
+                            <Tooltip title={`Giảm ${off}% so với giá gốc`}>
+                                <QuestionCircleOutlined style={{ color: '#bfbfbf', cursor: 'help' }} />
+                            </Tooltip>
+                        )}
                     </Space>
                 );
             },

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { tenantApi } from '@/lib/api';
 import { useCurrentTenantId } from '@/lib/tenant';
 import {
@@ -55,6 +55,32 @@ export function usePromotionCapabilities(provider: string | null) {
         queryFn: () => getPromotionCapabilities(client!, provider!),
         staleTime: 60 * 60 * 1000,
     });
+}
+
+/**
+ * Tập provider hỗ trợ "chiến dịch giảm giá" riêng (có đối tượng chương trình trên sàn). Sàn giảm giá
+ * trực tiếp trên SKU (Lazada: has_program_object=false) bị loại — KHÔNG hardcode tên sàn, lọc theo năng lực.
+ * Trong lúc tải caps coi như chưa hỗ trợ (ẩn) để không bao giờ lỡ hiện sàn không hợp lệ.
+ */
+export function useCampaignProviders(providers: string[]) {
+    const client = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    const distinct = useMemo(() => Array.from(new Set(providers)).sort(), [providers]);
+    const results = useQueries({
+        queries: distinct.map((p) => ({
+            queryKey: ['promotion-caps', tenantId, p],
+            enabled: client != null,
+            queryFn: () => getPromotionCapabilities(client!, p),
+            staleTime: 60 * 60 * 1000,
+        })),
+    });
+    return useMemo(() => {
+        const capable = new Set<string>();
+        distinct.forEach((p, i) => {
+            if (results[i]?.data?.has_program_object) capable.add(p);
+        });
+        return { capable, isLoading: results.some((r) => r.isLoading) };
+    }, [distinct, results]);
 }
 
 export function useBusyPromos(channelAccountId: number | null, exceptPromotionId?: number) {

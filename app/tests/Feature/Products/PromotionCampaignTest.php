@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Products;
 
+use CMBcoreSeller\Integrations\Channels\Contracts\ProductPublishingConnector;
+use CMBcoreSeller\Integrations\Channels\Contracts\PromotionConnector;
+use CMBcoreSeller\Integrations\Channels\PublisherRegistry;
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Products\Jobs\PushPromotionJob;
@@ -15,12 +18,15 @@ use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use Mockery;
 use Tests\TestCase;
 
 /**
  * Chiến dịch giảm giá nhiều SKU: tạo nháp → đặt SKU (tính sale_price) → SKU bận → chặn
- * chồng lấn khi đẩy. Dùng provider 'lazada' (capabilities thuần, không gọi HTTP); push
- * dùng Queue::fake để không chạy job thật.
+ * chồng lấn khi đẩy. CRUD chạy trên connector stub có ĐỐI TƯỢNG chương trình
+ * (has_program_object=true, không gọi HTTP); push dùng Queue::fake để không chạy job thật.
+ * Lazada (has_program_object=false) bị chặn tạo chiến dịch — chỉ test phát hiện SKU bận
+ * qua special_price (giảm giá trực tiếp trên SKU).
  */
 class PromotionCampaignTest extends TestCase
 {
@@ -42,8 +48,18 @@ class PromotionCampaignTest extends TestCase
         $this->tenant->users()->attach($this->owner->getKey(), ['role' => Role::Owner->value]);
         app(CurrentTenant::class)->set($this->tenant);
 
+        // Connector stub: có đối tượng chương trình + KHÔNG gọi HTTP (capabilities/listPromotions thuần).
+        $conn = Mockery::mock(ProductPublishingConnector::class, PromotionConnector::class);
+        $conn->shouldReceive('promotionCapabilities')->andReturn([
+            'max_items_per_call' => 50, 'supports_percent' => true, 'has_program_object' => true, 'supports_time_of_day' => true,
+        ]);
+        $conn->shouldReceive('listPromotions')->andReturn([]);
+        $cls = $conn::class;
+        $this->app->instance($cls, $conn);
+        app(PublisherRegistry::class)->register('stub', $cls);
+
         $account = ChannelAccount::create([
-            'tenant_id' => $this->tenant->getKey(), 'provider' => 'lazada',
+            'tenant_id' => $this->tenant->getKey(), 'provider' => 'stub',
             'external_shop_id' => 'shop', 'shop_name' => 'Shop', 'status' => 'active', 'access_token' => 'tok',
         ]);
         $this->accountId = (int) $account->getKey();
@@ -120,6 +136,22 @@ class PromotionCampaignTest extends TestCase
         Queue::assertPushed(PushPromotionJob::class);
     }
 
+    public function test_lazada_cannot_create_campaign(): void
+    {
+        // Lazada giảm giá trực tiếp trên SKU (has_program_object=false) ⇒ không tạo chiến dịch riêng được.
+        $lazada = ChannelAccount::create([
+            'tenant_id' => $this->tenant->getKey(), 'provider' => 'lazada',
+            'external_shop_id' => 'lzd', 'shop_name' => 'Lazada Shop', 'status' => 'active', 'access_token' => 'tok',
+        ]);
+
+        $this->postAs('/api/v1/channel-promotions', [
+            'channel_account_id' => (int) $lazada->getKey(),
+            'title' => 'Sale 6.6', 'discount_type' => 'fixed',
+            'starts_at' => now()->addDay()->toIso8601String(),
+            'ends_at' => now()->addDays(5)->toIso8601String(),
+        ])->assertStatus(422);
+    }
+
     public function test_capabilities_endpoint_returns_lazada_shape(): void
     {
         $this->actingAs($this->owner)->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
@@ -151,27 +183,33 @@ class PromotionCampaignTest extends TestCase
     public function test_lazada_listing_special_price_marks_sku_busy_with_discount(): void
     {
         // Lazada không có API liệt kê chương trình ⇒ phát hiện qua channel_listings.special_price (đồng bộ từ sàn).
+        $lazada = ChannelAccount::create([
+            'tenant_id' => $this->tenant->getKey(), 'provider' => 'lazada',
+            'external_shop_id' => 'lzd', 'shop_name' => 'Lazada Shop', 'status' => 'active', 'access_token' => 'tok',
+        ]);
+        $lid = (int) $lazada->getKey();
+
         ChannelListing::create([
-            'tenant_id' => $this->tenant->getKey(), 'channel_account_id' => $this->accountId,
+            'tenant_id' => $this->tenant->getKey(), 'channel_account_id' => $lid,
             'external_product_id' => 'P1', 'external_sku_id' => 'SKU-DISC', 'title' => 'Có giảm',
             'price' => 60000, 'original_price' => 119000, 'special_price' => 60000, 'currency' => 'VND',
         ]);
         ChannelListing::create([
-            'tenant_id' => $this->tenant->getKey(), 'channel_account_id' => $this->accountId,
+            'tenant_id' => $this->tenant->getKey(), 'channel_account_id' => $lid,
             'external_product_id' => 'P2', 'external_sku_id' => 'SKU-FULL', 'title' => 'Giá thường',
             'price' => 100000, 'original_price' => 100000, 'special_price' => null, 'currency' => 'VND',
         ]);
 
         $svc = app(PromotionService::class);
-        $prices = $svc->busyPromoPrices($this->accountId);
+        $prices = $svc->busyPromoPrices($lid);
 
         $this->assertSame(60000, $prices['SKU-DISC'] ?? null, 'SKU có special_price ⇒ bận + giá giảm.');
         $this->assertArrayNotHasKey('SKU-FULL', $prices, 'SKU giá thường KHÔNG bận.');
-        $this->assertContains('SKU-DISC', $svc->busySkuIds($this->accountId));
+        $this->assertContains('SKU-DISC', $svc->busySkuIds($lid));
 
         // Endpoint trả prices cho FE tô xám + hiện giá.
         $res = $this->actingAs($this->owner)->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
-            ->getJson("/api/v1/channel-promotions/busy-skus?channel_account_id={$this->accountId}")->assertOk();
+            ->getJson("/api/v1/channel-promotions/busy-skus?channel_account_id={$lid}")->assertOk();
         $this->assertSame(60000, $res->json('data.prices.SKU-DISC'));
     }
 }
