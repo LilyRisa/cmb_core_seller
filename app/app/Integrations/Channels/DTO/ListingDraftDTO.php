@@ -29,5 +29,7 @@ final readonly class ListingDraftDTO
         public ?string $videoRef = null,
         /** Id video ĐÃ sẵn sàng trên sàn (do job chuẩn bị trước qua start/status) — gắn thẳng vào payload. */
         public ?string $videoExternalId = null,
+        /** Khóa idempotency ổn định theo nháp — chống tạo sản phẩm trùng khi retry (sàn dedupe). */
+        public ?string $idempotencyKey = null,
     ) {}
 }

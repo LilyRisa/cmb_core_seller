@@ -44,8 +44,14 @@ class ShopeePayloadTest extends TestCase
         $this->assertSame(100012, $body['category_id']);
         $this->assertSame('img-1', $body['image']['image_id_list'][0]);
         $this->assertTrue($body['logistic_info'][0]['enabled']);
+        // add_item dùng `logistic_id` (không phải logistics_channel_id) + is_free.
+        $this->assertSame(1, $body['logistic_info'][0]['logistic_id']);
+        $this->assertFalse($body['logistic_info'][0]['is_free']);
+        $this->assertSame('NEW', $body['condition']);
         $this->assertSame(10000, $body['original_price']);
-        $this->assertSame(5, $body['normal_stock']);
+        // Tồn kho theo mô hình chính chủ hiện hành: seller_stock: [{stock}].
+        $this->assertSame(5, $body['seller_stock'][0]['stock']);
+        $this->assertArrayNotHasKey('normal_stock', $body);
     }
 
     public function test_omits_pre_order_when_not_enabled(): void
@@ -90,5 +96,8 @@ class ShopeePayloadTest extends TestCase
         $this->assertSame('size', $result['tier_variation'][0]['name']);
         $this->assertSame([0], $result['model'][0]['tier_index']);
         $this->assertSame([1], $result['model'][1]['tier_index']);
+        // Model tồn kho cũng theo seller_stock (chính chủ init_tier_variation).
+        $this->assertSame(5, $result['model'][0]['seller_stock'][0]['stock']);
+        $this->assertArrayNotHasKey('normal_stock', $result['model'][0]);
     }
 }

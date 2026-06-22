@@ -36,7 +36,7 @@ final class TikTokProductPayload
                 'unit' => $d->logistics['weight_unit'] ?? 'KILOGRAM',
             ],
             'product_attributes' => $d->attributes['product_attributes'] ?? [],
-            'skus' => array_map(fn ($s) => [
+            'skus' => array_map(fn ($s) => array_merge([
                 'seller_sku' => $s['seller_sku'],
                 'sales_attributes' => array_map(
                     fn ($k, $v) => ['id' => $k, 'value_name' => $v],
@@ -53,7 +53,13 @@ final class TikTokProductPayload
                         'quantity' => (int) $s['stock'],
                     ],
                 ],
-            ], $d->skus),
+            ],
+                // Mã định danh (GTIN/EAN/UPC) — BẮT BUỘC ở nhiều ngành; chỉ gửi khi master
+                // SKU có mã. {code, type} theo schema chính chủ Create Product 202309.
+                ! empty($s['gtin'])
+                    ? ['identifier_code' => ['code' => (string) $s['gtin'], 'type' => (string) ($s['gtin_type'] ?? 'GTIN')]]
+                    : []
+            ), $d->skus),
         ];
 
         if ($d->brandId !== null) {
@@ -62,6 +68,12 @@ final class TikTokProductPayload
 
         if ($videoId !== null && $videoId !== '') {
             $body['video'] = ['id' => $videoId];
+        }
+
+        // Chống tạo trùng khi retry (TikTok dedupe theo idempotency_key) — bảo toàn
+        // bất biến "mọi job sync idempotent".
+        if ($d->idempotencyKey !== null && $d->idempotencyKey !== '') {
+            $body['idempotency_key'] = $d->idempotencyKey;
         }
 
         return $body;

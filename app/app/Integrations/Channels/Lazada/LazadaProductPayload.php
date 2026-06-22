@@ -53,8 +53,21 @@ final class LazadaProductPayload
         }
         foreach ($d->attributes as $k => $v) {
             // Bỏ khóa nghiệp vụ nội bộ (đã xử lý riêng / không phải attribute của sàn).
-            if (in_array($k, ['description', 'video_url'], true) || is_array($v)) {
+            if (in_array($k, ['description', 'video_url'], true)) {
                 continue;
+            }
+            if (is_array($v)) {
+                // Thuộc tính đa chọn (multiSelect/multiEnumInput): gộp các giá trị thành
+                // chuỗi phân tách bằng dấu phẩy (định dạng phẳng như ví dụ CreateProduct
+                // chính chủ) — KHÔNG bỏ âm thầm như trước (gây thiếu thuộc tính bắt buộc).
+                $vals = array_map(
+                    fn ($x) => is_array($x) ? (string) ($x['name'] ?? $x['value'] ?? $x['id'] ?? '') : (string) $x,
+                    $v,
+                );
+                $v = implode(',', array_filter($vals, fn ($s) => $s !== ''));
+                if ($v === '') {
+                    continue;
+                }
             }
             self::child($dom, $attr, $k, (string) $v);
         }

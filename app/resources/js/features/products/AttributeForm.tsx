@@ -1,6 +1,14 @@
+import { useEffect } from 'react';
 import { Alert, Col, Divider, Empty, Input, InputNumber, Radio, Row, Select, Space, Spin, Typography } from 'antd';
 import { useAttributes } from './hooks';
 import type { ListingAttribute } from './api';
+
+/** Thuộc tính được coi là đã điền: chuỗi/số khác rỗng, hoặc mảng (đa chọn) khác rỗng. */
+function isFilled(v: unknown): boolean {
+    if (Array.isArray(v)) return v.length > 0;
+    if (typeof v === 'number') return true;
+    return v !== undefined && v !== null && String(v).trim() !== '';
+}
 
 /** Ngưỡng số lựa chọn: <= ngưỡng dùng Radio, vượt thì dùng Select (theo UI rule). */
 const RADIO_MAX = 5;
@@ -103,14 +111,27 @@ export function AttributeForm({
     categoryId,
     value,
     onChange,
+    onMissingRequiredChange,
 }: {
     provider: string;
     channelAccountId: number;
     categoryId: string | null;
     value: Record<string, unknown>;
     onChange: (attributes: Record<string, unknown>) => void;
+    /** Báo lên các thuộc tính BẮT BUỘC còn trống để trang cha chặn đẩy. */
+    onMissingRequiredChange?: (missingNames: string[]) => void;
 }) {
     const { data: attributes, isLoading, isError } = useAttributes(provider, channelAccountId, categoryId);
+
+    const missingRequired = (attributes ?? [])
+        .filter((a) => a.required && !isFilled(value[a.id]))
+        .map((a) => a.name);
+
+    // Đẩy danh sách thiếu lên cha mỗi khi thay đổi (join để so sánh ổn định, tránh loop).
+    useEffect(() => {
+        onMissingRequiredChange?.(missingRequired);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [missingRequired.join('|'), onMissingRequiredChange]);
 
     const setOne = (id: string, v: unknown) => {
         onChange({ ...value, [id]: v });
@@ -134,6 +155,15 @@ export function AttributeForm({
 
     return (
         <div>
+            {missingRequired.length > 0 && (
+                <Alert
+                    type="warning"
+                    showIcon
+                    style={{ marginBottom: 12 }}
+                    message="Thiếu thuộc tính bắt buộc"
+                    description={`Vui lòng điền: ${missingRequired.join(', ')}`}
+                />
+            )}
             {saleProps.length > 0 && (
                 <>
                     <Divider orientation="left" plain style={{ marginTop: 0 }}>

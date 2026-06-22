@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-    Alert, App as AntApp, Button, Card, Checkbox, Image, Input, InputNumber, List, Modal, Radio, Result, Select, Space, Spin, Switch, Table, Tag, Typography, Upload,
+    Alert, App as AntApp, Button, Card, Checkbox, Image, Input, InputNumber, List, Modal, Radio, Result, Select, Space, Spin, Switch, Table, Tag, Tooltip, Typography, Upload,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { ArrowLeftOutlined, CloudUploadOutlined, DeleteOutlined, EditOutlined, PictureOutlined, PlusOutlined, RobotOutlined, SaveOutlined, VideoCameraOutlined } from '@ant-design/icons';
@@ -59,6 +59,8 @@ export function ListingDraftEditorPage() {
     const [pushBatchId, setPushBatchId] = useState<number | null>(null);
     const [pushModalOpen, setPushModalOpen] = useState(false);
     const { data: pushBatch } = usePushBatch(pushBatchId);
+    const [missingAttrs, setMissingAttrs] = useState<string[]>([]);
+    const onMissingRequiredChange = useCallback((m: string[]) => setMissingAttrs(m), []);
 
     useEffect(() => {
         if (!listing) return;
@@ -259,7 +261,9 @@ export function ListingDraftEditorPage() {
             extra={
                 <Space>
                     <Button icon={<SaveOutlined />} onClick={() => handleSave()} loading={updateListing.isPending}>Lưu nháp</Button>
-                    <Button type="primary" icon={<CloudUploadOutlined />} disabled={status !== 'ready'} loading={pushListing.isPending} onClick={handlePush}>Đẩy lên sàn</Button>
+                    <Tooltip title={missingAttrs.length > 0 ? `Thiếu thuộc tính bắt buộc: ${missingAttrs.join(', ')}` : undefined}>
+                        <Button type="primary" icon={<CloudUploadOutlined />} disabled={status !== 'ready' || missingAttrs.length > 0} loading={pushListing.isPending} onClick={handlePush}>Đẩy lên sàn</Button>
+                    </Tooltip>
                 </Space>
             }
         />
@@ -370,7 +374,7 @@ export function ListingDraftEditorPage() {
             )}
 
             <Card title="Thuộc tính ngành hàng" style={{ marginBottom: 16 }}>
-                {channelAccountId != null && <AttributeForm provider={provider} channelAccountId={channelAccountId} categoryId={categoryId} value={attributes} onChange={setAttributes} />}
+                {channelAccountId != null && <AttributeForm provider={provider} channelAccountId={channelAccountId} categoryId={categoryId} value={attributes} onChange={setAttributes} onMissingRequiredChange={onMissingRequiredChange} />}
             </Card>
 
             <Card title="Phân loại & tồn kho (SKU)" style={{ marginBottom: 16 }}>

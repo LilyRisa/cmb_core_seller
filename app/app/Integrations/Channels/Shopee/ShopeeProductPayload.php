@@ -30,11 +30,17 @@ final class ShopeeProductPayload
             'category_id' => (int) $d->categoryId,
             'item_name' => $d->title,
             'description' => $d->description,
+            // Tình trạng hàng (NEW/USED) — Shopee yêu cầu ở phần lớn ngành; mặc định NEW.
+            'condition' => strtoupper((string) ($d->attributes['condition'] ?? 'NEW')),
             'image' => ['image_id_list' => array_map(fn ($m) => $m->ref, $d->media)],
             'logistic_info' => array_map(
                 fn ($c) => array_filter([
-                    'logistics_channel_id' => $c['logistics_channel_id'],
+                    // add_item dùng trường `logistic_id` (KHÔNG phải logistics_channel_id —
+                    // đó là tên trường ở get_channel_list). Đã đối chiếu guide 211 + SDK shopeego.
+                    'logistic_id' => $c['logistics_channel_id'] ?? ($c['logistic_id'] ?? null),
                     'enabled' => (bool) $c['enabled'],
+                    // is_free=true ⇒ người bán chịu phí ship. Gửi tường minh (doc guide 211 §6).
+                    'is_free' => (bool) ($c['is_free'] ?? false),
                     'size_id' => $c['size_id'] ?? null,
                     'shipping_fee' => $c['shipping_fee'] ?? null,
                 ], fn ($v) => $v !== null),
@@ -71,7 +77,10 @@ final class ShopeeProductPayload
 
         if (count($d->skus) === 1) {
             $body['original_price'] = $first['price'];
-            $body['normal_stock'] = (int) $first['stock'];
+            // Mô hình tồn kho hiện hành của add_item là `seller_stock: [{stock}]`
+            // (đối chiếu trang tham chiếu chính chủ v2.product.add_item — `normal_stock`
+            // đã bị loại). location_id để trống ⇒ kho mặc định của shop.
+            $body['seller_stock'] = [['stock' => (int) $first['stock']]];
             if (! empty($first['seller_sku'])) {
                 $body['item_sku'] = $first['seller_sku'];
             }
@@ -133,7 +142,9 @@ final class ShopeeProductPayload
             $models[] = [
                 'tier_index' => $tierIndex,
                 'original_price' => $s['price'],
-                'normal_stock' => (int) $s['stock'],
+                // init_tier_variation đặt tồn kho qua `seller_stock` (chính chủ),
+                // không còn `normal_stock`.
+                'seller_stock' => [['stock' => (int) $s['stock']]],
                 'model_sku' => $s['seller_sku'] ?? '',
             ];
         }

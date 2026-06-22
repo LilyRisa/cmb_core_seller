@@ -41,5 +41,37 @@ class TikTokPayloadTest extends TestCase
         $this->assertSame('WH1', $body['skus'][0]['inventory'][0]['warehouse_id']);
         $this->assertSame('size', $body['skus'][0]['sales_attributes'][0]['id']);
         $this->assertArrayNotHasKey('brand_id', $body);
+        // Không có GTIN / idempotencyKey ⇒ KHÔNG gửi (giữ payload gọn).
+        $this->assertArrayNotHasKey('identifier_code', $body['skus'][0]);
+        $this->assertArrayNotHasKey('idempotency_key', $body);
+    }
+
+    public function test_sends_identifier_code_and_idempotency_key_when_present(): void
+    {
+        $draft = new ListingDraftDTO(
+            title: 'Áo thun cotton nam form rộng',
+            description: 'd',
+            categoryId: '600001',
+            brandId: null,
+            attributes: [],
+            media: [new MediaRefDTO('uri-1', 'uri')],
+            skus: [[
+                'seller_sku' => 'S1',
+                'price' => 199000,
+                'stock' => 5,
+                'sale_props' => ['size' => 'M'],
+                'warehouse_id' => 'WH1',
+                'gtin' => '8938505970121',
+                'gtin_type' => 'EAN',
+            ]],
+            logistics: ['package_weight' => 0.5],
+            idempotencyKey: 'listing-draft-42',
+        );
+
+        $body = TikTokProductPayload::toBody($draft, 'LISTING');
+
+        $this->assertSame('8938505970121', $body['skus'][0]['identifier_code']['code']);
+        $this->assertSame('EAN', $body['skus'][0]['identifier_code']['type']);
+        $this->assertSame('listing-draft-42', $body['idempotency_key']);
     }
 }

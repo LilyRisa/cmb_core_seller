@@ -294,15 +294,26 @@ final class ListingDraftService
 
         $logistics = $draft->logistics ?? [];
 
-        $skus = $draft->skus->map(fn (ListingDraftSku $s) => [
-            'seller_sku' => $s->seller_sku,
-            'price' => $s->price,
-            'stock' => $s->stock,
-            'sale_props' => $s->sale_props ?? [],
-            'package_weight' => $s->package_weight,
-            'package_dims' => $s->package_dims ?? [],
-            'warehouse_id' => $logistics['warehouse_id'] ?? null,
-        ])->all();
+        // Mã định danh thương mại (GTIN/EAN/UPC) lấy từ master SKU đã liên kết — sàn như
+        // TikTok BẮT BUỘC `identifier_code` ở nhiều ngành. Nạp 1 lượt theo master_variant_id.
+        $masterById = $product->skus->keyBy(fn ($s) => (int) $s->getKey());
+
+        $skus = $draft->skus->map(function (ListingDraftSku $s) use ($logistics, $masterById) {
+            $master = $s->master_variant_id !== null ? $masterById->get((int) $s->master_variant_id) : null;
+            $gtin = self::pickGtin($master?->gtins, $master?->barcode);
+
+            return [
+                'seller_sku' => $s->seller_sku,
+                'price' => $s->price,
+                'stock' => $s->stock,
+                'sale_props' => $s->sale_props ?? [],
+                'package_weight' => $s->package_weight,
+                'package_dims' => $s->package_dims ?? [],
+                'warehouse_id' => $logistics['warehouse_id'] ?? null,
+                'gtin' => $gtin['code'],
+                'gtin_type' => $gtin['type'],
+            ];
+        })->all();
 
         return new ListingDraftDTO(
             title: $title,
@@ -315,6 +326,10 @@ final class ListingDraftService
             logistics: $logistics,
             videoRef: (($draft->attributes ?? [])['video_url'] ?? null) ?: null,
             videoExternalId: (($draft->attributes ?? [])['video_external_id'] ?? null) ?: null,
+            // Khóa idempotency ổn định theo nháp: retry cùng một lần đẩy sẽ KHÔNG tạo
+            // sản phẩm trùng trên sàn (sàn dedupe theo key này). Phối với chốt chặn
+            // external_item_id trong PushListingJob.
+            idempotencyKey: 'listing-draft-'.$draft->getKey(),
         );
     }
 
@@ -358,6 +373,41 @@ final class ListingDraftService
                 'image_ref' => $sku->image_url,
             ]);
         }
+    }
+
+    /**
+     * Chọn mã định danh thương mại đầu tiên (GTIN/EAN/UPC) của master SKU và suy ra
+     * `type` theo độ dài (TikTok yêu cầu code + type). Ưu tiên mảng `gtins`, fallback
+     * `barcode`. Trả `['code' => null, 'type' => null]` khi không có.
+     *
+     * @param  array<int,string>|null  $gtins
+     * @return array{code: string|null, type: string|null}
+     */
+    private static function pickGtin(?array $gtins, ?string $barcode): array
+    {
+        $code = '';
+        foreach ($gtins ?? [] as $g) {
+            if (trim((string) $g) !== '') {
+                $code = trim((string) $g);
+                break;
+            }
+        }
+        if ($code === '' && $barcode !== null && trim($barcode) !== '') {
+            $code = trim($barcode);
+        }
+        if ($code === '') {
+            return ['code' => null, 'type' => null];
+        }
+
+        // Suy kiểu theo số chữ số (định dạng chuẩn GS1).
+        $type = match (strlen(preg_replace('/\D/', '', $code) ?? '')) {
+            12 => 'UPC',
+            8, 13 => 'EAN',
+            14 => 'GTIN',
+            default => 'GTIN',
+        };
+
+        return ['code' => $code, 'type' => $type];
     }
 
     /**
