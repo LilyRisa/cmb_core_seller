@@ -45,6 +45,10 @@ final class TikTokListingValidator implements ListingValidator
             $errors['categoryId'] = 'Phải chọn danh mục lá (category_version=v2)';
         }
 
+        if ($draft->brandId === null || $draft->brandId === '') {
+            $errors['brandId'] = 'Phải chọn thương hiệu';
+        }
+
         $maxImages = (int) config('integrations.listing_limits.tiktok.max_images', 9);
         $mediaCount = count($draft->media);
         if ($mediaCount === 0) {

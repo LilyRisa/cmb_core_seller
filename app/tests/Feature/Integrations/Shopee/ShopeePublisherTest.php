@@ -45,7 +45,7 @@ class ShopeePublisherTest extends TestCase
             title: 'Áo thun',
             description: 'Mô tả áo thun chất lượng cao',
             categoryId: '100182',
-            brandId: null,
+            brandId: '0',
             attributes: [],
             media: [new MediaRefDTO('img-1', 'image_id')],
             skus: $skus,
@@ -85,7 +85,7 @@ class ShopeePublisherTest extends TestCase
         Http::fake(['*/product/add_item*' => Http::response(['item_id' => 777, 'response' => ['item_id' => 777]])]);
 
         $draft = new ListingDraftDTO(
-            title: 'Áo', description: 'Mô tả dài đủ chuẩn', categoryId: '100182', brandId: null, attributes: [],
+            title: 'Áo', description: 'Mô tả dài đủ chuẩn', categoryId: '100182', brandId: '0', attributes: [],
             media: [new MediaRefDTO('img-1', 'image_id')],
             skus: [['price' => 100000, 'stock' => 5, 'seller_sku' => 'S1', 'sale_props' => []]],
             logistics: ['weight' => 0.3, 'channels' => [['logistics_channel_id' => 88001, 'enabled' => true, 'fee_type' => 'FIXED_DEFAULT_PRICE']]],

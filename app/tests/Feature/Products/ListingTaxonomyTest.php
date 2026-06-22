@@ -167,6 +167,34 @@ class ListingTaxonomyTest extends TestCase
         $this->assertSame('Thời trang › Áo', $res->json('data.0.path'));
     }
 
+    public function test_search_matches_parent_level_name_in_path(): void
+    {
+        Cache::flush();
+
+        // Gõ tên CẤP CHA ("Thời trang") vẫn ra ngành hàng lá bên dưới — khớp trên toàn đường dẫn.
+        $res = $this->actingAs($this->owner)
+            ->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
+            ->getJson("/api/v1/channels/lazada/categories/search?channel_account_id={$this->accountId}&q=thời+trang");
+
+        $res->assertOk();
+        $res->assertJsonCount(1, 'data');
+        $this->assertSame('1001', $res->json('data.0.id'));
+    }
+
+    public function test_search_matches_multiple_tokens_across_levels(): void
+    {
+        Cache::flush();
+
+        // Nhiều từ rải ở các cấp khác nhau ("trang áo") đều phải khớp.
+        $res = $this->actingAs($this->owner)
+            ->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
+            ->getJson("/api/v1/channels/lazada/categories/search?channel_account_id={$this->accountId}&q=trang+áo");
+
+        $res->assertOk();
+        $res->assertJsonCount(1, 'data');
+        $this->assertSame('1001', $res->json('data.0.id'));
+    }
+
     public function test_returns_shipping_options_for_a_shop(): void
     {
         Cache::flush();

@@ -98,7 +98,7 @@ class ShopeeValidatorTest extends TestCase
             title: 'Áo thun',
             description: 'x',
             categoryId: '100012',
-            brandId: null,
+            brandId: '0',
             attributes: [],
             media: [new MediaRefDTO('img-1', 'image_id')],
             skus: [[

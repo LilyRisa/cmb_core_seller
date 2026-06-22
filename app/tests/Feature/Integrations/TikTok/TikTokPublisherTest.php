@@ -55,7 +55,7 @@ class TikTokPublisherTest extends TestCase
         Http::fake(['*/product/202309/products*' => Http::response(['code' => 0, 'data' => ['product_id' => 'p-1', 'skus' => [['id' => 's1', 'seller_sku' => 'S1']]]])]);
 
         $draft = new ListingDraftDTO(
-            title: 'Áo thun cotton cao cấp form rộng unisex', description: 'Mô tả', categoryId: '600001', brandId: null,
+            title: 'Áo thun cotton cao cấp form rộng unisex', description: 'Mô tả', categoryId: '600001', brandId: '700001',
             attributes: [], media: [new MediaRefDTO('tos://img-uri-1', 'uri')],
             skus: [['seller_sku' => 'S1', 'price' => 199000, 'stock' => 10, 'warehouse_id' => 'WH1', 'sale_props' => []]],
             logistics: ['package_weight' => 0.3],
@@ -152,7 +152,7 @@ class TikTokPublisherTest extends TestCase
             title: 'Áo thun cotton cao cấp form rộng unisex',
             description: 'Mô tả sản phẩm áo thun cotton',
             categoryId: '600001',
-            brandId: null,
+            brandId: '700001',
             attributes: [],
             media: [new MediaRefDTO('tos://img-uri-1', 'uri')],
             skus: [[

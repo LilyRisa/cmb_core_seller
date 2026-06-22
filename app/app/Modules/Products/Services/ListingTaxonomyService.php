@@ -36,8 +36,10 @@ final class ListingTaxonomyService
     }
 
     /**
-     * Advanced category search: leaf categories whose name contains the query,
-     * each annotated with its full breadcrumb path so the seller can pick directly.
+     * Advanced category search: leaf categories whose FULL breadcrumb path matches
+     * the query — every whitespace-separated token must appear somewhere in the path
+     * ("A › B › C"), so the seller can search by ANY level (parent or leaf) and pick
+     * the leaf directly. Each hit carries its full path for display.
      *
      * @return array<int,array<string,mixed>>
      */
@@ -48,6 +50,11 @@ final class ListingTaxonomyService
             return [];
         }
 
+        $tokens = array_values(array_filter(
+            preg_split('/\s+/', mb_strtolower($q)) ?: [],
+            fn ($t) => $t !== '',
+        ));
+
         $all = $this->fullTree($channelAccountId, $provider);
         $byId = [];
         foreach ($all as $c) {
@@ -56,10 +63,17 @@ final class ListingTaxonomyService
 
         $out = [];
         foreach ($all as $c) {
-            if (! ($c['is_leaf'] ?? false) || mb_stripos($c['name'], $q) === false) {
+            if (! ($c['is_leaf'] ?? false)) {
                 continue;
             }
-            $out[] = ['id' => $c['id'], 'name' => $c['name'], 'is_leaf' => true, 'path' => self::pathLabel((string) $c['id'], $byId)];
+            $path = self::pathLabel((string) $c['id'], $byId);
+            $haystack = mb_strtolower($path);
+            foreach ($tokens as $t) {
+                if (! str_contains($haystack, $t)) {
+                    continue 2;
+                }
+            }
+            $out[] = ['id' => $c['id'], 'name' => $c['name'], 'is_leaf' => true, 'path' => $path];
             if (count($out) >= $limit) {
                 break;
             }

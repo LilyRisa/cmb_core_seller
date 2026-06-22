@@ -141,20 +141,33 @@ final class TikTokPublisher implements ProductPublishingConnector, PromotionConn
     /** @return BrandDTO[] */
     public function getBrands(AuthContext $auth, string $categoryId): array
     {
-        $data = $this->client->request('GET', '/product/202309/brands', $auth, ['category_id' => $categoryId]);
-
         $out = [];
-        foreach ((array) ($data['brands'] ?? []) as $brand) {
-            if (! is_array($brand)) {
-                continue;
+        $pageToken = '';
+
+        // page_size is REQUIRED by /product/202309/brands (valid range 1-100); paginate
+        // through next_page_token so categories with >100 brands return the full list.
+        do {
+            $query = ['category_id' => $categoryId, 'page_size' => 100];
+            if ($pageToken !== '') {
+                $query['page_token'] = $pageToken;
             }
-            $out[] = new BrandDTO(
-                id: (string) ($brand['id'] ?? ''),
-                name: (string) ($brand['name'] ?? ''),
-                mandatory: false,
-                raw: $brand,
-            );
-        }
+
+            $data = $this->client->request('GET', '/product/202309/brands', $auth, $query);
+
+            foreach ((array) ($data['brands'] ?? []) as $brand) {
+                if (! is_array($brand)) {
+                    continue;
+                }
+                $out[] = new BrandDTO(
+                    id: (string) ($brand['id'] ?? ''),
+                    name: (string) ($brand['name'] ?? ''),
+                    mandatory: false,
+                    raw: $brand,
+                );
+            }
+
+            $pageToken = (string) ($data['next_page_token'] ?? '');
+        } while ($pageToken !== '');
 
         return $out;
     }

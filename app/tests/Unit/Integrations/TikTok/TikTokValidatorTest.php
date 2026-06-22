@@ -34,6 +34,7 @@ class TikTokValidatorTest extends TestCase
 
         $this->assertArrayHasKey('title', $errors);
         $this->assertArrayHasKey('categoryId', $errors);
+        $this->assertArrayHasKey('brandId', $errors);
         $this->assertArrayHasKey('logistics.package_weight', $errors);
         $this->assertArrayHasKey('skus.0.warehouse_id', $errors);
     }
@@ -44,7 +45,7 @@ class TikTokValidatorTest extends TestCase
             title: 'Áo thun cotton nam form rộng cao cấp',
             description: 'desc',
             categoryId: '600001',
-            brandId: null,
+            brandId: '700001',
             attributes: [],
             media: [new MediaRefDTO('uri-1', 'uri')],
             skus: [[

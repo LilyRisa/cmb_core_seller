@@ -7,6 +7,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { ArrowLeftOutlined, CloudUploadOutlined, DeleteOutlined, EditOutlined, PictureOutlined, PlusOutlined, RobotOutlined, SaveOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { ImageResizer } from '@/components/ImageResizer';
+import { RichTextEditor } from '@/components/RichTextEditor';
 import { errorMessage, tenantApi } from '@/lib/api';
 import { useCurrentTenantId } from '@/lib/tenant';
 import { CategoryPicker } from '@/features/products/CategoryPicker';
@@ -78,6 +79,30 @@ export function ListingDraftEditorPage() {
     const maxVideos = limits?.max_videos ?? 1;
     const channelAccountId = listing?.channel_account_id ?? null;
     const { data: brands } = useBrands(provider || null, channelAccountId, categoryId);
+    // TikTok/Lazada dùng mô tả HTML → trình soạn đầy đủ. Shopee chỉ text thuần.
+    const richDescription = provider === 'tiktok' || provider === 'lazada';
+
+    const uploadDescriptionImage = async (file: File): Promise<string> => {
+        if (!uploadClient) throw new Error('Chưa sẵn sàng tải ảnh.');
+        try {
+            const form = new FormData();
+            form.append('image', file);
+            form.append('folder', 'listings');
+            const { data } = await uploadClient.post<{ data: { url: string } }>('/media/image', form);
+            return data.data.url;
+        } catch (e) {
+            message.error(errorMessage(e));
+            throw e;
+        }
+    };
+
+    // "Không có thương hiệu" (No Brand/OEM) luôn ưu tiên lên đầu danh sách; còn lại giữ thứ tự sàn trả về.
+    const brandOptions = useMemo(() => {
+        const isNoBrand = (n: string) => /no\s*brand|không có thương hiệu|không thương hiệu|\boem\b/i.test(n);
+        return [...(brands ?? [])]
+            .sort((a, b) => Number(isNoBrand(b.name)) - Number(isNoBrand(a.name)))
+            .map((b) => ({ value: b.id, label: b.mandatory ? `${b.name} (bắt buộc)` : b.name }));
+    }, [brands]);
 
     const updateSku = (sid: number, patch: Partial<ListingDraftSku>) =>
         setSkus((prev) => prev.map((s) => (s.id === sid ? { ...s, ...patch } : s)));
@@ -247,15 +272,22 @@ export function ListingDraftEditorPage() {
                     <Typography.Text type="secondary">Mô tả</Typography.Text>
                     <Button size="small" icon={<RobotOutlined />} loading={aiDescribe.isPending} onClick={handleAiSuggest}>AI gợi ý mô tả</Button>
                 </div>
-                <Input.TextArea style={{ marginTop: 4, marginBottom: 12 }} rows={5} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Mô tả sản phẩm hiển thị trên sàn" />
+                <div style={{ marginTop: 4, marginBottom: 12 }}>
+                    {richDescription ? (
+                        <RichTextEditor value={description} onChange={setDescription} uploadImage={uploadDescriptionImage} placeholder="Mô tả sản phẩm hiển thị trên sàn" />
+                    ) : (
+                        <Input.TextArea rows={5} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Mô tả sản phẩm hiển thị trên sàn" />
+                    )}
+                </div>
                 <Typography.Text type="secondary">Ngành hàng</Typography.Text>
                 <div style={{ marginTop: 4, marginBottom: 12 }}>
                     {channelAccountId != null && <CategoryPicker provider={provider} channelAccountId={channelAccountId} value={categoryId} onChange={(cid) => { setCategoryId(cid); setBrandId(null); }} />}
                 </div>
-                <Typography.Text type="secondary">Thương hiệu</Typography.Text>
+                <Typography.Text type="secondary"><span style={{ color: '#ff4d4f' }}>*</span> Thương hiệu</Typography.Text>
                 <div style={{ marginTop: 4 }}>
-                    <Select style={{ width: '100%' }} placeholder="Chọn thương hiệu" disabled={!categoryId} value={brandId ?? undefined} onChange={setBrandId} showSearch optionFilterProp="label" allowClear
-                        options={(brands ?? []).map((b) => ({ value: b.id, label: b.mandatory ? `${b.name} (bắt buộc)` : b.name }))} />
+                    <Select style={{ width: '100%' }} placeholder="Chọn thương hiệu (bắt buộc)" disabled={!categoryId} value={brandId ?? undefined} onChange={setBrandId} showSearch optionFilterProp="label" allowClear
+                        status={!brandId ? 'error' : undefined}
+                        options={brandOptions} />
                 </div>
             </Card>
 

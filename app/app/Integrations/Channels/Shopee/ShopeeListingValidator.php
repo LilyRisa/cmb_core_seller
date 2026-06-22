@@ -34,6 +34,10 @@ final class ShopeeListingValidator implements ListingValidator
             $e['categoryId'] = 'Phải chọn danh mục lá';
         }
 
+        if ($d->brandId === null || $d->brandId === '') {
+            $e['brandId'] = 'Phải chọn thương hiệu (dùng id No Brand nếu không có)';
+        }
+
         $maxImages = (int) config('integrations.listing_limits.shopee.max_images', 9);
         if (count($d->media) === 0) {
             $e['media'] = 'Cần ≥1 image_id (đã upload_image)';
