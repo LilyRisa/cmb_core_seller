@@ -162,6 +162,59 @@ class ListingDraftServiceTest extends TestCase
         ]);
     }
 
+    public function test_duplicate_seller_sku_is_rejected_with_clear_message(): void
+    {
+        $p = Product::create([
+            'tenant_id' => $this->tenant->getKey(),
+            'name' => 'SP 2 biến thể',
+            'meta' => ['variants' => [
+                ['name' => 'Đỏ', 'price' => 1000, 'stock' => 1, 'sku' => 'V1'],
+                ['name' => 'Xanh', 'price' => 2000, 'stock' => 2, 'sku' => 'V2'],
+            ]],
+        ]);
+        $draft = app(ListingDraftService::class)->createDraft((int) $p->getKey(), $this->accountId, 'lazada');
+        [$s0, $s1] = [$draft->skus[0], $draft->skus[1]];
+
+        // Đặt 2 biến thể cùng seller_sku ⇒ 422 thông báo rõ, KHÔNG vỡ 500 unique.
+        $this->actingAs($this->owner)
+            ->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
+            ->putJson("/api/v1/listings/{$draft->getKey()}", [
+                'skus' => [
+                    ['id' => $s0->id, 'seller_sku' => 'DUP', 'price' => 1000, 'stock' => 1, 'sale_props' => ['Phân loại' => 'Đỏ']],
+                    ['id' => $s1->id, 'seller_sku' => 'DUP', 'price' => 2000, 'stock' => 2, 'sale_props' => ['Phân loại' => 'Xanh']],
+                ],
+            ])
+            ->assertStatus(422);
+    }
+
+    public function test_swapping_seller_sku_between_variants_saves_without_unique_violation(): void
+    {
+        $p = Product::create([
+            'tenant_id' => $this->tenant->getKey(),
+            'name' => 'SP hoán đổi',
+            'meta' => ['variants' => [
+                ['name' => 'Đỏ', 'price' => 1000, 'stock' => 1, 'sku' => 'A'],
+                ['name' => 'Xanh', 'price' => 2000, 'stock' => 2, 'sku' => 'B'],
+            ]],
+        ]);
+        $draft = app(ListingDraftService::class)->createDraft((int) $p->getKey(), $this->accountId, 'lazada');
+        [$s0, $s1] = [$draft->skus[0], $draft->skus[1]];
+
+        // Hoán đổi A↔B: trạng thái cuối hợp lệ (vẫn duy nhất) ⇒ phải lưu được.
+        $this->actingAs($this->owner)
+            ->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
+            ->putJson("/api/v1/listings/{$draft->getKey()}", [
+                'skus' => [
+                    ['id' => $s0->id, 'seller_sku' => 'B', 'price' => 1000, 'stock' => 1, 'sale_props' => ['Phân loại' => 'Đỏ']],
+                    ['id' => $s1->id, 'seller_sku' => 'A', 'price' => 2000, 'stock' => 2, 'sale_props' => ['Phân loại' => 'Xanh']],
+                ],
+            ])
+            ->assertOk();
+
+        $this->assertSame('B', $draft->skus()->orderBy('id')->get()[0]->seller_sku);
+        $this->assertSame('A', $draft->skus()->orderBy('id')->get()[1]->seller_sku);
+    }
+
     public function test_listing_title_override_is_saved_and_used_for_publish_title(): void
     {
         $draft = app(ListingDraftService::class)->createDraft((int) $this->product->getKey(), $this->accountId, 'lazada');

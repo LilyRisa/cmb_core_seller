@@ -16,6 +16,7 @@ use CMBcoreSeller\Modules\Products\Models\ListingDraft;
 use CMBcoreSeller\Modules\Products\Models\ListingDraftSku;
 use CMBcoreSeller\Modules\Products\Models\Product;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Drives the marketplace product-publishing draft lifecycle: seed a draft from a
@@ -139,9 +140,36 @@ final class ListingDraftService
             $draft->save();
 
             if (array_key_exists('skus', $data) && is_array($data['skus'])) {
+                $rows = array_values($data['skus']);
+
+                // SKU người bán phải KHÁC NHAU trong cùng một listing (sàn yêu cầu, và DB có
+                // unique [listing_draft_id, seller_sku]). Bắt sớm với thông báo rõ ràng thay vì
+                // để DB ném UniqueConstraintViolation → 500 khó hiểu ("biến thể không lưu được").
+                $sellerSkus = array_filter(
+                    array_map(fn ($r) => trim((string) ($r['seller_sku'] ?? '')), $rows),
+                    fn ($s) => $s !== '',
+                );
+                if (count($sellerSkus) !== count(array_unique($sellerSkus))) {
+                    throw ValidationException::withMessages([
+                        'skus' => 'SKU người bán của các phân loại phải khác nhau.',
+                    ]);
+                }
+
                 $existing = $draft->skus()->get();
+                // Giữ seller_sku gốc theo vị trí để khôi phục khi payload cập nhật-từng-phần
+                // (vd chỉ gửi liên kết master) KHÔNG kèm seller_sku.
+                $origSellerSku = $existing->map(fn (ListingDraftSku $m) => $m->seller_sku)->all();
+
+                // Pha 1: gán seller_sku TẠM (duy nhất) cho mọi dòng hiện có. Tránh va chạm
+                // unique tạm thời khi người dùng HOÁN ĐỔI seller_sku giữa các dòng (A↔B):
+                // ghi dòng đầu giá trị cuối có thể trùng với dòng sau chưa kịp ghi.
+                foreach ($existing as $m) {
+                    $m->forceFill(['seller_sku' => '__tmp_'.$m->getKey()])->save();
+                }
+
+                // Pha 2: upsert theo VỊ TRÍ (giữ liên kết master khi payload không gửi field đó).
                 $firstWarehouseId = null;
-                foreach (array_values($data['skus']) as $i => $row) {
+                foreach ($rows as $i => $row) {
                     $model = $existing->get($i);
                     $fill = [];
                     foreach (['seller_sku', 'price', 'stock', 'sale_props', 'package_weight', 'package_dims', 'master_variant_id', 'image_ref'] as $f) {
@@ -149,17 +177,28 @@ final class ListingDraftService
                             $fill[$f] = $row[$f];
                         }
                     }
+                    // Payload không gửi seller_sku ⇒ khôi phục giá trị gốc (đừng kẹt seller_sku tạm).
+                    if (! array_key_exists('seller_sku', $fill) && isset($origSellerSku[$i])) {
+                        $fill['seller_sku'] = $origSellerSku[$i];
+                    }
                     if ($firstWarehouseId === null && ! empty($row['warehouse_id'])) {
                         $firstWarehouseId = (string) $row['warehouse_id'];
                     }
 
                     if ($model) {
-                        $model->fill($fill);
-                        $model->save();
+                        $model->fill($fill)->save();
                     } else {
                         $draft->skus()->create($fill);
                     }
                 }
+
+                // Xóa dòng dư (payload ít hơn) — vẫn mang seller_sku tạm từ pha 1.
+                foreach ($existing as $i => $m) {
+                    if ($i >= count($rows)) {
+                        $m->delete();
+                    }
+                }
+
                 if ($firstWarehouseId !== null) {
                     $logistics = $draft->logistics ?? [];
                     $logistics['warehouse_id'] = $firstWarehouseId;
