@@ -28,6 +28,7 @@ use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
@@ -46,6 +47,10 @@ class ListingPushTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // MediaPrepService tải ảnh nguồn để kiểm tra kích thước trước khi upload — chặn
+        // mọi HTTP ngoài trong test (không chạm mạng thật).
+        Http::fake();
 
         $this->owner = User::factory()->create();
         $this->tenant = Tenant::create(['name' => 'Shop']);
@@ -149,6 +154,30 @@ class ListingPushTest extends TestCase
         $batch->refresh();
         $this->assertSame(1, (int) $batch->succeeded);
         $this->assertSame('done', $batch->status);
+    }
+
+    public function test_images_are_uploaded_to_marketplace_before_create(): void
+    {
+        // Sàn (TikTok/Shopee) chỉ nhận ref ảnh do API upload trả về, KHÔNG nhận URL CDN
+        // ngoài. PushListingJob phải upload media_refs nguồn rồi truyền ref đã upload vào DTO.
+        $pub = new FakePushPublisher(new ListingResultDTO('LZ-1', [], 'PENDING'));
+        $this->bindPublisher($pub);
+
+        Queue::fake();
+        $batch = app(ListingPushService::class)->push([(int) $this->draft->getKey()], (int) $this->owner->getKey());
+        $row = $batch->jobs()->first();
+
+        (new PushListingJob((int) $row->getKey()))->handle(
+            app(PublisherRegistry::class),
+            app(MediaPrepService::class),
+            app(ListingDraftService::class),
+            app(CurrentTenant::class),
+        );
+
+        $this->assertNotNull($pub->lastDraft);
+        $this->assertSame('uploaded:'.md5('https://cdn/x.jpg'), $pub->lastDraft->media[0]->ref);
+        // media_refs nguồn của nháp KHÔNG bị ghi đè (FE còn hiển thị ảnh).
+        $this->assertSame('https://cdn/x.jpg', $this->draft->fresh()->media_refs[0]['ref']);
     }
 
     public function test_refresh_qc_status_moves_reviewing_draft_to_live(): void
@@ -287,6 +316,8 @@ class ListingPushTest extends TestCase
 
 final class FakePushPublisher implements ProductPublishingConnector
 {
+    public ?ListingDraftDTO $lastDraft = null;
+
     public function __construct(
         private ?ListingResultDTO $result = null,
         private ?\Throwable $throw = null,
@@ -309,11 +340,13 @@ final class FakePushPublisher implements ProductPublishingConnector
 
     public function uploadMedia(AuthContext $auth, string $imageUrlOrPath, string $useCase = 'main'): MediaRefDTO
     {
-        return new MediaRefDTO('ref', 'cdn_url');
+        // Giả lập upload: trả ref "đã upload" để phân biệt với URL nguồn.
+        return new MediaRefDTO('uploaded:'.md5($imageUrlOrPath), 'uri');
     }
 
     public function createListing(AuthContext $auth, ListingDraftDTO $draft): ListingResultDTO
     {
+        $this->lastDraft = $draft;
         if ($this->throw !== null) {
             throw $this->throw;
         }

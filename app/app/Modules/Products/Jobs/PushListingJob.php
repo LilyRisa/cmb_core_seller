@@ -91,17 +91,17 @@ class PushListingJob implements ShouldQueue
             $row->mark('running', 'Đang chuẩn bị ảnh', 10);
             $auth = ChannelAccount::findOrFail($listing->channel_account_id)->authContext();
 
-            $sourceUrls = $listing->media_refs['source_urls'] ?? [];
-            if ($sourceUrls) {
-                $refs = $media->prepare($listing->provider, $auth, $sourceUrls);
-                $listing->media_refs = array_merge($listing->media_refs ?? [], [
-                    'prepared' => array_map(fn ($r) => ['ref' => $r->ref, 'kind' => $r->kind], $refs),
-                ]);
-                $listing->save();
-            }
+            // Upload ảnh lên sàn TRƯỚC: TikTok/Shopee CHỈ nhận ref do API upload ảnh trả về
+            // (uri/image_id), KHÔNG nhận URL CDN ngoài → "product image is invalid". Mỗi
+            // connector tự upload qua uploadMedia (cache theo url). Giữ media_refs nguồn để
+            // FE còn hiển thị; chỉ truyền ref đã upload vào DTO (không lưu đè vào nháp).
+            $sourceUrls = $this->mediaSourceUrls($listing->media_refs ?? []);
+            $preparedMedia = $sourceUrls !== []
+                ? $media->prepare($listing->provider, $auth, $sourceUrls)
+                : null;
 
             $row->mark('running', 'Đang tạo listing trên sàn', 60);
-            $dto = $drafts->toDraftDTO($listing);
+            $dto = $drafts->toDraftDTO($listing, $preparedMedia);
             $result = $pubs->for($listing->provider)->createListing($auth, $dto);
 
             // Sàn luôn xét duyệt: map raw QC → reviewing/live/failed (KHÔNG mặc định live).
@@ -124,5 +124,24 @@ class PushListingJob implements ShouldQueue
         } finally {
             ProductPushBatch::findOrFail($row->product_push_batch_id)->recountAndFinish();
         }
+    }
+
+    /**
+     * Trải media_refs (chuỗi URL hoặc {ref,kind}) thành danh sách URL nguồn để upload.
+     *
+     * @param  array<int|string,mixed>  $mediaRefs
+     * @return string[]
+     */
+    private function mediaSourceUrls(array $mediaRefs): array
+    {
+        $urls = [];
+        foreach ($mediaRefs as $m) {
+            $ref = is_array($m) ? (string) ($m['ref'] ?? '') : (string) $m;
+            if ($ref !== '') {
+                $urls[] = $ref;
+            }
+        }
+
+        return $urls;
     }
 }

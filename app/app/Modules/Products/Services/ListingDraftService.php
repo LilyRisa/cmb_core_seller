@@ -327,14 +327,19 @@ final class ListingDraftService
      * Map a {@see ListingDraft} (and its SKUs) onto a normalized
      * {@see ListingDraftDTO}. Single source of truth for draft → DTO mapping,
      * shared by {@see self::revalidate()} and the publish job.
+     *
+     * @param  MediaRefDTO[]|null  $preparedMedia  Ảnh ĐÃ upload lên sàn (uri/image_id) —
+     *                                             PushListingJob truyền vào khi đẩy. Sàn như TikTok/Shopee CHỈ nhận ref do API
+     *                                             upload ảnh trả về, KHÔNG nhận URL CDN ngoài. Null (vd lúc revalidate) ⇒ dùng
+     *                                             URL nguồn trong media_refs (đủ để validate; không dùng để gọi API tạo listing).
      */
-    public function toDraftDTO(ListingDraft $draft): ListingDraftDTO
+    public function toDraftDTO(ListingDraft $draft, ?array $preparedMedia = null): ListingDraftDTO
     {
         $product = Product::findOrFail($draft->product_id);
         // Tiêu đề riêng của listing (nếu seller đã sửa) ưu tiên hơn tên SP gốc.
         $title = (string) (($draft->attributes ?? [])['name'] ?? '') ?: (string) $product->name;
 
-        $media = array_map(
+        $media = $preparedMedia ?? array_map(
             fn ($m) => is_array($m)
                 ? new MediaRefDTO((string) ($m['ref'] ?? ''), (string) ($m['kind'] ?? 'cdn_url'))
                 : new MediaRefDTO((string) $m, 'cdn_url'),

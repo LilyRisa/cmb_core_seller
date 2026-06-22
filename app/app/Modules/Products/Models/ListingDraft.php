@@ -71,6 +71,7 @@ class ListingDraft extends Model
         ];
     }
 
+    /** @return HasMany<ListingDraftSku, $this> */
     public function skus(): HasMany
     {
         return $this->hasMany(ListingDraftSku::class);
