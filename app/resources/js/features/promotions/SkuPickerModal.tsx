@@ -129,7 +129,10 @@ export function SkuPickerModal({
                             })}>Đồng bộ từ sàn</Button>
                     </Tooltip>
                 </Space>
-                <Checkbox checked={hideBusy} onChange={(e) => { setHideBusy(e.target.checked); setPage(1); }}>Chỉ hiện SKU chọn được</Checkbox>
+                {/* Bộ lọc PHỤ: mặc định hiện TẤT CẢ SKU (tô xám cái đang giảm); tick để ẩn bớt nếu cần. */}
+                <Checkbox checked={hideBusy} onChange={(e) => { setHideBusy(e.target.checked); setPage(1); }}>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>Ẩn SKU đang giảm giá</Typography.Text>
+                </Checkbox>
             </Space>
 
             <Table<ChannelListing>
