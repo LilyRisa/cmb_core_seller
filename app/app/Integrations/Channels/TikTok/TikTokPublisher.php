@@ -155,18 +155,49 @@ final class TikTokPublisher implements ProductPublishingConnector, PromotionConn
         $data = $this->client->request('GET', '/product/202309/brands', $auth, $query);
 
         $out = [];
+        $hasNoBrand = false;
         foreach ((array) ($data['brands'] ?? []) as $brand) {
             if (! is_array($brand)) {
                 continue;
             }
+            $name = (string) ($brand['name'] ?? '');
+            if (mb_strtolower(trim($name)) === 'no brand') {
+                $hasNoBrand = true;
+            }
             $out[] = new BrandDTO(
                 id: (string) ($brand['id'] ?? ''),
-                name: (string) ($brand['name'] ?? ''),
+                name: $name,
                 mandatory: false,
                 raw: $brand,
             );
             if (count($out) >= $limit) {
                 break;
+            }
+        }
+
+        // Hàng "không thương hiệu": TikTok CÓ brand "No Brand" nhưng nằm sâu trong danh
+        // mục ~10k nên trang đầu (không từ khóa) thường không có. Lấy đúng id thật qua API
+        // rồi bơm lên đầu để người bán luôn chọn được (giống Shopee). Chỉ làm khi không tìm.
+        if ($kw === '' && ! $hasNoBrand) {
+            try {
+                $nb = $this->client->request('GET', '/product/202309/brands', $auth, [
+                    'category_id' => $categoryId,
+                    'page_size' => 10,
+                    'brand_name' => 'No Brand',
+                ]);
+                foreach ((array) ($nb['brands'] ?? []) as $brand) {
+                    if (is_array($brand) && mb_strtolower(trim((string) ($brand['name'] ?? ''))) === 'no brand') {
+                        array_unshift($out, new BrandDTO(
+                            id: (string) ($brand['id'] ?? ''),
+                            name: (string) ($brand['name'] ?? ''),
+                            mandatory: false,
+                            raw: $brand,
+                        ));
+                        break;
+                    }
+                }
+            } catch (\Throwable) {
+                // Không chặn picker nếu lần lấy phụ lỗi.
             }
         }
 

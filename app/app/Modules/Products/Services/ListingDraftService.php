@@ -57,6 +57,13 @@ final class ListingDraftService
                 ->first();
 
             if ($existing) {
+                // Nháp tạo TRƯỚC khi sản phẩm có biến thể (meta.variants/master SKU) sẽ rỗng
+                // SKU và kẹt (không đẩy được, bảng SKU trống). Khi mở/tạo lại mà sản phẩm
+                // đã có biến thể → seed bù để hiển thị & đẩy được.
+                if ($existing->skus()->count() === 0) {
+                    $this->seedDraftSkus($existing, $product);
+                }
+
                 return $existing->load('skus');
             }
 
