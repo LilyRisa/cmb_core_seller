@@ -24,7 +24,10 @@ class ListingDraftResource extends JsonResource
             'video_url' => $this->attributes['video_url'] ?? null,
             'category_id' => $this->category_id,
             'brand_id' => $this->brand_id,
-            'attributes' => $this->attributes ?? [],
+            // (object): id thuộc tính sàn toàn chuỗi-số ⇒ API Resource (removeMissingValues)
+            // sẽ array_values() làm MẤT khóa khi trả về (thuộc tính "điền xong lưu lại mất").
+            // Ép object để giữ nguyên khóa khi serialize JSON.
+            'attributes' => (object) ($this->attributes ?? []),
             'media_refs' => $this->media_refs ?? [],
             'logistics' => $this->logistics ?? [],
             'validation_errors' => $this->validation_errors ?? [],

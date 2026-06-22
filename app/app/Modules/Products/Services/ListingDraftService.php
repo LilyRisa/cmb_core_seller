@@ -131,7 +131,10 @@ final class ListingDraftService
             foreach (['category_id', 'brand_id', 'attributes', 'media_refs', 'logistics'] as $key) {
                 if (array_key_exists($key, $data)) {
                     if ($key === 'attributes') {
-                        $draft->attributes = array_merge($draft->attributes ?? [], $data[$key] ?? []);
+                        // array_replace (KHÔNG array_merge): id thuộc tính sàn là chuỗi-số
+                        // (vd "100000"); array_merge sẽ ĐÁNH SỐ LẠI khóa số → mất id thật,
+                        // phình mảng mỗi lần lưu ⇒ thuộc tính "điền xong lưu lại mất".
+                        $draft->attributes = array_replace($draft->attributes ?? [], $data[$key] ?? []);
                     } else {
                         $draft->{$key} = $data[$key];
                     }

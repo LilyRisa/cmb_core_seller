@@ -162,6 +162,29 @@ class ListingDraftServiceTest extends TestCase
         ]);
     }
 
+    public function test_numeric_attribute_ids_are_preserved_on_save(): void
+    {
+        $draft = app(ListingDraftService::class)->createDraft((int) $this->product->getKey(), $this->accountId, 'lazada');
+
+        // ID thuộc tính sàn là chuỗi-số. Phải GIỮ NGUYÊN khóa qua nhiều lần lưu
+        // (array_replace), KHÔNG bị array_merge đánh số lại → "điền xong lưu lại mất".
+        $r1 = $this->actingAs($this->owner)
+            ->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
+            ->putJson("/api/v1/listings/{$draft->getKey()}", ['attributes' => ['100000' => 'Cotton', '100001' => ['A', 'B']]]);
+        fwrite(STDERR, 'STATUS='.$r1->status().' ATTRS='.json_encode($r1->json('data.attributes')).'
+');
+        $r1->assertOk();
+
+        // Lưu lần 2 (field khác) KHÔNG được làm mất/đổi khóa thuộc tính đã lưu.
+        $res = $this->actingAs($this->owner)
+            ->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
+            ->putJson("/api/v1/listings/{$draft->getKey()}", ['brand_id' => '999'])
+            ->assertOk();
+
+        $this->assertSame('Cotton', $res->json('data.attributes.100000'));
+        $this->assertSame(['A', 'B'], $res->json('data.attributes.100001'));
+    }
+
     public function test_duplicate_seller_sku_is_rejected_with_clear_message(): void
     {
         $p = Product::create([
