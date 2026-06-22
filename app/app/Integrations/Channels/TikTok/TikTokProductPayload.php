@@ -38,8 +38,15 @@ final class TikTokProductPayload
             'product_attributes' => $d->attributes['product_attributes'] ?? [],
             'skus' => array_map(fn ($s) => array_merge([
                 'seller_sku' => $s['seller_sku'],
+                // sales_attributes: khóa SỐ ⇒ thuộc tính dựng sẵn (gửi `id` kiểu Int64);
+                // khóa CHỮ (vd "Phân loại") là thuộc tính tùy biến ⇒ gửi `name` (KHÔNG gửi
+                // `id`, sàn tự sinh id). Gửi `id`=chuỗi-chữ sẽ lỗi "must be convertible to Int64".
+                // Giới hạn chính chủ: name ≤20, value_name ≤50 ký tự.
                 'sales_attributes' => array_map(
-                    fn ($k, $v) => ['id' => $k, 'value_name' => $v],
+                    fn ($k, $v) => (ctype_digit((string) $k)
+                        ? ['id' => (string) $k]
+                        : ['name' => mb_substr((string) $k, 0, 20)])
+                        + ['value_name' => mb_substr((string) $v, 0, 50)],
                     array_keys($s['sale_props'] ?? []),
                     array_values($s['sale_props'] ?? [])
                 ),

@@ -39,11 +39,38 @@ class TikTokPayloadTest extends TestCase
         $this->assertTrue(is_string($body['skus'][0]['price']['amount']));
         $this->assertSame('199000', $body['skus'][0]['price']['amount']);
         $this->assertSame('WH1', $body['skus'][0]['inventory'][0]['warehouse_id']);
-        $this->assertSame('size', $body['skus'][0]['sales_attributes'][0]['id']);
+        // Khóa biến thể CHỮ ("size") là thuộc tính tùy biến ⇒ gửi `name` (KHÔNG `id` —
+        // id phải Int64) + `value_name`.
+        $this->assertSame('size', $body['skus'][0]['sales_attributes'][0]['name']);
+        $this->assertSame('M', $body['skus'][0]['sales_attributes'][0]['value_name']);
+        $this->assertArrayNotHasKey('id', $body['skus'][0]['sales_attributes'][0]);
         $this->assertArrayNotHasKey('brand_id', $body);
         // Không có GTIN / idempotencyKey ⇒ KHÔNG gửi (giữ payload gọn).
         $this->assertArrayNotHasKey('identifier_code', $body['skus'][0]);
         $this->assertArrayNotHasKey('idempotency_key', $body);
+    }
+
+    public function test_numeric_sale_prop_key_is_sent_as_builtin_id(): void
+    {
+        $draft = new ListingDraftDTO(
+            title: 'Áo thun cotton nam form rộng',
+            description: 'd',
+            categoryId: '600001',
+            brandId: null,
+            attributes: [],
+            media: [new MediaRefDTO('uri-1', 'uri')],
+            skus: [[
+                'seller_sku' => 'S1', 'price' => 199000, 'stock' => 5, 'warehouse_id' => 'WH1',
+                'sale_props' => ['100089' => 'Red'], // khóa SỐ = thuộc tính dựng sẵn
+            ]],
+            logistics: ['package_weight' => 0.5],
+        );
+
+        $sa = TikTokProductPayload::toBody($draft)['skus'][0]['sales_attributes'][0];
+
+        $this->assertSame('100089', $sa['id']);
+        $this->assertSame('Red', $sa['value_name']);
+        $this->assertArrayNotHasKey('name', $sa);
     }
 
     public function test_sends_identifier_code_and_idempotency_key_when_present(): void
