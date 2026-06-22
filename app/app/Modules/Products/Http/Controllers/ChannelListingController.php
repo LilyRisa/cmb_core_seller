@@ -31,7 +31,8 @@ class ChannelListingController extends Controller
         // gian hàng cụ thể; `except` = chiến dịch đang sửa (không tự loại SKU của nó).
         if ($request->boolean('exclude_busy') && $cid) {
             $except = $request->query('except') !== null ? (int) $request->query('except') : null;
-            $busy = array_keys($promotions->busyPromoPrices((int) $cid, $except));
+            // strval: external_sku_id/product_id là cột chuỗi; tránh phụ thuộc ép kiểu ngầm của DB khi so khớp.
+            $busy = array_map('strval', array_keys($promotions->busyPromoPrices((int) $cid, $except)));
             if ($busy !== []) {
                 $q->whereNotIn('external_sku_id', $busy)
                     ->where(fn ($x) => $x->whereNotIn('external_product_id', $busy)->orWhereNull('external_product_id'));

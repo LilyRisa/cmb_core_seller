@@ -136,6 +136,24 @@ class PromotionCampaignTest extends TestCase
         Queue::assertPushed(PushPromotionJob::class);
     }
 
+    public function test_busy_skus_returns_numeric_sku_ids_as_strings(): void
+    {
+        // SKU sàn có id TOÀN SỐ (TikTok/Shopee). PHP ép key mảng chuỗi-số → int ⇒ json ra số; phải strval khi
+        // trả, nếu không FE Set<string>.has(external_sku_id) không khớp ⇒ SKU đang giảm KHÔNG bị tô xám.
+        $sku = '1730781971519932870';
+        ChannelListing::create([
+            'tenant_id' => $this->tenant->getKey(), 'channel_account_id' => $this->accountId,
+            'external_product_id' => $sku, 'external_sku_id' => $sku, 'title' => 'Mạch loa phân tần',
+            'price' => 99000, 'original_price' => 99000, 'special_price' => 85000, 'currency' => 'VND',
+        ]);
+
+        $ids = $this->actingAs($this->owner)->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
+            ->getJson("/api/v1/channel-promotions/busy-skus?channel_account_id={$this->accountId}")
+            ->assertOk()->json('data.external_sku_ids');
+
+        $this->assertSame([$sku], $ids, 'external_sku_ids phải là CHUỖI (không phải số) để FE khớp Set.');
+    }
+
     public function test_lazada_cannot_create_campaign(): void
     {
         // Lazada giảm giá trực tiếp trên SKU (has_program_object=false) ⇒ không tạo chiến dịch riêng được.

@@ -36,7 +36,9 @@ export function SkuPickerModal({
     const [picked, setPicked] = useState<Record<string, ChannelListing>>({});
 
     // Khoá-bận = sku_id HOẶC product_id (item Shopee no-variant giảm theo item_id). prices: khoá → giá giảm.
-    const busy = useMemo(() => new Set(busyPromos?.ids ?? []), [busyPromos]);
+    // map(String): ids từ API có thể là SỐ (PHP ép key chuỗi-số → int) trong khi external_sku_id là chuỗi —
+    // ép cùng kiểu để Set.has khớp, nếu không SKU sàn (id toàn số) không bao giờ bị tô xám.
+    const busy = useMemo(() => new Set((busyPromos?.ids ?? []).map(String)), [busyPromos]);
     const prices = busyPromos?.prices ?? {};
     const already = useMemo(() => new Set(selectedSkuIds), [selectedSkuIds]);
     const syncListings = useSyncChannelListings();

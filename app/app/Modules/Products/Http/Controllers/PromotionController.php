@@ -116,8 +116,11 @@ final class PromotionController extends Controller
         $except = $r->query('except') !== null ? (int) $r->query('except') : null;
         // `prices`: khoá (external_sku_id hoặc external_product_id cho item no-variant) → giá giảm đang chạy (VND).
         $prices = $this->svc->busyPromoPrices($cid, $except);
+        // strval BẮT BUỘC: PHP ép key mảng dạng chuỗi-số thành int ⇒ json_encode ra SỐ. FE so khớp Set với
+        // external_sku_id (chuỗi) ⇒ số≠chuỗi, SKU sàn (id toàn số: TikTok/Shopee) KHÔNG bao giờ bị tô xám.
+        $ids = array_map('strval', array_keys($prices));
 
-        return response()->json(['data' => ['external_sku_ids' => array_keys($prices), 'prices' => (object) $prices]]);
+        return response()->json(['data' => ['external_sku_ids' => $ids, 'prices' => (object) $prices]]);
     }
 
     /** Đồng bộ chiến dịch đang có trên sàn về app (tab "đã đẩy"). */
