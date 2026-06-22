@@ -30,7 +30,9 @@ export function SkuPickerModal({
     const { message } = App.useApp();
     const [q, setQ] = useState('');
     const [page, setPage] = useState(1);
-    const [hideBusy, setHideBusy] = useState(true);
+    // MẶC ĐỊNH hiện TẤT CẢ SKU + TÔ XÁM cái đã giảm giá (đúng yêu cầu "thấy SKU đã có giảm giá bị tô xám").
+    // Bật toggle "Chỉ hiện SKU chọn được" ⇒ ẩn hẳn SKU bận (lọc server exclude_busy).
+    const [hideBusy, setHideBusy] = useState(false);
     const [picked, setPicked] = useState<Record<string, ChannelListing>>({});
 
     // Khoá-bận = sku_id HOẶC product_id (item Shopee no-variant giảm theo item_id). prices: khoá → giá giảm.
