@@ -21,6 +21,20 @@ function JobStatusIcon({ status }: { status: PushJob['status'] }) {
     }
 }
 
+/**
+ * Lấy text lỗi an toàn để render. Backend lưu error dạng mảng `{message}` ở một số
+ * đường (job cũ / cache) — render thẳng object sẽ làm React vỡ (màn trắng). Luôn ép về chuỗi.
+ */
+function errorText(err: PushJob['error']): string | null {
+    if (err == null) return null;
+    if (typeof err === 'string') return err;
+    if (typeof err === 'object') {
+        const m = (err as { message?: unknown }).message;
+        return typeof m === 'string' ? m : JSON.stringify(err);
+    }
+    return String(err);
+}
+
 const STATUS_LABEL: Record<PushJob['status'], string> = {
     queued: 'Đang chờ',
     running: 'Đang đẩy',
@@ -102,8 +116,8 @@ export function PushProgressModal({
                                     {job.step_label && (
                                         <Typography.Text type="secondary">{job.step_label}</Typography.Text>
                                     )}
-                                    {job.status === 'failed' && job.error && (
-                                        <div style={{ color: '#EF4444', marginTop: 2 }}>{job.error}</div>
+                                    {job.status === 'failed' && errorText(job.error) && (
+                                        <div style={{ color: '#EF4444', marginTop: 2 }}>{errorText(job.error)}</div>
                                     )}
                                 </>
                             }

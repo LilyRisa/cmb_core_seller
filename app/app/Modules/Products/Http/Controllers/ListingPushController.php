@@ -52,7 +52,9 @@ class ListingPushController extends Controller
                 'status' => $j->status,
                 'step_label' => $j->step_label,
                 'progress' => $j->progress,
-                'error' => $j->error,
+                // error lưu dạng mảng (['message' => ...]); trả CHUỖI message đúng hợp
+                // đồng API (FE render thẳng) — tránh "Objects are not valid as a React child".
+                'error' => is_array($j->error) ? ($j->error['message'] ?? null) : $j->error,
             ])->all();
 
         return response()->json(['data' => [

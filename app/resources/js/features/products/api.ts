@@ -84,7 +84,8 @@ export interface PushJob {
     status: 'queued' | 'running' | 'success' | 'failed';
     step_label: string | null;
     progress: number;
-    error: string | null;
+    // Backend trả chuỗi message; một số job cũ/cache có thể là object {message}.
+    error: string | { message?: string } | null;
 }
 
 export interface PushBatch {
