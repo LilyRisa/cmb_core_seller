@@ -96,7 +96,7 @@ export function LoginPage() {
                                 autoFocus
                                 size="large"
                                 prefix={<MailOutlined style={{ color: '#9ca3af' }} />}
-                                placeholder="email@vidu.com hoặc ten@mãshop"
+                                placeholder="Địa chỉ email"
                             />
                         </Form.Item>
 
