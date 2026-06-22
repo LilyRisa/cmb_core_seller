@@ -176,8 +176,11 @@ final class ShopeePublisher implements ProductPublishingConnector, PromotionConn
     }
 
     /** @return BrandDTO[] */
-    public function getBrands(AuthContext $auth, string $categoryId): array
+    public function getBrands(AuthContext $auth, string $categoryId, ?string $keyword = null, int $limit = 50): array
     {
+        // get_brand_list has no name filter param (only category/page/offset/status), so
+        // we fetch the first page and filter by name client-side when a keyword is given.
+        $kw = $keyword !== null ? trim($keyword) : '';
         $resp = $this->client->shopGetEnvelope($auth, '/api/v2/product/get_brand_list', [
             'category_id' => (int) $categoryId,
             'page_size' => 100,
@@ -196,12 +199,18 @@ final class ShopeePublisher implements ProductPublishingConnector, PromotionConn
             if ($id === '0' || mb_stripos($name, 'no brand') !== false) {
                 $hasNoBrand = true;
             }
+            if ($kw !== '' && mb_stripos($name, $kw) === false) {
+                continue;
+            }
             $out[] = new BrandDTO(id: $id, name: $name, raw: $brand);
+            if (count($out) >= $limit) {
+                break;
+            }
         }
 
         // Shopee không luôn trả mục "No Brand" trong danh sách, nhưng chấp nhận brand_id=0
         // cho hàng không thương hiệu. Bơm option này lên đầu để người bán luôn chọn được.
-        if (! $hasNoBrand) {
+        if (! $hasNoBrand && ($kw === '' || mb_stripos('no brand', $kw) !== false)) {
             array_unshift($out, new BrandDTO(id: '0', name: 'No Brand', raw: ['brand_id' => 0]));
         }
 

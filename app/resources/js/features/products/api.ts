@@ -375,9 +375,10 @@ export async function getBrands(
     provider: string,
     channelAccountId: number,
     categoryId: string,
+    q?: string,
 ): Promise<Brand[]> {
     const { data } = await client.get<{ data: Brand[] }>(`/channels/${provider}/brands`, {
-        params: { channel_account_id: channelAccountId, category_id: categoryId },
+        params: { channel_account_id: channelAccountId, category_id: categoryId, q: q || undefined },
     });
     return data.data;
 }

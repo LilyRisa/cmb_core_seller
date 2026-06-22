@@ -124,13 +124,14 @@ export function useShippingOptions(provider: string | null, channelAccountId: nu
     });
 }
 
-export function useBrands(provider: string | null, channelAccountId: number | null, categoryId: string | null) {
+export function useBrands(provider: string | null, channelAccountId: number | null, categoryId: string | null, keyword?: string) {
     const client = useScopedApi();
     const tenantId = useTenantId();
+    const q = (keyword ?? '').trim();
     return useQuery({
-        queryKey: ['channel-brands', tenantId, provider, channelAccountId, categoryId],
+        queryKey: ['channel-brands', tenantId, provider, channelAccountId, categoryId, q],
         enabled: client != null && !!provider && channelAccountId != null && !!categoryId,
-        queryFn: () => getBrands(client!, provider!, channelAccountId!, categoryId!),
+        queryFn: () => getBrands(client!, provider!, channelAccountId!, categoryId!, q || undefined),
         staleTime: 10 * 60 * 1000,
     });
 }

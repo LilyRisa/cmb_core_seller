@@ -48,11 +48,19 @@ class FakeTaxPublisher implements ProductPublishingConnector
         ];
     }
 
-    public function getBrands(AuthContext $auth, string $categoryId): array
+    public function getBrands(AuthContext $auth, string $categoryId, ?string $keyword = null, int $limit = 50): array
     {
-        return [
+        $all = [
             new BrandDTO('b1', 'No Brand', false),
+            new BrandDTO('b2', 'Nike', false),
+            new BrandDTO('b3', 'Adidas', false),
         ];
+        $kw = $keyword !== null ? trim($keyword) : '';
+        if ($kw !== '') {
+            $all = array_values(array_filter($all, fn ($b) => mb_stripos($b->name, $kw) !== false));
+        }
+
+        return array_slice($all, 0, $limit);
     }
 
     public function uploadMedia(AuthContext $auth, string $imageUrlOrPath, string $useCase = 'main'): MediaRefDTO
@@ -206,6 +214,32 @@ class ListingTaxonomyTest extends TestCase
         $res->assertOk();
         $this->assertSame('channels', $res->json('data.mode'));
         $this->assertSame('80101', $res->json('data.channels.0.id'));
+    }
+
+    public function test_brands_default_returns_full_short_list(): void
+    {
+        Cache::flush();
+
+        $res = $this->actingAs($this->owner)
+            ->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
+            ->getJson("/api/v1/channels/lazada/brands?channel_account_id={$this->accountId}&category_id=1001");
+
+        $res->assertOk();
+        $res->assertJsonCount(3, 'data');
+        $this->assertSame('No Brand', $res->json('data.0.name'));
+    }
+
+    public function test_brands_filtered_by_search_keyword(): void
+    {
+        Cache::flush();
+
+        $res = $this->actingAs($this->owner)
+            ->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
+            ->getJson("/api/v1/channels/lazada/brands?channel_account_id={$this->accountId}&category_id=1001&q=nik");
+
+        $res->assertOk();
+        $res->assertJsonCount(1, 'data');
+        $this->assertSame('Nike', $res->json('data.0.name'));
     }
 
     public function test_caches_categories(): void

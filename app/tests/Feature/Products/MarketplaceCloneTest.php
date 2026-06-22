@@ -150,7 +150,7 @@ final class FakeDetailPublisher implements ProductPublishingConnector
         throw new \RuntimeException('not used');
     }
 
-    public function getBrands(AuthContext $auth, string $categoryId): array
+    public function getBrands(AuthContext $auth, string $categoryId, ?string $keyword = null, int $limit = 50): array
     {
         throw new \RuntimeException('not used');
     }

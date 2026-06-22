@@ -139,35 +139,36 @@ final class TikTokPublisher implements ProductPublishingConnector, PromotionConn
     }
 
     /** @return BrandDTO[] */
-    public function getBrands(AuthContext $auth, string $categoryId): array
+    public function getBrands(AuthContext $auth, string $categoryId, ?string $keyword = null, int $limit = 50): array
     {
+        // A category can expose thousands of brands (often the full 10k catalog), so we
+        // NEVER page through the whole list — that takes ~90s and times out the request.
+        // page_size is REQUIRED (1-100). With a keyword we let TikTok filter server-side
+        // via brand_name (prefix match); otherwise we just take the first page slice.
+        $kw = $keyword !== null ? trim($keyword) : '';
+        $pageSize = max(1, min(100, $limit));
+        $query = ['category_id' => $categoryId, 'page_size' => $pageSize];
+        if ($kw !== '') {
+            $query['brand_name'] = $kw;
+        }
+
+        $data = $this->client->request('GET', '/product/202309/brands', $auth, $query);
+
         $out = [];
-        $pageToken = '';
-
-        // page_size is REQUIRED by /product/202309/brands (valid range 1-100); paginate
-        // through next_page_token so categories with >100 brands return the full list.
-        do {
-            $query = ['category_id' => $categoryId, 'page_size' => 100];
-            if ($pageToken !== '') {
-                $query['page_token'] = $pageToken;
+        foreach ((array) ($data['brands'] ?? []) as $brand) {
+            if (! is_array($brand)) {
+                continue;
             }
-
-            $data = $this->client->request('GET', '/product/202309/brands', $auth, $query);
-
-            foreach ((array) ($data['brands'] ?? []) as $brand) {
-                if (! is_array($brand)) {
-                    continue;
-                }
-                $out[] = new BrandDTO(
-                    id: (string) ($brand['id'] ?? ''),
-                    name: (string) ($brand['name'] ?? ''),
-                    mandatory: false,
-                    raw: $brand,
-                );
+            $out[] = new BrandDTO(
+                id: (string) ($brand['id'] ?? ''),
+                name: (string) ($brand['name'] ?? ''),
+                mandatory: false,
+                raw: $brand,
+            );
+            if (count($out) >= $limit) {
+                break;
             }
-
-            $pageToken = (string) ($data['next_page_token'] ?? '');
-        } while ($pageToken !== '');
+        }
 
         return $out;
     }

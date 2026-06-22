@@ -178,20 +178,27 @@ final class ListingTaxonomyService
     }
 
     /**
+     * Brands for a category, optionally narrowed by a search keyword. Categories can
+     * have thousands of brands, so the picker loads a short default slice and queries
+     * again as the seller types. Cached per (provider, category, keyword) — empty
+     * keyword 12h (stable), searches 1h.
+     *
      * @return array<int,array<string,mixed>>
      */
-    public function brands(int $channelAccountId, string $provider, string $categoryId): array
+    public function brands(int $channelAccountId, string $provider, string $categoryId, ?string $keyword = null, int $limit = 50): array
     {
         $auth = $this->authFor($channelAccountId, $provider);
-        $key = "listing_tax:brand:$provider:$categoryId";
+        $kw = $keyword !== null ? trim($keyword) : '';
+        $key = "listing_tax:brand:$provider:$categoryId:".md5($kw).":$limit";
+        $ttl = $kw === '' ? now()->addHours(12) : now()->addHour();
 
-        return Cache::remember($key, now()->addHours(12), fn () => array_map(
+        return Cache::remember($key, $ttl, fn () => array_map(
             fn ($b) => [
                 'id' => $b->id,
                 'name' => $b->name,
                 'mandatory' => $b->mandatory,
             ],
-            $this->publishers->for($provider)->getBrands($auth, $categoryId),
+            $this->publishers->for($provider)->getBrands($auth, $categoryId, $kw !== '' ? $kw : null, $limit),
         ));
     }
 

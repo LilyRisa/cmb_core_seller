@@ -78,7 +78,18 @@ export function ListingDraftEditorPage() {
     const maxImages = limits?.max_images ?? 9;
     const maxVideos = limits?.max_videos ?? 1;
     const channelAccountId = listing?.channel_account_id ?? null;
-    const { data: brands } = useBrands(provider || null, channelAccountId, categoryId);
+    // Một ngành hàng có thể có hàng nghìn thương hiệu → mặc định chỉ tải danh sách ngắn,
+    // gõ vào ô để tìm tiếp (server-side). Debounce để không gọi API mỗi phím.
+    const [brandQuery, setBrandQuery] = useState('');
+    const brandDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const brandLabels = useRef<Record<string, string>>({});
+    const { data: brands, isFetching: brandsFetching } = useBrands(provider || null, channelAccountId, categoryId, brandQuery);
+
+    const onBrandSearch = (term: string) => {
+        if (brandDebounce.current) clearTimeout(brandDebounce.current);
+        brandDebounce.current = setTimeout(() => setBrandQuery(term), 350);
+    };
+
     // TikTok/Lazada dùng mô tả HTML → trình soạn đầy đủ. Shopee chỉ text thuần.
     const richDescription = provider === 'tiktok' || provider === 'lazada';
 
@@ -97,12 +108,19 @@ export function ListingDraftEditorPage() {
     };
 
     // "Không có thương hiệu" (No Brand/OEM) luôn ưu tiên lên đầu danh sách; còn lại giữ thứ tự sàn trả về.
+    // Luôn giữ option của thương hiệu đang chọn (kể cả khi không nằm trong kết quả tìm hiện tại)
+    // để ô hiển thị TÊN thay vì id số.
     const brandOptions = useMemo(() => {
         const isNoBrand = (n: string) => /no\s*brand|không có thương hiệu|không thương hiệu|\boem\b/i.test(n);
-        return [...(brands ?? [])]
+        for (const b of brands ?? []) brandLabels.current[b.id] = b.mandatory ? `${b.name} (bắt buộc)` : b.name;
+        const list = [...(brands ?? [])]
             .sort((a, b) => Number(isNoBrand(b.name)) - Number(isNoBrand(a.name)))
             .map((b) => ({ value: b.id, label: b.mandatory ? `${b.name} (bắt buộc)` : b.name }));
-    }, [brands]);
+        if (brandId && !list.some((o) => o.value === brandId)) {
+            list.unshift({ value: brandId, label: brandLabels.current[brandId] ?? brandId });
+        }
+        return list;
+    }, [brands, brandId]);
 
     const updateSku = (sid: number, patch: Partial<ListingDraftSku>) =>
         setSkus((prev) => prev.map((s) => (s.id === sid ? { ...s, ...patch } : s)));
@@ -281,12 +299,13 @@ export function ListingDraftEditorPage() {
                 </div>
                 <Typography.Text type="secondary">Ngành hàng</Typography.Text>
                 <div style={{ marginTop: 4, marginBottom: 12 }}>
-                    {channelAccountId != null && <CategoryPicker provider={provider} channelAccountId={channelAccountId} value={categoryId} onChange={(cid) => { setCategoryId(cid); setBrandId(null); }} />}
+                    {channelAccountId != null && <CategoryPicker provider={provider} channelAccountId={channelAccountId} value={categoryId} onChange={(cid) => { setCategoryId(cid); setBrandId(null); setBrandQuery(''); }} />}
                 </div>
                 <Typography.Text type="secondary"><span style={{ color: '#ff4d4f' }}>*</span> Thương hiệu</Typography.Text>
                 <div style={{ marginTop: 4 }}>
-                    <Select style={{ width: '100%' }} placeholder="Chọn thương hiệu (bắt buộc)" disabled={!categoryId} value={brandId ?? undefined} onChange={setBrandId} showSearch optionFilterProp="label" allowClear
+                    <Select style={{ width: '100%' }} placeholder="Chọn thương hiệu (gõ để tìm)" disabled={!categoryId} value={brandId ?? undefined} onChange={setBrandId} showSearch filterOption={false} onSearch={onBrandSearch} allowClear
                         status={!brandId ? 'error' : undefined}
+                        notFoundContent={brandsFetching ? <Spin size="small" /> : null}
                         options={brandOptions} />
                 </div>
             </Card>

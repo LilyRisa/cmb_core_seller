@@ -39,11 +39,15 @@ interface ProductPublishingConnector
     public function getCategoryAttributes(AuthContext $auth, string $categoryId): array;
 
     /**
-     * Return brands available for a given category.
+     * Return brands available for a given category. Categories can have thousands of
+     * brands, so callers pass a $keyword to narrow the list (server-side where the
+     * provider supports it, e.g. TikTok `brand_name`; client-side filter otherwise)
+     * and a $limit to bound the result. With no keyword, a short default slice is
+     * returned for the picker — never the whole catalog.
      *
      * @return BrandDTO[]
      */
-    public function getBrands(AuthContext $auth, string $categoryId): array;
+    public function getBrands(AuthContext $auth, string $categoryId, ?string $keyword = null, int $limit = 50): array;
 
     /**
      * Upload an image (URL or local path) and return a marketplace media ref.

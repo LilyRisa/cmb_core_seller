@@ -105,7 +105,7 @@ class FakeMediaPublisher implements ProductPublishingConnector
         return [];
     }
 
-    public function getBrands(AuthContext $auth, string $categoryId): array
+    public function getBrands(AuthContext $auth, string $categoryId, ?string $keyword = null, int $limit = 50): array
     {
         return [];
     }

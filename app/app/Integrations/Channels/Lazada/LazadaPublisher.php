@@ -128,21 +128,32 @@ final class LazadaPublisher implements ProductPublishingConnector, PromotionConn
     }
 
     /** @return BrandDTO[] */
-    public function getBrands(AuthContext $auth, string $categoryId): array
+    public function getBrands(AuthContext $auth, string $categoryId, ?string $keyword = null, int $limit = 50): array
     {
-        $data = $this->client->callRaw('/category/brands/query', $auth, ['startRow' => 0, 'pageSize' => 100], 'GET');
+        // /category/brands/query supports only startRow+pageSize (no name filter), so we
+        // pull a larger page and filter by name client-side when a keyword is given.
+        $kw = $keyword !== null ? trim($keyword) : '';
+        $pageSize = $kw !== '' ? 200 : max(1, min(200, $limit));
+        $data = $this->client->callRaw('/category/brands/query', $auth, ['startRow' => 0, 'pageSize' => $pageSize], 'GET');
 
         $out = [];
         foreach ((array) ($data['data']['module'] ?? []) as $brand) {
             if (! is_array($brand)) {
                 continue;
             }
+            $name = (string) ($brand['name'] ?? '');
+            if ($kw !== '' && mb_stripos($name, $kw) === false) {
+                continue;
+            }
             $out[] = new BrandDTO(
                 id: (string) ($brand['brand_id'] ?? ($brand['id'] ?? '')),
-                name: (string) ($brand['name'] ?? ''),
+                name: $name,
                 mandatory: true,
                 raw: $brand,
             );
+            if (count($out) >= $limit) {
+                break;
+            }
         }
 
         return $out;

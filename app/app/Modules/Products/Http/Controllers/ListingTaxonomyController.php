@@ -76,11 +76,16 @@ final class ListingTaxonomyController extends Controller
 
     public function brands(Request $r, string $provider): JsonResponse
     {
+        $q = trim((string) $r->query('q', ''));
+
         return response()->json([
             'data' => $this->svc->brands(
                 (int) $r->query('channel_account_id'),
                 $provider,
                 (string) $r->query('category_id'),
+                $q !== '' ? $q : null,
+                // Mặc định (chưa gõ) hiện danh sách ngắn; khi tìm thì trả nhiều kết quả hơn.
+                $q !== '' ? 50 : 10,
             ),
         ]);
     }
