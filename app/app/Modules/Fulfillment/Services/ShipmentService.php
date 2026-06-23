@@ -433,7 +433,15 @@ class ShipmentService
                 $issue = $e->getMessage();
             }
         }
-        $carrier = $carrier ?: ($order->carrier ?: $order->source);
+        // Hãng vận chuyển: ưu tiên từ package/arrange trên sàn, rồi tới order->carrier.
+        // KHÔNG fallback về $order->source — đó là TÊN SÀN (vd "tiktok"), KHÔNG phải đơn vị
+        // vận chuyển (đơn TikTok chưa thanh toán chưa có package ⇒ trước đây hiện "tiktok").
+        // Cũng bỏ order->carrier nếu nó đang = tên sàn (dữ liệu cũ bị ghi nhầm vòng lặp). Chưa
+        // có hãng thật ⇒ để trống; BackfillChannelTracking điền lại khi sàn cấp (cột NOT NULL ⇒ '').
+        $carrier = $carrier ?: (string) $order->carrier;
+        if ($carrier === (string) $order->source) {
+            $carrier = '';
+        }
 
         $shipment = DB::transaction(function () use ($tenantId, $order, $carrier, $tracking, $packageId, $issue, $userId, $externalItemIds) {
             $sh = Shipment::query()->create([

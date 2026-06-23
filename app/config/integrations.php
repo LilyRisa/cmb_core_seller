@@ -350,10 +350,13 @@ return [
             'retry_sleep_ms' => (int) env('TIKTOK_HTTP_RETRY_SLEEP_MS', 500),
         ],
 
-        // raw_status mà sàn KHÔNG cho "Chuẩn bị hàng" (arrange shipment). TikTok ON_HOLD: doc ghi rõ
-        // "ON_HOLD orders are NOT allowed to be fulfilled" + địa chỉ người nhận chưa có ⇒ chặn ở
+        // raw_status mà sàn KHÔNG cho "Chuẩn bị hàng" (arrange shipment). Chặn ở
         // ShipmentService::createForOrder để khỏi gọi sàn lỗi / in tem khi sàn chưa cho.
-        'unfulfillable_raw_statuses' => ['ON_HOLD'],
+        // - ON_HOLD: doc TikTok "ON_HOLD orders are NOT allowed to be fulfilled" + chưa có địa chỉ.
+        // - UNPAID: đơn chưa thanh toán ⇒ TikTok chưa tạo package, chưa gán hãng vận chuyển ⇒
+        //   nếu cố pack sẽ tạo shipment placeholder (carrier rỗng) + log "chưa có package_id".
+        // CSV; đổi bằng TIKTOK_UNFULFILLABLE_RAW_STATUSES.
+        'unfulfillable_raw_statuses' => array_values(array_filter(array_map('trim', explode(',', (string) env('TIKTOK_UNFULFILLABLE_RAW_STATUSES', 'ON_HOLD,UNPAID'))))),
 
         // raw_status (TikTok) -> StandardOrderStatus. The single source of truth;
         // see docs/03-domain/order-status-state-machine.md §4. Verify against the

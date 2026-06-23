@@ -151,6 +151,44 @@ class ChannelOrderFulfillmentTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_prepare_blocked_for_tiktok_unpaid_order(): void
+    {
+        // Fix #2: đơn TikTok UNPAID ⇒ chặn "Chuẩn bị hàng" (TikTok chưa tạo package / gán hãng vận
+        // chuyển khi chưa thanh toán). Dựa vào default config 'ON_HOLD,UNPAID' — KHÔNG override.
+        $this->fakeTikTokArrange();   // dù arrange "thành công", guard phải chặn TRƯỚC khi gọi sàn
+        $order = $this->channelOrder(['raw_status' => 'UNPAID', 'status' => StandardOrderStatus::Unpaid]);
+
+        $message = null;
+        try {
+            app(ShipmentService::class)->createForOrder($order, null, null);
+        } catch (RuntimeException $e) {
+            $message = $e->getMessage();
+        }
+
+        $this->assertNotNull($message, 'createForOrder phải ném lỗi cho đơn TikTok UNPAID');
+        $this->assertStringContainsString('UNPAID', $message);
+        $this->assertSame(0, Shipment::withoutGlobalScope(TenantScope::class)->where('order_id', $order->getKey())->count());
+        Http::assertNothingSent();   // chặn trước khi gọi sàn
+    }
+
+    public function test_carrier_not_defaulted_to_channel_source(): void
+    {
+        // Fix #1: khi sàn CHƯA trả hãng vận chuyển thật, carrier phải để TRỐNG — KHÔNG lấy tên SÀN
+        // ("tiktok") làm đơn vị vận chuyển; cũng scrub order->carrier cũ nếu nó đang = tên sàn.
+        Http::fake([
+            '*/fulfillment/202309/packages/*/ship*' => Http::response(F::envelope([])),
+            '*/fulfillment/202309/packages/*/shipping_documents*' => Http::response(['code' => 5000, 'message' => 'x', 'data' => []]),
+            '*/fulfillment/202309/packages/*' => Http::response(F::envelope([])),   // không tracking, không shipping_provider_name
+        ]);
+        // order->carrier='tiktok' mô phỏng dữ liệu cũ bị ghi nhầm bởi chính fallback trước đây.
+        $order = $this->channelOrder(['carrier' => 'tiktok']);
+
+        $shipment = app(ShipmentService::class)->createForOrder($order, null, null);
+
+        $this->assertNotSame('tiktok', $shipment->carrier, 'carrier KHÔNG được lấy tên sàn');
+        $this->assertSame('', (string) $shipment->carrier);
+    }
+
     // --- B1b: tracking pre-assigned (đã sync) KHÔNG được skip arrange ----------------
 
     public function test_channel_order_with_preassigned_tracking_still_calls_arrange(): void
