@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { App as AntApp, Button, Empty, Input, InputNumber, Modal, Result, Segmented, Select, Space, Spin, Table, Tag, Timeline, Tooltip, Typography } from 'antd';
+import { App as AntApp, Button, Empty, Input, InputNumber, Modal, Result, Select, Space, Spin, Table, Tag, Timeline, Tooltip, Typography } from 'antd';
 import type { InputRef } from 'antd';
-import { CarOutlined, CheckCircleOutlined, CloseCircleOutlined, ExportOutlined, InboxOutlined, PrinterOutlined, ReloadOutlined, ScanOutlined, WarningOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, CloseCircleOutlined, ExportOutlined, InboxOutlined, PrinterOutlined, ScanOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { ChannelBadge } from '@/components/ChannelBadge';
 import { CarrierAccountPicker } from '@/components/CarrierAccountPicker';
@@ -17,7 +17,7 @@ import { useCan } from '@/lib/tenant';
 import type { Order } from '@/lib/orders';
 import {
     type PrintJob, type Shipment, SHIPMENT_STATUS_LABEL,
-    useBulkRefetchSlip, useCancelShipment, useCreatePrintJob, useHandoverShipments, useMarkPrinted,
+    useBulkRefetchSlip, useCancelShipment, useCreatePrintJob, useMarkPrinted,
     usePackShipments, usePrintJob, useScanProcess, useShipment, useShipments, useShipOrder, useTrackShipment,
 } from '@/lib/fulfillment';
 
@@ -108,13 +108,12 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
     const { message } = AntApp.useApp();
     const ship = useShipOrder();
     const pack = usePackShipments();
-    const handover = useHandoverShipments();
     const createPrint = useCreatePrintJob();
     const refetchSlip = useBulkRefetchSlip();
     const canShip = useCan('fulfillment.ship');
     const canPrint = useCan('fulfillment.print');
     const sh = order.shipment;
-    const busy = ship.isPending || pack.isPending || handover.isPending || createPrint.isPending || refetchSlip.isPending;
+    const busy = ship.isPending || pack.isPending || createPrint.isPending || refetchSlip.isPending;
     // SPEC 0021 — đơn manual cần chọn ĐVVC trước khi "Chuẩn bị hàng" (đẩy sang GHN/...). Đơn sàn KHÔNG cần.
     const [carrierPicker, setCarrierPicker] = useState(false);
     const [pickerOpen, setPickerOpen] = useState<{ open: boolean; orderIds: number[] }>({ open: false, orderIds: [] });
@@ -191,10 +190,6 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
     const markReady = () => (sh
         ? pack.mutate([sh.id], { onSuccess: () => message.success('Đã đánh dấu gói xong — chờ bàn giao ĐVVC'), onError: err })
         : ship.mutate({ orderId: order.id }, { onSuccess: (s) => pack.mutate([s.id], { onSuccess: () => message.success('Đã đánh dấu gói xong — chờ bàn giao ĐVVC'), onError: err }), onError: err }));
-    const doHandover = () => (sh
-        ? handover.mutate([sh.id], { onSuccess: () => message.success('Đã bàn giao ĐVVC'), onError: err })
-        : ship.mutate({ orderId: order.id }, { onSuccess: (s) => handover.mutate([s.id], { onSuccess: () => message.success('Đã bàn giao ĐVVC'), onError: err }), onError: err }));
-
     const isWaiting = ['pending', 'unpaid'].includes(order.status);   // tab "Chờ xử lý"
     const preShipment = !['shipped', 'delivery_failed', 'delivered', 'completed', 'returning', 'returned_refunded', 'cancelled'].includes(order.status);
     const shOpen = sh && !['cancelled', 'returned', 'failed'].includes(sh.status);
@@ -230,10 +225,9 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
             actions.push(<a key="rs" style={{ color: blockingIssue ? '#cf1322' : undefined }} onClick={() => getSlip()}>Nhận phiếu giao hàng</a>);
         }
         if (canShip) actions.push(<a key="ready" onClick={markReady}>Đã gói & sẵn sàng bàn giao</a>);
-    } else if (shOpen && sh!.status === 'packed') {
-        // Đã đóng gói, chờ bàn giao ĐVVC.
-        if (canShip) actions.push(<a key="ho" onClick={doHandover}>Bàn giao ĐVVC</a>);
     }
+    // Vận đơn `packed` = "chờ bàn giao ĐVVC": KHÔNG còn thao tác tay. Đơn tự chuyển sang
+    // "đang giao" khi trạng thái thực tế đồng bộ về (sàn / carrier tracking khi ĐVVC lấy hàng).
     // In lại phiếu/tem KHÔNG phụ thuộc trạng thái vận đơn (in lại được kể cả khi đã giao/huỷ/đang vận chuyển),
     // miễn là có vận đơn (phiếu giao hàng) / có tem sàn (label_url). Giữ cảnh báo in lại khi print_count > 0.
     if (canPrint && sh) actions.push(<a key="ds" onClick={printDelivery}>In phiếu giao hàng</a>);
@@ -267,15 +261,14 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
     );
 }
 
-// ---- "Quét" tab (pack / handover modes) -------------------------------------
+// ---- "Quét" tab (chỉ đóng gói) ----------------------------------------------
 
-export function ScanTab({ initialMode }: { initialMode: 'pack' | 'handover' }) {
-    const [mode, setMode] = useState<'pack' | 'handover'>(initialMode);
-    const scan = useScanProcess(mode);
+export function ScanTab() {
+    const scan = useScanProcess();
     const [code, setCode] = useState('');
     const [log, setLog] = useState<Array<{ ok: boolean; text: string; at: string }>>([]);
     const inputRef = useRef<InputRef>(null);
-    useEffect(() => { inputRef.current?.focus(); }, [mode]);
+    useEffect(() => { inputRef.current?.focus(); }, []);
 
     const submit = () => {
         const c = code.trim();
@@ -290,15 +283,10 @@ export function ScanTab({ initialMode }: { initialMode: 'pack' | 'handover' }) {
 
     return (
         <div style={{ maxWidth: 760 }}>
-            <Space style={{ marginBottom: 12 }}>
-                <Segmented value={mode} onChange={(v) => setMode(v as 'pack' | 'handover')} options={[{ label: 'Đóng gói', value: 'pack', icon: <InboxOutlined /> }, { label: 'Bàn giao ĐVVC', value: 'handover', icon: <CarOutlined /> }]} />
-            </Space>
             <Typography.Paragraph type="secondary">
-                {mode === 'pack'
-                    ? 'Quét (hoặc gõ) mã vận đơn / mã đơn rồi Enter để đánh dấu ĐÃ ĐÓNG GÓI. (App quét đơn cũng gọi API này.)'
-                    : 'Quét mã vận đơn / mã đơn rồi Enter để BÀN GIAO ĐVVC — đơn chuyển sang "Đang vận chuyển" và trừ tồn.'}
+                Quét (hoặc gõ) mã vận đơn / mã đơn rồi Enter để đánh dấu ĐÃ ĐÓNG GÓI (đơn → "chờ bàn giao"). App quét đơn cũng gọi API này. Đơn tự chuyển sang "đang giao" khi ĐVVC lấy hàng (đồng bộ từ sàn / hãng vận chuyển) — không cần bàn giao thủ công.
             </Typography.Paragraph>
-            <Input.Search ref={inputRef} size="large" allowClear enterButton={<><ScanOutlined /> {mode === 'pack' ? 'Đóng gói' : 'Bàn giao'}</>} placeholder="Quét mã vận đơn / mã đơn…" value={code} onChange={(e) => setCode(e.target.value)} onSearch={submit} loading={scan.isPending} />
+            <Input.Search ref={inputRef} size="large" allowClear enterButton={<><ScanOutlined /> Đóng gói</>} placeholder="Quét mã vận đơn / mã đơn…" value={code} onChange={(e) => setCode(e.target.value)} onSearch={submit} loading={scan.isPending} />
             <div style={{ marginTop: 16 }}>
                 {log.length === 0 ? <Empty description="Chưa quét gì trong phiên này." /> : log.map((r, i) => (
                     <div key={i} style={{ padding: '6px 10px', borderRadius: 6, marginBottom: 6, background: r.ok ? '#f6ffed' : '#fff1f0', border: `1px solid ${r.ok ? '#b7eb8f' : '#ffa39e'}` }}>
@@ -321,7 +309,6 @@ export function ShipmentsTab({ onPrint }: { onPrint: (id: number) => void }) {
     const { data, isFetching } = useShipments({ status, q: q || undefined, page, per_page: 20 });
     const track = useTrackShipment();
     const cancel = useCancelShipment();
-    const handover = useHandoverShipments();
     const pack = usePackShipments();
     const createPrint = useCreatePrintJob();
     const canShip = useCan('fulfillment.ship');
@@ -341,12 +328,6 @@ export function ShipmentsTab({ onPrint }: { onPrint: (id: number) => void }) {
         const items = bulkItems();
         setSel([]);
         void shipBulk.start({ title: 'Đóng gói vận đơn', items, runner: async (ids) => (await pack.mutateAsync(ids)).results });
-    };
-    const doBulkHandover = () => {
-        if (!sel.length) return;
-        const items = bulkItems();
-        setSel([]);
-        void shipBulk.start({ title: 'Bàn giao ĐVVC', items, runner: async (ids) => (await handover.mutateAsync(ids)).results });
     };
 
     const columns: ColumnsType<Shipment> = [
@@ -372,7 +353,6 @@ export function ShipmentsTab({ onPrint }: { onPrint: (id: number) => void }) {
                 <Input.Search allowClear placeholder="Mã vận đơn / mã đơn" style={{ width: 240 }} onSearch={(v) => { setQ(v); setPage(1); }} />
                 <Select allowClear placeholder="Trạng thái" style={{ width: 180 }} value={status} onChange={(v) => { setStatus(v); setPage(1); }} options={Object.entries(SHIPMENT_STATUS_LABEL).map(([v, l]) => ({ value: v, label: l }))} />
                 {canShip && <Button icon={<InboxOutlined />} disabled={!sel.length} loading={pack.isPending} onClick={doBulkPack}>Đóng gói ({sel.length})</Button>}
-                {canShip && <Button icon={<ReloadOutlined />} disabled={!sel.length} loading={handover.isPending} onClick={doBulkHandover}>Bàn giao ({sel.length})</Button>}
                 {canPrint && <Button icon={<PrinterOutlined />} disabled={!sel.length} loading={createPrint.isPending} onClick={() => {
                     const items = (data?.data ?? []).filter((s) => sel.includes(s.id));
                     const sources = Array.from(new Set(items.map((s) => s.order?.source).filter(Boolean) as string[]));

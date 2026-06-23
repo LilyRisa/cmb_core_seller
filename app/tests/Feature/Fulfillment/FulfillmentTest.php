@@ -110,6 +110,29 @@ class FulfillmentTest extends TestCase
         $this->assertFalse($manual['needs_credentials']);
     }
 
+    public function test_scan_handover_endpoint_only_packs_not_ships(): void
+    {
+        // App mobile VẪN gọi /scan-handover (không sửa app), nhưng endpoint này giờ CHỈ đóng gói:
+        // shipment created → packed, đơn → ready_to_ship ("chờ bàn giao"). KHÔNG đẩy sang "đang
+        // giao" & KHÔNG xuất kho. Bàn giao thủ công đã bị BỎ — "đang giao" đến từ đồng bộ trạng
+        // thái thật (đơn sàn qua marketplace sync, đơn tự ship qua carrier tracking sync).
+        $orderId = $this->createOrder();
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->postJson("/api/v1/orders/{$orderId}/ship", ['tracking_no' => 'TN-MOB'])->assertCreated();
+
+        $resp = $this->actingAs($this->owner)->withHeaders($this->h())
+            ->postJson('/api/v1/scan-handover', ['code' => 'TN-MOB'])->assertOk();
+
+        $resp->assertJsonPath('data.action', 'pack')
+            ->assertJsonPath('data.shipment.status', 'packed')
+            ->assertJsonPath('data.order.status', 'ready_to_ship');
+        $this->assertFalse(
+            InventoryMovement::withoutGlobalScope(TenantScope::class)
+                ->where('sku_id', $this->sku->getKey())->where('type', 'order_ship')->exists(),
+            'Quét đơn chỉ đóng gói — KHÔNG được xuất kho.'
+        );
+    }
+
     public function test_processing_flow_scan_pack_then_handover_then_cancel(): void
     {
         $orderId = $this->createOrder();
@@ -142,14 +165,17 @@ class FulfillmentTest extends TestCase
         // scan-pack again → 409 (đã đóng gói)
         $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/scan-pack', ['code' => 'TN-001'])->assertStatus(409);
 
-        // scan-handover (the app endpoint) → bàn giao ĐVVC: shipment picked_up, order shipped, stock leaves
-        $hand = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/scan-handover', ['code' => 'TN-001'])->assertOk();
-        $hand->assertJsonPath('data.action', 'handover')->assertJsonPath('data.shipment.status', 'picked_up')->assertJsonPath('data.order.status', 'shipped');
+        // scan-handover (endpoint app mobile vẫn gọi) giờ CHỈ đóng gói ⇒ đơn đã packed ⇒ 409 idempotent.
+        // KHÔNG còn bàn giao thủ công qua quét; "đang giao" + xuất kho đến từ ĐỒNG BỘ trạng thái thật.
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/scan-handover', ['code' => 'TN-001'])->assertStatus(409);
+
+        // Mô phỏng đồng bộ trạng thái thật (carrier tracking khi ĐVVC lấy hàng) bằng cơ chế handover
+        // nội bộ ⇒ shipment picked_up, order shipped, xuất kho.
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/shipments/handover', ['shipment_ids' => [$shipmentId]])->assertOk()->assertJsonPath('data.handed_over', 1);
+        $this->assertSame('shipped', Order::withoutGlobalScope(TenantScope::class)->find($orderId)->status->value);
         $this->assertTrue(InventoryMovement::withoutGlobalScope(TenantScope::class)->where('sku_id', $this->sku->getKey())->where('type', 'order_ship')->exists());
         $this->assertSame(18, $this->level()->on_hand);
         $this->assertSame(0, $this->level()->reserved);
-        // scan-handover again → 409
-        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/scan-handover', ['code' => 'TN-001'])->assertStatus(409);
         // unknown code → 404
         $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/scan-pack', ['code' => 'NOPE-XYZ'])->assertStatus(404);
 
@@ -240,8 +266,9 @@ class FulfillmentTest extends TestCase
         $this->assertFalse($stage('pack'));
         $this->assertSame(1, $byStage()['handover']);
 
-        // bàn giao ⇒ rời cả 3 stage (đơn shipped)
-        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/scan-handover', ['code' => 'TN-ST'])->assertOk();
+        // "đang giao" đến từ ĐỒNG BỘ trạng thái thật (mô phỏng bằng handover nội bộ) ⇒ đơn shipped, rời cả 3 stage
+        $shId = Shipment::withoutGlobalScope(TenantScope::class)->where('order_id', $orderId)->value('id');
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/shipments/handover', ['shipment_ids' => [$shId]])->assertOk();
         $this->assertSame(['prepare' => 0, 'pack' => 0, 'handover' => 0], $byStage());
     }
 

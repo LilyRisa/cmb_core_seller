@@ -30,9 +30,9 @@ Thanh thao tác nằm ngay dưới bộ lọc. Các nút sáng lên khi bạn **
 
 4. Bấm **In phiếu giao hàng** để in tem. Lưu ý chỉ in chung được các đơn **cùng sàn và cùng đơn vị vận chuyển**.
 
-5. Bấm **Sẵn sàng bàn giao** (đánh dấu đã đóng gói), rồi **Bàn giao ĐVVC** khi giao hàng cho bên vận chuyển.
+5. Bấm **Sẵn sàng bàn giao** (đánh dấu đã đóng gói) hoặc **quét mã** đơn để chuyển sang **"Chờ bàn giao"**. Khi đơn vị vận chuyển thực tế lấy hàng, đơn **tự chuyển sang "Đang giao"** theo trạng thái đồng bộ từ sàn / hãng vận chuyển — **không cần thao tác bàn giao thủ công**.
 
-> Thứ tự thường gặp: **Chuẩn bị hàng → Nhận phiếu giao hàng → In phiếu giao hàng → Sẵn sàng bàn giao → Bàn giao ĐVVC.**
+> Thứ tự thường gặp: **Chuẩn bị hàng → Nhận phiếu giao hàng → In phiếu giao hàng → Sẵn sàng bàn giao (đóng gói)**. Sau đó "Đang giao" cập nhật tự động khi ĐVVC lấy hàng.
 
 ## Liên kết SKU cho đơn
 

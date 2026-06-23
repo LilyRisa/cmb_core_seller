@@ -350,14 +350,18 @@ export function useMarkPrinted() {
     });
 }
 
-interface ScanResult { action: 'pack' | 'handover'; message: string; shipment: Shipment; order: { id: number; order_number: string | null; status: string } | null }
+interface ScanResult { action: 'pack'; message: string; shipment: Shipment; order: { id: number; order_number: string | null; status: string } | null }
 
-/** Scan a tracking/order code to mark a parcel "đã đóng gói" (`mode='pack'`) or to "bàn giao ĐVVC" (`mode='handover'`). */
-export function useScanProcess(mode: 'pack' | 'handover') {
+/**
+ * Quét mã vận đơn / mã đơn để đánh dấu "đã đóng gói" (đơn → "chờ bàn giao").
+ * KHÔNG còn chế độ bàn giao thủ công: "đang giao" luôn đến từ trạng thái thực tế đồng bộ về
+ * (đơn sàn qua marketplace sync, đơn tự ship qua carrier tracking sync khi ĐVVC lấy hàng).
+ */
+export function useScanProcess() {
     const api = useScopedApi();
     const invalidate = useFulfillmentInvalidate();
     return useMutation({
-        mutationFn: async (code: string) => { const { data } = await api!.post<{ data: ScanResult }>(mode === 'handover' ? '/scan-handover' : '/scan-pack', { code }); return data.data; },
+        mutationFn: async (code: string) => { const { data } = await api!.post<{ data: ScanResult }>('/scan-pack', { code }); return data.data; },
         onSuccess: invalidate,
     });
 }

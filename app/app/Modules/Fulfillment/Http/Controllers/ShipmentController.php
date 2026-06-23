@@ -374,12 +374,21 @@ class ShipmentController extends Controller
         return $this->scan($request, (int) $tenant->id(), action: 'pack');
     }
 
-    /** POST /api/v1/scan-handover { code } — (app gọi) quét mã để BÀN GIAO ĐVVC (created/packed → picked_up, đơn shipped). */
+    /**
+     * POST /api/v1/scan-handover { code } — (app mobile gọi) quét mã từ KHO ⇒ chỉ ĐÓNG GÓI
+     * (created → packed, đơn processing → ready_to_ship = "chờ bàn giao").
+     *
+     * Bàn giao thủ công (→ "đang giao") đã bị BỎ: việc chuyển "chờ bàn giao" → "đang giao"
+     * luôn do trạng thái THỰC TẾ của đơn đồng bộ về — đơn sàn qua marketplace sync, đơn tự
+     * ship qua carrier tracking sync (ĐVVC quét lấy hàng trên nền tảng của họ). Thao tác tay
+     * là thừa & dễ đẩy "đang giao" sớm/lệch trạng thái thật. Giữ route này (mobile vẫn gọi
+     * /scan-handover) nhưng cho chạy action 'pack' ⇒ KHÔNG cần phát hành lại app mobile.
+     */
     public function scanHandover(Request $request, CurrentTenant $tenant): JsonResponse
     {
-        abort_unless($request->user()?->can('fulfillment.ship') || $request->user()?->can('fulfillment.scan'), 403, 'Bạn không có quyền bàn giao.');
+        abort_unless($request->user()?->can('fulfillment.ship') || $request->user()?->can('fulfillment.scan'), 403, 'Bạn không có quyền đóng gói.');
 
-        return $this->scan($request, (int) $tenant->id(), action: 'handover');
+        return $this->scan($request, (int) $tenant->id(), action: 'pack');
     }
 
     /** Shared scan handler for /scan-pack & /scan-handover. */

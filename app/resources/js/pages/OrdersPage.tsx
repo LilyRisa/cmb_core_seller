@@ -21,7 +21,7 @@ import { errorMessage } from '@/lib/api';
 import { CHANNEL_META, ORDER_STATUS_TABS } from '@/lib/format';
 import { withShopeePrintNotice } from '@/lib/shopeePrintNotice';
 import { Order, useBulkCancelOrders, useBulkDeleteOrders, useFetchAllOrders, useOrders, useOrderStats, useSyncOrders } from '@/lib/orders';
-import { useBulkCreateShipments, useBulkRefetchSlip, useCreatePrintJob, useHandoverShipments, usePackShipments, type BulkActionResult } from '@/lib/fulfillment';
+import { useBulkCreateShipments, useBulkRefetchSlip, useCreatePrintJob, usePackShipments, type BulkActionResult } from '@/lib/fulfillment';
 import { useChannelAccounts } from '@/lib/channels';
 import { useBulkAction } from '@/lib/useBulkAction';
 import { BulkProgressModal } from '@/components/BulkProgressModal';
@@ -65,7 +65,6 @@ export function OrdersPage() {
     const syncOrders = useSyncOrders();
     const bulkPrepare = useBulkCreateShipments();
     const bulkPack = usePackShipments();
-    const bulkHandover = useHandoverShipments();
     const refetchSlip = useBulkRefetchSlip();
     const createPrintJob = useCreatePrintJob();
     const fetchAllOrders = useFetchAllOrders();
@@ -87,7 +86,7 @@ export function OrdersPage() {
     // fulfillment: print-job progress bar + scan-to-pack/handover modal (BigSeller-style — thao tác ngay trên list)
     const [printJobId, setPrintJobId] = useState<number | null>(null);
     const bulkProgress = useBulkAction();
-    const [scan, setScan] = useState<{ open: boolean; mode: 'pack' | 'handover' }>({ open: false, mode: 'pack' });
+    const [scan, setScan] = useState<{ open: boolean }>({ open: false });
     // SPEC 0021 — popup chọn ĐVVC khi "Chuẩn bị hàng" cho đơn manual; lưu các id manual đang chờ confirm.
     const [carrierPicker, setCarrierPicker] = useState<{ open: boolean; orderIds: number[] }>({ open: false, orderIds: [] });
     // Shipping-label designer — bulk print phiếu giao hàng cho đơn manual đi qua picker để chọn template.
@@ -228,7 +227,6 @@ export function OrdersPage() {
     //     chỉ BẬT khi trong lô chọn có ≥1 đơn hợp lệ. Đơn không hợp lệ trong lô sẽ bị BỎ QUA + ghi lý do ở thanh
     //     tiến trình (không chặn cả lô). SPEC 0009 (bản cải tiến 2026-06).
     const SHIP_PACK_STATUSES = ['pending', 'created'];      // vận đơn có thể đánh dấu "đã gói"
-    const SHIP_HANDOVER_STATUSES = ['created', 'packed'];   // vận đơn có thể bàn giao ĐVVC
     // Chuẩn bị hàng: chỉ đơn MỚI (tiền-giao) CHƯA có vận đơn & không âm tồn. Đơn đã có phiếu / đang giao / đã
     // giao / hoàn / huỷ ⇒ không chuẩn bị được.
     const eliPrepare = selectedOrders.filter((o) => !o.shipment && PREPARE_OK_STATUSES.includes(o.status) && !o.out_of_stock);
@@ -241,7 +239,6 @@ export function OrdersPage() {
     // In phiếu giao hàng: MỌI đơn ĐÃ có phiếu (has_label) — kể cả đang giao / đã giao / hoàn / huỷ.
     const eliPrint = selectedOrders.filter((o) => o.shipment?.has_label);
     const eliPack = selectedOrders.filter((o) => o.shipment && SHIP_PACK_STATUSES.includes(o.shipment.status));
-    const eliHandover = selectedOrders.filter((o) => o.shipment && SHIP_HANDOVER_STATUSES.includes(o.shipment.status));
     const eliLink = selectedOrders.filter((o) => o.issue_reason === UNMAPPED_REASON);
     // Huỷ hàng loạt (local "ngừng theo dõi"): mọi đơn CHƯA huỷ. Xoá: chỉ đơn ĐÃ huỷ.
     const eliCancel = selectedOrders.filter((o) => o.status !== 'cancelled');
@@ -367,7 +364,6 @@ export function OrdersPage() {
         });
     };
     const doBulkPack = () => runShipmentAction('Đánh dấu sẵn sàng bàn giao', (ids) => bulkPack.mutateAsync(ids));
-    const doBulkHandover = () => runShipmentAction('Bàn giao ĐVVC', (ids) => bulkHandover.mutateAsync(ids));
 
     const doBulkCancel = () => {
         const ids = eliCancel.map((o) => o.id);
@@ -585,7 +581,7 @@ export function OrdersPage() {
                 extra={(
                     <Space>
                         {canCreate && <Link to="/orders/new"><Button type="primary">Tạo đơn</Button></Link>}
-                        <Button icon={<ScanOutlined />} onClick={() => setScan({ open: true, mode: 'pack' })}>Quét đơn</Button>
+                        <Button icon={<ScanOutlined />} onClick={() => setScan({ open: true })}>Quét đơn</Button>
                         <Button icon={<SyncOutlined />} loading={syncOrders.isPending || syncPoll.isPolling} onClick={() => syncOrders.mutate(undefined, {
                             onSuccess: (r) => { if (r.queued > 0) { message.success(`Đã yêu cầu đồng bộ ${r.queued} gian hàng — đơn mới sẽ tự xuất hiện khi sàn trả về.`); syncPoll.start(); } else { message.info('Chưa có gian hàng nào hoạt động'); } },
                             onError: (e) => message.error(errorMessage(e)),
@@ -742,13 +738,6 @@ export function OrdersPage() {
                                 </Button></span>
                             </Tooltip>
                         )}
-                        {canShip && (
-                            <Tooltip title={selectedKeys.length === 0 ? 'Chọn đơn để thao tác' : 'Bàn giao cho ĐVVC (đơn → đang vận chuyển, trừ tồn kho).'}>
-                                <span><Button icon={<BarcodeOutlined />} disabled={eliHandover.length === 0} loading={bulkProgress.running} onClick={doBulkHandover}>
-                                    Bàn giao ĐVVC{eliHandover.length > 0 ? ` (${eliHandover.length})` : ''}
-                                </Button></span>
-                            </Tooltip>
-                        )}
                         {canMap && (
                             <Tooltip title={selectedKeys.length === 0 ? 'Chọn đơn để thao tác' : 'Liên kết SKU cho các đơn chưa ghép trong lô chọn.'}>
                                 <span><Button icon={<LinkOutlined />} disabled={eliLink.length === 0} onClick={() => setLinkModal({ open: true, orderIds: eliLink.map((o) => o.id) })}>
@@ -851,8 +840,8 @@ export function OrdersPage() {
             <BulkProgressModal title={bulkProgress.title} open={bulkProgress.open} items={bulkProgress.items} running={bulkProgress.running} onRetry={bulkProgress.retryErrors} onClose={bulkProgress.close} />
             <LinkSkusModal open={linkModal.open} orderIds={linkModal.orderIds} onClose={() => { setLinkModal({ open: false }); setSelectedKeys([]); }} />
             <OrderDetailModal orderId={viewOrderId} open={viewOrderId != null} onClose={() => setViewOrderId(null)} />
-            <Modal title="Quét đơn" open={scan.open} onCancel={() => setScan((s) => ({ ...s, open: false }))} footer={null} width={760} destroyOnClose>
-                <ScanTab initialMode={scan.mode} />
+            <Modal title="Quét đơn" open={scan.open} onCancel={() => setScan({ open: false })} footer={null} width={760} destroyOnClose>
+                <ScanTab />
             </Modal>
         </div>
     );
