@@ -100,4 +100,33 @@ class ShopeePayloadTest extends TestCase
         $this->assertSame(5, $result['model'][0]['seller_stock'][0]['stock']);
         $this->assertArrayNotHasKey('normal_stock', $result['model'][0]);
     }
+
+    public function test_tier_variation_attaches_first_tier_images_when_all_options_have_image(): void
+    {
+        $draft = $this->makeDraft([
+            ['seller_sku' => 'S1', 'price' => 10000, 'stock' => 5, 'sale_props' => ['size' => 'S'], 'image' => 'img-S'],
+            ['seller_sku' => 'S2', 'price' => 11000, 'stock' => 3, 'sale_props' => ['size' => 'M'], 'image' => 'img-M'],
+        ]);
+
+        $result = ShopeeProductPayload::tierVariation(123, $draft);
+
+        $opts = $result['tier_variation'][0]['option_list'];
+        $this->assertSame('img-S', $opts[0]['image']['image_id']);
+        $this->assertSame('img-M', $opts[1]['image']['image_id']);
+    }
+
+    public function test_tier_variation_omits_images_when_any_first_tier_option_missing_image(): void
+    {
+        // Shopee yêu cầu MỌI option tier đầu có ảnh — thiếu 1 ⇒ bỏ hết.
+        $draft = $this->makeDraft([
+            ['seller_sku' => 'S1', 'price' => 10000, 'stock' => 5, 'sale_props' => ['size' => 'S'], 'image' => 'img-S'],
+            ['seller_sku' => 'S2', 'price' => 11000, 'stock' => 3, 'sale_props' => ['size' => 'M']], // không ảnh
+        ]);
+
+        $result = ShopeeProductPayload::tierVariation(123, $draft);
+
+        foreach ($result['tier_variation'][0]['option_list'] as $opt) {
+            $this->assertArrayNotHasKey('image', $opt);
+        }
+    }
 }

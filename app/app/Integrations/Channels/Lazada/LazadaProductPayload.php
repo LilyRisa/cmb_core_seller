@@ -81,12 +81,25 @@ final class LazadaProductPayload
             self::child($dom, $sku, 'price', (string) $s['price']);
             self::child($dom, $sku, 'quantity', (string) $s['stock']);
 
-            // saleProp holds variant (sale) properties e.g. color_family, size
-            $sp = $dom->createElement('saleProp');
-            foreach (($s['sale_props'] ?? []) as $k => $v) {
-                self::child($dom, $sp, $k, (string) $v);
+            // saleProp giữ thuộc tính biến thể (vd color_family, size). Sản phẩm KHÔNG biến thể
+            // (1 SKU) ⇒ sale_props rỗng ⇒ BỎ HẲN thẻ saleProp (Lazada chỉ bắt buộc khi có biến thể;
+            // saleProp rỗng/khóa lạ gây BIZ_CHECK_SALEPROP_ATTRIBUTE_INVALID).
+            if (! empty($s['sale_props'])) {
+                $sp = $dom->createElement('saleProp');
+                foreach ($s['sale_props'] as $k => $v) {
+                    self::child($dom, $sp, $k, (string) $v);
+                }
+                $sku->appendChild($sp);
             }
-            $sku->appendChild($sp);
+
+            // Ảnh riêng của SKU — Lazada gắn ảnh ở CẤP SKU (<Sku><Images><Image>). URL phải đã
+            // upload lên Lazada (cấm link ngoài — BIZ_CHECK_EXIST_OUTER_IMAGE). Chỉ thêm khi có ảnh.
+            $img = trim((string) ($s['image'] ?? ''));
+            if ($img !== '') {
+                $imagesEl = $dom->createElement('Images');
+                self::child($dom, $imagesEl, 'Image', $img);
+                $sku->appendChild($imagesEl);
+            }
 
             // Package dimensions (unit: cm)
             self::child($dom, $sku, 'package_height', (string) $s['package_dims']['height']);

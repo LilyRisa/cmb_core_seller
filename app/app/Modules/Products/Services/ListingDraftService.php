@@ -333,8 +333,9 @@ final class ListingDraftService
      *                                             upload ảnh trả về, KHÔNG nhận URL CDN ngoài. Null (vd lúc revalidate) ⇒ dùng
      *                                             URL nguồn trong media_refs (đủ để validate; không dùng để gọi API tạo listing).
      */
-    public function toDraftDTO(ListingDraft $draft, ?array $preparedMedia = null): ListingDraftDTO
+    public function toDraftDTO(ListingDraft $draft, ?array $preparedMedia = null, ?array $preparedSkuMedia = null): ListingDraftDTO
     {
+        $preparedSkuMedia ??= [];
         $product = Product::findOrFail($draft->product_id);
         // Tiêu đề riêng của listing (nếu seller đã sửa) ưu tiên hơn tên SP gốc.
         $title = (string) (($draft->attributes ?? [])['name'] ?? '') ?: (string) $product->name;
@@ -352,20 +353,30 @@ final class ListingDraftService
         // TikTok BẮT BUỘC `identifier_code` ở nhiều ngành. Nạp 1 lượt theo master_variant_id.
         $masterById = $product->skus->keyBy(fn ($s) => (int) $s->getKey());
 
-        $skus = $draft->skus->map(function (ListingDraftSku $s) use ($logistics, $masterById) {
+        // Sản phẩm CHỈ 1 SKU = KHÔNG biến thể: bỏ sale_props để không tạo dạng nhiều biến thể
+        // (TikTok sales_attributes rỗng, Shopee không init_tier_variation, Lazada saleProp rỗng).
+        $singleSku = $draft->skus->count() === 1;
+
+        $skus = $draft->skus->map(function (ListingDraftSku $s) use ($logistics, $masterById, $singleSku, $preparedSkuMedia) {
             $master = $s->master_variant_id !== null ? $masterById->get((int) $s->master_variant_id) : null;
             $gtin = self::pickGtin($master?->gtins, $master?->barcode);
+
+            // Ảnh biến thể: ưu tiên ref ĐÃ upload lên sàn (TikTok uri / Shopee image_id / URL Lazada)
+            // do PushListingJob chuẩn bị; lúc revalidate (không có) dùng URL nguồn (validator không dùng).
+            $imgSource = trim((string) ($s->image_ref ?? ''));
+            $image = $imgSource !== '' ? (string) ($preparedSkuMedia[$imgSource] ?? $imgSource) : null;
 
             return [
                 'seller_sku' => $s->seller_sku,
                 'price' => $s->price,
                 'stock' => $s->stock,
-                'sale_props' => $s->sale_props ?? [],
+                'sale_props' => $singleSku ? [] : ($s->sale_props ?? []),
                 'package_weight' => $s->package_weight,
                 'package_dims' => $s->package_dims ?? [],
                 'warehouse_id' => $logistics['warehouse_id'] ?? null,
                 'gtin' => $gtin['code'],
                 'gtin_type' => $gtin['type'],
+                'image' => $image,
             ];
         })->all();
 

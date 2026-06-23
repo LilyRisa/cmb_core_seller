@@ -124,12 +124,35 @@ final class ShopeeProductPayload
             }
         }
 
+        // Ảnh biến thể: Shopee CHỈ cho gắn ảnh ở tier ĐẦU TIÊN, và nếu gắn thì MỌI option của
+        // tier đó phải có ảnh (thiếu 1 ⇒ bỏ hết, tránh lỗi). image_id do upload_image trả về.
+        // Tham chiếu: Shopee Open Platform — Creating Product (option_list[].image.image_id).
+        $firstTier = $tierNames[0] ?? null;
+        $optionImage = []; // value (tier đầu) => image_id
+        if ($firstTier !== null) {
+            foreach ($skus as $s) {
+                $val = (string) ($s['sale_props'][$firstTier] ?? '');
+                $img = trim((string) ($s['image'] ?? ''));
+                if ($val !== '' && $img !== '' && ! isset($optionImage[$val])) {
+                    $optionImage[$val] = $img;
+                }
+            }
+        }
+        $allFirstTierHaveImage = $firstTier !== null
+            && ($options[$firstTier] ?? []) !== []
+            && count(array_filter($options[$firstTier], fn ($v) => isset($optionImage[$v]))) === count($options[$firstTier]);
+
         $tiers = [];
-        foreach ($tierNames as $t) {
-            $tiers[] = [
-                'name' => $t,
-                'option_list' => array_map(fn ($v) => ['option' => $v], $options[$t]),
-            ];
+        foreach ($tierNames as $ti => $t) {
+            $optionList = [];
+            foreach ($options[$t] as $v) {
+                $opt = ['option' => $v];
+                if ($ti === 0 && $allFirstTierHaveImage) {
+                    $opt['image'] = ['image_id' => $optionImage[$v]];
+                }
+                $optionList[] = $opt;
+            }
+            $tiers[] = ['name' => $t, 'option_list' => $optionList];
         }
 
         $models = [];

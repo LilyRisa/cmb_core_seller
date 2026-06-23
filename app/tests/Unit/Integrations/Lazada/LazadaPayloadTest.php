@@ -45,6 +45,45 @@ class LazadaPayloadTest extends TestCase
         $this->assertStringContainsString('<Image>https://my-live-02.slatic.net/p/a.jpg</Image>', $xml);
     }
 
+    public function test_adds_per_sku_images_when_present(): void
+    {
+        $draft = new ListingDraftDTO(
+            title: 'test', description: '<p>d</p>', categoryId: '3', brandId: '40516', attributes: [],
+            media: [new MediaRefDTO('https://my-live-02.slatic.net/p/a.jpg', 'cdn_url')],
+            skus: [[
+                'seller_sku' => 'S1', 'price' => 35, 'stock' => 3,
+                'sale_props' => ['color_family' => 'Green'],
+                'package_weight' => 0.5, 'package_dims' => ['length' => 10, 'width' => 10, 'height' => 10],
+                // Ảnh biến thể đã upload lên Lazada (URL slatic).
+                'image' => 'https://my-live-02.slatic.net/p/sku-green.jpg',
+            ]],
+            logistics: [],
+        );
+
+        $xml = LazadaProductPayload::toXml($draft);
+
+        // Ảnh SKU nằm trong <Sku><Images><Image>… (cấp SKU).
+        $this->assertStringContainsString('<Images><Image>https://my-live-02.slatic.net/p/sku-green.jpg</Image></Images>', $xml);
+    }
+
+    public function test_omits_saleprop_when_empty_single_sku(): void
+    {
+        $draft = new ListingDraftDTO(
+            title: 'test', description: '<p>d</p>', categoryId: '3', brandId: '40516', attributes: [],
+            media: [new MediaRefDTO('https://my-live-02.slatic.net/p/a.jpg', 'cdn_url')],
+            skus: [[
+                'seller_sku' => 'S1', 'price' => 35, 'stock' => 3,
+                'sale_props' => [], // không biến thể
+                'package_weight' => 0.5, 'package_dims' => ['length' => 10, 'width' => 10, 'height' => 10],
+            ]],
+            logistics: [],
+        );
+
+        $xml = LazadaProductPayload::toXml($draft);
+
+        $this->assertStringNotContainsString('<saleProp', $xml);
+    }
+
     public function test_escapes_special_chars(): void
     {
         $draft = new ListingDraftDTO(

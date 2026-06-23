@@ -95,6 +95,43 @@ class TikTokPayloadTest extends TestCase
         $this->assertSame($pa, $body['product_attributes']);
     }
 
+    public function test_attaches_sku_img_to_first_sales_attribute(): void
+    {
+        $draft = new ListingDraftDTO(
+            title: 'Áo thun cotton nam form rộng', description: 'd', categoryId: '600001', brandId: null,
+            attributes: [], media: [new MediaRefDTO('uri-1', 'uri')],
+            skus: [[
+                'seller_sku' => 'S1', 'price' => 199000, 'stock' => 5, 'warehouse_id' => 'WH1',
+                'sale_props' => ['Phân loại' => 'Đỏ'],
+                // Ảnh biến thể đã upload (uri do API ảnh trả về).
+                'image' => 'tos-vn/abc123',
+            ]],
+            logistics: ['package_weight' => 0.5],
+        );
+
+        $sa = TikTokProductPayload::toBody($draft)['skus'][0]['sales_attributes'][0];
+
+        $this->assertSame('tos-vn/abc123', $sa['sku_img']['uri']);
+    }
+
+    public function test_no_sku_img_when_no_sales_attributes_single_product(): void
+    {
+        // Sản phẩm 1 SKU không biến thể: sale_props rỗng ⇒ sales_attributes [] ⇒ không sku_img.
+        $draft = new ListingDraftDTO(
+            title: 'Áo thun cotton nam form rộng', description: 'd', categoryId: '600001', brandId: null,
+            attributes: [], media: [new MediaRefDTO('uri-1', 'uri')],
+            skus: [[
+                'seller_sku' => 'S1', 'price' => 199000, 'stock' => 5, 'warehouse_id' => 'WH1',
+                'sale_props' => [], 'image' => 'tos-vn/abc123',
+            ]],
+            logistics: ['package_weight' => 0.5],
+        );
+
+        $body = TikTokProductPayload::toBody($draft);
+
+        $this->assertSame([], $body['skus'][0]['sales_attributes']);
+    }
+
     public function test_sends_identifier_code_and_idempotency_key_when_present(): void
     {
         $draft = new ListingDraftDTO(

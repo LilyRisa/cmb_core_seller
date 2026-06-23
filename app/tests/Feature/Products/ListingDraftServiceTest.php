@@ -139,6 +139,48 @@ class ListingDraftServiceTest extends TestCase
         $this->assertNull($skus[0]->master_variant_id);
     }
 
+    public function test_single_sku_drops_sale_props_and_passes_uploaded_variant_image(): void
+    {
+        // Sản phẩm CHỈ 1 biến thể ⇒ không tạo dạng nhiều SKU: sale_props bị bỏ. Ảnh biến thể
+        // truyền qua DTO bằng ref ĐÃ upload lên sàn.
+        $p = Product::create([
+            'tenant_id' => $this->tenant->getKey(),
+            'name' => 'SP 1 biến thể',
+            'meta' => ['variants' => [
+                ['name' => 'Mặc định', 'price' => 1000, 'stock' => 1, 'sku' => 'ONE', 'image' => 'https://cdn/v.jpg'],
+            ]],
+        ]);
+        $draft = app(ListingDraftService::class)->createDraft((int) $p->getKey(), $this->accountId, 'lazada');
+
+        $dto = app(ListingDraftService::class)->toDraftDTO(
+            $draft->fresh('skus'),
+            null,
+            ['https://cdn/v.jpg' => 'lazada-cdn/v.jpg'],
+        );
+
+        $this->assertCount(1, $dto->skus);
+        $this->assertSame([], $dto->skus[0]['sale_props']);
+        $this->assertSame('lazada-cdn/v.jpg', $dto->skus[0]['image']);
+    }
+
+    public function test_multi_sku_keeps_sale_props(): void
+    {
+        $p = Product::create([
+            'tenant_id' => $this->tenant->getKey(),
+            'name' => 'SP 2 biến thể',
+            'meta' => ['variants' => [
+                ['name' => 'Đỏ', 'price' => 1000, 'stock' => 1, 'sku' => 'R'],
+                ['name' => 'Xanh', 'price' => 2000, 'stock' => 2, 'sku' => 'B'],
+            ]],
+        ]);
+        $draft = app(ListingDraftService::class)->createDraft((int) $p->getKey(), $this->accountId, 'lazada');
+
+        $dto = app(ListingDraftService::class)->toDraftDTO($draft->fresh('skus'));
+
+        $this->assertCount(2, $dto->skus);
+        $this->assertSame(['Phân loại' => 'Đỏ'], $dto->skus[0]['sale_props']);
+    }
+
     public function test_manual_sku_link_is_persisted_on_update(): void
     {
         $master = $this->product->skus()->first();

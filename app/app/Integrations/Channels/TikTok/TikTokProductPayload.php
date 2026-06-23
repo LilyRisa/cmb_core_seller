@@ -40,37 +40,7 @@ final class TikTokProductPayload
                 'unit' => $d->logistics['weight_unit'] ?? 'KILOGRAM',
             ],
             'product_attributes' => $productAttributes,
-            'skus' => array_map(fn ($s) => array_merge([
-                'seller_sku' => $s['seller_sku'],
-                // sales_attributes: khóa SỐ ⇒ thuộc tính dựng sẵn (gửi `id` kiểu Int64);
-                // khóa CHỮ (vd "Phân loại") là thuộc tính tùy biến ⇒ gửi `name` (KHÔNG gửi
-                // `id`, sàn tự sinh id). Gửi `id`=chuỗi-chữ sẽ lỗi "must be convertible to Int64".
-                // Giới hạn chính chủ: name ≤20, value_name ≤50 ký tự.
-                'sales_attributes' => array_map(
-                    fn ($k, $v) => (ctype_digit((string) $k)
-                        ? ['id' => (string) $k]
-                        : ['name' => mb_substr((string) $k, 0, 20)])
-                        + ['value_name' => mb_substr((string) $v, 0, 50)],
-                    array_keys($s['sale_props'] ?? []),
-                    array_values($s['sale_props'] ?? [])
-                ),
-                'price' => [
-                    'amount' => (string) $s['price'],
-                    'currency' => $s['currency'] ?? 'VND',
-                ],
-                'inventory' => [
-                    [
-                        'warehouse_id' => $s['warehouse_id'],
-                        'quantity' => (int) $s['stock'],
-                    ],
-                ],
-            ],
-                // Mã định danh (GTIN/EAN/UPC) — BẮT BUỘC ở nhiều ngành; chỉ gửi khi master
-                // SKU có mã. {code, type} theo schema chính chủ Create Product 202309.
-                ! empty($s['gtin'])
-                    ? ['identifier_code' => ['code' => (string) $s['gtin'], 'type' => (string) ($s['gtin_type'] ?? 'GTIN')]]
-                    : []
-            ), $d->skus),
+            'skus' => array_map(fn ($s) => self::sku($s), $d->skus),
         ];
 
         if ($d->brandId !== null) {
@@ -88,5 +58,58 @@ final class TikTokProductPayload
         }
 
         return $body;
+    }
+
+    /**
+     * Một phần tử `skus[]`. Sản phẩm KHÔNG biến thể (1 SKU) ⇒ `sale_props` rỗng ⇒
+     * `sales_attributes: []` (chính chủ chấp nhận). Ảnh biến thể gắn vào `sku_img.uri`
+     * của thuộc tính phân loại ĐẦU TIÊN (uri do API upload ảnh trả về) — không có thuộc
+     * tính phân loại thì bỏ qua (ảnh chính main_images đã đại diện).
+     *
+     * @param  array<string,mixed>  $s
+     * @return array<string,mixed>
+     */
+    private static function sku(array $s): array
+    {
+        // sales_attributes: khóa SỐ ⇒ thuộc tính dựng sẵn (gửi `id` kiểu Int64); khóa CHỮ
+        // (vd "Phân loại") là thuộc tính tùy biến ⇒ gửi `name` (KHÔNG gửi `id`, sàn tự sinh).
+        // Gửi `id`=chuỗi-chữ sẽ lỗi "must be convertible to Int64". Giới hạn: name ≤20, value_name ≤50.
+        $salesAttributes = array_map(
+            fn ($k, $v) => (ctype_digit((string) $k)
+                ? ['id' => (string) $k]
+                : ['name' => mb_substr((string) $k, 0, 20)])
+                + ['value_name' => mb_substr((string) $v, 0, 50)],
+            array_keys($s['sale_props'] ?? []),
+            array_values($s['sale_props'] ?? [])
+        );
+
+        // Ảnh biến thể: chính chủ gắn `sku_img` vào MỘT thuộc tính phân loại của SKU
+        // (skus[].sales_attributes[].sku_img.uri). Gắn vào cái đầu tiên.
+        $image = trim((string) ($s['image'] ?? ''));
+        if ($image !== '' && $salesAttributes !== []) {
+            $salesAttributes[0]['sku_img'] = ['uri' => $image];
+        }
+
+        $sku = [
+            'seller_sku' => $s['seller_sku'],
+            'sales_attributes' => $salesAttributes,
+            'price' => [
+                'amount' => (string) $s['price'],
+                'currency' => $s['currency'] ?? 'VND',
+            ],
+            'inventory' => [
+                [
+                    'warehouse_id' => $s['warehouse_id'],
+                    'quantity' => (int) $s['stock'],
+                ],
+            ],
+        ];
+
+        // Mã định danh (GTIN/EAN/UPC) — BẮT BUỘC ở nhiều ngành; chỉ gửi khi master SKU có mã.
+        if (! empty($s['gtin'])) {
+            $sku['identifier_code'] = ['code' => (string) $s['gtin'], 'type' => (string) ($s['gtin_type'] ?? 'GTIN')];
+        }
+
+        return $sku;
     }
 }

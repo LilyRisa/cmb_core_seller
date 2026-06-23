@@ -100,8 +100,26 @@ class PushListingJob implements ShouldQueue
                 ? $media->prepare($listing->provider, $auth, $sourceUrls)
                 : null;
 
+            // Ảnh BIẾN THỂ (image_ref mỗi SKU): cũng phải upload lên sàn để có ref do sàn cấp
+            // (giống ảnh chính) — sàn KHÔNG nhận URL ngoài cho ảnh SKU. Map url nguồn → ref đã upload.
+            $skuUrls = $listing->skus
+                ->map(fn ($s) => trim((string) ($s->image_ref ?? '')))
+                ->filter(fn ($u) => $u !== '')
+                ->unique()
+                ->values()
+                ->all();
+            $preparedSkuMedia = [];
+            if ($skuUrls !== []) {
+                $skuRefs = $media->prepare($listing->provider, $auth, $skuUrls);
+                foreach ($skuUrls as $i => $u) {
+                    if (isset($skuRefs[$i])) {
+                        $preparedSkuMedia[$u] = $skuRefs[$i]->ref;
+                    }
+                }
+            }
+
             $row->mark('running', 'Đang tạo listing trên sàn', 60);
-            $dto = $drafts->toDraftDTO($listing, $preparedMedia);
+            $dto = $drafts->toDraftDTO($listing, $preparedMedia, $preparedSkuMedia);
             $result = $pubs->for($listing->provider)->createListing($auth, $dto);
 
             // Sàn luôn xét duyệt: map raw QC → reviewing/live/failed (KHÔNG mặc định live).
