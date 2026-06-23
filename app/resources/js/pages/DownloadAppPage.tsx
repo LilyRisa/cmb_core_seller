@@ -17,7 +17,7 @@ import '../../css/download-app.css';
 
 // Link tải bản test hiện tại. Khi lên store/CDN chính thức, đổi tại đây.
 const APK_URL =
-    'https://cdn.cmbaudio.com/cmbcoreseller/application-cbfdb08c-f3fc-4d36-bf75-1355713e1659.apk';
+    'https://expo.dev/artifacts/eas/Apuoger3lIHWJh9uq6am-V7x-27nNZ6oFzMAPlGSYlA.apk';
 
 export function DownloadAppPage() {
     return (
