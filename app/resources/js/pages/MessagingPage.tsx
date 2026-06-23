@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, typ
 import dayjs from 'dayjs';
 import { Link } from 'react-router-dom';
 import { App, Avatar, Badge, Button, Checkbox, Divider, Dropdown, Empty, Grid, Image, Input, List, Popconfirm, Popover, Radio, Segmented, Select, Space, Spin, Tag, Tooltip, Typography } from 'antd';
-import { BellFilled, BellOutlined, CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FileOutlined, FilterOutlined, LikeFilled, LikeOutlined, MessageOutlined, MoreOutlined, PhoneOutlined, PictureOutlined, RedoOutlined, ShopOutlined, ShoppingOutlined, SoundOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
+import { BellFilled, BellOutlined, CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FacebookFilled, FileOutlined, FilterOutlined, LikeFilled, LikeOutlined, MessageOutlined, MoreOutlined, PhoneOutlined, PictureOutlined, RedoOutlined, ShopOutlined, ShoppingOutlined, SoundOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
 import {
     type Conversation,
@@ -894,7 +894,12 @@ export function MessagingPage() {
                                                     {/* Row 2: page/provider chip — wraps below name */}
                                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginTop: 2 }}>
                                                         {c.provider === 'facebook_page'
-                                                            ? <Tag color="blue" style={{ marginInlineEnd: 0, fontSize: 11 }}>{c.channel_account_name ?? 'Facebook'}</Tag>
+                                                            ? (
+                                                                <Tag color="blue" style={{ marginInlineEnd: 0, fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4, paddingLeft: 2 }}>
+                                                                    <Avatar size={16} src={c.channel_account_avatar_url ?? undefined} icon={<FacebookFilled />} style={{ background: c.channel_account_avatar_url ? undefined : '#1877F2' }} />
+                                                                    {c.channel_account_name ?? 'Facebook'}
+                                                                </Tag>
+                                                            )
                                                             : <Tag color="blue" style={{ marginInlineEnd: 0, fontSize: 11 }}>{providerLabel(c.provider)}</Tag>
                                                         }
                                                     </div>

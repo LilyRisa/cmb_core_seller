@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { App as AntApp, Button, Empty, Input, InputNumber, Modal, Result, Select, Space, Spin, Table, Tag, Timeline, Tooltip, Typography } from 'antd';
+import { App as AntApp, Button, Empty, Input, InputNumber, Modal, Result, Select, Space, Spin, Switch, Table, Tag, Timeline, Tooltip, Typography } from 'antd';
 import type { InputRef } from 'antd';
-import { CheckCircleOutlined, CloseCircleOutlined, ExportOutlined, InboxOutlined, PrinterOutlined, ScanOutlined, WarningOutlined } from '@ant-design/icons';
+import { ApiOutlined, CheckCircleOutlined, CloseCircleOutlined, DisconnectOutlined, ExportOutlined, InboxOutlined, PrinterOutlined, ScanOutlined, SoundOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { ChannelBadge } from '@/components/ChannelBadge';
 import { CarrierAccountPicker } from '@/components/CarrierAccountPicker';
@@ -20,6 +20,7 @@ import {
     useBulkRefetchSlip, useCancelShipment, useCreatePrintJob, useMarkPrinted,
     usePackShipments, usePrintJob, useScanProcess, useShipment, useShipments, useShipOrder, useTrackShipment,
 } from '@/lib/fulfillment';
+import { playScanBeep, useSerialScanner } from '@/lib/scanner';
 
 function ShipmentStatusTag({ status }: { status: string }) {
     const color = { delivered: 'green', cancelled: 'default', failed: 'red', returned: 'orange', picked_up: 'geekblue', packed: 'blue', awaiting_pickup: 'cyan', in_transit: 'cyan', created: 'gold', pending: 'default' }[status] ?? 'default';
@@ -263,30 +264,110 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
 
 // ---- "Quét" tab (chỉ đóng gói) ----------------------------------------------
 
+/** Ngưỡng (ms) giữa 2 phím để coi là "tốc độ máy quét" — người gõ tay luôn chậm hơn. */
+const SCAN_KEY_GAP_MS = 35;
+/** Im lặng bao lâu (ms) sau chuỗi gõ nhanh thì tự gửi (cho máy quét không phát Enter). */
+const SCAN_IDLE_SUBMIT_MS = 120;
+/** Mã ngắn hơn mức này không tự gửi (tránh nhiễu). */
+const SCAN_MIN_LEN = 4;
+
 export function ScanTab() {
     const scan = useScanProcess();
     const [code, setCode] = useState('');
     const [log, setLog] = useState<Array<{ ok: boolean; text: string; at: string }>>([]);
+    const [flash, setFlash] = useState<'ok' | 'err' | null>(null);
+    const [sound, setSound] = useState(true);
     const inputRef = useRef<InputRef>(null);
+
+    // Bám focus liên tục để không "rớt" ký tự máy quét bắn ra.
+    const focusSoon = useCallback(() => { window.setTimeout(() => inputRef.current?.focus(), 30); }, []);
     useEffect(() => { inputRef.current?.focus(); }, []);
 
-    const submit = () => {
-        const c = code.trim();
+    // Refs cho mọi callback ổn định (serial / timer không phụ thuộc render).
+    const soundRef = useRef(sound); soundRef.current = sound;
+    const flashTimer = useRef<number>();
+
+    const runScan = useCallback((raw: string) => {
+        const c = raw.trim();
         if (!c) return;
         setCode('');
         scan.mutate(c, {
-            onSuccess: (r) => setLog((l) => [{ ok: true, text: `${r.message}: ${r.order?.order_number ?? '#' + (r.order?.id ?? '')} · ${r.shipment.tracking_no ?? '#' + r.shipment.id} → ${SHIPMENT_STATUS_LABEL[r.shipment.status] ?? r.shipment.status}`, at: new Date().toLocaleTimeString() }, ...l].slice(0, 60)),
-            onError: (e) => setLog((l) => [{ ok: false, text: `${c}: ${errorMessage(e)}`, at: new Date().toLocaleTimeString() }, ...l].slice(0, 60)),
-            onSettled: () => inputRef.current?.focus(),
+            onSuccess: (r) => {
+                if (soundRef.current) playScanBeep(true);
+                setFlash('ok');
+                setLog((l) => [{ ok: true, text: `${r.message}: ${r.order?.order_number ?? '#' + (r.order?.id ?? '')} · ${r.shipment.tracking_no ?? '#' + r.shipment.id} → ${SHIPMENT_STATUS_LABEL[r.shipment.status] ?? r.shipment.status}`, at: new Date().toLocaleTimeString() }, ...l].slice(0, 60));
+            },
+            onError: (e) => {
+                if (soundRef.current) playScanBeep(false);
+                setFlash('err');
+                setLog((l) => [{ ok: false, text: `${c}: ${errorMessage(e)}`, at: new Date().toLocaleTimeString() }, ...l].slice(0, 60));
+            },
+            onSettled: () => {
+                inputRef.current?.focus();
+                window.clearTimeout(flashTimer.current);
+                flashTimer.current = window.setTimeout(() => setFlash(null), 450);
+            },
         });
+    }, [scan]);
+
+    // Kết nối máy quét qua Web Serial (đọc được cả khi ô nhập không focus).
+    const serial = useSerialScanner(runScan);
+
+    // Tự gửi khi phát hiện chuỗi gõ tốc độ máy quét rồi ngừng (kể cả máy không bắn Enter).
+    const lastKeyAt = useRef(0);
+    const fastBurst = useRef(true);
+    const liveCode = useRef('');
+    const autoTimer = useRef<number>();
+
+    const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const v = e.target.value;
+        const now = performance.now();
+        const gap = now - lastKeyAt.current;
+        lastKeyAt.current = now;
+        if (liveCode.current === '') fastBurst.current = true;      // bắt đầu chuỗi mới
+        else if (gap > SCAN_KEY_GAP_MS) fastBurst.current = false;  // có nhịp gõ chậm → coi là gõ tay
+        liveCode.current = v;
+        setCode(v);
+
+        window.clearTimeout(autoTimer.current);
+        autoTimer.current = window.setTimeout(() => {
+            if (fastBurst.current && liveCode.current === v && v.trim().length >= SCAN_MIN_LEN) {
+                liveCode.current = '';
+                runScan(v);
+            }
+        }, SCAN_IDLE_SUBMIT_MS);
     };
+
+    const onSubmit = () => { window.clearTimeout(autoTimer.current); liveCode.current = ''; runScan(code); };
+
+    const serialBtn = (() => {
+        if (!serial.supported) {
+            return <Tooltip title="Trình duyệt không hỗ trợ Web Serial — dùng Chrome/Edge trên máy tính. Máy quét giả bàn phím vẫn quét bình thường."><Button icon={<ApiOutlined />} disabled>Kết nối máy quét</Button></Tooltip>;
+        }
+        if (serial.status === 'connected') {
+            return <Button icon={<DisconnectOutlined />} danger onClick={() => void serial.disconnect()}>Ngắt máy quét</Button>;
+        }
+        return <Button icon={<ApiOutlined />} loading={serial.status === 'connecting'} onClick={() => void serial.connect()}>Kết nối máy quét</Button>;
+    })();
+
+    const flashStyle: React.CSSProperties = flash === 'ok'
+        ? { boxShadow: '0 0 0 3px #b7eb8f', borderRadius: 8 }
+        : flash === 'err' ? { boxShadow: '0 0 0 3px #ffa39e', borderRadius: 8 } : {};
 
     return (
         <div style={{ maxWidth: 760 }}>
             <Typography.Paragraph type="secondary">
                 Quét (hoặc gõ) mã vận đơn / mã đơn rồi Enter để đánh dấu ĐÃ ĐÓNG GÓI (đơn → "chờ bàn giao"). App quét đơn cũng gọi API này. Đơn tự chuyển sang "đang giao" khi ĐVVC lấy hàng (đồng bộ từ sàn / hãng vận chuyển) — không cần bàn giao thủ công.
             </Typography.Paragraph>
-            <Input.Search ref={inputRef} size="large" allowClear enterButton={<><ScanOutlined /> Đóng gói</>} placeholder="Quét mã vận đơn / mã đơn…" value={code} onChange={(e) => setCode(e.target.value)} onSearch={submit} loading={scan.isPending} />
+            <Space style={{ marginBottom: 8 }} wrap>
+                {serialBtn}
+                {serial.status === 'connected' && <Tag color="green">Máy quét đã kết nối</Tag>}
+                {serial.status === 'error' && <Tag color="red">Lỗi kết nối máy quét</Tag>}
+                <Space size={4}><SoundOutlined /><Switch size="small" checked={sound} onChange={setSound} /><Typography.Text type="secondary" style={{ fontSize: 12 }}>Bíp khi quét</Typography.Text></Space>
+            </Space>
+            <div style={{ transition: 'box-shadow .15s', ...flashStyle }}>
+                <Input.Search ref={inputRef} size="large" allowClear enterButton={<><ScanOutlined /> Đóng gói</>} placeholder="Quét mã vận đơn / mã đơn…" value={code} onChange={onChange} onSearch={onSubmit} onBlur={focusSoon} loading={scan.isPending} />
+            </div>
             <div style={{ marginTop: 16 }}>
                 {log.length === 0 ? <Empty description="Chưa quét gì trong phiên này." /> : log.map((r, i) => (
                     <div key={i} style={{ padding: '6px 10px', borderRadius: 6, marginBottom: 6, background: r.ok ? '#f6ffed' : '#fff1f0', border: `1px solid ${r.ok ? '#b7eb8f' : '#ffa39e'}` }}>
