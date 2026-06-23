@@ -25,7 +25,9 @@ export function EmailVerifiedPage() {
     const { data: user } = useAuth();
     const status = useMemo(() => {
         const raw = params.get('status');
-        return raw === 'success' || raw === 'already' || raw === 'invalid' ? raw : 'invalid';
+        return raw === 'success' || raw === 'already' || raw === 'expired' || raw === 'invalid'
+            ? raw
+            : 'invalid';
     }, [params]);
 
     // Verify thành công ⇒ refetch /auth/me để gate FE bỏ ngay khi user đang login.
@@ -77,21 +79,51 @@ export function EmailVerifiedPage() {
         );
     }
 
+    if (status === 'expired') {
+        return (
+            <Shell>
+                <Result
+                    status="warning"
+                    icon={<InfoCircleFilled style={{ color: '#F59E0B' }} />}
+                    title="Link xác thực đã hết hạn"
+                    subTitle={
+                        <div style={{ maxWidth: 480, margin: '0 auto', textAlign: 'left' }}>
+                            <p style={{ marginBottom: 8 }}>Link xác thực chỉ có hiệu lực trong <strong>24 giờ</strong> kể từ lúc gửi.</p>
+                            <p style={{ marginTop: 12 }}>Hãy đăng nhập rồi bấm <strong>"Gửi lại email xác thực"</strong> để nhận link mới.</p>
+                        </div>
+                    }
+                    extra={[
+                        user ? (
+                            <Button key="back" type="primary" size="large" icon={<ReloadOutlined />} onClick={() => navigate('/', { replace: true })}>
+                                Quay lại để gửi lại email
+                            </Button>
+                        ) : (
+                            <Link key="login" to="/login">
+                                <Button type="primary" size="large" icon={<ArrowRightOutlined />} iconPosition="end">
+                                    Đăng nhập để gửi lại email
+                                </Button>
+                            </Link>
+                        ),
+                    ]}
+                />
+            </Shell>
+        );
+    }
+
     return (
         <Shell>
             <Result
                 status="error"
                 icon={<CloseCircleFilled style={{ color: '#EF4444' }} />}
-                title="Link xác thực không hợp lệ hoặc đã hết hạn"
+                title="Link xác thực không hợp lệ"
                 subTitle={
                     <div style={{ maxWidth: 480, margin: '0 auto', textAlign: 'left' }}>
                         <p style={{ marginBottom: 8 }}>Một số nguyên nhân thường gặp:</p>
                         <ul style={{ marginTop: 0, paddingLeft: 20, color: '#475569' }}>
-                            <li>Link <strong>đã quá 60 phút</strong> kể từ lúc gửi.</li>
                             <li>Bạn đã sao chép thiếu ký tự khi paste vào trình duyệt.</li>
                             <li>Đường dẫn bị email-client tự chèn theo dõi (tracking redirect) làm hỏng chữ ký.</li>
                         </ul>
-                        <p style={{ marginTop: 12 }}>Giải pháp: đăng nhập rồi bấm <strong>"Gửi lại email xác thực"</strong> để nhận link mới (60 phút hiệu lực).</p>
+                        <p style={{ marginTop: 12 }}>Giải pháp: đăng nhập rồi bấm <strong>"Gửi lại email xác thực"</strong> để nhận link mới (24 giờ hiệu lực).</p>
                     </div>
                 }
                 extra={[

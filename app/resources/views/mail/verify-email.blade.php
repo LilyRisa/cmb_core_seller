@@ -7,7 +7,7 @@
 @endphp
 
 @section('title', 'Xác thực email — ' . $brand)
-@section('preheader', 'Xác thực email để bắt đầu sử dụng ' . $brand . '. Link hết hạn sau ' . $expiresInMinutes . ' phút.')
+@section('preheader', 'Xác thực email để bắt đầu sử dụng ' . $brand . '. Link hết hạn sau ' . ($expiresLabel ?? ($expiresInMinutes . ' phút')) . '.')
 
 @section('content')
     <p style="margin:0 0 12px 0;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:{{ $accent }};">
@@ -47,7 +47,7 @@
         <tr>
             <td style="padding:16px 18px;font-size:13px;color:#4B5563;line-height:20px;">
                 <p style="margin:0 0 6px 0;font-weight:600;color:#111827;">
-                    ⏱ Link xác thực hết hạn sau {{ $expiresInMinutes }} phút.
+                    ⏱ Link xác thực hết hạn sau {{ $expiresLabel ?? ($expiresInMinutes . ' phút') }}.
                 </p>
                 <p style="margin:0;">
                     Nếu bạn không đăng ký tài khoản tại {{ $brand }}, vui lòng bỏ qua email này — tài khoản sẽ không được kích hoạt.

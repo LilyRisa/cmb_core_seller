@@ -1,6 +1,7 @@
 <?php
 
 use CMBcoreSeller\Http\Middleware\AssignRequestId;
+use CMBcoreSeller\Http\Middleware\TrustHttpsFromConfig;
 use CMBcoreSeller\Modules\Accounting\Exceptions\AccountingException;
 use CMBcoreSeller\Modules\Billing\Exceptions\AiCreditException;
 use CMBcoreSeller\Modules\Billing\Http\Middleware\EnforcePlanFeature;
@@ -56,6 +57,11 @@ return Application::configure(basePath: dirname(__DIR__))
                 Request::HEADER_X_FORWARDED_PORT |
                 Request::HEADER_X_FORWARDED_PROTO
         );
+
+        // Behind Cloudflare + NPM (HTTP :80) the proxy can advertise the request as
+        // http; force https when APP_URL is https so signed-URL signing & validation
+        // agree on scheme (SPEC 0022 — email verify links read as "expired" otherwise).
+        $middleware->prepend(TrustHttpsFromConfig::class);
 
         // Every request gets a request_id / trace_id (log context + Sentry tag +
         // X-Request-Id header). Prepended so it wraps the whole pipeline.

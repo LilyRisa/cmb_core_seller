@@ -49,13 +49,15 @@ class VerifyEmailNotification extends Notification implements ShouldQueue
     {
         $url = $this->verificationUrl($notifiable);
         $brand = (string) system_setting('notifications.brand_name', config('notifications.brand.name', 'CMBcoreSeller'));
+        $minutes = $this->expireMinutes();
 
         return (new MailMessage)
             ->subject("[{$brand}] Xác thực địa chỉ email")
             ->view('notifications::verify-email', [
                 'user' => $notifiable,
                 'verifyUrl' => $url,
-                'expiresInMinutes' => (int) config('auth.verification.expire', 60),
+                'expiresInMinutes' => $minutes,
+                'expiresLabel' => $this->humanExpire($minutes),
             ]);
     }
 
@@ -63,11 +65,24 @@ class VerifyEmailNotification extends Notification implements ShouldQueue
     {
         return URL::temporarySignedRoute(
             'api.v1.auth.email.verify',
-            Carbon::now()->addMinutes((int) config('auth.verification.expire', 60)),
+            Carbon::now()->addMinutes($this->expireMinutes()),
             [
                 'id' => $notifiable->getKey(),
                 'hash' => sha1((string) $notifiable->getEmailForVerification()),
             ]
         );
+    }
+
+    protected function expireMinutes(): int
+    {
+        return (int) config('auth.verification.expire', 60 * 24);
+    }
+
+    /** Nhãn thân thiện: "24 giờ" thay vì "1440 phút". */
+    protected function humanExpire(int $minutes): string
+    {
+        return $minutes > 0 && $minutes % 60 === 0
+            ? ($minutes / 60).' giờ'
+            : $minutes.' phút';
     }
 }

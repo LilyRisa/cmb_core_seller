@@ -7,6 +7,8 @@ use CMBcoreSeller\Models\User;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 
 /**
@@ -23,9 +25,23 @@ class EmailVerificationController extends Controller
         $successUrl = $redirectBase.'/email-verified?status=success';
         $alreadyUrl = $redirectBase.'/email-verified?status=already';
         $invalidUrl = $redirectBase.'/email-verified?status=invalid';
+        $expiredUrl = $redirectBase.'/email-verified?status=expired';
 
         if (! $request->hasValidSignature()) {
-            return redirect()->away($invalidUrl);
+            // Tách "hết hạn" (chữ ký đúng, quá expires) khỏi "sai chữ ký" để UX rõ ràng
+            // và để log lộ ra sự cố proxy (scheme=http khi đáng lẽ https ⇒ chữ ký luôn sai).
+            $expiresTs = (int) $request->query('expires');
+            $expired = $expiresTs > 0 && Carbon::now()->getTimestamp() > $expiresTs;
+
+            Log::warning('auth.email.verify.signature_failed', [
+                'reason' => $expired ? 'expired' : 'bad_signature',
+                'user_id' => $id,
+                'scheme' => $request->getScheme(),
+                'host' => $request->getHost(),
+                'secure' => $request->isSecure(),
+            ]);
+
+            return redirect()->away($expired ? $expiredUrl : $invalidUrl);
         }
 
         /** @var User|null $user */

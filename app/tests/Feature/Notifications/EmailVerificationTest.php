@@ -68,7 +68,7 @@ class EmailVerificationTest extends TestCase
         $this->assertNull($user->fresh()->email_verified_at);
     }
 
-    public function test_verify_with_expired_signature_redirects_invalid(): void
+    public function test_verify_with_expired_signature_redirects_expired(): void
     {
         $user = User::factory()->unverified()->create();
         $url = URL::temporarySignedRoute('api.v1.auth.email.verify', now()->subMinutes(5), [
@@ -79,7 +79,8 @@ class EmailVerificationTest extends TestCase
         $response = $this->get($url);
 
         $response->assertRedirect();
-        $this->assertStringContainsString('status=invalid', $response->headers->get('Location'));
+        // Chữ ký đúng nhưng quá hạn ⇒ tách riêng status=expired (KHÔNG gộp vào invalid).
+        $this->assertStringContainsString('status=expired', $response->headers->get('Location'));
         $this->assertNull($user->fresh()->email_verified_at);
     }
 

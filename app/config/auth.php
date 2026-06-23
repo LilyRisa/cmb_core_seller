@@ -97,4 +97,17 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Email Verification (SPEC 0022)
+    |--------------------------------------------------------------------------
+    |
+    | TTL (phút) của signed URL xác thực email. 60 phút quá ngắn cho link gửi
+    | qua email (chậm giao thư / user mở muộn ⇒ "hết hạn"); mặc định 24h.
+    */
+
+    'verification' => [
+        'expire' => (int) env('AUTH_VERIFICATION_EXPIRE', 60 * 24),
+    ],
+
 ];
