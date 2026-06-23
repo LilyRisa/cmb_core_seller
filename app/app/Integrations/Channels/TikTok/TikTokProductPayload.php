@@ -20,9 +20,13 @@ use CMBcoreSeller\Integrations\Channels\DTO\ListingDraftDTO;
 final class TikTokProductPayload
 {
     /**
+     * @param  array<int,array<string,mixed>>  $productAttributes  Thuộc tính ngành hàng ĐÃ DỰNG
+     *                                                             sẵn theo schema TikTok `[{id, values:[{id|name}]}]`. Connector dựng từ map phẳng của nháp
+     *                                                             (cần biết input_type qua Get Attributes) rồi truyền vào — KHÔNG suy diễn ở đây vì payload
+     *                                                             builder thuần, không gọi API. Xem {@see TikTokPublisher::buildProductAttributes()}.
      * @return array<string,mixed>
      */
-    public static function toBody(ListingDraftDTO $d, string $saveMode = 'LISTING', ?string $videoId = null): array
+    public static function toBody(ListingDraftDTO $d, string $saveMode = 'LISTING', ?string $videoId = null, array $productAttributes = []): array
     {
         $body = [
             'title' => $d->title,
@@ -35,7 +39,7 @@ final class TikTokProductPayload
                 'value' => (string) ($d->logistics['package_weight'] ?? ''),
                 'unit' => $d->logistics['weight_unit'] ?? 'KILOGRAM',
             ],
-            'product_attributes' => $d->attributes['product_attributes'] ?? [],
+            'product_attributes' => $productAttributes,
             'skus' => array_map(fn ($s) => array_merge([
                 'seller_sku' => $s['seller_sku'],
                 // sales_attributes: khóa SỐ ⇒ thuộc tính dựng sẵn (gửi `id` kiểu Int64);

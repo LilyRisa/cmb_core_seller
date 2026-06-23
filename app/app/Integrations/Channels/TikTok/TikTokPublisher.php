@@ -49,8 +49,17 @@ final class TikTokPublisher implements ProductPublishingConnector, PromotionConn
             throw MarketplaceApiException::validation('tiktok', $errors);
         }
 
+        // Thuộc tính ngành hàng: nháp lưu PHẲNG ({attrId: value}). TikTok cần
+        // `product_attributes:[{id, values:[{id|name}]}]` — select gửi value id, text/number gửi
+        // name. Phân biệt id↔name cần input_type (Get Attributes), nên dựng tại đây rồi truyền vào
+        // payload. Chỉ gọi taxonomy khi nháp THỰC SỰ có khóa thuộc tính (khóa số) — tránh 1 call
+        // thừa cho ngành hàng không thuộc tính.
+        $productAttributes = $this->hasCategoryAttributeKeys($draft->attributes)
+            ? $this->buildProductAttributes($draft->attributes, $this->getCategoryAttributes($auth, $draft->categoryId))
+            : [];
+
         // Video do job chuẩn bị trước (upload) và truyền qua DTO.videoExternalId.
-        $resp = $this->client->requestRaw('POST', '/product/202309/products', $auth, [], TikTokProductPayload::toBody($draft, 'LISTING', $draft->videoExternalId));
+        $resp = $this->client->requestRaw('POST', '/product/202309/products', $auth, [], TikTokProductPayload::toBody($draft, 'LISTING', $draft->videoExternalId, $productAttributes));
         if (($resp['code'] ?? -1) !== 0) {
             throw MarketplaceApiException::fromTikTok($resp);
         }
@@ -67,6 +76,86 @@ final class TikTokPublisher implements ProductPublishingConnector, PromotionConn
         }
 
         return new ListingResultDTO((string) ($resp['data']['product_id'] ?? ''), $skuMap, 'PENDING', $resp);
+    }
+
+    /**
+     * Nháp có ít nhất một khóa thuộc tính ngành hàng? Khóa thuộc tính TikTok là chuỗi-SỐ
+     * (vd "100107"); các khóa meta của nháp ("name","description","video_url"…) là chữ.
+     *
+     * @param  array<string,mixed>  $flat
+     */
+    private function hasCategoryAttributeKeys(array $flat): bool
+    {
+        foreach (array_keys($flat) as $k) {
+            if (ctype_digit((string) $k)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Dựng `product_attributes` cho Create Product 202309 từ map thuộc tính PHẲNG của nháp
+     * ({attrId: value}) dựa trên định nghĩa ngành hàng (Get Attributes 202309).
+     *
+     * - SELECT / MULTI_SELECT: nháp lưu option id ⇒ gửi `{id}` (TikTok điền name).
+     * - TEXT / NUMBER: giá trị tùy biến ⇒ gửi `{name}`.
+     * - Bỏ khóa meta (không phải thuộc tính ngành hàng) và thuộc tính phân loại biến thể
+     *   (is_sale_prop — đi qua `sales_attributes` của từng SKU, TikTok từ chối nếu lẫn vào đây).
+     *
+     * @param  array<string,mixed>  $flat
+     * @param  ListingAttributeDTO[]  $meta
+     * @return array<int,array<string,mixed>>
+     */
+    private function buildProductAttributes(array $flat, array $meta): array
+    {
+        $byId = [];
+        foreach ($meta as $a) {
+            $byId[$a->id] = $a;
+        }
+
+        $out = [];
+        foreach ($flat as $attrId => $value) {
+            $attr = $byId[(string) $attrId] ?? null;
+            if ($attr === null || $attr->isSaleProp) {
+                continue;
+            }
+
+            $values = [];
+            foreach (is_array($value) ? $value : [$value] as $v) {
+                $raw = trim((string) $v);
+                if ($raw !== '') {
+                    $values[] = $this->attributeValue($attr, $raw);
+                }
+            }
+
+            if ($values !== []) {
+                $out[] = ['id' => (string) $attrId, 'values' => $values];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Một giá trị thuộc tính → `{id}` (option dựng sẵn của SELECT/MULTI_SELECT) hoặc `{name}`
+     * (giá trị tùy biến: TEXT/NUMBER, hoặc option không khớp khi ngành hàng cho phép tự nhập).
+     *
+     * @return array<string,string>
+     */
+    private function attributeValue(ListingAttributeDTO $attr, string $raw): array
+    {
+        $isSelect = in_array($attr->inputType, [ListingAttributeDTO::INPUT_SELECT, ListingAttributeDTO::INPUT_MULTI_SELECT], true);
+        if ($isSelect) {
+            foreach ($attr->values as $opt) {
+                if ((string) $opt['id'] === $raw) {
+                    return ['id' => $raw];
+                }
+            }
+        }
+
+        return ['name' => $raw];
     }
 
     /** @return CategoryNodeDTO[] */

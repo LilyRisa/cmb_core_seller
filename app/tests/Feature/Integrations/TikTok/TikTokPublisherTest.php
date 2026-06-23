@@ -50,6 +50,55 @@ class TikTokPublisherTest extends TestCase
         $this->assertSame('PENDING', $result->rawStatus);
     }
 
+    public function test_builds_product_attributes_from_flat_draft_attributes(): void
+    {
+        // Get Attributes 202309: 100107 = select (Loại bảo hành), 200 = text (free), 300 = number.
+        Http::fake([
+            '*/product/202309/categories/*/attributes*' => Http::response(['code' => 0, 'data' => [
+                'attributes' => [
+                    ['id' => '100107', 'name' => 'Loại bảo hành', 'type' => 'PRODUCT_PROPERTY', 'is_required' => true,
+                        'values' => [['id' => '1000055', 'name' => 'Bảo hành nhà sản xuất'], ['id' => '1000056', 'name' => 'Không bảo hành']]],
+                    ['id' => '200', 'name' => 'Xuất xứ', 'type' => 'PRODUCT_PROPERTY', 'is_required' => false, 'values' => []],
+                    ['id' => '300', 'name' => 'Công suất', 'type' => 'PRODUCT_PROPERTY', 'is_required' => false,
+                        'values' => [], 'value_data_format' => 'POSITIVE_INT_OR_DECIMAL'],
+                ],
+            ]]),
+            '*/product/202309/products*' => Http::response(['code' => 0, 'data' => [
+                'product_id' => 'p-9', 'skus' => [['id' => 's1', 'seller_sku' => 'S1']],
+            ]]),
+        ]);
+
+        $draft = new ListingDraftDTO(
+            title: 'Áo thun cotton cao cấp form rộng unisex', description: 'Mô tả', categoryId: '913160', brandId: '700001',
+            // attributes PHẲNG: id ngành hàng là khóa, lẫn cả khóa meta (description) phải bị bỏ qua.
+            attributes: ['100107' => '1000055', '200' => 'Hà Nội', '300' => 85, 'description' => 'ignore me'],
+            media: [new MediaRefDTO('tos://img-uri-1', 'uri')],
+            skus: [['seller_sku' => 'S1', 'price' => 199000, 'stock' => 10, 'warehouse_id' => 'WH1', 'sale_props' => []]],
+            logistics: ['package_weight' => 0.3],
+        );
+
+        app(TikTokPublisher::class)->createListing($this->auth(), $draft);
+
+        Http::assertSent(function ($r) {
+            if (! str_contains($r->url(), '/product/202309/products')) {
+                return false;
+            }
+            $pa = $r->data()['product_attributes'] ?? null;
+            if (! is_array($pa)) {
+                return false;
+            }
+            $byId = [];
+            foreach ($pa as $a) {
+                $byId[$a['id']] = $a['values'];
+            }
+
+            return ($byId['100107'][0]['id'] ?? null) === '1000055'  // select ⇒ value id
+                && ($byId['200'][0]['name'] ?? null) === 'Hà Nội'    // text ⇒ name
+                && ($byId['300'][0]['name'] ?? null) === '85'        // number ⇒ name (chuỗi)
+                && ! array_key_exists('description', $byId);          // khóa meta bị loại
+        });
+    }
+
     public function test_attaches_prepared_video_id_to_product(): void
     {
         Http::fake(['*/product/202309/products*' => Http::response(['code' => 0, 'data' => ['product_id' => 'p-1', 'skus' => [['id' => 's1', 'seller_sku' => 'S1']]]])]);

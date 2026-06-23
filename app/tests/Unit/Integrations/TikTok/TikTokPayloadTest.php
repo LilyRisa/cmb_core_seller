@@ -73,6 +73,28 @@ class TikTokPayloadTest extends TestCase
         $this->assertArrayNotHasKey('name', $sa);
     }
 
+    public function test_product_attributes_are_passed_through_to_body(): void
+    {
+        $draft = new ListingDraftDTO(
+            title: 'Áo thun cotton nam form rộng',
+            description: 'd',
+            categoryId: '600001',
+            brandId: null,
+            // Khóa "product_attributes" lồng KHÔNG còn được dùng — payload nhận mảng đã dựng sẵn.
+            attributes: ['100107' => '1000055'],
+            media: [new MediaRefDTO('uri-1', 'uri')],
+            skus: [[
+                'seller_sku' => 'S1', 'price' => 199000, 'stock' => 5, 'warehouse_id' => 'WH1', 'sale_props' => [],
+            ]],
+            logistics: ['package_weight' => 0.5],
+        );
+
+        $pa = [['id' => '100107', 'values' => [['id' => '1000055']]]];
+        $body = TikTokProductPayload::toBody($draft, 'LISTING', null, $pa);
+
+        $this->assertSame($pa, $body['product_attributes']);
+    }
+
     public function test_sends_identifier_code_and_idempotency_key_when_present(): void
     {
         $draft = new ListingDraftDTO(
