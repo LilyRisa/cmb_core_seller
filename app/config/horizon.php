@@ -302,13 +302,16 @@ return [
     ],
 
     'environments' => [
+        // Tổng cap ~72 worker (trước 50) — job phần lớn I/O-bound (API sàn/FB/TikTok/AI/gotenberg)
+        // nên oversubscribe 6 core có lợi. Worst-case RAM dưới mem_limit 4.5g của container worker;
+        // bg/labels giữ nice=5 (config defaults) nên nhường CPU cho web + queue critical lúc tranh tải.
         'production' => [
-            'supervisor-critical' => ['maxProcesses' => 12, 'balanceMaxShift' => 2, 'balanceCooldown' => 3],
-            'supervisor-sync' => ['maxProcesses' => 12, 'balanceMaxShift' => 2, 'balanceCooldown' => 3],
+            'supervisor-critical' => ['maxProcesses' => 16, 'balanceMaxShift' => 2, 'balanceCooldown' => 3],
+            'supervisor-sync' => ['maxProcesses' => 18, 'balanceMaxShift' => 3, 'balanceCooldown' => 3],
             'supervisor-labels' => ['maxProcesses' => 4, 'balanceMaxShift' => 1, 'balanceCooldown' => 3],
-            'supervisor-default' => ['maxProcesses' => 8, 'balanceMaxShift' => 1, 'balanceCooldown' => 3],
-            'supervisor-messaging-rt' => ['maxProcesses' => 8, 'balanceMaxShift' => 2, 'balanceCooldown' => 3],
-            'supervisor-messaging-bg' => ['maxProcesses' => 6, 'balanceMaxShift' => 1, 'balanceCooldown' => 3],
+            'supervisor-default' => ['maxProcesses' => 12, 'balanceMaxShift' => 2, 'balanceCooldown' => 3],
+            'supervisor-messaging-rt' => ['maxProcesses' => 12, 'balanceMaxShift' => 2, 'balanceCooldown' => 3],
+            'supervisor-messaging-bg' => ['maxProcesses' => 10, 'balanceMaxShift' => 2, 'balanceCooldown' => 3],
         ],
 
         'staging' => [

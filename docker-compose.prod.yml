@@ -77,6 +77,10 @@ x-app-env: &app-env
   REDIS_PASSWORD: "null"
   CACHE_STORE: redis
   QUEUE_CONNECTION: redis
+  # PHP-FPM pool (chỉ container `app` đọc — entrypoint sinh zz-pool.conf). Mỗi child ~40MB RSS
+  # (đo prod). 64 child ≈ 2.6–3.2GB, nằm dưới mem_limit 4g của `app`. Tăng từ default 40.
+  PHP_FPM_MAX_CHILDREN: "${PHP_FPM_MAX_CHILDREN:-64}"
+  PHP_FPM_MAX_REQUESTS: "${PHP_FPM_MAX_REQUESTS:-500}"
   # --- Realtime inbox (Laravel Reverb / WebSocket) — ADR-0021 -----------------
   # App/worker BẮN event tới reverb container qua Pusher HTTP API NỘI BỘ
   # (http://reverb:8080) — KHÔNG đi qua proxy. Browser kết nối wss QUA proxy
@@ -279,6 +283,9 @@ services:
       - "9000"
     ulimits:
       nofile: { soft: 65535, hard: 65535 }
+    # Chốt chặn RAM: 64 php-fpm child × ~40MB ≈ 2.6–3.2GB (chia sẻ opcache) < 4g. Nếu vượt,
+    # kernel OOM-kill TRONG container (restart) thay vì sập cả host. Tránh crash toàn hệ thống.
+    mem_limit: 4g
     restart: unless-stopped
     logging: *logging
 
@@ -331,6 +338,9 @@ services:
     stop_grace_period: 30s
     ulimits:
       nofile: { soft: 65535, hard: 65535 }
+    # Chốt chặn RAM cho Horizon: tổng cap ~72 worker × ~54MB RSS (cgroup thực thấp hơn nhiều do
+    # opcache dùng chung) < 4.5g. Vượt ⇒ OOM-kill container (restart), KHÔNG sập host.
+    mem_limit: 4608m
     restart: unless-stopped
     logging: *logging
 
