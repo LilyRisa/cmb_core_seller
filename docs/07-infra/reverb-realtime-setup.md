@@ -3,6 +3,8 @@
 > Realtime hộp thư messaging theo ADR-0021. Code đã xong (commit `a622cbe`). Tài liệu này
 > hướng dẫn **bật thật** ở production (và test cục bộ). Nếu KHÔNG cấu hình, hệ thống vẫn
 > chạy bình thường bằng **polling fallback** (FE tự refetch 10–20s) — không vỡ gì.
+>
+> Client **app mobile** (bearer token) xem riêng: [`docs/05-api/mobile-messaging-websocket.md`](../05-api/mobile-messaging-websocket.md).
 
 ## 1. Kiến trúc (ai nói chuyện với ai)
 
