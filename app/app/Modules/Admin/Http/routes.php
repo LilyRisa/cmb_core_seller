@@ -5,6 +5,7 @@ use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminAnnouncementController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminAuditLogController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminAuthController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminBroadcastController;
+use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminDesktopBackgroundController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminPlanController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminTenantController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminUserController;
@@ -101,6 +102,13 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
         Route::patch('announcements/{id}', [AdminAnnouncementController::class, 'update'])->whereNumber('id')->name('admin.announcements.update');
         Route::delete('announcements/{id}', [AdminAnnouncementController::class, 'destroy'])->whereNumber('id')->name('admin.announcements.destroy');
 
+        // SPEC 0039 — thư viện hình nền màn Desktop (giao diện v2).
+        Route::get('desktop-backgrounds', [AdminDesktopBackgroundController::class, 'index'])->name('admin.desktop-backgrounds.index');
+        Route::post('desktop-backgrounds', [AdminDesktopBackgroundController::class, 'store'])->name('admin.desktop-backgrounds.store');
+        Route::post('desktop-backgrounds/media', [AdminDesktopBackgroundController::class, 'media'])->name('admin.desktop-backgrounds.media');
+        Route::patch('desktop-backgrounds/{id}', [AdminDesktopBackgroundController::class, 'update'])->whereNumber('id')->name('admin.desktop-backgrounds.update');
+        Route::delete('desktop-backgrounds/{id}', [AdminDesktopBackgroundController::class, 'destroy'])->whereNumber('id')->name('admin.desktop-backgrounds.destroy');
+
         // --- Tenant Users (SPEC 0020 + Spec 2026-05-17 mở rộng) ---
         Route::get('users', [AdminUserController::class, 'index'])->name('admin.users.index');
         Route::get('users/{id}', [AdminUserController::class, 'show'])
@@ -139,4 +147,8 @@ Route::middleware(['api', 'auth:sanctum', 'verified'])
     ->prefix('api/v1')->group(function () {
         Route::get('announcements/active', [AnnouncementController::class, 'active'])
             ->middleware('throttle:60,1')->name('announcements.active');
+
+        // SPEC 0039 — preset hình nền đang bật để người dùng chọn (giao diện v2).
+        Route::get('desktop-backgrounds', [AdminDesktopBackgroundController::class, 'options'])
+            ->middleware('throttle:60,1')->name('desktop-backgrounds.options');
     });
