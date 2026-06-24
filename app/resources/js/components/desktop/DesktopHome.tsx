@@ -1,4 +1,4 @@
-import { usePermittedApps } from '@/lib/desktop/appCatalog';
+import { usePermittedApps, appColor } from '@/lib/desktop/appCatalog';
 import { useDesktopShell } from '@/lib/desktop/desktopShellStore';
 import { useUserPreferences } from '@/lib/preferences';
 
@@ -21,7 +21,7 @@ export function DesktopHome() {
             <div className="desk-grid">
                 {apps.map((app) => (
                     <button key={app.key} className="desk-icon" onClick={() => openApp(app.key, app.defaultPath)} title={app.label}>
-                        <span className="desk-icon-badge">{app.icon}</span>
+                        <span className="desk-icon-badge" style={{ background: appColor(app.key).iconBg }}>{app.icon}</span>
                         <span className="desk-icon-label">{app.label}</span>
                     </button>
                 ))}

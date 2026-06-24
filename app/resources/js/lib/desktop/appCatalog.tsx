@@ -125,6 +125,28 @@ export const APP_CATALOG: AppDef[] = [
 
 import { useCan } from '@/lib/tenant';
 
+/**
+ * Màu biểu tượng theo app (kiểu icon ứng dụng iOS/macOS). `iconBg` = nền tile gradient
+ * trên màn Desktop; `color` = màu icon đặc dùng cho tab/menu. Map theo `key` để khỏi
+ * sửa từng phần tử APP_CATALOG.
+ */
+export const APP_COLORS: Record<string, { color: string; iconBg: string }> = {
+    dashboard: { color: '#2563EB', iconBg: 'linear-gradient(160deg,#60A5FA,#2563EB)' },
+    sales: { color: '#059669', iconBg: 'linear-gradient(160deg,#34D399,#059669)' },
+    messaging: { color: '#0891B2', iconBg: 'linear-gradient(160deg,#22D3EE,#0891B2)' },
+    listing: { color: '#EA580C', iconBg: 'linear-gradient(160deg,#FB923C,#EA580C)' },
+    warehouse: { color: '#D97706', iconBg: 'linear-gradient(160deg,#FBBF24,#D97706)' },
+    ads_facebook: { color: '#1877F2', iconBg: 'linear-gradient(160deg,#3B82F6,#1877F2)' },
+    ads_tiktok: { color: '#111827', iconBg: 'linear-gradient(160deg,#4B5563,#111827)' },
+    reports: { color: '#7C3AED', iconBg: 'linear-gradient(160deg,#A78BFA,#7C3AED)' },
+    accounting: { color: '#0D9488', iconBg: 'linear-gradient(160deg,#2DD4BF,#0D9488)' },
+    settings: { color: '#475569', iconBg: 'linear-gradient(160deg,#94A3B8,#475569)' },
+};
+
+const DEFAULT_APP_COLOR = { color: '#2563EB', iconBg: 'linear-gradient(160deg,#60A5FA,#2563EB)' };
+
+export const appColor = (key: string) => APP_COLORS[key] ?? DEFAULT_APP_COLOR;
+
 /** Lọc app theo quyền — gọi useCan cho mọi app (số lượng cố định, đúng rule hooks). */
 export function usePermittedApps(): AppDef[] {
     // Hooks gọi cố định theo thứ tự khai báo (APP_CATALOG bất biến) — an toàn.
