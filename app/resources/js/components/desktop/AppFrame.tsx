@@ -26,11 +26,11 @@ export function AppFrame({ app }: { app: AppDef }) {
     }, [app, location.pathname]);
 
     return (
-        <Layout style={{ height: '100%' }}>
-            <Sider theme="light" width={220} style={{ borderRight: '1px solid #f0f0f0', overflowY: 'auto' }}>
+        <Layout className="desk-window" style={{ height: '100%' }}>
+            <Sider className="desk-window-sider" theme="light" width={220} style={{ overflowY: 'auto' }}>
                 <Menu mode="inline" selectedKeys={[selectedKey]} defaultOpenKeys={['acc-books', 'acc-money']} items={items} style={{ borderInlineEnd: 'none' }} />
             </Sider>
-            <Content style={{ padding: 16, overflow: 'auto' }}>
+            <Content className="desk-window-content">
                 <Routes>{appRouteElements()}</Routes>
             </Content>
         </Layout>

@@ -18,12 +18,12 @@ export function TabStrip() {
     ];
     return (
         <Tabs
+            className="desk-tabs"
             type="editable-card" hideAdd size="small"
             activeKey={activeKey}
             onChange={setActive}
             onEdit={(key, action) => { if (action === 'remove' && typeof key === 'string') closeTab(key); }}
             items={items}
-            style={{ padding: '4px 8px 0', background: '#fff', borderBottom: '1px solid #f0f0f0' }}
             removeIcon={<CloseOutlined />}
         />
     );

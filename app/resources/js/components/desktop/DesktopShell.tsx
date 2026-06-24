@@ -68,8 +68,9 @@ export function DesktopShell() {
     }, [tabs, activeKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
-        <Layout style={{ minHeight: '100vh' }}>
+        <Layout className="desk-shell" style={{ minHeight: '100vh' }}>
             <AppHeader
+                className="desk-header"
                 left={<img src="/images/logocmb.png" alt="CMB Core" style={{ width: 28, height: 28, objectFit: 'contain' }} />}
                 onOpenSettings={() => openApp('settings', '/settings/profile')}
             />

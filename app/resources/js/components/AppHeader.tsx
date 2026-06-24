@@ -9,7 +9,7 @@ import { NotificationBell } from '@/components/NotificationBell';
 import { HeaderBillingActions } from '@/components/HeaderBillingActions';
 import { CHROME_EXTENSION_URL } from '@/lib/extension';
 
-export function AppHeader({ left, onOpenSettings }: { left?: React.ReactNode; onOpenSettings?: () => void }) {
+export function AppHeader({ left, onOpenSettings, className }: { left?: React.ReactNode; onOpenSettings?: () => void; className?: string }) {
     const { data: user } = useAuth();
     const logout = useLogout();
     const navigate = useNavigate();
@@ -20,7 +20,7 @@ export function AppHeader({ left, onOpenSettings }: { left?: React.ReactNode; on
         : { key: 'settings', icon: <SettingOutlined />, label: <Link to="/settings/members">Cài đặt</Link> };
 
     return (
-        <div style={{ background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px 0 8px', borderBottom: '1px solid #f0f0f0', height: 56 }}>
+        <div className={className} style={{ background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px 0 8px', borderBottom: '1px solid #f0f0f0', height: 56 }}>
             <Space>
                 {left}
                 <ShopOutlined style={{ color: '#8c8c8c' }} />

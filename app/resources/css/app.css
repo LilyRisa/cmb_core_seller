@@ -2112,3 +2112,73 @@ pre::-webkit-scrollbar-track {
     .desk-app-panel { animation: none; }
     .desk-icon, .desk-icon-badge { transition: none; }
 }
+
+/* -----------------------------------------------------------------------------
+   Theme macOS cho v2 (scoped .desk-shell) — đồng bộ bo góc + màu với theme cũ:
+   header kính mờ, tab bo tròn kiểu Safari, vùng app = cửa sổ trắng bo góc nổi
+   trên nền slate. Dùng token --radius*/--ink*/--blue* để khớp bản v1.
+   ----------------------------------------------------------------------------- */
+
+/* Nền sau cửa sổ app = slate nhạt (cảm giác cửa sổ nổi trên desktop). */
+.desk-shell.ant-layout { background: var(--surface-2) !important; }
+
+/* Header — thanh công cụ kính mờ (macOS toolbar). */
+.desk-header {
+    background: rgba(255, 255, 255, 0.72) !important;
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08) !important;
+}
+
+/* Tab strip — tab bo tròn kiểu Safari; tab active nổi trắng có bóng mềm. */
+.desk-tabs.ant-tabs { background: transparent; }
+.desk-tabs > .ant-tabs-nav { margin: 0; padding: 8px 12px 4px; }
+.desk-tabs > .ant-tabs-nav::before { border-bottom: 0 !important; }
+.desk-tabs .ant-tabs-nav-list { gap: 6px; }
+.desk-tabs .ant-tabs-content-holder { display: none; }
+.desk-tabs .ant-tabs-tab.ant-tabs-tab {
+    border: 1px solid transparent !important;
+    border-radius: var(--radius-lg) !important;
+    background: transparent !important;
+    padding: 6px 14px !important;
+    margin: 0 !important;
+    color: var(--ink-600);
+    transition: background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+}
+.desk-tabs .ant-tabs-tab:hover { background: rgba(15, 23, 42, 0.05) !important; color: var(--ink-800); }
+.desk-tabs .ant-tabs-tab-active.ant-tabs-tab {
+    background: #fff !important;
+    border-color: var(--ink-100) !important;
+    box-shadow: var(--shadow-sm);
+}
+.desk-tabs .ant-tabs-tab-active .ant-tabs-tab-btn { color: var(--ink-900) !important; font-weight: 600; }
+.desk-tabs .ant-tabs-tab .ant-tabs-tab-remove {
+    color: var(--ink-400); margin-inline-start: 6px; border-radius: var(--radius-sm);
+    transition: background 0.12s ease, color 0.12s ease;
+}
+.desk-tabs .ant-tabs-tab .ant-tabs-tab-remove:hover { background: var(--ink-100); color: var(--ink-700); }
+
+/* Cửa sổ app — khối trắng bo góc nổi trên nền slate (giống cửa sổ macOS). */
+.desk-shell .desk-window.ant-layout {
+    margin: 2px 12px 12px;
+    height: calc(100% - 14px);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    background: #fff !important;
+    border: 1px solid var(--ink-100);
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.10), 0 2px 6px rgba(15, 23, 42, 0.05);
+}
+.desk-window .desk-window-sider.ant-layout-sider-light {
+    background: var(--surface-2) !important;
+    border-right: 1px solid var(--ink-100) !important;
+    box-shadow: none;
+}
+/* Bỏ dải ribbon xanh + brand-row của sider (chỉ dành cho sider v1 có logo). */
+.desk-window .ant-layout-sider-children::after { display: none !important; }
+.desk-window .ant-layout-sider-light > div:first-child { border-bottom: 0 !important; }
+.desk-window .desk-window-content.ant-layout-content {
+    margin: 0 !important;
+    padding: 16px 18px;
+    overflow: auto;
+    background: #fff;
+}
