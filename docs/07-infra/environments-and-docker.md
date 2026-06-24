@@ -33,7 +33,7 @@
 | `vite` | — | `node:20-alpine`: `npm ci && npm run dev -- --host 0.0.0.0`, port `5173`, bind-mount `./app`, node_modules anon | — (asset baked vào image `web`) |
 | `mailpit` | — | `axllent/mailpit` (`:1025` SMTP, `:8025` UI) | — (dùng SMTP thật) |
 | `postgres` | PG 15, volume `pgdata`, healthcheck `pg_isready` | + port `5432:5432` | + restart, logging |
-| `redis` | Redis 7 (appendonly), volume `redisdata`, healthcheck `redis-cli ping` | + port `6379:6379` | + restart, logging |
+| `redis` | Redis 7 (appendonly), volume `redisdata`, healthcheck `redis-cli ping` | + port `6379:6379` | + restart, logging, **tự `redis-check-aof --fix` khi boot** (chống crash-loop do AOF rách khi host tắt/cúp đột ngột; sau đó `exec docker-entrypoint.sh` để giữ chown + drop user `redis`) |
 | `minio` + `minio-init` | MinIO + job một-lần tạo bucket | + port `9000`/`9001` | + restart, logging |
 | `gotenberg` | `gotenberg/gotenberg:8` (HTML→PDF) | — | + restart, logging |
 | `meilisearch` / `reverb` | (Phase sau) | | |

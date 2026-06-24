@@ -430,7 +430,17 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    # Tự sửa AOF hỏng (torn write do host tắt/cúp đột ngột) TRƯỚC khi start để không
+    # crash-loop. `redis-check-aof --fix` xử lý cả truncation lẫn format-error tail (cái
+    # mà aof-load-truncated KHÔNG cứu được); `yes` trả lời prompt [y/N]; `|| true` cho
+    # volume mới chưa có AOF. Sau đó exec lại entrypoint gốc để giữ chown + gosu drop
+    # sang user `redis` như mặc định của image.
+    command:
+      - sh
+      - -c
+      - >-
+        yes | redis-check-aof --fix /data/appendonlydir/appendonly.aof.manifest 2>/dev/null || true;
+        exec docker-entrypoint.sh redis-server --appendonly yes
     volumes:
       - redisdata:/data
     healthcheck:
