@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import { MemoryRouter, useLocation, UNSAFE_LocationContext as LocationContext } from 'react-router-dom';
 import { Layout } from 'antd';
 import { AppHeader } from '@/components/AppHeader';
 import { TabStrip } from '@/components/desktop/TabStrip';
@@ -87,10 +87,16 @@ export function DesktopShell() {
                     if (!app) return null;
                     return (
                         <div key={t.appKey} style={{ position: 'absolute', inset: 0, display: activeKey === t.appKey ? 'block' : 'none' }}>
-                            <MemoryRouter initialEntries={[t.path]}>
-                                <TabBridge appKey={t.appKey} active={activeKey === t.appKey} />
-                                <AppFrame app={app} />
-                            </MemoryRouter>
+                            {/* Reset LocationContext về null ngay trên MemoryRouter của tab: React Router cấm
+                                lồng <Router> trong <Router> (invariant đọc useContext(LocationContext) != null).
+                                Mỗi tab cần history riêng nên dùng MemoryRouter độc lập — đặt context = null để
+                                qua được invariant mà vẫn giữ keep-alive. Xem react-router useInRouterContext(). */}
+                            <LocationContext.Provider value={null as never}>
+                                <MemoryRouter initialEntries={[t.path]}>
+                                    <TabBridge appKey={t.appKey} active={activeKey === t.appKey} />
+                                    <AppFrame app={app} />
+                                </MemoryRouter>
+                            </LocationContext.Provider>
                         </div>
                     );
                 })}
