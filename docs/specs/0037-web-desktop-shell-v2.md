@@ -12,8 +12,8 @@ Sidebar hiện tại liệt kê **phẳng 11 mục** (Đơn hàng, Trả hàng, 
 
 Mục tiêu: cung cấp một **giao diện v2 dạng "Web Desktop"** (ẩn dụ màn hình nền của hệ điều hành) như một **vỏ thay thế tùy chọn**, người dùng tự bật trong Cài đặt:
 
-- Các trang hiện có được **gom thành 8 "app"** (mỗi app = 1 module nghiệp vụ).
-- Một tab **Desktop** ghim (không đóng được) là màn hình nền chứa lưới icon các app.
+- Các trang hiện có được **gom thành 9 "app"** (mỗi app = 1 module nghiệp vụ; Quảng cáo tách riêng Facebook và TikTok).
+- Một tab **Desktop** ghim (không đóng được) là màn hình nền chứa lưới icon các app + tổng quan (Dashboard nhúng dưới lưới icon).
 - Bấm icon → **mở app thành tab mới bên phải** (như trình duyệt); bấm app đã mở → **focus tab đang có**, không nhân đôi.
 - Bên trong mỗi tab **giữ gần như nguyên** cấu trúc trang hiện tại (sub-menu của module + nội dung). Không viết lại trang nào.
 - Tab **keep-alive** (giữ sống DOM khi không active) để giữ scroll/ô đang nhập.
@@ -28,21 +28,24 @@ Mục tiêu: cung cấp một **giao diện v2 dạng "Web Desktop"** (ẩn dụ
 - **FE shell mới** `DesktopShell` (thay vai trò `AppLayout` khi `ui_shell === 'v2'`):
   - Header giữ nguyên các phần tử hiện có của `AppLayout` (logo, chọn shop/tenant, chuông thông báo `🔔`, menu user, link Chrome ext / mobile, `OverQuotaBanner`, `AnnouncementPopup`, `HelpChatWidget`).
   - **Tab strip**: tab `Desktop` ghim đầu (không đóng) + các tab app (đóng được, mở thêm bên phải).
-  - **Màn Desktop**: lưới icon 8 app (chỉ hiện app người dùng có quyền — theo `useCan`).
+  - **Màn Desktop** (`DesktopHome`): lưới icon 9 app (chỉ hiện app người dùng có quyền — theo `useCan`) + `DashboardPage` nhúng bên dưới.
   - **Bộ quản lý tab** (Zustand store `desktopShellStore`): danh sách tab mở `{ appKey, lastPath, title }`, tab active, hành vi mở/focus/đóng; keep-alive bằng cách render mọi tab đã mở và ẩn tab không active (`display:none`) thay vì unmount.
   - **Khung trong tab** `AppFrame`: sub-menu (trái) + vùng nội dung (phải) — tái dùng đúng các route con hiện có của module.
-- **Định nghĩa 8 app** (`appCatalog.ts`) — mỗi app: `key`, nhãn VN, icon `@ant-design/icons`, quyền yêu cầu, danh sách mục sub-menu (path → nhãn, dùng lại đúng path hiện tại):
+- **Định nghĩa 9 app** (`appCatalog.ts`) — mỗi app: `key`, nhãn VN, icon `@ant-design/icons`, quyền yêu cầu, danh sách mục sub-menu (path → nhãn, **dùng lại đúng path + nhãn hiện có** trong sidebar `AppLayout`). Catalog phản chiếu các nhóm sidebar v1 hiện tại:
 
-  | App `key` | Nhãn | Sub-menu (path hiện có) |
+  | App `key` | Nhãn | Sub-menu (path + nhãn hiện có) |
   |---|---|---|
-  | `sales` | Bán hàng | `/orders` · `/returns` · `/customers` |
-  | `messaging` | Tin nhắn | `/messaging` |
-  | `listing` | Đăng bán sàn | `/marketplace` (sản phẩm/listing/khuyến mãi) |
-  | `warehouse` | Kho | `/inventory` · `/procurement` |
-  | `ads` | Quảng cáo | Facebook Ads · TikTok Ads |
-  | `reports` | Báo cáo | `/reports` |
-  | `accounting` | Kế toán | `/accounting` · `/finance` |
-  | `settings` | Cài đặt hệ thống | `/settings/*` |
+  | `sales` | Bán hàng | Đơn hàng `/orders` · Hoàn & Hủy `/returns` · Khách hàng `/customers` |
+  | `messaging` | Tin nhắn | Hộp thư `/messaging` · Kết nối kênh `/messaging/channels` · Mẫu tin `/messaging/templates` · Tin tiện ích `/messaging/utility-templates` · Tự động trả lời `/messaging/auto-rules` · Kịch bản tự động `/messaging/flows` · AI training `/messaging/knowledge` |
+  | `listing` | Đăng bán sàn | Sao chép sản phẩm `/marketplace/products` · Chờ đẩy lên sàn `/marketplace/to-push` · Đã có trên sàn `/marketplace/on-channel` · Chiến dịch giảm giá `/marketplace/promotions` · Gian hàng `/channels` |
+  | `warehouse` | Kho | Tồn kho `/inventory` · Sản phẩm & SKU `/products` · Đề xuất nhập hàng `/procurement/demand-planning` · Nhà cung cấp `/procurement/suppliers` · Đơn mua hàng `/procurement/purchase-orders` |
+  | `ads_facebook` | Quảng cáo Facebook | Tổng quan `/marketing` · Tạo quảng cáo `/marketing/ads/new` · QC bằng AI `/marketing/ads/ai` |
+  | `ads_tiktok` | Quảng cáo TikTok | Tổng quan `/marketing/tiktok` |
+  | `reports` | Báo cáo | Báo cáo tổng thể `/reports/overview` · Báo cáo bán hàng `/reports` · Báo cáo sàn `/shop-report` · Đối soát sàn `/finance/settlements` |
+  | `accounting` | Kế toán | Tổng quan kế toán `/accounting/dashboard` · Sổ sách (Sổ nhật ký/Hệ thống TK/Cân đối/Kỳ KT) · Công nợ & Tiền (Phải thu/Phải trả/Quỹ & NH) · Báo cáo tài chính & Thuế `/accounting/reports` |
+  | `settings` | Cài đặt hệ thống | Toàn bộ `/settings/*` · Nhật ký đồng bộ `/sync-logs` · Trung tâm trợ giúp `/support` |
+
+  **Bảng điều khiển (`/`)** không là một app riêng: nội dung `DashboardPage` được nhúng ngay trong màn **Desktop home** (dưới lưới icon app), nên màn nền vừa là launcher vừa là tổng quan.
 
 - **Mục "Giao diện" trong Cài đặt** (gắn vào `SettingsLayout`, nhóm *Tài khoản*): trang `SettingsAppearancePage` với `Radio.Group` — **Cổ điển (v1)** / **Web Desktop (v2)** (theo luật UI: ưu tiên Radio, không `<Select>`). Đổi → lưu backend → reload shell.
 - **BE — user preference cấp người dùng** (module Tenancy):
@@ -93,7 +96,7 @@ Mục tiêu: cung cấp một **giao diện v2 dạng "Web Desktop"** (ẩn dụ
 - `resources/js/components/desktop/DesktopShell.tsx` (vỏ v2)
 - `resources/js/components/desktop/TabStrip.tsx`, `DesktopHome.tsx`, `AppFrame.tsx`
 - `resources/js/lib/desktop/desktopShellStore.ts` (Zustand: tabs, active, open/focus/close)
-- `resources/js/lib/desktop/appCatalog.ts` (định nghĩa 8 app + sub-menu, tái dùng path hiện có)
+- `resources/js/lib/desktop/appCatalog.ts` (định nghĩa 9 app + sub-menu, tái dùng path/nhãn hiện có)
 - `resources/js/lib/preferences.tsx` (`useUserPreferences`, mutate debounce)
 - `resources/js/pages/SettingsAppearancePage.tsx` (Radio v1/v2) + route + mục menu trong `SettingsLayout`
 - `resources/js/app.tsx`: chọn `DesktopShell` vs `AppLayout` theo `preferences.ui_shell` sau khi `me` resolve.
