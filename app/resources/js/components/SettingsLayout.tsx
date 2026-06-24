@@ -2,7 +2,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import { Card, Menu } from 'antd';
 import {
     AppstoreOutlined, AuditOutlined, CarOutlined, CreditCardOutlined, FileTextOutlined, HistoryOutlined,
-    PrinterOutlined, ShopOutlined, TeamOutlined, UserOutlined,
+    LayoutOutlined, PrinterOutlined, ShopOutlined, TeamOutlined, UserOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { PageHeader } from '@/components/PageHeader';
@@ -14,6 +14,7 @@ import { PageHeader } from '@/components/PageHeader';
 const SECTIONS: MenuProps['items'] = [
     { type: 'group', label: 'Tài khoản', children: [
         { key: '/settings/profile', icon: <UserOutlined />, label: <Link to="/settings/profile">Hồ sơ cá nhân</Link> },
+        { key: '/settings/appearance', icon: <LayoutOutlined />, label: <Link to="/settings/appearance">Giao diện</Link> },
         { key: '/settings/workspace', icon: <ShopOutlined />, label: <Link to="/settings/workspace">Thông tin gian hàng</Link> },
         { key: '/settings/plan', icon: <CreditCardOutlined />, label: <Link to="/settings/plan">Gói & nâng cấp</Link> },
     ] },
@@ -33,7 +34,7 @@ const SECTIONS: MenuProps['items'] = [
     ] },
 ];
 
-const KEYS = ['/settings/profile', '/settings/workspace', '/settings/plan', '/settings/members', '/settings/carriers', '/settings/channels', '/settings/orders', '/settings/print', '/settings/shipping-labels', '/settings/accounting/post-rules', '/settings/audit'];
+const KEYS = ['/settings/profile', '/settings/appearance', '/settings/workspace', '/settings/plan', '/settings/members', '/settings/carriers', '/settings/channels', '/settings/orders', '/settings/print', '/settings/shipping-labels', '/settings/accounting/post-rules', '/settings/audit'];
 
 export function SettingsLayout() {
     const { pathname } = useLocation();
