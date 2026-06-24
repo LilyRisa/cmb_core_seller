@@ -60,12 +60,7 @@ trait ResolvesAuthUserPayload
 
         /** @var UserPreferenceService $prefsSvc */
         $prefsSvc = app(UserPreferenceService::class);
-        $prefs = $prefsSvc->all((int) $user->getKey());
-        $preferences = [
-            'ui_shell' => $prefs['ui_shell'] ?? 'v1',
-            'ui_open_tabs' => $prefs['ui_open_tabs'] ?? [],
-            'ui_active_tab' => $prefs['ui_active_tab'] ?? null,
-        ];
+        $preferences = UserPreferenceService::shape($prefsSvc->all((int) $user->getKey()));
 
         return [
             'id' => $user->getKey(),

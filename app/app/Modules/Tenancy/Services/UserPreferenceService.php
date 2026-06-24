@@ -16,6 +16,19 @@ class UserPreferenceService
     }
 
     /**
+     * @param  array<string,mixed>  $raw
+     * @return array{ui_shell:string,ui_open_tabs:mixed,ui_active_tab:mixed}
+     */
+    public static function shape(array $raw): array
+    {
+        return [
+            'ui_shell' => $raw['ui_shell'] ?? 'v1',
+            'ui_open_tabs' => $raw['ui_open_tabs'] ?? [],
+            'ui_active_tab' => $raw['ui_active_tab'] ?? null,
+        ];
+    }
+
+    /**
      * @param  array<string,mixed>  $values
      * @return array<string,mixed>
      */
