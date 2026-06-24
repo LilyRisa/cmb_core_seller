@@ -24,6 +24,12 @@ export interface AuthUser {
     /** SPEC 0022 — ISO timestamp khi user verify email; `null` ⇒ FE chặn vào app. */
     email_verified_at: string | null;
     tenants: TenantSummary[];
+    /** SPEC 0037 — lựa chọn giao diện + phiên tab (Web Desktop v2). */
+    preferences?: {
+        ui_shell: 'v1' | 'v2';
+        ui_open_tabs: { appKey: string; path: string }[];
+        ui_active_tab: string | null;
+    };
 }
 
 async function fetchMe(): Promise<AuthUser | null> {
