@@ -1,6 +1,6 @@
 # SPEC 0037: Giao diện v2 "Web Desktop" — vỏ shell theo tab + tùy chọn per-user
 
-- **Trạng thái:** Draft (2026-06-24)
+- **Trạng thái:** Implemented (2026-06-24)
 - **Phase:** UX nền tảng *(song song mọi module — chỉ thay vỏ ngoài, không đụng nội dung trang)*
 - **Module backend liên quan:** Tenancy (lưu user preference cấp người dùng)
 - **Tác giả / Ngày:** Team · 2026-06-24
