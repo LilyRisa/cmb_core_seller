@@ -133,7 +133,7 @@ export function appForPath(pathname: string): AppDef | undefined {
     let bestLen = -1;
     for (const app of APP_CATALOG) {
         for (const p of app.prefixes) {
-            if ((pathname === p || pathname.startsWith(p + '/') || pathname.startsWith(p + '?') || pathname.startsWith(p)) && p.length > bestLen) {
+            if ((pathname === p || pathname.startsWith(p + '/') || pathname.startsWith(p + '?')) && p.length > bestLen) {
                 best = app; bestLen = p.length;
             }
         }

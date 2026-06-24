@@ -5,10 +5,16 @@ import { AppHeader } from '@/components/AppHeader';
 import { TabStrip } from '@/components/desktop/TabStrip';
 import { DesktopHome } from '@/components/desktop/DesktopHome';
 import { AppFrame } from '@/components/desktop/AppFrame';
-import { APP_CATALOG, appForPath } from '@/lib/desktop/appCatalog';
+import { APP_CATALOG, appForPath, usePermittedApps } from '@/lib/desktop/appCatalog';
 import { useDesktopShell, DESKTOP_KEY } from '@/lib/desktop/desktopShellStore';
 import { useUserPreferences, useUpdatePreferences } from '@/lib/preferences';
 import { useAuth } from '@/lib/auth';
+import { useCan } from '@/lib/tenant';
+import { useGlobalMessageNotifications } from '@/lib/useMessageNotifications';
+import { useNotificationsRealtime } from '@/lib/notifications';
+import { OverQuotaBanner } from '@/components/OverQuotaBanner';
+import { HelpChatWidget } from '@/components/support/HelpChatWidget';
+import { AnnouncementPopup } from '@/components/AnnouncementPopup';
 
 /** Cầu nối: tab active mirror path nội bộ ra URL trình duyệt + báo path cho store (persist). */
 function TabBridge({ appKey, active }: { appKey: string; active: boolean }) {
@@ -29,6 +35,12 @@ export function DesktopShell() {
     const { tabs, activeKey, hydrate, openApp, setActive } = useDesktopShell();
     const hydrated = useRef(false);
 
+    // Fix 1 — lọc tab theo quyền khi hydrate (SPEC §3).
+    const permitted = usePermittedApps();
+    // Fix 3 — thông báo tin nhắn mới toàn cục + realtime chuông (parity v1).
+    useGlobalMessageNotifications(useCan('messaging.view'));
+    useNotificationsRealtime();
+
     // Hydrate một lần từ preference; nếu rỗng, seed từ URL hiện tại.
     // Guard: chỉ chạy sau khi query `me` đã resolve để tránh ghi đè tab đã lưu bằng giá trị mặc định [].
     useEffect(() => {
@@ -36,13 +48,15 @@ export function DesktopShell() {
         if (!meFetched) return;
         hydrated.current = true;
         if (prefs.ui_open_tabs.length) {
-            hydrate(prefs.ui_open_tabs, prefs.ui_active_tab);
+            const allowed = new Set(permitted.map((a) => a.key));
+            const restorable = prefs.ui_open_tabs.filter((t) => allowed.has(t.appKey));
+            hydrate(restorable, prefs.ui_active_tab);
         } else {
             const app = appForPath(window.location.pathname);
             if (app) openApp(app.key, window.location.pathname + window.location.search);
             else setActive(DESKTOP_KEY);
         }
-    }, [meFetched, prefs.ui_open_tabs, prefs.ui_active_tab, hydrate, openApp, setActive]);
+    }, [meFetched, permitted, prefs.ui_open_tabs, prefs.ui_active_tab, hydrate, openApp, setActive]);
 
     // Persist (debounce) khi tabs/active đổi.
     useEffect(() => {
@@ -60,6 +74,8 @@ export function DesktopShell() {
                 onOpenSettings={() => openApp('settings', '/settings/profile')}
             />
             <TabStrip />
+            {/* Fix 2 — SPEC 0020: banner over-quota hiện trên mọi tab. */}
+            <OverQuotaBanner />
             <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
                 {/* Desktop home */}
                 <div style={{ position: 'absolute', inset: 0, overflow: 'auto', display: activeKey === DESKTOP_KEY ? 'block' : 'none' }}>
@@ -79,6 +95,9 @@ export function DesktopShell() {
                     );
                 })}
             </div>
+            {/* Fix 2 — widget trợ giúp nổi + popup thông báo admin (parity v1 AppLayout). */}
+            <HelpChatWidget />
+            <AnnouncementPopup />
         </Layout>
     );
 }
