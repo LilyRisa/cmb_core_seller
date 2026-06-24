@@ -8,6 +8,7 @@ import { AppFrame } from '@/components/desktop/AppFrame';
 import { APP_CATALOG, appForPath } from '@/lib/desktop/appCatalog';
 import { useDesktopShell, DESKTOP_KEY } from '@/lib/desktop/desktopShellStore';
 import { useUserPreferences, useUpdatePreferences } from '@/lib/preferences';
+import { useAuth } from '@/lib/auth';
 
 /** Cầu nối: tab active mirror path nội bộ ra URL trình duyệt + báo path cho store (persist). */
 function TabBridge({ appKey, active }: { appKey: string; active: boolean }) {
@@ -22,14 +23,17 @@ function TabBridge({ appKey, active }: { appKey: string; active: boolean }) {
 }
 
 export function DesktopShell() {
+    const { isFetched: meFetched } = useAuth();
     const prefs = useUserPreferences();
     const update = useUpdatePreferences();
     const { tabs, activeKey, hydrate, openApp, setActive } = useDesktopShell();
     const hydrated = useRef(false);
 
     // Hydrate một lần từ preference; nếu rỗng, seed từ URL hiện tại.
+    // Guard: chỉ chạy sau khi query `me` đã resolve để tránh ghi đè tab đã lưu bằng giá trị mặc định [].
     useEffect(() => {
         if (hydrated.current) return;
+        if (!meFetched) return;
         hydrated.current = true;
         if (prefs.ui_open_tabs.length) {
             hydrate(prefs.ui_open_tabs, prefs.ui_active_tab);
@@ -38,7 +42,7 @@ export function DesktopShell() {
             if (app) openApp(app.key, window.location.pathname + window.location.search);
             else setActive(DESKTOP_KEY);
         }
-    }, [prefs.ui_open_tabs, prefs.ui_active_tab, hydrate, openApp, setActive]);
+    }, [meFetched, prefs.ui_open_tabs, prefs.ui_active_tab, hydrate, openApp, setActive]);
 
     // Persist (debounce) khi tabs/active đổi.
     useEffect(() => {
