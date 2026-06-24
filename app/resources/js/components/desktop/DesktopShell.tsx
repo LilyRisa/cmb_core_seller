@@ -71,7 +71,15 @@ export function DesktopShell() {
         <Layout className="desk-shell" style={{ minHeight: '100vh' }}>
             <AppHeader
                 className="desk-header"
-                left={<img src="/images/logocmb.png" alt="CMB Core" style={{ width: 28, height: 28, objectFit: 'contain' }} />}
+                left={(
+                    <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                        {/* Đèn giao thông macOS (trang trí). */}
+                        <span className="desk-traffic" aria-hidden="true">
+                            <i className="tl tl-r" /><i className="tl tl-y" /><i className="tl tl-g" />
+                        </span>
+                        <img src="/images/logocmb.png" alt="CMB Core" style={{ width: 26, height: 26, objectFit: 'contain' }} />
+                    </span>
+                )}
                 onOpenSettings={() => openApp('settings', '/settings/profile')}
             />
             <TabStrip />
