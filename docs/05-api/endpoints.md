@@ -25,7 +25,8 @@
 | GET | `/api/v1/auth/me` | sanctum | — | `200` `{ data: {id,name,email\|null,username\|null,email_verified_at,tenants[]} }`. Mỗi tenant: `{id,name,slug,code,role,role_id,role_name,permissions[]}` — `permissions` = ability strings trong tenant đó (owner ⇒ `["*"]`; SPEC 0029, 0031). Chưa đăng nhập: `401`. |
 | PATCH | `/api/v1/auth/profile` | sanctum | `name?`, `email?`, `current_password?`, `password?`, `password_confirmation?` | `200` `{ data: AuthUser }` — sửa hồ sơ. Đổi email/password cần `current_password` đúng (sai ⇒ `422 INVALID_PASSWORD`); email trùng / mật khẩu <8 ⇒ `422`. (SPEC 0011) |
 | GET | `/api/v1/me/preferences` | sanctum | — | `200` `{ data: { ui_shell, ui_open_tabs, ui_active_tab } }` — đọc preference giao diện của user hiện tại (`ui_shell ∈ {v1,v2}`, `ui_open_tabs:[{appKey,path}]`, `ui_active_tab:string\|null`). SPEC-0037. |
-| PUT | `/api/v1/me/preferences` | sanctum | `ui_shell?` (`∈ {v1,v2}`), `ui_open_tabs?` (`[{appKey,path}]`), `ui_active_tab?` (`string\|null`) | `200` `{ data: { ui_shell, ui_open_tabs, ui_active_tab } }` — ghi (merge) preference giao diện; chỉ các key được gửi mới được cập nhật. `ui_shell` ngoài `{v1,v2}` ⇒ `422`. SPEC-0037. |
+| PUT | `/api/v1/me/preferences` | sanctum | `ui_shell?` (`∈ {v1,v2}`), `ui_open_tabs?` (`[{appKey,path}]`), `ui_active_tab?` (`string\|null`), `ui_desktop_bg?` (`string\|null`, ≤2048) | `200` `{ data: { ui_shell, ui_open_tabs, ui_active_tab, ui_desktop_bg } }` — ghi (merge) preference giao diện; chỉ các key được gửi mới được cập nhật. `ui_shell` ngoài `{v1,v2}` ⇒ `422`. SPEC-0037 / SPEC-0039 (`ui_desktop_bg` = URL hình nền Desktop, null = gradient). |
+| GET | `/api/v1/desktop-backgrounds` | sanctum + verified | — | `200` `{ data: [{ id, name, image_url }] }` — preset hình nền Desktop **đang bật**, sắp theo `position`. SPEC-0039. |
 | GET | `/api/v1/auth/email/verify/{id}/{hash}` | signed URL | query `expires`, `signature` | `302` redirect `${FRONTEND_URL}/email-verified?status=success\|already\|invalid`. Hash sai / signature sai / hết hạn ⇒ `status=invalid`. Click 2 lần ⇒ `status=already`. (SPEC 0022) Throttle `6/1`. |
 | POST | `/api/v1/auth/email/verify/resend` | sanctum | — | `200 { data: { sent: true } }` — dispatch lại `VerifyEmailNotification`. Đã verified ⇒ `200 { data: { sent: false, reason: 'already_verified' } }`. Throttle `6/60`. (SPEC 0022) |
 | POST | `/api/v1/auth/password/forgot` | — | `{ email }` | `200 { data: { sent: true } }` (response generic — không xác nhận email có tồn tại không, chống enumerate). Dispatch `ResetPasswordNotification` qua queue `notifications` nếu email khớp. Throttle `5/15`. (SPEC 0022) |
@@ -392,6 +393,9 @@ Popup giữa màn hình cho mọi user (fix bug, tạm dừng dịch vụ…). A
 | PATCH | `/api/v1/admin/announcements/{id}` | web + `auth:admin_web` | Sửa (kể cả bật/tắt `is_active`). |
 | DELETE | `/api/v1/admin/announcements/{id}` | web + `auth:admin_web` | Xoá. |
 | POST | `/api/v1/admin/announcements/media` | web + `auth:admin_web` | multipart `file` (ảnh ≤ `media.images.max_kb` hoặc video mp4/webm ≤ `media.video.max_kb`) → R2 `announcements/` → `{ data:{ url } }`. |
+| GET/POST | `/api/v1/admin/desktop-backgrounds` | web + `auth:admin_web` | List / tạo preset hình nền Desktop `{ name, image_url, image_path, is_active?, position? }`. SPEC-0039. |
+| PATCH/DELETE | `/api/v1/admin/desktop-backgrounds/{id}` | web + `auth:admin_web` | Sửa (kể cả bật/tắt) / xoá preset. |
+| POST | `/api/v1/admin/desktop-backgrounds/media` | web + `auth:admin_web` | multipart `file` (ảnh ≤ `media.images.max_kb`) → R2 `desktop-backgrounds/` → `{ data:{ url, path } }`. |
 | GET | `/api/v1/announcements/active` | `auth:sanctum` + `verified` | `{ data:[{ id, title, body_html, dismiss_label }] }` — chỉ popup đang `is_active` + trong cửa sổ `starts_at`/`ends_at`. |
 
 **Codes lỗi đặc thù Admin/Over-quota:**

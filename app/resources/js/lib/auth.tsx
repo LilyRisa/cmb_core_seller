@@ -29,6 +29,8 @@ export interface AuthUser {
         ui_shell: 'v1' | 'v2';
         ui_open_tabs: { appKey: string; path: string }[];
         ui_active_tab: string | null;
+        /** SPEC 0039 — URL hình nền Desktop đã chọn; null = gradient mặc định. */
+        ui_desktop_bg: string | null;
     };
 }
 

@@ -1,6 +1,6 @@
 # SPEC 0039: Hình nền Desktop v2 — preset do admin quản lý + người dùng chọn
 
-- **Trạng thái:** Draft (2026-06-24)
+- **Trạng thái:** Implemented (2026-06-24)
 - **Phase:** Mở rộng SPEC-0037 (Web Desktop)
 - **Module backend liên quan:** Admin (preset CRUD + storage), Tenancy (preference người dùng)
 - **Tác giả / Ngày:** Team · 2026-06-24

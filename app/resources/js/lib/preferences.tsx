@@ -7,9 +7,11 @@ export interface UiPreferences {
     ui_shell: 'v1' | 'v2';
     ui_open_tabs: OpenTab[];
     ui_active_tab: string | null;
+    /** SPEC 0039 — URL hình nền Desktop đã chọn; null = gradient mặc định. */
+    ui_desktop_bg: string | null;
 }
 
-const DEFAULTS: UiPreferences = { ui_shell: 'v1', ui_open_tabs: [], ui_active_tab: null };
+const DEFAULTS: UiPreferences = { ui_shell: 'v1', ui_open_tabs: [], ui_active_tab: null, ui_desktop_bg: null };
 
 /** Đọc preference giao diện từ `me` (đã kèm trong payload auth). */
 export function useUserPreferences(): UiPreferences {
