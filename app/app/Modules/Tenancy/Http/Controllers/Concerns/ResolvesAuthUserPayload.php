@@ -6,6 +6,7 @@ use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\TenantRole;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use CMBcoreSeller\Modules\Tenancy\Services\UserPreferenceService;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -57,6 +58,15 @@ trait ResolvesAuthUserPayload
             ];
         })->all();
 
+        /** @var UserPreferenceService $prefsSvc */
+        $prefsSvc = app(UserPreferenceService::class);
+        $prefs = $prefsSvc->all((int) $user->getKey());
+        $preferences = [
+            'ui_shell' => $prefs['ui_shell'] ?? 'v1',
+            'ui_open_tabs' => $prefs['ui_open_tabs'] ?? [],
+            'ui_active_tab' => $prefs['ui_active_tab'] ?? null,
+        ];
+
         return [
             'id' => $user->getKey(),
             'name' => $user->name,
@@ -64,6 +74,7 @@ trait ResolvesAuthUserPayload
             'username' => $user->getAttribute('username'),
             'email_verified_at' => optional($user->email_verified_at)->toIso8601String(), // SPEC 0022 — FE hiện banner nếu null.
             'tenants' => $tenants,
+            'preferences' => $preferences,
         ];
     }
 
