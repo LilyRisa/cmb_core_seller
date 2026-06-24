@@ -9,6 +9,7 @@ use CMBcoreSeller\Integrations\Ai\Exceptions\ProviderNotConfigured;
 use CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter;
 use CMBcoreSeller\Modules\Customers\Contracts\CustomerProfileContract;
 use CMBcoreSeller\Modules\Messaging\Exceptions\AiSuggestionException;
+use CMBcoreSeller\Modules\Messaging\Jobs\RespondWithAiAutoReply;
 use CMBcoreSeller\Modules\Messaging\Models\AiAssistantRun;
 use CMBcoreSeller\Modules\Messaging\Models\AiProvider;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
@@ -89,7 +90,7 @@ class AiSuggestionService
 
     /**
      * Auto-mode cho LƯỢT mới nhất của khách (gộp các tin inbound chưa được trả lời).
-     * Dùng bởi {@see \CMBcoreSeller\Modules\Messaging\Jobs\RespondWithAiAutoReply} sau debounce.
+     * Dùng bởi {@see RespondWithAiAutoReply} sau debounce.
      *
      * @return array{action:string, intent:string, message?:Message}
      */

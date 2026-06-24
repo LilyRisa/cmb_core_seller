@@ -22,7 +22,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property array|null $package_dims
  * @property string|null $external_sku_id
  * @property string|null $image_ref
- * @property-read \CMBcoreSeller\Modules\Inventory\Models\Sku|null $masterSku
+ * @property-read Sku|null $masterSku
  */
 class ListingDraftSku extends Model
 {

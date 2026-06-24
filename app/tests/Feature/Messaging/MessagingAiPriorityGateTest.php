@@ -17,6 +17,7 @@ use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\FlowRun;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingSetting;
+use CMBcoreSeller\Modules\Messaging\Services\AiSuggestionService;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -95,7 +96,7 @@ class MessagingAiPriorityGateTest extends TestCase
     {
         app(AiAutoModeOnInbound::class)->handle(new MessageReceived($msg->id, $conv->id));
         // Listener chỉ HẸN job debounce (Queue::fake) — chạy nó để hiện thực hoá trả lời (latest-wins).
-        Queue::pushed(RespondWithAiAutoReply::class)->each(fn (RespondWithAiAutoReply $job) => $job->handle(app(\CMBcoreSeller\Modules\Messaging\Services\AiSuggestionService::class)));
+        Queue::pushed(RespondWithAiAutoReply::class)->each(fn (RespondWithAiAutoReply $job) => $job->handle(app(AiSuggestionService::class)));
     }
 
     private function outboundCount(Conversation $conv): int

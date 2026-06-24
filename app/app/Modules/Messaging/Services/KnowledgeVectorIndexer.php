@@ -197,7 +197,7 @@ class KnowledgeVectorIndexer
      * Tìm chunk gần nghĩa nhất (Qdrant) cho câu hỏi, filter theo tenant.
      * Lọc page/ready để tầng gọi tự làm trên document_id.
      *
-     * @return array<int,float>|null  map chunkId ⇒ score; null nếu không dùng được vector
+     * @return array<int,float>|null map chunkId ⇒ score; null nếu không dùng được vector
      */
     public function searchChunkScores(int $tenantId, string $query, int $topK): ?array
     {
