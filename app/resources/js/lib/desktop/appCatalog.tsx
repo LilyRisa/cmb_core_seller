@@ -116,6 +116,17 @@ export const APP_CATALOG: AppDef[] = [
     },
 ];
 
+import { useCan } from '@/lib/tenant';
+
+/** Lọc app theo quyền — gọi useCan cho mọi app (số lượng cố định, đúng rule hooks). */
+export function usePermittedApps(): AppDef[] {
+    // Hooks gọi cố định theo thứ tự khai báo (APP_CATALOG bất biến) — an toàn.
+    return APP_CATALOG.filter((app) => {
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        return !app.permission || useCan(app.permission);
+    });
+}
+
 /** Khớp app theo prefix dài nhất; '/' → undefined (thuộc Desktop home). */
 export function appForPath(pathname: string): AppDef | undefined {
     let best: AppDef | undefined;

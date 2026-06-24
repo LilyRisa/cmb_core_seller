@@ -1,0 +1,80 @@
+import { useEffect, useRef } from 'react';
+import { MemoryRouter, useLocation } from 'react-router-dom';
+import { Layout } from 'antd';
+import { AppHeader } from '@/components/AppHeader';
+import { TabStrip } from '@/components/desktop/TabStrip';
+import { DesktopHome } from '@/components/desktop/DesktopHome';
+import { AppFrame } from '@/components/desktop/AppFrame';
+import { APP_CATALOG, appForPath } from '@/lib/desktop/appCatalog';
+import { useDesktopShell, DESKTOP_KEY } from '@/lib/desktop/desktopShellStore';
+import { useUserPreferences, useUpdatePreferences } from '@/lib/preferences';
+
+/** Cầu nối: tab active mirror path nội bộ ra URL trình duyệt + báo path cho store (persist). */
+function TabBridge({ appKey, active }: { appKey: string; active: boolean }) {
+    const location = useLocation();
+    const setTabPath = useDesktopShell((s) => s.setTabPath);
+    useEffect(() => {
+        const full = location.pathname + location.search;
+        setTabPath(appKey, full);
+        if (active) window.history.replaceState(null, '', full);
+    }, [appKey, active, location.pathname, location.search, setTabPath]);
+    return null;
+}
+
+export function DesktopShell() {
+    const prefs = useUserPreferences();
+    const update = useUpdatePreferences();
+    const { tabs, activeKey, hydrate, openApp, setActive } = useDesktopShell();
+    const hydrated = useRef(false);
+
+    // Hydrate một lần từ preference; nếu rỗng, seed từ URL hiện tại.
+    useEffect(() => {
+        if (hydrated.current) return;
+        hydrated.current = true;
+        if (prefs.ui_open_tabs.length) {
+            hydrate(prefs.ui_open_tabs, prefs.ui_active_tab);
+        } else {
+            const app = appForPath(window.location.pathname);
+            if (app) openApp(app.key, window.location.pathname + window.location.search);
+            else setActive(DESKTOP_KEY);
+        }
+    }, [prefs.ui_open_tabs, prefs.ui_active_tab, hydrate, openApp, setActive]);
+
+    // Persist (debounce) khi tabs/active đổi.
+    useEffect(() => {
+        if (!hydrated.current) return;
+        const id = setTimeout(() => {
+            update.mutate({ ui_open_tabs: tabs, ui_active_tab: activeKey === DESKTOP_KEY ? null : activeKey });
+        }, 800);
+        return () => clearTimeout(id);
+    }, [tabs, activeKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    return (
+        <Layout style={{ minHeight: '100vh' }}>
+            <AppHeader
+                left={<img src="/images/logocmb.png" alt="CMB Core" style={{ width: 28, height: 28, objectFit: 'contain' }} />}
+                onOpenSettings={() => openApp('settings', '/settings/profile')}
+            />
+            <TabStrip />
+            <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+                {/* Desktop home */}
+                <div style={{ position: 'absolute', inset: 0, overflow: 'auto', display: activeKey === DESKTOP_KEY ? 'block' : 'none' }}>
+                    <DesktopHome />
+                </div>
+                {/* Mỗi tab = MemoryRouter độc lập, keep-alive bằng display. */}
+                {tabs.map((t) => {
+                    const app = APP_CATALOG.find((a) => a.key === t.appKey);
+                    if (!app) return null;
+                    return (
+                        <div key={t.appKey} style={{ position: 'absolute', inset: 0, display: activeKey === t.appKey ? 'block' : 'none' }}>
+                            <MemoryRouter initialEntries={[t.path]}>
+                                <TabBridge appKey={t.appKey} active={activeKey === t.appKey} />
+                                <AppFrame app={app} />
+                            </MemoryRouter>
+                        </div>
+                    );
+                })}
+            </div>
+        </Layout>
+    );
+}
