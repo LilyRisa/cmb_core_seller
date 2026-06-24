@@ -35,6 +35,9 @@ use CMBcoreSeller\Modules\Tenancy\Http\Controllers\RoleController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\TenantController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\TokenAuthController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\UserPreferenceController;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -82,6 +85,16 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
         Route::patch('auth/profile', [AuthController::class, 'updateProfile'])->name('auth.profile.update');   // SPEC 0011
         Route::get('me/preferences', [UserPreferenceController::class, 'show'])->name('me.preferences.show');     // SPEC 0037
         Route::put('me/preferences', [UserPreferenceController::class, 'update'])->name('me.preferences.update'); // SPEC 0037
+
+        // Broadcasting auth cho client BEARER TOKEN (app mobile) — subscribe private channel
+        // Reverb (tin nhắn realtime). Web vẫn dùng /broadcasting/auth (session). Ép default guard
+        // = sanctum để Broadcast::auth phân giải đúng user token; channel callbacks ở
+        // routes/channels.php nhận user đã xác thực.
+        Route::post('broadcasting/auth', function (Request $request) {
+            Auth::shouldUse('sanctum');
+
+            return Broadcast::auth($request);
+        })->name('broadcasting.auth.mobile');
 
         // Mobile token auth (SPEC 2026-06-01) — logout = thu hồi token hiện tại; quản lý thiết bị.
         Route::delete('auth/token', [TokenAuthController::class, 'revoke'])->name('auth.token.revoke');

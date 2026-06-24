@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { MemoryRouter, useLocation, UNSAFE_LocationContext as LocationContext } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigate, UNSAFE_LocationContext as LocationContext } from 'react-router-dom';
 import { Layout } from 'antd';
 import { AppHeader } from '@/components/AppHeader';
 import { TabStrip } from '@/components/desktop/TabStrip';
@@ -19,12 +19,20 @@ import { AnnouncementPopup } from '@/components/AnnouncementPopup';
 /** Cầu nối: tab active mirror path nội bộ ra URL trình duyệt + báo path cho store (persist). */
 function TabBridge({ appKey, active }: { appKey: string; active: boolean }) {
     const location = useLocation();
+    const navigate = useNavigate();
     const setTabPath = useDesktopShell((s) => s.setTabPath);
+    const storePath = useDesktopShell((s) => s.tabs.find((t) => t.appKey === appKey)?.path);
     useEffect(() => {
         const full = location.pathname + location.search;
         setTabPath(appKey, full);
         if (active) window.history.replaceState(null, '', full);
     }, [appKey, active, location.pathname, location.search, setTabPath]);
+    // Khi store path đổi từ bên ngoài (openApp focus tab đã mở với path mới, vd mở hội thoại
+    // từ thông báo) → điều hướng router của tab tới path đó. Bỏ qua khi trùng (tránh vòng lặp).
+    useEffect(() => {
+        if (storePath && storePath !== location.pathname + location.search) navigate(storePath);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [storePath]);
     return null;
 }
 
@@ -38,7 +46,7 @@ export function DesktopShell() {
     // Fix 1 — lọc tab theo quyền khi hydrate (SPEC §3).
     const permitted = usePermittedApps();
     // Fix 3 — thông báo tin nhắn mới toàn cục + realtime chuông (parity v1).
-    useGlobalMessageNotifications(useCan('messaging.view'));
+    useGlobalMessageNotifications(useCan('messaging.view'), (id) => openApp('messaging', id ? `/messaging?conversation=${id}` : '/messaging'));
     useNotificationsRealtime();
 
     // Hydrate một lần từ preference; nếu rỗng, seed từ URL hiện tại.

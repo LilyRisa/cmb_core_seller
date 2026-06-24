@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, type CSSProperties, type ReactNode, type UIEvent } from 'react';
 import dayjs from 'dayjs';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { App, Avatar, Badge, Button, Checkbox, Divider, Dropdown, Empty, Grid, Image, Input, List, Popconfirm, Popover, Radio, Segmented, Select, Space, Spin, Tag, Tooltip, Typography } from 'antd';
 import { BellFilled, BellOutlined, CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FacebookFilled, FileOutlined, FilterOutlined, LikeFilled, LikeOutlined, MessageOutlined, MoreOutlined, PhoneOutlined, PictureOutlined, RedoOutlined, ShopOutlined, ShoppingOutlined, SoundOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
@@ -284,6 +284,16 @@ export function MessagingPage() {
 
     // ── Other state ───────────────────────────────────────────────────────────
     const [activeId, setActiveId] = useState<number | null>(null);
+    // Mở hội thoại từ thông báo: /messaging?conversation=ID → set active + dọn param khỏi URL.
+    const [searchParams, setSearchParams] = useSearchParams();
+    useEffect(() => {
+        const cid = searchParams.get('conversation');
+        if (!cid) return;
+        setActiveId(Number(cid));
+        const next = new URLSearchParams(searchParams);
+        next.delete('conversation');
+        setSearchParams(next, { replace: true });
+    }, [searchParams, setSearchParams]);
     const [tagPopoverConvId, setTagPopoverConvId] = useState<number | null>(null);
     const [openingLink, setOpeningLink] = useState(false);
 

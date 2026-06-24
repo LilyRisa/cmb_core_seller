@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Button, Layout, Menu } from 'antd';
 import {
     AppstoreOutlined,
@@ -119,12 +119,13 @@ const BASE_KEYS = ['/', '/orders', '/customers', '/messaging', '/messaging/chann
 export function AppLayout() {
     const { data: user } = useAuth();
     const location = useLocation();
+    const navigate = useNavigate();
     const [collapsed, setCollapsed] = useState(false);
 
     const currentTenantId = getCurrentTenantId() ?? user?.tenants[0]?.id ?? null;
     const currentTenant = user?.tenants.find((t) => t.id === currentTenantId) ?? user?.tenants[0];
     // Thông báo tin nhắn mới toàn cục (mọi trang) — 1 lần tổng lúc vào, sau đó theo từng tin mới.
-    useGlobalMessageNotifications(useCan('messaging.view'));
+    useGlobalMessageNotifications(useCan('messaging.view'), (id) => navigate(id ? `/messaging?conversation=${id}` : '/messaging'));
     // SPEC 0036 — realtime chuông thông báo in-app (no-op khi Reverb tắt; chuông vẫn poll).
     useNotificationsRealtime();
     const nav = useMemo(() => buildNav(), []);
