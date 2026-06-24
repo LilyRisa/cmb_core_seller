@@ -11,6 +11,9 @@ import 'dayjs/locale/vi';
 
 import { RequireAuth } from '@/components/RequireAuth';
 import { AppLayout } from '@/components/AppLayout';
+import { DesktopShell } from '@/components/desktop/DesktopShell';
+import { useUserPreferences } from '@/lib/preferences';
+import { useAuth } from '@/lib/auth';
 import { LoginPage } from '@/pages/LoginPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { EmailVerifiedPage } from '@/pages/EmailVerifiedPage';
@@ -31,6 +34,9 @@ const queryClient = new QueryClient({
 });
 
 function Root() {
+    const { isLoading } = useAuth();
+    const prefs = useUserPreferences();
+    const shell = prefs.ui_shell;
     return (
         <Routes>
             <Route path="/login" element={<LoginPage />} />
@@ -46,9 +52,13 @@ function Root() {
             <Route path="/download" element={<DownloadAppPage />} />
             {/* SPEC 0032 — trang gói full-screen riêng (có nút back), tách khỏi sidebar. */}
             <Route path="/plans" element={<RequireAuth><PlansPage /></RequireAuth>} />
-            <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
-                {appRouteElements()}
-            </Route>
+            {shell === 'v2' && !isLoading ? (
+                <Route path="/*" element={<RequireAuth><DesktopShell /></RequireAuth>} />
+            ) : (
+                <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
+                    {appRouteElements()}
+                </Route>
+            )}
             <Route path="404" element={<NotFoundPage />} />
             <Route path="*" element={<Navigate to="/404" replace />} />
         </Routes>
