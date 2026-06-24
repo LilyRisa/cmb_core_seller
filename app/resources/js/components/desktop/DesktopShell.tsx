@@ -86,7 +86,7 @@ export function DesktopShell() {
                     const app = APP_CATALOG.find((a) => a.key === t.appKey);
                     if (!app) return null;
                     return (
-                        <div key={t.appKey} style={{ position: 'absolute', inset: 0, display: activeKey === t.appKey ? 'block' : 'none' }}>
+                        <div key={t.appKey} className="desk-app-panel" style={{ position: 'absolute', inset: 0, display: activeKey === t.appKey ? 'block' : 'none' }}>
                             {/* Reset LocationContext về null ngay trên MemoryRouter của tab: React Router cấm
                                 lồng <Router> trong <Router> (invariant đọc useContext(LocationContext) != null).
                                 Mỗi tab cần history riêng nên dùng MemoryRouter độc lập — đặt context = null để

@@ -13,7 +13,8 @@ Sidebar hiện tại liệt kê **phẳng 11 mục** (Đơn hàng, Trả hàng, 
 Mục tiêu: cung cấp một **giao diện v2 dạng "Web Desktop"** (ẩn dụ màn hình nền của hệ điều hành) như một **vỏ thay thế tùy chọn**, người dùng tự bật trong Cài đặt:
 
 - Các trang hiện có được **gom thành 9 "app"** (mỗi app = 1 module nghiệp vụ; Quảng cáo tách riêng Facebook và TikTok).
-- Một tab **Desktop** ghim (không đóng được) là màn hình nền chứa lưới icon các app + tổng quan (Dashboard nhúng dưới lưới icon).
+- Một tab **Desktop** ghim (không đóng được) là **màn hình nền kiểu hệ điều hành**: hình nền gradient + lưới icon các app (tile kính mờ). Tổng quan (Dashboard) là **một app riêng**, mở từ icon — không nhúng trong màn nền.
+- Mở app có **animation kiểu macOS** (scale + mờ dần) chạy một lần khi tab được tạo.
 - Bấm icon → **mở app thành tab mới bên phải** (như trình duyệt); bấm app đã mở → **focus tab đang có**, không nhân đôi.
 - Bên trong mỗi tab **giữ gần như nguyên** cấu trúc trang hiện tại (sub-menu của module + nội dung). Không viết lại trang nào.
 - Tab **keep-alive** (giữ sống DOM khi không active) để giữ scroll/ô đang nhập.
@@ -28,7 +29,7 @@ Mục tiêu: cung cấp một **giao diện v2 dạng "Web Desktop"** (ẩn dụ
 - **FE shell mới** `DesktopShell` (thay vai trò `AppLayout` khi `ui_shell === 'v2'`):
   - Header giữ nguyên các phần tử hiện có của `AppLayout` (logo, chọn shop/tenant, chuông thông báo `🔔`, menu user, link Chrome ext / mobile, `OverQuotaBanner`, `AnnouncementPopup`, `HelpChatWidget`).
   - **Tab strip**: tab `Desktop` ghim đầu (không đóng) + các tab app (đóng được, mở thêm bên phải).
-  - **Màn Desktop** (`DesktopHome`): lưới icon 9 app (chỉ hiện app người dùng có quyền — theo `useCan`) + `DashboardPage` nhúng bên dưới.
+  - **Màn Desktop** (`DesktopHome`): hình nền gradient + lưới icon các app dạng tile kính mờ (chỉ hiện app người dùng có quyền — theo `useCan`). Không nhúng Dashboard.
   - **Bộ quản lý tab** (Zustand store `desktopShellStore`): danh sách tab mở `{ appKey, lastPath, title }`, tab active, hành vi mở/focus/đóng; keep-alive bằng cách render mọi tab đã mở và ẩn tab không active (`display:none`) thay vì unmount.
   - **Khung trong tab** `AppFrame`: sub-menu (trái) + vùng nội dung (phải) — tái dùng đúng các route con hiện có của module.
 - **Định nghĩa 9 app** (`appCatalog.ts`) — mỗi app: `key`, nhãn VN, icon `@ant-design/icons`, quyền yêu cầu, danh sách mục sub-menu (path → nhãn, **dùng lại đúng path + nhãn hiện có** trong sidebar `AppLayout`). Catalog phản chiếu các nhóm sidebar v1 hiện tại:
@@ -45,7 +46,7 @@ Mục tiêu: cung cấp một **giao diện v2 dạng "Web Desktop"** (ẩn dụ
   | `accounting` | Kế toán | Tổng quan kế toán `/accounting/dashboard` · Sổ sách (Sổ nhật ký/Hệ thống TK/Cân đối/Kỳ KT) · Công nợ & Tiền (Phải thu/Phải trả/Quỹ & NH) · Báo cáo tài chính & Thuế `/accounting/reports` |
   | `settings` | Cài đặt hệ thống | Toàn bộ `/settings/*` · Nhật ký đồng bộ `/sync-logs` · Trung tâm trợ giúp `/support` |
 
-  **Bảng điều khiển (`/`)** không là một app riêng: nội dung `DashboardPage` được nhúng ngay trong màn **Desktop home** (dưới lưới icon app), nên màn nền vừa là launcher vừa là tổng quan.
+  **Bảng điều khiển (`/`)** là một **app riêng** `dashboard` (icon trên màn Desktop, route index `/` → `DashboardPage`). `prefixes` rỗng nên `appForPath('/')` trả `undefined` ⇒ vào v2 mặc định thấy màn Desktop (không tự bật tab Dashboard).
 
 - **Mục "Giao diện" trong Cài đặt** (gắn vào `SettingsLayout`, nhóm *Tài khoản*): trang `SettingsAppearancePage` với `Radio.Group` — **Cổ điển (v1)** / **Web Desktop (v2)** (theo luật UI: ưu tiên Radio, không `<Select>`). Đổi → lưu backend → reload shell.
 - **BE — user preference cấp người dùng** (module Tenancy):

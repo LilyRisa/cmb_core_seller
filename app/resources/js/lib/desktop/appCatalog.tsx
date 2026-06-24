@@ -1,5 +1,5 @@
 import {
-    ShoppingOutlined, MessageOutlined, ShopOutlined, InboxOutlined,
+    DashboardOutlined, ShoppingOutlined, MessageOutlined, ShopOutlined, InboxOutlined,
     FacebookFilled, TikTokOutlined, PieChartOutlined, CalculatorOutlined, SettingOutlined,
 } from '@ant-design/icons';
 import type { ReactNode } from 'react';
@@ -18,6 +18,13 @@ export interface AppDef {
 }
 
 export const APP_CATALOG: AppDef[] = [
+    {
+        // Tổng quan là app riêng (mở từ icon Desktop). prefixes rỗng ⇒ appForPath('/') trả undefined
+        // nên màn Desktop vẫn là trang nền mặc định khi vào, không tự bật tab Dashboard.
+        key: 'dashboard', label: 'Tổng quan', icon: <DashboardOutlined />,
+        defaultPath: '/', prefixes: [],
+        menu: [{ key: '/', label: 'Bảng điều khiển' }],
+    },
     {
         key: 'sales', label: 'Bán hàng', icon: <ShoppingOutlined />, permission: 'orders.view',
         defaultPath: '/orders', prefixes: ['/orders', '/returns', '/customers'],
