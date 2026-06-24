@@ -129,6 +129,9 @@ php artisan tinker          # ví dụ debug bên dưới
 | Polling đơn không chạy, token không tự refresh | `cmb-scheduler` không chạy | Bật lại service `scheduler`; xem log |
 | `cmb-minio` healthcheck đỏ / upload PDF lỗi | `AWS_*` env sai, bucket chưa tạo | Kiểm `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`; `minio-init` tạo bucket lúc start — xem log của nó |
 | `key:generate` log "generating one (dev only)" ở prod | Quên set `APP_KEY` | Set `APP_KEY` trong env Portainer → redeploy |
+| Toàn site `502` ngay sau redeploy (nội bộ `cmb-web` vẫn 200) | Redeploy tạo lại `cmb-web` với **IP mới**, nhưng container reverse proxy (NPM) không recreate → nginx vẫn cache **IP cũ** trong `proxy_pass` (resolve tên 1 lần lúc load config) | Tạm: `docker exec npm nginx -s reload`. Dứt điểm (đã làm): trong `/data/nginx/proxy_host/1.conf` của NPM dùng **resolver động** — `resolver 127.0.0.11 valid=10s ipv6=off;` + `set $upstream cmb_seller-web-1; proxy_pass http://$upstream:80;` (biến ⇒ nginx resolve mỗi request). ⚠️ Nếu sửa & **Save proxy host trong UI NPM**, file bị regenerate đè mất resolver → phải đặt lại (hoặc nhập ở ô "Custom Nginx Configuration") |
+
+> **Redis tự sửa AOF khi boot** (chống crash-loop sau host tắt bẩn): service `redis` chạy `redis-check-aof --fix` trước `redis-server` — xem `environments-and-docker.md`. Trên host nên set `vm.overcommit_memory=1` (đã set ở prod) để tránh OOM giết Redis giữa lúc ghi.
 
 ## 7. Backup / khôi phục
 
