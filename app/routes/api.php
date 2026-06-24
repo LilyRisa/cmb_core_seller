@@ -79,6 +79,8 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
         Route::post('auth/logout', [AuthController::class, 'logout'])->name('auth.logout');
         Route::get('auth/me', [AuthController::class, 'me'])->name('auth.me');
         Route::patch('auth/profile', [AuthController::class, 'updateProfile'])->name('auth.profile.update');   // SPEC 0011
+        Route::get('me/preferences', [\CMBcoreSeller\Modules\Tenancy\Http\Controllers\UserPreferenceController::class, 'show'])->name('me.preferences.show');     // SPEC 0037
+        Route::put('me/preferences', [\CMBcoreSeller\Modules\Tenancy\Http\Controllers\UserPreferenceController::class, 'update'])->name('me.preferences.update'); // SPEC 0037
 
         // Mobile token auth (SPEC 2026-06-01) — logout = thu hồi token hiện tại; quản lý thiết bị.
         Route::delete('auth/token', [TokenAuthController::class, 'revoke'])->name('auth.token.revoke');
