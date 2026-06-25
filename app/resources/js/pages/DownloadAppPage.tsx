@@ -17,7 +17,7 @@ import '../../css/download-app.css';
 
 // Link tải bản test hiện tại. Khi lên store/CDN chính thức, đổi tại đây.
 const APK_URL =
-    'https://expo.dev/artifacts/eas/jSwpAI1_J85WxrAfhLsdhZnTNSiIlGBAaloCliobn_U.apk';
+    'https://expo.dev/artifacts/eas/YCvIzulXP72tPMTEhGCS__WhoY6RYlcfaJvTUujFCxI.apk';
 
 export function DownloadAppPage() {
     return (
