@@ -36,6 +36,7 @@ import { CreateSkuPage } from '@/pages/CreateSkuPage';
 import { CreateOrderPage } from '@/pages/CreateOrderPage';
 import { CarrierAccountsPage } from '@/pages/CarrierAccountsPage';
 import { SettingsLayout } from '@/components/SettingsLayout';
+import { SettingsApiKeysPage } from '@/pages/settings/SettingsApiKeysPage';
 import { SettingsMembersPage } from '@/pages/SettingsMembersPage';
 import { SettingsProfilePage } from '@/pages/SettingsProfilePage';
 import { SettingsWorkspacePage } from '@/pages/SettingsWorkspacePage';
@@ -139,6 +140,7 @@ export function appRouteElements(): React.ReactNode {
                 <Route path="workspace" element={<SettingsWorkspacePage />} />
                 <Route path="members" element={<SettingsMembersPage />} />
                 <Route path="carriers" element={<CarrierAccountsPage />} />
+                <Route path="api-keys" element={<SettingsApiKeysPage />} />
                 <Route path="orders" element={<SettingsOrdersPage />} />
                 <Route path="messaging" element={<MessagingSettingsPage />} />
                 <Route path="plan" element={<SettingsPlanPage />} />
