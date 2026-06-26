@@ -392,7 +392,11 @@ final class LazadaMappers
             return null;
         }
         try {
-            return CarbonImmutable::parse((string) $v);
+            // Lazada `/orders/get` (list) trả mốc KHÔNG kèm offset = giờ shop (GMT+7); `/order/get` (detail)
+            // trả kèm `+0700`. App tz=UTC ⇒ parse naive thành UTC sẽ lệch +7h ⇒ source_updated_at "tương lai"
+            // ⇒ OrderUpsertService stale-guard bỏ qua mọi update sau ⇒ đơn Lazada đóng băng (SPEC 2026-06-26).
+            // Parse naive theo tz shop; chuỗi đã có offset thì offset trong chuỗi vẫn được tôn trọng.
+            return CarbonImmutable::parse((string) $v, app_display_tz());
         } catch (\Throwable) {
             return null;
         }
