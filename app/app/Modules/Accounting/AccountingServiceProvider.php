@@ -26,6 +26,11 @@ class AccountingServiceProvider extends ServiceProvider
     {
         // PostRuleResolver giữ cache per-tenant — singleton trong scope app instance.
         $this->app->singleton(PostRuleResolver::class);
+        // GL ví trả trước của khách (Customers post qua contract này, không gọi service nội bộ Accounting).
+        $this->app->bind(
+            \CMBcoreSeller\Modules\Accounting\Contracts\CustomerAdvanceLedger::class,
+            \CMBcoreSeller\Modules\Accounting\Services\CustomerAdvanceLedgerService::class,
+        );
     }
 
     public function boot(): void
