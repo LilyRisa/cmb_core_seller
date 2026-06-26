@@ -737,7 +737,7 @@ class ShipmentService
             }
             try {
                 $this->assertPreparable($order);
-            } catch (\RuntimeException $e) {
+            } catch (RuntimeException $e) {
                 $errors[] = ['order_id' => (int) $oid, 'message' => $e->getMessage()];
 
                 continue;
