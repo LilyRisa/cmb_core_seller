@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Orders\Services;
 
+use CMBcoreSeller\Modules\Customers\Contracts\CustomerWallet;
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Inventory\Models\Warehouse;
 use CMBcoreSeller\Modules\Orders\Events\OrderUpserted;
@@ -27,7 +28,7 @@ class ManualOrderService
     private const PRE_SHIPMENT_CHOICES = [StandardOrderStatus::Pending, StandardOrderStatus::Processing];
 
     public function __construct(
-        private readonly \CMBcoreSeller\Modules\Customers\Contracts\CustomerWallet $wallet,
+        private readonly CustomerWallet $wallet,
     ) {}
 
     /** @param array<string,mixed> $data */
@@ -112,7 +113,7 @@ class ManualOrderService
                 'tags' => array_values(array_filter((array) ($data['tags'] ?? []))),
                 'has_issue' => false,
                 'packages' => [],
-                'meta' => $this->normalizeMeta((array) ($data['meta'] ?? []), $freeShipping, $userId, (string) ($data['sub_source'] ?? '')),
+                'meta' => $this->normalizeMeta((array) $data['meta'], $freeShipping, $userId, (string) ($data['sub_source'] ?? '')),
                 'source_updated_at' => $now,
             ]);
 

@@ -28,6 +28,7 @@ use Illuminate\Support\Carbon;
  * @property array $lifetime_stats
  * @property int $reputation_score
  * @property string $reputation_label
+ * @property int $prepaid_balance
  * @property array $tags
  * @property bool $is_blocked
  * @property Carbon|null $blocked_at
