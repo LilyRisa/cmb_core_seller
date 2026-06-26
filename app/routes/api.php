@@ -138,6 +138,11 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::delete('tenant/members/{user}', [MemberController::class, 'destroy'])->whereNumber('user')->name('tenant.members.destroy');
             Route::post('tenant/members/{user}/reset-password', [MemberController::class, 'resetPassword'])->whereNumber('user')->name('tenant.members.reset-password');
 
+            // API key bên thứ 3 — CHỈ owner (gate isOwner() trong controller). SPEC 2026-06-26.
+            Route::get('tenant/api-keys', [\CMBcoreSeller\Modules\Tenancy\Http\Controllers\ApiKeyController::class, 'index'])->name('tenant.api-keys.index');
+            Route::post('tenant/api-keys', [\CMBcoreSeller\Modules\Tenancy\Http\Controllers\ApiKeyController::class, 'store'])->name('tenant.api-keys.store');
+            Route::delete('tenant/api-keys/{id}', [\CMBcoreSeller\Modules\Tenancy\Http\Controllers\ApiKeyController::class, 'destroy'])->whereNumber('id')->name('tenant.api-keys.destroy');
+
             // --- Channels (Phase 1) — connected shops & OAuth connect ---
             Route::get('channel-accounts', [ChannelAccountController::class, 'index'])->name('channel-accounts.index');
             Route::get('channel-accounts/outbound-ip', [ChannelAccountController::class, 'outboundIp'])->name('channel-accounts.outbound-ip');   // IP để copy vào Lazada IP Whitelist

@@ -41,7 +41,7 @@ enum Role: string
             // Owner: toàn quyền + quản lý billing (`billing.manage`). Phase 6.4 — SPEC 0018.
             self::Owner => ['*'],
             // Admin: toàn quyền nghiệp vụ nhưng KHÔNG `billing.manage` (chỉ owner đổi gói / thanh toán).
-            self::Admin => ['*', '!tenant.delete', '!tenant.transfer', '!billing.manage'],
+            self::Admin => ['*', '!tenant.delete', '!tenant.transfer', '!billing.manage', '!api_keys.manage'],
             self::StaffOrder => [
                 'orders.view', 'orders.update', 'orders.create', 'orders.status',
                 'fulfillment.view', 'fulfillment.print', 'fulfillment.ship',

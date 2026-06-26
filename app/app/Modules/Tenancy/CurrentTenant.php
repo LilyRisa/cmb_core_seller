@@ -66,6 +66,17 @@ class CurrentTenant
     }
 
     /**
+     * Chủ gian hàng (owner) — true nếu custom role `is_owner` HOẶC membership legacy role='owner'.
+     * Dùng cho thao tác CHỈ owner (vd quản lý API key) — không dựa `can('*')` vì admin cũng có '*'. SPEC 2026-06-26.
+     */
+    public function isOwner(): bool
+    {
+        $role = $this->roleModel();
+
+        return ($role !== null && $role->is_owner) || $this->role() === Role::Owner;
+    }
+
+    /**
      * Legacy preset key as a Role enum, best-effort (display/compat only).
      * Authorization goes through {@see can()} / {@see roleModel()}.
      */

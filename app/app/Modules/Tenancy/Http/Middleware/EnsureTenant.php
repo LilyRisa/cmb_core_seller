@@ -7,6 +7,7 @@ use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Models\TenantUser;
 use Illuminate\Http\Request;
+use Laravel\Sanctum\PersonalAccessToken;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -35,9 +36,16 @@ class EnsureTenant
             ]], 403);
         }
 
+        // API key bên thứ 3 (SPEC 2026-06-26): token gắn cứng `tenant_id` ⇒ ép tenant theo token (khóa key
+        // đúng shop, BỎ QUA header X-Tenant-Id). Cookie SPA / TransientToken không có tenant_id ⇒ giữ luồng cũ.
+        // Chỉ xét token khi request dùng Bearer (token auth) — cookie SPA dùng TransientToken (không có getAttribute).
+        $token = $request->bearerToken() ? $user->currentAccessToken() : null;
+        $tokenTenantId = $token instanceof PersonalAccessToken ? ($token->getAttribute('tenant_id') ?: null) : null;
+
         // Header là kênh chính; query param `X-Tenant-Id` cho phép `<a href download>` (browser không gửi
         // header custom khi mở link/blob). Session là fallback cuối (đã thuộc tenant nào ở request trước).
-        $tenantId = $request->header('X-Tenant-Id')
+        $tenantId = $tokenTenantId
+            ?: $request->header('X-Tenant-Id')
             ?: $request->query('X-Tenant-Id')
             ?: ($request->hasSession() ? $request->session()->get('current_tenant_id') : null);
 
