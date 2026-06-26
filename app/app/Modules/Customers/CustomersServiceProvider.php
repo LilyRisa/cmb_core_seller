@@ -46,6 +46,8 @@ class CustomersServiceProvider extends ServiceProvider
         Event::listen(OrderUpserted::class, LinkOrderToCustomer::class);
         Event::listen(DataDeletionRequested::class, OnDataDeletionRequested::class);
         Event::listen(ChannelAccountRevoked::class, OnChannelAccountRevoked::class);
+        // Hoàn ví trả trước khi đơn bị huỷ/hoàn (SPEC 2026-06-26).
+        Event::listen(\CMBcoreSeller\Modules\Orders\Events\OrderStatusChanged::class, \CMBcoreSeller\Modules\Customers\Listeners\RefundWalletOnOrderCancelled::class);
 
         if ($this->app->runningInConsole()) {
             $this->commands([BackfillCustomers::class, RecomputeStaleCustomers::class]);
