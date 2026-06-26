@@ -161,7 +161,7 @@ export function PlansPage() {
 
     return (
         <div style={{ minHeight: '100vh', background: '#f5f6f8', padding: '16px 24px 48px' }}>
-            <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+            <div style={{ maxWidth: 1120, marginLeft: 0, marginRight: 'auto' }}>
                 <Space style={{ marginBottom: 12 }}>
                     <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>Quay lại</Button>
                 </Space>

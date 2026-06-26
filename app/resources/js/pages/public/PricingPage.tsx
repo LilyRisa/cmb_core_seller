@@ -29,7 +29,7 @@ export function PricingPage() {
 
     return (
         <div style={{ background: 'linear-gradient(180deg,#f5f8ff,#fff)', padding: '56px 24px 72px' }}>
-            <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+            <div style={{ maxWidth: 1200, marginLeft: 0, marginRight: 'auto' }}>
                 <div style={{ textAlign: 'left', marginBottom: 40 }}>
                     <Typography.Title level={1} style={{ marginBottom: 8 }}>Bảng giá đơn giản, minh bạch</Typography.Title>
                     <Typography.Paragraph style={{ fontSize: 17, color: '#595959', maxWidth: 660 }}>
