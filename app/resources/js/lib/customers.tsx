@@ -67,6 +67,20 @@ export interface Customer extends CustomerCard {
     last_seen_at: string;
     merged_into_customer_id: number | null;
     notes?: CustomerNote[];
+    /** Ví trả trước (VND) — SPEC 2026-06-26. */
+    prepaid_balance?: number;
+}
+
+export interface WalletTransaction {
+    id: number;
+    order_id: number | null;
+    type: 'topup' | 'order_payment' | 'refund' | 'adjustment';
+    amount: number;
+    balance_after: number;
+    payment_method: 'cash' | 'bank' | 'ewallet' | null;
+    invoice_ref: string | null;
+    note: string | null;
+    created_at: string | null;
 }
 
 export interface CustomerFilters {
@@ -235,6 +249,37 @@ export function useMergeCustomers() {
             return data.data;
         },
         onSuccess: () => { qc.invalidateQueries({ queryKey: ['customers', tenantId] }); qc.invalidateQueries({ queryKey: ['customer', tenantId] }); },
+    });
+}
+
+/** Nạp tiền vào ví trả trước của khách — yêu cầu số tiền + số/mã hóa đơn. SPEC 2026-06-26. */
+export function useCustomerWalletTopup(id: number) {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    const tenantId = useCurrentTenantId();
+    return useMutation({
+        mutationFn: async (vars: { amount: number; payment_method: 'cash' | 'bank' | 'ewallet'; invoice_ref: string; note?: string }) => {
+            const { data } = await api!.post<{ data: { balance: number; transaction: WalletTransaction } }>(`/customers/${id}/wallet/topup`, vars);
+            return data.data;
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['customer', tenantId, id] });
+            qc.invalidateQueries({ queryKey: ['customers', tenantId] });
+            qc.invalidateQueries({ queryKey: ['customer-wallet-tx', tenantId, id] });
+        },
+    });
+}
+
+export function useCustomerWalletTransactions(id: number | string | undefined) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['customer-wallet-tx', tenantId, id],
+        enabled: api != null && id != null,
+        queryFn: async () => {
+            const { data } = await api!.get<Paginated<WalletTransaction>>(`/customers/${id}/wallet/transactions`);
+            return data;
+        },
     });
 }
 

@@ -8,6 +8,7 @@ import { ReputationBadge } from '@/components/ReputationBadge';
 import { StatusTag } from '@/components/StatusTag';
 import { ChannelBadge } from '@/components/ChannelBadge';
 import { CustomerSourceBreakdown } from '@/components/CustomerSourceBreakdown';
+import { CustomerWalletPanel } from '@/components/CustomerWalletPanel';
 import { MoneyText, DateText } from '@/components/MoneyText';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
@@ -97,6 +98,7 @@ export function CustomerDetailPage() {
                             </>
                         )}
                     </Card>
+                    <CustomerWalletPanel customerId={customer.id} balance={customer.prepaid_balance ?? 0} />
                 </Col>
 
                 <Col xs={24} lg={16}>

@@ -2,12 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
     Alert, AutoComplete, App as AntApp, Avatar, Badge, Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber, Modal,
-    Popover, Radio, Row, Segmented, Space, Tabs, Tag, Tooltip, Typography, Upload,
+    Popover, Radio, Row, Segmented, Space, Switch, Tabs, Tag, Tooltip, Typography, Upload,
 } from 'antd';
 import {
     ArrowLeftOutlined, BarcodeOutlined, CalculatorOutlined, CheckCircleFilled, CloseCircleFilled,
     EnvironmentOutlined, FacebookFilled, LockOutlined, MoreOutlined, PaperClipOutlined,
-    PrinterOutlined, SaveOutlined, SearchOutlined, UpOutlined, UserOutlined, WarningOutlined,
+    PrinterOutlined, SaveOutlined, SearchOutlined, UpOutlined, UserOutlined, WalletOutlined, WarningOutlined,
 } from '@ant-design/icons';
 import type { RcFile } from 'antd/es/upload';
 import type { FormInstance } from 'antd';
@@ -266,6 +266,26 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
         return { itemTotal, itemDiscount, orderDiscount, totalDiscount: itemDiscount + orderDiscount, shippingFee, surcharge, prepaid, afterDiscount, needCollect, overpaid, freeShipping };
     }, [items, summary]);
 
+    // ---- Ví trả trước của khách (SPEC 2026-06-26) ----
+    const walletBalance = customerData?.customer?.prepaid_balance ?? 0;
+    const walletCustomerId = customerData?.customer?.id ?? null;
+    const [useWallet, setUseWallet] = useState(false);
+    const [walletDeductShip, setWalletDeductShip] = useState(true);
+    // Số tiền trừ ví = min(số dư, mục tiêu). Mục tiêu = sau giảm giá (gồm/không gồm ship tuỳ toggle).
+    const walletAmount = useMemo(() => {
+        if (!useWallet || walletBalance <= 0) return 0;
+        const target = walletDeductShip ? totals.afterDiscount : Math.max(0, totals.afterDiscount - totals.shippingFee);
+        return Math.min(walletBalance, Math.max(0, target));
+    }, [useWallet, walletBalance, walletDeductShip, totals.afterDiscount, totals.shippingFee]);
+    // Áp số tiền ví vào ô "đã trả trước" ⇒ COD tự tính lại (BE nguồn sự thật). Tắt ví ⇒ trả ô về 0.
+    useEffect(() => {
+        if (useWallet) form.setFieldValue('prepaid_amount', walletAmount);
+    }, [useWallet, walletAmount, form]);
+    // Khách đổi (không còn ví) ⇒ tự tắt dùng ví.
+    useEffect(() => {
+        if (walletBalance <= 0 && useWallet) { setUseWallet(false); }
+    }, [walletBalance, useWallet]);
+
     // Gợi ý phí GHTK: ước tính KL = tổng SL × 500g (mặc định, vì dòng hàng chưa mang KL). Lỗi/empty ⇒
     // thông báo nhẹ, KHÔNG chặn. Không tự đè ô "Phí vận chuyển" — user bấm "Áp dụng".
     const onSuggestFee = async () => {
@@ -330,6 +350,9 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
             shipping_fee: v.free_shipping ? 0 : ((v.shipping_fee as number) ?? 0),
             order_discount: (v.order_discount as number) ?? 0,
             prepaid_amount: (v.prepaid_amount as number) ?? 0,
+            // Ví trả trước (SPEC 2026-06-26): gửi customer_id + phần trừ ví để BE trừ số dư + COD theo prepaid.
+            customer_id: useWallet && walletCustomerId ? walletCustomerId : undefined,
+            wallet_amount: useWallet ? walletAmount : undefined,
             surcharge: (v.surcharge as number) ?? 0,
             // COD = tiền còn thiếu; BE là nguồn sự thật (tự suy từ grand_total − prepaid). Gửi kèm để nhất quán.
             is_cod: totals.needCollect > 0,
@@ -749,6 +772,25 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                                         </div>
                                     )}
                                     <PayRow label="Giảm giá đơn hàng" name="order_discount" />
+                                    {walletBalance > 0 && (
+                                        <div style={{ border: '1px solid #91caff', background: '#e6f4ff', borderRadius: 6, padding: '8px 10px', margin: '6px 0' }}>
+                                            <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                                                <Typography.Text><WalletOutlined /> Ví trả trước: <b>{vnd(walletBalance)} đ</b></Typography.Text>
+                                                <Switch checked={useWallet} onChange={setUseWallet} checkedChildren="Dùng ví" unCheckedChildren="Dùng ví" />
+                                            </Space>
+                                            {useWallet && (
+                                                <div style={{ marginTop: 6 }}>
+                                                    <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                                                        <Typography.Text style={{ fontSize: 13 }}>Trừ cả tiền ship vào ví</Typography.Text>
+                                                        <Switch size="small" checked={walletDeductShip} onChange={setWalletDeductShip} />
+                                                    </Space>
+                                                    <Typography.Text type="success" style={{ fontSize: 13, display: 'block', marginTop: 4 }}>
+                                                        Trừ ví đơn này: <b>{vnd(walletAmount)} đ</b> · Còn lại sau đơn: {vnd(Math.max(0, walletBalance - walletAmount))} đ
+                                                    </Typography.Text>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                     <PayRow label="Tiền chuyển khoản" name="prepaid_amount" />
                                     <PayRow label="Phụ thu" name="surcharge" />
 
