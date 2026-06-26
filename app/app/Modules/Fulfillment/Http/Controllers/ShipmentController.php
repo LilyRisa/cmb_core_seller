@@ -214,12 +214,11 @@ class ShipmentController extends Controller
             'carrier_account_id' => ['sometimes', 'nullable', 'integer'],
             'service' => ['sometimes', 'nullable', 'string', 'max:64'],
         ]);
-        $res = $this->service->bulkCreate((int) $tenant->id(), array_map('intval', $data['order_ids']), $data['carrier_account_id'] ?? null, $data['service'] ?? null, $request->user()->getKey());
+        // Async (SPEC 2026-06-26): dispatch PrepareShipment per đơn hợp lệ ⇒ trả NGAY {queued, already_prepared,
+        // errors}. Phần gọi sàn + lấy tem chạy nền; FE poll để chip trạng thái + slip tự cập nhật.
+        $res = $this->service->bulkQueuePrepare((int) $tenant->id(), array_map('intval', $data['order_ids']), $data['carrier_account_id'] ?? null, $data['service'] ?? null, $request->user()->getKey());
 
-        return response()->json(['data' => [
-            'created' => ShipmentResource::collection(collect($res['created'])->each->load('order'))->resolve(),
-            'errors' => $res['errors'],
-        ]]);
+        return response()->json(['data' => $res]);
     }
 
     public function track(Request $request, int $id): JsonResponse

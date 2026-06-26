@@ -11,6 +11,7 @@ use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Fulfillment\Events\ShipmentCreated;
 use CMBcoreSeller\Modules\Fulfillment\Jobs\BackfillChannelTracking;
 use CMBcoreSeller\Modules\Fulfillment\Jobs\FetchChannelLabel;
+use CMBcoreSeller\Modules\Fulfillment\Jobs\PrepareShipment;
 use CMBcoreSeller\Modules\Fulfillment\Models\CarrierAccount;
 use CMBcoreSeller\Modules\Fulfillment\Models\PrintJob;
 use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
@@ -588,6 +589,27 @@ class ShipmentService
      *
      * @param  array<string,mixed>  $opts  tracking_no?, cod_amount?, weight_grams?, note?, required_note?
      */
+    /**
+     * Validate RẺ (DB only, KHÔNG gọi sàn) để feedback ĐỒNG BỘ ở controller TRƯỚC khi dispatch job nền
+     * (bulk async — SPEC 2026-06-26). Throw RuntimeException (message VN) nếu đơn không thể chuẩn bị.
+     * KHÔNG check vận đơn open ở đây (caller xử lý idempotent riêng — single trả existing, bulk → already_prepared).
+     * Cũng được gọi ở đầu `createForOrder` (DRY ⇒ job re-validate khi chạy, bắt lại nếu tồn/raw_status đổi).
+     */
+    public function assertPreparable(Order $order): void
+    {
+        if ($order->status->isTerminal() || in_array($order->status, [S::Returning, S::ReturnedRefunded], true)) {
+            throw new RuntimeException('Đơn ở trạng thái không thể chuẩn bị hàng / tạo vận đơn.');
+        }
+        // Chặn "chuẩn bị hàng / in phiếu giao hàng" khi đơn hết hàng (âm tồn) — SPEC 0013.
+        if ($this->isOutOfStock($order)) {
+            throw new RuntimeException('Đơn có SKU hết hàng (âm tồn) — không thể chuẩn bị hàng / lấy phiếu giao hàng. Hãy nhập thêm hàng rồi thử lại.');
+        }
+        // Đơn sàn ở raw_status sàn chưa cho fulfill (vd TikTok ON_HOLD) ⇒ chặn trước khi gọi sàn. SPEC 0013.
+        if ($order->channel_account_id) {
+            $this->assertChannelOrderFulfillable($order);
+        }
+    }
+
     public function createForOrder(Order $order, ?int $carrierAccountId, ?string $service, array $opts = [], ?int $userId = null): Shipment
     {
         $tenantId = (int) $order->tenant_id;
@@ -596,18 +618,10 @@ class ShipmentService
         if ($existing) {
             return $existing;
         }
-        if ($order->status->isTerminal() || in_array($order->status, [S::Returning, S::ReturnedRefunded], true)) {
-            throw new RuntimeException('Đơn ở trạng thái không thể chuẩn bị hàng / tạo vận đơn.');
-        }
-        // Chặn "chuẩn bị hàng / in phiếu giao hàng" khi đơn hết hàng (âm tồn) — SPEC 0013.
-        if ($this->isOutOfStock($order)) {
-            throw new RuntimeException('Đơn có SKU hết hàng (âm tồn) — không thể chuẩn bị hàng / lấy phiếu giao hàng. Hãy nhập thêm hàng rồi thử lại.');
-        }
+        $this->assertPreparable($order);
         // Đơn sàn: dùng mã vận đơn / AWB của sàn (đồng bộ về hoặc "luồng A"), cập nhật trạng thái "đã in đơn"
         // lên sàn — không tự sinh mã vận đơn giả như đơn manual. SPEC 0013/0014.
         if ($order->channel_account_id) {
-            $this->assertChannelOrderFulfillable($order);
-
             return $this->prepareChannelOrder($order, $userId);
         }
 
@@ -696,12 +710,17 @@ class ShipmentService
     }
 
     /**
+     * "Chuẩn bị hàng" HÀNG LOẠT (async — SPEC 2026-06-26): validate RẺ từng đơn (DB, KHÔNG gọi sàn) rồi
+     * dispatch {@see PrepareShipment} cho đơn hợp lệ ⇒ request trả NGAY (<1s), hết 504/orphan. Phần gọi sàn
+     * (arrange + lấy tem) + flip status chạy nền trong job. FE poll để chip trạng thái + slip tự cập nhật.
+     *
      * @param  list<int>  $orderIds
-     * @return array{created: list<Shipment>, errors: list<array{order_id:int,message:string}>}
+     * @return array{queued: list<int>, already_prepared: list<int>, errors: list<array{order_id:int,message:string}>}
      */
-    public function bulkCreate(int $tenantId, array $orderIds, ?int $carrierAccountId, ?string $service, ?int $userId = null): array
+    public function bulkQueuePrepare(int $tenantId, array $orderIds, ?int $carrierAccountId, ?string $service, ?int $userId = null): array
     {
-        $created = [];
+        $queued = [];
+        $alreadyPrepared = [];
         $errors = [];
         $orders = Order::query()->where('tenant_id', $tenantId)->whereIn('id', $orderIds)->whereNull('deleted_at')->get()->keyBy('id');
         foreach ($orderIds as $oid) {
@@ -711,14 +730,23 @@ class ShipmentService
 
                 continue;
             }
-            try {
-                $created[] = $this->createForOrder($order, $carrierAccountId, $service, [], $userId);
-            } catch (\Throwable $e) {
-                $errors[] = ['order_id' => (int) $oid, 'message' => $e->getMessage()];
+            if (Shipment::query()->where('order_id', $order->getKey())->open()->exists()) {
+                $alreadyPrepared[] = (int) $oid;
+
+                continue;
             }
+            try {
+                $this->assertPreparable($order);
+            } catch (\RuntimeException $e) {
+                $errors[] = ['order_id' => (int) $oid, 'message' => $e->getMessage()];
+
+                continue;
+            }
+            PrepareShipment::dispatch((int) $oid, $carrierAccountId, $service, [], $userId)->onQueue('fulfillment');
+            $queued[] = (int) $oid;
         }
 
-        return ['created' => $created, 'errors' => $errors];
+        return ['queued' => $queued, 'already_prepared' => $alreadyPrepared, 'errors' => $errors];
     }
 
     /**

@@ -40,6 +40,10 @@ fi
 # php-fpm đọc file này; worker/scheduler bỏ qua (vô hại). zz- nạp sau www.conf nên ghi đè [www].
 : "${PHP_FPM_MAX_CHILDREN:=40}"
 : "${PHP_FPM_MAX_REQUESTS:=500}"
+# Giết request chạy quá lâu (mặc định 115s — DƯỚI trần nginx fastcgi_read_timeout/NPM proxy_read_timeout 120s)
+# ⇒ KHÔNG để PHP chạy orphan sau khi proxy đã trả 504 (đơn bị flip status ngầm dù client báo lỗi). Mọi request
+# >120s vốn đã bị 504 nên đây chỉ dọn cái đã hỏng. SPEC 2026-06-26.
+: "${PHP_FPM_REQUEST_TIMEOUT:=115s}"
 _fpm_start=$(( PHP_FPM_MAX_CHILDREN / 4 )); [ "$_fpm_start" -ge 2 ] || _fpm_start=2
 _fpm_min=$(( PHP_FPM_MAX_CHILDREN / 8 )); [ "$_fpm_min" -ge 1 ] || _fpm_min=1
 _fpm_max=$(( PHP_FPM_MAX_CHILDREN / 2 )); [ "$_fpm_max" -ge 3 ] || _fpm_max=3
@@ -52,6 +56,7 @@ pm.min_spare_servers = ${_fpm_min}
 pm.max_spare_servers = ${_fpm_max}
 pm.max_requests = ${PHP_FPM_MAX_REQUESTS}
 pm.process_idle_timeout = 10s
+request_terminate_timeout = ${PHP_FPM_REQUEST_TIMEOUT}
 EOF
 
 # --- Prod OPcache: code baked, không đổi lúc chạy ⇒ tắt validate (nhanh hơn). Dev giữ =1. ---

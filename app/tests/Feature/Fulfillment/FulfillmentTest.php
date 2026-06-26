@@ -306,15 +306,17 @@ class FulfillmentTest extends TestCase
             ->assertOk()->assertJsonPath('data.ok', 1);
     }
 
-    public function test_bulk_create_reports_per_order_errors(): void
+    public function test_bulk_create_queues_valid_and_reports_per_order_errors(): void
     {
+        // SPEC 2026-06-26: bulk "chuẩn bị hàng" giờ ASYNC — trả {queued, already_prepared, errors} (KHÔNG còn
+        // `created` đồng bộ). Đơn hợp lệ → queued (dispatch PrepareShipment); lỗi validate → errors.
         $ok1 = $this->createOrder();
         $ok2 = $this->createOrder();
         // cancel ok2 so it can't be shipped → becomes a per-order error
         $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/orders/{$ok2}/cancel")->assertOk();
 
         $res = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/shipments/bulk-create', ['order_ids' => [$ok1, $ok2, 999999]])->assertOk();
-        $this->assertCount(1, $res->json('data.created'));
+        $this->assertSame([$ok1], $res->json('data.queued'));
         $errorIds = collect($res->json('data.errors'))->pluck('order_id')->all();
         $this->assertContains($ok2, $errorIds);
         $this->assertContains(999999, $errorIds);
