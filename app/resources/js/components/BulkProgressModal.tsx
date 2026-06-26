@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react';
 import { Modal, Progress, List, Tag, Space, Typography, Button } from 'antd';
-import { CheckCircleTwoTone, MinusCircleTwoTone, CloseCircleTwoTone, LoadingOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { CheckCircleTwoTone, MinusCircleTwoTone, CloseCircleTwoTone, LoadingOutlined, ClockCircleOutlined, SyncOutlined } from '@ant-design/icons';
 import type { BulkItem } from '@/lib/useBulkAction';
 
 const ICON: Record<BulkItem['status'], ReactNode> = {
     pending: <ClockCircleOutlined style={{ color: '#bfbfbf' }} />,
     running: <LoadingOutlined style={{ color: '#1677ff' }} />,
+    // queued = đã nhận, đang chuẩn bị nền (job PrepareShipment) — kết quả thật hiện qua polling chip/slip.
+    queued: <SyncOutlined spin style={{ color: '#1677ff' }} />,
     ok: <CheckCircleTwoTone twoToneColor="#52c41a" />,
     skipped: <MinusCircleTwoTone twoToneColor="#faad14" />,
     error: <CloseCircleTwoTone twoToneColor="#ff4d4f" />,

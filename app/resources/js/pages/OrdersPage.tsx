@@ -285,9 +285,9 @@ export function OrdersPage() {
         const targets = selectedOrders;
         if (targets.length === 0) return;
         setSelectedKeys([]);
-        // "Chuẩn bị hàng" tạo vận đơn (đồng bộ — invalidate đã tự refetch) RỒI job nền `FetchChannelLabel` kéo
-        // tem/AWB thật của sàn (bất đồng bộ). Poll ngắn để slip_state ("đang lấy phiếu" → "có thể in") tự render
-        // mà không cần bấm "Làm mới". "Kéo xong là render lại" — như sync orders.
+        // "Chuẩn bị hàng" bulk dispatch job nền `PrepareShipment` (gọi sàn arrange + lấy tem) — request trả NGAY
+        // {queued,...}. Poll 90s để status đơn + chip trạng thái + sub-tab phiếu (slip_state) tự render khi job
+        // xong, không cần bấm "Làm mới". "Kéo xong là render lại" — như sync orders. SPEC 2026-06-26.
         void bulkProgress.start({
             title: 'Chuẩn bị hàng (lấy phiếu)',
             items: targets.map((o) => ({ id: o.id, label: String(o.order_number ?? o.external_order_id ?? o.id), sub: CHANNEL_META[o.source]?.name ?? o.source })),
@@ -302,10 +302,13 @@ export function OrdersPage() {
                 }
                 if (actionable.length === 0) return skips;
                 const r = await bulkPrepare.mutateAsync({ order_ids: actionable, carrier_account_id: carrierAccountId ?? undefined });
-                if (r.created.length > 0) syncPoll.start();   // poll cho tem nền kéo về → slip_state tự render
-                const ok: BulkActionResult[] = r.created.map((s) => ({ id: s.order_id, status: 'ok' }));
+                // Async: queued = đã xếp hàng xử lý nền (job PrepareShipment). Poll 90s để status/chip trạng thái +
+                // sub-tab phiếu (slip_state) tự render khi job xong — không cần "Làm mới".
+                if (r.queued.length > 0) syncPoll.start();
+                const queued: BulkActionResult[] = r.queued.map((id) => ({ id, status: 'queued', reason: 'Đã xếp hàng — đang chuẩn bị nền.' }));
+                const already: BulkActionResult[] = r.already_prepared.map((id) => ({ id, status: 'skipped', reason: 'Đã có phiếu giao hàng — bỏ qua.' }));
                 const errs: BulkActionResult[] = r.errors.map((e) => ({ id: e.order_id, status: 'error', reason: e.message }));
-                return [...skips, ...ok, ...errs];
+                return [...skips, ...queued, ...already, ...errs];
             },
         });
     };

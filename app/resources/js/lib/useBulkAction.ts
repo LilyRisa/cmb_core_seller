@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 
-export type BulkItemStatus = 'pending' | 'running' | 'ok' | 'skipped' | 'error';
+export type BulkItemStatus = 'pending' | 'running' | 'queued' | 'ok' | 'skipped' | 'error';
 
 export interface BulkItem {
     id: number;
@@ -13,7 +13,7 @@ export interface BulkItem {
 
 export interface BulkServerResult {
     id: number;
-    status: 'ok' | 'skipped' | 'error';
+    status: 'queued' | 'ok' | 'skipped' | 'error';
     reason?: string;
     technical?: string;
 }

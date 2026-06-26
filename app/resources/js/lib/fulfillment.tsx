@@ -56,7 +56,7 @@ export interface PrintJob {
     created_at: string | null;
 }
 
-export interface BulkActionResult { id: number; status: 'ok' | 'skipped' | 'error'; reason?: string; technical?: string }
+export interface BulkActionResult { id: number; status: 'queued' | 'ok' | 'skipped' | 'error'; reason?: string; technical?: string }
 
 export const SHIPMENT_STATUS_LABEL: Record<string, string> = {
     pending: 'Chờ tạo', created: 'Đã tạo vận đơn', packed: 'Đã đóng gói',
@@ -300,7 +300,8 @@ export function useBulkCreateShipments() {
     const invalidate = useFulfillmentInvalidate();
     return useMutation({
         mutationFn: async (vars: { order_ids: number[]; carrier_account_id?: number | null; service?: string | null }) => {
-            const { data } = await api!.post<{ data: { created: Shipment[]; errors: Array<{ order_id: number; message: string }> } }>('/shipments/bulk-create', vars); return data.data;
+            // Async (SPEC 2026-06-26): trả {queued, already_prepared, errors} — KHÔNG còn `created` đồng bộ.
+            const { data } = await api!.post<{ data: { queued: number[]; already_prepared: number[]; errors: Array<{ order_id: number; message: string }> } }>('/shipments/bulk-create', vars); return data.data;
         },
         onSuccess: invalidate,
     });
