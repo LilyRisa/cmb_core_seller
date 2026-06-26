@@ -10,7 +10,8 @@
 | `webhooks` | `ProcessWebhookEvent` (xử lý event từ sàn) | Cao nhất, nhiều worker — phải tiêu hoá nhanh |
 | `orders-sync` | `SyncOrdersForShop`, `BackfillOrders`, `FetchOrderDetail` | Trung bình, throttle per (provider,shop) |
 | `inventory-push` | `PushStockForSku`, `PushStockToListing` | Trung bình, throttle per (provider,shop), debounce |
-| `labels` | `GenerateBulkLabel`, render picking/packing PDF (Gotenberg) | Trung bình; tách riêng vì CPU/IO nặng |
+| `labels` | `GenerateBulkLabel`, render picking/packing PDF (Gotenberg), `FetchChannelLabel`, `BackfillChannelTracking` | Trung bình; tách riêng vì CPU/IO nặng |
+| `fulfillment` *(SPEC 2026-06-26)* | `PrepareShipment` — "chuẩn bị hàng" **bulk** chạy nền: gọi sàn `arrangeShipment` + lấy AWB/tem + flip status `processing`. tries 5, backoff 10/30/60/120/300s; idempotent `ShouldBeUnique(orderId)` + `WithoutOverlapping(orderId)` + check vận đơn open(). Tách khỏi `labels` để backlog prepare không starve label-fetch. **Single `/orders/{id}/ship` vẫn đồng bộ** (app mobile/quét kho phụ thuộc shipment trả về ngay). Supervisor `supervisor-fulfillment` — thiếu ⇒ job kẹt im lặng. | Trung bình; gọi sàn nặng |
 | `listings` | đồng bộ listing, đăng bán đa sàn, đồng bộ category | Thấp |
 | `tokens` | `RefreshChannelToken`, `RefreshExpiringTokens` | Cao (token hỏng = sync dừng) |
 | `finance` | `FetchSettlements`, tính lợi nhuận, tổng hợp `profit_snapshots` | Thấp, chạy theo kỳ |
