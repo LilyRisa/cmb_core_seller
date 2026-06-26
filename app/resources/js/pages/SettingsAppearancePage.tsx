@@ -29,7 +29,7 @@ export function SettingsAppearancePage() {
     const [shell, setShell] = useState<'v1' | 'v2'>(prefs.ui_shell);
 
     const saveShell = () => update.mutate({ ui_shell: shell }, {
-        onSuccess: () => { message.success('Đã đổi giao diện, đang tải lại…'); setTimeout(() => window.location.assign('/'), 600); },
+        onSuccess: () => { message.success('Đã đổi giao diện, đang tải lại…'); setTimeout(() => window.location.assign('/dashboard'), 600); },
         onError: () => message.error('Không lưu được lựa chọn giao diện.'),
     });
 
