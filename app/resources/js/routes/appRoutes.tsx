@@ -74,7 +74,7 @@ const lazy = (node: React.ReactNode) => <Suspense fallback={<Spin style={{ margi
 export function appRouteElements(): React.ReactNode {
     return (
         <>
-            <Route index element={<Navigate to="/dashboard" replace />} />
+            {/* KHÔNG đặt index ở `/` — bare `/` thuộc site public (HomePage). Dashboard ở /dashboard. SPEC 2026-06-26. */}
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="orders" element={<OrdersPage />} />
             <Route path="orders/new" element={<CreateOrderPage />} />
