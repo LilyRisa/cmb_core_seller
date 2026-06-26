@@ -45,6 +45,7 @@ class CustomerResource extends JsonResource
             'blocked_at' => $this->blocked_at?->toIso8601String(),
             'tags' => array_values($this->tags ?? []),
             'lifetime_stats' => $this->lifetime_stats ?? [],
+            'prepaid_balance' => (int) ($this->prepaid_balance ?? 0),
             'addresses_meta' => $anonymized ? [] : ($this->addresses_meta ?? []),
             'manual_note' => $anonymized ? null : $this->manual_note,
             'is_anonymized' => $anonymized,

@@ -299,6 +299,8 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');
             Route::get('customers/{id}', [CustomerController::class, 'show'])->whereNumber('id')->name('customers.show');
             Route::get('customers/{id}/orders', [CustomerController::class, 'orders'])->whereNumber('id')->name('customers.orders');
+            Route::post('customers/{id}/wallet/topup', [\CMBcoreSeller\Modules\Customers\Http\Controllers\CustomerWalletController::class, 'topup'])->whereNumber('id')->name('customers.wallet.topup');
+            Route::get('customers/{id}/wallet/transactions', [\CMBcoreSeller\Modules\Customers\Http\Controllers\CustomerWalletController::class, 'transactions'])->whereNumber('id')->name('customers.wallet.transactions');
             Route::post('customers/{id}/notes', [CustomerController::class, 'storeNote'])->whereNumber('id')->name('customers.notes.store');
             Route::delete('customers/{id}/notes/{noteId}', [CustomerController::class, 'destroyNote'])->whereNumber('id')->whereNumber('noteId')->name('customers.notes.destroy');
             Route::post('customers/{id}/block', [CustomerController::class, 'block'])->whereNumber('id')->name('customers.block');
