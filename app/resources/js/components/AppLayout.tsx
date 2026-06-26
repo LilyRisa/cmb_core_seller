@@ -44,7 +44,7 @@ const { Sider, Content } = Layout;
 function buildNav(): MenuProps['items'] {
     const items: NonNullable<MenuProps['items']> = [
         { type: 'group', label: 'Tổng quan', children: [
-            { key: '/', icon: <DashboardOutlined />, label: <Link to="/">Bảng điều khiển</Link> },
+            { key: '/dashboard', icon: <DashboardOutlined />, label: <Link to="/dashboard">Bảng điều khiển</Link> },
         ] },
         { type: 'group', label: 'Bán hàng', children: [
             { key: '/orders', icon: <ShoppingOutlined />, label: <Link to="/orders?tab=pending">Đơn hàng</Link> },

@@ -22,6 +22,11 @@ import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { PublicTrackingPage } from '@/pages/PublicTrackingPage';
 import { DownloadAppPage } from '@/pages/DownloadAppPage';
 import { PlansPage } from '@/pages/PlansPage';
+import { PublicLayout } from '@/pages/public/PublicLayout';
+import { HomePage } from '@/pages/public/HomePage';
+import { PricingPage } from '@/pages/public/PricingPage';
+import { ToolsPage } from '@/pages/public/ToolsPage';
+import { ApiDocsPage } from '@/pages/public/ApiDocsPage';
 // Spec 2026-05-17 — admin SPA tách bundle riêng tại `/admin/*` (xem
 // `resources/js/admin.tsx`). User SPA không còn route admin nào.
 import { NotFoundPage } from '@/pages/NotFoundPage';
@@ -52,6 +57,13 @@ function Root() {
             <Route path="/download" element={<DownloadAppPage />} />
             {/* SPEC 0032 — trang gói full-screen riêng (có nút back), tách khỏi sidebar. */}
             <Route path="/plans" element={<RequireAuth><PlansPage /></RequireAuth>} />
+            {/* SPEC 2026-06-26 — site public (marketing). Đặt TRƯỚC catch-all shell. Dashboard dời sang /dashboard. */}
+            <Route element={<PublicLayout />}>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/pricing" element={<PricingPage />} />
+                <Route path="/tools" element={<ToolsPage />} />
+                <Route path="/api-docs" element={<ApiDocsPage />} />
+            </Route>
             {shell === 'v2' && !isLoading ? (
                 <Route path="/*" element={<RequireAuth><DesktopShell /></RequireAuth>} />
             ) : (

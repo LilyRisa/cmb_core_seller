@@ -85,7 +85,7 @@ export function LoginPage() {
                     <Form
                         layout="vertical"
                         requiredMark={false}
-                        onFinish={(v) => login.mutate({ ...v, captcha_token: captchaToken }, { onSuccess: () => navigate('/') })}
+                        onFinish={(v) => login.mutate({ ...v, captcha_token: captchaToken }, { onSuccess: () => navigate('/dashboard') })}
                     >
                         <Form.Item
                             name="email"

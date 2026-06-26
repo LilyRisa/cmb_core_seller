@@ -75,7 +75,7 @@ export function RegisterPage() {
                     <Form
                         layout="vertical"
                         requiredMark={false}
-                        onFinish={(v) => register.mutate({ ...v, captcha_token: captchaToken }, { onSuccess: () => navigate('/') })}
+                        onFinish={(v) => register.mutate({ ...v, captcha_token: captchaToken }, { onSuccess: () => navigate('/dashboard') })}
                     >
                         <Form.Item
                             name="name"
