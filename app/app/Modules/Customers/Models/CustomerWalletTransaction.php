@@ -25,7 +25,7 @@ class CustomerWalletTransaction extends Model
 
     protected $fillable = [
         'tenant_id', 'customer_id', 'order_id', 'type', 'amount', 'balance_after',
-        'payment_method', 'journal_entry_id', 'note', 'created_by', 'created_at',
+        'payment_method', 'invoice_ref', 'journal_entry_id', 'note', 'created_by', 'created_at',
     ];
 
     protected function casts(): array

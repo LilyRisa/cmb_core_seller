@@ -17,6 +17,7 @@ return new class extends Migration
             $table->bigInteger('amount');            // signed: + nạp/hoàn, − trừ đơn
             $table->bigInteger('balance_after');
             $table->string('payment_method', 16)->nullable(); // cash|bank|ewallet (topup)
+            $table->string('invoice_ref', 120)->nullable();   // số/mã hóa đơn — bắt buộc khi nạp tiền (topup)
             $table->unsignedBigInteger('journal_entry_id')->nullable();
             $table->string('note', 255)->nullable();
             $table->unsignedBigInteger('created_by')->nullable();

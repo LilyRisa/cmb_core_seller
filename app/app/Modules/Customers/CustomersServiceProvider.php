@@ -32,6 +32,11 @@ class CustomersServiceProvider extends ServiceProvider
         $this->app->bind(CustomerProfileContract::class, CustomerProfileResolver::class);
         // Orders hỏi trạng thái report "bom hàng" của đơn qua contract này (SPEC 0038 v2).
         $this->app->bind(CustomerReportContract::class, CustomerReportService::class);
+        // Ví trả trước: Orders trừ/hoàn ví qua contract này (SPEC 2026-06-26).
+        $this->app->bind(
+            \CMBcoreSeller\Modules\Customers\Contracts\CustomerWallet::class,
+            \CMBcoreSeller\Modules\Customers\Services\CustomerWalletService::class,
+        );
     }
 
     public function boot(): void
