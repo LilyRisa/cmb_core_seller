@@ -5,6 +5,8 @@ namespace CMBcoreSeller\Modules\Fulfillment\Jobs;
 use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
 use CMBcoreSeller\Modules\Fulfillment\Services\ShipmentService;
 use CMBcoreSeller\Modules\Orders\Models\Order;
+use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
+use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -39,7 +41,7 @@ class FetchChannelLabel implements ShouldQueue
 
     public function __construct(public readonly int $shipmentId) {}
 
-    public function handle(ShipmentService $service): void
+    public function handle(ShipmentService $service, CurrentTenant $tenant): void
     {
         $shipment = Shipment::withoutGlobalScope(TenantScope::class)->find($this->shipmentId);
         if (! $shipment) {
@@ -61,13 +63,28 @@ class FetchChannelLabel implements ShouldQueue
         if (! $order) {
             return;
         }
-        // Chưa có tracking: hầu hết sàn (TikTok/Lazada) chưa thể lấy tem ⇒ dừng (giữ NGUYÊN luồng cũ). RIÊNG
-        // sàn cấp AWB ĐỘC LẬP với mã vận đơn (Shopee — capability shipping.document_before_tracking) thì vẫn
-        // lấy được tem khi đã arrange ⇒ tiếp tục, không để đơn kẹt thiếu tem chờ tracking async.
-        if (! $shipment->tracking_no && ! $service->channelLabelBeforeTracking($order)) {
+        $shop = Tenant::query()->find($order->tenant_id);
+        if (! $shop) {
             return;
         }
-        $service->retryChannelLabelFetch($order, $shipment);
+        // Job chạy trong worker KHÔNG có request-bound tenant ⇒ PHẢI runAs để query tenant-scoped trong service
+        // (ChannelAccount::find qua channelSupports/fetchAndStoreChannelLabel + media storeBytes) resolve đúng.
+        // Thiếu runAs ⇒ TenantScope ép tenant_id=0 ⇒ ChannelAccount null ⇒ channelLabelBeforeTracking=false +
+        // fetch early-return ⇒ job no-op âm thầm, tem không bao giờ kéo được. SPEC 2026-06-26.
+        $eligible = $tenant->runAs($shop, function () use ($service, $order, $shipment) {
+            // Chưa có tracking: hầu hết sàn (TikTok/Lazada) chưa thể lấy tem ⇒ dừng (giữ NGUYÊN luồng cũ). RIÊNG
+            // sàn cấp AWB ĐỘC LẬP với mã vận đơn (Shopee — shipping.document_before_tracking) thì vẫn lấy được
+            // tem khi đã arrange ⇒ tiếp tục, không để đơn kẹt thiếu tem chờ tracking async.
+            if (! $shipment->tracking_no && ! $service->channelLabelBeforeTracking($order)) {
+                return false;
+            }
+            $service->retryChannelLabelFetch($order, $shipment);
+
+            return true;
+        });
+        if (! $eligible) {
+            return; // chưa đủ điều kiện kéo tem lúc này (chờ tracking) — KHÔNG reschedule (BackfillChannelTracking lo mã vận đơn).
+        }
         $shipment->refresh();
         if (blank($shipment->label_path)) {
             // Vẫn rỗng ⇒ release retry theo backoff (KHÔNG ném lỗi → không log ERROR giả; tem render async là

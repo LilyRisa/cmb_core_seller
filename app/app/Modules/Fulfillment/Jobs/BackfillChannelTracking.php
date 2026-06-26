@@ -5,6 +5,8 @@ namespace CMBcoreSeller\Modules\Fulfillment\Jobs;
 use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
 use CMBcoreSeller\Modules\Fulfillment\Services\ShipmentService;
 use CMBcoreSeller\Modules\Orders\Models\Order;
+use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
+use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -38,7 +40,7 @@ class BackfillChannelTracking implements ShouldQueue
 
     public function __construct(public readonly int $shipmentId) {}
 
-    public function handle(ShipmentService $service): void
+    public function handle(ShipmentService $service, CurrentTenant $tenant): void
     {
         $shipment = Shipment::withoutGlobalScope(TenantScope::class)->find($this->shipmentId);
         if (! $shipment) {
@@ -51,7 +53,13 @@ class BackfillChannelTracking implements ShouldQueue
         if (! $order) {
             return;
         }
-        if ($service->backfillChannelTracking($order, $shipment)) {
+        $shop = Tenant::query()->find($order->tenant_id);
+        if (! $shop) {
+            return;
+        }
+        // Job chạy trong worker KHÔNG có request-bound tenant ⇒ runAs để arrangeOnChannel → ChannelAccount::find
+        // (tenant-scoped) resolve đúng; thiếu runAs ⇒ account null ⇒ backfill no-op âm thầm. SPEC 2026-06-26.
+        if ($tenant->runAs($shop, fn () => $service->backfillChannelTracking($order, $shipment))) {
             Log::info('shipment.backfill_tracking_ok', ['shipment' => $shipment->getKey(), 'attempt' => $this->attempts()]);
 
             return;
