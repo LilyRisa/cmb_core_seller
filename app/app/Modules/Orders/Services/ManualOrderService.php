@@ -26,6 +26,10 @@ class ManualOrderService
 {
     private const PRE_SHIPMENT_CHOICES = [StandardOrderStatus::Pending, StandardOrderStatus::Processing];
 
+    public function __construct(
+        private readonly \CMBcoreSeller\Modules\Customers\Contracts\CustomerWallet $wallet,
+    ) {}
+
     /** @param array<string,mixed> $data */
     public function create(int $tenantId, ?int $userId, array $data): Order
     {
@@ -134,6 +138,24 @@ class ManualOrderService
                 'to_status' => $status->value, 'raw_status' => $status->value, 'source' => OrderStatusHistory::SOURCE_USER,
                 'changed_at' => $now, 'payload' => ['created_by' => $userId], 'created_at' => $now,
             ]);
+
+            // Trừ ví trả trước (nếu đơn dùng ví). wallet_amount ⊆ prepaid_amount ⊆ số dư ví. Trong cùng
+            // transaction ⇒ thiếu số dư thì rollback cả đơn. SPEC 2026-06-26.
+            $walletAmount = max(0, (int) ($data['wallet_amount'] ?? 0));
+            if ($walletAmount > 0) {
+                $customerId = (int) ($data['customer_id'] ?? 0);
+                if ($customerId <= 0) {
+                    throw ValidationException::withMessages(['wallet_amount' => 'Thiếu khách hàng để trừ ví trả trước.']);
+                }
+                if ($walletAmount > $prepaidAmount) {
+                    throw ValidationException::withMessages(['wallet_amount' => 'Số tiền trừ ví vượt số đã trả trước của đơn.']);
+                }
+                try {
+                    $this->wallet->deductForOrder($tenantId, $customerId, (int) $order->getKey(), $walletAmount, $userId);
+                } catch (\RuntimeException $e) {
+                    throw ValidationException::withMessages(['wallet_amount' => $e->getMessage()]);
+                }
+            }
 
             return $order;
         });

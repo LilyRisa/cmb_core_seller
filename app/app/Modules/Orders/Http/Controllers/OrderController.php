@@ -138,6 +138,9 @@ class OrderController extends Controller
             'tax' => ['sometimes', 'integer', 'min:0', 'max:999999999'],
             'order_discount' => ['sometimes', 'integer', 'min:0', 'max:999999999'],
             'prepaid_amount' => ['sometimes', 'integer', 'min:0', 'max:999999999'],
+            // Ví trả trước (SPEC 2026-06-26): `customer_id` khách khớp + `wallet_amount` phần prepaid lấy từ ví.
+            'customer_id' => ['sometimes', 'nullable', 'integer'],
+            'wallet_amount' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:999999999'],
             'surcharge' => ['sometimes', 'integer', 'min:0', 'max:999999999'],
             'is_cod' => ['sometimes', 'boolean'],
             'cod_amount' => ['sometimes', 'integer', 'min:0', 'max:999999999'],
