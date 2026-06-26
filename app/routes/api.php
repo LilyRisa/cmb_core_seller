@@ -54,6 +54,9 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
     // --- Health (DB / cache / Redis / queue worker probe) ---
     Route::get('health', HealthController::class)->name('health');
 
+    // Bảng giá công khai cho trang marketing (KHÔNG auth) — SPEC 2026-06-26.
+    Route::get('public/plans', [\CMBcoreSeller\Modules\Billing\Http\Controllers\PublicPlanController::class, 'index'])->name('public.plans');
+
     // Site key CAPTCHA cho FE render widget (public, không nhạy cảm). SPEC 2026-06-10.
     Route::get('auth/captcha-config', [AuthController::class, 'captchaConfig'])->name('auth.captcha-config');
 
