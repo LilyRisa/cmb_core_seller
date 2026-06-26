@@ -19,11 +19,11 @@ export interface AppDef {
 
 export const APP_CATALOG: AppDef[] = [
     {
-        // Tổng quan là app riêng (mở từ icon Desktop). prefixes rỗng ⇒ appForPath('/') trả undefined
-        // nên màn Desktop vẫn là trang nền mặc định khi vào, không tự bật tab Dashboard.
+        // Tổng quan là app riêng (mở từ icon Desktop). Dashboard dời sang /dashboard (SPEC 2026-06-26 —
+        // `/` nay là site public). prefixes ['/dashboard'] để appForPath nhận đúng app khi ở route đó.
         key: 'dashboard', label: 'Tổng quan', icon: <DashboardOutlined />,
-        defaultPath: '/', prefixes: [],
-        menu: [{ key: '/', label: 'Bảng điều khiển' }],
+        defaultPath: '/dashboard', prefixes: ['/dashboard'],
+        menu: [{ key: '/dashboard', label: 'Bảng điều khiển' }],
     },
     {
         key: 'sales', label: 'Bán hàng', icon: <ShoppingOutlined />, permission: 'orders.view',
