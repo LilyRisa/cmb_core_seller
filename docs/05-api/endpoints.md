@@ -8,6 +8,7 @@
 
 | Method | Path | Auth | Mô tả |
 |---|---|---|---|
+| GET | `/api/v1/public/plans` | — (public, không auth) | — | `200` `{ data:[{code,name,description,price_monthly,price_yearly,currency,trial_days,features,limits}] }` — catalog gói cho trang bảng giá public. Chỉ plan `is_active`, sort theo `sort_order`; không lộ dữ liệu tenant. (SPEC 2026-06-26) |
 | GET | `/api/v1/health` | — | Probe DB / cache / Redis / queue worker. `200` nếu mọi check *critical* (DB) "ok", `503` nếu không. Trả `data.status` (`ok`/`degraded`), `data.checks.{database,cache,redis,queue}.status`, `app`, `env`, `time`. Mọi response có header `X-Request-Id`. |
 
 ## Auth & phiên (public + authenticated)
@@ -66,6 +67,9 @@
 | PUT | `/api/v1/tenant/members/{user}` | sanctum + tenant (`team.manage`) | `role_id` | `200`. Đổi vai trò owner ⇒ `403`; role_id owner/không hợp lệ ⇒ `422`. |
 | DELETE | `/api/v1/tenant/members/{user}` | sanctum + tenant (`team.manage`) | — | `204`. Gỡ owner ⇒ `403`. |
 | POST | `/api/v1/tenant/members/{user}/reset-password` | sanctum + tenant (`team.manage`) | `password` (≥6) | `204`. Chỉ tài khoản phụ; user thường ⇒ `422 NOT_SUB_ACCOUNT`. |
+| GET | `/api/v1/tenant/api-keys` | sanctum + tenant (**CHỈ owner** — `isOwner()`) | — | `200` `{ data:[{id,name,last_four,abilities,expires_at,last_used_at,created_at}] }`. Nhân viên ⇒ `403`. KHÔNG bao giờ trả token. (API key bên thứ 3 — SPEC 2026-06-26) |
+| POST | `/api/v1/tenant/api-keys` | sanctum + tenant (**CHỈ owner**) | `name`, `expires_at?` (ISO, sau hiện tại) | `201` `{ data:{id,name,token,expires_at} }`. `token` plaintext **trả 1 lần duy nhất** (sau chỉ lưu hash). Token = Sanctum PAT gắn `tenant_id`+`kind='api_key'`, abilities `['*']` ⇒ thao tác như web. Client gọi `Authorization: Bearer <token>` KHÔNG cần `X-Tenant-Id` (token tự khóa shop). |
+| DELETE | `/api/v1/tenant/api-keys/{id}` | sanctum + tenant (**CHỈ owner**) | — | `200` `{data:{deleted:true}}` — thu hồi tức thì (request sau bằng key đó → `401`). Chỉ xóa key `kind='api_key'` của shop hiện tại; không thấy/xóa token mobile/extension. |
 
 ## Gian hàng (Channels — Phase 1)
 
