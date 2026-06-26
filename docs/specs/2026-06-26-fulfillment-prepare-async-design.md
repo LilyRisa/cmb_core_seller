@@ -67,6 +67,10 @@
 - **FE:**
   - `useShipOrder`: nhận 202 → optimistic "đang chuẩn bị…" (local set order id) + `syncPoll.start()` → polling cập nhật rồi clear.
   - `useBulkCreateShipments`/`useBulkAction`/progress modal: map `queued[]`→trạng thái "đang xử lý" (xanh dương, không phải "ok"), `already_prepared[]`→"skipped", `errors[]`→"error"; rồi `syncPoll.start()`.
+  - **Polling phải cập nhật & render ĐẦY ĐỦ (yêu cầu rõ):** mỗi vòng poll phải invalidate/refetch TẤT CẢ query ảnh hưởng để UI khớp ngay khi job nền xong, KHÔNG chỉ list đơn:
+    - **Số lượng đơn trong các chip trạng thái** (badge counts): query đếm theo trạng thái đơn + theo stage (`/fulfillment/processing/counts`: prepare/pack/handover) + đếm sub-tab phiếu ("Có thể in"/"Đang tải lại"/"Nhận phiếu"). Đơn chuyển Pending→Processing và shipment xuất hiện ⇒ các con số này phải đổi đúng.
+    - **Tình trạng in (`slip_state`)**: printable/loading/failed phải re-render đúng trên từng dòng đơn (spinner "Đang lấy phiếu…" → nút in được / nút "Nhận phiếu" khi fail) khi job kéo tem xong hoặc thất bại.
+    - Rà soát `useSyncPolling`/`syncPoll`: đảm bảo danh sách `queryKey` được invalidate gồm cả counts/stats/tab-stats/processing-counts, không sót, tránh chip lệch số sau khi async hoàn tất.
   - Không thêm timeout axios; reload giữa chừng mất optimistic ⇒ re-click an toàn (idempotent).
 - **Connector:** không thêm logic theo tên sàn ở core; job dùng đúng method `ChannelConnector`/`CarrierConnector` như hiện tại.
 
@@ -100,6 +104,7 @@ Không thay đổi xử lý PII. Job thao tác trên đơn/vận đơn theo tena
 - [ ] `entrypoint.sh` thêm `request_terminate_timeout=115s`.
 - [ ] `config/horizon.php` thêm `supervisor-fulfillment` + bump labels.
 - [ ] FE: `useShipOrder` + `useBulkCreateShipments`/`useBulkAction`/progress modal theo contract mới + optimistic + polling.
+- [ ] FE: polling cập nhật & render đầy đủ số lượng chip trạng thái (status + stage + sub-tab phiếu) và `slip_state` (tình trạng in) — không sót queryKey, chip không lệch số.
 - [ ] Test Fulfillment liên quan pass; `pint --test`, `phpstan`, `npm run lint/typecheck/build` xanh.
 - [ ] Tài liệu cập nhật: `05-api/endpoints.md`, `07-infra/queues-and-scheduler.md`.
 - [ ] Verify prod: dispatch 1 đơn thật, job chạy trên queue `fulfillment`, request <1s, không 504.
