@@ -57,7 +57,7 @@ class Customer extends Model
     protected $fillable = [
         'tenant_id', 'phone_hash', 'phone', 'name', 'avatar_url', 'source', 'dob', 'address',
         'email', 'email_hash', 'addresses_meta',
-        'lifetime_stats', 'reputation_score', 'reputation_label', 'tags', 'is_blocked',
+        'lifetime_stats', 'reputation_score', 'reputation_label', 'prepaid_balance', 'tags', 'is_blocked',
         'blocked_at', 'blocked_by_user_id', 'block_reason', 'manual_note',
         'first_seen_at', 'last_seen_at', 'merged_into_customer_id', 'pii_anonymized_at',
     ];
@@ -79,6 +79,7 @@ class Customer extends Model
             'lifetime_stats' => 'array',
             'tags' => 'array',
             'reputation_score' => 'integer',
+            'prepaid_balance' => 'integer',
             'is_blocked' => 'boolean',
             'blocked_at' => 'datetime',
             'first_seen_at' => 'datetime',
