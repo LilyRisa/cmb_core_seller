@@ -3,6 +3,7 @@ import { Button, Menu, Space } from 'antd';
 import type { MenuProps } from 'antd';
 import { AppstoreOutlined, ChromeOutlined, LoginOutlined, MobileOutlined } from '@ant-design/icons';
 import { useAuth } from '@/lib/auth';
+import { CHROME_EXT_URL } from './ToolsPage';
 
 /** Header public: logo + menu (Trang chủ, Bảng giá, Tài liệu API, Phần mềm phụ trợ↓) + nút Đăng nhập / Vào ứng dụng. */
 export function PublicHeader() {
@@ -18,7 +19,7 @@ export function PublicHeader() {
         {
             key: 'tools', icon: <AppstoreOutlined />, label: 'Phần mềm phụ trợ',
             children: [
-                { key: '/tools-ext', icon: <ChromeOutlined />, label: <Link to="/tools#extension">Chrome extension</Link> },
+                { key: '/tools-ext', icon: <ChromeOutlined />, label: <a href={CHROME_EXT_URL} target="_blank" rel="noreferrer">Chrome extension</a> },
                 { key: '/download', icon: <MobileOutlined />, label: <Link to="/download">App mobile</Link> },
             ],
         },

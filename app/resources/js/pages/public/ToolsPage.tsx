@@ -2,6 +2,8 @@ import { Link } from 'react-router-dom';
 import { Button, Card, Col, Row, Space, Typography } from 'antd';
 import { ApiOutlined, ChromeOutlined, MobileOutlined } from '@ant-design/icons';
 
+export const CHROME_EXT_URL = 'https://chromewebstore.google.com/detail/cmbcoreseller-h%E1%BB%87-th%E1%BB%91ng-er/ffhpgodhnajdcbccdijgfclcbfjncick';
+
 /** Phần mềm phụ trợ: Chrome extension + App mobile (gộp 1 trang). SPEC 2026-06-26. */
 export function ToolsPage() {
     return (
@@ -16,7 +18,7 @@ export function ToolsPage() {
                         <div style={{ fontSize: 32, color: '#1677ff' }}><ChromeOutlined /></div>
                         <Typography.Title level={4}>Chrome Extension</Typography.Title>
                         <Typography.Paragraph type="secondary">Sao chép sản phẩm từ sàn về kho, thao tác nhanh ngay trên trình duyệt khi duyệt trang sàn.</Typography.Paragraph>
-                        <Button type="primary" disabled>Sắp ra mắt</Button>
+                        <a href={CHROME_EXT_URL} target="_blank" rel="noreferrer"><Button type="primary">Cài đặt từ Chrome Web Store</Button></a>
                     </Card>
                 </Col>
                 <Col xs={24} md={8}>

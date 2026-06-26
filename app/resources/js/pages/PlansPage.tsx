@@ -12,6 +12,7 @@ import { errorMessage } from '@/lib/api';
 import {
     useBuyAiCredits, useCheckout, usePlans, useSubscription, useValidateVoucher, type Plan, type PlanCode, type VoucherPreview,
 } from '@/lib/billing';
+import { PlatformQuota } from '@/components/PlatformQuota';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -264,11 +265,10 @@ export function PlansPage() {
 
                                     <Divider style={{ margin: '16px 0 12px' }} />
 
-                                    {/* Hạn mức chính */}
+                                    {/* Hạn mức chính — số gian hàng mỗi nền tảng (logo) + tổng + AI */}
                                     <Space direction="vertical" size={6} style={{ display: 'flex', marginBottom: 12 }}>
-                                        <Text><ShopOutlined style={{ color: '#1677ff' }} /> Gian hàng: <b>{limitText(p.limits?.max_channel_accounts)}</b>
-                                            <Text type="secondary" style={{ fontSize: 12 }}> ({limitText(p.limits?.max_channel_accounts_per_platform)} mỗi nền tảng)</Text>
-                                        </Text>
+                                        <Text type="secondary" style={{ fontSize: 12 }}><ShopOutlined style={{ color: '#1677ff' }} /> Gian hàng kết nối (tổng: <b>{limitText(p.limits?.max_channel_accounts)}</b>)</Text>
+                                        <PlatformQuota perPlatform={p.limits?.max_channel_accounts_per_platform} />
                                         <Text><ThunderboltOutlined style={{ color: '#722ed1' }} /> Lượt AI/kỳ: <b>{limitText(p.limits?.ai_credits_monthly)}</b></Text>
                                     </Space>
 
