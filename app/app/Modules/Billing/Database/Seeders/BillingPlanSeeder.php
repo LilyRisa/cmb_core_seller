@@ -67,8 +67,8 @@ class BillingPlanSeeder extends Seeder
                 'name' => 'Cơ bản',
                 'description' => 'Xử lý đơn + nhắn tin Facebook Page (chưa có AI). Mỗi nền tảng tối đa 2 gian hàng. Chưa gồm kế toán & quảng cáo Facebook.',
                 'sort_order' => 1,
-                'price_monthly' => 90_000,
-                'price_yearly' => 900_000,
+                'price_monthly' => 190_000,
+                'price_yearly' => 1_900_000,
                 'trial_days' => 0,
                 'is_active' => true,
                 'limits' => [
@@ -83,8 +83,8 @@ class BillingPlanSeeder extends Seeder
                 'name' => 'Chuyên nghiệp',
                 'description' => 'Full tính năng (kế toán, quảng cáo Facebook, AI chat, đối soát, báo cáo lợi nhuận…), không giới hạn gian hàng, tặng 500 lượt AI mỗi kỳ.',
                 'sort_order' => 2,
-                'price_monthly' => 170_000,
-                'price_yearly' => 1_700_000,
+                'price_monthly' => 270_000,
+                'price_yearly' => 2_700_000,
                 'trial_days' => 0,
                 'is_active' => true,
                 'limits' => [

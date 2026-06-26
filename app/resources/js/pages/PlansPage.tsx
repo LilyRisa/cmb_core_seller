@@ -116,7 +116,7 @@ export function PlansPage() {
             ...offered.map((p) => ({
                 key: p.code,
                 dataIndex: p.code,
-                align: 'center' as const,
+                align: 'left' as const,
                 width: 150,
                 onHeaderCell: () => highlight(p.code),
                 onCell: () => highlight(p.code),
@@ -268,7 +268,7 @@ export function PlansPage() {
                                     {/* Hạn mức chính — số gian hàng mỗi nền tảng (logo) + tổng + AI */}
                                     <Space direction="vertical" size={6} style={{ display: 'flex', marginBottom: 12 }}>
                                         <Text type="secondary" style={{ fontSize: 12 }}><ShopOutlined style={{ color: '#1677ff' }} /> Gian hàng kết nối (tổng: <b>{limitText(p.limits?.max_channel_accounts)}</b>)</Text>
-                                        <PlatformQuota perPlatform={p.limits?.max_channel_accounts_per_platform} />
+                                        <PlatformQuota perPlatform={p.limits?.max_channel_accounts_per_platform} facebook={!isFreePlan(p)} />
                                         <Text><ThunderboltOutlined style={{ color: '#722ed1' }} /> Lượt AI/kỳ: <b>{limitText(p.limits?.ai_credits_monthly)}</b></Text>
                                     </Space>
 

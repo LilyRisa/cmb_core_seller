@@ -30,15 +30,15 @@ export function PricingPage() {
     return (
         <div style={{ background: 'linear-gradient(180deg,#f5f8ff,#fff)', padding: '56px 24px 72px' }}>
             <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-                <div style={{ textAlign: 'center', marginBottom: 40 }}>
+                <div style={{ textAlign: 'left', marginBottom: 40 }}>
                     <Typography.Title level={1} style={{ marginBottom: 8 }}>Bảng giá đơn giản, minh bạch</Typography.Title>
-                    <Typography.Paragraph style={{ fontSize: 17, color: '#595959', maxWidth: 660, margin: '0 auto' }}>
+                    <Typography.Paragraph style={{ fontSize: 17, color: '#595959', maxWidth: 660 }}>
                         Bắt đầu miễn phí với 1 gian hàng mỗi nền tảng (Shopee, TikTok, Lazada). Nâng cấp khi cần thêm gian hàng, kế toán, quảng cáo và AI.
                     </Typography.Paragraph>
                 </div>
 
                 {isLoading ? <Skeleton active paragraph={{ rows: 8 }} /> : (
-                    <Row gutter={[24, 24]} align="stretch" justify="center">
+                    <Row gutter={[24, 24]} align="stretch" justify="start">
                         {(data ?? []).map((p) => {
                             const isRec = p.code.toLowerCase() === 'pro';
                             const isFree = p.price_monthly === 0;
@@ -62,7 +62,7 @@ export function PricingPage() {
                                             : (p.price_yearly > 0 && <Typography.Text type="secondary">hoặc {vnd(p.price_yearly)}/năm</Typography.Text>)}
 
                                         <Divider style={{ margin: '14px 0 10px' }} orientation="left" orientationMargin={0}><Typography.Text type="secondary" style={{ fontSize: 12 }}>GIAN HÀNG KẾT NỐI</Typography.Text></Divider>
-                                        <PlatformQuota perPlatform={p.limits?.max_channel_accounts_per_platform} />
+                                        <PlatformQuota perPlatform={p.limits?.max_channel_accounts_per_platform} facebook={!isFree} />
 
                                         <Divider style={{ margin: '14px 0 10px' }} orientation="left" orientationMargin={0}><Typography.Text type="secondary" style={{ fontSize: 12 }}>TÍNH NĂNG</Typography.Text></Divider>
                                         <List
@@ -85,7 +85,7 @@ export function PricingPage() {
                     </Row>
                 )}
 
-                <Typography.Paragraph type="secondary" style={{ textAlign: 'center', marginTop: 32 }}>
+                <Typography.Paragraph type="secondary" style={{ textAlign: 'left', marginTop: 32 }}>
                     Mọi gói đều đồng bộ đa sàn, xử lý đơn, tồn kho master SKU và giao vận. Có thể nâng/hạ cấp bất cứ lúc nào.
                 </Typography.Paragraph>
             </div>
