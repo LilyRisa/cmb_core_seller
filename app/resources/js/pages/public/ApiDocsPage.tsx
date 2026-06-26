@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Anchor, Card, Col, Row, Space, Table, Tag, Typography } from 'antd';
 import { CheckOutlined, CopyOutlined } from '@ant-design/icons';
 
-const BASE = 'https://<tên-miền>/api/v1';
+const BASE = 'https://app.cmbcore.com/api/v1';
 
 const METHOD_COLOR: Record<string, string> = { GET: 'blue', POST: 'green', PUT: 'gold', DELETE: 'red' };
 
