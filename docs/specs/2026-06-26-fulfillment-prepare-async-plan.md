@@ -4,7 +4,9 @@
 
 **Goal:** Đưa toàn bộ phần gọi sàn + lấy tem của "chuẩn bị hàng" (single + bulk) ra khỏi request HTTP php-fpm vào job nền `PrepareShipment`, chống orphan php-fpm, scale queue, và để FE polling cập nhật đầy đủ chip trạng thái + tình trạng in.
 
-**Architecture:** Controller chỉ validate rẻ (DB) đồng bộ rồi dispatch `PrepareShipment` per đơn → trả ngay (single 202; bulk `{queued, already_prepared, errors}`). Job chạy `$tenant->runAs(...)` rồi gọi lại `ShipmentService::createForOrder` (logic nặng giữ nguyên). FE map kết quả vào progress modal + kích hoạt `syncPoll` (đã có) để refetch list + stats (chip) + slip.
+> **⚠ SCOPE REVISION (2026-06-26): CHỈ BULK ASYNC.** Sau khi rà code, single `POST /orders/{id}/ship` GIỮ ĐỒNG BỘ (app mobile + quét kho + markReady + 7 file test phụ thuộc shipment trả về ngay; single không gây 504). ⇒ **BỎ Task 3 (single 202), Task 7 (FE useShipOrder type), Task 10 (OrderProcessing polling + markReady)**. markReady không cần sửa (single sync vẫn trả shipment). Các task còn lại: 1, 2, 4, 5, 6, 8, 9, 11, 12.
+
+**Architecture:** Bulk controller validate rẻ (DB) đồng bộ rồi dispatch `PrepareShipment` per đơn → trả `{queued, already_prepared, errors}`. Job chạy `$tenant->runAs(...)` rồi gọi `ShipmentService::createForOrder` (logic nặng giữ nguyên). Single `/ship` vẫn gọi thẳng `createForOrder` đồng bộ (không đổi). FE bulk map kết quả vào progress modal + kích hoạt `syncPoll` (đã có) để refetch list + stats (chip) + slip.
 
 **Tech Stack:** Laravel 11 (queue Horizon/Redis), React 18 + TanStack Query + Ant Design, PHPUnit, Pint, PHPStan.
 

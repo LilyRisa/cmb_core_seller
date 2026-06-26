@@ -19,9 +19,11 @@
 
 ## 2. Trong / ngoài phạm vi
 
+> **SCOPE REVISION (2026-06-26, sau khi rà code):** chỉ async hóa **bulk**. Single `POST /orders/{id}/ship` GIỮ ĐỒNG BỘ — vì hợp đồng đồng bộ của nó (trả shipment ngay) bị app mobile + luồng quét kho (`scan-pack`/`scan-handover` ngay sau prepare) + `markReady` + 33 lời gọi trong 7 file test phụ thuộc. Single 1 đơn (~2-8s) không gây 504; async hóa single = rủi ro lớn, lợi ích ~0. Vấn đề 504/orphan thuần là của bulk (N đơn/1 request).
+
 - **Trong:**
-  - Async hóa **cả single** (`POST /orders/{id}/ship`) **và bulk** (`POST /shipments/bulk-create`) qua job `PrepareShipment`.
-  - **Hybrid:** validate rẻ đồng bộ (trả lỗi ngay), phần nặng (arrange + tem) chạy job nền.
+  - Async hóa **bulk** (`POST /shipments/bulk-create`) qua job `PrepareShipment`. Single `/ship` giữ đồng bộ (gọi thẳng `createForOrder`).
+  - **Hybrid:** bulk validate rẻ đồng bộ (trả lỗi ngay), phần nặng (arrange + tem) chạy job nền.
   - `request_terminate_timeout` ở php-fpm (chống orphan) — fix #2.
   - Bỏ `usleep` đồng bộ khỏi path request — fix #3 (gộp vào async; usleep còn lại nằm trong job là chấp nhận được).
   - Queue riêng `fulfillment` + `supervisor-fulfillment`, scale worker — fix #4.
