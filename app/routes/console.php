@@ -2,6 +2,7 @@
 
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Modules\Channels\Jobs\FetchChannelListings;
+use CMBcoreSeller\Modules\Channels\Jobs\RefreshStuckOrders;
 use CMBcoreSeller\Modules\Channels\Jobs\SyncOrdersForShop;
 use CMBcoreSeller\Modules\Channels\Jobs\SyncReturnsForShop;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
@@ -80,6 +81,14 @@ Schedule::call(function () {
         ->orderBy('id')
         ->each(fn ($a) => SyncOrdersForShop::dispatch((int) $a->getKey(), null, SyncRun::TYPE_UNPROCESSED));
 })->everyThirtyMinutes()->name('sync-unprocessed-orders')->onOneServer()->withoutOverlapping();
+
+// Mỗi 2h: làm mới trạng thái đơn SÀN đang treo (refetch) để không kẹt vĩnh viễn. Tách biệt sync thường.
+Schedule::call(function () {
+    ChannelAccount::withoutGlobalScope(TenantScope::class)
+        ->where('status', ChannelAccount::STATUS_ACTIVE)
+        ->orderBy('id')
+        ->each(fn ($a) => RefreshStuckOrders::dispatch((int) $a->getKey()));
+})->cron('15 */2 * * *')->name('refresh-stuck-orders')->onOneServer()->withoutOverlapping();
 
 // Every 15': sync đơn Hoàn & Hủy (after-sales) cho mỗi shop hỗ trợ — SPEC 0025. Job no-op nếu connector
 // chưa hỗ trợ `returns.fetch`. Webhook return/cancel cũng dispatch job này (poll là nguồn truth).

@@ -187,6 +187,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Order refresh (stuck orders)
+    |--------------------------------------------------------------------------
+    |
+    | RefreshStuckOrders job: refetch từ sàn các đơn treo (has_issue hoặc chưa có tem)
+    | nhưng chưa được cập nhật trong stuckHours giờ, đặt trong maxAgeDays ngày gần nhất.
+    | Mỗi lần tối đa `batch` đơn; pacing `sleep_ms` ms giữa các lượt gọi sàn.
+    |
+    */
+    'order_refresh' => [
+        'stuck_hours' => (int) env('ORDER_REFRESH_STUCK_HOURS', 2),
+        'max_age_days' => (int) env('ORDER_REFRESH_MAX_AGE_DAYS', 30),
+        'batch' => (int) env('ORDER_REFRESH_BATCH', 200),
+        'sleep_ms' => (int) env('ORDER_REFRESH_SLEEP_MS', 300),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Stock push
     |--------------------------------------------------------------------------
     */
