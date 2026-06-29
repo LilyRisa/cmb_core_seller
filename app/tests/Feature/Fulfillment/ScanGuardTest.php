@@ -170,6 +170,23 @@ class ScanGuardTest extends TestCase
         $this->assertNotEmpty($resp->json('message'), 'Response phải kèm message dù không có issue_reason.');
     }
 
+    /**
+     * Đơn Processing + has_issue=true + issue_reason='SKU chưa ghép' + label_path có sẵn
+     * → quét đóng gói vẫn thành công (200). Issue này không chặn fulfillment.
+     */
+    public function test_scan_succeeds_when_only_issue_is_unmapped_sku(): void
+    {
+        $order = $this->makeOrder(['has_issue' => true, 'issue_reason' => 'SKU chưa ghép']);
+        $shipment = $this->makeShipment($order);
+
+        $resp = $this->actingAs($this->owner)->withHeaders($this->h())
+            ->postJson('/api/v1/scan-pack', ['code' => $shipment->tracking_no]);
+
+        $resp->assertOk()
+            ->assertJsonPath('data.action', 'pack')
+            ->assertJsonPath('data.shipment.status', 'packed');
+    }
+
     // ── label_missing ─────────────────────────────────────────────────────────
 
     /** Vận đơn chưa có tem (label_path = null) → 409 label_missing. */
