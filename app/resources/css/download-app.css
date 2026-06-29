@@ -94,7 +94,10 @@
 
 /* ---------- download buttons ---------- */
 .dl-cta-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-.dl-apk {
+/* Scoped under .cmb-public so specificity (0,2,0) beats the .cmb-public * reset (0,1,0).
+   Without this, the reset's padding:0 overrides .dl-apk's padding because download-app.css
+   is bundled before cmb-public.css (DownloadAppPage imported before PublicLayout in app.tsx). */
+.cmb-public .dl-apk {
     display: inline-flex; align-items: center; gap: 12px;
     padding: 15px 26px; border-radius: 15px; text-decoration: none;
     font-weight: 700; font-size: 15.5px; color: #07122b;
@@ -102,9 +105,9 @@
     box-shadow: 0 14px 34px -12px rgba(125,211,252,.7), inset 0 1px 0 rgba(255,255,255,.9);
     transition: transform .16s ease, box-shadow .16s ease;
 }
-.dl-apk:hover { transform: translateY(-2px); box-shadow: 0 20px 44px -12px rgba(125,211,252,.85); }
-.dl-apk .ico { font-size: 24px; line-height: 1; color: var(--dl-lime); }
-.dl-apk small { display: block; font-weight: 500; font-size: 11px; color: #5b6b88; letter-spacing: .02em; }
+.cmb-public .dl-apk:hover { transform: translateY(-2px); box-shadow: 0 20px 44px -12px rgba(125,211,252,.85); }
+.cmb-public .dl-apk .ico { font-size: 24px; line-height: 1; color: var(--dl-lime); }
+.cmb-public .dl-apk small { display: block; font-weight: 500; font-size: 11px; color: #5b6b88; letter-spacing: .02em; }
 .dl-apk-note { font-size: 12.5px; color: #93a4c4; margin: 12px 0 0; }
 
 /* ---------- phone mockup ---------- */
@@ -187,8 +190,11 @@
 }
 .dl-stores h2 { font-size: 24px; font-weight: 800; margin: 0 0 8px; position: relative; }
 .dl-stores p { color: #aab8d6; font-size: 14.5px; margin: 0 0 26px; position: relative; }
-.dl-badges { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; position: relative; }
-.dl-badge {
+/* padding-top gives clearance for .dl-badge .soon which overflows 9px above each badge;
+   scoped under .cmb-public so (0,2,0) beats the reset (0,1,0). */
+.cmb-public .dl-badges { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; position: relative; padding-top: 12px; }
+/* Same specificity fix: .cmb-public .dl-badge (0,2,0) > reset (0,1,0) → restores padding. */
+.cmb-public .dl-badge {
     display: inline-flex; align-items: center; gap: 12px; padding: 13px 22px; border-radius: 14px;
     background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14); color: #fff;
     cursor: default; min-width: 200px; text-align: left; position: relative;

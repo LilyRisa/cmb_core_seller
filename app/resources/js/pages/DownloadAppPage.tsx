@@ -206,7 +206,8 @@ export function DownloadAppPage() {
                             position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none',
                             background: 'radial-gradient(560px 220px at 50% -30%, rgba(56,189,248,.28), transparent 60%)',
                         }} />
-                        <h2 style={{ fontSize: 'clamp(22px, 3vw, 28px)', fontWeight: 800, marginBottom: 8, position: 'relative' }}>
+                        {/* color:'#fff' bắt buộc vì .cmb-public h2{color:var(--text)} ghi đè màu kế thừa từ thẻ cha */}
+                        <h2 style={{ fontSize: 'clamp(22px, 3vw, 28px)', fontWeight: 800, marginBottom: 8, position: 'relative', color: '#fff' }}>
                             Sắp có mặt trên App Store &amp; Google Play
                         </h2>
                         <p style={{ color: '#aab8d6', fontSize: 14.5, margin: '0 0 26px', position: 'relative' }}>
