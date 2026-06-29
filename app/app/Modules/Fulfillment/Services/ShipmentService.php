@@ -809,14 +809,10 @@ class ShipmentService
         if ($order && $order->status === S::Cancelled) {
             throw new RuntimeException('Đơn đã bị huỷ — không thể đóng gói.');
         }
-        // Phòng thủ nhiều lớp: chặn đóng gói đơn không ở trạng thái Processing hoặc đang có lỗi.
-        // Không thêm guard label_path ở đây vì bulk pack hợp lệ với đơn không có tem (manual carrier).
-        if ($order && $order->status !== S::Processing) {
-            throw new RuntimeException('Đơn hàng không ở trạng thái Đang xử lý — không thể đóng gói.');
-        }
-        if ($order && $order->has_issue) {
-            throw new RuntimeException('Đơn hàng đang có lỗi — không thể đóng gói.');
-        }
+        // Enforcement of "Processing + no issue + has label" lives in scan() (ShipmentController)
+        // so that single-scan quét đóng gói tightens the rules without breaking bulk-pack (pack endpoint
+        // via runBulkShipment per-item try/catch) or SKU-unmapped orders that have has_issue but are
+        // still legitimately fulfillable in the bulk flow. DO NOT re-add Processing/has_issue guards here.
         // Đẩy trạng thái "sẵn sàng bàn giao" lên sàn (Lazada /order/rts) TRƯỚC khi flip — gọi NGOÀI transaction
         // để không giữ lock DB trong lúc chờ HTTP. KHÔNG chặn: `pushReadyToShipOnChannel` nuốt lỗi, chỉ gắn cờ
         // `has_issue` cho user "Nhận lại phiếu"; ta VẪN đóng gói cục bộ để kho không bị kẹt khi sàn flaky.
