@@ -14,6 +14,7 @@ use CMBcoreSeller\Integrations\Channels\DTO\ShopHealthDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
+use CMBcoreSeller\Integrations\Channels\Exceptions\ShippingDocumentUnavailable;
 use CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation;
 use CMBcoreSeller\Support\Enums\PrepareBlockReason;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
@@ -266,7 +267,17 @@ class ShopeeConnector implements ChannelConnector, PenaltyWebhookConnector, Shop
         }
 
         if ((string) ($cfg['fulfillment_mode'] ?? 'auto') !== 'refetch_only') {
-            $param = $this->client->shopGet($auth, $this->client->endpoint('shipping_parameter'), array_filter(['order_sn' => $externalOrderId, 'package_number' => $packageNumber ?: null]));
+            try {
+                $param = $this->client->shopGet($auth, $this->client->endpoint('shipping_parameter'), array_filter(['order_sn' => $externalOrderId, 'package_number' => $packageNumber ?: null]));
+            } catch (ShopeeApiException $e) {
+                // Shopee trả error_param "only...when package is ready to be shipped" cho đơn COD đang chờ
+                // Shopee phê duyệt (LOGISTICS_NOT_START). Không phải lỗi connector — đây là trạng thái tạm
+                // thời; cần retry khi sàn duyệt xong. Ném transient để caller dừng gắn has_issue.
+                if (str_contains(strtolower($e->getMessage()), 'ready to be shipped')) {
+                    throw ShippingDocumentUnavailable::transient('shopee_cod_screening', 'Đơn COD đang chờ Shopee phê duyệt — hệ thống sẽ tự thử lại khi sàn sẵn sàng.');
+                }
+                throw $e;
+            }
             $body = ['order_sn' => $externalOrderId];
             // Shopee chỉ chấp nhận package_number ở ship_order khi đơn ĐÃ được tách (split) thành ≥2 kiện.
             // get_order_detail.package_list vẫn trả package_number cho cả đơn 1 kiện (chưa tách), nên phải xét
@@ -437,6 +448,14 @@ class ShopeeConnector implements ChannelConnector, PenaltyWebhookConnector, Shop
             // để log/báo cho user biết vì sao (vd package chưa sẵn sàng, sai shipping_document_type).
             $reason = $this->batchFailReason($e->response);
             if ($reason !== '') {
+                // Advance Fulfilment: SPX tự xử lý, sàn không bao giờ cấp tem thủ công → terminal, dừng retry.
+                if (str_contains($reason, 'error_booking_order')) {
+                    throw ShippingDocumentUnavailable::terminal('shopee_advance_fulfilment', 'Đơn Advance Fulfilment Shopee — SPX xử lý trực tiếp, không cần & không thể in tem thủ công.');
+                }
+                // COD chờ Shopee duyệt: tạm thời, retry sẽ thành công khi sàn phê duyệt xong.
+                if (str_contains($reason, 'package_can_not_print') || str_contains($reason, 'package can not print')) {
+                    throw ShippingDocumentUnavailable::transient('shopee_cod_screening', 'Đơn COD đang chờ Shopee phê duyệt — hệ thống sẽ tự thử lại khi sàn cấp phép.');
+                }
                 throw new ShopeeApiException("Shopee tạo tem thất bại cho đơn {$externalOrderId}: {$reason}", $e->shopeeError, $e->httpStatus, $e->response);
             }
             throw $e;

@@ -186,6 +186,11 @@ class ShipmentService
         }
         try {
             $r = $this->channels->for($account->provider)->arrangeShipment($account->authContext(), (string) $order->external_order_id, ['packages' => (array) ($order->packages ?? [])]);
+        } catch (ShippingDocumentUnavailable $e) {
+            // Phân biệt trạng thái tạm thời (COD chờ duyệt) với lỗi thật để caller xử lý đúng cách
+            // (không gắn has_issue cho trường hợp tạm thời). Re-throw để prepareChannelOrder/backfill catch.
+            Log::info('shipment.arrange_on_channel_document_unavailable', ['order' => $order->getKey(), 'provider' => $account->provider, 'reason_code' => $e->reasonCode, 'terminal' => $e->terminal]);
+            throw $e;
         } catch (\Throwable $e) {
             Log::warning('shipment.arrange_on_channel_failed', ['order' => $order->getKey(), 'provider' => $account->provider, 'error' => $e->getMessage()]);
             // Đơn sàn: KHÔNG tạo phiếu giao hàng tạm thay tem thật của sàn (rule cố định — phiếu tạm không
@@ -323,9 +328,13 @@ class ShipmentService
             'at' => now()->toIso8601String(),
         ];
         $shipment->forceFill(['raw' => $raw, 'label_fetch_next_retry_at' => null])->save();
+        // Advance Fulfilment (shopee_advance_fulfilment): SPX xử lý trực tiếp, seller không cần làm gì —
+        // chỉ thông báo thông tin (FE hiện "Sàn không cấp tem", warning màu vàng, KHÔNG badge đỏ).
+        // Các lý do terminal khác (vd Lazada DBS/SOF): gắn has_issue để seller biết cần xử lý.
+        $infoOnly = in_array($e->reasonCode, ['shopee_advance_fulfilment'], true);
         $order->forceFill([
-            'has_issue' => true,
-            'issue_reason' => Str::limit($e->getMessage(), 240),
+            'has_issue' => ! $infoOnly,
+            'issue_reason' => $infoOnly ? null : Str::limit($e->getMessage(), 240),
         ])->save();
         Log::warning('shipment.channel_label_unavailable', [
             'shipment' => $shipment->getKey(), 'provider' => $provider, 'reason_code' => $e->reasonCode,
@@ -405,6 +414,7 @@ class ShipmentService
         $carrier = ! empty($pkg['carrier']) ? (string) $pkg['carrier'] : null;
         $packageId = ! empty($pkg['externalPackageId']) ? (string) $pkg['externalPackageId'] : null;
         $issue = null;
+        $pendingReason = null;
 
         $externalItemIds = [];
         $arrangedOk = false;   // sàn đã xác nhận arrange (kể cả khi tracking chưa cấp) ⇒ đủ điều kiện kéo tem/AWB.
@@ -430,6 +440,17 @@ class ShipmentService
                     if ($tracking === null) {
                         $issue = 'Đã sắp xếp vận chuyển trên sàn — đang chờ sàn cấp mã vận đơn, hệ thống sẽ tự cập nhật khi có.';
                     }
+                }
+            } catch (ShippingDocumentUnavailable $e) {
+                // Terminal (Advance Fulfilment): gắn has_issue như lỗi thường để FE biết cần xử lý.
+                // Transient (COD chờ duyệt): KHÔNG gắn has_issue; chỉ lưu pending_reason vào shipment.raw
+                // ⇒ FE hiện "Đang chờ Shopee xử lý" (không badge đỏ), hệ thống tự retry khi sàn phê duyệt.
+                $arrangedOk = false;
+                if ($e->terminal) {
+                    $issue = $e->getMessage();
+                } else {
+                    $issue = null;
+                    $pendingReason = ['reason_code' => $e->reasonCode, 'message' => $e->getMessage(), 'at' => now()->toIso8601String()];
                 }
             } catch (\Throwable $e) {
                 Log::warning('shipment.prepare_channel_arrange_failed', ['order' => $order->getKey(), 'error' => $e->getMessage()]);
@@ -471,6 +492,13 @@ class ShipmentService
 
             return $sh;
         });
+        // Đơn COD chờ Shopee duyệt (transient, không terminal): lưu pending_reason vào shipment.raw sau
+        // transaction để FE hiển thị "Đang chờ Shopee xử lý" — KHÔNG gắn has_issue/badge đỏ.
+        if ($pendingReason !== null) {
+            $raw = (array) $shipment->raw;
+            $raw['pending_reason'] = $pendingReason;
+            $shipment->forceFill(['raw' => $raw])->save();
+        }
         // Lấy tem khi đã có tracking; HOẶC khi đã arrange và sàn cho phép lấy AWB trước tracking (Shopee) — để đơn
         // không kẹt "đang xử lý" mà thiếu tem. TikTok/Lazada KHÔNG khai cờ ⇒ $labelBeforeTracking=false ⇒ giữ
         // NGUYÊN luồng cũ (chỉ lấy tem khi có tracking, còn lại enqueue backfill).

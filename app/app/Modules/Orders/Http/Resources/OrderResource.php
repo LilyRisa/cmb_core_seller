@@ -128,6 +128,7 @@ class OrderResource extends JsonResource
                     'slip_state' => $slipState,
                     'label_fetch_next_retry_at' => $s->label_fetch_next_retry_at?->toIso8601String(),
                     'label_unavailable' => (bool) data_get($s->raw, 'label_unavailable'),
+                    'pending_reason' => data_get($s->raw, 'pending_reason.message') ?: null,
                     'print_count' => (int) $s->print_count, 'last_printed_at' => $s->last_printed_at?->toIso8601String(),
                     'packed_at' => $s->packed_at?->toIso8601String(),
                 ];

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom';
 import { App as AntApp, Button, Empty, Input, InputNumber, Modal, Result, Select, Space, Spin, Switch, Table, Tag, Timeline, Tooltip, Typography } from 'antd';
 import type { InputRef } from 'antd';
-import { ApiOutlined, CheckCircleOutlined, CloseCircleOutlined, DisconnectOutlined, ExportOutlined, InboxOutlined, PrinterOutlined, ScanOutlined, SoundOutlined, WarningOutlined } from '@ant-design/icons';
+import { ApiOutlined, CheckCircleOutlined, CloseCircleOutlined, DisconnectOutlined, ExportOutlined, InfoCircleOutlined, InboxOutlined, PrinterOutlined, ScanOutlined, SoundOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { ChannelBadge } from '@/components/ChannelBadge';
 import { CarrierAccountPicker } from '@/components/CarrierAccountPicker';
@@ -219,6 +219,11 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
         //   - còn lại (failed / chưa có tem / có issue chặn) ⇒ cho bấm "Nhận phiếu giao hàng".
         if (sh!.label_unavailable) {
             actions.push(<Tooltip key="lblna" title="Sàn không cấp tem/AWB cho loại đơn này (vd DBS/SOF) — xử lý theo luồng giao của sàn."><Typography.Text type="warning"><WarningOutlined /> Sàn không cấp tem</Typography.Text></Tooltip>);
+        } else if (sh!.pending_reason) {
+            // Đơn COD đang chờ Shopee duyệt (LOGISTICS_NOT_START / package_can_not_print):
+            // hiện thông tin nhẹ, KHÔNG badge đỏ, giữ nút thử lại để user chủ động retry.
+            actions.push(<Tooltip key="lblpr" title={sh!.pending_reason}><Typography.Text type="secondary"><InfoCircleOutlined /> Đang chờ Shopee xử lý</Typography.Text></Tooltip>);
+            if (canShip) actions.push(<a key="rsnow" onClick={() => getSlip()}>Thử lại</a>);
         } else if (sh!.slip_state === 'loading') {
             actions.push(<Typography.Text key="lblld" type="secondary"><Spin size="small" /> Đang lấy phiếu…</Typography.Text>);
             if (canShip) actions.push(<a key="rsnow" onClick={() => getSlip()}>Nhận phiếu ngay</a>);

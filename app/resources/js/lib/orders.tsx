@@ -93,7 +93,7 @@ export interface Order {
     cancel_reason: string | null;
     created_at: string | null;
     customer?: CustomerCard | null;
-    shipment?: { id: number; carrier: string; tracking_no: string | null; status: string; status_label?: string; label_url: string | null; has_label: boolean; slip_state?: 'printable' | 'loading' | 'failed' | null; label_fetch_next_retry_at?: string | null; label_unavailable?: boolean; print_count: number; last_printed_at: string | null; packed_at: string | null } | null;
+    shipment?: { id: number; carrier: string; tracking_no: string | null; status: string; status_label?: string; label_url: string | null; has_label: boolean; slip_state?: 'printable' | 'loading' | 'failed' | null; label_fetch_next_retry_at?: string | null; label_unavailable?: boolean; pending_reason?: string | null; print_count: number; last_printed_at: string | null; packed_at: string | null } | null;
     /** SPEC 2026-05-17 — đơn đã đẩy lên ĐVVC: shipment carrier ≠ 'manual' và status không phải pending/cancelled. UI cảnh báo "thay đổi local, không can thiệp vận đơn". */
     is_pushed_to_carrier?: boolean;
     /** Carrier code của shipment đã đẩy (vd 'ghn', 'manual_ghn') — null nếu chưa đẩy. */
