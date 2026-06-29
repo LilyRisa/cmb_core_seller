@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import {
     AndroidFilled,
     AppleFilled,
@@ -28,7 +29,7 @@ const DL_VARS = {
     '--dl-ink': '#0f172a',
     '--dl-muted': '#64748b',
     '--dl-line': '#e2e8f0',
-} as React.CSSProperties;
+} as CSSProperties;
 
 const FEATURE_ITEMS = [
     { Icon: BarChartOutlined, text: 'Xem thống kê doanh thu & đơn hàng theo thời gian thực' },
