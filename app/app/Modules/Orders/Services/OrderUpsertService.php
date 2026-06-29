@@ -40,10 +40,15 @@ class OrderUpsertService implements OrderUpsertContract
         return $this->doUpsert($dto, $tenantId, $channelAccountId, $historySource, $this->resolveStatus($dto));
     }
 
-    /** Allow callers that already have the connector to pass the mapped status explicitly. */
-    public function upsertWithStatus(OrderDTO $dto, int $tenantId, ?int $channelAccountId, string $historySource, StandardOrderStatus $status): Order
+    /**
+     * Allow callers that already have the connector to pass the mapped status explicitly.
+     * Pass `$force = true` to bypass the stale-guard (source_updated_at check) — useful
+     * when a user or admin explicitly triggers a refresh on a stuck/frozen order. The
+     * tracking_stopped guard is still respected regardless of $force.
+     */
+    public function upsertWithStatus(OrderDTO $dto, int $tenantId, ?int $channelAccountId, string $historySource, StandardOrderStatus $status, bool $force = false): Order
     {
-        return $this->doUpsert($dto, $tenantId, $channelAccountId, $historySource, $status);
+        return $this->doUpsert($dto, $tenantId, $channelAccountId, $historySource, $status, $force);
     }
 
     /**
@@ -117,9 +122,9 @@ class OrderUpsertService implements OrderUpsertContract
         return $order;
     }
 
-    private function doUpsert(OrderDTO $dto, int $tenantId, ?int $channelAccountId, string $historySource, StandardOrderStatus $status): Order
+    private function doUpsert(OrderDTO $dto, int $tenantId, ?int $channelAccountId, string $historySource, StandardOrderStatus $status, bool $force = false): Order
     {
-        $txn = function () use ($dto, $tenantId, $channelAccountId, $historySource, $status) {
+        $txn = function () use ($dto, $tenantId, $channelAccountId, $historySource, $status, $force) {
             // CHỐT: phải `withTrashed()` ⇒ bắt cả row đã soft-delete. Index `orders_source_account_external_unique`
             // là PARTIAL (`WHERE deleted_at IS NULL`) nên row soft-delete KHÔNG chiếm key — nhưng nếu chỉ query
             // active rồi INSERT, ta sẽ tạo đơn ACTIVE thứ 2 trùng (sàn re-push sau khi user xoá đơn / xoá kết nối
@@ -143,7 +148,8 @@ class OrderUpsertService implements OrderUpsertContract
             $created = $order === null;
 
             // Out-of-order / late: do nothing if we already have a newer (or equal) snapshot.
-            if (! $created && $order->source_updated_at && $dto->sourceUpdatedAt->lessThanOrEqualTo($order->source_updated_at)) {
+            // $force=true bypasses this guard (e.g. user manually refreshes a stuck order).
+            if (! $force && ! $created && $order->source_updated_at && $dto->sourceUpdatedAt->lessThanOrEqualTo($order->source_updated_at)) {
                 return [$order, false, false, $order->status];
             }
 
