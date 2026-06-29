@@ -105,7 +105,9 @@ class ChannelAccountController extends Controller
         $this->authorizeManage($request);
         $account = ChannelAccount::query()->findOrFail($id);
         $data = $request->validate(['confirm' => ['required', 'string', 'max:255']]);
-        if (mb_strtolower(trim($data['confirm'])) !== mb_strtolower(trim($account->effectiveName()))) {
+        // So khớp có chuẩn hoá Unicode (NFC) + khoảng trắng + hoa/thường — tên shop sàn có thể lưu NFD nên
+        // so byte trực tiếp sẽ trượt dù người dùng paste y nguyên. Xem ChannelAccount::matchesNameConfirmation.
+        if (! $account->matchesNameConfirmation((string) $data['confirm'])) {
             throw ValidationException::withMessages(['confirm' => 'Mã xác nhận không khớp — gõ đúng tên gian hàng «'.$account->effectiveName().'» để xóa.']);
         }
 

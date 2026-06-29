@@ -72,6 +72,27 @@ class ChannelAccount extends Model
         return $this->display_name ?: ($this->shop_name ?: $this->external_shop_id);
     }
 
+    /**
+     * Có khớp mã xác nhận "gõ đúng tên gian hàng" để gỡ kết nối không?
+     *
+     * Tên shop của sàn có thể lưu ở dạng Unicode NFD (tổ hợp dấu) trong khi chuỗi người dùng paste/gõ là
+     * NFC ⇒ so sánh theo byte trượt dù NHÌN GIỐNG HỆT (bug "copy y nguyên tên shop vẫn không gỡ được").
+     * Chuẩn hoá cả hai vế về NFC + bỏ khoảng trắng thừa + không phân biệt hoa/thường trước khi so.
+     */
+    public function matchesNameConfirmation(string $input): bool
+    {
+        return self::normalizeForConfirm($input) === self::normalizeForConfirm($this->effectiveName());
+    }
+
+    private static function normalizeForConfirm(string $s): string
+    {
+        $s = \Normalizer::normalize($s, \Normalizer::FORM_C) ?: $s; // NFC; polyfill symfony/polyfill-intl-normalizer
+        $s = str_replace("\u{00A0}", ' ', $s);                      // NBSP → space
+        $s = preg_replace('/\s+/u', ' ', $s) ?? $s;                 // gom khoảng trắng thừa
+
+        return mb_strtolower(trim($s));
+    }
+
     /** Mã messaging connector ứng với provider của gian hàng (ADR-0019), hoặc null nếu không hỗ trợ. */
     public function messagingConnectorCode(): ?string
     {

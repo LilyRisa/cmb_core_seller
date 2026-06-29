@@ -130,7 +130,10 @@ export function ChannelsPage() {
     const [aliasDraft, setAliasDraft] = useState('');
     const [deleteTarget, setDeleteTarget] = useState<ChannelAccount | null>(null);
     const [confirmDraft, setConfirmDraft] = useState('');
-    const confirmOk = !!deleteTarget && confirmDraft.trim().toLowerCase() === deleteTarget.name.trim().toLowerCase();
+    // Chuẩn hoá NFC + gom khoảng trắng + lowercase: tên shop sàn có thể lưu Unicode NFD (tổ hợp dấu) nên
+    // so byte trực tiếp sẽ trượt dù paste y nguyên ⇒ nút Xóa không bật được. Khớp với BE matchesNameConfirmation.
+    const normConfirm = (s: string) => s.normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
+    const confirmOk = !!deleteTarget && normConfirm(confirmDraft) === normConfirm(deleteTarget.name);
     // Modal "AppWhiteIpLimit" — hiện riêng để chèn IP outbound thật của server (lấy bằng useOutboundIp).
     const [ipModal, setIpModal] = useState<{ lzCode: string; guide: string; detail: string } | null>(null);
     const { data: outboundIp } = useOutboundIp(ipModal !== null);
