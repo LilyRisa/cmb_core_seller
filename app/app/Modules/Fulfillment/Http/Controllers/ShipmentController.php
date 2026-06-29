@@ -397,29 +397,67 @@ class ShipmentController extends Controller
         $shipment = $this->service->findByScanCode($tenantId, $data['code']);
         abort_if($shipment === null, 404, 'Không tìm thấy vận đơn hoặc đơn ứng với mã đã quét.');
         if ($shipment->isCancelled()) {
-            abort(409, 'Vận đơn đã huỷ.');
+            return $this->blocked('shipment_cancelled', 'Vận đơn đã huỷ.');
         }
         // Vận đơn đã giao-thất-bại / hoàn về (findByScanCode dùng open() nên vẫn tìm thấy) KHÔNG được quét
         // đóng gói/bàn giao — nếu không sẽ "hồi sinh" về picked_up/packed, đẩy đơn → Shipped & trừ tồn sai.
         if (in_array($shipment->status, [Shipment::STATUS_FAILED, Shipment::STATUS_RETURNED], true)) {
-            abort(409, $shipment->status === Shipment::STATUS_FAILED
-                ? 'Vận đơn đã giao thất bại — không thể quét. Xử lý theo luồng trả/hoàn.'
-                : 'Vận đơn đã hoàn trả — không thể quét.');
+            return $this->blocked(
+                $shipment->status === Shipment::STATUS_FAILED ? 'shipment_failed' : 'shipment_returned',
+                $shipment->status === Shipment::STATUS_FAILED
+                    ? 'Vận đơn đã giao thất bại — không thể quét. Xử lý theo luồng trả/hoàn.'
+                    : 'Vận đơn đã hoàn trả — không thể quét.'
+            );
         }
         $orderForScan = Order::query()->where('tenant_id', $tenantId)->whereNull('deleted_at')->find($shipment->order_id);
         if ($orderForScan && $orderForScan->status === S::Cancelled) {
-            abort(409, 'Đơn hàng đã bị huỷ — không thể quét đóng gói.');
+            return $this->blocked('order_cancelled', 'Đơn hàng đã bị huỷ — không thể quét đóng gói.');
         }
         $userId = $request->user()->getKey();
         if ($action === 'handover') {
             if (in_array($shipment->status, Shipment::HANDED_OVER_STATUSES, true)) {
-                abort(409, 'Vận đơn này đã được bàn giao trước đó.');
+                return $this->blocked('already_handed_over', 'Vận đơn này đã được bàn giao trước đó.');
+            }
+            // Chỉ cho quét đơn ĐANG XỬ LÝ, KHÔNG có lỗi, và ĐÃ CÓ TEM SÀN.
+            if ($orderForScan === null || $orderForScan->status !== S::Processing) {
+                return $this->blocked('order_not_processing',
+                    'Đơn hàng không ở trạng thái Đang xử lý — không thể quét đóng gói.');
+            }
+            if ($orderForScan->has_issue) {
+                return $this->blocked('order_has_issue',
+                    $orderForScan->issue_reason
+                        ? 'Đơn hàng đang có lỗi: '.$orderForScan->issue_reason
+                        : 'Đơn hàng đang có lỗi — không thể quét đóng gói.');
+            }
+            if (blank($shipment->label_path)) {
+                return $this->blocked('label_missing',
+                    'Đơn chưa có tem sàn — không thể quét đóng gói.');
             }
             $this->service->handover($shipment, 'user', $userId, 'packed_scanned');
             $msg = 'Đã bàn giao đơn';
         } else {
             if (in_array($shipment->status, [Shipment::STATUS_PACKED, ...Shipment::HANDED_OVER_STATUSES], true)) {
-                abort(409, $shipment->status === Shipment::STATUS_PACKED ? 'Đơn này đã được đóng gói trước đó.' : 'Đơn này đã được bàn giao trước đó.');
+                return $this->blocked(
+                    $shipment->status === Shipment::STATUS_PACKED ? 'already_packed' : 'already_handed_over',
+                    $shipment->status === Shipment::STATUS_PACKED
+                        ? 'Đơn này đã được đóng gói trước đó.'
+                        : 'Vận đơn này đã được bàn giao trước đó.'
+                );
+            }
+            // Chỉ cho quét đơn ĐANG XỬ LÝ, KHÔNG có lỗi, và ĐÃ CÓ TEM SÀN.
+            if ($orderForScan === null || $orderForScan->status !== S::Processing) {
+                return $this->blocked('order_not_processing',
+                    'Đơn hàng không ở trạng thái Đang xử lý — không thể quét đóng gói.');
+            }
+            if ($orderForScan->has_issue) {
+                return $this->blocked('order_has_issue',
+                    $orderForScan->issue_reason
+                        ? 'Đơn hàng đang có lỗi: '.$orderForScan->issue_reason
+                        : 'Đơn hàng đang có lỗi — không thể quét đóng gói.');
+            }
+            if (blank($shipment->label_path)) {
+                return $this->blocked('label_missing',
+                    'Đơn chưa có tem sàn — không thể quét đóng gói.');
             }
             $this->service->markPacked($shipment, 'user', $userId);
             $msg = 'Đã đóng gói đơn';
@@ -432,5 +470,11 @@ class ShipmentController extends Controller
             'shipment' => new ShipmentResource($shipment),
             'order' => $shipment->order ? ['id' => $shipment->order->id, 'order_number' => $shipment->order->order_number ?? $shipment->order->external_order_id, 'status' => $shipment->order->status->value] : null,
         ]]);
+    }
+
+    /** Trả response chặn quét, kèm `code` máy đọc được để app phân biệt lỗi cứng vs quét trùng. */
+    private function blocked(string $code, string $message): JsonResponse
+    {
+        return response()->json(['message' => $message, 'code' => $code], 409);
     }
 }
