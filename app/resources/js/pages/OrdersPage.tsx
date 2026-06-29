@@ -229,7 +229,7 @@ export function OrdersPage() {
     const SHIP_PACK_STATUSES = ['pending', 'created'];      // vận đơn có thể đánh dấu "đã gói"
     // Chuẩn bị hàng: chỉ đơn MỚI (tiền-giao) CHƯA có vận đơn & không âm tồn. Đơn đã có phiếu / đang giao / đã
     // giao / hoàn / huỷ ⇒ không chuẩn bị được.
-    const eliPrepare = selectedOrders.filter((o) => !o.shipment && PREPARE_OK_STATUSES.includes(o.status) && !o.out_of_stock);
+    const eliPrepare = selectedOrders.filter((o) => !o.shipment && PREPARE_OK_STATUSES.includes(o.status) && !o.out_of_stock && !o.prepare_block_reason);
     // Nhận phiếu giao hàng: đơn ĐÃ có vận đơn nhưng CHƯA có phiếu VÀ KHÔNG đang tự tải lại (slip_state==='loading'
     // ⇒ job nền đang kéo, không cần bấm tay) VÀ KHÔNG phải loại đơn sàn không cấp tem (label_unavailable — vd
     // Lazada DBS/SOF; bấm lại cũng vô ích). slip_state thiếu (payload cũ) ⇒ giữ hành vi cũ (chỉ check has_label).
@@ -297,6 +297,7 @@ export function OrdersPage() {
                 const actionable: number[] = [];
                 for (const o of chunk) {
                     if (o.shipment) skips.push({ id: o.id, status: 'skipped', reason: 'Đã có phiếu giao hàng — bỏ qua.' });
+                    else if (o.prepare_block_reason) skips.push({ id: o.id, status: 'skipped', reason: o.prepare_block_reason });
                     else if (!PREPARE_OK_STATUSES.includes(o.status)) skips.push({ id: o.id, status: 'skipped', reason: 'Đơn không ở trạng thái chuẩn bị — bỏ qua.' });
                     else actionable.push(o.id);
                 }
@@ -313,7 +314,7 @@ export function OrdersPage() {
         });
     };
     const doBulkPrepare = () => {
-        const actionable = selectedOrders.filter((o) => !o.shipment && PREPARE_OK_STATUSES.includes(o.status));
+        const actionable = selectedOrders.filter((o) => !o.shipment && PREPARE_OK_STATUSES.includes(o.status) && !o.prepare_block_reason);
         const manual = actionable.filter((o) => o.source === 'manual');
         const channel = actionable.filter((o) => o.source !== 'manual');
         if (!assertHomogeneousSource(manual, channel, 'Chuẩn bị hàng')) return;
@@ -519,6 +520,11 @@ export function OrdersPage() {
                             ? <Tooltip title="Đơn vẫn in & bàn giao bình thường, nhưng không trừ tồn cho dòng chưa ghép SKU. Bấm để liên kết."><Tag color="warning" icon={<LinkOutlined />} style={{ cursor: 'pointer' }} onClick={() => setLinkModal({ open: true, orderIds: [o.id] })}>Chưa ghép SKU — Liên kết</Tag></Tooltip>
                             : o.has_issue && <Tooltip title={o.issue_reason ?? 'Đơn có vấn đề'}><Tag color="error" icon={<WarningOutlined />}>Lỗi</Tag></Tooltip>}
                         {o.shipment && o.shipment.print_count > 0 && <PrintCountBadge n={o.shipment.print_count} at={o.shipment.last_printed_at} />}
+                        {o.is_terminal && !o.shipment?.has_label && (
+                            <Tooltip title="Đơn đã ở trạng thái cuối (hoàn tất/đã huỷ/đã trả) mà chưa từng lưu phiếu giao hàng — không thể in đơn được.">
+                                <Tag icon={<WarningOutlined />} style={{ marginInlineEnd: 0 }}>Không in được</Tag>
+                            </Tooltip>
+                        )}
                     </Space>
                 </Space>
             ),
@@ -566,7 +572,11 @@ export function OrdersPage() {
                 );
             },
         },
-        { title: 'Trạng thái', dataIndex: 'status', key: 'status', width: 140, render: (v, o) => <StatusTag status={v} label={o.status_label} rawStatus={o.raw_status} /> },
+        { title: 'Trạng thái', dataIndex: 'status', key: 'status', width: 140, render: (v, o) => (
+            o.prepare_block_reason
+                ? <Tooltip title={o.prepare_block_reason}><span style={{ cursor: 'help' }}><StatusTag status={v} label={o.status_label} rawStatus={o.raw_status} /></span></Tooltip>
+                : <StatusTag status={v} label={o.status_label} rawStatus={o.raw_status} />
+        ) },
         { title: 'Đặt lúc', dataIndex: 'placed_at', key: 'placed_at', width: 150, render: (v) => <DateText value={v} /> },
         {
             // Mọi thao tác fulfillment/in đã dồn lên thanh cố định dưới phần lọc (chọn đơn rồi bấm). Cột này chỉ
