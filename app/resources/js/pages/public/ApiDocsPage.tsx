@@ -1,41 +1,120 @@
 import { useState } from 'react';
-import { Anchor, Card, Col, Row, Space, Table, Tag, Typography } from 'antd';
+import { Anchor, Col, Row, Table, Tag } from 'antd';
 import { CheckOutlined, CopyOutlined } from '@ant-design/icons';
 
 const BASE = 'https://app.cmbcore.com/api/v1';
 
 const METHOD_COLOR: Record<string, string> = { GET: 'blue', POST: 'green', PUT: 'gold', DELETE: 'red' };
 
+/** Inline code chip — light tinted background for prose, reused across sections. */
+function Chip({ children, accent }: { children: string; accent?: boolean }) {
+    return (
+        <code style={{
+            fontFamily: 'var(--mono)',
+            background: accent ? 'var(--primary-soft)' : 'var(--bg-soft)',
+            color: accent ? 'var(--primary)' : 'var(--text)',
+            padding: '1px 7px',
+            borderRadius: 5,
+            fontSize: 13,
+            border: accent ? 'none' : '1px solid var(--border-soft)',
+        }}>
+            {children}
+        </code>
+    );
+}
+
 /** Khối code có nút copy. */
 function Code({ children, lang }: { children: string; lang?: string }) {
     const [done, setDone] = useState(false);
-    const copy = () => { navigator.clipboard?.writeText(children).then(() => { setDone(true); setTimeout(() => setDone(false), 1500); }); };
+    const copy = () => {
+        navigator.clipboard?.writeText(children).then(() => {
+            setDone(true);
+            setTimeout(() => setDone(false), 1500);
+        });
+    };
     return (
-        <div style={{ position: 'relative', margin: '8px 0' }}>
-            {lang && <span style={{ position: 'absolute', top: 6, right: 40, fontSize: 11, color: '#8c8c8c', textTransform: 'uppercase' }}>{lang}</span>}
-            <button onClick={copy} title="Sao chép" style={{ position: 'absolute', top: 6, right: 8, border: 'none', background: 'transparent', cursor: 'pointer', color: done ? '#52c41a' : '#8c8c8c' }}>
+        <div style={{ position: 'relative', margin: '10px 0' }}>
+            {lang && (
+                <span style={{
+                    position: 'absolute', top: 9, right: 44,
+                    fontSize: 10.5, color: 'rgba(255,255,255,.38)',
+                    textTransform: 'uppercase', fontFamily: 'var(--mono)',
+                    letterSpacing: '0.07em', zIndex: 1, pointerEvents: 'none',
+                }}>
+                    {lang}
+                </span>
+            )}
+            <button
+                onClick={copy}
+                title="Sao chép"
+                style={{
+                    position: 'absolute', top: 9, right: 10,
+                    border: '1px solid rgba(255,255,255,.14)',
+                    background: 'rgba(255,255,255,.07)',
+                    cursor: 'pointer',
+                    color: done ? 'var(--accent)' : 'rgba(255,255,255,.5)',
+                    borderRadius: 6,
+                    padding: '3px 7px',
+                    fontSize: 13,
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    transition: 'color .2s, background .2s',
+                    zIndex: 1,
+                }}
+            >
                 {done ? <CheckOutlined /> : <CopyOutlined />}
             </button>
-            <pre style={{ margin: 0, padding: '14px 16px', background: '#0d1117', color: '#e6edf3', borderRadius: 8, overflowX: 'auto', fontSize: 13, lineHeight: 1.6 }}>
-                <code>{children}</code>
+            <pre style={{
+                margin: 0,
+                padding: '12px 16px',
+                paddingTop: lang ? '32px' : '12px',
+                background: '#0d1117',
+                color: '#e6edf3',
+                borderRadius: 10,
+                overflowX: 'auto',
+                fontSize: 13,
+                lineHeight: 1.6,
+                fontFamily: 'var(--mono)',
+                border: '1px solid rgba(255,255,255,.08)',
+            }}>
+                <code style={{ fontFamily: 'var(--mono)' }}>{children}</code>
             </pre>
         </div>
     );
 }
 
-function Endpoint({ method, path, desc, request, response }: { method: string; path: string; desc: string; request: string; response: string }) {
+function Endpoint({ method, path, desc, request, response }: {
+    method: string; path: string; desc: string; request: string; response: string;
+}) {
     return (
-        <Card size="small" style={{ marginBottom: 16 }} styles={{ body: { padding: 16 } }}>
-            <Space align="center" wrap style={{ marginBottom: 6 }}>
-                <Tag color={METHOD_COLOR[method]} style={{ fontWeight: 700, fontFamily: 'monospace' }}>{method}</Tag>
-                <Typography.Text strong style={{ fontFamily: 'monospace', fontSize: 14 }}>{path}</Typography.Text>
-            </Space>
-            <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>{desc}</Typography.Paragraph>
-            <Typography.Text strong style={{ fontSize: 12, color: '#8c8c8c' }}>VÍ DỤ REQUEST</Typography.Text>
+        <div style={{
+            background: '#fff',
+            border: '1px solid var(--border-soft)',
+            borderRadius: 'var(--radius-md)',
+            padding: '20px 22px',
+            marginBottom: 16,
+            boxShadow: 'var(--shadow-sm)',
+        }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+                <Tag
+                    color={METHOD_COLOR[method]}
+                    style={{ fontWeight: 700, fontFamily: 'var(--mono)', fontSize: 12, margin: 0 }}
+                >
+                    {method}
+                </Tag>
+                <code style={{
+                    fontFamily: 'var(--mono)', fontSize: 13.5, fontWeight: 600,
+                    color: 'var(--text)', background: 'var(--bg-soft)',
+                    padding: '2px 9px', borderRadius: 5, border: '1px solid var(--border-soft)',
+                }}>
+                    {path}
+                </code>
+            </div>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: '0 0 10px', lineHeight: 1.55 }}>{desc}</p>
+            <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.07em', color: 'var(--text-soft)', textTransform: 'uppercase', marginBottom: 4 }}>Ví dụ request</div>
             <Code lang="bash">{request}</Code>
-            <Typography.Text strong style={{ fontSize: 12, color: '#8c8c8c' }}>VÍ DỤ RESPONSE</Typography.Text>
+            <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.07em', color: 'var(--text-soft)', textTransform: 'uppercase', marginBottom: 4, marginTop: 10 }}>Ví dụ response</div>
             <Code lang="json">{response}</Code>
-        </Card>
+        </div>
     );
 }
 
@@ -50,7 +129,28 @@ const TOC = [
     { key: 'loi', href: '#loi', title: '8. Mã lỗi' },
 ];
 
-const H = (id: string, text: string) => <Typography.Title id={id} level={2} style={{ scrollMarginTop: 80, marginTop: 8 }}>{text}</Typography.Title>;
+/** Section heading with ID anchor + bottom border separator. */
+function SectionH({ id, children }: { id: string; children: string }) {
+    return (
+        <h3
+            id={id}
+            style={{
+                fontSize: 20,
+                fontWeight: 800,
+                letterSpacing: '-0.02em',
+                lineHeight: 1.2,
+                marginBottom: 16,
+                marginTop: 40,
+                color: 'var(--text)',
+                scrollMarginTop: 88,
+                paddingBottom: 10,
+                borderBottom: '1px solid var(--border-soft)',
+            }}
+        >
+            {children}
+        </h3>
+    );
+}
 
 export function ApiDocsPage() {
     const errorRows = [
@@ -63,63 +163,112 @@ export function ApiDocsPage() {
     ];
 
     return (
-        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '40px 24px' }}>
-            <Typography.Title level={1}>Tài liệu API</Typography.Title>
-            <Typography.Paragraph style={{ fontSize: 16, color: '#595959', maxWidth: 760 }}>
-                API REST cho phép hệ thống ngoài (ERP, Zapier, phần mềm tự xây…) đọc và thao tác dữ liệu gian hàng — đồng bộ đơn, sản phẩm, tồn kho, vận đơn — <b>như khi thao tác trên web</b>.
-            </Typography.Paragraph>
+        <section style={{ background: 'var(--bg)', borderTop: '1px solid var(--border-soft)' }}>
+            <div className="container" style={{ paddingTop: 56, paddingBottom: 80 }}>
 
-            <Row gutter={32}>
-                <Col xs={0} lg={6}>
-                    <div style={{ position: 'sticky', top: 88 }}>
-                        <Typography.Text strong style={{ display: 'block', marginBottom: 8, color: '#8c8c8c', fontSize: 12 }}>MỤC LỤC</Typography.Text>
-                        <Anchor affix={false} items={TOC} />
-                    </div>
-                </Col>
-                <Col xs={24} lg={18}>
-                    {H('gioi-thieu', '1. Giới thiệu')}
-                    <Typography.Paragraph>
-                        Mọi endpoint dùng chung tiền tố <Typography.Text code>{BASE}</Typography.Text>, trả về JSON theo định dạng phong bì chuẩn và xác thực bằng <b>API key</b> (Bearer token). API key gắn cứng gian hàng của bạn nên không cần truyền thêm thông tin gian hàng.
-                    </Typography.Paragraph>
+                {/* Page header */}
+                <div style={{ marginBottom: 48 }}>
+                    <span className="section-tag">Tài liệu API</span>
+                    <h2 style={{ marginTop: 16, marginBottom: 12 }}>Tài liệu REST API</h2>
+                    <p className="section-sub" style={{ maxWidth: 720, margin: 0 }}>
+                        API REST cho phép hệ thống ngoài (ERP, Zapier, phần mềm tự xây…) đọc và thao tác dữ liệu gian hàng — đồng bộ đơn, sản phẩm, tồn kho, vận đơn —{' '}
+                        <strong>như khi thao tác trên web</strong>.
+                    </p>
+                </div>
 
-                    {H('bat-dau', '2. Bắt đầu nhanh')}
-                    <Typography.Paragraph>
-                        <ol style={{ paddingLeft: 20 }}>
-                            <li>Chủ gian hàng vào <b>Cài đặt → API &amp; Tích hợp → Tạo API key</b> (chỉ chủ gian hàng tạo/xem/xóa được).</li>
-                            <li>Đặt tên + thời hạn → <b>Tạo</b>. Token hiện <b>1 lần duy nhất</b> — sao chép &amp; lưu nơi an toàn.</li>
-                            <li>Gọi API kèm header <Typography.Text code>Authorization: Bearer &lt;API_KEY&gt;</Typography.Text>.</li>
+                <Row gutter={48}>
+                    {/* Sticky sidebar TOC */}
+                    <Col xs={0} lg={6}>
+                        <div style={{ position: 'sticky', top: 88 }}>
+                            <div style={{
+                                background: 'var(--bg-soft)',
+                                border: '1px solid var(--border-soft)',
+                                borderRadius: 'var(--radius-md)',
+                                padding: '18px 20px',
+                            }}>
+                                <div style={{
+                                    fontSize: 10.5, fontWeight: 700, letterSpacing: '0.07em',
+                                    color: 'var(--text-soft)', textTransform: 'uppercase',
+                                    marginBottom: 12,
+                                }}>
+                                    Mục lục
+                                </div>
+                                <Anchor affix={false} items={TOC} style={{ fontSize: 13.5 }} />
+                            </div>
+                        </div>
+                    </Col>
+
+                    {/* Main content */}
+                    <Col xs={24} lg={18}>
+
+                        <SectionH id="gioi-thieu">1. Giới thiệu</SectionH>
+                        <p style={{ fontSize: 15, color: 'var(--text)', lineHeight: 1.7, marginBottom: 0 }}>
+                            Mọi endpoint dùng chung tiền tố <Chip accent>{BASE}</Chip>, trả về JSON theo định dạng phong bì chuẩn và xác thực bằng{' '}
+                            <strong>API key</strong> (Bearer token). API key gắn cứng gian hàng của bạn nên không cần truyền thêm thông tin gian hàng.
+                        </p>
+
+                        <SectionH id="bat-dau">2. Bắt đầu nhanh</SectionH>
+                        <ol style={{ paddingLeft: 22, fontSize: 15, color: 'var(--text)', lineHeight: 1.7, marginBottom: 14 }}>
+                            <li style={{ marginBottom: 8 }}>
+                                Chủ gian hàng vào <strong>Cài đặt → API &amp; Tích hợp → Tạo API key</strong> (chỉ chủ gian hàng tạo/xem/xóa được).
+                            </li>
+                            <li style={{ marginBottom: 8 }}>
+                                Đặt tên + thời hạn → <strong>Tạo</strong>. Token hiện <strong>1 lần duy nhất</strong> — sao chép &amp; lưu nơi an toàn.
+                            </li>
+                            <li>
+                                Gọi API kèm header <Chip accent>Authorization: Bearer &lt;API_KEY&gt;</Chip>.
+                            </li>
                         </ol>
-                    </Typography.Paragraph>
-                    <Code lang="bash">{`curl -H "Authorization: Bearer <API_KEY>" \\
+                        <Code lang="bash">{`curl -H "Authorization: Bearer <API_KEY>" \\
   "${BASE}/orders?per_page=10"`}</Code>
 
-                    {H('xac-thuc', '3. Xác thực')}
-                    <Typography.Paragraph>
-                        Gửi API key ở header <Typography.Text code>Authorization</Typography.Text> với mọi request:
-                    </Typography.Paragraph>
-                    <Code>{`Authorization: Bearer <API_KEY>`}</Code>
-                    <ul style={{ paddingLeft: 20 }}>
-                        <li>Key đã <b>gắn cứng gian hàng</b> — KHÔNG cần gửi header <Typography.Text code>X-Tenant-Id</Typography.Text>.</li>
-                        <li>Key có <b>toàn quyền</b> như tài khoản chủ gian hàng — giữ bí mật như mật khẩu.</li>
-                        <li>Có thể đặt <b>thời hạn</b> và <b>thu hồi (xóa)</b> bất cứ lúc nào; key bị xóa sẽ trả <Typography.Text code>401</Typography.Text> ngay.</li>
-                    </ul>
+                        <SectionH id="xac-thuc">3. Xác thực</SectionH>
+                        <p style={{ fontSize: 15, color: 'var(--text)', lineHeight: 1.7, marginBottom: 12 }}>
+                            Gửi API key ở header <Chip accent>Authorization</Chip> với mọi request:
+                        </p>
+                        <Code>{`Authorization: Bearer <API_KEY>`}</Code>
+                        <ul style={{ paddingLeft: 22, fontSize: 15, color: 'var(--text)', lineHeight: 1.7, marginTop: 12 }}>
+                            <li style={{ marginBottom: 6 }}>
+                                Key đã <strong>gắn cứng gian hàng</strong> — KHÔNG cần gửi header <Chip>X-Tenant-Id</Chip>.
+                            </li>
+                            <li style={{ marginBottom: 6 }}>
+                                Key có <strong>toàn quyền</strong> như tài khoản chủ gian hàng — giữ bí mật như mật khẩu.
+                            </li>
+                            <li>
+                                Có thể đặt <strong>thời hạn</strong> và <strong>thu hồi (xóa)</strong> bất cứ lúc nào; key bị xóa sẽ trả <Chip>401</Chip> ngay.
+                            </li>
+                        </ul>
 
-                    {H('quy-uoc', '4. Quy ước chung')}
-                    <ul style={{ paddingLeft: 20 }}>
-                        <li><b>Base URL:</b> <Typography.Text code>{BASE}</Typography.Text></li>
-                        <li><b>Định dạng:</b> JSON. Thành công <Typography.Text code>{'{ "data": ..., "meta": ... }'}</Typography.Text>; lỗi <Typography.Text code>{'{ "error": { "code", "message", "trace_id", "details" } }'}</Typography.Text>.</li>
-                        <li><b>Tiền tệ:</b> số nguyên VND (không số thập phân).</li>
-                        <li><b>Thời gian:</b> ISO-8601 UTC, vd <Typography.Text code>2026-06-26T03:37:21Z</Typography.Text>.</li>
-                        <li><b>Trạng thái đơn:</b> trả <Typography.Text code>code</Typography.Text> + <Typography.Text code>status_label</Typography.Text> + <Typography.Text code>raw_status</Typography.Text>.</li>
-                        <li><b>Rate limit:</b> 120 request/phút (vượt → <Typography.Text code>429</Typography.Text>).</li>
-                        <li><b>Phân trang:</b> <Typography.Text code>?page=&amp;per_page=</Typography.Text> → <Typography.Text code>meta.pagination</Typography.Text>.</li>
-                    </ul>
+                        <SectionH id="quy-uoc">4. Quy ước chung</SectionH>
+                        <ul style={{ paddingLeft: 22, fontSize: 15, color: 'var(--text)', lineHeight: 1.7 }}>
+                            <li style={{ marginBottom: 6 }}><strong>Base URL:</strong> <Chip accent>{BASE}</Chip></li>
+                            <li style={{ marginBottom: 6 }}>
+                                <strong>Định dạng:</strong> JSON. Thành công <Chip>{'{ "data": ..., "meta": ... }'}</Chip>; lỗi{' '}
+                                <Chip>{'{ "error": { "code", "message", "trace_id", "details" } }'}</Chip>.
+                            </li>
+                            <li style={{ marginBottom: 6 }}><strong>Tiền tệ:</strong> số nguyên VND (không số thập phân).</li>
+                            <li style={{ marginBottom: 6 }}>
+                                <strong>Thời gian:</strong> ISO-8601 UTC, vd <Chip>2026-06-26T03:37:21Z</Chip>.
+                            </li>
+                            <li style={{ marginBottom: 6 }}>
+                                <strong>Trạng thái đơn:</strong> trả <Chip>code</Chip> + <Chip>status_label</Chip> + <Chip>raw_status</Chip>.
+                            </li>
+                            <li style={{ marginBottom: 6 }}>
+                                <strong>Rate limit:</strong> 120 request/phút (vượt → <Chip>429</Chip>).
+                            </li>
+                            <li>
+                                <strong>Phân trang:</strong> <Chip>?page=&amp;per_page=</Chip> → <Chip>meta.pagination</Chip>.
+                            </li>
+                        </ul>
 
-                    {H('don-hang', '5. Đơn hàng')}
-                    <Endpoint method="GET" path="/orders" desc="Danh sách đơn (lọc: status, source, q, placed_from, placed_to, page, per_page)."
-                        request={`curl -H "Authorization: Bearer <API_KEY>" \\
+                        <SectionH id="don-hang">5. Đơn hàng</SectionH>
+                        <Endpoint
+                            method="GET"
+                            path="/orders"
+                            desc="Danh sách đơn (lọc: status, source, q, placed_from, placed_to, page, per_page)."
+                            request={`curl -H "Authorization: Bearer <API_KEY>" \\
   "${BASE}/orders?status=processing&per_page=50"`}
-                        response={`{
+                            response={`{
   "data": [
     {
       "id": 9876,
@@ -133,11 +282,15 @@ export function ApiDocsPage() {
     }
   ],
   "meta": { "pagination": { "page": 1, "per_page": 50, "total": 128, "total_pages": 3 } }
-}`} />
-                    <Endpoint method="GET" path="/orders/{id}" desc="Chi tiết một đơn, kèm dòng hàng (?include=items)."
-                        request={`curl -H "Authorization: Bearer <API_KEY>" \\
+}`}
+                        />
+                        <Endpoint
+                            method="GET"
+                            path="/orders/{id}"
+                            desc="Chi tiết một đơn, kèm dòng hàng (?include=items)."
+                            request={`curl -H "Authorization: Bearer <API_KEY>" \\
   "${BASE}/orders/9876?include=items"`}
-                        response={`{
+                            response={`{
   "data": {
     "id": 9876,
     "order_number": "CMB-000123",
@@ -147,9 +300,13 @@ export function ApiDocsPage() {
       { "id": 1, "name": "Áo thun", "seller_sku": "AT-01", "quantity": 2, "unit_price": 150000 }
     ]
   }
-}`} />
-                    <Endpoint method="POST" path="/orders" desc="Tạo đơn thủ công (source=manual)."
-                        request={`curl -X POST -H "Authorization: Bearer <API_KEY>" \\
+}`}
+                        />
+                        <Endpoint
+                            method="POST"
+                            path="/orders"
+                            desc="Tạo đơn thủ công (source=manual)."
+                            request={`curl -X POST -H "Authorization: Bearer <API_KEY>" \\
   -H "Content-Type: application/json" \\
   -d '{
     "buyer": { "name": "Nguyễn A", "phone": "0912345678", "address": "Số 5", "province": "Hà Nội" },
@@ -157,7 +314,7 @@ export function ApiDocsPage() {
     "shipping_fee": 20000
   }' \\
   "${BASE}/orders"`}
-                        response={`{
+                            response={`{
   "data": {
     "id": 9999,
     "order_number": "CMB-000200",
@@ -165,41 +322,92 @@ export function ApiDocsPage() {
     "cod_amount": 320000,
     "grand_total": 320000
   }
-}`} />
-                    <Endpoint method="POST" path="/orders/{id}/ship" desc="Chuẩn bị hàng: tạo vận đơn / lấy phiếu giao hàng của sàn."
-                        request={`curl -X POST -H "Authorization: Bearer <API_KEY>" \\
+}`}
+                        />
+                        <Endpoint
+                            method="POST"
+                            path="/orders/{id}/ship"
+                            desc="Chuẩn bị hàng: tạo vận đơn / lấy phiếu giao hàng của sàn."
+                            request={`curl -X POST -H "Authorization: Bearer <API_KEY>" \\
   "${BASE}/orders/9876/ship"`}
-                        response={`{ "data": { "queued": true, "order_id": 9876 } }`} />
+                            response={`{ "data": { "queued": true, "order_id": 9876 } }`}
+                        />
 
-                    {H('san-pham', '6. Sản phẩm & tồn kho')}
-                    <Endpoint method="GET" path="/products" desc="Danh sách sản phẩm / SKU master."
-                        request={`curl -H "Authorization: Bearer <API_KEY>" "${BASE}/products?per_page=20"`}
-                        response={`{
+                        <SectionH id="san-pham">6. Sản phẩm &amp; tồn kho</SectionH>
+                        <Endpoint
+                            method="GET"
+                            path="/products"
+                            desc="Danh sách sản phẩm / SKU master."
+                            request={`curl -H "Authorization: Bearer <API_KEY>" "${BASE}/products?per_page=20"`}
+                            response={`{
   "data": [ { "id": 1, "name": "Áo thun", "skus": [ { "id": 1, "sku_code": "AT-01" } ] } ],
   "meta": { "pagination": { "page": 1, "per_page": 20, "total": 50, "total_pages": 3 } }
-}`} />
-                    <Endpoint method="GET" path="/inventory" desc="Tồn kho theo SKU (on_hand, reserved, available)."
-                        request={`curl -H "Authorization: Bearer <API_KEY>" "${BASE}/inventory"`}
-                        response={`{
+}`}
+                        />
+                        <Endpoint
+                            method="GET"
+                            path="/inventory"
+                            desc="Tồn kho theo SKU (on_hand, reserved, available)."
+                            request={`curl -H "Authorization: Bearer <API_KEY>" "${BASE}/inventory"`}
+                            response={`{
   "data": [ { "sku_id": 1, "sku_code": "AT-01", "on_hand": 120, "reserved": 8, "available": 112 } ]
-}`} />
+}`}
+                        />
 
-                    {H('van-don', '7. Vận đơn')}
-                    <Endpoint method="GET" path="/shipments" desc="Danh sách vận đơn (lọc: status, carrier, order_id, q)."
-                        request={`curl -H "Authorization: Bearer <API_KEY>" "${BASE}/shipments?status=created"`}
-                        response={`{
+                        <SectionH id="van-don">7. Vận đơn</SectionH>
+                        <Endpoint
+                            method="GET"
+                            path="/shipments"
+                            desc="Danh sách vận đơn (lọc: status, carrier, order_id, q)."
+                            request={`curl -H "Authorization: Bearer <API_KEY>" "${BASE}/shipments?status=created"`}
+                            response={`{
   "data": [ { "id": 555, "order_id": 9876, "carrier": "J&T VN", "tracking_no": "JNTMP00413467", "status": "created" } ]
-}`} />
+}`}
+                        />
 
-                    {H('loi', '8. Mã lỗi')}
-                    <Table size="small" pagination={false} rowKey="code"
-                        columns={[{ title: 'HTTP', dataIndex: 'code', width: 110, render: (v: string) => <Typography.Text code>{v}</Typography.Text> }, { title: 'Ý nghĩa', dataIndex: 'mean' }]}
-                        dataSource={errorRows} />
-                    <Typography.Paragraph type="secondary" style={{ marginTop: 16 }}>
-                        Danh sách endpoint liên tục được mở rộng. Cần endpoint chưa có trong tài liệu? Liên hệ hỗ trợ.
-                    </Typography.Paragraph>
-                </Col>
-            </Row>
-        </div>
+                        <SectionH id="loi">8. Mã lỗi</SectionH>
+                        <div style={{
+                            background: '#fff',
+                            border: '1px solid var(--border-soft)',
+                            borderRadius: 'var(--radius-md)',
+                            overflow: 'hidden',
+                            boxShadow: 'var(--shadow-sm)',
+                            marginBottom: 20,
+                        }}>
+                            <Table
+                                size="small"
+                                pagination={false}
+                                rowKey="code"
+                                columns={[
+                                    {
+                                        title: 'HTTP',
+                                        dataIndex: 'code',
+                                        width: 130,
+                                        render: (v: string) => (
+                                            <code style={{
+                                                fontFamily: 'var(--mono)',
+                                                background: 'var(--bg-soft)',
+                                                padding: '2px 8px',
+                                                borderRadius: 5,
+                                                fontSize: 13,
+                                                border: '1px solid var(--border-soft)',
+                                            }}>
+                                                {v}
+                                            </code>
+                                        ),
+                                    },
+                                    { title: 'Ý nghĩa', dataIndex: 'mean' },
+                                ]}
+                                dataSource={errorRows}
+                            />
+                        </div>
+                        <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.65, marginBottom: 0 }}>
+                            Danh sách endpoint liên tục được mở rộng. Cần endpoint chưa có trong tài liệu? Liên hệ hỗ trợ.
+                        </p>
+
+                    </Col>
+                </Row>
+            </div>
+        </section>
     );
 }
