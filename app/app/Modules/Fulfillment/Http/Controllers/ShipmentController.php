@@ -421,20 +421,20 @@ class ShipmentController extends Controller
             // Chỉ cho quét đơn ĐANG XỬ LÝ, KHÔNG có lỗi, và ĐÃ CÓ TEM SÀN.
             if ($orderForScan === null || $orderForScan->status !== S::Processing) {
                 return $this->blocked('order_not_processing',
-                    'Đơn hàng không ở trạng thái Đang xử lý — không thể quét đóng gói.');
+                    'Đơn hàng không ở trạng thái Đang xử lý — không thể quét bàn giao.');
             }
-            // đơn chỉ vướng 'SKU chưa ghép' vẫn cho quét — issue này không chặn đóng gói (xem OrderInventoryService::reflectUnmappedIssue)
+            // đơn chỉ vướng 'SKU chưa ghép' vẫn cho quét — issue này không chặn bàn giao (xem OrderInventoryService::reflectUnmappedIssue)
             if ($orderForScan->has_issue && $orderForScan->issue_reason !== 'SKU chưa ghép') {
                 return $this->blocked('order_has_issue',
                     $orderForScan->issue_reason
                         ? 'Đơn hàng đang có lỗi: '.$orderForScan->issue_reason
-                        : 'Đơn hàng đang có lỗi — không thể quét đóng gói.');
+                        : 'Đơn hàng đang có lỗi — không thể quét bàn giao.');
             }
             // Tem là bắt buộc với đơn có tem sàn/ĐVVC (carrier ≠ manual). Đơn tự ship "manual" do người
             // bán tự dán tem nên KHÔNG có label_path — vẫn cho quét (giữ luồng manual self-ship hiện có).
             if ($shipment->carrier !== 'manual' && blank($shipment->label_path)) {
                 return $this->blocked('label_missing',
-                    'Đơn chưa có tem sàn — không thể quét đóng gói.');
+                    'Đơn chưa có tem sàn — không thể quét bàn giao.');
             }
             $this->service->handover($shipment, 'user', $userId, 'packed_scanned');
             $msg = 'Đã bàn giao đơn';
