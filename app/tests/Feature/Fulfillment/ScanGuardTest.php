@@ -176,7 +176,7 @@ class ScanGuardTest extends TestCase
     public function test_scan_blocked_when_label_path_is_null(): void
     {
         $order = $this->makeOrder();
-        $shipment = $this->makeShipment($order, ['label_path' => null]);
+        $shipment = $this->makeShipment($order, ['carrier' => 'ghn', 'label_path' => null]);
 
         $resp = $this->actingAs($this->owner)->withHeaders($this->h())
             ->postJson('/api/v1/scan-pack', ['code' => $shipment->tracking_no]);
@@ -189,13 +189,43 @@ class ScanGuardTest extends TestCase
     public function test_scan_blocked_when_label_path_is_empty_string(): void
     {
         $order = $this->makeOrder();
-        $shipment = $this->makeShipment($order, ['label_path' => '']);
+        $shipment = $this->makeShipment($order, ['carrier' => 'ghn', 'label_path' => '']);
 
         $resp = $this->actingAs($this->owner)->withHeaders($this->h())
             ->postJson('/api/v1/scan-pack', ['code' => $shipment->tracking_no]);
 
         $resp->assertStatus(409)
             ->assertJsonPath('code', 'label_missing');
+    }
+
+    /**
+     * Đơn tự ship "manual" KHÔNG có tem (label_path null) VẪN quét được — người bán tự dán tem.
+     * (label_missing chỉ áp dụng cho carrier ≠ manual; xem luồng manual self-ship trong FulfillmentTest.)
+     */
+    public function test_scan_succeeds_for_manual_carrier_without_label(): void
+    {
+        $order = $this->makeOrder();
+        $shipment = $this->makeShipment($order, ['carrier' => 'manual', 'label_path' => null]);
+
+        $resp = $this->actingAs($this->owner)->withHeaders($this->h())
+            ->postJson('/api/v1/scan-pack', ['code' => $shipment->tracking_no]);
+
+        $resp->assertOk()
+            ->assertJsonPath('data.action', 'pack')
+            ->assertJsonPath('data.shipment.status', 'packed');
+    }
+
+    /** Đơn Shipped (đang vận chuyển) → 409 order_not_processing (spec liệt kê Shipped cùng Pending/ReadyToShip). */
+    public function test_scan_blocked_when_order_is_shipped(): void
+    {
+        $order = $this->makeOrder(['status' => StandardOrderStatus::Shipped, 'raw_status' => 'shipped']);
+        $shipment = $this->makeShipment($order);
+
+        $resp = $this->actingAs($this->owner)->withHeaders($this->h())
+            ->postJson('/api/v1/scan-pack', ['code' => $shipment->tracking_no]);
+
+        $resp->assertStatus(409)
+            ->assertJsonPath('code', 'order_not_processing');
     }
 
     // ── already_packed (quét trùng — ưu tiên hơn order_not_processing) ───────

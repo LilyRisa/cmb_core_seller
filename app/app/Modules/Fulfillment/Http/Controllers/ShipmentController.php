@@ -429,7 +429,9 @@ class ShipmentController extends Controller
                         ? 'Đơn hàng đang có lỗi: '.$orderForScan->issue_reason
                         : 'Đơn hàng đang có lỗi — không thể quét đóng gói.');
             }
-            if (blank($shipment->label_path)) {
+            // Tem là bắt buộc với đơn có tem sàn/ĐVVC (carrier ≠ manual). Đơn tự ship "manual" do người
+            // bán tự dán tem nên KHÔNG có label_path — vẫn cho quét (giữ luồng manual self-ship hiện có).
+            if ($shipment->carrier !== 'manual' && blank($shipment->label_path)) {
                 return $this->blocked('label_missing',
                     'Đơn chưa có tem sàn — không thể quét đóng gói.');
             }
@@ -455,7 +457,9 @@ class ShipmentController extends Controller
                         ? 'Đơn hàng đang có lỗi: '.$orderForScan->issue_reason
                         : 'Đơn hàng đang có lỗi — không thể quét đóng gói.');
             }
-            if (blank($shipment->label_path)) {
+            // Tem là bắt buộc với đơn có tem sàn/ĐVVC (carrier ≠ manual). Đơn tự ship "manual" do người
+            // bán tự dán tem nên KHÔNG có label_path — vẫn cho quét (giữ luồng manual self-ship hiện có).
+            if ($shipment->carrier !== 'manual' && blank($shipment->label_path)) {
                 return $this->blocked('label_missing',
                     'Đơn chưa có tem sàn — không thể quét đóng gói.');
             }
