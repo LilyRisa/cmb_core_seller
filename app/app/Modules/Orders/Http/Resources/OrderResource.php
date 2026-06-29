@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Orders\Http\Resources;
 
+use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Modules\Customers\Contracts\CustomerProfileContract;
 use CMBcoreSeller\Modules\Customers\Contracts\CustomerReportContract;
 use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
@@ -72,6 +73,8 @@ class OrderResource extends JsonResource
             'items_count' => $itemsCount,
             'has_issue' => $this->has_issue,
             'issue_reason' => $this->issue_reason,
+            // Lý do cụ thể đơn CHƯA thể chuẩn bị (thay "đang chờ" chung chung). Null = chuẩn bị được / manual / terminal.
+            'prepare_block_reason' => $this->prepareBlockReasonLabel(),
             // SPEC 0038 v2 — báo cáo "bom hàng": chỉ đơn thủ công đã hoàn/thất bại; `bad_reported`
             // chỉ query khi đủ điều kiện (tránh N+1 trên list).
             'can_bad_report' => $this->canBadReport(),
@@ -157,6 +160,27 @@ class OrderResource extends JsonResource
             StandardOrderStatus::Returning,
             StandardOrderStatus::ReturnedRefunded,
         ], true);
+    }
+
+    /**
+     * Lý do (nhãn VN) đơn sàn chưa thể chuẩn bị — map từ raw_status qua connector. Rẻ: thuần map, không gọi API.
+     * Null cho đơn manual (không có channel_account_id), đơn terminal, hoặc provider không có connector.
+     */
+    private function prepareBlockReasonLabel(): ?string
+    {
+        if (! $this->channel_account_id || $this->status->isTerminal()) {
+            return null;
+        }
+        $provider = (string) $this->source;
+        $registry = app(ChannelRegistry::class);
+        if (! $registry->has($provider)) {
+            return null;
+        }
+
+        return $registry->for($provider)->prepareBlockReason(
+            (string) $this->raw_status,
+            ['fulfillment_type' => $this->fulfillment_type],
+        )?->label();
     }
 
     /**
