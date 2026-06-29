@@ -406,6 +406,10 @@ class ShipmentController extends Controller
                 ? 'Vận đơn đã giao thất bại — không thể quét. Xử lý theo luồng trả/hoàn.'
                 : 'Vận đơn đã hoàn trả — không thể quét.');
         }
+        $orderForScan = Order::query()->where('tenant_id', $tenantId)->whereNull('deleted_at')->find($shipment->order_id);
+        if ($orderForScan && $orderForScan->status === S::Cancelled) {
+            abort(409, 'Đơn hàng đã bị huỷ — không thể quét đóng gói.');
+        }
         $userId = $request->user()->getKey();
         if ($action === 'handover') {
             if (in_array($shipment->status, Shipment::HANDED_OVER_STATUSES, true)) {
