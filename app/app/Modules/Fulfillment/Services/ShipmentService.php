@@ -100,6 +100,7 @@ class ShipmentService
         // Tách khỏi tracking: tem/AWB là bước ĐỘC LẬP sau arrange, KHÔNG cần mã vận đơn trước (xem dưới).
         $arrangedOnChannel = false;
         if ($order->channel_account_id && $issueAboutChannel) {
+            $this->assertChannelOrderFulfillable($order);
             try {
                 $arr = $this->arrangeOnChannel($order);
                 $arrangedOnChannel = is_array($arr);
@@ -805,6 +806,9 @@ class ShipmentService
             return false; // already packed/awaiting_pickup/handed over — no-op (anti double-scan, rule 5)
         }
         $order = $this->orderFor($shipment);
+        if ($order && $order->status === S::Cancelled) {
+            throw new RuntimeException('Đơn đã bị huỷ — không thể đóng gói.');
+        }
         // Đẩy trạng thái "sẵn sàng bàn giao" lên sàn (Lazada /order/rts) TRƯỚC khi flip — gọi NGOÀI transaction
         // để không giữ lock DB trong lúc chờ HTTP. KHÔNG chặn: `pushReadyToShipOnChannel` nuốt lỗi, chỉ gắn cờ
         // `has_issue` cho user "Nhận lại phiếu"; ta VẪN đóng gói cục bộ để kho không bị kẹt khi sàn flaky.
