@@ -346,15 +346,17 @@ class ShipmentService
     private function assertChannelOrderFulfillable(Order $order): void
     {
         $account = ChannelAccount::query()->find($order->channel_account_id);
-        if (! $account) {
+        if (! $account || ! $this->channels->has((string) $account->provider)) {
             return;
         }
-        $blocked = array_map('strtoupper', (array) config("integrations.{$account->provider}.unfulfillable_raw_statuses", []));
-        $raw = strtoupper(trim((string) $order->raw_status));
-        if ($raw !== '' && in_array($raw, $blocked, true)) {
-            // Thông báo VN gọn, đúng cho mọi sàn (UNPAID/ON_HOLD/IN_CANCEL...) — không gọi API sàn, không lộ
-            // lỗi kỹ thuật. Đợi đơn sang trạng thái sẵn sàng giao rồi thử lại.
-            throw new RuntimeException("Đơn đang ở trạng thái \"{$raw}\" — sàn chưa cho chuẩn bị hàng. Đợi đơn sẵn sàng giao (đã thanh toán & không còn yêu cầu huỷ) rồi thử lại.");
+        // Nguồn sự thật DUY NHẤT cho "đơn chưa thể chuẩn bị" = connector (map raw_status sàn). Thuần map, không gọi API.
+        // Chạy trong luồng HTTP đồng bộ (có tenant) nên ChannelAccount::find() OK — không dính bug job thiếu runAs.
+        $reason = $this->channels->for((string) $account->provider)->prepareBlockReason(
+            (string) $order->raw_status,
+            ['fulfillment_type' => $order->fulfillment_type],
+        );
+        if ($reason !== null) {
+            throw new RuntimeException($reason->label());
         }
     }
 

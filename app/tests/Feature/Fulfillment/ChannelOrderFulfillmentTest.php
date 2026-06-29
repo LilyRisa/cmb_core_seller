@@ -95,7 +95,7 @@ class ChannelOrderFulfillmentTest extends TestCase
         }
 
         $this->assertNotNull($message, 'createForOrder phải ném lỗi cho đơn ON_HOLD');
-        $this->assertStringContainsStringIgnoringCase('ON_HOLD', $message);
+        $this->assertStringContainsString('Sàn đang tạm giữ', $message);
         $this->assertSame(0, Shipment::withoutGlobalScope(TenantScope::class)->where('order_id', $order->getKey())->count());
         Http::assertNothingSent();   // chặn trước khi gọi sàn
     }
@@ -130,7 +130,8 @@ class ChannelOrderFulfillmentTest extends TestCase
     {
         // Shopee UNPAID ⇒ chặn "Chuẩn bị hàng" với thông báo VN, KHÔNG gọi API sàn (trước đây gọi
         // get_shipping_parameter rồi lỗi error_param khó hiểu → "vớ vẩn").
-        config(['integrations.shopee.unfulfillable_raw_statuses' => ['UNPAID', 'IN_CANCEL']]);
+        app(ChannelRegistry::class)->register('shopee', ShopeeConnector::class);
+        ShopeeFx::configure();
         $shopee = ChannelAccount::withoutGlobalScope(TenantScope::class)->create([
             'tenant_id' => $this->tenant->getKey(), 'provider' => 'shopee', 'external_shop_id' => 'SP1',
             'shop_name' => 'Shopee', 'status' => ChannelAccount::STATUS_ACTIVE,
@@ -146,7 +147,7 @@ class ChannelOrderFulfillmentTest extends TestCase
             $message = $e->getMessage();
         }
         $this->assertNotNull($message, 'Phải chặn đơn Shopee UNPAID');
-        $this->assertStringContainsString('UNPAID', $message);
+        $this->assertStringContainsString('Chờ người mua thanh toán', $message);
         $this->assertSame(0, Shipment::withoutGlobalScope(TenantScope::class)->where('order_id', $order->getKey())->count());
         Http::assertNothingSent();
     }
@@ -166,7 +167,7 @@ class ChannelOrderFulfillmentTest extends TestCase
         }
 
         $this->assertNotNull($message, 'createForOrder phải ném lỗi cho đơn TikTok UNPAID');
-        $this->assertStringContainsString('UNPAID', $message);
+        $this->assertStringContainsString('Chờ người mua thanh toán', $message);
         $this->assertSame(0, Shipment::withoutGlobalScope(TenantScope::class)->where('order_id', $order->getKey())->count());
         Http::assertNothingSent();   // chặn trước khi gọi sàn
     }
