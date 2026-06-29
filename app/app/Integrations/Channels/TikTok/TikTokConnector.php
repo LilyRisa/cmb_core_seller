@@ -15,6 +15,7 @@ use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
 use CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation;
+use CMBcoreSeller\Support\Enums\PrepareBlockReason;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -207,6 +208,21 @@ class TikTokConnector implements ChannelConnector, ShopReportConnector
     public function mapStatus(string $rawStatus, array $rawOrder = []): StandardOrderStatus
     {
         return TikTokStatusMap::toStandard($rawStatus, $rawOrder);
+    }
+
+    public function prepareBlockReason(string $rawStatus, array $rawOrder = []): ?PrepareBlockReason
+    {
+        // FBT: TikTok tự xử lý kho — người bán không chuẩn bị (recipient bị redact). Doc: fulfillment-api-overview.
+        if (strtoupper((string) data_get($rawOrder, 'fulfillment_type')) === 'FULFILLMENT_BY_TIKTOK') {
+            return PrepareBlockReason::PlatformFulfilled;
+        }
+
+        // Doc Order API: ON_HOLD "not allowed to be fulfilled" (remorse 1h); UNPAID chưa thanh toán.
+        return match (strtoupper(trim($rawStatus))) {
+            'UNPAID' => PrepareBlockReason::AwaitingPayment,
+            'ON_HOLD' => PrepareBlockReason::PlatformHold,
+            default => null, // AWAITING_SHIPMENT/PARTIALLY_SHIPPING = sẵn sàng; còn lại đã giao/terminal
+        };
     }
 
     /**

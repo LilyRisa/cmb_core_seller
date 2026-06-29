@@ -14,6 +14,7 @@ use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
 use CMBcoreSeller\Integrations\Channels\Exceptions\ShippingDocumentUnavailable;
 use CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation;
+use CMBcoreSeller\Support\Enums\PrepareBlockReason;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use CMBcoreSeller\Support\GotenbergClient;
 use Illuminate\Support\Facades\Http;
@@ -256,6 +257,16 @@ class LazadaConnector implements ChannelConnector, ShopReportConnector
         return $cfg !== []
             ? array_values(array_filter(array_map('strval', $cfg), fn ($s) => $s !== ''))
             : ['pending', 'ready_to_ship'];
+    }
+
+    public function prepareBlockReason(string $rawStatus, array $rawOrder = []): ?PrepareBlockReason
+    {
+        // Doc GetOrders enum + pack flow: unpaid chưa thanh toán; topack sàn đang xử lý; pending = trạng thái để Pack.
+        return match (strtolower(trim($rawStatus))) {
+            'unpaid' => PrepareBlockReason::AwaitingPayment,
+            'topack' => PrepareBlockReason::PlatformProcessing,
+            default => null,
+        };
     }
 
     // --- Listings / Inventory ------------------------------------------------

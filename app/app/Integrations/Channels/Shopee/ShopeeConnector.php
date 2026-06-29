@@ -15,6 +15,7 @@ use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
 use CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation;
+use CMBcoreSeller\Support\Enums\PrepareBlockReason;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Request;
@@ -182,6 +183,16 @@ class ShopeeConnector implements ChannelConnector, PenaltyWebhookConnector, Shop
     public function unprocessedRawStatuses(): array
     {
         return ['READY_TO_SHIP'];
+    }
+
+    public function prepareBlockReason(string $rawStatus, array $rawOrder = []): ?PrepareBlockReason
+    {
+        // Doc Order Management §10: UNPAID chưa thanh toán; IN_CANCEL đang xử lý yêu cầu huỷ.
+        return match (strtoupper(trim($rawStatus))) {
+            'UNPAID' => PrepareBlockReason::AwaitingPayment,
+            'IN_CANCEL' => PrepareBlockReason::CancelInProgress,
+            default => null, // READY_TO_SHIP/RETRY_SHIP = cho chuẩn bị; còn lại đã giao/terminal
+        };
     }
 
     public function fetchListings(AuthContext $auth, array $query = []): Page

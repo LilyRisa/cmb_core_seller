@@ -10,6 +10,7 @@ use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
 use CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation;
+use CMBcoreSeller\Support\Enums\PrepareBlockReason;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -102,6 +103,12 @@ class ManualConnector implements ChannelConnector
     public function unprocessedRawStatuses(): array
     {
         return [];
+    }
+
+    public function prepareBlockReason(string $rawStatus, array $rawOrder = []): ?PrepareBlockReason
+    {
+        // Đơn thủ công không có trạng thái sàn; preparability đã chặn bằng terminal/âm tồn ở assertPreparable.
+        return null;
     }
 
     public function fetchListings(AuthContext $auth, array $query = []): Page

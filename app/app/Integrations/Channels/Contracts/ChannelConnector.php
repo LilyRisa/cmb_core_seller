@@ -13,6 +13,7 @@ use CMBcoreSeller\Integrations\Channels\DTO\ShopInfoDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Channels\DTO\WebhookEventDTO;
 use CMBcoreSeller\Integrations\Channels\Exceptions\UnsupportedOperation;
+use CMBcoreSeller\Support\Enums\PrepareBlockReason;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -92,6 +93,15 @@ interface ChannelConnector
      * @param  array<string, mixed>  $rawOrder
      */
     public function mapStatus(string $rawStatus, array $rawOrder = []): StandardOrderStatus;
+
+    /**
+     * Lý do đơn CHƯA thể chuẩn bị hàng, suy từ raw status của sàn (+ fulfillment_type khi cần).
+     * Trả null khi đơn đã sẵn sàng chuẩn bị / đã-đang giao / terminal. Thuần map chuỗi — KHÔNG gọi API.
+     * Cùng `mapStatus`, đây là nơi DUY NHẤT chuỗi raw status của sàn được phép xuất hiện.
+     *
+     * @param  array<string, mixed>  $rawOrder
+     */
+    public function prepareBlockReason(string $rawStatus, array $rawOrder = []): ?PrepareBlockReason;
 
     /**
      * Trả các raw status của sàn coi là "chưa xử lý" — đơn đã đặt nhưng CHƯA bàn giao ĐVVC
