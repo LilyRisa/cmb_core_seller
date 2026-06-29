@@ -53,8 +53,6 @@ function Root() {
             <Route path="/password-reset" element={<ResetPasswordPage />} />
             {/* SPEC 0030 — trang tra cứu đơn công khai (đơn tự tạo). Public, không cần đăng nhập. */}
             <Route path="/tracking" element={<PublicTrackingPage />} />
-            {/* Trang tải ứng dụng di động. Public, không cần đăng nhập. */}
-            <Route path="/download" element={<DownloadAppPage />} />
             {/* SPEC 0032 — trang gói full-screen riêng (có nút back), tách khỏi sidebar. */}
             <Route path="/plans" element={<RequireAuth><PlansPage /></RequireAuth>} />
             {/* SPEC 2026-06-26 — site public (marketing). Đặt TRƯỚC catch-all shell. Dashboard dời sang /dashboard. */}
@@ -63,6 +61,8 @@ function Root() {
                 <Route path="/pricing" element={<PricingPage />} />
                 <Route path="/tools" element={<ToolsPage />} />
                 <Route path="/api-docs" element={<ApiDocsPage />} />
+                {/* Trang tải ứng dụng di động — dùng chung PublicLayout (header/footer chung). */}
+                <Route path="/download" element={<DownloadAppPage />} />
             </Route>
             {shell === 'v2' && !isLoading ? (
                 <Route path="/*" element={<RequireAuth><DesktopShell /></RequireAuth>} />
