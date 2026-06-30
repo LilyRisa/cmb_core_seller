@@ -9,11 +9,15 @@ export function MessagingNav() {
     const [params] = useSearchParams();
     const platform = params.get('platform');
     const qs = platform ? `?platform=${platform}` : '';
+    const isZalo = platform === 'zalo_oa';
     const options = [
         { label: 'Hộp thư', value: '/messaging' },
         { label: 'Kết nối kênh', value: '/messaging/channels' },
-        { label: 'Mẫu tin', value: '/messaging/templates' },
-        { label: 'Tin tiện ích', value: '/messaging/utility-templates' },
+        // Mẫu tin & Tin tiện ích (ZNS) chỉ cho Facebook/sàn — Zalo OA chưa dùng (ZNS ở phase sau).
+        ...(isZalo ? [] : [
+            { label: 'Mẫu tin', value: '/messaging/templates' },
+            { label: 'Tin tiện ích', value: '/messaging/utility-templates' },
+        ]),
         { label: 'Tự động trả lời', value: '/messaging/auto-rules' },
         { label: 'Kịch bản tự động', value: '/messaging/flows' },
         { label: 'AI training', value: '/messaging/knowledge' },
