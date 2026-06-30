@@ -46,7 +46,17 @@ export function StepListEditor({ value, onChange, upload, readOnly }: StepListEd
         onChange(next);
     };
 
-    const addStep = (type: FlowStepType) => onChange([...value, newStep(type)]);
+    const addStep = (type: FlowStepType) => {
+        const newS = newStep(type);
+        // send_buttons phải là bước cuối — chèn bước mới TRƯỚC nó nếu đã tồn tại
+        if (hasButtons && type !== 'send_buttons') {
+            const next = [...value];
+            next.splice(value.length - 1, 0, newS);
+            onChange(next);
+        } else {
+            onChange([...value, newS]);
+        }
+    };
 
     const menuItems = (Object.keys(STEP_META) as FlowStepType[]).map((type) => ({
         key: type,
@@ -178,15 +188,17 @@ export function StepListEditor({ value, onChange, upload, readOnly }: StepListEd
 
 /* ─────────────────────────── SendMediaEditor ─────────────────────────── */
 
-const KIND_ACCEPT: Record<'image' | 'video' | 'file', string> = {
+const KIND_ACCEPT: Record<FlowMediaKind, string> = {
     image: 'image/*',
     video: 'video/*',
+    audio: 'audio/*',
     file: '.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv',
 };
 
-const KIND_LABEL_VN: Record<'image' | 'video' | 'file', string> = {
+const KIND_LABEL_VN: Record<FlowMediaKind, string> = {
     image: 'Ảnh',
     video: 'Video',
+    audio: 'Âm thanh',
     file: 'File',
 };
 
@@ -207,11 +219,8 @@ function SendMediaEditor({
         upload.mutate(
             { file, kind },
             {
-                onSuccess: (att) =>
-                    onChange({
-                        attachment: att,
-                        kind: (att.kind === 'audio' ? 'file' : att.kind) as 'image' | 'video' | 'file',
-                    }),
+                // Giữ nguyên kind trả về từ server (kể cả 'audio')
+                onSuccess: (att) => onChange({ attachment: att, kind: att.kind }),
             },
         );
         return false; // tự upload, không để AntD gửi

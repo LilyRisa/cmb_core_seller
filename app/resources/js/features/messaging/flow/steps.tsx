@@ -45,6 +45,7 @@ export function newStep(type: FlowStepType): FlowStep {
 const KIND_LABEL: Record<NonNullable<FlowStep['kind']>, string> = {
     image: 'Ảnh',
     video: 'Video',
+    audio: 'Âm thanh',
     file: 'File',
 };
 

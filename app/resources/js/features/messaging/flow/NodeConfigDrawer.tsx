@@ -33,8 +33,8 @@ function deriveSteps(data: FlowNodeData): FlowStep[] {
     const attachments = data.attachments as FlowAttachment[] | undefined;
     if (Array.isArray(attachments)) {
         attachments.forEach((att) => {
-            const kind = (att.kind === 'audio' ? 'file' : att.kind) as 'image' | 'video' | 'file';
-            migrated.push({ ...newStep('send_media'), kind, attachment: att });
+            // Giữ nguyên kind gốc (kể cả 'audio') — không ép về 'file'
+            migrated.push({ ...newStep('send_media'), kind: att.kind, attachment: att });
         });
     }
     const buttons = data.buttons as FlowButton[] | undefined;
@@ -197,7 +197,11 @@ export function NodeConfigDrawer({
                     )}
 
                     {type === 'ai_reply' && (
-                        <Alert type="info" showIcon message="AI tự soạn & gửi câu trả lời dựa trên kho tri thức + lịch sử hội thoại. Trả lời được => đi nhánh đã trả lời; gặp khiếu nại/hoàn tiền => đi nhánh cần người." />
+                        <Alert
+                            type="info"
+                            showIcon
+                            message="AI tự soạn câu trả lời dựa trên kho tri thức và lịch sử hội thoại. Intent nhạy cảm (khiếu nại, hoàn tiền, khẩn cấp) tự động chuyển nhân viên; gặp lỗi hoặc hết hạn mức thì bỏ qua. Cần bật AI trong Cài đặt."
+                        />
                     )}
 
                     {type === 'wait_reply' && (

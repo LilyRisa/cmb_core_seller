@@ -15,9 +15,10 @@ use CMBcoreSeller\Modules\Messaging\Services\OutboundMessageService;
  * OutboundMessageService ⇒ audit + 24h window guard đồng nhất. Chống gửi lại:
  * đánh dấu node id vào run.context._sent.
  *
- * **Steps branch (additive):** nếu `node.data.steps[]` tồn tại và không rỗng, duyệt
- * từng step theo thứ tự qua StepExecutorRegistry — idempotency theo cursor
- * `_step_sent[node.id]`. Nhánh cũ (text/attachments thẳng) giữ nguyên byte-for-byte.
+ * **Steps branch (additive):** nếu KEY `node.data.steps` tồn tại và là mảng, dùng nhánh
+ * steps dù mảng rỗng (rỗng → không gửi gì, trả advance(null)). Chỉ dùng nhánh cũ khi
+ * hoàn toàn không có key `steps` (node chưa bao giờ mở bằng editor mới). Idempotency
+ * theo cursor `_step_sent[node.id]`.
  *
  * data (cũ): { text?: string, attachments?: [ { kind, storage_path, mime?, filename?, size_bytes? } ] }
  * data (mới): { steps: [ { id, type, ...config } ] }
@@ -36,13 +37,17 @@ class SendMessageNodeExecutor implements NodeExecutor
 
     public function execute(FlowNode $node, FlowContext $ctx): NodeResult
     {
-        // Steps branch — duyệt danh sách bước có thứ tự (additive, non-breaking).
-        $rawSteps = array_values(array_filter(
-            (array) ($node->data['steps'] ?? []),
-            fn ($s) => is_array($s) && ! empty($s['type']) && ! empty($s['id']),
-        ));
+        // Steps branch — KEY `steps` có mặt (kể cả mảng rỗng) → dùng nhánh steps.
+        // Mảng rỗng nghĩa là user đã xoá hết bước; không gửi gì, không dùng lại text cũ.
+        if (array_key_exists('steps', $node->data) && is_array($node->data['steps'])) {
+            $rawSteps = array_values(array_filter(
+                $node->data['steps'],
+                fn ($s) => is_array($s) && ! empty($s['type']) && ! empty($s['id']),
+            ));
+            if ($rawSteps === []) {
+                return NodeResult::advance(null); // steps rỗng → không gửi gì
+            }
 
-        if ($rawSteps !== []) {
             return $this->executeSteps($rawSteps, $node, $ctx);
         }
 

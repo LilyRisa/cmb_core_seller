@@ -232,4 +232,33 @@ class SteppedNodeExecutionTest extends TestCase
                 ->count(),
         );
     }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Case 5: data has BOTH legacy text AND steps:[] (explicit empty key)
+    //         → steps key is authoritative → sends NOTHING, advance(null)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    public function test_explicit_empty_steps_with_legacy_text_sends_nothing(): void
+    {
+        Queue::fake();
+        $conv = $this->conv();
+        $run = $this->makeRun($conv);
+        $ctx = new FlowContext($conv, $run);
+
+        // Node có cả legacy text VÀ steps:[] rỗng tường minh
+        // → steps key ưu tiên → không gửi gì (không "hồi sinh" text cũ)
+        $node = new FlowNode('n_empty', 'send_message', ['text' => 'Hello', 'steps' => []]);
+
+        $result = $this->executor()->execute($node, $ctx);
+
+        $this->assertTrue($result->isAdvance());
+        $this->assertNull($result->handle);
+        $this->assertSame(
+            0,
+            Message::withoutGlobalScope(TenantScope::class)
+                ->where('conversation_id', $conv->id)
+                ->count(),
+            'Legacy text không được gửi khi key steps tồn tại (dù rỗng)',
+        );
+    }
 }

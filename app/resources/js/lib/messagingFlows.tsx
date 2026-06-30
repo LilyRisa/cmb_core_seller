@@ -49,7 +49,7 @@ export interface FlowStep {
     id: string;
     type: FlowStepType;
     text?: string;
-    kind?: 'image' | 'video' | 'file';
+    kind?: FlowMediaKind;
     attachment?: FlowAttachment;
     buttons?: FlowButton[];
 }
