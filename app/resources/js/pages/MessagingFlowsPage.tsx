@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { App as AntApp, Alert, Button, Card, Form, Input, Modal, Popconfirm, Radio, Space, Switch, Table, Tag } from 'antd';
 import { CopyOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -33,8 +33,11 @@ const STATUS_COLOR: Record<FlowStatus, string> = {
 export function MessagingFlowsPage() {
     const { message } = AntApp.useApp();
     const navigate = useNavigate();
+    // Kịch bản theo nền tảng: ?platform=zalo_oa ⇒ chỉ flow provider zalo_oa + tạo flow gắn provider đó.
+    const [params] = useSearchParams();
+    const platform = params.get('platform') ?? 'facebook_page';
     const canManage = useCan('messaging.rule.manage');
-    const { data, isFetching } = useFlows();
+    const { data, isFetching } = useFlows(platform);
     const { data: settings } = useMessagingSettings();
     const fbAiAutoOn = settings?.auto_mode_facebook ?? false;
     const save = useSaveFlow();
@@ -49,6 +52,9 @@ export function MessagingFlowsPage() {
             {
                 name: v.name,
                 trigger_type: v.trigger_type,
+                // Gắn provider theo nền tảng — FlowMatcher khớp flow theo provider của hội thoại,
+                // nên flow Zalo PHẢI lưu provider=zalo_oa thì mới chạy cho hội thoại Zalo.
+                provider: platform,
                 applies_all_pages: !!v.applies_all_pages,
                 channel_account_ids: v.applies_all_pages ? [] : (v.channel_account_ids ?? []),
                 graph: { nodes: [{ id: 'trigger-1', type: 'trigger', position: { x: 280, y: 40 }, data: {} }], edges: [] },
@@ -113,7 +119,7 @@ export function MessagingFlowsPage() {
                     {!appliesAll && (
                         <Form.Item name="channel_account_ids" label="Trang áp dụng"
                             rules={[{ required: true, type: 'array', min: 1, message: 'Chọn ít nhất 1 trang hoặc bật "Tất cả trang"' }]}>
-                            <PageMultiSelect />
+                            <PageMultiSelect provider={platform} />
                         </Form.Item>
                     )}
                     <Form.Item name="trigger_type" label="Kích hoạt khi">
@@ -122,7 +128,8 @@ export function MessagingFlowsPage() {
                                 <Radio value="inbox_first_message">{TRIGGER_LABELS.inbox_first_message}</Radio>
                                 <Radio value="inbox_keyword">{TRIGGER_LABELS.inbox_keyword}</Radio>
                                 <Radio value="inbox_any">{TRIGGER_LABELS.inbox_any}</Radio>
-                                <Radio value="comment_any">{TRIGGER_LABELS.comment_any}</Radio>
+                                {/* Zalo OA không có bình luận — chỉ Facebook có trigger comment. */}
+                                {platform !== 'zalo_oa' && <Radio value="comment_any">{TRIGGER_LABELS.comment_any}</Radio>}
                             </Space>
                         </Radio.Group>
                     </Form.Item>

@@ -100,13 +100,15 @@ export type FlowSavePayload = Partial<Omit<AutomationFlow, 'id'>> & { id?: numbe
 
 const KEY = 'flows';
 
-export function useFlows() {
+export function useFlows(provider?: string) {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();
     return useQuery({
-        queryKey: ['messaging', KEY, tenantId],
+        queryKey: ['messaging', KEY, tenantId, provider ?? null],
         enabled: api != null,
-        queryFn: async () => (await api!.get<Paginated<AutomationFlow>>('/messaging/automation-flows')).data,
+        queryFn: async () => (await api!.get<Paginated<AutomationFlow>>('/messaging/automation-flows', {
+            params: provider ? { provider } : {},
+        })).data,
     });
 }
 

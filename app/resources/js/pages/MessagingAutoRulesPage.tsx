@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { App as AntApp, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Radio, Select, Space, Switch, Table, Tag } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -47,8 +48,11 @@ function commentTargetFrom(choice: 'public' | 'private' | 'both'): { public: boo
 /** /messaging/auto-rules — quản lý quy tắc trả lời tự động (SPEC-0024 §6.2). */
 export function MessagingAutoRulesPage() {
     const { message } = AntApp.useApp();
+    // Trả lời tự động theo nền tảng: ?platform=zalo_oa ⇒ chỉ rule provider zalo_oa + tạo rule gắn provider đó.
+    const [params] = useSearchParams();
+    const platform = params.get('platform') ?? 'facebook_page';
     const canManage = useCan('messaging.rule.manage');
-    const { data, isFetching } = useAutoRules();
+    const { data, isFetching } = useAutoRules(platform);
     const save = useSaveRule();
     const del = useDeleteRule();
     const [editing, setEditing] = useState<AutoReplyRule | null>(null);
@@ -102,7 +106,8 @@ export function MessagingAutoRulesPage() {
             ...(editing ? { id: editing.id } : {}),
             name: v.name, trigger: v.trigger, enabled: v.enabled, cooldown_seconds: v.cooldown_seconds, priority: v.priority,
             trigger_config,
-            filter: { thread_types: threadTypes },
+            // Khoá rule theo nền tảng (AutoReplyEngine: providers rỗng = mọi provider) → tránh rule Zalo bắn cho Facebook.
+            filter: { thread_types: threadTypes, providers: [platform] },
             action,
             applies_all_pages: !!v.applies_all_pages,
             channel_account_ids: v.applies_all_pages ? [] : (v.channel_account_ids ?? []),
@@ -171,7 +176,7 @@ export function MessagingAutoRulesPage() {
                     {!appliesAll && (
                         <Form.Item name="channel_account_ids" label="Trang áp dụng"
                             rules={[{ required: true, type: 'array', min: 1, message: 'Chọn ít nhất 1 trang hoặc bật "Tất cả trang"' }]}>
-                            <PageMultiSelect />
+                            <PageMultiSelect provider={platform} />
                         </Form.Item>
                     )}
                     {(threadChoice === 'comment' || threadChoice === 'both') && (

@@ -161,7 +161,7 @@ class MessagingChannelControllerTest extends TestCase
         $this->assertDatabaseMissing('conversations', ['id' => $conv->id]);
         $this->assertDatabaseMissing('messages', ['id' => $msg->id]);
         $this->assertDatabaseMissing('message_attachments', ['message_id' => $msg->id]);
-        $this->assertDatabaseHas('audit_logs', ['action' => 'messaging.facebook.disconnected']);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'messaging.facebook_page.disconnected']);
         Storage::disk($disk)->assertMissing('tenants/x/messaging/test.jpg');
     }
 
@@ -223,7 +223,7 @@ class MessagingChannelControllerTest extends TestCase
             $this->assertSame('queued', MessagingAccountMeta::query()->find($id)?->sync_status);
         }
         Bus::assertNotDispatched(BackfillMessagingChannel::class, fn ($j) => $j->channelAccountId === $c->id);
-        $this->assertDatabaseHas('audit_logs', ['action' => 'messaging.facebook.bulk_sync']);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'messaging.bulk_sync']);
     }
 
     public function test_bulk_disconnect_deletes_selected_pages_and_cascades(): void
@@ -252,7 +252,7 @@ class MessagingChannelControllerTest extends TestCase
         $this->assertDatabaseMissing('channel_accounts', ['id' => $b->id]);
         $this->assertDatabaseMissing('conversations', ['id' => $conv->id]);
         $this->assertDatabaseHas('channel_accounts', ['id' => $keep->id, 'deleted_at' => null]);
-        $this->assertDatabaseHas('audit_logs', ['action' => 'messaging.facebook.bulk_disconnected']);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'messaging.bulk_disconnected']);
     }
 
     public function test_bulk_actions_ignore_non_facebook_and_unknown_ids(): void

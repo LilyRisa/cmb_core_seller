@@ -1,10 +1,14 @@
 import { Segmented } from 'antd';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
 /** Thanh điều hướng giữa các trang quản lý Messaging (SPEC-0024 §6.2). */
 export function MessagingNav() {
     const nav = useNavigate();
     const { pathname } = useLocation();
+    // Giữ ngữ cảnh nền tảng (?platform=zalo_oa) khi chuyển tab — nếu không sẽ rơi về Facebook.
+    const [params] = useSearchParams();
+    const platform = params.get('platform');
+    const qs = platform ? `?platform=${platform}` : '';
     const options = [
         { label: 'Hộp thư', value: '/messaging' },
         { label: 'Kết nối kênh', value: '/messaging/channels' },
@@ -20,7 +24,8 @@ export function MessagingNav() {
     return (
         <Segmented<string>
             value={value}
-            onChange={(v) => nav(v)}
+            // Cài đặt AI là tenant-global (không có platform) → không gắn query.
+            onChange={(v) => nav(v === '/settings/messaging' ? v : v + qs)}
             options={options}
             style={{ marginBottom: 16 }}
         />

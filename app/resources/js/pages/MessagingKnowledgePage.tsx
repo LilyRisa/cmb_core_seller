@@ -18,7 +18,7 @@ const STATUS: Record<KnowledgeDoc['status'], { color: string; label: string }> =
 export function KnowledgeDocsPanel({ provider }: { provider?: string }) {
     const { message } = AntApp.useApp();
     const canManage = useCan('messaging.ai.train');
-    const { data, isFetching } = useKnowledgeDocs();
+    const { data, isFetching } = useKnowledgeDocs(provider);
     const create = useCreateKnowledge();
     const del = useDeleteKnowledge();
     const reindex = useReindexKnowledge();

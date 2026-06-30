@@ -229,7 +229,7 @@ function FlowEditor() {
                 </Tooltip>
                 {!appliesAllPages && (
                     <div style={{ minWidth: 220 }}>
-                        <PageMultiSelect value={pageIds} onChange={setPageIds} disabled={!canManage} placeholder="Chọn trang" />
+                        <PageMultiSelect value={pageIds} onChange={setPageIds} disabled={!canManage} placeholder="Chọn trang" provider={flow?.provider} />
                     </div>
                 )}
                 <div style={{ flex: 1 }} />

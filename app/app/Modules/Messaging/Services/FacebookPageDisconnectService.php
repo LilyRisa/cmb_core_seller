@@ -69,6 +69,10 @@ class FacebookPageDisconnectService
 
     private function unsubscribeWebhook(ChannelAccount $account): void
     {
+        // Chỉ Facebook Page cần unsubscribe webhook qua Graph; kênh khác (Zalo OA…) bỏ qua.
+        if ($account->provider !== 'facebook_page') {
+            return;
+        }
         $token = (string) $account->access_token;
         if ($token === '') {
             return;

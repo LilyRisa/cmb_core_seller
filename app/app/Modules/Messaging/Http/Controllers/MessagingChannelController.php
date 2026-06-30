@@ -106,14 +106,14 @@ class MessagingChannelController extends Controller
         Gate::authorize('messaging.ai.config');
 
         $data = $request->validate(['ai_auto_mode' => ['required', 'boolean']]);
-        $account = ChannelAccount::query()->where('provider', 'facebook_page')->findOrFail($id);
+        $account = ChannelAccount::query()->whereIn('provider', ChannelAccount::MESSAGING_ONLY_PROVIDERS)->findOrFail($id);
 
         MessagingAccountMeta::query()->updateOrCreate(
             ['channel_account_id' => $account->id],
             ['tenant_id' => $account->tenant_id, 'ai_auto_mode' => (bool) $data['ai_auto_mode']],
         );
 
-        AuditLog::record('messaging.facebook.ai_mode', null, [
+        AuditLog::record('messaging.'.$account->provider.'.ai_mode', null, [
             'external_shop_id' => $account->external_shop_id,
             'ai_auto_mode' => (bool) $data['ai_auto_mode'],
         ]);
@@ -126,15 +126,18 @@ class MessagingChannelController extends Controller
     {
         Gate::authorize('messaging.connect');
 
-        $account = ChannelAccount::query()->where('provider', 'facebook_page')->findOrFail($id);
+        $account = ChannelAccount::query()->whereIn('provider', ChannelAccount::MESSAGING_ONLY_PROVIDERS)->findOrFail($id);
 
         MessagingAccountMeta::query()->updateOrCreate(
             ['channel_account_id' => $account->id],
             ['tenant_id' => $account->tenant_id, 'sync_status' => MessagingAccountMeta::SYNC_QUEUED],
         );
         BackfillMessagingChannel::dispatch($account->id);
-        BackfillFacebookComments::dispatch($account->id);
-        AuditLog::record('messaging.facebook.sync.requested', null, ['external_shop_id' => $account->external_shop_id]);
+        // Backfill bình luận chỉ áp dụng Facebook (kênh khác không có comment feed).
+        if ($account->provider === 'facebook_page') {
+            BackfillFacebookComments::dispatch($account->id);
+        }
+        AuditLog::record('messaging.'.$account->provider.'.sync.requested', null, ['external_shop_id' => $account->external_shop_id]);
 
         return response()->json(['data' => ['ok' => true]], 202);
     }
@@ -150,7 +153,7 @@ class MessagingChannelController extends Controller
 
         $ids = $this->validatedIds($request);
         $accounts = ChannelAccount::query()
-            ->where('provider', 'facebook_page')->whereIn('id', $ids)->get();
+            ->whereIn('provider', ChannelAccount::MESSAGING_ONLY_PROVIDERS)->whereIn('id', $ids)->get();
 
         foreach ($accounts as $account) {
             MessagingAccountMeta::query()->updateOrCreate(
@@ -158,11 +161,13 @@ class MessagingChannelController extends Controller
                 ['tenant_id' => $account->tenant_id, 'sync_status' => MessagingAccountMeta::SYNC_QUEUED],
             );
             BackfillMessagingChannel::dispatch($account->id);
-            BackfillFacebookComments::dispatch($account->id);
+            if ($account->provider === 'facebook_page') {
+                BackfillFacebookComments::dispatch($account->id);
+            }
         }
 
         if ($accounts->isNotEmpty()) {
-            AuditLog::record('messaging.facebook.bulk_sync', null, [
+            AuditLog::record('messaging.bulk_sync', null, [
                 'external_shop_ids' => $accounts->pluck('external_shop_id')->all(),
                 'count' => $accounts->count(),
             ]);
@@ -180,7 +185,8 @@ class MessagingChannelController extends Controller
     {
         Gate::authorize('messaging.view');
 
-        $account = ChannelAccount::query()->where('provider', 'facebook_page')->findOrFail($id);
+        // Provider-agnostic: kênh nào có capability post.list (ListsPostsConnector) mới liệt kê được.
+        $account = ChannelAccount::query()->whereIn('provider', ChannelAccount::MESSAGING_ONLY_PROVIDERS)->findOrFail($id);
 
         $connector = $registry->has($account->provider) ? $registry->for($account->provider) : null;
         if (! $connector instanceof ListsPostsConnector) {
@@ -220,17 +226,21 @@ class MessagingChannelController extends Controller
         return response()->json(['data' => $caps]);
     }
 
-    /** DELETE /api/v1/messaging/channels/{id} — ngắt kết nối 1 page (xoá hẳn + cascade). */
+    /** DELETE /api/v1/messaging/channels/{id} — ngắt kết nối 1 kênh nhắn tin (xoá hẳn + cascade). */
     public function destroy(int $id, FacebookPageDisconnectService $service): JsonResponse
     {
         Gate::authorize('messaging.connect');
 
-        $account = ChannelAccount::query()->where('provider', 'facebook_page')->findOrFail($id);
+        // Ngắt mọi kênh nhắn tin độc lập (Facebook Page, Zalo OA, Lazada IM) — KHÔNG hardcode
+        // facebook_page. Marketplace chat (tiktok/shopee) dùng chung token đơn hàng, không ngắt ở đây.
+        $account = ChannelAccount::query()
+            ->whereIn('provider', ChannelAccount::MESSAGING_ONLY_PROVIDERS)
+            ->findOrFail($id);
         $externalShopId = $account->external_shop_id;
 
         $result = $service->disconnect($account);
 
-        AuditLog::record('messaging.facebook.disconnected', null, [
+        AuditLog::record('messaging.'.$account->provider.'.disconnected', null, [
             'external_shop_id' => $externalShopId,
             'conversations_deleted' => $result['conversations'],
         ]);
@@ -249,7 +259,7 @@ class MessagingChannelController extends Controller
 
         $ids = $this->validatedIds($request);
         $accounts = ChannelAccount::query()
-            ->where('provider', 'facebook_page')->whereIn('id', $ids)->get();
+            ->whereIn('provider', ChannelAccount::MESSAGING_ONLY_PROVIDERS)->whereIn('id', $ids)->get();
 
         $externalShopIds = [];
         $conversationsDeleted = 0;
@@ -260,7 +270,7 @@ class MessagingChannelController extends Controller
         }
 
         if ($accounts->isNotEmpty()) {
-            AuditLog::record('messaging.facebook.bulk_disconnected', null, [
+            AuditLog::record('messaging.bulk_disconnected', null, [
                 'external_shop_ids' => $externalShopIds,
                 'count' => count($externalShopIds),
                 'conversations_deleted' => $conversationsDeleted,

@@ -171,13 +171,15 @@ export interface AutoReplyRule {
     priority: number;
 }
 
-export function useAutoRules() {
+export function useAutoRules(provider?: string) {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();
     return useQuery({
-        queryKey: ['messaging', 'rules', tenantId],
+        queryKey: ['messaging', 'rules', tenantId, provider ?? null],
         enabled: api != null,
-        queryFn: async () => (await api!.get<Paginated<AutoReplyRule>>('/messaging/auto-reply-rules')).data,
+        queryFn: async () => (await api!.get<Paginated<AutoReplyRule>>('/messaging/auto-reply-rules', {
+            params: provider ? { provider } : {},
+        })).data,
     });
 }
 
@@ -218,14 +220,16 @@ export interface KnowledgeDoc {
     created_at: string | null;
 }
 
-export function useKnowledgeDocs() {
+export function useKnowledgeDocs(provider?: string) {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();
     return useQuery({
-        queryKey: ['messaging', 'knowledge', tenantId],
+        queryKey: ['messaging', 'knowledge', tenantId, provider ?? null],
         enabled: api != null,
         refetchInterval: (q) => (q.state.data?.data?.some((d) => d.status === 'pending') ? 5_000 : false),
-        queryFn: async () => (await api!.get<Paginated<KnowledgeDoc>>('/messaging/knowledge-docs')).data,
+        queryFn: async () => (await api!.get<Paginated<KnowledgeDoc>>('/messaging/knowledge-docs', {
+            params: provider ? { provider } : {},
+        })).data,
     });
 }
 

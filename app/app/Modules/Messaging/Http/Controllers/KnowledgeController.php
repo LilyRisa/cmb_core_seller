@@ -34,6 +34,10 @@ class KnowledgeController extends Controller
         return JsonResource::collection(
             AiKnowledgeDocument::query()
                 ->orderByDesc('created_at')
+                // Lọc theo nền tảng: tài liệu áp-mọi-trang HOẶC gắn trang thuộc provider đó (?provider=zalo_oa).
+                ->when($request->query('provider'), fn ($q, $p) => $q->where(fn ($w) => $w
+                    ->where('applies_all_pages', true)
+                    ->orWhereHas('pages', fn ($pg) => $pg->where('provider', (string) $p))))
                 ->paginate(min(100, max(1, (int) $request->query('per_page', 30))))
                 ->through(fn (AiKnowledgeDocument $d) => [
                     'id' => $d->id,

@@ -22,11 +22,19 @@ class AutoReplyRuleController extends Controller
     {
         Gate::authorize('messaging.view');
 
-        return JsonResource::collection(
-            AutoReplyRule::query()->orderBy('priority')->orderBy('id')
-                ->paginate(min(100, max(1, (int) $request->query('per_page', 50))))
-                ->through(fn (AutoReplyRule $r) => $this->present($r))
-        );
+        $provider = $request->query('provider');
+        $rules = AutoReplyRule::query()->orderBy('priority')->orderBy('id')->get();
+        if ($provider !== null) {
+            // Lọc theo nền tảng (filter->providers chứa provider HOẶC rỗng = áp mọi provider).
+            // Lọc phía PHP để không phụ thuộc JSON-query của DB (pgsql prod / sqlite test).
+            $rules = $rules->filter(function (AutoReplyRule $r) use ($provider) {
+                $providers = (array) (($r->filter['providers'] ?? []) ?: []);
+
+                return $providers === [] || in_array((string) $provider, $providers, true);
+            })->values();
+        }
+
+        return JsonResource::collection($rules->map(fn (AutoReplyRule $r) => $this->present($r)));
     }
 
     public function store(Request $request): JsonResponse

@@ -38,6 +38,8 @@ class AutomationFlowController extends Controller
 
         return JsonResource::collection(
             AutomationFlow::query()->latest('id')
+                // Lọc theo nền tảng (?provider=zalo_oa) — mỗi nền tảng có kịch bản riêng.
+                ->when($request->query('provider'), fn ($q, $p) => $q->where('provider', (string) $p))
                 ->paginate(min(100, max(1, (int) $request->query('per_page', 50))))
                 ->through(fn (AutomationFlow $f) => $this->present($f))
         );
