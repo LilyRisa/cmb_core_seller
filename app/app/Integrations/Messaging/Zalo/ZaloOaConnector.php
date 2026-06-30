@@ -45,6 +45,10 @@ class ZaloOaConnector implements InteractiveMessagingConnector, MessagingConnect
             'inbound.webhook' => true,
             'inbound.polling' => false,
             'inbound.postback' => true,
+            // Zalo bắt buộc phản hồi 200 cho MỌI webhook (doc Webhook > Tổng quan §3); nếu trả ≠200
+            // Zalo vô hiệu hóa webhook → không hoàn tất cấu hình để lấy OA Secret Key. Vì vậy khi chữ
+            // ký chưa hợp lệ (lúc xác minh/khi chưa cấu hình secret) vẫn ack 200 nhưng KHÔNG ingest.
+            'inbound.webhook_always_ack' => true,
             'outbound.text' => true,
             'outbound.image' => true,
             'outbound.file' => true,

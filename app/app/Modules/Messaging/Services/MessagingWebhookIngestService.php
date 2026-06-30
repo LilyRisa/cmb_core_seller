@@ -39,6 +39,14 @@ class MessagingWebhookIngestService
         if (! $connector->verifyWebhookSignature($request)) {
             Log::warning('messaging.webhook.signature_invalid', ['provider' => $provider]);
 
+            // Một số nền tảng (Zalo) BẮT BUỘC phản hồi 200 cho mọi webhook, kể cả request xác
+            // minh khi chưa cấu hình secret. Trả ≠200 sẽ khiến Zalo vô hiệu hóa webhook → không
+            // thể hoàn tất cấu hình để lấy OA Secret Key (deadlock). Ack 200 nhưng KHÔNG ingest
+            // event chưa xác thực (an toàn — dữ liệu giả mạo không bao giờ được lưu/xử lý).
+            if ($connector->supports('inbound.webhook_always_ack')) {
+                return ['status' => 200, 'body' => ['ok' => true, 'note' => 'unverified_ack']];
+            }
+
             return [
                 'status' => 401,
                 'body' => ['error' => ['code' => 'INVALID_SIGNATURE', 'message' => 'Messaging webhook signature verification failed.']],
