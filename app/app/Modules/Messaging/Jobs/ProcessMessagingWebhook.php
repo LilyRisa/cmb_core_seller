@@ -385,13 +385,15 @@ class ProcessMessagingWebhook implements ShouldQueue
     }
 
     /**
-     * Dispatch SyncConversationProfile khi conversation DM còn thiếu avatar và chưa
-     * thử fetch trong 24h gần đây (đọc mốc `meta.profile_attempted_at` để không
-     * đẩy job thừa mỗi tin khi page chưa được duyệt quyền lấy profile buyer).
+     * Dispatch SyncConversationProfile khi conversation DM còn thiếu avatar HOẶC
+     * thiếu buyer_name, và chưa thử fetch trong 24h gần đây (đọc mốc
+     * `meta.profile_attempted_at` để không đẩy job thừa mỗi tin).
+     * Zalo webhook không gửi tên người dùng → cần re-dispatch khi đã có avatar
+     * nhưng tên vẫn rỗng.
      */
     private function maybeSyncBuyerProfile(Conversation $conversation): void
     {
-        if ($conversation->buyer_avatar_path !== null) {
+        if ($conversation->buyer_avatar_path !== null && filled($conversation->buyer_name)) {
             return;
         }
 

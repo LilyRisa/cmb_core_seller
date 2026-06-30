@@ -115,6 +115,10 @@ function convDisplayName(c: Conversation): string {
         const label = commentParticipantsLabel(c.comment?.participants);
         if (label) return label;
     }
+    if (c.provider === 'zalo_oa' && !c.buyer_name) {
+        const last4 = (c.buyer_external_id ?? '').slice(-4) || '????';
+        return `Khách Zalo ·${last4}`;
+    }
     return c.buyer_name ?? c.buyer_external_id ?? '?';
 }
 

@@ -15,7 +15,7 @@ export type ConversationStatus = 'open' | 'snoozed' | 'resolved' | 'spam';
 export type MessageDirection = 'inbound' | 'outbound';
 export type DeliveryStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
 
-export type ChannelGroup = 'marketplace' | 'facebook' | 'internal';
+export type ChannelGroup = 'marketplace' | 'facebook' | 'internal' | 'zalo';
 
 export interface ConversationComment {
     post_message: string | null;

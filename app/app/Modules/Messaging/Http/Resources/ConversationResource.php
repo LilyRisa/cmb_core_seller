@@ -114,12 +114,13 @@ class ConversationResource extends JsonResource
         return $out;
     }
 
-    /** Nhóm nguồn để FE tách inbox: sàn TMĐT vs Facebook vs nội bộ. */
+    /** Nhóm nguồn để FE tách inbox: sàn TMĐT vs Facebook vs Zalo vs nội bộ. */
     public static function groupFor(string $provider): string
     {
         return match ($provider) {
             'facebook_page' => 'facebook',
             'tiktok_chat', 'shopee_chat', 'lazada_chat' => 'marketplace',
+            'zalo_oa' => 'zalo',
             default => 'internal',
         };
     }
