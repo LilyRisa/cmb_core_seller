@@ -232,15 +232,49 @@ class ZaloOaConnector implements InteractiveMessagingConnector, MessagingConnect
             return $base(MessagingWebhookEventDTO::TYPE_POSTBACK, body: $text);
         }
 
+        // Loại tin có file đính kèm — nếu lấy được URL thì map đúng media kind + attachment,
+        // không thì fallback body tiếng Việt để KHÔNG hiện tin rỗng trên inbox.
+        // NEEDS-VERIFY: cấu trúc payload attachment của Zalo cho video/gif/sticker (chưa có
+        // credentials OA thật để xác minh). image/file/audio đã verify; video/gif/sticker tái
+        // dùng cùng helper mediaAttachments (đọc message.attachments[].payload.url) — nếu khác
+        // sẽ rơi nhánh fallback body, không vỡ.
+        $mediaOrBody = function (MessageKind $kind, string $fallback) use ($msg, $base) {
+            $atts = $this->mediaAttachments($msg, $kind);
+
+            return $atts !== []
+                ? $base(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, $kind, null, $atts)
+                : $base(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, MessageKind::Text, $fallback);
+        };
+
         return match ($event) {
             'user_send_text' => $base(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, MessageKind::Text, $text),
             'user_send_image' => $base(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, MessageKind::Image, null, $this->mediaAttachments($msg, MessageKind::Image)),
             'user_send_file' => $base(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, MessageKind::File, null, $this->mediaAttachments($msg, MessageKind::File)),
             'user_send_audio' => $base(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, MessageKind::Audio, null, $this->mediaAttachments($msg, MessageKind::Audio)),
-            'user_send_sticker' => $base(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, MessageKind::Text, '[sticker]'),
-            'user_send_location' => $base(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, MessageKind::Text, '[location]'),
+            // Không thêm enum Sticker/Location/BusinessCard (tránh sửa render khắp nơi) — dùng
+            // Image/Video/Text sẵn có với body mô tả tiếng Việt.
+            'user_send_video' => $mediaOrBody(MessageKind::Video, '[Video]'),
+            'user_send_gif' => $mediaOrBody(MessageKind::Image, '[Ảnh động]'),
+            'user_send_sticker' => $mediaOrBody(MessageKind::Image, '[Nhãn dán]'),
+            'user_send_location' => $base(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, MessageKind::Text, $this->locationBody($msg)),
+            'user_send_business_card' => $base(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, MessageKind::Text, '[Danh thiếp]'),
             default => $base(MessagingWebhookEventDTO::TYPE_UNKNOWN),
         };
+    }
+
+    /** Body tiếng Việt cho tin vị trí — kèm link Google Maps nếu payload có toạ độ. */
+    private function locationBody(array $msg): string
+    {
+        foreach ((array) ($msg['attachments'] ?? []) as $att) {
+            $coords = (array) (((array) ($att['payload'] ?? []))['coordinates'] ?? []);
+            $lat = $coords['latitude'] ?? $coords['lat'] ?? null;
+            $lng = $coords['longitude'] ?? $coords['lng'] ?? $coords['long'] ?? null;
+            if ($lat !== null && $lng !== null) {
+                return '[Vị trí] https://maps.google.com/?q='.$lat.','.$lng;
+            }
+        }
+
+        return '[Vị trí]';
     }
 
     /** @return list<MessagingWebhookEventDTO> */
@@ -388,7 +422,7 @@ class ZaloOaConnector implements InteractiveMessagingConnector, MessagingConnect
             $out[] = new MediaRefDTO(
                 kind: $kind,
                 mime: match ($kind) {
-                    MessageKind::Image => 'image/jpeg', MessageKind::Audio => 'audio/mpeg', default => 'application/octet-stream'
+                    MessageKind::Image => 'image/jpeg', MessageKind::Video => 'video/mp4', MessageKind::Audio => 'audio/mpeg', default => 'application/octet-stream'
                 },
                 externalUrl: $url,
                 filename: (string) ($payload['name'] ?? ''),

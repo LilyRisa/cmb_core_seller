@@ -46,6 +46,7 @@ const MEDIA_CAPS: Record<string, { image: boolean; video: boolean; file: boolean
     tiktok_chat: { image: true, video: false, file: false },
     shopee_chat: { image: true, video: false, file: false },
     lazada_chat: { image: true, video: false, file: false },
+    zalo_oa: { image: true, video: false, file: true },
     manual: { image: true, video: true, file: true },
 };
 

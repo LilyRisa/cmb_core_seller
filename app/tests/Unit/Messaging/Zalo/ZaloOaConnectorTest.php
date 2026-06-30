@@ -128,6 +128,123 @@ class ZaloOaConnectorTest extends TestCase
         $this->assertSame('https://zalo.test/a.jpg', $dto->attachments[0]->externalUrl);
     }
 
+    public function test_parse_user_send_video_builds_attachment(): void
+    {
+        $dto = $this->connector()->parseWebhook($this->webhookRequest([
+            'app_id' => 'app_123', 'event_name' => 'user_send_video', 'timestamp' => '1700000010',
+            'sender' => ['id' => 'USER_1'], 'recipient' => ['id' => 'OA_9'],
+            'message' => ['msg_id' => 'MID_V', 'attachments' => [['type' => 'video', 'payload' => ['url' => 'https://zalo.test/v.mp4']]]],
+        ]));
+
+        $this->assertSame(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, $dto->type);
+        $this->assertSame(MessageKind::Video, $dto->kind);
+        $this->assertCount(1, $dto->attachments);
+        $this->assertSame('https://zalo.test/v.mp4', $dto->attachments[0]->externalUrl);
+    }
+
+    public function test_parse_user_send_video_without_attachment_falls_back_to_body(): void
+    {
+        $dto = $this->connector()->parseWebhook($this->webhookRequest([
+            'app_id' => 'app_123', 'event_name' => 'user_send_video', 'timestamp' => '1700000011',
+            'sender' => ['id' => 'USER_1'], 'recipient' => ['id' => 'OA_9'],
+            'message' => ['msg_id' => 'MID_V2'],
+        ]));
+
+        $this->assertSame(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, $dto->type);
+        $this->assertSame(MessageKind::Text, $dto->kind);
+        $this->assertSame('[Video]', $dto->body);
+        $this->assertCount(0, $dto->attachments);
+    }
+
+    public function test_parse_user_send_gif_builds_image_attachment(): void
+    {
+        $dto = $this->connector()->parseWebhook($this->webhookRequest([
+            'app_id' => 'app_123', 'event_name' => 'user_send_gif', 'timestamp' => '1700000012',
+            'sender' => ['id' => 'USER_1'], 'recipient' => ['id' => 'OA_9'],
+            'message' => ['msg_id' => 'MID_G', 'attachments' => [['type' => 'gif', 'payload' => ['url' => 'https://zalo.test/g.gif']]]],
+        ]));
+
+        $this->assertSame(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, $dto->type);
+        $this->assertSame(MessageKind::Image, $dto->kind);
+        $this->assertCount(1, $dto->attachments);
+        $this->assertSame('https://zalo.test/g.gif', $dto->attachments[0]->externalUrl);
+    }
+
+    public function test_parse_user_send_gif_without_attachment_falls_back_to_body(): void
+    {
+        $dto = $this->connector()->parseWebhook($this->webhookRequest([
+            'app_id' => 'app_123', 'event_name' => 'user_send_gif', 'timestamp' => '1700000013',
+            'sender' => ['id' => 'USER_1'], 'recipient' => ['id' => 'OA_9'],
+            'message' => ['msg_id' => 'MID_G2'],
+        ]));
+
+        $this->assertSame(MessageKind::Text, $dto->kind);
+        $this->assertSame('[Ảnh động]', $dto->body);
+    }
+
+    public function test_parse_user_send_sticker_builds_image_attachment(): void
+    {
+        $dto = $this->connector()->parseWebhook($this->webhookRequest([
+            'app_id' => 'app_123', 'event_name' => 'user_send_sticker', 'timestamp' => '1700000014',
+            'sender' => ['id' => 'USER_1'], 'recipient' => ['id' => 'OA_9'],
+            'message' => ['msg_id' => 'MID_S', 'attachments' => [['type' => 'sticker', 'payload' => ['url' => 'https://zalo.test/s.png']]]],
+        ]));
+
+        $this->assertSame(MessageKind::Image, $dto->kind);
+        $this->assertCount(1, $dto->attachments);
+        $this->assertSame('https://zalo.test/s.png', $dto->attachments[0]->externalUrl);
+    }
+
+    public function test_parse_user_send_sticker_without_url_falls_back_to_body(): void
+    {
+        $dto = $this->connector()->parseWebhook($this->webhookRequest([
+            'app_id' => 'app_123', 'event_name' => 'user_send_sticker', 'timestamp' => '1700000015',
+            'sender' => ['id' => 'USER_1'], 'recipient' => ['id' => 'OA_9'],
+            'message' => ['msg_id' => 'MID_S2'],
+        ]));
+
+        $this->assertSame(MessageKind::Text, $dto->kind);
+        $this->assertSame('[Nhãn dán]', $dto->body);
+        $this->assertCount(0, $dto->attachments);
+    }
+
+    public function test_parse_user_send_location_falls_back_to_vietnamese_body(): void
+    {
+        $dto = $this->connector()->parseWebhook($this->webhookRequest([
+            'app_id' => 'app_123', 'event_name' => 'user_send_location', 'timestamp' => '1700000016',
+            'sender' => ['id' => 'USER_1'], 'recipient' => ['id' => 'OA_9'],
+            'message' => ['msg_id' => 'MID_L', 'attachments' => [['type' => 'location', 'payload' => ['coordinates' => ['latitude' => '10.77', 'longitude' => '106.69']]]]],
+        ]));
+
+        $this->assertSame(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, $dto->type);
+        $this->assertSame(MessageKind::Text, $dto->kind);
+        $this->assertStringContainsString('[Vị trí]', (string) $dto->body);
+        $this->assertNotSame('[location]', $dto->body);
+    }
+
+    public function test_parse_user_send_business_card_body(): void
+    {
+        $dto = $this->connector()->parseWebhook($this->webhookRequest([
+            'app_id' => 'app_123', 'event_name' => 'user_send_business_card', 'timestamp' => '1700000017',
+            'sender' => ['id' => 'USER_1'], 'recipient' => ['id' => 'OA_9'],
+            'message' => ['msg_id' => 'MID_BC'],
+        ]));
+
+        $this->assertSame(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, $dto->type);
+        $this->assertSame(MessageKind::Text, $dto->kind);
+        $this->assertSame('[Danh thiếp]', $dto->body);
+    }
+
+    public function test_parse_user_send_sticker_uses_vietnamese_not_raw_english(): void
+    {
+        $dto = $this->connector()->parseWebhook($this->webhookRequest([
+            'app_id' => 'app_123', 'event_name' => 'user_send_sticker', 'timestamp' => '1700000018',
+            'sender' => ['id' => 'USER_1'], 'recipient' => ['id' => 'OA_9'],
+            'message' => ['msg_id' => 'MID_S3'],
+        ]));
+        $this->assertNotSame('[sticker]', $dto->body);
+    }
+
     public function test_parse_postback(): void
     {
         $dto = $this->connector()->parseWebhook($this->webhookRequest([
