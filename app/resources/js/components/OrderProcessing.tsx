@@ -17,9 +17,10 @@ import { useCan } from '@/lib/tenant';
 import type { Order } from '@/lib/orders';
 import {
     type PrintJob, type Shipment, SHIPMENT_STATUS_LABEL,
-    useBulkRefetchSlip, useCancelShipment, useCreatePrintJob, useMarkPrinted,
+    useBulkRefetchSlip, useCancelShipment, useCreatePrintJob, useDeliverySlipHtml, useMarkPrinted,
     usePackShipments, usePrintJob, useScanProcess, useShipment, useShipments, useShipOrder, useTrackShipment,
 } from '@/lib/fulfillment';
+import { printHtmlDocument } from '@/lib/printHtml';
 import { playScanBeep, useSerialScanner } from '@/lib/scanner';
 
 function ShipmentStatusTag({ status }: { status: string }) {
@@ -110,11 +111,12 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
     const ship = useShipOrder();
     const pack = usePackShipments();
     const createPrint = useCreatePrintJob();
+    const deliverySlipHtml = useDeliverySlipHtml();
     const refetchSlip = useBulkRefetchSlip();
     const canShip = useCan('fulfillment.ship');
     const canPrint = useCan('fulfillment.print');
     const sh = order.shipment;
-    const busy = ship.isPending || pack.isPending || createPrint.isPending || refetchSlip.isPending;
+    const busy = ship.isPending || pack.isPending || createPrint.isPending || refetchSlip.isPending || deliverySlipHtml.isPending;
     // SPEC 0021 — đơn manual cần chọn ĐVVC trước khi "Chuẩn bị hàng" (đẩy sang GHN/...). Đơn sàn KHÔNG cần.
     const [carrierPicker, setCarrierPicker] = useState(false);
     const [pickerOpen, setPickerOpen] = useState<{ open: boolean; orderIds: number[] }>({ open: false, orderIds: [] });
@@ -259,8 +261,9 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
                 onConfirm={(templateId) => {
                     const ids = pickerOpen.orderIds;
                     setPickerOpen({ open: false, orderIds: [] });
-                    createPrint.mutate({ type: 'delivery', order_ids: ids, template_id: templateId },
-                        { onSuccess: (j) => onPrint(j.id), onError: err });
+                    // In phía trình duyệt (responsive theo khổ máy in) thay vì render PDF cố định khổ.
+                    deliverySlipHtml.mutate({ order_ids: ids, template_id: templateId },
+                        { onSuccess: (html) => printHtmlDocument(html), onError: err });
                 }}
             />
         </>

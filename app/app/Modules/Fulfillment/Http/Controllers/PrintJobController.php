@@ -74,6 +74,31 @@ class PrintJobController extends Controller
     }
 
     /**
+     * Trả HTML phiếu giao hàng (đơn manual) để IN PHÍA TRÌNH DUYỆT — máy in tự co theo khổ giấy
+     * (responsive). Khác store() (render PDF cố định khổ qua Gotenberg).
+     */
+    public function deliveryHtml(Request $request, PrintService $service, CurrentTenant $tenant): JsonResponse
+    {
+        abort_unless($request->user()?->can('fulfillment.print'), 403, 'Bạn không có quyền in.');
+        $data = $request->validate([
+            'order_ids' => ['required', 'array', 'min:1', 'max:100'],
+            'order_ids.*' => ['integer'],
+            'template_id' => ['sometimes', 'nullable', 'integer'],
+        ]);
+        try {
+            $html = $service->deliverySlipHtml(
+                (int) $tenant->id(),
+                array_map('intval', $data['order_ids']),
+                ! empty($data['template_id']) ? (int) $data['template_id'] : null,
+            );
+        } catch (\RuntimeException $e) {
+            throw ValidationException::withMessages(['order_ids' => $e->getMessage()]);
+        }
+
+        return response()->json(['data' => ['html' => $html]]);
+    }
+
+    /**
      * POST /api/v1/print-jobs/{id}/mark-printed { copies? } — "Đánh dấu các đơn đã in" (popup sau khi mở PDF):
      * cộng `print_count` cho các vận đơn trong phạm vi của print job (mặc định +1). SPEC 0013.
      */

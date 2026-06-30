@@ -375,3 +375,17 @@ export function useCreatePrintJob() {
         },
     });
 }
+
+/**
+ * HTML phiếu giao hàng (đơn manual) để IN PHÍA TRÌNH DUYỆT — responsive theo khổ máy in.
+ * Khác useCreatePrintJob (render PDF cố định khổ). Trả chuỗi HTML hoàn chỉnh.
+ */
+export function useDeliverySlipHtml() {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async (vars: { order_ids: number[]; template_id?: number | null }) => {
+            const { data } = await api!.post<{ data: { html: string } }>('/print-jobs/delivery-html', vars);
+            return data.data.html;
+        },
+    });
+}

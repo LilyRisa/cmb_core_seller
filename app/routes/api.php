@@ -2,10 +2,12 @@
 
 use CMBcoreSeller\Http\Controllers\HealthController;
 use CMBcoreSeller\Http\Controllers\MediaController;
+use CMBcoreSeller\Modules\Billing\Http\Controllers\PublicPlanController;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\ChannelAccountController;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\ShopReportController;
 use CMBcoreSeller\Modules\Channels\Http\Controllers\SyncLogController;
 use CMBcoreSeller\Modules\Customers\Http\Controllers\CustomerController;
+use CMBcoreSeller\Modules\Customers\Http\Controllers\CustomerWalletController;
 use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\CarrierAccountController;
 use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\MasterDataController;
 use CMBcoreSeller\Modules\Fulfillment\Http\Controllers\PrintJobController;
@@ -28,6 +30,7 @@ use CMBcoreSeller\Modules\Products\Http\Controllers\ListingPushController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ListingTaxonomyController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\ProductController;
 use CMBcoreSeller\Modules\Products\Http\Controllers\PromotionController;
+use CMBcoreSeller\Modules\Tenancy\Http\Controllers\ApiKeyController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\AuthController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\MemberController;
 use CMBcoreSeller\Modules\Tenancy\Http\Controllers\MobileDeviceController;
@@ -55,7 +58,7 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
     Route::get('health', HealthController::class)->name('health');
 
     // Bảng giá công khai cho trang marketing (KHÔNG auth) — SPEC 2026-06-26.
-    Route::get('public/plans', [\CMBcoreSeller\Modules\Billing\Http\Controllers\PublicPlanController::class, 'index'])->name('public.plans');
+    Route::get('public/plans', [PublicPlanController::class, 'index'])->name('public.plans');
 
     // Site key CAPTCHA cho FE render widget (public, không nhạy cảm). SPEC 2026-06-10.
     Route::get('auth/captcha-config', [AuthController::class, 'captchaConfig'])->name('auth.captcha-config');
@@ -142,9 +145,9 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::post('tenant/members/{user}/reset-password', [MemberController::class, 'resetPassword'])->whereNumber('user')->name('tenant.members.reset-password');
 
             // API key bên thứ 3 — CHỈ owner (gate isOwner() trong controller). SPEC 2026-06-26.
-            Route::get('tenant/api-keys', [\CMBcoreSeller\Modules\Tenancy\Http\Controllers\ApiKeyController::class, 'index'])->name('tenant.api-keys.index');
-            Route::post('tenant/api-keys', [\CMBcoreSeller\Modules\Tenancy\Http\Controllers\ApiKeyController::class, 'store'])->name('tenant.api-keys.store');
-            Route::delete('tenant/api-keys/{id}', [\CMBcoreSeller\Modules\Tenancy\Http\Controllers\ApiKeyController::class, 'destroy'])->whereNumber('id')->name('tenant.api-keys.destroy');
+            Route::get('tenant/api-keys', [ApiKeyController::class, 'index'])->name('tenant.api-keys.index');
+            Route::post('tenant/api-keys', [ApiKeyController::class, 'store'])->name('tenant.api-keys.store');
+            Route::delete('tenant/api-keys/{id}', [ApiKeyController::class, 'destroy'])->whereNumber('id')->name('tenant.api-keys.destroy');
 
             // --- Channels (Phase 1) — connected shops & OAuth connect ---
             Route::get('channel-accounts', [ChannelAccountController::class, 'index'])->name('channel-accounts.index');
@@ -307,8 +310,8 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::get('customers', [CustomerController::class, 'index'])->name('customers.index');
             Route::get('customers/{id}', [CustomerController::class, 'show'])->whereNumber('id')->name('customers.show');
             Route::get('customers/{id}/orders', [CustomerController::class, 'orders'])->whereNumber('id')->name('customers.orders');
-            Route::post('customers/{id}/wallet/topup', [\CMBcoreSeller\Modules\Customers\Http\Controllers\CustomerWalletController::class, 'topup'])->whereNumber('id')->name('customers.wallet.topup');
-            Route::get('customers/{id}/wallet/transactions', [\CMBcoreSeller\Modules\Customers\Http\Controllers\CustomerWalletController::class, 'transactions'])->whereNumber('id')->name('customers.wallet.transactions');
+            Route::post('customers/{id}/wallet/topup', [CustomerWalletController::class, 'topup'])->whereNumber('id')->name('customers.wallet.topup');
+            Route::get('customers/{id}/wallet/transactions', [CustomerWalletController::class, 'transactions'])->whereNumber('id')->name('customers.wallet.transactions');
             Route::post('customers/{id}/notes', [CustomerController::class, 'storeNote'])->whereNumber('id')->name('customers.notes.store');
             Route::delete('customers/{id}/notes/{noteId}', [CustomerController::class, 'destroyNote'])->whereNumber('id')->whereNumber('noteId')->name('customers.notes.destroy');
             Route::post('customers/{id}/block', [CustomerController::class, 'block'])->whereNumber('id')->name('customers.block');
@@ -354,6 +357,7 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
 
             Route::get('print-jobs', [PrintJobController::class, 'index'])->name('print-jobs.index');
             Route::post('print-jobs', [PrintJobController::class, 'store'])->name('print-jobs.store');
+            Route::post('print-jobs/delivery-html', [PrintJobController::class, 'deliveryHtml'])->name('print-jobs.delivery-html'); // HTML phiếu giao đơn manual để in responsive phía trình duyệt
             Route::get('print-jobs/{id}', [PrintJobController::class, 'show'])->whereNumber('id')->name('print-jobs.show');
             Route::post('print-jobs/{id}/mark-printed', [PrintJobController::class, 'markPrinted'])->whereNumber('id')->name('print-jobs.mark-printed'); // "Đánh dấu đã in" — SPEC 0013
             Route::get('print-jobs/{id}/download', [PrintJobController::class, 'download'])->whereNumber('id')->name('print-jobs.download');

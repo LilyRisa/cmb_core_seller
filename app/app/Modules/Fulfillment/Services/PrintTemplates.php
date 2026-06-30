@@ -25,6 +25,8 @@ final class PrintTemplates
             'A6' => 'size:A6;margin:5mm',
             '100X150MM', '100X150' => 'size:100mm 150mm;margin:5mm',
             '80MM' => 'size:80mm auto;margin:3mm',
+            // In HTML phía trình duyệt: để máy in tự co theo khổ giấy đang chọn (nhiệt K80/A6/A5/A4…).
+            'AUTO' => 'size:auto;margin:4mm',
             default => 'size:A4;margin:12mm',
         };
     }
@@ -177,135 +179,92 @@ final class PrintTemplates
      * @param  Collection<int, Order>  $orders
      * @param  array<int, array{code:?string,name:?string}>  $skuById
      */
-    public static function deliverySlip(Collection $orders, string $shopName, string $paper = 'A6', array $skuById = []): string
+    public static function deliverySlip(Collection $orders, string $shopName, string $paper = 'A6', array $skuById = [], array $senderByOrderId = []): string
+    {
+        return self::deliverySlipV2($orders, $shopName, $paper, $skuById, $senderByOrderId);
+    }
+
+    /**
+     * Mẫu phiếu giao hàng MẶC ĐỊNH (theo order_tem.pdf): header tên shop + COD; mã đơn lớn;
+     * "Địa chỉ giao hàng" (người nhận) + "Địa chỉ lấy hàng" (kho/shop); barcode + mã + QR;
+     * "Sản phẩm"; "Ghi chú"; khung viền nét đứt. Khổ `AUTO` ⇒ in HTML phía trình duyệt tự co
+     * theo khổ máy in (responsive); khổ cố định (A6…) dùng cho PDF Gotenberg.
+     *
+     * @param  Collection<int, Order>  $orders
+     * @param  array<int, array{code:?string,name:?string}>  $skuById
+     * @param  array<int, array{name:string,phone:string,address:string}>  $senderByOrderId  địa chỉ lấy hàng (kho) theo order id
+     */
+    private static function deliverySlipV2(Collection $orders, string $shopName, string $paper, array $skuById, array $senderByOrderId): string
     {
         $br = new BarcodeRenderer;
-        // SPEC 2026-05-17 — redesign theo chuẩn shipping-label (giống tem của các sàn TMĐT). KHÔNG dùng
-        // format invoice (tên cửa hàng + bảng giá). Layout:
-        //   ┌─────────────────────────────────────┐
-        //   │ ĐVVC + service                       │
-        //   │ ███ BARCODE ████   [QR]              │
-        //   │ TRACKING#                            │
-        //   ├─────────────────────────────────────┤
-        //   │ FROM: shop · phone · địa chỉ kho     │
-        //   ├─────────────────────────────────────┤
-        //   │ TO: TÊN · SĐT (lớn)                  │
-        //   │     Địa chỉ chi tiết đầy đủ          │
-        //   ├─────────────────────────────────────┤
-        //   │ [COD]    Weight    Items qty         │
-        //   ├─────────────────────────────────────┤
-        //   │ • SP1 × SL                          │
-        //   │ • SP2 × SL                          │
-        //   ├─────────────────────────────────────┤
-        //   │ Ghi chú · mã đơn shop + ngày in     │
-        //   └─────────────────────────────────────┘
-        $carrierMeta = [
-            'ghn' => ['name' => 'GHN', 'full' => 'GIAO HÀNG NHANH', 'color' => '#1f9e3a'],
-            'ghtk' => ['name' => 'GHTK', 'full' => 'GIAO HÀNG TIẾT KIỆM', 'color' => '#fa8c16'],
-            'jt' => ['name' => 'J&T', 'full' => 'J&T EXPRESS', 'color' => '#cf1322'],
-            'viettelpost' => ['name' => 'VTP', 'full' => 'VIETTEL POST', 'color' => '#d4380d'],
-            'ninjavan' => ['name' => 'NJV', 'full' => 'NINJA VAN', 'color' => '#c41d7f'],
-            'spx' => ['name' => 'SPX', 'full' => 'SPX EXPRESS', 'color' => '#2f54eb'],
-            'vnpost' => ['name' => 'VNPost', 'full' => 'VIETNAM POST', 'color' => '#d48806'],
-            'ahamove' => ['name' => 'AHA', 'full' => 'AHAMOVE', 'color' => '#13c2c2'],
-            'manual' => ['name' => 'TỰ VC', 'full' => 'TỰ VẬN CHUYỂN', 'color' => '#595959'],
+        $carrierName = [
+            'ghn' => 'Giao Hàng Nhanh', 'ghtk' => 'Giao Hàng Tiết Kiệm', 'jt' => 'J&T Express',
+            'viettelpost' => 'Viettel Post', 'ninjavan' => 'Ninja Van', 'spx' => 'SPX Express',
+            'vnpost' => 'Vietnam Post', 'ahamove' => 'Ahamove', 'manual' => 'Tự vận chuyển',
         ];
         $pages = [];
         $last = $orders->count() - 1;
         foreach ($orders->values() as $idx => $order) {
             /** @var Order $order */
             $addr = (array) ($order->shipping_address ?? []);
-            $name = $addr['fullName'] ?? $addr['name'] ?? $order->buyer_name ?? '—';
-            $phone = $addr['phone'] ?? '—';
-            $detail = trim((string) ($addr['line1'] ?? $addr['address'] ?? ''));
-            $admin = trim(implode(', ', array_filter([$addr['ward'] ?? null, $addr['district'] ?? null, $addr['province'] ?? null])));
-            $sh = $order->relationLoaded('shipments') ? $order->shipments->first(fn ($x) => $x->status !== 'cancelled') : null;
+            $name = (string) ($addr['fullName'] ?? $addr['name'] ?? $order->buyer_name ?? '—');
+            $phone = (string) ($addr['phone'] ?? '');
+            $toFull = trim(implode(', ', array_filter([
+                $addr['line1'] ?? $addr['address'] ?? null, $addr['ward'] ?? null, $addr['district'] ?? null, $addr['province'] ?? null,
+            ]))) ?: '—';
 
-            // Item list — compact "• Tên × SL" thay vì bảng giá đầy đủ. Gộp theo tên (case-insensitive).
+            $sh = $order->relationLoaded('shipments') ? $order->shipments->first(fn ($x) => $x->status !== 'cancelled') : null;
+            $code = (string) ($order->order_number ?? $order->external_order_id ?? ('#'.$order->getKey()));
+            $tracking = (string) ($sh?->tracking_no ?: '');
+            $barcodeValue = $tracking !== '' ? $tracking : $code;   // luôn có 1 mã để quét
+            $carrierCode = strtolower((string) ($sh?->carrier ?? $order->carrier ?? ''));
+            $carrierKey = (string) preg_replace('/^manual_/', '', $carrierCode);
+            $carrierLabel = $carrierName[$carrierKey] ?? ($carrierKey !== '' ? strtoupper($carrierKey) : '');
+
+            // Địa chỉ lấy hàng (kho/shop).
+            $sender = $senderByOrderId[$order->getKey()] ?? ['name' => $shopName, 'phone' => '', 'address' => ''];
+            $senderName = ((string) $sender['name']) !== '' ? (string) $sender['name'] : $shopName;
+            $senderLine = trim($senderName.(((string) $sender['phone']) !== '' ? ' - '.$sender['phone'] : ''));
+
+            // COD.
+            $codTotal = $order->is_cod ? max(0, (int) ($order->cod_amount ?: ((int) $order->grand_total - (int) ($order->prepaid_amount ?? 0)))) : 0;
+
+            // Sản phẩm — gộp theo tên.
             $grouped = [];
             $totalQty = 0;
             foreach ($order->items as $it) {
-                [$skuCode, $prodName] = self::lineSkuAndName($it, $skuById);
-                $variationSuffix = $it->variation ? ' — '.$it->variation : '';
-                $displayName = trim($prodName.$variationSuffix);
+                [, $prodName] = self::lineSkuAndName($it, $skuById);
+                $displayName = trim($prodName.($it->variation ? ' — '.$it->variation : ''));
                 $key = mb_strtolower($displayName);
-                $grouped[$key] ??= ['name' => $displayName, 'sku' => $skuCode, 'qty' => 0];
+                $grouped[$key] ??= ['name' => $displayName, 'qty' => 0];
                 $grouped[$key]['qty'] += (int) $it->quantity;
                 $totalQty += (int) $it->quantity;
             }
             $itemsHtml = '';
             foreach ($grouped as $g) {
-                $itemsHtml .= '<li><span class="li-name">'.self::e($g['name']).'</span>'
-                    .($g['sku'] ? ' <span class="li-sku">['.self::e($g['sku']).']</span>' : '')
-                    .' <span class="li-qty">× '.$g['qty'].'</span></li>';
+                $itemsHtml .= '<li><span class="li-name">'.self::e($g['name']).'</span> <span class="li-qty">× '.$g['qty'].'</span></li>';
             }
 
-            $code = $order->order_number ?? $order->external_order_id ?? ('#'.$order->getKey());
-            $tracking = $sh?->tracking_no ?: '';
-            $service = (string) ($sh?->service ?: '');
-            $carrierCode = strtolower((string) ($sh?->carrier ?? $order->carrier ?? 'manual'));
-            // Đơn manual đã đẩy ĐVVC ⇒ shipment.carrier = 'manual_ghn' / 'manual_ghtk'... — strip prefix.
-            $carrierKey = preg_replace('/^manual_/', '', $carrierCode);
-            $cMeta = $carrierMeta[$carrierKey] ?? ['name' => strtoupper($carrierKey) ?: 'ĐVVC', 'full' => strtoupper($carrierKey) ?: 'ĐVVC', 'color' => '#595959'];
-
-            // Header band — ĐVVC + service (lớn, banner màu carrier).
-            $headerBand = '<div class="band" style="background:'.$cMeta['color'].'">'
-                .'<div class="band-l"><div class="band-carrier">'.self::e($cMeta['full']).'</div>'
-                .($service !== '' ? '<div class="band-svc">Dịch vụ: '.self::e($service).'</div>' : '<div class="band-svc">Phiếu giao hàng</div>')
-                .'</div>'
-                .'<div class="band-r"><div class="band-code">'.self::e($code).'</div><div class="band-date">'.now()->format('d/m/Y H:i').'</div></div>'
-                .'</div>';
-
-            // Barcode block — to + QR. Khi thiếu tracking, hiện banner cảnh báo (đơn chưa "Chuẩn bị hàng").
-            $hasTracking = $tracking !== '';
-            $barcodeBlock = $hasTracking
-                ? '<div class="bc">'
-                    .'<div class="bc-bar"><img src="'.$br->code128SvgDataUrl($tracking, 2, 56).'" alt="barcode" style="height:54px;width:100%;display:block"/>'
-                    .'<div class="bc-text">'.self::e($tracking).'</div></div>'
-                    .'<div class="bc-qr"><img src="'.$br->qrSvgDataUrl($tracking, 96).'" alt="QR" style="width:80px;height:80px;display:block"/></div>'
-                .'</div>'
-                : '<div class="bc-empty">⚠ Chưa có mã vận đơn — bấm "Chuẩn bị hàng" để lấy mã từ '.self::e($cMeta['name']).'.</div>';
-
-            // COD + weight + qty info row.
-            $codTotal = $order->is_cod ? max(0, (int) ($order->cod_amount ?: ((int) $order->grand_total - (int) ($order->prepaid_amount ?? 0)))) : 0;
-            $weightG = $sh && $sh->weight_grams ? (int) $sh->weight_grams : null;
-            $weightStr = $weightG ? ($weightG >= 1000 ? number_format($weightG / 1000, 1).' kg' : $weightG.' g') : '—';
-            $infoRow = '<div class="info">'
-                .'<div class="info-cell '.($order->is_cod ? 'is-cod' : 'is-cod-zero').'">'
-                    .'<div class="info-lbl">'.($order->is_cod ? 'THU HỘ (COD)' : 'KHÔNG COD').'</div>'
-                    .'<div class="info-val">'.self::vnd($codTotal).' đ</div>'
-                .'</div>'
-                .'<div class="info-cell"><div class="info-lbl">KHỐI LƯỢNG</div><div class="info-val">'.self::e($weightStr).'</div></div>'
-                .'<div class="info-cell"><div class="info-lbl">SỐ MÓN</div><div class="info-val">'.$totalQty.'</div></div>'
-                .'</div>';
-
-            // Print note.
-            $printNote = (string) (data_get($order->meta, 'print_note') ?: '');
-            $noteBlock = $printNote !== ''
-                ? '<div class="note"><b>Ghi chú:</b> '.nl2br(self::e($printNote)).'</div>'
-                : '';
+            $printNote = (string) (data_get($order->meta, 'print_note') ?: ($order->note ?? ''));
 
             $page = '<div class="slip">'
-                .$headerBand
-                .$barcodeBlock
-                .'<div class="party">'
-                    .'<div class="party-lbl">Từ</div>'
-                    .'<div class="party-body"><b class="party-name">'.self::e($shopName).'</b></div>'
+                .'<div class="head">'
+                    .'<div class="head-brand">'.self::e($shopName).($carrierLabel !== '' ? '<div class="head-carrier">'.self::e($carrierLabel).'</div>' : '').'</div>'
+                    .($codTotal > 0 ? '<div class="head-cod">COD <b>'.self::vnd($codTotal).'</b></div>' : '<div class="head-cod head-cod-zero">Đã thanh toán</div>')
                 .'</div>'
-                .'<div class="party party-to">'
-                    .'<div class="party-lbl">Đến</div>'
-                    .'<div class="party-body">'
-                        .'<div class="party-name">'.self::e($name).' &nbsp;·&nbsp; '.self::e($phone).'</div>'
-                        .($detail !== '' ? '<div class="party-addr">'.self::e($detail).'</div>' : '')
-                        .($admin !== '' ? '<div class="party-admin">'.self::e($admin).'</div>' : '')
-                    .'</div>'
+                .'<div class="code">'.self::e($code).'</div>'
+                .'<div class="addr"><span class="addr-lbl">Địa chỉ giao hàng:</span> <b>'.self::e($name).($phone !== '' ? ' - '.self::e($phone) : '').'</b>'
+                    .'<div class="addr-detail">'.self::e($toFull).'</div></div>'
+                .'<div class="addr"><span class="addr-lbl">Địa chỉ lấy hàng:</span> <b>'.self::e($senderLine).'</b>'
+                    .(((string) $sender['address']) !== '' ? '<div class="addr-detail">'.self::e((string) $sender['address']).'</div>' : '').'</div>'
+                .'<div class="bc">'
+                    .'<div class="bc-left"><img class="bc-bar" src="'.$br->code128SvgDataUrl($barcodeValue, 2, 56).'" alt="barcode"/>'
+                        .'<div class="bc-text">'.self::e($barcodeValue).'</div></div>'
+                    .'<div class="bc-qr"><img src="'.$br->qrSvgDataUrl($barcodeValue, 96).'" alt="QR"/></div>'
                 .'</div>'
-                .$infoRow
-                .'<div class="items">'
-                    .'<div class="items-lbl">Hàng hoá ('.count($grouped).' loại / '.$totalQty.' món)</div>'
-                    .'<ul>'.$itemsHtml.'</ul>'
-                .'</div>'
-                .$noteBlock
+                .'<div class="prod"><div class="prod-lbl">Sản phẩm:</div><ul>'.$itemsHtml.'</ul>'
+                    .($totalQty > 0 ? '<div class="prod-total">Tổng: '.$totalQty.' món</div>' : '').'</div>'
+                .($printNote !== '' ? '<div class="note"><b>Ghi chú:</b> '.nl2br(self::e($printNote)).'</div>' : '')
                 .'</div>';
             $pages[] = $idx < $last ? $page.'<div class="page-break"></div>' : $page;
         }
@@ -313,64 +272,37 @@ final class PrintTemplates
         $css = <<<'CSS'
             @page{__PAGE__}
             *{font-family:DejaVu Sans,Arial,sans-serif;box-sizing:border-box}
-            body{font-size:11px;color:#1a1a1a;margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-            .slip{padding:0}
-
-            /* Top band — carrier + service (full-bleed coloured banner) */
-            .band{display:flex;justify-content:space-between;align-items:center;color:#fff;padding:6px 10px}
-            .band-l .band-carrier{font-size:16px;font-weight:800;letter-spacing:0.5px;line-height:1.1}
-            .band-l .band-svc{font-size:10px;opacity:.92;margin-top:1px;letter-spacing:.3px}
-            .band-r{text-align:right}
-            .band-r .band-code{font-size:13px;font-weight:700;letter-spacing:.4px}
-            .band-r .band-date{font-size:10px;opacity:.85;margin-top:1px}
-
-            /* Barcode block — barcode chiếm rộng, QR bên phải */
-            .bc{display:flex;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px dashed #d9d9d9}
-            .bc-bar{flex:1;min-width:0}
-            .bc-bar .bc-text{font-family:'DejaVu Sans Mono',monospace;font-size:13px;font-weight:700;letter-spacing:1px;text-align:center;margin-top:2px}
+            body{font-size:12px;color:#1a1a1a;margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+            .slip{border:1px dashed #555;border-radius:4px;padding:10px 12px;width:100%}
+            .head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+            .head-brand{font-size:15px;font-weight:800;line-height:1.15}
+            .head-carrier{font-size:10px;font-weight:600;color:#888;margin-top:1px}
+            .head-cod{font-size:13px;white-space:nowrap}
+            .head-cod b{font-size:15px}
+            .head-cod-zero{color:#389e0d;font-weight:600}
+            .code{text-align:center;font-size:20px;font-weight:800;letter-spacing:.5px;margin:8px 0 10px}
+            .addr{font-size:12px;line-height:1.4;margin-bottom:8px}
+            .addr-lbl{font-weight:700}
+            .addr-detail{color:#333;margin-top:1px}
+            .bc{display:flex;gap:10px;align-items:center;justify-content:space-between;margin:10px 0;padding:6px 0;border-top:1px dashed #ddd;border-bottom:1px dashed #ddd}
+            .bc-left{flex:1;min-width:0;text-align:center}
+            .bc-bar{height:54px;width:100%;display:block}
+            .bc-text{font-family:'DejaVu Sans Mono',monospace;font-size:13px;font-weight:700;letter-spacing:1px;margin-top:2px}
             .bc-qr{flex:0 0 80px}
-            .bc-empty{padding:10px;background:#fffbe6;border-bottom:1px dashed #ffc53d;color:#874d00;font-size:11px;text-align:center}
-
-            /* Party block (From / To) */
-            .party{display:flex;align-items:flex-start;padding:6px 10px;border-bottom:1px dashed #e8e8e8}
-            .party-lbl{flex:0 0 32px;font-size:9px;font-weight:700;color:#888;letter-spacing:1px;text-transform:uppercase;padding-top:2px}
-            .party-body{flex:1;line-height:1.4;min-width:0}
-            .party-name{font-size:11.5px;font-weight:600;color:#1a1a1a;display:block;word-wrap:break-word}
-            .party-to{padding:8px 10px;background:#fafafa}
-            .party-to .party-lbl{color:#cf1322}
-            .party-to .party-name{font-size:13.5px;font-weight:800}
-            .party-addr{font-size:12px;margin-top:2px;color:#222;line-height:1.4;word-wrap:break-word}
-            .party-admin{font-size:11.5px;color:#444;margin-top:1px;font-weight:600;word-wrap:break-word}
-
-            /* Info row — COD, weight, qty */
-            .info{display:flex;border-bottom:1px dashed #e8e8e8}
-            .info-cell{flex:1;padding:6px 8px;text-align:center;border-right:1px solid #f0f0f0}
-            .info-cell:last-child{border-right:0}
-            .info-cell .info-lbl{font-size:8.5px;color:#888;letter-spacing:1px;font-weight:600;text-transform:uppercase}
-            .info-cell .info-val{font-size:13px;font-weight:700;margin-top:1px;letter-spacing:.2px}
-            .info-cell.is-cod{background:#fff1f0}
-            .info-cell.is-cod .info-lbl{color:#cf1322}
-            .info-cell.is-cod .info-val{color:#cf1322;font-size:15px;font-weight:800}
-            .info-cell.is-cod-zero .info-lbl{color:#888}
-            .info-cell.is-cod-zero .info-val{color:#999;font-size:11px;font-weight:600}
-
-            /* Items list — compact bullet list, not invoice table */
-            .items{padding:6px 10px;border-bottom:1px dashed #e8e8e8}
-            .items-lbl{font-size:9px;color:#888;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px}
-            .items ul{list-style:none;margin:0;padding:0;font-size:11px;line-height:1.5}
-            .items li{display:flex;padding:1px 0}
-            .items li .li-name{flex:1;min-width:0}
-            .items li .li-sku{color:#888;font-size:10px;font-family:'DejaVu Sans Mono',monospace}
-            .items li .li-qty{font-weight:700;margin-left:6px;color:#1a1a1a;flex:0 0 auto}
-
-            /* Note (optional) */
-            .note{padding:6px 10px;background:#fffbe6;font-size:10.5px;line-height:1.4;border-top:1px dashed #ffe58f}
-
+            .bc-qr img{width:80px;height:80px;display:block}
+            .prod{margin-top:6px}
+            .prod-lbl{font-weight:700;margin-bottom:2px}
+            .prod ul{list-style:none;margin:0;padding:0;font-size:12px;line-height:1.5}
+            .prod li{display:flex;padding:1px 0}
+            .prod li .li-name{flex:1;min-width:0}
+            .prod li .li-qty{font-weight:700;margin-left:6px;flex:0 0 auto}
+            .prod-total{font-size:11px;color:#666;margin-top:3px;text-align:right}
+            .note{margin-top:8px;font-size:11.5px;line-height:1.4}
             .page-break{page-break-after:always}
         CSS;
-        $rule = self::paperRule($paper);
-        $cssFinal = str_replace('__PAGE__', $rule, $css);
 
-        return '<!doctype html><html><head><meta charset="utf-8"><title>Phiếu giao hàng</title><style>'.$cssFinal.'</style></head><body>'.implode('', $pages).'</body></html>';
+        return '<!doctype html><html><head><meta charset="utf-8"><title>Phiếu giao hàng</title><style>'
+            .str_replace('__PAGE__', self::paperRule($paper), $css)
+            .'</style></head><body>'.implode('', $pages).'</body></html>';
     }
 }

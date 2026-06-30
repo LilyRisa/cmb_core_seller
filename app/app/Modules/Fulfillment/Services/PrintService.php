@@ -8,6 +8,7 @@ use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
 use CMBcoreSeller\Modules\Fulfillment\Models\ShippingLabelTemplate;
 use CMBcoreSeller\Modules\Fulfillment\Services\LabelRendering\LabelRenderer;
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
+use CMBcoreSeller\Modules\Inventory\Models\Warehouse;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Orders\Models\OrderItem;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
@@ -358,6 +359,62 @@ class PrintService
 
         $shopName = (string) (Tenant::query()->whereKey($tenantId)->value('name') ?? 'Cửa hàng');
 
-        return [$this->gotenberg->htmlToPdf(PrintTemplates::deliverySlip($orders, $shopName, $this->paperSize($tenantId), $this->skuMapFor($orders))), ['orders' => $orders->count(), 'order_ids' => $orders->modelKeys()]];
+        return [$this->gotenberg->htmlToPdf(PrintTemplates::deliverySlip($orders, $shopName, $this->paperSize($tenantId), $this->skuMapFor($orders), $this->senderMap($orders, $tenantId))), ['orders' => $orders->count(), 'order_ids' => $orders->modelKeys()]];
+    }
+
+    /**
+     * HTML phiếu giao hàng để IN PHÍA TRÌNH DUYỆT (responsive theo khổ máy in) — không qua Gotenberg.
+     * Mặc định: mẫu order_tem.pdf khổ `AUTO` (máy in tự co). Có template_id: dùng mẫu thiết kế (khổ cố định).
+     * Chỉ cho đơn manual (đơn sàn phải dùng AWB thật). Trả chuỗi HTML hoàn chỉnh.
+     *
+     * @param  list<int>  $orderIds
+     */
+    public function deliverySlipHtml(int $tenantId, array $orderIds, ?int $templateId = null): string
+    {
+        $orders = Order::withoutGlobalScope(TenantScope::class)->where('tenant_id', $tenantId)->whereIn('id', $orderIds)->whereNull('deleted_at')
+            ->with(['items', 'shipments' => fn ($q) => $q->orderByDesc('id')])->get();
+        if ($orders->isEmpty()) {
+            throw new \RuntimeException('Không có đơn nào để in.');
+        }
+        if ($orders->contains(fn (Order $o) => $o->channel_account_id !== null)) {
+            throw new \RuntimeException('Đơn của sàn TMĐT chỉ dùng được phiếu/AWB thật của sàn — không in phiếu giao hàng tự tạo.');
+        }
+
+        if ($templateId) {
+            $tpl = ShippingLabelTemplate::withoutGlobalScope(TenantScope::class)
+                ->withTrashed()->where('tenant_id', $tenantId)->findOrFail($templateId);
+
+            return app(LabelRenderer::class)->renderBatch($orders, $tpl);
+        }
+
+        $shopName = (string) (Tenant::query()->whereKey($tenantId)->value('name') ?? 'Cửa hàng');
+
+        return PrintTemplates::deliverySlip($orders, $shopName, 'AUTO', $this->skuMapFor($orders), $this->senderMap($orders, $tenantId));
+    }
+
+    /**
+     * Địa chỉ lấy hàng (kho) theo từng đơn — cho khối "Địa chỉ lấy hàng" trên phiếu.
+     * Đơn không gắn kho ⇒ kho mặc định của tenant.
+     *
+     * @param  Collection<int, Order>  $orders
+     * @return array<int, array{name:string,phone:string,address:string}>
+     */
+    private function senderMap(Collection $orders, int $tenantId): array
+    {
+        $whIds = $orders->pluck('warehouse_id')->filter()->unique()->values()->all();
+        $whs = $whIds !== [] ? Warehouse::withoutGlobalScopes()->whereIn('id', $whIds)->get()->keyBy('id') : collect();
+        $default = Warehouse::defaultFor($tenantId);
+        $out = [];
+        foreach ($orders as $o) {
+            $wh = ($o->warehouse_id ? $whs->get($o->warehouse_id) : null) ?: $default;
+            $a = (array) ($wh->address ?? []);
+            $out[(int) $o->getKey()] = [
+                'name' => (string) ($a['contact'] ?? $wh->name ?? ''),
+                'phone' => (string) ($a['phone'] ?? ''),
+                'address' => trim(implode(', ', array_filter([$a['line1'] ?? null, $a['ward'] ?? null, $a['district'] ?? null, $a['province'] ?? null]))),
+            ];
+        }
+
+        return $out;
     }
 }
