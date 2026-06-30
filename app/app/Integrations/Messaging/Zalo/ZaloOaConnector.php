@@ -161,7 +161,11 @@ class ZaloOaConnector implements InteractiveMessagingConnector, MessagingConnect
     // --- Inbound (Task 4-5) ---
     public function verifyWebhookSignature(Request $request): bool
     {
-        return $this->verifier->verify($request, (string) $this->cfg('app_id'), (string) $this->cfg('oa_secret'));
+        // oa_secret (bí mật ký webhook) — thường TRÙNG App Secret nên fallback về app_secret
+        // khi để trống ⇒ MESSAGING_ZALO_OA_SECRET KHÔNG bắt buộc (chỉ set khi Zalo dùng secret webhook riêng).
+        $oaSecret = (string) ($this->cfg('oa_secret') ?: $this->cfg('app_secret'));
+
+        return $this->verifier->verify($request, (string) $this->cfg('app_id'), $oaSecret);
     }
 
     public function parseWebhook(Request $request): MessagingWebhookEventDTO

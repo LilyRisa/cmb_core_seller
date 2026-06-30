@@ -77,6 +77,21 @@ class ZaloOaConnectorTest extends TestCase
         $this->assertFalse($this->connector()->verifyWebhookSignature($req));
     }
 
+    public function test_oa_secret_falls_back_to_app_secret_when_empty(): void
+    {
+        // oa_secret để trống ⇒ dùng app_secret để verify (vì thường trùng nhau).
+        $connector = new ZaloOaConnector(
+            ['app_id' => 'app_123', 'app_secret' => 'sec', 'oa_secret' => '', 'redirect_uri' => 'https://x.test/cb'],
+            new ZaloSignatureVerifier,
+            new ZaloClient,
+        );
+        $body = '{"app_id":"app_123","event_name":"user_send_text","timestamp":"1700000000"}';
+        $mac = 'mac='.hash('sha256', 'app_123'.$body.'1700000000'.'sec');
+        $req = Request::create('/webhook/messaging/zalo_oa', 'POST', [], [], [], ['HTTP_X_ZEVENT_SIGNATURE' => $mac], $body);
+
+        $this->assertTrue($connector->verifyWebhookSignature($req));
+    }
+
     private function webhookRequest(array $payload): Request
     {
         return Request::create('/webhook/messaging/zalo_oa', 'POST', [], [], [], [], json_encode($payload));

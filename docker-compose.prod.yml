@@ -211,11 +211,12 @@ x-app-env: &app-env
   # domain callback khác APP_URL. PHẢI đăng ký Y HỆT trong Meta → Facebook Login → Valid OAuth Redirect URIs.
   MESSAGING_FACEBOOK_REDIRECT_URI: ${MESSAGING_FACEBOOK_REDIRECT_URI:-}
   # Zalo OA (SPEC 0039) — xem docs. APP_ID/APP_SECRET từ Zalo Developers → app.
-  # OA_SECRET (secret key của OA) dùng xác minh chữ ký webhook. ⚠️ APP_SECRET & OA_SECRET
-  # là BÍ MẬT — nhập ở Portainer/.env, KHÔNG để default. Bật bằng cách thêm `zalo_oa`
-  # vào INTEGRATIONS_MESSAGING. REDIRECT_URI optional: trống ⇒ tự dựng <APP_URL>/oauth/zalo_oa/callback
-  # (token exchange v4 không gửi redirect_uri); chỉ đặt khi domain callback khác APP_URL,
-  # và PHẢI đăng ký Y HỆT trong Zalo Developers → callback URL.
+  # ⚠️ APP_SECRET là BÍ MẬT — nhập ở Portainer/.env, KHÔNG để default. Bật bằng cách
+  # thêm `zalo_oa` vào INTEGRATIONS_MESSAGING. Hai biến dưới đều OPTIONAL:
+  #  - OA_SECRET (ký webhook): trống ⇒ fallback APP_SECRET (Zalo thường dùng chung 1 secret);
+  #    chỉ set khi Zalo cấp secret webhook riêng.
+  #  - REDIRECT_URI: trống ⇒ tự dựng <APP_URL>/oauth/zalo_oa/callback (token exchange v4 không
+  #    gửi redirect_uri); chỉ đặt khi domain callback khác APP_URL. PHẢI đăng ký Y HỆT trên Zalo.
   MESSAGING_ZALO_APP_ID: ${MESSAGING_ZALO_APP_ID:-}
   MESSAGING_ZALO_APP_SECRET: ${MESSAGING_ZALO_APP_SECRET:-}
   MESSAGING_ZALO_OA_SECRET: ${MESSAGING_ZALO_OA_SECRET:-}
