@@ -69,14 +69,29 @@ class ZaloOaConnector implements InteractiveMessagingConnector, MessagingConnect
     }
 
     // --- OAuth (Task 6) ---
+    // NEEDS-VERIFY: Zalo OA cấp quyền ở mức app/OA, không có scope.
     public function buildAuthorizationUrl(string $state, array $opts = []): string
     {
         return 'https://oauth.zaloapp.com/v4/oa/permission?'.http_build_query([
             'app_id' => (string) $this->cfg('app_id'),
-            'redirect_uri' => $opts['redirect_uri'] ?? (string) $this->cfg('redirect_uri'),
+            'redirect_uri' => $opts['redirect_uri'] ?? $this->redirectUri(),
             'state' => $state,
         ]);
-        // NEEDS-VERIFY: Zalo OA cấp quyền ở mức app/OA, không có scope.
+    }
+
+    /**
+     * Callback OAuth cố định ở /oauth/zalo_oa/callback (routes/web.php). Cho phép cấu hình
+     * MESSAGING_ZALO_REDIRECT_URI để override; nếu trống thì tự dựng từ app.url → env này
+     * KHÔNG bắt buộc. (Token exchange v4 không gửi redirect_uri nên chỉ dùng ở authorize.)
+     */
+    private function redirectUri(): string
+    {
+        $configured = (string) $this->cfg('redirect_uri');
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        return rtrim((string) config('app.url'), '/').'/oauth/zalo_oa/callback';
     }
 
     public function exchangeCodeForToken(string $code): TokenDTO
