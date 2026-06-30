@@ -11,7 +11,7 @@ use CMBcoreSeller\Integrations\EInvoice\Exceptions\EInvoiceProviderError;
 /** Connector MISA meInvoice. Phần A: verify + company info + templates. */
 final class MisaMeInvoiceConnector implements EInvoiceConnector
 {
-    public function __construct(protected array $config) {}
+    public function __construct(private array $config) {}
 
     public function code(): string
     {
