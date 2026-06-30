@@ -292,6 +292,30 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Hóa đơn điện tử (SPEC 0041 — EInvoice). Trục Connector+Registry mới.
+    |--------------------------------------------------------------------------
+    |
+    | Thêm nhà cung cấp = 1 dòng class-string trong IntegrationsServiceProvider
+    | + 1 block ở đây. `enabled` CSV quyết định provider nào nạp vào EInvoiceRegistry.
+    | Credentials KHÔNG ở đây — lưu per-tenant trong bảng einvoice_accounts (mã hóa).
+    | INERT tới khi set INTEGRATIONS_EINVOICE. base_url mặc định là sandbox test.
+    */
+    'einvoice' => [
+        'enabled' => array_filter(explode(',', (string) env('INTEGRATIONS_EINVOICE', ''))),
+
+        'misa' => [
+            'base_url' => env('EINVOICE_MISA_BASE_URL', 'https://testapi.meinvoice.vn/api/v3'),
+            'token_ttl_days' => (int) env('EINVOICE_MISA_TOKEN_TTL_DAYS', 14),
+            'http' => [
+                'timeout' => (int) env('EINVOICE_MISA_HTTP_TIMEOUT', 30),
+                'retries' => (int) env('EINVOICE_MISA_HTTP_RETRIES', 2),
+                'retry_sleep_ms' => (int) env('EINVOICE_MISA_HTTP_RETRY_SLEEP_MS', 800),
+            ],
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | TikTok Shop Partner API (see docs/04-channels/tiktok-shop.md, SPEC 0001)
     |--------------------------------------------------------------------------
     |
