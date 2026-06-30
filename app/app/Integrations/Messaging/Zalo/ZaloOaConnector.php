@@ -281,7 +281,21 @@ class ZaloOaConnector implements InteractiveMessagingConnector, MessagingConnect
 
     public function sendInteractive(MessagingAuthContext $auth, string $externalConversationId, array $structure, array $opts = []): SendResultDTO
     {
-        throw UnsupportedOperation::for($this->code(), 'sendInteractive'); // Task 9
+        $buttons = [];
+        foreach (array_slice((array) ($structure['buttons'] ?? []), 0, 5) as $btn) {
+            $title = mb_substr((string) ($btn['title'] ?? $btn['label'] ?? ''), 0, 20);
+            if (! empty($btn['url'])) {
+                $buttons[] = ['title' => $title, 'type' => 'oa.open.url', 'payload' => ['url' => (string) $btn['url']]];
+            } else {
+                $buttons[] = ['title' => $title, 'type' => 'oa.query.hide', 'payload' => 'postback_'.((string) ($btn['payload'] ?? ''))];
+            }
+        }
+
+        return $this->sendCs($auth, $externalConversationId, [
+            'text' => (string) ($structure['text'] ?? ''),
+            'attachment' => ['type' => 'template', 'payload' => ['buttons' => $buttons]],
+        ]);
+        // NEEDS-VERIFY: cấu trúc template button của Zalo OA.
     }
 
     // --- Comment moderation: Zalo OA không có comment feed ---

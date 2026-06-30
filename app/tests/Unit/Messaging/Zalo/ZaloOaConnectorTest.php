@@ -225,4 +225,32 @@ class ZaloOaConnectorTest extends TestCase
                 && (($d['message']['attachment']['payload']['template_type'] ?? null) === 'media');
         });
     }
+
+    public function test_send_interactive_maps_buttons_and_caps_at_5(): void
+    {
+        \Illuminate\Support\Facades\Http::fake(['openapi.zalo.me/v3.0/oa/message/cs' => \Illuminate\Support\Facades\Http::response(['error' => 0, 'data' => ['message_id' => 'OUT_3']], 200)]);
+
+        $auth = new \CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext(1, 'zalo_oa', 'OA_9', 'TKN');
+        $structure = [
+            'text' => 'Chọn nhé',
+            'buttons' => [
+                ['title' => 'Website', 'url' => 'https://shop.test'],
+                ['title' => 'Đặt hàng', 'payload' => 'ENC_1'],
+                ['title' => 'B3', 'payload' => 'p3'], ['title' => 'B4', 'payload' => 'p4'],
+                ['title' => 'B5', 'payload' => 'p5'], ['title' => 'B6_DROP', 'payload' => 'p6'],
+            ],
+        ];
+
+        $result = $this->connector()->sendInteractive($auth, 'USER_1', $structure);
+        $this->assertSame('OUT_3', $result->externalMessageId);
+
+        \Illuminate\Support\Facades\Http::assertSent(function ($r) {
+            $btns = $r->data()['message']['attachment']['payload']['buttons'] ?? [];
+
+            return count($btns) === 5
+                && $btns[0]['type'] === 'oa.open.url'
+                && $btns[1]['type'] === 'oa.query.hide'
+                && $btns[1]['payload'] === 'postback_ENC_1';
+        });
+    }
 }
