@@ -121,13 +121,31 @@ export function OrderDetailBody({ order }: { order: Order }) {
                             {order.profit && (
                                 <>
                                     <Divider style={{ margin: '8px 0' }} />
-                                    <AmountRow label={`Phí sàn (${order.profit.platform_fee_pct}%)`} value={order.profit.platform_fee} currency={order.currency} negative />
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                                        <Typography.Text strong style={{ fontSize: 13 }}>Chi phí sàn</Typography.Text>
+                                        <Tag color={order.profit.fee_source === 'settlement' ? 'green' : 'gold'} style={{ marginInlineEnd: 0 }}>
+                                            {order.profit.fee_source === 'settlement' ? 'Đối soát thật' : 'Ước tính'}
+                                        </Tag>
+                                    </div>
+                                    {order.profit.fee_breakdown && order.profit.fee_breakdown.length > 0
+                                        ? order.profit.fee_breakdown.map((f) => (
+                                            <AmountRow key={f.type} label={f.label} value={f.amount} currency={order.currency} negative />
+                                        ))
+                                        : <AmountRow label={`Phí sàn (${order.profit.platform_fee_pct}%)`} value={order.profit.platform_fee} currency={order.currency} negative />}
+                                    {order.profit.fee_breakdown && order.profit.fee_breakdown.length > 1 && (
+                                        <AmountRow label={`Tổng phí sàn (≈${order.profit.platform_fee_pct}%)`} value={order.profit.platform_fee} currency={order.currency} negative strong />
+                                    )}
                                     <AmountRow label="Giá vốn hàng" value={order.profit.cogs} currency={order.currency} negative />
                                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 15, fontWeight: 700, color: order.profit.estimated_profit >= 0 ? '#389e0d' : '#cf1322' }}>
                                         <span>Lợi nhuận ước tính{!order.profit.cost_complete && <WarningOutlined style={{ color: '#faad14', marginLeft: 6 }} />}</span>
                                         <MoneyText value={order.profit.estimated_profit} currency={order.currency} />
                                     </div>
-                                    {!order.profit.cost_complete && <Typography.Text type="secondary" style={{ fontSize: 12 }}>* Một số mặt hàng chưa có giá vốn SKU — lợi nhuận chỉ là ước tính.</Typography.Text>}
+                                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                                        {order.profit.fee_source === 'settlement'
+                                            ? '* Phí lấy từ đối soát thật của sàn.'
+                                            : '* Phí sàn là ƯỚC TÍNH theo biểu phí mặc định — chỉnh ở Cài đặt đơn hàng cho khớp ngành hàng/chương trình.'}
+                                        {!order.profit.cost_complete && ' Một số mặt hàng chưa có giá vốn SKU.'}
+                                    </Typography.Text>
                                 </>
                             )}
                         </div>

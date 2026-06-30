@@ -21,12 +21,51 @@ use Illuminate\Support\Collection;
  */
 class OrderProfitService
 {
+    /** Nhãn tiếng Việt cho từng loại phí trong breakdown. */
+    public const FEE_LABELS = [
+        'commission' => 'Hoa hồng / phí cố định',
+        'transaction' => 'Phí giao dịch',
+        'payment_fee' => 'Phí thanh toán',
+        'service' => 'Phí dịch vụ (Voucher/Freeship Xtra)',
+        'fixed' => 'Phí cố định / đơn',
+        'shipping_fee' => 'Phí vận chuyển',
+        'voucher_seller' => 'Voucher người bán',
+        'adjustment' => 'Điều chỉnh',
+    ];
+
     /** @param array<string,mixed>|null $tenantSettings @return array<string,float> source => % */
     public function platformFeePct(?array $tenantSettings): array
     {
         $out = [];
         foreach ((array) (($tenantSettings ?? [])['platform_fee_pct'] ?? []) as $k => $v) {
             $out[(string) $k] = max(0.0, (float) $v);
+        }
+
+        return $out;
+    }
+
+    /**
+     * Biểu phí ước tính theo sàn = mặc định `config('orders.fee_rates')` ∪ override tenant
+     * (`settings.fee_rates[source]`). Dùng khi KHÔNG có `platform_fee_pct` legacy cho sàn đó.
+     *
+     * @param  array<string,mixed>|null  $tenantSettings
+     * @return array<string, array{commission_pct:float,transaction_pct:float,service_pct:float,fixed_fee:int}>
+     */
+    public function feeRates(?array $tenantSettings): array
+    {
+        $defaults = (array) config('orders.fee_rates', []);
+        $override = (array) (($tenantSettings ?? [])['fee_rates'] ?? []);
+        $sources = array_unique([...array_keys($defaults), ...array_keys($override)]);
+        $out = [];
+        foreach ($sources as $src) {
+            $d = (array) ($defaults[$src] ?? []);
+            $o = (array) ($override[$src] ?? []);
+            $out[(string) $src] = [
+                'commission_pct' => max(0.0, (float) ($o['commission_pct'] ?? $d['commission_pct'] ?? 0)),
+                'transaction_pct' => max(0.0, (float) ($o['transaction_pct'] ?? $d['transaction_pct'] ?? 0)),
+                'service_pct' => max(0.0, (float) ($o['service_pct'] ?? $d['service_pct'] ?? 0)),
+                'fixed_fee' => max(0, (int) ($o['fixed_fee'] ?? $d['fixed_fee'] ?? 0)),
+            ];
         }
 
         return $out;
@@ -44,20 +83,20 @@ class OrderProfitService
             return;
         }
         $pct = $this->platformFeePct($tenantSettings);
+        $rates = $this->feeRates($tenantSettings);
         $orderIds = $orders->pluck('id')->all();
         $itemsByOrder = OrderItem::query()->whereIn('order_id', $orderIds)->get(['order_id', 'sku_id', 'quantity'])->groupBy('order_id');
         $costs = $this->fetchCosts($itemsByOrder->flatten(1)->pluck('sku_id'));
         $actualByOrder = $this->fetchActualCogs($orderIds);   // FIFO COGS thực — đơn đã ship (SPEC 0014)
         $feesByOrder = $this->fetchActualFees($orderIds);   // Phí thực từ đối soát sàn (SPEC 0016)
         $shipFeesByOrder = $this->fetchActualShipmentFees($orderIds);   // R2 (Sprint 4) — phí GHN thực sau khi createOrder
-        $tenantId = (int) ($orders->first()?->tenant_id ?? 0);
         $orders->each(fn (Order $o) => $o->setAttribute('_profit', $this->compute(
             $o, $itemsByOrder->get($o->getKey(), collect()), $pct, $costs,
             $actualByOrder[$o->getKey()] ?? null,
             $feesByOrder[$o->getKey()] ?? null,
             $shipFeesByOrder[$o->getKey()] ?? null,
+            $rates,
         )));
-        unset($tenantId);
     }
 
     /** Annotate a single order whose `items` relation is already loaded. */
@@ -69,6 +108,7 @@ class OrderProfitService
         $shipFee = $this->fetchActualShipmentFees([$order->getKey()])[$order->getKey()] ?? null;
         $order->setAttribute('_profit', $this->compute(
             $order, $items, $this->platformFeePct($tenantSettings), $this->fetchCosts($items->pluck('sku_id')), $actual, $fees, $shipFee,
+            $this->feeRates($tenantSettings),
         ));
     }
 
@@ -107,7 +147,7 @@ class OrderProfitService
      * Khi có ⇒ `fee_source='settlement'` và `platform_fee`/`shipping_fee` lấy từ đây (số ÂM → đảo dấu thành chi).
      *
      * @param  list<int>  $orderIds
-     * @return array<int, array{platform_fee:int, shipping_fee:int}>
+     * @return array<int, array{platform_fee:int, shipping_fee:int, lines:array<string,int>}>
      */
     private function fetchActualFees(array $orderIds): array
     {
@@ -124,7 +164,7 @@ class OrderProfitService
         $out = [];
         foreach ($rows as $r) {
             $oid = (int) $r->order_id;
-            $out[$oid] ??= ['platform_fee' => 0, 'shipping_fee' => 0];
+            $out[$oid] ??= ['platform_fee' => 0, 'shipping_fee' => 0, 'lines' => []];
             $a = (int) $r->amount;
             switch ($r->fee_type) {
                 case 'commission':
@@ -132,6 +172,7 @@ class OrderProfitService
                 case 'voucher_seller':
                 case 'adjustment':
                     $out[$oid]['platform_fee'] += abs($a);   // chi → cộng vào fee dương để hiển thị
+                    $out[$oid]['lines'][(string) $r->fee_type] = ($out[$oid]['lines'][(string) $r->fee_type] ?? 0) + abs($a);
                     break;
                 case 'shipping_fee':
                     $out[$oid]['shipping_fee'] += abs($a);
@@ -180,11 +221,12 @@ class OrderProfitService
      * @param  array<string,float>  $platformFeePct
      * @param  Collection<int, Sku>  $skuCosts
      * @param  array{cogs:int,source:string}|null  $actual  COGS thực từ `order_costs` (đã ship); null = chưa ship
-     * @param  array{platform_fee:int,shipping_fee:int}|null  $actualFees  Phí THỰC từ đối soát (SPEC 0016)
+     * @param  array{platform_fee:int,shipping_fee:int,lines?:array<string,int>}|null  $actualFees  Phí THỰC từ đối soát (SPEC 0016)
      * @param  int|null  $actualShipFee  R2 (Sprint 4) — phí ĐVVC thực từ shipments.fee (manual: GHN trả về)
-     * @return array{cogs:int,platform_fee:int,shipping_fee:int,estimated_profit:int,platform_fee_pct:float,cost_complete:bool,cost_source:string,fee_source:string}
+     * @param  array<string, array{commission_pct:float,transaction_pct:float,service_pct:float,fixed_fee:int}>  $feeRates  biểu phí ước tính theo sàn
+     * @return array{cogs:int,platform_fee:int,shipping_fee:int,estimated_profit:int,platform_fee_pct:float,cost_complete:bool,cost_source:string,fee_source:string,fee_breakdown:list<array{type:string,label:string,amount:int}>}
      */
-    private function compute(Order $order, Collection $items, array $platformFeePct, Collection $skuCosts, ?array $actual = null, ?array $actualFees = null, ?int $actualShipFee = null): array
+    private function compute(Order $order, Collection $items, array $platformFeePct, Collection $skuCosts, ?array $actual = null, ?array $actualFees = null, ?int $actualShipFee = null, array $feeRates = []): array
     {
         $costSource = 'estimate';
         if ($actual !== null && $actual['cogs'] > 0) {
@@ -203,21 +245,54 @@ class OrderProfitService
                 $cogs += $unit * max(1, (int) $it->quantity);
             }
         }
+        $grand = (int) $order->grand_total;
         $pct = (float) ($platformFeePct[$order->source] ?? 0);
         $feeSource = 'estimate';
+        /** @var list<array{type:string,label:string,amount:int}> $breakdown */
+        $breakdown = [];
+
         if ($actualFees !== null && ($actualFees['platform_fee'] > 0 || $actualFees['shipping_fee'] > 0)) {
+            // (1) Phí THỰC từ đối soát sàn — chi tiết theo từng loại.
             $platformFee = (int) $actualFees['platform_fee'];
             $shipping = (int) $actualFees['shipping_fee'];
             $feeSource = 'settlement';
+            foreach ((array) ($actualFees['lines'] ?? []) as $type => $amt) {
+                $breakdown[] = ['type' => (string) $type, 'label' => self::FEE_LABELS[(string) $type] ?? (string) $type, 'amount' => (int) $amt];
+            }
+            $pct = $grand > 0 ? round($platformFee / $grand * 100, 1) : 0.0;
         } else {
-            $platformFee = (int) round((int) $order->grand_total * $pct / 100);
-            // R2 (Sprint 4) — đơn manual: ưu tiên shipments.fee thực tế (GHN trả) > orders.shipping_fee (user nhập).
-            // Đơn sàn: dùng orders.shipping_fee (sàn báo về lúc sync). Logic gốc cho đơn sàn KHÔNG thay đổi.
+            // Phí ship (giữ logic cũ): đơn manual ưu tiên shipments.fee (GHN trả) > orders.shipping_fee.
             if ($order->source === 'manual' && $actualShipFee !== null && $actualShipFee > 0) {
                 $shipping = $actualShipFee;
                 $feeSource = 'carrier';
             } else {
                 $shipping = (int) $order->shipping_fee;
+            }
+
+            if (isset($platformFeePct[$order->source])) {
+                // (2) LEGACY: tenant đã cấu hình 1 % phí phẳng ⇒ giữ NGUYÊN hành vi (SPEC 0012).
+                $platformFee = (int) round($grand * $pct / 100);
+                if ($platformFee > 0) {
+                    $breakdown[] = ['type' => 'commission', 'label' => self::FEE_LABELS['commission'], 'amount' => $platformFee];
+                }
+            } else {
+                // (3) ƯỚC TÍNH CHI TIẾT theo biểu phí sàn (hoa hồng / giao dịch / dịch vụ / cố định).
+                $r = $feeRates[$order->source] ?? null;
+                $platformFee = 0;
+                if ($r !== null) {
+                    $commissionBase = max(0, (int) $order->item_total - (int) $order->seller_discount);
+                    $commission = (int) round($commissionBase * $r['commission_pct'] / 100);
+                    $transaction = (int) round($grand * $r['transaction_pct'] / 100);
+                    $service = $r['service_pct'] > 0 ? (int) round($commissionBase * $r['service_pct'] / 100) : 0;
+                    $fixed = $grand > 0 ? (int) $r['fixed_fee'] : 0;
+                    foreach ([['commission', $commission], ['transaction', $transaction], ['service', $service], ['fixed', $fixed]] as [$t, $amt]) {
+                        if ($amt > 0) {
+                            $breakdown[] = ['type' => $t, 'label' => self::FEE_LABELS[$t], 'amount' => $amt];
+                        }
+                    }
+                    $platformFee = $commission + $transaction + $service + $fixed;
+                    $pct = $grand > 0 ? round($platformFee / $grand * 100, 1) : 0.0;
+                }
             }
         }
 
@@ -225,11 +300,12 @@ class OrderProfitService
             'cogs' => $cogs,
             'platform_fee' => $platformFee,
             'shipping_fee' => $shipping,
-            'estimated_profit' => (int) $order->grand_total - $platformFee - $shipping - $cogs,
+            'estimated_profit' => $grand - $platformFee - $shipping - $cogs,
             'platform_fee_pct' => $pct,
             'cost_complete' => $complete,
             'cost_source' => $costSource,
             'fee_source' => $feeSource,
+            'fee_breakdown' => $breakdown,
         ];
     }
 }

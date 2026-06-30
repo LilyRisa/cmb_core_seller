@@ -29,6 +29,12 @@ export interface OrderStatusHistory {
     changed_at: string | null;
 }
 
+export interface OrderFeeLine {
+    type: string;
+    label: string;
+    amount: number;
+}
+
 export interface OrderProfit {
     cogs: number;
     platform_fee: number;
@@ -36,6 +42,10 @@ export interface OrderProfit {
     estimated_profit: number;
     platform_fee_pct: number;
     cost_complete: boolean;
+    /** Nguồn phí: 'estimate' (ước tính theo biểu phí) | 'settlement' (đối soát thật) | 'carrier'. */
+    fee_source?: string;
+    /** Chi tiết các khoản phí sàn (hoa hồng / giao dịch / dịch vụ / cố định …). */
+    fee_breakdown?: OrderFeeLine[];
 }
 
 export interface Order {

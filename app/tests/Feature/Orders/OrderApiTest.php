@@ -179,6 +179,23 @@ class OrderApiTest extends TestCase
             ->assertOk()->assertJsonPath('data.profit.platform_fee', 12500);
     }
 
+    public function test_orders_carry_detailed_estimated_fee_breakdown_when_no_flat_pct_configured(): void
+    {
+        // KHÔNG cấu hình platform_fee_pct ⇒ dùng biểu phí mặc định config('orders.fee_rates').
+        // TikTok: hoa hồng 14% (trên item_total 250000) + giao dịch 6% (trên grand 250000) + cố định 3.000đ.
+        $res = $this->actingAs($this->user)->withHeaders($this->header())->getJson('/api/v1/orders')->assertOk();
+        $o = collect($res->json('data'))->firstWhere('order_number', 'TT-1001');
+
+        $this->assertNotNull($o['profit']);
+        $this->assertSame('estimate', $o['profit']['fee_source']);
+        $byType = collect($o['profit']['fee_breakdown'])->keyBy('type');
+        $this->assertSame((int) round(250000 * 0.14), $byType['commission']['amount']);   // 35 000
+        $this->assertSame((int) round(250000 * 0.06), $byType['transaction']['amount']);   // 15 000
+        $this->assertSame(3000, $byType['fixed']['amount']);
+        $this->assertSame(35000 + 15000 + 3000, $o['profit']['platform_fee']);             // 53 000
+        $this->assertSame(250000 - 53000 - 0 - 0, $o['profit']['estimated_profit']);
+    }
+
     public function test_can_create_an_invoice_print_job_for_orders(): void
     {
         Storage::fake('public');
