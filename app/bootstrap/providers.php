@@ -6,6 +6,7 @@ use CMBcoreSeller\Modules\Admin\AdminServiceProvider;
 use CMBcoreSeller\Modules\Billing\BillingServiceProvider;
 use CMBcoreSeller\Modules\Channels\ChannelsServiceProvider;
 use CMBcoreSeller\Modules\Customers\CustomersServiceProvider;
+use CMBcoreSeller\Modules\EInvoice\EInvoiceServiceProvider;
 use CMBcoreSeller\Modules\Finance\FinanceServiceProvider;
 use CMBcoreSeller\Modules\Fulfillment\FulfillmentServiceProvider;
 use CMBcoreSeller\Modules\Inventory\InventoryServiceProvider;
@@ -43,6 +44,8 @@ return [
     ReportsServiceProvider::class,
     BillingServiceProvider::class,
     AccountingServiceProvider::class,
+    // SPEC 0041 — Xuất hóa đơn điện tử MISA.
+    EInvoiceServiceProvider::class,
     SettingsServiceProvider::class,
     AdminServiceProvider::class,
     NotificationsServiceProvider::class,
