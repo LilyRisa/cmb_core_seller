@@ -4,6 +4,8 @@ namespace CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes;
 
 use CMBcoreSeller\Modules\Messaging\Services\Flows\FlowContext;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Graph\FlowNode;
+use CMBcoreSeller\Modules\Messaging\Services\Flows\Steps\FlowStep;
+use CMBcoreSeller\Modules\Messaging\Services\Flows\Steps\StepExecutorRegistry;
 use CMBcoreSeller\Modules\Messaging\Services\OutboundMessageService;
 
 /**
@@ -13,11 +15,19 @@ use CMBcoreSeller\Modules\Messaging\Services\OutboundMessageService;
  * OutboundMessageService ⇒ audit + 24h window guard đồng nhất. Chống gửi lại:
  * đánh dấu node id vào run.context._sent.
  *
- * data: { text?: string, attachments?: [ { kind, storage_path, mime?, filename?, size_bytes? } ] }
+ * **Steps branch (additive):** nếu `node.data.steps[]` tồn tại và không rỗng, duyệt
+ * từng step theo thứ tự qua StepExecutorRegistry — idempotency theo cursor
+ * `_step_sent[node.id]`. Nhánh cũ (text/attachments thẳng) giữ nguyên byte-for-byte.
+ *
+ * data (cũ): { text?: string, attachments?: [ { kind, storage_path, mime?, filename?, size_bytes? } ] }
+ * data (mới): { steps: [ { id, type, ...config } ] }
  */
 class SendMessageNodeExecutor implements NodeExecutor
 {
-    public function __construct(private OutboundMessageService $outbound) {}
+    public function __construct(
+        private OutboundMessageService $outbound,
+        private StepExecutorRegistry $stepRegistry,
+    ) {}
 
     public function type(): string
     {
@@ -26,6 +36,18 @@ class SendMessageNodeExecutor implements NodeExecutor
 
     public function execute(FlowNode $node, FlowContext $ctx): NodeResult
     {
+        // Steps branch — duyệt danh sách bước có thứ tự (additive, non-breaking).
+        $rawSteps = array_values(array_filter(
+            (array) ($node->data['steps'] ?? []),
+            fn ($s) => is_array($s) && ! empty($s['type']) && ! empty($s['id']),
+        ));
+
+        if ($rawSteps !== []) {
+            return $this->executeSteps($rawSteps, $node, $ctx);
+        }
+
+        // ── Nhánh cũ: text + attachments thẳng vào data (giữ nguyên byte-for-byte) ──
+
         $text = trim((string) ($node->data['text'] ?? ''));
         $attachments = array_values(array_filter(
             (array) ($node->data['attachments'] ?? []),
@@ -71,5 +93,53 @@ class SendMessageNodeExecutor implements NodeExecutor
         $ctx->run->update(['context' => $context]);
 
         return NodeResult::advance();
+    }
+
+    /**
+     * Duyệt steps[], idempotency theo cursor `_step_sent[node.id]`.
+     *
+     * @param  array<int,array<string,mixed>>  $rawSteps
+     */
+    private function executeSteps(array $rawSteps, FlowNode $node, FlowContext $ctx): NodeResult
+    {
+        $context = $ctx->run->context ?? [];
+        $stepSent = (array) ($context['_step_sent'] ?? []);
+        $cursor = (int) ($stepSent[$node->id] ?? 0);
+
+        // Build step context mang node id thật — SendButtonsStep dùng để encode payload
+        // postback với đúng node id (phục vụ stale-guard ở AdvanceFlowOnPostback).
+        $stepCtx = new FlowContext($ctx->conversation, $ctx->run, $ctx->inboundBody, $node->id);
+
+        foreach ($rawSteps as $index => $stepArr) {
+            if ($index < $cursor) {
+                continue; // Already sent — skip (idempotent).
+            }
+
+            $step = FlowStep::fromArray($stepArr);
+
+            if (! $this->stepRegistry->has($step->type)) {
+                return NodeResult::fail("unknown_step_type:{$step->type}");
+            }
+
+            $result = $this->stepRegistry->for($step->type)->execute($step, $stepCtx);
+
+            if ($result->isFail()) {
+                return NodeResult::fail($result->error() ?? 'step_failed');
+            }
+
+            // Advance cursor — step đã gửi/đạt tới (kể cả wait).
+            $cursor = $index + 1;
+            $stepSent[$node->id] = $cursor;
+            $context['_step_sent'] = $stepSent;
+            $ctx->run->update(['context' => $context]);
+
+            if ($result->isWait()) {
+                return NodeResult::wait();
+            }
+
+            // isDone → tiếp bước kế.
+        }
+
+        return NodeResult::advance(null);
     }
 }
