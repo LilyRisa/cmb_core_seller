@@ -56,6 +56,7 @@ class ZaloClient
         $res = Http::asForm()
             ->withHeaders(['secret_key' => $appSecret])
             ->timeout(30)
+            ->retry(2, 500, throw: false)
             ->post(self::OAUTH_TOKEN_URL, $form);
 
         $json = $res->json() ?? [];
