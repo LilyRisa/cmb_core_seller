@@ -14,7 +14,6 @@ import {
     TikTokOutlined,
     MenuFoldOutlined,
     MenuUnfoldOutlined,
-    MessageOutlined,
     PercentageOutlined,
     PieChartOutlined,
     ReadOutlined,
@@ -50,7 +49,13 @@ function buildNav(): MenuProps['items'] {
             { key: '/orders', icon: <ShoppingOutlined />, label: <Link to="/orders?tab=pending">Đơn hàng</Link> },
             { key: '/returns', icon: <RollbackOutlined />, label: <Link to="/returns">Hoàn & Hủy</Link> },
             { key: '/customers', icon: <TeamOutlined />, label: <Link to="/customers">Khách hàng</Link> },
-            { key: 'messaging', icon: <MessageOutlined />, label: 'Tin nhắn', children: [
+            { key: '/channels', icon: <ShopOutlined />, label: <Link to="/channels">Gian hàng</Link> },
+            { key: '/products', icon: <AppstoreOutlined />, label: <Link to="/products">Sản phẩm & SKU</Link> },
+        ] },
+        // Tin nhắn = mục riêng (tách khỏi Bán hàng), chia theo nền tảng — mỗi nền tảng có đủ trang con.
+        // Facebook đã có; Zalo OA sẽ thêm submenu đầy đủ khi build trang (SPEC 0039 Phase 1).
+        { type: 'group', label: 'Tin nhắn', children: [
+            { key: 'messaging-facebook', icon: <FacebookFilled />, label: 'Facebook', children: [
                 { key: '/messaging', label: <Link to="/messaging">Hộp thư</Link> },
                 { key: '/messaging/channels', label: <Link to="/messaging/channels">Kết nối kênh</Link> },
                 { key: '/messaging/templates', label: <Link to="/messaging/templates">Mẫu tin</Link> },
@@ -59,8 +64,6 @@ function buildNav(): MenuProps['items'] {
                 { key: '/messaging/flows', label: <Link to="/messaging/flows">Kịch bản tự động</Link> },
                 { key: '/messaging/knowledge', label: <Link to="/messaging/knowledge">AI training</Link> },
             ] },
-            { key: '/channels', icon: <ShopOutlined />, label: <Link to="/channels">Gian hàng</Link> },
-            { key: '/products', icon: <AppstoreOutlined />, label: <Link to="/products">Sản phẩm & SKU</Link> },
         ] },
         { type: 'group', label: 'Đăng bán sàn', children: [
             { key: '/marketplace/products', icon: <CopyOutlined />, label: <Link to="/marketplace/products">Sao chép sản phẩm</Link> },
@@ -146,7 +149,7 @@ export function AppLayout() {
                     {!collapsed && <span>CMB Core</span>}
                 </div>
                 <div style={{ height: 'calc(100vh - 56px)', overflowY: 'auto', overflowX: 'hidden' }}>
-                    <Menu mode="inline" selectedKeys={[selectedKey]} defaultOpenKeys={['messaging', 'acc-books', 'acc-money']} inlineIndent={16} items={nav} style={{ borderInlineEnd: 'none' }} />
+                    <Menu mode="inline" selectedKeys={[selectedKey]} defaultOpenKeys={['messaging-facebook', 'acc-books', 'acc-money']} inlineIndent={16} items={nav} style={{ borderInlineEnd: 'none' }} />
                 </div>
             </Sider>
             <Layout>

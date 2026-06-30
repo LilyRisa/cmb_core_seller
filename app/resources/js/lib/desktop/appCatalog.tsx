@@ -37,14 +37,17 @@ export const APP_CATALOG: AppDef[] = [
     {
         key: 'messaging', label: 'Tin nhắn', icon: <MessageOutlined />, permission: 'messaging.view',
         defaultPath: '/messaging', prefixes: ['/messaging'],
+        // Chia theo nền tảng — mỗi nền tảng đủ trang con. Zalo OA thêm nhóm riêng khi build (SPEC 0039).
         menu: [
-            { key: '/messaging', label: 'Hộp thư' },
-            { key: '/messaging/channels', label: 'Kết nối kênh' },
-            { key: '/messaging/templates', label: 'Mẫu tin' },
-            { key: '/messaging/utility-templates', label: 'Tin tiện ích' },
-            { key: '/messaging/auto-rules', label: 'Tự động trả lời' },
-            { key: '/messaging/flows', label: 'Kịch bản tự động' },
-            { key: '/messaging/knowledge', label: 'AI training' },
+            { key: 'messaging-facebook', label: 'Facebook', children: [
+                { key: '/messaging', label: 'Hộp thư' },
+                { key: '/messaging/channels', label: 'Kết nối kênh' },
+                { key: '/messaging/templates', label: 'Mẫu tin' },
+                { key: '/messaging/utility-templates', label: 'Tin tiện ích' },
+                { key: '/messaging/auto-rules', label: 'Tự động trả lời' },
+                { key: '/messaging/flows', label: 'Kịch bản tự động' },
+                { key: '/messaging/knowledge', label: 'AI training' },
+            ] },
         ],
     },
     {
