@@ -141,6 +141,14 @@ class TikTokClient
 
         $bodyJson = $body === null ? '' : (string) json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
+        // An empty JSON body (`{}` / `[]`, e.g. a return/refund reject with no comment) is
+        // EXCLUDED from the signature by TikTokSigner::sign(), so we must NOT transmit it on the
+        // wire either — TikTok recomputes `sign` over the body it actually receives, and a stray
+        // `[]` body would make our signature mismatch → `[106001] sign query parameter invalid`.
+        if ($bodyJson === '{}' || $bodyJson === '[]') {
+            $bodyJson = '';
+        }
+
         $query = $this->signedQuery($path, $auth, $query, $bodyJson, $shopScoped);
 
         $url = rtrim((string) ($this->cfg['base_url'] ?? 'https://open-api.tiktokglobalshop.com'), '/').$path;

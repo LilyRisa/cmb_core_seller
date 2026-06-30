@@ -43,6 +43,11 @@ export function ReturnsPage() {
         });
     };
 
+    // Loading phải khoanh theo ĐÚNG nút đang xử lý (id + action), không dùng decide.isPending
+    // toàn cục — nếu không 1 cú bấm sẽ quay spinner trên mọi nút Duyệt/Từ chối của mọi dòng.
+    const busy = decide.isPending ? decide.variables : undefined;
+    const isBusy = (id: number, action: 'approve' | 'reject') => busy?.id === id && busy?.action === action;
+
     const columns: ColumnsType<ReturnRecord> = [
         {
             title: 'Đơn', key: 'order', render: (_, r) => (
@@ -65,10 +70,10 @@ export function ReturnsPage() {
                 canManage && r.status === 'requested' ? (
                     <Space>
                         <Popconfirm title="Duyệt yêu cầu này?" onConfirm={() => onDecide(r.id, 'approve')} okText="Duyệt" cancelText="Huỷ">
-                            <Button size="small" type="primary" icon={<CheckOutlined />} loading={decide.isPending}>Duyệt</Button>
+                            <Button size="small" type="primary" icon={<CheckOutlined />} loading={isBusy(r.id, 'approve')} disabled={decide.isPending && !isBusy(r.id, 'approve')}>Duyệt</Button>
                         </Popconfirm>
                         <Popconfirm title="Từ chối yêu cầu này?" onConfirm={() => onDecide(r.id, 'reject')} okText="Từ chối" okButtonProps={{ danger: true }} cancelText="Huỷ">
-                            <Button size="small" danger icon={<CloseOutlined />} loading={decide.isPending}>Từ chối</Button>
+                            <Button size="small" danger icon={<CloseOutlined />} loading={isBusy(r.id, 'reject')} disabled={decide.isPending && !isBusy(r.id, 'reject')}>Từ chối</Button>
                         </Popconfirm>
                     </Space>
                 ) : null
