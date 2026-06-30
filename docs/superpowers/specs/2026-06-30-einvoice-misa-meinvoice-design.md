@@ -82,14 +82,16 @@ Mirror `Payments`/`Carriers`. Core KHÔNG biết tên nhà cung cấp.
 ### 4.2 Module nghiệp vụ mới — `app/app/Modules/EInvoice/`
 
 - **Models**:
-  - `EInvoice` (`einvoices`): `tenant_id`, `order_id?`, `order_return_id?`, `provider`, `mode` (hsm/mtt), `ref_id` (uuid, unique per tenant — idempotency), `transaction_id?`, `inv_series?`, `inv_no?`, `inv_code?` (mã CQT), `inv_date?`, `status` (enum), `reference_type` (enum), `original_einvoice_id?` (self-FK), buyer snapshot (`buyer_name/buyer_tax_code/buyer_company/buyer_address/buyer_email`), seller snapshot, tổng tiền (`amount_without_vat/vat_amount/discount_amount/total_amount` — bigint VND), `tax_summary` (json TaxRateInfo), `lookup_code?`, `pdf_url?`, `send_tax_status?`, `received_status?`, `error_code?`, `error_message?`, `raw_request` (json), `raw_response` (json), `issued_at?`, `cancelled_at?`, `cancel_reason?`. `BelongsToTenant`.
+  - `EInvoice` (`einvoices`): `tenant_id`, `order_id?`, `order_return_id?`, `provider`, `mode` (hsm/mtt), `ref_id` (uuid, unique per tenant — idempotency), `transaction_id?`, `inv_series?`, `inv_no?`, `inv_code?` (mã CQT), `inv_date?`, `status` (enum), `reference_type` (enum), `original_einvoice_id?` (self-FK), buyer snapshot (`buyer_name/buyer_tax_code/buyer_company/buyer_address/buyer_email`), seller snapshot, tổng tiền (`amount_without_vat/vat_amount/discount_amount/total_amount` — bigint VND), `tax_summary` (json TaxRateInfo), `lookup_code?`, `pdf_url?`, `xml_url?`, `send_tax_status?`, `received_status?`, `error_code?`, `error_message?`, `error_class?` (retryable/non_retryable — xem §4.5.5), `raw_request` (json), `raw_response` (json), `issued_at?`, `cancelled_at?`, `cancel_reason?`, `synced_at?`. **Audit người thực hiện** (xem §4.5.7): `created_by`, `issued_by?`, `cancelled_by?`, `replaced_by?`, `adjusted_by?`, `retried_by?`. `BelongsToTenant`. **Bất biến sau phát hành** (§4.5.6): khi `status=issued`, chỉ cho cập nhật nhóm trạng thái/đồng bộ (`publish/send_tax/received status`, `lookup_code`, `pdf/xml_url`, `synced_at`), KHÔNG sửa buyer/seller/lines/tiền/thuế.
   - `EInvoiceLine` (`einvoice_lines`): `einvoice_id`, `line_number`, `item_type`, `item_code?`, `name`, `unit?`, `quantity`, `unit_price`, `discount_rate`, `discount_amount`, `amount`, `vat_rate_name`, `vat_amount`.
   - `EInvoiceAccount` (`einvoice_accounts`): per-tenant, `provider`, `credentials` (**`encrypted:array`**: appid/taxcode/username/password), `is_invoice_with_code?` (cache từ company info), `default_mode`, `templates` (json: template_id/series mỗi kiểu), `seller_info` (json), `auto_issue` (json: bật/tắt + trạng thái trigger + manual source→mode), `meta` (json), `active`. Mirror `CarrierAccount` (`toConnectorArray()`).
-- **Enums** (`app/app/Support/Enums/`): `EInvoiceStatus` (draft/issuing/issued/failed/cancelled/replaced/adjusted), `EInvoiceReferenceType` (original/replacement/adjustment), `EInvoiceSendTaxStatus`.
+- **Enums** (`app/app/Support/Enums/`): `EInvoiceStatus` (**vòng đời §4.5.8**: `draft → eligible → waiting_issue → issuing → issued → (cancelled | replaced | adjusted)`, nhánh lỗi `failed`), `EInvoiceReferenceType` (original/replacement/adjustment), `EInvoiceSendTaxStatus`, `EInvoiceErrorClass` (retryable/non_retryable).
 - **Services**:
+  - `EInvoiceEligibilityService` (§4.5.1): trả "đủ điều kiện xuất / không + lý do" — **không hardcode theo trạng thái đơn**, đọc rule cấu hình per-tenant.
   - `OrderInvoiceMapper`: Order(+items, customer, override) → `InvoiceDTO`. Tính VAT từng dòng theo `order_items.tax_rate_bps` (mặc định theo seller config), build `TaxRateInfo`, đối chiếu tổng với `orders.grand_total`.
-  - `IssueEInvoiceService`: chọn `EInvoiceAccount` → xác định mode (sàn=MTT, manual=theo seller) → build DTO → `EInvoiceRegistry->for(provider)->issue(...)` → persist `EInvoice`+lines → cập nhật trạng thái + raw. Idempotent theo `ref_id`.
-  - `EInvoiceAdjustmentService`: từ `OrderReturn` + HĐ gốc → build cancel/replace/adjust theo nghiệp vụ seller chọn; kiểm ràng buộc trạng thái (chặn sai); persist HĐ mới link `original_einvoice_id`.
+  - `IssueEInvoiceService`: kiểm eligibility → **guard chống trùng (§4.5.9)** → chọn `EInvoiceAccount` → xác định mode (sàn=MTT, manual=theo seller) → **snapshot ngay trước khi gửi (§4.5.4)** → build DTO → `EInvoiceRegistry->for(provider)->issue(...)` → persist `EInvoice`+lines → cập nhật trạng thái + raw + `error_class`. Idempotent theo `ref_id`.
+  - `EInvoiceAdjustmentService` (§4.5.10): từ `OrderReturn` + HĐ gốc → áp **ma trận quy tắc** chọn được phép Hủy/Thay thế/Điều chỉnh + chặn trạng thái không thao tác được; build payload; persist HĐ mới link `original_einvoice_id`; cập nhật `status` HĐ gốc (cancelled/replaced/adjusted).
+  - `OrderInvoiceLockService` (§4.5.2): trả "đơn có HĐ đã phát hành → khóa sửa các trường ảnh hưởng HĐ" cho module Orders tra cứu (qua contract/event).
   - `EInvoiceStatusSyncService`: polling backup theo refid, cập nhật `send_tax_status/received_status/inv_no/inv_code`.
   - `EInvoiceStatsService`: thống kê (mục 5 spec gốc).
 - **Jobs idempotent** (đăng ký queue trong **Horizon supervisor**, nếu không job kẹt im lặng): `IssueEInvoiceJob`, `SyncEInvoiceStatusJob`, `IssueAdjustmentJob`.
@@ -112,7 +114,48 @@ Mirror `Payments`/`Carriers`. Core KHÔNG biết tên nhà cung cấp.
 - UI aftersales (đơn hoàn): tạo HĐ Hủy/Thay thế/Điều chỉnh — picker nghiệp vụ + phản hồi ràng buộc trạng thái.
 - `pages/einvoice/EInvoicesPage.tsx`: danh sách HĐ (lọc theo kỳ/trạng thái/nguồn/kiểu) + **dashboard thống kê**.
 
-## 5. Phạm vi thống kê (CHỐT)
+### 4.5 Quy tắc & vòng đời nghiệp vụ (bổ sung theo review)
+
+**4.5.1 Eligibility — điều kiện đủ để phát hành.** Tách `EInvoiceEligibilityService` riêng, KHÔNG hardcode theo trạng thái đơn. Rule cấu hình per-tenant trong `EInvoiceAccount.auto_issue` (vd: chỉ xuất sau giao thành công / sau khi thu tiền / sau xác nhận COD / không xuất khi đang có đơn hoàn mở...). Cả luồng tự động lẫn nút thủ công đều phải qua eligibility; nếu không đủ → trả lý do rõ ràng, không phát hành.
+
+**4.5.2 Khóa dữ liệu đơn sau khi đã phát hành.** Khi đơn đã có HĐ `issued`, các trường ảnh hưởng HĐ (giá bán, số lượng, thuế suất, chiết khấu, thành tiền, thông tin người mua dùng xuất HĐ) bị **khóa sửa trực tiếp** trên Order. Muốn đổi → đi đúng nghiệp vụ Hủy/Thay thế/Điều chỉnh. Thực thi qua `OrderInvoiceLockService` mà module Orders tra cứu (contract/event — đúng luật module), chặn ở service sửa đơn + phản hồi UI.
+
+**4.5.3 Quan hệ Đơn ↔ Hóa đơn (phạm vi V1).**
+- Một đơn chỉ có **một HĐ gốc** (`reference_type=original`).
+- Mọi HĐ phát sinh sau là **Điều chỉnh** hoặc **Thay thế** (link `original_einvoice_id`).
+- **Chưa hỗ trợ** nhiều HĐ cho cùng đơn / giao nhiều đợt / tách HĐ theo lô (ngoài phạm vi V1).
+
+**4.5.4 Snapshot tại thời điểm phát hành.** Snapshot buyer/seller/lines/tiền/thuế **ngay trước khi gửi** sang nhà cung cấp, lưu vào `EInvoice`/`EInvoiceLine`. Sau phát hành, mọi thay đổi của Customer/Seller/Order KHÔNG làm đổi dữ liệu HĐ đã phát hành (đảm bảo pháp lý + đối soát).
+
+**4.5.5 Phân loại lỗi phát hành.** `MisaErrorMap` gán `error_class`:
+- **Retryable**: timeout, lỗi mạng, MISA tạm thời, `InvoiceNumberNotContinuous`, `Exception` chung → job tự retry có backoff/delay.
+- **Non-retryable**: sai MST, thiếu trường bắt buộc, sai mẫu, dữ liệu/XML không hợp lệ, license hết → KHÔNG retry, chuyển `failed` chờ người xử lý.
+
+**4.5.6 HĐ sau phát hành là Immutable.** Chỉ cập nhật nhóm trạng thái/đồng bộ: `publish_status`, `send_tax_status`, `received_status`, `lookup_code`, `pdf/xml_url`, `synced_at`. KHÔNG cập nhật buyer/seller/lines/tiền/thuế/tổng. Cần đổi → tạo HĐ nghiệp vụ mới.
+
+**4.5.7 Audit nghiệp vụ.** Lưu rõ người thực hiện từng nghiệp vụ trên `EInvoice`: `created_by`, `issued_by`, `cancelled_by`, `replaced_by`, `adjusted_by`, `retried_by` (kèm thời điểm tương ứng). Bổ trợ Audit Log chung, phục vụ truy vết tranh chấp/kiểm toán.
+
+**4.5.8 Vòng đời chuẩn hóa.**
+```
+draft → eligible → waiting_issue → issuing → issued → (cancelled | replaced | adjusted)
+                                       └── (lỗi) → failed ──(retryable)──→ waiting_issue
+```
+`OrderStateMachine`-style guard cho `EInvoice` (chuyển trạng thái hợp lệ, chặn nhảy bậc).
+
+**4.5.9 Guard chống phát hành trùng (trước khi gửi).** Kiểm trong transaction + lock per-(account, series): đơn đã có HĐ gốc chưa; có job khác đang phát hành (HĐ ở `issuing`/`waiting_issue`) không; `ref_id` đã tồn tại chưa. Tránh trùng khi nhiều request/nhiều worker đồng thời. Kết hợp idempotency `ref_id` phía MISA.
+
+**4.5.10 Ma trận quy tắc đơn hoàn.** Chuẩn hóa trong `EInvoiceAdjustmentService` (không xử theo UI):
+- Hoàn **toàn bộ** & chưa gửi/đầu kỳ phù hợp → **Hủy** HĐ gốc.
+- Hoàn **một phần** (giảm SL/tiền) → **Điều chỉnh** giảm.
+- Sai sót thông tin cần lập lại → **Thay thế**.
+- Trạng thái không thao tác được: HĐ đã hủy không thay thế/điều chỉnh; HĐ đã có HĐ điều chỉnh không thay thế; HĐ đã thay thế không điều chỉnh — báo lý do, chặn.
+(Ánh xạ với mã lỗi MISA: `InvoiceCannotReplace`, `InvoiceCannotReplaceByStatusNew`, `InvoiceCannotAdjust`, `HasAdjustmentInvoice`.)
+
+**4.5.11 Provider-agnostic.** Business chỉ làm việc với `InvoiceDTO` + nghiệp vụ chuẩn (Issue/Cancel/Replace/Adjust/Status/Download). Khác biệt MISA / EasyInvoice / VNPT / Viettel... xử lý trong Connector. Thêm nhà cung cấp = 1 connector + 1 dòng `register()` + 1 block config, không sửa core.
+
+## 5. Phạm vi thống kê & đối soát (CHỐT)
+
+**Thống kê:**
 
 - Số HĐ theo kỳ (ngày/tháng) & theo **trạng thái** (phát hành / hủy / điều chỉnh / lỗi / chờ CQT).
 - Tổng **doanh thu trước thuế** + **VAT** + **thanh toán** theo kỳ.
@@ -121,12 +164,20 @@ Mirror `Payments`/`Carriers`. Core KHÔNG biết tên nhà cung cấp.
 - **Tồn quota** số HĐ còn lại (nếu API trả `LicenseInfo`).
 - Bóc tách theo **nguồn đơn** (sàn/manual) & **kiểu** (MTT/HSM).
 
+**Đối soát vận hành (cho kế toán) — danh sách hành động được:**
+- Đơn **đủ điều kiện nhưng chưa phát hành** HĐ.
+- HĐ **phát hành lỗi** (kèm `error_class` để biết retry được không).
+- HĐ **chưa gửi CQT** / **gửi CQT thất bại**.
+- HĐ **chưa tải được PDF/XML**.
+- HĐ **chưa gửi email** cho khách.
+Mỗi mục cho phép thao tác lại (retry/sync/gửi lại) trực tiếp từ báo cáo.
+
 ## 6. Lộ trình triển khai (1 spec, chia phase)
 
-- **P1 — Lõi**: trục integration + `MisaMeInvoiceConnector` (HSM+MTT) + DTO + `EInvoiceAccount` + cấu hình/test kết nối + **xuất thủ công** cho đơn + bổ sung schema + danh sách HĐ + tải PDF. Plan-gate + RBAC.
-- **P2**: auto-issue theo trạng thái (listener + job) + polling đồng bộ trạng thái CQT + gửi email.
-- **P3**: đơn hoàn → hủy/thay thế/điều chỉnh (kiểm ràng buộc) + UI aftersales.
-- **P4**: dashboard thống kê.
+- **P1 — Lõi**: trục integration + `MisaMeInvoiceConnector` (HSM+MTT) + DTO + `EInvoiceAccount` + cấu hình/test kết nối + bổ sung schema + **vòng đời HĐ (§4.5.8)** + **snapshot (§4.5.4)** + **immutable + audit (§4.5.6/4.5.7)** + **guard chống trùng (§4.5.9)** + **phân loại lỗi (§4.5.5)** + **xuất thủ công** + danh sách HĐ + tải PDF. Plan-gate + RBAC.
+- **P2**: `EInvoiceEligibilityService` (§4.5.1) + auto-issue theo rule (listener + job retry theo `error_class`) + `OrderInvoiceLockService` khóa đơn (§4.5.2) + polling đồng bộ CQT + gửi email.
+- **P3**: đơn hoàn → `EInvoiceAdjustmentService` ma trận quy tắc Hủy/Thay thế/Điều chỉnh (§4.5.10) + UI aftersales.
+- **P4**: dashboard thống kê + **báo cáo đối soát vận hành** (§5).
 
 ## 7. Rủi ro & xử lý
 
