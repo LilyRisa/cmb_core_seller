@@ -99,7 +99,7 @@ class ZaloOaConnector implements InteractiveMessagingConnector, MessagingConnect
     // --- Inbound (Task 4-5) ---
     public function verifyWebhookSignature(Request $request): bool
     {
-        throw UnsupportedOperation::for($this->code(), 'verifyWebhookSignature'); // Task 4
+        return $this->verifier->verify($request, (string) $this->cfg('app_id'), (string) $this->cfg('oa_secret'));
     }
 
     public function parseWebhook(Request $request): MessagingWebhookEventDTO
@@ -165,7 +165,6 @@ class ZaloOaConnector implements InteractiveMessagingConnector, MessagingConnect
         throw UnsupportedOperation::for($this->code(), 'privateReplyToComment');
     }
 
-    /** @return array<string,mixed> */
     private function cfg(string $key): mixed
     {
         return $this->config[$key] ?? '';

@@ -41,6 +41,9 @@ class ZaloOaConnectorTest extends TestCase
         $this->assertTrue($c->supports('read_receipt'));
         $this->assertFalse($c->supports('outbound.video'));
         $this->assertFalse($c->supports('outbound.utility_template'));
+        $this->assertFalse($c->supports('inbound.polling'));
+        $this->assertFalse($c->supports('outbound.template'));
+        $this->assertFalse($c->supports('typing'));
     }
 
     public function test_comment_ops_unsupported(): void
@@ -50,5 +53,20 @@ class ZaloOaConnectorTest extends TestCase
             new \CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext(1, 'zalo_oa', 'oa1', 'TKN'),
             'c1', true,
         );
+    }
+
+    public function test_verify_webhook_signature_delegates_to_verifier(): void
+    {
+        $body = '{"app_id":"app_123","event_name":"user_send_text","timestamp":"1700000000"}';
+        $mac = 'mac='.hash('sha256', 'app_123'.$body.'1700000000'.'oa_secret_xyz');
+        $req = \Symfony\Component\HttpFoundation\Request::create('/webhook/messaging/zalo_oa', 'POST', [], [], [], ['HTTP_X_ZEVENT_SIGNATURE' => $mac], $body);
+
+        $this->assertTrue($this->connector()->verifyWebhookSignature($req));
+    }
+
+    public function test_verify_webhook_signature_rejects_bad(): void
+    {
+        $req = \Symfony\Component\HttpFoundation\Request::create('/webhook/messaging/zalo_oa', 'POST', [], [], [], ['HTTP_X_ZEVENT_SIGNATURE' => 'mac=bad'], '{"timestamp":"1"}');
+        $this->assertFalse($this->connector()->verifyWebhookSignature($req));
     }
 }
