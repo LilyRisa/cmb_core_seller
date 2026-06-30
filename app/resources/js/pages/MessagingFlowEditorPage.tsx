@@ -46,6 +46,23 @@ const TRIGGER_OPTIONS: { label: string; value: FlowTriggerType; disabled?: boole
     { label: TRIGGER_LABELS.comment_on_post, value: 'comment_on_post' },
 ];
 
+/**
+ * Xóa cạnh (edge) stale khi bộ nút bấm của node thay đổi.
+ * - validIds không rỗng → chỉ giữ edge không có sourceHandle hoặc sourceHandle thuộc validIds.
+ * - validIds rỗng     → node tuyến tính: giữ edge không có sourceHandle, xóa mọi edge có id handle.
+ */
+function pruneButtonEdges(
+    setEdges: (updater: (prev: Edge[]) => Edge[]) => void,
+    nodeId: string,
+    validIds: Set<string>,
+): void {
+    if (validIds.size > 0) {
+        setEdges((es) => es.filter((e) => e.source !== nodeId || e.sourceHandle == null || validIds.has(e.sourceHandle)));
+    } else {
+        setEdges((es) => es.filter((e) => e.source !== nodeId || e.sourceHandle == null));
+    }
+}
+
 export function MessagingFlowEditorPage() {
     return (
         <ReactFlowProvider>
@@ -112,8 +129,21 @@ function FlowEditor() {
         setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data } : n)));
         const node = nodes.find((n) => n.id === nodeId);
         if (node?.type === 'send_buttons') {
+            // Node send_buttons gốc: prune edge không khớp nút postback hiện tại
             const ids = new Set((data.buttons ?? []).filter((b) => b.type !== 'url').map((b) => b.id));
-            setEdges((es) => es.filter((e) => e.source !== nodeId || e.sourceHandle == null || ids.has(e.sourceHandle)));
+            pruneButtonEdges(setEdges, nodeId, ids);
+        } else if (node?.type === 'send_message') {
+            // Node send_message có steps: prune edge theo nút postback của bước send_buttons cuối
+            const steps = data.steps;
+            if (steps && steps.length > 0) {
+                const last = steps[steps.length - 1];
+                const lastPostbacks =
+                    last.type === 'send_buttons'
+                        ? (last.buttons ?? []).filter((b) => b.type !== 'url')
+                        : [];
+                pruneButtonEdges(setEdges, nodeId, new Set(lastPostbacks.map((b) => b.id)));
+            }
+            // Không có steps (chế độ cũ) → không prune, giữ nguyên
         }
     }, [nodes, setNodes, setEdges]);
 

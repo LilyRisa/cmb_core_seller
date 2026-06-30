@@ -12,6 +12,7 @@ import {
 } from '@ant-design/icons';
 import type { ReactNode } from 'react';
 import type { FlowNodeData, FlowNodeType } from '@/lib/messagingFlows';
+import { StepViewer } from './steps';
 
 /**
  * Metadata + thành phần node cho canvas reactflow. Mỗi loại node = 1 card + handle.
@@ -104,6 +105,54 @@ export function TriggerNode({ selected }: NodeProps) {
 
 export function SendMessageNode({ data, selected }: NodeProps) {
     const d = data as FlowNodeData;
+    const steps = d.steps;
+
+    // Chế độ bước (node-with-steps Phase 2A) — khi có steps[]
+    if (steps && steps.length > 0) {
+        const lastStep = steps[steps.length - 1];
+        // Lấy postback buttons từ bước cuối nếu là send_buttons
+        const postbacks =
+            lastStep.type === 'send_buttons'
+                ? (lastStep.buttons ?? []).filter((b) => b.type !== 'url')
+                : [];
+        return (
+            <>
+                <Handle type="target" position={Position.Top} />
+                <Shell selected={selected} color="#1677ff" icon={<MessageOutlined />} title="Gửi tin nhắn">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {steps.map((step, i) => (
+                            <div
+                                key={step.id}
+                                style={{
+                                    borderTop: i > 0 ? '1px solid #f0f0f0' : undefined,
+                                    paddingTop: i > 0 ? 4 : 0,
+                                }}
+                            >
+                                <StepViewer step={step} />
+                            </div>
+                        ))}
+                    </div>
+                </Shell>
+                {/* Bước cuối là send_buttons với nút postback → 1 handle mỗi nút (tái dùng pattern SendButtonsNode).
+                    Không có nút postback → handle tuyến tính mặc định. */}
+                {postbacks.length > 0 ? (
+                    postbacks.map((b, i) => (
+                        <Handle
+                            key={b.id}
+                            id={b.id}
+                            type="source"
+                            position={Position.Bottom}
+                            style={{ left: `${((i + 1) / (postbacks.length + 1)) * 100}%`, background: '#722ed1' }}
+                        />
+                    ))
+                ) : (
+                    <Handle type="source" position={Position.Bottom} />
+                )}
+            </>
+        );
+    }
+
+    // Chế độ cũ (legacy) — không có steps, render y nguyên như trước
     const text = d.text?.trim();
     const atts = d.attachments ?? [];
     return (
