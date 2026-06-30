@@ -143,6 +143,8 @@ Schedule::command('messaging:prune-drafts')->dailyAt('03:10')->timezone(app_disp
 Schedule::command('messaging:reconcile-sync')->hourly()->onOneServer()->withoutOverlapping();
 // Mỗi 30 phút: gom tin nhắn mới → Web Push cho user không hoạt động (tab đóng/ẩn).
 Schedule::command('messaging:push-digest')->everyThirtyMinutes()->onOneServer()->withoutOverlapping();
+// Mỗi giờ: làm mới Zalo OA access token trước khi hết hạn (refresh token xoay vòng).
+Schedule::command('messaging:zalo:refresh-tokens')->hourly()->onOneServer()->withoutOverlapping();
 // SPEC-0032: mỗi 15 phút đồng bộ trạng thái duyệt utility template đang pending (Meta).
 Schedule::job(new SyncUtilityTemplateStatus)->everyFifteenMinutes()->name('utility-template-sync')->onOneServer()->withoutOverlapping();
 
