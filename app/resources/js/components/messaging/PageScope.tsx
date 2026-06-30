@@ -19,6 +19,7 @@ export function PageMultiSelect({ value, onChange, disabled, placeholder, provid
     provider?: string;
 }) {
     const channels = useMessagingChannels(provider).data ?? [];
+    const byId = new Map(channels.map((c) => [c.id, c]));
 
     return (
         <Select
@@ -30,6 +31,21 @@ export function PageMultiSelect({ value, onChange, disabled, placeholder, provid
             showSearch
             optionFilterProp="label"
             maxTagCount="responsive"
+            // Tag đã chọn cũng hiện avatar trang (không chỉ trong dropdown).
+            tagRender={(props) => {
+                const c = byId.get(Number(props.value));
+                return (
+                    <Tag
+                        closable={props.closable}
+                        onClose={props.onClose}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, paddingLeft: 2, marginInlineEnd: 4 }}
+                    >
+                        <Avatar size={16} src={c?.avatar_url || undefined} icon={<FacebookFilled />}
+                            style={{ background: c?.avatar_url ? undefined : '#1877F2' }} />
+                        {c ? pageName(c) : String(props.label)}
+                    </Tag>
+                );
+            }}
             options={channels.map((c) => ({
                 value: c.id,
                 // label = chuỗi search (tên + ID); optionRender lo phần hiển thị có avatar.

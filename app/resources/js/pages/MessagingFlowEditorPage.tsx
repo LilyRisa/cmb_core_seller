@@ -217,11 +217,24 @@ function FlowEditor() {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)' }}>
-            {/* Topbar */}
+            {/* Topbar hàng 1: tên + trạng thái + lưu/xuất bản */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 16px', borderBottom: '1px solid #f0f0f0', flexWrap: 'wrap' }}>
                 <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/messaging/flows')} />
                 <Input value={name} onChange={(e) => setName(e.target.value)} disabled={!canManage} style={{ width: 240 }} maxLength={160} placeholder="Tên kịch bản" />
                 <Tag color={STATUS_COLOR[status]}>{STATUS_LABELS[status]}</Tag>
+                <div style={{ flex: 1 }} />
+                {canManage && <Button icon={<SaveOutlined />} loading={save.isPending} onClick={onSaveDraft}>Lưu nháp</Button>}
+                {canManage && status === 'active' && <Button icon={<PauseCircleOutlined />} loading={pause.isPending} onClick={onPause}>Tạm dừng</Button>}
+                {canManage && (
+                    <Tooltip title="Lưu & kiểm tra rồi cho kịch bản chạy">
+                        <Button type="primary" icon={<CloudUploadOutlined />} loading={save.isPending || publish.isPending} onClick={onPublish}>Xuất bản</Button>
+                    </Tooltip>
+                )}
+            </div>
+
+            {/* Topbar hàng 2: kích hoạt + phạm vi trang (đủ rộng để thao tác) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 16px', borderBottom: '1px solid #f0f0f0', flexWrap: 'wrap', background: '#fafafa' }}>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>Kích hoạt khi:</Typography.Text>
                 <Segmented<FlowTriggerType>
                     value={triggerType}
                     onChange={(v) => setTriggerType(v)}
@@ -249,6 +262,8 @@ function FlowEditor() {
                         {postIds.length > 0 ? `Đã chọn ${postIds.length} bài viết` : 'Chọn bài viết'}
                     </Button>
                 )}
+                <span style={{ width: 1, height: 22, background: '#e0e0e0' }} />
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>Áp dụng cho:</Typography.Text>
                 <Tooltip title="Phạm vi trang áp dụng kịch bản (SPEC 0035)">
                     <Segmented
                         value={appliesAllPages ? 'all' : 'pick'}
@@ -258,17 +273,9 @@ function FlowEditor() {
                     />
                 </Tooltip>
                 {!appliesAllPages && (
-                    <div style={{ minWidth: 220 }}>
+                    <div style={{ flex: '1 1 280px', minWidth: 280 }}>
                         <PageMultiSelect value={pageIds} onChange={setPageIds} disabled={!canManage} placeholder="Chọn trang" provider={flow?.provider} />
                     </div>
-                )}
-                <div style={{ flex: 1 }} />
-                {canManage && <Button icon={<SaveOutlined />} loading={save.isPending} onClick={onSaveDraft}>Lưu nháp</Button>}
-                {canManage && status === 'active' && <Button icon={<PauseCircleOutlined />} loading={pause.isPending} onClick={onPause}>Tạm dừng</Button>}
-                {canManage && (
-                    <Tooltip title="Lưu & kiểm tra rồi cho kịch bản chạy">
-                        <Button type="primary" icon={<CloudUploadOutlined />} loading={save.isPending || publish.isPending} onClick={onPublish}>Xuất bản</Button>
-                    </Tooltip>
                 )}
             </div>
 
