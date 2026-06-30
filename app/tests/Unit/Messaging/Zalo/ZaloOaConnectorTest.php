@@ -4,10 +4,14 @@ namespace Tests\Unit\Messaging\Zalo;
 
 use CMBcoreSeller\Integrations\Messaging\Contracts\InteractiveMessagingConnector;
 use CMBcoreSeller\Integrations\Messaging\Contracts\MessagingConnector;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\UnsupportedOperation;
 use CMBcoreSeller\Integrations\Messaging\Zalo\ZaloClient;
 use CMBcoreSeller\Integrations\Messaging\Zalo\ZaloOaConnector;
 use CMBcoreSeller\Integrations\Messaging\Zalo\ZaloSignatureVerifier;
+use Symfony\Component\HttpFoundation\Request;
 use Tests\TestCase;
 
 class ZaloOaConnectorTest extends TestCase
@@ -50,7 +54,7 @@ class ZaloOaConnectorTest extends TestCase
     {
         $this->expectException(UnsupportedOperation::class);
         $this->connector()->hideComment(
-            new \CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext(1, 'zalo_oa', 'oa1', 'TKN'),
+            new MessagingAuthContext(1, 'zalo_oa', 'oa1', 'TKN'),
             'c1', true,
         );
     }
@@ -59,14 +63,77 @@ class ZaloOaConnectorTest extends TestCase
     {
         $body = '{"app_id":"app_123","event_name":"user_send_text","timestamp":"1700000000"}';
         $mac = 'mac='.hash('sha256', 'app_123'.$body.'1700000000'.'oa_secret_xyz');
-        $req = \Symfony\Component\HttpFoundation\Request::create('/webhook/messaging/zalo_oa', 'POST', [], [], [], ['HTTP_X_ZEVENT_SIGNATURE' => $mac], $body);
+        $req = Request::create('/webhook/messaging/zalo_oa', 'POST', [], [], [], ['HTTP_X_ZEVENT_SIGNATURE' => $mac], $body);
 
         $this->assertTrue($this->connector()->verifyWebhookSignature($req));
     }
 
     public function test_verify_webhook_signature_rejects_bad(): void
     {
-        $req = \Symfony\Component\HttpFoundation\Request::create('/webhook/messaging/zalo_oa', 'POST', [], [], [], ['HTTP_X_ZEVENT_SIGNATURE' => 'mac=bad'], '{"timestamp":"1"}');
+        $req = Request::create('/webhook/messaging/zalo_oa', 'POST', [], [], [], ['HTTP_X_ZEVENT_SIGNATURE' => 'mac=bad'], '{"timestamp":"1"}');
         $this->assertFalse($this->connector()->verifyWebhookSignature($req));
+    }
+
+    private function webhookRequest(array $payload): Request
+    {
+        return Request::create('/webhook/messaging/zalo_oa', 'POST', [], [], [], [], json_encode($payload));
+    }
+
+    public function test_parse_user_send_text(): void
+    {
+        $dto = $this->connector()->parseWebhook($this->webhookRequest([
+            'app_id' => 'app_123', 'event_name' => 'user_send_text', 'timestamp' => '1700000000',
+            'sender' => ['id' => 'USER_1'], 'recipient' => ['id' => 'OA_9'],
+            'message' => ['msg_id' => 'MID_1', 'text' => 'Còn hàng không shop?'],
+        ]));
+
+        $this->assertSame(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, $dto->type);
+        $this->assertSame('OA_9', $dto->externalShopId);
+        $this->assertSame('USER_1', $dto->buyerExternalId);
+        $this->assertSame('USER_1', $dto->externalConversationId);
+        $this->assertSame('MID_1', $dto->externalMessageId);
+        $this->assertSame('Còn hàng không shop?', $dto->body);
+        $this->assertSame(MessageKind::Text, $dto->kind);
+    }
+
+    public function test_parse_user_send_image_builds_attachment(): void
+    {
+        $dto = $this->connector()->parseWebhook($this->webhookRequest([
+            'app_id' => 'app_123', 'event_name' => 'user_send_image', 'timestamp' => '1700000001',
+            'sender' => ['id' => 'USER_1'], 'recipient' => ['id' => 'OA_9'],
+            'message' => ['msg_id' => 'MID_2', 'attachments' => [['type' => 'image', 'payload' => ['url' => 'https://zalo.test/a.jpg']]]],
+        ]));
+
+        $this->assertSame(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, $dto->type);
+        $this->assertSame(MessageKind::Image, $dto->kind);
+        $this->assertCount(1, $dto->attachments);
+        $this->assertSame('https://zalo.test/a.jpg', $dto->attachments[0]->externalUrl);
+    }
+
+    public function test_parse_postback(): void
+    {
+        $dto = $this->connector()->parseWebhook($this->webhookRequest([
+            'app_id' => 'app_123', 'event_name' => 'user_send_text', 'timestamp' => '1700000002',
+            'sender' => ['id' => 'USER_1'], 'recipient' => ['id' => 'OA_9'],
+            'message' => ['msg_id' => 'MID_3', 'text' => 'postback_eyJub2RlX2lkIjoibjEifQ=='],
+        ]));
+
+        $this->assertSame(MessagingWebhookEventDTO::TYPE_POSTBACK, $dto->type);
+        $this->assertSame('postback_eyJub2RlX2lkIjoibjEifQ==', $dto->body);
+    }
+
+    public function test_parse_seen_and_unknown(): void
+    {
+        $seen = $this->connector()->parseWebhook($this->webhookRequest([
+            'app_id' => 'app_123', 'event_name' => 'user_seen_message', 'timestamp' => '1700000003',
+            'sender' => ['id' => 'USER_1'], 'recipient' => ['id' => 'OA_9'],
+        ]));
+        $this->assertSame(MessagingWebhookEventDTO::TYPE_MESSAGE_READ, $seen->type);
+
+        $unknown = $this->connector()->parseWebhook($this->webhookRequest([
+            'app_id' => 'app_123', 'event_name' => 'oa_send_text', 'timestamp' => '1700000004',
+            'sender' => ['id' => 'OA_9'], 'recipient' => ['id' => 'USER_1'],
+        ]));
+        $this->assertSame(MessagingWebhookEventDTO::TYPE_UNKNOWN, $unknown->type);
     }
 }

@@ -2,10 +2,13 @@
 
 namespace CMBcoreSeller\Integrations\Messaging\Zalo;
 
+use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Messaging\Contracts\InteractiveMessagingConnector;
 use CMBcoreSeller\Integrations\Messaging\Contracts\MessagingConnector;
 use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageDirection;
+use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\OutboundWindowPolicyDTO;
@@ -104,7 +107,49 @@ class ZaloOaConnector implements InteractiveMessagingConnector, MessagingConnect
 
     public function parseWebhook(Request $request): MessagingWebhookEventDTO
     {
-        throw UnsupportedOperation::for($this->code(), 'parseWebhook'); // Task 5
+        $p = json_decode($request->getContent(), true) ?: [];
+        $event = (string) ($p['event_name'] ?? '');
+        $oaId = (string) ($p['recipient']['id'] ?? '');     // user_send*: OA = recipient
+        $userId = (string) ($p['sender']['id'] ?? '');       // user_send*: user = sender
+        $occurredAt = isset($p['timestamp']) ? CarbonImmutable::createFromTimestampMs((int) $p['timestamp']) : null;
+        $msg = (array) ($p['message'] ?? []);
+        $msgId = (string) ($msg['msg_id'] ?? '');
+
+        $base = fn (string $type, ?MessageKind $kind = null, ?string $body = null, array $atts = []) => new MessagingWebhookEventDTO(
+            provider: $this->code(),
+            type: $type,
+            externalShopId: $oaId,
+            externalConversationId: $userId,
+            externalMessageId: $msgId,
+            buyerExternalId: $userId,
+            occurredAt: $occurredAt,
+            raw: $p,
+            kind: $kind,
+            body: $body,
+            attachments: $atts,
+            threadType: 'message',
+            direction: MessageDirection::Inbound,
+        );
+
+        if ($event === 'user_seen_message') {
+            return $base(MessagingWebhookEventDTO::TYPE_MESSAGE_READ);
+        }
+
+        // Nút Zalo (oa.query.hide) echo lại payload dạng tin user prefix `postback_`.
+        $text = (string) ($msg['text'] ?? '');
+        if ($event === 'user_send_text' && str_starts_with($text, 'postback_')) {
+            return $base(MessagingWebhookEventDTO::TYPE_POSTBACK, body: $text);
+        }
+
+        return match ($event) {
+            'user_send_text' => $base(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, MessageKind::Text, $text),
+            'user_send_image' => $base(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, MessageKind::Image, null, $this->mediaAttachments($msg, MessageKind::Image)),
+            'user_send_file' => $base(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, MessageKind::File, null, $this->mediaAttachments($msg, MessageKind::File)),
+            'user_send_audio' => $base(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, MessageKind::Audio, null, $this->mediaAttachments($msg, MessageKind::Audio)),
+            'user_send_sticker' => $base(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, MessageKind::Text, '[sticker]'),
+            'user_send_location' => $base(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, MessageKind::Text, '[location]'),
+            default => $base(MessagingWebhookEventDTO::TYPE_UNKNOWN),
+        };
     }
 
     /** @return list<MessagingWebhookEventDTO> */
@@ -163,6 +208,32 @@ class ZaloOaConnector implements InteractiveMessagingConnector, MessagingConnect
     public function privateReplyToComment(MessagingAuthContext $auth, string $commentId, string $message, array $attachments = []): void
     {
         throw UnsupportedOperation::for($this->code(), 'privateReplyToComment');
+    }
+
+    /**
+     * @param  array<string,mixed>  $msg
+     * @return list<MediaRefDTO>
+     */
+    private function mediaAttachments(array $msg, MessageKind $kind): array
+    {
+        $out = [];
+        foreach ((array) ($msg['attachments'] ?? []) as $att) {
+            $payload = (array) ($att['payload'] ?? []);
+            $url = (string) ($payload['url'] ?? '');
+            if ($url === '') {
+                continue;
+            }
+            $out[] = new MediaRefDTO(
+                kind: $kind,
+                mime: match ($kind) {
+                    MessageKind::Image => 'image/jpeg', MessageKind::Audio => 'audio/mpeg', default => 'application/octet-stream'
+                },
+                externalUrl: $url,
+                filename: (string) ($payload['name'] ?? ''),
+            );
+        }
+
+        return $out;
     }
 
     private function cfg(string $key): mixed
