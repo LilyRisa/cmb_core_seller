@@ -84,12 +84,14 @@ class PrintJobController extends Controller
             'order_ids' => ['required', 'array', 'min:1', 'max:100'],
             'order_ids.*' => ['integer'],
             'template_id' => ['sometimes', 'nullable', 'integer'],
+            'sender_id' => ['sometimes', 'nullable', 'string', 'max:64'],
         ]);
         try {
             $html = $service->deliverySlipHtml(
                 (int) $tenant->id(),
                 array_map('intval', $data['order_ids']),
                 ! empty($data['template_id']) ? (int) $data['template_id'] : null,
+                ! empty($data['sender_id']) ? (string) $data['sender_id'] : null,
             );
         } catch (\RuntimeException $e) {
             throw ValidationException::withMessages(['order_ids' => $e->getMessage()]);

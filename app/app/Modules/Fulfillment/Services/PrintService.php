@@ -359,7 +359,7 @@ class PrintService
 
         $shopName = (string) (Tenant::query()->whereKey($tenantId)->value('name') ?? 'Cửa hàng');
 
-        return [$this->gotenberg->htmlToPdf(PrintTemplates::deliverySlip($orders, $shopName, $this->paperSize($tenantId), $this->skuMapFor($orders), $this->senderMap($orders, $tenantId))), ['orders' => $orders->count(), 'order_ids' => $orders->modelKeys()]];
+        return [$this->gotenberg->htmlToPdf(PrintTemplates::deliverySlip($orders, $shopName, $this->paperSize($tenantId), $this->skuMapFor($orders), $this->senderMapFor($orders, $tenantId))), ['orders' => $orders->count(), 'order_ids' => $orders->modelKeys()]];
     }
 
     /**
@@ -369,7 +369,7 @@ class PrintService
      *
      * @param  list<int>  $orderIds
      */
-    public function deliverySlipHtml(int $tenantId, array $orderIds, ?int $templateId = null): string
+    public function deliverySlipHtml(int $tenantId, array $orderIds, ?int $templateId = null, ?string $senderId = null): string
     {
         $orders = Order::withoutGlobalScope(TenantScope::class)->where('tenant_id', $tenantId)->whereIn('id', $orderIds)->whereNull('deleted_at')
             ->with(['items', 'shipments' => fn ($q) => $q->orderByDesc('id')])->get();
@@ -389,18 +389,26 @@ class PrintService
 
         $shopName = (string) (Tenant::query()->whereKey($tenantId)->value('name') ?? 'Cửa hàng');
 
-        return PrintTemplates::deliverySlip($orders, $shopName, 'AUTO', $this->skuMapFor($orders), $this->senderMap($orders, $tenantId));
+        return PrintTemplates::deliverySlip($orders, $shopName, 'AUTO', $this->skuMapFor($orders), $this->senderMapFor($orders, $tenantId, $senderId));
     }
 
     /**
-     * Địa chỉ lấy hàng (kho) theo từng đơn — cho khối "Địa chỉ lấy hàng" trên phiếu.
-     * Đơn không gắn kho ⇒ kho mặc định của tenant.
+     * Map "Địa chỉ lấy hàng" theo từng đơn cho phiếu giao hàng.
+     *
+     * Ưu tiên HỒ SƠ NGƯỜI GỬI đã khai ở Cài đặt (settings.print.senders): nếu `$senderId` chọn
+     * rõ ⇒ bản ghi đó; không chọn nhưng có hồ sơ ⇒ bản mặc định (is_default | đầu danh sách).
+     * Chưa khai hồ sơ nào ⇒ fallback theo KHO của đơn (Warehouse).
      *
      * @param  Collection<int, Order>  $orders
      * @return array<int, array{name:string,phone:string,address:string}>
      */
-    private function senderMap(Collection $orders, int $tenantId): array
+    private function senderMapFor(Collection $orders, int $tenantId, ?string $senderId = null): array
     {
+        $profile = $this->resolveSenderProfile($tenantId, $senderId);
+        if ($profile !== null) {
+            return array_fill_keys($orders->pluck('id')->map(fn ($k) => (int) $k)->all(), $profile);
+        }
+
         $whIds = $orders->pluck('warehouse_id')->filter()->unique()->values()->all();
         $whs = $whIds !== [] ? Warehouse::withoutGlobalScopes()->whereIn('id', $whIds)->get()->keyBy('id') : collect();
         $default = Warehouse::defaultFor($tenantId);
@@ -416,5 +424,45 @@ class PrintService
         }
 
         return $out;
+    }
+
+    /**
+     * Hồ sơ người gửi đã cấu hình ở `tenant.settings.print.senders` ([{id,name,phone,address,is_default}]).
+     * `$senderId` chọn rõ ⇒ bản ghi đó; không chọn ⇒ bản is_default (hoặc đầu danh sách). Chưa khai ⇒ null.
+     *
+     * @return array{name:string,phone:string,address:string}|null
+     */
+    private function resolveSenderProfile(int $tenantId, ?string $senderId): ?array
+    {
+        $settings = (array) (Tenant::query()->whereKey($tenantId)->value('settings') ?? []);
+        $senders = array_values(array_filter((array) data_get($settings, 'print.senders', []), 'is_array'));
+        if ($senders === []) {
+            return null;
+        }
+        $pick = null;
+        if ($senderId !== null && $senderId !== '') {
+            foreach ($senders as $s) {
+                if ((string) ($s['id'] ?? '') === $senderId) {
+                    $pick = $s;
+                    break;
+                }
+            }
+        }
+        if ($pick === null) {
+            foreach ($senders as $s) {
+                if (! empty($s['is_default'])) {
+                    $pick = $s;
+                    break;
+                }
+            }
+            $pick ??= $senders[0];
+        }
+        $name = trim((string) ($pick['name'] ?? ''));
+        $address = trim((string) ($pick['address'] ?? ''));
+        if ($name === '' && $address === '') {
+            return null;
+        }
+
+        return ['name' => $name, 'phone' => (string) ($pick['phone'] ?? ''), 'address' => $address];
     }
 }

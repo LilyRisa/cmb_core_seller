@@ -383,7 +383,7 @@ export function useCreatePrintJob() {
 export function useDeliverySlipHtml() {
     const api = useScopedApi();
     return useMutation({
-        mutationFn: async (vars: { order_ids: number[]; template_id?: number | null }) => {
+        mutationFn: async (vars: { order_ids: number[]; template_id?: number | null; sender_id?: string | null }) => {
             const { data } = await api!.post<{ data: { html: string } }>('/print-jobs/delivery-html', vars);
             return data.data.html;
         },

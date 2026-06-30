@@ -258,11 +258,11 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
             <TemplateAliasPicker
                 open={pickerOpen.open}
                 onCancel={() => setPickerOpen({ open: false, orderIds: [] })}
-                onConfirm={(templateId) => {
+                onConfirm={(templateId, senderId) => {
                     const ids = pickerOpen.orderIds;
                     setPickerOpen({ open: false, orderIds: [] });
                     // In phía trình duyệt (responsive theo khổ máy in) thay vì render PDF cố định khổ.
-                    deliverySlipHtml.mutate({ order_ids: ids, template_id: templateId },
+                    deliverySlipHtml.mutate({ order_ids: ids, template_id: templateId, sender_id: senderId },
                         { onSuccess: (html) => printHtmlDocument(html), onError: err });
                 }}
             />
