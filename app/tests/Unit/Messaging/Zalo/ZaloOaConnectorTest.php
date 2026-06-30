@@ -197,4 +197,32 @@ class ZaloOaConnectorTest extends TestCase
                 && ($d['message']['text'] ?? null) === 'Dạ còn hàng ạ!';
         });
     }
+
+    public function test_send_media_image_uploads_then_sends(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('local');
+        \Illuminate\Support\Facades\Storage::disk('local')->put('media/x.jpg', 'BYTES');
+
+        \Illuminate\Support\Facades\Http::fake([
+            'openapi.zalo.me/v2.0/oa/upload/image' => \Illuminate\Support\Facades\Http::response(['error' => 0, 'data' => ['attachment_id' => 'ATT_1']], 200),
+            'openapi.zalo.me/v3.0/oa/message/cs' => \Illuminate\Support\Facades\Http::response(['error' => 0, 'data' => ['message_id' => 'OUT_2']], 200),
+        ]);
+
+        $media = new \CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO(
+            kind: \CMBcoreSeller\Integrations\Messaging\DTO\MessageKind::Image,
+            mime: 'image/jpeg', storagePath: 'media/x.jpg', filename: 'x.jpg',
+        );
+        $auth = new \CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext(1, 'zalo_oa', 'OA_9', 'TKN');
+
+        $result = $this->connector()->sendMedia($auth, 'USER_1', $media, ['disk' => 'local']);
+
+        $this->assertSame('OUT_2', $result->externalMessageId);
+        \Illuminate\Support\Facades\Http::assertSent(fn ($r) => str_contains($r->url(), '/v2.0/oa/upload/image'));
+        \Illuminate\Support\Facades\Http::assertSent(function ($r) {
+            $d = $r->data();
+
+            return str_contains($r->url(), '/v3.0/oa/message/cs')
+                && (($d['message']['attachment']['payload']['template_type'] ?? null) === 'media');
+        });
+    }
 }

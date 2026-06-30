@@ -15,6 +15,8 @@ use CMBcoreSeller\Integrations\Messaging\DTO\OutboundWindowPolicyDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\Page;
 use CMBcoreSeller\Integrations\Messaging\DTO\SendResultDTO;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\UnsupportedOperation;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Request;
 
 class ZaloOaConnector implements InteractiveMessagingConnector, MessagingConnector
@@ -229,7 +231,47 @@ class ZaloOaConnector implements InteractiveMessagingConnector, MessagingConnect
 
     public function sendMedia(MessagingAuthContext $auth, string $externalConversationId, MediaRefDTO $media, array $opts = []): SendResultDTO
     {
-        throw UnsupportedOperation::for($this->code(), 'sendMedia'); // Task 8
+        [$contents, $filename, $mime] = $this->readMedia($media, $opts);
+
+        if ($media->kind === MessageKind::Image) {
+            $up = $this->client->uploadMultipart($auth->accessToken, 'v2.0/oa/upload/image', 'file', $contents, $filename, $mime);
+            $attachmentId = (string) ($up['attachment_id'] ?? '');
+
+            return $this->sendCs($auth, $externalConversationId, [
+                'attachment' => [
+                    'type' => 'template',
+                    'payload' => [
+                        'template_type' => 'media',
+                        'elements' => [['media_type' => 'image', 'attachment_id' => $attachmentId]],
+                    ],
+                ],
+            ]);
+        }
+
+        // File (và audio): upload/file → token
+        $up = $this->client->uploadMultipart($auth->accessToken, 'v2.0/oa/upload/file', 'file', $contents, $filename, $mime);
+        $token = (string) ($up['token'] ?? '');
+
+        return $this->sendCs($auth, $externalConversationId, [
+            'attachment' => ['type' => 'file', 'payload' => ['token' => $token]],
+        ]);
+    }
+
+    /** @return array{0:string,1:string,2:string} [contents, filename, mime] */
+    private function readMedia(MediaRefDTO $media, array $opts): array
+    {
+        $filename = $media->filename ?: 'upload';
+        $mime = $media->mime ?: 'application/octet-stream';
+        if ($media->storagePath) {
+            $disk = (string) ($opts['disk'] ?? config('filesystems.default'));
+            $contents = (string) Storage::disk($disk)->get($media->storagePath);
+        } elseif ($media->externalUrl) {
+            $contents = (string) Http::get($media->externalUrl)->body();
+        } else {
+            throw new \RuntimeException('Zalo sendMedia: media has neither storagePath nor externalUrl');
+        }
+
+        return [$contents, $filename, $mime];
     }
 
     public function sendTemplate(MessagingAuthContext $auth, string $externalConversationId, string $templateKey, array $vars = [], array $opts = []): SendResultDTO
