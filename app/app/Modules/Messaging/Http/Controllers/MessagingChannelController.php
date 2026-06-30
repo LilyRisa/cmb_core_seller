@@ -27,13 +27,21 @@ class MessagingChannelController extends Controller
 {
     public function __construct(private MediaStorage $media) {}
 
-    /** GET /api/v1/messaging/channels — list page Facebook đã kết nối (không trả token). */
-    public function index(): JsonResponse
+    /**
+     * GET /api/v1/messaging/channels — liệt kê kênh nhắn tin đã kết nối (không trả token).
+     * ?provider=<code> → chỉ trả kênh theo provider đó (vd `zalo_oa`).
+     * Không có ?provider → trả tất cả kênh có messaging_enabled=true.
+     */
+    public function index(Request $request): JsonResponse
     {
         Gate::authorize('messaging.view');
 
-        $pages = ChannelAccount::query()
-            ->where('provider', 'facebook_page')
+        $query = ChannelAccount::query()->where('messaging_enabled', true);
+        if ($provider = $request->query('provider')) {
+            $query->where('provider', (string) $provider);
+        }
+
+        $pages = $query
             ->orderByDesc('created_at')
             ->get()
             ->map(function (ChannelAccount $a) {
