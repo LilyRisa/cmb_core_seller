@@ -3,7 +3,7 @@
 namespace Tests\Feature\EInvoice;
 
 use CMBcoreSeller\Modules\EInvoice\Models\EInvoiceAccount;
-use CMBcoreSeller\Modules\Tenancy\Database\Scopes\TenantScope;
+use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 

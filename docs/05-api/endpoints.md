@@ -543,3 +543,19 @@ Prefix `/api/v1/visual-search` · middleware `auth:sanctum + verified + tenant +
 - `POST   /visual-search/lookup` — **multipart** `image` + `rerank?` + `channel_account_id?` → `{ data: { status: matched|ambiguous|not_found, stage, item?{item_id,name,description,attributes,confidence}, candidates[] } }`. Rate-limit 30/phút.
 
 **Mã lỗi:** `PLAN_FEATURE_LOCKED` (`402`) khi gói không có `messaging_ai`.
+
+## Hóa đơn điện tử — Tài khoản MISA (SPEC 0041)
+
+Prefix `/api/v1/einvoice` · middleware `auth:sanctum + verified + tenant + plan.feature:einvoice` (gói Pro trở lên). Credentials **không bao giờ** lộ ra response; chỉ trả `credential_keys` (danh sách tên trường). Resource: `{ id, provider, name, is_invoice_with_code, default_mode, templates[], seller_info{}, is_default, is_active, meta{}, credential_keys[], created_at }`.
+
+| Method | Path | Quyền | Request | Response |
+|---|---|---|---|---|
+| GET | `/api/v1/einvoice/accounts` | `einvoice.view` | — | `200` `{ data: EInvoiceAccountResource[] }` — danh sách tài khoản HĐĐT của tenant, sort `is_default DESC, id ASC`. |
+| POST | `/api/v1/einvoice/accounts` | `einvoice.config` | `provider` (required, vd `misa`), `name`, `credentials{}`, `default_mode?` (`hsm`\|`mtt`, mặc định `hsm`), `templates?`, `seller_info?`, `is_default?` | `201` `{ data: EInvoiceAccountResource }` — tạo tài khoản + tự động `verify` (lưu kết quả vào `meta.last_verify_*`). Provider không tồn tại ⇒ `422`. |
+| PATCH | `/api/v1/einvoice/accounts/{id}` | `einvoice.config` | Bất kỳ field nào: `name?`, `credentials?` (merge vào cũ — trường null/rỗng bỏ qua), `default_mode?`, `templates?`, `seller_info?`, `is_default?`, `is_active?` | `200` `{ data: EInvoiceAccountResource }` — nếu credentials thay đổi thì tự `verify` lại. |
+| DELETE | `/api/v1/einvoice/accounts/{id}` | `einvoice.config` | — | `200` `{ data: { deleted: true } }`. |
+| POST | `/api/v1/einvoice/accounts/{id}/verify` | `einvoice.config` | — | `200` `{ data: { ok, message, error_code\|null, expires_at\|null, verified_at, account: EInvoiceAccountResource } }` — kiểm tra credentials thật với MISA; lưu kết quả vào `meta`. |
+| GET | `/api/v1/einvoice/accounts/{id}/company-info` | `einvoice.config` | — | `200` `{ data: CompanyInfoDTO }` — lấy thông tin công ty từ MISA + cập nhật `is_invoice_with_code`. |
+| GET | `/api/v1/einvoice/accounts/{id}/templates` | `einvoice.config` | query `year?` (mặc định năm hiện tại) | `200` `{ data: TemplateDTO[] }` — danh sách mẫu hóa đơn của năm. |
+
+**Mã lỗi:** `PLAN_FEATURE_LOCKED` (`402`) khi gói không có `einvoice`; `403` thiếu quyền; `422` provider không hỗ trợ.
