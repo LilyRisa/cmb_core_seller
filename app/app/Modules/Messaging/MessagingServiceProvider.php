@@ -35,6 +35,10 @@ use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\SendInteractiveNodeExec
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\SendMessageNodeExecutor;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\TriggerNodeExecutor;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\WaitReplyNodeExecutor;
+use CMBcoreSeller\Modules\Messaging\Services\Flows\Steps\SendButtonsStep;
+use CMBcoreSeller\Modules\Messaging\Services\Flows\Steps\SendMediaStep;
+use CMBcoreSeller\Modules\Messaging\Services\Flows\Steps\SendTextStep;
+use CMBcoreSeller\Modules\Messaging\Services\Flows\Steps\StepExecutorRegistry;
 use CMBcoreSeller\Modules\Messaging\Services\MessageInboxReader;
 use CMBcoreSeller\Modules\Orders\Events\OrderStatusChanged;
 use CMBcoreSeller\Support\Database\PartitionRegistry;
@@ -87,6 +91,17 @@ class MessagingServiceProvider extends ServiceProvider
             $registry->register('ai_reply', AiReplyNodeExecutor::class);
             $registry->register('wait_reply', WaitReplyNodeExecutor::class);
             $registry->register('end', EndNodeExecutor::class);
+
+            return $registry;
+        });
+
+        // Step executor registry: map step.type → executor (send_text/send_media/send_buttons).
+        // Mirror NodeExecutorRegistry — tất cả bước có thể inject service qua container.
+        $this->app->singleton(StepExecutorRegistry::class, function ($app) {
+            $registry = new StepExecutorRegistry($app);
+            $registry->register(SendTextStep::TYPE, SendTextStep::class);
+            $registry->register(SendMediaStep::TYPE, SendMediaStep::class);
+            $registry->register(SendButtonsStep::TYPE, SendButtonsStep::class);
 
             return $registry;
         });
