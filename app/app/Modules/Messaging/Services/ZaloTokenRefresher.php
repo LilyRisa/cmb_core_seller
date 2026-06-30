@@ -28,6 +28,12 @@ class ZaloTokenRefresher
         try {
             $account->refresh(); // re-read inside lock (sibling may have rotated)
             $token = $this->registry->for('zalo_oa')->refreshToken((string) $account->refresh_token);
+            $account->forceFill([
+                'access_token' => $token->accessToken,
+                'refresh_token' => $token->refreshToken ?: $account->refresh_token,
+                'token_expires_at' => $token->expiresAt,
+                'status' => ChannelAccount::STATUS_ACTIVE,
+            ])->save();
         } catch (ZaloApiException $e) {
             // Token bị thu hồi dứt khoát (-124) → expired; lỗi tạm thời giữ active.
             if (in_array($e->zaloError, [-124, -1001], true)) {
@@ -44,13 +50,6 @@ class ZaloTokenRefresher
         } finally {
             $lock->release();
         }
-
-        $account->forceFill([
-            'access_token' => $token->accessToken,
-            'refresh_token' => $token->refreshToken ?: $account->refresh_token,
-            'token_expires_at' => $token->expiresAt,
-            'status' => ChannelAccount::STATUS_ACTIVE,
-        ])->save();
 
         return true;
     }
