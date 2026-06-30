@@ -28,6 +28,7 @@ export interface PlanFeatures {
     automation_rules: boolean;
     priority_support: boolean;
     messaging_inbox: boolean;
+    messaging_zalo: boolean;
     messaging_ai: boolean;
     marketing_facebook: boolean;
     marketing_tiktok: boolean;

@@ -8,7 +8,7 @@ use Illuminate\Database\Seeder;
 /**
  * Catalog 3 gói (SPEC 0032 — upsert theo `code`):
  *  - trial (miễn phí): chỉ xử lý đơn + SKU/tồn kho + tạo đơn thủ công. 3 gian hàng, 1/nền tảng.
- *  - starter (90k/tháng): + nhắn tin Facebook Page (KHÔNG AI). 2 gian hàng/nền tảng. Không kế toán/marketing.
+ *  - starter (90k/tháng): + nhắn tin Facebook Page & Zalo OA (KHÔNG AI). 2 gian hàng/nền tảng. Không kế toán/marketing.
  *  - pro (170k/tháng): full tính năng, không giới hạn gian hàng, tặng 500 lượt AI/kỳ.
  *
  * `business` (gói cũ) bị tắt (is_active=false) — giữ row cho subscription cũ, không chào bán nữa.
@@ -28,7 +28,7 @@ class BillingPlanSeeder extends Seeder
         return [
             'procurement', 'fifo_cogs', 'profit_reports', 'finance_settlements',
             'demand_planning', 'mass_listing', 'automation_rules', 'priority_support',
-            'accounting_basic', 'accounting_advanced', 'messaging_inbox', 'messaging_ai',
+            'accounting_basic', 'accounting_advanced', 'messaging_inbox', 'messaging_zalo', 'messaging_ai',
             'marketing_facebook', 'marketing_tiktok', 'shop_health_reports', 'ai',
         ];
     }
@@ -37,9 +37,10 @@ class BillingPlanSeeder extends Seeder
     {
         $allOff = array_fill_keys(self::featureKeys(), false);
 
-        // starter chỉ mở thêm hộp thư (nhắn tin Page Facebook) — KHÔNG AI, kế toán, marketing.
+        // starter chỉ mở thêm hộp thư (nhắn tin Page Facebook + Zalo OA) — KHÔNG AI, kế toán, marketing.
         $starter = array_merge($allOff, [
             'messaging_inbox' => true,
+            'messaging_zalo' => true,
         ]);
 
         // pro = full: bật mọi feature.
@@ -65,7 +66,7 @@ class BillingPlanSeeder extends Seeder
             [
                 'code' => Plan::CODE_STARTER,
                 'name' => 'Cơ bản',
-                'description' => 'Xử lý đơn + nhắn tin Facebook Page (chưa có AI). Mỗi nền tảng tối đa 2 gian hàng. Chưa gồm kế toán & quảng cáo Facebook.',
+                'description' => 'Xử lý đơn + nhắn tin Facebook Page & Zalo OA (chưa có AI). Mỗi nền tảng tối đa 2 gian hàng. Chưa gồm kế toán & quảng cáo Facebook.',
                 'sort_order' => 1,
                 'price_monthly' => 190_000,
                 'price_yearly' => 1_900_000,

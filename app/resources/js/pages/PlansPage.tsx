@@ -22,10 +22,11 @@ const POPULAR_PLAN: PlanCode = 'pro';
 // Toàn bộ tính năng hiển thị trong bảng so sánh (thứ tự cố định).
 const FEATURE_ROWS: { key: keyof PlanFeatures; label: string }[] = [
     { key: 'messaging_inbox', label: 'Nhắn tin Facebook Page + sàn' },
+    { key: 'messaging_zalo', label: 'Nhắn tin Zalo OA' },
     { key: 'messaging_ai', label: 'AI hỗ trợ trả lời tin nhắn' },
     { key: 'marketing_facebook', label: 'Quảng cáo Facebook' },
     { key: 'marketing_tiktok', label: 'Quảng cáo TikTok' },
-    { key: 'shop_health_reports', label: 'Báo cáo sàn (sức khỏe/điểm phạt)' },
+    { key: 'shop_health_reports', label: 'Báo cáo sàn (sức khỏe / điểm phạt)' },
     { key: 'ai', label: 'Trợ lý & phân tích AI' },
     { key: 'accounting_basic', label: 'Kế toán cơ bản' },
     { key: 'accounting_advanced', label: 'Kế toán nâng cao' },
@@ -161,7 +162,7 @@ export function PlansPage() {
 
     return (
         <div style={{ minHeight: '100vh', background: '#f5f6f8', padding: '16px 24px 48px' }}>
-            <div style={{ maxWidth: 1120, marginLeft: 0, marginRight: 'auto' }}>
+            <div style={{ maxWidth: 1120, margin: '0 auto' }}>
                 <Space style={{ marginBottom: 12 }}>
                     <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>Quay lại</Button>
                 </Space>

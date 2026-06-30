@@ -149,7 +149,9 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
             ->name('messaging.lazada_im.connect');
 
         // --- Zalo OA OAuth connect (Task 11) — trả authorize URL ---
+        // Khoá theo gói: chỉ Cơ bản/Chuyên nghiệp (messaging_zalo) — gói Miễn phí không có.
         Route::get('zalo/connect', [ZaloOaOAuthController::class, 'start'])
+            ->middleware('plan.feature:messaging_zalo')
             ->name('messaging.zalo.connect');
 
         // --- Capabilities map — provider-agnostic (Phase A2) ---------------

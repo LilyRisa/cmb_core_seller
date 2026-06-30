@@ -2,6 +2,7 @@
 export const PLAN_FEATURE_LABELS: { key: string; label: string }[] = [
     { key: 'mass_listing', label: 'Đăng bán đa sàn' },
     { key: 'messaging_inbox', label: 'Nhắn tin Facebook Page + sàn' },
+    { key: 'messaging_zalo', label: 'Nhắn tin Zalo OA' },
     { key: 'messaging_ai', label: 'AI hỗ trợ trả lời tin nhắn' },
     { key: 'marketing_facebook', label: 'Quảng cáo Facebook' },
     { key: 'marketing_tiktok', label: 'Quảng cáo TikTok' },
