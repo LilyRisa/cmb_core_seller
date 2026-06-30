@@ -120,7 +120,7 @@ function buildNav(): MenuProps['items'] {
 }
 
 // Flat key list for selected-key matching.
-const BASE_KEYS = ['/', '/orders', '/customers', '/messaging', '/messaging/channels', '/messaging/templates', '/messaging/utility-templates', '/messaging/auto-rules', '/messaging/knowledge', '/channels', '/products', '/marketplace/products', '/marketplace/to-push', '/marketplace/on-channel', '/marketplace/promotions', '/inventory',
+const BASE_KEYS = ['/', '/orders', '/customers', '/messaging', '/messaging/channels', '/messaging/templates', '/messaging/utility-templates', '/messaging/auto-rules', '/messaging/flows', '/messaging/knowledge', '/channels', '/products', '/marketplace/products', '/marketplace/to-push', '/marketplace/on-channel', '/marketplace/promotions', '/inventory',
     '/procurement/demand-planning', '/procurement/suppliers', '/procurement/purchase-orders',
     '/reports/overview', '/reports', '/shop-report', '/marketing', '/marketing/tiktok', '/finance/settlements',
     '/accounting/dashboard', '/accounting/journals', '/accounting/chart-of-accounts', '/accounting/balances', '/accounting/ar', '/accounting/ap', '/accounting/cash', '/accounting/reports', '/accounting/periods',
@@ -142,10 +142,13 @@ export function AppLayout() {
     const keys = BASE_KEYS;
 
     const selectedKey = useMemo(() => {
-        const match = keys.filter((k) => (k === '/' ? location.pathname === '/' : location.pathname.startsWith(k)))
-            .sort((a, b) => b.length - a.length)[0];
-        return match ?? '/';
-    }, [location.pathname, keys]);
+        const base = keys.filter((k) => (k === '/' ? location.pathname === '/' : location.pathname.startsWith(k)))
+            .sort((a, b) => b.length - a.length)[0] ?? '/';
+        // Tách submenu theo nền tảng: item Zalo có key `<path>?platform=zalo_oa`. Gắn suffix để in
+        // đậm ĐÚNG submenu (Zalo vs Facebook) thay vì luôn khớp item Facebook trùng pathname.
+        const platform = new URLSearchParams(location.search).get('platform');
+        return base !== '/' && platform ? `${base}?platform=${platform}` : base;
+    }, [location.pathname, location.search, keys]);
 
     return (
         <Layout style={{ minHeight: '100vh' }}>

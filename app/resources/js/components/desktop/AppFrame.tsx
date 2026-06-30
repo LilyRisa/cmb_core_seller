@@ -21,9 +21,13 @@ export function AppFrame({ app }: { app: AppDef }) {
     const items = useMemo(() => toItems(app), [app]);
     const selectedKey = useMemo(() => {
         const keys = flatKeys(app);
-        return keys.filter((k) => location.pathname === k || location.pathname.startsWith(k + '/'))
+        // Item Zalo có key `<path>?platform=zalo_oa` → khớp full URL trước để in đậm đúng submenu.
+        const full = location.pathname + location.search;
+        const exact = keys.find((k) => k === full);
+        if (exact) return exact;
+        return keys.filter((k) => !k.includes('?') && (location.pathname === k || location.pathname.startsWith(k + '/')))
             .sort((a, b) => b.length - a.length)[0] ?? keys[0];
-    }, [app, location.pathname]);
+    }, [app, location.pathname, location.search]);
 
     return (
         <Layout className="desk-window" style={{ height: '100%' }}>
