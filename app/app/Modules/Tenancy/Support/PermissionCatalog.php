@@ -88,6 +88,12 @@ final class PermissionCatalog
                 ['key' => 'accounting.close_period', 'label' => 'Khoá kỳ', 'type' => 'action'],
                 ['key' => 'accounting.export', 'label' => 'Xuất sổ', 'type' => 'action'],
             ]],
+            ['key' => 'einvoice', 'label' => 'Hóa đơn điện tử', 'permissions' => [
+                ['key' => 'einvoice.view', 'label' => 'Xem hóa đơn điện tử', 'type' => 'view'],
+                ['key' => 'einvoice.config', 'label' => 'Cấu hình nhà cung cấp HĐĐT', 'type' => 'action'],
+                ['key' => 'einvoice.issue', 'label' => 'Phát hành hóa đơn', 'type' => 'action'],
+                ['key' => 'einvoice.manage', 'label' => 'Hủy/Điều chỉnh/Thay thế hóa đơn', 'type' => 'action'],
+            ]],
             ['key' => 'procurement', 'label' => 'Mua hàng', 'permissions' => [
                 ['key' => 'procurement.view', 'label' => 'Xem mua hàng', 'type' => 'view'],
                 ['key' => 'procurement.receive', 'label' => 'Nhận hàng (PO)', 'type' => 'action'],
