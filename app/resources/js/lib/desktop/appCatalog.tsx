@@ -53,6 +53,7 @@ export const APP_CATALOG: AppDef[] = [
                 { key: '/messaging/channels?platform=zalo_oa', label: 'Kết nối Zalo OA' },
                 { key: '/messaging/auto-rules?platform=zalo_oa', label: 'Tự động trả lời' },
                 { key: '/messaging/flows?platform=zalo_oa', label: 'Kịch bản tự động' },
+                { key: '/messaging/knowledge?platform=zalo_oa', label: 'AI training' },
             ] },
         ],
     },

@@ -13,8 +13,9 @@ const STATUS: Record<KnowledgeDoc['status'], { color: string; label: string }> =
     failed: { color: 'red', label: 'Lỗi' },
 };
 
-/** Panel "Tài liệu (chữ)" trong trang AI training (RAG). SPEC-0024 §6.2. */
-export function KnowledgeDocsPanel() {
+/** Panel "Tài liệu (chữ)" trong trang AI training (RAG). SPEC-0024 §6.2.
+ * `provider` lọc picker theo nền tảng (vd 'facebook_page', 'zalo_oa'). */
+export function KnowledgeDocsPanel({ provider }: { provider?: string }) {
     const { message } = AntApp.useApp();
     const canManage = useCan('messaging.ai.train');
     const { data, isFetching } = useKnowledgeDocs();
@@ -92,7 +93,7 @@ export function KnowledgeDocsPanel() {
                     {!appliesAll && (
                         <Form.Item name="channel_account_ids" label="Trang áp dụng"
                             rules={[{ required: true, type: 'array', min: 1, message: 'Chọn ít nhất 1 trang hoặc bật "Tất cả trang"' }]}>
-                            <PageMultiSelect placeholder="Chọn trang dùng tài liệu này" />
+                            <PageMultiSelect placeholder="Chọn trang dùng tài liệu này" provider={provider} />
                         </Form.Item>
                     )}
                     <Form.Item name="source" label="Nguồn" rules={[{ required: true }]}>

@@ -9,14 +9,16 @@ const pageName = (c: MessagingChannel) => c.name || c.shop_name || c.external_sh
 /**
  * Chọn nhiều page — avatar + tên + ID + tìm kiếm nhanh. Tương thích Form.Item
  * (nhận value/onChange). Dùng `optionRender` cho giao diện, `label` (tên + ID) để search.
+ * `provider` lọc theo nền tảng (vd 'facebook_page', 'zalo_oa'); bỏ trống = mọi nền tảng.
  */
-export function PageMultiSelect({ value, onChange, disabled, placeholder }: {
+export function PageMultiSelect({ value, onChange, disabled, placeholder, provider }: {
     value?: number[];
     onChange?: (v: number[]) => void;
     disabled?: boolean;
     placeholder?: string;
+    provider?: string;
 }) {
-    const channels = useMessagingChannels().data ?? [];
+    const channels = useMessagingChannels(provider).data ?? [];
 
     return (
         <Select

@@ -28,6 +28,15 @@ const LZ_ERRORS: Record<string, string> = {
     lazada_im_oauth_failed: 'Kết nối Lazada IM thất bại. Vui lòng thử lại sau.',
 };
 
+/** Thông điệp cho mã `?error=` từ callback Zalo OA (ZaloOaOAuthController). */
+const ZALO_ERRORS: Record<string, string> = {
+    zalo_oa_oauth_state: 'Phiên kết nối đã hết hạn. Vui lòng thử lại.',
+    zalo_oa_unavailable: 'Tích hợp Zalo OA chưa được bật. Quản trị viên cần kích hoạt zalo_oa.',
+    zalo_oa_no_oa_id: 'Không lấy được ID OA từ Zalo. Vui lòng thử lại.',
+    zalo_oa_oauth_failed: 'Kết nối Zalo OA thất bại. Vui lòng thử lại sau.',
+    zalo_oa_oauth_missing_params: 'Thiếu thông tin kết nối từ Zalo. Vui lòng thử lại.',
+};
+
 /** /messaging/channels — kết nối & quản lý Facebook Page (design 2026-05-20). */
 export function MessagingChannelsPage() {
     const { message } = AntApp.useApp();
@@ -84,9 +93,23 @@ export function MessagingChannelsPage() {
         }
     };
 
+    const applyZaloResult = (p: URLSearchParams) => {
+        const connected = p.get('connected');
+        const err = p.get('error');
+        if (connected === 'zalo_oa') {
+            message.success('Đã kết nối Zalo OA!');
+            params.delete('connected'); setParams(params, { replace: true });
+            qc.invalidateQueries({ queryKey: ['messaging', 'channels'] });
+        } else if (err && err.startsWith('zalo_oa')) {
+            message.error({ content: ZALO_ERRORS[err] ?? 'Bạn đã huỷ hoặc Zalo từ chối cấp quyền.', duration: 12 });
+            params.delete('error'); setParams(params, { replace: true });
+        }
+    };
+
     useEffect(() => {
         applyFbResult(params);
         applyLzResult(params);
+        applyZaloResult(params);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -124,6 +147,16 @@ export function MessagingChannelsPage() {
         });
     };
 
+    const handleConnectZalo = () => startZalo.mutate(undefined, {
+        onSuccess: async (d) => {
+            const res = await openOAuthPopup(d.authorize_url);
+            if (res.status === 'done' && res.redirect) {
+                applyZaloResult(new URL(res.redirect, window.location.origin).searchParams);
+            }
+        },
+        onError: (e) => message.error(errorMessage(e, 'Không khởi tạo được kết nối. Quản trị viên cần bật zalo_oa.')),
+    });
+
     const pages = channels ?? [];
     // Chỉ giữ id còn tồn tại trong danh sách (page bị ngắt sẽ tự rụng khỏi selection).
     const selectedCount = pages.reduce((n, p) => (selectedIds.has(p.id) ? n + 1 : n), 0);
@@ -156,7 +189,7 @@ export function MessagingChannelsPage() {
             {platform === 'zalo_oa' && (
                 <Card title={<><MessageOutlined style={{ color: '#0068FF' }} /> Zalo OA</>} style={{ marginBottom: 16 }}>
                     <Space direction="vertical" size={12} style={{ display: 'flex' }}>
-                        <Button type="primary" icon={<MessageOutlined />} loading={startZalo.isPending} onClick={() => startZalo.mutate()} disabled={!canConnect}>
+                        <Button type="primary" icon={<MessageOutlined />} loading={startZalo.isPending} onClick={handleConnectZalo} disabled={!canConnect}>
                             Kết nối Zalo OA
                         </Button>
                         {isLoading ? (

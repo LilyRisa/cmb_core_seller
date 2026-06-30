@@ -368,14 +368,14 @@ export function useConnectLazadaIm() {
 }
 
 // Zalo OA OAuth — GET /messaging/zalo/connect → redirect URL (SPEC 0039 Phase 1).
+// Trả { authorize_url } để caller dùng openOAuthPopup (giống Facebook).
 export function useStartZaloConnect() {
     const api = useScopedApi();
     return useMutation({
         mutationFn: async () => {
             const { data } = await api!.get<{ data: { authorize_url: string } }>('/messaging/zalo/connect');
-            return data.data.authorize_url;
+            return data.data;
         },
-        onSuccess: (url) => { window.open(url, 'zalo_oauth', 'width=720,height=820'); },
     });
 }
 

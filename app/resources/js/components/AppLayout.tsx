@@ -70,6 +70,7 @@ function buildNav(): MenuProps['items'] {
                 { key: '/messaging/channels?platform=zalo_oa', label: <Link to="/messaging/channels?platform=zalo_oa">Kết nối Zalo OA</Link> },
                 { key: '/messaging/auto-rules?platform=zalo_oa', label: <Link to="/messaging/auto-rules?platform=zalo_oa">Tự động trả lời</Link> },
                 { key: '/messaging/flows?platform=zalo_oa', label: <Link to="/messaging/flows?platform=zalo_oa">Kịch bản tự động</Link> },
+                { key: '/messaging/knowledge?platform=zalo_oa', label: <Link to="/messaging/knowledge?platform=zalo_oa">AI training</Link> },
             ] },
         ] },
         { type: 'group', label: 'Đăng bán sàn', children: [
