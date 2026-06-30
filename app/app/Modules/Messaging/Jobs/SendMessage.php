@@ -10,6 +10,7 @@ use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\ConversationClosed;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\OutboundWindowClosed;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
+use CMBcoreSeller\Integrations\Messaging\Zalo\ZaloApiException;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Events\MessageFailed;
 use CMBcoreSeller\Modules\Messaging\Events\MessageSent;
@@ -160,6 +161,13 @@ class SendMessage implements ShouldQueue
             ]);
 
             MessageSent::dispatch($message->id, $message->conversation_id);
+
+            // Self-recovery: gửi thành công → xoá cờ tier-block cũ (nếu OA đã nâng gói).
+            if ($account->provider === 'zalo_oa' && is_array($account->meta) && ($account->meta['zalo_send_blocked'] ?? false)) {
+                $meta = $account->meta;
+                unset($meta['zalo_send_blocked'], $meta['zalo_send_blocked_reason'], $meta['zalo_send_blocked_at']);
+                $account->forceFill(['meta' => $meta])->save();
+            }
         } catch (ConversationClosed $e) {
             // Lỗi vĩnh viễn — không retry.
             $this->markFailed($message, 'conversation_closed');
@@ -170,6 +178,20 @@ class SendMessage implements ShouldQueue
             $this->markFailed($message, 'outbound_window_closed');
             $this->fail($e);
         } catch (Throwable $e) {
+            // Lỗi OA chưa đủ gói (tier / pricing / permission): fail vĩnh viễn, KHÔNG retry.
+            // Lưu cờ vào account.meta để FE hiển thị cảnh báo nâng gói.
+            if ($e instanceof ZaloApiException && $e->isTierOrPermissionBlocked()) {
+                Log::warning('messaging.send.failed', ['message_id' => $message->id, 'error' => $e->getMessage()]);
+                $meta = $account->meta ?? [];
+                $meta['zalo_send_blocked'] = true;
+                $meta['zalo_send_blocked_reason'] = $e->getMessage();
+                $meta['zalo_send_blocked_at'] = now()->toIso8601String();
+                $account->forceFill(['meta' => $meta])->save();
+                $this->markFailed($message, 'provider_permission');
+
+                return;
+            }
+
             Log::warning('messaging.send.failed', [
                 'message_id' => $message->id,
                 'attempt' => $this->attempts(),

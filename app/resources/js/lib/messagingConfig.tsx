@@ -421,6 +421,9 @@ export interface MessagingChannel {
     message_count: number;
     sync: ChannelSync;
     comment_sync: CommentSync;
+    /** SPEC-0039 — Zalo OA chưa đủ gói để gửi tin nhắn. */
+    zalo_send_blocked?: boolean;
+    zalo_send_blocked_reason?: string | null;
 }
 
 export function useMessagingChannels(provider?: string) {

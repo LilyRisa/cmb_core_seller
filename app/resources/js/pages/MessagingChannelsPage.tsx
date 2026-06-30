@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { App as AntApp, Avatar, Button, Card, Checkbox, Empty, Popconfirm, Progress, Result, Space, Spin, Switch, Tag, Tooltip, Typography } from 'antd';
-import { DisconnectOutlined, FacebookFilled, KeyOutlined, RobotOutlined, ShopOutlined, SyncOutlined } from '@ant-design/icons';
+import { Alert, App as AntApp, Avatar, Button, Card, Checkbox, Empty, Popconfirm, Progress, Result, Space, Spin, Switch, Tag, Tooltip, Typography } from 'antd';
+import { DisconnectOutlined, FacebookFilled, KeyOutlined, RobotOutlined, ShopOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { MessagingNav } from '@/components/MessagingNav';
@@ -198,6 +198,24 @@ export function MessagingChannelsPage() {
                             <Empty description="Chưa kết nối Zalo OA nào" />
                         ) : pages.map((z) => (
                             <Card key={z.id} size="small" styles={{ body: { padding: 12 } }}>
+                                {z.zalo_send_blocked && (
+                                    <Alert
+                                        type="warning"
+                                        icon={<WarningOutlined />}
+                                        showIcon
+                                        message="OA chưa đủ gói để gửi tin nhắn"
+                                        description={
+                                            <>
+                                                Nâng cấp gói OA tại{' '}
+                                                <a href="https://zalo.cloud/oa/pricing" target="_blank" rel="noopener noreferrer">
+                                                    zalo.cloud/oa/pricing
+                                                </a>
+                                                {z.zalo_send_blocked_reason && ` — ${z.zalo_send_blocked_reason}`}
+                                            </>
+                                        }
+                                        style={{ marginBottom: 10 }}
+                                    />
+                                )}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
                                     <Space size={12} align="center">
                                         <Avatar src={z.avatar_url ?? undefined} icon={<img src="/images/zalo.webp" alt="" width={22} height={22} style={{ objectFit: 'contain' }} />} size={40} style={{ background: z.avatar_url ? undefined : '#fff' }} />

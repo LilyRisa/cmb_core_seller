@@ -94,6 +94,9 @@ class MessagingChannelController extends Controller
                         'synced_at' => null,
                         'error' => null,
                     ],
+                    // Zalo OA tier/permission block (SPEC-0039): FE hiển thị cảnh báo nâng gói.
+                    'zalo_send_blocked' => (bool) ($a->meta['zalo_send_blocked'] ?? false),
+                    'zalo_send_blocked_reason' => $a->meta['zalo_send_blocked_reason'] ?? null,
                 ];
             });
 

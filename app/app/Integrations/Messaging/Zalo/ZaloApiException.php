@@ -13,4 +13,16 @@ class ZaloApiException extends \RuntimeException
     {
         return new self($error, "Zalo API error {$error}: {$message}");
     }
+
+    /**
+     * Lỗi OA chưa đủ gói để gửi tin (error -224) hoặc thiếu quyền gói.
+     * FE hiển thị cảnh báo; job đánh fail 'provider_permission' và không retry.
+     */
+    public function isTierOrPermissionBlocked(): bool
+    {
+        return $this->zaloError === -224
+            || str_contains($this->getMessage(), 'OA Tier')
+            || str_contains($this->getMessage(), 'pricing')
+            || str_contains($this->getMessage(), 'permission');
+    }
 }

@@ -36,6 +36,9 @@ class ChannelAccountResource extends JsonResource
                 && app(MessagingRegistry::class)->has($code),
             // never expose tokens; expose only that a shop_cipher exists
             'has_shop_cipher' => ! empty($this->meta['shop_cipher'] ?? null),
+            // Zalo OA tier/permission block (SPEC-0039): FE hiển thị cảnh báo nâng gói.
+            'zalo_send_blocked' => (bool) ($this->meta['zalo_send_blocked'] ?? false),
+            'zalo_send_blocked_reason' => $this->meta['zalo_send_blocked_reason'] ?? null,
         ];
     }
 }
