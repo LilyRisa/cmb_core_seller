@@ -42,9 +42,3 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: app/Modules/Tenancy/Scopes/TenantScope.php
-
-		-
-			message: '#^Property CMBcoreSeller\\Integrations\\Messaging\\Zalo\\ZaloOaConnector::\$client is never read, only written\.$#'
-			identifier: property.onlyWritten
-			count: 1
-			path: app/Integrations/Messaging/Zalo/ZaloOaConnector.php

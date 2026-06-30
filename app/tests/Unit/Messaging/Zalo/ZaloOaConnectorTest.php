@@ -136,4 +136,47 @@ class ZaloOaConnectorTest extends TestCase
         ]));
         $this->assertSame(MessagingWebhookEventDTO::TYPE_UNKNOWN, $unknown->type);
     }
+
+    public function test_build_authorization_url(): void
+    {
+        $url = $this->connector()->buildAuthorizationUrl('STATE_X');
+        $this->assertStringContainsString('oauth.zaloapp.com/v4/oa/permission', $url);
+        $this->assertStringContainsString('app_id=app_123', $url);
+        $this->assertStringContainsString('state=STATE_X', $url);
+        $this->assertStringContainsString('redirect_uri=', $url);
+        $this->assertStringNotContainsString('scope=', $url);
+    }
+
+    public function test_exchange_code_for_token(): void
+    {
+        \Illuminate\Support\Facades\Http::fake(['oauth.zaloapp.com/v4/oa/access_token' => \Illuminate\Support\Facades\Http::response(['access_token' => 'AT', 'refresh_token' => 'RT', 'expires_in' => '90000'], 200)]);
+
+        $token = $this->connector()->exchangeCodeForToken('CODE_1');
+
+        $this->assertSame('AT', $token->accessToken);
+        $this->assertSame('RT', $token->refreshToken);
+        $this->assertNotNull($token->expiresAt);
+        \Illuminate\Support\Facades\Http::assertSent(fn ($r) => $r['grant_type'] === 'authorization_code' && $r['code'] === 'CODE_1' && $r->hasHeader('secret_key', 'sec'));
+    }
+
+    public function test_refresh_token_rotates(): void
+    {
+        \Illuminate\Support\Facades\Http::fake(['oauth.zaloapp.com/v4/oa/access_token' => \Illuminate\Support\Facades\Http::response(['access_token' => 'AT2', 'refresh_token' => 'RT2', 'expires_in' => '90000'], 200)]);
+
+        $token = $this->connector()->refreshToken('RT1');
+
+        $this->assertSame('AT2', $token->accessToken);
+        $this->assertSame('RT2', $token->refreshToken);
+        \Illuminate\Support\Facades\Http::assertSent(fn ($r) => $r['grant_type'] === 'refresh_token' && $r['refresh_token'] === 'RT1');
+    }
+
+    public function test_fetch_user_profile(): void
+    {
+        \Illuminate\Support\Facades\Http::fake(['openapi.zalo.me/v3.0/oa/user/detail*' => \Illuminate\Support\Facades\Http::response(['error' => 0, 'data' => ['user_id' => 'USER_1', 'display_name' => 'Nguyễn A', 'avatar' => 'https://zalo.test/av.jpg']], 200)]);
+
+        $profile = $this->connector()->fetchUserProfile(new \CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext(1, 'zalo_oa', 'OA_9', 'TKN'), 'USER_1');
+
+        $this->assertSame('Nguyễn A', $profile['name']);
+        $this->assertSame('https://zalo.test/av.jpg', $profile['avatar_url']);
+    }
 }

@@ -69,17 +69,47 @@ class ZaloOaConnector implements InteractiveMessagingConnector, MessagingConnect
     // --- OAuth (Task 6) ---
     public function buildAuthorizationUrl(string $state, array $opts = []): string
     {
-        throw UnsupportedOperation::for($this->code(), 'buildAuthorizationUrl'); // replaced in Task 6
+        return 'https://oauth.zaloapp.com/v4/oa/permission?'.http_build_query([
+            'app_id' => (string) $this->cfg('app_id'),
+            'redirect_uri' => $opts['redirect_uri'] ?? (string) $this->cfg('redirect_uri'),
+            'state' => $state,
+        ]);
+        // NEEDS-VERIFY: Zalo OA cấp quyền ở mức app/OA, không có scope.
     }
 
     public function exchangeCodeForToken(string $code): TokenDTO
     {
-        throw UnsupportedOperation::for($this->code(), 'exchangeCodeForToken'); // Task 6
+        $res = $this->client->oauthToken([
+            'code' => $code,
+            'app_id' => (string) $this->cfg('app_id'),
+            'grant_type' => 'authorization_code',
+        ], (string) $this->cfg('app_secret'));
+
+        return $this->tokenFromOauth($res);
     }
 
     public function refreshToken(string $refreshToken): TokenDTO
     {
-        throw UnsupportedOperation::for($this->code(), 'refreshToken'); // Task 6
+        $res = $this->client->oauthToken([
+            'refresh_token' => $refreshToken,
+            'app_id' => (string) $this->cfg('app_id'),
+            'grant_type' => 'refresh_token',
+        ], (string) $this->cfg('app_secret'));
+
+        return $this->tokenFromOauth($res);
+    }
+
+    /** @param array<string,mixed> $res */
+    private function tokenFromOauth(array $res): TokenDTO
+    {
+        $expiresIn = (int) ($res['expires_in'] ?? 0);
+
+        return new TokenDTO(
+            accessToken: (string) $res['access_token'],
+            refreshToken: (string) ($res['refresh_token'] ?? ''),
+            expiresAt: $expiresIn > 0 ? CarbonImmutable::now()->addSeconds($expiresIn) : null,
+            raw: $res,
+        );
     }
 
     public function registerWebhooks(MessagingAuthContext $auth): void
@@ -90,13 +120,19 @@ class ZaloOaConnector implements InteractiveMessagingConnector, MessagingConnect
     /** @return array{name: ?string, avatar_url: ?string} */
     public function fetchPageProfile(MessagingAuthContext $auth): array
     {
-        throw UnsupportedOperation::for($this->code(), 'fetchPageProfile'); // Task 6
+        $data = $this->client->get($auth->accessToken, 'v2.0/oa/getoa');
+
+        return ['name' => $data['name'] ?? null, 'avatar_url' => $data['avatar'] ?? null];
     }
 
     /** @return array{name: ?string, avatar_url: ?string} */
     public function fetchUserProfile(MessagingAuthContext $auth, string $externalUserId): array
     {
-        throw UnsupportedOperation::for($this->code(), 'fetchUserProfile'); // Task 6
+        $data = $this->client->get($auth->accessToken, 'v3.0/oa/user/detail', [
+            'data' => json_encode(['user_id' => $externalUserId], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        return ['name' => $data['display_name'] ?? null, 'avatar_url' => $data['avatar'] ?? null];
     }
 
     // --- Inbound (Task 4-5) ---
