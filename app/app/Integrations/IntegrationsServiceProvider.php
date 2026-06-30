@@ -26,6 +26,8 @@ use CMBcoreSeller\Integrations\Channels\Shopee\ShopeePublisher;
 use CMBcoreSeller\Integrations\Channels\Shopee\ShopeeWebhookVerifier;
 use CMBcoreSeller\Integrations\Channels\TikTok\TikTokConnector;
 use CMBcoreSeller\Integrations\Channels\TikTok\TikTokPublisher;
+use CMBcoreSeller\Integrations\EInvoice\EInvoiceRegistry;
+use CMBcoreSeller\Integrations\EInvoice\MisaMeInvoice\MisaMeInvoiceConnector;
 use CMBcoreSeller\Integrations\Embedding\Image\Clip\ClipEmbedder;
 use CMBcoreSeller\Integrations\Embedding\Image\Contracts\ImageEmbedder;
 use CMBcoreSeller\Integrations\Embedding\Image\ImageEmbedderRegistry;
@@ -97,6 +99,16 @@ class IntegrationsServiceProvider extends ServiceProvider
         'sepay' => SePayConnector::class,
         'vnpay' => VnPayConnector::class,
         'momo' => MomoConnector::class,                 // skeleton — capability=false
+    ];
+
+    /**
+     * Nhà cung cấp HĐĐT (SPEC 0041). EInvoiceRegistry chỉ nạp provider có trong
+     * config('integrations.einvoice.enabled').
+     *
+     * @var array<string, class-string>
+     */
+    protected array $einvoiceConnectors = [
+        'misa' => MisaMeInvoiceConnector::class,
     ];
 
     /**
@@ -206,6 +218,23 @@ class IntegrationsServiceProvider extends ServiceProvider
 
             return $registry;
         });
+
+        // Hóa đơn điện tử (SPEC 0041).
+        $this->app->singleton(EInvoiceRegistry::class, function ($app) {
+            $registry = new EInvoiceRegistry($app);
+            foreach ((array) config('integrations.einvoice.enabled', []) as $code) {
+                $code = trim((string) $code);
+                if ($code !== '' && isset($this->einvoiceConnectors[$code])) {
+                    $registry->register($code, $this->einvoiceConnectors[$code]);
+                }
+            }
+
+            return $registry;
+        });
+
+        $this->app->bind(MisaMeInvoiceConnector::class, fn () => new MisaMeInvoiceConnector(
+            (array) config('integrations.einvoice.misa', [])
+        ));
 
         // FacebookPageConnector cần config block (không auto-resolve được array) —
         // bind tường minh; verifier auto-resolve.
