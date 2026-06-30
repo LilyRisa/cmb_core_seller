@@ -17,6 +17,7 @@ export const PLAN_FEATURE_LABELS: { key: string; label: string }[] = [
     { key: 'demand_planning', label: 'Đề xuất nhập hàng' },
     { key: 'automation_rules', label: 'Tự động hoá' },
     { key: 'priority_support', label: 'Hỗ trợ ưu tiên' },
+    { key: 'einvoice', label: 'Hóa đơn điện tử' },
 ];
 
 /** Tính năng nền tảng luôn có ở mọi gói (kể cả miễn phí). */

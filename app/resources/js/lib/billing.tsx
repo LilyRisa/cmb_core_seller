@@ -36,6 +36,7 @@ export interface PlanFeatures {
     accounting_basic: boolean;
     accounting_advanced: boolean;
     ai: boolean;
+    einvoice: boolean;
 }
 
 export interface Plan {

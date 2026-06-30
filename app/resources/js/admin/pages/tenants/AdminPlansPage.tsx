@@ -12,6 +12,7 @@ const KNOWN_FEATURES = [
     'demand_planning', 'mass_listing', 'automation_rules', 'priority_support',
     'accounting_basic', 'accounting_advanced', 'messaging_inbox', 'messaging_zalo', 'messaging_ai',
     'marketing_facebook', 'marketing_tiktok', 'shop_health_reports', 'ai',
+    'einvoice',
 ];
 
 export function AdminPlansPage() {

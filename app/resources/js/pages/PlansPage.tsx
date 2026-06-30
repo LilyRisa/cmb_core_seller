@@ -38,6 +38,7 @@ const FEATURE_ROWS: { key: keyof PlanFeatures; label: string }[] = [
     { key: 'mass_listing', label: 'Đăng bán đa sàn' },
     { key: 'automation_rules', label: 'Tự động hoá' },
     { key: 'priority_support', label: 'Hỗ trợ ưu tiên' },
+    { key: 'einvoice', label: 'Hóa đơn điện tử' },
 ];
 
 const vnd = (n: number) => n.toLocaleString('vi-VN') + 'đ';
