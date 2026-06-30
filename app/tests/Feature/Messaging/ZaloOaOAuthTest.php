@@ -74,7 +74,9 @@ class ZaloOaOAuthTest extends TestCase
             ->withHeaders($this->h())
             ->getJson('/api/v1/messaging/zalo/connect')
             ->assertOk()
-            ->assertJsonPath('data.authorize_url', fn ($u) => str_contains((string) $u, 'oauth.zaloapp.com/v4/oa/permission'));
+            ->assertJsonPath('data.authorize_url', fn ($u) => str_contains((string) $u, 'oauth.zaloapp.com/v4/oa/permission')
+                && str_contains((string) $u, 'code_challenge=')           // PKCE
+                && str_contains((string) $u, 'code_challenge_method=S256'));
     }
 
     public function test_staff_cs_cannot_start_zalo_connect(): void

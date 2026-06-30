@@ -165,6 +165,31 @@ class ZaloOaConnectorTest extends TestCase
         $this->assertStringNotContainsString('scope=', $url);
     }
 
+    public function test_build_authorization_url_with_pkce_challenge(): void
+    {
+        $url = $this->connector()->buildAuthorizationUrl('STATE_X', ['code_challenge' => 'CH_ABC']);
+        $this->assertStringContainsString('code_challenge=CH_ABC', $url);
+        $this->assertStringContainsString('code_challenge_method=S256', $url);
+    }
+
+    public function test_pkce_challenge_is_base64url_sha256_no_padding(): void
+    {
+        $verifier = 'the_verifier_123';
+        $expected = rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '=');
+        $this->assertSame($expected, ZaloOaConnector::pkceChallenge($verifier));
+        // base64url: không có +, /, =
+        $this->assertDoesNotMatchRegularExpression('/[+\/=]/', ZaloOaConnector::pkceChallenge($verifier));
+    }
+
+    public function test_exchange_code_pkce_sends_code_verifier(): void
+    {
+        Http::fake(['oauth.zaloapp.com/v4/oa/access_token' => Http::response(['access_token' => 'AT', 'refresh_token' => 'RT', 'expires_in' => '90000'], 200)]);
+
+        $this->connector()->exchangeCodeForTokenPkce('CODE_1', 'VERIFIER_XYZ');
+
+        Http::assertSent(fn ($r) => $r['grant_type'] === 'authorization_code' && $r['code'] === 'CODE_1' && ($r['code_verifier'] ?? null) === 'VERIFIER_XYZ');
+    }
+
     public function test_exchange_code_for_token(): void
     {
         Http::fake(['oauth.zaloapp.com/v4/oa/access_token' => Http::response(['access_token' => 'AT', 'refresh_token' => 'RT', 'expires_in' => '90000'], 200)]);

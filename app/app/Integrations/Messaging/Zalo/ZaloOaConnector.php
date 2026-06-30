@@ -68,15 +68,27 @@ class ZaloOaConnector implements InteractiveMessagingConnector, MessagingConnect
         return new OutboundWindowPolicyDTO(freeWindowHours: null, requiresTag: false);
     }
 
-    // --- OAuth (Task 6) ---
-    // NEEDS-VERIFY: Zalo OA cấp quyền ở mức app/OA, không có scope.
+    // --- OAuth (Task 6) — không có scope (quyền chọn ở Zalo Developers); dùng PKCE. ---
     public function buildAuthorizationUrl(string $state, array $opts = []): string
     {
-        return 'https://oauth.zaloapp.com/v4/oa/permission?'.http_build_query([
+        $params = [
             'app_id' => (string) $this->cfg('app_id'),
             'redirect_uri' => $opts['redirect_uri'] ?? $this->redirectUri(),
             'state' => $state,
-        ]);
+        ];
+        // PKCE (luồng OAuth Zalo hiện tại): kèm code_challenge nếu controller cấp.
+        if (! empty($opts['code_challenge'])) {
+            $params['code_challenge'] = (string) $opts['code_challenge'];
+            $params['code_challenge_method'] = 'S256';
+        }
+
+        return 'https://oauth.zaloapp.com/v4/oa/permission?'.http_build_query($params);
+    }
+
+    /** PKCE: code_challenge = base64url(sha256(code_verifier)) không padding. */
+    public static function pkceChallenge(string $verifier): string
+    {
+        return rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '=');
     }
 
     /**
@@ -96,11 +108,21 @@ class ZaloOaConnector implements InteractiveMessagingConnector, MessagingConnect
 
     public function exchangeCodeForToken(string $code): TokenDTO
     {
-        $res = $this->client->oauthToken([
+        return $this->exchangeCodeForTokenPkce($code, '');
+    }
+
+    /** Đổi code lấy token kèm PKCE code_verifier (Zalo OAuth hiện tại). Rỗng ⇒ không gửi code_verifier. */
+    public function exchangeCodeForTokenPkce(string $code, string $codeVerifier): TokenDTO
+    {
+        $body = [
             'code' => $code,
             'app_id' => (string) $this->cfg('app_id'),
             'grant_type' => 'authorization_code',
-        ], (string) $this->cfg('app_secret'));
+        ];
+        if ($codeVerifier !== '') {
+            $body['code_verifier'] = $codeVerifier;
+        }
+        $res = $this->client->oauthToken($body, (string) $this->cfg('app_secret'));
 
         return $this->tokenFromOauth($res);
     }

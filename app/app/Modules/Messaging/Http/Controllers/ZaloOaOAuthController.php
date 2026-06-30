@@ -16,8 +16,10 @@ use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /**
  * OAuth connect cho Zalo OA (Task 11). Zalo OA là MessagingConnector (không phải
@@ -45,9 +47,21 @@ class ZaloOaOAuthController extends Controller
         $tenantId = app(CurrentTenant::class)->id();
         $state = OAuthState::issue(self::PROVIDER, (int) $tenantId, $request->user()?->id, '/messaging/channels?connected=zalo_oa');
 
-        $url = $this->registry->for(self::PROVIDER)->buildAuthorizationUrl($state->state);
+        // PKCE (luồng OAuth Zalo hiện tại): sinh code_verifier, lưu theo state (TTL = state),
+        // gửi code_challenge ở authorize; callback đọc lại verifier để đổi token.
+        $verifier = Str::random(64);
+        Cache::put($this->pkceKey($state->state), $verifier, now()->addMinutes(10));
+
+        $connector = $this->registry->for(self::PROVIDER);
+        $challenge = $connector instanceof ZaloOaConnector ? ZaloOaConnector::pkceChallenge($verifier) : '';
+        $url = $connector->buildAuthorizationUrl($state->state, ['code_challenge' => $challenge]);
 
         return response()->json(['data' => ['authorize_url' => $url]]);
+    }
+
+    private function pkceKey(string $state): string
+    {
+        return 'zalo_oa_pkce:'.$state;
     }
 
     /** [web, no auth] Callback từ Zalo sau khi seller authorize OA. */
@@ -71,7 +85,9 @@ class ZaloOaOAuthController extends Controller
         }
 
         try {
-            $token = $connector->exchangeCodeForToken($code);
+            // PKCE: lấy code_verifier đã lưu lúc start (pull = dùng 1 lần).
+            $verifier = (string) Cache::pull($this->pkceKey($stateToken));
+            $token = $connector->exchangeCodeForTokenPkce($code, $verifier);
 
             $auth = new MessagingAuthContext(
                 channelAccountId: 0,
@@ -80,7 +96,8 @@ class ZaloOaOAuthController extends Controller
                 accessToken: $token->accessToken,
             );
             $profile = $connector->fetchPageProfile($auth);   // {name, avatar_url}
-            $oaId = $connector->fetchOaId($auth);             // data.oa_id
+            // Callback Zalo trả oa_id ⇒ ưu tiên dùng, đỡ 1 call getoa; fallback fetchOaId.
+            $oaId = (string) ($request->query('oa_id') ?: $connector->fetchOaId($auth));
 
             if ($oaId === '') {
                 return $this->finish('/messaging/channels?error=zalo_oa_no_oa_id');
