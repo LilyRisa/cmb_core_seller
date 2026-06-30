@@ -35,6 +35,8 @@ export function KnowledgeDocsPanel({ provider }: { provider?: string }) {
         if (v.source === 'upload' && !file) { message.error('Chọn file để tải lên'); return; }
         create.mutate({
             title: v.title, source: v.source, inline_text: v.inline_text, url: v.url, file: file ?? undefined,
+            // Gắn tài liệu vào đúng nền tảng đang xem (Facebook/Zalo OA) — tách kho riêng.
+            provider,
             applies_all_pages: !!v.applies_all_pages,
             channel_account_ids: v.applies_all_pages ? [] : (v.channel_account_ids ?? []),
         }, {

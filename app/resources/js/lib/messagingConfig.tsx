@@ -239,6 +239,8 @@ export interface CreateKnowledgePayload {
     inline_text?: string;
     url?: string;
     file?: File;
+    /** Nền tảng kho tài liệu (vd 'facebook_page', 'zalo_oa'). Mặc định backend = facebook_page. */
+    provider?: string;
     applies_all_pages?: boolean;
     channel_account_ids?: number[];
 }
@@ -254,6 +256,7 @@ export function useCreateKnowledge() {
                 fd.append('title', payload.title);
                 fd.append('source', 'upload');
                 fd.append('file', payload.file);
+                if (payload.provider) fd.append('provider', payload.provider);
                 fd.append('applies_all_pages', payload.applies_all_pages ? '1' : '0');
                 (payload.channel_account_ids ?? []).forEach((id) => fd.append('channel_account_ids[]', String(id)));
                 return (await api!.post('/messaging/knowledge-docs', fd)).data;

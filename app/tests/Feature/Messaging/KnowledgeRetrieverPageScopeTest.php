@@ -94,4 +94,17 @@ class KnowledgeRetrieverPageScopeTest extends TestCase
 
         $this->assertCount(1, $all->chunks);
     }
+
+    public function test_facebook_doc_not_retrieved_for_zalo_provider(): void
+    {
+        // Tài liệu "áp mọi trang" của Facebook KHÔNG được dùng cho hội thoại Zalo OA.
+        $doc = $this->doc('Chính sách FB', 'chính sách giao hàng toàn shop', allPages: true);
+        $doc->update(['provider' => 'facebook_page']);
+
+        $forFb = $this->retriever()->retrieve((int) $this->tenant->getKey(), 'chính sách', 4, (int) $this->pageA->getKey(), 'facebook_page');
+        $forZalo = $this->retriever()->retrieve((int) $this->tenant->getKey(), 'chính sách', 4, (int) $this->pageA->getKey(), 'zalo_oa');
+
+        $this->assertCount(1, $forFb->chunks, 'doc Facebook dùng cho hội thoại Facebook');
+        $this->assertCount(0, $forZalo->chunks, 'doc Facebook KHÔNG rò sang hội thoại Zalo OA');
+    }
 }

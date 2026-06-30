@@ -34,10 +34,8 @@ class KnowledgeController extends Controller
         return JsonResource::collection(
             AiKnowledgeDocument::query()
                 ->orderByDesc('created_at')
-                // Lọc theo nền tảng: tài liệu áp-mọi-trang HOẶC gắn trang thuộc provider đó (?provider=zalo_oa).
-                ->when($request->query('provider'), fn ($q, $p) => $q->where(fn ($w) => $w
-                    ->where('applies_all_pages', true)
-                    ->orWhereHas('pages', fn ($pg) => $pg->where('provider', (string) $p))))
+                // Lọc theo nền tảng (?provider=zalo_oa) — mỗi nền tảng có kho tài liệu riêng.
+                ->when($request->query('provider'), fn ($q, $p) => $q->where('provider', (string) $p))
                 ->paginate(min(100, max(1, (int) $request->query('per_page', 30))))
                 ->through(fn (AiKnowledgeDocument $d) => [
                     'id' => $d->id,
@@ -45,6 +43,7 @@ class KnowledgeController extends Controller
                     'source' => $d->source,
                     'status' => $d->status,
                     'chunk_count' => (int) $d->chunk_count,
+                    'provider' => $d->provider,
                     'applies_all_pages' => (bool) $d->applies_all_pages,
                     'channel_account_ids' => $d->pages()->pluck('channel_accounts.id')->all(),
                     'indexed_at' => $d->indexed_at?->toIso8601String(),
@@ -66,6 +65,8 @@ class KnowledgeController extends Controller
             // 25MB; định dạng trích được text (xem DocumentTextExtractor).
             'file' => ['required_if:source,upload', 'nullable', 'file', 'max:25600',
                 'extensions:txt,md,csv,tsv,docx,xlsx,pdf'],
+            // Nền tảng tài liệu (mặc định facebook_page) — tách kho theo Facebook/Zalo OA.
+            'provider' => ['nullable', 'string', 'max:32'],
             // SPEC 0035 — phạm vi page: áp mọi trang HOẶC gán danh sách page (nhiều page).
             'applies_all_pages' => ['nullable', 'boolean'],
             'channel_account_ids' => ['nullable', 'array'],
@@ -96,6 +97,7 @@ class KnowledgeController extends Controller
             'chunk_count' => 0,
             'status' => AiKnowledgeDocument::STATUS_PENDING,
             'applies_all_pages' => (bool) ($data['applies_all_pages'] ?? false),
+            'provider' => $data['provider'] ?? 'facebook_page',
             'created_by' => $request->user()->id,
         ]);
         $this->syncPages($doc, $data['channel_account_ids'] ?? []);

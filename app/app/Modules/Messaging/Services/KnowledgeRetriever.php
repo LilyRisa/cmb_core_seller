@@ -22,9 +22,9 @@ class KnowledgeRetriever
 {
     public function __construct(private KnowledgeVectorIndexer $vector) {}
 
-    public function retrieve(int $tenantId, string $query, int $topK = 4, ?int $channelAccountId = null): KnowledgeBase
+    public function retrieve(int $tenantId, string $query, int $topK = 4, ?int $channelAccountId = null, ?string $provider = null): KnowledgeBase
     {
-        $readyDocIds = $this->readyDocumentTitles($tenantId, $channelAccountId);
+        $readyDocIds = $this->readyDocumentTitles($tenantId, $channelAccountId, $provider);
         if ($readyDocIds->isEmpty()) {
             return new KnowledgeBase(chunks: []);
         }
@@ -40,15 +40,20 @@ class KnowledgeRetriever
     }
 
     /**
-     * Document READY thuộc tenant (+ phạm vi page SPEC 0035). Trả map id ⇒ title.
+     * Document READY thuộc tenant (+ phạm vi page SPEC 0035 + nền tảng). Trả map id ⇒ title.
      *
      * @return Collection<int,string>
      */
-    private function readyDocumentTitles(int $tenantId, ?int $channelAccountId): Collection
+    private function readyDocumentTitles(int $tenantId, ?int $channelAccountId, ?string $provider = null): Collection
     {
         $docQuery = AiKnowledgeDocument::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenantId)
             ->where('status', AiKnowledgeDocument::STATUS_READY);
+
+        // Tách kho theo nền tảng: hội thoại Zalo OA KHÔNG dùng tài liệu Facebook và ngược lại.
+        if ($provider !== null) {
+            $docQuery->where('provider', $provider);
+        }
 
         // SPEC 0035 — có page: chỉ tài liệu áp mọi trang HOẶC gán page này (pivot, tránh TenantScope).
         if ($channelAccountId !== null) {

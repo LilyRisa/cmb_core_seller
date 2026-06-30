@@ -29,6 +29,7 @@ use Illuminate\Support\Carbon;
  * @property ?Carbon $indexed_at
  * @property string $status
  * @property bool $applies_all_pages
+ * @property string $provider
  * @property ?string $error
  * @property ?int $created_by
  * @property ?Carbon $created_at
@@ -53,7 +54,7 @@ class AiKnowledgeDocument extends Model
     protected $fillable = [
         'tenant_id', 'title', 'source', 'storage_path', 'url', 'inline_text',
         'chunk_count', 'embedding_provider_code', 'embedding_model', 'embedding_version',
-        'indexed_at', 'status', 'applies_all_pages', 'error', 'created_by',
+        'indexed_at', 'status', 'applies_all_pages', 'provider', 'error', 'created_by',
     ];
 
     protected function casts(): array
