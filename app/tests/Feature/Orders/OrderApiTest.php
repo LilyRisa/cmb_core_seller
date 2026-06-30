@@ -196,6 +196,22 @@ class OrderApiTest extends TestCase
         $this->assertSame(250000 - 53000 - 0 - 0, $o['profit']['estimated_profit']);
     }
 
+    public function test_optional_program_fee_appears_in_breakdown_when_enabled(): void
+    {
+        // Bật 1 phí chương trình tùy chọn (affiliate 5%) cho TikTok qua fee_rates ⇒ xuất hiện trong breakdown.
+        $this->actingAs($this->user)->withHeaders($this->header())
+            ->patchJson('/api/v1/tenant', ['settings' => ['fee_rates' => ['tiktok' => [
+                'commission_pct' => 14, 'transaction_pct' => 6, 'fixed_fee' => 3000,
+                'programs' => [['key' => 'affiliate', 'enabled' => true, 'rate' => 5]],
+            ]]]])->assertOk();
+
+        $res = $this->actingAs($this->user)->withHeaders($this->header())->getJson('/api/v1/orders')->assertOk();
+        $o = collect($res->json('data'))->firstWhere('order_number', 'TT-1001');
+        $byType = collect($o['profit']['fee_breakdown'])->keyBy('type');
+        $this->assertSame((int) round(250000 * 0.05), $byType['program:affiliate']['amount']);   // 12 500
+        $this->assertSame(35000 + 15000 + 3000 + 12500, $o['profit']['platform_fee']);            // 65 500
+    }
+
     public function test_can_create_an_invoice_print_job_for_orders(): void
     {
         Storage::fake('public');

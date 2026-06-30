@@ -16,8 +16,27 @@ return [
     | Tất cả đã gồm VAT theo công bố của sàn. Số mặc định là ƯỚC TÍNH (hoa hồng thực tế thay đổi theo ngành hàng).
     */
     'fee_rates' => [
-        'tiktok' => ['commission_pct' => 14.0, 'transaction_pct' => 6.0, 'service_pct' => 0.0, 'fixed_fee' => 3000],
-        'shopee' => ['commission_pct' => 12.5, 'transaction_pct' => 6.0, 'service_pct' => 0.0, 'fixed_fee' => 3000],
-        'lazada' => ['commission_pct' => 4.0, 'transaction_pct' => 6.0, 'service_pct' => 0.0, 'fixed_fee' => 3000],
+        'tiktok' => [
+            'commission_pct' => 14.0, 'transaction_pct' => 6.0, 'service_pct' => 0.0, 'fixed_fee' => 3000,
+            // Phí chương trình TÙY CHỌN — chỉ tính khi shop bật (enabled). rate do shop tự đặt theo chiến dịch.
+            'programs' => [
+                ['key' => 'affiliate', 'label' => 'Hoa hồng Affiliate', 'kind' => 'pct', 'rate' => 0.0, 'base' => 'item', 'enabled' => false],
+                ['key' => 'sfp_service', 'label' => 'Phí dịch vụ SFP', 'kind' => 'pct', 'rate' => 0.0, 'base' => 'item', 'enabled' => false],
+            ],
+        ],
+        'shopee' => [
+            'commission_pct' => 12.5, 'transaction_pct' => 6.0, 'service_pct' => 0.0, 'fixed_fee' => 3000,
+            'programs' => [
+                ['key' => 'voucher_xtra', 'label' => 'Gói Voucher Xtra', 'kind' => 'pct', 'rate' => 5.5, 'cap_per_item' => 50000, 'base' => 'item', 'enabled' => false],
+                ['key' => 'freeship_xtra', 'label' => 'Gói Freeship Xtra', 'kind' => 'pct', 'rate' => 7.0, 'base' => 'item', 'enabled' => false],
+                ['key' => 'piship', 'label' => 'Gói PiShip', 'kind' => 'fixed', 'rate' => 2700, 'enabled' => false],
+            ],
+        ],
+        'lazada' => [
+            'commission_pct' => 4.0, 'transaction_pct' => 6.0, 'service_pct' => 0.0, 'fixed_fee' => 3000,
+            'programs' => [
+                ['key' => 'freeship_program', 'label' => 'Gói Freeship/Voucher', 'kind' => 'pct', 'rate' => 0.0, 'base' => 'item', 'enabled' => false],
+            ],
+        ],
     ],
 ];

@@ -49,7 +49,7 @@ class OrderProfitService
      * (`settings.fee_rates[source]`). Dùng khi KHÔNG có `platform_fee_pct` legacy cho sàn đó.
      *
      * @param  array<string,mixed>|null  $tenantSettings
-     * @return array<string, array{commission_pct:float,transaction_pct:float,service_pct:float,fixed_fee:int}>
+     * @return array<string, array{commission_pct:float,transaction_pct:float,service_pct:float,fixed_fee:int,programs:list<array<string,mixed>>}>
      */
     public function feeRates(?array $tenantSettings): array
     {
@@ -65,6 +65,43 @@ class OrderProfitService
                 'transaction_pct' => max(0.0, (float) ($o['transaction_pct'] ?? $d['transaction_pct'] ?? 0)),
                 'service_pct' => max(0.0, (float) ($o['service_pct'] ?? $d['service_pct'] ?? 0)),
                 'fixed_fee' => max(0, (int) ($o['fixed_fee'] ?? $d['fixed_fee'] ?? 0)),
+                'programs' => $this->mergePrograms((array) ($d['programs'] ?? []), (array) ($o['programs'] ?? [])),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Gộp phí chương trình tùy chọn: mặc định config + override tenant (theo `key`).
+     * Tenant chỉ cần gửi {key, enabled, rate?} — phần còn lại (label/kind/cap/base) lấy từ config.
+     *
+     * @param  list<array<string,mixed>>  $defaults
+     * @param  list<array<string,mixed>>  $override
+     * @return list<array<string,mixed>>
+     */
+    private function mergePrograms(array $defaults, array $override): array
+    {
+        $byKey = [];
+        foreach ($override as $p) {
+            $p = (array) $p;
+            if (isset($p['key'])) {
+                $byKey[(string) $p['key']] = $p;
+            }
+        }
+        $out = [];
+        foreach ($defaults as $d) {
+            $d = (array) $d;
+            $key = (string) ($d['key'] ?? '');
+            $o = $byKey[$key] ?? [];
+            $out[] = [
+                'key' => $key,
+                'label' => (string) ($d['label'] ?? $key),
+                'kind' => (string) ($d['kind'] ?? 'pct'),
+                'base' => (string) ($d['base'] ?? 'item'),
+                'cap_per_item' => isset($d['cap_per_item']) ? (int) $d['cap_per_item'] : null,
+                'rate' => max(0.0, (float) ($o['rate'] ?? $d['rate'] ?? 0)),
+                'enabled' => (bool) ($o['enabled'] ?? $d['enabled'] ?? false),
             ];
         }
 
@@ -223,7 +260,7 @@ class OrderProfitService
      * @param  array{cogs:int,source:string}|null  $actual  COGS thực từ `order_costs` (đã ship); null = chưa ship
      * @param  array{platform_fee:int,shipping_fee:int,lines?:array<string,int>}|null  $actualFees  Phí THỰC từ đối soát (SPEC 0016)
      * @param  int|null  $actualShipFee  R2 (Sprint 4) — phí ĐVVC thực từ shipments.fee (manual: GHN trả về)
-     * @param  array<string, array{commission_pct:float,transaction_pct:float,service_pct:float,fixed_fee:int}>  $feeRates  biểu phí ước tính theo sàn
+     * @param  array<string, array{commission_pct:float,transaction_pct:float,service_pct:float,fixed_fee:int,programs:list<array<string,mixed>>}>  $feeRates  biểu phí ước tính theo sàn
      * @return array{cogs:int,platform_fee:int,shipping_fee:int,estimated_profit:int,platform_fee_pct:float,cost_complete:bool,cost_source:string,fee_source:string,fee_breakdown:list<array{type:string,label:string,amount:int}>}
      */
     private function compute(Order $order, Collection $items, array $platformFeePct, Collection $skuCosts, ?array $actual = null, ?array $actualFees = null, ?int $actualShipFee = null, array $feeRates = []): array
@@ -291,6 +328,29 @@ class OrderProfitService
                         }
                     }
                     $platformFee = $commission + $transaction + $service + $fixed;
+
+                    // Phí chương trình TÙY CHỌN (Voucher Xtra/Freeship Xtra/PiShip/Affiliate…) — chỉ khi shop bật.
+                    $itemCount = max(1, $items->count());
+                    foreach ($r['programs'] as $prog) {
+                        if (empty($prog['enabled'])) {
+                            continue;
+                        }
+                        if (((string) ($prog['kind'] ?? 'pct')) === 'fixed') {
+                            $amt = $grand > 0 ? (int) round((float) ($prog['rate'] ?? 0)) : 0;
+                        } else {
+                            $base = ((string) ($prog['base'] ?? 'item')) === 'grand' ? $grand : $commissionBase;
+                            $amt = (int) round($base * (float) ($prog['rate'] ?? 0) / 100);
+                            $cap = $prog['cap_per_item'] ?? null;
+                            if ($cap !== null && (int) $cap > 0) {
+                                $amt = min($amt, (int) $cap * $itemCount);   // vd Voucher Xtra: tối đa 50k/SP
+                            }
+                        }
+                        if ($amt > 0) {
+                            $breakdown[] = ['type' => 'program:'.((string) ($prog['key'] ?? '')), 'label' => (string) ($prog['label'] ?? 'Phí chương trình'), 'amount' => $amt];
+                            $platformFee += $amt;
+                        }
+                    }
+
                     $pct = $grand > 0 ? round($platformFee / $grand * 100, 1) : 0.0;
                 }
             }
