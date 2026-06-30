@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { App as AntApp, Avatar, Button, Card, Checkbox, Empty, Popconfirm, Progress, Result, Space, Spin, Switch, Tag, Tooltip, Typography } from 'antd';
-import { DisconnectOutlined, FacebookFilled, KeyOutlined, RobotOutlined, ShopOutlined, SyncOutlined } from '@ant-design/icons';
+import { DisconnectOutlined, FacebookFilled, KeyOutlined, MessageOutlined, RobotOutlined, ShopOutlined, SyncOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { MessagingNav } from '@/components/MessagingNav';
@@ -10,7 +10,7 @@ import { errorMessage } from '@/lib/api';
 import { openOAuthPopup } from '@/lib/oauthPopup';
 import { useCan } from '@/lib/tenant';
 import { MARKETPLACE_CHAT_ENABLED } from '@/lib/messaging';
-import { useBulkDisconnectChannels, useBulkSyncChannels, useConnectFacebook, useConnectLazadaIm, useDisconnectFacebookPage, useMessagingChannels, useSetChannelAiMode, useSyncChannel } from '@/lib/messagingConfig';
+import { useBulkDisconnectChannels, useBulkSyncChannels, useConnectFacebook, useConnectLazadaIm, useDisconnectFacebookPage, useMessagingChannels, useSetChannelAiMode, useStartZaloConnect, useSyncChannel } from '@/lib/messagingConfig';
 
 const { Text } = Typography;
 
@@ -32,10 +32,12 @@ const LZ_ERRORS: Record<string, string> = {
 export function MessagingChannelsPage() {
     const { message } = AntApp.useApp();
     const [params, setParams] = useSearchParams();
+    const platform = params.get('platform') ?? 'facebook_page';
     const canConnect = useCan('messaging.connect');
     const connectFb = useConnectFacebook();
     const connectLazadaIm = useConnectLazadaIm();
-    const { data: channels, isLoading, isError, error } = useMessagingChannels();
+    const startZalo = useStartZaloConnect();
+    const { data: channels, isLoading, isError, error } = useMessagingChannels(platform !== 'facebook_page' ? platform : undefined);
     const [reconnectingId, setReconnectingId] = useState<number | null>(null);
     const [disconnectingId, setDisconnectingId] = useState<number | null>(null);
     const disconnect = useDisconnectFacebookPage();
@@ -149,9 +151,36 @@ export function MessagingChannelsPage() {
     return (
         <div>
             <MessagingNav />
-            <PageHeader title="Kết nối kênh" subtitle="Kết nối Facebook Page và Lazada IM Chat để nhận & trả lời tin nhắn ngay trong hộp thư." />
+            <PageHeader title="Kết nối kênh" subtitle="Kết nối Facebook Page, Zalo OA và Lazada IM Chat để nhận & trả lời tin nhắn ngay trong hộp thư." />
 
-            <Card title={<><FacebookFilled style={{ color: '#1877F2' }} /> Facebook Page</>} style={{ marginBottom: 16 }}>
+            {platform === 'zalo_oa' && (
+                <Card title={<><MessageOutlined style={{ color: '#0068FF' }} /> Zalo OA</>} style={{ marginBottom: 16 }}>
+                    <Space direction="vertical" size={12} style={{ display: 'flex' }}>
+                        <Button type="primary" icon={<MessageOutlined />} loading={startZalo.isPending} onClick={() => startZalo.mutate()} disabled={!canConnect}>
+                            Kết nối Zalo OA
+                        </Button>
+                        {isLoading ? (
+                            <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>
+                        ) : pages.length === 0 ? (
+                            <Empty description="Chưa kết nối Zalo OA nào" />
+                        ) : pages.map((z) => (
+                            <Card key={z.id} size="small" styles={{ body: { padding: 12 } }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                                    <Space size={12} align="center">
+                                        <Avatar src={z.avatar_url ?? undefined} icon={<MessageOutlined />} size={40} style={{ background: z.avatar_url ? undefined : '#0068FF' }} />
+                                        <Space direction="vertical" size={2}>
+                                            <Text strong>{z.name}</Text>
+                                            <Tag color={z.token_expired ? 'red' : 'green'}>{z.token_expired ? 'Hết hạn token' : 'Đang hoạt động'}</Tag>
+                                        </Space>
+                                    </Space>
+                                </div>
+                            </Card>
+                        ))}
+                    </Space>
+                </Card>
+            )}
+
+            {platform !== 'zalo_oa' && <Card title={<><FacebookFilled style={{ color: '#1877F2' }} /> Facebook Page</>} style={{ marginBottom: 16 }}>
                 <Space direction="vertical" size={12} style={{ display: 'flex' }}>
                     <Button type="primary" icon={<FacebookFilled />} loading={connectFb.isPending} onClick={handleConnect} disabled={!canConnect}>
                         Kết nối Facebook Page
@@ -259,10 +288,10 @@ export function MessagingChannelsPage() {
                         );
                     })}
                 </Space>
-            </Card>
+            </Card>}
 
             {/* Tin nhắn sàn (Lazada IM / TikTok) tắt tạm — chưa triển khai xong; bật lại qua MARKETPLACE_CHAT_ENABLED. */}
-            {MARKETPLACE_CHAT_ENABLED && (
+            {platform !== 'zalo_oa' && MARKETPLACE_CHAT_ENABLED && (
                 <>
                     <Card title={<><ShopOutlined style={{ color: '#0F146D' }} /> Lazada IM Chat</>} style={{ marginBottom: 16 }}>
                         <Space direction="vertical" size={8} style={{ display: 'flex' }}>

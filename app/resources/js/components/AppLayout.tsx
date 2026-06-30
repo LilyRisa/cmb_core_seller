@@ -14,6 +14,7 @@ import {
     TikTokOutlined,
     MenuFoldOutlined,
     MenuUnfoldOutlined,
+    MessageOutlined,
     PercentageOutlined,
     PieChartOutlined,
     ReadOutlined,
@@ -53,7 +54,7 @@ function buildNav(): MenuProps['items'] {
             { key: '/products', icon: <AppstoreOutlined />, label: <Link to="/products">Sản phẩm & SKU</Link> },
         ] },
         // Tin nhắn = mục riêng (tách khỏi Bán hàng), chia theo nền tảng — mỗi nền tảng có đủ trang con.
-        // Facebook đã có; Zalo OA sẽ thêm submenu đầy đủ khi build trang (SPEC 0039 Phase 1).
+        // Facebook đã có; Zalo OA thêm submenu Phase 1 (SPEC 0039).
         { type: 'group', label: 'Tin nhắn', children: [
             { key: 'messaging-facebook', icon: <FacebookFilled />, label: 'Facebook', children: [
                 { key: '/messaging', label: <Link to="/messaging">Hộp thư</Link> },
@@ -63,6 +64,12 @@ function buildNav(): MenuProps['items'] {
                 { key: '/messaging/auto-rules', label: <Link to="/messaging/auto-rules">Tự động trả lời</Link> },
                 { key: '/messaging/flows', label: <Link to="/messaging/flows">Kịch bản tự động</Link> },
                 { key: '/messaging/knowledge', label: <Link to="/messaging/knowledge">AI training</Link> },
+            ] },
+            { key: 'messaging-zalo', icon: <MessageOutlined />, label: 'Zalo OA', children: [
+                { key: '/messaging?platform=zalo_oa', label: <Link to="/messaging?platform=zalo_oa">Hộp thư</Link> },
+                { key: '/messaging/channels?platform=zalo_oa', label: <Link to="/messaging/channels?platform=zalo_oa">Kết nối Zalo OA</Link> },
+                { key: '/messaging/auto-rules?platform=zalo_oa', label: <Link to="/messaging/auto-rules?platform=zalo_oa">Tự động trả lời</Link> },
+                { key: '/messaging/flows?platform=zalo_oa', label: <Link to="/messaging/flows?platform=zalo_oa">Kịch bản tự động</Link> },
             ] },
         ] },
         { type: 'group', label: 'Đăng bán sàn', children: [
@@ -149,7 +156,7 @@ export function AppLayout() {
                     {!collapsed && <span>CMB Core</span>}
                 </div>
                 <div style={{ height: 'calc(100vh - 56px)', overflowY: 'auto', overflowX: 'hidden' }}>
-                    <Menu mode="inline" selectedKeys={[selectedKey]} defaultOpenKeys={['messaging-facebook', 'acc-books', 'acc-money']} inlineIndent={16} items={nav} style={{ borderInlineEnd: 'none' }} />
+                    <Menu mode="inline" selectedKeys={[selectedKey]} defaultOpenKeys={['messaging-facebook', 'messaging-zalo', 'acc-books', 'acc-money']} inlineIndent={16} items={nav} style={{ borderInlineEnd: 'none' }} />
                 </div>
             </Sider>
             <Layout>

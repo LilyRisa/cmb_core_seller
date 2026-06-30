@@ -367,6 +367,18 @@ export function useConnectLazadaIm() {
     });
 }
 
+// Zalo OA OAuth — GET /messaging/zalo/connect → redirect URL (SPEC 0039 Phase 1).
+export function useStartZaloConnect() {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async () => {
+            const { data } = await api!.get<{ data: { authorize_url: string } }>('/messaging/zalo/connect');
+            return data.data.authorize_url;
+        },
+        onSuccess: (url) => { window.open(url, 'zalo_oauth', 'width=720,height=820'); },
+    });
+}
+
 // --- Quản lý kênh Facebook Page (UI /messaging/channels) -------------------
 
 export interface ChannelSync {
@@ -404,15 +416,19 @@ export interface MessagingChannel {
     comment_sync: CommentSync;
 }
 
-export function useMessagingChannels() {
+export function useMessagingChannels(provider?: string) {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();
     return useQuery({
-        queryKey: ['messaging', 'channels', tenantId],
+        queryKey: ['messaging', 'channels', tenantId, provider ?? null],
         enabled: api != null,
         refetchInterval: (q) =>
             q.state.data?.some((c) => c.sync.status === 'queued' || c.sync.status === 'running') ? 4_000 : false,
-        queryFn: async () => (await api!.get<{ data: MessagingChannel[] }>('/messaging/channels')).data.data,
+        queryFn: async () => {
+            const params: Record<string, string> = {};
+            if (provider) params.provider = provider;
+            return (await api!.get<{ data: MessagingChannel[] }>('/messaging/channels', { params })).data.data;
+        },
     });
 }
 
