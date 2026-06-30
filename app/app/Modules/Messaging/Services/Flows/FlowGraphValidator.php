@@ -158,6 +158,26 @@ class FlowGraphValidator
             array_push($errors, ...$this->validateSteppedNode($id, $nodeSteps, $handles, (string) $flow->provider));
         }
 
+        // 9) post_router: cần ≥1 nhánh ra; mỗi bài đã chọn cần edge sourceHandle = post id.
+        foreach ($nodeById as $id => $n) {
+            if (($n['type'] ?? '') !== 'post_router') {
+                continue;
+            }
+            $outs = $outgoing[$id] ?? [];
+            if ($outs === []) {
+                $errors[] = ['node_id' => $id, 'code' => 'post_router_no_exit', 'message' => 'Bước Rẽ theo bài viết cần ít nhất 1 nhánh ra.'];
+            }
+            $handles = array_column($outs, 'handle');
+            foreach ((array) (($n['data'] ?? [])['posts'] ?? []) as $p) {
+                $p = (array) $p;
+                $pid = (string) ($p['id'] ?? '');
+                if ($pid !== '' && ! in_array($pid, $handles, true)) {
+                    $label = (string) ($p['label'] ?? $pid);
+                    $errors[] = ['node_id' => $id, 'code' => 'post_router_edge_missing', 'message' => "Bài \"{$label}\" chưa nối tới bước tiếp theo."];
+                }
+            }
+        }
+
         return $errors;
     }
 

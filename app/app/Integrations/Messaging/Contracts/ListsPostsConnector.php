@@ -19,7 +19,7 @@ interface ListsPostsConnector
      * Liệt kê bài đăng đã xuất bản của trang (mới nhất trước) để chọn áp dụng kịch bản.
      *
      * @param  array{pageSize?:int, cursor?:string}  $query
-     * @return array{items: list<array{id:string, message:?string, permalink_url:?string, image_url:?string, created_time:?string}>, nextCursor:?string, hasMore:bool}
+     * @return array{items: list<array{id:string, message:?string, permalink_url:?string, image_url:?string, created_time:?string, likes:int, comments:int, shares:int}>, nextCursor:?string, hasMore:bool}
      */
     public function listPosts(MessagingAuthContext $auth, array $query = []): array;
 }

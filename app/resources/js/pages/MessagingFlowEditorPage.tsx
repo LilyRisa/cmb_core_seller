@@ -144,6 +144,10 @@ function FlowEditor() {
                 pruneButtonEdges(setEdges, nodeId, new Set(lastPostbacks.map((b) => b.id)));
             }
             // Không có steps (chế độ cũ) → không prune, giữ nguyên
+        } else if (node?.type === 'post_router') {
+            // Rẽ theo bài viết: handle hợp lệ = post id của các bài đã chọn + 'default'.
+            const ids = new Set([...(data.posts ?? []).map((p) => p.id), 'default']);
+            pruneButtonEdges(setEdges, nodeId, ids);
         }
     }, [nodes, setNodes, setEdges]);
 
@@ -333,9 +337,11 @@ function FlowEditor() {
                     onClose={() => setSelectedId(null)}
                     onChange={updateNodeData}
                     readOnly={!canManage}
+                    appliesAllPages={appliesAllPages}
+                    pageIds={pageIds}
                 />
 
-                <PostPicker open={pickerOpen} value={postIds} onClose={() => setPickerOpen(false)} onChange={setPostIds} />
+                <PostPicker open={pickerOpen} value={postIds} onClose={() => setPickerOpen(false)} onChange={setPostIds} appliesAllPages={appliesAllPages} pageIds={pageIds} />
             </div>
         </div>
     );

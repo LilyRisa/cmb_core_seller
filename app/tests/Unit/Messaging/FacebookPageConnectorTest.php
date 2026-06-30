@@ -419,7 +419,8 @@ class FacebookPageConnectorTest extends TestCase
     {
         Http::fake(['graph.facebook.com/*' => Http::response([
             'data' => [
-                ['id' => 'PAGE_1_111', 'message' => 'Sale 50%', 'created_time' => '2026-05-01T10:00:00+0000', 'permalink_url' => 'https://fb.com/1', 'full_picture' => 'https://cdn/1.jpg'],
+                ['id' => 'PAGE_1_111', 'message' => 'Sale 50%', 'created_time' => '2026-05-01T10:00:00+0000', 'permalink_url' => 'https://fb.com/1', 'full_picture' => 'https://cdn/1.jpg',
+                    'reactions' => ['summary' => ['total_count' => 42]], 'comments' => ['summary' => ['total_count' => 7]], 'shares' => ['count' => 3]],
                 ['id' => 'PAGE_1_222', 'created_time' => '2026-05-02T10:00:00+0000'],
             ],
             'paging' => ['cursors' => ['after' => 'CUR2'], 'next' => 'https://graph/next'],
@@ -432,6 +433,10 @@ class FacebookPageConnectorTest extends TestCase
         $this->assertSame('PAGE_1_111', $out['items'][0]['id']);
         $this->assertSame('Sale 50%', $out['items'][0]['message']);
         $this->assertSame('https://cdn/1.jpg', $out['items'][0]['image_url']);
+        $this->assertSame(42, $out['items'][0]['likes']);
+        $this->assertSame(7, $out['items'][0]['comments']);
+        $this->assertSame(3, $out['items'][0]['shares']);
+        $this->assertSame(0, $out['items'][1]['likes']); // thiếu engagement ⇒ 0
         $this->assertNull($out['items'][1]['message']);
         $this->assertSame('CUR2', $out['nextCursor']);
         $this->assertTrue($out['hasMore']);

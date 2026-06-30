@@ -1,5 +1,6 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import {
+    ApartmentOutlined,
     AppstoreOutlined,
     BranchesOutlined,
     ClockCircleOutlined,
@@ -35,6 +36,7 @@ export const NODE_META: NodeMeta[] = [
     { type: 'send_comment_reply', label: 'Trả lời bình luận', group: 'send', icon: <CommentOutlined />, draggable: true },
     { type: 'wait_reply', label: 'Chờ khách trả lời', group: 'wait', icon: <ClockCircleOutlined />, draggable: true },
     { type: 'condition', label: 'Rẽ nhánh theo từ khoá', group: 'branch', icon: <BranchesOutlined />, draggable: true },
+    { type: 'post_router', label: 'Rẽ theo bài viết', group: 'branch', icon: <ApartmentOutlined />, draggable: true },
     { type: 'ai_reply', label: 'AI trả lời', group: 'ai', icon: <RobotOutlined />, draggable: true },
     { type: 'end', label: 'Kết thúc', group: 'end', icon: <FlagOutlined />, draggable: true },
 ];
@@ -63,6 +65,8 @@ export function defaultData(type: FlowNodeType): FlowNodeData {
             return { text: '', target: { public: true, private: false } };
         case 'condition':
             return { keywords: [], match: 'any' };
+        case 'post_router':
+            return { posts: [] };
         default:
             return {};
     }
@@ -269,6 +273,38 @@ export function ConditionNode({ data, selected }: NodeProps) {
     );
 }
 
+export function PostRouterNode({ data, selected }: NodeProps) {
+    const d = data as FlowNodeData;
+    const posts = d.posts ?? [];
+    const denom = posts.length + 2; // posts + nhánh "mặc định"
+    return (
+        <>
+            <Handle type="target" position={Position.Top} />
+            <Shell selected={selected} color="#13c2c2" icon={<ApartmentOutlined />} title="Rẽ theo bài viết">
+                {posts.length === 0 ? (
+                    <span style={{ color: '#bfbfbf' }}>Chưa chọn bài viết</span>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        {posts.map((p) => (
+                            <div key={p.id} style={{ border: '1px solid #b5f5ec', borderRadius: 4, padding: '2px 6px', background: '#e6fffb', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {p.label || p.id}
+                            </div>
+                        ))}
+                    </div>
+                )}
+                <div style={{ marginTop: 6, fontSize: 11, color: '#8c8c8c', textAlign: 'right' }}>↘ bài khác (mặc định)</div>
+            </Shell>
+            {/* 1 handle / bài (id = post id) + 1 handle 'default' cho bài khác — edge.sourceHandle khớp engine. */}
+            {posts.map((p, i) => (
+                <Handle key={p.id} id={p.id} type="source" position={Position.Bottom}
+                    style={{ left: `${((i + 1) / denom) * 100}%`, background: '#13c2c2' }} />
+            ))}
+            <Handle id="default" type="source" position={Position.Bottom}
+                style={{ left: `${((posts.length + 1) / denom) * 100}%`, background: '#bfbfbf' }} />
+        </>
+    );
+}
+
 export function EndNode({ selected }: NodeProps) {
     return (
         <>
@@ -285,6 +321,7 @@ export const nodeTypes = {
     send_comment_reply: SendCommentReplyNode,
     wait_reply: WaitReplyNode,
     condition: ConditionNode,
+    post_router: PostRouterNode,
     ai_reply: AiReplyNode,
     end: EndNode,
 };

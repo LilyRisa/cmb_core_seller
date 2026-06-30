@@ -852,12 +852,16 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
      * so trực tiếp. `full_picture` là CDN hết hạn (chỉ để xem trước trong picker).
      *
      * @param  array{pageSize?:int, cursor?:string}  $query
-     * @return array{items: list<array{id:string, message:?string, permalink_url:?string, image_url:?string, created_time:?string}>, nextCursor:?string, hasMore:bool}
+     * @return array{items: list<array{id:string, message:?string, permalink_url:?string, image_url:?string, created_time:?string, likes:int, comments:int, shares:int}>, nextCursor:?string, hasMore:bool}
      */
     public function listPosts(MessagingAuthContext $auth, array $query = []): array
     {
         $params = [
-            'fields' => 'id,message,created_time,permalink_url,full_picture',
+            // reactions ≈ "like" tổng (mọi cảm xúc); comments + shares cho lưới chọn bài.
+            'fields' => 'id,message,created_time,permalink_url,full_picture'
+                .',reactions.summary(true).limit(0)'
+                .',comments.summary(true).limit(0)'
+                .',shares',
             'limit' => (int) ($query['pageSize'] ?? 25),
             'access_token' => $auth->accessToken,
         ];
@@ -882,6 +886,9 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
                 'permalink_url' => isset($post['permalink_url']) && (string) $post['permalink_url'] !== '' ? (string) $post['permalink_url'] : null,
                 'image_url' => isset($post['full_picture']) && (string) $post['full_picture'] !== '' ? (string) $post['full_picture'] : null,
                 'created_time' => isset($post['created_time']) ? (string) $post['created_time'] : null,
+                'likes' => (int) ($post['reactions']['summary']['total_count'] ?? 0),
+                'comments' => (int) ($post['comments']['summary']['total_count'] ?? 0),
+                'shares' => (int) ($post['shares']['count'] ?? 0),
             ];
         }
 

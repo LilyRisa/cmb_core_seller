@@ -14,6 +14,7 @@ import {
 import { metaFor } from './nodes';
 import { newStep } from './steps';
 import { StepListEditor } from './StepListEditor';
+import { PostPicker } from './PostPicker';
 
 /**
  * Khoi tao danh sach step khi mo drawer cho node send_message.
@@ -57,6 +58,8 @@ export function NodeConfigDrawer({
     onClose,
     onChange,
     readOnly,
+    appliesAllPages = true,
+    pageIds = [],
 }: {
     node: Node | null;
     open: boolean;
@@ -64,10 +67,13 @@ export function NodeConfigDrawer({
     onClose: () => void;
     onChange: (nodeId: string, data: FlowNodeData) => void;
     readOnly?: boolean;
+    appliesAllPages?: boolean;
+    pageIds?: number[];
 }) {
     const [form] = Form.useForm();
     const upload = useUploadFlowMedia(flowId);
     const type = node?.type as FlowNodeType | undefined;
+    const [routerPickerOpen, setRouterPickerOpen] = useState(false);
 
     // ── State buoc cho send_message ──────────────────────────────────────────
     const [localSteps, setLocalSteps] = useState<FlowStep[]>(() =>
@@ -193,6 +199,34 @@ export function NodeConfigDrawer({
                                 </Radio.Group>
                             </Form.Item>
                             <Alert type="info" showIcon message="Nhánh khớp chạy khi điều kiện đúng; nhánh không khớp chạy khi sai." />
+                        </>
+                    )}
+
+                    {type === 'post_router' && node && (
+                        <>
+                            <Typography.Paragraph type="secondary" style={{ fontSize: 13 }}>
+                                Rẽ nhánh theo bài viết nguồn của hội thoại. Mỗi bài đã chọn tạo 1 nhánh ra trên sơ đồ; hội thoại từ bài khác đi theo nhánh “mặc định”.
+                            </Typography.Paragraph>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                                {((node.data as FlowNodeData).posts ?? []).map((p) => (
+                                    <div key={p.id} style={{ border: '1px solid #b5f5ec', borderRadius: 4, padding: '4px 8px', background: '#e6fffb', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {p.label || p.id}
+                                    </div>
+                                ))}
+                                {((node.data as FlowNodeData).posts ?? []).length === 0 && (
+                                    <Typography.Text type="secondary">Chưa chọn bài viết nào.</Typography.Text>
+                                )}
+                            </div>
+                            <Button icon={<PlusOutlined />} disabled={readOnly} onClick={() => setRouterPickerOpen(true)}>Chọn bài viết</Button>
+                            <PostPicker
+                                open={routerPickerOpen}
+                                value={((node.data as FlowNodeData).posts ?? []).map((p) => p.id)}
+                                appliesAllPages={appliesAllPages}
+                                pageIds={pageIds}
+                                onClose={() => setRouterPickerOpen(false)}
+                                onChange={() => {}}
+                                onChangePosts={(posts) => onChange(node.id, { ...(node.data as FlowNodeData), posts })}
+                            />
                         </>
                     )}
 

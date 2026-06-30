@@ -30,6 +30,7 @@ use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\AiReplyNodeExecutor;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\ConditionNodeExecutor;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\EndNodeExecutor;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\NodeExecutorRegistry;
+use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\PostRouterNodeExecutor;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\SendCommentReplyNodeExecutor;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\SendInteractiveNodeExecutor;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Nodes\SendMessageNodeExecutor;
@@ -88,6 +89,7 @@ class MessagingServiceProvider extends ServiceProvider
             $registry->register('send_buttons', SendInteractiveNodeExecutor::class);
             $registry->register('send_comment_reply', SendCommentReplyNodeExecutor::class);
             $registry->register('condition', ConditionNodeExecutor::class);
+            $registry->register('post_router', PostRouterNodeExecutor::class);
             $registry->register('ai_reply', AiReplyNodeExecutor::class);
             $registry->register('wait_reply', WaitReplyNodeExecutor::class);
             $registry->register('end', EndNodeExecutor::class);

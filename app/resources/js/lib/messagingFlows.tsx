@@ -24,7 +24,7 @@ export type FlowTriggerType =
     | 'inbox_keyword'
     | 'inbox_any';
 
-export type FlowNodeType = 'trigger' | 'send_message' | 'send_buttons' | 'send_comment_reply' | 'wait_reply' | 'condition' | 'ai_reply' | 'end';
+export type FlowNodeType = 'trigger' | 'send_message' | 'send_buttons' | 'send_comment_reply' | 'wait_reply' | 'condition' | 'post_router' | 'ai_reply' | 'end';
 
 export interface FlowButton {
     id: string;
@@ -64,6 +64,8 @@ export interface FlowNodeData {
     target?: { public?: boolean; private?: boolean };
     /** Danh sách bước (node-with-steps Phase 2A). Tùy chọn — không có thì dùng hành vi gửi cũ. */
     steps?: FlowStep[];
+    /** post_router: danh sách bài viết để rẽ nhánh (mỗi bài = 1 handle = post id). */
+    posts?: { id: string; label?: string }[];
     [k: string]: unknown;
 }
 
@@ -246,6 +248,9 @@ export interface FbPost {
     permalink_url: string | null;
     image_url: string | null;
     created_time: string | null;
+    likes?: number;
+    comments?: number;
+    shares?: number;
 }
 
 /** Liệt kê bài đăng FB của 1 kênh để chọn (post picker cho trigger comment_on_post). */
