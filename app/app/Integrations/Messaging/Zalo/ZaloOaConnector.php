@@ -207,7 +207,24 @@ class ZaloOaConnector implements InteractiveMessagingConnector, MessagingConnect
     // --- Outbound (Task 7-9) ---
     public function sendText(MessagingAuthContext $auth, string $externalConversationId, string $body, array $opts = []): SendResultDTO
     {
-        throw UnsupportedOperation::for($this->code(), 'sendText'); // Task 7
+        return $this->sendCs($auth, $externalConversationId, ['text' => $body]);
+    }
+
+    /**
+     * @param  array<string,mixed>  $message  message template Zalo (text / attachment)
+     */
+    private function sendCs(MessagingAuthContext $auth, string $userId, array $message): SendResultDTO
+    {
+        $data = $this->client->post($auth->accessToken, 'v3.0/oa/message/cs', [
+            'recipient' => ['user_id' => $userId],
+            'message' => $message,
+        ]);
+
+        return new SendResultDTO(
+            externalMessageId: (string) ($data['message_id'] ?? ''),
+            sentAt: CarbonImmutable::now(),
+            raw: $data,
+        );
     }
 
     public function sendMedia(MessagingAuthContext $auth, string $externalConversationId, MediaRefDTO $media, array $opts = []): SendResultDTO

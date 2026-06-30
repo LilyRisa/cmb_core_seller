@@ -179,4 +179,22 @@ class ZaloOaConnectorTest extends TestCase
         $this->assertSame('Nguyễn A', $profile['name']);
         $this->assertSame('https://zalo.test/av.jpg', $profile['avatar_url']);
     }
+
+    public function test_send_text_posts_cs_shape(): void
+    {
+        \Illuminate\Support\Facades\Http::fake(['openapi.zalo.me/v3.0/oa/message/cs' => \Illuminate\Support\Facades\Http::response(['error' => 0, 'message' => 'Success', 'data' => ['message_id' => 'OUT_1', 'user_id' => 'USER_1']], 200)]);
+
+        $auth = new \CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext(1, 'zalo_oa', 'OA_9', 'TKN');
+        $result = $this->connector()->sendText($auth, 'USER_1', 'Dạ còn hàng ạ!');
+
+        $this->assertSame('OUT_1', $result->externalMessageId);
+        \Illuminate\Support\Facades\Http::assertSent(function ($r) {
+            $d = $r->data();
+
+            return str_contains($r->url(), '/v3.0/oa/message/cs')
+                && $r->hasHeader('access_token', 'TKN')
+                && ($d['recipient']['user_id'] ?? null) === 'USER_1'
+                && ($d['message']['text'] ?? null) === 'Dạ còn hàng ạ!';
+        });
+    }
 }
