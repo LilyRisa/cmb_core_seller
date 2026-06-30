@@ -63,7 +63,7 @@ Route::post('carriers/{carrier}', [CarrierWebhookController::class, 'handle'])
 */
 Route::post('messaging/{provider}', [MessagingWebhookController::class, 'handle'])
     // shopee_chat KHÔNG ở đây: Shopee chỉ 1 push URL → tin chat về /webhook/shopee (ShopeeWebhookController demux).
-    ->whereIn('provider', ['manual', 'facebook_page', 'facebook', 'tiktok_chat', 'lazada_chat'])
+    ->whereIn('provider', ['manual', 'facebook_page', 'facebook', 'tiktok_chat', 'lazada_chat', 'zalo_oa'])
     ->name('messaging');
 Route::get('messaging/facebook', [MessagingWebhookController::class, 'verify'])
     ->defaults('provider', 'facebook')

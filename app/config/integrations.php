@@ -71,6 +71,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Zalo OA (Zalo Official Account — Phase 1)
+    |--------------------------------------------------------------------------
+    |
+    | app_id / app_secret từ Zalo Developer Console (My Apps → App ID & Secret).
+    | oa_secret: OA Secret (dùng để xác minh chữ ký webhook X-ZEvent-Signature).
+    | redirect_uri: callback OAuth (PHẢI khớp tuyệt đối trên Zalo Dev Console).
+    |
+    */
+    'messaging_zalo_oa' => [
+        'app_id' => env('MESSAGING_ZALO_APP_ID'),
+        'app_secret' => env('MESSAGING_ZALO_APP_SECRET'),
+        'oa_secret' => env('MESSAGING_ZALO_OA_SECRET'),
+        'redirect_uri' => env('MESSAGING_ZALO_REDIRECT_URI'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Facebook Ads (Marketing API) — near-real-time insights + AI optimization
     |--------------------------------------------------------------------------
     |

@@ -36,6 +36,9 @@ use CMBcoreSeller\Integrations\Messaging\Manual\ManualMessagingConnector;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Integrations\Messaging\Shopee\ShopeeChatConnector;
 use CMBcoreSeller\Integrations\Messaging\TikTok\TikTokChatConnector;
+use CMBcoreSeller\Integrations\Messaging\Zalo\ZaloClient;
+use CMBcoreSeller\Integrations\Messaging\Zalo\ZaloOaConnector;
+use CMBcoreSeller\Integrations\Messaging\Zalo\ZaloSignatureVerifier;
 use CMBcoreSeller\Integrations\Pancake\PancakeBadReportProvider;
 use CMBcoreSeller\Integrations\Payments\Momo\MomoConnector;
 use CMBcoreSeller\Integrations\Payments\PaymentRegistry;
@@ -112,6 +115,7 @@ class IntegrationsServiceProvider extends ServiceProvider
         'tiktok_chat' => TikTokChatConnector::class,        // S4
         'lazada_chat' => LazadaChatConnector::class,        // S8 (best-effort, §11 Q3)
         'shopee_chat' => ShopeeChatConnector::class,        // SPEC-0024 (spec 2026-05-21)
+        'zalo_oa' => ZaloOaConnector::class,                // Phase 1 Zalo OA
     ];
 
     /**
@@ -218,6 +222,15 @@ class IntegrationsServiceProvider extends ServiceProvider
                 (array) config('integrations.shopee', []),
                 $app->make(ShopeeWebhookVerifier::class),
                 $app->make(ShopeeClient::class),
+            );
+        });
+
+        // ZaloOaConnector cần config block + ZaloSignatureVerifier + ZaloClient — bind tường minh.
+        $this->app->bind(ZaloOaConnector::class, function ($app) {
+            return new ZaloOaConnector(
+                (array) config('integrations.messaging_zalo_oa', []),
+                $app->make(ZaloSignatureVerifier::class),
+                $app->make(ZaloClient::class),
             );
         });
 

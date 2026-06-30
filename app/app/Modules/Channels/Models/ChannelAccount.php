@@ -53,7 +53,7 @@ class ChannelAccount extends Model
      * danh sách "Gian hàng" và khỏi đếm hạn mức gói (chỉ đếm sàn đã kết nối).
      * `facebook_page` (Messenger), `lazada_im` (Lazada IM ERP app riêng).
      */
-    public const MESSAGING_ONLY_PROVIDERS = ['facebook_page', 'lazada_im'];
+    public const MESSAGING_ONLY_PROVIDERS = ['facebook_page', 'lazada_im', 'zalo_oa'];
 
     protected $fillable = [
         'tenant_id', 'provider', 'external_shop_id', 'shop_name', 'display_name', 'shop_region', 'seller_type',
@@ -104,6 +104,7 @@ class ChannelAccount extends Model
             'tiktok' => 'tiktok_chat',
             'shopee' => 'shopee_chat',
             'facebook_page' => 'facebook_page',
+            'zalo_oa' => 'zalo_oa',
             default => null,
         };
     }

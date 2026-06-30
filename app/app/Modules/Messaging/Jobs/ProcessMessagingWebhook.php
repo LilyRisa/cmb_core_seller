@@ -95,7 +95,7 @@ class ProcessMessagingWebhook implements ShouldQueue
         // (externalMessageId null) nhưng vẫn cần tiến luồng. Các nhánh cần mid
         // (reaction qua applyReaction, message qua messagingDtoFromWebhook) tự kiểm lại.
         $dto = $this->rebuildDtoFromStoredPayload($event);
-        if (! $dto || ! $dto->externalConversationId) {
+        if (! $dto->externalConversationId) {
             $event->markProcessed(WebhookEvent::STATUS_IGNORED);
 
             return;
@@ -216,6 +216,7 @@ class ProcessMessagingWebhook implements ShouldQueue
             'lazada_chat' => 'lazada',
             'facebook_page' => 'facebook_page',
             'manual' => 'manual',
+            'zalo_oa' => 'zalo_oa',
             default => $messagingCode,
         };
     }
@@ -227,7 +228,7 @@ class ProcessMessagingWebhook implements ShouldQueue
      * Reads normalized _kind/_body/_attachments keys written by MessagingWebhookIngestService
      * (Phase B). Falls back gracefully when keys absent (legacy rows / manual connector).
      */
-    private function rebuildDtoFromStoredPayload(WebhookEvent $event): ?MessagingWebhookEventDTO
+    private function rebuildDtoFromStoredPayload(WebhookEvent $event): MessagingWebhookEventDTO
     {
         $payload = is_array($event->payload) ? $event->payload : [];
 
