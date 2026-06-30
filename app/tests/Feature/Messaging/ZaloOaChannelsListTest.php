@@ -81,8 +81,8 @@ class ZaloOaChannelsListTest extends TestCase
             ->assertJsonPath('data.0.provider', 'zalo_oa');
     }
 
-    /** Không có ?provider thì trả tất cả kênh messaging_enabled — ít nhất facebook vẫn có mặt. */
-    public function test_index_without_provider_returns_all_messaging_enabled(): void
+    /** Không có ?provider thì mặc định chỉ trả facebook_page (không phải tất cả messaging_enabled). */
+    public function test_index_without_provider_defaults_to_facebook(): void
     {
         ChannelAccount::query()->create([
             'tenant_id' => $this->tenant->getKey(),
@@ -113,6 +113,7 @@ class ZaloOaChannelsListTest extends TestCase
             ->withHeaders($this->h())
             ->getJson('/api/v1/messaging/channels')
             ->assertOk()
-            ->assertJsonCount(2, 'data');
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.provider', 'facebook_page');
     }
 }

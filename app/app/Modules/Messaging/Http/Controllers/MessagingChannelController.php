@@ -30,15 +30,17 @@ class MessagingChannelController extends Controller
     /**
      * GET /api/v1/messaging/channels — liệt kê kênh nhắn tin đã kết nối (không trả token).
      * ?provider=<code> → chỉ trả kênh theo provider đó (vd `zalo_oa`).
-     * Không có ?provider → trả tất cả kênh có messaging_enabled=true.
+     * Không có ?provider → mặc định trả kênh facebook_page (UI từng sàn phải gửi provider riêng).
      */
     public function index(Request $request): JsonResponse
     {
         Gate::authorize('messaging.view');
 
-        $query = ChannelAccount::query()->where('messaging_enabled', true);
         if ($provider = $request->query('provider')) {
-            $query->where('provider', (string) $provider);
+            $query = ChannelAccount::query()->where('provider', (string) $provider);
+        } else {
+            // Default to facebook_page when no provider specified (restore prior behavior).
+            $query = ChannelAccount::query()->where('provider', 'facebook_page');
         }
 
         $pages = $query
