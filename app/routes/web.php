@@ -8,6 +8,7 @@ use CMBcoreSeller\Modules\Marketing\Http\Controllers\AdsOAuthController;
 use CMBcoreSeller\Modules\Marketing\Http\Controllers\TikTokAdsOAuthController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\FacebookOAuthController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\LazadaImOAuthController;
+use CMBcoreSeller\Modules\Messaging\Http\Controllers\ZaloOaOAuthController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -41,6 +42,10 @@ Route::get('oauth/facebook_page/callback', [FacebookOAuthController::class, 'cal
 // Lazada IM Chat OAuth (app "IM ERP" RIÊNG, ngoại lệ ADR-0019) — MessagingConnector, flow riêng.
 Route::get('oauth/lazada_im/callback', [LazadaImOAuthController::class, 'callback'])
     ->name('messaging.lazada_im.callback');
+
+// Zalo OA messaging OAuth (Task 11) — MessagingConnector, flow riêng.
+Route::get('oauth/zalo_oa/callback', [ZaloOaOAuthController::class, 'callback'])
+    ->name('messaging.zalo_oa.callback');
 
 // Facebook Ads (Marketing API) OAuth — SPEC 2026-06-04, ads_read token riêng.
 Route::get('oauth/facebook_ads/callback', [AdsOAuthController::class, 'callback'])

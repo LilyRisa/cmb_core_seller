@@ -4,6 +4,7 @@ namespace Tests\Unit\Messaging\Zalo;
 
 use CMBcoreSeller\Integrations\Messaging\Contracts\InteractiveMessagingConnector;
 use CMBcoreSeller\Integrations\Messaging\Contracts\MessagingConnector;
+use CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingWebhookEventDTO;
@@ -11,6 +12,8 @@ use CMBcoreSeller\Integrations\Messaging\Exceptions\UnsupportedOperation;
 use CMBcoreSeller\Integrations\Messaging\Zalo\ZaloClient;
 use CMBcoreSeller\Integrations\Messaging\Zalo\ZaloOaConnector;
 use CMBcoreSeller\Integrations\Messaging\Zalo\ZaloSignatureVerifier;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Request;
 use Tests\TestCase;
 
@@ -149,46 +152,55 @@ class ZaloOaConnectorTest extends TestCase
 
     public function test_exchange_code_for_token(): void
     {
-        \Illuminate\Support\Facades\Http::fake(['oauth.zaloapp.com/v4/oa/access_token' => \Illuminate\Support\Facades\Http::response(['access_token' => 'AT', 'refresh_token' => 'RT', 'expires_in' => '90000'], 200)]);
+        Http::fake(['oauth.zaloapp.com/v4/oa/access_token' => Http::response(['access_token' => 'AT', 'refresh_token' => 'RT', 'expires_in' => '90000'], 200)]);
 
         $token = $this->connector()->exchangeCodeForToken('CODE_1');
 
         $this->assertSame('AT', $token->accessToken);
         $this->assertSame('RT', $token->refreshToken);
         $this->assertNotNull($token->expiresAt);
-        \Illuminate\Support\Facades\Http::assertSent(fn ($r) => $r['grant_type'] === 'authorization_code' && $r['code'] === 'CODE_1' && $r->hasHeader('secret_key', 'sec'));
+        Http::assertSent(fn ($r) => $r['grant_type'] === 'authorization_code' && $r['code'] === 'CODE_1' && $r->hasHeader('secret_key', 'sec'));
     }
 
     public function test_refresh_token_rotates(): void
     {
-        \Illuminate\Support\Facades\Http::fake(['oauth.zaloapp.com/v4/oa/access_token' => \Illuminate\Support\Facades\Http::response(['access_token' => 'AT2', 'refresh_token' => 'RT2', 'expires_in' => '90000'], 200)]);
+        Http::fake(['oauth.zaloapp.com/v4/oa/access_token' => Http::response(['access_token' => 'AT2', 'refresh_token' => 'RT2', 'expires_in' => '90000'], 200)]);
 
         $token = $this->connector()->refreshToken('RT1');
 
         $this->assertSame('AT2', $token->accessToken);
         $this->assertSame('RT2', $token->refreshToken);
-        \Illuminate\Support\Facades\Http::assertSent(fn ($r) => $r['grant_type'] === 'refresh_token' && $r['refresh_token'] === 'RT1');
+        Http::assertSent(fn ($r) => $r['grant_type'] === 'refresh_token' && $r['refresh_token'] === 'RT1');
     }
 
     public function test_fetch_user_profile(): void
     {
-        \Illuminate\Support\Facades\Http::fake(['openapi.zalo.me/v3.0/oa/user/detail*' => \Illuminate\Support\Facades\Http::response(['error' => 0, 'data' => ['user_id' => 'USER_1', 'display_name' => 'Nguyễn A', 'avatar' => 'https://zalo.test/av.jpg']], 200)]);
+        Http::fake(['openapi.zalo.me/v3.0/oa/user/detail*' => Http::response(['error' => 0, 'data' => ['user_id' => 'USER_1', 'display_name' => 'Nguyễn A', 'avatar' => 'https://zalo.test/av.jpg']], 200)]);
 
-        $profile = $this->connector()->fetchUserProfile(new \CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext(1, 'zalo_oa', 'OA_9', 'TKN'), 'USER_1');
+        $profile = $this->connector()->fetchUserProfile(new MessagingAuthContext(1, 'zalo_oa', 'OA_9', 'TKN'), 'USER_1');
 
         $this->assertSame('Nguyễn A', $profile['name']);
         $this->assertSame('https://zalo.test/av.jpg', $profile['avatar_url']);
     }
 
+    public function test_fetch_oa_id(): void
+    {
+        Http::fake(['openapi.zalo.me/v2.0/oa/getoa' => Http::response(['error' => 0, 'data' => ['oa_id' => 'OA_9', 'name' => 'Shop Zalo']], 200)]);
+
+        $oaId = $this->connector()->fetchOaId(new MessagingAuthContext(0, 'zalo_oa', '', 'TKN'));
+
+        $this->assertSame('OA_9', $oaId);
+    }
+
     public function test_send_text_posts_cs_shape(): void
     {
-        \Illuminate\Support\Facades\Http::fake(['openapi.zalo.me/v3.0/oa/message/cs' => \Illuminate\Support\Facades\Http::response(['error' => 0, 'message' => 'Success', 'data' => ['message_id' => 'OUT_1', 'user_id' => 'USER_1']], 200)]);
+        Http::fake(['openapi.zalo.me/v3.0/oa/message/cs' => Http::response(['error' => 0, 'message' => 'Success', 'data' => ['message_id' => 'OUT_1', 'user_id' => 'USER_1']], 200)]);
 
-        $auth = new \CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext(1, 'zalo_oa', 'OA_9', 'TKN');
+        $auth = new MessagingAuthContext(1, 'zalo_oa', 'OA_9', 'TKN');
         $result = $this->connector()->sendText($auth, 'USER_1', 'Dạ còn hàng ạ!');
 
         $this->assertSame('OUT_1', $result->externalMessageId);
-        \Illuminate\Support\Facades\Http::assertSent(function ($r) {
+        Http::assertSent(function ($r) {
             $d = $r->data();
 
             return str_contains($r->url(), '/v3.0/oa/message/cs')
@@ -200,25 +212,25 @@ class ZaloOaConnectorTest extends TestCase
 
     public function test_send_media_image_uploads_then_sends(): void
     {
-        \Illuminate\Support\Facades\Storage::fake('local');
-        \Illuminate\Support\Facades\Storage::disk('local')->put('media/x.jpg', 'BYTES');
+        Storage::fake('local');
+        Storage::disk('local')->put('media/x.jpg', 'BYTES');
 
-        \Illuminate\Support\Facades\Http::fake([
-            'openapi.zalo.me/v2.0/oa/upload/image' => \Illuminate\Support\Facades\Http::response(['error' => 0, 'data' => ['attachment_id' => 'ATT_1']], 200),
-            'openapi.zalo.me/v3.0/oa/message/cs' => \Illuminate\Support\Facades\Http::response(['error' => 0, 'data' => ['message_id' => 'OUT_2']], 200),
+        Http::fake([
+            'openapi.zalo.me/v2.0/oa/upload/image' => Http::response(['error' => 0, 'data' => ['attachment_id' => 'ATT_1']], 200),
+            'openapi.zalo.me/v3.0/oa/message/cs' => Http::response(['error' => 0, 'data' => ['message_id' => 'OUT_2']], 200),
         ]);
 
-        $media = new \CMBcoreSeller\Integrations\Messaging\DTO\MediaRefDTO(
-            kind: \CMBcoreSeller\Integrations\Messaging\DTO\MessageKind::Image,
+        $media = new MediaRefDTO(
+            kind: MessageKind::Image,
             mime: 'image/jpeg', storagePath: 'media/x.jpg', filename: 'x.jpg',
         );
-        $auth = new \CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext(1, 'zalo_oa', 'OA_9', 'TKN');
+        $auth = new MessagingAuthContext(1, 'zalo_oa', 'OA_9', 'TKN');
 
         $result = $this->connector()->sendMedia($auth, 'USER_1', $media, ['disk' => 'local']);
 
         $this->assertSame('OUT_2', $result->externalMessageId);
-        \Illuminate\Support\Facades\Http::assertSent(fn ($r) => str_contains($r->url(), '/v2.0/oa/upload/image'));
-        \Illuminate\Support\Facades\Http::assertSent(function ($r) {
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/v2.0/oa/upload/image'));
+        Http::assertSent(function ($r) {
             $d = $r->data();
 
             return str_contains($r->url(), '/v3.0/oa/message/cs')
@@ -228,9 +240,9 @@ class ZaloOaConnectorTest extends TestCase
 
     public function test_send_interactive_maps_buttons_and_caps_at_5(): void
     {
-        \Illuminate\Support\Facades\Http::fake(['openapi.zalo.me/v3.0/oa/message/cs' => \Illuminate\Support\Facades\Http::response(['error' => 0, 'data' => ['message_id' => 'OUT_3']], 200)]);
+        Http::fake(['openapi.zalo.me/v3.0/oa/message/cs' => Http::response(['error' => 0, 'data' => ['message_id' => 'OUT_3']], 200)]);
 
-        $auth = new \CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext(1, 'zalo_oa', 'OA_9', 'TKN');
+        $auth = new MessagingAuthContext(1, 'zalo_oa', 'OA_9', 'TKN');
         $structure = [
             'text' => 'Chọn nhé',
             'buttons' => [
@@ -244,7 +256,7 @@ class ZaloOaConnectorTest extends TestCase
         $result = $this->connector()->sendInteractive($auth, 'USER_1', $structure);
         $this->assertSame('OUT_3', $result->externalMessageId);
 
-        \Illuminate\Support\Facades\Http::assertSent(function ($r) {
+        Http::assertSent(function ($r) {
             $btns = $r->data()['message']['attachment']['payload']['buttons'] ?? [];
 
             return count($btns) === 5

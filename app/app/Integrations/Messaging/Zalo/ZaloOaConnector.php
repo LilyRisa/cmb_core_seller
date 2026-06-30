@@ -127,6 +127,12 @@ class ZaloOaConnector implements InteractiveMessagingConnector, MessagingConnect
         return ['name' => $data['name'] ?? null, 'avatar_url' => $data['avatar'] ?? null];
     }
 
+    /** OA id của tài khoản (đổi token → định danh shop). `v2.0/oa/getoa` → data.oa_id. */
+    public function fetchOaId(MessagingAuthContext $auth): string
+    {
+        return (string) ($this->client->get($auth->accessToken, 'v2.0/oa/getoa')['oa_id'] ?? '');
+    }
+
     /** @return array{name: ?string, avatar_url: ?string} */
     public function fetchUserProfile(MessagingAuthContext $auth, string $externalUserId): array
     {

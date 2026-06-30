@@ -16,6 +16,7 @@ use CMBcoreSeller\Modules\Messaging\Http\Controllers\PushSubscriptionController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\TagController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\TemplateController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\UtilityTemplateController;
+use CMBcoreSeller\Modules\Messaging\Http\Controllers\ZaloOaOAuthController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -146,6 +147,10 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
         // --- Lazada IM Chat OAuth connect (app IM ERP riêng) — trả authorize URL ---
         Route::post('lazada-im/connect', [LazadaImOAuthController::class, 'start'])
             ->name('messaging.lazada_im.connect');
+
+        // --- Zalo OA OAuth connect (Task 11) — trả authorize URL ---
+        Route::get('zalo/connect', [ZaloOaOAuthController::class, 'start'])
+            ->name('messaging.zalo.connect');
 
         // --- Capabilities map — provider-agnostic (Phase A2) ---------------
         Route::get('capabilities', [MessagingChannelController::class, 'capabilities'])
