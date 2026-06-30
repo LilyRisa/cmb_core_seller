@@ -318,11 +318,15 @@ class AiSuggestionService
                 return "Khách vừa gửi ảnh. Hệ thống nhận diện CÓ THỂ là một trong các sản phẩm: {$names}. "
                     .'Hãy HỎI LẠI khách để xác nhận đúng sản phẩm trước khi tư vấn (đừng tự ý chọn).';
             }
+
+            // Có ẢNH nhưng KHÔNG khớp sản phẩm nào trong danh mục ⇒ để AI tự sinh câu hỏi nhu cầu
+            // (đừng im, đừng bịa sản phẩm). Yêu cầu user 2026-07.
+            return 'Khách vừa gửi ẢNH nhưng hệ thống KHÔNG nhận diện được sản phẩm nào khớp trong danh mục. '
+                .'Hãy chủ động HỎI khách một cách tự nhiên, lịch sự: khách đang cần hỗ trợ vấn đề gì, '
+                .'hoặc muốn mua / quan tâm sản phẩm nào — TUYỆT ĐỐI không bịa thông tin sản phẩm và không khẳng định ảnh là một sản phẩm cụ thể.';
         } catch (\Throwable) {
             return null;
         }
-
-        return null;
     }
 
     private function renderMatchedItem(VisualItemCandidate $item): string
