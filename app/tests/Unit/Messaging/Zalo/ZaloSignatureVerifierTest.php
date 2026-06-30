@@ -9,6 +9,7 @@ use Tests\TestCase;
 class ZaloSignatureVerifierTest extends TestCase
 {
     private const APP_ID = 'app_123';
+
     private const OA_SECRET = 'oa_secret_xyz';
 
     private function request(string $body, ?string $signature): Request

@@ -4,6 +4,7 @@ namespace Tests\Unit\Messaging\Zalo;
 
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Services\ZaloTokenRefresher;
+use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -24,7 +25,7 @@ class ZaloTokenRefresherTest extends TestCase
     {
         Http::fake(['oauth.zaloapp.com/v4/oa/access_token' => Http::response(['access_token' => 'AT2', 'refresh_token' => 'RT2', 'expires_in' => '90000'], 200)]);
 
-        $tenant = \CMBcoreSeller\Modules\Tenancy\Models\Tenant::factory()->create();
+        $tenant = Tenant::factory()->create();
         $acc = ChannelAccount::withoutGlobalScope(TenantScope::class)->create([
             'tenant_id' => $tenant->id, 'provider' => 'zalo_oa', 'external_shop_id' => 'OA_9',
             'access_token' => 'AT1', 'refresh_token' => 'RT1', 'status' => ChannelAccount::STATUS_ACTIVE,
