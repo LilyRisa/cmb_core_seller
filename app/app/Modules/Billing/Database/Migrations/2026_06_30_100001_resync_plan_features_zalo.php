@@ -1,15 +1,14 @@
 <?php
 
-use CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder;
-use CMBcoreSeller\Modules\Billing\Database\Seeders\TestUnlimitedPlanSeeder;
+use CMBcoreSeller\Modules\Billing\Models\Plan;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\App;
 
 /**
- * Re-apply catalog gói khi deploy để các gói HIỆN CÓ nhận feature mới `messaging_zalo`
- * (Nhắn tin Zalo OA — SPEC 0039): Cơ bản (starter) + Chuyên nghiệp (pro) + gói TEST
- * (`test_unlimited`) bật; gói Miễn phí (trial) tắt (giống `messaging_inbox`). Idempotent
- * (updateOrCreate theo `code`). Bỏ qua khi chạy test (RefreshDatabase). SPEC 2026-06-30.
+ * Bơm feature mới `messaging_zalo` (Nhắn tin Zalo OA — SPEC 0039) vào các gói HIỆN CÓ
+ * khi deploy. PHẪU THUẬT: chỉ THÊM cờ `messaging_zalo` (= giá trị `messaging_inbox` của gói,
+ * vì cùng phân bố Free off / Basic+Pro on) nếu CHƯA có — KHÔNG re-seed toàn bộ để tránh
+ * ghi đè giá/hạn mức đã tuỳ chỉnh trên prod. Idempotent. Bỏ qua khi chạy test. SPEC 2026-06-30.
  */
 return new class extends Migration
 {
@@ -19,8 +18,14 @@ return new class extends Migration
             return;
         }
 
-        (new BillingPlanSeeder)->run();
-        (new TestUnlimitedPlanSeeder)->run();
+        foreach (Plan::all() as $plan) {
+            $features = (array) $plan->features;
+            if (! array_key_exists('messaging_zalo', $features)) {
+                $features['messaging_zalo'] = (bool) ($features['messaging_inbox'] ?? false);
+                $plan->features = $features;
+                $plan->save();
+            }
+        }
     }
 
     public function down(): void

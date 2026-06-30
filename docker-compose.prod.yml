@@ -213,8 +213,8 @@ x-app-env: &app-env
   # Zalo OA (SPEC 0039) — xem docs. APP_ID/APP_SECRET từ Zalo Developers → app.
   # ⚠️ APP_SECRET là BÍ MẬT — nhập ở Portainer/.env, KHÔNG để default. Bật bằng cách
   # thêm `zalo_oa` vào INTEGRATIONS_MESSAGING. Hai biến dưới đều OPTIONAL:
-  #  - OA_SECRET (ký webhook): trống ⇒ fallback APP_SECRET (Zalo thường dùng chung 1 secret);
-  #    chỉ set khi Zalo cấp secret webhook riêng.
+  #  - OA_SECRET = "OA Secret Key" của OA (ký webhook: mac=sha256(appId+data+ts+OAsecretKey)).
+  #    Về nguyên tắc KHÁC App Secret → nên set đúng; trống ⇒ fallback APP_SECRET (nếu dùng chung).
   #  - REDIRECT_URI: trống ⇒ tự dựng <APP_URL>/oauth/zalo_oa/callback (token exchange v4 không
   #    gửi redirect_uri); chỉ đặt khi domain callback khác APP_URL. PHẢI đăng ký Y HỆT trên Zalo.
   MESSAGING_ZALO_APP_ID: ${MESSAGING_ZALO_APP_ID:-}
