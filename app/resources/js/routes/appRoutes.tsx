@@ -37,6 +37,7 @@ import { CreateOrderPage } from '@/pages/CreateOrderPage';
 import { CarrierAccountsPage } from '@/pages/CarrierAccountsPage';
 import { SettingsLayout } from '@/components/SettingsLayout';
 import { SettingsApiKeysPage } from '@/pages/settings/SettingsApiKeysPage';
+import { EInvoiceSettingsPage } from '@/pages/settings/EInvoiceSettingsPage';
 import { SettingsMembersPage } from '@/pages/SettingsMembersPage';
 import { SettingsProfilePage } from '@/pages/SettingsProfilePage';
 import { SettingsWorkspacePage } from '@/pages/SettingsWorkspacePage';
@@ -150,6 +151,7 @@ export function appRouteElements(): React.ReactNode {
                 <Route path="shipping-labels/new" element={<ShippingLabelEditorPage />} />
                 <Route path="shipping-labels/:id" element={<ShippingLabelEditorPage />} />
                 <Route path="accounting/post-rules" element={<AccountingPostRulesPage />} />
+                <Route path="einvoice" element={<EInvoiceSettingsPage />} />
                 <Route path="*" element={<ComingSoon title="Phần này đang được xây dựng" phase="SPEC 0007 / 0011" />} />
             </Route>
         </>
