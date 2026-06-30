@@ -50,6 +50,10 @@ class MessageIngestionService
             // outbound / non-Facebook / đã có post (SPEC 2026-06-09).
             $this->postLinker->stampInbound($channelAccount, $conversation, $dto);
 
+            // Ngữ cảnh QUẢNG CÁO (Click-to-Messenger): khách nhắn từ ad ⇒ gắn ad_id/post_id/tiêu đề
+            // vào conversation.meta (first-touch) làm dữ liệu cho AI prompt + rẽ nhánh flow theo bài.
+            $this->stampAdReferral($conversation, $dto);
+
             // Điền tên buyer từ DTO (vd `from.name` của tin inbound backfill) khi hội thoại
             // chưa có tên — webhook tạo conversation với buyer_name=null, nguồn này bù vào
             // mà không cần quyền profile_pic. KHÔNG ghi đè tên đã có.
@@ -160,6 +164,29 @@ class MessageIngestionService
      *   (c) Body cũ là URL trần (sticker bị linkify trước khi fix) + tin giờ là ảnh → xoá link.
      *   (d) Bổ sung nút bấm (template) nếu chưa có.
      */
+    /**
+     * Gắn ngữ cảnh quảng cáo vào `conversation.meta` (first-touch) khi tin INBOUND mang `ad_referral`
+     * (do FacebookPageConnector trích từ webhook CTM). Lưu cả `fb_post_id` từ post_id để tái dùng
+     * FlowMatcher (rẽ theo bài) + scope RAG. KHÔNG ghi đè khi đã có (giữ nguồn chạm đầu tiên).
+     */
+    private function stampAdReferral(Conversation $conversation, MessageDTO $dto): void
+    {
+        $ref = is_array($dto->meta['ad_referral'] ?? null) ? $dto->meta['ad_referral'] : [];
+        if ($ref === [] || $dto->direction->value !== Message::DIRECTION_INBOUND) {
+            return;
+        }
+        $meta = is_array($conversation->meta) ? $conversation->meta : [];
+        if (! empty($meta['ad_referral'])) {
+            return;   // first-touch
+        }
+        $meta['ad_referral'] = $ref;
+        if (! empty($ref['post_id']) && empty($meta['fb_post_id'])) {
+            $meta['fb_post_id'] = (string) $ref['post_id'];
+            $meta['fb_post_source'] = 'ad_referral';
+        }
+        $conversation->forceFill(['meta' => $meta])->save();
+    }
+
     private function reconcileMessageOnResync(Message $existing, MessageDTO $dto): void
     {
         $changed = false;

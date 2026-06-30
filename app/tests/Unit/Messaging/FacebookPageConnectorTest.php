@@ -84,6 +84,46 @@ class FacebookPageConnectorTest extends TestCase
         $this->assertSame('m_abc', $event->externalMessageId);
     }
 
+    public function test_captures_click_to_messenger_ad_referral_into_meta(): void
+    {
+        // Khách nhắn tin từ quảng cáo CTM ⇒ event mang `referral` (source ADS) + ads_context_data.
+        $payload = json_encode([
+            'object' => 'page',
+            'entry' => [[
+                'id' => 'PAGE_123',
+                'messaging' => [[
+                    'sender' => ['id' => 'PSID_999'],
+                    'recipient' => ['id' => 'PAGE_123'],
+                    'timestamp' => 1716200000000,
+                    'message' => ['mid' => 'm_ad', 'text' => 'Sản phẩm này còn không shop?'],
+                    'referral' => [
+                        'ref' => 'promo-tet',
+                        'ad_id' => '6045246247433',
+                        'source' => 'ADS',
+                        'type' => 'OPEN_THREAD',
+                        'ads_context_data' => [
+                            'ad_title' => 'Loa bluetooth giảm 30%',
+                            'photo_url' => 'https://cdn/ad.jpg',
+                            'post_id' => '112233_445566',
+                            'product_id' => 'SKU-LOA-01',
+                        ],
+                    ],
+                ]],
+            ]],
+        ]);
+
+        $event = $this->connector()->parseWebhook($this->request($payload, null));
+
+        $this->assertSame(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, $event->type);
+        $ref = $event->meta['ad_referral'] ?? null;
+        $this->assertIsArray($ref);
+        $this->assertSame('ADS', $ref['source']);
+        $this->assertSame('6045246247433', $ref['ad_id']);
+        $this->assertSame('112233_445566', $ref['post_id']);
+        $this->assertSame('Loa bluetooth giảm 30%', $ref['ad_title']);
+        $this->assertSame('SKU-LOA-01', $ref['product_id']);
+    }
+
     public function test_parses_all_events_in_a_batch(): void
     {
         // Messenger gộp nhiều messaging event / POST — phải lấy HẾT (không mất tin).

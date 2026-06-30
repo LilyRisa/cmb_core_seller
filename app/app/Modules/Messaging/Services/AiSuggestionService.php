@@ -151,7 +151,7 @@ class AiSuggestionService
         [$snapshot, $mapping, $redactedCount] = $this->buildSnapshot($conv, $tenantId);
         $kb = $this->retriever->retrieve($tenantId, $inboundText, channelAccountId: (int) $conv->channel_account_id, provider: (string) $conv->provider);
         $provider = AiProvider::query()->find($providerCode);
-        $extra = $this->withVisualContext($this->baseSystemExtra(), $conv, $tenantId, $providerCode, $provider?->default_model);
+        $extra = $this->withAdContext($this->withVisualContext($this->baseSystemExtra(), $conv, $tenantId, $providerCode, $provider?->default_model), $conv);
         $ctx = new AiContext(tenantId: $tenantId, providerCode: $providerCode, model: $provider?->default_model, systemPromptExtra: $extra, meta: ['mode' => 'auto']);
 
         $startedAt = microtime(true);
@@ -205,7 +205,7 @@ class AiSuggestionService
             tenantId: $tenantId,
             providerCode: $providerCode,
             model: $provider?->default_model,
-            systemPromptExtra: $this->withVisualContext($this->baseSystemExtra(), $conv, $tenantId, $providerCode, $provider?->default_model),
+            systemPromptExtra: $this->withAdContext((string) $this->withVisualContext($this->baseSystemExtra(), $conv, $tenantId, $providerCode, $provider?->default_model), $conv),
         );
 
         $startedAt = microtime(true);
@@ -579,6 +579,30 @@ class AiSuggestionService
         return $global !== null && $global !== ''
             ? self::REPLY_FOCUS_DIRECTIVE."\n\n".$global
             : self::REPLY_FOCUS_DIRECTIVE;
+    }
+
+    /**
+     * Chèn NGỮ CẢNH QUẢNG CÁO vào system prompt khi hội thoại bắt nguồn từ Click-to-Messenger ad
+     * (conversation.meta.ad_referral do MessageIngestionService gắn) ⇒ AI tư vấn đúng SP/bài trong ad.
+     */
+    private function withAdContext(string $extra, Conversation $conv): string
+    {
+        $ref = is_array(($conv->meta ?? [])['ad_referral'] ?? null) ? $conv->meta['ad_referral'] : [];
+        if ($ref === []) {
+            return $extra;
+        }
+        $bits = array_filter([
+            ! empty($ref['ad_title']) ? 'tiêu đề quảng cáo: "'.$ref['ad_title'].'"' : null,
+            ! empty($ref['post_id']) ? 'mã bài viết: '.$ref['post_id'] : null,
+            ! empty($ref['product_id']) ? 'mã sản phẩm: '.$ref['product_id'] : null,
+        ]);
+        if ($bits === []) {
+            return $extra;
+        }
+        $note = 'NGỮ CẢNH: Khách nhắn tin từ QUẢNG CÁO Facebook ('.implode(', ', $bits).'). '
+            .'Hãy ưu tiên tư vấn đúng sản phẩm/nội dung trong quảng cáo này.';
+
+        return $extra !== '' ? $extra."\n\n".$note : $note;
     }
 
     /**

@@ -164,7 +164,7 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
         // Subscribe page vào app. `message_echoes` để nhận tin page tự gửi (qua Page
         // Inbox / Meta Business Suite / trả lời tự động có nút bấm) → hiển thị trong hộp thư.
         Http::post($this->graphUrl($auth->externalShopId.'/subscribed_apps'), [
-            'subscribed_fields' => 'messages,message_echoes,messaging_postbacks,message_deliveries,message_reads,feed,message_reactions',
+            'subscribed_fields' => 'messages,message_echoes,messaging_postbacks,messaging_referrals,message_deliveries,message_reads,feed,message_reactions',
             'access_token' => $auth->accessToken,
         ]);
     }
@@ -404,7 +404,10 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
                 body: $parsed['body'],
                 attachments: $parsed['attachments'],
                 direction: $direction,
-                meta: $parsed['buttons'] !== [] ? ['buttons' => $parsed['buttons']] : [],
+                meta: array_merge(
+                    $parsed['buttons'] !== [] ? ['buttons' => $parsed['buttons']] : [],
+                    $this->adReferralMeta($event),
+                ),
             );
         }
         if (isset($event['reaction'])) {
@@ -442,14 +445,46 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
                 buyerExternalId: $senderId,
                 occurredAt: $occurredAt,
                 raw: $event,
-                meta: array_filter([
+                meta: array_merge(array_filter([
                     'postback_payload' => isset($pb['payload']) ? (string) $pb['payload'] : null,
                     'postback_title' => isset($pb['title']) ? (string) $pb['title'] : null,
-                ], fn ($v) => $v !== null && $v !== ''),
+                ], fn ($v) => $v !== null && $v !== ''), $this->adReferralMeta($event)),
             );
         }
 
         return new MessagingWebhookEventDTO($this->code(), MessagingWebhookEventDTO::TYPE_UNKNOWN, $pageId, $senderId, null, $senderId, $occurredAt, $event);
+    }
+
+    /**
+     * Trích NGỮ CẢNH QUẢNG CÁO (Click-to-Messenger / m.me) từ event Messenger để gắn vào meta tin nhắn,
+     * dùng làm dữ liệu cho AI prompt + rẽ nhánh flow theo bài. Theo tài liệu chính chủ, khi khách nhắn từ
+     * quảng cáo CTM, event mang `referral` (kèm `message` cho thread mới, hoặc trong `postback`, hoặc event
+     * `messaging_referrals` cho thread cũ) với `source=ADS`, `ad_id` + `ads_context_data{ad_title,photo_url,
+     * video_url,post_id,product_id}`. Cần subscribe field `messaging_referrals` (đã thêm). m.me link cho
+     * `source=SHORTLINK` (không có ads_context_data). Rỗng ⇒ [] (không phải từ quảng cáo).
+     *
+     * @param  array<string,mixed>  $event
+     * @return array<string,mixed> ['ad_referral' => [...]] hoặc []
+     */
+    private function adReferralMeta(array $event): array
+    {
+        $ref = $event['referral'] ?? ($event['postback']['referral'] ?? null);
+        if (! is_array($ref) || empty($ref['source'])) {
+            return [];
+        }
+        $ctx = is_array($ref['ads_context_data'] ?? null) ? $ref['ads_context_data'] : [];
+        $out = array_filter([
+            'source' => (string) $ref['source'],
+            'ref' => isset($ref['ref']) ? (string) $ref['ref'] : null,
+            'ad_id' => isset($ref['ad_id']) ? (string) $ref['ad_id'] : null,
+            'post_id' => isset($ctx['post_id']) ? (string) $ctx['post_id'] : null,
+            'ad_title' => isset($ctx['ad_title']) ? (string) $ctx['ad_title'] : null,
+            'photo_url' => isset($ctx['photo_url']) ? (string) $ctx['photo_url'] : null,
+            'video_url' => isset($ctx['video_url']) ? (string) $ctx['video_url'] : null,
+            'product_id' => isset($ctx['product_id']) ? (string) $ctx['product_id'] : null,
+        ], fn ($v) => $v !== null && $v !== '');
+
+        return ['ad_referral' => $out];
     }
 
     /**
