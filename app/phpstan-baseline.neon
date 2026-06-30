@@ -42,3 +42,21 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: app/Modules/Tenancy/Scopes/TenantScope.php
+
+		-
+			message: '#^Property CMBcoreSeller\\Integrations\\Messaging\\Zalo\\ZaloOaConnector::\$verifier is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/Integrations/Messaging/Zalo/ZaloOaConnector.php
+
+		-
+			message: '#^Property CMBcoreSeller\\Integrations\\Messaging\\Zalo\\ZaloOaConnector::\$client is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/Integrations/Messaging/Zalo/ZaloOaConnector.php
+
+		-
+			message: '#^Method CMBcoreSeller\\Integrations\\Messaging\\Zalo\\ZaloOaConnector::cfg\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Integrations/Messaging/Zalo/ZaloOaConnector.php
