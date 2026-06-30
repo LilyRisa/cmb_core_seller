@@ -31,6 +31,8 @@ export function PageMultiSelect({ value, onChange, disabled, placeholder, provid
             showSearch
             optionFilterProp="label"
             maxTagCount="responsive"
+            // Select multiple mặc định auto-width → co rất nhỏ; ép đầy container (wrapper định cỡ).
+            style={{ width: '100%', minWidth: 200 }}
             // Tag đã chọn cũng hiện avatar trang (không chỉ trong dropdown).
             tagRender={(props) => {
                 const c = byId.get(Number(props.value));
