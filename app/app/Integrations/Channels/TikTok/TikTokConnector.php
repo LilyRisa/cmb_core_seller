@@ -640,9 +640,13 @@ class TikTokConnector implements ChannelConnector, ShopReportConnector
         $op = strtolower($action) === 'reject' ? 'reject' : 'approve';
         $ver = $this->client->versionFor('return_refund') ?: '202309';
         $body = array_filter([
-            'decision_role' => $params['decision_role'] ?? null,
             'comment' => $params['comment'] ?? null,
         ], fn ($v) => $v !== null && $v !== '');
+
+        // Returns BẮT BUỘC `decision` (lỗi [36009004] nếu thiếu); cancellations thì KHÔNG có field này.
+        if ($resource === 'returns') {
+            $body['decision'] = TikTokMappers::returnDecision($op, $params['return_type'] ?? null, $params['return_status'] ?? null);
+        }
 
         return $this->client->post("/return_refund/{$ver}/{$resource}/{$id}/{$op}", $auth, $body);
     }

@@ -96,7 +96,14 @@ class ReturnController extends Controller
         $connector = $this->channels->for($account->provider);
         abort_unless($connector->supports('returns.manage'), 422, 'Kênh bán này chưa hỗ trợ duyệt/từ chối hoàn-hủy.');
 
-        $params = array_filter(['comment' => $request->input('comment')], fn ($v) => $v !== null && $v !== '');
+        // return_type + return_status để connector chọn đúng `decision` (TikTok bắt buộc). Connector
+        // nào không cần (Shopee/Lazada) bỏ qua field thừa.
+        $raw = (array) ($ret->raw ?? []);
+        $params = array_filter([
+            'comment' => $request->input('comment'),
+            'return_type' => $raw['return_type'] ?? null,
+            'return_status' => $raw['return_status'] ?? null,
+        ], fn ($v) => $v !== null && $v !== '');
         try {
             if ($ret->kind === ReturnDTO::KIND_CANCEL) {
                 $connector->decideCancellation($account->authContext(), $ret->external_return_id, $action, $params);

@@ -246,6 +246,28 @@ class TikTokConnectorContractTest extends TestCase
         Http::assertSent(fn ($r) => str_contains((string) $r->url(), '/return_refund/202309/returns/RET-1/approve') && $r->method() === 'POST');
     }
 
+    public function test_decide_return_reject_includes_required_decision_field(): void
+    {
+        // [36009004] "Decision is a required field" trên prod 2026-06-30 vì body thiếu `decision`.
+        config(['integrations.tiktok.returns_enabled' => true]);
+        Http::fake(['*/return_refund/202309/returns/RET-2/reject*' => Http::response(F::envelope([]))]);
+
+        $this->connector()->decideReturn($this->auth(), 'RET-2', 'reject', [
+            'return_type' => 'RETURN_AND_REFUND',
+            'return_status' => 'RETURN_OR_REFUND_REQUEST_PENDING',
+            'comment' => 'không hợp lệ',
+        ]);
+
+        Http::assertSent(function ($r) {
+            if (! str_contains((string) $r->url(), '/return_refund/202309/returns/RET-2/reject')) {
+                return false;
+            }
+            $body = json_decode((string) $r->body(), true);
+
+            return ($body['decision'] ?? null) === 'REJECT_RETURN' && ($body['comment'] ?? null) === 'không hợp lệ';
+        });
+    }
+
     public function test_returns_disabled_throws_unsupported(): void
     {
         config(['integrations.tiktok.returns_enabled' => false]);

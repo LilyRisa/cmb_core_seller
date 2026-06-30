@@ -456,6 +456,41 @@ final class TikTokMappers
         );
     }
 
+    /**
+     * `decision` BẮT BUỘC cho `POST /return_refund/{ver}/returns/{id}/{approve|reject}`
+     * (TikTok 202309 — xem sdk_tiktok_seller .../V202309/ApproveReturnRequestBody &
+     * RejectReturnRequestBody). Giá trị tuỳ `return_type` + `return_status` hiện tại:
+     *  - `REFUND` (hoàn tiền, không trả hàng)  → APPROVE_REFUND / REJECT_REFUND
+     *  - `REPLACEMENT` (đổi hàng)              → APPROVE_REPLACEMENT / REJECT_REPLACEMENT
+     *  - `RETURN_AND_REFUND` (trả + hoàn):
+     *      • khách CHƯA gửi hàng               → APPROVE_RETURN / REJECT_RETURN
+     *      • khách ĐÃ gửi (`BUYER_SHIPPED_ITEM`) → APPROVE_RECEIVED_PACKAGE / REJECT_RECEIVED_PACKAGE
+     *
+     * Cancellation KHÔNG có field này (RejectCancellationRequestBody chỉ có comment/images/reject_reason).
+     *
+     * @param  string  $op  'approve' | 'reject'
+     */
+    public static function returnDecision(string $op, ?string $returnType, ?string $returnStatus): string
+    {
+        $approve = strtolower($op) !== 'reject';
+        $type = strtoupper(trim((string) $returnType));
+        $status = strtoupper(trim((string) $returnStatus));
+
+        if ($type === 'REFUND') {
+            return $approve ? 'APPROVE_REFUND' : 'REJECT_REFUND';
+        }
+        if ($type === 'REPLACEMENT') {
+            return $approve ? 'APPROVE_REPLACEMENT' : 'REJECT_REPLACEMENT';
+        }
+
+        // RETURN_AND_REFUND (mặc định). Sau khi khách đã gửi hàng, thao tác là trên "gói đã nhận".
+        if ($status === 'BUYER_SHIPPED_ITEM') {
+            return $approve ? 'APPROVE_RECEIVED_PACKAGE' : 'REJECT_RECEIVED_PACKAGE';
+        }
+
+        return $approve ? 'APPROVE_RETURN' : 'REJECT_RETURN';
+    }
+
     /** raw return/cancel status (TikTok) → canonical {@see AfterSalesStatus}. Config map + fallback chuỗi. */
     public static function afterSalesStatus(string $raw): AfterSalesStatus
     {
