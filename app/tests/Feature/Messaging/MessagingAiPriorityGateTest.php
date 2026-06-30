@@ -10,14 +10,15 @@ use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Events\MessageReceived;
 use CMBcoreSeller\Modules\Messaging\Jobs\RespondWithAiAutoReply;
 use CMBcoreSeller\Modules\Messaging\Listeners\AiAutoModeOnInbound;
+use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnInbound;
 use CMBcoreSeller\Modules\Messaging\Models\AiProvider;
 use CMBcoreSeller\Modules\Messaging\Models\AutomationFlow;
 use CMBcoreSeller\Modules\Messaging\Models\AutoReplyRule;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\FlowRun;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
+use CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingSetting;
-use CMBcoreSeller\Modules\Messaging\Services\AiSuggestionService;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -96,7 +97,8 @@ class MessagingAiPriorityGateTest extends TestCase
     {
         app(AiAutoModeOnInbound::class)->handle(new MessageReceived($msg->id, $conv->id));
         // Listener chỉ HẸN job debounce (Queue::fake) — chạy nó để hiện thực hoá trả lời (latest-wins).
-        Queue::pushed(RespondWithAiAutoReply::class)->each(fn (RespondWithAiAutoReply $job) => $job->handle(app(AiSuggestionService::class)));
+        // app()->call để DI tự bơm AiSuggestionService + AiAutoModeResolver vào handle().
+        Queue::pushed(RespondWithAiAutoReply::class)->each(fn (RespondWithAiAutoReply $job) => app()->call([$job, 'handle']));
     }
 
     private function outboundCount(Conversation $conv): int
@@ -170,6 +172,85 @@ class MessagingAiPriorityGateTest extends TestCase
         $msg = $this->inbound($conv, 'tin nhắn bất kỳ không khớp từ khoá');
 
         $this->runListener($conv, $msg);
+
+        $this->assertSame(0, $this->outboundCount($conv));
+    }
+
+    public function test_ai_skipped_when_inbox_any_catchall_flow_matches(): void
+    {
+        // 2.1: catch-all inbox_any (áp mọi trang) ⇒ luôn khớp ⇒ AI tự nhường (tắt) trên trang đó.
+        $this->settings();
+        $conv = $this->conversation();
+        $conv->update(['message_count' => 5]); // không phải tin đầu, không từ khoá
+        AutomationFlow::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'name' => 'Catch-all', 'provider' => 'manual',
+            'status' => AutomationFlow::STATUS_ACTIVE, 'trigger_type' => AutomationFlow::TRIGGER_INBOX_ANY,
+            'trigger_config' => [], 'enabled' => true, 'applies_all_pages' => true, 'version' => 1,
+            'graph' => ['nodes' => [['id' => 't', 'type' => 'trigger', 'data' => []]], 'edges' => []],
+        ]);
+        $msg = $this->inbound($conv, 'tin nhắn bất kỳ');
+
+        $this->runListener($conv, $msg);
+
+        $this->assertSame(0, $this->outboundCount($conv));
+    }
+
+    public function test_flat_rule_yields_to_matching_flow(): void
+    {
+        // 2.1: flow ưu tiên khi khớp ⇒ rule auto-reply phẳng KHÔNG bắn khi có flow khớp.
+        $this->settings();
+        $conv = $this->conversation(); // message_count = 1 ⇒ first_message khớp cả flow lẫn rule
+        AutomationFlow::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'name' => 'Chào flow', 'provider' => 'manual',
+            'status' => AutomationFlow::STATUS_ACTIVE, 'trigger_type' => AutomationFlow::TRIGGER_INBOX_FIRST_MESSAGE,
+            'trigger_config' => [], 'enabled' => true, 'applies_all_pages' => true, 'version' => 1,
+            'graph' => ['nodes' => [['id' => 't', 'type' => 'trigger', 'data' => []]], 'edges' => []],
+        ]);
+        AutoReplyRule::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'name' => 'Chào rule', 'trigger' => AutoReplyRule::TRIGGER_FIRST_MESSAGE,
+            'trigger_config' => [], 'filter' => [],
+            'action' => ['kind' => AutoReplyRule::ACTION_RAW, 'raw_text' => 'Chào bạn'],
+            'cooldown_seconds' => 0, 'enabled' => true, 'applies_all_pages' => true, 'priority' => 100,
+        ]);
+        $msg = $this->inbound($conv, 'Xin chào');
+
+        app(RunAutoReplyOnInbound::class)->handle(new MessageReceived($msg->id, $conv->id));
+
+        $this->assertSame(0, $this->outboundCount($conv));
+    }
+
+    public function test_ai_skipped_when_page_auto_mode_off(): void
+    {
+        // 2.2: cờ AI per-page TẮT ⇒ AI tự trả lời toàn cục KHÔNG chạy (kể cả cờ tenant đang bật).
+        $this->settings(marketplace: true, facebook: true);
+        MessagingAccountMeta::withoutGlobalScopes()->updateOrCreate(
+            ['channel_account_id' => $this->account->id],
+            ['tenant_id' => $this->tenant->getKey(), 'ai_auto_mode' => false],
+        );
+        $conv = $this->conversation();
+        $conv->update(['message_count' => 3]);
+        $msg = $this->inbound($conv, 'Đơn của em bao giờ giao ạ?');
+
+        $this->runListener($conv, $msg);
+
+        $this->assertSame(0, $this->outboundCount($conv));
+    }
+
+    public function test_ai_job_rechecks_toggle_at_send_time(): void
+    {
+        // 2.2: tắt cờ TRONG lúc chờ debounce ⇒ job lúc chạy phải re-check & không gửi.
+        $this->settings(marketplace: true, facebook: true);
+        $conv = $this->conversation();
+        $conv->update(['message_count' => 3]);
+        $msg = $this->inbound($conv, 'Đơn của em bao giờ giao ạ?');
+
+        // Tắt cờ per-page SAU khi inbound về (mô phỏng user tắt trong cửa sổ debounce).
+        MessagingAccountMeta::withoutGlobalScopes()->updateOrCreate(
+            ['channel_account_id' => $this->account->id],
+            ['tenant_id' => $this->tenant->getKey(), 'ai_auto_mode' => false],
+        );
+        $job = new RespondWithAiAutoReply($conv->id, $msg->id);
+        app()->call([$job, 'handle']);
 
         $this->assertSame(0, $this->outboundCount($conv));
     }

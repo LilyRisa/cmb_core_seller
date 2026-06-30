@@ -14,7 +14,6 @@ use CMBcoreSeller\Modules\Messaging\Models\AiProvider;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingSetting;
-use CMBcoreSeller\Modules\Messaging\Services\AiSuggestionService;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -85,7 +84,7 @@ class MessagingAutoReplyDebounceTest extends TestCase
 
     private function runJob(Conversation $conv, Message $trigger): void
     {
-        (new RespondWithAiAutoReply($conv->id, $trigger->id))->handle(app(AiSuggestionService::class));
+        app()->call([new RespondWithAiAutoReply($conv->id, $trigger->id), 'handle']);
     }
 
     private function outboundCount(Conversation $conv): int

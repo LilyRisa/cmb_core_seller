@@ -4,6 +4,7 @@ namespace CMBcoreSeller\Modules\Messaging\Jobs;
 
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
+use CMBcoreSeller\Modules\Messaging\Services\AiAutoModeResolver;
 use CMBcoreSeller\Modules\Messaging\Services\AiSuggestionService;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Bus\Queueable;
@@ -35,10 +36,16 @@ class RespondWithAiAutoReply implements ShouldQueue
         $this->onQueue('messaging-ai');
     }
 
-    public function handle(AiSuggestionService $suggestions): void
+    public function handle(AiSuggestionService $suggestions, AiAutoModeResolver $aiMode): void
     {
         $conv = Conversation::withoutGlobalScope(TenantScope::class)->find($this->conversationId);
         if (! $conv || $conv->status === Conversation::STATUS_SPAM || $conv->blocked_at !== null) {
+            return;
+        }
+
+        // Re-check lúc GỬI (sau debounce): "tắt là tắt" — đóng khe đua bật→tắt trong lúc chờ,
+        // và chặn mọi đường dispatch không qua listener. Node ai_reply trong flow KHÔNG đi qua đây.
+        if (! $aiMode->enabledFor($conv)) {
             return;
         }
 

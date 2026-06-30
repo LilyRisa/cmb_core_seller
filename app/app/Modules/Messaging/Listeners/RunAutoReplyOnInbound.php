@@ -7,6 +7,7 @@ use CMBcoreSeller\Modules\Messaging\Models\AutoReplyRule;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Services\AutoReplyEngine;
+use CMBcoreSeller\Modules\Messaging\Services\Flows\FlowPrecedence;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 
 /**
@@ -19,7 +20,7 @@ use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
  */
 class RunAutoReplyOnInbound
 {
-    public function __construct(private AutoReplyEngine $engine) {}
+    public function __construct(private AutoReplyEngine $engine, private FlowPrecedence $flowPrecedence) {}
 
     public function handle(MessageReceived $event): void
     {
@@ -30,6 +31,11 @@ class RunAutoReplyOnInbound
 
         $message = Message::withoutGlobalScope(TenantScope::class)->find($event->messageId);
         if (! $message || ! $message->isInbound()) {
+            return;
+        }
+
+        // Flow ưu tiên khi khớp (2.1): nếu flow chiếm hội thoại này thì rule auto-reply phẳng NHƯỜNG.
+        if ($this->flowPrecedence->claims($conv, (string) $message->body)) {
             return;
         }
 
