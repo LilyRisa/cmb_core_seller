@@ -1,7 +1,7 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { Card, Menu } from 'antd';
 import {
-    ApiOutlined, AppstoreOutlined, AuditOutlined, CarOutlined, CreditCardOutlined, FileTextOutlined, HistoryOutlined,
+    ApiOutlined, AppstoreOutlined, AuditOutlined, CarOutlined, ContainerOutlined, CreditCardOutlined, FileTextOutlined, HistoryOutlined,
     LayoutOutlined, PrinterOutlined, ShopOutlined, TeamOutlined, UserOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
@@ -34,7 +34,7 @@ function buildSections(canApiKeys: boolean, canEInvoice: boolean): MenuProps['it
         { key: '/settings/print', icon: <PrinterOutlined />, label: <Link to="/settings/print">Mẫu in</Link> },
         { key: '/settings/shipping-labels', icon: <PrinterOutlined />, label: <Link to="/settings/shipping-labels">Mẫu phiếu giao hàng</Link> },
         { key: '/settings/accounting/post-rules', icon: <AuditOutlined />, label: <Link to="/settings/accounting/post-rules">Quy tắc hạch toán</Link> },
-        ...(canEInvoice ? [{ key: '/settings/einvoice', icon: <FileTextOutlined />, label: <Link to="/settings/einvoice">Hóa đơn điện tử</Link> }] : []),
+        ...(canEInvoice ? [{ key: '/settings/einvoice', icon: <ContainerOutlined />, label: <Link to="/settings/einvoice">Hóa đơn điện tử</Link> }] : []),
         { key: '/settings/audit', icon: <HistoryOutlined />, label: <Link to="/settings/audit">Nhật ký thao tác</Link> },
     ] },
     ];

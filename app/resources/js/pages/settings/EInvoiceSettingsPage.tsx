@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { App as AntApp, Alert, Button, Card, Empty, Form, Input, Modal, Radio, Result, Space, Tag, Typography } from 'antd';
+import { App as AntApp, Alert, Button, Card, Empty, Form, Input, Modal, Radio, Result, Skeleton, Space, Tag, Typography } from 'antd';
 import { CheckCircleFilled, CloseCircleFilled, KeyOutlined, PlusOutlined, ReloadOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { errorMessage } from '@/lib/api';
@@ -24,6 +24,7 @@ export function EInvoiceSettingsPage() {
     const verify = useVerifyEInvoiceAccount();
     const del = useDeleteEInvoiceAccount();
     const [open, setOpen] = useState(false);
+    const [verifyingId, setVerifyingId] = useState<number | null>(null);
     const [form] = Form.useForm();
 
     if (isError) {
@@ -55,11 +56,14 @@ export function EInvoiceSettingsPage() {
             );
         });
 
-    const onVerify = (acc: EInvoiceAccount) =>
+    const onVerify = (acc: EInvoiceAccount) => {
+        setVerifyingId(acc.id);
         verify.mutate(acc.id, {
+            onSettled: () => setVerifyingId(null),
             onSuccess: (r) => (r.ok ? message.success : message.error)(`${acc.name}: ${r.message}`),
             onError: (e) => message.error(errorMessage(e)),
         });
+    };
 
     return (
         <div>
@@ -80,11 +84,13 @@ export function EInvoiceSettingsPage() {
                 }
             />
 
-            {(accounts ?? []).length === 0 ? (
+            {accounts === undefined ? (
+                <Skeleton active />
+            ) : accounts.length === 0 ? (
                 <Empty description="Chưa có tài khoản HĐĐT" />
             ) : (
                 <Space direction="vertical" style={{ width: '100%' }}>
-                    {(accounts ?? []).map((acc) => {
+                    {accounts.map((acc) => {
                         const ok = acc.meta?.last_verify_ok;
                         return (
                             <Card
@@ -103,12 +109,21 @@ export function EInvoiceSettingsPage() {
                                             <Button
                                                 size="small"
                                                 icon={<ThunderboltOutlined />}
-                                                loading={verify.isPending}
+                                                loading={verify.isPending && verifyingId === acc.id}
                                                 onClick={() => onVerify(acc)}
                                             >
                                                 Kiểm tra kết nối
                                             </Button>
-                                            <Button size="small" danger onClick={() => del.mutate(acc.id)}>
+                                            <Button
+                                                size="small"
+                                                danger
+                                                onClick={() => Modal.confirm({
+                                                    title: 'Xóa tài khoản MISA?',
+                                                    content: 'Thao tác này không thể hoàn tác — credentials đã lưu sẽ bị xóa.',
+                                                    okText: 'Xóa', okButtonProps: { danger: true }, cancelText: 'Hủy',
+                                                    onOk: () => del.mutate(acc.id),
+                                                })}
+                                            >
                                                 Xóa
                                             </Button>
                                         </Space>
@@ -186,7 +201,7 @@ export function EInvoiceSettingsPage() {
                             {f.key === 'password' ? (
                                 <Input.Password placeholder={f.label} />
                             ) : (
-                                <Input placeholder={f.label} />
+                                <Input placeholder={f.label} autoComplete="off" />
                             )}
                         </Form.Item>
                     ))}
