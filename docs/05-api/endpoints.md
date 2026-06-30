@@ -555,7 +555,7 @@ Prefix `/api/v1/einvoice` · middleware `auth:sanctum + verified + tenant + plan
 | PATCH | `/api/v1/einvoice/accounts/{id}` | `einvoice.config` | Bất kỳ field nào: `name?`, `credentials?` (merge vào cũ — trường null/rỗng bỏ qua), `default_mode?`, `templates?`, `seller_info?`, `is_default?`, `is_active?` | `200` `{ data: EInvoiceAccountResource }` — nếu credentials thay đổi thì tự `verify` lại. |
 | DELETE | `/api/v1/einvoice/accounts/{id}` | `einvoice.config` | — | `200` `{ data: { deleted: true } }`. |
 | POST | `/api/v1/einvoice/accounts/{id}/verify` | `einvoice.config` | — | `200` `{ data: { ok, message, error_code\|null, expires_at\|null, verified_at, account: EInvoiceAccountResource } }` — kiểm tra credentials thật với MISA; lưu kết quả vào `meta`. |
-| GET | `/api/v1/einvoice/accounts/{id}/company-info` | `einvoice.config` | — | `200` `{ data: CompanyInfoDTO }` — lấy thông tin công ty từ MISA + cập nhật `is_invoice_with_code`. |
+| GET | `/api/v1/einvoice/accounts/{id}/company-info` | `einvoice.config` | — | `200` `{ data: CompanyInfoDTO }` — lấy thông tin công ty từ MISA + cập nhật `is_invoice_with_code`. **Side-effect khi đọc:** ghi cache `is_invoice_with_code` lên account để Phần B chọn đúng path `/code` khi phát hành hóa đơn. |
 | GET | `/api/v1/einvoice/accounts/{id}/templates` | `einvoice.config` | query `year?` (mặc định năm hiện tại) | `200` `{ data: TemplateDTO[] }` — danh sách mẫu hóa đơn của năm. |
 
 **Mã lỗi:** `PLAN_FEATURE_LOCKED` (`402`) khi gói không có `einvoice`; `403` thiếu quyền; `422` provider không hỗ trợ.

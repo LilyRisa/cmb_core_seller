@@ -76,4 +76,42 @@ class MisaConnectorTest extends TestCase
         $this->assertTrue($c->supports('company_info'));
         $this->assertFalse($c->supports('issue_hsm'));
     }
+
+    /**
+     * Khi company-info lần đầu trả TokenExpiredCode, client phải bust cache rồi lấy token mới
+     * và thử lại — verifyCredentials cuối cùng phải trả ok=true.
+     */
+    public function test_verify_credentials_retries_after_token_expired(): void
+    {
+        Http::fake([
+            '*/auth/token' => Http::response(['Success' => true, 'Data' => 'TOKEN_NEW', 'ErrorCode' => '']),
+            '*/company*' => Http::sequence()
+                ->push(['Success' => false, 'ErrorCode' => 'TokenExpiredCode', 'Data' => null])
+                ->push(['Success' => true, 'ErrorCode' => '', 'Data' => json_encode([
+                    'CompanyName' => 'Cty XYZ', 'CompanyTaxCode' => '0105922241', 'IsInvoiceWithCode' => true,
+                ])]),
+        ]);
+
+        $r = $this->connector()->verifyCredentials($this->account());
+
+        $this->assertTrue($r['ok'], 'verifyCredentials phải ok sau khi token được làm mới');
+        $this->assertStringContainsString('XYZ', $r['message']);
+    }
+
+    /**
+     * UnAuthorize (sai mật khẩu) KHÔNG được retry — phải trả ok=false ngay.
+     */
+    public function test_verify_credentials_does_not_retry_on_unauthorize(): void
+    {
+        Http::fake([
+            '*/auth/token' => Http::response(['Success' => false, 'ErrorCode' => 'UnAuthorize', 'Data' => null]),
+        ]);
+
+        $r = $this->connector()->verifyCredentials($this->account());
+
+        $this->assertFalse($r['ok']);
+        $this->assertSame('invalid_credentials', $r['error_code']);
+        // Token endpoint chỉ được gọi đúng 1 lần (không retry)
+        Http::assertSentCount(1);
+    }
 }

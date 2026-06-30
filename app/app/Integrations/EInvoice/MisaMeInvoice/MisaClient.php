@@ -36,12 +36,21 @@ final class MisaClient
         return (string) ($this->credentials[$k] ?? '');
     }
 
+    private function tokenCacheKey(): string
+    {
+        return 'einvoice:misa:token:'.md5($this->cred('appid').'|'.$this->cred('taxcode').'|'.$this->cred('username'));
+    }
+
+    public function forgetToken(): void
+    {
+        Cache::forget($this->tokenCacheKey());
+    }
+
     public function token(): string
     {
         $ttl = max(1, (int) ($this->config['token_ttl_days'] ?? 14) - 1);
-        $key = 'einvoice:misa:token:'.md5($this->cred('appid').'|'.$this->cred('taxcode').'|'.$this->cred('username'));
 
-        return Cache::remember($key, now()->addDays($ttl), function () {
+        return Cache::remember($this->tokenCacheKey(), now()->addDays($ttl), function () {
             $res = Http::baseUrl($this->baseUrl())->timeout($this->timeout())->acceptJson()
                 ->post('/auth/token', [
                     'appid' => $this->cred('appid'),
@@ -93,10 +102,28 @@ final class MisaClient
         return $data;
     }
 
+    /**
+     * Thực thi $call(); nếu token hết hạn/không hợp lệ → xóa cache rồi thử lại một lần.
+     * KHÔNG retry UnAuthorize (sai mật khẩu) để tránh loop vô hạn.
+     */
+    private function withTokenRetry(callable $call): mixed
+    {
+        try {
+            return $this->unwrap($call());
+        } catch (EInvoiceProviderError $e) {
+            if (in_array($e->errorCode, ['TokenExpiredCode', 'InvalidTokenCode'], true)) {
+                $this->forgetToken();
+
+                return $this->unwrap($call());
+            }
+            throw $e;
+        }
+    }
+
     /** GET /company?taxcode= — trả mảng thông tin công ty. */
     public function companyInfoRaw(): array
     {
-        $data = $this->unwrap($this->http()->get('/company', ['taxcode' => $this->cred('taxcode')]));
+        $data = $this->withTokenRetry(fn () => $this->http()->get('/company', ['taxcode' => $this->cred('taxcode')]));
 
         return is_array($data) ? $data : [];
     }
@@ -104,7 +131,7 @@ final class MisaClient
     /** GET /itg/InvoicePublishing/templates?invyear= — list mẫu HĐ. */
     public function templatesRaw(int $year): array
     {
-        $data = $this->unwrap($this->http()->get('/itg/InvoicePublishing/templates', ['invyear' => $year]));
+        $data = $this->withTokenRetry(fn () => $this->http()->get('/itg/InvoicePublishing/templates', ['invyear' => $year]));
 
         return is_array($data) ? array_values($data) : [];
     }

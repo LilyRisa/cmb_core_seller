@@ -8,10 +8,12 @@ namespace CMBcoreSeller\Integrations\EInvoice\MisaMeInvoice\Support;
  */
 final class MisaErrorMap
 {
-    /** Lỗi tạm thời — job có thể retry. */
+    /**
+     * Lỗi tạm thời — job có thể retry.
+     * Duplicate/RefID-trùng KHÔNG retry — Phần B xử idempotency bằng tra cứu hóa đơn đã phát hành theo RefID, không retry.
+     */
     private const RETRYABLE = [
-        'TokenExpiredCode', 'InvalidTokenCode', 'InvoiceNumberNotContinuous',
-        'InvoiceDuplicated', 'DuplicateInvoiceRefID', 'Exception',
+        'TokenExpiredCode', 'InvalidTokenCode', 'InvoiceNumberNotContinuous', 'Exception',
     ];
 
     /** @var array<string, string> */
