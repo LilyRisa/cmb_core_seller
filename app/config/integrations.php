@@ -696,6 +696,10 @@ return [
             'return_detail' => '/api/v2/returns/get_return_detail',
             'return_confirm' => '/api/v2/returns/confirm',
             'return_dispute' => '/api/v2/returns/dispute',
+            'return_dispute_reason' => '/api/v2/returns/get_return_dispute_reason',
+            'return_available_solutions' => '/api/v2/returns/get_available_solutions',
+            'return_offer' => '/api/v2/returns/offer',
+            'return_accept_offer' => '/api/v2/returns/accept_offer',
             'handle_cancellation' => '/api/v2/order/handle_buyer_cancellation',
         ],
         // Hoàn & Hủy (SPEC 0025). Tắt bằng INTEGRATIONS_SHOPEE_RETURNS=false. Field/endpoint cần đối chiếu sandbox.

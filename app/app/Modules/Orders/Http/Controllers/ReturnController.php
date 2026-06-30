@@ -96,13 +96,16 @@ class ReturnController extends Controller
         $connector = $this->channels->for($account->provider);
         abort_unless($connector->supports('returns.manage'), 422, 'Kênh bán này chưa hỗ trợ duyệt/từ chối hoàn-hủy.');
 
-        // return_type + return_status để connector chọn đúng `decision` (TikTok bắt buộc). Connector
-        // nào không cần (Shopee/Lazada) bỏ qua field thừa.
+        // Mỗi connector tự lấy field nó cần; field thừa bị bỏ qua:
+        //  - TikTok: return_type + return_status → chọn `decision`.
+        //  - Shopee: return_solution (0/1) → confirm vs offer; email (NV) → dispute khi reject.
         $raw = (array) ($ret->raw ?? []);
         $params = array_filter([
             'comment' => $request->input('comment'),
             'return_type' => $raw['return_type'] ?? null,
             'return_status' => $raw['return_status'] ?? null,
+            'return_solution' => $raw['return_solution'] ?? null,
+            'email' => $request->user()->email,
         ], fn ($v) => $v !== null && $v !== '');
         try {
             if ($ret->kind === ReturnDTO::KIND_CANCEL) {

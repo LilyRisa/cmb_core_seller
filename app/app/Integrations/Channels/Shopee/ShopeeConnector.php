@@ -625,11 +625,68 @@ class ShopeeConnector implements ChannelConnector, PenaltyWebhookConnector, Shop
         if (! $this->supports('returns.manage')) {
             throw UnsupportedOperation::for($this->code(), 'decideReturn');
         }
-        // confirm = đồng ý hoàn (Accepted); dispute = phản đối yêu cầu của buyer.
-        $endpoint = strtolower($action) === 'reject' ? 'return_dispute' : 'return_confirm';
-        $body = array_filter(['return_sn' => $externalReturnId, 'email' => $params['comment'] ?? null], fn ($v) => $v !== null && $v !== '');
 
-        return $this->client->shopPost($auth, $this->client->endpoint($endpoint), [], $body);
+        return strtolower($action) === 'reject'
+            ? $this->disputeReturn($auth, $externalReturnId, $params)
+            : $this->acceptReturn($auth, $externalReturnId, $params);
+    }
+
+    /**
+     * Duyệt yêu cầu hoàn (theo doc Shopee chính chủ — module Returns):
+     *  - `return_solution = 1` (Refund Only, khách giữ hàng) ⇒ `confirm` (chỉ cần return_sn).
+     *  - `return_solution = 0` (Return and Refund, khách gửi trả) ⇒ KHÔNG dùng confirm
+     *    (gây `error_inner`/`rraoc_refund_not_allowed`). Phải `get_available_solutions`
+     *    rồi `offer(proposed_solution=RETURN_REFUND)`; nếu không offer được (vd khách đã ra
+     *    đề nghị) thì `accept_offer`.
+     *
+     * @param  array<string,mixed>  $params  có thể chứa return_solution (0/1) đã lưu sẵn.
+     * @return array<string,mixed>
+     */
+    private function acceptReturn(AuthContext $auth, string $returnSn, array $params): array
+    {
+        $solution = $params['return_solution'] ?? null;
+        if ($solution === null || $solution === '') {
+            $detail = $this->client->shopGet($auth, $this->client->endpoint('return_detail'), ['return_sn' => $returnSn]);
+            $solution = data_get($detail, 'return.return_solution', data_get($detail, 'return_solution'));
+        }
+
+        if ((int) $solution === 1) {
+            return $this->client->shopPost($auth, $this->client->endpoint('return_confirm'), [], ['return_sn' => $returnSn]);
+        }
+
+        $solutions = $this->client->shopGet($auth, $this->client->endpoint('return_available_solutions'), ['return_sn' => $returnSn]);
+        if ((bool) data_get($solutions, 'offer_return_refund.eligibility', false)) {
+            return $this->client->shopPost($auth, $this->client->endpoint('return_offer'), [], [
+                'return_sn' => $returnSn,
+                'proposed_solution' => 'RETURN_REFUND',
+            ]);
+        }
+
+        return $this->client->shopPost($auth, $this->client->endpoint('return_accept_offer'), [], ['return_sn' => $returnSn]);
+    }
+
+    /**
+     * Từ chối (dispute) — doc Shopee yêu cầu `email` + `dispute_reason_id` (số, lấy từ
+     * `get_return_dispute_reason`); chỉ hợp lệ khi status ∈ REQUESTED/PROCESSING/ACCEPTED.
+     * Chọn lý do đầu tiên Shopee trả về cho yêu cầu này; comment NV gắn vào dispute_text_reason.
+     * (Bằng chứng ảnh — image_list — chưa hỗ trợ ở UI nút bấm; lý do "không nhận được hàng" không cần ảnh.)
+     *
+     * @param  array<string,mixed>  $params  cần `email` (email NV xử lý); `comment` tùy chọn.
+     * @return array<string,mixed>
+     */
+    private function disputeReturn(AuthContext $auth, string $returnSn, array $params): array
+    {
+        $reasons = $this->client->shopGet($auth, $this->client->endpoint('return_dispute_reason'), ['return_sn' => $returnSn]);
+        $reasonId = data_get($reasons, 'dispute_reason_list.0.dispute_reason');
+
+        $body = array_filter([
+            'return_sn' => $returnSn,
+            'email' => $params['email'] ?? null,
+            'dispute_reason_id' => $reasonId !== null ? (int) $reasonId : null,
+            'dispute_text_reason' => $params['comment'] ?? null,
+        ], fn ($v) => $v !== null && $v !== '');
+
+        return $this->client->shopPost($auth, $this->client->endpoint('return_dispute'), [], $body);
     }
 
     public function decideCancellation(AuthContext $auth, string $externalCancelId, string $action, array $params = []): array

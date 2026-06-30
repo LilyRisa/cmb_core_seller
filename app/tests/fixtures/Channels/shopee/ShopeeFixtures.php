@@ -33,6 +33,9 @@ final class ShopeeFixtures
                 'send_message' => '/api/v2/sellerchat/send_message',
                 'return_list' => '/api/v2/returns/get_return_list', 'return_detail' => '/api/v2/returns/get_return_detail',
                 'return_confirm' => '/api/v2/returns/confirm', 'return_dispute' => '/api/v2/returns/dispute',
+                'return_dispute_reason' => '/api/v2/returns/get_return_dispute_reason',
+                'return_available_solutions' => '/api/v2/returns/get_available_solutions',
+                'return_offer' => '/api/v2/returns/offer', 'return_accept_offer' => '/api/v2/returns/accept_offer',
                 'handle_cancellation' => '/api/v2/order/handle_buyer_cancellation',
             ],
             'integrations.shopee.return_status_map' => [

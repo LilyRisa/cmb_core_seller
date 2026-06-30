@@ -669,14 +669,56 @@ class ShopeeConnectorContractTest extends TestCase
         });
     }
 
-    public function test_decide_return_calls_confirm_endpoint(): void
+    public function test_decide_return_refund_only_calls_confirm(): void
     {
         config(['integrations.shopee.returns_enabled' => true]);
         Http::fake(['*/api/v2/returns/confirm*' => Http::response(['error' => '', 'response' => []], 200)]);
         $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
 
-        $this->connector()->decideReturn($auth, 'RSN_1', 'approve');
+        // return_solution = 1 (Refund Only) ⇒ confirm.
+        $this->connector()->decideReturn($auth, 'RSN_1', 'approve', ['return_solution' => 1]);
 
         Http::assertSent(fn (\Illuminate\Http\Client\Request $r) => str_contains($r->url(), '/api/v2/returns/confirm'));
+    }
+
+    public function test_decide_return_and_refund_uses_offer_not_confirm(): void
+    {
+        // return_solution = 0 (Return and Refund) ⇒ KHÔNG confirm (tránh error_inner); offer RETURN_REFUND.
+        config(['integrations.shopee.returns_enabled' => true]);
+        Http::fake([
+            '*/api/v2/returns/get_available_solutions*' => Http::response(['error' => '', 'response' => ['offer_return_refund' => ['eligibility' => true]]], 200),
+            '*/api/v2/returns/offer*' => Http::response(['error' => '', 'response' => []], 200),
+        ]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        $this->connector()->decideReturn($auth, 'RSN_2', 'approve', ['return_solution' => 0]);
+
+        Http::assertSent(fn (\Illuminate\Http\Client\Request $r) => str_contains($r->url(), '/api/v2/returns/get_available_solutions'));
+        Http::assertSent(function (\Illuminate\Http\Client\Request $r) {
+            return str_contains($r->url(), '/api/v2/returns/offer') && ($r->data()['proposed_solution'] ?? null) === 'RETURN_REFUND';
+        });
+        Http::assertNotSent(fn (\Illuminate\Http\Client\Request $r) => str_contains($r->url(), '/api/v2/returns/confirm'));
+    }
+
+    public function test_decide_return_reject_dispute_sends_required_fields(): void
+    {
+        // dispute bắt buộc email + dispute_reason_id (số, lấy từ get_return_dispute_reason).
+        config(['integrations.shopee.returns_enabled' => true]);
+        Http::fake([
+            '*/api/v2/returns/get_return_dispute_reason*' => Http::response(['error' => '', 'response' => ['dispute_reason_list' => [['dispute_reason' => '50']]]], 200),
+            '*/api/v2/returns/dispute*' => Http::response(['error' => '', 'response' => []], 200),
+        ]);
+        $auth = new AuthContext(1, 'shopee', '55', 'ACCESS_1');
+
+        $this->connector()->decideReturn($auth, 'RSN_3', 'reject', ['email' => 'seller@shop.vn', 'comment' => 'Hàng đã dùng']);
+
+        Http::assertSent(function (\Illuminate\Http\Client\Request $r) {
+            if (! str_contains($r->url(), '/api/v2/returns/dispute')) {
+                return false;
+            }
+            $d = $r->data();
+
+            return ($d['return_sn'] ?? null) === 'RSN_3' && ($d['email'] ?? null) === 'seller@shop.vn' && ($d['dispute_reason_id'] ?? null) === 50;
+        });
     }
 }
