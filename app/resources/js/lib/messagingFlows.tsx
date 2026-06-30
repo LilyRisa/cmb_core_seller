@@ -43,6 +43,17 @@ export interface FlowAttachment {
     size_bytes?: number | null;
 }
 
+export type FlowStepType = 'send_text' | 'send_media' | 'send_buttons';
+
+export interface FlowStep {
+    id: string;
+    type: FlowStepType;
+    text?: string;
+    kind?: 'image' | 'video' | 'file';
+    attachment?: FlowAttachment;
+    buttons?: FlowButton[];
+}
+
 export interface FlowNodeData {
     text?: string;
     attachments?: FlowAttachment[];
@@ -51,6 +62,8 @@ export interface FlowNodeData {
     match?: 'any' | 'all';
     /** send_comment_reply: trả lời công khai dưới bình luận và/hoặc nhắn riêng. */
     target?: { public?: boolean; private?: boolean };
+    /** Danh sách bước (node-with-steps Phase 2A). Tùy chọn — không có thì dùng hành vi gửi cũ. */
+    steps?: FlowStep[];
     [k: string]: unknown;
 }
 
