@@ -1,18 +1,54 @@
-import { useEffect } from 'react';
-import { Alert, App as AntApp, Button, Checkbox, Drawer, Form, Input, Radio, Select, Space, Tag, Typography, Upload } from 'antd';
-import { DeleteOutlined, PaperClipOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons';
-import type { RcFile } from 'antd/es/upload';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, Button, Checkbox, Drawer, Form, Input, Radio, Select, Space, Typography } from 'antd';
+import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { nanoid } from 'nanoid';
 import type { Node } from '@xyflow/react';
-import { errorMessage } from '@/lib/api';
-import { type FlowAttachment, type FlowNodeData, type FlowNodeType, mediaKindFromMime, useUploadFlowMedia } from '@/lib/messagingFlows';
+import {
+    type FlowAttachment,
+    type FlowButton,
+    type FlowNodeData,
+    type FlowNodeType,
+    type FlowStep,
+    useUploadFlowMedia,
+} from '@/lib/messagingFlows';
 import { metaFor } from './nodes';
-
-const KIND_LABEL: Record<FlowAttachment['kind'], string> = { image: 'Ảnh', video: 'Video', audio: 'Âm thanh', file: 'Tệp' };
+import { newStep } from './steps';
+import { StepListEditor } from './StepListEditor';
 
 /**
- * Drawer cấu hình node đang chọn — TOÀN FORM, không nhập JSON thô. Mỗi loại node
- * một form riêng. Ghi thẳng vào node.data qua onChange mỗi khi đổi giá trị.
+ * Khoi tao danh sach step khi mo drawer cho node send_message.
+ * - Neu node.data.steps da co => dung nguyen.
+ * - Nguoc lai migrate tu du lieu legacy (text / attachments / buttons).
+ * - Khong bao gio xoa field cu -- chi doc, ghi steps moi vao ben canh.
+ */
+function deriveSteps(data: FlowNodeData): FlowStep[] {
+    if (Array.isArray(data.steps) && data.steps.length > 0) {
+        return data.steps as FlowStep[];
+    }
+    const migrated: FlowStep[] = [];
+    const text = (data.text as string | undefined)?.trim();
+    if (text) {
+        migrated.push({ ...newStep('send_text'), text });
+    }
+    const attachments = data.attachments as FlowAttachment[] | undefined;
+    if (Array.isArray(attachments)) {
+        attachments.forEach((att) => {
+            const kind = (att.kind === 'audio' ? 'file' : att.kind) as 'image' | 'video' | 'file';
+            migrated.push({ ...newStep('send_media'), kind, attachment: att });
+        });
+    }
+    const buttons = data.buttons as FlowButton[] | undefined;
+    if (Array.isArray(buttons) && buttons.length > 0) {
+        migrated.push({ ...newStep('send_buttons'), buttons });
+    }
+    return migrated;
+}
+
+/**
+ * Drawer cau hinh node dang chon -- TOAN FORM, khong nhap JSON tho. Moi loai node
+ * mot form rieng. Ghi thang vao node.data qua onChange moi khi doi gia tri.
+ *
+ * Node send_message dung StepListEditor (node-with-steps Phase 2A).
  */
 export function NodeConfigDrawer({
     node,
@@ -30,11 +66,36 @@ export function NodeConfigDrawer({
     readOnly?: boolean;
 }) {
     const [form] = Form.useForm();
-    const { message } = AntApp.useApp();
     const upload = useUploadFlowMedia(flowId);
     const type = node?.type as FlowNodeType | undefined;
-    const attachments: FlowAttachment[] = Form.useWatch('attachments', form) ?? [];
 
+    // ── State buoc cho send_message ──────────────────────────────────────────
+    const [localSteps, setLocalSteps] = useState<FlowStep[]>(() =>
+        node?.type === 'send_message' ? deriveSteps(node.data as FlowNodeData) : [],
+    );
+
+    // Khoi tao lai moi khi chuyen sang node khac (theo id)
+    useEffect(() => {
+        if (node?.type === 'send_message') {
+            setLocalSteps(deriveSteps(node.data as FlowNodeData));
+        } else {
+            setLocalSteps([]);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [node?.id, type]);
+
+    const handleStepsChange = useCallback(
+        (steps: FlowStep[]) => {
+            setLocalSteps(steps);
+            if (node) {
+                // Ghi steps vao node.data, giu nguyen cac field legacy de rollback an toan
+                onChange(node.id, { ...(node.data as FlowNodeData), steps });
+            }
+        },
+        [node, onChange],
+    );
+
+    // ── Form cho cac node type khac ──────────────────────────────────────────
     useEffect(() => {
         if (node) {
             form.setFieldsValue({ buttons: [], keywords: [], match: 'any', text: '', attachments: [], ...(node.data as FlowNodeData) });
@@ -45,24 +106,6 @@ export function NodeConfigDrawer({
         if (node) {
             onChange(node.id, form.getFieldsValue(true) as FlowNodeData);
         }
-    };
-
-    const handleUpload = (file: RcFile) => {
-        const kind = mediaKindFromMime(file.type || '');
-        upload.mutate({ file, kind }, {
-            onSuccess: (att) => {
-                form.setFieldValue('attachments', [...(form.getFieldValue('attachments') ?? []), att]);
-                handleValues();
-                message.success(`Đã tải lên ${att.filename ?? KIND_LABEL[att.kind]}`);
-            },
-            onError: (e) => message.error(errorMessage(e)),
-        });
-        return false; // tự upload, không để AntD gửi
-    };
-
-    const removeAttachment = (idx: number) => {
-        form.setFieldValue('attachments', (form.getFieldValue('attachments') ?? []).filter((_: unknown, i: number) => i !== idx));
-        handleValues();
     };
 
     return (
@@ -81,30 +124,14 @@ export function NodeConfigDrawer({
                         <Alert type="info" showIcon message="Đây là điểm bắt đầu của kịch bản. Cấu hình điều kiện kích hoạt ở thanh trên cùng." />
                     )}
 
+                    {/* ── send_message: StepListEditor (node-with-steps Phase 2A) ── */}
                     {type === 'send_message' && (
-                        <>
-                            <Form.Item name="text" label="Nội dung tin nhắn" extra="Có thể để trống nếu chỉ gửi tệp đính kèm.">
-                                <Input.TextArea rows={4} maxLength={2000} placeholder="vd: Chào bạn, shop có thể giúp gì ạ?" />
-                            </Form.Item>
-
-                            <Typography.Text strong>Đính kèm</Typography.Text>
-                            <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                {attachments.map((a, idx) => (
-                                    <div key={`${a.storage_path}-${idx}`} style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid #f0f0f0', borderRadius: 6, padding: '4px 8px' }}>
-                                        <PaperClipOutlined />
-                                        <Tag>{KIND_LABEL[a.kind]}</Tag>
-                                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.filename ?? a.storage_path.split('/').pop()}</span>
-                                        {!readOnly && <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => removeAttachment(idx)} />}
-                                    </div>
-                                ))}
-                                {attachments.length === 0 && <Typography.Text type="secondary" style={{ fontSize: 12 }}>Chưa có tệp nào.</Typography.Text>}
-                                <Upload beforeUpload={handleUpload} showUploadList={false} multiple disabled={readOnly}
-                                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv">
-                                    <Button icon={<UploadOutlined />} loading={upload.isPending} disabled={readOnly}>Tải lên ảnh / video / âm thanh / tệp</Button>
-                                </Upload>
-                                <Typography.Text type="secondary" style={{ fontSize: 12 }}>Mỗi tệp được gửi thành một tin riêng theo thứ tự.</Typography.Text>
-                            </div>
-                        </>
+                        <StepListEditor
+                            value={localSteps}
+                            onChange={handleStepsChange}
+                            upload={upload}
+                            readOnly={readOnly}
+                        />
                     )}
 
                     {type === 'send_buttons' && (
@@ -128,7 +155,7 @@ export function NodeConfigDrawer({
                                             Thêm nút
                                         </Button>
                                         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                                            Mỗi nút "trả lời bước" tạo 1 nhánh ra trên sơ đồ — nối nhánh tới bước kế tiếp.
+                                            Mỗi nút trả lời bước tạo 1 nhánh ra trên sơ đồ — nối nhánh tới bước kế tiếp.
                                         </Typography.Text>
                                     </div>
                                 )}
@@ -165,12 +192,12 @@ export function NodeConfigDrawer({
                                     <Radio.Button value="all">Chứa tất cả</Radio.Button>
                                 </Radio.Group>
                             </Form.Item>
-                            <Alert type="info" showIcon message="Nhánh “khớp” chạy khi điều kiện đúng; nhánh “không khớp” chạy khi sai." />
+                            <Alert type="info" showIcon message="Nhánh khớp chạy khi điều kiện đúng; nhánh không khớp chạy khi sai." />
                         </>
                     )}
 
                     {type === 'ai_reply' && (
-                        <Alert type="info" showIcon message="AI tự soạn & gửi câu trả lời dựa trên kho tri thức + lịch sử hội thoại (chặn intent nhạy cảm, ẩn PII). Trả lời được ⇒ đi nhánh “đã trả lời”; gặp khiếu nại/hoàn tiền, hết hạn mức hoặc lỗi ⇒ đi nhánh “cần người”." />
+                        <Alert type="info" showIcon message="AI tự soạn & gửi câu trả lời dựa trên kho tri thức + lịch sử hội thoại. Trả lời được => đi nhánh đã trả lời; gặp khiếu nại/hoàn tiền => đi nhánh cần người." />
                     )}
 
                     {type === 'wait_reply' && (
