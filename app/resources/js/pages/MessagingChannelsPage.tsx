@@ -187,9 +187,9 @@ export function MessagingChannelsPage() {
             <PageHeader title="Kết nối kênh" subtitle="Kết nối Facebook Page, Zalo OA và Lazada IM Chat để nhận & trả lời tin nhắn ngay trong hộp thư." />
 
             {platform === 'zalo_oa' && (
-                <Card title={<><MessageOutlined style={{ color: '#0068FF' }} /> Zalo OA</>} style={{ marginBottom: 16 }}>
+                <Card title={<><img src="/images/zalo.webp" alt="" width={18} height={18} style={{ objectFit: 'contain', verticalAlign: '-4px', marginRight: 6 }} /> Zalo OA</>} style={{ marginBottom: 16 }}>
                     <Space direction="vertical" size={12} style={{ display: 'flex' }}>
-                        <Button type="primary" icon={<MessageOutlined />} loading={startZalo.isPending} onClick={handleConnectZalo} disabled={!canConnect}>
+                        <Button type="primary" icon={<img src="/images/zalo.webp" alt="" width={16} height={16} style={{ objectFit: 'contain', verticalAlign: '-3px' }} />} loading={startZalo.isPending} onClick={handleConnectZalo} disabled={!canConnect}>
                             Kết nối Zalo OA
                         </Button>
                         {isLoading ? (

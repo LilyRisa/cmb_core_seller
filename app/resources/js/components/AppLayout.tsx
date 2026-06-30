@@ -14,7 +14,6 @@ import {
     TikTokOutlined,
     MenuFoldOutlined,
     MenuUnfoldOutlined,
-    MessageOutlined,
     PercentageOutlined,
     PieChartOutlined,
     ReadOutlined,
@@ -65,7 +64,7 @@ function buildNav(): MenuProps['items'] {
                 { key: '/messaging/flows', label: <Link to="/messaging/flows">Kịch bản tự động</Link> },
                 { key: '/messaging/knowledge', label: <Link to="/messaging/knowledge">AI training</Link> },
             ] },
-            { key: 'messaging-zalo', icon: <MessageOutlined />, label: 'Zalo OA', children: [
+            { key: 'messaging-zalo', icon: <img src="/images/zalo.webp" alt="" width={16} height={16} style={{ objectFit: 'contain', verticalAlign: '-3px' }} />, label: 'Zalo OA', children: [
                 { key: '/messaging?platform=zalo_oa', label: <Link to="/messaging?platform=zalo_oa">Hộp thư</Link> },
                 { key: '/messaging/channels?platform=zalo_oa', label: <Link to="/messaging/channels?platform=zalo_oa">Kết nối Zalo OA</Link> },
                 { key: '/messaging/auto-rules?platform=zalo_oa', label: <Link to="/messaging/auto-rules?platform=zalo_oa">Tự động trả lời</Link> },
@@ -157,7 +156,7 @@ export function AppLayout() {
                     {!collapsed && <span>CMB Core</span>}
                 </div>
                 <div style={{ height: 'calc(100vh - 56px)', overflowY: 'auto', overflowX: 'hidden' }}>
-                    <Menu mode="inline" selectedKeys={[selectedKey]} defaultOpenKeys={['messaging-facebook', 'messaging-zalo', 'acc-books', 'acc-money']} inlineIndent={16} items={nav} style={{ borderInlineEnd: 'none' }} />
+                    <Menu mode="inline" selectedKeys={[selectedKey]} defaultOpenKeys={[]} inlineIndent={16} items={nav} style={{ borderInlineEnd: 'none' }} />
                 </div>
             </Sider>
             <Layout>

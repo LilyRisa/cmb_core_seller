@@ -28,7 +28,7 @@ export function AppFrame({ app }: { app: AppDef }) {
     return (
         <Layout className="desk-window" style={{ height: '100%' }}>
             <Sider className="desk-window-sider" theme="light" width={220} style={{ overflowY: 'auto' }}>
-                <Menu mode="inline" selectedKeys={[selectedKey]} defaultOpenKeys={['messaging-facebook', 'acc-books', 'acc-money']} items={items} style={{ borderInlineEnd: 'none' }} />
+                <Menu mode="inline" selectedKeys={[selectedKey]} defaultOpenKeys={[]} items={items} style={{ borderInlineEnd: 'none' }} />
             </Sider>
             <Content className="desk-window-content">
                 <Routes>{appRouteElements()}</Routes>

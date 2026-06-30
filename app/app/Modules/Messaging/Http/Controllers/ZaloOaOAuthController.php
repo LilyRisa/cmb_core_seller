@@ -44,6 +44,12 @@ class ZaloOaOAuthController extends Controller
     {
         Gate::authorize('messaging.connect');
 
+        // Connector phải được bật (zalo_oa trong INTEGRATIONS_MESSAGING) — nếu không, trả lỗi
+        // rõ ràng thay vì 500 (registry->for() ném exception khi chưa đăng ký).
+        if (! $this->registry->has(self::PROVIDER)) {
+            abort(422, 'Tích hợp Zalo OA chưa được bật. Quản trị viên cần thêm zalo_oa vào INTEGRATIONS_MESSAGING.');
+        }
+
         $tenantId = app(CurrentTenant::class)->id();
         $state = OAuthState::issue(self::PROVIDER, (int) $tenantId, $request->user()?->id, '/messaging/channels?connected=zalo_oa');
 
