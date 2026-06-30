@@ -349,6 +349,7 @@ export function useAiSuggestion(conversationId: number | null) {
 
 const PROVIDER_LABELS: Record<string, string> = {
     facebook_page: 'Facebook',
+    zalo_oa: 'Zalo OA',
     tiktok_chat: 'TikTok',
     shopee_chat: 'Shopee',
     lazada_chat: 'Lazada',
@@ -363,12 +364,13 @@ export function providerLabel(code: string): string {
  * Tách inbox theo nguồn: "Tin nhắn sàn" (marketplace) vs "Tin nhắn Facebook".
  * Map sang param `provider` (CSV) của API list. 'all' = không lọc.
  */
-export type InboxGroup = 'all' | 'marketplace' | 'facebook';
+export type InboxGroup = 'all' | 'marketplace' | 'facebook' | 'zalo';
 
 export const INBOX_GROUP_PROVIDERS: Record<InboxGroup, string | undefined> = {
     all: undefined,
     marketplace: 'tiktok_chat,shopee_chat,lazada_chat',
     facebook: 'facebook_page',
+    zalo: 'zalo_oa',
 };
 
 /**

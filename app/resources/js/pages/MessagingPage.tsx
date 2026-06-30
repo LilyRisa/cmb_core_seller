@@ -286,6 +286,8 @@ export function MessagingPage() {
     const [activeId, setActiveId] = useState<number | null>(null);
     // Mở hội thoại từ thông báo: /messaging?conversation=ID → set active + dọn param khỏi URL.
     const [searchParams, setSearchParams] = useSearchParams();
+    // Hộp thư theo nền tảng: ?platform=zalo_oa ⇒ chỉ hội thoại Zalo OA (menu "Tin nhắn > Zalo OA > Hộp thư").
+    const isZalo = searchParams.get('platform') === 'zalo_oa';
     useEffect(() => {
         const cid = searchParams.get('conversation');
         if (!cid) return;
@@ -329,15 +331,15 @@ export function MessagingPage() {
 
     // ── Conversations ─────────────────────────────────────────────────────────
     const list = useConversations({
-        provider: INBOX_GROUP_PROVIDERS[board === 'facebook' ? 'facebook' : 'marketplace'],
+        provider: isZalo ? INBOX_GROUP_PROVIDERS.zalo : INBOX_GROUP_PROVIDERS[board === 'facebook' ? 'facebook' : 'marketplace'],
         status: statusState === 'all' || statusState === 'blocked' ? undefined : statusState,
         blocked: statusState === 'blocked' || undefined,
         read: readState === 'read' || undefined,
         unread: readState === 'unread' || undefined,
         has_phone: hasPhone || undefined,
         tags: tagFilter.length ? tagFilter.join(',') : undefined,
-        channel_account_id: board === 'facebook' && channelAccountId.length ? channelAccountId.join(',') : undefined,
-        thread_type: board === 'facebook' && fbThreadType !== 'all' ? fbThreadType : undefined,
+        channel_account_id: !isZalo && board === 'facebook' && channelAccountId.length ? channelAccountId.join(',') : undefined,
+        thread_type: !isZalo && board === 'facebook' && fbThreadType !== 'all' ? fbThreadType : undefined,
     });
     const thread = useConversationThread(activeId);
     const sendText = useSendText(activeId);
@@ -562,7 +564,7 @@ export function MessagingPage() {
         statusState !== 'open',
         hasPhone,
         tagFilter.length > 0,
-        board === 'facebook' && channelAccountId.length > 0,
+        !isZalo && board === 'facebook' && channelAccountId.length > 0,
     ].filter(Boolean).length;
 
     // ── Filter popover content ────────────────────────────────────────────────
@@ -608,7 +610,7 @@ export function MessagingPage() {
             </Checkbox>
 
             {/* Trang Facebook (chỉ hiện khi đang ở tab Facebook) */}
-            {board === 'facebook' && (
+            {!isZalo && board === 'facebook' && (
                 <div>
                     <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>Trang</Text>
                     <Select
@@ -781,7 +783,9 @@ export function MessagingPage() {
                 <div style={{ padding: 12, borderBottom: '1px solid #F1F5F9', display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {/* 2 tab chính: Sàn / Facebook */}
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        {MARKETPLACE_CHAT_ENABLED ? (
+                        {isZalo ? (
+                            <div style={{ flex: 1, fontWeight: 600, padding: '4px 8px' }}>Tin nhắn Zalo OA</div>
+                        ) : MARKETPLACE_CHAT_ENABLED ? (
                             <Segmented
                                 block
                                 style={{ flex: 1 }}
@@ -817,7 +821,7 @@ export function MessagingPage() {
                         )}
                     </div>
                     {/* Lọc loại hội thoại Facebook: tất cả / tin nhắn / bình luận */}
-                    {board === 'facebook' && (
+                    {!isZalo && board === 'facebook' && (
                         <Segmented
                             block
                             size="small"

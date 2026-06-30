@@ -128,7 +128,9 @@ class ZaloOaOAuthController extends Controller
             MessagingAccountMeta::withoutGlobalScope(TenantScope::class)->updateOrCreate(
                 ['channel_account_id' => (int) $account->getKey()],
                 ['tenant_id' => (int) $account->tenant_id, 'messaging_enabled' => true,
-                    'sync_status' => MessagingAccountMeta::SYNC_QUEUED],
+                    'sync_status' => MessagingAccountMeta::SYNC_QUEUED,
+                    // Avatar OA: lưu URL thô (Zalo avatar URL không bền nhưng đủ hiển thị; channels/inbox fallback URL này).
+                    'page_avatar_url' => $profile['avatar_url'] ?? null],
             );
 
             BackfillMessagingChannel::dispatch((int) $account->getKey());

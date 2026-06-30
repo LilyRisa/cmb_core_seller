@@ -63,7 +63,8 @@ class MessagingChannelController extends Controller
                     'ai_auto_mode' => $meta !== null && $meta->ai_auto_mode,
                     'token_expired' => $a->status === ChannelAccount::STATUS_EXPIRED,
                     'connected_at' => $a->created_at?->toIso8601String(),
-                    'avatar_url' => $this->media->temporaryUrlForPath($meta?->page_avatar_path),
+                    // Ưu tiên avatar đã relay vào storage; fallback URL thô (vd Zalo OA lưu URL trực tiếp).
+                    'avatar_url' => $this->media->temporaryUrlForPath($meta?->page_avatar_path) ?? $meta?->page_avatar_url,
                     'message_count' => $liveCount,
                     'sync' => $meta !== null ? [
                         'status' => $meta->sync_status ?? 'idle',

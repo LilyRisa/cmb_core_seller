@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { App as AntApp, Avatar, Button, Card, Checkbox, Empty, Popconfirm, Progress, Result, Space, Spin, Switch, Tag, Tooltip, Typography } from 'antd';
-import { DisconnectOutlined, FacebookFilled, KeyOutlined, MessageOutlined, RobotOutlined, ShopOutlined, SyncOutlined } from '@ant-design/icons';
+import { DisconnectOutlined, FacebookFilled, KeyOutlined, RobotOutlined, ShopOutlined, SyncOutlined } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { MessagingNav } from '@/components/MessagingNav';
@@ -200,12 +200,36 @@ export function MessagingChannelsPage() {
                             <Card key={z.id} size="small" styles={{ body: { padding: 12 } }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
                                     <Space size={12} align="center">
-                                        <Avatar src={z.avatar_url ?? undefined} icon={<MessageOutlined />} size={40} style={{ background: z.avatar_url ? undefined : '#0068FF' }} />
+                                        <Avatar src={z.avatar_url ?? undefined} icon={<img src="/images/zalo.webp" alt="" width={22} height={22} style={{ objectFit: 'contain' }} />} size={40} style={{ background: z.avatar_url ? undefined : '#fff' }} />
                                         <Space direction="vertical" size={2}>
                                             <Text strong>{z.name}</Text>
-                                            <Tag color={z.token_expired ? 'red' : 'green'}>{z.token_expired ? 'Hết hạn token' : 'Đang hoạt động'}</Tag>
+                                            <Space size={6}>
+                                                <Tag color={z.token_expired ? 'red' : 'green'}>{z.token_expired ? 'Hết hạn token' : 'Đang hoạt động'}</Tag>
+                                                <Text type="secondary" style={{ fontSize: 12 }}>OA ID: {z.external_shop_id}</Text>
+                                            </Space>
                                         </Space>
                                     </Space>
+                                    {canConnect && (
+                                        <Space>
+                                            {z.token_expired && (
+                                                <Button size="small" type="primary" icon={<KeyOutlined />} loading={startZalo.isPending} onClick={handleConnectZalo}>Kết nối lại</Button>
+                                            )}
+                                            <Popconfirm
+                                                title="Ngắt kết nối Zalo OA?"
+                                                description="Sẽ gỡ OA và xoá toàn bộ hội thoại liên quan, không khôi phục được."
+                                                okText="Ngắt kết nối" okButtonProps={{ danger: true, loading: disconnectingId === z.id }} cancelText="Huỷ"
+                                                onConfirm={() => {
+                                                    setDisconnectingId(z.id);
+                                                    disconnect.mutate(z.id, {
+                                                        onSuccess: () => { setDisconnectingId(null); message.success('Đã ngắt kết nối Zalo OA.'); },
+                                                        onError: (e) => { setDisconnectingId(null); message.error(errorMessage(e)); },
+                                                    });
+                                                }}
+                                            >
+                                                <Button size="small" danger icon={<DisconnectOutlined />} loading={disconnectingId === z.id}>Ngắt kết nối</Button>
+                                            </Popconfirm>
+                                        </Space>
+                                    )}
                                 </div>
                             </Card>
                         ))}
