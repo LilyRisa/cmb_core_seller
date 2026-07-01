@@ -74,7 +74,7 @@ export function OrderDetailBody({ order }: { order: Order }) {
                     message={<><b>Đơn đã đẩy lên {pushedCarrierLabel}</b> — mã vận đơn: <code>{order.shipment?.tracking_no ?? '—'}</code></>}
                     description={(
                         <Space direction="vertical" size={4}>
-                            <span>Mọi thay đổi (sản phẩm, địa chỉ, tiền, ghi chú…) <b>chỉ áp dụng trên hệ thống nội bộ</b> — KHÔNG can thiệp vào vận đơn đã đẩy lên ĐVVC.</span>
+                            <span>Mọi thay đổi (sản phẩm, địa chỉ, tiền, ghi chú…) và <b>huỷ đơn</b> <b>chỉ áp dụng trên hệ thống nội bộ</b> — KHÔNG can thiệp vào vận đơn đã đẩy lên ĐVVC, nên dữ liệu nội bộ sẽ <b>LỆCH</b> so với ĐVVC.</span>
                             <span style={{ color: 'var(--ink-500)' }}>
                                 <CarOutlined style={{ marginRight: 6 }} />
                                 Nếu cần sửa địa chỉ / khối lượng / COD thực tế giao hàng — hãy huỷ vận đơn này trên hệ ĐVVC trước, rồi đẩy lại đơn mới.

@@ -650,7 +650,7 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                     icon={<LockOutlined />}
                     style={{ marginBottom: 16 }}
                     message={<><b>Đơn đã đẩy lên {pushedCarrierLabel}</b> — mã vận đơn: <code>{editingOrder?.shipment?.tracking_no ?? '—'}</code></>}
-                    description="Mọi thay đổi (sản phẩm, địa chỉ, tiền…) chỉ áp dụng trên hệ thống nội bộ — KHÔNG can thiệp vào vận đơn đã đẩy lên ĐVVC. Nếu cần sửa thực tế giao hàng — hãy huỷ vận đơn này trên hệ ĐVVC trước, rồi đẩy lại đơn mới."
+                    description="Mọi thay đổi (sản phẩm, địa chỉ, tiền…) chỉ áp dụng trên hệ thống nội bộ — KHÔNG can thiệp vào vận đơn đã đẩy lên ĐVVC, nên dữ liệu nội bộ sẽ LỆCH so với ĐVVC. Nếu cần sửa thực tế giao hàng — hãy huỷ vận đơn này trên hệ ĐVVC trước, rồi đẩy lại đơn mới."
                 />
             )}
 

@@ -166,17 +166,25 @@ class ManualOrderService
         return $order;
     }
 
-    /** Cancel a manual order that hasn't shipped yet → releases stock via the event. */
+    /**
+     * Huỷ đơn thủ công — CHỈ đổi trạng thái nội bộ + nhả tồn kho qua sự kiện. KHÔNG gọi API ĐVVC để huỷ
+     * vận đơn (theo yêu cầu nghiệp vụ: huỷ đơn không tác động đơn bên ĐVVC). Nếu đơn đã đẩy ĐVVC ⇒ đánh dấu
+     * `meta.tracking_stopped` để cảnh báo dữ liệu nội bộ đã LỆCH với vận đơn còn sống bên ĐVVC.
+     */
     public function cancel(Order $order, ?int $userId, ?string $reason = null): Order
     {
         $this->assertManualEditable($order);
-        $this->assertCancellable($order);
         $from = $order->status;
         if ($from === StandardOrderStatus::Cancelled) {
             return $order;
         }
         $now = now();
-        $order->forceFill(['status' => StandardOrderStatus::Cancelled, 'raw_status' => 'cancelled', 'cancel_reason' => $reason, 'cancelled_at' => $now, 'source_updated_at' => $now])->save();
+        $fill = ['status' => StandardOrderStatus::Cancelled, 'raw_status' => 'cancelled', 'cancel_reason' => $reason, 'cancelled_at' => $now, 'source_updated_at' => $now];
+        if ($this->isPushedToCarrier($order)) {
+            // Vận đơn bên ĐVVC vẫn còn hiệu lực — đánh dấu ngừng theo dõi (dữ liệu lệch), KHÔNG huỷ vận đơn hộ.
+            $fill['meta'] = array_replace((array) ($order->meta ?? []), ['tracking_stopped' => true]);
+        }
+        $order->forceFill($fill)->save();
         OrderStatusHistory::withoutGlobalScope(TenantScope::class)->create([
             'tenant_id' => $order->tenant_id, 'order_id' => $order->getKey(), 'from_status' => $from->value, 'to_status' => 'cancelled',
             'raw_status' => 'cancelled', 'source' => OrderStatusHistory::SOURCE_USER, 'changed_at' => $now, 'payload' => ['cancelled_by' => $userId, 'reason' => $reason], 'created_at' => $now,
@@ -357,20 +365,14 @@ class ManualOrderService
         }
     }
 
-    /**
-     * Chặn `cancel()` khi shipment đã đẩy ĐVVC — user phải huỷ vận đơn trên hệ ĐVVC trước,
-     * rồi mới huỷ đơn ở hệ thống (tránh kho ĐVVC vẫn ship trong khi đơn đã huỷ).
-     */
-    private function assertCancellable(Order $order): void
+    /** Đơn đã đẩy ĐVVC? = có shipment carrier thật (≠ manual/rỗng) ở trạng thái ngoài pending/cancelled. */
+    private function isPushedToCarrier(Order $order): bool
     {
-        $shipped = $order->shipments()
+        return $order->shipments()
             ->where('carrier', '!=', 'manual')
             ->where('carrier', '!=', '')
             ->whereNotIn('status', ['pending', 'cancelled'])
             ->exists();
-        if ($shipped) {
-            throw ValidationException::withMessages(['order' => 'Đơn đã đẩy lên ĐVVC — hãy huỷ vận đơn trên ĐVVC trước rồi mới huỷ đơn.']);
-        }
     }
 
     private function chosenStatus(?string $value): StandardOrderStatus

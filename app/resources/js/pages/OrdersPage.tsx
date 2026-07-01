@@ -372,9 +372,17 @@ export function OrdersPage() {
     const doBulkCancel = () => {
         const ids = eliCancel.map((o) => o.id);
         if (ids.length === 0) return;
+        const pushedCount = eliCancel.filter((o) => o.is_pushed_to_carrier).length;
         Modal.confirm({
             title: `Huỷ ${ids.length} đơn?`,
-            content: 'Đẩy trạng thái về Đã huỷ TRONG APP và ngừng theo dõi — KHÔNG đẩy thao tác huỷ lên sàn / ĐVVC. Đơn đã huỷ sẽ bị bỏ qua.',
+            content: (
+                <span>
+                    Đẩy trạng thái về Đã huỷ TRONG APP và ngừng theo dõi — KHÔNG đẩy thao tác huỷ lên sàn / ĐVVC. Đơn đã huỷ sẽ bị bỏ qua.
+                    {pushedCount > 0 && (
+                        <><br /><b>{pushedCount}</b> đơn đã đẩy ĐVVC: vận đơn bên ĐVVC vẫn còn hiệu lực, dữ liệu nội bộ sẽ <b>LỆCH</b> so với ĐVVC — nếu cần dừng giao thật, huỷ vận đơn trên hệ ĐVVC.</>
+                    )}
+                </span>
+            ),
             okText: 'Huỷ đơn', okButtonProps: { danger: true }, cancelText: 'Đóng',
             onOk: async () => {
                 try {

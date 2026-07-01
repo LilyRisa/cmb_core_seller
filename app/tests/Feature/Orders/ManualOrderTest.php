@@ -4,6 +4,7 @@ namespace Tests\Feature\Orders;
 
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Customers\Models\Customer;
+use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
 use CMBcoreSeller\Modules\Inventory\Models\InventoryLevel;
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Inventory\Services\InventoryLedgerService;
@@ -175,14 +176,33 @@ class ManualOrderTest extends TestCase
         ])->assertForbidden();
     }
 
-    public function test_cannot_edit_a_shipped_manual_order(): void
+    /**
+     * Đơn đã đẩy ĐVVC (có vận đơn thật) VẪN sửa/huỷ được — nhưng CHỈ đổi dữ liệu nội bộ, KHÔNG tác động
+     * vận đơn bên ĐVVC (không huỷ vận đơn hộ). Huỷ ⇒ đánh dấu tracking_stopped để cảnh báo dữ liệu lệch.
+     */
+    public function test_pushed_order_edit_and_cancel_are_local_only(): void
     {
         $orderId = $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/orders', [
             'items' => [['sku_id' => $this->sku->getKey(), 'name' => 'Áo', 'unit_price' => 100000]],
         ])->assertCreated()->json('data.id');
+        // Giả lập đã đẩy ĐVVC: 1 vận đơn GHN thật đang vận chuyển.
+        $shipment = Shipment::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $this->tenant->getKey(), 'order_id' => $orderId, 'carrier' => 'ghn',
+            'tracking_no' => 'GH-KEEP-1', 'status' => Shipment::STATUS_IN_TRANSIT,
+        ]);
         Order::withoutGlobalScope(TenantScope::class)->whereKey($orderId)->update(['status' => StandardOrderStatus::Shipped->value]);
 
-        $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/orders/{$orderId}/cancel")->assertStatus(422);
-        $this->actingAs($this->owner)->withHeaders($this->h())->patchJson("/api/v1/orders/{$orderId}", ['note' => 'x'])->assertStatus(422);
+        // Sửa: cho phép (200), chỉ đổi nội bộ, KHÔNG đụng vận đơn.
+        $this->actingAs($this->owner)->withHeaders($this->h())->patchJson("/api/v1/orders/{$orderId}", ['note' => 'ghi chú nội bộ'])
+            ->assertOk()->assertJsonPath('data.note', 'ghi chú nội bộ');
+
+        // Huỷ: cho phép (200) — đơn về "cancelled" nhưng vận đơn ĐVVC GIỮ NGUYÊN (không bị huỷ hộ).
+        $this->actingAs($this->owner)->withHeaders($this->h())->postJson("/api/v1/orders/{$orderId}/cancel")
+            ->assertOk()->assertJsonPath('data.status', 'cancelled');
+
+        $shipment->refresh();
+        $this->assertSame(Shipment::STATUS_IN_TRANSIT, $shipment->status, 'Vận đơn ĐVVC phải giữ nguyên — huỷ đơn không tác động ĐVVC.');
+        $order = Order::withoutGlobalScope(TenantScope::class)->find($orderId);
+        $this->assertTrue((bool) ($order->meta['tracking_stopped'] ?? false), 'Đơn đã đẩy ĐVVC khi huỷ phải đánh dấu tracking_stopped (cảnh báo lệch).');
     }
 }
