@@ -38,10 +38,11 @@ export function ConversationOrderPanel({ conversation }: { conversation: Convers
     const { notification } = AntApp.useApp();
     const qc = useQueryClient();
     const [open, setOpen] = useState(false);
-    // Giữ nháp đang nhập để không mất khi đóng/mở lại Drawer (form bị unmount bởi destroyOnHidden).
-    // Đóng rồi mở lại → khôi phục đúng thứ đang gõ thay vì reset về auto-fill. Reset khi đổi hội thoại.
-    const [savedDraft, setSavedDraft] = useState<OrderDraft | null>(null);
-    useEffect(() => { setSavedDraft(null); }, [conversation.id]);
+    // GIỮ form mounted (Drawer ẩn bằng CSS thay vì unmount) để đóng/mở lại KHÔNG mất dữ liệu đang nhập.
+    // Chỉ mount SAU khi lookup xong để auto-fill đủ tên/SĐT/địa chỉ (địa chỉ về async, mount sớm sẽ hụt).
+    const [mounted, setMounted] = useState(false);
+    // Đổi hội thoại ⇒ đóng Drawer + reset để mount lại form mới cho khách mới.
+    useEffect(() => { setOpen(false); setMounted(false); }, [conversation.id]);
     const link = useLinkConversationOrder();
 
     const phone = conversation.detected_phone ?? '';
@@ -73,6 +74,10 @@ export function ConversationOrderPanel({ conversation }: { conversation: Convers
     }, [hasCustomer, byCustomer.data, lookup.data, conversation.order_id, linkedOrder.data]);
 
     const loading = hasCustomer ? byCustomer.isLoading : (phone.replace(/[^\d+]/g, '').length >= 9 && lookup.isLoading);
+    // Lookup địa chỉ đã lưu (dùng để auto-fill) còn đang tải? (không có SĐT ⇒ coi như xong ngay).
+    const lookupLoading = phone.replace(/[^\d+]/g, '').length >= 9 && lookup.isLoading;
+    // Mở Drawer + lookup xong ⇒ mount form (auto-fill đủ). setMounted chỉ bật, không tắt khi đóng ⇒ giữ dữ liệu.
+    useEffect(() => { if (open && !lookupLoading) setMounted(true); }, [open, lookupLoading]);
 
     // Nháp khởi tạo cho form trong Drawer — bơm SĐT + tên (+ địa chỉ đã lưu nếu có).
     const initialDraft: OrderDraft = useMemo(() => {
@@ -106,7 +111,7 @@ export function ConversationOrderPanel({ conversation }: { conversation: Convers
 
     const handleSaved = (orderId: number) => {
         setOpen(false);
-        setSavedDraft(null);   // đã tạo đơn ⇒ xoá nháp để lần sau mở form trắng (auto-fill lại).
+        setMounted(false);   // tạo đơn xong ⇒ unmount để lần sau mở form TRẮNG (auto-fill lại từ đầu).
         notification.success({
             message: 'Đã tạo đơn',
             description: <a href={`/orders/${orderId}`} target="_blank" rel="noreferrer">Xem đơn #{orderId} →</a>,
@@ -177,18 +182,20 @@ export function ConversationOrderPanel({ conversation }: { conversation: Convers
                 width={drawerWidth()}
                 open={open}
                 onClose={() => setOpen(false)}
-                destroyOnHidden
                 styles={{ body: { padding: 16 } }}
             >
-                {open && (
+                {/* KHÔNG destroyOnHidden + giữ mounted ⇒ đóng/mở lại giữ nguyên dữ liệu đang nhập. */}
+                {mounted ? (
                     <CreateOrderForm
+                        key={conversation.id}
                         embedded
                         compact
                         active={open}
-                        initialDraft={savedDraft ?? initialDraft}
-                        onDraftChange={setSavedDraft}
+                        initialDraft={initialDraft}
                         onSaved={handleSaved}
                     />
+                ) : (
+                    <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>
                 )}
             </Drawer>
         </div>
