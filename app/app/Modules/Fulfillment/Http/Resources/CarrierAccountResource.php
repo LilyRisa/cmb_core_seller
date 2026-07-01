@@ -9,10 +9,9 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /**
  * @mixin CarrierAccount
  *
- * Phơi `credentials` (token/shop_id…) để form "Sửa tài khoản" hiển thị lại dữ liệu đã lưu — trước
- * đây form trống trơn khi sửa, và người dùng không thể xác nhận đã chọn đúng Gian hàng (ShopId).
- * Dữ liệu là credential của chính tenant, endpoint đã sau quyền `fulfillment.carriers` + tenant scope;
- * token nhạy cảm được che (Input.Password) và có thể bật/tắt hiển thị ở FE.
+ * KHÔNG phơi `credentials` thô (token/secret) trong list/create/update để tránh rò rỉ (xem test
+ * "no credential leak"). Form "Sửa tài khoản" muốn hiển thị lại giá trị đã lưu thì gọi riêng endpoint
+ * reveal `GET /carrier-accounts/{id}/credentials` (owner/quản lý ĐVVC) — token che & bật/tắt ở FE.
  */
 class CarrierAccountResource extends JsonResource
 {
@@ -26,7 +25,6 @@ class CarrierAccountResource extends JsonResource
             'is_default' => $this->is_default,
             'is_active' => $this->is_active,
             'meta' => $this->meta ?? [],
-            'credentials' => (array) ($this->credentials ?? []),
             'credential_keys' => array_keys((array) ($this->credentials ?? [])),
             'created_at' => $this->created_at?->toIso8601String(),
         ];

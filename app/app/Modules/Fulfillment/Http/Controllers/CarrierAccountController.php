@@ -171,6 +171,18 @@ class CarrierAccountController extends Controller
     }
 
     /**
+     * GET /api/v1/carrier-accounts/{id}/credentials — trả credential đã giải mã để form "Sửa tài khoản"
+     * hiển thị lại (token che ***, bật/tắt ở FE). Chỉ người có quyền cấu hình ĐVVC (`fulfillment.carriers`)
+     * + đúng tenant (findOrFail đã tenant-scope). KHÔNG đưa vào list/create để tránh rò rỉ hàng loạt.
+     */
+    public function credentials(Request $request, int $id): JsonResponse
+    {
+        abort_unless($request->user()?->can('fulfillment.carriers'), 403, 'Bạn không có quyền xem thông tin xác thực ĐVVC.');
+
+        return response()->json(['data' => (array) (CarrierAccount::query()->findOrFail($id)->credentials ?? [])]);
+    }
+
+    /**
      * POST /api/v1/carrier-accounts/ghn/shops — liệt kê shop gắn với token GHN. Dùng trong form "Thêm
      * tài khoản GHN" cho phép user chọn 1 trong nhiều gian hàng thay vì gõ ShopId tay. KHÔNG yêu cầu
      * CarrierAccount đã lưu. Cache 10 phút theo hash token (giảm hit GHN; shop list ít thay đổi).

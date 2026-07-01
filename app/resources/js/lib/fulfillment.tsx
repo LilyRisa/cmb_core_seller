@@ -38,8 +38,6 @@ export interface CarrierAccount {
     is_default: boolean;
     is_active: boolean;
     meta: Record<string, unknown>;
-    /** Credential đã lưu (token/shop_id…) — dùng để prefill form "Sửa tài khoản"; token che ở FE. */
-    credentials?: Record<string, unknown>;
     credential_keys: string[];
     created_at: string | null;
 }
@@ -167,6 +165,17 @@ export function useDeleteCarrierAccount() {
     const tenantId = useCurrentTenantId();
     const invalidate = useInvalidate([['carrier-accounts', tenantId]]);
     return useMutation({ mutationFn: async (id: number) => { await api!.delete(`/carrier-accounts/${id}`); }, onSuccess: invalidate });
+}
+
+/** Reveal credential đã lưu (token/shop_id…) để form "Sửa tài khoản" hiển thị lại. Gọi theo yêu cầu (mở form Sửa). */
+export function useRevealCarrierCredentials() {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async (id: number) => {
+            const { data } = await api!.get<{ data: Record<string, unknown> }>(`/carrier-accounts/${id}/credentials`);
+            return data.data;
+        },
+    });
 }
 
 /** A2 (SPEC 0021) — kiểm tra credentials còn hợp lệ. Trả ok/lỗi + cập nhật `meta.last_verified_at`. */

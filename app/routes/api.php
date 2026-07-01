@@ -328,6 +328,8 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::post('carrier-accounts', [CarrierAccountController::class, 'store'])->name('carrier-accounts.store');
             Route::patch('carrier-accounts/{id}', [CarrierAccountController::class, 'update'])->whereNumber('id')->name('carrier-accounts.update');
             Route::delete('carrier-accounts/{id}', [CarrierAccountController::class, 'destroy'])->whereNumber('id')->name('carrier-accounts.destroy');
+            // Reveal credential đã lưu (token/shop_id…) cho form "Sửa tài khoản" hiển thị lại — owner/quản lý ĐVVC.
+            Route::get('carrier-accounts/{id}/credentials', [CarrierAccountController::class, 'credentials'])->whereNumber('id')->name('carrier-accounts.credentials');
             // A2 (SPEC 0021) — kiểm tra credentials còn hợp lệ. Auto-verify lúc store; user retry qua nút "Kiểm tra".
             Route::post('carrier-accounts/{id}/verify', [CarrierAccountController::class, 'verify'])->whereNumber('id')->name('carrier-accounts.verify');
             // Proxy GHN master-data (province/district/ward) bằng token user đang nhập — dùng trong form

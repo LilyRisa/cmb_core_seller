@@ -21,7 +21,7 @@ import {
     type Carrier, type CarrierAccount, type GhnDistrict, type GhnProvince, type GhnShop, type GhnWard,
     type VtpProvince, type VtpWard,
     useCarrierAccounts, useCarriers, useCreateCarrierAccount, useDeleteCarrierAccount,
-    useGhnMasterData, useGhnShops, useUpdateCarrierAccount, useVerifyCarrierAccount, useViettelPostMasterData,
+    useGhnMasterData, useGhnShops, useRevealCarrierCredentials, useUpdateCarrierAccount, useVerifyCarrierAccount, useViettelPostMasterData,
 } from '@/lib/fulfillment';
 
 // Trường thông tin xác thực (credentials) theo từng ĐVVC — v1: GHN; carrier khác fallback "token".
@@ -455,27 +455,31 @@ function AddCarrierAccountModal({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [state.open, isEdit, needsFromAddress, defaultSender]);
 
-    // Edit mode: nạp sẵn giá trị hiện có — GỒM CẢ credentials (token/shop_id…) để form hiển thị lại
-    // dữ liệu đã lưu. Token nhạy cảm render bằng Input.Password (che ••••, bật/tắt hiển thị).
+    // Edit mode: nạp sẵn giá trị hiện có. Credentials (token/shop_id…) KHÔNG có trong list (tránh rò rỉ)
+    // ⇒ gọi endpoint reveal riêng rồi đổ vào field form. Token nhạy cảm render bằng Input.Password.
+    const reveal = useRevealCarrierCredentials();
     useEffect(() => {
         if (!state.open || !state.edit) return;
         const fa = editFa;
-        const creds = (state.edit.credentials ?? {}) as Record<string, unknown>;
-        // Map credential đã lưu → field form `cred_<key>` (shop_id ép chuỗi để khớp Select GHN).
-        const credPatch: Record<string, unknown> = {};
-        Object.entries(creds).forEach(([k, v]) => {
-            if (v === null || v === undefined) return;
-            credPatch[`cred_${k}`] = k === 'shop_id' ? String(v) : v;
-        });
         form.setFieldsValue({
             name: state.edit.name,
             default_service: state.edit.default_service ?? undefined,
             is_default: state.edit.is_default,
-            ...credPatch,
             from_name: fa.name, from_phone: fa.phone, from_address: fa.address,
             from_province_name: fa.province_name, from_district_name: fa.district_name, from_ward_name: fa.ward_name,
             from_district_id: fa.district_id, from_ward_code: fa.ward_code,
             from_province_id: fa.province_id, from_ward_id: fa.ward_id,
+        });
+        // Lấy credential đã lưu để hiển thị lại (đổ SAU nên GHN Shop/địa chỉ tự nạp theo token).
+        reveal.mutate(state.edit.id, {
+            onSuccess: (creds) => {
+                const credPatch: Record<string, unknown> = {};
+                Object.entries(creds ?? {}).forEach(([k, v]) => {
+                    if (v === null || v === undefined) return;
+                    credPatch[`cred_${k}`] = k === 'shop_id' ? String(v) : v;
+                });
+                if (Object.keys(credPatch).length) form.setFieldsValue(credPatch);
+            },
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [state.open, state.edit]);
