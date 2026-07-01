@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-    App as AntApp, Alert, Button, Col, Dropdown, Empty, Form, Input, Modal, Result,
+    App as AntApp, Alert, Button, Col, Dropdown, Empty, Form, Input, Modal, Radio, Result,
     Row, Select, Space, Spin, Switch, Tag, Tooltip, Typography,
 } from 'antd';
 import type { FormInstance } from 'antd';
@@ -16,7 +16,7 @@ import { CarrierLogo, CARRIER_TAGLINE } from '@/components/CarrierLogo';
 import { CARRIER_META } from '@/components/CarrierBadge';
 import { errorMessage } from '@/lib/api';
 import { formatDateShort } from '@/lib/format';
-import { useCan } from '@/lib/tenant';
+import { useCan, useTenant } from '@/lib/tenant';
 import {
     type Carrier, type CarrierAccount, type GhnDistrict, type GhnProvince, type GhnShop, type GhnWard,
     type VtpProvince, type VtpWard,
@@ -65,6 +65,10 @@ const COMING_SOON: Array<{ code: string; name: string }> = [
 ];
 
 interface AddState { open: boolean; carrier?: Carrier | null; edit?: CarrierAccount | null }
+
+// Hồ sơ người gửi ("Địa chỉ lấy hàng") lưu ở Cài đặt → In (tenant.settings.print.senders).
+// Chỉ có tên/SĐT/địa chỉ tự do (không tách tỉnh/quận/phường, không có mã GHN) — xem SettingsPrintPage.
+interface SenderProfile { id: string; name?: string; phone?: string; address?: string; is_default?: boolean }
 
 export function CarrierAccountsPage() {
     const { message } = AntApp.useApp();
@@ -420,6 +424,37 @@ function AddCarrierAccountModal({
     const credFields = CRED_FIELDS[code] ?? (code && code !== 'manual' ? [{ key: 'token', label: 'API Token', required: true, secret: true }] : []);
     const needsFromAddress = !!FROM_ADDRESS_REQUIRED[code];
 
+    // "Địa chỉ kho hàng (người gửi)" của MỌI ĐVVC lấy sẵn từ hồ sơ người gửi trong Cài đặt → In
+    // (tenant.settings.print.senders) — khỏi nhập lại. Sender chỉ có tên/SĐT/địa chỉ (free-text);
+    // tỉnh/quận/phường + mã GHN vẫn phải chọn riêng ở dưới (sender không lưu mã).
+    const { data: tenant } = useTenant();
+    const senders = useMemo<SenderProfile[]>(() => {
+        const s = (tenant?.settings as { print?: { senders?: unknown } } | null)?.print?.senders;
+        return Array.isArray(s) ? (s as SenderProfile[]).filter((x) => x && (x.name || x.address)) : [];
+    }, [tenant]);
+    const defaultSender = useMemo(() => senders.find((s) => s.is_default) ?? senders[0], [senders]);
+    const [senderId, setSenderId] = useState<string | undefined>(undefined);
+
+    // Điền tên/SĐT/địa chỉ từ 1 hồ sơ người gửi. overwrite=false ⇒ chỉ điền ô đang trống (auto),
+    // overwrite=true ⇒ ghi đè (khi user chủ động chọn hồ sơ khác).
+    const applySender = (s: SenderProfile | undefined, overwrite: boolean) => {
+        if (!s) return;
+        const cur = form.getFieldsValue(['from_name', 'from_phone', 'from_address']) as Record<string, string | undefined>;
+        const patch: Record<string, unknown> = {};
+        if (overwrite || !cur.from_name) patch.from_name = s.name ?? '';
+        if (overwrite || !cur.from_phone) patch.from_phone = s.phone ?? '';
+        if (overwrite || !cur.from_address) patch.from_address = s.address ?? '';
+        if (Object.keys(patch).length) form.setFieldsValue(patch);
+    };
+
+    // Tạo mới (không phải Sửa): auto điền từ hồ sơ người gửi mặc định vào các ô đang trống.
+    useEffect(() => {
+        if (!state.open || isEdit || !needsFromAddress || !defaultSender) return;
+        setSenderId(defaultSender.id);
+        applySender(defaultSender, false);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [state.open, isEdit, needsFromAddress, defaultSender]);
+
     // Edit mode: nạp sẵn giá trị hiện có — GỒM CẢ credentials (token/shop_id…) để form hiển thị lại
     // dữ liệu đã lưu. Token nhạy cảm render bằng Input.Password (che ••••, bật/tắt hiển thị).
     useEffect(() => {
@@ -553,6 +588,31 @@ function AddCarrierAccountModal({
                                             ? <>Bắt buộc với Viettel Post — dùng làm địa chỉ lấy hàng. Chọn Tỉnh/Phường (đơn vị hành chính mới) để lấy <b>mã VTP</b> tạo vận đơn.</>
                                             : <>Bắt buộc với GHN — dùng để tạo vận đơn. Mã quận/phường <b>tự động tải</b> từ GHN sau khi bạn nhập API Token.</>}
                                 </Typography.Paragraph>
+
+                                {/* Lấy sẵn tên/SĐT/địa chỉ từ hồ sơ người gửi ("Địa chỉ lấy hàng") ở Cài đặt → In. */}
+                                {senders.length > 0 ? (
+                                    <Form.Item label="Lấy từ Địa chỉ lấy hàng (Cài đặt in)" extra="Điền sẵn tên/SĐT/địa chỉ người gửi. Bạn vẫn có thể sửa lại bên dưới.">
+                                        <Radio.Group
+                                            value={senderId}
+                                            onChange={(e) => { const id = e.target.value as string; setSenderId(id); applySender(senders.find((s) => s.id === id), true); }}
+                                        >
+                                            <Space direction="vertical" size={4}>
+                                                {senders.map((s) => (
+                                                    <Radio key={s.id} value={s.id}>
+                                                        <b>{s.name || 'Người gửi'}</b>{s.phone ? ` · ${s.phone}` : ''}{s.is_default ? ' · mặc định' : ''}
+                                                        {s.address ? <span style={{ color: 'var(--ink-500)', fontSize: 12, display: 'block' }}>{s.address}</span> : null}
+                                                    </Radio>
+                                                ))}
+                                            </Space>
+                                        </Radio.Group>
+                                    </Form.Item>
+                                ) : (
+                                    <Alert
+                                        type="info" showIcon style={{ marginBottom: 12 }}
+                                        message={<>Chưa có hồ sơ người gửi. Thêm ở <b>Cài đặt → In → Địa chỉ lấy hàng</b> để lần sau điền tự động.</>}
+                                    />
+                                )}
+
                                 {FROM_ADDRESS_BASIC_FIELDS.map((f) => (
                                     <Form.Item key={f.key} name={`from_${f.key}`} label={f.label} rules={f.required ? [{ required: true, message: `Nhập ${f.label}` }] : []}>
                                         <Input placeholder={f.placeholder} />
