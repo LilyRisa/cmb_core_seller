@@ -138,11 +138,15 @@ class Order extends Model
     public function scopeSearch(Builder $q, string $term): Builder
     {
         $term = trim($term);
+        $like = '%'.mb_strtolower($term).'%';
 
-        return $q->where(function (Builder $q) use ($term) {
-            $q->where('order_number', 'like', "%{$term}%")
-                ->orWhere('external_order_id', 'like', "%{$term}%")
-                ->orWhere('buyer_name', 'like', "%{$term}%");
+        return $q->where(function (Builder $q) use ($like) {
+            // Không phân biệt hoa/thường (PostgreSQL prod phân biệt với LIKE trần).
+            $q->whereRaw('LOWER(order_number) LIKE ?', [$like])
+                ->orWhereRaw('LOWER(external_order_id) LIKE ?', [$like])
+                ->orWhereRaw('LOWER(buyer_name) LIKE ?', [$like])
+                // Tìm theo MÃ VẬN ĐƠN (tracking_no) của đơn — nếu đơn đã có vận đơn ở ĐVVC.
+                ->orWhereHas('shipments', fn (Builder $s) => $s->whereRaw('LOWER(tracking_no) LIKE ?', [$like]));
             // buyer_phone is encrypted (not searchable in SQL) — phone search is a later concern (search engine).
         });
     }

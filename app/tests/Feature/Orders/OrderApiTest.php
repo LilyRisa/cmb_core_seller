@@ -4,6 +4,7 @@ namespace Tests\Feature\Orders;
 
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Orders\Models\OrderItem;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
@@ -98,6 +99,14 @@ class OrderApiTest extends TestCase
         // search by order number
         $this->actingAs($this->user)->withHeaders($this->header())->getJson('/api/v1/orders?q=TT-1001')
             ->assertOk()->assertJsonCount(1, 'data');
+        // search by MÃ VẬN ĐƠN (tracking_no) — gõ chữ thường vẫn khớp (không phân biệt hoa/thường)
+        Shipment::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $this->tenant->getKey(),
+            'order_id' => Order::withoutGlobalScope(TenantScope::class)->where('order_number', 'TT-1002')->value('id'),
+            'carrier' => 'ghn', 'tracking_no' => 'GHN-TRACK-9', 'status' => 'created',
+        ]);
+        $this->actingAs($this->user)->withHeaders($this->header())->getJson('/api/v1/orders?q=ghn-track-9')
+            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.order_number', 'TT-1002');
         // sort by grand_total ascending
         $res = $this->actingAs($this->user)->withHeaders($this->header())->getJson('/api/v1/orders?sort=grand_total')->assertOk();
         $this->assertSame(['TT-1003', 'TT-1002', 'TT-1001'], collect($res->json('data'))->pluck('order_number')->all());
