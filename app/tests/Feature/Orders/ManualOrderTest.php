@@ -53,7 +53,8 @@ class ManualOrderTest extends TestCase
             'shipping_fee' => 20000, 'is_cod' => true, 'note' => 'Gọi trước',
         ])->assertCreated();
 
-        $res->assertJsonPath('data.source', 'manual')->assertJsonPath('data.status', 'processing');
+        // Đơn tạo thủ công mặc định "Chờ xử lý" (pending); chỉ sang "processing" sau khi chuẩn bị hàng + đẩy ĐVVC.
+        $res->assertJsonPath('data.source', 'manual')->assertJsonPath('data.status', 'pending');
         $this->assertSame(450000 + 20000, $res->json('data.grand_total'));
         $orderId = $res->json('data.id');
         $this->assertSame(3, $this->level()->reserved);   // reserved on create

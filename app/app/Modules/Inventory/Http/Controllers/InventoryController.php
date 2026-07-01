@@ -14,6 +14,7 @@ use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Inventory\Models\StockPushLog;
 use CMBcoreSeller\Modules\Inventory\Services\InventoryLedgerService;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
+use CMBcoreSeller\Support\SkuSearch;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -139,7 +140,7 @@ class InventoryController extends Controller
             $q->where('channel_account_id', (int) $accId);
         }
         if (($term = trim((string) $request->query('q', ''))) !== '') {
-            $q->where(fn ($w) => $w->where('seller_sku', 'like', "%{$term}%")->orWhere('external_sku_id', 'like', "%{$term}%"));
+            SkuSearch::apply($q, $term, ['seller_sku', 'external_sku_id'], []);
         }
         $q->orderByDesc('id');
 

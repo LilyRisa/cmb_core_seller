@@ -115,6 +115,13 @@ class GhnConnector extends AbstractCarrierConnector
 
     public function createShipment(array $account, array $shipment): array
     {
+        // GHN xác định "kho" (điểm lấy hàng) theo header ShopId. Thiếu shop_id ⇒ GHN trả lỗi khó hiểu
+        // "Lỗi hệ thống - không lấy được thông tin kho". Fail sớm với hướng dẫn rõ ràng thay vì để GHN báo.
+        $cred = (array) ($account['credentials'] ?? []);
+        if (empty($cred['shop_id'])) {
+            throw new RuntimeException('Tài khoản GHN chưa chọn Gian hàng (ShopId). Vào Cài đặt → ĐVVC → Sửa tài khoản GHN và chọn gian hàng để tạo vận đơn.');
+        }
+
         // SPEC 0021 — Nếu recipient có name (province/district/ward) nhưng thiếu code GHN, tự resolve qua
         // GhnAddressResolver (match theo tên đã chuẩn hoá → GHN ProvinceID/DistrictID/WardCode). Hỗ trợ cả
         // địa chỉ "mới" (2 cấp: bỏ qua district, suy từ ward) và "cũ" (3 cấp).

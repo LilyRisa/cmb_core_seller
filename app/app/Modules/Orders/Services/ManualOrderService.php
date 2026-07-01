@@ -377,7 +377,9 @@ class ManualOrderService
     {
         $s = $value ? StandardOrderStatus::tryFrom($value) : null;
 
-        return ($s !== null && in_array($s, self::PRE_SHIPMENT_CHOICES, true)) ? $s : StandardOrderStatus::Processing;
+        // Mặc định đơn tạo thủ công = "Chờ xử lý" (pending). Chỉ chuyển "Đang xử lý" (processing) sau khi
+        // "Chuẩn bị hàng" đẩy vận đơn lên ĐVVC thành công — xem ShipmentService (Pending → Processing).
+        return ($s !== null && in_array($s, self::PRE_SHIPMENT_CHOICES, true)) ? $s : StandardOrderStatus::Pending;
     }
 
     /**

@@ -26,20 +26,21 @@ import {
 
 // Trường thông tin xác thực (credentials) theo từng ĐVVC — v1: GHN; carrier khác fallback "token".
 // Lưu ý: với GHN form render shop_id qua component riêng (GhnShopSelector) — Select tự load shop list.
-const CRED_FIELDS: Record<string, Array<{ key: string; label: string; required?: boolean; placeholder?: string }>> = {
+// `secret: true` ⇒ render bằng Input.Password (che bằng ••••, có nút con mắt bật/tắt hiển thị).
+const CRED_FIELDS: Record<string, Array<{ key: string; label: string; required?: boolean; placeholder?: string; secret?: boolean }>> = {
     ghn: [
-        { key: 'token', label: 'API Token', required: true, placeholder: 'Token Production / Test từ GHN Dashboard' },
+        { key: 'token', label: 'API Token', required: true, placeholder: 'Token Production / Test từ GHN Dashboard', secret: true },
     ],
     ghtk: [
-        { key: 'token', label: 'API Token', required: true, placeholder: 'Token từ GHTK (Cấu hình → API)' },
+        { key: 'token', label: 'API Token', required: true, placeholder: 'Token từ GHTK (Cấu hình → API)', secret: true },
         { key: 'client_source', label: 'Mã đối tác (X-Client-Source)', required: false, placeholder: 'Mã shop/đối tác GHTK (nếu có)' },
     ],
     // VTP: nhập Username+Password HOẶC dán token web — không field nào hard-required (validate ở BE khi verify).
     viettelpost: [
         { key: 'username', label: 'Tài khoản (Username)', required: false, placeholder: 'SĐT/Tài khoản Partner Viettel Post' },
-        { key: 'password', label: 'Mật khẩu', required: false, placeholder: 'Mật khẩu tài khoản Partner' },
-        { key: 'token', label: 'Hoặc Token web VTP', required: false, placeholder: 'Token tạo trên viettelpost.vn (nếu không dùng user/mật khẩu)' },
-        { key: 'webhook_secret', label: 'Webhook secret (tuỳ chọn)', required: false, placeholder: 'Secret VTP gửi kèm webhook để xác thực' },
+        { key: 'password', label: 'Mật khẩu', required: false, placeholder: 'Mật khẩu tài khoản Partner', secret: true },
+        { key: 'token', label: 'Hoặc Token web VTP', required: false, placeholder: 'Token tạo trên viettelpost.vn (nếu không dùng user/mật khẩu)', secret: true },
+        { key: 'webhook_secret', label: 'Webhook secret (tuỳ chọn)', required: false, placeholder: 'Secret VTP gửi kèm webhook để xác thực', secret: true },
     ],
 };
 
@@ -416,17 +417,26 @@ function AddCarrierAccountModal({
     const code = carrier?.code ?? '';
     const isEdit = !!state.edit;
     const editFa = ((state.edit?.meta as Record<string, unknown> | undefined)?.from_address ?? {}) as Record<string, unknown>;
-    const credFields = CRED_FIELDS[code] ?? (code && code !== 'manual' ? [{ key: 'token', label: 'API Token', required: true }] : []);
+    const credFields = CRED_FIELDS[code] ?? (code && code !== 'manual' ? [{ key: 'token', label: 'API Token', required: true, secret: true }] : []);
     const needsFromAddress = !!FROM_ADDRESS_REQUIRED[code];
 
-    // Edit mode: nạp sẵn giá trị hiện có. Credentials KHÔNG nạp (secret) — để trống = giữ nguyên.
+    // Edit mode: nạp sẵn giá trị hiện có — GỒM CẢ credentials (token/shop_id…) để form hiển thị lại
+    // dữ liệu đã lưu. Token nhạy cảm render bằng Input.Password (che ••••, bật/tắt hiển thị).
     useEffect(() => {
         if (!state.open || !state.edit) return;
         const fa = editFa;
+        const creds = (state.edit.credentials ?? {}) as Record<string, unknown>;
+        // Map credential đã lưu → field form `cred_<key>` (shop_id ép chuỗi để khớp Select GHN).
+        const credPatch: Record<string, unknown> = {};
+        Object.entries(creds).forEach(([k, v]) => {
+            if (v === null || v === undefined) return;
+            credPatch[`cred_${k}`] = k === 'shop_id' ? String(v) : v;
+        });
         form.setFieldsValue({
             name: state.edit.name,
             default_service: state.edit.default_service ?? undefined,
             is_default: state.edit.is_default,
+            ...credPatch,
             from_name: fa.name, from_phone: fa.phone, from_address: fa.address,
             from_province_name: fa.province_name, from_district_name: fa.district_name, from_ward_name: fa.ward_name,
             from_district_id: fa.district_id, from_ward_code: fa.ward_code,
@@ -438,6 +448,12 @@ function AddCarrierAccountModal({
     const submit = () => form.validateFields().then((v) => {
         const credentials: Record<string, unknown> = {};
         credFields.forEach((f) => { if (v[`cred_${f.key}`] !== undefined && v[`cred_${f.key}`] !== '') credentials[f.key] = v[`cred_${f.key}`]; });
+        // GHN: shop_id do GhnShopSelector ghi vào field `cred_shop_id` (KHÔNG nằm trong credFields) —
+        // phải gói vào credentials, nếu không backend sẽ thiếu ShopId ⇒ tạo vận đơn lỗi "không lấy được
+        // thông tin kho". Đây là lỗi gốc khiến đẩy đơn GHN thất bại.
+        if (code === 'ghn' && v.cred_shop_id !== undefined && v.cred_shop_id !== '') {
+            credentials.shop_id = Number(v.cred_shop_id);
+        }
         const meta: Record<string, unknown> = {};
         if (needsFromAddress) {
             // Tập hợp tất cả field địa chỉ — text basic + mã GHN do cascading Select tự fill (hidden).
@@ -512,8 +528,14 @@ function AddCarrierAccountModal({
                                     />
                                 )}
                                 {credFields.map((f) => (
-                                    <Form.Item key={f.key} name={`cred_${f.key}`} label={f.label} rules={f.required && !isEdit ? [{ required: true, message: `Nhập ${f.label}` }] : []} extra={isEdit ? 'Để trống nếu không đổi' : undefined}>
-                                        <Input placeholder={isEdit ? '•••••• (giữ nguyên nếu để trống)' : f.placeholder} />
+                                    <Form.Item
+                                        key={f.key} name={`cred_${f.key}`} label={f.label}
+                                        rules={f.required ? [{ required: true, message: `Nhập ${f.label}` }] : []}
+                                        extra={isEdit && f.secret ? 'Đã lưu — bấm biểu tượng con mắt để xem, sửa nếu muốn đổi.' : undefined}
+                                    >
+                                        {f.secret
+                                            ? <Input.Password placeholder={f.placeholder} visibilityToggle autoComplete="new-password" />
+                                            : <Input placeholder={f.placeholder} />}
                                     </Form.Item>
                                 ))}
                                 {/* GHN: 1 token có thể có nhiều shop — Select tự load danh sách sau khi nhập token. */}
@@ -536,7 +558,13 @@ function AddCarrierAccountModal({
                                         <Input placeholder={f.placeholder} />
                                     </Form.Item>
                                 ))}
-                                {code === 'ghn' && <GhnFromAddressSection form={form} />}
+                                {code === 'ghn' && <GhnFromAddressSection form={form} initial={isEdit ? {
+                                    province_name: editFa.province_name as string | undefined,
+                                    district_name: editFa.district_name as string | undefined,
+                                    ward_name: editFa.ward_name as string | undefined,
+                                    district_id: editFa.district_id as number | undefined,
+                                    ward_code: editFa.ward_code as string | undefined,
+                                } : undefined} />}
                                 {code === 'ghtk' && <GhtkFromAddressSection form={form} initial={isEdit ? { province: editFa.province_name as string | undefined, district: editFa.district_name as string | undefined, ward: editFa.ward_name as string | undefined } : undefined} />}
                                 {code === 'viettelpost' && <ViettelPostFromAddressSection form={form} initial={isEdit ? { province_id: editFa.province_id as number | undefined, province_name: editFa.province_name as string | undefined, ward_id: editFa.ward_id as number | undefined, ward_name: editFa.ward_name as string | undefined } : undefined} />}
                             </>
@@ -844,7 +872,10 @@ function ViettelPostFromAddressSection({ form, initial }: {
  * tỉnh → quận → phường thay vì gõ tay mã. Field name vẫn ghi vào form prefix `from_` để hợp với
  * `AddCarrierAccountModal.submit()` đóng gói `meta.from_address`.
  */
-function GhnFromAddressSection({ form }: { form: FormInstance }) {
+function GhnFromAddressSection({ form, initial }: {
+    form: FormInstance;
+    initial?: { province_name?: string; district_name?: string; ward_name?: string; district_id?: number; ward_code?: string };
+}) {
     const { message } = AntApp.useApp();
     const token = (Form.useWatch('cred_token', form) ?? '') as string;
     const masterData = useGhnMasterData();
@@ -856,15 +887,22 @@ function GhnFromAddressSection({ form }: { form: FormInstance }) {
     const [provinceId, setProvinceId] = useState<number | undefined>(undefined);
     const [districtId, setDistrictId] = useState<number | undefined>(undefined);
     const [wardCode, setWardCode] = useState<string | undefined>(undefined);
+    // Sửa tài khoản: giữ nguyên địa chỉ kho đã lưu ở lần token-load ĐẦU TIÊN (đừng để effect xoá).
+    // Người dùng vẫn có thể chọn lại cascade để đổi.
+    const preserveInitialRef = useRef<boolean>(!!initial?.district_id);
+    const [changingAddr, setChangingAddr] = useState<boolean>(!initial?.district_id);
 
     // Debounce token → fetch provinces. Reset cascade khi token đổi.
     const fetchedTokenRef = useRef<string>('');
     useEffect(() => {
         const t = token.trim();
         if (t.length < 8) {
+            // Token bị xoá hẳn ⇒ reset. Nhưng KHÔNG xoá địa chỉ đã lưu khi đang giữ (chưa từng load).
             setProvinces([]); setDistricts([]); setWards([]);
             setProvinceId(undefined); setDistrictId(undefined); setWardCode(undefined);
-            form.setFieldsValue({ from_province_name: undefined, from_district_name: undefined, from_district_id: undefined, from_ward_code: undefined, from_ward_name: undefined });
+            if (!preserveInitialRef.current) {
+                form.setFieldsValue({ from_province_name: undefined, from_district_name: undefined, from_district_id: undefined, from_ward_code: undefined, from_ward_name: undefined });
+            }
             fetchedTokenRef.current = '';
             return;
         }
@@ -875,6 +913,11 @@ function GhnFromAddressSection({ form }: { form: FormInstance }) {
                 onSuccess: (data) => {
                     setProvinces(data as GhnProvince[]);
                     fetchedTokenRef.current = t;
+                    // Lần load đầu ở chế độ SỬA ⇒ giữ nguyên from_* đã prefill (không reset cascade).
+                    if (preserveInitialRef.current) {
+                        preserveInitialRef.current = false;
+                        return;
+                    }
                     // Token đổi ⇒ reset selection cascade.
                     setDistricts([]); setWards([]);
                     setProvinceId(undefined); setDistrictId(undefined); setWardCode(undefined);
@@ -976,48 +1019,64 @@ function GhnFromAddressSection({ form }: { form: FormInstance }) {
                 )}
             </div>
 
-            <Form.Item label="Tỉnh / Thành phố" required>
-                <Select
-                    showSearch
-                    placeholder={tokenReady ? 'Chọn tỉnh / thành phố' : 'Nhập API Token để mở danh sách'}
-                    disabled={!provincesReady}
-                    loading={loading === 'provinces'}
-                    value={provinceId}
-                    onChange={onPickProvince}
-                    optionFilterProp="label"
-                    options={provinces.map((p) => ({ value: p.ProvinceID, label: p.ProvinceName }))}
-                    notFoundContent={loading === 'provinces' ? <Spin size="small" /> : 'Chưa có dữ liệu'}
-                />
-            </Form.Item>
+            {/* Sửa tài khoản: hiện địa chỉ kho ĐÃ LƯU (read-only) + nút đổi. Không đụng cascade thì giữ nguyên. */}
+            {!changingAddr && initial?.district_id ? (
+                <div className="ghn-shop-preview" style={{ marginBottom: 14 }}>
+                    <Space size={6}>
+                        <CheckCircleFilled style={{ color: 'var(--success-500)' }} />
+                        <span>Khu vực kho đã lưu: <b>{[initial.ward_name, initial.district_name, initial.province_name].filter(Boolean).join(' › ') || '—'}</b></span>
+                    </Space>
+                    <div style={{ marginTop: 4, color: 'var(--ink-500)', fontSize: 12 }}>Mã quận GHN: <code>{initial.district_id}</code>{initial.ward_code ? <> · Mã phường: <code>{initial.ward_code}</code></> : null}</div>
+                    <div style={{ marginTop: 6 }}>
+                        <Button size="small" type="link" style={{ padding: 0 }} onClick={() => { preserveInitialRef.current = false; setChangingAddr(true); }}>Đổi khu vực kho hàng</Button>
+                    </div>
+                </div>
+            ) : (
+                <>
+                    <Form.Item label="Tỉnh / Thành phố" required>
+                        <Select
+                            showSearch
+                            placeholder={tokenReady ? 'Chọn tỉnh / thành phố' : 'Nhập API Token để mở danh sách'}
+                            disabled={!provincesReady}
+                            loading={loading === 'provinces'}
+                            value={provinceId}
+                            onChange={onPickProvince}
+                            optionFilterProp="label"
+                            options={provinces.map((p) => ({ value: p.ProvinceID, label: p.ProvinceName }))}
+                            notFoundContent={loading === 'provinces' ? <Spin size="small" /> : 'Chưa có dữ liệu'}
+                        />
+                    </Form.Item>
 
-            <Form.Item label="Quận / Huyện" required>
-                <Select
-                    showSearch
-                    placeholder={provinceId ? 'Chọn quận / huyện' : 'Chọn tỉnh trước'}
-                    disabled={!provinceId || loading === 'districts'}
-                    loading={loading === 'districts'}
-                    value={districtId}
-                    onChange={onPickDistrict}
-                    optionFilterProp="label"
-                    options={districts.map((d) => ({ value: d.DistrictID, label: `${d.DistrictName}  ·  #${d.DistrictID}` }))}
-                    notFoundContent={loading === 'districts' ? <Spin size="small" /> : 'Chưa có dữ liệu'}
-                />
-            </Form.Item>
+                    <Form.Item label="Quận / Huyện" required>
+                        <Select
+                            showSearch
+                            placeholder={provinceId ? 'Chọn quận / huyện' : 'Chọn tỉnh trước'}
+                            disabled={!provinceId || loading === 'districts'}
+                            loading={loading === 'districts'}
+                            value={districtId}
+                            onChange={onPickDistrict}
+                            optionFilterProp="label"
+                            options={districts.map((d) => ({ value: d.DistrictID, label: `${d.DistrictName}  ·  #${d.DistrictID}` }))}
+                            notFoundContent={loading === 'districts' ? <Spin size="small" /> : 'Chưa có dữ liệu'}
+                        />
+                    </Form.Item>
 
-            <Form.Item label="Phường / Xã">
-                <Select
-                    showSearch
-                    placeholder={districtId ? 'Chọn phường / xã (tuỳ chọn)' : 'Chọn quận trước'}
-                    disabled={!districtId || loading === 'wards'}
-                    loading={loading === 'wards'}
-                    value={wardCode}
-                    onChange={onPickWard}
-                    optionFilterProp="label"
-                    options={wards.map((w) => ({ value: w.WardCode, label: `${w.WardName}  ·  ${w.WardCode}` }))}
-                    notFoundContent={loading === 'wards' ? <Spin size="small" /> : 'Chưa có dữ liệu'}
-                    allowClear
-                />
-            </Form.Item>
+                    <Form.Item label="Phường / Xã">
+                        <Select
+                            showSearch
+                            placeholder={districtId ? 'Chọn phường / xã (tuỳ chọn)' : 'Chọn quận trước'}
+                            disabled={!districtId || loading === 'wards'}
+                            loading={loading === 'wards'}
+                            value={wardCode}
+                            onChange={onPickWard}
+                            optionFilterProp="label"
+                            options={wards.map((w) => ({ value: w.WardCode, label: `${w.WardName}  ·  ${w.WardCode}` }))}
+                            notFoundContent={loading === 'wards' ? <Spin size="small" /> : 'Chưa có dữ liệu'}
+                            allowClear
+                        />
+                    </Form.Item>
+                </>
+            )}
 
             {/* Hidden fields — populated bởi cascading Select để submit() gói vào meta.from_address. */}
             <Form.Item name="from_province_name" hidden><Input /></Form.Item>

@@ -551,10 +551,11 @@ class OrderController extends Controller
             $query->search($q);
         }
         if ($use('sku') && $sku = trim((string) $request->query('sku', ''))) {
-            $query->whereHas('items', fn (Builder $i) => $i->where('seller_sku', 'like', "%{$sku}%"));
+            // Không phân biệt hoa/thường (PostgreSQL prod phân biệt với LIKE trần).
+            $query->whereHas('items', fn (Builder $i) => $i->whereRaw('LOWER(seller_sku) LIKE ?', ['%'.mb_strtolower($sku).'%']));
         }
         if ($use('product') && $product = trim((string) $request->query('product', ''))) {
-            $query->whereHas('items', fn (Builder $i) => $i->where('name', 'like', "%{$product}%"));
+            $query->whereHas('items', fn (Builder $i) => $i->whereRaw('LOWER(name) LIKE ?', ['%'.mb_strtolower($product).'%']));
         }
         if ($use('placed') && $from = $request->query('placed_from')) {
             $query->where('placed_at', '>=', CarbonImmutable::parse($from)->startOfDay());

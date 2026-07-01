@@ -225,6 +225,27 @@ class InventoryApiTest extends TestCase
         $this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/skus')->assertOk()->assertJsonCount(0, 'data');
     }
 
+    public function test_sku_search_matches_code_case_insensitively_then_falls_back_to_title(): void
+    {
+        $tid = (int) $this->tenant->getKey();
+        Sku::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $tid, 'sku_code' => 'AO-M', 'name' => 'Red Shirt']);
+        Sku::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $tid, 'sku_code' => 'BX1', 'name' => 'Box AO-M combo']);
+        Sku::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $tid, 'sku_code' => 'QUAN-L', 'name' => 'Long Pants']);
+
+        // Tier 1 — gõ mã bằng chữ thường: khớp CHÍNH XÁC không phân biệt hoa/thường, và KHÔNG kéo theo
+        // bản ghi chỉ chứa mã đó trong TIÊU ĐỀ (BX1 có "AO-M" trong tên nhưng phải bị loại).
+        $r = $this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/skus?q=ao-m')->assertOk();
+        $this->assertSame(['AO-M'], collect($r->json('data'))->pluck('sku_code')->all());
+
+        // Uppercase cũng cho đúng kết quả (case-insensitive 2 chiều).
+        $r2 = $this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/skus?q=AO-M')->assertOk();
+        $this->assertSame(['AO-M'], collect($r2->json('data'))->pluck('sku_code')->all());
+
+        // Tier 2 — không có mã khớp: fallback sang tiêu đề (khớp một phần, không phân biệt hoa/thường).
+        $r3 = $this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/skus?q=BOX')->assertOk();
+        $this->assertSame(['BX1'], collect($r3->json('data'))->pluck('sku_code')->all());
+    }
+
     public function test_warehouse_default_is_auto_created(): void
     {
         $res = $this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/warehouses')->assertOk();

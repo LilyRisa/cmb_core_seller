@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Inventory\Models;
 
 use CMBcoreSeller\Modules\Tenancy\Concerns\BelongsToTenant;
+use CMBcoreSeller\Support\SkuSearch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
@@ -104,9 +105,8 @@ class Sku extends Model
 
     public function scopeSearch(Builder $q, string $term): Builder
     {
-        $term = trim($term);
-
-        return $q->where(fn (Builder $q) => $q->where('sku_code', 'like', "%{$term}%")->orWhere('name', 'like', "%{$term}%")->orWhere('barcode', 'like', "%{$term}%"));
+        // Ưu tiên khớp mã (sku_code/barcode) không phân biệt hoa/thường; không có mới fallback tiêu đề.
+        return SkuSearch::apply($q, $term, ['sku_code', 'barcode'], ['name']);
     }
 
     /** Sum of `available` across the tenant's warehouses. */

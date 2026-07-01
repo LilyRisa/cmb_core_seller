@@ -13,6 +13,7 @@ use CMBcoreSeller\Modules\Products\Services\MarketplaceCloneService;
 use CMBcoreSeller\Modules\Products\Services\MarketplaceListingEditService;
 use CMBcoreSeller\Modules\Products\Services\ProductDescriptionService;
 use CMBcoreSeller\Modules\Products\Services\PromotionService;
+use CMBcoreSeller\Support\SkuSearch;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -52,7 +53,7 @@ class ChannelListingController extends Controller
             $request->boolean('mapped') ? $q->whereHas('mappings') : $q->unmapped();
         }
         if ($term = trim((string) $request->query('q', ''))) {
-            $q->where(fn ($w) => $w->where('title', 'like', "%{$term}%")->orWhere('seller_sku', 'like', "%{$term}%")->orWhere('external_sku_id', 'like', "%{$term}%"));
+            SkuSearch::apply($q, $term, ['seller_sku', 'external_sku_id'], ['title']);
         }
         $q->orderByDesc('id');
         $perPage = min(100, max(1, (int) $request->query('per_page', 20)));

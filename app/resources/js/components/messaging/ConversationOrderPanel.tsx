@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { App as AntApp, Button, Drawer, Empty, List, Space, Spin, Tag, Tooltip, Typography } from 'antd';
 import { FileDoneOutlined, PlusOutlined, ShoppingOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
@@ -38,6 +38,10 @@ export function ConversationOrderPanel({ conversation }: { conversation: Convers
     const { notification } = AntApp.useApp();
     const qc = useQueryClient();
     const [open, setOpen] = useState(false);
+    // Giữ nháp đang nhập để không mất khi đóng/mở lại Drawer (form bị unmount bởi destroyOnHidden).
+    // Đóng rồi mở lại → khôi phục đúng thứ đang gõ thay vì reset về auto-fill. Reset khi đổi hội thoại.
+    const [savedDraft, setSavedDraft] = useState<OrderDraft | null>(null);
+    useEffect(() => { setSavedDraft(null); }, [conversation.id]);
     const link = useLinkConversationOrder();
 
     const phone = conversation.detected_phone ?? '';
@@ -102,6 +106,7 @@ export function ConversationOrderPanel({ conversation }: { conversation: Convers
 
     const handleSaved = (orderId: number) => {
         setOpen(false);
+        setSavedDraft(null);   // đã tạo đơn ⇒ xoá nháp để lần sau mở form trắng (auto-fill lại).
         notification.success({
             message: 'Đã tạo đơn',
             description: <a href={`/orders/${orderId}`} target="_blank" rel="noreferrer">Xem đơn #{orderId} →</a>,
@@ -180,7 +185,8 @@ export function ConversationOrderPanel({ conversation }: { conversation: Convers
                         embedded
                         compact
                         active={open}
-                        initialDraft={initialDraft}
+                        initialDraft={savedDraft ?? initialDraft}
+                        onDraftChange={setSavedDraft}
                         onSaved={handleSaved}
                     />
                 )}

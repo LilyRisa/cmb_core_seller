@@ -38,6 +38,8 @@ export interface CarrierAccount {
     is_default: boolean;
     is_active: boolean;
     meta: Record<string, unknown>;
+    /** Credential đã lưu (token/shop_id…) — dùng để prefill form "Sửa tài khoản"; token che ở FE. */
+    credentials?: Record<string, unknown>;
     credential_keys: string[];
     created_at: string | null;
 }

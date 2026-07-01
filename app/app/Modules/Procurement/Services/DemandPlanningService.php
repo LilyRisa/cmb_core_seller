@@ -9,6 +9,7 @@ use CMBcoreSeller\Modules\Procurement\Models\PurchaseOrder;
 use CMBcoreSeller\Modules\Procurement\Models\PurchaseOrderItem;
 use CMBcoreSeller\Modules\Procurement\Models\SupplierPrice;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use CMBcoreSeller\Support\SkuSearch;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -70,7 +71,7 @@ class DemandPlanningService
         $skuQuery = Sku::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenantId)->where('is_active', true);
         if ($q = trim((string) ($filters['q'] ?? ''))) {
-            $skuQuery->where(fn ($w) => $w->where('sku_code', 'like', "%{$q}%")->orWhere('name', 'like', "%{$q}%"));
+            SkuSearch::apply($skuQuery, $q, ['sku_code'], ['name']);
         }
         $skus = $skuQuery->get(['id', 'sku_code', 'name', 'image_url', 'cost_price', 'last_receipt_cost', 'category']);
 

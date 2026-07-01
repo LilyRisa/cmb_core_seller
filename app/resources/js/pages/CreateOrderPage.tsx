@@ -331,7 +331,8 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
         }));
         return {
             sub_source: (v.sub_source as string) || undefined,
-            status: 'processing' as const,
+            // Đơn tạo thủ công mặc định "Chờ xử lý"; chỉ sang "Đang xử lý" sau khi chuẩn bị hàng + đẩy ĐVVC.
+            status: 'pending' as const,
             buyer: { name: (v.buyer_name as string) || (v.recipient_name as string) || undefined, phone: phone || undefined },
             recipient: {
                 name: (v.recipient_name as string) || (v.buyer_name as string) || undefined,
