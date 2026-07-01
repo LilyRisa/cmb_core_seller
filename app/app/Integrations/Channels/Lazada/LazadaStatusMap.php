@@ -40,8 +40,11 @@ final class LazadaStatusMap
             str_contains($key, 'lost') || str_contains($key, 'damaged') => StandardOrderStatus::DeliveryFailed,   // lost_by_3pl / damaged_by_3pl
             str_contains($key, 'failed') => StandardOrderStatus::DeliveryFailed,                // failed_delivery / failed_delivered
             str_contains($key, 'delivered') => StandardOrderStatus::Delivered,
+            // "…to_ship" (ready_to_ship / transit_to_ship / toship) = sau RTS, chờ 3PL lấy ⇒ "Chờ bàn giao".
+            // PHẢI xét TRƯỚC 'shipped'/'transit' vì `transit_to_ship` chứa cả 'transit' — không thì map nhầm
+            // sang "Đang giao" ngay khi vừa quét/RTS (chỉ `shipped`/`in_transit` thật mới là "Đang giao").
+            str_contains($key, 'to_ship') || str_contains($key, 'toship') => StandardOrderStatus::ReadyToShip,
             str_contains($key, 'shipped') || str_contains($key, 'transit') => StandardOrderStatus::Shipped,
-            str_contains($key, 'ready_to_ship') || str_contains($key, 'toship') => StandardOrderStatus::ReadyToShip,
             str_contains($key, 'repack') || str_contains($key, 'packed') => StandardOrderStatus::Processing,   // packed/repacked → Đang xử lý (KHÔNG ready_to_ship)
             str_contains($key, 'confirmed') => StandardOrderStatus::Completed,
             str_contains($key, 'unpaid') => StandardOrderStatus::Unpaid,
@@ -71,7 +74,7 @@ final class LazadaStatusMap
             'unpaid' => 0,
             'paid' => 1, 'pending' => 1, 'topack' => 1,
             'packed' => 2, 'repacked' => 2,
-            'ready_to_ship' => 3, 'ready_to_ship_pending' => 3, 'toship' => 3,
+            'ready_to_ship' => 3, 'ready_to_ship_pending' => 3, 'toship' => 3, 'transit_to_ship' => 3,
             'shipped' => 4,
             'delivered' => 5,
             'confirmed' => 6,

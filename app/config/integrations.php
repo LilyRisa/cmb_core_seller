@@ -620,6 +620,11 @@ return [
             'ready_to_ship' => 'ready_to_ship',
             'ready_to_ship_pending' => 'ready_to_ship',
             'toship' => 'ready_to_ship',
+            // transit_to_ship = Lazada sub-status "đang chuyển ĐI ĐỂ giao" SAU /order/rts nhưng 3PL CHƯA
+            // xác nhận lấy hàng ⇒ vẫn "Chờ bàn giao" (KHÔNG phải "Đang giao"). Trước bị fallback khớp
+            // chữ 'transit' → Shipped nên vừa quét/RTS đơn đã nhảy "Đang giao" sai. Chỉ `shipped` thật (3PL
+            // đã lấy hàng) mới là "Đang giao".
+            'transit_to_ship' => 'ready_to_ship',
             'shipped' => 'shipped',
             'shipped_back' => 'returning',
             'shipped_back_failed' => 'returning',

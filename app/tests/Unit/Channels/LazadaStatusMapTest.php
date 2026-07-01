@@ -31,7 +31,12 @@ class LazadaStatusMapTest extends TestCase
             'packed' => ['packed', S::Processing],
             'ready_to_ship' => ['ready_to_ship', S::ReadyToShip],
             'ready_to_ship_pending' => ['ready_to_ship_pending', S::ReadyToShip],
+            // transit_to_ship = sau RTS, 3PL CHƯA lấy hàng ⇒ "Chờ bàn giao" (trước: Shipped/"Đang giao" — SAI,
+            // vì fallback khớp chữ 'transit'). Chỉ `shipped` thật mới là "Đang giao".
+            'transit_to_ship' => ['transit_to_ship', S::ReadyToShip],
+            'TRANSIT_TO_SHIP' => ['TRANSIT_TO_SHIP', S::ReadyToShip],
             'shipped' => ['shipped', S::Shipped],
+            'in_transit' => ['in_transit', S::Shipped],   // in-transit thật (đã lấy hàng) vẫn "Đang giao"
             'delivered' => ['delivered', S::Delivered],
             'confirmed' => ['confirmed', S::Completed],
             // delivery problems
