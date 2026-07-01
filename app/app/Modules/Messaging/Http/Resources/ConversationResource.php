@@ -82,6 +82,9 @@ class ConversationResource extends JsonResource
             'tags' => $this->tags ?? [],
             'has_phone' => (bool) $this->has_phone,
             'detected_phone' => $this->detected_phone,
+            // Chỉ có khi đang tìm kiếm và từ khoá khớp trong nội dung tin nhắn cũ
+            // (controller set qua setAttribute); ngược lại null. FE dùng để tô đậm + hiển thị.
+            'match_snippet' => $this->match_snippet ?? null,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

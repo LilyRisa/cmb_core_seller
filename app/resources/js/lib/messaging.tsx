@@ -62,6 +62,8 @@ export interface Conversation {
     created_at: string | null;
     thread_type: 'message' | 'comment';
     comment: ConversationComment | null;
+    /** Đoạn trích tin nhắn khớp từ khoá — chỉ có khi đang tìm và khớp trong nội dung tin. */
+    match_snippet?: string | null;
 }
 
 export interface MessageAttachment {

@@ -12,6 +12,8 @@ use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -86,10 +88,20 @@ class ConversationController extends Controller
         if ($customerId = $request->query('customer_id')) {
             $q->where('customer_id', (int) $customerId);
         }
-        if ($search = trim((string) $request->query('q', ''))) {
-            $q->where(function ($qq) use ($search) {
-                $qq->where('buyer_name', 'like', "%{$search}%")
-                    ->orWhere('last_message_preview', 'like', "%{$search}%");
+        $search = trim((string) $request->query('q', ''));
+        // >=2 ký tự mới quét nội dung tin nhắn (messages.body) — chặn quét toàn bộ
+        // lịch sử với 1 ký tự. Tên/SĐT/preview vẫn tìm với mọi độ dài.
+        $searchLong = mb_strlen($search) >= 2;
+        if ($search !== '') {
+            // Postgres LIKE phân biệt hoa/thường ⇒ dùng ILIKE cho nhất quán với SQLite dev.
+            $like = DB::getDriverName() === 'pgsql' ? 'ilike' : 'like';
+            $q->where(function ($qq) use ($search, $like, $searchLong) {
+                $qq->where('buyer_name', $like, "%{$search}%")
+                    ->orWhere('last_message_preview', $like, "%{$search}%")
+                    ->orWhere('detected_phone', $like, "%{$search}%");
+                if ($searchLong) {
+                    $qq->orWhereHas('messages', fn ($m) => $m->where('body', $like, "%{$search}%"));
+                }
             });
         }
 
@@ -97,6 +109,12 @@ class ConversationController extends Controller
 
         $perPage = min(100, max(1, (int) $request->query('per_page', 20)));
         $page = $q->paginate($perPage)->appends($request->query());
+
+        // Khớp trong tin nhắn cũ ⇒ gắn `match_snippet` (đoạn trích quanh từ khoá) để FE
+        // hiển thị lý do hội thoại xuất hiện. 1 truy vấn cho cả trang (≤per_page) — không N+1.
+        if ($search !== '' && $searchLong) {
+            $this->attachMatchSnippets($page->getCollection(), $search);
+        }
 
         // Trả `meta.pagination` chuẩn (giống OrderController) để FE infinite-scroll
         // đọc được total_pages — `Resource::collection($paginate)` chỉ cho meta mặc định Laravel.
@@ -109,6 +127,56 @@ class ConversationController extends Controller
                 'total_pages' => $page->lastPage(),
             ]],
         ]);
+    }
+
+    /**
+     * Gắn `match_snippet` cho các hội thoại có từ khoá nằm trong nội dung tin nhắn cũ.
+     * Lấy tin khớp MỚI NHẤT của từng hội thoại bằng 1 truy vấn (tenant global scope tự áp).
+     *
+     * @param  Collection<int,Conversation>  $conversations
+     */
+    private function attachMatchSnippets($conversations, string $search): void
+    {
+        $ids = $conversations->pluck('id')->all();
+        if ($ids === []) {
+            return;
+        }
+
+        $like = DB::getDriverName() === 'pgsql' ? 'ilike' : 'like';
+        $rows = Message::query()
+            ->whereIn('conversation_id', $ids)
+            ->where('body', $like, "%{$search}%")
+            ->orderByDesc('created_at')->orderByDesc('id')
+            ->get(['conversation_id', 'body']);
+
+        $byConv = [];
+        foreach ($rows as $row) {
+            // Bản mới nhất tới trước (đã orderByDesc) ⇒ chỉ giữ lần gặp đầu tiên.
+            $byConv[$row->conversation_id] ??= $this->buildSnippet((string) $row->body, $search);
+        }
+
+        foreach ($conversations as $conv) {
+            $conv->setAttribute('match_snippet', $byConv[$conv->id] ?? null);
+        }
+    }
+
+    /** Cắt ~120 ký tự quanh vị trí khớp, thêm dấu … ở đầu/cuối nếu bị cắt. */
+    private function buildSnippet(string $body, string $search): string
+    {
+        $pos = mb_stripos($body, $search);
+        if ($pos === false) {
+            return mb_substr($body, 0, 120);
+        }
+        $start = max(0, $pos - 40);
+        $snippet = mb_substr($body, $start, 120);
+        if ($start > 0) {
+            $snippet = '…'.$snippet;
+        }
+        if ($start + 120 < mb_strlen($body)) {
+            $snippet .= '…';
+        }
+
+        return $snippet;
     }
 
     public function show(int $id, Request $request): JsonResponse

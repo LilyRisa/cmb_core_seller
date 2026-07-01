@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, typ
 import dayjs from 'dayjs';
 import { Link, useSearchParams } from 'react-router-dom';
 import { App, Avatar, Badge, Button, Checkbox, Divider, Dropdown, Empty, Grid, Image, Input, List, Popconfirm, Popover, Radio, Segmented, Select, Space, Spin, Tag, Tooltip, Typography } from 'antd';
-import { BellFilled, BellOutlined, CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FacebookFilled, FileOutlined, FilterOutlined, LikeFilled, LikeOutlined, MessageOutlined, MoreOutlined, PhoneOutlined, PictureOutlined, RedoOutlined, ShopOutlined, ShoppingOutlined, SoundOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
+import { BellFilled, BellOutlined, CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FacebookFilled, FileOutlined, FilterOutlined, LikeFilled, LikeOutlined, MessageOutlined, MoreOutlined, PhoneOutlined, PictureOutlined, RedoOutlined, SearchOutlined, ShopOutlined, ShoppingOutlined, SoundOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
 import {
     type Conversation,
@@ -46,6 +46,22 @@ const { Text } = Typography;
 
 // Bảng màu thẻ preset (tạo thẻ nhanh trong popover gắn thẻ).
 const TAG_COLORS = ['#2563EB', '#16A34A', '#DC2626', '#D97706', '#7C3AED', '#0891B2', '#DB2777', '#475569'];
+
+/** Tô đậm (highlight) lần xuất hiện đầu tiên của từ khoá trong text — không phân biệt hoa/thường. */
+function highlightMatch(text: string, q: string): ReactNode {
+    const needle = q.trim();
+    if (needle === '') return text;
+    const idx = text.toLowerCase().indexOf(needle.toLowerCase());
+    if (idx === -1) return text;
+
+    return (
+        <>
+            {text.slice(0, idx)}
+            <mark style={{ background: '#FEF08A', padding: 0 }}>{text.slice(idx, idx + needle.length)}</mark>
+            {text.slice(idx + needle.length)}
+        </>
+    );
+}
 
 const URL_SPLIT_RE = /(https?:\/\/[^\s]+)/g;
 const URL_TEST_RE = /^https?:\/\/[^\s]+$/;
@@ -286,6 +302,16 @@ export function MessagingPage() {
     const [filterOpen, setFilterOpen] = useState(false);
     const [tagModalOpen, setTagModalOpen] = useState(false);
 
+    // ── Tìm kiếm hội thoại (tên / SĐT / nội dung tin nhắn) ────────────────────
+    // `searchInput` = ô nhập; `searchQ` = giá trị đã debounce truyền xuống API (tự tìm
+    // sau khi ngừng gõ ~350ms). Enter tìm ngay; xoá (nút X) reset tức thì.
+    const [searchInput, setSearchInput] = useState('');
+    const [searchQ, setSearchQ] = useState('');
+    useEffect(() => {
+        const t = setTimeout(() => setSearchQ(searchInput.trim()), 350);
+        return () => clearTimeout(t);
+    }, [searchInput]);
+
     // ── Other state ───────────────────────────────────────────────────────────
     const [activeId, setActiveId] = useState<number | null>(null);
     // Mở hội thoại từ thông báo: /messaging?conversation=ID → set active + dọn param khỏi URL.
@@ -336,6 +362,7 @@ export function MessagingPage() {
     // ── Conversations ─────────────────────────────────────────────────────────
     const list = useConversations({
         provider: isZalo ? INBOX_GROUP_PROVIDERS.zalo : INBOX_GROUP_PROVIDERS[board === 'facebook' ? 'facebook' : 'marketplace'],
+        q: searchQ || undefined,
         status: statusState === 'all' || statusState === 'blocked' ? undefined : statusState,
         blocked: statusState === 'blocked' || undefined,
         read: readState === 'read' || undefined,
@@ -365,6 +392,10 @@ export function MessagingPage() {
     const [likedComments, setLikedComments] = useState<Set<string>>(new Set());
 
     const conversations = useMemo(() => list.data?.pages.flatMap((p) => p.data) ?? [], [list.data]);
+    // Đang tìm: user vừa gõ (chưa debounce xong) HOẶC query cho từ khoá hiện tại đang chạy.
+    // Chỉ tính khi có từ khoá ⇒ không nháy spinner mỗi lần poll nền lúc không tìm.
+    const searching = searchInput.trim() !== searchQ
+        || (searchQ !== '' && list.isFetching && !list.isFetchingNextPage);
     // Thông báo tin nhắn mới đã chuyển sang hook toàn cục ở AppLayout (mọi trang, không bắn lặp).
     const push = usePushNotifications();
     const handleConvScroll = useCallback((e: UIEvent<HTMLDivElement>) => {
@@ -785,6 +816,16 @@ export function MessagingPage() {
             {/* Cột trái — danh sách hội thoại */}
             <div style={{ flex: `0 0 ${screens.md ? 360 : 320}px`, minWidth: 320, maxWidth: 420, background: '#fff', borderRadius: 12, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
                 <div style={{ padding: 12, borderBottom: '1px solid #F1F5F9', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {/* Tìm kiếm hội thoại: tên người nhắn / SĐT / nội dung tin nhắn */}
+                    <Input
+                        allowClear
+                        prefix={<SearchOutlined style={{ color: '#94A3B8' }} />}
+                        suffix={searching ? <Spin size="small" /> : null}
+                        placeholder="Tìm tên, SĐT, nội dung tin nhắn…"
+                        value={searchInput}
+                        onChange={(e) => { const v = e.target.value; setSearchInput(v); if (v === '') setSearchQ(''); }}
+                        onPressEnter={() => setSearchQ(searchInput.trim())}
+                    />
                     {/* 2 tab chính: Sàn / Facebook */}
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                         {isZalo ? (
@@ -840,10 +881,14 @@ export function MessagingPage() {
                     )}
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto' }} onScroll={handleConvScroll}>
+                    {/* Icon loading trong danh sách khi đang tìm (không che dữ liệu cũ nhờ placeholderData) */}
+                    {searching && !list.isLoading && (
+                        <div style={{ textAlign: 'center', padding: 8 }}><Spin size="small" /></div>
+                    )}
                     {list.isLoading ? (
                         <div style={{ padding: 24, textAlign: 'center' }}><Spin /></div>
                     ) : conversations.length === 0 ? (
-                        <Empty description="Chưa có hội thoại" style={{ marginTop: 48 }} />
+                        <Empty description={searchQ ? 'Không tìm thấy hội thoại phù hợp' : 'Chưa có hội thoại'} style={{ marginTop: 48 }} />
                     ) : (
                         <>
                         <List
@@ -887,7 +932,7 @@ export function MessagingPage() {
                                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, minWidth: 0 }}>
                                                         <Space size={4} style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
                                                             <Badge count={c.unread_count} size="small" />
-                                                            <Text strong={c.unread_count > 0} ellipsis style={{ maxWidth: 160 }}>{convDisplayName(c)}</Text>
+                                                            <Text strong={c.unread_count > 0} ellipsis style={{ maxWidth: 160 }}>{searchQ ? highlightMatch(convDisplayName(c), searchQ) : convDisplayName(c)}</Text>
                                                             {c.order_id != null && (
                                                                 <Tooltip title="Đã có đơn hàng">
                                                                     <ShoppingOutlined style={{ color: '#2563EB', flexShrink: 0 }} />
@@ -928,7 +973,13 @@ export function MessagingPage() {
                                                     {c.channel_account_name && c.provider !== 'facebook_page' && (
                                                         <Text type="secondary" style={{ fontSize: 11 }} ellipsis><ShopOutlined /> {c.channel_account_name}</Text>
                                                     )}
-                                                    <Text type="secondary" ellipsis style={{ fontSize: 12 }}>{c.last_message_preview ?? '—'}</Text>
+                                                    <Text type="secondary" ellipsis style={{ fontSize: 12 }}>{searchQ && c.last_message_preview ? highlightMatch(c.last_message_preview, searchQ) : (c.last_message_preview ?? '—')}</Text>
+                                                    {/* Đoạn trích tin nhắn khớp từ khoá (khi khớp trong tin cũ, không phải tin cuối) */}
+                                                    {c.match_snippet && (
+                                                        <Text type="secondary" ellipsis style={{ fontSize: 12, fontStyle: 'italic' }}>
+                                                            <SearchOutlined style={{ marginInlineEnd: 4 }} />{highlightMatch(c.match_snippet, searchQ)}
+                                                        </Text>
+                                                    )}
                                                     {/* SĐT chip + tag chips */}
                                                     {(c.has_phone && c.detected_phone || (c.tags ?? []).length > 0) && (
                                                         <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 2 }}>
