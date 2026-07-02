@@ -4,9 +4,9 @@ namespace CMBcoreSeller\Modules\Messaging\Console\Commands;
 
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
+use CMBcoreSeller\Modules\Messaging\Support\MessagePreview;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Console\Command;
-use Illuminate\Support\Str;
 
 /**
  * Tính lại last_message_at + last_message_preview (+ last_inbound_at/last_outbound_at)
@@ -44,9 +44,7 @@ class RecomputeConversationPreviews extends Command
                 $lastInbound = $this->latest($conv->id, Message::DIRECTION_INBOUND);
                 $lastOutbound = $this->latest($conv->id, Message::DIRECTION_OUTBOUND);
 
-                $preview = $latest->body !== null
-                    ? Str::limit(preg_replace('/\s+/', ' ', $latest->body), 197)
-                    : '['.$latest->kind.']';
+                $preview = MessagePreview::build($latest->body, (string) $latest->kind);
 
                 $conv->forceFill([
                     'last_message_at' => $latest->sent_at ?? $latest->created_at,

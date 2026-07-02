@@ -6,6 +6,7 @@ use CMBcoreSeller\Modules\Messaging\Jobs\SendMessage;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Models\MessageAttachment;
+use CMBcoreSeller\Modules\Messaging\Support\MessagePreview;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -111,7 +112,7 @@ class OutboundMessageService
             $conv->update([
                 'last_message_at' => $message->created_at,
                 'last_outbound_at' => $message->created_at,
-                'last_message_preview' => Str::limit($caption ?? '['.$kind.']', 197),
+                'last_message_preview' => MessagePreview::build($caption, $kind),
                 'message_count' => $conv->message_count + 1,
             ]);
 

@@ -10,10 +10,10 @@ use CMBcoreSeller\Modules\Messaging\Jobs\DownloadInboundMedia;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Models\MessageAttachment;
+use CMBcoreSeller\Modules\Messaging\Support\MessagePreview;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 /**
  * Upsert idempotent inbound messages từ webhook hoặc polling.
@@ -296,9 +296,7 @@ class MessageIngestionService
 
     private function updateConversationOnNewMessage(Conversation $conversation, Message $message): void
     {
-        $preview = $message->body !== null
-            ? Str::limit(preg_replace('/\s+/', ' ', $message->body), 197)
-            : '['.$message->kind.']';
+        $preview = MessagePreview::build($message->body, (string) $message->kind);
 
         // Mốc thời gian hội thoại theo giờ tin NHẮN THẬT (sent_at từ sàn/FB), fallback
         // created_at (giờ ingest) khi thiếu — để window guard 24h tính đúng cho tin backfill.

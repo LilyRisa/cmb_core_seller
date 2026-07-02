@@ -17,6 +17,7 @@ use CMBcoreSeller\Modules\Messaging\Services\OutboundMessageService;
 use CMBcoreSeller\Modules\Messaging\Services\OutboundWindowGuard;
 use CMBcoreSeller\Modules\Messaging\Services\TemplateContextBuilder;
 use CMBcoreSeller\Modules\Messaging\Services\TemplateResolver;
+use CMBcoreSeller\Modules\Messaging\Support\MessagePreview;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -223,7 +224,7 @@ class MessageController extends Controller
             $conv->update([
                 'last_message_at' => $message->created_at,
                 'last_outbound_at' => $message->created_at,
-                'last_message_preview' => '['.$kind.']'.($data['caption'] ?? '' ? ' '.$data['caption'] : ''),
+                'last_message_preview' => MessagePreview::build($data['caption'] ?? null, $kind),
                 'message_count' => $conv->message_count + 1,
             ]);
 
