@@ -189,6 +189,11 @@ class OrderUpsertService implements OrderUpsertContract
                     $kept = $previousStatus;   // (1) không kéo lùi đơn đã chuẩn bị về Chờ xử lý/Chờ thanh toán
                 } elseif ($previousStatus === StandardOrderStatus::Processing && $status === StandardOrderStatus::ReadyToShip) {
                     $kept = StandardOrderStatus::Processing;   // (2) không auto-nhảy lên Chờ bàn giao từ sync
+                } elseif ($previousStatus === StandardOrderStatus::ReadyToShip && $status === StandardOrderStatus::Processing) {
+                    // (3) Đơn đã quét "Đã gói" → Chờ bàn giao (markPacked nội bộ) KHÔNG bị sync kéo lùi về Đang xử lý.
+                    // Sàn như TikTok không có trạng thái "Chờ bàn giao" (AWAITING_COLLECTION→processing) nên MỖI lần
+                    // refetch/RefreshStuckOrders sẽ đẩy ngược nếu không giữ. Bàn giao thật lên trước (shipped) vẫn qua.
+                    $kept = StandardOrderStatus::ReadyToShip;
                 }
                 if ($kept !== null) {
                     Log::info('order.channel_status_held', [

@@ -113,6 +113,20 @@ class OrderUpsertReadyToShipHoldTest extends TestCase
         $this->assertSame(S::ReadyToShip, $after->status, 'Đơn Chờ bàn giao KHÔNG bị kéo lùi về Chờ xử lý.');
     }
 
+    public function test_ready_to_ship_order_not_regressed_to_processing_by_sync(): void
+    {
+        // BUG prod 2026-07-02 (TikTok): đơn đã quét "Đã gói" → ReadyToShip (nội bộ). TikTok KHÔNG có trạng thái
+        // sàn tương ứng "Chờ bàn giao" — AWAITING_COLLECTION map ra `processing`. Mỗi lần sync/RefreshStuckOrders
+        // refetch sẽ kéo "Chờ bàn giao" → "Đang xử lý". Guard phải GIỮ ReadyToShip.
+        $order = $this->sync('LZ10', 'packed', S::Processing, CarbonImmutable::now()->subMinutes(20));
+        $order->forceFill(['status' => S::ReadyToShip])->save();   // mô phỏng markPacked (quét đóng gói)
+
+        $after = $this->sync('LZ10', 'awaiting_collection', S::Processing, CarbonImmutable::now());
+
+        $this->assertSame(S::ReadyToShip, $after->status, 'Đơn Chờ bàn giao KHÔNG bị sync kéo lùi về Đang xử lý.');
+        $this->assertSame('awaiting_collection', $after->raw_status, 'Vẫn lưu raw_status thật của sàn.');
+    }
+
     public function test_terminal_cancelled_not_revived_by_lower_status(): void
     {
         // Đơn đã HUỶ (terminal) ⇒ update trễ map về processing (vd Shopee IN_CANCEL) KHÔNG được hồi sinh.
