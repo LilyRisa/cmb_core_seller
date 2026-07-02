@@ -173,6 +173,31 @@ class BuyerProfileSyncTest extends TestCase
         $this->assertSame('https://scontent.fbcdn.net/v/pic.jpg', $fresh->buyer_avatar_url, 'giữ URL CDN làm fallback');
     }
 
+    /**
+     * BUG prod 2026-07-02: job queued chạy KHÔNG có CurrentTenant. `SyncConversationProfile` nạp account qua
+     * eager relation `$conv->channelAccount` (dính TenantScope) ⇒ null ⇒ job no-op ⇒ avatar realtime CHƯA
+     * TỪNG chạy cho mọi page. Phải resolve account bỏ TenantScope như mọi job messaging khác.
+     */
+    public function test_job_resolves_account_without_current_tenant(): void
+    {
+        Storage::fake(config('messaging.media_disk'));
+        Http::fake(['scontent.fbcdn.net/*' => Http::response('fake-jpeg-bytes', 200)]);
+
+        $conv = $this->fbConversation();
+        $registry = $this->fakeRegistry([
+            'name' => 'Không Tenant',
+            'avatar_url' => 'https://scontent.fbcdn.net/v/pic.jpg',
+        ]);
+
+        app(CurrentTenant::class)->clear();   // mô phỏng job queued: KHÔNG có tenant context
+
+        (new SyncConversationProfile((int) $conv->id))->handle($registry, app(MessagingAvatarRelay::class));
+
+        $fresh = Conversation::withoutGlobalScope(TenantScope::class)->find($conv->id);
+        $this->assertNotNull($fresh->buyer_avatar_path, 'Job phải resolve account bỏ TenantScope & relay avatar dù không có CurrentTenant.');
+        $this->assertSame('Không Tenant', $fresh->buyer_name);
+    }
+
     /** Relay thất bại (storage chưa cấu hình / lỗi) ⇒ vẫn giữ URL CDN Facebook để FE hiển thị. */
     public function test_job_keeps_facebook_url_when_relay_fails(): void
     {

@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Messaging\Jobs;
 use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
+use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Services\MessagingAvatarRelay;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
@@ -13,6 +14,8 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Lấy hồ sơ buyer (tên + avatar) cho 1 hội thoại DM rồi relay avatar về object
@@ -46,7 +49,6 @@ class SyncConversationProfile implements ShouldQueue
     public function handle(MessagingRegistry $registry, MessagingAvatarRelay $relay): void
     {
         $conv = Conversation::withoutGlobalScope(TenantScope::class)
-            ->with('channelAccount')
             ->find($this->conversationId);
 
         if (! $conv || $conv->thread_type === Conversation::THREAD_COMMENT) {
@@ -67,7 +69,10 @@ class SyncConversationProfile implements ShouldQueue
             return;
         }
 
-        $account = $conv->channelAccount;
+        // Job queued chạy KHÔNG có CurrentTenant ⇒ nạp account BỎ TenantScope (như mọi job messaging khác:
+        // SendMessage/SyncCommentAvatars…). Trước đây eager-load `$conv->channelAccount` dính TenantScope ⇒
+        // null ⇒ job no-op ⇒ avatar realtime chưa từng chạy (bug prod 2026-07-02).
+        $account = ChannelAccount::withoutGlobalScope(TenantScope::class)->find($conv->channel_account_id);
         $code = $account?->messagingConnectorCode();
         if (! $account || $code === null || ! $registry->has($code)) {
             return;
@@ -85,7 +90,18 @@ class SyncConversationProfile implements ShouldQueue
             accessToken: (string) $account->access_token,
         );
 
-        $profile = $connector->fetchUserProfile($auth, (string) $conv->external_conversation_id);
+        // Best-effort (docblock): connector lỗi/thiếu quyền KHÔNG được ném — nếu không, chạy sync trong
+        // luồng webhook (queue sync) sẽ làm webhook 500. FB connector đã tự nuốt lỗi; connector khác (Zalo…)
+        // có thể ném ⇒ bọc ở đây làm lưới an toàn cho MỌI provider.
+        try {
+            $profile = $connector->fetchUserProfile($auth, (string) $conv->external_conversation_id);
+        } catch (Throwable $e) {
+            Log::warning('messaging.sync_conversation_profile_failed', [
+                'conversation' => $conv->getKey(), 'provider' => $account->provider, 'error' => $e->getMessage(),
+            ]);
+
+            return;
+        }
 
         $name = $profile['name'] ?? null;
         if (filled($name) && blank($conv->buyer_name)) {
