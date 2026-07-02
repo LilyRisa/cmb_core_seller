@@ -150,7 +150,8 @@ function AttachmentPlaceholder({ icon, label }: { icon: ReactNode; label: string
 
 /**
  * Render 1 attachment theo LOẠI, không phải dạng text/link:
- *  - image (gồm sticker — sàn trả kind=image) → <Image> (bấm phóng to)
+ *  - image → <Image> (bấm phóng to)
+ *  - sticker → <img> phẳng, KHÔNG phóng to (sticker chỉ là biểu cảm, không phải ảnh khách gửi)
  *  - video → <video controls>
  *  - audio (voice — kind=file nhưng mime audio/*) → <audio controls>
  *  - còn lại (file/tài liệu) → link tải thật (không phải href="#")
@@ -161,9 +162,16 @@ function AttachmentPlaceholder({ icon, label }: { icon: ReactNode; label: string
 function MessageAttachmentView({ att }: { att: MessageAttachment }) {
     const url = att.download_url ?? null;
     const isImage = att.kind === 'image';
+    const isSticker = att.kind === 'sticker';
     const isVideo = att.kind === 'video';
     const isAudio = att.kind === 'audio' || (att.mime?.startsWith('audio/') ?? false);
 
+    if (isSticker) {
+        // Sticker: hiển thị nhỏ, KHÔNG dùng <Image> (không có preview/phóng to).
+        return url
+            ? <img src={url} alt="sticker" style={{ maxWidth: 120, maxHeight: 120 }} />
+            : <AttachmentPlaceholder icon={<PictureOutlined />} label="Sticker" />;
+    }
     if (isImage) {
         return url
             ? <Image src={url} alt={att.filename ?? ''} style={{ maxWidth: 220, borderRadius: 8 }} />

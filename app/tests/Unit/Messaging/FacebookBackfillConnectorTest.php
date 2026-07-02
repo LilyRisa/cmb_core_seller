@@ -216,9 +216,10 @@ class FacebookBackfillConnectorTest extends TestCase
         $this->assertCount(1, $page->items);
         $msg = $page->items[0];
         $this->assertSame('inbound', $msg->direction->value);
-        $this->assertSame('image', $msg->kind->value);
+        $this->assertSame('sticker', $msg->kind->value);
         $this->assertCount(1, $msg->attachments);
         $att = $msg->attachments[0];
+        $this->assertSame('sticker', $att->kind->value);
         $this->assertSame('https://external.xx.fbcdn.net/sticker/369239263222822.png', $att->externalUrl);
         $this->assertSame('image/png', $att->mime);
         $this->assertSame('sticker', $att->filename);
@@ -250,7 +251,7 @@ class FacebookBackfillConnectorTest extends TestCase
         $page = $this->connector()->fetchMessages($this->auth(), 'PSID_999', ['thread_id' => 't_st2', 'pageSize' => 50]);
 
         $msg = $page->items[0];
-        $this->assertSame('image', $msg->kind->value);
+        $this->assertSame('sticker', $msg->kind->value);
         $this->assertNull($msg->body, 'sticker không được set body thành link fallback');
     }
 

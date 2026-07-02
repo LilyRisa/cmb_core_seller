@@ -3,7 +3,6 @@
 namespace CMBcoreSeller\Modules\Messaging\Services;
 
 use CMBcoreSeller\Integrations\Messaging\DTO\MessageDTO;
-use CMBcoreSeller\Integrations\Messaging\DTO\MessageKind;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Events\ConversationCreated;
 use CMBcoreSeller\Modules\Messaging\Events\MessageReceived;
@@ -241,7 +240,8 @@ class MessageIngestionService
     private function dtoHasImage(MessageDTO $dto): bool
     {
         foreach ($dto->attachments as $media) {
-            if ($media->kind === MessageKind::Image) {
+            // Ảnh hoặc sticker (cả hai đều là hình trực quan) ⇒ đủ để xoá URL trần cũ khỏi body.
+            if ($media->kind->isVisual()) {
                 return true;
             }
         }

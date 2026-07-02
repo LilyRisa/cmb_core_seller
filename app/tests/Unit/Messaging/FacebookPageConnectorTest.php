@@ -257,8 +257,10 @@ class FacebookPageConnectorTest extends TestCase
         $event = $this->connector()->parseWebhook($this->request($payload, null));
 
         $this->assertSame(MessagingWebhookEventDTO::TYPE_MESSAGE_RECEIVED, $event->type);
-        $this->assertSame('image', $event->kind->value);
+        // Sticker mang kind RIÊNG `sticker` (không phải `image`) ⇒ FE không phóng to & AI bỏ qua.
+        $this->assertSame('sticker', $event->kind->value);
         $this->assertCount(1, $event->attachments);
+        $this->assertSame('sticker', $event->attachments[0]->kind->value);
         $this->assertSame('https://cdn.fb/sticker.png', $event->attachments[0]->externalUrl);
         $this->assertNull($event->body, 'sticker không được set body thành link');
     }

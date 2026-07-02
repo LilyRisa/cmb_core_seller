@@ -35,6 +35,10 @@ class MessageAttachment extends Model
 
     public const KIND_AUDIO = 'audio';
 
+    // Sticker: hình hiển thị được nhưng tách khỏi ảnh thường — KHÔNG nạp vào vision AI
+    // (query lọc KIND_IMAGE bỏ qua) và FE render phẳng, không cho phóng to.
+    public const KIND_STICKER = 'sticker';
+
     public const STATUS_PENDING = 'pending';
 
     public const STATUS_DOWNLOADED = 'downloaded';

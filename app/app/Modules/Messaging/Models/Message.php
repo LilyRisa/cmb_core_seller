@@ -59,6 +59,9 @@ class Message extends Model
 
     public const KIND_FILE = 'file';
 
+    /** Sticker khách gửi — hiển thị như hình nhưng không phóng to & không nạp vào vision AI. */
+    public const KIND_STICKER = 'sticker';
+
     public const KIND_TEMPLATE = 'template';
 
     public const KIND_INTERACTIVE = 'interactive';

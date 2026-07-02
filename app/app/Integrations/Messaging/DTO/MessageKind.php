@@ -14,11 +14,22 @@ enum MessageKind: string
     case Video = 'video';
     case Audio = 'audio';
     case File = 'file';
+    case Sticker = 'sticker';
     case Template = 'template';
     case System = 'system';
 
     public function isMedia(): bool
     {
-        return in_array($this, [self::Image, self::Video, self::Audio, self::File], true);
+        return in_array($this, [self::Image, self::Video, self::Audio, self::File, self::Sticker], true);
+    }
+
+    /**
+     * Kind "trực quan" (ảnh/sticker) — dùng để tách biệt sticker khỏi ảnh thường:
+     * sticker vẫn là hình hiển thị được nhưng KHÔNG nạp vào vision AI và KHÔNG cho
+     * phóng to như ảnh khách gửi.
+     */
+    public function isVisual(): bool
+    {
+        return $this === self::Image || $this === self::Sticker;
     }
 }

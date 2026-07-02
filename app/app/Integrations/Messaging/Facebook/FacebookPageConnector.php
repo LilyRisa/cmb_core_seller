@@ -528,15 +528,18 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
             $payload = (array) ($watt['payload'] ?? []);
 
             // Sticker: type=image + payload.sticker_id (+ url) ⇒ coi url là ảnh sticker.
+            // Kind RIÊNG `sticker` (không phải `image`) để: (a) FE render phẳng không cho
+            // phóng to; (b) query vision AI lọc KIND_IMAGE tự động bỏ qua ⇒ sticker KHÔNG
+            // vào prompt AI.
             if ($wtype === 'image' && ! empty($payload['sticker_id'])) {
                 $stickerUrl = isset($payload['url']) && (string) $payload['url'] !== '' ? (string) $payload['url'] : null;
                 $attachments[] = new MediaRefDTO(
-                    kind: MessageKind::Image,
+                    kind: MessageKind::Sticker,
                     mime: 'image/png',
                     externalUrl: $stickerUrl,
                     filename: 'sticker',
                 );
-                $kind = MessageKind::Image;
+                $kind = MessageKind::Sticker;
 
                 continue;
             }
@@ -718,10 +721,11 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
             // Sticker message ⇒ không linkify URL share/fallback (đó là ảnh sticker).
             $isSticker = ! empty($row['sticker']);
 
-            // Sticker: `sticker` field is a direct CDN URL string.
+            // Sticker: `sticker` field is a direct CDN URL string. Kind RIÊNG `sticker`
+            // (xem parseMessageContent) ⇒ render phẳng + không nạp vào vision AI.
             if (! empty($row['sticker'])) {
                 $attachments[] = new MediaRefDTO(
-                    kind: MessageKind::Image,
+                    kind: MessageKind::Sticker,
                     mime: 'image/png',
                     externalUrl: (string) $row['sticker'],
                     filename: 'sticker',
