@@ -265,6 +265,62 @@ class FacebookPageConnectorTest extends TestCase
         $this->assertNull($event->body, 'sticker không được set body thành link');
     }
 
+    public function test_new_sticker_attachment_type_maps_to_sticker_kind(): void
+    {
+        // Định dạng MỚI của Meta (bắt buộc sau 30/08/2026): attachment type='sticker'
+        // (KHÔNG còn kèm type='image'). Phải map về kind 'sticker', KHÔNG được rơi
+        // xuống nhánh media chung ⇒ thành 'file'.
+        $payload = json_encode([
+            'object' => 'page',
+            'entry' => [['id' => 'PAGE_123', 'messaging' => [[
+                'sender' => ['id' => 'PSID_9'],
+                'recipient' => ['id' => 'PAGE_123'],
+                'timestamp' => 1716200000000,
+                'message' => [
+                    'mid' => 'm_st_new',
+                    'attachments' => [
+                        ['type' => 'sticker', 'payload' => ['sticker_id' => 369239263222822, 'url' => 'https://cdn.fb/like.png']],
+                    ],
+                ],
+            ]]]],
+        ]);
+
+        $event = $this->connector()->parseWebhook($this->request($payload, null));
+
+        $this->assertSame('sticker', $event->kind->value);
+        $this->assertCount(1, $event->attachments);
+        $this->assertSame('sticker', $event->attachments[0]->kind->value);
+        $this->assertSame('https://cdn.fb/like.png', $event->attachments[0]->externalUrl);
+    }
+
+    public function test_transition_period_sticker_and_image_dedupes_to_one_sticker(): void
+    {
+        // Giai đoạn chuyển tiếp (tới 30/08/2026): Meta gửi CẢ HAI attachment type='image'
+        // (sticker_id) LẪN type='sticker' trong cùng payload ⇒ chỉ tạo MỘT sticker.
+        $payload = json_encode([
+            'object' => 'page',
+            'entry' => [['id' => 'PAGE_123', 'messaging' => [[
+                'sender' => ['id' => 'PSID_9'],
+                'recipient' => ['id' => 'PAGE_123'],
+                'timestamp' => 1716200000000,
+                'message' => [
+                    'mid' => 'm_st_both',
+                    'sticker_id' => 369239263222822,
+                    'attachments' => [
+                        ['type' => 'image', 'payload' => ['sticker_id' => 369239263222822, 'url' => 'https://cdn.fb/s.png']],
+                        ['type' => 'sticker', 'payload' => ['sticker_id' => 369239263222822, 'url' => 'https://cdn.fb/s.png']],
+                    ],
+                ],
+            ]]]],
+        ]);
+
+        $event = $this->connector()->parseWebhook($this->request($payload, null));
+
+        $this->assertSame('sticker', $event->kind->value);
+        $this->assertCount(1, $event->attachments, 'transition gửi cả 2 type ⇒ chỉ 1 sticker, không trùng');
+        $this->assertSame('sticker', $event->attachments[0]->kind->value);
+    }
+
     public function test_outbound_window_is_24h_with_human_agent_only(): void
     {
         // Meta đã khai tử POST_PURCHASE_UPDATE/CONFIRMED_EVENT_UPDATE/ACCOUNT_UPDATE

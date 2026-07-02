@@ -513,25 +513,32 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
         // Sticker message? FB gắn `sticker_id` ở message-level và/hoặc trong payload
         // attachment. Khi là sticker, KHÔNG linkify URL fallback (URL đó chính là ảnh
         // sticker) ⇒ tránh hiển thị cả sticker lẫn link text trùng lặp.
+        // Attachment type MỚI `sticker` (Meta transition tới 30/08/2026) cũng là sticker.
         $isSticker = ! empty($msg['sticker_id']);
         if (! $isSticker) {
             foreach ((array) ($msg['attachments'] ?? []) as $watt) {
-                if (! empty(((array) ($watt['payload'] ?? []))['sticker_id'])) {
+                if (($watt['type'] ?? '') === 'sticker' || ! empty(((array) ($watt['payload'] ?? []))['sticker_id'])) {
                     $isSticker = true;
                     break;
                 }
             }
         }
 
+        $stickerAdded = false;
         foreach ((array) ($msg['attachments'] ?? []) as $watt) {
             $wtype = (string) ($watt['type'] ?? '');
             $payload = (array) ($watt['payload'] ?? []);
 
-            // Sticker: type=image + payload.sticker_id (+ url) ⇒ coi url là ảnh sticker.
-            // Kind RIÊNG `sticker` (không phải `image`) để: (a) FE render phẳng không cho
-            // phóng to; (b) query vision AI lọc KIND_IMAGE tự động bỏ qua ⇒ sticker KHÔNG
-            // vào prompt AI.
-            if ($wtype === 'image' && ! empty($payload['sticker_id'])) {
+            // Sticker: attachment type=`sticker` (định dạng MỚI — sau 30/08/2026 là DUY NHẤT)
+            // HOẶC type=`image` kèm payload.sticker_id (định dạng cũ). Meta transition (tới
+            // 30/08/2026) gửi CẢ HAI attachment trong cùng payload ⇒ chỉ tạo MỘT sticker,
+            // bỏ trùng. Kind RIÊNG `sticker` (không phải `image`) để: (a) FE render phẳng
+            // không cho phóng to; (b) query vision AI lọc KIND_IMAGE tự động bỏ qua ⇒
+            // sticker KHÔNG vào prompt AI.
+            if ($wtype === 'sticker' || ($wtype === 'image' && ! empty($payload['sticker_id']))) {
+                if ($stickerAdded) {
+                    continue;   // đã thêm sticker từ attachment song song (transition) ⇒ bỏ trùng
+                }
                 $stickerUrl = isset($payload['url']) && (string) $payload['url'] !== '' ? (string) $payload['url'] : null;
                 $attachments[] = new MediaRefDTO(
                     kind: MessageKind::Sticker,
@@ -540,6 +547,7 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
                     filename: 'sticker',
                 );
                 $kind = MessageKind::Sticker;
+                $stickerAdded = true;
 
                 continue;
             }
