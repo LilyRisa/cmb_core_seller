@@ -73,6 +73,7 @@ class OrderResource extends JsonResource
             'items_count' => $itemsCount,
             'has_issue' => $this->has_issue,
             'issue_reason' => $this->issue_reason,
+            'has_unmapped_sku' => (bool) $this->has_unmapped_sku,
             // Lý do cụ thể đơn CHƯA thể chuẩn bị (thay "đang chờ" chung chung). Null = chuẩn bị được / manual / terminal.
             'prepare_block_reason' => $this->prepareBlockReasonLabel(),
             // SPEC 0038 v2 — báo cáo "bom hàng": chỉ đơn thủ công đã hoàn/thất bại; `bad_reported`

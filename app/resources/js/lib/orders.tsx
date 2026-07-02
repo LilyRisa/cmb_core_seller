@@ -85,6 +85,8 @@ export interface Order {
     items_count: number | null;
     has_issue: boolean;
     issue_reason: string | null;
+    /** đơn còn ≥1 dòng chưa ghép SKU sàn ↔ master SKU — KHÔNG phải lỗi, chỉ không trừ tồn cho dòng đó */
+    has_unmapped_sku?: boolean;
     prepare_block_reason?: string | null;
     /** SPEC 0038 v2 — báo cáo "bom hàng": đơn thủ công đã hoàn/thất bại mới cho báo; `bad_reported` = đã báo. */
     can_bad_report?: boolean;
@@ -125,6 +127,7 @@ export interface OrderFilters {
     has_issue?: boolean;
     has_return?: boolean;   // đơn có yêu cầu trả/hoàn (order_returns) HOẶC status returning/returned_refunded
     out_of_stock?: boolean;
+    unmapped?: boolean;   // đơn còn dòng chưa ghép SKU (has_unmapped_sku) — cột riêng, không phải has_issue
     slip?: 'printable' | 'loading' | 'failed';  // tình trạng phiếu giao hàng của đơn đã "Chuẩn bị hàng" (SPEC 0013)
     printed?: boolean;   // đã in phiếu (≥1 vận đơn open có print_count>0) — chỉ áp ở "Đang xử lý"
     sort?: string;

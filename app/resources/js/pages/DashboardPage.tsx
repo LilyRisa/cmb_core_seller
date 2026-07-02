@@ -544,8 +544,8 @@ function makeTodoBuckets(data?: DashboardSummary): TodoBucket[] {
         { label: 'Đơn chờ xử lý', hint: 'Cần "Chuẩn bị hàng" để sàn cấp vận đơn', count: o?.to_process ?? 0, color: COLOR.warning, icon: <ShoppingCartOutlined />, to: '/orders?tab=pending' },
         { label: 'Đơn chờ bàn giao ĐVVC', hint: 'Đã đóng gói, chờ giao cho đơn vị vận chuyển', count: o?.ready_to_ship ?? 0, color: COLOR.revenue, icon: <CarOutlined />, to: '/orders?status=ready_to_ship' },
         { label: 'Đơn cần in phiếu', hint: 'Có vận đơn open chưa in phiếu giao hàng', count: o?.shipped ?? 0, color: COLOR.grossProfit, icon: <PrinterOutlined />, to: '/orders?tab=processing&printed=0' },
-        { label: 'Đơn chưa liên kết SKU', hint: 'Cần ghép SKU sàn với SKU hàng hoá để trừ tồn', count: o?.unmapped ?? 0, color: COLOR.danger, icon: <LinkOutlined />, to: '/orders?has_issue=1' },
-        { label: 'Đơn có vấn đề', hint: 'Đơn lỗi cần kiểm tra lại', count: (o?.has_issue ?? 0) - (o?.unmapped ?? 0), color: COLOR.danger, icon: <WarningOutlined />, to: '/orders?tab=issue' },
+        { label: 'Đơn chưa liên kết SKU', hint: 'Cần ghép SKU sàn với SKU hàng hoá để trừ tồn (KHÔNG phải lỗi — đơn vẫn xử lý bình thường)', count: o?.unmapped ?? 0, color: COLOR.warning, icon: <LinkOutlined />, to: '/orders?tab=unmapped' },
+        { label: 'Đơn có vấn đề', hint: 'Đơn lỗi cần kiểm tra lại', count: o?.has_issue ?? 0, color: COLOR.danger, icon: <WarningOutlined />, to: '/orders?tab=issue' },
         { label: 'Gian hàng cần kết nối lại', hint: 'Token đã hết hạn — đơn không tự về', count: data?.channel_accounts.needs_reconnect ?? 0, color: COLOR.warning, icon: <ShopOutlined />, to: '/channels' },
     ].filter((t) => t.count >= 0);
 }

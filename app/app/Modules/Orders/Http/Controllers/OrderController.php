@@ -312,7 +312,7 @@ class OrderController extends Controller
         $this->authorizeView($request);
 
         // Base for the status tabs (everything except status/stage/slip/printed/has_issue/out_of_stock — those have their own tab counts).
-        $statusBase = $this->applyFilters($request, Order::query(), skip: ['status', 'stage', 'slip', 'printed', 'has_issue', 'out_of_stock', 'has_return']);
+        $statusBase = $this->applyFilters($request, Order::query(), skip: ['status', 'stage', 'slip', 'printed', 'has_issue', 'out_of_stock', 'unmapped', 'has_return']);
         $counts = (clone $statusBase)->selectRaw('status, count(*) as c')->groupBy('status')->pluck('c', 'status');
         $byStatus = [];
         foreach (StandardOrderStatus::cases() as $s) {
@@ -397,7 +397,7 @@ class OrderController extends Controller
 
                 return $q->count();
             })(),
-            'unmapped' => (clone $statusBase)->where('has_issue', true)->where('issue_reason', 'SKU chưa ghép')->count(),
+            'unmapped' => (clone $statusBase)->where('has_unmapped_sku', true)->count(),
             'out_of_stock' => (clone $statusBase)->whereHas('items', fn (Builder $i) => $i->whereNotNull('sku_id')->whereIn('sku_id', $this->oversoldSkuSubquery()))->count(),
             'by_status' => $byStatus,
             'by_stage' => $byStage,
@@ -457,7 +457,7 @@ class OrderController extends Controller
     /**
      * @param  Builder<Order>  $query
      * @param  list<string>  $skip  filter keys to NOT apply (used by stats() for faceted counts):
-     *                              status | stage | source | channel_account_id | carrier | has_issue | out_of_stock | q | sku | product | placed
+     *                              status | stage | source | channel_account_id | carrier | has_issue | out_of_stock | unmapped | q | sku | product | placed
      * @return Builder<Order>
      */
     /** Ràng buộc đơn "Trả/hoàn": status returning/returned_refunded HOẶC có order_returns (kind return|refund). */
@@ -530,6 +530,10 @@ class OrderController extends Controller
         }
         if ($use('out_of_stock') && $request->boolean('out_of_stock', false)) {
             $query->whereHas('items', fn (Builder $i) => $i->whereNotNull('sku_id')->whereIn('sku_id', $this->oversoldSkuSubquery()));
+        }
+        // "Chưa ghép SKU" — cột riêng, KHÔNG phải has_issue (đơn vẫn xử lý bình thường, chỉ chưa trừ tồn).
+        if ($use('unmapped') && $request->boolean('unmapped', false)) {
+            $query->where('has_unmapped_sku', true);
         }
         if ($use('stage') && in_array($stage = (string) $request->query('stage', ''), ['prepare', 'pack', 'handover'], true)) {
             $this->applyStageFilter($query, $stage);

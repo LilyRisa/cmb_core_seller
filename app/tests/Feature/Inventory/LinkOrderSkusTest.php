@@ -51,7 +51,7 @@ class LinkOrderSkusTest extends TestCase
         return ['X-Tenant-Id' => (string) $this->tenant->getKey()];
     }
 
-    /** A channel order whose seller_sku doesn't match any master SKU yet ⇒ stays unmapped (has_issue). */
+    /** A channel order whose seller_sku doesn't match any master SKU yet ⇒ stays unmapped (has_unmapped_sku). */
     private function unmappedOrder(string $extId, string $extSku, string $sellerSku, int $qty = 1): Order
     {
         $order = Order::withoutGlobalScope(TenantScope::class)->create([
@@ -64,7 +64,7 @@ class LinkOrderSkusTest extends TestCase
             'tenant_id' => $this->tenant->getKey(), 'order_id' => $order->getKey(), 'external_item_id' => 'li-'.$extId,
             'external_sku_id' => $extSku, 'seller_sku' => $sellerSku, 'name' => 'Áo thun M', 'quantity' => $qty, 'unit_price' => 50000, 'subtotal' => 50000,
         ]);
-        OrderUpserted::dispatch($order, true);   // runs ApplyOrderInventoryEffects → flags has_issue = "SKU chưa ghép"
+        OrderUpserted::dispatch($order, true);   // runs ApplyOrderInventoryEffects → sets has_unmapped_sku
 
         return $order->refresh();
     }
@@ -75,7 +75,8 @@ class LinkOrderSkusTest extends TestCase
         $o1 = $this->unmappedOrder('O1', 'ext-aom', 'AO-THUN-M', 2);
         $o2 = $this->unmappedOrder('O2', 'ext-aom', 'AO-THUN-M', 1);
         $o3 = $this->unmappedOrder('O3', 'ext-xyz', 'XYZ-999');
-        $this->assertTrue($o1->has_issue);
+        $this->assertTrue($o1->has_unmapped_sku);
+        $this->assertFalse($o1->has_issue, 'Chưa ghép SKU KHÔNG phải lỗi.');
         $sku = Sku::withoutGlobalScope(TenantScope::class)->create(['tenant_id' => $this->tenant->getKey(), 'sku_code' => 'ao-thun-m', 'name' => 'Áo M']);
 
         $res = $this->actingAs($this->owner)->withHeaders($this->h())->getJson('/api/v1/orders/unmapped-skus')->assertOk();
@@ -98,7 +99,7 @@ class LinkOrderSkusTest extends TestCase
         // seller_sku 'SHOP-AOM-001' does NOT match the master code ⇒ stays unmapped, no auto-match
         $o1 = $this->unmappedOrder('O1', 'ext-aom', 'SHOP-AOM-001', 2);
         $o2 = $this->unmappedOrder('O2', 'ext-aom', 'SHOP-AOM-001', 3);
-        $this->assertTrue($o1->has_issue);
+        $this->assertTrue($o1->has_unmapped_sku);
 
         $this->actingAs($this->owner)->withHeaders($this->h())->postJson('/api/v1/orders/link-skus', [
             'links' => [['channel_account_id' => $this->shop->getKey(), 'external_sku_id' => 'ext-aom', 'seller_sku' => 'SHOP-AOM-001', 'sku_id' => $sku->getKey()]],
@@ -110,7 +111,7 @@ class LinkOrderSkusTest extends TestCase
 
         foreach ([$o1, $o2] as $o) {
             $o->refresh();
-            $this->assertFalse($o->has_issue);
+            $this->assertFalse($o->has_unmapped_sku);
             $this->assertSame((int) $sku->getKey(), (int) OrderItem::withoutGlobalScope(TenantScope::class)->where('order_id', $o->getKey())->value('sku_id'));
         }
         $level = InventoryLevel::withoutGlobalScope(TenantScope::class)->where('sku_id', $sku->getKey())->first();

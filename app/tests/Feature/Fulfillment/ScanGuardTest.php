@@ -171,12 +171,12 @@ class ScanGuardTest extends TestCase
     }
 
     /**
-     * Đơn Processing + has_issue=true + issue_reason='SKU chưa ghép' + label_path có sẵn
-     * → quét đóng gói vẫn thành công (200). Issue này không chặn fulfillment.
+     * Đơn Processing + has_unmapped_sku=true (chưa ghép SKU, KHÔNG phải has_issue) + label_path có sẵn
+     * → quét đóng gói vẫn thành công (200). Chưa ghép SKU không chặn fulfillment.
      */
     public function test_scan_succeeds_when_only_issue_is_unmapped_sku(): void
     {
-        $order = $this->makeOrder(['has_issue' => true, 'issue_reason' => 'SKU chưa ghép']);
+        $order = $this->makeOrder(['has_unmapped_sku' => true]);
         $shipment = $this->makeShipment($order);
 
         $resp = $this->actingAs($this->owner)->withHeaders($this->h())

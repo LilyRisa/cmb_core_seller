@@ -196,11 +196,10 @@ export function OrderActions({ order, onPrint }: { order: Order; onPrint: (jobId
     const isWaiting = ['pending', 'unpaid'].includes(order.status);   // tab "Chờ xử lý"
     const preShipment = !['shipped', 'delivery_failed', 'delivered', 'completed', 'returning', 'returned_refunded', 'cancelled'].includes(order.status);
     const shOpen = sh && !['cancelled', 'returned', 'failed'].includes(sh.status);
-    // "SKU chưa ghép" KHÔNG còn chặn fulfillment — OrderInventoryService tự skip items chưa ghép (không
-    // đụng ledger / tồn kho), in phiếu & bàn giao vẫn bình thường. Các issue khác (lỗi sàn / sai địa chỉ) vẫn
-    // gắn cờ has_issue để user xem; nhưng nếu chỉ là "SKU chưa ghép" thì coi như không có vấn đề về luồng.
-    const onlyUnmappedIssue = order.has_issue && order.issue_reason === 'SKU chưa ghép';
-    const blockingIssue = order.has_issue && !onlyUnmappedIssue;
+    // "Chưa ghép SKU" KHÔNG còn là has_issue (cột has_unmapped_sku riêng) & không chặn fulfillment —
+    // OrderInventoryService tự skip dòng chưa ghép, in phiếu & bàn giao vẫn bình thường. has_issue giờ chỉ
+    // gồm lỗi thật (lỗi sàn / sai địa chỉ / lùi trạng thái) ⇒ đó mới là "blocking".
+    const blockingIssue = order.has_issue;
     const actions: ReactNode[] = [];
     if (preShipment && !shOpen && canShip) {
         if (order.out_of_stock) {

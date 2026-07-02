@@ -29,8 +29,6 @@ import { useSyncPolling } from '@/lib/syncPolling';
 import { useSyncRuns } from '@/lib/syncLogs';
 import { useCan } from '@/lib/tenant';
 
-const UNMAPPED_REASON = 'SKU chưa ghép';
-
 const { RangePicker } = DatePicker;
 
 /** Quick-range presets for the "Thời gian" chip row → {from,to} as YYYY-MM-DD. */
@@ -116,7 +114,7 @@ export function OrdersPage() {
     };
 
     const activeTab = ORDER_STATUS_TABS.find((t) => t.key === tabKey) ?? ORDER_STATUS_TABS[0];
-    const effectiveStatus = tabKey === 'issue' || tabKey === 'out_of_stock' || tabKey === 'returning' ? '' : (statusParam || (activeTab.statuses ?? []).join(','));
+    const effectiveStatus = tabKey === 'issue' || tabKey === 'out_of_stock' || tabKey === 'unmapped' || tabKey === 'returning' ? '' : (statusParam || (activeTab.statuses ?? []).join(','));
     const isProcessingTab = tabKey === 'processing';
     const slipFilter = isProcessingTab && (['printable', 'loading', 'failed'] as string[]).includes(slipParam) ? (slipParam as 'printable' | 'loading' | 'failed') : undefined;
     const printedFilter = isProcessingTab && (printedParam === '1' || printedParam === '0') ? printedParam === '1' : undefined;
@@ -131,6 +129,7 @@ export function OrdersPage() {
         has_issue: tabKey === 'issue' || params.get('has_issue') === '1' ? true : undefined,
         has_return: tabKey === 'returning' ? true : undefined,
         out_of_stock: tabKey === 'out_of_stock' ? true : undefined,
+        unmapped: tabKey === 'unmapped' || params.get('unmapped') === '1' ? true : undefined,
         slip: slipFilter,
         printed: printedFilter,
         sort, page, per_page: perPage,
@@ -148,6 +147,7 @@ export function OrdersPage() {
         has_issue: tabKey === 'issue' || params.get('has_issue') === '1' ? true : undefined,
         has_return: tabKey === 'returning' ? true : undefined,
         out_of_stock: tabKey === 'out_of_stock' ? true : undefined,
+        unmapped: tabKey === 'unmapped' || params.get('unmapped') === '1' ? true : undefined,
         slip: slipFilter,
         printed: printedFilter,
     }), [effectiveStatus, q, skuQ, productQ, source, channelAccountId, carrier, placedFrom, placedTo, tabKey, slipFilter, printedFilter, params]);
@@ -239,7 +239,7 @@ export function OrdersPage() {
     // In phiếu giao hàng: MỌI đơn ĐÃ có phiếu (has_label) — kể cả đang giao / đã giao / hoàn / huỷ.
     const eliPrint = selectedOrders.filter((o) => o.shipment?.has_label);
     const eliPack = selectedOrders.filter((o) => o.shipment && SHIP_PACK_STATUSES.includes(o.shipment.status));
-    const eliLink = selectedOrders.filter((o) => o.issue_reason === UNMAPPED_REASON);
+    const eliLink = selectedOrders.filter((o) => o.has_unmapped_sku);
     // Huỷ hàng loạt (local "ngừng theo dõi"): mọi đơn CHƯA huỷ. Xoá: chỉ đơn ĐÃ huỷ.
     const eliCancel = selectedOrders.filter((o) => o.status !== 'cancelled');
     const eliDelete = selectedOrders.filter((o) => o.status === 'cancelled');
@@ -522,11 +522,11 @@ export function OrdersPage() {
                         )}
                         {o.is_cod && <Tag color="gold">COD</Tag>}
                         {o.out_of_stock && <Tooltip title="Tồn kho đang âm — không thể chuẩn bị hàng / tạo vận đơn. Hãy nhập thêm hàng rồi thử lại."><Tag color="error" icon={<WarningOutlined />}>Âm tồn — không thao tác được</Tag></Tooltip>}
-                        {o.issue_reason === UNMAPPED_REASON
-                            // "SKU chưa ghép" KHÔNG còn chặn in / fulfillment — đơn vẫn xử lý bình thường, chỉ là
-                            // không có dòng nào động vào tồn kho. Đổi sang warning (vàng) thay vì error (đỏ).
-                            ? <Tooltip title="Đơn vẫn in & bàn giao bình thường, nhưng không trừ tồn cho dòng chưa ghép SKU. Bấm để liên kết."><Tag color="warning" icon={<LinkOutlined />} style={{ cursor: 'pointer' }} onClick={() => setLinkModal({ open: true, orderIds: [o.id] })}>Chưa ghép SKU — Liên kết</Tag></Tooltip>
-                            : o.has_issue && <Tooltip title={o.issue_reason ?? 'Đơn có vấn đề'}><Tag color="error" icon={<WarningOutlined />}>Lỗi</Tag></Tooltip>}
+                        {o.has_unmapped_sku &&
+                            // "Chưa ghép SKU" KHÔNG phải lỗi — đơn vẫn in & bàn giao bình thường, chỉ không trừ tồn
+                            // cho dòng chưa ghép. Tag vàng (thông tin) tách hẳn tag đỏ "Lỗi" (has_issue) bên dưới.
+                            <Tooltip title="Đơn vẫn in & bàn giao bình thường, nhưng không trừ tồn cho dòng chưa ghép SKU. Bấm để liên kết."><Tag color="warning" icon={<LinkOutlined />} style={{ cursor: 'pointer' }} onClick={() => setLinkModal({ open: true, orderIds: [o.id] })}>Chưa ghép SKU — Liên kết</Tag></Tooltip>}
+                        {o.has_issue && <Tooltip title={o.issue_reason ?? 'Đơn có vấn đề'}><Tag color="error" icon={<WarningOutlined />}>Lỗi</Tag></Tooltip>}
                         {o.shipment && o.shipment.print_count > 0 && <PrintCountBadge n={o.shipment.print_count} at={o.shipment.last_printed_at} />}
                         {o.is_terminal && !o.shipment?.has_label && (
                             <Tooltip title="Đơn đã ở trạng thái cuối (hoàn tất/đã huỷ/đã trả) mà chưa từng lưu phiếu giao hàng — không thể in đơn được.">
@@ -640,13 +640,15 @@ export function OrdersPage() {
                     // Đổi tab ⇒ dọn `source` + `carrier` + `channel_account_id` (filter "Lọc" của tab cũ thường
                     // không hợp lý với tab mới — vd lọc Shopee ở "Đang xử lý" rồi sang "Đã giao" sẽ thấy rỗng
                     // dù tab badge bảo có đơn). Giữ `q`/`sku`/`product`/`placed_*` để user search xuyên tab.
-                    onChange={(k) => { setSelectedKeys([]); set({ tab: k || undefined, status: undefined, slip: undefined, printed: undefined, source: undefined, channel_account_id: undefined, carrier: undefined, has_issue: k === 'issue' ? '1' : undefined }); }}
+                    onChange={(k) => { setSelectedKeys([]); set({ tab: k || undefined, status: undefined, slip: undefined, printed: undefined, source: undefined, channel_account_id: undefined, carrier: undefined, unmapped: undefined, has_issue: k === 'issue' ? '1' : undefined }); }}
                     items={[
                         ...ORDER_STATUS_TABS.map((t) => ({
                             key: t.key,
                             label: <span>{t.label}{t.key !== '' && tabStats ? <Badge count={countForTab(t)} overflowCount={9999} showZero={false} style={{ marginInlineStart: 6, background: '#f0f0f0', color: '#595959' }} /> : null}</span>,
                         })),
                         { key: 'issue', label: <span>Có vấn đề{tabStats?.has_issue ? <Badge count={tabStats.has_issue} style={{ marginInlineStart: 6 }} /> : null}</span> },
+                        // "Chưa ghép SKU" — KHÔNG phải lỗi (tách khỏi tab "Có vấn đề"); đơn vẫn xử lý bình thường, chỉ chưa trừ tồn.
+                        { key: 'unmapped', label: <span><LinkOutlined style={{ marginInlineEnd: 4 }} />Chưa ghép SKU{tabStats?.unmapped ? <Badge count={tabStats.unmapped} style={{ marginInlineStart: 6, backgroundColor: '#faad14' }} /> : null}</span> },
                         // Đơn có SKU âm tồn — chặn "Chuẩn bị hàng / lấy phiếu giao hàng" cho đến khi nhập thêm hàng (SPEC 0013).
                         { key: 'out_of_stock', label: <span><WarningOutlined style={{ marginInlineEnd: 4 }} />Hết hàng{tabStats?.out_of_stock ? <Badge count={tabStats.out_of_stock} style={{ marginInlineStart: 6 }} /> : null}</span> },
                         { key: 'shipments', label: <span><BarcodeOutlined style={{ marginInlineEnd: 4 }} />Vận đơn</span> },

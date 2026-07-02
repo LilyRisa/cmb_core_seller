@@ -86,7 +86,7 @@ class DashboardController extends Controller
             'ready_to_ship' => Order::query()->where('status', StandardOrderStatus::ReadyToShip->value)->count(),
             'shipped' => Order::query()->where('status', StandardOrderStatus::Shipped->value)->count(),
             'has_issue' => Order::query()->where('has_issue', true)->count(),
-            'unmapped' => Order::query()->where('has_issue', true)->where('issue_reason', 'SKU chưa ghép')->count(),
+            'unmapped' => Order::query()->where('has_unmapped_sku', true)->count(),
             'total' => Order::query()->count(),
         ];
 

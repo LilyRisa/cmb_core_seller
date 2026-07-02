@@ -423,8 +423,8 @@ class ShipmentController extends Controller
                 return $this->blocked('order_not_processing',
                     'Đơn hàng không ở trạng thái Đang xử lý — không thể quét bàn giao.');
             }
-            // đơn chỉ vướng 'SKU chưa ghép' vẫn cho quét — issue này không chặn bàn giao (xem OrderInventoryService::reflectUnmappedIssue)
-            if ($orderForScan->has_issue && $orderForScan->issue_reason !== 'SKU chưa ghép') {
+            // "Chưa ghép SKU" KHÔNG phải lỗi (cột has_unmapped_sku riêng) nên không rơi vào has_issue ⇒ vẫn cho quét.
+            if ($orderForScan->has_issue) {
                 return $this->blocked('order_has_issue',
                     $orderForScan->issue_reason
                         ? 'Đơn hàng đang có lỗi: '.$orderForScan->issue_reason
@@ -452,8 +452,8 @@ class ShipmentController extends Controller
                 return $this->blocked('order_not_processing',
                     'Đơn hàng không ở trạng thái Đang xử lý — không thể quét đóng gói.');
             }
-            // đơn chỉ vướng 'SKU chưa ghép' vẫn cho quét — issue này không chặn đóng gói (xem OrderInventoryService::reflectUnmappedIssue)
-            if ($orderForScan->has_issue && $orderForScan->issue_reason !== 'SKU chưa ghép') {
+            // "Chưa ghép SKU" KHÔNG phải lỗi (cột has_unmapped_sku riêng) nên không rơi vào has_issue ⇒ vẫn cho quét.
+            if ($orderForScan->has_issue) {
                 return $this->blocked('order_has_issue',
                     $orderForScan->issue_reason
                         ? 'Đơn hàng đang có lỗi: '.$orderForScan->issue_reason

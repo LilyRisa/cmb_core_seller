@@ -56,6 +56,7 @@ use Illuminate\Support\Carbon;
  * @property array|null $tags
  * @property bool $has_issue
  * @property string|null $issue_reason
+ * @property bool $has_unmapped_sku
  * @property array|null $packages
  * @property array|null $raw_payload
  * @property Carbon|null $source_updated_at
@@ -79,7 +80,7 @@ class Order extends Model
         'currency', 'item_total', 'shipping_fee', 'platform_discount', 'seller_discount', 'tax',
         'cod_amount', 'prepaid_amount', 'surcharge', 'grand_total', 'is_cod', 'fulfillment_type', 'carrier',
         'placed_at', 'paid_at', 'shipped_at', 'delivered_at', 'completed_at', 'cancelled_at', 'cancel_reason',
-        'note', 'tags', 'has_issue', 'issue_reason', 'packages', 'meta', 'raw_payload', 'source_updated_at', 'last_synced_at',
+        'note', 'tags', 'has_issue', 'issue_reason', 'has_unmapped_sku', 'packages', 'meta', 'raw_payload', 'source_updated_at', 'last_synced_at',
     ];
 
     protected $hidden = ['buyer_phone', 'raw_payload'];
@@ -93,6 +94,7 @@ class Order extends Model
             'shipping_address' => 'array',
             'is_cod' => 'boolean',
             'has_issue' => 'boolean',
+            'has_unmapped_sku' => 'boolean',
             'tags' => 'array',
             'packages' => 'array',
             'meta' => 'array',

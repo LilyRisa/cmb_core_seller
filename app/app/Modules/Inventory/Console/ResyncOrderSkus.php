@@ -22,7 +22,7 @@ class ResyncOrderSkus extends Command
     public function handle(OrderInventoryService $inventory): int
     {
         $query = Order::withoutGlobalScope(TenantScope::class)
-            ->where('has_issue', true)->where('issue_reason', 'SKU chưa ghép')->orderBy('id');
+            ->where('has_unmapped_sku', true)->orderBy('id');
         if ($cid = $this->option('channel-account')) {
             $query->where('channel_account_id', (int) $cid);
         }
@@ -43,7 +43,7 @@ class ResyncOrderSkus extends Command
         });
         $bar->finish();
         $this->newLine(2);
-        $stillUnmapped = Order::withoutGlobalScope(TenantScope::class)->where('has_issue', true)->where('issue_reason', 'SKU chưa ghép')->count();
+        $stillUnmapped = Order::withoutGlobalScope(TenantScope::class)->where('has_unmapped_sku', true)->count();
         $this->info('Done. Còn lại '.$stillUnmapped.' đơn chưa ghép được SKU.');
 
         return self::SUCCESS;

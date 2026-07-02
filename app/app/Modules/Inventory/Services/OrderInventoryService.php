@@ -234,13 +234,16 @@ class OrderInventoryService
         return in_array($m, ['fifo', 'average'], true) ? $m : 'fifo';
     }
 
+    /**
+     * "Chưa ghép SKU" KHÔNG phải lỗi — chỉ là trạng thái theo dõi tồn (đơn vẫn in & bàn giao bình thường,
+     * chỉ không trừ tồn cho dòng chưa ghép). Nên gắn cột RIÊNG `has_unmapped_sku`, KHÔNG đụng `has_issue`
+     * (has_issue dành cho lỗi thật: sai địa chỉ, lùi trạng thái bất thường, lỗi gọi sàn…). Tách vậy để đơn
+     * chưa ghép không bị coi là "Có vấn đề" và không bị RefreshStuckOrders (điều kiện has_issue) đụng vào.
+     */
     private function reflectUnmappedIssue(Order $order, bool $anyUnmapped): void
     {
-        $issue = 'SKU chưa ghép';
-        if ($anyUnmapped && ! $order->has_issue) {
-            $order->forceFill(['has_issue' => true, 'issue_reason' => $issue])->save();
-        } elseif (! $anyUnmapped && $order->has_issue && $order->issue_reason === $issue) {
-            $order->forceFill(['has_issue' => false, 'issue_reason' => null])->save();
+        if ($anyUnmapped !== (bool) $order->has_unmapped_sku) {
+            $order->forceFill(['has_unmapped_sku' => $anyUnmapped])->save();
         }
     }
 }

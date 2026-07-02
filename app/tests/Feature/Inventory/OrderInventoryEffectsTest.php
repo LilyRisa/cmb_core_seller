@@ -118,19 +118,21 @@ class OrderInventoryEffectsTest extends TestCase
         $this->assertSame(6, $this->level($b)->reserved);    // 2 × 3
     }
 
-    public function test_unmapped_item_flags_order_has_issue(): void
+    public function test_unmapped_item_sets_has_unmapped_sku_not_has_issue(): void
     {
+        // "Chưa ghép SKU" KHÔNG phải lỗi ⇒ set cột riêng has_unmapped_sku, KHÔNG đụng has_issue.
         $order = $this->channelOrder(StandardOrderStatus::Pending, [['seller_sku' => 'NOPE-999', 'external_sku_id' => 'ext-x']]);
         OrderUpserted::dispatch($order, true);
         $order->refresh();
-        $this->assertTrue($order->has_issue);
-        $this->assertSame('SKU chưa ghép', $order->issue_reason);
+        $this->assertTrue($order->has_unmapped_sku);
+        $this->assertFalse($order->has_issue, 'Chưa ghép SKU KHÔNG được coi là lỗi.');
+        $this->assertNull($order->issue_reason);
 
-        // create the SKU + re-fire → resolved, issue cleared
+        // create the SKU + re-fire → resolved, cờ chưa-ghép được gỡ
         $sku = $this->sku('NOPE-999', 5);
         OrderUpserted::dispatch($order, false);
         $order->refresh();
-        $this->assertFalse($order->has_issue);
+        $this->assertFalse($order->has_unmapped_sku);
         $this->assertSame(1, $this->level($sku)->reserved);
     }
 
