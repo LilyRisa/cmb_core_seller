@@ -5,7 +5,6 @@ namespace CMBcoreSeller\Modules\VisualSearch\Http\Controllers;
 use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Integrations\Ai\AiAssistantRegistry;
 use CMBcoreSeller\Integrations\Ai\DTO\AiContext;
-use CMBcoreSeller\Integrations\Ai\Support\VisionModelGate;
 use CMBcoreSeller\Modules\Messaging\Models\AiProvider;
 use CMBcoreSeller\Modules\Settings\Services\SystemSettingService;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
@@ -37,7 +36,8 @@ class AdminVisualRerankController extends Controller
                 'display_name' => $p->display_name,
                 'default_model' => $p->default_model,
                 'is_active' => (bool) $p->is_active,
-                'vision' => $p->default_model ? VisionModelGate::enabledFor($p->default_model) : false,
+                // TODO(Task 5): điều kiện role=vision + vision_verified đầy đủ; tạm dùng cờ verified thô.
+                'vision' => (bool) $p->vision_verified,
             ])->values()->all();
 
         return response()->json(['data' => [

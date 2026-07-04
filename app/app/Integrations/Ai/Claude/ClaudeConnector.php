@@ -95,7 +95,7 @@ class ClaudeConnector implements AiAssistantConnector
                 'model' => $model,
                 'max_tokens' => $maxTokens,
                 'system' => $this->buildSystem($conversation, $kb, $ctx->systemPromptExtra),
-                'messages' => $this->buildMessages($conversation, $this->visionEnabled($model)),
+                'messages' => $this->buildMessages($conversation, $cfg->visionVerified),
             ]);
 
         $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
@@ -235,9 +235,6 @@ class ClaudeConnector implements AiAssistantConnector
             throw new ProviderNotConfigured('Claude provider chưa cấu hình api_key.');
         }
         $model = $ctx->model ?: ($cfg->defaultModel ?: self::DEFAULT_MODEL);
-        if (! $this->visionEnabled($model)) {
-            throw UnsupportedOperation::for($this->code(), 'analyzeImages (model không vision)');
-        }
 
         $content = [['type' => 'text', 'text' => $instruction]];
         foreach (array_values(array_filter($images, 'is_string')) as $img) {
@@ -363,11 +360,5 @@ class ClaudeConnector implements AiAssistantConnector
         }
 
         return ['type' => 'url', 'url' => $url];
-    }
-
-    /** Model hiện tại có khả năng vision? Ủy quyền cho VisionModelGate (nguồn sự thật chung). */
-    private function visionEnabled(string $model): bool
-    {
-        return \CMBcoreSeller\Integrations\Ai\Support\VisionModelGate::enabledFor($model);
     }
 }

@@ -17,7 +17,6 @@ use CMBcoreSeller\Integrations\Ai\DTO\IntentDTO;
 use CMBcoreSeller\Integrations\Ai\DTO\KnowledgeBase;
 use CMBcoreSeller\Integrations\Ai\Exceptions\ProviderNotConfigured;
 use CMBcoreSeller\Integrations\Ai\Exceptions\TranscriptionFailed;
-use CMBcoreSeller\Integrations\Ai\Exceptions\UnsupportedOperation;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -88,7 +87,7 @@ class OpenAiConnector implements AiAssistantConnector, AudioTranscriber
             ->post($this->base($cfg).'/v1/chat/completions', [
                 'model' => $model,
                 'max_tokens' => $ctx->maxTokens ?: 1024,
-                'messages' => $this->buildMessages($conversation, $kb, $ctx->systemPromptExtra, $this->visionEnabled($model)),
+                'messages' => $this->buildMessages($conversation, $kb, $ctx->systemPromptExtra, $cfg->visionVerified),
             ]);
 
         $durationMs = (int) ((microtime(true) - $startedAt) * 1000);
@@ -231,9 +230,6 @@ class OpenAiConnector implements AiAssistantConnector, AudioTranscriber
         if (! $model) {
             throw new ProviderNotConfigured('OpenAI provider cần default_model.');
         }
-        if (! $this->visionEnabled($model)) {
-            throw UnsupportedOperation::for($this->code(), 'analyzeImages (model không vision)');
-        }
 
         $parts = [['type' => 'text', 'text' => $instruction]];
         foreach (array_values(array_filter($images, 'is_string')) as $img) {
@@ -351,11 +347,5 @@ class OpenAiConnector implements AiAssistantConnector, AudioTranscriber
         }
 
         return $messages;
-    }
-
-    /** Model hiện tại có khả năng vision? Ủy quyền cho VisionModelGate (nguồn sự thật chung). */
-    private function visionEnabled(string $model): bool
-    {
-        return \CMBcoreSeller\Integrations\Ai\Support\VisionModelGate::enabledFor($model);
     }
 }

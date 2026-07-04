@@ -31,8 +31,8 @@ return [
     | Vision (đa phương thức) — gửi ảnh khách kèm tin lên AI để phân tích
     |--------------------------------------------------------------------------
     |
-    | Chỉ adapter có vision (Claude/OpenAI) + model trong `models` mới đính ảnh vào
-    | request; model khác giữ placeholder text.
+    | Chỉ provider có `vision_verified=true` (xác minh runtime qua super-admin, KHÔNG
+    | gate theo tên model) mới đính ảnh vào request; provider khác giữ placeholder text.
     |
     | `inline_base64` MẶC ĐỊNH true ⇒ nhúng base64 ảnh (Claude + OpenAI đều hiểu). Lý do:
     | nhiều cổng OpenAI-compatible (vd vilao.ai) KHÔNG tự tải ảnh từ URL → model báo
@@ -41,11 +41,6 @@ return [
     */
     'vision' => [
         'enabled' => (bool) env('AI_VISION_ENABLED', true),
-        // Substring (lowercase) khớp tên model có khả năng vision. 'gpt-5' khớp cả ts/gpt-5.x.
-        'models' => array_values(array_filter(array_map('trim', explode(',', (string) env(
-            'AI_VISION_MODELS',
-            'claude-3,claude-haiku,claude-sonnet,claude-opus,claude-4,gpt-4o,gpt-4.1,gpt-4-vision,gpt-5,o4,gemini,omni,-vl',
-        ))))),
         'max_images_per_message' => (int) env('AI_VISION_MAX_IMAGES_PER_MESSAGE', 3),
         // Nhúng base64 thay vì link — mặc định BẬT (cổng OpenAI-compatible thường không fetch URL).
         'inline_base64' => filter_var(env('AI_VISION_INLINE_BASE64', true), FILTER_VALIDATE_BOOLEAN),
