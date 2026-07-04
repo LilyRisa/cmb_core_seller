@@ -74,6 +74,7 @@ export interface MessageAttachment {
     filename: string | null;
     status: string;
     download_url: string | null;
+    transcript?: string | null;
 }
 
 export interface Message {

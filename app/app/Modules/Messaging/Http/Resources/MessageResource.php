@@ -50,6 +50,8 @@ class MessageResource extends JsonResource
                     'duration_ms' => $a->duration_ms,
                     'filename' => $a->filename,
                     'status' => $a->status,
+                    // Nội dung trích xuất từ ghi âm khách (STT) — FE hiển thị cạnh player.
+                    'transcript' => $a->transcript,
                     // KHÔNG lộ storage_path raw — chỉ signed URL TTL ngắn (§8.5).
                     // Fallback `external_url` (URL CDN sàn) khi relay chưa xong / thất bại
                     // ⇒ FE vẫn render được ảnh/video/sticker thay vì rơi xuống link "Tệp đính kèm".

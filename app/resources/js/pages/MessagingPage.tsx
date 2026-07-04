@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, typ
 import dayjs from 'dayjs';
 import { Link, useSearchParams } from 'react-router-dom';
 import { App, Avatar, Badge, Button, Checkbox, Divider, Dropdown, Empty, Grid, Image, Input, List, Popconfirm, Popover, Radio, Segmented, Select, Space, Spin, Tag, Tooltip, Typography } from 'antd';
-import { BellFilled, BellOutlined, CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FacebookFilled, FileOutlined, FilterOutlined, LikeFilled, LikeOutlined, MessageOutlined, MoreOutlined, PhoneOutlined, PictureOutlined, RedoOutlined, SearchOutlined, ShopOutlined, ShoppingOutlined, SoundOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
+import { BellFilled, BellOutlined, CommentOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, FacebookFilled, FileOutlined, FileTextOutlined, FilterOutlined, LikeFilled, LikeOutlined, MessageOutlined, MoreOutlined, PhoneOutlined, PictureOutlined, RedoOutlined, SearchOutlined, ShopOutlined, ShoppingOutlined, SoundOutlined, TagOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import { errorMessage } from '@/lib/api';
 import {
     type Conversation,
@@ -183,9 +183,23 @@ function MessageAttachmentView({ att }: { att: MessageAttachment }) {
             : <AttachmentPlaceholder icon={<VideoCameraOutlined />} label="Video" />;
     }
     if (isAudio) {
-        return url
-            ? <audio src={url} controls style={{ maxWidth: 240 }} />
-            : <AttachmentPlaceholder icon={<SoundOutlined />} label="Âm thanh" />;
+        if (!url) {
+            return <AttachmentPlaceholder icon={<SoundOutlined />} label="Âm thanh" />;
+        }
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <audio src={url} controls style={{ maxWidth: 240 }} />
+                {att.transcript
+                    ? (
+                        <Tooltip title="Nội dung trích xuất từ ghi âm (AI)">
+                            <Typography.Text type="secondary" style={{ fontSize: 12, maxWidth: 260, whiteSpace: 'normal' }}>
+                                <FileTextOutlined /> {att.transcript}
+                            </Typography.Text>
+                        </Tooltip>
+                    )
+                    : null}
+            </div>
+        );
     }
     return url
         ? (
