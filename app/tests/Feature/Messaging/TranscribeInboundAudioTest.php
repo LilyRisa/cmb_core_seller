@@ -86,7 +86,7 @@ class TranscribeInboundAudioTest extends TestCase
     {
         $tenant = Tenant::factory()->create();
         $this->fakeCredits();
-        AiProvider::query()->create(['code' => 'groq', 'adapter' => 'openai_compatible', 'is_active' => true, 'api_key' => 'gsk', 'base_url' => 'https://api.groq.com/openai/v1', 'default_model' => 'whisper-large-v3-turbo']);
+        AiProvider::query()->create(['code' => 'groq', 'adapter' => 'openai_compatible', 'is_active' => true, 'role' => 'transcription', 'api_key' => 'gsk', 'base_url' => 'https://api.groq.com/openai/v1', 'default_model' => 'whisper-large-v3-turbo']);
         app(SystemSettingService::class)->set('messaging.transcription.provider_code', 'groq');
         Http::fake(['api.groq.com/*' => Http::response(['text' => 'cho em hỏi giá'], 200)]);
 
@@ -113,7 +113,7 @@ class TranscribeInboundAudioTest extends TestCase
     {
         $tenant = Tenant::factory()->create();
         $this->fakeCredits();
-        AiProvider::query()->create(['code' => 'groq', 'adapter' => 'openai_compatible', 'is_active' => true, 'api_key' => 'gsk', 'base_url' => 'https://api.groq.com/openai/v1', 'default_model' => 'whisper-large-v3-turbo']);
+        AiProvider::query()->create(['code' => 'groq', 'adapter' => 'openai_compatible', 'is_active' => true, 'role' => 'transcription', 'api_key' => 'gsk', 'base_url' => 'https://api.groq.com/openai/v1', 'default_model' => 'whisper-large-v3-turbo']);
         app(SystemSettingService::class)->set('messaging.transcription.provider_code', 'groq');
         Http::fake(['api.groq.com/*' => Http::response('err', 500)]);
 

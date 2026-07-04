@@ -52,7 +52,7 @@ class TranscribeInboundAudio implements ShouldQueue
         $media = app(MediaStorage::class);
 
         $code = trim((string) system_setting('messaging.transcription.provider_code', ''));
-        if ($code === '' || ! in_array($code, $registry->activeProviders(), true)) {
+        if ($code === '' || ! in_array($code, $registry->activeProviders('transcription'), true)) {
             return;
         }
 

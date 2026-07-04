@@ -61,12 +61,13 @@ class AiAssistantRegistry
         return $this->resolveAdapter((string) $row->adapter, $code);
     }
 
-    /** @return list<string> active codes có adapter đã register */
-    public function activeProviders(): array
+    /** @return list<string> active codes có adapter đã register, lọc theo `role` (mặc định 'chat') */
+    public function activeProviders(string $role = 'chat'): array
     {
         try {
             return AiProvider::query()
                 ->where('is_active', true)
+                ->where('role', $role)
                 ->orderBy('sort_order')->orderBy('code')
                 ->get(['code', 'adapter'])
                 ->filter(fn ($r) => isset($this->adapters[$r->adapter]))

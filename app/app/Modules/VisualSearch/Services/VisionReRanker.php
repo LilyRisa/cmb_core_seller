@@ -39,7 +39,7 @@ class VisionReRanker
 
         // Provider AI RIÊNG cho re-rank (SPEC 2026-07-05). Rỗng/không active ⇒ giữ provider chat.
         $override = trim((string) system_setting('visual_search.rerank.provider_code', ''));
-        if ($override !== '' && $override !== $providerCode && in_array($override, $this->registry->activeProviders(), true)) {
+        if ($override !== '' && $override !== $providerCode && in_array($override, $this->registry->activeProviders('vision'), true)) {
             $providerCode = $override;
             $ctx = new AiContext(
                 tenantId: $ctx->tenantId,

@@ -51,10 +51,10 @@ class VisionRerankProviderTest extends TestCase
         });
     }
 
-    private function makeProvider(string $code, string $model, string $host): void
+    private function makeProvider(string $code, string $model, string $host, string $role = 'chat'): void
     {
         AiProvider::query()->create([
-            'code' => $code, 'adapter' => 'openai_compatible', 'is_active' => true,
+            'code' => $code, 'adapter' => 'openai_compatible', 'is_active' => true, 'role' => $role,
             'api_key' => 'sk-test', 'base_url' => "https://{$host}", 'default_model' => $model,
         ]);
     }
@@ -73,7 +73,7 @@ class VisionRerankProviderTest extends TestCase
     public function test_uses_dedicated_rerank_provider_when_configured(): void
     {
         $this->makeProvider('chat_min', 'mn/Minimax-M3', 'chat.example.com');   // non-vision
-        $this->makeProvider('rr_vis', 'ts/gemini-3.5-flash', 'rerank.example.com'); // vision
+        $this->makeProvider('rr_vis', 'ts/gemini-3.5-flash', 'rerank.example.com', 'vision'); // vision — override phải match role này
         app(SystemSettingService::class)->set('visual_search.rerank.provider_code', 'rr_vis');
 
         Http::fake([
