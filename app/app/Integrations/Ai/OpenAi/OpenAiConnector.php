@@ -269,7 +269,7 @@ class OpenAiConnector implements AiAssistantConnector, AudioTranscriber
         $response = Http::withToken($cfg->apiKey)
             ->connectTimeout((int) config('ai.http.connect_timeout', 10))
             ->timeout((int) config('ai.http.reply_timeout', 60))
-            ->attach('file', $bytes, $filename ?: 'audio.mp3')
+            ->attach('file', $bytes, $filename ?: 'audio.mp3', ['Content-Type' => $mime])
             ->post($this->base($cfg).'/v1/audio/transcriptions', [
                 'model' => $model,
                 'response_format' => 'json',
