@@ -5,6 +5,7 @@ namespace Tests\Feature\VisualSearch;
 use CMBcoreSeller\Models\AdminUser;
 use CMBcoreSeller\Modules\Messaging\Models\AiProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class AdminVisualRerankTest extends TestCase
@@ -69,19 +70,19 @@ class AdminVisualRerankTest extends TestCase
 
     public function test_test_endpoint_persists_vision_verified(): void
     {
-        \CMBcoreSeller\Modules\Messaging\Models\AiProvider::query()->create(['code' => 'rr', 'adapter' => 'openai_compatible', 'is_active' => true, 'role' => 'vision', 'api_key' => 'k', 'base_url' => 'https://api.x.com', 'default_model' => 'm']);
-        \Illuminate\Support\Facades\Http::fake(['api.x.com/*' => \Illuminate\Support\Facades\Http::response(['choices' => [['message' => ['content' => '{"match":0}']]]], 200)]);
-        $this->actingAs(\CMBcoreSeller\Models\AdminUser::factory()->create(), 'admin_web')
+        AiProvider::query()->create(['code' => 'rr', 'adapter' => 'openai_compatible', 'is_active' => true, 'role' => 'vision', 'api_key' => 'k', 'base_url' => 'https://api.x.com', 'default_model' => 'm']);
+        Http::fake(['api.x.com/*' => Http::response(['choices' => [['message' => ['content' => '{"match":0}']]]], 200)]);
+        $this->actingAs(AdminUser::factory()->create(), 'admin_web')
             ->postJson('/api/v1/admin/ai-visual-rerank/test', ['provider_code' => 'rr'])->assertOk()->assertJsonPath('data.ok', true);
-        $this->assertTrue(\CMBcoreSeller\Modules\Messaging\Models\AiProvider::find('rr')->vision_verified);
+        $this->assertTrue(AiProvider::find('rr')->vision_verified);
     }
 
     public function test_put_requires_verified(): void
     {
-        \CMBcoreSeller\Modules\Messaging\Models\AiProvider::query()->create(['code' => 'rr', 'adapter' => 'openai_compatible', 'is_active' => true, 'role' => 'vision', 'base_url' => 'https://h', 'default_model' => 'm']);
-        $admin = \CMBcoreSeller\Models\AdminUser::factory()->create();
+        AiProvider::query()->create(['code' => 'rr', 'adapter' => 'openai_compatible', 'is_active' => true, 'role' => 'vision', 'base_url' => 'https://h', 'default_model' => 'm']);
+        $admin = AdminUser::factory()->create();
         $this->actingAs($admin, 'admin_web')->putJson('/api/v1/admin/ai-visual-rerank', ['provider_code' => 'rr'])->assertStatus(422); // chưa verified
-        \CMBcoreSeller\Modules\Messaging\Models\AiProvider::query()->whereKey('rr')->update(['vision_verified' => true]);
+        AiProvider::query()->whereKey('rr')->update(['vision_verified' => true]);
         $this->actingAs($admin, 'admin_web')->putJson('/api/v1/admin/ai-visual-rerank', ['provider_code' => 'rr'])->assertOk();
     }
 }

@@ -1,6 +1,6 @@
 # API endpoints (`/api/v1`)
 
-**Status:** Living document · **Cập nhật:** 2026-05-23
+**Status:** Living document · **Cập nhật:** 2026-07-05
 
 > Nguồn người-đọc-được của API. Mọi endpoint mới ⇒ thêm vào đây (đường dẫn, method, quyền cần, request, response, lỗi đặc thù). Quy ước chung: [`conventions.md`](conventions.md). Auth: Sanctum SPA cookie (gọi `GET /sanctum/csrf-cookie` trước khi gửi request thay đổi dữ liệu). Tenant: header `X-Tenant-Id`.
 
@@ -407,11 +407,27 @@ Popup giữa màn hình cho mọi user (fix bug, tạm dừng dịch vụ…). A
 
 #### AI chấm ảnh (vision re-rank) — super-admin
 
+Danh sách provider ở đây lọc theo `role='vision'` (field `role` trên `ai_providers`, xem CRUD `/admin/ai-providers` trong mục "Admin SPA" bên dưới).
+
 | Method | Path | Auth | Mô tả |
 |---|---|---|---|
-| GET | `/api/v1/admin/ai-visual-rerank` | web + `auth:admin_web` | Provider đang chọn + danh sách provider (kèm cờ `vision`). |
-| PUT | `/api/v1/admin/ai-visual-rerank` | web + `auth:admin_web` | `{ provider_code }` (rỗng = dùng model chat); `422` nếu provider chưa bật. |
-| POST | `/api/v1/admin/ai-visual-rerank/test` | web + `auth:admin_web` | `{ provider_code }` — gửi 1 ảnh thử để kiểm vision thật. |
+| GET | `/api/v1/admin/ai-visual-rerank` | web + `auth:admin_web` | `{ selected_provider_code, providers:[{code,display_name,default_model,is_active,vision_verified,vision_verified_at,vision_verify_error}] }` — chỉ provider `role='vision'`. |
+| PUT | `/api/v1/admin/ai-visual-rerank` | web + `auth:admin_web` | `{ provider_code }` (rỗng = xoá lựa chọn, không dùng vision). `422 PROVIDER_NOT_ACTIVE` nếu provider không tồn tại/chưa bật; **`422 PROVIDER_NOT_VERIFIED`** nếu provider chưa `vision_verified=true` (chưa "Gửi ảnh thử" thành công lần nào). |
+| POST | `/api/v1/admin/ai-visual-rerank/test` | web + `auth:admin_web` | `{ provider_code }` — gửi 1 ảnh thử thật để kiểm vision; thành công ghi `vision_verified=true` + `vision_verified_at`; thất bại ghi `vision_verified=false` + `vision_verify_error`. Đây là cách DUY NHẤT set `vision_verified=true`. |
+
+#### AI chuyển giọng nói — speech-to-text (STT) — super-admin
+
+Endpoint song song với vision re-rank ở trên, nhưng lọc theo `role='transcription'` và verify bằng 1 mẫu audio thay vì ảnh.
+
+| Method | Path | Auth | Mô tả |
+|---|---|---|---|
+| GET | `/api/v1/admin/ai-transcription` | web + `auth:admin_web` | `{ selected_provider_code, providers:[{code,display_name,default_model,is_active,transcription_verified,transcription_verified_at,transcription_verify_error}] }` — chỉ provider `role='transcription'`. |
+| PUT | `/api/v1/admin/ai-transcription` | web + `auth:admin_web` | `{ provider_code }` (rỗng = xoá lựa chọn). `422 PROVIDER_NOT_ACTIVE` nếu provider không tồn tại/chưa bật; **`422 PROVIDER_NOT_VERIFIED`** nếu provider chưa `transcription_verified=true`. Audit `messaging.transcription.provider_set`. |
+| POST | `/api/v1/admin/ai-transcription/test` | web + `auth:admin_web` | `{ provider_code }` — gửi 1 mẫu audio thử (transcribe thật qua connector); thành công trả `{ok:true, text}` + ghi `transcription_verified=true` + `transcription_verified_at`; provider không hỗ trợ STT ⇒ `{ok:false, reason:'unsupported'}`; lỗi khác ⇒ `{ok:false, reason:'error', message}` + ghi `transcription_verified=false` + `transcription_verify_error`. |
+
+Provider được chọn ở đây dùng khi transcribe tin nhắn thoại inbound (job `TranscribeInboundAudio`, ghi vào `message_attachments.transcript`).
+
+**Deploy note:** tính năng role + verified capabilities cần `php artisan migrate` (cột `role`/`vision_verified`/`vision_verified_at`/`vision_verify_error`/`transcription_verified`/`transcription_verified_at`/`transcription_verify_error` trên `ai_providers`; cột `transcript` trên `message_attachments`). Sau deploy, mọi provider đã có role vision/transcription từ trước sẽ `*_verified=null` (chưa xác minh) ⇒ super-admin phải vào lại "AI chấm ảnh"/"AI chuyển giọng nói" bấm "Thử" tới khi thành công mới set lại được — cho tới lúc đó, chat gắn ảnh (image-attach), vision re-rank và STT vẫn tắt/không dùng được provider đó.
 
 **Codes lỗi đặc thù Admin/Over-quota:**
 - `ADMIN_AUTH_FAILED` (`401`) — login admin sai hoặc tài khoản đã bị vô hiệu hoá (Spec 2026-05-17).
@@ -522,8 +538,8 @@ Popup giữa màn hình cho mọi user (fix bug, tạm dừng dịch vụ…). A
   - `POST   /admin/support-conversations/{id}/close` — đóng + chèn tin hệ thống + báo user (audit `support.conversation.close`).
 
 **Admin SPA `/api/v1/admin/*`** (admin guard, không cần tenant):
-- `GET/POST/PATCH/DELETE /admin/ai-providers[/{code}]` — CRUD provider trong `system_settings.ai_providers.<code>`.
-- `POST   /admin/ai-providers/{code}/test` — test connection (sinh 1 reply "hello").
+- `GET/POST/PATCH/DELETE /admin/ai-providers[/{code}]` — CRUD provider (bảng `ai_providers`). Field `role ∈ {chat,vision,transcription}` (mặc định `chat`) quyết định provider dùng làm gì — provider `role='vision'`/`role='transcription'` KHÔNG bao giờ được chọn làm model chat mặc định (`AiAssistantRegistry::activeProviders(string $role='chat')` lọc theo role). Response mỗi provider gồm `code, adapter, display_name, has_api_key, api_key, base_url, default_model, pricing, adapter_config, is_active, sort_order, notes, capabilities, role, vision_verified, vision_verified_at, vision_verify_error, transcription_verified, transcription_verified_at, transcription_verify_error, updated_at` — `api_key` trả **plaintext** (đã bỏ mask, trang chỉ super-admin `auth:admin_web` xem được).
+- `POST   /admin/ai-providers/{code}/test` — test connection (sinh 1 reply "hello" + thử `embedding`). Chỉ kiểm khả năng **chat**; KHÔNG set `vision_verified`/`transcription_verified` — 2 cờ đó chỉ set qua `/admin/ai-visual-rerank/test` và `/admin/ai-transcription/test` (xem 2 mục ở trên).
 - `GET    /admin/messaging/ai-usage` — per-tenant per-month cost (đọc từ `ai_assistant_runs`).
 
 **Mã lỗi mới (đề xuất):**

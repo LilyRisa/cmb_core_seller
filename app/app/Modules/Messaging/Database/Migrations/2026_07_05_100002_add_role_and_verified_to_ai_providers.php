@@ -23,7 +23,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('ai_providers', function (Blueprint $table) {
-            $table->dropColumn(['role','vision_verified','vision_verified_at','vision_verify_error','transcription_verified','transcription_verified_at','transcription_verify_error']);
+            $table->dropColumn(['role', 'vision_verified', 'vision_verified_at', 'vision_verify_error', 'transcription_verified', 'transcription_verified_at', 'transcription_verify_error']);
         });
     }
 };
