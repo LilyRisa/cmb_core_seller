@@ -1,6 +1,7 @@
 <?php
 
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\AdminAiProviderController;
+use CMBcoreSeller\Modules\Messaging\Http\Controllers\AdminTranscriptionController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\AiSuggestionController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\AutomationFlowController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\AutoReplyRuleController;
@@ -256,4 +257,18 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
             ->where('code', '[a-z0-9][a-z0-9_-]*')->name('admin.ai-providers.destroy');
         Route::post('{code}/test', [AdminAiProviderController::class, 'test'])
             ->where('code', '[a-z0-9][a-z0-9_-]*')->name('admin.ai-providers.test');
+    });
+
+/*
+ |--------------------------------------------------------------------------
+ | Admin STT (transcription) provider (Task 6) — super-admin, guard `admin_web`.
+ |--------------------------------------------------------------------------
+ | Chọn provider RIÊNG cho voice-to-text (role=transcription), phải verified
+ | trước khi PUT. Lưu tại system_setting('messaging.transcription.provider_code').
+ */
+Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
+    ->prefix('api/v1/admin/ai-transcription')->group(function () {
+        Route::get('/', [AdminTranscriptionController::class, 'index'])->name('admin.ai-transcription.index');
+        Route::put('/', [AdminTranscriptionController::class, 'update'])->name('admin.ai-transcription.update');
+        Route::post('test', [AdminTranscriptionController::class, 'test'])->name('admin.ai-transcription.test');
     });
