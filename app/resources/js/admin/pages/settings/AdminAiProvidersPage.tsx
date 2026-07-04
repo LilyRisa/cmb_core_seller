@@ -8,7 +8,7 @@ import { ApiOutlined, PlusOutlined, ReloadOutlined, ThunderboltOutlined } from '
 import { errorMessage } from '@/lib/api';
 import {
     useAiProviders, useCreateAiProvider, useUpdateAiProvider, useDisableAiProvider, useTestAiProvider,
-    type AiProviderRow, type AiAdapter, type AiPreset, type CustomHttpConfig,
+    type AiProviderRow, type AiAdapter, type AiRole, type AiPreset, type CustomHttpConfig,
 } from '../../lib/aiProviders';
 
 const ADAPTER_LABEL: Record<AiAdapter, string> = {
@@ -16,6 +16,12 @@ const ADAPTER_LABEL: Record<AiAdapter, string> = {
     openai_compatible: 'OpenAI-compatible (GPT/DeepSeek/Qwen/OpenRouter/Gemini)',
     custom_http: 'Tùy chỉnh (HTTP)',
     manual: 'Manual (test/dev)',
+};
+
+const ROLE_LABEL: Record<AiRole, string> = {
+    chat: 'Chat',
+    vision: 'Chấm ảnh',
+    transcription: 'Chuyển giọng nói',
 };
 
 // Fallback khi API chưa trả; NGUỒN CHÍNH là data.adapters (registry BE) để FE
@@ -45,7 +51,7 @@ export function AdminAiProvidersPage() {
     const openCreate = () => {
         setEditing(null);
         form.resetFields();
-        form.setFieldsValue({ adapter: 'openai_compatible', is_active: true, sort_order: 0 });
+        form.setFieldsValue({ adapter: 'openai_compatible', role: 'chat', is_active: true, sort_order: 0 });
         setOpen(true);
     };
     const openEdit = (row: AiProviderRow) => {
@@ -118,6 +124,7 @@ export function AdminAiProvidersPage() {
     const columns = [
         { title: 'Mã', dataIndex: 'code', key: 'code', render: (c: string) => <Tag>{c}</Tag> },
         { title: 'Loại (adapter)', dataIndex: 'adapter', key: 'adapter', render: (a: AiAdapter) => ADAPTER_LABEL[a] },
+        { title: 'Vai trò', dataIndex: 'role', key: 'role', render: (r: AiRole) => <Tag color="blue">{ROLE_LABEL[r] ?? r}</Tag> },
         { title: 'Tên hiển thị', dataIndex: 'display_name', key: 'display_name' },
         { title: 'Model', dataIndex: 'default_model', key: 'default_model' },
         {
@@ -205,6 +212,14 @@ export function AdminAiProvidersPage() {
                         <Input placeholder="vd: deepseek-prod" disabled={!!editing} />
                     </Form.Item>
                     <Form.Item name="display_name" label="Tên hiển thị"><Input placeholder="vd: DeepSeek (prod)" /></Form.Item>
+
+                    <Form.Item name="role" label="Vai trò" rules={[{ required: true }]} initialValue="chat">
+                        <Radio.Group optionType="button" buttonStyle="solid">
+                            {(Object.keys(ROLE_LABEL) as AiRole[]).map((r) => (
+                                <Radio.Button key={r} value={r}>{ROLE_LABEL[r]}</Radio.Button>
+                            ))}
+                        </Radio.Group>
+                    </Form.Item>
 
                     {/* base_url + default_model: required theo adapter (khớp validate BE).
                         SafeProviderUrl bắt buộc HTTPS + host công khai (chặn http/localhost/LAN). */}

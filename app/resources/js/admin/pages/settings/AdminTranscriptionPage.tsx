@@ -1,16 +1,16 @@
-// Trang admin "AI chấm ảnh" — chọn provider AI RIÊNG cho bước vision re-rank
-// (chấm ảnh top-5). Tách hoàn toàn khỏi trang "Nhà cung cấp AI". SPEC 2026-07-05.
+// Trang admin "AI chuyển giọng nói (STT)" — chọn provider AI RIÊNG cho bước
+// transcribe tin nhắn thoại. Tách hoàn toàn khỏi trang "Nhà cung cấp AI". SPEC 2026-07-05.
 import { useEffect, useState } from 'react';
 import { Card, Radio, Space, Typography, Tag, Button, Alert, message } from 'antd';
-import { PictureOutlined, CheckCircleOutlined, CloseCircleOutlined, QuestionCircleOutlined, ExperimentOutlined } from '@ant-design/icons';
-import { useVisualRerank, useSaveVisualRerank, useTestVisualRerank } from '../../lib/visualRerank';
+import { AudioOutlined, CheckCircleOutlined, CloseCircleOutlined, QuestionCircleOutlined, ExperimentOutlined } from '@ant-design/icons';
+import { useTranscriptionConfig, useSaveTranscription, useTestTranscription } from '../../lib/aiTranscription';
 
 const NONE = '';
 
-export function AdminVisualRerankPage() {
-    const { data, isLoading } = useVisualRerank();
-    const save = useSaveVisualRerank();
-    const test = useTestVisualRerank();
+export function AdminTranscriptionPage() {
+    const { data, isLoading } = useTranscriptionConfig();
+    const save = useSaveTranscription();
+    const test = useTestTranscription();
     const [selected, setSelected] = useState<string>(NONE);
 
     useEffect(() => {
@@ -19,7 +19,7 @@ export function AdminVisualRerankPage() {
 
     const onSave = async () => {
         await save.mutateAsync(selected);
-        message.success('Đã lưu provider chấm ảnh.');
+        message.success('Đã lưu provider chuyển giọng nói.');
     };
 
     const onTest = async () => {
@@ -28,37 +28,37 @@ export function AdminVisualRerankPage() {
             return;
         }
         const r = await test.mutateAsync(selected);
-        if (r.ok) message.success(`Gửi ảnh thử OK. Phản hồi: ${r.sample ?? '(rỗng)'}`);
+        if (r.ok) message.success(`Thử transcribe OK. Phản hồi: ${r.text ?? '(rỗng)'}`);
         else message.error(`Thử thất bại: ${r.message ?? r.reason ?? 'lỗi'}`);
     };
 
     return (
         <Card
             loading={isLoading}
-            title={<Space><PictureOutlined /> AI chấm ảnh (vision re-rank)</Space>}
+            title={<Space><AudioOutlined /> AI chuyển giọng nói (STT)</Space>}
         >
             <Alert
                 type="info"
                 showIcon
                 style={{ marginBottom: 16 }}
-                message="Provider này chỉ dùng để chấm ảnh khi khách gửi ảnh — độc lập với model chat."
-                description="Chưa chọn (Không cấu hình) ⇒ dùng model chat của hội thoại. Phải bấm 'Gửi ảnh thử' thành công (Đã xác minh) mới lưu được. Muốn model vision khác: tạo provider mới ở trang 'Nhà cung cấp AI' rồi chọn tại đây."
+                message="Provider này chỉ dùng để chuyển giọng nói khi khách gửi tin nhắn thoại — độc lập với model chat."
+                description="Chưa chọn (Không cấu hình) ⇒ tắt tính năng chuyển giọng nói. Phải bấm 'Thử transcribe' thành công (Đã xác minh) mới lưu được. Muốn model STT khác: tạo provider mới ở trang 'Nhà cung cấp AI' rồi chọn tại đây."
             />
 
             <Radio.Group value={selected} onChange={(e) => setSelected(e.target.value)}>
                 <Space direction="vertical" style={{ width: '100%' }}>
                     <Radio value={NONE}>
                         <Typography.Text strong>(Không cấu hình)</Typography.Text>
-                        <Typography.Text type="secondary"> — dùng model chat</Typography.Text>
+                        <Typography.Text type="secondary"> — tắt chuyển giọng nói</Typography.Text>
                     </Radio>
                     {(data?.providers ?? []).filter((p) => p.is_active).map((p) => (
                         <Radio key={p.code} value={p.code}>
                             <Space>
                                 <Typography.Text strong>{p.display_name || p.code}</Typography.Text>
                                 <Typography.Text code>{p.default_model}</Typography.Text>
-                                {p.vision_verified === true
+                                {p.transcription_verified === true
                                     ? <Tag color="green" icon={<CheckCircleOutlined />}>Đã xác minh</Tag>
-                                    : p.vision_verified === false
+                                    : p.transcription_verified === false
                                         ? <Tag color="red" icon={<CloseCircleOutlined />}>Thất bại</Tag>
                                         : <Tag icon={<QuestionCircleOutlined />}>Chưa kiểm tra</Tag>}
                             </Space>
@@ -73,12 +73,12 @@ export function AdminVisualRerankPage() {
                         type="primary"
                         onClick={onSave}
                         loading={save.isPending}
-                        disabled={selected !== NONE && data?.providers.find((p) => p.code === selected)?.vision_verified !== true}
+                        disabled={selected !== NONE && data?.providers.find((p) => p.code === selected)?.transcription_verified !== true}
                     >
                         Lưu
                     </Button>
                     <Button icon={<ExperimentOutlined />} onClick={onTest} loading={test.isPending} disabled={selected === NONE}>
-                        Gửi ảnh thử
+                        Thử transcribe
                     </Button>
                 </Space>
             </div>

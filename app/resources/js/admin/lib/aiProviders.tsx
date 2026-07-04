@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
 export type AiAdapter = 'anthropic' | 'openai_compatible' | 'custom_http' | 'manual';
+export type AiRole = 'chat' | 'vision' | 'transcription';
 
 export interface AiPreset {
     name: string;
@@ -24,6 +25,7 @@ export interface CustomHttpConfig {
 export interface AiProviderRow {
     code: string;
     adapter: AiAdapter;
+    role: AiRole;
     display_name: string | null;
     has_api_key: boolean;
     /** Plaintext key (đã giải mã) — trang admin hiển thị thẳng trong form sửa. */
@@ -42,6 +44,7 @@ export interface AiProviderRow {
 export interface AiProviderPayload {
     code?: string;
     adapter?: AiAdapter;
+    role?: AiRole;
     display_name?: string | null;
     api_key?: string | null;
     base_url?: string | null;

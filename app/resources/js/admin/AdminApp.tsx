@@ -20,6 +20,7 @@ import { AdminAiProvidersPage } from './pages/settings/AdminAiProvidersPage';
 import { AdminMarketingAiProvidersPage } from './pages/settings/AdminMarketingAiProvidersPage';
 import { AdminAiSupportPage } from './pages/settings/AdminAiSupportPage';
 import { AdminVisualRerankPage } from './pages/settings/AdminVisualRerankPage';
+import { AdminTranscriptionPage } from './pages/settings/AdminTranscriptionPage';
 import { AdminSupportRequestsPage } from './pages/support/AdminSupportRequestsPage';
 
 export function AdminApp() {
@@ -49,6 +50,7 @@ export function AdminApp() {
                     <Route path="marketing-ai-providers" element={<AdminMarketingAiProvidersPage />} />
                     <Route path="ai-support" element={<AdminAiSupportPage />} />
                     <Route path="ai-visual-rerank" element={<AdminVisualRerankPage />} />
+                    <Route path="ai-transcription" element={<AdminTranscriptionPage />} />
                     <Route path="support-requests" element={<AdminSupportRequestsPage />} />
                     <Route path="*" element={<Navigate to="/admin" replace />} />
                 </Route>

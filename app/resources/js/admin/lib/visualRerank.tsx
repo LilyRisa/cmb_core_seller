@@ -8,7 +8,9 @@ export interface RerankProvider {
     display_name: string | null;
     default_model: string | null;
     is_active: boolean;
-    vision: boolean;
+    vision_verified: boolean | null;
+    vision_verified_at: string | null;
+    vision_verify_error: string | null;
 }
 
 export interface RerankConfig {
@@ -42,8 +44,10 @@ export interface RerankTestResult {
 }
 
 export function useTestVisualRerank() {
+    const qc = useQueryClient();
     return useMutation({
         mutationFn: async (providerCode: string): Promise<RerankTestResult> =>
             (await api.post<{ data: RerankTestResult }>('/admin/ai-visual-rerank/test', { provider_code: providerCode })).data.data,
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['visual-rerank-config'] }),
     });
 }
