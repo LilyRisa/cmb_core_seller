@@ -36,6 +36,7 @@ const SIDEBAR_ITEMS = [
     { key: '/admin/ai-providers', icon: <ApiOutlined />, label: 'Nhà cung cấp AI' },
     { key: '/admin/marketing-ai-providers', icon: <ApiOutlined />, label: 'AI Marketing' },
     { key: '/admin/ai-support', icon: <CustomerServiceOutlined />, label: 'AI Trợ giúp' },
+    { key: '/admin/ai-visual-rerank', icon: <PictureOutlined />, label: 'AI chấm ảnh' },
     { key: '/admin/support-requests', icon: <SolutionOutlined />, label: 'Yêu cầu CSKH' },
     { key: '/admin/audit-logs', icon: <AuditOutlined />, label: 'Nhật ký' },
 ];
