@@ -7,6 +7,7 @@ use CMBcoreSeller\Integrations\Ai\Concerns\ReplyPersona;
 use CMBcoreSeller\Integrations\Ai\Concerns\SanitizesReasoning;
 use CMBcoreSeller\Integrations\Ai\Contracts\AiAssistantConnector;
 use CMBcoreSeller\Integrations\Ai\Contracts\AiProviderCredentials;
+use CMBcoreSeller\Integrations\Ai\Contracts\AudioTranscriber;
 use CMBcoreSeller\Integrations\Ai\DTO\AiContext;
 use CMBcoreSeller\Integrations\Ai\DTO\AiProviderRuntimeConfig;
 use CMBcoreSeller\Integrations\Ai\DTO\AiReplyDTO;
@@ -15,6 +16,7 @@ use CMBcoreSeller\Integrations\Ai\DTO\EmbeddingDTO;
 use CMBcoreSeller\Integrations\Ai\DTO\IntentDTO;
 use CMBcoreSeller\Integrations\Ai\DTO\KnowledgeBase;
 use CMBcoreSeller\Integrations\Ai\Exceptions\ProviderNotConfigured;
+use CMBcoreSeller\Integrations\Ai\Exceptions\TranscriptionFailed;
 use CMBcoreSeller\Integrations\Ai\Exceptions\UnsupportedOperation;
 use Illuminate\Support\Facades\Http;
 
@@ -34,7 +36,7 @@ use Illuminate\Support\Facades\Http;
  * Adapter `openai_compatible`: dùng cho OpenAI, DeepSeek, Qwen (DashScope compat),
  * OpenRouter, Gemini (v1beta/openai)… phân biệt qua base_url + api_key + default_model per-instance.
  */
-class OpenAiConnector implements AiAssistantConnector
+class OpenAiConnector implements AiAssistantConnector, AudioTranscriber
 {
     use EstimatesAiCost;
     use SanitizesReasoning;
@@ -61,6 +63,7 @@ class OpenAiConnector implements AiAssistantConnector
             'rag.training' => true,
             'embedding' => true,
             'vision.analyze' => true,  // re-rank visual search (model vision)
+            'transcribe.audio' => true,
         ];
     }
 
@@ -253,6 +256,30 @@ class OpenAiConnector implements AiAssistantConnector
         }
 
         return $this->stripReasoning((string) $response->json('choices.0.message.content', ''));
+    }
+
+    public function transcribeAudio(AiContext $ctx, string $bytes, string $mime, ?string $filename = null): string
+    {
+        $cfg = $this->config();
+        $model = $ctx->model ?: $cfg->defaultModel;
+        if (! $model) {
+            throw new ProviderNotConfigured('OpenAI provider cần default_model (STT).');
+        }
+
+        $response = Http::withToken($cfg->apiKey)
+            ->connectTimeout((int) config('ai.http.connect_timeout', 10))
+            ->timeout((int) config('ai.http.reply_timeout', 60))
+            ->attach('file', $bytes, $filename ?: 'audio.mp3')
+            ->post($this->base($cfg).'/v1/audio/transcriptions', [
+                'model' => $model,
+                'response_format' => 'json',
+            ]);
+
+        if (! $response->successful()) {
+            throw TranscriptionFailed::http($this->code(), $response->status());
+        }
+
+        return trim((string) $response->json('text', ''));
     }
 
     public function pricing(): array
