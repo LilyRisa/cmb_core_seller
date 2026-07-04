@@ -1064,6 +1064,41 @@ class ShipmentService
             : Shipment::query()->where('tenant_id', $tenantId)->whereIn('order_id', $orderIds)->open()->latest('id')->first();
     }
 
+    /**
+     * Resolve mã quét → Order cho luồng KIỂM TRA / XÁC NHẬN HOÀN (read-only).
+     * Khác findByScanCode: KHÔNG giới hạn shipment open() — nhận cả vận đơn đã huỷ, và
+     * vẫn resolve được đơn qua order_number/id kể cả khi không còn shipment nào.
+     */
+    public function findOrderByScanCode(int $tenantId, string $code): ?Order
+    {
+        $code = trim($code);
+        if ($code === '') {
+            return null;
+        }
+        // 1) tracking_no trên MỌI shipment (mọi trạng thái)
+        $orderId = Shipment::query()->where('tenant_id', $tenantId)
+            ->where('tracking_no', $code)->latest('id')->value('order_id');
+        if ($orderId) {
+            $order = Order::query()->where('tenant_id', $tenantId)->whereNull('deleted_at')->find($orderId);
+            if ($order) {
+                return $order;
+            }
+        }
+        // 2) order_number / external_order_id
+        $order = Order::query()->where('tenant_id', $tenantId)->whereNull('deleted_at')
+            ->where(fn ($q) => $q->where('order_number', $code)->orWhere('external_order_id', $code))
+            ->latest('id')->first();
+        if ($order) {
+            return $order;
+        }
+        // 3) id số
+        if (ctype_digit($code)) {
+            return Order::query()->where('tenant_id', $tenantId)->whereNull('deleted_at')->find((int) $code);
+        }
+
+        return null;
+    }
+
     // ---- internals -----------------------------------------------------------------
 
     private function fetchLabel(Shipment $shipment, $connector, array $accountArr): void

@@ -390,6 +390,21 @@ class ShipmentController extends Controller
         return $this->scan($request, (int) $tenant->id(), action: 'pack');
     }
 
+    /**
+     * POST /api/v1/scan-lookup { code } — (app) quét mã ⇒ trả chi tiết đơn (kiểm tra / xác nhận hoàn).
+     * Read-only, KHÔNG thay đổi trạng thái. Resolve kể cả shipment đã đóng/huỷ (đơn hoàn).
+     */
+    public function scanLookup(Request $request, CurrentTenant $tenant): JsonResponse
+    {
+        abort_unless($request->user()?->can('fulfillment.view') || $request->user()?->can('fulfillment.scan'), 403, 'Bạn không có quyền tra cứu đơn.');
+        $data = $request->validate(['code' => ['required', 'string', 'max:120']]);
+        $order = $this->service->findOrderByScanCode((int) $tenant->id(), $data['code']);
+        abort_if($order === null, 404, 'Không tìm thấy đơn ứng với mã đã quét.');
+        $order->load(['items', 'shipments', 'statusHistory']);
+
+        return response()->json(['data' => new OrderResource($order)]);
+    }
+
     /** Shared scan handler for /scan-pack & /scan-handover. */
     private function scan(Request $request, int $tenantId, string $action): JsonResponse
     {
