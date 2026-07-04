@@ -75,7 +75,7 @@ export function AdminMarketingAiProvidersPage() {
                     <Form.Item name="adapter" label="Adapter" rules={[{ required: true }]}>
                         <Segmented options={[{ label: 'OpenAI-compatible', value: 'openai_compatible' }, { label: 'Anthropic', value: 'anthropic' }, { label: 'Manual (stub)', value: 'manual' }]} />
                     </Form.Item>
-                    <Form.Item name="api_key" label={editing ? 'API key (để trống = giữ nguyên)' : 'API key'}><Input.Password placeholder="sk-..." /></Form.Item>
+                    <Form.Item name="api_key" label={editing ? 'API key (để trống = giữ nguyên)' : 'API key'}><Input placeholder="sk-..." /></Form.Item>
                     <Form.Item name="base_url" label="Base URL (tuỳ chọn)"><Input placeholder="https://api.openai.com/v1" /></Form.Item>
                     <Form.Item name="default_model" label="Model"><Input placeholder="gpt-4o-mini" /></Form.Item>
                     <Form.Item name="is_active" label="Đang dùng" valuePropName="checked"><Switch /></Form.Item>
