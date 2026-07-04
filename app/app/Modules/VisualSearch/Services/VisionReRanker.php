@@ -37,6 +37,18 @@ class VisionReRanker
             return self::NOT_RUN;
         }
 
+        // Provider AI RIÊNG cho re-rank (SPEC 2026-07-05). Rỗng/không active ⇒ giữ provider chat.
+        $override = trim((string) system_setting('visual_search.rerank.provider_code', ''));
+        if ($override !== '' && $override !== $providerCode && in_array($override, $this->registry->activeProviders(), true)) {
+            $providerCode = $override;
+            $ctx = new AiContext(
+                tenantId: $ctx->tenantId,
+                providerCode: $override,
+                model: null, // null ⇒ connector dùng default_model của provider re-rank
+                meta: ['mode' => 'visual_rerank'],
+            );
+        }
+
         try {
             $connector = $this->registry->for($providerCode);
         } catch (\Throwable) {

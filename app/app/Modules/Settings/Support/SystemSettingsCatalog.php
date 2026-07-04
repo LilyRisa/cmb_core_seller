@@ -318,6 +318,15 @@ class SystemSettingsCatalog
                 'env' => 'HELP_ASSISTANT_EMBEDDING_MODEL', 'label' => 'Hỏi AI — Embedding: Model',
                 'description' => 'Model embedding (vd text-embedding-3-small). Đổi model ⇒ chạy lại `php artisan help:index --fresh`.',
             ],
+
+            // ── Visual re-rank (SPEC 2026-07-05) — provider AI RIÊNG cho bước chấm ảnh ─
+            // Rỗng ⇒ fallback provider chat. Trỏ tới `code` một provider trong ai_providers.
+            // Cấu hình ở /admin/ai-visual-rerank.
+            'visual_search.rerank.provider_code' => [
+                'group' => 'ai', 'type' => 'string', 'is_secret' => false,
+                'env' => 'VISUAL_SEARCH_RERANK_PROVIDER_CODE', 'label' => 'AI chấm ảnh — Provider',
+                'description' => 'Code provider AI dùng cho bước chấm ảnh (vision re-rank). Rỗng ⇒ dùng model chat.',
+            ],
         ];
     }
 

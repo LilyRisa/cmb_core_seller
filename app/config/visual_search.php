@@ -38,6 +38,9 @@ return [
 
     'rerank' => [
         'enabled' => (bool) env('VISUAL_SEARCH_RERANK', true),
+        // Provider AI dùng để chấm ảnh do super-admin chọn ở /admin/ai-visual-rerank,
+        // lưu tại system_setting('visual_search.rerank.provider_code'). Rỗng ⇒ dùng
+        // provider/model chat của hội thoại (fallback, non-breaking).
     ],
 
     'image' => [
