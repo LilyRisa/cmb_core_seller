@@ -254,7 +254,7 @@ class ClaudeConnector implements AiAssistantConnector
             ->retry(1 + (int) config('ai.http.retries', 1), (int) config('ai.http.retry_backoff_ms', 1000), throw: false)
             ->post(rtrim($cfg->baseUrl ?: 'https://api.anthropic.com', '/').'/v1/messages', [
                 'model' => $model,
-                'max_tokens' => 300,
+                'max_tokens' => (int) config('ai.vision.max_tokens', 2048),
                 'messages' => [['role' => 'user', 'content' => $content]],
             ]);
 

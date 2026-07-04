@@ -244,7 +244,7 @@ class OpenAiConnector implements AiAssistantConnector
             ->retry(1 + (int) config('ai.http.retries', 1), (int) config('ai.http.retry_backoff_ms', 1000), throw: false)
             ->post($this->base($cfg).'/v1/chat/completions', [
                 'model' => $model,
-                'max_tokens' => 300,
+                'max_tokens' => (int) config('ai.vision.max_tokens', 2048),
                 'messages' => [['role' => 'user', 'content' => $parts]],
             ]);
 

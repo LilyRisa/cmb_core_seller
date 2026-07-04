@@ -350,4 +350,29 @@ class AiProviderHttpTest extends TestCase
             null,
         );
     }
+
+    public function test_analyze_images_uses_configured_max_tokens(): void
+    {
+        config()->set('ai.vision.enabled', true);
+        config()->set('ai.vision.models', ['gpt-4o']);
+        config()->set('ai.vision.max_tokens', 2048);
+
+        Http::fake([
+            '*/chat/completions' => Http::response(
+                ['choices' => [['message' => ['content' => '{"match":1}']]]], 200),
+        ]);
+
+        AiProvider::query()->create([
+            'code' => 'openai', 'adapter' => 'openai_compatible', 'is_active' => true,
+            'api_key' => 'sk-x', 'base_url' => 'https://api.openai.com', 'default_model' => 'gpt-4o',
+        ]);
+
+        app(OpenAiConnector::class)->analyzeImages(
+            new AiContext(tenantId: 1, providerCode: 'openai'),
+            ['data:image/png;base64,AAAA'],
+            'pick one',
+        );
+
+        Http::assertSent(fn ($req) => ($req->data()['max_tokens'] ?? null) === 2048);
+    }
 }

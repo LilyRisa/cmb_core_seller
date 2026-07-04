@@ -24,4 +24,11 @@ class VisionModelGateTest extends TestCase
 
         $this->assertFalse(VisionModelGate::enabledFor('ts/gpt-5.4-mini'));
     }
+
+    public function test_default_config_recognizes_nvidia_multimodal_variants(): void
+    {
+        // KHÔNG override config ⇒ dùng default trong config/ai.php.
+        $this->assertTrue(VisionModelGate::enabledFor('nvidia/nemotron-3-nano-omni-30b-a3b-reasoning'));
+        $this->assertTrue(VisionModelGate::enabledFor('nvidia/nemotron-nano-12b-v2-vl'));
+    }
 }

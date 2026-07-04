@@ -44,12 +44,15 @@ return [
         // Substring (lowercase) khớp tên model có khả năng vision. 'gpt-5' khớp cả ts/gpt-5.x.
         'models' => array_values(array_filter(array_map('trim', explode(',', (string) env(
             'AI_VISION_MODELS',
-            'claude-3,claude-haiku,claude-sonnet,claude-opus,claude-4,gpt-4o,gpt-4.1,gpt-4-vision,gpt-5,o4,gemini',
+            'claude-3,claude-haiku,claude-sonnet,claude-opus,claude-4,gpt-4o,gpt-4.1,gpt-4-vision,gpt-5,o4,gemini,omni,-vl',
         ))))),
         'max_images_per_message' => (int) env('AI_VISION_MAX_IMAGES_PER_MESSAGE', 3),
         // Nhúng base64 thay vì link — mặc định BẬT (cổng OpenAI-compatible thường không fetch URL).
         'inline_base64' => filter_var(env('AI_VISION_INLINE_BASE64', true), FILTER_VALIDATE_BOOLEAN),
         // Bỏ qua ảnh > ngưỡng khi nhúng base64 (KB) để tránh phình request.
         'inline_max_kb' => (int) env('AI_VISION_INLINE_MAX_KB', 4096),
+        // Trần token cho analyzeImages. Model reasoning (vd nemotron omni) tiêu token
+        // "suy nghĩ" trước khi ra JSON ⇒ 300 dễ cắt cụt. Nới rộng để hoàn tất.
+        'max_tokens' => (int) env('AI_VISION_MAX_TOKENS', 2048),
     ],
 ];
