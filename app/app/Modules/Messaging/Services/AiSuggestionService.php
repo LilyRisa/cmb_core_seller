@@ -361,7 +361,7 @@ class AiSuggestionService
         }
         $t = MessageAttachment::withoutGlobalScope(TenantScope::class)
             ->where('message_id', $m->id)
-            ->where('kind', MessageAttachment::KIND_AUDIO)
+            ->audioLike()
             ->whereNotNull('transcript')
             ->value('transcript');
 

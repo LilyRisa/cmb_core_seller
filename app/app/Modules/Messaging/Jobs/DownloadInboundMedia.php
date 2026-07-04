@@ -51,7 +51,7 @@ class DownloadInboundMedia implements ShouldQueue
 
         // Voice khách → transcribe (STT) nếu đã tải xong.
         $fresh = $attachment->fresh();
-        if ($fresh && $fresh->kind === MessageAttachment::KIND_AUDIO && $fresh->status === MessageAttachment::STATUS_DOWNLOADED) {
+        if ($fresh && $fresh->isAudioLike() && $fresh->status === MessageAttachment::STATUS_DOWNLOADED) {
             TranscribeInboundAudio::dispatch($fresh->id);
         }
     }

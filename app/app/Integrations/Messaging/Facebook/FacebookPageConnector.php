@@ -603,6 +603,7 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
             $attKind = match ($wtype) {
                 'image' => MessageKind::Image,
                 'video' => MessageKind::Video,
+                'audio' => MessageKind::Audio, // FB voice = type 'audio' → kind Audio (không để rơi File)
                 default => MessageKind::File,
             };
             $attUrl = isset($payload['url']) && (string) $payload['url'] !== '' ? (string) $payload['url'] : null;
@@ -1103,6 +1104,7 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
         $kind = match (true) {
             isset($att['image_data']) || str_starts_with($mime, 'image/') => MessageKind::Image,
             isset($att['video_data']) || str_starts_with($mime, 'video/') => MessageKind::Video,
+            str_starts_with($mime, 'audio/') => MessageKind::Audio,
             default => MessageKind::File,
         };
 

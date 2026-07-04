@@ -41,7 +41,7 @@ class TranscribeInboundAudio implements ShouldQueue
         // Job chạy không có tenant context ⇒ phải bỏ TenantScope khi tìm attachment
         // (giống DownloadInboundMedia) nếu không sẽ null-noop âm thầm.
         $att = MessageAttachment::withoutGlobalScope(TenantScope::class)->find($this->attachmentId);
-        if (! $att || $att->kind !== MessageAttachment::KIND_AUDIO
+        if (! $att || ! $att->isAudioLike()
             || $att->status !== MessageAttachment::STATUS_DOWNLOADED
             || $att->transcript !== null || ! $att->storage_path) {
             return;

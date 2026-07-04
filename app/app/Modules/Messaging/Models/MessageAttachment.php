@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Messaging\Models;
 
 use CMBcoreSeller\Modules\Tenancy\Concerns\BelongsToTenant;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -67,5 +68,24 @@ class MessageAttachment extends Model
     public function message(): BelongsTo
     {
         return $this->belongsTo(Message::class);
+    }
+
+    /**
+     * Voice/ghi âm: kind='audio' HOẶC file có mime audio/* (Facebook gửi voice dạng
+     * type='audio' cũng như file mime audio/*). Khớp logic FE `isAudio` để STT nhất quán.
+     */
+    public function isAudioLike(): bool
+    {
+        return $this->kind === self::KIND_AUDIO
+            || ($this->kind === self::KIND_FILE && str_starts_with((string) $this->mime, 'audio/'));
+    }
+
+    /** Scope tương ứng {@see isAudioLike} cho query (transcript/STT). */
+    public function scopeAudioLike(Builder $q): Builder
+    {
+        return $q->where(function (Builder $w) {
+            $w->where('kind', self::KIND_AUDIO)
+                ->orWhere(fn (Builder $f) => $f->where('kind', self::KIND_FILE)->where('mime', 'like', 'audio/%'));
+        });
     }
 }
