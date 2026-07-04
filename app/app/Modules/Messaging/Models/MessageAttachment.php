@@ -48,7 +48,7 @@ class MessageAttachment extends Model
     protected $fillable = [
         'tenant_id', 'message_id', 'kind', 'mime', 'size_bytes',
         'storage_path', 'external_url', 'checksum',
-        'width', 'height', 'duration_ms', 'filename',
+        'width', 'height', 'duration_ms', 'filename', 'transcript',
         'status', 'error',
     ];
 
