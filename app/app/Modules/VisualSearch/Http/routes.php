@@ -1,5 +1,6 @@
 <?php
 
+use CMBcoreSeller\Modules\VisualSearch\Http\Controllers\AdminVisualRerankController;
 use CMBcoreSeller\Modules\VisualSearch\Http\Controllers\TrainingImageController;
 use CMBcoreSeller\Modules\VisualSearch\Http\Controllers\TrainingItemController;
 use CMBcoreSeller\Modules\VisualSearch\Http\Controllers\VisualLookupController;
@@ -38,4 +39,17 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
         // Tìm bằng ảnh (seller) — rate-limit chống lạm dụng.
         Route::post('lookup', [VisualLookupController::class, 'lookup'])
             ->middleware('throttle:30,1')->name('visual-search.lookup');
+    });
+
+/*
+|--------------------------------------------------------------------------
+| Admin — provider AI riêng cho vision re-rank (SPEC 2026-07-05)
+|--------------------------------------------------------------------------
+| Super-admin, guard admin_web, KHÔNG tenant — cùng stack Admin/Settings.
+*/
+Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
+    ->prefix('api/v1/admin/ai-visual-rerank')->group(function () {
+        Route::get('/', [AdminVisualRerankController::class, 'index'])->name('admin.ai-visual-rerank.index');
+        Route::put('/', [AdminVisualRerankController::class, 'update'])->name('admin.ai-visual-rerank.update');
+        Route::post('test', [AdminVisualRerankController::class, 'test'])->name('admin.ai-visual-rerank.test');
     });
