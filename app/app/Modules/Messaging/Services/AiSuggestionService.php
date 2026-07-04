@@ -349,6 +349,21 @@ class AiSuggestionService
         return implode("\n", $lines);
     }
 
+    /** Transcript ghi âm khách (nếu có) → text ngữ cảnh; không có ⇒ null. */
+    public function transcriptFor(Message $m): ?string
+    {
+        if ($m->direction !== Message::DIRECTION_INBOUND) {
+            return null;
+        }
+        $t = MessageAttachment::withoutGlobalScope(TenantScope::class)
+            ->where('message_id', $m->id)
+            ->where('kind', MessageAttachment::KIND_AUDIO)
+            ->whereNotNull('transcript')
+            ->value('transcript');
+
+        return $t ? '[Ghi âm khách]: '.trim((string) $t) : null;
+    }
+
     /** Ảnh inbound (downloaded) gần nhất của hội thoại → VisualImageInput; không có ⇒ null. */
     private function latestInboundImage(Conversation $conv): ?VisualImageInput
     {
@@ -439,6 +454,9 @@ class AiSuggestionService
 
         foreach ($messages as $m) {
             $body = $this->snapshotMessageText($m);
+            if ($body === null || $body === '') {
+                $body = $this->transcriptFor($m);
+            }
             if ($body !== null && $body !== '') {
                 $r = $this->redactor->redact($body);
                 $body = $r->redacted;
