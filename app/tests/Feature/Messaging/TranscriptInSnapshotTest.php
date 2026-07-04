@@ -65,8 +65,10 @@ class TranscriptInSnapshotTest extends TestCase
             'transcript' => 'cho em hỏi ship',
         ]);
 
-        $text = app(AiSuggestionService::class)->transcriptFor($msg->fresh());
-        $this->assertSame('[Ghi âm khách]: cho em hỏi ship', $text);
+        $svc = app(AiSuggestionService::class);
+        $this->assertSame('[Ghi âm khách]: cho em hỏi ship', $svc->transcriptFor($msg->fresh()));
+        // Biến thể THÔ (không nhãn) cho phân loại ý định + RAG.
+        $this->assertSame('cho em hỏi ship', $svc->transcriptFor($msg->fresh(), false));
     }
 
     public function test_no_transcript_returns_null(): void

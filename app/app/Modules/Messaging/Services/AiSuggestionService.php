@@ -350,7 +350,11 @@ class AiSuggestionService
     }
 
     /** Transcript ghi âm khách (nếu có) → text ngữ cảnh; không có ⇒ null. */
-    public function transcriptFor(Message $m): ?string
+    /**
+     * Transcript ghi âm khách (nếu có). `$withLabel=true` ⇒ gắn nhãn "[Ghi âm khách]: "
+     * cho ngữ cảnh trả lời; `false` ⇒ text THÔ cho phân loại ý định + RAG (tránh nhiễu từ khoá).
+     */
+    public function transcriptFor(Message $m, bool $withLabel = true): ?string
     {
         if ($m->direction !== Message::DIRECTION_INBOUND) {
             return null;
@@ -361,7 +365,12 @@ class AiSuggestionService
             ->whereNotNull('transcript')
             ->value('transcript');
 
-        return $t ? '[Ghi âm khách]: '.trim((string) $t) : null;
+        if (! $t) {
+            return null;
+        }
+        $t = trim((string) $t);
+
+        return $withLabel ? '[Ghi âm khách]: '.$t : $t;
     }
 
     /** Ảnh inbound (downloaded) gần nhất của hội thoại → VisualImageInput; không có ⇒ null. */
@@ -585,6 +594,10 @@ class AiSuggestionService
         $parts = [];
         foreach ($messages as $m) {
             $t = $this->snapshotMessageText($m);
+            if ($t === null || $t === '') {
+                // Tin chỉ có ghi âm ⇒ dùng transcript THÔ để classify ý định + RAG.
+                $t = $this->transcriptFor($m, false);
+            }
             if ($t !== null && $t !== '') {
                 $parts[] = $t;
             }
