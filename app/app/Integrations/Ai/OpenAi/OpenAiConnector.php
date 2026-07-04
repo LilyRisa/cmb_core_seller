@@ -326,20 +326,9 @@ class OpenAiConnector implements AiAssistantConnector
         return $messages;
     }
 
-    /** Model hiện tại có khả năng vision (theo `config('ai.vision')`)? */
+    /** Model hiện tại có khả năng vision? Ủy quyền cho VisionModelGate (nguồn sự thật chung). */
     private function visionEnabled(string $model): bool
     {
-        if (! (bool) config('ai.vision.enabled', true)) {
-            return false;
-        }
-        $m = strtolower($model);
-        foreach ((array) config('ai.vision.models', []) as $needle) {
-            $n = strtolower(trim((string) $needle));
-            if ($n !== '' && str_contains($m, $n)) {
-                return true;
-            }
-        }
-
-        return false;
+        return \CMBcoreSeller\Integrations\Ai\Support\VisionModelGate::enabledFor($model);
     }
 }
