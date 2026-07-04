@@ -463,8 +463,10 @@ class AiSuggestionService
 
         foreach ($messages as $m) {
             $body = $this->snapshotMessageText($m);
-            if ($body === null || $body === '') {
-                $body = $this->transcriptFor($m);
+            // Có ghi âm ⇒ GỘP transcript (có nhãn) kèm text — không thay thế nếu tin có cả hai.
+            $transcript = $this->transcriptFor($m);
+            if ($transcript !== null && $transcript !== '') {
+                $body = ($body === null || $body === '') ? $transcript : $body."\n".$transcript;
             }
             if ($body !== null && $body !== '') {
                 $r = $this->redactor->redact($body);
@@ -594,9 +596,10 @@ class AiSuggestionService
         $parts = [];
         foreach ($messages as $m) {
             $t = $this->snapshotMessageText($m);
-            if ($t === null || $t === '') {
-                // Tin chỉ có ghi âm ⇒ dùng transcript THÔ để classify ý định + RAG.
-                $t = $this->transcriptFor($m, false);
+            // Có ghi âm ⇒ GỘP transcript THÔ (không nhãn) kèm text cho classify ý định + RAG.
+            $tr = $this->transcriptFor($m, false);
+            if ($tr !== null && $tr !== '') {
+                $t = ($t === null || $t === '') ? $tr : $t."\n".$tr;
             }
             if ($t !== null && $t !== '') {
                 $parts[] = $t;
