@@ -30,14 +30,15 @@ class AdminVisualRerankController extends Controller
 
     public function index(): JsonResponse
     {
-        $providers = AiProvider::query()->orderBy('sort_order')->orderBy('code')->get()
+        $providers = AiProvider::query()->where('role', 'vision')->orderBy('sort_order')->orderBy('code')->get()
             ->map(fn (AiProvider $p) => [
                 'code' => $p->code,
                 'display_name' => $p->display_name,
                 'default_model' => $p->default_model,
                 'is_active' => (bool) $p->is_active,
-                // TODO(Task 5): điều kiện role=vision + vision_verified đầy đủ; tạm dùng cờ verified thô.
-                'vision' => (bool) $p->vision_verified,
+                'vision_verified' => (bool) $p->vision_verified,
+                'vision_verified_at' => $p->vision_verified_at?->toIso8601String(),
+                'vision_verify_error' => $p->vision_verify_error,
             ])->values()->all();
 
         return response()->json(['data' => [
@@ -50,10 +51,17 @@ class AdminVisualRerankController extends Controller
     {
         $code = trim((string) $request->input('provider_code', ''));
 
-        if ($code !== '' && ! in_array($code, $this->registry->activeProviders(), true)) {
+        if ($code !== '' && ! in_array($code, $this->registry->activeProviders('vision'), true)) {
             return response()->json(['error' => [
                 'code' => 'PROVIDER_NOT_ACTIVE',
                 'message' => 'Provider không tồn tại hoặc chưa bật.',
+            ]], 422);
+        }
+
+        if ($code !== '' && AiProvider::find($code)?->vision_verified !== true) {
+            return response()->json(['error' => [
+                'code' => 'PROVIDER_NOT_VERIFIED',
+                'message' => 'Provider chưa xác minh vision — hãy Gửi ảnh thử tới khi thành công.',
             ]], 422);
         }
 
@@ -80,8 +88,19 @@ class AdminVisualRerankController extends Controller
                 'Đây là ảnh thử. Trả về DUY NHẤT JSON {"match": 0}.',
             );
 
+            AiProvider::whereKey($code)->update([
+                'vision_verified' => true,
+                'vision_verified_at' => now(),
+                'vision_verify_error' => null,
+            ]);
+
             return response()->json(['data' => ['ok' => true, 'sample' => Str::limit($out, 120)]]);
         } catch (\Throwable $e) {
+            AiProvider::whereKey($code)->update([
+                'vision_verified' => false,
+                'vision_verify_error' => Str::limit($e->getMessage(), 240),
+            ]);
+
             return response()->json(['data' => ['ok' => false, 'reason' => 'error', 'message' => Str::limit($e->getMessage(), 200)]]);
         }
     }
