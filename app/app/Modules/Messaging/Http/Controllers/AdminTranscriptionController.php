@@ -67,7 +67,7 @@ class AdminTranscriptionController extends Controller
 
                 return response()->json(['data' => ['ok' => false, 'reason' => 'unsupported', 'message' => 'Provider không hỗ trợ STT.']]);
             }
-            $wav = base64_decode('UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=');
+            $wav = $this->sampleWavBytes();
             $out = $connector->transcribeAudio(new AiContext(tenantId: 0, providerCode: $code, meta: ['mode' => 'transcription_test']), $wav, 'audio/wav', 'test.wav');
             AiProvider::whereKey($code)->update(['transcription_verified' => true, 'transcription_verified_at' => now(), 'transcription_verify_error' => null]);
 
@@ -77,5 +77,20 @@ class AdminTranscriptionController extends Controller
 
             return response()->json(['data' => ['ok' => false, 'reason' => 'error', 'message' => Str::limit($e->getMessage(), 200)]]);
         }
+    }
+
+    /** WAV mẫu 0.3s im lặng, hợp lệ (Groq/Whisper từ chối audio 0-byte data chunk với 400). */
+    private function sampleWavBytes(): string
+    {
+        $sampleRate = 16000;
+        $numSamples = (int) ($sampleRate * 0.3); // 0.3s
+        $data = str_repeat("\x00\x00", $numSamples); // 16-bit mono im lặng
+        $dataLen = strlen($data);
+        $header = 'RIFF'.pack('V', 36 + $dataLen).'WAVE'
+            .'fmt '.pack('V', 16).pack('v', 1).pack('v', 1)
+            .pack('V', $sampleRate).pack('V', $sampleRate * 2).pack('v', 2).pack('v', 16)
+            .'data'.pack('V', $dataLen);
+
+        return $header.$data;
     }
 }

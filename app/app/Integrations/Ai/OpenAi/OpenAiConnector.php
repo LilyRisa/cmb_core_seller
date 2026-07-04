@@ -265,7 +265,7 @@ class OpenAiConnector implements AiAssistantConnector, AudioTranscriber
         $response = Http::withToken($cfg->apiKey)
             ->connectTimeout((int) config('ai.http.connect_timeout', 10))
             ->timeout((int) config('ai.http.reply_timeout', 60))
-            ->attach('file', $bytes, $filename ?: 'audio.mp3', ['Content-Type' => $mime])
+            ->attach('file', $bytes, $this->audioFilename($filename, $mime))
             ->post($this->base($cfg).'/v1/audio/transcriptions', [
                 'model' => $model,
                 'response_format' => 'json',
@@ -276,6 +276,31 @@ class OpenAiConnector implements AiAssistantConnector, AudioTranscriber
         }
 
         return trim((string) $response->json('text', ''));
+    }
+
+    /**
+     * Groq/OpenAI STT nhận diện định dạng qua ĐUÔI file, không phải Content-Type
+     * ép trong multipart — ép Content-Type sai gây 400 undecodable. Suy đuôi từ
+     * $mime nếu $filename không có sẵn đuôi hợp lệ.
+     */
+    private function audioFilename(?string $filename, string $mime): string
+    {
+        if ($filename && preg_match('/\.[a-z0-9]{2,4}$/i', $filename)) {
+            return $filename;
+        }
+        $ext = match (strtolower($mime)) {
+            'audio/mpeg', 'audio/mp3' => 'mp3',
+            'audio/mp4', 'audio/m4a', 'audio/x-m4a' => 'm4a',
+            'audio/wav', 'audio/x-wav' => 'wav',
+            'audio/ogg' => 'ogg',
+            'audio/webm' => 'webm',
+            'audio/flac' => 'flac',
+            'audio/aac' => 'aac',
+            'audio/amr' => 'amr',
+            default => 'mp3',
+        };
+
+        return 'audio.'.$ext;
     }
 
     public function pricing(): array
