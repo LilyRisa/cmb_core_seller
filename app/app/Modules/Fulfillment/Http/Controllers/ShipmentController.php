@@ -9,6 +9,7 @@ use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
 use CMBcoreSeller\Modules\Fulfillment\Services\PrintService;
 use CMBcoreSeller\Modules\Fulfillment\Services\ShipmentService;
 use CMBcoreSeller\Modules\Fulfillment\Support\FulfillmentErrorMapper;
+use CMBcoreSeller\Modules\Inventory\Services\InventoryLedgerService;
 use CMBcoreSeller\Modules\Orders\Http\Resources\OrderResource;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
@@ -403,6 +404,75 @@ class ShipmentController extends Controller
         $order->load(['items', 'shipments', 'statusHistory']);
 
         return response()->json(['data' => new OrderResource($order)]);
+    }
+
+    /**
+     * POST /api/v1/scan-return-restock { code } — (app) quét đơn hoàn ⇒ CỘNG hàng trả lại tồn kho.
+     *
+     * Chỉ cộng cho item ĐÃ ghép SKU (sku_id != null); item chưa ghép được đếm vào `skipped_unmapped`.
+     * Dùng InventoryLedgerService::returnIn — idempotent theo (order, sku, type=return_in) nên quét lại
+     * cùng đơn KHÔNG cộng trùng (thổi phồng tồn). Chỉ cho phép khi đơn thực sự ở trạng thái hoàn/thất bại.
+     */
+    public function scanReturnRestock(Request $request, CurrentTenant $tenant, InventoryLedgerService $ledger): JsonResponse
+    {
+        abort_unless($request->user()?->can('inventory.adjust'), 403, 'Bạn không có quyền nhập kho hàng hoàn.');
+        $data = $request->validate(['code' => ['required', 'string', 'max:120']]);
+        $tenantId = (int) $tenant->id();
+        $order = $this->service->findOrderByScanCode($tenantId, $data['code']);
+        abort_if($order === null, 404, 'Không tìm thấy đơn ứng với mã đã quét.');
+
+        $order->load(['items', 'shipments']);
+        $isReturned = in_array($order->status, [S::DeliveryFailed, S::Returning, S::ReturnedRefunded], true)
+            || $order->shipments->contains(fn ($s) => in_array($s->status, [Shipment::STATUS_RETURNED, Shipment::STATUS_FAILED], true));
+        if (! $isReturned) {
+            return response()->json([
+                'message' => 'Đơn chưa ở trạng thái hoàn/trả — không thể nhập lại kho.',
+                'code' => 'not_returned',
+            ], 409);
+        }
+
+        $userId = $request->user()->getKey();
+        $lines = [];
+        $restockedCount = 0;
+        $skippedUnmapped = 0;
+        foreach ($order->items as $item) {
+            $mapped = $item->sku_id !== null;
+            $qty = (int) $item->quantity;
+            $restocked = false;
+            if ($mapped && $qty > 0) {
+                $movement = $ledger->returnIn($tenantId, (int) $item->sku_id, $qty, 'order', (int) $order->id, $userId);
+                $restocked = $movement !== null; // null = đã cộng trước đó (idempotent)
+                if ($restocked) {
+                    $restockedCount++;
+                }
+            } elseif (! $mapped) {
+                $skippedUnmapped++;
+            }
+            $lines[] = [
+                'id' => $item->id,
+                'name' => $item->name,
+                'seller_sku' => $item->seller_sku,
+                'sku_id' => $item->sku_id,
+                'quantity' => $qty,
+                'mapped' => $mapped,
+                'restocked' => $restocked,
+            ];
+        }
+        $mappedCount = count(array_filter($lines, fn ($l) => $l['mapped']));
+        // Có item đã map nhưng không cộng được dòng nào ⇒ đơn đã nhập kho từ trước (idempotent).
+        $already = $mappedCount > 0 && $restockedCount === 0;
+
+        return response()->json(['data' => [
+            'order_id' => (int) $order->id,
+            'order_number' => $order->order_number ?? $order->external_order_id,
+            'status' => $order->status->value,
+            'status_label' => $order->status->label(),
+            'total_items' => count($lines),
+            'restocked_lines' => $restockedCount,
+            'skipped_unmapped' => $skippedUnmapped,
+            'already' => $already,
+            'lines' => $lines,
+        ]]);
     }
 
     /** Shared scan handler for /scan-pack & /scan-handover. */

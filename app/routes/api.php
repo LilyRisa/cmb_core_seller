@@ -357,6 +357,7 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::post('scan-pack', [ShipmentController::class, 'scanPack'])->name('scan-pack');                                        // quét → đóng gói
             Route::post('scan-handover', [ShipmentController::class, 'scanHandover'])->name('scan-handover');                            // (app) quét → bàn giao ĐVVC
             Route::post('scan-lookup', [ShipmentController::class, 'scanLookup'])->name('scan-lookup');                                  // (app) quét → tra cứu chi tiết đơn (kiểm tra / xác nhận hoàn)
+            Route::post('scan-return-restock', [ShipmentController::class, 'scanReturnRestock'])->name('scan-return-restock');           // (app) quét đơn hoàn → cộng hàng trả lại tồn kho (idempotent)
 
             Route::get('print-jobs', [PrintJobController::class, 'index'])->name('print-jobs.index');
             Route::post('print-jobs', [PrintJobController::class, 'store'])->name('print-jobs.store');
