@@ -31,7 +31,7 @@ class AiVisionImageTest extends TestCase
         );
     }
 
-    private function fakeClaude(): void
+    private function fakeClaude(bool $visionVerified = true): void
     {
         Http::fake(['api.anthropic.com/*' => Http::response([
             'content' => [['type' => 'text', 'text' => 'Dạ còn hàng ạ.']],
@@ -40,6 +40,7 @@ class AiVisionImageTest extends TestCase
         AiProvider::query()->create([
             'code' => 'claude', 'adapter' => 'anthropic', 'is_active' => true,
             'api_key' => 'sk-ant-x', 'default_model' => 'claude-opus-4-7',
+            'vision_verified' => $visionVerified,
         ]);
     }
 
@@ -83,10 +84,11 @@ class AiVisionImageTest extends TestCase
         });
     }
 
-    public function test_claude_skips_image_when_vision_disabled(): void
+    public function test_claude_skips_image_when_provider_not_verified(): void
     {
-        config(['ai.vision.enabled' => false]);
-        $this->fakeClaude();
+        // Provider chưa được xác minh vision (vision_verified=false) => không đính image block,
+        // dù model name có vẻ hỗ trợ vision.
+        $this->fakeClaude(visionVerified: false);
 
         app(ClaudeConnector::class)->generateReply(
             new AiContext(tenantId: 1, providerCode: 'claude'),
@@ -106,6 +108,7 @@ class AiVisionImageTest extends TestCase
         AiProvider::query()->create([
             'code' => 'openai', 'adapter' => 'openai', 'is_active' => true,
             'api_key' => 'sk-x', 'default_model' => 'gpt-4o',
+            'vision_verified' => true,
         ]);
 
         app(OpenAiConnector::class)->generateReply(
