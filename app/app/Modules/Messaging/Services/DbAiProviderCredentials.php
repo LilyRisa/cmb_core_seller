@@ -26,6 +26,7 @@ class DbAiProviderCredentials implements AiProviderCredentials
             defaultModel: $row->default_model,
             pricing: array_values((array) ($row->pricing ?? [])),
             adapterConfig: (array) ($row->adapter_config ?? []),
+            visionVerified: (bool) $row->vision_verified,
         );
     }
 }

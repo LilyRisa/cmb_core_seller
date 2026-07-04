@@ -19,6 +19,13 @@ use Illuminate\Support\Carbon;
  *
  * @property string $code
  * @property string|null $adapter
+ * @property string $role
+ * @property bool|null $vision_verified
+ * @property Carbon|null $vision_verified_at
+ * @property string|null $vision_verify_error
+ * @property bool|null $transcription_verified
+ * @property Carbon|null $transcription_verified_at
+ * @property string|null $transcription_verify_error
  * @property string|null $display_name
  * @property string|null $api_key
  * @property string|null $base_url
@@ -43,6 +50,8 @@ class AiProvider extends Model
     protected $fillable = [
         'code', 'adapter', 'display_name', 'api_key', 'base_url',
         'default_model', 'pricing', 'adapter_config', 'is_active', 'sort_order', 'notes', 'created_by_admin_id',
+        'role', 'vision_verified', 'vision_verified_at', 'vision_verify_error',
+        'transcription_verified', 'transcription_verified_at', 'transcription_verify_error',
     ];
 
     protected $hidden = ['api_key'];
@@ -54,6 +63,10 @@ class AiProvider extends Model
             'pricing' => 'array',
             'adapter_config' => 'array',
             'is_active' => 'boolean',
+            'vision_verified' => 'boolean',
+            'vision_verified_at' => 'datetime',
+            'transcription_verified' => 'boolean',
+            'transcription_verified_at' => 'datetime',
         ];
     }
 }

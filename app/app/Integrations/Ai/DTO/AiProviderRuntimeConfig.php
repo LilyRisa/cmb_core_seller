@@ -20,5 +20,6 @@ final readonly class AiProviderRuntimeConfig
         public ?string $defaultModel = null,
         public array $pricing = [],
         public array $adapterConfig = [],
+        public bool $visionVerified = false,
     ) {}
 }
