@@ -17,7 +17,7 @@ import '../../css/download-app.css';
 
 // Link tải bản test hiện tại. Khi lên store/CDN chính thức, đổi tại đây.
 const APK_URL =
-    'https://expo.dev/artifacts/eas/xMMgqGGeEfTZA6DgG5b_p_iBoyYq8lvNc66iup2BCEY.apk';
+    'https://expo.dev/artifacts/eas/5rpQdo_sCGv-hHCBy2XVNlYpPb831WCHJMp5ZqVd5Uk.apk';
 
 // CSS custom properties định nghĩa bởi .dl-shell — khai lại ở đây vì không còn wrapper dl-shell
 const DL_VARS = {
