@@ -21,6 +21,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int|null $size_bytes
  * @property string|null $storage_path
  * @property string|null $external_url
+ * @property string|null $filename
+ * @property string|null $transcript
  * @property string $status
  */
 class MessageAttachment extends Model

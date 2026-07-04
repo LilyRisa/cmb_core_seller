@@ -327,6 +327,15 @@ class SystemSettingsCatalog
                 'env' => 'VISUAL_SEARCH_RERANK_PROVIDER_CODE', 'label' => 'AI chấm ảnh — Provider',
                 'description' => 'Code provider AI dùng cho bước chấm ảnh (vision re-rank). Rỗng ⇒ dùng model chat.',
             ],
+
+            // ── Transcribe ghi âm (STT, SPEC 2026-07-05) — provider AI RIÊNG cho voice khách ─
+            // Rỗng ⇒ tắt (job TranscribeInboundAudio no-op). Trỏ tới `code` một provider
+            // OpenAI-compatible trong ai_providers (vd Groq whisper).
+            'messaging.transcription.provider_code' => [
+                'group' => 'ai', 'type' => 'string', 'is_secret' => false,
+                'env' => 'MESSAGING_TRANSCRIPTION_PROVIDER_CODE', 'label' => 'AI chuyển giọng nói — Provider',
+                'description' => 'Code provider AI (OpenAI-compatible, vd Groq whisper) để transcribe ghi âm khách. Rỗng ⇒ tắt.',
+            ],
         ];
     }
 
