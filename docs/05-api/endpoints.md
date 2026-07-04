@@ -405,6 +405,14 @@ Popup giữa màn hình cho mọi user (fix bug, tạm dừng dịch vụ…). A
 | POST | `/api/v1/admin/desktop-backgrounds/media` | web + `auth:admin_web` | multipart `file` (ảnh ≤ `media.images.max_kb`) → R2 `desktop-backgrounds/` → `{ data:{ url, path } }`. |
 | GET | `/api/v1/announcements/active` | `auth:sanctum` + `verified` | `{ data:[{ id, title, body_html, dismiss_label }] }` — chỉ popup đang `is_active` + trong cửa sổ `starts_at`/`ends_at`. |
 
+#### AI chấm ảnh (vision re-rank) — super-admin
+
+| Method | Path | Auth | Mô tả |
+|---|---|---|---|
+| GET | `/api/v1/admin/ai-visual-rerank` | web + `auth:admin_web` | Provider đang chọn + danh sách provider (kèm cờ `vision`). |
+| PUT | `/api/v1/admin/ai-visual-rerank` | web + `auth:admin_web` | `{ provider_code }` (rỗng = dùng model chat); `422` nếu provider chưa bật. |
+| POST | `/api/v1/admin/ai-visual-rerank/test` | web + `auth:admin_web` | `{ provider_code }` — gửi 1 ảnh thử để kiểm vision thật. |
+
 **Codes lỗi đặc thù Admin/Over-quota:**
 - `ADMIN_AUTH_FAILED` (`401`) — login admin sai hoặc tài khoản đã bị vô hiệu hoá (Spec 2026-05-17).
 - `CANNOT_SELF_MUTATE` (`409`) — admin thao tác trên chính tài khoản của mình (suspend / reset password) (Spec 2026-05-17).

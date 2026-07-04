@@ -25,12 +25,29 @@ class VisionRerankProviderTest extends TestCase
         // Credit luôn cho phép — cô lập khỏi Billing.
         $this->app->instance(AiCreditMeter::class, new class implements AiCreditMeter
         {
-            public function aiEnabled(int $t): bool { return true; }
-            public function canUse(int $t, int $n = 1): bool { return true; }
+            public function aiEnabled(int $t): bool
+            {
+                return true;
+            }
+
+            public function canUse(int $t, int $n = 1): bool
+            {
+                return true;
+            }
+
             public function consume(int $t, int $n = 1): void {}
+
             public function record(int $t, int $n = 1): void {}
-            public function grantPurchase(int $t, int $a): int { return $a; }
-            public function summary(int $t): array { return ['enabled' => true, 'unlimited' => true, 'monthly_allowance' => 0, 'period_used' => 0, 'purchased_balance' => 0, 'available' => null]; }
+
+            public function grantPurchase(int $t, int $a): int
+            {
+                return $a;
+            }
+
+            public function summary(int $t): array
+            {
+                return ['enabled' => true, 'unlimited' => true, 'monthly_allowance' => 0, 'period_used' => 0, 'purchased_balance' => 0, 'available' => null];
+            }
         });
     }
 
