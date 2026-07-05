@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Admin\Http\Controllers;
 
 use CMBcoreSeller\Models\User;
+use CMBcoreSeller\Modules\Billing\Contracts\AiUsageReporter;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Models\TenantUser;
@@ -21,6 +22,8 @@ use Illuminate\Validation\Rule;
  */
 class AdminUserController extends Controller
 {
+    public function __construct(private AiUsageReporter $usage) {}
+
     /** GET /api/v1/admin/users */
     public function index(Request $request): JsonResponse
     {
@@ -42,8 +45,10 @@ class AdminUserController extends Controller
         $tenantIds = $memberships->flatten()->pluck('tenant_id')->unique()->all();
         $tenants = Tenant::query()->whereIn('id', $tenantIds)->get()->keyBy('id');
 
-        $rows = collect($page->items())->map(function (User $u) use ($memberships, $tenants) {
-            return $this->present($u, $memberships, $tenants);
+        $usage = $this->usage->usageForUsers($userIds);
+
+        $rows = collect($page->items())->map(function (User $u) use ($memberships, $tenants, $usage) {
+            return $this->present($u, $memberships, $tenants, $usage);
         })->all();
 
         return response()->json([
@@ -126,8 +131,19 @@ class AdminUserController extends Controller
         return response()->json(['data' => ['id' => $u->id, 'suspended_at' => null]]);
     }
 
-    /** @return array<string, mixed> */
-    private function present(User $u, Collection $memberships, Collection $tenants): array
+    /** GET /api/v1/admin/users/{id}/ai-usage — phân rã lượt AI theo tháng + tính năng. */
+    public function aiUsage(int $id): JsonResponse
+    {
+        $u = User::query()->findOrFail($id);
+
+        return response()->json(['data' => $this->usage->breakdownForUser($u->id)]);
+    }
+
+    /**
+     * @param  array<int, array{this_month:int, all_time:int}>  $usage
+     * @return array<string, mixed>
+     */
+    private function present(User $u, Collection $memberships, Collection $tenants, array $usage = []): array
     {
         $userTenants = ($memberships->get($u->id) ?? collect())->map(function (TenantUser $m) use ($tenants) {
             $t = $tenants->get($m->tenant_id);
@@ -146,6 +162,7 @@ class AdminUserController extends Controller
             'email_verified_at' => optional($u->email_verified_at)->toIso8601String(),
             'suspended_at' => optional($u->suspended_at)->toIso8601String(),
             'tenants' => $userTenants,
+            'ai_usage' => $usage[$u->id] ?? ['this_month' => 0, 'all_time' => 0],
             'created_at' => $u->created_at?->toIso8601String(),
         ];
     }

@@ -121,6 +121,8 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
             ->whereNumber('id')->name('admin.users.suspend');
         Route::post('users/{id}/reactivate', [AdminUserController::class, 'reactivate'])
             ->whereNumber('id')->name('admin.users.reactivate');
+        Route::get('users/{id}/ai-usage', [AdminUserController::class, 'aiUsage'])
+            ->whereNumber('id')->name('admin.users.ai-usage');
 
         // --- Admin Users — quản lý chính các super-admin (Spec 2026-05-17) ---
         Route::get('admin-users', [AdminAdminUserController::class, 'index'])->name('admin.admin-users.index');
