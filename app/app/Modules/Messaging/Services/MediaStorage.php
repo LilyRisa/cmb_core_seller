@@ -42,6 +42,18 @@ class MediaStorage
     }
 
     /**
+     * Ghi bytes vào disk media messaging ở path chuẩn (dùng khi nguồn ảnh nằm ở disk khác,
+     * vd ảnh training của VisualSearch) rồi trả storage_path để queueMedia + SendMessage sinh signed URL.
+     */
+    public function storeOutboundBytes(int $tenantId, int $conversationId, string $bytes, string $extension): string
+    {
+        $path = $this->buildPath($tenantId, $conversationId, $extension);
+        $this->disk()->put($path, $bytes);
+
+        return $path;
+    }
+
+    /**
      * Signed URL TTL ngắn cho FE. Disk local không hỗ trợ temporaryUrl ⇒ fallback url().
      * Trả null nếu attachment chưa downloaded.
      */
