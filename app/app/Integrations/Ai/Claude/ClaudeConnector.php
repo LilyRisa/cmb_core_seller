@@ -196,7 +196,8 @@ class ClaudeConnector implements AiAssistantConnector
             ->retry(1 + (int) config('ai.http.retries', 1), (int) config('ai.http.retry_backoff_ms', 1000), throw: false)
             ->post(rtrim($cfg->baseUrl ?: 'https://api.anthropic.com', '/').'/v1/messages', [
                 'model' => $ctx->model ?: ($cfg->defaultModel ?: self::DEFAULT_MODEL),
-                'max_tokens' => 16,
+                // Đủ rộng cho model suy luận (xem OpenAiConnector). Model thường vẫn dừng sớm.
+                'max_tokens' => (int) config('ai.http.classify_max_tokens', 1024),
                 'system' => [[
                     'type' => 'text',
                     'text' => 'Bạn phân loại ý định tin nhắn khách hàng. Chỉ trả về DUY NHẤT 1 nhãn trong: '

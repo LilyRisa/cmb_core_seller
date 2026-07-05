@@ -236,12 +236,31 @@ class AiProviderHttpTest extends TestCase
         app(OpenAiConnector::class)->generateReply($ctx, $this->snapshot(), null);
         app(OpenAiConnector::class)->classifyIntent($ctx, 'đơn của tôi đâu rồi');
 
-        // Reply (max_tokens mặc định 1024) PHẢI chèn prompt chung.
-        Http::assertSent(fn ($req) => ($req->data()['max_tokens'] ?? 0) === 1024
-            && str_contains((string) ($req->data()['messages'][0]['content'] ?? ''), 'shop ABC'));
-        // Classify (max_tokens 8) KHÔNG được chèn (giữ guardrail).
-        Http::assertSent(fn ($req) => ($req->data()['max_tokens'] ?? 0) === 8
+        // Reply PHẢI chèn prompt chung 'shop ABC' (nhận diện qua nội dung system).
+        Http::assertSent(fn ($req) => str_contains((string) ($req->data()['messages'][0]['content'] ?? ''), 'shop ABC'));
+        // Classify KHÔNG được chèn prompt chung (giữ guardrail) — system là câu "Phân loại ý định".
+        Http::assertSent(fn ($req) => str_contains((string) ($req->data()['messages'][0]['content'] ?? ''), 'Phân loại ý định')
             && ! str_contains((string) ($req->data()['messages'][0]['content'] ?? ''), 'shop ABC'));
+    }
+
+    public function test_openai_classify_uses_wide_max_tokens_for_reasoning_models(): void
+    {
+        // max_tokens=8 cắt cụt model suy luận (Minimax-M3 sinh <think>… trước nhãn) ⇒ luôn "other".
+        // Trần phải đủ rộng (config classify_max_tokens) để reasoning xong rồi mới tới nhãn.
+        Http::fake([
+            'api.openai.com/*' => Http::response([
+                'choices' => [['message' => ['content' => 'price'], 'finish_reason' => 'stop']],
+            ], 200),
+        ]);
+        AiProvider::query()->create([
+            'code' => 'openai', 'adapter' => 'openai_compatible', 'is_active' => true,
+            'api_key' => 'sk-oai', 'default_model' => 'gpt-4o-mini',
+        ]);
+
+        app(OpenAiConnector::class)->classifyIntent(new AiContext(tenantId: 1, providerCode: 'openai'), 'giá bao nhiêu');
+
+        Http::assertSent(fn ($req) => str_contains($req->url(), 'chat/completions')
+            && ($req->data()['max_tokens'] ?? 0) >= 256);
     }
 
     public function test_openai_embed_returns_vector(): void

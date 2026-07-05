@@ -175,7 +175,10 @@ class OpenAiConnector implements AiAssistantConnector, AudioTranscriber
             ->retry(1 + (int) config('ai.http.retries', 1), (int) config('ai.http.retry_backoff_ms', 1000), throw: false)
             ->post($this->base($cfg).'/v1/chat/completions', [
                 'model' => $model,
-                'max_tokens' => 8,
+                // Model suy luận (vd Minimax-M3) sinh khối <think>…</think> TRƯỚC nhãn — max_tokens=8
+                // cắt cụt giữa reasoning ⇒ không có nhãn ⇒ luôn rơi "other" (hỏng cả escalate/định tuyến).
+                // Cho trần rộng (model non-reasoning vẫn dừng sớm nên không tốn thêm token thực tế).
+                'max_tokens' => (int) config('ai.http.classify_max_tokens', 1024),
                 'messages' => [
                     ['role' => 'system', 'content' => 'Phân loại ý định tin nhắn khách. Chỉ trả về 1 nhãn trong: '.implode(', ', $labels).'.'],
                     ['role' => 'user', 'content' => $text],

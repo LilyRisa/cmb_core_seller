@@ -21,6 +21,9 @@ return [
         'connect_timeout' => (int) env('AI_HTTP_CONNECT_TIMEOUT', 10),
         'reply_timeout' => (int) env('AI_HTTP_REPLY_TIMEOUT', 60),
         'classify_timeout' => (int) env('AI_HTTP_CLASSIFY_TIMEOUT', 30),
+        // Trần token cho phân loại intent. Phải đủ rộng cho model SUY LUẬN (reasoning) sinh
+        // khối <think>…</think> rồi mới tới nhãn — quá nhỏ (8/16) cắt cụt ⇒ luôn "other".
+        'classify_max_tokens' => (int) env('AI_HTTP_CLASSIFY_MAX_TOKENS', 1024),
         'embed_timeout' => (int) env('AI_HTTP_EMBED_TIMEOUT', 90),
         'retries' => (int) env('AI_HTTP_RETRIES', 1),
         'retry_backoff_ms' => (int) env('AI_HTTP_RETRY_BACKOFF_MS', 1000),
