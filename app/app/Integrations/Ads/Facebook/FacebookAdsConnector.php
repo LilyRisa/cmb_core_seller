@@ -576,12 +576,11 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
             $creative = ['object_story_spec' => ['page_id' => $spec->pageId, 'link_data' => $linkData]];
         }
 
-        // Advantage+ creative (standard enhancements): Meta auto-optimises the creative.
-        if ($spec->standardEnhancements) {
-            $creative['degrees_of_freedom_spec'] = [
-                'creative_features_spec' => ['standard_enhancements' => ['enroll_status' => 'OPT_IN']],
-            ];
-        }
+        // Advantage+ creative: cờ gộp `standard_enhancements` (enroll_status=OPT_IN) đã bị Meta
+        // NGỪNG hoạt động (code 100/subcode 3858504 — "Nội dung không được chứa điểm cải thiện
+        // tiêu chuẩn"; nay phải bật TỪNG tính năng trong creative_features_spec). Gửi cờ gộp cũ
+        // làm createAd fail ⇒ KHÔNG gửi degrees_of_freedom_spec nữa. $spec->standardEnhancements
+        // giữ trong nháp cũ nhưng bỏ qua ở đây (Advantage+ creative per-feature là việc về sau).
 
         $res = Http::timeout(30)->asForm()->post($this->graphUrl($externalAccountId.'/ads'), [
             'name' => $spec->name,

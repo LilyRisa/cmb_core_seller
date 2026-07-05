@@ -130,18 +130,27 @@ export function useAdDraft(id: number | null) {
 export function useCreateDraft() {
     const api = useScopedApi();
     const qc = useQueryClient();
+    const tenantId = useCurrentTenantId();
     return useMutation({
         mutationFn: async (input: { ad_account_id: number; name?: string; objective?: AdObjective; payload?: AdDraftPayload }) =>
             (await api!.post<{ data: AdDraft }>('/marketing/ad-drafts', input)).data.data,
-        onSuccess: () => qc.invalidateQueries({ queryKey: [KEY, 'drafts'] }),
+        onSuccess: (created) => {
+            // Ghi thẳng vào cache bản nháp lẻ để lần mở "Sửa" sau không đọc bản rỗng cũ.
+            qc.setQueryData([KEY, 'draft', created.id, tenantId], created);
+            void qc.invalidateQueries({ queryKey: [KEY, 'drafts'] });
+        },
     });
 }
 
 export function useUpdateDraft() {
     const api = useScopedApi();
+    const qc = useQueryClient();
+    const tenantId = useCurrentTenantId();
     return useMutation({
         mutationFn: async ({ id, patch }: { id: number; patch: { name?: string; objective?: AdObjective; payload?: AdDraftPayload } }) =>
             (await api!.patch<{ data: AdDraft }>(`/marketing/ad-drafts/${id}`, patch)).data.data,
+        // Autosave: đồng bộ cache bản nháp lẻ để mở "Sửa" lần sau không nạp bản rỗng (mất dữ liệu).
+        onSuccess: (updated) => qc.setQueryData([KEY, 'draft', updated.id, tenantId], updated),
     });
 }
 
@@ -260,6 +269,7 @@ export interface AiCampaignResult {
 export function useGenerateAiCampaign() {
     const api = useScopedApi();
     const qc = useQueryClient();
+    const tenantId = useCurrentTenantId();
     return useMutation({
         mutationFn: async ({ accountId, ...body }: AiCampaignInput): Promise<AiCampaignResult> => {
             const res = (await api!.post<{ data: AdDraft; meta?: { recommendations?: string[] } }>(
@@ -268,7 +278,10 @@ export function useGenerateAiCampaign() {
             )).data;
             return { draft: res.data, recommendations: res.meta?.recommendations ?? [] };
         },
-        onSuccess: () => qc.invalidateQueries({ queryKey: [KEY, 'drafts'] }),
+        onSuccess: (result) => {
+            qc.setQueryData([KEY, 'draft', result.draft.id, tenantId], result.draft);
+            void qc.invalidateQueries({ queryKey: [KEY, 'drafts'] });
+        },
     });
 }
 

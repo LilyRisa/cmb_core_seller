@@ -158,8 +158,10 @@ class FacebookAdsCreateTest extends TestCase
         });
     }
 
-    public function test_create_ad_with_standard_enhancements_adds_degrees_of_freedom(): void
+    public function test_create_ad_does_not_send_deprecated_standard_enhancements(): void
     {
+        // Cờ gộp standard_enhancements (OPT_IN) đã bị Meta ngừng (subcode 3858504) ⇒ dù nháp bật,
+        // connector KHÔNG gửi degrees_of_freedom_spec (nếu gửi FB reject cả createAd).
         Http::fake(['graph.facebook.com/*/ads' => Http::response(['id' => 'AD_E'], 200)]);
 
         $this->connector()->createAd('tok', 'act_1', new AdSpecDTO(
@@ -167,11 +169,7 @@ class FacebookAdsCreateTest extends TestCase
             standardEnhancements: true,
         ));
 
-        Http::assertSent(function ($r) {
-            $creative = json_decode($r->data()['creative'] ?? '{}', true);
-
-            return ($creative['degrees_of_freedom_spec']['creative_features_spec']['standard_enhancements']['enroll_status'] ?? null) === 'OPT_IN';
-        });
+        Http::assertSent(fn ($r) => ! array_key_exists('degrees_of_freedom_spec', json_decode($r->data()['creative'], true)));
     }
 
     public function test_create_ad_without_enhancements_omits_degrees_of_freedom(): void

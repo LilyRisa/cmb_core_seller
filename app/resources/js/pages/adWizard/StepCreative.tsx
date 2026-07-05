@@ -7,7 +7,6 @@ import {
     Form,
     Input,
     Space,
-    Switch,
     Tag,
     Tooltip,
     Typography,
@@ -357,20 +356,8 @@ function AdEditor({ adsetKey, ad }: AdEditorProps) {
                 </Form.Item>
             ) : null}
 
-            {/* Advantage+ creative (standard enhancements) */}
-            <Form.Item label="Advantage+ — Tối ưu nội dung tự động" style={{ marginTop: 8 }}>
-                <Space direction="vertical" size={4}>
-                    <Switch
-                        checked={creative?.standard_enhancements ?? false}
-                        onChange={(v) =>
-                            updateAd(adsetKey, ad.key, { creative: { ...creative, standard_enhancements: v } })
-                        }
-                    />
-                    <Text type="secondary" style={{ maxWidth: 520, display: 'inline-block' }}>
-                        Cho phép Meta tự điều chỉnh nhẹ hình ảnh/văn bản (độ sáng, khung, biến thể chữ) để tăng hiệu quả.
-                    </Text>
-                </Space>
-            </Form.Item>
+            {/* Advantage+ creative (điểm cải thiện tiêu chuẩn): Meta đã NGỪNG cờ gộp standard_enhancements
+                (bật cờ này làm createAd fail — subcode 3858504). Gỡ toggle; sẽ làm lại theo từng tính năng sau. */}
 
             <PagePostPickerModal
                 open={modalOpen}
