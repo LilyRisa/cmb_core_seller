@@ -16,6 +16,7 @@ use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Models\MessageAttachment;
 use CMBcoreSeller\Modules\Messaging\Models\MessageDraft;
+use CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingSetting;
 use CMBcoreSeller\Modules\Orders\Contracts\OrderLookupContract;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
@@ -151,7 +152,10 @@ class AiSuggestionService
         [$snapshot, $mapping, $redactedCount] = $this->buildSnapshot($conv, $tenantId);
         $kb = $this->retriever->retrieve($tenantId, $inboundText, channelAccountId: (int) $conv->channel_account_id, provider: (string) $conv->provider);
         $provider = AiProvider::query()->find($providerCode);
-        $extra = $this->withAdContext($this->withVisualContext($this->baseSystemExtra(), $conv, $tenantId, $providerCode, $provider?->default_model), $conv);
+        $extra = $this->withBusinessInfo(
+            $this->withAdContext($this->withVisualContext($this->baseSystemExtra(), $conv, $tenantId, $providerCode, $provider?->default_model), $conv),
+            $conv,
+        );
         $ctx = new AiContext(tenantId: $tenantId, providerCode: $providerCode, model: $provider?->default_model, systemPromptExtra: $extra, meta: ['mode' => 'auto']);
 
         $startedAt = microtime(true);
@@ -205,7 +209,10 @@ class AiSuggestionService
             tenantId: $tenantId,
             providerCode: $providerCode,
             model: $provider?->default_model,
-            systemPromptExtra: $this->withAdContext((string) $this->withVisualContext($this->baseSystemExtra(), $conv, $tenantId, $providerCode, $provider?->default_model), $conv),
+            systemPromptExtra: $this->withBusinessInfo(
+                $this->withAdContext((string) $this->withVisualContext($this->baseSystemExtra(), $conv, $tenantId, $providerCode, $provider?->default_model), $conv),
+                $conv,
+            ),
         );
 
         $startedAt = microtime(true);
@@ -641,6 +648,52 @@ class AiSuggestionService
             .'Hãy ưu tiên tư vấn đúng sản phẩm/nội dung trong quảng cáo này.';
 
         return $extra !== '' ? $extra."\n\n".$note : $note;
+    }
+
+    /**
+     * Chèn khối "Thông tin cửa hàng" theo PAGE vào system prompt để AI trả lời khi khách hỏi
+     * SĐT/địa chỉ/bảo hành/email... Không có info ⇒ trả nguyên `$extra`. Đọc withoutGlobalScope
+     * vì có thể chạy trong job (không có tenant context).
+     */
+    private function withBusinessInfo(string $extra, Conversation $conv): string
+    {
+        $channelAccountId = $conv->channel_account_id ? (int) $conv->channel_account_id : null;
+        if ($channelAccountId === null) {
+            return $extra;
+        }
+
+        $info = MessagingAccountMeta::withoutGlobalScope(TenantScope::class)
+            ->where('channel_account_id', $channelAccountId)
+            ->value('business_info');
+        if (! is_array($info) || $info === []) {
+            return $extra;
+        }
+
+        $labels = [
+            'shop_name' => 'Tên shop',
+            'phone' => 'Số điện thoại',
+            'address' => 'Địa chỉ',
+            'email' => 'Email',
+            'warranty_policy' => 'Chính sách bảo hành',
+            'working_hours' => 'Giờ làm việc',
+            'website' => 'Website',
+            'extra_note' => 'Thông tin thêm',
+        ];
+        $lines = [];
+        foreach ($labels as $key => $label) {
+            $val = trim((string) ($info[$key] ?? ''));
+            if ($val !== '') {
+                $lines[] = "- {$label}: {$val}";
+            }
+        }
+        if ($lines === []) {
+            return $extra;
+        }
+
+        $block = "# Thông tin cửa hàng (dùng để trả lời khi khách hỏi liên hệ/SĐT/địa chỉ/bảo hành — KHÔNG bịa ngoài các thông tin dưới đây):\n"
+            .implode("\n", $lines);
+
+        return $extra !== '' ? $extra."\n\n".$block : $block;
     }
 
     /**
