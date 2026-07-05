@@ -21,6 +21,7 @@ use Illuminate\Support\Carbon;
  * @property bool $ai_enabled
  * @property bool $ai_auto_mode
  * @property ?array $settings
+ * @property ?array $business_info
  * @property ?string $page_avatar_path
  * @property ?string $page_avatar_url
  * @property ?Carbon $page_avatar_synced_at
@@ -62,7 +63,7 @@ class MessagingAccountMeta extends Model
     protected $fillable = [
         'channel_account_id', 'tenant_id',
         'messaging_enabled', 'last_inbound_at', 'last_outbound_at',
-        'outbound_window_meta', 'ai_enabled', 'ai_auto_mode', 'settings',
+        'outbound_window_meta', 'ai_enabled', 'ai_auto_mode', 'settings', 'business_info',
         // SPEC 2026-05-21: sync-state + page avatar (+ page_avatar_url fallback CDN)
         'page_avatar_path', 'page_avatar_url', 'page_avatar_synced_at', 'sync_status',
         'sync_total_conversations', 'sync_done_conversations', 'sync_message_count',
@@ -81,6 +82,7 @@ class MessagingAccountMeta extends Model
             'last_outbound_at' => 'datetime',
             'outbound_window_meta' => 'array',
             'settings' => 'encrypted:array',
+            'business_info' => 'array',
             // SPEC 2026-05-21
             'page_avatar_synced_at' => 'datetime',
             'sync_started_at' => 'datetime',
