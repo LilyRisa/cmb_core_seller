@@ -22,6 +22,9 @@ export interface AdDraftPayload {
         mode?: 'page_post' | 'new';
         page_id?: string;
         page_post_id?: string;
+        // CTA sẵn có của bài viết đã chọn (chỉ hiển thị — bài promote qua object_story_id
+        // giữ nguyên nút của bài; null = bài chưa có nút ⇒ cho người dùng tự chọn).
+        page_post_cta_type?: string | null;
         image_hash?: string;
         primary_text?: string;
         headline?: string;

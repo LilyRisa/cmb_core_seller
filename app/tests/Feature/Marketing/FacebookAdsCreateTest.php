@@ -304,7 +304,7 @@ class FacebookAdsCreateTest extends TestCase
         $this->connector()->createAdSet('tok', 'act_1', new AdSetSpecDTO(
             name: 'Set', campaignExternalId: 'C1', objective: 'messages',
             dailyBudgetMajor: 1000, currency: 'VND', targeting: ['geo_locations' => ['countries' => ['VN']]], pageId: '123',
-            placementConfig: ['automatic' => false, 'device_platforms' => ['mobile'], 'publisher_platforms' => ['facebook', 'instagram'], 'positions' => ['facebook' => ['feed', 'reels'], 'instagram' => ['story']]],
+            placementConfig: ['automatic' => false, 'device_platforms' => ['mobile'], 'publisher_platforms' => ['facebook', 'instagram'], 'positions' => ['facebook' => ['feed', 'facebook_reels'], 'instagram' => ['story']]],
         ));
 
         Http::assertSent(function ($r) {
@@ -313,7 +313,7 @@ class FacebookAdsCreateTest extends TestCase
             return $t['geo_locations']['countries'] === ['VN']
                 && $t['device_platforms'] === ['mobile']
                 && $t['publisher_platforms'] === ['facebook', 'instagram']
-                && $t['facebook_positions'] === ['feed', 'reels']
+                && $t['facebook_positions'] === ['feed', 'facebook_reels']
                 && $t['instagram_positions'] === ['story'];
         });
     }

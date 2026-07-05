@@ -34,6 +34,44 @@ class FacebookAdsCatalogTest extends TestCase
         $this->assertSame(['stream', 'story'], $out);
     }
 
+    public function test_sanitize_drops_invalid_messenger_home(): void
+    {
+        // Meta khai tử Messenger Inbox ⇒ messenger_home không còn hợp lệ v25 (gửi lên reject cả ad set).
+        $out = FacebookAdsCatalog::sanitizePlacements('messenger', ['messenger_home', 'story'], ['mobile']);
+        $this->assertNotContains('messenger_home', $out);
+        $this->assertContains('story', $out);
+    }
+
+    public function test_sanitize_drops_messenger_story_when_desktop_only(): void
+    {
+        // Messenger Stories mobile-only.
+        $out = FacebookAdsCatalog::sanitizePlacements('messenger', ['story'], ['desktop']);
+        $this->assertSame([], $out);
+    }
+
+    public function test_sanitize_drops_facebook_story_when_desktop_only(): void
+    {
+        // FB Stories mobile-only ⇒ gỡ khi chỉ nhắm desktop.
+        $out = FacebookAdsCatalog::sanitizePlacements('facebook', ['feed', 'story'], ['desktop']);
+        $this->assertNotContains('story', $out);
+        $this->assertContains('feed', $out);
+    }
+
+    public function test_sanitize_adds_feed_when_marketplace_selected_without_it(): void
+    {
+        // marketplace/search bắt buộc kèm feed — tự thêm để FB không reject.
+        $out = FacebookAdsCatalog::sanitizePlacements('facebook', ['marketplace'], []);
+        $this->assertContains('feed', $out);
+        $this->assertContains('marketplace', $out);
+    }
+
+    public function test_sanitize_drops_unknown_position(): void
+    {
+        // Giá trị lạ (không thuộc tập hợp lệ) bị loại thay vì gửi lên gây reject.
+        $out = FacebookAdsCatalog::sanitizePlacements('facebook', ['feed', 'totally_made_up'], []);
+        $this->assertSame(['feed'], $out);
+    }
+
     public function test_objectives_lists_supported(): void
     {
         $objs = FacebookAdsCatalog::objectives();

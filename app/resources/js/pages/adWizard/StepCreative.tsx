@@ -54,6 +54,34 @@ const CTA_BY_OBJECTIVE: Record<AdObjective, CtaOption[]> = {
     ],
 };
 
+// Nhãn VN cho CTA sẵn có của bài viết (chỉ để hiển thị khi promote bài có nút cố định).
+const CTA_LABELS: Record<string, string> = {
+    MESSAGE_PAGE: 'Gửi tin nhắn',
+    SEND_MESSAGE: 'Gửi tin nhắn',
+    LEARN_MORE: 'Tìm hiểu thêm',
+    SHOP_NOW: 'Mua ngay',
+    ORDER_NOW: 'Đặt hàng ngay',
+    BUY_NOW: 'Mua ngay',
+    SIGN_UP: 'Đăng ký',
+    SUBSCRIBE: 'Đăng ký',
+    BOOK_TRAVEL: 'Đặt ngay',
+    BOOK_NOW: 'Đặt ngay',
+    CONTACT_US: 'Liên hệ',
+    CALL_NOW: 'Gọi ngay',
+    WHATSAPP_MESSAGE: 'Nhắn WhatsApp',
+    DOWNLOAD: 'Tải xuống',
+    GET_OFFER: 'Nhận ưu đãi',
+    GET_QUOTE: 'Nhận báo giá',
+    APPLY_NOW: 'Đăng ký ngay',
+    WATCH_MORE: 'Xem thêm',
+    NO_BUTTON: 'Không có nút',
+};
+
+/** Nhãn hiển thị cho một mã CTA của Facebook (fallback về chính mã nếu chưa map). */
+function ctaLabel(cta: string): string {
+    return CTA_LABELS[cta] ?? cta;
+}
+
 // Local UI state for the picked post (image + message + existing CTA/link for preview, not stored in draft payload)
 interface PickedPostSummary {
     image_url: string | null;
@@ -99,6 +127,17 @@ function AdEditor({ adsetKey, ad }: AdEditorProps) {
 
     const currentCta = creative?.cta ?? (ctaOptions[0] as { value: string } | undefined)?.value;
 
+    // CTA khi promote bài viết có sẵn: bài được đẩy qua object_story_id nên GIỮ NGUYÊN nút
+    // của bài — người dùng không đổi được. Chỉ khi bài CHƯA có nút mới cho chọn. Chế độ
+    // "tạo nội dung mới" thì luôn chọn được (nút đi vào link_data.call_to_action).
+    const isPagePost = mode === 'page_post';
+    const postPicked = isPagePost && creative?.page_post_id != null;
+    const existingPostCta = isPagePost
+        ? (pickedSummary?.cta_type ?? creative?.page_post_cta_type ?? null)
+        : null;
+    const hasFixedCta = existingPostCta != null && existingPostCta !== 'NO_BUTTON';
+    const ctaSelectable = !isPagePost || (postPicked && !hasFixedCta);
+
     function handleModeChange(v: string | number) {
         updateAd(adsetKey, ad.key, { creative: { ...creative, mode: v as ContentMode } });
     }
@@ -116,7 +155,7 @@ function AdEditor({ adsetKey, ad }: AdEditorProps) {
         cta_type: string | null;
     }) {
         updateAd(adsetKey, ad.key, {
-            creative: { ...creative, page_id: p.page_id, page_post_id: p.page_post_id },
+            creative: { ...creative, page_id: p.page_id, page_post_id: p.page_post_id, page_post_cta_type: p.cta_type ?? null },
         });
         setPickedSummary({
             image_url: p.image_url,
@@ -287,8 +326,28 @@ function AdEditor({ adsetKey, ad }: AdEditorProps) {
                 </>
             )}
 
-            {/* CTA */}
-            {ctaOptions.length > 0 && (
+            {/* CTA. Bài có sẵn (object_story_id) được promote nguyên trạng: có nút thì khoá +
+                hiển thị tên; không có nút thì báo rõ (không thêm được nút cho bài có sẵn).
+                Chế độ "tạo nội dung mới" mới cho tự chọn (nút đi vào link_data.call_to_action). */}
+            {isPagePost && postPicked ? (
+                <Form.Item label="Nút kêu gọi hành động (CTA)" style={{ marginTop: 16 }}>
+                    <Space direction="vertical" size={4}>
+                        {hasFixedCta ? (
+                            <>
+                                <Segmented options={[{ label: ctaLabel(existingPostCta as string), value: existingPostCta as string }]} value={existingPostCta as string} disabled />
+                                <Text type="secondary" style={{ maxWidth: 520, display: 'inline-block' }}>
+                                    Bài viết đã có sẵn nút này — quảng cáo giữ nguyên nút của bài, không đổi được.
+                                </Text>
+                            </>
+                        ) : (
+                            <Text type="secondary" style={{ maxWidth: 520, display: 'inline-block' }}>
+                                Bài viết không có nút kêu gọi hành động. Quảng cáo dùng bài có sẵn sẽ giữ nguyên
+                                trạng bài — muốn có nút CTA, hãy chọn "Tạo nội dung mới".
+                            </Text>
+                        )}
+                    </Space>
+                </Form.Item>
+            ) : ctaSelectable && ctaOptions.length > 0 ? (
                 <Form.Item label="Nút kêu gọi hành động (CTA)" style={{ marginTop: 16 }}>
                     <Segmented
                         options={ctaOptions}
@@ -296,7 +355,7 @@ function AdEditor({ adsetKey, ad }: AdEditorProps) {
                         onChange={handleCtaChange}
                     />
                 </Form.Item>
-            )}
+            ) : null}
 
             {/* Advantage+ creative (standard enhancements) */}
             <Form.Item label="Advantage+ — Tối ưu nội dung tự động" style={{ marginTop: 8 }}>
