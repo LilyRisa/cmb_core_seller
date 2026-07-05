@@ -48,7 +48,10 @@ export function BusinessInfoDrawer({
     const isBulk = (bulkIds?.length ?? 0) > 0;
 
     useEffect(() => {
-        if (open) form.setFieldsValue(isBulk ? {} : (initial ?? {}));
+        if (open) {
+            form.resetFields();
+            form.setFieldsValue(isBulk ? {} : (initial ?? {}));
+        }
     }, [open, initial, isBulk, form]);
 
     const onSave = async () => {
@@ -79,7 +82,7 @@ export function BusinessInfoDrawer({
             destroyOnClose
             extra={
                 <Space>
-                    <Button onClick={onClose}>Huỷ</Button>
+                    <Button onClick={onClose} disabled={save.isPending || bulkSave.isPending}>Huỷ</Button>
                     <Button type="primary" loading={save.isPending || bulkSave.isPending} onClick={onSave}>Lưu</Button>
                 </Space>
             }
