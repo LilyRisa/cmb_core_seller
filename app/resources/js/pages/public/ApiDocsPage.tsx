@@ -353,6 +353,38 @@ export function ApiDocsPage() {
   "data": [ { "sku_id": 1, "sku_code": "AT-01", "on_hand": 120, "reserved": 8, "available": 112 } ]
 }`}
                         />
+                        <Endpoint
+                            method="POST"
+                            path="/warehouse-docs/goods-issues"
+                            desc="Tạo phiếu xuất kho (nháp) — giảm tồn theo sku_id. Xác nhận ở bước confirm."
+                            request={`curl -X POST -H "Authorization: Bearer <API_KEY>" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "warehouse_id": 1,
+    "reason": "Hàng hỏng",
+    "items": [ { "sku_id": 1, "qty": 5 } ]
+  }' \\
+  "${BASE}/warehouse-docs/goods-issues"`}
+                            response={`{
+  "data": {
+    "id": 321,
+    "code": "PXK-260705-AB12C",
+    "type": "goods-issues",
+    "status": "draft",
+    "warehouse_id": 1,
+    "reason": "Hàng hỏng",
+    "items": [ { "sku_id": 1, "qty": 5 } ]
+  }
+}`}
+                        />
+                        <Endpoint
+                            method="POST"
+                            path="/warehouse-docs/goods-issues/{id}/confirm"
+                            desc="Xác nhận phiếu xuất → trừ tồn (on_hand). Xuất quá tồn sẽ trả 422 (chặn âm tồn); SKU không thuộc gian hàng cũng bị từ chối 422."
+                            request={`curl -X POST -H "Authorization: Bearer <API_KEY>" \\
+  "${BASE}/warehouse-docs/goods-issues/321/confirm"`}
+                            response={`{ "data": { "id": 321, "status": "confirmed" } }`}
+                        />
 
                         <SectionH id="van-don">7. Vận đơn</SectionH>
                         <Endpoint

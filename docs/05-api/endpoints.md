@@ -133,6 +133,9 @@
 | GET | `/api/v1/warehouse-docs/{type}/{id}` | `inventory.view` | — | phiếu + `items[]` (`{id,sku_id,sku{id,sku_code,name}, qty\|unit_cost \| system_qty\|counted_qty\|diff}`). |
 | POST | `/api/v1/warehouse-docs/{type}/{id}/confirm` | `inventory.adjust`/`transfer`/`stocktake` | — | áp vào sổ cái: nhập kho ⇒ `+on_hand`+giá vốn bình quân, chuyển kho ⇒ `transfer_out`/`transfer_in`, kiểm kê ⇒ re-snapshot+`stocktake_adjust(diff)`; phát `InventoryChanged`. Phiếu đã `confirmed`/`cancelled` ⇒ `422`. |
 | POST | `/api/v1/warehouse-docs/{type}/{id}/cancel` | `inventory.adjust`/`transfer`/`stocktake` | — | huỷ phiếu `draft`; đã `confirmed` ⇒ `422`. |
+| POST | `/api/v1/warehouse-docs/goods-issues` | `inventory.adjust` | `{ warehouse_id, reason?, note?, items:[{sku_id, qty}] (≤500) }` | `201` phiếu xuất kho `draft` (+items). Kho/SKU lạ ⇒ `422`. |
+| POST | `/api/v1/warehouse-docs/goods-issues/{id}/confirm` | `inventory.adjust` | — | xác nhận → trừ `on_hand`, ghi movement `goods_issue`; phát `InventoryChanged`. Xuất quá tồn (chặn âm tồn) ⇒ `422`. Phiếu đã `confirmed`/`cancelled` ⇒ `422`. |
+| POST | `/api/v1/warehouse-docs/goods-issues/{id}/cancel` | `inventory.adjust` | — | huỷ phiếu `draft`; đã `confirmed` ⇒ `422`. |
 | GET | `/api/v1/channel-listings` | `products.view` | `channel_account_id?`, `channel_account_ids?` (CSV — lọc nhiều shop), `sync_status?`, `mapped?` (0\|1), `q?`, `page` | `{ data:[ChannelListingResource{...,channel_stock,sync_status,is_stock_locked,is_mapped,mappings[]}], meta }`. |
 | POST | `/api/v1/channel-listings/sync` | `inventory.map` | — | `{ data:{ queued: N } }` — dispatch `FetchChannelListings` cho mọi shop `active` hỗ trợ `listings.fetch` (nút "Đồng bộ listing từ sàn" ở tab Liên kết SKU). |
 | PATCH | `/api/v1/channel-listings/{id}` | `inventory.map` | `{ is_stock_locked? }` | `ChannelListingResource` — ghim/bỏ ghim tự-đẩy tồn. |
@@ -144,6 +147,8 @@
 | DELETE | `/api/v1/sku-mappings/{id}` | `inventory.map` | — | `{ data:{ deleted:true } }` + đẩy tồn lại. |
 | GET | `/api/v1/orders/unmapped-skus` | `orders.view` + `inventory.map` | `order_ids?` (csv — bỏ trống = mọi đơn còn dòng chưa ghép) | `{ data:[{ channel_account_id, channel_account_name, external_sku_id, seller_sku, sample_name, order_count, item_count, existing_listing_id, suggested_sku_id }] }` — các SKU sàn distinct **đã gộp** (cùng `(channel_account_id, external_sku_id\|seller_sku)`); `suggested_sku_id` = master SKU có `sku_code` chuẩn-hoá trùng `seller_sku`. (SPEC 0004) |
 | POST | `/api/v1/orders/link-skus` | `inventory.map` | `{ links:[{ channel_account_id, external_sku_id?, seller_sku?, sku_id }] }` (≤200) | `{ data:{ linked:N, listings_created:N, orders_resolved:N } }` — mỗi link: `channel_listing` firstOrCreate `(channel_account_id, external_sku_id)` (tạo từ dữ liệu đơn nếu chưa có) → `sku_mappings` single×1 → sau cùng **re-resolve đồng bộ** mọi đơn `source!=manual` còn dòng chưa ghép (`OrderInventoryService::apply` — re-resolve `order_items.sku_id`, reserve tồn, clear `has_issue`, phát `InventoryChanged`) để phản hồi nhất quán ngay. Idempotent. SKU/shop khác tenant ⇒ `422`. (SPEC 0004 / 0012 sửa lỗi đơn cùng SKU không tự ghép) |
+
+> Guard chung mọi loại phiếu kho (`goods-receipts`/`stock-transfers`/`stocktakes`/`goods-issues`): gửi `sku_id`/`warehouse_id` không thuộc gian hàng gắn với token ⇒ `422` nêu rõ id vi phạm.
 
 ## Giao hàng & in ấn (Fulfillment — Phase 3, SPEC-0006)
 
