@@ -37,7 +37,7 @@ class VisionRerankProviderTest extends TestCase
 
             public function consume(int $t, int $n = 1): void {}
 
-            public function record(int $t, int $n = 1): void {}
+            public function record(int $t, int $n = 1, ?string $feature = null, ?int $userId = null): void {}
 
             public function grantPurchase(int $t, int $a): int
             {

@@ -5,8 +5,10 @@ namespace CMBcoreSeller\Modules\Billing\Services;
 use CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter;
 use CMBcoreSeller\Modules\Billing\Exceptions\AiCreditException;
 use CMBcoreSeller\Modules\Billing\Models\AiCreditWallet;
+use CMBcoreSeller\Modules\Billing\Models\AiUsageCounter;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * Lượt gọi AI của tenant (SPEC 0032).
@@ -116,12 +118,20 @@ class AiCreditService implements AiCreditMeter
 
     /**
      * Ghi nhận `n` lượt đã dùng SAU khi provider trả thành công (best-effort, KHÔNG ném).
-     * Trừ hạn mức tặng trước rồi credit mua; clamp ở 0 (không âm). Bỏ qua khi unlimited /
-     * gói không có AI. Khác {@see consume} (consume gate trước + ném khi hết).
+     * Trừ hạn mức tặng trước rồi credit mua; clamp ở 0 (không âm). Bỏ qua wallet khi unlimited /
+     * gói không có AI, NHƯNG luôn đếm vào ai_usage_counters (đã có 1 call thực sự xảy ra).
+     * Khác {@see consume} (consume gate trước + ném khi hết).
      */
-    public function record(int $tenantId, int $n = 1): void
+    public function record(int $tenantId, int $n = 1, ?string $feature = null, ?int $userId = null): void
     {
-        if ($n <= 0 || ! $this->aiEnabled($tenantId) || $this->unlimited($tenantId)) {
+        if ($n <= 0) {
+            return;
+        }
+
+        // Đếm lượt gọi AI (kể cả gói không giới hạn / không có AI — đã có 1 call thực sự xảy ra).
+        $this->countUsage($tenantId, $n, $feature, $userId);
+
+        if (! $this->aiEnabled($tenantId) || $this->unlimited($tenantId)) {
             return;
         }
         $w = $this->wallet($tenantId);
@@ -135,6 +145,24 @@ class AiCreditService implements AiCreditMeter
             'period_used' => $w->period_used + $fromAllowance,
             'purchased_balance' => $w->purchased_balance - $fromPurchase,
         ])->save();
+    }
+
+    /** Best-effort: tăng bộ đếm lượt AI theo (tenant, user, tháng, tính năng). Không ném. */
+    private function countUsage(int $tenantId, int $n, ?string $feature, ?int $userId): void
+    {
+        try {
+            $uid = $userId ?? Auth::id() ?? 0;
+            $ym = (int) now()->format('Ym');
+            $feat = $feature ?? 'other';
+
+            $row = AiUsageCounter::withoutGlobalScope(TenantScope::class)->firstOrCreate(
+                ['tenant_id' => $tenantId, 'user_id' => (int) $uid, 'period_ym' => $ym, 'feature' => $feat],
+                ['count' => 0],
+            );
+            $row->increment('count', $n);
+        } catch (\Throwable) {
+            // Đếm lỗi không được phép làm vỡ luồng AI.
+        }
     }
 
     /** Cộng credit MUA (cộng dồn, chặn trên 5000). Trả số thực cộng được. */

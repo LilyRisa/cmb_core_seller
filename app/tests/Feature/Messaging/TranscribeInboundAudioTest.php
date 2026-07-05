@@ -44,7 +44,7 @@ class TranscribeInboundAudioTest extends TestCase
 
             public function consume(int $x, int $n = 1): void {}
 
-            public function record(int $x, int $n = 1): void
+            public function record(int $x, int $n = 1, ?string $feature = null, ?int $userId = null): void
             {
                 $this->t->recorded += $n;
             }

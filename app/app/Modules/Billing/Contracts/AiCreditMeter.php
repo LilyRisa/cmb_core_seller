@@ -26,9 +26,11 @@ interface AiCreditMeter
     /**
      * Ghi nhận `n` lượt ĐÃ dùng — gọi SAU khi 1 request tới provider AI trả về THÀNH CÔNG.
      * KHÔNG ném (best-effort, clamp ở 0): một reply đã sinh xong không được vỡ vì hết hạn mức.
-     * Bỏ qua khi gói không giới hạn / không có AI. Đây là đầu mối đếm "mỗi response provider = 1 lượt".
+     * Bỏ qua wallet khi gói không giới hạn / không có AI, NHƯNG luôn đếm vào ai_usage_counters
+     * (đầu mối "mỗi response provider = 1 lượt"). `$feature` gắn nhãn tính năng; `$userId` null ⇒
+     * resolve Auth::id() rồi 0 (hệ thống/auto).
      */
-    public function record(int $tenantId, int $n = 1): void;
+    public function record(int $tenantId, int $n = 1, ?string $feature = null, ?int $userId = null): void;
 
     /** Cộng credit MUA (cộng dồn, ≤ 5000). Trả số thực cộng được. */
     public function grantPurchase(int $tenantId, int $amount): int;
