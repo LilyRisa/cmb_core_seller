@@ -171,15 +171,22 @@ class VisualMatcher implements VisualItemSearch
             }
             $name = mb_strtolower(trim((string) $item->name));
             $ref = mb_strtolower(trim((string) $item->ref_code));
-            // Khớp CHÍNH XÁC (tên/mã là chuỗi con trong câu khách) ⇒ điểm tuyệt đối.
-            if (($name !== '' && str_contains($needle, $name)) || ($ref !== '' && str_contains($needle, $ref))) {
+            $desc = mb_strtolower(trim((string) $item->description));
+            // Khớp CHÍNH XÁC (tên/mã/mô tả là chuỗi con trong câu khách) ⇒ điểm tuyệt đối.
+            if (($name !== '' && str_contains($needle, $name))
+                || ($ref !== '' && str_contains($needle, $ref))
+                || ($desc !== '' && str_contains($needle, $desc))) {
                 $scored[$item->id] = ['item' => $item, 'score' => 1.0];
 
                 continue;
             }
-            // Khớp MỀM theo phần lớn từ khoá của tên — khách hay mô tả GẦN đúng (vd
-            // "bộ thu bluetooth có màn led" vs tên training "bộ thu bluetooth ăn ten").
-            $score = $this->nameTokenOverlap($needle, $name);
+            // Khớp MỀM theo phần lớn từ khoá của TÊN hoặc MÔ TẢ — khách hay mô tả GẦN đúng (vd
+            // "bộ thu bluetooth có màn led" vs tên "bộ thu bluetooth ăn ten"), hoặc tên là MÃ
+            // (vd "zkmt21") nhưng khách gọi theo mô tả ("tai nghe bluetooth chống ồn").
+            $score = max(
+                $this->tokenOverlap($needle, $name),
+                $this->tokenOverlap($needle, $desc),
+            );
             if ($score >= self::NAME_TOKEN_MATCH_MIN) {
                 $scored[$item->id] = ['item' => $item, 'score' => $score];
             }
@@ -210,16 +217,16 @@ class VisualMatcher implements VisualItemSearch
     private const NAME_TOKEN_DELTA = 0.2;
 
     /**
-     * Tỉ lệ từ khoá (≥2 ký tự) trong TÊN sản phẩm xuất hiện trong câu khách. 1.0 = mọi từ khoá
-     * đều có; 0 = không từ nào. Dùng cho khớp mềm khi khách mô tả gần đúng tên.
+     * Tỉ lệ từ khoá (≥2 ký tự) trong `$phrase` (tên/mô tả SP) xuất hiện trong câu khách.
+     * 1.0 = mọi từ khoá đều có; 0 = không từ nào. Dùng cho khớp mềm tên/mô tả gần đúng.
      */
-    private function nameTokenOverlap(string $needle, string $name): float
+    private function tokenOverlap(string $needle, string $phrase): float
     {
-        if ($name === '') {
+        if ($phrase === '') {
             return 0.0;
         }
         $tokens = array_values(array_filter(
-            preg_split('/[^\p{L}\p{N}]+/u', $name) ?: [],
+            preg_split('/[^\p{L}\p{N}]+/u', $phrase) ?: [],
             fn ($w) => mb_strlen($w) >= 2,
         ));
         if ($tokens === []) {

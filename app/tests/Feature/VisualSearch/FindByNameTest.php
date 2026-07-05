@@ -15,10 +15,10 @@ class FindByNameTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function item(int $tenantId, string $name, string $ref = ''): VisualTrainingItem
+    private function item(int $tenantId, string $name, string $ref = '', string $description = ''): VisualTrainingItem
     {
         return VisualTrainingItem::withoutGlobalScope(TenantScope::class)->create([
-            'tenant_id' => $tenantId, 'name' => $name, 'ref_code' => $ref,
+            'tenant_id' => $tenantId, 'name' => $name, 'ref_code' => $ref, 'description' => $description,
             'status' => 'active', 'applies_all_pages' => true,
         ]);
     }
@@ -62,6 +62,18 @@ class FindByNameTest extends TestCase
 
         $this->assertSame(VisualMatchResult::STATUS_MATCHED, $r->status);
         $this->assertSame('bộ thu bluetooth ăn ten', $r->item->name);
+    }
+
+    public function test_matches_by_description_when_name_is_a_code(): void
+    {
+        // Tên là MÃ (zkmt21) nhưng khách gọi theo MÔ TẢ ⇒ khớp mềm theo mô tả.
+        $this->item(1, 'ZKMT21', 'zkmt21', 'tai nghe bluetooth chống ồn');
+        $this->item(1, 'D800', 'd800', 'loa kéo di động');
+
+        $r = app(VisualItemSearch::class)->findByName(1, 'cho em xem tai nghe bluetooth chống ồn ạ');
+
+        $this->assertSame(VisualMatchResult::STATUS_MATCHED, $r->status);
+        $this->assertSame('ZKMT21', $r->item->name);
     }
 
     public function test_weak_overlap_does_not_match(): void
