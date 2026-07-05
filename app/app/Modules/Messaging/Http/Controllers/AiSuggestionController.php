@@ -101,6 +101,20 @@ class AiSuggestionController extends Controller
             'ai_run_id' => $draft->ai_run_id,
         ]);
 
+        foreach ((array) ($draft->suggested_attachments ?? []) as $att) {
+            if (! is_array($att) || empty($att['storage_path'])) {
+                continue;
+            }
+            $this->outbound->queueMedia($conv, [
+                'kind' => (string) ($att['kind'] ?? 'image'),
+                'storage_path' => (string) $att['storage_path'],
+                'mime' => (string) ($att['mime'] ?? 'image/jpeg'),
+            ], [
+                'sent_by_ai' => true,
+                'message_tag' => $data['message_tag'] ?? null,
+            ]);
+        }
+
         $draft->update([
             'status' => MessageDraft::STATUS_ACCEPTED,
             'accepted_at' => now(),

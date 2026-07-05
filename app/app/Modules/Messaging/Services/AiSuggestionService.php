@@ -280,12 +280,28 @@ class AiSuggestionService
         // 1 response provider thành công = 1 lượt AI (SPEC 0032).
         $this->credits->record($tenantId, 1, 'messaging', $userId);
 
+        // Khách xin ảnh sản phẩm ⇒ đính kèm ảnh vào draft (NV duyệt sẽ gửi kèm text khi accept).
+        $suggestedAttachments = [];
+        $lastInbound = $this->lastInboundBody($conv) ?? '';
+        if ($lastInbound !== '') {
+            $intent = $this->intentClassifier->classify($tenantId, $providerCode, $lastInbound);
+            if ($intent->intent === 'image_request') {
+                $media = $this->resolveProductImages($conv, $lastInbound, $tenantId);
+                if ($media !== null) {
+                    $suggestedAttachments = array_map(
+                        fn ($img) => ['storage_path' => $img['storage_path'], 'mime' => $img['mime'], 'kind' => 'image'],
+                        $media['images'],
+                    );
+                }
+            }
+        }
+
         return MessageDraft::create([
             'tenant_id' => $tenantId,
             'conversation_id' => $conv->id,
             'ai_run_id' => $run->id,
             'draft_text' => $draftText,
-            'suggested_attachments' => [],
+            'suggested_attachments' => $suggestedAttachments,
             'status' => MessageDraft::STATUS_PENDING,
             'expires_at' => now()->addHour(),
         ]);
