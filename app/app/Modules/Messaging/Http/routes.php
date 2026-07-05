@@ -169,6 +169,11 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
         // SPEC 0035 — bật/tắt AI tự trả lời theo từng page.
         Route::patch('channels/{id}/ai-mode', [MessagingChannelController::class, 'aiMode'])
             ->whereNumber('id')->name('messaging.channels.ai_mode');  // messaging.ai.config
+        // Thông tin cửa hàng theo page (AI trả lời SĐT/địa chỉ/bảo hành...).
+        Route::patch('channels/{id}/business-info', [MessagingChannelController::class, 'businessInfo'])
+            ->whereNumber('id')->name('messaging.channels.business_info');   // messaging.ai.config
+        Route::patch('channels/business-info', [MessagingChannelController::class, 'bulkBusinessInfo'])
+            ->name('messaging.channels.bulk-business_info');                 // messaging.ai.config
         // Hành động hàng loạt trên nhiều page đã chọn (body: { ids: int[] }).
         Route::post('channels/bulk-sync', [MessagingChannelController::class, 'bulkSync'])
             ->name('messaging.channels.bulk-sync');                   // messaging.connect

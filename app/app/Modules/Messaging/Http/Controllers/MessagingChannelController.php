@@ -61,6 +61,8 @@ class MessagingChannelController extends Controller
                     'messaging_enabled' => (bool) $a->messaging_enabled,
                     // SPEC 0035 — AI tự trả lời theo từng page.
                     'ai_auto_mode' => $meta !== null && $meta->ai_auto_mode,
+                    // Thông tin cửa hàng theo page (AI dùng để trả lời SĐT/địa chỉ/bảo hành...).
+                    'business_info' => $meta?->business_info,
                     'token_expired' => $a->status === ChannelAccount::STATUS_EXPIRED,
                     'connected_at' => $a->created_at?->toIso8601String(),
                     // Ưu tiên avatar đã relay vào storage; fallback URL thô (vd Zalo OA lưu URL trực tiếp).
@@ -122,6 +124,77 @@ class MessagingChannelController extends Controller
         ]);
 
         return response()->json(['data' => ['ok' => true, 'ai_auto_mode' => (bool) $data['ai_auto_mode']]]);
+    }
+
+    /** PATCH /channels/{id}/business-info — lưu thông tin cửa hàng cho 1 page. */
+    public function businessInfo(int $id, Request $request): JsonResponse
+    {
+        Gate::authorize('messaging.ai.config');
+
+        $info = $this->validatedBusinessInfo($request);
+        $account = ChannelAccount::query()
+            ->whereIn('provider', ChannelAccount::MESSAGING_ONLY_PROVIDERS)->findOrFail($id);
+
+        MessagingAccountMeta::query()->updateOrCreate(
+            ['channel_account_id' => $account->id],
+            ['tenant_id' => $account->tenant_id, 'business_info' => $info],
+        );
+
+        AuditLog::record('messaging.'.$account->provider.'.business_info', null, [
+            'external_shop_id' => $account->external_shop_id,
+        ]);
+
+        return response()->json(['data' => ['ok' => true, 'business_info' => $info]]);
+    }
+
+    /** PATCH /channels/business-info — áp dụng thông tin cửa hàng cho NHIỀU page (body: { ids, business_info }). */
+    public function bulkBusinessInfo(Request $request): JsonResponse
+    {
+        Gate::authorize('messaging.ai.config');
+
+        $ids = $this->validatedIds($request);
+        $info = $this->validatedBusinessInfo($request);
+        $accounts = ChannelAccount::query()
+            ->whereIn('provider', ChannelAccount::MESSAGING_ONLY_PROVIDERS)->whereIn('id', $ids)->get();
+
+        foreach ($accounts as $account) {
+            MessagingAccountMeta::query()->updateOrCreate(
+                ['channel_account_id' => $account->id],
+                ['tenant_id' => $account->tenant_id, 'business_info' => $info],
+            );
+        }
+
+        if ($accounts->isNotEmpty()) {
+            AuditLog::record('messaging.bulk_business_info', null, [
+                'external_shop_ids' => $accounts->pluck('external_shop_id')->all(),
+                'count' => $accounts->count(),
+            ]);
+        }
+
+        return response()->json(['data' => ['ok' => true, 'processed' => $accounts->count()]]);
+    }
+
+    /**
+     * Validate + chuẩn hoá khối business_info (bộ khoá cố định + ghi chú tự do).
+     *
+     * @return array<string,string>
+     */
+    private function validatedBusinessInfo(Request $request): array
+    {
+        $data = $request->validate([
+            'business_info' => ['required', 'array'],
+            'business_info.shop_name' => ['nullable', 'string', 'max:150'],
+            'business_info.phone' => ['nullable', 'string', 'max:60'],
+            'business_info.address' => ['nullable', 'string', 'max:400'],
+            'business_info.email' => ['nullable', 'string', 'max:150'],
+            'business_info.warranty_policy' => ['nullable', 'string', 'max:2000'],
+            'business_info.working_hours' => ['nullable', 'string', 'max:200'],
+            'business_info.website' => ['nullable', 'string', 'max:200'],
+            'business_info.extra_note' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        // Chỉ giữ khoá cho phép + bỏ giá trị rỗng.
+        return array_filter($data['business_info'], fn ($v) => is_string($v) && trim($v) !== '');
     }
 
     /** POST /channels/{id}/sync — đồng bộ lại lịch sử (manual backfill). */
