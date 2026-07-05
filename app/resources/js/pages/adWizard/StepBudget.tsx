@@ -63,7 +63,8 @@ export function StepBudget() {
                             value={a.conversion?.pixel_id}
                             onChange={(v) => patchConversion(a.key, { pixel_id: v })}
                             placeholder="Chọn Pixel"
-                            options={(pixels ?? []).map((p) => ({ label: p.name, value: p.id }))}
+                            // Kèm ID vì nhiều Pixel trùng tên; optionFilterProp="label" ⇒ tìm được cả theo ID.
+                            options={(pixels ?? []).map((p) => ({ label: `${p.name} (#${p.id})`, value: p.id }))}
                             notFoundContent={pixelsLoading ? 'Đang tải...' : 'Tài khoản chưa có Pixel'}
                         />
                         <Text type="secondary">Pixel ghi nhận sự kiện trên website để tối ưu chuyển đổi.</Text>
