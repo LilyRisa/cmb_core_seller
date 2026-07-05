@@ -12,8 +12,8 @@ import {
 } from '@/lib/inventory';
 
 const STATUS_COLOR: Record<string, string> = { draft: 'default', confirmed: 'green', cancelled: 'red' };
-const TYPES: WarehouseDocType[] = ['goods-receipts', 'stock-transfers', 'stocktakes'];
-const PERM: Record<WarehouseDocType, string> = { 'goods-receipts': 'inventory.adjust', 'stock-transfers': 'inventory.transfer', 'stocktakes': 'inventory.stocktake' };
+const TYPES: WarehouseDocType[] = ['goods-receipts', 'goods-issues', 'stock-transfers', 'stocktakes'];
+const PERM: Record<WarehouseDocType, string> = { 'goods-receipts': 'inventory.adjust', 'goods-issues': 'inventory.adjust', 'stock-transfers': 'inventory.transfer', 'stocktakes': 'inventory.stocktake' };
 
 /** "Phiếu kho" — Phase 5 WMS: nhập kho / chuyển kho / kiểm kê. Tab trong trang Tồn kho. */
 export function WarehouseDocsTab() {
@@ -34,13 +34,18 @@ export function WarehouseDocsTab() {
     const submit = () => form.validateFields().then((v) => {
         const items = (v.items ?? []).filter((i: { sku_id?: number }) => i?.sku_id).map((i: Record<string, number>) => {
             if (type === 'goods-receipts') return { sku_id: i.sku_id, qty: i.qty ?? 1, unit_cost: i.unit_cost ?? 0 };
+            if (type === 'goods-issues') return { sku_id: i.sku_id, qty: i.qty ?? 1 };
             if (type === 'stock-transfers') return { sku_id: i.sku_id, qty: i.qty ?? 1 };
             return { sku_id: i.sku_id, counted_qty: i.counted_qty ?? 0 };
         });
         if (items.length === 0) { message.error('Thêm ít nhất một dòng hàng.'); return; }
         const body: Record<string, unknown> = { type, note: v.note || undefined, items };
         if (type === 'stock-transfers') { body.from_warehouse_id = v.from_warehouse_id; body.to_warehouse_id = v.to_warehouse_id; }
-        else { body.warehouse_id = v.warehouse_id; if (type === 'goods-receipts') body.supplier = v.supplier || undefined; }
+        else {
+            body.warehouse_id = v.warehouse_id;
+            if (type === 'goods-receipts') body.supplier = v.supplier || undefined;
+            if (type === 'goods-issues') body.reason = v.reason || undefined;
+        }
         create.mutate(body as { type: WarehouseDocType }, { onSuccess: () => { message.success('Đã tạo phiếu (nháp)'); setCreateOpen(false); }, onError: (e) => message.error(errorMessage(e)) });
     });
 
@@ -50,6 +55,7 @@ export function WarehouseDocsTab() {
             ? <>{whName(whs, d.from_warehouse_id)} <Typography.Text type="secondary">→</Typography.Text> {whName(whs, d.to_warehouse_id)}</>
             : whName(whs, d.warehouse_id) },
         ...(type === 'goods-receipts' ? [{ title: 'NCC', dataIndex: 'supplier', key: 'sup', render: (v: string | null) => v ?? '—' } as const, { title: 'Giá trị', dataIndex: 'total_cost', key: 'tc', align: 'right' as const, render: (v: number) => <MoneyText value={v} /> } as const] : []),
+        ...(type === 'goods-issues' ? [{ title: 'Lý do xuất', dataIndex: 'reason', key: 'reason', render: (v: string | null) => v ?? '—' } as const] : []),
         { title: 'Số dòng', dataIndex: 'item_count', key: 'ic', width: 90, align: 'center' },
         { title: 'Trạng thái', dataIndex: 'status', key: 'st', width: 130, render: (v) => <Tag color={STATUS_COLOR[v]}>{WAREHOUSE_DOC_STATUS_LABEL[v] ?? v}</Tag> },
         { title: 'Tạo lúc', dataIndex: 'created_at', key: 'ca', width: 150, render: (v) => <DateText value={v} /> },
@@ -61,7 +67,7 @@ export function WarehouseDocsTab() {
         ) : null } as const] : []),
     ];
 
-    const itemColumns = type === 'goods-receipts' ? ['qty', 'unit_cost'] : type === 'stock-transfers' ? ['qty'] : ['counted_qty'];
+    const itemColumns = type === 'goods-receipts' ? ['qty', 'unit_cost'] : type === 'goods-issues' || type === 'stock-transfers' ? ['qty'] : ['counted_qty'];
 
     return (
         <>
@@ -90,6 +96,7 @@ export function WarehouseDocsTab() {
                         </Form.Item>
                     )}
                     {type === 'goods-receipts' && <Form.Item name="supplier" label="Nhà cung cấp (tuỳ chọn)"><Input placeholder="VD: Xưởng A" /></Form.Item>}
+                    {type === 'goods-issues' && <Form.Item name="reason" label="Lý do xuất"><Input placeholder="VD: Xuất hàng hỏng / Xuất dùng nội bộ" /></Form.Item>}
                     <Form.Item name="note" label="Ghi chú"><Input maxLength={255} placeholder="VD: Nhập đầu kỳ tháng 5 / Chuyển hàng sang kho 2 / Kiểm kê quý" /></Form.Item>
 
                     <Form.List name="items">
@@ -139,7 +146,7 @@ function WarehouseDocDetail({ type, id, whs }: { type: WarehouseDocType; id: num
             <Typography.Title level={5} style={{ marginTop: 0 }}>{WAREHOUSE_DOC_LABEL[type]} — {doc.code} <Tag color={STATUS_COLOR[doc.status]}>{WAREHOUSE_DOC_STATUS_LABEL[doc.status]}</Tag></Typography.Title>
             <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
                 {type === 'stock-transfers' ? <>Từ <b>{whName(whs, doc.from_warehouse_id)}</b> → <b>{whName(whs, doc.to_warehouse_id)}</b></> : <>Kho: <b>{whName(whs, doc.warehouse_id)}</b></>}
-                {doc.supplier ? <> · NCC: <b>{doc.supplier}</b></> : null}{doc.note ? <> · {doc.note}</> : null}{doc.confirmed_at ? <> · xác nhận: <DateText value={doc.confirmed_at} /></> : null}
+                {doc.supplier ? <> · NCC: <b>{doc.supplier}</b></> : null}{doc.reason ? <> · Lý do xuất: <b>{doc.reason}</b></> : null}{doc.note ? <> · {doc.note}</> : null}{doc.confirmed_at ? <> · xác nhận: <DateText value={doc.confirmed_at} /></> : null}
             </Typography.Paragraph>
             <Table rowKey="id" size="small" pagination={false} dataSource={doc.items ?? []} columns={cols} />
         </div>

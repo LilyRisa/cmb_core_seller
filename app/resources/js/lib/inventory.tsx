@@ -476,7 +476,7 @@ export function useUpdateManualOrder() {
 
 // ---- WMS phiếu kho (Phase 5 / SPEC 0010) ------------------------------------
 
-export type WarehouseDocType = 'goods-receipts' | 'stock-transfers' | 'stocktakes';
+export type WarehouseDocType = 'goods-receipts' | 'goods-issues' | 'stock-transfers' | 'stocktakes';
 
 export interface WarehouseDocItem { id: number; sku_id: number; sku: { id: number; sku_code: string; name: string } | null; qty?: number; unit_cost?: number; system_qty?: number; counted_qty?: number; diff?: number }
 
@@ -491,13 +491,14 @@ export interface WarehouseDoc {
     from_warehouse_id?: number;
     to_warehouse_id?: number;
     supplier?: string | null;
+    reason?: string | null;
     total_cost?: number;
     confirmed_at: string | null;
     created_at: string | null;
     items?: WarehouseDocItem[];
 }
 
-export const WAREHOUSE_DOC_LABEL: Record<WarehouseDocType, string> = { 'goods-receipts': 'Phiếu nhập kho', 'stock-transfers': 'Phiếu chuyển kho', 'stocktakes': 'Phiếu kiểm kê' };
+export const WAREHOUSE_DOC_LABEL: Record<WarehouseDocType, string> = { 'goods-receipts': 'Phiếu nhập kho', 'goods-issues': 'Phiếu xuất kho', 'stock-transfers': 'Phiếu chuyển kho', 'stocktakes': 'Phiếu kiểm kê' };
 export const WAREHOUSE_DOC_STATUS_LABEL: Record<string, string> = { draft: 'Nháp', confirmed: 'Đã xác nhận', cancelled: 'Đã huỷ' };
 
 export function useWarehouseDocs(type: WarehouseDocType, filters: { status?: string; warehouse_id?: number; q?: string; page?: number; per_page?: number }) {
