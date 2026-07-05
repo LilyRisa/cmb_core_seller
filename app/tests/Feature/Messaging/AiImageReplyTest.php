@@ -80,6 +80,55 @@ class AiImageReplyTest extends TestCase
         ]);
     }
 
+    public function test_image_request_via_keyword_heuristic_when_classifier_says_other(): void
+    {
+        // Prod: MiniMax classify NHẦM image_request thành "other" ⇒ AI từ chối gửi ảnh.
+        // Heuristic từ khoá phải bắt được "gửi cho tôi hình ảnh …" dù classifier trả "other".
+        $conv = $this->seedConv();
+
+        $intent = Mockery::mock(IntentClassifier::class);
+        $intent->shouldReceive('classify')->andReturn(new IntentDTO(intent: 'other', confidence: 0.7));
+        $intent->shouldReceive('shouldEscalate')->andReturn(false);
+        $this->app->instance(IntentClassifier::class, $intent);
+
+        $visual = Mockery::mock(VisualItemSearch::class);
+        $visual->shouldReceive('findByName')->andReturn(
+            VisualMatchResult::matched(new VisualItemCandidate(itemId: 5, name: 'Áo thun', description: null, attributes: [], confidence: 1.0)),
+        );
+        $visual->shouldReceive('imagesForItem')->andReturn([new VisualItemImage('image/jpeg', 'IMG')]);
+        $this->app->instance(VisualItemSearch::class, $visual);
+
+        $result = app(AiSuggestionService::class)->autoRespond($conv, 'gửi cho tôi hình ảnh áo thun với');
+
+        $this->assertSame('sent', $result['action']);
+        $this->assertDatabaseHas('messages', [
+            'conversation_id' => $conv->id, 'direction' => Message::DIRECTION_OUTBOUND,
+            'kind' => 'image', 'sent_by_ai' => 1,
+        ]);
+    }
+
+    public function test_non_image_message_not_treated_as_image_request(): void
+    {
+        // "other" + không có từ khoá ảnh ⇒ KHÔNG vào nhánh gửi ảnh (tránh sai dương).
+        $conv = $this->seedConv();
+
+        $intent = Mockery::mock(IntentClassifier::class);
+        $intent->shouldReceive('classify')->andReturn(new IntentDTO(intent: 'other', confidence: 0.7));
+        $intent->shouldReceive('shouldEscalate')->andReturn(false);
+        $this->app->instance(IntentClassifier::class, $intent);
+
+        $visual = Mockery::mock(VisualItemSearch::class);
+        $visual->shouldReceive('findByName')->never();
+        $this->app->instance(VisualItemSearch::class, $visual);
+
+        $result = app(AiSuggestionService::class)->autoRespond($conv, 'sản phẩm này giá bao nhiêu vậy shop');
+
+        $this->assertSame('sent', $result['action']);
+        $this->assertDatabaseMissing('messages', [
+            'conversation_id' => $conv->id, 'direction' => Message::DIRECTION_OUTBOUND, 'kind' => 'image',
+        ]);
+    }
+
     public function test_image_request_unresolved_falls_through_to_text(): void
     {
         $conv = $this->seedConv();

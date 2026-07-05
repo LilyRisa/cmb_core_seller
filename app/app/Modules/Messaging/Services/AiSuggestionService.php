@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Messaging\Services;
 use CMBcoreSeller\Integrations\Ai\AiAssistantRegistry;
 use CMBcoreSeller\Integrations\Ai\DTO\AiContext;
 use CMBcoreSeller\Integrations\Ai\DTO\ConversationSnapshot;
+use CMBcoreSeller\Integrations\Ai\DTO\IntentDTO;
 use CMBcoreSeller\Integrations\Ai\Exceptions\ProviderNotConfigured;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter;
@@ -77,6 +78,34 @@ class AiSuggestionService
         } catch (\Throwable) {
             return true;
         }
+    }
+
+    /**
+     * Heuristic xác định khách XIN ẢNH sản phẩm — độc lập với AI classifier (MiniMax/M3
+     * hay phân loại nhầm "image_request" thành "other" ⇒ AI trả lời "không gửi ảnh được").
+     * Bắt buộc có DANH TỪ ảnh (hình/ảnh/mẫu) + ĐỘNG TỪ yêu cầu (gửi/cho xem/xin/coi/…).
+     * Sai dương nhẹ vô hại: cùng lắm AI hỏi lại "muốn xem sản phẩm nào".
+     */
+    private function looksLikeImageRequest(string $text): bool
+    {
+        $t = mb_strtolower(trim($text));
+        if ($t === '') {
+            return false;
+        }
+        if (preg_match('/(hình|hinh|ảnh|mẫu|mau)/u', $t) !== 1) {
+            return false;
+        }
+
+        return preg_match('/(gửi|gui|xin|coi|xem|show|up |đăng|dang|cho\s+(mình|minh|em|tôi|toi|anh|chị|chi|xem)|có\s+.{0,8}(hình|hinh|ảnh))/u', $t) === 1;
+    }
+
+    /**
+     * Khách muốn nhận ảnh SP? Ưu tiên classifier; nếu classifier KHÔNG nói image_request
+     * thì fallback heuristic từ khoá (chống classifier phân loại nhầm).
+     */
+    private function wantsProductImage(IntentDTO $intent, string $inboundText): bool
+    {
+        return $intent->intent === 'image_request' || $this->looksLikeImageRequest($inboundText);
     }
 
     /**
@@ -183,7 +212,7 @@ class AiSuggestionService
         // Khách xin ảnh sản phẩm: nếu xác định được SP theo tên ⇒ gửi ảnh (không cần sinh text).
         // Không rõ SP ⇒ rơi xuống sinh text kèm chỉ dẫn HỎI LẠI khách muốn xem SP nào.
         $askForProduct = false;
-        if ($intent->intent === 'image_request' && $this->channelCanSendImage($conv)) {
+        if ($this->wantsProductImage($intent, $inboundText) && $this->channelCanSendImage($conv)) {
             $media = $this->resolveProductImages($conv, $inboundText, $tenantId);
             if ($media !== null) {
                 return [
@@ -306,7 +335,7 @@ class AiSuggestionService
             // Phát hiện ý định xin ảnh bằng AI (chính xác hơn keyword vì sản phẩm gần giống);
             // KHÔNG tính vào bộ đếm lượt AI (meter:false) — giữ bất biến 1 lượt/gợi ý.
             $intent = $this->intentClassifier->classify($tenantId, $providerCode, $lastInbound, meter: false);
-            if ($intent->intent === 'image_request' && $this->channelCanSendImage($conv)) {
+            if ($this->wantsProductImage($intent, $lastInbound) && $this->channelCanSendImage($conv)) {
                 $media = $this->resolveProductImages($conv, $lastInbound, $tenantId);
                 if ($media !== null) {
                     $suggestedAttachments = array_map(
