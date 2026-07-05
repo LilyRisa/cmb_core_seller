@@ -34,6 +34,13 @@ class InventoryLedgerService
             type: InventoryMovement::GOODS_RECEIPT, qtyChange: $qty, refType: $refType, refId: $refId, note: $note, userId: $userId, reason: 'goods_receipt');
     }
 
+    /** Goods issue (xuất kho: hủy/hỏng/biếu tặng): on_hand -= qty (type=goods_issue). Phase 5 WMS. */
+    public function issue(int $tenantId, int $skuId, ?int $warehouseId, int $qty, ?string $note = null, ?string $refType = null, ?int $refId = null, ?int $userId = null): InventoryMovement
+    {
+        return $this->apply($tenantId, $skuId, $warehouseId, onHandDelta: -$qty, reservedDelta: 0,
+            type: InventoryMovement::GOODS_ISSUE, qtyChange: -$qty, refType: $refType, refId: $refId, note: $note, userId: $userId, reason: 'goods_issue');
+    }
+
     /** Hold stock for an order line: reserved += qty. Idempotent per (order_item, sku). */
     public function reserve(int $tenantId, int $skuId, int $qty, string $refType, int $refId, ?int $warehouseId = null, ?int $userId = null): ?InventoryMovement
     {
