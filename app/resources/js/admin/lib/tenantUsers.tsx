@@ -10,6 +10,7 @@ export type TenantUserRow = {
     email_verified_at: string | null;
     suspended_at: string | null;
     tenants: { id: number; name: string; role: string }[];
+    ai_usage: { this_month: number; all_time: number };
     created_at: string | null;
 };
 
@@ -78,5 +79,19 @@ export function useReactivateTenantUser() {
             qc.invalidateQueries({ queryKey: ['tenant-users'] });
             qc.invalidateQueries({ queryKey: ['tenant-user'] });
         },
+    });
+}
+
+export type AiUsageBreakdown = {
+    all_time: number;
+    by_month: { period_ym: number; count: number }[];
+    by_feature: { feature: string; count: number }[];
+};
+
+export function useTenantUserAiUsage(id: number | null) {
+    return useQuery({
+        queryKey: ['tenant-user-ai-usage', id],
+        queryFn: async () => (await api.get<{ data: AiUsageBreakdown }>(`/admin/users/${id}/ai-usage`)).data.data,
+        enabled: id !== null,
     });
 }

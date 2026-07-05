@@ -84,6 +84,14 @@ export function AdminUsersPage() {
             ),
         },
         {
+            title: 'Lượt AI (tháng / tổng)',
+            dataIndex: 'ai_usage',
+            width: 150,
+            render: (v: TenantUserRow['ai_usage']) => (
+                <Typography.Text>{v?.this_month ?? 0} / {v?.all_time ?? 0}</Typography.Text>
+            ),
+        },
+        {
             title: 'Tạo lúc',
             dataIndex: 'created_at',
             width: 130,

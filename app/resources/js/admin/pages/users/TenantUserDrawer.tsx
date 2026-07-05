@@ -2,7 +2,7 @@
 // suspend/reactivate. Hiển thị danh sách tenant đang là thành viên.
 
 import { useEffect, useState } from 'react';
-import { Drawer, Form, Input, Button, Space, App, Popconfirm, Tag, Typography } from 'antd';
+import { Drawer, Form, Input, Button, Space, App, Popconfirm, Tag, Typography, Descriptions } from 'antd';
 import { errorMessage } from '@/lib/api';
 import {
     useTenantUserDetail,
@@ -10,6 +10,7 @@ import {
     useResetTenantUserPassword,
     useSuspendTenantUser,
     useReactivateTenantUser,
+    useTenantUserAiUsage,
 } from '../../lib/tenantUsers';
 
 export function TenantUserDrawer({
@@ -22,6 +23,7 @@ export function TenantUserDrawer({
     const [form] = Form.useForm();
     const [newPassword, setNewPassword] = useState('');
     const { data } = useTenantUserDetail(userId);
+    const aiUsage = useTenantUserAiUsage(userId);
     const update = useUpdateTenantUser();
     const reset = useResetTenantUserPassword();
     const suspend = useSuspendTenantUser();
@@ -85,6 +87,13 @@ export function TenantUserDrawer({
                         được kích hoạt lại.
                     </Typography.Paragraph>
                 )}
+
+                <Descriptions title="Lượt gọi AI" column={1} size="small" style={{ marginTop: 16, marginBottom: 16 }}>
+                    <Descriptions.Item label="Tổng">{aiUsage.data?.all_time ?? 0}</Descriptions.Item>
+                    {(aiUsage.data?.by_feature ?? []).map((f) => (
+                        <Descriptions.Item key={f.feature} label={f.feature}>{f.count}</Descriptions.Item>
+                    ))}
+                </Descriptions>
 
                 <Space wrap>
                     <Button type="primary" htmlType="submit" loading={update.isPending}>
