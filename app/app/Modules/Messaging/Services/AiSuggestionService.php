@@ -281,18 +281,16 @@ class AiSuggestionService
         $this->credits->record($tenantId, 1, 'messaging', $userId);
 
         // Khách xin ảnh sản phẩm ⇒ đính kèm ảnh vào draft (NV duyệt sẽ gửi kèm text khi accept).
+        // Dùng heuristic RẺ (không gọi AI classify) để giữ đúng bất biến 1 lượt AI = 1 credit (SPEC 0032).
         $suggestedAttachments = [];
         $lastInbound = $this->lastInboundBody($conv) ?? '';
-        if ($lastInbound !== '') {
-            $intent = $this->intentClassifier->classify($tenantId, $providerCode, $lastInbound);
-            if ($intent->intent === 'image_request') {
-                $media = $this->resolveProductImages($conv, $lastInbound, $tenantId);
-                if ($media !== null) {
-                    $suggestedAttachments = array_map(
-                        fn ($img) => ['storage_path' => $img['storage_path'], 'mime' => $img['mime'], 'kind' => 'image'],
-                        $media['images'],
-                    );
-                }
+        if ($lastInbound !== '' && $this->looksLikeImageRequest($lastInbound)) {
+            $media = $this->resolveProductImages($conv, $lastInbound, $tenantId);
+            if ($media !== null) {
+                $suggestedAttachments = array_map(
+                    fn ($img) => ['storage_path' => $img['storage_path'], 'mime' => $img['mime'], 'kind' => 'image'],
+                    $media['images'],
+                );
             }
         }
 
@@ -305,6 +303,19 @@ class AiSuggestionService
             'status' => MessageDraft::STATUS_PENDING,
             'expires_at' => now()->addHour(),
         ]);
+    }
+
+    /** Heuristic RẺ (không gọi AI) đoán khách đang xin XEM ẢNH — dùng ở suggest-mode (có NV duyệt). */
+    private function looksLikeImageRequest(string $text): bool
+    {
+        $t = mb_strtolower($text);
+        foreach (['ảnh', 'hình', 'photo', 'pic', 'xem mẫu'] as $kw) {
+            if (str_contains($t, $kw)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function resolveProviderCode(int $tenantId): string
