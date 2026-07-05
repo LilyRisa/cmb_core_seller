@@ -82,6 +82,28 @@ class AdDraftApiTest extends TestCase
             ->assertJsonCount(1, 'data');
     }
 
+    public function test_index_filters_by_ad_account_id(): void
+    {
+        app(CurrentTenant::class)->set($this->tenant);
+        $accA = AdAccount::create(['provider' => 'facebook', 'external_account_id' => 'act_a', 'currency' => 'VND', 'status' => 'active', 'access_token' => 'X']);
+        $accB = AdAccount::create(['provider' => 'facebook', 'external_account_id' => 'act_b', 'currency' => 'VND', 'status' => 'active', 'access_token' => 'X']);
+        $draftA = AdDraft::create(['ad_account_id' => $accA->id, 'name' => 'A', 'payload' => []]);
+        AdDraft::create(['ad_account_id' => $accB->id, 'name' => 'B', 'payload' => []]);
+
+        // Chọn tài khoản A ⇒ chỉ thấy nháp của A (không lẫn nháp của B).
+        $this->actingAs($this->user(Role::Owner))->withHeaders($this->h())
+            ->getJson('/api/v1/marketing/ad-drafts?ad_account_id='.$accA->id)
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $draftA->id);
+
+        // Không truyền filter ⇒ vẫn thấy cả hai (tương thích ngược).
+        $this->actingAs($this->user(Role::Owner))->withHeaders($this->h())
+            ->getJson('/api/v1/marketing/ad-drafts')
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+    }
+
     public function test_create_rejects_account_from_other_tenant(): void
     {
         $other = Tenant::create(['name' => 'Other']);

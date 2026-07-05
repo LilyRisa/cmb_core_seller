@@ -402,7 +402,7 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
             'campaign_id' => $spec->campaignExternalId,
             'billing_event' => $map['billing_event'],
             'optimization_goal' => $map['optimization_goal'],
-            'targeting' => json_encode($this->mergePlacements($spec->targeting, $spec->placementConfig)),
+            'targeting' => json_encode($this->withAdvantageAudience($this->mergePlacements($spec->targeting, $spec->placementConfig))),
             'status' => $spec->status,
             'start_time' => $spec->startTime ?? now()->toIso8601String(),
             'access_token' => $accessToken,
@@ -455,6 +455,31 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
                     $targeting["{$plat}_positions"] = $pos;
                 }
             }
+        }
+
+        return $targeting;
+    }
+
+    /**
+     * Advantage+ audience: từ Graph v23.0, tạo ad set MỚI bắt buộc có
+     * targeting.targeting_automation.advantage_audience = 1 (bật) hoặc 0 (tắt);
+     * thiếu ⇒ code 100/subcode 1870227 ("Cần có cờ đối tượng Advantage").
+     * Mặc định 0 (tắt) để tôn trọng đúng targeting người bán chọn — bật (=1) sẽ
+     * ép age_max=65 và mở rộng detailed targeting. Giữ nguyên nếu người bán đã set.
+     *
+     * @param  array<string,mixed>  $targeting
+     * @return array<string,mixed>
+     */
+    private function withAdvantageAudience(array $targeting): array
+    {
+        if (! isset($targeting['targeting_automation']) || ! is_array($targeting['targeting_automation'])) {
+            $targeting['targeting_automation'] = [];
+        }
+        if (! isset($targeting['targeting_automation']['advantage_audience'])) {
+            $targeting['targeting_automation']['advantage_audience'] = 0;
+        } else {
+            // Chuẩn hoá về int 1/0 (payload nháp có thể lưu chuỗi/bool).
+            $targeting['targeting_automation']['advantage_audience'] = (int) ((bool) $targeting['targeting_automation']['advantage_audience']);
         }
 
         return $targeting;

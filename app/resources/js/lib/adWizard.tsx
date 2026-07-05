@@ -98,13 +98,19 @@ export interface AdPreview { format: string; body: string }
 
 const KEY = 'marketing-adwizard';
 
-export function useAdDrafts() {
+/**
+ * Bản nháp gắn với một tài khoản quảng cáo. Truyền accountId để chỉ lấy nháp của
+ * tài khoản đó; queryKey chứa accountId nên đổi tài khoản ⇒ refetch danh sách mới.
+ */
+export function useAdDrafts(accountId?: number | null) {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();
     return useQuery({
-        queryKey: [KEY, 'drafts', tenantId],
+        queryKey: [KEY, 'drafts', tenantId, accountId ?? null],
         enabled: api != null,
-        queryFn: async () => (await api!.get<{ data: AdDraft[] }>('/marketing/ad-drafts')).data.data,
+        queryFn: async () => (await api!.get<{ data: AdDraft[] }>('/marketing/ad-drafts', {
+            params: accountId != null ? { ad_account_id: accountId } : undefined,
+        })).data.data,
     });
 }
 

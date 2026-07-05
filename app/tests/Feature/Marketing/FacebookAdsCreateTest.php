@@ -318,6 +318,41 @@ class FacebookAdsCreateTest extends TestCase
         });
     }
 
+    public function test_create_adset_defaults_advantage_audience_opt_out(): void
+    {
+        // v23.0+: Graph REQUIRES targeting.targeting_automation.advantage_audience (1|0) khi tạo ad set mới
+        // (thiếu ⇒ code 100/subcode 1870227). Mặc định 0 = tôn trọng đúng targeting người bán chọn.
+        Http::fake(['graph.facebook.com/*/adsets' => Http::response(['id' => 'AS'], 200)]);
+
+        $this->connector()->createAdSet('tok', 'act_1', new AdSetSpecDTO(
+            name: 'Set', campaignExternalId: 'C1', objective: 'messages',
+            dailyBudgetMajor: 1000, currency: 'VND',
+            targeting: ['geo_locations' => ['countries' => ['VN']]], pageId: '123',
+        ));
+
+        Http::assertSent(function ($r) {
+            $t = json_decode($r->data()['targeting'], true);
+
+            return ($t['targeting_automation']['advantage_audience'] ?? null) === 0
+                && $t['geo_locations']['countries'] === ['VN'];
+        });
+    }
+
+    public function test_create_adset_preserves_explicit_advantage_audience_opt_in(): void
+    {
+        // Nếu người bán chủ động bật Advantage+ audience (=1) trong targeting, connector giữ nguyên.
+        Http::fake(['graph.facebook.com/*/adsets' => Http::response(['id' => 'AS'], 200)]);
+
+        $this->connector()->createAdSet('tok', 'act_1', new AdSetSpecDTO(
+            name: 'Set', campaignExternalId: 'C1', objective: 'messages',
+            dailyBudgetMajor: 1000, currency: 'VND',
+            targeting: ['geo_locations' => ['countries' => ['VN']], 'targeting_automation' => ['advantage_audience' => 1]],
+            pageId: '123',
+        ));
+
+        Http::assertSent(fn ($r) => (json_decode($r->data()['targeting'], true)['targeting_automation']['advantage_audience'] ?? null) === 1);
+    }
+
     public function test_create_adset_conversions_uses_pixel_promoted_object(): void
     {
         Http::fake(['graph.facebook.com/*/adsets' => Http::response(['id' => 'AS'], 200)]);

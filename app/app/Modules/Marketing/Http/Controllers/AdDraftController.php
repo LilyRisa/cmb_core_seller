@@ -30,7 +30,16 @@ class AdDraftController extends Controller
     {
         Gate::authorize('marketing.view');
 
-        return AdDraftResource::collection(AdDraft::query()->latest('id')->get());
+        // Bản nháp thuộc về một tài khoản quảng cáo — lọc theo ad_account_id để mỗi
+        // tài khoản chỉ thấy nháp của chính nó (đổi tài khoản ⇒ danh sách nháp đổi theo).
+        $accountId = (int) request()->integer('ad_account_id');
+
+        return AdDraftResource::collection(
+            AdDraft::query()
+                ->when($accountId > 0, fn ($q) => $q->where('ad_account_id', $accountId))
+                ->latest('id')
+                ->get(),
+        );
     }
 
     public function store(AdDraftRequest $request): JsonResponse

@@ -52,7 +52,6 @@ export function MarketingDashboardPage() {
     const navigate = useNavigate();
     const [params, setParams] = useSearchParams();
     const canConnect = useCan('marketing.connect');
-    const { data: drafts } = useAdDrafts();
     const deleteDraft = useDeleteDraft();
     const duplicateDraft = useDuplicateDraft();
     const connect = useConnectFacebookAds();
@@ -94,6 +93,8 @@ export function MarketingDashboardPage() {
         ? accountId
         : (bmAccounts[0]?.id ?? null);
     const currency = bmAccounts.find((a) => a.id === selectedId)?.currency ?? null;
+    // Nháp chỉ của tài khoản đang chọn — đổi tài khoản ⇒ tự refetch (queryKey chứa selectedId).
+    const { data: drafts } = useAdDrafts(selectedId);
 
     useEffect(() => {
         if (effectiveBm != null) localStorage.setItem(BM_KEY, effectiveBm);
