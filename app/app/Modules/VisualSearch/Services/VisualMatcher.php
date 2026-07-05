@@ -164,29 +164,75 @@ class VisualMatcher implements VisualItemSearch
                 ->pluck('item_id')->map(fn ($v) => (int) $v)->all();
         }
 
-        $matches = [];
+        $scored = [];
         foreach ($items as $item) {
             if ($pageItemIds !== null && ! $item->applies_all_pages && ! in_array((int) $item->id, $pageItemIds, true)) {
                 continue;
             }
             $name = mb_strtolower(trim((string) $item->name));
             $ref = mb_strtolower(trim((string) $item->ref_code));
-            $hit = ($name !== '' && str_contains($needle, $name))
-                || ($ref !== '' && str_contains($needle, $ref));
-            if ($hit) {
-                $matches[$item->id] = $this->toCandidate($item, 1.0);
+            // Khớp CHÍNH XÁC (tên/mã là chuỗi con trong câu khách) ⇒ điểm tuyệt đối.
+            if (($name !== '' && str_contains($needle, $name)) || ($ref !== '' && str_contains($needle, $ref))) {
+                $scored[$item->id] = ['item' => $item, 'score' => 1.0];
+
+                continue;
+            }
+            // Khớp MỀM theo phần lớn từ khoá của tên — khách hay mô tả GẦN đúng (vd
+            // "bộ thu bluetooth có màn led" vs tên training "bộ thu bluetooth ăn ten").
+            $score = $this->nameTokenOverlap($needle, $name);
+            if ($score >= self::NAME_TOKEN_MATCH_MIN) {
+                $scored[$item->id] = ['item' => $item, 'score' => $score];
             }
         }
 
-        $matches = array_values($matches);
-        if ($matches === []) {
+        $scored = array_values($scored);
+        if ($scored === []) {
             return VisualMatchResult::notFound();
         }
-        if (count($matches) === 1) {
-            return VisualMatchResult::matched($matches[0]);
+        usort($scored, fn ($a, $b) => $b['score'] <=> $a['score']);
+
+        $top = $scored[0];
+        $second = $scored[1] ?? null;
+        // Chỉ TỰ gửi khi ứng viên đầu vượt trội (tránh gửi nhầm SP khi nhiều tên na ná).
+        if ($second === null || ($top['score'] - $second['score']) >= self::NAME_TOKEN_DELTA) {
+            return VisualMatchResult::matched($this->toCandidate($top['item'], $top['score']));
         }
 
-        return VisualMatchResult::ambiguous(array_slice($matches, 0, 5));
+        return VisualMatchResult::ambiguous(array_map(
+            fn ($s) => $this->toCandidate($s['item'], $s['score']),
+            array_slice($scored, 0, 5),
+        ));
+    }
+
+    /** Ngưỡng khớp mềm tên SP theo từ khoá (chống nhầm: đặt cao + xét vượt trội). */
+    private const NAME_TOKEN_MATCH_MIN = 0.6;
+
+    private const NAME_TOKEN_DELTA = 0.2;
+
+    /**
+     * Tỉ lệ từ khoá (≥2 ký tự) trong TÊN sản phẩm xuất hiện trong câu khách. 1.0 = mọi từ khoá
+     * đều có; 0 = không từ nào. Dùng cho khớp mềm khi khách mô tả gần đúng tên.
+     */
+    private function nameTokenOverlap(string $needle, string $name): float
+    {
+        if ($name === '') {
+            return 0.0;
+        }
+        $tokens = array_values(array_filter(
+            preg_split('/[^\p{L}\p{N}]+/u', $name) ?: [],
+            fn ($w) => mb_strlen($w) >= 2,
+        ));
+        if ($tokens === []) {
+            return 0.0;
+        }
+        $hit = 0;
+        foreach ($tokens as $tok) {
+            if (mb_strpos($needle, $tok) !== false) {
+                $hit++;
+            }
+        }
+
+        return $hit / count($tokens);
     }
 
     public function imagesForItem(int $tenantId, int $itemId, int $limit = 3): array

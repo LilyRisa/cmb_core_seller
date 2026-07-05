@@ -51,6 +51,39 @@ class FindByNameTest extends TestCase
         $this->assertSame(VisualMatchResult::STATUS_NOT_FOUND, $r->status);
     }
 
+    public function test_partial_phrasing_matches_by_token_overlap(): void
+    {
+        // Ca prod thật: khách mô tả gần đúng ("có màn led") khác tên training ("ăn ten") —
+        // khớp mềm theo từ khoá (bộ/thu/bluetooth = 3/5 = 0.6) ⇒ vẫn nhận đúng SP.
+        $this->item(1, 'bộ thu bluetooth ăn ten');
+        $this->item(1, 'Áo thun');
+
+        $r = app(VisualItemSearch::class)->findByName(1, 'gửi cho tôi hình ảnh bộ thu bluetooth có màn led');
+
+        $this->assertSame(VisualMatchResult::STATUS_MATCHED, $r->status);
+        $this->assertSame('bộ thu bluetooth ăn ten', $r->item->name);
+    }
+
+    public function test_weak_overlap_does_not_match(): void
+    {
+        // Chỉ trùng 1 từ khoá chung ⇒ dưới ngưỡng ⇒ không nhận nhầm.
+        $this->item(1, 'máy lọc nước gia đình cao cấp');
+
+        $r = app(VisualItemSearch::class)->findByName(1, 'cho xem máy đi shop');
+        $this->assertSame(VisualMatchResult::STATUS_NOT_FOUND, $r->status);
+    }
+
+    public function test_close_partial_scores_return_ambiguous(): void
+    {
+        // Hai SP na ná (áo thun nam/nữ), khách chỉ nói "áo thun" ⇒ không tự gửi, hỏi lại.
+        $this->item(1, 'áo thun nam');
+        $this->item(1, 'áo thun nữ');
+
+        $r = app(VisualItemSearch::class)->findByName(1, 'cho xem áo thun');
+        $this->assertSame(VisualMatchResult::STATUS_AMBIGUOUS, $r->status);
+        $this->assertCount(2, $r->candidates);
+    }
+
     public function test_images_for_item_returns_primary_first(): void
     {
         Storage::fake('local');

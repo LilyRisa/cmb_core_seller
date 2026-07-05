@@ -239,8 +239,9 @@ class AiSuggestionService
             $conv,
         );
         if ($askForProduct) {
-            $extra .= "\n\nKhách muốn XEM HÌNH sản phẩm nhưng CHƯA rõ là sản phẩm nào. "
-                .'Hãy lịch sự HỎI LẠI khách muốn xem hình sản phẩm nào (xin tên hoặc mẫu), KHÔNG bịa và KHÔNG tự gửi hình.';
+            $extra .= "\n\nSHOP CÓ THỂ GỬI ẢNH sản phẩm qua tin nhắn. Khách muốn xem ảnh nhưng CHƯA rõ sản phẩm nào — "
+                .'hãy lịch sự HỎI LẠI khách muốn xem ảnh sản phẩm/mẫu nào (xin TÊN hoặc MÃ sản phẩm). '
+                .'TUYỆT ĐỐI KHÔNG nói rằng shop không gửi được ảnh, KHÔNG từ chối gửi ảnh, KHÔNG bịa thông tin.';
         }
         $ctx = new AiContext(tenantId: $tenantId, providerCode: $providerCode, model: $provider?->default_model, systemPromptExtra: $extra, meta: ['mode' => 'auto']);
 
