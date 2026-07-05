@@ -808,7 +808,16 @@ class AiSuggestionService
      */
     private function resolveProductImages(Conversation $conv, string $inboundText, int $tenantId): ?array
     {
-        $match = $this->visualSearch->findByName($tenantId, $inboundText, $conv->channel_account_id ? (int) $conv->channel_account_id : null);
+        $channelAccountId = $conv->channel_account_id ? (int) $conv->channel_account_id : null;
+        $match = $this->visualSearch->findByName($tenantId, $inboundText, $channelAccountId);
+        // Câu hiện tại KHÔNG nêu tên SP (vd "xin ảnh sản phẩm", "cho xem ảnh đi") ⇒ suy từ NGỮ CẢNH:
+        // SP vừa được nhắc trong hội thoại gần đây (kể cả trong câu tư vấn của chính AI).
+        if ($match->status !== VisualMatchResult::STATUS_MATCHED) {
+            $ctxMatch = $this->matchProductFromRecentContext($conv, $tenantId, $channelAccountId);
+            if ($ctxMatch !== null) {
+                $match = $ctxMatch;
+            }
+        }
         if ($match->status !== VisualMatchResult::STATUS_MATCHED || $match->item === null) {
             return null; // ambiguous / not_found ⇒ hỏi lại
         }
@@ -830,6 +839,31 @@ class AiSuggestionService
             'images' => $stored,
             'caption' => 'Dạ, shop gửi anh/chị hình sản phẩm '.$match->item->name.' ạ.',
         ];
+    }
+
+    /**
+     * Suy SP từ các tin GẦN nhất của hội thoại (mới → cũ), trả về khớp ĐẦU TIÊN tìm được —
+     * bám sản phẩm khách/AI vừa nhắc, để "xin ảnh sản phẩm" (không kèm tên) vẫn gửi đúng ảnh.
+     */
+    private function matchProductFromRecentContext(Conversation $conv, int $tenantId, ?int $channelAccountId): ?VisualMatchResult
+    {
+        // Bỏ TenantScope: chạy trong job/listener có thể KHÔNG có tenant hiện tại; conversation_id
+        // đã định danh duy nhất hội thoại (đã thuộc đúng tenant qua $conv).
+        $recent = Message::withoutGlobalScope(TenantScope::class)
+            ->where('conversation_id', $conv->id)
+            ->whereNotNull('body')->where('body', '!=', '')
+            ->orderByDesc('id')
+            ->limit((int) config('messaging.ai.image_reply.context_lookback', 10))
+            ->get(['body']);
+
+        foreach ($recent as $m) {
+            $r = $this->visualSearch->findByName($tenantId, (string) $m->body, $channelAccountId);
+            if ($r->status === VisualMatchResult::STATUS_MATCHED && $r->item !== null) {
+                return $r;
+            }
+        }
+
+        return null;
     }
 
     /**

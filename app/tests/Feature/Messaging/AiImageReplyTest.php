@@ -107,6 +107,39 @@ class AiImageReplyTest extends TestCase
         ]);
     }
 
+    public function test_image_request_resolves_product_from_recent_context(): void
+    {
+        // Khách nhắn "xin ảnh sản phẩm" KHÔNG kèm tên ⇒ suy SP từ tin trước (đang tư vấn về nó) ⇒ gửi ảnh.
+        $conv = $this->seedConv();
+        Message::query()->create([
+            'tenant_id' => $conv->tenant_id, 'conversation_id' => $conv->id,
+            'direction' => Message::DIRECTION_INBOUND, 'kind' => 'text',
+            'body' => 'bộ thu bluetooth ăn ten', 'external_message_id' => 'ctx1',
+        ]);
+
+        $intent = Mockery::mock(IntentClassifier::class);
+        $intent->shouldReceive('classify')->andReturn(new IntentDTO(intent: 'other', confidence: 0.7));
+        $intent->shouldReceive('shouldEscalate')->andReturn(false);
+        $this->app->instance(IntentClassifier::class, $intent);
+
+        $matched = VisualMatchResult::matched(new VisualItemCandidate(itemId: 5, name: 'bộ thu bluetooth ăn ten', description: null, attributes: [], confidence: 1.0));
+        $visual = Mockery::mock(VisualItemSearch::class);
+        // Chỉ khớp khi TEXT có tên SP; câu "xin ảnh sản phẩm" ⇒ not_found ⇒ buộc suy từ ngữ cảnh.
+        $visual->shouldReceive('findByName')->andReturnUsing(
+            fn ($tid, $text, $cid) => str_contains((string) $text, 'bộ thu bluetooth ăn ten') ? $matched : VisualMatchResult::notFound(),
+        );
+        $visual->shouldReceive('imagesForItem')->andReturn([new VisualItemImage('image/jpeg', 'IMG')]);
+        $this->app->instance(VisualItemSearch::class, $visual);
+
+        $result = app(AiSuggestionService::class)->autoRespond($conv, 'xin ảnh sản phẩm');
+
+        $this->assertSame('sent', $result['action']);
+        $this->assertDatabaseHas('messages', [
+            'conversation_id' => $conv->id, 'direction' => Message::DIRECTION_OUTBOUND,
+            'kind' => 'image', 'sent_by_ai' => 1,
+        ]);
+    }
+
     public function test_non_image_message_not_treated_as_image_request(): void
     {
         // "other" + không có từ khoá ảnh ⇒ KHÔNG vào nhánh gửi ảnh (tránh sai dương).
