@@ -6,10 +6,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { MessagingNav } from '@/components/MessagingNav';
 import { PageHeader } from '@/components/PageHeader';
+import { BusinessInfoDrawer } from '@/components/messaging/BusinessInfoDrawer';
 import { errorMessage } from '@/lib/api';
 import { openOAuthPopup } from '@/lib/oauthPopup';
 import { useCan } from '@/lib/tenant';
 import { MARKETPLACE_CHAT_ENABLED } from '@/lib/messaging';
+import type { MessagingChannel } from '@/lib/messagingConfig';
 import { useBulkDisconnectChannels, useBulkSyncChannels, useConnectFacebook, useConnectLazadaIm, useDisconnectFacebookPage, useMessagingChannels, useSetChannelAiMode, useStartZaloConnect, useSyncChannel } from '@/lib/messagingConfig';
 
 const { Text } = Typography;
@@ -58,6 +60,8 @@ export function MessagingChannelsPage() {
     const bulkSync = useBulkSyncChannels();
     const bulkDisconnect = useBulkDisconnectChannels();
     const qc = useQueryClient();
+    const [bizPage, setBizPage] = useState<MessagingChannel | null>(null);
+    const [bulkBizOpen, setBulkBizOpen] = useState(false);
 
     const handleSync = (id: number) => {
         setSyncingId(id);
@@ -232,6 +236,7 @@ export function MessagingChannelsPage() {
                                             {z.token_expired && (
                                                 <Button size="small" type="primary" icon={<KeyOutlined />} loading={startZalo.isPending} onClick={handleConnectZalo}>Kết nối lại</Button>
                                             )}
+                                            <Button size="small" icon={<ShopOutlined />} onClick={() => setBizPage(z)}>Thông tin cửa hàng</Button>
                                             <Popconfirm
                                                 title="Ngắt kết nối Zalo OA?"
                                                 description="Sẽ gỡ OA và xoá toàn bộ hội thoại liên quan, không khôi phục được."
@@ -267,6 +272,9 @@ export function MessagingChannelsPage() {
                             </Checkbox>
                             <Button size="small" icon={<SyncOutlined />} disabled={selectedCount === 0 || bulkBusy} loading={bulkSync.isPending} onClick={handleBulkSync}>
                                 Đồng bộ{selectedCount > 0 ? ` (${selectedCount})` : ''}
+                            </Button>
+                            <Button size="small" icon={<ShopOutlined />} disabled={selectedCount === 0 || bulkBusy} onClick={() => setBulkBizOpen(true)}>
+                                Thông tin cửa hàng{selectedCount > 0 ? ` (${selectedCount})` : ''}
                             </Button>
                             <Popconfirm
                                 title="Ngắt kết nối các Page đã chọn?"
@@ -341,6 +349,7 @@ export function MessagingChannelsPage() {
                                         {p.token_expired && (
                                             <Button size="small" type="primary" icon={<KeyOutlined />} loading={reconnectingId === p.id} onClick={() => handleReconnect(p.id)}>Kết nối lại</Button>
                                         )}
+                                        <Button size="small" icon={<ShopOutlined />} onClick={() => setBizPage(p)}>Thông tin cửa hàng</Button>
                                         <Popconfirm
                                             title="Ngắt kết nối Page?"
                                             description="Sẽ gỡ Page và xoá toàn bộ hội thoại liên quan, không khôi phục được."
@@ -384,6 +393,15 @@ export function MessagingChannelsPage() {
                     </Card>
                 </>
             )}
+
+            <BusinessInfoDrawer
+                open={bizPage !== null || bulkBizOpen}
+                channelId={bizPage?.id ?? null}
+                initial={bizPage?.business_info ?? null}
+                bulkIds={bulkBizOpen ? [...selectedIds] : undefined}
+                onClose={() => { setBizPage(null); setBulkBizOpen(false); }}
+                onSaved={() => { if (bulkBizOpen) setSelectedIds(new Set()); }}
+            />
         </div>
     );
 }

@@ -405,6 +405,18 @@ export interface CommentSync {
     error: string | null;
 }
 
+/** Thông tin cửa hàng theo page — dùng để AI trả lời có ngữ cảnh (SĐT, địa chỉ, chính sách bảo hành...). */
+export interface BusinessInfo {
+    shop_name?: string;
+    phone?: string;
+    address?: string;
+    email?: string;
+    warranty_policy?: string;
+    working_hours?: string;
+    website?: string;
+    extra_note?: string;
+}
+
 export interface MessagingChannel {
     id: number;
     provider: string;
@@ -415,6 +427,7 @@ export interface MessagingChannel {
     messaging_enabled: boolean;
     /** SPEC 0035 — AI tự trả lời bật cho page này. */
     ai_auto_mode: boolean;
+    business_info: BusinessInfo | null;
     token_expired: boolean;
     connected_at: string | null;
     avatar_url: string | null;
@@ -458,6 +471,30 @@ export function useSetChannelAiMode() {
     return useMutation({
         mutationFn: async (input: { id: number; ai_auto_mode: boolean }) => {
             await api!.patch(`/messaging/channels/${input.id}/ai-mode`, { ai_auto_mode: input.ai_auto_mode });
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'channels'] }),
+    });
+}
+
+/** Lưu thông tin cửa hàng (business_info) cho 1 page. */
+export function useSetChannelBusinessInfo() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (input: { id: number; business_info: BusinessInfo }) => {
+            await api!.patch(`/messaging/channels/${input.id}/business-info`, { business_info: input.business_info });
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'channels'] }),
+    });
+}
+
+/** Áp dụng cùng thông tin cửa hàng cho nhiều page đã chọn. */
+export function useBulkSetChannelBusinessInfo() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (input: { ids: number[]; business_info: BusinessInfo }) => {
+            await api!.patch('/messaging/channels/business-info', input);
         },
         onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'channels'] }),
     });
