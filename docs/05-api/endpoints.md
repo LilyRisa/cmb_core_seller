@@ -335,8 +335,9 @@ Super-admin xuyên tenant. Spec 2026-05-17 đã tách auth: super-admin ở bả
 
 | Method | Path | Mô tả |
 |---|---|---|
-| GET | `/api/v1/admin/users` | (đã có — bỏ filter `is_super_admin`). List user toàn hệ thống. |
-| GET | `/api/v1/admin/users/{id}` | Chi tiết user + tenants + email_verified_at + suspended_at. |
+| GET | `/api/v1/admin/users` | (đã có — bỏ filter `is_super_admin`). List user toàn hệ thống. Mỗi row có thêm `ai_usage:{this_month,all_time}` (tổng lượt AI trong tháng / từ trước tới nay, mọi tenant user đó thuộc — 2026-07-05). |
+| GET | `/api/v1/admin/users/{id}` | Chi tiết user + tenants + email_verified_at + suspended_at + `ai_usage` (cùng field như trên). |
+| GET | `/api/v1/admin/users/{id}/ai-usage` | Phân rã lượt AI của 1 user: `{ data: { all_time, by_month:[{period_ym,count}], by_feature:[{feature,count}] } }` — nguồn bảng `ai_usage_counters` (`user_id=0` = hệ thống/auto, ví dụ auto-reply chạy nền không gắn user). Admin đọc xuyên tenant qua contract `AiUsageReporter` (module Billing). (2026-07-05) |
 | PATCH | `/api/v1/admin/users/{id}` | Sửa name/email. Audit `admin.user.update`. |
 | POST | `/api/v1/admin/users/{id}/reset-password` | `{ password ≥8 }`. Audit `admin.user.reset_password`. |
 | POST | `/api/v1/admin/users/{id}/suspend` | Set `users.suspended_at`. EnsureTenant middleware chặn 403 `USER_SUSPENDED` ở route nghiệp vụ tenant. Audit `admin.user.suspend`. |
@@ -362,7 +363,7 @@ Cấu hình động lưu trong DB (`system_settings`), ghi đè giá trị từ 
 | POST | `/api/v1/admin/tenants/{tid}/subscription` | web + `auth:admin_web` | `{ plan_code: trial\|starter\|pro\|business, cycle: monthly\|yearly\|trial, reason: string ≥10 }` | `{ data: SubscriptionResource }` — **bypass `DOWNGRADE_NOT_ALLOWED`** của `BillingService` (force-set tay cho khách yêu cầu). Subscription cũ ⇒ cancelled, subscription mới ⇒ active từ `now`. KHÔNG tạo invoice. Audit `admin.subscription.change`. |
 | POST | `/api/v1/admin/tenants/{tid}/suspend` | web + `auth:admin_web` | `{ reason: string ≥10 }` | `{ data: TenantSummary (status=suspended) }` — `EnsureTenant` middleware sẽ trả `403 TENANT_SUSPENDED` cho mọi member. Audit `admin.tenant.suspend`. |
 | POST | `/api/v1/admin/tenants/{tid}/reactivate` | web + `auth:admin_web` | — | `{ data: TenantSummary (status=active) }`. Audit `admin.tenant.reactivate`. |
-| GET | `/api/v1/admin/users` | web + `auth:admin_web` | query: `q` (email/name), `is_super_admin` (1), `page`, `per_page≤100` | `{ data:[{id,name,email,is_super_admin,tenants:[{id,name,slug,role}],created_at}], meta:{ pagination } }`. |
+| GET | `/api/v1/admin/users` | web + `auth:admin_web` | query: `q` (email/name), `is_super_admin` (1), `page`, `per_page≤100` | `{ data:[{id,name,email,is_super_admin,tenants:[{id,name,slug,role}],created_at,ai_usage:{this_month,all_time}}], meta:{ pagination } }`. `ai_usage` = tổng lượt AI (mọi tính năng) của user đó — xem chi tiết theo tháng/tính năng ở `GET /admin/users/{id}/ai-usage` (2026-07-05). |
 
 ### Admin Tier 1+2 (SPEC 0023)
 
@@ -510,6 +511,8 @@ Provider được chọn ở đây dùng khi transcribe tin nhắn thoại inbou
   - `GET    /messaging/channels/{id}/posts` (`messaging.view`) — post picker (connector có `post.list`).
   - `DELETE /messaging/channels/{id}` (`messaging.connect`) — ngắt kết nối 1 page (xoá hẳn + cascade hội thoại).
   - `POST   /messaging/channels/bulk-disconnect` (`messaging.connect`) — `{ids:int[]}` ngắt kết nối nhiều page đã chọn → `{ok, processed, conversations_deleted}`.
+  - `PATCH  /messaging/channels/{id}/business-info` (`messaging.ai.config`) — `{ business_info: {shop_name?, phone?, address?, email?, warranty_policy?, working_hours?, website?, extra_note?} }` (mọi field string, `nullable`) — lưu **thông tin cửa hàng theo page** vào `messaging_account_meta.business_info` (JSON, **không** mã hoá — khác `settings` đã encrypted). AI dùng thông tin này để trả lời câu hỏi liên hệ/SĐT/địa chỉ/bảo hành (xem SPEC 0035 §4.3). (2026-07-05)
+  - `PATCH  /messaging/channels/business-info` (`messaging.ai.config`) — `{ ids:int[], business_info:{...} }` — áp cùng thông tin cửa hàng cho **nhiều page** cùng lúc (chỉ page `facebook_page`/messaging-only của tenant; id lạ bị bỏ qua) → `{ data:{ ok:true, processed:N } }`. (2026-07-05)
 - `GET/POST/PATCH/DELETE /messaging/templates[/{id}]` (`messaging.template.manage`).
 - **Utility templates (SPEC-0032 — Messenger Utility Messages):** đọc `messaging.view`; mutate/submit/sync `messaging.template.manage`.
   - `GET    /messaging/utility-templates` — lọc `?channel_account_id=&status=` (paginated).
@@ -541,6 +544,11 @@ Provider được chọn ở đây dùng khi transcribe tin nhắn thoại inbou
 - `GET/POST/PATCH/DELETE /admin/ai-providers[/{code}]` — CRUD provider (bảng `ai_providers`). Field `role ∈ {chat,vision,transcription}` (mặc định `chat`) quyết định provider dùng làm gì — provider `role='vision'`/`role='transcription'` KHÔNG bao giờ được chọn làm model chat mặc định (`AiAssistantRegistry::activeProviders(string $role='chat')` lọc theo role). Response mỗi provider gồm `code, adapter, display_name, has_api_key, api_key, base_url, default_model, pricing, adapter_config, is_active, sort_order, notes, capabilities, role, vision_verified, vision_verified_at, vision_verify_error, transcription_verified, transcription_verified_at, transcription_verify_error, updated_at` — `api_key` trả **plaintext** (đã bỏ mask, trang chỉ super-admin `auth:admin_web` xem được).
 - `POST   /admin/ai-providers/{code}/test` — test connection (sinh 1 reply "hello" + thử `embedding`). Chỉ kiểm khả năng **chat**; KHÔNG set `vision_verified`/`transcription_verified` — 2 cờ đó chỉ set qua `/admin/ai-visual-rerank/test` và `/admin/ai-transcription/test` (xem 2 mục ở trên).
 - `GET    /admin/messaging/ai-usage` — per-tenant per-month cost (đọc từ `ai_assistant_runs`).
+
+**Hành vi AI mới (2026-07-05):**
+- **Gửi ảnh sản phẩm theo yêu cầu:** khi khách hỏi hình, `IntentClassifier` nhận diện ý định `image_request` (auto-mode); suggest-mode dùng heuristic từ khoá tương đương để tránh tốn thêm lượt AI. Nếu xác định được sản phẩm theo tên (tra `visual_training_items` qua `findByName`, cùng cơ chế 2 tầng case-insensitive như `Support\SkuSearch`) ⇒ gửi ảnh đại diện trước, tối đa `config('messaging.ai.image_reply.max_images')` (mặc định 3, env `MESSAGING_AI_IMAGE_REPLY_MAX`) — auto-mode tự gửi qua `queueMedia`, suggest-mode trả về `suggested_attachments` để duyệt trước khi gửi. Không xác định được sản phẩm (mơ hồ/không tìm thấy) ⇒ AI hỏi lại "muốn xem sản phẩm nào". Kênh không hỗ trợ gửi ảnh (`outbound.image`) ⇒ tự chuyển thành trả lời bằng văn bản (không lỗi).
+- **Thông tin cửa hàng theo page nạp vào AI:** `messaging_account_meta.business_info` (đặt qua `PATCH /messaging/channels/{id}/business-info` — xem mục "Kết nối & quản lý kênh Facebook Page" ở trên) được `AiSuggestionService::withBusinessInfo()` render thành khối "# Thông tin cửa hàng" và ghép vào system prompt (cùng cơ chế `withAdContext`/`withVisualContext`) cho cả auto-reply lẫn suggest — AI trả lời đúng SĐT/địa chỉ/chính sách bảo hành riêng của từng page thay vì chỉ dựa RAG. Trống/chưa cấu hình ⇒ không thêm khối (không đổi hành vi cũ). Chi tiết mô hình per-page: `docs/specs/0035-per-page-messaging-automation-scoping.md`.
+- **Đếm lượt AI theo user:** mọi lượt gọi AI thành công (mọi tính năng) tăng bảng `ai_usage_counters` (`tenant_id, user_id, period_ym=YYYYMM, feature ∈ messaging|marketing|products|visual|transcription|intent, count`) qua `AiCreditService::record()`; `user_id=0` = hệ thống/tự động (không có request-user, vd auto-reply chạy nền). Không backfill dữ liệu cũ — đếm từ thời điểm deploy. Bề mặt: `GET /admin/users` (`ai_usage.this_month/all_time`) + `GET /admin/users/{id}/ai-usage` (chi tiết theo tháng/tính năng) ở mục Admin phía trên.
 
 **Mã lỗi mới (đề xuất):**
 - `OUTBOUND_WINDOW_CLOSED` (`422`) — vi phạm window rule (Facebook 24h).

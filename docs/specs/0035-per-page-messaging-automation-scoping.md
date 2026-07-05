@@ -124,3 +124,11 @@ $rules = AutoReplyRule::withoutGlobalScope(TenantScope::class)
 4. Sau khi ổn: gỡ fallback cờ nhóm-tenant (cleanup, spec sau).
 
 > Không xoá cờ `auto_mode_facebook/_marketplace` ngay (giữ làm fallback đọc) — tránh vỡ giai đoạn chuyển tiếp.
+
+## 10. Bổ sung 2026-07-05 — Thông tin cửa hàng theo page (`business_info`)
+
+Mở rộng mô hình "1 row/page" ở §4.2: `messaging_account_meta` (khoá theo `channel_account_id`, đã có `ai_enabled`/`ai_auto_mode`) nay có thêm cột `business_info` (JSON, nullable, **không mã hoá** — khác `settings` đã encrypted) chứa thông tin công khai của shop theo TỪNG page: `shop_name, phone, address, email, warranty_policy, working_hours, website, extra_note`.
+
+- Đặt qua `PATCH /api/v1/messaging/channels/{id}/business-info` (1 page) hoặc `PATCH /api/v1/messaging/channels/business-info` (`{ids:int[], business_info:{...}}`, áp hàng loạt nhiều page) — cả 2 gate `messaging.ai.config`. Chi tiết request/response: `docs/05-api/endpoints.md`.
+- `AiSuggestionService::withBusinessInfo()` đọc `business_info` theo đúng `conv->channel_account_id` (không fallback nhóm-tenant — mỗi page độc lập hoàn toàn, không có khái niệm "áp dụng tất cả trang" như rule/flow/knowledge ở §4.1) và ghép vào system prompt AI (auto-reply + suggest) để trả lời câu hỏi liên hệ/SĐT/địa chỉ/bảo hành. Trống ⇒ không ảnh hưởng hành vi cũ.
+- Đây là dữ liệu **per-page thuần** (1-1 với `channel_account_id`), không dùng cơ chế pivot nhiều-page/`applies_all_pages` như rule/flow/knowledge — vì thông tin liên hệ của mỗi page thường khác nhau, không có nhu cầu "áp mọi page".
