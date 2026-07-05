@@ -23,6 +23,7 @@ use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use CMBcoreSeller\Modules\VisualSearch\Contracts\VisualItemSearch;
 use CMBcoreSeller\Modules\VisualSearch\DTO\VisualImageInput;
 use CMBcoreSeller\Modules\VisualSearch\DTO\VisualItemCandidate;
+use CMBcoreSeller\Modules\VisualSearch\DTO\VisualItemImage;
 use CMBcoreSeller\Modules\VisualSearch\DTO\VisualLookupOptions;
 use CMBcoreSeller\Modules\VisualSearch\DTO\VisualMatchResult;
 
@@ -107,6 +108,22 @@ class AiSuggestionService
             return ['action' => 'escalated', 'intent' => $draft['intent']];
         }
 
+        if ($draft['action'] === 'send_media') {
+            $message = null;
+            foreach ($draft['images'] as $i => $img) {
+                $message = $this->outbound->queueMedia($conv, [
+                    'kind' => 'image',
+                    'storage_path' => $img['storage_path'],
+                    'mime' => $img['mime'],
+                ], [
+                    'caption' => $i === 0 ? $draft['caption'] : null,
+                    'sent_by_ai' => true,
+                ]);
+            }
+
+            return ['action' => 'sent', 'intent' => $draft['intent'], 'message' => $message];
+        }
+
         $message = $this->outbound->queueText($conv, [
             'body' => (string) $draft['body'],
             'sent_by_user_id' => null,
@@ -125,7 +142,7 @@ class AiSuggestionService
      * KHÔNG sinh body. Lỗi cứng (hết hạn mức / provider không khả dụng / sinh lỗi)
      * ⇒ ném {@see AiSuggestionException} (caller tự xử lý: DM ném tiếp, comment skip).
      *
-     * @return array{action:'escalated'|'generated', intent:string, body?:string, run_id?:int}
+     * @return array{action:'escalated'|'generated'|'send_media', intent:string, body?:string, run_id?:int, images?:list<array{storage_path:string,mime:string}>, caption?:string}
      */
     public function draftAutoReply(Conversation $conv, string $inboundText): array
     {
@@ -143,6 +160,22 @@ class AiSuggestionService
             return ['action' => 'escalated', 'intent' => $intent->intent];
         }
 
+        // Khách xin ảnh sản phẩm: nếu xác định được SP theo tên ⇒ gửi ảnh (không cần sinh text).
+        // Không rõ SP ⇒ rơi xuống sinh text kèm chỉ dẫn HỎI LẠI khách muốn xem SP nào.
+        $askForProduct = false;
+        if ($intent->intent === 'image_request') {
+            $media = $this->resolveProductImages($conv, $inboundText, $tenantId);
+            if ($media !== null) {
+                return [
+                    'action' => 'send_media',
+                    'intent' => $intent->intent,
+                    'images' => $media['images'],
+                    'caption' => $media['caption'],
+                ];
+            }
+            $askForProduct = true;
+        }
+
         try {
             $connector = $this->registry->for($providerCode);
         } catch (ProviderNotConfigured) {
@@ -156,6 +189,10 @@ class AiSuggestionService
             $this->withAdContext($this->withVisualContext($this->baseSystemExtra(), $conv, $tenantId, $providerCode, $provider?->default_model), $conv),
             $conv,
         );
+        if ($askForProduct) {
+            $extra .= "\n\nKhách muốn XEM HÌNH sản phẩm nhưng CHƯA rõ là sản phẩm nào. "
+                .'Hãy lịch sự HỎI LẠI khách muốn xem hình sản phẩm nào (xin tên hoặc mẫu), KHÔNG bịa và KHÔNG tự gửi hình.';
+        }
         $ctx = new AiContext(tenantId: $tenantId, providerCode: $providerCode, model: $provider?->default_model, systemPromptExtra: $extra, meta: ['mode' => 'auto']);
 
         $startedAt = microtime(true);
@@ -694,6 +731,38 @@ class AiSuggestionService
             .implode("\n", $lines);
 
         return $extra !== '' ? $extra."\n\n".$block : $block;
+    }
+
+    /**
+     * Xác định SP khách xin ảnh (theo tên trong câu) → tải ảnh (ảnh primary trước) đã sao chép sang
+     * disk media messaging + caption. Không rõ SP / không có ảnh ⇒ null (caller hỏi lại).
+     *
+     * @return array{images:list<array{storage_path:string,mime:string}>, caption:string}|null
+     */
+    private function resolveProductImages(Conversation $conv, string $inboundText, int $tenantId): ?array
+    {
+        $match = $this->visualSearch->findByName($tenantId, $inboundText, $conv->channel_account_id ? (int) $conv->channel_account_id : null);
+        if ($match->status !== VisualMatchResult::STATUS_MATCHED || $match->item === null) {
+            return null; // ambiguous / not_found ⇒ hỏi lại
+        }
+
+        $max = max(1, (int) config('messaging.ai.image_reply.max_images', 3));
+        $imgs = $this->visualSearch->imagesForItem($tenantId, $match->item->itemId, $max);
+        if ($imgs === []) {
+            return null; // SP đúng nhưng không có ảnh ⇒ để AI trả lời text
+        }
+
+        $stored = [];
+        foreach ($imgs as $img) {
+            /** @var VisualItemImage $img */
+            $path = $this->media->storeOutboundBytes($tenantId, (int) $conv->id, $img->bytes, $img->ext());
+            $stored[] = ['storage_path' => $path, 'mime' => $img->mime];
+        }
+
+        return [
+            'images' => $stored,
+            'caption' => 'Dạ, shop gửi anh/chị hình sản phẩm '.$match->item->name.' ạ.',
+        ];
     }
 
     /**
