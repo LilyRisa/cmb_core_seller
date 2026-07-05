@@ -15,7 +15,8 @@ use Illuminate\Support\Facades\Log;
  * có cho AI TỰ GỬI hay phải escalate cho NV.
  *
  * Intent escalate (KHÔNG auto-send — phải có người): complaint, refund, urgent,
- * legal_threat, abuse. Còn lại (order_status, price, smalltalk, other) → cho auto-send.
+ * legal_threat, abuse. Còn lại (order_status, price, image_request, smalltalk, other)
+ * → cho auto-send.
  *
  * AN TOÀN MẶC ĐỊNH: classify lỗi / provider không hỗ trợ ⇒ coi như ESCALATE
  * (thà để NV xử lý còn hơn AI tự trả nhầm tin nhạy cảm).

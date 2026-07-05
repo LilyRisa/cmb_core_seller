@@ -6,6 +6,7 @@ use CMBcoreSeller\Integrations\Ai\AiAssistantRegistry;
 use CMBcoreSeller\Integrations\Ai\DTO\AiContext;
 use CMBcoreSeller\Integrations\Ai\DTO\ConversationSnapshot;
 use CMBcoreSeller\Integrations\Ai\Exceptions\ProviderNotConfigured;
+use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter;
 use CMBcoreSeller\Modules\Customers\Contracts\CustomerProfileContract;
 use CMBcoreSeller\Modules\Messaging\Exceptions\AiSuggestionException;
@@ -57,7 +58,26 @@ class AiSuggestionService
         private OrderLookupContract $orderLookup,
         private MediaStorage $media,
         private VisualItemSearch $visualSearch,
+        private MessagingRegistry $messagingRegistry,
     ) {}
+
+    /**
+     * Kênh của hội thoại có gửi được ảnh không? Không xác định được (provider chưa
+     * đăng ký / lỗi bất kỳ) ⇒ giả định CÓ (giữ hành vi cũ, tránh chặn nhầm).
+     */
+    private function channelCanSendImage(Conversation $conv): bool
+    {
+        try {
+            $provider = (string) $conv->provider;
+            if (! $this->messagingRegistry->has($provider)) {
+                return true;
+            }
+
+            return (bool) ($this->messagingRegistry->for($provider)->capabilities()['outbound.image'] ?? false);
+        } catch (\Throwable) {
+            return true;
+        }
+    }
 
     /**
      * Gate hạn mức AI (SPEC 0032): còn lượt mới cho gọi provider. Hết / gói không có AI
@@ -163,7 +183,7 @@ class AiSuggestionService
         // Khách xin ảnh sản phẩm: nếu xác định được SP theo tên ⇒ gửi ảnh (không cần sinh text).
         // Không rõ SP ⇒ rơi xuống sinh text kèm chỉ dẫn HỎI LẠI khách muốn xem SP nào.
         $askForProduct = false;
-        if ($intent->intent === 'image_request') {
+        if ($intent->intent === 'image_request' && $this->channelCanSendImage($conv)) {
             $media = $this->resolveProductImages($conv, $inboundText, $tenantId);
             if ($media !== null) {
                 return [
@@ -286,7 +306,7 @@ class AiSuggestionService
             // Phát hiện ý định xin ảnh bằng AI (chính xác hơn keyword vì sản phẩm gần giống);
             // KHÔNG tính vào bộ đếm lượt AI (meter:false) — giữ bất biến 1 lượt/gợi ý.
             $intent = $this->intentClassifier->classify($tenantId, $providerCode, $lastInbound, meter: false);
-            if ($intent->intent === 'image_request') {
+            if ($intent->intent === 'image_request' && $this->channelCanSendImage($conv)) {
                 $media = $this->resolveProductImages($conv, $lastInbound, $tenantId);
                 if ($media !== null) {
                     $suggestedAttachments = array_map(
