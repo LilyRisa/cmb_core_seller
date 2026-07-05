@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Messaging;
 
+use CMBcoreSeller\Integrations\Ai\DTO\IntentDTO;
 use CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
@@ -10,6 +11,7 @@ use CMBcoreSeller\Modules\Messaging\Models\AiProvider;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Services\AiSuggestionService;
+use CMBcoreSeller\Modules\Messaging\Services\IntentClassifier;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\VisualSearch\Contracts\VisualItemSearch;
 use CMBcoreSeller\Modules\VisualSearch\DTO\VisualItemCandidate;
@@ -53,6 +55,10 @@ class AiImageSuggestTest extends TestCase
             'direction' => Message::DIRECTION_INBOUND, 'kind' => Message::KIND_TEXT,
             'body' => 'cho xin ảnh áo thun', 'external_message_id' => 'm1',
         ]);
+
+        $intent = Mockery::mock(IntentClassifier::class);
+        $intent->shouldReceive('classify')->andReturn(new IntentDTO(intent: 'image_request', confidence: 0.95));
+        $this->app->instance(IntentClassifier::class, $intent);
 
         $visual = Mockery::mock(VisualItemSearch::class);
         $visual->shouldReceive('findByName')->andReturn(

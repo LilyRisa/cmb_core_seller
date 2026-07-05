@@ -33,7 +33,7 @@ class IntentClassifier
 
     public function __construct(private AiAssistantRegistry $registry, private AiCreditMeter $credits) {}
 
-    public function classify(int $tenantId, string $providerCode, string $text): IntentDTO
+    public function classify(int $tenantId, string $providerCode, string $text, bool $meter = true): IntentDTO
     {
         $failKey = "ai:intent:fail:{$providerCode}";
 
@@ -50,8 +50,10 @@ class IntentClassifier
 
             $result = $connector->classifyIntent(new AiContext($tenantId, $providerCode), $text, self::ALL);
             Cache::forget($failKey); // thành công → reset bộ đếm
-            // 1 request provider trả thành công = 1 lượt AI (SPEC 0032).
-            $this->credits->record($tenantId, 1, 'intent');
+            if ($meter) {
+                // 1 request provider trả thành công = 1 lượt AI (SPEC 0032). meter=false: bỏ đếm (vd phát hiện xin-ảnh ở suggest-mode).
+                $this->credits->record($tenantId, 1, 'intent');
+            }
 
             return $result;
         } catch (ProviderNotConfigured $e) {

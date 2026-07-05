@@ -185,7 +185,7 @@ class MessagingAiSuggestionTest extends TestCase
             ->postJson("/api/v1/messaging/conversations/{$this->conv->id}/ai-suggestion")
             ->assertOk();
 
-        // 1 response provider thành công = 1 lượt (suggest chỉ gọi generateReply, không classify).
+        // 1 lượt = generateReply; classify phát hiện xin-ảnh chạy nhưng meter:false nên KHÔNG tính.
         $this->assertSame(1, $meter->summary((int) $this->tenant->getKey())['period_used']);
     }
 }
