@@ -71,5 +71,10 @@ return [
             'api_key' => env('MESSAGING_AI_EMBEDDING_API_KEY', env('HELP_ASSISTANT_EMBEDDING_API_KEY', '')),
             'model' => env('MESSAGING_AI_EMBEDDING_MODEL', env('HELP_ASSISTANT_EMBEDDING_MODEL', 'text-embedding-3-small')),
         ],
+
+        // AI trả lời kèm ẢNH sản phẩm khi khách hỏi hình (số ảnh tối đa mỗi lần gửi).
+        'image_reply' => [
+            'max_images' => (int) env('MESSAGING_AI_IMAGE_REPLY_MAX', 3),
+        ],
     ],
 ];

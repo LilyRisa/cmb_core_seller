@@ -26,7 +26,7 @@ class IntentClassifier
     public const ESCALATE = ['complaint', 'refund', 'urgent', 'legal_threat', 'abuse'];
 
     /** @var list<string> */
-    public const ALL = ['order_status', 'price', 'complaint', 'refund', 'urgent', 'legal_threat', 'abuse', 'smalltalk', 'other'];
+    public const ALL = ['order_status', 'price', 'image_request', 'complaint', 'refund', 'urgent', 'legal_threat', 'abuse', 'smalltalk', 'other'];
 
     /** Ngưỡng lỗi liên tiếp để MỞ mạch (ngừng gọi provider chết). */
     private const FAIL_THRESHOLD = 5;
