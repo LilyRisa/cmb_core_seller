@@ -169,9 +169,18 @@ function buildTargetingSpec(
     const inc = bucket(geo.include);
     const spec: Record<string, unknown> = {
         geo_locations: Object.keys(inc).length ? inc : { countries: ['VN'] },
-        age_min: ageRange[0],
-        age_max: ageRange[1],
     };
+    // Advantage+ Audience (theo doc Meta): khi BẬT, tuổi tối thiểu chỉ 18–25 và KHÔNG đặt được
+    // tuổi tối đa (Meta cố định 65). Cờ advantage_audience phải luôn khai rõ 0/1 (v23+).
+    if (advantageAudience) {
+        spec.age_min = Math.min(ageRange[0], 25);
+        // age_max cố ý bỏ (Meta cố định 65).
+        spec.targeting_automation = { advantage_audience: 1 };
+    } else {
+        spec.age_min = ageRange[0];
+        spec.age_max = ageRange[1];
+        spec.targeting_automation = { advantage_audience: 0 };
+    }
     const exc = bucket(geo.exclude);
     if (Object.keys(exc).length) spec.excluded_geo_locations = exc;
     if (gender !== 'all') {
@@ -185,8 +194,6 @@ function buildTargetingSpec(
     // exclusions: detailed targeting to exclude.
     const exclusions = groupDetailed(detailedExclude);
     if (Object.keys(exclusions).length > 0) spec.exclusions = exclusions;
-    // Advantage+ Audience: let Meta expand beyond the manual inputs (used as a hint).
-    if (advantageAudience) spec.targeting_automation = { advantage_audience: 1 };
     return spec;
 }
 
@@ -431,9 +438,18 @@ function AudienceForm({ adsetKey }: { adsetKey: string }) {
         <Form layout="vertical">
             <Form.Item label="Advantage+ Audience (Meta tự mở rộng đối tượng)">
                 <Space direction="vertical" size={4}>
-                    <Switch checked={advantageAudience} onChange={setAdvantageAudience} />
+                    <Switch
+                        checked={advantageAudience}
+                        onChange={(on) => {
+                            setAdvantageAudience(on);
+                            // Bật Advantage+: Meta chỉ nhận tuổi tối thiểu 18–25, tối đa cố định 65 ⇒ ép về hợp lệ.
+                            if (on) setAgeRange(([lo]) => [Math.min(lo, 25), 65]);
+                        }}
+                    />
                     <Text type="secondary" style={{ maxWidth: 400, display: 'inline-block' }}>
-                        Khi bật, Meta dùng các tiêu chí bên dưới làm gợi ý và tự mở rộng để tìm thêm khách hàng tiềm năng. Vị trí, độ tuổi, giới tính vẫn được áp dụng.
+                        Khi bật, Meta GIỮ nguyên: khu vực, tuổi tối thiểu (18–25) và các loại trừ. Còn giới tính
+                        và nhắm mục tiêu chi tiết chỉ là <b>gợi ý</b> — Meta tự mở rộng để tìm thêm khách. Tuổi tối
+                        đa cố định 65, không đặt được.
                     </Text>
                 </Space>
             </Form.Item>
@@ -541,20 +557,33 @@ function AudienceForm({ adsetKey }: { adsetKey: string }) {
             </Modal>
 
             <Form.Item label="Độ tuổi">
-                <Space direction="vertical" size={4} style={{ width: '100%', maxWidth: 400 }}>
-                    <Slider
-                        range
-                        min={13}
-                        max={65}
-                        value={ageRange}
-                        onChange={(v) => setAgeRange(v as [number, number])}
-                        marks={{ 13: '13', 18: '18', 35: '35', 55: '55', 65: '65' }}
-                    />
-                    <Text type="secondary">{ageRange[0]} – {ageRange[1]} tuổi</Text>
-                </Space>
+                {advantageAudience ? (
+                    <Space direction="vertical" size={4} style={{ width: '100%', maxWidth: 400 }}>
+                        <Slider
+                            min={18}
+                            max={25}
+                            value={Math.min(ageRange[0], 25)}
+                            onChange={(v) => setAgeRange([v as number, 65])}
+                            marks={{ 18: '18', 21: '21', 25: '25' }}
+                        />
+                        <Text type="secondary">Từ {Math.min(ageRange[0], 25)} tuổi · tối đa cố định 65 (Advantage+)</Text>
+                    </Space>
+                ) : (
+                    <Space direction="vertical" size={4} style={{ width: '100%', maxWidth: 400 }}>
+                        <Slider
+                            range
+                            min={13}
+                            max={65}
+                            value={ageRange}
+                            onChange={(v) => setAgeRange(v as [number, number])}
+                            marks={{ 13: '13', 18: '18', 35: '35', 55: '55', 65: '65' }}
+                        />
+                        <Text type="secondary">{ageRange[0]} – {ageRange[1]} tuổi</Text>
+                    </Space>
+                )}
             </Form.Item>
 
-            <Form.Item label="Giới tính">
+            <Form.Item label={advantageAudience ? 'Giới tính (gợi ý — Meta có thể mở rộng)' : 'Giới tính'}>
                 <Segmented
                     options={GENDER_OPTIONS}
                     value={gender}
@@ -563,8 +592,10 @@ function AudienceForm({ adsetKey }: { adsetKey: string }) {
             </Form.Item>
 
             <Form.Item
-                label="Nhắm mục tiêu chi tiết"
-                tooltip="Tìm & thêm sở thích, hành vi, nhân khẩu học để thu hẹp đối tượng."
+                label={advantageAudience ? 'Nhắm mục tiêu chi tiết (gợi ý)' : 'Nhắm mục tiêu chi tiết'}
+                tooltip={advantageAudience
+                    ? 'Khi bật Advantage+, đây chỉ là gợi ý — Meta tự mở rộng ra ngoài các tiêu chí này.'
+                    : 'Tìm & thêm sở thích, hành vi, nhân khẩu học để thu hẹp đối tượng.'}
             >
                 <Select
                     mode="multiple"

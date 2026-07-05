@@ -482,6 +482,16 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
             $targeting['targeting_automation']['advantage_audience'] = (int) ((bool) $targeting['targeting_automation']['advantage_audience']);
         }
 
+        // Advantage+ audience BẬT: Meta chỉ cho age_min 18–25 và KHÔNG cho đặt age_max (cố định 65).
+        // Gửi age_min>25 hoặc kèm age_max ⇒ reject cả ad set (code 100/subcode 1870188). Ép tuân thủ
+        // để không vỡ publish (người bán đã chủ động bật Advantage+ ⇒ tuổi thành gợi ý theo luật Meta).
+        if ($targeting['targeting_automation']['advantage_audience'] === 1) {
+            if (isset($targeting['age_min']) && (int) $targeting['age_min'] > 25) {
+                $targeting['age_min'] = 25;
+            }
+            unset($targeting['age_max']);
+        }
+
         return $targeting;
     }
 

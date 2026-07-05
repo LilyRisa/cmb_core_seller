@@ -351,6 +351,52 @@ class FacebookAdsCreateTest extends TestCase
         Http::assertSent(fn ($r) => (json_decode($r->data()['targeting'], true)['targeting_automation']['advantage_audience'] ?? null) === 1);
     }
 
+    public function test_create_adset_advantage_audience_clamps_age_to_meta_rules(): void
+    {
+        // Advantage+ audience bật + age_min>25/age_max ⇒ FB reject (subcode 1870188). Connector ép:
+        // age_min ≤ 25 và BỎ age_max (Meta cố định 65) để publish được.
+        Http::fake(['graph.facebook.com/*/adsets' => Http::response(['id' => 'AS'], 200)]);
+
+        $this->connector()->createAdSet('tok', 'act_1', new AdSetSpecDTO(
+            name: 'Set', campaignExternalId: 'C1', objective: 'messages',
+            dailyBudgetMajor: 1000, currency: 'VND',
+            targeting: [
+                'geo_locations' => ['countries' => ['VN']],
+                'age_min' => 29, 'age_max' => 55,
+                'targeting_automation' => ['advantage_audience' => 1],
+            ],
+            pageId: '123',
+        ));
+
+        Http::assertSent(function ($r) {
+            $t = json_decode($r->data()['targeting'], true);
+
+            return $t['age_min'] === 25
+                && ! array_key_exists('age_max', $t)
+                && $t['targeting_automation']['advantage_audience'] === 1;
+        });
+    }
+
+    public function test_create_adset_advantage_off_keeps_full_age_range(): void
+    {
+        // Advantage+ TẮT (mặc định): giữ nguyên age_min/age_max người bán chọn.
+        Http::fake(['graph.facebook.com/*/adsets' => Http::response(['id' => 'AS'], 200)]);
+
+        $this->connector()->createAdSet('tok', 'act_1', new AdSetSpecDTO(
+            name: 'Set', campaignExternalId: 'C1', objective: 'messages',
+            dailyBudgetMajor: 1000, currency: 'VND',
+            targeting: ['geo_locations' => ['countries' => ['VN']], 'age_min' => 29, 'age_max' => 55],
+            pageId: '123',
+        ));
+
+        Http::assertSent(function ($r) {
+            $t = json_decode($r->data()['targeting'], true);
+
+            return $t['age_min'] === 29 && $t['age_max'] === 55
+                && $t['targeting_automation']['advantage_audience'] === 0;
+        });
+    }
+
     public function test_create_adset_conversions_uses_pixel_promoted_object(): void
     {
         Http::fake(['graph.facebook.com/*/adsets' => Http::response(['id' => 'AS'], 200)]);
