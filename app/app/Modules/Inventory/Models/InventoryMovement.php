@@ -35,6 +35,8 @@ class InventoryMovement extends Model
 
     public const GOODS_RECEIPT = 'goods_receipt';
 
+    public const GOODS_ISSUE = 'goods_issue';
+
     public const ORDER_RESERVE = 'order_reserve';
 
     public const ORDER_RELEASE = 'order_release';
