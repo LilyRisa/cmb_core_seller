@@ -7,6 +7,7 @@ use CMBcoreSeller\Integrations\Vector\Contracts\VectorStore;
 use CMBcoreSeller\Modules\VisualSearch\Contracts\VisualItemSearch;
 use CMBcoreSeller\Modules\VisualSearch\DTO\VisualImageInput;
 use CMBcoreSeller\Modules\VisualSearch\DTO\VisualItemCandidate;
+use CMBcoreSeller\Modules\VisualSearch\DTO\VisualItemImage;
 use CMBcoreSeller\Modules\VisualSearch\DTO\VisualLookupOptions;
 use CMBcoreSeller\Modules\VisualSearch\DTO\VisualMatchResult;
 use CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingImage;
@@ -139,6 +140,88 @@ class VisualMatcher implements VisualItemSearch
         }
 
         return $this->recallDecision($candidates, $matchMin, $ambiguousDelta, $recallFloor);
+    }
+
+    public function findByName(int $tenantId, string $text, ?int $channelAccountId = null): VisualMatchResult
+    {
+        $needle = mb_strtolower(trim($text));
+        if ($needle === '') {
+            return VisualMatchResult::notFound();
+        }
+
+        // Danh mục training item nhỏ ⇒ nạp rồi so khớp chứa-chuỗi trong PHP (portable, không phụ thuộc DB collation).
+        $items = VisualTrainingItem::withoutGlobalScopes()
+            ->where('tenant_id', $tenantId)
+            ->orderByDesc('id')
+            ->limit(500)
+            ->get();
+
+        // Lọc per-page (SPEC 0035): item applies_all_pages, hoặc gắn page này.
+        $pageItemIds = null;
+        if ($channelAccountId !== null) {
+            $pageItemIds = DB::table('visual_training_item_page')
+                ->where('channel_account_id', $channelAccountId)
+                ->pluck('item_id')->map(fn ($v) => (int) $v)->all();
+        }
+
+        $matches = [];
+        foreach ($items as $item) {
+            if ($pageItemIds !== null && ! $item->applies_all_pages && ! in_array((int) $item->id, $pageItemIds, true)) {
+                continue;
+            }
+            $name = mb_strtolower(trim((string) $item->name));
+            $ref = mb_strtolower(trim((string) $item->ref_code));
+            $hit = ($name !== '' && str_contains($needle, $name))
+                || ($ref !== '' && str_contains($needle, $ref));
+            if ($hit) {
+                $matches[$item->id] = $this->toCandidate($item, 1.0);
+            }
+        }
+
+        $matches = array_values($matches);
+        if ($matches === []) {
+            return VisualMatchResult::notFound();
+        }
+        if (count($matches) === 1) {
+            return VisualMatchResult::matched($matches[0]);
+        }
+
+        return VisualMatchResult::ambiguous(array_slice($matches, 0, 5));
+    }
+
+    public function imagesForItem(int $tenantId, int $itemId, int $limit = 3): array
+    {
+        $item = VisualTrainingItem::withoutGlobalScopes()
+            ->where('tenant_id', $tenantId)->find($itemId);
+        if ($item === null) {
+            return [];
+        }
+
+        $images = VisualTrainingImage::withoutGlobalScopes()
+            ->where('item_id', $item->id)
+            ->orderByRaw('CASE WHEN id = ? THEN 0 ELSE 1 END', [(int) $item->primary_image_id])
+            ->orderBy('sort_order')
+            ->limit(max(1, $limit))
+            ->get();
+
+        $out = [];
+        foreach ($images as $img) {
+            try {
+                $disk = Storage::disk($img->storage_disk);
+                if (! $disk->exists($img->storage_path)) {
+                    continue;
+                }
+                $bytes = (string) $disk->get($img->storage_path);
+            } catch (\Throwable) {
+                continue;
+            }
+            if ($bytes === '') {
+                continue;
+            }
+            $out[] = new VisualItemImage((string) ($img->mime_type ?: 'image/jpeg'), $bytes);
+        }
+
+        return $out;
     }
 
     /**
