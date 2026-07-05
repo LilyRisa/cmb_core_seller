@@ -2,10 +2,12 @@
 
 namespace CMBcoreSeller\Modules\Inventory\Services;
 
+use CMBcoreSeller\Modules\Inventory\Events\GoodsIssueConfirmed;
 use CMBcoreSeller\Modules\Inventory\Events\GoodsReceiptConfirmed;
 use CMBcoreSeller\Modules\Inventory\Events\StocktakeConfirmed;
 use CMBcoreSeller\Modules\Inventory\Events\StockTransferConfirmed;
 use CMBcoreSeller\Modules\Inventory\Models\CostLayer;
+use CMBcoreSeller\Modules\Inventory\Models\GoodsIssue;
 use CMBcoreSeller\Modules\Inventory\Models\GoodsReceipt;
 use CMBcoreSeller\Modules\Inventory\Models\Stocktake;
 use CMBcoreSeller\Modules\Inventory\Models\StockTransfer;
@@ -53,6 +55,42 @@ class WarehouseDocumentService
         });
         // Phát event cho các module khác bám vào (Procurement → cộng qty_received trên PO; Finance → FIFO layer).
         GoodsReceiptConfirmed::dispatch($doc->refresh()->load('items'));
+
+        return $doc;
+    }
+
+    public function confirmGoodsIssue(GoodsIssue $doc, int $userId): GoodsIssue
+    {
+        $this->assertDraft($doc->status);
+        $tenantId = (int) $doc->tenant_id;
+        $whId = (int) $doc->warehouse_id;
+        $items = $doc->items;
+        if ($items->isEmpty()) {
+            throw new RuntimeException('Phiếu chưa có dòng hàng nào.');
+        }
+
+        // Chặn âm tồn: tổng qty cần xuất mỗi SKU không được vượt on_hand hiện tại của kho.
+        $required = [];
+        foreach ($items as $it) {
+            $required[(int) $it->sku_id] = ($required[(int) $it->sku_id] ?? 0) + max(0, (int) $it->qty);
+        }
+        foreach ($required as $skuId => $need) {
+            $have = $this->ledger->onHand($tenantId, (int) $skuId, $whId);
+            if ($need > $have) {
+                throw new RuntimeException("Không đủ tồn để xuất SKU #{$skuId} (cần {$need}, còn {$have}).");
+            }
+        }
+
+        DB::transaction(function () use ($doc, $items, $tenantId, $whId, $userId) {
+            foreach ($items as $it) {
+                if ((int) $it->qty <= 0) {
+                    continue;
+                }
+                $this->ledger->issue($tenantId, (int) $it->sku_id, $whId, (int) $it->qty, 'Xuất kho '.$doc->code, 'goods_issue', (int) $doc->getKey(), $userId);
+            }
+            $doc->forceFill(['status' => GoodsIssue::STATUS_CONFIRMED, 'confirmed_at' => now(), 'confirmed_by' => $userId])->save();
+        });
+        GoodsIssueConfirmed::dispatch($doc->refresh()->load('items'));
 
         return $doc;
     }
@@ -113,7 +151,7 @@ class WarehouseDocumentService
     }
 
     /** Cancel a still-draft phiếu (confirmed phiếu cannot be cancelled — issue a new corrective phiếu instead). */
-    public function cancel(GoodsReceipt|StockTransfer|Stocktake $doc): void
+    public function cancel(GoodsReceipt|StockTransfer|Stocktake|GoodsIssue $doc): void
     {
         $this->assertDraft($doc->status);
         $doc->forceFill(['status' => 'cancelled'])->save();
