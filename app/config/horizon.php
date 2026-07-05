@@ -304,7 +304,8 @@ return [
             //   Các listener này khai `public $queue='messaging'`; trước đây KHÔNG supervisor nào tiêu thụ ⇒ flow
             //   tự động & auto-reply comment KHÔNG bao giờ chạy (job dồn vô hạn). Thêm vào đây để khắc phục.
             // visual-index: embed ảnh training vào Qdrant + xoá vector (EmbedTrainingImage, RemoveTrainingImageVector).
-            'queue' => ['messaging-sync', 'messaging-media', 'messaging-ai', 'messaging', 'marketing-sync', 'marketing-ai', 'marketing-publish', 'visual-index'],
+            // messaging-bg: PushWebOnNewMessage (web push tin mới) — trước đây KHÔNG supervisor nào tiêu thụ.
+            'queue' => ['messaging-sync', 'messaging-media', 'messaging-ai', 'messaging', 'messaging-bg', 'marketing-sync', 'marketing-ai', 'marketing-publish', 'visual-index'],
             'balance' => 'auto',
             'autoScalingStrategy' => 'time',
             'maxProcesses' => 4,
