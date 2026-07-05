@@ -234,7 +234,7 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::patch('warehouses/{id}', [WarehouseController::class, 'update'])->whereNumber('id')->name('warehouses.update');
 
             // --- WMS phiếu kho (Phase 5 / SPEC 0010): nhập kho / chuyển kho / kiểm kê ---
-            Route::prefix('warehouse-docs/{type}')->whereIn('type', ['goods-receipts', 'stock-transfers', 'stocktakes'])->group(function () {
+            Route::prefix('warehouse-docs/{type}')->whereIn('type', ['goods-receipts', 'goods-issues', 'stock-transfers', 'stocktakes'])->group(function () {
                 Route::get('/', [WarehouseDocumentController::class, 'index'])->name('warehouse-docs.index');
                 Route::post('/', [WarehouseDocumentController::class, 'store'])->name('warehouse-docs.store');
                 Route::get('{id}', [WarehouseDocumentController::class, 'show'])->whereNumber('id')->name('warehouse-docs.show');

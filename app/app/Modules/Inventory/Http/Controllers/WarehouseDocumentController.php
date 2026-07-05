@@ -3,6 +3,8 @@
 namespace CMBcoreSeller\Modules\Inventory\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
+use CMBcoreSeller\Modules\Inventory\Models\GoodsIssue;
+use CMBcoreSeller\Modules\Inventory\Models\GoodsIssueItem;
 use CMBcoreSeller\Modules\Inventory\Models\GoodsReceipt;
 use CMBcoreSeller\Modules\Inventory\Models\GoodsReceiptItem;
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
@@ -29,9 +31,9 @@ use Illuminate\Validation\ValidationException;
  */
 class WarehouseDocumentController extends Controller
 {
-    private const PERM = ['goods-receipts' => 'inventory.adjust', 'stock-transfers' => 'inventory.transfer', 'stocktakes' => 'inventory.stocktake'];
+    private const PERM = ['goods-receipts' => 'inventory.adjust', 'goods-issues' => 'inventory.adjust', 'stock-transfers' => 'inventory.transfer', 'stocktakes' => 'inventory.stocktake'];
 
-    private const PREFIX = ['goods-receipts' => 'PNK', 'stock-transfers' => 'PCK', 'stocktakes' => 'PKK'];
+    private const PREFIX = ['goods-receipts' => 'PNK', 'goods-issues' => 'PXK', 'stock-transfers' => 'PCK', 'stocktakes' => 'PKK'];
 
     private function authorizeFor(Request $request, string $type, bool $write): void
     {
@@ -40,20 +42,22 @@ class WarehouseDocumentController extends Controller
         abort_unless($request->user()?->can($perm), 403, 'Bạn không có quyền với phiếu kho này.');
     }
 
-    /** @return Builder<GoodsReceipt>|Builder<StockTransfer>|Builder<Stocktake> */
+    /** @return Builder<GoodsReceipt>|Builder<GoodsIssue>|Builder<StockTransfer>|Builder<Stocktake> */
     private function query(string $type): Builder
     {
         return match ($type) {
             'goods-receipts' => GoodsReceipt::query(),
+            'goods-issues' => GoodsIssue::query(),
             'stock-transfers' => StockTransfer::query(),
             default => Stocktake::query(),
         };
     }
 
-    private function find(string $type, int $id): GoodsReceipt|StockTransfer|Stocktake
+    private function find(string $type, int $id): GoodsReceipt|GoodsIssue|StockTransfer|Stocktake
     {
         return match ($type) {
             'goods-receipts' => GoodsReceipt::query()->findOrFail($id),
+            'goods-issues' => GoodsIssue::query()->findOrFail($id),
             'stock-transfers' => StockTransfer::query()->findOrFail($id),
             default => Stocktake::query()->findOrFail($id),
         };
@@ -109,28 +113,46 @@ class WarehouseDocumentController extends Controller
                 $rules['supplier'] = ['sometimes', 'nullable', 'string', 'max:191'];
                 $rules['items.*.qty'] = ['required', 'integer', 'min:1'];
                 $rules['items.*.unit_cost'] = ['sometimes', 'integer', 'min:0'];
+            } elseif ($type === 'goods-issues') {
+                $rules['reason'] = ['sometimes', 'nullable', 'string', 'max:255'];
+                $rules['items.*.qty'] = ['required', 'integer', 'min:1'];
             } else { // stocktakes
                 $rules['items.*.counted_qty'] = ['required', 'integer', 'min:0'];
             }
         }
         $data = $request->validate($rules);
 
-        $whIds = array_values(array_filter([$data['warehouse_id'] ?? null, $data['from_warehouse_id'] ?? null, $data['to_warehouse_id'] ?? null]));
-        if ($whIds !== [] && Warehouse::query()->whereIn('id', $whIds)->count() !== count(array_unique($whIds))) {
-            throw ValidationException::withMessages(['warehouse_id' => 'Kho không hợp lệ.']);
+        $whIds = array_values(array_unique(array_map('intval', array_filter([$data['warehouse_id'] ?? null, $data['from_warehouse_id'] ?? null, $data['to_warehouse_id'] ?? null]))));
+        if ($whIds !== []) {
+            $ownedWh = Warehouse::query()->whereIn('id', $whIds)->pluck('id')->map(fn ($v) => (int) $v)->all();
+            $foreignWh = array_values(array_diff($whIds, $ownedWh));
+            if ($foreignWh !== []) {
+                throw ValidationException::withMessages(['warehouse_id' => 'Kho không thuộc gian hàng: '.implode(', ', $foreignWh)]);
+            }
         }
         $skuIds = array_values(array_unique(array_map(fn ($i) => (int) $i['sku_id'], $data['items'])));
-        if (Sku::query()->whereIn('id', $skuIds)->whereNull('deleted_at')->count() !== count($skuIds)) {
-            throw ValidationException::withMessages(['items' => 'SKU không hợp lệ.']);
+        $ownedSku = Sku::query()->whereIn('id', $skuIds)->whereNull('deleted_at')->pluck('id')->map(fn ($v) => (int) $v)->all();
+        $foreignSku = array_values(array_diff($skuIds, $ownedSku));
+        if ($foreignSku !== []) {
+            throw ValidationException::withMessages(['items' => 'SKU không thuộc gian hàng: '.implode(', ', $foreignSku)]);
         }
 
-        $doc = DB::transaction(function () use ($type, $data, $tenantId, $userId, $ledger): GoodsReceipt|StockTransfer|Stocktake {
+        $doc = DB::transaction(function () use ($type, $data, $tenantId, $userId, $ledger): GoodsReceipt|GoodsIssue|StockTransfer|Stocktake {
             $code = self::PREFIX[$type].'-'.now()->format('ymd').'-'.strtoupper(Str::random(5));
             if ($type === 'goods-receipts') {
                 $doc = GoodsReceipt::query()->create(['tenant_id' => $tenantId, 'code' => $code, 'status' => 'draft', 'note' => $data['note'] ?? null,
                     'warehouse_id' => (int) $data['warehouse_id'], 'supplier' => $data['supplier'] ?? null, 'created_by' => $userId]);
                 foreach ($data['items'] as $i) {
                     GoodsReceiptItem::query()->create(['tenant_id' => $tenantId, 'goods_receipt_id' => $doc->getKey(), 'sku_id' => (int) $i['sku_id'], 'qty' => (int) $i['qty'], 'unit_cost' => (int) ($i['unit_cost'] ?? 0)]);
+                }
+
+                return $doc;
+            }
+            if ($type === 'goods-issues') {
+                $doc = GoodsIssue::query()->create(['tenant_id' => $tenantId, 'code' => $code, 'status' => 'draft', 'note' => $data['note'] ?? null,
+                    'warehouse_id' => (int) $data['warehouse_id'], 'reason' => $data['reason'] ?? null, 'created_by' => $userId]);
+                foreach ($data['items'] as $i) {
+                    GoodsIssueItem::query()->create(['tenant_id' => $tenantId, 'goods_issue_id' => $doc->getKey(), 'sku_id' => (int) $i['sku_id'], 'qty' => (int) $i['qty']]);
                 }
 
                 return $doc;
@@ -165,6 +187,7 @@ class WarehouseDocumentController extends Controller
         try {
             $doc = match (true) {
                 $doc instanceof GoodsReceipt => $service->confirmGoodsReceipt($doc, $userId),
+                $doc instanceof GoodsIssue => $service->confirmGoodsIssue($doc, $userId),
                 $doc instanceof StockTransfer => $service->confirmTransfer($doc, $userId),
                 default => $service->confirmStocktake($doc, $userId),
             };
@@ -191,7 +214,7 @@ class WarehouseDocumentController extends Controller
     // ---- presentation --------------------------------------------------------
 
     /** @return array<string,mixed> */
-    private function present(GoodsReceipt|StockTransfer|Stocktake $doc, bool $withItems): array
+    private function present(GoodsReceipt|GoodsIssue|StockTransfer|Stocktake $doc, bool $withItems): array
     {
         $base = [
             'id' => $doc->getKey(),
@@ -208,6 +231,9 @@ class WarehouseDocumentController extends Controller
         } elseif ($doc instanceof GoodsReceipt) {
             $base['type'] = 'goods-receipts';
             $base += ['warehouse_id' => $doc->warehouse_id, 'supplier' => $doc->supplier, 'total_cost' => (int) $doc->total_cost];
+        } elseif ($doc instanceof GoodsIssue) {
+            $base['type'] = 'goods-issues';
+            $base += ['warehouse_id' => $doc->warehouse_id, 'reason' => $doc->reason];
         } else {
             $base['type'] = 'stocktakes';
             $base += ['warehouse_id' => $doc->warehouse_id];
@@ -218,6 +244,8 @@ class WarehouseDocumentController extends Controller
                 $row = ['id' => $it->getKey(), 'sku_id' => $it->sku_id, 'sku' => $it->sku ? ['id' => $it->sku->id, 'sku_code' => $it->sku->sku_code, 'name' => $it->sku->name] : null];
                 if ($it instanceof GoodsReceiptItem) {
                     $row += ['qty' => (int) $it->qty, 'unit_cost' => (int) $it->unit_cost];
+                } elseif ($it instanceof GoodsIssueItem) {
+                    $row += ['qty' => (int) $it->qty];
                 } elseif ($it instanceof StockTransferItem) {
                     $row += ['qty' => (int) $it->qty];
                 } else {
