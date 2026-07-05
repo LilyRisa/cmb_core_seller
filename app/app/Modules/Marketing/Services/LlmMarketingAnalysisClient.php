@@ -47,7 +47,7 @@ class LlmMarketingAnalysisClient implements MarketingAnalysisClient
             // SPEC 0032 — 1 request provider THẬT trả kết quả = 1 lượt AI. KHÔNG tính khi
             // rơi về stub (parse lỗi/fallback ⇒ payload có generated_by='stub').
             if ($tenantId !== null && (($payload['generated_by'] ?? null) !== 'stub')) {
-                $this->credits->record($tenantId, 1);
+                $this->credits->record($tenantId, 1, 'marketing');
             }
 
             return ['payload' => $payload, 'provider_code' => $provider->code, 'model' => $provider->default_model];

@@ -51,7 +51,7 @@ class IntentClassifier
             $result = $connector->classifyIntent(new AiContext($tenantId, $providerCode), $text, self::ALL);
             Cache::forget($failKey); // thành công → reset bộ đếm
             // 1 request provider trả thành công = 1 lượt AI (SPEC 0032).
-            $this->credits->record($tenantId, 1);
+            $this->credits->record($tenantId, 1, 'intent');
 
             return $result;
         } catch (ProviderNotConfigured $e) {

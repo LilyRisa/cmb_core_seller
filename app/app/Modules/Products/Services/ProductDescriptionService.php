@@ -91,7 +91,7 @@ final class ProductDescriptionService
                 .'KHÔNG bịa giá, khuyến mãi hay thông số không có. CHỈ trả về nội dung mô tả, không thêm lời dẫn.',
         );
 
-        $this->credits->record($tenantId, 1);
+        $this->credits->record($tenantId, 1, 'products');
 
         return ['description' => trim($reply->body), 'provider' => $code];
     }

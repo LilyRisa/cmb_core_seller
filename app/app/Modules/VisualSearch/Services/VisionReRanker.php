@@ -89,7 +89,7 @@ class VisionReRanker
             return self::NOT_RUN;
         }
 
-        $this->credits->record($tenantId, 1);
+        $this->credits->record($tenantId, 1, 'visual');
 
         $pick = $this->parsePick($out);
         if ($pick === null) {

@@ -79,7 +79,7 @@ class TranscribeInboundAudio implements ShouldQueue
         );
 
         // Chỉ ghi nhận lượt dùng SAU khi provider trả về thành công.
-        $credits->record($tenantId, 1);
+        $credits->record($tenantId, 1, 'transcription');
 
         if ($text !== '') {
             $att->transcript = $text;

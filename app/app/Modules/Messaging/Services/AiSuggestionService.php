@@ -179,7 +179,7 @@ class AiSuggestionService
         ]);
 
         // 1 response provider thành công = 1 lượt AI (classify đã đếm riêng trong IntentClassifier).
-        $this->credits->record($tenantId, 1);
+        $this->credits->record($tenantId, 1, 'messaging');
 
         return ['action' => 'generated', 'intent' => $intent->intent, 'body' => $body, 'run_id' => (int) $run->id];
     }
@@ -234,7 +234,7 @@ class AiSuggestionService
         ]);
 
         // 1 response provider thành công = 1 lượt AI (SPEC 0032).
-        $this->credits->record($tenantId, 1);
+        $this->credits->record($tenantId, 1, 'messaging', $userId);
 
         return MessageDraft::create([
             'tenant_id' => $tenantId,
