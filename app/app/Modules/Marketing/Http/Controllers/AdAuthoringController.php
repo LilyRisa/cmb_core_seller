@@ -92,6 +92,32 @@ class AdAuthoringController extends Controller
         return response()->json(['data' => $posts]);
     }
 
+    /** GET ad-accounts/{id}/pages/{pageId}/posts/{postId} — 1 bài viết (nạp lại preview khi Sửa). */
+    public function pagePost(int $id, string $pageId, string $postId): JsonResponse
+    {
+        Gate::authorize('marketing.view');
+        [$account, $connector] = $this->resolve($id);
+
+        $page = collect($connector->listPages((string) $account->access_token))->firstWhere('id', $pageId);
+        abort_unless($page instanceof PageRefDTO, 404, 'Trang không tồn tại hoặc chưa được cấp quyền.');
+
+        $post = $connector->getPagePost($page->accessToken, $postId);
+        abort_if($post === null, 404, 'Bài viết không tồn tại hoặc đã bị xoá.');
+
+        return response()->json(['data' => [
+            'id' => $post->id,
+            'message' => $post->message,
+            'created_time' => $post->createdTime,
+            'media_type' => $post->mediaType,
+            'image_url' => $post->imageUrl,
+            'likes' => $post->likes,
+            'comments' => $post->comments,
+            'shares' => $post->shares,
+            'link_url' => $post->linkUrl,
+            'cta_type' => $post->ctaType,
+        ]]);
+    }
+
     /** GET ad-accounts/{id}/targeting-search?q=&type= */
     public function targetingSearch(int $id, Request $request): JsonResponse
     {

@@ -112,6 +112,7 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.feature:ma
         Route::get('ad-accounts/{id}/pixels', [AdAuthoringController::class, 'pixels'])->whereNumber('id')->name('marketing.authoring.pixels');
         Route::post('ad-accounts/{id}/pixels/{pixelId}/share', [AdAuthoringController::class, 'sharePixel'])->whereNumber('id')->name('marketing.authoring.pixels.share');
         Route::get('ad-accounts/{id}/pages/{pageId}/posts', [AdAuthoringController::class, 'pagePosts'])->whereNumber('id')->name('marketing.authoring.page-posts');
+        Route::get('ad-accounts/{id}/pages/{pageId}/posts/{postId}', [AdAuthoringController::class, 'pagePost'])->whereNumber('id')->where('postId', '[0-9_]+')->name('marketing.authoring.page-post');
         Route::get('ad-accounts/{id}/targeting-search', [AdAuthoringController::class, 'targetingSearch'])->whereNumber('id')->name('marketing.authoring.targeting-search');
         Route::post('ad-accounts/{id}/audience-estimate', [AdAuthoringController::class, 'audienceEstimate'])->whereNumber('id')->name('marketing.authoring.audience-estimate');
         Route::post('ad-accounts/{id}/ad-previews', [AdAuthoringController::class, 'previews'])->whereNumber('id')->name('marketing.authoring.previews');

@@ -232,6 +232,18 @@ export function usePagePosts(accountId: number | null, pageId: string | null) {
     });
 }
 
+/** Lấy lại 1 bài viết theo id để dựng lại preview (ảnh/CTA) khi mở "Sửa" bản nháp. */
+export function usePagePost(accountId: number | null, pageId: string | null, postId: string | null) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: [KEY, 'page-post', accountId, pageId, postId, tenantId],
+        enabled: api != null && accountId != null && pageId != null && postId != null,
+        queryFn: async () => (await api!.get<{ data: AdPagePost }>(`/marketing/ad-accounts/${accountId}/pages/${pageId}/posts/${postId}`)).data.data,
+        staleTime: 5 * 60 * 1000,
+    });
+}
+
 export function useTargetingSearch() {
     const api = useScopedApi();
     return useMutation({

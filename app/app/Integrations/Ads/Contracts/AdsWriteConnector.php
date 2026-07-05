@@ -46,6 +46,9 @@ interface AdsWriteConnector
     /** @return list<PagePostDTO> */
     public function listPagePosts(string $pageAccessToken, string $pageId, int $limit = 25): array;
 
+    /** Fetch ONE page post by its full id ("<page_id>_<post_id>"); null if not found. */
+    public function getPagePost(string $pageAccessToken, string $postId): ?PagePostDTO;
+
     /**
      * Batch-read engagement (likes/comments/shares/message) for the given post ids.
      *

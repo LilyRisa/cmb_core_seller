@@ -23,6 +23,7 @@ import {
     SwapOutlined,
 } from '@ant-design/icons';
 import { useDraftStore } from '@/lib/adWizard/draftStore';
+import { usePagePost } from '@/lib/adWizard';
 import type { AdObjective, AdNode } from '@/lib/adWizard';
 import { PagePostPickerModal } from '@/pages/adWizard/PagePostPickerModal';
 
@@ -104,6 +105,22 @@ function AdEditor({ adsetKey, ad }: AdEditorProps) {
 
     const creative = ad.creative;
     const mode: ContentMode = (creative?.mode as ContentMode | undefined) ?? 'page_post';
+
+    // Mở "Sửa" bản nháp: pickedSummary (ảnh/message/CTA của bài) là state cục bộ, KHÔNG lưu
+    // trong nháp ⇒ nạp lại bài viết theo id để dựng lại preview + nút CTA sẵn có.
+    const pageId = creative?.page_id ?? null;
+    const postId = creative?.page_post_id ?? null;
+    const needsPostReload = pickedSummary == null && mode === 'page_post' && pageId != null && postId != null;
+    const { data: reloadedPost } = usePagePost(accountId, pageId, needsPostReload ? postId : null);
+    useEffect(() => {
+        if (!needsPostReload || reloadedPost == null) return;
+        setPickedSummary({
+            image_url: reloadedPost.image_url,
+            message: reloadedPost.message,
+            link_url: reloadedPost.link_url ?? null,
+            cta_type: reloadedPost.cta_type ?? null,
+        });
+    }, [needsPostReload, reloadedPost]);
 
     // When objective changes, reset CTA to the first valid option for the new objective
     useEffect(() => {

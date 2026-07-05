@@ -13,6 +13,7 @@ use CMBcoreSeller\Integrations\Ads\DTO\AdSetSpecDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AdSpecDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\AudienceSizeDTO;
 use CMBcoreSeller\Integrations\Ads\DTO\CampaignSpecDTO;
+use CMBcoreSeller\Integrations\Ads\DTO\PagePostDTO;
 use CMBcoreSeller\Integrations\Ads\Exceptions\UnsupportedOperation;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -345,6 +346,11 @@ class TikTokAdsConnector implements AdsConnector, AdsWriteConnector
     public function listPagePosts(string $pageAccessToken, string $pageId, int $limit = 25): array
     {
         throw UnsupportedOperation::for($this->code(), 'listPagePosts');
+    }
+
+    public function getPagePost(string $pageAccessToken, string $postId): ?PagePostDTO
+    {
+        throw UnsupportedOperation::for($this->code(), 'getPagePost');
     }
 
     public function fetchPostEngagement(string $accessToken, array $postIds): array

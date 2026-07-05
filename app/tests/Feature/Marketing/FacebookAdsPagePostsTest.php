@@ -120,6 +120,34 @@ class FacebookAdsPagePostsTest extends TestCase
         $this->assertNull($p->ctaType);
     }
 
+    public function test_get_page_post_maps_single_post_by_id(): void
+    {
+        // Nạp lại 1 bài viết theo id (mở "Sửa" nháp) — GET /{postId}, trả object đơn (không {data:[]}).
+        Http::fake(['graph.facebook.com/*/123_456*' => Http::response([
+            'id' => '123_456',
+            'message' => 'Bài đã chọn',
+            'created_time' => '2026-06-01T00:00:00+0000',
+            'full_picture' => 'https://img/picked.jpg',
+            'attachments' => ['data' => [['media_type' => 'photo']]],
+            'call_to_action' => ['type' => 'SHOP_NOW', 'value' => ['link' => 'https://shop.example']],
+        ], 200)]);
+
+        $post = $this->connector()->getPagePost('PAGETOK', '123_456');
+
+        $this->assertNotNull($post);
+        $this->assertSame('123_456', $post->id);
+        $this->assertSame('https://img/picked.jpg', $post->imageUrl);
+        $this->assertSame('SHOP_NOW', $post->ctaType);
+    }
+
+    public function test_get_page_post_returns_null_when_missing_or_deleted(): void
+    {
+        // Bài bị xoá/ẩn ⇒ Graph trả lỗi ⇒ null (không vỡ màn Sửa).
+        Http::fake(['graph.facebook.com/*/999_000*' => Http::response(['error' => ['message' => 'Unsupported get request']], 400)]);
+
+        $this->assertNull($this->connector()->getPagePost('PAGETOK', '999_000'));
+    }
+
     public function test_list_page_posts_handles_missing_engagement_gracefully(): void
     {
         Http::fake(['graph.facebook.com/*/123/published_posts*' => Http::response([

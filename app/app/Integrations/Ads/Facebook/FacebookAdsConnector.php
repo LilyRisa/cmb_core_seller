@@ -652,31 +652,58 @@ class FacebookAdsConnector implements AdsConnector, AdsWriteConnector
             throw new \RuntimeException('Facebook Ads listPagePosts failed: '.$res->body());
         }
 
-        return array_values(array_map(function (array $p) {
-            $attachment = (array) ($p['attachments']['data'][0] ?? []);
-            $mediaType = (string) ($attachment['media_type'] ?? 'status');
-            $cta = (array) ($p['call_to_action'] ?? []);
+        return array_values(array_map(fn (array $p) => $this->mapPagePost($p), array_filter((array) $res->json('data', []), 'is_array')));
+    }
 
-            $linkUrl = $cta['value']['link']
-                ?? $attachment['target']['url']
-                ?? $attachment['unshimmed_url']
-                ?? null;
+    public function getPagePost(string $pageAccessToken, string $postId): ?PagePostDTO
+    {
+        $res = Http::timeout(30)->get($this->graphUrl($postId), [
+            'fields' => 'id,message,created_time,full_picture,'
+                .'attachments{media_type,media,target,unshimmed_url,type,title},'
+                .'call_to_action{type,value},'
+                .'likes.summary(true).limit(0),comments.summary(true).limit(0),shares',
+            'access_token' => $pageAccessToken,
+        ]);
+        if (! $res->successful()) {
+            // Bài viết có thể đã bị xoá/ẩn ⇒ null để lớp trên xử lý mềm (không vỡ màn sửa).
+            return null;
+        }
 
-            return new PagePostDTO(
-                id: (string) ($p['id'] ?? ''),
-                message: isset($p['message']) ? (string) $p['message'] : null,
-                createdTime: (string) ($p['created_time'] ?? ''),
-                mediaType: $mediaType,
-                imageUrl: isset($p['full_picture']) ? (string) $p['full_picture'] : null,
-                videoId: null,
-                likes: (int) ($p['likes']['summary']['total_count'] ?? 0),
-                comments: (int) ($p['comments']['summary']['total_count'] ?? 0),
-                shares: (int) ($p['shares']['count'] ?? 0),
-                linkUrl: $linkUrl !== null ? (string) $linkUrl : null,
-                ctaType: isset($cta['type']) ? (string) $cta['type'] : null,
-                raw: $p,
-            );
-        }, array_filter((array) $res->json('data', []), 'is_array')));
+        $p = (array) $res->json();
+
+        return isset($p['id']) ? $this->mapPagePost($p) : null;
+    }
+
+    /**
+     * Map một node bài viết Graph → PagePostDTO (dùng chung cho list + get-one).
+     *
+     * @param  array<string,mixed>  $p
+     */
+    private function mapPagePost(array $p): PagePostDTO
+    {
+        $attachment = (array) ($p['attachments']['data'][0] ?? []);
+        $mediaType = (string) ($attachment['media_type'] ?? 'status');
+        $cta = (array) ($p['call_to_action'] ?? []);
+
+        $linkUrl = $cta['value']['link']
+            ?? $attachment['target']['url']
+            ?? $attachment['unshimmed_url']
+            ?? null;
+
+        return new PagePostDTO(
+            id: (string) ($p['id'] ?? ''),
+            message: isset($p['message']) ? (string) $p['message'] : null,
+            createdTime: (string) ($p['created_time'] ?? ''),
+            mediaType: $mediaType,
+            imageUrl: isset($p['full_picture']) ? (string) $p['full_picture'] : null,
+            videoId: null,
+            likes: (int) ($p['likes']['summary']['total_count'] ?? 0),
+            comments: (int) ($p['comments']['summary']['total_count'] ?? 0),
+            shares: (int) ($p['shares']['count'] ?? 0),
+            linkUrl: $linkUrl !== null ? (string) $linkUrl : null,
+            ctaType: isset($cta['type']) ? (string) $cta['type'] : null,
+            raw: $p,
+        );
     }
 
     public function fetchPostEngagement(string $accessToken, array $postIds): array
