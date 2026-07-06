@@ -132,7 +132,7 @@ function LookupModal({ onClose }: { onClose: () => void }) {
     };
 
     return (
-        <Modal open title="Tìm sản phẩm bằng ảnh" onCancel={onClose} footer={null}>
+        <Modal open title="Tìm kiến thức bằng ảnh" onCancel={onClose} footer={null}>
             <Space direction="vertical" style={{ width: '100%' }} size="middle">
                 <Upload accept="image/*" maxCount={1} showUploadList={{ showPreviewIcon: false }} beforeUpload={(f) => { setFile(f as File); setResult(null); return false; }} onRemove={() => setFile(null)}>
                     <Button icon={<UploadOutlined />}>Chọn ảnh</Button>
@@ -161,7 +161,7 @@ function LookupModal({ onClose }: { onClose: () => void }) {
                                 ))}
                             </Space>
                         ) : (
-                            <Empty description="Không tìm thấy sản phẩm khớp" />
+                            <Empty description="Không tìm thấy kiến thức khớp" />
                         )}
                     </Card>
                 )}
@@ -223,7 +223,7 @@ export function VisualTrainingPanel() {
                     <Button size="small" icon={<PictureOutlined />} onClick={() => setImagesItemId(r.id)}>Ảnh</Button>
                     <Button size="small" disabled={!canManage} onClick={() => openEdit(r)}>Sửa</Button>
                     {canManage && (
-                        <Popconfirm title="Xoá sản phẩm này?" okButtonProps={{ danger: true }} onConfirm={() => del.mutate(r.id, { onSuccess: () => message.success('Đã xoá') })}>
+                        <Popconfirm title="Xoá kiến thức này?" okButtonProps={{ danger: true }} onConfirm={() => del.mutate(r.id, { onSuccess: () => message.success('Đã xoá') })}>
                             <Button size="small" danger icon={<DeleteOutlined />} />
                         </Popconfirm>
                     )}
@@ -234,27 +234,27 @@ export function VisualTrainingPanel() {
 
     return (
         <Card
-            title={<Space><PictureOutlined /> Sản phẩm để AI nhận diện bằng ảnh</Space>}
+            title={<Space><PictureOutlined /> Kiến thức để AI trả lời &amp; nhận diện (ảnh tùy chọn)</Space>}
             extra={
                 <Space>
                     <Button icon={<SearchOutlined />} onClick={() => setLookupOpen(true)}>Tìm bằng ảnh</Button>
-                    {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Thêm sản phẩm</Button>}
+                    {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Thêm kiến thức</Button>}
                 </Space>
             }
         >
             <Typography.Paragraph type="secondary">
-                Thêm sản phẩm + tải ảnh để AI nhận diện khi khách gửi ảnh trong tin nhắn. Mỗi sản phẩm có thể đặt 1 ảnh đại diện.
+                Thêm kiến thức (nội dung + ảnh tùy chọn) để AI dùng khi trả lời khách, kể cả khi khách gửi ảnh trong tin nhắn. Mỗi mục kiến thức có thể đặt 1 ảnh đại diện.
             </Typography.Paragraph>
 
-            <Table<VisualItem> rowKey="id" loading={isLoading} dataSource={items ?? []} columns={columns} pagination={false} locale={{ emptyText: <Empty description="Chưa có sản phẩm AI training" /> }} />
+            <Table<VisualItem> rowKey="id" loading={isLoading} dataSource={items ?? []} columns={columns} pagination={false} locale={{ emptyText: <Empty description="Chưa có kiến thức nào" /> }} />
 
-            <Modal open={modalOpen} title={editing ? 'Sửa sản phẩm' : 'Thêm sản phẩm'} onOk={submit} onCancel={() => setModalOpen(false)} confirmLoading={create.isPending || update.isPending}>
+            <Modal open={modalOpen} title={editing ? 'Sửa kiến thức' : 'Thêm kiến thức'} onOk={submit} onCancel={() => setModalOpen(false)} confirmLoading={create.isPending || update.isPending}>
                 <Form form={form} layout="vertical">
-                    <Form.Item name="name" label="Tên sản phẩm" rules={[{ required: true, message: 'Nhập tên' }]}>
+                    <Form.Item name="name" label="Tên" rules={[{ required: true, message: 'Nhập tên' }]}>
                         <Input placeholder="VD: Áo thun cotton trắng" />
                     </Form.Item>
                     <Form.Item name="description" label="Nội dung" rules={[{ required: true, message: 'Nhập nội dung' }]}>
-                        <Input.TextArea rows={6} placeholder="Mô tả sản phẩm, chất liệu, màu, size, công dụng, chính sách liên quan… (AI dùng nội dung này để tư vấn khách)" />
+                        <Input.TextArea rows={6} placeholder="Mô tả sản phẩm/dịch vụ, chính sách, thông tin cần AI biết để tư vấn khách…" />
                     </Form.Item>
                     <Form.Item name="ref_code" label="Mã tham chiếu (tuỳ chọn)">
                         <Input placeholder="VD: SP001" />
