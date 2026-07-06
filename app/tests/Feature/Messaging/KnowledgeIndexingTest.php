@@ -122,4 +122,31 @@ class KnowledgeIndexingTest extends TestCase
         $this->assertStringNotContainsString('Mạch karaoke', $chunks[1]);
         $this->assertStringContainsString('Mạch karaoke D800', $chunks[2]);
     }
+
+    public function test_index_item_chunks_upserts_with_item_payload(): void
+    {
+        $captured = [];
+        $store = \Mockery::mock(\CMBcoreSeller\Integrations\Vector\Contracts\VectorStore::class);
+        $store->shouldReceive('enabled')->andReturn(true);
+        $store->shouldReceive('ensureCollection')->andReturn(true);
+        $store->shouldReceive('upsert')->andReturnUsing(function ($col, $points) use (&$captured) { $captured = $points; return true; });
+        $this->app->instance(\CMBcoreSeller\Integrations\Vector\Contracts\VectorStore::class, $store);
+
+        $indexer = \Mockery::mock(\CMBcoreSeller\Modules\Messaging\Services\KnowledgeVectorIndexer::class.'[embed]', [
+            app(\CMBcoreSeller\Integrations\Ai\AiAssistantRegistry::class), $store,
+        ]);
+        $indexer->shouldAllowMockingProtectedMethods();
+        $indexer->shouldReceive('embed')->andReturn([0.1, 0.2, 0.3]);
+
+        $chunk = \CMBcoreSeller\Modules\Messaging\Models\AiKnowledgeChunk::create([
+            'tenant_id' => 1, 'visual_item_id' => 55, 'chunk_index' => 0,
+            'chunk_text' => 'Áo thun cotton', 'embedding' => null, 'token_count' => 3,
+        ]);
+
+        $n = $indexer->indexItemChunks(55, 1, [$chunk]);
+
+        $this->assertSame(1, $n);
+        $this->assertSame(['tenant_id' => 1, 'item_id' => 55], $captured[0]['payload']);
+        $this->assertNotNull($chunk->fresh()->embedding);
+    }
 }

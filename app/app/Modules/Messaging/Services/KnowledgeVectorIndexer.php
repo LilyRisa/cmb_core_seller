@@ -139,13 +139,44 @@ class KnowledgeVectorIndexer
         if (! $this->store->enabled()) {
             return 0;
         }
+        $embedded = $this->upsertChunks((int) $doc->tenant_id, $chunks, ['document_id' => (int) $doc->id]);
+        if ($embedded > 0) {
+            $doc->forceFill([
+                'embedding_provider_code' => $this->providerCode((int) $doc->tenant_id),
+                'embedding_model' => $this->model(),
+                'embedding_version' => (int) $doc->embedding_version + 1,
+            ])->save();
+        }
+
+        return $embedded;
+    }
+
+    /** Embed + upsert chunk của 1 visual item (tri thức hợp nhất). Payload item_id. Nhận primitive (luật module). */
+    public function indexItemChunks(int $itemId, int $tenantId, iterable $chunks): int
+    {
+        if (! $this->store->enabled()) {
+            return 0;
+        }
+
+        return $this->upsertChunks($tenantId, $chunks, ['item_id' => $itemId]);
+    }
+
+    /**
+     * Embed từng chunk + upsert Qdrant (batch 64) với payload `['tenant_id'=>...] + $extraPayload`.
+     * Lưu embedding về chunk row. Trả số chunk đã vector hoá.
+     *
+     * @param  iterable<AiKnowledgeChunk>  $chunks
+     * @param  array<string,int>  $extraPayload
+     */
+    private function upsertChunks(int $tenantId, iterable $chunks, array $extraPayload): int
+    {
         $collection = $this->collection();
         $points = [];
         $embedded = 0;
         $ensured = false;
 
         foreach ($chunks as $chunk) {
-            $vec = $this->embed((int) $doc->tenant_id, (string) $chunk->chunk_text);
+            $vec = $this->embed($tenantId, (string) $chunk->chunk_text);
             if ($vec === null) {
                 continue;
             }
@@ -157,7 +188,7 @@ class KnowledgeVectorIndexer
             $points[] = [
                 'id' => (string) $chunk->id,
                 'vector' => $vec,
-                'payload' => ['tenant_id' => (int) $doc->tenant_id, 'document_id' => (int) $doc->id],
+                'payload' => ['tenant_id' => $tenantId] + $extraPayload,
             ];
             $embedded++;
             if (count($points) >= 64) {
@@ -167,13 +198,6 @@ class KnowledgeVectorIndexer
         }
         if ($points !== []) {
             $this->store->upsert($collection, $points);
-        }
-        if ($embedded > 0) {
-            $doc->forceFill([
-                'embedding_provider_code' => $this->providerCode((int) $doc->tenant_id),
-                'embedding_model' => $this->model(),
-                'embedding_version' => (int) $doc->embedding_version + 1,
-            ])->save();
         }
 
         return $embedded;
