@@ -27,7 +27,7 @@ import {
     Upload,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
     useCreateVisualItem,
@@ -42,6 +42,7 @@ import {
     useVisualLookup,
 } from '@/features/visual-search/hooks';
 import type { VisualImage, VisualItem, VisualMatch } from '@/features/visual-search/api';
+import { PageMultiSelect } from '@/components/messaging/PageScope';
 import { useCan } from '@/lib/tenant';
 
 function Thumb({ itemId, image, size = 72 }: { itemId: number; image: VisualImage; size?: number }) {
@@ -183,22 +184,40 @@ export function VisualTrainingPanel() {
     const [modalOpen, setModalOpen] = useState(false);
     const [imagesItemId, setImagesItemId] = useState<number | null>(null);
     const [lookupOpen, setLookupOpen] = useState(false);
+    // Bật/tắt picker trang theo công tắc "áp dụng tất cả trang".
+    const appliesAll = (Form.useWatch('applies_all_pages', form) as boolean | undefined) ?? true;
+    // Danh sách row (index) KHÔNG kèm channel_account_ids — phải lấy chi tiết để prefill khi Sửa.
+    const { data: editingDetail } = useVisualItem(modalOpen && editing ? editing.id : null);
+
+    // Prefill trang đã gán khi chi tiết item về (chỉ khi đang mở modal Sửa đúng item đó).
+    useEffect(() => {
+        if (modalOpen && editing && editingDetail && editingDetail.id === editing.id) {
+            form.setFieldsValue({ channel_account_ids: editingDetail.channel_account_ids ?? [] });
+        }
+    }, [modalOpen, editing, editingDetail, form]);
 
     const openCreate = () => {
         setEditing(null);
         form.resetFields();
-        form.setFieldsValue?.({ applies_all_pages: true });
+        form.setFieldsValue?.({ applies_all_pages: true, channel_account_ids: [] });
         setModalOpen(true);
     };
     const openEdit = (item: VisualItem) => {
         setEditing(item);
-        form.setFieldsValue({ name: item.name, description: item.description, ref_code: item.ref_code, applies_all_pages: item.applies_all_pages });
+        // channel_account_ids sẽ được prefill qua useEffect khi chi tiết item tải xong.
+        form.setFieldsValue({ name: item.name, description: item.description, ref_code: item.ref_code, applies_all_pages: item.applies_all_pages, channel_account_ids: [] });
         setModalOpen(true);
     };
 
     const submit = async () => {
         const v = await form.validateFields();
-        const payload = { name: v.name, description: v.description ?? null, ref_code: v.ref_code ?? null, applies_all_pages: !!v.applies_all_pages };
+        const payload = {
+            name: v.name,
+            description: v.description ?? null,
+            ref_code: v.ref_code ?? null,
+            applies_all_pages: !!v.applies_all_pages,
+            channel_account_ids: v.applies_all_pages ? [] : (v.channel_account_ids ?? []),
+        };
         const opts = {
             onSuccess: () => {
                 message.success('Đã lưu');
@@ -262,6 +281,12 @@ export function VisualTrainingPanel() {
                     <Form.Item name="applies_all_pages" label="Áp dụng tất cả trang" valuePropName="checked">
                         <Switch />
                     </Form.Item>
+                    {!appliesAll && (
+                        <Form.Item name="channel_account_ids" label="Trang áp dụng"
+                            rules={[{ required: true, message: 'Chọn ít nhất 1 trang' }]}>
+                            <PageMultiSelect />
+                        </Form.Item>
+                    )}
                     <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
                         Ảnh (tùy chọn — để AI gửi ảnh cho khách): lưu xong, bấm nút &quot;Ảnh&quot; trong danh sách để tải ảnh lên.
                     </Typography.Paragraph>
