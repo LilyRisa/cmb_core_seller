@@ -12,7 +12,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * @property int $id
  * @property int $tenant_id
- * @property int $document_id
+ * @property ?int $document_id
+ * @property ?int $visual_item_id
  * @property int $chunk_index
  * @property string $chunk_text
  * @property ?array $embedding

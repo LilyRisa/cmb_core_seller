@@ -6,6 +6,7 @@ use CMBcoreSeller\Integrations\Ai\DTO\KnowledgeBase;
 use CMBcoreSeller\Modules\Messaging\Models\AiKnowledgeChunk;
 use CMBcoreSeller\Modules\Messaging\Models\AiKnowledgeDocument;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use CMBcoreSeller\Modules\VisualSearch\Contracts\KnowledgeItemStore;
 use Illuminate\Support\Collection;
 
 /**
@@ -20,23 +21,28 @@ use Illuminate\Support\Collection;
  */
 class KnowledgeRetriever
 {
-    public function __construct(private KnowledgeVectorIndexer $vector) {}
+    public function __construct(
+        private KnowledgeVectorIndexer $vector,
+        private KnowledgeItemStore $items,
+    ) {}
 
     public function retrieve(int $tenantId, string $query, int $topK = 4, ?int $channelAccountId = null, ?string $provider = null): KnowledgeBase
     {
         $readyDocIds = $this->readyDocumentTitles($tenantId, $channelAccountId, $provider);
-        if ($readyDocIds->isEmpty()) {
+        /** @var Collection<int,string> $readyItemIds */
+        $readyItemIds = collect($this->items->readyTitles($tenantId, $channelAccountId, $provider));
+        if ($readyDocIds->isEmpty() && $readyItemIds->isEmpty()) {
             return new KnowledgeBase(chunks: []);
         }
 
         // 1. Vector (ngữ nghĩa). Null ⇒ vector không khả dụng/không có kết quả ⇒ fallback.
-        $viaVector = $this->retrieveByVector($tenantId, $query, $topK, $readyDocIds);
+        $viaVector = $this->retrieveByVector($tenantId, $query, $topK, $readyDocIds, $readyItemIds);
         if ($viaVector !== null) {
             return $viaVector;
         }
 
         // 2. Fallback keyword-overlap.
-        return $this->retrieveByKeyword($tenantId, $query, $topK, $readyDocIds);
+        return $this->retrieveByKeyword($tenantId, $query, $topK, $readyDocIds, $readyItemIds);
     }
 
     /**
@@ -71,8 +77,9 @@ class KnowledgeRetriever
 
     /**
      * @param  Collection<int,string>  $readyDocIds
+     * @param  Collection<int,string>  $readyItemIds
      */
-    private function retrieveByVector(int $tenantId, string $query, int $topK, Collection $readyDocIds): ?KnowledgeBase
+    private function retrieveByVector(int $tenantId, string $query, int $topK, Collection $readyDocIds, Collection $readyItemIds): ?KnowledgeBase
     {
         // Lấy rộng hơn topK (×5) rồi lọc theo phạm vi page/ready để vẫn đủ kết quả.
         $scores = $this->vector->searchChunkScores($tenantId, $query, $topK * 5);
@@ -83,17 +90,22 @@ class KnowledgeRetriever
         $chunks = AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenantId)
             ->whereIn('id', array_keys($scores))
-            ->whereIn('document_id', $readyDocIds->keys())
-            ->get(['id', 'document_id', 'chunk_text']);
+            ->where(fn ($w) => $w
+                ->whereIn('document_id', $readyDocIds->keys())
+                ->orWhereIn('visual_item_id', $readyItemIds->keys()))
+            ->get(['id', 'document_id', 'visual_item_id', 'chunk_text']);
         if ($chunks->isEmpty()) {
             return null;   // vector không có chunk thuộc phạm vi ⇒ thử keyword
         }
 
         $out = [];
         foreach ($chunks as $chunk) {
+            $title = $chunk->document_id !== null
+                ? (string) ($readyDocIds[$chunk->document_id] ?? '')
+                : (string) ($readyItemIds[$chunk->visual_item_id] ?? '');
             $out[] = [
-                'document_id' => (int) $chunk->document_id,
-                'title' => (string) ($readyDocIds[$chunk->document_id] ?? ''),
+                'document_id' => (int) ($chunk->document_id ?? 0),
+                'title' => $title,
                 'chunk_text' => (string) $chunk->chunk_text,
                 'score' => $scores[(int) $chunk->id] ?? 0.0,
             ];
@@ -105,8 +117,9 @@ class KnowledgeRetriever
 
     /**
      * @param  Collection<int,string>  $readyDocIds
+     * @param  Collection<int,string>  $readyItemIds
      */
-    private function retrieveByKeyword(int $tenantId, string $query, int $topK, Collection $readyDocIds): KnowledgeBase
+    private function retrieveByKeyword(int $tenantId, string $query, int $topK, Collection $readyDocIds, Collection $readyItemIds): KnowledgeBase
     {
         $tokens = $this->tokenize($query);
         if ($tokens === []) {
@@ -115,8 +128,10 @@ class KnowledgeRetriever
 
         $chunks = AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenantId)
-            ->whereIn('document_id', $readyDocIds->keys())
-            ->get(['id', 'document_id', 'chunk_text']);
+            ->where(fn ($w) => $w
+                ->whereIn('document_id', $readyDocIds->keys())
+                ->orWhereIn('visual_item_id', $readyItemIds->keys()))
+            ->get(['id', 'document_id', 'visual_item_id', 'chunk_text']);
 
         $scored = [];
         foreach ($chunks as $chunk) {
@@ -128,9 +143,12 @@ class KnowledgeRetriever
                 }
             }
             if ($score > 0) {
+                $title = $chunk->document_id !== null
+                    ? (string) ($readyDocIds[$chunk->document_id] ?? '')
+                    : (string) ($readyItemIds[$chunk->visual_item_id] ?? '');
                 $scored[] = [
-                    'document_id' => (int) $chunk->document_id,
-                    'title' => (string) ($readyDocIds[$chunk->document_id] ?? ''),
+                    'document_id' => (int) ($chunk->document_id ?? 0),
+                    'title' => $title,
                     'chunk_text' => (string) $chunk->chunk_text,
                     'score' => $score / count($tokens),
                 ];
