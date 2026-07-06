@@ -22,6 +22,15 @@ use Illuminate\Validation\Rule;
  */
 class MessagingSettingsController extends Controller
 {
+    /**
+     * Preset phong cách chốt sale toàn shop (SPEC gộp kho tri thức + phong
+     * cách chốt sale). B2 sẽ thêm `AiSuggestionService::CLOSING_STYLES` —
+     * KHÔNG phụ thuộc vào nó ở đây, danh sách được định nghĩa riêng.
+     *
+     * @var list<string>
+     */
+    private const CLOSING_STYLES = ['default', 'consultative', 'fast_close', 'scarcity', 'attentive'];
+
     public function __construct(
         private AiAssistantRegistry $registry,
         private AiFlowExclusionService $exclusion,
@@ -33,6 +42,7 @@ class MessagingSettingsController extends Controller
 
         $tenantId = app(CurrentTenant::class)->id();
         $setting = MessagingSetting::query()->find($tenantId);
+        $settings = $setting !== null ? (array) ($setting->settings ?? []) : [];
 
         return response()->json([
             'data' => [
@@ -43,6 +53,8 @@ class MessagingSettingsController extends Controller
                 'away_hours' => $setting?->away_hours,
                 'fallback_template_id' => $setting?->fallback_template_id,
                 'available_providers' => $this->availableProviders(),
+                'sales_closing_style' => $settings['sales_closing_style'] ?? 'default',
+                'sales_closing_note' => $settings['sales_closing_note'] ?? null,
             ],
         ]);
     }
@@ -60,6 +72,8 @@ class MessagingSettingsController extends Controller
             'auto_mode_facebook' => ['nullable', 'boolean'],
             'away_hours' => ['nullable', 'array'],
             'fallback_template_id' => ['nullable', 'integer'],
+            'sales_closing_style' => ['nullable', Rule::in(self::CLOSING_STYLES)],
+            'sales_closing_note' => ['nullable', 'string', 'max:500'],
         ]);
 
         $tenantId = app(CurrentTenant::class)->id();
@@ -67,10 +81,21 @@ class MessagingSettingsController extends Controller
         $setting = MessagingSetting::query()->firstOrNew(['tenant_id' => $tenantId]);
         $facebookWasOn = (bool) $setting->auto_mode_facebook;
 
-        $setting->fill($data);
+        $setting->fill(collect($data)->except(['sales_closing_style', 'sales_closing_note'])->all());
         $setting->tenant_id = $tenantId;
         // `auto_mode` cũ (deprecated) = OR 2 nhóm — giữ ý nghĩa cho consumer còn sót.
         $setting->auto_mode = (bool) $setting->auto_mode_marketplace || (bool) $setting->auto_mode_facebook;
+
+        // Merge vào JSON `settings` — không ghi đè các khoá khác đã lưu.
+        $settings = (array) ($setting->settings ?? []);
+        if ($request->has('sales_closing_style')) {
+            $settings['sales_closing_style'] = (string) $request->input('sales_closing_style') ?: null;
+        }
+        if ($request->has('sales_closing_note')) {
+            $settings['sales_closing_note'] = trim((string) $request->input('sales_closing_note')) ?: null;
+        }
+        $setting->settings = $settings;
+
         $setting->save();
 
         // Loại trừ Tầng 2 (ADR-0022 §4): bật FB AI auto ⇒ pause flow `inbox_any` FB.
