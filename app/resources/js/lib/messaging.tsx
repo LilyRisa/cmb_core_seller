@@ -96,6 +96,10 @@ export interface Message {
     attachments?: MessageAttachment[];
     /** Nút bấm (template/quick-reply của trả lời tự động Facebook) — chỉ hiển thị. */
     buttons?: MessageButton[];
+    /** Tác giả TIN comment (Facebook feed) — avatar/tên theo từng bình luận, không dùng
+     *  chung buyer cấp hội thoại. Null cho DM/outbound ⇒ FE fallback avatar hội thoại/page. */
+    author_name?: string | null;
+    author_avatar_url?: string | null;
 }
 
 export interface MessageButton {

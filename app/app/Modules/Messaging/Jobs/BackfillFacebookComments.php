@@ -13,6 +13,7 @@ use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta;
 use CMBcoreSeller\Modules\Messaging\Services\CommentConversationUpserter;
 use CMBcoreSeller\Modules\Messaging\Services\MessageIngestionService;
+use CMBcoreSeller\Modules\Messaging\Services\MessagingAvatarRelay;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -47,6 +48,14 @@ class BackfillFacebookComments implements ShouldBeUnique, ShouldQueue
     public int $tries = 5;
 
     public int $uniqueFor = 900;
+
+    /**
+     * Cache relay avatar path theo author_id trong 1 lần chạy — cùng người bình luận
+     * nhiều lần chỉ relay ảnh 1 lần (tránh tải/ghi trùng vào object storage).
+     *
+     * @var array<string, ?string>
+     */
+    private array $authorAvatarPathCache = [];
 
     public function __construct(public int $channelAccountId, public ?string $sinceIso = null)
     {
@@ -260,6 +269,8 @@ class BackfillFacebookComments implements ShouldBeUnique, ShouldQueue
                 'post_id' => $thread['post_id'],
                 'comment_id' => $commentId,
             ],
+            // Tác giả TIN này — avatar/tên theo từng bình luận (thread nhiều người).
+            meta: $this->authorMeta((int) $account->tenant_id, $commenterId, $commenterName, isset($thread['commenter_avatar']) ? (string) $thread['commenter_avatar'] : null),
         ));
 
         // --- 3. Ingest replies ---
@@ -278,6 +289,17 @@ class BackfillFacebookComments implements ShouldBeUnique, ShouldQueue
                 ? CarbonImmutable::parse((string) $reply['created_time'])
                 : null;
 
+            // Author meta chỉ cho reply INBOUND (của khách) — reply outbound của page
+            // hiển thị avatar page (channel_account), không cần tác giả riêng.
+            $replyAuthorMeta = $replyDirection === MessageDirection::Inbound
+                ? $this->authorMeta(
+                    (int) $account->tenant_id,
+                    $replyFromId,
+                    isset($reply['from_name']) ? (string) $reply['from_name'] : null,
+                    isset($reply['from_avatar']) ? (string) $reply['from_avatar'] : null,
+                )
+                : [];
+
             $ingestion->ingest($account, new MessageDTO(
                 externalConversationId: $commentId,
                 externalMessageId: $replyId,
@@ -293,7 +315,35 @@ class BackfillFacebookComments implements ShouldBeUnique, ShouldQueue
                     'reply_id' => $replyId,
                     'from_id' => $replyFromId,
                 ],
+                meta: $replyAuthorMeta,
             ));
         }
+    }
+
+    /**
+     * Meta tác giả 1 tin comment inbound: tên + id + avatar. Avatar CDN Facebook hết hạn
+     * nên relay về object storage lấy path bền; dedupe theo author_id trong lần chạy.
+     * Lỗi relay / storage chưa cấu hình ⇒ chỉ giữ URL CDN gốc (FE fallback chữ cái đầu).
+     *
+     * @return array<string, mixed>
+     */
+    private function authorMeta(int $tenantId, string $authorId, ?string $name, ?string $avatarUrl): array
+    {
+        $meta = array_filter([
+            'author_id' => $authorId !== '' ? $authorId : null,
+            'author_name' => ($name !== null && trim($name) !== '') ? trim($name) : null,
+            'author_avatar_url' => ($avatarUrl !== null && $avatarUrl !== '') ? $avatarUrl : null,
+        ], fn ($v) => $v !== null);
+
+        if ($avatarUrl !== null && $avatarUrl !== '' && $authorId !== '') {
+            if (! array_key_exists($authorId, $this->authorAvatarPathCache)) {
+                $this->authorAvatarPathCache[$authorId] = app(MessagingAvatarRelay::class)->relay($tenantId, $avatarUrl);
+            }
+            if ($this->authorAvatarPathCache[$authorId] !== null) {
+                $meta['author_avatar_path'] = $this->authorAvatarPathCache[$authorId];
+            }
+        }
+
+        return $meta;
     }
 }

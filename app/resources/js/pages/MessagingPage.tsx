@@ -1111,11 +1111,18 @@ export function MessagingPage() {
                             ) : (
                                 messages.map((m, i, arr) => {
                                     const isOut = m.direction === 'outbound';
-                                    const showAvatar = arr[i + 1]?.direction !== m.direction; // tin cuối 1 cụm cùng chiều
+                                    const isComment = active?.thread_type === 'comment';
+                                    const next = arr[i + 1];
+                                    // Avatar hiện ở tin CUỐI mỗi cụm cùng chiều; với comment thread
+                                    // (nhiều người), đổi tác giả cũng tách cụm để mỗi người 1 avatar.
+                                    const showAvatar = next?.direction !== m.direction
+                                        || (isComment && !isOut && (next?.author_name ?? null) !== (m.author_name ?? null));
                                     return (
                                     <div key={m.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', justifyContent: isOut ? 'flex-end' : 'flex-start', marginBottom: m.reaction ? 18 : 8 }}>
                                         {!isOut && (showAvatar
-                                            ? <MsgAvatar src={active?.buyer_avatar_url} name={active?.buyer_name ?? active?.buyer_external_id} />
+                                            ? <MsgAvatar
+                                                src={isComment ? (m.author_avatar_url ?? undefined) : active?.buyer_avatar_url}
+                                                name={isComment ? (m.author_name ?? active?.buyer_name ?? active?.buyer_external_id) : (active?.buyer_name ?? active?.buyer_external_id)} />
                                             : <span style={{ width: 28, flexShrink: 0 }} />)}
                                         <div style={{ position: 'relative', maxWidth: '70%' }}>
                                             <div style={{

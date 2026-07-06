@@ -32,6 +32,13 @@ class MessageResource extends JsonResource
             'read_at' => $this->read_at?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),
             'reaction' => $this->meta['reaction'] ?? null,
+            // Tác giả TIN comment (Facebook feed) — mỗi bình luận có người viết riêng nên
+            // avatar/tên phải theo TỪNG tin, không dùng chung buyer cấp hội thoại. Chỉ điền
+            // cho tin comment inbound; DM/outbound trả null ⇒ FE fallback avatar hội thoại/page.
+            // Avatar ưu tiên signed URL từ path đã relay (bền), fallback URL CDN gốc (hết hạn).
+            'author_name' => $this->meta['author_name'] ?? null,
+            'author_avatar_url' => app(MediaStorage::class)->temporaryUrlForPath($this->meta['author_avatar_path'] ?? null)
+                ?? ($this->meta['author_avatar_url'] ?? null),
             // Nút bấm (template/quick-reply của trả lời tự động Facebook) — chỉ hiển thị.
             'buttons' => array_values(array_filter(
                 (array) ($this->meta['buttons'] ?? []),

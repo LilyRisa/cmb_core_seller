@@ -7,6 +7,7 @@ use CMBcoreSeller\Integrations\Messaging\Facebook\FacebookPageConnector;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Http\Resources\ConversationResource;
+use CMBcoreSeller\Modules\Messaging\Http\Resources\MessageResource;
 use CMBcoreSeller\Modules\Messaging\Jobs\BackfillFacebookComments;
 use CMBcoreSeller\Modules\Messaging\Jobs\SyncCommentAvatars;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
@@ -362,6 +363,94 @@ class FacebookCommentsBackfillTest extends TestCase
         $this->assertCount(1, $avatars);
         $this->assertSame('Z', $avatars[0]['name']);
         $this->assertNotNull($avatars[0]['path']);
+    }
+
+    /**
+     * Mức B: avatar/tên tác giả lưu theo TỪNG tin comment (không dùng chung buyer hội
+     * thoại). Backfill có sẵn ảnh ⇒ relay vào messages.meta; MessageResource phơi ra.
+     */
+    public function test_backfill_stores_per_message_author_avatar_and_resource_exposes_it(): void
+    {
+        [$tenant, $account] = $this->fbAccount();
+        Storage::fake((string) config('messaging.media_disk'));
+
+        Http::fake([
+            'graph.facebook.com/*/feed*' => Http::response([
+                'data' => [[
+                    'id' => 'POST_1', 'message' => 'Bài', 'permalink_url' => 'https://fb.com/p/1',
+                    'created_time' => now()->subDay()->toIso8601String(),
+                    'comments' => ['data' => [
+                        ['id' => 'CMT_A', 'message' => 'hỏi', 'created_time' => now()->subHours(23)->toIso8601String(),
+                            'from' => ['id' => 'BUYER_1', 'name' => 'A', 'picture' => ['data' => ['url' => 'https://cdn.fb/AV_A.jpg']]]],
+                        // reply của KHÁCH khác (inbound) → cũng có author riêng
+                        ['id' => 'REPLY_B', 'message' => 'reply', 'created_time' => now()->subHours(22)->toIso8601String(),
+                            'from' => ['id' => 'BUYER_2', 'name' => 'B', 'picture' => ['data' => ['url' => 'https://cdn.fb/AV_B.jpg']]],
+                            'parent' => ['id' => 'CMT_A']],
+                    ]],
+                ]],
+                'paging' => ['cursors' => ['after' => null]],
+            ], 200),
+            'cdn.fb/*' => Http::response('FAKE_IMAGE_BYTES', 200),
+        ]);
+
+        BackfillFacebookComments::dispatchSync($account->id);
+
+        $topLevel = Message::withoutGlobalScope(TenantScope::class)
+            ->where('external_message_id', 'CMT_A')->first();
+        $this->assertNotNull($topLevel);
+        $this->assertSame('A', $topLevel->meta['author_name']);
+        $this->assertSame('BUYER_1', $topLevel->meta['author_id']);
+        $this->assertSame('https://cdn.fb/AV_A.jpg', $topLevel->meta['author_avatar_url']);
+        $this->assertNotNull($topLevel->meta['author_avatar_path']); // đã relay về storage
+
+        $reply = Message::withoutGlobalScope(TenantScope::class)
+            ->where('external_message_id', 'REPLY_B')->first();
+        $this->assertSame('B', $reply->meta['author_name']);
+        $this->assertNotNull($reply->meta['author_avatar_path']);
+
+        // MessageResource phơi author_name + signed URL avatar theo từng tin.
+        $data = (new MessageResource($topLevel))->toArray(Request::create('/'));
+        $this->assertSame('A', $data['author_name']);
+        $this->assertNotNull($data['author_avatar_url']);
+    }
+
+    /**
+     * Mức B — đường WEBHOOK realtime: feed webhook không kèm ảnh, tin lưu author_name/id
+     * ngay; SyncCommentAvatars fetch avatar qua Graph rồi relay + ghi vào ĐÚNG message.meta.
+     */
+    public function test_sync_comment_avatars_writes_author_avatar_into_message(): void
+    {
+        [$tenant, $account] = $this->fbAccount();
+        Storage::fake((string) config('messaging.media_disk'));
+
+        $conv = Conversation::query()->create([
+            'tenant_id' => $tenant->getKey(), 'channel_account_id' => $account->id,
+            'provider' => 'facebook_page', 'thread_type' => 'comment',
+            'external_conversation_id' => 'CMT_W', 'buyer_external_id' => 'BUYER_9',
+            'status' => 'open', 'last_message_at' => now(), 'meta' => [],
+        ]);
+        $message = Message::query()->create([
+            'tenant_id' => $tenant->getKey(), 'conversation_id' => $conv->id,
+            'external_message_id' => 'CMT_W', 'direction' => 'inbound', 'kind' => 'text',
+            'body' => 'hỏi', 'delivery_status' => 'sent',
+            'meta' => ['author_id' => 'BUYER_9', 'author_name' => 'Z'], // webhook: chưa có avatar
+        ]);
+
+        Http::fake([
+            'graph.facebook.com/*' => Http::response([
+                'from' => ['id' => 'BUYER_9', 'name' => 'Z', 'picture' => ['data' => ['url' => 'https://cdn.fb/AV_Z.jpg']]],
+            ], 200),
+            'cdn.fb/*' => Http::response('IMG', 200),
+        ]);
+
+        SyncCommentAvatars::dispatchSync($conv->id, 'CMT_W');
+
+        $message->refresh();
+        $this->assertSame('https://cdn.fb/AV_Z.jpg', $message->meta['author_avatar_url']);
+        $this->assertNotNull($message->meta['author_avatar_path']);
+
+        $data = (new MessageResource($message))->toArray(Request::create('/'));
+        $this->assertNotNull($data['author_avatar_url']);
     }
 
     public function test_backfill_permission_error_sets_friendly_comment_error_and_does_not_touch_message_sync(): void

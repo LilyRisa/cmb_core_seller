@@ -353,6 +353,14 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
                     ? (string) $value['from']['name']
                     : null,
             ], fn ($v) => $v !== null),
+            // Tác giả TIN này (lưu vào messages.meta) — avatar theo từng bình luận. Feed
+            // webhook không kèm ảnh ⇒ chỉ có tên/id; avatar do SyncCommentAvatars relay sau.
+            meta: array_filter([
+                'author_id' => $fromId,
+                'author_name' => isset($value['from']['name']) && (string) $value['from']['name'] !== ''
+                    ? (string) $value['from']['name']
+                    : null,
+            ], fn ($v) => $v !== null),
         );
     }
 
