@@ -20,13 +20,13 @@ export function MessagingAiTrainingPage() {
 
     return (
         <div>
-            <PageHeader title="AI training" subtitle="Dạy AI bằng tài liệu (chữ) và ảnh sản phẩm để tư vấn đúng." />
+            <PageHeader title="AI training" subtitle="Dạy AI bằng Kiến thức (nội dung + ảnh tùy chọn) để tư vấn đúng." />
             <MessagingNav />
             <Tabs
-                defaultActiveKey="docs"
+                defaultActiveKey="knowledge"
                 items={[
-                    { key: 'docs', label: 'Tài liệu (chữ)', children: <KnowledgeDocsPanel provider={platform} /> },
-                    { key: 'images', label: 'Ảnh sản phẩm', children: <VisualTrainingPanel /> },
+                    { key: 'knowledge', label: 'Kiến thức', children: <VisualTrainingPanel /> },
+                    { key: 'docs', label: 'Tài liệu cũ (chỉ xem)', children: <KnowledgeDocsPanel provider={platform} /> },
                 ]}
             />
         </div>

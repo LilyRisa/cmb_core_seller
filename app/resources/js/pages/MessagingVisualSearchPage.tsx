@@ -65,7 +65,7 @@ function ImagesDrawer({ itemId, onClose, canManage }: { itemId: number; onClose:
     const setPrimary = useSetVisualPrimary();
 
     return (
-        <Drawer open width={520} onClose={onClose} title={item ? `Ảnh — ${item.name}` : 'Ảnh'}>
+        <Drawer open width={520} onClose={onClose} title={item ? `Ảnh (tùy chọn) — ${item.name}` : 'Ảnh (tùy chọn)'}>
             {canManage && (
                 <Upload
                     multiple
@@ -253,8 +253,8 @@ export function VisualTrainingPanel() {
                     <Form.Item name="name" label="Tên sản phẩm" rules={[{ required: true, message: 'Nhập tên' }]}>
                         <Input placeholder="VD: Áo thun cotton trắng" />
                     </Form.Item>
-                    <Form.Item name="description" label="Mô tả / đặc điểm (AI dùng để tư vấn)">
-                        <Input.TextArea rows={3} placeholder="Chất liệu, màu, size, công dụng…" />
+                    <Form.Item name="description" label="Nội dung" rules={[{ required: true, message: 'Nhập nội dung' }]}>
+                        <Input.TextArea rows={6} placeholder="Mô tả sản phẩm, chất liệu, màu, size, công dụng, chính sách liên quan… (AI dùng nội dung này để tư vấn khách)" />
                     </Form.Item>
                     <Form.Item name="ref_code" label="Mã tham chiếu (tuỳ chọn)">
                         <Input placeholder="VD: SP001" />
@@ -262,6 +262,9 @@ export function VisualTrainingPanel() {
                     <Form.Item name="applies_all_pages" label="Áp dụng tất cả trang" valuePropName="checked">
                         <Switch />
                     </Form.Item>
+                    <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                        Ảnh (tùy chọn — để AI gửi ảnh cho khách): lưu xong, bấm nút &quot;Ảnh&quot; trong danh sách để tải ảnh lên.
+                    </Typography.Paragraph>
                 </Form>
             </Modal>
 

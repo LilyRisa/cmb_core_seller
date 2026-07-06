@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { App as AntApp, Button, Card, Drawer, Empty, Form, Input, Modal, Popconfirm, Segmented, Space, Spin, Switch, Table, Tag, Tooltip, Typography, Upload } from 'antd';
-import { DeleteOutlined, EyeOutlined, PlusOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons';
+import { App as AntApp, Button, Card, Drawer, Empty, Popconfirm, Space, Spin, Table, Tag, Tooltip, Typography } from 'antd';
+import { DeleteOutlined, EyeOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
-import { type KnowledgeDoc, useCreateKnowledge, useDeleteKnowledge, useKnowledgeChunks, useKnowledgeDocs, useReindexKnowledge } from '@/lib/messagingConfig';
-import { PageMultiSelect, PageScopeTags } from '@/components/messaging/PageScope';
+import { type KnowledgeDoc, useDeleteKnowledge, useKnowledgeChunks, useKnowledgeDocs, useReindexKnowledge } from '@/lib/messagingConfig';
+import { PageScopeTags } from '@/components/messaging/PageScope';
 
 const STATUS: Record<KnowledgeDoc['status'], { color: string; label: string }> = {
     pending: { color: 'processing', label: 'Đang xử lý' },
@@ -19,31 +19,9 @@ export function KnowledgeDocsPanel({ provider }: { provider?: string }) {
     const { message } = AntApp.useApp();
     const canManage = useCan('messaging.ai.train');
     const { data, isFetching } = useKnowledgeDocs(provider);
-    const create = useCreateKnowledge();
     const del = useDeleteKnowledge();
     const reindex = useReindexKnowledge();
-    const [open, setOpen] = useState(false);
-    const [file, setFile] = useState<File | null>(null);
     const [viewingId, setViewingId] = useState<number | null>(null);
-    const [form] = Form.useForm();
-    const source = Form.useWatch('source', form) as 'inline' | 'url' | 'upload' | undefined;
-    const appliesAll = (Form.useWatch('applies_all_pages', form) as boolean | undefined) ?? true;
-
-    const close = () => { setOpen(false); setFile(null); form.resetFields(); };
-
-    const submit = () => form.validateFields().then((v) => {
-        if (v.source === 'upload' && !file) { message.error('Chọn file để tải lên'); return; }
-        create.mutate({
-            title: v.title, source: v.source, inline_text: v.inline_text, url: v.url, file: file ?? undefined,
-            // Gắn tài liệu vào đúng nền tảng đang xem (Facebook/Zalo OA) — tách kho riêng.
-            provider,
-            applies_all_pages: !!v.applies_all_pages,
-            channel_account_ids: v.applies_all_pages ? [] : (v.channel_account_ids ?? []),
-        }, {
-            onSuccess: () => { message.success('Đã thêm tài liệu — đang index'); close(); },
-            onError: (e) => message.error(errorMessage(e)),
-        });
-    });
 
     const columns: ColumnsType<KnowledgeDoc> = [
         { title: 'Tiêu đề', dataIndex: 'title' },
@@ -79,53 +57,13 @@ export function KnowledgeDocsPanel({ provider }: { provider?: string }) {
     return (
         <div>
             <Card
-                title="Tài liệu (chữ) — FAQ / chính sách / mô tả SP để AI tham chiếu (RAG)"
-                extra={canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => setOpen(true)}>Thêm tài liệu</Button>}
+                title={<Space>Tài liệu (chữ) <Tag>Cũ — chỉ xem</Tag></Space>}
             >
+                <Typography.Paragraph type="secondary">
+                    Tài liệu chữ đã ngừng tạo mới. Vào tab &quot;Kiến thức&quot; để thêm nội dung mới (văn bản + ảnh tùy chọn) — nội dung cũ ở đây vẫn được AI dùng bình thường.
+                </Typography.Paragraph>
                 <Table<KnowledgeDoc> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns} pagination={false} />
             </Card>
-
-            <Modal open={open} onCancel={close} onOk={submit} confirmLoading={create.isPending} title="Thêm tài liệu AI" okText="Thêm" cancelText="Huỷ">
-                <Form form={form} layout="vertical" initialValues={{ source: 'inline', applies_all_pages: true }}>
-                    <Form.Item name="title" label="Tiêu đề" rules={[{ required: true }]}><Input /></Form.Item>
-                    <Form.Item name="applies_all_pages" label="Áp dụng cho trang" valuePropName="checked"
-                        extra="Bật = dùng cho mọi trang. Tắt = chỉ các trang được chọn (gán được nhiều trang).">
-                        <Switch checkedChildren="Tất cả trang" unCheckedChildren="Chọn trang" />
-                    </Form.Item>
-                    {!appliesAll && (
-                        <Form.Item name="channel_account_ids" label="Trang áp dụng"
-                            rules={[{ required: true, type: 'array', min: 1, message: 'Chọn ít nhất 1 trang hoặc bật "Tất cả trang"' }]}>
-                            <PageMultiSelect placeholder="Chọn trang dùng tài liệu này" provider={provider} />
-                        </Form.Item>
-                    )}
-                    <Form.Item name="source" label="Nguồn" rules={[{ required: true }]}>
-                        <Segmented block options={[
-                            { value: 'inline', label: 'Gõ trực tiếp' },
-                            { value: 'url', label: 'URL / Google Sheets' },
-                            { value: 'upload', label: 'Tải file' },
-                        ]} />
-                    </Form.Item>
-                    {source === 'url' && (
-                        <>
-                            <Form.Item name="url" label="URL" rules={[{ required: true, type: 'url' }]}><Input placeholder="https://…" /></Form.Item>
-                            <div style={{ color: '#94A3B8', fontSize: 12 }}>Trang web hoặc link Google Sheets (chia sẻ “Bất kỳ ai có liên kết → Người xem”) sẽ được tải về & trích nội dung. Dùng nút “Tải lại” khi nguồn có dữ liệu mới.</div>
-                        </>
-                    )}
-                    {source === 'upload' && (
-                        <Form.Item label="File">
-                            <Upload beforeUpload={(f) => { setFile(f as File); return false; }} onRemove={() => setFile(null)}
-                                maxCount={1} showUploadList={false} accept=".txt,.md,.csv,.tsv,.docx,.xlsx,.pdf">
-                                <Button icon={<UploadOutlined />}>Chọn file</Button>
-                            </Upload>
-                            {file && <Typography.Text style={{ marginLeft: 8 }}>{file.name}</Typography.Text>}
-                            <div style={{ color: '#94A3B8', fontSize: 12, marginTop: 4 }}>Hỗ trợ PDF, Word (.docx), Excel (.xlsx), CSV/TSV, văn bản (.txt/.md). Tối đa 25MB.</div>
-                        </Form.Item>
-                    )}
-                    {(source === 'inline' || source === undefined) && (
-                        <Form.Item name="inline_text" label="Nội dung" rules={[{ required: true }]}><Input.TextArea rows={6} placeholder="Chính sách đổi trả: ..." /></Form.Item>
-                    )}
-                </Form>
-            </Modal>
 
             <KnowledgeContentDrawer id={viewingId} onClose={() => setViewingId(null)} />
         </div>
