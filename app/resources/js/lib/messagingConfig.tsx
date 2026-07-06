@@ -325,6 +325,10 @@ export interface MessagingSettings {
     auto_mode_facebook: boolean;
     away_hours: Record<string, unknown> | null;
     fallback_template_id: number | null;
+    /** Phong cách chốt sale AI dùng khi trả lời (mặc định 'default'). */
+    sales_closing_style?: string;
+    /** Ghi chú thêm cho phong cách chốt sale (tuỳ chọn). */
+    sales_closing_note?: string;
     available_providers: Array<{ code: string; name: string }>;
 }
 
@@ -349,7 +353,7 @@ export function useSaveMessagingSettings() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: async (
-            s: Partial<Pick<MessagingSettings, 'ai_provider_code' | 'ai_enabled' | 'auto_mode_marketplace' | 'auto_mode_facebook' | 'fallback_template_id'>>,
+            s: Partial<Pick<MessagingSettings, 'ai_provider_code' | 'ai_enabled' | 'auto_mode_marketplace' | 'auto_mode_facebook' | 'fallback_template_id' | 'sales_closing_style' | 'sales_closing_note'>>,
         ): Promise<SaveMessagingSettingsResult> => (await api!.patch('/messaging/settings', s)).data,
         onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'settings'] }),
     });

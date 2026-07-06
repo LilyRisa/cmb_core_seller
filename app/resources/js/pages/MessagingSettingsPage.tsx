@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { App as AntApp, Alert, Button, Card, Form, Radio, Space, Spin, Switch, Typography } from 'antd';
+import { App as AntApp, Alert, Button, Card, Form, Input, Radio, Space, Spin, Switch, Typography } from 'antd';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
 import { useMessagingSettings, useSaveMessagingSettings } from '@/lib/messagingConfig';
@@ -12,7 +12,18 @@ interface SettingsForm {
     ai_enabled: boolean;
     auto_mode_marketplace: boolean;
     auto_mode_facebook: boolean;
+    sales_closing_style: string;
+    sales_closing_note: string;
 }
+
+/** 5 phong cách chốt sale AI có thể áp dụng khi trả lời khách. */
+const SALES_CLOSING_STYLES = [
+    { value: 'default', label: 'Mặc định' },
+    { value: 'consultative', label: 'Tư vấn nhẹ nhàng' },
+    { value: 'fast_close', label: 'Chốt nhanh' },
+    { value: 'scarcity', label: 'Khan hiếm - ưu đãi' },
+    { value: 'attentive', label: 'Chăm sóc kỹ' },
+];
 
 /** /settings/messaging — chọn AI provider + bật AI / auto-mode (SPEC-0024 §6.2, ADR-0022).
  *  AI tự động trả lời tách theo nhóm kênh (Sàn vs Facebook). Kết nối kênh ở /messaging/channels. */
@@ -30,6 +41,8 @@ export function MessagingSettingsPage() {
                 ai_enabled: data.ai_enabled,
                 auto_mode_marketplace: data.auto_mode_marketplace,
                 auto_mode_facebook: data.auto_mode_facebook,
+                sales_closing_style: data.sales_closing_style ?? 'default',
+                sales_closing_note: data.sales_closing_note ?? '',
             });
         }
     }, [data, form]);
@@ -81,6 +94,19 @@ export function MessagingSettingsPage() {
                     <Form.Item name="ai_enabled" label="Bật AI gợi ý trả lời" valuePropName="checked"
                         extra={<Text type="secondary">Bật để dùng AI (gợi ý cho NV duyệt + nền cho "AI tự trả lời"). Bật/tắt AI tự trả lời theo từng trang ở <b>Kết nối kênh</b>.</Text>}>
                         <Switch />
+                    </Form.Item>
+
+                    <Form.Item name="sales_closing_style" label="Phong cách chốt sale"
+                        extra="AI sẽ áp dụng phong cách này khi tư vấn và chốt đơn với khách.">
+                        <Radio.Group>
+                            <Space direction="vertical">
+                                {SALES_CLOSING_STYLES.map((s) => <Radio key={s.value} value={s.value}>{s.label}</Radio>)}
+                            </Space>
+                        </Radio.Group>
+                    </Form.Item>
+                    <Form.Item name="sales_closing_note" label="Ghi chú chốt sale (tùy chọn)"
+                        extra="Ghi chú thêm để AI hiểu rõ hơn cách chốt sale mong muốn (vd: ưu tiên nhắc combo, tránh ép giá).">
+                        <Input.TextArea rows={3} maxLength={500} showCount placeholder="Ví dụ: Luôn nhắc chương trình freeship khi khách còn phân vân..." />
                     </Form.Item>
 
                     {canConfig && <Button type="primary" loading={save.isPending} onClick={submit}>Lưu</Button>}
