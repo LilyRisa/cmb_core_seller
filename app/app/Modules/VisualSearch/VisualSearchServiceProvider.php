@@ -3,7 +3,9 @@
 namespace CMBcoreSeller\Modules\VisualSearch;
 
 use CMBcoreSeller\Modules\VisualSearch\Console\Commands\ReindexVisualTraining;
+use CMBcoreSeller\Modules\VisualSearch\Contracts\KnowledgeItemStore;
 use CMBcoreSeller\Modules\VisualSearch\Contracts\VisualItemSearch;
+use CMBcoreSeller\Modules\VisualSearch\Services\KnowledgeItemRepository;
 use CMBcoreSeller\Modules\VisualSearch\Services\VisualMatcher;
 use Illuminate\Support\ServiceProvider;
 
@@ -18,6 +20,7 @@ class VisualSearchServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(VisualItemSearch::class, VisualMatcher::class);
+        $this->app->bind(KnowledgeItemStore::class, KnowledgeItemRepository::class);
     }
 
     public function boot(): void

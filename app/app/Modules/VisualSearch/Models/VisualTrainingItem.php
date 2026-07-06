@@ -25,6 +25,17 @@ use Illuminate\Support\Carbon;
  * @property bool $applies_all_pages
  * @property ?int $primary_image_id
  * @property ?int $created_by
+ * @property ?string $content_text
+ * @property string $source
+ * @property ?string $url
+ * @property ?string $storage_path
+ * @property string $provider
+ * @property string $kb_status
+ * @property int $chunk_count
+ * @property ?string $embedding_provider_code
+ * @property ?string $embedding_model
+ * @property int $embedding_version
+ * @property ?Carbon $kb_indexed_at
  * @property ?Carbon $created_at
  * @property ?Carbon $updated_at
  */
