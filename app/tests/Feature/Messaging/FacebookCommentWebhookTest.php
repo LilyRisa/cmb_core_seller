@@ -8,6 +8,7 @@ use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\WebhookEvent;
 use CMBcoreSeller\Modules\Messaging\Events\MessageReceived;
 use CMBcoreSeller\Modules\Messaging\Jobs\ProcessMessagingWebhook;
+use CMBcoreSeller\Modules\Messaging\Jobs\SyncCommentPostDetails;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Services\CommentConversationUpserter;
@@ -18,6 +19,7 @@ use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 /**
@@ -279,6 +281,37 @@ class FacebookCommentWebhookTest extends TestCase
         $this->assertSame('inbound', $msg->direction);
         $this->assertSame('text', $msg->kind);
         $this->assertSame('Còn không shop?', $msg->body);
+    }
+
+    /**
+     * Feed webhook chỉ kèm post_id (không có nội dung bài) ⇒ phải dispatch SyncCommentPostDetails
+     * để fetch nội dung/link/ảnh cho post card (bug: post card trống với comment realtime).
+     */
+    public function test_feed_comment_webhook_dispatches_post_details_sync(): void
+    {
+        Queue::fake();
+        [$tenant, $account] = $this->fbAccount();
+
+        $payload = $this->feedCommentPayload('PAGE_FB', 'CMT_PD', 'POST_PD', 'BUYER_PD', 'bài này còn không?');
+        $sig = 'sha256='.hash_hmac('sha256', $payload, self::SECRET);
+
+        $this->call('POST', '/webhook/messaging/facebook_page', [], [], [],
+            ['HTTP_X_HUB_SIGNATURE_256' => $sig, 'CONTENT_TYPE' => 'application/json'], $payload)->assertOk();
+
+        $event = WebhookEvent::query()
+            ->where('provider', 'messaging.facebook_page')->where('external_id', 'CMT_PD')->first();
+        $this->assertNotNull($event);
+
+        (new ProcessMessagingWebhook($event->id))->handle(
+            app(MessagingRegistry::class),
+            app(MessageIngestionService::class),
+            app(CommentConversationUpserter::class),
+        );
+
+        Queue::assertPushed(
+            SyncCommentPostDetails::class,
+            fn (SyncCommentPostDetails $job) => $job->postId === 'POST_PD',
+        );
     }
 
     public function test_feed_comment_webhook_is_idempotent_on_replay(): void

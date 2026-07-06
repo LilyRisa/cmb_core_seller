@@ -10,6 +10,7 @@ use CMBcoreSeller\Modules\Messaging\Http\Resources\ConversationResource;
 use CMBcoreSeller\Modules\Messaging\Http\Resources\MessageResource;
 use CMBcoreSeller\Modules\Messaging\Jobs\BackfillFacebookComments;
 use CMBcoreSeller\Modules\Messaging\Jobs\SyncCommentAvatars;
+use CMBcoreSeller\Modules\Messaging\Jobs\SyncCommentPostDetails;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingAccountMeta;
@@ -370,6 +371,79 @@ class FacebookCommentsBackfillTest extends TestCase
      * Mức B: avatar/tên tác giả lưu theo TỪNG tin comment (không dùng chung buyer hội
      * thoại). Backfill có sẵn ảnh ⇒ relay vào messages.meta; MessageResource phơi ra.
      */
+    // -----------------------------------------------------------------------
+    // 6. Post details cho comment WEBHOOK realtime (post card) — SPEC hiển thị bài viết
+    // -----------------------------------------------------------------------
+
+    public function test_fetch_post_details_returns_content_on_200(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response([
+            'message' => 'Nội dung bài', 'permalink_url' => 'https://fb.com/post/9',
+            'created_time' => '2026-07-06T10:00:00+0000', 'full_picture' => 'https://cdn.fb/p9.jpg',
+            'attachments' => ['data' => [['media_type' => 'video']]], 'id' => 'POST_9',
+        ], 200)]);
+
+        $r = $this->makeConnector()->fetchPostDetails(new MessagingAuthContext(1, 'facebook_page', 'PAGE', 'TOK'), 'POST_9');
+
+        $this->assertSame('Nội dung bài', $r['message']);
+        $this->assertSame('https://fb.com/post/9', $r['permalink']);
+        $this->assertSame('https://cdn.fb/p9.jpg', $r['picture']);
+        $this->assertTrue($r['is_video']);
+    }
+
+    public function test_fetch_post_details_empty_on_error(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response('nope', 400)]);
+
+        $r = $this->makeConnector()->fetchPostDetails(new MessagingAuthContext(1, 'facebook_page', 'PAGE', 'TOK'), 'POST_9');
+
+        $this->assertNull($r['message']);
+        $this->assertNull($r['permalink']);
+        $this->assertFalse($r['is_video']);
+    }
+
+    public function test_sync_comment_post_details_fills_meta(): void
+    {
+        [$tenant, $account] = $this->fbAccount();
+        $conv = Conversation::query()->create([
+            'tenant_id' => $tenant->getKey(), 'channel_account_id' => $account->id,
+            'provider' => 'facebook_page', 'thread_type' => 'comment',
+            'external_conversation_id' => 'CMT_P', 'buyer_external_id' => 'BUYER_1',
+            'status' => 'open', 'last_message_at' => now(), 'meta' => ['fb_post_id' => 'POST_9'],
+        ]);
+        Http::fake(['graph.facebook.com/*' => Http::response([
+            'message' => 'Bài viết X', 'permalink_url' => 'https://fb.com/post/9',
+            'created_time' => '2026-07-06T10:00:00+0000', 'full_picture' => 'https://cdn.fb/p9.jpg',
+        ], 200)]);
+
+        SyncCommentPostDetails::dispatchSync($conv->id, 'POST_9');
+
+        $conv->refresh();
+        $this->assertSame('Bài viết X', $conv->meta['fb_post_message']);
+        $this->assertSame('https://fb.com/post/9', $conv->meta['fb_post_permalink']);
+        $this->assertSame('https://cdn.fb/p9.jpg', $conv->meta['fb_post_picture']);
+    }
+
+    /** Đã có nội dung bài ⇒ job KHÔNG gọi Graph, KHÔNG ghi đè (idempotent). */
+    public function test_sync_comment_post_details_idempotent_when_present(): void
+    {
+        [$tenant, $account] = $this->fbAccount();
+        $conv = Conversation::query()->create([
+            'tenant_id' => $tenant->getKey(), 'channel_account_id' => $account->id,
+            'provider' => 'facebook_page', 'thread_type' => 'comment',
+            'external_conversation_id' => 'CMT_Q', 'buyer_external_id' => 'BUYER_1',
+            'status' => 'open', 'last_message_at' => now(),
+            'meta' => ['fb_post_id' => 'POST_9', 'fb_post_message' => 'Đã có', 'fb_post_permalink' => 'https://fb.com/old'],
+        ]);
+        Http::fake(['graph.facebook.com/*' => Http::response(['message' => 'MỚI', 'permalink_url' => 'https://fb.com/new'], 200)]);
+
+        SyncCommentPostDetails::dispatchSync($conv->id, 'POST_9');
+
+        $conv->refresh();
+        $this->assertSame('Đã có', $conv->meta['fb_post_message']);
+        Http::assertNothingSent();
+    }
+
     // -----------------------------------------------------------------------
     // 5. fetchUserProfile — phân loại transient vs dứt khoát (chống throttle nhầm)
     // -----------------------------------------------------------------------

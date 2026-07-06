@@ -184,6 +184,17 @@ class ProcessMessagingWebhook implements ShouldQueue
             SyncCommentAvatars::dispatch((int) $result['conversation']->id, (string) $dto->externalMessageId);
         }
 
+        // Chi tiết bài viết (nội dung/link/ảnh) cho post card — feed webhook chỉ kèm post_id,
+        // không có nội dung bài như backfill ⇒ fetch async khi hội thoại chưa có. Idempotent
+        // trong job (đã có message/permalink ⇒ thoát), nên chỉ dispatch khi còn thiếu.
+        if ($isComment) {
+            $postId = (string) ($dto->threadMeta['fb_post_id'] ?? '');
+            $convMeta = (array) ($result['conversation']->meta ?? []);
+            if ($postId !== '' && blank($convMeta['fb_post_message'] ?? null) && blank($convMeta['fb_post_permalink'] ?? null)) {
+                SyncCommentPostDetails::dispatch((int) $result['conversation']->id, $postId);
+            }
+        }
+
         // Sync hồ sơ buyer (tên + avatar) cho DM còn thiếu — webhook tạo conversation
         // KHÔNG fetch profile (khác backfill). Job tự throttle 24h tránh spam Graph.
         if (! $isComment) {

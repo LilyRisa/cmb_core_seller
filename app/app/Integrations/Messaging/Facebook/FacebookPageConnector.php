@@ -1121,6 +1121,57 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
         ];
     }
 
+    /**
+     * Lấy chi tiết 1 bài viết (nội dung/link/ảnh/giờ đăng/loại video) theo post_id — cho
+     * post card comment thread đến từ WEBHOOK realtime. Feed webhook chỉ kèm post_id, KHÔNG
+     * có nội dung bài như backfill (`fetchCommentThreads`) ⇒ post card trống nếu không fetch.
+     * `permalink_url`/`full_picture` là CDN hết hạn (post card refresh mỗi lần mở).
+     * Best-effort: lỗi/thiếu quyền/timeout ⇒ trả rỗng (post card ẩn phần thiếu).
+     *
+     * @return array{message: ?string, permalink: ?string, picture: ?string, is_video: bool, created_time: ?string}
+     */
+    public function fetchPostDetails(MessagingAuthContext $auth, string $postId): array
+    {
+        $empty = ['message' => null, 'permalink' => null, 'picture' => null, 'is_video' => false, 'created_time' => null];
+        if ($postId === '') {
+            return $empty;
+        }
+
+        try {
+            $res = Http::timeout(20)->get($this->graphUrl($postId), [
+                'fields' => 'message,permalink_url,created_time,full_picture,attachments{media_type}',
+                'access_token' => $auth->accessToken,
+            ]);
+        } catch (ConnectionException $e) {
+            return $empty;
+        }
+
+        if (! $res->successful()) {
+            return $empty;
+        }
+
+        // Loại media bài viết — để FE phủ icon ▶ lên ảnh preview khi là video (giống fetchCommentThreads).
+        $isVideo = false;
+        foreach ((array) $res->json('attachments.data', []) as $att) {
+            if (in_array((string) ($att['media_type'] ?? ''), ['video', 'video_inline', 'video_autoplay'], true)) {
+                $isVideo = true;
+                break;
+            }
+        }
+
+        $message = (string) $res->json('message', '');
+        $permalink = (string) $res->json('permalink_url', '');
+        $picture = (string) $res->json('full_picture', '');
+
+        return [
+            'message' => $message !== '' ? $message : null,
+            'permalink' => $permalink !== '' ? $permalink : null,
+            'picture' => $picture !== '' ? $picture : null,
+            'is_video' => $isVideo,
+            'created_time' => $res->json('created_time'),
+        ];
+    }
+
     /** @param array<string,mixed> $att */
     private function mapBackfillAttachment(array $att): MediaRefDTO
     {
