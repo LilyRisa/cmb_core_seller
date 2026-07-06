@@ -23,7 +23,7 @@ class AiKnowledgeChunk extends Model
     use BelongsToTenant;
 
     protected $fillable = [
-        'tenant_id', 'document_id', 'chunk_index', 'chunk_text', 'embedding', 'token_count',
+        'tenant_id', 'document_id', 'visual_item_id', 'chunk_index', 'chunk_text', 'embedding', 'token_count',
     ];
 
     protected function casts(): array
