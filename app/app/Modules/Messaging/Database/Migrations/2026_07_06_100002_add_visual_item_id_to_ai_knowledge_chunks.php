@@ -2,23 +2,22 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
  * Cho phép 1 chunk thuộc document HOẶC visual item (kho tri thức gộp).
  *
- * `document_id` bỏ NOT NULL bằng raw ALTER (không dùng `->change()` để tránh
- * phụ thuộc `doctrine/dbal` — chưa cài trong project). SQLite không ràng buộc
- * NOT NULL chặt qua ALTER nên bỏ qua trên driver này; Postgres cần ALTER thật.
+ * `document_id` bỏ NOT NULL bằng `->change()` native (Laravel 11.51 không còn
+ * phụ thuộc `doctrine/dbal` cho schema change — kể cả SQLite table-rebuild),
+ * nên relax được NOT NULL trên CẢ SQLite lẫn Postgres bằng cùng một API.
  */
 return new class extends Migration
 {
     public function up(): void
     {
-        if (DB::getDriverName() === 'pgsql') {
-            DB::statement('ALTER TABLE ai_knowledge_chunks ALTER COLUMN document_id DROP NOT NULL');
-        }
+        Schema::table('ai_knowledge_chunks', function (Blueprint $table) {
+            $table->unsignedBigInteger('document_id')->nullable()->change();
+        });
 
         Schema::table('ai_knowledge_chunks', function (Blueprint $table) {
             $table->unsignedBigInteger('visual_item_id')->nullable()->after('document_id');
