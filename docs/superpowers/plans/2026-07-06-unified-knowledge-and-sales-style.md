@@ -1163,4 +1163,6 @@ git commit -m "feat(sales): UI chọn phong cách chốt sale trong Cài đặt 
 
 ## Deploy
 - Sau deploy: `php artisan migrate` (A1, A2). Không backfill. Item cũ (đã tạo trước) sẽ `kb_status=pending` → cần chạy một lệnh re-index text (P2) HOẶC sửa/lưu lại để phát `KnowledgeItemSaved` → `IndexKnowledgeItem`. Ghi chú cho vận hành.
-- Listener queued (nếu đặt queued) PHẢI nằm trong Horizon supervisor `messaging-ai`/`messaging-bg` (xem memory messaging-autoreply-dev-gotchas).
+- **Qdrant prod: ĐÃ CÓ** (service `qdrant` trong `docker-compose.prod.yml`, `QDRANT_URL=http://qdrant:6333`). Collection text mới `messaging_kb__<model>` tự tạo khi index (khác `visual_training__*` của ảnh CLIP).
+- **Vector RAG text BẬT/keyword** phụ thuộc endpoint embedding: `KnowledgeVectorIndexer` dùng `help_assistant.embedding_*` (DB `/admin/ai-support`) → fallback env `HELP_ASSISTANT_EMBEDDING_*` (mặc định TRỐNG trong compose prod). Đã cấu hình embedding cho Hỏi AI ⇒ messaging KB tự dùng lại (vector ngữ nghĩa). Trống ⇒ fail-soft: vẫn tạo chunk + `kb_status=ready`, retrieval rơi keyword. Feature chạy được cả hai đường.
+- Listener A6 để ĐỒNG BỘ (không `ShouldQueue`) nên KHÔNG cần thêm Horizon supervisor. Job `IndexKnowledgeItem` chạy trên queue `messaging-ai` (đã có supervisor).
