@@ -18,6 +18,8 @@ use CMBcoreSeller\Modules\Messaging\Events\MessageReceived;
 use CMBcoreSeller\Modules\Messaging\Events\PostbackReceived;
 use CMBcoreSeller\Modules\Messaging\Listeners\AdvanceFlowOnPostback;
 use CMBcoreSeller\Modules\Messaging\Listeners\AiAutoModeOnInbound;
+use CMBcoreSeller\Modules\Messaging\Listeners\IndexVisualKnowledgeItem;
+use CMBcoreSeller\Modules\Messaging\Listeners\PurgeVisualKnowledgeItem;
 use CMBcoreSeller\Modules\Messaging\Listeners\PushWebOnNewMessage;
 use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnComment;
 use CMBcoreSeller\Modules\Messaging\Listeners\RunAutoReplyOnInbound;
@@ -42,6 +44,8 @@ use CMBcoreSeller\Modules\Messaging\Services\Flows\Steps\SendTextStep;
 use CMBcoreSeller\Modules\Messaging\Services\Flows\Steps\StepExecutorRegistry;
 use CMBcoreSeller\Modules\Messaging\Services\MessageInboxReader;
 use CMBcoreSeller\Modules\Orders\Events\OrderStatusChanged;
+use CMBcoreSeller\Modules\VisualSearch\Events\KnowledgeItemDeleted;
+use CMBcoreSeller\Modules\VisualSearch\Events\KnowledgeItemSaved;
 use CMBcoreSeller\Support\Database\PartitionRegistry;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -142,6 +146,12 @@ class MessagingServiceProvider extends ServiceProvider
 
         // Flow Builder (S2): buyer bấm nút (postback) ⇒ tiến luồng theo nhánh nút.
         Event::listen(PostbackReceived::class, AdvanceFlowOnPostback::class);
+
+        // KB-unification (A6): VisualSearch phát event khi CRUD item tri thức (hợp nhất
+        // text+ảnh) — Messaging nghe để (re)index/purge RAG. Seam một chiều: Messaging
+        // import VisualSearch\Events (event phẳng), KHÔNG import Services/Models nội bộ.
+        Event::listen(KnowledgeItemSaved::class, IndexVisualKnowledgeItem::class);
+        Event::listen(KnowledgeItemDeleted::class, PurgeVisualKnowledgeItem::class);
 
         if ($this->app->runningInConsole()) {
             $this->commands([

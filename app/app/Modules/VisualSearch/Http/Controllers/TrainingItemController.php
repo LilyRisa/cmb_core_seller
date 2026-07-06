@@ -6,6 +6,8 @@ use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
+use CMBcoreSeller\Modules\VisualSearch\Events\KnowledgeItemDeleted;
+use CMBcoreSeller\Modules\VisualSearch\Events\KnowledgeItemSaved;
 use CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingImage;
 use CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem;
 use CMBcoreSeller\Modules\VisualSearch\Services\TrainingImageService;
@@ -55,6 +57,9 @@ class TrainingItemController extends Controller
         ]);
         $this->syncPages($item, $data['channel_account_ids'] ?? []);
 
+        $item->forceFill(['kb_status' => VisualTrainingItem::KB_PENDING])->save();
+        event(new KnowledgeItemSaved($item->id));
+
         AuditLog::record('visual_search.item.create', $item, ['name' => $item->name]);
 
         return response()->json(['data' => $this->row($item->refresh())], 201);
@@ -93,6 +98,9 @@ class TrainingItemController extends Controller
             $this->syncPages($item, $data['channel_account_ids'] ?? []);
         }
 
+        $item->forceFill(['kb_status' => VisualTrainingItem::KB_PENDING])->save();
+        event(new KnowledgeItemSaved($item->id));
+
         AuditLog::record('visual_search.item.update', $item, ['name' => $item->name]);
 
         return response()->json(['data' => $this->row($item->refresh(), withImages: true)]);
@@ -107,6 +115,7 @@ class TrainingItemController extends Controller
             $this->images->deleteImage($image);
         }
         $item->pages()->sync([]);
+        event(new KnowledgeItemDeleted($item->id));
         $item->delete();
 
         AuditLog::record('visual_search.item.delete', $item, ['name' => $item->name]);
