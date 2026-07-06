@@ -25,6 +25,7 @@ use CMBcoreSeller\Integrations\Messaging\DTO\UtilityTemplateStatusDTO;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\ConversationClosed;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\OutboundWindowClosed;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\UnsupportedOperation;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -197,7 +198,7 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
      * Cần app review "Business Asset User Profile Access" với page người khác (dev mode
      * chạy với tester). Lỗi ⇒ null (không chặn backfill).
      *
-     * @return array{name: ?string, avatar_url: ?string}
+     * @return array{name: ?string, avatar_url: ?string, attempted: bool}
      */
     public function fetchUserProfile(MessagingAuthContext $auth, string $psid): array
     {
@@ -209,15 +210,29 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
         // `profile_pic` CHỈ trả về khi app có quyền (Advanced Access `pages_messaging` qua
         // App Review; Dev Mode chỉ trả cho người có vai trò trong app).
         // docs: developers.facebook.com/docs/messenger-platform/identity/user-profile
-        $res = Http::timeout(20)->get($this->graphUrl($psid), [
-            'fields' => 'first_name,last_name,profile_pic',
-            'access_token' => $auth->accessToken,
-        ]);
+        try {
+            $res = Http::timeout(20)->get($this->graphUrl($psid), [
+                'fields' => 'first_name,last_name,profile_pic',
+                'access_token' => $auth->accessToken,
+            ]);
+        } catch (ConnectionException $e) {
+            // Lỗi mạng/timeout — KHÔNG phải câu trả lời dứt khoát từ Graph ⇒ transient.
+            // `attempted=false` để caller KHÔNG throttle 24h mà thử lại (tin sau / retry).
+            // (Bug prod: hồ sơ vốn lấy được nhưng 1 cú timeout lúc tạo hội thoại khoá cả ngày.)
+            return ['name' => null, 'avatar_url' => null, 'attempted' => false];
+        }
+
+        // 5xx / rate-limit (429/#613) ⇒ transient: Graph tạm lỗi, hồ sơ có thể lấy được sau
+        // ⇒ báo chưa "thử" dứt khoát để caller thử lại.
+        if ($res->serverError() || $res->status() === 429) {
+            return ['name' => null, 'avatar_url' => null, 'attempted' => false];
+        }
 
         if (! $res->successful()) {
-            // Best-effort: PSID không lấy được profile (thường #100/#10/#200 — app chưa có
-            // Advanced Access User Profile cho PSID này). Trả null, KHÔNG log (nguyên nhân đã biết).
-            return ['name' => null, 'avatar_url' => null];
+            // 4xx dứt khoát (thường #100/#10/#200 — app chưa có Advanced Access User Profile,
+            // hoặc PSID không khớp). Đã "thử" thật (`attempted=true`) ⇒ caller throttle tránh
+            // spam Graph. KHÔNG log (nguyên nhân đã biết).
+            return ['name' => null, 'avatar_url' => null, 'attempted' => true];
         }
 
         $name = $res->json('name');
@@ -237,9 +252,11 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
             ]);
         }
 
+        // HTTP 200 = câu trả lời dứt khoát (kể cả rỗng do thiếu quyền) ⇒ attempted=true.
         return [
             'name' => $name,
             'avatar_url' => $avatarUrl,
+            'attempted' => true,
         ];
     }
 

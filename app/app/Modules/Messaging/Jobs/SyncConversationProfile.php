@@ -79,10 +79,6 @@ class SyncConversationProfile implements ShouldQueue
         }
         $connector = $registry->for($code);
 
-        // Ghi mốc thử TRƯỚC khi gọi Graph ⇒ throttle vẫn áp kể cả khi job lỗi/null.
-        $meta['profile_attempted_at'] = now()->toIso8601String();
-        $conv->forceFill(['meta' => $meta])->save();
-
         $auth = new MessagingAuthContext(
             channelAccountId: (int) $account->getKey(),
             provider: (string) $account->provider,
@@ -92,7 +88,7 @@ class SyncConversationProfile implements ShouldQueue
 
         // Best-effort (docblock): connector lỗi/thiếu quyền KHÔNG được ném — nếu không, chạy sync trong
         // luồng webhook (queue sync) sẽ làm webhook 500. FB connector đã tự nuốt lỗi; connector khác (Zalo…)
-        // có thể ném ⇒ bọc ở đây làm lưới an toàn cho MỌI provider.
+        // có thể ném ⇒ bọc ở đây làm lưới an toàn cho MỌI provider. Ném = transient ⇒ KHÔNG ghi mốc (thử lại).
         try {
             $profile = $connector->fetchUserProfile($auth, (string) $conv->external_conversation_id);
         } catch (Throwable $e) {
@@ -101,6 +97,16 @@ class SyncConversationProfile implements ShouldQueue
             ]);
 
             return;
+        }
+
+        // Ghi mốc throttle 24h CHỈ khi provider trả lời DỨT KHOÁT (kể cả rỗng do thiếu quyền).
+        // Lỗi thoáng qua (`attempted=false`: timeout/5xx/rate-limit) ⇒ KHÔNG ghi mốc ⇒ tin sau
+        // (`maybeSyncBuyerProfile`) + `tries=2` còn thử lại — tránh "đầu độc 24h" khi hồ sơ vốn
+        // lấy được (bug prod: hội thoại rỗng tên/avatar cả ngày dù Graph trả đủ). Connector cũ
+        // không trả `attempted` ⇒ mặc định true (giữ nguyên hành vi throttle).
+        if (($profile['attempted'] ?? true) !== false) {
+            $meta['profile_attempted_at'] = now()->toIso8601String();
+            $conv->forceFill(['meta' => $meta])->save();
         }
 
         $name = $profile['name'] ?? null;

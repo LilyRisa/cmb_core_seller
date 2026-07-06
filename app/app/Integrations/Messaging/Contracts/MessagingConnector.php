@@ -94,7 +94,11 @@ interface MessagingConnector
      * Lấy thông tin người dùng (buyer) theo external id (vd PSID Facebook).
      * Connector không hỗ trợ ⇒ trả `['name' => null, 'avatar_url' => null]`.
      *
-     * @return array{name: ?string, avatar_url: ?string}
+     * `attempted` (tùy chọn): `false` khi KHÔNG lấy được câu trả lời dứt khoát từ nhà cung
+     * cấp (lỗi mạng/timeout/5xx/rate-limit) ⇒ caller nên thử lại thay vì throttle. Mặc định
+     * (thiếu key) coi như `true` — một lần thử thật (kể cả rỗng do thiếu quyền) đáng throttle.
+     *
+     * @return array{name: ?string, avatar_url: ?string, attempted?: bool}
      */
     public function fetchUserProfile(MessagingAuthContext $auth, string $externalUserId): array;
 

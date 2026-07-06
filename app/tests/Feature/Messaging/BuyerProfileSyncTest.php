@@ -283,6 +283,37 @@ class BuyerProfileSyncTest extends TestCase
         $this->assertSame('tenants/x/messaging/avatars/existing.jpg', $fresh->buyer_avatar_path);
     }
 
+    /**
+     * BUG prod 2026-07-06 (PSID 27380737668278107): job ghi `profile_attempted_at` TRƯỚC khi
+     * fetch ⇒ 1 cú lỗi thoáng qua (timeout/5xx) lúc tạo hội thoại khoá đồng bộ 24h dù Graph vốn
+     * trả đủ tên/avatar. Fix: lỗi transient (`attempted=false`) ⇒ KHÔNG ghi mốc ⇒ tin sau thử lại.
+     */
+    public function test_job_does_not_throttle_on_transient_failure(): void
+    {
+        $conv = $this->fbConversation();
+        $registry = $this->fakeRegistry(['name' => null, 'avatar_url' => null, 'attempted' => false]);
+
+        (new SyncConversationProfile((int) $conv->id))->handle($registry, app(MessagingAvatarRelay::class));
+
+        $fresh = Conversation::withoutGlobalScope(TenantScope::class)->find($conv->id);
+        $this->assertArrayNotHasKey('profile_attempted_at', (array) $fresh->meta,
+            'Lỗi thoáng qua ⇒ KHÔNG throttle để tin sau còn thử lại (không đầu độc 24h)');
+        $this->assertNull($fresh->buyer_name);
+    }
+
+    /** Trả lời dứt khoát nhưng rỗng (thiếu quyền / #100) ⇒ throttle 24h tránh spam Graph. */
+    public function test_job_throttles_on_definitive_empty_profile(): void
+    {
+        $conv = $this->fbConversation();
+        $registry = $this->fakeRegistry(['name' => null, 'avatar_url' => null, 'attempted' => true]);
+
+        (new SyncConversationProfile((int) $conv->id))->handle($registry, app(MessagingAvatarRelay::class));
+
+        $fresh = Conversation::withoutGlobalScope(TenantScope::class)->find($conv->id);
+        $this->assertArrayHasKey('profile_attempted_at', (array) $fresh->meta,
+            'Câu trả lời dứt khoát (kể cả rỗng) ⇒ ghi mốc throttle');
+    }
+
     /** Comment thread không sync profile theo PSID (commenter khác ngữ nghĩa). */
     public function test_job_skips_comment_thread(): void
     {

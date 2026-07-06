@@ -17,6 +17,7 @@ use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
@@ -369,6 +370,66 @@ class FacebookCommentsBackfillTest extends TestCase
      * Mức B: avatar/tên tác giả lưu theo TỪNG tin comment (không dùng chung buyer hội
      * thoại). Backfill có sẵn ảnh ⇒ relay vào messages.meta; MessageResource phơi ra.
      */
+    // -----------------------------------------------------------------------
+    // 5. fetchUserProfile — phân loại transient vs dứt khoát (chống throttle nhầm)
+    // -----------------------------------------------------------------------
+
+    public function test_fetch_user_profile_attempted_true_on_200_with_data(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response([
+            'first_name' => 'MC Thái', 'last_name' => 'Phong Bolero',
+            'profile_pic' => 'https://cdn.fb/av.jpg', 'id' => 'PSID',
+        ], 200)]);
+
+        $r = $this->makeConnector()->fetchUserProfile(new MessagingAuthContext(1, 'facebook_page', 'PAGE', 'TOK'), 'PSID');
+
+        $this->assertSame('MC Thái Phong Bolero', $r['name']);
+        $this->assertSame('https://cdn.fb/av.jpg', $r['avatar_url']);
+        $this->assertTrue($r['attempted']);
+    }
+
+    public function test_fetch_user_profile_transient_on_server_error(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response('boom', 500)]);
+
+        $r = $this->makeConnector()->fetchUserProfile(new MessagingAuthContext(1, 'facebook_page', 'PAGE', 'TOK'), 'PSID');
+
+        $this->assertFalse($r['attempted'], '5xx ⇒ transient, đáng thử lại');
+        $this->assertNull($r['name']);
+    }
+
+    public function test_fetch_user_profile_transient_on_rate_limit(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response('slow down', 429)]);
+
+        $r = $this->makeConnector()->fetchUserProfile(new MessagingAuthContext(1, 'facebook_page', 'PAGE', 'TOK'), 'PSID');
+
+        $this->assertFalse($r['attempted']);
+    }
+
+    public function test_fetch_user_profile_transient_on_connection_exception(): void
+    {
+        Http::fake(function () {
+            throw new ConnectionException('timeout');
+        });
+
+        $r = $this->makeConnector()->fetchUserProfile(new MessagingAuthContext(1, 'facebook_page', 'PAGE', 'TOK'), 'PSID');
+
+        $this->assertFalse($r['attempted'], 'timeout/mạng ⇒ transient (không throttle)');
+    }
+
+    public function test_fetch_user_profile_definitive_on_400_no_matching_user(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response([
+            'error' => ['message' => '(#100) No matching user found', 'code' => 100],
+        ], 400)]);
+
+        $r = $this->makeConnector()->fetchUserProfile(new MessagingAuthContext(1, 'facebook_page', 'PAGE', 'TOK'), 'PSID');
+
+        $this->assertTrue($r['attempted'], '4xx dứt khoát (#100) ⇒ throttle tránh spam');
+        $this->assertNull($r['name']);
+    }
+
     public function test_backfill_stores_per_message_author_avatar_and_resource_exposes_it(): void
     {
         [$tenant, $account] = $this->fbAccount();
