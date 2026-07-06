@@ -74,6 +74,40 @@ class GhnAddressResolverTest extends TestCase
         $this->assertTrue($res['matched']['ward']);
     }
 
+    public function test_transient_error_is_not_cached_and_self_heals(): void
+    {
+        // Lần 1 tỉnh trả 401 (token sai) ⇒ rỗng; lần 2 trả OK. Cache rỗng KHÔNG được lưu,
+        // nên lần 2 vẫn resolve được (không kẹt 7 ngày như bug đã gặp trên prod).
+        Cache::flush();
+        $provinceCalls = 0;
+        Http::fake(function ($request) use (&$provinceCalls) {
+            $url = $request->url();
+            if (str_contains($url, 'master-data/province')) {
+                $provinceCalls++;
+
+                return $provinceCalls === 1
+                    ? Http::response(['code' => 401, 'message' => 'Token is not valid!'], 401)
+                    : Http::response(['code' => 200, 'data' => [['ProvinceID' => 267, 'ProvinceName' => 'Hòa Bình']]]);
+            }
+            if (str_contains($url, 'master-data/district')) {
+                return Http::response(['code' => 200, 'data' => [['DistrictID' => 1678, 'DistrictName' => 'Thành phố Hòa Bình']]]);
+            }
+            if (str_contains($url, 'master-data/ward')) {
+                return Http::response(['code' => 200, 'data' => [['WardCode' => '230110', 'DistrictID' => 1678, 'WardName' => 'Phường Hòa Bình']]]);
+            }
+
+            return Http::response(['code' => 200, 'data' => []]);
+        });
+
+        $addr = ['province' => 'Hòa Bình', 'district' => 'Thành phố Hòa Bình', 'ward' => 'Phường Hòa Bình'];
+
+        $first = $this->resolver()->resolve($addr);
+        $this->assertNull($first['ward_code'], 'Lần 1 lỗi token ⇒ chưa resolve.');
+
+        $second = $this->resolver()->resolve($addr);
+        $this->assertSame('230110', $second['ward_code'], 'Lần 2 phải resolve — cache không bị đầu độc bởi rỗng.');
+    }
+
     public function test_direct_address_still_resolves_without_fallback(): void
     {
         $this->fakeGhnMasterData();

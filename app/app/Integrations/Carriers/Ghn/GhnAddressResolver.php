@@ -170,7 +170,7 @@ class GhnAddressResolver
     /** @return list<array<string,mixed>> */
     private function ghnProvinces(): array
     {
-        return Cache::remember('ghn.master.provinces.raw', self::CACHE_TTL, function () {
+        return $this->cachedMasterData('ghn.master.provinces.raw', function () {
             $body = $this->client->getProvinces();
 
             return (int) ($body['code'] ?? 0) === 200 ? (array) ($body['data'] ?? []) : [];
@@ -180,29 +180,53 @@ class GhnAddressResolver
     /** @return list<array<string,mixed>> */
     private function ghnDistricts(int $provinceId): array
     {
-        return Cache::remember("ghn.master.districts.{$provinceId}.raw", self::CACHE_TTL, function () use ($provinceId) {
-            try {
-                $body = $this->httpFromClient()->post('/shiip/public-api/master-data/district', ['province_id' => $provinceId])->json();
-
-                return (int) ($body['code'] ?? 0) === 200 ? (array) ($body['data'] ?? []) : [];
-            } catch (\Throwable) {
-                return [];
-            }
-        });
+        return $this->cachedMasterData("ghn.master.districts.{$provinceId}.raw", fn () => $this->postMasterData('/shiip/public-api/master-data/district', ['province_id' => $provinceId]));
     }
 
     /** @return list<array<string,mixed>> */
     private function ghnWards(int $districtId): array
     {
-        return Cache::remember("ghn.master.wards.{$districtId}.raw", self::CACHE_TTL, function () use ($districtId) {
-            try {
-                $body = $this->httpFromClient()->post('/shiip/public-api/master-data/ward', ['district_id' => $districtId])->json();
+        return $this->cachedMasterData("ghn.master.wards.{$districtId}.raw", fn () => $this->postMasterData('/shiip/public-api/master-data/ward', ['district_id' => $districtId]));
+    }
 
-                return (int) ($body['code'] ?? 0) === 200 ? (array) ($body['data'] ?? []) : [];
-            } catch (\Throwable) {
-                return [];
-            }
-        });
+    /**
+     * Cache master-data GHN CHỈ khi có dữ liệu — KHÔNG cache mảng rỗng (do 401/timeout/rate-limit),
+     * để lỗi tạm không "đầu độc" cache 7 ngày (đổi token/gateway là tự lành ở lần gọi sau).
+     *
+     * @param  callable():list<array<string,mixed>>  $fetch
+     * @return list<array<string,mixed>>
+     */
+    private function cachedMasterData(string $key, callable $fetch): array
+    {
+        $cached = Cache::get($key);
+        if (is_array($cached) && $cached !== []) {
+            return $cached;
+        }
+
+        $data = $fetch();
+        if ($data !== []) {
+            Cache::put($key, $data, self::CACHE_TTL);
+        }
+
+        return $data;
+    }
+
+    /**
+     * POST 1 endpoint master-data GHN → `data` (rỗng nếu lỗi/không 200). Bọc try/catch để lỗi mạng
+     * không throw (caller cứ nhận rỗng → cachedMasterData bỏ qua không cache).
+     *
+     * @param  array<string,mixed>  $payload
+     * @return list<array<string,mixed>>
+     */
+    private function postMasterData(string $path, array $payload): array
+    {
+        try {
+            $body = $this->httpFromClient()->post($path, $payload)->json();
+
+            return (int) ($body['code'] ?? 0) === 200 ? (array) ($body['data'] ?? []) : [];
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     private function httpFromClient(): PendingRequest
