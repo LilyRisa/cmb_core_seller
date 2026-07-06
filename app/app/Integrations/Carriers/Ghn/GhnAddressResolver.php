@@ -69,6 +69,19 @@ class GhnAddressResolver
             }
         }
 
+        // Fallback địa chỉ MỚI 2 cấp trên tỉnh SÁP NHẬP 2025: GHN vẫn tạo đơn bằng mã v2 cũ, và
+        // phường của tỉnh mới nằm dưới TỈNH CŨ trong dữ liệu GHN (vd "Xã Thịnh Minh" thuộc "Phú Thọ"
+        // mới → GHN đặt dưới tỉnh "Hòa Bình"). Khi không tìm ra ward trong tỉnh khớp tên, dò các tỉnh
+        // cũ đã gộp vào tỉnh mới (crosswalk) để lấy đúng district_id + ward_code cũ.
+        if ($wardCode === null && $wardName !== '' && $provinceName !== '') {
+            $viaMerge = $this->resolveViaMergedProvinces($provinceName, $wardName);
+            if ($viaMerge !== null) {
+                $provinceId = $viaMerge['province_id'];
+                $districtId = $viaMerge['district_id'];
+                $wardCode = $viaMerge['ward_code'];
+            }
+        }
+
         return [
             'province_id' => $provinceId, 'district_id' => $districtId, 'ward_code' => $wardCode,
             'matched' => [
@@ -78,6 +91,78 @@ class GhnAddressResolver
             ],
         ];
     }
+
+    /**
+     * Dò phường theo tên trong các TỈNH CŨ mà tỉnh mới (sau sáp nhập 2025) đã gộp, lấy district_id +
+     * ward_code v2 (GHN vẫn tạo đơn bằng mã cũ). Chỉ chạy khi resolve thường thất bại.
+     *
+     * @param  string  $newProvinceName  đã normalize
+     * @param  string  $wardName  đã normalize
+     * @return array{province_id:int, district_id:int, ward_code:string}|null
+     */
+    private function resolveViaMergedProvinces(string $newProvinceName, string $wardName): ?array
+    {
+        $oldNames = self::MERGER_CROSSWALK[$newProvinceName] ?? [];
+        if ($oldNames === []) {
+            return null;
+        }
+
+        $provinces = $this->ghnProvinces();
+        foreach ($oldNames as $oldName) {
+            $prov = $this->findByName($provinces, $this->normalize($oldName), 'ProvinceName');
+            if ($prov === null) {
+                continue;
+            }
+            $pid = (int) $prov['ProvinceID'];
+            foreach ($this->ghnDistricts($pid) as $district) {
+                $did = (int) ($district['DistrictID'] ?? 0);
+                if ($did === 0) {
+                    continue;
+                }
+                $ward = $this->findByName($this->ghnWards($did), $wardName, 'WardName');
+                if ($ward !== null) {
+                    return ['province_id' => $pid, 'district_id' => $did, 'ward_code' => (string) $ward['WardCode']];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Crosswalk sáp nhập tỉnh 2025 (nghị quyết 1/7/2025): tên tỉnh MỚI (đã normalize) → danh sách tên
+     * tỉnh CŨ đã gộp (bao gồm chính nó). Chỉ liệt kê 23 tỉnh mới do GỘP + Huế (đổi cấp) — tỉnh giữ
+     * nguyên (Hà Nội, Nghệ An, …) không cần vì resolve thường đã khớp trực tiếp. Đã đối chiếu khớp
+     * danh sách 34 tỉnh của GHN v3 master-data.
+     *
+     * @var array<string, list<string>>
+     */
+    private const MERGER_CROSSWALK = [
+        'tuyen quang' => ['tuyen quang', 'ha giang'],
+        'lao cai' => ['lao cai', 'yen bai'],
+        'thai nguyen' => ['thai nguyen', 'bac kan'],
+        'phu tho' => ['phu tho', 'vinh phuc', 'hoa binh'],
+        'bac ninh' => ['bac ninh', 'bac giang'],
+        'hung yen' => ['hung yen', 'thai binh'],
+        'hai phong' => ['hai phong', 'hai duong'],
+        'ninh binh' => ['ninh binh', 'ha nam', 'nam dinh'],
+        'hue' => ['hue', 'thua thien hue'],
+        'quang tri' => ['quang tri', 'quang binh'],
+        'da nang' => ['da nang', 'quang nam'],
+        'quang ngai' => ['quang ngai', 'kon tum'],
+        'gia lai' => ['gia lai', 'binh dinh'],
+        'khanh hoa' => ['khanh hoa', 'ninh thuan'],
+        'lam dong' => ['lam dong', 'dak nong', 'binh thuan'],
+        'dak lak' => ['dak lak', 'phu yen'],
+        'ho chi minh' => ['ho chi minh', 'binh duong', 'ba ria - vung tau', 'ba ria vung tau'],
+        'dong nai' => ['dong nai', 'binh phuoc'],
+        'tay ninh' => ['tay ninh', 'long an'],
+        'can tho' => ['can tho', 'soc trang', 'hau giang'],
+        'vinh long' => ['vinh long', 'ben tre', 'tra vinh'],
+        'dong thap' => ['dong thap', 'tien giang'],
+        'ca mau' => ['ca mau', 'bac lieu'],
+        'an giang' => ['an giang', 'kien giang'],
+    ];
 
     /** Cache GHN master-data 7 ngày — name VN ít đổi, code lại càng ít đổi. */
     private const CACHE_TTL = 7 * 24 * 60 * 60;
@@ -146,6 +231,13 @@ class GhnAddressResolver
             if ($n === $needle) {
                 $exact = $row;
                 break;
+            }
+            // Khớp cả biến thể chính tả GHN cung cấp (NameExtension: có/không dấu, tiền tố…).
+            foreach ((array) ($row['NameExtension'] ?? []) as $alt) {
+                if ($this->normalize((string) $alt) === $needle) {
+                    $exact = $row;
+                    break 2;
+                }
             }
             if ($contains === null && (str_contains($n, $needle) || str_contains($needle, $n))) {
                 $contains = $row;
