@@ -38,9 +38,24 @@ class VisualTrainingItem extends Model
 
     public const STATUS_FAILED = 'failed';
 
+    public const KB_PENDING = 'pending';
+
+    public const KB_READY = 'ready';
+
+    public const KB_FAILED = 'failed';
+
+    public const SOURCE_INLINE = 'inline';
+
+    public const SOURCE_URL = 'url';
+
+    public const SOURCE_UPLOAD = 'upload';
+
     protected $fillable = [
         'tenant_id', 'name', 'description', 'attributes', 'ref_code',
         'status', 'applies_all_pages', 'primary_image_id', 'created_by',
+        'content_text', 'source', 'url', 'storage_path', 'provider',
+        'kb_status', 'chunk_count', 'embedding_provider_code', 'embedding_model',
+        'embedding_version', 'kb_indexed_at',
     ];
 
     protected function casts(): array
@@ -49,6 +64,7 @@ class VisualTrainingItem extends Model
             'attributes' => 'array',
             'applies_all_pages' => 'boolean',
             'primary_image_id' => 'integer',
+            'kb_indexed_at' => 'datetime',
         ];
     }
 
