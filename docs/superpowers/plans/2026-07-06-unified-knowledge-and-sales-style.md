@@ -17,19 +17,36 @@
 - Quality gate (chạy trong `app/`): `vendor/bin/pint --test`, `vendor/bin/phpstan analyse` (level 5 + baseline — KHÔNG thêm lỗi mới), `php artisan test`, `npm run lint && npm run typecheck && npm run build`.
 - **BẮT BUỘC mỗi task:** hoàn thành mục "Ảnh hưởng & lỗi ngầm" — xác nhận không phá RAG hiện có, không phá luồng gửi ảnh/khớp ảnh, không phá hệ chốt sale (persona "QUY TẮC CHỐT ĐƠN"), không rò vào bước phân loại intent.
 - UI: icon @ant-design/icons (không emoji); tập chọn nhỏ dùng Radio/Segmented (không Select).
+- **LUẬT MODULE (đã chốt):** mọi phụ thuộc mới một chiều Messaging→VisualSearch qua **event + Contract** (không cycle). VisualSearch KHÔNG import mới từ Messaging. Không module nào tạo migration/đụng bảng module khác.
 
 ---
 
+## Kiến trúc phụ thuộc module (ĐÃ CHỐT — event + Contract, acyclic)
+
+> **Quyết định (2026-07-06):** Tôn trọng luật vàng `modules.md` Rule 2/4/8. Toàn bộ phụ thuộc mới **một chiều Messaging→VisualSearch** (không cycle). VisualSearch **KHÔNG** import gì mới từ Messaging.
+>
+> - **Ghi (index):** job `IndexKnowledgeItem` nằm ở **Messaging** (module sở hữu `ai_knowledge_chunks` + `KnowledgeVectorIndexer`). Nó đọc text + ghi trạng thái ngược item **qua contract** `VisualSearch\Contracts\KnowledgeItemStore` (interface). Không đụng model `VisualTrainingItem` trực tiếp.
+> - **Kích hoạt:** VisualSearch **phát domain event** `KnowledgeItemSaved`/`KnowledgeItemDeleted` khi CRUD item. Messaging **đăng ký listener** (pattern đã có, giống listen `Orders\OrderStatusChanged`). VisualSearch không biết Messaging tồn tại.
+> - **Đọc (retrieve):** `KnowledgeRetriever` (Messaging) lấy danh sách item READY **qua contract** `KnowledgeItemStore::readyTitles()` — không import `VisualTrainingItem`.
+> - **Contract mới tách riêng** `KnowledgeItemStore` (KHÔNG nhồi vào `VisualItemSearch` để giữ tách bạch khớp-ảnh vs KB-text).
+
 ## File Structure (Part A — KB unification)
 
-- Modify `app/database`… → migration mới `..._add_kb_columns_to_visual_training_items.php`, `..._add_visual_item_id_to_ai_knowledge_chunks.php` (đặt trong `app/app/Modules/Messaging/Database/Migrations` cho chunk và `app/app/Modules/VisualSearch/Database/Migrations` cho item — mỗi module tự `loadMigrationsFrom`).
-- Modify `app/app/Modules/VisualSearch/Models/VisualTrainingItem.php` — cột KB mới + hằng `KB_*`.
+- Create migration `..._add_kb_columns_to_visual_training_items.php` trong `app/app/Modules/VisualSearch/Database/Migrations`; `..._add_visual_item_id_to_ai_knowledge_chunks.php` trong `app/app/Modules/Messaging/Database/Migrations` (mỗi module tự `loadMigrationsFrom`).
+- Modify `app/app/Modules/VisualSearch/Models/VisualTrainingItem.php` — cột KB mới + hằng `KB_*`/`SOURCE_*`.
 - Modify `app/app/Modules/Messaging/Models/AiKnowledgeChunk.php` — `visual_item_id` fillable.
-- Modify `app/app/Modules/Messaging/Services/KnowledgeVectorIndexer.php` — tách `upsertChunks()` dùng chung + thêm `indexItemChunks()`.
-- Create `app/app/Modules/VisualSearch/Jobs/IndexKnowledgeItem.php` — chunk + index text của item.
-- Create `app/app/Modules/VisualSearch/Services/ItemTextComposer.php` — dựng text nguồn từ item (thuần, test được).
-- Modify `app/app/Modules/VisualSearch/Http/Controllers/TrainingItemController.php` — dispatch index sau store/update, forget sau destroy.
-- Modify `app/app/Modules/Messaging/Services/KnowledgeRetriever.php` — gộp chunk item vào truy hồi (vector + keyword) với scope page/provider.
+- Create `app/app/Modules/VisualSearch/Services/ItemTextComposer.php` — dựng text nguồn từ item (thuần).
+- Create `app/app/Modules/VisualSearch/DTO/KnowledgeItemText.php` — DTO `{itemId, tenantId, text}` (cross-module cho phép truyền DTO).
+- Create `app/app/Modules/VisualSearch/Contracts/KnowledgeItemStore.php` — cổng đọc/ghi KB item cho Messaging.
+- Create `app/app/Modules/VisualSearch/Services/KnowledgeItemRepository.php` — impl `KnowledgeItemStore` (bind trong provider).
+- Create `app/app/Modules/VisualSearch/Events/KnowledgeItemSaved.php`, `KnowledgeItemDeleted.php`.
+- Modify `app/app/Modules/VisualSearch/VisualSearchServiceProvider.php` — bind contract.
+- Modify `app/app/Modules/VisualSearch/Http/Controllers/TrainingItemController.php` — set `kb_status=pending` + phát event sau store/update; phát event delete trong destroy.
+- Modify `app/app/Modules/Messaging/Services/KnowledgeVectorIndexer.php` — tách `upsertChunks()` dùng chung + thêm `indexItemChunks(int $itemId, int $tenantId, iterable $chunks)`.
+- Create `app/app/Modules/Messaging/Jobs/IndexKnowledgeItem.php` — chunk + index text của item (đọc/ghi qua `KnowledgeItemStore`).
+- Create `app/app/Modules/Messaging/Listeners/IndexVisualKnowledgeItem.php` + `PurgeVisualKnowledgeItem.php` — nghe event VisualSearch.
+- Modify service provider Messaging (đăng ký listener theo pattern hiện có).
+- Modify `app/app/Modules/Messaging/Services/KnowledgeRetriever.php` — gộp chunk item qua `KnowledgeItemStore::readyTitles()`.
 - Modify FE: `resources/js/pages/MessagingKnowledgePage.tsx` / `MessagingVisualSearchPage.tsx` — hợp nhất 1 panel; ẩn form tạo tài liệu chữ.
 
 ## File Structure (Part B — sales-closing style)
@@ -185,22 +202,276 @@ git commit -m "feat(kb): chunk có thể thuộc document HOẶC visual item"
 
 ---
 
-### Task A3: `KnowledgeVectorIndexer` — tách `upsertChunks()` dùng chung + `indexItemChunks()`
+### Task A3: VisualSearch — cổng KB (`KnowledgeItemStore` contract + `ItemTextComposer` + DTO + impl)
+
+**Files:**
+- Create: `app/app/Modules/VisualSearch/Services/ItemTextComposer.php`
+- Create: `app/app/Modules/VisualSearch/DTO/KnowledgeItemText.php`
+- Create: `app/app/Modules/VisualSearch/Contracts/KnowledgeItemStore.php`
+- Create: `app/app/Modules/VisualSearch/Services/KnowledgeItemRepository.php`
+- Modify: `app/app/Modules/VisualSearch/VisualSearchServiceProvider.php` (bind)
+- Test: `app/tests/Feature/VisualSearch/ItemTextComposerTest.php`, `app/tests/Feature/VisualSearch/KnowledgeItemRepositoryTest.php`
+
+**Interfaces:**
+- Produces contract `KnowledgeItemStore`:
+  - `textFor(int $itemId): ?KnowledgeItemText` — item không tồn tại ⇒ null; ngược lại DTO `{itemId, tenantId, text}` (text = `ItemTextComposer::compose`).
+  - `readyTitles(int $tenantId, ?int $channelAccountId, ?string $provider): array<int,string>` — map itemId ⇒ name của item `kb_status=ready`, đúng scope provider/page (mirror `readyDocumentTitles`).
+  - `markIndexed(int $itemId, int $chunkCount, ?string $embeddingModel): void` — set `kb_status=ready`, `chunk_count`, `kb_indexed_at=now`, `embedding_model`, tăng `embedding_version`.
+  - `markFailed(int $itemId): void` — set `kb_status=failed`.
+- `ItemTextComposer::compose(VisualTrainingItem $item): string` — ghép `name` + `ref_code` + `description` + `attributes` (key: value) + `content_text`, bỏ rỗng, trim.
+
+- [ ] **Step 1: Test `ItemTextComposer`**
+
+```php
+public function test_compose_joins_name_description_attributes_content(): void
+{
+    $item = new \CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem([
+        'name' => 'Bộ thu bluetooth', 'ref_code' => 'BT01',
+        'description' => 'Kết nối 5.0', 'attributes' => ['màu' => 'đen', 'bảo hành' => '12 tháng'],
+        'content_text' => 'Hỗ trợ AptX. Pin 10h.',
+    ]);
+    $out = app(\CMBcoreSeller\Modules\VisualSearch\Services\ItemTextComposer::class)->compose($item);
+    $this->assertStringContainsString('Bộ thu bluetooth', $out);
+    $this->assertStringContainsString('BT01', $out);
+    $this->assertStringContainsString('Kết nối 5.0', $out);
+    $this->assertStringContainsString('màu: đen', $out);
+    $this->assertStringContainsString('Pin 10h', $out);
+}
+
+public function test_compose_empty_when_no_text(): void
+{
+    $item = new \CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem(['name' => '']);
+    $this->assertSame('', app(\CMBcoreSeller\Modules\VisualSearch\Services\ItemTextComposer::class)->compose($item));
+}
+```
+
+- [ ] **Step 2: Test `KnowledgeItemRepository` (impl contract) — readyTitles scope + writeback**
+
+```php
+public function test_ready_titles_scopes_by_provider_and_status(): void
+{
+    $ready = \CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem::withoutGlobalScope(
+        \CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class
+    )->create(['tenant_id' => 1, 'name' => 'Áo thun', 'kb_status' => 'ready',
+        'provider' => 'facebook_page', 'applies_all_pages' => true, 'status' => 'active']);
+    // provider khác + chưa ready ⇒ loại
+    \CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem::withoutGlobalScope(
+        \CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class
+    )->create(['tenant_id' => 1, 'name' => 'Zalo item', 'kb_status' => 'ready',
+        'provider' => 'zalo_oa', 'applies_all_pages' => true, 'status' => 'active']);
+
+    $store = app(\CMBcoreSeller\Modules\VisualSearch\Contracts\KnowledgeItemStore::class);
+    $titles = $store->readyTitles(1, null, 'facebook_page');
+
+    $this->assertSame([$ready->id => 'Áo thun'], $titles);
+}
+
+public function test_mark_indexed_and_failed_writeback(): void
+{
+    $item = \CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem::withoutGlobalScope(
+        \CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class
+    )->create(['tenant_id' => 1, 'name' => 'X', 'status' => 'active', 'applies_all_pages' => true]);
+    $store = app(\CMBcoreSeller\Modules\VisualSearch\Contracts\KnowledgeItemStore::class);
+
+    $store->markIndexed($item->id, 3, 'text-embedding-3-small');
+    $fresh = $item->fresh();
+    $this->assertSame('ready', $fresh->kb_status);
+    $this->assertSame(3, (int) $fresh->chunk_count);
+    $this->assertNotNull($fresh->kb_indexed_at);
+
+    $store->markFailed($item->id);
+    $this->assertSame('failed', $item->fresh()->kb_status);
+}
+
+public function test_text_for_returns_null_for_missing_item(): void
+{
+    $store = app(\CMBcoreSeller\Modules\VisualSearch\Contracts\KnowledgeItemStore::class);
+    $this->assertNull($store->textFor(999999));
+}
+```
+
+- [ ] **Step 3: Run — fail** (chưa có class).
+
+- [ ] **Step 4: Implement**
+
+`ItemTextComposer.php`:
+
+```php
+<?php
+
+namespace CMBcoreSeller\Modules\VisualSearch\Services;
+
+use CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem;
+
+/** Ghép nội dung text của 1 mục tri thức để chunk + embed RAG. Thuần, không side-effect. */
+class ItemTextComposer
+{
+    public function compose(VisualTrainingItem $item): string
+    {
+        $parts = [
+            trim((string) $item->name),
+            trim((string) $item->ref_code),
+            trim((string) $item->description),
+        ];
+        foreach ((array) $item->attributes as $k => $v) {
+            if (is_scalar($v) && trim((string) $v) !== '') {
+                $parts[] = trim((string) $k).': '.trim((string) $v);
+            }
+        }
+        $parts[] = trim((string) $item->content_text);
+
+        return trim(implode("\n", array_filter($parts, fn ($p) => $p !== '')));
+    }
+}
+```
+
+`DTO/KnowledgeItemText.php`:
+
+```php
+<?php
+
+namespace CMBcoreSeller\Modules\VisualSearch\DTO;
+
+/** Text nguồn của 1 mục tri thức để Messaging index (cross-module DTO). */
+final class KnowledgeItemText
+{
+    public function __construct(
+        public readonly int $itemId,
+        public readonly int $tenantId,
+        public readonly string $text,
+    ) {}
+}
+```
+
+`Contracts/KnowledgeItemStore.php`:
+
+```php
+<?php
+
+namespace CMBcoreSeller\Modules\VisualSearch\Contracts;
+
+use CMBcoreSeller\Modules\VisualSearch\DTO\KnowledgeItemText;
+
+/**
+ * Cổng cho Messaging index/truy hồi text của mục tri thức hợp nhất (visual item).
+ * Giữ VisualSearch sở hữu model — Messaging chỉ chạm qua interface (luật module).
+ */
+interface KnowledgeItemStore
+{
+    public function textFor(int $itemId): ?KnowledgeItemText;
+
+    /** @return array<int,string> itemId ⇒ name (item kb_status=ready, đúng scope). */
+    public function readyTitles(int $tenantId, ?int $channelAccountId, ?string $provider): array;
+
+    public function markIndexed(int $itemId, int $chunkCount, ?string $embeddingModel): void;
+
+    public function markFailed(int $itemId): void;
+}
+```
+
+`Services/KnowledgeItemRepository.php`:
+
+```php
+<?php
+
+namespace CMBcoreSeller\Modules\VisualSearch\Services;
+
+use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use CMBcoreSeller\Modules\VisualSearch\Contracts\KnowledgeItemStore;
+use CMBcoreSeller\Modules\VisualSearch\DTO\KnowledgeItemText;
+use CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem;
+
+class KnowledgeItemRepository implements KnowledgeItemStore
+{
+    public function __construct(private ItemTextComposer $composer) {}
+
+    public function textFor(int $itemId): ?KnowledgeItemText
+    {
+        $item = VisualTrainingItem::withoutGlobalScope(TenantScope::class)->find($itemId);
+        if (! $item) {
+            return null;
+        }
+
+        return new KnowledgeItemText((int) $item->id, (int) $item->tenant_id, $this->composer->compose($item));
+    }
+
+    public function readyTitles(int $tenantId, ?int $channelAccountId, ?string $provider): array
+    {
+        $q = VisualTrainingItem::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenantId)
+            ->where('kb_status', VisualTrainingItem::KB_READY);
+        if ($provider !== null) {
+            $q->where('provider', $provider);
+        }
+        if ($channelAccountId !== null) {
+            $q->where(fn ($w) => $w
+                ->where('applies_all_pages', true)
+                ->orWhereExists(fn ($sub) => $sub->selectRaw('1')
+                    ->from('visual_training_item_page')
+                    ->whereColumn('visual_training_item_page.item_id', 'visual_training_items.id')
+                    ->where('visual_training_item_page.channel_account_id', $channelAccountId)));
+        }
+
+        return $q->pluck('name', 'id')->all();
+    }
+
+    public function markIndexed(int $itemId, int $chunkCount, ?string $embeddingModel): void
+    {
+        $item = VisualTrainingItem::withoutGlobalScope(TenantScope::class)->find($itemId);
+        if (! $item) {
+            return;
+        }
+        $item->forceFill([
+            'kb_status' => VisualTrainingItem::KB_READY,
+            'chunk_count' => $chunkCount,
+            'kb_indexed_at' => now(),
+            'embedding_model' => $embeddingModel,
+            'embedding_version' => (int) $item->embedding_version + 1,
+        ])->save();
+    }
+
+    public function markFailed(int $itemId): void
+    {
+        VisualTrainingItem::withoutGlobalScope(TenantScope::class)
+            ->where('id', $itemId)
+            ->update(['kb_status' => VisualTrainingItem::KB_FAILED]);
+    }
+}
+```
+
+Bind trong `VisualSearchServiceProvider::register()`:
+
+```php
+$this->app->bind(\CMBcoreSeller\Modules\VisualSearch\Contracts\KnowledgeItemStore::class,
+    \CMBcoreSeller\Modules\VisualSearch\Services\KnowledgeItemRepository::class);
+```
+
+- [ ] **Step 5: Run — pass. Step 6: Pint + phpstan + commit.**
+
+```bash
+cd app && vendor/bin/pint app/Modules/VisualSearch && vendor/bin/phpstan analyse app/Modules/VisualSearch/Services app/Modules/VisualSearch/Contracts
+git add app/app/Modules/VisualSearch app/tests/Feature/VisualSearch/ItemTextComposerTest.php app/tests/Feature/VisualSearch/KnowledgeItemRepositoryTest.php
+git commit -m "feat(kb): cổng KnowledgeItemStore + ItemTextComposer cho mục tri thức"
+```
+
+**Ảnh hưởng & lỗi ngầm:** Toàn bộ nằm trong VisualSearch (không đụng Messaging). `ItemTextComposer` thuần; `is_scalar` bỏ attribute lồng an toàn. `readyTitles` mirror `readyDocumentTitles` — cùng luật scope provider/page. Writeback qua contract để module khác (Messaging) không chạm model. Không đụng khớp ảnh CLIP.
+
+---
+
+### Task A4: `KnowledgeVectorIndexer` — tách `upsertChunks()` + `indexItemChunks()`
 
 **Files:**
 - Modify: `app/app/Modules/Messaging/Services/KnowledgeVectorIndexer.php`
 - Test: `app/tests/Feature/Messaging/KnowledgeIndexingTest.php` (thêm ca item)
 
 **Interfaces:**
-- Consumes: `VisualTrainingItem` (id, tenant_id), `AiKnowledgeChunk` rows với `visual_item_id`.
-- Produces: `indexItemChunks(VisualTrainingItem $item, iterable $chunks): int` — embed + upsert Qdrant payload `{tenant_id, item_id}`, cập nhật `item.embedding_*`; private `upsertChunks(int $tenantId, iterable $chunks, array $extraPayload): int` dùng chung.
+- Produces: `indexItemChunks(int $itemId, int $tenantId, iterable $chunks): int` — embed + upsert Qdrant payload `{tenant_id, item_id}`, lưu embedding về chunk, trả số chunk đã vector hoá. **KHÔNG import `VisualTrainingItem`** (nhận primitive để giữ luật module). Private `upsertChunks(int $tenantId, iterable $chunks, array $extraPayload): int` dùng chung cho cả doc lẫn item.
 
 - [ ] **Step 1: Test — index chunk của item ghi payload item_id + embedding**
 
 ```php
 public function test_index_item_chunks_upserts_with_item_payload(): void
 {
-    // Fake VectorStore ghi lại payload để khẳng định dùng item_id (không document_id).
     $captured = [];
     $store = \Mockery::mock(\CMBcoreSeller\Integrations\Vector\Contracts\VectorStore::class);
     $store->shouldReceive('enabled')->andReturn(true);
@@ -208,37 +479,28 @@ public function test_index_item_chunks_upserts_with_item_payload(): void
     $store->shouldReceive('upsert')->andReturnUsing(function ($col, $points) use (&$captured) { $captured = $points; });
     $this->app->instance(\CMBcoreSeller\Integrations\Vector\Contracts\VectorStore::class, $store);
 
-    // Ép embed trả vector cố định (bỏ HTTP thật).
     $indexer = \Mockery::mock(\CMBcoreSeller\Modules\Messaging\Services\KnowledgeVectorIndexer::class.'[embed]', [
         app(\CMBcoreSeller\Integrations\Ai\AiAssistantRegistry::class), $store,
     ]);
     $indexer->shouldAllowMockingProtectedMethods();
     $indexer->shouldReceive('embed')->andReturn([0.1, 0.2, 0.3]);
 
-    $item = \CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem::withoutGlobalScope(
-        \CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class
-    )->create(['tenant_id' => 1, 'name' => 'Áo thun', 'status' => 'active', 'applies_all_pages' => true]);
     $chunk = \CMBcoreSeller\Modules\Messaging\Models\AiKnowledgeChunk::create([
-        'tenant_id' => 1, 'visual_item_id' => $item->id, 'chunk_index' => 0,
+        'tenant_id' => 1, 'visual_item_id' => 55, 'chunk_index' => 0,
         'chunk_text' => 'Áo thun cotton', 'embedding' => null, 'token_count' => 3,
     ]);
 
-    $n = $indexer->indexItemChunks($item, [$chunk]);
+    $n = $indexer->indexItemChunks(55, 1, [$chunk]);
 
     $this->assertSame(1, $n);
-    $this->assertSame(['tenant_id' => 1, 'item_id' => $item->id], $captured[0]['payload']);
+    $this->assertSame(['tenant_id' => 1, 'item_id' => 55], $captured[0]['payload']);
     $this->assertNotNull($chunk->fresh()->embedding);
 }
 ```
 
-- [ ] **Step 2: Run test — fail**
+- [ ] **Step 2: Run test — fail** ("Method indexItemChunks does not exist").
 
-Run: `cd app && php artisan test tests/Feature/Messaging/KnowledgeIndexingTest.php --filter=index_item_chunks`
-Expected: FAIL ("Method indexItemChunks does not exist").
-
-- [ ] **Step 3: Refactor + implement**
-
-Tách vòng lặp embed+upsert trong `indexChunks()` ra private `upsertChunks()`, rồi thêm `indexItemChunks()`. `indexChunks()` giữ hành vi cũ y hệt (chỉ gọi helper):
+- [ ] **Step 3: Refactor + implement.** Tách vòng lặp embed+upsert trong `indexChunks()` ra private `upsertChunks()`. `indexChunks()` (đường doc) giữ hành vi cũ y hệt (chỉ gọi helper):
 
 ```php
 public function indexChunks(AiKnowledgeDocument $doc, iterable $chunks): int
@@ -258,22 +520,14 @@ public function indexChunks(AiKnowledgeDocument $doc, iterable $chunks): int
     return $embedded;
 }
 
-/** Embed + upsert chunk của 1 visual item (tri thức hợp nhất). Payload item_id. */
-public function indexItemChunks(\CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem $item, iterable $chunks): int
+/** Embed + upsert chunk của 1 visual item (tri thức hợp nhất). Payload item_id. Nhận primitive (luật module). */
+public function indexItemChunks(int $itemId, int $tenantId, iterable $chunks): int
 {
     if (! $this->store->enabled()) {
         return 0;
     }
-    $embedded = $this->upsertChunks((int) $item->tenant_id, $chunks, ['item_id' => (int) $item->id]);
-    if ($embedded > 0) {
-        $item->forceFill([
-            'embedding_provider_code' => $this->providerCode((int) $item->tenant_id),
-            'embedding_model' => $this->model(),
-            'embedding_version' => (int) $item->embedding_version + 1,
-        ])->save();
-    }
 
-    return $embedded;
+    return $this->upsertChunks($tenantId, $chunks, ['item_id' => $itemId]);
 }
 
 /**
@@ -319,14 +573,13 @@ private function upsertChunks(int $tenantId, iterable $chunks, array $extraPaylo
 }
 ```
 
-Thêm `use CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem;` ở đầu file (không dùng FQCN dài).
+Lưu ý: bookkeeping `embedding_model` của item do `KnowledgeItemStore::markIndexed()` (Task A3) ghi qua contract — indexer KHÔNG chạm model item. Public getter `model()` đã có để job đọc.
 
-- [ ] **Step 4: Run tests — pass**
+- [ ] **Step 4: Run tests — pass** (ca item mới + ca doc cũ).
 
 Run: `cd app && php artisan test tests/Feature/Messaging/KnowledgeIndexingTest.php`
-Expected: PASS (ca item mới + ca doc cũ).
 
-- [ ] **Step 5: Pint + phpstan + commit**
+- [ ] **Step 5: Pint + phpstan + commit.**
 
 ```bash
 cd app && vendor/bin/pint app/Modules/Messaging/Services/KnowledgeVectorIndexer.php && vendor/bin/phpstan analyse app/Modules/Messaging/Services/KnowledgeVectorIndexer.php
@@ -334,112 +587,33 @@ git add app/app/Modules/Messaging/Services/KnowledgeVectorIndexer.php app/tests/
 git commit -m "feat(kb): indexItemChunks — embed text visual item vào RAG"
 ```
 
-**Ảnh hưởng & lỗi ngầm:** `indexChunks()` (đường doc) hành vi KHÔNG đổi — chỉ chuyển thân vòng lặp sang `upsertChunks()`; test regression doc phải PASS. Chung 1 collection `messaging_kb__<model>` (khác payload key `document_id` vs `item_id`) — search filter theo `tenant_id` nên cả hai cùng ra; tầng retriever phân biệt bằng chunk row. Không đụng CLIP/visual embeddings (khác collection).
+**Ảnh hưởng & lỗi ngầm:** `indexChunks()` (đường doc) hành vi KHÔNG đổi — chỉ chuyển thân vòng lặp sang `upsertChunks()`; test regression doc phải PASS. Chung 1 collection `messaging_kb__<model>` (khác payload key `document_id` vs `item_id`) — search filter theo `tenant_id` nên cả hai cùng ra; tầng retriever phân biệt bằng chunk row. Không import `VisualTrainingItem` (giữ acyclic). Không đụng CLIP/visual embeddings (khác collection).
 
 ---
 
-### Task A4: `ItemTextComposer` — dựng text nguồn từ item (thuần)
+### Task A5: `IndexKnowledgeItem` job (Messaging) — chunk + index text của item qua contract
 
 **Files:**
-- Create: `app/app/Modules/VisualSearch/Services/ItemTextComposer.php`
-- Test: `app/tests/Feature/VisualSearch/ItemTextComposerTest.php`
+- Create: `app/app/Modules/Messaging/Jobs/IndexKnowledgeItem.php`
+- Test: `app/tests/Feature/Messaging/IndexKnowledgeItemTest.php`
 
 **Interfaces:**
-- Produces: `ItemTextComposer::compose(VisualTrainingItem $item): string` — ghép `name` + `ref_code` + `description` + `attributes` (key: value) + `content_text`, bỏ phần rỗng, trim.
-
-- [ ] **Step 1: Test**
-
-```php
-public function test_compose_joins_name_description_attributes_content(): void
-{
-    $item = new \CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem([
-        'name' => 'Bộ thu bluetooth', 'ref_code' => 'BT01',
-        'description' => 'Kết nối 5.0', 'attributes' => ['màu' => 'đen', 'bảo hành' => '12 tháng'],
-        'content_text' => 'Hỗ trợ AptX. Pin 10h.',
-    ]);
-    $out = app(\CMBcoreSeller\Modules\VisualSearch\Services\ItemTextComposer::class)->compose($item);
-    $this->assertStringContainsString('Bộ thu bluetooth', $out);
-    $this->assertStringContainsString('BT01', $out);
-    $this->assertStringContainsString('Kết nối 5.0', $out);
-    $this->assertStringContainsString('màu: đen', $out);
-    $this->assertStringContainsString('Pin 10h', $out);
-}
-
-public function test_compose_empty_when_no_text(): void
-{
-    $item = new \CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem(['name' => '']);
-    $this->assertSame('', app(\CMBcoreSeller\Modules\VisualSearch\Services\ItemTextComposer::class)->compose($item));
-}
-```
-
-- [ ] **Step 2: Run — fail** (`ItemTextComposer` chưa có).
-
-- [ ] **Step 3: Implement**
-
-```php
-<?php
-
-namespace CMBcoreSeller\Modules\VisualSearch\Services;
-
-use CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem;
-
-/** Ghép nội dung text của 1 mục tri thức để chunk + embed RAG. Thuần, không side-effect. */
-class ItemTextComposer
-{
-    public function compose(VisualTrainingItem $item): string
-    {
-        $parts = [
-            trim((string) $item->name),
-            trim((string) $item->ref_code),
-            trim((string) $item->description),
-        ];
-        foreach ((array) $item->attributes as $k => $v) {
-            if (is_scalar($v) && trim((string) $v) !== '') {
-                $parts[] = trim((string) $k).': '.trim((string) $v);
-            }
-        }
-        $parts[] = trim((string) $item->content_text);
-
-        return trim(implode("\n", array_filter($parts, fn ($p) => $p !== '')));
-    }
-}
-```
-
-- [ ] **Step 4: Run — pass. Step 5: Pint + commit.**
-
-```bash
-cd app && vendor/bin/pint app/Modules/VisualSearch/Services/ItemTextComposer.php
-git add app/app/Modules/VisualSearch/Services/ItemTextComposer.php app/tests/Feature/VisualSearch/ItemTextComposerTest.php
-git commit -m "feat(kb): ItemTextComposer dựng text nguồn cho RAG"
-```
-
-**Ảnh hưởng & lỗi ngầm:** Thuần hàm, không đụng gì khác. Đảm bảo `attributes` không phải scalar (mảng lồng) bị bỏ qua an toàn (`is_scalar`).
-
----
-
-### Task A5: `IndexKnowledgeItem` job — chunk + index text của item
-
-**Files:**
-- Create: `app/app/Modules/VisualSearch/Jobs/IndexKnowledgeItem.php`
-- Test: `app/tests/Feature/VisualSearch/IndexKnowledgeItemTest.php`
-
-**Interfaces:**
-- Consumes: `ItemTextComposer::compose`, `KnowledgeVectorIndexer::indexItemChunks`, `KnowledgeVectorIndexer::forget`.
-- Produces: `IndexKnowledgeItem::dispatch(int $itemId)` (queue `messaging-ai`), tạo `ai_knowledge_chunks` (`visual_item_id`), set `item.kb_status=ready|failed`, `chunk_count`.
+- Consumes: `VisualSearch\Contracts\KnowledgeItemStore` (`textFor`, `markIndexed`, `markFailed`), `KnowledgeVectorIndexer` (`indexItemChunks`, `forget`, `model`).
+- Produces: `IndexKnowledgeItem::dispatch(int $itemId)` (queue `messaging-ai`), tạo `ai_knowledge_chunks` (`visual_item_id`), gọi `markIndexed`/`markFailed` qua contract.
 
 - [ ] **Step 1: Test**
 
 ```php
 public function test_indexes_item_text_into_chunks_and_marks_ready(): void
 {
-    // VectorStore tắt ⇒ fail-soft: vẫn tạo chunk + set ready (embed bỏ qua như doc).
+    // VectorStore tắt ⇒ fail-soft: vẫn tạo chunk + markIndexed (embed bỏ qua như doc).
     $item = \CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem::withoutGlobalScope(
         \CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class
     )->create(['tenant_id' => 1, 'name' => 'Bộ thu bluetooth', 'description' => 'Kết nối 5.0 HIFI',
         'status' => 'active', 'applies_all_pages' => true, 'source' => 'inline']);
 
-    (new \CMBcoreSeller\Modules\VisualSearch\Jobs\IndexKnowledgeItem($item->id))->handle(
-        app(\CMBcoreSeller\Modules\VisualSearch\Services\ItemTextComposer::class),
+    (new \CMBcoreSeller\Modules\Messaging\Jobs\IndexKnowledgeItem($item->id))->handle(
+        app(\CMBcoreSeller\Modules\VisualSearch\Contracts\KnowledgeItemStore::class),
         app(\CMBcoreSeller\Modules\Messaging\Services\KnowledgeVectorIndexer::class),
     );
 
@@ -453,13 +627,13 @@ public function test_empty_text_marks_ready_with_zero_chunks(): void
         \CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class
     )->create(['tenant_id' => 1, 'name' => '', 'status' => 'active', 'applies_all_pages' => true]);
 
-    (new \CMBcoreSeller\Modules\VisualSearch\Jobs\IndexKnowledgeItem($item->id))->handle(
-        app(\CMBcoreSeller\Modules\VisualSearch\Services\ItemTextComposer::class),
+    (new \CMBcoreSeller\Modules\Messaging\Jobs\IndexKnowledgeItem($item->id))->handle(
+        app(\CMBcoreSeller\Modules\VisualSearch\Contracts\KnowledgeItemStore::class),
         app(\CMBcoreSeller\Modules\Messaging\Services\KnowledgeVectorIndexer::class),
     );
 
     $this->assertSame('ready', $item->fresh()->kb_status);
-    $this->assertSame(0, $item->fresh()->chunk_count);
+    $this->assertSame(0, (int) $item->fresh()->chunk_count);
 }
 ```
 
@@ -470,13 +644,12 @@ public function test_empty_text_marks_ready_with_zero_chunks(): void
 ```php
 <?php
 
-namespace CMBcoreSeller\Modules\VisualSearch\Jobs;
+namespace CMBcoreSeller\Modules\Messaging\Jobs;
 
 use CMBcoreSeller\Modules\Messaging\Models\AiKnowledgeChunk;
 use CMBcoreSeller\Modules\Messaging\Services\KnowledgeVectorIndexer;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
-use CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem;
-use CMBcoreSeller\Modules\VisualSearch\Services\ItemTextComposer;
+use CMBcoreSeller\Modules\VisualSearch\Contracts\KnowledgeItemStore;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -484,9 +657,10 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Index text của 1 mục tri thức hợp nhất (visual item) cho RAG: dựng text → chunk →
- * ghi ai_knowledge_chunks(visual_item_id) → embed Qdrant (fail-soft). Ảnh nằm ở pipeline
- * CLIP riêng (EmbedTrainingImage) — job này CHỈ lo phần text. Queue messaging-ai, tries 2.
+ * Index text của 1 mục tri thức hợp nhất (visual item) cho RAG: dựng text (qua KnowledgeItemStore)
+ * → chunk → ghi ai_knowledge_chunks(visual_item_id) → embed Qdrant (fail-soft) → markIndexed qua
+ * contract. Ảnh nằm ở pipeline CLIP riêng (EmbedTrainingImage) — job này CHỈ lo phần text.
+ * Đọc/ghi item QUA contract (luật module: Messaging không chạm model VisualSearch). Queue messaging-ai, tries 2.
  */
 class IndexKnowledgeItem implements ShouldQueue
 {
@@ -499,28 +673,27 @@ class IndexKnowledgeItem implements ShouldQueue
         $this->onQueue('messaging-ai');
     }
 
-    public function handle(ItemTextComposer $composer, KnowledgeVectorIndexer $vectorIndexer): void
+    public function handle(KnowledgeItemStore $items, KnowledgeVectorIndexer $vectorIndexer): void
     {
-        $item = VisualTrainingItem::withoutGlobalScope(TenantScope::class)->find($this->itemId);
-        if (! $item) {
-            return;
+        $source = $items->textFor($this->itemId);
+        if ($source === null) {
+            return; // item đã bị xoá
         }
 
         try {
             // Xoá chunk cũ + point Qdrant (re-index idempotent).
             $oldIds = AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)
-                ->where('visual_item_id', $item->id)->pluck('id')->all();
+                ->where('visual_item_id', $this->itemId)->pluck('id')->all();
             $vectorIndexer->forget($oldIds);
             AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)
-                ->where('visual_item_id', $item->id)->delete();
+                ->where('visual_item_id', $this->itemId)->delete();
 
-            $text = $composer->compose($item);
-            $chunks = $this->chunk($text);
+            $chunks = $this->chunk($source->text);
             $created = [];
             foreach ($chunks as $i => $chunkText) {
                 $created[] = AiKnowledgeChunk::create([
-                    'tenant_id' => $item->tenant_id,
-                    'visual_item_id' => $item->id,
+                    'tenant_id' => $source->tenantId,
+                    'visual_item_id' => $this->itemId,
                     'chunk_index' => $i,
                     'chunk_text' => $chunkText,
                     'embedding' => null,
@@ -528,15 +701,10 @@ class IndexKnowledgeItem implements ShouldQueue
                 ]);
             }
 
-            $item->forceFill([
-                'chunk_count' => count($chunks),
-                'kb_status' => VisualTrainingItem::KB_READY,
-                'kb_indexed_at' => now(),
-            ])->save();
-
-            $vectorIndexer->indexItemChunks($item, $created);
+            $vectorIndexer->indexItemChunks($this->itemId, $source->tenantId, $created);
+            $items->markIndexed($this->itemId, count($chunks), $vectorIndexer->model());
         } catch (\Throwable $e) {
-            $item->forceFill(['kb_status' => VisualTrainingItem::KB_FAILED])->save();
+            $items->markFailed($this->itemId);
         }
     }
 
@@ -556,86 +724,144 @@ class IndexKnowledgeItem implements ShouldQueue
 - [ ] **Step 4: Run — pass. Step 5: Pint + phpstan + commit.**
 
 ```bash
-cd app && vendor/bin/pint app/Modules/VisualSearch/Jobs/IndexKnowledgeItem.php && vendor/bin/phpstan analyse app/Modules/VisualSearch/Jobs/IndexKnowledgeItem.php
-git add app/app/Modules/VisualSearch/Jobs/IndexKnowledgeItem.php app/tests/Feature/VisualSearch/IndexKnowledgeItemTest.php
-git commit -m "feat(kb): IndexKnowledgeItem chunk+embed text mục tri thức"
+cd app && vendor/bin/pint app/Modules/Messaging/Jobs/IndexKnowledgeItem.php && vendor/bin/phpstan analyse app/Modules/Messaging/Jobs/IndexKnowledgeItem.php
+git add app/app/Modules/Messaging/Jobs/IndexKnowledgeItem.php app/tests/Feature/Messaging/IndexKnowledgeItemTest.php
+git commit -m "feat(kb): IndexKnowledgeItem chunk+embed text mục tri thức (qua contract)"
 ```
 
-**Ảnh hưởng & lỗi ngầm:** Job CHỈ đụng chunk có `visual_item_id` của đúng item (không chạm chunk document). Fail-soft giống doc: Qdrant tắt vẫn tạo chunk + ready (retriever rơi keyword). Phase 1 chưa xử `source=url/upload` (chỉ inline `content_text`/description) — file/URL để Phase 2; item không set các trường đó nên an toàn.
+**Ảnh hưởng & lỗi ngầm:** Job nằm ở Messaging (sở hữu chunk + indexer), đọc/ghi item QUA `KnowledgeItemStore` — không import model VisualSearch ⇒ acyclic. Chỉ đụng chunk có `visual_item_id` đúng item (không chạm chunk document). Fail-soft giống doc: Qdrant tắt vẫn tạo chunk + markIndexed (retriever rơi keyword). `markIndexed` chạy SAU indexItemChunks nên `chunk_count` khớp. Phase 1 chưa xử `source=url/upload` (chỉ text) — để Phase 2.
 
 ---
 
-### Task A6: Hook CRUD item → (re)index + forget
+### Task A6: Event VisualSearch + listener Messaging (kích hoạt (re)index / purge)
 
 **Files:**
+- Create: `app/app/Modules/VisualSearch/Events/KnowledgeItemSaved.php`, `KnowledgeItemDeleted.php`
 - Modify: `app/app/Modules/VisualSearch/Http/Controllers/TrainingItemController.php`
+- Create: `app/app/Modules/Messaging/Listeners/IndexVisualKnowledgeItem.php`, `PurgeVisualKnowledgeItem.php`
+- Modify: service provider Messaging (đăng ký listener theo pattern hiện có)
 - Test: `app/tests/Feature/VisualSearch/TrainingItemIndexHookTest.php`
 
 **Interfaces:**
-- Consumes: `IndexKnowledgeItem::dispatch`, `KnowledgeVectorIndexer::forget`.
-- Produces: sau `store()`/`update()` → `IndexKnowledgeItem::dispatch($item->id)`; sau `destroy()` → xoá chunk item + forget vector.
+- VisualSearch phát `KnowledgeItemSaved(int $itemId)` sau store/update; `KnowledgeItemDeleted(int $itemId)` trong destroy (trước khi xoá item). Controller set `kb_status=pending` khi store/update.
+- Messaging listen: `IndexVisualKnowledgeItem` (nghe `KnowledgeItemSaved`) → `IndexKnowledgeItem::dispatch`; `PurgeVisualKnowledgeItem` (nghe `KnowledgeItemDeleted`) → xoá chunk item + `KnowledgeVectorIndexer::forget`.
 
-- [ ] **Step 1: Test (Queue::fake khẳng định dispatch)**
+- [ ] **Step 1: Test (Event::fake khẳng định controller phát event; listener test riêng)**
 
 ```php
-public function test_store_and_update_dispatch_index_job(): void
+public function test_store_and_update_fire_saved_event(): void
 {
-    \Illuminate\Support\Facades\Queue::fake();
-    $owner = /* seed owner + tenant header như các test TrainingItem khác */;
+    \Illuminate\Support\Facades\Event::fake([\CMBcoreSeller\Modules\VisualSearch\Events\KnowledgeItemSaved::class]);
+    $owner = /* seed owner + tenant header như test TrainingItem khác */;
 
     $id = $this->actingAs($owner)->withHeaders($this->tenantHeader())
         ->postJson('/api/v1/visual-search/items', ['name' => 'Bộ thu bluetooth', 'description' => 'HIFI'])
         ->assertCreated()->json('data.id');
-    \Illuminate\Support\Facades\Queue::assertPushed(\CMBcoreSeller\Modules\VisualSearch\Jobs\IndexKnowledgeItem::class);
 
-    \Illuminate\Support\Facades\Queue::fake();
     $this->actingAs($owner)->withHeaders($this->tenantHeader())
         ->patchJson("/api/v1/visual-search/items/{$id}", ['description' => 'HIFI + AptX'])->assertOk();
-    \Illuminate\Support\Facades\Queue::assertPushed(\CMBcoreSeller\Modules\VisualSearch\Jobs\IndexKnowledgeItem::class);
+
+    \Illuminate\Support\Facades\Event::assertDispatchedTimes(\CMBcoreSeller\Modules\VisualSearch\Events\KnowledgeItemSaved::class, 2);
+}
+
+public function test_listener_dispatches_index_job(): void
+{
+    \Illuminate\Support\Facades\Queue::fake();
+    $item = \CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem::withoutGlobalScope(
+        \CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class
+    )->create(['tenant_id' => 1, 'name' => 'X', 'status' => 'active', 'applies_all_pages' => true]);
+
+    event(new \CMBcoreSeller\Modules\VisualSearch\Events\KnowledgeItemSaved($item->id));
+    \Illuminate\Support\Facades\Queue::assertPushed(\CMBcoreSeller\Modules\Messaging\Jobs\IndexKnowledgeItem::class);
 }
 ```
 
-(Tham chiếu `tests/Feature/VisualSearch/*` hiện có để lấy helper seed owner/tenant header.)
+(Tham chiếu `tests/Feature/VisualSearch/*` để lấy helper seed owner/tenant header.)
 
 - [ ] **Step 2: Run — fail.**
 
-- [ ] **Step 3: Implement** — trong `TrainingItemController`:
-  - Cuối `store()` (sau `syncPages`): `\CMBcoreSeller\Modules\VisualSearch\Jobs\IndexKnowledgeItem::dispatch($item->id);` (đặt `kb_status='pending'` khi tạo — model default đã pending).
-  - Cuối `update()`: set `kb_status='pending'` rồi `IndexKnowledgeItem::dispatch($item->id);`.
-  - Trong `destroy()`: trước khi xoá item → xoá chunk + forget:
+- [ ] **Step 3: Implement**
+
+Event (mẫu — cả 2 event cùng shape):
 
 ```php
-$chunkIds = \CMBcoreSeller\Modules\Messaging\Models\AiKnowledgeChunk::withoutGlobalScope(
-    \CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class
-)->where('visual_item_id', $item->id)->pluck('id')->all();
-app(\CMBcoreSeller\Modules\Messaging\Services\KnowledgeVectorIndexer::class)->forget($chunkIds);
-\CMBcoreSeller\Modules\Messaging\Models\AiKnowledgeChunk::withoutGlobalScope(
-    \CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class
-)->where('visual_item_id', $item->id)->delete();
+<?php
+
+namespace CMBcoreSeller\Modules\VisualSearch\Events;
+
+use Illuminate\Foundation\Events\Dispatchable;
+
+/** Mục tri thức được tạo/sửa — Messaging nghe để (re)index text RAG. */
+class KnowledgeItemSaved
+{
+    use Dispatchable;
+
+    public function __construct(public int $itemId) {}
+}
 ```
 
-Thêm `use` cho `IndexKnowledgeItem`, `AiKnowledgeChunk`, `TenantScope`, `KnowledgeVectorIndexer` để tránh FQCN dài. **Lưu ý module dep:** VisualSearch dùng `Messaging\Models\AiKnowledgeChunk` + `Messaging\Services\KnowledgeVectorIndexer` — đây là phụ thuộc chéo module. Kiểm tra `docs/01-architecture/modules.md`: nếu cấm, bọc qua một Contract trong Messaging (vd `KnowledgeIndexPort`) và bind; nếu cho phép (KB là hạ tầng dùng chung) thì import trực tiếp. **Xác nhận trước khi code.**
+`KnowledgeItemDeleted` giống hệt (đổi tên + docblock "bị xoá — Messaging purge chunk/vector").
+
+`TrainingItemController`:
+- Cuối `store()` (sau `syncPages`, trước response): `$item->forceFill(['kb_status' => VisualTrainingItem::KB_PENDING])->save();` rồi `event(new KnowledgeItemSaved($item->id));`.
+- Cuối `update()` (sau save/syncPages): `$item->forceFill(['kb_status' => VisualTrainingItem::KB_PENDING])->save();` rồi `event(new KnowledgeItemSaved($item->id));`.
+- Trong `destroy()` (trước `$item->delete()`): `event(new KnowledgeItemDeleted($item->id));`.
+- Thêm `use` cho 2 event class.
+
+Listener Messaging `IndexVisualKnowledgeItem`:
+
+```php
+<?php
+
+namespace CMBcoreSeller\Modules\Messaging\Listeners;
+
+use CMBcoreSeller\Modules\Messaging\Jobs\IndexKnowledgeItem;
+use CMBcoreSeller\Modules\VisualSearch\Events\KnowledgeItemSaved;
+
+class IndexVisualKnowledgeItem
+{
+    public function handle(KnowledgeItemSaved $event): void
+    {
+        IndexKnowledgeItem::dispatch($event->itemId);
+    }
+}
+```
+
+Listener `PurgeVisualKnowledgeItem` (nghe `KnowledgeItemDeleted`): xoá chunk + forget:
+
+```php
+public function handle(KnowledgeItemDeleted $event): void
+{
+    $ids = AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)
+        ->where('visual_item_id', $event->itemId)->pluck('id')->all();
+    app(KnowledgeVectorIndexer::class)->forget($ids);
+    AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)
+        ->where('visual_item_id', $event->itemId)->delete();
+}
+```
+
+Đăng ký listener theo pattern hiện có của Messaging (tìm nơi listen `Orders\OrderStatusChanged` hoặc event khác — có thể `Event::listen` trong `MessagingServiceProvider::boot()` hoặc mảng `$listen`). Mirror đúng nơi đó.
 
 - [ ] **Step 4: Run — pass. Step 5: Pint + phpstan + commit.**
 
 ```bash
-git add app/app/Modules/VisualSearch/Http/Controllers/TrainingItemController.php app/tests/Feature/VisualSearch/TrainingItemIndexHookTest.php
-git commit -m "feat(kb): tạo/sửa/xoá mục tri thức tự (re)index RAG"
+git add app/app/Modules/VisualSearch/Events app/app/Modules/VisualSearch/Http/Controllers/TrainingItemController.php app/app/Modules/Messaging/Listeners app/app/Modules/Messaging/MessagingServiceProvider.php app/tests/Feature/VisualSearch/TrainingItemIndexHookTest.php
+git commit -m "feat(kb): CRUD mục tri thức phát event → Messaging (re)index/purge RAG"
 ```
 
-**Ảnh hưởng & lỗi ngầm:** Dispatch bất đồng bộ (queue `messaging-ai` — đã có supervisor). Không chặn request. Xoá item dọn chunk+vector tránh rác RAG. RỦI RO module-dependency (chéo Messaging↔VisualSearch) — phải kiểm luật module (đã ghi ở Step 3). Không đụng pipeline ảnh (EmbedTrainingImage vẫn chạy song song khi upload ảnh).
+**Ảnh hưởng & lỗi ngầm:** VisualSearch chỉ phát event (không biết Messaging) — acyclic. Messaging listen (pattern đã có, giống Orders event) + import VisualSearch\Events (cùng chiều, hợp lệ). Dispatch bất đồng bộ (queue `messaging-ai` — đã có supervisor); listener nếu queued PHẢI nằm trong Horizon supervisor (kiểm memory messaging-autoreply-dev-gotchas). Xoá item purge chunk+vector tránh rác RAG. Không đụng pipeline ảnh (EmbedTrainingImage vẫn chạy song song khi upload ảnh).
 
 ---
 
-### Task A7: `KnowledgeRetriever` — gộp chunk item vào truy hồi
+### Task A7: `KnowledgeRetriever` — gộp chunk item qua contract
 
 **Files:**
 - Modify: `app/app/Modules/Messaging/Services/KnowledgeRetriever.php`
 - Test: `app/tests/Feature/Messaging/KnowledgeRetrieverItemScopeTest.php`
 
 **Interfaces:**
-- Consumes: `AiKnowledgeChunk.visual_item_id`, `VisualTrainingItem` (kb_status, provider, applies_all_pages, pivot `visual_training_item_page`).
-- Produces: `retrieve()` trả về chunk từ CẢ document (cũ) lẫn item (mới), đúng scope page/provider; keyword fallback tương tự.
+- Consumes: `VisualSearch\Contracts\KnowledgeItemStore::readyTitles()` (inject vào constructor), `AiKnowledgeChunk.visual_item_id`.
+- Produces: `retrieve()` trả về chunk từ CẢ document (cũ) lẫn item (mới), đúng scope page/provider; keyword fallback tương tự. **Không import `VisualTrainingItem`** (qua contract).
 
 - [ ] **Step 1: Test — item chunk được truy hồi, đúng scope**
 
@@ -678,15 +904,15 @@ public function test_item_chunk_excluded_when_provider_mismatch(): void
 
 - [ ] **Step 2: Run — fail** (item chunk chưa được gộp).
 
-- [ ] **Step 3: Implement** — mở rộng retriever:
+- [ ] **Step 3: Implement** — inject contract + gộp item:
 
-Thêm `readyItemTitles(tenantId, channelAccountId, provider): Collection<int,string>` (map itemId ⇒ name), mirror `readyDocumentTitles` nhưng trên `visual_training_items` (`kb_status=ready`, provider, pivot `visual_training_item_page`). Sửa `retrieve()` để lấy CẢ hai map; nếu cả hai rỗng ⇒ trả rỗng. Sửa `retrieveByVector`/`retrieveByKeyword` để nạp chunk theo `id` trong scores/tất cả, lọc `(document_id ∈ readyDocIds) OR (visual_item_id ∈ readyItemIds)`, và lấy title từ map tương ứng.
+Constructor: thêm `private KnowledgeItemStore $items` (đã có `private KnowledgeVectorIndexer $vector`). Sửa `retrieve()`:
 
 ```php
 public function retrieve(int $tenantId, string $query, int $topK = 4, ?int $channelAccountId = null, ?string $provider = null): KnowledgeBase
 {
     $readyDocIds = $this->readyDocumentTitles($tenantId, $channelAccountId, $provider);
-    $readyItemIds = $this->readyItemTitles($tenantId, $channelAccountId, $provider);
+    $readyItemIds = collect($this->items->readyTitles($tenantId, $channelAccountId, $provider));
     if ($readyDocIds->isEmpty() && $readyItemIds->isEmpty()) {
         return new KnowledgeBase(chunks: []);
     }
@@ -697,35 +923,14 @@ public function retrieve(int $tenantId, string $query, int $topK = 4, ?int $chan
 
     return $this->retrieveByKeyword($tenantId, $query, $topK, $readyDocIds, $readyItemIds);
 }
-
-/** @return \Illuminate\Support\Collection<int,string> itemId ⇒ name */
-private function readyItemTitles(int $tenantId, ?int $channelAccountId, ?string $provider): \Illuminate\Support\Collection
-{
-    $q = \CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem::withoutGlobalScope(TenantScope::class)
-        ->where('tenant_id', $tenantId)
-        ->where('kb_status', \CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem::KB_READY);
-    if ($provider !== null) {
-        $q->where('provider', $provider);
-    }
-    if ($channelAccountId !== null) {
-        $q->where(fn ($w) => $w
-            ->where('applies_all_pages', true)
-            ->orWhereExists(fn ($sub) => $sub->selectRaw('1')
-                ->from('visual_training_item_page')
-                ->whereColumn('visual_training_item_page.item_id', 'visual_training_items.id')
-                ->where('visual_training_item_page.channel_account_id', $channelAccountId)));
-    }
-
-    return $q->pluck('name', 'id');
-}
 ```
 
-Trong `retrieveByVector`/`retrieveByKeyword`: đổi truy vấn chunk sang lọc theo cả hai nguồn và xây kết quả:
+`retrieveByVector`/`retrieveByKeyword` nhận thêm `Collection $readyItemIds`; đổi truy vấn chunk lọc CẢ hai nguồn và gán title theo nguồn:
 
 ```php
 $chunks = AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)
     ->where('tenant_id', $tenantId)
-    ->whereIn('id', array_keys($scores))            // (vector) hoặc bỏ dòng này ở keyword
+    ->whereIn('id', array_keys($scores))            // (vector) — keyword bỏ dòng này
     ->where(fn ($w) => $w
         ->whereIn('document_id', $readyDocIds->keys())
         ->orWhereIn('visual_item_id', $readyItemIds->keys()))
@@ -738,9 +943,9 @@ $out[] = ['document_id' => (int) ($chunk->document_id ?? 0), 'title' => $title,
           'chunk_text' => (string) $chunk->chunk_text, 'score' => ...];
 ```
 
-`retrieveByKeyword` bỏ `whereIn('id', ...)` (quét toàn bộ chunk in-scope như cũ) nhưng thêm nhánh OR item. Thêm `use CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem;`.
+`retrieveByKeyword` bỏ `whereIn('id', ...)` (quét toàn bộ chunk in-scope như cũ) nhưng thêm nhánh OR item. Import `use CMBcoreSeller\Modules\VisualSearch\Contracts\KnowledgeItemStore;` (contract, KHÔNG model).
 
-- [ ] **Step 4: Run — pass** (item mới + doc cũ). Chạy cả `KnowledgeRetrieverPageScopeTest` cũ để chắc doc scope không vỡ.
+- [ ] **Step 4: Run — pass** (item mới + doc cũ). Chạy cả test doc scope cũ để chắc không vỡ.
 
 Run: `cd app && php artisan test tests/Feature/Messaging/KnowledgeRetrieverItemScopeTest.php tests/Feature/Messaging/KnowledgeRetrieverPageScopeTest.php tests/Feature/Messaging/MessagingKnowledgeRagTest.php`
 Expected: PASS.
@@ -749,10 +954,10 @@ Expected: PASS.
 
 ```bash
 git add app/app/Modules/Messaging/Services/KnowledgeRetriever.php app/tests/Feature/Messaging/KnowledgeRetrieverItemScopeTest.php
-git commit -m "feat(kb): retriever gộp chunk mục tri thức (item) cùng doc"
+git commit -m "feat(kb): retriever gộp chunk mục tri thức (item) cùng doc, qua contract"
 ```
 
-**Ảnh hưởng & lỗi ngầm:** Đây là thay đổi RỦI RO CAO NHẤT (đụng RAG live). Bảo chứng: (1) doc path giữ nguyên điều kiện `document_id ∈ readyDocIds`; (2) item chỉ thêm qua nhánh OR — doc không set `visual_item_id` nên không lẫn; (3) scope provider/page cho item mirror doc; (4) test regression doc PASS bắt buộc. Module-dep: Messaging import `VisualSearch\Models` — kiểm luật module (như A6). Nếu cấm, đọc item qua một read-model/contract.
+**Ảnh hưởng & lỗi ngầm:** Đây là thay đổi RỦI RO CAO NHẤT (đụng RAG live). Bảo chứng: (1) doc path giữ nguyên điều kiện `document_id ∈ readyDocIds`; (2) item chỉ thêm qua nhánh OR — doc không set `visual_item_id` nên không lẫn; (3) scope provider/page cho item mirror doc (trong `KnowledgeItemStore::readyTitles`); (4) test regression doc PASS bắt buộc; (5) đọc item qua contract — Messaging KHÔNG import model VisualSearch ⇒ acyclic. `KnowledgeItemStore` bind sẵn (Task A3) nên DI resolve được trong test/CI.
 
 ---
 
@@ -948,14 +1153,14 @@ git commit -m "feat(sales): UI chọn phong cách chốt sale trong Cài đặt 
 ---
 
 ## Phase 2 / 3 (ngoài phạm vi lần này — ghi để nhớ)
-- **P2:** Import file/URL vào form Kiến thức (tái dùng `DocumentTextExtractor`, set `source=url/upload`, `IndexKnowledgeItem` mở rộng nhánh trích xuất giống `IndexKnowledgeDoc`). Command migrate `AiKnowledgeDocument`→item; gỡ UI legacy. Mở rộng `messaging:kb-reindex` gồm item.
+- **P2:** Import file/URL vào form Kiến thức (tái dùng `DocumentTextExtractor`, set `source=url/upload`, `IndexKnowledgeItem`/`KnowledgeItemStore::textFor` mở rộng nhánh trích xuất giống `IndexKnowledgeDoc`). Command migrate `AiKnowledgeDocument`→item; gỡ UI legacy. Mở rộng `messaging:kb-reindex` gồm item.
 - **P3:** Phong cách chốt sale per-page/multi-page: thêm khoá `sales_closing_style` vào `messaging_account_meta.business_info`; `withClosingStyle` resolve page→shop→default.
 
 ## Rà soát cuối (self-review đã làm)
-- Bao phủ spec: gộp KB (A1–A8), ảnh tùy chọn (item không ảnh vẫn ready — A5), text embed vector (A3/A5/A7), bỏ form RAG (A8), chốt sale toàn shop (B1–B3), chừa per-page (P3). ✔
-- Không placeholder; code đủ ở mỗi step code. ✔
-- Nhất quán tên: `indexItemChunks`, `IndexKnowledgeItem`, `ItemTextComposer`, `withClosingStyle`, `readyItemTitles`, hằng `KB_READY`/`CLOSING_STYLES`. ✔
-- Điểm cần XÁC NHẬN trước khi code: luật phụ thuộc chéo module Messaging↔VisualSearch (A6/A7) — nếu cấm, chèn Contract port.
+- Bao phủ spec: gộp KB (A1–A8), ảnh tùy chọn (item không ảnh vẫn ready — A5), text embed vector (A4/A5/A7), bỏ form RAG (A8), chốt sale toàn shop (B1–B3), chừa per-page (P3). ✔
+- Luật module: acyclic — Messaging→VisualSearch qua event + `KnowledgeItemStore` contract; VisualSearch không import mới từ Messaging. Không đụng bảng module khác (mỗi migration ở module sở hữu). ✔
+- Nhất quán tên: `indexItemChunks`, `IndexKnowledgeItem`, `ItemTextComposer`, `KnowledgeItemStore`, `KnowledgeItemRepository`, `KnowledgeItemText`, `readyTitles`, `withClosingStyle`, hằng `KB_READY`/`CLOSING_STYLES`. ✔
 
 ## Deploy
-- Sau deploy: `php artisan migrate` (A1, A2). Không backfill. Item cũ (đã tạo trước) sẽ `kb_status=pending` → cần chạy `visualsearch:reindex` hoặc một lệnh re-index text (P2) HOẶC sửa/lưu lại để trigger `IndexKnowledgeItem`. Ghi chú cho vận hành.
+- Sau deploy: `php artisan migrate` (A1, A2). Không backfill. Item cũ (đã tạo trước) sẽ `kb_status=pending` → cần chạy một lệnh re-index text (P2) HOẶC sửa/lưu lại để phát `KnowledgeItemSaved` → `IndexKnowledgeItem`. Ghi chú cho vận hành.
+- Listener queued (nếu đặt queued) PHẢI nằm trong Horizon supervisor `messaging-ai`/`messaging-bg` (xem memory messaging-autoreply-dev-gotchas).
