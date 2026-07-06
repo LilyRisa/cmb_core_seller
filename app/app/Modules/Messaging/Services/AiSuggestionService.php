@@ -139,6 +139,14 @@ class AiSuggestionService
         .'hãy coi đó là MỘT yêu cầu và trả lời DUY NHẤT 1 lần, tự nhiên, KHÔNG lặp lại. '
         .'Tập trung vào Ý ĐỊNH MỚI NHẤT của khách; các tin trước chỉ là ngữ cảnh.';
 
+    /** Preset phong cách chốt sale → chỉ dẫn tiếng Việt nối vào prompt (sau persona). */
+    private const CLOSING_STYLES = [
+        'consultative' => 'Phong cách: TƯ VẤN nhẹ nhàng — ưu tiên giải đáp đúng nhu cầu, KHÔNG hối thúc mua; chỉ mời đặt khi khách đã sẵn sàng.',
+        'fast_close' => 'Phong cách: CHỐT NHANH — sau khi giải đáp, CHỦ ĐỘNG mời khách đặt hàng và xin thông tin giao hàng (tên, SĐT, địa chỉ) sớm, lịch sự, không nài ép.',
+        'scarcity' => 'Phong cách: TẠO QUYẾT ĐỊNH — nhấn mạnh ưu đãi/khan hiếm có thời hạn một cách trung thực (không bịa) để khuyến khích chốt sớm.',
+        'attentive' => 'Phong cách: CHĂM SÓC KỸ — hỏi thêm nhu cầu, gợi ý combo/sản phẩm phù hợp (upsell nhẹ) trước khi mời chốt.',
+    ];
+
     /**
      * Auto-mode cho LƯỢT mới nhất của khách (gộp các tin inbound chưa được trả lời).
      * Dùng bởi {@see RespondWithAiAutoReply} sau debounce.
@@ -234,8 +242,11 @@ class AiSuggestionService
         [$snapshot, $mapping, $redactedCount] = $this->buildSnapshot($conv, $tenantId);
         $kb = $this->retriever->retrieve($tenantId, $inboundText, channelAccountId: (int) $conv->channel_account_id, provider: (string) $conv->provider);
         $provider = AiProvider::query()->find($providerCode);
-        $extra = $this->withBusinessInfo(
-            $this->withAdContext($this->withVisualContext($this->baseSystemExtra(), $conv, $tenantId, $providerCode, $provider?->default_model), $conv),
+        $extra = $this->withClosingStyle(
+            $this->withBusinessInfo(
+                $this->withAdContext($this->withVisualContext($this->baseSystemExtra(), $conv, $tenantId, $providerCode, $provider?->default_model), $conv),
+                $conv,
+            ),
             $conv,
         );
         if ($askForProduct) {
@@ -296,8 +307,11 @@ class AiSuggestionService
             tenantId: $tenantId,
             providerCode: $providerCode,
             model: $provider?->default_model,
-            systemPromptExtra: $this->withBusinessInfo(
-                $this->withAdContext((string) $this->withVisualContext($this->baseSystemExtra(), $conv, $tenantId, $providerCode, $provider?->default_model), $conv),
+            systemPromptExtra: $this->withClosingStyle(
+                $this->withBusinessInfo(
+                    $this->withAdContext((string) $this->withVisualContext($this->baseSystemExtra(), $conv, $tenantId, $providerCode, $provider?->default_model), $conv),
+                    $conv,
+                ),
                 $conv,
             ),
         );
@@ -798,6 +812,31 @@ class AiSuggestionService
             .implode("\n", $lines);
 
         return $extra !== '' ? $extra."\n\n".$block : $block;
+    }
+
+    /**
+     * Chèn CHỈ DẪN PHONG CÁCH CHỐT SALE (Task B/B1) vào system prompt — bọc NGOÀI CÙNG
+     * (sau persona/business-info) để STEER, không thay thế "QUY TẮC CHỐT ĐƠN" gốc.
+     * `default`/chưa cấu hình/không có row ⇒ trả nguyên `$extra` (0 thay đổi hành vi).
+     * TUYỆT ĐỐI không dùng cho bước classify intent (IntentClassifier::classify không
+     * nhận systemPromptExtra) — chỉ áp cho reply (draftAutoReply/suggest).
+     */
+    private function withClosingStyle(string $extra, Conversation $conv): string
+    {
+        $settings = (array) (MessagingSetting::withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', (int) $conv->tenant_id)->value('settings') ?? []);
+        $style = (string) ($settings['sales_closing_style'] ?? 'default');
+        $note = trim((string) ($settings['sales_closing_note'] ?? ''));
+
+        $directive = self::CLOSING_STYLES[$style] ?? '';
+        if ($note !== '') {
+            $directive = trim($directive."\nGhi chú chốt sale của shop: ".$note);
+        }
+        if ($directive === '') {
+            return $extra;
+        }
+
+        return $extra !== '' ? $extra."\n\n".$directive : $directive;
     }
 
     /**
