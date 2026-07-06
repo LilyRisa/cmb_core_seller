@@ -18,6 +18,7 @@ use CMBcoreSeller\Modules\VisualSearch\DTO\VisualItemCandidate;
 use CMBcoreSeller\Modules\VisualSearch\DTO\VisualItemImage;
 use CMBcoreSeller\Modules\VisualSearch\DTO\VisualMatchResult;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Mockery;
@@ -160,6 +161,74 @@ class AiImageReplyTest extends TestCase
         $this->assertDatabaseMissing('messages', [
             'conversation_id' => $conv->id, 'direction' => Message::DIRECTION_OUTBOUND, 'kind' => 'image',
         ]);
+    }
+
+    public function test_does_not_resend_image_on_followup_when_classifier_noise(): void
+    {
+        // Lỗi báo cáo: sau khi shop đã gửi ảnh SP, MỌI tin sau (classifier NHẦM image_request)
+        // đều gửi lại ảnh thay vì tư vấn. Yêu cầu: gửi ảnh CHỈ 1 lần/lượt khách xin ảnh RÕ RÀNG;
+        // tin không xin ảnh ⇒ tư vấn text (vẫn đọc ngữ cảnh cũ).
+        $conv = $this->seedConv();
+
+        // classifier LUÔN trả image_request (mô phỏng MiniMax nhiễu sau lượt đầu).
+        $intent = Mockery::mock(IntentClassifier::class);
+        $intent->shouldReceive('classify')->andReturn(new IntentDTO(intent: 'image_request', confidence: 0.9));
+        $intent->shouldReceive('shouldEscalate')->andReturn(false);
+        $this->app->instance(IntentClassifier::class, $intent);
+
+        $visual = Mockery::mock(VisualItemSearch::class);
+        $visual->shouldReceive('findByName')->andReturn(
+            VisualMatchResult::matched(new VisualItemCandidate(itemId: 5, name: 'Áo thun', description: null, attributes: [], confidence: 1.0)),
+        );
+        $visual->shouldReceive('imagesForItem')->andReturn([new VisualItemImage('image/jpeg', 'IMG')]);
+        $this->app->instance(VisualItemSearch::class, $visual);
+
+        $svc = app(AiSuggestionService::class);
+
+        // Lượt 1: khách XIN ẢNH rõ ràng ⇒ gửi ảnh.
+        $svc->autoRespond($conv, 'cho em xin ảnh áo thun');
+        $this->assertSame(1, $this->outboundImageCount($conv->id));
+
+        // Lượt 2: khách hỏi giá (KHÔNG xin ảnh) — dù classifier vẫn nói image_request ⇒ tư vấn text, KHÔNG gửi ảnh lại.
+        $svc->autoRespond($conv, 'giá bao nhiêu vậy shop');
+        $this->assertSame(1, $this->outboundImageCount($conv->id),
+            'Không được gửi ảnh lần 2 khi khách không xin ảnh rõ ràng');
+        $this->assertDatabaseHas('messages', [
+            'conversation_id' => $conv->id, 'direction' => Message::DIRECTION_OUTBOUND, 'kind' => Message::KIND_TEXT,
+        ]);
+    }
+
+    public function test_explicit_rerequest_still_sends_image_after_first_send(): void
+    {
+        // Khách XIN ẢNH lại RÕ RÀNG (từ khoá) sau lần gửi đầu ⇒ vẫn gửi (không chặn nhầm yêu cầu thật).
+        $conv = $this->seedConv();
+
+        $intent = Mockery::mock(IntentClassifier::class);
+        $intent->shouldReceive('classify')->andReturn(new IntentDTO(intent: 'image_request', confidence: 0.9));
+        $intent->shouldReceive('shouldEscalate')->andReturn(false);
+        $this->app->instance(IntentClassifier::class, $intent);
+
+        $visual = Mockery::mock(VisualItemSearch::class);
+        $visual->shouldReceive('findByName')->andReturn(
+            VisualMatchResult::matched(new VisualItemCandidate(itemId: 5, name: 'Áo thun', description: null, attributes: [], confidence: 1.0)),
+        );
+        $visual->shouldReceive('imagesForItem')->andReturn([new VisualItemImage('image/jpeg', 'IMG')]);
+        $this->app->instance(VisualItemSearch::class, $visual);
+
+        $svc = app(AiSuggestionService::class);
+        $svc->autoRespond($conv, 'cho em xin ảnh áo thun');
+        $svc->autoRespond($conv, 'gửi thêm ảnh mẫu khác cho em xem với');
+
+        $this->assertSame(2, $this->outboundImageCount($conv->id));
+    }
+
+    private function outboundImageCount(int $conversationId): int
+    {
+        return (int) DB::table('messages')
+            ->where('conversation_id', $conversationId)
+            ->where('direction', Message::DIRECTION_OUTBOUND)
+            ->where('kind', Message::KIND_IMAGE)
+            ->count();
     }
 
     public function test_image_request_unresolved_falls_through_to_text(): void

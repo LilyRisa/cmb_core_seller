@@ -220,7 +220,16 @@ class AiSuggestionService
         // Khách xin ảnh sản phẩm: nếu xác định được SP theo tên ⇒ gửi ảnh (không cần sinh text).
         // Không rõ SP ⇒ rơi xuống sinh text kèm chỉ dẫn HỎI LẠI khách muốn xem SP nào.
         $askForProduct = false;
-        if ($this->wantsProductImage($intent, $inboundText) && $this->channelCanSendImage($conv)) {
+        $wantsImage = $this->wantsProductImage($intent, $inboundText);
+        // Chống GỬI ẢNH LẶP: một khi shop ĐÃ gửi ảnh SP trong hội thoại, các lượt sau CHỈ gửi lại
+        // khi khách xin ảnh RÕ RÀNG bằng từ khoá (looksLikeImageRequest). KHÔNG tin mỗi classifier —
+        // MiniMax hay phân loại nhầm "image_request" ⇒ nếu không chặn, mọi tin sau đều bị gửi ảnh
+        // (matchProductFromRecentContext luôn suy được SP từ ngữ cảnh, kể cả caption ảnh AI vừa gửi).
+        // Lượt không xin ảnh ⇒ tư vấn text bình thường (vẫn đọc ngữ cảnh cũ qua buildSnapshot).
+        if ($wantsImage && ! $this->looksLikeImageRequest($inboundText) && $this->alreadySentAiProductImage($conv)) {
+            $wantsImage = false;
+        }
+        if ($wantsImage && $this->channelCanSendImage($conv)) {
             $media = $this->resolveProductImages($conv, $inboundText, $tenantId);
             if ($media !== null) {
                 return [
@@ -837,6 +846,22 @@ class AiSuggestionService
         }
 
         return $extra !== '' ? $extra."\n\n".$directive : $directive;
+    }
+
+    /**
+     * Shop ĐÃ tự động gửi ảnh SP trong hội thoại này chưa? Dùng để chặn gửi ảnh lặp:
+     * sau lần gửi đầu, chỉ gửi lại khi khách xin ảnh RÕ RÀNG (từ khoá), không tin mỗi classifier.
+     * Bỏ TenantScope vì chạy trong job/listener (có thể không có tenant hiện tại); conversation_id
+     * đã định danh duy nhất hội thoại.
+     */
+    private function alreadySentAiProductImage(Conversation $conv): bool
+    {
+        return Message::withoutGlobalScope(TenantScope::class)
+            ->where('conversation_id', $conv->id)
+            ->where('direction', Message::DIRECTION_OUTBOUND)
+            ->where('kind', Message::KIND_IMAGE)
+            ->where('sent_by_ai', true)
+            ->exists();
     }
 
     /**
