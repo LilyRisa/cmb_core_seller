@@ -506,6 +506,78 @@ class FacebookCommentModerationTest extends TestCase
         });
     }
 
+    public function test_private_message_to_second_commenter_uses_own_comment_id_not_shared_psid(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*' => Http::response(['recipient_id' => 'PSID_B', 'message_id' => 'mid.B'], 200),
+        ]);
+
+        // Thread nhiều người: đã nhắn riêng người A (PSID_A lưu theo comment A). Nay nhắn người B.
+        $conv = $this->commentConv([
+            'meta' => [
+                'fb_comment_id' => 'fb_comment_A',
+                'fb_post_id' => 'fb_post_xyz',
+                'fb_private_psid' => 'PSID_A',                       // dữ liệu cũ (người gần nhất)
+                'fb_private_psids' => ['fb_comment_A' => 'PSID_A'],  // PSID theo TỪNG người
+            ],
+        ]);
+
+        $this->actingAs($this->actor())->withHeaders($this->h())
+            ->postJson("/api/v1/messaging/conversations/{$conv->id}/comment/private-message", [
+                'body' => 'Chào bạn B',
+                'comment_id' => 'fb_comment_B',
+            ])
+            ->assertOk();
+
+        // Người B PHẢI đi qua comment_id của chính họ (Private Reply), KHÔNG tái dùng PSID_A.
+        Http::assertSent(function ($req) {
+            return str_contains($req->url(), 'me/messages')
+                && ($req->data()['recipient']['comment_id'] ?? null) === 'fb_comment_B'
+                && ($req->data()['recipient']['id'] ?? null) !== 'PSID_A';
+        });
+
+        // PSID người B lưu riêng theo comment B; người A giữ nguyên.
+        $conv->refresh();
+        $this->assertSame('PSID_B', $conv->meta['fb_private_psids']['fb_comment_B'] ?? null);
+        $this->assertSame('PSID_A', $conv->meta['fb_private_psids']['fb_comment_A'] ?? null);
+    }
+
+    public function test_linked_dm_resolves_dm_for_commenter_via_stored_psid(): void
+    {
+        // Người A đã được nhắn riêng ⇒ có DM keyed theo PSID_A + link PSID theo comment A.
+        $dm = $this->messagingConv(['external_conversation_id' => 'PSID_A', 'buyer_external_id' => 'PSID_A']);
+        $conv = $this->commentConv([
+            'meta' => [
+                'fb_comment_id' => 'fb_comment_A',
+                'fb_private_psids' => ['fb_comment_A' => 'PSID_A'],
+            ],
+        ]);
+
+        $this->actingAs($this->actor())->withHeaders($this->h())
+            ->getJson("/api/v1/messaging/conversations/{$conv->id}/comment/linked-dm?comment_id=fb_comment_A")
+            ->assertOk()
+            ->assertJsonPath('data.dm_conversation_id', $dm->id);
+    }
+
+    public function test_linked_dm_does_not_leak_other_commenter_dm(): void
+    {
+        // DM chỉ tồn tại cho người A. Mở modal cho comment con của người B (khác gốc) ⇒ null,
+        // không được trả DM người A qua PSID thread-level.
+        $this->messagingConv(['external_conversation_id' => 'PSID_A', 'buyer_external_id' => 'PSID_A']);
+        $conv = $this->commentConv([
+            'meta' => [
+                'fb_comment_id' => 'fb_comment_A',
+                'fb_private_psid' => 'PSID_A',                       // thread-level cũ (người A)
+                'fb_private_psids' => ['fb_comment_A' => 'PSID_A'],
+            ],
+        ]);
+
+        $this->actingAs($this->actor())->withHeaders($this->h())
+            ->getJson("/api/v1/messaging/conversations/{$conv->id}/comment/linked-dm?comment_id=fb_comment_B")
+            ->assertOk()
+            ->assertJsonPath('data.dm_conversation_id', null);
+    }
+
     public function test_private_message_blocked_returns_422_when_nothing_delivered(): void
     {
         // Facebook trả 10900 "đã nhắn riêng" cho phần đầu (chưa có PSID) ⇒ delivered=0.

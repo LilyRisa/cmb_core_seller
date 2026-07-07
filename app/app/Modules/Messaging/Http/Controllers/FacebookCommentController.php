@@ -225,7 +225,19 @@ class FacebookCommentController extends Controller
             return response()->json(['error' => ['code' => 'ATTACHMENT_INVALID', 'message' => $e->getMessage()]], 422);
         }
 
-        $psid = (string) ($conv->meta['fb_private_psid'] ?? '') !== '' ? (string) $conv->meta['fb_private_psid'] : null;
+        // PSID phải tra theo TỪNG comment (từng người) — 1 comment thread có nhiều người
+        // bình luận, mỗi người 1 PSID + 1 lượt private-reply riêng. Dùng chung PSID cấp
+        // thread sẽ gửi NHẦM cho người đã nhắn gần nhất. Chưa có PSID người này ⇒ null ⇒
+        // connector gửi qua recipient{comment_id} (Private Reply) đúng người + lấy PSID.
+        $psidMap = (array) ($conv->meta['fb_private_psids'] ?? []);
+        $psid = null;
+        if ((string) ($psidMap[$commentId] ?? '') !== '') {
+            $psid = (string) $psidMap[$commentId];
+        } elseif ($commentId === $rootCommentId && (string) ($conv->meta['fb_private_psid'] ?? '') !== '') {
+            // Tương thích dữ liệu cũ (1 PSID thread-level): chỉ áp cho comment GỐC — thread
+            // cũ hầu như 1 người. Comment con của người khác vẫn đi qua comment_id.
+            $psid = (string) $conv->meta['fb_private_psid'];
+        }
         $result = $connector->sendCommentPrivateMessage($auth, $commentId, $psid, $body, $attachments);
 
         // Không gửi được phần nào: đã nhắn riêng trước đó / khách chưa mở hội thoại /
@@ -241,8 +253,15 @@ class FacebookCommentController extends Controller
 
         $meta = (array) ($conv->meta ?? []);
         $meta['private_replied_at'] = now()->toIso8601String();
+        // Đánh dấu ĐÃ nhắn riêng theo TỪNG comment (per-người) — để về sau biết người nào
+        // đã nhắn, không nhầm lẫn "cả thread đã nhắn 1 lần".
+        $repliedMap = (array) ($meta['fb_private_replied_at'] ?? []);
+        $repliedMap[$commentId] = now()->toIso8601String();
+        $meta['fb_private_replied_at'] = $repliedMap;
         if ($result['psid'] !== '') {
-            $meta['fb_private_psid'] = $result['psid'];
+            $meta['fb_private_psid'] = $result['psid']; // giữ tương thích cũ (người gần nhất)
+            $psidMap[$commentId] = $result['psid'];     // PSID theo từng comment (nguồn chính)
+            $meta['fb_private_psids'] = $psidMap;
         }
         $conv->meta = $meta;
         $conv->save();
@@ -338,8 +357,11 @@ class FacebookCommentController extends Controller
             return $error;
         }
 
+        // Ứng viên PSID phải THUỘC ĐÚNG người của comment này — thread nhiều người, không
+        // được lấy PSID người khác kẻo rò lịch sử DM sai người.
         $candidates = [];
-        $commentId = (string) ($data['comment_id'] ?? '');
+        $rootCommentId = (string) (($conv->meta ?? [])['fb_comment_id'] ?? '');
+        $commentId = (string) ($data['comment_id'] ?? '') !== '' ? (string) $data['comment_id'] : $rootCommentId;
         if ($commentId !== '') {
             $msg = Message::query()
                 ->where('conversation_id', $conv->id)
@@ -351,10 +373,20 @@ class FacebookCommentController extends Controller
                     $candidates[] = $authorId;
                 }
             }
+            // PSID đã lấy từ lần nhắn riêng ĐÚNG comment này (per-người) — chính xác nhất.
+            $psidMap = (array) (($conv->meta ?? [])['fb_private_psids'] ?? []);
+            $perComment = (string) ($psidMap[$commentId] ?? '');
+            if ($perComment !== '') {
+                $candidates[] = $perComment;
+            }
         }
-        $psid = (string) (($conv->meta ?? [])['fb_private_psid'] ?? '');
-        if ($psid !== '') {
-            $candidates[] = $psid;
+        // Fallback thread-level (dữ liệu cũ 1 PSID) CHỈ khi mở comment GỐC (người bình
+        // luận đầu) — thread cũ hầu hết 1 người ⇒ đúng; tránh gán nhầm cho comment con.
+        if ($commentId === $rootCommentId) {
+            $psid = (string) (($conv->meta ?? [])['fb_private_psid'] ?? '');
+            if ($psid !== '') {
+                $candidates[] = $psid;
+            }
         }
 
         $candidates = array_values(array_unique(array_filter($candidates)));
