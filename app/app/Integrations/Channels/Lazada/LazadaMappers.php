@@ -123,9 +123,23 @@ final class LazadaMappers
         $sellerVoucher = self::money($order['voucher_seller'] ?? null);
         $platformVoucher = self::money($order['voucher_platform'] ?? null);
         $totalVoucher = self::money($order['voucher'] ?? null);
-        // split the total voucher when the breakdown isn't given
-        if ($sellerVoucher === 0 && $platformVoucher === 0 && $totalVoucher > 0) {
-            $sellerVoucher = $totalVoucher;
+        // Sàn không trả breakdown seller/platform ở cấp order → dựng từ item-level
+        // voucher_platform/voucher_seller (GetOrderItems tách rõ, đã verify tài liệu chính
+        // chủ). Chỉ khi item cũng không có mới fallback coi voucher GỘP là của SHOP (bảo
+        // thủ: trừ vào lãi, tránh cộng nhầm voucher sàn làm phóng đại lợi nhuận).
+        if ($sellerVoucher === 0 && $platformVoucher === 0) {
+            $itemSeller = 0;
+            $itemPlatform = 0;
+            foreach ($items as $i) {
+                $itemSeller += self::money($i['voucher_seller'] ?? null);
+                $itemPlatform += self::money($i['voucher_platform'] ?? null);
+            }
+            if ($itemSeller > 0 || $itemPlatform > 0) {
+                $sellerVoucher = $itemSeller;
+                $platformVoucher = $itemPlatform;
+            } elseif ($totalVoucher > 0) {
+                $sellerVoucher = $totalVoucher;
+            }
         }
         $grandTotal = self::money($order['price'] ?? null);
         $itemTotal = max(0, $grandTotal - $shippingFee + $sellerVoucher + $platformVoucher);

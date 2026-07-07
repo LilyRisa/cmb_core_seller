@@ -199,6 +199,32 @@ class LazadaConnectorContractTest extends TestCase
         $this->assertSame('PKG1', $o->packages[0]['externalPackageId']);
     }
 
+    public function test_derives_voucher_split_from_item_level_when_order_lacks_breakdown(): void
+    {
+        Http::fake([
+            '*/orders/items/get*' => Http::response($this->ok([
+                ['order_id' => 1002, 'order_items' => [
+                    ['order_item_id' => 1, 'sku' => 'SP-1', 'name' => 'SP 1', 'item_price' => 100000.00, 'paid_price' => 80000.00, 'voucher_amount' => 20000.00, 'voucher_platform' => 15000.00, 'voucher_seller' => 5000.00, 'status' => 'pending'],
+                ]],
+            ])),
+            '*/orders/get*' => Http::response($this->ok([
+                'count' => 1,
+                'orders' => [[
+                    'order_id' => 1002, 'order_number' => 777, 'created_at' => '2026-05-17 10:00:00 +0700', 'updated_at' => '2026-05-17 11:00:00 +0700',
+                    // Order-level CHỈ có voucher gộp, KHÔNG tách seller/platform ⇒ phải dựng từ item-level.
+                    'price' => '100000.00', 'shipping_fee' => '0.00', 'voucher' => '20000.00',
+                    'payment_method' => 'COD', 'statuses' => ['pending'],
+                    'address_shipping' => ['first_name' => 'A', 'last_name' => 'B', 'phone' => '0900000000', 'city' => 'Hồ Chí Minh', 'country' => 'Vietnam'],
+                ]],
+            ])),
+        ]);
+
+        $o = $this->connector()->fetchOrders($this->auth(), ['updatedFrom' => now()->subDay()])->items[0];
+        // KHÔNG dồn hết 20k vào seller — tách đúng theo item-level: sàn 15k, shop 5k.
+        $this->assertSame(15000, $o->platformDiscount);
+        $this->assertSame(5000, $o->sellerDiscount);
+    }
+
     public function test_fetch_order_detail(): void
     {
         Http::fake([

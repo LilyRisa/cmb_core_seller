@@ -186,7 +186,7 @@ class OrderProfitService
      * Khi có ⇒ `fee_source='settlement'` và `platform_fee`/`shipping_fee` lấy từ đây (số ÂM → đảo dấu thành chi).
      *
      * @param  list<int>  $orderIds
-     * @return array<int, array{platform_fee:int, shipping_fee:int, lines:array<string,int>}>
+     * @return array<int, array{platform_fee:int, shipping_fee:int, voucher_platform:int, lines:array<string,int>}>
      */
     private function fetchActualFees(array $orderIds): array
     {
@@ -203,7 +203,7 @@ class OrderProfitService
         $out = [];
         foreach ($rows as $r) {
             $oid = (int) $r->order_id;
-            $out[$oid] ??= ['platform_fee' => 0, 'shipping_fee' => 0, 'lines' => []];
+            $out[$oid] ??= ['platform_fee' => 0, 'shipping_fee' => 0, 'voucher_platform' => 0, 'lines' => []];
             $a = (int) $r->amount;
             switch ($r->fee_type) {
                 case 'commission':
@@ -215,6 +215,11 @@ class OrderProfitService
                     break;
                 case 'shipping_fee':
                     $out[$oid]['shipping_fee'] += abs($a);
+                    break;
+                case 'voucher_platform':
+                    // Voucher SÀN cấp (income shop được hoàn) — Shopee chỉ lộ ở đối soát escrow
+                    // (get_order_detail không có). Cộng lại vào doanh thu, KHÔNG phải phí.
+                    $out[$oid]['voucher_platform'] += abs($a);
                     break;
             }
         }
@@ -260,7 +265,7 @@ class OrderProfitService
      * @param  array<string,float>  $platformFeePct
      * @param  Collection<int, Sku>  $skuCosts
      * @param  array{cogs:int,source:string}|null  $actual  COGS thực từ `order_costs` (đã ship); null = chưa ship
-     * @param  array{platform_fee:int,shipping_fee:int,lines?:array<string,int>}|null  $actualFees  Phí THỰC từ đối soát (SPEC 0016)
+     * @param  array{platform_fee:int,shipping_fee:int,voucher_platform?:int,lines?:array<string,int>}|null  $actualFees  Phí THỰC từ đối soát (SPEC 0016)
      * @param  int|null  $actualShipFee  R2 (Sprint 4) — phí ĐVVC thực từ shipments.fee (manual: GHN trả về)
      * @param  array<string, array{commission_pct:float,transaction_pct:float,service_pct:float,fixed_fee:int,programs:list<array<string,mixed>>}>  $feeRates  biểu phí ước tính theo sàn
      * @return array{cogs:int,platform_fee:int,shipping_fee:int,platform_subsidy:int,estimated_profit:int,platform_fee_pct:float,cost_complete:bool,cost_source:string,fee_source:string,fee_breakdown:list<array{type:string,label:string,amount:int}>}
@@ -285,12 +290,16 @@ class OrderProfitService
             }
         }
         $grand = (int) $order->grand_total;
-        // Voucher SÀN cấp (platform_discount) được sàn HOÀN lại cho shop ⇒ không được trừ
-        // khỏi doanh thu khi tính lãi. `grand_total` là số khách THỰC TRẢ (đã trừ voucher
-        // sàn) nên phải cộng lại phần này. Voucher SHOP tự chịu nằm ở `seller_discount`
-        // (đã phản ánh trong grand_total) ⇒ KHÔNG cộng. TikTok/Lazada có tách sẵn; Shopee
-        // luồng order chưa tách được (chỉ có ở đối soát) nên platform_discount=0.
-        $platformSubsidy = max(0, (int) $order->platform_discount);
+        // Voucher SÀN cấp được sàn HOÀN lại cho shop ⇒ không được trừ khỏi doanh thu khi
+        // tính lãi. `grand_total` là số khách THỰC TRẢ (đã trừ voucher sàn) nên phải cộng
+        // lại phần này. Voucher SHOP tự chịu nằm ở `seller_discount` (đã phản ánh trong
+        // grand_total) ⇒ KHÔNG cộng. Ưu tiên số THỰC từ đối soát (Shopee chỉ lộ voucher
+        // sàn ở escrow, get_order_detail không có), fallback `platform_discount` cấp order
+        // (TikTok/Lazada đã tách sẵn lúc đồng bộ đơn).
+        $settlementVoucherPlatform = (int) ($actualFees['voucher_platform'] ?? 0);
+        $platformSubsidy = $settlementVoucherPlatform > 0
+            ? $settlementVoucherPlatform
+            : max(0, (int) $order->platform_discount);
         $revenue = $grand + $platformSubsidy;
         $pct = (float) ($platformFeePct[$order->source] ?? 0);
         $feeSource = 'estimate';

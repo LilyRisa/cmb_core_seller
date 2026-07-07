@@ -4,6 +4,8 @@ namespace Tests\Feature\Orders;
 
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Finance\Models\Settlement;
+use CMBcoreSeller\Modules\Finance\Models\SettlementLine;
 use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Orders\Models\OrderItem;
@@ -226,6 +228,40 @@ class OrderApiTest extends TestCase
         $this->assertSame(30000, $o['profit']['platform_subsidy']);
         // doanh thu = grand_total(250k) + voucher sàn(30k) = 280k ⇒ lãi = 280k − 53k = 227k.
         $this->assertSame(280000 - 53000 - 0 - 0, $o['profit']['estimated_profit']);
+    }
+
+    public function test_shopee_platform_voucher_from_settlement_is_added_back_to_profit(): void
+    {
+        // Shopee: voucher SÀN chỉ lộ ở đối soát escrow (get_order_detail không có). Khi có
+        // settlement line `voucher_platform` ⇒ cộng lại vào doanh thu khi tính lãi (được sàn hoàn).
+        $account = ChannelAccount::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $this->tenant->getKey(), 'provider' => 'shopee',
+            'external_shop_id' => 'sp-'.$this->tenant->getKey(), 'shop_name' => 'SP', 'status' => ChannelAccount::STATUS_ACTIVE,
+        ]);
+        $order = Order::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $this->tenant->getKey(), 'source' => 'shopee', 'channel_account_id' => $account->getKey(),
+            'external_order_id' => 'SP-1', 'order_number' => 'SP-1', 'status' => StandardOrderStatus::Shipped, 'raw_status' => 'X',
+            'currency' => 'VND', 'grand_total' => 70000, 'item_total' => 100000, 'platform_discount' => 0, 'seller_discount' => 0,
+            'shipping_fee' => 0, 'placed_at' => now(), 'tags' => [], 'source_updated_at' => now(),
+        ]);
+        $settlement = Settlement::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $this->tenant->getKey(), 'channel_account_id' => $account->getKey(), 'currency' => 'VND',
+            'external_id' => 'ST-1', 'period_start' => now()->subDay(), 'period_end' => now(), 'status' => 'reconciled',
+        ]);
+        foreach ([['commission', -12500], ['voucher_platform', 30000]] as [$type, $amt]) {
+            SettlementLine::withoutGlobalScope(TenantScope::class)->create([
+                'tenant_id' => $this->tenant->getKey(), 'settlement_id' => $settlement->getKey(), 'order_id' => $order->getKey(),
+                'fee_type' => $type, 'amount' => $amt, 'created_at' => now(),
+            ]);
+        }
+
+        $res = $this->actingAs($this->user)->withHeaders($this->header())->getJson('/api/v1/orders')->assertOk();
+        $o = collect($res->json('data'))->firstWhere('order_number', 'SP-1');
+        $this->assertSame('settlement', $o['profit']['fee_source']);
+        $this->assertSame(12500, $o['profit']['platform_fee']);       // phí thực từ đối soát
+        $this->assertSame(30000, $o['profit']['platform_subsidy']);   // voucher sàn lấy từ escrow
+        // doanh thu = grand(70k) + voucher sàn(30k) = 100k ⇒ lãi = 100k − 12.5k = 87.5k.
+        $this->assertSame(100000 - 12500, $o['profit']['estimated_profit']);
     }
 
     public function test_optional_program_fee_appears_in_breakdown_when_enabled(): void
