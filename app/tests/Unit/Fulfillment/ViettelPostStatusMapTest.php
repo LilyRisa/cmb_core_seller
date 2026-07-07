@@ -19,7 +19,7 @@ class ViettelPostStatusMapTest extends TestCase
             500 => Shipment::STATUS_IN_TRANSIT,       // giao bưu tá đi phát
             501 => Shipment::STATUS_DELIVERED,        // phát thành công
             506 => Shipment::STATUS_FAILED,           // phát thất bại
-            505 => Shipment::STATUS_RETURNED,         // yêu cầu chuyển hoàn
+            505 => Shipment::STATUS_RETURNING,        // yêu cầu chuyển hoàn (chưa về tới kho)
             504 => Shipment::STATUS_RETURNED,         // chuyển trả người gửi
             101 => Shipment::STATUS_CANCELLED,        // VTP hủy lấy hàng
             107 => Shipment::STATUS_CANCELLED,        // đối tác hủy

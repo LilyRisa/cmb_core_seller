@@ -162,6 +162,9 @@ class OrderController extends Controller
             'meta.attachments' => ['sometimes', 'nullable', 'array', 'max:20'],
             'meta.attachments.*.url' => ['required', 'string', 'max:2048'],
             'meta.attachments.*.name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            // Task 3 — tuỳ chọn giao hàng cho đơn tự vận chuyển (self-ship). Phí ship là nội bộ (gộp vào
+            // COD) — không có field "ai trả phí"/"chế độ xem hàng"; "Ghi chú giao hàng" reuse `meta.print_note`.
+            'failed_collect_amount' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:50000000'],
         ]);
         $order = $service->create((int) $tenant->id(), $request->user()->getKey(), $data);
 
@@ -226,6 +229,9 @@ class OrderController extends Controller
             'meta.attachments' => ['sometimes', 'array'],
             'meta.attachments.*.url' => ['sometimes', 'string', 'max:500'],
             'meta.attachments.*.name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            // Task 3 — tuỳ chọn giao hàng cho đơn tự vận chuyển (self-ship). Phí ship là nội bộ (gộp vào
+            // COD) — không có field "ai trả phí"/"chế độ xem hàng"; "Ghi chú giao hàng" reuse `meta.print_note`.
+            'failed_collect_amount' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:50000000'],
         ]);
         $order = $service->update($order, $data);
 

@@ -61,6 +61,8 @@ class OrderResource extends JsonResource
             'seller_discount' => $this->seller_discount,
             'tax' => $this->tax,
             'cod_amount' => $this->cod_amount,
+            // Số tiền thu khi giao thất bại (SPEC giao-thất-bại-thu-tiền) — 0/null = tắt.
+            'failed_collect_amount' => $this->failed_collect_amount,
             // SPEC 0021 — UI mới (taodon.png): "Tiền chuyển khoản" + "Phụ thu".
             'prepaid_amount' => (int) ($this->prepaid_amount ?? 0),
             'surcharge' => (int) ($this->surcharge ?? 0),
@@ -132,6 +134,10 @@ class OrderResource extends JsonResource
                     'pending_reason' => data_get($s->raw, 'pending_reason.message') ?: null,
                     'print_count' => (int) $s->print_count, 'last_printed_at' => $s->last_printed_at?->toIso8601String(),
                     'packed_at' => $s->packed_at?->toIso8601String(),
+                    // Kết quả thực tế sau giao (SPEC giao-thất-bại-thu-tiền) — null = chưa có sự kiện/carrier không hỗ trợ.
+                    'cod_collected' => $s->cod_collected,
+                    'failed_collect_collected' => $s->failed_collect_collected,
+                    'return_fee' => $s->return_fee,
                 ];
             }),
             // SPEC 2026-05-17 — đơn đã đẩy lên ĐVVC: có shipment với carrier ≠ 'manual' và status ngoài

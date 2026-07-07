@@ -17,6 +17,10 @@ export interface Shipment {
     service: string | null;
     weight_grams: number | null;
     cod_amount: number;
+    /** Kết quả thực tế sau giao (SPEC giao-thất-bại-thu-tiền) — null = chưa có sự kiện/carrier không hỗ trợ. */
+    cod_collected?: number | null;
+    failed_collect_collected?: number | null;
+    return_fee?: number | null;
     fee: number;
     label_url: string | null;
     has_label: boolean;

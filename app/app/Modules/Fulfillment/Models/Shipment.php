@@ -27,6 +27,9 @@ use Illuminate\Support\Carbon;
  * @property int|null $weight_grams
  * @property array|null $dims
  * @property int $cod_amount
+ * @property int|null $cod_collected
+ * @property int|null $failed_collect_collected
+ * @property int|null $return_fee
  * @property int $fee
  * @property string|null $label_url
  * @property string|null $label_path
@@ -71,24 +74,26 @@ class Shipment extends Model
 
     public const STATUS_RETURNED = 'returned';
 
+    public const STATUS_RETURNING = 'returning';
+
     public const STATUS_CANCELLED = 'cancelled';
 
     /** Statuses meaning "still actionable" — used to enforce 1 active shipment per order. */
-    public const OPEN_STATUSES = [self::STATUS_PENDING, self::STATUS_CREATED, self::STATUS_PACKED, self::STATUS_AWAITING_PICKUP, self::STATUS_PICKED_UP, self::STATUS_IN_TRANSIT, self::STATUS_DELIVERED, self::STATUS_FAILED, self::STATUS_RETURNED];
+    public const OPEN_STATUSES = [self::STATUS_PENDING, self::STATUS_CREATED, self::STATUS_PACKED, self::STATUS_AWAITING_PICKUP, self::STATUS_PICKED_UP, self::STATUS_IN_TRANSIT, self::STATUS_DELIVERED, self::STATUS_FAILED, self::STATUS_RETURNING, self::STATUS_RETURNED];
 
     /** "Already handed over to / collected by the carrier" — packing/handover is done. */
     public const HANDED_OVER_STATUSES = [self::STATUS_PICKED_UP, self::STATUS_IN_TRANSIT, self::STATUS_DELIVERED];
 
     protected $fillable = [
         'tenant_id', 'order_id', 'carrier', 'carrier_account_id', 'package_no', 'tracking_no', 'status', 'service',
-        'weight_grams', 'dims', 'cod_amount', 'fee', 'label_url', 'label_path', 'label_fetch_next_retry_at',
+        'weight_grams', 'dims', 'cod_amount', 'cod_collected', 'failed_collect_collected', 'return_fee', 'fee', 'label_url', 'label_path', 'label_fetch_next_retry_at',
         'print_count', 'last_printed_at', 'picked_up_at', 'packed_at', 'delivered_at', 'raw',
     ];
 
     protected function casts(): array
     {
         return [
-            'dims' => 'array', 'raw' => 'array', 'cod_amount' => 'integer', 'fee' => 'integer', 'weight_grams' => 'integer',
+            'dims' => 'array', 'raw' => 'array', 'cod_amount' => 'integer', 'cod_collected' => 'integer', 'failed_collect_collected' => 'integer', 'return_fee' => 'integer', 'fee' => 'integer', 'weight_grams' => 'integer',
             'print_count' => 'integer', 'last_printed_at' => 'datetime', 'picked_up_at' => 'datetime', 'packed_at' => 'datetime', 'delivered_at' => 'datetime',
             'label_fetch_next_retry_at' => 'datetime',
         ];

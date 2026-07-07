@@ -115,7 +115,7 @@ git commit -m "feat(orders): cột tuỳ chọn giao hàng (note/inspection/fee_
 ### Task 2: Migration + model — cột kết quả hoàn trên `shipments` + status `returning`
 
 **Files:**
-- Create: `app/database/migrations/2026_07_07_100100_add_return_outcome_to_shipments.php`
+- Create: `app/app/Modules/Fulfillment/Database/Migrations/2026_07_07_100100_add_return_outcome_to_shipments_table.php` (migration nằm trong module — theo convention modular-monolith, KHÔNG dùng `database/migrations` trung tâm)
 - Modify: `app/app/Modules/Fulfillment/Models/Shipment.php` (fillable + hằng `STATUS_RETURNING`)
 - Test: `app/tests/Unit/Fulfillment/ShipmentReturnOutcomeTest.php`
 

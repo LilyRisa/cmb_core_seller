@@ -1,6 +1,16 @@
 # SPEC: Tuỳ chọn giao hàng cho đơn tự tạo/tự giao + "Giao thất bại – Thu tiền" + luồng hoàn
 
-- **Trạng thái:** Draft
+- **Trạng thái:** Implemented (branch `feat/self-ship-delivery-options`) — xem "Addendum: scope thực thi" cuối file
+
+> ## Addendum: scope thực thi (2026-07-08)
+> Sau khi làm, người dùng thu hẹp phạm vi. **Chốt cuối:**
+> - **Ghi chú giao hàng**: KHÔNG thêm cột mới — đồng bộ sang ĐVVC từ **`meta.print_note`** ("Ghi chú để in") sẵn có (GHN `note`, GHTK `note`, VTP `ORDER_NOTE`).
+> - **Ai trả phí ship**: BỎ — phí ship là **nội bộ** (đã gộp vào COD tổng đẩy ĐVVC), KHÔNG map sang carrier. `payment_type_id`/`ORDER_PAYMENT` giữ mặc định theo COD như cũ. Không có cột `delivery_fee_payer`.
+> - **Chế độ xem hàng (required_note)**: BỎ (không yêu cầu) — `required_note` giữ mặc định `KHONGCHOXEMHANG`. Không có cột `delivery_inspection`.
+> - **Giao thất bại – thu tiền**: GIỮ. Cột duy nhất mới = **`orders.failed_collect_amount`**. FE: checkbox "Chỉ thu phí nếu hoàn" (sẵn có) tích → hiện ô nhập số tiền (mặc định 30.000đ). Map GHN `cod_failed_amount` / VTP `EXTRA_MONEY`+XMG; GHTK không hỗ trợ (capability gate). ⚠️ tên field GHN/VTP CHƯA verify sandbox.
+> - **Luồng hoàn**: GIỮ nguyên — shipment `returning`/`returned` → order `Returning`/`ReturnedRefunded`; `OPEN_STATUSES`+polling nhận `returning`; webhook ghi `cod_collected`/`failed_collect_collected`/`return_fee`; OrderResource phơi, OrderDetailBody hiển thị.
+> - Default shop cho số tiền (`settings.shipping.failed_collect_amount`): plumbing FE đã đọc, CHƯA có màn cấu hình (follow-up).
+> - **Chấp nhận (accepted):** kết quả tiền khi hoàn (`cod_collected`/`failed_collect_collected`/`return_fee`) chỉ ghi qua **webhook** (real-time). Polling backup vẫn đồng bộ TRẠNG THÁI (đơn tới `ReturnedRefunded`) nhưng KHÔNG backfill các cột tiền — mở rộng getTracking DTO 3 sàn không tương xứng (có sàn không có getTracking). Follow-up nếu cần.
 - **Phase:** 5.5 (Fulfillment ĐVVC tự vận chuyển — mở rộng sau GHN/GHTK/VTP)
 - **Module backend liên quan:** Fulfillment + Orders + Integration layer (`Integrations/Carriers/{Ghn,Ghtk,ViettelPost}`)
 - **Tác giả / Ngày:** lilyrisa · 2026-07-07

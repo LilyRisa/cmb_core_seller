@@ -23,13 +23,15 @@ final class GhnStatusMap
         'delivered' => Shipment::STATUS_DELIVERED,
         'delivery_fail' => Shipment::STATUS_FAILED,
         'waiting_to_return' => Shipment::STATUS_FAILED,
-        'return' => Shipment::STATUS_RETURNED,
-        'returning' => Shipment::STATUS_RETURNED,
-        'return_transporting' => Shipment::STATUS_RETURNED,
-        'return_sorting' => Shipment::STATUS_RETURNED,
+        // Đang trên đường trả về người gửi (chưa tới nơi) ⇒ RETURNING, tách khỏi "đã về kho" (RETURNED).
+        'return' => Shipment::STATUS_RETURNING,
+        'returning' => Shipment::STATUS_RETURNING,
+        'return_transporting' => Shipment::STATUS_RETURNING,
+        'return_sorting' => Shipment::STATUS_RETURNING,
         // GHN "List Of Shipping Status" (api.ghn.vn id=48): hoàn hàng THẤT BẠI — hàng không giao
         // được lẫn không trả được về người gửi ⇒ cần xử lý (đánh "thất bại", KHÔNG phải đã hoàn).
         'return_fail' => Shipment::STATUS_FAILED,
+        // Đã về tới kho người gửi — hoàn tất hoàn hàng.
         'returned' => Shipment::STATUS_RETURNED,
         'cancel' => Shipment::STATUS_CANCELLED,
         'exception' => Shipment::STATUS_FAILED,

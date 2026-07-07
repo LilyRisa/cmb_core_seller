@@ -80,7 +80,7 @@ class Order extends Model
         'currency', 'item_total', 'shipping_fee', 'platform_discount', 'seller_discount', 'tax',
         'cod_amount', 'prepaid_amount', 'surcharge', 'grand_total', 'is_cod', 'fulfillment_type', 'carrier',
         'placed_at', 'paid_at', 'shipped_at', 'delivered_at', 'completed_at', 'cancelled_at', 'cancel_reason',
-        'note', 'tags', 'has_issue', 'issue_reason', 'has_unmapped_sku', 'packages', 'meta', 'raw_payload', 'source_updated_at', 'last_synced_at',
+        'note', 'failed_collect_amount', 'tags', 'has_issue', 'issue_reason', 'has_unmapped_sku', 'packages', 'meta', 'raw_payload', 'source_updated_at', 'last_synced_at',
     ];
 
     protected $hidden = ['buyer_phone', 'raw_payload'];
@@ -101,7 +101,7 @@ class Order extends Model
             'raw_payload' => 'array',
             'item_total' => 'integer', 'shipping_fee' => 'integer', 'platform_discount' => 'integer',
             'seller_discount' => 'integer', 'tax' => 'integer', 'cod_amount' => 'integer',
-            'prepaid_amount' => 'integer', 'surcharge' => 'integer', 'grand_total' => 'integer',
+            'prepaid_amount' => 'integer', 'surcharge' => 'integer', 'grand_total' => 'integer', 'failed_collect_amount' => 'integer',
             'placed_at' => 'datetime', 'paid_at' => 'datetime', 'shipped_at' => 'datetime',
             'delivered_at' => 'datetime', 'completed_at' => 'datetime', 'cancelled_at' => 'datetime',
             'source_updated_at' => 'datetime', 'last_synced_at' => 'datetime',

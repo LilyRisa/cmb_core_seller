@@ -20,7 +20,7 @@ import { errorMessage } from '@/lib/api';
 import { useCreateManualOrder, useUpdateManualOrder, useUploadImage, useWarehouses, type Sku } from '@/lib/inventory';
 import { useOrder } from '@/lib/orders';
 import { useCarrierAccounts, useShippingQuote } from '@/lib/fulfillment';
-import { useTenantMembers } from '@/lib/tenant';
+import { useTenant, useTenantMembers } from '@/lib/tenant';
 import { useAuth } from '@/lib/auth';
 import { useCustomerLookup, useCustomers, type BadReportWarning, type Customer, type CustomerLookupResult } from '@/lib/customers';
 
@@ -41,6 +41,9 @@ import { useCustomerLookup, useCustomers, type BadReportWarning, type Customer, 
 // ============================================================================
 
 const vnd = (n: number) => `${(n || 0).toLocaleString('vi-VN')}`;
+
+/** Giao thất bại — thu tiền: mặc định số tiền thu khi chưa cấu hình theo shop (settings.shipping.failed_collect_amount). */
+const DEFAULT_FAILED_COLLECT_AMOUNT = 30000;
 
 const SUB_SOURCES = [
     { value: 'website', label: 'Website' },
@@ -102,6 +105,14 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
     const upload = useUploadImage();
     const { data: me } = useAuth();
     const meId = me?.id ?? null;
+    // Giao thất bại — thu tiền (reuse checkbox "collect_fee_on_return_only"): mặc định số tiền thu
+    // theo cấu hình shop (settings.shipping.failed_collect_amount) nếu có, fallback hằng số 30.000đ.
+    const { data: tenantDetail } = useTenant();
+    const shopFailedCollectDefault = useMemo(() => {
+        const shipping = tenantDetail?.settings?.shipping as Record<string, unknown> | undefined;
+        const v = shipping?.failed_collect_amount;
+        return typeof v === 'number' && v > 0 ? v : DEFAULT_FAILED_COLLECT_AMOUNT;
+    }, [tenantDetail]);
 
     // ---- warehouses ----
     const { data: warehouses = [] } = useWarehouses();
@@ -241,12 +252,23 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
             surcharge: (o as unknown as { surcharge?: number }).surcharge ?? 0,
             free_shipping: !!meta.free_shipping,
             collect_fee_on_return_only: !!meta.collect_fee_on_return_only,
+            failed_collect_amount: o.failed_collect_amount ?? undefined,
             note_internal: o.note ?? undefined,
             note_print: (meta.print_note as string) ?? undefined,
         });
 
         setEditPrefilled(true);
     }, [isEdit, editingOrder, editPrefilled, form]);
+
+    // Checkbox "Chỉ thu phí nếu hoàn" mới TÍCH (chưa có số tiền) ⇒ nạp mặc định của shop/hằng số.
+    // Guard bằng getFieldValue (không phải state) nên KHÔNG đè giá trị vừa nạp từ đơn đang sửa
+    // (effect edit-load chạy trước, cùng lượt commit, vì được khai báo phía trên).
+    const collectFeeOnReturnOnly = Form.useWatch('collect_fee_on_return_only', form) as boolean | undefined;
+    useEffect(() => {
+        if (collectFeeOnReturnOnly && form.getFieldValue('failed_collect_amount') == null) {
+            form.setFieldValue('failed_collect_amount', shopFailedCollectDefault);
+        }
+    }, [collectFeeOnReturnOnly, shopFailedCollectDefault, form]);
 
     // ---- live totals ----
     const summary = Form.useWatch([], form) as Record<string, unknown> | undefined;
@@ -357,6 +379,9 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
             surcharge: (v.surcharge as number) ?? 0,
             // COD = tiền còn thiếu; BE là nguồn sự thật (tự suy từ grand_total − prepaid). Gửi kèm để nhất quán.
             is_cod: totals.needCollect > 0,
+            // Giao thất bại — thu tiền: chỉ gửi >0 khi tích "Chỉ thu phí nếu hoàn"; BE map GHN cod_failed_amount /
+            // VTP EXTRA_MONEY tại thời điểm đẩy ĐVVC, im lặng bỏ qua với ĐVVC không hỗ trợ (GHTK).
+            failed_collect_amount: v.collect_fee_on_return_only ? ((v.failed_collect_amount as number) ?? 30000) : 0,
             warehouse_id: warehouseId ?? undefined,
             note: (v.note_internal as string) || undefined,
             tags,
@@ -756,6 +781,9 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                                         <Form.Item name="free_shipping" valuePropName="checked" noStyle><Checkbox>Miễn phí giao hàng</Checkbox></Form.Item>
                                         <Form.Item name="collect_fee_on_return_only" valuePropName="checked" noStyle><Checkbox>Chỉ thu phí nếu hoàn</Checkbox></Form.Item>
                                     </Space>
+                                    {collectFeeOnReturnOnly && (
+                                        <PayRow label="Số tiền thu khi giao thất bại" name="failed_collect_amount" max={50000000} step={1000} />
+                                    )}
                                     <PayRow label="Phí vận chuyển" name="shipping_fee" disabled={!!summary?.free_shipping} />
                                     {ghtkAccount && (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', margin: '-2px 0 8px' }}>
@@ -1254,13 +1282,13 @@ export function CreateOrderPage() {
 //  Helpers
 // ============================================================================
 
-function PayRow({ label, name, disabled }: { label: string; name: string; disabled?: boolean }) {
+function PayRow({ label, name, disabled, max, step }: { label: string; name: string; disabled?: boolean; max?: number; step?: number }) {
     return (
         <div className="ord-pay-row">
             <label>{label}</label>
             <Form.Item name={name} noStyle>
                 <InputNumber
-                    min={0} disabled={disabled} className="ord-pay-input" controls={false}
+                    min={0} max={max} step={step} disabled={disabled} className="ord-pay-input" controls={false}
                     formatter={(v) => `${v ?? 0}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}
                     parser={(v) => Number((v ?? '').toString().replace(/\D/g, '')) as 0}
                     suffix={<Typography.Text type="secondary" style={{ fontSize: 12 }}>đ</Typography.Text>}

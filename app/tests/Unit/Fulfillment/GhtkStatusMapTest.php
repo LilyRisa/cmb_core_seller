@@ -23,7 +23,7 @@ class GhtkStatusMapTest extends TestCase
             6 => Shipment::STATUS_DELIVERED,         // đã đối soát
             7 => Shipment::STATUS_FAILED,            // không lấy được hàng
             9 => Shipment::STATUS_FAILED,            // không giao được hàng
-            20 => Shipment::STATUS_RETURNED,         // đang trả hàng
+            20 => Shipment::STATUS_RETURNING,        // đang trả hàng (chưa về tới kho)
             21 => Shipment::STATUS_RETURNED,         // đã trả hàng
         ];
         foreach ($cases as $statusId => $expected) {

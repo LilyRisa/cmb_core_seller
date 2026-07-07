@@ -20,6 +20,7 @@ use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Inventory\Services\InventoryLedgerService;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Orders\Models\OrderItem;
+use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use CMBcoreSeller\Support\Enums\StandardOrderStatus as S;
 use CMBcoreSeller\Support\MediaUploader;
@@ -695,6 +696,14 @@ class ShipmentService
 
         $payload = $this->buildCreatePayload($order, $tenantId, $service, $weight, $cod, $opts, $accountArr);
 
+        // Thu hộ khi giao thất bại (failed_collect_amount) chỉ hợp lệ nếu ĐVVC hỗ trợ capability
+        // 'failed_delivery_collect' — không hard-code tên carrier, gate qua connector.
+        if (($payload['failed_collect_amount'] ?? 0) > 0
+            && (! $connector instanceof AbstractCarrierConnector
+                || ! $connector->supports('failed_delivery_collect'))) {
+            $payload['failed_collect_amount'] = 0;
+        }
+
         $result = $connector->createShipment($accountArr, $payload);
         $tracking = (string) ($result['tracking_no'] ?? '');
         if ($tracking === '') {
@@ -1028,7 +1037,7 @@ class ShipmentService
             );
         }
         $newStatus = $data['status'] ?? null;
-        $known = [Shipment::STATUS_CREATED, Shipment::STATUS_AWAITING_PICKUP, Shipment::STATUS_PICKED_UP, Shipment::STATUS_IN_TRANSIT, Shipment::STATUS_DELIVERED, Shipment::STATUS_FAILED, Shipment::STATUS_RETURNED];
+        $known = [Shipment::STATUS_CREATED, Shipment::STATUS_AWAITING_PICKUP, Shipment::STATUS_PICKED_UP, Shipment::STATUS_IN_TRANSIT, Shipment::STATUS_DELIVERED, Shipment::STATUS_FAILED, Shipment::STATUS_RETURNING, Shipment::STATUS_RETURNED];
         if ($newStatus && in_array($newStatus, $known, true) && $newStatus !== $shipment->status) {
             $attrs = ['status' => $newStatus];
             if ($newStatus === Shipment::STATUS_PICKED_UP && $shipment->picked_up_at === null) {
@@ -1192,6 +1201,19 @@ class ShipmentService
             'ward_code' => $explicitWardCode,
         ];
 
+        // SPEC delivery-options — tuỳ chọn giao hàng chuẩn: order (Task 1) → mặc định shop
+        // (tenant.settings.shipping) → opts override (ưu tiên cao nhất, vd form đẩy đơn thủ công).
+        $tenantSettings = (array) (Tenant::query()->whereKey($tenantId)->value('settings') ?? []);
+        $shipDefaults = (array) data_get($tenantSettings, 'shipping', []);
+
+        // Reconciliation (2026-07-07): phí ship là NỘI BỘ — đã gộp vào COD đẩy ĐVVC, app KHÔNG map ai-trả-phí
+        // hay "chế độ xem hàng" lên carrier. "Ghi chú giao hàng" dùng lại field order.meta.print_note.
+        $orderMeta = (array) ($order->meta ?? []);
+        $deliveryNote = (string) ($opts['delivery_note'] ?? data_get($orderMeta, 'print_note', ''));
+        $failedCollect = (int) ($opts['failed_collect_amount']
+            ?? $order->failed_collect_amount
+            ?? (($shipDefaults['failed_collect_enabled'] ?? false) ? ($shipDefaults['failed_collect_amount'] ?? 0) : 0));
+
         return [
             'recipient' => $recipient,
             'sender' => $from,
@@ -1199,6 +1221,8 @@ class ShipmentService
             'cod_amount' => $cod,
             'service' => $service,
             'required_note' => $opts['required_note'] ?? null,
+            'delivery_note' => $deliveryNote,
+            'failed_collect_amount' => $failedCollect,
             'content' => 'Đơn '.($order->order_number ?? $order->external_order_id ?? ('#'.$order->getKey())),
             'client_order_code' => (string) ($order->order_number ?? $order->external_order_id ?? $order->getKey()),
             'tracking_no' => $opts['tracking_no'] ?? null,
@@ -1250,7 +1274,7 @@ class ShipmentService
             Shipment::STATUS_AWAITING_PICKUP => S::ReadyToShip,
             Shipment::STATUS_PICKED_UP => S::Shipped, Shipment::STATUS_IN_TRANSIT => S::Shipped,
             Shipment::STATUS_DELIVERED => S::Delivered, Shipment::STATUS_FAILED => S::DeliveryFailed,
-            Shipment::STATUS_RETURNED => S::Returning,
+            Shipment::STATUS_RETURNING => S::Returning, Shipment::STATUS_RETURNED => S::ReturnedRefunded,
         ];
         if ($to = $map[$shipmentStatus] ?? null) {
             $this->orderStatus->apply($order, $to, 'carrier');

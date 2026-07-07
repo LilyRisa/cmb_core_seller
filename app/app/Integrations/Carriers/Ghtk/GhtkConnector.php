@@ -81,11 +81,13 @@ class GhtkConnector extends AbstractCarrierConnector
         return new GhtkClient($token, isset($c['client_source']) ? (string) $c['client_source'] : null);
     }
 
-    public function createShipment(array $account, array $shipment): array
+    /**
+     * Dựng payload GHTK (products[] + order{}) từ shipment chuẩn. Thuần (không gọi HTTP) để test dễ.
+     * Phí ship là nội bộ (đã gộp vào COD đẩy ĐVVC) — KHÔNG gửi is_freeship lên GHTK.
+     * `note` ưu tiên delivery_note (chuẩn hoá mới) > note (cũ) > content (fallback cuối).
+     */
+    protected function buildGhtkPayload(array $shipment): array
     {
-        if ($err = $this->validateShipmentPayload($shipment)) {
-            throw new RuntimeException($err);
-        }
         $r = (array) ($shipment['recipient'] ?? []);
         $s = (array) ($shipment['sender'] ?? []);
         $p = (array) ($shipment['parcel'] ?? []);
@@ -118,15 +120,25 @@ class GhtkConnector extends AbstractCarrierConnector
             'ward' => $r['ward'] ?? null,
             'hamlet' => 'Khác',
             'pick_money' => (int) ($shipment['cod_amount'] ?? 0),   // tiền thu hộ (COD)
-            'is_freeship' => 0,
             'value' => isset($shipment['insurance_value']) ? max(0, (int) $shipment['insurance_value']) : 0,
             'transport' => 'road',
             'weight_option' => 'gram',
             'total_weight' => (int) ($p['weight_grams'] ?? 500),
-            'note' => $this->trimNote($shipment['note'] ?? ($shipment['content'] ?? null)),
+            'note' => $this->trimNote($shipment['delivery_note'] ?? ($shipment['note'] ?? ($shipment['content'] ?? null))),
         ], fn ($v) => $v !== null && $v !== '');
 
-        $data = $this->client($account)->createOrder(['products' => $products, 'order' => $order]);
+        return ['products' => $products, 'order' => $order];
+    }
+
+    public function createShipment(array $account, array $shipment): array
+    {
+        if ($err = $this->validateShipmentPayload($shipment)) {
+            throw new RuntimeException($err);
+        }
+
+        $payload = $this->buildGhtkPayload($shipment);
+
+        $data = $this->client($account)->createOrder($payload);
         $label = (string) ($data['label'] ?? '');
         if ($label === '') {
             throw new RuntimeException('GHTK không trả về mã vận đơn.');
@@ -202,7 +214,7 @@ class GhtkConnector extends AbstractCarrierConnector
      * Parse webhook GHTK. Body: `{ partner_id, label_id, status_id, action_time, reason, weight, fee, pick_money }`.
      * Verify do CarrierWebhookController (tracking_lookup + X-Client-Source). Ở đây chỉ chuẩn hoá.
      *
-     * @return array{tracking_no:?string, raw_status:?string, status:?string, occurred_at:string, raw:array}
+     * @return array{tracking_no:?string, raw_status:?string, status:?string, occurred_at:string, cod_collected:?int, failed_collect_collected:?int, return_fee:?int, raw:array}
      */
     public function parseWebhook(Request $request): array
     {
@@ -210,10 +222,16 @@ class GhtkConnector extends AbstractCarrierConnector
         $tracking = (string) ($body['label_id'] ?? $body['partner_id'] ?? '');
         $statusId = $body['status_id'] ?? null;
 
+        // ⚠️ Task 10: `pick_money` = COD đã thu (theo comment webhook body ở trên). GHTK webhook KHÔNG
+        // có field riêng cho phí thu-thất-bại/phí-hoàn (CHƯA verify) — để null cho tới khi xác nhận với
+        // docs/sandbox GHTK; đây là nơi DUY NHẤT cần sửa nếu tìm ra field thực tế.
         return [
             'tracking_no' => $tracking !== '' ? $tracking : null,
             'raw_status' => $statusId !== null ? (string) $statusId : null,
             'status' => GhtkStatusMap::toShipmentStatus($statusId),
+            'cod_collected' => array_key_exists('pick_money', $body) ? (int) $body['pick_money'] : null,
+            'failed_collect_collected' => null,
+            'return_fee' => null,
             'occurred_at' => $this->parseTime($body['action_time'] ?? null),
             'raw' => $body,
         ];

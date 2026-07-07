@@ -78,7 +78,7 @@ class ManualOrderService
         $now = now();
 
         $order = DB::transaction(function () use ($tenantId, $userId, $items, $status, $buyer, $recipient, $shippingFee, $tax, $isCod, $itemTotal, $sellerDiscount, $grandTotal, $codAmount, $prepaidAmount, $surcharge, $freeShipping, $paymentStatus, $now, $data, $warehouseId) {
-            $order = Order::withoutGlobalScope(TenantScope::class)->create([
+            $attrs = [
                 'tenant_id' => $tenantId,
                 'warehouse_id' => $warehouseId,
                 'source' => 'manual',
@@ -115,7 +115,13 @@ class ManualOrderService
                 'packages' => [],
                 'meta' => $this->normalizeMeta((array) $data['meta'], $freeShipping, $userId, (string) ($data['sub_source'] ?? '')),
                 'source_updated_at' => $now,
-            ]);
+            ];
+            // Task 3 — tuỳ chọn giao hàng cho đơn tự vận chuyển; chỉ set khi caller gửi lên. Phí ship là
+            // nội bộ (gộp vào COD); "Ghi chú giao hàng" reuse `meta.print_note` (không có cột riêng).
+            if (array_key_exists('failed_collect_amount', $data)) {
+                $attrs['failed_collect_amount'] = $data['failed_collect_amount'];
+            }
+            $order = Order::withoutGlobalScope(TenantScope::class)->create($attrs);
 
             foreach ($items as $i => $item) {
                 OrderItem::withoutGlobalScope(TenantScope::class)->create([
@@ -313,6 +319,12 @@ class ManualOrderService
             $merged = array_merge($existingMeta, $newMetaRaw);
             $subSource = (string) ($data['sub_source'] ?? $existingMeta['sub_source'] ?? '');
             $fill['meta'] = $this->normalizeMeta($merged, $freeShipping ?? (bool) ($existingMeta['free_shipping'] ?? false), null, $subSource);
+        }
+
+        // ---- Delivery options (Task 3) — chỉ set khi caller gửi lên. Phí ship là nội bộ (gộp vào COD);
+        // "Ghi chú giao hàng" reuse `meta.print_note` (không có cột riêng). ----
+        if (array_key_exists('failed_collect_amount', $data)) {
+            $fill['failed_collect_amount'] = $data['failed_collect_amount'];
         }
 
         $fill['source_updated_at'] = $now;

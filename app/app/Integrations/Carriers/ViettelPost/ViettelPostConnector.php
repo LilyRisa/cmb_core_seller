@@ -35,7 +35,8 @@ class ViettelPostConnector extends AbstractCarrierConnector
     {
         // KHÔNG 'getTracking' (không có API pull). 'webhook' nhận push trạng thái; 'awaiting_pickup_flow'
         // để "Sẵn sàng bàn giao" đưa shipment vào trạng thái chờ VTP tới lấy (như GHN/GHTK).
-        return ['createShipment', 'getLabel', 'cancel', 'quote', 'awaiting_pickup_flow', 'webhook'];
+        // 'failed_delivery_collect' — hỗ trợ thu tiền nếu khách không nhận hàng qua dịch vụ XMG (EXTRA_MONEY).
+        return ['createShipment', 'getLabel', 'cancel', 'quote', 'awaiting_pickup_flow', 'webhook', 'failed_delivery_collect'];
     }
 
     /** VTP gửi secret trong body.TOKEN + ORDER_NUMBER ⇒ resolve theo tracking; verify secret ở controller. */
@@ -132,6 +133,35 @@ class ViettelPostConnector extends AbstractCarrierConnector
             $service = $this->pickService($account, $s, $r, $weight);
         }
 
+        $payload = $this->buildVtpPayload($shipment, $cod, $listItem, $totalQty, $totalValue, $weight, $service);
+
+        $data = $this->client($account)->createOrder($payload);
+        $orderNumber = (string) ($data['ORDER_NUMBER'] ?? '');
+        if ($orderNumber === '') {
+            throw new RuntimeException('Viettel Post không trả về mã vận đơn.');
+        }
+
+        return [
+            'tracking_no' => $orderNumber,
+            'carrier' => 'viettelpost',
+            'status' => 'created',
+            'fee' => (int) ($data['MONEY_TOTAL'] ?? 0),
+            'raw' => $data,
+        ];
+    }
+
+    /**
+     * Dựng payload /v2/order/createOrder từ shipment chuẩn hoá. `$listItem` là danh sách sản phẩm (PRODUCT_NAME,...),
+     * KHÔNG liên quan tới dịch vụ mở rộng XMG bên dưới (field payload khác nhau).
+     *
+     * @param  array<int,array<string,mixed>>  $listItem
+     */
+    protected function buildVtpPayload(array $shipment, int $cod, array $listItem, int $totalQty, int $totalValue, int $weight, string $service): array
+    {
+        $r = (array) $shipment['recipient'];
+        $s = (array) $shipment['sender'];
+        $p = (array) ($shipment['parcel'] ?? []);
+
         $payload = array_filter([
             'ORDER_NUMBER' => (string) ($shipment['client_order_code'] ?? ''),
             'CHECK_UNIQUE' => true,
@@ -158,28 +188,31 @@ class ViettelPostConnector extends AbstractCarrierConnector
             'PRODUCT_WIDTH' => (int) ($p['width_cm'] ?? 0),
             'PRODUCT_HEIGHT' => (int) ($p['height_cm'] ?? 0),
             'PRODUCT_TYPE' => 'HH',
-            // 1 = không thu hộ; 3 = thu hộ tiền hàng (không thu cước).
+            // Phí ship là nội bộ (đã gộp vào COD đẩy ĐVVC) — app KHÔNG map ai-trả-phí lên VTP.
+            // 3 = recipient trả cước + thu hộ tiền hàng (có COD), 1 = shop trả cước-không thu hộ (không COD).
             'ORDER_PAYMENT' => $cod > 0 ? 3 : 1,
             'ORDER_SERVICE' => $service,
             'ORDER_SERVICE_ADD' => null,
             'MONEY_COLLECTION' => $cod,
-            'ORDER_NOTE' => $this->trimNote($shipment['required_note'] ?? ($shipment['content'] ?? null)),
+            'ORDER_NOTE' => $this->trimNote($shipment['delivery_note'] ?? $shipment['content'] ?? null),
             'LIST_ITEM' => $listItem !== [] ? $listItem : null,
         ], fn ($v) => $v !== null);
 
-        $data = $this->client($account)->createOrder($payload);
-        $orderNumber = (string) ($data['ORDER_NUMBER'] ?? '');
-        if ($orderNumber === '') {
-            throw new RuntimeException('Viettel Post không trả về mã vận đơn.');
+        // Thu tiền hàng khi khách không nhận (failed_delivery_collect) — dịch vụ "Xem hàng, thu tiền" (XMG).
+        // ⚠️ Mã dịch vụ XMG + field EXTRA_MONEY/LIST_ITEM_EXTRA CHƯA verify với VTP sandbox (spec §11) —
+        // đây là nơi DUY NHẤT cần sửa nếu tên field/mã dịch vụ thực tế khác.
+        $failed = (int) ($shipment['failed_collect_amount'] ?? 0);
+        if ($failed > 0) {
+            // MONEY_TOTAL (cước thực) chỉ có trong RESPONSE tạo đơn, chưa tồn tại lúc build payload này.
+            // Nếu có ước tính cước (`$shipment['fee']`, vd từ quote() trước đó) thì clamp ≤ 2× ước tính;
+            // nếu không có, gửi nguyên failed_collect_amount — VTP tự áp trần ≤2× cước thực ở phía server.
+            $feeEstimate = (int) ($shipment['fee'] ?? 0);
+            $cap = $feeEstimate > 0 ? 2 * $feeEstimate : 0;
+            $payload['EXTRA_MONEY'] = $cap > 0 ? min($failed, $cap) : $failed;
+            $payload['LIST_ITEM_EXTRA'] = ['XMG'];
         }
 
-        return [
-            'tracking_no' => $orderNumber,
-            'carrier' => 'viettelpost',
-            'status' => 'created',
-            'fee' => (int) ($data['MONEY_TOTAL'] ?? 0),
-            'raw' => $data,
-        ];
+        return $payload;
     }
 
     /** Chọn dịch vụ chính rẻ nhất khả dụng khi user chưa đặt default_service. Lỗi → ném để báo rõ. */
@@ -272,7 +305,7 @@ class ViettelPostConnector extends AbstractCarrierConnector
      * Parse webhook VTP. Body: `{ DATA:{ORDER_NUMBER,ORDER_STATUS,STATUS_NAME,ORDER_STATUSDATE,...}, TOKEN:<secret> }`.
      * `secret` = body.TOKEN (đối tác cấu hình) — controller so với credentials.webhook_secret.
      *
-     * @return array{tracking_no:?string, raw_status:?string, status:?string, occurred_at:string, secret:?string, raw:array}
+     * @return array{tracking_no:?string, raw_status:?string, status:?string, occurred_at:string, cod_collected:?int, failed_collect_collected:?int, return_fee:?int, secret:?string, raw:array}
      */
     public function parseWebhook(Request $request): array
     {
@@ -282,11 +315,17 @@ class ViettelPostConnector extends AbstractCarrierConnector
         $statusCode = $data['ORDER_STATUS'] ?? null;
         $secret = isset($body['TOKEN']) ? (string) $body['TOKEN'] : null;
 
+        // ⚠️ Task 10: MONEY_COLLECTION/EXTRA_MONEY trong DATA CHƯA verify với payload webhook VTP thật
+        // (2 field này chỉ xác nhận là tên field REQUEST tạo đơn — xem addOrder()); return_fee để null
+        // vì chưa xác định field. Đây là nơi DUY NHẤT cần sửa nếu tên field webhook thực tế khác.
         return [
             'tracking_no' => $tracking !== '' ? $tracking : null,
             'raw_status' => $statusCode !== null ? (string) $statusCode : null,
             'status' => ViettelPostStatusMap::toShipmentStatus($statusCode),
             'occurred_at' => $this->parseTime($data['ORDER_STATUSDATE'] ?? null),
+            'cod_collected' => array_key_exists('MONEY_COLLECTION', $data) ? (int) $data['MONEY_COLLECTION'] : null,
+            'failed_collect_collected' => array_key_exists('EXTRA_MONEY', $data) ? (int) $data['EXTRA_MONEY'] : null,
+            'return_fee' => null,
             'secret' => $secret !== '' ? $secret : null,
             'raw' => $body,
         ];

@@ -33,7 +33,9 @@ class GhnConnector extends AbstractCarrierConnector
         // `webhook`: GHN có webhook callback trạng thái — bật để CarrierWebhookController nhận & ingest.
         // Carrier khác (GHTK/J&T/manual) muốn dùng luồng này chỉ cần thêm capability tương ứng — core
         // không hard-code 'ghn'.
-        return ['createShipment', 'getLabel', 'getTracking', 'cancel', 'awaiting_pickup_flow', 'webhook'];
+        // `failed_delivery_collect`: GHN hỗ trợ thu tiền khi giao thất bại (đơn thử hàng/xem hàng bị từ
+        // chối) qua field COD riêng ở payload tạo đơn — xem buildGhnPayload().
+        return ['createShipment', 'getLabel', 'getTracking', 'cancel', 'awaiting_pickup_flow', 'webhook', 'failed_delivery_collect'];
     }
 
     /**
@@ -130,8 +132,6 @@ class GhnConnector extends AbstractCarrierConnector
         if ($err = $this->validateShipmentPayload($shipment)) {
             throw new RuntimeException($err);
         }
-        $r = $shipment['recipient'] ?? [];
-        $s = $shipment['sender'] ?? [];
         $p = $shipment['parcel'] ?? [];
         $cod = (int) ($shipment['cod_amount'] ?? 0);
         // GHN items shape: [{ name, code?, quantity, price?, length?, width?, height?, weight, category? }]
@@ -164,9 +164,59 @@ class GhnConnector extends AbstractCarrierConnector
             // GHN service_type_id=2 yêu cầu ít nhất 1 item — fallback an toàn.
             $items = [['name' => (string) ($shipment['content'] ?? 'Hàng'), 'quantity' => 1, 'weight' => max(1, (int) ($p['weight_grams'] ?? 500))]];
         }
-        $payload = array_filter([
-            'payment_type_id' => $cod > 0 ? 2 : 1,           // 2 = người nhận trả phí (thường COD), 1 = shop trả phí
+        $payload = $this->buildGhnPayload($shipment, $cod, $items);
+
+        $data = $this->client($account)->createOrder($payload);
+        $orderCode = (string) ($data['order_code'] ?? '');
+        if ($orderCode === '') {
+            throw new RuntimeException('GHN không trả về mã vận đơn.');
+        }
+
+        return [
+            'tracking_no' => $orderCode,
+            'carrier' => 'ghn',
+            'status' => 'created',
+            'fee' => (int) ($data['total_fee'] ?? 0),
+            'raw' => $data,
+        ];
+    }
+
+    /**
+     * Dựng payload `createOrder` của GHN từ shipment chuẩn hoá — tách riêng (pure, không gọi HTTP) để
+     * unit-test map field độc lập với GhnClient. `$items` đã được chuẩn hoá bởi createShipment().
+     *
+     * SPEC delivery options (self-ship): ShipmentService truyền các khoá chuẩn `delivery_note`,
+     * `required_note` (đã là chuỗi GHN sẵn, vd CHOTHUHANG), `failed_collect_amount` (VND, int) — map
+     * sang field GHN tương ứng bên dưới. Phí ship là nội bộ (baked vào COD) — KHÔNG map lên carrier.
+     *
+     * @param  array<string,mixed>  $shipment
+     * @param  array<int,array<string,mixed>>  $items
+     * @return array<string,mixed>
+     */
+    protected function buildGhnPayload(array $shipment, int $cod, array $items): array
+    {
+        $r = (array) ($shipment['recipient'] ?? []);
+        $s = (array) ($shipment['sender'] ?? []);
+        $p = (array) ($shipment['parcel'] ?? []);
+
+        // Phí ship là nội bộ (đã gộp vào COD đẩy ĐVVC) — app KHÔNG map ai-trả-phí lên carrier.
+        // 1 = shop trả phí, 2 = người nhận trả phí: có COD ⇒ người nhận trả (2), không thì shop trả (1).
+        $paymentTypeId = $cod > 0 ? 2 : 1;
+
+        $note = trim((string) ($shipment['delivery_note'] ?? ''));
+        $note = $note !== '' ? mb_substr($note, 0, 5000) : null;
+
+        $failedCollectAmount = (int) ($shipment['failed_collect_amount'] ?? 0);
+        // ⚠️ Tên field `cod_failed_amount` CHƯA được xác minh với tài liệu công khai của GHN (id=123 không
+        // liệt kê) — nghiệp vụ "Giao thất bại thu tiền" là có thật nhưng format API cần verify qua sandbox
+        // GHN trước khi lên prod. Đây là NƠI DUY NHẤT cần sửa nếu GHN dùng tên field khác.
+        $codFailedAmount = $failedCollectAmount > 0 ? $failedCollectAmount : null;
+
+        return array_filter([
+            'payment_type_id' => $paymentTypeId,
             'required_note' => $shipment['required_note'] ?? 'KHONGCHOXEMHANG',
+            'note' => $note,
+            'cod_failed_amount' => $codFailedAmount,
             // Người gửi (kho hàng của shop) — GHN yêu cầu khi shop chưa setup default pickup ở dashboard.
             'from_name' => $s['name'] ?? null,
             'from_phone' => $s['phone'] ?? null,
@@ -191,20 +241,6 @@ class GhnConnector extends AbstractCarrierConnector
             'client_order_code' => $shipment['client_order_code'] ?? null,
             'items' => $items,
         ], fn ($v) => $v !== null);
-
-        $data = $this->client($account)->createOrder($payload);
-        $orderCode = (string) ($data['order_code'] ?? '');
-        if ($orderCode === '') {
-            throw new RuntimeException('GHN không trả về mã vận đơn.');
-        }
-
-        return [
-            'tracking_no' => $orderCode,
-            'carrier' => 'ghn',
-            'status' => 'created',
-            'fee' => (int) ($data['total_fee'] ?? 0),
-            'raw' => $data,
-        ];
     }
 
     /**
@@ -213,7 +249,7 @@ class GhnConnector extends AbstractCarrierConnector
      *   "Time":"YYYY-MM-DDTHH:MM:SS+07:00", ... }`. Verify token = header `Token` (so với credential.token).
      * Controller xử lý verify; ở đây chỉ parse + chuẩn hoá.
      *
-     * @return array{tracking_no:?string, raw_status:?string, status:?string, occurred_at:string, raw:array}
+     * @return array{tracking_no:?string, raw_status:?string, status:?string, occurred_at:string, cod_collected:?int, failed_collect_collected:?int, return_fee:?int, raw:array}
      */
     public function parseWebhook(Request $request): array
     {
@@ -222,11 +258,16 @@ class GhnConnector extends AbstractCarrierConnector
         $rawStatus = (string) ($body['Status'] ?? $body['status'] ?? '');
         $occurredAt = $this->parseTime($body['Time'] ?? $body['time'] ?? null);
 
+        // ⚠️ Task 10: CODAmount/CODFailedFee/ReturnFee CHƯA verify với payload webhook GHN thật (dev
+        // portal/sandbox) — đây là nơi DUY NHẤT cần sửa nếu tên field thực tế khác.
         return [
             'tracking_no' => $tracking !== '' ? $tracking : null,
             'raw_status' => $rawStatus !== '' ? $rawStatus : null,
             'status' => $rawStatus !== '' ? GhnStatusMap::toShipmentStatus($rawStatus) : null,
             'occurred_at' => $occurredAt,
+            'cod_collected' => array_key_exists('CODAmount', $body) ? (int) $body['CODAmount'] : null,
+            'failed_collect_collected' => array_key_exists('CODFailedFee', $body) ? (int) $body['CODFailedFee'] : null,
+            'return_fee' => array_key_exists('ReturnFee', $body) ? (int) $body['ReturnFee'] : null,
             'raw' => $body,
         ];
     }

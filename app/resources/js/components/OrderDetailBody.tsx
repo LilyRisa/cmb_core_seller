@@ -178,6 +178,21 @@ export function OrderDetailBody({ order }: { order: Order }) {
                                 <span><b>{order.shipment.carrier.toUpperCase()}</b> · <Tag>{SHIPMENT_STATUS_LABEL[order.shipment.status] ?? order.shipment.status}</Tag></span>
                                 <Typography.Text copyable={!!order.shipment.tracking_no}>{order.shipment.tracking_no ?? '(chưa có mã vận đơn)'}</Typography.Text>
                                 {order.shipment.label_url && <a href={order.shipment.label_url} target="_blank" rel="noreferrer">In tem vận đơn</a>}
+                                {/* Kết quả thực tế sau giao (SPEC giao-thất-bại-thu-tiền) — chỉ hiện khi ĐVVC đã báo kết quả. */}
+                                {order.shipment.failed_collect_collected != null && (
+                                    order.shipment.failed_collect_collected > 0 ? (
+                                        <Typography.Text>
+                                            Giao thất bại – đã thu: <MoneyText value={order.shipment.failed_collect_collected} currency={order.currency} />
+                                        </Typography.Text>
+                                    ) : (
+                                        <Typography.Text type="warning">Giao thất bại – khách từ chối (thu 0đ)</Typography.Text>
+                                    )
+                                )}
+                                {order.shipment.return_fee != null && (
+                                    <Typography.Text type="secondary">
+                                        Phí hoàn: <MoneyText value={order.shipment.return_fee} currency={order.currency} />
+                                    </Typography.Text>
+                                )}
                             </Space>
                         ) : (
                             <Typography.Text type="secondary">Chưa có vận đơn. Tạo & in tem ở <Link to="/fulfillment">Giao hàng &amp; in</Link>.</Typography.Text>

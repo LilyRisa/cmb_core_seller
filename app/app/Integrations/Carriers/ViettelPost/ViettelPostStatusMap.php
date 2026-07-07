@@ -33,9 +33,9 @@ final class ViettelPostStatusMap
         102 => Shipment::STATUS_FAILED,             // Lấy hàng thất bại
         506 => Shipment::STATUS_FAILED,             // Phát thất bại
         507 => Shipment::STATUS_FAILED,             // KH đến bưu cục nhận (phát thất bại)
-        // Hoàn hàng.
-        505 => Shipment::STATUS_RETURNED,           // Yêu cầu chuyển hoàn
-        515 => Shipment::STATUS_RETURNED,           // Duyệt hoàn
+        // Hoàn hàng — đang xử lý/trên đường hoàn (chưa về tới kho) ⇒ RETURNING.
+        505 => Shipment::STATUS_RETURNING,          // Yêu cầu chuyển hoàn
+        515 => Shipment::STATUS_RETURNING,          // Duyệt hoàn
         504 => Shipment::STATUS_RETURNED,           // Thành công - chuyển trả người gửi (cuối)
         // Hủy / tiêu hủy.
         101 => Shipment::STATUS_CANCELLED,          // VTP hủy lấy hàng (cuối)

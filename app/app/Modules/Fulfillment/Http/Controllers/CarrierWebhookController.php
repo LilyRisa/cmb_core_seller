@@ -91,6 +91,18 @@ class CarrierWebhookController extends Controller
             $this->syncOrderStatus($shipment, $newStatus);
         }
 
+        // Task 10: COD/khoản-thất-bại/phí-hoàn có thể đến trên webhook không đổi status (vd cùng
+        // status nhưng cập nhật số tiền) ⇒ ghi độc lập với block status ở trên. Chỉ ghi giá trị
+        // non-null (không xoá dữ liệu đã có bằng null).
+        $outcome = array_filter([
+            'cod_collected' => $event['cod_collected'] ?? null,
+            'failed_collect_collected' => $event['failed_collect_collected'] ?? null,
+            'return_fee' => $event['return_fee'] ?? null,
+        ], fn ($v) => $v !== null);
+        if ($outcome !== []) {
+            $shipment->forceFill($outcome)->save();
+        }
+
         return response()->json(['data' => ['acknowledged' => true, 'shipment_id' => $shipment->getKey(), 'status' => $newStatus]]);
     }
 
@@ -195,7 +207,8 @@ class CarrierWebhookController extends Controller
             Shipment::STATUS_IN_TRANSIT => StandardOrderStatus::Shipped,
             Shipment::STATUS_DELIVERED => StandardOrderStatus::Delivered,
             Shipment::STATUS_FAILED => StandardOrderStatus::DeliveryFailed,
-            Shipment::STATUS_RETURNED => StandardOrderStatus::Returning,
+            Shipment::STATUS_RETURNING => StandardOrderStatus::Returning,
+            Shipment::STATUS_RETURNED => StandardOrderStatus::ReturnedRefunded,
         ];
         if ($to = $map[$shipmentStatus] ?? null) {
             app(OrderStatusSync::class)

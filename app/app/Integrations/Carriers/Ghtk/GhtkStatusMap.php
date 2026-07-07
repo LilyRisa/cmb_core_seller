@@ -31,7 +31,7 @@ final class GhtkStatusMap
         128 => Shipment::STATUS_FAILED,          // Shipper báo delay lấy
         11 => Shipment::STATUS_RETURNED,         // Đã đối soát công nợ trả hàng
         13 => Shipment::STATUS_RETURNED,         // Đơn bồi hoàn
-        20 => Shipment::STATUS_RETURNED,         // Đang trả hàng
+        20 => Shipment::STATUS_RETURNING,        // Đang trả hàng (chưa về tới kho)
         21 => Shipment::STATUS_RETURNED,         // Đã trả hàng
     ];
 
