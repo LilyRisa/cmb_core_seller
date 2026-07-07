@@ -211,6 +211,9 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
         // Modal nhắn riêng đầy đủ (text + nhiều đính kèm ảnh/video/file).
         Route::post('conversations/{id}/comment/private-message', [FacebookCommentController::class, 'privateMessage'])
             ->whereNumber('id')->name('messaging.comment.private_message_modal');
+        // Hội thoại DM đã liên kết với người bình luận (nạp lịch sử tin nhắn trước đó vào modal).
+        Route::get('conversations/{id}/comment/linked-dm', [FacebookCommentController::class, 'linkedDm'])
+            ->whereNumber('id')->name('messaging.comment.linked_dm');
 
         // --- Auto-reply rules (S5) -----------------------------------------
         Route::get('auto-reply-rules', [AutoReplyRuleController::class, 'index'])

@@ -1113,10 +1113,15 @@ export function MessagingPage() {
                                     const isOut = m.direction === 'outbound';
                                     const isComment = active?.thread_type === 'comment';
                                     const next = arr[i + 1];
+                                    const prev = arr[i - 1];
                                     // Avatar hiện ở tin CUỐI mỗi cụm cùng chiều; với comment thread
                                     // (nhiều người), đổi tác giả cũng tách cụm để mỗi người 1 avatar.
                                     const showAvatar = next?.direction !== m.direction
                                         || (isComment && !isOut && (next?.author_name ?? null) !== (m.author_name ?? null));
+                                    // Tên người bình luận hiện ở tin ĐẦU mỗi cụm tác giả (comment thread
+                                    // nhiều người) — để phân biệt ai đang nói, kiểu bình luận Facebook.
+                                    const showName = isComment && !isOut && !!m.author_name
+                                        && (prev?.direction !== m.direction || (prev?.author_name ?? null) !== (m.author_name ?? null));
                                     return (
                                     <div key={m.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', justifyContent: isOut ? 'flex-end' : 'flex-start', marginBottom: m.reaction ? 18 : 8 }}>
                                         {!isOut && (showAvatar
@@ -1125,6 +1130,11 @@ export function MessagingPage() {
                                                 name={isComment ? (m.author_name ?? active?.buyer_name ?? active?.buyer_external_id) : (active?.buyer_name ?? active?.buyer_external_id)} />
                                             : <span style={{ width: 28, flexShrink: 0 }} />)}
                                         <div style={{ position: 'relative', maxWidth: '70%' }}>
+                                            {showName && (
+                                                <div style={{ fontSize: 11, color: '#64748B', fontWeight: 500, margin: '0 0 2px 4px' }}>
+                                                    {m.author_name}
+                                                </div>
+                                            )}
                                             <div style={{
                                                 padding: '8px 12px', borderRadius: 12,
                                                 background: m.direction === 'outbound' ? '#2563EB' : '#fff',

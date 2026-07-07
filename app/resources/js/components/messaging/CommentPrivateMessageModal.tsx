@@ -1,16 +1,59 @@
-import { useEffect, useRef, useState } from 'react';
-import { App, Button, Dropdown, Image, Input, Modal, Popover, Space, Typography } from 'antd';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import dayjs from 'dayjs';
+import { App, Button, Dropdown, Image, Input, Modal, Popover, Space, Spin, Typography } from 'antd';
 import {
     CloseOutlined, FileOutlined, MessageOutlined, PaperClipOutlined, PictureOutlined,
-    SendOutlined, SmileOutlined, SnippetsOutlined, VideoCameraOutlined,
+    SendOutlined, SmileOutlined, SnippetsOutlined, SoundOutlined, VideoCameraOutlined,
 } from '@ant-design/icons';
 import Picker from '@emoji-mart/react';
 import emojiData from '@emoji-mart/data';
 import { errorMessage } from '@/lib/api';
-import { type Conversation, useSendCommentPrivateMessage } from '@/lib/messaging';
+import { type Conversation, type Message, useCommentLinkedDm, useConversationThread, useSendCommentPrivateMessage } from '@/lib/messaging';
 import type { MessageTemplate } from '@/lib/messagingConfig';
 
 const { Text } = Typography;
+
+/** Nhãn + icon cho đính kèm không phải ảnh (hiển thị gọn trong lịch sử). */
+function attKindMeta(kind: string, mime: string): { icon: ReactNode; label: string } {
+    if (kind === 'image' || kind === 'sticker') return { icon: <PictureOutlined />, label: 'Hình ảnh' };
+    if (kind === 'video') return { icon: <VideoCameraOutlined />, label: 'Video' };
+    if (kind === 'audio' || mime.startsWith('audio/')) return { icon: <SoundOutlined />, label: 'Âm thanh' };
+    return { icon: <FileOutlined />, label: 'Tệp đính kèm' };
+}
+
+/** Giờ hiển thị 1 tin lịch sử: cùng ngày → HH:mm; khác ngày → DD/MM HH:mm. */
+function fmtHistoryTime(iso: string | null): string {
+    if (!iso) return '';
+    const d = dayjs(iso);
+    return d.isSame(dayjs(), 'day') ? d.format('HH:mm') : d.format('DD/MM HH:mm');
+}
+
+/** Bong bóng tin lịch sử DM (gọn) — inbound trái/xám, outbound phải/xanh. */
+function HistoryBubble({ m }: { m: Message }) {
+    const out = m.direction === 'outbound';
+    return (
+        <div style={{ display: 'flex', justifyContent: out ? 'flex-end' : 'flex-start' }}>
+            <div style={{
+                maxWidth: '85%', padding: '6px 10px', borderRadius: 10,
+                background: out ? '#2563EB' : '#F1F5F9', color: out ? '#fff' : '#0F172A',
+            }}>
+                {m.sent_by_ai && <div style={{ fontSize: 10, opacity: 0.8, marginBottom: 2 }}>AI</div>}
+                {(m.attachments ?? []).map((a) => {
+                    const meta = attKindMeta(a.kind, a.mime);
+                    return a.kind === 'image' && a.download_url ? (
+                        <Image key={a.id} src={a.download_url} alt="" style={{ maxWidth: 160, borderRadius: 6, marginBottom: m.body ? 4 : 0 }} />
+                    ) : (
+                        <Space key={a.id} size={4} style={{ fontSize: 12, opacity: 0.9 }}>{meta.icon}{a.filename ?? meta.label}</Space>
+                    );
+                })}
+                {m.body != null && m.body !== '' && <div style={{ whiteSpace: 'pre-wrap' }}>{m.body}</div>}
+                <div style={{ fontSize: 10, opacity: 0.6, textAlign: out ? 'right' : 'left', marginTop: 2 }}>
+                    {fmtHistoryTime(m.sent_at ?? m.created_at)}
+                </div>
+            </div>
+        </div>
+    );
+}
 
 type Kind = 'image' | 'video' | 'file';
 
@@ -54,6 +97,22 @@ export function CommentPrivateMessageModal({ open, onClose, conversation, commen
     const pendingKindRef = useRef<Kind>('image');
 
     const send = useSendCommentPrivateMessage(conversation.id);
+
+    // Hội thoại DM đã liên kết với người bình luận này (nếu từng nhắn riêng) → nạp lịch
+    // sử tin nhắn trước đó vào modal. Ưu tiên DM vừa tạo trong phiên (dmId), rồi tới DM
+    // đã liên kết. Facebook ẩn danh tính nên chỉ có sau lần nhắn riêng đầu tiên.
+    const linkedDm = useCommentLinkedDm(conversation.id, commentId, open);
+    const historyDmId = open ? (dmId ?? linkedDm.data ?? null) : null;
+    const historyThread = useConversationThread(historyDmId);
+    // Trang đầu = cửa sổ tin gần nhất (đã sắp cũ→mới trong 1 trang) — đủ ngữ cảnh trước đó.
+    const historyMessages: Message[] = historyThread.data?.pages[0]?.messages ?? [];
+    const historyLoading = historyDmId != null && historyThread.isLoading;
+    const historyScrollRef = useRef<HTMLDivElement | null>(null);
+    // Cuộn xuống đáy khi có thêm tin lịch sử / mở modal.
+    useLayoutEffect(() => {
+        const el = historyScrollRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
+    }, [historyMessages.length, open]);
 
     // Dọn object URL preview khi đóng modal / đổi danh sách (tránh leak).
     useEffect(() => {
@@ -145,8 +204,25 @@ export function CommentPrivateMessageModal({ open, onClose, conversation, commen
         >
             <input ref={fileInputRef} type="file" multiple style={{ display: 'none' }} onChange={onFileChosen} />
 
-            {/* Các tin đã gửi trong phiên */}
-            {sent.length > 0 && (
+            {/* Lịch sử hội thoại trước đó (khi người này đã có DM) — nạp từ hội thoại DM đã
+                liên kết. Chưa có DM ⇒ hiện các tin vừa gửi trong phiên (tiếp xúc lần đầu). */}
+            {historyDmId != null ? (
+                <div style={{ marginBottom: 12 }}>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>Hội thoại trước đó</Text>
+                    <div
+                        ref={historyScrollRef}
+                        style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, background: '#F8FAFC', border: '1px solid #F1F5F9', borderRadius: 8, padding: 8 }}
+                    >
+                        {historyLoading ? (
+                            <div style={{ textAlign: 'center', padding: 12 }}><Spin size="small" /></div>
+                        ) : historyMessages.length === 0 ? (
+                            <Text type="secondary" style={{ fontSize: 12, textAlign: 'center' }}>Chưa có tin nhắn nào trước đó.</Text>
+                        ) : (
+                            historyMessages.map((m) => <HistoryBubble key={m.id} m={m} />)
+                        )}
+                    </div>
+                </div>
+            ) : sent.length > 0 ? (
                 <div style={{ marginBottom: 12, maxHeight: 140, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {sent.map((s, i) => (
                         <div key={i} style={{ alignSelf: 'flex-end', maxWidth: '85%', background: '#2563EB', color: '#fff', padding: '6px 10px', borderRadius: 10 }}>
@@ -160,7 +236,7 @@ export function CommentPrivateMessageModal({ open, onClose, conversation, commen
                         </div>
                     ))}
                 </div>
-            )}
+            ) : null}
 
             {/* Đính kèm đang chờ gửi */}
             {pending.length > 0 && (

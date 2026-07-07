@@ -15,6 +15,7 @@ use CMBcoreSeller\Modules\Messaging\Exceptions\AttachmentInvalid;
 use CMBcoreSeller\Modules\Messaging\Http\Resources\ConversationResource;
 use CMBcoreSeller\Modules\Messaging\Http\Resources\MessageResource;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
+use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Services\CommentDmLinker;
 use CMBcoreSeller\Modules\Messaging\Services\MediaRelayService;
 use CMBcoreSeller\Modules\Messaging\Services\MediaStorage;
@@ -309,6 +310,66 @@ class FacebookCommentController extends Controller
                 'dm_conversation_id' => $dmConv?->id,
             ],
         ]);
+    }
+
+    /**
+     * Hội thoại DM (tin nhắn riêng) đã liên kết với người bình luận này
+     * (`GET /conversations/{id}/comment/linked-dm?comment_id=X`).
+     *
+     * Facebook ẩn danh tính người bình luận nên chỉ liên kết được sau khi đã nhắn
+     * riêng ít nhất 1 lần (biết PSID). Ứng viên khớp, ưu tiên chính xác nhất trước:
+     *  1. `author_id` của ĐÚNG comment được bấm (lưu ở message.meta) — per-comment.
+     *  2. `fb_private_psid` cấp hội thoại comment (người đã nhắn riêng gần nhất).
+     *
+     * Hộp thoại DM keyed theo PSID (`external_conversation_id = psid`, thread=message).
+     * Trả `dm_conversation_id` (null nếu chưa có) để modal nạp lịch sử tin nhắn trước đó.
+     */
+    public function linkedDm(int $id, Request $request): JsonResponse
+    {
+        Gate::authorize('messaging.reply');
+
+        $data = $request->validate([
+            'comment_id' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $conv = Conversation::query()->findOrFail($id);
+
+        if ($error = $this->assertCommentThread($conv)) {
+            return $error;
+        }
+
+        $candidates = [];
+        $commentId = (string) ($data['comment_id'] ?? '');
+        if ($commentId !== '') {
+            $msg = Message::query()
+                ->where('conversation_id', $conv->id)
+                ->where('external_message_id', $commentId)
+                ->first();
+            if ($msg !== null) {
+                $authorId = (string) (($msg->meta ?? [])['author_id'] ?? '');
+                if ($authorId !== '') {
+                    $candidates[] = $authorId;
+                }
+            }
+        }
+        $psid = (string) (($conv->meta ?? [])['fb_private_psid'] ?? '');
+        if ($psid !== '') {
+            $candidates[] = $psid;
+        }
+
+        $candidates = array_values(array_unique(array_filter($candidates)));
+        $dmId = null;
+        if ($candidates !== []) {
+            $dm = Conversation::query()
+                ->where('channel_account_id', $conv->channel_account_id)
+                ->where('thread_type', Conversation::THREAD_MESSAGE)
+                ->whereIn('external_conversation_id', $candidates)
+                ->orderByDesc('last_message_at')
+                ->first();
+            $dmId = $dm?->id;
+        }
+
+        return response()->json(['data' => ['dm_conversation_id' => $dmId]]);
     }
 
     /**

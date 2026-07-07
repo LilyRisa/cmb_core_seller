@@ -545,6 +545,27 @@ export function useSendCommentPrivateMessage(conversationId: number | null) {
     });
 }
 
+/**
+ * Hội thoại DM đã liên kết với người bình luận (modal nhắn riêng nạp lịch sử trước đó).
+ * Trả `dm_conversation_id` (null nếu chưa có) — chỉ có sau khi đã nhắn riêng ≥1 lần
+ * (Facebook ẩn danh tính người bình luận). `enabled` để chỉ gọi khi modal đang mở.
+ */
+export function useCommentLinkedDm(conversationId: number | null, commentId: string | undefined, enabled: boolean) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['messaging', 'comment-linked-dm', tenantId, conversationId, commentId ?? null],
+        enabled: api != null && conversationId != null && enabled,
+        queryFn: async () => {
+            const { data } = await api!.get<{ data: { dm_conversation_id: number | null } }>(
+                `/messaging/conversations/${conversationId}/comment/linked-dm`,
+                { params: commentId ? { comment_id: commentId } : {} },
+            );
+            return data.data.dm_conversation_id;
+        },
+    });
+}
+
 /** Trả lời công khai comment — kèm ảnh tuỳ chọn (multipart khi có ảnh). */
 export function useReplyComment(conversationId: number | null) {
     const api = useScopedApi();
