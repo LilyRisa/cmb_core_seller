@@ -80,13 +80,12 @@ class FieldRenderHelpersTest extends TestCase
         $this->assertSame('TỰ VC', $this->h->carrierShortName('manual'));
     }
 
-    public function test_carrier_logo_renders_shipped_svg_and_strips_manual_prefix(): void
+    public function test_carrier_logo_renders_real_brand_image_and_strips_manual_prefix(): void
     {
-        // SVG brand badges are now shipped under resources/labels/carrier-logos/. `manual_ghn`
-        // must resolve to the `ghn` asset (prefix stripped) and render as an <img>, never leaking
-        // the raw "MANUAL_GHN" carrier key.
+        // Dùng logo thương hiệu thật trong public/images/ (đồng bộ CarrierLogo.tsx). `manual_ghn`
+        // phải resolve về asset `ghn` (log_ghn.png) và render <img>, không lộ "MANUAL_GHN".
         $html = $this->h->carrierLogoImg('manual_ghn', 30, 12);
-        $this->assertStringContainsString('data:image/svg+xml;base64,', $html);
+        $this->assertStringContainsString('data:image/png;base64,', $html);
         $this->assertStringContainsString('alt="ghn"', $html);
         $this->assertStringNotContainsString('MANUAL_GHN', $html);
         $this->assertStringNotContainsString('MANUAL GHN', $html);

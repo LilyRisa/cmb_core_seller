@@ -76,21 +76,56 @@ class FieldRenderHelpers
         return self::CARRIER_META[$key]['short'] ?? mb_strtoupper($key);
     }
 
+    /**
+     * Logo ĐVVC dùng ĐÚNG file thương hiệu đã có trong app (public/images/) — đồng bộ với
+     * CARRIER_ICON ở resources/js/components/CarrierLogo.tsx. Nhúng base64 để label self-contained
+     * (Gotenberg không phải fetch mạng như barcode/QR). Thêm ĐVVC mới ⇒ thêm 1 dòng ở cả 2 nơi.
+     */
+    private const CARRIER_LOGO_FILE = [
+        'ghn' => 'log_ghn.png',
+        'ghtk' => 'logo_ghtk.png',
+        'jt' => 'logo_jt.png',
+        'viettelpost' => 'viettel_pot_logo.png',
+        'spx' => 'spx_express_logo.png',
+        'vnpost' => 'vietnam_post_logo.png',
+        'ahamove' => 'ahamove_logo.webp',
+        'lalamove' => 'lalamove_logo.png',
+        'bestexpress' => 'logo_bestexpress.png',
+    ];
+
+    /** @var array<string, string> cache base64 data-URI theo file — tránh đọc/mã hoá lại mỗi trang khi in loạt. */
+    private array $logoDataUriCache = [];
+
     public function carrierLogoImg(?string $carrier, int $widthMm, int $heightMm): string
     {
         $key = $this->normalizeCarrierKey($carrier);
-        $path = __DIR__.'/../../../../../resources/labels/carrier-logos/'.$key.'.svg';
-        if ($key !== '' && is_file($path)) {
-            $svg = (string) file_get_contents($path);
-            $b64 = base64_encode($svg);
-
-            return '<img alt="'.$this->escape($key).'" src="data:image/svg+xml;base64,'.$b64.'" style="width:'.$widthMm.'mm;height:'.$heightMm.'mm;object-fit:contain" />';
+        $file = self::CARRIER_LOGO_FILE[$key] ?? null;
+        if ($file !== null && ($src = $this->logoDataUri($file)) !== null) {
+            return '<img alt="'.$this->escape($key).'" src="'.$src.'" style="width:'.$widthMm.'mm;height:'.$heightMm.'mm;object-fit:contain" />';
         }
 
-        // Fallback styled placeholder — short-name in bold, no dashed border (looks cleaner than
-        // the previous "missing-image" hint, which leaked into production because we never
-        // shipped SVG assets under resources/labels/carrier-logos/).
+        // ĐVVC lạ / thiếu file ⇒ placeholder chữ short-name (không viền).
         return '<div style="display:flex;align-items:center;justify-content:center;width:'.$widthMm.'mm;height:'.$heightMm.'mm;color:#111;font-weight:700;font-size:'.max(8, min(16, (int) round($heightMm * 1.8))).'pt;letter-spacing:0.5px">'.$this->escape($this->carrierShortName($carrier)).'</div>';
+    }
+
+    private function logoDataUri(string $file): ?string
+    {
+        if (isset($this->logoDataUriCache[$file])) {
+            return $this->logoDataUriCache[$file];
+        }
+        $path = __DIR__.'/../../../../../public/images/'.$file;
+        if (! is_file($path)) {
+            return null;
+        }
+        $mime = match (strtolower(pathinfo($file, PATHINFO_EXTENSION))) {
+            'webp' => 'image/webp',
+            'png' => 'image/png',
+            'jpg', 'jpeg' => 'image/jpeg',
+            'svg' => 'image/svg+xml',
+            default => 'image/png',
+        };
+
+        return $this->logoDataUriCache[$file] = 'data:'.$mime.';base64,'.base64_encode((string) file_get_contents($path));
     }
 
     public function qrPng(string $payload, int $widthMm, string $ecc = 'M'): string
