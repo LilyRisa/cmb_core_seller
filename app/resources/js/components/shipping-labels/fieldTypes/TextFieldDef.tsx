@@ -3,6 +3,7 @@ import { FontSizeOutlined } from '@ant-design/icons';
 import { Rect, Text } from 'react-konva';
 import type { TextField } from '@/lib/shippingLabelTypes';
 import { mm2px, ptToCanvasPx } from '@/lib/labelEditor/coords';
+import { LABEL_FONT_STACK, fitBlockPx } from '@/lib/labelEditor/fitText';
 import type { FieldDef } from './index';
 
 export const TextFieldDef: FieldDef<TextField> = {
@@ -14,13 +15,16 @@ export const TextFieldDef: FieldDef<TextField> = {
     KonvaRenderer: ({ field, selected, zoom }) => {
         const w = mm2px(field.w, zoom);
         const h = mm2px(field.h, zoom);
+        const designFs = ptToCanvasPx(field.style.fontSize, zoom);
+        const fontStyle = field.style.fontWeight === 700 ? 'bold' : 'normal';
+        const fs = fitBlockPx(field.text, w, h, designFs, fontStyle, 1.15, zoom);
         return (
             <>
                 <Rect width={w} height={h} stroke={selected ? '#1677ff' : 'transparent'} strokeWidth={1} dash={[4, 2]} />
                 <Text width={w} height={h} padding={1}
-                      text={field.text} fontSize={ptToCanvasPx(field.style.fontSize, zoom)} lineHeight={1.15}
-                      fontStyle={field.style.fontWeight === 700 ? 'bold' : 'normal'} align={field.style.align ?? 'left'}
-                      fill={field.style.color ?? '#222'} verticalAlign="middle" />
+                      text={field.text} fontSize={fs} lineHeight={1.15} fontFamily={LABEL_FONT_STACK}
+                      fontStyle={fontStyle} align={field.style.align ?? 'left'}
+                      fill={field.style.color ?? '#222'} verticalAlign="middle" wrap="word" />
             </>
         );
     },

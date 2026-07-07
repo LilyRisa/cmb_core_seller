@@ -167,7 +167,7 @@ class FieldRenderHelpers
         ];
     }
 
-    public function positionedBox(array $field, array $extraStyle, string $innerHtml): string
+    public function positionedBox(array $field, array $extraStyle, string $innerHtml, string $cls = ''): string
     {
         $style = array_merge([
             'position' => 'absolute',
@@ -189,6 +189,42 @@ class FieldRenderHelpers
             $css .= $k.':'.$v.';';
         }
 
-        return '<div style="'.$css.'">'.$innerHtml.'</div>';
+        $classAttr = $cls !== '' ? ' class="'.$cls.'"' : '';
+
+        return '<div'.$classAttr.' style="'.$css.'">'.$innerHtml.'</div>';
+    }
+
+    /**
+     * Font chuẩn cho tem: DÙNG CHUNG với editor (Konva) — xem resources/js/lib/labelEditor/fitText.ts.
+     * DejaVu Sans có sẵn trong container Gotenberg (không cần nhúng) và phủ đủ tiếng Việt.
+     */
+    public function labelFontStack(): string
+    {
+        return 'DejaVu Sans, Arial, sans-serif';
+    }
+
+    /**
+     * Script tự-co-chữ chạy trong Chromium (Gotenberg) TRƯỚC khi chụp PDF: mọi box `.fit-line`
+     * (giá trị 1 dòng — tên/SĐT/COD…) co theo CHIỀU RỘNG; `.fit-block` (địa chỉ/ghi chú/danh sách SP)
+     * co theo CHIỀU CAO. Nhờ vậy dữ liệu thật dài hơn mẫu vẫn không tràn/cắt/đè. Sàn font tối thiểu 6pt.
+     * Chạy đồng bộ ở cuối <body> — DejaVu Sans là font hệ thống nên metric ổn định ngay, không chờ tải.
+     */
+    public function autofitScript(): string
+    {
+        return <<<'JS'
+            <script>(function(){
+              var MIN=6*96/72;
+              function shrink(el,byWidth){
+                var fs=parseFloat(getComputedStyle(el).fontSize)||12,g=400;
+                while(g-->0 && fs>MIN){
+                  var over=byWidth?(el.scrollWidth>el.clientWidth+0.5):(el.scrollHeight>el.clientHeight+0.5);
+                  if(!over) break;
+                  fs=Math.max(MIN,fs-0.5); el.style.fontSize=fs+'px';
+                }
+              }
+              document.querySelectorAll('.fit-line').forEach(function(e){shrink(e,true);});
+              document.querySelectorAll('.fit-block').forEach(function(e){shrink(e,false);});
+            })();</script>
+            JS;
     }
 }

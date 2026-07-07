@@ -37,6 +37,10 @@ class TextField implements FieldType
 
     public function renderHtml(array $field, DataContext $ctx, FieldRenderHelpers $h): string
     {
-        return $h->positionedBox($field, $h->textStyle($field['style'] ?? []), $h->escape((string) ($field['text'] ?? '')));
+        $style = $h->textStyle($field['style'] ?? []);
+        $style['white-space'] = 'pre-wrap';
+        $style['overflow-wrap'] = 'break-word';
+
+        return $h->positionedBox($field, $style, $h->escape((string) ($field['text'] ?? '')), 'fit-block');
     }
 }

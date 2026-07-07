@@ -21,6 +21,11 @@ class DataField implements FieldType
         'cod', 'weight', 'print_note', 'created_at', 'total_qty',
     ];
 
+    /** Trường có thể dài & nhiều dòng ⇒ wrap + tự-co theo chiều cao (thay vì 1 dòng co theo chiều rộng). */
+    private const BLOCK_KEYS = [
+        'sender_address', 'recipient_address', 'recipient_address_detail', 'recipient_address_admin', 'print_note',
+    ];
+
     public function key(): string
     {
         return 'data';
@@ -73,10 +78,23 @@ class DataField implements FieldType
         };
         $rendered = $h->escape((string) ($field['prefix'] ?? '')).$h->escape($value).$h->escape((string) ($field['suffix'] ?? ''));
         $style = $h->textStyle($field['style'] ?? []);
+
+        // Trường "khối" (dài, nhiều dòng) — địa chỉ / ghi chú: cho xuống dòng, tự-co theo chiều cao.
+        // Trường còn lại (tên, SĐT, mã đơn, COD, khối lượng…) — 1 dòng, không xuống dòng, tự-co theo chiều rộng.
+        if (in_array($key, self::BLOCK_KEYS, true)) {
+            $style['line-height'] = '1.2';
+            $style['white-space'] = 'normal';
+            $style['overflow-wrap'] = 'break-word';
+            $style['word-break'] = 'break-word';
+
+            return $h->positionedBox($field, $style, '<span style="display:block;width:100%">'.$rendered.'</span>', 'fit-block');
+        }
+
         $style['display'] = 'flex';
         $style['align-items'] = 'center';
         $style['line-height'] = '1.15';
+        $style['white-space'] = 'nowrap';
 
-        return $h->positionedBox($field, $style, '<span style="width:100%">'.$rendered.'</span>');
+        return $h->positionedBox($field, $style, '<span style="width:100%">'.$rendered.'</span>', 'fit-line');
     }
 }

@@ -51,7 +51,8 @@ class ItemsListField implements FieldType
             $lines .= '<div style="color:#888;line-height:'.$lh.'">… và '.$rest.' sản phẩm khác</div>';
         }
         $style = $h->textStyle($field['style'] ?? []);
+        $style['overflow-wrap'] = 'break-word';
 
-        return $h->positionedBox($field, $style, $lines);
+        return $h->positionedBox($field, $style, $lines, 'fit-block');
     }
 }

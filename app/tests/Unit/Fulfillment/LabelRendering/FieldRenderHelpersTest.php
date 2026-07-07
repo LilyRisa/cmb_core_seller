@@ -80,15 +80,24 @@ class FieldRenderHelpersTest extends TestCase
         $this->assertSame('TỰ VC', $this->h->carrierShortName('manual'));
     }
 
-    public function test_carrier_logo_falls_back_to_short_name_for_manual_prefix(): void
+    public function test_carrier_logo_renders_shipped_svg_and_strips_manual_prefix(): void
     {
-        // SVG assets aren't shipped (resources/labels/carrier-logos/ is empty), so the fallback
-        // text-placeholder is what users actually see. It must display "GHN" — not the raw
-        // "MANUAL_GHN" the previous code produced.
+        // SVG brand badges are now shipped under resources/labels/carrier-logos/. `manual_ghn`
+        // must resolve to the `ghn` asset (prefix stripped) and render as an <img>, never leaking
+        // the raw "MANUAL_GHN" carrier key.
         $html = $this->h->carrierLogoImg('manual_ghn', 30, 12);
-        $this->assertStringContainsString('>GHN<', $html);
+        $this->assertStringContainsString('data:image/svg+xml;base64,', $html);
+        $this->assertStringContainsString('alt="ghn"', $html);
         $this->assertStringNotContainsString('MANUAL_GHN', $html);
         $this->assertStringNotContainsString('MANUAL GHN', $html);
+    }
+
+    public function test_carrier_logo_falls_back_to_short_name_text_for_unknown_carrier(): void
+    {
+        // No SVG asset for an unknown carrier ⇒ styled text placeholder with the short name.
+        $html = $this->h->carrierLogoImg('carrier_x', 30, 12);
+        $this->assertStringNotContainsString('data:image/svg+xml', $html);
+        $this->assertStringContainsString('CARRIER_X', $html);
     }
 
     public function test_qr_png_returns_base64_data_url(): void

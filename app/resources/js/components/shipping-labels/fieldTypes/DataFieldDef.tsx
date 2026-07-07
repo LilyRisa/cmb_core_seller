@@ -4,6 +4,7 @@ import { Rect, Text } from 'react-konva';
 import type { DataField, DataKey } from '@/lib/shippingLabelTypes';
 import { DATA_KEYS } from '@/lib/shippingLabelTypes';
 import { mm2px, ptToCanvasPx } from '@/lib/labelEditor/coords';
+import { BLOCK_DATA_KEYS, LABEL_FONT_STACK, fitBlockPx, fitLinePx } from '@/lib/labelEditor/fitText';
 import type { FieldDef } from './index';
 
 const KEY_LABELS: Record<DataKey, string> = {
@@ -33,13 +34,21 @@ export const DataFieldDef: FieldDef<DataField> = {
         const sampleText = field.key === 'carrier_logo' ? (ctx.carrier_logo || 'GHN') : ((field.prefix ?? '') + (ctx[field.key] ?? '') + (field.suffix ?? ''));
         const w = mm2px(field.w, zoom);
         const h = mm2px(field.h, zoom);
+        const designFs = ptToCanvasPx(field.style.fontSize, zoom);
+        const fontStyle = field.style.fontWeight === 700 ? 'bold' : field.style.fontWeight === 600 ? '600' : 'normal';
+        const isBlock = BLOCK_DATA_KEYS.has(field.key);
+        // Tự co chữ cho vừa box — giống hệt script Chromium khi in (không tràn/cắt/đè).
+        const fs = isBlock
+            ? fitBlockPx(sampleText, w, h, designFs, fontStyle, 1.2, zoom)
+            : fitLinePx(sampleText, w, designFs, fontStyle, zoom);
         return (
             <>
                 <Rect width={w} height={h} stroke={selected ? '#1677ff' : 'transparent'} strokeWidth={1} dash={[4, 2]} />
                 <Text width={w} height={h} padding={1}
-                      text={sampleText} fontSize={ptToCanvasPx(field.style.fontSize, zoom)} lineHeight={1.15}
-                      fontStyle={field.style.fontWeight === 700 ? 'bold' : field.style.fontWeight === 600 ? '600' : 'normal'}
-                      align={field.style.align ?? 'left'} fill={field.style.color ?? '#222'} verticalAlign="middle" wrap="word" />
+                      text={sampleText} fontSize={fs} lineHeight={isBlock ? 1.2 : 1.15} fontFamily={LABEL_FONT_STACK}
+                      fontStyle={fontStyle}
+                      align={field.style.align ?? 'left'} fill={field.style.color ?? '#222'}
+                      verticalAlign={isBlock ? 'top' : 'middle'} wrap={isBlock ? 'word' : 'none'} />
             </>
         );
     },

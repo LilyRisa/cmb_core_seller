@@ -3,6 +3,7 @@ import { UnorderedListOutlined } from '@ant-design/icons';
 import { Rect, Text } from 'react-konva';
 import type { ItemsListField } from '@/lib/shippingLabelTypes';
 import { mm2px, ptToCanvasPx } from '@/lib/labelEditor/coords';
+import { LABEL_FONT_STACK, fitBlockPx } from '@/lib/labelEditor/fitText';
 import type { FieldDef } from './index';
 
 export const ItemsListFieldDef: FieldDef<ItemsListField> = {
@@ -13,11 +14,14 @@ export const ItemsListFieldDef: FieldDef<ItemsListField> = {
         const lines = items.map((it, i) => ((field.format ?? 'bullet') === 'numbered' ? `${i + 1}.` : '•') + ' ' + it.name + ' x ' + it.qty);
         const w = mm2px(field.w, zoom);
         const h = mm2px(field.h, zoom);
+        const text = lines.join('\n');
+        const lh = field.style.lineHeight ?? 1.25;
+        const fs = fitBlockPx(text, w, h, ptToCanvasPx(field.style.fontSize, zoom), 'normal', lh, zoom);
         return (
             <>
                 <Rect width={w} height={h} stroke={selected ? '#1677ff' : 'transparent'} strokeWidth={1} dash={[4, 2]} />
                 <Text width={w} height={h} padding={1}
-                      text={lines.join('\n')} fontSize={ptToCanvasPx(field.style.fontSize, zoom)} lineHeight={field.style.lineHeight ?? 1.25} fill="#222" wrap="word" />
+                      text={text} fontSize={fs} lineHeight={lh} fontFamily={LABEL_FONT_STACK} fill="#222" wrap="word" />
             </>
         );
     },
