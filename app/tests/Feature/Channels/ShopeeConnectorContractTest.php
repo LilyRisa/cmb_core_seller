@@ -91,6 +91,9 @@ class ShopeeConnectorContractTest extends TestCase
         $this->assertTrue($first->isCod);
         $this->assertSame(250000, $first->grandTotal);
         $this->assertSame(20000, $first->shippingFee);
+        // item_total = Σ(model_discounted_price × SL) = 115000 × 2 — nếu không map, hoa hồng
+        // Shopee (commissionBase = item_total − seller_discount) sẽ bị tính = 0.
+        $this->assertSame(230000, $first->itemTotal);
         $this->assertCount(1, $first->items);
         $this->assertSame('111', $first->items[0]->externalProductId);
         $this->assertSame('222', $first->items[0]->externalSkuId);

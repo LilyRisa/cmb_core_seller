@@ -13,7 +13,9 @@ use Illuminate\Support\Collection;
 
 /**
  * Estimated order profit after marketplace fees (SPEC 0012):
- *   estimated_profit ≈ grand_total − platform_fee − shipping_fee_seller − COGS
+ *   estimated_profit ≈ (grand_total + platform_discount) − platform_fee − shipping_fee_seller − COGS
+ *   (platform_discount = voucher sàn cấp, được sàn HOÀN cho shop ⇒ cộng lại vào doanh thu;
+ *    voucher shop tự chịu nằm trong seller_discount, đã trừ sẵn trong grand_total)
  *   platform_fee = grand_total × (tenant.settings.platform_fee_pct[source] %)
  *   COGS = Σ over items (qty × SKU.effectiveCost) — effectiveCost theo `cost_method` (bình quân | lô gần nhất)
  * `cost_complete` = mọi dòng đều có sku_id & giá vốn > 0 (false ⇒ COGS thiếu ⇒ lợi nhuận là ước tính trên).
@@ -261,7 +263,7 @@ class OrderProfitService
      * @param  array{platform_fee:int,shipping_fee:int,lines?:array<string,int>}|null  $actualFees  Phí THỰC từ đối soát (SPEC 0016)
      * @param  int|null  $actualShipFee  R2 (Sprint 4) — phí ĐVVC thực từ shipments.fee (manual: GHN trả về)
      * @param  array<string, array{commission_pct:float,transaction_pct:float,service_pct:float,fixed_fee:int,programs:list<array<string,mixed>>}>  $feeRates  biểu phí ước tính theo sàn
-     * @return array{cogs:int,platform_fee:int,shipping_fee:int,estimated_profit:int,platform_fee_pct:float,cost_complete:bool,cost_source:string,fee_source:string,fee_breakdown:list<array{type:string,label:string,amount:int}>}
+     * @return array{cogs:int,platform_fee:int,shipping_fee:int,platform_subsidy:int,estimated_profit:int,platform_fee_pct:float,cost_complete:bool,cost_source:string,fee_source:string,fee_breakdown:list<array{type:string,label:string,amount:int}>}
      */
     private function compute(Order $order, Collection $items, array $platformFeePct, Collection $skuCosts, ?array $actual = null, ?array $actualFees = null, ?int $actualShipFee = null, array $feeRates = []): array
     {
@@ -283,6 +285,13 @@ class OrderProfitService
             }
         }
         $grand = (int) $order->grand_total;
+        // Voucher SÀN cấp (platform_discount) được sàn HOÀN lại cho shop ⇒ không được trừ
+        // khỏi doanh thu khi tính lãi. `grand_total` là số khách THỰC TRẢ (đã trừ voucher
+        // sàn) nên phải cộng lại phần này. Voucher SHOP tự chịu nằm ở `seller_discount`
+        // (đã phản ánh trong grand_total) ⇒ KHÔNG cộng. TikTok/Lazada có tách sẵn; Shopee
+        // luồng order chưa tách được (chỉ có ở đối soát) nên platform_discount=0.
+        $platformSubsidy = max(0, (int) $order->platform_discount);
+        $revenue = $grand + $platformSubsidy;
         $pct = (float) ($platformFeePct[$order->source] ?? 0);
         $feeSource = 'estimate';
         /** @var list<array{type:string,label:string,amount:int}> $breakdown */
@@ -360,7 +369,9 @@ class OrderProfitService
             'cogs' => $cogs,
             'platform_fee' => $platformFee,
             'shipping_fee' => $shipping,
-            'estimated_profit' => $grand - $platformFee - $shipping - $cogs,
+            // Voucher sàn cấp (được sàn hoàn) cộng lại vào doanh thu — xem $revenue ở trên.
+            'platform_subsidy' => $platformSubsidy,
+            'estimated_profit' => $revenue - $platformFee - $shipping - $cogs,
             'platform_fee_pct' => $pct,
             'cost_complete' => $complete,
             'cost_source' => $costSource,

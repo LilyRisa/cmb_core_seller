@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Alert, App as AntApp, Avatar, Button, Card, Col, Descriptions, Divider, Empty, Input, Row, Space, Table, Tag, Timeline, Typography } from 'antd';
+import { Alert, App as AntApp, Avatar, Button, Card, Col, Descriptions, Divider, Empty, Input, Row, Space, Table, Tag, Timeline, Tooltip, Typography } from 'antd';
 import { CarOutlined, LinkOutlined, LockOutlined, PrinterOutlined, WarningOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { MoneyText, DateText } from '@/components/MoneyText';
@@ -133,6 +133,11 @@ export function OrderDetailBody({ order }: { order: Order }) {
                                         : <AmountRow label={`Phí sàn (${order.profit.platform_fee_pct}%)`} value={order.profit.platform_fee} currency={order.currency} negative />}
                                     {order.profit.fee_breakdown && order.profit.fee_breakdown.length > 1 && (
                                         <AmountRow label={`Tổng phí sàn (≈${order.profit.platform_fee_pct}%)`} value={order.profit.platform_fee} currency={order.currency} negative strong />
+                                    )}
+                                    {(order.profit.platform_subsidy ?? 0) > 0 && (
+                                        <Tooltip title="Voucher do SÀN cấp được sàn hoàn lại cho shop nên cộng vào doanh thu khi tính lãi (khác voucher người bán tự chịu).">
+                                            <AmountRow label="Voucher sàn hoàn lại (+)" value={order.profit.platform_subsidy!} currency={order.currency} />
+                                        </Tooltip>
                                     )}
                                     <AmountRow label="Giá vốn hàng" value={order.profit.cogs} currency={order.currency} negative />
                                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 15, fontWeight: 700, color: order.profit.estimated_profit >= 0 ? '#389e0d' : '#cf1322' }}>

@@ -205,6 +205,29 @@ class OrderApiTest extends TestCase
         $this->assertSame(250000 - 53000 - 0 - 0, $o['profit']['estimated_profit']);
     }
 
+    public function test_platform_voucher_is_added_back_to_profit_revenue(): void
+    {
+        // Voucher SÀN cấp 30k: grand_total = số khách trả (đã trừ voucher sàn). Vì sàn HOÀN
+        // khoản này cho shop nên phải cộng lại vào doanh thu khi tính lãi (không thể lấy giá
+        // sau voucher sàn để tính). Voucher shop tự chịu (seller_discount) thì KHÔNG cộng.
+        $account = ChannelAccount::withoutGlobalScope(TenantScope::class)->where('tenant_id', $this->tenant->getKey())->firstOrFail();
+        Order::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $this->tenant->getKey(), 'source' => 'tiktok', 'channel_account_id' => $account->getKey(),
+            'external_order_id' => 'TT-VOUCHER', 'order_number' => 'TT-VOUCHER', 'status' => StandardOrderStatus::Pending, 'raw_status' => 'X',
+            'currency' => 'VND', 'grand_total' => 250000, 'item_total' => 250000, 'platform_discount' => 30000, 'seller_discount' => 0,
+            'placed_at' => now(), 'tags' => [], 'source_updated_at' => now(),
+        ]);
+
+        $res = $this->actingAs($this->user)->withHeaders($this->header())->getJson('/api/v1/orders')->assertOk();
+        $o = collect($res->json('data'))->firstWhere('order_number', 'TT-VOUCHER');
+
+        // platform_fee: hoa hồng 14%×250k + giao dịch 6%×250k + cố định 3k = 53k.
+        $this->assertSame(53000, $o['profit']['platform_fee']);
+        $this->assertSame(30000, $o['profit']['platform_subsidy']);
+        // doanh thu = grand_total(250k) + voucher sàn(30k) = 280k ⇒ lãi = 280k − 53k = 227k.
+        $this->assertSame(280000 - 53000 - 0 - 0, $o['profit']['estimated_profit']);
+    }
+
     public function test_optional_program_fee_appears_in_breakdown_when_enabled(): void
     {
         // Bật 1 phí chương trình tùy chọn (affiliate 5%) cho TikTok qua fee_rates ⇒ xuất hiện trong breakdown.

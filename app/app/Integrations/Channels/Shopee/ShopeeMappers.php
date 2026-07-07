@@ -50,9 +50,18 @@ final class ShopeeMappers
     {
         $addr = (array) ($d['recipient_address'] ?? []);
         $items = [];
+        // Tổng tiền hàng = Σ(giá sau giảm cấp item × SL). get_order_detail KHÔNG trả tổng
+        // tiền hàng hay voucher order-level (chỉ `total_amount` + giá từng item) — voucher
+        // seller/shopee chỉ có ở đối soát (get_escrow_detail). Tự cộng để có `item_total`,
+        // nếu không OrderProfitService lấy commissionBase = item_total − seller_discount = 0
+        // ⇒ hoa hồng Shopee (phí lớn nhất) bị tính = 0, thổi phồng lợi nhuận.
+        $itemTotal = 0;
         foreach ((array) ($d['item_list'] ?? []) as $it) {
             $modelId = (string) ($it['model_id'] ?? '0');
             $itemId = (string) ($it['item_id'] ?? '');
+            $unit = (int) round((float) ($it['model_discounted_price'] ?? 0));
+            $qty = max(1, (int) ($it['model_quantity_purchased'] ?? 1));
+            $itemTotal += $unit * $qty;
             $items[] = new OrderItemDTO(
                 externalItemId: $itemId.'-'.$modelId,
                 externalProductId: $itemId !== '' ? $itemId : null,
@@ -60,8 +69,8 @@ final class ShopeeMappers
                 sellerSku: ($it['model_sku'] ?? '') !== '' ? (string) $it['model_sku'] : (($it['item_sku'] ?? '') !== '' ? (string) $it['item_sku'] : null),
                 name: (string) ($it['item_name'] ?? ''),
                 variation: ($it['model_name'] ?? '') !== '' ? (string) $it['model_name'] : null,
-                quantity: (int) ($it['model_quantity_purchased'] ?? 1),
-                unitPrice: (int) round((float) ($it['model_discounted_price'] ?? 0)),
+                quantity: $qty,
+                unitPrice: $unit,
                 discount: 0,
                 image: $it['image_info']['image_url'] ?? null,
                 raw: (array) $it,
@@ -96,6 +105,7 @@ final class ShopeeMappers
                 'country' => 'VN', 'zip' => (string) ($addr['zipcode'] ?? ''),
             ],
             shippingFee: (int) round((float) ($d['actual_shipping_fee'] ?? $d['estimated_shipping_fee'] ?? 0)),
+            itemTotal: $itemTotal,
             codAmount: $isCod ? $grand : 0,
             grandTotal: $grand,
             isCod: $isCod,

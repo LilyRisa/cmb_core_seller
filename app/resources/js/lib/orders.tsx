@@ -39,6 +39,8 @@ export interface OrderProfit {
     cogs: number;
     platform_fee: number;
     shipping_fee: number;
+    /** Voucher SÀN cấp (được sàn hoàn cho shop) — cộng lại vào doanh thu khi tính lãi. */
+    platform_subsidy?: number;
     estimated_profit: number;
     platform_fee_pct: number;
     cost_complete: boolean;

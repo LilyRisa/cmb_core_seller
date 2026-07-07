@@ -149,7 +149,10 @@ class DashboardController extends Controller
         $aov = (int) round((float) ($totalsRow?->getAttribute('aov') ?? 0));
 
         // Lợi nhuận ƯỚC TÍNH (sau phí sàn): tính qua OrderProfitService cho mọi đơn trong khoảng — dùng cho cả KPI lẫn series.
-        $orderRows = (clone $base)->select(['id', 'tenant_id', 'source', 'channel_account_id', 'grand_total', 'shipping_fee', 'placed_at'])->get();
+        // PHẢI select đủ item_total/seller_discount/platform_discount: compute() dựng commissionBase
+        // = item_total − seller_discount và cộng lại platform_discount (voucher sàn) vào doanh thu;
+        // thiếu cột ⇒ Eloquent trả null ⇒ hoa hồng & voucher sàn tính = 0 (lệch với chi tiết đơn/báo cáo).
+        $orderRows = (clone $base)->select(['id', 'tenant_id', 'source', 'channel_account_id', 'grand_total', 'shipping_fee', 'item_total', 'seller_discount', 'platform_discount', 'placed_at'])->get();
         $profit->annotateFromBatch($orderRows, $tenantSettings);
         $estimatedTotal = 0;
         $byDay = [];   // YYYY-MM-DD => ['orders'=>n,'revenue'=>n,'estimated_profit'=>n]
