@@ -1058,7 +1058,10 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                 .create-order-page .ord-summary-list { margin-top: 12px; padding-top: 10px; border-top: 1px dashed #eaeaea; display: flex; flex-direction: column; gap: 4px; }
                 .create-order-page .ord-pay-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
                 .create-order-page .ord-pay-row label { flex: 1; color: #595959; font-size: 14px; }
-                .create-order-page .ord-pay-input.ant-input-number { width: 200px; }
+                /* InputNumber có suffix "đ" ⇒ class rơi vào affix-wrapper, KHÔNG phải .ant-input-number
+                   ⇒ phải target cả hai, nếu không ô co về bề rộng mặc định rất ngắn. */
+                .create-order-page .ord-pay-input.ant-input-number,
+                .create-order-page .ord-pay-input.ant-input-number-affix-wrapper { width: 220px; max-width: 60%; }
                 .create-order-page .ord-pay-input .ant-input-number-input { text-align: right; }
                 .create-order-page .ord-readonly { color: #262626; font-size: 14px; }
                 .create-order-page .ord-add-tag { cursor: pointer; background: #fafafa; border-style: dashed; color: #8c8c8c; }
