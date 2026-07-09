@@ -32,7 +32,7 @@ const IMAGE_MAX_MB = 5;
 const vnd = (n: number) => `${n.toLocaleString('vi-VN')}₫`;
 
 /** "Tìm & thêm sản phẩm" panel: a search box, a pinned "quick product" row, then matching SKUs (image · name · code · stock · ref price). */
-function PickerPanel({ onPickSku, onQuickCreate, taken, externalQuery, hideSearch = false, inStockOnly = false }: { onPickSku: (s: Sku) => void; onQuickCreate: () => void; taken: Set<number>; externalQuery?: string; hideSearch?: boolean; inStockOnly?: boolean }) {
+function PickerPanel({ onPickSku, onQuickCreate, taken, externalQuery, hideSearch = false, inStockOnly = false, width }: { onPickSku: (s: Sku) => void; onQuickCreate: () => void; taken: Set<number>; externalQuery?: string; hideSearch?: boolean; inStockOnly?: boolean; width?: number }) {
     const [q, setQ] = useState('');
     // Khi caller đã có ô tìm riêng (inline search bar ở form tạo đơn), dùng `externalQuery` + ẩn ô
     // search nội bộ ⇒ KHÔNG render thêm 1 ô input thừa. Gõ ở ô ngoài lọc thẳng danh sách này.
@@ -40,7 +40,8 @@ function PickerPanel({ onPickSku, onQuickCreate, taken, externalQuery, hideSearc
     const { data, isFetching } = useSkus({ q: effectiveQ.trim() || undefined, per_page: 50 });
     const items = (data?.data ?? []).filter((s) => (inStockOnly ? (s.available_total ?? 0) > 0 : true));
     return (
-        <div style={{ width: 440 }}>
+        // `width` (nếu có) = chiều rộng ô tìm bên ngoài ⇒ danh sách dài bằng ô input; tối thiểu 320 cho dễ đọc.
+        <div style={{ width: width != null ? Math.max(width, 320) : 440 }}>
             {!hideSearch && (
                 <Input allowClear autoFocus prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />} placeholder="Tìm SKU theo mã / tên / barcode…" onChange={(e) => setQ(e.target.value)} style={{ marginBottom: 8 }} />
             )}
@@ -192,7 +193,7 @@ export function OrderItemsEditor({ value = [], onChange, renderTrigger, emptySta
 
 /** Popover trigger để caller chèn search bar riêng (vd CreateOrderPage). Export `PickerTrigger` để
  *  caller wrap input của họ bằng Popover. */
-export function PickerTrigger({ children, onPickSku, onQuickCreate, taken, open, setOpen, query, inStockOnly }: {
+export function PickerTrigger({ children, onPickSku, onQuickCreate, taken, open, setOpen, query, inStockOnly, panelWidth }: {
     children: React.ReactNode;
     onPickSku: (s: Sku) => void;
     onQuickCreate: () => void;
@@ -202,11 +203,14 @@ export function PickerTrigger({ children, onPickSku, onQuickCreate, taken, open,
     /** Từ khoá tìm từ ô input riêng của caller — panel lọc theo đây, không render ô search thứ 2. */
     query?: string;
     inStockOnly?: boolean;
+    /** Chiều rộng danh sách gợi ý — truyền = chiều rộng ô input để dropdown khớp ô. */
+    panelWidth?: number;
 }) {
     return (
         <Popover trigger="click" open={open} onOpenChange={setOpen} placement="bottomLeft" destroyTooltipOnHide
-            content={<PickerPanel onPickSku={onPickSku} onQuickCreate={onQuickCreate} taken={taken} externalQuery={query} inStockOnly={inStockOnly} hideSearch />}>
-            <div>{children}</div>
+            content={<PickerPanel onPickSku={onPickSku} onQuickCreate={onQuickCreate} taken={taken} externalQuery={query} inStockOnly={inStockOnly} width={panelWidth} hideSearch />}>
+            {/* flex:1 ⇒ ô input kéo dài hết phần còn lại của hàng (bên phải Segmented). */}
+            <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
         </Popover>
     );
 }

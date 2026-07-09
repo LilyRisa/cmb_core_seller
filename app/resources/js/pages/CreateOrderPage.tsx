@@ -142,6 +142,17 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
     const [productSearch, setProductSearch] = useState('');
     const [productMode, setProductMode] = useState<'sku' | 'combo'>('sku');
     const [inStockOnly, setInStockOnly] = useState(false);
+    // Đo chiều rộng ô tìm sản phẩm ⇒ danh sách gợi ý (popover) dài đúng bằng ô input.
+    const productSearchRef = useRef<HTMLDivElement>(null);
+    const [productPanelWidth, setProductPanelWidth] = useState<number>();
+    useEffect(() => {
+        const el = productSearchRef.current;
+        if (!el || typeof ResizeObserver === 'undefined') return;
+        const ro = new ResizeObserver(() => setProductPanelWidth(el.offsetWidth));
+        ro.observe(el);
+        setProductPanelWidth(el.offsetWidth);
+        return () => ro.disconnect();
+    }, []);
     const [thongTinCollapsed, setThongTinCollapsed] = useState(false);
     const [draftRestored, setDraftRestored] = useState(false);
 
@@ -721,7 +732,7 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                             )}
                         >
                             {/* Inline search bar — khớp taodon.png */}
-                            <div className="ord-product-search">
+                            <div className="ord-product-search" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <Segmented
                                     size="small" value={productMode} onChange={(v) => setProductMode(v as 'sku' | 'combo')}
                                     options={[{ value: 'sku', label: 'Sản phẩm' }, { value: 'combo', label: 'Combo' }]}
@@ -730,6 +741,7 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                                     open={pickerOpen} setOpen={setPickerOpen}
                                     query={productSearch}
                                     inStockOnly={inStockOnly}
+                                    panelWidth={productPanelWidth}
                                     taken={new Set(items.map((r) => r.sku_id).filter((x): x is number => x != null))}
                                     onPickSku={(s: Sku) => {
                                         const existing = items.find((r) => r.sku_id === s.id);
@@ -739,14 +751,17 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                                     }}
                                     onQuickCreate={() => { setItems([...items, { key: `line-${Date.now()}`, name: '', quantity: 1, unit_price: 0, discount: 0 }]); setPickerOpen(false); }}
                                 >
+                                    {/* ref để đo bề rộng; onClick (không onFocus) mở popover — tránh focus mở rồi click toggle đóng ngay lần đầu. */}
+                                    <div ref={productSearchRef} style={{ width: '100%' }}>
                                     <Input
                                         size="middle"
                                         prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
                                         placeholder="Nhập mã, tên sản phẩm hoặc Barcode"
                                         value={productSearch}
                                         onChange={(e) => { setProductSearch(e.target.value); setPickerOpen(true); }}
-                                        onFocus={() => setPickerOpen(true)}
+                                        onClick={() => setPickerOpen(true)}
                                         className="ord-search-input"
+                                        style={{ width: '100%' }}
                                         suffix={(
                                             <Space size={8}>
                                                 <Checkbox checked={inStockOnly} onChange={(e) => setInStockOnly(e.target.checked)} className="ord-search-check">Còn hàng</Checkbox>
@@ -754,6 +769,7 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                                             </Space>
                                         )}
                                     />
+                                    </div>
                                 </PickerTrigger>
                             </div>
 
