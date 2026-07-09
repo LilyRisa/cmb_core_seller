@@ -25,7 +25,9 @@ return [
 
     'match' => [
         'top_k_images' => (int) env('VISUAL_SEARCH_TOP_K_IMAGES', 20),
-        'top_n_items' => (int) env('VISUAL_SEARCH_TOP_N_ITEMS', 5),
+        // 8 (nâng từ 5): SP đúng đôi khi xếp thấp trong recall (ảnh lộn xộn/nhiều board giống nhau)
+        // — cho re-rank thấy nhiều ứng viên hơn để đọc mã chọn đúng, tránh SP đúng rớt khỏi danh sách.
+        'top_n_items' => (int) env('VISUAL_SEARCH_TOP_N_ITEMS', 8),
         // Bỏ ảnh dưới ngưỡng recall (cosine normalized 0..1).
         'recall_floor' => (float) env('VISUAL_SEARCH_RECALL_FLOOR', 0.20),
         // Ngưỡng tối thiểu để coi là "matched" (khi không re-rank).
