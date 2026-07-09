@@ -6,6 +6,7 @@ use CMBcoreSeller\Integrations\Ai\AiAssistantRegistry;
 use CMBcoreSeller\Integrations\Ai\DTO\AiContext;
 use CMBcoreSeller\Integrations\Ai\DTO\ConversationSnapshot;
 use CMBcoreSeller\Integrations\Ai\DTO\IntentDTO;
+use CMBcoreSeller\Integrations\Ai\DTO\KnowledgeBase;
 use CMBcoreSeller\Integrations\Ai\Exceptions\ProviderNotConfigured;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter;
@@ -137,7 +138,10 @@ class AiSuggestionService
      */
     private const REPLY_FOCUS_DIRECTIVE = 'Khách có thể gửi NHIỀU tin liên tiếp (text rời nhau hoặc kèm ảnh) — '
         .'hãy coi đó là MỘT yêu cầu và trả lời DUY NHẤT 1 lần, tự nhiên, KHÔNG lặp lại. '
-        .'Tập trung vào Ý ĐỊNH MỚI NHẤT của khách; các tin trước chỉ là ngữ cảnh.';
+        .'Tập trung vào Ý ĐỊNH MỚI NHẤT của khách; các tin trước chỉ là ngữ cảnh. '
+        .'TUYỆT ĐỐI KHÔNG khẳng định thông tin CHƯA CHẮC CHẮN (còn hàng/hết hàng, khuyến mãi, miễn phí ship, '
+        .'thời gian giao, giá… nếu tài liệu/thông tin cửa hàng KHÔNG nêu rõ). Nếu khách hỏi mà không có dữ liệu, '
+        .'hãy nói sẽ KIỂM TRA/XÁC NHẬN lại rồi báo — không tự bịa, không tự khẳng định.';
 
     /** Preset phong cách chốt sale → chỉ dẫn tiếng Việt nối vào prompt (sau persona). */
     private const CLOSING_STYLES = [
@@ -249,11 +253,13 @@ class AiSuggestionService
         }
 
         [$snapshot, $mapping, $redactedCount] = $this->buildSnapshot($conv, $tenantId);
-        $kb = $this->retriever->retrieve($tenantId, $inboundText, channelAccountId: (int) $conv->channel_account_id, provider: (string) $conv->provider);
         $provider = AiProvider::query()->find($providerCode);
+        $focus = $this->retrieveWithProductFocus($conv, $tenantId, $providerCode, $provider?->default_model, $inboundText);
+        $kb = $focus['kb'];
+        $base = $focus['visualText'] !== null ? trim($this->baseSystemExtra()."\n\n".$focus['visualText']) : $this->baseSystemExtra();
         $extra = $this->withClosingStyle(
             $this->withBusinessInfo(
-                $this->withAdContext($this->withVisualContext($this->baseSystemExtra(), $conv, $tenantId, $providerCode, $provider?->default_model), $conv),
+                $this->withAdContext($base, $conv),
                 $conv,
             ),
             $conv,
@@ -309,16 +315,17 @@ class AiSuggestionService
         }
 
         [$snapshot, $mapping, $redactedCount] = $this->buildSnapshot($conv, $tenantId);
-        $kb = $this->retriever->retrieve($tenantId, $this->lastInboundBody($conv) ?? '', channelAccountId: (int) $conv->channel_account_id, provider: (string) $conv->provider);
-
         $provider = AiProvider::query()->find($providerCode);
+        $focus = $this->retrieveWithProductFocus($conv, $tenantId, $providerCode, $provider?->default_model, $this->lastInboundBody($conv) ?? '');
+        $kb = $focus['kb'];
+        $base = $focus['visualText'] !== null ? trim($this->baseSystemExtra()."\n\n".$focus['visualText']) : $this->baseSystemExtra();
         $ctx = new AiContext(
             tenantId: $tenantId,
             providerCode: $providerCode,
             model: $provider?->default_model,
             systemPromptExtra: $this->withClosingStyle(
                 $this->withBusinessInfo(
-                    $this->withAdContext((string) $this->withVisualContext($this->baseSystemExtra(), $conv, $tenantId, $providerCode, $provider?->default_model), $conv),
+                    $this->withAdContext($base, $conv),
                     $conv,
                 ),
                 $conv,
@@ -414,24 +421,50 @@ class AiSuggestionService
      * (Visual search 2026-06-16) Ghép khối "sản phẩm nhận diện từ ảnh" vào systemPromptExtra.
      * TÁCH BIỆT: tắt feature / không có ảnh / lỗi ⇒ trả nguyên `$base` (luồng tối ưu bất biến).
      */
-    private function withVisualContext(?string $base, Conversation $conv, int $tenantId, string $providerCode, ?string $model): ?string
+    /**
+     * Nhận diện SP-quan-tâm của lượt (ảnh khách khớp; hoặc suy từ ngữ cảnh gần khi lượt này KHÔNG có
+     * ảnh) rồi NỐI tên SP vào truy vấn RAG ⇒ lấy đúng chunk (giá/thông số) của SP đó — sửa lỗi "gửi
+     * ảnh rồi hỏi giá mà AI báo chưa biết giá". Ảnh có nhưng KHÔNG khớp ⇒ reset, KHÔNG bám SP cũ.
+     * Trả về KB đã truy hồi + text ngữ cảnh ảnh để chèn prompt. Visual match chỉ tính 1 LẦN (1 credit).
+     *
+     * @return array{kb: KnowledgeBase, visualText: ?string}
+     */
+    private function retrieveWithProductFocus(Conversation $conv, int $tenantId, string $providerCode, ?string $model, string $inboundText): array
     {
         $visual = $this->visualTrainingContext($conv, $tenantId, $providerCode, $model);
-        if ($visual === null) {
-            return $base;
+        $focusName = $visual['item']?->name;
+        if ($focusName === null && ! $visual['hadImage']) {
+            // Không có ảnh lượt này ⇒ suy SP từ ngữ cảnh gần (để "xin giá" sau khi đã xác định SP tra đúng).
+            $focusName = $this->recentProductName($conv, $tenantId, $conv->channel_account_id ? (int) $conv->channel_account_id : null);
         }
+        // Ảnh có nhưng KHÔNG khớp SP nào ⇒ focusName vẫn null ⇒ KHÔNG nối SP cũ vào query (khách có thể hỏi thứ khác).
+        $query = ($focusName !== null && $focusName !== '') ? trim($inboundText.' '.$focusName) : $inboundText;
+        $kb = $this->retriever->retrieve($tenantId, $query, channelAccountId: (int) $conv->channel_account_id, provider: (string) $conv->provider);
 
-        return trim(($base !== null ? $base."\n\n" : '').$visual);
+        return ['kb' => $kb, 'visualText' => $visual['text']];
     }
 
-    private function visualTrainingContext(Conversation $conv, int $tenantId, string $providerCode, ?string $model): ?string
+    /** Tên SP suy từ ngữ cảnh gần (tin khách/AI gần nhất) — dùng khi lượt này KHÔNG có ảnh. */
+    private function recentProductName(Conversation $conv, int $tenantId, ?int $channelAccountId): ?string
     {
-        // KHÔNG gate feature riêng — đây là 1 phần của AI tự động trả lời (đã qua gate
-        // messaging_ai ở route suggest / AiAutoModeOnInbound). Không ảnh/không khớp/lỗi ⇒ null.
+        return $this->matchProductFromRecentContext($conv, $tenantId, $channelAccountId)?->item?->name;
+    }
+
+    /**
+     * Nhận diện SP từ ẢNH khách gửi (lượt này) → text ngữ cảnh cho prompt + item khớp (để NỐI vào
+     * RAG query, lấy đúng giá/thông số). `hadImage`: lượt này có ảnh khách hay không.
+     *
+     * KHÔNG gate feature riêng — đây là 1 phần của AI tự động trả lời (đã qua gate messaging_ai).
+     *
+     * @return array{text: ?string, item: ?VisualItemCandidate, hadImage: bool}
+     */
+    private function visualTrainingContext(Conversation $conv, int $tenantId, string $providerCode, ?string $model): array
+    {
+        $none = ['text' => null, 'item' => null, 'hadImage' => false];
         try {
             $input = $this->latestInboundImage($conv);
             if ($input === null) {
-                return null;
+                return $none;
             }
 
             $opts = new VisualLookupOptions(
@@ -444,22 +477,23 @@ class AiSuggestionService
             $result = $this->visualSearch->lookup($tenantId, $input, $opts);
 
             if ($result->status === VisualMatchResult::STATUS_MATCHED && $result->item !== null) {
-                return $this->renderMatchedItem($result->item);
+                return ['text' => $this->renderMatchedItem($result->item), 'item' => $result->item, 'hadImage' => true];
             }
             if ($result->status === VisualMatchResult::STATUS_AMBIGUOUS && $result->candidates !== []) {
                 $names = implode(', ', array_map(fn (VisualItemCandidate $c) => $c->name, $result->candidates));
 
-                return "Khách vừa gửi ảnh. Hệ thống nhận diện CÓ THỂ là một trong các sản phẩm: {$names}. "
-                    .'Hãy HỎI LẠI khách để xác nhận đúng sản phẩm trước khi tư vấn (đừng tự ý chọn).';
+                return ['text' => "Khách vừa gửi ảnh. Hệ thống nhận diện CÓ THỂ là một trong các sản phẩm: {$names}. "
+                    .'Hãy HỎI LẠI khách để xác nhận đúng sản phẩm trước khi tư vấn (đừng tự ý chọn).', 'item' => null, 'hadImage' => true];
             }
 
-            // Có ẢNH nhưng KHÔNG khớp sản phẩm nào trong danh mục ⇒ để AI tự sinh câu hỏi nhu cầu
-            // (đừng im, đừng bịa sản phẩm). Yêu cầu user 2026-07.
-            return 'Khách vừa gửi ẢNH nhưng hệ thống KHÔNG nhận diện được sản phẩm nào khớp trong danh mục. '
-                .'Hãy chủ động HỎI khách một cách tự nhiên, lịch sự: khách đang cần hỗ trợ vấn đề gì, '
-                .'hoặc muốn mua / quan tâm sản phẩm nào — TUYỆT ĐỐI không bịa thông tin sản phẩm và không khẳng định ảnh là một sản phẩm cụ thể.';
+            // Có ẢNH nhưng KHÔNG khớp SP nào — khách có thể GỬI ẢNH MỚI khác sản phẩm đang nói ⇒ KHÔNG
+            // tiếp tục tư vấn SP trước đó, hỏi về ảnh/nhu cầu hiện tại (chống "gửi ảnh lạ vẫn tư vấn SP cũ").
+            return ['text' => 'Khách vừa gửi ẢNH MỚI nhưng hệ thống KHÔNG nhận diện được sản phẩm nào khớp trong danh mục. '
+                .'TUYỆT ĐỐI KHÔNG tiếp tục khẳng định/tư vấn sản phẩm đã nói ở các tin trước (khách có thể đang hỏi thứ khác). '
+                .'Hãy chủ động HỎI khách một cách tự nhiên, lịch sự về ảnh vừa gửi / nhu cầu hiện tại — không bịa thông tin sản phẩm.',
+                'item' => null, 'hadImage' => true];
         } catch (\Throwable) {
-            return null;
+            return $none;
         }
     }
 
@@ -875,6 +909,23 @@ class AiSuggestionService
     }
 
     /**
+     * Câu chốt (chọn ngẫu nhiên) gửi KÈM sau ảnh sản phẩm — hỏi nhu cầu + mời đặt/chốt.
+     * CHỈ hỏi & mời, TUYỆT ĐỐI không khẳng định dữ liệu chưa chắc (tồn kho/ưu đãi/freeship/độ hot/giá).
+     */
+    private const IMAGE_CLOSING_LINES = [
+        'Anh/chị cần em tư vấn thêm thông tin gì về sản phẩm không ạ?',
+        'Anh/chị xem ảnh thấy ưng không ạ? Cần gì thêm em hỗ trợ ngay ạ.',
+        'Anh/chị muốn em gửi thêm ảnh chi tiết hay tư vấn thêm gì nữa không ạ?',
+        'Anh/chị còn thắc mắc gì về sản phẩm cứ nhắn em, em tư vấn nhiệt tình ạ!',
+        'Anh/chị cần em tư vấn thêm về thông số hay cách dùng không ạ?',
+        'Anh/chị ưng mẫu này thì để lại SĐT + địa chỉ giúp em để em hỗ trợ lên đơn nhé!',
+        'Anh/chị muốn đặt sản phẩm này thì nhắn em để em hỗ trợ mình lên đơn ạ!',
+        'Anh/chị cần em tư vấn thêm hay muốn chốt đơn luôn ạ?',
+        'Anh/chị xem còn cần em hỗ trợ thông tin gì nữa không ạ?',
+        'Anh/chị quan tâm mẫu này thì nhắn em để em tư vấn chi tiết và hỗ trợ đặt hàng nhé!',
+    ];
+
+    /**
      * Xác định SP khách xin ảnh (theo tên trong câu) → tải ảnh (ảnh primary trước) đã sao chép sang
      * disk media messaging + caption. Không rõ SP / không có ảnh ⇒ null (caller hỏi lại).
      *
@@ -909,9 +960,11 @@ class AiSuggestionService
             $stored[] = ['storage_path' => $path, 'mime' => $img->mime];
         }
 
+        $closing = self::IMAGE_CLOSING_LINES[array_rand(self::IMAGE_CLOSING_LINES)];
+
         return [
             'images' => $stored,
-            'caption' => 'Dạ, shop gửi anh/chị hình sản phẩm '.$match->item->name.' ạ.',
+            'caption' => 'Dạ, shop gửi anh/chị hình sản phẩm '.$match->item->name.' ạ. '.$closing,
         ];
     }
 
