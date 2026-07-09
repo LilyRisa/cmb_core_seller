@@ -146,4 +146,34 @@ class MessagingKnowledgeRagTest extends TestCase
         $this->assertSame('Chính sách bảo hành 12 tháng', $kb->chunks[0]['chunk_text']);
         Http::assertNothingSent();
     }
+
+    public function test_code_boost_disambiguates_similar_products(): void
+    {
+        // Kịch bản prod: nhiều SP cùng dòng mô tả ~giống nhau, chỉ khác mã model + giá.
+        // Khách hỏi đúng "D900" ⇒ chỉ trả D900, KHÔNG lẫn D800/D100 (boost mã model + relative floor).
+        AiProvider::query()->create(['code' => 'manual', 'adapter' => 'manual', 'is_active' => true]);
+        MessagingSetting::withoutGlobalScopes()->updateOrCreate(['tenant_id' => $this->tenant->getKey()], [
+            'ai_provider_code' => 'manual', 'ai_enabled' => true,
+        ]);
+
+        $mk = function (string $title, string $text): void {
+            $doc = AiKnowledgeDocument::withoutGlobalScopes()->create([
+                'tenant_id' => $this->tenant->getKey(), 'title' => $title, 'source' => AiKnowledgeDocument::SOURCE_INLINE,
+                'inline_text' => 'x', 'status' => AiKnowledgeDocument::STATUS_READY, 'applies_all_pages' => true,
+                'chunk_count' => 1, 'embedding_version' => 0,
+            ]);
+            $this->chunk($doc, 0, $text);
+        };
+        $mk('Mạch loa kéo karaoke D800', 'Mạch loa kéo karaoke D800 công suất 200W kéo căng bass giá 800k');
+        $mk('Mạch loa kéo karaoke D900', 'Mạch loa kéo karaoke D900 công suất 200W kéo căng bass giá 900k');
+        $mk('Mạch loa kéo karaoke D100', 'Mạch loa kéo karaoke D100 công suất 150W kéo căng bass giá 500k');
+
+        Http::fake();   // manual provider ⇒ vector null ⇒ đi keyword path
+
+        $kb = app(KnowledgeRetriever::class)->retrieve($this->tenant->getKey(), 'mạch loa kéo D900 giá bao nhiêu', 4);
+
+        $this->assertCount(1, $kb->chunks);
+        $this->assertSame('Mạch loa kéo karaoke D900', $kb->chunks[0]['title']);
+        Http::assertNothingSent();
+    }
 }
