@@ -8,7 +8,6 @@ use CMBcoreSeller\Modules\Messaging\Http\Controllers\AutoReplyRuleController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\ConversationController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\FacebookCommentController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\FacebookOAuthController;
-use CMBcoreSeller\Modules\Messaging\Http\Controllers\KnowledgeController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\LazadaImOAuthController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\MessageController;
 use CMBcoreSeller\Modules\Messaging\Http\Controllers\MessagingChannelController;
@@ -122,18 +121,6 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
             ->whereNumber('id')->name('messaging.utility_templates.sync');
         Route::delete('utility-templates/{id}', [UtilityTemplateController::class, 'destroy'])
             ->whereNumber('id')->name('messaging.utility_templates.destroy');
-
-        // --- AI training knowledge docs (S6) -------------------------------
-        Route::get('knowledge-docs', [KnowledgeController::class, 'index'])
-            ->name('messaging.knowledge.index');
-        Route::post('knowledge-docs', [KnowledgeController::class, 'store'])
-            ->name('messaging.knowledge.store');
-        Route::delete('knowledge-docs/{id}', [KnowledgeController::class, 'destroy'])
-            ->whereNumber('id')->name('messaging.knowledge.destroy');
-        Route::post('knowledge-docs/{id}/reindex', [KnowledgeController::class, 'reindex'])
-            ->whereNumber('id')->name('messaging.knowledge.reindex');
-        Route::get('knowledge-docs/{id}/chunks', [KnowledgeController::class, 'chunks'])
-            ->whereNumber('id')->name('messaging.knowledge.chunks');
 
         // --- Tenant messaging settings (S6) — chọn AI provider, away hours --
         Route::get('settings', [MessagingSettingsController::class, 'show'])

@@ -2,6 +2,11 @@
 
 namespace Tests\Feature\Messaging;
 
+use CMBcoreSeller\Modules\Messaging\Jobs\IndexKnowledgeItem;
+use CMBcoreSeller\Modules\Messaging\Services\KnowledgeVectorIndexer;
+use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use CMBcoreSeller\Modules\VisualSearch\Contracts\KnowledgeItemStore;
+use CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -17,14 +22,14 @@ class IndexKnowledgeItemTest extends TestCase
     public function test_indexes_item_text_into_chunks_and_marks_ready(): void
     {
         // VectorStore tắt ⇒ fail-soft: vẫn tạo chunk + markIndexed (embed bỏ qua như doc).
-        $item = \CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem::withoutGlobalScope(
-            \CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class
+        $item = VisualTrainingItem::withoutGlobalScope(
+            TenantScope::class
         )->create(['tenant_id' => 1, 'name' => 'Bộ thu bluetooth', 'description' => 'Kết nối 5.0 HIFI',
             'status' => 'active', 'applies_all_pages' => true, 'source' => 'inline']);
 
-        (new \CMBcoreSeller\Modules\Messaging\Jobs\IndexKnowledgeItem($item->id))->handle(
-            app(\CMBcoreSeller\Modules\VisualSearch\Contracts\KnowledgeItemStore::class),
-            app(\CMBcoreSeller\Modules\Messaging\Services\KnowledgeVectorIndexer::class),
+        (new IndexKnowledgeItem($item->id))->handle(
+            app(KnowledgeItemStore::class),
+            app(KnowledgeVectorIndexer::class),
         );
 
         $this->assertSame('ready', $item->fresh()->kb_status);
@@ -33,13 +38,13 @@ class IndexKnowledgeItemTest extends TestCase
 
     public function test_empty_text_marks_ready_with_zero_chunks(): void
     {
-        $item = \CMBcoreSeller\Modules\VisualSearch\Models\VisualTrainingItem::withoutGlobalScope(
-            \CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope::class
+        $item = VisualTrainingItem::withoutGlobalScope(
+            TenantScope::class
         )->create(['tenant_id' => 1, 'name' => '', 'status' => 'active', 'applies_all_pages' => true]);
 
-        (new \CMBcoreSeller\Modules\Messaging\Jobs\IndexKnowledgeItem($item->id))->handle(
-            app(\CMBcoreSeller\Modules\VisualSearch\Contracts\KnowledgeItemStore::class),
-            app(\CMBcoreSeller\Modules\Messaging\Services\KnowledgeVectorIndexer::class),
+        (new IndexKnowledgeItem($item->id))->handle(
+            app(KnowledgeItemStore::class),
+            app(KnowledgeVectorIndexer::class),
         );
 
         $this->assertSame('ready', $item->fresh()->kb_status);

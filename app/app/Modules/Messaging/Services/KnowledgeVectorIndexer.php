@@ -6,7 +6,6 @@ use CMBcoreSeller\Integrations\Ai\AiAssistantRegistry;
 use CMBcoreSeller\Integrations\Ai\DTO\AiContext;
 use CMBcoreSeller\Integrations\Vector\Contracts\VectorStore;
 use CMBcoreSeller\Modules\Messaging\Models\AiKnowledgeChunk;
-use CMBcoreSeller\Modules\Messaging\Models\AiKnowledgeDocument;
 use CMBcoreSeller\Modules\Messaging\Models\MessagingSetting;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Support\Facades\Http;
@@ -129,28 +128,6 @@ class KnowledgeVectorIndexer
         }
     }
 
-    /**
-     * Embed + upsert các chunk của 1 tài liệu lên Qdrant. Trả số chunk đã vector hoá.
-     *
-     * @param  iterable<AiKnowledgeChunk>  $chunks
-     */
-    public function indexChunks(AiKnowledgeDocument $doc, iterable $chunks): int
-    {
-        if (! $this->store->enabled()) {
-            return 0;
-        }
-        $embedded = $this->upsertChunks((int) $doc->tenant_id, $chunks, ['document_id' => (int) $doc->id]);
-        if ($embedded > 0) {
-            $doc->forceFill([
-                'embedding_provider_code' => $this->providerCode((int) $doc->tenant_id),
-                'embedding_model' => $this->model(),
-                'embedding_version' => (int) $doc->embedding_version + 1,
-            ])->save();
-        }
-
-        return $embedded;
-    }
-
     /** Embed + upsert chunk của 1 visual item (tri thức hợp nhất). Payload item_id. Nhận primitive (luật module). */
     public function indexItemChunks(int $itemId, int $tenantId, iterable $chunks): int
     {
@@ -252,20 +229,20 @@ class KnowledgeVectorIndexer
     }
 
     /**
-     * Re-embed + upsert toàn bộ chunk của tài liệu READY (dùng cho command).
+     * Re-embed + upsert toàn bộ chunk "Kiến thức" (visual item) READY lên Qdrant (dùng cho command).
      *
-     * @return array{documents:int, items:int, embedded:int, qdrant:bool}
+     * @return array{items:int, embedded:int, qdrant:bool}
      */
     public function reindex(?int $tenantId, bool $fresh, ?callable $log = null): array
     {
         $log ??= fn () => null;
         if (! $this->store->enabled()) {
-            return ['documents' => 0, 'items' => 0, 'embedded' => 0, 'qdrant' => false];
+            return ['items' => 0, 'embedded' => 0, 'qdrant' => false];
         }
 
         if ($fresh) {
-            $probeTenant = $tenantId ?? (int) AiKnowledgeDocument::withoutGlobalScope(TenantScope::class)
-                ->where('status', AiKnowledgeDocument::STATUS_READY)->value('tenant_id');
+            $probeTenant = $tenantId ?? (int) AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)
+                ->whereNotNull('visual_item_id')->value('tenant_id');
             $dim = $probeTenant > 0 ? $this->probeDim($probeTenant) : null;
             if ($dim !== null) {
                 $this->store->recreateCollection($this->collection(), $dim);
@@ -273,35 +250,22 @@ class KnowledgeVectorIndexer
             }
         }
 
-        $docs = AiKnowledgeDocument::withoutGlobalScope(TenantScope::class)
-            ->where('status', AiKnowledgeDocument::STATUS_READY)
-            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
-            ->get();
-
-        $totalEmbedded = 0;
-        foreach ($docs as $doc) {
-            $chunks = AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)
-                ->where('document_id', $doc->id)->orderBy('chunk_index')->get();
-            $n = $this->indexChunks($doc, $chunks);
-            $totalEmbedded += $n;
-            $log("doc #{$doc->id} \"{$doc->title}\": {$n} chunk");
-        }
-
-        // Visual item (tri thức hợp nhất) — chunk nằm CHUNG bảng ai_knowledge_chunks (visual_item_id).
-        // Trước đây reindex bỏ sót ⇒ kiến thức sản phẩm không lên Qdrant. Re-embed từ chunk_text sẵn có
-        // (không cần dựng lại text qua contract) rồi upsert payload item_id.
+        // "Kiến thức" (visual item) — chunk ở ai_knowledge_chunks (visual_item_id), re-embed từ
+        // chunk_text sẵn có (không cần dựng lại text qua contract) rồi upsert payload item_id.
         $itemGroups = AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)
             ->whereNotNull('visual_item_id')
             ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
             ->orderBy('visual_item_id')->orderBy('chunk_index')->get()
             ->groupBy('visual_item_id');
+
+        $totalEmbedded = 0;
         foreach ($itemGroups as $itemId => $chunks) {
             $n = $this->indexItemChunks((int) $itemId, (int) $chunks->first()->tenant_id, $chunks);
             $totalEmbedded += $n;
             $log("item #{$itemId}: {$n} chunk");
         }
 
-        return ['documents' => $docs->count(), 'items' => $itemGroups->count(), 'embedded' => $totalEmbedded, 'qdrant' => true];
+        return ['items' => $itemGroups->count(), 'embedded' => $totalEmbedded, 'qdrant' => true];
     }
 
     private function probeDim(int $tenantId): ?int

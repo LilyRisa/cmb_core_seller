@@ -30,7 +30,7 @@ class ReindexKnowledge extends Command
             return self::SUCCESS;
         }
 
-        $this->info(sprintf('Xong: %d tài liệu, %d mục kiến thức, %d chunk có vector, collection=%s', $stats['documents'], $stats['items'], $stats['embedded'], $indexer->collection()));
+        $this->info(sprintf('Xong: %d mục kiến thức, %d chunk có vector, collection=%s', $stats['items'], $stats['embedded'], $indexer->collection()));
 
         return self::SUCCESS;
     }
