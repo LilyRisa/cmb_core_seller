@@ -763,6 +763,16 @@ class AiSuggestionService
         if ($ref === []) {
             return $extra;
         }
+        // KHÔNG khoá hội thoại theo SP quảng cáo: chỉ nhắc ngữ cảnh ad ở LƯỢT ĐẦU (trước khi shop/AI đã
+        // trả lời). Sau đó khách dẫn dắt — có thể ĐỔI Ý sang SP khác / gửi ảnh SP khác ⇒ để AI bám theo
+        // khách, không kéo ngược về SP trong quảng cáo (tránh tư vấn nhầm).
+        $alreadyEngaged = Message::withoutGlobalScope(TenantScope::class)
+            ->where('conversation_id', $conv->id)
+            ->where('direction', Message::DIRECTION_OUTBOUND)
+            ->exists();
+        if ($alreadyEngaged) {
+            return $extra;
+        }
         $bits = array_filter([
             ! empty($ref['ad_title']) ? 'tiêu đề quảng cáo: "'.$ref['ad_title'].'"' : null,
             ! empty($ref['post_id']) ? 'mã bài viết: '.$ref['post_id'] : null,
