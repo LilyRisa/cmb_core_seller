@@ -32,13 +32,18 @@ const IMAGE_MAX_MB = 5;
 const vnd = (n: number) => `${n.toLocaleString('vi-VN')}₫`;
 
 /** "Tìm & thêm sản phẩm" panel: a search box, a pinned "quick product" row, then matching SKUs (image · name · code · stock · ref price). */
-function PickerPanel({ onPickSku, onQuickCreate, taken }: { onPickSku: (s: Sku) => void; onQuickCreate: () => void; taken: Set<number> }) {
+function PickerPanel({ onPickSku, onQuickCreate, taken, externalQuery, hideSearch = false, inStockOnly = false }: { onPickSku: (s: Sku) => void; onQuickCreate: () => void; taken: Set<number>; externalQuery?: string; hideSearch?: boolean; inStockOnly?: boolean }) {
     const [q, setQ] = useState('');
-    const { data, isFetching } = useSkus({ q: q || undefined, per_page: 50 });
-    const items = data?.data ?? [];
+    // Khi caller đã có ô tìm riêng (inline search bar ở form tạo đơn), dùng `externalQuery` + ẩn ô
+    // search nội bộ ⇒ KHÔNG render thêm 1 ô input thừa. Gõ ở ô ngoài lọc thẳng danh sách này.
+    const effectiveQ = (hideSearch ? externalQuery : q) ?? '';
+    const { data, isFetching } = useSkus({ q: effectiveQ.trim() || undefined, per_page: 50 });
+    const items = (data?.data ?? []).filter((s) => (inStockOnly ? (s.available_total ?? 0) > 0 : true));
     return (
         <div style={{ width: 440 }}>
-            <Input allowClear autoFocus prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />} placeholder="Tìm SKU theo mã / tên / barcode…" onChange={(e) => setQ(e.target.value)} style={{ marginBottom: 8 }} />
+            {!hideSearch && (
+                <Input allowClear autoFocus prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />} placeholder="Tìm SKU theo mã / tên / barcode…" onChange={(e) => setQ(e.target.value)} style={{ marginBottom: 8 }} />
+            )}
             <div onClick={onQuickCreate} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', cursor: 'pointer', borderRadius: 6, background: '#f6ffed', border: '1px dashed #b7eb8f', marginBottom: 8 }}>
                 <Avatar shape="square" size={36} style={{ background: '#52c41a', flex: 'none' }} icon={<ThunderboltOutlined />} />
                 <Space direction="vertical" size={0} style={{ minWidth: 0 }}>
@@ -187,17 +192,20 @@ export function OrderItemsEditor({ value = [], onChange, renderTrigger, emptySta
 
 /** Popover trigger để caller chèn search bar riêng (vd CreateOrderPage). Export `PickerTrigger` để
  *  caller wrap input của họ bằng Popover. */
-export function PickerTrigger({ children, onPickSku, onQuickCreate, taken, open, setOpen }: {
+export function PickerTrigger({ children, onPickSku, onQuickCreate, taken, open, setOpen, query, inStockOnly }: {
     children: React.ReactNode;
     onPickSku: (s: Sku) => void;
     onQuickCreate: () => void;
     taken: Set<number>;
     open: boolean;
     setOpen: (b: boolean) => void;
+    /** Từ khoá tìm từ ô input riêng của caller — panel lọc theo đây, không render ô search thứ 2. */
+    query?: string;
+    inStockOnly?: boolean;
 }) {
     return (
         <Popover trigger="click" open={open} onOpenChange={setOpen} placement="bottomLeft" destroyTooltipOnHide
-            content={<PickerPanel onPickSku={onPickSku} onQuickCreate={onQuickCreate} taken={taken} />}>
+            content={<PickerPanel onPickSku={onPickSku} onQuickCreate={onQuickCreate} taken={taken} externalQuery={query} inStockOnly={inStockOnly} hideSearch />}>
             <div>{children}</div>
         </Popover>
     );

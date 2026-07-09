@@ -728,6 +728,8 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                                 />
                                 <PickerTrigger
                                     open={pickerOpen} setOpen={setPickerOpen}
+                                    query={productSearch}
+                                    inStockOnly={inStockOnly}
                                     taken={new Set(items.map((r) => r.sku_id).filter((x): x is number => x != null))}
                                     onPickSku={(s: Sku) => {
                                         const existing = items.find((r) => r.sku_id === s.id);

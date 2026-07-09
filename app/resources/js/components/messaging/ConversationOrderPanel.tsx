@@ -82,7 +82,12 @@ export function ConversationOrderPanel({ conversation }: { conversation: Convers
     // Nháp khởi tạo cho form trong Drawer — bơm SĐT + tên (+ địa chỉ đã lưu nếu có).
     const initialDraft: OrderDraft = useMemo(() => {
         const addr = lookup.data?.addresses?.[0];
-        const name = conversation.buyer_name ?? lookup.data?.customer?.name ?? addr?.name ?? '';
+        // Tên Facebook người mua: hội thoại tin nhắn ⇒ `buyer_name`; hội thoại comment ⇒ buyer_name
+        // thường null (Graph ẩn), lấy tên tác giả bình luận đầu tiên trong `comment.participants`.
+        const fbName = conversation.buyer_name
+            ?? (conversation.thread_type === 'comment' ? conversation.comment?.participants?.[0] : undefined)
+            ?? undefined;
+        const name = fbName ?? lookup.data?.customer?.name ?? addr?.name ?? '';
         const isOld = !!addr?.district;
         return {
             items: [],
@@ -107,7 +112,7 @@ export function ConversationOrderPanel({ conversation }: { conversation: Convers
                 recipient_address: addr?.address ?? addr?.detail ?? undefined,
             },
         };
-    }, [lookup.data, conversation.buyer_name, conversation.provider, phone]);
+    }, [lookup.data, conversation.buyer_name, conversation.thread_type, conversation.comment, conversation.provider, phone]);
 
     const handleSaved = (orderId: number) => {
         setOpen(false);
