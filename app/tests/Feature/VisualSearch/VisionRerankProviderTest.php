@@ -103,4 +103,19 @@ class VisionRerankProviderTest extends TestCase
         $this->assertSame(77, $picked);
         Http::assertSent(fn ($r) => str_contains($r->url(), 'chat.example.com'));
     }
+
+    public function test_returns_ambiguous_when_vision_not_sure(): void
+    {
+        // SP nhìn giống nhau / không đọc được mã ⇒ model trả sure:false ⇒ AMBIGUOUS (AI hỏi lại, không chốt bừa).
+        $this->makeProvider('chat_vis', 'ts/gpt-5.4-mini', 'chat.example.com');
+
+        Http::fake([
+            'chat.example.com/*' => Http::response(['choices' => [['message' => ['content' => '{"match":1,"sure":false}']]]], 200),
+        ]);
+
+        $ctx = new AiContext(tenantId: 1, providerCode: 'chat_vis', model: 'ts/gpt-5.4-mini');
+        $picked = app(VisionReRanker::class)->pick(1, 'chat_vis', $ctx, VisualImageInput::fromBinary('cust', 'image/jpeg'), $this->candidates());
+
+        $this->assertSame(VisionReRanker::AMBIGUOUS, $picked);
+    }
 }

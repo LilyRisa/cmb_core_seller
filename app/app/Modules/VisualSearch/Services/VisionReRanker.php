@@ -22,6 +22,9 @@ class VisionReRanker
     /** Vision khẳng định KHÔNG ứng viên nào khớp. */
     public const NONE = 0;
 
+    /** Vision KHÔNG chắc (SP nhìn giống nhau / không đọc được mã in) ⇒ matcher trả ambiguous để AI hỏi lại. */
+    public const AMBIGUOUS = -2;
+
     public function __construct(
         private AiAssistantRegistry $registry,
         private AiCreditMeter $credits,
@@ -29,7 +32,7 @@ class VisionReRanker
 
     /**
      * @param  list<array{candidate:VisualItemCandidate, image:?string}>  $candidates
-     * @return int itemId được chọn (>0) | self::NONE (0) | self::NOT_RUN (-1)
+     * @return int itemId được chọn (>0) | self::NONE (0) | self::NOT_RUN (-1) | self::AMBIGUOUS (-2)
      */
     public function pick(int $tenantId, string $providerCode, AiContext $ctx, VisualImageInput $customer, array $candidates): int
     {
@@ -76,10 +79,16 @@ class VisionReRanker
             return self::NOT_RUN;
         }
 
+        // Nhiều SP cùng dòng nhìn GIỐNG HỆT nhau, chỉ khác MÃ/SỐ in trên sản phẩm (vd D800 vs D900) ⇒
+        // yêu cầu vision ĐỌC mã/tên in trên SP rồi khớp theo mã, và tự báo KHÔNG CHẮC khi không đọc
+        // được mã / nhiều ứng viên giống nhau ⇒ matcher trả ambiguous để AI HỎI LẠI (không chốt bừa).
         $instruction = "Ảnh ĐẦU TIÊN là ảnh KHÁCH gửi. Các ảnh tiếp theo là ứng viên theo thứ tự:\n"
             .implode("\n", $lines)
-            ."\nChọn ứng viên KHỚP NHẤT với sản phẩm trong ảnh khách. Trả về DUY NHẤT JSON: "
-            ."{\"match\": <số thứ tự 1..{$idx}, hoặc 0 nếu không ứng viên nào khớp>}.";
+            ."\nNhiều sản phẩm có thể TRÔNG GIỐNG NHAU, chỉ khác MÃ/SỐ/CHỮ in trên thân sản phẩm (vd D800 vs D900). "
+            .'Hãy ĐỌC kỹ mã/chữ in trên sản phẩm trong ảnh khách rồi khớp với ứng viên có mã/tên trùng — '
+            .'TUYỆT ĐỐI không đoán theo hình dạng chung. Trả về DUY NHẤT JSON: '
+            ."{\"match\": <số thứ tự 1..{$idx}, hoặc 0 nếu không ứng viên nào khớp>, "
+            .'"sure": <true nếu ĐỌC RÕ mã/tên và khớp chắc chắn; false nếu KHÔNG đọc được mã hoặc nhiều ứng viên giống nhau không phân biệt được>}.';
 
         try {
             $out = $connector->analyzeImages($ctx, $images, $instruction);
@@ -91,26 +100,40 @@ class VisionReRanker
 
         $this->credits->record($tenantId, 1, 'visual');
 
-        $pick = $this->parsePick($out);
-        if ($pick === null) {
+        $parsed = $this->parsePick($out);
+        if ($parsed === null) {
             return self::NOT_RUN;
         }
-        if ($pick === 0) {
-            return self::NONE;
+        [$match, $sure] = $parsed;
+        // Không chắc (SP giống nhau / không đọc được mã) ⇒ ambiguous ⇒ AI hỏi lại thay vì gửi nhầm SP.
+        if (! $sure && $match !== 0) {
+            return self::AMBIGUOUS;
+        }
+        if ($match === 0) {
+            return $sure ? self::NONE : self::AMBIGUOUS;
         }
 
-        return $indexToItem[$pick] ?? self::NONE;
+        return $indexToItem[$match] ?? self::NONE;
     }
 
-    private function parsePick(string $out): ?int
+    /**
+     * Parse `{"match":N,"sure":bool}`. `sure` mặc định TRUE khi vắng (tương thích ngược + model cũ).
+     *
+     * @return array{0:int,1:bool}|null [match, sure]
+     */
+    private function parsePick(string $out): ?array
     {
         if (preg_match('/"match"\s*:\s*(\d+)/', $out, $m) === 1) {
-            return (int) $m[1];
-        }
-        if (preg_match('/\d+/', $out, $m) === 1) {
-            return (int) $m[0];
+            $match = (int) $m[1];
+        } elseif (preg_match('/\d+/', $out, $m) === 1) {
+            $match = (int) $m[0];
+        } else {
+            return null;
         }
 
-        return null;
+        // Chỉ coi là KHÔNG chắc khi model nói rõ "sure": false.
+        $sure = preg_match('/"sure"\s*:\s*false/i', $out) !== 1;
+
+        return [$match, $sure];
     }
 }

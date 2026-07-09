@@ -135,6 +135,9 @@ class VisualMatcher implements VisualItemSearch
                 }
             } elseif ($picked === VisionReRanker::NONE) {
                 return VisualMatchResult::notFound('rerank');
+            } elseif ($picked === VisionReRanker::AMBIGUOUS) {
+                // Vision không chắc (SP giống nhau / không đọc được mã) ⇒ AI hỏi lại giữa các ứng viên.
+                return VisualMatchResult::ambiguous($candidates, 'rerank');
             }
             // NOT_RUN ⇒ fallback recall.
         }
