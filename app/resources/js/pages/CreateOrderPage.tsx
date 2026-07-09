@@ -613,7 +613,6 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
         <>
             <Form.Item name="recipient_address" style={{ marginBottom: 8 }} rules={[{ required: true, message: 'Địa chỉ chi tiết' }]}>
                 <AddressAutocomplete
-                    format={shipAddress.format ?? 'new'}
                     placeholder="Địa chỉ chi tiết — gõ cả tỉnh/quận/phường để được gợi ý (vd: 123 NTrai, Q.1, TP HCM)"
                     onPick={(s) => { setShipAddress((cur) => ({ ...cur, ...s.address })); }}
                 />

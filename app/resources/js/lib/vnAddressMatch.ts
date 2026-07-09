@@ -94,6 +94,39 @@ export function matchScore(query: string, itemName: string): number {
     return -1;
 }
 
+/** Các từ (đã chuẩn hoá) của `name` đều xuất hiện trọn trong `seg`. Dùng cho khớp chặt theo cụm. */
+function includesAllWords(seg: string, name: string): boolean {
+    const nw = name.split(' ').filter(Boolean);
+    if (nw.length === 0) return false;
+    const sw = new Set(seg.split(' ').filter(Boolean));
+
+    return nw.every((w) => sw.has(w));
+}
+
+/**
+ * Điểm khớp CHẶT giữa một ĐOẠN địa chỉ (segment giữa 2 dấu phẩy) với tên đơn vị hành chính.
+ *
+ * Khác `matchScore`: KHÔNG cho token quá ngắn / một mảnh khớp mờ — nhờ đó "hà" KHÔNG khớp
+ * "Hà Nam"/"Hà Bắc" (lỗi cũ đẻ ra gợi ý rác). Chỉ nhận khi:
+ *   1000 — trùng TRỌN tên (đã bỏ dấu + bỏ tiền tố).
+ *    800 — đoạn CHỨA TRỌN tên (mọi từ của tên đều có trong đoạn, vd "lam ha" ⊃ "lam ha").
+ *    650 — tiền tố dài ≥4 ký tự (một bên bắt đầu bằng bên kia).
+ *     -1 — loại.
+ *
+ * Tên chuẩn quá ngắn (<4 ký tự, vd "1", "an") chỉ chấp nhận khi TRÙNG ĐÚNG.
+ */
+export function segmentScore(segment: string, itemName: string): number {
+    const seg = vnKey(segment);
+    const item = vnKey(itemName);
+    if (seg === '' || item === '') return -1;
+    if (seg === item) return 1000;
+    if (item.replace(/\s+/g, '').length < 4) return -1;
+    if (includesAllWords(seg, item)) return 800;
+    if (seg.replace(/\s+/g, '').length >= 4 && (item.startsWith(seg) || seg.startsWith(item))) return 650;
+
+    return -1;
+}
+
 /** Filter + sort list theo score. Trả mảng đã sort, score cao trước. */
 export function smartFilter<T extends { name: string }>(items: T[], query: string, limit = 200): T[] {
     if (!query.trim()) return items.slice(0, limit);
