@@ -1058,11 +1058,12 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                 .create-order-page .ord-summary-list { margin-top: 12px; padding-top: 10px; border-top: 1px dashed #eaeaea; display: flex; flex-direction: column; gap: 4px; }
                 .create-order-page .ord-pay-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
                 .create-order-page .ord-pay-row label { flex: 1; color: #595959; font-size: 14px; }
-                /* InputNumber có suffix "đ" ⇒ class rơi vào affix-wrapper, KHÔNG phải .ant-input-number
-                   ⇒ phải target cả hai, nếu không ô co về bề rộng mặc định rất ngắn. */
-                .create-order-page .ord-pay-input.ant-input-number,
-                .create-order-page .ord-pay-input.ant-input-number-affix-wrapper { width: 220px; max-width: 60%; }
+                /* Đơn vị "đ" tách ra ngoài span, KHÔNG dùng suffix của InputNumber
+                   (suffix tạo affix-wrapper ⇒ viền focus lệch/nhỏ hơn ô). Nhờ vậy ô là
+                   .ant-input-number thuần: 1 viền duy nhất, focus khớp mép ô. */
+                .create-order-page .ord-pay-input.ant-input-number { width: 200px; max-width: 55%; }
                 .create-order-page .ord-pay-input .ant-input-number-input { text-align: right; }
+                .create-order-page .ord-pay-unit { color: #8c8c8c; font-size: 13px; width: 12px; text-align: center; flex: none; }
                 .create-order-page .ord-readonly { color: #262626; font-size: 14px; }
                 .create-order-page .ord-add-tag { cursor: pointer; background: #fafafa; border-style: dashed; color: #8c8c8c; }
                 .create-order-page .ord-add-tag:hover { color: #1677ff; border-color: #1677ff; }
@@ -1294,9 +1295,9 @@ function PayRow({ label, name, disabled, max, step }: { label: string; name: str
                     min={0} max={max} step={step} disabled={disabled} className="ord-pay-input" controls={false}
                     formatter={(v) => `${v ?? 0}`.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}
                     parser={(v) => Number((v ?? '').toString().replace(/\D/g, '')) as 0}
-                    suffix={<Typography.Text type="secondary" style={{ fontSize: 12 }}>đ</Typography.Text>}
                 />
             </Form.Item>
+            <span className="ord-pay-unit">đ</span>
         </div>
     );
 }
