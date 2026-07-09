@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { AutoComplete, Input, Tag } from 'antd';
 import { EnvironmentOutlined } from '@ant-design/icons';
 import { useDistricts, useProvinces, useWards, type AddressFormat, type District, type Province, type Ward } from '@/lib/masterData';
@@ -47,7 +47,9 @@ export function AddressAutocomplete({ value, onChange, onPick, placeholder, maxL
 }) {
     // value có thể undefined (initial render trước khi Form.Item inject). Default an toàn.
     const safeValue = value ?? '';
-    const [open, setOpen] = useState(false);
+    // Mở dropdown theo FOCUS: cứ đang focus mà có gợi ý là hiện. Nhờ vậy sau khi chọn 1 gợi ý (ô
+    // text thu còn phần chi tiết) rồi user gõ lại đủ tỉnh/quận, dropdown TỰ hiện lại — không bị kẹt.
+    const [focused, setFocused] = useState(false);
 
     // Dò tỉnh ở CẢ hai danh mục (cũ + mới) — cùng tên nhưng khác mã; cần mã cũ để lấy huyện,
     // mã mới để lấy xã chuẩn mới.
@@ -72,11 +74,6 @@ export function AddressAutocomplete({ value, onChange, onPick, placeholder, maxL
         return buildSuggestions(tail, matchedDistrict, oldWards, newWards);
     }, [tail, matchedDistrict, oldWards, newWards]);
 
-    // Tự đóng dropdown khi không có suggestion.
-    useEffect(() => {
-        if (suggestions.length === 0) setOpen(false);
-    }, [suggestions.length]);
-
     // option.value = phần địa chỉ chi tiết (số nhà/đường) để khi chọn, ô Form.Item nhận đúng detail.
     const options = useMemo(() => {
         const seen = new Set<string>();
@@ -94,8 +91,9 @@ export function AddressAutocomplete({ value, onChange, onPick, placeholder, maxL
             value={safeValue}
             options={options}
             popupMatchSelectWidth={false}
-            open={open && options.length > 0}
-            onDropdownVisibleChange={setOpen}
+            open={focused && options.length > 0}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
             onChange={(v) => onChange?.(v)}
             onSelect={(_v, opt) => {
                 const sug = (opt as unknown as { sug?: AddressAutoSuggestion }).sug;
@@ -103,7 +101,7 @@ export function AddressAutocomplete({ value, onChange, onPick, placeholder, maxL
                     onPick(sug);
                     onChange?.(sug.detail);
                 }
-                setOpen(false);
+                setFocused(false);
             }}
             style={{ width: '100%' }}
             popupClassName="address-autocomplete-popup"

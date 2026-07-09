@@ -637,18 +637,23 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                             <Space size={6}>
                                 {hasPick && (
                                     <CloseCircleFilled
-                                        aria-label="Xoá chọn tỉnh/quận/phường"
+                                        aria-label="Xoá địa chỉ đã khớp"
+                                        title="Xoá địa chỉ đã khớp để gõ và gợi ý lại"
                                         style={{ color: 'rgba(0,0,0,.25)', cursor: 'pointer', fontSize: 12 }}
                                         onMouseEnter={(e) => { e.currentTarget.style.color = 'rgba(0,0,0,.45)'; }}
                                         onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(0,0,0,.25)'; }}
                                         onClick={(e) => {
                                             e.stopPropagation();
+                                            // Reset sạch: xoá tỉnh/quận/phường ĐÃ khớp + ô địa chỉ chi tiết ⇒ gõ lại là gợi ý ngay.
                                             setShipAddress((cur) => ({
                                                 ...cur,
+                                                format: undefined,
                                                 province: undefined, province_code: undefined,
                                                 district: undefined, district_code: undefined,
                                                 ward: undefined, ward_code: undefined,
+                                                address: undefined,
                                             }));
+                                            form.setFieldsValue({ recipient_address: '' });
                                         }}
                                     />
                                 )}
