@@ -16,7 +16,9 @@ interface VectorStore
     public function recreateCollection(string $collection, int $dim, string $distance = 'Cosine'): bool;
 
     /**
-     * @param  list<array{id:string, vector:list<float>, payload:array<string,mixed>}>  $points
+     * Point id: Qdrant chỉ chấp nhận unsigned integer HOẶC UUID (chuỗi). KHÔNG chấp nhận chuỗi số bất kỳ.
+     *
+     * @param  list<array{id:int|string, vector:list<float>, payload:array<string,mixed>}>  $points
      */
     public function upsert(string $collection, array $points): bool;
 
@@ -27,6 +29,6 @@ interface VectorStore
      */
     public function search(string $collection, array $vector, int $topK, array $filter = []): array;
 
-    /** @param  list<string>  $ids */
+    /** @param  list<int|string>  $ids */
     public function deleteIds(string $collection, array $ids): bool;
 }

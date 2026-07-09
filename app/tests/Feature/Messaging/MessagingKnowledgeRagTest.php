@@ -81,6 +81,15 @@ class MessagingKnowledgeRagTest extends TestCase
         $this->assertSame(1, $embedded);
         $this->assertSame([0.1, 0.2, 0.3], $c1->fresh()->embedding);
         Http::assertSent(fn ($req) => str_contains($req->url(), '/points') && $req->method() === 'PUT');
+        // Point id PHẢI là integer — Qdrant từ chối id chuỗi (400) ⇒ upsert fail-soft ⇒ collection rỗng.
+        Http::assertSent(function ($req) use ($c1) {
+            if (! str_contains($req->url(), '/points')) {
+                return false;
+            }
+            $id = $req->data()['points'][0]['id'] ?? null;
+
+            return $id === $c1->id && is_int($id);
+        });
     }
 
     public function test_retrieve_uses_vector_when_available(): void

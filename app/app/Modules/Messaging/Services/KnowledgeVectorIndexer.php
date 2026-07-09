@@ -186,7 +186,9 @@ class KnowledgeVectorIndexer
             }
             $chunk->forceFill(['embedding' => $vec])->save();
             $points[] = [
-                'id' => (string) $chunk->id,
+                // Qdrant CHỈ chấp nhận point id kiểu unsigned integer hoặc UUID — id dạng CHUỖI ("123")
+                // bị từ chối 400 ⇒ upsert fail-soft âm thầm ⇒ collection RỖNG ⇒ RAG luôn rơi keyword.
+                'id' => (int) $chunk->id,
                 'vector' => $vec,
                 'payload' => ['tenant_id' => $tenantId] + $extraPayload,
             ];
@@ -206,7 +208,8 @@ class KnowledgeVectorIndexer
     /** Xoá point Qdrant của các chunk (cleanup khi re-index). */
     public function forget(array $chunkIds): void
     {
-        $ids = array_values(array_map('strval', $chunkIds));
+        // Point id phải là int (xem upsertChunks) — Qdrant từ chối id chuỗi.
+        $ids = array_values(array_map('intval', $chunkIds));
         if ($ids === [] || ! $this->store->enabled()) {
             return;
         }
@@ -251,13 +254,13 @@ class KnowledgeVectorIndexer
     /**
      * Re-embed + upsert toàn bộ chunk của tài liệu READY (dùng cho command).
      *
-     * @return array{documents:int, embedded:int, qdrant:bool}
+     * @return array{documents:int, items:int, embedded:int, qdrant:bool}
      */
     public function reindex(?int $tenantId, bool $fresh, ?callable $log = null): array
     {
         $log ??= fn () => null;
         if (! $this->store->enabled()) {
-            return ['documents' => 0, 'embedded' => 0, 'qdrant' => false];
+            return ['documents' => 0, 'items' => 0, 'embedded' => 0, 'qdrant' => false];
         }
 
         if ($fresh) {
@@ -284,7 +287,21 @@ class KnowledgeVectorIndexer
             $log("doc #{$doc->id} \"{$doc->title}\": {$n} chunk");
         }
 
-        return ['documents' => $docs->count(), 'embedded' => $totalEmbedded, 'qdrant' => true];
+        // Visual item (tri thức hợp nhất) — chunk nằm CHUNG bảng ai_knowledge_chunks (visual_item_id).
+        // Trước đây reindex bỏ sót ⇒ kiến thức sản phẩm không lên Qdrant. Re-embed từ chunk_text sẵn có
+        // (không cần dựng lại text qua contract) rồi upsert payload item_id.
+        $itemGroups = AiKnowledgeChunk::withoutGlobalScope(TenantScope::class)
+            ->whereNotNull('visual_item_id')
+            ->when($tenantId !== null, fn ($q) => $q->where('tenant_id', $tenantId))
+            ->orderBy('visual_item_id')->orderBy('chunk_index')->get()
+            ->groupBy('visual_item_id');
+        foreach ($itemGroups as $itemId => $chunks) {
+            $n = $this->indexItemChunks((int) $itemId, (int) $chunks->first()->tenant_id, $chunks);
+            $totalEmbedded += $n;
+            $log("item #{$itemId}: {$n} chunk");
+        }
+
+        return ['documents' => $docs->count(), 'items' => $itemGroups->count(), 'embedded' => $totalEmbedded, 'qdrant' => true];
     }
 
     private function probeDim(int $tenantId): ?int
