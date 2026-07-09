@@ -215,30 +215,49 @@ function pickSegment<T extends { name: string }>(items: T[], segments: string[])
  *  - Còn lại ⇒ chỉ Tỉnh.
  */
 function buildSuggestions(tp: TailParse, matchedDistrict: SegMatch<District> | null, oldWards: Ward[], newWards: Ward[]): AddressAutoSuggestion[] {
-    const rest = tp.rest;
-    const used = new Set<number>();
+    let segs = tp.rest.slice();
 
     if (matchedDistrict && tp.old) {
-        used.add(matchedDistrict.segIndex);
-        const wardSegs = rest.map((s, i) => (used.has(i) ? '' : s));
-        const ward = pickSegment(oldWards, wardSegs);
-        if (ward) used.add(ward.segIndex);
-        const detail = rest.filter((_, i) => !used.has(i)).join(', ');
-        return [makeSuggestion(tp.old, matchedDistrict.item, ward?.item, 'old', detail)];
+        // Bỏ ĐÚNG cụm huyện đã khớp khỏi đoạn (không xoá cả đoạn) — để xã nằm CHUNG đoạn (địa chỉ gõ
+        // liền không phẩy) vẫn tách ra khớp được.
+        segs = stripWindow(segs, matchedDistrict.segIndex, matchedDistrict.query);
+        const ward = pickSegment(oldWards, segs);
+        if (ward) segs = stripWindow(segs, ward.segIndex, ward.query);
+        return [makeSuggestion(tp.old, matchedDistrict.item, ward?.item, 'old', joinDetail(segs))];
     }
 
     if (tp.new) {
-        const ward = pickSegment(newWards, rest);
-        if (ward) used.add(ward.segIndex);
-        const detail = rest.filter((_, i) => !used.has(i)).join(', ');
-        return [makeSuggestion(tp.new, undefined, ward?.item, 'new', detail)];
+        const ward = pickSegment(newWards, segs);
+        if (ward) segs = stripWindow(segs, ward.segIndex, ward.query);
+        return [makeSuggestion(tp.new, undefined, ward?.item, 'new', joinDetail(segs))];
     }
 
     if (tp.old) {
-        return [makeSuggestion(tp.old, undefined, undefined, 'old', rest.join(', '))];
+        return [makeSuggestion(tp.old, undefined, undefined, 'old', joinDetail(segs))];
     }
 
     return [];
+}
+
+/** Bỏ cụm từ ĐÃ khớp (huyện/xã) khỏi đúng đoạn chứa nó — phần dư còn lại làm địa chỉ chi tiết. */
+function stripWindow(segs: string[], idx: number, query: string): string[] {
+    return segs.map((s, i) => {
+        if (i !== idx) return s;
+        const sw = s.split(/\s+/).filter(Boolean);
+        const qw = query.split(/\s+/).filter(Boolean);
+        for (let start = 0; start + qw.length <= sw.length; start++) {
+            let ok = true;
+            for (let k = 0; k < qw.length; k++) {
+                if (sw[start + k].toLowerCase() !== qw[k].toLowerCase()) { ok = false; break; }
+            }
+            if (ok) { sw.splice(start, qw.length); return sw.join(' '); }
+        }
+        return s;
+    });
+}
+
+function joinDetail(segs: string[]): string {
+    return segs.map((s) => s.trim()).filter(Boolean).join(', ');
 }
 
 function makeSuggestion(p: Province, d: District | undefined, w: Ward | undefined, format: AddressFormat, detail: string): AddressAutoSuggestion {
