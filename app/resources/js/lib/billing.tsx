@@ -122,7 +122,27 @@ export interface Invoice {
     lines?: InvoiceLine[];
 }
 
-export interface CheckoutSession { method: string; message?: string; redirect_url?: string; qr_url?: string }
+export interface CheckoutSession {
+    method: string;
+    message?: string;
+    redirect_url?: string;
+    qr_url?: string;
+    account_no?: string;
+    account_name?: string;
+    bank_code?: string;
+    memo?: string;
+    amount?: number;
+    expires_at?: number;
+}
+
+export const REFUND_TERMS_VERSION = 'refund-v1';
+
+export interface ProTrialEligibility {
+    eligible: boolean;
+    reason: string | null;
+    duration_days: number;
+    ends_preview: string | null;
+}
 
 export interface CheckoutResult { invoice: Invoice; gateway: string; checkout: CheckoutSession }
 
@@ -186,7 +206,11 @@ export function useCheckout() {
     const tenantId = useCurrentTenantId();
     return useMutation({
         mutationFn: async (vars: { plan_code: PlanCode; cycle: 'monthly' | 'yearly'; gateway: 'sepay' | 'vnpay' | 'momo'; voucher_code?: string }) => {
-            const { data } = await api!.post<{ data: CheckoutResult }>('/billing/checkout', vars);
+            const { data } = await api!.post<{ data: CheckoutResult }>('/billing/checkout', {
+                ...vars,
+                terms_accepted: true,
+                terms_version: REFUND_TERMS_VERSION,
+            });
             return data.data;
         },
         onSuccess: () => {
@@ -275,4 +299,54 @@ export function useUpdateBillingProfile() {
 export function isTrialLike(sub: Subscription | null | undefined): boolean {
     if (!sub) return false;
     return sub.is_trialing || sub.plan_code === 'trial';
+}
+
+/** SPEC — Pro trial: kiểm tra tenant còn đủ điều kiện dùng thử Pro không (chưa từng trial/gói cao hơn...). */
+export function useProTrialEligibility() {
+    const tenantId = useCurrentTenantId();
+    const api = useScopedApi();
+
+    return useQuery({
+        queryKey: ['billing', tenantId, 'pro-trial-eligibility'],
+        enabled: api != null,
+        queryFn: async () => {
+            const { data } = await api!.get<{ data: ProTrialEligibility }>('/billing/pro-trial/eligibility');
+            return data.data;
+        },
+    });
+}
+
+/** Đăng ký dùng thử Pro — yêu cầu xác nhận điều khoản hoàn tiền (terms_version). */
+export function useRegisterProTrial() {
+    const tenantId = useCurrentTenantId();
+    const api = useScopedApi();
+    const qc = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (terms_version: string) => {
+            const { data } = await api!.post<{ data: Subscription }>('/billing/pro-trial/register', {
+                terms_accepted: true,
+                terms_version,
+            });
+            return data.data;
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['billing', tenantId] }),
+    });
+}
+
+/** Poll hoá đơn sau khi mở checkout SePay — dừng khi invoice đã 'paid'. */
+export function useInvoicePolling(invoiceId: number | null, enabled: boolean) {
+    const tenantId = useCurrentTenantId();
+    const api = useScopedApi();
+
+    return useQuery({
+        queryKey: ['billing', tenantId, 'invoice', invoiceId],
+        enabled: api != null && enabled && invoiceId != null,
+        refetchInterval: (query) =>
+            (query.state.data as Invoice | undefined)?.status === 'paid' ? false : 4000,
+        queryFn: async () => {
+            const { data } = await api!.get<{ data: Invoice }>(`/billing/invoices/${invoiceId}`);
+            return data.data;
+        },
+    });
 }
