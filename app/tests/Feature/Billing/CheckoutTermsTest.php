@@ -4,6 +4,7 @@ namespace Tests\Feature\Billing;
 
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder;
+use CMBcoreSeller\Modules\Billing\Models\Invoice;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
@@ -50,7 +51,7 @@ class CheckoutTermsTest extends TestCase
             ])->assertCreated();
 
         $code = $resp->json('data.invoice.code');
-        $meta = \CMBcoreSeller\Modules\Billing\Models\Invoice::query()->where('code', $code)->value('meta');
+        $meta = Invoice::query()->where('code', $code)->value('meta');
         $this->assertSame('refund-v1', $meta['terms_version'] ?? null);
         $this->assertNotNull($meta['terms_accepted_at'] ?? null);
     }
