@@ -136,6 +136,18 @@ x-app-env: &app-env
   # Marketplace integrations
   INTEGRATIONS_CHANNELS: ${INTEGRATIONS_CHANNELS:-manual,tiktok,shopee,lazada}
   INTEGRATIONS_CARRIERS: ${INTEGRATIONS_CARRIERS:-}
+  # --- Payment gateways (Billing) — cổng thu tiền nâng cấp/mua gói ------------
+  # PHẢI khai ở đây mới vào container (xem chú thích R2 phía trên: Portainer chỉ feed ${VAR}).
+  # SePay = chuyển khoản tự động qua webhook sao kê. account_no/account_name/webhook_api_key
+  # BẮT BUỘC (thiếu ⇒ checkout 422 GATEWAY_UNAVAILABLE). bank_code/qr_template có default trong
+  # config — giữ default ở đây, KHÔNG để `:-` rỗng (env="" sẽ đè mất default). Webhook SePay trỏ
+  # POST <APP_URL>/webhook/payments/sepay, header `Authorization: Apikey <SEPAY_WEBHOOK_API_KEY>`.
+  INTEGRATIONS_PAYMENTS: ${INTEGRATIONS_PAYMENTS:-sepay}
+  SEPAY_ACCOUNT_NO: ${SEPAY_ACCOUNT_NO}
+  SEPAY_ACCOUNT_NAME: ${SEPAY_ACCOUNT_NAME}
+  SEPAY_BANK_CODE: ${SEPAY_BANK_CODE:-MB}
+  SEPAY_WEBHOOK_API_KEY: ${SEPAY_WEBHOOK_API_KEY}
+  SEPAY_QR_TEMPLATE: ${SEPAY_QR_TEMPLATE:-compact2}
   # "Luồng A": "Chuẩn bị hàng" gọi API sàn arrange-shipment + lấy tem thật (endpoint TikTok theo SDK chính
   # thức fulfillment 202309). Bật mặc định; đặt =false nếu shop yêu cầu handover_method khác / lỗi gọi sàn
   # (lỗi vẫn được bắt & gắn cờ has_issue trên đơn, không chặn — vẫn tạo vận đơn cục bộ).
