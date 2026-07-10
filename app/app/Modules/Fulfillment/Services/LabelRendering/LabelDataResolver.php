@@ -8,7 +8,12 @@ use CMBcoreSeller\Modules\Orders\Models\Order;
 
 class LabelDataResolver
 {
-    public function resolve(Order $order): DataContext
+    /**
+     * @param  array{name?:string,phone?:string,address?:string}|null  $senderOverride  Hồ sơ người gửi đã chọn
+     *                                                                                  (settings.print.senders) cho phiếu giao hàng — ưu tiên hơn địa chỉ kho khi in phiếu bằng template
+     *                                                                                  tự thiết kế. null ⇒ suy người gửi từ KHO như cũ (dùng cho tem/nhãn không chọn người gửi).
+     */
+    public function resolve(Order $order, ?array $senderOverride = null): DataContext
     {
         $tenantId = (int) $order->tenant_id;
 
@@ -31,12 +36,21 @@ class LabelDataResolver
         $recFull = trim($recDetail.($recAdmin ? ', '.$recAdmin : ''));
 
         $whAddr = (array) ($warehouse?->address ?? []);
-        $senderPhone = (string) ($whAddr['phone'] ?? '');
-        $senderName = (string) ($whAddr['contact'] ?? $warehouse?->name ?? '');
-        $senderAddr = trim(implode(', ', array_filter([
-            $whAddr['line1'] ?? null, $whAddr['ward'] ?? null,
-            $whAddr['district'] ?? null, $whAddr['province'] ?? null,
-        ])));
+        // Người gửi: nếu có hồ sơ người gửi đã chọn (phiếu giao hàng) ⇒ dùng đúng hồ sơ đó; ngược lại suy
+        // từ địa chỉ KHO. Trước đây luôn lấy theo kho ⇒ phiếu in template tự thiết kế hiện SAI tên/SĐT người
+        // gửi so với hồ sơ đã chọn ở Cài đặt in.
+        if ($senderOverride !== null && (trim((string) ($senderOverride['name'] ?? '')) !== '' || trim((string) ($senderOverride['address'] ?? '')) !== '')) {
+            $senderName = (string) ($senderOverride['name'] ?? '');
+            $senderPhone = (string) ($senderOverride['phone'] ?? '');
+            $senderAddr = (string) ($senderOverride['address'] ?? '');
+        } else {
+            $senderPhone = (string) ($whAddr['phone'] ?? '');
+            $senderName = (string) ($whAddr['contact'] ?? $warehouse?->name ?? '');
+            $senderAddr = trim(implode(', ', array_filter([
+                $whAddr['line1'] ?? null, $whAddr['ward'] ?? null,
+                $whAddr['district'] ?? null, $whAddr['province'] ?? null,
+            ])));
+        }
 
         $items = $order->items->map(fn ($it) => [
             'name' => trim((string) $it->name.($it->variation ? ' — '.$it->variation : '')),

@@ -69,8 +69,14 @@ export type OrderDraft = {
 interface CreateOrderFormProps {
     /** Tab đang hiển thị? Chỉ tab active bắt hotkey F2/F4. Mặc định true (chế độ sửa/đứng riêng). */
     active?: boolean;
-    /** Chế độ tạo (có tab): gọi thay vì navigate sau khi lưu — để parent reset tab. */
-    onSaved?: (orderId: number) => void;
+    /** Chế độ tạo (có tab): gọi thay vì navigate sau khi TẠO đơn — để parent chuyển tab cũ sang sửa + mở tab mới. */
+    onSaved?: (orderId: number, orderNumber?: string) => void;
+    /** Chế độ SỬA trong tab (workspace): id đơn đã tạo để tab cũ vẫn sửa/lưu được. null = tab tạo mới. */
+    editOrderId?: number | null;
+    /** Chế độ sửa trong tab: gọi sau khi LƯU thay đổi (update) — thay vì navigate; để parent bỏ cờ dirty. */
+    onUpdated?: () => void;
+    /** Chế độ sửa trong tab: báo có chỉnh sửa chưa lưu ⇒ parent cảnh báo khi đóng tab. */
+    onEditDirtyChange?: (dirty: boolean) => void;
     /** Báo nháp lên parent (debounce). null = sạch (chưa nhập SĐT). Parent lưu localStorage. */
     onDraftChange?: (draft: OrderDraft | null) => void;
     /** Nháp khôi phục khi mở lại tab (từ localStorage). */
@@ -81,7 +87,7 @@ interface CreateOrderFormProps {
     compact?: boolean;
 }
 
-export function CreateOrderForm({ active = true, onSaved, onDraftChange, initialDraft, embedded = false, compact = false }: CreateOrderFormProps) {
+export function CreateOrderForm({ active = true, onSaved, editOrderId, onUpdated, onEditDirtyChange, onDraftChange, initialDraft, embedded = false, compact = false }: CreateOrderFormProps) {
     const { message } = AntApp.useApp();
     // Gợi ý phí GHTK (cô lập): chỉ bật khi tenant có tài khoản GHTK đang hoạt động. Carrier khác không
     // hỗ trợ tính phí ⇒ không hiện nút. Gợi ý là ƯỚC TÍNH (KL mặc định) — user bấm "Áp dụng" mới ghi vào ô.
@@ -91,7 +97,9 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
     const [feeSuggestion, setFeeSuggestion] = useState<number | null>(null);
     const navigate = useNavigate();
     const { id: editIdRaw } = useParams();
-    const editId = editIdRaw ? Number(editIdRaw) : null;
+    // Chế độ sửa: ưu tiên prop `editOrderId` (tab workspace sau khi tạo đơn) rồi mới tới route param (/orders/:id/edit).
+    const routeEditId = editIdRaw ? Number(editIdRaw) : null;
+    const editId = editOrderId != null ? editOrderId : routeEditId;
     const isEdit = editId != null && !Number.isNaN(editId);
     const [form] = Form.useForm();
     const create = useCreateManualOrder();
@@ -271,6 +279,27 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
         setEditPrefilled(true);
     }, [isEdit, editingOrder, editPrefilled, form]);
 
+    // ---- Chế độ sửa trong tab: theo dõi "đã chỉnh sửa chưa lưu" để parent cảnh báo khi đóng tab (mục 4) ----
+    // Ready = đã prefill xong 1 nhịp ⇒ KHÔNG tính lần đổ dữ liệu ban đầu là "user chỉnh sửa".
+    const editReadyRef = useRef(false);
+    // Giữ callback trong ref để markEditDirty ỔN ĐỊNH identity — nếu để onEditDirtyChange (đổi mỗi render
+    // của parent) vào deps, effect sẽ chạy lại và tự đánh dấu dirty SAI sau mỗi re-render (kể cả sau khi lưu).
+    const onEditDirtyChangeRef = useRef(onEditDirtyChange);
+    onEditDirtyChangeRef.current = onEditDirtyChange;
+    useEffect(() => {
+        if (!isEdit || !editPrefilled) { editReadyRef.current = false; return; }
+        const t = setTimeout(() => { editReadyRef.current = true; }, 0);
+        return () => clearTimeout(t);
+    }, [isEdit, editPrefilled]);
+    const markEditDirty = useCallback(() => {
+        if (isEdit && editReadyRef.current) onEditDirtyChangeRef.current?.(true);
+    }, [isEdit]);
+    // Đổi state ngoài form (sản phẩm/địa chỉ/thẻ/đính kèm) sau khi prefill ⇒ dirty. Form fields đổi qua
+    // onValuesChange (setFieldsValue của prefill/sync KHÔNG kích hoạt onValuesChange nên an toàn).
+    useEffect(() => {
+        markEditDirty();
+    }, [items, shipAddress, tags, attachments, markEditDirty]);
+
     // Checkbox "Chỉ thu phí nếu hoàn" mới TÍCH (chưa có số tiền) ⇒ nạp mặc định của shop/hằng số.
     // Guard bằng getFieldValue (không phải state) nên KHÔNG đè giá trị vừa nạp từ đơn đang sửa
     // (effect edit-load chạy trước, cùng lượt commit, vì được khai báo phía trên).
@@ -418,6 +447,13 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
         if (isEdit && editId) {
             update.mutate({ id: editId, payload }, {
                 onSuccess: (o) => {
+                    if (onUpdated) {
+                        // Chế độ sửa trong tab: ở lại tab (không navigate), bỏ cờ dirty. In (nếu có) mở tab mới.
+                        if (andPrint) window.open(`/orders/${o.id}?print=1`, '_blank');
+                        message.success('Đã lưu thay đổi');
+                        onUpdated();
+                        return;
+                    }
                     message.success(andPrint ? 'Đã lưu — chuyển sang in phiếu giao hàng.' : 'Đã lưu thay đổi');
                     navigate(`/orders/${o.id}${andPrint ? '?print=1' : ''}`);
                 },
@@ -428,9 +464,9 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
         create.mutate(payload, {
             onSuccess: (o) => {
                 if (onSaved) {
-                    // Chế độ tab: parent reset tab về form trắng + toast kèm link. KHÔNG navigate.
+                    // Chế độ tab: parent chuyển tab hiện tại sang SỬA đơn vừa tạo + mở tab trắng mới. KHÔNG navigate.
                     if (andPrint) window.open(`/orders/${o.id}?print=1`, '_blank');
-                    onSaved(o.id);
+                    onSaved(o.id, (o as { order_number?: string }).order_number);
                     return;
                 }
                 message.success(andPrint ? 'Đã tạo đơn — chuyển sang in phiếu giao hàng.' : 'Đã tạo đơn');
@@ -615,9 +651,11 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                 <AddressAutocomplete
                     placeholder="Địa chỉ chi tiết — gõ cả tỉnh/quận/phường để được gợi ý (vd: 123 NTrai, Q.1, TP HCM)"
                     onPick={(s) => { setShipAddress((cur) => ({ ...cur, ...s.address })); }}
+                    suppress={!!(shipAddress.province || shipAddress.district || shipAddress.ward
+                        || shipAddress.province_code || shipAddress.district_code || shipAddress.ward_code)}
                 />
             </Form.Item>
-            <Popover trigger="click" open={addrPickerOpen} onOpenChange={setAddrPickerOpen} placement="bottomLeft" content={(
+            <Popover trigger="click" open={addrPickerOpen} onOpenChange={setAddrPickerOpen} placement="bottomLeft" destroyOnHidden content={(
                 <AddressPicker value={shipAddress} oldAddresses={oldAddresses} onPick={(p) => {
                     setShipAddress(p);
                     if (p.name) form.setFieldsValue({ recipient_name: p.name });
@@ -698,8 +736,9 @@ export function CreateOrderForm({ active = true, onSaved, onDraftChange, initial
                 <Alert type="info" showIcon style={{ marginBottom: 16 }} message="Đang tải dữ liệu đơn để chỉnh sửa…" />
             )}
 
-            <Form form={form} layout="vertical" initialValues={{
-                channel_mode: 'online', sub_source: undefined, free_shipping: false, collect_fee_on_return_only: false,
+            <Form form={form} layout="vertical" onValuesChange={markEditDirty} initialValues={{
+                // "Chỉ thu phí nếu hoàn" mặc định BẬT (số tiền mặc định nạp qua effect: shop setting hoặc 30.000đ).
+                channel_mode: 'online', sub_source: undefined, free_shipping: false, collect_fee_on_return_only: true,
                 shipping_fee: 0, order_discount: 0, prepaid_amount: 0, surcharge: 0,
             }}>
                 <Row gutter={16}>
@@ -1131,6 +1170,9 @@ function loadDraftTabs(): Array<{ key: string; draft: OrderDraft }> {
     } catch { return []; }
 }
 
+/** 1 tab workspace: tạo mới (orderId=null) hoặc SỬA đơn vừa tạo (orderId set). */
+type TabItem = { key: string; orderId: number | null; orderNumber?: string };
+
 function CreateOrderTabs() {
     const { notification } = AntApp.useApp();
     const navigate = useNavigate();
@@ -1140,13 +1182,17 @@ function CreateOrderTabs() {
     const initialDrafts = useRef<Record<string, OrderDraft>>(
         Object.fromEntries(restored.current.map((t) => [t.key, t.draft])),
     );
-    const [tabs, setTabs] = useState<string[]>(() =>
-        restored.current.length > 0 ? restored.current.map((t) => t.key) : [newTabKey()],
+    const [tabs, setTabs] = useState<TabItem[]>(() =>
+        restored.current.length > 0 ? restored.current.map((t) => ({ key: t.key, orderId: null })) : [{ key: newTabKey(), orderId: null }],
     );
     const [drafts, setDrafts] = useState<Record<string, OrderDraft | null>>(() => ({ ...initialDrafts.current }));
-    const [activeKey, setActiveKey] = useState<string>(() => tabs[0]);
+    // Tab đang SỬA đơn đã tạo: có chỉnh sửa chưa lưu? ⇒ cảnh báo khi đóng (mục 4).
+    const [editDirty, setEditDirty] = useState<Record<string, boolean>>({});
+    const [activeKey, setActiveKey] = useState<string>(() => tabs[0].key);
 
-    const dirtyCount = Object.values(drafts).filter((d) => d != null).length;
+    // "Dở dang" = tab tạo mới có nháp (đã nhập dữ liệu) HOẶC tab sửa đơn có thay đổi chưa lưu.
+    const dirtyCount = Object.values(drafts).filter((d) => d != null).length
+        + Object.values(editDirty).filter(Boolean).length;
     const hasDirty = dirtyCount > 0;
 
     const persist = useCallback((map: Record<string, OrderDraft | null>) => {
@@ -1166,9 +1212,13 @@ function CreateOrderTabs() {
         });
     }, [persist]);
 
+    const handleEditDirty = useCallback((key: string, dirty: boolean) => {
+        setEditDirty((prev) => (prev[key] === dirty ? prev : { ...prev, [key]: dirty }));
+    }, []);
+
     const addTab = useCallback(() => {
         const key = newTabKey();
-        setTabs((t) => [...t, key]);
+        setTabs((t) => [...t, { key, orderId: null }]);
         setActiveKey(key);
     }, []);
 
@@ -1176,40 +1226,57 @@ function CreateOrderTabs() {
         const doRemove = () => {
             const fallback = newTabKey(); // sinh 1 lần ⇒ updater thuần, an toàn StrictMode.
             setTabs((t) => {
-                const next = t.filter((k) => k !== key);
-                return next.length > 0 ? next : [fallback];
+                const next = t.filter((x) => x.key !== key);
+                return next.length > 0 ? next : [{ key: fallback, orderId: null }];
             });
             setActiveKey((cur) => {
                 if (cur !== key) return cur;
-                const next = tabs.filter((k) => k !== key);
-                return next.length > 0 ? next[next.length - 1] : fallback;
+                const next = tabs.filter((x) => x.key !== key);
+                return next.length > 0 ? next[next.length - 1].key : fallback;
             });
             setDrafts((prev) => { const n = { ...prev }; delete n[key]; persist(n); return n; });
+            setEditDirty((prev) => { const n = { ...prev }; delete n[key]; return n; });
         };
-        if (drafts[key] != null) {
+        const tab = tabs.find((x) => x.key === key);
+        const isEditTab = tab?.orderId != null;
+        // Cảnh báo khi đóng tab CÓ dữ liệu: tab tạo mới có nháp, HOẶC tab sửa đơn có thay đổi chưa lưu (mục 4).
+        const hasData = isEditTab ? editDirty[key] === true : drafts[key] != null;
+        if (hasData) {
             Modal.confirm({
-                title: 'Đơn đang tạo dở',
-                content: 'Đơn này đã nhập SĐT nhưng chưa lưu. Đóng tab và bỏ nháp?',
+                title: isEditTab ? 'Đơn có thay đổi chưa lưu' : 'Đơn đang tạo dở',
+                content: isEditTab
+                    ? 'Tab này đang sửa đơn vừa tạo và có thay đổi CHƯA LƯU. Đóng tab và bỏ thay đổi?'
+                    : 'Đơn này đã nhập dữ liệu nhưng chưa lưu. Đóng tab và bỏ nháp?',
                 okText: 'Đóng & bỏ', okButtonProps: { danger: true }, cancelText: 'Giữ lại',
                 onOk: doRemove,
             });
         } else {
             doRemove();
         }
-    }, [tabs, drafts, persist]);
+    }, [tabs, drafts, editDirty, persist]);
 
-    const handleSaved = useCallback((key: string, orderId: number) => {
-        // Lưu xong: reset tab về form trắng (key mới) ngay tại chỗ ⇒ tiếp tục tạo. Xoá nháp.
+    const handleSaved = useCallback((key: string, orderId: number, orderNumber?: string) => {
+        // Tạo đơn xong (mục 3): tab hiện tại CHUYỂN sang SỬA đơn vừa tạo (giữ nguyên thông tin, vẫn sửa & lưu
+        // được) + mở 1 tab TRẮNG mới và chuyển sang tab mới. Tab sửa dùng key mới ⇒ remount sạch ở chế độ edit.
+        const editKey = newTabKey();
         const fresh = newTabKey();
-        setTabs((t) => t.map((k) => (k === key ? fresh : k)));
-        setActiveKey((cur) => (cur === key ? fresh : cur));
+        setTabs((t) => t.flatMap((x) => (
+            x.key === key ? [{ key: editKey, orderId, orderNumber }, { key: fresh, orderId: null }] : [x]
+        )));
+        setActiveKey(fresh);
         setDrafts((prev) => { const n = { ...prev }; delete n[key]; n[fresh] = null; persist(n); return n; });
+        setEditDirty((prev) => { const n = { ...prev }; delete n[key]; return n; });
         notification.success({
             message: 'Đã tạo đơn',
             description: <a href={`/orders/${orderId}`} target="_blank" rel="noreferrer">Xem đơn vừa tạo →</a>,
             placement: 'topRight',
         });
     }, [persist, notification]);
+
+    const handleUpdated = useCallback((key: string) => {
+        // Lưu thay đổi (update) trong tab sửa xong ⇒ hết dirty (không cảnh báo khi đóng nữa).
+        setEditDirty((prev) => (prev[key] ? { ...prev, [key]: false } : prev));
+    }, []);
 
     // Cảnh báo khi refresh / đóng tab / đóng trình duyệt lúc còn đơn dở.
     useEffect(() => {
@@ -1249,28 +1316,34 @@ function CreateOrderTabs() {
         }
     };
 
-    const labelFor = (key: string, idx: number): string => {
-        const d = drafts[key];
+    const labelFor = (tab: TabItem, idx: number): string => {
+        if (tab.orderId != null) return tab.orderNumber || `Đơn #${tab.orderId}`;
+        const d = drafts[tab.key];
         const name = (d?.form?.buyer_name as string) || (d?.form?.recipient_name as string) || d?.phone || '';
         return name ? name.slice(0, 18) : `Đơn ${idx + 1}`;
     };
 
-    const items = tabs.map((key, idx) => ({
-        key,
+    const items = tabs.map((tab, idx) => ({
+        key: tab.key,
         label: (
             <Space size={4}>
-                {drafts[key] != null && <Badge status="warning" />}
-                {labelFor(key, idx)}
+                {tab.orderId != null
+                    ? <Badge status={editDirty[tab.key] ? 'warning' : 'success'} />
+                    : (drafts[tab.key] != null ? <Badge status="warning" /> : null)}
+                {labelFor(tab, idx)}
             </Space>
         ),
         closable: tabs.length > 1,
         children: (
             <CreateOrderForm
                 embedded
-                active={key === activeKey}
-                onSaved={(id) => handleSaved(key, id)}
-                onDraftChange={(d) => handleDraftChange(key, d)}
-                initialDraft={initialDrafts.current[key] ?? null}
+                active={tab.key === activeKey}
+                editOrderId={tab.orderId}
+                onSaved={tab.orderId == null ? (id, num) => handleSaved(tab.key, id, num) : undefined}
+                onUpdated={tab.orderId != null ? () => handleUpdated(tab.key) : undefined}
+                onDraftChange={tab.orderId == null ? (d) => handleDraftChange(tab.key, d) : undefined}
+                onEditDirtyChange={tab.orderId != null ? (dirty) => handleEditDirty(tab.key, dirty) : undefined}
+                initialDraft={initialDrafts.current[tab.key] ?? null}
             />
         ),
     }));
@@ -1279,7 +1352,7 @@ function CreateOrderTabs() {
         <div>
             <PageHeader
                 title={<Space size="middle"><Button type="text" icon={<ArrowLeftOutlined />} onClick={leave} /><span>Tạo đơn thủ công</span></Space>}
-                subtitle="Mỗi tab là 1 đơn. Lưu xong tab tự reset để tạo tiếp; đơn chưa lưu (đã nhập SĐT) được giữ khi mở lại trang."
+                subtitle="Mỗi tab là 1 đơn. Tạo xong: tab giữ đơn vừa tạo (vẫn sửa/lưu được) và tự mở tab mới để tạo tiếp; đơn chưa lưu được giữ khi mở lại trang."
             />
             <Tabs
                 type="editable-card"

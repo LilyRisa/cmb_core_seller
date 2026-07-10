@@ -185,8 +185,9 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             // `abilities:orders:read` — extension token (chỉ `copy-product:push`) bị chặn 403 khỏi
             // dữ liệu đơn. SPA cookie & token `*` thoả mãn mọi ability nên không ảnh hưởng (A5).
             Route::get('orders', [OrderController::class, 'index'])->middleware('abilities:orders:read')->name('orders.index');
-            // S4 (Sprint 3) — throttle riêng cho POST /orders chống spam tạo đơn manual (reserve stock).
-            Route::post('orders', [OrderController::class, 'store'])->middleware('throttle:30,1')->name('orders.store');
+            // Tạo đơn thủ công — KHÔNG throttle riêng (yêu cầu: bỏ giới hạn "Too Many Requests" khi tạo đơn);
+            // vẫn còn throttle nhóm v1 (120,1) bao ngoài để chống lạm dụng toàn cục.
+            Route::post('orders', [OrderController::class, 'store'])->name('orders.store');
             Route::get('orders/{id}', [OrderController::class, 'show'])->whereNumber('id')->name('orders.show');
             Route::patch('orders/{id}', [OrderController::class, 'update'])->whereNumber('id')->name('orders.update');   // manual order edit
             Route::post('orders/{id}/cancel', [OrderController::class, 'cancel'])->whereNumber('id')->name('orders.cancel');

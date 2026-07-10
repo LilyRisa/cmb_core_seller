@@ -384,7 +384,9 @@ class PrintService
             $tpl = ShippingLabelTemplate::withoutGlobalScope(TenantScope::class)
                 ->withTrashed()->where('tenant_id', $tenantId)->findOrFail($templateId);
 
-            return app(LabelRenderer::class)->renderBatch($orders, $tpl);
+            // Truyền hồ sơ người gửi đã chọn xuống renderer để phiếu template tự thiết kế in ĐÚNG người gửi
+            // (trước đây renderer chỉ lấy theo địa chỉ kho ⇒ sai tên/SĐT người gửi so với hồ sơ đã chọn).
+            return app(LabelRenderer::class)->renderBatch($orders, $tpl, $this->senderMapFor($orders, $tenantId, $senderId));
         }
 
         $shopName = (string) (Tenant::query()->whereKey($tenantId)->value('name') ?? 'Cửa hàng');

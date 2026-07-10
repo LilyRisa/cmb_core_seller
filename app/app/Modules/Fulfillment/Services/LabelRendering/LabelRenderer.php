@@ -38,12 +38,14 @@ class LabelRenderer
 
     /**
      * @param  Collection<int, Order>  $orders
+     * @param  array<int, array{name:string,phone:string,address:string}>  $senderMap  Người gửi theo order_id
+     *                                                                                 (phiếu giao hàng — từ hồ sơ đã chọn). Rỗng ⇒ resolver suy người gửi từ kho như cũ.
      */
-    public function renderBatch(Collection $orders, ShippingLabelTemplate $tpl): string
+    public function renderBatch(Collection $orders, ShippingLabelTemplate $tpl, array $senderMap = []): string
     {
         $pages = [];
         foreach ($orders as $order) {
-            $ctx = $this->resolver->resolve($order);
+            $ctx = $this->resolver->resolve($order, $senderMap[(int) $order->getKey()] ?? null);
             $pages[] = $this->renderBody($ctx, $tpl);
         }
 

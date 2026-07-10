@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Button, Empty, Input, Radio, Segmented, Space, Spin, Tabs, Tag, Typography } from 'antd';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Button, Empty, Input, Radio, Segmented, Space, Spin, Tabs, Tag, Typography, type InputRef } from 'antd';
 import { ArrowLeftOutlined, CheckOutlined, EnvironmentOutlined, SearchOutlined } from '@ant-design/icons';
 import { useDistricts, useProvinces, useWards, type AddressFormat, type District, type Province, type Ward } from '@/lib/masterData';
 import { smartFilter } from '@/lib/vnAddressMatch';
@@ -76,6 +76,14 @@ function AdminPicker({ value, onPick }: { value?: PickedAddress; onPick: (v: Pic
 
     // Reset query khi đổi cấp ⇒ user không bị filter cũ làm rỗng list cấp mới.
     useEffect(() => { setQ(''); }, [level, format]);
+
+    // Con trỏ LUÔN nằm ở ô tìm kiếm: khi mở picker (mount) và mỗi khi sang cấp mới (Tỉnh→Huyện→Xã) hoặc
+    // đổi chuẩn. setTimeout để giành focus sau khi Popover/AntD dàn xong layout (autoFocus thường bị nuốt).
+    const searchRef = useRef<InputRef>(null);
+    useEffect(() => {
+        const t = setTimeout(() => searchRef.current?.focus(), 30);
+        return () => clearTimeout(t);
+    }, [level, format]);
 
     const onFormatChange = (v: string | number) => {
         const f = v as AddressFormat;
@@ -163,7 +171,7 @@ function AdminPicker({ value, onPick }: { value?: PickedAddress; onPick: (v: Pic
 
             {/* Search — apply cho cấp đang hiện */}
             <Input
-                allowClear autoFocus key={`${format}-${level}`}
+                allowClear ref={searchRef}
                 prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
                 placeholder={
                     level === 'province' ? 'Tìm tỉnh / thành (vd: "ha noi", "tp hcm"…)' :

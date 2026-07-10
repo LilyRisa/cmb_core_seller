@@ -505,6 +505,11 @@ export function OrdersPage() {
     const searchField = (['q', 'sku', 'product'] as const).find((f) => params.get(f)) ?? 'q';
     const searchValue = params.get(searchField) ?? '';
     const onSearch = (field: string, value: string) => set({ q: undefined, sku: undefined, product: undefined, [field]: value || undefined });
+    // Ô tìm kiếm CONTROLLED, bám URL (single source of truth). Trước đây dùng `defaultValue` (uncontrolled) +
+    // `key` ⇒ khi đổi trạng thái/tab mà URL VẪN GIỮ query, ô trên giao diện bị lệch/trắng. Đồng bộ lại giá
+    // trị ô mỗi khi param/field đổi để URL và ô luôn khớp nhau.
+    const [searchInput, setSearchInput] = useState(searchValue);
+    useEffect(() => { setSearchInput(searchValue); }, [searchValue, searchField]);
 
     const columns: ColumnsType<Order> = [
         {
@@ -689,9 +694,10 @@ export function OrdersPage() {
                         options={SEARCH_FIELDS.map((f) => ({ value: f.key, label: f.label }))}
                     />
                     <Input.Search
-                        allowClear key={searchField} defaultValue={searchValue} style={{ flex: 1, minWidth: 260 }}
+                        allowClear value={searchInput} style={{ flex: 1, minWidth: 260 }}
                         placeholder={SEARCH_FIELDS.find((f) => f.key === searchField)?.label}
                         prefix={<SearchOutlined />}
+                        onChange={(e) => setSearchInput(e.target.value)}
                         onSearch={(v) => onSearch(searchField, v)}
                     />
                 </div>

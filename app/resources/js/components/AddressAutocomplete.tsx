@@ -35,7 +35,7 @@ export interface AddressAutoSuggestion {
     address: PickedAddress;
 }
 
-export function AddressAutocomplete({ value, onChange, onPick, placeholder, maxLength = 500, status }: {
+export function AddressAutocomplete({ value, onChange, onPick, placeholder, maxLength = 500, status, suppress = false }: {
     /** Form.Item inject; KHÔNG truyền tay từ ngoài. */
     value?: string;
     /** Form.Item inject. */
@@ -44,6 +44,8 @@ export function AddressAutocomplete({ value, onChange, onPick, placeholder, maxL
     placeholder?: string;
     maxLength?: number;
     status?: 'warning' | 'error';
+    /** TẮT hẳn gợi ý (vd đã chọn Tỉnh/Huyện/Xã ở picker) — chỉ gợi ý khi phần chọn hành chính còn trống. */
+    suppress?: boolean;
 }) {
     // value có thể undefined (initial render trước khi Form.Item inject). Default an toàn.
     const safeValue = value ?? '';
@@ -89,9 +91,9 @@ export function AddressAutocomplete({ value, onChange, onPick, placeholder, maxL
     return (
         <AutoComplete
             value={safeValue}
-            options={options}
+            options={suppress ? [] : options}
             popupMatchSelectWidth={false}
-            open={focused && options.length > 0}
+            open={!suppress && focused && options.length > 0}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             onChange={(v) => onChange?.(v)}
@@ -110,7 +112,7 @@ export function AddressAutocomplete({ value, onChange, onPick, placeholder, maxL
                 placeholder={placeholder ?? 'Vd: 123 Nguyễn Trãi, P. Bến Nghé, Q.1, TP HCM'}
                 maxLength={maxLength}
                 status={status}
-                suffix={tail ? <Tag color="blue" style={{ marginInlineEnd: 0, fontSize: 10 }}>{suggestions.length} gợi ý</Tag> : <EnvironmentOutlined style={{ color: '#bfbfbf' }} />}
+                suffix={tail && !suppress ? <Tag color="blue" style={{ marginInlineEnd: 0, fontSize: 10 }}>{suggestions.length} gợi ý</Tag> : <EnvironmentOutlined style={{ color: '#bfbfbf' }} />}
             />
         </AutoComplete>
     );

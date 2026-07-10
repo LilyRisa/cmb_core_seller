@@ -726,8 +726,18 @@ class ShipmentService
                 'fee' => (int) ($result['fee'] ?? 0), 'raw' => $result['raw'] ?? $result,
             ]);
             $this->recordEvent($shipment, 'created', 'Đã tạo vận đơn', Shipment::STATUS_CREATED, ShipmentEvent::SOURCE_SYSTEM, null, $userId);
+            // Đẩy ĐVVC THÀNH CÔNG (đã có mã vận đơn) ⇒ đơn manual không còn lỗi: xoá cờ has_issue/issue_reason
+            // (vd lỗi "Chuẩn bị hàng thất bại" trước đó đã được sửa và đẩy lại thành công).
+            $patch = [];
             if ($order->carrier !== $displayCarrier) {
-                $order->forceFill(['carrier' => $displayCarrier])->save();
+                $patch['carrier'] = $displayCarrier;
+            }
+            if ($order->has_issue) {
+                $patch['has_issue'] = false;
+                $patch['issue_reason'] = null;
+            }
+            if ($patch !== []) {
+                $order->forceFill($patch)->save();
             }
 
             return $shipment;
