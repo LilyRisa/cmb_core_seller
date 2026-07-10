@@ -3,8 +3,10 @@
 namespace CMBcoreSeller\Modules\Billing\Services;
 
 use CMBcoreSeller\Modules\Billing\Models\Plan;
+use CMBcoreSeller\Modules\Billing\Models\ProTrialGrant;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -22,8 +24,6 @@ use Illuminate\Support\Facades\DB;
  */
 class SubscriptionExpiryService
 {
-    public function __construct(protected SubscriptionService $subscriptions) {}
-
     /**
      * Quét toàn bộ subscriptions "alive" và áp luật state machine.
      *
@@ -64,11 +64,14 @@ class SubscriptionExpiryService
             ->orderBy('id')
             ->each(function (Subscription $sub) use (&$expired, &$fallback) {
                 DB::transaction(function () use ($sub, &$expired, &$fallback) {
-                    $sub->forceFill([
-                        'status' => Subscription::STATUS_EXPIRED,
-                        'ended_at' => now(),
-                    ])->save();
+                    $sub->forceFill(['status' => Subscription::STATUS_EXPIRED, 'ended_at' => now()])->save();
                     $expired++;
+
+                    if (($sub->meta['pro_trial'] ?? false) === true) {
+                        $this->revertProTrial($sub);
+
+                        return;
+                    }
                     if ($this->createTrialFallbackIfMissing((int) $sub->tenant_id)) {
                         $fallback++;
                     }
@@ -127,5 +130,39 @@ class SubscriptionExpiryService
         ]);
 
         return true;
+    }
+
+    /** Sub trải nghiệm Pro hết hạn ⇒ khôi phục gói trước đó (hoặc trial fallback). */
+    protected function revertProTrial(Subscription $sub): void
+    {
+        $meta = $sub->meta ?? [];
+        $planId = $meta['revert_plan_id'] ?? null;
+        $cycle = $meta['revert_cycle'] ?? Subscription::CYCLE_TRIAL;
+        $plan = $planId ? Plan::query()->find($planId) : Plan::query()->where('code', Plan::CODE_TRIAL)->first();
+
+        ProTrialGrant::query()->withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $sub->tenant_id)->update(['reverted_at' => now()]);
+
+        if ($plan === null) {
+            $this->createTrialFallbackIfMissing((int) $sub->tenant_id);
+
+            return;
+        }
+
+        // Gói trial ⇒ khôi phục vĩnh viễn; gói trả phí ⇒ dùng period_end cũ (nếu quá khứ, kỳ sau sẽ hạ trial).
+        $isTrial = $plan->code === Plan::CODE_TRIAL || $cycle === Subscription::CYCLE_TRIAL;
+        $periodEnd = $isTrial
+            ? now()->addYears(50)
+            : (isset($meta['revert_period_end']) ? Carbon::parse($meta['revert_period_end']) : now());
+
+        Subscription::query()->create([
+            'tenant_id' => $sub->tenant_id,
+            'plan_id' => $plan->getKey(),
+            'status' => Subscription::STATUS_ACTIVE,
+            'billing_cycle' => $cycle,
+            'current_period_start' => now(),
+            'current_period_end' => $periodEnd,
+            'meta' => ['reverted_from_pro_trial' => true],
+        ]);
     }
 }
