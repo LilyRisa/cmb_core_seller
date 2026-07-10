@@ -22,6 +22,7 @@ use CMBcoreSeller\Modules\Billing\Services\SubscriptionService;
 use CMBcoreSeller\Modules\Billing\Services\UsageService;
 use CMBcoreSeller\Modules\Billing\Services\VoucherService;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -313,7 +314,10 @@ class BillingController extends Controller
         $tenantId = (int) $this->tenant->id();
         try {
             $sub = $this->proTrial->register($tenantId, (string) $request->validated('terms_version'));
-        } catch (ValidationException $e) {
+        } catch (ValidationException|UniqueConstraintViolationException $e) {
+            // UniqueConstraintViolationException: double-submit đua nhau qua eligibility re-check, request
+            // thứ 2 vấp unique `tenant_id` khi INSERT pro_trial_grants — trả cùng payload 422 như trường hợp
+            // đã dùng thử rồi (tuần tự), không để lộ 500.
             return response()->json(['error' => [
                 'code' => 'PRO_TRIAL_NOT_ELIGIBLE',
                 'message' => 'Chưa đủ điều kiện đăng ký trải nghiệm Pro.',
