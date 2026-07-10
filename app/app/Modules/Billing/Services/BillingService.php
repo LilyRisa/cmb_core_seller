@@ -70,6 +70,10 @@ class BillingService
      *   - Plan không tồn tại / không active ⇒ ValidationException PLAN_NOT_FOUND.
      *   - Đang ở cùng plan + cùng cycle, status active, chưa quá hạn ⇒ ALREADY_ON_PLAN.
      *   - Downgrade từ gói cao xuống thấp khi đang active ⇒ DOWNGRADE_NOT_ALLOWED (v1).
+     *
+     * @param  ?string  $termsVersion  Version điều khoản hoàn tiền đã chấp nhận — LUÔN truyền giá trị từ
+     *                                 `config('billing.refund_terms_version')` phía server, không dùng input client.
+     * @param  ?string  $termsAcceptedAt  Thời điểm chấp nhận điều khoản (ISO-8601), lưu vào `invoices.meta`.
      */
     public function createUpgradeInvoice(
         int $tenantId,

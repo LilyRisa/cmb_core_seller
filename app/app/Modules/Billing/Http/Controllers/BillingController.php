@@ -130,7 +130,8 @@ class BillingController extends Controller
             $data['cycle'],
             $data['voucher_code'] ?? null,
             $userId,
-            $data['terms_version'],
+            // Không tin version phía client — luôn ghi hằng số phía server (client chỉ cần accepted).
+            config('billing.refund_terms_version'),
             now()->toIso8601String(),
         );
 
@@ -317,7 +318,8 @@ class BillingController extends Controller
     {
         $tenantId = (int) $this->tenant->id();
         try {
-            $sub = $this->proTrial->register($tenantId, (string) $request->validated('terms_version'));
+            // Không tin version phía client — luôn ghi hằng số phía server (client chỉ cần accepted).
+            $sub = $this->proTrial->register($tenantId, (string) config('billing.refund_terms_version'));
         } catch (ValidationException|UniqueConstraintViolationException $e) {
             // UniqueConstraintViolationException: double-submit đua nhau qua eligibility re-check, request
             // thứ 2 vấp unique `tenant_id` khi INSERT pro_trial_grants — trả cùng payload 422 như trường hợp
