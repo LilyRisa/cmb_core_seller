@@ -197,7 +197,6 @@ const PLAN_OPTIONS: Array<{ value: string; label: string }> = [
     { value: 'trial', label: 'Dùng thử' },
     { value: 'starter', label: 'Cơ bản' },
     { value: 'pro', label: 'Chuyên nghiệp' },
-    { value: 'test_unlimited', label: 'Test (không giới hạn)' },
 ];
 
 function PlanTab({ tenantId, sub }: { tenantId: number; sub: import('@admin/lib/admin').AdminSubscription | null }) {
