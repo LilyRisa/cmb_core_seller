@@ -287,7 +287,9 @@ Xem [`webhooks-and-oauth.md`](webhooks-and-oauth.md). `POST /webhook/tiktok` →
 | GET | `/api/v1/billing/plans` | sanctum + tenant (`billing.view`) | — | `{ data:[PlanResource{id,code,name,description,price_monthly,price_yearly,currency,trial_days,limits,features}] }` — catalogue 4 gói: `trial · starter · pro · business`. Lưu DB (admin sửa được). |
 | GET | `/api/v1/billing/subscription` | sanctum + tenant (`billing.view`) | — | `{ data: SubscriptionResource{plan,plan_code,status,billing_cycle,trial_ends_at,current_period_start/end,cancel_at,days_left,is_trialing,is_past_due}, meta:{ usage:{ channel_accounts:{used,limit}, features:{…} } } }` — tự fallback trial vĩnh viễn khi tenant không có subscription. Plans chưa seed ⇒ `data=null`. |
 | GET | `/api/v1/billing/usage` | sanctum + tenant (`billing.view`) | — | `{ data:{ channel_accounts:{used,limit}, features:{…bool flags} } }`. |
-| POST | `/api/v1/billing/checkout` | sanctum + tenant (`billing.manage` — owner) | `{plan_code:starter\|pro\|business, cycle:monthly\|yearly, gateway:sepay\|vnpay\|momo}` | `201 { data:{ invoice: InvoiceResource, gateway, checkout: CheckoutSession } }`. Throttle 10/phút/user. `momo` ⇒ `422 GATEWAY_UNAVAILABLE` (v1 chưa wire). PR1 trả `checkout.method='pending'`; PR2/PR3 sẽ thay bằng `CheckoutSession` thật (QR cho SePay / `redirect_url` cho VNPay). Chặn: trial plan ⇒ 422; cùng plan đang active ⇒ 422; downgrade khi đang active ⇒ 422. |
+| POST | `/api/v1/billing/checkout` | sanctum + tenant (`billing.manage` — owner) | `{plan_code:starter\|pro\|business, cycle:monthly\|yearly, gateway:sepay\|vnpay\|momo, terms_accepted:true, terms_version:string}` | `201 { data:{ invoice: InvoiceResource, gateway, checkout: CheckoutSession } }`. Throttle 10/phút/user. `momo` ⇒ `422 GATEWAY_UNAVAILABLE` (v1 chưa wire). `terms_accepted` bắt buộc `true` (điều khoản không hoàn lại) ⇒ thiếu/`false` ⇒ `422`. `CheckoutSession` giờ là thật: SePay trả `{ method:'bank_transfer', qr_url, account_no, account_name, bank_code, memo, amount, expires_at }` (FE hiện QR + poll `GET /billing/invoices/{id}` tới khi `paid`); VNPay trả `{ redirect_url }`. Chặn: trial plan ⇒ 422; cùng plan đang active ⇒ 422; downgrade khi đang active ⇒ 422. |
+| GET | `/api/v1/billing/pro-trial/eligibility` | sanctum + tenant (`billing.manage`) | — | `{ data:{ eligible:bool, reason:string\|null (mode_off\|window_closed\|already_used\|plan_too_high), duration_days:int, ends_preview:string\|null } }` — kiểm tra tenant có đủ điều kiện đăng ký trải nghiệm gói Pro. |
+| POST | `/api/v1/billing/pro-trial/register` | sanctum + tenant (`billing.manage`) | `{ terms_accepted:true, terms_version:string }` | `{ data: SubscriptionResource }` — đăng ký trải nghiệm Pro (kích hoạt ngay). Mỗi tenant chỉ 1 lần vĩnh viễn (bảng `pro_trial_grants`, unique `tenant_id`). Không đủ điều kiện / đã dùng / đua unique ⇒ `422 PRO_TRIAL_NOT_ELIGIBLE`. Throttle 10/phút. Hết hạn (sau `duration_days`) tự về gói trước đó. |
 | GET | `/api/v1/billing/invoices` | sanctum + tenant (`billing.view`) | `status?` csv, `page`, `per_page≤100` | `{ data:[InvoiceResource{code,status,subscription_id,period_start,period_end,subtotal,tax,total,currency,due_at,paid_at}], meta:{ pagination } }`. |
 | GET | `/api/v1/billing/invoices/{id}` | sanctum + tenant (`billing.view`) | — | `InvoiceResource` + `lines[]`. |
 | GET | `/api/v1/billing/invoices/{id}/payment-status` | sanctum + tenant (`billing.view`) | — | `{ data:{ id, status, paid_at? } }` — UX polling cho SePay khi user chờ webhook khớp memo. |
@@ -410,6 +412,15 @@ Popup giữa màn hình cho mọi user (fix bug, tạm dừng dịch vụ…). A
 | PATCH/DELETE | `/api/v1/admin/desktop-backgrounds/{id}` | web + `auth:admin_web` | Sửa (kể cả bật/tắt) / xoá preset. |
 | POST | `/api/v1/admin/desktop-backgrounds/media` | web + `auth:admin_web` | multipart `file` (ảnh ≤ `media.images.max_kb`) → R2 `desktop-backgrounds/` → `{ data:{ url, path } }`. |
 | GET | `/api/v1/announcements/active` | `auth:sanctum` + `verified` | `{ data:[{ id, title, body_html, dismiss_label }] }` — chỉ popup đang `is_active` + trong cửa sổ `starts_at`/`ends_at`. |
+
+#### Cấu hình trải nghiệm Pro (Pro-trial — super-admin)
+
+Bật/tắt + cấu hình chế độ trải nghiệm gói Pro (kích hoạt ngay, không cần thanh toán) + thời lượng + cửa sổ chiến dịch. Lưu qua `system_setting` (`billing.pro_trial.*`).
+
+| Method | Path | Auth | Mô tả |
+|---|---|---|---|
+| GET | `/api/v1/admin/pro-trial-settings` | web + `auth:admin_web` | `{ data:{ enabled:bool, duration_days:int, window_start:string\|null, window_end:string\|null } }`. |
+| PUT | `/api/v1/admin/pro-trial-settings` | web + `auth:admin_web` | `{ enabled:bool, duration_days:int(1..365), window_start:YYYY-MM-DD\|null, window_end:YYYY-MM-DD\|null }` ⇒ response giống GET. Audit `admin.pro_trial.settings`. |
 
 #### AI chấm ảnh (vision re-rank) — super-admin
 
