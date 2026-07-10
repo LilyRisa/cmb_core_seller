@@ -1,7 +1,6 @@
 <?php
 
 use CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder;
-use CMBcoreSeller\Modules\Billing\Database\Seeders\TestUnlimitedPlanSeeder;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\App;
 
@@ -15,7 +14,6 @@ return new class extends Migration
         }
 
         (new BillingPlanSeeder)->run();
-        (new TestUnlimitedPlanSeeder)->run();
     }
 
     public function down(): void

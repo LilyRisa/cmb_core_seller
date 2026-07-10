@@ -11,7 +11,9 @@ class PublicPlanController extends Controller
 {
     public function index(): JsonResponse
     {
-        $plans = Plan::query()->where('is_active', true)->orderBy('sort_order')->get()
+        $plans = Plan::query()->where('is_active', true)
+            ->whereIn('code', Plan::CODES)
+            ->orderBy('sort_order')->get()
             ->map(fn (Plan $p) => [
                 'code' => $p->code,
                 'name' => $p->name,

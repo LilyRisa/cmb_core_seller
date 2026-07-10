@@ -162,7 +162,7 @@ class AdminTenantController extends Controller
     public function changePlan(Request $request, int $tid): JsonResponse
     {
         $data = $request->validate([
-            'plan_code' => ['required', 'string', 'max:32'],
+            'plan_code' => ['required', 'string', 'max:32', 'not_in:test_unlimited'],
             'cycle' => ['required', 'string', 'in:monthly,yearly,trial'],
             'reason' => ['required', 'string', 'min:10', 'max:500'],
         ]);

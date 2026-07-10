@@ -17,9 +17,9 @@ class BillingPlanSeeder extends Seeder
 {
     /**
      * NGUỒN DUY NHẤT danh sách feature flag app kiểm tra (plan.feature middleware).
-     * Thêm feature mới CHỈ ở đây — Pro (gói gia hạn) tự bật tất, gói TEST tự full
-     * ({@see TestUnlimitedPlanSeeder}). Nhớ đồng bộ catalog FE (lib/billing.tsx,
-     * AdminPlansPage KNOWN_FEATURES, PlansPage FEATURE_ROWS).
+     * Thêm feature mới CHỈ ở đây — Pro (gói gia hạn) tự bật tất, gói nội bộ (nếu có) tự
+     * full. Nhớ đồng bộ catalog FE (lib/billing.tsx, AdminPlansPage KNOWN_FEATURES,
+     * PlansPage FEATURE_ROWS).
      *
      * @return list<string>
      */

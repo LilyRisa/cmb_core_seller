@@ -3,7 +3,7 @@
 namespace Tests\Feature\Marketing;
 
 use CMBcoreSeller\Models\User;
-use CMBcoreSeller\Modules\Billing\Database\Seeders\TestUnlimitedPlanSeeder;
+use CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
 use CMBcoreSeller\Modules\Marketing\Jobs\GenerateCampaignAiInsight;
@@ -35,11 +35,11 @@ class CampaignAiInsightApiTest extends TestCase
         $this->user = User::factory()->create(['email_verified_at' => now()]);
         $this->tenant->users()->attach($this->user->getKey(), ['role' => Role::Owner->value]);
 
-        // SPEC 0032 — AI insight cần gói có AI. Gói TEST không giới hạn ⇒ consume no-op.
-        $this->seed(TestUnlimitedPlanSeeder::class);
+        // SPEC 0032 — AI insight cần gói có AI. Gói `pro` full feature (bao gồm AI).
+        $this->seed(BillingPlanSeeder::class);
         Subscription::create([
             'tenant_id' => $this->tenant->getKey(),
-            'plan_id' => Plan::query()->where('code', 'test_unlimited')->value('id'),
+            'plan_id' => Plan::query()->where('code', 'pro')->value('id'),
             'status' => 'active', 'billing_cycle' => 'monthly',
             'current_period_start' => now(), 'current_period_end' => now()->addYears(50),
         ]);
@@ -178,6 +178,15 @@ class CampaignAiInsightApiTest extends TestCase
         $other = Tenant::create(['name' => 'Other']);
         $otherUser = User::factory()->create(['email_verified_at' => now()]);
         $other->users()->attach($otherUser->getKey(), ['role' => Role::Owner->value]);
+        // `other` needs a plan with marketing feature too, else `plan.feature` gate
+        // 402s first (auto-trial fallback has no marketing feature) before reaching
+        // the tenant-scoped findOrFail this test is actually exercising.
+        Subscription::create([
+            'tenant_id' => $other->getKey(),
+            'plan_id' => Plan::query()->where('code', 'pro')->value('id'),
+            'status' => 'active', 'billing_cycle' => 'monthly',
+            'current_period_start' => now(), 'current_period_end' => now()->addYears(50),
+        ]);
 
         // The account belongs to tenant T ⇒ findOrFail is tenant-scoped ⇒ 404 for the other tenant.
         $this->actingAs($otherUser)->withHeaders(['X-Tenant-Id' => (string) $other->id])

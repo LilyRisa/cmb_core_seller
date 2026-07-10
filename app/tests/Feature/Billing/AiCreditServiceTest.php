@@ -3,7 +3,6 @@
 namespace Tests\Feature\Billing;
 
 use CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder;
-use CMBcoreSeller\Modules\Billing\Database\Seeders\TestUnlimitedPlanSeeder;
 use CMBcoreSeller\Modules\Billing\Exceptions\AiCreditException;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
@@ -22,7 +21,6 @@ class AiCreditServiceTest extends TestCase
     {
         parent::setUp();
         $this->seed(BillingPlanSeeder::class);
-        $this->seed(TestUnlimitedPlanSeeder::class);
         $this->tenant = Tenant::create(['name' => 'Shop']);
     }
 
@@ -102,7 +100,13 @@ class AiCreditServiceTest extends TestCase
 
     public function test_unlimited_test_plan_never_consumes(): void
     {
-        $this->subscribe(TestUnlimitedPlanSeeder::CODE);
+        $plan = Plan::query()->create([
+            'code' => 'internal_unlimited_ai', 'name' => 'Internal', 'description' => '',
+            'is_active' => false, 'sort_order' => 98,
+            'price_monthly' => 0, 'price_yearly' => 0, 'currency' => 'VND', 'trial_days' => 0,
+            'limits' => ['ai_credits_monthly' => -1], 'features' => ['ai' => true],
+        ]);
+        $this->subscribe($plan->code);
         $tid = (int) $this->tenant->getKey();
 
         $this->assertTrue($this->svc()->unlimited($tid));

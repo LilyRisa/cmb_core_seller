@@ -2,7 +2,6 @@
 
 namespace CMBcoreSeller\Modules\Billing;
 
-use CMBcoreSeller\Modules\Billing\Console\BetaModeCommand;
 use CMBcoreSeller\Modules\Billing\Console\CheckExpiringSubscriptionsCommand;
 use CMBcoreSeller\Modules\Billing\Console\CheckOverQuotaCommand;
 use CMBcoreSeller\Modules\Billing\Console\RecomputeUsageCommand;
@@ -57,7 +56,6 @@ class BillingServiceProvider extends ServiceProvider
                 CheckExpiringSubscriptionsCommand::class,
                 RecomputeUsageCommand::class,
                 CheckOverQuotaCommand::class,
-                BetaModeCommand::class,
             ]);
         }
     }
