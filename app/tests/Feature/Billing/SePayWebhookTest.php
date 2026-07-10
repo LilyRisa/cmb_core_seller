@@ -194,6 +194,7 @@ class SePayWebhookTest extends TestCase
         $resp = $this->actingAs($this->owner)->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
             ->postJson('/api/v1/billing/checkout', [
                 'plan_code' => Plan::CODE_PRO, 'cycle' => 'monthly', 'gateway' => 'sepay',
+                'terms_accepted' => true, 'terms_version' => 'refund-v1',
             ]);
 
         $resp->assertCreated()

@@ -106,6 +106,8 @@ class BillingController extends Controller
             'cycle' => ['required', 'string', 'in:monthly,yearly'],
             'gateway' => ['required', 'string', 'in:sepay,vnpay,momo'],
             'voucher_code' => ['nullable', 'string', 'max:64'],   // SPEC 0023
+            'terms_accepted' => ['required', 'accepted'],
+            'terms_version' => ['required', 'string', 'max:32'],
         ]);
 
         // Cổng chưa đăng ký (config `INTEGRATIONS_PAYMENTS` chưa bật) ⇒ 422.
@@ -128,6 +130,8 @@ class BillingController extends Controller
             $data['cycle'],
             $data['voucher_code'] ?? null,
             $userId,
+            $data['terms_version'],
+            now()->toIso8601String(),
         );
 
         try {

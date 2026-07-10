@@ -71,9 +71,16 @@ class BillingService
      *   - Đang ở cùng plan + cùng cycle, status active, chưa quá hạn ⇒ ALREADY_ON_PLAN.
      *   - Downgrade từ gói cao xuống thấp khi đang active ⇒ DOWNGRADE_NOT_ALLOWED (v1).
      */
-    public function createUpgradeInvoice(int $tenantId, string $planCode, string $cycle, ?string $voucherCode = null, ?int $userId = null): Invoice
-    {
-        return DB::transaction(function () use ($tenantId, $planCode, $cycle, $voucherCode, $userId) {
+    public function createUpgradeInvoice(
+        int $tenantId,
+        string $planCode,
+        string $cycle,
+        ?string $voucherCode = null,
+        ?int $userId = null,
+        ?string $termsVersion = null,
+        ?string $termsAcceptedAt = null,
+    ): Invoice {
+        return DB::transaction(function () use ($tenantId, $planCode, $cycle, $voucherCode, $userId, $termsVersion, $termsAcceptedAt) {
             $plan = Plan::query()->where('code', $planCode)->where('is_active', true)->first();
             if ($plan === null) {
                 throw ValidationException::withMessages(['plan_code' => 'Gói không tồn tại hoặc đã ngừng hoạt động.']);
@@ -125,10 +132,12 @@ class BillingService
                 'total' => $totals['total'],
                 'currency' => 'VND',
                 'due_at' => $now->copy()->addDays(7),
-                'meta' => [
+                'meta' => array_filter([
                     'plan_code' => $plan->code,
                     'cycle' => $cycle,
-                ],
+                    'terms_version' => $termsVersion,
+                    'terms_accepted_at' => $termsAcceptedAt,
+                ], fn ($v) => $v !== null),
             ]);
 
             InvoiceLine::query()->create([

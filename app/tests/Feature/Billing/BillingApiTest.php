@@ -73,6 +73,8 @@ class BillingApiTest extends TestCase
                 'plan_code' => Plan::CODE_PRO,
                 'cycle' => 'monthly',
                 'gateway' => 'sepay',
+                'terms_accepted' => true,
+                'terms_version' => 'refund-v1',
             ]);
 
         $resp->assertCreated()
@@ -94,6 +96,8 @@ class BillingApiTest extends TestCase
                 'plan_code' => Plan::CODE_PRO,
                 'cycle' => 'yearly',
                 'gateway' => 'sepay',
+                'terms_accepted' => true,
+                'terms_version' => 'refund-v1',
             ])->assertCreated()
             ->assertJsonPath('data.invoice.total', 1_700_000);
     }
@@ -105,6 +109,8 @@ class BillingApiTest extends TestCase
                 'plan_code' => Plan::CODE_TRIAL,
                 'cycle' => 'monthly',
                 'gateway' => 'sepay',
+                'terms_accepted' => true,
+                'terms_version' => 'refund-v1',
             ])->assertStatus(422);
     }
 
@@ -115,6 +121,8 @@ class BillingApiTest extends TestCase
                 'plan_code' => Plan::CODE_PRO,
                 'cycle' => 'monthly',
                 'gateway' => 'momo',
+                'terms_accepted' => true,
+                'terms_version' => 'refund-v1',
             ])->assertStatus(422)
             ->assertJsonPath('error.code', 'GATEWAY_UNAVAILABLE');
     }

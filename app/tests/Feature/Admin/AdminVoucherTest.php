@@ -118,6 +118,7 @@ class AdminVoucherTest extends TestCase
         $this->actingAs($owner)->withHeader('X-Tenant-Id', (string) $tenant->getKey())
             ->postJson('/api/v1/billing/checkout', [
                 'plan_code' => 'pro', 'cycle' => 'monthly', 'gateway' => 'sepay', 'voucher_code' => 'OFF20',
+                'terms_accepted' => true, 'terms_version' => 'refund-v1',
             ])->assertCreated()->assertJsonPath('data.invoice.status', 'pending');
 
         $invoice = Invoice::query()->withoutGlobalScope(TenantScope::class)->where('tenant_id', $tenant->getKey())->latest('id')->first();

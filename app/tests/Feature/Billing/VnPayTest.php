@@ -191,6 +191,7 @@ class VnPayTest extends TestCase
         $resp = $this->actingAs($owner)->withHeaders(['X-Tenant-Id' => (string) $tenant->getKey()])
             ->postJson('/api/v1/billing/checkout', [
                 'plan_code' => Plan::CODE_PRO, 'cycle' => 'monthly', 'gateway' => 'vnpay',
+                'terms_accepted' => true, 'terms_version' => 'refund-v1',
             ]);
 
         $resp->assertCreated()
@@ -207,6 +208,7 @@ class VnPayTest extends TestCase
         $this->actingAs($owner)->withHeaders(['X-Tenant-Id' => (string) $tenant->getKey()])
             ->postJson('/api/v1/billing/checkout', [
                 'plan_code' => Plan::CODE_PRO, 'cycle' => 'monthly', 'gateway' => 'momo',
+                'terms_accepted' => true, 'terms_version' => 'refund-v1',
             ])->assertStatus(422)
             ->assertJsonPath('error.code', 'GATEWAY_UNAVAILABLE');
     }
