@@ -25,14 +25,16 @@ import {
     useMessagingRealtime,
     useMessagingTags,
     useReplyComment,
+    useRenderTemplate,
     useResendMessage,
+    useSendAttachmentRef,
     useSendMedia,
     useSendText,
     useSaveTag,
     useSetConversationTags,
     useUnblockConversation,
 } from '@/lib/messaging';
-import { useMessagingChannels, useTemplates } from '@/lib/messagingConfig';
+import { type MessageTemplate, useMessagingChannels, useTemplates } from '@/lib/messagingConfig';
 import { usePushNotifications } from '@/lib/usePushNotifications';
 import { MessagingNav } from '@/components/MessagingNav';
 import { TagManagerModal } from '@/components/TagManagerModal';
@@ -397,6 +399,8 @@ export function MessagingPage() {
     const thread = useConversationThread(activeId);
     const sendText = useSendText(activeId);
     const sendMedia = useSendMedia(activeId);
+    const renderTemplate = useRenderTemplate(activeId);
+    const sendAttachmentRef = useSendAttachmentRef(activeId);
     const resend = useResendMessage(activeId);
     const markRead = useMarkRead();
     const markUnread = useMarkUnread();
@@ -527,13 +531,23 @@ export function MessagingPage() {
     // ── Helpers ───────────────────────────────────────────────────────────────
     // Gửi DM: có ảnh/tệp → gửi media (kèm caption); chỉ text → gửi text. Ném lỗi
     // lên composer để giữ ô soạn khi thất bại.
+    // Resolve mẫu tin theo hội thoại (điền giá trị thật) — dùng cho cả DM lẫn comment.
+    const resolveTemplate = async (t: MessageTemplate) => {
+        const r = await renderTemplate.mutateAsync(t.id);
+        return { text: r.text, attachments: r.attachments };
+    };
+
     const handleDmSubmit = async (p: ComposerSubmit) => {
         if (!activeId) return;
         try {
             if (p.file && p.kind) {
                 await sendMedia.mutateAsync({ file: p.file, kind: p.kind, caption: p.text || undefined });
-            } else {
+            } else if (p.text) {
                 await sendText.mutateAsync({ body: p.text, message_tag: p.messageTag });
+            }
+            // Ảnh đính kèm từ mẫu tin (đã ở storage) — gửi lần lượt sau text.
+            for (const att of p.templateAttachments ?? []) {
+                await sendAttachmentRef.mutateAsync({ storage_path: att.storage_path, kind: att.kind, mime: att.mime, caption: undefined });
             }
         } catch (e) {
             message.error(errorMessage(e, 'Không gửi được tin.'));
@@ -938,8 +952,8 @@ export function MessagingPage() {
                                             avatar={(
                                                 <Badge
                                                     count={c.thread_type === 'comment'
-                                                        ? <CommentOutlined style={{ fontSize: 15, color: '#1677ff', background: '#fff', borderRadius: '50%', padding: 2, boxShadow: '0 0 0 1px #fff' }} />
-                                                        : <MessageOutlined style={{ fontSize: 15, color: '#52c41a', background: '#fff', borderRadius: '50%', padding: 2, boxShadow: '0 0 0 1px #fff' }} />
+                                                        ? <CommentOutlined style={{ fontSize: 12, color: '#fff', background: '#1677ff', borderRadius: '50%', padding: 3, boxShadow: '0 0 0 2px #fff' }} />
+                                                        : <MessageOutlined style={{ fontSize: 12, color: '#fff', background: '#16a34a', borderRadius: '50%', padding: 3, boxShadow: '0 0 0 2px #fff' }} />
                                                     }
                                                     offset={[-4, 30]}
                                                 >
@@ -957,7 +971,7 @@ export function MessagingPage() {
                                                             <Text strong={c.unread_count > 0} ellipsis style={{ maxWidth: 160 }}>{searchQ ? highlightMatch(convDisplayName(c), searchQ) : convDisplayName(c)}</Text>
                                                             {c.order_id != null && (
                                                                 <Tooltip title="Đã có đơn hàng">
-                                                                    <ShoppingOutlined style={{ color: '#2563EB', flexShrink: 0 }} />
+                                                                    <ShoppingOutlined style={{ color: '#fff', background: '#f97316', borderRadius: '50%', padding: 3, fontSize: 11, flexShrink: 0 }} />
                                                                 </Tooltip>
                                                             )}
                                                         </Space>
@@ -1006,7 +1020,7 @@ export function MessagingPage() {
                                                     {(c.has_phone && c.detected_phone || (c.tags ?? []).length > 0) && (
                                                         <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                                                             {c.has_phone && c.detected_phone && (
-                                                                <Tag icon={<PhoneOutlined />} color="green" style={{ marginInlineEnd: 0, fontSize: 11 }}>{c.detected_phone}</Tag>
+                                                                <Tag icon={<PhoneOutlined />} color="#16a34a" style={{ marginInlineEnd: 0, fontSize: 11, fontWeight: 600 }}>{c.detected_phone}</Tag>
                                                             )}
                                                             {(c.tags ?? []).map((tid) => {
                                                                 const t = tags.find((x) => x.id === tid);
@@ -1064,7 +1078,7 @@ export function MessagingPage() {
                                     <Text strong>{active ? convDisplayName(active) : ''}</Text>{' '}
                                     <Tag color="blue">{providerLabel(active?.provider ?? '')}</Tag>
                                     {active?.has_phone && active?.detected_phone && (
-                                        <Tag icon={<PhoneOutlined />} color="green" style={{ marginInlineStart: 4 }}>{active.detected_phone}</Tag>
+                                        <Tag icon={<PhoneOutlined />} color="#16a34a" style={{ marginInlineStart: 4, fontWeight: 600 }}>{active.detected_phone}</Tag>
                                     )}
                                     {active?.channel_account_name && (
                                         <Text type="secondary" style={{ marginInlineStart: 4 }}>· {active.channel_account_name}</Text>
@@ -1252,6 +1266,7 @@ export function MessagingPage() {
                             templates={templates}
                             aiAvailable
                             onAiSuggest={handleAiSuggest}
+                            onResolveTemplate={resolveTemplate}
                             onSubmit={handleCommentSubmit}
                         />
                         ) : (
@@ -1263,6 +1278,7 @@ export function MessagingPage() {
                             needsTag={needsTag}
                             aiAvailable
                             onAiSuggest={handleAiSuggest}
+                            onResolveTemplate={resolveTemplate}
                             onSubmit={handleDmSubmit}
                         />
                         )}

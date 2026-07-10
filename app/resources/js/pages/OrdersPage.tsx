@@ -600,7 +600,7 @@ export function OrdersPage() {
     ];
 
     return (
-        <div>
+        <div className="tags-default">
             <PageHeader
                 title="Đơn hàng"
                 subtitle="Đơn từ tất cả gian hàng — lọc theo sàn / shop / SKU / sản phẩm / đơn vị vận chuyển"

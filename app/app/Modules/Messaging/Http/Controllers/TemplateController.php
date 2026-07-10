@@ -3,8 +3,11 @@
 namespace CMBcoreSeller\Modules\Messaging\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
+use CMBcoreSeller\Modules\Messaging\Exceptions\AttachmentInvalid;
 use CMBcoreSeller\Modules\Messaging\Http\Resources\MessageTemplateResource;
 use CMBcoreSeller\Modules\Messaging\Models\MessageTemplate;
+use CMBcoreSeller\Modules\Messaging\Services\MediaRelayService;
+use CMBcoreSeller\Modules\Messaging\Services\MediaStorage;
 use CMBcoreSeller\Modules\Messaging\Services\TemplateResolver;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
@@ -26,7 +29,55 @@ use Illuminate\Validation\Rule;
  */
 class TemplateController extends Controller
 {
-    public function __construct(private TemplateResolver $resolver) {}
+    public function __construct(
+        private TemplateResolver $resolver,
+        private MediaRelayService $media,
+        private MediaStorage $storage,
+    ) {}
+
+    /**
+     * Upload 1 ảnh đính kèm cho mẫu tin — lưu object storage (prefix tenant, không
+     * gắn conversation), trả `storage_path` + signed `url` để FE lưu vào
+     * `attachments[]` của template và hiển thị thumbnail.
+     */
+    public function uploadAttachment(Request $request): JsonResponse
+    {
+        Gate::authorize('messaging.template.manage');
+
+        $request->validate([
+            'file' => ['required', 'file'],
+            'kind' => ['nullable', 'in:image,video,file'],
+        ]);
+
+        $kind = (string) $request->input('kind', 'image');
+        $tenantId = app(CurrentTenant::class)->id();
+        $file = $request->file('file');
+        $mime = $file->getMimeType() ?: $file->getClientMimeType();
+
+        try {
+            $this->media->assertValid($kind, (string) $mime, (int) $file->getSize());
+        } catch (AttachmentInvalid $e) {
+            return response()->json([
+                'error' => ['code' => 'ATTACHMENT_INVALID', 'message' => $e->getMessage()],
+            ], 422);
+        }
+
+        $ext = $file->getClientOriginalExtension() ?: $file->extension() ?: 'bin';
+        // conversationId=0 — template không thuộc hội thoại nào.
+        $path = $this->storage->buildPath((int) $tenantId, 0, $ext);
+        $stream = fopen($file->getRealPath(), 'rb');
+        $this->storage->disk()->writeStream($path, $stream);
+        if (is_resource($stream)) {
+            fclose($stream);
+        }
+
+        return response()->json(['data' => [
+            'storage_path' => $path,
+            'kind' => $kind,
+            'mime' => (string) $mime,
+            'url' => $this->storage->temporaryUrlForPath($path),
+        ]]);
+    }
 
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -101,7 +152,7 @@ class TemplateController extends Controller
             'name' => $data['name'],
             'body' => $data['body'],
             'vars' => $data['vars'] ?? $this->resolver->declaredVariables($data['body']),
-            'attachments' => $data['attachments'] ?? [],
+            'attachments' => $this->normalizeAttachments($data['attachments'] ?? []),
             'scope' => $data['scope'] ?? [],
             'shortcut_key' => $data['shortcut_key'] ?? null,
             'enabled' => $data['enabled'] ?? true,
@@ -138,12 +189,44 @@ class TemplateController extends Controller
         if (array_key_exists('body', $data) && ! array_key_exists('vars', $data)) {
             $data['vars'] = $this->resolver->declaredVariables($data['body']);
         }
+        if (array_key_exists('attachments', $data)) {
+            $data['attachments'] = $this->normalizeAttachments($data['attachments'] ?? []);
+        }
 
         $template->fill($data)->save();
 
         AuditLog::record('messaging.template.update', $template, ['fields' => array_keys($data)]);
 
         return response()->json(['data' => (new MessageTemplateResource($template))->toArray($request)]);
+    }
+
+    /**
+     * Giữ lại chỉ các khoá bền vững của attachment (bỏ `url` signed ephemeral do FE
+     * gửi lên). Chỉ nhận storage_path thuộc chính tenant (chống lưu path lạ).
+     *
+     * @param  array<int,mixed>  $attachments
+     * @return array<int,array{storage_path:string,kind:string,mime:?string}>
+     */
+    private function normalizeAttachments(array $attachments): array
+    {
+        $tenantId = app(CurrentTenant::class)->id();
+        $out = [];
+        foreach ($attachments as $att) {
+            if (! is_array($att) || empty($att['storage_path'])) {
+                continue;
+            }
+            $path = (string) $att['storage_path'];
+            if (! str_starts_with($path, "tenants/{$tenantId}/")) {
+                continue;
+            }
+            $out[] = [
+                'storage_path' => $path,
+                'kind' => (string) ($att['kind'] ?? 'image'),
+                'mime' => isset($att['mime']) ? (string) $att['mime'] : null,
+            ];
+        }
+
+        return $out;
     }
 
     public function destroy(int $id): JsonResponse

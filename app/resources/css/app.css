@@ -1636,19 +1636,45 @@ body > #app > .ant-app > .ant-layout,
     color: var(--ink-700);
 }
 
-.ant-tag-blue       { background: var(--blue-50); color: var(--blue-700); }
-.ant-tag-green      { background: var(--success-50); color: var(--success-700); }
+/* Preset màu = NỀN ĐẶC, chữ trắng (sắc độ chọn đủ tương phản, hài hoà hệ slate/blue).
+   Trước đây dùng nền -50 nhạt ⇒ chip bị "chìm màu"; nay tô đặc cho nổi bật.
+   Vùng đơn hàng (.tags-default) giữ nguyên kiểu nhạt — xem block bên dưới. */
+.ant-tag-blue,
+.ant-tag-processing { background: var(--blue-600);  color: #fff; }
+.ant-tag-green,
+.ant-tag-success    { background: #15803D;          color: #fff; }
 .ant-tag-gold,
 .ant-tag-orange,
-.ant-tag-warning    { background: var(--warn-50); color: var(--warn-700); }
+.ant-tag-warning    { background: var(--warn-700);  color: #fff; }
 .ant-tag-red,
-.ant-tag-error      { background: var(--danger-50); color: var(--danger-700); }
-.ant-tag-purple     { background: #F3E8FF; color: #6D28D9; }
-.ant-tag-magenta    { background: #FAE8FF; color: #A21CAF; }
-.ant-tag-cyan       { background: var(--cyan-50); color: var(--cyan-600); }
-.ant-tag-geekblue   { background: #E0E7FF; color: #3730A3; }
-.ant-tag-volcano    { background: #FFEDD5; color: #C2410C; }
-.ant-tag-success    { background: var(--success-50); color: var(--success-700); }
+.ant-tag-error      { background: var(--danger-600); color: #fff; }
+.ant-tag-purple     { background: #7C3AED;          color: #fff; }
+.ant-tag-magenta,
+.ant-tag-pink       { background: #DB2777;          color: #fff; }
+.ant-tag-cyan       { background: #0E7490;          color: #fff; }
+.ant-tag-geekblue   { background: #4F46E5;          color: #fff; }
+.ant-tag-volcano    { background: #C2410C;          color: #fff; }
+.ant-tag-lime       { background: #4D7C0F;          color: #fff; }
+/* icon trong chip theo màu chữ (trắng) cho đồng bộ */
+.ant-tag .anticon   { color: inherit; }
+
+/* Vùng ĐƠN HÀNG — giữ nguyên kiểu wash nhạt cũ (không tô đặc theo yêu cầu). */
+.tags-default .ant-tag-blue,
+.tags-default .ant-tag-processing { background: var(--blue-50);    color: var(--blue-700); }
+.tags-default .ant-tag-green,
+.tags-default .ant-tag-success    { background: var(--success-50); color: var(--success-700); }
+.tags-default .ant-tag-gold,
+.tags-default .ant-tag-orange,
+.tags-default .ant-tag-warning    { background: var(--warn-50);    color: var(--warn-700); }
+.tags-default .ant-tag-red,
+.tags-default .ant-tag-error      { background: var(--danger-50);  color: var(--danger-700); }
+.tags-default .ant-tag-purple     { background: #F3E8FF;           color: #6D28D9; }
+.tags-default .ant-tag-magenta,
+.tags-default .ant-tag-pink       { background: #FAE8FF;           color: #A21CAF; }
+.tags-default .ant-tag-cyan       { background: var(--cyan-50);    color: var(--cyan-600); }
+.tags-default .ant-tag-geekblue   { background: #E0E7FF;           color: #3730A3; }
+.tags-default .ant-tag-volcano    { background: #FFEDD5;           color: #C2410C; }
+.tags-default .ant-tag-lime       { background: #ECFCCB;           color: #4D7C0F; }
 
 /* CheckableTag */
 .ant-tag.ant-tag-checkable {

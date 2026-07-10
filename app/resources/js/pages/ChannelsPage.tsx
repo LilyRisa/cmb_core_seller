@@ -87,9 +87,11 @@ function ShopCard({ account, canManage, onResync, onDelete, onRename, onReauthor
                 <span>Webhook gần nhất: <DateText value={account.last_webhook_at} /></span>
                 {account.token_expires_at && <span>Token hết hạn: <DateText value={account.token_expires_at} withTime={false} /></span>}
             </div>
-            {account.status === 'expired' && (
+            {(account.status === 'expired' || account.status === 'revoked') && (
                 <Alert type="warning" showIcon style={{ marginTop: 12 }}
-                    message="Token đã hết hạn — cần cấp quyền lại để tiếp tục đồng bộ đơn."
+                    message={account.status === 'revoked'
+                        ? 'Gian hàng đã bị ngắt kết nối (thu hồi ủy quyền) — cấp quyền lại để tiếp tục đồng bộ đơn & tin nhắn.'
+                        : 'Token đã hết hạn — cần cấp quyền lại để tiếp tục đồng bộ đơn.'}
                     action={canManage && <Button size="small" type="primary" icon={<KeyOutlined />} loading={reauthorizing} onClick={onReauthorize}>Cấp quyền lại</Button>}
                 />
             )}

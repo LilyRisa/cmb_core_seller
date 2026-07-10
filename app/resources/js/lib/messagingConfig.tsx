@@ -16,6 +16,14 @@ function useScopedApi() {
 
 // --- Templates --------------------------------------------------------------
 
+/** Ảnh/tệp đính kèm của 1 mẫu tin — `url` là signed URL ngắn hạn để hiển thị. */
+export interface TemplateAttachment {
+    storage_path: string;
+    kind: 'image' | 'video' | 'file';
+    mime: string | null;
+    url: string | null;
+}
+
 export interface MessageTemplate {
     id: number;
     code: string;
@@ -24,6 +32,7 @@ export interface MessageTemplate {
     vars: string[];
     enabled: boolean;
     shortcut_key: string | null;
+    attachments: TemplateAttachment[];
 }
 
 export function useTemplates() {
@@ -54,6 +63,19 @@ export function useDeleteTemplate() {
     return useMutation({
         mutationFn: async (id: number) => { await api!.delete(`/messaging/templates/${id}`); },
         onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'templates'] }),
+    });
+}
+
+/** Upload 1 ảnh đính kèm cho mẫu tin → trả về TemplateAttachment (có storage_path + url). */
+export function useUploadTemplateAttachment() {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async (file: File): Promise<TemplateAttachment> => {
+            const form = new FormData();
+            form.append('file', file);
+            form.append('kind', 'image');
+            return (await api!.post<{ data: TemplateAttachment }>('/messaging/template-attachments', form)).data.data;
+        },
     });
 }
 

@@ -13,6 +13,7 @@ use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Models\MessageAttachment;
 use CMBcoreSeller\Modules\Messaging\Models\MessageTemplate;
 use CMBcoreSeller\Modules\Messaging\Services\MediaRelayService;
+use CMBcoreSeller\Modules\Messaging\Services\MediaStorage;
 use CMBcoreSeller\Modules\Messaging\Services\OutboundMessageService;
 use CMBcoreSeller\Modules\Messaging\Services\OutboundWindowGuard;
 use CMBcoreSeller\Modules\Messaging\Services\TemplateContextBuilder;
@@ -42,6 +43,7 @@ class MessageController extends Controller
         private TemplateResolver $templateResolver,
         private TemplateContextBuilder $templateContext,
         private MediaRelayService $media,
+        private MediaStorage $mediaStorage,
         private OutboundMessageService $outbound,
     ) {}
 
@@ -139,6 +141,153 @@ class MessageController extends Controller
         ]);
 
         return $this->sendText($conversationId, $request);
+    }
+
+    /**
+     * Resolve body mẫu tin theo hội thoại — trả text đã điền giá trị thật + danh
+     * sách ảnh đính kèm (kèm signed url) để FE hiển thị/sửa trước khi gửi. Không
+     * gửi gì cả (chỉ preview). Dùng khi NV gõ `/slug` hoặc click chọn mẫu.
+     */
+    public function renderTemplate(int $conversationId, Request $request): JsonResponse
+    {
+        Gate::authorize('messaging.reply');
+
+        $data = $request->validate([
+            'template_id' => ['required', 'integer'],
+            'vars' => ['nullable', 'array'],
+        ]);
+
+        $conv = Conversation::query()->findOrFail($conversationId);
+        $template = MessageTemplate::query()
+            ->where('id', $data['template_id'])
+            ->where('enabled', true)
+            ->firstOrFail();
+
+        $context = $this->templateContext->forConversation($conv, (array) ($data['vars'] ?? []));
+        $rendered = $this->templateResolver->resolve($template->body, $context);
+
+        $attachments = [];
+        foreach ((array) ($template->attachments ?? []) as $att) {
+            if (! is_array($att) || empty($att['storage_path'])) {
+                continue;
+            }
+            $attachments[] = [
+                'storage_path' => (string) $att['storage_path'],
+                'kind' => (string) ($att['kind'] ?? 'image'),
+                'mime' => $att['mime'] ?? null,
+                'url' => $this->mediaStorage->temporaryUrlForPath((string) $att['storage_path']),
+            ];
+        }
+
+        return response()->json(['data' => [
+            'text' => $rendered->text,
+            'attachments' => $attachments,
+            'missing' => $rendered->missing,
+        ]]);
+    }
+
+    /**
+     * Gửi 1 media ĐÃ CÓ SẴN trong object storage (vd ảnh đính kèm mẫu tin) — không
+     * upload lại. Chỉ nhận storage_path thuộc chính tenant (chống IDOR). Ghi
+     * message+attachment (status=downloaded) → dispatch SendMessage.
+     */
+    public function sendAttachmentRef(int $conversationId, Request $request): JsonResponse
+    {
+        Gate::authorize('messaging.reply');
+
+        $data = $request->validate([
+            'storage_path' => ['required', 'string', 'max:1024'],
+            'kind' => ['required', 'in:image,video,file'],
+            'mime' => ['nullable', 'string', 'max:191'],
+            'caption' => ['nullable', 'string', 'max:1000'],
+            'message_tag' => ['nullable', 'string', 'max:64'],
+        ]);
+
+        $conv = Conversation::query()->findOrFail($conversationId);
+
+        if ($blocked = $this->assertNotBlocked($conv)) {
+            return $blocked;
+        }
+
+        // Chống IDOR: chỉ cho gửi file nằm dưới prefix của chính tenant.
+        if (! str_starts_with($data['storage_path'], "tenants/{$conv->tenant_id}/")) {
+            return response()->json([
+                'error' => ['code' => 'FORBIDDEN_PATH', 'message' => 'Tệp không thuộc gian hàng này.'],
+            ], 422);
+        }
+        if (! $this->mediaStorage->disk()->exists($data['storage_path'])) {
+            return response()->json([
+                'error' => ['code' => 'ATTACHMENT_MISSING', 'message' => 'Tệp đính kèm không còn tồn tại.'],
+            ], 422);
+        }
+
+        $kind = $data['kind'];
+
+        if (! $this->registry->has($conv->provider)) {
+            return response()->json([
+                'error' => ['code' => 'UNKNOWN_MESSAGING_PROVIDER', 'message' => "Provider [{$conv->provider}] không khả dụng."],
+            ], 422);
+        }
+        $connector = $this->registry->for($conv->provider);
+
+        if (! $connector->supports("outbound.{$kind}")) {
+            return response()->json([
+                'error' => ['code' => 'UNSUPPORTED', 'message' => "Provider [{$conv->provider}] không hỗ trợ gửi [{$kind}]."],
+            ], 422);
+        }
+
+        try {
+            $this->guard->assertCanSend($connector, $conv, ['message_tag' => $data['message_tag'] ?? null]);
+        } catch (OutboundWindowClosed $e) {
+            return response()->json([
+                'error' => ['code' => 'OUTBOUND_WINDOW_CLOSED', 'message' => $e->getMessage()],
+            ], 422);
+        }
+
+        $message = DB::transaction(function () use ($conv, $data, $kind, $request) {
+            $size = (int) $this->mediaStorage->disk()->size($data['storage_path']);
+
+            $message = Message::create([
+                'tenant_id' => $conv->tenant_id,
+                'conversation_id' => $conv->id,
+                'external_message_id' => null,
+                'direction' => Message::DIRECTION_OUTBOUND,
+                'kind' => $kind,
+                'body' => $data['caption'] ?? null,
+                'attachments_count' => 1,
+                'sent_by_user_id' => $request->user()->id,
+                'sent_by_ai' => false,
+                'delivery_status' => Message::STATUS_PENDING,
+                'meta' => array_filter(['message_tag' => $data['message_tag'] ?? null]),
+            ]);
+
+            MessageAttachment::create([
+                'tenant_id' => $conv->tenant_id,
+                'message_id' => $message->id,
+                'kind' => $kind,
+                'mime' => $data['mime'] ?? 'application/octet-stream',
+                'size_bytes' => $size,
+                'storage_path' => $data['storage_path'],
+                'checksum' => '',
+                'filename' => basename($data['storage_path']),
+                'status' => MessageAttachment::STATUS_DOWNLOADED,
+            ]);
+
+            $conv->update([
+                'last_message_at' => $message->created_at,
+                'last_outbound_at' => $message->created_at,
+                'last_message_preview' => MessagePreview::build($data['caption'] ?? null, $kind),
+                'message_count' => $conv->message_count + 1,
+            ]);
+
+            return $message;
+        });
+
+        SendMessage::dispatch($message->id);
+
+        return response()->json([
+            'data' => (new MessageResource($message->load('attachments')))->toArray($request),
+        ], 202);
     }
 
     /**

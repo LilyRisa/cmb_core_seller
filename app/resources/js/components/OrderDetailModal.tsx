@@ -14,6 +14,7 @@ export function OrderDetailModal({ orderId, open, onClose }: { orderId: number |
 
     return (
         <Modal
+            className="tags-default"
             open={open} onCancel={onClose} width={1000} footer={null} destroyOnClose
             title={order
                 ? <Space size="middle" wrap>

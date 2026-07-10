@@ -74,7 +74,7 @@ export function PrintJobBar({ jobId, onClose }: { jobId: number; onClose: () => 
     });
 
     return (
-        <Modal open width={460} onCancel={finish} maskClosable={false}
+        <Modal className="tags-default" open width={460} onCancel={finish} maskClosable={false}
             title={done ? (step === 'open' ? 'Phiếu in đã sẵn sàng' : 'Đánh dấu các đơn đã in') : 'Đang tạo phiếu in…'}
             footer={!done ? null : step === 'open' ? [
                 <Button key="c" onClick={finish}>Đóng</Button>,

@@ -4,6 +4,7 @@ import { tenantApi } from './api';
 import { getEcho, realtimeEnabled } from './echo';
 import { useCurrentTenantId } from './tenant';
 import type { Paginated } from './orders';
+import type { TemplateAttachment } from './messagingConfig';
 
 /**
  * Data layer cho Hộp thư hợp nhất (SPEC-0024). Gọi `/api/v1/messaging/*` qua
@@ -293,6 +294,39 @@ export function useSendMedia(conversationId: number | null) {
             if (input.caption) form.append('caption', input.caption);
             const { data } = await api!.post<{ data: Message }>(
                 `/messaging/conversations/${conversationId}/messages/media`, form,
+            );
+            return data.data;
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['messaging', 'thread'] });
+            qc.invalidateQueries({ queryKey: ['messaging', 'conversations'] });
+        },
+    });
+}
+
+/** Resolve mẫu tin theo hội thoại (điền giá trị thật) — dùng để preview/sửa trước khi gửi. */
+export function useRenderTemplate(conversationId: number | null) {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async (templateId: number): Promise<{ text: string; attachments: TemplateAttachment[]; missing: string[] }> => {
+            const { data } = await api!.post<{ data: { text: string; attachments: TemplateAttachment[]; missing: string[] } }>(
+                `/messaging/conversations/${conversationId}/render-template`,
+                { template_id: templateId },
+            );
+            return data.data;
+        },
+    });
+}
+
+/** Gửi 1 media đã có sẵn trong storage (ảnh đính kèm mẫu tin) — không upload lại. */
+export function useSendAttachmentRef(conversationId: number | null) {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (input: { storage_path: string; kind: 'image' | 'video' | 'file'; mime?: string | null; caption?: string }) => {
+            const { data } = await api!.post<{ data: Message }>(
+                `/messaging/conversations/${conversationId}/messages/attachment-ref`,
+                { storage_path: input.storage_path, kind: input.kind, mime: input.mime ?? undefined, caption: input.caption },
             );
             return data.data;
         },

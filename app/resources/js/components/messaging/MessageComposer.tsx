@@ -3,7 +3,7 @@ import { Button, Image, Input, Popover, Space, Tag } from 'antd';
 import { CloseOutlined, FileOutlined, PaperClipOutlined, PictureOutlined, RobotOutlined, SendOutlined, SmileOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import Picker from '@emoji-mart/react';
 import emojiData from '@emoji-mart/data';
-import type { MessageTemplate } from '@/lib/messagingConfig';
+import type { MessageTemplate, TemplateAttachment } from '@/lib/messagingConfig';
 
 /**
  * Composer gửi tin DÙNG CHUNG cho mọi nơi (tin nhắn DM + bình luận + nhắn riêng).
@@ -24,6 +24,8 @@ export interface ComposerSubmit {
     kind?: 'image' | 'video' | 'file';
     /** DM ngoài cửa sổ 24h Facebook — message tag đã chọn. */
     messageTag?: string;
+    /** Ảnh đính kèm của mẫu tin (đã ở storage) — parent gửi qua attachment-ref. */
+    templateAttachments?: Array<{ storage_path: string; kind: 'image' | 'video' | 'file'; mime: string | null }>;
 }
 
 interface Props {
@@ -38,6 +40,11 @@ interface Props {
     onAiSuggest?: () => Promise<string>;
     /** Gửi. Trả Promise: resolve ⇒ xoá ô soạn; reject ⇒ giữ nguyên (lỗi parent tự báo). */
     onSubmit: (payload: ComposerSubmit) => Promise<unknown>;
+    /**
+     * Resolve mẫu tin theo hội thoại (điền giá trị thật cho `{{...}}`) + trả ảnh
+     * đính kèm. Nếu vắng ⇒ chèn nguyên body (dùng cho nơi không gắn hội thoại).
+     */
+    onResolveTemplate?: (t: MessageTemplate) => Promise<{ text: string; attachments: TemplateAttachment[] }>;
 }
 
 /** Media mỗi provider hỗ trợ (đồng bộ capability connector backend). */
@@ -52,9 +59,11 @@ const MEDIA_CAPS: Record<string, { image: boolean; video: boolean; file: boolean
 
 const SLASH_RE = /^\/(\S*)$/;
 
-export function MessageComposer({ mode, provider, templates, needsTag, aiAvailable, onAiSuggest, onSubmit }: Props) {
+export function MessageComposer({ mode, provider, templates, needsTag, aiAvailable, onAiSuggest, onSubmit, onResolveTemplate }: Props) {
     const [text, setText] = useState('');
     const [pending, setPending] = useState<{ file: File; kind: 'image' | 'video' | 'file'; previewUrl?: string } | null>(null);
+    // Ảnh của mẫu tin vừa chọn (đã ở storage) — hiện thumbnail, gửi kèm khi bấm Gửi.
+    const [stagedAtts, setStagedAtts] = useState<TemplateAttachment[]>([]);
     const [emojiOpen, setEmojiOpen] = useState(false);
     // Meta đã khai tử các message tag (POST_PURCHASE_UPDATE…). Tag DUY NHẤT còn hợp lệ
     // là HUMAN_AGENT (tin nhân viên người thật, tới 7 ngày). Tin tự động/ngoài 7 ngày
@@ -84,7 +93,22 @@ export function MessageComposer({ mode, provider, templates, needsTag, aiAvailab
     const [slashHighlight, setSlashHighlight] = useState(0);
     useEffect(() => { setSlashHighlight(0); }, [slashMatches]);
 
-    const applyTemplate = useCallback((t: MessageTemplate) => setText(t.body), []);
+    const applyTemplate = useCallback(async (t: MessageTemplate) => {
+        // Chỉ stage ảnh cho DM (comment reply gửi khác luồng, không dùng attachment-ref).
+        const stage = (atts: TemplateAttachment[]) => setStagedAtts(mode === 'dm' ? atts : []);
+        if (onResolveTemplate) {
+            try {
+                const r = await onResolveTemplate(t);
+                setText(r.text);
+                stage(r.attachments ?? []);
+                return;
+            } catch {
+                // resolve lỗi ⇒ fallback chèn nguyên body (vẫn hơn là kẹt).
+            }
+        }
+        setText(t.body);
+        stage(t.attachments ?? []);
+    }, [mode, onResolveTemplate]);
 
     // Dọn preview URL khi đổi/huỷ ảnh (tránh leak object URL).
     useEffect(() => () => { if (pending?.previewUrl) URL.revokeObjectURL(pending.previewUrl); }, [pending]);
@@ -111,18 +135,22 @@ export function MessageComposer({ mode, provider, templates, needsTag, aiAvailab
         setPending(null);
     };
 
-    const canSend = (text.trim() !== '' || pending !== null) && !busy;
+    const canSend = (text.trim() !== '' || pending !== null || stagedAtts.length > 0) && !busy;
 
     const submit = async () => {
         if (!canSend) return;
         const payload: ComposerSubmit = { text: text.trim() };
         if (pending) { payload.file = pending.file; payload.kind = pending.kind; }
         if (mode === 'dm' && needsTag) payload.messageTag = msgTag;
+        if (stagedAtts.length > 0) {
+            payload.templateAttachments = stagedAtts.map((a) => ({ storage_path: a.storage_path, kind: a.kind, mime: a.mime }));
+        }
         setBusy(true);
         try {
             await onSubmit(payload);
             setText('');
             clearPending();
+            setStagedAtts([]);
         } catch {
             // Lỗi do parent báo (message.error) — giữ nguyên ô soạn để gửi lại.
         } finally {
@@ -174,6 +202,20 @@ export function MessageComposer({ mode, provider, templates, needsTag, aiAvailab
                 </div>
             )}
 
+            {/* Ảnh của mẫu tin sẽ gửi kèm text */}
+            {stagedAtts.length > 0 && (
+                <div style={{ marginBottom: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {stagedAtts.map((att, idx) => (
+                        <div key={att.storage_path} style={{ position: 'relative', width: 56, height: 56 }}>
+                            <Image src={att.url ?? undefined} width={56} height={56} style={{ objectFit: 'cover', borderRadius: 6 }} preview={false} />
+                            <Button size="small" type="text" icon={<CloseOutlined />} title="Bỏ ảnh"
+                                onClick={() => setStagedAtts((prev) => prev.filter((_, i) => i !== idx))}
+                                style={{ position: 'absolute', top: -8, right: -8, background: '#fff', borderRadius: '50%', boxShadow: '0 0 0 1px #e2e8f0' }} />
+                        </div>
+                    ))}
+                </div>
+            )}
+
             <Popover
                 open={slashOpen}
                 placement="topLeft"
@@ -190,13 +232,22 @@ export function MessageComposer({ mode, provider, templates, needsTag, aiAvailab
                                     key={t.id}
                                     onClick={() => applyTemplate(t)}
                                     onMouseEnter={() => setSlashHighlight(idx)}
-                                    style={{ padding: '6px 10px', borderRadius: 6, cursor: 'pointer', background: idx === slashHighlight ? '#EFF6FF' : undefined, display: 'flex', alignItems: 'baseline', gap: 8 }}
+                                    style={{ padding: '6px 10px', borderRadius: 6, cursor: 'pointer', background: idx === slashHighlight ? '#EFF6FF' : undefined, display: 'flex', alignItems: 'center', gap: 8 }}
                                 >
-                                    <span style={{ fontWeight: 600, fontSize: 13, flex: '0 0 auto' }}>{t.name}</span>
-                                    {t.shortcut_key && <Tag style={{ marginInlineEnd: 0, fontFamily: 'monospace', fontSize: 11 }}>/{t.shortcut_key}</Tag>}
-                                    <span style={{ color: '#64748B', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                                        {t.body.length > 50 ? t.body.slice(0, 50) + '…' : t.body}
-                                    </span>
+                                    <div style={{ minWidth: 0, flex: 1 }}>
+                                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                                            <span style={{ fontWeight: 600, fontSize: 13, flex: '0 0 auto' }}>{t.name}</span>
+                                            {t.shortcut_key && <Tag style={{ marginInlineEnd: 0, fontFamily: 'monospace', fontSize: 11 }}>/{t.shortcut_key}</Tag>}
+                                        </div>
+                                        <div style={{ color: '#64748B', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {t.body.length > 50 ? t.body.slice(0, 50) + '…' : t.body}
+                                        </div>
+                                    </div>
+                                    {/* Thumbnail ảnh đính kèm (nếu có) — bên phải gợi ý. */}
+                                    {t.attachments?.[0]?.url && (
+                                        <img src={t.attachments[0].url ?? undefined} alt="" width={32} height={32}
+                                            style={{ objectFit: 'cover', borderRadius: 4, flex: '0 0 auto', border: '1px solid #e2e8f0' }} />
+                                    )}
                                 </div>
                             ))
                         )}

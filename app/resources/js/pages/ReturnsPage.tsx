@@ -82,7 +82,7 @@ export function ReturnsPage() {
     ];
 
     return (
-        <div>
+        <div className="tags-default">
             <PageHeader
                 title={<Space>Đơn Hoàn & Hủy {stats?.requested ? <Badge count={stats.requested} /> : null}</Space>}
                 subtitle="Yêu cầu hoàn/trả/hủy từ sàn (TikTok · Shopee · Lazada) — duyệt hoặc từ chối"

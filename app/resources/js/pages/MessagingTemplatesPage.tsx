@@ -1,28 +1,14 @@
 import { useRef, useState } from 'react';
-import { App as AntApp, Button, Card, Form, Input, Modal, Popconfirm, Space, Switch, Table, Tag, Tooltip, Typography } from 'antd';
-import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
+import { App as AntApp, Button, Card, Form, Image, Input, Modal, Popconfirm, Space, Spin, Switch, Table, Tag, Tooltip, Typography } from 'antd';
+import { CloseCircleFilled, DeleteOutlined, EditOutlined, PictureOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { PageHeader } from '@/components/PageHeader';
 import { errorMessage } from '@/lib/api';
 import { useCan } from '@/lib/tenant';
-import { type MessageTemplate, useDeleteTemplate, useSaveTemplate, useTemplates } from '@/lib/messagingConfig';
+import { type MessageTemplate, type TemplateAttachment, useDeleteTemplate, useSaveTemplate, useTemplates, useUploadTemplateAttachment } from '@/lib/messagingConfig';
 import { MessagingNav } from '@/components/MessagingNav';
-
-/**
- * Danh sách shortcode được hỗ trợ bởi TemplateContextBuilder + TemplateResolver
- * (backend: app/Modules/Messaging/Services/TemplateContextBuilder.php).
- * order.* là best-effort từ conversation.meta['order'].
- */
-export const TEMPLATE_SHORTCODES: { token: string; label: string }[] = [
-    { token: '{{buyer.name}}',           label: 'Tên người mua (sàn)' },
-    { token: '{{shop.name}}',            label: 'Tên shop / trang' },
-    { token: '{{customer.name}}',        label: 'Tên khách hàng (CRM)' },
-    { token: '{{customer.phone}}',       label: 'SĐT khách (đã mask)' },
-    { token: '{{customer.reputation}}',  label: 'Đánh giá khách' },
-    { token: '{{order.code}}',           label: 'Mã đơn hàng' },
-    { token: '{{order.status}}',         label: 'Trạng thái đơn' },
-    { token: '{{order.total}}',          label: 'Tổng tiền đơn' },
-];
+import { ChipTextEditor, type ChipTextEditorHandle } from '@/components/messaging/ChipTextEditor';
+import { TEMPLATE_VARS, labelForVarKey } from '@/lib/templateVars';
 
 /** /messaging/templates — quản lý mẫu tin trả lời nhanh (SPEC-0024 §6.2). */
 export function MessagingTemplatesPage() {
@@ -31,50 +17,56 @@ export function MessagingTemplatesPage() {
     const { data, isFetching } = useTemplates();
     const save = useSaveTemplate();
     const del = useDeleteTemplate();
+    const upload = useUploadTemplateAttachment();
     const [editing, setEditing] = useState<MessageTemplate | null>(null);
     const [open, setOpen] = useState(false);
     const [form] = Form.useForm();
-    const bodyRef = useRef<HTMLTextAreaElement | null>(null);
+    const editorRef = useRef<ChipTextEditorHandle | null>(null);
+    // Bump để ép ChipTextEditor dựng lại DOM từ body khi mở modal / đổi mẫu sửa.
+    const [resetKey, setResetKey] = useState(0);
+    // Ảnh đính kèm quản lý ngoài Form (không phải input chuẩn) rồi gộp vào payload lưu.
+    const [attachments, setAttachments] = useState<TemplateAttachment[]>([]);
+    const fileRef = useRef<HTMLInputElement | null>(null);
 
     const openForm = (t?: MessageTemplate) => {
         setEditing(t ?? null);
-        form.setFieldsValue(t ?? { enabled: true, code: '', name: '', body: '' });
+        form.setFieldsValue(t ?? { enabled: true, code: '', name: '', body: '', shortcut_key: '' });
+        setAttachments(t?.attachments ?? []);
+        setResetKey((k) => k + 1);
         setOpen(true);
     };
 
     const submit = () => form.validateFields().then((v) => {
-        save.mutate({ ...(editing ? { id: editing.id } : {}), ...v }, {
+        save.mutate({ ...(editing ? { id: editing.id } : {}), ...v, attachments }, {
             onSuccess: () => { message.success('Đã lưu mẫu tin'); setOpen(false); },
             onError: (e) => message.error(errorMessage(e)),
         });
     });
 
-    /** Chèn token shortcode vào vị trí con trỏ trong textarea nội dung. */
-    const insertShortcode = (token: string) => {
-        const ta = bodyRef.current;
-        const current: string = form.getFieldValue('body') ?? '';
-        if (ta) {
-            const start = ta.selectionStart ?? current.length;
-            const end = ta.selectionEnd ?? current.length;
-            const next = current.slice(0, start) + token + current.slice(end);
-            form.setFieldValue('body', next);
-            // Đặt lại con trỏ sau token (requestAnimationFrame để đảm bảo DOM đã cập nhật)
-            requestAnimationFrame(() => {
-                ta.focus();
-                const pos = start + token.length;
-                ta.setSelectionRange(pos, pos);
-            });
-        } else {
-            form.setFieldValue('body', current + token);
+    const pickImages = () => { if (fileRef.current) { fileRef.current.value = ''; fileRef.current.click(); } };
+    const onFilesChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files ?? []);
+        for (const file of files) {
+            try {
+                const att = await upload.mutateAsync(file);
+                setAttachments((prev) => [...prev, att]);
+            } catch (err) {
+                message.error(errorMessage(err, `Không tải được ảnh ${file.name}`));
+            }
         }
     };
+    const removeAttachment = (idx: number) => setAttachments((prev) => prev.filter((_, i) => i !== idx));
 
     const columns: ColumnsType<MessageTemplate> = [
-        { title: 'Mã', dataIndex: 'code', width: 160, render: (v) => <Typography.Text code>{v}</Typography.Text> },
+        { title: 'Mã', dataIndex: 'code', width: 150, render: (v) => <Typography.Text code>{v}</Typography.Text> },
         { title: 'Tên', dataIndex: 'name' },
         { title: 'Nội dung', dataIndex: 'body', ellipsis: true, render: (v) => <Typography.Text type="secondary">{v}</Typography.Text> },
-        { title: 'Biến', dataIndex: 'vars', width: 200, render: (vars: string[]) => (vars ?? []).map((x) => <Tag key={x}>{`{{${x}}}`}</Tag>) },
-        { title: 'Bật', dataIndex: 'enabled', width: 80, render: (v) => <Tag color={v ? 'green' : 'default'}>{v ? 'Bật' : 'Tắt'}</Tag> },
+        { title: 'Ảnh', dataIndex: 'attachments', width: 80, render: (atts: TemplateAttachment[]) => (
+            (atts ?? []).length > 0
+                ? <Space size={4}><PictureOutlined style={{ color: '#2563eb' }} /><span>{atts.length}</span></Space>
+                : <Typography.Text type="secondary">—</Typography.Text>
+        ) },
+        { title: 'Bật', dataIndex: 'enabled', width: 70, render: (v) => <Tag color={v ? 'green' : 'default'}>{v ? 'Bật' : 'Tắt'}</Tag> },
         ...(canManage ? [{ title: '', width: 90, render: (_: unknown, r: MessageTemplate) => (
             <Space size={2}>
                 <Button size="small" type="text" icon={<EditOutlined />} onClick={() => openForm(r)} />
@@ -88,14 +80,16 @@ export function MessagingTemplatesPage() {
 
     return (
         <div>
-            <PageHeader title="Mẫu tin nhắn" subtitle="Soạn sẵn câu trả lời nhanh, hỗ trợ biến {{customer.name}}, {{order.code}}…"
+            <PageHeader title="Mẫu tin nhắn" subtitle="Soạn sẵn câu trả lời nhanh — chèn biến (tên khách, mã đơn…) bằng cách bấm chip, có thể đính ảnh."
                 extra={canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => openForm()}>Thêm mẫu</Button>} />
             <MessagingNav />
             <Card>
                 <Table<MessageTemplate> rowKey="id" size="middle" loading={isFetching} dataSource={data?.data ?? []} columns={columns} pagination={false} />
             </Card>
 
-            <Modal open={open} onCancel={() => setOpen(false)} onOk={submit} confirmLoading={save.isPending}
+            <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={onFilesChosen} />
+
+            <Modal open={open} onCancel={() => setOpen(false)} onOk={submit} confirmLoading={save.isPending} width={620}
                 title={editing ? `Sửa mẫu — ${editing.code}` : 'Thêm mẫu tin'} okText="Lưu" cancelText="Huỷ">
                 <Form form={form} layout="vertical">
                     <Form.Item name="code" label="Mã (slug)" rules={[{ required: true, pattern: /^[a-z0-9_-]+$/, message: 'Chỉ chữ thường, số, _ -' }]}>
@@ -109,32 +103,51 @@ export function MessagingTemplatesPage() {
                     >
                         <Input placeholder="vd: cam_on" maxLength={32} prefix="/" />
                     </Form.Item>
-                    <Form.Item label="Nội dung" required style={{ marginBottom: 0 }}>
-                        {/* Shortcode chips — click để chèn vào vị trí con trỏ */}
+                    <Form.Item label="Nội dung" required style={{ marginBottom: 8 }}>
+                        {/* Chip biến — bấm để chèn chip vào vị trí con trỏ. onMouseDown preventDefault
+                            để không cướp focus khỏi ô soạn ⇒ giữ nguyên vị trí con trỏ. */}
                         <div style={{ marginBottom: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                            {TEMPLATE_SHORTCODES.map((sc) => (
-                                <Tooltip key={sc.token} title={sc.label}>
-                                    <Tag
-                                        style={{ cursor: 'pointer', fontFamily: 'monospace', fontSize: 12 }}
-                                        color="blue"
-                                        onClick={() => insertShortcode(sc.token)}
-                                    >
-                                        {sc.token}
-                                    </Tag>
-                                </Tooltip>
+                            {TEMPLATE_VARS.map((v) => (
+                                <Tag
+                                    key={v.key}
+                                    color="blue"
+                                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => editorRef.current?.insertVar(v.key, v.label)}
+                                >
+                                    + {v.label}
+                                </Tag>
                             ))}
                         </div>
                         <Form.Item name="body" rules={[{ required: true, message: 'Vui lòng nhập nội dung' }]} style={{ marginBottom: 0 }}>
-                            <Input.TextArea
-                                rows={4}
-                                placeholder="Cảm ơn {{customer.name}} đã đặt đơn {{order.code}}!"
-                                ref={(node) => {
-                                    // AntD Input.TextArea exposes resizableTextArea.textArea as the underlying <textarea>
-                                    bodyRef.current = (node as unknown as { resizableTextArea?: { textArea?: HTMLTextAreaElement } })?.resizableTextArea?.textArea ?? null;
-                                }}
+                            <ChipTextEditor
+                                ref={editorRef}
+                                resetSignal={resetKey}
+                                labelFor={labelForVarKey}
+                                placeholder="Cảm ơn [Tên khách] đã đặt đơn [Mã đơn]!"
                             />
                         </Form.Item>
                     </Form.Item>
+
+                    {/* Ảnh đính kèm — gửi kèm text khi dùng mẫu. */}
+                    <Form.Item label="Ảnh đính kèm (tuỳ chọn)" style={{ marginBottom: 8 }}>
+                        <Space wrap size={8}>
+                            {attachments.map((att, idx) => (
+                                <div key={att.storage_path} style={{ position: 'relative', width: 72, height: 72 }}>
+                                    <Image src={att.url ?? undefined} width={72} height={72} style={{ objectFit: 'cover', borderRadius: 6 }} />
+                                    <CloseCircleFilled
+                                        onClick={() => removeAttachment(idx)}
+                                        style={{ position: 'absolute', top: -6, right: -6, color: '#cf1322', background: '#fff', borderRadius: '50%', cursor: 'pointer', fontSize: 16 }}
+                                    />
+                                </div>
+                            ))}
+                            <Tooltip title="Thêm ảnh">
+                                <Button onClick={pickImages} loading={upload.isPending} style={{ width: 72, height: 72 }} icon={<PictureOutlined style={{ fontSize: 20 }} />} />
+                            </Tooltip>
+                        </Space>
+                        {upload.isPending && <div style={{ marginTop: 6 }}><Spin size="small" /> <Typography.Text type="secondary">Đang tải ảnh…</Typography.Text></div>}
+                    </Form.Item>
+
                     <Form.Item name="enabled" label="Kích hoạt" valuePropName="checked"><Switch /></Form.Item>
                 </Form>
             </Modal>

@@ -72,7 +72,7 @@ function TrackingBody({ data }: { data: PublicTracking }) {
     const codZero = !data.cod.is_cod || data.cod.amount <= 0;
 
     return (
-        <main className="track-container">
+        <main className="track-container tags-default">
             {/* Hero + progress */}
             <section className="track-card">
                 <div className="track-hero">
@@ -188,7 +188,7 @@ function TrackingBody({ data }: { data: PublicTracking }) {
 
 function NotFound({ hasCode }: { hasCode: boolean }) {
     return (
-        <main className="track-container">
+        <main className="track-container tags-default">
             <section className="track-card">
                 <Result
                     status="404"

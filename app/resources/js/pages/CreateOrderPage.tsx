@@ -713,7 +713,7 @@ export function CreateOrderForm({ active = true, onSaved, editOrderId, onUpdated
     );
 
     return (
-        <div className={`create-order-page${compact ? ' create-order-page--compact' : ''}`} style={{ paddingBottom: compact ? 0 : 88 }}>
+        <div className={`create-order-page tags-default${compact ? ' create-order-page--compact' : ''}`} style={{ paddingBottom: compact ? 0 : 88 }}>
             {!embedded && (
                 <PageHeader
                     title={<Space size="middle"><Link to={isEdit && editId ? `/orders/${editId}` : '/orders'}><Button type="text" icon={<ArrowLeftOutlined />} /></Link><span>{headerTitle}</span></Space>}

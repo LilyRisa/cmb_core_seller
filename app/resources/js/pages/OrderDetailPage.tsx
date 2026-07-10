@@ -40,7 +40,7 @@ export function OrderDetailPage() {
     };
 
     return (
-        <div>
+        <div className="tags-default">
             <PageHeader
                 title={<Space size="middle">
                     <Link to="/orders"><Button type="text" icon={<ArrowLeftOutlined />} /></Link>

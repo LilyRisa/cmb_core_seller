@@ -10,6 +10,21 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * Mẫu tin trả lời. Body có thể chứa vars `{{customer.name}}`, `{{order.code}}`
  * — `TemplateResolver` (S3) sẽ resolve trước khi gửi. `scope` (jsonb) cho phép
  * giới hạn template chỉ áp cho 1 provider (vd template MESSAGE_TAG chỉ Facebook).
+ *
+ * @property int $id
+ * @property int $tenant_id
+ * @property string $code
+ * @property string $name
+ * @property string $body
+ * @property array<int,string>|null $vars
+ * @property array<int,mixed>|null $attachments
+ * @property array<string,mixed>|null $scope
+ * @property string|null $shortcut_key
+ * @property bool $enabled
+ * @property int|null $created_by
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property \Illuminate\Support\Carbon|null $deleted_at
  */
 class MessageTemplate extends Model
 {

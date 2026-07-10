@@ -77,6 +77,12 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
                 ->whereNumber('id')->name('messaging.messages.template');
             Route::post('conversations/{id}/messages/media', [MessageController::class, 'sendMedia'])
                 ->whereNumber('id')->name('messaging.messages.media');
+            // Gửi 1 media đã có sẵn trong storage (vd ảnh đính kèm của mẫu tin) — không upload lại.
+            Route::post('conversations/{id}/messages/attachment-ref', [MessageController::class, 'sendAttachmentRef'])
+                ->whereNumber('id')->name('messaging.messages.attachment-ref');
+            // Resolve body mẫu tin theo hội thoại (điền giá trị thật) để NV sửa trước khi gửi.
+            Route::post('conversations/{id}/render-template', [MessageController::class, 'renderTemplate'])
+                ->whereNumber('id')->name('messaging.messages.render-template');
             // Gửi lại 1 tin outbound đang lỗi.
             Route::post('conversations/{id}/messages/{messageId}/resend', [MessageController::class, 'resend'])
                 ->whereNumber('id')->whereNumber('messageId')->name('messaging.messages.resend');
@@ -100,6 +106,9 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
             ->whereNumber('id')->name('messaging.templates.show');
         Route::post('templates', [TemplateController::class, 'store'])
             ->name('messaging.templates.store');
+        // Upload ảnh đính kèm cho mẫu tin (trả storage_path + signed url để FE hiển thị/lưu).
+        Route::post('template-attachments', [TemplateController::class, 'uploadAttachment'])
+            ->name('messaging.templates.upload-attachment');
         Route::patch('templates/{id}', [TemplateController::class, 'update'])
             ->whereNumber('id')->name('messaging.templates.update');
         Route::delete('templates/{id}', [TemplateController::class, 'destroy'])
