@@ -7,6 +7,7 @@ use CMBcoreSeller\Integrations\Payments\DTO\CheckoutRequest as PaymentCheckoutRe
 use CMBcoreSeller\Integrations\Payments\Exceptions\GatewayNotConfigured;
 use CMBcoreSeller\Integrations\Payments\Exceptions\UnsupportedOperation;
 use CMBcoreSeller\Integrations\Payments\PaymentRegistry;
+use CMBcoreSeller\Modules\Billing\Http\Requests\ProTrialRegisterRequest;
 use CMBcoreSeller\Modules\Billing\Http\Resources\InvoiceResource;
 use CMBcoreSeller\Modules\Billing\Http\Resources\PlanResource;
 use CMBcoreSeller\Modules\Billing\Http\Resources\SubscriptionResource;
@@ -23,6 +24,7 @@ use CMBcoreSeller\Modules\Billing\Services\VoucherService;
 use CMBcoreSeller\Modules\Tenancy\CurrentTenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 /**
  * /api/v1/billing/* — gói thuê bao, hoá đơn, usage, hồ sơ xuất hoá đơn.
@@ -303,6 +305,22 @@ class BillingController extends Controller
         $tenantId = (int) $this->tenant->id();
 
         return response()->json(['data' => $this->proTrial->eligibility($tenantId)]);
+    }
+
+    /** POST /billing/pro-trial/register — đăng ký dùng thử Pro (yêu cầu chấp nhận điều khoản hoàn tiền). */
+    public function proTrialRegister(ProTrialRegisterRequest $request): JsonResponse
+    {
+        $tenantId = (int) $this->tenant->id();
+        try {
+            $sub = $this->proTrial->register($tenantId, (string) $request->validated('terms_version'));
+        } catch (ValidationException $e) {
+            return response()->json(['error' => [
+                'code' => 'PRO_TRIAL_NOT_ELIGIBLE',
+                'message' => 'Chưa đủ điều kiện đăng ký trải nghiệm Pro.',
+            ]], 422);
+        }
+
+        return response()->json(['data' => (new SubscriptionResource($sub->fresh('plan')))->toArray($request)]);
     }
 
     /** GET /billing/billing-profile */

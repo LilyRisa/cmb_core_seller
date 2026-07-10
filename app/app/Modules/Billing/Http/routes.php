@@ -33,6 +33,8 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant'])->prefix('api/v1
     Route::get('invoices/{id}/payment-status', [BillingController::class, 'invoicePaymentStatus'])->whereNumber('id')->name('billing.invoices.payment-status');
 
     Route::get('pro-trial/eligibility', [BillingController::class, 'proTrialEligibility'])->name('billing.pro-trial.eligibility');
+    Route::post('pro-trial/register', [BillingController::class, 'proTrialRegister'])
+        ->middleware('throttle:10,1')->name('billing.pro-trial.register');
 
     Route::get('billing-profile', [BillingController::class, 'profileShow'])->name('billing.profile.show');
     Route::patch('billing-profile', [BillingController::class, 'profileUpdate'])->name('billing.profile.update');
