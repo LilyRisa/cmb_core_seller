@@ -258,6 +258,26 @@ class SystemSettingsCatalog
                 'group' => 'sync', 'type' => 'int', 'is_secret' => false,
                 'env' => 'BILLING_OVER_QUOTA_GRACE_HOURS', 'label' => 'Over-quota grace (giờ)',
             ],
+            'billing.pro_trial.enabled' => [
+                'group' => 'sync', 'type' => 'bool', 'is_secret' => false,
+                'env' => 'BILLING_PRO_TRIAL_ENABLED', 'label' => 'Chế độ trải nghiệm Pro — Bật',
+                'description' => 'Bật để thành viên (cũ & mới) tự đăng ký trải nghiệm gói Pro. Mỗi tenant chỉ 1 lần vĩnh viễn.',
+            ],
+            'billing.pro_trial.duration_days' => [
+                'group' => 'sync', 'type' => 'int', 'is_secret' => false,
+                'env' => 'BILLING_PRO_TRIAL_DURATION_DAYS', 'label' => 'Trải nghiệm Pro — Số ngày',
+                'description' => 'Thời lượng mỗi tenant được dùng Pro trải nghiệm (mặc định 30).',
+            ],
+            'billing.pro_trial.window_start' => [
+                'group' => 'sync', 'type' => 'string', 'is_secret' => false,
+                'env' => 'BILLING_PRO_TRIAL_WINDOW_START', 'label' => 'Trải nghiệm Pro — Mở từ (YYYY-MM-DD)',
+                'description' => 'Ngày bắt đầu mở đăng ký. Trống = không giới hạn cạnh này.',
+            ],
+            'billing.pro_trial.window_end' => [
+                'group' => 'sync', 'type' => 'string', 'is_secret' => false,
+                'env' => 'BILLING_PRO_TRIAL_WINDOW_END', 'label' => 'Trải nghiệm Pro — Đóng đến (YYYY-MM-DD)',
+                'description' => 'Ngày kết thúc mở đăng ký. Trống = không giới hạn cạnh này.',
+            ],
 
             // ── Push notifications / Web Push (3, 1 secret) ─────────────────
             'push.vapid_public_key' => [

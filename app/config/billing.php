@@ -19,4 +19,8 @@ return [
     // trong `OverQuotaCheckService::limitFor()`.
     'quota_resources' => ['channel_accounts'],
 
+    // Phiên bản điều khoản hoàn tiền hiện hành — đổi khi cập nhật nội dung điều khoản
+    // (dùng để lưu vết tenant đã đồng ý bản nào khi đăng ký trải nghiệm Pro).
+    'refund_terms_version' => env('BILLING_REFUND_TERMS_VERSION', 'refund-v1'),
+
 ];
