@@ -19,6 +19,29 @@ const KNOWN_FEATURES = [
     'einvoice',
 ];
 
+// Nhãn tiếng Việt cho từng feature — admin dễ đọc/sửa (không hiển thị key kỹ thuật). Nhóm để dễ nhìn.
+const FEATURE_LABELS: Record<string, string> = {
+    messaging_inbox: 'Hộp thư (FB Page + sàn)',
+    messaging_zalo: 'Nhắn tin Zalo OA',
+    messaging_ai: 'AI trả lời tin nhắn',
+    marketing_facebook: 'Quảng cáo Facebook',
+    marketing_tiktok: 'Quảng cáo TikTok',
+    shop_health_reports: 'Báo cáo sức khỏe sàn',
+    ai: 'Trợ lý & phân tích AI',
+    accounting_basic: 'Kế toán cơ bản',
+    accounting_advanced: 'Kế toán nâng cao',
+    procurement: 'Mua hàng & nhà cung cấp',
+    fifo_cogs: 'Giá vốn FIFO',
+    profit_reports: 'Báo cáo lợi nhuận',
+    finance_settlements: 'Đối soát sàn',
+    demand_planning: 'Đề xuất nhập hàng',
+    mass_listing: 'Đăng bán đa sàn',
+    automation_rules: 'Tự động hoá',
+    priority_support: 'Hỗ trợ ưu tiên',
+    einvoice: 'Hoá đơn điện tử',
+};
+const featureLabel = (k: string) => FEATURE_LABELS[k] ?? k;
+
 export function AdminPlansPage() {
     const { data, isLoading } = useAdminPlans();
     const [editing, setEditing] = useState<AdminPlan | null>(null);
@@ -57,7 +80,7 @@ export function AdminPlansPage() {
             render: (_, r) => (
                 <Space wrap size={4}>
                     {Object.entries(r.features ?? {}).filter(([, v]) => v).map(([k]) => (
-                        <Tag key={k} color="blue">{k}</Tag>
+                        <Tag key={k} color="blue">{featureLabel(k)}</Tag>
                     ))}
                 </Space>
             ),
@@ -219,7 +242,7 @@ function PlanModal({ open, plan, onClose }: { open: boolean; plan: AdminPlan | n
                         <Form.Item name="trial_days" label="Trial (ngày)"><InputNumber style={{ width: 100 }} min={0} max={365} /></Form.Item>
                         <Form.Item name="sort_order" label="Thứ tự"><InputNumber style={{ width: 90 }} min={0} /></Form.Item>
                     </Space>
-                    <Typography.Text type="secondary">Hạn mức — đặt <b>-1</b> để không giới hạn.</Typography.Text>
+                    <Typography.Text type="secondary">Hạn mức — đặt <b>-1</b> để không giới hạn. "Gian hàng / nền tảng" áp cho <b>từng</b> nền tảng: TikTok, Shopee, Lazada và Facebook Page (vd 2 = tối đa 2 gian hàng mỗi nền tảng).</Typography.Text>
                     <Space wrap style={{ marginTop: 8 }}>
                         <Form.Item name="max_channel_accounts" label="Số gian hàng (tổng)"><InputNumber style={{ width: 140 }} min={-1} /></Form.Item>
                         <Form.Item name="max_channel_accounts_per_platform" label="Gian hàng / nền tảng"><InputNumber style={{ width: 150 }} min={-1} /></Form.Item>
@@ -250,9 +273,9 @@ function FeatureToggle({ name, checked, onChange }: { name: string; checked?: bo
         <Tag.CheckableTag
             checked={!!checked}
             onChange={(v) => onChange?.(v)}
-            style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #d9d9d9' }}
+            style={{ padding: '4px 10px', borderRadius: 6, border: `1px solid ${checked ? '#1677ff' : '#d9d9d9'}`, marginBottom: 4 }}
         >
-            {name}
+            {featureLabel(name)}
         </Tag.CheckableTag>
     );
 }

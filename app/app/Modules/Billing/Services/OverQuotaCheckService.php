@@ -19,6 +19,13 @@ use CMBcoreSeller\Modules\Billing\Models\Subscription;
  */
 class OverQuotaCheckService
 {
+    /**
+     * Các "nền tảng" áp hạn mức `max_channel_accounts_per_platform`: 3 sàn TMĐT + Facebook Page.
+     * (facebook_page thuộc nhóm messaging nên KHÔNG tính vào tổng `channel_accounts`, nhưng VẪN bị
+     * giới hạn số lượng MỖI nền tảng theo yêu cầu — vd starter tối đa 2 page.)
+     */
+    public const PER_PLATFORM_PROVIDERS = ['tiktok', 'shopee', 'lazada', 'facebook_page'];
+
     public function __construct(protected UsageService $usage) {}
 
     /**
@@ -71,10 +78,11 @@ class OverQuotaCheckService
 
         // SPEC 0032 — hạ gói có thể khiến số gian hàng MỖI nền tảng vượt mức (vd starter cho 2/nền tảng,
         // shop đang có 3 tiktok). Báo từng nền tảng vượt ⇒ EnforcePlanQuotaLock chặn xử lý đơn.
+        // Hạn mức "/ nền tảng" áp cho cả 3 sàn TMĐT VÀ Facebook Page (yêu cầu: starter tối đa 2 page FB).
         $plan = $sub->plan;
         $perPlatform = $plan?->maxChannelAccountsPerPlatform() ?? -1;
         if ($perPlatform >= 0) {
-            foreach (['tiktok', 'shopee', 'lazada'] as $provider) {
+            foreach (self::PER_PLATFORM_PROVIDERS as $provider) {
                 $used = $this->usage->channelAccountsForProvider((int) $sub->tenant_id, $provider);
                 if ($used > $perPlatform) {
                     $over[] = ['resource' => 'channel_accounts', 'provider' => $provider, 'used' => $used, 'limit' => $perPlatform, 'over' => true];
