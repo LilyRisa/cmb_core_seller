@@ -229,7 +229,7 @@ class SystemSettingsCatalog
                 'env' => 'GOTENBERG_URL', 'label' => 'Gotenberg URL',
             ],
 
-            // ── Sync / throttle / billing (7) ───────────────────────────────
+            // ── Sync / throttle / billing (11) ──────────────────────────────
             'throttle.tiktok_per_min' => [
                 'group' => 'sync', 'type' => 'int', 'is_secret' => false,
                 'env' => 'THROTTLE_TIKTOK_PER_MIN', 'label' => 'Throttle TikTok (req/phút)',

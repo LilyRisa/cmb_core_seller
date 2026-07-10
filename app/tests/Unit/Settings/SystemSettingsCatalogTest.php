@@ -17,13 +17,16 @@ class SystemSettingsCatalogTest extends TestCase
         $this->assertSame(['ai', 'branding', 'fulfillment', 'mail', 'marketplace', 'push', 'sync'], $groups);
     }
 
-    public function test_count_is_62(): void
+    public function test_count_is_67(): void
     {
-        // branding 5 + mail 8 + marketplace 14 + fulfillment 17 + sync 7 + push 3 + ai 8.
-        // ai 8 = messaging system_prompt + help_assistant chat(base_url/api_key/model)
+        // branding 5 + mail 8 + marketplace 14 + fulfillment 17 + sync 11 + push 3 + ai 9.
+        // sync 11 = throttle×3 + sync.poll/backfill×3 + billing.over_quota_grace_hours
+        //        + billing.pro_trial.{enabled,duration_days,window_start,window_end}.
+        // ai 9 = messaging system_prompt + help_assistant chat(base_url/api_key/model)
         //        + help_assistant embedding(base_url/api_key/model)
-        //        + visual_search.rerank.provider_code (visual re-rank provider).
-        $this->assertCount(62, SystemSettingsCatalog::all());
+        //        + visual_search.rerank.provider_code (visual re-rank provider)
+        //        + messaging.transcription.provider_code (STT provider).
+        $this->assertCount(67, SystemSettingsCatalog::all());
     }
 
     public function test_secret_count_is_13(): void
