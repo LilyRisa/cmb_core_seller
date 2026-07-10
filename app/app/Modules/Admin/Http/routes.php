@@ -7,6 +7,7 @@ use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminAuthController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminBroadcastController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminDesktopBackgroundController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminPlanController;
+use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminProTrialController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminTenantController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminUserController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminVoucherController;
@@ -86,6 +87,10 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
         Route::post('plans', [AdminPlanController::class, 'store'])->name('admin.plans.store');
         Route::get('plans/{id}', [AdminPlanController::class, 'show'])->whereNumber('id')->name('admin.plans.show');
         Route::patch('plans/{id}', [AdminPlanController::class, 'update'])->whereNumber('id')->name('admin.plans.update');
+
+        // --- Pro trial experience mode config ---
+        Route::get('pro-trial-settings', [AdminProTrialController::class, 'show'])->name('admin.pro-trial.show');
+        Route::put('pro-trial-settings', [AdminProTrialController::class, 'update'])->name('admin.pro-trial.update');
 
         // --- Audit log search (SPEC 0023) ---
         Route::get('audit-logs', [AdminAuditLogController::class, 'index'])->name('admin.audit-logs.index');
