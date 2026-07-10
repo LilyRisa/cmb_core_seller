@@ -16,6 +16,7 @@ use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
 use CMBcoreSeller\Modules\Billing\Services\AiCreditService;
 use CMBcoreSeller\Modules\Billing\Services\BillingService;
+use CMBcoreSeller\Modules\Billing\Services\ProTrialService;
 use CMBcoreSeller\Modules\Billing\Services\SubscriptionService;
 use CMBcoreSeller\Modules\Billing\Services\UsageService;
 use CMBcoreSeller\Modules\Billing\Services\VoucherService;
@@ -43,6 +44,7 @@ class BillingController extends Controller
         protected PaymentRegistry $payments,
         protected VoucherService $vouchers,
         protected AiCreditService $aiCredits,
+        protected ProTrialService $proTrial,
     ) {}
 
     /** GET /billing/plans — catalogue gói (không tenant-scoped). */
@@ -292,6 +294,15 @@ class BillingController extends Controller
         ])->save();
 
         return response()->json(['data' => (new SubscriptionResource($sub->fresh('plan')))->toArray($request)]);
+    }
+
+    /** GET /billing/pro-trial/eligibility — tenant có đủ điều kiện dùng thử Pro miễn phí (SPEC "Pro trial experience mode"). */
+    public function proTrialEligibility(Request $request): JsonResponse
+    {
+        abort_unless($request->user()?->can('billing.manage'), 403, 'Chỉ chủ shop được xem trạng thái dùng thử Pro.');
+        $tenantId = (int) $this->tenant->id();
+
+        return response()->json(['data' => $this->proTrial->eligibility($tenantId)]);
     }
 
     /** GET /billing/billing-profile */
