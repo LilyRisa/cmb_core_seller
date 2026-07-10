@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react';
-import { App, Button, Card, Form, Input, InputNumber, Modal, Space, Switch, Table, Tag, Typography } from 'antd';
+import { App, Button, Card, DatePicker, Form, Input, InputNumber, Modal, Space, Switch, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import dayjs from 'dayjs';
 import { EditOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
-import { useAdminPlans, useAdminUpdatePlan, type AdminPlan } from '@admin/lib/admin';
+import {
+    useAdminPlans, useAdminUpdatePlan, type AdminPlan,
+    useAdminProTrialSettings, useAdminUpdateProTrialSettings,
+} from '@admin/lib/admin';
 import { errorMessage } from '@/lib/api';
 
 // Toàn bộ feature flags app kiểm tra (đồng bộ BillingPlanSeeder + middleware plan.feature).
@@ -70,6 +74,7 @@ export function AdminPlansPage() {
                 title="Gói thuê bao (Plans)"
                 subtitle="Sửa giá, hạn mức, tính năng và bật/tắt gói — không cần re-deploy. Gói được tạo sẵn theo SPEC, không thêm gói mới."
             />
+            <ProTrialConfigCard />
             <Card>
                 <Table rowKey="id" columns={columns} dataSource={data ?? []} loading={isLoading} pagination={false} />
             </Card>
@@ -79,6 +84,61 @@ export function AdminPlansPage() {
                 onClose={() => setEditing(null)}
             />
         </>
+    );
+}
+
+function ProTrialConfigCard() {
+    const { message } = App.useApp();
+    const q = useAdminProTrialSettings();
+    const save = useAdminUpdateProTrialSettings();
+    const [form] = Form.useForm();
+
+    useEffect(() => {
+        if (q.data) {
+            form.setFieldsValue({
+                enabled: q.data.enabled,
+                duration_days: q.data.duration_days,
+                window_start: q.data.window_start ? dayjs(q.data.window_start) : null,
+                window_end: q.data.window_end ? dayjs(q.data.window_end) : null,
+            });
+        }
+    }, [q.data, form]);
+
+    const submit = async () => {
+        const v = await form.validateFields();
+        try {
+            await save.mutateAsync({
+                enabled: !!v.enabled,
+                duration_days: Number(v.duration_days),
+                window_start: v.window_start ? v.window_start.format('YYYY-MM-DD') : null,
+                window_end: v.window_end ? v.window_end.format('YYYY-MM-DD') : null,
+            });
+            message.success('Đã lưu cấu hình trải nghiệm Pro.');
+        } catch (e: unknown) {
+            message.error(errorMessage(e, 'Không lưu được cấu hình.'));
+        }
+    };
+
+    return (
+        <Card title="Chế độ trải nghiệm Pro" style={{ marginBottom: 16 }} loading={q.isLoading}>
+            <Form form={form} layout="inline">
+                <Form.Item name="enabled" label="Bật" valuePropName="checked">
+                    <Switch />
+                </Form.Item>
+                <Form.Item name="duration_days" label="Số ngày" rules={[{ required: true }]}>
+                    <InputNumber min={1} max={365} />
+                </Form.Item>
+                <Form.Item name="window_start" label="Mở từ">
+                    <DatePicker format="YYYY-MM-DD" />
+                </Form.Item>
+                <Form.Item name="window_end" label="Đến">
+                    <DatePicker format="YYYY-MM-DD" />
+                </Form.Item>
+                <Form.Item>
+                    <Button type="primary" onClick={submit} loading={save.isPending}>Lưu</Button>
+                </Form.Item>
+            </Form>
+        </Card>
     );
 }
 

@@ -525,6 +525,35 @@ export function useAdminCreateBroadcast() {
     });
 }
 
+// Pro trial mode — cấu hình bật/tắt + thời hạn + khung ngày chiến dịch
+export interface AdminProTrialSettings {
+    enabled: boolean;
+    duration_days: number;
+    window_start: string | null;
+    window_end: string | null;
+}
+
+export function useAdminProTrialSettings() {
+    return useQuery({
+        queryKey: ['admin', 'pro-trial-settings'],
+        queryFn: async () => {
+            const { data } = await api.get<{ data: AdminProTrialSettings }>('/admin/pro-trial-settings');
+            return data.data;
+        },
+    });
+}
+
+export function useAdminUpdateProTrialSettings() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (payload: AdminProTrialSettings) => {
+            const { data } = await api.put<{ data: AdminProTrialSettings }>('/admin/pro-trial-settings', payload);
+            return data.data;
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'pro-trial-settings'] }),
+    });
+}
+
 // SPEC 0023 — user-side voucher preview (used in /settings/plan checkout)
 export function useValidateVoucher() {
     return useMutation({
