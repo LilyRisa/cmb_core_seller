@@ -201,8 +201,30 @@ class SePayWebhookTest extends TestCase
             ->assertJsonPath('data.checkout.method', 'bank_transfer')
             ->assertJsonPath('data.checkout.account_no', '9999999999')
             ->assertJsonPath('data.checkout.bank_code', 'MB');
+        // Nội dung CK = MÃ THANH TOÁN SePay `CMBCC<id hoá đơn>` (SePay chỉ đẩy webhook khi có mã này).
         $memo = $resp->json('data.checkout.memo');
-        $code = $resp->json('data.invoice.code');
-        $this->assertSame($memo, $code, 'Memo phải bằng invoice code để webhook khớp.');
+        $invoiceId = (int) $resp->json('data.invoice.id');
+        $this->assertMatchesRegularExpression('/^CMBCC\d{2,10}$/', $memo);
+        $this->assertSame('CMBCC'.str_pad((string) $invoiceId, 2, '0', STR_PAD_LEFT), $memo);
+    }
+
+    public function test_webhook_matches_invoice_by_sepay_payment_code(): void
+    {
+        // SePay bật "Chỉ gửi khi có mã thanh toán": nội dung CK là `CMBCC<id>` (không phải INV-code) ⇒
+        // PaymentService phải suy hoá đơn theo id nhúng trong mã và kích hoạt gói.
+        $invoice = $this->createPendingInvoice(Plan::CODE_PRO, 'monthly');
+        $code = 'CMBCC'.str_pad((string) $invoice->getKey(), 2, '0', STR_PAD_LEFT);
+
+        $this->withHeaders(['Authorization' => 'Apikey test-webhook-key'])
+            ->postJson('/webhook/payments/sepay', $this->sepayPayload($code, (int) $invoice->total, 'TX-CMBCC'))
+            ->assertOk();
+
+        $this->assertSame(Invoice::STATUS_PAID, $invoice->fresh()->status);
+        $sub = Subscription::query()->withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $this->tenant->getKey())
+            ->where('status', Subscription::STATUS_ACTIVE)
+            ->with('plan')->latest('id')->first();
+        $this->assertNotNull($sub);
+        $this->assertSame(Plan::CODE_PRO, $sub->plan->code);
     }
 }

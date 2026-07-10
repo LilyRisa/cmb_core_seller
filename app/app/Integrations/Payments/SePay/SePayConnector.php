@@ -77,8 +77,9 @@ class SePayConnector implements PaymentGatewayConnector
         $accountNo = (string) $this->config['account_no'];
         $accountName = (string) $this->config['account_name'];
         $bankCode = (string) $this->config['bank_code'];
-        // Memo = reference (invoice.code). SePay quét text trong giao dịch và khớp.
-        $memo = $request->reference;
+        // Nội dung CK = MÃ THANH TOÁN <prefix><id hoá đơn> (vd CMBCC42). SePay bật "Chỉ gửi webhook khi có
+        // mã thanh toán" ⇒ chỉ đẩy webhook khi nội dung chứa mã đúng cấu trúc. Dùng id hoá đơn (đệm 0 ≥2 số).
+        $memo = $this->paymentCode($request->invoiceId);
 
         // QR động — VietQR tiêu chuẩn ngân hàng VN. Định dạng URL theo `img.vietqr.io`:
         // https://img.vietqr.io/image/<bank>-<account>-<template>.png?amount=&addInfo=&accountName=
@@ -129,7 +130,7 @@ class SePayConnector implements PaymentGatewayConnector
         $amount = (int) ($payload['transferAmount'] ?? 0);
         // Memo có thể nằm trong `content` hoặc `description` — match cả hai.
         $rawMemo = trim((string) ($payload['content'] ?? '').' '.(string) ($payload['description'] ?? ''));
-        $reference = $this->extractInvoiceCode($rawMemo);
+        $reference = $this->extractPaymentReference($rawMemo);
 
         $occurredAt = isset($payload['transactionDate']) && $payload['transactionDate']
             ? CarbonImmutable::parse((string) $payload['transactionDate'])
@@ -154,9 +155,24 @@ class SePayConnector implements PaymentGatewayConnector
         throw UnsupportedOperation::for('sepay', 'queryStatus');
     }
 
-    /** Tìm mã invoice `INV-YYYYMM-NNNN` trong memo. */
-    protected function extractInvoiceCode(string $memo): ?string
+    /** Mã thanh toán SePay: <prefix> + id hoá đơn (đệm 0 tối thiểu 2 chữ số). Vd id 42 ⇒ CMBCC42, id 5 ⇒ CMBCC05. */
+    protected function paymentCode(int $invoiceId): string
     {
+        $prefix = (string) ($this->config['payment_code_prefix'] ?? 'CMBCC');
+
+        return $prefix.str_pad((string) $invoiceId, 2, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Trích mã tham chiếu hoá đơn trong nội dung CK. Ưu tiên MÃ THANH TOÁN SePay `<prefix><id>`
+     * (vd CMBCC42) — PaymentService sẽ suy hoá đơn theo id. Fallback mã cũ `INV-YYYYMM-NNNN` (tương thích ngược).
+     */
+    protected function extractPaymentReference(string $memo): ?string
+    {
+        $prefix = (string) ($this->config['payment_code_prefix'] ?? 'CMBCC');
+        if ($prefix !== '' && preg_match('/'.preg_quote($prefix, '/').'\d{2,10}/i', $memo, $m) === 1) {
+            return strtoupper($m[0]);
+        }
         if (preg_match('/INV-\d{6}-\d{4}/i', $memo, $m) === 1) {
             return strtoupper($m[0]);
         }

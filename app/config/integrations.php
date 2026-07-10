@@ -268,6 +268,10 @@ return [
             'webhook_api_key' => env('SEPAY_WEBHOOK_API_KEY'),
             // Template VietQR (compact, compact2, qr_only, print). compact2 = giao diện đẹp + đủ thông tin.
             'qr_template' => env('SEPAY_QR_TEMPLATE', 'compact2'),
+            // "Cấu trúc mã thanh toán" khai ở SePay (Cấu hình chung). SePay bật "Chỉ gửi webhook khi có mã
+            // thanh toán" ⇒ nội dung CK PHẢI chứa <prefix><id hoá đơn> (vd CMBCC42) thì webhook mới được đẩy.
+            // Đổi prefix ở đây PHẢI khớp cấu hình bên SePay.
+            'payment_code_prefix' => env('SEPAY_PAYMENT_CODE_PREFIX', 'CMBCC'),
         ],
 
         // VNPay — redirect + IPN (PR3, SPEC 0018). Cấu hình:

@@ -148,6 +148,9 @@ x-app-env: &app-env
   SEPAY_BANK_CODE: ${SEPAY_BANK_CODE:-MB}
   SEPAY_WEBHOOK_API_KEY: ${SEPAY_WEBHOOK_API_KEY}
   SEPAY_QR_TEMPLATE: ${SEPAY_QR_TEMPLATE:-compact2}
+  # Cấu trúc mã thanh toán SePay (Cấu hình chung → Cấu trúc mã thanh toán). Nội dung CK = <prefix><id hoá đơn>.
+  # PHẢI khớp cấu hình bên SePay khi bật "Chỉ gửi webhook khi có mã thanh toán".
+  SEPAY_PAYMENT_CODE_PREFIX: ${SEPAY_PAYMENT_CODE_PREFIX:-CMBCC}
   # "Luồng A": "Chuẩn bị hàng" gọi API sàn arrange-shipment + lấy tem thật (endpoint TikTok theo SDK chính
   # thức fulfillment 202309). Bật mặc định; đặt =false nếu shop yêu cầu handover_method khác / lỗi gọi sàn
   # (lỗi vẫn được bắt & gắn cờ has_issue trên đơn, không chặn — vẫn tạo vận đơn cục bộ).

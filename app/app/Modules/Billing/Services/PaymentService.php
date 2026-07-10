@@ -49,6 +49,14 @@ class PaymentService
         $invoice = Invoice::query()->withoutGlobalScope(TenantScope::class)
             ->where('code', $notification->reference)
             ->first();
+        // SePay: nội dung CK là MÃ THANH TOÁN `<prefix><id hoá đơn>` (vd CMBCC42) chứ không phải invoice.code
+        // ⇒ khi không khớp theo code, suy hoá đơn theo id nhúng trong mã.
+        if ($invoice === null) {
+            $prefix = (string) config('integrations.payments.sepay.payment_code_prefix', 'CMBCC');
+            if ($prefix !== '' && preg_match('/^'.preg_quote($prefix, '/').'0*(\d{1,10})$/i', $notification->reference, $m) === 1) {
+                $invoice = Invoice::query()->withoutGlobalScope(TenantScope::class)->find((int) $m[1]);
+            }
+        }
         if ($invoice === null) {
             Log::warning('payments.webhook.orphan', ['ref' => $notification->reference, 'gateway' => $notification->gateway]);
 
