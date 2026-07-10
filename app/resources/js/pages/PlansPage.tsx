@@ -1,18 +1,19 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    Alert, App as AntApp, Button, Card, Col, Divider, Input, InputNumber, Modal, Radio, Row, Segmented, Space, Table, Tag, Tooltip, Typography,
+    Alert, App as AntApp, Button, Card, Col, Divider, Input, InputNumber, Radio, Row, Segmented, Space, Table, Tag, Tooltip, Typography,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
     ArrowLeftOutlined, CheckCircleFilled, CheckOutlined, CrownOutlined, MinusOutlined, ShopOutlined, StarFilled, ThunderboltOutlined,
 } from '@ant-design/icons';
-import type { PlanFeatures } from '@/lib/billing';
+import type { CheckoutSession, PlanFeatures } from '@/lib/billing';
 import { errorMessage } from '@/lib/api';
 import {
     useBuyAiCredits, useCheckout, usePlans, useSubscription, useValidateVoucher, type Plan, type PlanCode, type VoucherPreview,
 } from '@/lib/billing';
 import { PlatformQuota } from '@/components/PlatformQuota';
+import CheckoutModal from '@/components/billing/CheckoutModal';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -52,7 +53,8 @@ export function PlansPage() {
     const { message } = AntApp.useApp();
     const navigate = useNavigate();
     const plans = usePlans();
-    const { data: sub } = useSubscription();
+    const subQuery = useSubscription();
+    const sub = subQuery.data;
     const checkout = useCheckout();
     const validate = useValidateVoucher();
 
@@ -60,7 +62,9 @@ export function PlansPage() {
     const [gateway, setGateway] = useState<'sepay' | 'vnpay'>('sepay');
     const [code, setCode] = useState('');
     const [voucher, setVoucher] = useState<VoucherPreview | null>(null);
-    const [pay, setPay] = useState<{ url?: string; qr?: string } | null>(null);
+    // Phiên thanh toán để mở CheckoutModal (QR + số TK + tên TK + ngân hàng + nội dung CK + poll trạng thái).
+    const [checkoutSession, setCheckoutSession] = useState<CheckoutSession | null>(null);
+    const [checkoutInvoiceId, setCheckoutInvoiceId] = useState<number | null>(null);
 
     const currentCode = sub?.subscription?.plan_code ?? null;
     // Hiển thị đầy đủ mọi gói đang kích hoạt (kể cả gói miễn phí/dùng thử). Server đã lọc is_active + sort_order.
@@ -84,10 +88,10 @@ export function PlansPage() {
         checkout.mutate({ plan_code: planCode, cycle, gateway, ...(voucher?.valid ? { voucher_code: code.trim().toUpperCase() } : {}) }, {
             onSuccess: (res) => {
                 const url = res.checkout?.redirect_url;
-                const qr = res.checkout?.qr_url;
                 if (url) { window.location.href = url; return; }
-                setPay({ url, qr });
-                message.success('Đã tạo hoá đơn — quét QR / chuyển khoản để hoàn tất.');
+                setCheckoutSession(res.checkout);
+                setCheckoutInvoiceId(res.invoice.id);
+                message.success('Đã tạo hoá đơn — quét QR hoặc chuyển khoản theo thông tin tài khoản bên dưới để hoàn tất.');
             },
             onError: (e) => message.error(errorMessage(e, 'Không tạo được thanh toán.')),
         });
@@ -307,19 +311,21 @@ export function PlansPage() {
                     </Card>
                 )}
 
-                <AiCreditsBlock gateway={gateway} onPaid={(p) => setPay(p)} />
+                <AiCreditsBlock gateway={gateway} onPaid={(s, id) => { setCheckoutSession(s); setCheckoutInvoiceId(id); }} />
             </div>
 
-            <Modal title="Thanh toán" open={pay !== null} onCancel={() => setPay(null)} footer={null}>
-                {pay?.qr
-                    ? <div style={{ textAlign: 'center' }}><img src={pay.qr} alt="QR thanh toán" style={{ maxWidth: 260 }} /><Paragraph type="secondary">Quét QR để thanh toán. Gói sẽ kích hoạt sau khi nhận được tiền.</Paragraph></div>
-                    : <Paragraph>Hoá đơn đã tạo. Vào <b>Cài đặt → Gói &amp; thanh toán</b> để xem trạng thái.</Paragraph>}
-            </Modal>
+            <CheckoutModal
+                open={checkoutSession !== null}
+                session={checkoutSession}
+                invoiceId={checkoutInvoiceId}
+                onClose={() => { setCheckoutSession(null); setCheckoutInvoiceId(null); }}
+                onPaid={() => { subQuery.refetch(); }}
+            />
         </div>
     );
 }
 
-function AiCreditsBlock({ gateway, onPaid }: { gateway: 'sepay' | 'vnpay'; onPaid: (p: { url?: string; qr?: string }) => void }) {
+function AiCreditsBlock({ gateway, onPaid }: { gateway: 'sepay' | 'vnpay'; onPaid: (session: CheckoutSession, invoiceId: number) => void }) {
     const { message } = AntApp.useApp();
     const { data } = useSubscription();
     const buy = useBuyAiCredits();
@@ -336,8 +342,8 @@ function AiCreditsBlock({ gateway, onPaid }: { gateway: 'sepay' | 'vnpay'; onPai
             onSuccess: (res) => {
                 const url = res.checkout?.redirect_url;
                 if (url) { window.location.href = url; return; }
-                onPaid({ url, qr: res.checkout?.qr_url });
-                message.success('Đã tạo hoá đơn mua lượt AI — thanh toán để cộng lượt.');
+                onPaid(res.checkout, res.invoice.id);
+                message.success('Đã tạo hoá đơn mua lượt AI — quét QR hoặc chuyển khoản theo thông tin bên dưới để cộng lượt.');
             },
             onError: (e) => message.error(errorMessage(e, 'Không mua được lượt AI.')),
         });
