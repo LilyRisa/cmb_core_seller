@@ -16,7 +16,7 @@
 - "Set thời gian" = **cả hai**: (a) thời lượng mỗi tenant được trải nghiệm (mặc định 30 ngày, admin chỉnh được) và (b) cửa sổ mở đăng ký (ngày bắt đầu/kết thúc chiến dịch, nullable).
 - Hết hạn trải nghiệm → **về gói trước đó** của tenant (khôi phục plan + chu kỳ + period_end trước khi bấm trải nghiệm; nếu đó là trial đã hết thì lưới `ensureTrialFallback` xử lý).
 - SePay = **hoàn thiện end-to-end + gắn UI** (connector đã có, thiếu UI mua gói thật + verify chạy thật).
-- Eligibility trải nghiệm = **chế độ đang bật & trong cửa sổ & tenant chưa từng trải nghiệm & gói hiện tại thấp hơn Pro**.
+- Eligibility trải nghiệm = **chế độ đang bật & trong cửa sổ & tenant chưa từng trải nghiệm & gói hiện tại là trial (miễn phí, kể cả chưa có subscription) — starter đã trả phí KHÔNG được**.
 - Modal điều khoản = áp **cả trải nghiệm & thanh toán**, một component chung.
 - `test_unlimited`: **giữ row deactivated** (an toàn FK cho subscription lịch sử đã ended), ẩn khắp UI; chỉ repoint các subscription **đang alive** về `starter`.
 - Cấu hình chế độ trải nghiệm đặt ở **màn admin Plans**.
@@ -73,7 +73,7 @@ Service `ProTrialService::eligibility($tenantId): array`:
 - `enabled == true`;
 - `now` trong `[window_start, window_end]` (bỏ qua cạnh null);
 - chưa có `pro_trial_grants` cho tenant;
-- subscription alive hiện tại có `plan.code ∈ {trial, starter}` (thấp hơn Pro; không cho nếu đang pro/business/…).
+- subscription alive hiện tại có `plan.code === trial`, hoặc chưa có subscription nào (tenant mới); starter đã trả phí và pro/business/… đều KHÔNG đủ điều kiện.
 - Trả `{ eligible: bool, reason: string|null, duration_days, ends_preview }`.
 
 API `GET /api/v1/billing/pro-trial/eligibility` (quyền `billing.manage`) → dùng cho FE ẩn/hiện nút "Đăng ký trải nghiệm Pro".

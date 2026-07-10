@@ -98,4 +98,23 @@ class ProTrialEligibilityTest extends TestCase
             ->assertJsonPath('data.eligible', false)
             ->assertJsonPath('data.reason', 'plan_too_high');
     }
+
+    public function test_not_eligible_when_on_paid_starter(): void
+    {
+        $plan = Plan::query()->where('code', Plan::CODE_STARTER)->first();
+        Subscription::query()->create([
+            'tenant_id' => $this->tenant->getKey(),
+            'plan_id' => $plan->getKey(),
+            'status' => Subscription::STATUS_ACTIVE,
+            'billing_cycle' => Subscription::CYCLE_MONTHLY,
+            'current_period_start' => now(),
+            'current_period_end' => now()->addMonth(),
+        ]);
+
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->getJson('/api/v1/billing/pro-trial/eligibility')
+            ->assertOk()
+            ->assertJsonPath('data.eligible', false)
+            ->assertJsonPath('data.reason', 'plan_too_high');
+    }
 }

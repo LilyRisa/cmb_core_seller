@@ -36,9 +36,11 @@ class ProTrialService
         if ($used) {
             return [...$base, 'reason' => 'already_used'];
         }
+        // Chỉ tenant đang ở gói trial (miễn phí, kể cả chưa có subscription) mới đủ điều kiện;
+        // starter đã trả phí KHÔNG được trải nghiệm Pro.
         $current = $this->subscriptions->currentFor($tenantId);
         $code = $current?->plan?->code;
-        if ($code !== null && ! in_array($code, [Plan::CODE_TRIAL, Plan::CODE_STARTER], true)) {
+        if ($code !== null && $code !== Plan::CODE_TRIAL) {
             return [...$base, 'reason' => 'plan_too_high'];
         }
 
