@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Messaging\Http\Controllers;
 use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
+use CMBcoreSeller\Modules\Billing\Contracts\ChannelQuotaInspector;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\OAuthState;
 use CMBcoreSeller\Modules\Messaging\Jobs\BackfillFacebookComments;
@@ -36,15 +37,28 @@ class FacebookOAuthController extends Controller
 {
     private const PROVIDER = 'facebook_page';
 
-    public function __construct(private MessagingRegistry $registry) {}
+    public function __construct(
+        private MessagingRegistry $registry,
+        private ChannelQuotaInspector $quota,
+    ) {}
 
     /** [auth] Khởi tạo OAuth: trả authorize URL cho FE redirect sang Meta. */
     public function start(Request $request): JsonResponse
     {
         Gate::authorize('messaging.connect');
 
-        $tenantId = app(CurrentTenant::class)->id();
-        $state = OAuthState::issue(self::PROVIDER, (int) $tenantId, $request->user()?->id, '/messaging/channels?connected=facebook_page');
+        $tenantId = (int) app(CurrentTenant::class)->id();
+
+        // Chặn khi đã đạt tối đa Facebook Page cho gói hiện tại (hạn mức / nền tảng). null = không giới hạn.
+        $remaining = $this->quota->remainingForProvider($tenantId, self::PROVIDER);
+        if ($remaining !== null && $remaining <= 0) {
+            return response()->json(['error' => [
+                'code' => 'PLAN_PLATFORM_LIMIT_REACHED',
+                'message' => 'Đã đạt tối đa số Facebook Page cho gói hiện tại. Nâng cấp gói để kết nối thêm.',
+            ]], 402);
+        }
+
+        $state = OAuthState::issue(self::PROVIDER, $tenantId, $request->user()?->id, '/messaging/channels?connected=facebook_page');
 
         // KHÔNG truyền redirect_uri — connector dùng URI canonical (config/APP_URL)
         // cho cả dialog login lẫn đổi token, đảm bảo Meta thấy 2 URI giống hệt.
@@ -78,13 +92,25 @@ class FacebookOAuthController extends Controller
                 return $this->finish('/messaging/channels?error=facebook_no_pages');
             }
 
+            // Hạn mức / nền tảng cho Facebook Page (null = không giới hạn). OAuth kết nối NHIỀU page cùng lúc
+            // ⇒ chỉ nối tới hết hạn mức, page dư bị BỎ QUA (không nối). Page đã active sẵn không tính vào mức.
+            $remaining = $this->quota->remainingForProvider((int) $state->tenant_id, self::PROVIDER);
+
             $connected = 0;
+            $skipped = 0;
             foreach ($pages as $page) {
                 // withTrashed + restore: reconnect sau khi đã ngắt (soft-delete) phải KHÔI PHỤC
                 // hàng cũ, không INSERT mới (tránh đụng unique key tenant+provider+external_shop_id).
                 $account = ChannelAccount::withoutGlobalScope(TenantScope::class)->withTrashed()->firstOrNew([
                     'tenant_id' => $state->tenant_id, 'provider' => self::PROVIDER, 'external_shop_id' => (string) $page['id'],
                 ]);
+                // Page MỚI (chưa active) mà đã hết hạn mức ⇒ bỏ qua, không kết nối.
+                $wasActive = $account->exists && $account->status === ChannelAccount::STATUS_ACTIVE && $account->deleted_at === null;
+                if (! $wasActive && $remaining !== null && $remaining <= 0) {
+                    $skipped++;
+
+                    continue;
+                }
                 $account->forceFill([
                     'tenant_id' => $state->tenant_id,
                     'shop_name' => $page['name'] ?? null,
@@ -114,11 +140,24 @@ class FacebookOAuthController extends Controller
                     );
                 BackfillMessagingChannel::dispatch((int) $account->getKey());
                 BackfillFacebookComments::dispatch((int) $account->getKey());
+                if (! $wasActive && $remaining !== null) {
+                    $remaining--;
+                }
                 $connected++;
             }
 
             $state->delete(); // one-time use
-            AuditLog::record('messaging.facebook.connected', null, ['pages' => $connected]);
+            AuditLog::record('messaging.facebook.connected', null, ['pages' => $connected, 'skipped_over_limit' => $skipped]);
+
+            // Không nối được page mới nào do vượt hạn mức ⇒ báo lỗi rõ; nối được 1 phần ⇒ kèm cờ số bị bỏ.
+            if ($connected === 0 && $skipped > 0) {
+                return $this->finish('/messaging/channels?error=facebook_plan_limit');
+            }
+            if ($skipped > 0) {
+                $redirect = $state->redirect_after ?: '/messaging/channels?connected=facebook_page';
+
+                return $this->finish($redirect.(str_contains($redirect, '?') ? '&' : '?').'plan_limited='.$skipped);
+            }
         } catch (\Throwable $e) {
             Log::warning('messaging.facebook.oauth_failed', ['error' => $e->getMessage()]);
 

@@ -7,11 +7,13 @@ use CMBcoreSeller\Modules\Billing\Console\CheckOverQuotaCommand;
 use CMBcoreSeller\Modules\Billing\Console\RecomputeUsageCommand;
 use CMBcoreSeller\Modules\Billing\Contracts\AiCreditMeter;
 use CMBcoreSeller\Modules\Billing\Contracts\AiUsageReporter;
+use CMBcoreSeller\Modules\Billing\Contracts\ChannelQuotaInspector;
 use CMBcoreSeller\Modules\Billing\Events\InvoicePaid;
 use CMBcoreSeller\Modules\Billing\Listeners\ActivateSubscription;
 use CMBcoreSeller\Modules\Billing\Listeners\StartTrialSubscription;
 use CMBcoreSeller\Modules\Billing\Services\AiCreditService;
 use CMBcoreSeller\Modules\Billing\Services\AiUsageReportService;
+use CMBcoreSeller\Modules\Billing\Services\ChannelQuotaService;
 use CMBcoreSeller\Modules\Tenancy\Events\TenantCreated;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -38,6 +40,9 @@ class BillingServiceProvider extends ServiceProvider
         );
 
         $this->app->bind(AiUsageReporter::class, AiUsageReportService::class);
+
+        // Tra cứu hạn mức gian hàng/nền tảng cho module khác (Messaging chặn kết nối Facebook Page vượt mức).
+        $this->app->bind(ChannelQuotaInspector::class, ChannelQuotaService::class);
     }
 
     public function boot(): void
