@@ -11,10 +11,13 @@ import { MoneyText } from '@/components/MoneyText';
 import { errorMessage } from '@/lib/api';
 import { formatDate } from '@/lib/format';
 import {
-    useCancelSubscription, useCheckout, useInvoices, usePlans, useSubscription,
-    type Plan,
+    useCancelSubscription, useCheckout, useInvoices, usePlans, useProTrialEligibility,
+    useRegisterProTrial, useSubscription, REFUND_TERMS_VERSION,
+    type CheckoutSession, type Plan, type PlanCode,
 } from '@/lib/billing';
 import { useCan } from '@/lib/tenant';
+import RefundPolicyModal from '@/components/billing/RefundPolicyModal';
+import CheckoutModal from '@/components/billing/CheckoutModal';
 
 /**
  * /settings/plan — Phase 6.4 / SPEC 0018.
@@ -70,6 +73,8 @@ export function SettingsPlanPage() {
     const invoicesQ = useInvoices();
     const checkout = useCheckout();
     const cancel = useCancelSubscription();
+    const eligibilityQ = useProTrialEligibility();
+    const registerProTrial = useRegisterProTrial();
 
     const subscription = subQ.data?.subscription ?? null;
     const usage = subQ.data?.usage ?? null;
@@ -87,6 +92,12 @@ export function SettingsPlanPage() {
     const [cycle, setCycle] = useState<'monthly' | 'yearly'>('monthly');
     const [gateway, setGateway] = useState<'sepay' | 'vnpay' | 'momo'>('sepay');
 
+    // Terms-gate (Task 12) + checkout QR modal (Task 13) state.
+    const [trialTermsOpen, setTrialTermsOpen] = useState(false);
+    const [payTermsOpen, setPayTermsOpen] = useState(false);
+    const [checkoutSession, setCheckoutSession] = useState<CheckoutSession | null>(null);
+    const [checkoutInvoiceId, setCheckoutInvoiceId] = useState<number | null>(null);
+
     const openUpgrade = (plan: Plan) => {
         setUpgradePlan(plan);
         setCycle('monthly');
@@ -97,18 +108,29 @@ export function SettingsPlanPage() {
     const submitCheckout = () => {
         if (!upgradePlan) return;
         checkout.mutate(
-            { plan_code: upgradePlan.code, cycle, gateway },
+            { plan_code: upgradePlan.code as PlanCode, cycle, gateway },
             {
                 onSuccess: (res) => {
-                    message.success(`Đã tạo hoá đơn ${res.invoice.code}. Hoàn tất thanh toán để kích hoạt.`);
-                    setUpgradeOpen(false);
-                    // PR2/PR3 sẽ điều hướng tới CheckoutPage; PR1 vẫn ở lại trang & reload invoices.
+                    setPayTermsOpen(false);
+                    setCheckoutSession(res.checkout);
+                    setCheckoutInvoiceId(res.invoice.id);
+                    message.success(`Đã tạo hoá đơn ${res.invoice.code} — quét QR / chuyển khoản để hoàn tất.`);
                     invoicesQ.refetch();
-                    subQ.refetch();
                 },
                 onError: (e) => message.error(errorMessage(e)),
             },
         );
+    };
+
+    const acceptTrial = async () => {
+        try {
+            await registerProTrial.mutateAsync(REFUND_TERMS_VERSION);
+            setTrialTermsOpen(false);
+            message.success('Đã kích hoạt gói Pro trải nghiệm!');
+            subQ.refetch();
+        } catch (e) {
+            message.error(errorMessage(e));
+        }
     };
 
     const onCancel = () => {
@@ -166,9 +188,16 @@ export function SettingsPlanPage() {
                             <Statistic title="Còn lại trong kỳ" value={subscription.days_left} suffix="ngày" />
                         </Col>
                         <Col xs={24} md={8} style={{ textAlign: 'right' }}>
-                            {canManage && subscription.status === 'active' && !subscription.cancel_at && (
-                                <Button danger icon={<CloseCircleOutlined />} loading={cancel.isPending} onClick={onCancel}>Huỷ gói</Button>
-                            )}
+                            <Space>
+                                {canManage && eligibilityQ.data?.eligible && (
+                                    <Button type="dashed" icon={<CrownOutlined />} onClick={() => setTrialTermsOpen(true)}>
+                                        Đăng ký trải nghiệm Pro ({eligibilityQ.data.duration_days} ngày)
+                                    </Button>
+                                )}
+                                {canManage && subscription.status === 'active' && !subscription.cancel_at && (
+                                    <Button danger icon={<CloseCircleOutlined />} loading={cancel.isPending} onClick={onCancel}>Huỷ gói</Button>
+                                )}
+                            </Space>
                         </Col>
                     </Row>
                 )}
@@ -290,10 +319,9 @@ export function SettingsPlanPage() {
                 open={upgradeOpen}
                 title={upgradePlan ? `Nâng cấp lên gói ${upgradePlan.name}` : 'Nâng cấp gói'}
                 onCancel={() => setUpgradeOpen(false)}
-                okText="Tạo hoá đơn & thanh toán"
+                okText="Tiếp tục"
                 cancelText="Đóng"
-                confirmLoading={checkout.isPending}
-                onOk={submitCheckout}
+                onOk={() => { setUpgradeOpen(false); setPayTermsOpen(true); }}
                 width={520}
             >
                 {upgradePlan && (
@@ -335,13 +363,31 @@ export function SettingsPlanPage() {
                                 {gateway === 'momo' && 'MoMo đang được hoàn thiện — chọn SePay hoặc VNPay.'}
                             </Typography.Paragraph>
                         </div>
-                        <Alert
-                            type="info" showIcon
-                            message="Cổng thanh toán thật đang được hoàn thiện — phiên bản hiện tại tạo hoá đơn và lưu lại để chủ shop hoàn tất khi cổng sẵn sàng (PR2 SePay / PR3 VNPay)."
-                        />
                     </Space>
                 )}
             </Modal>
+
+            <RefundPolicyModal
+                open={trialTermsOpen}
+                mode="trial"
+                loading={registerProTrial.isPending}
+                onCancel={() => setTrialTermsOpen(false)}
+                onAccept={acceptTrial}
+            />
+            <RefundPolicyModal
+                open={payTermsOpen}
+                mode="payment"
+                loading={checkout.isPending}
+                onCancel={() => setPayTermsOpen(false)}
+                onAccept={submitCheckout}
+            />
+            <CheckoutModal
+                open={checkoutSession !== null}
+                session={checkoutSession}
+                invoiceId={checkoutInvoiceId}
+                onClose={() => { setCheckoutSession(null); setCheckoutInvoiceId(null); }}
+                onPaid={() => { subQ.refetch(); invoicesQ.refetch(); }}
+            />
         </div>
     );
 }
