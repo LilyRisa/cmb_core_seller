@@ -4,7 +4,9 @@ namespace Tests\Feature\Billing;
 
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Billing\Database\Seeders\BillingPlanSeeder;
+use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\ProTrialGrant;
+use CMBcoreSeller\Modules\Billing\Models\Subscription;
 use CMBcoreSeller\Modules\Settings\Services\SystemSettingService;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
@@ -64,5 +66,36 @@ class ProTrialEligibilityTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.eligible', false)
             ->assertJsonPath('data.reason', 'already_used');
+    }
+
+    public function test_not_eligible_when_window_closed(): void
+    {
+        app(SystemSettingService::class)->set('billing.pro_trial.window_start', now()->subDays(10)->toDateString());
+        app(SystemSettingService::class)->set('billing.pro_trial.window_end', now()->subDays(1)->toDateString());
+
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->getJson('/api/v1/billing/pro-trial/eligibility')
+            ->assertOk()
+            ->assertJsonPath('data.eligible', false)
+            ->assertJsonPath('data.reason', 'window_closed');
+    }
+
+    public function test_not_eligible_when_plan_too_high(): void
+    {
+        $plan = Plan::query()->where('code', Plan::CODE_PRO)->first();
+        Subscription::query()->create([
+            'tenant_id' => $this->tenant->getKey(),
+            'plan_id' => $plan->getKey(),
+            'status' => Subscription::STATUS_ACTIVE,
+            'billing_cycle' => Subscription::CYCLE_MONTHLY,
+            'current_period_start' => now(),
+            'current_period_end' => now()->addMonth(),
+        ]);
+
+        $this->actingAs($this->owner)->withHeaders($this->h())
+            ->getJson('/api/v1/billing/pro-trial/eligibility')
+            ->assertOk()
+            ->assertJsonPath('data.eligible', false)
+            ->assertJsonPath('data.reason', 'plan_too_high');
     }
 }
