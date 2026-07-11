@@ -68,12 +68,18 @@ class BackfillChannelTracking implements ShouldQueue
         // sàn cấp ASYNC phụ thuộc 3PL). backoff theo attempt hiện tại; rỗng thì dùng 1800s.
         $backoff = $this->backoff();
         if ($this->attempts() < $this->tries) {
-            $this->release($backoff[$this->attempts() - 1] ?? 1800);
+            $delay = $backoff[$this->attempts() - 1] ?? 1800;
+            // Đánh dấu "đang trong vòng retry" — reconciliation định kỳ {@see BackfillChannelLabels} lọc
+            // `whereNull('label_fetch_next_retry_at')` nên KHÔNG enqueue chồng thêm job cho cùng vận đơn.
+            $shipment->forceFill(['label_fetch_next_retry_at' => now()->addSeconds($delay)])->save();
+            $this->release($delay);
 
             return;
         }
         // Hết lượt mà vẫn rỗng: KHÔNG phải lỗi hệ thống. Kênh non_integrated seller tự nhập mã (API không trả),
-        // hoặc 3PL cấp rất trễ. Chỉ cảnh báo — mã còn về qua order_trackingno_push (code 4) / đồng bộ đơn / "Nhận phiếu".
+        // hoặc 3PL cấp rất trễ. Clear marker ⇒ BackfillChannelLabels được phép thử lại chu kỳ sau (khi sàn đã
+        // arrange xong thì lần tới sẽ cấp tracking). Chỉ cảnh báo — mã còn về qua order_trackingno_push / đồng bộ đơn.
+        $shipment->forceFill(['label_fetch_next_retry_at' => null])->save();
         Log::warning('shipment.backfill_tracking_pending', ['shipment' => $shipment->getKey(), 'order' => $order->getKey(), 'attempts' => $this->attempts()]);
     }
 }

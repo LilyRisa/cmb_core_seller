@@ -50,7 +50,17 @@ class BackfillChannelLabels implements ShouldQueue
                     if (data_get($shipment->raw, 'label_unavailable')) {
                         continue; // sàn không bao giờ cấp tem (vd Lazada DBS/SOF) ⇒ retry vô ích
                     }
-                    FetchChannelLabel::dispatch((int) $shipment->getKey())->onQueue('labels');
+                    // Vận đơn sàn CHƯA có mã vận đơn ⇒ có thể sàn CHƯA "arrange" (ship_order chưa chạy). Bằng
+                    // chứng prod (đơn COD Shopee): lúc "Chuẩn bị hàng" đơn còn LOGISTICS_NOT_START ⇒ arrangeShipment
+                    // ném transient (shopee_cod_screening) ⇒ ship_order KHÔNG chạy, vận đơn tạo ra không tracking.
+                    // FetchChannelLabel CHỈ kéo tem (create_shipping_document) — KHÔNG bao giờ ship_order ⇒ khi sàn
+                    // mở đơn vẫn báo `package_can_not_print` mãi ⇒ kẹt. BackfillChannelTracking re-arrange idempotent
+                    // (PROCESSED short-circuit) ⇒ cấp tracking rồi kéo tem. Có tracking rồi ⇒ chỉ cần kéo tem.
+                    if (blank($shipment->tracking_no)) {
+                        BackfillChannelTracking::dispatch((int) $shipment->getKey())->onQueue('labels');
+                    } else {
+                        FetchChannelLabel::dispatch((int) $shipment->getKey())->onQueue('labels');
+                    }
                 }
             });
     }

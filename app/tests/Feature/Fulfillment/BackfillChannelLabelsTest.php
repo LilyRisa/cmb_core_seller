@@ -4,6 +4,7 @@ namespace Tests\Feature\Fulfillment;
 
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Fulfillment\Jobs\BackfillChannelLabels;
+use CMBcoreSeller\Modules\Fulfillment\Jobs\BackfillChannelTracking;
 use CMBcoreSeller\Modules\Fulfillment\Jobs\FetchChannelLabel;
 use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
 use CMBcoreSeller\Modules\Orders\Models\Order;
@@ -60,13 +61,16 @@ class BackfillChannelLabelsTest extends TestCase
     {
         Queue::fake();
 
-        $eligible = $this->makeOrderShipment('SP-ELIGIBLE');                                             // ✓ kéo lại
+        // CHƯA có tracking ⇒ có thể sàn chưa arrange (ship_order chưa chạy) ⇒ BackfillChannelTracking re-arrange.
+        $needArrange = $this->makeOrderShipment('SP-ELIGIBLE');                                          // ✓ re-arrange
+        // Đã có tracking nhưng tem về muộn ⇒ chỉ cần kéo tem (FetchChannelLabel).
+        $needLabel = $this->makeOrderShipment('SP-HAS-TRACKING', [], ['tracking_no' => 'SPXVN123']);      // ✓ kéo tem
         $this->makeOrderShipment('SP-HAS-LABEL', [], ['label_path' => 'tenants/1/labels/x.pdf']);        // đã có tem
         $this->makeOrderShipment('SP-IN-RETRY', [], ['label_fetch_next_retry_at' => now()->addMinutes(5)]); // đang retry
         $this->makeOrderShipment('SP-UNAVAILABLE', [], ['raw' => ['label_unavailable' => ['message' => 'DBS']]]); // sàn không cấp
         $this->makeOrderShipment('SP-OLD', ['placed_at' => now()->subDays(30)]);                         // quá cũ
         $this->makeOrderShipment('SP-SHIPPED', ['status' => StandardOrderStatus::Shipped]);              // không còn ở processing
-        $manualReady = $this->makeOrderShipment('SP-RTS-READY', ['status' => StandardOrderStatus::ReadyToShip]); // ✓ vẫn cần tem
+        $manualReady = $this->makeOrderShipment('SP-RTS-READY', ['status' => StandardOrderStatus::ReadyToShip]); // ✓ chưa tracking ⇒ re-arrange
 
         // đơn manual (không có channel_account_id) — không phải đơn sàn
         $manualOrder = Order::withoutGlobalScope(TenantScope::class)->create([
@@ -82,8 +86,13 @@ class BackfillChannelLabelsTest extends TestCase
 
         (new BackfillChannelLabels)->handle();
 
-        $eligibleIds = [$eligible->getKey(), $manualReady->getKey()];
-        Queue::assertPushed(FetchChannelLabel::class, 2);
-        Queue::assertPushed(FetchChannelLabel::class, fn (FetchChannelLabel $j) => in_array($j->shipmentId, $eligibleIds, true));
+        // Vận đơn chưa có tracking ⇒ re-arrange (ship_order idempotent), KHÔNG chỉ kéo tem.
+        $arrangeIds = [$needArrange->getKey(), $manualReady->getKey()];
+        Queue::assertPushed(BackfillChannelTracking::class, 2);
+        Queue::assertPushed(BackfillChannelTracking::class, fn (BackfillChannelTracking $j) => in_array($j->shipmentId, $arrangeIds, true));
+
+        // Vận đơn đã có tracking, thiếu tem ⇒ chỉ kéo tem.
+        Queue::assertPushed(FetchChannelLabel::class, 1);
+        Queue::assertPushed(FetchChannelLabel::class, fn (FetchChannelLabel $j) => $j->shipmentId === $needLabel->getKey());
     }
 }
