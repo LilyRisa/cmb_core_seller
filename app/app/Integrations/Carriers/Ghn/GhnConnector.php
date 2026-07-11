@@ -236,7 +236,13 @@ class GhnConnector extends AbstractCarrierConnector
             'length' => (int) ($p['length_cm'] ?? 10),
             'width' => (int) ($p['width_cm'] ?? 10),
             'height' => (int) ($p['height_cm'] ?? 10),
-            'service_type_id' => isset($shipment['service']) ? (int) $shipment['service'] : 2,
+            // service_type_id: service tường minh (số) ưu tiên; nếu rỗng, suy từ loại hàng
+            // (goods_type: nhẹ=2 chuyển phát nhanh/e-commerce, nặng=5 hàng nặng/truyền thống — GHN docs id=123).
+            'service_type_id' => (isset($shipment['service']) && $shipment['service'] !== '' && ctype_digit((string) $shipment['service']))
+                ? (int) $shipment['service']
+                : ((($shipment['goods_type'] ?? 'light') === 'heavy') ? 5 : 2),
+            // Gửi hàng tại điểm/bưu cục GHN: seller mang đơn tới station thay vì shipper qua lấy (GHN pick_station_id).
+            'pick_station_id' => isset($shipment['pick_station_id']) && $shipment['pick_station_id'] ? (int) $shipment['pick_station_id'] : null,
             'cod_amount' => $cod,
             'insurance_value' => isset($shipment['insurance_value']) ? max(0, (int) $shipment['insurance_value']) : null,
             'content' => $shipment['content'] ?? null,

@@ -376,15 +376,21 @@ class ViettelPostConnector extends AbstractCarrierConnector
     private function buildOrderNote(array $shipment): ?string
     {
         $parts = [];
-        if ($shipment['allow_inspection'] ?? true) {
-            $parts[] = 'Cho khách xem hàng khi nhận';
-        }
+        // Ghi chú xem/thử 3 mức (chuẩn hoá GHN) — VTP không có field riêng, thể hiện qua ghi chú. Fallback
+        // cờ bool allow_inspection cho đơn cũ (mặc định an toàn: cho xem, không thử).
+        $requiredNote = (string) ($shipment['required_note'] ?? (($shipment['allow_inspection'] ?? true) ? 'CHOXEMHANGKHONGTHU' : 'KHONGCHOXEMHANG'));
+        $parts[] = match ($requiredNote) {
+            'CHOTHUHANG' => 'Cho khách xem và thử hàng khi nhận',
+            'KHONGCHOXEMHANG' => 'Không cho khách xem hàng',
+            default => 'Cho khách xem hàng, không cho thử',
+        };
         $delivery = trim((string) ($shipment['delivery_note'] ?? $shipment['content'] ?? ''));
         if ($delivery !== '') {
             $parts[] = $delivery;
         }
 
-        return $this->trimNote($parts === [] ? null : implode('. ', $parts));
+        // $parts luôn có ≥1 phần tử (ghi chú xem/thử luôn được thêm) ⇒ implode trực tiếp.
+        return $this->trimNote(implode('. ', $parts));
     }
 
     /** ORDER_STATUSDATE dạng "d/m/Y H:i:s" (vd "10/11/2025 11:07:16") — giờ VN (GMT+7). Fallback Carbon::parse. */

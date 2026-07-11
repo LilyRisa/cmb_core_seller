@@ -110,6 +110,32 @@ class GhnClient
     }
 
     /**
+     * Danh sách điểm gửi hàng (bưu cục GHN) quanh khu vực kho gửi — dùng cho tuỳ chọn "gửi hàng tại điểm"
+     * (seller mang đơn tới station thay vì shipper qua lấy). Lọc theo district_id/ward_code của kho gửi.
+     *
+     * GHN docs: GET /shiip/public-api/v2/station/get?district_id=&ward_code=&offset=&limit=
+     *   Headers: Token + ShopId. Response data: [{ station_id, name, address, district_id, ward_code, ... }]
+     *
+     * @return array<string,mixed>
+     */
+    public function getStations(?int $districtId = null, ?string $wardCode = null, int $offset = 0, int $limit = 50): array
+    {
+        $query = array_filter([
+            'district_id' => $districtId,
+            'ward_code' => $wardCode !== null && $wardCode !== '' ? $wardCode : null,
+            'offset' => max(0, $offset),
+            'limit' => min(50, max(1, $limit)),
+        ], fn ($v) => $v !== null);
+        $res = $this->http()->get('/shiip/public-api/v2/station/get', $query);
+        $body = $res->json();
+        if (! is_array($body)) {
+            throw new RuntimeException('GHN response không hợp lệ (status '.$res->status().').');
+        }
+
+        return $body;
+    }
+
+    /**
      * Districts trong 1 tỉnh — dùng để dựng dropdown cascading khi user thiết lập tài khoản GHN.
      *
      * @return array<string,mixed>

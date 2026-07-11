@@ -239,6 +239,59 @@ class CarrierAccountController extends Controller
     }
 
     /**
+     * POST /api/v1/carrier-accounts/ghn/stations — liệt kê điểm gửi hàng (bưu cục GHN) quanh kho gửi cho
+     * tuỳ chọn "gửi hàng tại điểm". Dùng trong form thêm/sửa tài khoản GHN (chưa cần CarrierAccount đã lưu).
+     * Lọc theo district_id (bắt buộc) + ward_code (tuỳ chọn) của kho gửi. Cache 10' theo token+shop+khu vực.
+     *
+     * Payload: { token: string, shop_id: int, district_id: int, ward_code?: string }
+     */
+    public function ghnStations(Request $request): JsonResponse
+    {
+        abort_unless($request->user()?->can('fulfillment.carriers'), 403, 'Bạn không có quyền cấu hình ĐVVC.');
+        $data = $request->validate([
+            'token' => ['required', 'string', 'max:200'],
+            'shop_id' => ['required', 'integer'],
+            'district_id' => ['required', 'integer'],
+            'ward_code' => ['sometimes', 'nullable', 'string', 'max:20'],
+        ]);
+
+        $tokenHash = substr(hash('sha256', $data['token']), 0, 16);
+        $cacheKey = "ghn.fe.{$tokenHash}.stations.{$data['shop_id']}.{$data['district_id']}.".($data['ward_code'] ?? '');
+
+        try {
+            $body = Cache::remember($cacheKey, 600, function () use ($data) {
+                $client = new GhnClient($data['token'], (int) $data['shop_id']);
+
+                return $client->getStations((int) $data['district_id'], $data['ward_code'] ?? null);
+            });
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Không gọi được GHN: '.$e->getMessage(),
+                'errors' => ['token' => ['Token có thể không hợp lệ hoặc GHN không phản hồi.']],
+            ], 422);
+        }
+
+        $code = (int) ($body['code'] ?? 0);
+        if ($code !== 200) {
+            return response()->json([
+                'message' => $body['message'] ?? 'GHN trả mã lỗi '.$code,
+                'errors' => ['district_id' => [$body['message'] ?? 'Không lấy được danh sách điểm gửi.']],
+            ], 422);
+        }
+
+        $stationsRaw = $body['data'] ?? [];
+        $stations = array_values(array_map(fn ($s) => [
+            'station_id' => (int) ($s['station_id'] ?? $s['id'] ?? 0),
+            'name' => (string) ($s['name'] ?? ('Điểm #'.($s['station_id'] ?? '?'))),
+            'address' => (string) ($s['address'] ?? ''),
+            'district_id' => isset($s['district_id']) ? (int) $s['district_id'] : null,
+            'ward_code' => isset($s['ward_code']) ? (string) $s['ward_code'] : null,
+        ], (array) $stationsRaw));
+
+        return response()->json(['data' => $stations]);
+    }
+
+    /**
      * POST /api/v1/carrier-accounts/ghn/master-data — proxy GHN master-data (province/district/ward)
      * lấy bằng token user đang nhập trong form "Thêm tài khoản". KHÔNG yêu cầu CarrierAccount đã lưu —
      * dùng để user xem trước/chọn mã quận trước khi submit. Cache theo hash token để giảm hit GHN.

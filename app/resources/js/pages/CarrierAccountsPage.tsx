@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-    App as AntApp, Alert, Button, Col, Dropdown, Empty, Form, Input, Modal, Radio, Result,
-    Row, Select, Space, Spin, Switch, Tag, Tooltip, Typography,
+    App as AntApp, Alert, Button, Col, Dropdown, Empty, Form, Input, InputNumber, Modal, Radio, Result,
+    Row, Segmented, Select, Space, Spin, Switch, Tag, Tooltip, Typography,
 } from 'antd';
 import type { FormInstance } from 'antd';
 import {
@@ -18,10 +18,10 @@ import { errorMessage } from '@/lib/api';
 import { formatDateShort } from '@/lib/format';
 import { useCan, useTenant } from '@/lib/tenant';
 import {
-    type Carrier, type CarrierAccount, type GhnDistrict, type GhnProvince, type GhnShop, type GhnWard,
+    type Carrier, type CarrierAccount, type GhnDistrict, type GhnProvince, type GhnShop, type GhnStation, type GhnWard,
     type VtpProvince, type VtpWard,
     useCarrierAccounts, useCarriers, useCreateCarrierAccount, useDeleteCarrierAccount,
-    useGhnMasterData, useGhnShops, useRevealCarrierCredentials, useUpdateCarrierAccount, useVerifyCarrierAccount, useViettelPostMasterData,
+    useGhnMasterData, useGhnShops, useGhnStations, useRevealCarrierCredentials, useUpdateCarrierAccount, useVerifyCarrierAccount, useViettelPostMasterData,
 } from '@/lib/fulfillment';
 
 // Trường thông tin xác thực (credentials) theo từng ĐVVC — v1: GHN; carrier khác fallback "token".
@@ -65,6 +65,25 @@ const COMING_SOON: Array<{ code: string; name: string }> = [
 ];
 
 interface AddState { open: boolean; carrier?: Carrier | null; edit?: CarrierAccount | null }
+
+// "Cài đặt giao hàng mặc định" lưu theo từng tài khoản ĐVVC (carrier_accounts.meta.defaults). BE đọc ở
+// ShipmentService::buildCreatePayload — kích thước gói, loại hàng (→ service), ghi chú xem/thử, gửi tại điểm.
+interface ShippingDefaults {
+    package?: { length_cm?: number; width_cm?: number; height_cm?: number; weight_grams?: number };
+    goods_type?: 'light' | 'heavy';
+    required_note?: 'KHONGCHOXEMHANG' | 'CHOXEMHANGKHONGTHU' | 'CHOTHUHANG';
+    pickup?: { at_station?: boolean; station_id?: number; station_name?: string };
+}
+
+// 3 mức ghi chú ĐVVC (chuẩn GHN required_note). Mặc định an toàn = "Cho xem, không cho thử".
+const REQUIRED_NOTE_OPTIONS = [
+    { value: 'KHONGCHOXEMHANG', label: 'Không cho xem hàng' },
+    { value: 'CHOXEMHANGKHONGTHU', label: 'Cho xem, không cho thử' },
+    { value: 'CHOTHUHANG', label: 'Cho xem và thử hàng' },
+] as const;
+
+// Giá trị mặc định khi thêm tài khoản mới — khớp fallback cứng của backend.
+const DEFAULT_SHIPPING_DEFAULTS = { length_cm: 15, width_cm: 15, height_cm: 10, weight_grams: 500, goods_type: 'light' as const, required_note: 'CHOXEMHANGKHONGTHU' as const };
 
 // Hồ sơ người gửi ("Địa chỉ lấy hàng") lưu ở Cài đặt → In (tenant.settings.print.senders).
 // Chỉ có tên/SĐT/địa chỉ tự do (không tách tỉnh/quận/phường, không có mã GHN) — xem SettingsPrintPage.
@@ -421,6 +440,7 @@ function AddCarrierAccountModal({
     const code = carrier?.code ?? '';
     const isEdit = !!state.edit;
     const editFa = ((state.edit?.meta as Record<string, unknown> | undefined)?.from_address ?? {}) as Record<string, unknown>;
+    const editDefaults = ((state.edit?.meta as Record<string, unknown> | undefined)?.defaults ?? {}) as ShippingDefaults;
     const credFields = CRED_FIELDS[code] ?? (code && code !== 'manual' ? [{ key: 'token', label: 'API Token', required: true, secret: true }] : []);
     const needsFromAddress = !!FROM_ADDRESS_REQUIRED[code];
 
@@ -484,6 +504,25 @@ function AddCarrierAccountModal({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [state.open, state.edit]);
 
+    // Nạp "Cài đặt giao hàng mặc định": edit → từ meta.defaults; tạo mới → giá trị mặc định an toàn.
+    useEffect(() => {
+        if (!state.open) return;
+        const d: ShippingDefaults = isEdit ? editDefaults : {};
+        const p = d.package ?? {};
+        form.setFieldsValue({
+            def_length_cm: p.length_cm ?? DEFAULT_SHIPPING_DEFAULTS.length_cm,
+            def_width_cm: p.width_cm ?? DEFAULT_SHIPPING_DEFAULTS.width_cm,
+            def_height_cm: p.height_cm ?? DEFAULT_SHIPPING_DEFAULTS.height_cm,
+            def_weight_grams: p.weight_grams ?? DEFAULT_SHIPPING_DEFAULTS.weight_grams,
+            def_goods_type: d.goods_type ?? DEFAULT_SHIPPING_DEFAULTS.goods_type,
+            def_required_note: d.required_note ?? DEFAULT_SHIPPING_DEFAULTS.required_note,
+            def_at_station: d.pickup?.at_station ?? false,
+            def_station_id: d.pickup?.station_id ? String(d.pickup.station_id) : undefined,
+            def_station_name: d.pickup?.station_name,
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [state.open, isEdit]);
+
     const submit = () => form.validateFields().then((v) => {
         const credentials: Record<string, unknown> = {};
         credFields.forEach((f) => { if (v[`cred_${f.key}`] !== undefined && v[`cred_${f.key}`] !== '') credentials[f.key] = v[`cred_${f.key}`]; });
@@ -512,6 +551,22 @@ function AddCarrierAccountModal({
             });
             if (Object.keys(fromAddress).length > 0) meta.from_address = fromAddress;
         }
+        // "Cài đặt giao hàng mặc định" (theo từng tài khoản ĐVVC) — gói vào meta.defaults. Áp cho mọi ĐVVC;
+        // "gửi tại điểm" chỉ GHN có chọn điểm cụ thể (GHTK/VTP chỉ lưu cờ). BE đọc ở buildCreatePayload.
+        const atStation = !!v.def_at_station;
+        meta.defaults = {
+            package: {
+                length_cm: Math.max(1, Number(v.def_length_cm) || 15),
+                width_cm: Math.max(1, Number(v.def_width_cm) || 15),
+                height_cm: Math.max(1, Number(v.def_height_cm) || 10),
+                weight_grams: Math.max(1, Number(v.def_weight_grams) || 500),
+            },
+            goods_type: v.def_goods_type === 'heavy' ? 'heavy' : 'light',
+            required_note: ['KHONGCHOXEMHANG', 'CHOXEMHANGKHONGTHU', 'CHOTHUHANG'].includes(v.def_required_note) ? v.def_required_note : 'CHOXEMHANGKHONGTHU',
+            pickup: atStation && code === 'ghn' && v.def_station_id
+                ? { at_station: true, station_id: Number(v.def_station_id), station_name: v.def_station_name || undefined }
+                : { at_station: atStation },
+        };
         if (isEdit && state.edit) {
             // Chỉ gửi credentials nếu user nhập mới (BE merge — để trống = giữ nguyên token cũ).
             update.mutate({
@@ -637,6 +692,38 @@ function AddCarrierAccountModal({
                         <Form.Item name="default_service" label="Mã dịch vụ mặc định (tuỳ chọn)" extra="VD: 2 = GHN Standard service_type_id">
                             <Input placeholder="Để trống nếu chưa rõ" />
                         </Form.Item>
+
+                        <Typography.Title level={5} style={{ marginTop: 12, marginBottom: 2, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 14 }}>Cài đặt giao hàng mặc định</Typography.Title>
+                        <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 12 }}>
+                            Áp dụng khi tạo vận đơn cho tài khoản này. Đơn thủ công dùng cài đặt của tài khoản <b>mặc định</b>; từng đơn vẫn có thể chỉnh lại.
+                        </Typography.Paragraph>
+
+                        <Form.Item label="Kích thước gói mặc định (cm) & cân nặng (g)" style={{ marginBottom: 10 }}>
+                            <Space wrap size={8}>
+                                <Form.Item name="def_length_cm" noStyle><InputNumber min={1} max={200} addonBefore="Dài" style={{ width: 120 }} /></Form.Item>
+                                <Form.Item name="def_width_cm" noStyle><InputNumber min={1} max={200} addonBefore="Rộng" style={{ width: 124 }} /></Form.Item>
+                                <Form.Item name="def_height_cm" noStyle><InputNumber min={1} max={200} addonBefore="Cao" style={{ width: 120 }} /></Form.Item>
+                                <Form.Item name="def_weight_grams" noStyle><InputNumber min={1} max={50000} addonBefore="Nặng" addonAfter="g" style={{ width: 168 }} /></Form.Item>
+                            </Space>
+                        </Form.Item>
+
+                        <Form.Item name="def_goods_type" label="Loại hàng" extra="Hàng nhẹ → chuyển phát nhanh (GHN service 2); hàng nặng → dịch vụ hàng nặng (GHN service 5).">
+                            <Segmented options={[{ value: 'light', label: 'Hàng nhẹ' }, { value: 'heavy', label: 'Hàng nặng' }]} />
+                        </Form.Item>
+
+                        <Form.Item name="def_required_note" label="Ghi chú cho ĐVVC (cho khách xem/thử hàng)">
+                            <Radio.Group>
+                                <Space direction="vertical" size={2}>
+                                    {REQUIRED_NOTE_OPTIONS.map((o) => <Radio key={o.value} value={o.value}>{o.label}</Radio>)}
+                                </Space>
+                            </Radio.Group>
+                        </Form.Item>
+
+                        <Form.Item name="def_at_station" valuePropName="checked" label="Gửi hàng tại điểm / bưu cục" extra={code === 'ghn' ? 'Mang đơn tới bưu cục GHN thay vì shipper qua lấy tại kho.' : 'GHTK / Viettel Post: mới lưu ghi chú, chưa hỗ trợ chọn điểm cụ thể.'}>
+                            <Switch />
+                        </Form.Item>
+                        {code === 'ghn' && <GhnStationSelector form={form} />}
+
                         <Form.Item name="is_default" valuePropName="checked" label="Đặt làm tài khoản mặc định toàn workspace" style={{ marginBottom: 0 }}>
                             <Switch />
                         </Form.Item>
@@ -792,6 +879,73 @@ const GHN_SHOP_CSS = `
     border-radius: 4px;
 }
 `;
+
+// ---- GHN station selector (gửi hàng tại điểm) -----------------------------
+
+/**
+ * Khi bật "gửi hàng tại điểm" cho GHN ⇒ tải danh sách bưu cục quanh khu vực kho gửi (from_district_id)
+ * qua proxy /carrier-accounts/ghn/stations (cần token + shop_id). User chọn 1 điểm ⇒ ghi def_station_id
+ * + def_station_name để submit() gói vào meta.defaults.pickup. Ẩn khi chưa bật switch.
+ */
+function GhnStationSelector({ form }: { form: FormInstance }) {
+    const { message } = AntApp.useApp();
+    const atStation = Form.useWatch('def_at_station', form) as boolean | undefined;
+    const token = (Form.useWatch('cred_token', form) ?? '') as string;
+    const shopId = (Form.useWatch('cred_shop_id', form) ?? '') as string;
+    const districtId = Form.useWatch('from_district_id', form) as number | string | undefined;
+    const stationId = (Form.useWatch('def_station_id', form) ?? '') as string;
+    const stationsMutation = useGhnStations();
+    const [stations, setStations] = useState<GhnStation[]>([]);
+    const [loading, setLoading] = useState(false);
+    const fetchedKeyRef = useRef<string>('');
+
+    useEffect(() => {
+        if (!atStation) return;
+        const t = token.trim();
+        const sid = Number(shopId);
+        const did = Number(districtId);
+        if (t.length < 8 || !sid || !did) { setStations([]); fetchedKeyRef.current = ''; return; }
+        const key = `${t}|${sid}|${did}`;
+        if (key === fetchedKeyRef.current) return;
+        const timer = setTimeout(() => {
+            setLoading(true);
+            stationsMutation.mutate({ token: t, shop_id: sid, district_id: did }, {
+                onSuccess: (data) => {
+                    setStations(data);
+                    fetchedKeyRef.current = key;
+                    if (data.length === 0) message.info('GHN chưa có điểm gửi cho khu vực kho này — dùng lấy hàng tại kho.');
+                },
+                onError: (e) => { setStations([]); message.error(errorMessage(e, 'Không tải được danh sách điểm gửi GHN.')); },
+                onSettled: () => setLoading(false),
+            });
+        }, 600);
+
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [atStation, token, shopId, districtId]);
+
+    if (!atStation) return null;
+
+    return (
+        <Form.Item label="Điểm gửi hàng (bưu cục GHN)" extra="Danh sách theo khu vực kho gửi ở trên. Chọn kho gửi + nhập token để tải điểm.">
+            <Select
+                showSearch
+                placeholder={loading ? 'Đang tải điểm gửi…' : (stations.length ? 'Chọn điểm gửi' : 'Chọn kho gửi + nhập token để tải điểm')}
+                loading={loading}
+                value={stationId || undefined}
+                optionFilterProp="label"
+                notFoundContent={loading ? <Spin size="small" /> : 'Chưa có điểm gửi'}
+                onChange={(val) => {
+                    const st = stations.find((s) => String(s.station_id) === val);
+                    form.setFieldsValue({ def_station_id: val, def_station_name: st?.name });
+                }}
+                options={stations.map((s) => ({ value: String(s.station_id), label: `${s.name}${s.address ? ' · ' + s.address : ''}` }))}
+            />
+            <Form.Item name="def_station_id" hidden><Input /></Form.Item>
+            <Form.Item name="def_station_name" hidden><Input /></Form.Item>
+        </Form.Item>
+    );
+}
 
 // ---- GHN address picker (cascading Select, auto-load from API token) ------
 

@@ -232,6 +232,28 @@ export function useGhnShops() {
     });
 }
 
+export interface GhnStation {
+    station_id: number;
+    name: string;
+    address: string;
+    district_id: number | null;
+    ward_code: string | null;
+}
+
+/**
+ * Load danh sách điểm gửi (bưu cục GHN) quanh kho gửi cho tuỳ chọn "gửi hàng tại điểm". Cần token +
+ * shop_id + district_id của kho gửi. Backend cache 10' theo (token, shop, khu vực).
+ */
+export function useGhnStations() {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async (vars: { token: string; shop_id: number; district_id: number; ward_code?: string }) => {
+            const { data } = await api!.post<{ data: GhnStation[] }>('/carrier-accounts/ghn/stations', vars);
+            return data.data;
+        },
+    });
+}
+
 /**
  * Proxy gọi GHN master-data bằng token user đang gõ trong form thêm tài khoản. Trả về danh sách
  * tỉnh/quận/phường để FE dựng cascading Select — không cần user gõ tay mã quận. Backend cache 1 giờ

@@ -131,8 +131,11 @@ class GhtkConnector extends AbstractCarrierConnector
             'note' => $this->trimNote($shipment['delivery_note'] ?? ($shipment['note'] ?? ($shipment['content'] ?? null))),
         ], fn ($v) => $v !== null && $v !== '');
 
-        // Mặc định (thiếu cờ) = cho xem hàng, đồng bộ default BẬT của app.
-        if ($shipment['allow_inspection'] ?? true) {
+        // Ghi chú xem/thử 3 mức (chuẩn hoá GHN): GHTK CHỈ có "cho xem hàng" (tag 10) — không phân biệt
+        // xem/thử. CHOXEMHANGKHONGTHU & CHOTHUHANG ⇒ tag 10; chỉ KHONGCHOXEMHANG ⇒ không tag. Fallback cờ
+        // bool allow_inspection cho đơn cũ (mặc định an toàn: cho xem).
+        $requiredNote = (string) ($shipment['required_note'] ?? (($shipment['allow_inspection'] ?? true) ? 'CHOXEMHANGKHONGTHU' : 'KHONGCHOXEMHANG'));
+        if ($requiredNote !== 'KHONGCHOXEMHANG') {
             $order['tags'] = [10];   // "Cho xem hàng" (khách được xem sản phẩm trước khi nhận)
         }
 

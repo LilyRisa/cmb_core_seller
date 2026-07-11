@@ -671,9 +671,12 @@ class ShipmentService
         }
         $connector = $this->carriers->for($carrierCode);
 
+        // Cân nặng mặc định theo TÀI KHOẢN ĐVVC (meta.defaults.package.weight_grams) làm fallback khi đơn
+        // không có cân nặng SKU — chỉ dùng nếu > 0, nếu không giữ system_setting default cũ.
+        $defaultWeight = (int) data_get($accountArr, 'meta.defaults.package.weight_grams', 0);
         $weight = isset($opts['weight_grams']) && (int) $opts['weight_grams'] > 0
             ? (int) $opts['weight_grams']
-            : $this->estimateWeight($order, $tenantId);
+            : $this->estimateWeight($order, $tenantId, $defaultWeight > 0 ? $defaultWeight : null);
 
         // Quy tắc COD (2026-06-03): COD đẩy ĐVVC = số tiền CÒN THIẾU cuối cùng = grand_total − prepaid.
         //   - FE truyền `cod_amount > 0` ⇒ override (user cố tình điều chỉnh COD lúc đẩy).
@@ -1211,19 +1214,34 @@ class ShipmentService
             'ward_code' => $explicitWardCode,
         ];
 
-        // SPEC delivery-options — tuỳ chọn giao hàng chuẩn: order (Task 1) → mặc định shop
-        // (tenant.settings.shipping) → opts override (ưu tiên cao nhất, vd form đẩy đơn thủ công).
+        // SPEC delivery-options — tuỳ chọn giao hàng chuẩn. Precedence mỗi field:
+        //   opts (đẩy tay) > order.meta (đơn thủ công) > account.meta.defaults (cài đặt theo tài khoản ĐVVC)
+        //   > tenant.settings.shipping (mặc định shop cũ) > fallback cứng.
         $tenantSettings = (array) (Tenant::query()->whereKey($tenantId)->value('settings') ?? []);
         $shipDefaults = (array) data_get($tenantSettings, 'shipping', []);
+        // "Cài đặt giao hàng mặc định" LƯU THEO TỪNG TÀI KHOẢN ĐVVC (carrier_accounts.meta.defaults): kích
+        // thước gói, loại hàng (→ service), ghi chú xem/thử, gửi tại điểm. Đơn thủ công không chọn ĐVVC lúc
+        // tạo ⇒ resolveAccount trả tài khoản is_default ⇒ đây chính là "mặc định của shop".
+        $defaults = (array) data_get($accountArr, 'meta.defaults', []);
+        $pkgDefaults = (array) ($defaults['package'] ?? []);
 
         // Phí ship là NỘI BỘ — đã gộp vào COD đẩy ĐVVC, app KHÔNG map ai-trả-phí (mỗi connector tự để
         // shop trả cước: GHN payment_type_id=1, VTP ORDER_PAYMENT=3, GHTK is_freeship=1).
         // "Ghi chú giao hàng" dùng lại field order.meta.print_note.
         $orderMeta = (array) ($order->meta ?? []);
         $deliveryNote = (string) ($opts['delivery_note'] ?? data_get($orderMeta, 'print_note', ''));
-        // Cho khách xem/thử hàng (mặc định BẬT). Chuẩn hoá 1 cờ bool; mỗi connector map field riêng
-        // (GHN required_note CHOTHUHANG/KHONGCHOXEMHANG, GHTK tag 10, VTP ORDER_NOTE). opts override cao nhất.
-        $allowInspection = (bool) ($opts['allow_inspection'] ?? data_get($orderMeta, 'allow_inspection', true));
+        // Ghi chú xem/thử hàng — chuẩn hoá 3 mức GHN (KHONGCHOXEMHANG / CHOXEMHANGKHONGTHU / CHOTHUHANG);
+        // mỗi connector map field riêng (GHN required_note, GHTK tag 10, VTP ORDER_NOTE). Mặc định an toàn =
+        // CHOXEMHANGKHONGTHU (cho xem, không thử); backward-compat cờ bool allow_inspection của đơn cũ.
+        $requiredNote = $this->resolveRequiredNote($opts, $orderMeta, $defaults);
+        // Loại hàng nặng/nhẹ → service (GHN: nhẹ=service_type_id 2, nặng=5). service tường minh (opts/
+        // default_service) vẫn ưu tiên; connector tự map goods_type khi service rỗng.
+        $goodsType = in_array($defaults['goods_type'] ?? null, ['light', 'heavy'], true) ? (string) $defaults['goods_type'] : 'light';
+        // Gửi hàng tại điểm/bưu cục (GHN pick_station_id) — chỉ áp khi bật + có station_id. opts override.
+        $pickup = (array) ($defaults['pickup'] ?? []);
+        $pickStationId = isset($opts['pick_station_id']) && $opts['pick_station_id']
+            ? (int) $opts['pick_station_id']
+            : ((($pickup['at_station'] ?? false) && ! empty($pickup['station_id'])) ? (int) $pickup['station_id'] : null);
         $failedCollect = (int) ($opts['failed_collect_amount']
             ?? $order->failed_collect_amount
             ?? (($shipDefaults['failed_collect_enabled'] ?? false) ? ($shipDefaults['failed_collect_amount'] ?? 0) : 0));
@@ -1231,11 +1249,19 @@ class ShipmentService
         return [
             'recipient' => $recipient,
             'sender' => $from,
-            'parcel' => ['weight_grams' => $weight, 'length_cm' => $opts['length_cm'] ?? 15, 'width_cm' => $opts['width_cm'] ?? 15, 'height_cm' => $opts['height_cm'] ?? 10],
+            'parcel' => [
+                'weight_grams' => $weight,
+                'length_cm' => (int) ($opts['length_cm'] ?? $pkgDefaults['length_cm'] ?? 15),
+                'width_cm' => (int) ($opts['width_cm'] ?? $pkgDefaults['width_cm'] ?? 15),
+                'height_cm' => (int) ($opts['height_cm'] ?? $pkgDefaults['height_cm'] ?? 10),
+            ],
             'cod_amount' => $cod,
             'service' => $service,
-            'allow_inspection' => $allowInspection,
-            'required_note' => $opts['required_note'] ?? ($allowInspection ? 'CHOTHUHANG' : 'KHONGCHOXEMHANG'),
+            'goods_type' => $goodsType,
+            'pick_station_id' => $pickStationId,
+            // Giữ cờ bool cho connector chưa đọc required_note (chỉ KHONGCHOXEMHANG = không cho xem).
+            'allow_inspection' => $requiredNote !== 'KHONGCHOXEMHANG',
+            'required_note' => $requiredNote,
             'delivery_note' => $deliveryNote,
             'failed_collect_amount' => $failedCollect,
             'content' => 'Đơn '.($order->order_number ?? $order->external_order_id ?? ('#'.$order->getKey())),
@@ -1249,12 +1275,47 @@ class ShipmentService
         ];
     }
 
-    private function estimateWeight(Order $order, int $tenantId): int
+    /**
+     * Ghi chú xem/thử hàng chuẩn — 3 mức GHN (KHONGCHOXEMHANG / CHOXEMHANGKHONGTHU / CHOTHUHANG).
+     * Precedence: opts.required_note (đẩy tay) > order.meta.required_note (đơn thủ công mới) >
+     * cờ bool allow_inspection (đơn CŨ, opts rồi order.meta) > account.meta.defaults.required_note
+     * (cài đặt theo tài khoản ĐVVC) > CHOXEMHANGKHONGTHU (mặc định an toàn: cho xem, không thử).
+     *
+     * @param  array<string,mixed>  $opts
+     * @param  array<string,mixed>  $orderMeta
+     * @param  array<string,mixed>  $defaults
+     */
+    private function resolveRequiredNote(array $opts, array $orderMeta, array $defaults): string
+    {
+        $valid = ['KHONGCHOXEMHANG', 'CHOXEMHANGKHONGTHU', 'CHOTHUHANG'];
+        foreach ([$opts['required_note'] ?? null, $orderMeta['required_note'] ?? null] as $candidate) {
+            if (is_string($candidate) && in_array($candidate, $valid, true)) {
+                return $candidate;
+            }
+        }
+        // Đơn cũ chỉ lưu cờ bool allow_inspection (order-level ưu tiên trước account default).
+        foreach ([$opts, $orderMeta] as $src) {
+            if (array_key_exists('allow_inspection', $src)) {
+                return $src['allow_inspection'] ? 'CHOTHUHANG' : 'KHONGCHOXEMHANG';
+            }
+        }
+        $accountDefault = $defaults['required_note'] ?? null;
+        if (is_string($accountDefault) && in_array($accountDefault, $valid, true)) {
+            return $accountDefault;
+        }
+
+        return 'CHOXEMHANGKHONGTHU';
+    }
+
+    private function estimateWeight(Order $order, int $tenantId, ?int $defaultOverride = null): int
     {
         $items = OrderItem::withoutGlobalScope(TenantScope::class)->where('order_id', $order->getKey())->get(['sku_id', 'quantity']);
         $skuIds = $items->pluck('sku_id')->filter()->unique()->all();
         $weights = $skuIds ? Sku::withoutGlobalScope(TenantScope::class)->whereIn('id', $skuIds)->pluck('weight_grams', 'id') : collect();
-        $default = (int) system_setting('fulfillment.default_weight_grams', config('fulfillment.default_weight_grams', 500));
+        // Mặc định cân nặng: ưu tiên override theo tài khoản ĐVVC (meta.defaults), rồi tới system_setting.
+        $default = $defaultOverride && $defaultOverride > 0
+            ? $defaultOverride
+            : (int) system_setting('fulfillment.default_weight_grams', config('fulfillment.default_weight_grams', 500));
         $total = 0;
         foreach ($items as $it) {
             $w = ($it->sku_id && $weights->get($it->sku_id)) ? (int) $weights->get($it->sku_id) : $default;

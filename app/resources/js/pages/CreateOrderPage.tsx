@@ -18,6 +18,7 @@ import { AddressPicker, type PickedAddress } from '@/components/AddressPicker';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import { errorMessage } from '@/lib/api';
 import { useCreateManualOrder, useUpdateManualOrder, useUploadImage, useWarehouses, type Sku } from '@/lib/inventory';
+import { useCarrierAccounts } from '@/lib/fulfillment';
 import { useOrder } from '@/lib/orders';
 import { useTenant, useTenantMembers } from '@/lib/tenant';
 import { useAuth } from '@/lib/auth';
@@ -44,13 +45,20 @@ const vnd = (n: number) => `${(n || 0).toLocaleString('vi-VN')}`;
 /** Giao thất bại — thu tiền: mặc định số tiền thu khi chưa cấu hình theo shop (settings.shipping.failed_collect_amount). */
 const DEFAULT_FAILED_COLLECT_AMOUNT = 30000;
 
+// 3 mức ghi chú xem/thử hàng (chuẩn GHN required_note) — bỏ mặc định ép "cho thử hàng" cũ.
+const REQUIRED_NOTE_VALUES = ['KHONGCHOXEMHANG', 'CHOXEMHANGKHONGTHU', 'CHOTHUHANG'] as const;
+type RequiredNote = typeof REQUIRED_NOTE_VALUES[number];
+// Mặc định an toàn khi chưa có sticky pref / chưa có cài đặt tài khoản ĐVVC mặc định.
+const DEFAULT_REQUIRED_NOTE: RequiredNote = 'CHOXEMHANGKHONGTHU';
+
 /**
- * Sticky preferences cho 3 nút tick thanh toán (miễn phí giao / chỉ thu phí nếu hoàn / cho xem-thử hàng):
+ * Sticky preferences cho nút tick thanh toán (miễn phí giao / chỉ thu phí nếu hoàn) + ghi chú xem/thử:
  * trạng thái đơn VỪA TẠO trở thành mặc định cho đơn sau. Lưu localStorage theo tài khoản (tenant) để
- * không cần backend/quyền tenant.settings. Mặc định: cho-xem-thử BẬT, chỉ-thu-nếu-hoàn BẬT, miễn-phí TẮT.
+ * không cần backend/quyền tenant.settings. Ghi chú xem/thử KHÔNG còn ép "cho thử": lần đầu lấy theo cài
+ * đặt của tài khoản ĐVVC mặc định (fallback "cho xem, không thử").
  */
-type OrderTogglePrefs = { free_shipping: boolean; collect_fee_on_return_only: boolean; allow_inspection: boolean };
-const DEFAULT_TOGGLE_PREFS: OrderTogglePrefs = { free_shipping: false, collect_fee_on_return_only: true, allow_inspection: true };
+type OrderTogglePrefs = { free_shipping: boolean; collect_fee_on_return_only: boolean; required_note: RequiredNote };
+const DEFAULT_TOGGLE_PREFS: OrderTogglePrefs = { free_shipping: false, collect_fee_on_return_only: true, required_note: DEFAULT_REQUIRED_NOTE };
 const togglePrefsKey = (tenantId: number | null | undefined) => `order-toggle-prefs:${tenantId ?? 'x'}`;
 function readTogglePrefs(tenantId: number | null | undefined): OrderTogglePrefs {
     try {
@@ -59,8 +67,16 @@ function readTogglePrefs(tenantId: number | null | undefined): OrderTogglePrefs 
     } catch { /* localStorage chặn/hỏng ⇒ dùng mặc định */ }
     return DEFAULT_TOGGLE_PREFS;
 }
+/** Đã từng lưu sticky pref cho tenant này chưa? (để biết dùng cài đặt tài khoản ĐVVC mặc định cho đơn đầu). */
+function hasStoredTogglePrefs(tenantId: number | null | undefined): boolean {
+    try { return localStorage.getItem(togglePrefsKey(tenantId)) != null; } catch { return false; }
+}
 function writeTogglePrefs(tenantId: number | null | undefined, p: OrderTogglePrefs): void {
     try { localStorage.setItem(togglePrefsKey(tenantId), JSON.stringify(p)); } catch { /* ignore */ }
+}
+/** Chuẩn hoá 1 giá trị bất kỳ về 3 mức required_note hợp lệ (nếu không hợp lệ ⇒ mặc định an toàn). */
+function toRequiredNote(v: unknown): RequiredNote {
+    return (REQUIRED_NOTE_VALUES as readonly string[]).includes(v as string) ? (v as RequiredNote) : DEFAULT_REQUIRED_NOTE;
 }
 
 const SUB_SOURCES = [
@@ -283,8 +299,10 @@ export function CreateOrderForm({ active = true, onSaved, editOrderId, onUpdated
             surcharge: (o as unknown as { surcharge?: number }).surcharge ?? 0,
             free_shipping: !!meta.free_shipping,
             collect_fee_on_return_only: !!meta.collect_fee_on_return_only,
-            // Cho xem/thử hàng: vắng key trong meta ⇒ mặc định BẬT (đồng bộ default toàn hệ).
-            allow_inspection: meta.allow_inspection !== false,
+            // Ghi chú xem/thử: đơn mới lưu meta.required_note (3 mức); đơn CŨ chỉ có cờ bool allow_inspection.
+            required_note: typeof meta.required_note === 'string'
+                ? toRequiredNote(meta.required_note)
+                : (meta.allow_inspection === false ? 'KHONGCHOXEMHANG' : 'CHOTHUHANG'),
             failed_collect_amount: o.failed_collect_amount ?? undefined,
             note_internal: o.note ?? undefined,
             note_print: (meta.print_note as string) ?? undefined,
@@ -324,7 +342,15 @@ export function CreateOrderForm({ active = true, onSaved, editOrderId, onUpdated
         }
     }, [collectFeeOnReturnOnly, shopFailedCollectDefault, form]);
 
-    // Sticky: đơn TẠO MỚI khởi tạo 3 nút tick theo trạng thái đơn tạo gần nhất (localStorage theo tenant).
+    // Ghi chú xem/thử mặc định cho ĐƠN MỚI: theo cài đặt của tài khoản ĐVVC ĐANG MẶC ĐỊNH (is_default);
+    // fallback "cho xem, không thử". (Bỏ mặc định ép "cho thử hàng" cũ.) Sticky vẫn ưu tiên nếu đã có.
+    const { data: carrierAccounts } = useCarrierAccounts();
+    const defaultAccountRequiredNote = useMemo<RequiredNote>(() => {
+        const acc = (carrierAccounts ?? []).find((a) => a.is_default) ?? (carrierAccounts ?? [])[0];
+        return toRequiredNote((acc?.meta as { defaults?: { required_note?: unknown } } | undefined)?.defaults?.required_note);
+    }, [carrierAccounts]);
+
+    // Sticky: đơn TẠO MỚI khởi tạo nút tick theo trạng thái đơn tạo gần nhất (localStorage theo tenant).
     // Áp 1 lần khi tenant đã tải (không áp cho chế độ SỬA — prefill từ đơn ghi đè sau). Đơn sửa giữ trạng thái đơn.
     const stickyAppliedRef = useRef(false);
     useEffect(() => {
@@ -334,9 +360,10 @@ export function CreateOrderForm({ active = true, onSaved, editOrderId, onUpdated
         form.setFieldsValue({
             free_shipping: p.free_shipping,
             collect_fee_on_return_only: p.collect_fee_on_return_only,
-            allow_inspection: p.allow_inspection,
+            // Lần đầu (chưa có sticky) ⇒ theo cài đặt tài khoản ĐVVC mặc định; sau đó theo đơn gần nhất.
+            required_note: hasStoredTogglePrefs(tenantDetail.id) ? p.required_note : defaultAccountRequiredNote,
         });
-    }, [isEdit, tenantDetail, form]);
+    }, [isEdit, tenantDetail, form, defaultAccountRequiredNote]);
 
     // "Miễn phí giao hàng" BẬT ⇒ ép Phí vận chuyển về 0 (kể cả khi user vừa nhập số khác), ô cũng bị disable.
     const freeShippingWatch = Form.useWatch('free_shipping', form) as boolean | undefined;
@@ -439,8 +466,8 @@ export function CreateOrderForm({ active = true, onSaved, editOrderId, onUpdated
                 customer_address: (v.customer_address as string) || undefined,
                 print_note: (v.note_print as string) || undefined,
                 collect_fee_on_return_only: !!v.collect_fee_on_return_only,
-                // Cho khách xem/thử hàng khi nhận (BE map required_note/tag/ORDER_NOTE theo từng ĐVVC).
-                allow_inspection: !!v.allow_inspection,
+                // Ghi chú xem/thử hàng (3 mức) — BE map required_note/tag/ORDER_NOTE theo từng ĐVVC ở buildCreatePayload.
+                required_note: toRequiredNote(v.required_note),
                 attachments: attachments.length > 0 ? attachments : undefined,
             },
         };
@@ -451,7 +478,7 @@ export function CreateOrderForm({ active = true, onSaved, editOrderId, onUpdated
         const persistTogglePrefs = () => writeTogglePrefs(tenantDetail?.id, {
             free_shipping: !!payload.free_shipping,
             collect_fee_on_return_only: !!payload.meta.collect_fee_on_return_only,
-            allow_inspection: !!payload.meta.allow_inspection,
+            required_note: toRequiredNote(payload.meta.required_note),
         });
         if (isEdit && editId) {
             update.mutate({ id: editId, payload }, {
@@ -748,8 +775,9 @@ export function CreateOrderForm({ active = true, onSaved, editOrderId, onUpdated
             )}
 
             <Form form={form} layout="vertical" onValuesChange={markEditDirty} initialValues={{
-                // "Chỉ thu phí nếu hoàn" + "Cho xem/thử hàng" mặc định BẬT (effect sticky ghi đè theo đơn gần nhất).
-                channel_mode: 'online', sub_source: undefined, free_shipping: false, collect_fee_on_return_only: true, allow_inspection: true,
+                // "Chỉ thu phí nếu hoàn" mặc định BẬT; ghi chú xem/thử mặc định "cho xem, không thử"
+                // (effect sticky/tài khoản ĐVVC mặc định ghi đè sau — không còn ép "cho thử hàng").
+                channel_mode: 'online', sub_source: undefined, free_shipping: false, collect_fee_on_return_only: true, required_note: DEFAULT_REQUIRED_NOTE,
                 shipping_fee: 0, order_discount: 0, prepaid_amount: 0, surcharge: 0,
             }}>
                 <Row gutter={16}>
@@ -852,10 +880,14 @@ export function CreateOrderForm({ active = true, onSaved, editOrderId, onUpdated
                                     <Space size={20} style={{ marginBottom: 10 }} wrap>
                                         <Form.Item name="free_shipping" valuePropName="checked" noStyle><Checkbox>Miễn phí giao hàng</Checkbox></Form.Item>
                                         <Form.Item name="collect_fee_on_return_only" valuePropName="checked" noStyle><Checkbox>Chỉ thu phí nếu hoàn</Checkbox></Form.Item>
-                                        <Form.Item name="allow_inspection" valuePropName="checked" noStyle>
-                                            <Checkbox>Cho xem và thử hàng</Checkbox>
-                                        </Form.Item>
                                     </Space>
+                                    <Form.Item name="required_note" label="Cho khách xem / thử hàng" style={{ marginBottom: 10 }}>
+                                        <Segmented size="small" options={[
+                                            { value: 'KHONGCHOXEMHANG', label: 'Không cho xem' },
+                                            { value: 'CHOXEMHANGKHONGTHU', label: 'Xem, không thử' },
+                                            { value: 'CHOTHUHANG', label: 'Cho thử' },
+                                        ]} />
+                                    </Form.Item>
                                     {collectFeeOnReturnOnly && (
                                         <PayRow label="Số tiền thu khi giao thất bại" name="failed_collect_amount" max={50000000} step={1000} />
                                     )}

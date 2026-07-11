@@ -71,6 +71,38 @@ class GhnConnectorDeliveryOptionsTest extends TestCase
         $this->assertArrayNotHasKey('cod_failed_amount', $payload);
     }
 
+    public function test_build_ghn_payload_maps_goods_type_and_pick_station(): void
+    {
+        $connector = new class extends GhnConnector
+        {
+            public function exposeBuildGhnPayload(array $shipment, int $cod, array $items): array
+            {
+                return $this->buildGhnPayload($shipment, $cod, $items);
+            }
+        };
+        $base = [
+            'recipient' => ['name' => 'A', 'phone' => '0900000000', 'address' => 'X'],
+            'sender' => ['name' => 'Shop', 'phone' => '0911111111', 'address' => 'Y'],
+            'parcel' => ['weight_grams' => 500],
+            'cod_amount' => 0,
+        ];
+        $items = [['name' => 'H', 'quantity' => 1, 'weight' => 200]];
+
+        // Hàng nặng ⇒ service_type_id 5; gửi tại điểm ⇒ pick_station_id.
+        $heavy = $connector->exposeBuildGhnPayload($base + ['goods_type' => 'heavy', 'pick_station_id' => 12345], 0, $items);
+        $this->assertSame(5, $heavy['service_type_id']);
+        $this->assertSame(12345, $heavy['pick_station_id']);
+
+        // Hàng nhẹ (mặc định) ⇒ service_type_id 2; không gửi tại điểm ⇒ drop field.
+        $light = $connector->exposeBuildGhnPayload($base + ['goods_type' => 'light'], 0, $items);
+        $this->assertSame(2, $light['service_type_id']);
+        $this->assertArrayNotHasKey('pick_station_id', $light);
+
+        // service tường minh (số) ưu tiên hơn goods_type.
+        $explicit = $connector->exposeBuildGhnPayload($base + ['service' => '5', 'goods_type' => 'light'], 0, $items);
+        $this->assertSame(5, $explicit['service_type_id']);
+    }
+
     public function test_build_ghn_payload_allows_recipient_pays_override(): void
     {
         $connector = new class extends GhnConnector

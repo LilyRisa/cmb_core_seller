@@ -37,13 +37,13 @@ class ViettelPostConnectorDeliveryOptionsTest extends TestCase
 
         // Có COD ⇒ ORDER_PAYMENT=3 = thu hộ tiền hàng, KHÔNG thu cước (shop trả cước) — docs partner.viettelpost.vn.
         $this->assertSame(3, $payload['ORDER_PAYMENT']);
-        // Mặc định cho xem hàng (allow_inspection thiếu ⇒ BẬT) ⇒ ORDER_NOTE ghép "Cho khách xem hàng khi nhận".
-        $this->assertSame('Cho khách xem hàng khi nhận. Gọi trước khi giao', $payload['ORDER_NOTE']);
+        // Thiếu required_note/allow_inspection ⇒ mặc định an toàn CHOXEMHANGKHONGTHU (cho xem, không thử).
+        $this->assertSame('Cho khách xem hàng, không cho thử. Gọi trước khi giao', $payload['ORDER_NOTE']);
         $this->assertSame(30000, $payload['EXTRA_MONEY']);
         $this->assertSame(['XMG'], $payload['LIST_ITEM_EXTRA']);
     }
 
-    public function test_order_note_omits_inspection_when_allow_inspection_off(): void
+    public function test_order_note_states_no_inspection_when_allow_inspection_off(): void
     {
         $connector = new class extends ViettelPostConnector
         {
@@ -65,7 +65,8 @@ class ViettelPostConnectorDeliveryOptionsTest extends TestCase
 
         $payload = $connector->exposeBuildVtpPayload($shipment, 50000, [], 1, 50000, 500, 'SVC1');
 
-        $this->assertSame('Gọi trước khi giao', $payload['ORDER_NOTE']);
+        // allow_inspection=false ⇒ KHONGCHOXEMHANG ⇒ ghi chú nêu rõ "Không cho khách xem hàng" (VTP không có field riêng).
+        $this->assertSame('Không cho khách xem hàng. Gọi trước khi giao', $payload['ORDER_NOTE']);
     }
 
     public function test_build_vtp_payload_clamps_extra_money_to_2x_fee_estimate_when_available(): void
