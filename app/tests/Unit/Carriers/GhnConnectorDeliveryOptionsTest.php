@@ -64,10 +64,36 @@ class GhnConnectorDeliveryOptionsTest extends TestCase
             ['name' => 'Hàng', 'quantity' => 1, 'weight' => 200],
         ]);
 
-        // cod > 0 => recipient pays (payment_type_id 2), original COD-based default.
-        $this->assertSame(2, $payload['payment_type_id']);
+        // Phí ship đã gộp vào COD ⇒ LUÔN shop trả phí (1), kể cả khi có COD — tránh thu chồng phí.
+        $this->assertSame(1, $payload['payment_type_id']);
         $this->assertSame('KHONGCHOXEMHANG', $payload['required_note']);
         $this->assertArrayNotHasKey('note', $payload);
         $this->assertArrayNotHasKey('cod_failed_amount', $payload);
+    }
+
+    public function test_build_ghn_payload_allows_recipient_pays_override(): void
+    {
+        $connector = new class extends GhnConnector
+        {
+            public function exposeBuildGhnPayload(array $shipment, int $cod, array $items): array
+            {
+                return $this->buildGhnPayload($shipment, $cod, $items);
+            }
+        };
+
+        $shipment = [
+            'payment_type_id' => 2,
+            'recipient' => ['name' => 'Nguyễn Văn A', 'phone' => '0900000000', 'address' => '123 Đường X'],
+            'sender' => ['name' => 'Shop', 'phone' => '0911111111', 'address' => '456 Đường Y'],
+            'parcel' => ['weight_grams' => 500],
+            'cod_amount' => 50000,
+        ];
+
+        $payload = $connector->exposeBuildGhnPayload($shipment, 50000, [
+            ['name' => 'Hàng', 'quantity' => 1, 'weight' => 200],
+        ]);
+
+        // Override rõ ràng ⇒ người nhận trả phí (2).
+        $this->assertSame(2, $payload['payment_type_id']);
     }
 }

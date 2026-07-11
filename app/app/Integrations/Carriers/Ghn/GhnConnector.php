@@ -200,8 +200,10 @@ class GhnConnector extends AbstractCarrierConnector
         $p = (array) ($shipment['parcel'] ?? []);
 
         // Phí ship là nội bộ (đã gộp vào COD đẩy ĐVVC) — app KHÔNG map ai-trả-phí lên carrier.
-        // 1 = shop trả phí, 2 = người nhận trả phí: có COD ⇒ người nhận trả (2), không thì shop trả (1).
-        $paymentTypeId = $cod > 0 ? 2 : 1;
+        // 1 = shop/người gửi trả phí, 2 = người nhận trả phí (GHN docs id=123). Seller đã tự đặt COD gồm
+        // cả phí ship muốn thu, nên LUÔN để shop trả phí (1); nếu đẩy 2 sẽ bắt người nhận trả phí GHN
+        // thêm lần nữa → thu chồng phí. Cho phép override qua shipment['payment_type_id'] nếu cần.
+        $paymentTypeId = (int) ($shipment['payment_type_id'] ?? 1) === 2 ? 2 : 1;
 
         $note = trim((string) ($shipment['delivery_note'] ?? ''));
         $note = $note !== '' ? mb_substr($note, 0, 5000) : null;
