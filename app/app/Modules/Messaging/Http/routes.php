@@ -83,6 +83,9 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
             // Resolve body mẫu tin theo hội thoại (điền giá trị thật) để NV sửa trước khi gửi.
             Route::post('conversations/{id}/render-template', [MessageController::class, 'renderTemplate'])
                 ->whereNumber('id')->name('messaging.messages.render-template');
+            // Resolve body THÔ (ô soạn chip hiện `{{...}}`) theo hội thoại — resolve lúc GỬI.
+            Route::post('conversations/{id}/render-body', [MessageController::class, 'renderBody'])
+                ->whereNumber('id')->name('messaging.messages.render-body');
             // Gửi lại 1 tin outbound đang lỗi.
             Route::post('conversations/{id}/messages/{messageId}/resend', [MessageController::class, 'resend'])
                 ->whereNumber('id')->whereNumber('messageId')->name('messaging.messages.resend');

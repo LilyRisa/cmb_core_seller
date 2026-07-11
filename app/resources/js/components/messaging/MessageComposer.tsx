@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Image, Input, Popover, Space, Tag } from 'antd';
+import { Button, Image, Popover, Space, Tag } from 'antd';
 import { CloseOutlined, FileOutlined, PaperClipOutlined, PictureOutlined, RobotOutlined, SendOutlined, SmileOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import Picker from '@emoji-mart/react';
 import emojiData from '@emoji-mart/data';
+import { ChipTextEditor, type ChipTextEditorHandle } from '@/components/messaging/ChipTextEditor';
+import { labelForVarKey } from '@/lib/templateVars';
 import type { MessageTemplate, TemplateAttachment } from '@/lib/messagingConfig';
 
 /**
@@ -41,10 +43,11 @@ interface Props {
     /** Gửi. Trả Promise: resolve ⇒ xoá ô soạn; reject ⇒ giữ nguyên (lỗi parent tự báo). */
     onSubmit: (payload: ComposerSubmit) => Promise<unknown>;
     /**
-     * Resolve mẫu tin theo hội thoại (điền giá trị thật cho `{{...}}`) + trả ảnh
-     * đính kèm. Nếu vắng ⇒ chèn nguyên body (dùng cho nơi không gắn hội thoại).
+     * Resolve 1 body THÔ (còn `{{...}}`) theo hội thoại → text giá trị thật, gọi
+     * lúc GỬI. Vắng ⇒ gửi nguyên body (nơi không gắn hội thoại). Ô soạn luôn hiện
+     * biến dạng chip; resolve chỉ diễn ra khi bấm Gửi nên khách không thấy `{{...}}`.
      */
-    onResolveTemplate?: (t: MessageTemplate) => Promise<{ text: string; attachments: TemplateAttachment[] }>;
+    onResolveBody?: (body: string) => Promise<string>;
 }
 
 /** Media mỗi provider hỗ trợ (đồng bộ capability connector backend). */
@@ -59,8 +62,14 @@ const MEDIA_CAPS: Record<string, { image: boolean; video: boolean; file: boolean
 
 const SLASH_RE = /^\/(\S*)$/;
 
-export function MessageComposer({ mode, provider, templates, needsTag, aiAvailable, onAiSuggest, onSubmit, onResolveTemplate }: Props) {
+export function MessageComposer({ mode, provider, templates, needsTag, aiAvailable, onAiSuggest, onSubmit, onResolveBody }: Props) {
     const [text, setText] = useState('');
+    // Ô soạn là ChipTextEditor (uncontrolled sau mount): bump signal này để ép dựng
+    // lại DOM khi set text bằng code (chèn mẫu, AI gợi ý, xoá sau khi gửi).
+    const [editorReset, setEditorReset] = useState(0);
+    const editorRef = useRef<ChipTextEditorHandle | null>(null);
+    // Set text bằng code + ép editor render lại (chip hoá token).
+    const setTextAndRebuild = useCallback((v: string) => { setText(v); setEditorReset((n) => n + 1); }, []);
     const [pending, setPending] = useState<{ file: File; kind: 'image' | 'video' | 'file'; previewUrl?: string } | null>(null);
     // Ảnh của mẫu tin vừa chọn (đã ở storage) — hiện thumbnail, gửi kèm khi bấm Gửi.
     const [stagedAtts, setStagedAtts] = useState<TemplateAttachment[]>([]);
@@ -93,22 +102,13 @@ export function MessageComposer({ mode, provider, templates, needsTag, aiAvailab
     const [slashHighlight, setSlashHighlight] = useState(0);
     useEffect(() => { setSlashHighlight(0); }, [slashMatches]);
 
-    const applyTemplate = useCallback(async (t: MessageTemplate) => {
+    const applyTemplate = useCallback((t: MessageTemplate) => {
+        // Chèn body THÔ (còn `{{...}}`) → ChipTextEditor hoá thành chip nhãn tiếng Việt.
+        // KHÔNG resolve lúc chèn; resolve khi Gửi (onResolveBody) để khách nhận giá trị thật.
+        setTextAndRebuild(t.body);
         // Chỉ stage ảnh cho DM (comment reply gửi khác luồng, không dùng attachment-ref).
-        const stage = (atts: TemplateAttachment[]) => setStagedAtts(mode === 'dm' ? atts : []);
-        if (onResolveTemplate) {
-            try {
-                const r = await onResolveTemplate(t);
-                setText(r.text);
-                stage(r.attachments ?? []);
-                return;
-            } catch {
-                // resolve lỗi ⇒ fallback chèn nguyên body (vẫn hơn là kẹt).
-            }
-        }
-        setText(t.body);
-        stage(t.attachments ?? []);
-    }, [mode, onResolveTemplate]);
+        setStagedAtts(mode === 'dm' ? (t.attachments ?? []) : []);
+    }, [mode, setTextAndRebuild]);
 
     // Dọn preview URL khi đổi/huỷ ảnh (tránh leak object URL).
     useEffect(() => () => { if (pending?.previewUrl) URL.revokeObjectURL(pending.previewUrl); }, [pending]);
@@ -139,16 +139,26 @@ export function MessageComposer({ mode, provider, templates, needsTag, aiAvailab
 
     const submit = async () => {
         if (!canSend) return;
-        const payload: ComposerSubmit = { text: text.trim() };
-        if (pending) { payload.file = pending.file; payload.kind = pending.kind; }
-        if (mode === 'dm' && needsTag) payload.messageTag = msgTag;
-        if (stagedAtts.length > 0) {
-            payload.templateAttachments = stagedAtts.map((a) => ({ storage_path: a.storage_path, kind: a.kind, mime: a.mime }));
-        }
         setBusy(true);
         try {
+            // Resolve biến `{{...}}` → giá trị thật NGAY TRƯỚC khi gửi (khách không thấy token thô).
+            // Bỏ qua request nếu body không còn token nào.
+            let outText = text;
+            if (onResolveBody && /\{\{/.test(outText)) {
+                try {
+                    outText = await onResolveBody(outText);
+                } catch {
+                    // resolve lỗi ⇒ vẫn gửi body thô (hiếm; hơn là kẹt không gửi được).
+                }
+            }
+            const payload: ComposerSubmit = { text: outText.trim() };
+            if (pending) { payload.file = pending.file; payload.kind = pending.kind; }
+            if (mode === 'dm' && needsTag) payload.messageTag = msgTag;
+            if (stagedAtts.length > 0) {
+                payload.templateAttachments = stagedAtts.map((a) => ({ storage_path: a.storage_path, kind: a.kind, mime: a.mime }));
+            }
             await onSubmit(payload);
-            setText('');
+            setTextAndRebuild('');
             clearPending();
             setStagedAtts([]);
         } catch {
@@ -163,14 +173,14 @@ export function MessageComposer({ mode, provider, templates, needsTag, aiAvailab
         setAiLoading(true);
         try {
             const draft = await onAiSuggest();
-            if (draft) setText(draft);
+            if (draft) setTextAndRebuild(draft);
         } finally {
             setAiLoading(false);
         }
     };
 
     const handleEmoji = (emoji: { native?: string }) => {
-        if (emoji.native) { setText((d) => d + emoji.native); setEmojiOpen(false); }
+        if (emoji.native) { editorRef.current?.insertText(emoji.native); setEmojiOpen(false); }
     };
 
     const placeholder = mode === 'comment'
@@ -254,24 +264,28 @@ export function MessageComposer({ mode, provider, templates, needsTag, aiAvailab
                     </div>
                 )}
             >
-                <Input.TextArea
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    placeholder={placeholder}
-                    autoSize={{ minRows: 3, maxRows: 10 }}
-                    onPressEnter={(e) => {
-                        if (e.shiftKey) return;
-                        if (slashOpen && slashMatches.length > 0) { e.preventDefault(); applyTemplate(slashMatches[slashHighlight] ?? slashMatches[0]); return; }
-                        e.preventDefault();
-                        void submit();
-                    }}
-                    onKeyDown={(e) => {
-                        if (!slashOpen || slashMatches.length === 0) return;
-                        if (e.key === 'ArrowDown') { e.preventDefault(); setSlashHighlight((h) => Math.min(h + 1, slashMatches.length - 1)); }
-                        else if (e.key === 'ArrowUp') { e.preventDefault(); setSlashHighlight((h) => Math.max(h - 1, 0)); }
-                        else if (e.key === 'Escape') { e.preventDefault(); setText(''); }
-                    }}
-                />
+                <div>
+                    <ChipTextEditor
+                        ref={editorRef}
+                        value={text}
+                        onChange={setText}
+                        resetSignal={editorReset}
+                        labelFor={labelForVarKey}
+                        placeholder={placeholder}
+                        minHeight={72}
+                        onKeyDown={(e) => {
+                            // Điều hướng gợi ý slash khi đang mở.
+                            if (slashOpen && slashMatches.length > 0) {
+                                if (e.key === 'ArrowDown') { e.preventDefault(); setSlashHighlight((h) => Math.min(h + 1, slashMatches.length - 1)); return; }
+                                if (e.key === 'ArrowUp') { e.preventDefault(); setSlashHighlight((h) => Math.max(h - 1, 0)); return; }
+                                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); applyTemplate(slashMatches[slashHighlight] ?? slashMatches[0]); return; }
+                            }
+                            if (slashOpen && e.key === 'Escape') { e.preventDefault(); setTextAndRebuild(''); return; }
+                            // Enter (không Shift) = gửi; Shift+Enter = xuống dòng (mặc định contentEditable).
+                            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void submit(); }
+                        }}
+                    />
+                </div>
             </Popover>
 
             <Space style={{ marginTop: 8, justifyContent: 'space-between', width: '100%' }}>

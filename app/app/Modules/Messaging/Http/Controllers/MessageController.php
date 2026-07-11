@@ -187,6 +187,31 @@ class MessageController extends Controller
     }
 
     /**
+     * Resolve 1 body THÔ (do NV đã chỉnh tay, còn `{{...}}`) theo hội thoại — trả
+     * text đã điền giá trị thật. Khác {@see renderTemplate} ở chỗ nhận thẳng chuỗi
+     * body thay vì template_id: dùng khi ô soạn hiện chip biến và resolve lúc GỬI
+     * (người dùng có thể ghép nhiều mẫu / gõ thêm chữ). Không gửi gì (chỉ resolve).
+     */
+    public function renderBody(int $conversationId, Request $request): JsonResponse
+    {
+        Gate::authorize('messaging.reply');
+
+        $data = $request->validate([
+            'body' => ['present', 'string'],
+            'vars' => ['nullable', 'array'],
+        ]);
+
+        $conv = Conversation::query()->findOrFail($conversationId);
+        $context = $this->templateContext->forConversation($conv, (array) ($data['vars'] ?? []));
+        $rendered = $this->templateResolver->resolve((string) $data['body'], $context);
+
+        return response()->json(['data' => [
+            'text' => $rendered->text,
+            'missing' => $rendered->missing,
+        ]]);
+    }
+
+    /**
      * Gửi 1 media ĐÃ CÓ SẴN trong object storage (vd ảnh đính kèm mẫu tin) — không
      * upload lại. Chỉ nhận storage_path thuộc chính tenant (chống IDOR). Ghi
      * message+attachment (status=downloaded) → dispatch SendMessage.

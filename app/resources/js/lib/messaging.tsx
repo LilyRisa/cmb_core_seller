@@ -318,6 +318,20 @@ export function useRenderTemplate(conversationId: number | null) {
     });
 }
 
+/** Resolve 1 body THÔ (ô soạn còn `{{...}}` dạng chip) theo hội thoại — gọi lúc GỬI. */
+export function useRenderBody(conversationId: number | null) {
+    const api = useScopedApi();
+    return useMutation({
+        mutationFn: async (body: string): Promise<{ text: string; missing: string[] }> => {
+            const { data } = await api!.post<{ data: { text: string; missing: string[] } }>(
+                `/messaging/conversations/${conversationId}/render-body`,
+                { body },
+            );
+            return data.data;
+        },
+    });
+}
+
 /** Gửi 1 media đã có sẵn trong storage (ảnh đính kèm mẫu tin) — không upload lại. */
 export function useSendAttachmentRef(conversationId: number | null) {
     const api = useScopedApi();

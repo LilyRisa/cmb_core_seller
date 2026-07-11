@@ -25,7 +25,7 @@ import {
     useMessagingRealtime,
     useMessagingTags,
     useReplyComment,
-    useRenderTemplate,
+    useRenderBody,
     useResendMessage,
     useSendAttachmentRef,
     useSendMedia,
@@ -34,7 +34,7 @@ import {
     useSetConversationTags,
     useUnblockConversation,
 } from '@/lib/messaging';
-import { type MessageTemplate, useMessagingChannels, useTemplates } from '@/lib/messagingConfig';
+import { useMessagingChannels, useTemplates } from '@/lib/messagingConfig';
 import { usePushNotifications } from '@/lib/usePushNotifications';
 import { MessagingNav } from '@/components/MessagingNav';
 import { TagManagerModal } from '@/components/TagManagerModal';
@@ -399,7 +399,7 @@ export function MessagingPage() {
     const thread = useConversationThread(activeId);
     const sendText = useSendText(activeId);
     const sendMedia = useSendMedia(activeId);
-    const renderTemplate = useRenderTemplate(activeId);
+    const renderBody = useRenderBody(activeId);
     const sendAttachmentRef = useSendAttachmentRef(activeId);
     const resend = useResendMessage(activeId);
     const markRead = useMarkRead();
@@ -531,10 +531,11 @@ export function MessagingPage() {
     // ── Helpers ───────────────────────────────────────────────────────────────
     // Gửi DM: có ảnh/tệp → gửi media (kèm caption); chỉ text → gửi text. Ném lỗi
     // lên composer để giữ ô soạn khi thất bại.
-    // Resolve mẫu tin theo hội thoại (điền giá trị thật) — dùng cho cả DM lẫn comment.
-    const resolveTemplate = async (t: MessageTemplate) => {
-        const r = await renderTemplate.mutateAsync(t.id);
-        return { text: r.text, attachments: r.attachments };
+    // Resolve body thô (ô soạn hiện biến dạng chip) → giá trị thật, gọi lúc GỬI.
+    // Dùng chung cho DM lẫn comment. Lỗi ⇒ ném lên để composer fallback gửi body thô.
+    const resolveBody = async (body: string) => {
+        const r = await renderBody.mutateAsync(body);
+        return r.text;
     };
 
     const handleDmSubmit = async (p: ComposerSubmit) => {
@@ -1266,7 +1267,7 @@ export function MessagingPage() {
                             templates={templates}
                             aiAvailable
                             onAiSuggest={handleAiSuggest}
-                            onResolveTemplate={resolveTemplate}
+                            onResolveBody={resolveBody}
                             onSubmit={handleCommentSubmit}
                         />
                         ) : (
@@ -1278,7 +1279,7 @@ export function MessagingPage() {
                             needsTag={needsTag}
                             aiAvailable
                             onAiSuggest={handleAiSuggest}
-                            onResolveTemplate={resolveTemplate}
+                            onResolveBody={resolveBody}
                             onSubmit={handleDmSubmit}
                         />
                         )}

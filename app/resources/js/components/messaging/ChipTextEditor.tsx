@@ -13,6 +13,8 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 export interface ChipTextEditorHandle {
     /** Chèn 1 chip biến vào vị trí con trỏ (hoặc cuối nếu chưa focus). */
     insertVar: (key: string, label: string) => void;
+    /** Chèn văn bản thuần (vd emoji) vào vị trí con trỏ (hoặc cuối nếu chưa focus). */
+    insertText: (text: string) => void;
 }
 
 interface Props {
@@ -26,6 +28,8 @@ interface Props {
     labelFor: (key: string) => string | undefined;
     placeholder?: string;
     minHeight?: number;
+    /** Bắt phím (Enter gửi, Shift+Enter xuống dòng, điều hướng gợi ý slash…). */
+    onKeyDown?: (e: React.KeyboardEvent<HTMLDivElement>) => void;
 }
 
 // contenteditable không hỗ trợ placeholder — dùng :empty:before (inject 1 lần).
@@ -97,7 +101,7 @@ function serialize(root: HTMLElement): string {
 }
 
 export const ChipTextEditor = forwardRef<ChipTextEditorHandle, Props>(function ChipTextEditor(
-    { value, onChange, resetSignal, labelFor, placeholder, minHeight = 96 },
+    { value, onChange, resetSignal, labelFor, placeholder, minHeight = 96, onKeyDown },
     ref,
 ) {
     const divRef = useRef<HTMLDivElement | null>(null);
@@ -114,37 +118,41 @@ export const ChipTextEditor = forwardRef<ChipTextEditorHandle, Props>(function C
         if (divRef.current) onChange?.(serialize(divRef.current));
     };
 
+    // Chèn 1 đoạn HTML tại con trỏ (hoặc cuối nếu chưa focus) rồi đưa con trỏ ra sau.
+    const insertHtmlAtCursor = (html: string) => {
+        const el = divRef.current;
+        if (!el) return;
+        el.focus();
+        const sel = window.getSelection();
+        let range: Range;
+        if (sel && sel.rangeCount > 0 && el.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+            range = sel.getRangeAt(0);
+            range.deleteContents();
+        } else {
+            // Chưa có con trỏ trong ô ⇒ chèn ở cuối.
+            range = document.createRange();
+            range.selectNodeContents(el);
+            range.collapse(false);
+        }
+        const tpl = document.createElement('template');
+        tpl.innerHTML = html;
+        const frag = tpl.content;
+        const lastNode = frag.lastChild;
+        range.insertNode(frag);
+        if (lastNode) {
+            const after = document.createRange();
+            after.setStartAfter(lastNode);
+            after.collapse(true);
+            sel?.removeAllRanges();
+            sel?.addRange(after);
+        }
+        emit();
+    };
+
     useImperativeHandle(ref, () => ({
-        insertVar: (key: string, label: string) => {
-            const el = divRef.current;
-            if (!el) return;
-            el.focus();
-            const sel = window.getSelection();
-            let range: Range;
-            if (sel && sel.rangeCount > 0 && el.contains(sel.getRangeAt(0).commonAncestorContainer)) {
-                range = sel.getRangeAt(0);
-                range.deleteContents();
-            } else {
-                // Chưa có con trỏ trong ô ⇒ chèn ở cuối.
-                range = document.createRange();
-                range.selectNodeContents(el);
-                range.collapse(false);
-            }
-            const tpl = document.createElement('template');
-            tpl.innerHTML = chipHtml(key, label) + ' ';
-            const frag = tpl.content;
-            const lastNode = frag.lastChild;
-            range.insertNode(frag);
-            // Đưa con trỏ ra sau khoảng trắng vừa chèn.
-            if (lastNode) {
-                const after = document.createRange();
-                after.setStartAfter(lastNode);
-                after.collapse(true);
-                sel?.removeAllRanges();
-                sel?.addRange(after);
-            }
-            emit();
-        },
+        // chip + khoảng trắng theo sau để con trỏ nằm ngoài chip.
+        insertVar: (key: string, label: string) => insertHtmlAtCursor(chipHtml(key, label) + ' '),
+        insertText: (text: string) => insertHtmlAtCursor(textToHtml(text)),
     }));
 
     return (
@@ -157,6 +165,7 @@ export const ChipTextEditor = forwardRef<ChipTextEditorHandle, Props>(function C
             data-placeholder={placeholder}
             onInput={emit}
             onBlur={emit}
+            onKeyDown={onKeyDown}
             className="tpl-chip-editor"
             style={{
                 minHeight,
