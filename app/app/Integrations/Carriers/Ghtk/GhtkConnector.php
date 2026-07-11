@@ -83,8 +83,11 @@ class GhtkConnector extends AbstractCarrierConnector
 
     /**
      * Dựng payload GHTK (products[] + order{}) từ shipment chuẩn. Thuần (không gọi HTTP) để test dễ.
-     * Phí ship là nội bộ (đã gộp vào COD đẩy ĐVVC) — KHÔNG gửi is_freeship lên GHTK.
+     * Phí ship là nội bộ (đã gộp vào COD đẩy ĐVVC) ⇒ is_freeship=1 (shop trả cước; GHTK chỉ thu người
+     * nhận đúng pick_money). Nếu KHÔNG gửi is_freeship, GHTK mặc định 0 = thu pick_money + phí ship của
+     * người nhận ⇒ thu chồng phí (docs api.ghtk.vn). Khớp GHN payment_type_id=1 / VTP ORDER_PAYMENT=3.
      * `note` ưu tiên delivery_note (chuẩn hoá mới) > note (cũ) > content (fallback cuối).
+     * `tags`: [10] = "Cho xem hàng" khi allow_inspection (GHTK không có mức "thử hàng").
      */
     protected function buildGhtkPayload(array $shipment): array
     {
@@ -120,12 +123,18 @@ class GhtkConnector extends AbstractCarrierConnector
             'ward' => $r['ward'] ?? null,
             'hamlet' => 'Khác',
             'pick_money' => (int) ($shipment['cod_amount'] ?? 0),   // tiền thu hộ (COD)
+            'is_freeship' => 1,                                     // shop trả cước (phí ship đã gộp vào COD)
             'value' => isset($shipment['insurance_value']) ? max(0, (int) $shipment['insurance_value']) : 0,
             'transport' => 'road',
             'weight_option' => 'gram',
             'total_weight' => (int) ($p['weight_grams'] ?? 500),
             'note' => $this->trimNote($shipment['delivery_note'] ?? ($shipment['note'] ?? ($shipment['content'] ?? null))),
         ], fn ($v) => $v !== null && $v !== '');
+
+        // Mặc định (thiếu cờ) = cho xem hàng, đồng bộ default BẬT của app.
+        if ($shipment['allow_inspection'] ?? true) {
+            $order['tags'] = [10];   // "Cho xem hàng" (khách được xem sản phẩm trước khi nhận)
+        }
 
         return ['products' => $products, 'order' => $order];
     }

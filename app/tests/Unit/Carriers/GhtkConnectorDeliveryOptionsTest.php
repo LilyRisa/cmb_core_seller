@@ -46,13 +46,23 @@ class GhtkConnectorDeliveryOptionsTest extends TestCase
         $this->assertNotContains('failed_delivery_collect', (new GhtkConnector)->capabilities());
     }
 
-    public function test_payload_never_sends_is_freeship(): void
+    public function test_payload_sends_is_freeship_1_shop_pays(): void
     {
-        // Phí ship là nội bộ (đã gộp vào COD đẩy ĐVVC) — GHTK payload không được gửi is_freeship dù
-        // shipment có field fee_payer (giữ lại nếu FE cũ còn gửi thừa, phải bị bỏ qua).
-        $payload = $this->connector()->exposeBuildGhtkPayload($this->shipment(['fee_payer' => 'shop']));
+        // Phí ship là nội bộ (đã gộp vào COD) ⇒ is_freeship=1: shop trả cước, GHTK chỉ thu người nhận đúng
+        // pick_money. Nếu KHÔNG gửi, GHTK mặc định 0 = thu pick_money + phí ship ⇒ thu chồng (docs api.ghtk.vn).
+        $payload = $this->connector()->exposeBuildGhtkPayload($this->shipment());
 
-        $this->assertArrayNotHasKey('is_freeship', $payload['order']);
+        $this->assertSame(1, $payload['order']['is_freeship']);
+    }
+
+    public function test_allow_inspection_adds_tag_10_and_off_omits(): void
+    {
+        // Mặc định BẬT (thiếu cờ) ⇒ tag 10 "Cho xem hàng"; tắt ⇒ không gửi tag.
+        $on = $this->connector()->exposeBuildGhtkPayload($this->shipment());
+        $this->assertSame([10], $on['order']['tags']);
+
+        $off = $this->connector()->exposeBuildGhtkPayload($this->shipment(['allow_inspection' => false]));
+        $this->assertArrayNotHasKey('tags', $off['order']);
     }
 
     public function test_note_prefers_delivery_note_over_note_and_content(): void

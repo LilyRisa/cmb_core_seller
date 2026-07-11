@@ -188,13 +188,14 @@ class ViettelPostConnector extends AbstractCarrierConnector
             'PRODUCT_WIDTH' => (int) ($p['width_cm'] ?? 0),
             'PRODUCT_HEIGHT' => (int) ($p['height_cm'] ?? 0),
             'PRODUCT_TYPE' => 'HH',
-            // Phí ship là nội bộ (đã gộp vào COD đẩy ĐVVC) — app KHÔNG map ai-trả-phí lên VTP.
-            // 3 = recipient trả cước + thu hộ tiền hàng (có COD), 1 = shop trả cước-không thu hộ (không COD).
+            // Phí ship là nội bộ (đã gộp vào COD đẩy ĐVVC) — shop trả cước. ORDER_PAYMENT (docs
+            // partner.viettelpost.vn): 1=không thu hộ, 2=thu COD+cước, 3=thu COD KHÔNG thu cước (shop trả
+            // cước), 4=thu cước không thu COD. ⇒ có COD dùng 3 (khớp GHN payment_type_id=1), không COD dùng 1.
             'ORDER_PAYMENT' => $cod > 0 ? 3 : 1,
             'ORDER_SERVICE' => $service,
             'ORDER_SERVICE_ADD' => null,
             'MONEY_COLLECTION' => $cod,
-            'ORDER_NOTE' => $this->trimNote($shipment['delivery_note'] ?? $shipment['content'] ?? null),
+            'ORDER_NOTE' => $this->buildOrderNote($shipment),
             'LIST_ITEM' => $listItem !== [] ? $listItem : null,
         ], fn ($v) => $v !== null);
 
@@ -366,6 +367,24 @@ class ViettelPostConnector extends AbstractCarrierConnector
         $note = trim($note);
 
         return $note === '' ? null : mb_substr($note, 0, 150);
+    }
+
+    /**
+     * ORDER_NOTE = ghi chú "cho xem hàng" (khi allow_inspection, mặc định BẬT) + ghi chú giao hàng.
+     * VTP không có field xem-hàng riêng — thể hiện qua ghi chú (docs partner.viettelpost.vn, ví dụ tạo đơn).
+     */
+    private function buildOrderNote(array $shipment): ?string
+    {
+        $parts = [];
+        if ($shipment['allow_inspection'] ?? true) {
+            $parts[] = 'Cho khách xem hàng khi nhận';
+        }
+        $delivery = trim((string) ($shipment['delivery_note'] ?? $shipment['content'] ?? ''));
+        if ($delivery !== '') {
+            $parts[] = $delivery;
+        }
+
+        return $this->trimNote($parts === [] ? null : implode('. ', $parts));
     }
 
     /** ORDER_STATUSDATE dạng "d/m/Y H:i:s" (vd "10/11/2025 11:07:16") — giờ VN (GMT+7). Fallback Carbon::parse. */

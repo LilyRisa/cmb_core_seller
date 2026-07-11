@@ -156,6 +156,9 @@ class OrderController extends Controller
             'meta.email' => ['sometimes', 'nullable', 'string', 'email', 'max:255'],
             'meta.print_note' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'meta.collect_fee_on_return_only' => ['sometimes', 'boolean'],
+            // Cho khách xem/thử hàng khi nhận (mặc định BẬT) — map GHN required_note CHOTHUHANG /
+            // KHONGCHOXEMHANG, GHTK tag 10, VTP ORDER_NOTE ở tầng ShipmentService/connector.
+            'meta.allow_inspection' => ['sometimes', 'boolean'],
             // B2 (Sprint 1 P0) — hint ĐVVC user chọn ở form tạo đơn; pre-select khi "Chuẩn bị hàng".
             'meta.preferred_carrier_account_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
             // U8 (Sprint 2) — file đính kèm tách khỏi `note` (in phiếu không lộ URL).
@@ -225,6 +228,9 @@ class OrderController extends Controller
             'meta.email' => ['sometimes', 'nullable', 'string', 'max:255'],
             'meta.print_note' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'meta.collect_fee_on_return_only' => ['sometimes', 'boolean'],
+            // Cho khách xem/thử hàng khi nhận (mặc định BẬT) — map GHN required_note CHOTHUHANG /
+            // KHONGCHOXEMHANG, GHTK tag 10, VTP ORDER_NOTE ở tầng ShipmentService/connector.
+            'meta.allow_inspection' => ['sometimes', 'boolean'],
             'meta.preferred_carrier_account_id' => ['sometimes', 'nullable', 'integer'],
             'meta.attachments' => ['sometimes', 'array'],
             'meta.attachments.*.url' => ['sometimes', 'string', 'max:500'],

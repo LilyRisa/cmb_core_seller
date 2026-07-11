@@ -1216,10 +1216,14 @@ class ShipmentService
         $tenantSettings = (array) (Tenant::query()->whereKey($tenantId)->value('settings') ?? []);
         $shipDefaults = (array) data_get($tenantSettings, 'shipping', []);
 
-        // Reconciliation (2026-07-07): phí ship là NỘI BỘ — đã gộp vào COD đẩy ĐVVC, app KHÔNG map ai-trả-phí
-        // hay "chế độ xem hàng" lên carrier. "Ghi chú giao hàng" dùng lại field order.meta.print_note.
+        // Phí ship là NỘI BỘ — đã gộp vào COD đẩy ĐVVC, app KHÔNG map ai-trả-phí (mỗi connector tự để
+        // shop trả cước: GHN payment_type_id=1, VTP ORDER_PAYMENT=3, GHTK is_freeship=1).
+        // "Ghi chú giao hàng" dùng lại field order.meta.print_note.
         $orderMeta = (array) ($order->meta ?? []);
         $deliveryNote = (string) ($opts['delivery_note'] ?? data_get($orderMeta, 'print_note', ''));
+        // Cho khách xem/thử hàng (mặc định BẬT). Chuẩn hoá 1 cờ bool; mỗi connector map field riêng
+        // (GHN required_note CHOTHUHANG/KHONGCHOXEMHANG, GHTK tag 10, VTP ORDER_NOTE). opts override cao nhất.
+        $allowInspection = (bool) ($opts['allow_inspection'] ?? data_get($orderMeta, 'allow_inspection', true));
         $failedCollect = (int) ($opts['failed_collect_amount']
             ?? $order->failed_collect_amount
             ?? (($shipDefaults['failed_collect_enabled'] ?? false) ? ($shipDefaults['failed_collect_amount'] ?? 0) : 0));
@@ -1230,7 +1234,8 @@ class ShipmentService
             'parcel' => ['weight_grams' => $weight, 'length_cm' => $opts['length_cm'] ?? 15, 'width_cm' => $opts['width_cm'] ?? 15, 'height_cm' => $opts['height_cm'] ?? 10],
             'cod_amount' => $cod,
             'service' => $service,
-            'required_note' => $opts['required_note'] ?? null,
+            'allow_inspection' => $allowInspection,
+            'required_note' => $opts['required_note'] ?? ($allowInspection ? 'CHOTHUHANG' : 'KHONGCHOXEMHANG'),
             'delivery_note' => $deliveryNote,
             'failed_collect_amount' => $failedCollect,
             'content' => 'Đơn '.($order->order_number ?? $order->external_order_id ?? ('#'.$order->getKey())),

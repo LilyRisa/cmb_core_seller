@@ -472,6 +472,12 @@ class ManualOrderService
                 : null,
         ], fn ($v) => $v !== null && $v !== '');
 
+        // Cho xem/thử hàng: mặc định BẬT ⇒ CHỈ lưu khi TẮT (false). array_filter ở trên nuốt false nên
+        // set thủ công sau đó. Vắng key ⇒ ShipmentService coi như BẬT (data_get(..., true)).
+        if (array_key_exists('allow_inspection', $raw) && ! $raw['allow_inspection']) {
+            $out['allow_inspection'] = false;
+        }
+
         return $out;
     }
 

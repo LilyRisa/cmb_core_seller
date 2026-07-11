@@ -35,11 +35,37 @@ class ViettelPostConnectorDeliveryOptionsTest extends TestCase
 
         $payload = $connector->exposeBuildVtpPayload($shipment, 50000, [], 1, 50000, 500, 'SVC1');
 
-        // Original COD-based default: cod > 0 => 3 (recipient trả cước + thu hộ tiền hàng).
+        // Có COD ⇒ ORDER_PAYMENT=3 = thu hộ tiền hàng, KHÔNG thu cước (shop trả cước) — docs partner.viettelpost.vn.
         $this->assertSame(3, $payload['ORDER_PAYMENT']);
-        $this->assertSame('Gọi trước khi giao', $payload['ORDER_NOTE']);
+        // Mặc định cho xem hàng (allow_inspection thiếu ⇒ BẬT) ⇒ ORDER_NOTE ghép "Cho khách xem hàng khi nhận".
+        $this->assertSame('Cho khách xem hàng khi nhận. Gọi trước khi giao', $payload['ORDER_NOTE']);
         $this->assertSame(30000, $payload['EXTRA_MONEY']);
         $this->assertSame(['XMG'], $payload['LIST_ITEM_EXTRA']);
+    }
+
+    public function test_order_note_omits_inspection_when_allow_inspection_off(): void
+    {
+        $connector = new class extends ViettelPostConnector
+        {
+            public function exposeBuildVtpPayload(array $shipment, int $cod, array $listItem, int $totalQty, int $totalValue, int $weight, string $service): array
+            {
+                return $this->buildVtpPayload($shipment, $cod, $listItem, $totalQty, $totalValue, $weight, $service);
+            }
+        };
+
+        $shipment = [
+            'client_order_code' => 'ORD-4',
+            'delivery_note' => 'Gọi trước khi giao',
+            'allow_inspection' => false,
+            'recipient' => ['name' => 'Nguyễn Văn A', 'phone' => '0900000000', 'address' => '123 Đường X', 'province_id' => 1, 'ward_id' => 1],
+            'sender' => ['name' => 'Shop', 'phone' => '0911111111', 'address' => '456 Đường Y', 'province_id' => 1, 'ward_id' => 1],
+            'parcel' => ['weight_grams' => 500],
+            'cod_amount' => 50000,
+        ];
+
+        $payload = $connector->exposeBuildVtpPayload($shipment, 50000, [], 1, 50000, 500, 'SVC1');
+
+        $this->assertSame('Gọi trước khi giao', $payload['ORDER_NOTE']);
     }
 
     public function test_build_vtp_payload_clamps_extra_money_to_2x_fee_estimate_when_available(): void
