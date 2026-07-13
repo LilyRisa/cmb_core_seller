@@ -310,23 +310,24 @@ export function useShipOrder() {
     });
 }
 
-export interface ShippingQuote { carrier: string; carrier_name: string; fee: number; insurance_fee: number }
+export interface QuoteAllItem {
+    carrier_account_id: number; carrier: string; carrier_name: string; account_name: string;
+    service_name?: string | null; fee?: number; insurance_fee?: number; eta?: string | null; error?: string;
+}
 
 /**
- * Gợi ý phí ship (carrier-agnostic). Trả null nếu ĐVVC không hỗ trợ tính phí / lỗi / chưa cấu hình —
- * caller (màn tạo đơn) tự ẩn gợi ý, KHÔNG chặn tạo đơn. Hiện chỉ GHTK trả phí.
+ * Tra cứu cước tham khảo TẤT CẢ tài khoản ĐVVC active của tenant (SPEC 2026-07-13). Cân nặng/kích thước
+ * server tự lấy từ cấu hình mặc định từng tài khoản — không truyền từ FE. Thuần tham khảo, không áp dụng
+ * vào đơn.
  */
-export function useShippingQuote() {
+export function useShippingQuoteAll() {
     const api = useScopedApi();
     return useMutation({
         mutationFn: async (vars: {
-            carrier_account_id?: number | null;
-            weight_grams: number;
-            value?: number;
             // province bắt buộc + (district HOẶC ward) — địa chỉ VN có thể 2 cấp (Tỉnh+Phường) hay 3 cấp.
             recipient: { province?: string; district?: string; ward?: string; address?: string };
-        }): Promise<ShippingQuote | null> => {
-            const { data } = await api!.post<{ data: ShippingQuote | null }>('/fulfillment/quote', vars);
+        }): Promise<QuoteAllItem[]> => {
+            const { data } = await api!.post<{ data: QuoteAllItem[] }>('/fulfillment/quote-all', vars);
             return data.data;
         },
     });
