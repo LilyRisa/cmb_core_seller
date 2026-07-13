@@ -200,8 +200,10 @@ class ViettelPostConnector extends AbstractCarrierConnector
         ], fn ($v) => $v !== null);
 
         // Thu tiền hàng khi khách không nhận (failed_delivery_collect) — dịch vụ "Xem hàng, thu tiền" (XMG).
-        // ⚠️ Mã dịch vụ XMG + field EXTRA_MONEY/LIST_ITEM_EXTRA CHƯA verify với VTP sandbox (spec §11) —
-        // đây là nơi DUY NHẤT cần sửa nếu tên field/mã dịch vụ thực tế khác.
+        // Verified 2026-07-13 qua lỗi thật + tài liệu chính chủ partner2.viettelpost.vn/document/get-list-service-by-address-id:
+        // SERVICE_CODE="XMG" ("Thu tiền xem hàng") phải truyền vào ORDER_SERVICE_ADD (string) ở API tạo đơn —
+        // KHÔNG có field "LIST_ITEM_EXTRA" trong VTP Open API. Gửi sai field ⇒ VTP từ chối toàn bộ đơn khi
+        // EXTRA_MONEY > 0 với lỗi "EXTRA_MONEY is greater than 0, then you must use XMG service(ORDER_SERVICE_ADD)!".
         $failed = (int) ($shipment['failed_collect_amount'] ?? 0);
         if ($failed > 0) {
             // MONEY_TOTAL (cước thực) chỉ có trong RESPONSE tạo đơn, chưa tồn tại lúc build payload này.
@@ -210,7 +212,7 @@ class ViettelPostConnector extends AbstractCarrierConnector
             $feeEstimate = (int) ($shipment['fee'] ?? 0);
             $cap = $feeEstimate > 0 ? 2 * $feeEstimate : 0;
             $payload['EXTRA_MONEY'] = $cap > 0 ? min($failed, $cap) : $failed;
-            $payload['LIST_ITEM_EXTRA'] = ['XMG'];
+            $payload['ORDER_SERVICE_ADD'] = 'XMG';
         }
 
         return $payload;

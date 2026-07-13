@@ -40,7 +40,7 @@ class ViettelPostConnectorDeliveryOptionsTest extends TestCase
         // Thiếu required_note/allow_inspection ⇒ mặc định an toàn CHOXEMHANGKHONGTHU (cho xem, không thử).
         $this->assertSame('Cho khách xem hàng, không cho thử. Gọi trước khi giao', $payload['ORDER_NOTE']);
         $this->assertSame(30000, $payload['EXTRA_MONEY']);
-        $this->assertSame(['XMG'], $payload['LIST_ITEM_EXTRA']);
+        $this->assertSame('XMG', $payload['ORDER_SERVICE_ADD']);
     }
 
     public function test_order_note_states_no_inspection_when_allow_inspection_off(): void
@@ -93,7 +93,7 @@ class ViettelPostConnectorDeliveryOptionsTest extends TestCase
 
         // 2 * fee(20000) = 40000, clamp min(100000, 40000) = 40000.
         $this->assertSame(40000, $payload['EXTRA_MONEY']);
-        $this->assertSame(['XMG'], $payload['LIST_ITEM_EXTRA']);
+        $this->assertSame('XMG', $payload['ORDER_SERVICE_ADD']);
     }
 
     public function test_build_vtp_payload_omits_extra_money_when_failed_collect_amount_zero(): void
@@ -117,6 +117,6 @@ class ViettelPostConnectorDeliveryOptionsTest extends TestCase
         $payload = $connector->exposeBuildVtpPayload($shipment, 0, [], 1, 0, 500, 'SVC1');
 
         $this->assertArrayNotHasKey('EXTRA_MONEY', $payload);
-        $this->assertArrayNotHasKey('LIST_ITEM_EXTRA', $payload);
+        $this->assertArrayNotHasKey('ORDER_SERVICE_ADD', $payload);
     }
 }
