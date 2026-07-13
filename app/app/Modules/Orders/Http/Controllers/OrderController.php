@@ -9,6 +9,8 @@ use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Models\SyncRun;
 use CMBcoreSeller\Modules\Fulfillment\Models\Shipment;
 use CMBcoreSeller\Modules\Inventory\Models\InventoryLevel;
+use CMBcoreSeller\Modules\Orders\Contracts\OrderLookupContract;
+use CMBcoreSeller\Modules\Orders\DTO\OrderSummary;
 use CMBcoreSeller\Modules\Orders\Http\Resources\OrderResource;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Orders\Models\OrderItem;
@@ -297,6 +299,41 @@ class OrderController extends Controller
         });
 
         return response()->json(['data' => ['deleted' => $deleted, 'skipped' => $skipped]]);
+    }
+
+    /**
+     * GET /api/v1/orders/lookup-by-customer — đơn gần nhất + đơn hoàn gần nhất của 1 khách. Dùng ở form
+     * tạo đơn thủ công (SPEC 2026-07-13) để cảnh báo SĐT đã có đơn cũ; `exclude_order_id` để loại chính
+     * đơn đang sửa. Tái dùng OrderLookupContract có sẵn (KHÔNG đụng module Customers).
+     */
+    public function lookupByCustomer(Request $request, CurrentTenant $tenant, OrderLookupContract $lookup): JsonResponse
+    {
+        $this->authorizeView($request);
+
+        $data = $request->validate([
+            'customer_id' => ['required', 'integer', 'min:1'],
+            'exclude_order_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
+        ]);
+
+        $recent = $lookup->recentByCustomer((int) $tenant->id(), (int) $data['customer_id'], limit: 20);
+        if (! empty($data['exclude_order_id'])) {
+            $excludeId = (int) $data['exclude_order_id'];
+            $recent = array_values(array_filter($recent, fn (OrderSummary $o) => $o->id !== $excludeId));
+        }
+
+        $latestOrder = $recent[0] ?? null;
+        $latestReturnedOrder = null;
+        foreach ($recent as $o) {
+            if ($o->statusCode === StandardOrderStatus::ReturnedRefunded->value) {
+                $latestReturnedOrder = $o;
+                break;
+            }
+        }
+
+        return response()->json(['data' => [
+            'latest_order' => $latestOrder?->toArray(),
+            'latest_returned_order' => $latestReturnedOrder?->toArray(),
+        ]]);
     }
 
     /** GET /api/v1/orders/{id} */

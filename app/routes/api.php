@@ -181,6 +181,10 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
 
             // --- Orders (Phase 1 + manual orders Phase 2) ---
             Route::get('orders/stats', [OrderController::class, 'stats'])->name('orders.stats');
+            // Tra cứu đơn gần nhất + đơn hoàn gần nhất của 1 khách (customer_id) — dùng ở form tạo đơn thủ
+            // công để cảnh báo SĐT đã có đơn cũ (SPEC 2026-07-13). `abilities:orders:read` như orders.index.
+            Route::get('orders/lookup-by-customer', [OrderController::class, 'lookupByCustomer'])
+                ->middleware('abilities:orders:read')->name('orders.lookup-by-customer');
             Route::post('orders/sync', [OrderController::class, 'sync'])->name('orders.sync');             // resync all active shops
             // `abilities:orders:read` — extension token (chỉ `copy-product:push`) bị chặn 403 khỏi
             // dữ liệu đơn. SPA cookie & token `*` thoả mãn mọi ability nên không ảnh hưởng (A5).

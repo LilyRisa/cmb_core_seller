@@ -15,7 +15,9 @@ class OrderLookupService implements OrderLookupContract
             ->where('tenant_id', $tenantId)
             ->where('customer_id', $customerId)
             ->with('items:id,order_id,name,quantity')
-            ->orderByDesc('created_at')
+            // Secondary `id` tie-break — trong test/burst-insert, `created_at` có thể trùng giây
+            // (SQLite lưu datetime không mili-giây) khiến "mới nhất" không xác định nếu chỉ sort created_at.
+            ->orderByDesc('created_at')->orderByDesc('id')
             ->limit(max(1, $limit))
             ->get()
             ->map(fn (Order $o) => OrderSummary::fromModel($o))
