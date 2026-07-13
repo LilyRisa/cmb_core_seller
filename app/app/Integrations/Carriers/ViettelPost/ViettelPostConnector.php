@@ -244,11 +244,12 @@ class ViettelPostConnector extends AbstractCarrierConnector
     {
         $s = (array) ($account['meta']['from_address'] ?? []);
         $resolved = (new ViettelPostAddressResolver($this->client($account)))->resolve(
-            (array) ($request['recipient'] ?? $request)
+            (array) ($request['recipient'] ?? [])
         );
         if (empty($s['province_id']) || empty($s['ward_id']) || empty($resolved['province_id']) || empty($resolved['ward_id'])) {
             return [];
         }
+        $pkg = (array) ($account['meta']['defaults']['package'] ?? []);
         $list = $this->client($account)->getPriceAll([
             'SENDER_PROVINCE' => (int) $s['province_id'],
             'SENDER_DISTRICT' => isset($s['district_id']) ? (int) $s['district_id'] : null,
@@ -257,7 +258,7 @@ class ViettelPostConnector extends AbstractCarrierConnector
             'RECEIVER_DISTRICT' => $resolved['district_id'],
             'RECEIVER_WARD' => (int) $resolved['ward_id'],
             'PRODUCT_TYPE' => 'HH',
-            'PRODUCT_WEIGHT' => (int) ($request['weight_grams'] ?? $request['weight'] ?? 0),
+            'PRODUCT_WEIGHT' => (int) ($pkg['weight_grams'] ?? 500),
             'TYPE' => 1,
         ]);
 

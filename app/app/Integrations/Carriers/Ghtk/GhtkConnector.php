@@ -166,13 +166,14 @@ class GhtkConnector extends AbstractCarrierConnector
     }
 
     /**
-     * Tính phí gợi ý. $request: { weight_grams, value?, recipient:{province,district,ward?,address?} }.
-     * Sender lấy từ account.meta.from_address. Trả list 1 quote (fee + insurance_fee).
+     * Tính phí gợi ý tham khảo (SPEC 2026-07-13). $request: { recipient:{province,district,ward?,address?} }.
+     * Sender + cân nặng lấy từ account.meta.from_address/defaults.package (KHÔNG từ giỏ hàng). Trả list 1 quote.
      */
     public function quote(array $account, array $request): array
     {
         $s = (array) ($account['meta']['from_address'] ?? []);
-        $r = (array) ($request['recipient'] ?? $request);
+        $r = (array) ($request['recipient'] ?? []);
+        $pkg = (array) ($account['meta']['defaults']['package'] ?? []);
         $params = array_filter([
             'pick_province' => $s['province_name'] ?? null,
             'pick_district' => $s['district_name'] ?? null,
@@ -182,8 +183,7 @@ class GhtkConnector extends AbstractCarrierConnector
             'district' => $r['district'] ?? null,
             'ward' => $r['ward'] ?? null,
             'address' => $r['address'] ?? null,
-            'weight' => (int) ($request['weight_grams'] ?? $request['weight'] ?? 0),  // GRAM
-            'value' => isset($request['value']) ? max(0, (int) $request['value']) : null,
+            'weight' => (int) ($pkg['weight_grams'] ?? 500),  // GRAM — từ cấu hình tài khoản, không từ giỏ hàng
             'transport' => 'road',
         ], fn ($v) => $v !== null && $v !== '');
 
