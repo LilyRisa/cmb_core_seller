@@ -331,6 +331,25 @@ export function useOrder(id: number | string | undefined) {
     });
 }
 
+export interface OrderDuplicateSummary { id: number; number: string; status_code: string; status: string; total: number; date: string | null; items: string | null }
+export interface OrderDuplicateLookup { latest_order: OrderDuplicateSummary | null; latest_returned_order: OrderDuplicateSummary | null }
+
+/** SĐT đã có đơn cũ (mọi trạng thái) — cảnh báo ở form tạo đơn thủ công (SPEC 2026-07-13). Chỉ gọi khi đã có customer_id (từ useCustomerLookup). */
+export function useOrderLookupByCustomer(customerId: number | undefined, excludeOrderId?: number) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['order-lookup-by-customer', tenantId, customerId, excludeOrderId],
+        enabled: api != null && customerId != null,
+        queryFn: async () => {
+            const { data } = await api!.get<{ data: OrderDuplicateLookup }>('/orders/lookup-by-customer', {
+                params: { customer_id: customerId, exclude_order_id: excludeOrderId },
+            });
+            return data.data;
+        },
+    });
+}
+
 export function useOrderTags(id: number) {
     const api = useScopedApi();
     const qc = useQueryClient();
