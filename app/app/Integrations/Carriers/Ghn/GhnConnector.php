@@ -35,7 +35,7 @@ class GhnConnector extends AbstractCarrierConnector
         // không hard-code 'ghn'.
         // `failed_delivery_collect`: GHN hỗ trợ thu tiền khi giao thất bại (đơn thử hàng/xem hàng bị từ
         // chối) qua field COD riêng ở payload tạo đơn — xem buildGhnPayload().
-        return ['createShipment', 'getLabel', 'getTracking', 'cancel', 'awaiting_pickup_flow', 'webhook', 'failed_delivery_collect'];
+        return ['createShipment', 'getLabel', 'getTracking', 'cancel', 'quote', 'awaiting_pickup_flow', 'webhook', 'failed_delivery_collect'];
     }
 
     /**
@@ -113,6 +113,51 @@ class GhnConnector extends AbstractCarrierConnector
         }
 
         return new GhnClient($token, isset($c['shop_id']) ? (int) $c['shop_id'] : null);
+    }
+
+    /**
+     * Tính cước tham khảo (SPEC 2026-07-13) — 1 mức giá duy nhất (GHN Calculate Fee API chỉ nhận
+     * service_type_id 2/5, không tách theo tên gói Nhanh/Chuẩn/Tiết kiệm). Cân nặng/kích thước lấy từ
+     * account.meta.defaults.package (KHÔNG từ giỏ hàng). Thiếu địa chỉ/không resolve được ⇒ trả [].
+     */
+    public function quote(array $account, array $request): array
+    {
+        $s = (array) ($account['meta']['from_address'] ?? []);
+        if (empty($s['district_id']) || empty($s['ward_code'])) {
+            return [];
+        }
+        $resolved = (new GhnAddressResolver($this->client($account)))->resolve(
+            (array) ($request['recipient'] ?? [])
+        );
+        if (empty($resolved['district_id']) || empty($resolved['ward_code'])) {
+            return [];
+        }
+        $defaults = (array) ($account['meta']['defaults'] ?? []);
+        $pkg = (array) ($defaults['package'] ?? []);
+        $serviceTypeId = (($defaults['goods_type'] ?? 'light') === 'heavy') ? 5 : 2;
+
+        try {
+            $data = $this->client($account)->fee([
+                'service_type_id' => $serviceTypeId,
+                'from_district_id' => (int) $s['district_id'],
+                'from_ward_code' => (string) $s['ward_code'],
+                'to_district_id' => (int) $resolved['district_id'],
+                'to_ward_code' => (string) $resolved['ward_code'],
+                'weight' => (int) ($pkg['weight_grams'] ?? 500),
+                'length' => (int) ($pkg['length_cm'] ?? 10),
+                'width' => (int) ($pkg['width_cm'] ?? 10),
+                'height' => (int) ($pkg['height_cm'] ?? 10),
+            ]);
+        } catch (\Throwable) {
+            return [];
+        }
+
+        return [[
+            'carrier' => 'ghn',
+            'fee' => (int) ($data['total'] ?? 0),
+            'insurance_fee' => (int) ($data['insurance_fee'] ?? 0),
+            'name' => null,
+        ]];
     }
 
     public function createShipment(array $account, array $shipment): array

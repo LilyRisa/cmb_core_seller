@@ -44,6 +44,18 @@ class GhnClient
         return (array) ($body['data'] ?? []);
     }
 
+    /** POST /v2/shipping-order/fee — tính cước tham khảo. @return array<string,mixed> GHN `data` object (total, service_fee, insurance_fee, ...) */
+    public function fee(array $payload): array
+    {
+        $res = $this->http()->post('/shiip/public-api/v2/shipping-order/fee', $payload);
+        $body = $res->json();
+        if (! $res->successful() || (int) ($body['code'] ?? 0) !== 200) {
+            throw new RuntimeException('GHN tính phí lỗi: '.($body['message'] ?? $res->status()));
+        }
+
+        return (array) ($body['data'] ?? []);
+    }
+
     /** @return array<string,mixed> the GHN order detail `data` (status + log[]) */
     public function orderDetail(string $orderCode): array
     {
