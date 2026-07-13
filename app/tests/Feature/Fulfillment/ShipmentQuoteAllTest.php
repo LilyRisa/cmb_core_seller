@@ -4,6 +4,7 @@ namespace Tests\Feature\Fulfillment;
 
 use CMBcoreSeller\Integrations\Carriers\CarrierRegistry;
 use CMBcoreSeller\Integrations\Carriers\Ghtk\GhtkConnector;
+use CMBcoreSeller\Integrations\Carriers\Manual\ManualCarrierConnector;
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Fulfillment\Models\CarrierAccount;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
@@ -47,9 +48,9 @@ class ShipmentQuoteAllTest extends TestCase
 
     public function test_aggregates_quotes_from_all_active_accounts(): void
     {
-        $ok = $this->makeGhtkAccount('GHTK — Kho A');
+        $this->makeGhtkAccount('GHTK — Kho A');
         $this->makeGhtkAccount('GHTK — Kho B (inactive)', active: false);
-        $failing = $this->makeGhtkAccount('GHTK — Kho lỗi');
+        $this->makeGhtkAccount('GHTK — Kho lỗi');
 
         Http::fake(function ($request) {
             $body = $request->data();
@@ -93,5 +94,28 @@ class ShipmentQuoteAllTest extends TestCase
             ->assertOk();
 
         $this->assertCount(0, $res->json('data'));
+    }
+
+    public function test_carrier_without_quote_capability_is_silently_skipped(): void
+    {
+        app(CarrierRegistry::class)->register('manual', ManualCarrierConnector::class);
+
+        CarrierAccount::withoutGlobalScope(TenantScope::class)->create([
+            'tenant_id' => $this->tenant->getKey(), 'carrier' => 'manual', 'name' => 'Tự vận chuyển',
+            'credentials' => [], 'is_active' => true, 'meta' => [],
+        ]);
+        $this->makeGhtkAccount('GHTK — Kho A');
+
+        Http::fake(fn () => Http::response(['success' => true, 'fee' => ['name' => 'area1', 'fee' => 26400, 'insurance_fee' => 0]]));
+
+        $res = $this->actingAs($this->owner)->withHeaders($this->h())
+            ->postJson('/api/v1/fulfillment/quote-all', ['recipient' => ['province' => 'Hà Nội', 'district' => 'Cầu Giấy']])
+            ->assertOk();
+
+        $rows = $res->json('data');
+        $this->assertCount(1, $rows, 'Tài khoản manual (không hỗ trợ quote) bị bỏ qua hoàn toàn, không có dòng lỗi.');
+        $names = collect($rows)->pluck('account_name')->all();
+        $this->assertContains('GHTK — Kho A', $names);
+        $this->assertNotContains('Tự vận chuyển', $names);
     }
 }
