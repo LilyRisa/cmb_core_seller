@@ -575,45 +575,56 @@ class ShipmentService
     }
 
     /**
-     * Gợi ý phí ship (carrier-agnostic). Resolve carrier account → `connector->quote()`. Carrier không hỗ
-     * trợ quote (vd GHN) hoặc lỗi/không có account ⇒ trả null (FE tự ẩn, KHÔNG chặn tạo đơn). Core không
-     * biết tên carrier — chỉ qua registry + capability `quote`.
+     * Tra cứu cước tham khảo từ MỌI tài khoản ĐVVC active của tenant (SPEC 2026-07-13). Mỗi tài khoản có
+     * thể sinh nhiều dòng (VTP nhiều gói); tài khoản lỗi/không hỗ trợ vẫn có mặt trong danh sách với field
+     * `error` thay vì bị bỏ sót âm thầm — TRỪ carrier không hỗ trợ capability `quote` (bị lọc hẳn, không
+     * có khái niệm "tính phí online", vd carrier thủ công/tự giao).
      *
-     * @param  array{weight_grams?:int,value?:int|null,recipient?:array<string,mixed>}  $req
-     * @return array{carrier:string,carrier_name:string,fee:int,insurance_fee:int}|null
+     * @param  array{province?:string,district?:?string,ward?:?string,address?:?string}  $recipient
+     * @return list<array<string,mixed>>
      */
-    public function quoteShippingFee(int $tenantId, ?int $carrierAccountId, array $req): ?array
+    public function quoteAllShippingFees(int $tenantId, array $recipient): array
     {
-        try {
-            $account = $this->resolveAccount($tenantId, $carrierAccountId);
-            if (! $account || ! $this->carriers->has($account->carrier)) {
-                return null;
+        $accounts = CarrierAccount::query()->where('tenant_id', $tenantId)->where('is_active', true)->get();
+        $out = [];
+        foreach ($accounts as $account) {
+            if (! $this->carriers->has($account->carrier)) {
+                continue;
             }
             $connector = $this->carriers->for($account->carrier);
             if (! ($connector instanceof AbstractCarrierConnector) || ! $connector->supports('quote')) {
-                return null;
+                continue;
             }
-            $quotes = $connector->quote($account->toConnectorArray(), [
-                'weight_grams' => (int) ($req['weight_grams'] ?? 0),
-                'value' => isset($req['value']) ? (int) $req['value'] : null,
-                'recipient' => (array) ($req['recipient'] ?? []),
-            ]);
-            $first = $quotes[0] ?? null;
-            if (! $first) {
-                return null;
-            }
-
-            return [
-                'carrier' => (string) ($first['carrier'] ?? $account->carrier),
+            $base = [
+                'carrier_account_id' => $account->id,
+                'carrier' => $account->carrier,
                 'carrier_name' => $connector->displayName(),
-                'fee' => (int) ($first['fee'] ?? 0),
-                'insurance_fee' => (int) ($first['insurance_fee'] ?? 0),
+                'account_name' => $account->name,
             ];
-        } catch (\Throwable $e) {
-            Log::warning('shipment.quote_failed', ['tenant' => $tenantId, 'error' => $e->getMessage()]);
+            try {
+                $quotes = $connector->quote($account->toConnectorArray(), ['recipient' => $recipient]);
+            } catch (\Throwable $e) {
+                Log::warning('shipment.quote_all_failed', ['tenant' => $tenantId, 'carrier_account_id' => $account->id, 'error' => $e->getMessage()]);
+                $out[] = $base + ['error' => 'Không lấy được cước cho tuyến này.'];
 
-            return null;
+                continue;
+            }
+            if ($quotes === []) {
+                $out[] = $base + ['error' => 'Không lấy được cước cho tuyến này.'];
+
+                continue;
+            }
+            foreach ($quotes as $q) {
+                $out[] = $base + [
+                    'service_name' => $q['name'] ?? null,
+                    'fee' => (int) ($q['fee'] ?? 0),
+                    'insurance_fee' => (int) ($q['insurance_fee'] ?? 0),
+                    'eta' => $q['eta'] ?? null,
+                ];
+            }
         }
+
+        return $out;
     }
 
     /**

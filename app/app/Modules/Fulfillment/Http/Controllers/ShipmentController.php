@@ -182,27 +182,22 @@ class ShipmentController extends Controller
     }
 
     /**
-     * POST /api/v1/fulfillment/quote — gợi ý phí ship (carrier-agnostic). Dùng ở màn tạo đơn.
-     * Trả `{ data: { carrier, carrier_name, fee, insurance_fee } }` hoặc `{ data: null }` nếu carrier
-     * không hỗ trợ tính phí / lỗi / chưa có tài khoản ĐVVC — FE tự ẩn gợi ý, không chặn tạo đơn.
+     * POST /api/v1/fulfillment/quote-all — tra cứu cước tham khảo TẤT CẢ tài khoản ĐVVC active của tenant
+     * (SPEC 2026-07-13). Trả `{ data: [...] }` — mỗi phần tử 1 dòng cước (VTP có thể nhiều dòng/tài khoản),
+     * tài khoản lỗi có field `error` thay vì bị bỏ sót. Thuần tham khảo, không ghi/áp dụng vào đơn.
      */
-    public function quote(Request $request, CurrentTenant $tenant): JsonResponse
+    public function quoteAll(Request $request, CurrentTenant $tenant): JsonResponse
     {
         abort_unless($request->user()?->can('orders.create') || $request->user()?->can('fulfillment.ship'), 403, 'Bạn không có quyền.');
         $data = $request->validate([
-            'carrier_account_id' => ['sometimes', 'nullable', 'integer'],
-            'weight_grams' => ['required', 'integer', 'min:1', 'max:1000000'],
-            'value' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:999999999'],
             'recipient' => ['required', 'array'],
             'recipient.province' => ['required', 'string', 'max:120'],
-            // Địa chỉ 2 cấp (Tỉnh + Phường, sau cải cách 2025) không có quận/huyện ⇒ district nullable.
-            // GHTK nhận theo tên: cần Tỉnh + (Quận HOẶC Phường).
             'recipient.district' => ['sometimes', 'nullable', 'string', 'max:120', 'required_without:recipient.ward'],
             'recipient.ward' => ['sometimes', 'nullable', 'string', 'max:120', 'required_without:recipient.district'],
             'recipient.address' => ['sometimes', 'nullable', 'string', 'max:255'],
         ]);
 
-        return response()->json(['data' => $this->service->quoteShippingFee((int) $tenant->id(), $data['carrier_account_id'] ?? null, $data)]);
+        return response()->json(['data' => $this->service->quoteAllShippingFees((int) $tenant->id(), $data['recipient'])]);
     }
 
     /** POST /api/v1/shipments/bulk-create */
