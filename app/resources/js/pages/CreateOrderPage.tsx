@@ -19,7 +19,8 @@ import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import { errorMessage } from '@/lib/api';
 import { useCreateManualOrder, useUpdateManualOrder, useUploadImage, useWarehouses, type Sku } from '@/lib/inventory';
 import { useCarrierAccounts } from '@/lib/fulfillment';
-import { useOrder } from '@/lib/orders';
+import { useOrder, useOrderLookupByCustomer, type OrderDuplicateLookup } from '@/lib/orders';
+import { OrderDetailModal } from '@/components/OrderDetailModal';
 import { useTenant, useTenantMembers } from '@/lib/tenant';
 import { useAuth } from '@/lib/auth';
 import { useCustomerLookup, useCustomers, type BadReportWarning, type Customer, type CustomerLookupResult } from '@/lib/customers';
@@ -198,6 +199,11 @@ export function CreateOrderForm({ active = true, onSaved, editOrderId, onUpdated
     const lookup = useCustomerLookup(phone);
     const customerData: CustomerLookupResult | undefined = lookup.data;
     const oldAddresses = customerData?.addresses ?? [];
+
+    // SĐT đã có đơn cũ (mọi trạng thái, kể cả đơn hoàn) — cảnh báo dưới card Khách hàng (SPEC 2026-07-13).
+    // Sửa đơn ⇒ loại chính đơn đang sửa khỏi kết quả (exclude_order_id) để không tự cảnh báo về chính nó.
+    const dupLookup = useOrderLookupByCustomer(customerData?.customer?.id, isEdit && editId ? editId : undefined);
+    const [dupOrderModalId, setDupOrderModalId] = useState<number | null>(null);
 
     // ---- effects ----
     useEffect(() => {
@@ -1018,6 +1024,7 @@ export function CreateOrderForm({ active = true, onSaved, editOrderId, onUpdated
                                 </Row>
                                 {addressBlock}
                                 <CustomerWarning data={customerData} />
+                                <DuplicateOrderAlert data={dupLookup.data} onOpenOrder={setDupOrderModalId} />
                             </Card>
                         ) : (
                             <>
@@ -1057,6 +1064,7 @@ export function CreateOrderForm({ active = true, onSaved, editOrderId, onUpdated
                                     </Row>
                                     <CustomerInfoModal open={infoModalOpen} onClose={() => setInfoModalOpen(false)} form={form} upload={upload} message={message} />
                                 </Card>
+                                <DuplicateOrderAlert data={dupLookup.data} onOpenOrder={setDupOrderModalId} />
 
                                 {/* ---------- Nhận hàng ---------- */}
                                 <Card size="small" className="ord-card" style={{ marginBottom: 16 }}
@@ -1118,6 +1126,8 @@ export function CreateOrderForm({ active = true, onSaved, editOrderId, onUpdated
                     <Button type="primary" icon={<SaveOutlined />} onClick={() => submit(false)} loading={submitting}>{isEdit ? 'Lưu thay đổi' : 'Lưu'} <kbd className="ord-kbd-on-primary">F2</kbd></Button>
                 </Space>
             </div>
+
+            <OrderDetailModal orderId={dupOrderModalId} open={dupOrderModalId != null} onClose={() => setDupOrderModalId(null)} />
 
             {/* ---------- Scoped styles ---------- */}
             <style>{`
@@ -1627,5 +1637,33 @@ function WarningList({ warnings }: { warnings: BadReportWarning[] }) {
                 </div>
             ))}
         </div>
+    );
+}
+
+// SPEC 2026-07-13 — mã đơn cụ thể của SĐT đang nhập (đơn gần nhất bất kỳ trạng thái + đơn hoàn gần nhất
+// nếu có), đặt NGAY DƯỚI card Khách hàng (tách biệt với thanh tỷ lệ/popover ⚠ ở tiêu đề card). Bấm mã
+// đơn mở OrderDetailModal (không thay thế được widget cảnh báo cũ).
+function DuplicateOrderAlert({ data, onOpenOrder }: { data: OrderDuplicateLookup | undefined; onOpenOrder: (id: number) => void }) {
+    if (!data?.latest_order) return null;
+    return (
+        <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={(
+                <Space direction="vertical" size={2}>
+                    <span>
+                        SĐT này đã có đơn hàng trước đó:{' '}
+                        <a onClick={() => onOpenOrder(data.latest_order!.id)}>#{data.latest_order.number}</a>
+                    </span>
+                    {data.latest_returned_order && (
+                        <span>
+                            Có đơn hoàn:{' '}
+                            <a onClick={() => onOpenOrder(data.latest_returned_order!.id)}>#{data.latest_returned_order.number}</a>
+                        </span>
+                    )}
+                </Space>
+            )}
+        />
     );
 }
