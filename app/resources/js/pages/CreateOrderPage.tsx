@@ -1241,15 +1241,18 @@ function CreateOrderTabs() {
 
     const removeTab = useCallback((key: string) => {
         const doRemove = () => {
-            const fallback = newTabKey(); // sinh 1 lần ⇒ updater thuần, an toàn StrictMode.
-            setTabs((t) => {
-                const next = t.filter((x) => x.key !== key);
-                return next.length > 0 ? next : [{ key: fallback, orderId: null }];
-            });
+            // Đóng tab CUỐI CÙNG (kể cả khi đó là tab đầu tiên/duy nhất) ⇒ không tự mở tab trắng thay thế
+            // nữa, quay về trang Đơn hàng — không còn gì để "tạo tiếp" trên trang này.
+            if (tabs.length <= 1) {
+                setDrafts((prev) => { const n = { ...prev }; delete n[key]; persist(n); return n; });
+                navigate('/orders');
+                return;
+            }
+            setTabs((t) => t.filter((x) => x.key !== key));
             setActiveKey((cur) => {
                 if (cur !== key) return cur;
                 const next = tabs.filter((x) => x.key !== key);
-                return next.length > 0 ? next[next.length - 1].key : fallback;
+                return next[next.length - 1].key;
             });
             setDrafts((prev) => { const n = { ...prev }; delete n[key]; persist(n); return n; });
             setEditDirty((prev) => { const n = { ...prev }; delete n[key]; return n; });
@@ -1270,7 +1273,7 @@ function CreateOrderTabs() {
         } else {
             doRemove();
         }
-    }, [tabs, drafts, editDirty, persist]);
+    }, [tabs, drafts, editDirty, persist, navigate]);
 
     const handleSaved = useCallback((key: string, orderId: number, orderNumber?: string) => {
         // Tạo đơn xong (mục 3): tab hiện tại CHUYỂN sang SỬA đơn vừa tạo (giữ nguyên thông tin, vẫn sửa & lưu
@@ -1350,7 +1353,7 @@ function CreateOrderTabs() {
                 {labelFor(tab, idx)}
             </Space>
         ),
-        closable: tabs.length > 1,
+        closable: true,
         children: (
             <CreateOrderForm
                 embedded
