@@ -340,13 +340,15 @@ export function useAdminTenantOrderStatusHistory(tenantId: number | null, page =
 
 export interface AdminFullAuditEntry extends AdminAuditEntry { admin_user_id: number | null }
 
-export function useAdminTenantAuditLogs(tenantId: number | null, page = 1) {
+export function useAdminTenantAuditLogs(tenantId: number | null, page = 1, actionPrefix?: string) {
     return useQuery({
-        queryKey: ['admin', 'tenants', 'detail', tenantId, 'audit-logs', page],
+        queryKey: ['admin', 'tenants', 'detail', tenantId, 'audit-logs', page, actionPrefix ?? null],
         enabled: tenantId != null,
         queryFn: async () => {
+            const params: Record<string, string | number> = { page };
+            if (actionPrefix) params.action = actionPrefix;
             const { data } = await api.get<Paginated<AdminFullAuditEntry>>(
-                `/admin/tenants/${tenantId}/audit-logs`, { params: { page } },
+                `/admin/tenants/${tenantId}/audit-logs`, { params },
             );
             return data;
         },

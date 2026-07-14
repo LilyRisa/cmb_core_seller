@@ -96,4 +96,30 @@ class AdminTenantDeepStatsTest extends TestCase
 
         $this->assertCount(2, $res->json('data'));
     }
+
+    public function test_audit_logs_endpoint_filters_by_action_prefix(): void
+    {
+        AuditLog::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'user_id' => 1,
+            'action' => 'orders.status.change', 'ip' => '127.0.0.1',
+        ]);
+        AuditLog::query()->create([
+            'tenant_id' => $this->tenant->getKey(), 'user_id' => $this->admin->getKey(),
+            'action' => 'admin.tenant.suspend', 'ip' => '127.0.0.1',
+        ]);
+
+        // Không lọc — cả 2 dòng đều trả về.
+        $resAll = $this->actingAs($this->admin, 'admin_web')
+            ->getJson("/api/v1/admin/tenants/{$this->tenant->getKey()}/audit-logs")
+            ->assertOk();
+        $this->assertCount(2, $resAll->json('data'));
+
+        // Lọc action=admin. — chỉ dòng admin.* được trả về.
+        $resFiltered = $this->actingAs($this->admin, 'admin_web')
+            ->getJson("/api/v1/admin/tenants/{$this->tenant->getKey()}/audit-logs?action=admin.")
+            ->assertOk();
+        $rows = $resFiltered->json('data');
+        $this->assertCount(1, $rows);
+        $this->assertSame('admin.tenant.suspend', $rows[0]['action']);
+    }
 }

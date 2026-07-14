@@ -364,15 +364,24 @@ class AdminTenantController extends Controller
         ]);
     }
 
-    /** GET /api/v1/admin/tenants/{tid}/audit-logs — TOÀN BỘ log (không lọc admin.%), phân trang. */
+    /** GET /api/v1/admin/tenants/{tid}/audit-logs — TOÀN BỘ log, phân trang; lọc theo tiền tố `action` (vd `admin.`). */
     public function auditLogs(Request $request, int $tid): JsonResponse
     {
         $tenant = Tenant::query()->findOrFail($tid);
         $perPage = max(1, min(100, (int) $request->query('per_page', 50)));
+        $data = $request->validate([
+            'action' => ['sometimes', 'string', 'max:64'],
+        ]);
 
-        $page = AuditLog::query()->withoutGlobalScope(TenantScope::class)
-            ->where('tenant_id', $tenant->getKey())
-            ->orderByDesc('id')->paginate($perPage);
+        $query = AuditLog::query()->withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenant->getKey());
+
+        if ($action = $data['action'] ?? null) {
+            // Prefix match — `admin.` khớp mọi hành động admin.*.
+            $query->where('action', 'like', $action.'%');
+        }
+
+        $page = $query->orderByDesc('id')->paginate($perPage);
 
         return response()->json([
             'data' => collect($page->items())->map(fn (AuditLog $a) => [

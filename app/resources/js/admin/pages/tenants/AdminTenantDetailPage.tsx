@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-    App, Button, Descriptions, Empty, Form, Input, InputNumber, Modal, Radio, Space, Spin, Table, Tabs, Tag, Typography,
+    App, Button, Descriptions, Empty, Form, Input, InputNumber, Modal, Radio, Segmented, Space, Spin, Table, Tabs, Tag, Typography,
 } from 'antd';
 import { ArrowLeftOutlined, DeleteOutlined, FacebookFilled, LockOutlined, SwapOutlined, TikTokOutlined, UnlockOutlined, WarningOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
@@ -12,7 +12,7 @@ import {
     useAdminChangePlan, useAdminDeleteChannel, useAdminPlans, useAdminReactivateTenant, useAdminSuspendTenant,
     useAdminTenant, useAdminTenantAiCreditAdjust, useAdminTenantAuditLogs, useAdminTenantDailyOrderStats,
     useAdminTenantLoginHistory, useAdminTenantOrderStatusHistory,
-    type AdminChannelAccount, type AdminAdAccount, type AdminMember, type AdminTenantDetail,
+    type AdminChannelAccount, type AdminAdAccount, type AdminMember, type AdminTenantDetail, type AdminFullAuditEntry,
 } from '@admin/lib/admin';
 
 /**
@@ -475,33 +475,50 @@ function OrdersStatsTab({ tenantId, skuCount }: { tenantId: number; skuCount: nu
 
 function AuditLogTab({ tenantId }: { tenantId: number }) {
     const [page, setPage] = useState(1);
-    const { data, isFetching } = useAdminTenantAuditLogs(tenantId, page);
+    // Mặc định chỉ xem hành động admin — tab cũ chỉ hiện admin.*, tránh bị chìm giữa log nghiệp vụ thường.
+    const [scope, setScope] = useState<'admin' | 'all'>('admin');
+    const { data, isFetching } = useAdminTenantAuditLogs(tenantId, page, scope === 'admin' ? 'admin.' : undefined);
 
     return (
-        <Table size="small" rowKey="id" loading={isFetching}
-            dataSource={data?.data ?? []}
-            columns={[
-                { title: 'Thời gian', dataIndex: 'created_at', key: 'created_at', width: 160,
-                    render: (v: string | null) => formatDateTimeSeconds(v) },
-                { title: 'Hành động', dataIndex: 'action', key: 'action', render: (v: string) => <Tag>{v}</Tag> },
-                { title: 'User', dataIndex: 'user_id', key: 'user_id', width: 80, render: (v: number | null) => v ?? '—' },
-                { title: 'Admin', dataIndex: 'admin_user_id', key: 'admin_user_id', width: 80, render: (v: number | null) => v ?? '—' },
-                { title: 'Chi tiết', dataIndex: 'changes', key: 'changes',
-                    render: (v: Record<string, unknown> | null) => (
-                        <pre style={{ margin: 0, fontSize: 12, maxWidth: 420, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                            {v ? JSON.stringify(v) : '—'}
-                        </pre>
-                    ) },
-                { title: 'IP', dataIndex: 'ip', key: 'ip', width: 120, render: (v: string | null) => v ?? '—' },
-            ]}
-            pagination={{
-                current: page,
-                pageSize: data?.meta.pagination.per_page ?? 30,
-                total: data?.meta.pagination.total ?? 0,
-                showSizeChanger: false,
-                onChange: setPage,
-            }}
-        />
+        <>
+            <Segmented
+                style={{ marginBottom: 12 }}
+                value={scope}
+                onChange={(v) => { setScope(v as 'admin' | 'all'); setPage(1); }}
+                options={[
+                    { label: 'Chỉ hành động Admin', value: 'admin' },
+                    { label: 'Tất cả', value: 'all' },
+                ]}
+            />
+            <Table size="small" rowKey="id" loading={isFetching}
+                dataSource={data?.data ?? []}
+                columns={[
+                    { title: 'Thời gian', dataIndex: 'created_at', key: 'created_at', width: 160,
+                        render: (v: string | null) => formatDateTimeSeconds(v) },
+                    { title: 'Hành động', dataIndex: 'action', key: 'action', render: (v: string) => <Tag>{v}</Tag> },
+                    { title: 'Người thực hiện', key: 'actor', width: 120,
+                        render: (_: unknown, row: AdminFullAuditEntry) => (
+                            row.admin_user_id != null ? `Admin #${row.admin_user_id}`
+                                : row.user_id != null ? `User #${row.user_id}`
+                                    : '—'
+                        ) },
+                    { title: 'Chi tiết', dataIndex: 'changes', key: 'changes',
+                        render: (v: Record<string, unknown> | null) => (
+                            <pre style={{ margin: 0, fontSize: 12, maxWidth: 420, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                {v ? JSON.stringify(v) : '—'}
+                            </pre>
+                        ) },
+                    { title: 'IP', dataIndex: 'ip', key: 'ip', width: 120, render: (v: string | null) => v ?? '—' },
+                ]}
+                pagination={{
+                    current: page,
+                    pageSize: data?.meta.pagination.per_page ?? 30,
+                    total: data?.meta.pagination.total ?? 0,
+                    showSizeChanger: false,
+                    onChange: setPage,
+                }}
+            />
+        </>
     );
 }
 
