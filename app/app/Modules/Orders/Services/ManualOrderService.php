@@ -3,6 +3,7 @@
 namespace CMBcoreSeller\Modules\Orders\Services;
 
 use CMBcoreSeller\Modules\Customers\Contracts\CustomerWallet;
+use CMBcoreSeller\Modules\Customers\Support\CustomerPhoneNormalizer;
 use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Inventory\Models\Warehouse;
 use CMBcoreSeller\Modules\Orders\Events\OrderUpserted;
@@ -78,6 +79,7 @@ class ManualOrderService
         $now = now();
 
         $order = DB::transaction(function () use ($tenantId, $userId, $items, $status, $buyer, $recipient, $shippingFee, $tax, $isCod, $itemTotal, $sellerDiscount, $grandTotal, $codAmount, $prepaidAmount, $surcharge, $freeShipping, $paymentStatus, $now, $data, $warehouseId) {
+            $shippingAddress = $this->buildShippingAddress($buyer, $recipient);
             $attrs = [
                 'tenant_id' => $tenantId,
                 'warehouse_id' => $warehouseId,
@@ -94,7 +96,9 @@ class ManualOrderService
                 'buyer_name' => $buyer['name'] ?? null,
                 'buyer_phone' => $buyer['phone'] ?? null,
                 // shipping_address ưu tiên `recipient` (FE mới); fallback `buyer` (legacy / shape cũ).
-                'shipping_address' => $this->buildShippingAddress($buyer, $recipient),
+                'shipping_address' => $shippingAddress,
+                // Design 2026-07-14 — hash SĐT (buyer + recipient) để tra trùng nhanh, xem OrderLookupService.
+                ...$this->phoneHashes($buyer['phone'] ?? null, $shippingAddress),
                 'currency' => 'VND',
                 'item_total' => $itemTotal,
                 'shipping_fee' => $shippingFee,
@@ -251,6 +255,11 @@ class ManualOrderService
             if (array_key_exists('phone', $buyer)) {
                 $fill['buyer_phone'] = $buyer['phone'] ?: null;
             }
+            // Design 2026-07-14 — hash theo giá trị HIỆU LỰC sau merge (mới nếu đổi, cũ nếu không).
+            $fill += $this->phoneHashes(
+                $fill['buyer_phone'] ?? $order->buyer_phone,
+                $fill['shipping_address'],
+            );
         }
 
         // ---- Payment fields (giống create) ----
@@ -430,6 +439,21 @@ class ManualOrderService
         ];
 
         return array_filter($out, fn ($v) => $v !== null && $v !== '');
+    }
+
+    /**
+     * Hash SĐT người mua + người nhận (đã chuẩn hoá) để tra trùng nhanh qua index — design
+     * 2026-07-14. Null khi SĐT không chuẩn hoá được (rỗng/mask/không hợp lệ) — KHÔNG match.
+     *
+     * @param  array<string,mixed>  $shippingAddress
+     * @return array{buyer_phone_hash: ?string, recipient_phone_hash: ?string}
+     */
+    private function phoneHashes(?string $buyerPhone, array $shippingAddress): array
+    {
+        return [
+            'buyer_phone_hash' => CustomerPhoneNormalizer::normalizeAndHash($buyerPhone),
+            'recipient_phone_hash' => CustomerPhoneNormalizer::normalizeAndHash($shippingAddress['phone'] ?? null),
+        ];
     }
 
     /**

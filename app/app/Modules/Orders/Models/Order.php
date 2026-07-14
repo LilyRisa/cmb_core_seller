@@ -31,7 +31,9 @@ use Illuminate\Support\Carbon;
  * @property string|null $payment_status
  * @property string|null $buyer_name
  * @property string|null $buyer_phone
+ * @property string|null $buyer_phone_hash
  * @property array|null $shipping_address
+ * @property string|null $recipient_phone_hash
  * @property string $currency
  * @property int $item_total
  * @property int $shipping_fee
@@ -76,7 +78,7 @@ class Order extends Model
 
     protected $fillable = [
         'tenant_id', 'warehouse_id', 'source', 'channel_account_id', 'customer_id', 'external_order_id', 'order_number',
-        'status', 'raw_status', 'payment_status', 'buyer_name', 'buyer_phone', 'shipping_address',
+        'status', 'raw_status', 'payment_status', 'buyer_name', 'buyer_phone', 'buyer_phone_hash', 'shipping_address', 'recipient_phone_hash',
         'currency', 'item_total', 'shipping_fee', 'platform_discount', 'seller_discount', 'tax',
         'cod_amount', 'prepaid_amount', 'surcharge', 'grand_total', 'is_cod', 'fulfillment_type', 'carrier',
         'placed_at', 'paid_at', 'shipped_at', 'delivered_at', 'completed_at', 'cancelled_at', 'cancel_reason',
