@@ -99,6 +99,17 @@ export interface AdminVoucherRedemptionRow {
     created_at: string | null;
 }
 
+export interface AdminAiCreditSummary {
+    enabled: boolean; unlimited: boolean; monthly_allowance: number;
+    period_used: number; purchased_balance: number; available: number | null;
+}
+
+export interface AdminAiUsageHistory {
+    all_time: number;
+    by_month: Array<{ period_ym: number; count: number }>;
+    by_feature: Array<{ feature: string; count: number }>;
+}
+
 export interface AdminTenantDetail extends AdminTenantSummary {
     channel_accounts: AdminChannelAccount[];
     ad_accounts: AdminAdAccount[];
@@ -107,6 +118,9 @@ export interface AdminTenantDetail extends AdminTenantSummary {
     invoices: AdminInvoice[];
     payments: AdminPayment[];
     vouchers_redeemed: AdminVoucherRedemptionRow[];
+    sku_count: number;
+    ai_credit: AdminAiCreditSummary;
+    ai_usage_history: AdminAiUsageHistory;
 }
 
 export type VoucherKind = 'percent' | 'fixed' | 'free_days' | 'plan_upgrade' | 'ai_credits';
@@ -252,6 +266,20 @@ export function useAdminChangePlan() {
     });
 }
 
+export function useAdminTenantAiCreditAdjust() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (vars: { tenantId: number; amount: number; reason: string }) => {
+            const { data } = await api.post<{ data: AdminAiCreditSummary & { applied: number } }>(
+                `/admin/tenants/${vars.tenantId}/ai-credit/adjust`,
+                { amount: vars.amount, reason: vars.reason },
+            );
+            return data.data;
+        },
+        onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: ['admin', 'tenants', 'detail', vars.tenantId] }),
+    });
+}
+
 export function useAdminSuspendTenant() {
     const qc = useQueryClient();
     return useMutation({
@@ -274,6 +302,74 @@ export function useAdminReactivateTenant() {
             return data.data;
         },
         onSuccess: () => qc.invalidateQueries({ queryKey: ['admin'] }),
+    });
+}
+
+export function useAdminTenantDailyOrderStats(tenantId: number | null, days = 30) {
+    return useQuery({
+        queryKey: ['admin', 'tenants', 'detail', tenantId, 'daily-stats', days],
+        enabled: tenantId != null,
+        queryFn: async () => {
+            const { data } = await api.get<{ data: Array<{ date: string; count: number; grand_total_sum: number }> }>(
+                `/admin/tenants/${tenantId}/orders/daily-stats`, { params: { days } },
+            );
+            return data.data;
+        },
+    });
+}
+
+export interface AdminOrderStatusHistoryRow {
+    order_id: number; order_number: string | null;
+    from_status: string | null; to_status: string; raw_status: string | null;
+    source: string; changed_at: string | null;
+}
+
+export function useAdminTenantOrderStatusHistory(tenantId: number | null, page = 1) {
+    return useQuery({
+        queryKey: ['admin', 'tenants', 'detail', tenantId, 'order-status-history', page],
+        enabled: tenantId != null,
+        queryFn: async () => {
+            const { data } = await api.get<Paginated<AdminOrderStatusHistoryRow>>(
+                `/admin/tenants/${tenantId}/order-status-history`, { params: { page } },
+            );
+            return data;
+        },
+        placeholderData: (p) => p,
+    });
+}
+
+export interface AdminFullAuditEntry extends AdminAuditEntry { admin_user_id: number | null }
+
+export function useAdminTenantAuditLogs(tenantId: number | null, page = 1) {
+    return useQuery({
+        queryKey: ['admin', 'tenants', 'detail', tenantId, 'audit-logs', page],
+        enabled: tenantId != null,
+        queryFn: async () => {
+            const { data } = await api.get<Paginated<AdminFullAuditEntry>>(
+                `/admin/tenants/${tenantId}/audit-logs`, { params: { page } },
+            );
+            return data;
+        },
+        placeholderData: (p) => p,
+    });
+}
+
+export interface AdminLoginHistoryRow {
+    user_id: number; name: string | null; email: string | null;
+    ip_address: string | null; user_agent: string | null; logged_in_at: string;
+}
+
+export function useAdminTenantLoginHistory(tenantId: number | null, page = 1) {
+    return useQuery({
+        queryKey: ['admin', 'tenants', 'detail', tenantId, 'login-history', page],
+        enabled: tenantId != null,
+        queryFn: async () => {
+            const { data } = await api.get<Paginated<AdminLoginHistoryRow>>(
+                `/admin/tenants/${tenantId}/login-history`, { params: { page } },
+            );
+            return data;
+        },
+        placeholderData: (p) => p,
     });
 }
 
