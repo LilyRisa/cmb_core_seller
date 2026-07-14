@@ -352,6 +352,12 @@ export interface MessagingChannel {
     /** SPEC-0039 — Zalo OA chưa đủ gói để gửi tin nhắn. */
     zalo_send_blocked?: boolean;
     zalo_send_blocked_reason?: string | null;
+    /** Design 2026-07-14 — báo cáo Purchase (Conversions API for Business Messaging) về Meta Ads. */
+    fb_conversions: {
+        enabled: boolean;
+        dataset_id: string | null;
+        needs_reauth: boolean;
+    };
 }
 
 export function useMessagingChannels(provider?: string) {
@@ -386,6 +392,18 @@ export function useSetChannelAiMode() {
     return useMutation({
         mutationFn: async (input: { id: number; ai_auto_mode: boolean }) => {
             await api!.patch(`/messaging/channels/${input.id}/ai-mode`, { ai_auto_mode: input.ai_auto_mode });
+        },
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'channels'] }),
+    });
+}
+
+/** Design 2026-07-14 — bật/tắt báo cáo Purchase (Conversions API for Business Messaging). */
+export function useSetChannelFbConversions() {
+    const api = useScopedApi();
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: async (input: { id: number; enabled: boolean }) => {
+            await api!.patch(`/messaging/channels/${input.id}/fb-conversions`, { enabled: input.enabled });
         },
         onSuccess: () => qc.invalidateQueries({ queryKey: ['messaging', 'channels'] }),
     });

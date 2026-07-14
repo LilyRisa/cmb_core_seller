@@ -7,12 +7,12 @@ import dayjs from 'dayjs';
 import { MessagingNav } from '@/components/MessagingNav';
 import { PageHeader } from '@/components/PageHeader';
 import { BusinessInfoDrawer } from '@/components/messaging/BusinessInfoDrawer';
-import { errorMessage } from '@/lib/api';
+import { errorCode, errorMessage } from '@/lib/api';
 import { openOAuthPopup } from '@/lib/oauthPopup';
 import { useCan } from '@/lib/tenant';
 import { MARKETPLACE_CHAT_ENABLED } from '@/lib/messaging';
 import type { MessagingChannel } from '@/lib/messagingConfig';
-import { useBulkDisconnectChannels, useBulkSyncChannels, useConnectFacebook, useConnectLazadaIm, useDisconnectFacebookPage, useMessagingChannels, useSetChannelAiMode, useStartZaloConnect, useSyncChannel } from '@/lib/messagingConfig';
+import { useBulkDisconnectChannels, useBulkSyncChannels, useConnectFacebook, useConnectLazadaIm, useDisconnectFacebookPage, useMessagingChannels, useSetChannelAiMode, useSetChannelFbConversions, useStartZaloConnect, useSyncChannel } from '@/lib/messagingConfig';
 
 const { Text } = Typography;
 
@@ -54,6 +54,7 @@ export function MessagingChannelsPage() {
     const disconnect = useDisconnectFacebookPage();
     const syncChannel = useSyncChannel();
     const setAiMode = useSetChannelAiMode();
+    const setFbConversions = useSetChannelFbConversions();
     const canAi = useCan('messaging.ai.config');
     const [syncingId, setSyncingId] = useState<number | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -342,11 +343,31 @@ export function MessagingChannelsPage() {
                                         </Tooltip>
                                     )}
                                     {canConnect && (
+                                        <Tooltip title="Gửi dữ liệu chuyển đổi (mua hàng) về Facebook Ads cho hội thoại đến từ quảng cáo Click-to-Messenger">
+                                            <Space size={6} align="center">
+                                                <Text type="secondary" style={{ fontSize: 12 }}>Báo cáo Purchase</Text>
+                                                <Switch size="small" checked={p.fb_conversions.enabled} loading={setFbConversions.isPending}
+                                                    onChange={(v) => setFbConversions.mutate({ id: p.id, enabled: v }, {
+                                                        onError: (e) => {
+                                                            if (errorCode(e) === 'MISSING_SCOPE') {
+                                                                message.error('Token trang thiếu quyền page_events. Bấm "Kết nối lại" rồi thử bật lại.');
+                                                            } else {
+                                                                message.error(errorMessage(e));
+                                                            }
+                                                        },
+                                                    })} />
+                                                {p.fb_conversions.needs_reauth && (
+                                                    <Tag color="orange">Cần cấp quyền lại</Tag>
+                                                )}
+                                            </Space>
+                                        </Tooltip>
+                                    )}
+                                    {canConnect && (
                                     <Space>
                                         <Button size="small" icon={<SyncOutlined spin={syncing} />} loading={syncingId === p.id} disabled={syncing} onClick={() => handleSync(p.id)}>
                                             Đồng bộ lại
                                         </Button>
-                                        {p.token_expired && (
+                                        {(p.token_expired || p.fb_conversions.needs_reauth) && (
                                             <Button size="small" type="primary" icon={<KeyOutlined />} loading={reconnectingId === p.id} onClick={() => handleReconnect(p.id)}>Kết nối lại</Button>
                                         )}
                                         <Button size="small" icon={<ShopOutlined />} onClick={() => setBizPage(p)}>Thông tin cửa hàng</Button>
