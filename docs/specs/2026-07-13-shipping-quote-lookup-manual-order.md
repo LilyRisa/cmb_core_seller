@@ -45,7 +45,7 @@ Rà tài liệu chính thức của 3 ĐVVC xác nhận:
 
 **Đổi chữ ký `quote()` của cả 3 connector** — bỏ `weight_grams`/`value` khỏi `$request` (không còn truyền từ FE), **mỗi connector tự đọc cân nặng/kích thước từ `account.meta.defaults.package`**. `$request` chỉ còn `{ recipient: {...} }`. Đây là thay đổi hành vi nhất quán cho cả 3 connector (không chỉ GHN) — vì mục 2 đã chốt "cân nặng lấy từ cấu hình tài khoản, không phải giỏ hàng".
 
-**`ShipmentService::quoteAllShippingFees(int $tenantId, array $recipient): array`** (mới, cạnh `quoteShippingFee()` cũ — giữ nguyên `quoteShippingFee()`, không xoá):
+**`ShipmentService::quoteAllShippingFees(int $tenantId, array $recipient): array`** (mới — thay thế `quoteShippingFee()` cũ, xem mục xoá dead code bên dưới):
 ```php
 public function quoteAllShippingFees(int $tenantId, array $recipient): array
 {
