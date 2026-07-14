@@ -18,6 +18,7 @@ use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Models\TenantUser;
+use CMBcoreSeller\Modules\Tenancy\Models\UserLoginEvent;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -290,6 +291,31 @@ class AdminTenantController extends Controller
             'amount' => $payment->amount,
             'refunded_at' => $payment->refunded_at?->toIso8601String(),
         ]]);
+    }
+
+    /** GET /api/v1/admin/tenants/{tid}/login-history */
+    public function loginHistory(Request $request, int $tid): JsonResponse
+    {
+        $tenant = Tenant::query()->findOrFail($tid);
+        $perPage = max(1, min(100, (int) $request->query('per_page', 30)));
+
+        $page = UserLoginEvent::query()
+            ->whereIn('user_id', TenantUser::query()->where('tenant_id', $tenant->getKey())->pluck('user_id'))
+            ->with('user:id,name,email')
+            ->orderByDesc('logged_in_at')
+            ->paginate($perPage);
+
+        return response()->json([
+            'data' => collect($page->items())->map(fn ($e) => [
+                'user_id' => $e->user_id, 'name' => $e->user?->name, 'email' => $e->user?->email,
+                'ip_address' => $e->ip_address, 'user_agent' => $e->user_agent,
+                'logged_in_at' => $e->logged_in_at->toIso8601String(),
+            ])->all(),
+            'meta' => ['pagination' => [
+                'page' => $page->currentPage(), 'per_page' => $page->perPage(),
+                'total' => $page->total(), 'total_pages' => $page->lastPage(),
+            ]],
+        ]);
     }
 
     /** @return array<string, mixed> */

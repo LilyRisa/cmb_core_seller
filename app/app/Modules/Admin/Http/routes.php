@@ -50,6 +50,8 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
         // --- Tenants (SPEC 0020) ---
         Route::get('tenants', [AdminTenantController::class, 'index'])->name('admin.tenants.index');
         Route::get('tenants/{id}', [AdminTenantController::class, 'show'])->whereNumber('id')->name('admin.tenants.show');
+        Route::get('tenants/{tid}/login-history', [AdminTenantController::class, 'loginHistory'])
+            ->whereNumber('tid')->name('admin.tenants.login-history');
 
         Route::delete('tenants/{tid}/channel-accounts/{caid}', [AdminTenantController::class, 'deleteChannelAccount'])
             ->whereNumber('tid')->whereNumber('caid')->name('admin.tenants.channel-accounts.destroy');

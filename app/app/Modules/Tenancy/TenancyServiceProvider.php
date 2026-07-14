@@ -2,6 +2,9 @@
 
 namespace CMBcoreSeller\Modules\Tenancy;
 
+use CMBcoreSeller\Modules\Tenancy\Listeners\LogUserLogin;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -26,6 +29,9 @@ class TenancyServiceProvider extends ServiceProvider
         if (is_file(__DIR__.'/Http/routes.php')) {
             $this->loadRoutesFrom(__DIR__.'/Http/routes.php');
         }
+
+        // Ghi lịch sử đăng nhập nhân viên tenant — chỉ guard `web` (lọc trong listener).
+        Event::listen(Login::class, LogUserLogin::class);
 
         // Permission gate: $user->can('orders.update') resolves to the current
         // tenant role's permission set. Returns null when not applicable so
