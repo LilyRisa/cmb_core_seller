@@ -52,7 +52,12 @@ use Illuminate\Support\Facades\Route;
 | routes/webhook.php; OAuth callbacks in routes/web.php.
 */
 
-Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(function () {
+// NOTE: rate limit tạm nới rộng rất cao (gần như tắt) — nguyên nhân 429 hàng loạt
+// thực chất là do server edge NAT (DNAT+MASQUERADE tầng L3) làm mất IP client thật,
+// mọi khách hàng bị gộp chung 1 bucket throttle theo IP giả (10.10.10.1). Cần khôi phục
+// lại giá trị cũ sau khi sửa gốc ở tầng hạ tầng (đổi NAT sang reverse-proxy HTTP giữ
+// X-Forwarded-For/PROXY protocol) — xem memory too-many-requests-shared-ip-nat-root-cause.
+Route::prefix('v1')->name('api.v1.')->middleware('throttle:6000,1')->group(function () {
 
     // --- Health (DB / cache / Redis / queue worker probe) ---
     Route::get('health', HealthController::class)->name('health');
@@ -64,7 +69,8 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
     Route::get('auth/captcha-config', [AuthController::class, 'captchaConfig'])->name('auth.captcha-config');
 
     // --- Auth (public) — rate limit strictest to prevent brute force ---
-    Route::middleware('throttle:15,1')->group(function () {
+    // (tạm nới rộng — xem ghi chú NAT/throttle ở đầu file)
+    Route::middleware('throttle:1000,1')->group(function () {
         // `captcha` (SPEC 2026-06-10) chống bot/brute-force; pass-through khi CAPTCHA_ENABLED=false.
         Route::post('auth/register', [AuthController::class, 'register'])->middleware('captcha')->name('auth.register');
         Route::post('auth/login', [AuthController::class, 'login'])->middleware('captcha')->name('auth.login');
@@ -74,15 +80,15 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
 
     // --- Email verification (SPEC 0022) — signed URL public; throttle chống brute hash ---
     Route::get('auth/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
-        ->middleware('throttle:6,1')
+        ->middleware('throttle:200,1')
         ->where(['id' => '[0-9]+'])
         ->name('auth.email.verify');
 
     // --- Password reset (SPEC 0022) — public, throttle anti-enumerate + anti-brute ---
     Route::post('auth/password/forgot', [PasswordResetController::class, 'forgot'])
-        ->middleware(['throttle:5,15', 'captcha'])->name('auth.password.forgot');
+        ->middleware(['throttle:200,15', 'captcha'])->name('auth.password.forgot');
     Route::post('auth/password/reset', [PasswordResetController::class, 'reset'])
-        ->middleware('throttle:30,60')->name('auth.password.reset');
+        ->middleware('throttle:1000,60')->name('auth.password.reset');
 
     // --- Authenticated, tenant-agnostic ---
     Route::middleware('auth:sanctum')->group(function () {
@@ -110,7 +116,7 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
 
         // SPEC 0022 — resend verification email cho user đã login nhưng chưa verify.
         Route::post('auth/email/verify/resend', [EmailVerificationController::class, 'resend'])
-            ->middleware('throttle:6,60')->name('auth.email.verify.resend');
+            ->middleware('throttle:200,60')->name('auth.email.verify.resend');
 
         Route::get('tenants', [TenantController::class, 'index'])->name('tenants.index');
         Route::post('tenants', [TenantController::class, 'store'])->name('tenants.store');

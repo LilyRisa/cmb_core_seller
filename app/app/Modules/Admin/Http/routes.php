@@ -28,7 +28,9 @@ use Illuminate\Support\Facades\Route;
 */
 
 // --- Public auth (login) ----------------------------------------------------
-Route::middleware(['web', 'throttle:10,1'])
+// (tạm nới rộng — 429 hàng loạt do NAT edge server làm mất IP client thật, gộp
+// chung throttle theo IP cho mọi khách hàng; xem ghi chú NAT/throttle ở routes/api.php)
+Route::middleware(['web', 'throttle:1000,1'])
     ->prefix('api/v1/admin/auth')->group(function () {
         Route::post('login', [AdminAuthController::class, 'login'])->name('admin.auth.login');
     });
