@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Channels;
 
+use CMBcoreSeller\Modules\Channels\Console\Commands\BackfillWebhookDedupeKey;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -23,6 +24,10 @@ class ChannelsServiceProvider extends ServiceProvider
 
         if (is_file(__DIR__.'/Http/routes.php')) {
             $this->loadRoutesFrom(__DIR__.'/Http/routes.php');
+        }
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([BackfillWebhookDedupeKey::class]);
         }
     }
 }
