@@ -9,6 +9,7 @@ use CMBcoreSeller\Modules\Billing\Models\InvoiceLine;
 use CMBcoreSeller\Modules\Billing\Models\Payment;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
+use CMBcoreSeller\Modules\Billing\Services\AiCreditService;
 use CMBcoreSeller\Modules\Billing\Services\OverQuotaCheckService;
 use CMBcoreSeller\Modules\Billing\Services\SubscriptionService;
 use CMBcoreSeller\Modules\Billing\Services\UsageService;
@@ -34,6 +35,7 @@ class AdminTenantService
         protected SubscriptionService $subscriptions,
         protected UsageService $usage,
         protected OverQuotaCheckService $overQuota,
+        protected AiCreditService $aiCredit,
     ) {}
 
     /**
@@ -271,6 +273,39 @@ class AdminTenantService
         ]);
 
         return $sub->fresh(['plan']) ?? $sub;
+    }
+
+    /**
+     * SPEC 2026-07-15 — admin cộng/trừ credit AI mua thêm tay. `$amount` dương=cộng, âm=trừ.
+     * Trừ sàn ở 0 (không âm); cộng chặn trần 5000 (đúng logic AiCreditService::grantPurchase).
+     *
+     * @return array{purchased_balance:int, applied:int}
+     */
+    public function adjustAiCredit(Tenant $tenant, int $amount, string $reason, int $adminUserId): array
+    {
+        $this->requireReason($reason);
+        $tenantId = (int) $tenant->getKey();
+        $before = $this->aiCredit->summary($tenantId)['purchased_balance'];
+
+        $applied = $amount >= 0
+            ? $this->aiCredit->grantPurchase($tenantId, $amount)
+            : -$this->aiCredit->deduct($tenantId, abs($amount));
+
+        $after = $this->aiCredit->summary($tenantId)['purchased_balance'];
+
+        AuditLog::query()->create([
+            'tenant_id' => $tenantId,
+            'user_id' => $adminUserId,
+            'action' => 'admin.ai_credit.adjust',
+            'changes' => [
+                'amount' => $amount, 'applied' => $applied,
+                'balance_before' => $before, 'balance_after' => $after,
+                'reason' => $reason,
+            ],
+            'ip' => request()->ip(),
+        ]);
+
+        return ['purchased_balance' => $after, 'applied' => $applied];
     }
 
     /**

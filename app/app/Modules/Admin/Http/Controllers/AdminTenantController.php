@@ -8,6 +8,8 @@ use CMBcoreSeller\Modules\Billing\Models\Payment;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Billing\Models\Subscription;
 use CMBcoreSeller\Modules\Billing\Models\VoucherRedemption;
+use CMBcoreSeller\Modules\Billing\Services\AiCreditService;
+use CMBcoreSeller\Modules\Billing\Services\AiUsageReportService;
 use CMBcoreSeller\Modules\Billing\Services\OverQuotaCheckService;
 use CMBcoreSeller\Modules\Billing\Services\SubscriptionService;
 use CMBcoreSeller\Modules\Billing\Services\UsageService;
@@ -72,7 +74,7 @@ class AdminTenantController extends Controller
     }
 
     /** GET /api/v1/admin/tenants/{id} */
-    public function show(int $id): JsonResponse
+    public function show(int $id, AiCreditService $aiCredit, AiUsageReportService $aiUsageReport): JsonResponse
     {
         $tenant = Tenant::query()->findOrFail($id);
 
@@ -145,6 +147,8 @@ class AdminTenantController extends Controller
                 'invoice_id' => $r->invoice_id,
                 'created_at' => $r->created_at?->toIso8601String(),
             ])->all(),
+            'ai_credit' => $aiCredit->summary($tenant->getKey()),
+            'ai_usage_history' => $aiUsageReport->breakdownForTenant($tenant->getKey()),
         ])]);
     }
 
@@ -221,6 +225,19 @@ class AdminTenantController extends Controller
         );
 
         return response()->json(['data' => $this->subscriptionResource($sub)]);
+    }
+
+    /** POST /api/v1/admin/tenants/{tid}/ai-credit/adjust */
+    public function adjustAiCredit(Request $request, int $tid, AiCreditService $aiCredit): JsonResponse
+    {
+        $data = $request->validate([
+            'amount' => ['required', 'integer', 'not_in:0'],
+            'reason' => ['required', 'string', 'min:10', 'max:500'],
+        ]);
+        $tenant = Tenant::query()->findOrFail($tid);
+        $result = $this->service->adjustAiCredit($tenant, (int) $data['amount'], $data['reason'], (int) $request->user()->getKey());
+
+        return response()->json(['data' => $result + $aiCredit->summary($tid)]);
     }
 
     /** POST /api/v1/admin/tenants/{tid}/invoices — SPEC 0023 §3.6 (manual invoice) */

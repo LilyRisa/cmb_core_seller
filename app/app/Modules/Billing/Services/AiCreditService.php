@@ -203,6 +203,19 @@ class AiCreditService implements AiCreditMeter
         });
     }
 
+    /** Trừ credit MUA (sàn 0, không âm). Trả số thực trừ được (dương). */
+    public function deduct(int $tenantId, int $amount): int
+    {
+        return DB::transaction(function () use ($tenantId, $amount) {
+            $w = $this->lockedWallet($tenantId);
+            $new = max(0, $w->purchased_balance - $amount);
+            $removed = $w->purchased_balance - $new;
+            $w->forceFill(['purchased_balance' => $new])->save();
+
+            return $removed;
+        });
+    }
+
     /**
      * Tóm tắt cho UI / header.
      *

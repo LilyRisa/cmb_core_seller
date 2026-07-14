@@ -22,4 +22,11 @@ interface AiUsageReporter
      * @return array{all_time:int, by_month:list<array{period_ym:int,count:int}>, by_feature:list<array{feature:string,count:int}>}
      */
     public function breakdownForUser(int $userId): array;
+
+    /**
+     * Phân rã lượt AI của 1 tenant: tổng, theo tháng (mới→cũ), theo tính năng (nhiều→ít).
+     *
+     * @return array{all_time:int, by_month:list<array{period_ym:int,count:int}>, by_feature:list<array{feature:string,count:int}>}
+     */
+    public function breakdownForTenant(int $tenantId): array;
 }

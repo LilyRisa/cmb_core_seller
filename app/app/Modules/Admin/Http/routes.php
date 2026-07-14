@@ -67,6 +67,8 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
             ->whereNumber('tid')->name('admin.tenants.extend-trial');
         Route::post('tenants/{tid}/feature-overrides', [AdminTenantController::class, 'featureOverrides'])
             ->whereNumber('tid')->name('admin.tenants.feature-overrides');
+        Route::post('tenants/{tid}/ai-credit/adjust', [AdminTenantController::class, 'adjustAiCredit'])
+            ->whereNumber('tid')->name('admin.tenants.ai-credit.adjust');
         Route::post('tenants/{tid}/invoices', [AdminTenantController::class, 'createInvoice'])
             ->whereNumber('tid')->name('admin.tenants.invoices.create');
 

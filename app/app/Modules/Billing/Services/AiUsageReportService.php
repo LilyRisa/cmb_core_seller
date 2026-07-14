@@ -53,4 +53,25 @@ class AiUsageReportService implements AiUsageReporter
             'by_feature' => $byFeature,
         ];
     }
+
+    public function breakdownForTenant(int $tenantId): array
+    {
+        $base = AiUsageCounter::withoutGlobalScope(TenantScope::class)->where('tenant_id', $tenantId);
+
+        $byMonth = (clone $base)
+            ->selectRaw('period_ym, SUM(count) as count')
+            ->groupBy('period_ym')->orderByDesc('period_ym')->get()
+            ->map(fn ($r) => ['period_ym' => (int) $r->period_ym, 'count' => (int) $r->count])->all();
+
+        $byFeature = (clone $base)
+            ->selectRaw('feature, SUM(count) as count')
+            ->groupBy('feature')->orderByDesc('count')->get()
+            ->map(fn ($r) => ['feature' => (string) $r->feature, 'count' => (int) $r->count])->all();
+
+        return [
+            'all_time' => array_sum(array_column($byFeature, 'count')),
+            'by_month' => $byMonth,
+            'by_feature' => $byFeature,
+        ];
+    }
 }
