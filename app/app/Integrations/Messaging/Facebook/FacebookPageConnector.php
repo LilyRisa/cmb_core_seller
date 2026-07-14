@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Integrations\Messaging\Facebook;
 use Carbon\CarbonImmutable;
 use CMBcoreSeller\Integrations\Channels\DTO\TokenDTO;
 use CMBcoreSeller\Integrations\Messaging\Contracts\CommentEngagementConnector;
+use CMBcoreSeller\Integrations\Messaging\Contracts\ConversionReportingConnector;
 use CMBcoreSeller\Integrations\Messaging\Contracts\InteractiveMessagingConnector;
 use CMBcoreSeller\Integrations\Messaging\Contracts\ListsPostsConnector;
 use CMBcoreSeller\Integrations\Messaging\Contracts\MessagingConnector;
@@ -23,6 +24,7 @@ use CMBcoreSeller\Integrations\Messaging\DTO\UtilityTemplateDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\UtilityTemplateRefDTO;
 use CMBcoreSeller\Integrations\Messaging\DTO\UtilityTemplateStatusDTO;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\ConversationClosed;
+use CMBcoreSeller\Integrations\Messaging\Exceptions\MissingScopeException;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\OutboundWindowClosed;
 use CMBcoreSeller\Integrations\Messaging\Exceptions\UnsupportedOperation;
 use Illuminate\Http\Client\ConnectionException;
@@ -49,7 +51,7 @@ use Symfony\Component\HttpFoundation\Request;
  * Token: Page access token dài hạn ⇒ `refreshToken` ném UnsupportedOperation
  * (re-OAuth khi hết hạn). Polling: Messenger dựa webhook ⇒ `inbound.polling`=false.
  */
-class FacebookPageConnector implements CommentEngagementConnector, InteractiveMessagingConnector, ListsPostsConnector, MessagingConnector, UtilityTemplateConnector
+class FacebookPageConnector implements CommentEngagementConnector, ConversionReportingConnector, InteractiveMessagingConnector, ListsPostsConnector, MessagingConnector, UtilityTemplateConnector
 {
     /** @param array{verify_token?:?string, app_id?:?string, app_secret?:?string, graph_version?:string} $config */
     public function __construct(
@@ -92,6 +94,9 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
             'comment.like' => true,        // Page thích / bỏ thích comment
             'comment.media' => true,       // đính ảnh vào reply công khai / nhắn riêng
             'comment.webhook' => true,     // nhận comment qua webhook feed
+            // Conversions API for Business Messaging — báo cáo Purchase về Meta Ads cho
+            // hội thoại đến từ quảng cáo Click-to-Messenger (cần quyền page_events).
+            'conversion.report' => true,
         ];
     }
 
@@ -110,7 +115,9 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
         // phải duyệt `/me/businesses` → owned_pages/client_pages (xem FacebookOAuthController::fetchPages).
         // `pages_utility_messaging`: gửi utility message qua template đã duyệt (thay
         // message tag đã bị Meta khai tử) — cần App Review để dùng ngoài test user.
-        $scope = 'pages_messaging,pages_utility_messaging,pages_manage_metadata,pages_read_engagement,pages_show_list,pages_read_user_content,pages_manage_engagement,business_management';
+        // `page_events`: Conversions API for Business Messaging (báo cáo Purchase về Meta
+        // Ads cho hội thoại từ CTM ads) — Advanced Access, cần Meta App Review riêng.
+        $scope = 'pages_messaging,pages_utility_messaging,pages_manage_metadata,pages_read_engagement,pages_show_list,pages_read_user_content,pages_manage_engagement,business_management,page_events';
 
         return 'https://www.facebook.com/'.$this->graphVersion().'/dialog/oauth?'.http_build_query([
             'client_id' => $appId,
@@ -1418,6 +1425,84 @@ class FacebookPageConnector implements CommentEngagementConnector, InteractiveMe
         };
 
         return new UtilityTemplateStatusDTO($status, $reason, $rawData);
+    }
+
+    // --- Conversions API for Business Messaging ---------------------------
+
+    /**
+     * Tạo dataset gắn theo Page (Dataset API): `POST /{page_id}/dataset`. Idempotent phía
+     * caller (chỉ gọi khi chưa có dataset_id lưu sẵn — xem MessagingChannelController::fbConversions
+     * + ReportOrderConversionToMeta). Lỗi thiếu quyền `page_events` ⇒ MissingScopeException.
+     */
+    public function ensureDataset(MessagingAuthContext $auth): string
+    {
+        $res = Http::post($this->graphUrl($auth->externalShopId.'/dataset'), [
+            'access_token' => $auth->accessToken,
+        ]);
+
+        if ($res->successful() && ($id = $res->json('id')) !== null && (string) $id !== '') {
+            return (string) $id;
+        }
+
+        $this->throwConversionsApiError($res, 'ensureDataset');
+    }
+
+    /**
+     * Gửi 1 event Purchase: `POST /{dataset_id}/events`. Theo tài liệu Meta (Conversions
+     * API for Business Messaging, kênh Messenger): định danh bằng page_id + PSID (KHÔNG
+     * cần ctwa_clid — chỉ WhatsApp cần). `$eventId` để log/Meta dedupe (vd "order-{id}").
+     */
+    public function reportPurchase(
+        MessagingAuthContext $auth,
+        string $datasetId,
+        string $psid,
+        int $valueVnd,
+        \DateTimeInterface $eventTime,
+        string $eventId,
+    ): void {
+        $res = Http::post($this->graphUrl($datasetId.'/events'), [
+            'data' => [[
+                'event_name' => 'Purchase',
+                'event_time' => $eventTime->getTimestamp(),
+                'action_source' => 'business_messaging',
+                'messaging_channel' => 'messenger',
+                'user_data' => [
+                    'page_id' => $auth->externalShopId,
+                    'page_scoped_user_id' => $psid,
+                ],
+                'custom_data' => [
+                    'currency' => 'VND',
+                    'value' => $valueVnd,
+                ],
+                'event_id' => $eventId,
+            ]],
+            'access_token' => $auth->accessToken,
+        ]);
+
+        if ($res->successful()) {
+            return;
+        }
+
+        $this->throwConversionsApiError($res, 'reportPurchase');
+    }
+
+    /**
+     * Ném lỗi Conversions API. Thiếu quyền `page_events` (OAuthException/code 200, hoặc
+     * message nhắc "permission") ⇒ MissingScopeException (caller KHÔNG retry); lỗi khác
+     * ⇒ RuntimeException thường (caller có thể retry theo backoff).
+     */
+    private function throwConversionsApiError(Response $res, string $op): never
+    {
+        $error = (array) $res->json('error');
+        $type = (string) ($error['type'] ?? '');
+        $code = (int) ($error['code'] ?? 0);
+        $message = (string) ($error['message'] ?? '');
+
+        if ($type === 'OAuthException' || $code === 200 || str_contains(strtolower($message), 'permission')) {
+            throw MissingScopeException::forPageEvents($message);
+        }
+
+        throw new \RuntimeException("Facebook {$op} failed: ".$res->body());
     }
 
     // --- Comment moderation -----------------------------------------------

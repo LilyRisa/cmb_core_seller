@@ -641,4 +641,88 @@ class FacebookPageConnectorTest extends TestCase
 
         Http::assertSent(fn ($request) => ($request->data()['message']['text'] ?? null) === 'Chỉ có text');
     }
+
+    public function test_authorization_url_requests_page_events_scope(): void
+    {
+        // page_events (Advanced Access) — bắt buộc để dùng Conversions API for Business Messaging.
+        $url = $this->connector()->buildAuthorizationUrl('state_1');
+        parse_str((string) parse_url($url, PHP_URL_QUERY), $q);
+        $scope = (string) ($q['scope'] ?? '');
+
+        $this->assertStringContainsString('page_events', $scope);
+    }
+
+    public function test_ensure_dataset_creates_and_returns_id(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response(['id' => 'DATASET_1'], 200)]);
+
+        $auth = new MessagingAuthContext(
+            channelAccountId: 1, provider: 'facebook_page',
+            externalShopId: 'PAGE_123', accessToken: 'PAGE_TOKEN',
+        );
+
+        $datasetId = $this->connector()->ensureDataset($auth);
+
+        $this->assertSame('DATASET_1', $datasetId);
+        Http::assertSent(fn ($r) => str_contains($r->url(), '/PAGE_123/dataset'));
+    }
+
+    public function test_ensure_dataset_missing_scope_throws(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response([
+            'error' => ['type' => 'OAuthException', 'code' => 200, 'message' => 'Missing permission page_events'],
+        ], 400)]);
+
+        $auth = new MessagingAuthContext(
+            channelAccountId: 1, provider: 'facebook_page',
+            externalShopId: 'PAGE_123', accessToken: 'PAGE_TOKEN',
+        );
+
+        $this->expectException(\CMBcoreSeller\Integrations\Messaging\Exceptions\MissingScopeException::class);
+        $this->connector()->ensureDataset($auth);
+    }
+
+    public function test_report_purchase_posts_correct_shape(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response(['events_received' => 1], 200)]);
+
+        $auth = new MessagingAuthContext(
+            channelAccountId: 1, provider: 'facebook_page',
+            externalShopId: 'PAGE_123', accessToken: 'PAGE_TOKEN',
+        );
+        $eventTime = new \DateTimeImmutable('@1720000000');
+
+        $this->connector()->reportPurchase($auth, 'DATASET_1', 'PSID_999', 150000, $eventTime, 'order-42');
+
+        Http::assertSent(function ($request) {
+            $data = $request->data();
+            $event = $data['data'][0] ?? [];
+
+            return str_contains($request->url(), '/DATASET_1/events')
+                && ($event['event_name'] ?? null) === 'Purchase'
+                && ($event['action_source'] ?? null) === 'business_messaging'
+                && ($event['messaging_channel'] ?? null) === 'messenger'
+                && ($event['user_data']['page_id'] ?? null) === 'PAGE_123'
+                && ($event['user_data']['page_scoped_user_id'] ?? null) === 'PSID_999'
+                && ($event['custom_data']['currency'] ?? null) === 'VND'
+                && ($event['custom_data']['value'] ?? null) === 150000
+                && ($event['event_id'] ?? null) === 'order-42'
+                && ($event['event_time'] ?? null) === 1720000000;
+        });
+    }
+
+    public function test_report_purchase_missing_scope_throws(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response([
+            'error' => ['type' => 'OAuthException', 'code' => 200, 'message' => 'Missing permission page_events'],
+        ], 400)]);
+
+        $auth = new MessagingAuthContext(
+            channelAccountId: 1, provider: 'facebook_page',
+            externalShopId: 'PAGE_123', accessToken: 'PAGE_TOKEN',
+        );
+
+        $this->expectException(\CMBcoreSeller\Integrations\Messaging\Exceptions\MissingScopeException::class);
+        $this->connector()->reportPurchase($auth, 'DATASET_1', 'PSID_999', 150000, new \DateTimeImmutable, 'order-1');
+    }
 }
