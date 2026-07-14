@@ -46,7 +46,7 @@ class BackfillWebhookDedupeKey extends Command
         WebhookEvent::query()->orderBy('id')
             ->chunkById(500, function (Collection $rows) use (&$seen, &$removed) {
                 foreach ($rows as $row) {
-                    $key = implode('|', [
+                    $key = json_encode([
                         $row->provider, $row->event_type, (string) $row->external_id,
                         (string) $row->external_shop_id, (string) $row->dedupe_status_key,
                     ]);

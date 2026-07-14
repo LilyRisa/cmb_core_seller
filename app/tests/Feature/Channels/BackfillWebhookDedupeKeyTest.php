@@ -63,6 +63,22 @@ class BackfillWebhookDedupeKeyTest extends TestCase
         $this->assertNotNull(WebhookEvent::query()->find($b->id));
     }
 
+    public function test_does_not_collide_rows_whose_fields_contain_delimiter_char(): void
+    {
+        // Hai bộ 5 khoá KHÁC NHAU thật sự, nhưng nếu ghép bằng implode('|', [...]) không escape thì
+        // chuỗi nối ra lại TRÙNG NHAU (vì external_id/external_shop_id chứa ký tự '|'):
+        //   external_id='A|B', external_shop_id='C'  → "tiktok|order|A|B|C|PICKED"
+        //   external_id='A',   external_shop_id='B|C' → "tiktok|order|A|B|C|PICKED"
+        // Đây là 2 webhook thật khác nhau — không được xoá cái nào.
+        $a = $this->makeRow(['external_id' => 'A|B', 'external_shop_id' => 'C', 'order_raw_status' => 'PICKED']);
+        $b = $this->makeRow(['external_id' => 'A', 'external_shop_id' => 'B|C', 'order_raw_status' => 'PICKED']);
+
+        $this->artisan('webhooks:backfill-dedupe-key')->assertExitCode(0);
+
+        $this->assertNotNull(WebhookEvent::query()->find($a->id));
+        $this->assertNotNull(WebhookEvent::query()->find($b->id));
+    }
+
     public function test_idempotent_second_run_removes_nothing(): void
     {
         $this->makeRow(['external_id' => 'ORD_DUP2', 'order_raw_status' => 'PICKED']);
