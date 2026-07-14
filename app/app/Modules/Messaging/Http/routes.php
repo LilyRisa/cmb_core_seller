@@ -173,6 +173,10 @@ Route::middleware(['api', 'auth:sanctum', 'verified', 'tenant', 'plan.over_quota
             ->whereNumber('id')->name('messaging.channels.business_info');   // messaging.ai.config
         Route::patch('channels/business-info', [MessagingChannelController::class, 'bulkBusinessInfo'])
             ->name('messaging.channels.bulk-business_info');                 // messaging.ai.config
+        // Báo cáo Purchase (Conversions API for Business Messaging) về Meta Ads cho hội
+        // thoại đến từ quảng cáo Click-to-Messenger (design 2026-07-14).
+        Route::patch('channels/{id}/fb-conversions', [MessagingChannelController::class, 'fbConversions'])
+            ->whereNumber('id')->name('messaging.channels.fb_conversions');   // messaging.connect
         // Hành động hàng loạt trên nhiều page đã chọn (body: { ids: int[] }).
         Route::post('channels/bulk-sync', [MessagingChannelController::class, 'bulkSync'])
             ->name('messaging.channels.bulk-sync');                   // messaging.connect

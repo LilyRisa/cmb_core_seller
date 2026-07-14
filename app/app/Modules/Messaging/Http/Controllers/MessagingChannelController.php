@@ -3,8 +3,10 @@
 namespace CMBcoreSeller\Modules\Messaging\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
+use CMBcoreSeller\Integrations\Messaging\Contracts\ConversionReportingConnector;
 use CMBcoreSeller\Integrations\Messaging\Contracts\ListsPostsConnector;
 use CMBcoreSeller\Integrations\Messaging\DTO\MessagingAuthContext;
+use CMBcoreSeller\Integrations\Messaging\Exceptions\MissingScopeException;
 use CMBcoreSeller\Integrations\Messaging\MessagingRegistry;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Messaging\Jobs\BackfillFacebookComments;
@@ -99,6 +101,13 @@ class MessagingChannelController extends Controller
                     // Zalo OA tier/permission block (SPEC-0039): FE hiển thị cảnh báo nâng gói.
                     'zalo_send_blocked' => (bool) ($a->meta['zalo_send_blocked'] ?? false),
                     'zalo_send_blocked_reason' => $a->meta['zalo_send_blocked_reason'] ?? null,
+                    // SPEC 2026-07-14 — báo cáo Purchase (Conversions API for Business Messaging)
+                    // về Meta Ads cho hội thoại từ quảng cáo Click-to-Messenger.
+                    'fb_conversions' => [
+                        'enabled' => (bool) ($meta?->settings['fb_conversions']['enabled'] ?? false),
+                        'dataset_id' => $meta?->settings['fb_conversions']['dataset_id'] ?? null,
+                        'needs_reauth' => ($meta?->settings['fb_conversions']['last_error'] ?? null) === 'missing_scope',
+                    ],
                 ];
             });
 
@@ -145,6 +154,69 @@ class MessagingChannelController extends Controller
         ]);
 
         return response()->json(['data' => ['ok' => true, 'business_info' => $info]]);
+    }
+
+    /**
+     * PATCH /channels/{id}/fb-conversions — bật/tắt báo cáo Purchase (Conversions API for
+     * Business Messaging) về Meta Ads cho hội thoại đến từ quảng cáo Click-to-Messenger.
+     * Bật lần đầu (chưa có dataset_id) ⇒ gọi ensureDataset() NGAY trong request để phát
+     * hiện thiếu quyền `page_events` sớm, không đợi tới đơn đầu tiên (design 2026-07-14).
+     */
+    public function fbConversions(int $id, Request $request, MessagingRegistry $registry): JsonResponse
+    {
+        Gate::authorize('messaging.connect');
+
+        $data = $request->validate(['enabled' => ['required', 'boolean']]);
+        $account = ChannelAccount::query()->whereIn('provider', ChannelAccount::MESSAGING_ONLY_PROVIDERS)->findOrFail($id);
+
+        $existing = MessagingAccountMeta::query()->find($account->id);
+        $settings = $existing !== null ? (array) ($existing->settings ?? []) : [];
+        $fb = (array) ($settings['fb_conversions'] ?? []);
+
+        if ($data['enabled'] && empty($fb['dataset_id'])) {
+            $connector = $registry->has($account->provider) ? $registry->for($account->provider) : null;
+            if (! $connector instanceof ConversionReportingConnector || ! $connector->supports('conversion.report')) {
+                return response()->json(['error' => [
+                    'code' => 'UNSUPPORTED',
+                    'message' => 'Kênh này không hỗ trợ báo cáo chuyển đổi.',
+                ]], 422);
+            }
+
+            $auth = new MessagingAuthContext(
+                channelAccountId: $account->id,
+                provider: $account->provider,
+                externalShopId: $account->external_shop_id,
+                accessToken: (string) ($account->access_token ?? ''),
+            );
+
+            try {
+                $fb['dataset_id'] = $connector->ensureDataset($auth);
+                unset($fb['last_error'], $fb['last_error_at']);
+            } catch (MissingScopeException) {
+                return response()->json(['error' => [
+                    'code' => 'MISSING_SCOPE',
+                    'message' => 'Token trang thiếu quyền page_events. Bấm "Cấp quyền lại" để kết nối lại rồi thử bật lại.',
+                ]], 422);
+            }
+        }
+
+        $fb['enabled'] = (bool) $data['enabled'];
+        $settings['fb_conversions'] = $fb;
+
+        MessagingAccountMeta::query()->updateOrCreate(
+            ['channel_account_id' => $account->id],
+            ['tenant_id' => $account->tenant_id, 'settings' => $settings],
+        );
+
+        AuditLog::record('messaging.'.$account->provider.'.fb_conversions', null, [
+            'external_shop_id' => $account->external_shop_id,
+            'enabled' => (bool) $data['enabled'],
+        ]);
+
+        return response()->json(['data' => ['ok' => true, 'fb_conversions' => [
+            'enabled' => (bool) $fb['enabled'],
+            'dataset_id' => $fb['dataset_id'] ?? null,
+        ]]]);
     }
 
     /** PATCH /channels/business-info — áp dụng thông tin cửa hàng cho NHIỀU page (body: { ids, business_info }). */
