@@ -235,6 +235,32 @@ export function useChannelListings(filters: { channel_account_id?: number; chann
     });
 }
 
+export interface GroupedChannelListing {
+    channel_account_id: number;
+    external_product_id: string | null;
+    title: string | null;
+    image: string | null;
+    variant_count: number;
+    variants: ChannelListing[];
+}
+
+/** Như useChannelListings nhưng phân trang THEO SẢN PHẨM (gộp biến thể) — SPEC 2026-07-14. */
+export function useGroupedChannelListings(filters: { channel_account_id?: number; channel_account_ids?: string; mapped?: 0 | 1; sync_status?: string; q?: string; page?: number; per_page?: number }) {
+    const api = useScopedApi();
+    const tenantId = useCurrentTenantId();
+    return useQuery({
+        queryKey: ['channel-listings-grouped', tenantId, filters],
+        enabled: api != null,
+        placeholderData: (p) => p,
+        queryFn: async () => {
+            const params: Record<string, string | number> = {};
+            Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== '') params[k] = v as never; });
+            const { data } = await api!.get<Paginated<GroupedChannelListing>>('/channel-listings/grouped', { params });
+            return data;
+        },
+    });
+}
+
 export function useWarehouses() {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();
