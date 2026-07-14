@@ -118,6 +118,13 @@ class ReportOrderConversionToMeta implements ShouldBeUnique, ShouldQueue
             $order->forceFill([
                 'meta' => [...((array) ($order->meta ?? [])), 'fb_conversion_reported_at' => now()->toIso8601String()],
             ])->save();
+
+            if (! empty($fb['last_error'])) {
+                unset($fb['last_error'], $fb['last_error_at']);
+                $settings = (array) ($meta->settings ?? []);
+                $settings['fb_conversions'] = $fb;
+                $meta->forceFill(['settings' => $settings])->save();
+            }
         } catch (MissingScopeException) {
             $fb['last_error'] = 'missing_scope';
             $fb['last_error_at'] = now()->toIso8601String();

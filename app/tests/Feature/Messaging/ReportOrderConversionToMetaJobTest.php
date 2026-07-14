@@ -126,6 +126,26 @@ class ReportOrderConversionToMetaJobTest extends TestCase
         $this->assertEmpty($order->fresh()->meta['fb_conversion_reported_at'] ?? null);
     }
 
+    public function test_successful_report_clears_stale_last_error_flag(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response(['events_received' => 1], 200)]);
+        $this->makeMeta([
+            'enabled' => true, 'dataset_id' => 'DATASET_1',
+            'last_error' => 'missing_scope', 'last_error_at' => now()->subHour()->toIso8601String(),
+        ]);
+        $conv = $this->makeConversation();
+        $order = $this->makeOrder();
+
+        ReportOrderConversionToMeta::dispatchSync($conv->id, $order->id);
+
+        $meta = MessagingAccountMeta::withoutGlobalScope(TenantScope::class)->find($this->account->id);
+        $fb = $meta->settings['fb_conversions'] ?? [];
+        $this->assertArrayNotHasKey('last_error', $fb);
+        $this->assertArrayNotHasKey('last_error_at', $fb);
+        $this->assertTrue($fb['enabled'] ?? false);
+        $this->assertSame('DATASET_1', $fb['dataset_id'] ?? null);
+    }
+
     public function test_ensures_dataset_when_missing_then_persists_it(): void
     {
         Http::fake(['graph.facebook.com/*' => Http::response(['id' => 'DATASET_NEW'], 200)]);

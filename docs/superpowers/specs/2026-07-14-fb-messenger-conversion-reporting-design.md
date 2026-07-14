@@ -58,9 +58,12 @@ riêng (vd `MissingScopeException`) để job phân biệt được với lỗi 
 
 ## 3. Data — không cần migration
 
-Cả hai chỗ lưu trạng thái đều dùng cột `meta` (jsonb) đã có sẵn, không thêm bảng/cột:
+Cả hai chỗ lưu trạng thái đều dùng cột JSON đã có sẵn, không thêm bảng/cột:
 
-- `channel_accounts.meta['fb_conversions']`: `{enabled: bool, dataset_id: ?string, last_error: ?string, last_error_at: ?string}`.
+- `messaging_account_meta.settings['fb_conversions']`: `{enabled: bool, dataset_id: ?string, last_error: ?string, last_error_at: ?string}`.
+  (Sửa lại trong lúc triển khai: bản thiết kế ban đầu ghi `channel_accounts.meta['fb_conversions']`, nhưng
+  `messaging_account_meta.settings` — bảng cấu hình 1:1-theo-page đã có, cột `encrypted:array` — phù hợp hơn cho
+  loại cấu hình bán-nhạy-cảm này, và đã được dùng đúng cho mục đích này xuyên suốt các task đã triển khai.)
 - `orders.meta['fb_conversion_reported_at']`: dấu mốc ISO-8601, dùng để chống gửi trùng (idempotent theo đúng bất
   biến "mọi sync job phải idempotent" của dự án).
 
@@ -89,7 +92,7 @@ double-dispatch):
    với bước bật toggle), persist lại nếu vừa tạo mới.
 5. `reportPurchase($auth, $datasetId, $conv->buyer_external_id, $order->total, $order->created_at, "order-{$order->id}")`.
 6. Thành công → `order->update(['meta' => [...($order->meta ?? []), 'fb_conversion_reported_at' => now()->toIso8601String()]])`.
-7. `MissingScopeException` → set `channel_account.meta['fb_conversions']['last_error']='missing_scope'` +
+7. `MissingScopeException` → set `messaging_account_meta.settings['fb_conversions']['last_error']='missing_scope'` +
    timestamp, **không** để queue tự retry (không ích gì khi thiếu quyền) — dừng job.
 8. Lỗi khác (mạng, 5xx tạm thời) → để cơ chế retry mặc định của queue xử lý, hết lượt thì log rồi thôi — không bao
    giờ được phép làm hỏng luồng tạo/link đơn phía trước.
@@ -111,7 +114,7 @@ dòng phụ giải thích chỉ áp dụng cho hội thoại đến từ quảng
 - Feature: `linkOrder` với `notify_customer=true` + có `ad_referral` + toggle bật → job được dispatch
   (`Queue::fake` assert pushed với đúng conv/order id); thiếu 1 trong 3 điều kiện → không dispatch.
 - Job: chạy thành công → đánh dấu `order.meta`; chạy lần 2 (đã đánh dấu) → không gọi connector nữa (idempotent);
-  lỗi thiếu quyền → set `channel_account.meta.last_error`, không throw ra ngoài job.
+  lỗi thiếu quyền → set `messaging_account_meta.settings['fb_conversions'].last_error`, không throw ra ngoài job.
 
 ## 7. Giới hạn / phụ thuộc ngoài code
 
