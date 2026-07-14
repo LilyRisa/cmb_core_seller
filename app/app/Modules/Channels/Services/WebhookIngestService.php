@@ -5,7 +5,7 @@ namespace CMBcoreSeller\Modules\Channels\Services;
 use CMBcoreSeller\Integrations\Channels\ChannelRegistry;
 use CMBcoreSeller\Modules\Channels\Jobs\ProcessWebhookEvent;
 use CMBcoreSeller\Modules\Channels\Models\WebhookEvent;
-use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -76,15 +76,15 @@ class WebhookIngestService
                 'status' => WebhookEvent::STATUS_PENDING,
                 'received_at' => now(),
             ]);
-        } catch (QueryException $e) {
+        } catch (UniqueConstraintViolationException $e) {
             // Race hiếm: 2 webhook trùng đến giữa lúc exists() fast-path pass và create() này — unique
             // constraint (giai đoạn 2, design 2026-07-14 §2) chặn ở tầng DB, coi như duplicate bình thường.
-            if ($this->isUniqueViolation($e)) {
-                Log::info('webhook.dedupe_race_caught', ['provider' => $provider, 'external_id' => $dedupeKey]);
+            // Dùng type của exception (Laravel tự phân loại đúng theo từng driver) thay vì tự parse
+            // SQLSTATE — SQLite báo chung 23000 cho MỌI vi phạm integrity constraint (NOT NULL, UNIQUE,
+            // CHECK, FK), không riêng unique, nên hand-roll theo mã lỗi sẽ nuốt nhầm lỗi thật khác.
+            Log::info('webhook.dedupe_race_caught', ['provider' => $provider, 'external_id' => $dedupeKey]);
 
-                return ['status' => 200, 'body' => ['ok' => true, 'note' => 'duplicate']];
-            }
-            throw $e;
+            return ['status' => 200, 'body' => ['ok' => true, 'note' => 'duplicate']];
         }
 
         ProcessWebhookEvent::dispatch((int) $row->getKey());
@@ -104,14 +104,5 @@ class WebhookIngestService
         }
 
         return $out;
-    }
-
-    /** Nhận diện lỗi vi phạm unique constraint — khác các lỗi DB khác (không nuốt nhầm lỗi thật). */
-    private function isUniqueViolation(QueryException $e): bool
-    {
-        // SQLSTATE 23000 (integrity constraint violation) — dùng chung được cho cả SQLite lẫn Postgres
-        // qua Laravel QueryException::getCode(). Postgres driver cụ thể hơn còn có mã 23505 (unique_violation)
-        // nằm trong $e->errorInfo[0] — kiểm cả hai cho chắc.
-        return $e->getCode() === '23000' || ($e->errorInfo[0] ?? null) === '23505';
     }
 }

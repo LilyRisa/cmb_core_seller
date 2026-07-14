@@ -4,6 +4,7 @@ namespace Tests\Feature\Channels;
 
 use CMBcoreSeller\Modules\Channels\Models\WebhookEvent;
 use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -69,5 +70,34 @@ class WebhookDedupeUniqueConstraintTest extends TestCase
 
         $response->assertOk();
         $this->assertSame('duplicate', $response->json('note'));
+    }
+
+    /**
+     * Chứng minh cốt lõi của fix post-review: SQLite báo CHUNG SQLSTATE 23000 cho MỌI vi phạm
+     * integrity constraint — không riêng unique. Cột `payload` là NOT NULL (không liên quan gì tới
+     * unique index dedupe) — insert null vào đây phải vẫn ra QueryException với code 23000 y hệt
+     * vi phạm unique ở test phía trên, nhưng KHÔNG được là UniqueConstraintViolationException.
+     * WebhookIngestService::ingest() giờ catch theo type (UniqueConstraintViolationException) thay
+     * vì tự parse SQLSTATE — nên lỗi kiểu này sẽ propagate thay vì bị nuốt nhầm thành "duplicate".
+     */
+    public function test_not_null_violation_reports_same_sqlstate_but_is_not_a_unique_violation_type(): void
+    {
+        try {
+            DB::table('webhook_events')->insert([
+                'provider' => 'tiktok', 'event_type' => 'order', 'external_id' => 'ORD_NOTNULL',
+                'external_shop_id' => 'SHOP_1', 'signature_ok' => true,
+                'payload' => null, // vi phạm NOT NULL — không phải unique
+                'status' => WebhookEvent::STATUS_PENDING, 'received_at' => now(),
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
+            $this->fail('Expected a QueryException for the NOT NULL violation on webhook_events.payload.');
+        } catch (QueryException $e) {
+            $this->assertSame('23000', $e->getCode(), 'SQLite reports 23000 for NOT NULL too — same code as the unique violation above.');
+            $this->assertNotInstanceOf(
+                UniqueConstraintViolationException::class,
+                $e,
+                'A NOT NULL violation must not be classified as a unique-constraint violation.'
+            );
+        }
     }
 }
