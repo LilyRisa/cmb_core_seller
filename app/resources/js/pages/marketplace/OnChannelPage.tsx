@@ -10,8 +10,8 @@ import { ChannelLogo } from '@/components/ChannelLogo';
 import { errorMessage } from '@/lib/api';
 import { useChannelAccounts } from '@/lib/channels';
 import { useSyncPolling } from '@/lib/syncPolling';
-import { type ChannelListing, useChannelListings, useSyncChannelListings } from '@/lib/inventory';
-import { useCloneChannelListingToShops } from '@/features/products/hooks';
+import { type ChannelListing, type GroupedChannelListing, useGroupedChannelListings, useSyncChannelListings } from '@/lib/inventory';
+import { useBulkCloneChannelListingsToShops, useCloneChannelListingToShops } from '@/features/products/hooks';
 
 const SYNC_TAG: Record<string, { color: string; label: string }> = {
     ok: { color: 'green', label: 'Đã đồng bộ' },
@@ -35,8 +35,11 @@ export function OnChannelPage() {
     const [page, setPage] = useState(1);
     const [cloneFor, setCloneFor] = useState<ChannelListing | null>(null);
     const [cloneShopIds, setCloneShopIds] = useState<number[]>([]);
+    const [selectedIds, setSelectedIds] = useState<number[]>([]);
+    const [bulkCloneOpen, setBulkCloneOpen] = useState(false);
+    const [bulkCloneShopIds, setBulkCloneShopIds] = useState<number[]>([]);
 
-    const { data, isFetching, refetch } = useChannelListings({
+    const { data, isFetching, refetch } = useGroupedChannelListings({
         page,
         per_page: 20,
         q: q || undefined,
@@ -45,6 +48,7 @@ export function OnChannelPage() {
     const syncListings = useSyncChannelListings();
     const syncPoll = useSyncPolling(() => refetch(), { durationMs: 90_000 });
     const clone = useCloneChannelListingToShops();
+    const bulkClone = useBulkCloneChannelListingsToShops();
 
     // Gian hàng đích = mọi shop trừ shop nguồn của listing đang sao chép.
     const cloneTargets = useMemo(
@@ -73,6 +77,26 @@ export function OnChannelPage() {
         );
     };
 
+    const handleBulkClone = () => {
+        if (selectedIds.length === 0 || bulkCloneShopIds.length === 0) return;
+        bulkClone.mutate(
+            { channelListingIds: selectedIds, channelAccountIds: bulkCloneShopIds },
+            {
+                onSuccess: (results) => {
+                    setBulkCloneOpen(false);
+                    setSelectedIds([]);
+                    const okCount = results.filter((r) => r.ok).length;
+                    const failed = results.length - okCount;
+                    message.success(failed > 0
+                        ? `Đã sao chép ${okCount}/${results.length} sản phẩm (${failed} lỗi).`
+                        : `Đã sao chép ${okCount} sản phẩm sang ${bulkCloneShopIds.length} gian hàng.`);
+                    navigate('/marketplace/to-push');
+                },
+                onError: (e) => message.error(errorMessage(e)),
+            },
+        );
+    };
+
     const shopName = (id: number) => accounts.find((a) => a.id === id)?.name ?? `#${id}`;
     const shopProvider = (id: number) => accounts.find((a) => a.id === id)?.provider ?? '';
 
@@ -90,7 +114,7 @@ export function OnChannelPage() {
         });
     };
 
-    const columns: ColumnsType<ChannelListing> = [
+    const columns: ColumnsType<GroupedChannelListing> = [
         {
             title: 'Sản phẩm',
             key: 'product',
@@ -98,11 +122,11 @@ export function OnChannelPage() {
                 <Space>
                     <Avatar shape="square" size={44} src={r.image ?? undefined} icon={<PictureOutlined />} style={{ background: '#f5f5f5', color: '#bfbfbf', flex: 'none' }} />
                     <div style={{ minWidth: 0 }}>
-                        <Typography.Text strong ellipsis={{ tooltip: r.title ?? r.external_sku_id }} style={{ display: 'block', maxWidth: 340 }}>
-                            {r.title ?? r.external_sku_id}
+                        <Typography.Text strong ellipsis={{ tooltip: r.title ?? undefined }} style={{ display: 'block', maxWidth: 340 }}>
+                            {r.title ?? '—'}
                         </Typography.Text>
                         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                            {[r.variation, r.seller_sku ? `SKU: ${r.seller_sku}` : null].filter(Boolean).join(' · ') || '—'}
+                            {r.variant_count} biến thể
                         </Typography.Text>
                     </div>
                 </Space>
@@ -124,6 +148,37 @@ export function OnChannelPage() {
                     </Space>
                 );
             },
+        },
+        {
+            title: '',
+            key: 'actions',
+            width: 240,
+            render: (_, r) => {
+                const rep = r.variants[0];
+                if (!rep) return null;
+                return (
+                    <Space>
+                        <Button size="small" icon={<EditOutlined />} onClick={() => navigate(`/marketplace/on-channel/${rep.id}/edit`, { state: { listing: rep } })}>
+                            Sửa trên sàn
+                        </Button>
+                        <Button size="small" icon={<CopyOutlined />} onClick={() => openClone(rep)}>
+                            Sao chép sàn
+                        </Button>
+                    </Space>
+                );
+            },
+        },
+    ];
+
+    const variantColumns: ColumnsType<ChannelListing> = [
+        {
+            title: 'Biến thể',
+            key: 'variant',
+            render: (_, r) => (
+                <Typography.Text type="secondary">
+                    {[r.variation, r.seller_sku ? `SKU: ${r.seller_sku}` : null].filter(Boolean).join(' · ') || '—'}
+                </Typography.Text>
+            ),
         },
         {
             title: 'Giá gốc',
@@ -179,21 +234,6 @@ export function OnChannelPage() {
                 );
             },
         },
-        {
-            title: '',
-            key: 'actions',
-            width: 240,
-            render: (_, r) => (
-                <Space>
-                    <Button size="small" icon={<EditOutlined />} onClick={() => navigate(`/marketplace/on-channel/${r.id}/edit`, { state: { listing: r } })}>
-                        Sửa trên sàn
-                    </Button>
-                    <Button size="small" icon={<CopyOutlined />} onClick={() => openClone(r)}>
-                        Sao chép sàn
-                    </Button>
-                </Space>
-            ),
-        },
     ];
 
     return (
@@ -245,12 +285,24 @@ export function OnChannelPage() {
                     />
                 </Space>
 
-                <Table<ChannelListing>
-                    rowKey="id"
+                {selectedIds.length > 0 && (
+                    <Button style={{ marginBottom: 12 }} icon={<CopyOutlined />} onClick={() => { setBulkCloneShopIds([]); setBulkCloneOpen(true); }}>
+                        Sao chép sang gian hàng khác ({selectedIds.length} sản phẩm)
+                    </Button>
+                )}
+
+                <Table<GroupedChannelListing>
+                    rowKey={(r) => r.variants[0]?.id ?? `${r.channel_account_id}-${r.external_product_id ?? 'x'}`}
                     size="middle"
                     loading={isFetching}
                     dataSource={data?.data ?? []}
                     columns={columns}
+                    rowSelection={{ selectedRowKeys: selectedIds, onChange: (keys) => setSelectedIds(keys as number[]) }}
+                    expandable={{
+                        expandedRowRender: (r) => (
+                            <Table<ChannelListing> rowKey="id" size="small" pagination={false} showHeader columns={variantColumns} dataSource={r.variants} />
+                        ),
+                    }}
                     locale={{ emptyText: <Empty description="Chưa có sản phẩm nào. Bấm “Đồng bộ sản phẩm” để kéo sản phẩm của gian hàng về." /> }}
                     pagination={{
                         current: page,
@@ -280,6 +332,37 @@ export function OnChannelPage() {
                     <Checkbox.Group value={cloneShopIds} onChange={(v) => setCloneShopIds(v as number[])}>
                         <Space direction="vertical">
                             {cloneTargets.map((a) => (
+                                <Checkbox key={a.id} value={a.id}>
+                                    <Space size={6}>
+                                        <ChannelLogo provider={a.provider} size={16} />
+                                        <span>{a.name}</span>
+                                        <Tag>{a.provider}</Tag>
+                                    </Space>
+                                </Checkbox>
+                            ))}
+                        </Space>
+                    </Checkbox.Group>
+                )}
+            </Modal>
+
+            <Modal
+                title="Sao chép sang gian hàng khác (hàng loạt)"
+                open={bulkCloneOpen}
+                onCancel={() => setBulkCloneOpen(false)}
+                okText={bulkCloneShopIds.length > 1 ? `Sao chép ${bulkCloneShopIds.length} sàn` : 'Sao chép'}
+                okButtonProps={{ disabled: bulkCloneShopIds.length === 0, loading: bulkClone.isPending }}
+                onOk={handleBulkClone}
+            >
+                <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
+                    Áp dụng cho {selectedIds.length} sản phẩm đã chọn. Cùng nền tảng sẽ đủ dữ liệu để đẩy luôn (sẵn
+                    sàng); khác nền tảng tạo bản nháp cần soạn lại ngành hàng/thuộc tính. Tất cả đưa vào “Chờ đẩy lên sàn”.
+                </Typography.Paragraph>
+                {accounts.length === 0 ? (
+                    <Empty description="Không có gian hàng đích nào." />
+                ) : (
+                    <Checkbox.Group value={bulkCloneShopIds} onChange={(v) => setBulkCloneShopIds(v as number[])}>
+                        <Space direction="vertical">
+                            {accounts.map((a) => (
                                 <Checkbox key={a.id} value={a.id}>
                                     <Space size={6}>
                                         <ChannelLogo provider={a.provider} size={16} />
