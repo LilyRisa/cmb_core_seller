@@ -3,6 +3,7 @@
 namespace Tests\Feature\Orders;
 
 use CMBcoreSeller\Models\User;
+use CMBcoreSeller\Modules\Customers\Support\CustomerPhoneNormalizer;
 use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Tenancy\Enums\Role;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
@@ -34,11 +35,17 @@ class OrderLookupDuplicateByPhoneTest extends TestCase
 
     private function makeOrder(array $attrs, ?int $tenantId = null): Order
     {
-        return Order::withoutGlobalScope(TenantScope::class)->create(array_merge([
+        $merged = array_merge([
             'tenant_id' => $tenantId ?? $this->tenant->getKey(), 'source' => 'manual', 'customer_id' => null,
             'raw_status' => 'X', 'currency' => 'VND', 'grand_total' => 100000, 'item_total' => 100000,
             'tags' => [], 'shipping_address' => [],
-        ], $attrs));
+        ], $attrs);
+        // Test tạo Order trực tiếp (bỏ qua ManualOrderService) ⇒ phải tự set hash để query mới (design
+        // 2026-07-14) tìm thấy — KHÔNG đổi hành vi test, chỉ bù phần ManualOrderService lẽ ra tự làm.
+        $merged['buyer_phone_hash'] = CustomerPhoneNormalizer::normalizeAndHash($merged['buyer_phone'] ?? null);
+        $merged['recipient_phone_hash'] = CustomerPhoneNormalizer::normalizeAndHash($merged['shipping_address']['phone'] ?? null);
+
+        return Order::withoutGlobalScope(TenantScope::class)->create($merged);
     }
 
     public function test_matches_by_buyer_phone_without_customer_link(): void

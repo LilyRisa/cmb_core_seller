@@ -38,33 +38,22 @@ class OrderLookupService implements OrderLookupContract
 
     public function recentManualByPhone(int $tenantId, string $rawPhone, int $limit = 20): array
     {
-        $target = CustomerPhoneNormalizer::normalize($rawPhone);
-        if ($target === null) {
+        $hash = CustomerPhoneNormalizer::normalizeAndHash($rawPhone);
+        if ($hash === null) {
             return [];
         }
 
-        // Đơn thủ công không nhiều (theo tenant) — nạp hết rồi so khớp SĐT đã chuẩn hoá trong PHP, dùng
-        // đúng 1 nguồn chuẩn hoá (CustomerPhoneNormalizer) cho cả buyer_phone lẫn shipping_address.phone,
-        // tránh lệch logic nếu viết lại bằng SQL riêng.
+        // Design 2026-07-14 — query bằng hash (index), thay load-hết-rồi-so-khớp-PHP (O(N) cũ).
         return Order::withoutGlobalScope(TenantScope::class)
             ->where('tenant_id', $tenantId)
             ->where('source', 'manual')
             ->whereNull('deleted_at')
+            ->where(fn ($q) => $q->where('buyer_phone_hash', $hash)->orWhere('recipient_phone_hash', $hash))
             ->with('items:id,order_id,name,quantity')
             ->orderByDesc('created_at')->orderByDesc('id')
+            ->limit(max(1, $limit))
             ->get()
-            ->filter(function (Order $o) use ($target) {
-                $buyerPhone = CustomerPhoneNormalizer::normalize($o->buyer_phone);
-                if ($buyerPhone === $target) {
-                    return true;
-                }
-                $recipientPhone = CustomerPhoneNormalizer::normalize($o->shipping_address['phone'] ?? null);
-
-                return $recipientPhone === $target;
-            })
-            ->take(max(1, $limit))
             ->map(fn (Order $o) => OrderSummary::fromModel($o))
-            ->values()
             ->all();
     }
 }
