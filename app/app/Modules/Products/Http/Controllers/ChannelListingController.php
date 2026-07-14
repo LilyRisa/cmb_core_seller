@@ -209,4 +209,21 @@ class ChannelListingController extends Controller
 
         return response()->json(['data' => $svc->cloneToShops($id, $data['channel_account_ids'])], 201);
     }
+
+    /**
+     * POST /api/v1/channel-listings/bulk-clone-to-shops — sao chép NHIỀU sản phẩm "đã có trên sàn" sang
+     * nhiều shop cùng lúc (SPEC 2026-07-14). Mỗi channel_listing_id đại diện 1 sản phẩm (giống clone đơn).
+     */
+    public function bulkCloneToShops(Request $request, MarketplaceCloneService $svc): JsonResponse
+    {
+        abort_unless($request->user()?->can('products.manage'), 403, 'Bạn không có quyền sao chép sản phẩm.');
+        $data = $request->validate([
+            'channel_listing_ids' => ['required', 'array', 'min:1', 'max:50'],
+            'channel_listing_ids.*' => ['integer'],
+            'channel_account_ids' => ['required', 'array', 'min:1', 'max:50'],
+            'channel_account_ids.*' => ['integer'],
+        ]);
+
+        return response()->json(['data' => $svc->bulkCloneToShops($data['channel_listing_ids'], $data['channel_account_ids'])], 201);
+    }
 }

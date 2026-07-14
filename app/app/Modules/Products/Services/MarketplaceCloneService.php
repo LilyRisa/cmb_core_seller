@@ -75,6 +75,28 @@ final class MarketplaceCloneService
         });
     }
 
+    /**
+     * Sao chép NHIỀU sản phẩm cùng lúc (SPEC 2026-07-14) — mỗi `channel_listing_id` đại diện 1 sản phẩm,
+     * xử lý ĐỘC LẬP: lỗi 1 sản phẩm (token hết hạn, sản phẩm bị gỡ...) không chặn các sản phẩm còn lại.
+     *
+     * @param  int[]  $channelListingIds
+     * @param  int[]  $targetShopIds
+     * @return list<array{channel_listing_id:int, ok:bool, results?:array, error?:string}>
+     */
+    public function bulkCloneToShops(array $channelListingIds, array $targetShopIds): array
+    {
+        $out = [];
+        foreach (array_unique(array_map('intval', $channelListingIds)) as $id) {
+            try {
+                $out[] = ['channel_listing_id' => $id, 'ok' => true, 'results' => $this->cloneToShops($id, $targetShopIds)];
+            } catch (\Throwable $e) {
+                $out[] = ['channel_listing_id' => $id, 'ok' => false, 'error' => $e->getMessage()];
+            }
+        }
+
+        return $out;
+    }
+
     /** Master product cho listing: theo SKU mapping nếu có, ngược lại tạo mới từ detail. */
     private function resolveOrCreateProduct(ChannelListing $listing, ListingDetailDTO $detail): Product
     {

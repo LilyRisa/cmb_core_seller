@@ -262,6 +262,7 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::get('channel-listings/{id}/marketplace-detail', [ChannelListingController::class, 'marketplaceDetail'])->whereNumber('id')->name('channel-listings.marketplace-detail');
             Route::put('channel-listings/{id}/marketplace', [ChannelListingController::class, 'marketplaceUpdate'])->whereNumber('id')->name('channel-listings.marketplace-update');
             Route::post('channel-listings/{id}/clone-to-shops', [ChannelListingController::class, 'cloneToShops'])->whereNumber('id')->name('channel-listings.clone-to-shops');
+            Route::post('channel-listings/bulk-clone-to-shops', [ChannelListingController::class, 'bulkCloneToShops'])->name('channel-listings.bulk-clone-to-shops'); // SPEC 2026-07-14
             Route::post('channel-listings/{id}/ai-description', [ChannelListingController::class, 'aiDescription'])->whereNumber('id')->name('channel-listings.ai-description');
 
             // Chiến dịch giảm giá nhiều SKU (Shopee/Lazada/TikTok). Route tĩnh trước {id}.
