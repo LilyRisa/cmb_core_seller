@@ -17,7 +17,11 @@ import '../../css/download-app.css';
 
 // Link tải bản test hiện tại. Khi lên store/CDN chính thức, đổi tại đây.
 const APK_URL =
-    'https://expo.dev/artifacts/eas/5rpQdo_sCGv-hHCBy2XVNlYpPb831WCHJMp5ZqVd5Uk.apk';
+    'https://expo.dev/artifacts/eas/Tp4Y0e8E_alktrbfBgHUaLbNm0VyGhAeOTc4Uj9jjbk.apk';
+
+// Google Play chính thức đã có — QR sinh từ URL này (public/images/playstore-qr.svg, xem BarcodeRenderer).
+const PLAY_STORE_URL =
+    'https://play.google.com/store/apps/details?id=com.cmbcore.seller';
 
 // CSS custom properties định nghĩa bởi .dl-shell — khai lại ở đây vì không còn wrapper dl-shell
 const DL_VARS = {
@@ -190,7 +194,7 @@ export function DownloadAppPage() {
                 </div>
             </section>
 
-            {/* ---- Coming Soon stores ---- */}
+            {/* ---- Google Play (chính thức) + App Store (sắp ra mắt) ---- */}
             <section>
                 <div className="container">
                     <div style={{
@@ -208,11 +212,36 @@ export function DownloadAppPage() {
                         }} />
                         {/* color:'#fff' bắt buộc vì .cmb-public h2{color:var(--text)} ghi đè màu kế thừa từ thẻ cha */}
                         <h2 style={{ fontSize: 'clamp(22px, 3vw, 28px)', fontWeight: 800, marginBottom: 8, position: 'relative', color: '#fff' }}>
-                            Sắp có mặt trên App Store &amp; Google Play
+                            Đã có mặt trên Google Play
                         </h2>
                         <p style={{ color: '#aab8d6', fontSize: 14.5, margin: '0 0 26px', position: 'relative' }}>
-                            Chúng tôi đang hoàn tất đưa ứng dụng lên các kho ứng dụng chính thức.
+                            Quét mã QR hoặc bấm nút bên dưới để tải qua Google Play — App Store đang chờ duyệt.
                         </p>
+                        <div style={{
+                            display: 'flex', flexWrap: 'wrap', gap: 28, alignItems: 'center', justifyContent: 'center',
+                            position: 'relative', marginBottom: 26,
+                        }}>
+                            <img
+                                src="/images/playstore-qr.svg"
+                                alt="Mã QR tải CMBcoreSeller trên Google Play"
+                                width={148}
+                                height={148}
+                                style={{ borderRadius: 14, background: '#fff', padding: 10 }}
+                            />
+                            <a
+                                className="dl-badge"
+                                href={PLAY_STORE_URL}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{ textDecoration: 'none', cursor: 'pointer' }}
+                            >
+                                <AndroidFilled className="ico" />
+                                <span>
+                                    <span className="t1">Tải về từ</span>
+                                    <span className="t2">Google Play</span>
+                                </span>
+                            </a>
+                        </div>
                         <div className="dl-badges">
                             <div className="dl-badge">
                                 <span className="soon">Sắp ra mắt</span>
@@ -220,14 +249,6 @@ export function DownloadAppPage() {
                                 <span>
                                     <span className="t1">Tải về từ</span>
                                     <span className="t2">App Store</span>
-                                </span>
-                            </div>
-                            <div className="dl-badge">
-                                <span className="soon">Sắp ra mắt</span>
-                                <AndroidFilled className="ico" />
-                                <span>
-                                    <span className="t1">Tải về từ</span>
-                                    <span className="t2">Google Play</span>
                                 </span>
                             </div>
                         </div>
