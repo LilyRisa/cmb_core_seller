@@ -13,6 +13,13 @@ use Illuminate\Support\Facades\Log;
  * Webhook receive path: verify signature -> store the raw event -> 200 fast ->
  * process async. Never calls the marketplace API here. Dedupes by
  * (provider, event_type, external_id|notification_id). See docs/03-domain/order-sync-pipeline.md §2.
+ *
+ * Since 2026-07-14: dedupe is enforced atomically at the DB layer via a unique index on
+ * (provider, event_type, external_id, external_shop_id, dedupe_status_key) — see migration
+ * `2026_07_14_100001_add_dedupe_unique_to_webhook_events_table`. Limitation: standard SQL unique-index
+ * NULL semantics mean rows where external_id or external_shop_id is NULL are NOT covered by that
+ * constraint (two NULLs never collide), so those events still rely solely on the `exists()` fast-path
+ * below for dedup, same as before — a narrow race window remains for that subset only.
  */
 class WebhookIngestService
 {

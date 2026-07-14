@@ -41,6 +41,7 @@ Cả hai đổ về cùng một chỗ:
 - Route `/webhook/{provider}` (không CSRF, không auth). Middleware `verify-webhook:{provider}` gọi `XWebhookVerifier` của connector → sai chữ ký ⇒ `401`, **không** ghi gì.
 - **Trả `200` trong < ~3s** dù xử lý chưa xong → chỉ ghi `webhook_events` rồi dispatch job. Không gọi API sàn trong request webhook.
 - Chống replay: dedupe theo `(provider, external_id, event_type[, timestamp])`; nếu đã có `processed` ⇒ bỏ qua. Bỏ event quá cũ (ngoài cửa sổ chấp nhận).
+- *(Từ 2026-07-14)* dedupe được chốt atomic ở tầng DB bằng unique index `webhook_events(provider, event_type, external_id, external_shop_id, dedupe_status_key)` (bên cạnh fast-path `exists()` cũ, race hiếm giữa 2 request vẫn bị unique constraint chặn — xem `WebhookIngestService`). **Giới hạn**: unique index chuẩn SQL coi NULL khác NULL, nên các event có `external_id` và/hoặc `external_shop_id` = NULL (tuỳ provider) KHÔNG được constraint này bảo vệ — vẫn chỉ dựa vào `exists()` như trước, cho riêng tập con đó.
 - Mọi event lưu nguyên `payload jsonb` để có thể tái xử lý (re-drive) khi sửa bug mapping.
 - Loại event tối thiểu cần xử lý: `order_status_update`, `order_create`, `order_cancel`, (sau) `return_status_update`, `settlement_available`, `product_status_update`, và **`data_deletion`/`shop_deauthorized`** (xem `08-security-and-privacy.md`).
 

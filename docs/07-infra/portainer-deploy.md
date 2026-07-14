@@ -1,6 +1,6 @@
 # Triển khai trên Portainer (prod) — Runbook
 
-**Status:** Living document · **Cập nhật:** 2026-05-15
+**Status:** Living document · **Cập nhật:** 2026-07-14
 
 > Áp dụng cho stack **`docker-compose.prod.yml`** chạy qua **Portainer Git stack**. Đọc kèm: [`environments-and-docker.md`](environments-and-docker.md) (môi trường + Docker), [`queues-and-scheduler.md`](queues-and-scheduler.md) (queue/Horizon/scheduler), [`observability-and-backup.md`](observability-and-backup.md).
 
@@ -17,6 +17,30 @@
 4. Kiểm `cmb-worker` & `cmb-scheduler` đang **running/healthy** trong Portainer.
 
 > **`RUN_MIGRATIONS=false` ở prod là cố ý** (tránh nhiều replica đua nhau migrate) ⇒ app **không tự migrate**. Quên bước 2 ⇒ app lỗi `column/table not found` (mỗi đợt feature thường kèm migration mới).
+
+## 0.1 Migration đặc biệt cần chạy theo thứ tự (kiểm tra TRƯỚC khi `migrate --force`)
+
+Không phải lúc nào `php artisan migrate --force` một phát là xong. Một số release **chia migration của cùng 1 bảng thành nhiều giai đoạn** kèm lệnh backfill thủ công chạy **giữa** các giai đoạn (vd: giai đoạn 1 chỉ thêm cột, giai đoạn 2 mới thêm constraint thật sau khi dữ liệu đã sạch) — chạy `migrate --force` gộp hết 1 lần sẽ bỏ lỡ bước backfill, hoặc khiến migration giai đoạn 2 ném lỗi giữa chừng. **Trước khi migrate mỗi đợt deploy**: lướt qua các file migration mới trong PR/release notes — nếu docblock nhắc "giai đoạn 1/2", "2 lần deploy", hoặc nhiều migration mới cùng đụng 1 bảng thì đừng chạy `migrate --force` một lượt; đọc kỹ docblock của từng migration trước.
+
+**Riêng release 2026-07-14 (manual-order phone-hash lookup + webhook-dedupe atomicity fix), chạy đúng theo thứ tự sau trong `cmb-app`:**
+
+```sh
+# 1. Chạy migration Orders (phone hash) + phase 1 Channels (dedupe_status_key) — an toàn, additive-only.
+php artisan migrate --force
+
+# 2. Backfill hash SĐT cho đơn thủ công cũ (1 lần, idempotent).
+php artisan orders:backfill-phone-hash
+
+# 3. Dọn trùng + backfill khoá dedupe webhook_events — chạy LẠI cho tới khi thấy "Đã xoá 0 row trùng thật".
+php artisan webhooks:backfill-dedupe-key
+php artisan webhooks:backfill-dedupe-key   # chạy lần 2 xác nhận sạch (idempotent)
+
+# 4. CHỈ SAU KHI bước 3 xác nhận sạch — migrate lại để áp phase 2 (thêm unique constraint thật).
+php artisan migrate --force
+```
+
+- Nếu bước 4 ném `RuntimeException` nhắc "webhook_events còn row trùng" ⇒ bước 3 chưa chạy hoặc chưa dọn sạch bảng — chạy lại bước 3 rồi thử lại bước 4. Migration này an toàn để retry (không áp constraint nửa vời, tự kiểm tra rồi mới `Schema::table`).
+- Quên bước 2 (`orders:backfill-phone-hash`) không lỗi ngay — nhưng cảnh báo SĐT trùng sẽ **âm thầm không bao phủ** các đơn thủ công tạo trước ngày deploy cho tới khi backfill chạy.
 
 ## 1. Webhook chạy qua đâu — và vì sao "im"
 
@@ -129,6 +153,7 @@ php artisan tinker          # ví dụ debug bên dưới
 | Polling đơn không chạy, token không tự refresh | `cmb-scheduler` không chạy | Bật lại service `scheduler`; xem log |
 | `cmb-minio` healthcheck đỏ / upload PDF lỗi | `AWS_*` env sai, bucket chưa tạo | Kiểm `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`; `minio-init` tạo bucket lúc start — xem log của nó |
 | `key:generate` log "generating one (dev only)" ở prod | Quên set `APP_KEY` | Set `APP_KEY` trong env Portainer → redeploy |
+| Migration ném `RuntimeException` "webhook_events còn row trùng theo khoá dedupe" | Chạy `migrate --force` áp thẳng phase 2 (unique constraint) mà chưa dọn trùng — xem §0.1 | Chạy `php artisan webhooks:backfill-dedupe-key` tới khi thấy "Đã xoá 0 row trùng thật" rồi `migrate --force` lại |
 | Toàn site `502` ngay sau redeploy (nội bộ `cmb-web` vẫn 200) | Redeploy tạo lại `cmb-web` với **IP mới**, nhưng container reverse proxy (NPM) không recreate → nginx vẫn cache **IP cũ** trong `proxy_pass` (resolve tên 1 lần lúc load config) | Tạm: `docker exec npm nginx -s reload`. Dứt điểm (đã làm): trong `/data/nginx/proxy_host/1.conf` của NPM dùng **resolver động** — `resolver 127.0.0.11 valid=10s ipv6=off;` + `set $upstream cmb_seller-web-1; proxy_pass http://$upstream:80;` (biến ⇒ nginx resolve mỗi request). ⚠️ Nếu sửa & **Save proxy host trong UI NPM**, file bị regenerate đè mất resolver → phải đặt lại (hoặc nhập ở ô "Custom Nginx Configuration") |
 
 > **Redis tự sửa AOF khi boot** (chống crash-loop sau host tắt bẩn): service `redis` chạy `redis-check-aof --fix` trước `redis-server` — xem `environments-and-docker.md`. Trên host nên set `vm.overcommit_memory=1` (đã set ở prod) để tránh OOM giết Redis giữa lúc ghi.
