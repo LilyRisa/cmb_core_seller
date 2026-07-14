@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
-import { Modal, Skeleton, Table, Typography, Empty } from 'antd';
+import { Modal, Skeleton, Table, Typography, Empty, Result } from 'antd';
 import { CarrierLogo } from '@/components/CarrierLogo';
+import { errorMessage } from '@/lib/api';
 import { useShippingQuoteAll, type QuoteAllItem } from '@/lib/fulfillment';
 
 const vnd = (n: number) => `${(n || 0).toLocaleString('vi-VN')} đ`;
@@ -28,6 +29,8 @@ export function ShippingQuoteModal({ open, onClose, recipient }: {
             title="Tra cứu cước vận chuyển (tham khảo)" width={640}>
             {quoteAll.isPending ? (
                 <Skeleton active paragraph={{ rows: 4 }} />
+            ) : quoteAll.isError ? (
+                <Result status="error" title="Không tra cứu được cước vận chuyển" subTitle={errorMessage(quoteAll.error)} />
             ) : rows.length === 0 ? (
                 <Empty description="Chưa có tài khoản ĐVVC nào hỗ trợ tính cước" />
             ) : (
