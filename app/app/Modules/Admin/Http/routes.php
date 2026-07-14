@@ -52,6 +52,12 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
         Route::get('tenants/{id}', [AdminTenantController::class, 'show'])->whereNumber('id')->name('admin.tenants.show');
         Route::get('tenants/{tid}/login-history', [AdminTenantController::class, 'loginHistory'])
             ->whereNumber('tid')->name('admin.tenants.login-history');
+        Route::get('tenants/{tid}/orders/daily-stats', [AdminTenantController::class, 'dailyOrderStats'])
+            ->whereNumber('tid')->name('admin.tenants.orders.daily-stats');
+        Route::get('tenants/{tid}/order-status-history', [AdminTenantController::class, 'orderStatusHistory'])
+            ->whereNumber('tid')->name('admin.tenants.order-status-history');
+        Route::get('tenants/{tid}/audit-logs', [AdminTenantController::class, 'auditLogs'])
+            ->whereNumber('tid')->name('admin.tenants.audit-logs');
 
         Route::delete('tenants/{tid}/channel-accounts/{caid}', [AdminTenantController::class, 'deleteChannelAccount'])
             ->whereNumber('tid')->whereNumber('caid')->name('admin.tenants.channel-accounts.destroy');

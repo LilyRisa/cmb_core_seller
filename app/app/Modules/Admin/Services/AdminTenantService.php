@@ -15,6 +15,7 @@ use CMBcoreSeller\Modules\Billing\Services\SubscriptionService;
 use CMBcoreSeller\Modules\Billing\Services\UsageService;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
 use CMBcoreSeller\Modules\Channels\Services\ChannelConnectionService;
+use CMBcoreSeller\Modules\Orders\Models\Order;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
@@ -501,5 +502,33 @@ class AdminTenantService
         if (mb_strlen(trim($reason)) < 10) {
             throw ValidationException::withMessages(['reason' => 'Lý do phải có tối thiểu 10 ký tự.']);
         }
+    }
+
+    /**
+     * Đếm đơn theo ngày (mọi source), N ngày gần nhất. `placed_at` ưu tiên, fallback `created_at`
+     * nếu null (đơn chưa set placed_at).
+     *
+     * @return list<array{date:string, count:int, grand_total_sum:int}>
+     */
+    public function dailyOrderCounts(int $tenantId, int $days = 30): array
+    {
+        $since = now()->subDays(max(1, min(365, $days)))->startOfDay();
+
+        $rows = Order::query()->withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenantId)
+            ->whereNull('deleted_at')
+            ->selectRaw('DATE(COALESCE(placed_at, created_at)) as d, COUNT(*) as cnt, SUM(grand_total) as total')
+            ->where(function ($q) use ($since) {
+                $q->where('placed_at', '>=', $since)->orWhere(function ($q2) use ($since) {
+                    $q2->whereNull('placed_at')->where('created_at', '>=', $since);
+                });
+            })
+            ->groupBy('d')->orderByDesc('d')->get();
+
+        return $rows->map(fn ($r) => [
+            'date' => (string) $r->getAttribute('d'),
+            'count' => (int) $r->getAttribute('cnt'),
+            'grand_total_sum' => (int) $r->getAttribute('total'),
+        ])->all();
     }
 }

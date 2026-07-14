@@ -14,7 +14,10 @@ use CMBcoreSeller\Modules\Billing\Services\OverQuotaCheckService;
 use CMBcoreSeller\Modules\Billing\Services\SubscriptionService;
 use CMBcoreSeller\Modules\Billing\Services\UsageService;
 use CMBcoreSeller\Modules\Channels\Models\ChannelAccount;
+use CMBcoreSeller\Modules\Inventory\Models\Sku;
 use CMBcoreSeller\Modules\Marketing\Models\AdAccount;
+use CMBcoreSeller\Modules\Orders\Models\Order;
+use CMBcoreSeller\Modules\Orders\Models\OrderStatusHistory;
 use CMBcoreSeller\Modules\Tenancy\Models\AuditLog;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Models\TenantUser;
@@ -101,8 +104,11 @@ class AdminTenantController extends Controller
             ->where('tenant_id', $tenant->getKey())
             ->with('voucher:id,code,name,kind')
             ->orderByDesc('id')->limit(10)->get();
+        $skuCount = Sku::query()->withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenant->getKey())->count();
 
         return response()->json(['data' => array_merge($this->summary($tenant), [
+            'sku_count' => $skuCount,
             'channel_accounts' => $channels->map(fn (ChannelAccount $a) => [
                 'id' => $a->id, 'provider' => $a->provider, 'name' => $a->effectiveName(),
                 'shop_name' => $a->shop_name, 'display_name' => $a->display_name,
@@ -310,6 +316,70 @@ class AdminTenantController extends Controller
                 'user_id' => $e->user_id, 'name' => $e->user?->name, 'email' => $e->user?->email,
                 'ip_address' => $e->ip_address, 'user_agent' => $e->user_agent,
                 'logged_in_at' => $e->logged_in_at->toIso8601String(),
+            ])->all(),
+            'meta' => ['pagination' => [
+                'page' => $page->currentPage(), 'per_page' => $page->perPage(),
+                'total' => $page->total(), 'total_pages' => $page->lastPage(),
+            ]],
+        ]);
+    }
+
+    /** GET /api/v1/admin/tenants/{tid}/orders/daily-stats */
+    public function dailyOrderStats(Request $request, int $tid): JsonResponse
+    {
+        $tenant = Tenant::query()->findOrFail($tid);
+        $days = max(1, min(365, (int) $request->query('days', 30)));
+
+        return response()->json(['data' => $this->service->dailyOrderCounts($tenant->getKey(), $days)]);
+    }
+
+    /** GET /api/v1/admin/tenants/{tid}/order-status-history */
+    public function orderStatusHistory(Request $request, int $tid): JsonResponse
+    {
+        $tenant = Tenant::query()->findOrFail($tid);
+        $perPage = max(1, min(100, (int) $request->query('per_page', 50)));
+
+        $page = OrderStatusHistory::query()
+            ->withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenant->getKey())
+            ->orderByDesc('changed_at')
+            ->paginate($perPage);
+
+        // Nạp order_number theo lô — bypass TenantScope (admin không có tenant context hiện tại).
+        $orderIds = collect($page->items())->pluck('order_id')->unique()->all();
+        $orderNumbers = Order::query()->withoutGlobalScope(TenantScope::class)
+            ->whereIn('id', $orderIds)->pluck('order_number', 'id');
+
+        return response()->json([
+            'data' => collect($page->items())->map(fn (OrderStatusHistory $h) => [
+                'order_id' => $h->order_id, 'order_number' => $orderNumbers[$h->order_id] ?? null,
+                'from_status' => $h->from_status, 'to_status' => $h->to_status,
+                'raw_status' => $h->raw_status, 'source' => $h->source,
+                'changed_at' => optional($h->changed_at)->toIso8601String(),
+            ])->all(),
+            'meta' => ['pagination' => [
+                'page' => $page->currentPage(), 'per_page' => $page->perPage(),
+                'total' => $page->total(), 'total_pages' => $page->lastPage(),
+            ]],
+        ]);
+    }
+
+    /** GET /api/v1/admin/tenants/{tid}/audit-logs — TOÀN BỘ log (không lọc admin.%), phân trang. */
+    public function auditLogs(Request $request, int $tid): JsonResponse
+    {
+        $tenant = Tenant::query()->findOrFail($tid);
+        $perPage = max(1, min(100, (int) $request->query('per_page', 50)));
+
+        $page = AuditLog::query()->withoutGlobalScope(TenantScope::class)
+            ->where('tenant_id', $tenant->getKey())
+            ->orderByDesc('id')->paginate($perPage);
+
+        return response()->json([
+            'data' => collect($page->items())->map(fn (AuditLog $a) => [
+                'id' => $a->id, 'action' => $a->action, 'user_id' => $a->user_id,
+                'admin_user_id' => $a->admin_user_id,
+                'changes' => $a->changes, 'ip' => $a->ip,
+                'created_at' => optional($a->created_at)->toIso8601String(),
             ])->all(),
             'meta' => ['pagination' => [
                 'page' => $page->currentPage(), 'per_page' => $page->perPage(),
