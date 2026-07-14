@@ -2,6 +2,7 @@
 
 namespace CMBcoreSeller\Modules\Orders;
 
+use CMBcoreSeller\Modules\Orders\Console\Commands\BackfillManualOrderPhoneHash;
 use CMBcoreSeller\Modules\Orders\Console\RemapOrderStatus;
 use CMBcoreSeller\Modules\Orders\Contracts\ManualOrderDailyStats;
 use CMBcoreSeller\Modules\Orders\Contracts\OrderLookupContract;
@@ -42,7 +43,7 @@ class OrdersServiceProvider extends ServiceProvider
         }
 
         if ($this->app->runningInConsole()) {
-            $this->commands([RemapOrderStatus::class]);
+            $this->commands([RemapOrderStatus::class, BackfillManualOrderPhoneHash::class]);
         }
     }
 }
