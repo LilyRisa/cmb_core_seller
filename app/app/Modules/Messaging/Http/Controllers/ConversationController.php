@@ -5,6 +5,7 @@ namespace CMBcoreSeller\Modules\Messaging\Http\Controllers;
 use CMBcoreSeller\Http\Controllers\Controller;
 use CMBcoreSeller\Modules\Messaging\Http\Resources\ConversationResource;
 use CMBcoreSeller\Modules\Messaging\Http\Resources\MessageResource;
+use CMBcoreSeller\Modules\Messaging\Jobs\ReportOrderConversionToMeta;
 use CMBcoreSeller\Modules\Messaging\Models\Conversation;
 use CMBcoreSeller\Modules\Messaging\Models\Message;
 use CMBcoreSeller\Modules\Messaging\Services\OrderConfirmationNotifier;
@@ -343,6 +344,8 @@ class ConversationController extends Controller
         // SPEC 0031 — best-effort, không bao giờ làm hỏng link nếu gửi lỗi (notifier tự nuốt lỗi).
         if ($request->boolean('notify_customer')) {
             app(OrderConfirmationNotifier::class)->notify($conv->fresh(), $order);
+            // Design 2026-07-14 — best-effort, hội thoại/kênh không đủ điều kiện thì job tự bỏ qua.
+            ReportOrderConversionToMeta::dispatch($conv->id, $order->id);
         }
 
         return response()->json(['data' => (new ConversationResource($conv->fresh()))->toArray($request)]);
