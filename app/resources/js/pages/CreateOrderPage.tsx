@@ -5,7 +5,7 @@ import {
     Popover, Radio, Row, Segmented, Space, Switch, Tabs, Tag, Tooltip, Typography, Upload,
 } from 'antd';
 import {
-    ArrowLeftOutlined, BarcodeOutlined, CheckCircleFilled, CloseCircleFilled,
+    ArrowLeftOutlined, BarcodeOutlined, CalculatorOutlined, CheckCircleFilled, CloseCircleFilled,
     EnvironmentOutlined, FacebookFilled, LockOutlined, MoreOutlined, PaperClipOutlined,
     PrinterOutlined, SaveOutlined, SearchOutlined, UpOutlined, UserOutlined, WalletOutlined, WarningOutlined,
 } from '@ant-design/icons';
@@ -15,6 +15,7 @@ import dayjs from 'dayjs';
 import { PageHeader } from '@/components/PageHeader';
 import { OrderItemsEditor, PickerTrigger, type OrderLineInput } from '@/components/OrderItemsEditor';
 import { AddressPicker, type PickedAddress } from '@/components/AddressPicker';
+import { ShippingQuoteModal } from '@/components/ShippingQuoteModal';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import { errorMessage } from '@/lib/api';
 import { useCreateManualOrder, useUpdateManualOrder, useUploadImage, useWarehouses, type Sku } from '@/lib/inventory';
@@ -654,6 +655,14 @@ export function CreateOrderForm({ active = true, onSaved, editOrderId, onUpdated
         />
     );
 
+    // SPEC 2026-07-13 — điều kiện "đủ thông tin" để hiện nút tra cứu cước: tỉnh + (quận/huyện HOẶC
+    // phường/xã), tái dùng đúng logic đang validate ô địa chỉ picker (status warning) bên dưới.
+    const recipientAddressReady = useMemo(() => {
+        const old = shipAddress.format === 'old';
+        return !!shipAddress.province && (!old || !!shipAddress.district || !!shipAddress.district_code) && (!!shipAddress.ward || !!shipAddress.ward_code);
+    }, [shipAddress]);
+    const [quoteModalOpen, setQuoteModalOpen] = useState(false);
+
     // Khối địa chỉ nhận (autocomplete + picker Tỉnh/Quận/Phường) — dùng chung cho cả card "Nhận hàng"
     // (full) lẫn card gộp "Khách hàng / Nhận hàng" (compact, khung chat).
     const addressBlock = (
@@ -857,6 +866,10 @@ export function CreateOrderForm({ active = true, onSaved, editOrderId, onUpdated
                                         <PayRow label="Số tiền thu khi giao thất bại" name="failed_collect_amount" max={50000000} step={1000} />
                                     )}
                                     <PayRow label="Phí vận chuyển" name="shipping_fee" disabled={!!summary?.free_shipping} />
+                                    {recipientAddressReady && (
+                                        <Button size="small" type="link" icon={<CalculatorOutlined />} style={{ padding: '0 0 8px' }}
+                                            onClick={() => setQuoteModalOpen(true)}>Tra cứu cước vận chuyển</Button>
+                                    )}
                                     <PayRow label="Giảm giá đơn hàng" name="order_discount" />
                                     {walletBalance > 0 && (
                                         <div style={{ border: '1px solid #91caff', background: '#e6f4ff', borderRadius: 6, padding: '8px 10px', margin: '6px 0' }}>
@@ -1087,6 +1100,9 @@ export function CreateOrderForm({ active = true, onSaved, editOrderId, onUpdated
             </div>
 
             <OrderDetailModal orderId={dupOrderModalId} open={dupOrderModalId != null} onClose={() => setDupOrderModalId(null)} />
+            <ShippingQuoteModal open={quoteModalOpen} onClose={() => setQuoteModalOpen(false)} recipient={{
+                province: shipAddress.province, district: shipAddress.district, ward: shipAddress.ward, address: (form.getFieldValue('recipient_address') as string) || undefined,
+            }} />
 
             {/* ---------- Scoped styles ---------- */}
             <style>{`
