@@ -19,7 +19,7 @@ import { ShippingQuoteModal } from '@/components/ShippingQuoteModal';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import { errorMessage } from '@/lib/api';
 import { useCreateManualOrder, useUpdateManualOrder, useUploadImage, useWarehouses, type Sku } from '@/lib/inventory';
-import { useOrder, useOrderLookupByCustomer, type OrderDuplicateLookup } from '@/lib/orders';
+import { useOrder, useOrderLookupByPhone, type OrderDuplicateLookup } from '@/lib/orders';
 import { OrderDetailModal } from '@/components/OrderDetailModal';
 import { useTenant, useTenantMembers } from '@/lib/tenant';
 import { useAuth } from '@/lib/auth';
@@ -185,9 +185,10 @@ export function CreateOrderForm({ active = true, onSaved, editOrderId, onUpdated
     const customerData: CustomerLookupResult | undefined = lookup.data;
     const oldAddresses = customerData?.addresses ?? [];
 
-    // SĐT đã có đơn cũ (mọi trạng thái, kể cả đơn hoàn) — cảnh báo dưới card Khách hàng (SPEC 2026-07-13).
-    // Sửa đơn ⇒ loại chính đơn đang sửa khỏi kết quả (exclude_order_id) để không tự cảnh báo về chính nó.
-    const dupLookup = useOrderLookupByCustomer(customerData?.customer?.id, isEdit && editId ? editId : undefined);
+    // SĐT đã có đơn THỦ CÔNG cũ (mọi trạng thái, kể cả đơn hoàn) — cảnh báo dưới card Khách hàng
+    // (SPEC 2026-07-13 v2). Khớp trực tiếp theo SĐT (không qua customer_id — nhiều đơn thủ công chưa
+    // từng gắn Customer vì chỉ điền "Nhận hàng"). Sửa đơn ⇒ loại chính đơn đang sửa (exclude_order_id).
+    const dupLookup = useOrderLookupByPhone(phone, isEdit && editId ? editId : undefined);
     const [dupOrderModalId, setDupOrderModalId] = useState<number | null>(null);
 
     // ---- effects ----

@@ -22,4 +22,15 @@ interface OrderLookupContract
 
     /** 1 đơn theo id — để resolve customer_id từ đơn đã gắn hội thoại. */
     public function find(int $tenantId, int $orderId): ?OrderSummary;
+
+    /**
+     * Đơn THỦ CÔNG (source='manual') đã tạo bằng SĐT này (mới nhất trước) — dùng để cảnh báo
+     * SĐT trùng ở form tạo đơn thủ công (SPEC 2026-07-13 v2). Khớp theo SĐT chuẩn hoá (buyer_phone
+     * hoặc shipping_address.phone), KHÔNG qua customer_id — vì đơn thủ công chỉ tạo/gắn Customer khi
+     * user điền đủ "Khách hàng" (SPEC 0002 §4.2); nhiều đơn chỉ điền "Nhận hàng" nên buyer_phone rỗng.
+     * Không liên quan đơn sàn (TikTok/Shopee/Lazada) — sàn không lộ SĐT thật hoặc đã có luồng riêng.
+     *
+     * @return list<OrderSummary>
+     */
+    public function recentManualByPhone(int $tenantId, string $rawPhone, int $limit = 20): array;
 }

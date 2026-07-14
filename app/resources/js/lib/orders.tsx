@@ -334,16 +334,22 @@ export function useOrder(id: number | string | undefined) {
 export interface OrderDuplicateSummary { id: number; number: string; status_code: string; status: string; total: number; date: string | null; items: string | null }
 export interface OrderDuplicateLookup { latest_order: OrderDuplicateSummary | null; latest_returned_order: OrderDuplicateSummary | null }
 
-/** SĐT đã có đơn cũ (mọi trạng thái) — cảnh báo ở form tạo đơn thủ công (SPEC 2026-07-13). Chỉ gọi khi đã có customer_id (từ useCustomerLookup). */
-export function useOrderLookupByCustomer(customerId: number | undefined, excludeOrderId?: number) {
+/**
+ * SĐT đã có đơn THỦ CÔNG cũ (mọi trạng thái) — cảnh báo ở form tạo đơn thủ công (SPEC 2026-07-13 v2).
+ * Khớp trực tiếp theo SĐT chuẩn hoá (KHÔNG qua customer_id — nhiều đơn thủ công chưa từng gắn Customer
+ * vì chỉ điền "Nhận hàng"). Chỉ tìm trong đơn thủ công, không liên quan đơn sàn.
+ */
+export function useOrderLookupByPhone(phone: string | undefined | null, excludeOrderId?: number) {
     const api = useScopedApi();
     const tenantId = useCurrentTenantId();
+    const normalized = (phone ?? '').replace(/[^\d+]/g, '');
+    const enough = normalized.length >= 9;
     return useQuery({
-        queryKey: ['order-lookup-by-customer', tenantId, customerId, excludeOrderId],
-        enabled: api != null && customerId != null,
+        queryKey: ['order-lookup-duplicate-by-phone', tenantId, normalized, excludeOrderId],
+        enabled: api != null && enough,
         queryFn: async () => {
-            const { data } = await api!.get<{ data: OrderDuplicateLookup }>('/orders/lookup-by-customer', {
-                params: { customer_id: customerId, exclude_order_id: excludeOrderId },
+            const { data } = await api!.get<{ data: OrderDuplicateLookup }>('/orders/lookup-duplicate-by-phone', {
+                params: { phone: normalized, exclude_order_id: excludeOrderId },
             });
             return data.data;
         },

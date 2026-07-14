@@ -302,20 +302,21 @@ class OrderController extends Controller
     }
 
     /**
-     * GET /api/v1/orders/lookup-by-customer — đơn gần nhất + đơn hoàn gần nhất của 1 khách. Dùng ở form
-     * tạo đơn thủ công (SPEC 2026-07-13) để cảnh báo SĐT đã có đơn cũ; `exclude_order_id` để loại chính
-     * đơn đang sửa. Tái dùng OrderLookupContract có sẵn (KHÔNG đụng module Customers).
+     * GET /api/v1/orders/lookup-duplicate-by-phone — đơn THỦ CÔNG gần nhất + đơn hoàn gần nhất theo SĐT
+     * (SPEC 2026-07-13 v2). Dùng ở form tạo đơn thủ công để cảnh báo SĐT đã có đơn cũ; khớp trực tiếp
+     * theo SĐT chuẩn hoá (KHÔNG qua customer_id — nhiều đơn thủ công chưa từng gắn Customer). Chỉ tìm
+     * trong đơn thủ công, không liên quan đơn sàn. `exclude_order_id` để loại chính đơn đang sửa.
      */
-    public function lookupByCustomer(Request $request, CurrentTenant $tenant, OrderLookupContract $lookup): JsonResponse
+    public function lookupDuplicateByPhone(Request $request, CurrentTenant $tenant, OrderLookupContract $lookup): JsonResponse
     {
         $this->authorizeView($request);
 
         $data = $request->validate([
-            'customer_id' => ['required', 'integer', 'min:1'],
+            'phone' => ['required', 'string', 'min:3', 'max:32'],
             'exclude_order_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
         ]);
 
-        $recent = $lookup->recentByCustomer((int) $tenant->id(), (int) $data['customer_id'], limit: 20);
+        $recent = $lookup->recentManualByPhone((int) $tenant->id(), (string) $data['phone'], limit: 20);
         if (! empty($data['exclude_order_id'])) {
             $excludeId = (int) $data['exclude_order_id'];
             $recent = array_values(array_filter($recent, fn (OrderSummary $o) => $o->id !== $excludeId));
