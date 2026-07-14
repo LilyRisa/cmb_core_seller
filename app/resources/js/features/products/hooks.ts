@@ -5,6 +5,7 @@ import { useCurrentTenantId } from '@/lib/tenant';
 import {
     aiSuggestDescription,
     aiSuggestMarketplaceDescription,
+    bulkCloneChannelListingsToShops,
     bulkPush,
     cloneChannelListingToShops,
     cloneListing,
@@ -23,6 +24,7 @@ import {
     pushListing,
     updateListing,
     updateMarketplaceListing,
+    type BulkCloneResult,
     type ListingDraft,
     type MarketplaceEditPayload,
     type PushBatch,
@@ -240,6 +242,19 @@ export function useCloneChannelListingToShops() {
     return useMutation({
         mutationFn: (vars: { id: number; channelAccountIds: number[] }) =>
             cloneChannelListingToShops(client!, vars.id, vars.channelAccountIds),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['products', 'master', tenantId] });
+        },
+    });
+}
+
+export function useBulkCloneChannelListingsToShops() {
+    const client = useScopedApi();
+    const qc = useQueryClient();
+    const tenantId = useTenantId();
+    return useMutation({
+        mutationFn: (vars: { channelListingIds: number[]; channelAccountIds: number[] }): Promise<BulkCloneResult[]> =>
+            bulkCloneChannelListingsToShops(client!, vars.channelListingIds, vars.channelAccountIds),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['products', 'master', tenantId] });
         },

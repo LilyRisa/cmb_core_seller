@@ -274,6 +274,20 @@ export async function cloneChannelListingToShops(
     return data.data;
 }
 
+export interface BulkCloneResult { channel_listing_id: number; ok: boolean; results?: CloneToShopsResult[]; error?: string }
+
+export async function bulkCloneChannelListingsToShops(
+    client: AxiosInstance,
+    channelListingIds: number[],
+    channelAccountIds: number[],
+): Promise<BulkCloneResult[]> {
+    const { data } = await client.post<{ data: BulkCloneResult[] }>('/channel-listings/bulk-clone-to-shops', {
+        channel_listing_ids: channelListingIds,
+        channel_account_ids: channelAccountIds,
+    });
+    return data.data;
+}
+
 export async function getMarketplaceDetail(client: AxiosInstance, id: number): Promise<MarketplaceListingDetail> {
     const { data } = await client.get<{ data: MarketplaceListingDetail }>(`/channel-listings/${id}/marketplace-detail`);
     return data.data;
