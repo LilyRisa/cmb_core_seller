@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, Input, Radio, Space, Table, Tag, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { CheckCircleOutlined, ExclamationCircleOutlined, LockOutlined, SearchOutlined, WarningOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { useAdminTenants, type AdminTenantSummary } from '@admin/lib/admin';
-import { AdminTenantDrawer } from './AdminTenantDrawer';
 import { formatDate, formatDateShort } from '@/lib/format';
 
 type FilterKind = 'all' | 'over_quota' | 'suspended';
@@ -16,10 +16,10 @@ const KIND_OPTIONS: Array<{ value: FilterKind; label: string }> = [
 ];
 
 export function AdminTenantsPage() {
+    const navigate = useNavigate();
     const [q, setQ] = useState('');
     const [kind, setKind] = useState<FilterKind>('all');
     const [page, setPage] = useState(1);
-    const [openTenantId, setOpenTenantId] = useState<number | null>(null);
 
     const filters = useMemo(() => ({
         q: q.trim() || undefined,
@@ -131,7 +131,7 @@ export function AdminTenantsPage() {
                     columns={columns}
                     dataSource={data?.data ?? []}
                     loading={isLoading || isFetching}
-                    onRow={(r) => ({ onClick: () => setOpenTenantId(r.id), style: { cursor: 'pointer' } })}
+                    onRow={(r) => ({ onClick: () => navigate(`/admin/tenants/${r.id}`), style: { cursor: 'pointer' } })}
                     pagination={{
                         current: data?.meta.pagination.page ?? 1,
                         pageSize: data?.meta.pagination.per_page ?? 30,
@@ -142,8 +142,6 @@ export function AdminTenantsPage() {
                     size="middle"
                 />
             </Card>
-
-            <AdminTenantDrawer tenantId={openTenantId} onClose={() => setOpenTenantId(null)} />
         </div>
     );
 }
