@@ -10,7 +10,6 @@ use CMBcoreSeller\Modules\Billing\Services\AiCreditService;
 use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class AiCreditServiceLockingTest extends TestCase
@@ -33,33 +32,48 @@ class AiCreditServiceLockingTest extends TestCase
         ]);
     }
 
-    /**
-     * record() phải bọc trong transaction có lockForUpdate trên ai_credit_wallets.
+    /** lockedWallet() (dùng bởi consume/record/grantPurchase) PHẢI gọi lockForUpdate() — không thể verify
+     * qua SQL log vì SQLite (driver test suite dùng, xem phpunit.xml) drop hẳn mệnh đề FOR UPDATE
+     * (SQLiteGrammar::compileLock() luôn trả rỗng), nên kiểm tra tĩnh trực tiếp trên source thay vì hành vi
+     * runtime — vẫn bắt được nếu ai đó lỡ xoá dòng lockForUpdate() sau này.
      *
-     * Bỏ qua trên SQLite: SQLiteGrammar::compileLock() luôn trả '' (SQLite không có cú pháp
-     * FOR UPDATE — cả CI lẫn `php artisan test` mặc định chạy DB_CONNECTION=sqlite), nên
-     * lockForUpdate() không bao giờ để lại dấu vết "for update" trong SQL dù code đúng hay sai.
-     * Trên Postgres (PostgresGrammar::compileLock()) thì có, nên test này cho tín hiệu thật khi
-     * chạy với DB_CONNECTION=pgsql.
+     * Cô lập thân method bằng đếm ngoặc nhọn cân bằng (không dùng regex "tới dấu } đầu tiên" — đã thử
+     * và bị "tràn" sang method kế tiếp khi lockForUpdate() bị xoá, vì method sau (countUsage()) cũng
+     * gọi lockForUpdate() nên regex vẫn khớp nhầm và test giả vờ PASS dù bug đã bị tái tạo).
      */
-    public function test_record_locks_wallet_row_for_update(): void
+    public function test_locked_wallet_method_calls_lock_for_update(): void
     {
-        if (DB::connection()->getDriverName() === 'sqlite') {
-            $this->markTestSkipped('SQLite không hỗ trợ cú pháp FOR UPDATE thật (compileLock() luôn trả rỗng) — chạy với DB_CONNECTION=pgsql để xác nhận khoá row.');
+        $source = file_get_contents(app_path('Modules/Billing/Services/AiCreditService.php'));
+        $this->assertNotFalse($source);
+
+        $signaturePos = strpos($source, 'function lockedWallet(');
+        $this->assertNotFalse($signaturePos, 'Không tìm thấy method lockedWallet() trong AiCreditService.');
+
+        $braceOpen = strpos($source, '{', $signaturePos);
+        $this->assertNotFalse($braceOpen, 'Không tìm thấy dấu { mở đầu thân method lockedWallet().');
+
+        // Đếm ngoặc nhọn để tìm đúng dấu đóng của CHÍNH method này, tránh dính sang method kế tiếp.
+        $depth = 0;
+        $braceClose = null;
+        for ($i = $braceOpen, $len = strlen($source); $i < $len; $i++) {
+            if ($source[$i] === '{') {
+                $depth++;
+            } elseif ($source[$i] === '}') {
+                $depth--;
+                if ($depth === 0) {
+                    $braceClose = $i;
+                    break;
+                }
+            }
         }
+        $this->assertNotNull($braceClose, 'Không tìm thấy dấu } đóng thân method lockedWallet().');
 
-        app(AiCreditService::class)->record($this->tenant->getKey(), 1, 'suggest');
-
-        // Xác nhận query log có câu SELECT ... FOR UPDATE trên ai_credit_wallets khi record() chạy lần 2
-        // (lần 1 firstOrCreate tạo mới, chưa chắc có lock — lần 2 chắc chắn phải load qua đường có lock).
-        DB::enableQueryLog();
-        app(AiCreditService::class)->record($this->tenant->getKey(), 1, 'suggest');
-        $log = DB::getQueryLog();
-        DB::disableQueryLog();
-
-        $hasLock = collect($log)->contains(fn ($q) => str_contains(strtolower($q['query']), 'ai_credit_wallets')
-            && str_contains(strtolower($q['query']), 'for update'));
-        $this->assertTrue($hasLock, 'record() phải khoá row ai_credit_wallets bằng lockForUpdate() trong transaction.');
+        $methodBody = substr($source, $braceOpen, $braceClose - $braceOpen + 1);
+        $this->assertStringContainsString(
+            'lockForUpdate()',
+            $methodBody,
+            'lockedWallet() phải gọi lockForUpdate() để tránh race condition mất lượt đếm AI (xem AiCreditServiceLockingTest).',
+        );
     }
 
     /** countUsage() không được để mất lượt đếm khi firstOrCreate đụng unique index (race). */
