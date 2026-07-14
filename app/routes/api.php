@@ -256,6 +256,7 @@ Route::prefix('v1')->name('api.v1.')->middleware('throttle:120,1')->group(functi
             Route::get('inventory/movements', [InventoryController::class, 'movements'])->name('inventory.movements');
 
             Route::get('channel-listings', [ChannelListingController::class, 'index'])->name('channel-listings.index');
+            Route::get('channel-listings/grouped', [ChannelListingController::class, 'grouped'])->name('channel-listings.grouped');       // SPEC 2026-07-14
             Route::post('channel-listings/sync', [ChannelListingController::class, 'sync'])->name('channel-listings.sync');
             // Sửa sản phẩm đã có trên sàn (tiêu đề/mô tả/ảnh/giá đẩy lên sàn). Tồn KHÔNG sửa ở đây.
             Route::get('channel-listings/{id}/marketplace-detail', [ChannelListingController::class, 'marketplaceDetail'])->whereNumber('id')->name('channel-listings.marketplace-detail');
