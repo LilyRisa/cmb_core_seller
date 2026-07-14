@@ -64,6 +64,9 @@ class WebhookIngestService
             'external_id' => $dedupeKey,
             'external_shop_id' => $event->externalShopId,
             'order_raw_status' => $event->orderRawStatus,
+            // Design 2026-07-14 §2 — khoá dedupe phẳng (không NULL) để giai đoạn 2 đặt unique constraint
+            // thật được (NULL không so bằng NULL trong unique index chuẩn SQL).
+            'dedupe_status_key' => $event->orderRawStatus ?? '',
             'raw_type' => $event->raw['_raw_type'] ?? ($event->raw['type'] ?? null),
             'signature_ok' => true,
             'headers' => $this->safeHeaders($request),

@@ -17,6 +17,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $external_id
  * @property string|null $external_shop_id
  * @property string|null $order_raw_status
+ * @property string|null $dedupe_status_key
  * @property string|null $raw_type
  * @property int|null $tenant_id
  * @property int|null $channel_account_id
@@ -43,7 +44,7 @@ class WebhookEvent extends Model
     public const STATUS_FAILED = 'failed';       // gave up after retries
 
     protected $fillable = [
-        'provider', 'event_type', 'external_id', 'external_shop_id', 'order_raw_status', 'raw_type',
+        'provider', 'event_type', 'external_id', 'external_shop_id', 'order_raw_status', 'dedupe_status_key', 'raw_type',
         'tenant_id', 'channel_account_id', 'signature_ok', 'headers', 'payload',
         'status', 'attempts', 'error', 'received_at', 'processed_at',
     ];
