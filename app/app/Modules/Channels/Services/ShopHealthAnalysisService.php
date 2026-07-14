@@ -32,7 +32,7 @@ class ShopHealthAnalysisService
             try {
                 $narrative = $this->llmNarrative($shopData, $result);
                 if ($narrative !== null) {
-                    $this->credits->consume($tenantId, 1);
+                    $this->credits->record($tenantId, 1, 'shop_health');
                     $result['ai_narrative'] = $narrative;
                     $result['source'] = 'ai';
                 }

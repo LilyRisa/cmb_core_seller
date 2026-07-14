@@ -9,6 +9,7 @@ use CMBcoreSeller\Modules\Billing\Models\AiUsageCounter;
 use CMBcoreSeller\Modules\Billing\Models\Plan;
 use CMBcoreSeller\Modules\Tenancy\Scopes\TenantScope;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Lượt gọi AI của tenant (SPEC 0032).
@@ -72,6 +73,22 @@ class AiCreditService implements AiCreditMeter
         return $w;
     }
 
+    /** wallet() có khoá row (FOR UPDATE) — dùng trong mọi nhánh ghi (consume/record/grantPurchase/deduct). */
+    private function lockedWallet(int $tenantId): AiCreditWallet
+    {
+        /** @var AiCreditWallet $w */
+        $w = AiCreditWallet::withoutGlobalScope(TenantScope::class)->firstOrCreate(
+            ['tenant_id' => $tenantId],
+            ['purchased_balance' => 0, 'period_used' => 0, 'period_anchor' => now()->startOfDay()],
+        );
+        $w = AiCreditWallet::withoutGlobalScope(TenantScope::class)->where('id', $w->id)->lockForUpdate()->first();
+        if ($w->period_anchor === null || $w->period_anchor->format('Y-m') !== now()->format('Y-m')) {
+            $w->forceFill(['period_used' => 0, 'period_anchor' => now()->startOfDay()])->save();
+        }
+
+        return $w;
+    }
+
     /** Lượt còn dùng được (PHP_INT_MAX nếu không giới hạn). */
     public function available(int $tenantId): int
     {
@@ -104,16 +121,18 @@ class AiCreditService implements AiCreditMeter
         if ($this->unlimited($tenantId)) {
             return;
         }
-        $w = $this->wallet($tenantId);
-        $allowanceLeft = max(0, $this->monthlyAllowance($tenantId) - $w->period_used);
-        if ($allowanceLeft + $w->purchased_balance < $n) {
-            throw AiCreditException::exhausted();
-        }
-        $fromAllowance = min($n, $allowanceLeft);
-        $w->forceFill([
-            'period_used' => $w->period_used + $fromAllowance,
-            'purchased_balance' => $w->purchased_balance - ($n - $fromAllowance),
-        ])->save();
+        DB::transaction(function () use ($tenantId, $n) {
+            $w = $this->lockedWallet($tenantId);
+            $allowanceLeft = max(0, $this->monthlyAllowance($tenantId) - $w->period_used);
+            if ($allowanceLeft + $w->purchased_balance < $n) {
+                throw AiCreditException::exhausted();
+            }
+            $fromAllowance = min($n, $allowanceLeft);
+            $w->forceFill([
+                'period_used' => $w->period_used + $fromAllowance,
+                'purchased_balance' => $w->purchased_balance - ($n - $fromAllowance),
+            ])->save();
+        });
     }
 
     /**
@@ -134,17 +153,19 @@ class AiCreditService implements AiCreditMeter
         if (! $this->aiEnabled($tenantId) || $this->unlimited($tenantId)) {
             return;
         }
-        $w = $this->wallet($tenantId);
-        $allowanceLeft = max(0, $this->monthlyAllowance($tenantId) - $w->period_used);
-        $fromAllowance = min($n, $allowanceLeft);
-        $fromPurchase = min($n - $fromAllowance, $w->purchased_balance);
-        if ($fromAllowance === 0 && $fromPurchase === 0) {
-            return;
-        }
-        $w->forceFill([
-            'period_used' => $w->period_used + $fromAllowance,
-            'purchased_balance' => $w->purchased_balance - $fromPurchase,
-        ])->save();
+        DB::transaction(function () use ($tenantId, $n) {
+            $w = $this->lockedWallet($tenantId);
+            $allowanceLeft = max(0, $this->monthlyAllowance($tenantId) - $w->period_used);
+            $fromAllowance = min($n, $allowanceLeft);
+            $fromPurchase = min($n - $fromAllowance, $w->purchased_balance);
+            if ($fromAllowance === 0 && $fromPurchase === 0) {
+                return;
+            }
+            $w->forceFill([
+                'period_used' => $w->period_used + $fromAllowance,
+                'purchased_balance' => $w->purchased_balance - $fromPurchase,
+            ])->save();
+        });
     }
 
     /** Best-effort: tăng bộ đếm lượt AI theo (tenant, user, tháng, tính năng). Không ném. */
@@ -155,11 +176,15 @@ class AiCreditService implements AiCreditMeter
             $ym = (int) now()->format('Ym');
             $feat = $feature ?? 'other';
 
-            $row = AiUsageCounter::withoutGlobalScope(TenantScope::class)->firstOrCreate(
-                ['tenant_id' => $tenantId, 'user_id' => (int) $uid, 'period_ym' => $ym, 'feature' => $feat],
-                ['count' => 0],
-            );
-            $row->increment('count', $n);
+            DB::transaction(function () use ($tenantId, $uid, $ym, $feat, $n) {
+                $row = AiUsageCounter::withoutGlobalScope(TenantScope::class)->firstOrCreate(
+                    ['tenant_id' => $tenantId, 'user_id' => (int) $uid, 'period_ym' => $ym, 'feature' => $feat],
+                    ['count' => 0],
+                );
+                $row = AiUsageCounter::withoutGlobalScope(TenantScope::class)
+                    ->where('id', $row->id)->lockForUpdate()->first();
+                $row->increment('count', $n);
+            });
         } catch (\Throwable) {
             // Đếm lỗi không được phép làm vỡ luồng AI.
         }
@@ -168,12 +193,14 @@ class AiCreditService implements AiCreditMeter
     /** Cộng credit MUA (cộng dồn, chặn trên 5000). Trả số thực cộng được. */
     public function grantPurchase(int $tenantId, int $amount): int
     {
-        $w = $this->wallet($tenantId);
-        $new = min(AiCreditWallet::PURCHASE_MAX_BALANCE, $w->purchased_balance + $amount);
-        $added = $new - $w->purchased_balance;
-        $w->forceFill(['purchased_balance' => $new])->save();
+        return DB::transaction(function () use ($tenantId, $amount) {
+            $w = $this->lockedWallet($tenantId);
+            $new = min(AiCreditWallet::PURCHASE_MAX_BALANCE, $w->purchased_balance + $amount);
+            $added = $new - $w->purchased_balance;
+            $w->forceFill(['purchased_balance' => $new])->save();
 
-        return $added;
+            return $added;
+        });
     }
 
     /**
