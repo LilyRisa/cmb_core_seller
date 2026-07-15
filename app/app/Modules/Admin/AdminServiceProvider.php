@@ -3,7 +3,9 @@
 namespace CMBcoreSeller\Modules\Admin;
 
 use CMBcoreSeller\Modules\Admin\Notifications\Listeners\NotifyAdminsOnNewSupportConversation;
+use CMBcoreSeller\Modules\Admin\Notifications\Listeners\NotifyAdminsOnUserVerified;
 use CMBcoreSeller\Modules\Support\Events\SupportNewConversationOpened;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
@@ -30,5 +32,6 @@ class AdminServiceProvider extends ServiceProvider
 
         // SPEC 2026-07-15 — báo admin qua email khi có sự kiện đáng chú ý.
         Event::listen(SupportNewConversationOpened::class, NotifyAdminsOnNewSupportConversation::class);
+        Event::listen(Verified::class, NotifyAdminsOnUserVerified::class);
     }
 }
