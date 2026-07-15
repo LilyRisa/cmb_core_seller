@@ -59,6 +59,8 @@ final class ListingTaxonomyController extends Controller
             'data' => [
                 'max_images' => (int) ($limits['max_images'] ?? 9),
                 'max_videos' => (int) ($limits['max_videos'] ?? 1),
+                'title_min_length' => (int) ($limits['title_min_length'] ?? 0),
+                'title_max_length' => (int) ($limits['title_max_length'] ?? 255),
             ],
         ]);
     }

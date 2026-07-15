@@ -138,6 +138,8 @@ export async function deleteMasterProduct(client: AxiosInstance, id: number): Pr
 export interface ListingLimits {
     max_images: number;
     max_videos: number;
+    title_min_length: number;
+    title_max_length: number;
 }
 
 export async function getListingLimits(client: AxiosInstance, provider: string): Promise<ListingLimits> {

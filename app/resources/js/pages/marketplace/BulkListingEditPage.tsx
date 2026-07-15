@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { App as AntApp, Button, Image, Result, Space, Spin, Table, Tag, Typography } from 'antd';
+import { App as AntApp, Button, Image, Input, Modal, Popover, Result, Select, Space, Spin, Table, Tag, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { ArrowLeftOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, CopyOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { errorMessage } from '@/lib/api';
-import { useListingsBulk } from '@/features/products/hooks';
+import { useBrands, useListingLimits, useListingsBulk } from '@/features/products/hooks';
 import type { ListingDraftSku } from '@/features/products/api';
+import { CategoryPicker } from '@/features/products/CategoryPicker';
+import { RichTextEditor } from '@/components/RichTextEditor';
 
 const STATUS_TAG: Record<string, { color: string; label: string }> = {
     draft: { color: 'default', label: 'Nháp' },
@@ -43,6 +45,32 @@ export interface BulkEditRow {
     validationErrors: Record<string, string>;
 }
 
+/** Ô chọn thương hiệu cho 1 dòng — tách riêng vì `useBrands` phụ thuộc `categoryId` từng dòng. */
+function BrandCell({ row, onChange, onApplyAll }: { row: BulkEditRow; onChange: (brandId: string | null) => void; onApplyAll: (brandId: string | null) => void }) {
+    const { data: brands, isFetching } = useBrands(row.provider, row.channelAccountId, row.categoryId);
+    const options = (brands ?? []).map((b) => ({ value: b.id, label: b.mandatory ? `${b.name} (bắt buộc)` : b.name }));
+    return (
+        <Space>
+            <Select
+                style={{ width: 180 }}
+                size="small"
+                disabled={!row.categoryId}
+                loading={isFetching}
+                value={row.brandId ?? undefined}
+                onChange={onChange}
+                allowClear
+                showSearch
+                filterOption={(input, opt) => (opt?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+                options={options}
+                status={!row.brandId ? 'error' : undefined}
+            />
+            <Tooltip title="Áp dụng thương hiệu này cho mọi dòng đang chọn">
+                <Button size="small" icon={<CopyOutlined />} disabled={!row.brandId} onClick={() => onApplyAll(row.brandId)} />
+            </Tooltip>
+        </Space>
+    );
+}
+
 /**
  * Trang bảng sửa nhiều bản nháp CÙNG NỀN TẢNG cùng lúc (SPEC 2026-07-15).
  * Điểm vào: `ListingDraftsTable` → nút "Chỉnh sửa hàng loạt", truyền `rows` qua
@@ -58,6 +86,11 @@ export function BulkListingEditPage() {
 
     const { data: fetched, isLoading, isError, error } = useListingsBulk(ids);
     const [rows, setRows] = useState<BulkEditRow[] | null>(null);
+
+    const provider = rowsMeta?.[0]?.provider ?? '';
+    const { data: limits } = useListingLimits(provider || null);
+    const titleMax = limits?.title_max_length ?? 255;
+    const richDescription = provider === 'tiktok' || provider === 'lazada';
 
     useEffect(() => {
         if (!fetched || !rowsMeta) return;
@@ -101,11 +134,11 @@ export function BulkListingEditPage() {
         setRows((prev) => (prev ? prev.map((r) => (r.id === id ? { ...r, ...patch } : r)) : prev));
     };
 
-    // Chưa dùng ở khung sườn này — Task 8-11 gọi `message`/`applyToAllRows`/`updateRow`
-    // khi thêm ô sửa, nút "Áp dụng cho tất cả" và lưu. Giữ nguyên để tránh lỗi noUnusedLocals.
+    // Chưa dùng ở khung sườn này — Task 11 gọi `message` khi lưu. Giữ nguyên để tránh lỗi noUnusedLocals.
     void message;
-    void applyToAllRows;
-    void updateRow;
+
+    const [descRowId, setDescRowId] = useState<number | null>(null);
+    const descRow = rows?.find((r) => r.id === descRowId) ?? null;
 
     const skuColumns: ColumnsType<ListingDraftSku> = [
         { title: 'SKU người bán', dataIndex: 'seller_sku', width: 160 },
@@ -126,6 +159,57 @@ export function BulkListingEditPage() {
                     )}
                     <Typography.Text>{r.productName}</Typography.Text>
                 </Space>
+            ),
+        },
+        {
+            title: 'Tiêu đề',
+            key: 'title',
+            width: 260,
+            render: (_, r) => (
+                <Input
+                    value={r.name}
+                    maxLength={titleMax}
+                    showCount
+                    status={r.name.length > titleMax ? 'error' : undefined}
+                    onChange={(e) => updateRow(r.id, { name: e.target.value })}
+                />
+            ),
+        },
+        {
+            title: 'Mô tả',
+            key: 'description',
+            width: 120,
+            render: (_, r) => <Button size="small" onClick={() => setDescRowId(r.id)}>Sửa mô tả</Button>,
+        },
+        {
+            title: 'Ngành hàng',
+            key: 'category',
+            width: 220,
+            render: (_, r) => (
+                <Space>
+                    <Popover
+                        trigger="click"
+                        placement="bottomLeft"
+                        content={<div style={{ width: 320 }}><CategoryPicker provider={r.provider} channelAccountId={r.channelAccountId} value={r.categoryId} onChange={(cid) => updateRow(r.id, { categoryId: cid, brandId: null })} /></div>}
+                    >
+                        <Button size="small" danger={!r.categoryId}>{r.categoryId ? 'Đã chọn' : 'Chưa chọn'}</Button>
+                    </Popover>
+                    <Tooltip title="Áp dụng ngành hàng này cho mọi dòng đang chọn">
+                        <Button size="small" icon={<CopyOutlined />} disabled={!r.categoryId} onClick={() => applyToAllRows({ categoryId: r.categoryId })} />
+                    </Tooltip>
+                </Space>
+            ),
+        },
+        {
+            title: 'Thương hiệu',
+            key: 'brand',
+            width: 260,
+            render: (_, r) => (
+                <BrandCell
+                    row={r}
+                    onChange={(bid) => updateRow(r.id, { brandId: bid })}
+                    onApplyAll={(bid) => applyToAllRows({ brandId: bid })}
+                />
             ),
         },
         {
@@ -175,16 +259,31 @@ export function BulkListingEditPage() {
             {isLoading || !rows ? (
                 <div style={{ textAlign: 'center', padding: 48 }}><Spin /></div>
             ) : (
-                <Table<BulkEditRow>
-                    rowKey="id"
-                    dataSource={rows}
-                    columns={columns}
-                    pagination={false}
-                    expandable={{
-                        expandedRowRender: (r) => <Table<ListingDraftSku> rowKey="id" size="small" dataSource={r.skus} columns={skuColumns} pagination={false} />,
-                        rowExpandable: (r) => r.skus.length > 0,
-                    }}
-                />
+                <>
+                    <Table<BulkEditRow>
+                        rowKey="id"
+                        dataSource={rows}
+                        columns={columns}
+                        pagination={false}
+                        expandable={{
+                            expandedRowRender: (r) => <Table<ListingDraftSku> rowKey="id" size="small" dataSource={r.skus} columns={skuColumns} pagination={false} />,
+                            rowExpandable: (r) => r.skus.length > 0,
+                        }}
+                    />
+                    <Modal
+                        title="Sửa mô tả"
+                        open={descRowId !== null}
+                        onCancel={() => setDescRowId(null)}
+                        onOk={() => setDescRowId(null)}
+                        width={720}
+                    >
+                        {descRow && (richDescription ? (
+                            <RichTextEditor value={descRow.description} onChange={(html) => updateRow(descRow.id, { description: html })} />
+                        ) : (
+                            <Input.TextArea rows={6} value={descRow.description} onChange={(e) => updateRow(descRow.id, { description: e.target.value })} />
+                        ))}
+                    </Modal>
+                </>
             )}
         </div>
     );
