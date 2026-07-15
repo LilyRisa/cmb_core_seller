@@ -3,11 +3,13 @@
 namespace CMBcoreSeller\Modules\Support\Services;
 
 use CMBcoreSeller\Modules\Support\Events\SupportMessageCreated;
+use CMBcoreSeller\Modules\Support\Events\SupportNewConversationOpened;
 use CMBcoreSeller\Modules\Support\Models\SupportConversation;
 use CMBcoreSeller\Modules\Support\Models\SupportMessage;
 use CMBcoreSeller\Modules\Support\Models\SupportMessageAttachment;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Toàn bộ NGHIỆP VỤ hội thoại CSKH (SPEC-0028) — gom 1 chỗ để controller mỏng,
@@ -30,10 +32,12 @@ class SupportConversationService
     {
         // Validate đính kèm TRƯỚC (ném 422 trước khi ghi DB/disk — không tạo cuộc rác).
         $validated = $this->validateFiles($files);
+        $wasNewConversation = false;
 
-        $conv = DB::transaction(function () use ($tenantId, $userId, $body, $validated) {
+        $conv = DB::transaction(function () use ($tenantId, $userId, $body, $validated, &$wasNewConversation) {
             $conv = SupportConversation::query()->latest('id')->first();
-            if (! $conv || $conv->isClosed()) {
+            $wasNewConversation = ! $conv || $conv->isClosed();
+            if ($wasNewConversation) {
                 $conv = SupportConversation::query()->create([
                     'tenant_id' => $tenantId,
                     'user_id' => $userId,
@@ -61,6 +65,13 @@ class SupportConversationService
 
         // Realtime (ADR-0021): báo các phiên khác của tenant cập nhật NGAY (no-op khi Reverb tắt).
         SupportMessageCreated::dispatch((int) $conv->getKey(), $tenantId, SupportMessage::SENDER_USER);
+
+        // SPEC 2026-07-15: mở cuộc mới ⇒ báo admin qua email (không bắn lại cho tin nối tiếp).
+        if ($wasNewConversation) {
+            SupportNewConversationOpened::dispatch(
+                (int) $conv->getKey(), $tenantId, $userId, Str::limit((string) $body, 200),
+            );
+        }
 
         return $conv;
     }
