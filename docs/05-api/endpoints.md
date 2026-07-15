@@ -406,6 +406,17 @@ Cấu hình động lưu trong DB (`system_settings`), ghi đè giá trị từ 
 | POST | `/api/v1/admin/broadcasts` | web + `auth:admin_web` | `{ subject, body_markdown, audience:{kind:'all_owners'\|'all_admins_and_owners'\|'tenant_ids', tenant_ids?} }` — dispatch `BroadcastNotification` qua queue `notifications`. Limit 5000 recipients/lần ⇒ `BROADCAST_AUDIENCE_TOO_LARGE`. Tenant suspended bị skip. Audit `admin.broadcast.send`. |
 | GET | `/api/v1/admin/broadcasts/{id}` | web + `auth:admin_web` | Detail. |
 
+### Admin Notification Emails (SPEC 2026-07-15)
+
+| Method | Path | Auth | Request | Response |
+|---|---|---|---|---|
+| GET | `/api/v1/admin/notification-emails` | web + `auth:admin_web` | — | `{ data:[{id,email,label,is_active,notification_types:[code,...]}] }` |
+| GET | `/api/v1/admin/notification-emails/types` | web + `auth:admin_web` | — | `{ data:[{code,label}] }` — đọc `NotificationTypeCatalog::all()`. |
+| POST | `/api/v1/admin/notification-emails` | web + `auth:admin_web` | `{ email, label?, is_active?, notification_types:[code,...] }` | `201 { data: {...} }` — `email` trùng ⇒ `422`; `notification_types` chứa code không hợp lệ ⇒ `422`. |
+| PATCH | `/api/v1/admin/notification-emails/{id}` | web + `auth:admin_web` | như trên (partial) | `{ data: {...} }` — gửi `notification_types` ⇒ **ghi đè toàn bộ** subscriptions cũ. |
+| DELETE | `/api/v1/admin/notification-emails/{id}` | web + `auth:admin_web` | — | `{ data:{ deleted:true } }` — cascade xoá subscriptions. |
+| POST | `/api/v1/admin/notification-emails/{id}/test` | web + `auth:admin_web` | — | `{ data:{ sent:true } }` — gửi `AdminAlertNotification(type='test')` tới đúng email này, không lưu gì. |
+
 #### Popup thông báo (Announcements — SPEC 0037)
 
 Popup giữa màn hình cho mọi user (fix bug, tạm dừng dịch vụ…). Admin tạo bằng editor TipTap (chèn ảnh/video upload R2). KHÔNG tenant-scoped. `body_html` sanitize allowlist server-side. User nhớ-đã-xem theo **tab** (sessionStorage): 1 tab hiện 1 lần/popup; tab mới hiện lại.

@@ -6,6 +6,7 @@ use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminAuditLogController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminAuthController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminBroadcastController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminDesktopBackgroundController;
+use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminNotificationEmailController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminPlanController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminProTrialController;
 use CMBcoreSeller\Modules\Admin\Http\Controllers\AdminTenantController;
@@ -154,6 +155,20 @@ Route::middleware(['web', 'auth:admin_web', 'throttle:60,1'])
             ->whereNumber('id')->name('admin.admin-users.suspend');
         Route::post('admin-users/{id}/reactivate', [AdminAdminUserController::class, 'reactivate'])
             ->whereNumber('id')->name('admin.admin-users.reactivate');
+
+        // --- Email nhận thông báo admin (SPEC 2026-07-15) ---
+        Route::get('notification-emails', [AdminNotificationEmailController::class, 'index'])
+            ->name('admin.notification-emails.index');
+        Route::get('notification-emails/types', [AdminNotificationEmailController::class, 'types'])
+            ->name('admin.notification-emails.types');
+        Route::post('notification-emails', [AdminNotificationEmailController::class, 'store'])
+            ->name('admin.notification-emails.store');
+        Route::patch('notification-emails/{id}', [AdminNotificationEmailController::class, 'update'])
+            ->whereNumber('id')->name('admin.notification-emails.update');
+        Route::delete('notification-emails/{id}', [AdminNotificationEmailController::class, 'destroy'])
+            ->whereNumber('id')->name('admin.notification-emails.destroy');
+        Route::post('notification-emails/{id}/test', [AdminNotificationEmailController::class, 'test'])
+            ->whereNumber('id')->name('admin.notification-emails.test');
     });
 
 /*
