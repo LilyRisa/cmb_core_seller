@@ -5,8 +5,10 @@ namespace CMBcoreSeller\Modules\Admin\Notifications\Listeners;
 use CMBcoreSeller\Models\User;
 use CMBcoreSeller\Modules\Admin\Notifications\NotificationTypeCatalog;
 use CMBcoreSeller\Modules\Admin\Notifications\Services\AdminNotificationDispatcher;
+use CMBcoreSeller\Modules\Tenancy\Models\Tenant;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 /**
  * Nghe `Verified` (Laravel built-in) ⇒ báo admin qua email khi user xác minh xong (SPEC
@@ -28,7 +30,10 @@ class NotifyAdminsOnUserVerified implements ShouldQueue
             return;
         }
 
-        $tenantName = $user->tenants()->first()?->name ?? '(chưa có shop)';
+        /** @var BelongsToMany<Tenant, User> $tenantsRelation */
+        $tenantsRelation = $user->tenants();
+        $firstTenant = $tenantsRelation->first();
+        $tenantName = $firstTenant instanceof Tenant ? $firstTenant->name : '(chưa có shop)';
 
         $this->dispatcher->notify(NotificationTypeCatalog::AUTH_USER_VERIFIED, [
             'name' => (string) $user->name,
