@@ -62,4 +62,25 @@ class TikTokValidatorTest extends TestCase
 
         $this->assertSame([], $errors);
     }
+
+    public function test_title_length_reads_from_config(): void
+    {
+        config(['integrations.listing_limits.tiktok.title_min_length' => 5]);
+        config(['integrations.listing_limits.tiktok.title_max_length' => 10]);
+
+        $draft = new ListingDraftDTO(
+            title: 'Áo thun', // 7 ký tự — hợp lệ với 5-10, KHÔNG hợp lệ với mặc định 25-255
+            description: 'desc',
+            categoryId: '600001',
+            brandId: '700001',
+            attributes: [],
+            media: [new MediaRefDTO('uri-1', 'uri')],
+            skus: [['seller_sku' => 'S1', 'price' => 1000, 'stock' => 1, 'sale_props' => [], 'warehouse_id' => 'WH1']],
+            logistics: ['package_weight' => 0.5],
+        );
+
+        $errors = (new TikTokListingValidator)->validate($draft);
+
+        $this->assertArrayNotHasKey('title', $errors);
+    }
 }

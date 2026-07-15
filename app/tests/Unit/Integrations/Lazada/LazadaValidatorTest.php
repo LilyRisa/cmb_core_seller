@@ -89,4 +89,27 @@ class LazadaValidatorTest extends TestCase
 
         $this->assertArrayNotHasKey('brandId', $errors);
     }
+
+    public function test_title_exceeding_configured_max_is_flagged(): void
+    {
+        config(['integrations.listing_limits.lazada.title_max_length' => 10]);
+
+        $draft = new ListingDraftDTO(
+            title: str_repeat('a', 11),
+            description: '<p>x</p>',
+            categoryId: '3',
+            brandId: '40516',
+            attributes: ['warranty_type' => 'No Warranty'],
+            media: [new MediaRefDTO('https://my-live-02.slatic.net/p/a.jpg', 'cdn_url')],
+            skus: [[
+                'seller_sku' => 'S1', 'price' => 35000, 'stock' => 3, 'sale_props' => [],
+                'package_weight' => 0.5, 'package_dims' => ['length' => 10, 'width' => 10, 'height' => 10],
+            ]],
+            logistics: [],
+        );
+
+        $errors = (new LazadaListingValidator)->validate($draft);
+
+        $this->assertArrayHasKey('title', $errors);
+    }
 }

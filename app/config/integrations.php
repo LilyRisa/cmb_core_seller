@@ -240,9 +240,26 @@ return [
     |
     */
     'listing_limits' => [
-        'shopee' => ['max_images' => (int) env('SHOPEE_MAX_IMAGES', 9), 'max_videos' => (int) env('SHOPEE_MAX_VIDEOS', 1)],
-        'tiktok' => ['max_images' => (int) env('TIKTOK_MAX_IMAGES', 9), 'max_videos' => (int) env('TIKTOK_MAX_VIDEOS', 1)],
-        'lazada' => ['max_images' => (int) env('LAZADA_MAX_IMAGES', 8), 'max_videos' => (int) env('LAZADA_MAX_VIDEOS', 1)],
+        'shopee' => [
+            'max_images' => (int) env('SHOPEE_MAX_IMAGES', 9),
+            'max_videos' => (int) env('SHOPEE_MAX_VIDEOS', 1),
+            // Shopee KHÔNG công bố số cố định trong tài liệu Open Platform (phụ thuộc
+            // shop/ngành hàng qua API get_item_limit riêng) — dùng số tĩnh cấu hình được.
+            'title_min_length' => (int) env('SHOPEE_TITLE_MIN_LENGTH', 0),
+            'title_max_length' => (int) env('SHOPEE_TITLE_MAX_LENGTH', 100),
+        ],
+        'tiktok' => [
+            'max_images' => (int) env('TIKTOK_MAX_IMAGES', 9),
+            'max_videos' => (int) env('TIKTOK_MAX_VIDEOS', 1),
+            'title_min_length' => (int) env('TIKTOK_TITLE_MIN_LENGTH', 25),
+            'title_max_length' => (int) env('TIKTOK_TITLE_MAX_LENGTH', 255),
+        ],
+        'lazada' => [
+            'max_images' => (int) env('LAZADA_MAX_IMAGES', 8),
+            'max_videos' => (int) env('LAZADA_MAX_VIDEOS', 1),
+            'title_min_length' => (int) env('LAZADA_TITLE_MIN_LENGTH', 0),
+            'title_max_length' => (int) env('LAZADA_TITLE_MAX_LENGTH', 255),
+        ],
     ],
 
     /*

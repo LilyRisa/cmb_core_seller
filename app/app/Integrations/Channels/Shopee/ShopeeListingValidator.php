@@ -12,6 +12,7 @@ use CMBcoreSeller\Integrations\Channels\DTO\ListingDraftDTO;
  *
  * Rules enforced:
  * - name required (non-blank)
+ * - name ≤ title_max_length (config, mặc định 100)
  * - leaf category required (non-empty string)
  * - ≥1 image_id (already uploaded via upload_image)
  * - logistic_info needs ≥1 channel with enabled=true
@@ -26,8 +27,11 @@ final class ShopeeListingValidator implements ListingValidator
     {
         $e = [];
 
+        $titleMax = (int) config('integrations.listing_limits.shopee.title_max_length', 100);
         if (trim($d->title) === '') {
             $e['title'] = 'Tên bắt buộc';
+        } elseif (mb_strlen($d->title) > $titleMax) {
+            $e['title'] = "Tên tối đa $titleMax ký tự";
         }
 
         if ($d->categoryId === '') {

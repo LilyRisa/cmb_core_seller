@@ -25,10 +25,11 @@ final class LazadaListingValidator implements ListingValidator
     {
         $e = [];
 
+        $titleMax = (int) config('integrations.listing_limits.lazada.title_max_length', 255);
         if (trim($d->title) === '') {
             $e['title'] = 'Tên sản phẩm bắt buộc';
-        } elseif (mb_strlen($d->title) > 255) {
-            $e['title'] = 'Tên tối đa 255 ký tự';
+        } elseif (mb_strlen($d->title) > $titleMax) {
+            $e['title'] = "Tên tối đa $titleMax ký tự";
         }
 
         if ($d->categoryId === '') {

@@ -122,4 +122,24 @@ class ShopeeValidatorTest extends TestCase
 
         $this->assertSame([], $errors);
     }
+
+    public function test_flags_title_exceeding_max_length(): void
+    {
+        $draft = new ListingDraftDTO(
+            title: str_repeat('a', 101),
+            description: 'x',
+            categoryId: '100012',
+            brandId: '0',
+            attributes: [],
+            media: [new MediaRefDTO('img-1', 'image_id')],
+            skus: [['seller_sku' => 'S1', 'price' => 10000, 'stock' => 5, 'sale_props' => []]],
+            logistics: [
+                'channels' => [['logistics_channel_id' => 1, 'enabled' => true, 'fee_type' => 'FIXED_DEFAULT_PRICE']],
+            ],
+        );
+
+        $errors = (new ShopeeListingValidator)->validate($draft);
+
+        $this->assertArrayHasKey('title', $errors);
+    }
 }

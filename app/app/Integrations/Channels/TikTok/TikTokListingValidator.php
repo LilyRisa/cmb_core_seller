@@ -32,9 +32,11 @@ final class TikTokListingValidator implements ListingValidator
     {
         $errors = [];
 
+        $titleMin = (int) config('integrations.listing_limits.tiktok.title_min_length', 25);
+        $titleMax = (int) config('integrations.listing_limits.tiktok.title_max_length', 255);
         $titleLen = mb_strlen($draft->title);
-        if ($titleLen < 25 || $titleLen > 255) {
-            $errors['title'] = 'VN: tiêu đề 25–255 ký tự';
+        if ($titleLen < $titleMin || $titleLen > $titleMax) {
+            $errors['title'] = "VN: tiêu đề {$titleMin}–{$titleMax} ký tự";
         }
 
         if (mb_strlen($draft->description) > 10000) {
