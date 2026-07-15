@@ -11,6 +11,7 @@ import { CopiedProductsPage } from '@/pages/marketplace/CopiedProductsPage';
 import { OnChannelPage } from '@/pages/marketplace/OnChannelPage';
 import { MarketplaceEditPage } from '@/pages/marketplace/MarketplaceEditPage';
 import { ListingDraftEditorPage } from '@/pages/marketplace/ListingDraftEditorPage';
+import { BulkListingEditPage } from '@/pages/marketplace/BulkListingEditPage';
 import { PublishablePage } from '@/pages/marketplace/PublishablePage';
 import { PromotionsPage } from '@/pages/marketplace/PromotionsPage';
 import { PromotionEditPage } from '@/pages/marketplace/PromotionEditPage';
@@ -93,6 +94,7 @@ export function appRouteElements(): React.ReactNode {
             <Route path="marketplace/promotions" element={<PromotionsPage />} />
             <Route path="marketplace/promotions/:id/edit" element={<PromotionEditPage />} />
             <Route path="marketplace/listings/:id/edit" element={<ListingDraftEditorPage />} />
+            <Route path="marketplace/listings/bulk-edit" element={<BulkListingEditPage />} />
             <Route path="marketplace/listings/:id/images/edit" element={lazy(<AdvancedImageEditorPage />)} />
             <Route path="customers" element={<CustomersPage />} />
             <Route path="customers/:id" element={<CustomerDetailPage />} />
