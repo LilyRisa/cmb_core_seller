@@ -558,6 +558,20 @@ function TikTokShipping({
     opts, value, onChange, onApplyWarehouse,
 }: { opts: ShippingOptions; value: Record<string, unknown>; onChange: (v: Record<string, unknown>) => void; onApplyWarehouse: (w: string) => void }) {
     const deliveryIds = (value.delivery_option_ids as string[] | undefined) ?? [];
+    const warehouses = opts.warehouses ?? [];
+
+    // Chưa chọn kho ⇒ tự chọn kho mặc định (is_default) hoặc kho duy nhất của shop, thay
+    // vì bắt người bán tự bấm — hầu hết shop chỉ có 1 kho nên đây luôn là lựa chọn đúng.
+    useEffect(() => {
+        if (value.warehouse_id || warehouses.length === 0) return;
+        const def = warehouses.find((w) => w.is_default) ?? warehouses[0];
+        if (def) {
+            onChange({ ...value, warehouse_id: def.id });
+            onApplyWarehouse(def.id);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [warehouses.map((w) => w.id).join(','), value.warehouse_id]);
+
     return (
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
             <div>
@@ -565,10 +579,10 @@ function TikTokShipping({
                 <div style={{ marginTop: 6 }}>
                     <Radio.Group onChange={(e) => { onChange({ ...value, warehouse_id: e.target.value }); onApplyWarehouse(e.target.value); }} value={value.warehouse_id}>
                         <Space direction="vertical">
-                            {(opts.warehouses ?? []).map((w) => <Radio key={w.id} value={w.id}>{w.name} {w.is_default && <Tag color="blue">mặc định</Tag>}</Radio>)}
+                            {warehouses.map((w) => <Radio key={w.id} value={w.id}>{w.name} {w.is_default && <Tag color="blue">mặc định</Tag>}</Radio>)}
                         </Space>
                     </Radio.Group>
-                    {(opts.warehouses ?? []).length === 0 && <Typography.Text type="secondary">Chưa có kho nào.</Typography.Text>}
+                    {warehouses.length === 0 && <Typography.Text type="secondary">Chưa có kho nào.</Typography.Text>}
                 </div>
             </div>
             <div>

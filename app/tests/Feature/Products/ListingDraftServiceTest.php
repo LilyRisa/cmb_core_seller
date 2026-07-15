@@ -319,6 +319,68 @@ class ListingDraftServiceTest extends TestCase
         $this->assertNotSame($first->getKey(), $second->getKey());
     }
 
+    public function test_creating_draft_on_second_shop_same_provider_inherits_configured_fields(): void
+    {
+        $account2 = ChannelAccount::create([
+            'tenant_id' => $this->tenant->getKey(),
+            'provider' => 'lazada',
+            'external_shop_id' => 'shop2',
+            'shop_name' => 'Shop 2',
+            'shop_region' => 'VN',
+            'status' => 'active',
+            'access_token' => 'tok2',
+        ]);
+
+        $svc = app(ListingDraftService::class);
+        $draft1 = $svc->createDraft((int) $this->product->getKey(), $this->accountId, 'lazada');
+        $svc->update((int) $draft1->getKey(), [
+            'category_id' => '3',
+            'brand_id' => '40516',
+            'attributes' => ['100000' => 'Cotton'],
+            'skus' => [[
+                'seller_sku' => 'S1',
+                'price' => 35000,
+                'stock' => 3,
+                'sale_props' => [],
+                'package_weight' => 0.5,
+                'package_dims' => ['length' => 10, 'width' => 10, 'height' => 10],
+            ]],
+        ]);
+
+        // Đăng cùng sản phẩm lên gian hàng Lazada THỨ HAI — kế thừa ngành hàng/thương
+        // hiệu/thuộc tính/khối lượng từ gian hàng cùng sàn đã cấu hình xong, khỏi phải
+        // soạn lại từ đầu.
+        $draft2 = $svc->createDraft((int) $this->product->getKey(), (int) $account2->getKey(), 'lazada');
+
+        $this->assertSame('3', $draft2->category_id);
+        $this->assertSame('40516', $draft2->brand_id);
+        $this->assertSame('Cotton', $draft2->attributes['100000'] ?? null);
+        $this->assertSame(0.5, (float) $draft2->skus->first()->package_weight);
+    }
+
+    public function test_creating_draft_on_different_provider_does_not_inherit_category(): void
+    {
+        $tiktokAccount = ChannelAccount::create([
+            'tenant_id' => $this->tenant->getKey(),
+            'provider' => 'tiktok',
+            'external_shop_id' => 'shop-tt',
+            'shop_name' => 'Shop TikTok',
+            'shop_region' => 'VN',
+            'status' => 'active',
+            'access_token' => 'tok-tt',
+        ]);
+
+        $svc = app(ListingDraftService::class);
+        $draft1 = $svc->createDraft((int) $this->product->getKey(), $this->accountId, 'lazada');
+        $svc->update((int) $draft1->getKey(), ['category_id' => '3', 'brand_id' => '40516']);
+
+        // Sàn khác (TikTok) có cây danh mục/thương hiệu riêng — KHÔNG được kế thừa.
+        $draft2 = $svc->createDraft((int) $this->product->getKey(), (int) $tiktokAccount->getKey(), 'tiktok');
+
+        $this->assertNull($draft2->category_id);
+        $this->assertNull($draft2->brand_id);
+    }
+
     public function test_draft_can_be_deleted(): void
     {
         $draft = app(ListingDraftService::class)->createDraft((int) $this->product->getKey(), $this->accountId, 'lazada');

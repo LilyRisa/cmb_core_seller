@@ -90,9 +90,29 @@ final class ListingDraftService
             if ($description !== '') {
                 $draft->attributes = ['description' => $description];
             }
+
+            // Đăng cùng sản phẩm lên NHIỀU gian hàng CÙNG SÀN (vd 2 shop TikTok): gian hàng
+            // sau kế thừa ngành hàng/thương hiệu/thuộc tính/vận chuyển từ gian hàng CÙNG SÀN
+            // đã cấu hình xong (category_id khác rỗng) — khỏi bắt người bán soạn lại từ đầu.
+            // Khác sàn (Shopee/Lazada) KHÔNG áp dụng: mỗi sàn có category/brand tree riêng.
+            $sibling = ListingDraft::with('skus')
+                ->where('product_id', $productId)
+                ->where('provider', $provider)
+                ->whereNotNull('category_id')
+                ->where('category_id', '!=', '')
+                ->orderByDesc('updated_at')
+                ->first();
+            if ($sibling !== null) {
+                $draft->category_id = $sibling->category_id;
+                $draft->brand_id = $sibling->brand_id;
+                $draft->attributes = array_replace($sibling->attributes ?? [], $draft->attributes ?? []);
+                $draft->media_refs = $sibling->media_refs ?? $draft->media_refs;
+                $draft->logistics = $sibling->logistics ?? [];
+            }
+
             $draft->save();
 
-            $this->seedDraftSkus($draft, $product);
+            $this->seedDraftSkus($draft, $product, $sibling ?? null);
 
             return $draft->load('skus');
         });
@@ -404,9 +424,18 @@ final class ListingDraftService
      * `master_variant_id = null` (liên kết tồn kho là thao tác thủ công sau).
      * Sản phẩm tạo trong app (đã có master SKU thật) thì seed từ master SKU và gán
      * liên kết luôn (không tạo SKU mới).
+     *
+     * @param  ListingDraft|null  $sibling  Nháp CÙNG SÀN đã cấu hình (xem createDraft) — mang
+     *                                      package_weight/package_dims theo master_variant_id
+     *                                      sang, khỏi bắt nhập lại khi đăng thêm shop khác cùng sàn.
      */
-    private function seedDraftSkus(ListingDraft $draft, Product $product): void
+    private function seedDraftSkus(ListingDraft $draft, Product $product, ?ListingDraft $sibling = null): void
     {
+        $siblingByMaster = $sibling !== null
+            ? $sibling->skus->filter(fn (ListingDraftSku $s) => $s->master_variant_id !== null)->keyBy('master_variant_id')
+            : collect();
+        $siblingByIndex = $sibling !== null ? $sibling->skus->values() : collect();
+
         $variants = is_array(($product->meta ?? [])['variants'] ?? null) ? $product->meta['variants'] : [];
 
         if ($variants !== []) {
@@ -415,6 +444,7 @@ final class ListingDraftService
                     continue;
                 }
                 $name = trim((string) ($v['name'] ?? ''));
+                $siblingSku = $siblingByIndex->get($i);
                 $draft->skus()->create([
                     'master_variant_id' => null,
                     'seller_sku' => ($v['sku'] ?? '') !== '' ? (string) $v['sku'] : 'MP'.$product->getKey().'-'.($i + 1),
@@ -422,6 +452,8 @@ final class ListingDraftService
                     'price' => (int) round((float) ($v['price'] ?? 0)),
                     'stock' => (int) ($v['stock'] ?? 0),
                     'image_ref' => ($v['image'] ?? null) ?: $product->image,
+                    'package_weight' => $siblingSku !== null ? $siblingSku->package_weight : null,
+                    'package_dims' => $siblingSku !== null ? $siblingSku->package_dims : [],
                 ]);
             }
 
@@ -429,6 +461,7 @@ final class ListingDraftService
         }
 
         foreach ($product->skus as $i => $sku) {
+            $siblingSku = $siblingByMaster->get($sku->getKey());
             $draft->skus()->create([
                 'master_variant_id' => $sku->getKey(),
                 'seller_sku' => $sku->sku_code !== '' ? $sku->sku_code : 'MP'.$product->getKey().'-'.$i,
@@ -436,6 +469,8 @@ final class ListingDraftService
                 'price' => (int) ($sku->ref_sale_price ?? 0),
                 'stock' => $sku->availableTotal(),
                 'image_ref' => $sku->image_url,
+                'package_weight' => $siblingSku !== null ? $siblingSku->package_weight : null,
+                'package_dims' => $siblingSku !== null ? $siblingSku->package_dims : [],
             ]);
         }
     }
