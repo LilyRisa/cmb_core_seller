@@ -498,7 +498,7 @@ function SkuLinkSelect({ sku, onLink }: { sku: ListingDraftSku; onLink: (masterV
 }
 
 /** Khối vận chuyển — fetch tùy chọn từ sàn theo `mode`. */
-function ShippingSection({
+export function ShippingSection({
     provider, channelAccountId, value, onChange, onApplyWarehouse,
 }: {
     provider: string;

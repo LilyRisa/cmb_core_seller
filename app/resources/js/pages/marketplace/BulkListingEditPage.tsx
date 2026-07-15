@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { App as AntApp, Button, Image, Input, Modal, Popover, Result, Select, Space, Spin, Table, Tag, Tooltip, Typography } from 'antd';
+import { App as AntApp, Button, Drawer, Image, Input, InputNumber, Modal, Popover, Result, Select, Space, Spin, Table, Tag, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { ArrowLeftOutlined, CopyOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
@@ -9,6 +9,8 @@ import { useBrands, useListingLimits, useListingsBulk } from '@/features/product
 import type { ListingDraftSku } from '@/features/products/api';
 import { CategoryPicker } from '@/features/products/CategoryPicker';
 import { RichTextEditor } from '@/components/RichTextEditor';
+import { AttributeForm } from '@/features/products/AttributeForm';
+import { ShippingSection } from './ListingDraftEditorPage';
 
 const STATUS_TAG: Record<string, { color: string; label: string }> = {
     draft: { color: 'default', label: 'Nháp' },
@@ -140,6 +142,14 @@ export function BulkListingEditPage() {
     const [descRowId, setDescRowId] = useState<number | null>(null);
     const descRow = rows?.find((r) => r.id === descRowId) ?? null;
 
+    const [attrRowId, setAttrRowId] = useState<number | null>(null);
+    const attrRow = rows?.find((r) => r.id === attrRowId) ?? null;
+    const [missingByRow, setMissingByRow] = useState<Record<number, string[]>>({});
+
+    const applyWeightDimsToAllSkus = (weight: number | null, dims: { length?: number; width?: number; height?: number }) => {
+        setRows((prev) => prev ? prev.map((r) => ({ ...r, skus: r.skus.map((s) => ({ ...s, package_weight: weight, package_dims: dims })) })) : prev);
+    };
+
     const skuColumns: ColumnsType<ListingDraftSku> = [
         { title: 'SKU người bán', dataIndex: 'seller_sku', width: 160 },
         { title: 'Giá (VND)', dataIndex: 'price', width: 120 },
@@ -213,6 +223,91 @@ export function BulkListingEditPage() {
             ),
         },
         {
+            title: 'Thuộc tính bắt buộc',
+            key: 'attributes',
+            width: 200,
+            render: (_, r) => {
+                const missing = missingByRow[r.id]?.length ?? 0;
+                return (
+                    <Space>
+                        <Button size="small" danger={missing > 0} onClick={() => setAttrRowId(r.id)}>
+                            {missing > 0 ? `Thiếu ${missing}` : 'Đã đủ'}
+                        </Button>
+                        <Tooltip title="Áp dụng bộ thuộc tính này cho mọi dòng đang chọn">
+                            <Button size="small" icon={<CopyOutlined />} onClick={() => applyToAllRows({ attributes: r.attributes })} />
+                        </Tooltip>
+                    </Space>
+                );
+            },
+        },
+        {
+            title: 'Khối lượng/Kích thước',
+            key: 'weight',
+            width: 260,
+            render: (_, r) => {
+                if (r.provider === 'lazada') {
+                    const first = r.skus[0];
+                    const w = first?.package_weight ?? null;
+                    const dims = first?.package_dims ?? {};
+                    return (
+                        <Space size={4}>
+                            <InputNumber size="small" style={{ width: 70 }} min={0} step={0.1} placeholder="KL(kg)" value={w ?? undefined}
+                                onChange={(v) => updateRow(r.id, { skus: r.skus.map((s) => ({ ...s, package_weight: v == null ? null : Number(v) })) })} />
+                            <InputNumber size="small" style={{ width: 50 }} min={0} placeholder="D" value={dims.length}
+                                onChange={(v) => updateRow(r.id, { skus: r.skus.map((s) => ({ ...s, package_dims: { ...s.package_dims, length: v == null ? undefined : Number(v) } })) })} />
+                            <InputNumber size="small" style={{ width: 50 }} min={0} placeholder="R" value={dims.width}
+                                onChange={(v) => updateRow(r.id, { skus: r.skus.map((s) => ({ ...s, package_dims: { ...s.package_dims, width: v == null ? undefined : Number(v) } })) })} />
+                            <InputNumber size="small" style={{ width: 50 }} min={0} placeholder="C" value={dims.height}
+                                onChange={(v) => updateRow(r.id, { skus: r.skus.map((s) => ({ ...s, package_dims: { ...s.package_dims, height: v == null ? undefined : Number(v) } })) })} />
+                            <Tooltip title="Áp dụng khối lượng/kích thước này cho mọi SKU của mọi dòng đang chọn">
+                                <Button size="small" icon={<CopyOutlined />} onClick={() => applyWeightDimsToAllSkus(w, dims)} />
+                            </Tooltip>
+                        </Space>
+                    );
+                }
+                const weightKey = r.provider === 'tiktok' ? 'package_weight' : 'weight';
+                const w = (r.logistics[weightKey] as number | undefined) ?? undefined;
+                return (
+                    <Space size={4}>
+                        <InputNumber size="small" style={{ width: 90 }} min={0} step={0.1} placeholder="Khối lượng" value={w}
+                            onChange={(v) => updateRow(r.id, { logistics: { ...r.logistics, [weightKey]: v == null ? undefined : Number(v) } })} />
+                        <Tooltip title="Áp dụng khối lượng này cho mọi dòng đang chọn">
+                            <Button size="small" icon={<CopyOutlined />} onClick={() => applyToAllRows({ logistics: { ...r.logistics, [weightKey]: w } })} />
+                        </Tooltip>
+                    </Space>
+                );
+            },
+        },
+        {
+            title: 'Vận chuyển',
+            key: 'shipping',
+            width: 200,
+            render: (_, r) => (
+                <Popover
+                    trigger="click"
+                    placement="bottomLeft"
+                    content={
+                        <div style={{ width: 340 }}>
+                            <ShippingSection
+                                provider={r.provider}
+                                channelAccountId={r.channelAccountId}
+                                value={r.logistics}
+                                onChange={(v) => updateRow(r.id, { logistics: v })}
+                                onApplyWarehouse={(wid) => updateRow(r.id, { skus: r.skus.map((s) => ({ ...s, warehouse_id: wid })) })}
+                            />
+                        </div>
+                    }
+                >
+                    <Space>
+                        <Button size="small">Cấu hình</Button>
+                        <Tooltip title="Áp dụng cấu hình vận chuyển này cho mọi dòng đang chọn">
+                            <Button size="small" icon={<CopyOutlined />} onClick={() => applyToAllRows({ logistics: r.logistics })} />
+                        </Tooltip>
+                    </Space>
+                </Popover>
+            ),
+        },
+        {
             title: 'Gian hàng',
             key: 'shop',
             render: (_, r) => (
@@ -283,6 +378,18 @@ export function BulkListingEditPage() {
                             <Input.TextArea rows={6} value={descRow.description} onChange={(e) => updateRow(descRow.id, { description: e.target.value })} />
                         ))}
                     </Modal>
+                    <Drawer title="Thuộc tính bắt buộc" open={attrRowId !== null} onClose={() => setAttrRowId(null)} width={520}>
+                        {attrRow && (
+                            <AttributeForm
+                                provider={attrRow.provider}
+                                channelAccountId={attrRow.channelAccountId}
+                                categoryId={attrRow.categoryId}
+                                value={attrRow.attributes}
+                                onChange={(attrs) => updateRow(attrRow.id, { attributes: attrs })}
+                                onMissingRequiredChange={(missing) => setMissingByRow((prev) => ({ ...prev, [attrRow.id]: missing }))}
+                            />
+                        )}
+                    </Drawer>
                 </>
             )}
         </div>
