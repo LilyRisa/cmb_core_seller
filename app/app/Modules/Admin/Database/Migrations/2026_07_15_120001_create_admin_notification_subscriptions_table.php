@@ -19,7 +19,11 @@ return new class extends Migration
             $table->string('notification_type');
             $table->timestamp('created_at')->nullable();
 
-            $table->unique(['admin_notification_recipient_id', 'notification_type']);
+            // Tên tự sinh ("admin_notification_subscriptions_admin_notification_recipient_id_notification_type_unique",
+            // 89 ký tự) và tên constraint FK tự sinh của cột trên (72 ký tự) CÙNG chung tiền tố quá dài —
+            // Postgres cắt còn 63 ký tự (NAMEDATALEN) khiến cả 2 trùng tên ⇒ "constraint already exists"
+            // (migration fail, transaction rollback, bảng biến mất). Đặt tên ngắn tường minh để tránh trùng.
+            $table->unique(['admin_notification_recipient_id', 'notification_type'], 'ans_recipient_notification_type_unique');
         });
     }
 
