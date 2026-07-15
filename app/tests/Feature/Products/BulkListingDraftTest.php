@@ -120,4 +120,63 @@ class BulkListingDraftTest extends TestCase
         $ok = collect($results)->firstWhere('id', $draft1->getKey());
         $this->assertSame('ready', $ok['status']);
     }
+
+    public function test_get_bulk_returns_full_drafts_for_selected_ids(): void
+    {
+        $draft1 = $this->makeDraft('Áo 1');
+        $draft2 = $this->makeDraft('Áo 2');
+
+        $res = $this->actingAs($this->owner)
+            ->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
+            ->getJson('/api/v1/listings/bulk?ids='.$draft1->getKey().','.$draft2->getKey());
+
+        $res->assertOk();
+        $this->assertCount(2, $res->json('data'));
+        $this->assertNotEmpty($res->json('data.0.skus'));
+    }
+
+    public function test_get_bulk_rejects_mixed_providers(): void
+    {
+        $draft1 = $this->makeDraft('Áo 1');
+
+        $tiktokAccount = ChannelAccount::create([
+            'tenant_id' => $this->tenant->getKey(),
+            'provider' => 'tiktok',
+            'external_shop_id' => 'shop-tt',
+            'shop_name' => 'Shop TikTok',
+            'shop_region' => 'VN',
+            'status' => 'active',
+            'access_token' => 'tok-tt',
+        ]);
+        $product2 = Product::create(['tenant_id' => $this->tenant->getKey(), 'name' => 'Áo 2']);
+        $draft2 = app(ListingDraftService::class)->createDraft((int) $product2->getKey(), (int) $tiktokAccount->getKey(), 'tiktok');
+
+        $res = $this->actingAs($this->owner)
+            ->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
+            ->getJson('/api/v1/listings/bulk?ids='.$draft1->getKey().','.$draft2->getKey());
+
+        $res->assertStatus(422);
+    }
+
+    public function test_put_bulk_saves_each_item_and_returns_status(): void
+    {
+        $draft1 = $this->makeDraft('Áo 1');
+
+        $res = $this->actingAs($this->owner)
+            ->withHeaders(['X-Tenant-Id' => (string) $this->tenant->getKey()])
+            ->putJson('/api/v1/listings/bulk', [
+                'items' => [[
+                    'id' => $draft1->getKey(),
+                    'category_id' => '3',
+                    'brand_id' => '40516',
+                    'skus' => [[
+                        'seller_sku' => 'S1', 'price' => 35000, 'stock' => 3, 'sale_props' => [],
+                        'package_weight' => 0.5, 'package_dims' => ['length' => 10, 'width' => 10, 'height' => 10],
+                    ]],
+                ]],
+            ]);
+
+        $res->assertOk();
+        $this->assertSame('ready', $res->json('data.0.status'));
+    }
 }

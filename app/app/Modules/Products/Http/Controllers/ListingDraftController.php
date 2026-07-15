@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CMBcoreSeller\Modules\Products\Http\Controllers;
 
 use CMBcoreSeller\Http\Controllers\Controller;
+use CMBcoreSeller\Modules\Products\Http\Requests\BulkUpdateListingDraftRequest;
 use CMBcoreSeller\Modules\Products\Http\Requests\CloneListingDraftRequest;
 use CMBcoreSeller\Modules\Products\Http\Requests\StoreListingDraftRequest;
 use CMBcoreSeller\Modules\Products\Http\Requests\UpdateListingDraftRequest;
@@ -13,6 +14,7 @@ use CMBcoreSeller\Modules\Products\Models\ListingDraft;
 use CMBcoreSeller\Modules\Products\Services\ListingDraftService;
 use CMBcoreSeller\Modules\Products\Services\ProductDescriptionService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 /**
  * Thin controller for the marketplace listing-draft editor: create a draft from
@@ -31,6 +33,24 @@ final class ListingDraftController extends Controller
         );
 
         return (new ListingDraftResource($draft))->response()->setStatusCode(201);
+    }
+
+    /** GET /api/v1/listings/bulk?ids=1,2,3 — nhiều nháp đầy đủ, phải CÙNG provider. */
+    public function bulkShow(Request $request): JsonResponse
+    {
+        $ids = array_values(array_filter(array_map('intval', explode(',', (string) $request->query('ids')))));
+        abort_if($ids === [], 422, 'Thiếu danh sách ids.');
+
+        $drafts = ListingDraft::with(['product', 'skus.masterSku'])->whereIn('id', $ids)->get();
+        abort_if($drafts->pluck('provider')->unique()->count() > 1, 422, 'Chỉ chọn được các listing cùng 1 sàn.');
+
+        return response()->json(['data' => ListingDraftResource::collection($drafts)]);
+    }
+
+    /** PUT /api/v1/listings/bulk — lưu nhiều nháp, mỗi nháp xử lý độc lập. */
+    public function bulkUpdate(BulkUpdateListingDraftRequest $request): JsonResponse
+    {
+        return response()->json(['data' => $this->svc->bulkUpdate($request->validated('items'))]);
     }
 
     public function show(int $id): ListingDraftResource
