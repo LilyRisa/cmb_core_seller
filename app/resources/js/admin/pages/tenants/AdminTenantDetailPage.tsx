@@ -498,7 +498,11 @@ function AuditLogTab({ tenantId }: { tenantId: number }) {
                     { title: 'Hành động', dataIndex: 'action', key: 'action', render: (v: string) => <Tag>{v}</Tag> },
                     { title: 'Người thực hiện', key: 'actor', width: 120,
                         render: (_: unknown, row: AdminFullAuditEntry) => (
-                            row.admin_user_id != null ? `Admin #${row.admin_user_id}`
+                            // `admin_user_id` chỉ được set bởi `AuditLog::record()`, vốn luôn ghi
+                            // `tenant_id = NULL` nên hàng đó không bao giờ lọt vào endpoint scope-theo-tenant
+                            // này — tín hiệu đáng tin cho "đây là hành động admin" là tiền tố `action`
+                            // (`admin.*`), cùng tiêu chí Segmented filter của tab này đang dùng.
+                            row.action.startsWith('admin.') ? `Admin #${row.admin_user_id ?? row.user_id ?? '?'}`
                                 : row.user_id != null ? `User #${row.user_id}`
                                     : '—'
                         ) },
