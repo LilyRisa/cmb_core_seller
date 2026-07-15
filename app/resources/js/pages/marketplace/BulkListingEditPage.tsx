@@ -48,29 +48,41 @@ export interface BulkEditRow {
 }
 
 /** Ô chọn thương hiệu cho 1 dòng — tách riêng vì `useBrands` phụ thuộc `categoryId` từng dòng. */
-function BrandCell({ row, onChange, onApplyAll }: { row: BulkEditRow; onChange: (brandId: string | null) => void; onApplyAll: (brandId: string | null) => void }) {
+function BrandCell({ row, onChange, onApplyAll, errorMsg }: { row: BulkEditRow; onChange: (brandId: string | null) => void; onApplyAll: (brandId: string | null) => void; errorMsg: string | null }) {
     const { data: brands, isFetching } = useBrands(row.provider, row.channelAccountId, row.categoryId);
     const options = (brands ?? []).map((b) => ({ value: b.id, label: b.mandatory ? `${b.name} (bắt buộc)` : b.name }));
     return (
-        <Space>
-            <Select
-                style={{ width: 180 }}
-                size="small"
-                disabled={!row.categoryId}
-                loading={isFetching}
-                value={row.brandId ?? undefined}
-                onChange={onChange}
-                allowClear
-                showSearch
-                filterOption={(input, opt) => (opt?.label ?? '').toLowerCase().includes(input.toLowerCase())}
-                options={options}
-                status={!row.brandId ? 'error' : undefined}
-            />
-            <Tooltip title="Áp dụng thương hiệu này cho mọi dòng đang chọn">
-                <Button size="small" icon={<CopyOutlined />} disabled={!row.brandId} onClick={() => onApplyAll(row.brandId)} />
-            </Tooltip>
-        </Space>
+        <div>
+            <Space>
+                <Select
+                    style={{ width: 180 }}
+                    size="small"
+                    disabled={!row.categoryId}
+                    loading={isFetching}
+                    value={row.brandId ?? undefined}
+                    onChange={onChange}
+                    allowClear
+                    showSearch
+                    filterOption={(input, opt) => (opt?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+                    options={options}
+                    status={!row.brandId ? 'error' : undefined}
+                />
+                <Tooltip title="Áp dụng thương hiệu này cho mọi dòng đang chọn">
+                    <Button size="small" icon={<CopyOutlined />} disabled={!row.brandId} onClick={() => onApplyAll(row.brandId)} />
+                </Tooltip>
+            </Space>
+            <ErrorText msg={errorMsg} />
+        </div>
     );
+}
+
+function fieldError(errors: Record<string, string>, key: string): string | null {
+    return errors[key] ?? null;
+}
+
+function ErrorText({ msg }: { msg: string | null }) {
+    if (!msg) return null;
+    return <div style={{ color: '#ff4d4f', fontSize: 12, marginTop: 2 }}>{msg}</div>;
 }
 
 /**
@@ -154,12 +166,6 @@ export function BulkListingEditPage() {
         setRows((prev) => (prev ? prev.map((r) => ({ ...r, logistics: { ...r.logistics, [weightKey]: weight } })) : prev));
     };
 
-    const skuColumns: ColumnsType<ListingDraftSku> = [
-        { title: 'SKU người bán', dataIndex: 'seller_sku', width: 160 },
-        { title: 'Giá (VND)', dataIndex: 'price', width: 120 },
-        { title: 'Tồn đẩy sàn', dataIndex: 'stock', width: 100 },
-    ];
-
     const columns: ColumnsType<BulkEditRow> = [
         {
             title: 'Sản phẩm',
@@ -180,13 +186,16 @@ export function BulkListingEditPage() {
             key: 'title',
             width: 260,
             render: (_, r) => (
-                <Input
-                    value={r.name}
-                    maxLength={titleMax}
-                    showCount
-                    status={r.name.length > titleMax ? 'error' : undefined}
-                    onChange={(e) => updateRow(r.id, { name: e.target.value })}
-                />
+                <div>
+                    <Input
+                        value={r.name}
+                        maxLength={titleMax}
+                        showCount
+                        status={r.name.length > titleMax || fieldError(r.validationErrors, 'title') ? 'error' : undefined}
+                        onChange={(e) => updateRow(r.id, { name: e.target.value })}
+                    />
+                    <ErrorText msg={fieldError(r.validationErrors, 'title')} />
+                </div>
             ),
         },
         {
@@ -200,18 +209,21 @@ export function BulkListingEditPage() {
             key: 'category',
             width: 220,
             render: (_, r) => (
-                <Space>
-                    <Popover
-                        trigger="click"
-                        placement="bottomLeft"
-                        content={<div style={{ width: 320 }}><CategoryPicker provider={r.provider} channelAccountId={r.channelAccountId} value={r.categoryId} onChange={(cid) => updateRow(r.id, { categoryId: cid, brandId: null })} /></div>}
-                    >
-                        <Button size="small" danger={!r.categoryId}>{r.categoryId ? 'Đã chọn' : 'Chưa chọn'}</Button>
-                    </Popover>
-                    <Tooltip title="Áp dụng ngành hàng này cho mọi dòng đang chọn">
-                        <Button size="small" icon={<CopyOutlined />} disabled={!r.categoryId} onClick={() => applyToAllRows({ categoryId: r.categoryId })} />
-                    </Tooltip>
-                </Space>
+                <div>
+                    <Space>
+                        <Popover
+                            trigger="click"
+                            placement="bottomLeft"
+                            content={<div style={{ width: 320 }}><CategoryPicker provider={r.provider} channelAccountId={r.channelAccountId} value={r.categoryId} onChange={(cid) => updateRow(r.id, { categoryId: cid, brandId: null })} /></div>}
+                        >
+                            <Button size="small" danger={!r.categoryId}>{r.categoryId ? 'Đã chọn' : 'Chưa chọn'}</Button>
+                        </Popover>
+                        <Tooltip title="Áp dụng ngành hàng này cho mọi dòng đang chọn">
+                            <Button size="small" icon={<CopyOutlined />} disabled={!r.categoryId} onClick={() => applyToAllRows({ categoryId: r.categoryId })} />
+                        </Tooltip>
+                    </Space>
+                    <ErrorText msg={fieldError(r.validationErrors, 'categoryId')} />
+                </div>
             ),
         },
         {
@@ -223,6 +235,7 @@ export function BulkListingEditPage() {
                     row={r}
                     onChange={(bid) => updateRow(r.id, { brandId: bid })}
                     onApplyAll={(bid) => applyToAllRows({ brandId: bid })}
+                    errorMsg={fieldError(r.validationErrors, 'brandId')}
                 />
             ),
         },
@@ -271,14 +284,18 @@ export function BulkListingEditPage() {
                 }
                 const weightKey = r.provider === 'tiktok' ? 'package_weight' : 'weight';
                 const w = (r.logistics[weightKey] as number | undefined) ?? undefined;
+                const weightErrKey = r.provider === 'tiktok' ? 'logistics.package_weight' : 'logistics.weight';
                 return (
-                    <Space size={4}>
-                        <InputNumber size="small" style={{ width: 90 }} min={0} step={0.1} placeholder="Khối lượng" value={w}
-                            onChange={(v) => updateRow(r.id, { logistics: { ...r.logistics, [weightKey]: v == null ? undefined : Number(v) } })} />
-                        <Tooltip title="Áp dụng khối lượng này cho mọi dòng đang chọn">
-                            <Button size="small" icon={<CopyOutlined />} onClick={() => applyWeightToAllRows(weightKey, w)} />
-                        </Tooltip>
-                    </Space>
+                    <div>
+                        <Space size={4}>
+                            <InputNumber size="small" style={{ width: 90 }} min={0} step={0.1} placeholder="Khối lượng" value={w}
+                                onChange={(v) => updateRow(r.id, { logistics: { ...r.logistics, [weightKey]: v == null ? undefined : Number(v) } })} />
+                            <Tooltip title="Áp dụng khối lượng này cho mọi dòng đang chọn">
+                                <Button size="small" icon={<CopyOutlined />} onClick={() => applyWeightToAllRows(weightKey, w)} />
+                            </Tooltip>
+                        </Space>
+                        <ErrorText msg={fieldError(r.validationErrors, weightErrKey)} />
+                    </div>
                 );
             },
         },
@@ -324,10 +341,16 @@ export function BulkListingEditPage() {
         {
             title: 'Trạng thái',
             key: 'status',
-            width: 120,
+            width: 140,
             render: (_, r) => {
+                const errCount = Object.keys(r.validationErrors).length;
                 const meta = STATUS_TAG[r.status] ?? STATUS_TAG.draft;
-                return <Tag color={meta.color}>{meta.label}</Tag>;
+                return (
+                    <Space direction="vertical" size={2}>
+                        <Tag color={meta.color}>{meta.label}</Tag>
+                        {errCount > 0 && <Tag color="red">Thiếu {errCount} trường</Tag>}
+                    </Space>
+                );
             },
         },
     ];
@@ -365,7 +388,22 @@ export function BulkListingEditPage() {
                         columns={columns}
                         pagination={false}
                         expandable={{
-                            expandedRowRender: (r) => <Table<ListingDraftSku> rowKey="id" size="small" dataSource={r.skus} columns={skuColumns} pagination={false} />,
+                            expandedRowRender: (r) => {
+                                const skuCols: ColumnsType<ListingDraftSku> = [
+                                    { title: 'SKU người bán', dataIndex: 'seller_sku', width: 160 },
+                                    { title: 'Giá (VND)', dataIndex: 'price', width: 120 },
+                                    { title: 'Tồn đẩy sàn', dataIndex: 'stock', width: 100 },
+                                    {
+                                        title: 'Lỗi', key: 'error', render: (_, __, idx) => {
+                                            const msgs = Object.entries(r.validationErrors)
+                                                .filter(([k]) => k.startsWith(`skus.${idx}.`))
+                                                .map(([, v]) => v);
+                                            return msgs.length > 0 ? <ErrorText msg={msgs.join('; ')} /> : null;
+                                        },
+                                    },
+                                ];
+                                return <Table<ListingDraftSku> rowKey="id" size="small" dataSource={r.skus} columns={skuCols} pagination={false} />;
+                            },
                             rowExpandable: (r) => r.skus.length > 0,
                         }}
                     />
