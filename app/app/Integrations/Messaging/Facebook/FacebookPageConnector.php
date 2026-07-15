@@ -342,13 +342,18 @@ class FacebookPageConnector implements CommentEngagementConnector, ConversionRep
             return null;
         }
 
-        // Group replies under the top-level comment thread.
-        // When parent_id is present this is a reply; use parent_id as the thread id.
+        $postId = isset($value['post_id']) ? (string) $value['post_id'] : null;
+
+        // Group replies under the top-level comment thread. Facebook LUÔN gửi parent_id
+        // (kể cả bình luận gốc) — với bình luận gốc, parent_id === post_id (đã verify
+        // trực tiếp payload thật trên prod), CHỈ reply-vào-1-bình-luận mới có parent_id
+        // khác post_id (= id bình luận gốc bị reply). Coi parent_id === post_id là "có
+        // reply" (comment cũ) từng khiến MỌI bình luận gốc trên 1 bài dồn chung 1 hội
+        // thoại (đúng bug báo: 1 bài chỉ còn 2 hội thoại, mỗi hội thoại 18+ người).
         $topLevelCommentId = isset($value['parent_id']) && (string) $value['parent_id'] !== ''
+            && (string) $value['parent_id'] !== $postId
             ? (string) $value['parent_id']
             : $commentId;
-
-        $postId = isset($value['post_id']) ? (string) $value['post_id'] : null;
         $body = isset($value['message']) && (string) $value['message'] !== ''
             ? (string) $value['message']
             : null;

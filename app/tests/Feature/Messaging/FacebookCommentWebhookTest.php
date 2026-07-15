@@ -90,6 +90,56 @@ class FacebookCommentWebhookTest extends TestCase
         $this->assertSame('CMT_001', $dto->threadMeta['fb_comment_id'] ?? null);
     }
 
+    /**
+     * REGRESSION (prod 2026-07-16): payload thật của Facebook LUÔN kèm `parent_id`, kể cả
+     * bình luận GỐC — với bình luận gốc, `parent_id` === `post_id` (verify trực tiếp payload
+     * webhook thật lưu trên prod, tenant "CMB Audio"). Trước fix, code coi hễ có `parent_id`
+     * là reply ⇒ MỌI bình luận gốc trên cùng 1 bài đều gộp chung 1 externalConversationId
+     * (= post_id) ⇒ 1 bài chỉ còn vài "hội thoại" nhưng mỗi hội thoại dồn hàng chục người
+     * comment khác nhau — đúng bug user báo cáo trên app thật.
+     */
+    public function test_parse_feed_top_level_comment_with_parent_id_equal_to_post_id_gets_own_conversation(): void
+    {
+        $connector = $this->makeConnector();
+
+        // Bình luận gốc #1 — payload thật: parent_id === post_id.
+        $request1 = $this->feedCommentRequest([
+            'field' => 'feed',
+            'value' => [
+                'item' => 'comment',
+                'verb' => 'add',
+                'comment_id' => 'CMT_TOP_1',
+                'parent_id' => 'POST_SAME',
+                'post_id' => 'POST_SAME',
+                'from' => ['id' => 'BUYER_A', 'name' => 'Người A'],
+                'message' => 'Còn hàng không shop?',
+            ],
+        ], pageId: 'PAGE_001');
+
+        // Bình luận gốc #2 — người KHÁC, cùng bài, cũng parent_id === post_id.
+        $request2 = $this->feedCommentRequest([
+            'field' => 'feed',
+            'value' => [
+                'item' => 'comment',
+                'verb' => 'add',
+                'comment_id' => 'CMT_TOP_2',
+                'parent_id' => 'POST_SAME',
+                'post_id' => 'POST_SAME',
+                'from' => ['id' => 'BUYER_B', 'name' => 'Người B'],
+                'message' => 'Giá bao nhiêu shop ơi',
+            ],
+        ], pageId: 'PAGE_001');
+
+        $dto1 = $connector->parseWebhookEvents($request1)[0];
+        $dto2 = $connector->parseWebhookEvents($request2)[0];
+
+        // Mỗi bình luận gốc phải là 1 hội thoại RIÊNG (theo chính comment_id của nó),
+        // KHÔNG bị gộp vào post_id/parent_id dùng chung.
+        $this->assertSame('CMT_TOP_1', $dto1->externalConversationId);
+        $this->assertSame('CMT_TOP_2', $dto2->externalConversationId);
+        $this->assertNotSame($dto1->externalConversationId, $dto2->externalConversationId);
+    }
+
     public function test_parse_feed_comment_edited_emits_dto(): void
     {
         $connector = $this->makeConnector();
