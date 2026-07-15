@@ -236,6 +236,30 @@ final class ListingDraftService
     }
 
     /**
+     * Lưu nhiều nháp cùng lúc — mỗi item xử lý ĐỘC LẬP (try/catch), lỗi 1 nháp
+     * không chặn các nháp còn lại. Dùng cho màn "Chỉnh sửa hàng loạt" (SPEC
+     * 2026-07-15). Cùng chữ ký field với {@see self::update()}, thêm khóa 'id'.
+     *
+     * @param  array<int,array<string,mixed>>  $items
+     * @return list<array{id:int, status:string, validation_errors:array<string,string>|null}>
+     */
+    public function bulkUpdate(array $items): array
+    {
+        $out = [];
+        foreach ($items as $item) {
+            $id = (int) ($item['id'] ?? 0);
+            try {
+                $draft = $this->update($id, $item);
+                $out[] = ['id' => $id, 'status' => $draft->status, 'validation_errors' => $draft->validation_errors];
+            } catch (\Throwable $e) {
+                $out[] = ['id' => $id, 'status' => 'error', 'validation_errors' => ['_error' => $e->getMessage()]];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * Copy an existing listing draft/live listing to another connected shop.
      *
      * Same-provider copies reuse validated marketplace fields. Cross-provider
