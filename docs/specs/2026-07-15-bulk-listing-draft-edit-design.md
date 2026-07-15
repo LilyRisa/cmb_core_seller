@@ -1,6 +1,6 @@
 # SPEC: Chỉnh sửa hàng loạt bản nháp đăng sàn trước khi đẩy
 
-- **Trạng thái:** Design
+- **Trạng thái:** Implemented (chờ xác minh thủ công qua trình duyệt thật — xem mục 10.1)
 - **Phase:** —
 - **Module backend liên quan:** Products (`ListingDraftController`, `ListingDraftService`, `ListingTaxonomyController`), Integrations (`ShopeeListingValidator`)
 - **Tác giả / Ngày:** lilyrisa · 2026-07-15
@@ -90,12 +90,21 @@ Không có PII mới. Cả 2 endpoint mới scope theo `tenant_id` qua `BelongsT
 
 ## 10. Tiêu chí hoàn thành
 
-- [ ] `GET /listings/bulk`, `PUT /listings/bulk` hoạt động đúng, lỗi từng phần tử không chặn lô.
-- [ ] `ShopeeListingValidator` có giới hạn độ dài tiêu đề cấu hình được.
-- [ ] `ListingDraftsTable.tsx` cho chọn Nháp/Sẵn sàng/Lỗi, nút "Chỉnh sửa hàng loạt" hoạt động đúng luật cùng-provider.
-- [ ] `BulkListingEditPage.tsx` sửa được tiêu đề/mô tả/ngành hàng/thương hiệu/thuộc tính/khối lượng-kích thước/vận chuyển/giá-mã SKU con, "Áp dụng cho tất cả" đúng phạm vi đã nêu.
-- [ ] Lưu & đẩy trả về đúng tổng kết X/Y/Z, quay về danh sách sau khi xong.
-- [ ] `docs/05-api/endpoints.md` cập nhật 2 endpoint mới.
+- [x] `GET /listings/bulk`, `PUT /listings/bulk` hoạt động đúng, lỗi từng phần tử không chặn lô. (Task 4, backend test xanh)
+- [x] `ShopeeListingValidator` có giới hạn độ dài tiêu đề cấu hình được. (Task 2, kèm refactor TikTok/Lazada đọc chung config)
+- [x] `ListingDraftsTable.tsx` cho chọn Nháp/Sẵn sàng/Lỗi, nút "Chỉnh sửa hàng loạt" hoạt động đúng luật cùng-provider. (Task 6)
+- [x] `BulkListingEditPage.tsx` sửa được tiêu đề/mô tả/ngành hàng/thương hiệu/thuộc tính/khối lượng-kích thước/vận chuyển/giá-mã SKU con, "Áp dụng cho tất cả" đúng phạm vi đã nêu. (Task 7-11, 2 lỗi Important về ghi đè hàng loạt phát hiện ở review toàn nhánh đã sửa — xem mục "Ghi chú triển khai" bên dưới)
+- [x] Lưu & đẩy trả về đúng tổng kết X/Y/Z, quay về danh sách sau khi xong. (Task 11)
+- [x] `docs/05-api/endpoints.md` cập nhật 2 endpoint mới. (Task 4)
+
+## 10.1 Ghi chú triển khai (phát sinh ngoài phạm vi task gốc)
+
+Trong lúc review toàn nhánh phát hiện 2 nhóm bug đã sửa, ghi lại vì có giá trị tham khảo lâu dài:
+
+1. **Bug tiền tồn tại (Task 13, KHÔNG thuộc 12 task gốc):** `ListingDraftService::update()` (dùng chung cả trang soạn đơn lẻ lẫn bảng hàng loạt) xử lý `name`/`description`/`video_url` TRƯỚC rồi mới merge khóa `attributes` do client gửi (`array_replace`, tham số 2 thắng) — mà FE luôn gửi kèm `attributes` là bản nạp lúc mở trang (đã có `name`/`description` CŨ, vì đây là raw column). Kết quả: sửa tiêu đề/mô tả rồi Lưu bị hoàn tác về giá trị cũ — ở CẢ trang đơn lẻ (đã có từ trước, không phải do tính năng này) lẫn bảng hàng loạt. Đã sửa bằng cách đảo thứ tự (merge `attributes` trước, `name`/`description`/`video_url` sau, luôn thắng).
+2. **2 lỗi ghi đè khi "Áp dụng cho tất cả" (trong phạm vi Task 8/9, phát hiện ở review cuối):** (a) áp dụng ngành hàng cho tất cả không xóa `brandId` cũ ở các dòng khác → brand không khớp ngành hàng mới nhưng vẫn qua được validate; (b) áp dụng thuộc tính cho tất cả copy nguyên object `attributes` (gồm cả `video_url` gắn kèm bên trong) đè lên MỌI dòng khác, làm mất video riêng của dòng đó. Đã sửa: category apply-to-all null kèm `brandId`; thêm `applyAttributesToAllRows()` lọc bỏ `name`/`description`/`video_url` + merge hẹp vào `attributes` riêng từng dòng (không ghi đè nguyên object) — giống cách `applyWeightToAllRows()`/`applyWeightDimsToAllSkus()` đã làm cho khối lượng/kích thước. Cũng bổ sung `Popconfirm` xác nhận trước MỌI nút áp dụng hàng loạt (mục 7 của spec này đã yêu cầu nhưng bản đầu chưa cài).
+
+**Chưa làm:** xác minh thủ công qua trình duyệt thật (không agent nào trong phiên triển khai có dev server) — người dùng cần tự `composer dev` rồi đi qua luồng thật trước khi coi tính năng đã sẵn sàng 100%.
 
 ## 11. Câu hỏi mở
 

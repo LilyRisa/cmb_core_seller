@@ -2089,3 +2089,167 @@ git add docs/specs/2026-07-15-bulk-listing-draft-edit-design.md
 git commit -m "docs(products): đánh dấu spec chỉnh sửa hàng loạt bản nháp đã Implemented"
 git push origin main
 ```
+
+---
+
+## Task 13 (phát sinh khi review toàn nhánh): Sửa `ListingDraftService::update()` ghi đè ngược tiêu đề/mô tả khi client gửi kèm `attributes` cũ
+
+**Bối cảnh:** Review toàn nhánh (sau Task 11) phát hiện — và đã tự kiểm chứng bằng test thật chạy trên code thật — một bug tiền tồn tại trong `ListingDraftService::update()` (method này KHÔNG bị Task 1-11 chạm vào, nhưng cả trang soạn đơn lẻ `ListingDraftEditorPage.tsx` lẫn `BulkListingEditPage.tsx` mới xây đều gọi nó theo cùng 1 kiểu payload nên đều dính bug): method xử lý `name`/`description`/`video_url` (ghi vào `attributes['name']` v.v.) TRƯỚC, rồi mới xử lý khóa `attributes` do client gửi (`array_replace($draft->attributes, $data['attributes'])`) SAU — mà `array_replace` lấy tham số THỨ HAI làm giá trị thắng. FE luôn gửi `attributes` là bản đã nạp lúc mở trang (có `name`/`description` CŨ, vì raw column `attributes` vốn đã chứa các khóa này từ lần lưu trước) kèm theo `name`/`description` MỚI ở cấp ngoài. Kết quả: sau khi lưu, `attributes['name']`/`['description']` bị đè NGƯỢC về giá trị cũ — tiêu đề/mô tả sửa xong lưu lại mất, cả ở trang đơn lẻ lẫn bảng hàng loạt.
+
+**Files:**
+- Modify: `app/app/Modules/Products/Services/ListingDraftService.php` (method `update()`, dòng ~126-165 tại thời điểm viết brief này — đổi THỨ TỰ xử lý, không đổi logic từng khối)
+- Test: `app/tests/Feature/Products/ListingDraftServiceTest.php` (thêm 1 test mới)
+
+**Interfaces:** Không đổi chữ ký `update(int $listingId, array $data): ListingDraft` — chỉ đổi thứ tự các khối lệnh bên trong transaction closure.
+
+- [ ] **Bước 1: Viết test thất bại**
+
+Thêm vào `app/tests/Feature/Products/ListingDraftServiceTest.php`, cạnh `test_listing_title_override_is_saved_and_used_for_publish_title` (giữ nguyên style setUp có sẵn của file — dùng `$this->product`/`$this->accountId` đã có trong `setUp()`):
+
+```php
+    public function test_title_edit_survives_stale_attributes_payload_sent_alongside(): void
+    {
+        $svc = app(ListingDraftService::class);
+        $draft = $svc->createDraft((int) $this->product->getKey(), $this->accountId, 'lazada');
+
+        // Lưu lần 1: đặt tiêu đề — attributes column giờ đã có khóa 'name'.
+        $draft = $svc->update((int) $draft->getKey(), ['name' => 'Tiêu đề đầu']);
+
+        // Mô phỏng FE: đã nạp draft (attributes bao gồm 'name' CŨ) TRƯỚC khi người dùng sửa
+        // tiếp tiêu đề, rồi Lưu — payload gửi cả 'name' MỚI lẫn 'attributes' (bản CŨ, nạp
+        // trước đó, buildPayload()/buildBulkPayload() luôn gửi kèm attributes như vậy).
+        $staleAttributes = $draft->attributes;
+
+        $draft2 = $svc->update((int) $draft->getKey(), [
+            'name' => 'Tiêu đề mới',
+            'attributes' => $staleAttributes,
+        ]);
+
+        $this->assertSame('Tiêu đề mới', $draft2->attributes['name'] ?? null);
+    }
+```
+
+- [ ] **Bước 2: Chạy test, xác nhận FAIL**
+
+```bash
+cd app
+php artisan test --filter=test_title_edit_survives_stale_attributes_payload_sent_alongside
+```
+
+Kỳ vọng: FAIL — `attributes['name']` là `'Tiêu đề đầu'` thay vì `'Tiêu đề mới'`.
+
+- [ ] **Bước 3: Đổi thứ tự trong `update()`**
+
+Trong `app/app/Modules/Products/Services/ListingDraftService.php`, tìm khối hiện tại (bên trong `DB::transaction(function () use ($draft, $data) { ... })` của method `update()`):
+
+```php
+            // Tiêu đề riêng cho listing (override tên SP gốc) — lưu trong attributes['name'].
+            // Rỗng ⇒ null để resource fallback về product->name.
+            if (array_key_exists('name', $data)) {
+                $attrs = $draft->attributes ?? [];
+                $attrs['name'] = (trim((string) ($data['name'] ?? '')) !== '') ? trim((string) $data['name']) : null;
+                $draft->attributes = $attrs;
+            }
+
+            if (array_key_exists('description', $data)) {
+                $attrs = $draft->attributes ?? [];
+                $attrs['description'] = $data['description'];
+                $draft->attributes = $attrs;
+            }
+
+            if (array_key_exists('video_url', $data)) {
+                $attrs = $draft->attributes ?? [];
+                $attrs['video_url'] = ($data['video_url'] ?? '') !== '' ? $data['video_url'] : null;
+                $draft->attributes = $attrs;
+            }
+
+            foreach (['category_id', 'brand_id', 'attributes', 'media_refs', 'logistics'] as $key) {
+                if (array_key_exists($key, $data)) {
+                    if ($key === 'attributes') {
+                        // array_replace (KHÔNG array_merge): id thuộc tính sàn là chuỗi-số
+                        // (vd "100000"); array_merge sẽ ĐÁNH SỐ LẠI khóa số → mất id thật,
+                        // phình mảng mỗi lần lưu ⇒ thuộc tính "điền xong lưu lại mất".
+                        $draft->attributes = array_replace($draft->attributes ?? [], $data[$key] ?? []);
+                    } else {
+                        $draft->{$key} = $data[$key];
+                    }
+                }
+            }
+```
+
+Đổi thành (đảo thứ tự: merge `attributes`/`category_id`/`brand_id`/`media_refs`/`logistics` TRƯỚC, `name`/`description`/`video_url` SAU — để 3 trường này LUÔN thắng thay vì bị `attributes` cũ đè ngược; comment giải thích thêm lý do đảo thứ tự):
+
+```php
+            foreach (['category_id', 'brand_id', 'attributes', 'media_refs', 'logistics'] as $key) {
+                if (array_key_exists($key, $data)) {
+                    if ($key === 'attributes') {
+                        // array_replace (KHÔNG array_merge): id thuộc tính sàn là chuỗi-số
+                        // (vd "100000"); array_merge sẽ ĐÁNH SỐ LẠI khóa số → mất id thật,
+                        // phình mảng mỗi lần lưu ⇒ thuộc tính "điền xong lưu lại mất".
+                        $draft->attributes = array_replace($draft->attributes ?? [], $data[$key] ?? []);
+                    } else {
+                        $draft->{$key} = $data[$key];
+                    }
+                }
+            }
+
+            // Tiêu đề riêng cho listing (override tên SP gốc) — lưu trong attributes['name'].
+            // Rỗng ⇒ null để resource fallback về product->name. XỬ LÝ SAU khối 'attributes'
+            // ở trên — FE luôn gửi kèm 'attributes' là bản nạp lúc mở trang (đã có 'name'/
+            // 'description' CŨ từ lần lưu trước, vì đây là raw column), nếu xử lý trước thì
+            // array_replace ở trên sẽ ghi đè NGƯỢC 'name'/'description' MỚI về giá trị cũ.
+            if (array_key_exists('name', $data)) {
+                $attrs = $draft->attributes ?? [];
+                $attrs['name'] = (trim((string) ($data['name'] ?? '')) !== '') ? trim((string) $data['name']) : null;
+                $draft->attributes = $attrs;
+            }
+
+            if (array_key_exists('description', $data)) {
+                $attrs = $draft->attributes ?? [];
+                $attrs['description'] = $data['description'];
+                $draft->attributes = $attrs;
+            }
+
+            if (array_key_exists('video_url', $data)) {
+                $attrs = $draft->attributes ?? [];
+                $attrs['video_url'] = ($data['video_url'] ?? '') !== '' ? $data['video_url'] : null;
+                $draft->attributes = $attrs;
+            }
+```
+
+- [ ] **Bước 4: Chạy lại test, xác nhận PASS**
+
+```bash
+php artisan test --filter=test_title_edit_survives_stale_attributes_payload_sent_alongside
+```
+
+- [ ] **Bước 5: Chạy toàn bộ test Products để chắc không phá gì (đặc biệt các test liên quan `attributes`/`update()`)**
+
+```bash
+php artisan test --filter=Products
+```
+
+Kỳ vọng: tất cả PASS — đặc biệt các test đã có từ trước dùng `update()`: `test_numeric_attribute_ids_are_preserved_on_save`, `test_listing_title_override_is_saved_and_used_for_publish_title`, `test_update_keeps_draft_when_validation_fails_then_ready_when_passes`, và toàn bộ `BulkListingDraftTest.php`.
+
+- [ ] **Bước 6: Pint + PHPStan**
+
+```bash
+vendor/bin/pint --test app/Modules/Products/Services/ListingDraftService.php
+vendor/bin/phpstan analyse app/Modules/Products/Services/ListingDraftService.php
+```
+
+- [ ] **Bước 7: Commit**
+
+```bash
+git add app/app/Modules/Products/Services/ListingDraftService.php app/tests/Feature/Products/ListingDraftServiceTest.php
+git commit -m "fix(products): sửa tiêu đề/mô tả bị ghi đè ngược khi client gửi kèm attributes cũ
+
+update() xử lý name/description/video_url TRƯỚC rồi mới merge khóa
+'attributes' do client gửi (array_replace, tham số 2 thắng) — mà FE luôn
+gửi kèm attributes là bản nạp lúc mở trang (còn name/description CŨ, vì
+đây là raw column đã có từ lần lưu trước). Kết quả: sửa tiêu đề/mô tả rồi
+Lưu bị hoàn tác về giá trị cũ, ở CẢ trang soạn đơn lẻ lẫn bảng hàng loạt
+(bug tiền tồn tại trong update(), Task 1-11 không chạm vào method này
+nhưng đều gọi nó theo kiểu payload gây lỗi). Đảo thứ tự: merge attributes
+TRƯỚC, name/description/video_url SAU — 3 trường này luôn thắng."
+```
