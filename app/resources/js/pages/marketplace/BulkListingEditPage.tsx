@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { App as AntApp, Button, Drawer, Image, Input, InputNumber, Modal, Popover, Result, Select, Space, Spin, Table, Tag, Tooltip, Typography } from 'antd';
+import { App as AntApp, Button, Drawer, Image, Input, InputNumber, Modal, Popconfirm, Popover, Result, Select, Space, Spin, Table, Tag, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { ArrowLeftOutlined, CloudUploadOutlined, CopyOutlined, SaveOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
@@ -69,7 +69,9 @@ function BrandCell({ row, onChange, onApplyAll, errorMsg }: { row: BulkEditRow; 
                     status={!row.brandId ? 'error' : undefined}
                 />
                 <Tooltip title="Áp dụng thương hiệu này cho mọi dòng đang chọn">
-                    <Button size="small" icon={<CopyOutlined />} disabled={!row.brandId} onClick={() => onApplyAll(row.brandId)} />
+                    <Popconfirm title="Ghi đè giá trị này lên mọi dòng đang chọn?" okText="Áp dụng" cancelText="Hủy" onConfirm={() => onApplyAll(row.brandId)}>
+                        <Button size="small" icon={<CopyOutlined />} disabled={!row.brandId} />
+                    </Popconfirm>
                 </Tooltip>
             </Space>
             <ErrorText msg={errorMsg} />
@@ -80,6 +82,16 @@ function BrandCell({ row, onChange, onApplyAll, errorMsg }: { row: BulkEditRow; 
 function fieldError(errors: Record<string, string>, key: string): string | null {
     return errors[key] ?? null;
 }
+
+/**
+ * `attributes` là JSON thô của backend, gộp chung `name`/`description`/`video_url` (lịch sử lưu trữ)
+ * với thuộc tính ngành hàng thực sự. Khi "Áp dụng cho tất cả" chỉ nên copy phần thuộc tính ngành hàng —
+ * loại 3 khoá định danh riêng của từng dòng ra để không đè nhầm video/tên/mô tả của dòng khác.
+ */
+const categoryAttributesOnly = (attrs: Record<string, unknown>): Record<string, unknown> => {
+    const { name: _name, description: _description, video_url: _videoUrl, ...rest } = attrs;
+    return rest;
+};
 
 function ErrorText({ msg }: { msg: string | null }) {
     if (!msg) return null;
@@ -143,6 +155,17 @@ export function BulkListingEditPage() {
     /** Ghi đè 1 field lên MỌI dòng đang có trong bảng — dùng cho nút "Áp dụng cho tất cả". */
     const applyToAllRows = (patch: Partial<Pick<BulkEditRow, 'categoryId' | 'brandId' | 'attributes' | 'logistics'>>) => {
         setRows((prev) => (prev ? prev.map((r) => ({ ...r, ...patch })) : prev));
+    };
+
+    /**
+     * Áp dụng bộ thuộc tính ngành hàng cho mọi dòng — KHÔNG dùng `applyToAllRows` vì nó thay thế
+     * nguyên object `attributes`. Ở đây cần lọc bỏ name/description/video_url của dòng nguồn rồi
+     * MERGE hẹp vào `attributes` sẵn có của từng dòng đích, giữ nguyên các khoá thuộc tính khác
+     * mà dòng đích đã có (giống cách applyWeightToAllRows/applyWeightDimsToAllSkus đang làm).
+     */
+    const applyAttributesToAllRows = (attrs: Record<string, unknown>) => {
+        const patch = categoryAttributesOnly(attrs);
+        setRows((prev) => (prev ? prev.map((row) => ({ ...row, attributes: { ...row.attributes, ...patch } })) : prev));
     };
 
     const updateRow = (id: number, patch: Partial<BulkEditRow>) => {
@@ -291,7 +314,14 @@ export function BulkListingEditPage() {
                             <Button size="small" danger={!r.categoryId}>{r.categoryId ? 'Đã chọn' : 'Chưa chọn'}</Button>
                         </Popover>
                         <Tooltip title="Áp dụng ngành hàng này cho mọi dòng đang chọn">
-                            <Button size="small" icon={<CopyOutlined />} disabled={!r.categoryId} onClick={() => applyToAllRows({ categoryId: r.categoryId })} />
+                            <Popconfirm
+                                title="Ghi đè giá trị này lên mọi dòng đang chọn?"
+                                okText="Áp dụng"
+                                cancelText="Hủy"
+                                onConfirm={() => applyToAllRows({ categoryId: r.categoryId, brandId: null })}
+                            >
+                                <Button size="small" icon={<CopyOutlined />} disabled={!r.categoryId} />
+                            </Popconfirm>
                         </Tooltip>
                     </Space>
                     <ErrorText msg={fieldError(r.validationErrors, 'categoryId')} />
@@ -323,7 +353,9 @@ export function BulkListingEditPage() {
                             {missing > 0 ? `Thiếu ${missing}` : 'Đã đủ'}
                         </Button>
                         <Tooltip title="Áp dụng bộ thuộc tính này cho mọi dòng đang chọn">
-                            <Button size="small" icon={<CopyOutlined />} onClick={() => applyToAllRows({ attributes: r.attributes })} />
+                            <Popconfirm title="Ghi đè giá trị này lên mọi dòng đang chọn?" okText="Áp dụng" cancelText="Hủy" onConfirm={() => applyAttributesToAllRows(r.attributes)}>
+                                <Button size="small" icon={<CopyOutlined />} />
+                            </Popconfirm>
                         </Tooltip>
                     </Space>
                 );
@@ -349,7 +381,9 @@ export function BulkListingEditPage() {
                             <InputNumber size="small" style={{ width: 50 }} min={0} placeholder="C" value={dims.height}
                                 onChange={(v) => updateRow(r.id, { skus: r.skus.map((s) => ({ ...s, package_dims: { ...s.package_dims, height: v == null ? undefined : Number(v) } })) })} />
                             <Tooltip title="Áp dụng khối lượng/kích thước này cho mọi SKU của mọi dòng đang chọn">
-                                <Button size="small" icon={<CopyOutlined />} onClick={() => applyWeightDimsToAllSkus(w, dims)} />
+                                <Popconfirm title="Ghi đè giá trị này lên mọi dòng đang chọn?" okText="Áp dụng" cancelText="Hủy" onConfirm={() => applyWeightDimsToAllSkus(w, dims)}>
+                                    <Button size="small" icon={<CopyOutlined />} />
+                                </Popconfirm>
                             </Tooltip>
                         </Space>
                     );
@@ -363,7 +397,9 @@ export function BulkListingEditPage() {
                             <InputNumber size="small" style={{ width: 90 }} min={0} step={0.1} placeholder="Khối lượng" value={w}
                                 onChange={(v) => updateRow(r.id, { logistics: { ...r.logistics, [weightKey]: v == null ? undefined : Number(v) } })} />
                             <Tooltip title="Áp dụng khối lượng này cho mọi dòng đang chọn">
-                                <Button size="small" icon={<CopyOutlined />} onClick={() => applyWeightToAllRows(weightKey, w)} />
+                                <Popconfirm title="Ghi đè giá trị này lên mọi dòng đang chọn?" okText="Áp dụng" cancelText="Hủy" onConfirm={() => applyWeightToAllRows(weightKey, w)}>
+                                    <Button size="small" icon={<CopyOutlined />} />
+                                </Popconfirm>
                             </Tooltip>
                         </Space>
                         <ErrorText msg={fieldError(r.validationErrors, weightErrKey)} />
@@ -394,7 +430,9 @@ export function BulkListingEditPage() {
                     <Space>
                         <Button size="small">Cấu hình</Button>
                         <Tooltip title="Áp dụng cấu hình vận chuyển này cho mọi dòng đang chọn">
-                            <Button size="small" icon={<CopyOutlined />} onClick={() => applyToAllRows({ logistics: r.logistics })} />
+                            <Popconfirm title="Ghi đè giá trị này lên mọi dòng đang chọn?" okText="Áp dụng" cancelText="Hủy" onConfirm={() => applyToAllRows({ logistics: r.logistics })}>
+                                <Button size="small" icon={<CopyOutlined />} />
+                            </Popconfirm>
                         </Tooltip>
                     </Space>
                 </Popover>
