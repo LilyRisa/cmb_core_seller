@@ -2,14 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { App as AntApp, Button, Drawer, Image, Input, InputNumber, Modal, Popover, Result, Select, Space, Spin, Table, Tag, Tooltip, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { ArrowLeftOutlined, CopyOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, CloudUploadOutlined, CopyOutlined, SaveOutlined } from '@ant-design/icons';
 import { PageHeader } from '@/components/PageHeader';
 import { errorMessage } from '@/lib/api';
-import { useBrands, useListingLimits, useListingsBulk } from '@/features/products/hooks';
+import { useBrands, useBulkPush, useBulkUpdateListings, useListingLimits, useListingsBulk, usePushBatch } from '@/features/products/hooks';
 import type { ListingDraftSku } from '@/features/products/api';
 import { CategoryPicker } from '@/features/products/CategoryPicker';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { AttributeForm } from '@/features/products/AttributeForm';
+import { PushProgressModal } from '@/features/products/PushProgressModal';
 import { ShippingSection } from './ListingDraftEditorPage';
 
 const STATUS_TAG: Record<string, { color: string; label: string }> = {
@@ -148,8 +149,79 @@ export function BulkListingEditPage() {
         setRows((prev) => (prev ? prev.map((r) => (r.id === id ? { ...r, ...patch } : r)) : prev));
     };
 
-    // Chưa dùng ở khung sườn này — Task 11 gọi `message` khi lưu. Giữ nguyên để tránh lỗi noUnusedLocals.
-    void message;
+    const bulkUpdate = useBulkUpdateListings();
+    const bulkPush = useBulkPush();
+    const [pushBatchId, setPushBatchId] = useState<number | null>(null);
+    const [pushModalOpen, setPushModalOpen] = useState(false);
+    const { data: pushBatch } = usePushBatch(pushBatchId);
+    const [saving, setSaving] = useState(false);
+
+    const buildBulkPayload = () =>
+        (rows ?? []).map((r) => ({
+            id: r.id,
+            name: r.name,
+            description: r.description,
+            category_id: r.categoryId,
+            brand_id: r.brandId,
+            attributes: r.attributes,
+            media_refs: r.mediaRefs,
+            logistics: r.logistics,
+            skus: r.skus.map((s) => ({
+                id: s.id, seller_sku: s.seller_sku, sale_props: s.sale_props, price: s.price, stock: s.stock,
+                package_weight: s.package_weight, package_dims: s.package_dims, warehouse_id: s.warehouse_id,
+                master_variant_id: s.master_variant_id ?? null, image_ref: s.image_ref ?? null,
+            })),
+        }));
+
+    /** Lưu toàn bộ, cập nhật lại status/lỗi từng dòng từ response. Trả về danh sách id đã 'ready'. */
+    const saveAll = async (): Promise<number[]> => {
+        setSaving(true);
+        try {
+            const results = await bulkUpdate.mutateAsync(buildBulkPayload());
+            setRows((prev) =>
+                prev
+                    ? prev.map((r) => {
+                          const res = results.find((x) => x.id === r.id);
+                          if (!res) return r;
+                          return { ...r, status: res.status, validationErrors: res.validation_errors ?? {} };
+                      })
+                    : prev,
+            );
+            return results.filter((r) => r.status === 'ready').map((r) => r.id);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleSave = async () => {
+        try {
+            const readyIds = await saveAll();
+            const total = rows?.length ?? 0;
+            message.success(`Đã lưu ${total} nháp — ${readyIds.length} sẵn sàng đẩy, ${total - readyIds.length} còn thiếu thông tin.`);
+            navigate('/marketplace/to-push');
+        } catch (e) {
+            message.error(errorMessage(e));
+        }
+    };
+
+    const handleSaveAndPush = async () => {
+        try {
+            const readyIds = await saveAll();
+            if (readyIds.length === 0) {
+                message.warning('Không có nháp nào sẵn sàng đẩy — vui lòng sửa các lỗi còn lại.');
+                return;
+            }
+            bulkPush.mutate(readyIds, {
+                onSuccess: ({ batch_id }) => {
+                    setPushBatchId(batch_id);
+                    setPushModalOpen(true);
+                },
+                onError: (e) => message.error(errorMessage(e)),
+            });
+        } catch (e) {
+            message.error(errorMessage(e));
+        }
+    };
 
     const [descRowId, setDescRowId] = useState<number | null>(null);
     const descRow = rows?.find((r) => r.id === descRowId) ?? null;
@@ -377,6 +449,12 @@ export function BulkListingEditPage() {
             <PageHeader
                 title={<Space><Button icon={<ArrowLeftOutlined />} onClick={back}>Quay lại</Button><span>Chỉnh sửa hàng loạt ({rowsMeta.length})</span></Space>}
                 subtitle="Sửa nhiều bản nháp cùng 1 sàn cùng lúc — dùng nút “Áp dụng cho tất cả” để tránh nhập lại thông tin giống nhau."
+                extra={
+                    <Space>
+                        <Button icon={<SaveOutlined />} loading={saving && !bulkPush.isPending} onClick={handleSave}>Lưu</Button>
+                        <Button type="primary" icon={<CloudUploadOutlined />} loading={saving || bulkPush.isPending} onClick={handleSaveAndPush}>Lưu & đẩy</Button>
+                    </Space>
+                }
             />
             {isLoading || !rows ? (
                 <div style={{ textAlign: 'center', padding: 48 }}><Spin /></div>
@@ -432,6 +510,18 @@ export function BulkListingEditPage() {
                             />
                         )}
                     </Drawer>
+                    <PushProgressModal
+                        batch={pushBatch}
+                        open={pushModalOpen}
+                        onHide={() => setPushModalOpen(false)}
+                        onClose={() => {
+                            setPushModalOpen(false);
+                            const succeeded = pushBatch?.succeeded ?? 0;
+                            const failed = pushBatch?.failed ?? 0;
+                            message.success(`Đẩy xong: ${succeeded} thành công${failed ? `, ${failed} lỗi` : ''}.`);
+                            navigate('/marketplace/to-push');
+                        }}
+                    />
                 </>
             )}
         </div>
