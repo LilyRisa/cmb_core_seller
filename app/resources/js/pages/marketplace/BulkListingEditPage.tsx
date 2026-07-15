@@ -150,6 +150,10 @@ export function BulkListingEditPage() {
         setRows((prev) => prev ? prev.map((r) => ({ ...r, skus: r.skus.map((s) => ({ ...s, package_weight: weight, package_dims: dims })) })) : prev);
     };
 
+    const applyWeightToAllRows = (weightKey: string, weight: number | undefined) => {
+        setRows((prev) => (prev ? prev.map((r) => ({ ...r, logistics: { ...r.logistics, [weightKey]: weight } })) : prev));
+    };
+
     const skuColumns: ColumnsType<ListingDraftSku> = [
         { title: 'SKU người bán', dataIndex: 'seller_sku', width: 160 },
         { title: 'Giá (VND)', dataIndex: 'price', width: 120 },
@@ -272,7 +276,7 @@ export function BulkListingEditPage() {
                         <InputNumber size="small" style={{ width: 90 }} min={0} step={0.1} placeholder="Khối lượng" value={w}
                             onChange={(v) => updateRow(r.id, { logistics: { ...r.logistics, [weightKey]: v == null ? undefined : Number(v) } })} />
                         <Tooltip title="Áp dụng khối lượng này cho mọi dòng đang chọn">
-                            <Button size="small" icon={<CopyOutlined />} onClick={() => applyToAllRows({ logistics: { ...r.logistics, [weightKey]: w } })} />
+                            <Button size="small" icon={<CopyOutlined />} onClick={() => applyWeightToAllRows(weightKey, w)} />
                         </Tooltip>
                     </Space>
                 );
